@@ -1336,11 +1336,17 @@ def dramaturgie_befunde(
 @_gesperrt
 def letzte_dramaturgie_runde(conn: sqlite3.Connection, chat_id: int) -> int:
     """Die hoechste bisher gelaufene Dramaturgie-Runde, oder 0. Aus den Daten
-    wie ``letzte_pruefrunde``, nicht aus einem Merkposten."""
+    wie ``letzte_pruefrunde``, nicht aus einem Merkposten.
+
+    Ueber BEIDE Tabellen (Padua Phasen TEIL 2, 03.10.2026): ein Prueflauf mit
+    Scores, aber ohne Befunde (alles schon gut) zaehlt sonst als Runde 0 und
+    wuerde von der naechsten Pruefung ueberschrieben."""
     zeile = conn.execute(
-        "SELECT MAX(runde) AS r FROM dramaturgie_befund WHERE chat_id = ? "
-        "AND entfernt_am IS NULL",
-        (chat_id,),
+        "SELECT MAX(r) AS r FROM ("
+        " SELECT MAX(runde) AS r FROM dramaturgie_befund WHERE chat_id = ? "
+        "AND entfernt_am IS NULL"
+        " UNION ALL SELECT MAX(runde) AS r FROM dramaturgie_bewertung WHERE chat_id = ?)",
+        (chat_id, chat_id),
     ).fetchone()
     return int(zeile["r"] or 0) if zeile else 0
 
@@ -1393,6 +1399,37 @@ def dramaturgie_bewertungen(
         werte.append(runde)
     sql += " ORDER BY runde ASC, id ASC"
     return conn.execute(sql, tuple(werte)).fetchall()
+
+
+@_gesperrt
+def lege_prueflauf_an(
+    conn: sqlite3.Connection, chat_id: int, *, phase: int, ziel: str,
+    szene_nummer: int | None, fragen: str, runden: int,
+    ueberarbeitungen: int, auftraege_je_runde: str,
+    zweite_runde_mit_auftraegen: bool, grund: str,
+    verworfen: str | None, dauer_ms: int,
+) -> int:
+    """Protokolliert EINEN Prueflauf vor seiner Anzeige (Padua Phasen TEIL 2,
+    03.10.2026) -- Rundenzahl, Dauer, ob die zweite Pruefung noch Auftraege
+    hatte. Die Messgrundlage fuer ``schleife.RUNDEN_MAX``."""
+    cur = conn.execute(
+        "INSERT INTO prueflauf (chat_id, phase, ziel, szene_nummer, fragen, runden,"
+        " ueberarbeitungen, auftraege_je_runde, zweite_runde_mit_auftraegen, grund,"
+        " verworfen, dauer_ms, erstellt_am) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (chat_id, phase, ziel, szene_nummer, fragen, runden, ueberarbeitungen,
+         auftraege_je_runde, 1 if zweite_runde_mit_auftraegen else 0, grund,
+         verworfen, dauer_ms, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def prueflaeufe(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle Prueflaeufe einer Gruppe, aelteste zuerst."""
+    return conn.execute(
+        "SELECT * FROM prueflauf WHERE chat_id = ? ORDER BY id", (chat_id,)
+    ).fetchall()
 
 
 @_gesperrt
@@ -1743,6 +1780,10 @@ _ARBEITSSTAND_FELDER = (
     # derselbe eine Schreibweg wie alles andere im Arbeitsstand.
     "geschichte_uebersicht", "geschichte_uebersicht_szenen",
     "geschichte_uebersicht_fixiert_am",
+    # Padua Phasen TEIL 2 (03.10.2026): Phase 6.1 (Gesamttext) und 7.2
+    # (Sprechweisen) abgenommen -- derselbe eine Schreibweg wie alles andere
+    # im Arbeitsstand.
+    "gesamttext_fixiert_am", "sprechweisen_fixiert_am",
 )
 
 
@@ -2533,6 +2574,19 @@ def setze_szene_entwurf_bestaetigt(
 
 
 @_gesperrt
+def setze_szene_ueberarbeitung_bestaetigt(
+    conn: sqlite3.Connection, szene_id: int, wann: str | None = None
+) -> None:
+    """Markiert die Ueberarbeitung einer Szene als abgenommen (Padua Phasen
+    TEIL 2, Phase 6.2/7) -- dieselbe Bauart wie ``setze_szene_entwurf_bestaetigt``."""
+    conn.execute(
+        "UPDATE szene SET ueberarbeitung_bestaetigt_am = ? WHERE id = ?",
+        (wann or _jetzt_genau(), szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def hole_szenen(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     """Alle Szenen einer Gruppe, nach Szenennummer sortiert (SPEC § 6.2 Block 4:
     die Szenenliste im Arbeitsstand). Eine Szene ohne Nummer sortiert in SQLite
@@ -2792,6 +2846,41 @@ def szenenfassungen(conn: sqlite3.Connection, szene_id: int) -> list[sqlite3.Row
         "SELECT * FROM szenenfassung WHERE szene_id = ? ORDER BY nummer ASC, id ASC",
         (szene_id,),
     ).fetchall()
+
+
+@_gesperrt
+def letzte_szenenfassung(conn: sqlite3.Connection, szene_id: int) -> sqlite3.Row | None:
+    """Die zuletzt angehaengte Fassung einer Szene, oder None (Padua Phasen
+    TEIL 2: der Prueflauf vergleicht sie gegen ``erstentwurf_text``)."""
+    return conn.execute(
+        "SELECT * FROM szenenfassung WHERE szene_id = ? "
+        "ORDER BY nummer DESC, id DESC LIMIT 1",
+        (szene_id,),
+    ).fetchone()
+
+
+@_gesperrt
+def setze_szene_erstentwurf(conn: sqlite3.Connection, szene_id: int, fassung_nummer: int) -> None:
+    """Merkt, welche ``szenenfassung``-Nummer die Erstfassung dieser Szene war
+    (Padua Phasen TEIL 2, "Show first draft") -- gesetzt genau einmal, vor dem
+    ersten Prueflauf."""
+    conn.execute(
+        "UPDATE szene SET erstentwurf_fassung = ? WHERE id = ?",
+        (int(fassung_nummer), szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def erstentwurf_text(conn: sqlite3.Connection, szene_id: int) -> str | None:
+    """Der Volltext der Erstfassung, oder None ohne ``erstentwurf_fassung``."""
+    zeile = conn.execute(
+        "SELECT f.volltext FROM szene s JOIN szenenfassung f"
+        " ON f.szene_id = s.id AND f.nummer = s.erstentwurf_fassung"
+        " WHERE s.id = ? ORDER BY f.id DESC LIMIT 1",
+        (szene_id,),
+    ).fetchone()
+    return zeile["volltext"] if zeile else None
 
 
 @_gesperrt

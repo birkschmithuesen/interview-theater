@@ -285,3 +285,81 @@ def test_der_zustandstext_steht_neben_dem_knopf_nicht_darin(js):
 def test_die_zustandstexte_kommen_aus_den_mikrotexten(js):
     for schluessel in ("rec_ruht", "rec_startet", "rec_laeuft", "rec_laedt"):
         assert schluessel in js, schluessel
+
+
+# -- Die Momente -------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_akt_moment_ist_kurz(name):
+    """Hoechstens ~600 ms: laenger ist keine Zutat mehr, sondern eine
+    Wartezeit."""
+    takt = int(web_gestalt.TOKENS[name]["takt-moment"].removesuffix("ms"))
+    assert takt <= 600, takt
+
+
+def test_a_glitcht_und_b_zieht_einen_vorhang():
+    """**Abweichung vom Brief, begruendet:** ``_KEYFRAMES_CSS`` definiert
+    seit Aufgabe 3 IMMER beide Keyframes (``ux-glitch`` UND ``ux-vorhang``)
+    fuer jeden Entwurf -- ``test_jede_benutzte_animation_ist_auch_definiert``
+    verlangt ``set(KEYFRAMES) == definiert`` je Entwurf, und das Element
+    traegt in beiden Entwuerfen dieselbe ID ``#ux-vorhang`` (dasselbe JS,
+    siehe ``_JS_MOMENT``). Die blosse Textsuche nach ``"ux-vorhang"`` waere
+    also in JEDEM Entwurf wahr und koennte nie scheitern -- das ist kein
+    Beweis fuer die Abweichung, nur fuer die (immer vorhandene)
+    Keyframe-Definition und die geteilte ID. Geprueft wird deshalb, WELCHE
+    Animation am Overlay haengt (``[data-an="1"] { animation: … }``), denn
+    genau das ist der tatsaechliche Unterschied zwischen Glitch und
+    Vorhang."""
+    assert "animation: ux-glitch" in web_gestalt.css_rahmen("a")
+    assert "animation: ux-vorhang" in web_gestalt.css_rahmen("b")
+    assert "animation: ux-vorhang" not in web_gestalt.css_rahmen("a")
+    assert "animation: ux-glitch" not in web_gestalt.css_rahmen("b")
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_moment_liegt_ueber_allem_und_faengt_nichts_ab(name):
+    """Ein Overlay, durch das man nicht tippen kann, waere ein halber
+    Ausfall, wenn das Skript haengt."""
+    css = web_gestalt.css_rahmen(name)
+    block = re.search(r"#ux-vorhang\s*\{([^}]*)\}", css, flags=re.S).group(1)
+    assert "pointer-events: none" in block
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_die_belohnung_ist_klein_und_verschwindet(name):
+    css = web_gestalt.css_rahmen(name)
+    assert "#ux-belohnung" in css
+    assert "#ux-belohnung[hidden]" in css
+
+
+def test_der_moment_haengt_am_bestaetigenden_druck(js):
+    """Karte W schreibt beim ersten Druck die Rueckfrage in den Knopf
+    (``data-sicher``); der Moment gehoert zum ZWEITEN."""
+    assert "data-sicher" in js or "uxSicher" in js or "dataset.sicher" in js
+    assert "phase-knopf" in js
+
+
+def test_der_moment_faengt_den_klick_nicht_ab(js):
+    """Karte W muss denselben Klick weiterhin sehen -- sonst wechselt die
+    Phase gar nicht, und der Vorhang faellt vor eine leere Buehne."""
+    assert "preventDefault" not in js or "ptt" in js  # nur PTT darf das
+    assert "stopPropagation" not in js
+
+
+def test_bei_reduzierter_bewegung_bleibt_nur_die_ansage(js):
+    assert "RUHIG" in js
+    assert "ux-ansage" in js
+
+
+def test_die_belohnungen_kommen_ohne_neuen_serverschluessel_aus(js):
+    """Die Karte erlaubt einen additiven read-only-Schluessel im Poll --
+    gebraucht wird er nicht. Beide Belohnungen fallen aus dem DOM."""
+    assert "ux-belohnung" in js
+    assert "fetch(" not in js
+    assert "EventSource" not in js
+
+
+def test_die_belohnungstexte_kommen_aus_den_mikrotexten(js):
+    for schluessel in ("belohnung_akt", "belohnung_aufnahme"):
+        assert schluessel in js, schluessel

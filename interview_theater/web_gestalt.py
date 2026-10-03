@@ -69,7 +69,7 @@ UMGEBUNG = "IT_UX_ENTWURF"
 FARBTOKENS = frozenset({
     "grund", "grund-2", "grund-3", "linie", "rand",
     "text", "text-leise", "signal", "signal-tief", "auf-signal",
-    "warn", "auf-warn", "rec", "auf-rec",
+    "warn", "auf-warn", "rec", "auf-rec", "vorhang-1", "vorhang-2",
 })
 
 #: System-Schriftstacks. Kein Webfont (siehe Modulkopf).
@@ -115,6 +115,8 @@ TOKENS: dict[str, dict[str, str]] = {
         "schrift-skript": _SERIF,
         "takt-schnell": "90ms",
         "takt-moment": "520ms",
+        "vorhang-1": "#1b3a2a",   # A: unbenutzt, aber gesetzt
+        "vorhang-2": "#0c1116",
     },
     # -- B: Buehne zuerst -- Amber auf Samtschwarz, Serife fuer alles
     #    Gelesene, Aktleiste und Tabs oben, runder Scheinwerferknopf.
@@ -143,6 +145,8 @@ TOKENS: dict[str, dict[str, str]] = {
         "schrift-skript": _SERIF,
         "takt-schnell": "90ms",
         "takt-moment": "560ms",
+        "vorhang-1": "#2a0f14",   # B: der Samt des Vorhangs
+        "vorhang-2": "#3a161c",
     },
 }
 
@@ -241,6 +245,8 @@ BEWEGT = (
     "#ux-vorhang",
     "#ux-ansage",
     "#ux-belohnung",
+    '#ux-vorhang[data-an="1"]',
+    '#ux-belohnung[data-an="1"]',
     "#interview",
     "#interview::before",
     "#pegel span",
@@ -513,10 +519,59 @@ header { position: sticky; top: 0; z-index: 4; background: var(--grund);
                background: var(--signal); }
 .ux-akt { color: var(--warn); letter-spacing: .1em; margin-right: .4rem; }
 """
-#: Gefuellt in Aufgabe 9.
-_MOMENTE_A = ""
-_MOMENTE_B = ""
-_BELOHNUNG = ""
+#: Der Aktwechsel, Entwurf A: ein Glitch. Scanlines springen, der Aktname
+#: steht in Versalien darueber. ``pointer-events: none``, damit ein
+#: haengendes Skript die Bedienung nicht blockiert.
+_MOMENTE_A = """
+#ux-vorhang { position: fixed; inset: 0; z-index: 9; pointer-events: none;
+              opacity: 0; background: repeating-linear-gradient(to bottom,
+                rgba(110, 247, 165, .30) 0 2px, rgba(5, 7, 10, .92) 2px 5px); }
+#ux-vorhang[data-an="1"] { animation: ux-glitch var(--takt-moment) steps(6) 1; }
+#ux-ansage { position: fixed; inset: 0; z-index: 10; display: grid;
+             place-items: center; pointer-events: none; }
+#ux-ansage[hidden] { display: none; }
+#ux-ansage b { font-family: var(--schrift-tech); font-size: 1.5rem;
+               letter-spacing: .3em; text-transform: uppercase;
+               color: var(--signal); background: var(--grund);
+               border: 1px solid var(--signal); padding: .8rem 1.2rem; }
+"""
+
+#: Der Aktwechsel, Entwurf B: ein Vorhang. Er faellt von oben und geht
+#: wieder hoch -- dieselbe Dauer, andere Metapher.
+_MOMENTE_B = """
+#ux-vorhang { position: fixed; inset: 0; z-index: 9; pointer-events: none;
+              transform: translateY(-101%);
+              background: repeating-linear-gradient(to right,
+                var(--vorhang-1) 0 1.1rem, var(--vorhang-2) 1.1rem 2.2rem); }
+#ux-vorhang[data-an="1"] { animation: ux-vorhang var(--takt-moment) ease-in-out 1; }
+#ux-ansage { position: fixed; inset: 0; z-index: 10; display: grid;
+             place-items: center; pointer-events: none; }
+#ux-ansage[hidden] { display: none; }
+#ux-ansage b { font-family: var(--schrift-skript); font-size: 1.7rem;
+               letter-spacing: .12em; color: var(--signal);
+               background: var(--grund);
+               border-top: 1px solid var(--signal);
+               border-bottom: 1px solid var(--signal); padding: .7rem 1.4rem; }
+"""
+
+#: Die Belohnung: klein, einmal, verschwindet von selbst.
+#:
+#: ``aria-live="polite"`` statt ``alert``: sie unterbricht nichts. Und
+#: sie liegt UEBER dem Fuss, nicht darin -- der Fuss gehoert dem
+#: Aufnahmeknopf, und ein Kasten, der ihn verschiebt, waere genau die
+#: Art Bewegung, die man beim Tippen nicht will.
+_BELOHNUNG = """
+#ux-belohnung { position: fixed; left: .75rem; right: .75rem; z-index: 8;
+                bottom: calc(var(--tabs-hoehe) + 13.5rem);
+                margin: 0 auto; max-width: 44rem;
+                background: var(--grund-2); border: 1px solid var(--signal);
+                border-left: 4px solid var(--signal);
+                border-radius: var(--radius-gross); padding: .6rem .7rem; }
+#ux-belohnung[hidden] { display: none; }
+#ux-belohnung b { color: var(--signal); letter-spacing: .05em; }
+#ux-belohnung p { margin: .2rem 0 0; font-size: .9rem; color: var(--text-leise); }
+#ux-belohnung[data-an="1"] { animation: ux-auftritt 260ms ease-out 1; }
+"""
 #: Der Chat, Entwurf A: Terminal. Monospace, Phosphor als Rahmenfarbe der
 #: Bot-Blase, eine Kennzeile `bot ~ $` darueber. Die Blase der Gruppe
 #: sitzt rechts auf einer tiefen Signalflaeche.
@@ -935,6 +990,110 @@ _JS_AUFNAHME = """
 """
 
 
+#: Baustein 4: der Aktwechsel und die zwei Belohnungen.
+#:
+#: **Der Moment haengt sich AN den Klick von Karte W, er ersetzt ihn
+#: nicht.** Kein preventDefault, kein stopPropagation -- sonst faellt der
+#: Vorhang vor eine leere Buehne, weil der POST nie rausgeht.
+#:
+#: **Keine Belohnung braucht einen Serverschluessel.** Beide fallen aus
+#: dem DOM: der Aktwechsel aus dem bestaetigenden Druck, das fertige
+#: Interview aus dem Wechsel von ``data-interview`` samt leerer
+#: Warteschlange. Eine dritte ("Szene fertig") ist bewusst NICHT gebaut --
+#: sie muesste aus einem Blasentext erraten werden, und Raten ist genau
+#: das, was dieses Projekt anderswo abgeschafft hat.
+_JS_MOMENT = """
+  (function momente() {
+    var vorhang = document.createElement('div');
+    vorhang.id = 'ux-vorhang';
+    vorhang.setAttribute('aria-hidden', 'true');
+    var ansage = document.createElement('div');
+    ansage.id = 'ux-ansage';
+    ansage.setAttribute('aria-hidden', 'true');
+    ansage.hidden = true;
+    var name = document.createElement('b');
+    ansage.appendChild(name);
+    var kasten = document.createElement('div');
+    kasten.id = 'ux-belohnung';
+    kasten.hidden = true;
+    kasten.setAttribute('aria-live', 'polite');
+    var kopf = document.createElement('b');
+    var satz = document.createElement('p');
+    kasten.appendChild(kopf);
+    kasten.appendChild(satz);
+    document.body.appendChild(vorhang);
+    document.body.appendChild(ansage);
+    document.body.appendChild(kasten);
+
+    var belohnungTakt = null;
+    var belohne = function (titel, text) {
+      if (!titel) { return; }
+      kopf.textContent = titel;
+      satz.textContent = text || '';
+      kasten.hidden = false;
+      kasten.dataset.an = '1';
+      if (belohnungTakt) { clearTimeout(belohnungTakt); }
+      belohnungTakt = setTimeout(function () {
+        kasten.hidden = true;
+        kasten.dataset.an = '0';
+      }, 4200);
+    };
+
+    var moment = function (titel) {
+      name.textContent = titel || '';
+      if (RUHIG) {
+        // Kein Effekt -- die Ansage allein, und die bleibt lesbar stehen.
+        ansage.hidden = false;
+        setTimeout(function () { ansage.hidden = true; }, 900);
+        return;
+      }
+      vorhang.dataset.an = '1';
+      setTimeout(function () { ansage.hidden = false; },
+                 MOMENT === 'vorhang' ? Math.round(TAKT_MOMENT * 0.35) : 0);
+      setTimeout(function () {
+        vorhang.dataset.an = '0';
+        ansage.hidden = true;
+      }, TAKT_MOMENT + 40);
+    };
+
+    // Der ZWEITE Druck auf einen Akt-Knopf: Karte W hat beim ersten die
+    // Rueckfrage hineingeschrieben (data-sicher="1").
+    document.addEventListener('click', function (ev) {
+      var knopf = ev.target.closest ? ev.target.closest('.phase-knopf') : null;
+      if (!knopf || knopf.dataset.sicher !== '1') { return; }
+      var vorher = document.querySelector('.phase.aktiv .phase-knopf');
+      moment(knopf.dataset.bezeichnung || '');
+      if (vorher && vorher !== knopf) {
+        belohne(TEXTE.belohnung_akt, (TEXTE.belohnung_akt_satz || '')
+          .replace('{akt}', (vorher.dataset.bezeichnung || '')));
+      }
+    });
+
+    // Ein Interview ist eingetroffen: data-interview 1 -> 0, und die
+    // Warteschlange ist leer.
+    var fuss = el('fuss');
+    var warte = el('warteschlange');
+    if (!fuss) { return; }
+    var lief = fuss.dataset.interview === '1';
+    var pruefe = function () {
+      var an = fuss.dataset.interview === '1';
+      var laden = !!(warte && (warte.textContent || '').trim());
+      if (lief && !an && !laden) {
+        belohne(TEXTE.belohnung_aufnahme, TEXTE.belohnung_aufnahme_satz);
+        lief = false;
+      }
+      if (an) { lief = true; }
+    };
+    new MutationObserver(pruefe).observe(
+      fuss, { attributes: true, attributeFilter: ['data-interview'] });
+    if (warte) {
+      new MutationObserver(pruefe).observe(
+        warte, { childList: true, characterData: true, subtree: true });
+    }
+  })();
+"""
+
+
 def skript(name: str | None = None, *, chat_vorhanden: bool = True) -> str:
     """Das Effekt-JS mit eingesetzten Werten.
 
@@ -963,10 +1122,10 @@ def skript(name: str | None = None, *, chat_vorhanden: bool = True) -> str:
     )
 
 
-#: Gefuellt in den Aufgaben 5 bis 9. Baustein 1 (Denk-Zustand, Aufgabe 5),
-#: Baustein 2 (Fortschritt, Aufgabe 7) und Baustein 3 (Aufnahmeknoepfe,
-#: Aufgabe 8) stehen bereits, die weiteren haengen hier an.
-_BAUSTEINE = _JS_DENKT + _JS_FORTSCHRITT + _JS_AUFNAHME
+#: Baustein 1 (Denk-Zustand, Aufgabe 5), Baustein 2 (Fortschritt, Aufgabe 7),
+#: Baustein 3 (Aufnahmeknoepfe, Aufgabe 8) und Baustein 4 (Momente,
+#: Aufgabe 9) -- alle vier Bausteine sind damit gefuellt.
+_BAUSTEINE = _JS_DENKT + _JS_FORTSCHRITT + _JS_AUFNAHME + _JS_MOMENT
 
 
 def _mikrotexte() -> dict[str, str]:
@@ -978,11 +1137,17 @@ def _mikrotexte() -> dict[str, str]:
 
     Die vier ``rec_*``-Zeilen (Aufgabe 8, der zweiten Zeile neben dem
     Aufnahmeknopf -- ``_JS_AUFNAHME`` liest ``TEXTE['rec_' + zustand]``)
-    stehen schon hier; der Rest der Mikrotexte wird in Aufgabe 11
-    gefuellt."""
+    stehen schon hier. Dazu die vier ``belohnung_*``-Zeilen (Aufgabe 9,
+    ``_JS_MOMENT``): Titel und Satz je Belohnung, der Satz mit
+    ``{akt}``-Platzhalter fuer den Namen des abgeschlossenen Akts. Der
+    Rest der Mikrotexte wird in Aufgabe 11 gefuellt."""
     return {
         "rec_ruht": "",
         "rec_startet": "Starting …",
         "rec_laeuft": "Mic is hot.",
         "rec_laedt": "Sending …",
+        "belohnung_akt": "Act in the can.",
+        "belohnung_akt_satz": "{akt} is wrapped. On to the next scene.",
+        "belohnung_aufnahme": "Interview captured.",
+        "belohnung_aufnahme_satz": "Safely backstage -- ready whenever you are.",
     }

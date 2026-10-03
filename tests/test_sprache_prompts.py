@@ -386,12 +386,23 @@ def test_alle_prompts_sind_uebersetzt():
 _JUDGE = ["a2_kausalkette", "a6_tschechow", "a9_fokus", "a10_materialtreue",
           "a11_stueckvorgaben", "b1_wendung", "c1_stimme"]
 
+#: EN-Versionsspruenge ohne deutsches Gegenstueck (Padua Phasen TEIL 2,
+#: 03.10.2026): die deutsche Datei bleibt wegen der Dortmund-Bitgleichheit
+#: unangetastet, auch wenn nur die englische Fassung praeziser formuliert
+#: wird. Name -> die volle erste Zeile der englischen Datei.
+VERSION_AUSNAHMEN: dict[str, str] = {
+    "a9_fokus": "prompt_version: a9-2026-10-03-1-en",
+}
+
 
 @pytest.mark.parametrize("name", _JUDGE)
 def test_judge_version_bleibt_erste_zeile_mit_suffix_en(name):
     deutsch = (REPO / "dramaturgie" / f"{name}.md").read_text(encoding="utf-8")
     englisch = (EN / "dramaturgie" / f"{name}.md").read_text(encoding="utf-8")
     erste_de = deutsch.splitlines()[0]
+    if name in VERSION_AUSNAHMEN:
+        assert englisch.splitlines()[0] == VERSION_AUSNAHMEN[name]
+        return
     assert englisch.splitlines()[0] == erste_de + "-en"
 
 

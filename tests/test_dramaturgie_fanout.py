@@ -1240,3 +1240,29 @@ def test_a11_parameterbefund_geht_nicht_an_den_schreiber():
     }]
 
     assert fanout.auftraege(befunde) == []
+
+
+# --- Teilmengen (Padua Phasen TEIL 2, fuer scripts/prueflauf.py) ---------
+
+
+def test_pruefe_nur_teilmenge_der_fragen_und_szenen(stueck, einst):
+    richter = _voller_richter()
+    fanout.pruefe(stueck, einst, None, 1, richter=richter,
+                  fragen=("b1", "a10"), szenen=(2,), mechanik=False)
+    arten = {art for art, _system, _nutzer in richter.gesehen}
+    assert arten <= {fanout.ARTEN["b1"], fanout.ARTEN["a10"]}
+    # B1 lief genau einmal: nur fuer Szene 2
+    assert sum(1 for a, *_ in richter.gesehen if a == fanout.ARTEN["b1"]) == 1
+
+
+def test_pruefe_ohne_mechanik_schreibt_keine_mechanikbefunde(stueck, einst):
+    erg = fanout.pruefe(stueck, einst, None, 1, richter=_voller_richter(),
+                        fragen=("a2",), mechanik=False)
+    assert all(b.get("quelle") != "mechanik" for b in erg.befunde)
+
+
+def test_pruefe_ohne_auswahl_wie_bisher(stueck, einst):
+    richter = _voller_richter()
+    fanout.pruefe(stueck, einst, None, 1, richter=richter)
+    arten = {art for art, *_ in richter.gesehen}
+    assert fanout.ARTEN["b1"] in arten and fanout.ARTEN["a2"] in arten

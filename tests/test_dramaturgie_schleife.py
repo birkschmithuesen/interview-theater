@@ -237,6 +237,64 @@ def test_ein_gefallener_score_bricht_die_schleife_ab(stueck, einst, tg):
     ]
 
 
+def test_verschlechterung_in_runde_zwei_behaelt_die_bessere_fassung(stueck, einst, tg):
+    """Birk 03.10.2026: Abbruch, wenn eine Bewertung faellt -- dann bleibt
+    die bessere (fruehere) Fassung stehen, nicht die schlechtere."""
+    vorher = repo.hole_szenen(stueck, 1)
+    text_r1 = {s["nummer"]: s["volltext"] for s in vorher}
+    # Wie test_ein_gefallener_score_bricht_die_schleife_ab: die
+    # Ueberarbeitung von Szene 1 macht Szene 2 kaputt (Score 2 -> 0).
+    plan = {("b1", 1): [0, 2], ("b1", 2): [2, 0]}
+
+    ergebnis = schleife.schliesse(
+        stueck, tg, None, einst, 1, richter=Rundenrichter(plan),
+        schreiber=Schreibattrappe(stueck), behalte_bessere=True,
+    )
+
+    assert ergebnis.grund == schleife.GRUND_GESCHADET
+    assert ergebnis.wiederhergestellt is True
+    nachher = {s["nummer"]: s["volltext"] for s in repo.hole_szenen(stueck, 1)}
+    assert nachher == text_r1          # die bessere, fruehere Fassung steht wieder
+    assert MARKE not in "".join(nachher.values())
+
+
+def test_ohne_behalte_bessere_bleibt_es_wie_bisher(stueck, einst, tg):
+    """Ohne ``behalte_bessere`` aendert sich am bisherigen Verhalten nichts:
+    die schlechtere Fassung bleibt stehen."""
+    plan = {("b1", 1): [0, 2], ("b1", 2): [2, 0]}
+
+    ergebnis = schleife.schliesse(
+        stueck, tg, None, einst, 1, richter=Rundenrichter(plan),
+        schreiber=Schreibattrappe(stueck),
+    )
+
+    assert ergebnis.grund == schleife.GRUND_GESCHADET
+    assert ergebnis.wiederhergestellt is False
+    nachher = {s["nummer"]: s["volltext"] for s in repo.hole_szenen(stueck, 1)}
+    assert MARKE in "".join(nachher.values() or [""])
+
+
+def test_teilmenge_geht_an_fanout_durch(stueck, einst, tg, monkeypatch):
+    """``fragen``, ``szenen`` und ``mechanik`` reichen bis in ``fanout.pruefe``
+    durch -- die Schleife baut keine eigene Teilmengenlogik."""
+    gesehen: dict = {}
+    echt = fanout.pruefe
+
+    def spion(*a, **k):
+        gesehen.update(k)
+        return echt(*a, **k)
+
+    monkeypatch.setattr(fanout, "pruefe", spion)
+    schleife.schliesse(
+        stueck, tg, None, einst, 1, richter=Rundenrichter({}),
+        schreiber=Schreibattrappe(stueck), fragen=("b1",), szenen=(1,),
+        mechanik=False,
+    )
+
+    assert gesehen["fragen"] == ("b1",) and gesehen["szenen"] == (1,)
+    assert gesehen["mechanik"] is False
+
+
 def test_die_verschlechterung_wird_sichtbar_vermerkt(stueck, einst, tg):
     """Sichtbar heisst nicht "steht irgendwo in einer Bilanz": das Dashboard
     soll sie zeigen, ohne dass jemand den Bericht liest."""

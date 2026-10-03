@@ -361,15 +361,40 @@ def _css_schale(gewaehlt: str) -> str:
     Beide Regressionen waren an rein textlichen CSS-Tests unsichtbar und
     nur am echten, gerenderten Layout zu finden; Belege und Zahlen stehen
     in ``docs/ux-padua/BERICHT.md``, Abschnitt „Mobile-App-Shell,
-    Nachbesserung 03.10."."""
+    Nachbesserung 03.10.".
+
+    **Kopfzeilen-Karte (03.10.2026), zwei weitere Nachbesserungen hier,
+    gemessen am echten Chromium, nicht am CSS-Text:**
+
+    1. ``.roadmap`` bekommt hier zusaetzlich ``width: 100%; margin: 0``.
+       ``_CSS_VEREINT``s ``.roadmap { max-width: 44rem; margin: 0 auto .6rem; }``
+       zentriert das Element sonst ueber automatische Seitenraender --
+       zusammen mit ``align-items: stretch`` auf ``body`` (oben) sizt der
+       Browser ein Flex-Kind mit Auto-Raendern dann nicht mehr auf die
+       verfuegbare Breite, sondern auf seinen eigenen Inhalt: sobald die
+       neue, geflexte Kopfzeile (``.roadmap-kopf`` + Fortschrittslichter +
+       "Next up") mehr Platz wollte als der Bildschirm hatte, wuchs
+       ``.roadmap`` selbst ueber 390px hinaus statt dass seine Kinder
+       schrumpften -- gemessen 624px breit auf einem 390px-Geraet, "Next
+       up" dabei komplett ausserhalb des sichtbaren Bereichs.
+    2. ``.roadmap summary`` verliert hier ihr ``padding: .6rem .3rem`` aus
+       ``_CSS_VEREINT`` (vor der einzeiligen, geflexten Kopfzeile bemessen)
+       und bekommt stattdessen die feste Hoehe ``var(--tippflaeche)``
+       (44px, dasselbe Tippziel-Mass wie ueberall sonst). Mit dem alten
+       Polster plus der ohnehin 44px hohen Tastflaeche (``.roadmap >
+       summary`` aus ``_ROADMAP``) kam Kopf + Tableiste zusammen auf gemessen
+       ueber 110px statt der verlangten 96px.
+    """
     tabs_reihenfolge = "order: 5;" if gewaehlt == "a" else "order: 1;"
     return f"""
 html {{ height: 100%; overflow-x: hidden; }}
 body {{ display: flex; flex-direction: column; align-items: stretch;
         margin: 0 auto; padding: 1rem 0 0; overflow: hidden;
         height: 100vh; height: 100dvh; height: var(--vh, 100dvh); }}
-.roadmap {{ flex: 0 0 auto; order: 0; min-width: 0;
+.roadmap {{ flex: 0 0 auto; order: 0; min-width: 0; width: 100%; margin: 0;
             padding-left: 1.2rem; padding-right: 1.2rem; }}
+.roadmap summary {{ padding-top: 0; padding-bottom: 0;
+                    min-height: auto; height: var(--tippflaeche); }}
 .tabs {{ position: static; flex: 0 0 auto; min-width: 0; {tabs_reihenfolge}
          padding-left: 1.2rem; padding-right: 1.2rem;
          padding-bottom: calc(.3rem + env(safe-area-inset-bottom)); }}
@@ -1215,7 +1240,7 @@ def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
         # jedem Roadmap-Takt, um den CoThinker-Tab (Button + Panel) ein-
         # und auszublenden, OHNE auf ein volles Neuladen zu warten.
         f'<details class="roadmap" id="roadmap" data-aktive-phase="{aktiv["nummer"]}">'
-        f'<summary>{html.escape(kopf)}</summary>'
+        f'<summary><span class="roadmap-kopf">{html.escape(kopf)}</span></summary>'
         f'<ol class="phasen">{"".join(zeilen)}</ol>'
         f'</details>\n'
     )

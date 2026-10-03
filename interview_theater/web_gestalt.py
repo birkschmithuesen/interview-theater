@@ -394,9 +394,50 @@ _KEYFRAMES_CSS = """
 }
 """
 
-#: Gefuellt in Aufgabe 6.
-_TABS_A = ""
-_TABS_B = ""
+#: Tableiste, Entwurf A: UNTEN, am Daumen. Auf einem Telefon im Stehen
+#: ist das untere Drittel die einzige Flaeche, die eine Hand erreicht --
+#: und die Gruppe wechselt oft zwischen Chat und Textbuch.
+#:
+#: Die Leiste liegt UNTER dem Fuss des Chats, deshalb bekommt der Fuss
+#: ``bottom: var(--tabs-hoehe)``. In B ist dieses Token ``0rem``, und
+#: dieselbe Regel kostet dort nichts.
+_TABS_A = """
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 7;
+        margin: 0 auto; max-width: 46rem; height: var(--tabs-hoehe);
+        display: flex; background: var(--grund-3);
+        border-top: 1px solid var(--linie); }
+.tabs button { flex: 1; min-height: var(--tabs-hoehe); border: 0;
+               background: transparent; color: var(--text-leise);
+               font-family: var(--schrift-tech); font-size: .8rem;
+               letter-spacing: .08em; text-transform: uppercase; }
+.tabs button[aria-selected="true"] { color: var(--signal);
+                                     background: var(--grund-2);
+                                     box-shadow: inset 0 2px 0 var(--signal); }
+.tabs button { transition: color var(--takt-schnell) linear; }
+.fuss { bottom: var(--tabs-hoehe); z-index: 6; }
+body { padding-bottom: calc(var(--tabs-hoehe) + 12.5rem); }
+body:not([data-tab="chat"]) .fuss { display: none; }
+"""
+
+#: Tableiste, Entwurf B: OBEN, unter der Aktleiste -- zusammen ein
+#: Programmzettel. Der Fuss traegt dort den runden Aufnahmeknopf und
+#: braucht die ganze untere Kante fuer sich.
+_TABS_B = """
+.tabs { position: sticky; top: 0; z-index: 7; display: flex; gap: .2rem;
+        padding: 0 .55rem; background: var(--grund);
+        border-bottom: 1px solid var(--linie); }
+.tabs button { flex: 1; min-height: var(--tippflaeche); border: 0;
+               border-bottom: 3px solid transparent; background: transparent;
+               color: var(--text-leise);
+               font-family: var(--schrift-skript); font-size: 1rem;
+               padding: .35rem .2rem .45rem; }
+.tabs button[aria-selected="true"] { color: var(--signal);
+                                     border-bottom-color: var(--signal); }
+.tabs button { transition: color var(--takt-schnell) linear; }
+.fuss { bottom: var(--tabs-hoehe); z-index: 6; }
+body { padding-bottom: 13rem; }
+body:not([data-tab="chat"]) .fuss { display: none; }
+"""
 #: Gefuellt in Aufgabe 7.
 _ROADMAP = ""
 #: Gefuellt in Aufgabe 9.
@@ -476,8 +517,31 @@ _CHAT_B = """
 #tippt[data-ux-denkt="1"]::after { content: "\\258D";
                                    animation: ux-blinken 1s steps(2) infinite; }
 """
-#: Gefuellt in Aufgabe 6.
-_STAND = ""
+#: Der Arbeitsstand: eine Karte je Feld. Die Formulare der Gruppenseite
+#: (``web._rahmen``, ``_textfeld``, ``_dropdown``) bleiben, wie sie sind --
+#: gestaltet werden nur Flaeche, Rand und Beschriftung.
+_STAND = """
+[data-feld] { background: var(--grund-2); border: 1px solid var(--linie);
+              border-radius: var(--radius); padding: .55rem .65rem;
+              margin: 0 0 .5rem; }
+dt { font-family: var(--schrift-tech); font-size: .72rem; letter-spacing: .1em;
+     text-transform: uppercase; color: var(--text-leise); opacity: 1; }
+dd { margin: .15rem 0 0; }
+input[type="text"], textarea, select { font: inherit; color: var(--text);
+     background: var(--grund-3); border: 1px solid var(--rand);
+     border-radius: var(--radius); min-height: var(--tippflaeche);
+     padding: .45rem .6rem; width: 100%; }
+button { font: inherit; min-height: var(--tippflaeche);
+         background: var(--grund-3); color: var(--text);
+         border: 1px solid var(--rand); border-radius: var(--radius);
+         padding: .4rem .8rem; }
+blockquote { border-left: 2px solid var(--warn); color: var(--warn);
+             font-family: var(--schrift-skript); font-style: italic; }
+.art { background: var(--grund-3); color: var(--text-leise);
+       border-radius: 1rem; }
+details > summary { min-height: var(--tippflaeche); display: flex;
+                    align-items: center; cursor: pointer; }
+"""
 #: Gefuellt in Aufgabe 10.
 _SKRIPT_A = ""
 _SKRIPT_B = ""

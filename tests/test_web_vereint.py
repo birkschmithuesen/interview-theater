@@ -211,7 +211,17 @@ def test_telegram_gruppe_hat_kein_chat_panel(aufbau_telegram):
     assert 'id="interview"' not in text
     assert 'id="ptt"' not in text
     # Kein Chat-Tab in der Leiste, und kein Chat-Skript im Dokument.
-    assert 'data-tab="chat"' not in text
+    #
+    # Aufgabe 6 (UX): ``web_gestalt.css_rahmen()`` haengt seit dieser Karte
+    # IMMER (auch ohne Chat-Panel) die Regel
+    # ``body:not([data-tab="chat"]) .fuss { display: none; }`` an -- eine
+    # blosse Teilstring-Suche nach ``data-tab="chat"`` traefe also auch
+    # diesen CSS-Selektor, der kein Markup ist und bei einer
+    # Telegram-Gruppe (kein ``.fuss``-Element) wirkungslos bleibt. Geprueft
+    # wird deshalb gegen den tatsaechlichen Knopf
+    # (``_tabs_html``: ``data-tab="{tab}" aria-selected=...``), nicht gegen
+    # die blosse Attributerwaehnung.
+    assert 'data-tab="chat" aria-selected' not in text
     assert "warteschlange" not in text  # Marker aus web_chat._js()
 
 

@@ -115,3 +115,60 @@ def test_nur_entwurf_a_kennzeichnet_die_bot_blase():
     Gruppe wie Repliken -- durch Ausrichtung und Flaeche."""
     assert ".blase.bot::before" in web_gestalt.css_chat("a")
     assert ".blase.bot::before" not in web_gestalt.css_chat("b")
+
+
+# -- Tabs und Panels ---------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_die_tableiste_ist_am_daumen_gross_genug(name):
+    css = web_gestalt.css_rahmen(name)
+    assert ".tabs button" in css
+    assert "min-height: var(--tippflaeche)" in css or "--tabs-hoehe" in css
+
+
+def test_a_legt_die_tabs_unten_und_b_oben():
+    """Die eine Entscheidung, die Karte W offen gelassen hat
+    (Uebergabe 1: "auf einem Telefon spricht viel fuer unten")."""
+    def tabblock(name):
+        return re.search(r"\.tabs\s*\{([^}]*)\}",
+                         web_gestalt.css_rahmen(name), flags=re.S).group(1)
+
+    assert "position: fixed" in tabblock("a") and "bottom: 0" in tabblock("a")
+    assert "position: sticky" in tabblock("b") and "top: 0" in tabblock("b")
+    # ``--tabs-hoehe`` ist der Platz, den der Fuss nach unten frei laesst:
+    # in B liegt die Leiste oben, also null.
+    assert web_gestalt.TOKENS["a"]["tabs-hoehe"] != "0rem"
+    assert web_gestalt.TOKENS["b"]["tabs-hoehe"] == "0rem"
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_fuss_weicht_der_tableiste(name):
+    """In A liegt die Leiste unter dem Fuss; in B ist ``--tabs-hoehe``
+    null und dieselbe Regel kostet nichts."""
+    assert "bottom: var(--tabs-hoehe)" in web_gestalt.css_rahmen(name)
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_fuss_verschwindet_ausserhalb_des_chats(name):
+    """Im Skript liest man, dort tippt niemand. W setzt
+    ``body[data-tab]`` -- also braucht das kein JavaScript."""
+    css = web_gestalt.css_rahmen(name)
+    assert 'body:not([data-tab="chat"]) .fuss' in css
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_gewaehlte_tab_ist_nicht_nur_farbig_markiert(name):
+    """Farbe allein traegt keinen Zustand (WCAG 1.4.1): der gewaehlte Tab
+    bekommt zusaetzlich eine Kante."""
+    css = web_gestalt.css_rahmen(name)
+    block = re.search(
+        r'\.tabs button\[aria-selected="true"\]\s*\{([^}]*)\}', css, flags=re.S)
+    assert block, "kein Stil fuer den gewaehlten Tab"
+    assert "box-shadow" in block.group(1) or "border" in block.group(1)
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_arbeitsstand_setzt_seine_feldkarten(name):
+    css = web_gestalt.css_stand(name)
+    assert "[data-feld]" in css or ".feld" in css

@@ -131,18 +131,28 @@ def test_in_dortmund_wirkt_keine_neue_art_auch_nicht_in_ihrer_phase(conn, dortmu
 
 
 def test_text_ueberarbeiten_startet_die_aktuelle_szene_ohne_notiert(
-        conn, einst, padua, tg, szene_spion):
+        conn, einst, padua, tg, szene_spion, monkeypatch):
     _stueck(conn, 7, formen=("chor", "dialog"), sprechweisen_fix=True)
     assert ueberarbeitung.aktuelle_szene(conn, 1) == 1
+    # Fix-Runde 1: die Szenennummer selbst abfangen, nicht nur eine Ziffer
+    # irgendwo im Auftragstext.
+    ziele = []
+    echt = szene.ueberarbeitungsauftrag
+
+    def auftrag_spion(conn_, chat_id, nummer, notiz):
+        ziele.append((nummer, notiz))
+        return echt(conn_, chat_id, nummer, notiz)
+
+    monkeypatch.setattr(szene, "ueberarbeitungsauftrag", auftrag_spion)
     _nachricht(conn, 1, 1, "make the mother angrier")
     klm = LLMAttrappe(antwort={"aenderungen": [
         {"art": "text_ueberarbeiten", "wert": "make the mother angrier"}]})
 
     erkenner.laufe(klm, tg, conn, einst, 1)
 
+    assert ziele == [(1, "make the mother angrier")]
     assert len(szene_spion) == 1
     assert "angrier" in szene_spion[0]
-    assert "1" in szene_spion[0]
     assert not any(t.lstrip().lower().startswith("noted") for t in _texte(tg))
 
 
@@ -199,8 +209,35 @@ def test_text_ueberarbeiten_schweigt_waehrend_ein_lauf_geht(
     finally:
         sperre.release()
 
+    # Fix-Runde 1: nicht still -- genau eine "laeuft noch"-Zeile, wie beim Knopf.
     assert szene_spion == []
-    assert tg.gesendet == []
+    assert _texte(tg) == [ueberarbeitung.T._TEXT_LAEUFT_NOCH]
+
+
+def test_rueckmeldung_und_abnahme_im_besetzten_lauf_melden_genau_einmal(
+        conn, einst, padua, tg, szene_spion):
+    """Fix-Runde 1 (Review Task 10): text_ueberarbeiten + fassung_abnehmen +
+    festlegung_setzen im selben Lauf, waehrend ein Szenenlauf die Sperre
+    haelt -> genau EINE "laeuft noch"-Zeile, keine Ueberarbeitung, keine
+    Festlegung (B2-Filter)."""
+    _stueck(conn, 7, formen=("chor", "dialog"), sprechweisen_fix=True)
+    _nachricht(conn, 1, 1, "make the mother angrier, then save it")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "festlegung_setzen", "wert": "FIGUR/Mother: is angrier"},
+        {"art": "text_ueberarbeiten", "wert": "make the mother angrier"},
+        {"art": "fassung_abnehmen", "wert": ""}]})
+    sperre = szene._sperre_fuer(1)
+    sperre.acquire()
+    try:
+        erkenner.laufe(klm, tg, conn, einst, 1)
+    finally:
+        sperre.release()
+
+    assert _texte(tg).count(ueberarbeitung.T._TEXT_LAEUFT_NOCH) == 1
+    assert len(_texte(tg)) == 1
+    assert szene_spion == []
+    assert repo.festlegungen(conn, 1) == []
+    assert not any(s["fertig_am"] for s in repo.hole_szenen(conn, 1))
 
 
 # --- formen_setzen --------------------------------------------------------

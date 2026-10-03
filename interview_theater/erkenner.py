@@ -2490,19 +2490,19 @@ def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
     ueberarbeiten = erste("text_ueberarbeiten")
     abnehmen = erste("fassung_abnehmen")
     try:
-        if ueberarbeiten is not None:
-            # Hoechstens EINE je Lauf; neben einer Rueckmeldung ist ein
-            # "passt" im selben Lauf keine Abnahme der noch alten Fassung.
+        # Hoechstens EINE der beiden je Lauf; neben einer Rueckmeldung ist ein
+        # "passt" im selben Lauf keine Abnahme der noch alten Fassung.
+        if ueberarbeiten is not None or abnehmen is not None:
             if _laeuft_ein_lauf(chat_id):
-                log.info("text_ueberarbeiten uebersprungen, ein Lauf geht, "
-                         "chat_id=%s", chat_id)
-            else:
+                # Fix-Runde 1 (Review Task 10): nicht still -- dieselbe Zeile
+                # wie der Knopf in derselben Lage, genau einmal je Lauf.
+                log.info("Ueberarbeitung/Abnahme aus dem Chat zurueckgestellt, "
+                         "ein Lauf geht, chat_id=%s", chat_id)
+                ueberarbeitung._sende(conn, tg, e, chat_id,
+                                      ueberarbeitung.T._TEXT_LAEUFT_NOCH)
+            elif ueberarbeiten is not None:
                 notiz, nummer = _notiz_und_nummer(ueberarbeiten.get("wert"))
                 ueberarbeitung.ueberarbeite(conn, tg, klm, e, chat_id, notiz, nummer)
-        elif abnehmen is not None:
-            if _laeuft_ein_lauf(chat_id):
-                log.info("fassung_abnehmen uebersprungen, ein Lauf geht, "
-                         "chat_id=%s", chat_id)
             else:
                 ueberarbeitung.nimm_ab(conn, tg, klm, e, chat_id)
     except Exception:

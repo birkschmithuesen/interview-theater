@@ -745,6 +745,44 @@ def szenenfassungen(
     return ergebnis
 
 
+def erstentwuerfe(conn: sqlite3.Connection, chat_id: int) -> dict[int, str]:
+    """Die Erstfassung je Szene vor der Pruefung -- ``{szene_id: text}``
+    (Padua Phasen TEIL 2, Aufgabe 12, "Show first draft").
+
+    Nur Szenen mit gesetztem ``szene.erstentwurf_fassung`` und nur, wenn der
+    Text der Erstfassung vom aktuellen Text (``volltext``, sonst ``prosa``)
+    abweicht -- eine Erstfassung, die die Pruefung unveraendert ueberstanden
+    hat, ist keine zweite Fassung. Derselbe Join wie
+    ``repo.erstentwurf_text``, aber eigenes SQL ueber die read-only
+    Verbindung: ``web_daten`` haengt an keiner Schreibschicht.
+
+    Fehlt die Spalte noch (Bot nicht neu gestartet), ist das Ergebnis leer."""
+    try:
+        zeilen = conn.execute(
+            "SELECT s.id AS szene_id, s.volltext AS aktuell_volltext,"
+            " s.prosa AS aktuell_prosa, f.volltext AS erst, f.id AS fassung_id"
+            " FROM szene s JOIN szenenfassung f"
+            " ON f.szene_id = s.id AND f.nummer = s.erstentwurf_fassung"
+            f" WHERE s.chat_id = ? AND s.{_NICHT_ENTFERNT}"
+            " AND s.erstentwurf_fassung IS NOT NULL"
+            " ORDER BY s.id ASC, f.id DESC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    ergebnis: dict[int, str] = {}
+    gesehen: set[int] = set()
+    for z in zeilen:
+        if z["szene_id"] in gesehen:
+            continue  # wie repo.erstentwurf_text: die juengste Zeile zaehlt
+        gesehen.add(z["szene_id"])
+        erst = (z["erst"] or "").strip()
+        aktuell = (z["aktuell_volltext"] or "").strip() or (z["aktuell_prosa"] or "").strip()
+        if erst and erst != aktuell:
+            ergebnis[z["szene_id"]] = erst
+    return ergebnis
+
+
 def _themen(conn: sqlite3.Connection, verdichtung_id: int) -> list[dict]:
     """Die Kernthemen einer Verdichtung.
 
@@ -1154,6 +1192,9 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         "szenenuebersicht": szenenuebersicht(conn, chat_id, szenen, fassungen),
         # Die Fassungen je Szene (07.09.2026) -- read-only wie alles hier.
         "fassungen": fassungen,
+        # Die Erstfassung vor der Pruefung je Szene (Padua Phasen TEIL 2) --
+        # nur, wo sie vom aktuellen Text abweicht. Leeres Dict: kein Block.
+        "erstentwuerfe": erstentwuerfe(conn, chat_id),
         "interviews": _interviews(conn, chat_id),
         "journal": _journal(conn, chat_id),
         "bearbeitbares": bearbeitbares(conn, chat_id),

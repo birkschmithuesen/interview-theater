@@ -302,7 +302,8 @@ def test_was_der_chat_fuehrt_steht_nur_da(seite):
     for feldname in ("phase", "begriffe", "fragen", "frage_einleitungen",
                      "interview_eroeffnung", "interview_abschluss", "kernthema"):
         expect(seite.locator(f'.feld[data-feld="{feldname}"]')).to_have_count(0)
-    assert "4 · Setting &amp; Figuren" in inhalt or "4 · Setting & Figuren" in inhalt
+    assert ("4 · Setting, Figuren &amp; Geschichte" in inhalt
+            or "4 · Setting, Figuren & Geschichte" in inhalt)
     assert "Ankommen und Bleiben" in inhalt
     expect(seite.locator("pre.leitfaden")).to_contain_text(
         "Wir machen ein Theaterstueck."

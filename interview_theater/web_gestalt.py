@@ -813,7 +813,7 @@ _BELOHNUNG = """
 #: Akt-Moment, Belohnung. Der runde Knopf ist waehrend der Aufnahme ohnehin
 #: nur Anzeige (A2) und lud mit seinem Stopp-Quadrat zum Tippen ein, ohne
 #: etwas zu tun -- hier schrumpft er zur ruhigen Aufnahmelampe (rot, in der
-#: Pause amber, ``var(--warn)``), ohne Puls und ohne Zeiger-Ereignisse. Er bleibt im DOM und
+#: Pause in der Warnfarbe ``var(--warn)``: A amber, B gruen), ohne Puls und ohne Zeiger-Ereignisse. Er bleibt im DOM und
 #: sichtbar: sein Name traegt Zustand und Zeit fuer Vorleseprogramme.
 #: **Ein Hauptknopf**: "Beenden", gross, rot, unten am Daumen; "Pause"
 #: darueber und kleiner.

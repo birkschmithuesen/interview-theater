@@ -330,9 +330,13 @@ rechnet das Dashboard gegen 5.0.
   (`-k abnahme` bzw. `-k review`). Ein voller e2e-Lauf schreibt sie auch,
   aber mit der Rate-Limit-Meldung „Keine Verbindung" und Blasen der vorigen
   Tests im Bild. Danach die committeten Bilder wiederherstellen.
-- Vorbestehend: `tests/e2e/test_web_edit_e2e.py::test_was_der_chat_fuehrt_steht_nur_da`
-  erwartet den alten Phasennamen „4 · Setting & Figuren" und scheitert —
-  nicht Teil dieser Karte.
+- `tests/e2e/test_web_edit_e2e.py::test_was_der_chat_fuehrt_steht_nur_da`
+  erwartete den Phasennamen „4 · Setting & Figuren" von vor dem
+  Phasen-Umbau (06.09.) und scheiterte schon vor dieser Karte. Weil die
+  volle Suite die e2e-Dateien jetzt mitfaehrt, haette er „Suite gruen"
+  verhindert; die Erwartung steht seit dem Abschluss dieser Karte auf dem
+  heutigen Namen „4 · Setting, Figuren & Geschichte" (der Code ist die
+  Wahrheit, der Test war veraltet).
 
 ## Zahlen
 
@@ -340,12 +344,13 @@ rechnet das Dashboard gegen 5.0.
   Aenderung dieser Karte): `5951 passed, 4 skipped`. Nach Aufgabe 12
   (letzter Stand vor dieser Aufgabe): `6140 passed, 5 skipped, 0 xfailed,
   0 xpassed` — ein deutliches Plus an gruenen Tests, keine Regression.
-- **Endstand nach der Nacharbeit (03.10.2026, Commit `9a8651a`, selbst
-  gemessen):** volle Suite `python3.11 -m pytest -q -p no:cacheprovider` →
-  `1 failed, 6353 passed in 833.63s (0:13:53)`. Neu gegenueber dem Stand
-  oben: `python3.11` hat inzwischen Playwright, die volle Suite faehrt die
-  e2e-Dateien also mit (vorher 5 skipped, jetzt 0); der eine Fehlschlag ist
-  der vorbestehende `test_web_edit_e2e.py::test_was_der_chat_fuehrt_steht_nur_da`.
+- **Endstand nach der Nacharbeit (03.10.2026, selbst gemessen):** volle
+  Suite `python3.11 -m pytest -q -p no:cacheprovider` →
+  `6354 passed in 834.21s (0:13:54)`. Neu gegenueber dem Stand oben:
+  `python3.11` hat inzwischen Playwright, die volle Suite faehrt die
+  e2e-Dateien also mit (vorher 5 skipped, jetzt 0). Vor der Korrektur des
+  veralteten Phasennamens in `test_web_edit_e2e.py` (siehe „Bekannte Fallen
+  beim Testen") stand dort `1 failed, 6353 passed`.
   Ein Lauf der vollen Suite schreibt damit auch die Bilder unter
   `docs/ux-padua/` und loescht `docs/web-vereint/` — siehe „Bekannte
   Fallen beim Testen".
@@ -357,7 +362,7 @@ rechnet das Dashboard gegen 5.0.
   | `test_web_gestalt_e2e.py` | `40 passed in 72.18s (0:01:12)` |
   | `test_web_uebersicht_e2e.py` | `7 passed in 13.98s` |
   | `test_web_chat_e2e.py` | `29 passed in 102.70s (0:01:42)` |
-  | `test_web_edit_e2e.py` | `1 failed, 18 passed in 21.36s` (vorbestehend, s. o.) |
+  | `test_web_edit_e2e.py` | `19 passed in 21.05s` (nach der Korrektur des Phasennamens; vorher `1 failed, 18 passed`) |
   | `test_web_chat_vad_e2e.py` | `5 passed in 15.74s` |
   | `test_web_vereint_e2e.py` | `11 passed in 42.15s` |
 

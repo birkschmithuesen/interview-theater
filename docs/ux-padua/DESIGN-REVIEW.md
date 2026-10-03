@@ -240,8 +240,6 @@ Aus den drei Aufgaben zurueckgestellt, jeweils mit Grund:
   genagelt. Eine Verbform braeuchte eine zweite Liste — ausserhalb von Look
   & Feel. Der Rueckfallzweig „Phase <naechste>" ist im Browser nicht
   getestet (nur als Unit).
-- **Kommentar in `_INTERVIEW`**: nennt die Pausenlampe „amber,
-  `var(--warn)`"; in Entwurf B ist `--warn` gruen (#7fd6a0).
 - **Stopp-Leiste nicht uebersetzt**: „⏸ Pause", „▶ Weiter", „■ Beenden" und
   die Uhr-/Warteschlangentexte aus `web_chat._JS_TEXTE` laufen nicht ueber
   `T` — in Padua stehen sie deutsch (Befund an A2/A1).

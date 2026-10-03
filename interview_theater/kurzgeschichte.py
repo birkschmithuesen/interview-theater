@@ -456,7 +456,7 @@ def hole_text(conn, klm, e, chat_id: int, regie: str | None = None,
 
 def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
              vorlage: bool = False, art: str = ART, zeilen=None,
-             bei_teil=None) -> list[int]:
+             bei_teil=None, zeigen: bool = True) -> list[int]:
     """Der ganze Lauf, **synchron und ohne Sperre**: Modell fragen, zerlegen,
     Szenen anlegen, in den Chat melden. Liefert die Nummern der Abschnitte.
 
@@ -465,7 +465,13 @@ def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
     (Tests, der Nachpass), kuemmert sich selbst darum.
 
     ``zeilen`` ist die sichtbare Arbeitszeile des Aufrufers; sie wird wie
-    bisher **vor** der Fertig-Meldung gestoppt."""
+    bisher **vor** der Fertig-Meldung gestoppt.
+
+    ``zeigen`` (Padua Phasen TEIL 2): mit ``False`` faellt jede Nachricht
+    weg, die den Text traegt -- die Fertig-Meldung und
+    ``knoepfe.zeige_kurzgeschichte``. Anlegen, Journal und das Schliessen
+    der Senke bleiben gleich: der Prueflauf schreibt und prueft zuerst und
+    zeigt erst die gepruefte Fassung."""
     eintraege = budget_eintraege(conn, chat_id, faktor=_faktor(conn, chat_id))
     antwort = hole_text(conn, klm, e, chat_id, regie, vorlage, eintraege, art,
                         bei_teil=bei_teil)
@@ -498,10 +504,11 @@ def schreibe(conn, tg, klm, e, chat_id: int, regie: str | None = None,
 
     if zeilen is not None:
         zeilen.stoppe()
-    szene_modul._sende_und_merke(
-        conn, tg, e, chat_id, T._TEXT_FERTIG.format(anzahl=len(nummern)),
-    )
-    knoepfe.zeige_kurzgeschichte(conn, tg, chat_id)
+    if zeigen:
+        szene_modul._sende_und_merke(
+            conn, tg, e, chat_id, T._TEXT_FERTIG.format(anzahl=len(nummern)),
+        )
+        knoepfe.zeige_kurzgeschichte(conn, tg, chat_id)
     return nummern
 
 

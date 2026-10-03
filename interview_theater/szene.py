@@ -1671,6 +1671,21 @@ TEXT_AUFTRAG_SCHREIBEN = "Schreib Szene {nummer}."
 TEXT_AUFTRAG_NEU = "Schreib Szene {nummer} neu. {notiz}"
 
 
+def ueberarbeitungsauftrag(conn, chat_id: int, nummer: int, notiz: str) -> str:
+    """Der Auftragssatz fuer eine Ueberarbeitung -- derselbe Wortlaut wie
+    beim Kuerzen (``kuerzung.py:184``) und im Nachpass (``nachpass.py``),
+    nicht ein zweiter: zwei Saetze fuer denselben Auftrag waeren zwei
+    Wahrheiten. Ueber ``T``, nicht die Modulkonstante direkt -- unter einem
+    englischen Profil also englisch.
+
+    Im Prosalauf (Phase 6 und frueher, ``schreibt_prosa``) haengt
+    ``BISHER_MARKER`` an die Notiz -- ohne ihn saehe das Modell die
+    bestehende Prosa der Szene nicht, weil ``volltext`` dort leer ist, und
+    schriebe sie neu statt sie zu ueberarbeiten."""
+    zusatz = f" {BISHER_MARKER}" if schreibt_prosa(conn, chat_id) else ""
+    return T.TEXT_AUFTRAG_NEU.format(nummer=nummer, notiz=notiz + zusatz)
+
+
 #: Der Kopf ueber der Prosafassung im Feinschliff-Prompt (Phase 7,
 #: 06.09.2026, 10:30). Die Geschichte ist dort **bindende Vorlage**: was
 #: entsteht, ist eine Uebersetzung in eine Form, keine neue Szene.
@@ -2272,10 +2287,16 @@ def _pruefe_budget(conn, chat_id: int, ueber_claude: bool) -> None:
 
 
 def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
-             art: str = ART, bei_teil=None) -> int:
+             art: str = ART, bei_teil=None, zeigen: bool = True) -> int:
     """Der eigentliche Szenen-Aufruf: Prompt bauen, Modell fragen, Szene
     speichern, Journal schreiben, Vorschau in die Gruppe schicken. Liefert
     die Nummer der geschriebenen Szene.
+
+    ``zeigen`` (Padua Phasen TEIL 2): mit ``False`` passiert alles bis auf
+    ``_sende_szenentext`` -- Speichern, Fassung anhaengen und Journal
+    bleiben gleich, nur die Vorschau samt Knopfleiste faellt weg. Das ist
+    der Einhaengepunkt des Prueflaufs: er schreibt und prueft zuerst, und
+    zeigt erst die gepruefte Fassung.
 
     Laeuft im Thread aus ``starte()``; wer sie direkt aufruft (Tests, ein
     kuenftiger Stapellauf), bekommt sie synchron und muss sich selbst um die
@@ -2410,7 +2431,12 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
     # mit denen die Szene angenommen, geaendert, neu geschrieben oder
     # verlassen wird (``knoepfe.biete_nach_szenentext``) -- vorher stand der
     # Text einfach da und niemand wusste, was jetzt dran ist.
-    _sende_szenentext(conn, tg, e, chat_id, nummer, titel, volltext)
+    #
+    # ``zeigen=False`` (Padua Phasen TEIL 2): der Prueflauf schreibt und
+    # prueft zuerst und zeigt erst die gepruefte Fassung -- hier faellt nur
+    # die Vorschau weg, gespeichert und journalisiert ist die Szene schon.
+    if zeigen:
+        _sende_szenentext(conn, tg, e, chat_id, nummer, titel, volltext)
     return nummer
 
 

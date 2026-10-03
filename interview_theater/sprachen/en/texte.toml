@@ -1773,3 +1773,22 @@ chat = "Chat"
 stand = "Workbench"
 textbuch = "Script"
 buehne = "Stage"
+
+["prueflauf"]
+# Padua Phasen TEIL 2 (03.10.2026): the check before every display -- at
+# most three lines for the group on what the check changed.
+_ZEILE_AUFTRAG = "Check ({pruefung}): {text}"
+_ZEILE_SPRACHPASS = "Language pass: length and style tightened."
+_ZEILE_VERSCHLECHTERT = "The revision was weaker -- the better version stays."
+_ZEILE_ZITAT_VERWORFEN = "A revision lost an interview quote -- discarded."
+_ZEILE_PARAMETER = "Scene {nummer}: the plan ({feld}) now follows the text."
+_JOURNAL_PARAMETER = "Scene {nummer}: {feld} now follows the text: {wert}"
+
+["prueflauf"._PRUEFUNG_NAMEN]
+b1 = "Turning point"
+a2 = "Causal chain"
+a6 = "Chekhov"
+a9 = "Focus"
+a10 = "Faithful to material"
+a11 = "Play requirements"
+c1 = "Voice"

@@ -869,6 +869,14 @@ ART_UEBERSICHT_ANDERS = "uebersicht_anders"
 _TEXT_UEBERSICHT_FIXIERT = "Alles klar -- ich schreibe jetzt die erste Szene."
 _TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT = "Gut, ich erzeuge eine neue Uebersicht."
 
+#: Stufe B (Szene fuer Szene): "Yes, save" auf einem Prosa-Entwurf laeuft
+#: ueber den bestehenden Knopf ``ART_SZENE_PASST`` (phasengebunden in
+#: ``wirkung._wirkung_szene_passt``), deshalb keine eigene ART hier -- nur
+#: die beiden Antworttexte. Deutsch bleibt die Konstante (bitgleich), die
+#: englische Padua-Fassung steht in ``sprachen/en/texte.toml`` (Karte A1).
+_TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN = "Alles klar -- ich schreibe jetzt die naechste Szene."
+_TEXT_ALLE_SZENEN_ENTWORFEN = "Alle Szenen haben einen Entwurf. Weiter geht's mit der Ueberarbeitung."
+
 
 # --- Verarbeitung ---------------------------------------------------------
 

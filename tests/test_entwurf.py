@@ -10,7 +10,7 @@ Netzzugriff) sind dieselben wie in ``tests/test_schaerfung.py``.
 
 import pytest
 
-from interview_theater import entwurf, knoepfe, repo, szene
+from interview_theater import entwurf, knoepfe, phasen, repo, szene
 
 from test_knoepfe import TelegramAttrappe, _druck
 from test_kuerzung import LLMAttrappe
@@ -285,3 +285,85 @@ def test_erkenner_uebersicht_aendern_wirkt_nur_in_phase_5(
     )
 
     assert gestartet == []
+
+
+# ---------------------------------------------------------------------------
+# Stufe B im Chat: "Yes, save" auf einem Prosa-Entwurf (Padua Phasen TEIL 1,
+# Task 12) -- derselbe Knopf wie in Phase 7 (``ART_SZENE_PASST``,
+# ``_wirkung_szene_passt``), hier aber mit dem neuen, auf Phase 5
+# beschraenkten Zweig ``_wirkung_entwurf_szene_passt``. Die Regression fuer
+# jede andere Phase (heute 7) steht in ``tests/test_szenenfolge.py``.
+# ---------------------------------------------------------------------------
+
+
+def _zwei_entworfene_szenen(conn, chat_id=1):
+    """Zwei Szenen mit den Pflichtfeldern aus Stufe A
+    (``entwurf.uebernimm_szenenfelder`` haette sie so hinterlassen), keine
+    davon schon abgenommen."""
+    phasen.setze(conn, chat_id, 5, "befehl")
+    repo.setze_figur(conn, chat_id, "Mira", "wants to be heard")
+    figur_id = repo.hole_figur(conn, chat_id, "Mira")["id"]
+    szenen_ids = []
+    for nummer, was in ((1, "They arrive."), (2, "A confession.")):
+        szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
+        repo.setze_szenenfeld(conn, szene_id, "was_passiert", was)
+        repo.setze_szene_figuren(conn, chat_id, szene_id, [figur_id])
+        szenen_ids.append(szene_id)
+    return szenen_ids
+
+
+def test_entwurf_szene_passt_startet_naechste_szene_automatisch(
+    conn, tg, einst, monkeypatch,
+):
+    """"Yes, save" auf Szene 1: abgenommen, und SOFORT geht Szene 2 los --
+    kein Knopf, kein Warten (AGENTS.md, die eine Ausnahme vom sonst
+    geltenden "Datenstand ist nicht Absicht")."""
+    szene_1, _szene_2 = _zwei_entworfene_szenen(conn)
+    gestartet = []
+    monkeypatch.setattr(
+        szene, "starte",
+        lambda conn_, tg_, klm_, e_, chat_id_, auftrag: gestartet.append(
+            (chat_id_, auftrag)
+        ),
+    )
+    knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1")
+    daten_passt = tg.knoepfe[-1][2][0][1]
+
+    assert knoepfe.behandle(conn, tg, None, einst, _druck(daten_passt)) is True
+
+    zeile = repo.hole_szene(conn, szene_1)
+    assert (zeile["entwurf_bestaetigt_am"] or "").strip()
+    assert len(gestartet) == 1
+    assert gestartet[0][0] == 1
+    assert "SZENE 2" in gestartet[0][1]
+    # Kein Phasenwechsel, solange noch eine Szene offen ist.
+    assert phasen.aktuelle(conn, 1) == 5
+
+
+def test_entwurf_letzte_szene_passt_springt_automatisch_nach_phase_6(
+    conn, tg, einst, monkeypatch,
+):
+    """"Yes, save" auf der letzten noch offenen Szene: keine weitere Szene
+    mehr -> automatisch Phase 6, ohne Knopf und ohne Rueckfrage."""
+    from interview_theater.knoepfe import wirkung
+
+    phasen.setze(conn, 1, 5, "befehl")
+    repo.setze_figur(conn, 1, "Mira", "wants to be heard")
+    figur_id = repo.hole_figur(conn, 1, "Mira")["id"]
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szenenfeld(conn, szene_id, "was_passiert", "They arrive.")
+    repo.setze_szene_figuren(conn, 1, szene_id, [figur_id])
+    eingetreten = []
+    monkeypatch.setattr(
+        wirkung, "eintritt_in_phase",
+        lambda conn_, tg_, klm_, e_, chat_id_, nummer_: eingetreten.append(nummer_),
+    )
+    knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1")
+    daten_passt = tg.knoepfe[-1][2][0][1]
+
+    assert knoepfe.behandle(conn, tg, None, einst, _druck(daten_passt)) is True
+
+    zeile = repo.hole_szene(conn, szene_id)
+    assert (zeile["entwurf_bestaetigt_am"] or "").strip()
+    assert phasen.aktuelle(conn, 1) == 6
+    assert eingetreten == [6]

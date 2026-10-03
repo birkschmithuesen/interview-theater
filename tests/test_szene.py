@@ -1071,6 +1071,22 @@ def test_ohne_chronologie_bleibt_die_gemeinte_szene_stehen(conn, einst):
     assert ziel["nummer"] == 3
 
 
+def test_ziel_fuer_trifft_ohne_nummer_die_zuletzt_in_stufe_b_entworfene_szene(conn, einst):
+    """Padua Phasen TEIL 1, Task 12, Schritt 3: in Stufe B von Phase 5
+    (``entwurf.py``) startet das automatische Weiterschalten Szene 2
+    zuletzt. Sagt die Gruppe danach ohne Nummer "nein, mach es lustiger",
+    trifft ``szene.ziel_fuer`` -- ueber ``repo.hole_letzte_szene`` -- genau
+    diese zuletzt bearbeitete Szene. Kein neuer Code: diese Regel bestand
+    schon fuer ``szene_schreiben``/``szene_kuerzen`` und gilt fuer Stufe B
+    unveraendert mit."""
+    _bereit_machen(conn, nummer=1)
+    _bereit_machen(conn, nummer=2)
+
+    ziel = szene.ziel_fuer(conn, 1, "nein, mach es lustiger", chronologisch=False)
+
+    assert ziel["nummer"] == 2
+
+
 def test_auftrag_auf_szene_3_schreibt_szene_1_und_sagt_es(conn, einst, tg):
     _bereit_machen(conn, nummer=1)
     _bereit_machen(conn, nummer=2)

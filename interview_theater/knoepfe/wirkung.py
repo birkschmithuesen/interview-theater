@@ -330,6 +330,13 @@ def _wirkung_szenenfelder_speichern(conn, d: Druck) -> str:
 
 def _wirkung_szene_passt(conn, d: Druck) -> str:
     nummer = int(d.wert)
+    # Padua Phasen TEIL 1 (03.10.2026): derselbe Knopf, zwei Bedeutungen --
+    # in Phase 5 ist "Passt" die Abnahme EINES Prosa-Entwurfs in Stufe B
+    # (``entwurf.py``), nicht die Abnahme eines fertigen Theatertexts. Die
+    # Phase entscheidet, welcher Weg laeuft; fuer jede andere Phase (heute 7)
+    # bleibt alles darunter unveraendert.
+    if phasen.aktuelle(conn, d.chat_id) == 5:
+        return _wirkung_entwurf_szene_passt(conn, d, nummer)
     ziel = _szene_mit_nummer(conn, d.chat_id, nummer)
     if ziel is None:
         d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
@@ -345,6 +352,32 @@ def _wirkung_szene_passt(conn, d: Druck) -> str:
     d.tg.sende(d.chat_id, T._TEXT_PASST.format(nummer=nummer))
     _biete_weiter_nach_szene(conn, d.tg, d.chat_id, nummer)
     return T._ANTWORT_SZENE_STEHT.format(nummer=nummer)
+
+
+def _wirkung_entwurf_szene_passt(conn, d: Druck, nummer: int) -> str:
+    """"Yes, save" auf einem Prosa-Entwurf in Stufe B von Phase 5 (Padua
+    Phasen TEIL 1): Szene abnehmen, automatisch weiter -- zur naechsten
+    offenen Szene (kein Knopf, kein Warten) oder, wenn keine mehr offen
+    ist, automatisch nach Phase 6. Das ist die EINE, ausdruecklich von
+    Birk gewuenschte Ausnahme vom sonst geltenden "Datenstand ist nicht
+    Absicht" (AGENTS.md) -- lokal auf diesen Abschluss begrenzt,
+    ``phasen.moegliche_naechste``/``offenes_angebot`` bleiben fuer jeden
+    anderen Uebergang unveraendert."""
+    from interview_theater import entwurf, szene
+
+    ziel = _szene_mit_nummer(conn, d.chat_id, nummer)
+    if ziel is None:
+        d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
+        return T._TEXT_SZENE_UNBEKANNT
+    repo.setze_szene_entwurf_bestaetigt(conn, ziel["id"])
+    naechste = entwurf.erste_offene_szene(conn, d.chat_id)
+    if naechste is not None:
+        auftrag = f"SZENE {naechste}: write this scene as prose, following the overview."
+        szene.starte(conn, d.tg, d.klm, d.e, d.chat_id, auftrag)
+        return T._TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN
+    phasen.setze(conn, d.chat_id, 6, "entwurf", notiz="alle Szenen entworfen")
+    eintritt_in_phase(conn, d.tg, d.klm, d.e, d.chat_id, 6)
+    return T._TEXT_ALLE_SZENEN_ENTWORFEN
 
 
 def _wirkung_szene_anders(conn, d: Druck) -> str:

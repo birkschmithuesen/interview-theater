@@ -466,6 +466,27 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Wann die letzte Buehnenkarte entstand -- fuer den Mindestabstand
   -- (brainstorm.min_abstand_s). NULL = noch nie eine Karte.
   brainstorm_reaktion_am TEXT,
+  -- Die Fragen-Gegenueberstellung eigen/KI (Padua Phase 1+2 Karte,
+  -- 03.10.2026): der im Hintergrund erzeugte, versteckte KI-Vorschlag
+  -- (``Begriff: Frage``-Zeilen wie ``fragen_auswahl``) und sein Zeitstempel.
+  -- Wird genau einmal gesetzt (nie nachgebessert) -- siehe fragen_ki.py.
+  fragen_ki_vorschlag         TEXT,
+  fragen_ki_erzeugt_am        TEXT,
+  -- Die eigenen, aufgeraeumten Fragezeilen der Gruppe, sobald ihre
+  -- Eigene-Fragen-Stufe abgeschlossen ist, und ihr Zeitstempel.
+  fragen_eigene_vorschlag     TEXT,
+  fragen_eigene_erstellt_am   TEXT,
+  -- Je Zeile aus ``fragen_auswahl`` die Herkunft ("eigen"/"ki"), an
+  -- derselben Position ausgerichtet wie ``fragen_entschieden`` -- und ob
+  -- eine KI-Frage ueber "Schaerfen" bearbeitet wurde ("1"/""); eine
+  -- eigene Frage wird nie als bearbeitet markiert.
+  fragen_herkunft             TEXT,
+  fragen_bearbeitet           TEXT,
+  -- ``fragen_herkunft``, gefiltert auf die am Ende uebernommenen Indizes,
+  -- in derselben Reihenfolge wie das endgueltige Feld ``fragen`` -- damit
+  -- die Auswertung (spaetere Aufgabe) sie nicht aus den Vorfilterlisten
+  -- neu herleiten muss.
+  fragen_herkunft_final       TEXT,
   geaendert_am           TEXT
 );
 

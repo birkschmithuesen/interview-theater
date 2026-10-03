@@ -1773,6 +1773,20 @@ _ARBEITSSTAND_FELDER = (
     # derselbe eine Schreibweg wie alles andere im Arbeitsstand.
     "geschichte_uebersicht", "geschichte_uebersicht_szenen",
     "geschichte_uebersicht_fixiert_am",
+    # Die Fragen-Gegenueberstellung eigen/KI (Padua Phase 1+2 Karte,
+    # 03.10.2026): der versteckte KI-Vorschlag und sein Zeitstempel, gesetzt
+    # von einem Hintergrundlauf (fragen_ki.py), nie nachgebessert.
+    "fragen_ki_vorschlag", "fragen_ki_erzeugt_am",
+    # Die aufgeraeumten eigenen Fragezeilen der Gruppe und ihr Zeitstempel,
+    # gesetzt beim Abschluss der Eigene-Fragen-Stufe.
+    "fragen_eigene_vorschlag", "fragen_eigene_erstellt_am",
+    # Herkunft ("eigen"/"ki") und Bearbeitet-Markierung je Zeile aus
+    # ``fragen_auswahl``, an derselben Position ausgerichtet wie
+    # ``fragen_entschieden``.
+    "fragen_herkunft", "fragen_bearbeitet",
+    # ``fragen_herkunft``, gefiltert auf die uebernommenen Indizes, in der
+    # Reihenfolge des endgueltigen Felds ``fragen``.
+    "fragen_herkunft_final",
 )
 
 

@@ -287,6 +287,36 @@ def test_erkenner_uebersicht_aendern_wirkt_nur_in_phase_5(
     assert gestartet == []
 
 
+def test_erkenner_uebersicht_aendern_ist_no_op_wenn_schon_fixiert(
+    conn, tg, einst, monkeypatch,
+):
+    """Final-Review-Fund (03.10.2026): sobald die Uebersicht fixiert ist
+    (``arbeitsstand.geschichte_uebersicht_fixiert_am`` gesetzt, wie
+    ``knoepfe._wirkung_uebersicht_passt`` es tut), darf ein erkannter
+    ``uebersicht_aendern``-Treffer keinen neuen, bezahlten Stufe-A-Lauf mehr
+    anstossen -- der Kommentar an ``erkenner.ARTEN`` hatte das lange
+    behauptet, ohne dass es je geprueft wurde. Plausibler Ausloeser: eine
+    generische Rueckmeldung zu einer laufenden Szene in Stufe B wird vom
+    Erkenner als Uebersicht-Kritik gelesen."""
+    from interview_theater import erkenner, phasen, workshop
+
+    phasen.setze(conn, 1, 5, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "geschichte_uebersicht_fixiert_am", repo._jetzt())
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: True)
+    gestartet = []
+    monkeypatch.setattr(
+        entwurf, "starte_uebersicht",
+        lambda *a, **k: gestartet.append(a) or object(),
+    )
+
+    erkenner._starte_entwurf_uebersicht(
+        object(), tg, conn, einst, 1,
+        [{"art": "uebersicht_aendern", "wert": "the tension arc feels too flat"}],
+    )
+
+    assert gestartet == []
+
+
 # ---------------------------------------------------------------------------
 # Stufe B im Chat: "Yes, save" auf einem Prosa-Entwurf (Padua Phasen TEIL 1,
 # Task 12) -- derselbe Knopf wie in Phase 7 (``ART_SZENE_PASST``,

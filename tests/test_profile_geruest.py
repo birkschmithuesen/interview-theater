@@ -159,6 +159,18 @@ def test_padua_phasen_und_formen_englisch():
     ("Sharpening", 5), ("polish", 7),
     # Neue Namen (Padua Phasen TEIL 1, 03.10.2026):
     ("Prose Draft", 5), ("prose", 5), ("Rewrite", 6), ("Stage Version", 7),
+    # Final-Review-Fund (03.10.2026): "story overview" war als Phase-5-
+    # Stichwort selbst unerreichbar -- Phase 4s VORBESTEHENDES Stichwort
+    # "story" ist ein Substring von "story overview", und Phase 4 wird vor
+    # Phase 5 geprueft. Dieselbe Kollisionsklasse wie "Scenes as Story"
+    # oben, nur diesmal mit aktiv gelehrtem Wortlaut
+    # (sprachen/en/prompts/phasen/5.md sagt der Gruppe woertlich "a story
+    # overview appears"). Behoben durch Entfernen des Stichworts statt durch
+    # eine Codeaenderung an nummer_fuer -- "story overview" bleibt deshalb
+    # bei 4, und "overview" allein (kollisionsfrei geprueft gegen alle
+    # anderen Phasen-Stichwoerter) belegt, dass Phase 5 ueber ihr eigenes
+    # Stichwort weiterhin erreichbar bleibt.
+    ("story overview", 4), ("overview", 5),
 ])
 def test_padua_stichwoerter_finden_die_phase(wort, nummer, monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")

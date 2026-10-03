@@ -1102,9 +1102,10 @@ def test_auch_eine_zweite_figur_schaltet_nichts(conn, einst):
 # ---------------------------------------------------------------------------
 # PHASEN_SPEZIFISCHE_ARTEN (Padua Phasen TEIL 1, 03.10.2026): eine art kann
 # an eine oder mehrere Phasen gebunden sein, ohne dass wende_an() dafuer eine
-# verstreute if/elif-Kette braucht. "uebersicht_aendern" existiert noch
-# nicht als echte art (das kommt mit einer spaeteren Karte) -- hier wird nur
-# die Durchlaessigkeit der Tabelle geprueft.
+# verstreute if/elif-Kette braucht. "uebersicht_aendern" ist seit Task 10
+# eine echte art in ARTEN (siehe test_arten_enthaelt_alle_werte) -- hier wird
+# nur die Durchlaessigkeit der Tabelle geprueft, nicht der Stufe-A-Start
+# selbst (dafuer siehe die Tests rund um _starte_entwurf_uebersicht).
 # ---------------------------------------------------------------------------
 
 

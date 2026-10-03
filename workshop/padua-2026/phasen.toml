@@ -42,7 +42,7 @@ satz = "Sharpen the invented story against the interview material, then write it
 # "sharpening"/"sharpen"/"clustering"/"summaries" bleiben als Alt-Stichwoerter
 # stehen: der englische Erkenner-Prompt (Punkt 19) nennt die Phase noch so,
 # und eine Gruppe, die den alten Namen kennt, soll weiter treffen.
-stichwoerter = ["prose draft", "prose", "draft", "overview", "story overview",
+stichwoerter = ["prose draft", "prose", "draft", "overview",
                 "sharpening", "sharpen", "clustering", "summaries"]
 
 [[phase]]

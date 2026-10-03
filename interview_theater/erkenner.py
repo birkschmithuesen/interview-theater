@@ -163,7 +163,10 @@ ARTEN = (
     # entwurf.py) -- "mach das Ende trauriger", "nochmal, anders", "die
     # Spannungskurve ist mir zu flach". Gilt NUR in Phase 5
     # (PHASEN_SPEZIFISCHE_ARTEN) und nur, solange die Uebersicht noch nicht
-    # fixiert ist -- das prueft entwurf.py selbst, nicht der Erkenner.
+    # fixiert ist -- das prueft ``erkenner._starte_entwurf_uebersicht``
+    # selbst (Final-Review-Fund, 03.10.2026: vorher stand das nur in diesem
+    # Kommentar, ``entwurf.py`` hat ``geschichte_uebersicht_fixiert_am``
+    # nirgends gelesen).
     # wert: die gewuenschte Richtung, oder leer ("") bei einem reinen
     # "nochmal"/"anders" ohne eigene Angabe.
     "uebersicht_aendern",
@@ -2255,12 +2258,24 @@ def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
     gibt) muss das ein stiller No-Op bleiben, kein echter, bezahlter
     Modellaufruf fuer ein Feature, das diese Gruppe nicht hat -- derselbe
     Grund, aus dem ``knoepfe/stationen.py`` (Task 11) den Uebersicht-Start
-    nach der Schaerfung hinter denselben Schalter stellt."""
+    nach der Schaerfung hinter denselben Schalter stellt.
+
+    **Zusaetzlich fixierungsgebunden** (Final-Review-Fund, 03.10.2026): ist
+    ``arbeitsstand.geschichte_uebersicht_fixiert_am`` schon gesetzt, ist die
+    Uebersicht bestaetigt und ein weiterer ``uebersicht_aendern``-Treffer
+    gehoert zu etwas anderem -- plausibel zu einer laufenden Szene in Stufe
+    B, deren Rueckmeldung generisch genug ist, um wie eine Uebersicht-Kritik
+    zu klingen ("die Spannungskurve ist mir zu flach"). Ohne diese Pruefung
+    liefe ein zweiter, bezahlter Stufe-A-Lauf, dessen Bestaetigungsknoepfe
+    sich ueber die noch offenen der Szene legen wuerden."""
     from interview_theater import workshop
 
     if not workshop.prosa_entwurf_aktiv():
         return
     if not _ist_phasenpassend(conn, chat_id, "uebersicht_aendern"):
+        return
+    arbeitsstand = repo.hole_arbeitsstand(conn, chat_id)
+    if arbeitsstand is not None and arbeitsstand["geschichte_uebersicht_fixiert_am"]:
         return
     treffer = next(
         (a for a in aenderungen if a.get("art") == "uebersicht_aendern"), None

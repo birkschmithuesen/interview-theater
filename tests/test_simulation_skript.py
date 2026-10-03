@@ -273,3 +273,118 @@ def test_eine_unbekannte_mutation_wird_vom_parser_abgelehnt():
 
     with pytest.raises(SystemExit):
         sim.baue_argumente(["--set", "1", "--mutation", "gibtsnicht"])
+
+
+# ---------------------------------------------------------------------------
+# --skript padua: Phasen 5 -> 7 im neuen Ablauf (Padua Phasen TEIL 2, Task 14)
+# ---------------------------------------------------------------------------
+
+
+def test_padua_schluessel_sind_eindeutig_und_tragen_die_neuen_schritte():
+    schluessel = [s.schluessel for s in skript.SCHRITTE_PADUA]
+    assert len(set(schluessel)) == len(schluessel)
+    for name in ("entwurf", "gesamt6", "szenen6", "formen7", "sprechweisen7",
+                 "buehne7", "pruefung7"):
+        assert name in schluessel, name
+    assert schluessel[-1] == "stand"
+    assert "schaerfung" not in schluessel
+
+
+def test_padua_beginnt_wie_tag2_bis_zur_geschichte():
+    tag2 = [s.schluessel for s in skript.SCHRITTE_TAG2]
+    bis = tag2[: tag2.index("geschichte") + 1]
+    padua = [s.schluessel for s in skript.SCHRITTE_PADUA]
+    assert padua[: len(bis)] == bis
+    assert padua[len(bis)] == "phase5"
+
+
+def test_padua_schritte_haben_bekannte_arten_und_benannte_pruefungen():
+    for schritt in skript.SCHRITTE_PADUA:
+        assert schritt.art in skript.ARTEN, schritt.schluessel
+        if schritt.art != "phase":
+            assert schritt.fertig.__name__.startswith("_fertig_"), schritt.schluessel
+
+
+def test_padua_nachrichtengrenzen():
+    nach = {s.schluessel: s for s in skript.SCHRITTE_PADUA}
+    assert nach["entwurf"].max_nachrichten == 12
+    assert nach["szenen6"].max_nachrichten == 12
+    assert nach["buehne7"].max_nachrichten == 14
+
+
+def test_padua_ziele_lassen_sich_fuellen(conn, einst):
+    from simulation import lauf as lauf_modul
+    from simulation.attrappe import TelegramAttrappe
+
+    durchlauf = lauf_modul.Lauf(
+        conn, TelegramAttrappe(), None, einst, None,
+        gezogene=[], seed=1, schritte=[],
+    )
+    merker = durchlauf._merker()
+    for schritt in skript.SCHRITTE_PADUA:
+        schritt.ziel_text(merker)   # darf nicht werfen
+
+
+def _padua(name):
+    return skript.schritt_fuer(name, skript.SCHRITTE_PADUA)
+
+
+def test_padua_entwurf_und_szenen6_haengen_an_der_phase(conn):
+    entwurf, szenen6 = _padua("entwurf"), _padua("szenen6")
+    phasen.setze(conn, 1, 5, "test")
+    assert not entwurf.fertig(conn, 1, {})
+    phasen.setze(conn, 1, 6, "test")
+    assert entwurf.fertig(conn, 1, {})
+    assert not szenen6.fertig(conn, 1, {})
+    phasen.setze(conn, 1, 7, "test")
+    assert szenen6.fertig(conn, 1, {})
+
+
+def test_padua_gesamt6_und_sprechweisen7_lesen_ihren_stempel(conn):
+    gesamt6, sprech = _padua("gesamt6"), _padua("sprechweisen7")
+    assert not gesamt6.fertig(conn, 1, {})
+    assert not sprech.fertig(conn, 1, {})
+    repo.setze_arbeitsstand(conn, 1, "gesamttext_fixiert_am", repo._jetzt())
+    assert gesamt6.fertig(conn, 1, {})
+    assert not sprech.fertig(conn, 1, {})
+    repo.setze_arbeitsstand(conn, 1, "sprechweisen_fixiert_am", repo._jetzt())
+    assert sprech.fertig(conn, 1, {})
+
+
+def test_padua_formen7_verlangt_eine_form_je_szene(conn):
+    formen7 = _padua("formen7")
+    assert not formen7.fertig(conn, 1, {})      # ohne Szenen nie fertig
+    a = repo.lege_szene_an(conn, 1, 1, "Eins", "kurz", "")
+    b = repo.lege_szene_an(conn, 1, 2, "Zwei", "kurz", "")
+    repo.setze_szenenfeld(conn, a, "form", "chor")
+    assert not formen7.fertig(conn, 1, {})
+    repo.setze_szenenfeld(conn, b, "form", "dialog")
+    assert formen7.fertig(conn, 1, {})
+
+
+def test_padua_buehne7_verlangt_jede_szene_fertig(conn):
+    buehne7 = _padua("buehne7")
+    assert not buehne7.fertig(conn, 1, {})
+    a = repo.lege_szene_an(conn, 1, 1, "Eins", "kurz", "")
+    b = repo.lege_szene_an(conn, 1, 2, "Zwei", "kurz", "")
+    repo.setze_szene_fertig(conn, a, True)
+    assert not buehne7.fertig(conn, 1, {})
+    repo.setze_szene_fertig(conn, b, True)
+    assert buehne7.fertig(conn, 1, {})
+
+
+def test_padua_pruefung7_wartet_auf_eine_pruefrunde(conn):
+    pruefung7 = _padua("pruefung7")
+    assert not pruefung7.fertig(conn, 1, {})
+    repo.lege_stueckpruefung_an(conn, 1, [{"frage": "Traegt der Bogen?"}], runde=1)
+    assert pruefung7.fertig(conn, 1, {})
+
+
+def test_skript_schalter_kennt_padua():
+    from scripts import simulation as sim
+
+    args = sim.baue_argumente(["--set", "1", "--skript", "padua"])
+    assert sim._schritte(args) is skript.SCHRITTE_PADUA
+    # auto bleibt wie bisher
+    args = sim.baue_argumente(["--set", "1"])
+    assert sim._schritte(args) is skript.SCHRITTE

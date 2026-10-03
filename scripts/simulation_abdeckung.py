@@ -39,11 +39,12 @@ from interview_theater import db, erkenner, phasen  # noqa: E402
 from interview_theater.knoepfe import texte  # noqa: E402
 from simulation import skript  # noqa: E402
 
-#: Die drei Skriptlisten, die es gibt. Aus ``skript`` geholt, nicht kopiert.
+#: Die Skriptlisten, die es gibt. Aus ``skript`` geholt, nicht kopiert.
 SKRIPTE = {
     "schritte": skript.SCHRITTE,
     "tag2": skript.SCHRITTE_TAG2,
     "birk": skript.SCHRITTE_BIRK,
+    "padua": skript.SCHRITTE_PADUA,
 }
 
 #: Eine Phasennummer im Titel eines Schritts ("Phase 4: Setting ...").
@@ -209,7 +210,8 @@ def als_markdown(conn, wurzel, db=None) -> str:
         f"- Phasen laut `phasen.PHASEN`: {len(phasen.PHASEN)}",
         f"- Schritte: `SCHRITTE` {len(skript.SCHRITTE)}, "
         f"`SCHRITTE_TAG2` {len(skript.SCHRITTE_TAG2)}, "
-        f"`SCHRITTE_BIRK` {len(skript.SCHRITTE_BIRK)}",
+        f"`SCHRITTE_BIRK` {len(skript.SCHRITTE_BIRK)}, "
+        f"`SCHRITTE_PADUA` {len(skript.SCHRITTE_PADUA)}",
         f"- `skript.PHASE_MITTE` = {skript.PHASE_MITTE} "
         f"(`{phasen.kurzname(skript.PHASE_MITTE)}`), "
         f"`skript.phase_szenen()` = {skript.phase_szenen()}",

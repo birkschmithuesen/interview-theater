@@ -14,6 +14,24 @@ Geschichte · Schaerfung · Szenen als Geschichte · Feinschliff.
 `SCHRITTE_BIRK` faehrt echtes Material. Der Schalter `--skript` waehlt;
 `auto` (Vorgabe) waehlt wie bisher nach dem Set.
 
+**`--skript padua`** (`SCHRITTE_PADUA`, 03.10.2026) faehrt bis zur
+Geschichte (Phase 4) dasselbe wie `tag2` und danach den neuen Ablauf der
+Phasen 5–7: `entwurf` (Uebersicht, dann Szene fuer Szene im Script-Tab
+abnehmen; fertig in Phase 6), `gesamt6` (`arbeitsstand.gesamttext_fixiert_am`),
+`szenen6` (fertig in Phase 7), `formen7` (jede Szene hat `form`),
+`sprechweisen7` (`arbeitsstand.sprechweisen_fixiert_am`), `buehne7` (jede
+Szene hat `fertig_am`) und `pruefung7` (`repo.letzte_pruefrunde` ≥ 1), dann
+`/stand`. Die Schaerfung von `tag2` faellt weg. Die Phasenschritte 6 und 7
+stehen als Marken da: der Ablauf wechselt selbst, sie kosten dann keine
+Nachricht. Der Ablauf greift nur mit dem Profil aus der Umgebung
+(`IT_WORKSHOP=padua-2026`) -- der Schalter waehlt die Schritte, nicht das
+Profil:
+
+```
+set -a; . ./betrieb/gruppe1.env; set +a
+IT_WORKSHOP=padua-2026 $PY -m scripts.simulation --set 1 --seed 7 --skript padua --bericht
+```
+
 ```
 set -a; . ./betrieb/gruppe1.env; set +a
 PY=$(ls -d ~/.local/share/uv/python/cpython-3.11*/bin/python3 | head -1)

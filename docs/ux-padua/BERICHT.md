@@ -265,9 +265,9 @@ Fixture.
   `#ux-rec-zeile` (der Widerspruch „0:00" im Knopf gegen „0:01" in der
   Uhr ist damit unsichtbar). In der Pause bleibt sie lesbar. Im ruhenden
   Kreis eng gesperrt (`.03em`), damit „AUFNEHMEN" nicht an den Ring stoesst.
-- **Mikrotexte:** „Einmal tippen zum Starten – beendet wird mit „■ Beenden""
-  (vorher falsch „einmal zum Beenden"), Umlaute wie die A2-Texte daneben;
-  englisch entsprechend.
+- **Mikrotexte:** „Einmal tippen zum Starten." (englisch „Tap once to
+  start."; vorher falsch „einmal zum Beenden" — beendet wird mit dem
+  eigenen Knopf „■ Beenden"), Umlaute wie die A2-Texte daneben.
 - **Entwurf A** braucht die Handy-Korrekturen von B nicht: dort ist der
   Aufnahmeknopf eine Taste ueber die volle Breite, die A2-Beschriftung
   (1.15rem) passt hinein und ist lesbar. Im Browser nicht eigens mit
@@ -303,8 +303,10 @@ Drei Schritte nach Birks Abnahmeauftrag; jedes Element mit Urteil
   `tests/test_web_dashboard_en.py` es festhaelt. Also: **Dortmund
   unveraendert, Padua gestaltet.** Bilder:
   `review-dashboard-beamer-vorher.png` / `-nachher.png`.
-- **Arbeitsstand:** „Was noch fehlt" vor den Formularen (die einzige
-  Markup-Umstellung der Karte, `web.gruppe_koerper`), ruhige
+- **Arbeitsstand:** „Was noch fehlt" vor den Formularen (eine
+  Markup-Umstellung, `web.gruppe_koerper` — neben dem neuen
+  Dashboard-Markup hinter dem Profilschalter die zweite Ausnahme von
+  „kein neues Markup"), ruhige
   Speichern-Knoepfe, kraeftige Ueberschriften, Festlegungen repariert, der
   doppelte Chat-Link per CSS weg.
 - **Einhaengezeilen:** jetzt neun statt sieben — `css_interview()` in
@@ -326,10 +328,16 @@ rechnet das Dashboard gegen 5.0.
   Nach jedem Lauf je Datei mit `git show HEAD:<pfad> > <pfad>`
   wiederherstellen und das Verzeichnis nie ungeprueft committen. Der Test
   sollte nur seine eigenen Bilder ersetzen (Befund an Karte W).
-- Die Abnahme- und Review-Bilder nur auf einem frischen Server aufnehmen
-  (`-k abnahme` bzw. `-k review`). Ein voller e2e-Lauf schreibt sie auch,
-  aber mit der Rate-Limit-Meldung „Keine Verbindung" und Blasen der vorigen
-  Tests im Bild. Danach die committeten Bilder wiederherstellen.
+- Die Abnahme- und Review-Bilder schreibt ein Lauf nur noch nach
+  `/tmp/it-ux-shots/` bzw. `/tmp/it-ux-uebersicht-shots/`; ins Repository
+  (`docs/ux-padua/`) gehen sie allein mit `IT_SCHUSS_AKTUALISIEREN=1` —
+  dieselbe Regel wie beim Handy-Bild von `test_web_chat_e2e.py`. Neu
+  aufnehmen nur auf einem frischen Server, also gezielt:
+  `IT_SCHUSS_AKTUALISIEREN=1 PYTHONPATH=. …/it-webtest/bin/python -m pytest
+  -q -p no:cacheprovider tests/e2e/test_web_gestalt_e2e.py -k abnahme` bzw.
+  `… tests/e2e/test_web_uebersicht_e2e.py -k review`. Im vollen e2e-Lauf
+  stuenden die Rate-Limit-Meldung „Keine Verbindung" und Blasen der
+  vorigen Tests im Bild.
 - `tests/e2e/test_web_edit_e2e.py::test_was_der_chat_fuehrt_steht_nur_da`
   erwartete den Phasennamen „4 · Setting & Figuren" von vor dem
   Phasen-Umbau (06.09.) und scheiterte schon vor dieser Karte. Weil die
@@ -351,9 +359,9 @@ rechnet das Dashboard gegen 5.0.
   e2e-Dateien also mit (vorher 5 skipped, jetzt 0). Vor der Korrektur des
   veralteten Phasennamens in `test_web_edit_e2e.py` (siehe „Bekannte Fallen
   beim Testen") stand dort `1 failed, 6353 passed`.
-  Ein Lauf der vollen Suite schreibt damit auch die Bilder unter
-  `docs/ux-padua/` und loescht `docs/web-vereint/` — siehe „Bekannte
-  Fallen beim Testen".
+  Ein Lauf der vollen Suite loescht damit `docs/web-vereint/`; die Bilder
+  unter `docs/ux-padua/` schreibt er seit dem Abschlussreview nur noch mit
+  `IT_SCHUSS_AKTUALISIEREN=1` — siehe „Bekannte Fallen beim Testen".
 - **E2E je Datei** (`PYTHONPATH=. …/it-webtest/bin/python -m pytest -q
   -p no:cacheprovider tests/e2e/<datei>`, nacheinander):
 

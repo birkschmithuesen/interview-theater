@@ -76,7 +76,7 @@ Module unter `interview_theater/`:
 | `web_kanal.py` | Der Web-Kanal (30.09.2026): `WebKanal` ersetzt `telegram.Telegram`, wenn `IT_KANAL=web`. Liest Browser-Ereignisse aus der Tabelle `web_post` als Telegram-förmige Updates und schreibt die Antworten dorthin zurück — `bot.schleife` bleibt unverändert, `knoepfe/` wird nicht angefasst. Kein SQL (alles über `repo`), kein Modell |
 | `web_chat.py` | Die Chatansicht im Browser (30.09.2026): HTML, CSS, Vanilla-JS und alle Handler unter `/g/<token>/chat`. `web.py` bekommt nur die Routing-Zeilen. Trägt den serverseitigen HTML-Filter (`sichere_html`), die Knopfprüfung gegen die hängende Leiste (`knopf_erlaubt`), den Audio-Upload, die zwei Aufnahme-Wege und die sequentielle Warteschlange im JS. Kein SQL, kein Modell |
 | `web_vereint.py` | Die vereinte Gruppenseite (30.09.2026): drei Panels (Chat · Arbeitsstand · Textbuch) in **einem** Dokument, Hash-Tabs, die Phasenleiste mit Klick, der SSE-Kanal `/g/<token>/chat/strom` und `scope_css`. `web.py` bekommt davon nur Routing-Zeilen |
-| `web_gestalt.py` | Die Gestaltung der Weboberflaeche (01.10.2026, Padua): ein Block Design-Tokens je Entwurf (A „Terminal zuerst", B „Buehne zuerst"), das Komponenten-CSS, das Effekt-JavaScript und die englischen Mikrotexte. Eingehaengt an **neun** Zeilen (sechs in `web_vereint.seite`, je eine in `web.textbuch_html`/`leitfaden_html`/`dashboard_html`; das Dashboard nur mit `[web] dashboard_gestaltet`) — **kein SQL, kein Modellaufruf, kein Endpunkt, kein neues Markup**. Umschalten: `IT_UX_ENTWURF` |
+| `web_gestalt.py` | Die Gestaltung der Weboberflaeche (01.10.2026, Padua): ein Block Design-Tokens je Entwurf (A „Terminal zuerst", B „Buehne zuerst"), das Komponenten-CSS, das Effekt-JavaScript und die englischen Mikrotexte. Eingehaengt an **neun** Zeilen (sechs in `web_vereint.seite`, je eine in `web.textbuch_html`/`leitfaden_html`/`dashboard_html`; das Dashboard nur mit `[web] dashboard_gestaltet`) — **kein SQL, kein Modellaufruf, kein Endpunkt, kein neues Markup** (zwei Ausnahmen in `web.py`: die Umstellung in `web.gruppe_koerper` und das gestaltete Dashboard-Markup `_fortschritt_html`/`_achtung_html`/`_dashboard_inhalt_html`, nur mit `[web] dashboard_gestaltet`). Umschalten: `IT_UX_ENTWURF` |
 
 `scripts/loeschen.py` erfüllt die Löschzusage (löscht eine Gruppe vollständig,
 Datenbank und Audioverzeichnis), `scripts/rauchtest.py` prüft echte
@@ -2880,11 +2880,17 @@ nur mit Chat, dazu das Effekt-JS), je eine in `web.textbuch_html` und
 `web.leitfaden_html` und eine in `web.dashboard_html` (`tokens_css()` +
 `css_dashboard()`, nur mit Profilschalter, siehe unten). Es fasst **kein
 Markup** an — was die Gestaltung zusaetzlich braucht, legt das Effekt-JS
-zur Laufzeit an (alles mit dem Praefix `ux-`). **Die eine Ausnahme**
-(Nacharbeit 03.10.2026): `web.gruppe_koerper` stellt „Was noch fehlt" vor
-die Formulare des Arbeitsstands, statt dahinter — eine Umstellung, kein
-neues Element (Test
-`test_was_fehlt_steht_vor_den_formularen_des_arbeitsstands`).
+zur Laufzeit an (alles mit dem Praefix `ux-`). **Zwei Ausnahmen**, beide
+in `web.py` (Nacharbeit 03.10.2026): (1) `web.gruppe_koerper` stellt „Was
+noch fehlt" vor die Formulare des Arbeitsstands, statt dahinter — eine
+Umstellung, kein neues Element (Test
+`test_was_fehlt_steht_vor_den_formularen_des_arbeitsstands`); (2) das
+Team-Dashboard bekommt **neues Markup** (`_fortschritt_html`,
+`_achtung_html`, `_dashboard_inhalt_html`: Akt n/7 mit sieben Segmenten,
+der Hinweis „Needs attention", die gekappte Karte) — aber **nur hinter dem
+Profilschalter `[web] dashboard_gestaltet`** (gesetzt allein in
+`workshop/padua-2026/profil.toml`); ohne ihn bleibt das Dashboard-HTML
+byte-gleich (`tests/test_web_dashboard_en.py`).
 
 **Ein Block Design-Tokens ist der ganze Entwurf.** `TOKENS["a"]`
 („Terminal zuerst": Phosphor auf Schwarzblau, Monospace, Tableiste unten)

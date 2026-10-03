@@ -19,9 +19,10 @@ Interpreter wie die Tests:
 | `abnahme-*.png` | `tests/e2e/test_web_gestalt_e2e.py::test_abnahme_screenshots` | Handy 390×844, Laptop 1366×900 |
 | `review-*-vorher.png` / `-nachher.png` | `tests/e2e/test_web_uebersicht_e2e.py::test_review_screenshots` (Suffix ueber `IT_REVIEW_SUFFIX`, Vorgabe `nachher`) | Handy 390×844, Beamer 1920×1080 als Gegenprobe |
 
+Ins Repository schreiben beide Tests nur mit `IT_SCHUSS_AKTUALISIEREN=1`
+(sonst nach `/tmp/it-ux-shots/` bzw. `/tmp/it-ux-uebersicht-shots/`).
 **Bilder nur auf einem frischen Server aufnehmen** (`-k abnahme` bzw.
-`-k review`). Ein voller Lauf der Datei schreibt sie ebenfalls, aber dann
-steht im Bild die Rate-Limit-Meldung „Keine Verbindung" und Blasen der
+`-k review`). In einem vollen Lauf der Datei stuende im Bild die Rate-Limit-Meldung „Keine Verbindung" und Blasen der
 vorigen Tests derselben Wegwerf-Datenbank — der Topf von `web_grenze`
 (20 je Minute) ist nach den uebrigen Tests fast leer.
 
@@ -53,6 +54,16 @@ Befund im Bericht der jeweiligen Aufgabe (`.superpowers/sdd/p2-task-N-report.md`
 | Entwurf A nie im Browser fotografiert | — | — | nein (Sandbox gab `IT_UX_ENTWURF=a` nicht frei) |
 
 ### Uebersichtsseiten
+
+**Die Dashboard-Bilder vorher/nachher sind kein direkter Vergleich.** Die
+Fixture ist zwischen den beiden Aufnahmen gewachsen: im Vorher-Bild hat
+Canal Crew 3 Figuren und 1 Interview, und keine Gruppe hat ein Problem; im
+Nachher-Bild hat Canal Crew 12 Figuren, eine lange Geschichte und mehr
+Interviews, und Market Voices traegt einen Vorfall, einen Fehlschlag und
+86 % Kosten. Dass im Vorher-Bild kein Problem sichtbar ist und keine
+Karte ueber 1080 px laeuft, liegt also auch an den fehlenden Daten — das
+Vorher-Bild belegt diese beiden Befunde nicht. Die Gestaltung vergleicht man
+deshalb an Kopf, Farben und Aufbau der Karten, nicht an ihrer Hoehe.
 
 | Punkt | Bild vorher / nachher | Urteil | Umgesetzt |
 |---|---|---|---|
@@ -193,7 +204,11 @@ Leitfaden-Wand in Canal Crew, kein Problem sichtbar) gegen
 — ein Fehlschlag, ein Vorfall `transcription_failed`, 86 % Kosten —,
 Canal Crew im Spaetstand ohne Hinweis und innerhalb von 1080 px);
 `review-dashboard-handy-vorher.png` / `-nachher.png` (eine Spalte,
-Kappungen mit Ellipse).
+Kappungen mit Ellipse). **Kein direkter Vergleich:** zwischen den beiden
+Aufnahmen ist die Fixture gewachsen (vorher Canal Crew mit 3 Figuren und
+1 Interview, keine Gruppe mit Problem; nachher 12 Figuren, mehr Interviews,
+dazu Vorfall, Fehlschlag und 86 % Kosten bei Market Voices) — „kein Problem
+sichtbar" im Vorher-Bild heisst also auch „kein Problem in den Daten".
 
 ### Gruppenseite `/g/<token>`, Tab Arbeitsstand
 

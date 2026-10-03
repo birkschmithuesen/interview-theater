@@ -12,6 +12,7 @@ der Abnahme und duerfen nichts Echtes zeigen.
 
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
@@ -25,7 +26,12 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 WURZEL = pathlib.Path(__file__).resolve().parents[2]
 DB_PFAD = "/tmp/it-ux.db"
 BIND = "127.0.0.1:8023"
-SCHUSS = WURZEL / "docs" / "ux-padua"
+#: Committet, weil Birk sie ansieht -- nur erfundene Fixture-Daten.
+SCHUSS_REPO = WURZEL / "docs" / "ux-padua"
+#: Jeder Lauf schreibt die Schuesse hierhin; ins Repository (``SCHUSS_REPO``)
+#: nur mit ``IT_SCHUSS_AKTUALISIEREN=1`` -- sonst waere der Arbeitsbaum nach
+#: jedem Lauf schmutzig (wie ``test_web_chat_e2e.py``).
+SCHUSS = pathlib.Path("/tmp/it-ux-shots")
 CHAT = 7_000_000_000_007
 HANDY = {"width": 390, "height": 844}
 LAPTOP = {"width": 1366, "height": 900}
@@ -882,7 +888,8 @@ def test_abnahme_screenshots(dienst):
     """Vier Motive, zwei Groessen -- die Abnahme der Karte.
 
     Sie liegen in ``docs/ux-padua/`` neben den Entwuerfen, damit man
-    Entwurf und Ergebnis nebeneinander sehen kann."""
+    Entwurf und Ergebnis nebeneinander sehen kann -- neu geschrieben nur mit
+    ``IT_SCHUSS_AKTUALISIEREN=1``, sonst nur unter ``/tmp/it-ux-shots/``."""
     basis, token = dienst
     with sync_playwright() as p:
         browser = p.chromium.launch(args=MIKROFON)
@@ -951,3 +958,7 @@ def test_abnahme_screenshots(dienst):
 
     for datei in SCHUSS.glob("abnahme-*.png"):
         assert datei.stat().st_size > 5_000, datei
+    if os.environ.get("IT_SCHUSS_AKTUALISIEREN") == "1":
+        SCHUSS_REPO.mkdir(parents=True, exist_ok=True)
+        for datei in SCHUSS.glob("abnahme-*.png"):
+            shutil.copyfile(datei, SCHUSS_REPO / datei.name)

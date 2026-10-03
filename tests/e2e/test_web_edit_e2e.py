@@ -66,7 +66,7 @@ GEDULD = 5000
 
 
 def _baue_datenbank(pfad: str) -> str:
-    """Die Wegwerf-Datenbank: eine Gruppe in Phase 4 (Setting & Figuren) mit
+    """Die Wegwerf-Datenbank: eine Gruppe in Phase 4 (Setting, Figuren & Geschichte) mit
     Begriffen, Fragen samt Leitfaden, zwei angebotenen Settings, zwei Figuren,
     zwei Interviews, einer Szene mit Formvorschlag und einer Schaerfung.
 

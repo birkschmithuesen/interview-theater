@@ -73,9 +73,14 @@ Aufnahmeknopfes, Push-to-Talk beim Halten, der Akt-Moment und
 ohne das blockiert die Freigabe, und der Knopf bleibt auf „startet"
 stehen. Eigene Wegwerf-Datenbank (`/tmp/it-ux.db`) und eigener Port
 (`127.0.0.1:8023`): zwei e2e-Dateien, die sich einen Port teilen,
-blockieren einander. Die Abnahme-Screenshots landen in
-`docs/ux-padua/abnahme-*.png` und werden **committet** — sie zeigen nur
-erfundenes Material.
+blockieren einander. Die Abnahme-Screenshots landen bei jedem Lauf in
+`/tmp/it-ux-shots/`, die Review-Bilder aus `test_web_uebersicht_e2e.py` in
+`/tmp/it-ux-uebersicht-shots/`. Die committeten Fassungen
+(`docs/ux-padua/abnahme-*.png`, `review-*.png`, nur erfundenes Material)
+werden wie das Handy-Bild oben nur mit `IT_SCHUSS_AKTUALISIEREN=1`
+überschrieben — und dann auf einem frischen Server, gezielt mit
+`-k abnahme` bzw. `-k review`, sonst stehen Rate-Limit-Meldung und Blasen
+früherer Tests im Bild.
 
 **Läuft nicht im normalen `pytest`-Lauf mit.** Dort gibt es kein Playwright,
 und die Datei überspringt sich selbst (`pytest.importorskip`). Das ist

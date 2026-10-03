@@ -161,6 +161,10 @@ dashboard_log_einklappen = true
 # nur als Hinweis, wenn etwas klemmt (Fehlschlag, Vorfall, Kostendeckel nah,
 # Bot liest nicht).
 dashboard_gestaltet = true
+# Die read-only Werkbank (03.10.2026): der Arbeitsstand-Tab zeigt nur noch
+# den Stand je Phase mit Statuspunkten; geaendert wird im Chat. Ohne diese
+# Zeile (Dortmund) bleiben Formulare und Schreibweg wie gehabt.
+workbench_bearbeitbar = false
 
 # Die zweistufige Phase 5 (Padua Phasen TEIL 1, 03.10.2026): erst eine
 # Uebersicht abnehmen, dann Szene fuer Szene Prosa schreiben, am Ende

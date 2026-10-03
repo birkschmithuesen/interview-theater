@@ -1538,6 +1538,7 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
     ).fetchone()
     from interview_theater import phasen   # spaet wie in fehlstellen(): rein, kein SQL
+    from interview_theater import workshop  # spaet wie phasen oben: rein, kein SQL
 
     modus = bool(gruppe and gruppe["interviewmodus_seit"])
     return {
@@ -1559,6 +1560,15 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         # serverseitige "laeuft gerade"-Ausnahme, das Offenhalten einer
         # laufenden Sitzung passiert rein clientseitig (siehe web_chat.py).
         "brainstorm_knopf": _feld(stand, "phase") == 4,
+        # Task 4 (Padua Phase 1+2 Umbau): der Diskussions-Knopf nur in
+        # Phase 1 UND nur, wenn das aktive Profil die Hintergrund-
+        # Diskussionsaufnahme ueberhaupt faehrt (``workshop.diskussion_aktiv``,
+        # Vorgabe false -- Dortmund bleibt unberuehrt). Beide Bedingungen
+        # greifen unabhaengig voneinander, wie beim Brainstorm-Knopf gibt es
+        # dafuer keine serverseitige "laeuft gerade"-Ausnahme.
+        "diskussion_knopf": (
+            _feld(stand, "phase") == 1 and workshop.diskussion_aktiv()
+        ),
         "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
         "nachrichten": nachrichten,
         "letzte": letzte,

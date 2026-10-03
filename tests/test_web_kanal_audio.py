@@ -79,6 +79,10 @@ def test_die_schluesselmenge_waechst_um_genau_einen_eintrag():
         # (Pause/Deckel/Ende) und ob es Brainstorm-Mitschrift statt Interview
         # ist -- beide None bei Telegram.
         "schnittgrund", "brainstorm",
+        # Diskussion (Task 4, Padua Phase 1+2 Umbau, 03.10.2026): dieselbe
+        # additive Durchreiche, Hintergrund-Mithoeren Phase 1 -- False bei
+        # Telegram.
+        "diskussion",
     }
 
 

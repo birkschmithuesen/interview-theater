@@ -5,9 +5,9 @@
 ``web_vereint.py`` (W) sind Hotspots -- an allen dreien arbeiten parallel
 andere Karten. Gestaltung ist die einzige Schicht, die man vollstaendig
 herausloesen kann: sie liest kein SQL, ruft kein Modell, kennt keinen
-Endpunkt und aendert kein Markup. Eingehaengt wird sie an fuenf Zeilen
-(vier in ``web_vereint.seite``, je eine in ``web.textbuch_html`` und
-``web.leitfaden_html``).
+Endpunkt und aendert kein Markup. Eingehaengt wird sie an sieben Zeilen
+(fuenf in ``web_vereint.seite`` -- Rahmen-CSS, drei gescopte Bloecke,
+Effekt-JS --, je eine in ``web.textbuch_html`` und ``web.leitfaden_html``).
 
 **Birks Richtung, woertlich:** "bisschen matrix style cool, unterhaltend,
 technoisch, theater". Uebersetzt in vier Leitplanken -- Terminal (dunkler
@@ -500,8 +500,29 @@ body:not([data-tab="chat"]) .fuss { display: none; }
                border-color: var(--signal); }
 .roadmap #ux-balken i[data-stand="aktiv"] { background: var(--warn);
                border-color: var(--warn); }
-.roadmap > summary { font-family: var(--schrift-skript); font-size: .95rem; }
-.phase-knopf { font-family: var(--schrift-skript); }
+/* Abschluss-Review, Befund 1: dieselbe Kollision wie bei #ux-balken oben
+   (Kommentar darueber), diesmal an zwei Selektoren, die beim ersten Fix
+   uebersehen wurden. ``_ROADMAP`` definiert ``.roadmap > summary`` und
+   ``.phase-knopf`` ERNEUT, mit exakt derselben Spezifitaet wie hier -- bei
+   Gleichstand gewinnt die spaetere Regel, also ``_ROADMAP``, unabhaengig
+   von der Reihenfolge in ``css_rahmen()``. Zwei Selektoren, zwei Formen,
+   weil beide schon anders zu ``.roadmap`` stehen:
+   - ``.roadmap > summary`` hat ``.roadmap`` bereits als Kind-Kombinator-
+     Praefix -- ein zusaetzlicher NACHFAHREN-Praefix (``.roadmap .roadmap >
+     summary``) gaebe es im Markup nie, weil es nur ein ``.roadmap``-Element
+     gibt (``<details class="roadmap" id="roadmap">``). Die Klassen-
+     Verdopplung ``.roadmap.roadmap`` hebt die Spezifitaet von (0,1,1,0) auf
+     (0,2,1,0), ohne den getroffenen Knoten zu aendern.
+   - ``.phase-knopf`` steht dagegen OHNE jeden Praefix und kommt im Markup
+     immer als Nachfahre von ``.roadmap`` vor (einzige Erzeugungsstelle:
+     ``web_vereint.roadmapleiste_html``, der Knopf steht innerhalb von
+     ``<details class="roadmap">``) -- hier passt derselbe Nachfahren-
+     Praefix wie bei ``#ux-balken``, von (0,1,0,0) auf (0,2,0,0). Zusaetzlich
+     wichtig: ``_ROADMAP`` setzt bei ``.phase-knopf`` ``font: inherit``
+     (Shorthand) -- das setzt ``font-family`` explizit zurueck, nicht nur
+     implizit durch spaetere Reihenfolge. */
+.roadmap.roadmap > summary { font-family: var(--schrift-skript); font-size: .95rem; }
+.roadmap .phase-knopf { font-family: var(--schrift-skript); }
 """
 #: Die Phasenuebersicht als Aktfolge. Fuer beide Entwuerfe dieselbe
 #: Struktur -- die Tokens und die zwei Abweichungen unten tragen den

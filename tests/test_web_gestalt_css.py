@@ -279,6 +279,64 @@ def test_buehnenlichter_gewinnen_gegen_die_roadmap_regel():
     assert "var(--fortschritt" not in innen_koerper
 
 
+def _kanonisch_summary(sel: str) -> bool:
+    """Trifft ``sel`` dasselbe ``<summary>``-Element wie ``.roadmap >
+    summary``, egal ob roh (``_ROADMAP``) oder mit verdoppeltem
+    ``.roadmap``-Praefix (``_TABS_B`` nach dem Fix)? Anders als bei
+    ``#ux-balken`` hat hier schon die _ROADMAP-Fassung ``.roadmap`` im
+    Selektor -- ein Nachfahren-Praefix waere deshalb kein zweiter Fund,
+    sondern derselbe Text zweimal; die Klassen-Verdopplung ist die Form,
+    die trotzdem noch auf genau dieses Element zielt."""
+    return bool(re.fullmatch(r"(\.roadmap)+\s*>\s*summary", sel.strip()))
+
+
+def _kanonisch_phase_knopf(sel: str) -> bool:
+    """Trifft ``sel`` dasselbe ``.phase-knopf``-Element, roh (_ROADMAP)
+    oder mit Nachfahren-Praefix (_TABS_B nach dem Fix)?"""
+    return bool(re.fullmatch(r"(\.roadmap\s+)?\.phase-knopf", sel.strip()))
+
+
+@pytest.mark.parametrize(
+    "ist_treffer,erwarteter_wert,verbotener_wert",
+    [
+        (_kanonisch_summary, "var(--schrift-skript)", "var(--schrift-tech)"),
+        (_kanonisch_phase_knopf, "font-family: var(--schrift-skript)", "font: inherit"),
+    ],
+    ids=["roadmap-summary", "phase-knopf"],
+)
+def test_abschlussreview_befund1_schrift_gewinnt_gegen_die_roadmap_regel(
+    ist_treffer, erwarteter_wert, verbotener_wert,
+):
+    """Abschluss-Review, Befund 1: ``.roadmap > summary`` und
+    ``.phase-knopf`` stehen in ``_TABS_B`` UND -- mit exakt derselben
+    Spezifitaet -- in ``_ROADMAP``, das in ``css_rahmen()`` NACH den Tabs
+    steht. Vor dem Fix gewinnt deshalb ``_ROADMAP``
+    (``var(--schrift-tech)`` bzw. die Shorthand ``font: inherit``, die
+    ``font-family`` explizit zuruecksetzt), nicht die B-Regel. Gerechnet
+    wird wie bei ``#ux-balken`` oben: echte Spezifitaet plus
+    Dokumentreihenfolge als Tie-Breaker, nicht nur ein Textvorkommen.
+
+    Gefiltert wird auf Regeln, die ueberhaupt ``font``/``font-family``
+    setzen -- sonst mischt sich bei ``.phase-knopf`` die
+    ``prefers-reduced-motion``-Regel (dieselbe bare Klasse, aber
+    ``animation``/``transition``) unter die Kandidaten und verzerrt die
+    Tie-Break-Reihenfolge."""
+    css = web_gestalt.css_rahmen("b")
+    regeln = _css_regeln(css)
+
+    kandidaten = []
+    for index, (selektoren, koerper) in enumerate(regeln):
+        for roh in selektoren.split(","):
+            sel = roh.strip()
+            if ist_treffer(sel) and re.search(r"\bfont(-family)?\s*:", koerper):
+                kandidaten.append((_spezifitaet(sel), index, sel, koerper))
+    assert len(kandidaten) >= 2, kandidaten  # B UND _ROADMAP vertreten
+
+    _, _, sel, koerper = max(kandidaten, key=lambda k: (k[0], k[1]))
+    assert erwarteter_wert in koerper, (sel, koerper)
+    assert verbotener_wert not in koerper, (sel, koerper)
+
+
 def test_die_drei_lichtzustaende_sind_unterscheidbar():
     """Befund 2: ``_JS_FORTSCHRITT`` setzt ``data-stand`` je Licht
     (``aktiv``/``offen``/``fertig``) -- ohne eigene Regeln je Zustand

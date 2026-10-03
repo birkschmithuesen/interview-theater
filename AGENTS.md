@@ -2870,7 +2870,7 @@ Neustart von `interview-theater-web.service`; die Bots brauchen einen nur, weil
 ### Die Gestaltung (01.10.2026, Padua)
 
 Alles Gestalterische liegt in **einem** Modul (`web_gestalt.py`) und wird
-an fuenf Zeilen eingehaengt: vier in `web_vereint.seite` (Rahmen-CSS plus
+an sieben Zeilen eingehaengt: fuenf in `web_vereint.seite` (Rahmen-CSS plus
 drei gescopte Bloecke, dazu das Effekt-JS) und je eine in
 `web.textbuch_html` und `web.leitfaden_html`. Es fasst **kein Markup** an —
 was die Gestaltung zusaetzlich braucht, legt das Effekt-JS zur Laufzeit an

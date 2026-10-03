@@ -3,7 +3,8 @@
 **A chat bot that helps an amateur theatre group turn its own interviews
 into a play** — it transcribes, condenses, remembers what the group
 decides, and drafts scene text on request. The group always decides; the
-bot never writes a scene, sets a phase, or makes a choice on its own.
+bot never writes a scene or makes a choice on its own, and switches phase
+by itself in only one narrow, deliberate case (see below).
 
 The group interviews people in their own community, talks through what a
 play could look like, and gets scene drafts and a judged full read-through
@@ -60,8 +61,12 @@ of these decisions — and the live incidents that led to them — lives in
    interview material
 5. **Prose Draft** — sharpen the invented story against checked interview
    passages, then get it drafted scene by scene as prose
-6. **Rewrite** — revise that prose scene by scene, still without a fixed
-   performance form
+6. **Rewrite** — the bot writes the whole story again in one pass, as a
+   single continuous piece of prose from setting, characters and story,
+   still without a fixed performance form; this is the same one-shot write
+   the phase had before it was renamed, so for a group that already drafted
+   every scene individually in phase 5 it can mean redoing that work rather
+   than revising it
 7. **Stage Version** — choose a performance form per scene, translate the
    draft into it, and read the finished script once as a whole
 
@@ -82,12 +87,15 @@ buttons, the same phase flow — useful where installing Telegram isn't an
 option. Both run through the identical `bot.py` loop; only the channel
 object (`telegram.Telegram` vs. `web_kanal.WebKanal`) differs.
 
-The web page has three tabs — **Chat** (the conversation), **Arbeitsstand**
-(the group's editable work state — setting, characters, story, scenes) and
-**Textbuch** (the script, read-only, with a rehearsal-friendly print view
-and a role filter) — plus, during phase 4 only, a fourth tab, **Bühne**, a
-live brainstorming surface. A separate rehearsal view and a printable
-interview guide live at their own links for sharing outside the chat.
+The web page has three tabs — **Chat** (the conversation), **Workbench**
+(`Arbeitsstand` in the code's German default — the group's editable work
+state: setting, characters, story, scenes) and **Script** (`Textbuch`,
+read-only, with a rehearsal-friendly print view and a role filter) — plus,
+during phase 4 only, a fourth tab, **Stage** (`Bühne`), a live
+brainstorming surface. (Labels shown here are the English translation used
+by the Padua profile; a workshop running without it sees the German names.)
+A separate rehearsal view and a printable interview guide live at their own
+links for sharing outside the chat.
 
 ## Workshop profiles
 
@@ -98,9 +106,10 @@ group — lives in `workshop/<name>/` and is selected per bot process with
 reproduces exactly what the first workshop (Dortmund, German, September
 2026) ran on. `workshop/padua-2026/` is the English-language profile for a
 five-day workshop for third-year acting students at the academy of the
-National Theatre of the Veneto Region in Padua — same phases, same
-mechanics, its own wording, and (for now) the only profile running the
-two-stage phase 5 flow described above (`[prosa_entwurf] aktiv = true`). See
+National Theatre of the Veneto Region (Teatro Verdi, Padova), starting
+5 October 2026 — same phases, same mechanics, its own wording, and (for
+now) the only profile running the two-stage phase 5 flow described above
+(`[prosa_entwurf] aktiv = true`). See
 `docs/workshop-profil-umbau-2026-09-06.md` for how a profile is built and
 proven not to change the default's output.
 

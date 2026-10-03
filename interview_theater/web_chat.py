@@ -310,8 +310,16 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .angehalten[hidden], .angehalten button[hidden] { display: none; }
 .angehalten button { font: inherit; min-height: 2.9rem; border-radius: .7rem;
                      border: 1px solid #1f6f5c; background: #fff; color: #17181b; }
-.pegel { height: .45rem; border-radius: .3rem; background: #e0ddd6; overflow: hidden; }
-.pegel span { display: block; height: 100%; width: 0; background: #a8201a; }
+.pegel { position: relative; height: .45rem; border-radius: .3rem;
+         background: #e0ddd6; overflow: visible; }
+/* Grau unterhalb, Gruen sobald der aktuelle Pegel die VAD-Schwelle
+   uebersteigt (.ueber-schwelle, von pegelAn gesetzt) -- derselbe Rahmen wie
+   .kalibrierung-balken/.kalibrierung-marke. */
+.pegel span { display: block; height: 100%; width: 0; border-radius: .3rem;
+              background: #6b6f76; }
+.pegel.ueber-schwelle span { background: #1f6f5c; }
+.pegel-schwelle { position: absolute; top: -.2rem; bottom: -.2rem; width: 2px;
+                  background: #17181b; left: 0; }
 .uhr { font-variant-numeric: tabular-nums; font-size: 1.3rem; text-align: center; }
 .warteschlange { font-size: .82rem; opacity: .7; text-align: center; }
 .kalibrierung { display: flex; flex-direction: column; gap: .5rem; font-size: .92rem;
@@ -572,6 +580,7 @@ _CHAT_JS = """
   var uhrFeld = document.getElementById('uhr');
   var pegelFeld = document.getElementById('pegel');
   var pegelBalken = pegelFeld ? pegelFeld.querySelector('span') : null;
+  var pegelSchwelle = pegelFeld ? pegelFeld.querySelector('.pegel-schwelle') : null;
   var warteFeld = document.getElementById('warteschlange');
   var fehlerFeld = document.getElementById('fehler');
   var tipptFeld = document.getElementById('tippt');
@@ -1515,7 +1524,6 @@ _CHAT_JS = """
       var messer = kontext.createAnalyser();
       messer.fftSize = 256;
       kontext.createMediaStreamSource(sitzung.strom).connect(messer);
-      var frequenzWerte = new Uint8Array(messer.frequencyBinCount);
       var zeitWerte = new Float32Array(messer.fftSize);
       var PAUSE_MS = parseInt(fuss.dataset.vadPauseMs, 10) || 2500;
       var MAX_MS = parseInt(fuss.dataset.vadMaxMs, 10) || 90000;
@@ -1528,16 +1536,15 @@ _CHAT_JS = """
       // zieht eine durchgehend laute Aufnahme den Boden auf ihre eigene
       // Lautstaerke und die Pause-Erkennung faellt dauerhaft aus.
       var BODEN_DECKEL_FAKTOR = 10;
+      // Anzeige-Skala des Pegelbalkens (rein kosmetisch, keine
+      // IT_WEB_VAD_*-Variable): 0.3 RMS = 100% Balkenbreite, deutlich ueber
+      // KAL_SCHWELLE_ABS_MAX (0.08), damit auch eine kalibrierte, hohe
+      // Schwelle noch sichtbar Platz nach oben laesst.
+      var PEGEL_MAX_RMS = 0.3;
       sitzung.vadMinSpeechMs = MIN_SPEECH_MS;
       sitzung.vadAktiv = true;
       sitzung.vadBoden = [];
       sitzung.pegelTakt = setInterval(function () {
-        messer.getByteFrequencyData(frequenzWerte);
-        var summe = 0;
-        for (var i = 0; i < frequenzWerte.length; i++) { summe += frequenzWerte[i]; }
-        pegelBalken.style.width =
-          Math.min(100, (summe / frequenzWerte.length) * 2.2) + '%';
-
         messer.getFloatTimeDomainData(zeitWerte);
         var quadratsumme = 0;
         for (var j = 0; j < zeitWerte.length; j++) {
@@ -1567,6 +1574,17 @@ _CHAT_JS = """
         );
         var boden = berechnet.boden;
         var schwelle = berechnet.schwelle;
+        // Der sichtbare Balken faehrt seit dieser Karte auf derselben
+        // RMS-Skala wie der Schnitt selbst (vorher: Frequenzmittel * 2.2,
+        // eine andere Zahl als die Schwelle) -- Anzeige und Entscheidung
+        // sind damit dieselbe Messung, nur einmal gezeichnet.
+        pegelBalken.style.width =
+          Math.min(100, (rms / PEGEL_MAX_RMS) * 100) + '%';
+        if (pegelSchwelle) {
+          pegelSchwelle.style.left =
+            Math.min(100, (schwelle / PEGEL_MAX_RMS) * 100) + '%';
+        }
+        pegelFeld.classList.toggle('ueber-schwelle', rms > schwelle);
         var jetzt = Date.now();
         if (rms > schwelle) {
           sitzung.vadSpeechMs += 120;
@@ -1628,6 +1646,7 @@ _CHAT_JS = """
     if (kalNeuKnopf) { kalNeuKnopf.hidden = true; }
     if (kalFeld) { kalFeld.hidden = true; }
     if (pegelBalken) { pegelBalken.style.width = '0'; }
+    if (pegelFeld) { pegelFeld.classList.remove('ueber-schwelle'); }
   }
 
   function modusAn() {
@@ -3058,7 +3077,8 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'     data-interview="{1 if modus else 0}" '
         f'data-basis="{html.escape(basis, quote=True)}">\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
-        f'  <div class="pegel" id="pegel" hidden><span></span></div>\n'
+        f'  <div class="pegel" id="pegel" hidden>'
+        f'<span></span><i class="pegel-schwelle"></i></div>\n'
         f'  <button type="button" id="kalibrierung-neu" hidden>'
         f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
         f'  <div class="kalibrierung-erinnerung" id="kalibrierung-erinnerung" '

@@ -1369,3 +1369,122 @@ def test_herumreichen_erinnerung_bleibt_ohne_herumreichen_modus_versteckt_live_i
     ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
     ergebnis = json.loads(ausgabe.strip().splitlines()[-1])
     assert ergebnis["versteckt_geblieben"] is True
+
+
+# -- Schwellenmarke auf dem Pegelbalken (Task 3, Kanban-Karte Mithoeren      --
+# -- SICHER/Kalibrierung, 03.10.2026): der Balken zeigt seitdem dieselbe     --
+# -- RMS-Messung wie der VAD-Schnitt selbst, mit einer duennen Marke an der  --
+# -- aktuellen Schwelle. ------------------------------------------------------
+
+def test_pegel_schwelle_marker_steht_im_html(seite):
+    assert '<i class="pegel-schwelle">' in seite
+
+
+def test_pegel_css_zeigt_zwei_farben_getrennt_an_der_marke():
+    """Grau unterhalb, eine andere Farbe sobald ``#pegel`` die Klasse
+    ``ueber-schwelle`` traegt -- dieselbe von ``pegelAn`` gesetzte Klasse,
+    die ``rms > schwelle`` im Takt widerspiegelt."""
+    css = web_chat._CSS_CHAT
+    assert ".pegel-schwelle" in css
+    assert ".pegel.ueber-schwelle span" in css
+    balken = re.search(r"\.pegel span\s*\{([^}]*)\}", css)
+    ueber = re.search(r"\.pegel\.ueber-schwelle span\s*\{([^}]*)\}", css)
+    assert balken and ueber
+    assert balken.group(1) != ueber.group(1)
+
+
+def test_pegeltakt_verwendet_keine_frequenzdaten_mehr():
+    """Vorher zeigte der Balken ein Frequenzmittel (``getByteFrequencyData``
+    ``* 2.2``) -- eine andere Zahl als die RMS-Schwelle, die den Schnitt
+    steuert. Mutant: eine Rueckkehr zu ``getByteFrequencyData`` im Takt soll
+    diesen Test ROT machen."""
+    js = web_chat._CHAT_JS
+    takt = js[js.index("sitzung.pegelTakt = setInterval"):]
+    takt = takt[:takt.index("}, 120)")]
+    assert "getByteFrequencyData" not in takt
+    assert "frequenzWerte" not in takt
+    assert "getFloatTimeDomainData" in takt
+
+
+def test_pegeltakt_setzt_breite_marke_und_farbzustand_aus_derselben_rms():
+    js = web_chat._CHAT_JS
+    takt = js[js.index("sitzung.pegelTakt = setInterval"):]
+    takt = takt[:takt.index("}, 120)")]
+    assert "pegelBalken.style.width" in takt
+    assert "(rms / PEGEL_MAX_RMS) * 100" in takt
+    assert "pegelSchwelle.style.left" in takt
+    assert "(schwelle / PEGEL_MAX_RMS) * 100" in takt
+    assert "classList.toggle('ueber-schwelle', rms > schwelle)" in takt
+    # Breite UND Marke stehen erst, nachdem ``schwelle`` aus der kalibrierten
+    # Formel berechnet wurde -- sonst zeigte die Marke die Schwelle des
+    # VORIGEN Takts.
+    assert takt.index("berechnet.schwelle") < takt.index("pegelSchwelle.style.left")
+
+
+def test_pegeltakt_zeichnet_breite_marke_und_farbzustand_live_in_node(tmp_path):
+    """Laeuft den tatsaechlichen Rumpf des Pegeltakts (woertlich aus
+    ``_CHAT_JS`` extrahiert, nicht nachgebaut) mit einer gefaelschten
+    Zeitdomaenen-Messung und einer gefaelschten, festen Schwelle -- und
+    prueft, dass Breite, Markenposition und Farbzustand auf derselben
+    ``PEGEL_MAX_RMS``-Skala herauskommen."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    takt = js[js.index("sitzung.pegelTakt = setInterval(function () {"):]
+    takt = takt[:takt.index("}, 120)")]
+    rumpf = takt[takt.index("{") + 1:]
+    quelltext = f"""
+    var PEGEL_MAX_RMS = 0.3;
+    var BODEN_FENSTER = 10;
+    var RMS_SCHWELLE = 0.01, BODEN_FAKTOR = 2.5, BODEN_DECKEL_FAKTOR = 10;
+    var MAX_MS = 90000, PAUSE_MS = 2500, MIN_SPEECH_MS = 500;
+    var __schwelleWert = 0;
+    function kalBerechneBodenUndSchwelle() {{
+      return {{ boden: 0, schwelle: __schwelleWert }};
+    }}
+    function schneideSegment() {{}}
+    var __rmsWert = 0;
+    var zeitWerte = {{ length: 1 }};
+    var messer = {{ getFloatTimeDomainData: function (arr) {{ arr[0] = __rmsWert; }} }};
+    var pegelBalken = {{ style: {{}} }};
+    var pegelSchwelle = {{ style: {{}} }};
+    var __ueberSchwelle = null;
+    var pegelFeld = {{
+      classList: {{ toggle: function (name, wert) {{ __ueberSchwelle = wert; }} }}
+    }};
+    var sitzung = {{ vadBoden: [], recorder: null }};
+
+    function taktFn() {{
+    {rumpf}
+    }}
+
+    function pruefe(rmsWert, schwelleWert) {{
+      __rmsWert = rmsWert;
+      __schwelleWert = schwelleWert;
+      __ueberSchwelle = null;
+      taktFn();
+      return {{
+        breite: parseFloat(pegelBalken.style.width),
+        links: parseFloat(pegelSchwelle.style.left),
+        ueber: __ueberSchwelle
+      }};
+    }}
+    console.log(JSON.stringify({{
+      halb: pruefe(0.15, 0.1),
+      leise: pruefe(0.03, 0.1),
+      gedeckelt: pruefe(0.5, 0.1)
+    }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    # halb: rms=0.15 -> 50% Breite; schwelle=0.1 -> 33.33% Markenposition;
+    # 0.15 > 0.1 -> ueber-schwelle.
+    assert ergebnisse["halb"]["breite"] == pytest.approx(50.0)
+    assert ergebnisse["halb"]["links"] == pytest.approx(100 / 3)
+    assert ergebnisse["halb"]["ueber"] is True
+    # leise: rms=0.03 -> 10% Breite, noch unter derselben Schwelle.
+    assert ergebnisse["leise"]["breite"] == pytest.approx(10.0)
+    assert ergebnisse["leise"]["links"] == pytest.approx(100 / 3)
+    assert ergebnisse["leise"]["ueber"] is False
+    # gedeckelt: rms=0.5 -> ueber 100% der Skala, auf 100 geklemmt.
+    assert ergebnisse["gedeckelt"]["breite"] == pytest.approx(100.0)
+    assert ergebnisse["gedeckelt"]["ueber"] is True

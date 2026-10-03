@@ -208,6 +208,14 @@ _TEXT_INTERVIEW_PAUSIERT = "Pause · {zeit}"
 #: Knopf und die Laeuft-Zeile sind eigene -- "Brainstorm" ist kein Interview.
 _TEXT_BRAINSTORM_AN = "🎙 Brainstorm mithören"
 _TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit}"
+#: Hintergrund-Mithoeren Phase 1 (Padua Phase 1+2 Umbau, 03.10.2026, Task 5):
+#: derselbe Drei-Zustands-Regler wie Interview/Brainstorm -- Pause/Weiter
+#: teilen sich die Interview-Beschriftungen (_TEXT_INTERVIEW_PAUSE usw.),
+#: nur der grosse Knopf, die Laeuft-Zeile und der eigene Beenden-Knopftext
+#: sind eigene.
+_TEXT_DISKUSSION_AN = "Zuhoeren starten"
+_TEXT_DISKUSSION_LAEUFT = "Hoert zu ({zeit})"
+_TEXT_DISKUSSION_FERTIG_KNOPF = "Diskussion fertig"
 _TEXT_PTT = "Tippen und sprechen"
 _TEXT_OHNE_JS = (
     "Fuer Chat und Aufnahme braucht diese Seite JavaScript. "
@@ -2231,6 +2239,13 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
     # dieselbe Quelle fuer das ``hidden``-Attribut und die ``nebenknopf``-
     # Klasse am Interview-Knopf, nicht das rohe ``daten.get("phase") == 4``.
     brainstorm_erlaubt = daten.get("brainstorm_knopf", True)
+    # Task 5 (Padua Phase 1+2 Umbau, 03.10.2026): derselbe Aufbau wie der
+    # Brainstorm-Knopf, aber mit umgekehrter Vorgabe -- anders als Brainstorm
+    # (Vorgabe ``True``) bleibt das Hintergrund-Mithoeren unsichtbar, wenn der
+    # Server den Schluessel aus irgendeinem Grund gar nicht mitschickt. Die
+    # Berechnung selbst (Phase 1 UND Profilflag) steht in
+    # ``web_daten.web_chatzustand`` (Task 4).
+    diskussion_erlaubt = daten.get("diskussion_knopf", False)
     blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(T._TEXT_LEER)}</p>'
@@ -2282,6 +2297,19 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'{html.escape(T._TEXT_INTERVIEW_PAUSE)}</button>\n'
             f'    <button type="button" id="brainstorm-beenden">'
             f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'  </div>\n'
+        )
+        + (
+            f'  <button type="button" id="diskussion" data-laeuft="0" '
+            f'data-pausiert="0"'
+            + ('' if diskussion_erlaubt else ' hidden')
+            + f'>{html.escape(T._TEXT_DISKUSSION_AN)}</button>\n'
+            f'  <div class="interview-aktionen" id="diskussion-aktionen" hidden>\n'
+            f'    <button type="button" id="diskussion-pause">'
+            f'{html.escape(T._TEXT_INTERVIEW_PAUSE)}</button>\n'
+            f'    <button type="button" id="diskussion-beenden" '
+            f'data-discussion-done="1">'
+            f'{html.escape(T._TEXT_DISKUSSION_FERTIG_KNOPF)}</button>\n'
             f'  </div>\n'
         )
         + (
@@ -2736,6 +2764,9 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     roh_grund = (felder.get("grund") or [""])[0]
     grund = roh_grund if roh_grund in ("pause", "cap", "ende") else None
     brainstorm = (felder.get("brainstorm") or [""])[0] == "1"
+    # Task 5 (Padua Phase 1+2 Umbau, 03.10.2026): dasselbe Bookkeeping wie
+    # ``brainstorm``, nur fuer das Hintergrund-Mithoeren in Phase 1.
+    diskussion = (felder.get("diskussion") or [""])[0] == "1"
 
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
@@ -2754,7 +2785,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
             dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
-            schnittgrund=grund, brainstorm=brainstorm,
+            schnittgrund=grund, brainstorm=brainstorm, diskussion=diskussion,
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.

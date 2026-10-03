@@ -1692,21 +1692,25 @@ def test_starte_buehnenkarte_tut_nichts_ohne_klm(conn, tg, einst, monkeypatch):
     assert not aufgerufen
 
 
-def test_starte_buehnenkarte_legt_eine_karte_an_und_meldet_genau_eine_zeile(conn, tg, einst, monkeypatch):
+def test_starte_buehnenkarte_legt_eine_karte_an_und_sendet_keine_chatzeile(conn, tg, einst, monkeypatch):
+    """Birk, 02.10.2026 (Padua-Feedback b): der Bot schreibt im Brainstorm-
+    Modus NICHT in den Chat -- die neue Karte zeigt sich nur ueber den
+    CoThinker-Tab-Marker und das sich live aktualisierende Panel, beide auf
+    der Web-Seite (``web_vereint``/``web_chat``), nicht hier."""
     monkeypatch.setattr(
         aufnahme.buehnenkarte, "erzeuge",
         lambda *a, **k: ("Thema gerade: Testkarte.", "infomaniak"),
     )
     aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
-    # Der Lauf ist ein eigener Thread -- auf BEIDE Wirkungen warten statt zu raten.
+    # Der Lauf ist ein eigener Thread -- auf die Karte warten statt zu raten.
     for _ in range(50):
-        if repo.buehnenkarten(conn, 1) and tg.gesendet:
+        if repo.buehnenkarten(conn, 1):
             break
         time.sleep(0.02)
     karten = repo.buehnenkarten(conn, 1)
     assert len(karten) == 1
     assert karten[0]["text"] == "Thema gerade: Testkarte."
-    assert [t for _, t in tg.gesendet].count("Neue Karte im Tab Bühne") == 1
+    assert not tg.gesendet
 
 
 def test_starte_buehnenkarte_bei_nichts_speichert_keine_karte_und_sendet_nichts(conn, tg, einst, monkeypatch):
@@ -1716,12 +1720,6 @@ def test_starte_buehnenkarte_bei_nichts_speichert_keine_karte_und_sendet_nichts(
         time.sleep(0.02)
     assert repo.buehnenkarten(conn, 1) == []
     assert not tg.gesendet
-
-
-def test_melde_neue_karte_sendet_nicht_zweimal_hintereinander(conn, tg, einst):
-    aufnahme._melde_neue_karte(conn, tg, einst, 1)
-    aufnahme._melde_neue_karte(conn, tg, einst, 1)
-    assert len(tg.gesendet) == 1
 
 
 def test_ein_laufender_buehnenkarten_lauf_blockiert_einen_zweiten(conn, tg, einst, monkeypatch):

@@ -200,12 +200,31 @@ def test_die_ptt_mindestdauer_kommt_aus_einer_konstante(seite):
     assert "__PTT_MIN_MS__" in web_chat._CHAT_JS
 
 
-def test_pointercancel_und_setpointercapture_stehen_im_js():
-    """Birks Vorgabe woertlich: Pointer Events + setPointerCapture, Abbruch
-    bei Wegziehen/pointercancel sendet NICHTS."""
-    for baustein in ("setPointerCapture", "pointercancel", "pointerdown",
-                     "pointerup", "releasePointerCapture"):
-        assert baustein in web_chat._CHAT_JS, baustein
+def test_ptt_ist_ein_klick_umschalter_ohne_pointer_capture():
+    """Von Halten-zum-Sprechen auf Tippen-zum-Umschalten umgebaut (Kanban-
+    Karte Buehne/PTT, Punkt 3): ein Tipp startet, ein zweiter beendet und
+    sendet -- kein Pointer-Capture-Geschehen mehr."""
+    js = web_chat._CHAT_JS
+    block = js[js.index("-- Push-to-Talk"):]
+    assert "pttKnopf.addEventListener('click'" in block
+    for veraltet in ("setPointerCapture", "pointercancel", "pointerdown",
+                     "pointerup", "pointermove", "lostpointercapture",
+                     "releasePointerCapture"):
+        assert veraltet not in block, veraltet
+
+
+def test_die_ptt_hoechstdauer_kommt_aus_einer_konstante(seite):
+    assert web_chat.PTT_MAX_MS == 90_000
+    assert f"var PTT_MAX_MS = {web_chat.PTT_MAX_MS};" in seite
+    assert "__PTT_MAX_MS__" in web_chat._CHAT_JS
+
+
+def test_ptt_stoppt_und_sendet_automatisch_nach_der_hoechstdauer():
+    js = web_chat._CHAT_JS
+    block = js[js.index("-- Push-to-Talk"):]
+    assert "setTimeout(" in block
+    assert "PTT_MAX_MS" in block
+    assert "beendePtt()" in block
 
 
 def test_kein_schieben_zum_sperren(seite):
@@ -331,9 +350,13 @@ def test_die_seite_traegt_den_modus_schon_beim_laden(tmp_path, monkeypatch):
     Erweitert (Drei-Zustands-Regler, 02.10.2026): ``data-pausiert`` steht
     ebenfalls schon beim ersten Rendern da -- ein frisch geladenes Dokument
     hat nie eine lokale Sitzung, also ist ein ``modus=true`` beim Laden
-    immer die Pause-Darstellung (Punkt 5 des Reglers)."""
+    immer die Pause-Darstellung (Punkt 5 des Reglers).
+
+    ``brainstorm_knopf: False`` haelt den Interview-Knopf hier ohne
+    ``nebenknopf``-Klasse (Task 2, Kanban-Karte Buehne/PTT) -- dieser Test
+    prueft den Interviewmodus, nicht die Brainstorm-Phase."""
     daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
-             "interviewmodus": True, "titel": None}
+             "interviewmodus": True, "titel": None, "brainstorm_knopf": False}
     seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
     assert (f'data-laeuft="1" data-pausiert="1">{web_chat._TEXT_INTERVIEW_AUS}'
             f'</button>') in seite
@@ -469,7 +492,8 @@ def test_403_in_der_schlange_wird_nachgeholt_nicht_verworfen():
 
 
 def test_interviewstart_verwirft_einen_gehaltenen_ptt_druck():
-    """Re-Review F: zwei Finger, zwei Recorder."""
+    """Re-Review F: zwei Mikrofone gleichzeitig sind keine Bedienung -- auch
+    nicht im Tippen-zum-Umschalten-Modell (Kanban-Karte Buehne/PTT)."""
     js = web_chat._CHAT_JS
     start = js[js.index("function starteInterview"):js.index("function brichAb")]
     assert "verwirfPtt()" in start
@@ -736,36 +760,47 @@ def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
 # -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ---------------------
 
 
-def test_der_brainstorm_knopf_steht_nur_in_phase_4_im_markup():
-    """Ausserhalb Phase 4 rendert ``chat_html`` die vier Brainstorm-Elemente
-    gar nicht -- das JS liest ``document.getElementById('brainstorm')`` als
-    ``null`` und jede Brainstorm-Funktion bleibt ein No-Op (siehe
-    ``zeigeBrainstormModus``)."""
+def test_der_brainstorm_knopf_steht_immer_im_markup_aber_hidden_ausserhalb_phase_4():
+    """Seit Task 2 (Kanban-Karte Buehne/PTT, wie zuvor beim CoThinker-Tab)
+    rendert ``chat_html`` die vier Brainstorm-Elemente IMMER -- nur das
+    ``hidden``-Attribut am ``#brainstorm``-Knopf und die ``nebenknopf``-
+    Klasse am Interview-Knopf folgen ``daten["brainstorm_knopf"]``, nicht
+    mehr ihre Existenz im Markup."""
     daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
-             "interviewmodus": False, "titel": None, "phase": 4}
+             "interviewmodus": False, "titel": None, "phase": 4,
+             "brainstorm_knopf": True}
     seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
     for kennung in ("brainstorm", "brainstorm-aktionen", "brainstorm-pause",
                     "brainstorm-beenden"):
         assert f'id="{kennung}"' in seite, kennung
     assert web_chat._TEXT_BRAINSTORM_AN in seite
+    assert 'id="brainstorm" data-laeuft="0" data-pausiert="0">' in seite
     # Das Interview bleibt erreichbar, aber als Nebenknopf (brief: "stays
     # reachable, e.g. smaller/secondary").
     assert 'id="interview" data-laeuft="0" data-pausiert="0" class="nebenknopf">' in seite
 
-    ohne = web_chat.chat_html(dict(daten, phase=1), "1.x", "tok", "", 45000)
+    ohne = web_chat.chat_html(
+        dict(daten, phase=1, brainstorm_knopf=False), "1.x", "tok", "", 45000)
     for kennung in ("brainstorm", "brainstorm-aktionen", "brainstorm-pause",
                     "brainstorm-beenden"):
-        assert f'id="{kennung}"' not in ohne, kennung
+        assert f'id="{kennung}"' in ohne, kennung
+    assert 'id="brainstorm" data-laeuft="0" data-pausiert="0" hidden>' in ohne
     assert 'class="nebenknopf"' not in ohne
     assert 'id="interview" data-laeuft="0" data-pausiert="0">' in ohne
 
-    fehlt = web_chat.chat_html(dict(daten, phase=None), "1.x", "tok", "", 45000)
-    assert 'id="brainstorm"' not in fehlt
+    fehlt = web_chat.chat_html(
+        dict(daten, phase=None, brainstorm_knopf=False), "1.x", "tok", "", 45000)
+    assert 'id="brainstorm" data-laeuft="0" data-pausiert="0" hidden>' in fehlt
 
 
-def test_zeigebrainstormmodus_ist_ein_no_op_ohne_knopf():
-    """Ausserhalb Phase 4 ist ``brainstormKnopf`` ``null`` -- die Funktion
-    darf dann nichts anfassen, sonst wirft sie auf jeder Nicht-Phase-4-Seite."""
+def test_zeigebrainstormmodus_behaelt_die_schutzzeile_fuer_fehlende_elemente():
+    """Seit Task 2 existiert ``brainstormKnopf`` immer (``chat_html``
+    rendert das Element jetzt auch ausserhalb Phase 4, nur ``hidden``) --
+    die fruehere Praemisse dieses Tests ("ausserhalb Phase 4 ist
+    brainstormKnopf null") gilt also nicht mehr. Die Schutzzeile bleibt
+    trotzdem im Quelltext stehen (Brief, Abschnitt 3d) und wird hier als
+    das geprueft, was sie jetzt ist: ein defensiver Schutz fuer ein
+    hypothetisch fehlendes Element, kein aktiv genutzter Zweig."""
     js = web_chat._CHAT_JS
     fn = js[js.index("function zeigeBrainstormModus"):
             js.index("function starteBrainstorm")]

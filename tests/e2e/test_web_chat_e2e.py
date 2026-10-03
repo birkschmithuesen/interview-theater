@@ -480,10 +480,12 @@ def _form(posts) -> list:
 
 
 def _halte_ptt(seite, ms: int) -> None:
-    seite.locator("#ptt").hover()
-    seite.mouse.down()
+    """PTT ist seit der Kanban-Karte Buehne/PTT (03.10.2026) ein
+    Klick-Umschalter, kein Halten mehr: ein Tipp startet, ein zweiter
+    beendet und sendet."""
+    seite.click("#ptt")
     seite.wait_for_timeout(ms)
-    seite.mouse.up()
+    seite.click("#ptt")
 
 
 def _starte_interview(seite) -> None:
@@ -562,52 +564,24 @@ def test_ptt_unter_einer_halben_sekunde_sendet_nichts(seite):
     # Mikrofon aufwaermen: der erste getUserMedia eines Kontexts ist langsam.
     seite.evaluate("""navigator.mediaDevices.getUserMedia({audio: true}).then(
       function (s) { s.getTracks().forEach(function (t) { t.stop(); }); })""")
-    seite.locator("#ptt").hover()
     beginn = time.time()
-    seite.mouse.down()
+    seite.click("#ptt")
     assert _warte(seite, lambda: _t(seite, "starts") == 1, ms=400, schritt=20)
     gehalten = time.time() - beginn
     seite.wait_for_timeout(max(0, int((0.3 - gehalten) * 1000)))
-    seite.mouse.up()
+    seite.click("#ptt")
     assert time.time() - beginn <= 0.45     # deutlich unter PTT_MIN_MS
     seite.wait_for_timeout(2500)
     assert _zaehle_sprachnachrichten() == vorher
     assert _form(_posts(seite)) == []
 
 
-def test_ptt_mit_pointercancel_sendet_nichts(seite):
-    """Wegziehen oder ein Systemdialog: der Druck gilt als abgebrochen."""
-    vorher = _zaehle_sprachnachrichten()
-    seite.locator("#ptt").hover()
-    seite.mouse.down()
-    seite.wait_for_timeout(1200)
-    assert _t(seite, "starts") == 1      # es lief wirklich ein Recorder
-    seite.evaluate("""
-      document.getElementById('ptt').dispatchEvent(
-        new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }));
-    """)
-    seite.mouse.up()
-    seite.wait_for_timeout(2500)
-    assert _zaehle_sprachnachrichten() == vorher
-    assert _form(_posts(seite)) == []
-
-
-def test_ptt_wegziehen_und_aussen_loslassen_sendet_nichts(seite):
-    """B7: mit setPointerCapture kommt das Loslassen neben dem Knopf beim
-    Knopf an -- und gilt als abgebrochen."""
-    vorher = _zaehle_sprachnachrichten()
-    knopf = seite.locator("#ptt")
-    knopf.hover()
-    seite.mouse.down()
-    seite.wait_for_timeout(400)
-    rahmen = knopf.bounding_box()
-    seite.mouse.move(rahmen["x"] - 120, rahmen["y"] - 200, steps=5)
-    expect(knopf).to_have_attribute("data-weg", "1")
-    seite.wait_for_timeout(800)
-    seite.mouse.up()
-    seite.wait_for_timeout(2500)
-    assert _zaehle_sprachnachrichten() == vorher
-    assert _form(_posts(seite)) == []
+# test_ptt_mit_pointercancel_sendet_nichts und
+# test_ptt_wegziehen_und_aussen_loslassen_sendet_nichts entfernt (Kanban-
+# Karte Buehne/PTT, 03.10.2026): beide testeten Gesten, die es unter dem
+# neuen Tippen-zum-Umschalten nicht mehr gibt -- `pointercancel`-Dispatch
+# und Wegziehen samt `data-weg`-Attribut sind mit dem Pointer-Capture-Weg
+# zusammen abgeschafft worden.
 
 
 def test_ptt_ueber_einer_halben_sekunde_sendet_genau_eines(seite):
@@ -897,13 +871,12 @@ def test_waehrend_der_aufnahme_ist_ptt_weg(seite):
 
 
 def test_gehaltener_ptt_wird_beim_interviewstart_verworfen(seite):
-    """Re-Review F: PTT gehalten, mit dem zweiten Finger Interview gestartet
+    """Re-Review F, an die Toggle-Bedienung angepasst (Kanban-Karte
+    Buehne/PTT): PTT laeuft, waehrenddessen wird das Interview gestartet
     -> kein PTT-Upload, nur der Interview-Recorder."""
-    seite.locator("#ptt").hover()
-    seite.mouse.down()
+    seite.click("#ptt")
     seite.wait_for_timeout(900)
     seite.evaluate("document.getElementById('interview').click()")
-    seite.mouse.up()
     seite.wait_for_timeout(SEGMENT_MS + 2000)
     seite.click("#interview-beenden")
     assert _warte(seite, lambda: "aus" in _form(_posts(seite)), ms=15000)

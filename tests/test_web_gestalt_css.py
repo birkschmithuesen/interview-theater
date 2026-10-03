@@ -301,3 +301,72 @@ def test_die_drei_lichtzustaende_sind_unterscheidbar():
     # Keine rohe Hexfarbe (Vertrag aus Aufgabe 3).
     for koerper in (fertig.group(1), aktiv.group(1)):
         assert not re.findall(r"#[0-9a-fA-F]{3,8}\b", koerper)
+
+
+# -- 5. Der Druck bleibt ein helles Manuskript ------------------------------
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_druckblock_macht_die_seite_hell(name):
+    """Gestaltung steht im ``<style>`` NACH ``_CSS_TEXTBUCH`` und faerbt
+    ``body`` dunkel -- ohne diesen Block kaeme ein schwarzes Blatt aus dem
+    Drucker."""
+    block = re.search(r"@media\s+print\s*\{(.*?)\n\}",
+                      web_gestalt.css_rahmen(name), flags=re.S)
+    assert block, "kein @media print"
+    assert "background: #fff !important" in block.group(1)
+    assert "color: #000 !important" in block.group(1)
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_im_druck_faellt_jede_bedienung_weg(name):
+    block = re.search(r"@media\s+print\s*\{(.*?)\n\}",
+                      web_gestalt.css_rahmen(name), flags=re.S).group(1)
+    for weg in (".tabs", ".roadmap", ".fuss", "#ux-belohnung", "#ux-vorhang"):
+        assert weg in block, weg
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_sprecher_ist_im_druck_schwarz_und_fett(name):
+    """Ein Manuskript, kein Bildschirmtext: Signalfarbe auf Papier ist
+    hellgrau."""
+    block = re.search(r"@media\s+print\s*\{(.*?)\n\}",
+                      web_gestalt.css_rahmen(name), flags=re.S).group(1)
+    assert ".sprecher" in block
+    assert "font-weight: 700" in block
+
+
+# -- 6. Das Skript als Manuskript -------------------------------------------
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_szenentext_ist_in_der_skriptschrift_gesetzt(name):
+    css = web_gestalt.css_textbuch(name)
+    assert "var(--schrift-skript)" in css
+    assert ".replik" in css
+    assert ".regie" in css
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_die_regieanweisung_ist_kursiv_und_gedaempft(name):
+    css = web_gestalt.css_textbuch(name)
+    block = re.search(r"\.regie\s*\{([^}]*)\}", css, flags=re.S)
+    assert block and "italic" in block.group(1)
+    assert "var(--text-leise)" in block.group(1)
+
+
+def test_a_setzt_den_sprecher_in_die_zeile_und_b_darueber():
+    """Die vierte benannte Komponenten-Abweichung."""
+    assert "display: block" in re.search(
+        r"\.sprecher\s*\{([^}]*)\}", web_gestalt.css_textbuch("b"),
+        flags=re.S).group(1)
+    assert "display: block" not in re.search(
+        r"\.sprecher\s*\{([^}]*)\}", web_gestalt.css_textbuch("a"),
+        flags=re.S).group(1)
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_rollenfilter_bleibt_unangetastet(name):
+    """``body[data-figur] .replik`` gehoert ``_CSS_TEXTBUCH``; die
+    Gestaltung faerbt, sie filtert nicht."""
+    assert "data-figur" not in web_gestalt.css_textbuch(name)

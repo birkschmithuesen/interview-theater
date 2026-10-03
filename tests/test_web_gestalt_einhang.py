@@ -52,13 +52,7 @@ def _hole(url: str) -> str:
         return antwort.read().decode("utf-8")
 
 
-@pytest.fixture(params=[
-    "",
-    pytest.param("/textbuch", marks=pytest.mark.xfail(
-        reason="Gestaltung haengt dort erst in Aufgabe 10 ein", strict=False)),
-    pytest.param("/leitfaden", marks=pytest.mark.xfail(
-        reason="Gestaltung haengt dort erst in Aufgabe 10 ein", strict=False)),
-])
+@pytest.fixture(params=["", "/textbuch", "/leitfaden"])
 def seite(request, dienst):
     basis, token = dienst
     return _hole(f"{basis}/g/{token}{request.param}")
@@ -84,13 +78,25 @@ def test_keine_fremdquelle_im_ausgelieferten_html(seite):
         assert verboten not in seite, verboten
 
 
-def test_das_skript_setzt_dynamische_werte_ueber_cssom(seite):
+def test_das_skript_setzt_dynamische_werte_ueber_cssom(seite, request):
     """``el.style.setProperty`` ist unter der Richtlinie erlaubt,
     ``setAttribute('style', …)`` nicht. Der Unterschied ist eine Zeile und
-    faellt sonst erst im Browser auf."""
-    assert "setProperty(" in seite
+    faellt sonst erst im Browser auf.
+
+    Divergenz (Aufgabe 10, dokumentiert im Report): Probenansicht und
+    Leitfaden tragen bewusst KEIN ``web_gestalt.skript()`` -- der Brief:
+    "ein Skript ohne Aufgabe ist unnoetiges Gewicht" fuer eine Seite, die
+    jemand in der Probe in der Hand haelt. ``setProperty`` steht im ganzen
+    Modul einzig in diesem Skript (die Fortschrittsanzeige der Roadmap);
+    ohne es gibt es auf diesen beiden Seiten nichts, das per CSSOM gesetzt
+    werden muesste -- die positive Pruefung gilt deshalb nur dort, wo das
+    Skript auch wirklich mitkommt. Die Sicherheitspruefung (kein inline
+    ``style`` ueber ``setAttribute``) bleibt fuer jede Seite unbedingt."""
     assert "setAttribute('style'" not in seite
     assert 'setAttribute("style"' not in seite
+    if request.node.callspec.params["seite"] in ("/textbuch", "/leitfaden"):
+        return
+    assert "setProperty(" in seite
 
 
 # -- Die Reihenfolge ---------------------------------------------------------
@@ -137,3 +143,32 @@ def test_kein_modellaufruf_in_der_gestaltung():
     quelle = inspect.getsource(web_gestalt)
     for verboten in ("import llm", "import httpx", "import stt", "anthropic"):
         assert verboten not in quelle, verboten
+
+
+def test_die_probenansicht_traegt_die_tokens_und_den_druckblock(dienst):
+    basis, token = dienst
+    html = _hole(f"{basis}/g/{token}/textbuch")
+    assert "--schrift-skript" in html
+    # Der Druckblock der Gestaltung steht NACH dem von _CSS_TEXTBUCH.
+    assert html.rindex("background: #fff !important") > html.index("@media print")
+
+
+def test_die_probenansicht_traegt_kein_effektskript(dienst):
+    """Sie laedt nicht nach, hat keinen Chat, keinen Aufnahmeknopf und
+    keine Aktleiste -- ein Skript ohne Aufgabe ist Gewicht in der Hand
+    einer Person, die gerade eine Rolle liest.
+
+    Divergenz (Aufgabe 10, dokumentiert im Report): ``css_rahmen()`` bringt
+    ueber den Druckblock (Aufgabe 3) die Selektoren ``#ux-rec-zeile`` und
+    ``#ux-belohnung`` mit -- sie blenden diese Elemente beim Drucken der
+    VEREINTEN Seite aus und stehen deshalb auch im hier eingehaengten,
+    ungescopten CSS, obwohl die Probenansicht die Elemente nie anlegt. Das
+    sind reine, wirkungslose Selektoren ohne Element, keine Script-Last.
+    Geprueft wird deshalb gezielt der ``<script>``-Inhalt -- genau das, was
+    die Formulierung "ein Skript ohne Aufgabe" meint."""
+    basis, token = dienst
+    html = _hole(f"{basis}/g/{token}/textbuch")
+    skript = re.search(r"<script>(.*?)</script>", html, flags=re.S)
+    skript_text = skript.group(1) if skript else ""
+    assert "ux-rec-zeile" not in skript_text
+    assert "ux-belohnung" not in skript_text

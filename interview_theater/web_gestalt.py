@@ -796,9 +796,54 @@ blockquote { border-left: 2px solid var(--warn); color: var(--warn);
 details > summary { min-height: var(--tippflaeche); display: flex;
                     align-items: center; cursor: pointer; }
 """
-#: Gefuellt in Aufgabe 10.
-_SKRIPT_A = ""
-_SKRIPT_B = ""
+#: Das Textbuch, Entwurf A: Terminal-Kopf, Manuskript-Koerper. Der
+#: Sprechername steht IN der Zeile (Monospace, Signalfarbe), die Replik
+#: daneben in der Skriptschrift.
+_SKRIPT_A = """
+.szenenkopf { font-family: var(--schrift-tech); font-size: .8rem;
+              letter-spacing: .12em; text-transform: uppercase;
+              color: var(--text-leise); border-bottom: 1px solid var(--linie);
+              padding-bottom: .25rem; }
+.angaben, .besetzung { font-family: var(--schrift-tech); font-size: .8rem;
+                       color: var(--text-leise); opacity: 1; }
+.text, .probe-szene { font-family: var(--schrift-skript); font-size: 1.12rem;
+                      line-height: 1.55; }
+.replik { margin: 0 0 .55rem; }
+.sprecher { font-family: var(--schrift-tech); font-size: .92rem;
+            letter-spacing: .08em; color: var(--signal); font-weight: 400; }
+.regie { font-style: italic; color: var(--text-leise); }
+.regie-zeile { font-style: italic; color: var(--text-leise); margin: 0 0 .7rem; }
+.prosa { margin: 0 0 .6rem; }
+.rollen button, .leiste button { min-height: var(--tippflaeche);
+    padding: .35rem .7rem; border: 1px solid var(--rand); border-radius: 1.2rem;
+    background: var(--grund-2); color: var(--text); font-size: .85rem; }
+.leiste button[aria-pressed="true"] { background: var(--signal);
+    color: var(--auf-signal); border-color: var(--signal); font-weight: 700; }
+"""
+
+#: Das Textbuch, Entwurf B: Manuskript. Der Sprechername steht auf einer
+#: EIGENEN Zeile darueber -- die Form eines gedruckten Textbuchs.
+_SKRIPT_B = """
+.szenenkopf { font-family: var(--schrift-skript); font-size: 1.25rem;
+              color: var(--signal); border-bottom: 1px solid var(--linie);
+              padding-bottom: .3rem; }
+.angaben, .besetzung { font-family: var(--schrift-tech); font-size: .78rem;
+                       color: var(--text-leise); opacity: 1; }
+.text, .probe-szene { font-family: var(--schrift-skript); font-size: 1.15rem;
+                      line-height: 1.62; }
+.replik { margin: 0 0 .6rem; }
+.sprecher { display: block; font-family: var(--schrift-tech); font-size: .88rem;
+            letter-spacing: .1em; color: var(--signal); font-weight: 400; }
+.regie { font-style: italic; color: var(--text-leise); }
+.regie-zeile { font-style: italic; color: var(--text-leise); margin: 0 0 .8rem; }
+.prosa { margin: 0 0 .65rem; }
+.rollen button, .leiste button { min-height: var(--tippflaeche);
+    padding: .35rem .8rem; border: 1px solid var(--rand); border-radius: 1.4rem;
+    background: var(--grund-2); color: var(--text);
+    font-family: var(--schrift-tech); font-size: .82rem; letter-spacing: .06em; }
+.leiste button[aria-pressed="true"] { background: var(--signal);
+    color: var(--auf-signal); border-color: var(--signal); font-weight: 700; }
+"""
 
 
 #: Das Effekt-JavaScript. Vanilla, ES5-nah wie ``_BEARBEITEN_JS`` und

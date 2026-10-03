@@ -3111,11 +3111,15 @@ def textbuch_html(
     Nachrichtentext -- die Grenze aus AGENTS.md ("Weboberflaeche") gilt hier
     strenger als auf der Gruppenseite, weil dieser Link im Probenraum
     herumgereicht wird."""
+    from interview_theater import web_gestalt
+
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
     return _seite(
         kopfzeile,
-        _CSS_TEXTBUCH,
+        # Gestaltung zuletzt (Karte UX). Die Probenansicht ist eine eigene
+        # Seite, also ungescopt -- es gibt hier kein Panel.
+        _CSS_TEXTBUCH + web_gestalt.css_rahmen() + web_gestalt.css_textbuch(),
         textbuch_koerper(daten, token, praefix),
         nachladen=False,
         skript=_TEXTBUCH_JS,
@@ -3144,7 +3148,7 @@ def leitfaden_html(daten: dict) -> str:
     austauschen.
 
     Steht noch kein Leitfaden, kommt eine ruhige Seite und kein Fehler."""
-    from interview_theater import leitfaden
+    from interview_theater import leitfaden, web_gestalt
 
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     teil = leitfaden.bausteine(daten["arbeitsstand"])
@@ -3163,7 +3167,7 @@ def leitfaden_html(daten: dict) -> str:
         f'<html lang="{html.escape(sprache.code())}"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{html.escape(T._TITEL_LEITFADEN.format(titel=titel))}</title>\n"
-        f"<style>{_CSS_LEITFADEN}</style></head>\n<body>\n"
+        f"<style>{_CSS_LEITFADEN + web_gestalt.css_rahmen()}</style></head>\n<body>\n"
         f"<h1>{_t(titel)}</h1>\n{koerper}\n{zurueck}\n"
         "</body></html>\n"
     )

@@ -67,13 +67,22 @@ def extrahiere(page) -> list[dict]:
     Eintraege."""
     elemente: list[dict] = []
     for art, selektor in _ARTEN:
-        for handle in page.query_selector_all(selektor):
+        for index, handle in enumerate(page.query_selector_all(selektor)):
             if not handle.is_visible():
                 continue
             eintrag = {
                 "id": len(elemente),
                 "art": art,
                 "text": (handle.text_content() or "").strip(),
+                # Fuer ``browser_aktionen._element``: ein ``Locator``, der
+                # GENAU dieses Element wiederfindet (``page.locator(selektor)
+                # .nth(index)``), nicht den ersten Treffer eines generischen
+                # Fallback-Selektors. Unterstrich-Praefix, damit
+                # ``browser_persona._elemente_text`` sie nie in den
+                # Prompt-Text der Persona uebernimmt -- sie sind
+                # Werkzeugdetails, keine Information fuer das Modell.
+                "_selektor": selektor,
+                "_index": index,
             }
             daten = handle.evaluate(_DATEN_JS)
             eintrag.update({k: v for k, v in daten.items() if v not in (None, "")})

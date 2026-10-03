@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import time
 
+from simulation import browser_elemente
+
 #: Wie lange hoechstens auf das Ende einer Bot-Antwort gewartet wird.
 ANTWORT_GEDULD_S = 90.0
 
@@ -72,6 +74,26 @@ def fuehre_aus(page, aktion: dict) -> dict:
 
 
 def _element(page, aktion: dict):
+    """Das Ziel einer ``click``-Aktion.
+
+    Echter Betriebsbefund (Padua-Abnahme, 03.10.2026): ohne diese Funktion
+    landete JEDE ``click``-Aktion ohne ``text`` -- die Persona gibt
+    ``element_id`` oft allein an -- auf dem ersten Treffer von
+    ``"button, a, input"``, und das war wiederholt der Phasenknopf
+    ("1 · Terms") statt des gemeinten Elements: sechs von sieben Phasen
+    scheiterten deshalb am selben Timeout. ``element_id`` zeigt auf die
+    Liste aus ``browser_elemente.extrahiere`` (dieselbe, die die Persona
+    gesehen hat); ueber ``_selektor``/``_index`` wird GENAU dieses Element
+    wiedergefunden -- ein frischer Aufruf von ``extrahiere``, weil der
+    Locator selbst nicht durch den Schritt hindurch aufgehoben werden kann
+    und sich die DOM zwischen Vorschlag und Ausfuehrung nicht veraendert
+    haben sollte. Nur wenn das fehlschlaegt (unbekannte oder veraltete id),
+    faellt es auf Text und zuletzt auf den generischen Rueckfall zurueck."""
+    element_id = aktion.get("element_id")
+    if isinstance(element_id, int):
+        for eintrag in browser_elemente.extrahiere(page):
+            if eintrag["id"] == element_id:
+                return page.locator(eintrag["_selektor"]).nth(eintrag["_index"])
     text = aktion.get("text")
     if text:
         return page.get_by_text(text, exact=True).first

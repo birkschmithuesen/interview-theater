@@ -280,6 +280,23 @@ def test_gruppenseite_zeigt_die_liste(conn):
     assert "Die Begriffsliste aus dem Plenum steht noch nicht." in seite
 
 
+def test_was_fehlt_steht_vor_den_formularen_des_arbeitsstands(conn):
+    """P2, Aufgabe 3: die Liste ist das, was die Gruppe als Naechstes tut --
+    sie steht deshalb VOR den Eingabefeldern des Arbeitsstands (dort stehen
+    je Figur vier Felder) und nicht darunter, wo man am Telefon erst nach
+    zwei Bildschirmen ankam. Nach dem Ueberblick, der bleibt ganz oben."""
+    _voll(conn)
+    repo.setze_arbeitsstand(conn, 1, "geschichte", None)
+    repo.setze_phase(conn, 1, 4)
+    token = repo.stelle_web_token_sicher(conn, 1)
+
+    for nonce in (None, "n"):
+        seite = web.gruppe_html(web_daten.gruppe_nach_token(conn, token), nonce_wert=nonce)
+        assert seite.index(fehlstellen.UEBERSCHRIFT) < seite.index("<h2>Arbeitsstand</h2>")
+        if 'class="vorspann"' in seite:
+            assert seite.index('class="vorspann"') < seite.index(fehlstellen.UEBERSCHRIFT)
+
+
 def test_web_und_chat_zeigen_dieselbe_liste(conn):
     """Ein Zusammenbau, zwei Aufrufer -- wie beim Leitfaden."""
     _voll(conn)

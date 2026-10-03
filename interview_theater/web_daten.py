@@ -374,6 +374,72 @@ def _interview_kurzformen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     return ergebnis
 
 
+#: Ab wann ein ungelesener Eingang im Web-Kanal auf dem Dashboard als
+#: "Bot liest nicht" gilt (P2, Aufgabe 3). Drei Minuten: der Bot holt im
+#: Betrieb in Sekunden ab, und ein Szenenlauf blockiert das Abholen nicht.
+STILLE_AB = timedelta(minutes=3)
+
+
+def _kosten_heute(conn: sqlite3.Connection, chat_id: int, jetzt: datetime) -> float:
+    """Was diese Gruppe seit Mitternacht Ortszeit gekostet hat -- dieselbe
+    Rechnung wie ``kosten.summe_heute`` (Tagesbeginn aus
+    ``kosten.tagesbeginn_utc``, ``COALESCE`` fuer alte Zeilen), nur ueber die
+    read-only Verbindung."""
+    from interview_theater import kosten
+
+    ab = kosten.tagesbeginn_utc(kosten.zeitzone(), jetzt)
+    zeile = conn.execute(
+        "SELECT COALESCE(SUM(COALESCE(kosten_chf, 0)), 0) FROM aufruf "
+        "WHERE chat_id = ? AND erstellt_am >= ?",
+        (chat_id, ab),
+    ).fetchone()
+    return float(zeile[0] or 0)
+
+
+def _kosten_deckel() -> float:
+    """Der Tagesdeckel aus der Umgebung des Webdienstes (``kosten.deckel``).
+    Steht ``IT_KOSTEN_DECKEL_CHF`` nur in der Env der Bots, gilt hier die
+    Vorgabe -- der Hinweis kommt dann zu frueh oder zu spaet, nie gar nicht."""
+    from interview_theater import kosten
+
+    return kosten.deckel()
+
+
+def _unbeantwortet(
+    conn: sqlite3.Connection, chat_id: int, bot_name: str | None, jetzt: datetime
+) -> dict | None:
+    """Eingaenge aus dem Browser, die der Bot seit ``STILLE_AB`` nicht
+    abgeholt hat: ``{"anzahl": n, "minuten": alter_des_aeltesten}`` oder
+    ``None``.
+
+    Nur der Web-Kanal laesst das ueberhaupt erkennen: dort steht der
+    Eingang in ``web_post``, bevor der Bot ihn liest, und der Bot merkt
+    seinen Stand in ``bot_zustand.letzte_update_id`` (= ``web_post.id``).
+    Bei Telegram schreibt erst der Bot -- ein stiller Bot hinterlaesst dort
+    gar keine Zeile. Fehlt die Tabelle (alte Datenbank), ``None``."""
+    try:
+        stand = conn.execute(
+            "SELECT letzte_update_id FROM bot_zustand WHERE bot_name IS ?",
+            (bot_name,),
+        ).fetchone()
+        offset = (stand["letzte_update_id"] if stand else None) or 0
+        zeilen = conn.execute(
+            "SELECT erstellt_am FROM web_post WHERE chat_id = ? AND richtung = 'ein' "
+            "AND geloescht_am IS NULL AND id > ?",
+            (chat_id, offset),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return None
+    alter = []
+    for z in zeilen:
+        zeitpunkt = lies_zeitstempel(z["erstellt_am"])
+        if zeitpunkt is not None and jetzt - zeitpunkt >= STILLE_AB:
+            alter.append(jetzt - zeitpunkt)
+    if not alter:
+        return None
+    return {"anzahl": len(alter), "minuten": int(max(alter).total_seconds() // 60)}
+
+
 def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
     """Alle Gruppen fuer das projizierte Team-Dashboard.
 
@@ -409,6 +475,10 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
                 "letzte_aktivitaet": _letzte_aktivitaet(conn, chat_id),
                 "vorfaelle": _vorfaelle(conn, chat_id, z["bot_name"], jetzt),
                 "aufrufe": _aufrufe_heute(conn, chat_id, jetzt),
+                # P2, Aufgabe 3: woran das Dashboard ein Problem erkennt.
+                "kosten_heute_chf": _kosten_heute(conn, chat_id, jetzt),
+                "kosten_deckel_chf": _kosten_deckel(),
+                "unbeantwortet": _unbeantwortet(conn, chat_id, z["bot_name"], jetzt),
             }
         )
     return {

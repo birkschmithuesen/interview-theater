@@ -102,6 +102,7 @@ BLEIBT_DEUTSCH = {
     # Karte Padua UX: CSS und JavaScript, nur Kommentare deutsch. Die
     # Mikrotexte laufen ueber T (siehe web_gestalt._mikrotexte).
     "web_gestalt._BASIS": "CSS, nur Kommentare deutsch",
+    "web_gestalt._DASHBOARD": "CSS, nur Kommentare deutsch",
     "web_gestalt._KEYFRAMES_CSS": "CSS, nur Kommentare deutsch",
     "web_gestalt._TABS_A": "CSS, nur Kommentare deutsch",
     "web_gestalt._TABS_B": "CSS, nur Kommentare deutsch",

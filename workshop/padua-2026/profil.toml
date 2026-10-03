@@ -157,3 +157,7 @@ fazitsatz_je_text = 1
 # Modellaufrufe stehen eingeklappt unter "Log", die Bot-Zuordnung ebenso.
 [web]
 dashboard_log_einklappen = true
+# P2, Aufgabe 3: Gestaltung aus web_gestalt, Fortschritt je Gruppe, Technik
+# nur als Hinweis, wenn etwas klemmt (Fehlschlag, Vorfall, Kostendeckel nah,
+# Bot liest nicht).
+dashboard_gestaltet = true

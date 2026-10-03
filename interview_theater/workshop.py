@@ -229,8 +229,12 @@ VORGABE_WERTE: dict[str, Any] = {
     # klappt je Karte den Technikteil (Zahlen, Vorfaelle, Aufrufe) und die
     # Bot-Zuordnung in ein geschlossenes <details>. Aus ist die Zusage an
     # Dortmund: das Dashboard bleibt byte-gleich.
+    # ``dashboard_gestaltet`` (P2, Aufgabe 3) gibt dem Dashboard die
+    # Gestaltung aus ``web_gestalt`` (Tokens, Fortschritt je Gruppe, Hinweis
+    # nur bei einem Problem). Aus heisst auch hier: byte-gleich wie vorher.
     "web": {
         "dashboard_log_einklappen": False,
+        "dashboard_gestaltet": False,
     },
 }
 

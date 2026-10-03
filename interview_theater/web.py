@@ -1728,6 +1728,23 @@ _TEXT_KEINE_GRUPPE = "— keine Gruppe —"
 #: ``[web] dashboard_log_einklappen``). Ohne Zahl: das sanfte Nachladen
 #: oeffnet ``<details>`` am Summary-Text wieder (``_SCROLL_JS``).
 _TEXT_LOG = "Log"
+#: Das gestaltete Dashboard (P2, Aufgabe 3, nur mit
+#: ``[web] dashboard_gestaltet``): Fortschritt je Gruppe, ein Satz, wenn
+#: noch nichts steht, und der Hinweis, wenn etwas klemmt. Je Zahl zwei
+#: Fassungen (eins/mehr), damit am Beamer kein "1 Vorfälle" steht.
+_TEXT_FORTSCHRITT = "Phase {nummer}/{gesamt} · {name}"
+_TEXT_NOCH_NICHTS_FESTGELEGT = "Noch nichts festgelegt."
+_TEXT_ACHTUNG = "Braucht Aufmerksamkeit"
+_TEXT_ACHTUNG_FEHL_EINS = "{anzahl} fehlgeschlagener Modellaufruf heute"
+_TEXT_ACHTUNG_FEHL = "{anzahl} fehlgeschlagene Modellaufrufe heute"
+_TEXT_ACHTUNG_VORFALL_EINS = "{anzahl} Vorfall in den letzten 2 Stunden (zuletzt: {art})"
+_TEXT_ACHTUNG_VORFALL = "{anzahl} Vorfälle in den letzten 2 Stunden (zuletzt: {art})"
+_TEXT_ACHTUNG_KOSTEN_NAH = "Tagesdeckel fast erreicht ({prozent} %)"
+_TEXT_ACHTUNG_KOSTEN_ERREICHT = "Tagesdeckel erreicht – der Bot pausiert bis Mitternacht"
+_TEXT_ACHTUNG_STILL_EINS = "Der Bot hat {anzahl} Nachricht seit {minuten} Min. nicht abgeholt"
+_TEXT_ACHTUNG_STILL = "Der Bot hat {anzahl} Nachrichten seit {minuten} Min. nicht abgeholt"
+#: Ab welchem Anteil am Tagesdeckel das Dashboard warnt.
+KOSTEN_WARNSCHWELLE = 0.8
 #: Datum und Uhrzeit auf dem Dashboard (strftime). Deutsch mit dem Trenner
 #: " · ", den es immer trug (er stammt aus dem geteilten ``_zeitpunkt``).
 _ZEITFORMAT_DASHBOARD = "%d.%m.%Y %H:%M · "
@@ -1936,6 +1953,9 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
     from interview_theater import workshop
 
     einklappen = bool(workshop.aktiv().wert("web.dashboard_log_einklappen", False))
+    # P2, Aufgabe 3: die Gestaltung -- ohne den Schalter faellt jeder der
+    # folgenden Zweige weg, und die Seite bleibt byte-gleich.
+    gestaltet = bool(workshop.aktiv().wert("web.dashboard_gestaltet", False))
     karten = []
     for g in daten["gruppen"]:
         titel = _t(g["titel"], _t(T._TEXT_GRUPPE.format(chat_id=g["chat_id"])))
@@ -1993,13 +2013,27 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
             f"<span>{zuletzt}</span>"
             "</div>"
         )
+        log = _eingeklappt(T._TEXT_LOG, f"{zahlen}{vorfaelle_html}{aufrufe_html}", einklappen)
+        if gestaltet:
+            # Fortschritt oben, dann ein Hinweis NUR wenn etwas klemmt, dann
+            # der Inhalt. Der Botname wandert in die Bot-Zuordnung (Technik).
+            karten.append(
+                "<section class=\"karte\">"
+                f'<div class="kopf"><h2>{titel}</h2>{marke}</div>'
+                f'{_fortschritt_html(g["arbeitsstand"].get("phase"))}'
+                f"{_achtung_html(g)}"
+                f"{_dashboard_inhalt_html(g)}"
+                + log
+                + "</section>"
+            )
+            continue
         karten.append(
             "<section class=\"karte\">"
             f'<div class="kopf"><h2>{titel}</h2>'
             f'<span class="bot">{_t(g["bot_name"])} {marke}</span></div>'
             f'{_arbeitsstand_html(g["arbeitsstand"], g["figuren"])}'
             f'{_ergebnisse_html(g.get("interview_kurzformen") or [])}'
-            + _eingeklappt(T._TEXT_LOG, f"{zahlen}{vorfaelle_html}{aufrufe_html}", einklappen)
+            + log
             + "</section>"
         )
     gruppen_html = (
@@ -2028,13 +2062,122 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
         else f"<h2>{_t(T._UEBERSCHRIFT_BOT_ZUORDNUNG)}</h2>{zuordnung_tabelle}"
     )
     stand = _t(T._TEXT_STAND).format(zeit=_t(_dashboard_zeit(daten["stand"]), ""))
+    css = _CSS_DASHBOARD
+    if gestaltet:
+        from interview_theater import web_gestalt
+
+        css += web_gestalt.tokens_css() + web_gestalt.css_dashboard()
     return _seite(
         T._TITEL_DASHBOARD,
-        _CSS_DASHBOARD,
+        css,
         f'<h1>{_t(T._UEBERSCHRIFT_DASHBOARD)} <span class="stand">{stand}</span></h1>\n'
         f"{gruppen_html}\n"
         f"{zuordnung_html}",
     )
+
+
+def _fortschritt_html(phase) -> str:
+    """"Act 5/7 · Sharpening" und sieben Segmente (P2, Aufgabe 3).
+
+    Am Beamer ist das die eine Zeile, die man von hinten im Raum lesen
+    koennen muss. Die Segmente sind Schmuck (``aria-hidden``), der Text
+    traegt die Aussage. Eine ungesetzte Phase gilt wie 1 -- dieselbe
+    Anzeigeregel wie in ``_arbeitsstand_html``."""
+    nummer = phase or phasen.ERSTE
+    gesamt = phasen.LETZTE
+    segmente = "".join(
+        '<i class="{}"></i>'.format(
+            "fertig" if i < nummer else "jetzt" if i == nummer else "offen")
+        for i in range(1, gesamt + 1)
+    )
+    text = T._TEXT_FORTSCHRITT.format(
+        nummer=nummer, gesamt=gesamt, name=phasen.kurzname(nummer))
+    return (
+        f'<div class="ux-fortschritt"><span class="ux-akt">{_t(text)}</span>'
+        f'<span class="ux-segmente" aria-hidden="true">{segmente}</span></div>'
+    )
+
+
+def _achtung_html(g: dict) -> str:
+    """Der Hinweis, wenn bei einer Gruppe etwas klemmt -- sonst nichts.
+
+    Vier Anlaesse, alle aus Daten, die ``web_daten.dashboard`` liefert:
+    fehlgeschlagene Modellaufrufe heute, Vorfaelle der letzten zwei
+    Stunden, Kosten ab ``KOSTEN_WARNSCHWELLE`` des Tagesdeckels, und
+    Eingaenge im Web-Kanal, die der Bot nicht abholt. Die Einzelheiten
+    bleiben im Log; hier steht nur, DASS und WAS."""
+    punkte = []
+    fehl = sum(a.get("fehlschlaege") or 0 for a in g.get("aufrufe") or [])
+    if fehl:
+        vorlage = T._TEXT_ACHTUNG_FEHL_EINS if fehl == 1 else T._TEXT_ACHTUNG_FEHL
+        punkte.append(vorlage.format(anzahl=fehl))
+    vorfaelle = g.get("vorfaelle") or []
+    if vorfaelle:
+        vorlage = (T._TEXT_ACHTUNG_VORFALL_EINS if len(vorfaelle) == 1
+                   else T._TEXT_ACHTUNG_VORFALL)
+        punkte.append(vorlage.format(
+            anzahl=len(vorfaelle),
+            art=_beschriftung(T.VORFALLART_BESCHRIFTUNG, vorfaelle[0]["art"])))
+    heute = g.get("kosten_heute_chf") or 0
+    deckel = g.get("kosten_deckel_chf") or 0
+    if deckel > 0 and heute >= deckel:
+        punkte.append(T._TEXT_ACHTUNG_KOSTEN_ERREICHT)
+    elif deckel > 0 and heute >= KOSTEN_WARNSCHWELLE * deckel:
+        punkte.append(T._TEXT_ACHTUNG_KOSTEN_NAH.format(
+            prozent=round(100 * heute / deckel)))
+    still = g.get("unbeantwortet")
+    if still:
+        vorlage = (T._TEXT_ACHTUNG_STILL_EINS if still["anzahl"] == 1
+                   else T._TEXT_ACHTUNG_STILL)
+        punkte.append(vorlage.format(anzahl=still["anzahl"], minuten=still["minuten"]))
+    if not punkte:
+        return ""
+    zeilen = "".join(f"<li>{_t(p)}</li>" for p in punkte)
+    return (
+        f'<div class="ux-achtung" role="status"><b>{_t(T._TEXT_ACHTUNG)}</b>'
+        f"<ul>{zeilen}</ul></div>"
+    )
+
+
+def _dashboard_inhalt_html(g: dict) -> str:
+    """Was die Gruppe hat -- und nur das (P2, Aufgabe 3).
+
+    Gegenueber ``_arbeitsstand_html`` fehlen: die Phase (steht im
+    Fortschritt), der Leitfaden (er ist aus den Fragen gebaut, die schon
+    dastehen) und jedes leere Feld (ein Strich je Feld ist am Beamer
+    Rauschen). Reihenfolge der Geschichte nach: Setting, Geschichte,
+    Figuren, Interviewergebnisse, dann das Material davor. Kernthema und
+    Hauptkonflikt nur, wenn gesetzt. Kein Zitat, kein Transkript -- die
+    Ergebnisse sind die Kurzformen wie bisher."""
+    stand = g["arbeitsstand"]
+    dt = T.ARBEITSSTAND_BESCHRIFTUNG
+    teile = []
+    for feld in ("rahmen", "geschichte"):
+        if stand.get(feld):
+            teile.append(f"<dt>{_t(dt[feld])}</dt><dd>{_t(stand[feld])}</dd>")
+    if g["figuren"]:
+        figuren = "".join(
+            "<li><b>{name}</b>{rest}</li>".format(
+                name=_t(f["name"]),
+                rest=f" — {_t(f['beschreibung'])}" if f.get("beschreibung") else "",
+            )
+            for f in g["figuren"]
+        )
+        teile.append(
+            f'<dt>{_t(dt["figuren"])}</dt><dd><ul class="figuren">{figuren}</ul></dd>')
+    ergebnisse = _ergebnisse_html(g.get("interview_kurzformen") or [])
+    if ergebnisse:
+        teile.append(f"<dt>{_t(T._UEBERSCHRIFT_INTERVIEWS)}</dt><dd>{ergebnisse}</dd>")
+    for feld in ("kernthema", "hauptkonflikt", "begriffe"):
+        if stand.get(feld):
+            teile.append(f"<dt>{_t(dt[feld])}</dt><dd>{_t(stand[feld])}</dd>")
+    if stand.get("fragen"):
+        teile.append(f"<dt>{_t(dt['fragen'])}</dt><dd>{_fragen_html(stand['fragen'])}</dd>")
+    leer = (
+        "" if teile
+        else f'<p class="noch-nichts">{_t(T._TEXT_NOCH_NICHTS_FESTGELEGT)}</p>'
+    )
+    return f'<dl>{"".join(teile)}</dl>{leer}'
 
 
 #: Trennzeichen der Kurzformen in einer Summary-Zeile. Der Mittelpunkt, weil
@@ -2593,12 +2736,14 @@ def gruppe_koerper(
         f"{_chat_link(token, daten.get('kanal'))}"
         f'<div id="stand-inhalt">\n'
         f"{kopf}"
+        # „Was noch fehlt" ist dieselbe Datenlage in der anderen Richtung
+        # (06.09.2026). Seit P2, Aufgabe 3 steht es VOR dem Arbeitsstand:
+        # es ist das, was die Gruppe als Naechstes tut, und unter den
+        # Formularen (vier Felder je Figur) kam man am Telefon erst nach
+        # zwei Bildschirmen dort an. Fehlt nichts, fehlt auch der Abschnitt.
+        f"{_fehlstellen_html(daten.get('fehlstellen'))}\n"
         f"<h2>{_t(T._UEBERSCHRIFT_ARBEITSSTAND)}</h2>"
         f"{stand}\n"
-        # „Was noch fehlt" steht direkt unter dem Arbeitsstand: es ist
-        # dieselbe Datenlage in der anderen Richtung (06.09.2026). Fehlt
-        # nichts, fehlt auch der Abschnitt.
-        f"{_fehlstellen_html(daten.get('fehlstellen'))}\n"
         # Die Stueckkarte (02.10.2026) steht direkt ueber den freien
         # Festlegungen -- zusammen zeigen beide, was feststeht und was
         # daneben noch gilt.

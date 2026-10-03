@@ -426,6 +426,21 @@ def css_textbuch(name: str | None = None) -> str:
     return _SKRIPT_A if (name or entwurf()) == "a" else _SKRIPT_B
 
 
+def css_dashboard(name: str | None = None) -> str:
+    """Das Team-Dashboard ``/`` (P2, Aufgabe 3) -- nur mit
+    ``[web] dashboard_gestaltet``, eingehaengt an EINER Stelle in
+    ``web.dashboard_html`` (zusammen mit ``tokens_css``).
+
+    Bewusst NICHT ``css_rahmen()``: das Dashboard hat keinen Chat, keine
+    Aktfolge, keinen Vorhang und keinen Druck -- es haengt am Beamer und
+    laedt alle zehn Sekunden nach. Deshalb auch **keine Bewegung** (eine
+    Animation startete bei jedem Nachladen neu) und kein ``@media``: die
+    Schrift waechst ueber ``clamp()`` mit der Breite, vom Telefon bis zum
+    Beamer. Fuer beide Entwuerfe gleich, die Tokens tragen den
+    Unterschied."""
+    return _DASHBOARD
+
+
 #: Der Seitenrahmen. ``body`` steht hier und nicht im gescopten Teil: es
 #: gibt genau einen, und auf der Probenansicht gibt es gar kein Panel.
 #:
@@ -458,6 +473,77 @@ h2 { opacity: 1; }
 .zurueck { opacity: 1; color: var(--text-leise); }
 .block, .frage { border-top-color: var(--rand); }
 .frage .vorher { border-left-color: var(--signal); }
+"""
+
+#: Das Dashboard (P2, Aufgabe 3). Ueberschreibt ``web._CSS_DASHBOARD`` --
+#: gleiche Spezifitaet, spaetere Position. ``em`` statt ``rem`` in den
+#: Karten, damit alles mit der Grundschrift des ``body`` waechst.
+_DASHBOARD = """
+body { background: var(--grund); color: var(--text);
+       font-family: var(--schrift-lesen); line-height: 1.45;
+       font-size: clamp(1rem, .55rem + .8vw, 1.5rem);
+       max-width: none; margin: 0; padding: clamp(.75rem, 1.4vw, 2rem); }
+h1 { font-family: var(--schrift-skript); font-weight: 600; color: var(--signal);
+     font-size: 1.45em; letter-spacing: .02em; margin: 0 0 .7em; }
+h1 .stand { font-family: var(--schrift-tech); font-size: .5em; font-weight: 400;
+            color: var(--text-leise); opacity: 1; letter-spacing: 0;
+            display: inline-block; white-space: nowrap; }
+.gruppen { gap: 1em; grid-template-columns: repeat(auto-fit, minmax(min(100%, 21em), 1fr)); }
+.karte { background: var(--grund-2); border: 1px solid var(--linie);
+         border-radius: var(--radius-gross); padding: .9em 1em 1em; }
+.kopf { border-bottom: 1px solid var(--linie); padding-bottom: .45em;
+        margin-bottom: .55em; align-items: center; }
+.karte h2 { font-family: var(--schrift-skript); font-weight: 600;
+            font-size: 1.4em; line-height: 1.15; color: var(--text); }
+.karte h2 a { color: var(--text); text-decoration: none; }
+.karte h2 a:hover, .karte h2 a:focus-visible { color: var(--signal);
+            text-decoration: underline; }
+a { color: var(--signal); }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+.marke { font-size: .72em; font-weight: 600; padding: .2em .6em;
+         border-radius: 1em; background: var(--rec); color: var(--auf-rec);
+         white-space: nowrap; }
+.ux-fortschritt { display: flex; flex-direction: column; gap: .35em;
+                  margin: 0 0 .8em; }
+.ux-akt { font-family: var(--schrift-tech); font-size: .9em; color: var(--signal);
+          letter-spacing: .03em; }
+.ux-segmente { display: flex; gap: .3em; }
+.ux-segmente i { flex: 1 1 0; height: .5em; border-radius: 1em;
+                 background: var(--grund-3); border: 1px solid var(--rand); }
+.ux-segmente i.fertig { background: var(--signal); border-color: var(--signal); }
+.ux-segmente i.jetzt { background: var(--warn); border-color: var(--warn); }
+.ux-achtung { margin: 0 0 .9em; padding: .55em .75em;
+              border: 1px solid var(--rand); border-left: .35em solid var(--rec);
+              border-radius: var(--radius); background: var(--grund-3);
+              color: var(--text); }
+/* Die Marke traegt das Signal, nicht der Rand: ``--rec`` erreicht auf den
+   dunklen Flaechen keine 3:1, ``--auf-rec`` auf ``--rec`` schon. */
+.ux-achtung b { display: inline-block; font-family: var(--schrift-tech);
+                font-size: .78em; letter-spacing: .08em; text-transform: uppercase;
+                background: var(--rec); color: var(--auf-rec);
+                padding: .1em .5em; border-radius: var(--radius); }
+.ux-achtung ul { margin: .25em 0 0; padding-left: 1.1em; font-size: .92em; }
+dl { margin: 0; }
+dt { font-family: var(--schrift-tech); font-size: .68em; letter-spacing: .1em;
+     text-transform: uppercase; color: var(--text-leise); opacity: 1;
+     margin-top: .75em; }
+dt:first-child { margin-top: 0; }
+dd { margin: .1em 0 0; }
+ul { padding-left: 1.1em; }
+.figuren li { margin-bottom: .1em; }
+.ergebnisse { margin: 0; font-size: 1em; }
+.ergebnisse li { margin-bottom: .2em; }
+.fragen { margin: 0; padding-left: 1.1em; }
+.noch-nichts { color: var(--text-leise); font-style: italic; margin: .2em 0 0; }
+.leer { color: var(--text-leise); opacity: 1; }
+.zeit { color: var(--text-leise); opacity: 1; }
+details { margin-top: .9em; font-size: .78em; }
+details > summary { cursor: pointer; color: var(--text-leise);
+                    font-family: var(--schrift-tech); letter-spacing: .05em; }
+th { color: var(--text-leise); opacity: 1; }
+th, td { border-bottom-color: var(--linie); }
+.vorfaelle { background: var(--grund-3); border-left-color: var(--rec); }
+.vorfaelle .art { color: var(--signal); }
 """
 
 #: Keyframes -- ALLE hier, nie im gescopten Teil (siehe Modulkopf).
@@ -1107,6 +1193,48 @@ blockquote { border-left: 2px solid var(--warn); color: var(--warn);
        border-radius: 1rem; }
 details > summary { min-height: var(--tippflaeche); display: flex;
                     align-items: center; cursor: pointer; }
+/* P2, Aufgabe 3 -- Zweck: die Seite gehoert der Gruppe und der Diskussion
+   im Plenum, 100 % Inhalt. Am Beamer waechst die Schrift mit der Breite
+   (``clamp`` statt einer Medienabfrage -- die wuerde hier gescopt). */
+#stand-inhalt { font-size: clamp(1rem, .8rem + .35vw, 1.2rem); }
+/* Die Speichern-Knoepfe waren helle Sandflaechen aus ``_CSS_GRUPPE`` -- je
+   Figur vier davon, die lautesten Flaechen der Seite. Jetzt ruhig: Rand
+   und Signalfarbe, der Inhalt der Felder ist das Helle. */
+.feld button { background: transparent; color: var(--signal);
+               border: 1px solid var(--rand); border-radius: var(--radius);
+               min-height: var(--tippflaeche); }
+.feld button:hover, .feld button:focus-visible { border-color: var(--signal); }
+.feld button[disabled] { color: var(--text-leise); opacity: 1; }
+.feld .hinweis { color: var(--text-leise); opacity: 1; }
+.feld .hinweis.schlecht { color: var(--signal); }
+.figur { border-top-color: var(--linie); }
+.figur [data-feld] { margin-bottom: .3rem; }
+/* Der Weg zur Probenansicht: deutlich, aber kein heller Fleck. */
+.probenansicht a { background: var(--grund-2); color: var(--signal);
+                   border: 1px solid var(--rand); border-radius: var(--radius); }
+/* Auf der vereinten Seite IST der Chat ein Tab -- der Link "Chat mit dem
+   Bot" fuehrte per 302 zurueck auf dieselbe Seite. Nur ausgeblendet: die
+   Einzelseite ``gruppe_html`` behaelt ihn. */
+p:has(> a[href$="/chat"]) { display: none; }
+/* Die Festlegungen: ihre Zeilenregeln stehen in ``web._CSS_LEITFADEN``
+   und kamen hier nie an -- die Bereichsmarke klebte am Text
+   ("stilEvery scene ..."). */
+.festlegung { display: flex; flex-wrap: wrap; align-items: baseline;
+              gap: .1rem .6rem; padding: .35rem 0;
+              border-top: 1px solid var(--linie); }
+.festlegung:first-child { border-top: none; }
+.festlegung .marke { font-family: var(--schrift-tech); font-size: .72rem;
+                     letter-spacing: .08em; text-transform: uppercase;
+                     color: var(--text-leise); opacity: 1; }
+.festlegung .feld { flex: 0 0 auto; margin: 0; }
+.festlegung [data-feld] { padding: 0; border: 0; background: none; margin: 0; }
+/* Was noch fehlt: die Arbeitsliste, deshalb mit Signalstrich. */
+ul.fehlstellen { border-left-color: var(--signal); }
+/* Die Stueckkarte: eine Checkliste, keine Aufzaehlung -- das Offene leiser. */
+ul.stueckkarte { list-style: none; padding-left: 0; }
+ul.stueckkarte li { margin: .2rem 0; }
+ul.stueckkarte li.offen { color: var(--text-leise); }
+table.anteile th, table.anteile td, table.uebersicht td { border-bottom-color: var(--linie); }
 """
 #: Was ``web._CSS_TEXTBUCH`` fuer helles Papier gesetzt hat und auf dem
 #: dunklen Grund zu blass wird (Review an 834edbf): ein dunkles Ocker fuer

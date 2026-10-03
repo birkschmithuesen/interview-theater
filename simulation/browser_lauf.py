@@ -201,8 +201,17 @@ def _fuehre_phase_aus(
             break
 
         if schritt >= fallback_nach_schritten:
-            _loese_phasenwechsel_aus(basis_url, token, aktuelle_phase + 1)
-            fallback_benutzt = True
+            # Realer Betriebsbefund (Padua-Abnahme, 03.10.2026): in der
+            # LETZTEN Phase gibt es keine naechste, in die der Notweg
+            # springen koennte -- ein Versuch dort liefert HTTP 400 (die
+            # Phasennummer existiert nicht, ``web_vereint.phase_post``
+            # prueft sie gegen ``phasen.PHASEN``) und reisst die Phase als
+            # "gescheitert" in die Bilanz, obwohl die Persona bis dahin
+            # produktiv gearbeitet haben kann. Dort einfach das
+            # Schritt-Budget enden lassen, ohne Notweg.
+            if aktuelle_phase < phasen.LETZTE:
+                _loese_phasenwechsel_aus(basis_url, token, aktuelle_phase + 1)
+                fallback_benutzt = True
             break
 
     # Erst JETZT, auf dem Bildschirm, auf dem die Phasenschleife endete --

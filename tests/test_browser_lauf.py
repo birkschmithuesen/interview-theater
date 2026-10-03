@@ -182,3 +182,41 @@ def test_eine_gescheiterte_phase_reisst_die_naechste_nicht_mit(stack, tmp_path, 
     assert phase1["note"] is None
     assert phase2["nummer"] == 2
     assert phase2["note"] == 5
+
+
+def test_in_der_letzten_phase_wird_der_notweg_nicht_versucht(stack, tmp_path):
+    """Realer Betriebsbefund (Padua-Abnahme, 03.10.2026): in der LETZTEN
+    Phase gibt es keine naechste, in die der Operator-Notweg springen
+    koennte -- ein Versuch dort lieferte HTTP 400 (die Zielphase existiert
+    nicht) und riss eine sonst produktive letzte Phase als "gescheitert" in
+    die Bilanz. Die Persona haelt hier absichtlich nie ``done_phase`` und
+    loest nie einen natuerlichen Fortschritt aus, erschoepft also das
+    Schritt-Budget -- das darf keine Ausnahme werfen und keinen HTTP-Aufruf
+    ausloesen (eine erfundene, nicht aufloesende Basis-URL wuerde das sofort
+    sichtbar machen)."""
+    from interview_theater import phasen
+
+    basis, token, pfad = stack
+    letzte = phasen.LETZTE
+
+    persona = _ScriptedClient([
+        {"type": "wait", "duration_ms": 50, "begruendung": "warte"},
+    ] * 20)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        context = browser.new_context()
+        seite = context.new_page()
+        seite.goto(f"{basis}/g/{token}")
+        seite.wait_for_selector("#verlauf")
+
+        ergebnis = browser_lauf._fuehre_phase_aus(
+            seite, persona, browser_lauf.browser_mitschnitt.Mitschnitt(
+                tmp_path / "lauf", "handy-student", "handy"),
+            aktuelle_phase=letzte, basis_url="http://127.0.0.1:1",
+            token=token, db_pfad=pfad, chat_id=CHAT, persona_name="student",
+            max_schritte=5, fallback_nach_schritten=2,
+        )
+        browser.close()
+
+    assert ergebnis["fallback_benutzt"] is False

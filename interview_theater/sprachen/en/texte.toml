@@ -1773,10 +1773,12 @@ buehne = "Stage"
 ["web_gestalt"]
 # Die Beschriftungen der Oberflaeche (Karte Padua UX). Kein Bot-Text, kein
 # Prompt -- hier darf es zwinkern. Platzhalter wie im Deutschen.
-_TEXT_REC_RUHT = "Tap once to start — stop with the ■ button below"
+_TEXT_REC_RUHT = "Tap once to start."
 _TEXT_REC_STARTET = "Warming up the mic …"
 _TEXT_REC_LAEUFT = "Mic is hot."
 _TEXT_REC_LAEDT = "Hold on — the tape is still walking."
+_TEXT_REC_PAUSIERT = "Paused — nothing is being recorded."
+_TEXT_LEITFADEN = "Interview guide"
 _TEXT_AKT_KOPF = "Act {nummer}/{gesamt}"
 _TEXT_BELOHNUNG_AKT = "Act closed."
 _TEXT_BELOHNUNG_AKT_SATZ = "{akt} is in the can. Curtain up on the next one."

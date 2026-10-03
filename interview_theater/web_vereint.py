@@ -1046,6 +1046,9 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     css += web_gestalt.css_rahmen()
     if chat_vorhanden:
         css += scope_css(web_gestalt.css_chat(), ".panel-chat")
+        # P2, Aufgabe 2: der Interview-Modus -- ungescopt (er blendet auch
+        # Phasenleiste und Tabs aus), aber nur, wo es einen Chat gibt.
+        css += web_gestalt.css_interview()
     css += scope_css(web_gestalt.css_stand(), ".panel-stand")
     css += scope_css(web_gestalt.css_textbuch(), ".panel-textbuch")
     # web_chat._js() und nicht die rohe Konstante _CHAT_JS: sie traegt

@@ -520,6 +520,242 @@ def test_die_beschriftung_bleibt_im_laufenden_knopf(dienst):
         browser.close()
 
 
+# -- Der Interview-Modus (P2, Aufgabe 2) ------------------------------------
+#
+# Birk: "interviews sauber durchfuehren ohne ablenkung". Waehrend DIESES
+# Telefon aufnimmt, sieht man Zustand, Dauer, Pegel und Stopp -- und sonst
+# nichts, was sich bewegt oder belohnt. Das Telefon liegt dabei oft vor der
+# interviewten Person.
+
+#: Ein Wake Lock, der mitzaehlt. Chromium headless kennt die API, lehnt
+#: aber ab -- ohne Attrappe saehe der Test nur den Fehlerweg.
+_WAKE_LOCK = """
+(() => {
+  window.__wl = { an: 0, aus: 0, offen: 0 };
+  const sperre = () => {
+    const s = { released: false, type: 'screen',
+      release() { if (!s.released) { s.released = true; window.__wl.aus++;
+                                     window.__wl.offen--; }
+                  return Promise.resolve(); },
+      addEventListener() {} };
+    return s;
+  };
+  Object.defineProperty(navigator, 'wakeLock', { configurable: true,
+    value: { request(t) { window.__wl.an++; window.__wl.offen++;
+                          return Promise.resolve(sperre()); } } });
+})();
+"""
+
+#: Kein Wake Lock (Safari vor 16.4, Firefox) -- die Seite darf nicht werfen.
+_OHNE_WAKE_LOCK = """
+Object.defineProperty(navigator, 'wakeLock',
+                      { configurable: true, value: undefined });
+"""
+
+#: Wake Lock vorhanden, aber abgelehnt (Akku-Sparmodus, kein Fokus).
+_WAKE_LOCK_ABGELEHNT = """
+Object.defineProperty(navigator, 'wakeLock', { configurable: true,
+  value: { request() { return Promise.reject(new Error('NotAllowedError')); } } });
+"""
+
+#: Sichtbarkeit von aussen steuerbar -- ein gesperrtes Telefon oder ein
+#: eingehender Anruf schickt ``visibilitychange`` mit ``hidden``.
+_SICHTBARKEIT = """
+(() => {
+  window.__sicht = 'visible';
+  Object.defineProperty(document, 'visibilityState',
+                        { configurable: true, get: () => window.__sicht });
+  Object.defineProperty(document, 'hidden',
+                        { configurable: true, get: () => window.__sicht !== 'visible' });
+})();
+"""
+
+
+def _interview_seite(browser, basis, token, *skripte, **kw):
+    seite = browser.new_page(viewport=HANDY, permissions=["microphone"], **kw)
+    fehler = []
+    seite.on("pageerror", lambda e: fehler.append(str(e)))
+    for s in skripte:
+        seite.add_init_script(s)
+    seite.goto(f"{basis}/g/{token}")
+    seite.wait_for_selector("#interview")
+    return seite, fehler
+
+
+def _starte_interview(seite):
+    seite.locator("#interview").click()
+    seite.wait_for_selector('#interview[data-ux-zustand="laeuft"]',
+                            state="attached", timeout=20_000)
+    seite.wait_for_selector('html[data-ux-interview="1"]', state="attached",
+                            timeout=5_000)
+
+
+def test_im_interview_sieht_man_nur_die_aufnahme(dienst):
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, fehler = _interview_seite(browser, basis, token, _WAKE_LOCK)
+        _starte_interview(seite)
+        seite.wait_for_timeout(600)
+        for weg in ("#roadmap", ".tabs", "#verlauf", "#tippt", "#eingabe",
+                    "#ptt", "#senden", "#ux-belohnung", "#ux-ansage"):
+            assert not seite.locator(weg).first.is_visible(), weg
+        for da in ("#uhr", "#pegel", "#ux-rec-zeile", "#interview-beenden",
+                   "#interview-pause"):
+            assert seite.locator(da).is_visible(), da
+        # Ein Hauptknopf, am Daumen: Stopp ist gross und in der unteren
+        # Haelfte, ganz im Bild.
+        stopp = seite.locator("#interview-beenden").bounding_box()
+        assert stopp["height"] >= 60, stopp
+        assert stopp["y"] > HANDY["height"] / 2, stopp
+        assert stopp["y"] + stopp["height"] <= HANDY["height"], stopp
+        pause = seite.locator("#interview-pause").bounding_box()
+        assert pause["height"] < stopp["height"], (pause, stopp)
+        # Keine Bewegung -- auch ohne reduced-motion.
+        laufend = seite.evaluate(
+            "() => document.getAnimations()"
+            ".filter(a => a.playState === 'running')"
+            ".map(a => (a.animationName || a.transitionProperty || '?'))")
+        assert laufend == [], laufend
+        assert not fehler, fehler
+        browser.close()
+
+
+def test_im_interview_hat_jeder_sichtbare_text_kontrast(dienst):
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, _ = _interview_seite(browser, basis, token, _WAKE_LOCK)
+        _starte_interview(seite)
+        seite.locator("#ux-leitfaden summary").click()
+        seite.wait_for_timeout(300)
+        schlecht = seite.evaluate(_ALLE_TEXTE, _HELLIGKEIT)
+        assert not schlecht, schlecht
+        browser.close()
+
+
+def test_der_leitfaden_liegt_zugeklappt_bereit(dienst):
+    """Optional und still: die Fragen stehen schon auf der Seite (Stand-
+    Panel), das Skript zeigt sie im Interview zugeklappt -- ohne neuen
+    Endpunkt."""
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, _ = _interview_seite(browser, basis, token, _WAKE_LOCK)
+        assert not seite.locator("#ux-leitfaden").is_visible()
+        _starte_interview(seite)
+        leitfaden = seite.locator("#ux-leitfaden")
+        assert leitfaden.is_visible()
+        assert leitfaden.get_attribute("open") is None
+        seite.locator("#ux-leitfaden summary").click()
+        assert "Was hast du mitgebracht?" in leitfaden.inner_text()
+        browser.close()
+
+
+def test_wake_lock_wird_angefordert_und_beim_stopp_freigegeben(dienst):
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, fehler = _interview_seite(browser, basis, token, _WAKE_LOCK)
+        assert seite.evaluate("() => window.__wl.an") == 0
+        _starte_interview(seite)
+        seite.wait_for_function("() => window.__wl.an === 1", timeout=3000)
+        seite.locator("#interview-beenden").click()
+        seite.wait_for_function(
+            "() => document.documentElement.dataset.uxInterview !== '1'",
+            timeout=10_000)
+        seite.wait_for_function("() => window.__wl.offen === 0", timeout=3000)
+        assert seite.evaluate("() => window.__wl.an") == 1
+        assert not fehler, fehler
+        browser.close()
+
+
+def test_wake_lock_geht_beim_sperren_und_kommt_wieder(dienst):
+    """Gesperrtes Telefon, Anruf: ``visibilitychange`` -> hidden. Der
+    Browser gibt den Lock dann ohnehin frei; das Skript raeumt auf und
+    fordert ihn beim Zurueckkommen neu an, solange das Interview laeuft."""
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, fehler = _interview_seite(browser, basis, token,
+                                         _WAKE_LOCK, _SICHTBARKEIT)
+        _starte_interview(seite)
+        seite.wait_for_function("() => window.__wl.offen === 1", timeout=3000)
+        seite.evaluate("() => { window.__sicht = 'hidden';"
+                       " document.dispatchEvent(new Event('visibilitychange')); }")
+        seite.wait_for_function("() => window.__wl.offen === 0", timeout=3000)
+        seite.evaluate("() => { window.__sicht = 'visible';"
+                       " document.dispatchEvent(new Event('visibilitychange')); }")
+        seite.wait_for_function("() => window.__wl.an === 2", timeout=3000)
+        assert not fehler, fehler
+        browser.close()
+
+
+@pytest.mark.parametrize("attrappe", [_OHNE_WAKE_LOCK, _WAKE_LOCK_ABGELEHNT],
+                         ids=["fehlt", "abgelehnt"])
+def test_ohne_wake_lock_laeuft_das_interview_trotzdem(dienst, attrappe):
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, fehler = _interview_seite(browser, basis, token, attrappe)
+        _starte_interview(seite)
+        seite.wait_for_timeout(500)
+        assert seite.locator("#uhr").is_visible()
+        assert not fehler, fehler
+        browser.close()
+
+
+def test_push_to_talk_ist_kein_interview(dienst):
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, _ = _interview_seite(browser, basis, token, _WAKE_LOCK)
+        kasten = seite.locator("#ptt").bounding_box()
+        seite.mouse.move(kasten["x"] + kasten["width"] / 2,
+                         kasten["y"] + kasten["height"] / 2)
+        seite.mouse.down()
+        seite.wait_for_timeout(900)
+        assert seite.evaluate(
+            "() => document.documentElement.dataset.uxInterview") != "1"
+        assert seite.locator("#roadmap").is_visible()
+        assert seite.evaluate("() => window.__wl.an") == 0
+        seite.mouse.up()
+        browser.close()
+
+
+def test_in_der_pause_sagt_die_zeile_pause(dienst):
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, _ = _interview_seite(browser, basis, token, _WAKE_LOCK)
+        _starte_interview(seite)
+        laeuft = seite.locator("#ux-rec-zeile").inner_text().strip()
+        seite.locator("#interview-pause").click()
+        seite.wait_for_selector('#interview[data-pausiert="1"]',
+                                state="attached", timeout=5000)
+        pause = seite.locator("#ux-rec-zeile").inner_text().strip()
+        assert pause and pause != laeuft
+        # Die Pause ist noch Interview: die Ablenkung bleibt weg.
+        assert seite.evaluate(
+            "() => document.documentElement.dataset.uxInterview") == "1"
+        browser.close()
+
+
+def test_zurueck_wischen_im_interview_verliert_den_stopp_nicht(dienst):
+    """Der Tab haengt am Fragment: ein Zurueck auf #stand schaltete das
+    Chat-Panel weg -- und mit ihm den Stopp, bei verborgener Tableiste."""
+    basis, token = dienst
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite, _ = _interview_seite(browser, basis, token, _WAKE_LOCK)
+        _starte_interview(seite)
+        seite.evaluate("() => { location.hash = '#stand'; }")
+        seite.wait_for_timeout(400)
+        assert seite.locator("#interview-beenden").is_visible()
+        assert not seite.locator("#tab-stand").is_visible()
+        browser.close()
+
+
 # -- Die Abnahme-Screenshots ------------------------------------------------
 
 
@@ -540,6 +776,14 @@ def test_abnahme_screenshots(dienst):
                                     timeout=20_000)
             seite.wait_for_timeout(1200)
             seite.screenshot(path=str(SCHUSS / f"abnahme-{name}-aufnahme.png"))
+            if name == "handy":
+                # P2, Aufgabe 2: der Leitfaden, aufgeklappt -- das Telefon
+                # in der Hand der Interviewerin.
+                seite.locator("#ux-leitfaden summary").click()
+                seite.wait_for_timeout(200)
+                seite.screenshot(
+                    path=str(SCHUSS / "abnahme-handy-aufnahme-leitfaden.png"))
+                seite.locator("#ux-leitfaden summary").click()
             # Gestoppt wird ueber "Beenden" -- der runde Knopf ist waehrend
             # der Aufnahme nur Anzeige (A2). Review an 834edbf: vorher zeigte
             # das Akte-Bild deshalb eine noch laufende Aufnahme.

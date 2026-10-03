@@ -245,12 +245,21 @@ def kontrastverhaeltnis(vorderfarbe: str, hintergrund: str) -> float:
 #: Die vier Zustaende des Aufnahmeknopfes -- die zweite Zeile NEBEN dem
 #: Knopf. Der Knopftext selbst gehoert Karte A2.
 #: Umlaute wie die Beschriftungen von A2 daneben (``web_chat``:
-#: "Aufnahme läuft — …"). Gestoppt wird ueber "■ Beenden" darunter, nicht
-#: ueber den runden Knopf -- der ist waehrend der Aufnahme nur Anzeige.
-_TEXT_REC_RUHT = "Einmal tippen zum Starten – beendet wird mit „■ Beenden“"
+#: "Aufnahme läuft — …"). Gestoppt wird ueber "■ Beenden", nicht ueber den
+#: runden Knopf -- der ist waehrend der Aufnahme nur Anzeige. P2, Aufgabe 2:
+#: der Ruhetext nennt den Stopp nicht mehr. Er verwies auf einen Knopf, den
+#: es im Ruhezustand nicht gibt; seit dem Interview-Modus ist "Beenden" nach
+#: dem Start der eine grosse Knopf auf dem Schirm und braucht keine Ansage.
+_TEXT_REC_RUHT = "Einmal tippen zum Starten."
 _TEXT_REC_STARTET = "Das Mikrofon wird freigegeben …"
 _TEXT_REC_LAEUFT = "Aufnahme läuft."
 _TEXT_REC_LAEDT = "Die letzten Stücke gehen noch raus."
+#: P2, Aufgabe 2: die Pause ist kein Laufen. Bis dahin stand waehrend einer
+#: Pause "Aufnahme läuft." neben einer stehenden Uhr -- ein falscher
+#: Zustand, und genau falsche Zustaende kosteten in Dortmund die 14 Drucke.
+_TEXT_REC_PAUSIERT = "Pausiert – nichts wird aufgenommen."
+#: Die Kopfzeile des zugeklappten Leitfadens im Interview-Modus.
+_TEXT_LEITFADEN = "Leitfaden"
 
 #: Die Akt-Marke in der zugeklappten Uebersicht. Sie steht VOR dem Text
 #: von Karte W ("Phase 3 von 7 · Interviews — 1/3"), nicht statt ihm.
@@ -290,6 +299,13 @@ BEWEGT = (
     '#tippt[data-ux-denkt="1"]::after',
     '#interview[data-ux-zustand="startet"]::before',
     '#interview[data-ux-zustand="laeuft"]::before',
+    # P2, Aufgabe 2: der Interview-Modus legt selbst still -- und steht
+    # deshalb hier (jede Regel mit ``animation:`` gehoert in den Block).
+    'html[data-ux-interview="1"] #pegel span',
+    'html[data-ux-interview="1"] #ux-rec-zeile',
+    'html[data-ux-interview="1"] #interview[data-ux-zustand]',
+    'html[data-ux-interview="1"] #interview::before',
+    '#ux-belohnung[data-art="aufnahme"]',
 )
 
 
@@ -370,6 +386,17 @@ def css_rahmen(name: str | None = None) -> str:
         _ruhig_block(),
         _druck_block(),
     ))
+
+
+def css_interview(name: str | None = None) -> str:
+    """Der Interview-Modus (P2, Aufgabe 2) -- UNGESCOPT, weil er auch
+    Phasenleiste und Tableiste ausblendet, aber nur auf Seiten MIT Chat:
+    ``web_vereint.seite`` haengt ihn hinter ``css_chat`` an. Die
+    Probenansicht und Telegram-Gruppen bekommen ihn nicht (dort darf kein
+    Chat-Markername stehen, ``test_telegram_gruppe_hat_kein_chat_panel``).
+    Ohne ``@keyframes``/``@media`` -- die bleiben in ``css_rahmen()``; was er
+    stilllegt, steht in ``BEWEGT``. Fuer beide Entwuerfe gleich."""
+    return _INTERVIEW
 
 
 def css_chat(name: str | None = None) -> str:
@@ -660,7 +687,98 @@ _BELOHNUNG = """
 #ux-belohnung b { color: var(--signal); letter-spacing: .05em; }
 #ux-belohnung p { margin: .2rem 0 0; font-size: .9rem; color: var(--text-leise); }
 #ux-belohnung[data-an="1"] { animation: ux-auftritt 260ms ease-out 1; }
+#ux-belohnung[data-art="aufnahme"] { animation: none; }
 """
+#: Der Interview-Modus (P2, Aufgabe 2). Gilt, solange ``_JS_INTERVIEW``
+#: ``data-ux-interview="1"`` an ``<html>`` setzt -- also nur, waehrend
+#: DIESES Telefon ein Interview aufnimmt (laufend oder pausiert), nie bei
+#: Push-to-Talk.
+#:
+#: Uebrig bleiben Uhr, Pegel, Zustandszeile, Warteschlange/Fehler/Anhalt
+#: (das ist Information: dort steht, wenn das Netz weg ist) und die
+#: Stopp-Leiste. Weg sind Phasenleiste, Tabs, Chatverlauf, Eingabezeile,
+#: Akt-Moment, Belohnung. Der runde Knopf ist waehrend der Aufnahme ohnehin
+#: nur Anzeige (A2) und lud mit seinem Stopp-Quadrat zum Tippen ein, ohne
+#: etwas zu tun -- hier schrumpft er zur ruhigen Aufnahmelampe (rot, in der
+#: Pause gruen), ohne Puls und ohne Zeiger-Ereignisse. Er bleibt im DOM und
+#: sichtbar: sein Name traegt Zustand und Zeit fuer Vorleseprogramme.
+#: **Ein Hauptknopf**: "Beenden", gross, rot, unten am Daumen; "Pause"
+#: darueber und kleiner.
+#:
+#: Ungescopt (``css_interview()``) und mit ``html[...]`` davor: die
+#: gescopten Regeln aus A2/W (``.panel-chat #interview``) waeren sonst
+#: spezifischer. ``#tab-chat`` wird erzwungen sichtbar -- der Tab haengt am
+#: Fragment, und ein Zurueck-Wischen auf ``#stand`` haette sonst den Stopp
+#: samt Tableiste weggenommen. ``#interview[data-ux-zustand]`` hebt die
+#: Lampe auf (1,2,1): B setzt die Groesse des laufenden Kreises gescopt mit
+#: (1,2,0), die Pause-Flaeche aus ``_CHAT_FLAECHEN`` mit (1,3,0). (Kein
+#: CSS-Kommentar vor einer Regel mit ``animation:`` -- der Test in
+#: ``test_web_gestalt_css`` liest ihn als Teil des Selektors.)
+_INTERVIEW = """
+#ux-leitfaden { display: none; }
+html[data-ux-interview="1"] .panel:not(#tab-chat),
+html[data-ux-interview="1"] #roadmap,
+html[data-ux-interview="1"] .tabs,
+html[data-ux-interview="1"] #ux-belohnung,
+html[data-ux-interview="1"] #ux-vorhang,
+html[data-ux-interview="1"] #ux-ansage,
+html[data-ux-interview="1"] .panel-chat h1,
+html[data-ux-interview="1"] #verlauf,
+html[data-ux-interview="1"] #tippt,
+html[data-ux-interview="1"] #brainstorm,
+html[data-ux-interview="1"] #brainstorm-aktionen,
+html[data-ux-interview="1"] .zeile { display: none; }
+html[data-ux-interview="1"] #tab-chat { display: block; }
+html[data-ux-interview="1"] body .fuss { display: flex; top: 0; bottom: 0;
+    flex-direction: column; flex-wrap: nowrap; justify-content: flex-end;
+    align-items: stretch; gap: 1rem; padding: 1rem 1rem 1.5rem;
+    border-top: 0; overflow-y: auto; }
+html[data-ux-interview="1"] #ux-leitfaden:not([hidden]) { display: block;
+    margin-bottom: auto; flex: 0 1 auto; min-height: 0; overflow-y: auto;
+    background: var(--grund-2); border: 1px solid var(--rand);
+    border-radius: var(--radius); padding: 0 .8rem; }
+html[data-ux-interview="1"] #ux-leitfaden summary {
+    min-height: var(--tippflaeche); display: flex; align-items: center;
+    cursor: pointer; color: var(--text); font-family: var(--schrift-tech);
+    letter-spacing: .06em; }
+html[data-ux-interview="1"] .ux-leitfaden-text { white-space: pre-wrap;
+    color: var(--text); font-family: var(--schrift-skript);
+    font-size: 1.05rem; line-height: 1.5; padding: 0 0 .7rem; }
+html[data-ux-interview="1"] #uhr { flex: 0 0 auto; font-size: 3.4rem;
+    line-height: 1.1; text-align: center; }
+html[data-ux-interview="1"] #pegel { flex: 0 0 auto; height: .9rem;
+    min-width: 0; }
+html[data-ux-interview="1"] #pegel span { transition: none; animation: none; }
+html[data-ux-interview="1"] #ux-rec-zeile { flex: 0 0 auto; margin: 0;
+    text-align: center; font-size: 1.25rem; animation: none; }
+html[data-ux-interview="1"] #interview[data-pausiert="1"] + #ux-rec-zeile {
+    color: var(--warn); }
+html[data-ux-interview="1"] #warteschlange,
+html[data-ux-interview="1"] #fehler,
+html[data-ux-interview="1"] .angehalten { flex: 0 0 auto; }
+/* Die Warteschlange ist im Interview die eine Meldung, die zaehlt ("Keine
+   Verbindung -- 2 offen"): lesbar statt Kleingedrucktes. */
+html[data-ux-interview="1"] #warteschlange { font-size: .95rem;
+    text-align: center; }
+html[data-ux-interview="1"] #interview[data-ux-zustand] { flex: 0 0 auto;
+    align-self: center;
+    width: 1.3rem; height: 1.3rem; min-height: 0; padding: 0; border: 0;
+    border-radius: 50%; background: var(--rec); font-size: 0;
+    pointer-events: none; animation: none; transition: none; }
+html[data-ux-interview="1"] #interview[data-ux-zustand][data-pausiert="1"] {
+    background: var(--warn); }
+html[data-ux-interview="1"] #interview::before { display: none;
+    animation: none; transition: none; }
+html[data-ux-interview="1"] #interview-aktionen:not([hidden]) {
+    display: flex; flex-direction: column; gap: .75rem; margin: 0; }
+html[data-ux-interview="1"] #interview-pause {
+    min-height: var(--tippflaeche); }
+html[data-ux-interview="1"] #interview-beenden { min-height: 4.5rem;
+    font-size: 1.3rem; font-weight: 700; background: var(--rec);
+    color: var(--auf-rec); border-color: var(--rec);
+    border-radius: var(--radius-gross); }
+"""
+
 #: Die Flaechen, die ``web_chat._CSS_CHAT`` HELL setzt -- fuer beide
 #: Entwuerfe gleich, deshalb einmal hier und an ``_CHAT_A``/``_CHAT_B``
 #: angehaengt.
@@ -768,7 +886,9 @@ _CHAT_A = """
    dort ``textContent`` (Befund 2 an Karte A2). */
 #ux-rec-zeile { text-align: center; font-size: .76rem;
                 color: var(--text-leise); margin-top: -.2rem; }
-#interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--rec); }
+/* P2, Aufgabe 2: vorher ``var(--rec)`` -- als Text nur 3.45:1 (B) auf dem
+   Grund, unter AA. Der laufende Zustand steht im Wortlaut und in der Uhr. */
+#interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--text); }
 
 /* -- Knopf 2: Push-to-Talk (halten) ---------------------------------
    Andere Form (Kreis), anderer Ort (in der Eingabezeile), andere Farbe
@@ -869,7 +989,9 @@ _CHAT_B = """
         border-top: 1px solid var(--linie); }
 #ux-rec-zeile { flex: 1; font-family: var(--schrift-skript);
                 font-size: 1.1rem; color: var(--text); }
-#interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--rec); }
+/* P2, Aufgabe 2: vorher ``var(--rec)`` -- als Text nur 3.45:1 (B) auf dem
+   Grund, unter AA. Der laufende Zustand steht im Wortlaut und in der Uhr. */
+#interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--text); }
 
 /* -- Knopf 2: Push-to-Talk als Pille -------------------------------- */
 #ptt { min-width: 3.5rem; min-height: var(--tippflaeche);
@@ -1204,13 +1326,18 @@ _JS_AUFNAHME = """
     var zustand = null;
 
     var setze = function (neu) {
+      // Farbe allein traegt keinen Zustand: der Text sagt ihn auch. Die
+      // Pause bleibt im Attribut "laeuft" (der Modus ist an), bekommt aber
+      // ihren eigenen Satz -- vorher stand dort "Aufnahme laeuft."
+      // neben einer stehenden Uhr (P2, Aufgabe 2).
+      var satz = (neu === 'laeuft' && knopf.dataset.pausiert === '1')
+        ? TEXTE.rec_pausiert : TEXTE['rec_' + neu];
+      if (zeile.textContent !== (satz || '')) { zeile.textContent = satz || ''; }
       if (neu === zustand) { return; }
       zustand = neu;
       knopf.dataset.uxZustand = neu;
       knopf.setAttribute('aria-busy',
         (neu === 'startet' || neu === 'laedt') ? 'true' : 'false');
-      // Farbe allein traegt keinen Zustand: der Text sagt ihn auch.
-      zeile.textContent = TEXTE['rec_' + neu] || '';
     };
 
     var uhr = el('uhr');
@@ -1296,8 +1423,12 @@ _JS_MOMENT = """
     document.body.appendChild(kasten);
 
     var belohnungTakt = null;
-    var belohne = function (titel, text) {
+    // ``art`` traegt, WOFUER belohnt wird: nur der Aktwechsel darf
+    // auftreten, die Bestaetigung nach einem Interview kommt ruhig
+    // (P2, Aufgabe 2: Effekte nur beim Phasenwechsel).
+    var belohne = function (titel, text, art) {
       if (!titel) { return; }
+      kasten.dataset.art = art || '';
       kopf.textContent = titel;
       satz.textContent = text || '';
       kasten.hidden = false;
@@ -1335,7 +1466,7 @@ _JS_MOMENT = """
       moment(knopf.dataset.bezeichnung || '');
       if (vorher && vorher !== knopf) {
         belohne(TEXTE.belohnung_akt, (TEXTE.belohnung_akt_satz || '')
-          .replace('{akt}', (vorher.dataset.bezeichnung || '')));
+          .replace('{akt}', (vorher.dataset.bezeichnung || '')), 'akt');
       }
     });
 
@@ -1349,7 +1480,8 @@ _JS_MOMENT = """
       var an = fuss.dataset.interview === '1';
       var laden = !!(warte && (warte.textContent || '').trim());
       if (lief && !an && !laden) {
-        belohne(TEXTE.belohnung_aufnahme, TEXTE.belohnung_aufnahme_satz);
+        belohne(TEXTE.belohnung_aufnahme, TEXTE.belohnung_aufnahme_satz,
+                'aufnahme');
         lief = false;
       }
       if (an) { lief = true; }
@@ -1360,6 +1492,125 @@ _JS_MOMENT = """
       new MutationObserver(pruefe).observe(
         warte, { childList: true, characterData: true, subtree: true });
     }
+  })();
+"""
+
+
+#: Baustein 5: der Interview-Modus (P2, Aufgabe 2).
+#:
+#: Birk: "interviews sauber durchfuehren ohne ablenkung". Das Telefon liegt
+#: im Interview oft vor der interviewten Person -- also zeigt es dann nur
+#: Zustand, Dauer, Pegel und Stopp. Das Skript setzt dafuer EIN Attribut an
+#: die Wurzel (``html[data-ux-interview="1"]``), den Rest macht das CSS in
+#: ``_INTERVIEW``.
+#:
+#: **Woran ein laufendes Interview zu erkennen ist** -- nur am DOM, das
+#: ``_CHAT_JS`` ohnehin schreibt: ``#fuss[data-interview="1"]`` UND ``#uhr``
+#: sichtbar. ``data-interview`` allein reicht nicht: es steht schon beim
+#: Druck auf "1" (Mikrofon kommt erst) und auch dann, wenn ein ANDERES
+#: Telefon den Modus haelt -- dort bleibt ``#uhr`` verborgen. Push-to-Talk
+#: fasst beides nie an (es schaltet keinen Modus und keine Uhr), und auch
+#: "Brainstorm" (Phase 4) laesst ``data-interview`` auf "0". Die Pause
+#: bleibt Interview: die Uhr steht, ist aber sichtbar.
+#:
+#: **Wake Lock**: ``navigator.wakeLock`` nur, wenn es ihn gibt; jede
+#: Ablehnung wird geschluckt (Akku-Sparmodus, kein Fokus, alte Browser).
+#: Freigegeben beim Stopp, bei jedem Ende des Modus (auch Mikrofonfehler:
+#: dann versteckt ``_CHAT_JS`` die Uhr) und bei ``visibilitychange`` ->
+#: hidden; zurueck im Bild wird er neu angefordert, solange das Interview
+#: laeuft. **Er haelt nur den Bildschirm an** -- dass die Aufnahme bei
+#: gesperrtem Telefon weiterlaeuft, kann er nicht versprechen (Bericht,
+#: Punkt 5).
+#:
+#: **Der Leitfaden** steht schon auf der Seite (``pre.leitfaden`` im
+#: Arbeitsstand, ``web._leitfaden_html``) -- kein neuer Endpunkt, keine
+#: neuen Daten. Er wird beim Eintritt in den Modus als Text kopiert
+#: (``textContent``, nie HTML) und liegt zugeklappt bereit.
+_JS_INTERVIEW = """
+  (function interviewModus() {
+    var fuss = el('fuss');
+    var uhr = el('uhr');
+    if (!fuss || !uhr) { return; }
+    var wurzel = document.documentElement;
+    var will = false;
+    var sperre = null;      // null, 'unterwegs' oder das WakeLockSentinel
+    var anfrage = 0;
+
+    var leitfaden = document.createElement('details');
+    leitfaden.id = 'ux-leitfaden';
+    leitfaden.hidden = true;
+    var titel = document.createElement('summary');
+    titel.textContent = TEXTE.leitfaden || '';
+    var inhalt = document.createElement('div');
+    inhalt.className = 'ux-leitfaden-text';
+    leitfaden.appendChild(titel);
+    leitfaden.appendChild(inhalt);
+    fuss.insertBefore(leitfaden, fuss.firstChild);
+
+    var fuelle = function () {
+      var quelle = document.querySelector('pre.leitfaden');
+      var text = quelle ? (quelle.textContent || '').trim() : '';
+      inhalt.textContent = text;
+      leitfaden.open = false;
+      leitfaden.hidden = !text;
+    };
+
+    var lass = function (s) {
+      if (!s || !s.release) { return; }
+      try {
+        var r = s.release();
+        if (r && r.catch) { r.catch(function () {}); }
+      } catch (e) { /* schon frei */ }
+    };
+    var gibFrei = function () {
+      anfrage++;
+      var s = sperre;
+      sperre = null;
+      if (s && s !== 'unterwegs') { lass(s); }
+    };
+    var halte = function () {
+      if (!will || sperre || document.hidden) { return; }
+      if (!('wakeLock' in navigator) || !navigator.wakeLock ||
+          !navigator.wakeLock.request) { return; }
+      var nr = ++anfrage;
+      sperre = 'unterwegs';
+      try {
+        Promise.resolve(navigator.wakeLock.request('screen')).then(function (s) {
+          if (nr !== anfrage) { lass(s); return; }
+          sperre = s || null;
+          if (s && s.addEventListener) {
+            s.addEventListener('release', function () {
+              if (sperre === s) { sperre = null; }
+            });
+          }
+        }, function () { if (nr === anfrage) { sperre = null; } });
+      } catch (e) { sperre = null; }
+    };
+
+    var pruefe = function () {
+      var an = fuss.dataset.interview === '1' && !uhr.hidden;
+      if (an === will) { return; }
+      will = an;
+      if (an) {
+        fuelle();
+        wurzel.setAttribute('data-ux-interview', '1');
+        halte();
+      } else {
+        wurzel.removeAttribute('data-ux-interview');
+        leitfaden.hidden = true;
+        gibFrei();
+      }
+    };
+
+    new MutationObserver(pruefe).observe(
+      fuss, { attributes: true, attributeFilter: ['data-interview'] });
+    new MutationObserver(pruefe).observe(
+      uhr, { attributes: true, attributeFilter: ['hidden'] });
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) { gibFrei(); } else { halte(); }
+    });
+    window.addEventListener('pagehide', gibFrei);
+    pruefe();
   })();
 """
 
@@ -1395,7 +1646,10 @@ def skript(name: str | None = None, *, chat_vorhanden: bool = True) -> str:
 #: Baustein 1 (Denk-Zustand, Aufgabe 5), Baustein 2 (Fortschritt, Aufgabe 7),
 #: Baustein 3 (Aufnahmeknoepfe, Aufgabe 8) und Baustein 4 (Momente,
 #: Aufgabe 9) -- alle vier Bausteine sind damit gefuellt.
-_BAUSTEINE = _JS_DENKT + _JS_FORTSCHRITT + _JS_AUFNAHME + _JS_MOMENT
+#: Baustein 5 (Interview-Modus, P2 Aufgabe 2) haengt am Chat-Panel wie
+#: Baustein 3 und faellt ohne Chat deshalb mit ihm weg.
+_BAUSTEINE = (_JS_DENKT + _JS_FORTSCHRITT + _JS_AUFNAHME + _JS_MOMENT
+              + _JS_INTERVIEW)
 
 
 def _mikrotexte() -> dict[str, str]:
@@ -1412,6 +1666,8 @@ def _mikrotexte() -> dict[str, str]:
         "rec_startet": T._TEXT_REC_STARTET,
         "rec_laeuft": T._TEXT_REC_LAEUFT,
         "rec_laedt": T._TEXT_REC_LAEDT,
+        "rec_pausiert": T._TEXT_REC_PAUSIERT,
+        "leitfaden": T._TEXT_LEITFADEN,
         "akt_kopf": T._TEXT_AKT_KOPF,
         "belohnung_akt": T._TEXT_BELOHNUNG_AKT,
         "belohnung_akt_satz": T._TEXT_BELOHNUNG_AKT_SATZ,

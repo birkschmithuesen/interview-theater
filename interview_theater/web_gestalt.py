@@ -1253,9 +1253,6 @@ h2 { color: var(--text); font-family: var(--schrift-skript); font-weight: 700;
 .feld .hinweis.schlecht { color: var(--signal); }
 .figur { border-top-color: var(--linie); }
 .figur [data-feld] { margin-bottom: .3rem; }
-/* Der Weg zur Probenansicht: deutlich, aber kein heller Fleck. */
-.probenansicht a { background: var(--grund-2); color: var(--signal);
-                   border: 1px solid var(--rand); border-radius: var(--radius); }
 /* Auf der vereinten Seite IST der Chat ein Tab -- der Link "Chat mit dem
    Bot" fuehrte per 302 zurueck auf dieselbe Seite. Nur ausgeblendet: die
    Einzelseite ``gruppe_html`` behaelt ihn. */

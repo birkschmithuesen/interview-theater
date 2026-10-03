@@ -396,6 +396,25 @@ def _kosten_heute(conn: sqlite3.Connection, chat_id: int, jetzt: datetime) -> fl
     return float(zeile[0] or 0)
 
 
+def _fehlschlaege_im_fenster(
+    conn: sqlite3.Connection, chat_id: int, jetzt: datetime
+) -> int:
+    """Gescheiterte Modellaufrufe der letzten ``VORFALL_FENSTER`` (P2,
+    Aufgabe 3, Review an 2841d83): dasselbe Fenster wie die Vorfaelle, damit
+    ein einzelner Fehlschlag am Morgen den Hinweis nicht bis zur UTC-
+    Tagesgrenze (02:00 Ortszeit) stehen laesst. Die Tagestabelle im Log
+    (``_aufrufe_heute``) bleibt beim UTC-Tag."""
+    grenze = jetzt - VORFALL_FENSTER
+    anzahl = 0
+    for z in conn.execute(
+        "SELECT erstellt_am FROM aufruf WHERE chat_id = ? AND erfolg = 0", (chat_id,)
+    ):
+        zeitpunkt = lies_zeitstempel(z["erstellt_am"])
+        if zeitpunkt is not None and zeitpunkt >= grenze:
+            anzahl += 1
+    return anzahl
+
+
 def _kosten_deckel() -> float:
     """Der Tagesdeckel aus der Umgebung des Webdienstes (``kosten.deckel``).
     Steht ``IT_KOSTEN_DECKEL_CHF`` nur in der Env der Bots, gilt hier die
@@ -476,6 +495,7 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
                 "vorfaelle": _vorfaelle(conn, chat_id, z["bot_name"], jetzt),
                 "aufrufe": _aufrufe_heute(conn, chat_id, jetzt),
                 # P2, Aufgabe 3: woran das Dashboard ein Problem erkennt.
+                "fehlschlaege_fenster": _fehlschlaege_im_fenster(conn, chat_id, jetzt),
                 "kosten_heute_chf": _kosten_heute(conn, chat_id, jetzt),
                 "kosten_deckel_chf": _kosten_deckel(),
                 "unbeantwortet": _unbeantwortet(conn, chat_id, z["bot_name"], jetzt),

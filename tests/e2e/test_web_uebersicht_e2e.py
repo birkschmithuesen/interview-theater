@@ -69,13 +69,31 @@ def _baue_datenbank(pfad: str) -> str:
         ("interview_abschluss", "Thank you, that helps a lot."),
         ("rahmen", "A laundromat by the canal, 3 a.m., the power flickers"),
         ("geschichte", "Two night workers share a laundromat every night without "
-                       "talking. When the power fails, they have to."),
+                       "talking. When the power fails, they have to. "
+                       + "The radio keeps playing on its battery, the dryers stop "
+                         "mid-spin, a neighbour knocks on the glass, the baker's "
+                         "apprentice tells a story about his grandmother's shop "
+                         "and the nurse admits she has not slept for two days. " * 4),
     ):
         repo.setze_arbeitsstand(conn, KANAL, feld, wert)
     repo.setze_phase(conn, KANAL, 5)
     repo.setze_figur(conn, KANAL, "Nadia", "night nurse, counts the spins")
     repo.setze_figur(conn, KANAL, "Teo", "baker's apprentice, always too early")
     repo.setze_figur(conn, KANAL, "The Radio", "speaks only in old songs")
+    # Spaetstand: zehn Figuren und mehr -- die Karte muss am Beamer trotzdem
+    # in 1080 px passen (Review an 2841d83).
+    for name, beschreibung in (
+            ("Signora Bassi", "owns the laundromat, never sleeps, keeps a ledger "
+                              "of every coin since 1987"),
+            ("The Neighbour", "knocks on the glass when the music is too loud"),
+            ("Officer Rinaldi", "on night patrol, pretends he is only passing by"),
+            ("Giulia", "student, washes her one good dress before every exam"),
+            ("Marco", "taxi driver, eats his dinner at four in the morning"),
+            ("The Delivery Rider", "always in a hurry, always forgets his helmet"),
+            ("Aunt Rosa", "Teo's aunt, tells the same story about the flood"),
+            ("The Cat", "belongs to nobody, sleeps on the warm dryer"),
+            ("Professor Lenti", "retired, reads the newspaper of yesterday aloud")):
+        repo.setze_figur(conn, KANAL, name, beschreibung)
     for nr, titel, form, text in (
         (1, "Spin cycle", "dialog", "NADIA: You again.\nTEO: Me again."),
         (2, "Blackout", "chor", "CHOR: Dark. Warm. Dark."),
@@ -95,6 +113,21 @@ def _baue_datenbank(pfad: str) -> str:
          {"thema": "Sounds as a clock", "kurz": "the radio as a clock",
           "beleg_zitat": "unverified line", "zitat_geprueft": 0}],
     )
+    for nr, kurz in enumerate((
+            ("the bakery at five", "flour on the stairs", "a bicycle with no lights"),
+            ("the last vaporetto", "a song from Naples", "counting the bridges"),
+            ("the hospital corridor", "coffee from a machine", "a patient who sings"),
+            ("the market before dawn", "ice and fish", "a lost glove"),
+    ), start=10):
+        weitere = repo.lege_aufnahme_an(conn, KANAL, nr, "lang", "sprache", None, 300,
+                                        status="fertig")
+        repo.speichere_verdichtung(
+            conn, KANAL, weitere, "Invented summary.",
+            [{"thema": k, "kurz": k, "beleg_zitat": "x", "zitat_geprueft": 1}
+             for k in kurz])
+    # Buchhaltung des Betriebs -- darf KEINEN Hinweis ausloesen.
+    repo.merke_vorfall(conn, KANAL, "padua_bot1", "kontext_gekuerzt", "routine")
+    repo.merke_vorfall(conn, KANAL, "padua_bot1", "wiederholung_verworfen", "routine")
     repo.schreibe_journal(conn, KANAL, "entschieden",
                           "Setting is the laundromat by the canal", "extraktor")
     for i in range(6):
@@ -183,7 +216,8 @@ def test_das_dashboard_zeigt_probleme_und_versteckt_die_technik(dienst):
         assert not karten["Canal Crew"].locator("details table").is_visible()
         # Vorfall, Fehlschlag, Kosten nah.
         markt = karten["Market Voices"].locator(".ux-achtung").inner_text()
-        for teil in ("1 failed model call today", "1 incident in the last 2 hours",
+        for teil in ("1 failed model call in the last 2 hours",
+                     "1 incident in the last 2 hours",
                      "Daily cost cap almost reached (86 %)"):
             assert teil in markt, markt
         # Der Bot holt die Nachricht im Web-Kanal nicht ab.
@@ -194,6 +228,11 @@ def test_das_dashboard_zeigt_probleme_und_versteckt_die_technik(dienst):
         # Am Beamer drei Spalten nebeneinander.
         ys = {round(k.bounding_box()["y"]) for k in karten.values()}
         assert len(ys) == 1, ys
+        # Und jede Karte passt in die Hoehe des Beamers -- auch Canal Crew
+        # mit zwoelf Figuren, langer Geschichte und fuenf Interviews.
+        for name, karte in karten.items():
+            box = karte.bounding_box()
+            assert box["y"] + box["height"] <= BEAMER["height"], (name, box)
         browser.close()
 
 
@@ -212,6 +251,14 @@ def test_der_arbeitsstand_ohne_doppelten_chatlink_und_mit_lesbarer_festlegung(di
         fehlt = seite.locator("#tab-stand ul.fehlstellen").bounding_box()
         formular = seite.locator("#tab-stand [data-feld]").first.bounding_box()
         assert fehlt["y"] < formular["y"]
+        # Abschnittsueberschriften sind nicht leiser als der Text (Review an
+        # 2841d83): Textfarbe und Gewicht.
+        h2, absatz = seite.evaluate(
+            """() => [getComputedStyle(document.querySelector('#tab-stand h2')),
+                      getComputedStyle(document.querySelector('#tab-stand'))]
+                     .map(s => [s.color, s.fontWeight])""")
+        assert h2[0] == absatz[0], (h2, absatz)
+        assert int(h2[1]) >= 600, h2
         browser.close()
 
 

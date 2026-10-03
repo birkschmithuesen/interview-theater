@@ -187,7 +187,7 @@ KONTRAST: tuple[Paar, ...] = (
     Paar("rec", "grund", "Rahmen des ruhenden Aufnahmeknopfes", 3.0),
     Paar("rand", "grund", "Grenze eines Bedienelements", 3.0),
     Paar("rand", "grund-2", "Grenze eines Bedienelements in der Karte", 3.0),
-    Paar("signal", "grund-3", "gewaehlter Tab, gedrueckter Filter", 3.0),
+    Paar("signal", "grund-3", "gewaehlter Tab, gedrueckter Filter; Vorfallart als Text im Dashboard-Log", 4.5),
     Paar("warn", "grund-3", "pausierter Aufnahmeknopf", 4.5),
     Paar("text-leise", "grund-3", "Aufgabe der Aktfolge unter dem Finger", 4.5),
 )
@@ -481,7 +481,7 @@ h2 { opacity: 1; }
 _DASHBOARD = """
 body { background: var(--grund); color: var(--text);
        font-family: var(--schrift-lesen); line-height: 1.45;
-       font-size: clamp(1rem, .55rem + .8vw, 1.5rem);
+       font-size: clamp(1rem, .5rem + .7vw, 1.35rem);
        max-width: none; margin: 0; padding: clamp(.75rem, 1.4vw, 2rem); }
 h1 { font-family: var(--schrift-skript); font-weight: 600; color: var(--signal);
      font-size: 1.45em; letter-spacing: .02em; margin: 0 0 .7em; }
@@ -530,7 +530,15 @@ dt { font-family: var(--schrift-tech); font-size: .68em; letter-spacing: .1em;
 dt:first-child { margin-top: 0; }
 dd { margin: .1em 0 0; }
 ul { padding-left: 1.1em; }
-.figuren li { margin-bottom: .1em; }
+/* Am Beamer muss eine Karte im Spaetstand in 1080 px passen (Review an
+   2841d83): lange Felder auf wenige Zeilen gekappt, der volle Text steht
+   auf der Gruppenseite. Figuren nur mit Namen, in einer Zeile mit Trenner. */
+dd.kurz { display: -webkit-box; -webkit-box-orient: vertical;
+          -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+dd.figuren { display: -webkit-box; -webkit-box-orient: vertical;
+             -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+dd.figuren b { font-weight: 600; }
+dd.kurz ul.fragen li { margin: 0; }
 .ergebnisse { margin: 0; font-size: 1em; }
 .ergebnisse li { margin-bottom: .2em; }
 .fragen { margin: 0; padding-left: 1.1em; }
@@ -543,6 +551,7 @@ details > summary { cursor: pointer; color: var(--text-leise);
 th { color: var(--text-leise); opacity: 1; }
 th, td { border-bottom-color: var(--linie); }
 .vorfaelle { background: var(--grund-3); border-left-color: var(--rec); }
+/* Signal auf grund-3 als TEXT -- in ``KONTRAST`` mit 4.5 gefuehrt. */
 .vorfaelle .art { color: var(--signal); }
 """
 
@@ -1197,6 +1206,12 @@ details > summary { min-height: var(--tippflaeche); display: flex;
    im Plenum, 100 % Inhalt. Am Beamer waechst die Schrift mit der Breite
    (``clamp`` statt einer Medienabfrage -- die wuerde hier gescopt). */
 #stand-inhalt { font-size: clamp(1rem, .8rem + .35vw, 1.2rem); }
+/* Die Abschnittsueberschriften ("Where we are", "Scenes", ...) gliedern die
+   Seite -- aus ``_BASIS`` kamen sie in ``--text-leise`` und damit leiser als
+   der Text darunter (Review an 2841d83). Jetzt in Textfarbe, mit Gewicht
+   und in der Serife der Buehne. */
+h2 { color: var(--text); font-family: var(--schrift-skript); font-weight: 700;
+     font-size: 1.3em; letter-spacing: .01em; border-bottom-color: var(--rand); }
 /* Die Speichern-Knoepfe waren helle Sandflaechen aus ``_CSS_GRUPPE`` -- je
    Figur vier davon, die lautesten Flaechen der Seite. Jetzt ruhig: Rand
    und Signalfarbe, der Inhalt der Felder ist das Helle. */

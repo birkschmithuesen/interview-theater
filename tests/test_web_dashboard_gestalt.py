@@ -124,25 +124,37 @@ def test_der_botname_steht_nur_noch_in_der_zuordnung(padua):
     assert "padua_bot1" in html          # in der eingeklappten Bot-Zuordnung
 
 
-def test_keine_rohdaten_ueber_die_grenzen(padua):
-    """Die drei Grenzen aus AGENTS.md: kein Nachrichtentext, kein Transkript,
-    kein Belegzitat -- das Dashboard bekommt sie gar nicht erst."""
-    html = web.dashboard_html(DATEN)
-    assert "<blockquote" not in html
+def test_der_figurenblock_nennt_nur_namen(padua):
+    """Am Beamer muss eine Karte im Spaetstand (zehn Figuren und mehr) in
+    1080 px passen -- die Beschreibungen stehen auf der Gruppenseite."""
+    erste = _karten(web.dashboard_html(DATEN))[0]
+    assert "a student" not in _sichtbar(erste)
+    assert "Mira" in _sichtbar(erste) and "Luca" in _sichtbar(erste)
+
+
+def test_lange_felder_werden_gekappt(padua):
+    """Geschichte, Setting, Fragen, Interviewergebnisse tragen die Klasse,
+    an der das CSS sie auf wenige Zeilen kappt (``line-clamp``)."""
+    erste = _karten(web.dashboard_html(DATEN))[0]
+    assert len(re.findall(r'<dd class="kurz">', erste)) >= 4
+    css = web_gestalt.css_dashboard()
+    assert "-webkit-line-clamp" in css and "dd.kurz" in css
 
 
 # -- Technik nur bei einem Problem -----------------------------------------------
 
 
 def test_ein_problem_steht_als_hinweis_ausserhalb_des_logs(padua):
-    html = web.dashboard_html(DATEN)
+    html = web.dashboard_html(_daten(fehlschlaege_fenster=1))
     p = _lage(html)
     assert _lagen(p, "div.ux-achtung") == [None]       # nur Karte 1
     erste, zweite = _karten(html)
     text = _sichtbar(erste)
     assert "Needs attention" in text
-    assert "1 failed model call today" in text
-    assert "3 incidents in the last 2 hours" in text
+    assert "1 failed model call in the last 2 hours" in text
+    # Von den drei Vorfaellen in DATEN ist nur die gescheiterte Transkription
+    # ein Problem; Buchhaltung und eine unbekannte Art zaehlen nicht.
+    assert "1 incident in the last 2 hours" in text
     assert 'class="ux-achtung"' not in zweite
 
 
@@ -172,16 +184,60 @@ def test_ein_stiller_bot_ist_ein_problem(padua):
     assert "The bot hasn't picked up 2 messages for 9 min" in text
 
 
-def test_der_hinweis_nennt_die_letzte_vorfallart(padua):
+def test_der_hinweis_nennt_die_letzte_problemart(padua):
+    """Die juengste Art unter den PROBLEMEN, nicht die juengste ueberhaupt
+    (in DATEN ist das ``wiederholung_verworfen`` -- Buchhaltung)."""
     text = _sichtbar(_karten(web.dashboard_html(DATEN))[0])
-    assert "latest: repetition_discarded" in text
+    assert "latest: transcription_failed" in text
+    assert "repetition_discarded" not in _sichtbar(
+        re.sub(r"<details.*?</details>", "", _karten(web.dashboard_html(DATEN))[0],
+               flags=re.S))
+
+
+#: Vorfaelle, die im Betrieb laufend entstehen und nichts Kaputtes melden.
+ROUTINE = ("wiederholung_verworfen", "kontext_gekuerzt", "strom_nicht_verfuegbar",
+           "web_rate_limit", "http_5xx", "echo_verworfen", "zitat_ungeprueft",
+           "interview_ohne_knopf_offen", "nachpass_gelaufen", "szene_prompt_gekuerzt")
+
+
+@pytest.mark.parametrize("art", ROUTINE)
+def test_routinevorfaelle_loesen_keinen_hinweis_aus(padua, art):
+    daten = _daten(vorfaelle=[{"art": art, "stufe": None, "detail": "x",
+                               "erstellt_am": "2026-10-02T10:01:00+00:00",
+                               "bot_weit": False}],
+                   fehlschlaege_fenster=0)
+    html = web.dashboard_html(daten)
+    assert 'class="ux-achtung"' not in html
+    # Im Log steht er weiterhin.
+    assert "<details" in _karten(html)[0]
+
+
+def test_ein_fehlschlag_von_heute_frueh_loest_keinen_hinweis_aus(padua):
+    """Fehlschlaege gelten im selben Zwei-Stunden-Fenster wie Vorfaelle --
+    ein gescheiterter Aufruf um 9 Uhr haelt den Kasten nicht bis 2 Uhr nachts.
+    Die Tagestabelle im Log (``aufrufe``) bleibt dabei unberuehrt."""
+    daten = _daten(vorfaelle=[], fehlschlaege_fenster=0)   # aufrufe: 1 Fehlschlag heute
+    assert 'class="ux-achtung"' not in web.dashboard_html(daten)
+
+
+def test_die_problemliste_nennt_nur_arten_die_der_code_schreibt():
+    """Eine Art in der Liste, die niemand schreibt, waere ein Tippfehler,
+    der still nie anschlaegt."""
+    import pathlib
+
+    quelle = "".join(p.read_text(encoding="utf-8") for p in
+                     pathlib.Path(web.__file__).parent.rglob("*.py")
+                     if p.name != "web.py")
+    for art in web.ACHTUNG_VORFAELLE:
+        assert f'"{art}"' in quelle, art
+    assert not set(ROUTINE) & web.ACHTUNG_VORFAELLE
 
 
 def test_padua_gestaltet_ohne_deutsche_woerter(padua):
     from test_web_dashboard_en import _deutsche_treffer
 
     daten = _daten(kosten_heute_chf=4.9, kosten_deckel_chf=5.0,
-                   unbeantwortet={"anzahl": 1, "minuten": 4})
+                   unbeantwortet={"anzahl": 1, "minuten": 4}, fehlschlaege_fenster=2)
     assert _deutsche_treffer(web.dashboard_html(daten)) == []
 
 
@@ -259,3 +315,55 @@ def test_unbeantwortet_ohne_web_post_tabelle_ist_none(tmp_path):
     conn.commit()
     gruppe = web_daten.dashboard(web_daten.oeffne_lesend(pfad), jetzt=JETZT)["gruppen"][0]
     assert gruppe["unbeantwortet"] is None
+
+
+def test_fehlschlaege_im_fenster(lesend):
+    """Nur Fehlschlaege der letzten zwei Stunden (``VORFALL_FENSTER``)."""
+    conn, pfad = lesend
+    for minuten, erfolg in ((30, 0), (90, 0), (150, 0), (10, 1)):
+        repo.merke_aufruf(conn, CHAT, "gespraech", erfolg=erfolg)
+        conn.execute("UPDATE aufruf SET erstellt_am = ? WHERE id = "
+                     "(SELECT MAX(id) FROM aufruf)", (_iso(minuten),))
+    conn.commit()
+    gruppe = web_daten.dashboard(web_daten.oeffne_lesend(pfad), jetzt=JETZT)["gruppen"][0]
+    assert gruppe["fehlschlaege_fenster"] == 2
+
+
+#: Erfundene Rohdaten, die NIE auf das Dashboard duerfen (AGENTS.md).
+GEHEIM_NACHRICHT = "SECRET message text from the group chat"
+GEHEIM_TRANSKRIPT = "SECRET transcript: my grandmother crossed the bridge"
+GEHEIM_ZITAT_UNGEPRUEFT = "SECRET unchecked quote about the bridge"
+GEHEIM_ZITAT_GEPRUEFT = "SECRET checked quote about the market"
+GEHEIM_ZUSAMMENFASSUNG = "SECRET summary of the whole interview"
+GEHEIM_WEB = "SECRET browser message"
+
+
+def test_keine_rohdaten_ueber_die_grenzen(lesend, padua):
+    """Die drei Grenzen aus AGENTS.md: kein Nachrichtentext, kein Transkript,
+    kein Belegzitat (ungeprueft sowieso nicht, und das Dashboard zeigt
+    ueberhaupt keine Zitate) -- weder in den Daten noch im HTML."""
+    conn, pfad = lesend
+    repo.merke_nachricht(conn, CHAT, 5, "Gruppe", 0, "text", GEHEIM_NACHRICHT,
+                         _iso(5))
+    repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_TEXT,
+                          text=GEHEIM_WEB)
+    aid = repo.lege_aufnahme_an(conn, CHAT, 6, "lang", "sprache", None, 300,
+                                status="fertig")
+    repo.setze_transkript(conn, aid, GEHEIM_TRANSKRIPT)
+    repo.speichere_verdichtung(
+        conn, CHAT, aid, GEHEIM_ZUSAMMENFASSUNG,
+        [{"thema": "Crossing", "kurz": "the bridge crossing",
+          "beleg_zitat": GEHEIM_ZITAT_UNGEPRUEFT, "zitat_geprueft": 0},
+         {"thema": "Market", "kurz": "the market noise",
+          "beleg_zitat": GEHEIM_ZITAT_GEPRUEFT, "zitat_geprueft": 1}],
+    )
+    conn.commit()
+    daten = web_daten.dashboard(web_daten.oeffne_lesend(pfad), jetzt=JETZT)
+    html = web.dashboard_html(daten)
+    # Die Kurzformen kommen an -- die Fixture ist also wirklich gelesen worden.
+    assert "the bridge crossing" in html
+    for geheim in (GEHEIM_NACHRICHT, GEHEIM_TRANSKRIPT, GEHEIM_ZITAT_UNGEPRUEFT,
+                   GEHEIM_ZITAT_GEPRUEFT, GEHEIM_ZUSAMMENFASSUNG, GEHEIM_WEB):
+        assert geheim not in repr(daten), geheim
+        assert geheim not in html, geheim
+    assert "<blockquote" not in html

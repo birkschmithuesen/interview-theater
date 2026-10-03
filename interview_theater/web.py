@@ -1735,8 +1735,8 @@ _TEXT_LOG = "Log"
 _TEXT_FORTSCHRITT = "Phase {nummer}/{gesamt} · {name}"
 _TEXT_NOCH_NICHTS_FESTGELEGT = "Noch nichts festgelegt."
 _TEXT_ACHTUNG = "Braucht Aufmerksamkeit"
-_TEXT_ACHTUNG_FEHL_EINS = "{anzahl} fehlgeschlagener Modellaufruf heute"
-_TEXT_ACHTUNG_FEHL = "{anzahl} fehlgeschlagene Modellaufrufe heute"
+_TEXT_ACHTUNG_FEHL_EINS = "{anzahl} fehlgeschlagener Modellaufruf in den letzten 2 Stunden"
+_TEXT_ACHTUNG_FEHL = "{anzahl} fehlgeschlagene Modellaufrufe in den letzten 2 Stunden"
 _TEXT_ACHTUNG_VORFALL_EINS = "{anzahl} Vorfall in den letzten 2 Stunden (zuletzt: {art})"
 _TEXT_ACHTUNG_VORFALL = "{anzahl} Vorfälle in den letzten 2 Stunden (zuletzt: {art})"
 _TEXT_ACHTUNG_KOSTEN_NAH = "Tagesdeckel fast erreicht ({prozent} %)"
@@ -1745,6 +1745,46 @@ _TEXT_ACHTUNG_STILL_EINS = "Der Bot hat {anzahl} Nachricht seit {minuten} Min. n
 _TEXT_ACHTUNG_STILL = "Der Bot hat {anzahl} Nachrichten seit {minuten} Min. nicht abgeholt"
 #: Ab welchem Anteil am Tagesdeckel das Dashboard warnt.
 KOSTEN_WARNSCHWELLE = 0.8
+#: Welche Vorfallarten auf dem gestalteten Dashboard ein PROBLEM sind (Review
+#: an 2841d83). Alle anderen sind Buchhaltung des Betriebs -- ein verworfenes
+#: Echo, ein gekuerzter Kontext, eine wiederholte 5xx, ein Rate-Limit -- und
+#: entstehen an einem echten Tag laufend; stuenden sie im Hinweis, waere der
+#: Kasten fast dauerhaft an ("Technik nur bei Problemen"). Sie bleiben im
+#: eingeklappten Log. Eine Art gehoert hierher, wenn etwas verloren oder
+#: ausgefallen ist, worauf die Gruppe wartet, oder wenn die Workshopleitung
+#: etwas beheben muss. Begruendung je Art im Bericht zur Aufgabe (Abschnitt
+#: "Fix"); ein Test haelt fest, dass jede Art hier wirklich geschrieben wird.
+ACHTUNG_VORFAELLE = frozenset({
+    # Die Gruppe wartet und bekommt nichts.
+    "gespraechszug_fehlgeschlagen",
+    "auftragszug_fehlgeschlagen",
+    "szene_fehlgeschlagen",
+    "szene_abgeschnitten",
+    "kurzgeschichte_fehlgeschlagen",
+    "szenenfolge_fehlgeschlagen",
+    "schaerfung_fehlgeschlagen",
+    "stueckpruefung_fehlgeschlagen",
+    "stueckpruefung_zu_lang",
+    "dramaturgie_fehlgeschlagen",
+    "buehnenkarte_fehlgeschlagen",
+    "sprachprofil_fehlgeschlagen",
+    "sprachstil_fehlgeschlagen",
+    "kernzitate_fehlgeschlagen",
+    "undo_fehlgeschlagen",
+    # Material ist (noch) nicht angekommen.
+    "download_fehlgeschlagen",
+    "transkription_fehlgeschlagen",
+    "verdichtung_fehlgeschlagen",
+    # Eine Festlegung der Gruppe wurde erkannt, aber nicht gespeichert.
+    "erkenner_anwenden_fehler",
+    # Die Workshopleitung muss etwas tun (Konfiguration, Proxy, Kosten).
+    "abgeschnitten",
+    "kontext_kuerzung_erfolglos",
+    "kostendeckel_erreicht",
+    "kosten_modell_unbekannt",
+    "opus_fallback",
+    "dramaturgie_verschlechterung",
+})
 #: Datum und Uhrzeit auf dem Dashboard (strftime). Deutsch mit dem Trenner
 #: " · ", den es immer trug (er stammt aus dem geteilten ``_zeitpunkt``).
 _ZEITFORMAT_DASHBOARD = "%d.%m.%Y %H:%M · "
@@ -2102,16 +2142,17 @@ def _achtung_html(g: dict) -> str:
     """Der Hinweis, wenn bei einer Gruppe etwas klemmt -- sonst nichts.
 
     Vier Anlaesse, alle aus Daten, die ``web_daten.dashboard`` liefert:
-    fehlgeschlagene Modellaufrufe heute, Vorfaelle der letzten zwei
-    Stunden, Kosten ab ``KOSTEN_WARNSCHWELLE`` des Tagesdeckels, und
-    Eingaenge im Web-Kanal, die der Bot nicht abholt. Die Einzelheiten
-    bleiben im Log; hier steht nur, DASS und WAS."""
+    fehlgeschlagene Modellaufrufe und Vorfaelle aus ``ACHTUNG_VORFAELLE``,
+    beide im selben Fenster (``web_daten.VORFALL_FENSTER``, zwei Stunden),
+    Kosten ab ``KOSTEN_WARNSCHWELLE`` des Tagesdeckels (Tag ab Mitternacht
+    Ortszeit wie ``kosten``), und Eingaenge im Web-Kanal, die der Bot nicht
+    abholt. Die Einzelheiten bleiben im Log; hier steht nur, DASS und WAS."""
     punkte = []
-    fehl = sum(a.get("fehlschlaege") or 0 for a in g.get("aufrufe") or [])
+    fehl = g.get("fehlschlaege_fenster") or 0
     if fehl:
         vorlage = T._TEXT_ACHTUNG_FEHL_EINS if fehl == 1 else T._TEXT_ACHTUNG_FEHL
         punkte.append(vorlage.format(anzahl=fehl))
-    vorfaelle = g.get("vorfaelle") or []
+    vorfaelle = [v for v in g.get("vorfaelle") or [] if v.get("art") in ACHTUNG_VORFAELLE]
     if vorfaelle:
         vorlage = (T._TEXT_ACHTUNG_VORFALL_EINS if len(vorfaelle) == 1
                    else T._TEXT_ACHTUNG_VORFALL)
@@ -2152,27 +2193,28 @@ def _dashboard_inhalt_html(g: dict) -> str:
     stand = g["arbeitsstand"]
     dt = T.ARBEITSSTAND_BESCHRIFTUNG
     teile = []
+    # ``dd.kurz`` kappt das CSS auf wenige Zeilen (``line-clamp``): eine
+    # Karte im Spaetstand muss am Beamer in 1080 px passen (Review an
+    # 2841d83). Der volle Text steht auf der Gruppenseite.
+    kurz = '<dd class="kurz">'
     for feld in ("rahmen", "geschichte"):
         if stand.get(feld):
-            teile.append(f"<dt>{_t(dt[feld])}</dt><dd>{_t(stand[feld])}</dd>")
+            teile.append(f"<dt>{_t(dt[feld])}</dt>{kurz}{_t(stand[feld])}</dd>")
     if g["figuren"]:
-        figuren = "".join(
-            "<li><b>{name}</b>{rest}</li>".format(
-                name=_t(f["name"]),
-                rest=f" — {_t(f['beschreibung'])}" if f.get("beschreibung") else "",
-            )
-            for f in g["figuren"]
-        )
+        # Nur die Namen: zehn Figuren mit Beschreibung sind am Beamer eine
+        # halbe Karte.
+        figuren = SUMMARY_TRENNER.join(
+            f"<b>{_t(f['name'])}</b>" for f in g["figuren"])
         teile.append(
-            f'<dt>{_t(dt["figuren"])}</dt><dd><ul class="figuren">{figuren}</ul></dd>')
+            f'<dt>{_t(dt["figuren"])}</dt><dd class="figuren">{figuren}</dd>')
     ergebnisse = _ergebnisse_html(g.get("interview_kurzformen") or [])
     if ergebnisse:
-        teile.append(f"<dt>{_t(T._UEBERSCHRIFT_INTERVIEWS)}</dt><dd>{ergebnisse}</dd>")
+        teile.append(f"<dt>{_t(T._UEBERSCHRIFT_INTERVIEWS)}</dt>{kurz}{ergebnisse}</dd>")
     for feld in ("kernthema", "hauptkonflikt", "begriffe"):
         if stand.get(feld):
-            teile.append(f"<dt>{_t(dt[feld])}</dt><dd>{_t(stand[feld])}</dd>")
+            teile.append(f"<dt>{_t(dt[feld])}</dt>{kurz}{_t(stand[feld])}</dd>")
     if stand.get("fragen"):
-        teile.append(f"<dt>{_t(dt['fragen'])}</dt><dd>{_fragen_html(stand['fragen'])}</dd>")
+        teile.append(f"<dt>{_t(dt['fragen'])}</dt>{kurz}{_fragen_html(stand['fragen'])}</dd>")
     leer = (
         "" if teile
         else f'<p class="noch-nichts">{_t(T._TEXT_NOCH_NICHTS_FESTGELEGT)}</p>'

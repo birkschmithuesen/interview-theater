@@ -791,6 +791,48 @@ _TEXT_FRAGE_ANGENOMMEN = "✓ Angenommen"
 _TEXT_FRAGE_VERWORFEN = "✗ Verworfen"
 _TEXT_FRAGE_ENTSCHIEDEN = "Notiert"
 
+# --- Eigene Fragen vs. KI (Padua Phase 1+2 Karte, Aufgabe 13, 03.10.2026) --
+#
+# KORREKTUR 10:25 (Birk, KORREKTUR-PHASE2-KEIN-KNOPF.md): KEIN "Fertig"-
+# Knopf. ``VORSCHLAG EIGENE FRAGEN:`` ist die vollstaendige, kumulative
+# Liste der eigenen Fragen -- der Code prueft nach jedem Speichern
+# (``knoepfe.fragen.uebernimm_eigene``), ob jeder Begriff genug eigene
+# Fragen hat, und startet dann selbst die Gegenueberstellung mit den
+# KI-Fragen (``knoepfe.fragen.versuche_gegenueberstellung``).
+
+#: Die knappe Stand-Zeile, solange noch nicht jeder Begriff genug eigene
+#: Fragen hat -- kein Draengen, nur der Stand (Korrektur-Wortlaut: "Still
+#: missing: <term> 1, <term> 2").
+_TEXT_FRAGEN_EIGENE_OFFEN = "Noch offen: {begriffe}"
+#: Eine Zeile je Begriff mit Rueckstand, eingesetzt in
+#: ``_TEXT_FRAGEN_EIGENE_OFFEN`` (komma-getrennt).
+_TEXT_FRAGEN_EIGENE_OFFEN_ZEILE = "{begriff} ({anzahl}/{ziel})"
+#: Gespeichert, aber die KI-Fragen sind noch nicht da -- der Reveal kommt
+#: automatisch, sobald der Hintergrundlauf fertig ist (``fragen_ki.starte``).
+_TEXT_FRAGEN_EIGENE_WARTET_AUF_KI = (
+    "Eure Fragen sind gespeichert - ich warte noch auf die KI-Fragen im "
+    "Hintergrund."
+)
+#: Die EINE kurze Ueberleitungszeile beim automatischen Start der
+#: Gegenueberstellung (KORREKTUR-PHASE2-KEIN-KNOPF.md).
+_TEXT_GEGENUEBERSTELLUNG_BEREIT = (
+    "Eure Fragen und die der KI stehen sich jetzt gegenueber:"
+)
+#: Herkunfts-Kennzeichnung einer Frage beim Durchgehen (Aufgabe 13) -- reiner
+#: Text, keine HTML/``data-*``-Attribute (``sichere_html``s feste Allowlist
+#: kennt beides nicht).
+_TEXT_HERKUNFT_EIGEN = " (eure)"
+_TEXT_HERKUNFT_KI = " (KI)"
+#: Der Satz, den das Padua-Profil-Prompt
+#: (``workshop/padua-2026/prompts/phasen/2.md``) das Modell woertlich sagen
+#: laesst, wenn die Gruppe frueher zur Gegenueberstellung will, bevor jeder
+#: Begriff drei eigene Fragen hat -- KEIN Marker (Marker werden nicht
+#: uebersetzt, siehe ``vorschlag.py``), ein gewoehnlicher Satz im
+#: Fliesstext, deshalb braucht er eine EN-Fassung
+#: (``sprachen/en/texte.toml``, geprueft von ``_fruehzeitig_fertig``
+#: case-/whitespace-unabhaengig).
+_SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG = "Eigene Fragen fertig."
+
 _TEXT_LEITFADEN_KNOPF = "Leitfaden zeigen"
 
 

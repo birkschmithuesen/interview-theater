@@ -204,6 +204,16 @@ _TEXT_FRAGE_GESCHAERFT = "Question reworked"
 _TEXT_FRAGE_ANGENOMMEN = "✓ Accepted"
 _TEXT_FRAGE_VERWORFEN = "✗ Discarded"
 _TEXT_FRAGE_ENTSCHIEDEN = "Noted"
+# Own questions vs. AI (Padua Phase 1+2 card, Task 13, 2026-10-03).
+_TEXT_FRAGEN_EIGENE_OFFEN = "Still missing: {begriffe}"
+_TEXT_FRAGEN_EIGENE_OFFEN_ZEILE = "{begriff} ({anzahl}/{ziel})"
+_TEXT_FRAGEN_EIGENE_WARTET_AUF_KI = """\
+Your questions are saved - I'm still waiting for the AI questions in the \
+background."""
+_TEXT_GEGENUEBERSTELLUNG_BEREIT = "Your questions and the AI's are now side by side:"
+_TEXT_HERKUNFT_EIGEN = " (yours)"
+_TEXT_HERKUNFT_KI = " (AI)"
+_SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG = "Own questions done."
 _TEXT_FRAGEN_WEICH_ANGEBOT = "These questions are phrased sensitively. Softer:"
 _TEXT_FRAGEN_WEICH_ZEILE = """\
 {nummer}. {frage}

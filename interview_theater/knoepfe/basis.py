@@ -444,6 +444,22 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
             conn, tg, chat_id, bloecke["frage"], bloecke.get("fragen_weich"),
         ), True
 
+    # Die eigenen Fragen der Gruppe (Padua Phase 1+2 Karte, Aufgabe 13,
+    # 03.10.2026, KORREKTUR-PHASE2-KEIN-KNOPF.md): ``VORSCHLAG EIGENE
+    # FRAGEN:`` ist kein Angebot, sondern die laufende, vollstaendige
+    # Zusammenfassung dessen, was die Gruppe selbst schon gesagt hat --
+    # jede Zeile "Begriff: Frage". Kein Vorspann-Text, keine Grundleiste:
+    # der Code prueft nach jedem Speichern, ob jeder Begriff genug eigene
+    # Fragen hat, und meldet entweder den Stand oder startet automatisch die
+    # Gegenueberstellung mit den KI-Fragen.
+    if "eigene_fragen" in bloecke:
+        from interview_theater.knoepfe.fragen import uebernimm_eigene
+
+        rest = vorschlag.ohne_block(text, "eigene_fragen")
+        return uebernimm_eigene(
+            conn, tg, chat_id, bloecke["eigene_fragen"], rest,
+        ), True
+
     # Oben: die Auswahlknoepfe. Kommen mehrere Auswahl-Bloecke in einer
     # Nachricht (das Modell soll das nicht, tut es aber gelegentlich),
     # gewinnt der erste aus _AUSWAHLMARKER -- eine feste Ordnung statt einer

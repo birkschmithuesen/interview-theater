@@ -18,9 +18,23 @@ Knoepfe (``ART_FRAGE_WAHL``, ``ART_FRAGEN_UEBERNEHMEN``, ``ART_FRAGEN_EIGENE``)
 sind damit Geschichte. Ihre Handler bleiben in ``wirkung.py`` stehen, damit
 ein Druck aus einer schon verschickten alten Nachricht nicht ins Leere
 laeuft -- angeboten werden sie nicht mehr.
+
+Padua Phase 1+2 Karte, Aufgabe 13 (03.10.2026, KORREKTUR-PHASE2-KEIN-KNOPF.md):
+``uebernimm_eigene``/``versuche_gegenueberstellung`` fuer den A/B-Vergleich
+eigene-vs-KI-Fragen -- KEIN "Fertig"-Knopf, der Code prueft nach jedem
+Speichern eigener Fragen (``VORSCHLAG EIGENE FRAGEN:``), ob jeder Begriff
+genug hat, und startet dann selbst die Gegenueberstellung mit den isoliert
+im Hintergrund erzeugten KI-Fragen (``fragen_ki.py``, Aufgabe 12). Nur unter
+``workshop.fragen_ab_aktiv()`` kommt der Marker ueberhaupt vor (er steht nur
+im Padua-Profil-Prompt), die klassische Fuenf-je-Begriff-Vorschlagsrunde
+bleibt dadurch unangetastet.
 """
 
+import re
+import threading
+
 from interview_theater import anweisungen, erkenner, leitfaden, repo
+from interview_theater import begriffe as begriffe_modul
 
 from interview_theater.knoepfe.texte import (
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
@@ -31,6 +45,12 @@ from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _nimm_alte_leiste_ab, _sende_knoepfe,
     _starte_auftrag, sende_notiert_nur_undo,
 )
+
+#: Mindestzahl eigener Fragen je Begriff, ab der die Gegenueberstellung
+#: automatisch startet (KORREKTUR-PHASE2-KEIN-KNOPF.md: "Sobald fuer JEDEN
+#: Begriff >= 3 eigene Fragen gespeichert sind"). Reine Code-Konstante, keine
+#: Nutzertext-Konstante -- deshalb hier und nicht in ``knoepfe/texte.py``.
+MINDESTANZAHL_EIGENE_FRAGEN = 3
 
 
 # --- Die vorgeschlagene Liste und ihr Zustand ------------------------------
@@ -172,6 +192,17 @@ def fragenliste(conn, chat_id: int) -> str:
     return "\n".join(zeilen)
 
 
+def _reset_fragenrunde(conn, chat_id: int) -> None:
+    """Setzt den Entscheidungsstand einer frischen Fragenrunde zurueck --
+    dieselben drei Felder, die ``biete_fragenauswahl`` beim allerersten
+    Vorschlag loescht und ``versuche_gegenueberstellung`` beim Reveal der
+    Gegenueberstellung (Aufgabe 13): eine Entscheidung zu einer inzwischen
+    ersetzten Frage waere bedeutungslos."""
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
+
+
 def biete_fragenauswahl(conn, tg, chat_id: int, wert: str,
                         weich_wert: str | None = None,
                         text: str | None = None) -> int:
@@ -188,9 +219,7 @@ def biete_fragenauswahl(conn, tg, chat_id: int, wert: str,
     _setze_weich(
         conn, chat_id, leitfaden.einleitungen(weich_wert) if weich_wert else {},
     )
-    repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
-    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
-    repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
+    _reset_fragenrunde(conn, chat_id)
 
     vorspann = (text or "").strip()
     nachricht = "\n\n".join(
@@ -224,6 +253,242 @@ def frage_fuer_andere_richtung(conn, chat_id: int, richtung: str = "") -> str:
     )
 
 
+# --- Eigene Fragen vs. KI (Padua Phase 1+2 Karte, Aufgabe 13, 03.10.2026) ---
+#
+# KORREKTUR 10:25 (Birk, KORREKTUR-PHASE2-KEIN-KNOPF.md): KEIN "Fertig"-
+# Knopf. Sobald JEDER Begriff >= MINDESTANZAHL_EIGENE_FRAGEN eigene Fragen
+# hat (reine Code-Pruefung, kein Modellaufruf), startet die
+# Gegenueberstellung automatisch; bis dahin eine knappe Stand-Zeile. Will
+# die Gruppe frueher weiter, erkennt das ``_fruehzeitig_fertig`` an einem
+# woertlichen Satz, den das Padua-Profil-Prompt das Modell sagen laesst --
+# keine neue, bezahlte Erkenner-Art.
+
+
+def _begriffe_der_gruppe(conn, chat_id: int) -> list[str]:
+    """``arbeitsstand.begriffe`` zerlegt -- derselbe Leser wie
+    ``fragen_ki._nutzertext``, nur ueber die Datenbank statt als
+    durchgereichter Parameter."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["begriffe"] if stand else "") or ""
+    except (IndexError, KeyError):
+        roh = ""
+    return begriffe_modul.zerlege(roh)
+
+
+def _zeilen_je_begriff(begriffe: list[str], zeilen: list[str]) -> dict[str, list[str]]:
+    """Gruppiert ``Begriff: Frage``-Zeilen nach den Begriffen der Gruppe --
+    case-insensitiver Abgleich wie ``fragenliste()``. Eine Zeile ohne
+    passenden Begriff faellt heraus: kein Begriff wird erfunden, keiner
+    stillschweigend einem falschen zugeschlagen. Die Rueckgabe normalisiert
+    die Gross-/Kleinschreibung des Begriffs auf die Schreibweise der
+    Gruppe."""
+    je_begriff: dict[str, list[str]] = {b: [] for b in begriffe}
+    nachschlag = {b.lower(): b for b in begriffe}
+    for zeile in zeilen:
+        kopf, trenner, rest = zeile.partition(":")
+        if not trenner or not rest.strip():
+            continue
+        begriff = nachschlag.get(kopf.strip().lower())
+        if begriff is None:
+            continue
+        je_begriff.setdefault(begriff, []).append(f"{begriff}: {rest.strip()}")
+    return je_begriff
+
+
+def _herkunft_liste(conn, chat_id: int) -> list[str]:
+    """``arbeitsstand.fragen_herkunft`` als Liste, index-ausgerichtet auf
+    ``fragen_auswahl`` -- derselbe Aufbau wie ``_decisions``
+    (``fragen_entschieden``). Leer, solange keine Gegenueberstellung lief
+    (die klassische Fuenf-je-Begriff-Runde kennt das Feld nicht)."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_herkunft"] if stand else "") or ""
+    except (IndexError, KeyError):
+        return []
+    if not roh:
+        return []
+    return roh.split(",")
+
+
+def _bearbeitet_liste(conn, chat_id: int) -> list[str]:
+    """``arbeitsstand.fragen_bearbeitet`` als Liste -- derselbe Aufbau wie
+    ``_decisions``/``_herkunft_liste``."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_bearbeitet"] if stand else "") or ""
+    except (IndexError, KeyError):
+        return []
+    if not roh:
+        return []
+    return roh.split(",")
+
+
+def _markiere_bearbeitet_falls_ki(conn, chat_id: int, nummer: int) -> None:
+    """Eine per "Schaerfen" geaenderte KI-Frage wird in
+    ``fragen_bearbeitet`` markiert (Aufgabe 13, Punkt 9) -- eine eigene
+    Frage NICHT: ihr Edit-Flag bleibt unberuehrt, nur die Herkunft
+    entscheidet. Ohne Herkunftsdaten fuer diese Runde (klassischer Ablauf)
+    passiert nichts."""
+    herkunft = _herkunft_liste(conn, chat_id)
+    if nummer > len(herkunft) or herkunft[nummer - 1] != "ki":
+        return
+    bearbeitet = _bearbeitet_liste(conn, chat_id)
+    while len(bearbeitet) < nummer:
+        bearbeitet.append("")
+    bearbeitet[nummer - 1] = "1"
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_bearbeitet", ",".join(bearbeitet))
+
+
+def _platt(text: str) -> str:
+    """Kleinschreibung, Whitespace zu einem Leerzeichen -- fuer den
+    case-/whitespace-unabhaengigen Satzvergleich in ``_fruehzeitig_fertig``."""
+    return re.sub(r"\s+", " ", (text or "")).strip().lower()
+
+
+def _fruehzeitig_fertig(text: str | None) -> bool:
+    """Erkennt den Wunsch der Gruppe, frueher zur Gegenueberstellung zu
+    wechseln, bevor jeder Begriff ``MINDESTANZAHL_EIGENE_FRAGEN`` eigene
+    Fragen hat (KORREKTUR-PHASE2-KEIN-KNOPF.md: "Will die Gruppe frueher
+    weiter (spricht/schreibt es), erkennt das der Erkenner/Chat und startet
+    die Gegenueberstellung trotzdem").
+
+    KEIN Modellaufruf und KEINE neue Erkenner-Art hier: das Padua-Profil-
+    Prompt (``workshop/padua-2026/prompts/phasen/2.md``) laesst das
+    Gespraechsmodell in genau diesem Fall den Satz
+    ``T._SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG`` woertlich in seinen Fliesstext
+    schreiben -- hier wird nur case-/whitespace-unabhaengig danach
+    gesucht."""
+    if not text or not text.strip():
+        return False
+    return _platt(T._SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG) in _platt(text)
+
+
+#: Schuetzt die Pruefung-dann-Schreiben-Folge in
+#: ``versuche_gegenueberstellung`` atomar. Ohne diesen Lock koennten der
+#: isolierte KI-Hintergrundlauf (``fragen_ki.starte``) und der
+#: Haupt-Gespraechszug (``uebernimm_eigene``) in einer echten Race beide den
+#: noch leeren ``fragen_auswahl``-Stand sehen und zweimal offenbaren --
+#: genau der Fall, den die Karte als Test verlangt ("Gegenueberstellung
+#: laeuft genau einmal"). Ein einziger, globaler Lock statt eines Registers
+#: je ``chat_id`` (wie ``fragen_ki._LAEUFT``): der Reveal laeuft genau
+#: einmal je Gruppe und ist leichtgewichtig, ein Register waere hier
+#: Mehraufwand ohne Nutzen.
+_GEGENUEBERSTELLUNG_LOCK = threading.Lock()
+
+
+def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
+    """Der Gelenkpunkt zwischen den eigenen Fragen der Gruppe
+    (``fragen_eigene_vorschlag``) und dem isolierten KI-Lauf
+    (``fragen_ki.fragen_ki_vorschlag``, Aufgabe 12) -- Aufgabe 13,
+    KORREKTUR-PHASE2-KEIN-KNOPF.md. Reveal nur, wenn BEIDE Seiten stehen;
+    wer zuletzt fertig wird, loest ihn aus, indem er genau diese Funktion
+    ruft (``fragen_ki.starte`` von der einen Seite, ``uebernimm_eigene`` von
+    der anderen).
+
+    Liefert ``None``, wenn (noch) nichts zu offenbaren ist oder der Reveal
+    schon gelaufen ist (``fragen_auswahl`` ist dann bereits nicht-leer) --
+    danach ist diese Funktion fuer diese Runde ein dauerhaftes No-Op."""
+    with _GEGENUEBERSTELLUNG_LOCK:
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        if stand is None:
+            return None
+        try:
+            bereits = (stand["fragen_auswahl"] or "").strip()
+        except (IndexError, KeyError):
+            bereits = ""
+        if bereits:
+            return None
+
+        try:
+            eigene_roh = (stand["fragen_eigene_vorschlag"] or "").strip()
+            ki_roh = (stand["fragen_ki_vorschlag"] or "").strip()
+            begriffe_feld = (stand["begriffe"] or "") if stand else ""
+        except (IndexError, KeyError):
+            return None
+        if not eigene_roh or not ki_roh:
+            return None
+
+        from interview_theater import vorschlag
+
+        begriffe = begriffe_modul.zerlege(begriffe_feld)
+        eigene_je_begriff = _zeilen_je_begriff(begriffe, vorschlag.zeilen(eigene_roh))
+        ki_je_begriff = _zeilen_je_begriff(begriffe, vorschlag.zeilen(ki_roh))
+
+        zeilen: list[str] = []
+        herkunft: list[str] = []
+        for begriff in begriffe:
+            for zeile in eigene_je_begriff.get(begriff, []):
+                zeilen.append(zeile)
+                herkunft.append("eigen")
+            for zeile in ki_je_begriff.get(begriff, []):
+                zeilen.append(zeile)
+                herkunft.append("ki")
+
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_auswahl", "\n".join(zeilen))
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_herkunft", ",".join(herkunft))
+        _reset_fragenrunde(conn, chat_id)
+
+        # Die EINE kurze Ueberleitungszeile (Korrektur-Wortlaut), danach der
+        # bestehende Weg -- ``fragenliste``/``starte_durchgehen`` werden
+        # WIEDERVERWENDET, nicht nachgebaut ("explicit reuse the flow"
+        # instruction der Karte).
+        message_id = tg.sende(chat_id, T._TEXT_GEGENUEBERSTELLUNG_BEREIT)
+        starte_durchgehen(conn, tg, chat_id)
+        return message_id
+
+
+def uebernimm_eigene(conn, tg, chat_id: int, wert: str, text: str | None = None) -> int:
+    """``VORSCHLAG EIGENE FRAGEN:`` -- die vollstaendige, kumulative eigene
+    Fragenliste der Gruppe (Aufgabe 13, KORREKTUR-PHASE2-KEIN-KNOPF.md).
+    Ueberschreibt ``fragen_eigene_vorschlag`` bei jedem Aufruf vollstaendig
+    -- der Block IST die ganze Liste, kein Zuwachs.
+
+    Danach die Code-Pruefung ohne Modellaufruf: hat jeder Begriff
+    mindestens ``MINDESTANZAHL_EIGENE_FRAGEN`` eigene Fragen (oder hat die
+    Gruppe explizit frueher Schluss gesagt, ``_fruehzeitig_fertig``), startet
+    automatisch die Gegenueberstellung mit den KI-Fragen
+    (``versuche_gegenueberstellung``). Sonst eine knappe Stand-Zeile, kein
+    Draengen. Kein Modellaufruf hier selbst (Zusage 2)."""
+    from interview_theater import vorschlag
+
+    zeilen = vorschlag.zeilen(wert)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_eigene_vorschlag", "\n".join(zeilen))
+
+    begriffe = _begriffe_der_gruppe(conn, chat_id)
+    je_begriff = _zeilen_je_begriff(begriffe, zeilen)
+    fehlend = [
+        b for b in begriffe
+        if len(je_begriff.get(b, [])) < MINDESTANZAHL_EIGENE_FRAGEN
+    ]
+    bereit = not fehlend or _fruehzeitig_fertig(text)
+
+    if not bereit:
+        stand_zeile = ", ".join(
+            T._TEXT_FRAGEN_EIGENE_OFFEN_ZEILE.format(
+                begriff=b, anzahl=len(je_begriff.get(b, [])),
+                ziel=MINDESTANZAHL_EIGENE_FRAGEN,
+            )
+            for b in fehlend
+        )
+        return tg.sende(
+            chat_id, T._TEXT_FRAGEN_EIGENE_OFFEN.format(begriffe=stand_zeile),
+        )
+
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        schon = bool(stand["fragen_eigene_erstellt_am"]) if stand else False
+    except (IndexError, KeyError):
+        schon = False
+    if not schon:
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_eigene_erstellt_am", repo._jetzt())
+
+    ergebnis = versuche_gegenueberstellung(conn, tg, chat_id)
+    if ergebnis is not None:
+        return ergebnis
+    return tg.sende(chat_id, T._TEXT_FRAGEN_EIGENE_WARTET_AUF_KI)
+
+
 # --- Frage fuer Frage --------------------------------------------------------
 
 
@@ -240,7 +505,14 @@ def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
     aufgerufen aus ``_schliesse_fragen_ab``).
 
     Kein Modellaufruf: die Darstellung ist immer deterministisch, auch nach
-    einer Ueberarbeitung."""
+    einer Ueberarbeitung.
+
+    Haengt seit Aufgabe 13 eine Herkunfts-Kennzeichnung an (" (eure)"/
+    " (KI)"), wenn ``arbeitsstand.fragen_herkunft`` fuer diese Runde Daten
+    traegt -- reiner Text, kein HTML/``data-*`` (``sichere_html``s feste
+    Allowlist). Ohne Herkunftsdaten (jeder Ablauf vor Aufgabe 13, und die
+    klassische Fuenf-je-Begriff-Runde, solange ``fragen_ab_aktiv()`` aus
+    ist) bleibt die Darstellung BYTE-IDENTISCH zu vorher."""
     repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", str(nummer))
     fragen = _auswahlfragen(conn, chat_id)
     gesamt = len(fragen)
@@ -254,6 +526,13 @@ def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
     else:
         kopf = T._TEXT_FRAGE_KOPF_OHNE_BEGRIFF.format(nummer=nummer, gesamt=gesamt)
         frage_text = zeile
+
+    herkunft = _herkunft_liste(conn, chat_id)
+    if herkunft and nummer <= len(herkunft):
+        if herkunft[nummer - 1] == "eigen":
+            frage_text += T._TEXT_HERKUNFT_EIGEN
+        elif herkunft[nummer - 1] == "ki":
+            frage_text += T._TEXT_HERKUNFT_KI
 
     text = f"{kopf}\n\n{frage_text}"
 
@@ -364,6 +643,10 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
     neue_frage = zeilen[0] if zeilen else frage_block.strip()
     if neue_frage:
         _setze_frage_zeile(conn, chat_id, nummer, neue_frage)
+        # Aufgabe 13, Punkt 9: eine editierte KI-Frage wird markiert, eine
+        # eigene Frage nicht -- ``_markiere_bearbeitet_falls_ki`` ist selbst
+        # das No-Op ohne Herkunftsdaten (klassischer Ablauf).
+        _markiere_bearbeitet_falls_ki(conn, chat_id, nummer)
     weich = _weich_dict(conn, chat_id)
     neue_weich = leitfaden.einleitungen(weich_block).get(nummer) if weich_block else None
     if neue_weich:
@@ -421,16 +704,24 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
     Eroeffnung noch ein eigenes Angebot (``_biete_weiche_fassungen_an``,
     Birk 02.10.2026) -- die Eroeffnung startet dann erst, wenn die Gruppe
     das Angebot beantwortet hat (``fragen_weich_angebot`` in
-    ``_WEICH_ANGEBOT_WIRKUNGEN``)."""
+    ``_WEICH_ANGEBOT_WIRKUNGEN``).
+
+    Baut seit Aufgabe 13 ``fragen_herkunft_final`` im selben Durchgang wie
+    ``angenommen`` -- Laenge und Indexreihenfolge identisch zu ``fragen``
+    (Task 14 haengt genau daran). Ohne Herkunftsdaten fuer diese Runde
+    (klassischer Ablauf) ist jeder Eintrag ein leerer String."""
     fragen = _auswahlfragen(conn, chat_id)
     entschieden = _decisions(conn, chat_id)
     weich = _weich_dict(conn, chat_id)
+    herkunft = _herkunft_liste(conn, chat_id)
 
     angenommen: list[str] = []
+    herkunft_final: list[str] = []
     neue_weich: dict[int, str] = {}
     for i, frage in enumerate(fragen, start=1):
         if i <= len(entschieden) and entschieden[i - 1] == "ja":
             angenommen.append(frage)
+            herkunft_final.append(herkunft[i - 1] if i <= len(herkunft) else "")
             if i in weich:
                 neue_weich[len(angenommen)] = weich[i]
 
@@ -448,6 +739,9 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
         repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
         repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
         repo.setze_arbeitsstand(conn, chat_id, "fragen", wert)
+        repo.setze_arbeitsstand(
+            conn, chat_id, "fragen_herkunft_final", ",".join(herkunft_final),
+        )
         if neue_weich:
             _setze_weich(conn, chat_id, neue_weich)
         else:

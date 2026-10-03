@@ -158,6 +158,15 @@ ARTEN = (
     # fixes Feld von Phase 4 -- die Gruppe nennt die Zahl, der Bot schlaegt
     # sie nie vor (siehe ``prompts/phasen/4.md``).
     "szenenanzahl_setzen",
+    # Padua Phasen TEIL 1 (03.10.2026): Rueckmeldung zur generierten
+    # Geschichts-Uebersicht in Stufe A von Phase 5 (Prose Draft,
+    # entwurf.py) -- "mach das Ende trauriger", "nochmal, anders", "die
+    # Spannungskurve ist mir zu flach". Gilt NUR in Phase 5
+    # (PHASEN_SPEZIFISCHE_ARTEN) und nur, solange die Uebersicht noch nicht
+    # fixiert ist -- das prueft entwurf.py selbst, nicht der Erkenner.
+    # wert: die gewuenschte Richtung, oder leer ("") bei einem reinen
+    # "nochmal"/"anders" ohne eigene Angabe.
+    "uebersicht_aendern",
 )
 
 #: Die einzigen Arten, die aus dem Transkript einer Sprachnachricht im

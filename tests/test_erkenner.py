@@ -195,6 +195,9 @@ def test_arten_enthaelt_alle_werte():
         # Padua-Brainstorming-Umbau (02.10.2026): Anzahl Szenen ist ein
         # fixes Feld der Phase 4, das die Gruppe selbst nennt.
         "szenenanzahl_setzen",
+        # Padua Phasen TEIL 1 (03.10.2026): Rueckmeldung zur generierten
+        # Geschichts-Uebersicht in Stufe A von Phase 5 (Prose Draft).
+        "uebersicht_aendern",
     }
     assert set(erkenner.ARTEN) == erwartet
 

@@ -132,6 +132,17 @@ BLEIBT_DEUTSCH = {
         "gerechneten Soll-Vergleich fuer tests/test_web_gestalt_tokens.py, "
         "geht nie an die Gruppe"
     ),
+    # Padua-Karte "Help-Text" (Task 3, 03.10.2026): die englische /hilfe ist
+    # seitdem kein uebersetzter Text mehr, sondern befehle._hilfetext_en()
+    # -- ein berechneter, phasenbewusster Pfad (aktuelle Phase, Phasenliste,
+    # T.BEFEHLE_LISTE). _TEXT_HILFE bleibt deshalb ohne englischen
+    # Tabelleneintrag und wird in befehle._hilfetext() nackt gelesen (dort
+    # erlaubt, weil nicht mehr registriert -- siehe NACKT_ERLAUBT oben).
+    "befehle._TEXT_HILFE": (
+        "Englisch ist kein uebersetzter Text mehr, sondern "
+        "befehle._hilfetext_en() -- berechnet aus Phase, Phasenliste und "
+        "Befehlsliste, kein Tabelleneintrag"
+    ),
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit

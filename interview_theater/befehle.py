@@ -812,10 +812,102 @@ def _befehl_wortlaut(conn, tg, chat_id: int, rest: str) -> None:
 
 
 def _befehl_hilfe(conn, tg, e, chat_id: int) -> None:
-    """``conn`` ist seit Task 1 (Karte A1-Hilfe) ein Parameter, inhaltlich
-    aber noch ungenutzt -- ein spaeterer Task baut die englische Hilfe-Logik
-    darauf auf (z. B. welche Befehle fuer diese Gruppe beworben werden)."""
-    tg.sende(chat_id, T._TEXT_HILFE.format(bot_name=e.bot_name))
+    """``/hilfe`` -- fuer Deutsch die unveraenderte, statische Uebersicht;
+    fuer Englisch ein berechneter, phasenbewusster Text (Padua-Karte
+    "Help-Text", 03.10.2026, Task 3).
+
+    Anlass (Birk, Live-Feedback 03.10.2026 22:10): die englische Hilfe war
+    ein Telegram-Tutorial fuer ein Interview-Schritt-fuer-Schritt-Vorgehen
+    ("1. Tap Start interview ..."), das mit dem heutigen Siebenphasen-Ablauf
+    auf der Weboberflaeche nichts mehr zu tun hat. Statt eine zweite,
+    ebenfalls statische Uebersetzung zu pflegen (die beim naechsten
+    Phasen-Umbau wieder veraltet), liest die englische Fassung Phasenliste,
+    aktuelle Phase und Befehlsliste zur Aufrufzeit aus der Datenbank bzw.
+    aus ``phasen``/``T.BEFEHLE_LISTE`` -- sie kann gar nicht veralten.
+
+    Deutsch bleibt bitgleich: ``_TEXT_HILFE`` (unten) ist seit jeher Wort
+    fuer Wort die Begruessung aus ``bot.erstkontakt`` und hat keinen
+    gemeinsamen Bauplan mit der englischen Fassung, den man extrahieren
+    koennte."""
+    tg.sende(chat_id, _hilfetext(conn, chat_id, e))
+
+
+def _hilfetext(conn, chat_id: int, e) -> str:
+    """Deutsch: die statische, seit jeher unveraenderte Konstante (bitgleich
+    mit ``bot.erstkontakt``). Englisch: ``_hilfetext_en`` -- berechnet, nicht
+    uebersetzt (siehe ``_befehl_hilfe``).
+
+    ``_TEXT_HILFE`` wird hier bewusst NACKT gelesen (ohne ``T.``-Zugriff):
+    seit dieser Aenderung hat die Konstante keinen englischen Tabelleneintrag
+    mehr (``sprachen/en/texte.toml``) -- die englische Hilfe ist kein
+    uebersetzter Text, sondern ein eigener, berechneter Pfad. Eine nicht
+    registrierte Konstante darf nackt gelesen werden
+    (``tests/test_sprache_texte.py``, ``test_keine_nackte_verwendung``)."""
+    if sprache.code() != "en":
+        return _TEXT_HILFE.format(bot_name=e.bot_name)
+    return _hilfetext_en(conn, chat_id, e)
+
+
+#: Nur Englisch, kein deutsches Gegenstueck (siehe ``_hilfetext_en``) -- die
+#: deutsche Hilfe ist ein eigener, unverwandter Textblock (``_TEXT_HILFE``
+#: oben), keine Uebersetzung dieses Satzes.
+_TEXT_HILFE_INTRO_EN = (
+    "Just write or speak - I read everything and answer. Buttons are "
+    "shortcuts for the same thing you could just say."
+)
+
+#: Dito, nur fuer den Web-Kanal (``e.kanal == einstellungen.KANAL_WEB``).
+#: Die Tab-Namen kommen aus ``web_vereint.T._TEXT_TAB`` (lokaler Import in
+#: ``_hilfetext_en``, kein Zyklus) statt hier verdoppelt zu werden.
+_TEXT_HILFE_WEB_EN = (
+    "On the web page there are three tabs: {chat}, {stand} (your progress) "
+    "and {textbuch} (the script so far)."
+)
+
+#: Dito, Schlusssatz.
+_TEXT_HILFE_SCHLUSS_EN = (
+    "Everything else - characters, scenes, decisions - you just tell me, "
+    "no command needed."
+)
+
+
+def _hilfetext_en(conn, chat_id: int, e) -> str:
+    """Die englische ``/hilfe`` -- berechnet aus der Phasenliste, der
+    aktuellen Phase und ``T.BEFEHLE_LISTE``, nie aus einer zweiten,
+    hand-uebersetzten Textkonstante (siehe ``_befehl_hilfe``).
+
+    ``phasen.PHASEN`` ist profilbewusst (PEP-562-``__getattr__`` auf
+    ``workshop.phasenliste()``) -- aendert ein Profil seine Phasen, folgt
+    dieser Text ohne Codeaenderung."""
+    from interview_theater import einstellungen, web_vereint
+
+    abschnitte = [_TEXT_HILFE_INTRO_EN]
+
+    if e.kanal == einstellungen.KANAL_WEB:
+        tabs = web_vereint.T._TEXT_TAB
+        abschnitte.append(_TEXT_HILFE_WEB_EN.format(
+            chat=tabs["chat"], stand=tabs["stand"], textbuch=tabs["textbuch"],
+        ))
+
+    nummer = phasen.aktuelle(conn, chat_id)
+    abschnitte.append(
+        f"Right now: {phasen.bezeichnung(nummer)}. {phasen.satz(nummer)}"
+    )
+
+    abschnitte.append("\n".join(
+        ["The seven phases:"]
+        + [f"{n}. {kurzname} - {satz}" for n, kurzname, satz in phasen.PHASEN]
+    ))
+
+    abschnitte.append("\n".join(
+        ["Commands (just shortcuts for what you can already say):"]
+        + [f"/{eintrag['command']} - {eintrag['description']}"
+           for eintrag in T.BEFEHLE_LISTE]
+    ))
+
+    abschnitte.append(_TEXT_HILFE_SCHLUSS_EN)
+
+    return "\n\n".join(abschnitt for abschnitt in abschnitte if abschnitt)
 
 
 def _setze_szenenfeld(conn, tg, chat_id: int, rest: str) -> bool:

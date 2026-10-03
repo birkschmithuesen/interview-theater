@@ -575,34 +575,6 @@ _TEXT_INTERVIEWMODUS_AUS = "Interview mode: off"
 _TEXT_ZUM_MITLESEN = "To follow along: {url}"
 _TEXT_WORTLAUT_ALLE = "Word for word on: all recordings."
 _TEXT_WORTLAUT_AN = "Word for word on: {name}"
-_TEXT_HILFE = """\
-Just write or speak - I read everything and answer.
-
-HOW TO DO AN INTERVIEW:
-1. Tap "Start interview"
-2. Send the voice messages from the person you're interviewing, as many \
-as you like - they all belong to this one interview
-3. After each one I send you the typed-out text to read along, and below \
-it a button asks whether the interview continues or is finished. If a \
-word is wrong, just tell me.
-4. After "Interview is finished" the next steps appear as buttons: \
-Analyse, Next interview, On to the next station.
-
-The buttons are the way. If you'd rather type, you can also use these \
-commands:
-/aufnahme - start and stop an interview
-/stand - shows what I've kept so far
-/auswerten [number] - what's in the interviews
-/kernthema <text> - set the core theme
-/stueck rahmen <text> - place, time, occasion of the evening
-/szene <number> form <dialog|monolog|chor|lied|rap>
-/szene <number> ort|zeit|anlass|figuren <text> - place, time, occasion, cast
-/szene <task> - have a scene written
-/phase [number|name] - shows the phase or switches it
-/hilfe - this overview
-
-Everything else you just tell me: characters, scenes, decisions - I \
-keep track of it without you needing a command."""
 BEFEHLE_LISTE = [
     { command = "record", description = "Start interview - and again to stop" },
     { command = "status", description = "Show where we are" },

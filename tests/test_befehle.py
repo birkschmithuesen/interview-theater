@@ -890,3 +890,87 @@ def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_16():
         "/kernthema", "/stueck", "/figur", "/szene", "/stand", "/wortlaut",
         "/hilfe", "/leitfaden", "/festlegung", "/sprache", "/phaseklick",
     }
+
+
+# ---------------------------------------------------------------------------
+# /hilfe auf Englisch -- berechnet statt uebersetzt (Padua-Karte
+# "Help-Text", Task 3, 03.10.2026). Deutsch bleibt unveraendert (siehe
+# test_chat_sprache.py::test_dortmund_unveraendert) -- hier geht es nur um
+# den neuen, englischen Pfad ueber befehle._hilfetext_en.
+# ---------------------------------------------------------------------------
+
+
+def test_hilfe_englisch_nennt_jede_phase_aus_dem_profil(conn, einst, padua, tg):
+    """Jede Phase aus ``phasen.PHASEN`` (profilbewusst gelesen, nicht
+    hartkodiert) taucht in der englischen Hilfe auf -- sonst waere der Text
+    wieder eine zweite, von Hand gepflegte Liste, die veralten kann."""
+    befehle.behandle(conn, tg, einst, 1, "/hilfe", "Ada")
+
+    text = tg.gesendet[-1][1]
+    for _nummer, kurzname, _satz in phasen.PHASEN:
+        assert kurzname in text
+
+
+def test_hilfetext_folgt_dem_profil_nicht_einer_festen_liste(
+    conn, einst, padua, tg, monkeypatch,
+):
+    """Mutationstest: faelscht den Namen von Phase 7 auf einen alten,
+    heute nicht mehr verwendeten Namen ("Polish" -- das steht nur noch als
+    Alt-Stichwort in ``workshop/padua-2026/phasen.toml``, nie als
+    ``name``) und prueft, dass die Hilfe dem GEFAELSCHTEN Profil folgt.
+    Nur so ist belegt, dass der Text wirklich ``phasen.PHASEN`` zur
+    Aufrufzeit liest, statt zufaellig mit einer fest eingetippten Liste
+    uebereinzustimmen."""
+    from interview_theater import workshop
+
+    echte = workshop.phasenliste()
+    gefaelscht = tuple(
+        (n, "Polish" if n == 7 else k, s) for n, k, s in echte
+    )
+    monkeypatch.setattr(workshop, "phasenliste", lambda *a, **kw: gefaelscht)
+
+    befehle.behandle(conn, tg, einst, 1, "/hilfe", "Ada")
+
+    text = tg.gesendet[-1][1]
+    assert "Polish" in text
+    assert "Stage Version" not in text
+
+
+def test_hilfe_englisch_nennt_tabs_nur_im_web_kanal(conn, einst, padua, tg):
+    """Die Tab-Zeile ("tabs") gehoert nur zum Web-Kanal -- eine
+    Telegram-Gruppe hat keine drei Tabs, dort fuehrt der Hinweis nur in die
+    Irre."""
+    import dataclasses
+
+    from interview_theater import einstellungen
+
+    befehle.behandle(conn, tg, einst, 1, "/hilfe", "Ada")
+    assert "tabs" not in tg.gesendet[-1][1]
+
+    mit_web = dataclasses.replace(einst, kanal=einstellungen.KANAL_WEB)
+    tg2 = TelegramAttrappe()
+    befehle.behandle(conn, tg2, mit_web, 1, "/hilfe", "Ada")
+    assert "tabs" in tg2.gesendet[-1][1]
+
+
+def test_hilfe_englisch_befehlsliste_kommt_aus_t_befehle_liste(conn, einst, padua, tg):
+    """Die Befehlsreferenz ist aus ``T.BEFEHLE_LISTE`` gebaut (Task 2), nicht
+    ein zweites Mal von Hand eingetippt -- ein Stichprobencheck reicht, das
+    Mittel (die Iteration) ist das Tragende, nicht der Wortlaut."""
+    befehle.behandle(conn, tg, einst, 1, "/hilfe", "Ada")
+
+    text = tg.gesendet[-1][1]
+    erster = befehle.T.BEFEHLE_LISTE[0]
+    assert f"/{erster['command']}" in text
+    assert erster["description"] in text
+
+
+def test_hilfe_englisch_ohne_altes_interview_tutorial(conn, einst, padua, tg):
+    """Die alte Telegram-Tutorial-Formulierung ("Tap ...") darf nicht mehr
+    vorkommen -- das war genau Birks Beschwerde (Live-Feedback 03.10.2026
+    22:10): die Hilfe beschrieb ein Vorgehen, das es so nicht mehr gibt."""
+    befehle.behandle(conn, tg, einst, 1, "/hilfe", "Ada")
+
+    text = tg.gesendet[-1][1]
+    assert "Tap" not in text
+    assert "HOW TO DO AN INTERVIEW" not in text

@@ -318,10 +318,39 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .angehalten[hidden], .angehalten button[hidden] { display: none; }
 .angehalten button { font: inherit; min-height: 2.9rem; border-radius: .7rem;
                      border: 1px solid #1f6f5c; background: #fff; color: #17181b; }
-.pegel { height: .45rem; border-radius: .3rem; background: #e0ddd6; overflow: hidden; }
-.pegel span { display: block; height: 100%; width: 0; background: #a8201a; }
+.pegel { position: relative; height: .45rem; border-radius: .3rem;
+         background: #e0ddd6; overflow: visible; }
+/* Grau unterhalb, Gruen sobald der aktuelle Pegel die VAD-Schwelle
+   uebersteigt (.ueber-schwelle, von pegelAn gesetzt) -- derselbe Rahmen wie
+   .kalibrierung-balken/.kalibrierung-marke. */
+.pegel span { display: block; height: 100%; width: 0; border-radius: .3rem;
+              background: #6b6f76; }
+.pegel.ueber-schwelle span { background: #1f6f5c; }
+.pegel-schwelle { position: absolute; top: -.2rem; bottom: -.2rem; width: 2px;
+                  background: #17181b; left: 0; }
 .uhr { font-variant-numeric: tabular-nums; font-size: 1.3rem; text-align: center; }
 .warteschlange { font-size: .82rem; opacity: .7; text-align: center; }
+.kalibrierung { display: flex; flex-direction: column; gap: .5rem; font-size: .92rem;
+                border: 1px solid #1f6f5c; border-radius: .7rem; padding: .6rem .7rem; }
+.kalibrierung[hidden] { display: none; }
+.kalibrierung-knoepfe { display: flex; flex-direction: column; gap: .4rem; }
+.kalibrierung button { font: inherit; min-height: 2.9rem; border-radius: .7rem;
+                       border: 1px solid #1f6f5c; background: #fff; color: #17181b; }
+#kalibrierung-skip { border-color: #e0ddd6; color: #6b6f76; min-height: 2.3rem; }
+#kalibrierung-neu { font: inherit; min-height: 2.1rem; border-radius: .7rem;
+                    border: 1px solid #e0ddd6; background: #fff; color: #6b6f76; }
+#kalibrierung-neu[hidden] { display: none; }
+.kalibrierung-balken { position: relative; height: .6rem; border-radius: .35rem;
+                       background: #e0ddd6; overflow: visible; }
+.kalibrierung-balken[hidden] { display: none; }
+.kalibrierung-balken span { display: block; height: 100%; width: 0; border-radius: .35rem;
+                            background: #a8201a; }
+.kalibrierung-marke { position: absolute; top: -.2rem; bottom: -.2rem; width: 2px;
+                      background: #17181b; left: 0; }
+.kalibrierung-erinnerung { font-size: .85rem; text-align: center; color: #1f6f5c; }
+.kalibrierung-erinnerung[hidden] { display: none; }
+.mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }
+.mitlauf-hinweis[hidden] { display: none; }
 @media (prefers-color-scheme: dark) {
   body { background: #14161a; color: #e7e9ec; }
   .blase.bot { background: #1d2026; border-color: #2c313a; }
@@ -330,6 +359,8 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
   .leiste button { background: #1d2026; color: #6fcfb6; border-color: #2c6a58; }
   .leiste-label { color: #7d8290; }
   .interview-aktionen button { background: #1d2026; color: #e7e9ec; }
+  .kalibrierung button, #kalibrierung-neu { background: #1d2026; color: #e7e9ec;
+                                            border-color: #2c6a58; }
 }
 """
 
@@ -392,6 +423,72 @@ _TEXT_NACHREICHEN_SPAETER = (
     "Gerade läuft ein anderes Interview — nachreichen geht, sobald es beendet ist."
 )
 
+#: Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): einmal je Sitzung,
+#: direkt nachdem das erste Segment fertig ist (``sitzung.hinweisGezeigt``
+#: in ``neuesSegment()``s ``onstop`` -- kein ``localStorage``, reines
+#: Sitzungsfeld, eine neue Sitzung zeigt ihn wieder). Eigenstaendig von
+#: Task 2s "Handy herumreichen"-Erinnerung (anderer Ausloeser, anderer
+#: Merkposten) -- nicht zusammenlegen.
+_TEXT_MITLAUF_HINWEIS = (
+    "Schaut den Mitschnitt im Chat nach — fehlen Worte, haltet das Handy "
+    "näher ran."
+)
+
+# -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/             --
+# -- Kalibrierung, 03.10.2026): Birks Korrektur gilt woertlich -- NICHTS in --
+# -- diesem Ablauf startet von selbst, jeder Schritt wartet auf einen       --
+# -- ausdruecklichen Knopfdruck (die eine Ausnahme ist der automatische     --
+# -- Rueckfragen-Knopf nach 30s Stille in Schritt 4, der selbst ein Knopf   --
+# -- ist). Wortlaut 1:1 aus dem Kartentext (Englisch bindend, Deutsch ist   --
+# -- die treue Uebersetzung). --------------------------------------------
+
+_TEXT_KALIBRIERUNG_ANKUENDIGUNG = (
+    "Legt dieses Handy in die Mitte des Tisches, dort wo es während des "
+    "Gesprächs bleiben wird. Setzt euch so, wie ihr beim Reden sitzen "
+    "werdet — lehnt euch nicht vor und sprecht nicht ins Handy hinein. Wir "
+    "testen es genauso wie die echte Situation. Wenn du den Knopf unten "
+    "drückst, seid bitte 5 Sekunden lang vollkommen still — danach sagt "
+    "eine*r von euch einen Satz in normaler Lautstärke."
+)
+_TEXT_KALIBRIERUNG_START_KNOPF = "Messung starten"
+_TEXT_KALIBRIERUNG_STILLE = "Ruhe für noch {s} Sekunden — wir messen den Raum …"
+_TEXT_KALIBRIERUNG_SPRECHEN_ANKUENDIGUNG = (
+    "Stille gemessen. Jetzt sagt eine*r von euch einen Satz in normaler "
+    "Lautstärke — am besten die Person, die am weitesten vom Handy entfernt "
+    "sitzt. Sprich von deinem Platz aus, in normaler Lautstärke, nicht ins "
+    "Handy hinein. Drück den Knopf, dann fang an zu sprechen."
+)
+_TEXT_KALIBRIERUNG_SPRECHEN_KNOPF = "Sprechen starten"
+_TEXT_KALIBRIERUNG_HOEREN = "Ich höre zu … fang an, wann du bereit bist."
+_TEXT_KALIBRIERUNG_NICHTS_GEHOERT = "Wir haben nichts gehört — nochmal versuchen?"
+_TEXT_KALIBRIERUNG_MESSEN_KNOPF = "Nochmal messen"
+_TEXT_KALIBRIERUNG_ZU_LEISE = "Das war zu leise, um zuverlässig verstanden zu werden."
+_TEXT_KALIBRIERUNG_ZU_LEISE_1 = (
+    "Stellt das Handy näher in die Mitte und sprecht etwas lauter — dann "
+    "versucht es nochmal."
+)
+_TEXT_KALIBRIERUNG_ZU_LEISE_2 = (
+    "Der Raum ist zu groß oder zu laut für ein Handy in der Mitte. Gebt das "
+    "Handy herum: wer spricht, hält es (oder legt es neben sich). Dann "
+    "versucht es nochmal."
+)
+_TEXT_KALIBRIERUNG_NOCHMAL_KNOPF = "Nochmal versuchen"
+_TEXT_KALIBRIERUNG_WEITER_TROTZDEM = "Trotzdem weiter"
+_TEXT_KALIBRIERUNG_TRANSKRIBIERT_WARTEN = "Der Testsatz wird abgetippt …"
+_TEXT_KALIBRIERUNG_BESTAETIGUNG = "Wir haben gehört: „{transkript}“. Stimmt das?"
+_TEXT_KALIBRIERUNG_JA_KNOPF = "Ja, stimmt"
+_TEXT_KALIBRIERUNG_NEIN_KNOPF = "Nein, nochmal"
+_TEXT_KALIBRIERUNG_FLOOR_HINWEIS = (
+    "Der Raum ist laut, oder das Handy ist weit weg — stellt es näher an die "
+    "Sprechenden."
+)
+_TEXT_KALIBRIERUNG_ERFOLG = "Raum gemessen ✓ — ihr seid bereit."
+_TEXT_KALIBRIERUNG_SKIP_KNOPF = "Überspringen"
+_TEXT_KALIBRIERUNG_BALKEN_LABEL = "Deine Stimme im Vergleich zum Raum"
+_TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG = (
+    "Denkt daran: Gebt das Handy an die Person weiter, die spricht."
+)
+
 #: Die Texte, die das JavaScript selbst setzt. Sie stehen als Konstanten in
 #: diesem Modul (dieselben, die der Server fuer seine Seite benutzt) und
 #: kommen als EIN JSON-Objekt ins Skript -- kein UI-Satz als Literal im JS.
@@ -422,7 +519,30 @@ _JS_TEXTE = {
     "modus_weg": _TEXT_MODUS_WEG,
     "modus_weg_leer": _TEXT_MODUS_WEG_LEER,
     "nachreichen_spaeter": _TEXT_NACHREICHEN_SPAETER,
+    "mitlauf_hinweis": _TEXT_MITLAUF_HINWEIS,
     "abkuerzung": _TEXT_ABKUERZUNG,
+    "kal_ankuendigung": _TEXT_KALIBRIERUNG_ANKUENDIGUNG,
+    "kal_start_knopf": _TEXT_KALIBRIERUNG_START_KNOPF,
+    "kal_stille": _TEXT_KALIBRIERUNG_STILLE,
+    "kal_sprechen_ankuendigung": _TEXT_KALIBRIERUNG_SPRECHEN_ANKUENDIGUNG,
+    "kal_sprechen_knopf": _TEXT_KALIBRIERUNG_SPRECHEN_KNOPF,
+    "kal_hoeren": _TEXT_KALIBRIERUNG_HOEREN,
+    "kal_nichts_gehoert": _TEXT_KALIBRIERUNG_NICHTS_GEHOERT,
+    "kal_messen_knopf": _TEXT_KALIBRIERUNG_MESSEN_KNOPF,
+    "kal_zu_leise": _TEXT_KALIBRIERUNG_ZU_LEISE,
+    "kal_zu_leise_1": _TEXT_KALIBRIERUNG_ZU_LEISE_1,
+    "kal_zu_leise_2": _TEXT_KALIBRIERUNG_ZU_LEISE_2,
+    "kal_nochmal_knopf": _TEXT_KALIBRIERUNG_NOCHMAL_KNOPF,
+    "kal_weiter_trotzdem": _TEXT_KALIBRIERUNG_WEITER_TROTZDEM,
+    "kal_transkribiert_warten": _TEXT_KALIBRIERUNG_TRANSKRIBIERT_WARTEN,
+    "kal_bestaetigung": _TEXT_KALIBRIERUNG_BESTAETIGUNG,
+    "kal_ja_knopf": _TEXT_KALIBRIERUNG_JA_KNOPF,
+    "kal_nein_knopf": _TEXT_KALIBRIERUNG_NEIN_KNOPF,
+    "kal_floor_hinweis": _TEXT_KALIBRIERUNG_FLOOR_HINWEIS,
+    "kal_erfolg": _TEXT_KALIBRIERUNG_ERFOLG,
+    "kal_skip_knopf": _TEXT_KALIBRIERUNG_SKIP_KNOPF,
+    "kal_balken_label": _TEXT_KALIBRIERUNG_BALKEN_LABEL,
+    "kal_herumreichen_erinnerung": _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
 }
 
 
@@ -462,6 +582,21 @@ _CHAT_JS = """
   // zaehlt -- ein Pixel exakt waere auf jedem Geraet eine andere Zahl.
   var UNTEN_TOLERANZ_PX = 48;
 
+  // -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/           --
+  // -- Kalibrierung, 03.10.2026): literale Konstanten aus der Karte, kein   --
+  // -- Env-Override gewuenscht (anders als IT_WEB_VAD_KALIBRIERUNG, das die --
+  // -- Karte als EINZIGEN Umgebungswert nennt). ------------------------------
+  var KAL_STILLE_MS = 5000;
+  var KAL_WARTE_MAX_MS = 30000;
+  var KAL_SPRACH_MS = 4000;
+  var KAL_SPRACH_FENSTER_MS = 15000;
+  var KAL_SCHWELLE_FALLBACK = 0.006;
+  var KAL_SCHWELLE_ABS_MIN = 0.004;
+  var KAL_SCHWELLE_ABS_MAX = 0.08;
+  var KAL_LS_BODEN = 'vad_boden_mess';
+  var KAL_LS_REDE = 'vad_rede_mess';
+  var KAL_LS_SCHWELLE = 'vad_schwelle';
+
   var verlauf = document.getElementById('verlauf');
   var fuss = document.getElementById('fuss');
   if (!verlauf || !fuss) { return; }
@@ -469,8 +604,12 @@ _CHAT_JS = """
   var uhrFeld = document.getElementById('uhr');
   var pegelFeld = document.getElementById('pegel');
   var pegelBalken = pegelFeld ? pegelFeld.querySelector('span') : null;
+  var pegelSchwelle = pegelFeld ? pegelFeld.querySelector('.pegel-schwelle') : null;
   var warteFeld = document.getElementById('warteschlange');
   var fehlerFeld = document.getElementById('fehler');
+  // Task 4 (Kanban-Karte Mithoeren SICHER): der einmalige "Mitschnitt
+  // pruefen"-Hinweis -- eigenstaendig von kalErinnerungFeld unten.
+  var mitlaufHinweisFeld = document.getElementById('mitlauf-hinweis');
   var tipptFeld = document.getElementById('tippt');
   var interviewKnopf = document.getElementById('interview');
   var interviewAktionenFeld = document.getElementById('interview-aktionen');
@@ -496,6 +635,23 @@ _CHAT_JS = """
   var nachreichenKnopf = document.getElementById('nachreichen');
   var verwerfenKnopf = document.getElementById('verwerfen');
   var SEGMENT_MS = parseInt(fuss.dataset.segmentMs, 10) || 45000;
+
+  // -- Pegel-Kalibrierung: die Bedienelemente --------------------------------
+  var kalFeld = document.getElementById('kalibrierung');
+  var kalText = document.getElementById('kalibrierung-text');
+  var kalBalkenFeld = document.getElementById('kalibrierung-balken');
+  var kalBalkenBalken = kalBalkenFeld ? kalBalkenFeld.querySelector('span') : null;
+  var kalBalkenMarke = kalBalkenFeld ? kalBalkenFeld.querySelector('.kalibrierung-marke') : null;
+  var kalStartKnopf = document.getElementById('kalibrierung-start');
+  var kalSprechenKnopf = document.getElementById('kalibrierung-sprechen');
+  var kalNochmalHoerenKnopf = document.getElementById('kalibrierung-nochmal-hoeren');
+  var kalVersuchKnopf = document.getElementById('kalibrierung-versuch');
+  var kalWeiterTrotzdemKnopf = document.getElementById('kalibrierung-weiter-trotzdem');
+  var kalJaKnopf = document.getElementById('kalibrierung-ja');
+  var kalNeinKnopf = document.getElementById('kalibrierung-nein');
+  var kalSkipKnopf = document.getElementById('kalibrierung-skip');
+  var kalNeuKnopf = document.getElementById('kalibrierung-neu');
+  var kalErinnerungFeld = document.getElementById('kalibrierung-erinnerung');
 
   // Die Basis aller Endpunkte. Auf der vereinten Seite (/g/<token>, Karte W)
   // steht sie explizit als data-basis am #fuss ("<token>/"), weil der
@@ -524,7 +680,13 @@ _CHAT_JS = """
     uhrTakt: null,
     fehlerTakt: null,
     ptt: null,          // der laufende PTT-Druck, je Druck ein eigenes Objekt
-    angehalten: []      // Aufnahmen, deren Modus ohne dieses Telefon endete (Re-Review H)
+    angehalten: [],     // Aufnahmen, deren Modus ohne dieses Telefon endete (Re-Review H)
+    // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): der
+    // Stand des zuletzt eingereichten Kalibrierungs-Testsatzes (vom Poll,
+    // {message_id, status, transkript} oder null) und der gruppenweite
+    // Hinweis-Modus ("herumreichen" oder null).
+    kalibrierung: null,
+    kalibrierungModus: fuss.dataset.kalibrierungModus || null
   };
 
   function nonce() {
@@ -757,6 +919,13 @@ _CHAT_JS = """
     if (typeof daten.interview_knopf === 'boolean') { zustand.knopfErlaubt = daten.interview_knopf; }
     if (typeof daten.brainstorm_knopf === 'boolean') { zustand.brainstormErlaubt = daten.brainstorm_knopf; }
     if (typeof daten.diskussion_knopf === 'boolean') { zustand.diskussionErlaubt = daten.diskussion_knopf; }
+    // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): der
+    // Kalibrierungsablauf liest beides selbst (kalWarteAufTranskript), hier
+    // nur uebernehmen.
+    zustand.kalibrierung = daten.kalibrierung || null;
+    if (daten.kalibrierung_modus !== undefined) {
+      zustand.kalibrierungModus = daten.kalibrierung_modus || null;
+    }
     // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
     // vorn in der Schlange steht.
     if (zustand.aufnahme && zustand.aufnahme.angemeldet && zustand.servermodus) {
@@ -834,8 +1003,10 @@ _CHAT_JS = """
   function postAudio(auftrag, zweiter) {
     var weg_ = `chat/audio?dauer=${auftrag.dauer}`;
     if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
+    if (auftrag.redeMs != null) { weg_ += `&rede=${Math.round(auftrag.redeMs)}`; }
     if (auftrag.sitzung && auftrag.sitzung.art === 'brainstorm') { weg_ += '&brainstorm=1'; }
     if (auftrag.sitzung && auftrag.sitzung.art === 'diskussion') { weg_ += '&diskussion=1'; }
+    if (auftrag.kalibrierung) { weg_ += '&kalibrierung=1'; }
     return fetch(weg(weg_), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': auftrag.blob.type || 'audio/webm',
@@ -1037,6 +1208,16 @@ _CHAT_JS = """
     anfrage.then(function (r) {
       if (r.ok) {
         zustand.netzFehler = 0;
+        // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
+        // der Kalibrierungsablauf braucht die message_id dieses konkreten
+        // Uploads zurueck, um spaeter gezielt auf SEIN Transkript zu warten
+        // (zustand.kalibrierung, aus dem Poll) -- dieselbe id, die die
+        // Antwort schon liefert, kein zweites Kennungsschema.
+        if (auftrag.art === 'audio' && auftrag.kalibrierung && auftrag.sitzung) {
+          r.json().then(function (daten) {
+            auftrag.sitzung._kalMessageId = daten && daten.message_id;
+          }).catch(function () { /* ohne id bricht die Wartefunktion selbst ab */ });
+        }
         erledigt(auftrag, true);
         return;
       }
@@ -1135,28 +1316,43 @@ _CHAT_JS = """
     r.onstop = function () {
       sitzung.offen -= 1;
       var auftrag = null;
-      // VAD-Entscheid, ob dieses Segment ueberhaupt in die Schlange geht.
       // r._grund/r._redeMs werden von schneideSegment() (Schnitt) oder von
       // pausiereInterview()/beendeInterview() (Flush) VOR stop() gesetzt;
-      // ohne VAD (Rueckfall auf den festen Takt) bleiben beide undefined,
-      // dann gilt wie vor dieser Karte: jedes nicht-leere Stueck geht raus.
+      // ohne VAD (Rueckfall auf den festen Takt) bleiben beide undefined.
       var redeMs = r._redeMs;
       var grund = r._grund || null;
-      var genug = redeMs == null || (
-        grund === 'ende' ? redeMs > 0 : redeMs >= (sitzung.vadMinSpeechMs || 0)
-      );
-      // grund === 'cap' mit redeMs < MIN_SPEECH_MS: der harte Zeitdeckel hat
-      // ein fast stummes Segment erzwungen. "In das naechste Segment
-      // getragen" (wie beim Pausen-Fall) ist hier technisch nicht moeglich
-      // -- der Recorder musste schon stoppen -- also wird es verworfen statt
-      // gesendet. Seltener Randfall, siehe .brainstorm-vad-report.md.
-      if (teile.length && !sitzung.verworfen && genug) {   // leere Stuecke nie
+      // Frueher wurde hier ueber redeMs verworfen (Birk, Szenario A: eine zu
+      // hoch eingestellte Schwelle liess leise, aber echte Rede als "nicht
+      // genug" durchfallen und das ganze Segment -- samt Woertern -- ging
+      // nie hoch). Jedes Segment mit Bytes geht jetzt IMMER raus; redeMs
+      // faehrt nur noch als Metadatum mit (Kanban-Karte Mithoeren SICHER).
+      // r._kalVerworfen (Task 2, Kanban-Karte Mithoeren SICHER/
+      // Kalibrierung, 03.10.2026): der 30s-Stille-Rueckfall der
+      // Kalibrierung -- dieser Clip wird NIE verschickt, es gibt nichts zu
+      // testen. r._kalibrierung markiert stattdessen den Testsatz-Clip
+      // selbst, der ganz normal durch dieselbe Warteschlange geht wie jedes
+      // andere Segment, nur mit dem zusaetzlichen Upload-Flag.
+      if (teile.length && !sitzung.verworfen && !r._kalVerworfen) {   // leere Stuecke nie
         auftrag = {
           art: 'audio', sitzung: sitzung,
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
           dauer: Math.max(1, Math.round((Date.now() - von) / 1000)),
-          grund: grund
+          grund: grund, redeMs: redeMs, kalibrierung: !!r._kalibrierung
         };
+      }
+      // Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): einmal je
+      // Sitzung, direkt nachdem das erste Segment fertig ist -- kein
+      // localStorage, reines Sitzungsfeld (sitzung.hinweisGezeigt), eine
+      // neue Sitzung (neuer Interview-/Brainstorm-Start) zeigt ihn wieder.
+      // Eigenstaendig von kalErinnerungFeld/zustand.kalibrierungModus oben
+      // (Task 2s "Handy herumreichen"-Erinnerung): anderer Ausloeser,
+      // anderer Merkposten, nicht zusammenlegen.
+      if (!sitzung.hinweisGezeigt) {
+        sitzung.hinweisGezeigt = true;
+        if (mitlaufHinweisFeld) {
+          mitlaufHinweisFeld.textContent = TEXT.mitlauf_hinweis;
+          mitlaufHinweisFeld.hidden = false;
+        }
       }
       // Re-Review B: zwei onstop koennen sich ueberholen (Stopp mitten im
       // Segmentwechsel). Eingereiht wird nach der laufenden Nummer.
@@ -1328,6 +1524,60 @@ _CHAT_JS = """
     sitzung.vadLetzteRede = sitzung.vadSegmentStart;
   }
 
+  // -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/           --
+  // -- Kalibrierung, 03.10.2026): die reinen Rechenfunktionen zuerst, damit --
+  // -- sie woertlich (nicht nachgebaut) aus einem Node-Testlauf heraus      --
+  // -- aufgerufen werden koennen (tests/test_web_chat_js.py). -------------
+
+  function kalMedian(werte) {
+    if (!werte.length) { return 0; }
+    var sortiert = werte.slice().sort(function (a, b) { return a - b; });
+    var mitte = Math.floor(sortiert.length / 2);
+    return sortiert.length % 2
+      ? sortiert[mitte]
+      : (sortiert[mitte - 1] + sortiert[mitte]) / 2;
+  }
+
+  function kalPerzentil(werte, p) {
+    if (!werte.length) { return 0; }
+    var sortiert = werte.slice().sort(function (a, b) { return a - b; });
+    return sortiert[Math.min(sortiert.length - 1, Math.floor(sortiert.length * p))];
+  }
+
+  // Item (d): zu leise, wenn die gemessene Rede nicht mindestens dreimal so
+  // laut ist wie der Rauschboden, ODER wenn insgesamt zu wenig Stimmzeit
+  // zusammenkam (unter 2000ms) -- beide Bedingungen gemeinsam, kein Ersatz
+  // fuereinander.
+  function kalZuLeise(redeMess, bodenMess, stimmMs) {
+    return (redeMess < 3 * bodenMess) || (stimmMs < 2000);
+  }
+
+  // Geometrisches Mittel aus Boden- und Rede-Messung, geklemmt auf
+  // [0.004, 0.08] -- derselbe Rahmen, in dem auch RMS_SCHWELLE/der feste
+  // Rueckfall (0.006) liegen.
+  function kalSchwelle(bodenMess, redeMess) {
+    return Math.min(Math.max(Math.sqrt(bodenMess * redeMess), KAL_SCHWELLE_ABS_MIN),
+                     KAL_SCHWELLE_ABS_MAX);
+  }
+
+  // 2d: der kalibrierte Festwert (sitzung.vadSchwelleFix) ist, wenn gesetzt,
+  // die DECKE -- der rollende Boden darf die Schwelle nur noch nach UNTEN
+  // ziehen (bis zum absoluten Minimum), nie darueber. Ohne Kalibrierung
+  // (sitzung.vadSchwelleFix nicht gesetzt: Kill-Switch aus oder noch nicht
+  // kalibriert) bleibt es BYTE-GLEICH die alte, feste Formel.
+  function kalBerechneBodenUndSchwelle(sortiert, sitzung, RMS_SCHWELLE,
+                                        BODEN_FAKTOR, BODEN_DECKEL_FAKTOR) {
+    var kalibriert = sitzung.vadSchwelleFix != null;
+    var bodenDeckel = kalibriert
+      ? sitzung.vadBodenMess * 2
+      : RMS_SCHWELLE * BODEN_DECKEL_FAKTOR;
+    var boden = Math.min(sortiert[Math.floor(sortiert.length * 0.1)] || 0, bodenDeckel);
+    var schwelle = kalibriert
+      ? Math.min(sitzung.vadSchwelleFix, Math.max(KAL_SCHWELLE_ABS_MIN, boden * BODEN_FAKTOR))
+      : Math.max(RMS_SCHWELLE, boden * BODEN_FAKTOR);
+    return { boden: boden, schwelle: schwelle };
+  }
+
   function pegelAn(sitzung) {
     var Kontext = window.AudioContext || window.webkitAudioContext;
     if (!pegelBalken || !Kontext) { return; }
@@ -1338,7 +1588,6 @@ _CHAT_JS = """
       var messer = kontext.createAnalyser();
       messer.fftSize = 256;
       kontext.createMediaStreamSource(sitzung.strom).connect(messer);
-      var frequenzWerte = new Uint8Array(messer.frequencyBinCount);
       var zeitWerte = new Float32Array(messer.fftSize);
       var PAUSE_MS = parseInt(fuss.dataset.vadPauseMs, 10) || 2500;
       var MAX_MS = parseInt(fuss.dataset.vadMaxMs, 10) || 90000;
@@ -1351,16 +1600,15 @@ _CHAT_JS = """
       // zieht eine durchgehend laute Aufnahme den Boden auf ihre eigene
       // Lautstaerke und die Pause-Erkennung faellt dauerhaft aus.
       var BODEN_DECKEL_FAKTOR = 10;
+      // Anzeige-Skala des Pegelbalkens (rein kosmetisch, keine
+      // IT_WEB_VAD_*-Variable): 0.3 RMS = 100% Balkenbreite, deutlich ueber
+      // KAL_SCHWELLE_ABS_MAX (0.08), damit auch eine kalibrierte, hohe
+      // Schwelle noch sichtbar Platz nach oben laesst.
+      var PEGEL_MAX_RMS = 0.3;
       sitzung.vadMinSpeechMs = MIN_SPEECH_MS;
       sitzung.vadAktiv = true;
       sitzung.vadBoden = [];
       sitzung.pegelTakt = setInterval(function () {
-        messer.getByteFrequencyData(frequenzWerte);
-        var summe = 0;
-        for (var i = 0; i < frequenzWerte.length; i++) { summe += frequenzWerte[i]; }
-        pegelBalken.style.width =
-          Math.min(100, (summe / frequenzWerte.length) * 2.2) + '%';
-
         messer.getFloatTimeDomainData(zeitWerte);
         var quadratsumme = 0;
         for (var j = 0; j < zeitWerte.length; j++) {
@@ -1382,11 +1630,25 @@ _CHAT_JS = """
         // von RMS_SCHWELLE steigen), eine durchgehend laute Stimme kann sie
         // aber nicht mehr darueber hinausschieben.
         var sortiert = sitzung.vadBoden.slice().sort(function (a, b) { return a - b; });
-        var boden = Math.min(
-          sortiert[Math.floor(sortiert.length * 0.1)] || 0,
-          RMS_SCHWELLE * BODEN_DECKEL_FAKTOR
+        // 2d (Task 2): mit Kalibrierung ist sitzung.vadSchwelleFix die
+        // Decke, der Boden-Deckel wird aus vadBodenMess gerechnet -- ohne
+        // Kalibrierung bleibt es byte-gleich die alte, feste Formel.
+        var berechnet = kalBerechneBodenUndSchwelle(
+          sortiert, sitzung, RMS_SCHWELLE, BODEN_FAKTOR, BODEN_DECKEL_FAKTOR
         );
-        var schwelle = Math.max(RMS_SCHWELLE, boden * BODEN_FAKTOR);
+        var boden = berechnet.boden;
+        var schwelle = berechnet.schwelle;
+        // Der sichtbare Balken faehrt seit dieser Karte auf derselben
+        // RMS-Skala wie der Schnitt selbst (vorher: Frequenzmittel * 2.2,
+        // eine andere Zahl als die Schwelle) -- Anzeige und Entscheidung
+        // sind damit dieselbe Messung, nur einmal gezeichnet.
+        pegelBalken.style.width =
+          Math.min(100, (rms / PEGEL_MAX_RMS) * 100) + '%';
+        if (pegelSchwelle) {
+          pegelSchwelle.style.left =
+            Math.min(100, (schwelle / PEGEL_MAX_RMS) * 100) + '%';
+        }
+        pegelFeld.classList.toggle('ueber-schwelle', rms > schwelle);
         var jetzt = Date.now();
         if (rms > schwelle) {
           sitzung.vadSpeechMs += 120;
@@ -1430,6 +1692,10 @@ _CHAT_JS = """
   function uhrAn(sitzung) {
     uhrFeld.hidden = false;
     pegelFeld.hidden = false;
+    // Task 2: der panel-level Messen-Knopf (#kalibrierung-neu) ist immer
+    // verfuegbar, solange #pegel/#uhr es auch sind -- derselbe Schalter,
+    // keine zweite Sichtbarkeitsregel.
+    if (kalNeuKnopf) { kalNeuKnopf.hidden = false; }
     uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung));
     if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); }
     zustand.uhrTakt = setInterval(function () {
@@ -1441,7 +1707,12 @@ _CHAT_JS = """
     if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
     uhrFeld.hidden = true;
     pegelFeld.hidden = true;
+    if (kalNeuKnopf) { kalNeuKnopf.hidden = true; }
+    if (kalFeld) { kalFeld.hidden = true; }
     if (pegelBalken) { pegelBalken.style.width = '0'; }
+    if (pegelFeld) { pegelFeld.classList.remove('ueber-schwelle'); }
+    // Task 4: nicht in einen spaeteren Bildschirmzustand hinueberlaufen.
+    if (mitlaufHinweisFeld) { mitlaufHinweisFeld.hidden = true; }
   }
 
   function modusAn() {
@@ -1526,6 +1797,564 @@ _CHAT_JS = """
     }
   }
 
+  // -- Pegel-Kalibrierung: der Ablauf (Birks Korrektur, 03.10.2026) --------
+  //
+  // "Eine Rauschschwelle, die nie gegen den echten Raum gemessen wurde, ist
+  // geraten, nicht gesetzt." Die Zahlen aus _vad_werte() (RMS_SCHWELLE/
+  // BODEN_FAKTOR) waren genau das -- Betreiber-Schaetzungen. Dieser Ablauf
+  // ersetzt sie durch eine Messung GEGEN DIESEN RAUM, button-gated in jedem
+  // Schritt: Birks ausdrueckliche Korrektur war, dass ein selbststartender
+  // Countdown nicht garantiert, dass der Raum wirklich still ist, und eine
+  // selbststartende Sprachmessung riskiert, vor dem ersten Wort zu messen
+  // oder eine langsame Person zu verpassen. NICHTS hier startet von selbst
+  // -- die EINE Ausnahme ist die automatische Rueckfrage nach 30s Stille
+  // (sie ist selbst ein Knopf, nur einer, den das System der Gruppe
+  // vorlegt statt dass die Gruppe ihn verlangt).
+
+  function kalibrierungAktiv() {
+    return fuss.dataset.vadKalibrierung !== '0';
+  }
+
+  function kalibrierungCacheLesen() {
+    try {
+      var boden = parseFloat(localStorage.getItem(KAL_LS_BODEN));
+      var rede = parseFloat(localStorage.getItem(KAL_LS_REDE));
+      var schwelle = parseFloat(localStorage.getItem(KAL_LS_SCHWELLE));
+      if (isFinite(boden) && isFinite(rede) && isFinite(schwelle)) {
+        return { boden: boden, rede: rede, schwelle: schwelle };
+      }
+    } catch (e) { /* localStorage kann fehlen (privater Modus, alter Browser) */ }
+    return null;
+  }
+
+  function kalibrierungCacheSchreiben(boden, rede, schwelle) {
+    try {
+      localStorage.setItem(KAL_LS_BODEN, String(boden));
+      localStorage.setItem(KAL_LS_REDE, String(rede));
+      localStorage.setItem(KAL_LS_SCHWELLE, String(schwelle));
+    } catch (e) { /* Skip bleibt ohnehin die Rueckfallebene */ }
+  }
+
+  // Eigener, kleiner AnalyserNode -- UNABHAENGIG von pegelAn()s eigenem (der
+  // waehrend der Kalibrierung noch gar nicht laeuft, siehe
+  // kalEntscheideOderStarte). Zwei getrennte Zaehler auf demselben Strom
+  // sind erlaubt und einfacher als sie zu teilen.
+  function kalBaueMesser(sitzung) {
+    var Kontext = window.AudioContext || window.webkitAudioContext;
+    if (!Kontext || !sitzung.strom) { return null; }
+    try {
+      var kontext = new Kontext();
+      if (kontext.state === 'suspended' && kontext.resume) { kontext.resume(); }
+      var messer = kontext.createAnalyser();
+      messer.fftSize = 256;
+      kontext.createMediaStreamSource(sitzung.strom).connect(messer);
+      var zeitWerte = new Float32Array(messer.fftSize);
+      return {
+        rms: function () {
+          messer.getFloatTimeDomainData(zeitWerte);
+          var summe = 0;
+          for (var i = 0; i < zeitWerte.length; i++) { summe += zeitWerte[i] * zeitWerte[i]; }
+          return Math.sqrt(summe / zeitWerte.length);
+        },
+        schliesse: function () { try { kontext.close(); } catch (e) { /* schon zu */ } }
+      };
+    } catch (e) { return null; }
+  }
+
+  function kalAlleKnoepfeAus() {
+    [kalStartKnopf, kalSprechenKnopf, kalNochmalHoerenKnopf, kalVersuchKnopf,
+     kalWeiterTrotzdemKnopf, kalJaKnopf, kalNeinKnopf].forEach(function (b) {
+      if (b) { b.hidden = true; }
+    });
+  }
+
+  function kalZeigeSchritt(text, knoepfe) {
+    kalAlleKnoepfeAus();
+    if (kalBalkenFeld) { kalBalkenFeld.hidden = true; }
+    if (kalText) { kalText.textContent = text; }
+    (knoepfe || []).forEach(function (b) { if (b) { b.hidden = false; } });
+  }
+
+  // Wie kalZeigeSchritt, laesst aber den "deine Stimme vs. der Raum"-Balken
+  // stehen, den kalZeigeBalken() davor sichtbar gemacht hat -- ein vom
+  // Pegel-Mess-Balken (#pegel) bewusst getrenntes, kleines Element (siehe
+  // 2a Schritt 5), nur innerhalb des Kalibrierungs-Panels.
+  function kalZeigeSchrittMitBalken(text, knoepfe) {
+    kalAlleKnoepfeAus();
+    if (kalText) { kalText.textContent = text; }
+    (knoepfe || []).forEach(function (b) { if (b) { b.hidden = false; } });
+  }
+
+  function kalZeigeBalken(redeMess, bodenMess) {
+    if (!kalBalkenFeld) { return; }
+    kalBalkenFeld.hidden = false;
+    var deckel = Math.max(redeMess, bodenMess * 3) * 1.2 || 1;
+    if (kalBalkenBalken) {
+      kalBalkenBalken.style.width = Math.min(100, (redeMess / deckel) * 100) + '%';
+    }
+    if (kalBalkenMarke) {
+      kalBalkenMarke.style.left = Math.min(100, ((bodenMess * 3) / deckel) * 100) + '%';
+    }
+  }
+
+  function kalZeigePanel(an) {
+    if (kalFeld) { kalFeld.hidden = !an; }
+  }
+
+  // Drei Schnitt-Varianten, alle nach demselben Muster wie schneideSegment()
+  // (stop-current/start-next, keine Luecke) -- aber orthogonal zu ``grund``
+  // (der serverseitig gegen einen festen Wertebereich geprueft wird und
+  // etwas anderes bedeutet): eine normale Grenze ohne Markierung, der
+  // Testsatz-Clip selbst (r._kalibrierung) und der verworfene 30s-Rueckfall
+  // (r._kalVerworfen, nie verschickt -- siehe onstop in neuesSegment()).
+  function kalSchneideOhneMarkierung(sitzung) {
+    var alt = sitzung.recorder;
+    if (!alt) { return; }
+    if (alt.state !== 'inactive') { alt.stop(); }
+    sitzung.recorder = neuesSegment(sitzung);
+  }
+
+  function kalSchneideAlsKalibrierung(sitzung) {
+    var alt = sitzung.recorder;
+    if (!alt) { return; }
+    alt._kalibrierung = true;
+    // Zuruecksetzen GENAU HIER, nicht erst in kalStarteTestTranskript(): der
+    // Upload dieses Clips laeuft im Hintergrund weiter, auch waehrend die
+    // "zu leise"-Rueckfrage (Schritt 5) noch auf dem Bildschirm steht --
+    // Der Knopf kalWeiterTrotzdemKnopf ruft kalStarteTestTranskript() fuer GENAU DIESEN
+    // Clip auf und braucht die message_id, die hier schon unterwegs sein
+    // kann. Ein Reset dort wuerde eine laengst eingetroffene Antwort
+    // wieder loeschen und auf eine Antwort warten, die nie mehr kommt.
+    sitzung._kalMessageId = null;
+    if (sitzung._kal) { sitzung._kal.ueberschrieben = false; }
+    if (alt.state !== 'inactive') { alt.stop(); }
+    sitzung.recorder = neuesSegment(sitzung);
+  }
+
+  function kalSchneideUndVerwerfen(sitzung) {
+    var alt = sitzung.recorder;
+    if (!alt) { return; }
+    alt._kalVerworfen = true;
+    if (alt.state !== 'inactive') { alt.stop(); }
+    sitzung.recorder = neuesSegment(sitzung);
+  }
+
+  function kalAufraeumen(sitzung) {
+    var k = sitzung._kal;
+    if (!k) { return; }
+    if (k.stilleTakt) { clearInterval(k.stilleTakt); }
+    if (k.warteTakt) { clearInterval(k.warteTakt); }
+    if (k.sammelTakt) { clearInterval(k.sammelTakt); }
+    if (k.messer) { k.messer.schliesse(); }
+    sitzung._kal = null;
+  }
+
+  // -- Schritt 1: Ankuendigung ---------------------------------------------
+
+  function kalibrierungStarte(sitzung) {
+    var messer = kalBaueMesser(sitzung);
+    if (!messer || !kalFeld) {
+      // Keine Messung moeglich (kein AudioContext/kein Panel im Markup) --
+      // derselbe Rueckfall wie der Kill-Switch, byte-gleich zur festen
+      // Formel: sitzung.vadSchwelleFix bleibt unerreichbar fuer
+      // pegelAn(), stattdessen nichts setzen und direkt starten.
+      kalStarteEchteSchnitte(sitzung);
+      return;
+    }
+    sitzung._kal = { messer: messer };
+    sitzung._kalZuLeiseZaehler = sitzung._kalZuLeiseZaehler || 0;
+    kalZeigePanel(true);
+    kalZeigeSchritt(TEXT.kal_ankuendigung, [kalStartKnopf]);
+  }
+
+  // -- Schritt 2: die 5s-Stillemessung (nur nach Knopfdruck) ---------------
+
+  function kalStarteStille(sitzung) {
+    var k = sitzung._kal;
+    if (!k || !k.messer) { return; }
+    var samples = [];
+    var start = Date.now();
+    var restS = Math.ceil(KAL_STILLE_MS / 1000);
+    kalZeigeSchritt(TEXT.kal_stille.replace('{s}', String(restS)), []);
+    k.stilleTakt = setInterval(function () {
+      samples.push(k.messer.rms());
+      var vergangen = Date.now() - start;
+      var rest = Math.max(0, Math.ceil((KAL_STILLE_MS - vergangen) / 1000));
+      if (rest !== restS) {
+        restS = rest;
+        if (kalText) { kalText.textContent = TEXT.kal_stille.replace('{s}', String(restS)); }
+      }
+      if (vergangen >= KAL_STILLE_MS) {
+        clearInterval(k.stilleTakt);
+        k.stilleTakt = null;
+        k.bodenMess = kalMedian(samples);
+        kalZeigeSchritt(TEXT.kal_sprechen_ankuendigung, [kalSprechenKnopf]);
+      }
+    }, 120);
+  }
+
+  // -- Schritt 3/4: die Sprachmessung (nur nach Knopfdruck) ----------------
+
+  function kalStarteSprechen(sitzung) {
+    var k = sitzung._kal;
+    if (!k) { return; }
+    kalSchneideOhneMarkierung(sitzung);   // beendet das Vor-Sprechen-Segment normal
+    kalZeigeSchritt(TEXT.kal_hoeren, []);
+    kalWarteAufStimme(sitzung);
+  }
+
+  function kalWarteAufStimme(sitzung) {
+    var k = sitzung._kal;
+    if (!k || !k.messer) { return; }
+    var start = Date.now();
+    k.warteTakt = setInterval(function () {
+      var rms = k.messer.rms();
+      if (rms > 3 * k.bodenMess) {
+        clearInterval(k.warteTakt);
+        k.warteTakt = null;
+        kalSammleStimme(sitzung, rms);
+        return;
+      }
+      if (Date.now() - start >= KAL_WARTE_MAX_MS) {
+        clearInterval(k.warteTakt);
+        k.warteTakt = null;
+        // Nichts gehoert: der Clip seit "Start speaking" wird verworfen,
+        // es gibt nichts zu testen (2a Schritt 4).
+        kalSchneideUndVerwerfen(sitzung);
+        kalZeigeSchritt(TEXT.kal_nichts_gehoert, [kalNochmalHoerenKnopf]);
+      }
+    }, 120);
+  }
+
+  // Der In-Flow-Rueckfrage-Knopf (#kalibrierung-nochmal-hoeren, NICHT
+  // #kalibrierung-neu -- unterschiedliche ids, unterschiedlicher Umfang):
+  // schneidet einen frischen Clip an genau diesem Klick und startet NUR die
+  // 30s-Wartezeit neu. boden_mess aus Schritt 2 bleibt stehen.
+  function kalNochmalHoeren(sitzung) {
+    var k = sitzung._kal;
+    if (!k) { return; }
+    kalSchneideOhneMarkierung(sitzung);
+    kalZeigeSchritt(TEXT.kal_hoeren, []);
+    kalWarteAufStimme(sitzung);
+  }
+
+  function kalSammleStimme(sitzung, ersteRms) {
+    var k = sitzung._kal;
+    var samples = [ersteRms];
+    var stimmMs = 120;   // die Probe, die die Stimme erkannt hat, zaehlt mit
+    var fensterStart = Date.now();
+    k.sammelTakt = setInterval(function () {
+      var rms = k.messer.rms();
+      samples.push(rms);   // Pausen zaehlen mit in die Perzentil-Grundlage
+      if (rms > 3 * k.bodenMess) { stimmMs += 120; }
+      if (stimmMs >= KAL_SPRACH_MS ||
+          (Date.now() - fensterStart) >= KAL_SPRACH_FENSTER_MS) {
+        clearInterval(k.sammelTakt);
+        k.sammelTakt = null;
+        k.redeMess = kalPerzentil(samples, 0.8);
+        k.stimmMsGemessen = stimmMs;
+        kalSchneideAlsKalibrierung(sitzung);   // DER Testsatz-Clip
+        kalPruefeZuLeise(sitzung);
+      }
+    }, 120);
+  }
+
+  // -- Schritt 5: "zu leise"? (deterministisch, kein Modellaufruf) --------
+
+  function kalPruefeZuLeise(sitzung) {
+    var k = sitzung._kal;
+    if (kalZuLeise(k.redeMess, k.bodenMess, k.stimmMsGemessen)) {
+      kalMeldeZuLeise(sitzung);
+      return;
+    }
+    kalStarteTestTranskript(sitzung);
+  }
+
+  // Gemeinsamer Zaehler fuer Schritt 5 UND den Nachpruef-Zweig von Schritt 7
+  // (leere/zu kurze Bestaetigungsantwort zaehlt wie "zu leise") -- derselbe
+  // Zaehler, dieselbe Staffelung (1./2.+), wie die Karte verlangt.
+  function kalMeldeZuLeise(sitzung) {
+    sitzung._kalZuLeiseZaehler = (sitzung._kalZuLeiseZaehler || 0) + 1;
+    var k = sitzung._kal;
+    kalZeigeBalken(k ? (k.redeMess || 0) : 0, k ? (k.bodenMess || 0) : 0);
+    if (sitzung._kalZuLeiseZaehler <= 1) {
+      kalZeigeSchrittMitBalken(
+        TEXT.kal_zu_leise + ' ' + TEXT.kal_zu_leise_1, [kalVersuchKnopf],
+      );
+      return;
+    }
+    kalZeigeSchrittMitBalken(
+      TEXT.kal_zu_leise + ' ' + TEXT.kal_zu_leise_2,
+      [kalVersuchKnopf, kalWeiterTrotzdemKnopf],
+    );
+    // Gruppenweiter Hinweis fuer spaetere Sitzungen (2a Schritt 5, 2f) --
+    // best effort: schlaegt der Upload fehl, bleibt es bei der lokalen
+    // Staffelung dieser Sitzung, nichts davon haengt an der Antwort.
+    postJson(`chat/kalibrierung`, {}).catch(function () { /* best effort */ });
+  }
+
+  function kalVersuchErneut(sitzung) {
+    // "restarts only step 4" -- zurueck auf die Schritt-3-Ankuendigung samt
+    // ihrem Knopf, NICHT automatisch wieder ins Zuhoeren (nichts startet
+    // von selbst).
+    kalZeigeSchritt(TEXT.kal_sprechen_ankuendigung, [kalSprechenKnopf]);
+  }
+
+  function kalWeiterTrotzdem(sitzung) {
+    // Merkt sich, dass die Gruppe die Pegel-Warnung ausdruecklich
+    // uebergangen hat -- kalAntwortJa() ueberspringt deshalb GENAU den
+    // Pegel-Vergleich (nicht den Text-Check) bei der Schritt-7-Pruefung,
+    // sonst wuerde dieselbe, unveraenderte Messung dort sofort wieder
+    // "zu leise" sagen und der Weiter-trotzdem-Knopf waere wirkungslos -- entgegen
+    // 2a Schritt 5: "nothing here ever permanently blocks the group".
+    if (sitzung._kal) { sitzung._kal.ueberschrieben = true; }
+    kalStarteTestTranskript(sitzung);
+  }
+
+  // -- Schritt 6: der Testsatz --------------------------------------------
+  //
+  // Der Clip ist schon unterwegs (kalSchneideAlsKalibrierung() hat ihn
+  // geschnitten, sein onstop reiht ihn ganz normal in dieselbe
+  // Warteschlange ein wie jedes andere Segment) -- hier wird nur auf seine
+  // message_id (arbeiteAb()) und danach auf sein Transkript (der Poll,
+  // zustand.kalibrierung) gewartet.
+
+  function kalStarteTestTranskript(sitzung) {
+    kalZeigeSchritt(TEXT.kal_transkribiert_warten, []);
+    // KEIN Reset von sitzung._kalMessageId hier -- kalSchneideAlsKalibrierung()
+    // hat ihn schon auf null gesetzt, als der Clip geschnitten wurde, und
+    // der Upload kann seitdem (auch waehrend der "zu leise"-Rueckfrage)
+    // schon durchgelaufen sein.
+    kalWarteAufUpload(sitzung, 0);
+  }
+
+  function kalWarteAufUpload(sitzung, versuche) {
+    if (!sitzung._kal) { return; }   // Ablauf inzwischen verlassen (Skip/Neu)
+    if (sitzung._kalMessageId != null) {
+      kalWarteAufTranskript(sitzung);
+      return;
+    }
+    if (versuche > 100) {   // ~20s Geduld -- danach defensiv wie "nichts gehoert"
+      kalZeigeSchritt(TEXT.kal_nichts_gehoert, [kalNochmalHoerenKnopf]);
+      return;
+    }
+    setTimeout(function () { kalWarteAufUpload(sitzung, versuche + 1); }, 200);
+  }
+
+  function kalWarteAufTranskript(sitzung) {
+    if (!sitzung._kal) { return; }
+    var info = zustand.kalibrierung;
+    if (info && info.message_id === sitzung._kalMessageId) {
+      if (info.status === 'fertig') {
+        kalZeigeBestaetigung(sitzung, info.transkript || '');
+        return;
+      }
+      if (info.status === 'fehler') {
+        kalMeldeZuLeise(sitzung);   // wie eine leere Antwort behandeln
+        return;
+      }
+    }
+    setTimeout(function () { kalWarteAufTranskript(sitzung); }, 400);
+  }
+
+  // -- Schritt 7: Bestaetigung ----------------------------------------------
+
+  function kalZeigeBestaetigung(sitzung, transkript) {
+    var k = sitzung._kal;
+    if (!k) { return; }
+    k.letzterTranskript = transkript;
+    kalZeigeSchritt(
+      TEXT.kal_bestaetigung.replace('{transkript}', transkript),
+      [kalJaKnopf, kalNeinKnopf],
+    );
+  }
+
+  function kalAntwortNein(sitzung) {
+    kalMeldeZuLeise(sitzung);
+  }
+
+  function kalAntwortJa(sitzung) {
+    var k = sitzung._kal;
+    if (!k) { return; }
+    var transkript = (k.letzterTranskript || '').trim();
+    var woerter = transkript ? transkript.split(/\s+/).filter(Boolean) : [];
+    // k.ueberschrieben (gesetzt von kalWeiterTrotzdem): die Gruppe hat die
+    // Pegel-Warnung schon einmal bewusst uebergangen -- derselbe Pegel
+    // wuerde hier sonst dieselbe "zu leise" zurueckgeben und den Knopf
+    // wirkungslos machen. Der Text-Check (leer/zu kurz) bleibt IMMER aktiv:
+    // das ist eine neue Information (das Transkript selbst), keine
+    // Wiederholung der Pegel-Messung.
+    var zuLeiseFinal = (!k.ueberschrieben && kalZuLeise(k.redeMess, k.bodenMess, k.stimmMsGemessen)) ||
+      !transkript || woerter.length < 3;
+    if (zuLeiseFinal) {
+      kalMeldeZuLeise(sitzung);
+      return;
+    }
+    var schwelle = kalSchwelle(k.bodenMess, k.redeMess);
+    // Zweite, LOOSERE Pruefung (2 statt 3): eine defensive Untergrenze auf
+    // den ENDWERT, keine Wiederholung -- die Gruppe hat das Transkript
+    // schon bestaetigt.
+    if (k.redeMess < 2 * k.bodenMess) {
+      meldeFehler(TEXT.kal_floor_hinweis);
+      schwelle = KAL_SCHWELLE_FALLBACK;
+    } else {
+      meldeFehler(TEXT.kal_erfolg);
+    }
+    kalibrierungCacheSchreiben(k.bodenMess, k.redeMess, schwelle);
+    kalibrierungBeenden(sitzung, schwelle, k.bodenMess);
+  }
+
+  // -- Schritt 8: Skip -------------------------------------------------------
+
+  function kalibrierungSkip(sitzung) {
+    kalAufraeumen(sitzung);
+    kalZeigePanel(false);
+    // Keine localStorage-Schreibung (E6-Ausnahme bleibt eng): Skip ist ein
+    // einmaliger Rueckfall fuer DIESE Sitzung, kein Messergebnis, das das
+    // naechste Mal wert waere, es zu cachen.
+    kalibrierungBeenden(sitzung, KAL_SCHWELLE_FALLBACK, KAL_SCHWELLE_FALLBACK / 3);
+  }
+
+  // -- Gemeinsamer Abschluss: Schwelle anwenden, echte Schnitte starten ----
+
+  function stoppePegelAn(sitzung) {
+    if (sitzung.pegelTakt) { clearInterval(sitzung.pegelTakt); sitzung.pegelTakt = null; }
+    if (sitzung.kontext) {
+      try { sitzung.kontext.close(); } catch (e) { /* schon zu */ }
+      sitzung.kontext = null;
+    }
+    sitzung.vadAktiv = false;
+  }
+
+  // Was vorher (ohne Kalibrierung) direkt in beginneAufnahme() stand:
+  // pegelAn() an, oder ohne AnalyserNode der feste Segment-Takt. Eigene
+  // Funktion, weil jetzt ZWEI Aufrufer sie brauchen -- der Normalfall
+  // (beginneAufnahme) und das Ende eines Kalibrierungslaufs.
+  function kalStarteEchteSchnitte(sitzung) {
+    stoppePegelAn(sitzung);   // falls #kalibrierung-neu einen frueheren Lauf stoppt
+    pegelAn(sitzung);
+    if (!sitzung.vadAktiv) {
+      if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
+      sitzung.segmentTakt = setInterval(function () {
+        if (!sitzung.recorder) { return; }
+        var alt = sitzung.recorder;
+        alt.stop();
+        sitzung.recorder = neuesSegment(sitzung);
+      }, SEGMENT_MS);
+    }
+  }
+
+  function kalibrierungBeenden(sitzung, schwelleFix, bodenMess) {
+    kalAufraeumen(sitzung);
+    kalZeigePanel(false);
+    sitzung.vadBodenMess = bodenMess;
+    sitzung.vadSchwelleFix = schwelleFix;
+    sitzung.kalibriert = true;
+    kalStarteEchteSchnitte(sitzung);
+  }
+
+  // Der einmalige Hinweis "Handy herumgeben" (2f): gruppenweiter Zustand
+  // (zustand.kalibrierungModus), aber nur EINMAL je JS-Sitzungsobjekt
+  // gezeigt -- ein Pause/Weiter auf DERSELBEN Sitzung ruft
+  // kalEntscheideOderStarte() zwar erneut auf, trifft aber schon
+  // sitzung._kalibrierungEntschieden an. Mangels einer existierenden
+  // Task-4-Infrastruktur (die Karte verweist darauf, sie ist aber noch
+  // nicht gebaut) ist dieser Wurf hier die naheliegende Wahl: ein Flag auf
+  // der Sitzung, dieselbe Groessenordnung wie sitzung.kalibriert.
+  function kalZeigeHerumreichenErinnerungWennNeu(sitzung) {
+    if (sitzung._kalibrierungEntschieden) { return; }
+    sitzung._kalibrierungEntschieden = true;
+    if (zustand.kalibrierungModus === 'herumreichen' && kalErinnerungFeld) {
+      kalErinnerungFeld.textContent = TEXT.kal_herumreichen_erinnerung;
+      kalErinnerungFeld.hidden = false;
+      setTimeout(function () { kalErinnerungFeld.hidden = true; }, 10000);
+    }
+  }
+
+  // Die EINE Weiche zwischen cache/kill-switch/frischem Ablauf -- aufgerufen
+  // aus beginneAufnahme() UND von #kalibrierung-neu (das sitzung.kalibriert
+  // vorher auf false setzt und dieselbe Weiche erneut anstoesst, ohne den
+  // Cache zu pruefen, siehe kalibrierungNeu()).
+  function kalEntscheideOderStarte(sitzung) {
+    kalZeigeHerumreichenErinnerungWennNeu(sitzung);
+    if (sitzung.kalibriert) {
+      kalStarteEchteSchnitte(sitzung);
+      return;
+    }
+    if (!kalibrierungAktiv()) {
+      sitzung.kalibriert = true;
+      kalStarteEchteSchnitte(sitzung);
+      return;
+    }
+    var cache = kalibrierungCacheLesen();
+    if (cache) {
+      sitzung.vadBodenMess = cache.boden;
+      sitzung.vadSchwelleFix = cache.schwelle;
+      sitzung.kalibriert = true;
+      kalStarteEchteSchnitte(sitzung);
+      return;
+    }
+    kalibrierungStarte(sitzung);
+  }
+
+  // Panel-level Messen-Knopf (#kalibrierung-neu, bewusst andere id als
+  // der In-Flow-Knopf #kalibrierung-nochmal-hoeren -- unterschiedlicher
+  // Umfang): faehrt die GANZE Sitzung neu, ignoriert jeden Cache, und
+  // wendet das Ergebnis auf die LAUFENDE Aufnahme an, ohne sie zu stoppen.
+  function kalibrierungNeu(sitzung) {
+    if (!sitzung) { return; }
+    stoppePegelAn(sitzung);
+    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
+    sitzung.kalibriert = false;
+    kalibrierungStarte(sitzung);
+  }
+
+  if (kalStartKnopf) {
+    kalStartKnopf.addEventListener('click', function () {
+      kalStarteStille(zustand.aufnahme || zustand.brainstorm);
+    });
+  }
+  if (kalSprechenKnopf) {
+    kalSprechenKnopf.addEventListener('click', function () {
+      kalStarteSprechen(zustand.aufnahme || zustand.brainstorm);
+    });
+  }
+  if (kalNochmalHoerenKnopf) {
+    kalNochmalHoerenKnopf.addEventListener('click', function () {
+      kalNochmalHoeren(zustand.aufnahme || zustand.brainstorm);
+    });
+  }
+  if (kalVersuchKnopf) {
+    kalVersuchKnopf.addEventListener('click', function () {
+      kalVersuchErneut(zustand.aufnahme || zustand.brainstorm);
+    });
+  }
+  if (kalWeiterTrotzdemKnopf) {
+    kalWeiterTrotzdemKnopf.addEventListener('click', function () {
+      kalWeiterTrotzdem(zustand.aufnahme || zustand.brainstorm);
+    });
+  }
+  if (kalJaKnopf) {
+    kalJaKnopf.addEventListener('click', function () {
+      kalAntwortJa(zustand.aufnahme || zustand.brainstorm);
+    });
+  }
+  if (kalNeinKnopf) {
+    kalNeinKnopf.addEventListener('click', function () {
+      kalAntwortNein(zustand.aufnahme || zustand.brainstorm);
+    });
+  }
+  if (kalSkipKnopf) {
+    kalSkipKnopf.addEventListener('click', function () {
+      kalibrierungSkip(zustand.aufnahme || zustand.brainstorm);
+    });
+  }
+  if (kalNeuKnopf) {
+    kalNeuKnopf.addEventListener('click', function () {
+      kalibrierungNeu(zustand.aufnahme || zustand.brainstorm);
+    });
+  }
+
   // Beginnt die tatsaechliche Aufzeichnung auf einer Sitzung, deren
   // Mikrofon gerade bereit wurde: Startzeitpunkt, Recorder, Segment-Takt,
   // Uhr und Pegel. Gemeinsame Stelle fuer starteInterview() und
@@ -1540,6 +2369,11 @@ _CHAT_JS = """
   // BEIDE Aufrufer gleichermassen dasselbe: waehrend des Wartens auf das
   // Mikrofon kam eine Pause dazwischen, also gar nicht erst anfangen,
   // Mikrofon sofort wieder frei.
+  //
+  // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung): die Aufnahme
+  // startet weiter SOFORT (sonst gehen die ersten Worte der echten
+  // Diskussion verloren) -- gegated ist allein kalEntscheideOderStarte()
+  // (pegelAn() + der Segment-Takt-Rueckfall), nie neuesSegment() selbst.
   function beginneAufnahme(sitzung) {
     if (sitzung.pausiert) {
       gibFrei(sitzung);
@@ -1552,18 +2386,7 @@ _CHAT_JS = """
     sitzung.vadLetzteRede = sitzung.vadSegmentStart;
     sitzung.gestartet = true;
     uhrAn(sitzung);
-    pegelAn(sitzung);
-    if (!sitzung.vadAktiv) {
-      // Rueckfall ohne AnalyserNode (aelterer Browser, kein AudioContext):
-      // wie vor dieser Karte eine feste Segmentlaenge -- sonst gaebe es nie
-      // einen Schnitt, und die Aufnahme liefe bis Beenden in einem Stueck.
-      sitzung.segmentTakt = setInterval(function () {
-        if (!sitzung.recorder) { return; }
-        var alt = sitzung.recorder;
-        alt.stop();                      // liefert sein Segment im onstop
-        sitzung.recorder = neuesSegment(sitzung);
-      }, SEGMENT_MS);
-    }
+    kalEntscheideOderStarte(sitzung);
   }
 
   // -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ------------------
@@ -1640,7 +2463,7 @@ _CHAT_JS = """
       verworfen: false, angehalten: false, geparkt: [],
       fertigEingereiht: true, naechsteNr: 0, einzureihen: 0, fertige: {},
       pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true,
-      fortsetzend: false
+      fortsetzend: false, hinweisGezeigt: false
     };
     zustand.brainstorm = sitzung;
     zeigeBrainstormModus();
@@ -1936,7 +2759,7 @@ _CHAT_JS = """
       // befindliches Mikrofon dieser Sitzung erkennen (Re-Review,
       // Befund 1), statt gegen das lange-schon-falsche "gestartet".
       pausiert: false, erfassteMs: 0, legStart: null, fortsetzend: false,
-      mikroUnterwegs: false
+      mikroUnterwegs: false, hinweisGezeigt: false
     };
     var wechsel = { ziel: true, gesendet: false };
     zustand.aufnahme = sitzung;
@@ -2118,7 +2941,7 @@ _CHAT_JS = """
         angehalten: false, geparkt: [],
         fertigEingereiht: false, naechsteNr: 0, einzureihen: 0, fertige: {},
         wechselAus: null, pausiert: true, erfassteMs: 0, legStart: null,
-        fortsetzend: false, mikroUnterwegs: false
+        fortsetzend: false, mikroUnterwegs: false, hinweisGezeigt: false
       };
       zustand.aufnahme = sitzung;   // synchron, wie starteInterview()
     }
@@ -2350,6 +3173,29 @@ def _js() -> str:
         brainstorm_laeuft=T._TEXT_BRAINSTORM_LAEUFT,
         diskussion_an=T._TEXT_DISKUSSION_AN,
         diskussion_laeuft=T._TEXT_DISKUSSION_LAEUFT,
+        kal_ankuendigung=T._TEXT_KALIBRIERUNG_ANKUENDIGUNG,
+        kal_start_knopf=T._TEXT_KALIBRIERUNG_START_KNOPF,
+        kal_stille=T._TEXT_KALIBRIERUNG_STILLE,
+        kal_sprechen_ankuendigung=T._TEXT_KALIBRIERUNG_SPRECHEN_ANKUENDIGUNG,
+        kal_sprechen_knopf=T._TEXT_KALIBRIERUNG_SPRECHEN_KNOPF,
+        kal_hoeren=T._TEXT_KALIBRIERUNG_HOEREN,
+        kal_nichts_gehoert=T._TEXT_KALIBRIERUNG_NICHTS_GEHOERT,
+        kal_messen_knopf=T._TEXT_KALIBRIERUNG_MESSEN_KNOPF,
+        kal_zu_leise=T._TEXT_KALIBRIERUNG_ZU_LEISE,
+        kal_zu_leise_1=T._TEXT_KALIBRIERUNG_ZU_LEISE_1,
+        kal_zu_leise_2=T._TEXT_KALIBRIERUNG_ZU_LEISE_2,
+        kal_nochmal_knopf=T._TEXT_KALIBRIERUNG_NOCHMAL_KNOPF,
+        kal_weiter_trotzdem=T._TEXT_KALIBRIERUNG_WEITER_TROTZDEM,
+        kal_transkribiert_warten=T._TEXT_KALIBRIERUNG_TRANSKRIBIERT_WARTEN,
+        kal_bestaetigung=T._TEXT_KALIBRIERUNG_BESTAETIGUNG,
+        kal_ja_knopf=T._TEXT_KALIBRIERUNG_JA_KNOPF,
+        kal_nein_knopf=T._TEXT_KALIBRIERUNG_NEIN_KNOPF,
+        kal_floor_hinweis=T._TEXT_KALIBRIERUNG_FLOOR_HINWEIS,
+        kal_erfolg=T._TEXT_KALIBRIERUNG_ERFOLG,
+        kal_skip_knopf=T._TEXT_KALIBRIERUNG_SKIP_KNOPF,
+        kal_balken_label=T._TEXT_KALIBRIERUNG_BALKEN_LABEL,
+        kal_herumreichen_erinnerung=T._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
+        mitlauf_hinweis=T._TEXT_MITLAUF_HINWEIS,
     )
     texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (
@@ -2515,12 +3361,46 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'data-vad-min-speech-ms="{int(vad["min_speech_ms"])}"\n'
         f'     data-vad-rms="{vad["rms"]}" '
         f'data-vad-floor-faktor="{vad["floor_faktor"]}"\n'
+        f'     data-vad-kalibrierung="{1 if vad.get("kalibrierung", True) else 0}"\n'
+        f'     data-kalibrierung-modus="'
+        f'{html.escape(daten.get("kalibrierung_modus") or "", quote=True)}"\n'
         f'     data-interview="{1 if modus else 0}" '
         f'data-basis="{html.escape(basis, quote=True)}">\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
-        f'  <div class="pegel" id="pegel" hidden><span></span></div>\n'
+        f'  <div class="pegel" id="pegel" hidden>'
+        f'<span></span><i class="pegel-schwelle"></i></div>\n'
+        f'  <button type="button" id="kalibrierung-neu" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
+        f'  <div class="kalibrierung-erinnerung" id="kalibrierung-erinnerung" '
+        f'role="status" hidden></div>\n'
+        f'  <div class="kalibrierung" id="kalibrierung" hidden>\n'
+        f'    <p id="kalibrierung-text"></p>\n'
+        f'    <div class="kalibrierung-balken" id="kalibrierung-balken" hidden '
+        f'aria-label="{html.escape(T._TEXT_KALIBRIERUNG_BALKEN_LABEL, quote=True)}">\n'
+        f'      <span></span><i class="kalibrierung-marke"></i>\n'
+        f'    </div>\n'
+        f'    <div class="kalibrierung-knoepfe">\n'
+        f'      <button type="button" id="kalibrierung-start" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_START_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-sprechen" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_SPRECHEN_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-nochmal-hoeren" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-versuch" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_NOCHMAL_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-weiter-trotzdem" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_WEITER_TROTZDEM)}</button>\n'
+        f'      <button type="button" id="kalibrierung-ja" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_JA_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-nein" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_NEIN_KNOPF)}</button>\n'
+        f'    </div>\n'
+        f'    <button type="button" id="kalibrierung-skip">'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_SKIP_KNOPF)}</button>\n'
+        f'  </div>\n'
         f'  <div class="warteschlange" id="warteschlange"></div>\n'
         f'  <div class="fehler" id="fehler" role="alert" hidden></div>\n'
+        f'  <p class="mitlauf-hinweis" id="mitlauf-hinweis" role="status" hidden></p>\n'
         f'  <div class="angehalten" id="angehalten" role="alert" hidden>\n'
         f'    <p id="angehalten-text"></p>\n'
         f'    <button type="button" id="nachreichen">'
@@ -2714,6 +3594,7 @@ _TOEPFE = {
     "interview": web_grenze.TOPF_NACHRICHT,
     "audio": web_grenze.TOPF_UPLOAD,
     "phase": web_grenze.TOPF_NACHRICHT,
+    "kalibrierung": web_grenze.TOPF_NACHRICHT,
 }
 
 
@@ -3009,6 +3890,24 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     # ``brainstorm``, nur fuer das Hintergrund-Mithoeren in Phase 1.
     diskussion = (felder.get("diskussion") or [""])[0] == "1"
 
+    # redeMs (Kanban-Karte Mithoeren SICHER, 03.10.2026): wie viele ms
+    # erkannte Rede der Client gemessen hat -- rein diagnostisch, seit
+    # Aufgabe 1a kein Upload-Gate mehr (Birk, Szenario A). Dieselbe
+    # defensive Ziffernpruefung wie bei ``dauer``, aber OHNE dessen 400: ein
+    # fehlender oder kaputter Wert ist einfach None, nie ein Fehler.
+    roh_rede = (felder.get("rede") or [""])[0]
+    rede_ms = (
+        int(roh_rede)
+        if roh_rede.isascii() and roh_rede.isdigit() and len(roh_rede) <= 10
+        else None
+    )
+
+    # kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/Kalibrierung,
+    # 03.10.2026): derselbe additive Weg wie "brainstorm" -- ein Clip des
+    # Kalibrierungsablaufs, nie ein gewoehnliches Segment. Kein
+    # Sicherheitsmerkmal, ein falscher Wert zaehlt einfach wie keiner.
+    kalibrierung = (felder.get("kalibrierung") or [""])[0] == "1"
+
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
         web.schliesse_nach_antwort(handler)
@@ -3027,6 +3926,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
             dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
             schnittgrund=grund, brainstorm=brainstorm, diskussion=diskussion,
+            rede_ms=rede_ms, kalibrierung=kalibrierung,
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.
@@ -3147,6 +4047,30 @@ def _phase(handler, db_pfad: str, token: str, chat_id: int,
     web_vereint.phase_post(handler, db_pfad, token, chat_id, schluessel)
 
 
+def _kalibrierung(handler, db_pfad: str, token: str, chat_id: int,
+                  schluessel: bytes) -> None:
+    """Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): die
+    zweite "zu leise"-Messung in Folge einer Sitzung merkt gruppenweit, dass
+    ein Handy in der Mitte fuer diesen Raum nicht reicht
+    (``gruppe.kalibrierung_modus = 'herumreichen'``) -- unabhaengig davon, ob
+    die Gruppe danach den Versuch- oder den Weiter-trotzdem-Knopf drueckt, und
+    unabhaengig von jedem Audio-Upload (der an dieser Stelle noch gar nicht
+    stattgefunden haben muss).
+
+    Reiner Metadatum-Schreibweg wie ``web_schreiben.py``, kein Knopf im
+    ``knoepfe``-Sinn und kein Modellaufruf (Zusage 2 gilt analog): die
+    Entscheidung faellt rein client-seitig aus der RMS-Messung, hier wird
+    nur das Ergebnis gemerkt."""
+    daten = _koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    with schreibend(db_pfad) as conn:
+        repo.setze_kalibrierung_modus_herumreichen(conn, chat_id)
+    handler._antworte(
+        200, json.dumps({"ok": True}), "application/json; charset=utf-8",
+    )
+
+
 #: Die Tabelle der POST-Wege. Eine Tabelle statt einer if-Kette: ein neuer Weg
 #: ist eine Zeile, und ``beantworte_post`` prueft Pfad, Token und Nonce fuer
 #: alle gleich.
@@ -3156,6 +4080,7 @@ _POSTWEGE = {
     "audio": _audio,
     "interview": _interview,
     "phase": _phase,
+    "kalibrierung": _kalibrierung,
 }
 
 
@@ -3325,4 +4250,10 @@ def _vad_werte() -> dict:
         "rms": _umgebungszahl("IT_WEB_VAD_RMS", 0.01, ganzzahl=False),
         "floor_faktor": _umgebungszahl(
             "IT_WEB_VAD_FLOOR_FACTOR", 2.5, ganzzahl=False),
+        # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
+        # der Not-Aus fuer den Workshop -- "0" schaltet die gemessene
+        # Kalibrierung ganz aus, jeder andere Wert (auch das Fehlen der
+        # Variable) laesst sie an. Bewusst NICHT ueber _umgebungszahl (die
+        # faellt auf eine Zahl > 0 zurueck, nicht auf einen Schalter).
+        "kalibrierung": (os.environ.get("IT_WEB_VAD_KALIBRIERUNG") or "1").strip() != "0",
     }

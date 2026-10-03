@@ -219,6 +219,81 @@ def test_zustand_bei_unbekanntem_token_ist_none(datenbank):
     lesend.close()
 
 
+# -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/             --
+# -- Kalibrierung, 03.10.2026) ----------------------------------------------
+
+
+def test_zustand_kalibrierung_modus_ist_ohne_herumreichen_none(datenbank):
+    pfad, token = datenbank
+    lesend = web_daten.oeffne_lesend(pfad)
+    assert web_daten.web_chatzustand(lesend, token)["kalibrierung_modus"] is None
+    lesend.close()
+
+
+def test_zustand_nennt_kalibrierung_modus_herumreichen(datenbank):
+    pfad, token = datenbank
+    schreibend = db.verbinde(pfad)
+    repo.setze_kalibrierung_modus_herumreichen(schreibend, CHAT)
+    schreibend.close()
+    lesend = web_daten.oeffne_lesend(pfad)
+    assert web_daten.web_chatzustand(lesend, token)["kalibrierung_modus"] == "herumreichen"
+    lesend.close()
+
+
+def test_zustand_kalibrierung_upload_ist_ohne_upload_none(datenbank):
+    pfad, token = datenbank
+    lesend = web_daten.oeffne_lesend(pfad)
+    assert web_daten.web_chatzustand(lesend, token)["kalibrierung"] is None
+    lesend.close()
+
+
+@pytest.mark.parametrize("status,erwartet", [
+    ("empfangen", "laufend"),
+    ("transkribiert", "laufend"),
+    ("fertig", "fertig"),
+    ("fehlgeschlagen", "fehler"),
+])
+def test_zustand_meldet_den_kalibrierungs_upload_stand(datenbank, status, erwartet):
+    pfad, token = datenbank
+    schreibend = db.verbinde(pfad)
+    aufnahme_id = repo.lege_aufnahme_an(
+        schreibend, CHAT, 900, "kurz", "sprache", status=status, kalibrierung=True,
+    )
+    repo.setze_transkript(schreibend, aufnahme_id, "Ein Testsatz fuer die Kalibrierung.")
+    repo.setze_status(schreibend, aufnahme_id, status)
+    schreibend.close()
+    lesend = web_daten.oeffne_lesend(pfad)
+    stand = web_daten.web_chatzustand(lesend, token)["kalibrierung"]
+    lesend.close()
+    assert stand == {
+        "message_id": 900, "status": erwartet,
+        "transkript": "Ein Testsatz fuer die Kalibrierung.",
+    }
+
+
+def test_kalibrierungszeile_fehlt_im_chatverlauf_und_im_zustand(datenbank):
+    """Item (g): eine ``web_post``-Zeile mit ``kalibrierung=1`` darf nie als
+    gewoehnliche Chatblase erscheinen -- weder im Verlauf noch im Poll."""
+    pfad, token = datenbank
+    schreibend = db.verbinde(pfad)
+    sichtbar_id = repo.lege_web_post_an(
+        schreibend, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE, dauer=3,
+    )
+    kalibrierung_id = repo.lege_web_post_an(
+        schreibend, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE, dauer=4,
+        kalibrierung=True,
+    )
+    schreibend.close()
+    lesend = web_daten.oeffne_lesend(pfad)
+    verlauf_ids = {z["id"] for z in web_daten.web_chatverlauf(lesend, CHAT)}
+    zustand_ids = {z["id"] for z in web_daten.web_chatzustand(lesend, token)["nachrichten"]}
+    lesend.close()
+    assert sichtbar_id in verlauf_ids
+    assert kalibrierung_id not in verlauf_ids
+    assert sichtbar_id in zustand_ids
+    assert kalibrierung_id not in zustand_ids
+
+
 # -- Routing --------------------------------------------------------------
 
 

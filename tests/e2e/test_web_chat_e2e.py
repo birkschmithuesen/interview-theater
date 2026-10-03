@@ -353,6 +353,13 @@ def server(token):
         # tests/e2e/test_web_chat_vad_e2e.py ueber eine gefaelschte
         # Analyser-Antwort statt des echten Tons.
         "IT_WEB_VAD_MAX_MS": str(SEGMENT_MS),
+        # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
+        # diese Datei prueft die Segment-/Warteschlangen-Mechanik, nicht
+        # die Kalibrierung davor -- ohne den Schalter wuerde jeder
+        # Aufnahmestart hier auf einen nie gedrueckten Kalibrierungs-Knopf
+        # warten und nie ein Segment schneiden. Eigene Abdeckung fuer den
+        # Ablauf selbst: tests/e2e/test_web_chat_kalibrierung_e2e.py.
+        "IT_WEB_VAD_KALIBRIERUNG": "0",
         "PYTHONPATH": str(WURZEL),
     })
     # In eine Datei, nicht in eine Pipe: der Server schreibt je Anfrage eine

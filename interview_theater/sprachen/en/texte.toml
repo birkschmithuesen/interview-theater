@@ -1837,6 +1837,34 @@ _TEXT_INTERVIEW_ENDEN = "■ Stop"
 _TEXT_INTERVIEW_LAEUFT = "● Interview running · {zeit}"
 _TEXT_INTERVIEW_PAUSIERT = "Paused · {zeit}"
 _TEXT_PTT = "Tap and speak"
+# Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): the
+# button-gated noise/speech calibration -- literal wording from the card,
+# nothing paraphrased.
+_TEXT_KALIBRIERUNG_ANKUENDIGUNG = "Put this phone in the middle of the table, where it will stay during the discussion. Sit as you will sit while talking — don't lean in or speak into the phone. We'll test it exactly like the real situation. When you press the button below, please stay completely silent for 5 seconds — then one of you will say a sentence in a normal voice."
+_TEXT_KALIBRIERUNG_START_KNOPF = "Start measuring"
+_TEXT_KALIBRIERUNG_STILLE = "Quiet for {s} seconds — measuring the room …"
+_TEXT_KALIBRIERUNG_SPRECHEN_ANKUENDIGUNG = "Silence measured. Now one of you will say a sentence in your normal voice — ideally the person sitting furthest from the phone. Speak from where you sit, at normal volume, not into the phone. Press the button, then start talking."
+_TEXT_KALIBRIERUNG_SPRECHEN_KNOPF = "Start speaking"
+_TEXT_KALIBRIERUNG_HOEREN = "Listening … start whenever you're ready."
+_TEXT_KALIBRIERUNG_NICHTS_GEHOERT = "We didn't hear anything — try again?"
+_TEXT_KALIBRIERUNG_MESSEN_KNOPF = "Measure again"
+_TEXT_KALIBRIERUNG_ZU_LEISE = "That was too quiet for the phone to follow reliably."
+_TEXT_KALIBRIERUNG_ZU_LEISE_1 = "Move the phone closer to the middle, and speak a little louder — then try again."
+_TEXT_KALIBRIERUNG_ZU_LEISE_2 = "The room is too big or too loud for one phone in the middle. Pass the phone around: whoever speaks holds it (or puts it next to them). Then try again."
+_TEXT_KALIBRIERUNG_NOCHMAL_KNOPF = "Try again"
+_TEXT_KALIBRIERUNG_WEITER_TROTZDEM = "Continue anyway"
+_TEXT_KALIBRIERUNG_TRANSKRIBIERT_WARTEN = "Transcribing the test sentence …"
+_TEXT_KALIBRIERUNG_BESTAETIGUNG = "We heard: “{transkript}”. Is that what was said?"
+_TEXT_KALIBRIERUNG_JA_KNOPF = "Yes, correct"
+_TEXT_KALIBRIERUNG_NEIN_KNOPF = "No, try again"
+_TEXT_KALIBRIERUNG_FLOOR_HINWEIS = "The room is loud or the phone is far away — move it closer to the speakers."
+_TEXT_KALIBRIERUNG_ERFOLG = "Room measured ✓ — you're ready."
+_TEXT_KALIBRIERUNG_SKIP_KNOPF = "Skip"
+_TEXT_KALIBRIERUNG_BALKEN_LABEL = "Your voice vs. the room"
+_TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG = "Remember: pass the phone to whoever speaks."
+# Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): exact card wording,
+# shown once per session after the first segment finishes.
+_TEXT_MITLAUF_HINWEIS = "Check the transcript in the chat — if words are missing, move the phone closer."
 
 ["web_kanal"]
 # UX-Knoepfe-Karte, Abschnitt 1: der einmalige Hinweis, dass Knoepfe

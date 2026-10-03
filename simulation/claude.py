@@ -31,6 +31,7 @@ die Aufrufzahl des Bots verfaelscht. Gezaehlt wird stattdessen hier
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -166,17 +167,23 @@ class Claude:
     # -- oeffentlich --------------------------------------------------------
 
     def text(self, system: str, nutzer: str, art: str = "sim",
-             max_tokens: int = MAX_TOKENS) -> str:
+             max_tokens: int = MAX_TOKENS, bilder: list[bytes] | None = None) -> str:
         """Ein Aufruf, ein Text. Leere Antworten liefern einen leeren String
-        -- der Aufrufer entscheidet, ob ihm das reicht."""
-        koerper = self._sende(system, nutzer, art, max_tokens)
+        -- der Aufrufer entscheidet, ob ihm das reicht.
+
+        ``bilder`` haengt PNG-Bytes als ``image``-Inhaltsbloecke vor den
+        Text (Anthropic-Messages-Format) -- fuer die Browser-UX-Simulation
+        (Persona/Richter sehen Screenshots). Ohne ``bilder`` bleibt der
+        Inhalt ein reiner String wie bisher (Regressionstest)."""
+        koerper = self._sende(system, nutzer, art, max_tokens, bilder)
         return _inhalt_aus(koerper).strip()
 
     def json_objekt(self, system: str, nutzer: str, art: str = "sim",
-                    max_tokens: int = MAX_TOKENS) -> dict:
+                    max_tokens: int = MAX_TOKENS,
+                    bilder: list[bytes] | None = None) -> dict:
         """Wie ``text``, aber die Antwort wird als JSON-Objekt gelesen
         (``lies_json``, ein Reparaturversuch)."""
-        return lies_json(self.text(system, nutzer, art, max_tokens))
+        return lies_json(self.text(system, nutzer, art, max_tokens, bilder))
 
     def schliesse(self) -> None:
         if self._eigener_klient:
@@ -192,12 +199,22 @@ class Claude:
             "content-type": "application/json",
         }
 
-    def _sende(self, system: str, nutzer: str, art: str, max_tokens: int) -> dict:
+    def _sende(self, system: str, nutzer: str, art: str, max_tokens: int,
+               bilder: list[bytes] | None = None) -> dict:
+        inhalt: str | list = nutzer
+        if bilder:
+            inhalt = [
+                {"type": "image", "source": {"type": "base64",
+                 "media_type": "image/png",
+                 "data": base64.b64encode(b).decode()}}
+                for b in bilder
+            ]
+            inhalt.append({"type": "text", "text": nutzer})
         koerper = {
             "model": self.modell,
             "max_tokens": max_tokens,
             "system": system,
-            "messages": [{"role": "user", "content": nutzer}],
+            "messages": [{"role": "user", "content": inhalt}],
         }
         letzter: Exception | None = None
         gesamt = len(self._wartezeiten) + 1

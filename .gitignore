@@ -54,6 +54,11 @@ simulation/berichte/*
 !simulation/berichte/.gitkeep
 !simulation/berichte/verlauf.jsonl
 
+# Padua-Browserlauf (simulation/browser_lauf.py): Rohlaeufe sind gross
+# (Screenshots je Schritt) und koennen Betriebsdetails zeigen -- nur Bericht
+# + Kontaktbogen der Abnahme werden von Hand committet, nicht jeder Lauf.
+simulation/browser_laeufe/
+
 # Berichte der Dramaturgie-Pruefung (scripts/dramaturgie_pruefen.py): sie
 # enthalten Belegzitate aus den Szenentexten der Gruppe und bleiben lokal.
 docs/dramaturgie-berichte/*

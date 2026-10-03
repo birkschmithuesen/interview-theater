@@ -1358,6 +1358,14 @@ proaktiv, Form je Szene bestätigt, Exposition der Szene 1. Berichte
 Modell als der Bot. **Kein Test, kein Ersatz für `pytest` oder
 `pruefe_prompts.py`**; Doku `simulation/README.md`.
 
+**`python -m simulation.browser_lauf`** (Padua-UX-Simulation, 03.10.2026)
+ist ein anderer Weg: statt den Bot-Code direkt anzufahren, bedient eine
+Opus-Persona die echte Webseite in einem echten, headless Chromium
+(Playwright) und sammelt dabei Screenshots, mechanische UX-Zaehler und ein
+Opus-Urteil je Phase gegen `simulation/ux_rubrik.md` — eigene Module
+(`simulation/browser_*.py`), eigene Doku (`simulation/README.md`, Abschnitt
+„Der Browserlauf").
+
 ## Weboberfläche
 
 Ein einziger Prozess für alle Gruppen, neben den Bots:
@@ -2279,6 +2287,14 @@ proaktiv, Form je Szene bestätigt, Exposition der Szene 1. Berichte
 `simulation/laeufe/2026-09-06-*.md` + Sammelbericht. Läuft gegen ein anderes
 Modell als der Bot. **Kein Test, kein Ersatz für `pytest` oder
 `pruefe_prompts.py`**; Doku `simulation/README.md`.
+
+**`python -m simulation.browser_lauf`** (Padua-UX-Simulation, 03.10.2026)
+ist ein anderer Weg: statt den Bot-Code direkt anzufahren, bedient eine
+Opus-Persona die echte Webseite in einem echten, headless Chromium
+(Playwright) und sammelt dabei Screenshots, mechanische UX-Zaehler und ein
+Opus-Urteil je Phase gegen `simulation/ux_rubrik.md` — eigene Module
+(`simulation/browser_*.py`), eigene Doku (`simulation/README.md`, Abschnitt
+„Der Browserlauf").
 
 ## Weboberfläche
 

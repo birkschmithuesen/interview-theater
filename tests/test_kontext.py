@@ -932,3 +932,106 @@ def test_sprachregel_ueberlebt_die_kuerzung(conn, einst, englisch):
     prompt = kontext.baue(conn, 1, ausloeser, einst)
 
     assert prompt.rstrip().endswith(kontext.T._AUSLOESER_SPRACHREGEL)
+
+
+# --- Padua Phase 1+2 Umbau (03.10.2026): Diskussions-Block + gated -------
+# Erstkontakt-Text. Der Diskussions-Block spiegelt die Festlegungen (klein,
+# direkt dahinter in _REIHENFOLGE), der Erstkontakt-Text verzweigt nur bei
+# aktivem Profil-Schalter -- ohne Profil (Dortmund) bleibt alles wie vorher,
+# siehe die byte-identischen Vergleiche unten.
+
+def test_ohne_diskussion_kein_block(conn):
+    assert kontext._baue_diskussion_block(conn, 1) == ""
+
+
+def test_diskussion_block_traegt_kopf_und_text(conn):
+    repo.merke_diskussion_verdichtung(
+        conn, 1, "Gerechtigkeit und Herkunft kamen oft vor.", "gemma"
+    )
+    block = kontext._baue_diskussion_block(conn, 1)
+    assert block == (
+        f"{kontext.T.DISKUSSION_KOPF}\n\nGerechtigkeit und Herkunft kamen oft vor."
+    )
+
+
+def test_diskussion_block_steht_direkt_hinter_den_festlegungen():
+    reihenfolge = list(kontext._REIHENFOLGE)
+    assert reihenfolge[reihenfolge.index("festlegungen") + 1] == "diskussion"
+
+
+def test_diskussion_hat_ein_eigenes_budget():
+    assert kontext.BUDGETS["diskussion"] == 800
+
+
+def test_diskussion_block_erscheint_im_fertigen_prompt(conn, einst):
+    repo.merke_diskussion_verdichtung(conn, 1, "Streit um Herkunft.", "gemma")
+    ausloeser = [_sende(conn, 1, 1, "Sara", "los", _iso(0))]
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+    assert kontext.T.DISKUSSION_KOPF in prompt
+    assert "Streit um Herkunft." in prompt
+
+
+def test_kuerzung_wirft_die_diskussion_als_ganzes_weg(conn, einst, monkeypatch):
+    """Der Diskussionsblock ist klein und durch seinen eigenen Prompt schon
+    auf rund 150 Woerter gedeckelt -- anders als die Festlegungen wird er
+    nicht zeilenweise gekuerzt, sondern bei Platznot in einem Schritt
+    fallengelassen."""
+    monkeypatch.setattr(kontext, "zeichengrenze", lambda ueber_claude=False: 200)
+    repo.merke_diskussion_verdichtung(conn, 1, "d" * 500, "gemma")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "kurz", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "d" * 500 not in prompt
+    assert "kurz" in prompt
+
+
+def test_erstkontakt_ohne_diskussion_bleibt_byte_identisch(conn, einst, monkeypatch):
+    """Die Dortmund-Regressionswache: ohne aktiven Profil-Schalter liefert
+    ``_baue_erstkontakt`` exakt denselben Text wie vor diesem Umbau."""
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: False)
+
+    text = kontext._baue_erstkontakt(conn, 1, einst)
+
+    erwartet = kontext.T.ERSTKONTAKT.format(
+        anlass=kontext.T.ERSTKONTAKT_ANLASS_ERSTE, link="",
+    )
+    assert text == erwartet
+
+
+def test_einstieg_begriffe_ohne_diskussion_bleibt_byte_identisch(conn, einst, monkeypatch):
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: False)
+
+    text = kontext.einstieg_begriffe(conn, 1, einst)
+
+    erwartet = kontext.T.ERSTKONTAKT.format(
+        anlass=kontext.T.ERSTKONTAKT_ANLASS_RUECKKEHR, link="",
+    )
+    assert text == erwartet
+
+
+def test_erstkontakt_mit_diskussion_nutzt_die_neuen_texte(conn, einst, monkeypatch):
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+
+    text = kontext._baue_erstkontakt(conn, 1, einst)
+
+    erwartet = kontext.T.ERSTKONTAKT_DISKUSSION.format(
+        anlass=kontext.T.ERSTKONTAKT_DISKUSSION_ANLASS_ERSTE, link="",
+    )
+    assert text == erwartet
+    assert "Zuhoeren starten" in text
+    # Die klassische Bitte um die Begriffsliste darf hier nicht stehen --
+    # die kommt erst, nachdem "Diskussion fertig" gedrueckt wurde (Aufgabe 7).
+    assert "bitte sie, dir diese Liste zu schicken" not in text
+
+
+def test_einstieg_begriffe_mit_diskussion_nutzt_die_neuen_texte(conn, einst, monkeypatch):
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+
+    text = kontext.einstieg_begriffe(conn, 1, einst)
+
+    erwartet = kontext.T.ERSTKONTAKT_DISKUSSION.format(
+        anlass=kontext.T.ERSTKONTAKT_DISKUSSION_ANLASS_RUECKKEHR, link="",
+    )
+    assert text == erwartet
+    assert "bitte sie, dir diese Liste zu schicken" not in text

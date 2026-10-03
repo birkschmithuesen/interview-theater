@@ -22,6 +22,8 @@ import sqlite3
 import urllib.request
 from pathlib import Path
 
+from playwright.sync_api import Error as PlaywrightError
+
 from interview_theater import phasen
 from simulation import (
     browser_aktionen,
@@ -174,6 +176,17 @@ def _fuehre_phase_aus(
             # Grundsatz wie ueberall sonst in diesem Lauf.
             log.warning("unbekannte Persona-Aktion: %s", fehler)
             protokoll = {"art": "unbekannt", "fehler": str(fehler)}
+        except PlaywrightError as fehler:
+            # Realer Betriebsbefund (Padua-Abnahme, 03.10.2026): ein Klick,
+            # der ins Leere trifft (eine veraltete element_id, ein Tab-Name,
+            # den die Persona als Anzeigetext statt als data-tab-Wert
+            # angegeben hat), liess bis hierhin die GANZE Phase abstuerzen --
+            # samt des bis dahin echten, bezahlten Fortschritts und ohne
+            # Richterurteil. Ein einzelner Fehlgriff der Persona ist derselbe
+            # Fall wie eine unbekannte Aktion: der naechste Schritt bekommt
+            # seine Chance, nicht der Rest des Laufs wird dafuer bestraft.
+            log.warning("Aktion schlug fehl (%s): %s", aktion, fehler)
+            protokoll = {"art": "fehlgeschlagen", "fehler": str(fehler)}
 
         warte = browser_aktionen.warte_auf_antwort(page)
 

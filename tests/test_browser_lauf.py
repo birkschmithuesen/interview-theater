@@ -146,6 +146,42 @@ def test_eine_scriptete_persona_faehrt_phase_eins_durch(stack, tmp_path):
         assert Path(tmp_path / "lauf" / eintrag["screenshot_vorher"]).exists()
 
 
+def test_ein_fehlgeschlagener_klick_reisst_nicht_die_ganze_phase_mit(stack, tmp_path):
+    """Realer Betriebsbefund (Padua-Abnahme, 03.10.2026): ein Klick, der ins
+    Leere trifft (eine veraltete ``element_id``, ein Tab-Name als Anzeigetext
+    statt als ``data-tab``-Wert), warf bis hierhin eine Playwright-Ausnahme,
+    die die GANZE Phase abstuerzen liess -- samt Richterurteil. Ein einzelner
+    Fehlgriff darf nur diesen Schritt kosten, nicht die Phase."""
+    basis, token, pfad = stack
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        context = browser.new_context()
+        seite = context.new_page()
+        seite.goto(f"{basis}/g/{token}")
+        seite.wait_for_selector("#verlauf")
+
+        persona = _ScriptedClient([
+            # Ein Text, den es auf der Seite garantiert nicht gibt -- das
+            # erzwingt einen echten Playwright-Timeout (5 s) in
+            # ``browser_aktionen.fuehre_aus``, denselben Fehlertyp wie beim
+            # echten Fund.
+            {"type": "click", "text": "Dieser Text steht nirgends auf der Seite",
+             "begruendung": "ein Fehlgriff"},
+            {"type": "done_phase", "begruendung": "trotzdem fertig"},
+        ])
+        ergebnis = browser_lauf.fuehre_lauf(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad,
+            chat_id=CHAT, persona_client=persona, judge_client=_FakeJudge(),
+            geraet="handy", persona_name="student", bis_phase=1,
+            lauf_verzeichnis=tmp_path / "lauf",
+        )
+        browser.close()
+
+    assert ergebnis["fehlgeschlagen_bei"] is None
+    assert len(ergebnis["phasen_ergebnisse"]) == 1
+    assert ergebnis["phasen_ergebnisse"][0]["note"] == 5
+
+
 def test_eine_gescheiterte_phase_reisst_die_naechste_nicht_mit(stack, tmp_path, monkeypatch):
     """``fuehre_lauf`` darf einen kaputten Phasenschritt (Playwright-Timeout
     o.ae.) nicht mit dem ganzen Lauf bezahlen: Phase 1 scheitert, Phase 2

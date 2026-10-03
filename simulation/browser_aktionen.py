@@ -110,5 +110,9 @@ def warte_auf_antwort(page, geduld_s: float = ANTWORT_GEDULD_S,
             return {"fertig": True, "sekunden": dauer, "ohne_hinweis": False}
         page.wait_for_timeout(300)
     dauer = time.monotonic() - start
-    return {"fertig": sah_aktivitaet, "sekunden": dauer,
+    # Das Budget ist abgelaufen -- ob der Bot *jetzt* noch sichtbar
+    # arbeitet, entscheidet ``fertig``, nicht ob er es irgendwann im
+    # Verlauf getan hat (``sah_aktivitaet``): sonst meldet ein Lauf, der
+    # wegen Zeitablauf aufgibt, faelschlich "fertig".
+    return {"fertig": not laeuft_sichtbar(page), "sekunden": dauer,
             "ohne_hinweis": dauer > WARTEZEIT_OHNE_HINWEIS_S and not sah_aktivitaet}

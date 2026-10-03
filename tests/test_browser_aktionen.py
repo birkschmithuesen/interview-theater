@@ -82,3 +82,14 @@ def test_warte_auf_antwort_wartet_auf_das_ende_der_tippanzeige(seite):
     ergebnis = a.warte_auf_antwort(seite, geduld_s=10, anlauf_s=1)
     assert ergebnis["fertig"] is True
     assert ergebnis["ohne_hinweis"] is False
+
+
+def test_warte_auf_antwort_gibt_fertig_false_wenn_das_budget_abgelaufen_ist(seite):
+    """Bleibt der Bot sichtbar aktiv, bis das Geduld-Budget ausgeht, ist das
+    kein fertiges Ergebnis -- die Tippanzeige wird hier absichtlich nie
+    geleert."""
+    seite.evaluate(
+        "document.getElementById('tippt').textContent = 'schreibt...';"
+    )
+    ergebnis = a.warte_auf_antwort(seite, geduld_s=1, anlauf_s=0.2)
+    assert ergebnis["fertig"] is False

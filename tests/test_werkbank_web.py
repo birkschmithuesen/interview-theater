@@ -168,3 +168,76 @@ def test_ohne_werkbankdaten_kein_absturz(padua):
     seite = web.werkbank_koerper(_mini(werkbank=None))
     assert 'class="wb-phase"' not in seite
     assert html_modul.escape(web.T._TEXT_WERKBANK_HINWEIS) in seite
+
+
+def _block(seite: str, nummer: int) -> str:
+    anfang = seite.index(f'data-wb-phase="{nummer}"')
+    ende = (seite.index('<details class="wb-phase"', anfang + 1) if nummer < 7
+            else seite.index('class="wb-journal"'))
+    return seite[anfang:ende]
+
+
+def test_phase_1_zeigt_die_begriffe(tmp_path, padua):
+    daten, token = _padua_daten(tmp_path)
+    assert "belonging, family, noise, courage" in _block(web.gruppe_koerper(daten, None, token), 1)
+
+
+def test_begriffe_detail_mit_daten(padua):
+    """Der Haken fuer Karte t_4517d4ad -- mit Inhalt."""
+    phasen_liste = roadmap.werkbank(_lage(stand={"begriffe": "Heimat"}), 1)
+    daten = _mini(phasen_liste)
+    daten["arbeitsstand"]["begriffe"] = "Heimat"
+    daten["werkbank"]["begriffe_detail"] = [
+        {"begriff": "Heimat", "begruendung": "came up three times",
+         "doppelbedeutung": "place and feeling"}]
+    block = _block(web.werkbank_koerper(daten), 1)
+    assert 'class="wb-begriffe"' in block
+    assert "came up three times" in block and "place and feeling" in block
+
+
+def test_begriffe_detail_ohne_daten(padua):
+    phasen_liste = roadmap.werkbank(_lage(), 1)
+    assert 'class="wb-begriffe"' not in web.werkbank_koerper(_mini(phasen_liste))
+
+
+def test_phase_2_fragen_leitfaden_und_ab_zeile(tmp_path, padua):
+    daten, token = _padua_daten(tmp_path)
+    block = _block(web.gruppe_koerper(daten, None, token), 2)
+    assert 'class="fragen"' in block
+    assert '<pre class="leitfaden">' in block       # _JS_INTERVIEW liest ihn hier
+    daten["fragen_auswertung"] = {"gesamt": {"eigen": 2, "ki": 1}}
+    block = _block(web.gruppe_koerper(daten, None, token), 2)
+    assert web.T._TEXT_FRAGEN_AUSWERTUNG.format(eigen=2, ki=1) in block
+
+
+def test_phase_3_verdichtung_wie_bisher_ohne_transkript(tmp_path, padua):
+    daten, token = _padua_daten(tmp_path)
+    seite = web.gruppe_koerper(daten, None, token)
+    block = _block(seite, 3)
+    assert "She talks about home and the bakery." in block
+    assert "Home is the smell of bread." in block              # zitat_geprueft = 1
+    assert "Allora, I grew up above a bakery" not in seite     # nur im Transkript
+
+
+def test_phase_4_setting_figuren_und_auch_vereinbart(tmp_path, padua):
+    daten, token = _padua_daten(tmp_path)
+    block = _block(web.gruppe_koerper(daten, None, token), 4)
+    assert "A bus stop at night" in block
+    assert "<b>Nadia</b>" in block and "the older sister, restless" in block
+    assert html_modul.escape(web.T._TEXT_WB_AUCH_VEREINBART) in block
+    assert "At most one song." in block                        # eine Festlegung
+    assert "<button" not in block
+
+
+def test_keine_szenen_volltexte(tmp_path, padua):
+    daten, token = _padua_daten(tmp_path)
+    seite = web.gruppe_koerper(daten, None, token)
+    assert "You always say that." not in seite
+    assert "TOMAS: Stay." not in seite
+
+
+def test_phase_6_dramaturgie_und_phase_7_sprechanteile(tmp_path, padua):
+    daten, token = _padua_daten(tmp_path)
+    seite = web.gruppe_koerper(daten, None, token)
+    assert "Scene 1 does not turn." in _block(seite, 6)
+    assert 'class="anteile"' in _block(seite, 7)

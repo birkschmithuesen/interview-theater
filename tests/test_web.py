@@ -487,14 +487,40 @@ def test_buehne_tab_fehlt_ausserhalb_phase_4(basis, token):
     assert "hidden" in treffer.group(0)
 
 
-def test_buehne_tab_zeigt_karten_neueste_zuerst_und_stueckkarte(db_pfad, token, basis):
+def _buehne_panel_ausschnitt(koerper: str) -> str:
+    """Schneidet NUR ``<div id="buehne-panel">...</div>`` aus der ganzen
+    Seite -- ein naiver ``</div>``-Treffer waere der erste verschachtelte
+    Abschluss, nicht der eigene. Tiefenzaehlung wie ``web_vereint.scope_css``
+    es fuer ``@media``-Bloecke tut, nur fuer ``<div>``/``</div>``."""
+    marke = '<div id="buehne-panel">'
+    start = koerper.index(marke)
+    tiefe = 1
+    for treffer in re.finditer(r"<div\b[^>]*>|</div>", koerper[start + len(marke):]):
+        tiefe += 1 if treffer.group(0).startswith("<div") else -1
+        if tiefe == 0:
+            ende = start + len(marke) + treffer.end()
+            return koerper[start:ende]
+    raise AssertionError("buehne-panel nicht geschlossen")
+
+
+def test_buehne_tab_zeigt_nur_die_neueste_karte(db_pfad, token, basis):
+    """Ersetzt test_buehne_tab_zeigt_karten_neueste_zuerst_und_stueckkarte
+    (Task 1, Padua CoThinker-Tab clean, 03.10.2026): die Tafel zeigt GENAU
+    EINE sichtbare Karte -- die neueste --, keine gestapelte Liste und
+    keinen Stueckkarte-Streifen mehr (der steht im Stand-Tab, siehe
+    ``_stueckkarte_html``/``_festlegungen_html``, unveraendert)."""
     conn = db.verbinde(db_pfad)
     # "Buehne, nur Web": der "chat"-Tab (und damit die Tab-Leiste ueberhaupt
     # mit "chat" drin) existiert nur fuer eine Gruppe im Web-Kanal -- die
     # Fixture bleibt sonst auf dem Schema-Vorgabewert (Telegram).
     repo.setze_gruppe_kanal(conn, 1, "web")
     repo.setze_phase(conn, 1, 4)
-    repo.setze_arbeitsstand(conn, 1, "rahmen", "Ein Klassenzimmer")
+    # Die Fixture legt eine Aufnahme mit status='empfangen' an (Marias
+    # Interview) -- fuer DIESEN Test geht es nicht um das "listening"-Signal,
+    # also wird sie hier als fertig markiert (sonst zeigt die Statuszeile
+    # "Eine Aufnahme laeuft gerade." statt der Karte, siehe
+    # test_buehne_status_zeigt_laufende_aufnahme fuer genau diesen Fall).
+    conn.execute("UPDATE aufnahme SET status = 'fertig' WHERE chat_id = ?", (1,))
     repo.lege_buehnenkarte_an(conn, 1, "Erste Karte.", "infomaniak")
     repo.lege_buehnenkarte_an(conn, 1, "Zweite Karte.", "infomaniak")
     conn.commit()
@@ -502,33 +528,58 @@ def test_buehne_tab_zeigt_karten_neueste_zuerst_und_stueckkarte(db_pfad, token, 
     koerper = hole(f"{basis}/g/{token}")[1]
     assert 'class="tabs"' in koerper
     assert 'data-tab="chat"' in koerper and 'data-tab="buehne"' in koerper
-    assert 'id="buehne-panel"' in koerper
     assert 'id="stand-inhalt"' in koerper
-    # Neueste zuerst, und newest=gross/alt=klein+ausgegraut (zwei
-    # verschiedene Klassen).
-    assert koerper.index("Zweite Karte.") < koerper.index("Erste Karte.")
-    assert '<div class="karte">Zweite Karte.' in koerper
-    assert '<div class="karte alt">Erste Karte.' in koerper
-    # Stueckkarte: Setting gesetzt (Haken), Figuren/Geschichte offen.
-    assert "Ein Klassenzimmer" in koerper
-    assert web._TEXT_BUEHNE_OFFEN in koerper
+    panel = _buehne_panel_ausschnitt(koerper)
+    assert panel.count('id="buehne-tafel"') == 1
+    assert "Zweite Karte." in panel
+    # Die aeltere Karte ist nur noch Verlaufsdaten im JSON-Baustein, keine
+    # zweite sichtbare Karte mehr.
+    vor_skript = panel.split('<script type="application/json"')[0]
+    assert "Erste Karte." not in vor_skript
+    assert "Erste Karte." in panel
+    assert "offen" not in panel
+    assert "open" not in panel
 
 
 def test_buehne_tab_ohne_karten_sagt_das(db_pfad, token, basis):
     conn = db.verbinde(db_pfad)
     repo.setze_phase(conn, 1, 4)
+    # Siehe Kommentar oben: ohne das hier wuerde die Fixture-Aufnahme die
+    # "listening"-Statuszeile ausloesen statt des leeren Zustands, den
+    # dieser Test eigentlich prueft.
+    conn.execute("UPDATE aufnahme SET status = 'fertig' WHERE chat_id = ?", (1,))
     conn.commit()
     koerper = hole(f"{basis}/g/{token}")[1]
     assert web._TEXT_BUEHNE_LEER in koerper
 
 
+def test_buehne_status_zeigt_laufende_aufnahme(db_pfad, token, basis):
+    """Die Fixture legt bereits eine Aufnahme mit status='empfangen' an --
+    das ist das "listening"-Signal der Tafel (Task 1), hier einmal direkt
+    benannt statt nur als Nebenwirkung in den anderen Tests neutralisiert."""
+    conn = db.verbinde(db_pfad)
+    repo.setze_phase(conn, 1, 4)
+    conn.commit()
+    koerper = hole(f"{basis}/g/{token}")[1]
+    panel = _buehne_panel_ausschnitt(koerper)
+    assert web._TEXT_BUEHNE_AUFNAHME_LAEUFT in panel
+    assert 'id="buehne-status"' in panel
+
+
 def test_buehne_zeigt_die_freien_festlegungen(db_pfad, token, basis):
+    """Die Festlegung steht weiterhin auf der Seite (Stand-Tab,
+    ``_festlegungen_html``) -- aber seit Task 1 NICHT mehr als eigene Kopie
+    im CoThinker-Panel, das war genau die Duplikation, die der Umbau
+    beseitigt. Die Pruefung ist deshalb auf den Panel-Ausschnitt verengt,
+    sonst bestaetigte der Test aus dem falschen Grund."""
     conn = db.verbinde(db_pfad)
     repo.setze_phase(conn, 1, 4)
     repo.schreibe_festlegung(conn, 1, "stil", "Hoechstens eine Seite je Szene")
     conn.commit()
     koerper = hole(f"{basis}/g/{token}")[1]
     assert "Hoechstens eine Seite je Szene" in koerper
+    panel = _buehne_panel_ausschnitt(koerper)
+    assert "Hoechstens eine Seite je Szene" not in panel
 
 
 def test_dashboard_verlinkt_jede_gruppe_auf_ihre_gruppenseite(tmp_path):

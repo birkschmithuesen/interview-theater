@@ -1265,6 +1265,7 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     szenen = _szenen(conn, chat_id, geschaerft)
     fassungen = szenenfassungen(conn, chat_id, szenen)
     stand = _arbeitsstand(conn, chat_id)
+    _aufnahmestatus = _aufnahmen_nach_status(conn, chat_id)
     from interview_theater import fragen_auswertung as _fragen_auswertung_modul
 
     return {
@@ -1329,15 +1330,32 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # ist interview-frei), siehe buehnenkarte.py/db.py.
         "buehnenkarten": buehnenkarten(conn, chat_id),
         "stueckkarte_felder": stueckkarte_felder(conn, chat_id, figuren, stand),
+        # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
+        # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder
+        # wartet auf Transkription. Ueber ``_aufnahmen_nach_status`` (schon
+        # vom Dashboard genutzt) statt eines neuen Lesevorgangs -- kein
+        # neuer Modellaufruf, keine neue Spalte. Das "thinking"-Signal
+        # (Erzeugungssperre im Bot-Prozess) ist dem Webserver strukturell
+        # unsichtbar und bleibt deshalb aus, siehe ``web._buehne_status_text``.
+        "buehne_aufnahme_laeuft": bool(
+            _aufnahmestatus.get("empfangen") or _aufnahmestatus.get("laeuft")
+        ),
     }
 
 
 def buehnenkarten(
-    conn: sqlite3.Connection, chat_id: int, hoechstens: int = 10,
+    conn: sqlite3.Connection, chat_id: int, hoechstens: int = 20,
 ) -> list[sqlite3.Row]:
     """Das read-only Gegenstueck zu ``repo.buehnenkarten`` (Buehne-Tab der
     Gruppenseite) -- NEUESTE ZUERST, wie dort. Fehlt die Tabelle noch
-    (Deploy vor Bot-Neustart), ist die Liste leer statt ein Fehler."""
+    (Deploy vor Bot-Neustart), ist die Liste leer statt ein Fehler.
+
+    ``hoechstens`` auf 20 angehoben (Task 1, Padua CoThinker-Tab clean,
+    03.10.2026) -- gleich mit ``repo.buehnenkarten``s eigener Vorgabe.
+    Die neue Tafel zeigt zwar immer nur EINE Karte, aber jetzt mit
+    Browser-seitigem Verlauf (◀/▶): mehr Geschichte zum Durchblaettern ist
+    hier kein Mehraufwand mehr, sondern genau das, was die Navigation
+    braucht."""
     try:
         return conn.execute(
             "SELECT * FROM buehnenkarte WHERE chat_id = ? ORDER BY id DESC LIMIT ?",

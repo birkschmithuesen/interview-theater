@@ -258,6 +258,151 @@ _CSS_VEREINT = """
 .roadmap li.aufgabe:hover { background: #f1efe7; }
 """
 
+
+def _css_schale(gewaehlt: str) -> str:
+    """Mobile-App-Shell, Nachbesserung 03.10.2026 (Birk, Handytest 09:19 --
+    woertlich: "die website auf dem handy rutscht hoch und runter, wenn
+    sich unten tastatur oeffnet ... auch nach rechts ist platz und es
+    rutscht hin und her ... soll sich immer optimal an die handy
+    bildschirmgroesse anpassen und sich dann wie eine app anfuehlen").
+
+    Angehaengt als LETZTER Block der zusammengebauten CSS in ``seite()`` --
+    gleiche oder hoehere Spezifitaet als jede Regel davor (``_CSS_VEREINT``,
+    die gescopten Panel-CSS, ``css_rahmen()`` mit ``_TABS_A``/``_TABS_B``,
+    ``css_chat()``), gewinnt also unabhaengig von deren Reihenfolge -- ohne
+    eine einzige Zeile davon anzufassen (sie bleiben Zeichen fuer Zeichen
+    stehen, auch fuer die Tests, die ihren Wortlaut pruefen).
+
+    ``<body>`` wird die EINE Flex-Spalte der Seite: Phasenleiste und Tabs
+    bleiben feste Kopf-/Fusszeilen (``order`` traegt die A/B-Abweichung oben
+    vs. unten), das sichtbare Panel ist der einzige Teil, der waechst und
+    selbst scrollt (``.panel``) -- fuer den Chat gilt das NUR fuer
+    ``.verlauf``: ``.fuss`` wird ein gewoehnliches letztes Flex-Kind statt
+    eines ``position: fixed``-Elements ueber dem Dokument. Genau DAS war
+    der Grund fuer das Rutschen -- eine Tastatur aendert auf dem Telefon den
+    SICHTBAREN Ausschnitt, nicht das Dokument, und ein ``position:
+    fixed``-Fuss haengt in Safari beim Auf- und Zuklappen der Tastatur eine
+    Bewegung nach, statt sich sofort mitzuverschieben. Ohne Dokument-Scroll
+    (``overflow: hidden`` auf ``html``/``body``) gibt es fuer die Tastatur
+    nichts mehr zu verschieben.
+
+    **Eine Ausnahme bleibt bewusst stehen:** der Interview-Modus
+    (``web_gestalt.css_interview()``) braucht den Fuss weiterhin als echten
+    Vollbild-Overlay (``position: fixed``) -- waehrend einer Aufnahme steht
+    kein Textfeld im Fokus (``.zeile`` ist dort ausgeblendet), die
+    Tastatur-Falle greift also gar nicht, und das Vollbild ist dort Absicht
+    (Uhr, Pegel, Stopp-Knopf gross und allein). ``html:not([data-ux-interview="1"])``
+    haelt die neue Regel deshalb aus genau diesem einen Zustand heraus,
+    statt mit ihm um dieselbe Eigenschaft (``position``) zu kaempfen.
+
+    **Das seitliche Padding wandert von ``body`` zu den einzelnen
+    Kopf-/Inhaltselementen** (Browserlauf 03.10.2026, Regression gefangen
+    von ``tests/e2e/test_web_gestalt_e2e.py::
+    test_die_eingabezeile_passt_aufs_telefon`` -- derselbe Fehler, den jener
+    Test schon einmal belegt hat: "Senden" halb ausserhalb des Bildes).
+    Grund: ``.fuss`` war als ``position: fixed`` Element am VIEWPORT
+    verankert und ignorierte das Padding von ``body`` komplett -- seine
+    eigene, schon vorhandene Breite (``.7rem`` aus ``_CSS_CHAT``) war die
+    EINZIGE seitliche Einruekung. Jetzt, als gewoehnliches Flex-Kind,
+    LAEGE ``.fuss`` zusaetzlich INNERHALB von ``body``s Padding -- macht
+    aus ``.7rem + 1.2rem`` auf jeder Seite genug, um die Knopfreihe auf
+    einem 390px-Telefon zu sprengen. Deshalb bekommt ``body`` hier nur noch
+    sein OBERES Padding, und Roadmap/Tabs/Panel tragen ihr seitliches
+    Padding selbst -- ausser ``.panel-chat``, das es wieder auf Null setzt
+    und an seine Kinder (``h1``, ``.verlauf``, ``.tippt``) weitergibt, damit
+    ``.fuss`` padding-frei bleibt und wieder genau seine alte, eigene
+    Breite bekommt.
+
+    **Zwei weitere Regressionen, am echten Browser gefangen (Browserlauf
+    03.10.2026), nicht am CSS-Text zu sehen:**
+
+    1. ``margin: 0`` auf ``.panel``: die gescopten Panel-CSS (``web.
+       _CSS_GRUPPE``/``_CSS_TEXTBUCH``/``web_chat._CSS_CHAT``) setzen auf
+       ihrem jeweiligen ``body`` -- hier zu ``.panel-stand``/``.panel-
+       textbuch``/``.panel-chat`` geworden -- ``margin: 0 auto``, fuer die
+       Standalone-Seiten richtig (Zentrieren ueber ``max-width``). Ein
+       Flex-Kind mit automatischen Seitenraendern wird vom
+       Stretch-Algorithmus NICHT mehr auf die Breite des Elters
+       gestreckt, sondern ueber seinen eigenen Inhalt bemessen -- gemessen
+       lief ``.panel-chat`` so auf 405px statt 390px hinaus, weil seine
+       breiteste Zeile (Eingabefeld plus zwei Knoepfe) mehr Raum wollte,
+       als der Bildschirm hatte, und die automatischen Raender daraus
+       keine Grenze mehr machten.
+    2. ``min-width: 0`` auf ``.zeile`` und dem Eingabefeld: als
+       ``position: fixed`` zwang ``left: 0; right: 0`` den Fuss auf exakt
+       die Viewport-Breite, UNABHAENGIG vom Platzbedarf seiner Kinder --
+       ein ``<input>`` schrumpfte darin zuverlaessig, weil der Rahmen
+       selbst keinen Spielraum liess. Als gewoehnliches Flex-Kind gilt das
+       nicht mehr von selbst: ``<input>`` hat einen eigenen, vom Browser
+       vorgegebenen Mindestinhalt (``min-width: auto``), der ohne
+       ``min-width: 0`` Vorrang vor ``flex-shrink`` bekommt und die ganze
+       Zeile -- und mit ihr Panel, Verlauf und Fuss -- ueber die
+       Telefonbreite hinaus aufblaeht.
+
+    Beide Regressionen waren an rein textlichen CSS-Tests unsichtbar und
+    nur am echten, gerenderten Layout zu finden; Belege und Zahlen stehen
+    in ``docs/ux-padua/BERICHT.md``, Abschnitt „Mobile-App-Shell,
+    Nachbesserung 03.10."."""
+    tabs_reihenfolge = "order: 5;" if gewaehlt == "a" else "order: 1;"
+    return f"""
+html {{ height: 100%; overflow-x: hidden; }}
+body {{ display: flex; flex-direction: column; align-items: stretch;
+        margin: 0 auto; padding: 1rem 0 0; overflow: hidden;
+        height: 100vh; height: 100dvh; height: var(--vh, 100dvh); }}
+.roadmap {{ flex: 0 0 auto; order: 0; min-width: 0;
+            padding-left: 1.2rem; padding-right: 1.2rem; }}
+.tabs {{ position: static; flex: 0 0 auto; min-width: 0; {tabs_reihenfolge}
+         padding-left: 1.2rem; padding-right: 1.2rem;
+         padding-bottom: calc(.3rem + env(safe-area-inset-bottom)); }}
+.panel {{ flex: 1 1 auto; order: 2; min-width: 0; min-height: 0; margin: 0;
+          overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+          padding-left: 1.2rem; padding-right: 1.2rem; padding-bottom: 1rem; }}
+.panel-chat {{ display: flex; flex-direction: column; overflow-y: hidden;
+               padding-left: 0; padding-right: 0; padding-bottom: 0; }}
+.panel-chat > h1, .panel-chat > p, .panel-chat .tippt {{
+  padding-left: 1.2rem; padding-right: 1.2rem;
+}}
+.panel-chat .verlauf {{ flex: 1 1 auto; min-width: 0; min-height: 0;
+                        overflow-y: auto; overflow-x: hidden;
+                        overscroll-behavior: contain;
+                        -webkit-overflow-scrolling: touch;
+                        padding-left: 1.2rem; padding-right: 1.2rem; }}
+html:not([data-ux-interview="1"]) .panel-chat .fuss {{
+  position: static; flex: 0 0 auto; min-width: 0;
+  left: auto; right: auto; top: auto; bottom: auto;
+  margin-left: 0; margin-right: 0;
+  padding-bottom: calc(.8rem + env(safe-area-inset-bottom));
+}}
+.zeile {{ min-width: 0; }}
+.zeile input {{ font-size: 16px; touch-action: manipulation; min-width: 0; }}
+.zeile button, .tabs button, .leiste button,
+#interview, #ptt, #senden, #brainstorm {{ touch-action: manipulation; }}
+"""
+
+
+#: Setzt ``--vh`` aus dem ``visualViewport`` (iOS Safari ignoriert
+#: ``interactive-widget=resizes-content`` und veraendert nur ihn, nicht die
+#: Layout-Groesse) -- der Fallback ``100dvh`` in ``_css_schale`` greift
+#: ueberall sonst sofort, bevor dieses Skript ueberhaupt laeuft. CSSOM
+#: (``style.setProperty``), kein ``style=``-Attribut (AGENTS.md, CSP ohne
+#: ``'unsafe-inline'``).
+_VH_JS = """
+(function () {
+  var wurzel = document.documentElement;
+  function setze() {
+    var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    wurzel.style.setProperty('--vh', h + 'px');
+  }
+  setze();
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', setze);
+  } else {
+    window.addEventListener('resize', setze);
+  }
+})();
+"""
+
 #: Hoechstens ein Verbindungsaufbau zum Strom je drei Sekunden -- derselbe
 #: Abstand, den EventSource von sich aus nimmt, aber nur, solange es einen
 #: Anlass gibt (Tippanzeige, neue Blase, laufende Zeile).
@@ -310,8 +455,14 @@ _STROM_JS = """
     // Nur mitscrollen, wenn der Chat vorn ist und man schon unten war --
     // sonst zoege der Strom das Arbeitsstand-Panel mit oder risse eine
     // Leserin aus dem Verlauf weiter oben.
+    //
+    // Mobile-App-Shell (03.10.2026): ``verlauf`` scrollt seit dieser Karte
+    // IN SICH selbst (``.panel-chat .verlauf { overflow-y: auto }`` aus
+    // ``web_vereint._css_schale``), nicht mehr das Dokument -- deshalb
+    // zaehlt seine eigene ``scrollTop``/``scrollHeight``, nicht die des
+    // Fensters.
     if (verlauf.offsetParent === null) { return false; }
-    return window.innerHeight + window.scrollY >= document.body.scrollHeight - 120;
+    return verlauf.clientHeight + verlauf.scrollTop >= verlauf.scrollHeight - 120;
   };
   var zeige = function (id, text) {
     var unten = untenDran();
@@ -329,7 +480,7 @@ _STROM_JS = """
     // und gefiltert wird serverseitig (web_chat.sichere_html) -- erst die
     // FERTIGE Nachricht geht durch den Filter.
     b.el.textContent = text;
-    if (unten) { window.scrollTo(0, document.body.scrollHeight); }
+    if (unten) { verlauf.scrollTop = verlauf.scrollHeight; }
   };
   // Steht die Nachricht, auf die eine fertige Blase wartet, im Verlauf, faellt
   // die Blase weg -- vorher nicht, sonst blitzt eine Luecke auf.
@@ -784,13 +935,17 @@ _VEREINT_JS = """
         var neu = doc.body ? doc.body.innerHTML : null;
         if (!neu || neu === panelLetzter) { return; }
         var zustand = offene(panel);
-        var y = window.scrollY;
+        // Mobile-App-Shell (03.10.2026): ``panel`` ist seit dieser Karte
+        // selbst der Scroll-Container (``.panel { overflow-y: auto }``),
+        // nicht mehr das Dokument -- die Fassung wird also an seiner
+        // eigenen ``scrollTop`` gesichert, nicht an ``window.scrollY``.
+        var y = panel.scrollTop;
         panel.innerHTML = neu;
         panelLetzter = neu;
         panel.querySelectorAll('details > summary').forEach(function (el) {
           if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
         });
-        window.scrollTo(0, y);
+        panel.scrollTop = y;
       })
       .catch(function () {})
       .finally(function () { laeuft = false; });
@@ -1051,12 +1206,21 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         css += web_gestalt.css_interview()
     css += scope_css(web_gestalt.css_stand(), ".panel-stand")
     css += scope_css(web_gestalt.css_textbuch(), ".panel-textbuch")
+    # Mobile-App-Shell (03.10.2026) zuletzt von allem: sie gewinnt gegen
+    # ``_TABS_A``/``_TABS_B``/``_CSS_CHAT`` per Spezifitaet oder Reihenfolge,
+    # ohne eine Zeile davon anzufassen (siehe Docstring von ``_css_schale``).
+    css += _css_schale(web_gestalt.entwurf())
     # web_chat._js() und nicht die rohe Konstante _CHAT_JS: sie traegt
     # unersetzte Platzhalter (__POLL_MS__ usw., siehe web_chat._js()-Docstring)
     # -- nur _js() liefert lauffaehiges Skript (Abweichung vom Plan-Kopf-
     # Beispiel, das die Konstante direkt anhaengt).
     skript = (
-        _VEREINT_JS.replace("__TABS__", json.dumps(list(tabs)))
+        # Zuerst: ohne dieses Skript faellt iOS Safari auf den
+        # ``100dvh``-Fallback aus ``_css_schale`` zurueck, solange die
+        # Tastatur offen ist -- sichtbar als derselbe Rutscher, den die
+        # Karte beheben soll.
+        _VH_JS
+        + _VEREINT_JS.replace("__TABS__", json.dumps(list(tabs)))
         .replace("__VORGABE__", vorgabe)
         .replace("__BASIS__", f"{token}/")
         .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")

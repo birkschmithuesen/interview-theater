@@ -389,6 +389,15 @@ GEAENDERT: dict[str, str] = {
         "Nutzertext aendert sich (tests/test_web_vereint.py, "
         "tests/test_web_textbuch.py)."
     ),
+    "web._CSS_GEMEINSAM": (
+        "Mobile-App-Shell, Nachbesserung 03.10.2026 (Birk-Befund 09:19, "
+        "Handytest): ``html { overflow-x: hidden; }`` dazu, "
+        "``overflow-x: hidden;`` an die bestehende ``body``-Regel "
+        "angehaengt -- kein horizontales Scrollen mehr auf irgendeiner "
+        "Seite dieses Moduls. Reines Layout-CSS, kein Nutzertext "
+        "(docs/ux-padua/BERICHT.md, Abschnitt \"Mobile-App-Shell, "
+        "Nachbesserung 03.10.\")."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

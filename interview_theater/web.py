@@ -465,12 +465,37 @@ _BEARBEITEN_JS = """
 })();
 """
 
+#: Mobile-App-Shell, Nachbesserung 03.10.2026 (Birk-Befund 09:19): dieselbe
+#: Zeile an allen drei Stellen, die ein ``<head>`` von Hand bauen (``_seite``,
+#: ``leitfaden_html``, ``nicht_gefunden_html``). ``viewport-fit=cover``
+#: erlaubt ``env(safe-area-inset-*)`` (Notch/Home-Indikator);
+#: ``interactive-widget=resizes-content`` laesst Chrome/Android den
+#: sichtbaren Bereich wirklich verkleinern, wenn die Tastatur aufgeht, statt
+#: ihn nur zu ueberlagern -- ohne das blieb ``100dvh`` unter der Tastatur
+#: hoch, und der Fuss schwamm darueber. iOS Safari ignoriert den Zusatz
+#: (daher der ``visualViewport``-Umweg in ``web_vereint._VH_JS``).
+_VIEWPORT_META = (
+    '<meta name="viewport" content="width=device-width, initial-scale=1, '
+    'viewport-fit=cover, interactive-widget=resizes-content">'
+)
+
+#: Mobile-App-Shell (03.10.2026): kein horizontales Scrollen auf
+#: irgendeiner Seite -- ``100vw`` ist auf dem Telefon oft breiter als der
+#: sichtbare Bereich (Scrollbar-Kompensation, Rundung), und genau das
+#: erzeugt das seitliche Wackeln aus Birks Befund. Gilt fuer jede Seite
+#: dieses Moduls, nicht nur die vereinte -- Dashboard, Leitfaden und
+#: Probenansicht haben keinen legitimen Grund, seitlich zu scrollen.
+#: Keine Erklaerung dazu IM CSS-Text (anders als sonst in diesem Projekt
+#: ueblich): ``_CSS_GEMEINSAM`` ist nicht in ``BLEIBT_DEUTSCH``
+#: (tests/test_sprache_texte.py) eingetragen, ein deutscher CSS-Kommentar
+#: darin wuerde dort als unuebersetzte Konstante auffallen.
 _CSS_GEMEINSAM = """
 ul.fragen { list-style: none; padding: 0; margin: 0; }
 ul.fragen li { margin: .25em 0; }
 pre.leitfaden { white-space: pre-wrap; font-family: inherit; margin: 0; }
 * { box-sizing: border-box; }
-body { margin: 0; padding: 1rem 1.2rem 3rem;
+html { overflow-x: hidden; }
+body { margin: 0; padding: 1rem 1.2rem 3rem; overflow-x: hidden;
        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
        line-height: 1.45; }
 h1 { font-size: 1.5rem; margin: 0 0 .8rem; }
@@ -1065,7 +1090,7 @@ def _seite(
     return (
         "<!doctype html>\n"
         f'<html lang="{html.escape(lang or sprache.code())}"><head><meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f"{_VIEWPORT_META}\n"
         f"<title>{html.escape(titel)}</title>\n"
         f"<style>{_CSS_GEMEINSAM}{css}</style></head>\n<body{koerper_attribute}>\n"
         f"{koerper}\n"
@@ -3352,7 +3377,7 @@ def leitfaden_html(daten: dict) -> str:
     return (
         "<!doctype html>\n"
         f'<html lang="{html.escape(sprache.code())}"><head><meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f"{_VIEWPORT_META}\n"
         f"<title>{html.escape(T._TITEL_LEITFADEN.format(titel=titel))}</title>\n"
         f"<style>{_CSS_LEITFADEN + web_gestalt.css_rahmen()}</style></head>\n<body>\n"
         f"<h1>{_t(titel)}</h1>\n{koerper}\n{zurueck}\n"
@@ -3404,7 +3429,7 @@ def nicht_gefunden_html() -> str:
     return (
         "<!doctype html>\n"
         f'<html lang="{html.escape(sprache.code())}"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"{_VIEWPORT_META}"
         f"<title>{titel}</title>"
         f"<style>{_CSS_GEMEINSAM}{_CSS_GRUPPE}</style></head>"
         f"<body><h1>{titel}</h1>"

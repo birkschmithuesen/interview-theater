@@ -403,3 +403,158 @@ rechnet das Dashboard gegen 5.0.
   `web_gestalt.py` 1916 Zeilen neu. Die Zahlen oben („vier/zwei Zeilen")
   gelten damit nur noch fuer den Plan-Teil — das Dashboard ist mehr als
   Gestaltung, es liest drei neue Werte.
+
+## Mobile-App-Shell, Nachbesserung 03.10.
+
+Birks Befund, Handytest 09:19, woertlich: „die website auf dem handy
+rutscht hoch und runter, wenn sich unten tastatur oeffnet. auch nach
+rechts ist platz und es rutscht hin und her. die website soll sich immer
+optimal an die handy bildschirmgroesse anpassen und sich dann wie eine app
+anfuehlen." Genau das war die Luecke in diesem Bericht: die Gestaltung
+(Tokens, Komponenten-CSS) war dokumentiert, der **Seitenrahmen** — ob das
+Dokument selbst scrollt oder nur ein Ausschnitt darin — nicht.
+
+**Ursache.** Vor dieser Nachbesserung schwamm die ganze vereinte Seite auf
+normalem Dokument-Scroll, mit `.fuss` (Chat-Eingabezeile) und in Entwurf A
+`.tabs` als `position: fixed` am Viewport verankert, dazu grossem
+`padding-bottom` an `body`, um Platz fuer sie frei zu lassen. Das ist die
+klassische, auf dem Telefon beruechtigte Kombination: eine Tastatur
+aendert nur den SICHTBAREN Ausschnitt (visual viewport), nicht das
+Dokument (layout viewport) — iOS Safari zieht ein `position: fixed`
+Element beim Auf- und Zuklappen der Tastatur erst mit Verzug nach, und
+genau das sieht aus wie Rutschen.
+
+**Die Umsetzung** (`interview_theater/web_vereint.py`,
+`_css_schale()`/`_VH_JS`, ausschliesslich fuer `seite()`, NICHT fuer
+Dashboard/Leitfaden/Probenansicht — die scrollen weiterhin normal, haben
+keinen Fuss und keine Tastatur-Falle):
+
+- `html`/`body` werden `height: 100dvh` (mit `100vh`-Fallback fuer
+  Browser ohne `dvh` und einem von `_VH_JS` aus `visualViewport`
+  gesetzten `--vh` fuer iOS Safari, das `interactive-widget=
+  resizes-content` ignoriert) und `overflow: hidden` — das Dokument
+  selbst scrollt nicht mehr.
+- `body` ist die EINE Flex-Spalte: Phasenleiste und Tabs sind feste
+  Kopf-/Fusszeilen (`order` traegt die A/B-Abweichung oben/unten), das
+  sichtbare Panel ist der einzige Teil, der waechst und selbst scrollt
+  (`overflow-y: auto`). Im Chat gilt das nur fuer `.verlauf` — `.fuss`
+  wird ein gewoehnliches letztes Flex-Kind, `position: static` statt
+  `position: fixed`.
+- Drei Viewport-Metas (`web._VIEWPORT_META`, an allen drei Stellen, die
+  ein `<head>` von Hand bauen) bekommen `viewport-fit=cover` (fuer
+  `env(safe-area-inset-bottom)` an Fuss und Tabs) und
+  `interactive-widget=resizes-content` (der spezifikationsgemaesse Weg,
+  Chrome/Android die Tastatur wirklich den sichtbaren Bereich verkleinern
+  zu lassen statt ihn nur zu ueberlagern).
+- `html,body { overflow-x: hidden }` global (`web._CSS_GEMEINSAM`, gilt
+  fuer JEDE Seite dieses Moduls) plus der eine gefundene `100vw` in
+  `web_gestalt._MOMENTE_B` (`#ux-ansage b`, die Akt-Ansage) auf `100%`
+  seines schon auf den sichtbaren Bereich geklammerten Elternkastens
+  umgestellt — `100vw` zaehlt auf manchen Telefonen breiter als der
+  sichtbare Bereich und war Birks zweiter Befund.
+- Die **eine bewusste Ausnahme**: der Interview-Modus
+  (`web_gestalt.css_interview()`) haelt `.fuss` als echtes
+  Vollbild-Overlay (`position: fixed`), weil waehrend einer Aufnahme kein
+  Textfeld im Fokus steht (`.zeile` ist dort ausgeblendet) — die
+  Tastatur-Falle greift dort gar nicht, und das Vollbild ist Absicht.
+  `html:not([data-ux-interview="1"])` haelt die neue Regel aus genau
+  diesem Zustand heraus.
+- Scroll-Logik, die vorher `window.scrollY`/`document.body.scrollHeight`
+  las (Auto-Scroll des Chats ans Ende, Fassung-Scrollposition beim
+  Nachladen des Stand-Panels halten), liest jetzt die jeweils wirklich
+  scrollende Flaeche (`#verlauf`, das sichtbare `.panel`) — sonst waere
+  der Chat beim Eintreffen neuer Nachrichten nicht mehr selbst
+  nachgescrollt, weil das Dokument ja gar nicht mehr scrollt.
+
+**Zwei Regressionen auf dem Weg, beide am echten Browser gefangen, keine
+geraten.** Beide zeigen denselben Mechanismus: etwas, das auf `.fuss` nur
+wirkte, WEIL es `position: fixed` war (und damit Breiten- und
+Seitenrahmen-Regeln seiner Vorfahren ignorierte), wirkte nach dem Umbau
+auf einmal zusaetzlich mit.
+
+1. **Doppeltes Padding.** `body`s eigenes seitliches Padding (1,2rem) kam
+   zum `.fuss`-eigenen (0,7rem aus `_CSS_CHAT`) hinzu, weil `.fuss` jetzt
+   ein gewoehnliches Kind von `body` ist statt am Viewport vorbei zu
+   zeigen — auf einem 390px-Telefon reichte das, um den „Senden"-Knopf
+   wieder halb aus dem Bild zu schieben: genau der Fehler, den
+   `tests/e2e/test_web_gestalt_e2e.py::
+   test_die_eingabezeile_passt_aufs_telefon` schon einmal belegt hatte.
+   Die Korrektur: das seitliche Padding wandert von `body` zu den
+   einzelnen Elementen (`.roadmap`, `.tabs`, `.panel`), und `.panel-chat`
+   setzt es wieder auf null und reicht es an seine Kinder weiter — ausser
+   an `.fuss`, das dadurch wieder genau seine alte, eigene Breite bekommt.
+2. **`margin: 0 auto` bremst den Stretch.** Die gescopten Panel-CSS
+   (`web._CSS_GRUPPE`/`_CSS_TEXTBUCH`, `web_chat._CSS_CHAT`) setzen auf
+   ihrem jeweiligen `body` — nach dem Scopen `.panel-stand`/
+   `.panel-textbuch`/`.panel-chat` — `margin: 0 auto`, fuer die
+   Standalone-Seiten richtig (Zentrieren ueber `max-width`). Ein
+   Flex-Kind mit automatischen Seitenraendern wird vom
+   Stretch-Algorithmus NICHT mehr auf die Breite des Elters gestreckt,
+   sondern ueber seinen eigenen Inhalt bemessen — gemessen (ein echter
+   Browserlauf, kein Rechnen auf Papier) lief `.panel-chat` so auf 405px
+   statt 390px hinaus, weil seine breiteste Zeile (Eingabefeld plus zwei
+   Knoepfe) mehr Raum wollte, als der Bildschirm hatte, und die
+   automatischen Raender daraus keine Grenze mehr machten, die das
+   begrenzt haette. Korrektur: `.panel { margin: 0 }`, mit Begruendung im
+   Quelltext, damit die naechste Person, die hier etwas aendert, nicht
+   dieselbe Stunde Fehlersuche braucht.
+
+   Beide Regressionen waren an rein textlichen CSS-Tests (``tests/
+   test_web_gestalt_*.py``) UNSICHTBAR — sie pruefen, was im CSS-Text
+   steht, nicht, was daraus im Browser an Pixeln wird. Erst
+   `tests/e2e/test_web_app_shell_e2e.py` (siehe unten) und der schon
+   bestehende `test_die_eingabezeile_passt_aufs_telefon` haben sie
+   gezeigt.
+
+**Abnahme** (`tests/e2e/test_web_app_shell_e2e.py`, neu): auf jedem Tab
+einer Phase-4-Gruppe (Chat, Arbeitsstand, Textbuch, Buehne) und auf der
+Probenansicht `document.documentElement.scrollWidth <= window.innerWidth`
+bei zwei Telefonbreiten (390×844, iPhone-13-aehnlich; 412×915,
+Pixel-7-aehnlich), dazu `getComputedStyle(html).overflowX === 'hidden'`
+als Pruefung der Regel selbst, nicht nur ihrer zufaelligen Erfuellung.
+Und: das Fokussieren von `#eingabe` laesst `window.scrollY` auf `0` und
+haelt `.fuss` vollstaendig im sichtbaren Bereich — dazu zwei
+strukturelle Pruefungen (`getComputedStyle(body).overflowY === 'hidden'`,
+`getComputedStyle(#fuss).position !== 'fixed'`), die direkt den Umbau
+und nicht nur sein beobachtbares Verhalten belegen (ein Headless-Chromium
+hat keine echte Tastatur — ohne diese zwei Zeilen waeren beide Tests
+mit und ohne die Schale gleich gruen gewesen, siehe Selbstpruefung
+unten).
+
+**Selbst gepruefte Empfindlichkeit** (nicht nur behauptet): beide neuen
+Testdateien wurden mit der Schale absichtlich deaktiviert
+(`_css_schale`-Aufruf durch einen Leerstring ersetzt, lokal, nie
+committet) gegen den echten Browser gefahren — beide neuen
+`getComputedStyle`-Pruefungen in
+`test_eingabefeld_fokussieren_verschiebt_das_dokument_nicht` schlagen dann
+fehl (`overflowY: 'auto'` statt `'hidden'`), die reinen
+`scrollWidth`/`scrollY`/Bounding-Box-Pruefungen dagegen NICHT — sie
+haetten die Regression allein nicht gefangen, weil ein Headless-Chromium
+ohne echte Tastatur `.fuss` schon als `position: fixed` zuverlaessig im
+Bild haelt. Deshalb stehen die zwei strukturellen Pruefungen zusaetzlich
+zu den woertlichen Abnahme-Kriterien der Karte.
+
+Nicht angefasst: `web_gestalt._TABS_A`/`_TABS_B`/`_BASIS` und
+`web_chat._CSS_CHAT` bleiben zeichenidentisch stehen (auch fuer
+`tests/test_web_gestalt_js.py::test_a_legt_die_tabs_unten_und_b_oben`,
+das ihren Wortlaut — `position: fixed`/`position: sticky` — weiterhin
+genauso prueft wie vorher). Die neue Schale gewinnt gegen sie per
+Ladereihenfolge (`_css_schale()` wird in `seite()` als LETZTES angehaengt,
+gleiche oder hoehere Selektor-Spezifitaet) und gegen den Interview-Modus
+per zusaetzlicher `:not()`-Bedingung — keine der bestehenden Dateien
+musste fuer diese Karte umgeschrieben werden.
+
+**Bewusst nicht repariert:** am Laptop lief `.fuss` vor dieser Karte ueber
+die volle Fensterbreite (Hintergrund/Rahmen randlos, Inhalt auf 46rem
+zentriert — „Uhr links aussen, Knoepfe rechts aussen", siehe
+`web_gestalt._CHAT_FLAECHEN`-Kommentar). Mit `.fuss` als normalem
+Flex-Kind von `.panel-chat`, das wiederum `body`s `max-width: 46rem`
+erbt, ist diese eine Zeile jetzt genauso breitenbegrenzt wie der Rest der
+Seite — der randlose Streifen auf breiten Bildschirmen ist weg. Kein
+automatisierter Test haelt das fest (nur Screenshots zur Ansicht durch
+Birk), und eine echte Reparatur braeuchte `.fuss` dazu, aus `body`s
+`max-width` UND Padding gleichzeitig auszubrechen — das war der Karte
+diese Nachbesserung nicht wert gegen das Risiko, den eigentlichen,
+getesteten Telefon-Fix wieder zu verkomplizieren. Auf dem Telefon (die
+Groesse, um die es Birks Befund ging) ist das ohnehin nie sichtbar
+gewesen: dort war `.fuss` schon immer so breit wie der Bildschirm.

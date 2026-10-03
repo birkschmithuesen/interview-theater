@@ -780,7 +780,13 @@ _MOMENTE_B = """
                background: var(--grund);
                border-top: 1px solid var(--signal);
                border-bottom: 1px solid var(--signal); padding: .7rem 1.4rem;
-               max-width: calc(100vw - 1.5rem); text-align: center; }
+               /* Mobile-App-Shell (03.10.2026): 100% des eigenen, schon
+                  auf den sichtbaren Bereich geklammerten Elternkastens
+                  (#ux-ansage { inset: 0 }) -- 100vw zaehlt auf dem Telefon
+                  gelegentlich breiter als der sichtbare Ausschnitt
+                  (Scrollbar-Kompensation, Rundung) und war Teil des
+                  seitlichen Wackelns aus Birks Befund. */
+               max-width: calc(100% - 1.5rem); text-align: center; }
 """
 
 #: Die Belohnung: klein, einmal, verschwindet von selbst.

@@ -664,6 +664,15 @@ _CHAT_JS = """
   }
 
   function nachUnten() {
+    // Mobile-App-Shell (03.10.2026, web_vereint._css_schale): auf der
+    // vereinten Seite scrollt ``verlauf`` seit dieser Karte in sich selbst,
+    // das Dokument gar nicht mehr -- die zweite Zeile ist dort ein No-Op.
+    // Auf der (heute unerreichbaren, aber weiter unit-getesteten)
+    // Chat-Einzelseite traegt umgekehrt nur ``window.scrollTo`` etwas bei,
+    // weil ``verlauf`` dort kein eigenes Overflow hat. Beide Zeilen decken
+    // je einen der beiden Faelle ab, ohne dass dieses Skript wissen muss,
+    // auf welcher der beiden Seiten es laeuft.
+    verlauf.scrollTop = verlauf.scrollHeight;
     window.scrollTo(0, document.body.scrollHeight);
   }
 

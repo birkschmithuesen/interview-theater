@@ -45,7 +45,7 @@ Module unter `interview_theater/`:
 | `kernzitate.py` | Die Auswahl der Belegzitate zum Kernthema (`waehle`), rückwärtskompatible Basis der Schärfung — dieselbe Prüf- und Speicherlogik |
 | `kosten.py` | Was ein Workshoptag kostet: Preistabelle (aus `scripts/pruefe_prompts.py` hierher gezogen), Kostenrechnung je Aufruf, der Tagesdeckel je Gruppe mit Reset um Mitternacht Europe/Rome, `KostendeckelErreicht` und die Pausenmeldung. **Kein SQL** — liest über `repo.kostensumme_seit` |
 | `kuerzung.py` | Kürzen als eigener Weg (30.09.2026, C4/C10): die feste Regie-Notiz (25 %), die Zielwahl (Szenennummer → `szene.starte`, keine → `kurzgeschichte.starte`) und `nummer_aus_wert`. **Kein eigener Modellaufruf** — beide Wege geben an ihren vorhandenen Thread ab, und beide hängen ihre Fassung an (`szenenfassung`). Eine Kürzung erzeugt **nie** eine neue Szenenfolge |
-| `roadmap.py` | Die Phasenuebersicht als Daten (30.09.2026): die sieben Phasen mit ihren Aufgaben, je `erledigt`/`offen`/`laeuft` und einem Sprungziel. Reine Leseabfrage wie `fehlstellen`; `aus_daten` ist rein, `register` liest ueber `repo`, `web_daten.roadmap` read-only. Die **Namen** der Aufgaben sind per Test an `phasentexte.PARAMETER` genagelt — keine zweite Wunschliste |
+| `roadmap.py` | Die Phasenuebersicht als Daten (30.09.2026): die sieben Phasen mit ihren Aufgaben, je `erledigt`/`offen`/`laeuft` und einem Sprungziel. Reine Leseabfrage wie `fehlstellen`; `aus_daten` ist rein, `register` liest ueber `repo`, `web_daten.roadmap` read-only. Die **Namen** der Aufgaben sind per Test an `phasentexte.PARAMETER` genagelt — keine zweite Wunschliste. Seit 03.10.2026 auch `werkbank(lage, aktuelle_phase)`: je Phase ihre Attribute mit `erledigt`/`offen`/`spaeter` (die Quelle der read-only Werkbank in Padua und des Steppers), plus `begriffe_detail` als defensiver Haken |
 | `ruecknahme.py` | Die Ruecknahme eines Erkennerlaufs (01.10.2026, Karte U): welche Tabellen und Spalten verfolgt werden (`VERFOLGT`, `MATERIAL`, `AUSSEN`) und wie aus zwei Schnappschuessen um `wende_an` die Ruecknahme-Schritte werden (`schritte`). **Reine Funktionen, kein SQL, kein Nutzertext** -- alles SQL steht in `repo.py`, die Wortlaute in `knoepfe/texte.py`. `db` wird nur fuer die Spaltenliste gelesen (`_tabellenspalten_aus_schema`), damit eine neue Spalte automatisch mitverfolgt wird |
 | `laengen.py` | Laengen-Rhythmus je Szene (30.09.2026, Karte R): der eine Wortzaehler (`zaehle_woerter`), der Rahmen je Form aus dem Profil, die Rhythmus-Muster, das Budget je Szene, der Faktor und die Prompt-Bausteine. **Kein Modellaufruf, keine Datenbank** (ausser `setze_faktor`, das ueber `repo` geht). Ohne `[laengen] aktiv = true` im Profil liest es niemand |
 | `sprachpass.py` | Der letzte Sprachpass (30.09.2026, Karte R): vier Regex-Zaehler (Gedankenstriche, "not X but Y", Adjektiv-Dreierketten, Fazitsatz), Grenzwerte aus dem Profil, die Regie-Notiz und der **Zitatschutz** ueber `zitat.pruefe`. **Kein Modellaufruf**; `gepruefte_zitate` ist die einzige Funktion mit Datenbankzugriff |
@@ -79,7 +79,7 @@ Module unter `interview_theater/`:
 | `web_kanal.py` | Der Web-Kanal (30.09.2026): `WebKanal` ersetzt `telegram.Telegram`, wenn `IT_KANAL=web`. Liest Browser-Ereignisse aus der Tabelle `web_post` als Telegram-förmige Updates und schreibt die Antworten dorthin zurück — `bot.schleife` bleibt unverändert, `knoepfe/` wird nicht angefasst. Kein SQL (alles über `repo`), kein Modell |
 | `web_chat.py` | Die Chatansicht im Browser (30.09.2026): HTML, CSS, Vanilla-JS und alle Handler unter `/g/<token>/chat`. `web.py` bekommt nur die Routing-Zeilen. Trägt den serverseitigen HTML-Filter (`sichere_html`), die Knopfprüfung gegen die hängende Leiste (`knopf_erlaubt`), den Audio-Upload, die zwei Aufnahme-Wege und die sequentielle Warteschlange im JS. Kein SQL, kein Modell |
 | `web_vereint.py` | Die vereinte Gruppenseite (30.09.2026): drei Panels (Chat · Arbeitsstand · Textbuch) in **einem** Dokument, Hash-Tabs, die Phasenleiste mit Klick, der SSE-Kanal `/g/<token>/chat/strom` und `scope_css`. `web.py` bekommt davon nur Routing-Zeilen |
-| `web_gestalt.py` | Die Gestaltung der Weboberflaeche (01.10.2026, Padua): ein Block Design-Tokens je Entwurf (A „Terminal zuerst", B „Buehne zuerst"), das Komponenten-CSS, das Effekt-JavaScript und die englischen Mikrotexte. Eingehaengt an **neun** Zeilen (sechs in `web_vereint.seite`, je eine in `web.textbuch_html`/`leitfaden_html`/`dashboard_html`; das Dashboard nur mit `[web] dashboard_gestaltet`) — **kein SQL, kein Modellaufruf, kein Endpunkt, kein neues Markup** (zwei Ausnahmen in `web.py`: die Umstellung in `web.gruppe_koerper` und das gestaltete Dashboard-Markup `_fortschritt_html`/`_achtung_html`/`_dashboard_inhalt_html`, nur mit `[web] dashboard_gestaltet`). Umschalten: `IT_UX_ENTWURF` |
+| `web_gestalt.py` | Die Gestaltung der Weboberflaeche (01.10.2026, Padua): ein Block Design-Tokens je Entwurf (A „Terminal zuerst", B „Buehne zuerst"), das Komponenten-CSS, das Effekt-JavaScript und die englischen Mikrotexte. Eingehaengt an **neun** Zeilen (sechs in `web_vereint.seite`, je eine in `web.textbuch_html`/`leitfaden_html`/`dashboard_html`; das Dashboard nur mit `[web] dashboard_gestaltet`) — **kein SQL, kein Modellaufruf, kein Endpunkt, kein neues Markup** (zwei Ausnahmen in `web.py`: die Umstellung in `web.gruppe_koerper` und das gestaltete Dashboard-Markup `_fortschritt_html`/`_achtung_html`/`_dashboard_inhalt_html`, nur mit `[web] dashboard_gestaltet`). Dazu seit der read-only Werkbank eine zehnte in `web_vereint.seite` (`css_werkbank()`, nur mit `[web] workbench_bearbeitbar = false`). Umschalten: `IT_UX_ENTWURF` |
 
 `scripts/loeschen.py` erfüllt die Löschzusage (löscht eine Gruppe vollständig,
 Datenbank und Audioverzeichnis), `scripts/rauchtest.py` prüft echte
@@ -148,6 +148,7 @@ Versehen).
 | Warum sieht die Weboberflaeche so aus? | `web_gestalt.TOKENS` → `css_rahmen` → `docs/ux-padua/BERICHT.md` |
 | Warum hat sich der Text vor der Anzeige geändert? | `prueflauf.pruefe_szene` → `schleife.schliesse` → Tabelle `prueflauf` |
 | Wo steht Phase 6/7 gerade? | `ueberarbeitung.weiter_6`/`weiter_7` → `aktuelle_szene` |
+| Was zeigt die Werkbank in Padua? | `roadmap.werkbank` → `web_daten.werkbank` → `web.werkbank_koerper` |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -2944,7 +2945,9 @@ an neun Zeilen eingehaengt (gezaehlt am 03.10.2026): sechs in
 `web_vereint.seite` (Rahmen-CSS, drei gescopte Bloecke, `css_interview()`
 nur mit Chat, dazu das Effekt-JS), je eine in `web.textbuch_html` und
 `web.leitfaden_html` und eine in `web.dashboard_html` (`tokens_css()` +
-`css_dashboard()`, nur mit Profilschalter, siehe unten). Es fasst **kein
+`css_dashboard()`, nur mit Profilschalter, siehe unten). Dazu seit der
+read-only Werkbank eine zehnte, ebenfalls in `web_vereint.seite`
+(`css_werkbank()`, nur mit `[web] workbench_bearbeitbar = false`). Es fasst **kein
 Markup** an — was die Gestaltung zusaetzlich braucht, legt das Effekt-JS
 zur Laufzeit an (alles mit dem Praefix `ux-`). **Zwei Ausnahmen**, beide
 in `web.py` (Nacharbeit 03.10.2026): (1) `web.gruppe_koerper` stellt „Was
@@ -3050,6 +3053,37 @@ Kostenwarnung liest `IT_KOSTEN_DECKEL_CHF` aus der Umgebung des
 die Variable nicht. Wer den Deckel in den Bot-Envs aendert, setzt ihn auch
 dort, sonst warnt das Dashboard gegen die Vorgabe. Begruendungen je
 Element: `docs/ux-padua/DESIGN-REVIEW.md`.
+
+**Die Werkbank ist in Padua reine Anzeige** (03.10.2026, Karte
+t_49e7354c, Birk: „Workbench reiner Status-Ausspieler. Änderungen passieren
+über Chat."). Profilschalter `[web] workbench_bearbeitbar` (Vorgabe `true`,
+`false` nur in `workshop/padua-2026/profil.toml`). Mit `false` ersetzt
+`web.werkbank_koerper` den Rumpf von `gruppe_koerper`: EINE Achse, die
+sieben Phasen in Reihenfolge, je ein `<details>` mit Zähler („4 of 5", ✓
+wenn alles erledigt), aufgeklappt nur die aktuelle Phase, darunter je
+Attribut ein Punkt in drei **Formen** — gefüllt mit Haken `--signal`
+(erledigt), Ring `--warn` (offen, bis zur aktuellen Phase), gestrichelter
+Ring `--text-leise` (später) — und ein `aria-label`; Roadmap-„läuft"
+erscheint als offen plus Wort. **Eine Quelle:** `roadmap.werkbank` auf
+derselben `lage` wie `roadmap.aus_daten`, `AUFGABEN` unverändert; die
+Detailzeilen (Diskussion, je Interview, je Szene Prosa/Überarbeitung/Form,
+je Figur Sprechweise) lesen nur, was `web_daten.werkbank` read-only lädt.
+`fehlstellen.py` bleibt für `/stand` und Dortmund; in Padua sind die
+offenen Punkte die Liste. Kein Formular, kein `_BEARBEITEN_JS`, kein
+Probenansicht-/Chat-Link, keine Phasenanzeige im Panel; der Inhalt je
+Phase kommt aus denselben Bausteinen wie vorher (`_interview_html`,
+`_festlegungen_html` ohne Löschknopf, `_dramaturgie_html`,
+`_sprechanteile_html`, `_leitfaden_html` — `pre.leitfaden` muss bleiben,
+der Interview-Modus liest ihn). Der Werkbank-POST (`POST /g/<token>`)
+antwortet dann **403**; die Chat-POSTs laufen weiter. Der Nonce steht in
+Padua im Chat-Panel (`chat_koerper(mit_nonce=True)`); `friskeNonce()` findet
+in `teil/stand` keinen mehr, der Chat-Poll hält ihn frisch. Das CSS
+(`web_gestalt.css_werkbank`) ist die zehnte Einhängezeile, nur mit dem
+Schalter `false`. Ohne Profil und mit `dortmund-2026` bleibt alles
+byte-gleich — `tests/test_werkbank_bitgleich.py` gegen
+`tests/fixtures/werkbank_vorher_*.html`. Grenze: die Einzelseite
+`gruppe_html` (von keiner Route mehr ausgeliefert) zeigt die Punkte
+ungestaltet. Screenshots: `docs/ux-padua/workbench/`.
 
 ### Eine Oberfläche je Gruppe (30.09.2026, Karte W)
 

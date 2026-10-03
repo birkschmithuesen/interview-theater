@@ -6,6 +6,7 @@ Anthropic-Messages-Format, kein Authorization-Header, Text in
 ``content[].text``.
 """
 
+import base64
 import json
 
 import httpx
@@ -50,6 +51,41 @@ def test_die_anfrage_hat_das_anthropic_format_und_keinen_schluessel():
         "system": "Sei knapp.",
         "messages": [{"role": "user", "content": "Sag OK"}],
     }
+
+
+def test_bilder_werden_als_inhaltsbloecke_gesendet():
+    gesehen = {}
+
+    def handler(anfrage: httpx.Request) -> httpx.Response:
+        gesehen["koerper"] = json.loads(anfrage.content)
+        return _antwort("gesehen")
+
+    c = claude.Claude(_klient(handler))
+    bild = b"\x89PNG\r\n\x1a\nfake"
+    assert c.text("S", "Beschreib das Bild.", bilder=[bild]) == "gesehen"
+
+    inhalt = gesehen["koerper"]["messages"][0]["content"]
+    assert inhalt[0] == {
+        "type": "image",
+        "source": {
+            "type": "base64", "media_type": "image/png",
+            "data": base64.b64encode(bild).decode(),
+        },
+    }
+    assert inhalt[1] == {"type": "text", "text": "Beschreib das Bild."}
+
+
+def test_ohne_bilder_bleibt_der_inhalt_ein_reiner_string():
+    """Regression: die bestehende Form (content = ein String) bleibt
+    unveraendert, solange niemand ``bilder`` uebergibt."""
+    gesehen = {}
+
+    def handler(anfrage):
+        gesehen["koerper"] = json.loads(anfrage.content)
+        return _antwort("ok")
+
+    claude.Claude(_klient(handler)).text("S", "N")
+    assert gesehen["koerper"]["messages"] == [{"role": "user", "content": "N"}]
 
 
 def test_env_setzt_endpunkt_und_modell(monkeypatch):

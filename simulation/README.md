@@ -336,3 +336,32 @@ Lauf nichts und kostet trotzdem.
 
 Das Ergebnis der ersten Gegenpruefung:
 `docs/simulation-gegenpruefung-2026-09-30.md`.
+
+## Der Browserlauf: die UX im echten Chromium
+
+`simulation/browser_*.py` fahren nicht den Bot-Code direkt an, sondern
+**die echte Webseite in einem echten, headless Chromium** (Playwright): eine
+Opus-Persona bekommt bei jedem Schritt einen Screenshot und die Liste der
+sichtbaren Bedienelemente, entscheidet sich fuer genau eine Aktion, der
+Harness fuehrt sie aus und wartet auf die Bot-Antwort. Dazu mechanische
+UX-Zaehler (seitliches Rutschen, zu kleine Tippziele, Zoom-Fallen, Knoepfe
+ohne Wirkung, mehrere Fragen je Nachricht) und ein Opus-Richter je Phase
+gegen die Checkliste in `simulation/ux_rubrik.md` (Kopie aus Birks
+`participatory-bot-ux`-Skill).
+
+```
+IT_SIM_ENV=/pfad/zu/betrieb/padua-test.env \
+  $PY -m simulation.browser_lauf --geraet handy --bis-phase 7 --bericht
+$PY -m simulation.browser_lauf --env-datei betrieb/padua-test.env \
+  --geraet laptop --persona clicker --bis-phase 4 --bericht
+```
+
+Startet einen echten Web-Server und einen echten Web-Bot-Prozess gegen eine
+Wegwerf-Datenbank (`simulation/browser_laeufe/<lauf>/sim.db`) -- Betrieb
+(Ports 8010/8030, `betrieb/padua.db`) wird nie beruehrt. Die
+Modell-Zugangsdaten kommen per `source` aus der angegebenen Env-Datei direkt
+in den Bot-Kindprozess; dieses Werkzeug liest sie selbst nie.
+
+**Kostet Geld (die echte Modellkette des Bots), laeuft nie automatisch.**
+Bericht: `simulation/browser_berichte/<lauf>.md`; Screenshots und
+`schritte.jsonl` unter `simulation/browser_laeufe/<lauf>/`.

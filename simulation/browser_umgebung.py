@@ -111,6 +111,11 @@ def starte_web(db_pfad: str, audio_verz: str, log_pfad: str):
         _warte_gesund(prozess, basis, log_pfad)
     except Exception:
         prozess.terminate()
+        try:
+            prozess.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            prozess.kill()
+            prozess.wait()
         log.close()
         raise
     return prozess, log, basis
@@ -153,6 +158,10 @@ class Stack:
                 prozess.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 prozess.kill()
+                try:
+                    prozess.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
         self.web_log.close()
         self.bot_log.close()
 

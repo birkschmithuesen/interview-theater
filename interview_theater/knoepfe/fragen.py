@@ -33,7 +33,7 @@ bleibt dadurch unangetastet.
 import re
 import threading
 
-from interview_theater import anweisungen, erkenner, fragen_auswertung, leitfaden, repo
+from interview_theater import anweisungen, erkenner, fragen_auswertung, leitfaden, repo, workshop
 from interview_theater import begriffe as begriffe_modul
 
 from interview_theater.knoepfe.texte import (
@@ -82,6 +82,8 @@ def _weich_dict(conn, chat_id: int) -> dict[int, str]:
     """``arbeitsstand.fragen_weich`` als ``{Nummer: Text}`` -- derselbe Leser
     wie im Leitfaden (``leitfaden.einleitungen``), weil es dasselbe
     Zeilenformat ist ("<Nummer> — <Text>")."""
+    if not workshop.fragen_weich_aktiv():
+        return {}
     stand = repo.hole_arbeitsstand(conn, chat_id)
     try:
         roh = (stand["fragen_weich"] if stand else "") or ""
@@ -91,6 +93,10 @@ def _weich_dict(conn, chat_id: int) -> dict[int, str]:
 
 
 def _setze_weich(conn, chat_id: int, zuordnung: dict[int, str]) -> None:
+    # Abgeschaltet (Padua): nichts speichern, auch wenn ein Modell den Block
+    # doch liefert -- sonst taucht er spaeter im Leitfaden wieder auf.
+    if not workshop.fragen_weich_aktiv():
+        zuordnung = {}
     if not zuordnung:
         repo.setze_arbeitsstand(conn, chat_id, "fragen_weich", None)
         return
@@ -267,9 +273,19 @@ def frage_fuer_andere_richtung(conn, chat_id: int, richtung: str = "") -> str:
         T._TEXT_FRAGEN_RICHTUNG_SATZ.format(richtung=richtung.strip())
         if richtung.strip() else ""
     )
-    return T.ANWEISUNG_FRAGEN_ANDERE.format(
+    return _ohne_weich_auftrag(T.ANWEISUNG_FRAGEN_ANDERE.format(
         alte="\n".join(f"- {f}" for f in alte), richtung_satz=richtung_satz,
-    )
+    ))
+
+
+def _ohne_weich_auftrag(anweisung: str) -> str:
+    """Nimmt den Auftrag zur weichen Fassung (``_ANWEISUNG_FRAGEN_SENSIBEL``)
+    aus einer fertigen Anweisung, wenn das Profil ihn abschaltet
+    (``workshop.fragen_weich_aktiv``). Der Baustein haengt in beiden
+    Anweisungen am Ende, ohne Platzhalter -- ein reines Herausschneiden."""
+    if workshop.fragen_weich_aktiv():
+        return anweisung
+    return anweisung.replace(T._ANWEISUNG_FRAGEN_SENSIBEL, "").rstrip() + "\n"
 
 
 # --- Eigene Fragen vs. KI (Padua Phase 1+2 Karte, Aufgabe 13, 03.10.2026) ---
@@ -637,9 +653,9 @@ def _starte_schaerfung(conn, tg, klm, e, chat_id: int, nummer: int, wunsch: str)
     sensibel_hinweis = (
         T._TEXT_FRAGE_SCHAERFEN_SENSIBEL_HINWEIS.format(weich=weich) if weich else ""
     )
-    anweisung = T.ANWEISUNG_FRAGE_SCHAERFEN.format(
+    anweisung = _ohne_weich_auftrag(T.ANWEISUNG_FRAGE_SCHAERFEN.format(
         nummer=nummer, frage=frage, wunsch=wunsch, sensibel_hinweis=sensibel_hinweis,
-    )
+    ))
     _starte_auftrag(conn, tg, klm, e, chat_id, anweisung)
 
 

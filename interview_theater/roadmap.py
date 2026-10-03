@@ -42,6 +42,11 @@ from typing import NamedTuple
 from interview_theater import phasen, phasentexte
 
 
+def _weich_aktiv() -> bool:
+    from interview_theater import workshop
+    return workshop.fragen_weich_aktiv()
+
+
 class Aufgabe(NamedTuple):
     """Eine Zeile der Uebersicht.
 
@@ -186,7 +191,8 @@ _GATE: dict[int, tuple[tuple[str, Callable[[dict], bool]], ...]] = {
     ),
     3: (
         ("Fragen", lambda l: bool(_text(l["stand"], "fragen"))),
-        ("Einleitungen", lambda l: _gesetzt(l["stand"], "fragen_weich")
+        ("Einleitungen", lambda l: not _weich_aktiv()
+         or _gesetzt(l["stand"], "fragen_weich")
          or _gesetzt(l["stand"], "frage_einleitungen")),
         ("Eroeffnung", lambda l: bool(_text(l["stand"], "interview_eroeffnung"))),
         ("Abschluss", lambda l: bool(_text(l["stand"], "interview_abschluss"))),
@@ -250,6 +256,8 @@ def aus_daten(lage: dict) -> list[dict]:
     for nummer, name, _satz in phasen.PHASEN:
         aufgaben = []
         for aufgabe in AUFGABEN.get(nummer, ()):
+            if aufgabe.kennung == "einleitungen" and not _weich_aktiv():
+                continue
             zustand = _zustand(aufgabe, lage)
             aufgaben.append({
                 "kennung": aufgabe.kennung,

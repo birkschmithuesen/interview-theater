@@ -407,7 +407,8 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
             # weiche Fassungen (``fragen_weich``), davor Einleitungen. Eine
             # Gruppe, die den alten Weg schon hinter sich hat, wird nicht
             # zurueckgeworfen.
-            and (geprueft("fragen_weich") or geprueft("frage_einleitungen"))
+            and (not workshop.fragen_weich_aktiv()
+                 or geprueft("fragen_weich") or geprueft("frage_einleitungen"))
             and feld("interview_eroeffnung")
             and feld("interview_abschluss")
         ),

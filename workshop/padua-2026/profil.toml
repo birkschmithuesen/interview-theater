@@ -164,3 +164,14 @@ dashboard_log_einklappen = true
 # automatischen Schaerfung allein -- wie vor diesem Umbau.
 [prosa_entwurf]
 aktiv = true
+
+# Padua Phasen TEIL 2 (03.10.2026): vor jeder Anzeige eines Textes ein
+# Prueflauf (Richterfragen, <= 2 Ueberarbeitungsrunden, Sprachpass/Nachpass).
+[prueflauf]
+aktiv = true
+
+# Padua Phasen TEIL 2: Phase 6 erst das Ganze, dann Szene fuer Szene;
+# Phase 7 Formwahl und Sprechweisen per Chat, Szene fuer Szene, am Ende die
+# Stueckpruefung; Texte im Script-Tab statt im Chat.
+[ueberarbeitung]
+aktiv = true

@@ -180,3 +180,12 @@ def test_prosa_entwurf_aktiv_nur_in_padua():
     assert workshop.prosa_entwurf_aktiv(None) is False  # eingebautes Vorgabeprofil
     assert workshop.prosa_entwurf_aktiv(workshop.lade("dortmund-2026")) is False
     assert workshop.prosa_entwurf_aktiv(workshop.lade("padua-2026")) is True
+
+
+def test_prueflauf_und_ueberarbeitung_nur_in_padua():
+    """Padua Phasen TEIL 2: beide Schalter wie [prosa_entwurf] -- aus in der
+    Vorgabe und in Dortmund, an nur in Padua."""
+    for schalter in (workshop.prueflauf_aktiv, workshop.ueberarbeitung_aktiv):
+        assert schalter(None) is False
+        assert schalter(workshop.lade("dortmund-2026")) is False
+        assert schalter(workshop.lade("padua-2026")) is True

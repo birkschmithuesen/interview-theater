@@ -935,3 +935,22 @@ def prosa_entwurf_aktiv(profil: Profil | None = None) -> bool:
     unberuehrt."""
     profil = profil or aktiv()
     return bool(profil.wert("prosa_entwurf.aktiv", False))
+
+
+def prueflauf_aktiv(profil: Profil | None = None) -> bool:
+    """Der Pruefllauf vor jeder Anzeige eines Textes (Padua Phasen TEIL 2,
+    03.10.2026): Richterfragen -> Ueberarbeitung -> neu bewerten, hoechstens
+    ``schleife.RUNDEN_MAX`` Runden, danach Sprachpass/Nachpass. Ohne den
+    Schalter laeuft jeder Szenen- und Prosalauf wie vorher."""
+    profil = profil or aktiv()
+    return bool(profil.wert("prueflauf.aktiv", False))
+
+
+def ueberarbeitung_aktiv(profil: Profil | None = None) -> bool:
+    """Die Padua-Fassung der Phasen 6 (Rewrite) und 7 (Stage Version):
+    erst das Ganze, dann Szene fuer Szene; Formwahl und Sprechweisen per
+    Chat; Lesen im Script-Tab statt im Chat; die Chat-Arten dazu
+    (erkenner.PROFILSCHALTER_DER_ARTEN). Ohne den Schalter bleiben 6 und 7
+    wie vorher."""
+    profil = profil or aktiv()
+    return bool(profil.wert("ueberarbeitung.aktiv", False))

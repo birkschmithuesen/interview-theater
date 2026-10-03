@@ -39,7 +39,7 @@ everything again. Three exceptions, and only these three:
 something away). They need a clear request to you, not a question; when in
 doubt, no entry.
 
-You recognise exactly twenty-five kinds of changes. Each change is an
+You recognise exactly twenty-six kinds of changes. Each change is an
 object with "art" and "wert":
 
 1.  interview_starten     -- wert: empty (""). The group starts a recording
@@ -132,9 +132,9 @@ object with "art" and "wert":
     into a szene_planen -- even if the planning is in the same excerpt.
 19. phase_setzen           -- wert: the number of the working phase the
     group is at now, as a numeral ("4"). The seven phases are:
-    1 Terms, 2 Questions, 3 Interviews, 4 Setting, Characters & Story,
-    5 Sharpening, 6 Scenes as Story, 7 Polish. The group commands a move
-    to a phase ("let's do characters now", "back to the interviews", "next
+    1 Terms, 2 Questions, 3 Interviews, 4 Frame, 5 Prose Draft, 6 Rewrite,
+    7 Stage Version. The group commands a move to a phase ("let's do
+    characters now", "back to the interviews", "next
     phase"). Going back is just as valid as a step forward. **Setting,
     characters, story, core theme, format and conflict are all the same
     phase (4).** Delivering the content of a phase is not a move: "ok
@@ -215,6 +215,18 @@ object with "art" and "wert":
       23): "one page per scene at most from now on".
     * **Shortening is neither removing** (point 20) **nor szene_schreiben**
       (point 18): the scene stays, the same text gets tighter.
+
+26. uebersicht_aendern     -- wert: the wanted direction as text, or empty
+    ("") if the group just says "again"/"different". Applies ONLY when a
+    generated story overview (Logline, Setting, Characters, Tension arc,
+    Scenes) is directly in the lead-up and the group gives feedback on it
+    WITHOUT saying or pressing "Yes, save": "make the ending sadder", "the
+    tension arc feels too flat", "try again, differently". A plain "yes"
+    or "looks good" to this overview is NOT uebersicht_aendern -- that
+    only goes through the "Yes, save" button. A change to the setting,
+    characters or story itself stays rahmen_setzen/figur_setzen/
+    geschichte_setzen; uebersicht_aendern is only for feedback that fits no
+    existing field (tone, pace, the tension arc of the overview itself).
 
 **First the field, then the catch-all.** If a detail fits one of the fields
 above -- terms, questions, core theme, format, setting, main conflict, a

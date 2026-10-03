@@ -321,15 +321,15 @@ def test_erkenner_en_nennt_die_padua_phasen(padua):
 
 
 def test_erkenner_en_zaehlt_seine_arten_richtig(padua):
-    """Nachbesserung: 'twenty-five kinds' und 25 fortlaufende Nummern (seit
-    dem Padua-Brainstorming-Umbau 02.10.2026: szenenanzahl_setzen kam dazu,
-    vorher 'twenty-four kinds')."""
+    """Nachbesserung: 'twenty-six kinds' und 26 fortlaufende Nummern (seit
+    Padua Phasen TEIL 1, 03.10.2026: uebersicht_aendern kam dazu, vorher
+    'twenty-five kinds')."""
     import re
 
     roh = anweisungen.hole("erkenner")
     nummern = [int(n) for n in re.findall(r"(?m)^(\d+)\.\s+[a-z_]+\s+--", roh)]
-    assert nummern == list(range(1, 26))
-    assert "exactly twenty-five kinds" in roh
+    assert nummern == list(range(1, 27))
+    assert "exactly twenty-six kinds" in roh
 
 
 # --- Aufgabe 20: die Szene auf Englisch (szene, theater-tells, formen/*,
@@ -468,6 +468,109 @@ def test_die_englische_phase_sechs_kennt_kein_textbuch_nach_herkules():
     # "Format" des Stuecks wird nicht gesprochen.
     assert "in rehearsal" in text
     assert '"format"' in text
+
+
+def test_geschichte_passt_nennt_keinen_toten_phasennamen(monkeypatch):
+    """Review-Befund auf t_b87d075c (Padua Phasen TEIL 1), Karte t_6fe3b58e.
+
+    ``knoepfe/wirkung.py::_wirkung_geschichte_passt`` schickt
+    ``T._TEXT_GESCHICHTE_PASST`` beim Abschluss von Phase 6 ("Rewrite") live
+    an die Gruppe. Die englische Fassung nannte dort "Polish" -- den
+    zurueckgenommenen alten Namen von Phase 7 (jetzt "Stage Version"). Die
+    deutsche Referenzzeile (``knoepfe/texte.py``: "Dann geht es im
+    Feinschliff Abschnitt fuer Abschnitt weiter.") nennt ebenfalls keinen
+    Phasennamen, nur den Oberbegriff -- das gilt seitdem auch fuer Englisch.
+    """
+    from interview_theater import workshop
+    from interview_theater.knoepfe import texte as kn_texte
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    try:
+        text = kn_texte.T._TEXT_GESCHICHTE_PASST
+    finally:
+        monkeypatch.delenv(workshop.VARIABLE, raising=False)
+        workshop.vergiss()
+        sprache.vergiss()
+
+    for toter_name in ("Polish", "Sharpening", "Scenes as Story"):
+        assert toter_name not in text, (toter_name, text)
+
+
+#: Review-Befund t_89a01a6f auf t_dbbe598e: die alten Phasennamen standen
+#: kleingeschrieben weiter als PHASENBEZEICHNUNG in ausgelieferten
+#: Padua-Texten, obwohl das case-sensitive grep der Elternkarte (``\bPolish\b``)
+#: schon gruen war. Verglichen wird deshalb case-insensitiv per Wortgrenze
+#: (``\bsharpening\b`` trifft NICHT das legitime Verb-Plural "sharpenings"),
+#: und die von der Review-Karte ausdruecklich erlaubten Ausnahmen
+#: (``_TEXT_SCHAERFUNG``, ``_JOURNAL_RUNDE`` -- Modul-/Aufrufart-Bezeichnungen,
+#: keine Phasennamen) stehen auf einer Allowlist.
+_TOTE_PHASENNAMEN = ("sharpening", "polish", "scenes as story")
+
+
+def _ohne_toten_phasennamen(text: str, quelle: str, *, erlaubt: tuple[str, ...] = ()):
+    niedrig = text.lower()
+    for name in _TOTE_PHASENNAMEN:
+        if name in erlaubt:
+            continue
+        treffer = re.search(r"\b" + re.escape(name) + r"\b", niedrig)
+        assert treffer is None, (quelle, name, text)
+
+
+def test_padua_phasentexte_nennen_keinen_toten_phasennamen(monkeypatch, conn):
+    """Review-Befund t_89a01a6f (Re-Review t_6fe3b58e): kleingeschrieben
+
+    standen "sharpening"/"polish"/"scenes as story" weiter als
+    Phasenbezeichnung in live ausgelieferten Padua-Texten -- obwohl das
+    case-sensitive grep der Elternkarte t_b87d075c schon gruen war.
+    Gemessen: ``anweisungen.system(phase=4)`` enthielt "sharpening" 4x und
+    "final polish" 2x, ``system(phase=6)`` enthielt "polish phase" 2x, und
+    ``kontext.T.EINSTIEG_SETTING`` enthielt "(sharpening)". Mindestens
+    geprueft: die EN-Phasenprompts 4-7, ``EINSTIEG_SETTING`` und die
+    Eintrittseinleitungen 4-7 (``phasentexte.eintritt``). Die Allowlist der
+    Review-Karte (``web.T._TEXT_SCHAERFUNG``, ``schaerfung.T._JOURNAL_RUNDE``,
+    ``stueckpruefung.T._JOURNAL_RUNDE`` -- Modul-/Aufrufart-Bezeichnungen,
+    keine Phasennamen) bleibt stehen.
+    """
+    from interview_theater import (
+        anweisungen, kontext, phasentexte, schaerfung, stueckpruefung, web,
+        workshop,
+    )
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    anweisungen._CACHE.clear()
+    try:
+        for phase in (4, 5, 6, 7):
+            _ohne_toten_phasennamen(
+                anweisungen.system(phase=phase), f"system(phase={phase})"
+            )
+            _ohne_toten_phasennamen(
+                phasentexte.eintritt(conn, 1, phase), f"eintritt(phase={phase})"
+            )
+        _ohne_toten_phasennamen(
+            kontext.T.EINSTIEG_SETTING, "kontext.T.EINSTIEG_SETTING"
+        )
+        # Allowlist der Review-Karte: Modul-/Aufrufart-Bezeichnungen,
+        # keine Phasennamen -- "sharpening" ist hier erlaubt.
+        _ohne_toten_phasennamen(
+            web.T._TEXT_SCHAERFUNG, "web.T._TEXT_SCHAERFUNG", erlaubt=("sharpening",)
+        )
+        _ohne_toten_phasennamen(
+            schaerfung.T._JOURNAL_RUNDE, "schaerfung.T._JOURNAL_RUNDE",
+            erlaubt=("sharpening",),
+        )
+        _ohne_toten_phasennamen(
+            stueckpruefung.T._JOURNAL_RUNDE, "stueckpruefung.T._JOURNAL_RUNDE",
+            erlaubt=("polish",),
+        )
+    finally:
+        monkeypatch.delenv(workshop.VARIABLE, raising=False)
+        workshop.vergiss()
+        sprache.vergiss()
+        anweisungen._CACHE.clear()
 
 
 def test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben():

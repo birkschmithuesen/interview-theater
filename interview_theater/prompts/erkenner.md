@@ -16,7 +16,7 @@ minutenlangen Schreibauftrag aus), **szene_kuerzen** (dasselbe fuer eine
 Ueberarbeitung) und **entfernen** (nimmt etwas weg). Dort gilt weiterhin: im
 Zweifel kein Eintrag.
 
-Du erkennst genau fuenfundzwanzig Arten von Aenderungen. Jede Aenderung ist ein
+Du erkennst genau sechsundzwanzig Arten von Aenderungen. Jede Aenderung ist ein
 Objekt mit "art" und "wert":
 
 1.  interview_starten     -- wert: leer (""). Die Gruppe kuendigt an, jetzt
@@ -222,6 +222,19 @@ Objekt mit "art" und "wert":
     * **Kuerzen ist kein Entfernen** (Punkt 19): die Szene bleibt, nur ihr
       Text wird knapper. Und es ist kein szene_schreiben (Punkt 17): dort
       entsteht ein ANDERER Text, hier derselbe in kuerzer.
+
+25. uebersicht_aendern     -- wert: die gewuenschte Richtung als Text, oder
+    leer (""), wenn die Gruppe nur "nochmal"/"anders" sagt. Gilt
+    AUSSCHLIESSLICH, wenn im Verlauf direkt davor eine generierte
+    Geschichts-Uebersicht steht (Logline, Setting, Figuren, Spannungsbogen,
+    Szenen) und die Gruppe Rueckmeldung dazu gibt, OHNE "Ja, speichern" zu
+    sagen oder zu druecken: "mach das Ende trauriger", "die Spannungskurve
+    ist mir zu flach", "nochmal, anders". Ein einfaches "Ja" oder "passt"
+    zu dieser Uebersicht ist KEIN uebersicht_aendern -- das laeuft nur ueber
+    den Knopf "Yes, save". Eine Aenderung an Setting, Figuren oder
+    Geschichte selbst bleibt rahmen_setzen/figur_setzen/geschichte_setzen;
+    uebersicht_aendern ist nur fuer Rueckmeldung, die zu keinem bestehenden
+    Feld passt (Tonfall, Tempo, Spannungskurve der Uebersicht selbst).
 
 Abgrenzung "festlegung_setzen": **zuerst das Feld, dann die Auffangart.**
 Passt die Angabe in eines der Felder oben -- Begriffe, Fragen, Kernthema,

@@ -129,8 +129,8 @@ def test_padua_haengt_seine_verhaltensanweisung_an_jeden_gespraechsprompt(monkey
 def test_padua_phasen_und_formen_englisch():
     profil = workshop.lade("padua-2026")
     assert [n for _, n, _ in workshop.phasenliste(profil)] == [
-        "Terms", "Questions", "Interviews", "Setting, Characters & Story",
-        "Sharpening", "Scenes as Story", "Polish"]
+        "Terms", "Questions", "Interviews", "Frame",
+        "Prose Draft", "Rewrite", "Stage Version"]
     assert workshop.form_anzeige(profil) == ("Dialogue", "Monologue", "Chorus", "Song", "Rap")
     assert workshop.formen(profil) == ("dialog", "monolog", "chor", "lied", "rap")
 
@@ -140,9 +140,37 @@ def test_padua_phasen_und_formen_englisch():
     # uebrigen nennt der englische Erkenner-Prompt noch aus der alten
     # Phasenliste -- phasen.STICHWOERTER macht die Zuordnung (Review A1).
     ("Characters", 4), ("core theme", 4), ("format", 4), ("setting", 4),
-    ("story", 4), ("Terms", 1), ("interview questions", 2),
-    ("interviews", 3), ("Sharpening", 5), ("Scenes as Story", 6),
-    ("polish", 7),
+    ("story", 4), ("Frame", 4), ("Terms", 1), ("interview questions", 2),
+    ("interviews", 3),
+    # Alte Namen bleiben gueltig (Padua Phasen TEIL 1, 03.10.2026) --
+    # ausser "Scenes as Story": das war NIE ein eigenes Stichwort von Phase
+    # 6, sondern traf nur ueber den Exaktname-Treffer in nummer_fuer, weil
+    # es Phase 6s NAME war. Seit Phase 6 "Rewrite" heisst, faellt die
+    # Phrase auf den Stichwort-Durchgang zurueck -- und dort gewinnt Phase
+    # 4s VORBESTEHENDES Stichwort "story" (Substring von "scenes as
+    # story"), weil nummer_fuer Phasen aufsteigend prueft und beim ersten
+    # Treffer zurueckgibt, nicht beim spezifischsten. Phase 4s "story" vor
+    # diesem Umbau nicht anzutasten (gemeinsamer Code, auch von Dortmund
+    # genutzt) wiegt hier schwerer als diese eine zusammengesetzte
+    # Alt-Phrase -- kein Nutzer tippt "Scenes as Story" ohnehin als
+    # natuerlichen Satz. Gefunden und entschieden waehrend Task-1-Ausfuehrung
+    # (Padua Phasen TEIL 1, 03.10.2026); keine Aenderung an
+    # phasen.nummer_fuer oder an Phase 4s Stichwoertern.
+    ("Sharpening", 5), ("polish", 7),
+    # Neue Namen (Padua Phasen TEIL 1, 03.10.2026):
+    ("Prose Draft", 5), ("prose", 5), ("Rewrite", 6), ("Stage Version", 7),
+    # Final-Review-Fund (03.10.2026): "story overview" war als Phase-5-
+    # Stichwort selbst unerreichbar -- Phase 4s VORBESTEHENDES Stichwort
+    # "story" ist ein Substring von "story overview", und Phase 4 wird vor
+    # Phase 5 geprueft. Dieselbe Kollisionsklasse wie "Scenes as Story"
+    # oben, nur diesmal mit aktiv gelehrtem Wortlaut
+    # (sprachen/en/prompts/phasen/5.md sagt der Gruppe woertlich "a story
+    # overview appears"). Behoben durch Entfernen des Stichworts statt durch
+    # eine Codeaenderung an nummer_fuer -- "story overview" bleibt deshalb
+    # bei 4, und "overview" allein (kollisionsfrei geprueft gegen alle
+    # anderen Phasen-Stichwoerter) belegt, dass Phase 5 ueber ihr eigenes
+    # Stichwort weiterhin erreichbar bleibt.
+    ("story overview", 4), ("overview", 5),
 ])
 def test_padua_stichwoerter_finden_die_phase(wort, nummer, monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")

@@ -923,3 +923,15 @@ def platzhalter(profil: Profil | None = None) -> dict[str, str]:
     })
     _PLATZHALTER[profil.name] = werte
     return werte
+
+
+def prosa_entwurf_aktiv(profil: Profil | None = None) -> bool:
+    """Ob Phase 5 (Prose Draft) die zweistufige Uebersicht-dann-Szenen-
+    Erzeugung faehrt (Padua Phasen TEIL 1, 03.10.2026, entwurf.py).
+
+    Vorgabe false -- wie ``[laengen] aktiv``: ohne diese Zeile im Profil
+    bleibt Phase 5 genau das, was sie vorher war (die automatische
+    Schaerfung, sonst nichts). Dortmund setzt die Zeile nicht und bleibt
+    unberuehrt."""
+    profil = profil or aktiv()
+    return bool(profil.wert("prosa_entwurf.aktiv", False))

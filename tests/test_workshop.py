@@ -171,3 +171,12 @@ def test_vorgabe_hoert_deutsch_und_ohne_pseudonyme():
 
 def test_nur_gebaute_sprachen():
     assert workshop.SPRACHEN == ("de", "en")
+
+
+def test_prosa_entwurf_aktiv_nur_in_padua():
+    """[prosa_entwurf] aktiv wie [laengen] aktiv: aus in der Vorgabe und in
+    Dortmund, an in Padua -- die neue zweistufige Phase 5 betrifft nur den
+    einen Workshop, der sie bekommen soll."""
+    assert workshop.prosa_entwurf_aktiv(None) is False  # eingebautes Vorgabeprofil
+    assert workshop.prosa_entwurf_aktiv(workshop.lade("dortmund-2026")) is False
+    assert workshop.prosa_entwurf_aktiv(workshop.lade("padua-2026")) is True

@@ -151,6 +151,16 @@ _TEXT_INTERVIEW_OHNE_KNOPF_NEIN = "Gut, dann nehme ich es als Beitrag."
 #: Erscheint nicht zweimal hintereinander (repo.neueste_nachricht_text).
 _TEXT_BUEHNE_NEUE_KARTE = "Neue Karte im Tab Bühne"
 
+#: Die deterministische Aufforderung am Ende der Hintergrund-Diskussion
+#: (Phase 1, Padua Phase 1+2 Umbau, 03.10.2026): sobald das letzte Segment
+#: mit ``schnittgrund='ende'`` eintrifft, geht diese Zeile raus, BEVOR der
+#: (nicht blockierende) Verdichtungslauf startet -- siehe
+#: ``_diskussion_abschliessen`` und ``interview_theater.diskussion.starte``.
+_TEXT_DISKUSSION_FERTIG_BEGRIFFE = (
+    "Die Diskussion ist zu Ende. Schickt mir jetzt eure fuenf Begriffe dazu "
+    "- getippt oder als Sprachnachricht."
+)
+
 #: Das Transkript-Echo eines Teils (§ 10.6): woertlich, ohne Kommentar, ohne
 #: Zusammenfassung. Der Kopf sagt, wozu es gehoert -- das ist der ganze
 #: Unterschied zu "Ich hoere durch", das nichts zu kontrollieren gab.
@@ -896,24 +906,33 @@ def _diskussion_abschliessen(conn, tg, klm, e, row) -> None:
     ``unterdrueckt=1``); nur das Transkript in ``aufnahme.transkript`` (schon
     gesetzt, siehe ``_verarbeite``) ist das Material.
 
-    Diese Funktion tut GENAU zwei Dinge: Status auf ``fertig`` setzen und das
-    Transkript als Sprechblasen-Update in den Web-Chat spiegeln (B7, wie bei
-    jeder Sprachnachricht). **Nichts sonst** -- kein Gespraechszug, kein
-    Absichtserkenner, kein Journal-Extraktor, und anders als beim strukturell
-    verwandten Brainstorm-Weg (``_brainstorm_abschliessen``) auch KEINE
-    Pruefung, ob eine Vorschlagskarte faellig waere: ``brainstorm.soll_reagieren``
-    und ``_starte_buehnenkarte`` werden hier nie gerufen. Phase 1 hoert nur zu,
+    Diese Funktion tut auf JEDEM Segment zwei Dinge: Status auf ``fertig``
+    setzen und das Transkript als Sprechblasen-Update in den Web-Chat
+    spiegeln (B7, wie bei jeder Sprachnachricht). **Sonst nichts** -- kein
+    Gespraechszug, kein Absichtserkenner, kein Journal-Extraktor, und anders
+    als beim strukturell verwandten Brainstorm-Weg
+    (``_brainstorm_abschliessen``) auch KEINE Pruefung, ob eine
+    Vorschlagskarte faellig waere: ``brainstorm.soll_reagieren`` und
+    ``_starte_buehnenkarte`` werden hier nie gerufen. Phase 1 hoert nur zu,
     sie denkt nicht mit.
 
-    Der einmalige Verdichtungslauf samt Abschlussfrage ("jetzt eure fuenf
-    Begriffe") ist bewusst NICHT hier verdrahtet -- das ist Aufgabe 7
-    (``interview_theater.diskussion``), ausgeloest ueber den eigenen
-    Abschlusspfad (``schnittgrund == 'ende'``), nicht ueber jedes einzelne
-    Segment. Diese Funktion bleibt ein reines Echo-Blatt, damit Aufgabe 7
-    genau einen weiteren Aufruf anhaengen kann, ohne hier etwas umbauen zu
-    muessen."""
+    **Genau EINMAL** -- beim Abschluss-Segment (``schnittgrund == 'ende'``,
+    derselbe manuelle Flush wie bei ``_brainstorm_abschliessen``) -- kommen
+    zwei weitere Dinge dazu, in dieser Reihenfolge: zuerst die
+    deterministische Aufforderung "jetzt eure fuenf Begriffe" **synchron** in
+    den Chat (die Gruppe soll nicht auf den Modellaufruf warten, um
+    weiterzuwissen, was als Naechstes kommt), danach der EINE
+    Verdichtungslauf ueber das ganze Transkript (``interview_theater.diskussion.starte``,
+    nicht blockierend fuer den Chat -- er haengt in seinem eigenen Thread und
+    seiner eigenen Sperre, siehe dort)."""
     repo.setze_status(conn, row["id"], "fertig")
     _web_sprachblase(conn, row["chat_id"], row["message_id"], row["transkript"] or None)
+
+    if row["schnittgrund"] == "ende":
+        from interview_theater import diskussion  # lokaler Import, wie an anderen Cross-Modul-Stellen dieser Datei (z. B. bot)
+
+        tg.sende(row["chat_id"], T._TEXT_DISKUSSION_FERTIG_BEGRIFFE)
+        diskussion.starte(conn, tg, klm, e, row["chat_id"])
 
 
 def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:

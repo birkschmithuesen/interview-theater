@@ -2047,6 +2047,38 @@ def diskussion_transkript(conn: sqlite3.Connection, chat_id: int) -> str:
 
 
 @_gesperrt
+def merke_diskussion_verdichtung(
+    conn: sqlite3.Connection, chat_id: int, text: str, modell: str | None,
+) -> None:
+    """Haelt die EINE Verdichtung der Hintergrund-Diskussion fest
+    (``interview_theater.diskussion``) -- genau eine Zeile je Gruppe
+    (``UNIQUE (chat_id)``, anders als ``buehnenkarte``): ein zweiter Lauf
+    ersetzt die Zeile, statt eine zweite anzuhaengen."""
+    conn.execute(
+        """
+        INSERT INTO diskussion_verdichtung (chat_id, text, erstellt_am, modell)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            text = excluded.text,
+            erstellt_am = excluded.erstellt_am,
+            modell = excluded.modell
+        """,
+        (chat_id, text, _jetzt(), modell),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def diskussion_verdichtung_text(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    """Der Text der Diskussionsverdichtung dieser Gruppe, oder ``None``, wenn
+    noch keine lief (oder sie nichts Brauchbares ergab)."""
+    zeile = conn.execute(
+        "SELECT text FROM diskussion_verdichtung WHERE chat_id = ?", (chat_id,),
+    ).fetchone()
+    return zeile["text"] if zeile else None
+
+
+@_gesperrt
 def lege_buehnenkarte_an(
     conn: sqlite3.Connection, chat_id: int, text: str, modell: str,
     *, schweigen: bool = False,

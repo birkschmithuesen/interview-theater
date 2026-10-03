@@ -12,7 +12,7 @@ Gebaut direkt auf dem Muster der Brainstorm-Dispatch-Tests in
 
 import pytest
 
-from interview_theater import aufnahme, db, einstellungen, repo
+from interview_theater import aufnahme, db, einstellungen, repo, workshop
 
 
 @pytest.fixture
@@ -33,10 +33,10 @@ def conn(tmp_path):
     return c
 
 
-def _diskussion_zeile(conn, chat_id, message_id, transkript):
+def _diskussion_zeile(conn, chat_id, message_id, transkript, schnittgrund=None):
     aufnahme_id = repo.lege_aufnahme_an(
         conn, chat_id, message_id, "kurz", "sprache", status="transkribiert",
-        diskussion=True,
+        diskussion=True, schnittgrund=schnittgrund,
     )
     repo.setze_transkript(conn, aufnahme_id, transkript)
     repo.merke_nachricht(
@@ -44,6 +44,15 @@ def _diskussion_zeile(conn, chat_id, message_id, transkript):
         repo._jetzt(), 1,
     )
     return repo.hole_aufnahme(conn, aufnahme_id)
+
+
+class _TelegramAttrappe:
+    def __init__(self):
+        self.gesendet = []
+
+    def sende(self, chat_id, text, **_kw):
+        self.gesendet.append((chat_id, text))
+        return 1
 
 
 def _kurz_zeile(conn, chat_id, message_id, transkript):
@@ -162,3 +171,66 @@ def test_plain_kurz_zeile_loest_weiterhin_zug_aus(conn, einst):
         False,
     )
     assert aufgerufen == [1]
+
+
+# -- Aufgabe 7: der Abschlusspfad (schnittgrund == 'ende') ------------------
+
+
+@pytest.fixture(autouse=True)
+def _diskussion_aktiv(monkeypatch):
+    """Dieselbe Vorgabe wie in ``tests/test_diskussion.py`` -- ohne Profil
+    ist ``workshop.diskussion_aktiv()`` False (Dortmund-Vorgabe)."""
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+
+
+def test_ende_segment_sendet_die_begriffe_aufforderung_und_startet_die_verdichtung(
+    conn, einst, monkeypatch,
+):
+    from interview_theater import diskussion
+
+    gestartet = []
+    monkeypatch.setattr(
+        diskussion, "starte",
+        lambda conn_, tg_, klm_, e_, chat_id: gestartet.append(chat_id),
+    )
+    tg = _TelegramAttrappe()
+    row = _diskussion_zeile(conn, 1, 710, "Der letzte Gedanke.", schnittgrund="ende")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert tg.gesendet == [(1, aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE)]
+    assert gestartet == [1]
+
+
+def test_nicht_ende_segment_sendet_nichts_und_startet_keine_verdichtung(
+    conn, einst, monkeypatch,
+):
+    from interview_theater import diskussion
+
+    gestartet = []
+    monkeypatch.setattr(
+        diskussion, "starte",
+        lambda conn_, tg_, klm_, e_, chat_id: gestartet.append(chat_id),
+    )
+    tg = _TelegramAttrappe()
+    row = _diskussion_zeile(conn, 1, 711, "Ein Gedanke mittendrin.", schnittgrund="pause")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert tg.gesendet == []
+    assert gestartet == []
+
+
+def test_segment_ohne_schnittgrund_sendet_nichts_und_startet_keine_verdichtung(
+    conn, einst, monkeypatch,
+):
+    """``schnittgrund`` ist NULL, solange kein VAD-Schnitt vorlag (Rueckfall
+    ohne AnalyserNode) -- auch dann bleibt der Abschlusspfad aus."""
+    from interview_theater import diskussion
+
+    gestartet = []
+    monkeypatch.setattr(
+        diskussion, "starte",
+        lambda conn_, tg_, klm_, e_, chat_id: gestartet.append(chat_id),
+    )
+    tg = _TelegramAttrappe()
+    row = _diskussion_zeile(conn, 1, 712, "Ein Gedanke ohne Schnittgrund.")
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+    assert tg.gesendet == []
+    assert gestartet == []

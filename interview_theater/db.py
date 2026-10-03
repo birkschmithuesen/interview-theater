@@ -649,6 +649,29 @@ CREATE TABLE IF NOT EXISTS buehnenkarte (
 );
 CREATE INDEX IF NOT EXISTS idx_buehnenkarte_chat ON buehnenkarte(chat_id, id);
 
+-- Die EINE Verdichtung des Hintergrund-Mithoerens von Phase 1 (Padua
+-- Phase 1+2 Umbau, 03.10.2026, ``interview_theater/diskussion.py``).
+--
+-- Anders als ``buehnenkarte`` (laufend, nur anhaengen) genau eine Zeile je
+-- Gruppe (``UNIQUE (chat_id)``): die Diskussion endet genau einmal
+-- (``schnittgrund='ende'``), und genau dann laeuft genau ein Verdichtungslauf
+-- -- ein zweiter Lauf (Doppelklick, Nachzuegler-Segment) ersetzt die Zeile,
+-- er haengt keine zweite an. ``text`` ist NOT NULL, weil ohne ein brauchbares
+-- Ergebnis (NICHTS/NOTHING oder ein Fehlschlag) gar keine Zeile entsteht --
+-- siehe ``diskussion.starte``.
+CREATE TABLE IF NOT EXISTS diskussion_verdichtung (
+  id          INTEGER PRIMARY KEY,
+  chat_id     INTEGER NOT NULL,
+  text        TEXT NOT NULL,
+  erstellt_am TEXT NOT NULL,
+  -- 'claude' (ueber szene_claude, mit Einwilligung) oder 'sovereign'
+  -- (Infomaniak/Kimi) -- dieselbe Unterscheidung wie bei
+  -- ``buehnenkarte.modell``, nur mit dem Wortlaut aus der Modellwahl-Karte
+  -- (modellwahl.py).
+  modell      TEXT,
+  UNIQUE (chat_id)
+);
+
 -- Die Schaerfung am Material (Phase 6, Umbau 05.09.2026 nachts).
 --
 -- Ein Schema-Aufruf mappt jeden passenden **geprueften** Verdichtungseintrag
@@ -1093,6 +1116,7 @@ TABELLEN_MIT_CHAT_ID = (
     "journal",
     "festlegung",
     "buehnenkarte",
+    "diskussion_verdichtung",
     "knopf",
     # Karte U (01.10.2026): die Ruecknahme eines Erkennerlaufs.
     "erkenner_lauf",

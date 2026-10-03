@@ -144,3 +144,41 @@ def test_eine_scriptete_persona_faehrt_phase_eins_durch(stack, tmp_path):
     for zeile in zeilen:
         eintrag = json.loads(zeile)
         assert Path(tmp_path / "lauf" / eintrag["screenshot_vorher"]).exists()
+
+
+def test_eine_gescheiterte_phase_reisst_die_naechste_nicht_mit(stack, tmp_path, monkeypatch):
+    """``fuehre_lauf`` darf einen kaputten Phasenschritt (Playwright-Timeout
+    o.ae.) nicht mit dem ganzen Lauf bezahlen: Phase 1 scheitert, Phase 2
+    bekommt trotzdem ihre Chance -- die ``_fuehre_phase_aus``-Schleife selbst
+    wird hier nicht gebraucht, deshalb wird sie direkt ersetzt."""
+    basis, token, pfad = stack
+
+    def fake_fuehre_phase_aus(page, persona_client, mitschnitt, *, aktuelle_phase, **kw):
+        if aktuelle_phase == 1:
+            raise RuntimeError("Playwright-Timeout (simuliert)")
+        return {"zaehler_summe": {}, "fallback_benutzt": False, "screenshots_nach": []}
+
+    monkeypatch.setattr(browser_lauf, "_fuehre_phase_aus", fake_fuehre_phase_aus)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        context = browser.new_context()
+        seite = context.new_page()
+        seite.goto(f"{basis}/g/{token}")
+        seite.wait_for_selector("#verlauf")
+
+        ergebnis = browser_lauf.fuehre_lauf(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad,
+            chat_id=CHAT, persona_client=_ScriptedClient([]), judge_client=_FakeJudge(),
+            geraet="handy", persona_name="student", bis_phase=2,
+            lauf_verzeichnis=tmp_path / "lauf",
+        )
+        browser.close()
+
+    assert ergebnis["fehlgeschlagen_bei"] == 1
+    assert len(ergebnis["phasen_ergebnisse"]) == 2
+    phase1, phase2 = ergebnis["phasen_ergebnisse"]
+    assert phase1["nummer"] == 1
+    assert phase1["note"] is None
+    assert phase2["nummer"] == 2
+    assert phase2["note"] == 5

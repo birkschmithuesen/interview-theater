@@ -60,7 +60,13 @@ GEAENDERT: dict[str, str] = {
         "Sprache je Gruppe). Kein bestehender Befehl aendert sich, und er "
         "steht nicht in BEFEHLE_LISTE. Gewollte Verhaltensaenderung fuer "
         "Dortmund: /sprache antwortet jetzt statt mit "
-        "\"Diesen Befehl kenne ich nicht.\"."
+        "\"Diesen Befehl kenne ich nicht.\". "
+        "Padua-Hilfe Task 1 (03.10.2026): die Konstante ist seitdem eine "
+        "ueber __getattr__ (PEP 562) sprachabhaengig gebaute Menge "
+        "(_bekannte_befehle(), Alias-Tabelle _BEFEHL_EN), nicht mehr ein "
+        "Literal -- fuer Dortmund (de) liefert sie weiterhin genau dieselben "
+        "16 Werte wie vorher, nur das en-Profil (Padua) bekommt zusaetzliche "
+        "englische Befehlsnamen (tests/test_befehle.py)."
     ),
     "web._BEARBEITEN_JS": (
         "Aufgabe 17: das Skript der Gruppenseite traegt keine Meldungen mehr "

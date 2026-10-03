@@ -33,7 +33,7 @@ code = "en"
 # Wie die Gruppe angesprochen wird.
 anrede = "you"
 # Die Interviewsprache ist offen -- Whisper erkennt sie selbst (E5). Eine
-# Gruppe kann per Knopf in Phase 3 oder /sprache umstellen. Unbestaetigt,
+# Gruppe kann per Knopf in Phase 3 oder /language umstellen. Unbestaetigt,
 # siehe LIESMICH.md (Annahme A1, Rauchtest Aufgabe 9 offen).
 whisper = "auto"
 

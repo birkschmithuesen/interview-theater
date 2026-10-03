@@ -96,3 +96,36 @@ Nutzernachricht) — nur der System-Block cached; der Proxy-`/_health`-Check
 vor dem ersten Versuch (die bestehende Retry-/Fallback-Kette fängt einen
 Ausfall ohnehin ab, nur eine Zug-Runde später); ein echter Lauf gegen den
 produktiven Proxy zur Messung der Cache-Wirkung (siehe offene Annahme oben).
+
+## Nachtrag 2026-10-03 (Padua Phase 1+2 Karte)
+
+Zwei Änderungen, beide **ungated** (gelten für jedes Workshop-Profil, nicht
+nur Padua) — siehe „Key design decision" in
+`docs/superpowers/plans/2026-10-03-padua-phase1-2-ab.md` für die Begründung:
+das *Wann* der Einwilligungsfrage zeitlich vorzuziehen kann eine Gruppe, die
+Phase 1 schon durchlaufen hat, nicht rückwirkend betreffen, und die
+Modellwahl-Regel selbst ist eine allgemeine, phasenbezogene
+Birk-Entscheidung ohne Workshop-Vorbehalt.
+
+**Die Einwilligungsfrage feuert jetzt beim Eintritt in Phase 1**, nicht mehr
+erst beim Übergang 3 → 4. Dieselbe Spalte
+(`gruppe.szene_usa_bestaetigt_am`), derselbe Knopfweg (`ART_SZENE_USA`,
+`biete_szene_usa`) — keine zweite Frage. `knoepfe/stationen.py::eintritt_in_phase`
+ruft denselben Check-und-Frage-Schritt (`_biete_modellwahl_wenn_faellig`) aus
+PHASE_BEGRIFFE **und** PHASE_SETTING; der PHASE_SETTING-Aufruf ist seitdem
+ein Sicherheitsnetz für Gruppen, die Phase 1 schon vor diesem Umbau
+durchlaufen haben (`angebot_faellig` liefert dort dann noch `True`) — genau
+wie der ältere PHASE_SZENEN-Zweig bereits eines ist. Eine alte Zustimmung
+(über den bisherigen Weg) gilt unverändert weiter, ein „nein" wird nie wieder
+gefragt, und der Phaseneintritt wartet dabei nach wie vor nicht auf die
+Antwort.
+
+**`konversation_ueber_claude` schließt jetzt nur noch Phase 3 aus**, statt
+eine Mindestphase zu verlangen: `phasen.aktuelle(conn, chat_id) !=
+PHASE_INTERVIEWS` statt `>= PHASE_SETTING`. Damit sind Phase 1
+(Diskussionsverdichtung) und Phase 2 (Fragenformulierung/KI-Vorschläge) nach
+Einwilligung ebenfalls Opus-fähig, zusätzlich zu Phase 4, 5, 6 und 7, die es
+schon vorher waren. **Phase 3 (Interviews) und jede Interview-Verdichtung
+bleiben unverändert unbedingt bei Kimi** — der Mechanismus ist derselbe wie
+zuvor: `verdichter.py` ruft `modellwahl` nie an, und das ist die ganze
+Durchsetzung.

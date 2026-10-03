@@ -202,7 +202,7 @@ from interview_theater.knoepfe.fragen import (  # noqa: F401
     frage_waehlt_schaerfen, frage_warten_auf_richtung,
     frage_weich_lassen, frage_weich_uebernehmen, fragenliste,
     nimm_offene_frage_text, starte_durchgehen, starte_eroeffnung,
-    uebernimm_schaerfung,
+    uebernimm_eigene, uebernimm_schaerfung, versuche_gegenueberstellung,
 )
 
 #: Phase 4

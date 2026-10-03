@@ -1,5 +1,6 @@
 """Welches Sprachmodell wann (Birk, 02.10.2026, verbindlich --
-``docs/entscheidung-modellwahl-2026-10-02.md``).
+``docs/entscheidung-modellwahl-2026-10-02.md``; erweitert 03.10.2026,
+Padua Phase 1+2 Karte -- siehe den Nachtrag dort).
 
 **Die Regel in einem Satz.** Sensible Daten -- Interview-Audio, Transkripte,
 jede Verdichtung -- bleiben IMMER bei Kimi (Infomaniak, Schweiz), auch wenn
@@ -7,21 +8,26 @@ sie erst in Phase 4+ fertig wird oder vom Nachhol-Arbeiter nachgeholt wird:
 ``verdichter.py`` ruft dieses Modul nicht an, und das ist die ganze
 Durchsetzung -- ein Modul, das nie fragt, kann nie umgeroutet werden.
 
-Ab Phase 4 (Setting/Figuren/Geschichte, Schaerfung, Szenen, Feinschliff) darf
-das Gespraech auf Claude Opus laufen, WENN der Betreiber es erlaubt
+Seit dem 03.10.2026 steht die Einwilligungsfrage schon beim EINTRITT IN
+PHASE 1 (``knoepfe/stationen.py::eintritt_in_phase``), nicht erst beim
+Uebergang 3->4 -- dieselbe Spalte (``gruppe.szene_usa_bestaetigt_am``),
+derselbe Knopfweg (``ART_SZENE_USA``, ``biete_szene_usa``), keine zweite
+Frage. Mit Zustimmung darf das Gespraech seitdem in JEDER Phase ausser
+Phase 3 (Interviews) auf Claude Opus laufen, WENN der Betreiber es erlaubt
 (``IT_SZENE_ANBIETER=claude``, dieselbe Umgebungsvariable wie beim
-bestehenden Szenen-Schalter) UND die Gruppe einmal zugestimmt hat
-(``gruppe.szene_usa_bestaetigt_am`` -- dieselbe Spalte wie die bisherige
-Szenen-Einwilligung: die Frage wandert zeitlich nach vorn, auf 3->4, die
-Spalte bleibt dieselbe, also gilt eine alte Zustimmung unveraendert weiter
-und es gibt nie eine zweite Frage).
+bestehenden Szenen-Schalter): Phase 1 (Diskussionsverdichtung), Phase 2
+(Fragenformulierung/KI-Vorschlaege), Phase 4 (Setting/Figuren/Geschichte),
+5 (Schaerfung), 6 (Szenen) und 7 (Feinschliff) sind damit Opus-faehig.
+**Phase 3 (Interviews) bleibt UNBEDINGT Kimi** -- ohne Ausnahme und
+unabhaengig von der Einwilligung: dort stecken die Rohdaten der
+interviewten Personen, und diese eine Ausnahme ist nicht verhandelbar.
 
 ``szene_claude.ist_aktiv`` traegt genau diese zwei Bedingungen (Schalter +
 Zustimmung) bereits -- fuer Szene, Kurzgeschichte, Szenenfolge,
 Stueckpruefung und die Buehnenkarten (Brainstorming-Sparring) reicht das, sie
 sind ohnehin erst ab ihrer eigenen Phase erreichbar. Nur das Gespraech selbst
 laeuft durch alle sieben Phasen hindurch und braucht zusaetzlich die
-Phasenschwelle -- ``konversation_ueber_claude`` unten.
+Ausnahme fuer Phase 3 -- ``konversation_ueber_claude`` unten.
 
 **Fallback.** Scheitert der Claude-Proxy nach seinen eigenen Wiederholungen
 (``szene_claude.WARTEZEITEN``) oder liefert er kein JSON, das zu einem
@@ -36,7 +42,7 @@ from __future__ import annotations
 import logging
 
 from interview_theater import phasen, repo, szene_claude
-from interview_theater.knoepfe.texte import PHASE_SETTING
+from interview_theater.knoepfe.texte import PHASE_INTERVIEWS
 from interview_theater.llm import LLMFehler
 
 log = logging.getLogger(__name__)
@@ -47,13 +53,21 @@ VORFALL_OPUS_FALLBACK = "opus_fallback"
 def konversation_ueber_claude(e, conn, chat_id: int) -> bool:
     """True, wenn DIESER Gespraechszug auf Claude laufen soll: Betreiber
     erlaubt es, die Gruppe hat zugestimmt (``szene_claude.ist_aktiv`` --
-    Schalter + Einwilligung), UND die Gruppe steht in Phase 4 oder hoeher.
+    Schalter + Einwilligung), UND die Gruppe steht NICHT in Phase 3
+    (Interviews).
 
-    Zurueckspringen nach 1-3 schaltet automatisch zurueck auf Kimi -- es gibt
-    keinen eigenen Merkposten dafuer, die Phase IST die Bedingung."""
+    Seit der Padua Phase 1+2 Karte (03.10.2026) ist das jede Phase ausser
+    Phase 3 -- also auch Phase 1 und 2, die vorher wie jede Phase unter 4
+    unbedingt bei Kimi blieben (``>= PHASE_SETTING``). Phase 3 bleibt die
+    einzige, unbedingte Ausnahme: dort entstehen die sensiblen Rohdaten der
+    interviewten Personen.
+
+    Der Sprung IN Phase 3 schaltet automatisch zurueck auf Kimi, jede andere
+    Phase automatisch wieder auf Claude -- es gibt keinen eigenen
+    Merkposten dafuer, die Phase IST die Bedingung."""
     if not szene_claude.ist_aktiv(e, conn, chat_id):
         return False
-    return phasen.aktuelle(conn, chat_id) >= PHASE_SETTING
+    return phasen.aktuelle(conn, chat_id) != PHASE_INTERVIEWS
 
 
 def aufruf_schema(conn, klm, e, chat_id: int | None, system: str, nutzer: str,

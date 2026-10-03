@@ -168,3 +168,13 @@ dashboard_gestaltet = true
 # automatischen Schaerfung allein -- wie vor diesem Umbau.
 [prosa_entwurf]
 aktiv = true
+
+# Die Hintergrund-Diskussionsaufnahme in Phase 1 (Padua Phase 1+2 Umbau,
+# 03.10.2026). Ohne diese Zeile bleibt Phase 1 genau das, was sie vorher war.
+[diskussion]
+aktiv = true
+
+# Der A/B-Vergleich eigene-vs-KI-Fragen in Phase 2 (Padua Phase 1+2 Umbau,
+# 03.10.2026). Ohne diese Zeile bleibt Phase 2 genau das, was sie vorher war.
+[fragen_ab]
+aktiv = true

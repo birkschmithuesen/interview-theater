@@ -204,6 +204,19 @@ _TEXT_FRAGE_GESCHAERFT = "Question reworked"
 _TEXT_FRAGE_ANGENOMMEN = "✓ Accepted"
 _TEXT_FRAGE_VERWORFEN = "✗ Discarded"
 _TEXT_FRAGE_ENTSCHIEDEN = "Noted"
+# Own questions vs. AI (Padua Phase 1+2 card, Task 13, 2026-10-03).
+_TEXT_FRAGEN_EIGENE_OFFEN = "Still missing: {begriffe}"
+_TEXT_FRAGEN_EIGENE_OFFEN_ZEILE = "{begriff} ({anzahl}/{ziel})"
+_TEXT_FRAGEN_EIGENE_WARTET_AUF_KI = """\
+Your questions are saved - I'm still waiting for the AI questions in the \
+background."""
+_TEXT_GEGENUEBERSTELLUNG_BEREIT = "Your questions and the AI's are now side by side:"
+_TEXT_HERKUNFT_EIGEN = " (yours)"
+_TEXT_HERKUNFT_KI = " (AI)"
+_SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG = "Own questions done."
+# Own questions vs. AI: the evaluation (Task 14, 2026-10-03).
+_TEXT_FRAGEN_AUSWERTUNG = "You kept {ki} AI questions and {eigen} of your own."
+_TEXT_FRAGEN_AUSWERTUNG_ZEILE = "{begriff}: {eigen} own, {ki} AI"
 _TEXT_FRAGEN_WEICH_ANGEBOT = "These questions are phrased sensitively. Softer:"
 _TEXT_FRAGEN_WEICH_ZEILE = """\
 {nummer}. {frage}
@@ -811,6 +824,10 @@ _FRAGEN_KOPF = "The group's interview questions:"
 _TRANSKRIPT_KOPF = "The transcript:"
 _NACHTRAG_WOERTLICH = "\n\nIMPORTANT, second attempt: In the first attempt, supporting quotes did not match the transcript word for word. Copy every quote CHARACTER BY CHARACTER from the transcript -- no smoothing, no moved comma, no filler words removed, no spelling corrected. Better a shorter quote that matches exactly than a longer one you touched up."
 
+["fragen_ki"]
+_BEGRIFFE_KOPF = "The group's terms:"
+_DISKUSSION_KOPF = "Digest of an earlier discussion by the group (background only, not a template):"
+
 ["journal"]
 _BISHERIGES_JOURNAL_KOPF = "Journal so far:\n"
 _AUSSCHNITT_KOPF = "Excerpt:\n"
@@ -910,6 +927,7 @@ _JOURNAL_KOPF = "Journal:\n"
 _AUSLOESER_KOPF = "Now:\n"
 KERNPAKET_KOPF = "The core package - this is what you work from. Characters and scenes come from the story and this selection, not from the interviews (they are deliberately no longer available to you here word for word):"
 FESTLEGUNGEN_KOPF = "Further agreements of the group (they count like the progress above):"
+DISKUSSION_KOPF = "From your term discussion:"
 _PHASENHINWEIS = "The material would allow phase {bezeichnung}. Ask in the flow of the conversation whether the group wants to go there yet -- one sentence, no announcement (\"Are more interviews coming, or shall we move on?\"). You don't switch yourself; the group's answer does that."
 _FIGURENHINWEIS = "These characters are still missing the interview they speak from: {namen}. If it fits, ONE sentence about it, at most: '<character name> could speak like <interview name> -- does that fit?' No quote, no reasoning, no explanation of what the assignment is for, and nothing repeated that has already been said or noted (the assignment used to be too long-winded). Only character names from the list above and interview names from the summaries. If the group says a character is entirely made up, stop asking about it. One interview may feed several characters."
 _TEXT_SZENE_GEKUERZT = "[... middle part of the scene left out ...]"
@@ -917,6 +935,9 @@ ERSTKONTAKT = "{anlass} First respond to what was just said, then take your time
 ERSTKONTAKT_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
 ERSTKONTAKT_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
 ERSTKONTAKT_LINK = "; and that the group can follow everything that has been recorded at {url} (only for this group, give the link exactly like this)"
+ERSTKONTAKT_DISKUSSION = "{anlass} First respond to what was just said, then take your time: this is the moment when the group understands how the work goes here. Cover the following, in this order and in full sentences, not as a list: who you are and what you do together (the group's terms turn into questions, the group takes the questions out and does interviews, the interviews later become the play); that you read everything and answer everything, typed or spoken; **that an interview starts with the button \"Start interview\" and that after every voice message a button asks whether it goes on or is finished** -- the buttons under your message show the way, **don't mention any slash command**{link}. **End differently this time, not with the question about the terms**: explain instead that the group now lays the phone in the middle and freely discusses which terms matter to them -- you only listen and say nothing until they press \"Discussion done\". Underneath, the button \"Start listening\" appears, which starts the discussion. No form, no bullet-point list -- a warm, detailed start that begins with what was said and ends with the explanation about the discussion."
+ERSTKONTAKT_DISKUSSION_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
+ERSTKONTAKT_DISKUSSION_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
 EINSTIEG_SETTING = "The group is entering phase 4 (Frame) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (Prose Draft) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Where we are\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
 
 ["kontext".JOURNALART_BESCHRIFTUNG]
@@ -950,6 +971,7 @@ _TEXT_DOWNLOAD_FEHLER = "The recording didn't reach me - please send it again."
 _TEXT_BITTE_NOCHMAL = "I couldn't understand {beschreibung} - please send it again."
 _TEXT_VERDICHTUNG_GESCHEITERT = "I couldn't analyse {beschreibung}. The transcript stays saved, only the summary is missing."
 _TEXT_BUEHNE_NEUE_KARTE = "New card in the Stage tab"
+_TEXT_DISKUSSION_FERTIG_BEGRIFFE = "The discussion is over. Now send me your five terms - typed or as a voice message."
 _ARTIKEL_GROSS = "the"
 _ARTIKEL_KLEIN = "the"
 _BESCHREIBUNG_TEIL = "{artikel} recording of {name}, part {nummer}"
@@ -1550,6 +1572,8 @@ _TEXT_KEINE_AUFRUFE = "no model calls yet today"
 _TEXT_AUFNAHMEN = "Recordings — {liste}"
 _TEXT_KEINE = "none"
 _TEXT_VERDICHTUNGEN = "Summaries: {anzahl}"
+# Own vs. AI questions (Task 14).
+_TEXT_FRAGEN_AUSWERTUNG = "Questions kept: {eigen} own, {ki} AI"
 _TEXT_SZENENZAHL = "Scenes: {anzahl}"
 _TEXT_ZULETZT = "Last activity: {zeit}"
 _TEXT_INTERVIEWMODUS = "Interview mode"
@@ -1788,6 +1812,10 @@ _TEXT_REST_NACHREICHEN = "Submit the rest as an interview"
 _TEXT_REST_VERWERFEN = "Discard the rest"
 _TEXT_BRAINSTORM_AN = "🎙 Join the brainstorm"
 _TEXT_BRAINSTORM_LAEUFT = "● Listening · {zeit}"
+# Task 5 (Padua Phase 1+2 Umbau, 03.10.2026): background listening in phase 1.
+_TEXT_DISKUSSION_AN = "Start listening"
+_TEXT_DISKUSSION_LAEUFT = "Listening ({zeit})"
+_TEXT_DISKUSSION_FERTIG_KNOPF = "Discussion done"
 _TEXT_INTERVIEW_PAUSE = "⏸ Pause"
 _TEXT_INTERVIEW_WEITER = "▶ Continue"
 _TEXT_INTERVIEW_ENDEN = "■ Stop"

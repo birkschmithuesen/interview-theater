@@ -98,6 +98,26 @@ steht (SPEC § 6.1), gilt sie gegen jede ältere Formulierung in
   `[sprachpass] aktiv = false`) -- dann gibt es weder ein Budget im Prompt
   noch einen Nachpass, genau wie in Dortmund.
 
+## Phase 1+2 Umbau (Karte Padua Phase 1+2, 03.10.2026)
+
+- **Hintergrund-Diskussion in Phase 1** (`[diskussion] aktiv = true`): das
+  Mikrofon läuft mit, während die Gruppe frei diskutiert, ohne Gesprächszug,
+  ohne Absichtserkenner, ohne CoThinker-Karte je Segment (`diskussion.py`).
+  Erst am Ende läuft EIN Schema-Aufruf über das ganze zusammengefügte
+  Transkript und destilliert, was Phase 2 und Phase 4+ später brauchen
+  können — Zitatschutz wie überall (`zitat.pruefe`).
+- **A/B-Vergleich eigene-vs-KI-Fragen in Phase 2** (`[fragen_ab] aktiv =
+  true`): die KI-Fragen entstehen schon beim Eintritt in Phase 2, bevor die
+  Gruppe ihre eigenen einspricht, und bleiben bis dahin versteckt — sonst
+  wüsste die KI die Fragen der Gruppe und der Vergleich wäre nicht sauber.
+  Erst wenn genügend eigene Fragen je Begriff vorliegen, kommt die
+  Gegenüberstellung.
+- Beide Schalter liest `workshop.diskussion_aktiv()` bzw.
+  `workshop.fragen_ab_aktiv()` aus `profil.toml` (`[diskussion] aktiv` /
+  `[fragen_ab] aktiv`, Vorgabe `false` — wie bei `[laengen]`). Dortmund und
+  das eingebaute Vorgabeprofil setzen beide Zeilen nicht und bleiben
+  unberührt.
+
 ## Was offen bleibt
 
 - **Journal-, Verdichter- und Sprachprofil-Korpus auf Englisch** — nur der

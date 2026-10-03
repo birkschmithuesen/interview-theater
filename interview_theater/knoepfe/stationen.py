@@ -24,6 +24,10 @@ from interview_theater.knoepfe.basis import (
 
 #: Begriffe -- die Phase, deren Einstieg ein Gespraechszug ist, kein Festtext.
 PHASE_BEGRIFFE = 1
+#: Fragen -- die Phase, die unter dem Profilschalter ``fragen_ab.aktiv`` den
+#: isolierten KI-Fragen-Hintergrundlauf anstoesst (Aufgabe 12, Padua Phase
+#: 1+2 Umbau, 03.10.2026).
+PHASE_FRAGEN = 2
 from interview_theater.knoepfe.interviews import biete_stt_sprache
 from interview_theater.knoepfe.szenen import (
     biete_durchlauf, biete_kurzgeschichte, biete_szene_usa, starte_schaerfung,
@@ -243,6 +247,28 @@ def _sende_karte(tg, chat_id: int, nummer: int) -> None:
     tg.sende_bild(chat_id, datei.name, inhalt, satz)
 
 
+def _biete_modellwahl_wenn_faellig(conn, tg, e, chat_id: int) -> None:
+    """Die Modellwahl-Einwilligungsfrage, wenn sie noch faellig ist
+    (``szene_claude.angebot_faellig``) -- derselbe Check-und-Frage-Schritt
+    fuer jeden Aufrufer: dieselbe Spalte (``gruppe.szene_usa_bestaetigt_am``),
+    derselbe Knopfweg (``ART_SZENE_USA``, ``biete_szene_usa``).
+
+    Seit dem 03.10.2026 (Padua Phase 1+2 Karte) ruft ``eintritt_in_phase``
+    diese Funktion aus PHASE_BEGRIFFE **und** PHASE_SETTING -- die Frage
+    steht damit schon beim Einstieg in Phase 1. Der PHASE_SETTING-Aufruf ist
+    seitdem in der Praxis ein Sicherheitsnetz (genau wie der aeltere
+    PHASE_SZENEN-Zweig unten einer ist): fuer Gruppen, die Phase 1 schon vor
+    diesem Umbau durchlaufen haben, liefert ``angebot_faellig`` dort noch
+    True; fragt Phase 1 bereits, liefert sie danach ueberall False, und
+    dieser Aufruf wird zum No-Op."""
+    from interview_theater import szene_claude
+
+    if szene_claude.angebot_faellig(e, conn, chat_id):
+        repo.merke_szene_usa_angeboten(conn, chat_id)
+        tg.sende(chat_id, T._TEXT_ANGEBOT_MODELLWAHL)
+        biete_szene_usa(conn, tg, chat_id)
+
+
 def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
     """Was beim Eintritt in eine Phase passiert -- fuer ALLE sieben gleich
     aufgebaut (06.09.2026, Birk).
@@ -265,24 +291,23 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
     from interview_theater import phasentexte
 
     _sende_karte(tg, chat_id, nummer)
-    if nummer == PHASE_SETTING:
-        # Modellwahl-Karte (02.10.2026): die Einwilligungsfrage steht jetzt
-        # HIER, beim Uebergang 3 -> 4 -- nicht mehr erst vor der ersten Szene.
-        # Dieselbe Spalte (gruppe.szene_usa_bestaetigt_am), derselbe Knopfweg
-        # (ART_SZENE_USA, biete_szene_usa): eine Antwort hier gilt auch fuer
-        # die Szene, keine zweite Frage in Phase 6 -- der dortige Zweig unten
-        # (PHASE_SZENEN) bleibt als Sicherheitsnetz stehen, greift im
-        # Normalfall aber nicht mehr, weil ``angebot_faellig`` False liefert,
-        # sobald hier einmal gefragt wurde. Die Phase wird NICHT auf die
-        # Antwort verzoegert: der Eintritt geht sofort weiter, bis zur
-        # Antwort laeuft jeder Gespraechszug auf Kimi
+    if nummer == PHASE_BEGRIFFE:
+        # Modellwahl-Karte, Padua Phase 1+2 (03.10.2026): die
+        # Einwilligungsfrage steht jetzt schon HIER, beim Einstieg in
+        # Phase 1 -- nicht mehr erst beim Uebergang 3 -> 4. Dieselbe Spalte
+        # (gruppe.szene_usa_bestaetigt_am), derselbe Knopfweg (ART_SZENE_USA,
+        # biete_szene_usa): eine Antwort hier gilt fuer das ganze weitere
+        # Gespraech UND die Szene, keine zweite Frage spaeter. Der Einstieg
+        # wird NICHT auf die Antwort verzoegert: er geht sofort weiter, bis
+        # zur Antwort laeuft jeder Gespraechszug auf Kimi
         # (``modellwahl.konversation_ueber_claude``).
-        from interview_theater import szene_claude
-
-        if szene_claude.angebot_faellig(e, conn, chat_id):
-            repo.merke_szene_usa_angeboten(conn, chat_id)
-            tg.sende(chat_id, T._TEXT_ANGEBOT_MODELLWAHL)
-            biete_szene_usa(conn, tg, chat_id)
+        _biete_modellwahl_wenn_faellig(conn, tg, e, chat_id)
+    if nummer == PHASE_SETTING:
+        # Sicherheitsnetz fuer Gruppen, die den Eintritt in Phase 1 schon vor
+        # diesem Umbau durchlaufen haben (``angebot_faellig`` liefert dann
+        # noch True) -- wie der PHASE_SZENEN-Zweig weiter unten greift das
+        # im Normalfall nicht mehr, sobald Phase 1 schon gefragt hat.
+        _biete_modellwahl_wenn_faellig(conn, tg, e, chat_id)
     if nummer == PHASE_BEGRIFFE and klm is not None:
         # **Derselbe Einstieg wie beim Erstkontakt** (02.10.2026, Birk,
         # Padua): keine Kopfzeile, kein fester Satz -- der erste Impuls kommt
@@ -307,6 +332,17 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
             conn, tg, klm, e, chat_id, kontext.einstieg_setting(conn, chat_id, e),
         ):
             return
+    if nummer == PHASE_FRAGEN:
+        # Padua Phase 1+2 Umbau, Aufgabe 12 (03.10.2026): die KI-Fragen
+        # entstehen im Hintergrund, BEVOR die Gruppe eine einzige eigene
+        # Frage geschrieben hat -- nur unter dem Profilschalter
+        # ``fragen_ab.aktiv`` (sonst bleibt Phase 2 unveraendert, auch ohne
+        # Modell). Rein additiv: die bestehende ``else``-Faellthrough unten
+        # (``biete_proaktiv``) laeuft unveraendert weiter.
+        from interview_theater import fragen_ki, workshop
+
+        if workshop.fragen_ab_aktiv():
+            fragen_ki.starte(conn, tg, klm, e, chat_id)
     kopf = phasentexte.eintritt(conn, chat_id, nummer)
     if nummer == PHASE_INTERVIEWS:
         # Der Schritt in die Interviews ist der Moment, in dem die Gruppe

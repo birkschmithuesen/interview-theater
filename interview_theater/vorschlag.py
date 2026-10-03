@@ -89,6 +89,13 @@ ARTEN = (
     # (``figur.quelle_aufnahme_id``): der Stil kommt aus einem bestimmten
     # Interview, nicht aus dem Nichts.
     "stil",
+    # Die eigenen Fragen der Gruppe in Phase 2 (Padua Phase 1+2 Karte,
+    # Aufgabe 13, 03.10.2026, KORREKTUR-PHASE2-KEIN-KNOPF.md): KEIN
+    # einmaliges "fertig"-Signal, sondern die vollstaendige, kumulative
+    # Liste -- bei jedem relevanten Zug neu ausgeschrieben. Eigener Marker
+    # und nicht ``fragen``, weil ein ``FRAGEN``-Block die fertige Auswahl der
+    # Gegenueberstellung meint, nicht den laufenden eigenen Stand.
+    "eigene_fragen",
 )
 
 #: Die Markerzeile. Grossbuchstaben, weil sie im Fliesstext nicht vorkommt
@@ -100,8 +107,13 @@ _ZEILE = re.compile(
     r"^\s*VORSCHLAG\s+"
     # ``FRAGEN WEICH`` steht VOR ``FRAGEN``: eine Alternation nimmt die
     # erste passende, und ``FRAGEN`` allein wuerde die weichen Fassungen als
-    # neue Frageliste verbuchen.
-    r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN\s+WEICH|FRAGEN|FRAGE|KERNTHEMA|KERNFRAGE"
+    # neue Frageliste verbuchen. ``EIGENE FRAGEN`` (Aufgabe 13) braucht
+    # dieselbe Vorsicht NICHT: es beginnt mit dem eigenen Wort "EIGENE" und
+    # teilt mit ``FRAGEN``/``FRAGE``/``FRAGENAUSWAHL``/``FRAGEN WEICH`` kein
+    # gemeinsames Praefix nach "VORSCHLAG " -- keine Reihenfolge-Falle,
+    # steht hier trotzdem lesbar neben den anderen FRAGEN*-Varianten.
+    r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN\s+WEICH|EIGENE\s+FRAGEN|FRAGEN|FRAGE"
+    r"|KERNTHEMA|KERNFRAGE"
     r"|FIGUREN|RICHTUNGEN"
     r"|NAMEN|DUKTUS|RAHMEN"
     r"|SZENENFOLGE|GESCHICHTE|SZENE|EINLEITUNGEN|EROEFFNUNG|STIL)"

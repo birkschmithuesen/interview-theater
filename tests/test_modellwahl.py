@@ -16,6 +16,7 @@ from interview_theater import (
     knoepfe, kontext, kosten, modellwahl, repo, szene_claude, szenenfolge,
     vorschlagssperre,
 )
+from interview_theater.knoepfe.stationen import PHASE_BEGRIFFE
 
 CHAT = 1
 
@@ -75,14 +76,57 @@ def test_ohne_betreiberschalter_bleibt_kimi(conn, einst):
     assert modellwahl.konversation_ueber_claude(einst, conn, CHAT) is False
 
 
-def test_zurueck_zu_phase_2_ist_wieder_kimi(conn, opus_e):
-    """Einmal in Phase 5 mit Einwilligung auf Claude, dann zurueck nach 2 --
-    keine eigene Rueckschaltung noetig, die Phase IST die Bedingung."""
+def test_zurueck_zu_phase_3_interviews_ist_wieder_kimi(conn, opus_e):
+    """Einmal in Phase 5 mit Einwilligung auf Claude, dann zurueck nach 3
+    (Interviews) -- keine eigene Rueckschaltung noetig, die Phase IST die
+    Bedingung. Phase 2 ist dagegen seit der Padua Phase 1+2 Karte
+    (03.10.2026) selbst Opus-faehig -- nur der Sprung IN Phase 3 schaltet
+    zurueck auf Kimi (vorher: jede Phase unter 4)."""
     repo.setze_phase(conn, CHAT, 5)
     _stimme_zu(conn)
     assert modellwahl.konversation_ueber_claude(opus_e, conn, CHAT) is True
-    repo.setze_phase(conn, CHAT, 2)
+    repo.setze_phase(conn, CHAT, 3)
     assert modellwahl.konversation_ueber_claude(opus_e, conn, CHAT) is False
+    repo.setze_phase(conn, CHAT, 2)
+    assert modellwahl.konversation_ueber_claude(opus_e, conn, CHAT) is True
+
+
+@pytest.mark.parametrize("phase", [1, 2, 4, 5, 6, 7])
+def test_jede_phase_ausser_interviews_ist_claude_faehig_mit_einwilligung(
+    conn, opus_e, phase,
+):
+    """Seit der Padua Phase 1+2 Karte (03.10.2026) ist jede Phase ausser
+    Phase 3 (Interviews) Opus-faehig, sobald Schalter und Einwilligung
+    stehen -- auch Phase 1 (Diskussionsverdichtung) und Phase 2
+    (Fragenformulierung/KI-Vorschlaege), die vorher wie jede Phase unter 4
+    unbedingt bei Kimi blieben."""
+    repo.setze_phase(conn, CHAT, phase)
+    _stimme_zu(conn)
+    assert modellwahl.konversation_ueber_claude(opus_e, conn, CHAT) is True
+
+
+def test_phase_3_interviews_bleibt_immer_kimi_mit_einwilligung(conn, opus_e):
+    """Die einzige Ausnahme, unbedingt: Interview-Rohdaten gehen nie ueber
+    Claude, auch mit Schalter und Einwilligung nicht."""
+    repo.setze_phase(conn, CHAT, 3)
+    _stimme_zu(conn)
+    assert modellwahl.konversation_ueber_claude(opus_e, conn, CHAT) is False
+
+
+@pytest.mark.parametrize("phase", [1, 2, 3, 4, 5, 6, 7])
+def test_ohne_einwilligung_bleibt_jede_phase_kimi(conn, opus_e, phase):
+    repo.setze_phase(conn, CHAT, phase)
+    # keine Zustimmung (Stand bleibt 'offen')
+    assert modellwahl.konversation_ueber_claude(opus_e, conn, CHAT) is False
+
+
+@pytest.mark.parametrize("phase", [1, 2, 3, 4, 5, 6, 7])
+def test_ohne_betreiberschalter_bleibt_jede_phase_kimi(conn, einst, phase):
+    """``einst`` hat den Vorgabewert 'infomaniak' -- auch mit Einwilligung
+    und jeder Phase passiert nichts, ohne dass der Betreiber es erlaubt."""
+    repo.setze_phase(conn, CHAT, phase)
+    _stimme_zu(conn)
+    assert modellwahl.konversation_ueber_claude(einst, conn, CHAT) is False
 
 
 def test_verdichter_ruft_modellwahl_und_szene_claude_nie_an():
@@ -368,3 +412,49 @@ def test_phase_4_eintritt_blockiert_nicht_auf_die_antwort(conn, opus_e):
     knoepfe.eintritt_in_phase(conn, tg, None, opus_e, CHAT, knoepfe.PHASE_SETTING)
     assert len(tg.gesendet) >= 2  # Karte/Einleitung + die Modellwahl-Frage
     assert modellwahl.konversation_ueber_claude(opus_e, conn, CHAT) is False
+
+
+# --------------------------------------------------------------------------
+# Einwilligungsfrage wandert auf den Eintritt in Phase 1 (03.10.2026, Padua
+# Phase 1+2 Karte) -- dieselbe Spalte, derselbe Knopfweg, keine zweite Frage.
+# --------------------------------------------------------------------------
+
+
+def test_konsensfrage_kommt_jetzt_bei_phase_1(conn, opus_e):
+    tg = _TelegramAttrappe()
+    knoepfe.eintritt_in_phase(conn, tg, None, opus_e, CHAT, PHASE_BEGRIFFE)
+    assert len(_angebot_texte(tg)) == 1
+    assert len(tg.knoepfe) == 1
+    assert repo.szene_usa_stand(conn, CHAT) == "offen"
+
+
+def test_phase_1_konsensfrage_nur_einmal_phase_4_fragt_nicht_erneut(conn, opus_e):
+    """Nach der Frage beim Phase-1-Eintritt bleibt das alte Sicherheitsnetz
+    in PHASE_SETTING ein No-Op -- genau wie der laengst bestehende
+    PHASE_SZENEN-Zweig es schon ist."""
+    tg = _TelegramAttrappe()
+    knoepfe.eintritt_in_phase(conn, tg, None, opus_e, CHAT, PHASE_BEGRIFFE)
+    assert len(_angebot_texte(tg)) == 1
+    knoepfe.eintritt_in_phase(conn, tg, None, opus_e, CHAT, knoepfe.PHASE_SETTING)
+    assert len(_angebot_texte(tg)) == 1
+
+
+def test_phase_1_ohne_angebot_faellig_begriffe_kickoff_laeuft_trotzdem(conn, opus_e):
+    """Schon beantwortet (hier: ueber den alten Weg) -- Phase 1 fragt nicht
+    noch einmal, aber der deterministische Begriffe-Einstieg (ohne ``klm``,
+    also ohne den modellgetriebenen Erstkontakt-Zug) laeuft unveraendert
+    weiter."""
+    _stimme_zu(conn, ja=True)
+    tg = _TelegramAttrappe()
+    knoepfe.eintritt_in_phase(conn, tg, None, opus_e, CHAT, PHASE_BEGRIFFE)
+    assert _angebot_texte(tg) == []
+    assert any(
+        knoepfe.texte.T._TEXT_PROAKTIV in text for _, text in tg.gesendet
+    )
+
+
+def test_phase_1_ohne_betreiberschalter_wird_nicht_gefragt(conn, einst):
+    tg = _TelegramAttrappe()
+    knoepfe.eintritt_in_phase(conn, tg, None, einst, CHAT, PHASE_BEGRIFFE)
+    assert _angebot_texte(tg) == []
+    assert repo.szene_usa_stand(conn, CHAT) == "offen"

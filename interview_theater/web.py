@@ -1223,6 +1223,31 @@ def _fehlstellen_html(eintraege: list[dict] | None) -> str:
     )
 
 
+def _fragen_auswertung_text(daten: dict | None) -> str | None:
+    """"Fragen behalten: 2 eigene, 3 KI" -- oder ``None`` (Aufgabe 14).
+
+    **Nur, wenn der A/B-Vergleich ueberhaupt Zahlen hergibt.** Lief er nie
+    fuer diese Gruppe (klassischer Ablauf, oder ``workshop.
+    fragen_ab_aktiv()`` aus), ist ``gesamt`` 0/0 -- eine Zeile "0 eigene,
+    0 KI" waere Laerm wie "nichts fehlt" bei den Fehlstellen. Derselbe
+    Schluessel ``fragen_auswertung`` wie im Dashboard (``web_daten.
+    dashboard``) und auf der Gruppenseite (``web_daten.gruppe_nach_token``)."""
+    if not daten:
+        return None
+    gesamt = daten.get("gesamt") or {}
+    eigen, ki = gesamt.get("eigen", 0), gesamt.get("ki", 0)
+    if not eigen and not ki:
+        return None
+    return _t(T._TEXT_FRAGEN_AUSWERTUNG).format(eigen=eigen, ki=ki)
+
+
+def _fragen_auswertung_html(daten: dict | None) -> str:
+    """Die Gruppenseite: ``_fragen_auswertung_text`` als eigener Absatz,
+    oder gar nichts (dasselbe Prinzip wie ``_fehlstellen_html``)."""
+    text = _fragen_auswertung_text(daten)
+    return f"<p>{text}</p>" if text else ""
+
+
 def _sprechanteile_html(daten: dict | None) -> str:
     """Wie viel jede Figur spricht -- Liste und Hinweiszeilen (06.09.2026).
 
@@ -1753,6 +1778,12 @@ _TEXT_KEINE_AUFRUFE = "heute noch keine Modellaufrufe"
 _TEXT_AUFNAHMEN = "Aufnahmen — {liste}"
 _TEXT_KEINE = "keine"
 _TEXT_VERDICHTUNGEN = "Verdichtungen: {anzahl}"
+#: Eigene vs. KI-Fragen (Aufgabe 14, ``web_daten.dashboard``/
+#: ``gruppe_nach_token``, Schluessel ``fragen_auswertung``) -- dieselbe Zeile
+#: auf dem Dashboard und der Gruppenseite (``_fragen_auswertung_html``). Nur
+#: sichtbar, wenn ``gesamt`` einen Wert ungleich 0/0 traegt -- eine Zeile
+#: "0 eigene, 0 KI" waere Laerm wie "nichts fehlt" bei den Fehlstellen.
+_TEXT_FRAGEN_AUSWERTUNG = "Fragen behalten: {eigen} eigene, {ki} KI"
 _TEXT_SZENENZAHL = "Szenen: {anzahl}"
 _TEXT_ZULETZT = "zuletzt: {zeit}"
 _TEXT_INTERVIEWMODUS = "Interviewmodus"
@@ -2080,12 +2111,21 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
         zuletzt = _t(T._TEXT_ZULETZT).format(
             zeit=_t(_dashboard_zeit(g["letzte_aktivitaet"]), "")
         )
+        # Eigene vs. KI-Fragen (Aufgabe 14) -- ein zusaetzlicher Span, NUR
+        # wenn es ueberhaupt Zahlen gibt (klassische Gruppen ohne
+        # A/B-Vergleich bleiben byte-identisch, ``g.get`` liefert dort
+        # ``None``, ``_fragen_auswertung_text`` dann ``None``).
+        fragen_auswertung_text = _fragen_auswertung_text(g.get("fragen_auswertung"))
+        fragen_auswertung_span = (
+            f"<span>{fragen_auswertung_text}</span>" if fragen_auswertung_text else ""
+        )
         zahlen = (
             '<div class="zahlen">'
             f"<span>{_t(T._TEXT_AUFNAHMEN).format(liste=aufnahmen)}</span>"
             f"<span>{verdichtungen}</span>"
             f'<span>{_szenenzahl(g["szenen"], g.get("szenen_formen") or [])}</span>'
             f"<span>{zuletzt}</span>"
+            f"{fragen_auswertung_span}"
             "</div>"
         )
         log = _eingeklappt(T._TEXT_LOG, f"{zahlen}{vorfaelle_html}{aufrufe_html}", einklappen)
@@ -2832,6 +2872,10 @@ def gruppe_koerper(
         f"{_fehlstellen_html(daten.get('fehlstellen'))}\n"
         f"<h2>{_t(T._UEBERSCHRIFT_ARBEITSSTAND)}</h2>"
         f"{stand}\n"
+        # Eigene vs. KI-Fragen (Aufgabe 14) -- dieselbe Zeile wie auf dem
+        # Dashboard, nichts, solange der A/B-Vergleich fuer diese Gruppe nie
+        # lief.
+        f"{_fragen_auswertung_html(daten.get('fragen_auswertung'))}\n"
         # Die Stueckkarte (02.10.2026) steht direkt ueber den freien
         # Festlegungen -- zusammen zeigen beide, was feststeht und was
         # daneben noch gilt.

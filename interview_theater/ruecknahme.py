@@ -129,16 +129,36 @@ def spalten(tabelle: str) -> tuple[str, ...]:
     return tuple(name for name, _ in alle if name not in aussen)
 
 
+#: Spalten aus ``AUSSEN``, die ein Lauf trotzdem verfolgt, wenn er DIESE Art
+#: traegt (Padua Phasen TEIL 2, Task 10). ``szene.form`` steht in ``AUSSEN``,
+#: weil sie sonst allein ein Knopfdruck traegt -- die Erkenner-Art
+#: ``formen_setzen`` schreibt sie aber selbst (die Antwort der Gruppe auf die
+#: Formwahl-Liste), und dann gehoert sie in den Diff dieses Laufs, sonst
+#: haette die Notiert-Meldung keinen wirksamen Undo. Nur fuer Laeufe mit
+#: dieser Art: ein Szenen-Undo eines anderen Laufs bleibt unberuehrt davon,
+#: dass die Gruppe inzwischen eine Form bestaetigt hat.
+ZUSATZ_JE_ART = {
+    "formen_setzen": {"szene": ("form",)},
+}
+
+
 def plan(arten: Iterable[str]) -> dict[str, tuple[tuple[str, ...], tuple[str, ...]]]:
     """Tabelle -> (Schluesselspalten, verglichene Spalten) fuer diesen Lauf.
 
     Die Materialtabellen kommen nur dazu, wenn im Lauf eine
     Transkriptkorrektur steckt: sonst waere jeder Erkennerlauf ein Lesen aller
-    Transkripte einer Gruppe."""
+    Transkripte einer Gruppe. Dasselbe Prinzip fuer ``ZUSATZ_JE_ART``."""
+    arten = set(arten)
     tabellen = list(VERFOLGT)
-    if ART_MATERIAL in set(arten):
+    if ART_MATERIAL in arten:
         tabellen += list(MATERIAL)
-    return {t: (SCHLUESSEL[t], spalten(t)) for t in tabellen}
+    ergebnis = {t: (SCHLUESSEL[t], spalten(t)) for t in tabellen}
+    for art in sorted(arten & set(ZUSATZ_JE_ART)):
+        for tabelle, zusatz in ZUSATZ_JE_ART[art].items():
+            schluessel, bisher = ergebnis[tabelle]
+            ergebnis[tabelle] = (schluessel, bisher + tuple(
+                s for s in zusatz if s not in bisher))
+    return ergebnis
 
 
 def gleich(a: Any, b: Any) -> bool:

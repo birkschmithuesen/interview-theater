@@ -105,6 +105,11 @@ _TEXT_7_SCHON_FERTIG = (
 #: Hoechstens so viele Zeichen je Satz in der Formwahl.
 FORMWAHL_SATZ_MAX = 160
 
+# --- Chat wirkt, wo Knoepfe wirken (Task 10) ------------------------------
+
+#: Eine Zeile der Notiert-Meldung je gesetzter Form (``formen_setzen``).
+_ZEILE_FORM_GESETZT = "Szene {nummer}: {form}"
+
 PHASE_UEBERARBEITUNG = 6
 PHASE_BUEHNE = 7
 
@@ -528,6 +533,119 @@ def starte_schluss(conn, tg, klm, e, chat_id: int) -> threading.Thread | None:
         sperre.release()
         raise
     return faden
+
+
+# ---------------------------------------------------------------------------
+# Chat wirkt, wo Knoepfe wirken (Task 10): die Erkenner-Arten fassung_abnehmen
+# und formen_setzen. Kein Modellaufruf, kein SQL -- dieselben Wege wie die
+# Knoepfe.
+# ---------------------------------------------------------------------------
+
+PHASE_ENTWURF = 5
+
+
+def nimm_ab(conn, tg, klm, e, chat_id: int) -> str | None:
+    """"Yes, save" aus dem Chat (Erkenner-Art ``fassung_abnehmen``): dieselbe
+    Funktion wie der passende Knopf in der aktuellen Phase -- oder ``None``,
+    wenn gerade nichts auf eine Abnahme wartet (dann schreibt und schickt der
+    Erkenner nichts fuer diese Art).
+
+    Phase 5: die Uebersicht (``entwurf.fixiere_uebersicht``), sonst der
+    erste offene Prosa-Entwurf (``entwurf.bestaetige_szene``). Phase 6: das
+    Ganze (``bestaetige_gesamt``), sonst die aktuelle Szene. Phase 7: nicht,
+    solange Formen offen sind; dann die Sprechweisen, sobald jede Figur eine
+    hat; sonst die aktuelle Buehnenszene."""
+    from interview_theater import entwurf
+
+    phase = phasen.aktuelle(conn, chat_id)
+    if phase == PHASE_ENTWURF:
+        if (_stand(conn, chat_id, "geschichte_uebersicht")
+                and not _stand(conn, chat_id, "geschichte_uebersicht_fixiert_am")):
+            return entwurf.fixiere_uebersicht(conn, tg, klm, e, chat_id)
+        nummer = entwurf.erste_offene_szene(conn, chat_id)
+        zeile = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
+        if zeile is not None and _gesetzt(zeile["prosa"]):
+            return entwurf.bestaetige_szene(conn, tg, klm, e, chat_id, nummer)
+        return None
+    if phase == PHASE_UEBERARBEITUNG:
+        if not gesamttext_fixiert(conn, chat_id):
+            if _hat_prosa(conn, chat_id):
+                return bestaetige_gesamt(conn, tg, klm, e, chat_id)
+            return None
+        nummer = aktuelle_szene(conn, chat_id)
+        zeile = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
+        if zeile is not None and _gesetzt(zeile["prosa"]):
+            return bestaetige_szene_6(conn, tg, klm, e, chat_id, nummer)
+        return None
+    if phase == PHASE_BUEHNE:
+        if formen_offen(conn, chat_id):
+            return None
+        if not sprechweisen_fixiert(conn, chat_id):
+            figuren = repo.figuren(conn, chat_id)
+            if figuren and all(_gesetzt(f["sprachstil"]) for f in figuren):
+                return bestaetige_sprechweisen(conn, tg, klm, e, chat_id)
+            return None
+        nummer = aktuelle_szene(conn, chat_id)
+        zeile = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
+        if zeile is not None and _gesetzt(zeile["volltext"]):
+            return bestaetige_szene_7(conn, tg, klm, e, chat_id, nummer)
+    return None
+
+
+#: Ein Paar "Nummer Form" aus dem ``wert`` von ``formen_setzen``: "1: chorus",
+#: "2 dialogue", "scene 3 - rap". Ein fuehrendes "scene"/"Szene" ist erlaubt.
+_FORM_PAAR = re.compile(
+    r"^\s*(?:scene|szene)?\s*(\d{1,2})\s*[:.\-=]?\s*(.+?)\s*$", re.IGNORECASE)
+_FORM_TRENNER = re.compile(r"[|,;\n]|\band\b|\bund\b", re.IGNORECASE)
+
+
+def form_aus_text(text: str | None) -> str | None:
+    """Der Datenbankwert einer Form (``szene.FORMEN``) aus einem freien Wort
+    ("chorus", "a song", "Monolog") -- oder ``None``. Anders als
+    ``szene.formdatei`` OHNE Rueckfall: eine unbekannte Angabe ("puppetry")
+    setzt nichts, statt still Dialog zu werden. Geprueft wie dort: die
+    Rueckfall-Form zuletzt (ihre Stichwoerter sind die allgemeinsten)."""
+    text = " ".join((text or "").lower().split())
+    if not text:
+        return None
+    namen = workshop.formen()
+    anzeige = dict(zip(namen, workshop.form_anzeige()))
+    stichwoerter = workshop.form_stichwoerter()
+    rueckfall = workshop.form_vorgabe()
+    reihenfolge = [n for n in namen if n != rueckfall] + [n for n in namen if n == rueckfall]
+    for name in reihenfolge:
+        woerter = {name, anzeige[name].lower(), *stichwoerter.get(name, ())}
+        if any(w and re.search(rf"\b{re.escape(w)}\b", text) for w in woerter):
+            return name
+    return None
+
+
+def _wende_formen_an(conn, chat_id: int, wert: str) -> list[str]:
+    """Der Schreibpfad von ``formen_setzen``: ``szene.form`` je genannter
+    Nummer, nur fuer bestehende Szenen und nur mit einer bekannten Form.
+    Liefert je wirklich geaenderter Szene eine Zeile fuer die
+    Notiert-Meldung.
+
+    Geschrieben wird ``form`` und NICHT ``form_vorschlag``: die Gruppe hat
+    gewaehlt (AGENTS.md, "Eine Menuezeile ist keine Geschichte" -- "die
+    Regel haelt den Vorschlag eines Modells aus dem Feld heraus, nicht die
+    Wahl der Gruppe"). Kein Richter-Weg schreibt hier
+    (``repo.GESCHUETZTE_SZENENFELDER`` bleibt fuer die Pruefung tabu)."""
+    szenen = {s["nummer"]: s for s in _szenen(conn, chat_id)}
+    anzeige = dict(zip(workshop.formen(), workshop.form_anzeige()))
+    zeilen: list[str] = []
+    for teil in _FORM_TRENNER.split(wert or ""):
+        treffer = _FORM_PAAR.match(teil or "")
+        if not treffer:
+            continue
+        zeile = szenen.get(int(treffer.group(1)))
+        form = form_aus_text(treffer.group(2))
+        if zeile is None or form is None or zeile["form"] == form:
+            continue
+        repo.setze_szenenfeld(conn, zeile["id"], "form", form)
+        zeilen.append(T._ZEILE_FORM_GESETZT.format(
+            nummer=zeile["nummer"], form=anzeige.get(form, form)))
+    return zeilen
 
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)

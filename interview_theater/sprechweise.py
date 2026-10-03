@@ -133,6 +133,32 @@ def _schreibe(conn, chat_id: int, sprechweisen: dict[str, str]) -> int:
     return geschrieben
 
 
+#: Eine Zeile der Notiert-Meldung je gesetzter Sprechweise
+#: (Erkenner-Art ``sprechweise_setzen``, Task 10).
+_ZEILE_GESETZT = "Sprechweise {name}: {text}"
+
+
+def wende_an(conn, chat_id: int, wert: str) -> list[str]:
+    """Der Schreibpfad der Erkenner-Art ``sprechweise_setzen`` (Padua Phasen
+    TEIL 2, Task 10): ``"Name: text"``, mehrere mit ``|`` getrennt. Schreibt
+    ``figur.sprachstil`` fuer jede Figur, die es gibt -- die Gruppe hat sie
+    genannt, also ueberschreibt sie auch einen schon gesetzten Stil (anders
+    als ``_schreibe``, das nur fuer Figuren ohne Stil schreibt: dort spricht
+    ein Modell). Liefert je wirklich geaenderter Figur eine Zeile."""
+    zeilen: list[str] = []
+    for teil in (wert or "").split("|"):
+        name, trenner, text = teil.strip().lstrip("-*• ").partition(":")
+        text = " ".join(text.split())
+        if not trenner or not name.strip() or not text:
+            continue
+        figur = repo.hole_figur(conn, chat_id, name.strip())
+        if figur is None or (figur["sprachstil"] or "").strip() == text:
+            continue
+        repo.setze_figur_sprachstil(conn, figur["id"], text)
+        zeilen.append(T._ZEILE_GESETZT.format(name=figur["name"], text=text))
+    return zeilen
+
+
 def _lauf(conn, tg, klm, e, chat_id: int, sperre: threading.Lock) -> None:
     from interview_theater import arbeitszeilen, knoepfe
 

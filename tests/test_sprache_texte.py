@@ -188,6 +188,9 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail wiederholung_verworfen (repo.merke_vorfall)",
     ("ablauf", "Antwort klang wie eine Systemzeile des S"):
         "Vorfall-Detail gespraech_systemzeile_erfunden (repo.merke_vorfall)",
+    ("ablauf", 'Antwort begann mit "Noted", ohne dass de'):
+        "Vorfall-Detail gespraech_notiert_erfunden (repo.merke_vorfall, "
+        "Padua Phasen TEIL 2, Task 10)",
     ("ablauf", "Bot-Antwort in 'nachricht' mitzuschreibe"):
         "Vorfall-Detail gespraechszug_fehlgeschlagen (repo.merke_vorfall)",
     ("ablauf", "Antwort endete auf einer Ankuendigung oh"):

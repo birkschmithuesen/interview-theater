@@ -323,13 +323,14 @@ def test_erkenner_en_nennt_die_padua_phasen(padua):
 def test_erkenner_en_zaehlt_seine_arten_richtig(padua):
     """Nachbesserung: 'twenty-six kinds' und 26 fortlaufende Nummern (seit
     Padua Phasen TEIL 1, 03.10.2026: uebersicht_aendern kam dazu, vorher
-    'twenty-five kinds')."""
+    'twenty-five kinds'; seit Padua Phasen TEIL 2, Task 10: die fuenf
+    Arten 27-31, 'thirty-one kinds')."""
     import re
 
     roh = anweisungen.hole("erkenner")
     nummern = [int(n) for n in re.findall(r"(?m)^(\d+)\.\s+[a-z_]+\s+--", roh)]
-    assert nummern == list(range(1, 27))
-    assert "exactly twenty-six kinds" in roh
+    assert nummern == list(range(1, 32))
+    assert "exactly thirty-one kinds" in roh
 
 
 # --- Aufgabe 20: die Szene auf Englisch (szene, theater-tells, formen/*,

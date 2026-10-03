@@ -666,6 +666,17 @@ def ist_erfundene_systemzeile(text: str | None) -> bool:
                for muster in (_SYSTEMZEILE, _SYSTEMZEILE_EN))
 
 
+#: Padua Phasen TEIL 2 / Flow-Audit B2: der Gespraechs-Bot schrieb "Noted:"
+#: ohne dass etwas geschrieben war. "Noted:" ist der Kopf der
+#: Erkenner-Meldung (erkenner._NOTIERT_KOPF, englisch) -- im Gespraechszug
+#: ist er immer erfunden.
+_NOTIERT_ERFUNDEN_EN = re.compile(r"^\s*noted\b", re.IGNORECASE)
+
+
+def ist_erfundenes_notiert(text: str | None) -> bool:
+    return _NOTIERT_ERFUNDEN_EN.search((text or "")) is not None
+
+
 #: Angekuendigte Phrasen, die ohne Doppelpunkt enden und trotzdem nichts
 #: liefern (Padua-Befund 02.10.2026, Nachricht 22/24: "I see the button list
 #: didn't come through. I'll try once more with the block format." --
@@ -904,6 +915,11 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             versand_erfolgreich = True
             return
 
+        if _erfundenes_notiert(conn, e, chat_id, text):
+            strom.verwirf(tg, chat_id)
+            versand_erfolgreich = True
+            return
+
         if _wiederholt_die_vorige(conn, e, chat_id, text, letzte_message_id):
             strom.verwirf(tg, chat_id)
             versand_erfolgreich = True
@@ -1008,6 +1024,29 @@ def _erfundene_systemzeile(conn, e, chat_id: int, text: str) -> bool:
         "gespraech_systemzeile_erfunden",
         "Antwort klang wie eine Systemzeile des Szenenlaufs, "
         "ohne dass ein Lauf lief",
+    )
+    return True
+
+
+def _erfundenes_notiert(conn, e, chat_id: int, text: str) -> bool:
+    """Ein "Noted: ..." aus dem Gespraechszug (Flow-Audit B2) wird ersatzlos
+    verworfen, mit Vorfall -- wie eine erfundene Systemzeile. Nur in Padua
+    (``ueberarbeitung.aktiv()``) und nur in den Phasen 6 und 7: dort sagte
+    der Bot "Noted" zu einer Rueckmeldung zum Text, und nichts war
+    geschrieben."""
+    from interview_theater import ueberarbeitung
+
+    if not ueberarbeitung.aktiv() or not ist_erfundenes_notiert(text):
+        return False
+    if phasen.aktuelle(conn, chat_id) not in (
+            ueberarbeitung.PHASE_UEBERARBEITUNG, ueberarbeitung.PHASE_BUEHNE):
+        return False
+    log.info("Erfundenes Notiert verworfen, chat_id=%s", chat_id)
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None),
+        "gespraech_notiert_erfunden",
+        "Antwort begann mit \"Noted\", ohne dass der Erkenner etwas "
+        "geschrieben hatte",
     )
     return True
 

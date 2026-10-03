@@ -312,30 +312,11 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
 
     Ist nichts mehr offen, steht die Frage nach einer weiteren Runde da und,
     wenn die Materiallage sie hergibt, der Weg zu den Szentexten."""
-    from interview_theater import schaerfung as schaerfung_modul
-
-    for szene in repo.hole_szenen(conn, chat_id):
-        stellen = schaerfung_modul.offene_stellen(
-            conn, chat_id, szene_id=szene["id"]
-        )
-        if not stellen:
-            continue
+    ziel = _naechstes_schaerfungsziel(conn, chat_id)
+    if ziel is not None:
+        sammelart, sammelwert, ueberschrift, stellen = ziel
         _sende_schaerfungsmenue(
-            conn, tg, chat_id,
-            schaerfung_modul.szenenueberschrift(conn, chat_id, szene),
-            stellen, ART_SCHAERFUNG_SZENE, str(szene["nummer"]),
-        )
-        return True
-    for figur in repo.figuren(conn, chat_id):
-        stellen = schaerfung_modul.offene_stellen(
-            conn, chat_id, figur_id=figur["id"]
-        )
-        if not stellen:
-            continue
-        _sende_schaerfungsmenue(
-            conn, tg, chat_id,
-            schaerfung_modul.figurueberschrift(figur),
-            stellen, ART_SCHAERFUNG_FIGUR, figur["name"],
+            conn, tg, chat_id, ueberschrift, stellen, sammelart, sammelwert,
         )
         return True
     leiste = [
@@ -349,6 +330,94 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
         leiste.append(phasenknopf)
     _mit_leiste(conn, tg, chat_id, T._TEXT_SCHAERFUNG_DURCH, leiste)
     return False
+
+
+def _naechstes_schaerfungsziel(conn, chat_id: int):
+    """Das Menue, das ``biete_schaerfung`` als naechstes zeigt -- erst Szene
+    fuer Szene, dann Figur fuer Figur: ``(sammelart, sammelwert,
+    ueberschrift, stellen)`` oder ``None``. Deterministisch aus der
+    Datenbank; dieselbe Quelle fuer das Menue und fuer "keine davon" aus
+    dem Chat (``verwirf_schaerfung``), damit beide dieselben Stellen meinen."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    for szene in repo.hole_szenen(conn, chat_id):
+        stellen = schaerfung_modul.offene_stellen(
+            conn, chat_id, szene_id=szene["id"]
+        )
+        if stellen:
+            return (ART_SCHAERFUNG_SZENE, str(szene["nummer"]),
+                    schaerfung_modul.szenenueberschrift(conn, chat_id, szene),
+                    stellen)
+    for figur in repo.figuren(conn, chat_id):
+        stellen = schaerfung_modul.offene_stellen(
+            conn, chat_id, figur_id=figur["id"]
+        )
+        if stellen:
+            return (ART_SCHAERFUNG_FIGUR, figur["name"],
+                    schaerfung_modul.figurueberschrift(figur), stellen)
+    return None
+
+
+def uebernimm_schaerfung_szene(conn, tg, chat_id: int, nummer: int,
+                               anders: bool = False) -> str:
+    """Alle offenen Schaerfungen einer Szene uebernehmen -- der EINE Rumpf
+    fuer den Knopf "Diese uebernehmen" und den Erkenner
+    (``schaerfung_entscheidung``, Padua Phasen TEIL 2). Deterministisch,
+    kein Modellaufruf (Zusage 2); danach der naechste Vorschlag."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    ziel = _szene_mit_nummer(conn, chat_id, nummer)
+    if ziel is None:
+        tg.sende(chat_id, T._TEXT_SZENE_UNBEKANNT)
+        return T._TEXT_SZENE_UNBEKANNT
+    anzahl = schaerfung_modul.uebernimm_szene(conn, chat_id, ziel)
+    if not anzahl:
+        tg.sende(chat_id, T._TEXT_SCHAERFUNG_NICHTS)
+    else:
+        tg.sende(chat_id, T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl))
+    if anders:
+        tg.sende(chat_id, T._TEXT_EIGENE_IDEE)
+    biete_schaerfung(conn, tg, chat_id)
+    return T._ANTWORT_SZENE_GESCHAERFT.format(nummer=ziel["nummer"])
+
+
+def uebernimm_schaerfung_figur(conn, tg, chat_id: int, name: str,
+                               anders: bool = False) -> str:
+    """Wie ``uebernimm_schaerfung_szene``, fuer eine Figur."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    figur = repo.hole_figur(conn, chat_id, name)
+    if figur is None:
+        tg.sende(chat_id, T._TEXT_UNBEKANNT)
+        return T._TEXT_UNBEKANNT
+    anzahl = schaerfung_modul.uebernimm_figur(conn, chat_id, figur)
+    if not anzahl:
+        tg.sende(chat_id, T._TEXT_SCHAERFUNG_NICHTS)
+    else:
+        tg.sende(chat_id, T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl))
+    if anders:
+        tg.sende(chat_id, T._TEXT_EIGENE_IDEE)
+    biete_schaerfung(conn, tg, chat_id)
+    return T._ANTWORT_FIGUR_GESCHAERFT.format(name=figur["name"])
+
+
+def verwirf_schaerfung(conn, tg, chat_id: int, ids: list[int] | None = None) -> str:
+    """"Keine davon": die Stellen verwerfen, dann der naechste Vorschlag.
+
+    Der Knopf traegt die ids im ``wert``; aus dem Chat (``ids is None``)
+    sind es die Stellen des Menues, das gerade gezeigt wird -- dieselbe
+    Herleitung wie in ``biete_schaerfung`` (``_naechstes_schaerfungsziel``)."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    aus_chat = ids is None
+    if aus_chat:
+        ziel = _naechstes_schaerfungsziel(conn, chat_id)
+        ids = [int(s["id"]) for s in ziel[3]] if ziel is not None else []
+    if ids or not aus_chat:
+        schaerfung_modul.verwirf_stellen(conn, ids)
+        tg.sende(chat_id, T._TEXT_SCHAERFUNG_VERWORFEN)
+    biete_schaerfung(conn, tg, chat_id)
+    return T._TEXT_SCHAERFUNG_VERWORFEN
 
 
 def _sende_schaerfungsmenue(

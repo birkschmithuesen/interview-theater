@@ -375,8 +375,6 @@ def test_entwurf_letzte_szene_passt_springt_automatisch_nach_phase_6(
 ):
     """"Yes, save" auf der letzten noch offenen Szene: keine weitere Szene
     mehr -> automatisch Phase 6, ohne Knopf und ohne Rueckfrage."""
-    from interview_theater.knoepfe import wirkung
-
     phasen.setze(conn, 1, 5, "befehl")
     repo.setze_figur(conn, 1, "Mira", "wants to be heard")
     figur_id = repo.hole_figur(conn, 1, "Mira")["id"]
@@ -384,8 +382,11 @@ def test_entwurf_letzte_szene_passt_springt_automatisch_nach_phase_6(
     repo.setze_szenenfeld(conn, szene_id, "was_passiert", "They arrive.")
     repo.setze_szene_figuren(conn, 1, szene_id, [figur_id])
     eingetreten = []
+    # Seit Padua Phasen TEIL 2 (Task 10) steht der Rumpf in
+    # ``entwurf.bestaetige_szene`` (Knopf und Erkenner teilen ihn), und der
+    # ruft den Eintritt ueber das Paket ``knoepfe``.
     monkeypatch.setattr(
-        wirkung, "eintritt_in_phase",
+        knoepfe, "eintritt_in_phase",
         lambda conn_, tg_, klm_, e_, chat_id_, nummer_: eingetreten.append(nummer_),
     )
     knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1")

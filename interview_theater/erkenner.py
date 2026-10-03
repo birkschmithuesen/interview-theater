@@ -170,6 +170,20 @@ ARTEN = (
     # wert: die gewuenschte Richtung, oder leer ("") bei einem reinen
     # "nochmal"/"anders" ohne eigene Angabe.
     "uebersicht_aendern",
+    # Padua Phasen TEIL 2 (03.10.2026, Flow-Audit B1/B2): "Chat wirkt, wo
+    # Knoepfe wirken". Alle fuenf nur mit ``workshop.ueberarbeitung_aktiv()``
+    # (PROFILSCHALTER_DER_ARTEN) und phasengebunden (PHASEN_SPEZIFISCHE_ARTEN);
+    # beschrieben nur im englischen Prompt (Punkte 27-31).
+    # Rueckmeldung zum gezeigten Text (6/7) -> ueberarbeitung.ueberarbeite.
+    "text_ueberarbeiten",
+    # "yes, save" im Chat -> dieselbe Funktion wie der Knopf (ueberarbeitung.nimm_ab).
+    "fassung_abnehmen",
+    # Die Antwort auf die Formwahl-Liste (7): schreibt szene.form je Nummer.
+    "formen_setzen",
+    # Eine Sprechweise je Figur (7): schreibt figur.sprachstil.
+    "sprechweise_setzen",
+    # Entscheidung zu einem Schaerfungs-Vorschlag (5), wie die Schaerfungs-Knoepfe.
+    "schaerfung_entscheidung",
 )
 
 #: Die einzigen Arten, die aus dem Transkript einer Sprachnachricht im
@@ -207,7 +221,46 @@ PHASEN_SPEZIFISCHE_ARTEN: dict[str, tuple[int, ...]] = {
     # nachdem sie fixiert ist, ist ein "aendere die Uebersicht" etwas
     # anderes gemeint (siehe entwurf.py).
     "uebersicht_aendern": (5,),
+    # Padua Phasen TEIL 2 (03.10.2026)
+    "text_ueberarbeiten": (6, 7),
+    "fassung_abnehmen": (5, 6, 7),
+    "formen_setzen": (7,),
+    "sprechweise_setzen": (7,),
+    "schaerfung_entscheidung": (5,),
 }
+
+#: Welcher Profilschalter eine ART ueberhaupt erst freischaltet -- dieselbe
+#: Tabelle, eine zweite Spalte. Eine ART ohne Eintrag ist profilfrei. Ohne
+#: Schalter steht die ART auch nicht im Schema (``arten_fuer_schema``):
+#: Dortmund sieht dieselbe Enum-Liste wie vor TEIL 2.
+PROFILSCHALTER_DER_ARTEN: dict[str, str] = {
+    "text_ueberarbeiten": "ueberarbeitung",
+    "fassung_abnehmen": "ueberarbeitung",
+    "formen_setzen": "ueberarbeitung",
+    "sprechweise_setzen": "ueberarbeitung",
+    "schaerfung_entscheidung": "ueberarbeitung",
+}
+
+
+def _ueberarbeitung_an() -> bool:
+    from interview_theater import workshop
+
+    return workshop.ueberarbeitung_aktiv()
+
+
+_SCHALTER = {"ueberarbeitung": _ueberarbeitung_an}
+
+
+def _schalter_an(art: str) -> bool:
+    """Ist der Profilschalter dieser ART an? Ohne Eintrag: immer."""
+    name = PROFILSCHALTER_DER_ARTEN.get(art)
+    return name is None or _SCHALTER[name]()
+
+
+def arten_fuer_schema() -> list[str]:
+    """Die Arten im Schema-Enum des Erkenneraufrufs -- je Profil, bei jedem
+    Aufruf frisch (zwei Profile in einem Prozess, D.5 der Profil-Analyse)."""
+    return [a for a in ARTEN if _schalter_an(a)]
 
 
 def _ist_phasenpassend(conn, chat_id: int, art: str) -> bool:
@@ -216,7 +269,10 @@ def _ist_phasenpassend(conn, chat_id: int, art: str) -> bool:
     Reine Tabellen-Abfrage (``PHASEN_SPEZIFISCHE_ARTEN``), kein
     Modellaufruf, kein eigenes SQL -- wie jede andere Wache in diesem Modul
     (``waechter_filter``). Eine art, die nicht in der Tabelle steht, ist
-    ueberall erlaubt: das ist der unveraenderte Normalfall."""
+    ueberall erlaubt: das ist der unveraenderte Normalfall. Seit TEIL 2
+    zusaetzlich: ohne ihren Profilschalter wirkt eine art nirgends."""
+    if not _schalter_an(art):
+        return False
     phasen_liste = PHASEN_SPEZIFISCHE_ARTEN.get(art)
     if phasen_liste is None:
         return True
@@ -246,25 +302,38 @@ FENSTER_DECKEL = 12000
 #: (global-constraints.md § 4). Absichtlich flach: array > object > string,
 #: keine tiefere Verschachtelung (die bricht bei kleineren Modellen wie
 #: gemma/Apertus).
-SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["aenderungen"],
-    "properties": {
-        "aenderungen": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["art", "wert"],
-                "properties": {
-                    "art": {"type": "string", "enum": list(ARTEN)},
-                    "wert": {"type": "string"},
+def _baue_schema(arten) -> dict:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["aenderungen"],
+        "properties": {
+            "aenderungen": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["art", "wert"],
+                    "properties": {
+                        "art": {"type": "string", "enum": list(arten)},
+                        "wert": {"type": "string"},
+                    },
                 },
             },
         },
-    },
-}
+    }
+
+
+#: Das Schema ohne profilgebundene Arten -- unveraendert der Wert von vor
+#: TEIL 2 (die 27 profilfreien Arten). Der Erkenneraufruf selbst nimmt
+#: ``schema()``, das je Profil die freigeschalteten Arten dazunimmt.
+SCHEMA = _baue_schema(a for a in ARTEN if a not in PROFILSCHALTER_DER_ARTEN)
+
+
+def schema() -> dict:
+    """Das Schema des Erkenneraufrufs im aktiven Profil (TEIL 2): ohne
+    Schalter gleich ``SCHEMA``."""
+    return _baue_schema(arten_fuer_schema())
 
 
 def _arbeitsstand_text(conn, chat_id: int) -> str:
@@ -383,7 +452,7 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
 
     try:
         ergebnis = klm.schema(
-            chat_id, prompt(), nutzer, SCHEMA, "erkenner",
+            chat_id, prompt(), nutzer, schema(), "erkenner",
             modell=e.erkenner_modell, temperature=TEMPERATURE,
         )
     except Exception:
@@ -459,7 +528,7 @@ def erkenne_in_aufnahme(klm, conn, e, chat_id: int, transkript: str) -> list[dic
         return []
     try:
         ergebnis = klm.schema(
-            chat_id, prompt(), baue_aufnahme_nutzertext(text), SCHEMA, "erkenner",
+            chat_id, prompt(), baue_aufnahme_nutzertext(text), schema(), "erkenner",
             modell=e.erkenner_modell, temperature=TEMPERATURE,
         )
     except Exception:
@@ -1470,6 +1539,26 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         # Kein Schreibpfad, wie szene_schreiben: diese art stoesst eine
         # Neugenerierung an (entwurf.py), die laufe() auswertet.
         return None
+    if art == "formen_setzen":
+        # Padua Phasen TEIL 2: schreibt ``szene.form`` -- die WAHL der Gruppe,
+        # nicht ``form_vorschlag``. AGENTS.md, "Eine Menuezeile ist keine
+        # Geschichte": "die Regel haelt den Vorschlag eines Modells aus dem
+        # Feld heraus, nicht die Wahl der Gruppe". Die Gruppe hat die Form im
+        # Chat genannt, als Antwort auf die Formwahl-Liste.
+        from interview_theater import ueberarbeitung
+
+        zeilen = ueberarbeitung._wende_formen_an(conn, chat_id, wert)
+        return {"art": art, "wert": wert, "zeilen": zeilen} if zeilen else None
+    if art == "sprechweise_setzen":
+        from interview_theater import sprechweise
+
+        zeilen = sprechweise.wende_an(conn, chat_id, wert)
+        return {"art": art, "wert": wert, "zeilen": zeilen} if zeilen else None
+    if art in ("text_ueberarbeiten", "fassung_abnehmen", "schaerfung_entscheidung"):
+        # Kein Schreibpfad, wie szene_schreiben: diese Arten stossen einen
+        # Weg an, den laufe() auswertet (``_starte_teil2``) -- derselbe, den
+        # der passende Knopf nimmt.
+        return None
     # Unbekannte art sollte erkenne() bereits herausgefiltert haben; bei
     # direktem Aufruf von wende_an() (z. B. in Tests) einfach ignorieren
     # statt zu krachen.
@@ -1756,6 +1845,9 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
         "szenen_anzahl": None,
         "figuren": [], "geplant": [], "festgehalten": [],
         "korrigiert": [], "entfernt": [],
+        # Padua Phasen TEIL 2: fertige Zeilen aus formen_setzen/
+        # sprechweise_setzen (die Module bauen sie selbst, je Szene/Figur).
+        "teil2": [],
     }
     einzeln = {
         "szene_usa": "usa",
@@ -1788,6 +1880,8 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
             ))
         elif art == "phase_setzen":
             gesammelt["phase"] = phasen.nummer_fuer(wert)
+        elif art in ("formen_setzen", "sprechweise_setzen"):
+            gesammelt["teil2"].extend(aenderung.get("zeilen") or [])
         # Ein ``entschieden`` bleibt still -- ausser es hat nebenbei die
         # Figurenanzahl gesetzt (B4). Dann ist es eine Arbeitsstandaenderung
         # wie jede andere und gehoert in die Meldung: sonst stuende die Zahl
@@ -1876,6 +1970,7 @@ def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
     # Polizeikessel · Mira, Pola"): die Gruppe soll sehen, welche Szene
     # gemeint ist, ohne die ganze Planung noch einmal zu lesen.
     zeilen.extend(g["geplant"])
+    zeilen.extend(g["teil2"])
     # Eine Festlegung bekommt ihr eigenes Verb (06.09.2026) -- und mit dem
     # Bezug in Klammern, wo es einen gibt. Sie MUSS sichtbar sein: sie steht
     # in keinem Feld und auf keiner Checkliste, und die Gruppe braucht sie im
@@ -2216,6 +2311,15 @@ def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
         return
     nummer = kuerzung.nummer_aus_wert(treffer.get("wert"))
     try:
+        if nummer is None:
+            # Padua Phasen TEIL 2: in der Ueberarbeitung (6/7) ist "kuerzer"
+            # ohne Nummer die Szene, die gerade gezeigt wird -- nicht die
+            # ganze Geschichte und keine Rueckfrage.
+            from interview_theater import ueberarbeitung
+
+            if (ueberarbeitung.aktiv() and phasen.aktuelle(conn, chat_id) in (
+                    ueberarbeitung.PHASE_UEBERARBEITUNG, ueberarbeitung.PHASE_BUEHNE)):
+                nummer = ueberarbeitung.aktuelle_szene(conn, chat_id)
         if nummer is None and not szene.schreibt_prosa(conn, chat_id):
             message_id = tg.sende(chat_id, kuerzung.T.TEXT_WELCHE_SZENE)
             # Wie die Notiert-Meldung (siehe unten in ``laufe``): ohne diesen
@@ -2247,6 +2351,8 @@ def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
     Liste aus ``erkenne()``. Ohne die eigene Pruefung hier liefe eine
     Rueckmeldung zur Uebersicht ausserhalb Phase 5 (z. B. nachdem die Gruppe
     laengst in Phase 6 weiter ist) trotzdem einen neuen, bezahlten Lauf an.
+    (Seit Padua Phasen TEIL 2 filtert ``laufe()`` die Liste selbst einmal
+    vorab -- die eigene Pruefung hier bleibt als Wache fuer andere Aufrufer.)
 
     **Zusaetzlich profilgebunden** (nicht nur phasengebunden): ``ARTEN`` und
     ``PHASEN_SPEZIFISCHE_ARTEN`` sind geteilter, profilunabhaengiger Code --
@@ -2285,6 +2391,149 @@ def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
     from interview_theater import entwurf
 
     entwurf.starte_uebersicht(conn, tg, klm, e, chat_id, treffer.get("wert") or None)
+
+
+#: Arten, die neben einer ``text_ueberarbeiten`` im SELBEN Lauf wegfallen
+#: (Padua Phasen TEIL 2, Flow-Audit B2): "mach die Mutter wuetender" ist
+#: Rueckmeldung zum gezeigten Text -- keine Festlegung ("Noted:" ohne
+#: Ueberarbeitung) und kein zweiter, eigener Schreibauftrag.
+_VERDRAENGT_VON_UEBERARBEITUNG = frozenset({"festlegung_setzen", "szene_schreiben"})
+
+
+def _ohne_konkurrenz_zur_ueberarbeitung(aenderungen: list[dict]) -> list[dict]:
+    """Nimmt ``_VERDRAENGT_VON_UEBERARBEITUNG`` heraus, wenn der Lauf eine
+    ``text_ueberarbeiten`` traegt -- nur mit ``ueberarbeitung.aktiv()``;
+    ohne den Schalter bleibt die Liste unangetastet (Dortmund)."""
+    from interview_theater import ueberarbeitung
+
+    if not ueberarbeitung.aktiv():
+        return aenderungen
+    if not any(a.get("art") == "text_ueberarbeiten" for a in aenderungen):
+        return aenderungen
+    return [a for a in aenderungen
+            if a.get("art") not in _VERDRAENGT_VON_UEBERARBEITUNG]
+
+
+#: "scene 2: weniger Worte" -- die fuehrende Szenennummer einer
+#: Rueckmeldung (``text_ueberarbeiten``). Der Teil vor dem Doppelpunkt geht
+#: durch ``kuerzung.nummer_aus_wert`` (streng: nur "Szene N"/"scene N"/"N").
+_NOTIZ_MIT_SZENE = re.compile(r"^\s*([^:]{1,20}):\s*(.+)$", re.DOTALL)
+
+
+def _notiz_und_nummer(wert: str | None) -> tuple[str, int | None]:
+    from interview_theater import kuerzung
+
+    text = (wert or "").strip()
+    treffer = _NOTIZ_MIT_SZENE.match(text)
+    if treffer:
+        nummer = kuerzung.nummer_aus_wert(treffer.group(1).strip())
+        if nummer is not None:
+            return treffer.group(2).strip(), nummer
+    return text, None
+
+
+def _laeuft_ein_lauf(chat_id: int) -> bool:
+    """Haelt gerade ein Lauf dieser Gruppe eine Sperre (Szene, Geschichte,
+    Sprechweisen, Uebersicht)? Dann wirkt eine TEIL-2-Art nicht -- z. B. hat
+    ``ablauf`` dieselbe Nachricht nach "No, change it again" schon als
+    Regie-Notiz verbraucht und den Lauf gestartet."""
+    from interview_theater import entwurf, sprechweise, ueberarbeitung
+
+    return (ueberarbeitung.laeuft(chat_id)
+            or sprechweise._sperre_fuer(chat_id).locked()
+            or entwurf._sperre_fuer(chat_id).locked())
+
+
+_SCHAERFUNG_KEINE = re.compile(r"^\s*(?:none|keine|nothing|nichts)\b", re.IGNORECASE)
+_SCHAERFUNG_SZENE = re.compile(r"^\s*(?:scene|szene)\s*(\d{1,2})\b", re.IGNORECASE)
+_SCHAERFUNG_FIGUR = re.compile(r"^\s*(?:character|figur)\s+(.+?)\s*$", re.IGNORECASE)
+
+
+def _entscheide_schaerfung(conn, tg, chat_id: int, wert: str) -> None:
+    """``schaerfung_entscheidung`` (Flow-Audit B1): dieselben Rumpfe wie die
+    Schaerfungs-Knoepfe (``knoepfe.szenen``)."""
+    from interview_theater.knoepfe import szenen as knopf_szenen
+
+    if _SCHAERFUNG_KEINE.match(wert or ""):
+        knopf_szenen.verwirf_schaerfung(conn, tg, chat_id)
+        return
+    treffer = _SCHAERFUNG_SZENE.match(wert or "")
+    if treffer:
+        knopf_szenen.uebernimm_schaerfung_szene(conn, tg, chat_id, int(treffer.group(1)))
+        return
+    treffer = _SCHAERFUNG_FIGUR.match(wert or "")
+    if treffer:
+        knopf_szenen.uebernimm_schaerfung_figur(conn, tg, chat_id, treffer.group(1))
+
+
+def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
+                  wirkliche: list[dict]) -> None:
+    """Die Wege der fuenf TEIL-2-Arten (Padua, "Chat wirkt, wo Knoepfe
+    wirken"). ``freigegeben`` ist schon phasen- und profilgefiltert
+    (``_ist_phasenpassend``); ``wirkliche`` traegt, was ``formen_setzen``/
+    ``sprechweise_setzen`` tatsaechlich geschrieben haben.
+
+    Kein Modellaufruf hier: was eins braucht (Ueberarbeitung, Sprechweisen,
+    der naechste Szenenlauf), geht ueber die bestehenden ``starte``-Wege in
+    einen eigenen Thread. Laeuft schon ein Lauf, wirken
+    ``text_ueberarbeiten``/``fassung_abnehmen`` NICHT (nur Log) -- siehe
+    ``_laeuft_ein_lauf``. Jede Art in ihrem eigenen try: ein Fehler hier
+    reisst die Notiert-Meldung nicht mit."""
+    from interview_theater import ueberarbeitung
+
+    if not ueberarbeitung.aktiv():
+        return
+
+    def erste(art: str):
+        return next((a for a in freigegeben if a.get("art") == art), None)
+
+    ueberarbeiten = erste("text_ueberarbeiten")
+    abnehmen = erste("fassung_abnehmen")
+    try:
+        if ueberarbeiten is not None:
+            # Hoechstens EINE je Lauf; neben einer Rueckmeldung ist ein
+            # "passt" im selben Lauf keine Abnahme der noch alten Fassung.
+            if _laeuft_ein_lauf(chat_id):
+                log.info("text_ueberarbeiten uebersprungen, ein Lauf geht, "
+                         "chat_id=%s", chat_id)
+            else:
+                notiz, nummer = _notiz_und_nummer(ueberarbeiten.get("wert"))
+                ueberarbeitung.ueberarbeite(conn, tg, klm, e, chat_id, notiz, nummer)
+        elif abnehmen is not None:
+            if _laeuft_ein_lauf(chat_id):
+                log.info("fassung_abnehmen uebersprungen, ein Lauf geht, "
+                         "chat_id=%s", chat_id)
+            else:
+                ueberarbeitung.nimm_ab(conn, tg, klm, e, chat_id)
+    except Exception:
+        log.exception("Ueberarbeitung/Abnahme aus dem Chat gescheitert, chat_id=%s",
+                      chat_id)
+    try:
+        schaerfung = erste("schaerfung_entscheidung")
+        if schaerfung is not None:
+            _entscheide_schaerfung(conn, tg, chat_id, schaerfung.get("wert") or "")
+    except Exception:
+        log.exception("Schaerfungs-Entscheidung aus dem Chat gescheitert, chat_id=%s",
+                      chat_id)
+    geschrieben = {a.get("art") for a in wirkliche}
+    try:
+        if ("formen_setzen" in geschrieben
+                and not ueberarbeitung.formen_offen(conn, chat_id)
+                and not ueberarbeitung.sprechweisen_fixiert(conn, chat_id)):
+            ueberarbeitung.weiter_7(conn, tg, klm, e, chat_id)
+    except Exception:
+        log.exception("Weiter nach der Formwahl gescheitert, chat_id=%s", chat_id)
+    try:
+        from interview_theater import knoepfe, sprechweise
+
+        if ("sprechweise_setzen" in geschrieben
+                and not ueberarbeitung.sprechweisen_fixiert(conn, chat_id)
+                and not sprechweise._sperre_fuer(chat_id).locked()):
+            # Die aktualisierte Liste mit denselben zwei Knoepfen.
+            knoepfe.biete_sprechweisen(conn, tg, e, chat_id)
+    except Exception:
+        log.exception("Sprechweisen-Liste nach dem Chat gescheitert, chat_id=%s",
+                      chat_id)
 
 
 def _starte_sprachprofil(klm, tg, conn, e, chat_id: int, wirkliche: list[dict]) -> None:
@@ -2483,10 +2732,21 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         aenderungen = erkenne(klm, conn, e, chat_id)
         if not aenderungen:
             return
+        # EINMAL gegen Phase und Profilschalter gefiltert (Padua Phasen TEIL
+        # 2): dieselbe Liste geht an ``wende_an`` und an jeden Startweg
+        # unten. Vorher bekamen ``_starte_szene``/``_starte_kuerzung`` die
+        # ungefilterte Liste; fuer die profil- und phasenfreien Arten ist
+        # der Filter ein No-Op. Danach, nur mit ``ueberarbeitung.aktiv()``:
+        # neben einer Rueckmeldung zum Text faellt eine Festlegung bzw. ein
+        # eigener Schreibauftrag im selben Lauf weg (Flow-Audit B2).
+        freigegeben = _ohne_konkurrenz_zur_ueberarbeitung([
+            a for a in aenderungen
+            if _ist_phasenpassend(conn, chat_id, a.get("art"))
+        ])
         # Der Stand VOR und NACH dem Anwenden, direkt um ``wende_an`` und
         # unter ``repo._LOCK`` -- Grundlage des Undo-Knopfs (Karte U).
         wirkliche, vorher, nachher = _wende_an_mit_schnappschuss(
-            conn, e, chat_id, aenderungen)
+            conn, e, chat_id, freigegeben)
         # Punkt 6 der Nacht-Simulation, zwei Wege zurueck zum Angebot:
         #
         # 1. Die Gruppe BITTET darum ("weiter", "naechste Phase", "fertig
@@ -2512,46 +2772,46 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Aus den erkannten, nicht aus den wirksamen Aenderungen: ein
         # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
         # ``wirkliche`` deshalb nie auf.
-        _starte_szene(klm, tg, conn, e, chat_id, aenderungen, wirkliche)
+        _starte_szene(klm, tg, conn, e, chat_id, freigegeben, wirkliche)
         # Und dieselbe Bauart fuer die Kuerzung (30.09.2026, C10): aus den
         # erkannten Aenderungen, weil sie wie ``szene_schreiben`` nichts in
         # den Arbeitsstand schreibt und in ``wirkliche`` deshalb nie auftaucht.
-        _starte_kuerzung(klm, tg, conn, e, chat_id, aenderungen)
+        _starte_kuerzung(klm, tg, conn, e, chat_id, freigegeben)
         # Padua Phasen TEIL 1 (03.10.2026): Rueckmeldung zur generierten
         # Geschichts-Uebersicht (Stufe A von Phase 5) -- derselbe Grund wie
         # bei _starte_szene/_starte_kuerzung, kein Schreibpfad in wende_an.
-        _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id, aenderungen)
+        _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id, freigegeben)
         text = baue_meldung(wirkliche, conn, chat_id)
-        if text is None:
-            _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id, wirkliche)
-            _biete_phase_an(conn, tg, chat_id)
-            return
         # Dieselbe Notiert-Zeile nicht zweimal (06.09.2026, Testgruppe
         # 21:50/21:52: derselbe Szenenfolge-Block stand wortgleich zweimal im
         # Chat). Gespeichert wurde in so einem Fall trotzdem korrekt -- nur
         # die Meldung darueber ist ueberfluessig, und ein Bot, der dasselbe
         # zweimal sagt, sieht kaputt aus.
-        if _steht_schon_da(conn, chat_id, text):
+        if text is not None and _steht_schon_da(conn, chat_id, text):
             log.info("Notiert-Meldung als Wiederholung uebersprungen, chat_id=%s", chat_id)
-            _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id, wirkliche)
-            _biete_phase_an(conn, tg, chat_id)
-            return
-        lauf_id = _lege_ruecknahme_an(conn, e, chat_id, vorher, nachher, wirkliche)
-        message_id = _sende_meldung(conn, tg, chat_id, text, wirkliche, lauf_id)
-        if lauf_id is not None:
-            # Unter welcher Nachricht der Knopf haengt -- gebraucht, um nach
-            # der Ruecknahme genau ihre Grundleiste verfallen zu lassen.
-            # Weich: scheitert es (busy DB), wirkt der Knopf trotzdem, nur
-            # die Grundleiste verfaellt dann nicht -- und Bot-Zeile,
-            # Phaseneintritt und Phasenangebot duerfen nicht mit ausfallen.
-            try:
-                repo.merke_erkenner_lauf_nachricht(conn, lauf_id, message_id)
-            except Exception:
-                log.exception("Nachricht zum Erkennerlauf nicht gemerkt, "
-                              "chat_id=%s, lauf_id=%s", chat_id, lauf_id)
-        # Wie ablauf.antworte: die gesendete Meldung wird als Bot-Nachricht
-        # mitgeschrieben, damit sie im naechsten Verlaufsfenster steht.
-        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+            text = None
+        if text is not None:
+            lauf_id = _lege_ruecknahme_an(conn, e, chat_id, vorher, nachher, wirkliche)
+            message_id = _sende_meldung(conn, tg, chat_id, text, wirkliche, lauf_id)
+            if lauf_id is not None:
+                # Unter welcher Nachricht der Knopf haengt -- gebraucht, um
+                # nach der Ruecknahme genau ihre Grundleiste verfallen zu
+                # lassen. Weich: scheitert es (busy DB), wirkt der Knopf
+                # trotzdem, nur die Grundleiste verfaellt dann nicht -- und
+                # Bot-Zeile, Phaseneintritt und Phasenangebot duerfen nicht
+                # mit ausfallen.
+                try:
+                    repo.merke_erkenner_lauf_nachricht(conn, lauf_id, message_id)
+                except Exception:
+                    log.exception("Nachricht zum Erkennerlauf nicht gemerkt, "
+                                  "chat_id=%s, lauf_id=%s", chat_id, lauf_id)
+            # Wie ablauf.antworte: die gesendete Meldung wird als Bot-Nachricht
+            # mitgeschrieben, damit sie im naechsten Verlaufsfenster steht.
+            repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+        # Padua Phasen TEIL 2: die Wege der fuenf neuen Arten -- NACH der
+        # Notiert-Meldung, damit "Noted: Scene 1: Chorus" vor dem naechsten
+        # Schritt (Sprechweisen) im Chat steht.
+        _starte_teil2(klm, tg, conn, e, chat_id, freigegeben, wirkliche)
         # Hat die Gruppe im selben Zug die Phase gewechselt, kommt direkt
         # hinter der Meldung der Phasenrahmen (06.09.2026): derselbe Eintritt
         # wie ueber den Knopf und ueber ``/phase``.

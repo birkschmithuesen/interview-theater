@@ -354,6 +354,51 @@ def _unterschiede(vorher, nachher):
     return sorted(fertig, key=lambda t: (t[0], t[1] or ""))
 
 
+#: Padua Phasen TEIL 2 (Task 10): die zwei schreibenden Padua-Arten. Sie
+#: wirken nur mit ``ueberarbeitung_aktiv`` und in Phase 7 -- deshalb ein
+#: eigener Test mit Profil statt Eintraegen in ``FAELLE`` (die laufen ohne
+#: Profil, und dort schreibt keine der beiden etwas).
+PADUA_FAELLE = [
+    ("formen_setzen", [{"art": "formen_setzen", "wert": "1: chorus | 2: rap"}]),
+    ("sprechweise_setzen",
+     [{"art": "sprechweise_setzen", "wert": "Leyla: fast, swallows words"}]),
+]
+
+
+@pytest.mark.parametrize("name, aenderungen", PADUA_FAELLE,
+                         ids=[f[0] for f in PADUA_FAELLE])
+def test_rundreise_der_padua_arten(spaet, einst, monkeypatch, name, aenderungen):
+    """Anwenden, Undo, Dump wieder derselbe -- und jede geschriebene Spalte
+    ist verfolgt (``szene.form`` ueber ``ruecknahme.ZUSATZ_JE_ART``)."""
+    from interview_theater import phasen, workshop
+
+    monkeypatch.delenv(workshop.BASIS_VARIABLE, raising=False)
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    try:
+        phasen.setze(spaet, 1, 7, "test")
+        tabellen = [t for t in db.TABELLEN_MIT_CHAT_ID
+                    if t not in ("erkenner_lauf", "erkenner_lauf_schritt", "aufruf")]
+        vorher = _dump(spaet, ALLE)
+        vorher_alles = _alles(spaet, tabellen)
+
+        lauf_id, wirkliche = _lauf(spaet, aenderungen, einst)
+        assert wirkliche, f"{name}: der Lauf hat nichts geschrieben"
+        assert lauf_id is not None, f"{name}: kein Undo angelegt"
+
+        verfolgt = ruecknahme.plan(a["art"] for a in aenderungen)
+        for tabelle, spalte in _unterschiede(vorher_alles, _alles(spaet, tabellen)):
+            if tabelle in ("journal", "vorfall") or f"{tabelle}.{spalte}" in AUSSEN_VOR:
+                continue
+            assert tabelle in verfolgt and spalte in verfolgt[tabelle][1], (
+                f"{name}: {tabelle}.{spalte} geschrieben, aber nicht verfolgt")
+
+        assert _nimm_zurueck(spaet, lauf_id) == repo.ZURUECK_OK
+        assert _dump(spaet, ALLE) == vorher, f"{name}: der Stand kam nicht zurueck"
+    finally:
+        workshop.vergiss()
+
+
 def test_die_faelle_decken_jede_undo_faehige_art_ab():
     """Kein blinder Fleck: jede ``art``, die in der Notiert-Meldung landen kann
     und nicht ausgeschlossen ist, hat einen Fall."""

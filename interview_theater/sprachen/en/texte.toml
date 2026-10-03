@@ -1825,6 +1825,9 @@ _AUFTRAG_BUEHNE = "SZENE {nummer}: transfer this scene into its form."
 _TEXT_SPRECHWEISEN_GESPEICHERT = "Saved. Now scene by scene into the stage version: scene 1 of {gesamt}."
 _TEXT_TEXTBUCH_FERTIG = "The script is complete. Read it in the Script tab."
 _TEXT_7_SCHON_FERTIG = "Your script is complete. Read it in the Script tab, or tell me what to change."
+# Padua Phasen TEIL 2, Task 10: one line of the "Noted:" message per form set
+# by chat (erkenner art formen_setzen).
+_ZEILE_FORM_GESETZT = "Scene {nummer}: {form}"
 
 ["sprechweise"]
 # Padua Phasen TEIL 2, Task 9: one schema call, a way of speaking for each
@@ -1837,3 +1840,6 @@ _ZEILE_PROFIL = "  Speech profile from the interview: {text}"
 _ZEILE_ZITAT = "  Quote: \"{text}\""
 _ZEILE_BRAUCHT = "  needs a way of speaking"
 _KOPF_FIGUREN = "Characters:"
+# Task 10: one line of the "Noted:" message per way of speaking set by chat
+# (erkenner art sprechweise_setzen).
+_ZEILE_GESETZT = "Way of speaking {name}: {text}"

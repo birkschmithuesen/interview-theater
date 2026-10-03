@@ -69,7 +69,8 @@ from interview_theater.knoepfe.szenen import (
     biete_kurzgeschichte, biete_schaerfung, biete_szene, biete_szenenform,
     _zeige_fassungen, skript_verweis, starte_dramaturgie,
     biete_szenenstil, erwarte_geschichte_notiz, starte_schaerfung,
-    starte_stueckpruefung, zeige_szenentext,
+    starte_stueckpruefung, uebernimm_schaerfung_figur,
+    uebernimm_schaerfung_szene, verwirf_schaerfung, zeige_szenentext,
 )
 from interview_theater.knoepfe.interviews import (
     _werte_alle_aus, biete_interview_ohne_knopf_weiter,
@@ -175,42 +176,19 @@ def _wirkung_geschichte_speichern(conn, d: Druck) -> str:
 
 def _wirkung_schaerfung_szene(conn, d: Druck) -> str:
     """Die Uebernahme ist deterministisch (Felder ergaenzen), der naechste
-    Vorschlag kommt aus der Datenbank -- kein Modellaufruf (Zusage 2)."""
-    from interview_theater import schaerfung as schaerfung_modul
-
+    Vorschlag kommt aus der Datenbank -- kein Modellaufruf (Zusage 2). Der
+    Rumpf steht in ``szenen.uebernimm_schaerfung_szene`` -- derselbe fuer
+    den Erkenner (``schaerfung_entscheidung``, Padua Phasen TEIL 2)."""
     modus, _, nummer_roh = d.wert.partition(TRENNER)
-    ziel = _szene_mit_nummer(conn, d.chat_id, int(nummer_roh or d.wert))
-    if ziel is None:
-        d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
-        return T._TEXT_SZENE_UNBEKANNT
-    anzahl = schaerfung_modul.uebernimm_szene(conn, d.chat_id, ziel)
-    if not anzahl:
-        d.tg.sende(d.chat_id, T._TEXT_SCHAERFUNG_NICHTS)
-    else:
-        d.tg.sende(d.chat_id, T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl))
-    if modus.strip() == "anders":
-        d.tg.sende(d.chat_id, T._TEXT_EIGENE_IDEE)
-    biete_schaerfung(conn, d.tg, d.chat_id)
-    return T._ANTWORT_SZENE_GESCHAERFT.format(nummer=ziel["nummer"])
+    return uebernimm_schaerfung_szene(
+        conn, d.tg, d.chat_id, int(nummer_roh or d.wert),
+        anders=modus.strip() == "anders")
 
 
 def _wirkung_schaerfung_figur(conn, d: Druck) -> str:
-    from interview_theater import schaerfung as schaerfung_modul
-
     modus, _, name = d.wert.partition(TRENNER)
-    figur = repo.hole_figur(conn, d.chat_id, name or d.wert)
-    if figur is None:
-        d.tg.sende(d.chat_id, T._TEXT_UNBEKANNT)
-        return T._TEXT_UNBEKANNT
-    anzahl = schaerfung_modul.uebernimm_figur(conn, d.chat_id, figur)
-    if not anzahl:
-        d.tg.sende(d.chat_id, T._TEXT_SCHAERFUNG_NICHTS)
-    else:
-        d.tg.sende(d.chat_id, T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl))
-    if modus.strip() == "anders":
-        d.tg.sende(d.chat_id, T._TEXT_EIGENE_IDEE)
-    biete_schaerfung(conn, d.tg, d.chat_id)
-    return T._ANTWORT_FIGUR_GESCHAERFT.format(name=figur["name"])
+    return uebernimm_schaerfung_figur(
+        conn, d.tg, d.chat_id, name or d.wert, anders=modus.strip() == "anders")
 
 
 def _wirkung_schaerfung_stelle(conn, d: Druck) -> str:
@@ -233,13 +211,8 @@ def _wirkung_schaerfung_stelle(conn, d: Druck) -> str:
 
 
 def _wirkung_schaerfung_keine(conn, d: Druck) -> str:
-    from interview_theater import schaerfung as schaerfung_modul
-
     ids = [t.strip() for t in d.wert.split(TRENNER) if t.strip().isdigit()]
-    schaerfung_modul.verwirf_stellen(conn, [int(t) for t in ids])
-    d.tg.sende(d.chat_id, T._TEXT_SCHAERFUNG_VERWORFEN)
-    biete_schaerfung(conn, d.tg, d.chat_id)
-    return T._TEXT_SCHAERFUNG_VERWORFEN
+    return verwirf_schaerfung(conn, d.tg, d.chat_id, [int(t) for t in ids])
 
 
 def _wirkung_schaerfung_runde(conn, d: Druck) -> str:
@@ -386,22 +359,12 @@ def _wirkung_entwurf_szene_passt(conn, d: Druck, nummer: int) -> str:
     Birk gewuenschte Ausnahme vom sonst geltenden "Datenstand ist nicht
     Absicht" (AGENTS.md) -- lokal auf diesen Abschluss begrenzt,
     ``phasen.moegliche_naechste``/``offenes_angebot`` bleiben fuer jeden
-    anderen Uebergang unveraendert."""
-    from interview_theater import entwurf, szene
+    anderen Uebergang unveraendert. Der Rumpf steht seit Padua Phasen TEIL 2
+    in ``entwurf.bestaetige_szene`` -- derselbe fuer den Erkenner
+    (``fassung_abnehmen``)."""
+    from interview_theater import entwurf
 
-    ziel = _szene_mit_nummer(conn, d.chat_id, nummer)
-    if ziel is None:
-        d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
-        return T._TEXT_SZENE_UNBEKANNT
-    repo.setze_szene_entwurf_bestaetigt(conn, ziel["id"])
-    naechste = entwurf.erste_offene_szene(conn, d.chat_id)
-    if naechste is not None:
-        auftrag = f"SZENE {naechste}: write this scene as prose, following the overview."
-        szene.starte(conn, d.tg, d.klm, d.e, d.chat_id, auftrag)
-        return T._TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN
-    phasen.setze(conn, d.chat_id, 6, "entwurf", notiz="alle Szenen entworfen")
-    eintritt_in_phase(conn, d.tg, d.klm, d.e, d.chat_id, 6)
-    return T._TEXT_ALLE_SZENEN_ENTWORFEN
+    return entwurf.bestaetige_szene(conn, d.tg, d.klm, d.e, d.chat_id, nummer)
 
 
 def _wirkung_szene_anders(conn, d: Druck) -> str:
@@ -425,18 +388,12 @@ def _wirkung_uebersicht_passt(conn, d: Druck) -> str:
     rein aus dem schon erzeugten Uebersicht-Text uebernommen
     (``entwurf.uebernimm_szenenfelder``), und die erste noch offene Szene
     geht ueber das bestehende ``szene.starte`` -- das gibt seinerseits sofort
-    an einen eigenen Thread ab."""
-    from interview_theater import entwurf, szene
+    an einen eigenen Thread ab. Der Rumpf steht seit Padua Phasen TEIL 2 in
+    ``entwurf.fixiere_uebersicht`` -- derselbe fuer den Erkenner
+    (``fassung_abnehmen``)."""
+    from interview_theater import entwurf
 
-    repo.setze_arbeitsstand(
-        conn, d.chat_id, "geschichte_uebersicht_fixiert_am", repo._jetzt(),
-    )
-    entwurf.uebernimm_szenenfelder(conn, d.chat_id)
-    erste = entwurf.erste_offene_szene(conn, d.chat_id)
-    if erste is not None:
-        auftrag = f"SZENE {erste}: write this scene as prose, following the overview."
-        szene.starte(conn, d.tg, d.klm, d.e, d.chat_id, auftrag)
-    return T._TEXT_UEBERSICHT_FIXIERT
+    return entwurf.fixiere_uebersicht(conn, d.tg, d.klm, d.e, d.chat_id)
 
 
 def _wirkung_erstentwurf(conn, d: Druck) -> str:

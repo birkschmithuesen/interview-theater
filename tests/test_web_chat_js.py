@@ -1488,3 +1488,111 @@ def test_pegeltakt_zeichnet_breite_marke_und_farbzustand_live_in_node(tmp_path):
     # gedeckelt: rms=0.5 -> ueber 100% der Skala, auf 100 geklemmt.
     assert ergebnisse["gedeckelt"]["breite"] == pytest.approx(100.0)
     assert ergebnisse["gedeckelt"]["ueber"] is True
+
+
+# -- Einmaliger Mitschnitt-Hinweis nach dem ersten Segment (Task 4, Kanban- --
+# -- Karte Mithoeren SICHER, 03.10.2026): "Check the transcript in the chat --
+# -- -- if words are missing, move the phone closer." Einmal je Sitzung,    --
+# -- nicht je Segment, nicht fuer immer auf dem Geraet -- deshalb ein       --
+# -- reines sitzung-Feld (sitzung.hinweisGezeigt), kein localStorage. Nicht --
+# -- zu verwechseln mit Task 2s "Handy herumreichen"-Erinnerung             --
+# -- (kalErinnerungFeld/zustand.kalibrierungModus): zwei unabhaengige       --
+# -- Mechanismen mit unterschiedlichem Ausloeser. ----------------------------
+
+def test_mitlauf_hinweis_element_steht_in_der_seite(seite):
+    assert 'class="mitlauf-hinweis"' in seite
+    assert 'id="mitlauf-hinweis"' in seite
+    assert 'role="status"' in seite
+    # Direkt neben #fehler im Markup, wie der Auftrag es verlangt.
+    ausschnitt = seite[seite.index('id="fehler"') - 40:seite.index('id="fehler"') + 400]
+    assert "mitlauf-hinweis" in ausschnitt
+
+
+def test_mitlauf_hinweis_text_steht_in_js_texte_und_ist_eigenstaendig():
+    assert web_chat._JS_TEXTE["mitlauf_hinweis"] == web_chat._TEXT_MITLAUF_HINWEIS
+    # Eigenstaendig: kein Wiederverwenden von Task 2s Herumreichen-Text.
+    assert web_chat._TEXT_MITLAUF_HINWEIS != web_chat._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG
+
+
+def test_onstop_zeigt_den_mitlauf_hinweis_einmal_je_sitzung_nach_dem_ersten_segment():
+    """Die Bewachung steht NACH dem ``if (teile.length && ...)``-Block (das
+    erste fertige Segment dieser Sitzung), schaltet den Merkposten auf
+    ``true`` und zeigt den Hinweistext -- unabhaengig davon, ob genau DIESES
+    Segment hochgeladen wird."""
+    js = web_chat._CHAT_JS
+    onstop = js[js.index("r.onstop = function"):js.index("r.start();")]
+    gate_index = onstop.index("if (teile.length")
+    guard_index = onstop.index("if (!sitzung.hinweisGezeigt)")
+    fertige_index = onstop.index("sitzung.fertige[nr] = auftrag;")
+    assert gate_index < guard_index < fertige_index
+    guard = onstop[guard_index:fertige_index]
+    assert "sitzung.hinweisGezeigt = true;" in guard
+    assert "mitlaufHinweisFeld.textContent = TEXT.mitlauf_hinweis;" in guard
+    assert "mitlaufHinweisFeld.hidden = false;" in guard
+
+
+def test_anzeigeaus_versteckt_den_mitlauf_hinweis():
+    js = web_chat._CHAT_JS
+    anzeige_aus = js[js.index("function anzeigeAus"):js.index("function modusAn")]
+    assert "mitlaufHinweisFeld.hidden = true;" in anzeige_aus
+
+
+def test_frische_sitzungen_bekommen_einen_eigenen_hinweisgezeigt_merkposten():
+    """Ein neuer Interview- oder Brainstorm-Start (und das Wiederanmelden
+    nach einem Reload waehrend ein anderes Telefon schon aufnimmt) legt ein
+    FRISCHES Sitzungsobjekt an -- jedes bekommt ``hinweisGezeigt: false``,
+    kein Uebertrag von einer frueheren Sitzung."""
+    js = web_chat._CHAT_JS
+    start_interview = js[js.index("function starteInterview"):js.index("var wechsel = { ziel: true")]
+    assert "hinweisGezeigt: false" in start_interview
+    start_brainstorm = js[js.index("function starteBrainstorm"):js.index("zustand.brainstorm = sitzung;")]
+    assert "hinweisGezeigt: false" in start_brainstorm
+    fortsetzen = js[js.index("sitzung = {\n        strom: null"):]
+    fortsetzen = fortsetzen[:fortsetzen.index("zustand.aufnahme = sitzung;   // synchron")]
+    assert "hinweisGezeigt: false" in fortsetzen
+
+
+def test_mitlauf_hinweis_guard_zeigt_sich_nur_beim_ersten_segment_live_in_node(tmp_path):
+    """Fuehrt die woertlich extrahierte Bewachung aus ``onstop`` aus: erster
+    Aufruf auf einer frischen Sitzung zeigt den Hinweis, ein zweiter Aufruf
+    auf DERSELBEN Sitzung (zweites Segment) zeigt ihn nicht erneut, und eine
+    ANDERE (neue) Sitzung bekommt ihn wieder."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    guard = _extrahiere(
+        js, "if (!sitzung.hinweisGezeigt)", "sitzung.fertige[nr] = auftrag;",
+    )
+    quelltext = f"""
+    var TEXT = {{ mitlauf_hinweis: 'Hinweis-Text' }};
+    function baueFeld() {{ return {{ hidden: true, textContent: '' }}; }}
+    var mitlaufHinweisFeld = baueFeld();
+    function pruefeHinweis(sitzung) {{
+      {guard}
+    }}
+
+    var sitzungA = {{ hinweisGezeigt: false }};
+    pruefeHinweis(sitzungA);
+    var ergebnis1 = {{
+      sichtbar_erstes_mal: mitlaufHinweisFeld.hidden === false,
+      text_erstes_mal: mitlaufHinweisFeld.textContent,
+      merkposten_erstes_mal: sitzungA.hinweisGezeigt
+    }};
+
+    mitlaufHinweisFeld.hidden = true;
+    mitlaufHinweisFeld.textContent = '';
+    pruefeHinweis(sitzungA);
+    var ergebnis2 = {{ sichtbar_zweites_mal: mitlaufHinweisFeld.hidden === false }};
+
+    var sitzungB = {{ hinweisGezeigt: false }};
+    pruefeHinweis(sitzungB);
+    var ergebnis3 = {{ sichtbar_neue_sitzung: mitlaufHinweisFeld.hidden === false }};
+
+    console.log(JSON.stringify({{ a: ergebnis1, b: ergebnis2, c: ergebnis3 }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse["a"]["sichtbar_erstes_mal"] is True
+    assert ergebnisse["a"]["text_erstes_mal"] == "Hinweis-Text"
+    assert ergebnisse["a"]["merkposten_erstes_mal"] is True
+    assert ergebnisse["b"]["sichtbar_zweites_mal"] is False
+    assert ergebnisse["c"]["sichtbar_neue_sitzung"] is True

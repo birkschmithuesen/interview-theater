@@ -1808,6 +1808,9 @@ _TEXT_KALIBRIERUNG_ERFOLG = "Room measured ✓ — you're ready."
 _TEXT_KALIBRIERUNG_SKIP_KNOPF = "Skip"
 _TEXT_KALIBRIERUNG_BALKEN_LABEL = "Your voice vs. the room"
 _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG = "Remember: pass the phone to whoever speaks."
+# Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): exact card wording,
+# shown once per session after the first segment finishes.
+_TEXT_MITLAUF_HINWEIS = "Check the transcript in the chat — if words are missing, move the phone closer."
 
 ["web_kanal"]
 # UX-Knoepfe-Karte, Abschnitt 1: der einmalige Hinweis, dass Knoepfe

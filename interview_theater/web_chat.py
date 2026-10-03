@@ -341,6 +341,8 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
                       background: #17181b; left: 0; }
 .kalibrierung-erinnerung { font-size: .85rem; text-align: center; color: #1f6f5c; }
 .kalibrierung-erinnerung[hidden] { display: none; }
+.mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }
+.mitlauf-hinweis[hidden] { display: none; }
 @media (prefers-color-scheme: dark) {
   body { background: #14161a; color: #e7e9ec; }
   .blase.bot { background: #1d2026; border-color: #2c313a; }
@@ -411,6 +413,17 @@ _TEXT_REST_VERWERFEN = "Rest verwerfen"
 #: abschliessende /fertig des Nachreichens wuerde es beenden.
 _TEXT_NACHREICHEN_SPAETER = (
     "Gerade läuft ein anderes Interview — nachreichen geht, sobald es beendet ist."
+)
+
+#: Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): einmal je Sitzung,
+#: direkt nachdem das erste Segment fertig ist (``sitzung.hinweisGezeigt``
+#: in ``neuesSegment()``s ``onstop`` -- kein ``localStorage``, reines
+#: Sitzungsfeld, eine neue Sitzung zeigt ihn wieder). Eigenstaendig von
+#: Task 2s "Handy herumreichen"-Erinnerung (anderer Ausloeser, anderer
+#: Merkposten) -- nicht zusammenlegen.
+_TEXT_MITLAUF_HINWEIS = (
+    "Schaut den Mitschnitt im Chat nach — fehlen Worte, haltet das Handy "
+    "näher ran."
 )
 
 # -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/             --
@@ -496,6 +509,7 @@ _JS_TEXTE = {
     "modus_weg": _TEXT_MODUS_WEG,
     "modus_weg_leer": _TEXT_MODUS_WEG_LEER,
     "nachreichen_spaeter": _TEXT_NACHREICHEN_SPAETER,
+    "mitlauf_hinweis": _TEXT_MITLAUF_HINWEIS,
     "abkuerzung": _TEXT_ABKUERZUNG,
     "kal_ankuendigung": _TEXT_KALIBRIERUNG_ANKUENDIGUNG,
     "kal_start_knopf": _TEXT_KALIBRIERUNG_START_KNOPF,
@@ -583,6 +597,9 @@ _CHAT_JS = """
   var pegelSchwelle = pegelFeld ? pegelFeld.querySelector('.pegel-schwelle') : null;
   var warteFeld = document.getElementById('warteschlange');
   var fehlerFeld = document.getElementById('fehler');
+  // Task 4 (Kanban-Karte Mithoeren SICHER): der einmalige "Mitschnitt
+  // pruefen"-Hinweis -- eigenstaendig von kalErinnerungFeld unten.
+  var mitlaufHinweisFeld = document.getElementById('mitlauf-hinweis');
   var tipptFeld = document.getElementById('tippt');
   var interviewKnopf = document.getElementById('interview');
   var interviewAktionenFeld = document.getElementById('interview-aktionen');
@@ -1290,6 +1307,20 @@ _CHAT_JS = """
           grund: grund, redeMs: redeMs, kalibrierung: !!r._kalibrierung
         };
       }
+      // Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): einmal je
+      // Sitzung, direkt nachdem das erste Segment fertig ist -- kein
+      // localStorage, reines Sitzungsfeld (sitzung.hinweisGezeigt), eine
+      // neue Sitzung (neuer Interview-/Brainstorm-Start) zeigt ihn wieder.
+      // Eigenstaendig von kalErinnerungFeld/zustand.kalibrierungModus oben
+      // (Task 2s "Handy herumreichen"-Erinnerung): anderer Ausloeser,
+      // anderer Merkposten, nicht zusammenlegen.
+      if (!sitzung.hinweisGezeigt) {
+        sitzung.hinweisGezeigt = true;
+        if (mitlaufHinweisFeld) {
+          mitlaufHinweisFeld.textContent = TEXT.mitlauf_hinweis;
+          mitlaufHinweisFeld.hidden = false;
+        }
+      }
       // Re-Review B: zwei onstop koennen sich ueberholen (Stopp mitten im
       // Segmentwechsel). Eingereiht wird nach der laufenden Nummer.
       sitzung.fertige[nr] = auftrag;
@@ -1647,6 +1678,8 @@ _CHAT_JS = """
     if (kalFeld) { kalFeld.hidden = true; }
     if (pegelBalken) { pegelBalken.style.width = '0'; }
     if (pegelFeld) { pegelFeld.classList.remove('ueber-schwelle'); }
+    // Task 4: nicht in einen spaeteren Bildschirmzustand hinueberlaufen.
+    if (mitlaufHinweisFeld) { mitlaufHinweisFeld.hidden = true; }
   }
 
   function modusAn() {
@@ -2369,7 +2402,7 @@ _CHAT_JS = """
       verworfen: false, angehalten: false, geparkt: [],
       fertigEingereiht: true, naechsteNr: 0, einzureihen: 0, fertige: {},
       pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true,
-      fortsetzend: false
+      fortsetzend: false, hinweisGezeigt: false
     };
     zustand.brainstorm = sitzung;
     zeigeBrainstormModus();
@@ -2500,7 +2533,7 @@ _CHAT_JS = """
       // befindliches Mikrofon dieser Sitzung erkennen (Re-Review,
       // Befund 1), statt gegen das lange-schon-falsche "gestartet".
       pausiert: false, erfassteMs: 0, legStart: null, fortsetzend: false,
-      mikroUnterwegs: false
+      mikroUnterwegs: false, hinweisGezeigt: false
     };
     var wechsel = { ziel: true, gesendet: false };
     zustand.aufnahme = sitzung;
@@ -2682,7 +2715,7 @@ _CHAT_JS = """
         angehalten: false, geparkt: [],
         fertigEingereiht: false, naechsteNr: 0, einzureihen: 0, fertige: {},
         wechselAus: null, pausiert: true, erfassteMs: 0, legStart: null,
-        fortsetzend: false, mikroUnterwegs: false
+        fortsetzend: false, mikroUnterwegs: false, hinweisGezeigt: false
       };
       zustand.aufnahme = sitzung;   // synchron, wie starteInterview()
     }
@@ -2913,6 +2946,7 @@ def _js() -> str:
         kal_skip_knopf=T._TEXT_KALIBRIERUNG_SKIP_KNOPF,
         kal_balken_label=T._TEXT_KALIBRIERUNG_BALKEN_LABEL,
         kal_herumreichen_erinnerung=T._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
+        mitlauf_hinweis=T._TEXT_MITLAUF_HINWEIS,
     )
     texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (
@@ -3110,6 +3144,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'  </div>\n'
         f'  <div class="warteschlange" id="warteschlange"></div>\n'
         f'  <div class="fehler" id="fehler" role="alert" hidden></div>\n'
+        f'  <p class="mitlauf-hinweis" id="mitlauf-hinweis" role="status" hidden></p>\n'
         f'  <div class="angehalten" id="angehalten" role="alert" hidden>\n'
         f'    <p id="angehalten-text"></p>\n'
         f'    <button type="button" id="nachreichen">'

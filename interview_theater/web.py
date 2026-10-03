@@ -955,6 +955,7 @@ _TEXT_WB_UEBERARBEITET = "Szene {bezug}: überarbeitet"
 _TEXT_WB_FORM = "Szene {bezug}: Form"
 _TEXT_WB_SPRECHWEISE = "{bezug}: Sprechweise"
 _TEXT_WB_AUCH_VEREINBART = "Auch vereinbart"
+_TEXT_WERKBANK_NUR_LESEN = "Hier wird nur angezeigt – Änderungen bitte im Chat."
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026). Die Tab-Beschriftung
 #: selbst steht seit dem Umzug in Karte Ws Tableiste in
 #: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
@@ -4149,7 +4150,10 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
 
     **Das Dashboard ist nicht dabei.** ``/`` nimmt kein POST an: es haengt am
     Beamer und ist projiziert, dort soll niemand im Vorbeigehen etwas
-    umstellen."""
+    umstellen.
+
+    Mit ``[web] workbench_bearbeitbar = false`` (Padua) antwortet dieser Weg
+    immer 403 -- nach Pfad und Herkunft, vor Token und Nonce."""
     pfad = _pfad_ohne_praefix(
         urllib.parse.unquote(urllib.parse.urlsplit(handler.path).path), praefix
     )
@@ -4177,6 +4181,16 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
         # ebenfalls 404 -- jetzt ausdruecklich.
         schliesse_nach_antwort(handler)
         handler._antworte(404, nicht_gefunden_html())
+        return
+    from interview_theater import workshop
+
+    if not workshop.workbench_bearbeitbar():
+        # Padua (03.10.2026): die Werkbank ist reine Anzeige, geaendert wird
+        # im Chat. NUR dieser Weg -- die Chat-POSTs oben laufen weiter. Vor
+        # dem Lesen des Rumpfes und vor der Token-Suche: es gibt nichts, was
+        # hier je wirken duerfte, also auch nichts zu verraten.
+        schliesse_nach_antwort(handler)
+        handler._fehler(403, T._TEXT_WERKBANK_NUR_LESEN)
         return
     try:
         daten = handler._koerper()

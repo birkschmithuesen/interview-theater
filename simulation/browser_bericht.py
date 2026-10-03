@@ -5,6 +5,7 @@ dieses Browserlaufs."""
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 
@@ -55,9 +56,17 @@ def baue_markdown(lauf_titel: str, geraet: str, modelle: dict,
 def kontaktbogen(context, bild_pfade: list[Path], ausgabe: Path,
                  spalten: int = 4) -> None:
     """Alle Screenshots einer Phase verkleinert auf einem Blatt -- ein
-    Playwright-Screenshot einer Rasterseite, kein Pillow."""
+    Playwright-Screenshot einer Rasterseite, kein Pillow.
+
+    Die Bilder gehen als ``data:``-URI ein, nicht als ``file://``-Pfad:
+    realer Betriebsbefund (Padua-Abnahme, 03.10.2026) -- eine Seite aus
+    ``set_content`` hat keinen Ursprung (``about:blank``), und Chromium
+    verweigert ihr den Dateizugriff ohne eine sichtbare Fehlermeldung. Das
+    Ergebnis war ein leerer Kontaktbogen mit nur den Dateinamen als
+    Bildunterschrift -- kein Absturz, also auch keine Warnung."""
     kacheln = "".join(
-        f'<figure><img src="file://{Path(p).resolve()}">'
+        f'<figure><img src="data:image/png;base64,'
+        f'{base64.b64encode(Path(p).read_bytes()).decode()}">'
         f"<figcaption>{Path(p).name}</figcaption></figure>"
         for p in bild_pfade
     )
@@ -73,6 +82,19 @@ def kontaktbogen(context, bild_pfade: list[Path], ausgabe: Path,
     try:
         seite.set_content(html)
         seite.wait_for_timeout(200)
+        # Lieber ein lauter Fehler als ein stiller, leerer Kontaktbogen: mit
+        # der alten file://-URI schlug das Laden ohne jede Fehlermeldung
+        # fehl und niemand hat es bemerkt, bis jemand die PNG von Hand
+        # ansah. ``naturalWidth`` ist 0, solange ein Bild nicht decodiert
+        # werden konnte.
+        kaputt = seite.evaluate(
+            "Array.from(document.images).filter(i => i.naturalWidth === 0).length"
+        )
+        if kaputt:
+            raise RuntimeError(
+                f"Kontaktbogen: {kaputt} von {len(bild_pfade)} Bildern "
+                f"liessen sich nicht laden ({ausgabe})"
+            )
         seite.screenshot(path=str(ausgabe), full_page=True)
     finally:
         seite.close()

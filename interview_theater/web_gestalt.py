@@ -45,6 +45,7 @@ Oberflaechen-Schicht. Importiert **nichts** aus dem Projekt ausser
 ``web_chat``: die Richtung zeigt von dort hierher.
 """
 
+import json
 import os
 import re
 from typing import NamedTuple
@@ -409,3 +410,63 @@ _STAND = ""
 #: Gefuellt in Aufgabe 10.
 _SKRIPT_A = ""
 _SKRIPT_B = ""
+
+
+#: Das Effekt-JavaScript. Vanilla, ES5-nah wie ``_BEARBEITEN_JS`` und
+#: ``_CHAT_JS`` -- kein Build, kein Framework.
+#:
+#: **Es aendert kein Markup von A2/W.** Was die Gestaltung zusaetzlich
+#: braucht, legt es selbst an (``#ux-rec-zeile``, ``#ux-balken``,
+#: ``#ux-vorhang``, ``#ux-ansage``, ``#ux-belohnung``) -- alles mit dem
+#: Praefix ``ux-``, damit im Fehlerfall klar ist, wem es gehoert.
+#:
+#: **Es schreibt nie in ``#interview.textContent``**: das tut ``_CHAT_JS``
+#: (Karte A2, Befund 2 im Plan-Kopf), und zwei Schreiber auf einem Knoten
+#: sind ein Fehler, der erst im Workshop auffaellt.
+#:
+#: Faellt es aus, bleibt die Seite vollstaendig bedienbar: jeder Zustand,
+#: den es zeigt, hat schon eine textliche Entsprechung aus A2/W.
+_GESTALT_JS = """
+(function () {
+  'use strict';
+  var RUHIG = window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var TAKT_MOMENT = __TAKT_MOMENT__;
+  var MOMENT = '__MOMENT__';
+  var TEXTE = __TEXTE__;
+  var el = function (id) { return document.getElementById(id); };
+  // Die Bausteine kommen in den Aufgaben 5 bis 9. Ohne sie tut dieses
+  // Skript nichts -- und genau das soll es dann auch tun.
+  __BAUSTEINE__
+})();
+"""
+
+
+def skript(name: str | None = None) -> str:
+    """Das Effekt-JS mit eingesetzten Werten.
+
+    Platzhalter statt f-String: das Skript ist voll mit geschweiften
+    Klammern. Dieselbe Bauart wie ``web_chat._js()`` (Karte A2)."""
+    gewaehlt = name or entwurf()
+    takt = TOKENS[gewaehlt]["takt-moment"].removesuffix("ms")
+    return (
+        _GESTALT_JS
+        .replace("__TAKT_MOMENT__", takt)
+        .replace("__MOMENT__", "glitch" if gewaehlt == "a" else "vorhang")
+        .replace("__TEXTE__", json.dumps(_mikrotexte(), ensure_ascii=False))
+        .replace("__BAUSTEINE__", _BAUSTEINE)
+    )
+
+
+#: Gefuellt in den Aufgaben 5 bis 9.
+_BAUSTEINE = ""
+
+
+def _mikrotexte() -> dict[str, str]:
+    """Die englischen Kurztexte, die das Skript in den DOM schreibt.
+
+    Sie gehen als JSON ins Skript, statt als Literal darin zu stehen --
+    nur so laufen sie ueber ``T`` (A1) und sind uebersetzbar. Ein Literal
+    im JS waere in Padua Deutsch; genau das ist Befund 2 an Karte A2.
+    Gefuellt in Aufgabe 11."""
+    return {}

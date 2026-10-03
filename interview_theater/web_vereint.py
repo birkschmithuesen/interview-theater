@@ -987,7 +987,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     ist dann ``stand``; ein Fragment ``#chat`` faellt automatisch darauf
     zurueck, weil ``TABS`` im Skript ohne ``chat`` ankommt und ``lies()`` in
     ``_VEREINT_JS`` jedes unbekannte Wort auf ``VORGABE`` abbildet."""
-    from interview_theater import web, web_chat
+    from interview_theater import web, web_chat, web_gestalt
 
     titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
     tabs = TABS if chat_vorhanden else tuple(t for t in TABS if t != "chat")
@@ -1040,6 +1040,14 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         css += scope_css(web_chat._CSS_CHAT, ".panel-chat")
     if phase4:
         css += scope_css(web._CSS_BUEHNE, ".panel-buehne")
+    # Gestaltung zuletzt (Karte UX): gleiche Spezifitaet, spaetere Position --
+    # und dieselbe Einschraenkung wie die Quellen darueber, sonst waere
+    # ``#interview`` schwaecher als ``.panel-chat #interview``.
+    css += web_gestalt.css_rahmen()
+    if chat_vorhanden:
+        css += scope_css(web_gestalt.css_chat(), ".panel-chat")
+    css += scope_css(web_gestalt.css_stand(), ".panel-stand")
+    css += scope_css(web_gestalt.css_textbuch(), ".panel-textbuch")
     # web_chat._js() und nicht die rohe Konstante _CHAT_JS: sie traegt
     # unersetzte Platzhalter (__POLL_MS__ usw., siehe web_chat._js()-Docstring)
     # -- nur _js() liefert lauffaehiges Skript (Abweichung vom Plan-Kopf-
@@ -1065,6 +1073,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         # Der Strom nur mit Chat: fuer eine Gruppe ohne Web-Kanal ist
         # ``/chat/*`` 404, ein EventSource liefe dort ins Leere.
         skript += _strom_js(f"{token}/")
+    skript += web_gestalt.skript()  # Karte UX: Effekte, zuletzt
     return web._seite(
         f"{titel} — interview-theater", css, "\n".join(koerper),
         bearbeitbar=True, nachladen=False, skript=skript,

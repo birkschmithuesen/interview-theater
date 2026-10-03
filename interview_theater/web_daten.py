@@ -1329,6 +1329,10 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # ist interview-frei), siehe buehnenkarte.py/db.py.
         "buehnenkarten": buehnenkarten(conn, chat_id),
         "stueckkarte_felder": stueckkarte_felder(conn, chat_id, figuren, stand),
+        # Die CoThinker-Statuszeile (Phase 4, nur Web, 03.10.2026) -- ``None``
+        # ausserhalb Phase 4 und wenn es gerade nichts zu melden gibt, dann
+        # bleibt die Zeile im Browser weg.
+        "cothinker_status": cothinker_status(conn, chat_id, stand.get("phase")),
     }
 
 
@@ -1364,6 +1368,69 @@ def stueckkarte_felder(
         ("Figuren", ", ".join(namen) if namen else None),
         ("Geschichte", stand.get("geschichte") or None),
     ]
+
+
+def cothinker_status(
+    conn: sqlite3.Connection, chat_id: int, phase: int | None,
+) -> dict | None:
+    """Die CoThinker-Statuszeile (Phase 4, nur Web, 03.10.2026) -- liest den
+    laufenden Buehnenkarten-Lauf, das juengste Brainstorm-Segment und die
+    neueste Buehnenkarte dieser Gruppe und laesst
+    ``cothinker_status.leite_ab`` (reine Funktion, Task 2) daraus den
+    Zustand ableiten.
+
+    Ausserhalb Phase 4 immer ``None`` -- die Zeile gehoert allein zum
+    Buehne-Tab. Fehlende Spalte/Tabelle (alte DB, Deploy vor Bot-Neustart)
+    faellt wie bei ``buehnenkarten()``/``stueckkarte_felder()`` auf den
+    neutralen Wert zurueck statt auf einen Fehler."""
+    if phase != 4:
+        return None
+
+    from interview_theater import cothinker_status as _cothinker_status_modul
+
+    segment = conn.execute(
+        "SELECT status, schnittgrund, empfangen_am FROM aufnahme "
+        "WHERE chat_id = ? AND brainstorm = 1 AND entfernt_am IS NULL "
+        "ORDER BY id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+    segment_status = segment["status"] if segment else None
+    segment_schnittgrund = segment["schnittgrund"] if segment else None
+    segment_empfangen_am = segment["empfangen_am"] if segment else None
+
+    try:
+        zeile = conn.execute(
+            "SELECT brainstorm_lauf_seit FROM arbeitsstand WHERE chat_id = ?",
+            (chat_id,),
+        ).fetchone()
+        lauf_seit = zeile["brainstorm_lauf_seit"] if zeile else None
+    except sqlite3.OperationalError:
+        lauf_seit = None
+
+    try:
+        karte = conn.execute(
+            "SELECT schweigen, erstellt_am FROM buehnenkarte "
+            "WHERE chat_id = ? ORDER BY id DESC LIMIT 1",
+            (chat_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        karte = None
+    schweigen = karte["schweigen"] if karte else False
+    erstellt_am = karte["erstellt_am"] if karte else None
+
+    treffer = _cothinker_status_modul.leite_ab(
+        jetzt=datetime.now(timezone.utc),
+        lauf_seit=lauf_seit,
+        segment_status=segment_status,
+        segment_schnittgrund=segment_schnittgrund,
+        segment_empfangen_am=segment_empfangen_am,
+        neueste_karte_schweigen=bool(schweigen),
+        neueste_karte_seit=erstellt_am,
+    )
+    if treffer is None:
+        return None
+    zustand, seit = treffer
+    return {"zustand": zustand, "seit": seit}
 
 
 def sprechanteile(conn: sqlite3.Connection, chat_id: int) -> dict:

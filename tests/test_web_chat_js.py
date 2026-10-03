@@ -120,8 +120,9 @@ def test_kappe_schneidet_immer_pause_nur_mit_genug_rede():
 
 def test_manuelle_schnitte_tragen_den_grund_ende():
     js = web_chat._CHAT_JS
-    # pausiereInterview + beendeInterview + pausiereBrainstorm + beendeBrainstorm
-    assert js.count("_grund = 'ende'") == 4
+    # pausiereInterview + beendeInterview + pausiereBrainstorm +
+    # beendeBrainstorm + pausiereDiskussion + beendeDiskussion
+    assert js.count("_grund = 'ende'") == 6
 
 
 def test_der_grund_ende_wird_nur_mit_aktivem_vad_gesetzt():
@@ -828,8 +829,9 @@ def test_beginneaufnahme_ist_der_einzige_ort_der_die_aufnahme_beginnt():
     und beide Aufrufer delegieren dorthin."""
     js = web_chat._CHAT_JS
     assert js.count("function beginneAufnahme") == 1
-    # starteInterview + fortsetzeInterview + starteBrainstorm + fortsetzeBrainstorm
-    assert js.count("beginneAufnahme(sitzung);") == 4
+    # starteInterview + fortsetzeInterview + starteBrainstorm +
+    # fortsetzeBrainstorm + starteDiskussion + fortsetzeDiskussion
+    assert js.count("beginneAufnahme(sitzung);") == 6
     # Der Segment-Takt wird nur noch EINMAL im ganzen Skript aufgebaut --
     # vorher stand dieselbe setInterval(...)-Konstruktion in beiden
     # Funktionen, und ein Schutz in der einen (Befund 1) galt nicht
@@ -1090,3 +1092,181 @@ def test_manuelle_schnitte_tragen_den_grund_ende_fuer_brainstorm_auch():
                  js.index("function starteInterview")]
     assert "_grund = 'ende'" in pause
     assert "_grund = 'ende'" in beenden
+
+
+# -- Hintergrund-Mithoeren Phase 1 (Padua Phase 1+2 Umbau, 03.10.2026,
+#    Task 6) -----------------------------------------------------------------
+#
+# Derselbe Aufbau wie der Brainstorm-Block oben (eigener Zustandsslot
+# ``zustand.diskussion``, eigene DOM-Elemente ``#diskussion``/
+# ``#diskussion-pause``/``#diskussion-beenden``) -- die Tests hier sind der
+# strukturelle Zwilling der Brainstorm-Tests, nur auf die neuen Namen
+# umgelegt.
+
+
+def test_der_diskussion_knopf_steht_immer_im_markup_aber_hidden_ausserhalb_phase_1():
+    """Wie beim Brainstorm-Knopf (Task 2) rendert ``chat_html`` die vier
+    Diskussion-Elemente IMMER -- nur das ``hidden``-Attribut am
+    ``#diskussion``-Knopf folgt ``daten["diskussion_knopf"]`` (server-
+    seitige Vorgabe ``False``, anders als Brainstorms ``True`` -- das
+    Hintergrund-Mithoeren ist ausgeschaltet, wenn der Server den Schluessel
+    gar nicht mitschickt)."""
+    daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
+             "interviewmodus": False, "titel": None, "phase": 1,
+             "diskussion_knopf": True}
+    seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
+    for kennung in ("diskussion", "diskussion-aktionen", "diskussion-pause",
+                    "diskussion-beenden"):
+        assert f'id="{kennung}"' in seite, kennung
+    assert web_chat._TEXT_DISKUSSION_AN in seite
+    assert web_chat._TEXT_DISKUSSION_FERTIG_KNOPF in seite
+    assert 'id="diskussion" data-laeuft="0" data-pausiert="0">' in seite
+    # Der Beenden-Knopf traegt die UX-Markierung fuer die parallele Karte
+    # (Global Constraints, data-discussion-done="1") -- das landete schon in
+    # Task 5, hier nur mitgeprueft, weil die Markup-Form zusammengehoert.
+    assert 'id="diskussion-beenden" data-discussion-done="1">' in seite
+
+    ohne = web_chat.chat_html(
+        dict(daten, diskussion_knopf=False), "1.x", "tok", "", 45000)
+    for kennung in ("diskussion", "diskussion-aktionen", "diskussion-pause",
+                    "diskussion-beenden"):
+        assert f'id="{kennung}"' in ohne, kennung
+    assert 'id="diskussion" data-laeuft="0" data-pausiert="0" hidden>' in ohne
+
+    fehlt = web_chat.chat_html(
+        dict(daten, phase=None, diskussion_knopf=False), "1.x", "tok", "", 45000)
+    assert 'id="diskussion" data-laeuft="0" data-pausiert="0" hidden>' in fehlt
+
+
+def test_zeigediskussionmodus_behaelt_die_schutzzeile_fuer_fehlende_elemente():
+    """Dieselbe defensive Schutzzeile wie ``zeigeBrainstormModus`` (die
+    Elemente stehen zwar immer im Markup, die Funktion bleibt trotzdem
+    robust gegen ein hypothetisch fehlendes Element)."""
+    js = web_chat._CHAT_JS
+    fn = js[js.index("function zeigeDiskussionModus"):
+            js.index("function starteDiskussion")]
+    assert "if (!diskussionKnopf) { return; }" in fn
+
+
+def test_diskussion_segment_geht_immer_sofort_raus():
+    """Diskussion kennt keinen Modus-Befehl -- ``bereit()`` schickt ein
+    Segment dieser Sitzung immer, ohne auf ``zustand.servermodus`` zu
+    warten (dieselbe Regel wie bei Brainstorm)."""
+    js = web_chat._CHAT_JS
+    bereit = js[js.index("function bereit"):js.index("function ueberholt")]
+    assert "if (sitzung.art === 'diskussion') { return true; }" in bereit
+
+
+def test_postaudio_haengt_das_diskussion_flag_an():
+    js = web_chat._CHAT_JS
+    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    assert "sitzung.art === 'diskussion'" in ausschnitt
+    assert "&diskussion=1" in ausschnitt
+
+
+def test_starte_diskussion_lehnt_waehrend_interview_oder_wechsel_ab():
+    """Dieselbe Guard-Reihenfolge wie ``starteBrainstorm``: eigene Sitzung,
+    Interviewmodus (``modusAn()``) und ein laufender Wechsel schliessen
+    einen Start aus."""
+    js = web_chat._CHAT_JS
+    start = js[js.index("function starteDiskussion"):
+               js.index("function pausiereDiskussion")]
+    assert "if (zustand.diskussion || modusAn() || zustand.wechsel) { return; }" in start
+
+
+def test_zeigediskussionmodus_deaktiviert_interview_und_ptt_wie_brainstorm():
+    """``zeigeDiskussionModus`` ueberschreibt ``interviewKnopf.disabled``,
+    die ``nebenknopf``-Klasse und ``pttKnopf.hidden`` mit genau derselben
+    Formel wie ``zeigeBrainstormModus`` -- zwei Mikrofone gleichzeitig sind
+    keine Bedienung, egal welche der beiden Sitzungen laeuft."""
+    js = web_chat._CHAT_JS
+    zeige_ds = js[js.index("function zeigeDiskussionModus"):
+                  js.index("function starteDiskussion")]
+    assert "diskussionKnopf.disabled = modusAn() || !!zustand.wechsel;" in zeige_ds
+    assert "interviewKnopf.disabled = an || !!(zustand.wechsel && !zustand.wechsel.ziel);" in zeige_ds
+    assert "interviewKnopf.classList.toggle('nebenknopf', sichtbar);" in zeige_ds
+    assert "pttKnopf.hidden = an || modusAn() || !!zustand.wechsel;" in zeige_ds
+    # zeigeModus() ruft beide Anzeigen am Ende auf, damit sie im selben Takt
+    # synchron bleiben -- wie es schon fuer Brainstorm galt.
+    zeige_iv = js[js.index("function zeigeModus"):js.index("function verwirfPtt")]
+    assert "zeigeBrainstormModus();" in zeige_iv
+    assert "zeigeDiskussionModus();" in zeige_iv
+    assert zeige_iv.index("zeigeBrainstormModus();") < zeige_iv.index("zeigeDiskussionModus();")
+
+
+def test_fortsetzediskussion_hat_dieselbe_sperrklinke_wie_brainstorm():
+    """Dieselbe Sperrklinke (``fortsetzend``) und dasselbe Timing von
+    ``mikroUnterwegs`` wie ``fortsetzeBrainstorm``/``fortsetzeInterview``."""
+    js = web_chat._CHAT_JS
+    fortsetzen = js[js.index("function fortsetzeDiskussion"):
+                    js.index("function beendeDiskussion")]
+    assert "sitzung.fortsetzend" in fortsetzen
+    vor_holestrom = fortsetzen[:fortsetzen.index("holeStrom().then")]
+    assert "sitzung.mikroUnterwegs = true;" in vor_holestrom
+    assert "sitzung.fortsetzend = true;" in vor_holestrom
+
+
+def test_diskussion_pruefeende_tut_nie_etwas():
+    """``fertigEingereiht`` steht von Anfang an auf ``true`` -- die
+    gemeinsame ``pruefeEnde()``-Funktion (Interview-Pfad) reiht fuer eine
+    Diskussion-Sitzung deshalb nie ein ``'befehl'``-Auftrag ein."""
+    js = web_chat._CHAT_JS
+    start = js[js.index("function starteDiskussion"):
+               js.index("function pausiereDiskussion")]
+    assert "fertigEingereiht: true" in start
+
+
+def test_beendediskussion_gibt_das_mikrofon_sofort_frei():
+    """Wie ``beendeBrainstorm``: ``pruefeEnde()`` tut bei Diskussion nie
+    etwas, also gibt ``beendeDiskussion`` das Mikrofon selbst frei, statt
+    ueber den Umweg eines Auftrags."""
+    js = web_chat._CHAT_JS
+    beenden = js[js.index("function beendeDiskussion"):
+                 js.index("function starteInterview")]
+    assert "gibFrei(sitzung);" in beenden
+
+
+def test_diskussion_knoepfe_sind_verdrahtet():
+    js = web_chat._CHAT_JS
+    assert "diskussionPauseKnopf.addEventListener('click'" in js
+    assert "diskussionBeendenKnopf.addEventListener('click', beendeDiskussion);" in js
+    assert "diskussionKnopf.addEventListener('click'" in js
+    wiring = js[js.index("if (diskussionPauseKnopf)"):js.index("-- Push-to-Talk")]
+    assert "fortsetzeDiskussion()" in wiring
+    assert "pausiereDiskussion()" in wiring
+    assert "starteDiskussion()" in wiring
+
+
+def test_manuelle_schnitte_tragen_den_grund_ende_fuer_diskussion_auch():
+    """``pausiereDiskussion``/``beendeDiskussion`` flushen wie beim
+    Interview/Brainstorm ueber ``_grund = 'ende'``."""
+    js = web_chat._CHAT_JS
+    pause = js[js.index("function pausiereDiskussion"):
+               js.index("function fortsetzeDiskussion")]
+    beenden = js[js.index("function beendeDiskussion"):
+                 js.index("function starteInterview")]
+    assert "_grund = 'ende'" in pause
+    assert "_grund = 'ende'" in beenden
+
+
+def test_diskussion_hat_einen_eigenen_zustandsslot():
+    """Global Constraints / Brief: ``zustand.diskussion`` ist ein eigener
+    Slot, keine Wiederverwendung von ``zustand.brainstorm``."""
+    js = web_chat._CHAT_JS
+    assert "zustand.diskussion" in js
+    assert "diskussionErlaubt: !diskussionKnopf.hidden" in js
+    assert "if (typeof daten.diskussion_knopf === 'boolean') " \
+           "{ zustand.diskussionErlaubt = daten.diskussion_knopf; }" in js
+
+
+def test_diskussion_texte_kommen_aus_dem_text_objekt():
+    """``_TEXT_DISKUSSION_AN``/``_TEXT_DISKUSSION_LAEUFT`` muessen denselben
+    Weg wie die Brainstorm-Texte nehmen: hot-reload-faehig ueber ``T`` in
+    ``_js()``, nicht als Literal im Skript."""
+    js = web_chat._js()
+    texte = json.loads(js[js.index("var TEXT = ") + len("var TEXT = "):
+                          js.index(";\n", js.index("var TEXT = "))])
+    assert texte["diskussion_an"] == web_chat._TEXT_DISKUSSION_AN
+    assert texte["diskussion_laeuft"] == web_chat._TEXT_DISKUSSION_LAEUFT
+    assert "TEXT.diskussion_an" in web_chat._CHAT_JS
+    assert "TEXT.diskussion_laeuft" in web_chat._CHAT_JS

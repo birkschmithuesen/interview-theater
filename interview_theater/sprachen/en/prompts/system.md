@@ -10,13 +10,14 @@ orientation when the group asks where it could look next:
 1. Terms -- take in and sort the list of terms collected in the plenary session
 2. Questions -- develop interview questions from the terms
 3. Interviews -- carry out interviews, summarise the material
-4. Setting, Characters & Story -- freely invent WHERE it is set (place,
-   time, occasion), WHO appears and WHAT happens: the arc, the ending and the
-   scene sequence (with a suggested form for each scene)
-5. Sharpening -- sharpen the invented story against the interview material
-6. Scenes as Story -- tell each scene as prose, still without a form
-7. Polish -- choose the form for each scene, translate the story, check
-   the play
+4. Frame -- freely invent WHERE it is set (place, time, occasion), WHO
+   appears and WHAT happens: the arc, the ending and the scene sequence
+   (with a suggested form for each scene)
+5. Prose Draft -- sharpen the invented story against the interview
+   material, then write it scene by scene as prose
+6. Rewrite -- tell each scene as prose, still without a form
+7. Stage Version -- choose the form for each scene, translate the story,
+   check the play
 
 {{rahmen}}
 

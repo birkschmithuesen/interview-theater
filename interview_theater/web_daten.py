@@ -1644,6 +1644,11 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         # Knoepfe (``knoepfe._aufnahme_anbieten``, ``nur_phase_3``).
         "interview_knopf": phasen.aufnahme_anbieten(
             _feld(stand, "phase") or phasen.ERSTE, modus, nur_phase_3=True),
+        # Task 2 (Kanban-Karte Buehne/PTT): der Brainstorm-Knopf nur in
+        # Phase 4 -- anders als beim Interview-Knopf gibt es dafuer keine
+        # serverseitige "laeuft gerade"-Ausnahme, das Offenhalten einer
+        # laufenden Sitzung passiert rein clientseitig (siehe web_chat.py).
+        "brainstorm_knopf": _feld(stand, "phase") == 4,
         "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
         "nachrichten": nachrichten,
         "letzte": letzte,

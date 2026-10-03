@@ -191,6 +191,11 @@ ART_FRAGEN_EINZELN = "fragen_einzeln"
 ART_FRAGE_ANNEHMEN = "frage_annehmen"
 ART_FRAGE_VERWERFEN = "frage_verwerfen"
 ART_FRAGE_SCHAERFEN = "frage_schaerfen"
+#: Das Angebot nach der letzten Entscheidung, wenn mindestens eine
+#: angenommene Frage eine weiche Fassung hat (02.10.2026) -- ``wert`` bleibt
+#: leer, es gibt je Gruppe genau ein offenes Angebot gleichzeitig.
+ART_FRAGEN_WEICH_UEBERNEHMEN = "fragen_weich_uebernehmen"
+ART_FRAGEN_WEICH_LASSEN = "fragen_weich_lassen"
 
 # --- Phase 6 · Szenen (05.09.2026) ----------------------------------------
 #
@@ -743,6 +748,22 @@ _TEXT_FRAGEN_ABGESCHLOSSEN = "Notiert, eure {anzahl} Fragen:"
 _JOURNAL_FRAGEN = "Fragen: {wert}"
 _TEXT_FRAGEN_QUITTUNG = "Fragen uebernommen"
 
+#: Das Angebot nach der letzten Entscheidung, wenn mindestens eine
+#: ANGENOMMENE Frage eine weiche Fassung hat (02.10.2026, Birk: "Mach die
+#: softere Formulierung nicht direkt bei der Frage, sondern als Angebot am
+#: Ende von allen Fragen."). Listet nur die betroffenen Fragen mit ihrer
+#: weichen Fassung -- die restlichen angenommenen Fragen stehen schon in der
+#: Abschlussnachricht (``_TEXT_FRAGEN_ABGESCHLOSSEN``) und werden hier nicht
+#: wiederholt.
+_TEXT_FRAGEN_WEICH_ANGEBOT = (
+    "Diese Fragen sind sensibel formuliert. Weicher gefragt:"
+)
+_TEXT_FRAGEN_WEICH_ZEILE = "{nummer}. {frage}\n   Weicher: {weich}"
+_TEXT_FRAGEN_WEICH_UEBERNEHMEN_KNOPF = "Weiche Fassungen übernehmen"
+_TEXT_FRAGEN_WEICH_LASSEN_KNOPF = "Wie sie sind lassen"
+_TEXT_FRAGEN_WEICH_UEBERNOMMEN = "Weiche Fassungen übernommen"
+_TEXT_FRAGEN_WEICH_BEHALTEN = "Original beibehalten"
+
 #: Der Kopf einer einzelnen vorgelegten Frage (02.10.2026): "Frage 3/15 ·
 #: Heimat". Ohne erkennbaren Begriff (Zeile ohne "Begriff: ") faellt die
 #: Kurzform ohne Mittelpunkt zurueck.
@@ -761,6 +782,13 @@ _TEXT_FRAGE_SCHAERFEN_KNOPF = "Schaerfen"
 #: solange diese Frage die aktuelle ist (``fragen.nimm_offene_frage_text``).
 _TEXT_FRAGE_WAS_AENDERN = "Was wollt ihr aendern?"
 _TEXT_FRAGE_GESCHAERFT = "Frage ueberarbeitet"
+#: Die sichtbare Quittung (Web-Toast/Telegram answerCallbackQuery) nach
+#: Annehmen/Verwerfen -- Fund 02.10.2026, Birk: statt des generischen
+#: "Notiert" (``_TEXT_FRAGE_ENTSCHIEDEN``, unveraendert als Fallback stehen
+#: gelassen, falls ein aelterer Aufrufer noch danach sucht) soll dort die
+#: tatsaechlich getroffene Entscheidung stehen.
+_TEXT_FRAGE_ANGENOMMEN = "✓ Angenommen"
+_TEXT_FRAGE_VERWORFEN = "✗ Verworfen"
 _TEXT_FRAGE_ENTSCHIEDEN = "Notiert"
 
 _TEXT_LEITFADEN_KNOPF = "Leitfaden zeigen"
@@ -855,6 +883,27 @@ _TEXT_KURZGESCHICHTE_BEREIT = (
     "Ich kann eure Geschichte jetzt am Stueck schreiben - aus Setting, "
     "Figuren und eurer Richtung. Sagt Bescheid, wann."
 )
+
+
+# --- Padua Phasen TEIL 1 (03.10.2026): Stufe A von Phase 5 (Prose Draft) --
+
+#: "Yes, save" / "No, change it again" unter der generierten
+#: Geschichts-Uebersicht (``entwurf.py``) -- dieselbe "Rueckspiegelung EINES
+#: Wertes" wie bei ``grundleiste``/``speicherleiste``, deshalb dieselben
+#: Beschriftungen (``TEXT_WEITER_KNOPF``/``TEXT_ANDERS_KNOPF``) statt
+#: near-duplizierter Strings.
+ART_UEBERSICHT_PASST = "uebersicht_passt"
+ART_UEBERSICHT_ANDERS = "uebersicht_anders"
+_TEXT_UEBERSICHT_FIXIERT = "Alles klar -- ich schreibe jetzt die erste Szene."
+_TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT = "Gut, ich erzeuge eine neue Uebersicht."
+
+#: Stufe B (Szene fuer Szene): "Yes, save" auf einem Prosa-Entwurf laeuft
+#: ueber den bestehenden Knopf ``ART_SZENE_PASST`` (phasengebunden in
+#: ``wirkung._wirkung_szene_passt``), deshalb keine eigene ART hier -- nur
+#: die beiden Antworttexte. Deutsch bleibt die Konstante (bitgleich), die
+#: englische Padua-Fassung steht in ``sprachen/en/texte.toml`` (Karte A1).
+_TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN = "Alles klar -- ich schreibe jetzt die naechste Szene."
+_TEXT_ALLE_SZENEN_ENTWORFEN = "Alle Szenen haben einen Entwurf. Weiter geht's mit der Ueberarbeitung."
 
 
 # --- Verarbeitung ---------------------------------------------------------

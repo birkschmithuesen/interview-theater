@@ -756,9 +756,29 @@ def _melde_transkriptionsfehler(conn, tg, e, row, fehler: Exception) -> None:
     Zuruf ist niedrigschwellig genug, dass die pauschale Ausfallmeldung
     reicht -- aber beim endgueltigen Aufgeben (Wichtig 3) muss die Gruppe
     trotzdem erfahren, dass der Beitrag verloren ist, statt dass er
-    kommentarlos als 'typ=sprache, text=NULL' im Verlauf haengen bleibt."""
+    kommentarlos als 'typ=sprache, text=NULL' im Verlauf haengen bleibt.
+
+    **Ein Brainstorm-Segment (``row['brainstorm']``) mit leerem Whisper-
+    Ergebnis ist ein dritter, eigener Fall** (Karte Padua Brainstorm,
+    03.10.2026, Live-Fall: aufnahme 16, 4s, 5 Versuche, dann eine
+    unpassende "verstehe ich nicht"-Meldung im Chat): niemand wartet auf
+    dieses eine Segment und niemand kann es "noch einmal sagen" -- es war
+    nur ein paar Sekunden Rauschen beim Loslassen des Knopfes. Still
+    verwerfen statt der normalen Fehlerkette: kein Wiederholungsversuch
+    (``repo._NICHTS_ZU_TUN`` haelt den Nachhol-Arbeiter ab einem
+    ``status='fehlgeschlagen'`` ohnehin fern), keine Chatzeile, und KEIN
+    Ausfall-Alarm (``melde_ausfall``) -- Stille ist kein Dienstausfall."""
     aufnahme_id = row["id"]
     chat_id = row["chat_id"]
+
+    if row["brainstorm"] and isinstance(fehler, stt.LeeresTranskript):
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "brainstorm_segment_verworfen",
+            f"Aufnahme {aufnahme_id}: leeres Transkript, still verworfen",
+        )
+        repo.setze_status(conn, aufnahme_id, "fehlgeschlagen", fehlertext=str(fehler))
+        _web_sprachblase(conn, chat_id, row["message_id"], None)
+        return
 
     versuche = repo.zaehle_versuch_hoch(conn, aufnahme_id)
     repo.merke_vorfall(
@@ -918,27 +938,28 @@ def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
             if text:
                 repo.markiere_brainstorm_reaktion(conn, chat_id, markierung_id)
                 repo.lege_buehnenkarte_an(conn, chat_id, text, modell)
-                _melde_neue_karte(conn, tg, e, chat_id)
-            # NICHTS oder ein Fehlschlag: "nothing changes" -- keine
-            # Markierung, keine Karte. Das naechste qualifizierende Segment
-            # sieht denselben (oder einen groesseren) Stand erneut.
+                # Birk, 02.10.2026 (Padua-Feedback b): KEINE Chat-Zeile mehr --
+                # der Bot "antwortet" im Brainstorm-Modus nirgends sonst als
+                # ueber den unaufdringlichen Marker am CoThinker-Tab (den
+                # setzt ``web_vereint``/``web_chat`` allein aus einer neuen
+                # Karte in ``buehnenkarten``, kein Schreibzugriff hier noetig)
+                # und das Panel selbst, das sich waehrend es offen ist im
+                # selben Poll-Takt aktualisiert (``_VEREINT_JS.ladeBuehne``).
+            else:
+                # NICHTS oder ein Fehlschlag: "nothing changes" -- keine
+                # Markierung, kein Chateintrag. Das naechste qualifizierende
+                # Segment sieht denselben (oder einen groesseren) Stand
+                # erneut. Eine Zeile kommt trotzdem in die Tabelle (Karte
+                # Padua Brainstorm, 03.10.2026): sonst ist "zugehoert,
+                # geschwiegen" von "nie gelaufen" nicht zu unterscheiden --
+                # weder im Dashboard noch im Buehne-Panel.
+                repo.lege_buehnenkarte_an(conn, chat_id, "", modell, schweigen=True)
         except Exception:
             log.exception("Buehnenkarten-Lauf fehlgeschlagen, chat_id=%s", chat_id)
         finally:
             brainstorm.beende(chat_id)
 
     threading.Thread(target=_lauf, daemon=True).start()
-
-
-def _melde_neue_karte(conn, tg, e, chat_id: int) -> None:
-    """Hoechstens EINE Chat-Zeile je Karte, ohne Inhalt -- und gar keine,
-    wenn die neueste Chat-Nachricht schon genau diese Zeile ist (kein
-    Stapeln, brief: "nothing if the previous line is still the newest chat
-    message")."""
-    text = T._TEXT_BUEHNE_NEUE_KARTE
-    if repo.neueste_nachricht_text(conn, chat_id) == text:
-        return
-    _sende_und_merke(conn, tg, e, chat_id, text)
 
 
 def dauer_mmss(sekunden: int) -> str:

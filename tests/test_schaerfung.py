@@ -458,3 +458,51 @@ def test_der_phaseneintritt_stoesst_das_mapping_an(lage, tg, einst, monkeypatch)
 
     assert gestartet == [True]
     assert knoepfe._TEXT_PROAKTIV not in [t for _, t in tg.gesendet]
+
+
+def test_entwurf_startet_nur_mit_aktivem_profilschalter(lage, tg, einst, monkeypatch):
+    """Padua Phasen TEIL 1 (03.10.2026): die Stufe-A-Uebersicht laeuft nach
+    dem automatischen Mapping NUR unter dem Profilschalter
+    ``[prosa_entwurf] aktiv`` an -- Dortmund (Schalter aus) bleibt beim
+    bisherigen Weg unberuehrt.
+
+    ``schaerfung.starte`` wird wie im Nachbartest durch eine Attrappe
+    ersetzt, die hier aber die uebergebene ``nachbereitung`` sofort ausfuehrt
+    -- genau das, was der echte Thread nach dem Mapping tut (``_lauf``
+    ruft ``nachbereitung`` nach Freigabe der Sperre)."""
+    from interview_theater import entwurf, workshop
+
+    def _fake_starte(conn, tg_, klm, e, chat_id, nachbereitung=None):
+        # Realistisch: der echte Thread (``schaerfung._lauf``) ruft
+        # ``nachbereitung`` EINMAL nach dem Mapping und liefert kein
+        # ``None`` zurueck -- ``starte_schaerfung`` haengt die
+        # Schaerfung-Vorstellung sonst ein zweites Mal an (``if ... is
+        # None: _danach()``, fuer den Fall ohne Sprachmodell).
+        if nachbereitung is not None:
+            nachbereitung()
+        return "thread"
+
+    monkeypatch.setattr(schaerfung, "starte", _fake_starte)
+    aufgerufen = []
+    monkeypatch.setattr(
+        entwurf, "starte_uebersicht", lambda *a, **k: aufgerufen.append(True)
+    )
+
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: False)
+    phasen.setze(lage, 1, 4, "test")
+    knoepfe.biete_phase(lage, tg, 1, "Weiter?", 5)
+    knoepfe.behandle(
+        lage, tg, object(), einst, _druck(_knopf(tg, "Weiter zu Phase 5 · Schaerfung"))
+    )
+
+    assert aufgerufen == []
+
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: True)
+    tg.knoepfe.clear()
+    phasen.setze(lage, 1, 4, "test")
+    knoepfe.biete_phase(lage, tg, 1, "Weiter?", 5)
+    knoepfe.behandle(
+        lage, tg, object(), einst, _druck(_knopf(tg, "Weiter zu Phase 5 · Schaerfung"))
+    )
+
+    assert aufgerufen == [True]

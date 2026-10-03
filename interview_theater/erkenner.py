@@ -158,6 +158,18 @@ ARTEN = (
     # fixes Feld von Phase 4 -- die Gruppe nennt die Zahl, der Bot schlaegt
     # sie nie vor (siehe ``prompts/phasen/4.md``).
     "szenenanzahl_setzen",
+    # Padua Phasen TEIL 1 (03.10.2026): Rueckmeldung zur generierten
+    # Geschichts-Uebersicht in Stufe A von Phase 5 (Prose Draft,
+    # entwurf.py) -- "mach das Ende trauriger", "nochmal, anders", "die
+    # Spannungskurve ist mir zu flach". Gilt NUR in Phase 5
+    # (PHASEN_SPEZIFISCHE_ARTEN) und nur, solange die Uebersicht noch nicht
+    # fixiert ist -- das prueft ``erkenner._starte_entwurf_uebersicht``
+    # selbst (Final-Review-Fund, 03.10.2026: vorher stand das nur in diesem
+    # Kommentar, ``entwurf.py`` hat ``geschichte_uebersicht_fixiert_am``
+    # nirgends gelesen).
+    # wert: die gewuenschte Richtung, oder leer ("") bei einem reinen
+    # "nochmal"/"anders" ohne eigene Angabe.
+    "uebersicht_aendern",
 )
 
 #: Die einzigen Arten, die aus dem Transkript einer Sprachnachricht im
@@ -180,6 +192,36 @@ ARTEN_IN_AUFNAHME = (
     # nie.
     "an_den_bot",
 )
+
+#: Welche Phase eine ART tatsaechlich wirken laesst -- als Tabelle, nicht als
+#: verstreute if/elif-Kette (Padua Phasen TEIL 1, 03.10.2026). Eine ART, die
+#: hier NICHT auftaucht, gilt wie bisher in jeder Phase (alle 23 arts, die es
+#: vor diesem Umbau schon gab, bleiben unveraendert phasenfrei). Dieser Platz
+#: ist fuer kuenftige Karten gedacht -- z. B. eine Phase-7-spezifische
+#: Revisions-art aus dem Flow-Audit (``git show feat/flow-audit:docs/
+#: flow-audit/vorlagen.md``) wuerde hier einen weiteren Eintrag bekommen,
+#: nicht einen weiteren Codepfad.
+PHASEN_SPEZIFISCHE_ARTEN: dict[str, tuple[int, ...]] = {
+    # Padua Phasen TEIL 1: die Uebersicht in Stufe A von Phase 5 (Prose
+    # Draft) darf nur dort geaendert werden -- ausserhalb der Phase, oder
+    # nachdem sie fixiert ist, ist ein "aendere die Uebersicht" etwas
+    # anderes gemeint (siehe entwurf.py).
+    "uebersicht_aendern": (5,),
+}
+
+
+def _ist_phasenpassend(conn, chat_id: int, art: str) -> bool:
+    """True, wenn diese art in der aktuellen Phase ueberhaupt wirken darf.
+
+    Reine Tabellen-Abfrage (``PHASEN_SPEZIFISCHE_ARTEN``), kein
+    Modellaufruf, kein eigenes SQL -- wie jede andere Wache in diesem Modul
+    (``waechter_filter``). Eine art, die nicht in der Tabelle steht, ist
+    ueberall erlaubt: das ist der unveraenderte Normalfall."""
+    phasen_liste = PHASEN_SPEZIFISCHE_ARTEN.get(art)
+    if phasen_liste is None:
+        return True
+    return phasen.aktuelle(conn, chat_id) in phasen_liste
+
 
 #: Obergrenze fuer Aenderungen je Lauf -- im Prompttext UND hier im Code
 #: durchgesetzt (global-constraints.md 'Schema': kein maxItems im Schema
@@ -506,6 +548,24 @@ def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | No
     if not wert:
         return None
     feld = _ARBEITSSTAND_ARTEN[art]
+    if feld == "fragen":
+        # Waehrend die Stufe "Fragen einzeln durchgehen" laeuft (Fund
+        # 02.10.2026, Padua-Live, web_post 73/74, aufnahme 70): der
+        # Erkenner-Lauf, der nach einer Schaerfung (oder irgendeinem
+        # Modellzug waehrend ``fragen_aktuell`` gesetzt ist) anlaeuft, darf
+        # ``fragen`` NICHT schreiben -- fragen.knoepfe._schliesse_fragen_ab
+        # ist die einzige Stelle, die dieses Feld setzt, und sie tut es erst
+        # NACH der letzten Entscheidung. Ein ``fragen_setzen`` aus dem
+        # Erkenner waehrend dieser Stufe wuerde die ganze Liste durch eine
+        # einzelne VORSCHLAG-FRAGE-Zeile ersetzen (genau der Live-Befund).
+        from interview_theater import knoepfe
+
+        if knoepfe.einzeln_aktiv(conn, chat_id):
+            log.info(
+                "fragen_setzen waehrend 'Fragen einzeln durchgehen' "
+                "verworfen, chat_id=%s", chat_id,
+            )
+            return None
     if feld == "rahmen" and _ist_geschichte(wert):
         # **Der Rahmen ist das SETTING, nicht die Handlung** (06.09.2026,
         # Birk 11:42, live gemessen: der Erkenner schrieb einen
@@ -1424,6 +1484,10 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         # Kuerzung ist kein Arbeitsstandfeld, sondern ein Lauf. Den stoesst
         # laufe() an (dort gibt es tg und klm).
         return None
+    if art == "uebersicht_aendern":
+        # Kein Schreibpfad, wie szene_schreiben: diese art stoesst eine
+        # Neugenerierung an (entwurf.py), die laufe() auswertet.
+        return None
     # Unbekannte art sollte erkenne() bereits herausgefiltert haben; bei
     # direktem Aufruf von wende_an() (z. B. in Tests) einfach ignorieren
     # statt zu krachen.
@@ -1531,6 +1595,10 @@ def wende_an(conn, e, chat_id: int, aenderungen: list[dict]) -> list[dict]:
     aenderungen = _ohne_figur_festlegung_neben_figur_setzen(
         _ohne_interview_starten_neben_ruecksprung(aenderungen)
     )
+    aenderungen = [
+        a for a in aenderungen
+        if _ist_phasenpassend(conn, chat_id, a.get("art"))
+    ]
     wirkliche = []
     for aenderung in aenderungen:
         art = None
@@ -2179,6 +2247,64 @@ def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
         log.exception("Kuerzung konnte nicht gestartet werden, chat_id=%s", chat_id)
 
 
+def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
+                                aenderungen: list[dict]) -> None:
+    """Stoesst eine Neugenerierung der Stufe-A-Uebersicht an, wenn der
+    Erkenner ``uebersicht_aendern`` gefunden hat (Padua Phasen TEIL 1).
+
+    Nicht in ``wende_an``, aus demselben Grund wie ``_starte_szene``/
+    ``_starte_kuerzung``: dort wird nur in die Datenbank geschrieben, hier
+    faellt ein minutenlanger Modellaufruf an. ``entwurf.starte_uebersicht``
+    gibt ihn sofort an einen eigenen Thread ab (Zusage 2).
+
+    **Phasengebunden ueber ``PHASEN_SPEZIFISCHE_ARTEN``, hier noch einmal
+    geprueft.** ``wende_an()`` filtert ``uebersicht_aendern`` zwar schon
+    gegen ``_ist_phasenpassend`` heraus -- aber nur fuer seine EIGENE, lokale
+    Kopie der Liste, aus der ``wirkliche`` entsteht; der ``aenderungen``,
+    den ``laufe()`` an diese Funktion weiterreicht, bleibt die ungefilterte
+    Liste aus ``erkenne()``. Ohne die eigene Pruefung hier liefe eine
+    Rueckmeldung zur Uebersicht ausserhalb Phase 5 (z. B. nachdem die Gruppe
+    laengst in Phase 6 weiter ist) trotzdem einen neuen, bezahlten Lauf an.
+
+    **Zusaetzlich profilgebunden** (nicht nur phasengebunden): ``ARTEN`` und
+    ``PHASEN_SPEZIFISCHE_ARTEN`` sind geteilter, profilunabhaengiger Code --
+    jede Gruppe, auch Dortmund, bekommt ``uebersicht_aendern`` im Schema-Enum
+    des Erkenner-Aufrufs angeboten, und Dortmunds eigene Phase 5 (Schaerfung)
+    existiert ebenfalls. Erkennt Dortmunds Modell die art trotzdem einmal
+    (unwahrscheinlich, die deutsche Punktbeschreibung verlangt explizit eine
+    bereits im Verlauf stehende generierte Uebersicht, die es bei Dortmund nie
+    gibt) muss das ein stiller No-Op bleiben, kein echter, bezahlter
+    Modellaufruf fuer ein Feature, das diese Gruppe nicht hat -- derselbe
+    Grund, aus dem ``knoepfe/stationen.py`` (Task 11) den Uebersicht-Start
+    nach der Schaerfung hinter denselben Schalter stellt.
+
+    **Zusaetzlich fixierungsgebunden** (Final-Review-Fund, 03.10.2026): ist
+    ``arbeitsstand.geschichte_uebersicht_fixiert_am`` schon gesetzt, ist die
+    Uebersicht bestaetigt und ein weiterer ``uebersicht_aendern``-Treffer
+    gehoert zu etwas anderem -- plausibel zu einer laufenden Szene in Stufe
+    B, deren Rueckmeldung generisch genug ist, um wie eine Uebersicht-Kritik
+    zu klingen ("die Spannungskurve ist mir zu flach"). Ohne diese Pruefung
+    liefe ein zweiter, bezahlter Stufe-A-Lauf, dessen Bestaetigungsknoepfe
+    sich ueber die noch offenen der Szene legen wuerden."""
+    from interview_theater import workshop
+
+    if not workshop.prosa_entwurf_aktiv():
+        return
+    if not _ist_phasenpassend(conn, chat_id, "uebersicht_aendern"):
+        return
+    arbeitsstand = repo.hole_arbeitsstand(conn, chat_id)
+    if arbeitsstand is not None and arbeitsstand["geschichte_uebersicht_fixiert_am"]:
+        return
+    treffer = next(
+        (a for a in aenderungen if a.get("art") == "uebersicht_aendern"), None
+    )
+    if treffer is None:
+        return
+    from interview_theater import entwurf
+
+    entwurf.starte_uebersicht(conn, tg, klm, e, chat_id, treffer.get("wert") or None)
+
+
 def _starte_sprachprofil(klm, tg, conn, e, chat_id: int, wirkliche: list[dict]) -> None:
     """Stoesst je bestaetigter Interview-Zuordnung einen Sprachprofil-Aufruf
     an (art ``figur_quelle_setzen``, interview_theater/sprachprofil.py).
@@ -2409,6 +2535,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # erkannten Aenderungen, weil sie wie ``szene_schreiben`` nichts in
         # den Arbeitsstand schreibt und in ``wirkliche`` deshalb nie auftaucht.
         _starte_kuerzung(klm, tg, conn, e, chat_id, aenderungen)
+        # Padua Phasen TEIL 1 (03.10.2026): Rueckmeldung zur generierten
+        # Geschichts-Uebersicht (Stufe A von Phase 5) -- derselbe Grund wie
+        # bei _starte_szene/_starte_kuerzung, kein Schreibpfad in wende_an.
+        _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id, aenderungen)
         text = baue_meldung(wirkliche, conn, chat_id)
         if text is None:
             _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id, wirkliche)

@@ -208,7 +208,7 @@ _TEXT_INTERVIEW_PAUSIERT = "Pause · {zeit}"
 #: Knopf und die Laeuft-Zeile sind eigene -- "Brainstorm" ist kein Interview.
 _TEXT_BRAINSTORM_AN = "🎙 Brainstorm mithören"
 _TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit}"
-_TEXT_PTT = "Halten und sprechen"
+_TEXT_PTT = "Tippen und sprechen"
 _TEXT_OHNE_JS = (
     "Fuer Chat und Aufnahme braucht diese Seite JavaScript. "
     "Die Gruppenseite und das Textbuch funktionieren auch ohne."
@@ -303,7 +303,6 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 #ptt { touch-action: none; user-select: none; -webkit-user-select: none;
        -webkit-touch-callout: none; }
 #ptt[data-haelt="1"] { background: #a8201a; transform: scale(1.08); }
-#ptt[data-haelt="1"][data-weg="1"] { background: #6b6b6b; }
 .fehler { font-size: .9rem; color: #a8201a; text-align: center; }
 .fehler[hidden] { display: none; }
 .angehalten { display: flex; flex-direction: column; gap: .35rem; font-size: .92rem;
@@ -338,6 +337,11 @@ POLL_MS_HINTERGRUND = 10000
 #: versehentlicher Tipper auf das Mikrofon soll keine leere Aufnahme in den
 #: Chat legen -- und keinen Gespraechszug ausloesen.
 PTT_MIN_MS = 500
+
+#: Obergrenze fuer einen PTT-Druck (Kanban-Karte Buehne/PTT): laeuft die
+#: Aufnahme laenger als 90 Sekunden, stoppt und sendet sie automatisch --
+#: PTT ist fuer kurze Sprachnavigation gedacht, nicht fuer ein Interview.
+PTT_MAX_MS = 90_000
 
 #: Wartezeiten zwischen zwei Versuchen eines Uploads (Millisekunden), der
 #: letzte Wert ist der Deckel. **Ohne Hoechstzahl an Versuchen**
@@ -441,8 +445,12 @@ _CHAT_JS = """
   var POLL_MS = __POLL_MS__;
   var POLL_MS_HINTERGRUND = __POLL_MS_HINTERGRUND__;
   var PTT_MIN_MS = __PTT_MIN_MS__;
+  var PTT_MAX_MS = __PTT_MAX_MS__;
   var UPLOAD_WARTEN_MS = __UPLOAD_WARTEN_MS__;
   var TEXT = __TEXTE__;
+  // Padua Brainstorm, 03.10.2026: wie nah am unteren Rand noch als "dort"
+  // zaehlt -- ein Pixel exakt waere auf jedem Geraet eine andere Zahl.
+  var UNTEN_TOLERANZ_PX = 48;
 
   var verlauf = document.getElementById('verlauf');
   var fuss = document.getElementById('fuss');
@@ -459,8 +467,9 @@ _CHAT_JS = """
   var interviewPauseKnopf = document.getElementById('interview-pause');
   var interviewBeendenKnopf = document.getElementById('interview-beenden');
   var pttKnopf = document.getElementById('ptt');
-  // Brainstorm mithören (Phase 4, nur Web) -- alle vier null ausserhalb
-  // Phase 4 (chat_html() rendert die Elemente dann gar nicht).
+  // Brainstorm mithören (Phase 4, nur Web) -- die Elemente stehen seit
+  // Task 2 (Kanban-Karte Buehne/PTT) IMMER im Markup, ``hidden`` folgt der
+  // Phase per Poll (wie beim Interview-Knopf), nicht mehr ihrer Existenz.
   var brainstormKnopf = document.getElementById('brainstorm');
   var brainstormAktionenFeld = document.getElementById('brainstorm-aktionen');
   var brainstormPauseKnopf = document.getElementById('brainstorm-pause');
@@ -487,6 +496,7 @@ _CHAT_JS = """
     aenderung: parseInt(verlauf.dataset.aenderung, 10) || 0,
     servermodus: fuss.dataset.interview === '1',
     knopfErlaubt: !interviewKnopf.hidden,   // Padua Hotfix B6: Phase 3 oder Modus
+    brainstormErlaubt: !brainstormKnopf.hidden,   // Task 2: Phase 4
     aufnahme: null,     // die laufende Interview-Aufnahme dieses Telefons
     wechsel: null,      // {ziel, gesendet}: ein Moduswechsel, den der Poll noch nicht zeigt
     warteschlange: [],  // Befehle und Segmente, der Reihe nach
@@ -676,7 +686,28 @@ _CHAT_JS = """
     window.scrollTo(0, document.body.scrollHeight);
   }
 
+  // Padua Brainstorm, 03.10.2026: ob der Bildschirm schon am unteren Rand
+  // stand -- VOR jeder DOM-Aenderung gelesen, sonst veraendert eine neue
+  // Blase schon scrollHeight, bevor wir nachsehen konnten.
+  function amUnterenRand() {
+    return (window.innerHeight + window.scrollY)
+      >= (document.body.scrollHeight - UNTEN_TOLERANZ_PX);
+  }
+
+  // Wurde die zurzeit letzte Blase im Verlauf gerade durch ``ersetze()``
+  // veraendert? Das laufende Transkript eines Brainstorm-Segments legt keine
+  // neue Nachricht an (nur eine Aenderung an der schon vorhandenen) -- ohne
+  // diese Pruefung bliebe der Bildschirm stehen, waehrend die Blase unten
+  // weiterwaechst.
+  function letzteBlaseWurdeGeaendert(geaendert) {
+    var blasen = verlauf.querySelectorAll('.blase');
+    if (!blasen.length) { return false; }
+    var letzteId = blasen[blasen.length - 1].dataset.id;
+    return geaendert.some(function (n) { return String(n.id) === letzteId; });
+  }
+
   function nimmZustand(daten) {
+    var warUnten = amUnterenRand();
     // Review-Befund 2: die Seite laedt nie neu, ein Nonce gilt hoechstens
     // zwei Stunden -- der Poll bringt den laufenden mit.
     if (daten.nonce) {
@@ -689,18 +720,24 @@ _CHAT_JS = """
       zustand.letzte = daten.letzte;
       verlauf.dataset.letzte = daten.letzte;
     }
-    (daten.geaendert || []).forEach(ersetze);
+    var geaendert = daten.geaendert || [];
+    geaendert.forEach(ersetze);
     if (typeof daten.aenderung === 'number') {
       zustand.aenderung = daten.aenderung;
       verlauf.dataset.aenderung = daten.aenderung;
     }
-    if (neu.length) { nachUnten(); }
+    if (neu.length) {
+      nachUnten();
+    } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
+      nachUnten();
+    }
     if (tipptFeld) { tipptFeld.textContent = daten.tippt ? TEXT.tippt : ''; }
     // UX-Knoepfe-Karte, Abschnitt 1: der Platzhalter folgt der Phase, das
     // Eingabefeld selbst bleibt dabei immer offen und unveraendert bedienbar.
     if (daten.platzhalter && eingabe) { eingabe.placeholder = daten.platzhalter; }
     zustand.servermodus = !!daten.interviewmodus;
     if (typeof daten.interview_knopf === 'boolean') { zustand.knopfErlaubt = daten.interview_knopf; }
+    if (typeof daten.brainstorm_knopf === 'boolean') { zustand.brainstormErlaubt = daten.brainstorm_knopf; }
     // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
     // vorn in der Schlange steht.
     if (zustand.aufnahme && zustand.aufnahme.angemeldet && zustand.servermodus) {
@@ -1429,8 +1466,7 @@ _CHAT_JS = """
     // Bedienung, und eine Pause ist weiterhin "Modus an".
     if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || !!zustand.brainstorm; }
     // Beide Anzeigen bleiben im selben Takt synchron, egal welche der
-    // beiden Funktionen zuerst gerufen wurde (zeigeBrainstormModus() ist ein
-    // No-Op ausserhalb Phase 4, da brainstormKnopf dann null ist).
+    // beiden Funktionen zuerst gerufen wurde.
     zeigeBrainstormModus();
   }
 
@@ -1440,10 +1476,9 @@ _CHAT_JS = """
     zustand.ptt = null;
     druck.gehalten = false;
     druck.abgebrochen = true;
-    if (pttKnopf) {
-      pttKnopf.dataset.haelt = '0';
-      try { pttKnopf.releasePointerCapture(druck.pointerId); } catch (e) { /* egal */ }
-    }
+    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
+    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
+    beendePttAnzeige();
     if (druck.recorder && druck.recorder.state !== 'inactive') {
       druck.recorder.stop();   // sein onstop gibt das Mikrofon frei
     }
@@ -1526,12 +1561,19 @@ _CHAT_JS = """
     // geprueft, sonst saehe der Knopf kurz bedienbar aus, obwohl
     // starteBrainstorm() ihn wegen desselben zustand.wechsel ablehnt.
     brainstormKnopf.disabled = modusAn() || !!zustand.wechsel;
+    // Task 2 (Kanban-Karte Buehne/PTT): ausserhalb Phase 4 kein Angebot --
+    // nie aber verborgen bei laufender Sitzung oder Wechsel, dieselbe Regel
+    // wie beim Interview-Knopf (zeigeModus()). Die ``nebenknopf``-Klasse am
+    // Interview-Knopf folgt derselben Sichtbarkeit wie das Server-Markup.
+    var sichtbar = zustand.brainstormErlaubt || an || !!zustand.wechsel;
+    brainstormKnopf.hidden = !sichtbar;
     if (brainstormAktionenFeld) { brainstormAktionenFeld.hidden = !an; }
     if (brainstormPauseKnopf) {
       brainstormPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
     }
     if (interviewKnopf) {
       interviewKnopf.disabled = an || !!(zustand.wechsel && !zustand.wechsel.ziel);
+      interviewKnopf.classList.toggle('nebenknopf', sichtbar);
     }
     if (pttKnopf) { pttKnopf.hidden = an || modusAn() || !!zustand.wechsel; }
   }
@@ -1944,95 +1986,91 @@ _CHAT_JS = """
 
   // -- Push-to-Talk --------------------------------------------------------
   //
-  // Halten = sprechen, loslassen = senden, Klasse 'kurz' (der Modus wird
-  // NICHT geschaltet). Pointer Events mit setPointerCapture; pointercancel,
-  // ein verlorener Zeiger oder ein Loslassen ausserhalb des Knopfs sendet
-  // NICHTS, ebenso ein Druck unter PTT_MIN_MS.
+  // Tippen = starten, nochmal tippen = senden, Klasse 'kurz' (der Modus wird
+  // NICHT geschaltet). Ein Klick-Umschalter statt Halten (Kanban-Karte
+  // Buehne/PTT, 03.10.2026): ein Tipp startet die Aufnahme, ein zweiter
+  // beendet und sendet sie. Laeuft die Aufnahme laenger als PTT_MAX_MS,
+  // stoppt und sendet sie automatisch. Ein Druck unter PTT_MIN_MS sendet
+  // NICHTS.
+
+  function beendePttAnzeige() {
+    if (!pttKnopf) { return; }
+    pttKnopf.dataset.haelt = '0';
+    pttKnopf.textContent = '🎤';
+  }
+
+  function startePtt() {
+    if (!pttKnopf) { return; }
+    if (modusAn() || zustand.wechsel || zustand.brainstorm || zustand.ptt) { return; }
+    // Review-Befund 6: jeder Druck traegt seinen eigenen Zustand -- ein
+    // spaeterer Druck ueberschreibt nichts, was ein frueherer noch liest.
+    var druck = {
+      von: Date.now(), dauerMs: 0, gehalten: true, abgebrochen: false,
+      recorder: null, strom: null, teile: [], timeout: null, takt: null
+    };
+    zustand.ptt = druck;
+    pttKnopf.dataset.haelt = '1';
+    // Laufende Zeit sichtbar machen, solange der Druck laeuft.
+    druck.takt = setInterval(function () {
+      pttKnopf.textContent = '🔴 ' + minuten(Math.floor((Date.now() - druck.von) / 1000));
+    }, 500);
+    holeStrom().then(function (strom) {
+      druck.strom = strom;
+      // Review-Befund 5: beendet, bevor das Mikrofon da war -- dann gar
+      // nicht erst aufnehmen, und das Mikrofon sofort wieder zu.
+      if (!druck.gehalten) { gibFrei(druck); return; }
+      var r = new MediaRecorder(strom);
+      druck.recorder = r;
+      r.ondataavailable = function (e) {
+        if (e.data && e.data.size) { druck.teile.push(e.data); }
+      };
+      r.onstop = function () {
+        gibFrei(druck);
+        if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS ||
+            !druck.teile.length) { return; }
+        veralteLetzteLeiste();
+        reiheEin({
+          art: 'audio', sitzung: null,
+          blob: new Blob(druck.teile,
+                         { type: druck.teile[0].type || r.mimeType || 'audio/webm' }),
+          dauer: Math.max(1, Math.round(druck.dauerMs / 1000))
+        });
+      };
+      r.start();
+    }).catch(function () {
+      druck.abgebrochen = true;
+      gibFrei(druck);
+      if (zustand.ptt === druck) {
+        zustand.ptt = null;
+        if (druck.timeout) { clearTimeout(druck.timeout); }
+        if (druck.takt) { clearInterval(druck.takt); }
+        beendePttAnzeige();
+      }
+      meldeFehler(TEXT.fehler_mikro);
+    });
+    druck.timeout = setTimeout(function () {
+      if (zustand.ptt === druck) { beendePtt(); }   // Automatik nach PTT_MAX_MS
+    }, PTT_MAX_MS);
+  }
+
+  function beendePtt() {
+    var druck = zustand.ptt;
+    if (!druck) { return; }
+    zustand.ptt = null;
+    druck.gehalten = false;
+    // Die Laufzeit, nicht die Zeit bis das Mikrofon da war.
+    druck.dauerMs = Date.now() - druck.von;
+    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
+    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
+    beendePttAnzeige();
+    if (druck.recorder && druck.recorder.state !== 'inactive') {
+      druck.recorder.stop();
+    }
+  }
 
   if (pttKnopf) {
-    var ausserhalb = function (ev) {
-      var k = pttKnopf.getBoundingClientRect();
-      return ev.clientX < k.left || ev.clientX > k.right ||
-             ev.clientY < k.top || ev.clientY > k.bottom;
-    };
-
-    pttKnopf.addEventListener('pointerdown', function (ev) {
-      if (modusAn() || zustand.wechsel || zustand.ptt) { return; }
-      if (ev.button !== undefined && ev.button > 0) { return; }
-      ev.preventDefault();
-      try { pttKnopf.setPointerCapture(ev.pointerId); } catch (e) { /* egal */ }
-      // Review-Befund 6: jeder Druck traegt seinen eigenen Zustand -- ein
-      // spaeterer Druck ueberschreibt nichts, was ein frueherer noch liest.
-      var druck = {
-        pointerId: ev.pointerId, von: Date.now(), dauerMs: 0,
-        gehalten: true, abgebrochen: false, recorder: null, strom: null,
-        teile: []
-      };
-      zustand.ptt = druck;
-      pttKnopf.dataset.haelt = '1';
-      pttKnopf.dataset.weg = '0';
-      holeStrom().then(function (strom) {
-        druck.strom = strom;
-        // Review-Befund 5: losgelassen, bevor das Mikrofon da war -- dann
-        // gar nicht erst aufnehmen, und das Mikrofon sofort wieder zu.
-        if (!druck.gehalten) { gibFrei(druck); return; }
-        var r = new MediaRecorder(strom);
-        druck.recorder = r;
-        r.ondataavailable = function (e) {
-          if (e.data && e.data.size) { druck.teile.push(e.data); }
-        };
-        r.onstop = function () {
-          gibFrei(druck);
-          if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS ||
-              !druck.teile.length) { return; }
-          veralteLetzteLeiste();
-          reiheEin({
-            art: 'audio', sitzung: null,
-            blob: new Blob(druck.teile,
-                           { type: druck.teile[0].type || r.mimeType || 'audio/webm' }),
-            dauer: Math.max(1, Math.round(druck.dauerMs / 1000))
-          });
-        };
-        r.start();
-      }).catch(function () {
-        druck.abgebrochen = true;
-        gibFrei(druck);
-        if (zustand.ptt === druck) {
-          zustand.ptt = null;
-          pttKnopf.dataset.haelt = '0';
-        }
-        meldeFehler(TEXT.fehler_mikro);
-      });
-    });
-
-    var lasseLos = function (ev, abbrechen) {
-      var druck = zustand.ptt;
-      if (!druck || ev.pointerId !== druck.pointerId) { return; }
-      zustand.ptt = null;
-      pttKnopf.dataset.haelt = '0';
-      pttKnopf.dataset.weg = '0';
-      druck.gehalten = false;
-      // Die Haltezeit, nicht die Zeit bis das Mikrofon da war.
-      druck.dauerMs = Date.now() - druck.von;
-      // Review-Befund 7: mit setPointerCapture kommt auch ein Loslassen
-      // NEBEN dem Knopf hier an -- weggezogen heisst abgebrochen.
-      if (abbrechen || ausserhalb(ev)) { druck.abgebrochen = true; }
-      try { pttKnopf.releasePointerCapture(ev.pointerId); } catch (e) { /* egal */ }
-      if (druck.recorder && druck.recorder.state !== 'inactive') {
-        druck.recorder.stop();
-      }
-    };
-
-    pttKnopf.addEventListener('pointerup', function (ev) { lasseLos(ev, false); });
-    pttKnopf.addEventListener('pointercancel', function (ev) { lasseLos(ev, true); });
-    // Ein Systemdialog oder Kontextmenue kann den Zeiger entfuehren; nach
-    // einem normalen pointerup ist zustand.ptt schon leer und das hier wirkt
-    // nicht mehr.
-    pttKnopf.addEventListener('lostpointercapture', function (ev) { lasseLos(ev, true); });
-    pttKnopf.addEventListener('pointermove', function (ev) {
-      var druck = zustand.ptt;
-      if (!druck || ev.pointerId !== druck.pointerId) { return; }
-      pttKnopf.dataset.weg = ausserhalb(ev) ? '1' : '0';
+    pttKnopf.addEventListener('click', function () {
+      if (zustand.ptt) { beendePtt(); } else { startePtt(); }
     });
     pttKnopf.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
   }
@@ -2060,16 +2098,26 @@ def _js() -> str:
     Platzhalter und keine f-String-Interpolation: das Skript ist voll mit
     geschweiften Klammern. Die Texte gehen als JSON hinein; ``</`` wird
     maskiert, damit kein Text das ``<script>`` beenden kann."""
-    # Padua Hotfix B6/B7: die uebersetzten Texte zur Aufrufzeit (``T``).
-    texte = dict(_JS_TEXTE, interview_an=T._TEXT_INTERVIEW_AN,
-                 interview_aus=T._TEXT_INTERVIEW_AUS, sprache=T._TEXT_SPRACHE,
-                 sprache_laeuft=T._TEXT_SPRACHE_LAEUFT)
+    # Padua Hotfix B6/B7, erweitert Task 4 (Kanban-Karte Buehne/PTT): die
+    # uebersetzten Texte zur Aufrufzeit (``T``).
+    texte = dict(
+        _JS_TEXTE,
+        interview_an=T._TEXT_INTERVIEW_AN, interview_aus=T._TEXT_INTERVIEW_AUS,
+        sprache=T._TEXT_SPRACHE, sprache_laeuft=T._TEXT_SPRACHE_LAEUFT,
+        interview_pause=T._TEXT_INTERVIEW_PAUSE,
+        interview_weiter=T._TEXT_INTERVIEW_WEITER,
+        interview_laeuft=T._TEXT_INTERVIEW_LAEUFT,
+        interview_pausiert=T._TEXT_INTERVIEW_PAUSIERT,
+        brainstorm_an=T._TEXT_BRAINSTORM_AN,
+        brainstorm_laeuft=T._TEXT_BRAINSTORM_LAEUFT,
+    )
     texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (
         _CHAT_JS
         .replace("__POLL_MS__", str(POLL_MS))
         .replace("__POLL_MS_HINTERGRUND__", str(POLL_MS_HINTERGRUND))
         .replace("__PTT_MIN_MS__", str(PTT_MIN_MS))
+        .replace("__PTT_MAX_MS__", str(PTT_MAX_MS))
         .replace("__UPLOAD_WARTEN_MS__", json.dumps(list(UPLOAD_WARTEN_MS)))
         .replace("__TEXTE__", texte)
     )
@@ -2187,10 +2235,14 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
 
     vad = vad if vad is not None else _vad_werte()
     modus = bool(daten["interviewmodus"])
-    phase4 = daten.get("phase") == 4
+    # Task 2 (Kanban-Karte Buehne/PTT): der Brainstorm-Block steht jetzt
+    # IMMER im Markup (wie #interview), nur ``hidden`` folgt der Phase --
+    # dieselbe Quelle fuer das ``hidden``-Attribut und die ``nebenknopf``-
+    # Klasse am Interview-Knopf, nicht das rohe ``daten.get("phase") == 4``.
+    brainstorm_erlaubt = daten.get("brainstorm_knopf", True)
     blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
-        blasen = f'<p class="leer">{html.escape(_TEXT_LEER)}</p>'
+        blasen = f'<p class="leer">{html.escape(T._TEXT_LEER)}</p>'
 
     nonce_feld = (
         f'<input type="hidden" id="nonce" value="{html.escape(nonce_wert, quote=True)}">\n'
@@ -2198,13 +2250,13 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
     )
     gruppenlink = (
         f'<p><a href="{html.escape(token)}">'
-        f"{html.escape(_TEXT_ZUR_GRUPPENSEITE)}</a></p>\n"
+        f"{html.escape(T._TEXT_ZUR_GRUPPENSEITE)}</a></p>\n"
         if mit_gruppenlink else ""
     )
     return (
-        f"<h1>{html.escape(daten.get('titel') or _TEXT_TITEL)}</h1>\n"
+        f"<h1>{html.escape(daten.get('titel') or T._TEXT_TITEL)}</h1>\n"
         f"{gruppenlink}"
-        f'<noscript><p class="leer">{html.escape(_TEXT_OHNE_JS)}</p></noscript>\n'
+        f'<noscript><p class="leer">{html.escape(T._TEXT_OHNE_JS)}</p></noscript>\n'
         f'<div class="verlauf" id="verlauf" data-letzte="{daten["letzte"]}" '
         f'data-aenderung="{int(daten.get("aenderung") or 0)}">\n'
         f"{blasen}\n</div>\n"
@@ -2225,25 +2277,26 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'  <div class="angehalten" id="angehalten" role="alert" hidden>\n'
         f'    <p id="angehalten-text"></p>\n'
         f'    <button type="button" id="nachreichen">'
-        f'{html.escape(_TEXT_REST_NACHREICHEN)}</button>\n'
+        f'{html.escape(T._TEXT_REST_NACHREICHEN)}</button>\n'
         f'    <button type="button" id="verwerfen">'
-        f'{html.escape(_TEXT_REST_VERWERFEN)}</button>\n'
+        f'{html.escape(T._TEXT_REST_VERWERFEN)}</button>\n'
         f'  </div>\n'
         + (
             f'  <button type="button" id="brainstorm" data-laeuft="0" '
-            f'data-pausiert="0">{html.escape(_TEXT_BRAINSTORM_AN)}</button>\n'
+            f'data-pausiert="0"'
+            + ('' if brainstorm_erlaubt else ' hidden')
+            + f'>{html.escape(T._TEXT_BRAINSTORM_AN)}</button>\n'
             f'  <div class="interview-aktionen" id="brainstorm-aktionen" hidden>\n'
             f'    <button type="button" id="brainstorm-pause">'
-            f'{html.escape(_TEXT_INTERVIEW_PAUSE)}</button>\n'
+            f'{html.escape(T._TEXT_INTERVIEW_PAUSE)}</button>\n'
             f'    <button type="button" id="brainstorm-beenden">'
-            f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'
             f'  </div>\n'
-            if phase4 else ""
         )
         + (
             f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
             f'data-pausiert="{1 if modus else 0}"'
-            + (' class="nebenknopf"' if phase4 else "")
+            + (' class="nebenknopf"' if brainstorm_erlaubt else "")
             # Padua Hotfix B6: ausserhalb von Phase 3 (oder bei laufender
             # Aufnahme) kein Angebot -- dieselbe Bedingung wie das JS-Pendant
             # ``zustand.knopfErlaubt`` oben.
@@ -2254,19 +2307,19 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'  <div class="interview-aktionen" id="interview-aktionen"'
             f'{"" if modus else " hidden"}>\n'
             f'    <button type="button" id="interview-pause">'
-            f'{html.escape(_TEXT_INTERVIEW_WEITER if modus else _TEXT_INTERVIEW_PAUSE)}'
+            f'{html.escape(T._TEXT_INTERVIEW_WEITER if modus else T._TEXT_INTERVIEW_PAUSE)}'
             f'</button>\n'
             f'    <button type="button" id="interview-beenden">'
-            f'{html.escape(_TEXT_INTERVIEW_ENDEN)}</button>\n'
+            f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'
             f'  </div>\n'
         )
         + f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '
         f'placeholder="{html.escape(_platzhalter_fuer(daten.get("phase"), daten.get("fragen_aktuell")), quote=True)}">\n'
         f'    <button type="button" id="ptt"{" hidden" if modus else ""} title="'
-        f'{html.escape(_TEXT_PTT, quote=True)}">🎤</button>\n'
+        f'{html.escape(T._TEXT_PTT, quote=True)}">🎤</button>\n'
         f'    <button type="button" id="senden">'
-        f'{html.escape(_TEXT_SENDEN)}</button>\n'
+        f'{html.escape(T._TEXT_SENDEN)}</button>\n'
         f"  </div>\n"
         f"</div>\n"
     )
@@ -2284,7 +2337,7 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
     from interview_theater import web   # spaeter Import: web importiert web_chat
 
     return web._seite(
-        daten.get("titel") or _TEXT_TITEL, _CSS_CHAT,
+        daten.get("titel") or T._TEXT_TITEL, _CSS_CHAT,
         chat_koerper(daten, nonce_wert, token, segment_ms),
         nachladen=False, skript=_js(),
     )

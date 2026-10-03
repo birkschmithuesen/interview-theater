@@ -11,7 +11,7 @@ HTML selbst ist Wegwerf-Material (ein Temp-Verzeichnis), nur die PNGs werden
 committet (``interview_theater/static/handys/``).
 
 Die Tab-Namen hier MUESSEN mit ``web_vereint._TEXT_TAB`` uebereinstimmen
-(Chat, Arbeitsstand, Textbuch, Bühne) -- ein Bild, das einen Tab zeigt, den
+(Chat, Arbeitsstand, Textbuch, CoThinker) -- ein Bild, das einen Tab zeigt, den
 es auf der echten Seite nicht gibt, verwirrt mehr, als es hilft.
 
 Aufruf: ``python scripts/handy_karten.py`` (braucht ``chromium`` im PATH).
@@ -34,7 +34,7 @@ W, H = 1000, 560
 TAB = {
     "Chat": ("💬", "#4ade80"),
     "Arbeitsstand": ("📋", "#60a5fa"),
-    "Bühne": ("🎭", "#f472b6"),
+    "CoThinker": ("🎭", "#f472b6"),
     "Textbuch": ("📖", "#fbbf24"),
 }
 
@@ -54,7 +54,7 @@ PHASEN = [
     (4, "Setting, Figuren & Geschichte",
      "Eins hört zu, eins steht aufgestellt für alle. Redet einfach.",
      [("Chat", "🎙 hört mit", "liegt in der Mitte"),
-      ("Bühne", "für alle sichtbar", "aufgestellt"),
+      ("CoThinker", "für alle sichtbar", "aufgestellt"),
       ("Arbeitsstand", "Stückkarte", "optional")]),
     (5, "Schärfung",
      "Eins arbeitet mit dem Bot, eins zeigt Figuren und Material.",
@@ -78,7 +78,7 @@ PHASEN = [
 TAB_EN = {
     "Chat": TAB["Chat"],
     "Workbench": TAB["Arbeitsstand"],
-    "Stage": TAB["Bühne"],
+    "CoThinker": TAB["CoThinker"],
     "Script": TAB["Textbuch"],
 }
 
@@ -97,7 +97,7 @@ PHASEN_EN = [
     (4, "Setting, Characters & Story",
      "One phone listens, one stands up for everyone to see. Just talk.",
      [("Chat", "🎙 listens", "lies in the middle"),
-      ("Stage", "visible to all", "propped up"),
+      ("CoThinker", "visible to all", "propped up"),
       ("Workbench", "play card", "optional")]),
     (5, "Sharpening",
      "One phone works with the bot, one shows characters and material.",

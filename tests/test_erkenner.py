@@ -195,6 +195,9 @@ def test_arten_enthaelt_alle_werte():
         # Padua-Brainstorming-Umbau (02.10.2026): Anzahl Szenen ist ein
         # fixes Feld der Phase 4, das die Gruppe selbst nennt.
         "szenenanzahl_setzen",
+        # Padua Phasen TEIL 1 (03.10.2026): Rueckmeldung zur generierten
+        # Geschichts-Uebersicht in Stufe A von Phase 5 (Prose Draft).
+        "uebersicht_aendern",
     }
     assert set(erkenner.ARTEN) == erwartet
 
@@ -349,6 +352,39 @@ def test_dieselben_fragen_noch_einmal_sind_keine_aenderung(conn, einst):
     )
 
     assert wirkliche == []
+
+
+def test_fragen_setzen_wird_waehrend_einzeln_durchgehen_verworfen(conn, einst):
+    """Fund 02.10.2026, Padua-Live (web_post 73/74, aufnahme 70): waehrend
+    die Stufe "Fragen einzeln durchgehen" laeuft (``fragen_aktuell`` traegt
+    eine Nummer), darf der Erkenner ``fragen`` nicht schreiben -- live
+    ueberschrieb das genau dieses ``fragen_setzen`` die ganze, schon
+    angenommene Liste mit nur der einen gerade geschaerften Zeile."""
+    repo.setze_arbeitsstand(conn, 1, "fragen", "alte Liste, schon angenommen")
+    repo.setze_arbeitsstand(conn, 1, "fragen_aktuell", "5")
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Apfel: Eine einzelne Zeile"}],
+    )
+
+    assert wirkliche == []
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "alte Liste, schon angenommen"
+
+
+def test_fragen_setzen_wirkt_wieder_sobald_die_stufe_vorbei_ist(conn, einst):
+    """Derselbe Schreibpfad bleibt fuer den Normalfall unveraendert: ohne
+    ``fragen_aktuell`` (Stufe nicht aktiv, oder schon mit
+    ``_schliesse_fragen_ab`` zurueckgesetzt) schreibt fragen_setzen wie
+    vorher."""
+    repo.setze_arbeitsstand(conn, 1, "fragen_aktuell", None)
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "fragen_setzen", "wert": "Neue Liste"}]
+    )
+
+    assert wirkliche == [{"art": "fragen_setzen", "wert": "Neue Liste"}]
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "Neue Liste"
 
 
 def test_fragen_stehen_im_erkenner_kontext(conn, einst):
@@ -1094,6 +1130,71 @@ def test_auch_eine_zweite_figur_schaltet_nichts(conn, einst):
 
     assert repo.hole_phase(conn, 1) == 4
     assert "Wir sind damit bei" not in tg.gesendet[0][1]
+
+
+# ---------------------------------------------------------------------------
+# PHASEN_SPEZIFISCHE_ARTEN (Padua Phasen TEIL 1, 03.10.2026): eine art kann
+# an eine oder mehrere Phasen gebunden sein, ohne dass wende_an() dafuer eine
+# verstreute if/elif-Kette braucht. "uebersicht_aendern" ist seit Task 10
+# eine echte art in ARTEN (siehe test_arten_enthaelt_alle_werte) -- hier wird
+# nur die Durchlaessigkeit der Tabelle geprueft, nicht der Stufe-A-Start
+# selbst (dafuer siehe die Tests rund um _starte_entwurf_uebersicht).
+# ---------------------------------------------------------------------------
+
+
+def test_phasenspezifische_art_wirkt_nur_in_ihrer_phase(conn, einst):
+    phasen.setze(conn, 1, 4, "befehl")  # nicht Phase 5
+
+    ergebnis = erkenner.wende_an(
+        conn, einst, 1, [{"art": "uebersicht_aendern", "wert": "make it sadder"}]
+    )
+
+    assert ergebnis == []  # ausserhalb Phase 5: kein Effekt, kein Fehler
+
+
+def test_phasenspezifische_art_wirkt_in_ihrer_phase(conn, einst, monkeypatch):
+    phasen.setze(conn, 1, 5, "befehl")
+    # uebersicht_aendern hat (noch) keinen Schreibpfad in _wende_eine_an --
+    # dieser Test haelt nur die Phasen-Durchlaessigkeit fest, nicht die
+    # Wirkung selbst (die kommt mit einer spaeteren Karte).
+    monkeypatch.setattr(
+        erkenner, "_wende_eine_an",
+        lambda conn, cid, art, wert: {"art": art, "wert": wert}
+        if art == "uebersicht_aendern" else None,
+    )
+
+    ergebnis = erkenner.wende_an(
+        conn, einst, 1, [{"art": "uebersicht_aendern", "wert": "make it sadder"}]
+    )
+
+    assert ergebnis == [{"art": "uebersicht_aendern", "wert": "make it sadder"}]
+
+
+def test_uebersicht_aendern_hat_auch_real_keinen_schreibpfad(conn, einst):
+    """Task 10: ``uebersicht_aendern`` schreibt nichts in den Arbeitsstand --
+    sie stoesst nur ``entwurf.starte_uebersicht`` an (``erkenner.laufe``).
+    Mit dem echten ``_wende_eine_an`` (kein Monkeypatch wie oben) bleibt
+    ``wende_an`` deshalb leer, auch innerhalb Phase 5."""
+    phasen.setze(conn, 1, 5, "befehl")
+
+    ergebnis = erkenner.wende_an(
+        conn, einst, 1, [{"art": "uebersicht_aendern", "wert": "make it sadder"}]
+    )
+
+    assert ergebnis == []
+
+
+def test_generische_art_wirkt_in_jeder_phase(conn, einst):
+    """festlegung_setzen steht nicht in PHASEN_SPEZIFISCHE_ARTEN und bleibt
+    unveraendert phasenfrei (Padua Phasen TEIL 1, Vorgabe aus dem Auftrag)."""
+    phasen.setze(conn, 1, 1, "befehl")
+
+    ergebnis = erkenner.wende_an(
+        conn, einst, 1, [{"art": "festlegung_setzen", "wert": "MUSIC: everyone hums"}]
+    )
+
+    assert len(ergebnis) == 1
+    assert ergebnis[0]["art"] == "festlegung_setzen"
 
 
 # ---------------------------------------------------------------------------

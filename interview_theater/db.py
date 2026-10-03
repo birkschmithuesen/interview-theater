@@ -419,6 +419,26 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- TEXT wie ``figuren_anzahl``, additiv nachgeruestet ueber
   -- _migriere_fehlende_spalten.
   szenen_anzahl          TEXT,
+  -- Die Uebersicht aus Stufe A des zweistufigen Phase-5-Entwurfs (Padua
+  -- Phasen TEIL 1, 03.10.2026, interview_theater/entwurf.py): Logline,
+  -- Setting, Figuren, Spannungsbogen und je Szene ein Satz, als fertig
+  -- zusammengesetzter Anzeigetext (~1200-1500 Zeichen). Wird bei jeder
+  -- Neugenerierung ueberschrieben, solange sie nicht fixiert ist -- wie
+  -- figuren_entwurf vor figuren_fixiert_am. Nur aktiv, wenn das
+  -- Workshop-Profil [prosa_entwurf] aktiv = true setzt (workshop.py);
+  -- Dortmund liest diese Spalte nie.
+  geschichte_uebersicht           TEXT,
+  -- Die Szenensaetze aus derselben Uebersicht, EINZELN (newline-getrennt,
+  -- eine Zeile je Szene, in Szenenreihenfolge) -- getrennt von der
+  -- zusammengesetzten Anzeige oben, weil Stufe B sie EINZELN braucht, um
+  -- was_passiert je Szene zu befuellen (entwurf.uebernimm_szenenfelder).
+  -- Reparsen der Anzeige waere fragil; dieses Feld ist die strukturierte
+  -- Quelle dafuer.
+  geschichte_uebersicht_szenen    TEXT,
+  -- Wann die Gruppe die Uebersicht mit "Yes, save" abgenommen hat --
+  -- derselbe Zeitstempel-Charakter wie figuren_fixiert_am. Erst danach
+  -- beginnt Stufe B (Szene fuer Szene).
+  geschichte_uebersicht_fixiert_am TEXT,
   -- Merkposten fuer den Knopf "Interviews fertig" im Web-Kanal (Phase 3,
   -- 02.10.2026): gesetzt (ISO-Zeitstempel), solange die Gruppe "Interviews
   -- fertig" gedrueckt hat, aber noch mindestens ein beendetes Interview ohne
@@ -540,6 +560,13 @@ CREATE TABLE IF NOT EXISTS szene (
   -- unter jedem frischen Szenentext haengen vier Knoepfe, und erst einer
   -- davon macht daraus ein Ergebnis.
   fertig_am         TEXT,
+  -- Gesetzt = die Gruppe hat den PROSA-ENTWURF dieser Szene in Stufe B von
+  -- Phase 5 (Prose Draft) mit "Yes, save" abgenommen (Padua Phasen TEIL 1,
+  -- 03.10.2026, entwurf.py). Bewusst eine EIGENE Spalte und nicht
+  -- fertig_am: fertig_am meint die Abnahme des THEATERTEXTS in Phase 7
+  -- ("Passt"-Knopf unter einem geschriebenen Szenentext) -- zwei
+  -- verschiedene Abnahmen in zwei verschiedenen Phasen, zwei Spalten.
+  entwurf_bestaetigt_am TEXT,
   -- Alle frueheren Fassungen dieser Szene, durch
   -- szenenfolge.FASSUNGSTRENNER getrennt. "Passt, aber anders" schreibt die
   -- Szene neu -- die alte Fassung wird dabei nicht weggeworfen: eine Gruppe,
@@ -599,6 +626,16 @@ CREATE TABLE IF NOT EXISTS buehnenkarte (
   -- 'infomaniak' oder 'claude' (ueber szene_claude, mit Einwilligung) --
   -- dasselbe Feld wie aufruf.modus, hier als lesbarer Text statt A/B/C.
   modell       TEXT NOT NULL,
+  -- Nachtrag Karte Padua Brainstorm (03.10.2026): 1 heisst "zugehoert, aber
+  -- bewusst NICHTS beizutragen gehabt" -- ``text`` ist dann leer (""), nicht
+  -- NULL (die Spalte bleibt NOT NULL). Additiv ueber
+  -- _migriere_fehlende_spalten; eine alte Zeile ist immer 0, weil es vor
+  -- dieser Spalte nie eine Schweigen-Zeile gab -- jede bestehende Zeile war
+  -- eine echte Karte. Ohne diese Zeile war ein Schweigen von einem nie
+  -- gelaufenen Versuch nicht zu unterscheiden (buehnenkarte.erzeuge lieferte
+  -- in beiden Faellen (None, modell), und der Aufrufer legte gar keine Zeile
+  -- an).
+  schweigen    INTEGER NOT NULL DEFAULT 0,
   erstellt_am  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_buehnenkarte_chat ON buehnenkarte(chat_id, id);

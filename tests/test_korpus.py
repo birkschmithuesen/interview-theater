@@ -203,6 +203,9 @@ def test_erkenner_arbeitsstand_kennt_nur_bekannte_felder(erkenner_faelle):
     erlaubt = {
         "begriffe", "fragen", "kernthema", "format", "rahmen", "hauptkonflikt",
         "figuren",
+        # Padua Phasen TEIL 1 (03.10.2026): die generierte Geschichts-
+        # Uebersicht aus Stufe A von Phase 5 (db.py, arbeitsstand.geschichte_uebersicht).
+        "geschichte_uebersicht",
     }
     for fall in erkenner_faelle:
         unbekannt = set(fall["arbeitsstand"]) - erlaubt
@@ -713,10 +716,13 @@ def test_en_keine_namen_aus_dem_projektumfeld(en_faelle):
 
 
 def test_deutscher_korpus_unveraendert_gezaehlt(erkenner_faelle):
-    """D8: der deutsche Korpus bleibt, wie er ist (153 Faelle, 54 negativ,
-    gemessen 02.10.2026 -- davor 150/53 am 30.09.2026) -- seine FP=0-Zusage
-    haengt an genau diesen Faellen. Drei Faelle (sa01-sa03) kamen beim
-    Padua-Brainstorming-Umbau dazu: die neue Art ``szenenanzahl_setzen``
-    braucht wie jede andere mindestens zwei Positiv- und einen Negativfall."""
-    assert len(erkenner_faelle) == 153
-    assert sum(1 for f in erkenner_faelle if not f["erwartet"]) == 54
+    """D8: der deutsche Korpus bleibt, wie er ist (156 Faelle, 55 negativ,
+    gemessen 03.10.2026 -- davor 153/54 am 02.10.2026, davor 150/53 am
+    30.09.2026) -- seine FP=0-Zusage haengt an genau diesen Faellen. Drei
+    Faelle (sa01-sa03) kamen beim Padua-Brainstorming-Umbau dazu: die neue
+    Art ``szenenanzahl_setzen`` braucht wie jede andere mindestens zwei
+    Positiv- und einen Negativfall. Padua Phasen TEIL 1 (03.10.2026): drei
+    weitere Faelle (ue01, ue02, n55) fuer die neue Art
+    ``uebersicht_aendern``, nach demselben Muster."""
+    assert len(erkenner_faelle) == 156
+    assert sum(1 for f in erkenner_faelle if not f["erwartet"]) == 55

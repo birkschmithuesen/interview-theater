@@ -30,6 +30,48 @@ def test_unbeantwortete_ignoriert_bot_nachrichten(conn):
     assert repo.unbeantwortete(conn, 1) == []
 
 
+# --- Defensiver Waechter gegen eine nicht-numerische message_id -----------
+# Fund 02.10.2026, Padua-Live: ``uebernimm_schaerfung`` reichte vor dem Fix
+# einen Quittungstext statt der echten message_id zurueck; der kam ueber
+# ``ablauf.auftragszug`` bis hier an. SQLite sortiert TEXT ueber jedem
+# INTEGER -- eine solche Zeile waere in ``erkenner.erkenne``
+# (``max(n["message_id"] ...)``) ein TypeError bei JEDEM Lauf der Gruppe
+# gewesen und haette den Erkenner fuer immer verstummen lassen.
+
+
+def test_merke_nachricht_lehnt_nicht_numerische_message_id_ab(conn):
+    assert repo.merke_nachricht(
+        conn, 1, "Frage ueberarbeitet", "Bot", 1, "text", "Text", "2026-10-02T10:00:00",
+    ) is False
+    assert conn.execute("SELECT count(*) FROM nachricht").fetchone()[0] == 0
+
+
+def test_merke_nachricht_lehnt_bool_als_message_id_ab(conn):
+    """``bool`` ist in Python ein ``int``-Subtyp -- ohne die explizite
+    Ausnahme wuerde ``True``/``False`` als 1/0 durchschluepfen."""
+    assert repo.merke_nachricht(
+        conn, 1, True, "Bot", 1, "text", "Text", "2026-10-02T10:00:00",
+    ) is False
+    assert conn.execute("SELECT count(*) FROM nachricht").fetchone()[0] == 0
+
+
+def test_unextrahierte_ignoriert_eine_bereits_kaputte_zeile(conn):
+    """Verteidigt gegen eine schon vorhandene kaputte Zeile (z. B. aus einer
+    Zeit vor diesem Fix) -- ``typeof(message_id) = 'integer'`` filtert sie
+    aus ``unextrahierte`` heraus, statt den Erkenner daran scheitern zu
+    lassen."""
+    conn.execute(
+        "INSERT INTO nachricht (chat_id, message_id, absender, ist_bot, typ, "
+        "text, gesendet_am, unterdrueckt) VALUES (1, 'kaputt', 'Bot', 1, "
+        "'text', 'Frage ueberarbeitet', '2026-10-02T10:00:00', 0)"
+    )
+    conn.commit()
+    repo.merke_nachricht(conn, 1, 5, "Ada", 0, "text", "echte Nachricht",
+                         "2026-10-02T10:01:00")
+    neue = repo.unextrahierte(conn, 1)
+    assert [n["message_id"] for n in neue] == [5]
+
+
 def test_update_id_ueberlebt_eine_neue_verbindung(conn, tmp_path):
     repo.setze_update_id(conn, "gruppe1", 4711)
     conn.close()

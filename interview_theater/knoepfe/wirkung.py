@@ -25,6 +25,7 @@ from interview_theater.knoepfe.texte import (
     ART_FIGUR_INTERVIEW_MENU, ART_FIGUR_NAME, ART_FIGUR_NAME_MENU,
     ART_FIGUR_PASST, ART_FIGUR_STIL, ART_FIGUR_STIL_FREI, ART_FRAGEN_ANDERE,
     ART_FRAGEN_EIGENE, ART_FRAGEN_EINZELN, ART_FRAGEN_UEBERNEHMEN,
+    ART_FRAGEN_WEICH_LASSEN, ART_FRAGEN_WEICH_UEBERNEHMEN,
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
     ART_FRAGE_WAHL,
     ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
@@ -41,6 +42,7 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN, ART_SZENE_NAECHSTE,
     ART_SZENE_NEU, ART_SZENE_PASST, ART_SZENE_PLANEN, ART_SZENE_SCHREIBEN,
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
+    ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
     ART_STT_SPRACHE, STT_KNOEPFE, T, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
     ART_TEIL_WEITER, ART_TEXTBUCH, ART_TRANSKRIPT, ART_UNDO, ART_WIR_ZUERST,
     ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_SZENEN, TRENNER, _KETTE, log,
@@ -51,7 +53,8 @@ from interview_theater.knoepfe.basis import (
 )
 from interview_theater.knoepfe.fragen import (
     _speichere_eroeffnung, entscheide, frage_waehlt_schaerfen,
-    frage_warten_auf_richtung, starte_durchgehen, starte_eroeffnung,
+    frage_warten_auf_richtung, frage_weich_lassen, frage_weich_uebernehmen,
+    starte_durchgehen, starte_eroeffnung,
 )
 from interview_theater.knoepfe.figuren import (
     _biete_interviews, _entwurfszeilen, _ersetze_namen, _interviewkoepfe,
@@ -329,6 +332,13 @@ def _wirkung_szenenfelder_speichern(conn, d: Druck) -> str:
 
 def _wirkung_szene_passt(conn, d: Druck) -> str:
     nummer = int(d.wert)
+    # Padua Phasen TEIL 1 (03.10.2026): derselbe Knopf, zwei Bedeutungen --
+    # in Phase 5 ist "Passt" die Abnahme EINES Prosa-Entwurfs in Stufe B
+    # (``entwurf.py``), nicht die Abnahme eines fertigen Theatertexts. Die
+    # Phase entscheidet, welcher Weg laeuft; fuer jede andere Phase (heute 7)
+    # bleibt alles darunter unveraendert.
+    if phasen.aktuelle(conn, d.chat_id) == 5:
+        return _wirkung_entwurf_szene_passt(conn, d, nummer)
     ziel = _szene_mit_nummer(conn, d.chat_id, nummer)
     if ziel is None:
         d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
@@ -346,6 +356,32 @@ def _wirkung_szene_passt(conn, d: Druck) -> str:
     return T._ANTWORT_SZENE_STEHT.format(nummer=nummer)
 
 
+def _wirkung_entwurf_szene_passt(conn, d: Druck, nummer: int) -> str:
+    """"Yes, save" auf einem Prosa-Entwurf in Stufe B von Phase 5 (Padua
+    Phasen TEIL 1): Szene abnehmen, automatisch weiter -- zur naechsten
+    offenen Szene (kein Knopf, kein Warten) oder, wenn keine mehr offen
+    ist, automatisch nach Phase 6. Das ist die EINE, ausdruecklich von
+    Birk gewuenschte Ausnahme vom sonst geltenden "Datenstand ist nicht
+    Absicht" (AGENTS.md) -- lokal auf diesen Abschluss begrenzt,
+    ``phasen.moegliche_naechste``/``offenes_angebot`` bleiben fuer jeden
+    anderen Uebergang unveraendert."""
+    from interview_theater import entwurf, szene
+
+    ziel = _szene_mit_nummer(conn, d.chat_id, nummer)
+    if ziel is None:
+        d.tg.sende(d.chat_id, T._TEXT_SZENE_UNBEKANNT)
+        return T._TEXT_SZENE_UNBEKANNT
+    repo.setze_szene_entwurf_bestaetigt(conn, ziel["id"])
+    naechste = entwurf.erste_offene_szene(conn, d.chat_id)
+    if naechste is not None:
+        auftrag = f"SZENE {naechste}: write this scene as prose, following the overview."
+        szene.starte(conn, d.tg, d.klm, d.e, d.chat_id, auftrag)
+        return T._TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN
+    phasen.setze(conn, d.chat_id, 6, "entwurf", notiz="alle Szenen entworfen")
+    eintritt_in_phase(conn, d.tg, d.klm, d.e, d.chat_id, 6)
+    return T._TEXT_ALLE_SZENEN_ENTWORFEN
+
+
 def _wirkung_szene_anders(conn, d: Druck) -> str:
     """Der Regie-Vermerk kommt als naechste Nachricht; ``ablauf.antworte``
     greift ihn auf (``szenenfolge.nimm_regienotiz``) und schreibt die Szene
@@ -357,6 +393,39 @@ def _wirkung_szene_anders(conn, d: Druck) -> str:
     d.tg.sende(d.chat_id, T._TEXT_SZENE_ANDERS_FRAGE)
     _melde_spaetere(conn, d.tg, d.chat_id, nummer)
     return T._ANTWORT_WAS_ANDERS_WERDEN
+
+
+def _wirkung_uebersicht_passt(conn, d: Druck) -> str:
+    """"Yes, save": die Geschichts-Uebersicht aus Stufe A von Phase 5 (Prose
+    Draft, ``entwurf.py``) ist fix (Padua Phasen TEIL 1, 03.10.2026).
+
+    Kein Modellaufruf hier (Zusage 2): die Pflichtfelder der Szenen werden
+    rein aus dem schon erzeugten Uebersicht-Text uebernommen
+    (``entwurf.uebernimm_szenenfelder``), und die erste noch offene Szene
+    geht ueber das bestehende ``szene.starte`` -- das gibt seinerseits sofort
+    an einen eigenen Thread ab."""
+    from interview_theater import entwurf, szene
+
+    repo.setze_arbeitsstand(
+        conn, d.chat_id, "geschichte_uebersicht_fixiert_am", repo._jetzt(),
+    )
+    entwurf.uebernimm_szenenfelder(conn, d.chat_id)
+    erste = entwurf.erste_offene_szene(conn, d.chat_id)
+    if erste is not None:
+        auftrag = f"SZENE {erste}: write this scene as prose, following the overview."
+        szene.starte(conn, d.tg, d.klm, d.e, d.chat_id, auftrag)
+    return T._TEXT_UEBERSICHT_FIXIERT
+
+
+def _wirkung_uebersicht_anders(conn, d: Druck) -> str:
+    """"No, change it again": ein neuer Uebersicht-Lauf (Padua Phasen TEIL 1).
+
+    Kein Modellaufruf hier (Zusage 2) -- ``entwurf.starte_uebersicht`` gibt
+    sofort an einen eigenen Thread ab, wie jeder andere Vorschlagslauf."""
+    from interview_theater import entwurf
+
+    entwurf.starte_uebersicht(conn, d.tg, d.klm, d.e, d.chat_id)
+    return T._TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT
 
 
 def _wirkung_szene_kuerzen(conn, d: Druck) -> str:
@@ -681,6 +750,14 @@ def _wirkung_frage_verwerfen(conn, d: Druck) -> str:
 
 def _wirkung_frage_schaerfen(conn, d: Druck) -> str:
     return frage_waehlt_schaerfen(conn, d.tg, d.chat_id, int(d.wert))
+
+
+def _wirkung_fragen_weich_uebernehmen(conn, d: Druck) -> str:
+    return frage_weich_uebernehmen(conn, d.tg, d.klm, d.e, d.chat_id)
+
+
+def _wirkung_fragen_weich_lassen(conn, d: Druck) -> str:
+    return frage_weich_lassen(conn, d.tg, d.klm, d.e, d.chat_id)
 
 
 def _wirkung_leitfaden(conn, d: Druck) -> str:
@@ -1469,6 +1546,8 @@ _WIRKUNGEN = {
     ART_SZENE_PASST: _wirkung_szene_passt,
     ART_SZENE_ANDERS: _wirkung_szene_anders,
     ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,
+    ART_UEBERSICHT_PASST: _wirkung_uebersicht_passt,
+    ART_UEBERSICHT_ANDERS: _wirkung_uebersicht_anders,
     ART_SZENE_NEU: _wirkung_szene_neu,
     ART_SZENE_SO_LASSEN: _wirkung_szene_so_lassen,
     ART_SZENE_NAECHSTE: _wirkung_szene_naechste,
@@ -1493,6 +1572,8 @@ _WIRKUNGEN = {
     ART_FRAGE_ANNEHMEN: _wirkung_frage_annehmen,
     ART_FRAGE_VERWERFEN: _wirkung_frage_verwerfen,
     ART_FRAGE_SCHAERFEN: _wirkung_frage_schaerfen,
+    ART_FRAGEN_WEICH_UEBERNEHMEN: _wirkung_fragen_weich_uebernehmen,
+    ART_FRAGEN_WEICH_LASSEN: _wirkung_fragen_weich_lassen,
     ART_LEITFADEN: _wirkung_leitfaden,
     ART_RICHTUNG: _wirkung_richtung,
     ART_FIGUREN_ANZAHL_MENU: _wirkung_figuren_anzahl_menu,

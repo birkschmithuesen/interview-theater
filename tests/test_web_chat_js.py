@@ -6,6 +6,7 @@ messen kann -- und das ist mehr, als es klingt: jede Zahl, die das JS braucht,
 und jeder Endpunkt, den es ruft.
 """
 
+import json
 import re
 import threading
 import urllib.request
@@ -200,12 +201,31 @@ def test_die_ptt_mindestdauer_kommt_aus_einer_konstante(seite):
     assert "__PTT_MIN_MS__" in web_chat._CHAT_JS
 
 
-def test_pointercancel_und_setpointercapture_stehen_im_js():
-    """Birks Vorgabe woertlich: Pointer Events + setPointerCapture, Abbruch
-    bei Wegziehen/pointercancel sendet NICHTS."""
-    for baustein in ("setPointerCapture", "pointercancel", "pointerdown",
-                     "pointerup", "releasePointerCapture"):
-        assert baustein in web_chat._CHAT_JS, baustein
+def test_ptt_ist_ein_klick_umschalter_ohne_pointer_capture():
+    """Von Halten-zum-Sprechen auf Tippen-zum-Umschalten umgebaut (Kanban-
+    Karte Buehne/PTT, Punkt 3): ein Tipp startet, ein zweiter beendet und
+    sendet -- kein Pointer-Capture-Geschehen mehr."""
+    js = web_chat._CHAT_JS
+    block = js[js.index("-- Push-to-Talk"):]
+    assert "pttKnopf.addEventListener('click'" in block
+    for veraltet in ("setPointerCapture", "pointercancel", "pointerdown",
+                     "pointerup", "pointermove", "lostpointercapture",
+                     "releasePointerCapture"):
+        assert veraltet not in block, veraltet
+
+
+def test_die_ptt_hoechstdauer_kommt_aus_einer_konstante(seite):
+    assert web_chat.PTT_MAX_MS == 90_000
+    assert f"var PTT_MAX_MS = {web_chat.PTT_MAX_MS};" in seite
+    assert "__PTT_MAX_MS__" in web_chat._CHAT_JS
+
+
+def test_ptt_stoppt_und_sendet_automatisch_nach_der_hoechstdauer():
+    js = web_chat._CHAT_JS
+    block = js[js.index("-- Push-to-Talk"):]
+    assert "setTimeout(" in block
+    assert "PTT_MAX_MS" in block
+    assert "beendePtt()" in block
 
 
 def test_kein_schieben_zum_sperren(seite):
@@ -307,6 +327,148 @@ def test_der_poll_setzt_den_nonce_und_wiederholt_bei_403():
     assert "r.status === 403" in js
 
 
+# -- Scrollen bei einer wachsenden Blase (Padua Brainstorm, 03.10.2026) -----
+#
+# Befund: eine Blase, die nur per ``geaendert`` waechst (das laufende
+# Transkript eines Brainstorm-Segments -- bis zum Stop-Klick legt der Server
+# nie eine NEUE Nachricht an), loeste bisher kein ``nachUnten()`` aus:
+# ``nimmZustand`` rief es nur bei ``neu.length``. Die Blase wuchs unterhalb
+# des sichtbaren Bereichs, ohne dass der Bildschirm mitscrollte.
+
+
+def test_amunterenrand_wird_vor_jeder_dom_aenderung_gelesen():
+    """Der Lesezeitpunkt ist das Kritische: nach dem Einfuegen einer neuen
+    Blase waere ``document.body.scrollHeight`` schon die NEUE Hoehe, und
+    ``amUnterenRand()`` saehe immer "unten", auch wenn die Gruppe gerade
+    weiter oben nachliest."""
+    js = web_chat._CHAT_JS
+    nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
+    # Erste Zeile im Funktionskoerper -- vor dem Nonce, vor ``neu.forEach``,
+    # vor ``geaendert.forEach``.
+    erste_zeile = nimm.split("\n")[1].strip()
+    assert erste_zeile == "var warUnten = amUnterenRand();"
+    assert nimm.index("var warUnten = amUnterenRand();") < nimm.index("neu.forEach(blase)")
+    assert nimm.index("var warUnten = amUnterenRand();") < nimm.index("geaendert.forEach(ersetze)")
+
+
+def test_nachunten_laeuft_bei_neu_oder_bei_geaenderter_letzter_blase():
+    js = web_chat._CHAT_JS
+    nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
+    assert "if (neu.length) {\n      nachUnten();\n    } else if " in nimm
+    nach_else_if = nimm[nimm.index("} else if ") + len("} else if "):]
+    bedingung = nach_else_if[:nach_else_if.index(") {")]
+    assert "warUnten" in bedingung
+    assert "geaendert.length" in bedingung
+    assert "letzteBlaseWurdeGeaendert(geaendert)" in bedingung
+
+
+def _node_oder_skip():
+    import shutil
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node nicht installiert")
+    return node
+
+
+def _fuehre_js_aus(node: str, quelltext: str, tmp_path) -> str:
+    """Schreibt ``quelltext`` als Datei und laesst ``node`` sie ausfuehren --
+    wie ``test_das_js_ist_syntaktisch_gueltig``, nur mit Ausgabe statt nur dem
+    Exit-Code."""
+    import subprocess
+
+    datei = tmp_path / "harness.js"
+    datei.write_text(quelltext, encoding="utf-8")
+    ergebnis = subprocess.run(
+        [node, str(datei)], capture_output=True, text=True, timeout=30,
+    )
+    assert ergebnis.returncode == 0, ergebnis.stderr
+    return ergebnis.stdout
+
+
+def _extrahiere(js: str, start_marke: str, end_marke: str) -> str:
+    return js[js.index(start_marke):js.index(end_marke)]
+
+
+def test_amunterenrand_entscheidet_live_in_node(tmp_path):
+    """Fuehrt ``amUnterenRand()`` WOERTLICH aus dem ausgelieferten Skript aus
+    (nicht nachgebaut) gegen vier Positionen: am Rand, knapp innerhalb der
+    Toleranz, knapp ausserhalb, und weit hochgescrollt."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function amUnterenRand", "function letzteBlaseWurdeGeaendert")
+
+    quelltext = f"""
+    var UNTEN_TOLERANZ_PX = 48;
+    var window, document;
+    {funktion}
+
+    function pruefe(innerHeight, scrollY, scrollHeight) {{
+      window = {{ innerHeight: innerHeight, scrollY: scrollY }};
+      document = {{ body: {{ scrollHeight: scrollHeight }} }};
+      return amUnterenRand();
+    }}
+
+    var ergebnisse = {{
+      genau_am_rand: pruefe(800, 1200, 2000),       // 800+1200 == 2000
+      innerhalb_der_toleranz: pruefe(800, 1160, 2000),  // 40px Rest, < 48
+      knapp_ausserhalb: pruefe(800, 1100, 2000),    // 100px Rest, > 48
+      weit_hochgescrollt: pruefe(800, 100, 2000)
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse == {
+        "genau_am_rand": True,
+        "innerhalb_der_toleranz": True,
+        "knapp_ausserhalb": False,
+        "weit_hochgescrollt": False,
+    }
+
+
+def test_letzteblasewurdegeaendert_entscheidet_live_in_node(tmp_path):
+    """Dieselbe Herangehensweise fuer die zweite Weiche: nur ein Treffer auf
+    die zurzeit LETZTE Blase im Verlauf zaehlt -- eine Aenderung an einer
+    aelteren Blase (z. B. eine entfernte Knopfleiste) scrollt nicht mit."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function letzteBlaseWurdeGeaendert", "function nimmZustand")
+
+    quelltext = f"""
+    var verlauf;
+    {funktion}
+
+    function blasen(ids) {{
+      return {{
+        querySelectorAll: function (sel) {{
+          return ids.map(function (id) {{ return {{ dataset: {{ id: String(id) }} }}; }});
+        }}
+      }};
+    }}
+
+    verlauf = blasen(["10", "11", "12"]);
+    var ergebnisse = {{
+      letzte_blase_betroffen: letzteBlaseWurdeGeaendert([{{ id: 12 }}]),
+      aeltere_blase_betroffen: letzteBlaseWurdeGeaendert([{{ id: 11 }}]),
+      mehrere_eine_davon_die_letzte: letzteBlaseWurdeGeaendert([{{ id: 5 }}, {{ id: 12 }}]),
+      keine_blase_vorhanden: (function () {{
+        verlauf = blasen([]);
+        return letzteBlaseWurdeGeaendert([{{ id: 12 }}]);
+      }})()
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse == {
+        "letzte_blase_betroffen": True,
+        "aeltere_blase_betroffen": False,
+        "mehrere_eine_davon_die_letzte": True,
+        "keine_blase_vorhanden": False,
+    }
+
+
 def test_beforeunload_warnt_waehrend_aufnahme_und_upload():
     assert "beforeunload" in web_chat._CHAT_JS
 
@@ -331,9 +493,13 @@ def test_die_seite_traegt_den_modus_schon_beim_laden(tmp_path, monkeypatch):
     Erweitert (Drei-Zustands-Regler, 02.10.2026): ``data-pausiert`` steht
     ebenfalls schon beim ersten Rendern da -- ein frisch geladenes Dokument
     hat nie eine lokale Sitzung, also ist ein ``modus=true`` beim Laden
-    immer die Pause-Darstellung (Punkt 5 des Reglers)."""
+    immer die Pause-Darstellung (Punkt 5 des Reglers).
+
+    ``brainstorm_knopf: False`` haelt den Interview-Knopf hier ohne
+    ``nebenknopf``-Klasse (Task 2, Kanban-Karte Buehne/PTT) -- dieser Test
+    prueft den Interviewmodus, nicht die Brainstorm-Phase."""
     daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
-             "interviewmodus": True, "titel": None}
+             "interviewmodus": True, "titel": None, "brainstorm_knopf": False}
     seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
     assert (f'data-laeuft="1" data-pausiert="1">{web_chat._TEXT_INTERVIEW_AUS}'
             f'</button>') in seite
@@ -469,7 +635,8 @@ def test_403_in_der_schlange_wird_nachgeholt_nicht_verworfen():
 
 
 def test_interviewstart_verwirft_einen_gehaltenen_ptt_druck():
-    """Re-Review F: zwei Finger, zwei Recorder."""
+    """Re-Review F: zwei Mikrofone gleichzeitig sind keine Bedienung -- auch
+    nicht im Tippen-zum-Umschalten-Modell (Kanban-Karte Buehne/PTT)."""
     js = web_chat._CHAT_JS
     start = js[js.index("function starteInterview"):js.index("function brichAb")]
     assert "verwirfPtt()" in start
@@ -736,36 +903,47 @@ def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
 # -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ---------------------
 
 
-def test_der_brainstorm_knopf_steht_nur_in_phase_4_im_markup():
-    """Ausserhalb Phase 4 rendert ``chat_html`` die vier Brainstorm-Elemente
-    gar nicht -- das JS liest ``document.getElementById('brainstorm')`` als
-    ``null`` und jede Brainstorm-Funktion bleibt ein No-Op (siehe
-    ``zeigeBrainstormModus``)."""
+def test_der_brainstorm_knopf_steht_immer_im_markup_aber_hidden_ausserhalb_phase_4():
+    """Seit Task 2 (Kanban-Karte Buehne/PTT, wie zuvor beim CoThinker-Tab)
+    rendert ``chat_html`` die vier Brainstorm-Elemente IMMER -- nur das
+    ``hidden``-Attribut am ``#brainstorm``-Knopf und die ``nebenknopf``-
+    Klasse am Interview-Knopf folgen ``daten["brainstorm_knopf"]``, nicht
+    mehr ihre Existenz im Markup."""
     daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
-             "interviewmodus": False, "titel": None, "phase": 4}
+             "interviewmodus": False, "titel": None, "phase": 4,
+             "brainstorm_knopf": True}
     seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
     for kennung in ("brainstorm", "brainstorm-aktionen", "brainstorm-pause",
                     "brainstorm-beenden"):
         assert f'id="{kennung}"' in seite, kennung
     assert web_chat._TEXT_BRAINSTORM_AN in seite
+    assert 'id="brainstorm" data-laeuft="0" data-pausiert="0">' in seite
     # Das Interview bleibt erreichbar, aber als Nebenknopf (brief: "stays
     # reachable, e.g. smaller/secondary").
     assert 'id="interview" data-laeuft="0" data-pausiert="0" class="nebenknopf">' in seite
 
-    ohne = web_chat.chat_html(dict(daten, phase=1), "1.x", "tok", "", 45000)
+    ohne = web_chat.chat_html(
+        dict(daten, phase=1, brainstorm_knopf=False), "1.x", "tok", "", 45000)
     for kennung in ("brainstorm", "brainstorm-aktionen", "brainstorm-pause",
                     "brainstorm-beenden"):
-        assert f'id="{kennung}"' not in ohne, kennung
+        assert f'id="{kennung}"' in ohne, kennung
+    assert 'id="brainstorm" data-laeuft="0" data-pausiert="0" hidden>' in ohne
     assert 'class="nebenknopf"' not in ohne
     assert 'id="interview" data-laeuft="0" data-pausiert="0">' in ohne
 
-    fehlt = web_chat.chat_html(dict(daten, phase=None), "1.x", "tok", "", 45000)
-    assert 'id="brainstorm"' not in fehlt
+    fehlt = web_chat.chat_html(
+        dict(daten, phase=None, brainstorm_knopf=False), "1.x", "tok", "", 45000)
+    assert 'id="brainstorm" data-laeuft="0" data-pausiert="0" hidden>' in fehlt
 
 
-def test_zeigebrainstormmodus_ist_ein_no_op_ohne_knopf():
-    """Ausserhalb Phase 4 ist ``brainstormKnopf`` ``null`` -- die Funktion
-    darf dann nichts anfassen, sonst wirft sie auf jeder Nicht-Phase-4-Seite."""
+def test_zeigebrainstormmodus_behaelt_die_schutzzeile_fuer_fehlende_elemente():
+    """Seit Task 2 existiert ``brainstormKnopf`` immer (``chat_html``
+    rendert das Element jetzt auch ausserhalb Phase 4, nur ``hidden``) --
+    die fruehere Praemisse dieses Tests ("ausserhalb Phase 4 ist
+    brainstormKnopf null") gilt also nicht mehr. Die Schutzzeile bleibt
+    trotzdem im Quelltext stehen (Brief, Abschnitt 3d) und wird hier als
+    das geprueft, was sie jetzt ist: ein defensiver Schutz fuer ein
+    hypothetisch fehlendes Element, kein aktiv genutzter Zweig."""
     js = web_chat._CHAT_JS
     fn = js[js.index("function zeigeBrainstormModus"):
             js.index("function starteBrainstorm")]

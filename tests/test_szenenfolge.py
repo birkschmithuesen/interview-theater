@@ -521,6 +521,37 @@ def test_passt_bei_der_letzten_szene_bietet_weiter_zur_stueckpruefung(conn, eins
     assert "Weiter zu Phase 7 · Feinschliff" in tg.beschriftungen, tg.beschriftungen
 
 
+def test_phase_7_szene_passt_verhaelt_sich_unveraendert(conn, einst, tg, monkeypatch):
+    """Regression guard fuer Task 12 (Padua Phasen TEIL 1): seit diesem Task
+    bekommt ``_wirkung_szene_passt`` einen neuen, auf Phase 5 beschraenkten
+    Zweig (``_wirkung_entwurf_szene_passt``, Stufe B, ``entwurf.py``). Dieser
+    Test haelt fest, dass Phase 7 -- und damit jede Phase ausser 5 --
+    weiterhin GENAU den bisherigen Weg laeuft: ``repo.setze_szene_fertig``
+    stempelt ``fertig_am``, ``_biete_weiter_nach_szene`` wird gerufen, und
+    vom neuen Entwurf-Code (``entwurf_bestaetigt_am``, automatischer
+    Phasenwechsel) passiert in Phase 7 NICHTS."""
+    from interview_theater.knoepfe import wirkung
+
+    phasen.setze(conn, 1, 7, "befehl")
+    szene_id = _eine_szene(conn)
+    repo.aktualisiere_szene(conn, szene_id, "Am Bahnhof", None, "MARIA: Da.")
+    knoepfe.biete_nach_szenentext(conn, tg, 1, 1, "Szene 1")
+
+    gerufen = []
+    monkeypatch.setattr(
+        wirkung, "_biete_weiter_nach_szene",
+        lambda conn_, tg_, chat_id_, nummer_: gerufen.append((chat_id_, nummer_)),
+    )
+
+    _druecke(conn, tg, einst, knoepfe.TEXT_PASST_KNOPF)
+
+    zeile = repo.hole_szene(conn, szene_id)
+    assert (zeile["fertig_am"] or "").strip()
+    assert zeile["entwurf_bestaetigt_am"] is None
+    assert gerufen == [(1, 1)]
+    assert phasen.aktuelle(conn, 1) == 7  # kein automatischer Sprung
+
+
 def test_naechste_szene_springt_zur_naechsten_offenen(conn, einst, tg):
     _eine_szene(conn, nummer=1)
     _eine_szene(conn, nummer=2)

@@ -1692,36 +1692,46 @@ def test_starte_buehnenkarte_tut_nichts_ohne_klm(conn, tg, einst, monkeypatch):
     assert not aufgerufen
 
 
-def test_starte_buehnenkarte_legt_eine_karte_an_und_meldet_genau_eine_zeile(conn, tg, einst, monkeypatch):
+def test_starte_buehnenkarte_legt_eine_karte_an_und_sendet_keine_chatzeile(conn, tg, einst, monkeypatch):
+    """Birk, 02.10.2026 (Padua-Feedback b): der Bot schreibt im Brainstorm-
+    Modus NICHT in den Chat -- die neue Karte zeigt sich nur ueber den
+    CoThinker-Tab-Marker und das sich live aktualisierende Panel, beide auf
+    der Web-Seite (``web_vereint``/``web_chat``), nicht hier."""
     monkeypatch.setattr(
         aufnahme.buehnenkarte, "erzeuge",
         lambda *a, **k: ("Thema gerade: Testkarte.", "infomaniak"),
     )
     aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
-    # Der Lauf ist ein eigener Thread -- auf BEIDE Wirkungen warten statt zu raten.
+    # Der Lauf ist ein eigener Thread -- auf die Karte warten statt zu raten.
     for _ in range(50):
-        if repo.buehnenkarten(conn, 1) and tg.gesendet:
+        if repo.buehnenkarten(conn, 1):
             break
         time.sleep(0.02)
     karten = repo.buehnenkarten(conn, 1)
     assert len(karten) == 1
     assert karten[0]["text"] == "Thema gerade: Testkarte."
-    assert [t for _, t in tg.gesendet].count("Neue Karte im Tab Bühne") == 1
-
-
-def test_starte_buehnenkarte_bei_nichts_speichert_keine_karte_und_sendet_nichts(conn, tg, einst, monkeypatch):
-    monkeypatch.setattr(aufnahme.buehnenkarte, "erzeuge", lambda *a, **k: (None, "infomaniak"))
-    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
-    for _ in range(20):
-        time.sleep(0.02)
-    assert repo.buehnenkarten(conn, 1) == []
     assert not tg.gesendet
 
 
-def test_melde_neue_karte_sendet_nicht_zweimal_hintereinander(conn, tg, einst):
-    aufnahme._melde_neue_karte(conn, tg, einst, 1)
-    aufnahme._melde_neue_karte(conn, tg, einst, 1)
-    assert len(tg.gesendet) == 1
+def test_starte_buehnenkarte_bei_nichts_speichert_eine_schweigen_zeile_und_sendet_nichts(
+    conn, tg, einst, monkeypatch,
+):
+    """Nachtrag Karte Padua Brainstorm (03.10.2026): bisher blieb die Tabelle
+    bei NICHTS ganz leer -- "zugehoert, geschwiegen" war von "nie gelaufen"
+    nicht zu unterscheiden. Jetzt haengt ein Schweigen-Versuch eine eigene,
+    leere Zeile an (nie geaendert, nur angehaengt), aber es geht weiterhin
+    KEINE Chatzeile und KEINE Markierung heraus."""
+    monkeypatch.setattr(aufnahme.buehnenkarte, "erzeuge", lambda *a, **k: (None, "infomaniak"))
+    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+    for _ in range(50):
+        if repo.buehnenkarten(conn, 1):
+            break
+        time.sleep(0.02)
+    karten = repo.buehnenkarten(conn, 1)
+    assert len(karten) == 1
+    assert karten[0]["schweigen"] == 1
+    assert karten[0]["text"] == ""
+    assert not tg.gesendet
 
 
 def test_ein_laufender_buehnenkarten_lauf_blockiert_einen_zweiten(conn, tg, einst, monkeypatch):
@@ -1744,3 +1754,62 @@ def test_ein_laufender_buehnenkarten_lauf_blockiert_einen_zweiten(conn, tg, eins
             break
         time.sleep(0.02)
     assert len(repo.buehnenkarten(conn, 1)) == 1
+
+
+# -- Leeres Brainstorm-Schlusssegment wird still verworfen (Karte Padua -----
+# Brainstorm, 03.10.2026, Live-Fall: aufnahme 16, 4s, 5 Versuche, dann eine
+# unpassende "verstehe ich nicht"-Meldung im Chat) ---------------------------
+
+
+def _brainstorm_nachricht(message_id, dauer=4, schnittgrund="ende", chat_id=1):
+    """Wie ``sprachnachricht()``, nur mit den beiden Zusatzfeldern, die ein
+    Brainstorm-Segment vom Web-Kanal mitbringt (``empfange()`` liest sie ueber
+    ``n.get(...)``, der gemeinsame Helfer kennt sie nicht)."""
+    return {
+        "chat_id": chat_id,
+        "chat_titel": "Testgruppe",
+        "message_id": message_id,
+        "absender": "Gruppe",
+        "typ": "sprache",
+        "text": None,
+        "file_id": f"FILE-BRAINSTORM-{message_id}",
+        "dauer": dauer,
+        "gesendet_am": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "brainstorm": True,
+        "schnittgrund": schnittgrund,
+    }
+
+
+def test_brainstorm_segment_mit_leerem_transkript_wird_still_verworfen(conn, tg, einst, klm):
+    aid = aufnahme.empfange(conn, tg, einst, _brainstorm_nachricht(600))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(""), aid)
+
+    zeile = repo.hole_aufnahme(conn, aid)
+    assert zeile["status"] == "fehlgeschlagen"
+    assert zeile["versuche"] == 0, "kein Versuch gezaehlt -- es gibt keinen Wiederholungsversuch"
+    assert not tg.gesendet, "keine Chatzeile fuer ein paar Sekunden Rauschen"
+    gruppe = repo.hole_gruppe(conn, 1)
+    assert gruppe["whisper_stumm_seit"] is None, "Stille ist kein Whisper-Ausfall"
+
+
+def test_brainstorm_segment_mit_leerem_transkript_wird_nicht_nachgeholt(conn, tg, einst, klm):
+    aid = aufnahme.empfange(conn, tg, einst, _brainstorm_nachricht(601))
+    aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(""), aid)
+
+    offene = {z["id"] for z in repo.offene_aufnahmen_fuer_bot(conn, "gruppe1")}
+    assert aid not in offene, "repo._NICHTS_ZU_TUN haelt 'fehlgeschlagen' vom Nachhol-Arbeiter fern"
+
+
+def test_normale_kurze_nachricht_mit_leerem_transkript_bleibt_unveraendert(conn, tg, einst, klm):
+    """Regression: die neue Sonderbehandlung gilt NUR fuer
+    ``aufnahme.brainstorm = 1`` -- eine gewoehnliche kurze Sprachnachricht
+    ohne verstaendlichen Inhalt bekommt weiterhin die bestehende Fehlerkette
+    (Wiederholungsversuche, dann die Bitte, es nochmal zu sagen)."""
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=4, message_id=602))
+    for _ in range(aufnahme.MAX_VERSUCHE):
+        aufnahme.verarbeite(conn, tg, klm, einst, stt_attrappe(""), aid)
+
+    zeile = repo.hole_aufnahme(conn, aid)
+    assert zeile["status"] == "fehlgeschlagen"
+    assert zeile["versuche"] == aufnahme.MAX_VERSUCHE
+    assert any("nochmal" in t for _, t in tg.gesendet)

@@ -201,7 +201,17 @@ _TEXT_FRAGE_VERWERFEN_KNOPF = "Discard"
 _TEXT_FRAGE_SCHAERFEN_KNOPF = "Sharpen"
 _TEXT_FRAGE_WAS_AENDERN = "What do you want to change?"
 _TEXT_FRAGE_GESCHAERFT = "Question reworked"
+_TEXT_FRAGE_ANGENOMMEN = "✓ Accepted"
+_TEXT_FRAGE_VERWORFEN = "✗ Discarded"
 _TEXT_FRAGE_ENTSCHIEDEN = "Noted"
+_TEXT_FRAGEN_WEICH_ANGEBOT = "These questions are phrased sensitively. Softer:"
+_TEXT_FRAGEN_WEICH_ZEILE = """\
+{nummer}. {frage}
+   Softer: {weich}"""
+_TEXT_FRAGEN_WEICH_UEBERNEHMEN_KNOPF = "Use the softer versions"
+_TEXT_FRAGEN_WEICH_LASSEN_KNOPF = "Keep them as they are"
+_TEXT_FRAGEN_WEICH_UEBERNOMMEN = "Softer versions adopted"
+_TEXT_FRAGEN_WEICH_BEHALTEN = "Original kept"
 _TEXT_LEITFADEN_KNOPF = "Show interview guide"
 _TEXT_MENUE_ANDERS_KNOPF = "Something else"
 TEXT_ARBEIT_EROEFFNUNG = "✍️ Now the framing for the interview: how you start and how you finish …"
@@ -221,10 +231,14 @@ _TEXT_GESCHICHTE_PASST_KNOPF = "Looks good"
 _TEXT_GESCHICHTE_ANDERS_KNOPF = "Change something"
 _TEXT_GESCHICHTE_NEU_KNOPF = "Rewrite from scratch"
 _TEXT_GESCHICHTE_ANDERS = "Tell me what should change - I'll take it into the next run."
-_TEXT_GESCHICHTE_PASST = "Good. Then we carry on section by section in Polish."
+_TEXT_GESCHICHTE_PASST = "Good. Now we'll continue section by section in the final touches."
 _TEXT_KURZGESCHICHTE_BEREIT = """\
 I can now write your story in one go - from the setting, the characters \
 and your direction. Let me know when."""
+_TEXT_UEBERSICHT_FIXIERT = "Got it -- writing the first scene now."
+_TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT = "On it -- a new overview is coming."
+_TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN = "Got it -- writing the next scene now."
+_TEXT_ALLE_SZENEN_ENTWORFEN = "All scenes have a draft. On to Rewrite."
 _TEXT_SCHON_GESETZT = "That's already in place."
 _TEXT_FIGUREN_ANZAHL_KNOPF = "Change the number"
 _TEXT_FIGUREN_NAMEN_KNOPF = "Change names"
@@ -903,7 +917,7 @@ ERSTKONTAKT = "{anlass} First respond to what was just said, then take your time
 ERSTKONTAKT_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
 ERSTKONTAKT_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
 ERSTKONTAKT_LINK = "; and that the group can follow everything that has been recorded at {url} (only for this group, give the link exactly like this)"
-EINSTIEG_SETTING = "The group is entering phase 4 (Setting, Characters & Story) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (sharpening) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Where we are\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
+EINSTIEG_SETTING = "The group is entering phase 4 (Frame) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (Prose Draft) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Where we are\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
 
 ["kontext".JOURNALART_BESCHRIFTUNG]
 vorgeschlagen = "suggested"
@@ -1095,7 +1109,7 @@ Title — one sentence about what happens — Character, Character
 
 Only use characters listed below. **No form** -- whether a scene becomes a
 dialogue, a monologue, a chorus, a song or a rap is decided by the group
-later, in the final polish, not here.
+later, in Stage Version, not here.
 
 Then one sentence and an open question to the group, two lines at most."""
 ANWEISUNG_FELDER = """You are planning a single scene with a theatre group.
@@ -1522,6 +1536,7 @@ TEXT_LEITFADEN_LEER = "The interview guide is created in phase 2."
 TEXT_LEITFADEN_ZURUECK = "← back to where we are"
 _TEXT_CHAT_LINK = "Chat with the bot"
 _TEXT_BUEHNE_LEER = "No card yet."
+_TEXT_BUEHNE_HOERT_ZU = "Listening … nothing to add yet."
 _TEXT_BUEHNE_OFFEN = "open"
 TEXT_500 = "Something went wrong on our end."
 TEXT_FREMDE_HERKUNFT = "This request didn't come from this page."
@@ -1760,6 +1775,25 @@ _TEXT_INTERVIEW_AN = "Record interview"
 _TEXT_INTERVIEW_AUS = "Stop recording"
 _TEXT_SPRACHE = "Voice message ({dauer})"
 _TEXT_SPRACHE_LAEUFT = "{dauer} · transcribing..."
+# Task 4 (Kanban-Karte Buehne/PTT, 03.10.2026): die serverseitig gerenderten
+# Texte aus chat_koerper/chat_html und ihre Gegenstuecke im laufenden JS
+# (_js()) -- Brainstorm, PTT, Pause/Weiter/Beenden. Der Rest von web_chat.py
+# bleibt weiterhin deutsch (offener Punkt, Karte A1).
+_TEXT_TITEL = "Chat with the theatre bot"
+_TEXT_LEER = "Nothing here yet. Tell me what you'd like to start with."
+_TEXT_ZUR_GRUPPENSEITE = "To the group page"
+_TEXT_OHNE_JS = "This page needs JavaScript for chat and recording. The group page and the script still work without it."
+_TEXT_SENDEN = "Send"
+_TEXT_REST_NACHREICHEN = "Submit the rest as an interview"
+_TEXT_REST_VERWERFEN = "Discard the rest"
+_TEXT_BRAINSTORM_AN = "🎙 Join the brainstorm"
+_TEXT_BRAINSTORM_LAEUFT = "● Listening · {zeit}"
+_TEXT_INTERVIEW_PAUSE = "⏸ Pause"
+_TEXT_INTERVIEW_WEITER = "▶ Continue"
+_TEXT_INTERVIEW_ENDEN = "■ Stop"
+_TEXT_INTERVIEW_LAEUFT = "● Interview running · {zeit}"
+_TEXT_INTERVIEW_PAUSIERT = "Paused · {zeit}"
+_TEXT_PTT = "Tap and speak"
 
 ["web_kanal"]
 # UX-Knoepfe-Karte, Abschnitt 1: der einmalige Hinweis, dass Knoepfe
@@ -1779,7 +1813,10 @@ _TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_a
 chat = "Chat"
 stand = "Workbench"
 textbuch = "Script"
-buehne = "Stage"
+# CoThinker (Birk, 02.10.2026, Padua-Feedback b): DE und EN tragen denselben
+# Namen -- keine Uebersetzung dieses einen Worts. Bleibt beim Merge mit dem
+# UX-Branch erhalten (Orchestrator-Vorgabe 03.10.2026: nicht zurueckdrehen).
+buehne = "CoThinker"
 
 ["web_gestalt"]
 # Die Beschriftungen der Oberflaeche (Karte Padua UX). Kein Bot-Text, kein

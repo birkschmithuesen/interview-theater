@@ -351,6 +351,39 @@ def test_dieselben_fragen_noch_einmal_sind_keine_aenderung(conn, einst):
     assert wirkliche == []
 
 
+def test_fragen_setzen_wird_waehrend_einzeln_durchgehen_verworfen(conn, einst):
+    """Fund 02.10.2026, Padua-Live (web_post 73/74, aufnahme 70): waehrend
+    die Stufe "Fragen einzeln durchgehen" laeuft (``fragen_aktuell`` traegt
+    eine Nummer), darf der Erkenner ``fragen`` nicht schreiben -- live
+    ueberschrieb das genau dieses ``fragen_setzen`` die ganze, schon
+    angenommene Liste mit nur der einen gerade geschaerften Zeile."""
+    repo.setze_arbeitsstand(conn, 1, "fragen", "alte Liste, schon angenommen")
+    repo.setze_arbeitsstand(conn, 1, "fragen_aktuell", "5")
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Apfel: Eine einzelne Zeile"}],
+    )
+
+    assert wirkliche == []
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "alte Liste, schon angenommen"
+
+
+def test_fragen_setzen_wirkt_wieder_sobald_die_stufe_vorbei_ist(conn, einst):
+    """Derselbe Schreibpfad bleibt fuer den Normalfall unveraendert: ohne
+    ``fragen_aktuell`` (Stufe nicht aktiv, oder schon mit
+    ``_schliesse_fragen_ab`` zurueckgesetzt) schreibt fragen_setzen wie
+    vorher."""
+    repo.setze_arbeitsstand(conn, 1, "fragen_aktuell", None)
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "fragen_setzen", "wert": "Neue Liste"}]
+    )
+
+    assert wirkliche == [{"art": "fragen_setzen", "wert": "Neue Liste"}]
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "Neue Liste"
+
+
 def test_fragen_stehen_im_erkenner_kontext(conn, einst):
     """Der Erkenner sieht die schon gesetzten Fragen -- ohne sie koennte er
     eine Rueckfrage danach nicht von einer neuen Liste unterscheiden."""

@@ -28,11 +28,14 @@ sich der Thread beim zweiten ``acquire`` selbst blockieren (Selbst-Deadlock).
 """
 
 import json
+import logging
 import re
 import secrets
 import sqlite3
 import threading
 from datetime import datetime, timezone
+
+log = logging.getLogger(__name__)
 
 #: Serialisiert saemtliche Repo-Funktionen gegeneinander (siehe Moduldocstring
 #: oben). RLock, nicht Lock: repo-interne Aufrufe (aktuell nur
@@ -206,7 +209,23 @@ def merke_nachricht(
     unterdrueckt: int = 0,
 ) -> bool:
     """Speichert eine Nachricht. Liefert True bei Neueinfuegung, False bei Duplikat
-    (chat_id, message_id) ist Primaerschluessel, daher INSERT OR IGNORE."""
+    (chat_id, message_id) ist Primaerschluessel, daher INSERT OR IGNORE.
+
+    Defensiver Waechter (Fund 02.10.2026, Padua-Live): message_id MUSS eine
+    Zahl sein -- ein Aufrufer, der versehentlich einen Quittungstext statt
+    einer message_id durchreicht (wie uebernimm_schaerfung es vor dem Fix
+    tat), darf hier nicht erst in der Datenbank landen. SQLite sortiert TEXT
+    ueber jedem INTEGER; eine solche Zeile wuerde erkenner.erkenne
+    (max(n["message_id"] ...)) mit einem TypeError fuer immer blockieren,
+    weil sie nie wieder das hoechste message_id waere und das Wasserzeichen
+    nicht daran vorbeikaeme. Lieber die Nachricht gar nicht mitschreiben als
+    den Erkenner dieser Gruppe dauerhaft lahmlegen."""
+    if isinstance(message_id, bool) or not isinstance(message_id, int):
+        log.error(
+            "merke_nachricht mit nicht-numerischer message_id=%r abgelehnt, "
+            "chat_id=%s", message_id, chat_id,
+        )
+        return False
     cur = conn.execute(
         """
         INSERT OR IGNORE INTO nachricht
@@ -315,13 +334,21 @@ def unextrahierte(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     siehe TYP_TRANSKRIPT) und Entwickler-Notizen (``typ='entwicklernotiz'``,
     siehe TYP_ENTWICKLERNOTIZ): was die interviewte Person erzaehlt, ist keine
     Aenderungsabsicht der Gruppe, und eine Notiz an die Entwicklung erst
-    recht nicht."""
+    recht nicht.
+
+    ``typeof(n.message_id) = 'integer'`` (Fund 02.10.2026, Padua-Live):
+    verteidigt gegen eine bereits in der Datenbank liegende kaputte Zeile
+    (ein Text statt einer Zahl in ``message_id``, siehe ``merke_nachricht``)
+    -- ohne diesen Filter wuerde ``erkenner.erkenne``
+    (``max(n["message_id"] ...)``) an genau so einer Zeile mit einem
+    TypeError scheitern, und zwar bei JEDEM Lauf dieser Gruppe von da an."""
     return conn.execute(
         f"""
         SELECT n.* FROM nachricht n
         JOIN gruppe g ON g.chat_id = n.chat_id
         WHERE n.chat_id = ?
           AND n.message_id > g.letzte_extrahierte_message_id
+          AND typeof(n.message_id) = 'integer'
           AND {_OHNE_TRANSKRIPT_ECHO}
         ORDER BY n.message_id ASC
         """,

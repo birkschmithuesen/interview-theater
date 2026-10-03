@@ -196,14 +196,26 @@ def test_frage_fuer_frage_zeigt_kopf_und_weiche_fassung(conn, tg):
     assert beschriftungen == ["Annehmen", "Verwerfen", "Schaerfen"]
 
 
-def test_eine_sensible_frage_zeigt_die_weiche_fassung_darunter(conn, tg, einst):
+def test_eine_sensible_frage_zeigt_die_weiche_fassung_nicht_mehr_darunter(
+    conn, tg, einst,
+):
+    """Fund 02.10.2026, Birk: "Warum kommt bei Frage 5/25 ein Vorschlag, es
+    softer zu formulieren? Mach die softere Formulierung nicht direkt bei
+    der Frage, sondern als Angebot am Ende von allen Fragen." Die weiche
+    Fassung bleibt gespeichert (``arbeitsstand.fragen_weich``), erscheint
+    aber nicht mehr unter der einzelnen Frage -- erst als Angebot nach der
+    letzten Entscheidung (``_biete_weiche_fassungen_an``)."""
     _vorschlag_zeigen(conn, tg)
     knoepfe.starte_durchgehen(conn, tg, 1)
     _druecke(conn, tg, einst, "Annehmen")  # weiter zu Frage 2
 
     text = tg.gesendet[-1][1]
     assert text.startswith("Frage 2/3 · Heimat")
-    assert "Du musst nichts Privates teilen" in text
+    assert "Du musst nichts Privates teilen" not in text
+    assert "Weicher" not in text
+    assert "sensibel" not in text
+    # Die weiche Fassung ist weiterhin gespeichert, nur nicht mehr gezeigt.
+    assert "2" in (repo.hole_arbeitsstand(conn, 1)["fragen_weich"] or "")
 
 
 def test_annehmen_geht_zur_naechsten_frage(conn, tg, einst):
@@ -289,6 +301,38 @@ def test_die_ueberarbeitete_frage_ersetzt_nur_diese_eine_zeile(conn, tg):
     beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
     assert beschriftungen == ["Annehmen", "Verwerfen", "Schaerfen"]
     assert repo.hole_arbeitsstand(conn, 1)["fragen_aktuell"] == "1"
+
+
+def test_uebernimm_schaerfung_liefert_die_echte_message_id_nicht_den_text(
+    conn, tg,
+):
+    """Fund 02.10.2026, Padua-Live (aufnahme 66-70, web_post 73/74): vor dem
+    Fix lieferte ``uebernimm_schaerfung`` den Quittungstext
+    (``T._TEXT_FRAGE_GESCHAERFT``) statt der ``message_id`` zurueck.
+    ``basis.sende_mit_speicherleiste`` reicht genau diesen Rueckgabewert als
+    ``message_id`` an ``repo.merke_nachricht`` weiter -- in der Live-Datenbank
+    stand danach ein Text in der Spalte ``message_id``, und SQLite sortiert
+    TEXT ueber jedem INTEGER: ``erkenner.erkenne``
+    (``max(n["message_id"] ...)``) scheiterte seitdem bei JEDEM Lauf dieser
+    Gruppe. Diese Zeile muss eine echte, mit der echten Bot-Nachricht
+    uebereinstimmende Zahl sein."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    message_id, leiste = knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG FRAGE:\nHeimat: Wann warst du zuletzt fremd?",
+    )
+
+    assert isinstance(message_id, int)
+    assert message_id == tg.naechste_message_id
+    # repo.merke_nachricht wurde intern schon mit genau dieser message_id
+    # aufgerufen (ueber _zeige_frage) -- ein zweiter Versuch mit derselben
+    # Zahl ist also ein erwarteter Duplikat-Fall (Primaerschluessel), kein
+    # Fehler. Entscheidend ist der Typ: eine Zahl, kein Quittungstext.
+    assert repo.merke_nachricht(
+        conn, 1, message_id + 1, "Bot", 1, "text", "Frage ueberarbeitet",
+        "2026-10-02T10:00:00",
+    ) is True
 
 
 def test_die_ueberarbeitung_kann_die_weiche_fassung_mitbringen(conn, tg):
@@ -455,3 +499,210 @@ def test_der_weiche_block_steht_nicht_als_fliesstext_vor_der_liste(conn, tg):
     assert "Du musst nichts Privates teilen" not in gesendet
     assert gesendet.startswith("Hier sind ein paar Fragen dazu.")
     assert "Heimat" in gesendet
+
+
+# --- 8. Entscheidungs-spezifische Quittung statt "Notiert" (Fund 02.10.2026) -
+
+
+def test_annehmen_quittiert_mit_angenommen_nicht_notiert(conn, tg, einst):
+    """Birk, Padua-Live: statt des immer gleichen "Notiert" soll im
+    Toast/answerCallbackQuery die tatsaechliche Entscheidung stehen."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    _druecke(conn, tg, einst, "Annehmen")
+
+    assert tg.beantwortet[-1][1] == knoepfe.T._TEXT_FRAGE_ANGENOMMEN
+    assert tg.beantwortet[-1][1] != knoepfe.T._TEXT_FRAGE_ENTSCHIEDEN
+
+
+def test_verwerfen_quittiert_mit_verworfen_nicht_notiert(conn, tg, einst):
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    _druecke(conn, tg, einst, "Verwerfen")
+
+    assert tg.beantwortet[-1][1] == knoepfe.T._TEXT_FRAGE_VERWORFEN
+    assert tg.beantwortet[-1][1] != knoepfe.T._TEXT_FRAGE_ENTSCHIEDEN
+
+
+def test_letzte_annahme_quittiert_trotz_abschluss_mit_angenommen(conn, tg, einst):
+    """Auch wenn die Annahme die letzte offene Frage war und
+    ``_schliesse_fragen_ab`` danach die Abschlussnachricht verschickt, bleibt
+    die Knopf-Quittung die Entscheidung -- nicht die Abschlusstext-Konstante."""
+    _vorschlag_zeigen(conn, tg, wert=(
+        "Hier ist eine Frage.\n\nVORSCHLAG FRAGENAUSWAHL:\n"
+        "Heimat: Wann hast du dich zuletzt fremd gefuehlt?"
+    ))
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    _druecke(conn, tg, einst, "Annehmen")
+
+    assert tg.beantwortet[-1][1] == knoepfe.T._TEXT_FRAGE_ANGENOMMEN
+
+
+# --- 9. Keine doppelte Leiste nach Schaerfen (Fund 02.10.2026) --------------
+
+
+def test_schaerfen_dann_freitext_dann_erkenner_erzeugt_nur_eine_leiste(
+    conn, tg, einst, auftraege,
+):
+    """Regression fuer den vollen Live-Befund (Padua, 02.10.2026, aufnahme
+    66-70, web_post 73/74, chat_id 7000000000000): Birk drueckt "Schaerfen",
+    sagt per Sprache "Die Frage soll so bleiben, wie sie ist", das Modell
+    antwortet im selben Zug mit einer neuen ``VORSCHLAG FRAGE:``-Zeile.
+
+    Vor diesem Fix liefen danach ZWEI unabhaengige Pfade uebereinander:
+    1. ``nimm_offene_frage_text``/``uebernimm_schaerfung`` zeigt die Frage
+       (korrekt) mit Annehmen/Verwerfen/Schaerfen erneut.
+    2. Der naechste Erkenner-Lauf (``erkenner.laufe``) sah dieselbe
+       Nachricht, erkannte sie zusaetzlich als ``fragen_setzen`` und haengte
+       SEINE eigene generische Speicherleiste unter eine zweite,
+       "Notiert:"-Nachricht -- UND ueberschrieb ``arbeitsstand.fragen`` mit
+       nur dieser einen Zeile.
+
+    Nach dem Fix (``erkenner._wende_arbeitsstand_an``, geschuetzt durch
+    ``knoepfe.einzeln_aktiv``): der Erkenner-Lauf darf waehrend "Fragen
+    einzeln durchgehen" kein ``fragen`` schreiben und haengt daher keine
+    zweite Leiste an -- genau eine Knopfzeile bleibt uebrig, und
+    ``arbeitsstand.fragen`` (die GANZE, schon angenommene Liste, nicht die
+    Auswahl) bleibt unangetastet."""
+    from interview_theater import erkenner
+
+    from test_erkenner import LLMAttrappe
+
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    repo.setze_arbeitsstand(conn, 1, "fragen", "alte, schon angenommene Liste")
+
+    # 1. Knopfdruck "Schaerfen".
+    _druecke(conn, tg, einst, "Schaerfen")
+
+    # 2. Freier Sprachwunsch: "Die Frage soll so bleiben, wie sie ist."
+    knoepfe.nimm_offene_frage_text(
+        conn, tg, None, einst, 1, "Die Frage soll so bleiben, wie sie ist.",
+    )
+
+    # 3. Das Modell antwortet im selben Zug mit einer neuen Frage-Zeile --
+    # genau der VORSCHLAG-FRAGE-Block, den uebernimm_schaerfung versteht.
+    # Das ist der EINZIGE Pfad, der die Frage wieder zeigen darf (korrekt:
+    # Annehmen/Verwerfen/Schaerfen) -- die Baseline wird danach genommen.
+    antwort = (
+        "Understood — the original wording stays exactly as it is.\n\n"
+        "VORSCHLAG FRAGE:\nApfel: If you had to pass on one thing about "
+        "apples to someone who doesn't know them, what would it be?"
+    )
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, antwort)
+    anzahl_leisten_vor_erkenner = len(tg.knoepfe)
+    nachricht_id_frage = tg.naechste_message_id - 1
+    repo.merke_nachricht(
+        conn, 1, nachricht_id_frage, "Bot", 1, "text", antwort,
+        "2026-10-02T10:00:00",
+    )
+
+    # 4. Genau DIESER Zug (die eben versandte Bot-Nachricht als "neue"
+    # Nachricht gesehen) laeuft jetzt durch den Erkenner-Nachlauf -- wie live
+    # aufnahme 70, die direkt nach aufnahme 69 (der Gespraechszug) feuerte.
+    klm = LLMAttrappe(antwort={
+        "aenderungen": [{
+            "art": "fragen_setzen",
+            "wert": "Apfel: If you had to pass on one thing about apples "
+                    "to someone who doesn't know them, what would it be?",
+        }],
+    })
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    # Keine zweite Leiste: der Erkenner-Lauf darf hier keine eigene
+    # "Notiert:"-Nachricht mit Grundleiste anhaengen.
+    assert len(tg.knoepfe) == anzahl_leisten_vor_erkenner, (
+        f"zweite Knopfzeile aufgetaucht: {tg.knoepfe[anzahl_leisten_vor_erkenner:]}"
+    )
+    # Und arbeitsstand.fragen (die GANZE angenommene Liste) bleibt
+    # unangetastet -- nicht durch die eine VORSCHLAG-FRAGE-Zeile ersetzt.
+    assert (
+        repo.hole_arbeitsstand(conn, 1)["fragen"]
+        == "alte, schon angenommene Liste"
+    )
+
+
+# --- 10. Weiche Fassungen als Angebot am Ende (Fund 02.10.2026) ------------
+
+
+def test_abschluss_mit_sensibler_frage_bietet_weiche_fassungen_an(
+    conn, tg, einst, auftraege,
+):
+    """Birk, Padua-Live: "Mach die softere Formulierung nicht direkt bei der
+    Frage, sondern als Angebot am Ende von allen Fragen." Nach der letzten
+    Entscheidung kommt -- wenn mindestens eine angenommene Frage eine weiche
+    Fassung hat -- GENAU EIN zusaetzliches Angebot mit beiden Knoepfen, VOR
+    der Eroeffnung (die noch nicht anlaufen darf)."""
+    _vorschlag_zeigen(conn, tg)  # Frage 2 (Heimat: Was nimmst du mit...) ist weich
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    _druecke(conn, tg, einst, "Annehmen")  # Frage 1 -> Frage 2
+    _druecke(conn, tg, einst, "Annehmen")  # Frage 2 (weich) -> Frage 3
+    _druecke(conn, tg, einst, "Annehmen")  # Frage 3 -> Abschluss
+
+    angebot_text = tg.knoepfe[-1][1]
+    assert angebot_text.startswith(knoepfe.T._TEXT_FRAGEN_WEICH_ANGEBOT)
+    assert "Was nimmst du mit, wenn du umziehen musst?" in angebot_text
+    assert "Du musst nichts Privates teilen" in angebot_text
+    beschriftungen = [b for b, _ in tg.knoepfe[-1][2]]
+    assert beschriftungen == [
+        knoepfe.T._TEXT_FRAGEN_WEICH_UEBERNEHMEN_KNOPF,
+        knoepfe.T._TEXT_FRAGEN_WEICH_LASSEN_KNOPF,
+    ]
+    # Die Eroeffnung ist NICHT schon angelaufen -- kein Auftrag ausgeloest,
+    # ausser dem der Frageliste selbst (keiner hier, da alles angenommen).
+    assert auftraege == []
+
+
+def test_abschluss_ohne_sensible_frage_bietet_nichts_an(conn, tg, einst, auftraege):
+    """Ohne weiche Fassung bleibt der Ablauf unveraendert: die Eroeffnung
+    startet direkt, kein Angebot dazwischen."""
+    _vorschlag_zeigen(conn, tg, wert=(
+        "Hier ist eine Frage.\n\nVORSCHLAG FRAGENAUSWAHL:\n"
+        "Heimat: Wann hast du dich zuletzt fremd gefuehlt?"
+    ))
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    _druecke(conn, tg, einst, "Annehmen")
+
+    # Kein Angebot: direkt die Eroeffnung (als Auftrag an das Modell).
+    assert len(auftraege) == 1
+    for _, text, _ in tg.knoepfe:
+        assert text != knoepfe.T._TEXT_FRAGEN_WEICH_ANGEBOT
+
+
+def test_weiche_fassungen_uebernehmen_startet_dann_die_eroeffnung(
+    conn, tg, einst, auftraege,
+):
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    _druecke(conn, tg, einst, "Annehmen")
+    _druecke(conn, tg, einst, "Annehmen")
+    _druecke(conn, tg, einst, "Annehmen")
+    vor_weich = repo.hole_arbeitsstand(conn, 1)["fragen_weich"]
+    assert vor_weich  # die weiche Fassung steht noch
+
+    _druecke(conn, tg, einst, knoepfe.T._TEXT_FRAGEN_WEICH_UEBERNEHMEN_KNOPF)
+
+    # fragen_weich bleibt stehen -- der Leitfaden nutzt es.
+    assert repo.hole_arbeitsstand(conn, 1)["fragen_weich"] == vor_weich
+    # Die Eroeffnung ist jetzt angelaufen (ein Auftrag an das Modell).
+    assert len(auftraege) == 1
+
+
+def test_weich_lassen_leert_fragen_weich_und_startet_die_eroeffnung(
+    conn, tg, einst, auftraege,
+):
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    _druecke(conn, tg, einst, "Annehmen")
+    _druecke(conn, tg, einst, "Annehmen")
+    _druecke(conn, tg, einst, "Annehmen")
+
+    _druecke(conn, tg, einst, knoepfe.T._TEXT_FRAGEN_WEICH_LASSEN_KNOPF)
+
+    assert (repo.hole_arbeitsstand(conn, 1)["fragen_weich"] or "") == ""
+    assert len(auftraege) == 1

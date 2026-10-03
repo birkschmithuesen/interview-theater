@@ -16,6 +16,7 @@ bleiben alle Schwellen ueber die Umgebung nachjustierbar.
 
 import os
 import threading
+from datetime import datetime, timezone
 
 VORGABE_MIN_ZEICHEN = 1200
 VORGABE_MIN_ABSTAND_S = 90
@@ -81,7 +82,7 @@ def soll_reagieren(
 #: Segment einfach weiter mit ("pending text accumulates into the next
 #: turn").
 _LAEUFT_LOCK = threading.Lock()
-_LAEUFT: set[int] = set()
+_LAEUFT: dict[int, str] = {}
 
 
 def versuche_start(chat_id: int) -> bool:
@@ -90,7 +91,7 @@ def versuche_start(chat_id: int) -> bool:
     with _LAEUFT_LOCK:
         if chat_id in _LAEUFT:
             return False
-        _LAEUFT.add(chat_id)
+        _LAEUFT[chat_id] = datetime.now(timezone.utc).isoformat()
         return True
 
 
@@ -98,4 +99,15 @@ def beende(chat_id: int) -> None:
     """Gibt die Sperre wieder frei -- immer in einem ``finally``, auch nach
     einem Fehlschlag."""
     with _LAEUFT_LOCK:
-        _LAEUFT.discard(chat_id)
+        _LAEUFT.pop(chat_id, None)
+
+
+def laeuft(chat_id: int) -> bool:
+    """Oeffentliche Lesefunktion: laeuft fuer diese Gruppe gerade ein
+    Buehnenkarten-Versuch (innerhalb DIESES Prozesses)? Im echten Betrieb
+    (Bot und Webserver als getrennte Prozesse) ist das NICHT der Kanal,
+    ueber den der Webserver das erfaehrt -- siehe
+    arbeitsstand.brainstorm_lauf_seit (db.py/repo.py) fuer den
+    Prozess-uebergreifenden Weg."""
+    with _LAEUFT_LOCK:
+        return chat_id in _LAEUFT

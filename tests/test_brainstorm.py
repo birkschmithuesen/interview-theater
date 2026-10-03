@@ -97,3 +97,11 @@ def test_verschiedene_gruppen_stoeren_sich_nicht():
     assert brainstorm.versuche_start(1002) is True
     brainstorm.beende(1001)
     brainstorm.beende(1002)
+
+
+def test_laeuft_ist_false_vor_start_true_danach_false_nach_beende():
+    assert brainstorm.laeuft(1003) is False
+    assert brainstorm.versuche_start(1003) is True
+    assert brainstorm.laeuft(1003) is True
+    brainstorm.beende(1003)
+    assert brainstorm.laeuft(1003) is False

@@ -1042,6 +1042,7 @@ def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
         return
     if not brainstorm.versuche_start(chat_id):
         return
+    repo.markiere_buehnenkarten_lauf(conn, chat_id, repo._jetzt())
     # VOR dem Lauf gelesen: die Markierung soll genau die Segmente abdecken,
     # die die Karte tatsaechlich gesehen hat -- ein waehrend des Laufs neu
     # eingetroffenes Segment bleibt UNREAGIERT und zaehlt beim naechsten Mal.
@@ -1073,6 +1074,7 @@ def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
             log.exception("Buehnenkarten-Lauf fehlgeschlagen, chat_id=%s", chat_id)
         finally:
             brainstorm.beende(chat_id)
+            repo.markiere_buehnenkarten_lauf(conn, chat_id, None)
 
     threading.Thread(target=_lauf, daemon=True).start()
 

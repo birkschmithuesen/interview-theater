@@ -114,3 +114,29 @@ def test_eine_andere_gruppe_sieht_nichts(conn):
     assert repo.brainstorm_stand(conn, CHAT + 1)["unreagierte_zeichen"] == 0
     assert repo.brainstorm_transkript(conn, CHAT + 1) == ""
     assert repo.buehnenkarten(conn, CHAT + 1) == []
+
+
+def _brainstorm_lauf_seit(conn, chat_id: int):
+    zeile = conn.execute(
+        "SELECT brainstorm_lauf_seit FROM arbeitsstand WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    return zeile[0] if zeile else None
+
+
+def test_markiere_buehnenkarten_lauf_setzt_den_zeitstempel(conn):
+    assert _brainstorm_lauf_seit(conn, CHAT) is None
+    repo.markiere_buehnenkarten_lauf(conn, CHAT, "2026-10-03T10:00:00+00:00")
+    assert _brainstorm_lauf_seit(conn, CHAT) == "2026-10-03T10:00:00+00:00"
+
+
+def test_markiere_buehnenkarten_lauf_loescht_mit_none(conn):
+    repo.markiere_buehnenkarten_lauf(conn, CHAT, "2026-10-03T10:00:00+00:00")
+    repo.markiere_buehnenkarten_lauf(conn, CHAT, None)
+    assert _brainstorm_lauf_seit(conn, CHAT) is None
+
+
+def test_markiere_buehnenkarten_lauf_beruehrt_andere_gruppe_nicht(conn):
+    repo.sichere_gruppe(conn, CHAT + 1, "gruppe2", "Andere")
+    repo.markiere_buehnenkarten_lauf(conn, CHAT, "2026-10-03T10:00:00+00:00")
+    assert _brainstorm_lauf_seit(conn, CHAT + 1) is None

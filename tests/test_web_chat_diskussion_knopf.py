@@ -64,15 +64,14 @@ def _toggle_tag(seite: str) -> str:
 
 def test_der_knopf_ist_standardmaessig_verborgen(datenbank, monkeypatch):
     """Ohne Profilflag und ausserhalb Phase 1 bleibt ``diskussion_knopf``
-    falsch (Task 4) -- und die vier Elemente stehen trotzdem IMMER im
+    falsch (Task 4) -- und die drei Elemente stehen trotzdem IMMER im
     Markup, nur ``hidden`` folgt dem Flag (wie beim Brainstorm-Knopf)."""
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: False)
     pfad, token = datenbank
     zustand = _zustand(pfad, token, phase=1)
     assert zustand["diskussion_knopf"] is False
     seite = web_chat.chat_html(zustand, "n", token, "", 45000)
-    for kennung in ("diskussion", "diskussion-aktionen", "diskussion-pause",
-                    "diskussion-beenden"):
+    for kennung in ("diskussion", "diskussion-aktionen", "diskussion-beenden"):
         assert f'id="{kennung}"' in seite, kennung
     tag = _diskussion_tag(seite)
     assert " hidden" in tag

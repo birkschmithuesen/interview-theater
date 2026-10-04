@@ -479,6 +479,10 @@ def test_diskussion_voller_ablauf_im_browser(lauf, seite):
     seite.click("#diskussion")
     expect(seite.locator("#diskussion")).to_have_attribute("data-laeuft", "1")
 
+    # Birk 04.10.2026: nur Start und Fertig -- kein Pause-Knopf mehr.
+    expect(seite.locator("#diskussion-aktionen button")).to_have_count(1)
+    assert seite.locator("#diskussion-pause").count() == 0
+
     # (4) Mindestens ein Segment ueberschreitet IT_WEB_VAD_MAX_MS und wird
     # hochgeladen, transkribiert (gefaelschtes Whisper) und als Echo-Blase
     # der Gruppe gespiegelt (aufnahme._diskussion_abschliessen,
@@ -527,15 +531,18 @@ def test_diskussion_voller_ablauf_im_browser(lauf, seite):
 
 
 def test_begriffsboard_im_cothinker_und_top5_vorschlag(lauf, seite, monkeypatch):
-    """Karte t_4517d4ad: Start -> Segment -> "Discussion done" -> Schlusslauf
+    """Karte t_4517d4ad: Start -> Segment -> "Discussion done" ->
+    regulärer Lauf auf dem Ende-Schnitt
     -> Board-Eintrag im CoThinker-Panel -> Top-5-Vorschlag mit EINEM Knopf
     "Take these". Der Zwischenlauf nach einem Pausenschnitt ist im Browser
     nicht herstellbar (Dauerton, nur ``cap``-Schnitte, siehe Dateikopf) und
     in ``tests/test_begriffsboard_mithoeren.py`` am echten ``aufnahme``-Pfad
     getestet."""
     _basis, _token, _pfad, klm = lauf
-    # Schlusslauf schon ab einem Zeichen (die Segmente tragen nur TRANSKRIPT).
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "1")
+    # Endstand = Zwischenstand (Birk 04.10.2026): der Ende-Schnitt laeuft
+    # unter derselben Regel wie ein Pausenschnitt -- die Schwelle dafuer ist
+    # die des Boards, hier auf ein Zeichen gesenkt.
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1")
     klm.board = [{
         "begriff": "ankamen", "nennungen": 2, "zustimmung": 2,
         "begruendung": "Das Ankommen hier verbindet uns.",

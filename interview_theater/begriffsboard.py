@@ -6,8 +6,10 @@ Gespraechszug, kein Erkenner, keine Chatzeile --, aber nach jedem
 qualifizierenden Segment (``brainstorm.soll_reagieren``, unveraendert)
 laeuft ein Schema-Aufruf, der ein Board der genannten Begriffe fortschreibt.
 Das Board steht im CoThinker-Tab; bei "Discussion done" schlaegt der Bot
-seine Top 5 vor, und beim Speichern der Begriffe geht je Begriff die
-Boardzeile nach ``arbeitsstand.begriffe_detail``.
+seine Top 5 vor — nach Birks Entscheidung vom 04.10.2026 ohne eigenen
+Schlusslauf: der Ende-Schnitt ist ein gewöhnlicher Schnitt (``soll_laufen``),
+der Vorschlag zeigt das Board, wie es ist. Beim Speichern der Begriffe geht
+je Begriff die Boardzeile nach ``arbeitsstand.begriffe_detail``.
 
 **Validiert wird im Code, nicht im Prompt** (``validiere``): ein Begriff,
 der nicht im Transkript steht oder nur ein Ansage-/Mikrofonwort ist
@@ -16,6 +18,12 @@ besteht, wird leer. **Belegpflicht (Karte t_2b9d2cbe):** eine Begruendung
 bleibt nur, wenn ein geprueftes Zitat sie traegt, das mehr enthaelt als
 Begriff und Ansage (``traegt_beleg``), und wenn sie kein Fuellsatz ist
 ("wird genannt/gesammelt", ``ist_fuellsatz``); sonst wird sie leer.
+
+**Schaerfung (Karte t_cb2c4678):** das Modell nennt je Eintrag
+``vorheriger_begriff`` (den ersetzten Begriff oder ""), der Code prueft es
+gegen das bisherige Board und fuehrt daraus ``vorgaenger`` (aelteste
+zuerst, nur am Eintrag, wenn nicht leer). Die Kette ist nie Modelltext:
+jedes Element ist der Wortlaut eines frueheren ``begriff`` dieses Boards.
 
 **Der Boardlauf kennt kein ``tg``** (``starte``/``_lauf_einmal``): er kann
 strukturell keine Chatzeile schreiben (D5). Der einzige Chatweg dieses
@@ -198,19 +206,46 @@ def _ganzzahl(wert) -> int:
         return 0
 
 
+def _ein_begriff(roh) -> str | None:
+    """EIN Begriff in fester Form (Whitespace zusammengezogen), oder None,
+    wenn ``roh`` leer ist oder einen Listentrenner traegt -- er zerfiele beim
+    Speichern (``begriffe.zerlege``) in zwei. Dieselbe Regel fuer ``begriff``
+    und fuer jedes Element von ``vorgaenger``."""
+    teile = begriffe_modul.zerlege(" ".join(str(roh or "").split()))
+    return teile[0] if len(teile) == 1 else None
+
+
+def _vorgaenger(roh, eigener: str) -> list[str]:
+    """Eine Vorgaengerkette defensiv gelesen (Karte t_cb2c4678, D1): nur
+    Zeichenketten, die als EIN Begriff durchgehen, ohne den eigenen Begriff,
+    ohne Doppelte (erste Nennung gilt), aelteste zuerst. Fehlt sie oder ist
+    sie keine Liste: keine Kette."""
+    if not isinstance(roh, list):
+        return []
+    kette: list[str] = []
+    gesehen = {schluessel(eigener)}
+    for element in roh:
+        begriff = _ein_begriff(element) if isinstance(element, str) else None
+        if begriff is None or schluessel(begriff) in gesehen:
+            continue
+        gesehen.add(schluessel(begriff))
+        kette.append(begriff)
+    return kette
+
+
 def _eintrag(zeile) -> dict | None:
     """Eine Zeile in die feste Form -- ohne Transkriptpruefung (die macht
-    ``validiere``). None, wenn sie keinen brauchbaren Begriff traegt."""
+    ``validiere``). None, wenn sie keinen brauchbaren Begriff traegt.
+    ``vorgaenger`` steht nur da, wenn die Kette nicht leer ist: ein Board
+    ohne Schaerfung bleibt Zeichen fuer Zeichen, wie es war."""
     if not isinstance(zeile, dict):
         return None
-    teile = begriffe_modul.zerlege(" ".join(str(zeile.get("begriff") or "").split()))
-    if len(teile) != 1:
-        # Leer, oder ein Listentrenner im Begriff: er zerfiele beim
-        # Speichern (``begriffe.zerlege``) in zwei.
+    begriff = _ein_begriff(zeile.get("begriff"))
+    if begriff is None:
         return None
     status = str(zeile.get("status") or "").strip().casefold()
-    return {
-        "begriff": teile[0],
+    eintrag = {
+        "begriff": begriff,
         "nennungen": max(0, _ganzzahl(zeile.get("nennungen"))),
         "zustimmung": min(ZUSTIMMUNG_MAX, max(ZUSTIMMUNG_MIN, _ganzzahl(zeile.get("zustimmung")))),
         "begruendung": str(zeile.get("begruendung") or "").strip(),
@@ -218,14 +253,45 @@ def _eintrag(zeile) -> dict | None:
         "doppelbedeutung": str(zeile.get("doppelbedeutung") or "").strip(),
         "status": status if status in STATUS else "kandidat",
     }
+    kette = _vorgaenger(zeile.get("vorgaenger"), begriff)
+    if kette:
+        eintrag["vorgaenger"] = kette
+    return eintrag
 
 
-def validiere(roh, transkript: str) -> list[dict]:
+def _verkette(neu: list[dict], links: list, bisher: list[dict]) -> None:
+    """Fuehrt ``vorgaenger`` (D1, Karte t_cb2c4678) -- allein der Code.
+
+    Ein Eintrag mit einem Schluessel aus ``bisher`` erbt dessen Kette. Ein
+    ``vorheriger_begriff`` des Modells zaehlt NUR, wenn er auf einen Eintrag
+    aus ``bisher`` zeigt, der im neuen Board nicht mehr als eigene Zeile
+    steht und nicht der Eintrag selbst ist; dann wird dessen Kette plus
+    dessen Begriff angehaengt -- im Wortlaut des BISHERIGEN Boards, nie im
+    Wortlaut des Modells. Alles andere ist kein Link: ein vergessenes Feld
+    heisst "kein Strich", nie "ein falscher". Zuletzt faellt aus jeder Kette,
+    was als eigene Zeile im neuen Board steht (sonst stuende es zweimal da)."""
+    alt = {schluessel(e["begriff"]): e for e in bisher}
+    eigene = {schluessel(e["begriff"]) for e in neu}
+    for eintrag, link in zip(neu, links):
+        k = schluessel(eintrag["begriff"])
+        kette = list(alt[k].get("vorgaenger") or []) if k in alt else []
+        lk = schluessel(link) if isinstance(link, str) else ""
+        if lk and lk != k and lk in alt and lk not in eigene:
+            kette += list(alt[lk].get("vorgaenger") or []) + [alt[lk]["begriff"]]
+        kette = [v for v in _vorgaenger(kette, eintrag["begriff"]) if schluessel(v) not in eigene]
+        if kette:
+            eintrag["vorgaenger"] = kette
+
+
+def validiere(roh, transkript: str, bisher: list[dict] | None = None) -> list[dict]:
     """Die Modellantwort gegen das Transkript (D3). Nichts erfinden: nur
-    Begriffe, die im Transkript stehen; Zitate nur woertlich."""
+    Begriffe, die im Transkript stehen; Zitate nur woertlich. Mit ``bisher``
+    (dem geltenden Board vor diesem Lauf) zusaetzlich die Schaerfungskette
+    (``_verkette``); ohne ``bisher`` genau das Verhalten von vorher."""
     if not isinstance(roh, list):
         return []
     ergebnis: list[dict] = []
+    links: list = []
     gesehen: set[str] = set()
     for zeile in roh:
         eintrag = _eintrag(zeile)
@@ -240,9 +306,13 @@ def validiere(roh, transkript: str) -> list[dict]:
         if eintrag["zitat"] and not zitat.pruefe(eintrag["zitat"], transkript):
             eintrag["zitat"] = ""
         _belege(eintrag, transkript)
+        # Die Kette schreibt allein der Code -- eine mitgeschickte faellt weg.
+        eintrag.pop("vorgaenger", None)
+        links.append(zeile.get("vorheriger_begriff"))
         ergebnis.append(eintrag)
         if len(ergebnis) >= HOECHSTENS:
             break
+    _verkette(ergebnis, links, bisher or [])
     return ergebnis
 
 
@@ -309,7 +379,7 @@ def detail_zeilen(detail: list[dict]) -> list[str]:
 
 
 _FELDER = ("begriff", "nennungen", "zustimmung", "begruendung", "zitat",
-           "doppelbedeutung", "status")
+           "doppelbedeutung", "status", "vorheriger_begriff")
 
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
 #: allen Eigenschaften, sonst lehnt der Anbieter den erzwungenen Modus ab
@@ -318,6 +388,11 @@ _FELDER = ("begriff", "nennungen", "zustimmung", "begruendung", "zitat",
 #: weil ``scripts/pruefe_sprache.py`` "begriffe" als deutsches Wort fuehrt.
 #: ``status`` ist bewusst ein freier String: ``validiere`` macht aus jedem
 #: unbekannten Wert "kandidat".
+#: ``vorheriger_begriff`` (Karte t_cb2c4678) ist Pflicht und darf "" sein;
+#: ``validiere`` prueft es gegen das bisherige Board. ``vorgaenger`` steht
+#: bewusst NICHT hier: die Kette fuehrt allein der Code. Beide Namen sind
+#: fuer ``scripts/pruefe_sprache.py`` unkritisch (snake_case faellt dort
+#: heraus, "vorgaenger" steht in keiner Liste).
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -337,6 +412,7 @@ SCHEMA = {
                     "zitat": {"type": "string"},
                     "doppelbedeutung": {"type": "string"},
                     "status": {"type": "string"},
+                    "vorheriger_begriff": {"type": "string"},
                 },
             },
         },
@@ -388,17 +464,27 @@ def aktuelles(conn, chat_id: int) -> list[dict]:
     return lies(zeile["json"]) if zeile else []
 
 
-def soll_laufen(conn, chat_id: int, *, ist_abschluss: bool) -> bool:
-    """D1: ``brainstorm.soll_reagieren`` unveraendert, mit den eigenen Zahlen
-    der Phase 1 (``repo.begriffsboard_stand``) UND der eigenen, niedrigeren
-    Zeichenschwelle (``min_zeichen`` oben). Kein Modellaufruf."""
+def soll_laufen(conn, chat_id: int) -> bool:
+    """D1 und Birk 04.10.2026 14:50 ("Zwischenstand und Endstand muessen
+    nicht anders behandelt werden"): EINE Regel fuer jeden Lauf --
+    ``brainstorm.soll_reagieren`` unveraendert, mit den eigenen Zahlen der
+    Phase 1 (``repo.begriffsboard_stand``) und der eigenen Schwelle
+    (``min_zeichen``). Der Schnitt "Discussion done" (``'ende'``) zaehlt wie
+    ein Pausenschnitt; nur der Mindestabstand gilt dort nicht -- er schiebt
+    auf, und nach dem Ende kommt kein Schnitt mehr, der das Aufgeschobene
+    nachholt. Kein eigener Abschlusspfad, keine eigene Schwelle (Abwaegung
+    im Plan 2026-10-04-padua-begriffsboard-ranking-schaerfung, Teil 2).
+    Kein Modellaufruf."""
     stand = repo.begriffsboard_stand(conn, chat_id)
+    grund = stand["letzter_schnittgrund"]
     sekunden = stand["sekunden_seit_letztem_lauf"]
+    ende = grund == "ende"
     return brainstorm.soll_reagieren(
         unreagierte_zeichen=stand["unreagierte_zeichen"],
-        sekunden_seit_letzter_reaktion=sekunden if sekunden is not None else float("inf"),
-        letzter_schnittgrund=stand["letzter_schnittgrund"],
-        ist_abschluss=ist_abschluss,
+        sekunden_seit_letzter_reaktion=(
+            float("inf") if ende or sekunden is None else sekunden),
+        letzter_schnittgrund="pause" if ende else grund,
+        ist_abschluss=False,
         min_zeichen_override=min_zeichen(),
     )
 
@@ -443,6 +529,18 @@ def laeuft(chat_id: int) -> bool:
         return chat_id in _LAEUFT
 
 
+def merke_falls_laeuft(chat_id: int, danach) -> bool:
+    """True, wenn gerade ein Boardlauf dieser Gruppe laeuft -- dann laeuft
+    ``danach`` nach seinem Ende (``beende`` liefert es). False: es laeuft
+    keiner, nichts gemerkt. Unter derselben Sperre wie ``nimm_oder_merke``:
+    zwischen "laeuft" und "gemerkt" kann kein ``beende`` den Merkplatz leeren."""
+    with _LAEUFT_LOCK:
+        if chat_id in _LAEUFT:
+            _DANACH.setdefault(chat_id, []).append(danach)
+            return True
+        return False
+
+
 def _rufe(rueckrufe) -> None:
     for rueckruf in rueckrufe:
         try:
@@ -479,7 +577,8 @@ def _lauf_einmal(conn, klm, e, chat_id: int, bis_id: int) -> None:
     )
     # Geprueft wird gegen das GANZE Transkript: ein Begriff aus dem
     # weggekuerzten Anfang ist trotzdem woertlich gesagt worden.
-    neu = validiere(ergebnis.get("board") if isinstance(ergebnis, dict) else None, transkript)
+    neu = validiere(ergebnis.get("board") if isinstance(ergebnis, dict) else None, transkript,
+                    bisher=bisher)
     if not neu and bisher:
         # Ein leeres Ergebnis ersetzt nie ein volles Board. Keine Zeile, also
         # keine Markierung: die Zeichen laufen weiter auf.
@@ -569,22 +668,30 @@ def schreibe_detail(conn, chat_id: int, begriffe_text: str | None) -> None:
 def nach_segment(conn, tg, klm, e, chat_id: int, *, ist_abschluss: bool,
                  rueckfall_text: str | None = None) -> None:
     """Der Einhaengepunkt in ``aufnahme._diskussion_abschliessen``, je
-    Segment. Entscheidet per Code (D1), ob ein Boardlauf faellig ist, und
-    stoesst ihn im Thread an. Beim Abschluss-Segment (``ist_abschluss``)
-    kommt danach der Vorschlag (D6): nach dem Schlusslauf, oder sofort,
-    wenn keiner noetig ist. Ohne Profil, ohne Modell: nur der Satz, wie
-    bisher."""
+    Segment. Entscheidet per Code (``soll_laufen``, EINE Regel fuer jeden
+    Schnitt), ob ein Boardlauf faellig ist, und stoesst ihn im Thread an.
+
+    ``ist_abschluss`` heisst seit Birks Entscheidung vom 04.10.2026 nur
+    noch "die Sitzung ist zu Ende": es aendert KEINE Schwelle, es haengt
+    nur den Vorschlag (``sende_vorschlag``) an -- nach dem Lauf, den dieser
+    Schnitt ausloest, sonst sofort, mit dem Board, wie es ist. Laeuft beim
+    Ende gerade ein Lauf, wird nach ihm NEU entschieden (derselbe Aufruf,
+    nur spaeter): sonst bliebe der Rest seit seiner Markierung ungelesen,
+    und der Vorschlag zeigte den Stand davor. Ohne Profil, ohne Modell: nur
+    der Satz, wie bisher."""
+    if ist_abschluss and merke_falls_laeuft(chat_id, lambda: nach_segment(
+            conn, tg, klm, e, chat_id, ist_abschluss=True, rueckfall_text=rueckfall_text)):
+        return
     danach = None
     if ist_abschluss:
         def danach() -> None:
             sende_vorschlag(conn, tg, chat_id, rueckfall_text)
 
-    if (klm is None or not workshop.diskussion_aktiv()
-            or not soll_laufen(conn, chat_id, ist_abschluss=ist_abschluss)):
-        if danach is not None:
-            danach()
+    if klm is not None and workshop.diskussion_aktiv() and soll_laufen(conn, chat_id):
+        starte(conn, klm, e, chat_id, danach=danach)
         return
-    starte(conn, klm, e, chat_id, danach=danach)
+    if danach is not None:
+        danach()
 
 
 def sende_einstieg(conn, tg, e, chat_id: int) -> bool:

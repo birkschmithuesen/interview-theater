@@ -51,8 +51,7 @@ Module unter `interview_theater/`:
 | `bot.py` | Startroutine, Long-Poll-Schleife, Begrüßung, Warmlaufen, Prozessaufsicht |
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
 | `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, Interviewfluss (kurz/teil/lang) |
-| `begriffsboard.py` | Das Begriffsboard der Phase 1 (04.10.2026, Karte t_4517d4ad): laufend mithören wie der Brainstorm in Phase 4 (`brainstorm.soll_reagieren` **unverändert**, eigene Zähler über `aufnahme.diskussion = 1`, eigene Sperre), ein Schema-Aufruf je qualifizierendem Segment im eigenen Thread (Opus nach Einwilligung, sonst Kimi), Tabelle `begriffsboard` (nur anhängen, letzter Stand gilt). Validiert **im Code**: Begriff muss im Transkript stehen und darf kein Ansage-/Mikrofonwort sein (`ist_metabegriff`), Zitat über `zitat.pruefe`, und eine `begruendung` bleibt nur mit Beleg (`traegt_beleg`: geprüftes Zitat mit ≥ `BELEG_MIN_INHALTSWOERTER` = 2 Inhaltswörtern jenseits von Begriff/Ansage) und ohne Füllsatz (`ist_fuellsatz`) -- sonst `""` (Karte t_2b9d2cbe). **Der Lauf kennt kein `tg`** — keine Chatzeile beim Mithören. Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these"; `schreibe_detail` füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe` (AST-Test `tests/test_begriffe_detail_wege.py`). `detail_zeilen` ist die eine Prompt-Form für `kontext` (Phase 2, ≥ 4) und `fragen_ki` |
-| `begriffsboard_analyse.py` | Die fokussierte Analyse-Schicht des Begriffsboards (04.10.2026, Karte t_9258d2e9): **ein** Schema-Aufruf mit zwei Fragen — `wunsch` je Boardbegriff (−2…2) und `verhoerer` (STT-Hörfehler nach Sinn, nicht nach Zahl). **Nicht live**: Aufrufer ist allein `scripts/rauchtest_begriffsboard_resonanz.py` (Test `test_kein_live_aufrufer`); ob ein zweiter Live-Aufruf kommt und mit welchem Modell, entscheidet Birk (`docs/begriffsboard-resonanz/BERICHT.md`). EN-Anweisung als Modulkonstante |
+| `begriffsboard.py` | Das Begriffsboard der Phase 1 (04.10.2026, Karte t_4517d4ad): laufend mithören wie der Brainstorm in Phase 4 (`brainstorm.soll_reagieren` **unverändert**, eigene Zähler über `aufnahme.diskussion = 1`, eigene Sperre), ein Schema-Aufruf je qualifizierendem Segment im eigenen Thread (Opus nach Einwilligung, sonst Kimi), Tabelle `begriffsboard` (nur anhängen, letzter Stand gilt). Validiert **im Code**: Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`. **Der Lauf kennt kein `tg`** — keine Chatzeile beim Mithören. Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these" — **ohne eigenen Schlusslauf** (Birk 04.10.2026 14:50: „Zwischenstand und Endstand müssen nicht anders behandelt werden"): der Ende-Schnitt zählt in `soll_laufen` wie ein Pausenschnitt (dieselbe Schwelle `min_zeichen`, 600; nur ohne Mindestabstand), der Vorschlag zeigt das Board, wie es ist — läuft gerade ein Lauf, wird nach ihm neu entschieden (`merke_falls_laeuft`); `schreibe_detail` füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe` (AST-Test `tests/test_begriffe_detail_wege.py`). `detail_zeilen` ist die eine Prompt-Form für `kontext` (Phase 2, ≥ 4) und `fragen_ki`. Seit 04.10.2026 (Karte t_cb2c4678) die **Schärfung**: Pflichtfeld `vorheriger_begriff` im Schema, im Code gegen das bisherige Board geprüft (`validiere(…, bisher)`, `_verkette` — nur ein Begriff, der wirklich verschwand, keine Ähnlichkeitsheuristik); daraus die Kette `vorgaenger` (älteste zuerst, nur am Eintrag, wenn nicht leer, nie im Schema, nie Modelltext). Im CoThinker durchgestrichen (`web._begriffsboard_html`, `data-vorgaenger`), Live-Ranking per FLIP direkt in `ladeBuehne()` (`_VEREINT_JS`: `bbMerke` vor, `bbSpiele` nach dem Panel-Tausch; ohne `ol.begriffsboard` wirkungslos). Design-Erweiterung (04.10.2026, Birk: „richtig gut designt, nicht bloss funktional"): kein aufklappbares „Warum" mehr in der Anzeige (Begründung/Zitat/Doppelbedeutung bleiben in der Datenbank, nur das Rendering in `web._begriffsboard_html` zeigt sie nicht mehr) — Rang 1–5 (`data-top="1"`) bekommt eine Scheinwerfer-Marke, der Rest eine Trennlinie direkt danach (`css_buehne()`, CSS-Selektor `li[data-top="1"] + li:not([data-top="1"])`, keine feste Positionszahl), `status="verworfen"` bleibt sichtbar, aber kursiv — durchgestrichen bleibt allein der Schärfungskette vorbehalten. Die Kette selbst bekommt ein eigenes Fach (`border-left`-Steg), der jüngste Vorgänger im Steg, jeder ältere eine Stufe kleiner (Größe trägt das Alter, nicht Opazität — die würde `--text-leise` unter 4,5:1 drücken). `bbMerke`/`bbSpiele` verfolgen seitdem keinen Auf-/Zu-Zustand mehr. Dabei ist ein Bestandsfehler in `web_vereint.scope_css` aufgefallen und behoben worden: die Funktion trennt den Text vor jeder Regel an jedem Komma, bevor sie das Scope-Praefix voranstellt, ohne Kommentare vorher zu entfernen — ein mehrkommahaltiger `/* ... */`-Kommentar direkt vor einer Regel reisst das Praefix von deren echtem Selektor ab, und genau das traf seit der ersten Fassung unbemerkt die `.vorgaenger`-Regel der Schärfungskette (ihr Test sah nur zufaellig richtig aus, weil eine kommentarfreie Nachbarregel dieselbe Teilzeichenkette traf). Behoben, indem alle erklaerenden Saetze aus CSS-Kommentaren in den `#:`-Doc-Kommentar oberhalb von `_BUEHNE = """` gewandert sind (den `scope_css` nie liest) — der CSS-Text selbst ist seitdem durchgehend kommentarfrei. Deshalb die Regel fuer diesen Block: **kein CSS-Kommentar direkt vor einer Regel**, sonst reisst `scope_css` erneut ihr Praefix ab. |
 | `befehle.py` | Die Slash-Befehle (`_BEKANNTE_BEFEHLE`, zurzeit fünfzehn; acht davon stehen über `setMyCommands` im Menü, `BEFEHLE_LISTE`), laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
@@ -179,6 +178,7 @@ Versehen).
 | Wo steht Phase 6/7 gerade? | `ueberarbeitung.weiter_6`/`weiter_7` → `aktuelle_szene` |
 | Was zeigt die Werkbank in Padua? | `roadmap.werkbank` → `web_daten.werkbank` → `web.werkbank_koerper` |
 | Was steht auf dem Begriffsboard (und warum nicht)? | `aufnahme._diskussion_abschliessen` → `begriffsboard.nach_segment` → `soll_laufen` → `_lauf_einmal` → `validiere` |
+| Warum ist ein Begriff durchgestrichen (oder nicht)? | `begriffsboard.validiere` → `_verkette` → `web._begriffsboard_html` → `web_vereint._VEREINT_JS` (`ladeBuehne` → bbMerke/bbSpiele) |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -1074,7 +1074,12 @@ es jemand im Chat merkt.
   strukturell keine Chatzeile beim Mithören, wie beim Brainstorm kein
   Gesprächszug und kein Erkenner-Lauf auf dieser Nachricht. Validiert wird im
   Code (Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`), die
-  Tabelle `begriffsboard` nur anhängend.
+  Tabelle `begriffsboard` nur anhängend. **Das Mithören hat nur Start und
+  Fertig** — der Pause-Knopf (`#diskussion-pause`,
+  `pausiereDiskussion`/`fortsetzeDiskussion`) ist seit dem 04.10.2026
+  entfernt; er setzte bis dahin ebenfalls den Ende-Schnitt und löste damit
+  bei jeder Pause Vorschlag und Verdichtung aus. Interview- und
+  Brainstorm-Pause bleiben.
 
   **Belegpflicht der Begründung** (Karte t_2b9d2cbe, 04.10.2026): eine
   `begruendung` gilt nur, wenn ein geprüftes Zitat sie trägt, das nach Abzug
@@ -1090,7 +1095,13 @@ es jemand im Chat merkt.
   nur read-only und nie an Opus).
 
   Bei „Discussion done" schlägt der
-  Bot die Top 5 mit EINEM Knopf „Take these" vor; `begriffsboard.schreibe_detail`
+  Bot die Top 5 mit EINEM Knopf „Take these" vor — **ohne eigenen
+  Schlusslauf** (Birk 04.10.2026 14:50: „Zwischenstand und Endstand müssen
+  nicht anders behandelt werden"): der Ende-Schnitt zählt in `soll_laufen`
+  wie ein Pausenschnitt (dieselbe Schwelle `min_zeichen`, 600; nur ohne
+  Mindestabstand), der Vorschlag zeigt das Board, wie es ist — läuft gerade
+  ein Lauf, wird nach ihm neu entschieden (`merke_falls_laeuft`);
+  `begriffsboard.schreibe_detail`
   füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe`
   und geht von dort nach Phase 2 und ab Phase 4 in den Prompt
   (`kontext.baue`) sowie in den isolierten `fragen_ki`-Aufruf. **Der
@@ -3059,7 +3070,11 @@ Profilschalter `[web] dashboard_gestaltet`** (gesetzt allein in
 `workshop/padua-2026/profil.toml`); ohne ihn bleibt das Dashboard-HTML
 byte-gleich (`tests/test_web_dashboard_en.py`). Seit 04.10.2026 kein
 Abnahmekriterium mehr, wenn die Abweichung nur Dortmund betrifft — siehe
-„Dortmund eingefroren" oben; Test ggf. `@pytest.mark.dortmund`.
+„Dortmund eingefroren" oben; Test ggf. `@pytest.mark.dortmund`. Seit dem
+04.10.2026 trägt `css_buehne()` (`_BUEHNE`) auch die ruhende Darstellung der
+Schärfungskette (`.begriffsboard .vorgaenger`, Pfeil per `::before`) —
+**ohne** Bewegung im CSS; die setzt `ladeBuehne()` per CSSOM und nur ohne
+`prefers-reduced-motion`. Keine neue Einhängezeile, kein neuer Schalter.
 
 **Ein Block Design-Tokens ist der ganze Entwurf.** `TOKENS["a"]`
 („Terminal zuerst": Phosphor auf Schwarzblau, Monospace, Tableiste unten)
@@ -3604,12 +3619,54 @@ bewusst nicht erledigt, jeweils mit Grund:
   Markierung nicht vor, und der nächste Pausenschnitt über der Schwelle löst
   erneut aus.
 - Der Merkplatz für den Vorschlag lebt im Prozess (wie `vorschlagssperre`):
-  ein Neustart zwischen „Discussion done" und Ende des Schlusslaufs verliert
-  den Vorschlag.
+  ein Neustart zwischen „Discussion done" und Ende des laufenden Laufs
+  verliert den Vorschlag.
 - Das Board fließt nicht in die Bühnenkarten der Phase 4
   (`buehnenkarte._kontext_phasen_1_bis_3`) — nur `begriffe_detail` über
   `kontext.baue`.
 - Die CoThinker-Darstellung ist ungestaltet (`data-*`, UX-Karte).
+- **Ungemessen (t_cb2c4678):** kein bezahlter Lauf für `vorheriger_begriff` —
+  ob Kimi/Opus das Feld zuverlässig füllen, weiß niemand. Vergisst das
+  Modell es, fehlt nur der Strich; die Begründung erzählt die Entwicklung
+  trotzdem.
+- Die Wortzahl „1–3" eines Begriffs (und damit eines Vorgängers) steht im
+  Prompt, nicht im Code; der Code garantiert „ein Begriff, früher schon auf
+  dem Board".
+- **Endstand = Zwischenstand (t_cb2c4678):** ein Rest unter `min_zeichen`
+  (600 Zeichen ≈ 37 s Rede nach den Erwachsenen-Daten in `brainstorm.py`)
+  nach dem letzten Lauf erreicht das Board nicht — so entschieden (Birk).
+  Ungemessen für Schülerinnen und Schüler.
+- Ohne VAD trägt kein Diskussionssegment einen Schnittgrund: dann gibt es
+  weder Board-Lauf noch Vorschlag noch Verdichtung (vor dieser Karte
+  genauso). Und hat das letzte Teilstück bei „Discussion done" keine Bytes,
+  kommt kein Ende-Schnitt an (`r.onstop`).
+- **Design-Erweiterung (04.10.2026): ein Begriff, der ganz vom Board faellt, bleibt unsichtbar.** Nennt die
+  Gruppe einen Begriff danach nicht mehr, und das Modell fuehrt ihn im naechsten Lauf nicht mehr, ersetzt
+  `begriffsboard._lauf_einmal` das gespeicherte Board vollstaendig durch das neue Ergebnis (`repo.lege_begriffsboard_an`)
+  -- der Begriff verschwindet ohne jede Spur, kein Ereignis, kein Zeitstempel. Birk hat das am 04.10.2026 17:10
+  als moegliche eigene Visualisierung angefragt ("ein Begriff, der ganz aus dem Board faellt, weil er nie wieder
+  genannt wurde"); eine Pruefung ergab: dafuer existiert heute **keine Datengrundlage** -- nichts haelt fest,
+  *dass* ein Begriff verschwunden ist, nur *was* zuletzt gespeichert wurde. Nicht gebaut, um nichts zu erfinden.
+  Zu unterscheiden vom bestehenden `status="verworfen"` (ein Begriff, den das Modell ausdruecklich als erledigt
+  markiert -- der bleibt sichtbar und bekommt seit der Design-Erweiterung eine eigene, gedaempft-kursive
+  Darstellung, siehe die `begriffsboard.py`-Zeile oben). Ein kuenftiger Bau bräuchte einen Vorher/Nachher-Abgleich
+  der beiden Boardstaende in `_lauf_einmal` und eine neue, dauerhaft gespeicherte Markierung -- beides nicht Teil
+  dieser Karte.
+- **Design-Erweiterung (04.10.2026): der Poll-Takt des CoThinker-Tabs bleibt bei den 10 s aller Panels.** Birk
+  nannte als Vorbild den 3-s-Fingerprint-Poll von `cothinker/stage/stage.py`. `ladeBuehne()` haengt heute am selben
+  `setInterval(ladeBuehne, __NACHLADEN_MS__)` wie der Stand-Panel-Poll (`web_vereint.NACHLADEN_MS`, eine Konstante,
+  zweifach in `_VEREINT_JS` eingesetzt). Ein eigener, kuerzerer Takt nur fuer die Buehne ist technisch machbar
+  (eine zweite Platzhalter-Konstante, ein zweiter `setInterval`), wurde aber **gepruft und bewusst nicht
+  umgesetzt**: hoehere Serverlast im Mehrgruppenbetrieb gegen einen von Birk selbst als „Inspiration, kein hartes
+  Muss" eingeordneten Punkt. Offen fuer eine eigene, kleine Karte, falls Birk den schnelleren Takt tatsaechlich
+  will.
+- **Unabhaengiger Bestandsfehler, nur nebenbei entdeckt (04.10.2026): `test_cothinker_panel_hat_kontrast`
+  schlaegt fehl, mit dem Begriffsboard hat das nichts zu tun.** Bei der Arbeit an dieser Karte ist aufgefallen,
+  dass `tests/e2e/test_web_gestalt_buehne_e2e.py::test_cothinker_panel_hat_kontrast` rot ist: ein `<button>` mit
+  dem Zeicheninhalt „▶" erreicht nur ein Kontrastverhaeltnis von 2,25 gegen seinen Hintergrund, verlangt sind
+  4,5:1. Per isoliertem Vorher/Nachher-Dateitausch bestaetigt: der Fehler bestand schon **vor** dieser Karte und
+  ist von keiner ihrer Aenderungen verursacht. Nicht behoben, weil ausserhalb des Umfangs dieser Karte --
+  festgehalten, damit ihn niemand ein zweites Mal entdecken muss.
 
 Die Übergaben der Karte t_9258d2e9 (Begriffsboard-Resonanz, 04.10.2026) —
 offen, jeweils mit Grund:

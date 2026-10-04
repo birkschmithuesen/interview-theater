@@ -982,9 +982,11 @@ def _diskussion_abschliessen(conn, tg, klm, e, row) -> None:
     Absichtserkenner, keine Buehnenkarte und KEINE Chatzeile -- das Board
     steht nur im CoThinker-Tab.
 
-    Beim Abschluss-Segment (``schnittgrund == 'ende'``) kommt danach der
-    Vorschlag der Top 5 (oder, bei leerem Board, die bisherige Aufforderung
-    "jetzt eure fuenf Begriffe") -- nach einem etwaigen Schlusslauf -- und,
+    Beim Abschluss-Segment (``schnittgrund == 'ende'``, allein aus
+    "Discussion done" -- Phase 1 hat seit 04.10.2026 keinen Pause-Knopf
+    mehr) kommt danach der Vorschlag der Top 5 (oder, bei leerem Board, die
+    bisherige Aufforderung) -- nach einem Lauf, den dieser Schnitt unter der
+    gewoehnlichen Regel ausloest, oder nach einem gerade laufenden -- und,
     unabhaengig davon, der EINE Verdichtungslauf (``diskussion.starte``)."""
     repo.setze_status(conn, row["id"], "fertig")
     _web_sprachblase(conn, row["chat_id"], row["message_id"], row["transkript"] or None)

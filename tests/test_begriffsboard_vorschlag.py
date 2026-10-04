@@ -96,7 +96,7 @@ def _warte_bis(bedingung, timeout=5.0):
 
 
 def test_leeres_board_heutiger_text(conn, einst, monkeypatch):
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "100000")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100000")
     tg = _TG()
     aufnahme._kurz_abschliessen(conn, tg, object(), einst, _ende(conn), aufnahme._kein_zug, False)
     assert tg.gesendet == [(CHAT, aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE)]
@@ -104,7 +104,7 @@ def test_leeres_board_heutiger_text(conn, einst, monkeypatch):
 
 
 def test_ohne_schlusslauf_sofort_die_top_fuenf_mit_einem_knopf(conn, einst, monkeypatch):
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "100000")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100000")
     board = [_e("Heimat", "favorit"), _e("Grenze", zustimmung=2), _e("Mut", zustimmung=1),
              _e("Schule"), _e("Freunde"), _e("Angst"), _e("Musik", "verworfen", 2, 9)]
     repo.lege_begriffsboard_an(conn, CHAT, json.dumps(board), "sovereign", 0)
@@ -126,7 +126,7 @@ def test_ohne_schlusslauf_sofort_die_top_fuenf_mit_einem_knopf(conn, einst, monk
 
 
 def test_mit_schlusslauf_kommt_der_vorschlag_erst_danach(conn, einst, monkeypatch):
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
     halt = threading.Event()
 
     class KLM:
@@ -144,7 +144,7 @@ def test_mit_schlusslauf_kommt_der_vorschlag_erst_danach(conn, einst, monkeypatc
 
 
 def test_gescheiterter_schlusslauf_nimmt_das_aktuelle_board(conn, einst, monkeypatch):
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
     repo.lege_begriffsboard_an(conn, CHAT, json.dumps([_e("Grenze")]), "sovereign", 0)
 
     class KLM:
@@ -158,7 +158,7 @@ def test_gescheiterter_schlusslauf_nimmt_das_aktuelle_board(conn, einst, monkeyp
 
 
 def test_gesamtverdichtung_startet_unabhaengig(conn, einst, monkeypatch):
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "100000")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100000")
     gestartet = []
     monkeypatch.setattr(diskussion, "starte", lambda *a, **k: gestartet.append(1))
     aufnahme._kurz_abschliessen(conn, _TG(), object(), einst, _ende(conn), aufnahme._kein_zug, False)
@@ -166,7 +166,7 @@ def test_gesamtverdichtung_startet_unabhaengig(conn, einst, monkeypatch):
 
 
 def test_take_these_speichert_begriffe_und_detail_einmal(conn, einst, monkeypatch):
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "100000")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100000")
     board = [_e("Heimat", "favorit"), _e("Grenze")]
     repo.lege_begriffsboard_an(conn, CHAT, json.dumps(board), "sovereign", 0)
     tg = _TG()

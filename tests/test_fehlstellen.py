@@ -188,6 +188,30 @@ def test_unausgewertetes_interview_wird_benannt(conn):
     assert not any("Meryem" in t for t in texte)
 
 
+def test_zu_kurz_uebersprungenes_interview_ist_keine_fehlstelle(conn):
+    """Padua Phasen TEIL 2, Task 5 + Nachtrag: ein zu-kurz uebersprungenes
+    Interview (``aufnahme.zu_kurz_uebersprungen``) sperrt Phase 4 nicht
+    unbestimmt lang -- das gilt auch auf dem read-only Weg
+    (``web_daten._offene_interviews``), den die echte Padua-Gruppe tatsaechlich
+    sieht (``gruppe.kanal = 'web'``).
+
+    Gegenprobe im selben Lauf: ein zweites, nicht geflagtes Interview bleibt
+    weiter eine Fehlstelle -- der Guard darf nicht einfach immer greifen."""
+    _voll(conn)
+    geflagt = _interview(conn, 1, 11, "Kurz.", name="Meryem")
+    repo.setze_zu_kurz_uebersprungen(conn, geflagt)
+    _interview(conn, 1, 12, "Noch ein Gespraech.", name="Dilan")
+    repo.setze_phase(conn, 1, 3)
+
+    offen = web_daten._offene_interviews(conn, 1)
+    assert "Interview 2" not in offen
+    assert "Interview 3" in offen
+
+    texte = [e["text"] for e in web_daten.fehlstellen(conn, 1)]
+    assert not any("Interview 2" in t and "nicht ausgewertet" in t for t in texte)
+    assert any("Interview 3" in t and "nicht ausgewertet" in t for t in texte)
+
+
 def test_figur_ohne_sprachprofil_erst_ab_der_schaerfung(conn):
     """In Phase 4 wird erfunden -- die Frage nach dem Quell-Interview waere
     dort die Ruecklenkung aufs Material (``knoepfe.ebene2_erlaubt``)."""

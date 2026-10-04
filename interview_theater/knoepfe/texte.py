@@ -54,6 +54,10 @@ ART_STT_SPRACHE = "stt_sprache"
 #: 01.10.2026). ``wert`` ist die ``erkenner_lauf.id`` -- eine Meldung, eine
 #: Ruecknahme, keine Einzelauswahl.
 ART_UNDO = "undo"
+#: Der Redo-Knopf unter einer Undo-Erledigt-Quittung (Befund 1a, Padua
+#: Phase-2-Ende 04.10.2026). ``wert`` ist dieselbe ``erkenner_lauf.id`` wie
+#: beim Undo-Knopf -- der Spiegel davon, nur einmal moeglich.
+ART_REDO = "redo"
 #: Ein Interview jetzt auswerten -- dasselbe Ziel wie ``/auswerten <N>``. Der
 #: ``wert`` traegt die ``aufnahme_id`` des Interview-Kopfes, damit der Druck
 #: auch dann noch das gemeinte Interview trifft, wenn inzwischen ein weiteres
@@ -391,6 +395,18 @@ _ANTWORT_UNDO_GEAENDERT = "Seitdem geaendert."
 #: Die Journalzeile der Ruecknahme -- das Journal wird nur angehaengt, die
 #: Zeilen des Laufs bleiben stehen (AGENTS.md).
 _JOURNAL_UNDO = "Zurueckgenommen: {zeilen}"
+#: Der Redo-Knopf (Befund 1a, Padua Phase-2-Ende) -- der Spiegel der
+#: Undo-Konstanten direkt darueber, dieselbe Form und dieselben drei
+#: Ausgaenge (erledigt, seitdem geaendert, Fehler).
+_TEXT_REDO_KNOPF = "Wiederherstellen"
+_TEXT_REDO_ERLEDIGT = "Wiederhergestellt:\n{zeilen}"
+_TEXT_REDO_GEAENDERT = "Seitdem geaendert -- bitte im Arbeitsstand korrigieren."
+_TEXT_REDO_FEHLER = (
+    "Das konnte ich nicht wiederherstellen -- bitte im Arbeitsstand korrigieren."
+)
+_ANTWORT_REDO = "Wiederhergestellt."
+_ANTWORT_REDO_GEAENDERT = "Seitdem geaendert."
+_JOURNAL_REDO = "Wiederhergestellt: {zeilen}"
 #: Die Knopfbeschriftungen heissen seit 05.09.2026 "Interview", nicht
 #: "Aufnahme" (Birk, Live-Lauf Gruppe 3): "Aufnahme klingt, als liefe ein
 #: Mikrofon -- es sind Sprachnachrichten." Der Modus, die Klassen und die

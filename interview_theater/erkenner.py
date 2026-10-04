@@ -653,6 +653,11 @@ def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | No
     if aktuell == wert:
         return None
     repo.setze_arbeitsstand(conn, chat_id, feld, wert)
+    if feld == "begriffe":
+        # Karte t_4517d4ad (D7): je Begriff die Zeile des Begriffsboards.
+        from interview_theater import begriffsboard
+
+        begriffsboard.schreibe_detail(conn, chat_id, wert)
     return {"art": art, "wert": wert}
 
 
@@ -1407,6 +1412,10 @@ def _entferne_arbeitsstandfeld(conn, chat_id: int, ziel: str) -> str | None:
     repo.setze_arbeitsstand(conn, chat_id, feld, None)
     if feld == "kernthema":
         repo.setze_arbeitsstand(conn, chat_id, "kernthema_begruendung", None)
+    if feld == "begriffe":
+        from interview_theater import begriffsboard
+
+        begriffsboard.schreibe_detail(conn, chat_id, None)
     return T._FELD_BESCHRIFTUNG.get(feld, bezeichnung)
 
 

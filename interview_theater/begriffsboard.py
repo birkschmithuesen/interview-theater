@@ -384,6 +384,26 @@ def sende_vorschlag(conn, tg, chat_id: int, rueckfall_text: str | None) -> None:
         tg.sende(chat_id, rueckfall_text)
 
 
+def schreibe_detail(conn, chat_id: int, begriffe_text: str | None) -> None:
+    """D7: je gespeichertem Begriff die Boardzeile nach
+    ``arbeitsstand.begriffe_detail``. Gerufen auf JEDEM Weg, der
+    ``arbeitsstand.begriffe`` schreibt (festgenagelt in
+    ``tests/test_begriffe_detail_wege.py``). Leere Begriffe leeren das
+    Detail. Ohne Board (Dortmund, oder nie mitgehoert) bleibt die Spalte,
+    wie sie ist -- dort entsteht kein Detail."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    bisher = stand["begriffe_detail"] if stand is not None else None
+    zeile = repo.letztes_begriffsboard(conn, chat_id)
+    if not (begriffe_text or "").strip() or zeile is None:
+        if bisher:
+            repo.setze_arbeitsstand(conn, chat_id, "begriffe_detail", None)
+        return
+    detail = detail_fuer(lies(zeile["json"]), begriffe_text)
+    repo.setze_arbeitsstand(
+        conn, chat_id, "begriffe_detail", json.dumps(detail, ensure_ascii=False),
+    )
+
+
 def nach_segment(conn, tg, klm, e, chat_id: int, *, ist_abschluss: bool,
                  rueckfall_text: str | None = None) -> None:
     """Der Einhaengepunkt in ``aufnahme._diskussion_abschliessen``, je

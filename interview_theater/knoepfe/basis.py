@@ -838,7 +838,14 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
         return T._TEXT_SCHON_GESETZT
 
     def _schreibe():
-        repo.setze_arbeitsstand(conn, chat_id, _FELD_FUER.get(art, art), wert)
+        feld = _FELD_FUER.get(art, art)
+        repo.setze_arbeitsstand(conn, chat_id, feld, wert)
+        if feld == "begriffe":
+            # Karte t_4517d4ad (D7) -- innerhalb von ``lauf_fuer_knopf``, damit
+            # die Ruecknahme das Detail mit zuruecknimmt.
+            from interview_theater import begriffsboard
+
+            begriffsboard.schreibe_detail(conn, chat_id, wert)
         if weiterfrage:
             # Abgenommen: die offene Aenderungsbitte ist erledigt, die Leiste
             # verschwindet wieder (``offene_art``).

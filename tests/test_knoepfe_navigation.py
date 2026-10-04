@@ -895,9 +895,16 @@ def test_interviews_fertig_merkt_den_wunsch_wenn_noch_offen(conn, tg, klm, einst
     assert phasen.aktuelle(conn, 1) == 3, "bleibt in Phase 3"
     wunsch = repo.hole_arbeitsstand(conn, 1)["interviews_fertig_wunsch_seit"]
     assert wunsch, "der Wunsch ist gemerkt"
+    # Padua Phasen TEIL 2, Task 5 (Befund 4b): die Zeile kommt seitdem NUR
+    # noch als Knopf-Quittung (answerCallbackQuery), nicht mehr ZUSAETZLICH
+    # ueber ein eigenes d.tg.sende() -- dieselbe Dopplung, die Commit
+    # 7f0782e fuer den Web-Chat schon behoben hatte, stand hier noch.
     assert any(
-        "1 Interview(s) werden noch ausgewertet" in t for _, t in tg.gesendet
+        "1 Interview(s) werden noch ausgewertet" in t for _, t in tg.beantwortet
     )
+    assert not any(
+        "1 Interview(s) werden noch ausgewertet" in t for _, t in tg.gesendet
+    ), "keine Dopplung: der Text geht nicht zusaetzlich ueber d.tg.sende()"
     assert klm.aufrufe == 0, "kein Modellaufruf im Knopf-Handler (Zusage 2)"
 
 

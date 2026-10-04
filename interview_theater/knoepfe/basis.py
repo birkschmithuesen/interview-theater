@@ -17,9 +17,9 @@ sonst waere die Schicht keine.
 from interview_theater import erkenner, phasen, repo
 
 from interview_theater.knoepfe.texte import (
-    ART_ANDERS, ART_EIGENE, ART_KERNTHEMA, ART_PHASE, ART_SPEICHERN, ART_UNDO,
-    MAX_AUSWAHL, MAX_VORSCHLAEGE, MENUE_KNOPF_LAENGE, PRAEFIX, TRENNER,
-    _AUSWAHLMARKER, _FELD_FUER, T, log,
+    ART_ANDERS, ART_EIGENE, ART_KERNTHEMA, ART_PHASE, ART_REDO, ART_SPEICHERN,
+    ART_UNDO, MAX_AUSWAHL, MAX_VORSCHLAEGE, MENUE_KNOPF_LAENGE, PRAEFIX,
+    TRENNER, _AUSWAHLMARKER, _FELD_FUER, T, log,
 )
 
 
@@ -148,13 +148,54 @@ def _merke_botnachricht(conn, chat_id: int, message_id: int, text: str) -> None:
         log.exception("Knopfnachricht nicht mitgeschrieben, chat_id=%s", chat_id)
 
 
+def _kollabiere_letzten_einsamen_undo(conn, tg, chat_id: int) -> None:
+    """Verhindert zwei gleich gewichtete Knopfleisten direkt untereinander
+    (Zusatzbefund, Padua Phase-2-Ende 04.10.2026): steht die zuletzt angelegte
+    Knopfnachricht dieser Gruppe mit GENAU einem offenen Undo-Knopf da (keine
+    Grundleiste daneben -- die haette ``_nimm_alte_leiste_ab`` schon
+    abgenommen), verfaellt er, bevor die naechste Leiste kommt.
+
+    Live-Fall: die Gruppe drueckte 35 Sekunden nach dem Fragen-Abschluss auf
+    den einsamen Undo-Knopf, obwohl sie auf das direkt darunter folgende
+    Angebot (weiche Fassungen) antworten wollte -- zwei Leisten standen gleich
+    gewichtet untereinander. Diese Regel ist bewusst allgemein (nicht nur fuer
+    die weichen Fassungen): jede neue Leiste, die auf eine einsame
+    Undo-Quittung folgt, laesst sie verfallen.
+
+    **Nicht verwechseln mit Karte U's Reduktion** (``_reduziere_auf_undo``):
+    eine Grundleiste, die ``_nimm_alte_leiste_ab`` gerade erst auf ihren
+    Undo-Knopf heruntergesetzt hat, zeigt in diesem Moment ebenfalls genau
+    einen offenen Undo-Knopf -- darf aber nicht verschwinden, das ist die
+    Zusage aus Karte U. Der Unterschied steckt in
+    ``repo.anzahl_knoepfe_der_nachricht``: eine echte lone-Undo-Quittung
+    (``sende_notiert_nur_undo``) hatte nie mehr als einen Knopf, eine
+    reduzierte Grundleiste schon -- nur die erste kollabiert hier."""
+    letzte = repo.letzte_knopf_nachricht_id(conn, chat_id)
+    if letzte is None:
+        return
+    offen = repo.offene_knoepfe_der_nachricht(conn, chat_id, letzte)
+    if (
+        len(offen) == 1 and offen[0]["art"] == ART_UNDO
+        and repo.anzahl_knoepfe_der_nachricht(conn, chat_id, letzte) == 1
+    ):
+        repo.verfallen_lassen(conn, [offen[0]["id"]])
+        _entferne_tastatur(tg, chat_id, letzte)
+
+
 def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste, **kw) -> int:
     """``tg.sende_mit_knoepfen`` plus Mitschrift in ``nachricht``.
 
     **Der eine Sendeweg fuer Knopfnachrichten** (06.09.2026, Birk 12:05):
     vorher schrieb nur ``tg.sende`` mit, und deshalb fehlten saemtliche
     Vorschlagsmenues im Gespraechsfenster des naechsten Zuges. Wer hier eine
-    neue Leiste baut, nimmt diese Funktion und nicht ``tg`` direkt."""
+    neue Leiste baut, nimmt diese Funktion und nicht ``tg`` direkt.
+
+    Traegt die neue Leiste mindestens einen Knopf, kollabiert sie zuerst eine
+    einsam stehende Undo-Quittung (Zusatzbefund, Padua Phase-2-Ende --
+    ``_kollabiere_letzten_einsamen_undo``), damit nie zwei gleich gewichtete
+    Leisten direkt untereinander stehen."""
+    if leiste:
+        _kollabiere_letzten_einsamen_undo(conn, tg, chat_id)
     message_id = tg.sende_mit_knoepfen(chat_id, text, leiste, **kw)
     _merke_botnachricht(conn, chat_id, message_id, kw.get("klartext") or text)
     return message_id
@@ -699,6 +740,19 @@ def undo_leiste(conn, chat_id: int, lauf_id: int | None) -> list[tuple[str, str]
         return []
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_UNDO, str(lauf_id))
     return [(T._TEXT_UNDO_KNOPF, _daten(knopf_id))]
+
+
+def redo_leiste(conn, chat_id: int, lauf_id: int | None) -> list[tuple[str, str]]:
+    """Der EINE Redo-Knopf unter einer Undo-Erledigt-Quittung (Befund 1a,
+    Padua Phase-2-Ende): spiegelt ``undo_leiste`` -- derselbe
+    ``erkenner_lauf.id``-Wert, dieselbe Zusage-1-Regel. Nur einmal moeglich:
+    der Knopf verfaellt wie jeder andere nach dem ersten Druck
+    (``repo.beanspruche_knopf``), die zweite Sperre steckt in
+    ``repo.stelle_erkenner_lauf_wieder_her`` selbst (``wiederhergestellt_am``)."""
+    if lauf_id is None:
+        return []
+    knopf_id = repo.lege_knopf_an(conn, chat_id, ART_REDO, str(lauf_id))
+    return [(T._TEXT_REDO_KNOPF, _daten(knopf_id))]
 
 
 def sende_notiert_nur_undo(conn, tg, chat_id: int, text: str, lauf_id: int,

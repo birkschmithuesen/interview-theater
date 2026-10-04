@@ -48,6 +48,14 @@ _TEXT_UNDO_FEHLER = "I couldn't undo that - please fix it in the work status."
 _ANTWORT_UNDO = "Undone."
 _ANTWORT_UNDO_GEAENDERT = "Changed since."
 _JOURNAL_UNDO = "Withdrawn: {zeilen}"
+# Befund 1a, Padua Phase-2-Ende: der Redo-Knopf unter einer Undo-Quittung.
+_TEXT_REDO_KNOPF = "Redo"
+_TEXT_REDO_ERLEDIGT = "Redone:\n{zeilen}"
+_TEXT_REDO_GEAENDERT = "Changed since - please fix it in the work status"
+_TEXT_REDO_FEHLER = "I couldn't redo that - please fix it in the work status."
+_ANTWORT_REDO = "Redone."
+_ANTWORT_REDO_GEAENDERT = "Changed since."
+_JOURNAL_REDO = "Redone: {zeilen}"
 _TEXT_AUFNAHME_STARTEN = "Start interview"
 _TEXT_AUFNAHME_BEENDEN = "End interview"
 _TEXT_TEIL_WEITER_KNOPF = "Interview continues"
@@ -528,12 +536,12 @@ most one sentence and one question."""
 ["befehle"]
 _TEXT_INTERVIEW_AN = "Ready - send your voice messages. After each one you get the typed-out text."
 _TEXT_INTERVIEW_AUS = "Recording stopped."
-_TEXT_KERNTHEMA_LEER = "Write the core theme after the command, for example: /kernthema Arriving"
+_TEXT_KERNTHEMA_LEER = "Write the core theme after the command, for example: /theme Arriving"
 _TEXT_UNBEKANNT = "I don't know that command."
 _TEXT_WORTLAUT_AUS = "Word for word off."
 _TEXT_PHASE_UMSCHALTEN = "Switch with /phase 4 or /phase Characters - going back works too."
 _TEXT_FIGUR_HILFE = """\
-This is how I remove a character: /figur <name> entfernen. \
+This is how I remove a character: /character <name> remove. \
 You can create characters simply in the conversation."""
 _TEXT_PHASE_UNBEKANNT = "I don't know that phase. These are the seven I have:"
 _TEXT_KEINE_AUFNAHMEN = "There are no recordings yet."
@@ -544,7 +552,7 @@ _TEXT_SPRACHE_AUTO = "automatic (I detect it myself)"
 _JOURNAL_SPRACHE = "Interview language for Whisper: {sprache}"
 _TEXT_SZENE_LEER = """\
 Write the task after the command, for example: \
-/szene Scene 2: two characters meet at the station"""
+/scene Scene 2: two characters meet at the station"""
 _TEXT_SZENE_FIGUR_UNBEKANNT = """\
 I don't know these characters: {namen}. A scene only uses \
 characters from your progress - create them in the conversation first."""
@@ -554,9 +562,9 @@ _TEXT_NAME_UNBEKANNT = "I don't know that name. Existing recordings: {namen}"
 _TEXT_INTERVIEW_UNBEKANNT = "I don't know that interview. Existing ones: {namen}"
 _TEXT_RAHMEN_ZEILE = "Setting: {rahmen}"
 _TEXT_RAHMEN_OFFEN = "Setting: still open"
-_TEXT_RAHMEN_SETZEN = "Set it: /stueck rahmen A waiting room, one afternoon"
-_TEXT_STUECK_UNBEKANNT = "I don't know that one. There is /stueck rahmen <text>."
-_TEXT_STUECK_WERT_LEER = "Add the {bezeichnung} after the command, for example: /stueck {feld} {beispiel}"
+_TEXT_RAHMEN_SETZEN = "Set it: /play setting A waiting room, one afternoon"
+_TEXT_STUECK_UNBEKANNT = "I don't know that one. There is /play setting <text>."
+_TEXT_STUECK_WERT_LEER = "Add the {bezeichnung} after the command, for example: /play {feld} {beispiel}"
 _TEXT_STUECK_NICHT_GESETZT = "Nothing was set for {bezeichnung}."
 _TEXT_STUECK_NOTIERT = "{bezeichnung} noted: {wert}"
 _TEXT_KERNTHEMA_NICHT_GESETZT = "No core theme was set."
@@ -575,49 +583,21 @@ _TEXT_INTERVIEWMODUS_AUS = "Interview mode: off"
 _TEXT_ZUM_MITLESEN = "To follow along: {url}"
 _TEXT_WORTLAUT_ALLE = "Word for word on: all recordings."
 _TEXT_WORTLAUT_AN = "Word for word on: {name}"
-_TEXT_HILFE = """\
-Just write or speak - I read everything and answer.
-
-HOW TO DO AN INTERVIEW:
-1. Tap "Start interview"
-2. Send the voice messages from the person you're interviewing, as many \
-as you like - they all belong to this one interview
-3. After each one I send you the typed-out text to read along, and below \
-it a button asks whether the interview continues or is finished. If a \
-word is wrong, just tell me.
-4. After "Interview is finished" the next steps appear as buttons: \
-Analyse, Next interview, On to the next station.
-
-The buttons are the way. If you'd rather type, you can also use these \
-commands:
-/aufnahme - start and stop an interview
-/stand - shows what I've kept so far
-/auswerten [number] - what's in the interviews
-/kernthema <text> - set the core theme
-/stueck rahmen <text> - place, time, occasion of the evening
-/szene <number> form <dialog|monolog|chor|lied|rap>
-/szene <number> ort|zeit|anlass|figuren <text> - place, time, occasion, cast
-/szene <task> - have a scene written
-/phase [number|name] - shows the phase or switches it
-/hilfe - this overview
-
-Everything else you just tell me: characters, scenes, decisions - I \
-keep track of it without you needing a command."""
 BEFEHLE_LISTE = [
-    { command = "aufnahme", description = "Start interview - and again to stop" },
-    { command = "stand", description = "Show where we are" },
-    { command = "auswerten", description = "Analyse and show interviews" },
-    { command = "kernthema", description = "Set or correct the core theme" },
-    { command = "stueck", description = "Format and setting of the play (phase 5)" },
-    { command = "szene", description = "Plan a scene, set its form, have it written" },
+    { command = "record", description = "Start interview - and again to stop" },
+    { command = "status", description = "Show where we are" },
+    { command = "analyse", description = "Analyse and show interviews" },
+    { command = "theme", description = "Set or correct the core theme" },
+    { command = "play", description = "Format and setting of the play (phase 5)" },
+    { command = "scene", description = "Plan a scene, set its form, have it written" },
     { command = "phase", description = "Show or switch the working phase" },
-    { command = "hilfe", description = "How the bot works" },
+    { command = "help", description = "How the bot works" },
 ]
 _TEXT_FESTLEGUNG_KOPF = "Agreed, outside the fields:"
 _TEXT_FESTLEGUNG_LEER = "Nothing has been agreed outside the fields yet."
 _TEXT_FESTLEGUNG_HILFE = """\
-New: /festlegung <figur|gruppe|ort|struktur|form|stil|sonstiges>: <text> - \
-back: /festlegung weg <search word>."""
+New: /agreement <figur|gruppe|ort|struktur|form|stil|sonstiges>: <text> - \
+back: /agreement remove <search word>."""
 _TEXT_FESTLEGUNG_SCHON_DA = "That's already there."
 _TEXT_FESTLEGUNG_UNBEKANNT = "I haven't agreed anything on that."
 
@@ -1105,7 +1085,8 @@ sings, there's a song; where a list pounds, a rap; where someone stays
 alone, a monologue; where many say the same thing, a chorus. A sequence made
 only of dialogues is a mistake.
 
-Then one sentence and an open question to the group, two lines at most."""
+Then one sentence and an open question to the group, two lines at most.
+Write in English."""
 ANWEISUNG_GESCHICHTE = """You are developing the rough story of a theatre group's play with them.
 
 The group has invented the setting and the characters themselves. Now it's
@@ -1134,7 +1115,8 @@ Title of the third direction — arc, ending and core conflict in two to three s
 Exactly three lines, one direction each, titles under 25 characters. Only
 use characters listed below.
 
-Then one sentence and an open question to the group, two lines at most."""
+Then one sentence and an open question to the group, two lines at most.
+Write in English."""
 ANWEISUNG_GESCHICHTE_SZENEN = """You are developing the scene sequence of a theatre group's play with them.
 
 The group has chosen a direction; the arc and the ending are below. From
@@ -1150,7 +1132,8 @@ Only use characters listed below. **No form** -- whether a scene becomes a
 dialogue, a monologue, a chorus, a song or a rap is decided by the group
 later, in Stage Version, not here.
 
-Then one sentence and an open question to the group, two lines at most."""
+Then one sentence and an open question to the group, two lines at most.
+Write in English."""
 ANWEISUNG_FELDER = """You are planning a single scene with a theatre group.
 
 For the scene below, details are still missing: {felder}.
@@ -1164,7 +1147,8 @@ field: value
 
 One line per field, only the missing fields, the field names exactly as in
 the list above. Then one sentence and an open question to the group, two
-lines at most."""
+lines at most.
+Write in English."""
 _GESCHICHTE_MIT_ENDE = "{bogen}\nEnding: {ende}"
 JOURNAL_INLINE = "Scenes from the chosen direction: {liste}"
 _NOCH_OFFEN = "still open"
@@ -1306,7 +1290,8 @@ Four columns per line, separated by dashes:
 4. **Interview N** -- the number the style comes from, written exactly like
    this.
 
-Then one sentence and an open question, two lines at most."""
+Then one sentence and an open question, two lines at most.
+Write in English."""
 _TEXT_LAEUFT = "I'm listening for how {name} could speak …"
 _TEXT_FEHLER = "The style suggestions didn't work out. Say it again."
 _TEXT_KEIN_MATERIAL = "For the speech style I need interviews with checked quotes - there aren't any yet."
@@ -1522,7 +1507,6 @@ _TEXT_KEIN_INTERVIEW_NOCH = "No interview yet — say “we're doing an intervie
 _TEXT_NICHTS_NOTIERT = "Nothing noted yet."
 _TEXT_GRUPPE = "Group {chat_id}"
 _TITEL_GRUPPENSEITE = "{titel} — interview-theater"
-_TEXT_PROBENANSICHT_LINK = "📖 Rehearsal view — the whole play in one piece, to read and print"
 _UEBERSCHRIFT_UEBERBLICK = "Overview"
 _UEBERSCHRIFT_ARBEITSSTAND = "Where we are"
 _UEBERSCHRIFT_STUECKKARTE = "Play card"
@@ -1536,6 +1520,22 @@ _UEBERSCHRIFT_SZENEN = "Scenes"
 _UEBERSCHRIFT_INTERVIEWS = "From the interviews"
 _UEBERSCHRIFT_WEG = "How we got here"
 _TEXT_JOURNAL = "Journal ({anzahl})"
+_TEXT_WERKBANK_HINWEIS = "To change something, just tell the bot in the chat."
+_TEXT_WERKBANK_ZAHL = "{erledigt} of {gesamt}"
+_TEXT_STATUS_ERLEDIGT = "done"
+_TEXT_STATUS_OFFEN = "open"
+_TEXT_STATUS_SPAETER = "later"
+_TEXT_WERKBANK_LAEUFT = "running"
+_TEXT_WB_DISKUSSION = "Discussion summarised"
+_TEXT_WB_INTERVIEW_FERTIG = "{bezug}: recorded, summarised"
+_TEXT_WB_INTERVIEW_OFFEN = "{bezug}: recorded, not yet summarised"
+_TEXT_WB_PROSA = "Scene {bezug}: prose"
+_TEXT_WB_GESAMTTEXT = "Feedback on the whole text"
+_TEXT_WB_UEBERARBEITET = "Scene {bezug}: revised"
+_TEXT_WB_FORM = "Scene {bezug}: form"
+_TEXT_WB_SPRECHWEISE = "{bezug}: way of speaking"
+_TEXT_WB_AUCH_VEREINBART = "Also agreed"
+_TEXT_WERKBANK_NUR_LESEN = "The workbench only shows things — please make changes in the chat."
 _JS_SICHER = "Really remove?"
 _JS_SPEICHERT = "saving …"
 _JS_GESPEICHERT = "saved"
@@ -1576,8 +1576,12 @@ _TEXT_ERSTE_FASSUNG = "First draft (before the check)"
 TEXT_LEITFADEN_LEER = "The interview guide is created in phase 2."
 TEXT_LEITFADEN_ZURUECK = "← back to where we are"
 _TEXT_CHAT_LINK = "Chat with the bot"
-_TEXT_BUEHNE_LEER = "No card yet."
+_TEXT_BUEHNE_LEER = "Talk in the chat — thoughts will appear here."
 _TEXT_BUEHNE_HOERT_ZU = "Listening … nothing to add yet."
+_TEXT_BUEHNE_AUFNAHME_LAEUFT = "A recording is in progress."
+_TEXT_BUEHNE_ZURUECK = " — back to current"
+_TEXT_BUEHNE_NEU_PRAEFIX = "new: "
+_TEXT_BUEHNE_ALTER = "{minuten} min ago"
 _TEXT_BUEHNE_OFFEN = "open"
 _TEXT_COTHINKER_HOERT = "listening"
 _TEXT_COTHINKER_TRANSKRIBIERT = "transcribing"
@@ -1844,7 +1848,12 @@ _TEXT_INTERVIEW_WEITER = "▶ Continue"
 _TEXT_INTERVIEW_ENDEN = "■ Stop"
 _TEXT_INTERVIEW_LAEUFT = "● Interview running · {zeit}"
 _TEXT_INTERVIEW_PAUSIERT = "Paused · {zeit}"
-_TEXT_PTT = "Tap and speak"
+_TEXT_PTT = "Hold to talk"
+# Task 1 (Kanban-Karte Buehne/PTT, 04.10.2026, Telegram pattern): literal
+# wording from the card for the hint and nothing paraphrased there.
+_TEXT_PTT_HINWEIS = "Hold to talk, slide up to lock"
+_TEXT_PTT_WISCHEN = "slide to cancel"
+_TEXT_PTT_VERWERFEN = "Discard recording"
 # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): the
 # button-gated noise/speech calibration -- literal wording from the card,
 # nothing paraphrased.
@@ -1887,6 +1896,11 @@ _TEXT_PHASE_FEHLT_HINWEIS = "{was} is still missing – go on anyway?"
 _TEXT_PHASE_ABBRECHEN = "No"
 _TEXT_PHASE_FEHLER_NETZ = "No connection - that didn't go through."
 _TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_aufgaben}"
+_TEXT_SHEET_STATUS_OFFEN = "Still open: {was}"
+_TEXT_SHEET_STATUS_BEREIT = "Ready"
+_TEXT_SHEET_GEHE_ZU = "Go to {bezeichnung}"
+_TEXT_SHEET_BLEIBE = "Stay here"
+_TEXT_STEPPER_HINWEIS = "Tap a phase to move between steps."
 
 ["web_vereint"._TEXT_TAB]
 chat = "Chat"
@@ -1906,7 +1920,6 @@ _TEXT_REC_LAEUFT = "Mic is hot."
 _TEXT_REC_LAEDT = "Hold on — the tape is still walking."
 _TEXT_REC_PAUSIERT = "Paused — nothing is being recorded."
 _TEXT_LEITFADEN = "Interview guide"
-_TEXT_AKT_KOPF = "Act {nummer}/{gesamt}"
 _TEXT_NAECHSTES = "Next up: {was}"
 _TEXT_NAECHSTE_PHASE = "Phase {bezeichnung}"
 _TEXT_BELOHNUNG_AKT = "Act closed."

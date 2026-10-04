@@ -1036,6 +1036,15 @@ def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
                 or z["status"] in ("fertig", "transkribiert"),
                 "hat_transkript": bool((z["transkript"] or "").strip())
                 or _hat_teil_transkript(conn, z["id"], mit_teilen),
+                # Die vierte Bedingung aus ``aufnahme.unausgewertete_interviews``
+                # (Padua Phasen TEIL 2, Task 5): ein zu-kurz uebersprungenes
+                # Interview gilt nie als offene Auswertung. Die Spalte ist
+                # neu auf diesem Zweig -- eine read-only Verbindung von vor
+                # der Migration kennt sie noch nicht, also wie bei ``_feld``
+                # defensiv lesen statt mit IndexError abzubrechen.
+                "zu_kurz_uebersprungen": bool(z["zu_kurz_uebersprungen"])
+                if "zu_kurz_uebersprungen" in z.keys()
+                else False,
                 "teile": teile,
                 "beginn": _beginn(z),
                 "dauer_sekunden": teile_dauer if teile else z["dauer_sekunden"],
@@ -1265,7 +1274,9 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     szenen = _szenen(conn, chat_id, geschaerft)
     fassungen = szenenfassungen(conn, chat_id, szenen)
     stand = _arbeitsstand(conn, chat_id)
+    _aufnahmestatus = _aufnahmen_nach_status(conn, chat_id)
     from interview_theater import fragen_auswertung as _fragen_auswertung_modul
+    from interview_theater import workshop as _workshop
 
     return {
         "chat_id": chat_id,
@@ -1328,7 +1339,22 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Rest dieser Funktion. Die Karten tragen NIE ein Belegzitat (Phase 4
         # ist interview-frei), siehe buehnenkarte.py/db.py.
         "buehnenkarten": buehnenkarten(conn, chat_id),
+        # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
+        # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder
+        # wartet auf Transkription. Ueber ``_aufnahmen_nach_status`` (schon
+        # vom Dashboard genutzt) statt eines neuen Lesevorgangs -- kein
+        # neuer Modellaufruf, keine neue Spalte. Das "thinking"-Signal
+        # (Erzeugungssperre im Bot-Prozess) ist dem Webserver strukturell
+        # unsichtbar und bleibt deshalb aus, siehe ``web._buehne_status_text``.
+        "buehne_aufnahme_laeuft": bool(
+            _aufnahmestatus.get("empfangen") or _aufnahmestatus.get("laeuft")
+        ),
         "stueckkarte_felder": stueckkarte_felder(conn, chat_id, figuren, stand),
+        # Die read-only Werkbank (Padua, 03.10.2026) -- nur, wenn das Profil
+        # den Arbeitsstand nicht bearbeiten laesst. Dortmund liest sie nie.
+        "werkbank": (
+            werkbank(conn, chat_id) if not _workshop.workbench_bearbeitbar() else None
+        ),
         # Die CoThinker-Statuszeile (Phase 4, nur Web, 03.10.2026) -- ``None``
         # ausserhalb Phase 4 und wenn es gerade nichts zu melden gibt, dann
         # bleibt die Zeile im Browser weg.
@@ -1337,11 +1363,18 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
 
 
 def buehnenkarten(
-    conn: sqlite3.Connection, chat_id: int, hoechstens: int = 10,
+    conn: sqlite3.Connection, chat_id: int, hoechstens: int = 20,
 ) -> list[sqlite3.Row]:
     """Das read-only Gegenstueck zu ``repo.buehnenkarten`` (Buehne-Tab der
     Gruppenseite) -- NEUESTE ZUERST, wie dort. Fehlt die Tabelle noch
-    (Deploy vor Bot-Neustart), ist die Liste leer statt ein Fehler."""
+    (Deploy vor Bot-Neustart), ist die Liste leer statt ein Fehler.
+
+    ``hoechstens`` auf 20 angehoben (Task 1, Padua CoThinker-Tab clean,
+    03.10.2026) -- gleich mit ``repo.buehnenkarten``s eigener Vorgabe.
+    Die neue Tafel zeigt zwar immer nur EINE Karte, aber jetzt mit
+    Browser-seitigem Verlauf (◀/▶): mehr Geschichte zum Durchblaettern ist
+    hier kein Mehraufwand mehr, sondern genau das, was die Navigation
+    braucht."""
     try:
         return conn.execute(
             "SELECT * FROM buehnenkarte WHERE chat_id = ? ORDER BY id DESC LIMIT ?",
@@ -1451,10 +1484,10 @@ def _offene_interviews(conn: sqlite3.Connection, chat_id: int) -> list[str]:
     aber noch keine Verdichtung -- das read-only Gegenstueck zu
     ``aufnahme.unausgewertete_interviews``.
 
-    Dieselben drei Bedingungen (beendet, Transkript da, keine Verdichtung),
-    nur ohne ``repo``: der Webserver hat die Schreibschicht nicht. Fehlt eine
-    Spalte noch (Datenbank aus der Zeit davor), ist die Liste leer statt ein
-    Fehler."""
+    Dieselben vier Bedingungen (beendet, Transkript da, nicht zu-kurz
+    uebersprungen, keine Verdichtung), nur ohne ``repo``: der Webserver hat
+    die Schreibschicht nicht. Fehlt eine Spalte noch (Datenbank aus der Zeit
+    davor), ist die Liste leer statt ein Fehler."""
     offen = []
     for eintrag in _interviews(conn, chat_id):
         if eintrag["zusammenfassung"]:
@@ -1462,6 +1495,8 @@ def _offene_interviews(conn: sqlite3.Connection, chat_id: int) -> list[str]:
         if not eintrag.get("beendet"):
             continue
         if not eintrag.get("hat_transkript"):
+            continue
+        if eintrag.get("zu_kurz_uebersprungen"):
             continue
         offen.append(eintrag["bezeichnung"])
     return offen
@@ -2010,14 +2045,11 @@ def web_stromzeilen(conn: sqlite3.Connection, chat_id: int,
 # --- Die Roadmap (30.09.2026, Karte W) -------------------------------------
 
 
-def roadmap(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
-    """Die Phasenuebersicht (``interview_theater/roadmap.py``) -- aus der
-    read-only geoeffneten Verbindung.
-
-    Ein Zusammenbau, zwei Aufrufer (wie beim Leitfaden und den Fehlstellen):
-    die reine Funktion kennt nur Dicts, deshalb kommt der Webserver ohne
-    ``repo`` aus."""
-    from interview_theater import phasen, roadmap as modul
+def _roadmap_lage(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Die ``lage`` der Roadmap aus der read-only Verbindung -- herausgeloest
+    (Werkbank, 03.10.2026), damit ``roadmap`` und ``werkbank`` dieselben
+    Daten lesen."""
+    from interview_theater import phasen
 
     stand = _arbeitsstand(conn, chat_id)
     gruppe = conn.execute(
@@ -2025,7 +2057,7 @@ def roadmap(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         (chat_id,),
     ).fetchone()
     interviews = _interviews(conn, chat_id)
-    return modul.aus_daten({
+    return {
         "stand": stand,
         "figuren": _figuren(conn, chat_id),
         "szenen": _szenen(conn, chat_id),
@@ -2050,4 +2082,84 @@ def roadmap(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         # vorher die juengste Zeile, und ein Gespraechszug neben einem
         # Szenenlauf verdeckte den Szenenlauf).
         "strom": _laufende_stromart(conn, chat_id),
-    })
+    }
+
+
+def roadmap(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die Phasenuebersicht (``interview_theater/roadmap.py``) -- aus der
+    read-only geoeffneten Verbindung.
+
+    Ein Zusammenbau, zwei Aufrufer (wie beim Leitfaden und den Fehlstellen):
+    die reine Funktion kennt nur Dicts, deshalb kommt der Webserver ohne
+    ``repo`` aus."""
+    from interview_theater import roadmap as modul
+
+    return modul.aus_daten(_roadmap_lage(conn, chat_id))
+
+
+# --- Die Werkbank (Padua, 03.10.2026) ---------------------------------------
+
+#: Arbeitsstandfelder, die nur die Werkbank braucht -- ueber ``_feld``, weil
+#: der Webserver read-only liest und eine Spalte noch fehlen kann
+#: (``begriffe_detail`` kommt erst mit Karte t_4517d4ad).
+_WERKBANK_STANDFELDER = (
+    "gesamttext_fixiert_am", "sprechweisen_fixiert_am", "szenen_anzahl", "begriffe_detail",
+)
+
+
+def _werkbank_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
+    zeile = conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+    return {feld: _feld(zeile, feld) for feld in _WERKBANK_STANDFELDER}
+
+
+def _diskussion_verdichtet(conn: sqlite3.Connection, chat_id: int) -> bool:
+    try:
+        return conn.execute(
+            "SELECT 1 FROM diskussion_verdichtung WHERE chat_id = ?", (chat_id,)
+        ).fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
+
+
+def _spalte_je_id(conn: sqlite3.Connection, tabelle: str, spalte: str,
+                  chat_id: int) -> dict:
+    """``{id: wert}`` einer Spalte -- leer, wenn sie (noch) fehlt. ``tabelle``
+    und ``spalte`` kommen nur aus dem Code, nie von aussen."""
+    try:
+        zeilen = conn.execute(
+            f"SELECT id, {spalte} FROM {tabelle} WHERE chat_id = ? AND {_NICHT_ENTFERNT}",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    return {z["id"]: z[spalte] for z in zeilen}
+
+
+def werkbank(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Die read-only Werkbank (``roadmap.werkbank``) -- dieselbe ``lage`` wie
+    ``roadmap``, ergaenzt um das, was nur die Detailzeilen brauchen. Kein
+    Schreibvorgang, kein Modellaufruf."""
+    from interview_theater import roadmap as modul, workshop
+
+    lage = _roadmap_lage(conn, chat_id)
+    zusatz = _werkbank_stand(conn, chat_id)
+    lage["stand"] = {**lage["stand"], **zusatz}
+    abnahme = _spalte_je_id(conn, "szene", "ueberarbeitung_bestaetigt_am", chat_id)
+    lage["szenen"] = [
+        {**s, "ueberarbeitung_bestaetigt_am": abnahme.get(s["id"])} for s in lage["szenen"]
+    ]
+    stil = _spalte_je_id(conn, "figur", "sprachstil", chat_id)
+    lage["figuren"] = [{**f, "sprachstil": stil.get(f["id"])} for f in lage["figuren"]]
+    # Die Diskussionszeile gibt es nur, wo Phase 1 mitschneidet -- sonst
+    # stuende dort fuer immer ein offener Punkt, den niemand schliessen kann.
+    lage["diskussion"] = (
+        _diskussion_verdichtet(conn, chat_id) if workshop.diskussion_aktiv() else None
+    )
+    anzahl = zusatz.get("szenen_anzahl")
+    return {
+        "phasen": modul.werkbank(lage, lage["phase"]),
+        "begriffe_detail": modul.begriffe_detail(lage["stand"]),
+        "szenen_anzahl": (str(anzahl).strip() or None) if anzahl is not None else None,
+    }

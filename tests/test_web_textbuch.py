@@ -231,11 +231,23 @@ def test_die_probenansicht_laedt_sich_nicht_nach(basis, token):
     assert "setInterval" not in koerper
 
 
-def test_die_gruppenseite_verlinkt_die_probenansicht(basis, token):
+def test_die_gruppenseite_verlinkt_die_probenansicht_nicht_mehr(basis, token):
+    """Kopfzeilen-Karte (Birk, Padua UX): 'der Link zur Rehearsal view ist
+    unsinnig, da identisch mit Script-Tab.' Der redundante Link aus dem
+    Arbeitsstand-Panel ist weg -- die Route selbst (``/g/<token>/textbuch``,
+    getestet oben) bleibt unveraendert erreichbar, nur ueber den Textbuch-Tab,
+    nicht mehr zusaetzlich ueber diesen Link.
+
+    Die vereinte Seite traegt IMMER auch den (verborgenen) Textbuch-Tab in
+    ihrem HTML -- der enthaelt selbst ".md"/".txt"-Wege und das Wort
+    "Probenansicht" in eigenem Zusammenhang (Rollenleiste). Ein blosser
+    Textsuchtreffer irgendwo auf der Seite waere deshalb kein verlaesslicher
+    Beweis; geprueft wird gezielt die Markierung des entfernten Links
+    selbst (``class="probenansicht"``, nur dort je vergeben)."""
     koerper = hole(f"{basis}/g/{token}")[1]
 
-    assert f'href="/theatersoap/g/{token}/textbuch"' in koerper
-    assert "Probenansicht" in koerper
+    assert 'class="probenansicht"' not in koerper
+    assert f'href="/theatersoap/g/{token}/textbuch">' not in koerper
 
 
 # --- Rollenfilter, Schrift, Regie -----------------------------------------

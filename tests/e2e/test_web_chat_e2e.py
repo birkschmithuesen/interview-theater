@@ -486,13 +486,24 @@ def _form(posts) -> list:
     return folge
 
 
+def _ptt_mitte(seite) -> tuple[float, float]:
+    """Mittelpunkt von ``#ptt`` in Seitenkoordinaten -- Grundlage jeder
+    Maus-Geste gegen den Knopf."""
+    box = seite.locator("#ptt").bounding_box()
+    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+
 def _halte_ptt(seite, ms: int) -> None:
-    """PTT ist seit der Kanban-Karte Buehne/PTT (03.10.2026) ein
-    Klick-Umschalter, kein Halten mehr: ein Tipp startet, ein zweiter
-    beendet und sendet."""
-    seite.click("#ptt")
+    """PTT ist seit der Kanban-Karte Buehne/PTT (04.10.2026, Telegram-
+    Vorbild) ein Halten-Knopf, kein Klick-Umschalter mehr: Maus auf die
+    Mitte, Druck, warten, loslassen -- ohne Verschiebung (0 px), damit das
+    weder sperrt noch abbricht. Haelt ueber ``PTT_MIN_MS``, dann normales
+    Loslassen -> 1 POST."""
+    cx, cy = _ptt_mitte(seite)
+    seite.mouse.move(cx, cy)
+    seite.mouse.down()
     seite.wait_for_timeout(ms)
-    seite.click("#ptt")
+    seite.mouse.up()
 
 
 def _starte_interview(seite) -> None:
@@ -680,29 +691,103 @@ def test_eine_wachsende_letzte_blase_scrollt_nicht_wenn_hochgescrollt_wurde(seit
 def test_ptt_unter_einer_halben_sekunde_sendet_nichts(seite):
     """Der Recorder laeuft wirklich, bevor losgelassen wird -- sonst griffe
     der Weg "losgelassen vor getUserMedia" (B5), und die Sperre
-    ``druck.dauerMs < PTT_MIN_MS`` liefe nie."""
+    ``druck.dauerMs < PTT_MIN_MS`` liefe nie. Kartenkriterium 4: ein kurzer
+    Tipp zeigt kurz den Halten-Hinweis, statt einfach nichts zu tun, und
+    dann verschwindet er wieder -- 0 POST in jedem Fall."""
     vorher = _zaehle_sprachnachrichten()
     # Mikrofon aufwaermen: der erste getUserMedia eines Kontexts ist langsam.
     seite.evaluate("""navigator.mediaDevices.getUserMedia({audio: true}).then(
       function (s) { s.getTracks().forEach(function (t) { t.stop(); }); })""")
+    cx, cy = _ptt_mitte(seite)
     beginn = time.time()
-    seite.click("#ptt")
+    seite.mouse.move(cx, cy)
+    seite.mouse.down()
     assert _warte(seite, lambda: _t(seite, "starts") == 1, ms=400, schritt=20)
     gehalten = time.time() - beginn
     seite.wait_for_timeout(max(0, int((0.3 - gehalten) * 1000)))
-    seite.click("#ptt")
+    seite.mouse.up()
     assert time.time() - beginn <= 0.45     # deutlich unter PTT_MIN_MS
+    expect(seite.locator("#ptt-hinweistext")).to_be_visible()
+    expect(seite.locator("#ptt-hinweistext")).to_contain_text(web_chat._TEXT_PTT_HINWEIS)
+    expect(seite.locator("#ptt-anzeige")).to_be_hidden(timeout=3000)
     seite.wait_for_timeout(2500)
     assert _zaehle_sprachnachrichten() == vorher
     assert _form(_posts(seite)) == []
 
 
-# test_ptt_mit_pointercancel_sendet_nichts und
-# test_ptt_wegziehen_und_aussen_loslassen_sendet_nichts entfernt (Kanban-
-# Karte Buehne/PTT, 03.10.2026): beide testeten Gesten, die es unter dem
-# neuen Tippen-zum-Umschalten nicht mehr gibt -- `pointercancel`-Dispatch
-# und Wegziehen samt `data-weg`-Attribut sind mit dem Pointer-Capture-Weg
-# zusammen abgeschafft worden.
+# Die Zustimmung zum Klick-Umschalter (03.10.2026, Kanban-Karte Buehne/PTT)
+# ist mit der Kanban-Karte Buehne/PTT vom 04.10.2026 (Telegram-Vorbild:
+# Halten, Sperre, Wegwisch-Abbruch) wieder zurueckgenommen -- PTT ist jetzt
+# erneut ein Pointer-Capture-Halteknopf, nur mit Sperre UND Wegwisch-Abbruch
+# obendrauf. Die drei Tests unten decken genau diese drei Gesten ab.
+
+
+def test_halten_ohne_verschiebung_sendet_genau_eines_mit_pegel_und_timer(seite):
+    """Kartenkriterium 1: halten, keine Verschiebung, loslassen -> genau
+    EIN Audio-POST. Pegel und Timer (``#ptt-zeit``/``#ptt-pegel``) waren
+    sichtbar, waehrend der Druck lief."""
+    vorher = _zaehle_sprachnachrichten()
+    cx, cy = _ptt_mitte(seite)
+    seite.mouse.move(cx, cy)
+    seite.mouse.down()
+    expect(seite.locator("#ptt-anzeige")).to_be_visible()
+    expect(seite.locator("#ptt-zeit")).to_be_visible()
+    expect(seite.locator("#ptt-pegel")).to_be_visible()
+    seite.wait_for_timeout(1500)
+    seite.mouse.up()
+    assert _warte(seite, lambda: _zaehle_sprachnachrichten() > vorher)
+    seite.wait_for_timeout(1000)
+    assert _zaehle_sprachnachrichten() == vorher + 1
+    assert _form(_posts(seite)) == ["audio"]
+    expect(seite.locator("#ptt-anzeige")).to_be_hidden()
+    expect(seite.locator("#ptt")).to_be_visible()
+
+
+def test_hochschieben_sperrt_erst_der_sendeknopf_schickt(seite):
+    """Kartenkriterium 2: >= PTT_LOCK_PX (60) nach oben -> gesperrt
+    (``data-gesperrt='1'``), Finger weg (``mouse.up()``) stoppt NICHTS --
+    die Aufnahme laeuft ohne gehaltenen Finger weiter, erst der Klick auf
+    ``#ptt-senden`` schickt genau einen Audio-POST."""
+    vorher = _zaehle_sprachnachrichten()
+    cx, cy = _ptt_mitte(seite)
+    seite.mouse.move(cx, cy)
+    seite.mouse.down()
+    seite.wait_for_timeout(200)
+    seite.mouse.move(cx, cy - 70, steps=5)
+    expect(seite.locator("#ptt-anzeige")).to_have_attribute("data-gesperrt", "1")
+    expect(seite.locator("#ptt-senden")).to_be_visible()
+    expect(seite.locator("#ptt-verwerfen")).to_be_visible()
+    expect(seite.locator("#ptt")).to_be_hidden()
+    seite.mouse.up()   # Finger weg -- die Sperre haelt, kein Stopp, kein Senden
+    seite.wait_for_timeout(800)
+    assert _zaehle_sprachnachrichten() == vorher
+    assert _form(_posts(seite)) == []
+    expect(seite.locator("#ptt-senden")).to_be_visible()   # immer noch da
+    seite.click("#ptt-senden")
+    assert _warte(seite, lambda: _zaehle_sprachnachrichten() > vorher)
+    seite.wait_for_timeout(500)
+    assert _zaehle_sprachnachrichten() == vorher + 1
+    assert _form(_posts(seite)) == ["audio"]
+    expect(seite.locator("#ptt")).to_be_visible()
+    expect(seite.locator("#ptt-anzeige")).to_be_hidden()
+
+
+def test_wegwischen_bricht_sofort_ab(seite):
+    """Kartenkriterium 3: >= PTT_CANCEL_PX (80) nach links -> sofortiger
+    Abbruch, 0 POST, Mikrofon/Anzeige abgeraeumt."""
+    vorher = _zaehle_sprachnachrichten()
+    cx, cy = _ptt_mitte(seite)
+    seite.mouse.move(cx, cy)
+    seite.mouse.down()
+    seite.wait_for_timeout(200)
+    seite.mouse.move(cx - 90, cy, steps=5)
+    expect(seite.locator("#ptt-anzeige")).to_be_hidden()
+    expect(seite.locator("#ptt")).to_be_visible()
+    expect(seite.locator("#ptt")).to_have_attribute("data-haelt", "0")
+    seite.mouse.up()
+    seite.wait_for_timeout(1500)
+    assert _zaehle_sprachnachrichten() == vorher
+    assert _form(_posts(seite)) == []
 
 
 def test_ptt_ueber_einer_halben_sekunde_sendet_genau_eines(seite):
@@ -992,12 +1077,23 @@ def test_waehrend_der_aufnahme_ist_ptt_weg(seite):
 
 
 def test_gehaltener_ptt_wird_beim_interviewstart_verworfen(seite):
-    """Re-Review F, an die Toggle-Bedienung angepasst (Kanban-Karte
-    Buehne/PTT): PTT laeuft, waehrenddessen wird das Interview gestartet
-    -> kein PTT-Upload, nur der Interview-Recorder."""
-    seite.click("#ptt")
+    """Re-Review F, an die Halten-Bedienung angepasst (Kanban-Karte
+    Buehne/PTT, 04.10.2026): PTT wird gehalten (Finger bleibt unten,
+    ``mouse.up()`` kommt bewusst noch nicht), waehrenddessen wird das
+    Interview gestartet -> kein PTT-Upload, nur der Interview-Recorder."""
+    cx, cy = _ptt_mitte(seite)
+    seite.mouse.move(cx, cy)
+    seite.mouse.down()
     seite.wait_for_timeout(900)
     seite.evaluate("document.getElementById('interview').click()")
+    # Der PTT-Druck ist durch verwirfPtt() (ausgeloest aus starteInterview())
+    # schon vorbei -- die virtuelle Maus muss jetzt wieder "oben" sein, sonst
+    # kollidiert sie mit dem naechsten ECHTEN Klick unten (#interview-beenden):
+    # Playwright dispatcht dessen move/down/up ueber dieselbe virtuelle Maus,
+    # und solange #ptt noch die Pointer-Capture dieser pointerId haelt (sie
+    # wird erst durch ein pointerup/pointercancel freigegeben), liefe dessen
+    # synthetisches "move" ins Leere, statt den Beenden-Knopf zu treffen.
+    seite.mouse.up()
     seite.wait_for_timeout(SEGMENT_MS + 2000)
     seite.click("#interview-beenden")
     assert _warte(seite, lambda: "aus" in _form(_posts(seite)), ms=15000)

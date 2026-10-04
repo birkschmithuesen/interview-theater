@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from interview_theater import anweisungen, sprache, workshop
+from interview_theater import anweisungen, sprache, sprachstil, szenenfolge, workshop
 
 REPO = anweisungen._VERZEICHNIS
 EN = sprache.VERZEICHNIS / "en" / "prompts"
@@ -622,3 +622,47 @@ def test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben():
                   "Show first draft"):
         assert knopf in sechs, knopf
         assert knopf in sieben, knopf
+
+
+# --- Isolierte Laeufe ohne kontext.baue: szenenfolge, sprachstil ----------
+#
+# szenenfolge.py (die vier Szenenfolge-/Geschichte-Anweisungen) und
+# sprachstil.py (die Stilvorschlag-Anweisung) rufen ihr Modell ausserhalb
+# von kontext.baue auf -- derselbe Fehlermechanismus, der schon bei
+# fragen_ki_vorschlag & Co. behoben wurde: ohne den sonst vererbten
+# Sprachwaechter folgt das Modell der Sprache der gesehenen deutschen
+# Begriffe/Figurennamen, auch im Padua-Profil, dessen Chatsprache Englisch
+# ist (sprache.code() == "en"). Die Anweisungen stehen als Modul-Konstanten
+# (``T.ANWEISUNG_*``/``T.ANWEISUNG``), nicht als eigene Prompt-Datei --
+# gelesen deshalb ueber ``sprache.Texte`` (``modul.T``), nicht
+# ``anweisungen.hole``.
+
+_ISOLIERTE_LAEUFE_2 = [
+    (szenenfolge, "ANWEISUNG_FOLGE"),
+    (szenenfolge, "ANWEISUNG_GESCHICHTE"),
+    (szenenfolge, "ANWEISUNG_GESCHICHTE_SZENEN"),
+    (szenenfolge, "ANWEISUNG_FELDER"),
+    (sprachstil, "ANWEISUNG"),
+]
+
+
+@pytest.mark.parametrize(
+    "modul,attribut", _ISOLIERTE_LAEUFE_2,
+    ids=[f"{m.__name__.rsplit('.', 1)[-1]}.{a}" for m, a in _ISOLIERTE_LAEUFE_2],
+)
+def test_isolierte_laeufe_tragen_eine_englische_sprachvorgabe(padua, modul, attribut):
+    text = getattr(modul.T, attribut)
+    assert "Write in English." in text
+
+
+@pytest.mark.parametrize(
+    "modul,attribut", _ISOLIERTE_LAEUFE_2,
+    ids=[f"{m.__name__.rsplit('.', 1)[-1]}.{a}" for m, a in _ISOLIERTE_LAEUFE_2],
+)
+def test_deutsche_konstante_unveraendert_fuer_isolierte_laeufe_2(modul, attribut):
+    """Dortmund bleibt bitgleich: die deutsche Konstante selbst (nicht die
+    englische Fassung in der Sprachschicht) traegt keine Sprachvorgabe-Zeile.
+    Dokumentierende Zusatzabsicherung neben den eigentlichen mechanischen
+    Proben (``test_sprache_bitgleich.py``, ``test_profil_bitgleich.py``)."""
+    deutsch = getattr(modul, attribut)
+    assert "Write in English" not in deutsch

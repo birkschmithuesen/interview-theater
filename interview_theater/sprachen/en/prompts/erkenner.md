@@ -155,7 +155,7 @@ object with "art" and "wert":
     message from an ongoing interview. This one recording was not directed
     at the interviewed person but at YOU: "show me the summaries of the
     interviews", "bot, what was the second question again", "how many
-    interviews do we actually have", "/stand".
+    interviews do we actually have", "/status".
 22. szene_usa               -- wert: "JA" or "NEIN" (protocol, in capitals).
     **Only if, in the lead-up, the bot asked whether scene texts may be
     written by a model in the USA** ("For the scene text there is a better

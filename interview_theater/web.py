@@ -654,13 +654,6 @@ nav.fassungen { display: flex; flex-wrap: wrap; gap: .3rem; margin: .3rem 0; }
 .figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }
 .figur .marke { font-size: .78rem; opacity: .6; }
 .hinzu { margin-top: .8rem; }
-/* Der Weg zur Probenansicht (06.09.2026): deutlich, weil er in der Probe
-   gebraucht wird und die Gruppenseite lang ist. */
-.probenansicht { margin: 0 0 1rem; }
-.probenansicht a { display: inline-block; padding: .45rem .8rem;
-                   border: 1px solid #c9b98d; border-radius: .3rem;
-                   background: #ece7db; color: #1b1b1b; text-decoration: none;
-                   font-size: .95rem; }
 """
 
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026) -- eigene Konstante statt
@@ -671,7 +664,41 @@ nav.fassungen { display: flex; flex-wrap: wrap; gap: .3rem; margin: .3rem 0; }
 #: ``<section class="panel panel-buehne">``, ueber ``scope_css`` eingehaengt)
 #: statt eines eigenen Umschalters -- hier steht nur noch, wie der Inhalt
 #: DRINNEN aussieht, keine Tab-/Sichtbarkeitsregeln mehr.
+#: Die CoThinker-Tafel (Task 1, Padua CoThinker-Tab clean, 03.10.2026):
+#: EINE Karte auf einmal, gross gesetzt, mit Browser-seitigem Verlauf
+#: (siehe ``_buehne_html``/``_VEREINT_JS`` fuer die Portierung aus
+#: ``cothinker/stage/stage.py``). Ersetzt die gestapelte Kartenliste samt
+#: Stueckkarte-Streifen (``.stueckkarte``/``.sk-*``/``.karte``/``.hoert-zu``
+#: sind damit Geschichte -- eine Retheming-Karte (``wt/t_cc4306db``) fasst
+#: diese neuen Regeln spaeter an, nicht ``.karte`` selbst). Nur Theme-Token
+#: aus ``web_gestalt.TOKENS``, keine neuen Hexfarben.
 _CSS_BUEHNE = """
+#buehne-panel { display: flex; flex-direction: column; gap: .9rem;
+                padding: .4rem 0 1.2rem; }
+#buehne-status { margin: 0; font-size: .95rem; color: var(--text-leise); }
+/* Typografie laut Karte: >= 1.15rem auf Telefonbreite, eine Zeilenlaenge,
+   die nicht Kante an Kante laeuft, viel Weissraum, Kontrast aus dem
+   Token-Paar (text, grund-2) -- bereits in web_gestalt.KONTRAST gefuehrt. */
+#buehne-tafel { font-size: 1.15rem; line-height: 1.55; white-space: pre-wrap;
+                max-width: 34rem; margin: 0 auto; width: 100%;
+                box-sizing: border-box; padding: 1.1rem 1.2rem;
+                background: var(--grund-2); border: 1px solid var(--rand);
+                border-radius: var(--radius-gross); color: var(--text); }
+#buehne-tafel .buehne-alter { display: block; margin-top: .7rem;
+                               font-size: .8rem; color: var(--text-leise); }
+/* Die Navigation: Inhalt kommt IMMER aus JS (male()-Aequivalent), das
+   leere Element ist hier nur der Platzhalter. Tippflaechen >= 44px. */
+#buehne-nav { display: flex; align-items: center; justify-content: center;
+              gap: .6rem; flex-wrap: wrap; font-size: .9rem;
+              color: var(--text-leise); }
+#buehne-nav button { min-width: 44px; min-height: 44px; font-size: 1.2rem;
+                      line-height: 1; border: 1px solid var(--rand);
+                      border-radius: var(--radius); background: var(--grund-2);
+                      color: var(--signal); }
+#buehne-nav button:disabled { opacity: .35; }
+#buehne-nav a[data-v="live"] { color: var(--signal); }
+#buehne-nav .neu { color: var(--warn); }
+.buehne-leer { color: var(--text-leise); margin: 1rem 0; }
 /* Die Stueckkarte: ein fester Streifen ueber den Karten -- Setting, Figuren,
    Geschichte mit Haken/offen, dazu die freien Festlegungen aus demselben
    Datentopf wie der Abschnitt "Festlegungen" weiter unten (kein zweiter
@@ -957,9 +984,6 @@ _TEXT_KEIN_INTERVIEW_NOCH = (
 _TEXT_NICHTS_NOTIERT = "Noch nichts notiert."
 _TEXT_GRUPPE = "Gruppe {chat_id}"
 _TITEL_GRUPPENSEITE = "{titel} — interview-theater"
-_TEXT_PROBENANSICHT_LINK = (
-    "📖 Probenansicht — das ganze Stück am Stück, zum Lesen und Ausdrucken"
-)
 _UEBERSCHRIFT_UEBERBLICK = "Überblick"
 _UEBERSCHRIFT_ARBEITSSTAND = "Arbeitsstand"
 #: Padua-Brainstorming-Umbau (02.10.2026): die Stueckkarte -- die vier
@@ -977,15 +1001,54 @@ _UEBERSCHRIFT_SZENEN = "Szenen"
 _UEBERSCHRIFT_INTERVIEWS = "Aus den Interviews"
 _UEBERSCHRIFT_WEG = "Der Weg dahin"
 _TEXT_JOURNAL = "Journal ({anzahl})"
+# --- Die read-only Werkbank (Padua, 03.10.2026) ----------------------------
+_TEXT_WERKBANK_HINWEIS = "Etwas ändern? Sagt es einfach dem Bot im Chat."
+_TEXT_WERKBANK_ZAHL = "{erledigt} von {gesamt}"
+_TEXT_STATUS_ERLEDIGT = "erledigt"
+_TEXT_STATUS_OFFEN = "offen"
+_TEXT_STATUS_SPAETER = "später"
+_TEXT_WERKBANK_LAEUFT = "läuft"
+_TEXT_WB_DISKUSSION = "Diskussion zusammengefasst"
+_TEXT_WB_INTERVIEW_FERTIG = "{bezug}: aufgenommen, ausgewertet"
+_TEXT_WB_INTERVIEW_OFFEN = "{bezug}: aufgenommen, noch nicht ausgewertet"
+_TEXT_WB_PROSA = "Szene {bezug}: Prosa"
+_TEXT_WB_GESAMTTEXT = "Rückmeldung zum ganzen Text"
+_TEXT_WB_UEBERARBEITET = "Szene {bezug}: überarbeitet"
+_TEXT_WB_FORM = "Szene {bezug}: Form"
+_TEXT_WB_SPRECHWEISE = "{bezug}: Sprechweise"
+_TEXT_WB_AUCH_VEREINBART = "Auch vereinbart"
+_TEXT_WERKBANK_NUR_LESEN = "Hier wird nur angezeigt – Änderungen bitte im Chat."
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026). Die Tab-Beschriftung
 #: selbst steht seit dem Umzug in Karte Ws Tableiste in
 #: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
-_TEXT_BUEHNE_LEER = "Noch keine Karte."
+#:
+#: Task 1 (Padua CoThinker-Tab clean, 03.10.2026): der leere Zustand nennt
+#: jetzt eine konkrete Handlung statt nur den Mangel ("Noch keine Karte.")
+#: zu melden -- der Chat ist der einzige Weg, wie eine erste Karte entsteht.
+_TEXT_BUEHNE_LEER = "Im Chat sprechen — hier erscheinen die Gedanken."
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
 #: erkennen, ob das Mithoeren ueberhaupt laeuft.
 _TEXT_BUEHNE_HOERT_ZU = "Hört zu … bisher nichts beizutragen."
+#: Task 1: die zweite, bewusst ANDERS formulierte Statuszeile -- eine
+#: laufende/wartende Aufnahme (``aufnahme.status in ('empfangen','laeuft')``)
+#: ist ein anderer Zustand als "das Modell hat zugehoert und nichts
+#: beizutragen" oben, und beide duerfen auf der Tafel nicht gleich klingen
+#: (siehe Report, Abschnitt "Zwei verschiedene 'hört zu'").
+_TEXT_BUEHNE_AUFNAHME_LAEUFT = "Eine Aufnahme läuft gerade."
+#: Der "zurueck zur aktuellen Ansicht"-Baustein der Verlaufsleiste --
+#: INKLUSIVE des eigenen Gedankenstrichs, die JS haengt ihn nur noch ans
+#: Ende der Zaehler-Anzeige (``_VEREINT_JS`` traegt dafuer selbst keinen
+#: Nutzertext, siehe ``tests/test_sprache_texte.py``).
+_TEXT_BUEHNE_ZURUECK = " — zurück zur aktuellen Ansicht"
+#: Das Praefix vor der Vorschau einer neu eingetroffenen Karte, waehrend
+#: wer zurueckgeblaettert hat liest -- nie ein Sprung, nur ein Hinweis
+#: (siehe Brief/Referenz ``cothinker/stage/stage.py``, ``male()``).
+_TEXT_BUEHNE_NEU_PRAEFIX = "neu: "
+#: Die gedaempfte Alterszeile der Tafel -- nur ab 5 Minuten, siehe
+#: ``_buehne_alterszeile``.
+_TEXT_BUEHNE_ALTER = "vor {minuten} Min."
 _TEXT_BUEHNE_OFFEN = "offen"
 #: Die CoThinker-Statuszeile ueber dem Buehne-Panel (Karte CoThinker-
 #: Statuszeile, 03.10.2026) -- ein Text je ``cothinker_status.ZUSTAND_*``.
@@ -2790,25 +2853,204 @@ def _interview_html(v: dict) -> str:
 # (``web_vereint.seite``, Tab "buehne", nur in Phase 4): diese Funktionen
 # bauen nur noch den Panel-INHALT, die Tab-Mechanik selbst lebt dort.
 
-def _stueckkarte_streifen_html(
-    felder: list[tuple[str, str | None]], festlegungen: list[dict] | None,
-) -> str:
-    """Der feste Streifen ueber den Karten: die drei Stueckkarte-Felder mit
-    Haken/offen, dazu die freien Festlegungen aus demselben Datentopf wie
-    der Abschnitt "Weitere Festlegungen" weiter unten -- kein zweiter
-    Lesevorgang, keine zweite Formatierung."""
-    teile = [
-        '<span class="sk-feld"><span class="sk-haken">{haken}</span>{name}: {wert}</span>'.format(
-            haken="✓" if wert else "○",
-            name=html.escape(name),
-            wert=_t(wert) if wert else _t(T._TEXT_BUEHNE_OFFEN),
+def _buehne_status_text(daten: dict) -> str | None:
+    """Die EINE Statuszeile ueber der Tafel -- genau diese Prioritaet, kein
+    weiteres Signal (Task 1, Padua CoThinker-Tab clean, 03.10.2026):
+
+    1. "thinking" -- NICHT implementiert. Die Erzeugungssperre
+       (``brainstorm._LAEUFT``) lebt im Speicher des BOT-Prozesses; der
+       Webserver oeffnet nur eine read-only DB-Verbindung und sieht sie
+       strukturell nicht (dieselbe Grenze wie beim Szenenlauf-Lock, AGENTS.md
+       "Die Phasenuebersicht"). Eine Zeitstempel-Heuristik waere ein
+       geratener Zustand, der wie ein gemessener aussieht -- deshalb bleibt
+       das hier eine dokumentierte Luecke fuer die separate, noch
+       unzusammengefuehrte Karte ``cothinker_status.py``.
+    2. "listening": eine Aufnahme dieser Gruppe laeuft gerade oder wartet auf
+       Transkription (``aufnahme.status in ('empfangen', 'laeuft')`` --
+       gesetzt von ``web_daten.gruppe_nach_token`` ueber
+       ``_aufnahmen_nach_status``). Eigener Wortlaut, bewusst OHNE "hört zu"
+       -- das ist der Zustand aus Schritt 3, nicht dieser.
+    3. "nothing to add yet": die juengste Buehnenkarte war ein bewusstes
+       Schweigen (``buehnenkarte.schweigen = 1``) -- dieselbe Erkennung wie
+       vor diesem Umbau, nur das Rendering aendert sich.
+    4. sonst: ``None`` -- keine Zeile, nie ein leeres ``<p>``."""
+    if daten.get("buehne_aufnahme_laeuft"):
+        return _t(T._TEXT_BUEHNE_AUFNAHME_LAEUFT)
+    karten = daten.get("buehnenkarten") or []
+    if karten and karten[0]["schweigen"]:
+        return _t(T._TEXT_BUEHNE_HOERT_ZU)
+    return None
+
+
+def _buehne_alterszeile(erstellt_am: str | None) -> str:
+    """Eine gedaempfte Alterszeile INNERHALB der Tafel -- NUR wenn die
+    juengste Karte aelter als 5 Minuten ist. Unter 5 Minuten gibt es dieses
+    Element im DOM gar nicht (Vertrag), kein leeres ``<span>``.
+
+    Keine Bibliothek fuer relative Zeit: eine Minutenzahl reicht (Brief:
+    "do not reinvent an elaborate relative-time library for '2 min ago'")."""
+    gelesen = web_daten.lies_zeitstempel(erstellt_am) if erstellt_am else None
+    if gelesen is None:
+        return ""
+    minuten = int((datetime.now(timezone.utc) - gelesen).total_seconds() // 60)
+    if minuten < 5:
+        return ""
+    text = _t(T._TEXT_BUEHNE_ALTER.format(minuten=minuten))
+    return f'<span class="buehne-alter">{text}</span>'
+
+
+def _buehne_html(daten: dict) -> str:
+    """Die CoThinker-Tafel: GENAU EINE Karte auf einmal, mit Browser-
+    seitiger Verlaufsnavigation (Task 1, Padua CoThinker-Tab clean,
+    03.10.2026 -- Portierung aus ``cothinker/stage/stage.py``s ``verlauf``/
+    ``pos``/``male``/``zeige``/``blaettern``/``verlaufUebernehmen``, siehe
+    ``_VEREINT_JS`` fuer die Browserseite und den Report fuer die
+    Abweichungen).
+
+    Ersetzt die gestapelte Kartenliste samt Stueckkarte-Streifen: Setting,
+    Figuren, Geschichte und die freien Festlegungen stehen bereits im
+    Stand-Tab (``_stueckkarte_html``, ``_festlegungen_html``) -- eine dritte
+    Kopie in diesem Panel war genau die Duplikation, die der Umbau
+    beseitigt.
+
+    **Der Vertrag** (Task-1-Brief, bindend fuer ``_VEREINT_JS``/Task 2):
+    jeder Baustein faellt weg, wenn sein Inhalt leer waere -- niemals eine
+    leere Statuszeile, niemals ein leerer Nav-Platzhalter, niemals eine
+    zweite sichtbare Karte. Gerufen von ``web_vereint.seite`` (Tab "buehne",
+    Sichtbarkeit ueber ``hidden``) UND von ``web_vereint.sende_teil`` fuer
+    jeden Poll-Takt -- eine Renderfunktion, eine Quelle fuer beide.
+
+    Eine Schweigen-Zeile (``buehnenkarte.schweigen = 1``) ist keine Karte --
+    sie traegt leeren Text und zaehlt nirgends mit (gleiche Erkennung wie
+    vor diesem Umbau, siehe ``_buehne_status_text``)."""
+    karten = daten.get("buehnenkarten") or []
+    # ``karten`` kommt NEUESTE ZUERST (web_daten.buehnenkarten, ORDER BY id
+    # DESC) -- fuer die Tafel reicht das erste echte Element, fuer den
+    # JSON-Datenbaustein unten wird die Reihenfolge umgedreht.
+    echte_neueste_zuerst = [k for k in karten if not k["schweigen"]]
+
+    teile = []
+    status = _buehne_status_text(daten)
+    if status:
+        teile.append(f'<p id="buehne-status">{status}</p>')
+
+    if echte_neueste_zuerst:
+        neueste = echte_neueste_zuerst[0]
+        # Plain Text + ``white-space: pre-wrap`` (CSS) statt
+        # ``.replace("\\n", "<br>")``: dieselbe Zeile, die die JS beim
+        # Zurueckblaettern per ``textContent`` setzt (siehe Report,
+        # "textContent vs. innerHTML") -- SSR und Client-Rendering sehen
+        # damit optisch gleich aus, ein Zeilenumbruch ist kein zweiter Weg.
+        text = html.escape(neueste["text"] or "")
+        alter = _buehne_alterszeile(neueste["erstellt_am"])
+        teile.append(f'<div id="buehne-tafel">{text}{alter}</div>')
+
+    if len(echte_neueste_zuerst) >= 2:
+        # Der Inhalt kommt NIE vom Server -- ``_VEREINT_JS`` fuellt ihn aus
+        # dem JSON-Baustein unten, genau wie CoThinkers ``male()`` die
+        # ``#verlauf``-Leiste komplett selbst besitzt. Deshalb ist ein
+        # leerer Platzhalter hier sicher: der erste Skriptlauf ersetzt ihn
+        # sofort.
+        teile.append('<div id="buehne-nav"></div>')
+
+    if echte_neueste_zuerst:
+        aeltest_zuerst = list(reversed(echte_neueste_zuerst))
+        # ``zurueck_text``/``neu_praefix`` kommen RAW (nicht durch ``_t()``
+        # HTML-escaped) in die JSON-Nutzlast -- ``_t()`` ist in diesem Modul
+        # die HTML-Maskierung, keine Uebersetzung (die leistet ``T``/
+        # ``_TEXT_*`` bereits). Eine zusaetzliche HTML-Maskierung vor
+        # ``json.dumps`` wuerde doppelt maskieren, sobald die JS ihrerseits
+        # vor dem Einfuegen in ``innerHTML`` escaped (siehe Report). Die
+        # Lokalisierung selbst ist damit trotzdem vollstaendig: beide Werte
+        # kommen aus ``T``, also schon in der aktiven Sprache.
+        payload = {
+            "karten": [
+                {"id": k["id"], "text": k["text"] or ""} for k in aeltest_zuerst
+            ],
+            "zurueck_text": T._TEXT_BUEHNE_ZURUECK,
+            "neu_praefix": T._TEXT_BUEHNE_NEU_PRAEFIX,
+        }
+        # ``</`` wird entschaerft (``<\/``), damit eine Karte, deren Text
+        # woertlich ``</script`` enthaelt, dieses Skript-Element nicht
+        # vorzeitig beendet -- der Tokenizer des Browsers reagiert auf die
+        # rohen Bytes, nicht auf die JSON-Maskierung innerhalb der Anfuehrungszeichen.
+        # ``\/`` ist eine gueltige JSON-Escape-Sequenz (dekodiert zu ``/``),
+        # derselbe Weg wie ``web_vereint._js_text`` und das inline
+        # ``.replace("</", "<\\/")`` in ``web_chat.py``.
+        teile.append(
+            '<script type="application/json" id="buehne-verlauf-daten">'
+            + json.dumps(payload, ensure_ascii=True).replace("</", "<\\/")
+            + "</script>"
         )
-        for name, wert in felder
-    ]
-    teile.extend(
-        f'<span class="sk-frei">{_t(z["text"])}</span>' for z in (festlegungen or [])
+
+    if not status and not echte_neueste_zuerst:
+        teile.append(f'<p class="buehne-leer">{_t(T._TEXT_BUEHNE_LEER)}</p>')
+
+    status_html = _cothinker_status_html(daten.get("cothinker_status"))
+    return f'{status_html}<div id="buehne-panel">{"".join(teile)}</div>'
+
+
+def _journal_html(eintraege: list[dict]) -> str:
+    """Die Journalzeilen -- herausgeloest aus ``gruppe_koerper`` (Werkbank,
+    03.10.2026), Zeichen fuer Zeichen dieselben."""
+    return "".join(
+        '<div class="eintrag"><span class="art">{art}</span>{text} '
+        '<span class="zeit">{zeit}</span></div>'.format(
+            art=_t(T.JOURNALART_BESCHRIFTUNG.get(e["art"], e["art"])),
+            text=_t(e["text"]),
+            zeit=_zeitpunkt(e["erstellt_am"]),
+        )
+        for e in eintraege
+    ) or f'<p class="leer">{_t(T._TEXT_NICHTS_NOTIERT)}</p>'
+
+
+def _wb_status_text(status: str) -> str:
+    from interview_theater import roadmap
+
+    return {
+        roadmap.ERLEDIGT: T._TEXT_STATUS_ERLEDIGT,
+        roadmap.OFFEN: T._TEXT_STATUS_OFFEN,
+        roadmap.SPAETER: T._TEXT_STATUS_SPAETER,
+    }[status]
+
+
+def _wb_zeilentext(z: dict) -> str:
+    """Aufgaben tragen ihren Text schon (``phasentexte.beschriftung``),
+    Detailzeilen werden hier beschriftet -- ``roadmap`` bleibt textfrei."""
+    from interview_theater import roadmap
+
+    if z["art"] == "aufgabe":
+        return z["text"] or ""
+    vorlage = {
+        "diskussion": T._TEXT_WB_DISKUSSION,
+        "interview": (T._TEXT_WB_INTERVIEW_FERTIG if z["status"] == roadmap.ERLEDIGT
+                      else T._TEXT_WB_INTERVIEW_OFFEN),
+        "prosa": T._TEXT_WB_PROSA,
+        "gesamttext": T._TEXT_WB_GESAMTTEXT,
+        "ueberarbeitet": T._TEXT_WB_UEBERARBEITET,
+        "form": T._TEXT_WB_FORM,
+        "sprechweise": T._TEXT_WB_SPRECHWEISE,
+    }[z["kennung"]]
+    text = vorlage.format(bezug="" if z.get("bezug") is None else z["bezug"])
+    if z.get("titel"):
+        text += SUMMARY_TRENNER + z["titel"]
+    return text
+
+
+def _wb_zeile_html(z: dict) -> str:
+    """Eine Attributzeile: Punkt (Form + Farbe + aria-label), Text, und bei
+    einer laufenden Aufgabe das Wort 'running' -- keine eigene Farbe."""
+    status = z["status"]
+    laeuft = (
+        f' <span class="wb-laeuft">{_t(T._TEXT_WERKBANK_LAEUFT)}</span>'
+        if z.get("laeuft") else ""
     )
-    return f'<div class="stueckkarte">{"".join(teile)}</div>'
+    return (
+        f'<li class="wb-zeile wb-{status}" data-kennung="{_t(z["kennung"])}">'
+        f'<span class="wb-punkt wb-{status}" role="img" '
+        f'aria-label="{_t(_wb_status_text(status))}"></span>'
+        f"<span>{_t(_wb_zeilentext(z))}</span>{laeuft}</li>"
+    )
 
 
 def _cothinker_status_html(status: dict | None) -> str:
@@ -2862,35 +3104,136 @@ def _buehnenkarte_html(karte: dict, erste: bool) -> str:
     )
 
 
-def _buehne_html(daten: dict) -> str:
-    """Das Panel selbst: Stueckkarte-Streifen, dann die Karten, NEUESTE
-    ZUERST, aeltere kleiner/ausgegraut (Brief: "large type, the newest card
-    on top, older cards smaller/greyed below"). Gerufen von
-    ``web_vereint.seite`` fuer den Tab "buehne" (nur Phase 4) -- die
-    Sichtbarkeit regelt dort das ``hidden``-Attribut des Panels, nicht mehr
-    CSS am ``<body>``.
+def _auch_vereinbart_html(daten: dict, szenen_anzahl: str | None) -> str:
+    """Stueckkarte und Festlegungen als EINE read-only Liste (Werkbank).
+    Setting, Figuren und Geschichte der Stueckkarte stehen schon darueber --
+    hier bleibt von ihr nur die Szenenzahl. Ohne Loeschknopf (kein Nonce)."""
+    zeilen = []
+    if szenen_anzahl:
+        zeilen.append(
+            '<div class="festlegung"><span class="marke">{marke}</span>'
+            "<span>{wert}</span></div>".format(
+                marke=_t(T._STUECKKARTE_SZENENANZAHL), wert=_t(szenen_anzahl))
+        )
+    if daten.get("festlegungen"):
+        zeilen.append(_festlegungen_html(daten, None))
+    if not zeilen:
+        return ""
+    return f"<h3>{_t(T._TEXT_WB_AUCH_VEREINBART)}</h3>" + "".join(zeilen)
 
-    Nachtrag Karte Padua Brainstorm (03.10.2026): eine Schweigen-Zeile
-    (``buehnenkarte.schweigen = 1``) ist keine Karte -- sie traegt leeren
-    Text und erscheint nie in der Kartenliste. War der JUENGSTE Versuch ein
-    Schweigen, steht stattdessen (oder zusaetzlich vor der letzten echten
-    Karte) ein ruhiger Hinweis, dass mitgehoert wird: eine leere Flaeche
-    liess nicht erkennen, ob das Mithoeren ueberhaupt laeuft."""
-    karten = daten.get("buehnenkarten") or []
-    streifen = _stueckkarte_streifen_html(
-        daten.get("stueckkarte_felder") or [], daten.get("festlegungen")
+
+def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
+    """Was unter den Punkten einer Phase steht -- read-only, aus denselben
+    Bausteinen wie die bisherige Gruppenseite (keine zweite Formatierung):
+    1 die Begriffe (und ``begriffe_detail``, wenn es sie gibt), 2 Fragen,
+    A/B-Zeile und Leitfaden (``pre.leitfaden`` liest der Interview-Modus),
+    3 die Verdichtungen wie bisher, 4 Setting, Geschichte, Figuren,
+    Szenenkoepfe und "Also agreed", 6 die Dramaturgie-Pruefung, 7 die
+    Sprechanteile. Keine Szenen-Volltexte -- die stehen im Script-Tab."""
+    stand = daten["arbeitsstand"]
+    dt = T.ARBEITSSTAND_BESCHRIFTUNG
+    teile: list[str] = []
+    if nummer == 1:
+        if (stand.get("begriffe") or "").strip():
+            teile.append(f"<p>{_t(stand['begriffe'])}</p>")
+        detail = werkbank.get("begriffe_detail") or []
+        if detail:
+            teile.append('<dl class="wb-begriffe">' + "".join(
+                f"<dt>{_t(b['begriff'])}</dt>"
+                + (f"<dd>{_t(b['begruendung'])}</dd>" if b["begruendung"] else "")
+                + (f'<dd class="zeit">{_t(b["doppelbedeutung"])}</dd>'
+                   if b["doppelbedeutung"] else "")
+                for b in detail
+            ) + "</dl>")
+    elif nummer == 2:
+        if (stand.get("fragen") or "").strip():
+            teile.append(_fragen_html(stand["fragen"]))
+        teile.append(_fragen_auswertung_html(daten.get("fragen_auswertung")))
+        leitfaden = _leitfaden_html(stand, daten.get("web_token"))
+        if leitfaden:
+            teile.append(f"<dl>{leitfaden}</dl>")
+    elif nummer == 3:
+        teile.append("".join(_interview_html(v) for v in daten["interviews"]))
+    elif nummer == 4:
+        zeilen = [
+            f"<dt>{_t(dt[feld])}</dt><dd>{_t(stand[feld])}</dd>"
+            for feld in ("rahmen", "geschichte")
+            if (stand.get(feld) or "").strip()
+        ]
+        zeilen.append(_altbestand_html(stand))
+        if daten["figuren"]:
+            figuren = "".join(
+                "<li><b>{name}</b>{rest}</li>".format(
+                    name=_t(f["name"]),
+                    rest=(f" — {_t(vorspann.erster_satz(f.get('beschreibung')))}"
+                          if (f.get("beschreibung") or "").strip() else ""),
+                )
+                for f in daten["figuren"]
+            )
+            zeilen.append(f'<dt>{_t(dt["figuren"])}</dt><dd><ul class="figuren">{figuren}</ul></dd>')
+        if daten["szenen"]:
+            szenen = "".join(
+                "<li>{nr}. {titel}</li>".format(
+                    nr=_t("—" if s["nummer"] is None else str(s["nummer"])),
+                    titel=_t(s.get("titel"), T._TEXT_OHNE_TITEL),
+                )
+                for s in daten["szenen"]
+            )
+            zeilen.append(f"<dt>{_t(T._UEBERSCHRIFT_SZENEN)}</dt><dd><ul>{szenen}</ul></dd>")
+        if any(zeilen):
+            teile.append(f"<dl>{''.join(zeilen)}</dl>")
+        teile.append(_auch_vereinbart_html(daten, werkbank.get("szenen_anzahl")))
+    elif nummer == 6:
+        teile.append(_dramaturgie_html(daten.get("dramaturgie")))
+    elif nummer == 7:
+        teile.append(_sprechanteile_html(daten.get("sprechanteile")))
+    inhalt = "".join(t for t in teile if t)
+    return f'<div class="wb-inhalt">{inhalt}</div>' if inhalt else ""
+
+
+def werkbank_koerper(daten: dict) -> str:
+    """Der Arbeitsstand als reine Statusansicht (Padua, 03.10.2026, Karte
+    t_49e7354c) -- statt ``gruppe_koerper``, wenn das Profil
+    ``[web] workbench_bearbeitbar = false`` setzt.
+
+    EINE Achse: die sieben Phasen in Reihenfolge, je ein ``<details>`` mit
+    Zaehler, darunter die Attribute mit einem Punkt aus drei Formen
+    (``roadmap.werkbank``). Aufgeklappt ist allein die aktuelle Phase. Kein
+    Formular, kein Knopf, kein Nonce: geaendert wird im Chat. Keine
+    Phasenanzeige, kein Probenansicht- und kein Chat-Link -- die Kopfleiste
+    der Seite zeigt die Phase (Birk: "die Anzeige der aktuellen Phase ist
+    doppelt")."""
+    werkbank = daten.get("werkbank") or {}
+    titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
+    bloecke = []
+    for phase in werkbank.get("phasen") or []:
+        zahl = T._TEXT_WERKBANK_ZAHL.format(erledigt=phase["erledigt"], gesamt=phase["gesamt"])
+        haken = (
+            ' <span class="wb-fertig" aria-hidden="true">✓</span>' if phase["fertig"] else ""
+        )
+        offen = " open" if phase["aktiv"] else ""
+        zeilen = "".join(_wb_zeile_html(z) for z in phase["zeilen"])
+        bloecke.append(
+            f'<details class="wb-phase" data-wb-phase="{phase["nummer"]}"{offen}>'
+            f'<summary><span class="wb-name">{_t(phase["bezeichnung"])}</span>{haken}'
+            f'<span class="wb-zahl">{_t(zahl)}</span></summary>'
+            f'<ul class="wb-zeilen">{zeilen}</ul>'
+            f"{_wb_inhalt_html(phase['nummer'], daten, werkbank)}"
+            "</details>"
+        )
+    journal = (
+        '<details class="wb-journal"><summary>'
+        f"{_t(T._UEBERSCHRIFT_WEG)}{SUMMARY_TRENNER}"
+        f"{_t(T._TEXT_JOURNAL.format(anzahl=len(daten['journal'])))}</summary>"
+        f"{_journal_html(daten['journal'])}</details>"
     )
-    hoert_zu = bool(karten and karten[0]["schweigen"])
-    echte = [k for k in karten if not k["schweigen"]]
-    teile = []
-    if hoert_zu:
-        teile.append(f'<p class="hoert-zu">{_t(T._TEXT_BUEHNE_HOERT_ZU)}</p>')
-    if echte:
-        teile.append("".join(_buehnenkarte_html(k, i == 0) for i, k in enumerate(echte)))
-    elif not hoert_zu:
-        teile.append(f'<p class="leer">{_t(T._TEXT_BUEHNE_LEER)}</p>')
-    status_html = _cothinker_status_html(daten.get("cothinker_status"))
-    return f'{status_html}<div id="buehne-panel">{streifen}{"".join(teile)}</div>'
+    return (
+        f"<h1>{_t(titel)}</h1>\n"
+        '<div id="stand-inhalt" class="werkbank">\n'
+        f'<p class="wb-hinweis">{_t(T._TEXT_WERKBANK_HINWEIS)}</p>\n'
+        + "\n".join(bloecke)
+        + f"\n{journal}\n</div>\n"
+    )
 
 
 def gruppe_koerper(
@@ -2906,6 +3249,13 @@ def gruppe_koerper(
     dieser Rumpf als eines von drei Panels in EINEM Dokument. ``gruppe_html``
     ruft ihn und haengt die Klammer davor -- die Einzelseite bleibt damit
     Zeichen fuer Zeichen, was sie war (``tests/test_web_koerper.py``)."""
+    from interview_theater import workshop
+
+    if not workshop.workbench_bearbeitbar():
+        # Padua (03.10.2026): reine Statusansicht. Der Nonce wird hier nicht
+        # gebraucht -- auf der vereinten Seite steht er im Chat-Panel.
+        return werkbank_koerper(daten)
+
     fassungen = daten.get("fassungen") or {}
     fassungswahl = fassungswahl or {}
     szenen = "".join(
@@ -2926,15 +3276,7 @@ def gruppe_koerper(
         _interview_html(v) for v in daten["interviews"]
     ) or f'<p class="leer">{_t(T._TEXT_KEIN_INTERVIEW_NOCH)}</p>'
 
-    journal = "".join(
-        '<div class="eintrag"><span class="art">{art}</span>{text} '
-        '<span class="zeit">{zeit}</span></div>'.format(
-            art=_t(T.JOURNALART_BESCHRIFTUNG.get(e["art"], e["art"])),
-            text=_t(e["text"]),
-            zeit=_zeitpunkt(e["erstellt_am"]),
-        )
-        for e in daten["journal"]
-    ) or f'<p class="leer">{_t(T._TEXT_NICHTS_NOTIERT)}</p>'
+    journal = _journal_html(daten["journal"])
 
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     stand = (
@@ -2945,12 +3287,6 @@ def gruppe_koerper(
             token=daten.get("web_token"),
         )
     )
-    probenansicht = (
-        f'<p class="probenansicht"><a href="{_t(praefix, "")}/g/{_t(token)}/textbuch">'
-        f"{_t(T._TEXT_PROBENANSICHT_LINK)}</a></p>"
-        if token
-        else ""
-    )
     # Der Vorspann steht GANZ OBEN (07.09.2026): er ist die Antwort auf die
     # Frage, die jemand hat, der die Seite zum ersten Mal aufmacht -- wo
     # spielt das, worum geht es, wer sind die dreizehn Namen weiter unten.
@@ -2959,7 +3295,6 @@ def gruppe_koerper(
         kopf = f"<h2>{_t(T._UEBERSCHRIFT_UEBERBLICK)}</h2>{kopf}\n"
     return (
         f"<h1>{_t(titel)}</h1>\n"
-        f"{probenansicht}"
         f"{_chat_link(token, daten.get('kanal'))}"
         f'<div id="stand-inhalt">\n'
         f"{kopf}"
@@ -3013,21 +3348,19 @@ def gruppe_html(
     Formularen -- der Nonce ist der Schluessel dazu und steht als verstecktes
     Feld in der Seite (siehe ``nonce``).
 
-    Mit ``token`` steht oben der Link zur **Probenansicht** (06.09.2026): die
-    Gruppenseite ist die Werkstatt, die Probenansicht das Stueck am Stueck.
-    Ohne Token faellt der Link weg -- die Seite laesst sich weiter ohne ihn
-    rendern (Tests, spaetere Aufrufer).
-
     ``fassungswahl`` ist ``{szene_id: nummer}`` aus der Query (``?szene=…&
     fassung=…``). Read-only: eine Auswahl aendert nur, welche Fassung
     angezeigt wird -- sie schreibt nichts und bleibt deshalb in der URL statt
     in der Datenbank."""
+    from interview_theater import workshop
+
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     return _seite(
         T._TITEL_GRUPPENSEITE.format(titel=titel),
         _CSS_GRUPPE,
         gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
-        bearbeitbar=bool(nonce_wert),
+        # Padua: die Werkbank ist reine Anzeige, das Speicher-Skript faellt weg.
+        bearbeitbar=bool(nonce_wert) and workshop.workbench_bearbeitbar(),
     )
 
 
@@ -3926,7 +4259,10 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
 
     **Das Dashboard ist nicht dabei.** ``/`` nimmt kein POST an: es haengt am
     Beamer und ist projiziert, dort soll niemand im Vorbeigehen etwas
-    umstellen."""
+    umstellen.
+
+    Mit ``[web] workbench_bearbeitbar = false`` (Padua) antwortet dieser Weg
+    immer 403 -- nach Pfad und Herkunft, vor Token und Nonce."""
     pfad = _pfad_ohne_praefix(
         urllib.parse.unquote(urllib.parse.urlsplit(handler.path).path), praefix
     )
@@ -3954,6 +4290,16 @@ def _beantworte_post(handler, db_pfad: str, praefix: str, schluessel: bytes) -> 
         # ebenfalls 404 -- jetzt ausdruecklich.
         schliesse_nach_antwort(handler)
         handler._antworte(404, nicht_gefunden_html())
+        return
+    from interview_theater import workshop
+
+    if not workshop.workbench_bearbeitbar():
+        # Padua (03.10.2026): die Werkbank ist reine Anzeige, geaendert wird
+        # im Chat. NUR dieser Weg -- die Chat-POSTs oben laufen weiter. Vor
+        # dem Lesen des Rumpfes und vor der Token-Suche: es gibt nichts, was
+        # hier je wirken duerfte, also auch nichts zu verraten.
+        schliesse_nach_antwort(handler)
+        handler._fehler(403, T._TEXT_WERKBANK_NUR_LESEN)
         return
     try:
         daten = handler._koerper()

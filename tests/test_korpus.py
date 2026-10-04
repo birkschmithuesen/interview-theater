@@ -743,13 +743,16 @@ def test_en_keine_namen_aus_dem_projektumfeld(en_faelle):
 
 
 def test_deutscher_korpus_unveraendert_gezaehlt(erkenner_faelle):
-    """D8: der deutsche Korpus bleibt, wie er ist (156 Faelle, 55 negativ,
-    gemessen 03.10.2026 -- davor 153/54 am 02.10.2026, davor 150/53 am
-    30.09.2026) -- seine FP=0-Zusage haengt an genau diesen Faellen. Drei
-    Faelle (sa01-sa03) kamen beim Padua-Brainstorming-Umbau dazu: die neue
-    Art ``szenenanzahl_setzen`` braucht wie jede andere mindestens zwei
-    Positiv- und einen Negativfall. Padua Phasen TEIL 1 (03.10.2026): drei
-    weitere Faelle (ue01, ue02, n55) fuer die neue Art
-    ``uebersicht_aendern``, nach demselben Muster."""
-    assert len(erkenner_faelle) == 156
-    assert sum(1 for f in erkenner_faelle if not f["erwartet"]) == 55
+    """D8: der deutsche Korpus bleibt, wie er ist (157 Faelle, 56 negativ,
+    gemessen 04.10.2026 -- davor 156/55 am 03.10.2026, davor 153/54 am
+    02.10.2026, davor 150/53 am 30.09.2026) -- seine FP=0-Zusage haengt an
+    genau diesen Faellen. Drei Faelle (sa01-sa03) kamen beim
+    Padua-Brainstorming-Umbau dazu: die neue Art ``szenenanzahl_setzen``
+    braucht wie jede andere mindestens zwei Positiv- und einen Negativfall.
+    Padua Phasen TEIL 1 (03.10.2026): drei weitere Faelle (ue01, ue02, n55)
+    fuer die neue Art ``uebersicht_aendern``, nach demselben Muster. Padua
+    Phasen TEIL 2 (04.10.2026, Befund 1b): ein weiterer Negativfall (n56)
+    fuer die Prompt-Regel, dass der Bot eine Wiederherstellung nie selbst
+    behauptet."""
+    assert len(erkenner_faelle) == 157
+    assert sum(1 for f in erkenner_faelle if not f["erwartet"]) == 56

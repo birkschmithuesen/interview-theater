@@ -60,7 +60,13 @@ GEAENDERT: dict[str, str] = {
         "Sprache je Gruppe). Kein bestehender Befehl aendert sich, und er "
         "steht nicht in BEFEHLE_LISTE. Gewollte Verhaltensaenderung fuer "
         "Dortmund: /sprache antwortet jetzt statt mit "
-        "\"Diesen Befehl kenne ich nicht.\"."
+        "\"Diesen Befehl kenne ich nicht.\". "
+        "Padua-Hilfe Task 1 (03.10.2026): die Konstante ist seitdem eine "
+        "ueber __getattr__ (PEP 562) sprachabhaengig gebaute Menge "
+        "(_bekannte_befehle(), Alias-Tabelle _BEFEHL_EN), nicht mehr ein "
+        "Literal -- fuer Dortmund (de) liefert sie weiterhin genau dieselben "
+        "16 Werte wie vorher, nur das en-Profil (Padua) bekommt zusaetzliche "
+        "englische Befehlsnamen (tests/test_befehle.py)."
     ),
     "web._BEARBEITEN_JS": (
         "Aufgabe 17: das Skript der Gruppenseite traegt keine Meldungen mehr "
@@ -406,6 +412,17 @@ GEAENDERT: dict[str, str] = {
         "Seite dieses Moduls. Reines Layout-CSS, kein Nutzertext "
         "(docs/ux-padua/BERICHT.md, Abschnitt \"Mobile-App-Shell, "
         "Nachbesserung 03.10.\")."
+    ),
+    "web._CSS_GRUPPE": (
+        "Padua UX Kopfzeilen-Karte (03.10.2026, Task 4): Birk, live am "
+        "Handy -- 'der Link zur Rehearsal view ist unsinnig, da identisch "
+        "mit Script-Tab.' Der redundante Probenansicht-Link aus dem "
+        "Arbeitsstand-Panel entfaellt; die dazugehoerigen, jetzt toten "
+        "``.probenansicht``/``.probenansicht a``-Regeln sind mit ihm "
+        "entfernt (tests/test_web_textbuch.py::"
+        "test_die_gruppenseite_verlinkt_die_probenansicht_nicht_mehr). "
+        "Reines Layout-CSS, kein Nutzertext -- die Route "
+        "/g/<token>/textbuch und der Textbuch-Tab selbst sind unveraendert."
     ),
 }
 

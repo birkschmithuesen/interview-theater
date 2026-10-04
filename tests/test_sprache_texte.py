@@ -94,6 +94,9 @@ BLEIBT_DEUTSCH = {
     "web_vereint._CSS_VEREINT": "CSS, nur Kommentare deutsch",
     "web_vereint._VEREINT_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     "web_vereint._STROM_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
+    "web_vereint._STEPPER_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext, "
+        "der Nutzertext steht in den __SHEET_*__-Platzhaltern, uebersetzt wie bei "
+        "_VEREINT_JS)",
     # erkenner-fp (02.10.2026): eine Fuellwort-Liste zur Erkennung
     # inhaltsloser Festlegungen (_ohne_eigenen_inhalt), kein Nutzertext --
     # sie wird nie angezeigt, nur gegen den Wortlaut der Gruppe geprueft, und
@@ -115,22 +118,34 @@ BLEIBT_DEUTSCH = {
     "web_gestalt._CHAT_A": "CSS, nur Kommentare deutsch",
     "web_gestalt._CHAT_B": "CSS, nur Kommentare deutsch",
     "web_gestalt._STAND": "CSS, nur Kommentare deutsch",
+    "web_gestalt._WERKBANK": "CSS, nur Kommentare deutsch",
     "web_gestalt._SKRIPT_A": "CSS, nur Kommentare deutsch",
     "web_gestalt._SKRIPT_B": "CSS, nur Kommentare deutsch",
     "web_gestalt._GESTALT_JS": "JavaScript, Texte kommen aus TEXTE (_mikrotexte)",
     "web_gestalt._BAUSTEINE": "JavaScript, Texte kommen aus TEXTE",
     "web_gestalt._JS_DENKT": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._JS_FORTSCHRITT": "JavaScript, nur Kommentare deutsch",
-    "web_gestalt._JS_NAECHSTES": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._JS_AUFNAHME": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._JS_MOMENT": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._JS_INTERVIEW": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._INTERVIEW": "CSS, nur Kommentare deutsch",
+    "web_gestalt._STEPPER": "CSS, nur Kommentare deutsch",
     "web_gestalt.FARBTOKENS": "Tokennamen (CSS-Variablen wie --grund, --text), kein Nutzertext",
     "web_gestalt.KONTRAST": (
         "Pruefdaten des Kontrasttests -- Paar.zweck beschreibt den "
         "gerechneten Soll-Vergleich fuer tests/test_web_gestalt_tokens.py, "
         "geht nie an die Gruppe"
+    ),
+    # Padua-Karte "Help-Text" (Task 3, 03.10.2026): die englische /hilfe ist
+    # seitdem kein uebersetzter Text mehr, sondern befehle._hilfetext_en()
+    # -- ein berechneter, phasenbewusster Pfad (aktuelle Phase, Phasenliste,
+    # T.BEFEHLE_LISTE). _TEXT_HILFE bleibt deshalb ohne englischen
+    # Tabelleneintrag und wird in befehle._hilfetext() nackt gelesen (dort
+    # erlaubt, weil nicht mehr registriert -- siehe NACKT_ERLAUBT oben).
+    "befehle._TEXT_HILFE": (
+        "Englisch ist kein uebersetzter Text mehr, sondern "
+        "befehle._hilfetext_en() -- berechnet aus Phase, Phasenliste und "
+        "Befehlsliste, kein Tabelleneintrag"
     ),
 }
 
@@ -191,6 +206,10 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
     # Review-Fix Aufgabe 6 (Karte U): Vorfall-Detail undo_fehlgeschlagen.
     ("knoepfe.wirkung", "nimm_erkenner_lauf_zurueck(lauf_id={}) h"):
         "Vorfall-Detail undo_fehlgeschlagen (repo.merke_vorfall)",
+    # Befund 1a, Padua Phase-2-Ende (04.10.2026): Vorfall-Detail
+    # redo_fehlgeschlagen, der Spiegel von undo_fehlgeschlagen.
+    ("knoepfe.wirkung", "stelle_erkenner_lauf_wieder_her(lauf_id="):
+        "Vorfall-Detail redo_fehlgeschlagen (repo.merke_vorfall)",
     # Review-Fix Aufgabe 7 (Karte U): Vorfall-Details undo_nicht_angelegt,
     # ueber ``erkenner._merke_undo_vorfall`` an repo.merke_vorfall.
     ("erkenner", "Schnappschuss vor dem Anwenden fehlgesch"):
@@ -382,6 +401,14 @@ def _paare(deutsch, englisch, pfad):
         for k, v in deutsch.items():
             e = englisch[k] if k in englisch else englisch[str(k)]
             if k in ("slug", "command"):
+                if k == "command" and pfad.startswith("befehle.BEFEHLE_LISTE["):
+                    # Birk, 03.10.2026: Padua-Befehle sind Englisch im
+                    # Telegram-Menue -- hier ist "command" bewusst KEIN
+                    # Protokoll mehr, sondern der sichtbare, von Sprache zu
+                    # Sprache verschiedene Befehlsname. Platzhalterpruefung
+                    # unten greift trotzdem (hier ohnehin keine).
+                    yield f"{pfad}.{k}", v, e
+                    continue
                 assert e == v, f"{pfad}.{k} ist Protokoll"
                 continue
             yield from _paare(v, e, f"{pfad}.{k}")

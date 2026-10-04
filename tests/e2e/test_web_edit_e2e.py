@@ -538,15 +538,14 @@ def test_ohne_gueltigen_nonce_schreibt_die_seite_nicht(seite, datenbank, token):
 # --- Die Probenansicht (06.09.2026) ----------------------------------------
 
 
-def test_der_weg_von_der_gruppenseite_in_die_probenansicht(seite):
-    seite.locator(".probenansicht a").click()
-    expect(seite.locator("h1")).to_contain_text("Probenansicht")
-    expect(seite.locator(".probe-szene")).to_have_count(1)
-    # Die Grenze gilt hier strenger als auf der Gruppenseite: nur Szenentext
-    # und Szenenplanung.
-    inhalt = seite.content()
-    assert MARKER not in inhalt
-    assert "Erster Winter" not in inhalt
+def test_kein_eigener_weg_von_der_gruppenseite_mehr_zur_probenansicht(seite):
+    """Kopfzeilen-Karte (Birk, Padua UX): 'der Link zur Rehearsal view ist
+    unsinnig, da identisch mit Script-Tab.' Der eigene Link aus dem
+    Arbeitsstand-Panel ist weg -- erreichbar bleibt die Probenansicht ueber
+    den Textbuch-Tab derselben Seite (siehe ``tests/e2e/
+    test_web_vereint_e2e.py``) und unveraendert per direkter Adresse
+    (``/g/<token>/textbuch``, siehe ``probenseite`` unten in dieser Datei)."""
+    assert seite.locator(".probenansicht").count() == 0
 
 
 def test_der_rollenfilter_daempft_statt_zu_loeschen(probenseite):

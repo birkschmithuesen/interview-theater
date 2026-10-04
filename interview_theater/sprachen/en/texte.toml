@@ -644,6 +644,16 @@ I already have your terms. From them we'll now develop your interview \
 questions - and only after that do we start recording.
 
 The buttons below show you the way."""
+_TEXT_ERSTKONTAKT_DISKUSSION = """\
+Hi, I'm the theatre bot for this workshop.
+
+Just write or speak - I read everything and answer.
+
+First, put your phone in the middle of the table and discuss freely which \
+terms matter for your play. I only listen while you do - I won't say \
+anything until you tap "Discussion done".
+
+The buttons below show you the way."""
 _TEXT_GRUPPENSEITE = """
 
 

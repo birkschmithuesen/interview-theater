@@ -50,6 +50,12 @@ _ZUSATZ_DOPPELBEDEUTUNG = " (Doppelbedeutung: {doppelbedeutung})"
 _TRANSKRIPT_KOPF = "Das Transkript der Diskussion bisher:"
 _BOARD_KOPF = "Das bisherige Begriffsboard (JSON):"
 
+#: Der Einstiegssatz (D10) -- deterministisch, nur mit ``diskussion.aktiv``.
+_TEXT_EINSTIEG = (
+    "Legt ein Handy in die Mitte -- es hoert zu. Oeffnet auf einem zweiten "
+    "Handy den Tab CoThinker: dort erscheinen die Begriffe, die ihr nennt."
+)
+
 T = sprache.Texte(__name__)
 
 
@@ -431,3 +437,20 @@ def nach_segment(conn, tg, klm, e, chat_id: int, *, ist_abschluss: bool,
             danach()
         return
     starte(conn, klm, e, chat_id, danach=danach)
+
+
+def sende_einstieg(conn, tg, e, chat_id: int) -> bool:
+    """Der Einstiegssatz zum Mithoeren (D10), dort, wo der Bot den Knopf
+    "Start listening" ankuendigt: beim Eintritt in Phase 1
+    (``knoepfe/stationen.eintritt_in_phase``) und hinter der ersten Antwort
+    einer neuen Gruppe (``ablauf.antworte``). Als Bot-Zeile mitgeschrieben,
+    damit der naechste Gespraechszug ihn im Fenster sieht. Ohne Profil:
+    nichts."""
+    if not workshop.diskussion_aktiv():
+        return False
+    text = T._TEXT_EINSTIEG
+    message_id = tg.sende(chat_id, text)
+    repo.merke_nachricht(
+        conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),
+    )
+    return True

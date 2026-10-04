@@ -822,6 +822,7 @@ _ZEILE_DETAIL_OHNE_GRUND = "- {begriff}"
 _ZUSATZ_DOPPELBEDEUTUNG = " (double meaning: {doppelbedeutung})"
 _TRANSKRIPT_KOPF = "The transcript of the discussion so far:"
 _BOARD_KOPF = "The term board so far (JSON):"
+_TEXT_EINSTIEG = "Lay one phone in the middle -- it listens. Open the CoThinker tab on a second phone: the terms you mention appear there."
 
 ["journal"]
 _BISHERIGES_JOURNAL_KOPF = "Journal so far:\n"

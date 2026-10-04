@@ -335,6 +335,12 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         # zur Antwort laeuft jeder Gespraechszug auf Kimi
         # (``modellwahl.konversation_ueber_claude``).
         _biete_modellwahl_wenn_faellig(conn, tg, e, chat_id)
+        # Karte t_4517d4ad (D10): der deterministische Einstiegssatz zum
+        # Mithoeren -- vor dem modellgeschriebenen Einstieg, der im Thread
+        # laeuft. Ohne Profil ``diskussion.aktiv`` sendet er nichts.
+        from interview_theater import begriffsboard
+
+        begriffsboard.sende_einstieg(conn, tg, e, chat_id)
     if nummer == PHASE_SETTING:
         # Sicherheitsnetz fuer Gruppen, die den Eintritt in Phase 1 schon vor
         # diesem Umbau durchlaufen haben (``angebot_faellig`` liefert dann

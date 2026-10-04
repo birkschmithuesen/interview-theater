@@ -1,17 +1,27 @@
-"""Karte t_cb2c4678, Aufgabe 6: das Begriffsboard sortiert im echten Browser
-um, ohne zu springen (D3). Ein echter Webserver-Prozess unter
+"""Karte t_cb2c4678, Aufgabe 6 (angepasst in der Design-Erweiterung,
+04.10.2026): das Begriffsboard sortiert im echten Browser um, ohne zu
+springen (D3). Ein echter Webserver-Prozess unter
 ``IT_WORKSHOP=padua-2026`` (sonst gibt es kein Board), eine Gruppe in
 Phase 1, ein Board A; der Test legt ein umsortiertes Board B mit einer
 Schaerfung ("Roboter" -> "KI-Roboter") in die Datenbank und wartet auf den
 naechsten ``ladeBuehne()``-Takt. Nachgewiesen werden die Wirkungen der
-Zuordnung: das geoeffnete "Warum" bleibt an der verschobenen und an der
-geschaerften Zeile offen, genau diese Zeilen bekommen ein ``translateY``
-(mit reduzierter Bewegung: keins), und die alte Fassung steht als ``<del>``.
+Zuordnung: die verschobene und die geschaerfte Zeile bekommen ein
+``translateY`` (mit reduzierter Bewegung: keins), und die alte Fassung
+steht als ``<del>``. Seit der Design-Erweiterung gibt es kein
+aufklappbares "Warum" mehr -- dieser Lauf klickt keins mehr an.
 
 Ohne Playwright wird die Datei uebersprungen (``importorskip``). Der
 Handy-Schuss landet immer unter /tmp und nur mit
 ``IT_SCHUSS_AKTUALISIEREN=1`` im Repository (Muster
-``test_web_cothinker_status_screenshot_e2e.py``). Nur erfundenes Material."""
+``test_web_cothinker_status_screenshot_e2e.py``). Nur erfundenes Material.
+
+**Vorher-Referenz der Design-Erweiterung:** der Screenshot, den dieser
+Test erzeugt (mit ``IT_SCHUSS_AKTUALISIEREN=1``, zuletzt am 04.10.2026 VOR
+der Design-Erweiterung gelaufen), liegt unter
+``docs/web-begriffsboard/ranking-2026-10-04.png`` -- NICHT erneut mit
+``IT_SCHUSS_AKTUALISIEREN=1`` laufen lassen, solange diese Datei als
+"Vorher"-Beleg gilt (siehe ``docs/superpowers/plans/2026-10-04-padua-begriffsboard-design.md``,
+Aufgabe 5)."""
 
 import json
 import os
@@ -160,10 +170,6 @@ def _lauf(basis, token, *, ruhig: bool, schuss: bool):
             seite.set_default_timeout(GEDULD_MS)
             seite.goto(f"{basis}/g/{token}#buehne")
             seite.wait_for_selector('#tab-buehne li[data-begriff="Roboter"]', state="visible")
-            # Zwei "Warum" oeffnen: eine Zeile, die nach unten rutscht
-            # (Heimat), und die, die gleich geschaerft wird (Roboter).
-            seite.click('#tab-buehne li[data-begriff="Heimat"] summary')
-            seite.click('#tab-buehne li[data-begriff="Roboter"] summary')
             seite.evaluate(_BEOBACHTER)
             _lege_board_b()
             seite.wait_for_selector('#tab-buehne li[data-begriff="KI-Roboter"]', state="visible")
@@ -176,12 +182,7 @@ def _lauf(basis, token, *, ruhig: bool, schuss: bool):
             reihenfolge = seite.eval_on_selector_all(
                 "#tab-buehne ol.begriffsboard > li", "els => els.map(e => e.dataset.begriff)")
             assert reihenfolge == ["KI-Roboter", "Heimat", "Grenze"]
-            # Zuordnung belegt: beide "Warum" sind an ihren (neuen) Zeilen offen.
-            assert neu.locator("details").evaluate("d => d.open") is True
-            assert seite.locator(
-                '#tab-buehne li[data-begriff="Heimat"] details').evaluate("d => d.open") is True
-            assert seite.locator(
-                '#tab-buehne li[data-begriff="Grenze"] details').evaluate("d => d.open") is False
+            assert seite.locator("#tab-buehne details").count() == 0
 
             transforms = seite.evaluate("() => window.__bbTransforms")
             if ruhig:

@@ -789,7 +789,7 @@ _VEREINT_JS = """
         // wieder her -- faellt die Zeile hier weg, kaeme das Menue beim
         // naechsten Takt wieder offen zurueck.
         var roadmap = document.getElementById('roadmap');
-        if (roadmap) { roadmap.open = false; }
+        if (roadmap) roadmap.open = false;
         // Ein sofortiger Versuch -- er zeigt die neue Phase aber NICHT
         // zuverlaessig: der POST legt hier nur den Eingang ab, der Bot
         // verarbeitet ihn erst danach (eigener Prozess, eigener Takt).

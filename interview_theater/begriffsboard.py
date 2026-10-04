@@ -6,8 +6,10 @@ Gespraechszug, kein Erkenner, keine Chatzeile --, aber nach jedem
 qualifizierenden Segment (``brainstorm.soll_reagieren``, unveraendert)
 laeuft ein Schema-Aufruf, der ein Board der genannten Begriffe fortschreibt.
 Das Board steht im CoThinker-Tab; bei "Discussion done" schlaegt der Bot
-seine Top 5 vor, und beim Speichern der Begriffe geht je Begriff die
-Boardzeile nach ``arbeitsstand.begriffe_detail``.
+seine Top 5 vor — nach Birks Entscheidung vom 04.10.2026 ohne eigenen
+Schlusslauf: der Ende-Schnitt ist ein gewöhnlicher Schnitt (``soll_laufen``),
+der Vorschlag zeigt das Board, wie es ist. Beim Speichern der Begriffe geht
+je Begriff die Boardzeile nach ``arbeitsstand.begriffe_detail``.
 
 **Validiert wird im Code, nicht im Prompt** (``validiere``): ein Begriff,
 der nicht im Transkript steht oder nur ein Ansage-/Mikrofonwort ist
@@ -462,17 +464,27 @@ def aktuelles(conn, chat_id: int) -> list[dict]:
     return lies(zeile["json"]) if zeile else []
 
 
-def soll_laufen(conn, chat_id: int, *, ist_abschluss: bool) -> bool:
-    """D1: ``brainstorm.soll_reagieren`` unveraendert, mit den eigenen Zahlen
-    der Phase 1 (``repo.begriffsboard_stand``) UND der eigenen, niedrigeren
-    Zeichenschwelle (``min_zeichen`` oben). Kein Modellaufruf."""
+def soll_laufen(conn, chat_id: int) -> bool:
+    """D1 und Birk 04.10.2026 14:50 ("Zwischenstand und Endstand muessen
+    nicht anders behandelt werden"): EINE Regel fuer jeden Lauf --
+    ``brainstorm.soll_reagieren`` unveraendert, mit den eigenen Zahlen der
+    Phase 1 (``repo.begriffsboard_stand``) und der eigenen Schwelle
+    (``min_zeichen``). Der Schnitt "Discussion done" (``'ende'``) zaehlt wie
+    ein Pausenschnitt; nur der Mindestabstand gilt dort nicht -- er schiebt
+    auf, und nach dem Ende kommt kein Schnitt mehr, der das Aufgeschobene
+    nachholt. Kein eigener Abschlusspfad, keine eigene Schwelle (Abwaegung
+    im Plan 2026-10-04-padua-begriffsboard-ranking-schaerfung, Teil 2).
+    Kein Modellaufruf."""
     stand = repo.begriffsboard_stand(conn, chat_id)
+    grund = stand["letzter_schnittgrund"]
     sekunden = stand["sekunden_seit_letztem_lauf"]
+    ende = grund == "ende"
     return brainstorm.soll_reagieren(
         unreagierte_zeichen=stand["unreagierte_zeichen"],
-        sekunden_seit_letzter_reaktion=sekunden if sekunden is not None else float("inf"),
-        letzter_schnittgrund=stand["letzter_schnittgrund"],
-        ist_abschluss=ist_abschluss,
+        sekunden_seit_letzter_reaktion=(
+            float("inf") if ende or sekunden is None else sekunden),
+        letzter_schnittgrund="pause" if ende else grund,
+        ist_abschluss=False,
         min_zeichen_override=min_zeichen(),
     )
 
@@ -515,6 +527,18 @@ def beende(chat_id: int) -> list:
 def laeuft(chat_id: int) -> bool:
     with _LAEUFT_LOCK:
         return chat_id in _LAEUFT
+
+
+def merke_falls_laeuft(chat_id: int, danach) -> bool:
+    """True, wenn gerade ein Boardlauf dieser Gruppe laeuft -- dann laeuft
+    ``danach`` nach seinem Ende (``beende`` liefert es). False: es laeuft
+    keiner, nichts gemerkt. Unter derselben Sperre wie ``nimm_oder_merke``:
+    zwischen "laeuft" und "gemerkt" kann kein ``beende`` den Merkplatz leeren."""
+    with _LAEUFT_LOCK:
+        if chat_id in _LAEUFT:
+            _DANACH.setdefault(chat_id, []).append(danach)
+            return True
+        return False
 
 
 def _rufe(rueckrufe) -> None:
@@ -644,22 +668,30 @@ def schreibe_detail(conn, chat_id: int, begriffe_text: str | None) -> None:
 def nach_segment(conn, tg, klm, e, chat_id: int, *, ist_abschluss: bool,
                  rueckfall_text: str | None = None) -> None:
     """Der Einhaengepunkt in ``aufnahme._diskussion_abschliessen``, je
-    Segment. Entscheidet per Code (D1), ob ein Boardlauf faellig ist, und
-    stoesst ihn im Thread an. Beim Abschluss-Segment (``ist_abschluss``)
-    kommt danach der Vorschlag (D6): nach dem Schlusslauf, oder sofort,
-    wenn keiner noetig ist. Ohne Profil, ohne Modell: nur der Satz, wie
-    bisher."""
+    Segment. Entscheidet per Code (``soll_laufen``, EINE Regel fuer jeden
+    Schnitt), ob ein Boardlauf faellig ist, und stoesst ihn im Thread an.
+
+    ``ist_abschluss`` heisst seit Birks Entscheidung vom 04.10.2026 nur
+    noch "die Sitzung ist zu Ende": es aendert KEINE Schwelle, es haengt
+    nur den Vorschlag (``sende_vorschlag``) an -- nach dem Lauf, den dieser
+    Schnitt ausloest, sonst sofort, mit dem Board, wie es ist. Laeuft beim
+    Ende gerade ein Lauf, wird nach ihm NEU entschieden (derselbe Aufruf,
+    nur spaeter): sonst bliebe der Rest seit seiner Markierung ungelesen,
+    und der Vorschlag zeigte den Stand davor. Ohne Profil, ohne Modell: nur
+    der Satz, wie bisher."""
+    if ist_abschluss and merke_falls_laeuft(chat_id, lambda: nach_segment(
+            conn, tg, klm, e, chat_id, ist_abschluss=True, rueckfall_text=rueckfall_text)):
+        return
     danach = None
     if ist_abschluss:
         def danach() -> None:
             sende_vorschlag(conn, tg, chat_id, rueckfall_text)
 
-    if (klm is None or not workshop.diskussion_aktiv()
-            or not soll_laufen(conn, chat_id, ist_abschluss=ist_abschluss)):
-        if danach is not None:
-            danach()
+    if klm is not None and workshop.diskussion_aktiv() and soll_laufen(conn, chat_id):
+        starte(conn, klm, e, chat_id, danach=danach)
         return
-    starte(conn, klm, e, chat_id, danach=danach)
+    if danach is not None:
+        danach()
 
 
 def sende_einstieg(conn, tg, e, chat_id: int) -> bool:

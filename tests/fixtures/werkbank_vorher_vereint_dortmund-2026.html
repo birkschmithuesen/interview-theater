@@ -222,8 +222,16 @@ body[data-figur] .replik { opacity: .35; }.panel-textbuch[data-figur] .replik.ak
                               flex: 0 0 auto; }.panel-buehne #cothinker-status.co-hoert, .panel-buehne #cothinker-status.co-transkribiert { color: var(--signal); }.panel-buehne #cothinker-status.co-denkt { color: var(--warn); }.panel-buehne #cothinker-status.co-schweigt { color: var(--text-leise); opacity: .75; }.panel-buehne #cothinker-status .co-text { overflow: hidden; text-overflow: ellipsis;
                               white-space: nowrap; min-width: 0; }.panel-buehne #cothinker-status .co-dauer { font-variant-numeric: tabular-nums; opacity: .75;
                                white-space: nowrap; flex: 0 0 auto; }.panel-buehne #cothinker-status.co-hoert .co-icon, .panel-buehne #cothinker-status.co-transkribiert .co-icon { animation: co-atmen 1.8s ease-in-out infinite; }.panel-buehne #cothinker-status.co-denkt .co-icon { animation: co-punkte 1.2s steps(3, end) infinite; }
-.panel-chat { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
-       max-width: 44rem; margin: 0 auto; }.panel-chat .verlauf { display: flex; flex-direction: column; gap: .55rem; }.panel-chat .blase { padding: .55rem .7rem; border-radius: .8rem; max-width: 88%;
+.panel-chat /* Bild-Overlay-Karte (04.10.2026): seitenweites Pinch-/Doppeltipp-Zoom im
+   Chat ist aus -- es liess vorher den fixen Fuss (Record-/PTT-/Senden-
+   Knopf) beim Zoomen ueberproportional mitwachsen. ``pan-x pan-y`` statt
+   ``none``: Scrollen/Wischen bleibt erlaubt, .panel-chat nur Zoomen per Geste nicht --
+   und statt ``manipulation`` (das Doppeltipp-Zoom zwar auch abschaltet, .panel-chat aber nichts ueber Pinch sagt und je Browser unterschiedlich ausgelegt
+   wird). ``body`` wird auf der vereinten Seite beim Scopen zur Scope-
+   Klasse selbst (``web_vereint.scope_css``), .panel-chat die Sperre bleibt also auf
+   den Chat beschraenkt. */
+body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
+       max-width: 44rem; margin: 0 auto; touch-action: pan-x pan-y; }.panel-chat .verlauf { display: flex; flex-direction: column; gap: .55rem; }.panel-chat .blase { padding: .55rem .7rem; border-radius: .8rem; max-width: 88%;
          font-size: 1.02rem; overflow-wrap: anywhere; }.panel-chat .blase.bot { background: #fff; border: 1px solid #e0ddd6; align-self: flex-start;
              border-bottom-left-radius: .2rem; }.panel-chat .blase.gruppe { background: #1f6f5c; color: #fff; align-self: flex-end;
                 border-bottom-right-radius: .2rem; }.panel-chat .blase.sprache { font-style: italic; opacity: .85; }.panel-chat .blase.system { background: transparent; border: none; color: #6b6f76;
@@ -260,7 +268,14 @@ body[data-figur] .replik { opacity: .35; }.panel-textbuch[data-figur] .replik.ak
    dem Finger -- sonst bricht das Telefon den Druck ab oder blendet eine Lupe
    ein. */
 #ptt { touch-action: none; user-select: none; -webkit-user-select: none;
-       -webkit-touch-callout: none; }.panel-chat #ptt[data-haelt="1"] { background: #a8201a; transform: scale(1.08); }.panel-chat .fehler { font-size: .9rem; color: #a8201a; text-align: center; }.panel-chat .fehler[hidden] { display: none; }.panel-chat .angehalten { display: flex; flex-direction: column; gap: .35rem; font-size: .92rem;
+       -webkit-touch-callout: none; }.panel-chat #ptt[data-haelt="1"] { background: #a8201a; transform: scale(1.08); }.panel-chat /* Die Anzeige-Box ueber dem Mikrofon-Knopf (Kanban-Karte Buehne/PTT, .panel-chat 04.10.2026): Schloss-/Wegwisch-Hinweis, .panel-chat Timer, .panel-chat Pegel, .panel-chat Senden/Verwerfen im
+   gesperrten Zustand. ANNAHME: Farben/Abstaende sind freie Gestaltung, .panel-chat konsistent mit dem Rest dieser Seite -- nur IDs/Zustaende sind Vorgabe. */
+#ptt-anzeige { display: flex; align-items: center; gap: .5rem;
+               font-size: .88rem; padding: .35rem .6rem; border-radius: .6rem;
+               background: #eee9df; margin-bottom: -.1rem; }.panel-chat #ptt-anzeige[hidden] { display: none; }.panel-chat #ptt-anzeige[data-gesperrt="1"] { background: #fde8c8; }.panel-chat /* "wird gleich abgebrochen", .panel-chat ab der Haelfte der Wegwischstrecke. */
+#ptt-anzeige[data-wird-verworfen="1"] { opacity: .45; }.panel-chat #ptt-schloss { opacity: .85; }.panel-chat #ptt-wisch-hinweis { opacity: .6; flex: 1; white-space: nowrap; }.panel-chat #ptt-zeit { font-variant-numeric: tabular-nums; min-width: 2.6rem; text-align: center; }.panel-chat #ptt-anzeige .pegel { flex: 1; min-width: 3rem; margin: 0; }.panel-chat #ptt-hinweistext { flex: 1; opacity: .9; }.panel-chat #ptt-senden, .panel-chat #ptt-verwerfen { font: inherit; border-radius: .6rem; border: 0;
+                              min-height: 2.2rem; }.panel-chat #ptt-senden { background: #1f6f5c; color: #fff; padding: 0 .8rem; white-space: nowrap; }.panel-chat #ptt-verwerfen { background: transparent; color: #a8201a;
+                 border: 1px solid #a8201a; min-width: 2.2rem; }.panel-chat .fehler { font-size: .9rem; color: #a8201a; text-align: center; }.panel-chat .fehler[hidden] { display: none; }.panel-chat .angehalten { display: flex; flex-direction: column; gap: .35rem; font-size: .92rem;
               border: 1px solid #a8201a; border-radius: .7rem; padding: .5rem .6rem; }.panel-chat .angehalten[hidden], .panel-chat .angehalten button[hidden] { display: none; }.panel-chat .angehalten button { font: inherit; min-height: 2.9rem; border-radius: .7rem;
                      border: 1px solid #1f6f5c; background: #fff; color: #17181b; }.panel-chat .pegel { position: relative; height: .45rem; border-radius: .3rem;
          background: #e0ddd6; overflow: visible; }.panel-chat /* Grau unterhalb, .panel-chat Gruen sobald der aktuelle Pegel die VAD-Schwelle
@@ -274,7 +289,20 @@ body[data-figur] .replik { opacity: .35; }.panel-textbuch[data-figur] .replik.ak
                     border: 1px solid #e0ddd6; background: #fff; color: #6b6f76; }.panel-chat #kalibrierung-neu[hidden] { display: none; }.panel-chat .kalibrierung-balken { position: relative; height: .6rem; border-radius: .35rem;
                        background: #e0ddd6; overflow: visible; }.panel-chat .kalibrierung-balken[hidden] { display: none; }.panel-chat .kalibrierung-balken span { display: block; height: 100%; width: 0; border-radius: .35rem;
                             background: #a8201a; }.panel-chat .kalibrierung-marke { position: absolute; top: -.2rem; bottom: -.2rem; width: 2px;
-                      background: #17181b; left: 0; }.panel-chat .kalibrierung-erinnerung { font-size: .85rem; text-align: center; color: #1f6f5c; }.panel-chat .kalibrierung-erinnerung[hidden] { display: none; }.panel-chat .mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }.panel-chat .mitlauf-hinweis[hidden] { display: none; }
+                      background: #17181b; left: 0; }.panel-chat .kalibrierung-erinnerung { font-size: .85rem; text-align: center; color: #1f6f5c; }.panel-chat .kalibrierung-erinnerung[hidden] { display: none; }.panel-chat .mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }.panel-chat .mitlauf-hinweis[hidden] { display: none; }.panel-chat /* Bild-Overlay-Karte: die Telefon-Organisationskarte (``.karte``) gross und
+   zoombar. ``inset: 0`` statt ``100vw``/``100vh`` -- ein fixes Element
+   braucht dafuer keine viewport-relative Einheit. ``touch-action:
+   pinch-zoom`` auf Huelle UND Bild hebt die Sperre am ``body`` fuer dieses
+   Element gezielt wieder auf. */
+.bild-overlay { position: fixed; inset: 0; z-index: 9999;
+                background: rgba(0, 0, 0, .9); display: flex;
+                align-items: center; justify-content: center;
+                touch-action: pinch-zoom; }.panel-chat .bild-overlay[hidden] { display: none; }.panel-chat .bild-overlay img { max-width: 100%; max-height: 100%; object-fit: contain;
+                     touch-action: pinch-zoom; }.panel-chat .bild-overlay button { position: absolute; top: .6rem; right: .6rem;
+                        min-width: 2.75rem; min-height: 2.75rem;
+                        border-radius: 999px; border: 0;
+                        background: rgba(255, 255, 255, .15); color: #fff;
+                        font-size: 1.3rem; }
 @media (prefers-color-scheme: dark) {.panel-chat { background: #14161a; color: #e7e9ec; }.panel-chat .blase.bot { background: #1d2026; border-color: #2c313a; }.panel-chat .fuss { background: #14161a; border-color: #2c313a; }.panel-chat .zeile input { background: #1d2026; color: #e7e9ec; border-color: #2c313a; }.panel-chat .leiste button { background: #1d2026; color: #6fcfb6; border-color: #2c6a58; }.panel-chat .leiste-label { color: #7d8290; }.panel-chat .interview-aktionen button { background: #1d2026; color: #e7e9ec; }.panel-chat .kalibrierung button, .panel-chat #kalibrierung-neu { background: #1d2026; color: #e7e9ec;
                                             border-color: #2c6a58; }
 }
@@ -820,7 +848,7 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {
 <section class="panel panel-chat" id="tab-chat" role="tabpanel">
 <h1>Test group</h1>
 <noscript><p class="leer">Fuer Chat und Aufnahme braucht diese Seite JavaScript. Die Gruppenseite und das Textbuch funktionieren auch ohne.</p></noscript>
-<div class="verlauf" id="verlauf" data-letzte="0" data-aenderung="0">
+<div class="verlauf" id="verlauf" data-letzte="0" data-aenderung="0" data-phase="6">
 <p class="leer">Noch nichts da. Schreibt mir, womit ihr anfangen wollt.</p>
 </div>
 <div class="tippt" id="tippt"></div>
@@ -873,11 +901,24 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {
     <button type="button" id="interview-pause">⏸ Pause</button>
     <button type="button" id="interview-beenden">■ Beenden</button>
   </div>
+  <div id="ptt-anzeige" hidden>
+    <span id="ptt-schloss">🔒 ↑</span>
+    <span id="ptt-wisch-hinweis">‹ nach links wischen zum Abbrechen</span>
+    <span id="ptt-zeit"></span>
+    <div class="pegel" id="ptt-pegel" hidden><span></span></div>
+    <span id="ptt-hinweistext" hidden></span>
+    <button type="button" id="ptt-senden" hidden>■ Senden</button>
+    <button type="button" id="ptt-verwerfen" hidden aria-label="Aufnahme verwerfen">✕</button>
+  </div>
   <div class="zeile">
     <input type="text" id="eingabe" autocomplete="off" placeholder="Schreibt oder sprecht einfach – oder tippt eine Abkürzung">
-    <button type="button" id="ptt" title="Tippen und sprechen">🎤</button>
+    <button type="button" id="ptt" title="Halten zum Sprechen">🎤</button>
     <button type="button" id="senden">Senden</button>
   </div>
+</div>
+<div class="bild-overlay" id="bild-overlay" hidden>
+  <button type="button" id="bild-overlay-schliessen" aria-label="Schließen">✕</button>
+  <img id="bild-overlay-img" src="" alt="">
 </div>
 
 </section>
@@ -1165,6 +1206,14 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
         '.phase-abbrechen[data-phase="' + phase.dataset.phase + '"]');
       if (abbrechen) { abbrechen.hidden = true; }
       if (r && r.ok) {
+        // Teil B: nach einem erfolgreichen Sprung schliesst sich das Menue
+        // selbst -- auf dem Handy nimmt es sonst Platz weg, den niemand
+        // mehr braucht. VOR ``ladeRoadmap()``: die Funktion sichert
+        // ``ziel.open`` (= ``warOffen``) und stellt es nach dem Austausch
+        // wieder her -- faellt die Zeile hier weg, kaeme das Menue beim
+        // naechsten Takt wieder offen zurueck.
+        var roadmap = document.getElementById('roadmap');
+        if (roadmap) roadmap.open = false;
         // Ein sofortiger Versuch -- er zeigt die neue Phase aber NICHT
         // zuverlaessig: der POST legt hier nur den Eingang ab, der Bot
         // verarbeitet ihn erst danach (eigener Prozess, eigener Takt).
@@ -1195,6 +1244,15 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
     });
   }
   document.addEventListener('click', function (ev) {
+    // Teil B: ein Tap ausserhalb des Menues klappt es zu -- aber NIE ein
+    // Klick auf die ``<summary>`` oder einen Knopf/eine Aufgabe DARIN, die
+    // haben ihre eigene Logik weiter unten. Kein ``return`` danach: ein
+    // Klick auf einen Tab-Knopf soll das Menue schliessen UND den Tab
+    // wechseln.
+    var roadmapOffen = document.getElementById('roadmap');
+    if (roadmapOffen && roadmapOffen.open && !ev.target.closest('#roadmap')) {
+      roadmapOffen.open = false;
+    }
     var phase = ev.target.closest ? ev.target.closest('.phase-knopf') : null;
     if (phase) {
       if (phase.getAttribute('data-sicher') === '1') {
@@ -1222,6 +1280,9 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
     if (abbrechen) {
       // Nein: die Rueckfrage wieder einklappen, ohne zu senden.
       entwaffneAlle(null);
+      // Teil B: "Stay here" schliesst auch das Menue selbst.
+      var roadmapNein = document.getElementById('roadmap');
+      if (roadmapNein) { roadmapNein.open = false; }
       return;
     }
     var knopf = ev.target.closest ? ev.target.closest('.tabs button') : null;
@@ -1762,8 +1823,10 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
   var POLL_MS_HINTERGRUND = 10000;
   var PTT_MIN_MS = 500;
   var PTT_MAX_MS = 90000;
+  var PTT_LOCK_PX = 60;
+  var PTT_CANCEL_PX = 80;
   var UPLOAD_WARTEN_MS = [1000, 3000, 8000];
-  var TEXT = {"tippt": "schreibt \u2026", "sprache": "Sprachnachricht ({dauer})", "sprache_laeuft": "{dauer} \u00b7 wird abgetippt \u2026", "sprache_text": "\ud83c\udfa4 {dauer} \u00b7 {text}", "datei": "Datei: {name}", "interview_an": "Interview aufnehmen", "interview_aus": "Aufnahme beenden", "interview_pause": "\u23f8 Pause", "interview_weiter": "\u25b6 Weiter", "interview_laeuft": "\u25cf Interview l\u00e4uft \u00b7 {zeit}", "interview_pausiert": "Pause \u00b7 {zeit}", "brainstorm_an": "\ud83c\udf99 Brainstorm mith\u00f6ren", "brainstorm_laeuft": "\u25cf H\u00f6rt mit \u00b7 {zeit}", "diskussion_an": "Zuhoeren starten", "diskussion_laeuft": "Hoert zu ({zeit})", "warte_eins": "Ein St\u00fcck wird hochgeladen \u2026", "warte_mehr": "{n} St\u00fccke werden hochgeladen \u2026", "warte_modus": "Aufnahme l\u00e4uft \u2014 {n} St\u00fcck(e) warten, bis der Bot das Interview angelegt hat.", "warte_netz": "Keine Verbindung \u2014 {n} offen, ich versuche es weiter \u2026", "fehler_netz": "Keine Verbindung \u2014 das ist nicht angekommen.", "fehler_mikro": "Ohne Mikrofon geht das nicht \u2014 bitte den Zugriff erlauben.", "verlassen": "Es wird noch aufgenommen oder hochgeladen.", "uhr": "\u25cf {zeit}", "modus_weg": "Das Interview wurde beendet, die Aufnahme ist gestoppt. {n} St\u00fcck(e) sind noch nicht angekommen.", "modus_weg_leer": "Das Interview wurde beendet, die Aufnahme ist gestoppt.", "nachreichen_spaeter": "Gerade l\u00e4uft ein anderes Interview \u2014 nachreichen geht, sobald es beendet ist.", "mitlauf_hinweis": "Schaut den Mitschnitt im Chat nach \u2014 fehlen Worte, haltet das Handy n\u00e4her ran.", "abkuerzung": "Abk\u00fcrzung:", "kal_ankuendigung": "Legt dieses Handy in die Mitte des Tisches, dort wo es w\u00e4hrend des Gespr\u00e4chs bleiben wird. Setzt euch so, wie ihr beim Reden sitzen werdet \u2014 lehnt euch nicht vor und sprecht nicht ins Handy hinein. Wir testen es genauso wie die echte Situation. Wenn du den Knopf unten dr\u00fcckst, seid bitte 5 Sekunden lang vollkommen still \u2014 danach sagt eine*r von euch einen Satz in normaler Lautst\u00e4rke.", "kal_start_knopf": "Messung starten", "kal_stille": "Ruhe f\u00fcr noch {s} Sekunden \u2014 wir messen den Raum \u2026", "kal_sprechen_ankuendigung": "Stille gemessen. Jetzt sagt eine*r von euch einen Satz in normaler Lautst\u00e4rke \u2014 am besten die Person, die am weitesten vom Handy entfernt sitzt. Sprich von deinem Platz aus, in normaler Lautst\u00e4rke, nicht ins Handy hinein. Dr\u00fcck den Knopf, dann fang an zu sprechen.", "kal_sprechen_knopf": "Sprechen starten", "kal_hoeren": "Ich h\u00f6re zu \u2026 fang an, wann du bereit bist.", "kal_nichts_gehoert": "Wir haben nichts geh\u00f6rt \u2014 nochmal versuchen?", "kal_messen_knopf": "Nochmal messen", "kal_zu_leise": "Das war zu leise, um zuverl\u00e4ssig verstanden zu werden.", "kal_zu_leise_1": "Stellt das Handy n\u00e4her in die Mitte und sprecht etwas lauter \u2014 dann versucht es nochmal.", "kal_zu_leise_2": "Der Raum ist zu gro\u00df oder zu laut f\u00fcr ein Handy in der Mitte. Gebt das Handy herum: wer spricht, h\u00e4lt es (oder legt es neben sich). Dann versucht es nochmal.", "kal_nochmal_knopf": "Nochmal versuchen", "kal_weiter_trotzdem": "Trotzdem weiter", "kal_transkribiert_warten": "Der Testsatz wird abgetippt \u2026", "kal_bestaetigung": "Wir haben geh\u00f6rt: \u201e{transkript}\u201c. Stimmt das?", "kal_ja_knopf": "Ja, stimmt", "kal_nein_knopf": "Nein, nochmal", "kal_floor_hinweis": "Der Raum ist laut, oder das Handy ist weit weg \u2014 stellt es n\u00e4her an die Sprechenden.", "kal_erfolg": "Raum gemessen \u2713 \u2014 ihr seid bereit.", "kal_skip_knopf": "\u00dcberspringen", "kal_balken_label": "Deine Stimme im Vergleich zum Raum", "kal_herumreichen_erinnerung": "Denkt daran: Gebt das Handy an die Person weiter, die spricht."};
+  var TEXT = {"tippt": "schreibt \u2026", "sprache": "Sprachnachricht ({dauer})", "sprache_laeuft": "{dauer} \u00b7 wird abgetippt \u2026", "sprache_text": "\ud83c\udfa4 {dauer} \u00b7 {text}", "datei": "Datei: {name}", "interview_an": "Interview aufnehmen", "interview_aus": "Aufnahme beenden", "interview_pause": "\u23f8 Pause", "interview_weiter": "\u25b6 Weiter", "interview_laeuft": "\u25cf Interview l\u00e4uft \u00b7 {zeit}", "interview_pausiert": "Pause \u00b7 {zeit}", "brainstorm_an": "\ud83c\udf99 Brainstorm mith\u00f6ren", "brainstorm_laeuft": "\u25cf H\u00f6rt mit \u00b7 {zeit}", "diskussion_an": "Zuhoeren starten", "diskussion_laeuft": "Hoert zu ({zeit})", "warte_eins": "Ein St\u00fcck wird hochgeladen \u2026", "warte_mehr": "{n} St\u00fccke werden hochgeladen \u2026", "warte_modus": "Aufnahme l\u00e4uft \u2014 {n} St\u00fcck(e) warten, bis der Bot das Interview angelegt hat.", "warte_netz": "Keine Verbindung \u2014 {n} offen, ich versuche es weiter \u2026", "fehler_netz": "Keine Verbindung \u2014 das ist nicht angekommen.", "fehler_mikro": "Ohne Mikrofon geht das nicht \u2014 bitte den Zugriff erlauben.", "verlassen": "Es wird noch aufgenommen oder hochgeladen.", "uhr": "\u25cf {zeit}", "modus_weg": "Das Interview wurde beendet, die Aufnahme ist gestoppt. {n} St\u00fcck(e) sind noch nicht angekommen.", "modus_weg_leer": "Das Interview wurde beendet, die Aufnahme ist gestoppt.", "nachreichen_spaeter": "Gerade l\u00e4uft ein anderes Interview \u2014 nachreichen geht, sobald es beendet ist.", "mitlauf_hinweis": "Schaut den Mitschnitt im Chat nach \u2014 fehlen Worte, haltet das Handy n\u00e4her ran.", "ptt_hinweis": "Gedr\u00fcckt halten zum Sprechen, nach oben schieben zum Sperren.", "abkuerzung": "Abk\u00fcrzung:", "kal_ankuendigung": "Legt dieses Handy in die Mitte des Tisches, dort wo es w\u00e4hrend des Gespr\u00e4chs bleiben wird. Setzt euch so, wie ihr beim Reden sitzen werdet \u2014 lehnt euch nicht vor und sprecht nicht ins Handy hinein. Wir testen es genauso wie die echte Situation. Wenn du den Knopf unten dr\u00fcckst, seid bitte 5 Sekunden lang vollkommen still \u2014 danach sagt eine*r von euch einen Satz in normaler Lautst\u00e4rke.", "kal_start_knopf": "Messung starten", "kal_stille": "Ruhe f\u00fcr noch {s} Sekunden \u2014 wir messen den Raum \u2026", "kal_sprechen_ankuendigung": "Stille gemessen. Jetzt sagt eine*r von euch einen Satz in normaler Lautst\u00e4rke \u2014 am besten die Person, die am weitesten vom Handy entfernt sitzt. Sprich von deinem Platz aus, in normaler Lautst\u00e4rke, nicht ins Handy hinein. Dr\u00fcck den Knopf, dann fang an zu sprechen.", "kal_sprechen_knopf": "Sprechen starten", "kal_hoeren": "Ich h\u00f6re zu \u2026 fang an, wann du bereit bist.", "kal_nichts_gehoert": "Wir haben nichts geh\u00f6rt \u2014 nochmal versuchen?", "kal_messen_knopf": "Nochmal messen", "kal_zu_leise": "Das war zu leise, um zuverl\u00e4ssig verstanden zu werden.", "kal_zu_leise_1": "Stellt das Handy n\u00e4her in die Mitte und sprecht etwas lauter \u2014 dann versucht es nochmal.", "kal_zu_leise_2": "Der Raum ist zu gro\u00df oder zu laut f\u00fcr ein Handy in der Mitte. Gebt das Handy herum: wer spricht, h\u00e4lt es (oder legt es neben sich). Dann versucht es nochmal.", "kal_nochmal_knopf": "Nochmal versuchen", "kal_weiter_trotzdem": "Trotzdem weiter", "kal_transkribiert_warten": "Der Testsatz wird abgetippt \u2026", "kal_bestaetigung": "Wir haben geh\u00f6rt: \u201e{transkript}\u201c. Stimmt das?", "kal_ja_knopf": "Ja, stimmt", "kal_nein_knopf": "Nein, nochmal", "kal_floor_hinweis": "Der Raum ist laut, oder das Handy ist weit weg \u2014 stellt es n\u00e4her an die Sprechenden.", "kal_erfolg": "Raum gemessen \u2713 \u2014 ihr seid bereit.", "kal_skip_knopf": "\u00dcberspringen", "kal_balken_label": "Deine Stimme im Vergleich zum Raum", "kal_herumreichen_erinnerung": "Denkt daran: Gebt das Handy an die Person weiter, die spricht."};
   // Padua Brainstorm, 03.10.2026: wie nah am unteren Rand noch als "dort"
   // zaehlt -- ein Pixel exakt waere auf jedem Geraet eine andere Zahl.
   var UNTEN_TOLERANZ_PX = 48;
@@ -1802,6 +1865,18 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
   var interviewPauseKnopf = document.getElementById('interview-pause');
   var interviewBeendenKnopf = document.getElementById('interview-beenden');
   var pttKnopf = document.getElementById('ptt');
+  // Die Anzeige-Box ueber dem Mikrofon-Knopf (Kanban-Karte Buehne/PTT,
+  // 04.10.2026): Schloss-/Wegwisch-Hinweis, Timer, Pegel, Kurztipp-Hinweis,
+  // Senden/Verwerfen im gesperrten Zustand.
+  var pttAnzeige = document.getElementById('ptt-anzeige');
+  var pttSchloss = document.getElementById('ptt-schloss');
+  var pttWischHinweis = document.getElementById('ptt-wisch-hinweis');
+  var pttZeit = document.getElementById('ptt-zeit');
+  var pttPegelFeld = document.getElementById('ptt-pegel');
+  var pttPegelBalken = pttPegelFeld ? pttPegelFeld.querySelector('span') : null;
+  var pttHinweistext = document.getElementById('ptt-hinweistext');
+  var pttSendeKnopf = document.getElementById('ptt-senden');
+  var pttVerwerfenKnopf = document.getElementById('ptt-verwerfen');
   // Brainstorm mithören (Phase 4, nur Web) -- die Elemente stehen seit
   // Task 2 (Kanban-Karte Buehne/PTT) IMMER im Markup, ``hidden`` folgt der
   // Phase per Poll (wie beim Interview-Knopf), nicht mehr ihrer Existenz.
@@ -1820,6 +1895,11 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
   var angehaltenText = document.getElementById('angehalten-text');
   var nachreichenKnopf = document.getElementById('nachreichen');
   var verwerfenKnopf = document.getElementById('verwerfen');
+  // Bild-Overlay-Karte (04.10.2026): die Telefon-Organisationskarte
+  // (``.karte``) gross und per Pinch-Zoom vergroesserbar.
+  var bildOverlay = document.getElementById('bild-overlay');
+  var bildOverlayImg = document.getElementById('bild-overlay-img');
+  var bildOverlaySchliessen = document.getElementById('bild-overlay-schliessen');
   var SEGMENT_MS = parseInt(fuss.dataset.segmentMs, 10) || 45000;
 
   // -- Pegel-Kalibrierung: die Bedienelemente --------------------------------
@@ -1853,6 +1933,9 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
   var zustand = {
     letzte: parseInt(verlauf.dataset.letzte, 10) || 0,
     aenderung: parseInt(verlauf.dataset.aenderung, 10) || 0,
+    // Phasenscroll-Karte (04.10.2026): 0 heisst "keine Phase bekannt" --
+    // echte Phasen sind 1..7 und nie 0.
+    phase: parseInt(verlauf.dataset.phase, 10) || 0,
     servermodus: fuss.dataset.interview === '1',
     knopfErlaubt: !interviewKnopf.hidden,   // Padua Hotfix B6: Phase 3 oder Modus
     brainstormErlaubt: !brainstormKnopf.hidden,   // Task 2: Phase 4
@@ -1920,6 +2003,53 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
     if (!n.bild) { return ''; }
     return '<img src="' + weg('static/handys/' + n.bild) + '" alt="' +
            escape(n.text || '') + '" loading="lazy" class="karte">';
+  }
+
+  // Bild-Overlay-Karte (04.10.2026): die Telefon-Organisationskarte
+  // (``.karte``, aus ``bildVon`` oben) vollbildig mit Pinch-Zoom. Ein
+  // delegierter Klick-Listener auf ``verlauf`` (statt je Bild einzeln) --
+  // Bilder kommen sowohl serverseitig vorgerendert als auch spaeter per
+  // ``blase()``/``ersetze()`` dynamisch dazu.
+  var ueberlagerungOffen = false;
+  function oeffneBildOverlay(src, alt) {
+    if (!bildOverlay || !bildOverlayImg) { return; }
+    bildOverlayImg.src = src;
+    bildOverlayImg.alt = alt || '';
+    bildOverlay.hidden = false;
+    ueberlagerungOffen = true;
+    history.pushState({ bildUeberlagerung: true }, '');
+  }
+  function schliesseBildOverlay() {
+    if (!ueberlagerungOffen || !bildOverlay) { return; }
+    bildOverlay.hidden = true;
+    bildOverlayImg.src = '';
+    ueberlagerungOffen = false;
+    if (history.state && history.state.bildUeberlagerung) { history.back(); }
+  }
+  if (bildOverlay) {
+    verlauf.addEventListener('click', function (ev) {
+      var img = ev.target.closest ? ev.target.closest('img.karte') : null;
+      if (img) { oeffneBildOverlay(img.src, img.alt); }
+    });
+    // Tippen auf den dunklen Hintergrund schliesst -- auf das Bild selbst
+    // NICHT, sonst stoert ein Tipp mitten in einer Pinch-Geste.
+    bildOverlay.addEventListener('click', function (ev) {
+      if (ev.target === bildOverlay) { schliesseBildOverlay(); }
+    });
+    if (bildOverlaySchliessen) {
+      bildOverlaySchliessen.addEventListener('click', schliesseBildOverlay);
+    }
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') { schliesseBildOverlay(); }
+    });
+    // Zurueck-Geste/-Taste: schliesst das Overlay, OHNE erneut
+    // ``history.back()`` aufzurufen -- der Browser ist schon zurueck.
+    window.addEventListener('popstate', function () {
+      if (!ueberlagerungOffen) { return; }
+      bildOverlay.hidden = true;
+      bildOverlayImg.src = '';
+      ueberlagerungOffen = false;
+    });
   }
 
   function inhaltVon(n) {
@@ -2072,6 +2202,35 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
     return geaendert.some(function (n) { return String(n.id) === letzteId; });
   }
 
+  // Phasenscroll-Karte (04.10.2026): die juengste Eintrittsnachricht einer
+  // Phase im aktuell geladenen Verlauf -- ihr Praefix ist sprachunabhaengig
+  // gleich (``phasentexte._KOPF_EINTRITT``), eine neue DB-Spalte ist dafuer
+  // nicht noetig. Rueckwaerts gesucht, weil nur die LETZTE Phasenzeile
+  // zaehlt -- eine aeltere stuende sonst im Weg.
+  function phasenkopfzeile() {
+    var blasen = verlauf.querySelectorAll('.blase.bot');
+    for (var i = blasen.length - 1; i >= 0; i--) {
+      if (blasen[i].textContent.indexOf('▶️ Phase ') === 0) { return blasen[i]; }
+    }
+    return null;
+  }
+
+  // Nach einem Phasenwechsel soll der Anfang der neuen Phase im Bild
+  // stehen, nicht das Ende des ganzen (ungetrennten) Verlaufs.
+  // ``scrollIntoView`` passt dabei automatisch jeden scrollbaren Vorfahren
+  // an -- die Chat-Einzelseite (Dokument-Scroll) UND die vereinte Seite
+  // (``verlauf`` scrollt in sich selbst) brauchen dafuer keinen eigenen Weg,
+  // anders als ``nachUnten()``. Ohne Phasenzeile im Verlauf (z. B. ganz am
+  // Anfang von Phase 1) bleibt der bisherige Rueckfall. Ohne Argument
+  // entspricht der Aufruf laut Spezifikation genau dem Anfang des Elements
+  // oben im sichtbaren Bereich und keiner seitlichen Verschiebung -- ebenso
+  // wirksam wie mit ausgeschriebenen Werten.
+  function scrolleZuPhasenanfang() {
+    var kopf = phasenkopfzeile();
+    if (kopf) { kopf.scrollIntoView(); return; }
+    nachUnten();
+  }
+
   function nimmZustand(daten) {
     var warUnten = amUnterenRand();
     // Review-Befund 2: die Seite laedt nie neu, ein Nonce gilt hoechstens
@@ -2092,8 +2251,15 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
       zustand.aenderung = daten.aenderung;
       verlauf.dataset.aenderung = daten.aenderung;
     }
+    // Phasenscroll-Karte (04.10.2026): ein Wechsel zaehlt nur, wenn vorher
+    // schon eine Phase bekannt war (sonst waere der allererste Poll immer
+    // ein "Wechsel") und die neue sich von ihr unterscheidet.
+    var phaseAlt = zustand.phase;
+    var phaseNeu = (typeof daten.phase === 'number') ? daten.phase : null;
+    var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;
+    if (phaseNeu !== null) { zustand.phase = phaseNeu; }
     if (neu.length) {
-      nachUnten();
+      if (phasenwechsel) { scrolleZuPhasenanfang(); } else { nachUnten(); }
     } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
       nachUnten();
     }
@@ -2980,18 +3146,16 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
     interviewKnopf.classList.toggle('nebenknopf', nebenSichtbar);
   }
 
+  // Duenner Wrapper, Null-Argument -- bleibt so aufrufbar fuer die vier
+  // externen Aufrufstellen (Interview/Brainstorm/Diskussion/Wechsel-Start).
+  // Die eigentliche Arbeit steht bei ``pttVerwirf()`` weiter unten, neben
+  // dem Rest der PTT-Zustandsmaschine (Kanban-Karte Buehne/PTT, 04.10.2026)
+  // -- Funktionsdeklarationen sind in diesem Geltungsbereich gehoistet, die
+  // Reihenfolge der beiden Definitionen spielt also keine Rolle.
   function verwirfPtt() {
     var druck = zustand.ptt;
     if (!druck) { return; }
-    zustand.ptt = null;
-    druck.gehalten = false;
-    druck.abgebrochen = true;
-    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
-    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
-    beendePttAnzeige();
-    if (druck.recorder && druck.recorder.state !== 'inactive') {
-      druck.recorder.stop();   // sein onstop gibt das Mikrofon frei
-    }
+    pttVerwirf(druck);
   }
 
   // -- Pegel-Kalibrierung: der Ablauf (Birks Korrektur, 03.10.2026) --------
@@ -3647,7 +3811,7 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
 
   function starteBrainstorm() {
     // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt,
-    // wie starteDiskussion()/startePtt() es bereits tun -- sonst koennte eine
+    // wie starteDiskussion()/pttPointerDown() es bereits tun -- sonst koennte eine
     // Gruppe, die eine Diskussion-Sitzung (Phase 1) nie beendet hat und in
     // Phase 4 weiterarbeitet, ueber den Brainstorm-Knopf einen zweiten
     // Recorder auf demselben Mikrofon starten.
@@ -3813,7 +3977,7 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
 
   function starteDiskussion() {
     // Re-Review (Task 6, Fund 2): auch gegen zustand.brainstorm gesperrt,
-    // wie starteInterview()/startePtt() es bereits tun -- sonst koennte ein
+    // wie starteInterview()/pttPointerDown() es bereits tun -- sonst koennte ein
     // Phase-4-zu-1-Wechsel mit noch laufendem Brainstorm auf einem anderen
     // Tab einen zweiten Recorder auf demselben Mikrofon starten.
     if (zustand.diskussion || modusAn() || zustand.wechsel || zustand.brainstorm) { return; }
@@ -4240,50 +4404,204 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
 
   // -- Push-to-Talk --------------------------------------------------------
   //
-  // Tippen = starten, nochmal tippen = senden, Klasse 'kurz' (der Modus wird
-  // NICHT geschaltet). Ein Klick-Umschalter statt Halten (Kanban-Karte
-  // Buehne/PTT, 03.10.2026): ein Tipp startet die Aufnahme, ein zweiter
-  // beendet und sendet sie. Laeuft die Aufnahme laenger als PTT_MAX_MS,
-  // stoppt und sendet sie automatisch. Ein Druck unter PTT_MIN_MS sendet
-  // NICHTS.
+  // Halten = aufnehmen, Loslassen = senden (Kanban-Karte Buehne/PTT,
+  // 04.10.2026 -- Telegram-Vorbild, loest den Klick-Umschalter vom
+  // 03.10.2026 wieder ab): Finger auf den Knopf und halten startet, Finger
+  // weg beendet und sendet. Nach oben schieben (>= PTT_LOCK_PX) sperrt die
+  // Aufnahme -- sie laeuft dann OHNE gehaltenen Finger weiter, bis "Senden"
+  // oder "Verwerfen" gedrueckt wird oder PTT_MAX_MS erreicht ist (dann wie
+  // ein normales Senden). Nach links wischen (>= PTT_CANCEL_PX) bricht
+  // sofort ab, 0 POST. Ein Druck unter PTT_MIN_MS sendet NICHTS, zeigt aber
+  // kurz einen Hinweis statt einfach nichts zu tun.
 
-  function beendePttAnzeige() {
-    if (!pttKnopf) { return; }
-    pttKnopf.dataset.haelt = '0';
-    pttKnopf.textContent = '🎤';
+  // Ein eigener, kleiner AnalyserNode fuer den PTT-Pegelbalken -- bewusst
+  // NICHT ``pegelAn()``/``#pegel``: die ist an die VAD-Kalibrierung und an
+  // ``sitzung.pausiert``/``legStart``/``erfassteMs`` gekoppelt, die PTT
+  // nicht hat. Nach dem Vorbild von ``kalBaueMesser()``, aber unabhaengig
+  // davon (eigener Kontext auf demselben Strom ist erlaubt).
+  function pttBaueMesser(strom) {
+    var Kontext = window.AudioContext || window.webkitAudioContext;
+    if (!Kontext || !strom) { return null; }
+    try {
+      var kontext = new Kontext();
+      if (kontext.state === 'suspended' && kontext.resume) { kontext.resume(); }
+      var knoten = kontext.createAnalyser();
+      knoten.fftSize = 256;
+      kontext.createMediaStreamSource(strom).connect(knoten);
+      var zeitWerte = new Float32Array(knoten.fftSize);
+      return {
+        kontext: kontext,   // gibFrei(druck) schliesst ueber druck.kontext
+        rms: function () {
+          knoten.getFloatTimeDomainData(zeitWerte);
+          var summe = 0;
+          for (var i = 0; i < zeitWerte.length; i++) { summe += zeitWerte[i] * zeitWerte[i]; }
+          return Math.sqrt(summe / zeitWerte.length);
+        }
+      };
+    } catch (e) { return null; }
   }
 
-  function startePtt() {
+  // Rueckstellung: Anzeige-Box ganz weg, #ptt wieder da -- derselbe Stand
+  // wie vor dem allerersten Druck. ANNAHME: Opacity/Farben der Box sind
+  // freie Gestaltung (siehe CSS), nur die IDs/Zustaende sind Vorgabe.
+  function pttVerstecke() {
+    if (pttAnzeige) {
+      pttAnzeige.hidden = true;
+      pttAnzeige.dataset.gesperrt = '0';
+      pttAnzeige.dataset.wirdVerworfen = '0';
+    }
+    if (pttSchloss) { pttSchloss.hidden = false; }
+    if (pttWischHinweis) { pttWischHinweis.hidden = false; }
+    if (pttZeit) { pttZeit.hidden = false; pttZeit.textContent = ''; }
+    if (pttPegelFeld) {
+      pttPegelFeld.hidden = false;
+      if (pttPegelBalken) { pttPegelBalken.style.width = '0%'; }
+    }
+    if (pttHinweistext) { pttHinweistext.hidden = true; }
+    if (pttSendeKnopf) { pttSendeKnopf.hidden = true; }
+    if (pttVerwerfenKnopf) { pttVerwerfenKnopf.hidden = true; }
+    if (pttKnopf) { pttKnopf.hidden = false; pttKnopf.dataset.haelt = '0'; }
+  }
+
+  function pttZeigeAnzeige() {
+    if (pttAnzeige) {
+      pttAnzeige.hidden = false;
+      pttAnzeige.dataset.gesperrt = '0';
+      pttAnzeige.dataset.wirdVerworfen = '0';
+    }
+    if (pttSchloss) { pttSchloss.hidden = false; }
+    if (pttWischHinweis) { pttWischHinweis.hidden = false; }
+    if (pttZeit) { pttZeit.hidden = false; pttZeit.textContent = '0:00'; }
+    if (pttPegelFeld) {
+      pttPegelFeld.hidden = false;
+      if (pttPegelBalken) { pttPegelBalken.style.width = '0%'; }
+    }
+    if (pttHinweistext) { pttHinweistext.hidden = true; }
+    if (pttSendeKnopf) { pttSendeKnopf.hidden = true; }
+    if (pttVerwerfenKnopf) { pttVerwerfenKnopf.hidden = true; }
+  }
+
+  // Kurzer Tipp (< PTT_MIN_MS, Kartenkriterium 4): statt die Box sofort
+  // wegzunehmen, zeigt sie fuer PTT_HINWEIS_MS NUR den Halten-Hinweis.
+  var PTT_HINWEIS_MS = 1400;   // innerhalb der von der Karte genannten 1200-1500 ms
+  function pttZeigeKurztippHinweis() {
+    if (pttSchloss) { pttSchloss.hidden = true; }
+    if (pttWischHinweis) { pttWischHinweis.hidden = true; }
+    if (pttZeit) { pttZeit.hidden = true; }
+    if (pttPegelFeld) { pttPegelFeld.hidden = true; }
+    if (pttHinweistext) { pttHinweistext.hidden = false; pttHinweistext.textContent = TEXT.ptt_hinweis; }
+  }
+
+  function pttSperren(druck) {
+    druck.gesperrt = true;
+    if (pttSchloss) { pttSchloss.hidden = true; }
+    if (pttWischHinweis) { pttWischHinweis.hidden = true; }
+    if (pttAnzeige) { pttAnzeige.dataset.gesperrt = '1'; pttAnzeige.dataset.wirdVerworfen = '0'; }
+    if (pttKnopf) { pttKnopf.hidden = true; }
+    if (pttSendeKnopf) { pttSendeKnopf.hidden = false; }
+    if (pttVerwerfenKnopf) { pttVerwerfenKnopf.hidden = false; }
+    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) { /* egal */ } }
+  }
+
+  // Gemeinsamer Senden-Weg: normales Loslassen (>= PTT_MIN_MS), Klick auf
+  // #ptt-senden im gesperrten Zustand, UND der PTT_MAX_MS-Timeout, egal ob
+  // gesperrt. Der Recorder stoppt, sein onstop (siehe pttPointerDown) sendet.
+  // druck.dauerMs wird HIER berechnet (nicht nur beim normalen Loslassen) --
+  // sonst liefe der bestehende onstop-Waechter ``druck.dauerMs < PTT_MIN_MS``
+  // beim gesperrten Senden-Knopf gegen den Anfangswert 0 und verwuerfe jede
+  // gesperrte Aufnahme als "zu kurz", egal wie lange sie wirklich lief.
+  function pttSende(druck) {
+    if (zustand.ptt === druck) { zustand.ptt = null; }
+    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
+    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
+    if (druck.hinweisTimeout) { clearTimeout(druck.hinweisTimeout); druck.hinweisTimeout = null; }
+    druck.dauerMs = Date.now() - druck.von;
+    pttVerstecke();
+    if (druck.recorder && druck.recorder.state !== 'inactive') {
+      druck.recorder.stop();
+      return;
+    }
+    // Das Mikrofon ist noch nicht da (holeStrom() laeuft noch). Beim
+    // normalen Loslassen (nicht gesperrt) hat der Aufrufer druck.gehalten
+    // schon auf false gesetzt -- dann gibt die then()-Fortsetzung in
+    // pttPointerDown auf, wie bisher (Regressionstest: Mikro kommt erst
+    // nach dem Loslassen). Im gesperrten Zustand bleibt druck.gehalten
+    // dagegen wahr: die Gruppe hat schon "Senden" gedrueckt, eine deshalb
+    // verlorene Aufnahme waere falsch -- also sofort stoppen, SOBALD der
+    // Recorder entsteht (siehe pttPointerDown, direkt nach r.start()).
+    if (druck.gehalten) { druck.ausstehend = true; }
+  }
+
+  // Gemeinsamer Verwerfen-Weg: Wegwisch-Abbruch, Klick auf #ptt-verwerfen,
+  // pointercancel/lostpointercapture (wenn nicht gesperrt), UND die vier
+  // externen verwirfPtt()-Aufrufstellen (Interview/Brainstorm/Diskussion/
+  // Wechsel-Start). druck.abgebrochen = true VOR recorder.stop(): der
+  // bestehende onstop-Waechter verhindert damit das Senden.
+  function pttVerwirf(druck) {
+    if (zustand.ptt === druck) { zustand.ptt = null; }
+    druck.gehalten = false;
+    druck.abgebrochen = true;
+    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
+    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
+    if (druck.hinweisTimeout) { clearTimeout(druck.hinweisTimeout); druck.hinweisTimeout = null; }
+    pttVerstecke();
+    if (druck.recorder && druck.recorder.state !== 'inactive') {
+      druck.recorder.stop();   // sein onstop gibt das Mikrofon frei
+    }
+    // Kein Recorder (Mikrofon noch nicht da): die then()-Fortsetzung in
+    // pttPointerDown prueft druck.gehalten und gibt dann selbst frei.
+  }
+
+  function pttPointerDown(ev) {
     if (!pttKnopf) { return; }
     // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt --
     // dieselbe Regel wie gegen zustand.brainstorm, PTT ist ein drittes
     // Mikrofon auf demselben Geraet.
     if (modusAn() || zustand.wechsel || zustand.brainstorm || zustand.diskussion ||
         zustand.ptt) { return; }
-    // Review-Befund 6: jeder Druck traegt seinen eigenen Zustand -- ein
-    // spaeterer Druck ueberschreibt nichts, was ein frueherer noch liest.
+    ev.preventDefault();
+    try { pttKnopf.setPointerCapture(ev.pointerId); } catch (e) { /* ohne Capture geht es auch */ }
+    // Review-Befund 6 (galt schon vorher): jeder Druck traegt seinen eigenen
+    // Zustand -- ein spaeterer Druck ueberschreibt nichts, was ein
+    // frueherer noch liest.
     var druck = {
       von: Date.now(), dauerMs: 0, gehalten: true, abgebrochen: false,
-      recorder: null, strom: null, teile: [], timeout: null, takt: null
+      recorder: null, strom: null, teile: [], timeout: null, takt: null,
+      gesperrt: false, startX: ev.clientX, startY: ev.clientY,
+      pointerId: ev.pointerId, pegelTakt: null, kontext: null,
+      hinweisTimeout: null, ausstehend: false
     };
     zustand.ptt = druck;
     pttKnopf.dataset.haelt = '1';
+    pttZeigeAnzeige();
     // Laufende Zeit sichtbar machen, solange der Druck laeuft.
     druck.takt = setInterval(function () {
-      pttKnopf.textContent = '🔴 ' + minuten(Math.floor((Date.now() - druck.von) / 1000));
+      if (pttZeit) {
+        pttZeit.textContent = '🔴 ' + minuten(Math.floor((Date.now() - druck.von) / 1000));
+      }
     }, 500);
+    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) { /* egal */ } }
     holeStrom().then(function (strom) {
       druck.strom = strom;
       // Review-Befund 5: beendet, bevor das Mikrofon da war -- dann gar
       // nicht erst aufnehmen, und das Mikrofon sofort wieder zu.
       if (!druck.gehalten) { gibFrei(druck); return; }
+      var messer = pttBaueMesser(strom);
+      if (messer) {
+        druck.kontext = messer.kontext;
+        druck.pegelTakt = setInterval(function () {
+          if (pttPegelBalken) {
+            pttPegelBalken.style.width = Math.min(100, (messer.rms() / 0.3) * 100) + '%';
+          }
+        }, 120);
+      }
       var r = new MediaRecorder(strom);
       druck.recorder = r;
       r.ondataavailable = function (e) {
         if (e.data && e.data.size) { druck.teile.push(e.data); }
       };
       r.onstop = function () {
-        gibFrei(druck);
+        gibFrei(druck);   // schliesst druck.kontext, stoppt druck.pegelTakt/strom
         if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS ||
             !druck.teile.length) { return; }
         veralteLetzteLeiste();
@@ -4295,6 +4613,10 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
         });
       };
       r.start();
+      // "Senden" kam schon, bevor das Mikrofon da war (nur im gesperrten
+      // Zustand moeglich, siehe pttSende): sofort stoppen, statt eine
+      // Aufnahme zu verlieren, die die Gruppe schon freigegeben hat.
+      if (druck.ausstehend) { r.stop(); }
     }).catch(function () {
       druck.abgebrochen = true;
       gibFrei(druck);
@@ -4302,35 +4624,107 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
         zustand.ptt = null;
         if (druck.timeout) { clearTimeout(druck.timeout); }
         if (druck.takt) { clearInterval(druck.takt); }
-        beendePttAnzeige();
+        pttVerstecke();
       }
       meldeFehler(TEXT.fehler_mikro);
     });
     druck.timeout = setTimeout(function () {
-      if (zustand.ptt === druck) { beendePtt(); }   // Automatik nach PTT_MAX_MS
+      // Automatik nach PTT_MAX_MS -- derselbe Senden-Weg, EGAL ob gesperrt.
+      if (zustand.ptt === druck) { pttSende(druck); }
     }, PTT_MAX_MS);
   }
 
-  function beendePtt() {
+  function pttPointerMove(ev) {
     var druck = zustand.ptt;
-    if (!druck) { return; }
-    zustand.ptt = null;
-    druck.gehalten = false;
-    // Die Laufzeit, nicht die Zeit bis das Mikrofon da war.
-    druck.dauerMs = Date.now() - druck.von;
-    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
-    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
-    beendePttAnzeige();
-    if (druck.recorder && druck.recorder.state !== 'inactive') {
-      druck.recorder.stop();
+    if (!druck || ev.pointerId !== druck.pointerId || druck.gesperrt) { return; }
+    var dx = ev.clientX - druck.startX;
+    var dy = ev.clientY - druck.startY;
+    if (dy <= -PTT_LOCK_PX) {
+      pttSperren(druck);
+      return;
+    }
+    if (dx <= -PTT_CANCEL_PX) {
+      pttVerwirf(druck);
+      return;
+    }
+    // Rueckmeldung "wird gleich abgebrochen" (ANNAHME, freie Gestaltung):
+    // ab der Haelfte der Wegwischstrecke dimmt die Box per CSS-Attribut.
+    if (pttAnzeige) {
+      pttAnzeige.dataset.wirdVerworfen = (-dx >= PTT_CANCEL_PX * 0.5) ? '1' : '0';
     }
   }
 
+  // Pointerup auf #ptt: gesperrt -> NICHTS tun (die Aufnahme laeuft ohne
+  // gehaltenen Finger weiter, das ist der ganze Witz der Sperre), nur die
+  // Pointer-Capture freigeben. Sonst normales Loslassen: unter PTT_MIN_MS
+  // der Kurztipp-Hinweis (0 POST), sonst der Senden-Weg.
+  function pttPointerUp(ev) {
+    var druck = zustand.ptt;
+    if (!druck || ev.pointerId !== druck.pointerId) { return; }
+    try { pttKnopf.releasePointerCapture(ev.pointerId); } catch (e) { /* egal */ }
+    if (druck.gesperrt) { return; }
+    // Die Laufzeit, nicht die Zeit bis das Mikrofon da war.
+    var dauerMs = Date.now() - druck.von;
+    if (dauerMs < PTT_MIN_MS) {
+      // Kurzer Tipp: der bestehende onstop-Waechter (druck.dauerMs <
+      // PTT_MIN_MS) verhindert das Senden schon -- hier NICHT zusaetzlich
+      // abgebrochen setzen, nur Timer abraeumen und kurz den Halten-Hinweis
+      // zeigen, statt die Box sofort wegzunehmen. Das ist NICHT der
+      // gemeinsame Senden-Weg (pttSende): der Kurztipp-Hinweis gehoert zu
+      // keinem der drei Faelle, die pttSende abdeckt.
+      if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
+      if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
+      druck.gehalten = false;
+      druck.dauerMs = dauerMs;
+      zustand.ptt = null;
+      pttZeigeKurztippHinweis();
+      druck.hinweisTimeout = setTimeout(function () { pttVerstecke(); }, PTT_HINWEIS_MS);
+      if (druck.recorder && druck.recorder.state !== 'inactive') {
+        druck.recorder.stop();
+      }
+      return;
+    }
+    // Normales Loslassen (>= PTT_MIN_MS): derselbe Senden-Weg wie der Klick
+    // auf #ptt-senden und der PTT_MAX_MS-Timeout. gehalten=false ZUERST,
+    // nicht in pttSende selbst -- kommt das Mikrofon hier erst NACH dem
+    // Loslassen, wird aufgegeben statt gewartet (anders als im gesperrten
+    // Zustand, wo die Gruppe den Finger laengst gehoben hat UND trotzdem
+    // weiter aufgenommen wird).
+    druck.gehalten = false;
+    pttSende(druck);
+  }
+
+  // pointercancel/lostpointercapture: wie Verwerfen behandeln -- das
+  // "Fundstueck" aus einer frueheren Fassung (vor dem Klick-Umschalter),
+  // aufs neue Zustandsmodell uebertragen. NICHT, wenn schon gesperrt: sonst
+  // wuerde das eigene releasePointerCapture() aus dem gesperrten Zweig von
+  // pttPointerUp die gerade erst gesperrte, freilaufende Aufnahme sofort
+  // wieder abbrechen -- exakt der Fehler, den die Sperre verhindern soll.
+  function pttAbgebrochenesPointerEreignis(ev) {
+    var druck = zustand.ptt;
+    if (!druck || ev.pointerId !== druck.pointerId || druck.gesperrt) { return; }
+    pttVerwirf(druck);
+  }
+
   if (pttKnopf) {
-    pttKnopf.addEventListener('click', function () {
-      if (zustand.ptt) { beendePtt(); } else { startePtt(); }
-    });
+    pttKnopf.addEventListener('pointerdown', pttPointerDown);
+    pttKnopf.addEventListener('pointermove', pttPointerMove);
+    pttKnopf.addEventListener('pointerup', pttPointerUp);
+    pttKnopf.addEventListener('pointercancel', pttAbgebrochenesPointerEreignis);
+    pttKnopf.addEventListener('lostpointercapture', pttAbgebrochenesPointerEreignis);
     pttKnopf.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+  }
+  if (pttSendeKnopf) {
+    pttSendeKnopf.addEventListener('click', function () {
+      // #ptt-senden ist nur sichtbar, solange ein Druck gesperrt ist --
+      // zustand.ptt ist in dem Fall genau dieser Druck.
+      if (zustand.ptt) { pttSende(zustand.ptt); }
+    });
+  }
+  if (pttVerwerfenKnopf) {
+    pttVerwerfenKnopf.addEventListener('click', function () {
+      if (zustand.ptt) { pttVerwirf(zustand.ptt); }
+    });
   }
 
   // Nicht weg, solange etwas aufgenommen wird oder die Schlange nicht leer
@@ -4344,7 +4738,7 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
   });
 
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
-  nachUnten();
+  scrolleZuPhasenanfang();   // Phasenscroll-Karte: der Anfang der aktuellen Phase, sonst der Rueckfall ans Ende
   hole();
 })();
 

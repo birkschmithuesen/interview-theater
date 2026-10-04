@@ -782,6 +782,14 @@ _VEREINT_JS = """
         '.phase-abbrechen[data-phase="' + phase.dataset.phase + '"]');
       if (abbrechen) { abbrechen.hidden = true; }
       if (r && r.ok) {
+        // Teil B: nach einem erfolgreichen Sprung schliesst sich das Menue
+        // selbst -- auf dem Handy nimmt es sonst Platz weg, den niemand
+        // mehr braucht. VOR ``ladeRoadmap()``: die Funktion sichert
+        // ``ziel.open`` (= ``warOffen``) und stellt es nach dem Austausch
+        // wieder her -- faellt die Zeile hier weg, kaeme das Menue beim
+        // naechsten Takt wieder offen zurueck.
+        var roadmap = document.getElementById('roadmap');
+        if (roadmap) roadmap.open = false;
         // Ein sofortiger Versuch -- er zeigt die neue Phase aber NICHT
         // zuverlaessig: der POST legt hier nur den Eingang ab, der Bot
         // verarbeitet ihn erst danach (eigener Prozess, eigener Takt).
@@ -812,6 +820,15 @@ _VEREINT_JS = """
     });
   }
   document.addEventListener('click', function (ev) {
+    // Teil B: ein Tap ausserhalb des Menues klappt es zu -- aber NIE ein
+    // Klick auf die ``<summary>`` oder einen Knopf/eine Aufgabe DARIN, die
+    // haben ihre eigene Logik weiter unten. Kein ``return`` danach: ein
+    // Klick auf einen Tab-Knopf soll das Menue schliessen UND den Tab
+    // wechseln.
+    var roadmapOffen = document.getElementById('roadmap');
+    if (roadmapOffen && roadmapOffen.open && !ev.target.closest('#roadmap')) {
+      roadmapOffen.open = false;
+    }
     var phase = ev.target.closest ? ev.target.closest('.phase-knopf') : null;
     if (phase) {
       if (phase.getAttribute('data-sicher') === '1') {
@@ -839,6 +856,9 @@ _VEREINT_JS = """
     if (abbrechen) {
       // Nein: die Rueckfrage wieder einklappen, ohne zu senden.
       entwaffneAlle(null);
+      // Teil B: "Stay here" schliesst auch das Menue selbst.
+      var roadmapNein = document.getElementById('roadmap');
+      if (roadmapNein) { roadmapNein.open = false; }
       return;
     }
     var knopf = ev.target.closest ? ev.target.closest('.tabs button') : null;

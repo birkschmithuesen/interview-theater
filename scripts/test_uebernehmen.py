@@ -27,9 +27,12 @@ darf mit ``test``/``Test`` anfangen -- sonst liefe sie als Test
 (tests/test_testgruppe_uebernehmen.py haelt das fest).
 """
 
+import secrets
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
-from interview_theater import db
+from interview_theater import db, repo
 from interview_theater.web_daten import oeffne_lesend
 from scripts.interviews_uebernehmen import laufende_aufnahme
 
@@ -210,6 +213,154 @@ def plane(quell_chat_id: int, *, quelle: str, ziel: str, audio_quelle: str,
         "audio_bytes": groesse,
         "ziel_lage": lies_ziel(ziel),
     }
+
+
+# --------------------------------------------------------------------------
+# Schreiben
+# --------------------------------------------------------------------------
+
+
+def neues_token() -> str:
+    """Derselbe Ausdruck wie repo.stelle_web_token_sicher (repo.py:146) --
+    hier ohne dessen commit, weil es in der Transaktion entsteht (P4)."""
+    return secrets.token_urlsafe(repo.WEB_TOKEN_BYTES)
+
+
+def sichere_ziel(conn, ziel: str, jetzt: datetime) -> str:
+    """Backup der Test-DB per VACUUM INTO (P5) -- NIE shutil.copy auf eine
+    WAL-Datei: was noch im -wal steht, fehlte der Kopie."""
+    pfad = Path(ziel)
+    sicherung = pfad.with_name(f"{pfad.name}.bak-{jetzt:%Y%m%d-%H%M%S-%f}")
+    conn.execute("VACUUM INTO ?", (str(sicherung),))
+    return str(sicherung)
+
+
+def _token_der_testgruppe(conn) -> str | None:
+    zeile = conn.execute("SELECT web_token FROM gruppe WHERE chat_id = ?",
+                         (TEST_CHAT_ID,)).fetchone()
+    return zeile["web_token"] if zeile and zeile["web_token"] else None
+
+
+def _schnappschuss(quelle: str, kopie: Path) -> None:
+    """Die Quelle als Ganzes in eine Temp-DB -- aus einer mode=ro-Verbindung
+    (E2). Die Quelle sieht dabei keinen einzigen Schreibzugriff."""
+    src = oeffne_lesend(quelle)
+    try:
+        src.execute("VACUUM INTO ?", (str(kopie),))
+    finally:
+        src.close()
+
+
+def _bereite_kopie_vor(kopie: Path, quell_chat_id: int, token: str) -> list[str]:
+    """Macht aus der Temp-DB genau die kuenftige Testgruppe: nur die
+    Quellgruppe, chat_id umgeschrieben, Token der Testinstanz, fluechtige
+    Felder leer, kein bot_zustand. Liefert Warnungen (ohne Inhalte)."""
+    warnungen: list[str] = []
+    k = db.verbinde(str(kopie))
+    try:
+        db.initialisiere(k)
+        _pruefe_quellgruppe(k, quell_chat_id)  # P9: der Schnappschuss zaehlt
+        quell_bot = k.execute("SELECT bot_name FROM gruppe WHERE chat_id = ?",
+                              (quell_chat_id,)).fetchone()["bot_name"]
+        for t in db.TABELLEN_MIT_CHAT_ID:
+            if t in NICHT_UEBERNOMMEN:
+                k.execute(f"DELETE FROM {t}")
+                continue
+            k.execute(f"DELETE FROM {t} WHERE chat_id IS NOT ?", (quell_chat_id,))
+            k.execute(f"UPDATE {t} SET chat_id = ? WHERE chat_id = ?",
+                      (TEST_CHAT_ID, quell_chat_id))
+        k.execute(
+            "UPDATE gruppe SET bot_name = ?, titel = ?, web_token = ?, "
+            "web_tippt_bis = NULL, kostenpause_gemeldet_am = NULL "
+            "WHERE chat_id = ?",
+            (TEST_BOT_NAME, TITEL_KOPIE.format(bot_name=quell_bot), token,
+             TEST_CHAT_ID),
+        )
+        k.execute("UPDATE vorfall SET bot_name = ? WHERE bot_name IS NOT NULL",
+                  (TEST_BOT_NAME,))
+        k.execute("DELETE FROM bot_zustand")
+        k.commit()
+    finally:
+        k.close()
+    return warnungen
+
+
+def _gemeinsame_spalten(conn, tabelle: str) -> list[str]:
+    """Spalten, die Ziel UND Kopie kennen (E2), in der Reihenfolge des Ziels;
+    bei NEUE_IDS ohne ``id`` (P2)."""
+    im_ziel = [z[1] for z in conn.execute(f"PRAGMA main.table_info({tabelle})")]
+    in_kopie = {z[1] for z in conn.execute(f"PRAGMA kopie.table_info({tabelle})")}
+    return [s for s in im_ziel
+            if s in in_kopie and not (tabelle in NEUE_IDS and s == "id")]
+
+
+def _hebe_folgen(conn) -> None:
+    """E1: sqlite_sequence je AUTOINCREMENT-Tabelle auf >= MAX(id). SQLite tut
+    das beim Einfuegen mit expliziter id selbst -- hier steht es trotzdem,
+    weil eine niedrigere Folge genau die Dortmund-Falle waere (neue
+    message_ids unter der Historie)."""
+    for (name,) in conn.execute(
+        "SELECT name FROM main.sqlite_master WHERE type = 'table' "
+        "AND sql LIKE '%AUTOINCREMENT%'"
+    ).fetchall():
+        hoechste = conn.execute(f"SELECT COALESCE(MAX(id), 0) FROM main.{name}").fetchone()[0]
+        zeile = conn.execute("SELECT seq FROM main.sqlite_sequence WHERE name = ?",
+                             (name,)).fetchone()
+        if zeile is None:
+            conn.execute("INSERT INTO main.sqlite_sequence (name, seq) VALUES (?, ?)",
+                         (name, hoechste))
+        elif zeile[0] < hoechste:
+            conn.execute("UPDATE main.sqlite_sequence SET seq = ? WHERE name = ?",
+                         (hoechste, name))
+
+
+def _schreibe_in_ziel(conn, kopie: Path) -> None:
+    """E2: in EINER Transaktion die alte Testgruppe loeschen und die Kopie
+    einfuegen. Kein db.loesche_gruppe -- das committet (db.py:1471)."""
+    conn.execute("ATTACH DATABASE ? AS kopie", (str(kopie),))
+    try:
+        spalten = {t: _gemeinsame_spalten(conn, t) for t in UEBERNOMMEN}
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            for t in db.TABELLEN_MIT_CHAT_ID:
+                conn.execute(f"DELETE FROM main.{t} WHERE chat_id = ?", (TEST_CHAT_ID,))
+            for t, namen in spalten.items():
+                liste = ", ".join(namen)
+                conn.execute(f"INSERT INTO main.{t} ({liste}) SELECT {liste} FROM kopie.{t}")
+            _hebe_folgen(conn)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+    finally:
+        conn.execute("DETACH DATABASE kopie")
+
+
+def uebernimm(quell_chat_id: int, *, quelle: str, ziel: str, audio_quelle: str,
+              audio_ziel: str, jetzt: datetime | None = None) -> dict:
+    """Der Ernstfall. Verweigert (``Verweigert``) VOR jedem Schreibzugriff."""
+    jetzt = jetzt or datetime.now(timezone.utc)
+    bericht = plane(quell_chat_id, quelle=quelle, ziel=ziel,
+                    audio_quelle=audio_quelle, audio_ziel=audio_ziel)
+    existierte = Path(ziel).exists()
+    Path(ziel).parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".testuebernahme-",
+                                     dir=Path(ziel).resolve().parent) as tmp:
+        kopie = Path(tmp) / "kopie.db"
+        _schnappschuss(quelle, kopie)
+        conn = db.verbinde(ziel)
+        try:
+            db.initialisiere(conn)
+            token = _token_der_testgruppe(conn)
+            bericht["warnungen"] = _bereite_kopie_vor(
+                kopie, quell_chat_id, token or neues_token())
+            bericht["backup"] = sichere_ziel(conn, ziel, jetzt) if existierte else None
+            _schreibe_in_ziel(conn, kopie)
+            bericht["nachher"] = zaehle(conn, TEST_CHAT_ID)
+            bericht["token_neu"] = token is None
+        finally:
+            conn.close()
+    return bericht
 
 
 # --------------------------------------------------------------------------

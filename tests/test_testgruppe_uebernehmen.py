@@ -304,3 +304,154 @@ def test_bot_weite_vorfaelle_ohne_chat_id_sind_nicht_fremd(umgebung):
     conn = lies(umgebung.ziel)
     assert tu.fremde_chat_ids(conn) == {}
     conn.close()
+
+
+# --------------------------------------------------------------------------
+# Task 3: Uebernahme der Datenbank
+# --------------------------------------------------------------------------
+
+
+def test_uebernahme_ist_vollstaendig(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    src, ziel = lies(umgebung.quelle), lies(umgebung.ziel)
+    for t in db.TABELLEN_MIT_CHAT_ID:
+        im_ziel = ziel.execute(f"SELECT COUNT(*) FROM {t} WHERE chat_id = ?",
+                               (TEST,)).fetchone()[0]
+        if t in tu.NICHT_UEBERNOMMEN:
+            assert im_ziel == 0, t
+            continue
+        in_quelle = src.execute(f"SELECT COUNT(*) FROM {t} WHERE chat_id = ?",
+                                (QUELLE_CHAT,)).fetchone()[0]
+        assert in_quelle >= 1, t
+        assert im_ziel == in_quelle, t
+        assert ziel.execute(f"SELECT COUNT(*) FROM {t} WHERE chat_id IN (?, ?)",
+                            (QUELLE_CHAT, ANDERE_CHAT)).fetchone()[0] == 0, t
+    src.close()
+    ziel.close()
+
+
+def test_ids_bleiben_unveraendert_ausser_bei_vorfall(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    ziel = lies(umgebung.ziel)
+    assert {z[0] for z in ziel.execute(
+        "SELECT id FROM web_post WHERE chat_id = ?", (TEST,))} == {101, 102, 103, 104}
+    assert ziel.execute("SELECT id FROM aufnahme WHERE chat_id = ?",
+                        (TEST,)).fetchone()[0] == 101
+    assert ziel.execute("SELECT id FROM knopf WHERE chat_id = ?",
+                        (TEST,)).fetchone()[0] == basis_id("knopf", 100)
+    ziel.close()
+
+
+def test_bot_weite_vorfaelle_im_ziel_bleiben_stehen(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    ziel = lies(umgebung.ziel)
+    assert ziel.execute("SELECT COUNT(*) FROM vorfall WHERE chat_id IS NULL "
+                        "AND art = 'bot_weit'").fetchone()[0] == 1
+    assert ziel.execute("SELECT COUNT(*) FROM vorfall WHERE chat_id = ?",
+                        (TEST,)).fetchone()[0] == 1
+    ziel.close()
+
+
+def test_quelle_bleibt_unveraendert(umgebung):
+    db_vorher = fingerabdruck_db(umgebung.quelle)
+    audio_vorher = fingerabdruck_baum(umgebung.audio_quelle)
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    assert fingerabdruck_db(umgebung.quelle) == db_vorher
+    assert fingerabdruck_baum(umgebung.audio_quelle) == audio_vorher
+
+
+def test_link_bleibt_gleich_und_ist_nie_der_quelllink(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    ziel = lies(umgebung.ziel)
+    tokens = [z[0] for z in ziel.execute("SELECT web_token FROM gruppe")]
+    ziel.close()
+    assert tokens == ["fester-testtoken"]
+
+
+def test_zweimal_uebernehmen_ist_idempotent(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    erste_verbindung = lies(umgebung.ziel)
+    erstes = tu.zaehle(erste_verbindung, TEST)
+    erste_verbindung.close()
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    ziel = lies(umgebung.ziel)
+    assert tu.zaehle(ziel, TEST) == erstes
+    assert ziel.execute("SELECT web_token FROM gruppe WHERE chat_id = ?",
+                        (TEST,)).fetchone()[0] == "fester-testtoken"
+    ziel.close()
+
+
+def test_ohne_bisherige_testgruppe_entsteht_ein_eigener_link(umgebung_ohne_ziel):
+    tu.uebernimm(QUELLE_CHAT, **umgebung_ohne_ziel.pfade())
+    ziel = lies(umgebung_ohne_ziel.ziel)
+    token = ziel.execute("SELECT web_token FROM gruppe WHERE chat_id = ?",
+                         (TEST,)).fetchone()[0]
+    ziel.close()
+    assert token and len(token) >= 32
+    assert token != f"quelltoken-{QUELLE_CHAT}"
+
+
+def test_gruppenfelder_der_testgruppe(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    ziel = lies(umgebung.ziel)
+    g = ziel.execute("SELECT * FROM gruppe WHERE chat_id = ?", (TEST,)).fetchone()
+    assert g["bot_name"] == tu.TEST_BOT_NAME
+    assert g["kanal"] == "web"
+    assert g["titel"] == "Testgruppe (Kopie von padua-gruppe1)"
+    assert g["web_tippt_bis"] is None
+    assert g["kostenpause_gemeldet_am"] is None
+    assert g["letzte_beantwortete_message_id"] == 103
+    assert g["letzte_extrahierte_message_id"] == 103
+    assert g["letzte_journalisierte_message_id"] == 101
+    assert [z[0] for z in ziel.execute(
+        "SELECT bot_name FROM vorfall WHERE chat_id = ?", (TEST,))] == [tu.TEST_BOT_NAME]
+    ziel.close()
+
+
+def test_kein_bot_zustand_der_quelle_im_ziel(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    ziel = lies(umgebung.ziel)
+    assert ziel.execute("SELECT COUNT(*) FROM bot_zustand WHERE bot_name = "
+                        "'padua-gruppe1'").fetchone()[0] == 0
+    ziel.close()
+
+
+def test_folge_von_web_post_steht_nie_unter_der_hoechsten_id(umgebung_ohne_ziel):
+    tu.uebernimm(QUELLE_CHAT, **umgebung_ohne_ziel.pfade())
+    ziel = lies(umgebung_ohne_ziel.ziel)
+    seq = ziel.execute("SELECT seq FROM sqlite_sequence WHERE name = 'web_post'").fetchone()[0]
+    hoechste = ziel.execute("SELECT MAX(id) FROM web_post").fetchone()[0]
+    ziel.close()
+    assert seq >= hoechste == 104
+
+
+def test_backup_enthaelt_die_alte_testgruppe(umgebung):
+    bericht = tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    assert bericht["backup"] and Path(bericht["backup"]).exists()
+    alt = lies(bericht["backup"])
+    assert alt.execute("SELECT COUNT(*) FROM nachricht WHERE chat_id = ? "
+                       "AND message_id = 900", (TEST,)).fetchone()[0] == 1
+    alt.close()
+
+
+def test_kein_backup_wenn_es_noch_keine_test_db_gab(umgebung_ohne_ziel):
+    bericht = tu.uebernimm(QUELLE_CHAT, **umgebung_ohne_ziel.pfade())
+    assert bericht["backup"] is None
+
+
+def test_keine_temp_kopie_bleibt_liegen(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    reste = [p.name for p in Path(umgebung.ziel).parent.iterdir()
+             if p.name.startswith(".testuebernahme-")]
+    assert reste == []
+
+
+def test_verweigert_ohne_die_test_db_anzufassen(umgebung):
+    conn = db.verbinde(umgebung.quelle)
+    conn.execute("UPDATE aufnahme SET status = 'laeuft' WHERE chat_id = ?", (QUELLE_CHAT,))
+    conn.commit()
+    conn.close()
+    vorher = fingerabdruck_db(umgebung.ziel)
+    with pytest.raises(tu.Verweigert):
+        tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    assert fingerabdruck_db(umgebung.ziel) == vorher

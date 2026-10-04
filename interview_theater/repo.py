@@ -4083,6 +4083,14 @@ WEB_TYP_DATEI = "datei"
 #: Gespraechsmodell sieht also exakt denselben Text wie vorher.
 WEB_TYP_SYSTEM = "system"
 
+#: Die EINE Transkriptblase eines Interviews (Padua, 04.10.2026, Karte
+#: t_ea994c7f, ``[interview] fliesstext``): waechst mit jedem Teil ueber
+#: ``aendere_web_text``. Die Chatansicht setzt sie kursiv
+#: (``web_chat.py``, ``klasseVon``). Wie ``WEB_TYP_SYSTEM`` nur eine
+#: Anzeige-Unterscheidung -- die Mitschrift in ``nachricht`` traegt
+#: ``typ='transkript'`` (versteckt) wie jedes Teil-Echo.
+WEB_TYP_TRANSKRIPT = "transkript"
+
 #: Ab hier liegen die synthetischen chat_ids der Web-Gruppen. Positiv und weit
 #: oberhalb aller Telegram-Bereiche (Gruppen sind dort negativ, Nutzer-ids
 #: liegen unter 10^10): eine Web-chat_id kann so nie mit einer echten

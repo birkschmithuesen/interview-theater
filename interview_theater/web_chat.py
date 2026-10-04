@@ -216,7 +216,19 @@ _TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit}"
 _TEXT_DISKUSSION_AN = "Zuhoeren starten"
 _TEXT_DISKUSSION_LAEUFT = "Hoert zu ({zeit})"
 _TEXT_DISKUSSION_FERTIG_KNOPF = "Diskussion fertig"
-_TEXT_PTT = "Tippen und sprechen"
+#: Kanban-Karte Buehne/PTT (04.10.2026, Telegram-Vorbild): Halten statt
+#: Tippen -- der Knopftitel beschreibt jetzt die Geste, die wirklich gilt.
+_TEXT_PTT = "Halten zum Sprechen"
+#: Kurzer Tipp (< PTT_MIN_MS): statt einfach nichts zu zeigen, haelt die
+#: Anzeige-Box fuer rund 1,2-1,5 s nur diesen Satz. EN-Wert **woertlich**
+#: aus der Kanban-Karte zitiert ("Hold to talk, slide up to lock") -- nicht
+#: umformulieren.
+_TEXT_PTT_HINWEIS = "Gedrückt halten zum Sprechen, nach oben schieben zum Sperren."
+#: Der Wegwisch-Hinweis neben dem Mikrofon-Knopf, waehrend gehalten wird.
+#: Das ``‹``-Zeichen ist rein dekorativ und steht im Markup, nicht hier.
+_TEXT_PTT_WISCHEN = "nach links wischen zum Abbrechen"
+#: aria-label des ``✕``-Verwerfen-Knopfs im gesperrten Zustand.
+_TEXT_PTT_VERWERFEN = "Aufnahme verwerfen"
 _TEXT_OHNE_JS = (
     "Fuer Chat und Aufnahme braucht diese Seite JavaScript. "
     "Die Gruppenseite und das Textbuch funktionieren auch ohne."
@@ -311,6 +323,27 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 #ptt { touch-action: none; user-select: none; -webkit-user-select: none;
        -webkit-touch-callout: none; }
 #ptt[data-haelt="1"] { background: #a8201a; transform: scale(1.08); }
+/* Die Anzeige-Box ueber dem Mikrofon-Knopf (Kanban-Karte Buehne/PTT,
+   04.10.2026): Schloss-/Wegwisch-Hinweis, Timer, Pegel, Senden/Verwerfen im
+   gesperrten Zustand. ANNAHME: Farben/Abstaende sind freie Gestaltung,
+   konsistent mit dem Rest dieser Seite -- nur IDs/Zustaende sind Vorgabe. */
+#ptt-anzeige { display: flex; align-items: center; gap: .5rem;
+               font-size: .88rem; padding: .35rem .6rem; border-radius: .6rem;
+               background: #eee9df; margin-bottom: -.1rem; }
+#ptt-anzeige[hidden] { display: none; }
+#ptt-anzeige[data-gesperrt="1"] { background: #fde8c8; }
+/* "wird gleich abgebrochen", ab der Haelfte der Wegwischstrecke. */
+#ptt-anzeige[data-wird-verworfen="1"] { opacity: .45; }
+#ptt-schloss { opacity: .85; }
+#ptt-wisch-hinweis { opacity: .6; flex: 1; white-space: nowrap; }
+#ptt-zeit { font-variant-numeric: tabular-nums; min-width: 2.6rem; text-align: center; }
+#ptt-anzeige .pegel { flex: 1; min-width: 3rem; margin: 0; }
+#ptt-hinweistext { flex: 1; opacity: .9; }
+#ptt-senden, #ptt-verwerfen { font: inherit; border-radius: .6rem; border: 0;
+                              min-height: 2.2rem; }
+#ptt-senden { background: #1f6f5c; color: #fff; padding: 0 .8rem; white-space: nowrap; }
+#ptt-verwerfen { background: transparent; color: #a8201a;
+                 border: 1px solid #a8201a; min-width: 2.2rem; }
 .fehler { font-size: .9rem; color: #a8201a; text-align: center; }
 .fehler[hidden] { display: none; }
 .angehalten { display: flex; flex-direction: column; gap: .35rem; font-size: .92rem;
@@ -381,6 +414,16 @@ PTT_MIN_MS = 500
 #: Aufnahme laenger als 90 Sekunden, stoppt und sendet sie automatisch --
 #: PTT ist fuer kurze Sprachnavigation gedacht, nicht fuer ein Interview.
 PTT_MAX_MS = 90_000
+
+#: Kanban-Karte Buehne/PTT (04.10.2026, Telegram-Vorbild): nach oben
+#: geschoben (``dy`` seit ``pointerdown``, negativ), ab diesem Betrag in
+#: CSS-Pixeln sperrt der Druck -- die Aufnahme laeuft danach ohne gehaltenen
+#: Finger weiter, bis "Senden"/"Verwerfen" oder ``PTT_MAX_MS``.
+PTT_LOCK_PX = 60
+
+#: Nach links geschoben (``dx``, negativ), ab diesem Betrag in CSS-Pixeln
+#: bricht der Druck sofort ab -- 0 POST, wie ``verwirfPtt()``.
+PTT_CANCEL_PX = 80
 
 #: Wartezeiten zwischen zwei Versuchen eines Uploads (Millisekunden), der
 #: letzte Wert ist der Deckel. **Ohne Hoechstzahl an Versuchen**
@@ -520,6 +563,7 @@ _JS_TEXTE = {
     "modus_weg_leer": _TEXT_MODUS_WEG_LEER,
     "nachreichen_spaeter": _TEXT_NACHREICHEN_SPAETER,
     "mitlauf_hinweis": _TEXT_MITLAUF_HINWEIS,
+    "ptt_hinweis": _TEXT_PTT_HINWEIS,
     "abkuerzung": _TEXT_ABKUERZUNG,
     "kal_ankuendigung": _TEXT_KALIBRIERUNG_ANKUENDIGUNG,
     "kal_start_knopf": _TEXT_KALIBRIERUNG_START_KNOPF,
@@ -576,6 +620,8 @@ _CHAT_JS = """
   var POLL_MS_HINTERGRUND = __POLL_MS_HINTERGRUND__;
   var PTT_MIN_MS = __PTT_MIN_MS__;
   var PTT_MAX_MS = __PTT_MAX_MS__;
+  var PTT_LOCK_PX = __PTT_LOCK_PX__;
+  var PTT_CANCEL_PX = __PTT_CANCEL_PX__;
   var UPLOAD_WARTEN_MS = __UPLOAD_WARTEN_MS__;
   var TEXT = __TEXTE__;
   // Padua Brainstorm, 03.10.2026: wie nah am unteren Rand noch als "dort"
@@ -616,6 +662,18 @@ _CHAT_JS = """
   var interviewPauseKnopf = document.getElementById('interview-pause');
   var interviewBeendenKnopf = document.getElementById('interview-beenden');
   var pttKnopf = document.getElementById('ptt');
+  // Die Anzeige-Box ueber dem Mikrofon-Knopf (Kanban-Karte Buehne/PTT,
+  // 04.10.2026): Schloss-/Wegwisch-Hinweis, Timer, Pegel, Kurztipp-Hinweis,
+  // Senden/Verwerfen im gesperrten Zustand.
+  var pttAnzeige = document.getElementById('ptt-anzeige');
+  var pttSchloss = document.getElementById('ptt-schloss');
+  var pttWischHinweis = document.getElementById('ptt-wisch-hinweis');
+  var pttZeit = document.getElementById('ptt-zeit');
+  var pttPegelFeld = document.getElementById('ptt-pegel');
+  var pttPegelBalken = pttPegelFeld ? pttPegelFeld.querySelector('span') : null;
+  var pttHinweistext = document.getElementById('ptt-hinweistext');
+  var pttSendeKnopf = document.getElementById('ptt-senden');
+  var pttVerwerfenKnopf = document.getElementById('ptt-verwerfen');
   // Brainstorm mithören (Phase 4, nur Web) -- die Elemente stehen seit
   // Task 2 (Kanban-Karte Buehne/PTT) IMMER im Markup, ``hidden`` folgt der
   // Phase per Poll (wie beim Interview-Knopf), nicht mehr ihrer Existenz.
@@ -1794,18 +1852,16 @@ _CHAT_JS = """
     interviewKnopf.classList.toggle('nebenknopf', nebenSichtbar);
   }
 
+  // Duenner Wrapper, Null-Argument -- bleibt so aufrufbar fuer die vier
+  // externen Aufrufstellen (Interview/Brainstorm/Diskussion/Wechsel-Start).
+  // Die eigentliche Arbeit steht bei ``pttVerwirf()`` weiter unten, neben
+  // dem Rest der PTT-Zustandsmaschine (Kanban-Karte Buehne/PTT, 04.10.2026)
+  // -- Funktionsdeklarationen sind in diesem Geltungsbereich gehoistet, die
+  // Reihenfolge der beiden Definitionen spielt also keine Rolle.
   function verwirfPtt() {
     var druck = zustand.ptt;
     if (!druck) { return; }
-    zustand.ptt = null;
-    druck.gehalten = false;
-    druck.abgebrochen = true;
-    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
-    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
-    beendePttAnzeige();
-    if (druck.recorder && druck.recorder.state !== 'inactive') {
-      druck.recorder.stop();   // sein onstop gibt das Mikrofon frei
-    }
+    pttVerwirf(druck);
   }
 
   // -- Pegel-Kalibrierung: der Ablauf (Birks Korrektur, 03.10.2026) --------
@@ -2461,7 +2517,7 @@ _CHAT_JS = """
 
   function starteBrainstorm() {
     // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt,
-    // wie starteDiskussion()/startePtt() es bereits tun -- sonst koennte eine
+    // wie starteDiskussion()/pttPointerDown() es bereits tun -- sonst koennte eine
     // Gruppe, die eine Diskussion-Sitzung (Phase 1) nie beendet hat und in
     // Phase 4 weiterarbeitet, ueber den Brainstorm-Knopf einen zweiten
     // Recorder auf demselben Mikrofon starten.
@@ -2627,7 +2683,7 @@ _CHAT_JS = """
 
   function starteDiskussion() {
     // Re-Review (Task 6, Fund 2): auch gegen zustand.brainstorm gesperrt,
-    // wie starteInterview()/startePtt() es bereits tun -- sonst koennte ein
+    // wie starteInterview()/pttPointerDown() es bereits tun -- sonst koennte ein
     // Phase-4-zu-1-Wechsel mit noch laufendem Brainstorm auf einem anderen
     // Tab einen zweiten Recorder auf demselben Mikrofon starten.
     if (zustand.diskussion || modusAn() || zustand.wechsel || zustand.brainstorm) { return; }
@@ -3054,50 +3110,204 @@ _CHAT_JS = """
 
   // -- Push-to-Talk --------------------------------------------------------
   //
-  // Tippen = starten, nochmal tippen = senden, Klasse 'kurz' (der Modus wird
-  // NICHT geschaltet). Ein Klick-Umschalter statt Halten (Kanban-Karte
-  // Buehne/PTT, 03.10.2026): ein Tipp startet die Aufnahme, ein zweiter
-  // beendet und sendet sie. Laeuft die Aufnahme laenger als PTT_MAX_MS,
-  // stoppt und sendet sie automatisch. Ein Druck unter PTT_MIN_MS sendet
-  // NICHTS.
+  // Halten = aufnehmen, Loslassen = senden (Kanban-Karte Buehne/PTT,
+  // 04.10.2026 -- Telegram-Vorbild, loest den Klick-Umschalter vom
+  // 03.10.2026 wieder ab): Finger auf den Knopf und halten startet, Finger
+  // weg beendet und sendet. Nach oben schieben (>= PTT_LOCK_PX) sperrt die
+  // Aufnahme -- sie laeuft dann OHNE gehaltenen Finger weiter, bis "Senden"
+  // oder "Verwerfen" gedrueckt wird oder PTT_MAX_MS erreicht ist (dann wie
+  // ein normales Senden). Nach links wischen (>= PTT_CANCEL_PX) bricht
+  // sofort ab, 0 POST. Ein Druck unter PTT_MIN_MS sendet NICHTS, zeigt aber
+  // kurz einen Hinweis statt einfach nichts zu tun.
 
-  function beendePttAnzeige() {
-    if (!pttKnopf) { return; }
-    pttKnopf.dataset.haelt = '0';
-    pttKnopf.textContent = '🎤';
+  // Ein eigener, kleiner AnalyserNode fuer den PTT-Pegelbalken -- bewusst
+  // NICHT ``pegelAn()``/``#pegel``: die ist an die VAD-Kalibrierung und an
+  // ``sitzung.pausiert``/``legStart``/``erfassteMs`` gekoppelt, die PTT
+  // nicht hat. Nach dem Vorbild von ``kalBaueMesser()``, aber unabhaengig
+  // davon (eigener Kontext auf demselben Strom ist erlaubt).
+  function pttBaueMesser(strom) {
+    var Kontext = window.AudioContext || window.webkitAudioContext;
+    if (!Kontext || !strom) { return null; }
+    try {
+      var kontext = new Kontext();
+      if (kontext.state === 'suspended' && kontext.resume) { kontext.resume(); }
+      var knoten = kontext.createAnalyser();
+      knoten.fftSize = 256;
+      kontext.createMediaStreamSource(strom).connect(knoten);
+      var zeitWerte = new Float32Array(knoten.fftSize);
+      return {
+        kontext: kontext,   // gibFrei(druck) schliesst ueber druck.kontext
+        rms: function () {
+          knoten.getFloatTimeDomainData(zeitWerte);
+          var summe = 0;
+          for (var i = 0; i < zeitWerte.length; i++) { summe += zeitWerte[i] * zeitWerte[i]; }
+          return Math.sqrt(summe / zeitWerte.length);
+        }
+      };
+    } catch (e) { return null; }
   }
 
-  function startePtt() {
+  // Rueckstellung: Anzeige-Box ganz weg, #ptt wieder da -- derselbe Stand
+  // wie vor dem allerersten Druck. ANNAHME: Opacity/Farben der Box sind
+  // freie Gestaltung (siehe CSS), nur die IDs/Zustaende sind Vorgabe.
+  function pttVerstecke() {
+    if (pttAnzeige) {
+      pttAnzeige.hidden = true;
+      pttAnzeige.dataset.gesperrt = '0';
+      pttAnzeige.dataset.wirdVerworfen = '0';
+    }
+    if (pttSchloss) { pttSchloss.hidden = false; }
+    if (pttWischHinweis) { pttWischHinweis.hidden = false; }
+    if (pttZeit) { pttZeit.hidden = false; pttZeit.textContent = ''; }
+    if (pttPegelFeld) {
+      pttPegelFeld.hidden = false;
+      if (pttPegelBalken) { pttPegelBalken.style.width = '0%'; }
+    }
+    if (pttHinweistext) { pttHinweistext.hidden = true; }
+    if (pttSendeKnopf) { pttSendeKnopf.hidden = true; }
+    if (pttVerwerfenKnopf) { pttVerwerfenKnopf.hidden = true; }
+    if (pttKnopf) { pttKnopf.hidden = false; pttKnopf.dataset.haelt = '0'; }
+  }
+
+  function pttZeigeAnzeige() {
+    if (pttAnzeige) {
+      pttAnzeige.hidden = false;
+      pttAnzeige.dataset.gesperrt = '0';
+      pttAnzeige.dataset.wirdVerworfen = '0';
+    }
+    if (pttSchloss) { pttSchloss.hidden = false; }
+    if (pttWischHinweis) { pttWischHinweis.hidden = false; }
+    if (pttZeit) { pttZeit.hidden = false; pttZeit.textContent = '0:00'; }
+    if (pttPegelFeld) {
+      pttPegelFeld.hidden = false;
+      if (pttPegelBalken) { pttPegelBalken.style.width = '0%'; }
+    }
+    if (pttHinweistext) { pttHinweistext.hidden = true; }
+    if (pttSendeKnopf) { pttSendeKnopf.hidden = true; }
+    if (pttVerwerfenKnopf) { pttVerwerfenKnopf.hidden = true; }
+  }
+
+  // Kurzer Tipp (< PTT_MIN_MS, Kartenkriterium 4): statt die Box sofort
+  // wegzunehmen, zeigt sie fuer PTT_HINWEIS_MS NUR den Halten-Hinweis.
+  var PTT_HINWEIS_MS = 1400;   // innerhalb der von der Karte genannten 1200-1500 ms
+  function pttZeigeKurztippHinweis() {
+    if (pttSchloss) { pttSchloss.hidden = true; }
+    if (pttWischHinweis) { pttWischHinweis.hidden = true; }
+    if (pttZeit) { pttZeit.hidden = true; }
+    if (pttPegelFeld) { pttPegelFeld.hidden = true; }
+    if (pttHinweistext) { pttHinweistext.hidden = false; pttHinweistext.textContent = TEXT.ptt_hinweis; }
+  }
+
+  function pttSperren(druck) {
+    druck.gesperrt = true;
+    if (pttSchloss) { pttSchloss.hidden = true; }
+    if (pttWischHinweis) { pttWischHinweis.hidden = true; }
+    if (pttAnzeige) { pttAnzeige.dataset.gesperrt = '1'; pttAnzeige.dataset.wirdVerworfen = '0'; }
+    if (pttKnopf) { pttKnopf.hidden = true; }
+    if (pttSendeKnopf) { pttSendeKnopf.hidden = false; }
+    if (pttVerwerfenKnopf) { pttVerwerfenKnopf.hidden = false; }
+    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) { /* egal */ } }
+  }
+
+  // Gemeinsamer Senden-Weg: normales Loslassen (>= PTT_MIN_MS), Klick auf
+  // #ptt-senden im gesperrten Zustand, UND der PTT_MAX_MS-Timeout, egal ob
+  // gesperrt. Der Recorder stoppt, sein onstop (siehe pttPointerDown) sendet.
+  // druck.dauerMs wird HIER berechnet (nicht nur beim normalen Loslassen) --
+  // sonst liefe der bestehende onstop-Waechter ``druck.dauerMs < PTT_MIN_MS``
+  // beim gesperrten Senden-Knopf gegen den Anfangswert 0 und verwuerfe jede
+  // gesperrte Aufnahme als "zu kurz", egal wie lange sie wirklich lief.
+  function pttSende(druck) {
+    if (zustand.ptt === druck) { zustand.ptt = null; }
+    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
+    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
+    if (druck.hinweisTimeout) { clearTimeout(druck.hinweisTimeout); druck.hinweisTimeout = null; }
+    druck.dauerMs = Date.now() - druck.von;
+    pttVerstecke();
+    if (druck.recorder && druck.recorder.state !== 'inactive') {
+      druck.recorder.stop();
+      return;
+    }
+    // Das Mikrofon ist noch nicht da (holeStrom() laeuft noch). Beim
+    // normalen Loslassen (nicht gesperrt) hat der Aufrufer druck.gehalten
+    // schon auf false gesetzt -- dann gibt die then()-Fortsetzung in
+    // pttPointerDown auf, wie bisher (Regressionstest: Mikro kommt erst
+    // nach dem Loslassen). Im gesperrten Zustand bleibt druck.gehalten
+    // dagegen wahr: die Gruppe hat schon "Senden" gedrueckt, eine deshalb
+    // verlorene Aufnahme waere falsch -- also sofort stoppen, SOBALD der
+    // Recorder entsteht (siehe pttPointerDown, direkt nach r.start()).
+    if (druck.gehalten) { druck.ausstehend = true; }
+  }
+
+  // Gemeinsamer Verwerfen-Weg: Wegwisch-Abbruch, Klick auf #ptt-verwerfen,
+  // pointercancel/lostpointercapture (wenn nicht gesperrt), UND die vier
+  // externen verwirfPtt()-Aufrufstellen (Interview/Brainstorm/Diskussion/
+  // Wechsel-Start). druck.abgebrochen = true VOR recorder.stop(): der
+  // bestehende onstop-Waechter verhindert damit das Senden.
+  function pttVerwirf(druck) {
+    if (zustand.ptt === druck) { zustand.ptt = null; }
+    druck.gehalten = false;
+    druck.abgebrochen = true;
+    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
+    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
+    if (druck.hinweisTimeout) { clearTimeout(druck.hinweisTimeout); druck.hinweisTimeout = null; }
+    pttVerstecke();
+    if (druck.recorder && druck.recorder.state !== 'inactive') {
+      druck.recorder.stop();   // sein onstop gibt das Mikrofon frei
+    }
+    // Kein Recorder (Mikrofon noch nicht da): die then()-Fortsetzung in
+    // pttPointerDown prueft druck.gehalten und gibt dann selbst frei.
+  }
+
+  function pttPointerDown(ev) {
     if (!pttKnopf) { return; }
     // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt --
     // dieselbe Regel wie gegen zustand.brainstorm, PTT ist ein drittes
     // Mikrofon auf demselben Geraet.
     if (modusAn() || zustand.wechsel || zustand.brainstorm || zustand.diskussion ||
         zustand.ptt) { return; }
-    // Review-Befund 6: jeder Druck traegt seinen eigenen Zustand -- ein
-    // spaeterer Druck ueberschreibt nichts, was ein frueherer noch liest.
+    ev.preventDefault();
+    try { pttKnopf.setPointerCapture(ev.pointerId); } catch (e) { /* ohne Capture geht es auch */ }
+    // Review-Befund 6 (galt schon vorher): jeder Druck traegt seinen eigenen
+    // Zustand -- ein spaeterer Druck ueberschreibt nichts, was ein
+    // frueherer noch liest.
     var druck = {
       von: Date.now(), dauerMs: 0, gehalten: true, abgebrochen: false,
-      recorder: null, strom: null, teile: [], timeout: null, takt: null
+      recorder: null, strom: null, teile: [], timeout: null, takt: null,
+      gesperrt: false, startX: ev.clientX, startY: ev.clientY,
+      pointerId: ev.pointerId, pegelTakt: null, kontext: null,
+      hinweisTimeout: null, ausstehend: false
     };
     zustand.ptt = druck;
     pttKnopf.dataset.haelt = '1';
+    pttZeigeAnzeige();
     // Laufende Zeit sichtbar machen, solange der Druck laeuft.
     druck.takt = setInterval(function () {
-      pttKnopf.textContent = '🔴 ' + minuten(Math.floor((Date.now() - druck.von) / 1000));
+      if (pttZeit) {
+        pttZeit.textContent = '🔴 ' + minuten(Math.floor((Date.now() - druck.von) / 1000));
+      }
     }, 500);
+    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) { /* egal */ } }
     holeStrom().then(function (strom) {
       druck.strom = strom;
       // Review-Befund 5: beendet, bevor das Mikrofon da war -- dann gar
       // nicht erst aufnehmen, und das Mikrofon sofort wieder zu.
       if (!druck.gehalten) { gibFrei(druck); return; }
+      var messer = pttBaueMesser(strom);
+      if (messer) {
+        druck.kontext = messer.kontext;
+        druck.pegelTakt = setInterval(function () {
+          if (pttPegelBalken) {
+            pttPegelBalken.style.width = Math.min(100, (messer.rms() / 0.3) * 100) + '%';
+          }
+        }, 120);
+      }
       var r = new MediaRecorder(strom);
       druck.recorder = r;
       r.ondataavailable = function (e) {
         if (e.data && e.data.size) { druck.teile.push(e.data); }
       };
       r.onstop = function () {
-        gibFrei(druck);
+        gibFrei(druck);   // schliesst druck.kontext, stoppt druck.pegelTakt/strom
         if (druck.abgebrochen || druck.dauerMs < PTT_MIN_MS ||
             !druck.teile.length) { return; }
         veralteLetzteLeiste();
@@ -3109,6 +3319,10 @@ _CHAT_JS = """
         });
       };
       r.start();
+      // "Senden" kam schon, bevor das Mikrofon da war (nur im gesperrten
+      // Zustand moeglich, siehe pttSende): sofort stoppen, statt eine
+      // Aufnahme zu verlieren, die die Gruppe schon freigegeben hat.
+      if (druck.ausstehend) { r.stop(); }
     }).catch(function () {
       druck.abgebrochen = true;
       gibFrei(druck);
@@ -3116,35 +3330,107 @@ _CHAT_JS = """
         zustand.ptt = null;
         if (druck.timeout) { clearTimeout(druck.timeout); }
         if (druck.takt) { clearInterval(druck.takt); }
-        beendePttAnzeige();
+        pttVerstecke();
       }
       meldeFehler(TEXT.fehler_mikro);
     });
     druck.timeout = setTimeout(function () {
-      if (zustand.ptt === druck) { beendePtt(); }   // Automatik nach PTT_MAX_MS
+      // Automatik nach PTT_MAX_MS -- derselbe Senden-Weg, EGAL ob gesperrt.
+      if (zustand.ptt === druck) { pttSende(druck); }
     }, PTT_MAX_MS);
   }
 
-  function beendePtt() {
+  function pttPointerMove(ev) {
     var druck = zustand.ptt;
-    if (!druck) { return; }
-    zustand.ptt = null;
-    druck.gehalten = false;
-    // Die Laufzeit, nicht die Zeit bis das Mikrofon da war.
-    druck.dauerMs = Date.now() - druck.von;
-    if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
-    if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
-    beendePttAnzeige();
-    if (druck.recorder && druck.recorder.state !== 'inactive') {
-      druck.recorder.stop();
+    if (!druck || ev.pointerId !== druck.pointerId || druck.gesperrt) { return; }
+    var dx = ev.clientX - druck.startX;
+    var dy = ev.clientY - druck.startY;
+    if (dy <= -PTT_LOCK_PX) {
+      pttSperren(druck);
+      return;
+    }
+    if (dx <= -PTT_CANCEL_PX) {
+      pttVerwirf(druck);
+      return;
+    }
+    // Rueckmeldung "wird gleich abgebrochen" (ANNAHME, freie Gestaltung):
+    // ab der Haelfte der Wegwischstrecke dimmt die Box per CSS-Attribut.
+    if (pttAnzeige) {
+      pttAnzeige.dataset.wirdVerworfen = (-dx >= PTT_CANCEL_PX * 0.5) ? '1' : '0';
     }
   }
 
+  // Pointerup auf #ptt: gesperrt -> NICHTS tun (die Aufnahme laeuft ohne
+  // gehaltenen Finger weiter, das ist der ganze Witz der Sperre), nur die
+  // Pointer-Capture freigeben. Sonst normales Loslassen: unter PTT_MIN_MS
+  // der Kurztipp-Hinweis (0 POST), sonst der Senden-Weg.
+  function pttPointerUp(ev) {
+    var druck = zustand.ptt;
+    if (!druck || ev.pointerId !== druck.pointerId) { return; }
+    try { pttKnopf.releasePointerCapture(ev.pointerId); } catch (e) { /* egal */ }
+    if (druck.gesperrt) { return; }
+    // Die Laufzeit, nicht die Zeit bis das Mikrofon da war.
+    var dauerMs = Date.now() - druck.von;
+    if (dauerMs < PTT_MIN_MS) {
+      // Kurzer Tipp: der bestehende onstop-Waechter (druck.dauerMs <
+      // PTT_MIN_MS) verhindert das Senden schon -- hier NICHT zusaetzlich
+      // abgebrochen setzen, nur Timer abraeumen und kurz den Halten-Hinweis
+      // zeigen, statt die Box sofort wegzunehmen. Das ist NICHT der
+      // gemeinsame Senden-Weg (pttSende): der Kurztipp-Hinweis gehoert zu
+      // keinem der drei Faelle, die pttSende abdeckt.
+      if (druck.timeout) { clearTimeout(druck.timeout); druck.timeout = null; }
+      if (druck.takt) { clearInterval(druck.takt); druck.takt = null; }
+      druck.gehalten = false;
+      druck.dauerMs = dauerMs;
+      zustand.ptt = null;
+      pttZeigeKurztippHinweis();
+      druck.hinweisTimeout = setTimeout(function () { pttVerstecke(); }, PTT_HINWEIS_MS);
+      if (druck.recorder && druck.recorder.state !== 'inactive') {
+        druck.recorder.stop();
+      }
+      return;
+    }
+    // Normales Loslassen (>= PTT_MIN_MS): derselbe Senden-Weg wie der Klick
+    // auf #ptt-senden und der PTT_MAX_MS-Timeout. gehalten=false ZUERST,
+    // nicht in pttSende selbst -- kommt das Mikrofon hier erst NACH dem
+    // Loslassen, wird aufgegeben statt gewartet (anders als im gesperrten
+    // Zustand, wo die Gruppe den Finger laengst gehoben hat UND trotzdem
+    // weiter aufgenommen wird).
+    druck.gehalten = false;
+    pttSende(druck);
+  }
+
+  // pointercancel/lostpointercapture: wie Verwerfen behandeln -- das
+  // "Fundstueck" aus einer frueheren Fassung (vor dem Klick-Umschalter),
+  // aufs neue Zustandsmodell uebertragen. NICHT, wenn schon gesperrt: sonst
+  // wuerde das eigene releasePointerCapture() aus dem gesperrten Zweig von
+  // pttPointerUp die gerade erst gesperrte, freilaufende Aufnahme sofort
+  // wieder abbrechen -- exakt der Fehler, den die Sperre verhindern soll.
+  function pttAbgebrochenesPointerEreignis(ev) {
+    var druck = zustand.ptt;
+    if (!druck || ev.pointerId !== druck.pointerId || druck.gesperrt) { return; }
+    pttVerwirf(druck);
+  }
+
   if (pttKnopf) {
-    pttKnopf.addEventListener('click', function () {
-      if (zustand.ptt) { beendePtt(); } else { startePtt(); }
-    });
+    pttKnopf.addEventListener('pointerdown', pttPointerDown);
+    pttKnopf.addEventListener('pointermove', pttPointerMove);
+    pttKnopf.addEventListener('pointerup', pttPointerUp);
+    pttKnopf.addEventListener('pointercancel', pttAbgebrochenesPointerEreignis);
+    pttKnopf.addEventListener('lostpointercapture', pttAbgebrochenesPointerEreignis);
     pttKnopf.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+  }
+  if (pttSendeKnopf) {
+    pttSendeKnopf.addEventListener('click', function () {
+      // #ptt-senden ist nur sichtbar, solange ein Druck gesperrt ist --
+      // zustand.ptt ist in dem Fall genau dieser Druck.
+      if (zustand.ptt) { pttSende(zustand.ptt); }
+    });
+  }
+  if (pttVerwerfenKnopf) {
+    pttVerwerfenKnopf.addEventListener('click', function () {
+      if (zustand.ptt) { pttVerwirf(zustand.ptt); }
+    });
   }
 
   // Nicht weg, solange etwas aufgenommen wird oder die Schlange nicht leer
@@ -3207,6 +3493,7 @@ def _js() -> str:
         kal_balken_label=T._TEXT_KALIBRIERUNG_BALKEN_LABEL,
         kal_herumreichen_erinnerung=T._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
         mitlauf_hinweis=T._TEXT_MITLAUF_HINWEIS,
+        ptt_hinweis=T._TEXT_PTT_HINWEIS,
     )
     texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (
@@ -3215,6 +3502,8 @@ def _js() -> str:
         .replace("__POLL_MS_HINTERGRUND__", str(POLL_MS_HINTERGRUND))
         .replace("__PTT_MIN_MS__", str(PTT_MIN_MS))
         .replace("__PTT_MAX_MS__", str(PTT_MAX_MS))
+        .replace("__PTT_LOCK_PX__", str(PTT_LOCK_PX))
+        .replace("__PTT_CANCEL_PX__", str(PTT_CANCEL_PX))
         .replace("__UPLOAD_WARTEN_MS__", json.dumps(list(UPLOAD_WARTEN_MS)))
         .replace("__TEXTE__", texte)
     )
@@ -3464,6 +3753,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'
             f'  </div>\n'
         )
+        + _ptt_anzeige_html()
         + f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '
         f'placeholder="{html.escape(_platzhalter_fuer(daten.get("phase"), daten.get("fragen_aktuell")), quote=True)}">\n'
@@ -3473,6 +3763,27 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'{html.escape(T._TEXT_SENDEN)}</button>\n'
         f"  </div>\n"
         f"</div>\n"
+    )
+
+
+def _ptt_anzeige_html() -> str:
+    """Die Anzeige-Box ueber dem Mikrofon-Knopf: Schloss-/Wegwisch-Hinweis,
+    Timer, Pegel, Kurztipp-Hinweis, Senden/Verwerfen im gesperrten Zustand
+    (Kanban-Karte Buehne/PTT, 04.10.2026 -- Telegram-Vorbild). Reihenfolge
+    der Kinder ist freie Gestaltung, nur die IDs sind Vorgabe -- die
+    e2e-Tests suchen danach."""
+    return (
+        '  <div id="ptt-anzeige" hidden>\n'
+        '    <span id="ptt-schloss">🔒 ↑</span>\n'
+        f'    <span id="ptt-wisch-hinweis">‹ {html.escape(T._TEXT_PTT_WISCHEN)}</span>\n'
+        '    <span id="ptt-zeit"></span>\n'
+        '    <div class="pegel" id="ptt-pegel" hidden><span></span></div>\n'
+        '    <span id="ptt-hinweistext" hidden></span>\n'
+        f'    <button type="button" id="ptt-senden" hidden>■ '
+        f'{html.escape(T._TEXT_SENDEN)}</button>\n'
+        f'    <button type="button" id="ptt-verwerfen" hidden '
+        f'aria-label="{html.escape(T._TEXT_PTT_VERWERFEN, quote=True)}">✕</button>\n'
+        '  </div>\n'
     )
 
 

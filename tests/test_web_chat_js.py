@@ -261,17 +261,24 @@ def test_die_ptt_mindestdauer_kommt_aus_einer_konstante(seite):
     assert "__PTT_MIN_MS__" in web_chat._CHAT_JS
 
 
-def test_ptt_ist_ein_klick_umschalter_ohne_pointer_capture():
-    """Von Halten-zum-Sprechen auf Tippen-zum-Umschalten umgebaut (Kanban-
-    Karte Buehne/PTT, Punkt 3): ein Tipp startet, ein zweiter beendet und
-    sendet -- kein Pointer-Capture-Geschehen mehr."""
+def test_ptt_ist_ein_pointer_halteknopf_mit_sperre_und_wegwisch_abbruch():
+    """Von Tippen-zum-Umschalten zurueck auf Halten-zum-Sprechen umgebaut
+    (Kanban-Karte Buehne/PTT, 04.10.2026, Telegram-Vorbild): Pointer-Events
+    statt eines einzelnen ``click``-Listeners, dazu Sperre (nach oben
+    schieben) und Wegwisch-Abbruch (nach links schieben). Der Klick-
+    Umschalter vom 03.10.2026 (ein Tipp startet, ein zweiter beendet) ist
+    damit Geschichte -- dieser Test ersetzt
+    ``test_ptt_ist_ein_klick_umschalter_ohne_pointer_capture``."""
     js = web_chat._CHAT_JS
     block = js[js.index("-- Push-to-Talk"):]
-    assert "pttKnopf.addEventListener('click'" in block
-    for veraltet in ("setPointerCapture", "pointercancel", "pointerdown",
-                     "pointerup", "pointermove", "lostpointercapture",
-                     "releasePointerCapture"):
-        assert veraltet not in block, veraltet
+    assert "pttKnopf.addEventListener('pointerdown'" in block
+    assert "pttKnopf.addEventListener('pointermove'" in block
+    assert "pttKnopf.addEventListener('pointerup'" in block
+    assert "pttKnopf.addEventListener('pointercancel'" in block
+    assert "pttKnopf.addEventListener('lostpointercapture'" in block
+    assert "setPointerCapture" in block
+    assert "releasePointerCapture" in block
+    assert "pttKnopf.addEventListener('click'" not in block
 
 
 def test_die_ptt_hoechstdauer_kommt_aus_einer_konstante(seite):
@@ -280,22 +287,51 @@ def test_die_ptt_hoechstdauer_kommt_aus_einer_konstante(seite):
     assert "__PTT_MAX_MS__" in web_chat._CHAT_JS
 
 
+def test_die_ptt_sperr_und_abbruchstrecken_kommen_aus_konstanten(seite):
+    """Kanban-Karte Buehne/PTT, 04.10.2026: ``PTT_LOCK_PX``/``PTT_CANCEL_PX``
+    sind Modulkonstanten wie ``PTT_MIN_MS``/``PTT_MAX_MS`` -- nicht im JS
+    verdrahtete Literale."""
+    assert web_chat.PTT_LOCK_PX == 60
+    assert web_chat.PTT_CANCEL_PX == 80
+    assert f"var PTT_LOCK_PX = {web_chat.PTT_LOCK_PX};" in seite
+    assert f"var PTT_CANCEL_PX = {web_chat.PTT_CANCEL_PX};" in seite
+    assert "__PTT_LOCK_PX__" in web_chat._CHAT_JS
+    assert "__PTT_CANCEL_PX__" in web_chat._CHAT_JS
+
+
 def test_ptt_stoppt_und_sendet_automatisch_nach_der_hoechstdauer():
+    """Egal ob gesperrt: der PTT_MAX_MS-Timeout nimmt denselben Senden-Weg
+    wie ein normales Loslassen (``pttSende``, nicht mehr ``beendePtt``, das
+    es seit dem Umbau auf Pointer-Events nicht mehr gibt)."""
     js = web_chat._CHAT_JS
     block = js[js.index("-- Push-to-Talk"):]
     assert "setTimeout(" in block
     assert "PTT_MAX_MS" in block
-    assert "beendePtt()" in block
+    assert "pttSende(druck)" in block
 
 
-def test_kein_schieben_zum_sperren(seite):
-    """Birk, verbindlich: ZWEI getrennte Knoepfe, KEIN Schieben-zum-Sperren.
-    Ein Test, der eine Entscheidung festhaelt, die sonst niemand mehr kennt."""
+def test_kein_schieben_zum_sperren_am_interview_knopf():
+    """Birk, 30.09.2026, verbindlich: ZWEI getrennte Knoepfe (Interview-
+    Aufnahme und PTT) -- kein Schieben-zum-Sperren, das beide zu einem
+    WhatsApp-artigen Mischknopf verschmilzt. Das gilt weiterhin: Interview/
+    Brainstorm/Diskussion bleiben reine Umschalter, ohne Schiebe-/Sperr-
+    Vokabular.
+
+    **Aufgehoben nur INNERHALB von PTT selbst** (Kanban-Karte Buehne/PTT,
+    04.10.2026, Telegram-Vorbild): PTT bekommt dort eine eigene Sperre per
+    Nach-oben-Schieben -- keine Rueckkehr der verschmolzenen Knopf-Idee von
+    30.09.2026, sondern eine Geste innerhalb des weiterhin eigenstaendigen
+    PTT-Knopfs. Dieser Test prueft deshalb ab 04.10.2026 nur noch den
+    Codeblock VOR der PTT-Sektion (Interview/Brainstorm/Diskussion), nicht
+    mehr die ganze Datei -- ersetzt das frühere ``test_kein_schieben_zum_
+    sperren`` (ganze Datei)."""
+    js = web_chat._CHAT_JS
+    block = js[js.index("function starteInterview"):js.index("-- Push-to-Talk")]
     # Auf Wortgrenzen: ein Teilstring "lock" traefe auch "block" und "clock"
     # (Review-Befund 13).
     for muster in (r"\bslide\w*", r"\bswipe\w*", r"\block\w*", r"\w*Lock\b",
                    r"\bsperren\b"):
-        assert not re.search(muster, web_chat._CHAT_JS, re.IGNORECASE), muster
+        assert not re.search(muster, block, re.IGNORECASE), muster
 
 
 def test_der_schieben_test_trifft_keine_harmlosen_woerter():
@@ -1092,19 +1128,19 @@ def test_brainstorm_und_interview_schliessen_sich_gegenseitig_aus():
     assert "if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn; }" in zeige_iv
 
 
-def test_starteptt_lehnt_waehrend_diskussion_ab():
-    """Abschluss-Review (Finding 2): ``startePtt()`` sperrte bereits gegen
-    ``zustand.brainstorm`` -- ``zustand.diskussion`` fehlte in derselben
-    Waeche, obwohl PTT ein drittes Mikrofon auf demselben Geraet waere."""
+def test_pttpointerdown_lehnt_waehrend_diskussion_ab():
+    """Abschluss-Review (Finding 2): ``startePtt()`` (seit der Kanban-Karte
+    Buehne/PTT vom 04.10.2026 ``pttPointerDown()``, Pointer-Events statt
+    Klick) sperrte bereits gegen ``zustand.brainstorm`` --
+    ``zustand.diskussion`` fehlte in derselben Waeche, obwohl PTT ein
+    drittes Mikrofon auf demselben Geraet waere."""
     js = web_chat._CHAT_JS
-    # "function beendePtt" allein traefe zuerst auf "function beendePttAnzeige"
-    # (das Praefix passt) -- die Klammer dahinter macht die Endmarke eindeutig.
-    start_ptt = js[js.index("function startePtt"):js.index("function beendePtt() {")]
+    start_ptt = js[js.index("function pttPointerDown"):js.index("function pttPointerMove")]
     assert ("if (modusAn() || zustand.wechsel || zustand.brainstorm || "
             "zustand.diskussion ||\n        zustand.ptt) { return; }") in start_ptt
 
 
-def test_startebrainstorm_und_starteptt_lehnen_waehrend_diskussion_tatsaechlich_ab_in_node(
+def test_startebrainstorm_und_pttpointerdown_lehnen_waehrend_diskussion_tatsaechlich_ab_in_node(
     tmp_path,
 ):
     """Verhaltensnachweis in Node (nicht nur String-Match): das realistischere
@@ -1113,28 +1149,29 @@ def test_startebrainstorm_und_starteptt_lehnen_waehrend_diskussion_tatsaechlich_
     offen (niemand drueckt ``beendeDiskussion()``), und die Gruppe drueckt
     dort "Brainstorm mithoeren" (jetzt serverseitig sichtbar, ``phase == 4``).
     Ohne den Fix startet ``starteBrainstorm()`` trotzdem einen zweiten
-    ``MediaRecorder`` auf demselben Mikrofon -- ebenso ``startePtt()`` fuer
-    die Sprachnavigation. Dieser Test fuehrt ``starteBrainstorm``/
-    ``startePtt`` WOERTLICH aus dem ausgelieferten Skript aus und bestaetigt,
-    dass beide bei laufender ``zustand.diskussion`` synchron (vor jedem
-    ``holeStrom()``-Promise) abbrechen, ohne eine eigene Sitzung bzw. einen
-    eigenen PTT-Druck anzulegen."""
+    ``MediaRecorder`` auf demselben Mikrofon -- ebenso ``pttPointerDown()``
+    (bis 03.10.2026 ``startePtt()``) fuer die Sprachnavigation. Dieser Test
+    fuehrt ``starteBrainstorm``/``pttPointerDown`` WOERTLICH aus dem
+    ausgelieferten Skript aus und bestaetigt, dass beide bei laufender
+    ``zustand.diskussion`` synchron (vor jedem ``holeStrom()``-Promise)
+    abbrechen, ohne eine eigene Sitzung bzw. einen eigenen PTT-Druck
+    anzulegen."""
     node = _node_oder_skip()
     js = web_chat._CHAT_JS
     modus_an = _extrahiere(js, "function modusAn", "function zeigeModus")
     start_bs = _extrahiere(js, "function starteBrainstorm", "function pausiereBrainstorm")
-    # "function beendePtt" allein traefe zuerst auf "function beendePttAnzeige"
-    # (das Praefix passt) -- die Klammer dahinter macht die Endmarke eindeutig.
-    start_ptt = _extrahiere(js, "function startePtt", "function beendePtt() {")
+    start_ptt = _extrahiere(js, "function pttPointerDown", "function pttPointerMove")
 
     quelltext = f"""
-    var zustand, pttKnopf, verwirfAufgerufen;
+    var zustand, pttKnopf, verwirfAufgerufen, navigator;
     var PTT_MAX_MS = {web_chat.PTT_MAX_MS};
+    navigator = {{}};
 
     {modus_an}
 
     function verwirfPtt() {{ verwirfAufgerufen = true; }}
     function zeigeBrainstormModus() {{}}
+    function pttZeigeAnzeige() {{}}
     function holeStrom() {{ return new Promise(function () {{}}); }}
     function setTimeout() {{ return {{}}; }}
     function clearTimeout() {{}}
@@ -1149,12 +1186,13 @@ def test_startebrainstorm_und_starteptt_lehnen_waehrend_diskussion_tatsaechlich_
         brainstorm: null, aufnahme: null, servermodus: false, wechsel: null,
         ptt: null, diskussion: mitDiskussion ? {{ pausiert: false }} : null
       }};
-      pttKnopf = {{ dataset: {{}} }};
+      pttKnopf = {{ dataset: {{}}, setPointerCapture: function () {{}} }};
       verwirfAufgerufen = false;
       starteBrainstorm();
       var brainstormGestartet = !!zustand.brainstorm;
       zustand.brainstorm = null;   // unabhaengig von der Brainstorm-Probe testen
-      startePtt();
+      var ev = {{ clientX: 0, clientY: 0, pointerId: 1, preventDefault: function () {{}} }};
+      pttPointerDown(ev);
       var pttGestartet = !!zustand.ptt;
       return {{ brainstormGestartet: brainstormGestartet, pttGestartet: pttGestartet }};
     }}

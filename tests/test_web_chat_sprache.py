@@ -72,17 +72,21 @@ def _zustand(pfad, token):
 
 #: Woerter, die diese Teilaufgabe tatsaechlich umstellt -- muessen unter
 #: Padua verschwinden UND (Gegenprobe) ohne Profil weiter deutsch dastehen.
+#: "Halten zum Sprechen" ist der _TEXT_PTT-Wortlaut der Kanban-Karte
+#: Buehne/PTT vom 04.10.2026 (Halten-Geste mit Sperre/Wegwisch-Abbruch) --
+#: davor stand hier "Tippen und sprechen" (Klick-Umschalter, 03.10.2026).
 _WOERTER_AKTUELL = (
-    "Brainstorm mithören", "Tippen und sprechen", "Zur Gruppenseite",
+    "Brainstorm mithören", "Halten zum Sprechen", "Zur Gruppenseite",
     "Senden", "Rest verwerfen", "Rest als Interview nachreichen",
 )
 
-#: Regressionswache: der FRUEHERE deutsche PTT-Text (vor der vorherigen
-#: Teilaufgabe dieser Karte, siehe Brief Tabellenzeile zu ``_TEXT_PTT``) --
-#: er steht nirgends mehr im Quelltext und darf unter keinem Profil
-#: wieder auftauchen. Keine Gegenprobe dafuer: er war nie "das aktuelle
-#: Deutsch", den die Gegenprobe gegenpruefen koennte.
-_WORT_REGRESSION = "Halten und sprechen"
+#: Regressionswache: FRUEHERE deutsche PTT-Texte -- stehen nirgends mehr im
+#: Quelltext und duerfen unter keinem Profil wieder auftauchen. Keine
+#: Gegenprobe dafuer: keiner von beiden war je "das aktuelle Deutsch", den
+#: die Gegenprobe gegenpruefen koennte. "Halten und sprechen" war der Stand
+#: vor der Umstellung auf den Klick-Umschalter (03.10.2026), "Tippen und
+#: sprechen" der Stand vor dieser Teilaufgabe (04.10.2026).
+_WOERTER_REGRESSION = ("Halten und sprechen", "Tippen und sprechen")
 
 
 def test_keine_bekannten_deutschen_textreste_auf_der_en_seite(datenbank, padua):
@@ -90,7 +94,7 @@ def test_keine_bekannten_deutschen_textreste_auf_der_en_seite(datenbank, padua):
     zustand = _zustand(pfad, token)
     seite = _sichtbar(web_chat.chat_html(zustand, "n", token, "", 45000))
     skript = _sichtbar(web_chat._js())
-    for wort in _WOERTER_AKTUELL + (_WORT_REGRESSION,):
+    for wort in _WOERTER_AKTUELL + _WOERTER_REGRESSION:
         assert wort not in seite, wort
         assert wort not in skript, wort
     # "Weiter"/"Beenden" auf Wortgrenzen (nicht als blosses Substring):

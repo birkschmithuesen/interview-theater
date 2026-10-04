@@ -141,12 +141,7 @@ nav.fassungen { display: flex; flex-wrap: wrap; gap: .3rem; margin: .3rem 0; }.p
    dieselbe ruhige Flaeche wie .schaerfung, .panel-stand nur mit Zwischenueberschriften. */
 .vorspann h3 { font-size: .78rem; text-transform: uppercase;
                letter-spacing: .04em; opacity: .55; font-weight: 600;
-               margin: .8rem 0 .15rem; }.panel-stand .vorspann p { margin: 0 0 .2rem; }.panel-stand .vorspann ul { list-style: none; margin: 0; padding: 0; }.panel-stand .vorspann li { margin: .1rem 0; }.panel-stand .figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }.panel-stand .figur .marke { font-size: .78rem; opacity: .6; }.panel-stand .hinzu { margin-top: .8rem; }.panel-stand /* Der Weg zur Probenansicht (06.09.2026): deutlich, .panel-stand weil er in der Probe
-   gebraucht wird und die Gruppenseite lang ist. */
-.probenansicht { margin: 0 0 1rem; }.panel-stand .probenansicht a { display: inline-block; padding: .45rem .8rem;
-                   border: 1px solid #c9b98d; border-radius: .3rem;
-                   background: #ece7db; color: #1b1b1b; text-decoration: none;
-                   font-size: .95rem; }
+               margin: .8rem 0 .15rem; }.panel-stand .vorspann p { margin: 0 0 .2rem; }.panel-stand .vorspann ul { list-style: none; margin: 0; padding: 0; }.panel-stand .vorspann li { margin: .1rem 0; }.panel-stand .figur { border-top: 1px solid #eee7d8; padding-top: .5rem; margin-top: .5rem; }.panel-stand .figur .marke { font-size: .78rem; opacity: .6; }.panel-stand .hinzu { margin-top: .8rem; }
 .panel-textbuch { background: #fbfaf7; color: #1b1b1b; max-width: 46rem; margin: 0 auto;
        padding: .8rem 1.1rem 4rem; }.panel-textbuch h1 { font-size: 1.35rem; margin: 0 0 .2rem; }.panel-textbuch .wege { font-size: .85rem; margin: 0 0 .8rem; }.panel-textbuch .wege a { color: #6b5a2b; margin-right: .9rem; }.panel-textbuch .leiste { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
           margin: 0 0 .5rem; }.panel-textbuch .leiste .marke { font-size: .72rem; text-transform: uppercase;
@@ -435,6 +430,14 @@ header { position: sticky; top: 0; z-index: 4; background: var(--grund);
                      font-family: var(--schrift-tech); font-size: .9rem;
                      letter-spacing: .04em; }
 .roadmap > summary::-webkit-details-marker { display: none; }
+/* P2/Padua-Kopfzeile-Karte: der fixe Teil der Zusammenfassungszeile --
+   schrumpft bei Bedarf selbst mit Ellipse (ein langer Phasenname plus
+   Fortschrittslichter kann auf 390px schon allein ueber die Breite gehen),
+   aber nie unter seine Mindestbreite ("Phase 4/7" bleibt immer lesbar).
+   Mit festem ``flex: 0 0 auto`` schob ein langer Name "Next up" gemessen
+   komplett aus dem sichtbaren Bereich heraus, statt es zu kuerzen. */
+.roadmap-kopf { flex: 1 1 auto; min-width: 3.5rem; overflow: hidden;
+                text-overflow: ellipsis; white-space: nowrap; }
 .phasen { list-style: none; margin: .4rem 0 .2rem; padding: 0;
           max-height: 58vh; overflow-y: auto; }
 .phase { border-left: 2px solid var(--linie); padding: 0 0 .35rem .55rem;
@@ -482,15 +485,13 @@ body[data-tab="chat"] .roadmap .phasen { max-height: 30vh; }
              border: 1px solid var(--linie); border-radius: var(--radius); }
 #ux-balken i { display: block; height: 100%; width: var(--fortschritt, 0%);
                background: var(--signal); }
-.ux-akt { color: var(--warn); letter-spacing: .1em; margin-right: .4rem; }
-/* P2, Aufgabe 2, Punkt 2: "Als Naechstes: ..." direkt unter der Aktzeile,
-   ueber der Tableiste -- auf jedem Tab im ersten Blick. Eine Zeile, leise,
-   die Sache selbst in der Textfarbe; zu lang wird abgeschnitten statt
-   umgebrochen (die Tableiste darf nicht wandern). */
-#ux-naechstes { max-width: 44rem; margin: -.35rem auto .45rem;
-                padding: 0 .3rem; font-size: .9rem; line-height: 1.35;
+/* P2/Padua-Kopfzeile-Karte: "Next up" ist jetzt ein Flex-Kind INNERHALB
+   derselben Zeile wie "Phase N/7 · Name" -- kein eigener Flex-Zeilen-
+   Teilnehmer mehr, kein negatives Margin, kein Ueberlappen. */
+#ux-naechstes { flex: 1 1 auto; min-width: 0; margin-left: auto;
+                padding: 0 0 0 .4rem; font-size: .9rem; line-height: 1.35;
                 color: var(--text-leise); white-space: nowrap;
-                overflow: hidden; text-overflow: ellipsis; }
+                overflow: hidden; text-overflow: ellipsis; text-align: right; }
 #ux-naechstes[hidden] { display: none; }
 #ux-naechstes b { color: var(--text); font-weight: 600; }
 
@@ -780,9 +781,7 @@ h2 { color: var(--text); font-family: var(--schrift-skript); font-weight: 700;
    und Signalfarbe, .panel-stand der Inhalt der Felder ist das Helle. */
 .feld button { background: transparent; color: var(--signal);
                border: 1px solid var(--rand); border-radius: var(--radius);
-               min-height: var(--tippflaeche); }.panel-stand .feld button:hover, .panel-stand .feld button:focus-visible { border-color: var(--signal); }.panel-stand .feld button[disabled] { color: var(--text-leise); opacity: 1; }.panel-stand .feld .hinweis { color: var(--text-leise); opacity: 1; }.panel-stand .feld .hinweis.schlecht { color: var(--signal); }.panel-stand .figur { border-top-color: var(--linie); }.panel-stand .figur [data-feld] { margin-bottom: .3rem; }.panel-stand /* Der Weg zur Probenansicht: deutlich, .panel-stand aber kein heller Fleck. */
-.probenansicht a { background: var(--grund-2); color: var(--signal);
-                   border: 1px solid var(--rand); border-radius: var(--radius); }.panel-stand /* Auf der vereinten Seite IST der Chat ein Tab -- der Link "Chat mit dem
+               min-height: var(--tippflaeche); }.panel-stand .feld button:hover, .panel-stand .feld button:focus-visible { border-color: var(--signal); }.panel-stand .feld button[disabled] { color: var(--text-leise); opacity: 1; }.panel-stand .feld .hinweis { color: var(--text-leise); opacity: 1; }.panel-stand .feld .hinweis.schlecht { color: var(--signal); }.panel-stand .figur { border-top-color: var(--linie); }.panel-stand .figur [data-feld] { margin-bottom: .3rem; }.panel-stand /* Auf der vereinten Seite IST der Chat ein Tab -- der Link "Chat mit dem
    Bot" fuehrte per 302 zurueck auf dieselbe Seite. Nur ausgeblendet: die
    Einzelseite ``gruppe_html`` behaelt ihn. */
 p:has(> a[href$="/chat"]) { display: none; }.panel-stand /* Die Festlegungen: ihre Zeilenregeln stehen in ``web._CSS_LEITFADEN``
@@ -794,7 +793,15 @@ p:has(> a[href$="/chat"]) { display: none; }.panel-stand /* Die Festlegungen: ih
                      letter-spacing: .08em; text-transform: uppercase;
                      color: var(--text-leise); opacity: 1; }.panel-stand .festlegung .feld { flex: 0 0 auto; margin: 0; }.panel-stand .festlegung [data-feld] { padding: 0; border: 0; background: none; margin: 0; }.panel-stand /* Was noch fehlt: die Arbeitsliste, .panel-stand deshalb mit Signalstrich. */
 ul.fehlstellen { border-left-color: var(--signal); }.panel-stand /* Die Stueckkarte: eine Checkliste, .panel-stand keine Aufzaehlung -- das Offene leiser. */
-ul.stueckkarte { list-style: none; padding-left: 0; }.panel-stand ul.stueckkarte li { margin: .2rem 0; }.panel-stand ul.stueckkarte li.offen { color: var(--text-leise); }.panel-stand table.anteile th, .panel-stand table.anteile td, .panel-stand table.uebersicht td { border-bottom-color: var(--linie); }
+ul.stueckkarte { list-style: none; padding-left: 0; }.panel-stand ul.stueckkarte li { margin: .2rem 0; }.panel-stand ul.stueckkarte li.offen { color: var(--text-leise); }.panel-stand table.anteile th, .panel-stand table.anteile td, .panel-stand table.uebersicht td { border-bottom-color: var(--linie); }.panel-stand /* CoThinker-Befund, .panel-stand derselbe Fehler eine Panel-Ebene hoeher: die
+   Begriffs-Chips und die Fassungsleiste sind helle Sandflaechen aus
+   ``_CSS_GRUPPE`` -- wie die Speichern-Knoepfe oben, .panel-stand nur bisher nicht
+   mitgefasst. */
+.begriff { background: var(--grund-3); color: var(--text); }.panel-stand .fassung { background: var(--grund-2); color: var(--text);
+           border-color: var(--rand); }.panel-stand .fassung.aktiv { background: var(--signal); border-color: var(--signal);
+                 color: var(--auf-signal); }
+.panel-buehne #buehne-panel .karte { background: var(--grund-2); color: var(--text);
+                       border-color: var(--linie); }.panel-buehne #buehne-panel .karte.alt { color: var(--text-leise); opacity: 1; }.panel-buehne #buehne-panel .hoert-zu { color: var(--text-leise); opacity: 1; }.panel-buehne #buehne-panel .leer { color: var(--text-leise); opacity: 1; }.panel-buehne .stueckkarte { background: var(--grund-3); }.panel-buehne .sk-haken { color: var(--text-leise); opacity: 1; }.panel-buehne .sk-frei { color: var(--text-leise); opacity: 1; }
 .panel-textbuch { background: var(--grund); color: var(--text); }.panel-textbuch .wege a { color: var(--signal); }.panel-textbuch .leer, .panel-textbuch .offen, .panel-textbuch .regie, .panel-textbuch .leiste .marke { opacity: 1; color: var(--text-leise); }.panel-textbuch .replik.aktiv.aktiv.aktiv.aktiv { background: var(--grund-2);
                                   border-left-color: var(--signal); }.panel-textbuch .szenenkopf { font-family: var(--schrift-skript); font-size: 1.25rem;
               color: var(--signal); border-bottom: 1px solid var(--linie);
@@ -811,8 +818,10 @@ html { height: 100%; overflow-x: hidden; }
 body { display: flex; flex-direction: column; align-items: stretch;
         margin: 0 auto; padding: 1rem 0 0; overflow: hidden;
         height: 100vh; height: 100dvh; height: var(--vh, 100dvh); }
-.roadmap { flex: 0 0 auto; order: 0; min-width: 0;
+.roadmap { flex: 0 0 auto; order: 0; min-width: 0; width: 100%; margin: 0;
             padding-left: 1.2rem; padding-right: 1.2rem; }
+.roadmap summary { padding-top: 0; padding-bottom: 0;
+                    min-height: auto; height: var(--tippflaeche); }
 .tabs { position: static; flex: 0 0 auto; min-width: 0; order: 1;
          padding-left: 1.2rem; padding-right: 1.2rem;
          padding-bottom: calc(.3rem + env(safe-area-inset-bottom)); }
@@ -842,7 +851,7 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {
 #interview, #ptt, #senden, #brainstorm { touch-action: manipulation; }
 </style></head>
 <body>
-<details class="roadmap" id="roadmap" data-aktive-phase="6"><summary>Phase 6/7 · Szenen als Geschichte — 0/1</summary><ol class="phasen"><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="1" data-bezeichnung="1 · Begriffe" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">1 · Begriffe</button><button type="button" class="phase-abbrechen" data-phase="1" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="begriffe">✅ Begriffe</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="2" data-bezeichnung="2 · Fragen" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">2 · Fragen</button><button type="button" class="phase-abbrechen" data-phase="2" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="fragen">✅ Fragen</li><li class="aufgabe offen" data-ziel-tab="stand" data-ziel-feld="fragen">⬜ Einleitungen</li><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="interview_eroeffnung">✅ Eroeffnung</li><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="interview_abschluss">✅ Abschluss</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="3" data-bezeichnung="3 · Interviews" data-bereit="0" data-fehlt="Einleitungen" title="Zu dieser Phase wechseln">3 · Interviews</button><button type="button" class="phase-abbrechen" data-phase="3" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="chat">✅ Interviews</li><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Auswertungen</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="4" data-bezeichnung="4 · Setting, Figuren &amp; Geschichte" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">4 · Setting, Figuren &amp; Geschichte</button><button type="button" class="phase-abbrechen" data-phase="4" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="rahmen">✅ Setting</li><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Figuren</li><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="geschichte">✅ Geschichte</li><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Szenenfolge</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="5" data-bezeichnung="5 · Schaerfung" data-bereit="0" data-fehlt="Figuren" title="Zu dieser Phase wechseln">5 · Schaerfung</button><button type="button" class="phase-abbrechen" data-phase="5" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Zuordnungen</li></ul></li><li class="phase aktiv"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="6" data-bezeichnung="6 · Szenen als Geschichte" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">6 · Szenen als Geschichte</button><button type="button" class="phase-abbrechen" data-phase="6" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe laeuft" data-ziel-tab="textbuch">⏳ Szenentexte</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="7" data-bezeichnung="7 · Feinschliff" data-bereit="0" data-fehlt="Szenentexte" title="Zu dieser Phase wechseln">7 · Feinschliff</button><button type="button" class="phase-abbrechen" data-phase="7" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Stueckpruefung</li></ul></li></ol></details>
+<details class="roadmap" id="roadmap" data-aktive-phase="6"><summary><span class="roadmap-kopf">Phase 6/7 · Szenen als Geschichte — 0/1</span></summary><ol class="phasen"><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="1" data-bezeichnung="1 · Begriffe" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">1 · Begriffe</button><button type="button" class="phase-abbrechen" data-phase="1" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="begriffe">✅ Begriffe</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="2" data-bezeichnung="2 · Fragen" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">2 · Fragen</button><button type="button" class="phase-abbrechen" data-phase="2" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="fragen">✅ Fragen</li><li class="aufgabe offen" data-ziel-tab="stand" data-ziel-feld="fragen">⬜ Einleitungen</li><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="interview_eroeffnung">✅ Eroeffnung</li><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="interview_abschluss">✅ Abschluss</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="3" data-bezeichnung="3 · Interviews" data-bereit="0" data-fehlt="Einleitungen" title="Zu dieser Phase wechseln">3 · Interviews</button><button type="button" class="phase-abbrechen" data-phase="3" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="chat">✅ Interviews</li><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Auswertungen</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="4" data-bezeichnung="4 · Setting, Figuren &amp; Geschichte" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">4 · Setting, Figuren &amp; Geschichte</button><button type="button" class="phase-abbrechen" data-phase="4" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="rahmen">✅ Setting</li><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Figuren</li><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="geschichte">✅ Geschichte</li><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Szenenfolge</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="5" data-bezeichnung="5 · Schaerfung" data-bereit="0" data-fehlt="Figuren" title="Zu dieser Phase wechseln">5 · Schaerfung</button><button type="button" class="phase-abbrechen" data-phase="5" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Zuordnungen</li></ul></li><li class="phase aktiv"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="6" data-bezeichnung="6 · Szenen als Geschichte" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">6 · Szenen als Geschichte</button><button type="button" class="phase-abbrechen" data-phase="6" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe laeuft" data-ziel-tab="textbuch">⏳ Szenentexte</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="7" data-bezeichnung="7 · Feinschliff" data-bereit="0" data-fehlt="Szenentexte" title="Zu dieser Phase wechseln">7 · Feinschliff</button><button type="button" class="phase-abbrechen" data-phase="7" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Stueckpruefung</li></ul></li></ol></details>
 
 <nav class="tabs" role="tablist"><button type="button" role="tab" data-tab="chat" aria-selected="true">Chat</button><button type="button" role="tab" data-tab="stand" aria-selected="false">Arbeitsstand</button><button type="button" role="tab" data-tab="textbuch" aria-selected="false">Textbuch</button><button type="button" role="tab" data-tab="buehne" aria-selected="false" hidden>CoThinker</button></nav>
 <section class="panel panel-chat" id="tab-chat" role="tabpanel">
@@ -924,7 +933,7 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {
 </section>
 <section class="panel panel-stand" id="tab-stand" role="tabpanel" hidden>
 <h1>Test group</h1>
-<p class="probenansicht"><a href="/theatersoap/g/tok-werkbank/textbuch">📖 Probenansicht — das ganze Stück am Stück, zum Lesen und Ausdrucken</a></p><p><a href="tok-werkbank/chat">Chat mit dem Bot</a></p><div id="stand-inhalt">
+<p><a href="tok-werkbank/chat">Chat mit dem Bot</a></p><div id="stand-inhalt">
 <h2>Überblick</h2><section class="vorspann"><h3>Wo und wann</h3><p>A bus stop at night, two sisters wait for the last bus.</p><h3>4 Szenen</h3><ul><li>1. Last bus <span class="zeit">(chor)</span></li><li>2. One more night <span class="zeit">(lied)</span></li><li>3. Morning <span class="zeit">(monolog)</span></li><li>4. Dawn</li></ul><h3>Wer vorkommt</h3><ul><li><b>Nadia</b> — the older sister, restless</li><li><b>Tomas</b> — the younger brother, stubborn</li></ul></section>
 <h2>Was noch fehlt</h2><ul class="fehlstellen"><li>Szene 4 ist noch nicht erzaehlt.</li><li>Die Fragen sind noch nicht auf heikle Stellen geprueft.</li><li>Die Figurenliste ist noch nicht abgenommen.</li><li>Fuer Nadia ist noch kein Interview zugeordnet - aus welchem spricht sie?</li><li>Fuer Tomas ist noch kein Interview zugeordnet - aus welchem spricht sie?</li><li>Fuer Szene 2 fehlt noch: Ort, Was passiert.</li><li>Fuer Szene 3 fehlt noch: Ort, Was passiert.</li></ul>
 <h2>Arbeitsstand</h2><input type="hidden" id="nonce" value="nonce-werkbank"><span id="meldungen" hidden data-sicher="Wirklich entfernen?" data-speichert="speichert …" data-gespeichert="gespeichert" data-fehler="ging nicht"></span><dl><dt>Phase</dt><dd>6 · Szenen als Geschichte</dd><dt>Begriffe</dt><dd>belonging, family, noise, courage</dd><dt>Fragen</dt><dd><ul class="fragen"><li>1. Where do you feel at home?</li><li>2. Who do you argue with?</li><li>3. What gives you courage?</li></ul></dd><dt>Leitfaden</dt><dd><pre class="leitfaden">So fangt ihr an:
@@ -4921,7 +4930,7 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var TAKT_MOMENT = 560;
   var MOMENT = 'vorhang';
-  var TEXTE = {"rec_ruht": "Einmal tippen zum Starten.", "rec_startet": "Das Mikrofon wird freigegeben …", "rec_laeuft": "Aufnahme läuft.", "rec_laedt": "Die letzten Stücke gehen noch raus.", "rec_pausiert": "Pausiert – nichts wird aufgenommen.", "leitfaden": "Leitfaden", "akt_kopf": "Akt {nummer}/{gesamt}", "naechstes": "Als Nächstes: {was}", "naechste_phase": "Phase {bezeichnung}", "belohnung_akt": "Akt abgeschlossen.", "belohnung_akt_satz": "{akt} steht. Weiter.", "belohnung_aufnahme": "Interview ist drin.", "belohnung_aufnahme_satz": "Aufgenommen und auf dem Weg zur Auswertung."};
+  var TEXTE = {"rec_ruht": "Einmal tippen zum Starten.", "rec_startet": "Das Mikrofon wird freigegeben …", "rec_laeuft": "Aufnahme läuft.", "rec_laedt": "Die letzten Stücke gehen noch raus.", "rec_pausiert": "Pausiert – nichts wird aufgenommen.", "leitfaden": "Leitfaden", "naechstes": "Als Nächstes: {was}", "naechste_phase": "Phase {bezeichnung}", "belohnung_akt": "Akt abgeschlossen.", "belohnung_akt_satz": "{akt} steht. Weiter.", "belohnung_aufnahme": "Interview ist drin.", "belohnung_aufnahme_satz": "Aufgenommen und auf dem Weg zur Auswertung."};
   var el = function (id) { return document.getElementById(id); };
   // Die Bausteine kommen in den Aufgaben 5 bis 9. Ohne sie tut dieses
   // Skript nichts -- und genau das soll es dann auch tun.
@@ -4940,12 +4949,6 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
   (function fortschritt() {
     var erste = el('roadmap');
     if (!erste) { return; }
-    // Karte W tauscht die Aktfolge nach einem Phasenklick per outerHTML
-    // aus (/teil/roadmap) -- Akt-Marke und Lichter waren danach weg
-    // (Review an 834edbf, im Akte-Bild sichtbar). Deshalb: dekorieren,
-    // und jede neue #roadmap im selben Elternknoten erneut dekorieren.
-    // Der Vergleich in W laeuft gegen den Server-Text, nicht gegen das
-    // DOM -- das erneute Dekorieren loest also keinen Tausch aus.
     var eltern = erste.parentNode;
     var dekoriere = function () {
       var roadmap = el('roadmap');
@@ -4956,6 +4959,33 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
       new MutationObserver(dekoriere).observe(eltern, { childList: true });
     }
     dekoriere();
+
+    // Funktionsdeklaration, nicht ``var = function``: ``dekoriere()``
+    // direkt oben ruft ``schmuecke()`` SYNCHRON, bevor eine
+    // ``var``-Zuweisung weiter unten im selben Durchlauf ausgefuehrt
+    // waere -- eine Deklaration wird dagegen vollstaendig gehoben (wie
+    // ``schmuecke`` selbst), sonst wirft der erste Dekorationsdurchlauf
+    // "naechstesText is not a function" und "Next up" fehlt auf jeder
+    // frisch geladenen Seite, bis die Roadmap zum ersten Mal getauscht wird.
+    function naechstesText(roadmap) {
+      var aktiv = roadmap.querySelector('.phase.aktiv');
+      if (!aktiv) { return ''; }
+      var offen = aktiv.querySelector('.aufgabe:not(.erledigt)');
+      if (offen) {
+        return (offen.textContent || '').trim().replace(/^\S+\s+/, '');
+      }
+      var folgende = aktiv.nextElementSibling;
+      while (folgende && !folgende.classList.contains('phase')) {
+        folgende = folgende.nextElementSibling;
+      }
+      var name = function (phase) {
+        var k = phase.querySelector('.phase-knopf, .phase-name');
+        return k ? (k.dataset.bezeichnung || k.textContent || '').trim() : '';
+      };
+      var bez = folgende ? name(folgende) : '';
+      return bez ? (TEXTE.naechste_phase || '{bezeichnung}')
+        .replace('{bezeichnung}', bez) : '';
+    }
 
     function schmuecke(roadmap) {
     var summary = roadmap.querySelector('summary');
@@ -4981,68 +5011,23 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
     }
     summary.appendChild(balken);
 
-    // Die Akt-Beschriftung VOR den Text von Karte W, nicht statt ihm:
-    // dort steht "Phase 3 von 7 · Interviews — 1/3", und das ist die
-    // Wahrheit aus der Datenbank.
-    var aktiv = roadmap.querySelector('.phase.aktiv');
-    if (aktiv && TEXTE.akt_kopf) {
-      var marke = document.createElement('b');
-      marke.className = 'ux-akt';
-      marke.textContent = TEXTE.akt_kopf
-        .replace('{nummer}', (Array.prototype.indexOf.call(phasen, aktiv) + 1))
-        .replace('{gesamt}', phasen.length);
-      summary.insertBefore(marke, summary.firstChild);
-    }
-    }
-  })();
-
-  (function naechstes() {
-    var erste = el('roadmap');
-    if (!erste || !erste.parentNode || !TEXTE.naechstes) { return; }
-    var eltern = erste.parentNode;
-    var zeile = document.createElement('p');
-    zeile.id = 'ux-naechstes';
-    zeile.hidden = true;
-    eltern.insertBefore(zeile, erste.nextSibling);
-    var zuletzt = null;
-
-    var name = function (phase) {
-      var k = phase.querySelector('.phase-knopf, .phase-name');
-      return k ? (k.dataset.bezeichnung || k.textContent || '').trim() : '';
-    };
-    var was = function (roadmap) {
-      var aktiv = roadmap.querySelector('.phase.aktiv');
-      if (!aktiv) { return ''; }
-      var offen = aktiv.querySelector('.aufgabe:not(.erledigt)');
-      if (offen) {
-        return (offen.textContent || '').trim().replace(/^\S+\s+/, '');
-      }
-      var folgende = aktiv.nextElementSibling;
-      while (folgende && !folgende.classList.contains('phase')) {
-        folgende = folgende.nextElementSibling;
-      }
-      var bez = folgende ? name(folgende) : '';
-      return bez ? (TEXTE.naechste_phase || '{bezeichnung}')
-        .replace('{bezeichnung}', bez) : '';
-    };
-    var rechne = function () {
-      var roadmap = el('roadmap');
-      var sache = roadmap ? was(roadmap) : '';
-      if (sache === zuletzt) { return; }
-      zuletzt = sache;
-      while (zeile.firstChild) { zeile.removeChild(zeile.firstChild); }
+    if (TEXTE.naechstes) {
+      var sache = naechstesText(roadmap);
+      var zeile = document.createElement('p');
+      zeile.id = 'ux-naechstes';
       zeile.hidden = !sache;
-      if (!sache) { return; }
-      var teile = TEXTE.naechstes.split('{was}');
-      zeile.appendChild(document.createTextNode(teile[0] || ''));
-      var b = document.createElement('b');
-      b.textContent = sache;
-      zeile.appendChild(b);
-      zeile.appendChild(document.createTextNode(teile.slice(1).join('')));
-      zeile.title = zeile.textContent;
-    };
-    new MutationObserver(rechne).observe(eltern, { childList: true });
-    rechne();
+      if (sache) {
+        var teile = TEXTE.naechstes.split('{was}');
+        zeile.appendChild(document.createTextNode(teile[0] || ''));
+        var b = document.createElement('b');
+        b.textContent = sache;
+        zeile.appendChild(b);
+        zeile.appendChild(document.createTextNode(teile.slice(1).join('')));
+        zeile.title = zeile.textContent;
+      }
+      summary.appendChild(zeile);
+    }
+    }
   })();
 
   (function aufnahme() {

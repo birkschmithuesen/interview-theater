@@ -273,6 +273,18 @@ def befunde_text(befunde: list[Befund]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "--voll", action="store_true",
+        help=(
+            "danach zusaetzlich Schicht 2+3 versuchen (echte Dienste, "
+            "kostet Geld -- scripts.flow_audit_lauf --bericht)"
+        ),
+    )
+    args = ap.parse_args(argv)
+
     befunde = pruefe()
     print("# Flow-Audit -- Schicht 1 (statisch, Phase 1+2)\n")
     print("## Befunde\n")
@@ -280,7 +292,30 @@ def main(argv: list[str] | None = None) -> int:
     print("\n\n## Matrix\n")
     print(matrix_text())
     rot = [b for b in befunde if b.schwere in ("sackgasse", "toter_gespraechsweg")]
-    return 1 if rot else 0
+    ergebnis = 1 if rot else 0
+
+    if args.voll:
+        print("\n\n## Schicht 2+3 (echte Dienste, --voll)\n")
+        # Lazy-Import, absichtlich hier und nicht auf Modulebene: dieses
+        # Modul ist der kostenlose, sofortige Pfad (Schicht 1) und soll
+        # httpx/einen echten LLM-/Claude-Client nie importieren muessen, nur
+        # weil irgendwo im Prozess auch --voll existiert.
+        try:
+            import scripts.flow_audit_lauf as flow_audit_lauf
+
+            flow_audit_lauf.main(["--bericht"])
+        except Exception as fehler:  # noqa: BLE001 -- Schicht 1 bleibt gueltig, egal was hier scheitert
+            print(
+                "Konnte die vollstaendige, kostenpflichtige Schicht nicht "
+                f"ausfuehren: {fehler}. Fuehren Sie `python -m "
+                "scripts.flow_audit_lauf --bericht` selbst aus, sobald die "
+                "Betriebsumgebung (betrieb/*.env, Netzzugriff) bereitsteht.",
+            )
+
+    # Schicht 1 bleibt die Wahrheit fuer den Exit-Code: eine fehlende
+    # Betriebsumgebung soll einen sauberen Schicht-1-Durchlauf nicht in
+    # einen Fehlschlag verwandeln (Aufgabenbrief, Punkt 4).
+    return ergebnis
 
 
 if __name__ == "__main__":

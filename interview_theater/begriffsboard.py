@@ -10,8 +10,12 @@ seine Top 5 vor, und beim Speichern der Begriffe geht je Begriff die
 Boardzeile nach ``arbeitsstand.begriffe_detail``.
 
 **Validiert wird im Code, nicht im Prompt** (``validiere``): ein Begriff,
-der nicht im Transkript steht, fliegt raus; ein Zitat, das ``zitat.pruefe``
-nicht besteht, wird leer, die Begruendung bleibt.
+der nicht im Transkript steht oder nur ein Ansage-/Mikrofonwort ist
+(``ist_metabegriff``), fliegt raus; ein Zitat, das ``zitat.pruefe`` nicht
+besteht, wird leer. **Belegpflicht (Karte t_2b9d2cbe):** eine Begruendung
+bleibt nur, wenn ein geprueftes Zitat sie traegt, das mehr enthaelt als
+Begriff und Ansage (``traegt_beleg``), und wenn sie kein Fuellsatz ist
+("wird genannt/gesammelt", ``ist_fuellsatz``); sonst wird sie leer.
 
 **Der Boardlauf kennt kein ``tg``** (``starte``/``_lauf_einmal``): er kann
 strukturell keine Chatzeile schreiben (D5). Der einzige Chatweg dieses
@@ -177,6 +181,16 @@ def ist_metabegriff(begriff: str | None) -> bool:
             and all(w in _METAWOERTER or w in _STOPPWOERTER or w.isdigit() for w in woerter))
 
 
+def _belege(eintrag: dict, transkript: str) -> None:
+    """D1: eine Begruendung, die ein Fuellsatz ist oder kein tragendes Zitat
+    hat, wird leer. Leere Begruendung ist ein gueltiger Zustand --
+    ``detail_zeilen`` laesst solche Eintraege ohnehin weg. Der Eintrag
+    selbst bleibt."""
+    if eintrag["begruendung"] and (ist_fuellsatz(eintrag["begruendung"])
+                                   or not traegt_beleg(eintrag, transkript)):
+        eintrag["begruendung"] = ""
+
+
 def _ganzzahl(wert) -> int:
     try:
         return int(wert)
@@ -217,12 +231,15 @@ def validiere(roh, transkript: str) -> list[dict]:
         eintrag = _eintrag(zeile)
         if eintrag is None or not _steht_im_transkript(eintrag["begriff"], transkript):
             continue
+        if ist_metabegriff(eintrag["begriff"]):
+            continue
         k = schluessel(eintrag["begriff"])
         if k in gesehen:
             continue
         gesehen.add(k)
         if eintrag["zitat"] and not zitat.pruefe(eintrag["zitat"], transkript):
             eintrag["zitat"] = ""
+        _belege(eintrag, transkript)
         ergebnis.append(eintrag)
         if len(ergebnis) >= HOECHSTENS:
             break

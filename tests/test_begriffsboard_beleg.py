@@ -117,3 +117,72 @@ def test_metabegriff(begriff):
 ])
 def test_kein_metabegriff(begriff):
     assert not bb.ist_metabegriff(begriff)
+
+
+# -- Einhaengung in validiere (Aufgabe 5) -------------------------------------
+
+def _z(**kw):
+    basis = {"begriff": "Heimat", "nennungen": 2, "zustimmung": 1,
+             "begruendung": "The grandmother cooks there every Sunday.",
+             "zitat": "weil meine Oma jeden Sonntag für zwanzig Leute kocht",
+             "doppelbedeutung": "", "status": "kandidat"}
+    basis.update(kw)
+    return basis
+
+
+def _pruefe_begruendung_ohne_zitat_wird_leer():
+    ergebnis = bb.validiere([_z(zitat="")], TRANSKRIPT)
+    assert [e["begriff"] for e in ergebnis] == ["Heimat"]   # Eintrag bleibt
+    assert ergebnis[0]["begruendung"] == ""
+
+
+def test_begruendung_ohne_zitat_wird_leer():
+    _pruefe_begruendung_ohne_zitat_wird_leer()
+
+
+def test_mutant_ohne_belegpruefung_faellt_durch(monkeypatch):
+    """Wer ``_belege`` aus ``validiere`` nimmt, muss den Test oben rot machen."""
+    monkeypatch.setattr(bb, "_belege", lambda eintrag, transkript: None)
+    with pytest.raises(AssertionError):
+        _pruefe_begruendung_ohne_zitat_wird_leer()
+
+
+def test_belegte_begruendung_bleibt():
+    ergebnis = bb.validiere([_z()], TRANSKRIPT)
+    assert ergebnis[0]["begruendung"] == "The grandmother cooks there every Sunday."
+
+
+def test_ansage_als_zitat_leert_die_begruendung():
+    ergebnis = bb.validiere([_z(zitat="also der erste Gepäck ist Heimat")], TRANSKRIPT)
+    assert ergebnis[0]["zitat"] == "also der erste Gepäck ist Heimat"  # Zitat ist woertlich, bleibt
+    assert ergebnis[0]["begruendung"] == ""
+
+
+def test_fuellsatz_mit_gutem_zitat_wird_leer():
+    ergebnis = bb.validiere([_z(begruendung="Wird als Begriff gesammelt.")], TRANSKRIPT)
+    assert ergebnis[0]["begruendung"] == ""
+
+
+def test_leere_begruendung_ist_gueltig():
+    ergebnis = bb.validiere([_z(begruendung="", zitat="")], TRANSKRIPT)
+    assert ergebnis[0]["begruendung"] == "" and ergebnis[0]["begriff"] == "Heimat"
+
+
+def _pruefe_metabegriff_faellt_weg():
+    roh = [_z(), _z(begriff="Test"), _z(begriff="Gepäck"), _z(begriff="test eins zwei drei")]
+    assert [e["begriff"] for e in bb.validiere(roh, TRANSKRIPT)] == ["Heimat"]
+
+
+def test_metabegriff_faellt_weg():
+    _pruefe_metabegriff_faellt_weg()
+
+
+def test_mutant_ohne_metapruefung_faellt_durch(monkeypatch):
+    monkeypatch.setattr(bb, "ist_metabegriff", lambda begriff: False)
+    with pytest.raises(AssertionError):
+        _pruefe_metabegriff_faellt_weg()
+
+
+def test_detail_zeilen_lassen_geleerte_begruendung_weg():
+    board = bb.validiere([_z(begruendung="Wird als Begriff gesammelt.")], TRANSKRIPT)
+    assert bb.detail_zeilen(bb.detail_fuer(board, "Heimat")) == []

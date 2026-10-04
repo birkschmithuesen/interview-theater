@@ -191,6 +191,10 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
     # Review-Fix Aufgabe 6 (Karte U): Vorfall-Detail undo_fehlgeschlagen.
     ("knoepfe.wirkung", "nimm_erkenner_lauf_zurueck(lauf_id={}) h"):
         "Vorfall-Detail undo_fehlgeschlagen (repo.merke_vorfall)",
+    # Befund 1a, Padua Phase-2-Ende (04.10.2026): Vorfall-Detail
+    # redo_fehlgeschlagen, der Spiegel von undo_fehlgeschlagen.
+    ("knoepfe.wirkung", "stelle_erkenner_lauf_wieder_her(lauf_id="):
+        "Vorfall-Detail redo_fehlgeschlagen (repo.merke_vorfall)",
     # Review-Fix Aufgabe 7 (Karte U): Vorfall-Details undo_nicht_angelegt,
     # ueber ``erkenner._merke_undo_vorfall`` an repo.merke_vorfall.
     ("erkenner", "Schnappschuss vor dem Anwenden fehlgesch"):

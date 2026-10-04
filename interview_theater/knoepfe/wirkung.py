@@ -34,7 +34,7 @@ from interview_theater.knoepfe.texte import (
     ART_HILFE, ART_INTERVIEWS_FERTIG, ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT,
     ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
     ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
-    ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
+    ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_REDO, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
     ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_STELLE,
     ART_SCHAERFUNG_SZENE, ART_SCHLAG_VOR, ART_SPEICHERN, ART_STAND,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
@@ -51,7 +51,7 @@ from interview_theater.knoepfe.texte import (
 )
 from interview_theater.knoepfe.basis import (
     _daten, _entferne_tastatur, _id_aus_daten, _mit_leiste, _sende_knoepfe,
-    _speichere, _starte_auftrag, offene_art,
+    _speichere, _starte_auftrag, offene_art, redo_leiste,
 )
 from interview_theater.knoepfe.fragen import (
     _speichere_eroeffnung, entscheide, frage_waehlt_schaerfen,
@@ -1538,9 +1538,64 @@ def _wirkung_undo(conn, d: Druck) -> str:
         quelle="undo",
     )
     text = T._TEXT_UNDO_ERLEDIGT.format(zeilen=zeilen)
+    leiste = redo_leiste(conn, d.chat_id, lauf_id)
+    message_id = _sende_knoepfe(conn, d.tg, d.chat_id, text, leiste, system=True)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id
+    )
+    return T._ANTWORT_UNDO
+
+
+def _wirkung_redo(conn, d: Druck) -> str:
+    """Stellt einen zurueckgenommenen Erkennerlauf wieder her (Befund 1a,
+    Padua Phase-2-Ende 04.10.2026) -- der Spiegel von ``_wirkung_undo``,
+    gleiche drei Ausgaenge, gleicher lokaler Faenger (Praezedenz dort)."""
+    if not d.wert.strip().isdigit():
+        return T._TEXT_UNBEKANNT
+    lauf_id = int(d.wert.strip())
+    lauf = repo.hole_erkenner_lauf(conn, lauf_id)
+    if lauf is None or lauf["chat_id"] != d.chat_id:
+        return T._TEXT_UNBEKANNT
+
+    try:
+        stand = repo.stelle_erkenner_lauf_wieder_her(
+            conn, lauf_id, ruecknahme.verweise(),
+            ruecknahme.WEICH, ruecknahme.HART, ruecknahme.GELEERT,
+        )
+    except Exception:
+        log.exception(
+            "Wiederherstellung fehlgeschlagen, lauf_id=%s, chat_id=%s",
+            lauf_id, d.chat_id,
+        )
+        repo.merke_vorfall(
+            conn, d.chat_id, getattr(d.e, "bot_name", None),
+            "redo_fehlgeschlagen",
+            f"stelle_erkenner_lauf_wieder_her(lauf_id={lauf_id}) hat "
+            "eine Ausnahme geworfen -- die Transaktion ist intern "
+            "zurueckgerollt, wiederhergestellt wurde nichts.",
+        )
+        message_id = d.tg.sende(d.chat_id, T._TEXT_REDO_FEHLER, system=True)
+        repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, T._TEXT_REDO_FEHLER)
+        return T._TEXT_REDO_FEHLER
+    if stand == repo.ZURUECK_GEAENDERT:
+        message_id = d.tg.sende(d.chat_id, T._TEXT_REDO_GEAENDERT, system=True)
+        repo.merke_bot_zeile(
+            conn, d.chat_id, message_id, d.e, T._TEXT_REDO_GEAENDERT
+        )
+        return T._ANTWORT_REDO_GEAENDERT
+    if stand != repo.ZURUECK_OK:
+        return T._TEXT_SCHON_BENUTZT
+
+    zeilen = lauf["meldung"] or ""
+    repo.schreibe_journal(
+        conn, d.chat_id, "entschieden",
+        T._JOURNAL_REDO.format(zeilen=" / ".join(zeilen.splitlines())),
+        quelle="redo",
+    )
+    text = T._TEXT_REDO_ERLEDIGT.format(zeilen=zeilen)
     message_id = d.tg.sende(d.chat_id, text, system=True)
     repo.merke_bot_zeile(conn, d.chat_id, message_id, d.e, text)
-    return T._ANTWORT_UNDO
+    return T._ANTWORT_REDO
 
 
 #: Die Dispatch-Tabelle: art -> Handler. Sie ersetzt die frueheren
@@ -1646,6 +1701,7 @@ _WIRKUNGEN = {
     ART_SZENE_USA: _wirkung_szene_usa,
     ART_STT_SPRACHE: _wirkung_stt_sprache,
     ART_UNDO: _wirkung_undo,
+    ART_REDO: _wirkung_redo,
 }
 
 

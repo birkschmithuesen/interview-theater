@@ -3720,6 +3720,28 @@ def offene_knoepfe_der_nachricht(
 
 
 @_gesperrt
+def anzahl_knoepfe_der_nachricht(
+    conn: sqlite3.Connection, chat_id: int, message_id: int,
+) -> int:
+    """Wie viele Knopfzeilen -- gleich welchen Zustands, auch schon benutzte
+    -- je unter dieser Nachricht angelegt wurden.
+
+    Grundlage der Leisten-Kollisionsregel (Zusatzbefund, Padua Phase-2-Ende
+    04.10.2026): ``offene_knoepfe_der_nachricht`` allein kann eine echte
+    lone-Undo-Quittung (nie mehr als ein Knopf, ``sende_notiert_nur_undo``)
+    nicht von einer GRUNDLEISTE unterscheiden, die ``_nimm_alte_leiste_ab``
+    gerade erst auf ihren Undo-Knopf reduziert hat (Karte U) -- beide zeigen
+    in diesem Moment genau einen offenen Undo-Knopf. Nur die erste darf
+    kollabieren; die zweite ist die ausdrueckliche Zusage aus Karte U ("der
+    Undo-Knopf dieser Nachricht ... darf nicht verschwinden, nur weil eine
+    neue Leiste kommt") und muss ueberleben."""
+    return conn.execute(
+        "SELECT count(*) FROM knopf WHERE chat_id = ? AND message_id = ?",
+        (chat_id, message_id),
+    ).fetchone()[0]
+
+
+@_gesperrt
 def schnappschuss(
     conn: sqlite3.Connection, chat_id: int,
     plan: dict[str, tuple[tuple[str, ...], tuple[str, ...]]],

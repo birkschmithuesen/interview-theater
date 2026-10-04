@@ -324,7 +324,10 @@ def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
       (``knoepfe.biete_nach_teil``), der Text sagt das."""
     if repo.ist_interviewmodus_an(conn, chat_id):
         kopf_id = aufnahme.beende_interview(conn, chat_id)
-        knoepfe.biete_aufnahme(conn, tg, chat_id, T._TEXT_INTERVIEW_AUS)
+        knoepfe.biete_aufnahme(
+            conn, tg, chat_id, T._TEXT_INTERVIEW_AUS,
+            system=aufnahme.fliesstext_aktiv(conn, chat_id),
+        )
         if kopf_id is not None and klm is not None:
             aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
         return
@@ -371,7 +374,11 @@ def _befehl_fertig(conn, tg, klm, e, chat_id: int) -> None:
     ``klm`` (ein Aufrufer ohne Sprachmodell) bleibt das Interview auf
     'transkribiert' stehen und der Nachhol-Arbeiter verdichtet es."""
     kopf_id = aufnahme.beende_interview(conn, chat_id)
-    tg.sende(chat_id, T._TEXT_INTERVIEW_AUS)
+    if aufnahme.fliesstext_aktiv(conn, chat_id):
+        # Karte t_ea994c7f: im Padua-Web eine Systemzeile, keine Sprechblase.
+        tg.sende(chat_id, T._TEXT_INTERVIEW_AUS, system=True)
+    else:
+        tg.sende(chat_id, T._TEXT_INTERVIEW_AUS)
     if kopf_id is not None and klm is not None:
         aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
 

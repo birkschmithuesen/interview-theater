@@ -1012,3 +1012,17 @@ def ueberarbeitung_aktiv(profil: Profil | None = None) -> bool:
     wie vorher."""
     profil = profil or aktiv()
     return bool(profil.wert("ueberarbeitung.aktiv", False))
+
+
+def interview_fliesstext(profil: Profil | None = None) -> bool:
+    """Ein Interview = EINE Transkriptblase im Web-Chat (Padua, 04.10.2026,
+    Karte t_ea994c7f): jeder fertige Teil schreibt dieselbe Blase als
+    Fliesstext weiter, statt eine eigene "Interview N, Teil K:"-Nachricht
+    zu schicken; dazu gehen "Aufnahme beendet.", die Abschlusszeile und
+    "war sehr kurz" als Systemzeilen raus.
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben bitgleich.
+    Gilt nur fuer Web-Gruppen (``aufnahme.fliesstext_aktiv``): Telegram
+    behaelt auch mit dem Schalter das Echo je Teil samt Leiste."""
+    profil = profil or aktiv()
+    return bool(profil.wert("interview.fliesstext", False))

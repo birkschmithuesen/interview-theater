@@ -1012,6 +1012,9 @@ _CHAT_A = """
 /* Kursiv traegt "Sprachnachricht"; leise Schrift auf der Gruppenblase
    (--signal-tief) kam nur auf 4.1:1 (Rundgang, Review an 834edbf). */
 .blase.sprache { color: var(--text); font-style: italic; }
+/* Karte t_ea994c7f: die Transkriptblase eines Interviews -- Bot-Blase
+   (--grund-2), Text in --text: das Paar text/grund-2 steht in KONTRAST. */
+.blase.transkript { color: var(--text); font-style: italic; }
 .blase q { display: block; margin: .5rem 0; padding-left: .7rem;
            border-left: 2px solid var(--warn); color: var(--warn);
            font-family: var(--schrift-skript); font-style: italic;
@@ -1114,6 +1117,9 @@ _CHAT_B = """
 /* Kursiv traegt "Sprachnachricht"; leise Schrift auf der Gruppenblase
    (--signal-tief) kam nur auf 4.1:1 (Rundgang, Review an 834edbf). */
 .blase.sprache { color: var(--text); font-style: italic; }
+/* Karte t_ea994c7f: die Transkriptblase eines Interviews -- Bot-Blase
+   (--grund-2), Text in --text: das Paar text/grund-2 steht in KONTRAST. */
+.blase.transkript { color: var(--text); font-style: italic; }
 .blase q { display: block; margin: .55rem 0; padding-left: .7rem;
            border-left: 3px solid var(--signal); color: var(--signal);
            font-family: var(--schrift-skript); font-style: italic;

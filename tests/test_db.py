@@ -612,6 +612,42 @@ def test_migration_ist_ein_no_op_wenn_alle_spalten_schon_da_sind(conn):
     assert "interviewmodus_seit" in spalten
 
 
+def test_echo_message_id_spalte_existiert_frisch_und_wird_nachgeruestet(tmp_path):
+    """Karte t_ea994c7f: die web_post-id der EINEN Transkriptblase steht am
+    Interview-Kopf -- additiv, ueber die generische Migration."""
+    frisch = db.verbinde(str(tmp_path / "frisch.db"))
+    db.initialisiere(frisch)
+    assert "echo_message_id" in [r[1] for r in frisch.execute("PRAGMA table_info(aufnahme)")]
+
+    alt = db.verbinde(str(tmp_path / "alt.db"))
+    alt.executescript(_ALTE_AUFNAHME_UND_WEB_POST)
+    alt.execute(
+        "INSERT INTO aufnahme (chat_id, message_id, klasse, quelle, status, empfangen_am) "
+        "VALUES (1, 10, 'lang', 'sprache', 'laeuft', '2026-10-04T10:00:00+00:00')"
+    )
+    alt.commit()
+    assert "echo_message_id" not in [r[1] for r in alt.execute("PRAGMA table_info(aufnahme)")]
+
+    db.initialisiere(alt)
+
+    assert "echo_message_id" in [r[1] for r in alt.execute("PRAGMA table_info(aufnahme)")]
+    zeile = alt.execute("SELECT * FROM aufnahme WHERE chat_id = 1").fetchone()
+    assert zeile["klasse"] == "lang", "Migration darf keine Daten verlieren"
+    assert zeile["echo_message_id"] is None
+
+
+def test_echo_message_id_lesen_und_setzen(tmp_path):
+    c = db.verbinde(str(tmp_path / "t.db"))
+    db.initialisiere(c)
+    repo.sichere_gruppe(c, 1, "gruppe1", "Testgruppe")
+    kopf = repo.lege_interview_an(c, 1)
+
+    assert repo.echo_message_id(c, kopf) is None
+    repo.setze_echo_message_id(c, kopf, 4711)
+    assert repo.echo_message_id(c, kopf) == 4711
+    assert repo.echo_message_id(c, 99999) is None
+
+
 def test_loeschen_raeumt_die_gruppe(conn):
     conn.execute("INSERT INTO gruppe (chat_id, bot_name) VALUES (42, 'g1')")
     conn.execute("INSERT INTO nachricht (chat_id, message_id, typ, gesendet_am) "

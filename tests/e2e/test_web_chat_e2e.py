@@ -1263,3 +1263,19 @@ def test_chat_mit_schraegstrich_ist_404(server, token):
 def test_segmentlaenge_kommt_beim_browser_an(seite):
     assert seite.locator("#fuss").get_attribute("data-segment-ms") == str(SEGMENT_MS)
     assert json.loads(seite.evaluate("JSON.stringify(!!navigator.mediaDevices)"))
+
+
+def test_transkriptblase_ist_kursiv_und_waechst_ohne_neuladen(seite):
+    """Karte t_ea994c7f: die EINE Transkriptblase kommt als
+    ``blase bot transkript`` an, ist kursiv und tauscht ihren Text per Poll."""
+    conn = db.verbinde(DB_PFAD)
+    try:
+        kanal = web_kanal.WebKanal(conn, CHAT, AUDIO, schritt_s=0.01)
+        mid = kanal.sende(CHAT, "🎙 Interview 1\n\nIch kam im Winter an.", transkript=True)
+        blase = seite.locator(f'.blase[data-id="{mid}"]')
+        expect(blase).to_have_class(re.compile(r"\bblase bot transkript\b"))
+        assert blase.evaluate("b => getComputedStyle(b).fontStyle") == "italic"
+        kanal.aendere_text(CHAT, mid, "🎙 Interview 1\n\nIch kam im Winter an.\n\nDer Bahnhof war leer.")
+    finally:
+        conn.close()
+    expect(seite.locator(f'.blase[data-id="{mid}"]')).to_contain_text("Der Bahnhof war leer.")

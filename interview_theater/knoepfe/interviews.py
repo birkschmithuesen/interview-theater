@@ -48,9 +48,14 @@ def biete_stt_sprache(conn, tg, chat_id: int) -> bool:
     return True
 
 
-def biete_aufnahme(conn, tg, chat_id: int, text: str, knopf: bool = True) -> int:
+def biete_aufnahme(conn, tg, chat_id: int, text: str, knopf: bool = True,
+                   system: bool = False) -> int:
     """Haengt den Aufnahme-Umschalter unter ``text``; liefert die
     ``message_id`` der Angebotsnachricht.
+
+    ``system=True`` (Karte t_ea994c7f, nur mit ``aufnahme.fliesstext_aktiv``):
+    "Aufnahme beendet." geht als Systemzeile raus, der Umschalter haengt
+    unveraendert darunter.
 
     Die message_id wird zurueckgegeben, weil der Erkenner-Pfad
     (``erkenner._melde_interviewmodus``) seine Bestaetigung wie jede andere
@@ -72,11 +77,11 @@ def biete_aufnahme(conn, tg, chat_id: int, text: str, knopf: bool = True) -> int
     (``biete_nach_teil``), also dann, wenn es ueberhaupt etwas zu beenden
     gibt."""
     if not knopf:
-        return tg.sende(chat_id, text)
+        return tg.sende(chat_id, text, system=True) if system else tg.sende(chat_id, text)
     laeuft = repo.ist_interviewmodus_an(conn, chat_id)
     beschriftung = T._TEXT_AUFNAHME_BEENDEN if laeuft else T._TEXT_AUFNAHME_STARTEN
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)
-    return _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))])
+    return _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))], system=system)
 
 
 def biete_nach_teil(conn, tg, chat_id: int, text: str) -> int:
@@ -270,7 +275,8 @@ def _interviewknoepfe(conn, chat_id: int, kopf_id: int) -> list[tuple[str, str]]
     ]
 
 
-def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) -> int:
+def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None,
+                        system: bool = False) -> int:
     """Die Knopfleiste nach einem beendeten Interview (05.09.2026, Birk:
     "ersetze am besten alle slash befehl vorschlaege mit knoepfen. und gib
     auch immer sinnvolle alternativvorschlaege").
@@ -312,7 +318,11 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
     unabhaengig vom Kanal abgeraeumt (Review-Fix: eine fruehere Fassung liess
     ihn mit einem fruehen ``return`` auf dem Web-Kanal stehen, und das
     proaktive "Weiter zu Phase N?" waere dort nach dem ersten Angebot nie
-    wieder gekommen)."""
+    wieder gekommen).
+
+    ``system=True`` (Karte t_ea994c7f, nur mit ``aufnahme.fliesstext_aktiv``):
+    die Zeile geht als Systemzeile raus, die Leiste haengt unveraendert
+    darunter."""
     from interview_theater import aufnahme as aufnahme_modul  # lokal: Oberflaeche darf Fachlogik lesen
 
     ist_web = aufnahme_modul.ist_web_gruppe(conn, chat_id)
@@ -374,12 +384,13 @@ def biete_nach_aufnahme(conn, tg, chat_id: int, text: str, kopf_id: int | None) 
             return _sende_knoepfe(
                 conn, tg, chat_id, text,
                 [(T._TEXT_INTERVIEWS_FERTIG_KNOPF, _daten(knopf_id))],
+                system=system,
             )
-        return _sende_knoepfe(conn, tg, chat_id, text, [])
+        return _sende_knoepfe(conn, tg, chat_id, text, [], system=system)
     phasenknopf = _phasenknopf(conn, chat_id)
     if phasenknopf is not None:
         knoepfe.append(phasenknopf)
-    return _sende_knoepfe(conn, tg, chat_id, text, knoepfe)
+    return _sende_knoepfe(conn, tg, chat_id, text, knoepfe, system=system)
 
 
 def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:

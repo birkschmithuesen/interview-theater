@@ -639,6 +639,25 @@ def teil_nummer(conn: sqlite3.Connection, teil_id: int) -> int:
 
 
 @_gesperrt
+def echo_message_id(conn: sqlite3.Connection, kopf_id: int) -> int | None:
+    """Die web_post-id der Transkriptblase eines Interviews (Karte
+    t_ea994c7f), oder None -- noch keine Blase oder kein solcher Kopf."""
+    zeile = conn.execute(
+        "SELECT echo_message_id FROM aufnahme WHERE id = ?", (kopf_id,)
+    ).fetchone()
+    return None if zeile is None else zeile["echo_message_id"]
+
+
+@_gesperrt
+def setze_echo_message_id(conn: sqlite3.Connection, kopf_id: int, message_id: int) -> None:
+    """Merkt die Transkriptblase am Interview-Kopf (``aufnahme._sende_transkript_blase``)."""
+    conn.execute(
+        "UPDATE aufnahme SET echo_message_id = ? WHERE id = ?", (message_id, kopf_id)
+    )
+    conn.commit()
+
+
+@_gesperrt
 def hat_offene_teile(conn: sqlite3.Connection, aufnahme_id: int) -> bool:
     """True, solange ein Teil dieses Interviews noch in Arbeit ist (weder
     'fertig' noch 'fehlgeschlagen'). Solange das gilt, wird nicht verdichtet
@@ -4373,6 +4392,14 @@ WEB_TYP_DATEI = "datei"
 #: bei ``typ='text'``, nur ``web_post.typ`` bekommt den neuen Wert -- das
 #: Gespraechsmodell sieht also exakt denselben Text wie vorher.
 WEB_TYP_SYSTEM = "system"
+
+#: Die EINE Transkriptblase eines Interviews (Padua, 04.10.2026, Karte
+#: t_ea994c7f, ``[interview] fliesstext``): waechst mit jedem Teil ueber
+#: ``aendere_web_text``. Die Chatansicht setzt sie kursiv
+#: (``web_chat.py``, ``klasseVon``). Wie ``WEB_TYP_SYSTEM`` nur eine
+#: Anzeige-Unterscheidung -- die Mitschrift in ``nachricht`` traegt
+#: ``typ='transkript'`` (versteckt) wie jedes Teil-Echo.
+WEB_TYP_TRANSKRIPT = "transkript"
 
 #: Ab hier liegen die synthetischen chat_ids der Web-Gruppen. Positiv und weit
 #: oberhalb aller Telegram-Bereiche (Gruppen sind dort negativ, Nutzer-ids

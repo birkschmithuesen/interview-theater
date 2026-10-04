@@ -2808,6 +2808,32 @@ Minuten nur bei `kanal != 'web'` ein. Im Browser ist eine PTT-Nachricht
 ausdrücklich „an den Bot", und Segmente gehen erst raus, wenn der Poll den
 Modus meldet. Telegram bitgleich (Test).
 
+**Ein Interview ist im Web EINE Blase** (04.10.2026, Karte t_ea994c7f,
+nur mit `[interview] fliesstext = true` — gesetzt allein in
+`workshop/padua-2026/profil.toml`, Zugriff `workshop.interview_fliesstext()`).
+Statt „Interview N, Teil K:" je Sprachnachricht schreibt jeder fertige Teil
+dieselbe Blase weiter: `aufnahme._sende_transkript_blase` baut den Text
+bei **jedem** Teil neu aus `repo.hole_teile` (Kopfzeile `🎙 Interview N`,
+dann alle Teile mit Transkript, je durch eine Leerzeile), legt die Blase
+beim ersten Teil mit `tg.sende(..., transkript=True)` an
+(`web_post.typ = 'transkript'`, kursiv in der Chatansicht) und merkt ihre
+id am Kopf (`aufnahme.echo_message_id`, ueberlebt einen Neustart); danach
+nur noch `tg.aendere_text`. Eine Sperre je Kopf
+(`aufnahme._blasen_sperre`) verhindert zwei Blasen, wenn zwei Teile im Pool
+gleichzeitig fertig werden. In `nachricht` steht die Blase einmal, beim
+Anlegen — spaetere Aenderungen ziehen dort nichts nach (die Wahrheit ist
+`aufnahme.transkript`). Mit demselben Schalter gehen „Aufnahme beendet.",
+die Abschlusszeile und „… war sehr kurz …" als Systemzeilen raus
+(`system=True` an `knoepfe.biete_aufnahme`/`biete_nach_aufnahme`).
+**Telegram bleibt beim Echo je Teil samt Leiste, auch mit Schalter**
+(`aufnahme.fliesstext_aktiv` = Schalter **und** `ist_web_gruppe`). Nicht
+gebaut: einen Teil loeschen und die Blase neu aufbauen (es gibt keinen
+Loeschweg; der Neuaufbau aus `hole_teile` machte ihn spaeter einfach),
+Telegram-Folgeblasen ueber 4096 Zeichen, eine „…"-Zeile waehrend der
+Transkription. Unabhaengig vom Schalter laeuft die Abschlusszeile im Web
+seither ueber die Sprachschicht (`_TEXT_GESPEICHERT_WEB` & Co.) — Padua
+liest sie englisch, Deutsch ist zeichengleich.
+
 **Der Offset hängt am `bot_name`, nicht am Kanal** (Abschlussreview I2). Ein
 Bot, der vorher Telegram fuhr, bringt eine getUpdates-Position um 10^8 mit
 und hörte im Web nie etwas. `scripts/web_gruppe.py` setzt den Offset deshalb

@@ -5,29 +5,32 @@
 Kanban: Plan-Karte t_5e484a08, Ausführung auf Karte t_cb2c4678, Branch `wt/t_cb2c4678`, **in diesem Worktree**
 (`/mnt/HC_Volume_106183673/projekte/interview-theater/.worktrees/t_cb2c4678`). Ziel ist `main` über eine spätere [Merge]-Karte.
 
-**Zwei Teile, eine Ausführung in Reihenfolge 0 → 12.** Teil 1 (Aufgaben 0–7): Live-Ranking und Schärfungs-Historie. Teil 2 (Aufgaben 8–12, Birks Nachtrag vom 04.10.2026 14:50, eigener Abschnitt weiter unten): Pause-Knopf des Mithörens weg, Endstand = Zwischenstand. Die Abschluss-Suite und der Bericht stehen für beide Teile in Aufgabe 12. **Für Teil 2 ist D4 bei den Fixtures ausdrücklich aufgehoben** (siehe dort).
+**Zwei Teile, eine Ausführung in Reihenfolge 0 → 11.** Teil 1 (Aufgaben 0–7): Live-Ranking und Schärfungs-Historie. Teil 2 (Aufgaben 8–11, Birks Nachtrag vom 04.10.2026 14:50, eigener Abschnitt weiter unten): Pause-Knopf des Mithörens weg, Endstand = Zwischenstand. Die Abschluss-Suite und der Bericht stehen für beide Teile in Aufgabe 11.
+
+**Revision 04.10.2026 (Birk, `main` 4fe89de): Dortmund ist eingefroren.** AGENTS.md auf `main`, Abschnitt „🔴 Dortmund eingefroren seit 04.10.2026 — Abnahme nur noch an Padua": „Dortmund byte-gleich/bitgleich" und `pruefe_profil dortmund-2026` sind **keine** Abnahmekriterien mehr. Abgenommen wird: Suite grün mit `-m "not dortmund"`, `pruefe_profil padua-2026` grün, Prompt-Snapshot nur für Padua. Ein Test, der **nur** wegen Dortmund-Verhalten rot wird, bekommt `@pytest.mark.dortmund` (registriert in `pyproject.toml`) statt angepasst zu werden; Dortmund-/Vorgabe-Fixtures (`tests/fixtures/*dortmund*`, `*vorgabe*`) werden **nicht** mehr neu erzeugt; neue Funktionen nur für Padua, **keine neuen Profilschalter**, bestehende bleiben, Dortmund-Code und -Daten werden nicht gelöscht. Die frühere Entscheidung D4 (Dortmund byte-gleich, gegatetes Skript per MutationObserver, Fixture-Neuerzeugung in Teil 2) ist damit **gestrichen**.
 
 **Goal:** Der CoThinker-Tab der Phase 1 (Begriffsboard, nur Padua, Profilschalter `diskussion.aktiv`) sortiert seine Begriffe live um, ohne dass die Liste springt; schärft das Modell einen Begriff („Roboter" → „KI-Roboter"), zeigt dieselbe Zeile den alten Wortlaut durchgestrichen neben dem neuen, während die Begründung die Entwicklung weiter in Prosa erzählt.
 
-**Architecture:** Hybrid (Architekt D1): das Modell liefert je Eintrag ein neues Pflichtfeld `vorheriger_begriff`, der **Code** prüft es gegen das bisherige Board (`begriffsboard.validiere(roh, transkript, bisher)`) und führt daraus die Kette `vorgaenger` (älteste zuerst), die nie im Schema steht. `web._begriffsboard_html` zeigt die Kette als `<del>` und trägt `data-vorgaenger`; ein **eigenes**, nur mit `workshop.diskussion_aktiv()` ausgeliefertes Skript (`web_vereint._BEGRIFFSBOARD_JS`) hängt sich per `MutationObserver` an den unveränderten Panel-Tausch von `ladeBuehne()` und spielt FLIP, samt Erhalt der aufgeklappten „Warum"-Zeilen. Dortmund sieht kein Byte davon.
+**Architecture:** Hybrid (Architekt D1): das Modell liefert je Eintrag ein neues Pflichtfeld `vorheriger_begriff`, der **Code** prüft es gegen das bisherige Board (`begriffsboard.validiere(roh, transkript, bisher)`) und führt daraus die Kette `vorgaenger` (älteste zuerst), die nie im Schema steht. `web._begriffsboard_html` zeigt die Kette als `<del>` und trägt `data-vorgaenger`. Das Live-Ranking sitzt **direkt in `ladeBuehne()`** (`_VEREINT_JS`): unmittelbar vor `panel.innerHTML = neu` werden Lagen und `<details>`-Zustand gemerkt, unmittelbar danach wird FLIP gespielt; das ruhende CSS steht im regulären CoThinker-CSS (`web_gestalt.css_buehne()`). Kein neuer Schalter — das Board rendert ohnehin nur unter `diskussion.aktiv`, und ohne `ol.begriffsboard` im Panel tun die neuen Funktionen nichts.
 
 **Tech Stack:** Python 3.11, Standardbibliothek, SQLite, pytest, Node (nur für die extrahierten JS-Helfer), Playwright (nur `tests/e2e`, eigenes venv).
 
 ## Global Constraints
 
-Bindende Entscheidungen (Architekt, Abschnitt D der Karte) — **nicht neu verhandeln**:
+Bindende Entscheidungen (Architekt, Abschnitt D der Karte, mit der Revision vom 04.10.2026) — **nicht neu verhandeln**:
 
 - **D1 Datenquelle hybrid.** Neues Pflicht-String-Feld `vorheriger_begriff` im Schema (`""`, wenn keins). Gehalten wird ein Link **nur**, wenn `schluessel(link)` der Schlüssel eines Eintrags in `bisher` ist **und** dieser Schlüssel im neuen Board nicht mehr als eigene Zeile steht **und** er sich vom eigenen Schlüssel des Eintrags unterscheidet. Sonst gilt er als `""`. **Keine** Levenshtein-/Teilstring-Heuristik im Code (Begründung unten). Historie = `vorgaenger: list[str]`, älteste zuerst, **nur vom Code** geführt: ein geprüfter Link ergibt `bisher_eintrag.vorgaenger + [bisher_eintrag.begriff]`; ein Eintrag mit gleichem Schlüssel erbt `vorgaenger` des bisherigen. `lies`/`_eintrag` lesen `vorgaenger` defensiv (fehlt/kaputt → keine Kette). `vorgaenger` steht **nicht** im Schema. Prompt DE + EN: Feldbeschreibung `vorheriger_begriff` und der Satz, dass ein Begriff aus `vorgaenger` nicht wieder als eigene Zeile kommt, obwohl er im (wachsenden) Transkript stehen bleibt; der Board-JSON im Nutzertext trägt `vorgaenger`. **Keine** anderen Verbraucher ändern sich (`detail_fuer`, `detail_zeilen`, `sende_vorschlag`, `arbeitsstand.begriffe_detail`).
 - **D2 Darstellung** in `web._begriffsboard_html`: je `<li>` mit Kette `<span class="begriff">NEU</span>` gefolgt von den Vorgängern durchgestrichen, der jüngste direkt neben dem neuen Begriff (`<span class="vorgaenger"><del>KI-Roboter</del> <del>Roboter</del></span>`); Pfeil als CSS, kein `style=`, alles `html.escape`; `data-vorgaenger="<jüngster Vorgänger>"` am `<li>`. `web_daten.begriffsboard` reicht `vorgaenger` durch und lässt `zitat` weiter weg.
-- **D3 Live-Ranking:** klassisches FLIP in reinem JS, ohne Bibliothek. Zuordnung alt↔neu über `data-begriff`, ersatzweise `data-vorgaenger`; Neue blenden ein, Entfernte verschwinden. `prefers-reduced-motion: reduce` → keine Bewegung. Auf-/Zu-Zustand jedes `<details>` übersteht den Panel-Tausch (gleiche Zuordnung). Transform nur über `el.style.*` (CSSOM, CSP). Reine Helfer node-getestet wie `tests/test_buehne_nav_js.py`.
-- **D4 Dortmund byte-gleich OHNE Fixture-Neuerzeugung:** `tests/test_web_vereint_bitgleich.py` grün gegen die **unveränderte** `tests/fixtures/web_vereint_dortmund_vorher.html`. Neues JS und CSS nur hinter `workshop.diskussion_aktiv()` (Muster `css_stepper()`), **keine** Änderung an `_VEREINT_JS` oder `web._CSS_BUEHNE`. Eine Aufgabe, die die Dortmund-Fixture neu erzeugt, ist ein Planfehler.
-- **D5** Phase-4-CoThinker (Bühnenkarten, Nicht-Board-Zweig von `_buehne_html`) bleibt unberührt.
-- Karten-Leitplanken: `tests/test_profil_bitgleich.py` grün; bestehende `tests/test_begriffsboard_*.py` grün, besonders `test_html_ist_funktional_mit_data_attributen` und `test_roadmap_traegt_das_board_merkmal_nur_mit_profil`; **kein Zitat im CoThinker** — `vorgaenger` trägt nur Begriffswortlaut, nie einen Transkriptausschnitt (AGENTS.md „Drei Grenzen"); Suite (ohne e2e) Pflicht, Baseline- **und** Schlusszahlen im Abschlussbericht.
-- AGENTS.md-Zusagen: SQL nur in `repo.py`/`db.py` (hier kommt keins dazu); Prompts nur Negativbeispiele; kein `style="…"`, kein `on…=` im ausgelieferten HTML; `@keyframes`/`@media` nur in `web_gestalt.css_rahmen()` (deshalb steht die Bewegung im JS, nicht im CSS).
-- Code-Bezeichner deutsch wie im Repo, Kommentare in ae/oe/ue wie im umgebenden Code. Nur erfundenes Material in Tests und Screenshots. Nie `.env`/`betrieb/` lesen.
-- Branch `wt/t_cb2c4678`, **kein Merge nach main, kein Push** (ein Push auf origin/main ist ≤ 5 min später LIVE). Nie den Haupt-Arbeitsbaum anfassen und **nie** dessen uncommittete Änderungen von Hand herüberkopieren. Ein Commit je Aufgabe, nur die genannten Dateien `git add`-en (nie `git add -A`; `.suite.log`, `.cc-*`, `.superpowers-*` bleiben ungetrackt). Commit-Nachrichten enden mit
+- **D3 Live-Ranking:** klassisches FLIP in reinem JS, ohne Bibliothek, **in `ladeBuehne()`**. Zuordnung alt↔neu über `data-begriff`, ersatzweise `data-vorgaenger`; Neue blenden ein, Entfernte verschwinden. `prefers-reduced-motion: reduce` → keine Bewegung. Auf-/Zu-Zustand jedes `<details>` übersteht den Panel-Tausch (gleiche Zuordnung). Transform nur über `el.style.*` (CSSOM, CSP). Reine Helfer node-getestet wie `tests/test_buehne_nav_js.py`.
+- **~~D4~~ gestrichen (Revision).** Statt Byte-Gleichheit gilt AGENTS.md „Dortmund eingefroren": wird ein `*bitgleich*`-Test **nur** wegen einer Dortmund-/Vorgabe-Fixture rot, bekommt er `@pytest.mark.dortmund` (Vorgehen in Aufgabe 5 und 9), **keine** Fixture wird neu erzeugt, kein neuer Schalter, kein Gating-Test.
+- **D5** Phase-4-CoThinker (Bühnenkarten, Nicht-Board-Zweig von `_buehne_html`) bleibt im Verhalten unberührt: `bbMerke` liefert ohne `ol.begriffsboard` `null`, `bbSpiele(panel, null)` tut nichts.
+- Karten-Leitplanken: bestehende `tests/test_begriffsboard_*.py` grün, besonders `test_html_ist_funktional_mit_data_attributen` und `test_roadmap_traegt_das_board_merkmal_nur_mit_profil`; **kein Zitat im CoThinker** — `vorgaenger` trägt nur Begriffswortlaut, nie einen Transkriptausschnitt (AGENTS.md „Drei Grenzen"); Suite (ohne e2e, `-m "not dortmund"`) Pflicht, Baseline- **und** Schlusszahlen im Abschlussbericht; `pruefe_profil padua-2026` grün.
+- AGENTS.md-Zusagen: SQL nur in `repo.py`/`db.py` (hier kommt keins dazu); Prompts nur Negativbeispiele; kein `style="…"`, kein `on…=` im ausgelieferten HTML; `@keyframes`/`@media` nur in `web_gestalt.css_rahmen()` — `css_buehne()` wird von `web_vereint.seite` durch `scope_css` geschickt, also steht dort **kein** `@media`/`@keyframes`/`transition`; die Bewegung setzt das JS per CSSOM.
+- Code-Bezeichner deutsch wie im Repo, Kommentare in ae/oe/ue wie im umgebenden Code. Nur erfundenes Material in Tests und Screenshots. Nie `.env`/`betrieb/` lesen. Dortmund-Code und -Fixtures nicht löschen, nicht neu erzeugen.
+- Branch `wt/t_cb2c4678`, **kein Merge nach main, kein Push** (ein Push auf origin/main ist ≤ 5 min später LIVE). Nie den Haupt-Arbeitsbaum anfassen und **nie** dessen uncommittete Änderungen von Hand herüberkopieren. Ein Commit je Aufgabe, nur die genannten Dateien `git add`-en (nie `git add -A`; `.suite.log`, `.suite-baseline.log`, `.cc-*`, `.superpowers-*` bleiben ungetrackt). Commit-Nachrichten enden mit
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Testbefehle immer abwarten. Einzige Ausnahme sind die beiden Suite-Läufe (Aufgaben 1 und 12): im Hintergrund in `.suite.log`, **abwarten bis zum Ende, nicht abbrechen**.
+- Testbefehle immer abwarten. Einzige Ausnahme sind die beiden Suite-Läufe (Aufgaben 1 und 11): im Hintergrund in `.suite.log`, **abwarten bis zum Ende, nicht abbrechen**. Der Suite-Befehl lautet **immer**:
+  `$PY -m pytest -q -p no:cacheprovider --ignore=tests/e2e -m "not dortmund" > .suite.log 2>&1; echo EXIT $?`
 - Kein bezahlter Modelllauf (Korpus, Simulation, `pruefe_prompts`) — Geld entscheidet Birk; der Prompt-Zusatz bleibt „ungemessen" (AGENTS.md, Aufgabe 7).
 
 **Abkürzungen in diesem Plan:**
@@ -44,16 +47,17 @@ E2E=/mnt/HC_Volume_106183673/venvs/it-webtest/bin/python   # Playwright-venv (te
 Keine Entscheidung wird ersetzt; drei Präzisierungen und eine unvermeidliche Testanpassung, je mit Fundstelle:
 
 1. **`vorheriger_begriff` wird nicht gespeichert.** D1 sagt „otherwise it is set to `""`" — das Feld wird in `validiere` gelesen und verbraucht; sein geprüfter Wert lebt als **letztes Element von `vorgaenger`** weiter (genau der Wert, den die Darstellung braucht). Beleg: `tests/test_begriffsboard.py:100-104` (`test_fehlende_felder_werden_aufgefuellt`) und `:136-143` (`test_lies_ist_defensiv`) vergleichen die Eintragsform **wortgleich** mit sieben Schlüsseln; ein gespeichertes `vorheriger_begriff` (und ein immer vorhandenes `vorgaenger: []`) bräche beide. Getestet wird die Prüfung deshalb über das beobachtbare Ergebnis (`vorgaenger` ja/nein).
-2. **`vorgaenger` steht nur am Eintrag, wenn die Kette nicht leer ist** (dünn statt `[]`). Gleicher Beleg wie 1.; Nebeneffekt: Boards ohne Schärfung bleiben im gespeicherten JSON, im Nutzertext und im HTML byte-gleich zu heute. Leser nehmen `eintrag.get("vorgaenger") or []`.
+2. **`vorgaenger` steht nur am Eintrag, wenn die Kette nicht leer ist** (dünn statt `[]`). Gleicher Beleg wie 1.; Nebeneffekt: Boards ohne Schärfung bleiben im gespeicherten JSON, im Nutzertext und im HTML zeichengleich zu heute. Leser nehmen `eintrag.get("vorgaenger") or []`.
 3. **Geerbte Ketten werden gegen eigene Zeilen gefiltert.** Steht ein Vorgänger (trotz Prompt) wieder als eigene Zeile auf dem neuen Board, fällt er aus jeder Kette dieses Laufs. Sonst zeigte das Board „KI-Roboter ← ~~Roboter~~" **und** eine Zeile „Roboter" — ein falscher Strich, genau der Fehler, den D1 per Konstruktion ausschließen will. Das ist dieselbe Bedingung wie D1s „key no longer appears as its own entry", angewandt auch auf die geerbte Kette.
 4. **Eine bestehende Testerwartung ändert sich:** `tests/test_begriffsboard_lauf.py::test_schema_ist_streng` (`:86-93`) prüft die Feldmenge des Schemas wortgleich auf sieben Namen; D1 verlangt ein achtes Pflichtfeld. Die Erwartung bekommt `"vorheriger_begriff"` dazu — sonst nichts.
 
 Außerdem, ehrlich benannt: „1–3 Wörter" ist **keine Code-Regel**. `_eintrag` (`interview_theater/begriffsboard.py:80-99`) erzwingt nur „genau EIN Begriff nach `begriffe.zerlege`, Whitespace zusammengezogen"; die Wortzahl steht im Prompt. Was ein `vorgaenger`-Element tragen kann, ist per Konstruktion trotzdem eng begrenzt (Aufgabe 2, Schritt „Konstruktion"), aber nicht auf drei Wörter.
 
-## Entscheidungen dieser Planung (D4-Mechanismus)
+## Entscheidungen dieser Planung (FLIP in `ladeBuehne()`)
 
-- **MutationObserver statt Haken in `ladeBuehne()`.** Jeder Haken in `_VEREINT_JS` steht in Dortmunds Seite (die Fixture enthält das ganze Skript) und bräche D4. `ladeBuehne()` (`interview_theater/web_vereint.py:1276-1321`) tauscht im Board-Fall `panel.innerHTML = neu` am `#tab-buehne` — ein `MutationObserver(childList)` auf genau diesem Element sieht genau diesen Tausch und sonst nichts (Nav-Updates liegen eine Ebene tiefer). Die alten Knoten stehen in `removedNodes` und sind noch lesbar (`details.open`), haben aber kein Layout mehr — deshalb hält das Skript die **Lagen** (`offsetTop` je Schlüssel, ignoriert `transform`) aus dem letzten Stand im Speicher und frischt sie bei `toggle` (Capture), `resize`, `hashchange` und nach jedem Tausch auf. Ist das Panel beim Messen verborgen (`offsetParent === null`), gibt es keine Lagen: der nächste Tausch stellt dann nur den Auf-/Zu-Zustand wieder her, ohne Bewegung.
-- **Bewegung nur im JS, nicht im CSS.** Eine `transition` im CSS bräuchte ihren Selektor im reduced-motion-Block, und `@media` darf nur in `css_rahmen()` stehen (`web_gestalt.py`, Modulkopf Regel 3) — `css_rahmen()` ist Dortmunds CSS. Also setzt das Skript `style.transition`/`style.transform`/`style.opacity` per CSSOM und fragt vorher `matchMedia('(prefers-reduced-motion: reduce)')`. Das neue CSS (`web_gestalt.css_begriffsboard()`) trägt nur Ruhendes: Pfeil, Farbe, `position: relative` fürs Messen.
+- **Messen vor dem Tausch, spielen nach dem Tausch — beides in `ladeBuehne()`.** `ladeBuehne()` (`interview_theater/web_vereint.py:1276-1321`) tauscht im Board-Fall `panel.innerHTML = neu` (Zweig `buehnePos === null`). Unmittelbar davor liest `bbMerke(panel)` die alten Zeilen live aus (Schlüssel, `getBoundingClientRect().top`, `details.open`); unmittelbar danach stellt `bbSpiele(panel, vorher)` den Auf-/Zu-Zustand her, misst die neuen Lagen und spielt FLIP. Weil beide Messungen am lebenden Layout erfolgen, braucht es **keinen Lagen-Speicher**, keinen `toggle`/`resize`/`hashchange`-Listener und keinen MutationObserver (der frühere Entwurf brauchte sie nur, weil `_VEREINT_JS` für Dortmund unberührt bleiben musste). `getBoundingClientRect` schließt eine laufende Bewegung ein — ein Tausch mitten in einer Bewegung startet also an der Stelle, an der die Zeile gerade *sichtbar* steht, genau wie FLIP es will.
+- **Ohne Board kein Effekt.** Ohne `ol.begriffsboard` im Panel liefert `bbMerke` `null`, und `bbSpiele(panel, null)` kehrt sofort zurück — der Phase-4-Bühnenkarten-Weg (D5) läuft unverändert.
+- **Bewegung nur im JS, nicht im CSS.** `css_buehne()` läuft durch `scope_css`; dort darf weder `@media` noch `@keyframes` stehen (`web_gestalt.py`, Modulkopf Regel 3), und eine `transition` im CSS bräuchte einen Selektor im reduced-motion-Block von `css_rahmen()` (Test `tests/test_web_gestalt_css.py::test_reduzierte_bewegung_legt_jeden_bewegten_selektor_stumm` liest nur `css_rahmen`/`css_chat`/`css_stand`/`css_textbuch`, prüfte eine `transition` in `css_buehne` also nicht einmal — umso mehr bleibt sie draußen). Das Skript setzt `style.transition`/`style.transform`/`style.opacity` per CSSOM und fragt vorher `matchMedia('(prefers-reduced-motion: reduce)')`. Das CSS trägt nur Ruhendes: Pfeil und Farbe.
 - **„Identität" heißt hier „zugeordnet".** Der Panel-Tausch erzeugt neue Knoten; D3 erlaubt „survives or is matched". Bewiesen wird die Zuordnung im Browser an zwei Wirkungen: das geöffnete „Warum" ist nach dem Tausch an der verschobenen bzw. geschärften Zeile offen, und genau diese Zeilen bekamen ein `translateY(…)`.
 
 ---
@@ -66,23 +70,24 @@ Außerdem, ehrlich benannt: „1–3 Wörter" ist **keine Code-Regel**. `_eintra
 | `interview_theater/prompts/begriffsboard.md`, `interview_theater/sprachen/en/prompts/begriffsboard.md` | 3 | Feld `vorheriger_begriff`, Satz zu `vorgaenger`, ein Negativpunkt |
 | `interview_theater/web.py` | 4 | `_begriffsboard_html`: `<del>`-Kette, `data-vorgaenger` |
 | `interview_theater/web_daten.py` | 4 | nur Docstring von `begriffsboard` (Durchreichen ist per `lies` schon gegeben, Test belegt es) |
-| `interview_theater/web_gestalt.py` | 5 | `css_begriffsboard()` (neu) |
-| `interview_theater/web_vereint.py` | 5 | `_BEGRIFFSBOARD_JS` (neu), bedingte Einhängung in `seite()` |
+| `interview_theater/web_gestalt.py` | 5 | `_BUEHNE` (das CSS hinter `css_buehne()`): drei ruhende Regeln für `.begriffsboard .vorgaenger` |
+| `interview_theater/web_vereint.py` | 5 | `_VEREINT_JS`: Helfer `bbSchluessel`/`bbZuordnung`/`bbVersatz`, DOM-Teil `bbMerke`/`bbSpiele`, zwei Zeilen in `ladeBuehne()` |
 | `tests/test_begriffsboard_lauf.py` | 3 | eine Erwartung in `test_schema_ist_streng` |
 | `tests/test_begriffsboard_schaerfung.py` (neu) | 2, 3 | Kern + Lauf + Prompt |
 | `tests/test_begriffsboard_schaerfung_web.py` (neu) | 4 | Darstellung, `web_daten` |
-| `tests/test_begriffsboard_flip.py` (neu) | 5 | Node-Tests der Helfer, Skriptregeln, Gating |
+| `tests/test_begriffsboard_flip.py` (neu) | 5 | Node-Tests der Helfer, Skript- und CSS-Regeln |
+| `tests/test_web_vereint_bitgleich.py`, `tests/test_werkbank_bitgleich.py` (und jeder weitere `*bitgleich*`-Test, der **nur** an einer Dortmund-/Vorgabe-Fixture rot wird) | 5 | `@pytest.mark.dortmund`, sonst nichts |
 | `tests/e2e/test_web_begriffsboard_ranking_e2e.py` (neu) | 6 | Browser + Handy-Screenshot |
 | `docs/web-begriffsboard/ranking-2026-10-04.png` (neu) | 6 | der Screenshot für Birk (nur erfundenes Material) |
 | `AGENTS.md` | 7 | Modultabelle, „Wo man anfängt", Gestaltung, Übergaben |
 
-**Nicht** angefasst: `_VEREINT_JS`, `web._CSS_BUEHNE`, `web_gestalt.css_rahmen()`, `tests/fixtures/*`, `detail_fuer`/`detail_zeilen`/`sende_vorschlag`/`schreibe_detail`, der Phase-4-Zweig von `_buehne_html`, `db.py`/`repo.py`.
+**Nicht** angefasst: `web._CSS_BUEHNE`, `web_gestalt.css_rahmen()`, `tests/fixtures/*` (keine Neuerzeugung), `detail_fuer`/`detail_zeilen`/`sende_vorschlag`/`schreibe_detail`, der Phase-4-Zweig von `_buehne_html`, `db.py`/`repo.py`, `web_vereint.seite()` (kein neuer Schalter).
 
 ---
 
 ### Task 0: Vorbedingung — Schwelle 600 und Zusammenführ-Regel müssen auf `main` committet sein, dann `main` mergen
 
-Die Karte nennt beides „schon in main". Am 04.10.2026 14:33 (Architekt) und beim Schreiben dieses Plans (`git grep … main` ohne Treffer) standen beide **nur uncommittet im Haupt-Arbeitsbaum**. Alle späteren Aufgaben, die `begriffsboard.py` oder die Prompts ändern, sind gegen den Stand **nach** diesem Merge geschrieben (Funktionsnamen statt Zeilennummern).
+Die Karte nennt beides „schon in main". Am 04.10.2026 14:33 (Architekt) standen beide nur uncommittet im Haupt-Arbeitsbaum; **seit der Revision ist die Vorbedingung erfüllt**: `main` trägt `07cbd80` (600-Zeichen-Schwelle `IT_BEGRIFFSBOARD_MIN_ZEICHEN` + Zusammenführ-Regel in beiden Prompts) und `4fe89de` (Dortmund eingefroren, Marker `dortmund` in `pyproject.toml`). Beim Schreiben der Revision geprüft: alle drei `git grep`-Befehle aus Step 1 treffen (`main:interview_theater/begriffsboard.py:235`, `main:interview_theater/prompts/begriffsboard.md:26`, `main:interview_theater/sprachen/en/prompts/begriffsboard.md:26`). Die Prüfung bleibt trotzdem als Step 1 stehen — sie kostet nichts. Alle späteren Aufgaben, die `begriffsboard.py` oder die Prompts ändern, sind gegen den Stand **nach** diesem Merge geschrieben (Funktionsnamen statt Zeilennummern).
 
 **Files:** keine eigenen Änderungen (nur der Merge-Commit).
 
@@ -120,10 +125,12 @@ Expected: kein Konflikt (der Branch trägt bis hierher nur diese Plandatei). Bei
 grep -n "def min_zeichen\|VORGABE_MIN_ZEICHEN = 600" interview_theater/begriffsboard.py
 grep -n "Zusammenfuehren statt verdoppeln" interview_theater/prompts/begriffsboard.md
 grep -n "Merge instead of duplicating" interview_theater/sprachen/en/prompts/begriffsboard.md
-$PY -m pytest tests/test_begriffsboard_lauf.py tests/test_begriffsboard_web.py tests/test_brainstorm.py tests/test_begriffsboard_mithoeren.py tests/test_begriffsboard_vorschlag.py -q -p no:cacheprovider
+grep -n '"dortmund:' pyproject.toml
+git grep -n "mark.dortmund" -- tests
+$PY -m pytest tests/test_begriffsboard_lauf.py tests/test_begriffsboard_web.py tests/test_brainstorm.py tests/test_begriffsboard_mithoeren.py tests/test_begriffsboard_vorschlag.py -q -p no:cacheprovider -m "not dortmund"
 ```
 
-Expected: drei Trefferzeilen, danach `… passed` ohne `failed`. Ist `tests/test_begriffsboard_mithoeren.py` oder `…_vorschlag.py` nach dem Merge rot, weil die neue Board-Schwelle (600) greift und die Fixtures nur `IT_BRAINSTORM_MIN_ZEICHEN` senken: **nicht hier reparieren** — als vorbestehend in der Baseline (Aufgabe 1) notieren; Aufgabe 8 stellt die Fixtures ohnehin auf `IT_BEGRIFFSBOARD_MIN_ZEICHEN` um (ANNAHME 8).
+Expected: drei Trefferzeilen; der Marker `"dortmund: Test prueft Dortmund-spezifisches Verhalten, eingefroren seit 04.10.2026"` steht in `pyproject.toml`; `git grep … mark.dortmund` listet, welche Tests eine Parallelkarte schon markiert hat (beim Schreiben der Revision: keine — die Ausgabe für Aufgabe 5/9 notieren); danach `… passed` ohne `failed`. (`tests/test_begriffsboard_mithoeren.py` setzt auf `main` bereits `IT_BEGRIFFSBOARD_MIN_ZEICHEN = "10"`, beim Schreiben der Revision geprüft.)
 
 Kein eigener Commit (der Merge ist der Commit).
 
@@ -136,7 +143,7 @@ Kein eigener Commit (der Merge ist der Commit).
 - [ ] **Step 1: Suite im Hintergrund starten und bis zum Ende abwarten**
 
 ```bash
-$PY -m pytest -q -p no:cacheprovider --ignore=tests/e2e > .suite.log 2>&1; echo EXIT $?
+$PY -m pytest -q -p no:cacheprovider --ignore=tests/e2e -m "not dortmund" > .suite.log 2>&1; echo EXIT $?
 ```
 
 Der Lauf dauert 5–15 Minuten. Im Hintergrund starten (Shell-Werkzeug mit Hintergrund-Option), auf die Fertigmeldung warten, **nicht abbrechen**, währenddessen keine Codeänderung.
@@ -146,9 +153,12 @@ Der Lauf dauert 5–15 Minuten. Im Hintergrund starten (Shell-Werkzeug mit Hinte
 ```bash
 tail -n 3 .suite.log
 cp .suite.log .suite-baseline.log
+IT_WORKSHOP=padua-2026 $PY -m scripts.prompt_schnappschuss /tmp/t_cb2c4678-padua-prompts-vorher.txt
 ```
 
-Expected: eine Zeile der Form `NNNN passed, NN skipped[, N failed] in …s` und `EXIT 0` (oder `EXIT 1`, falls schon vorher Tests rot sind). Diese Zeile wörtlich für den Abschlussbericht notieren. Sind schon in der Baseline Tests rot: ihre Namen (`grep -E "^FAILED|^ERROR" .suite.log`) notieren — sie sind dann **nicht** Folge dieser Karte und werden im Bericht so benannt.
+Der letzte Befehl legt den Padua-Prompt-Fingerabdruck **vor** jeder Codeänderung ab (Expected: `<N> Zeichen nach /tmp/t_cb2c4678-padua-prompts-vorher.txt (Profil: padua-2026)`); Aufgabe 11 vergleicht dagegen.
+
+Expected (Suite): eine Zeile der Form `NNNN passed, NN skipped, NN deselected[, N failed] in …s` und `EXIT 0` (oder `EXIT 1`, falls schon vorher Tests rot sind). Diese Zeile wörtlich für den Abschlussbericht notieren. Sind schon in der Baseline Tests rot: ihre Namen (`grep -E "^FAILED|^ERROR" .suite.log`) notieren — sie sind dann **nicht** Folge dieser Karte und werden im Bericht so benannt.
 
 Kein Commit.
 
@@ -698,12 +708,12 @@ transcript keeps growing and the old word stays in it. You never write
 - [ ] **Step 9: Grün laufen lassen + Sprachprüfer**
 
 ```bash
-$PY -m pytest tests/test_begriffsboard_schaerfung.py tests/test_begriffsboard_lauf.py tests/test_begriffsboard.py tests/test_begriffsboard_mithoeren.py -q -p no:cacheprovider
+$PY -m pytest tests/test_begriffsboard_schaerfung.py tests/test_begriffsboard_lauf.py tests/test_begriffsboard.py tests/test_begriffsboard_mithoeren.py -q -p no:cacheprovider -m "not dortmund"
 $PY -m scripts.pruefe_sprache --dateien interview_theater/sprachen/en/prompts/begriffsboard.md
-grep -n "begriffsboard" scripts/prompt_schnappschuss.py
+$PY -m pytest tests/test_profil_bitgleich.py tests/test_sprache_bitgleich.py -q -p no:cacheprovider -m "not dortmund"
 ```
 
-Expected: `… passed` ohne `failed`; Prüfer `0 Treffer`; `grep` ohne Ausgabe (ANNAHME: der Begriffsboard-Prompt steht nicht im Dortmund-Schnappschuss — gibt es doch einen Treffer, muss in Aufgabe 7/12 `tests/test_profil_bitgleich.py` trotzdem grün sein, weil der Prompt nur unter `padua-2026` gelesen wird; ist er rot, STOPP und berichten statt den Schnappschuss neu zu erzeugen).
+Expected: `… passed` ohne `failed`; Prüfer `0 Treffer`; die beiden Prompt-Bitgleich-Tests grün oder — falls einer **nur** wegen des Dortmund-/Vorgabe-Massstabs am geänderten Begriffsboard-Prompt rot wird — mit `@pytest.mark.dortmund` auf genau diesem Test (Vorgehen wie Aufgabe 5, Step 6), **nicht** angepasst und **kein** Schnappschuss neu erzeugt. ANNAHME: erwartet ist grün — der Begriffsboard-Prompt ist erst nach beiden Massstäben entstanden, und `test_sprache_bitgleich.py` erlaubt ausdrücklich neue Abschnitte (Docstring); für `test_profil_bitgleich.py` beim Lauf prüfen.
 
 - [ ] **Step 10: Commit**
 
@@ -828,7 +838,7 @@ Expected: FAIL in `test_kette_steht_durchgestrichen…`, `test_kette_wird_maskie
         )
         # Der juengste Vorgaenger steht direkt neben dem neuen Begriff (D2,
         # Karte t_cb2c4678); der Pfeil kommt aus dem CSS
-        # (``web_gestalt.css_begriffsboard``), nie aus einem style-Attribut.
+        # (``web_gestalt.css_buehne``), nie aus einem style-Attribut.
         vorgaenger_html = (
             '<span class="vorgaenger">'
             + " ".join(f"<del>{html.escape(v)}</del>" for v in reversed(kette))
@@ -849,7 +859,7 @@ und das `zeilen.append(...)` ersetzen durch:
         )
 ```
 
-Docstring von `_begriffsboard_html` um einen Satz ergänzen: „Eine Schärfungskette (`vorgaenger`, Karte t_cb2c4678) steht durchgestrichen hinter dem Begriff, der jüngste zuerst, und als `data-vorgaenger` am `<li>` — für die FLIP-Zuordnung im Browser (`web_vereint._BEGRIFFSBOARD_JS`)." Docstring von `web_daten.begriffsboard`: „… OHNE `zitat` … `vorgaenger` (nur Begriffswortlaut, Karte t_cb2c4678) geht mit."
+Docstring von `_begriffsboard_html` um einen Satz ergänzen: „Eine Schärfungskette (`vorgaenger`, Karte t_cb2c4678) steht durchgestrichen hinter dem Begriff, der jüngste zuerst, und als `data-vorgaenger` am `<li>` — für die FLIP-Zuordnung im Browser (`ladeBuehne()` in `web_vereint._VEREINT_JS`)." Docstring von `web_daten.begriffsboard`: „… OHNE `zitat` … `vorgaenger` (nur Begriffswortlaut, Karte t_cb2c4678) geht mit."
 
 - [ ] **Step 4: Grün laufen lassen, bestehende Board-Tests mit**
 
@@ -867,26 +877,29 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: Live-Ranking — FLIP-Skript und CSS, nur mit `diskussion.aktiv`
+### Task 5: Live-Ranking — FLIP direkt in `ladeBuehne()`, CSS im CoThinker-CSS
 
 **Files:**
-- Modify: `interview_theater/web_gestalt.py` (neu: `_BEGRIFFSBOARD` + `css_begriffsboard()` direkt hinter `css_stepper()`)
-- Modify: `interview_theater/web_vereint.py` (neu: `_BEGRIFFSBOARD_JS` direkt hinter `_STEPPER_JS`; in `seite()` zwei bedingte Blöcke)
+- Modify: `interview_theater/web_vereint.py` (`_VEREINT_JS`: fünf neue Funktionen direkt **vor** `function ladeBuehne()`; zwei Zeilen im Zweig `if (buehnePos === null)` von `ladeBuehne()`)
+- Modify: `interview_theater/web_gestalt.py` (`_BUEHNE`, das CSS hinter `css_buehne()`: drei Regeln ans Ende)
 - Test: `tests/test_begriffsboard_flip.py` (neu)
+- Modify (nur Marker): `tests/test_web_vereint_bitgleich.py`, `tests/test_werkbank_bitgleich.py` — und jeder weitere `*bitgleich*`-Test, der **nur** an einer Dortmund-/Vorgabe-Fixture rot wird (Step 6)
 
 **Interfaces:**
-- Consumes: Markup-Vertrag aus Aufgabe 4; `ladeBuehne()` tauscht unverändert `#tab-buehne.innerHTML`.
-- Produces:
-  - `web_gestalt.css_begriffsboard(name: str | None = None) -> str` — ruhendes CSS, ohne `@media`/`@keyframes`/`transition`/`animation`, ohne rohe Hexfarbe.
-  - `web_vereint._BEGRIFFSBOARD_JS: str` — IIFE mit den reinen Helfern `bbSchluessel(text) -> string`, `bbZuordnung(alt: string[], neu: {begriff, vorgaenger}[]) -> (string|null)[]`, `bbVersatz(altLagen: {schluessel: number}|null, quellen: (string|null)[], neuLagen: number[]) -> (number|null)[]`.
-  - `seite()` hängt beides **nur** an, wenn `workshop.diskussion_aktiv()`.
+- Consumes: Markup-Vertrag aus Aufgabe 4 (`ol.begriffsboard > li[data-begriff][data-vorgaenger]`, `<details>` je Zeile); `ladeBuehne()` mit `panel` (= `#tab-buehne`), `neu`, `buehnePos`.
+- Produces (alle in `_VEREINT_JS`, im IIFE-Rumpf):
+  - reine Helfer: `bbSchluessel(text) -> string`, `bbZuordnung(alt: string[], neu: {begriff, vorgaenger}[]) -> (string|null)[]`, `bbVersatz(altLagen: {schluessel: number}|null, quellen: (string|null)[], neuLagen: number[]) -> (number|null)[]`;
+  - DOM-Teil: `bbMerke(panel) -> {alt: string[], lagen: {schluessel: number}, offen: {schluessel: true}} | null` und `bbSpiele(panel, vorher) -> void`;
+  - `ladeBuehne()` ruft `var bbVorher = bbMerke(panel);` unmittelbar vor und `bbSpiele(panel, bbVorher);` unmittelbar nach `panel.innerHTML = neu;`.
+  - `css_buehne()` enthält zusätzlich `.begriffsboard .vorgaenger { … }`, `…::before { content: "\2190\00a0"; }`, `… del { … }` — ohne `@media`, `@keyframes`, `transition`, `animation`, Hexfarbe.
 
 - [ ] **Step 1: Failing tests schreiben** — `tests/test_begriffsboard_flip.py`:
 
 ```python
-"""Karte t_cb2c4678, Aufgabe 5: Live-Ranking ohne Springen (D3) und das
-Gating (D4). Die reinen Helfer werden wie in ``tests/test_buehne_nav_js.py``
-per Klammertiefe aus dem Skript geschnitten und unter Node gerufen."""
+"""Karte t_cb2c4678, Aufgabe 5: Live-Ranking ohne Springen (D3), direkt in
+``ladeBuehne()``. Die reinen Helfer werden wie in
+``tests/test_buehne_nav_js.py`` per Klammertiefe aus ``_VEREINT_JS``
+geschnitten und unter Node gerufen."""
 
 import json
 import re
@@ -895,8 +908,7 @@ import subprocess
 
 import pytest
 
-from interview_theater import (db, repo, sprache, web_daten, web_gestalt, web_vereint,
-                               workshop)
+from interview_theater import web_gestalt, web_vereint
 
 NODE = shutil.which("node")
 _HELFER = ("bbSchluessel", "bbZuordnung", "bbVersatz")
@@ -904,7 +916,7 @@ _HELFER = ("bbSchluessel", "bbZuordnung", "bbVersatz")
 
 def _extrahiere(skript: str, name: str) -> str:
     treffer = re.search(r"function\s+" + re.escape(name) + r"\s*\([^)]*\)\s*\{", skript)
-    assert treffer is not None, f"{name} nicht in _BEGRIFFSBOARD_JS gefunden"
+    assert treffer is not None, f"{name} nicht in _VEREINT_JS gefunden"
     i = treffer.end()
     tiefe = 1
     while tiefe:
@@ -920,7 +932,7 @@ def _extrahiere(skript: str, name: str) -> str:
 def harness():
     if NODE is None:
         pytest.skip("kein node auf PATH")
-    return "\n".join(_extrahiere(web_vereint._BEGRIFFSBOARD_JS, n) for n in _HELFER)
+    return "\n".join(_extrahiere(web_vereint._VEREINT_JS, n) for n in _HELFER)
 
 
 def _node(tmp_path, harness, anhang):
@@ -975,155 +987,93 @@ def test_versatz_ist_alt_minus_neu_und_null_ohne_alte_lage(tmp_path, harness):
     assert wert == [[80, -40, None], [None], [None]]
 
 
-# -- Skriptregeln (CSP, reduced motion, kein Eingriff in _VEREINT_JS) --------
+# -- Einhaengung in ladeBuehne(), CSP, reduced motion -------------------------
+
+def test_ladebuehne_merkt_vor_dem_tausch_und_spielt_danach():
+    js = web_vereint._VEREINT_JS
+    lade = _extrahiere(js, "ladeBuehne")
+    merke = lade.index("var bbVorher = bbMerke(panel);")
+    tausch = lade.index("panel.innerHTML = neu;")
+    spiele = lade.index("bbSpiele(panel, bbVorher);")
+    assert merke < tausch < spiele
+    # Der Phase-4-Weg (zurueckgeblaettert) bleibt unangetastet: nur im
+    # Zweig "aktuell" wird getauscht und damit gespielt.
+    zweig = lade[lade.index("if (buehnePos === null) {"):spiele]
+    assert "panel.innerHTML = neu;" in zweig
+
+
+def test_ohne_board_tun_die_funktionen_nichts():
+    js = web_vereint._VEREINT_JS
+    merke = _extrahiere(js, "bbMerke")
+    spiele = _extrahiere(js, "bbSpiele")
+    assert "ol.begriffsboard" in merke and "return null" in merke
+    assert spiele.index("if (!vorher") < spiele.index("querySelector")
+
 
 def test_skript_haelt_die_csp_und_die_ruhe():
-    js = web_vereint._BEGRIFFSBOARD_JS
-    assert "style=" not in js and "setAttribute('style'" not in js
-    assert re.search(r"\son\w+=", js) is None
-    assert "prefers-reduced-motion: reduce" in js
-    assert "MutationObserver" in js and "'tab-buehne'" in js
-    assert ".style.transform" in js
-    assert "innerHTML" not in js            # der Tausch bleibt allein ladeBuehne()s
-    assert "bbZuordnung" not in web_vereint._VEREINT_JS
+    js = web_vereint._VEREINT_JS
+    teil = "\n".join(_extrahiere(js, n) for n in _HELFER + ("bbMerke", "bbSpiele"))
+    assert "style=" not in teil and "setAttribute('style'" not in teil
+    assert re.search(r"\son\w+=", teil) is None
+    assert "prefers-reduced-motion: reduce" in teil
+    assert ".style.transform" in teil and ".style.transition" in teil
+    assert "innerHTML" not in teil            # der Tausch bleibt allein ladeBuehne()s
+    assert "MutationObserver" not in teil     # kein Beobachter-Umweg
 
 
-def test_css_ist_ruhend_und_ohne_hexfarbe():
-    css = web_gestalt.css_begriffsboard()
+def test_css_ist_ruhend_ohne_media_und_ohne_hexfarbe():
+    css = web_gestalt.css_buehne()
+    teil = css[css.index(".begriffsboard .vorgaenger"):]
     for verboten in ("@media", "@keyframes", "transition", "animation", "url("):
-        assert verboten not in css, verboten
-    assert re.search(r"#[0-9a-fA-F]{3,8}\b", css) is None
-    assert ".vorgaenger" in css and "var(--text-leise)" in css
-
-
-# -- Gating (D4): nur mit diskussion.aktiv ----------------------------------
-
-CHAT = 7_000_000_000_779
-TOKEN = "deterministischer-flip-test-token"
-
-
-@pytest.fixture
-def db_pfad(tmp_path):
-    pfad = str(tmp_path / "flip.db")
-    conn = db.verbinde(pfad)
-    db.initialisiere(conn)
-    repo.sichere_gruppe(conn, CHAT, "gruppe1", "Die Ankommenden")
-    repo.setze_gruppe_kanal(conn, CHAT, "web")
-    repo.setze_phase(conn, CHAT, 1)
-    repo.lege_begriffsboard_an(conn, CHAT, json.dumps([
-        {"begriff": "KI-Roboter", "nennungen": 2, "zustimmung": 1, "begruendung": "",
-         "zitat": "", "doppelbedeutung": "", "status": "favorit", "vorgaenger": ["Roboter"]},
-    ]), "sovereign", 0)
-    conn.execute("UPDATE gruppe SET web_token = ? WHERE chat_id = ?", (TOKEN, CHAT))
-    conn.commit()
-    conn.close()
-    return pfad
-
-
-def _rendere(pfad) -> str:
-    lesend = web_daten.oeffne_lesend(pfad)
-    try:
-        daten = web_daten.gruppe_nach_token(lesend, TOKEN)
-        chatdaten = web_daten.web_chatzustand(lesend, TOKEN)
-        roadmapdaten = web_daten.roadmap(lesend, daten["chat_id"])
-    finally:
-        lesend.close()
-    return web_vereint.seite(
-        daten, chatdaten, roadmapdaten, nonce_wert="n", token=TOKEN, praefix="/theatersoap",
-        segment_ms=45_000, fassungswahl={}, chat_vorhanden=chatdaten is not None,
-    )
-
-
-@pytest.fixture(autouse=True)
-def _frisch():
-    yield
-    workshop.vergiss()
-    sprache.vergiss()
-
-
-@pytest.mark.parametrize("profil, erwartet", [
-    (None, False), ("dortmund-2026", False), ("padua-2026", True),
-])
-def test_skript_und_css_nur_mit_diskussion_aktiv(monkeypatch, db_pfad, profil, erwartet):
-    if profil is None:
-        monkeypatch.delenv(workshop.VARIABLE, raising=False)
-    else:
-        monkeypatch.setenv(workshop.VARIABLE, profil)
-    workshop.vergiss()
-    sprache.vergiss()
-    assert workshop.diskussion_aktiv() is erwartet
-    html_ = _rendere(db_pfad)
-    css = web_vereint.scope_css(web_gestalt.css_begriffsboard(), ".panel-buehne")
-    assert ("function bbZuordnung(" in html_) is erwartet
-    assert (css in html_) is erwartet
-    # Mit Profil steht das Board samt Kette im CoThinker-Panel.
-    assert ("<del>Roboter</del>" in html_) is erwartet
+        assert verboten not in teil, verboten
+    assert re.search(r"#[0-9a-fA-F]{3,8}\b", teil) is None
+    assert "var(--text-leise)" in teil
+    # Ueberlebt das Scoping wie der Rest von css_buehne():
+    assert ".panel-buehne .begriffsboard .vorgaenger" in web_vereint.scope_css(css, ".panel-buehne")
 ```
 
 - [ ] **Step 2: Rot laufen lassen**
 
 Run: `$PY -m pytest tests/test_begriffsboard_flip.py -q -p no:cacheprovider`
-Expected: FAIL / ERROR mit `AttributeError: module 'interview_theater.web_vereint' has no attribute '_BEGRIFFSBOARD_JS'` bzw. `… web_gestalt … 'css_begriffsboard'`; die Gating-Fälle `None`/`dortmund-2026` scheitern ebenfalls am fehlenden `css_begriffsboard`. ANNAHME: die minimale Fixture-Gruppe rendert unter `padua-2026` ohne weitere Arbeitsstandzeilen (die Bitgleich-DB ist reicher); wirft `seite()` dort einen `KeyError`, die fehlende Zeile mit `repo.setze_arbeitsstand` in `db_pfad` ergänzen — nicht `seite()` ändern.
+Expected: FAIL — `AssertionError: bbSchluessel nicht in _VEREINT_JS gefunden` (bzw. `ladeBuehne` ohne `bbMerke`) und `ValueError: substring not found` in `test_css_ist_ruhend_…`. ANNAHME: `scope_css` setzt den Scope mit einem Leerzeichen davor (`.panel-buehne .begriffsboard …`); wenn nicht, die letzte Assertion an die tatsächliche Form von `web_vereint._ein_selektor` angleichen (Ausgabe ansehen), nicht weglassen.
 
-- [ ] **Step 3: CSS** — in `interview_theater/web_gestalt.py` direkt hinter `css_stepper()`:
+- [ ] **Step 3: CSS** — in `interview_theater/web_gestalt.py` ans Ende des Strings `_BUEHNE` (vor dem schließenden `"""`, ~Z. 1325 ff.) anhängen:
 
-```python
-#: Das Begriffsboard (Karte t_cb2c4678): nur Ruhendes. Die Bewegung (FLIP)
-#: setzt ``web_vereint._BEGRIFFSBOARD_JS`` per CSSOM und fragt dort selbst
-#: nach ``prefers-reduced-motion`` -- eine ``transition`` hier braeuchte
-#: einen Selektor im reduced-motion-Block, und der steht in ``css_rahmen()``
-#: (Dortmund, byte-gleich). ``position: relative`` macht die Zeile zum
-#: Bezug von ``offsetTop`` (das Skript misst damit, ``transform`` zaehlt
-#: dort nicht mit).
-_BEGRIFFSBOARD = """
-.begriffsboard { position: relative; }
+```css
+/* Begriffsboard (Karte t_cb2c4678): die Schaerfungskette steht leise und
+   durchgestrichen hinter dem Begriff, der Pfeil zeigt vom alten Wortlaut
+   zum neuen. Nur Ruhendes: die Bewegung (FLIP) setzt ladeBuehne() per
+   CSSOM und nur ohne prefers-reduced-motion -- hier steht weder
+   transition noch @media (dieser Block laeuft durch scope_css). */
 .begriffsboard .vorgaenger { color: var(--text-leise); margin-left: 0.4em; }
-.begriffsboard .vorgaenger::before { content: "\\2190\\00a0"; }
+.begriffsboard .vorgaenger::before { content: "\2190\00a0"; }
 .begriffsboard .vorgaenger del { text-decoration-thickness: 1px; }
-"""
-
-
-def css_begriffsboard(name: str | None = None) -> str:
-    """Das Begriffsboard im CoThinker (Phase 1, Karte t_cb2c4678) -- nur
-    angehaengt, wenn ``workshop.diskussion_aktiv()`` (siehe
-    ``web_vereint.seite()``), wie ``css_stepper()``: Dortmund rendert das
-    Board nie und bekommt dieses CSS deshalb auch nicht. Der Aufrufer scopt
-    es auf ``.panel-buehne`` -- deshalb kein ``@media``/``@keyframes``. Fuer
-    beide Entwuerfe gleich, die Tokens tragen den Unterschied."""
-    return _BEGRIFFSBOARD
 ```
 
-(`--text-leise` auf `--grund` steht schon in `KONTRAST`, 4.5.)
+Im Python-Quelltext: `_BUEHNE` ist ein gewöhnlicher (nicht roher) String — die Backslashes deshalb verdoppeln: `content: "\\2190\\00a0";`. Kontrolle: `$PY -c "from interview_theater import web_gestalt; print([z for z in web_gestalt.css_buehne().splitlines() if 'before' in z and 'vorgaenger' in z])"` → `['.begriffsboard .vorgaenger::before { content: "\\2190\\00a0"; }']` (in der `repr`-Ausgabe erscheinen die Backslashes verdoppelt; im CSS steht einer). `--text-leise` auf `--grund` steht schon in `web_gestalt.KONTRAST` (4.5).
 
-- [ ] **Step 4: Skript** — in `interview_theater/web_vereint.py` direkt hinter dem Ende von `_STEPPER_JS`:
+- [ ] **Step 4: Skript** — in `interview_theater/web_vereint.py`, `_VEREINT_JS`, direkt **vor** `  function ladeBuehne() {` einfügen (Einrückung zwei Leerzeichen wie die Nachbarn; `_VEREINT_JS` ist kein Roh-String — in der Regex `\\s` schreiben, damit im JS `\s` ankommt):
 
-```python
-#: Live-Ranking des Begriffsboards (Karte t_cb2c4678, D3/D4). Eine eigene
-#: IIFE, nur mit ``workshop.diskussion_aktiv()`` angehaengt (``seite()``) --
-#: ``_VEREINT_JS`` steht Zeichen fuer Zeichen in Dortmunds Seite
-#: (``tests/fixtures/web_vereint_dortmund_vorher.html``) und wird deshalb
-#: NICHT angefasst. Stattdessen sieht ein MutationObserver den Tausch, den
-#: ``ladeBuehne()`` ohnehin macht (``panel.innerHTML = neu``): die alten
-#: Knoten stehen in ``removedNodes`` (ihr ``details.open`` ist lesbar), ihr
-#: Layout nicht mehr -- deshalb merkt sich das Skript die Lagen (``offsetTop``,
-#: ohne ``transform``) des letzten Stands. Bewegung nur per CSSOM (CSP) und
-#: nie bei ``prefers-reduced-motion: reduce``. Roh-String: die Regex ``\s``
-#: bleibt unveraendert.
-_BEGRIFFSBOARD_JS = r"""
-(function () {
-  var panel = document.getElementById('tab-buehne');
-  if (!panel || typeof MutationObserver === 'undefined') { return; }
-  var DAUER_MS = 320;
-  var lagen = null;
+```js
+  // -- Begriffsboard: Live-Ranking ohne Springen (Karte t_cb2c4678) -------
+  //
+  // ladeBuehne() tauscht das ganze Panel (panel.innerHTML = neu). Damit die
+  // Liste dabei nicht springt, misst bbMerke() die alten Zeilen UNMITTELBAR
+  // davor und bbSpiele() spielt UNMITTELBAR danach FLIP: jede Zeile startet
+  // optisch an ihrer alten Stelle und gleitet an die neue. Zuordnung ueber
+  // data-begriff, fuer einen geschaerften Begriff ueber data-vorgaenger.
+  // Ein offenes "Warum" (<details>) bleibt offen. Ohne ol.begriffsboard
+  // (Phase 4, Buehnenkarten) tun beide nichts. Bewegung nur per CSSOM (CSP)
+  // und nie bei prefers-reduced-motion: reduce.
+  var BB_DAUER_MS = 320;
 
   function bbSchluessel(text) {
-    return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    return String(text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
   }
 
   // Je neuem Eintrag der Schluessel der alten Zeile, von der er kommt, oder
-  // null (neu). Erst ueber den eigenen Begriff, dann -- fuer einen
-  // geschaerften Begriff -- ueber seinen juengsten Vorgaenger, und das nur,
-  // wenn die alte Zeile nicht schon vergeben ist.
+  // null (neu). Erst ueber den eigenen Begriff, dann ueber den juengsten
+  // Vorgaenger -- nur, wenn diese alte Zeile nicht schon vergeben ist.
   function bbZuordnung(alt, neu) {
     var frei = {};
     alt.forEach(function (b) { frei[bbSchluessel(b)] = true; });
@@ -1148,48 +1098,27 @@ _BEGRIFFSBOARD_JS = r"""
     });
   }
 
-  function liste(wurzel) {
-    if (!wurzel || !wurzel.querySelector) { return null; }
-    if (wurzel.matches && wurzel.matches('ol.begriffsboard')) { return wurzel; }
-    return wurzel.querySelector('ol.begriffsboard');
-  }
-
-  function miss(ol) {
-    if (!ol || ol.offsetParent === null) { return null; }
-    var ergebnis = {};
+  function bbMerke(panel) {
+    var ol = panel.querySelector('ol.begriffsboard');
+    if (!ol) { return null; }
+    var vorher = { alt: [], lagen: {}, offen: {} };
     Array.prototype.forEach.call(ol.children, function (li) {
-      ergebnis[bbSchluessel(li.getAttribute('data-begriff'))] = li.offsetTop;
-    });
-    return ergebnis;
-  }
-
-  function merke() { lagen = miss(liste(panel)); }
-
-  function ruhig() {
-    return !!(window.matchMedia
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  }
-
-  function nachTausch(aenderungen) {
-    var altOl = null;
-    aenderungen.forEach(function (m) {
-      Array.prototype.forEach.call(m.removedNodes, function (n) {
-        if (!altOl) { altOl = liste(n); }
-      });
-    });
-    var neuOl = liste(panel);
-    if (!neuOl || !altOl) { merke(); return; }
-    var altLagen = lagen;
-    var alt = [];
-    var offen = {};
-    Array.prototype.forEach.call(altOl.children, function (li) {
       var b = li.getAttribute('data-begriff');
+      var k = bbSchluessel(b);
       var d = li.querySelector('details');
-      alt.push(b);
-      if (d && d.open) { offen[bbSchluessel(b)] = true; }
+      vorher.alt.push(b);
+      vorher.lagen[k] = li.getBoundingClientRect().top;
+      if (d && d.open) { vorher.offen[k] = true; }
     });
-    var lis = Array.prototype.slice.call(neuOl.children);
-    var quellen = bbZuordnung(alt, lis.map(function (li) {
+    return vorher;
+  }
+
+  function bbSpiele(panel, vorher) {
+    if (!vorher) { return; }
+    var ol = panel.querySelector('ol.begriffsboard');
+    if (!ol) { return; }
+    var lis = Array.prototype.slice.call(ol.children);
+    var quellen = bbZuordnung(vorher.alt, lis.map(function (li) {
       return { begriff: li.getAttribute('data-begriff'),
                vorgaenger: li.getAttribute('data-vorgaenger') };
     }));
@@ -1197,79 +1126,123 @@ _BEGRIFFSBOARD_JS = r"""
     // verschiebt alle Zeilen darunter.
     quellen.forEach(function (q, i) {
       var d = lis[i].querySelector('details');
-      if (d && q !== null && offen[q]) { d.open = true; }
+      if (d && q !== null && vorher.offen[q]) { d.open = true; }
     });
-    var neuLagen = lis.map(function (li) { return li.offsetTop; });
-    lagen = miss(neuOl);
-    if (ruhig()) { return; }
-    var versatz = bbVersatz(altLagen, quellen, neuLagen);
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    var versatz = bbVersatz(vorher.lagen, quellen, lis.map(function (li) {
+      return li.getBoundingClientRect().top;
+    }));
     lis.forEach(function (li, i) {
       if (quellen[i] === null) { li.style.opacity = '0'; }
       else if (versatz[i]) { li.style.transform = 'translateY(' + versatz[i] + 'px)'; }
     });
-    neuOl.getBoundingClientRect();   // Startlage festschreiben (Reflow)
+    ol.getBoundingClientRect();   // Startlage festschreiben (Reflow)
     requestAnimationFrame(function () {
       lis.forEach(function (li) {
-        li.style.transition = 'transform ' + DAUER_MS + 'ms ease, opacity '
-          + DAUER_MS + 'ms ease';
+        li.style.transition = 'transform ' + BB_DAUER_MS + 'ms ease, opacity '
+          + BB_DAUER_MS + 'ms ease';
         li.style.transform = '';
         li.style.opacity = '';
       });
       setTimeout(function () {
         lis.forEach(function (li) { li.style.transition = ''; });
-      }, DAUER_MS + 50);
+      }, BB_DAUER_MS + 50);
     });
   }
 
-  new MutationObserver(nachTausch).observe(panel, { childList: true });
-  // ``toggle`` blubbert nicht -- im Capture kommt es trotzdem an.
-  panel.addEventListener('toggle', merke, true);
-  window.addEventListener('resize', merke);
-  window.addEventListener('hashchange', function () { setTimeout(merke, 0); });
-  merke();
-})();
-"""
 ```
 
-- [ ] **Step 5: Bedingte Einhängung in `seite()`** — in `web_vereint.seite()`:
+und in `ladeBuehne()` den Zweig
 
-(a) direkt hinter dem Block `if stepper_aktiv: css += web_gestalt.css_stepper()`:
-
-```python
-    # Begriffsboard (Karte t_cb2c4678): wie der Stepper NUR bedingt -- mit
-    # ``diskussion.aktiv`` kann Phase 1 das Board zeigen, ohne bekommt
-    # Dortmund kein Zeichen davon (tests/test_web_vereint_bitgleich.py).
-    board_aktiv = workshop.diskussion_aktiv()
-    if board_aktiv:
-        css += scope_css(web_gestalt.css_begriffsboard(), ".panel-buehne")
+```js
+          if (buehnePos === null) {
+            // "Aktuell": komplett ersetzen -- sicher, weil
+            // buehneNavRender() den (absichtlich leeren) Nav-Platzhalter
+            // sofort danach selbst fuellt (siehe web._buehne_html).
+            panel.innerHTML = neu;
+          }
 ```
 
-(b) direkt hinter dem Block `if stepper_aktiv: skript += (_STEPPER_JS …)` und **vor** `skript += web_gestalt.skript(...)`:
+ersetzen durch
 
-```python
-    if board_aktiv:
-        skript += _BEGRIFFSBOARD_JS
+```js
+          if (buehnePos === null) {
+            // "Aktuell": komplett ersetzen -- sicher, weil
+            // buehneNavRender() den (absichtlich leeren) Nav-Platzhalter
+            // sofort danach selbst fuellt (siehe web._buehne_html). Das
+            // Begriffsboard (Phase 1) gleitet dabei per FLIP an seine neue
+            // Ordnung, statt zu springen (bbMerke/bbSpiele, oben).
+            var bbVorher = bbMerke(panel);
+            panel.innerHTML = neu;
+            bbSpiele(panel, bbVorher);
+          }
 ```
 
-(`workshop` ist in `seite()` schon importiert — es liest `workshop.workbench_bearbeitbar()` und `workshop.diskussion_aktiv()`. ANNAHME: Import steht modulweit oder lokal oben in `seite()`; falls lokal unterhalb der Einhängestelle, `from interview_theater import workshop` an den Funktionsanfang ziehen.)
-
-- [ ] **Step 6: Grün laufen lassen + Bitgleich + Syntax**
+- [ ] **Step 5: Grün laufen lassen + Syntax + Nachbarn**
 
 ```bash
-$PY -m pytest tests/test_begriffsboard_flip.py tests/test_web_vereint_bitgleich.py tests/test_web_vereint_js_syntax.py tests/test_buehne_nav_js.py tests/test_web_gestalt_css.py tests/test_begriffsboard_web.py -q -p no:cacheprovider
-git status --short tests/fixtures/
+$PY -m pytest tests/test_begriffsboard_flip.py tests/test_buehne_nav_js.py tests/test_web_vereint_js_syntax.py tests/test_web_gestalt_css.py tests/test_begriffsboard_web.py tests/test_web_vereint.py -q -p no:cacheprovider -m "not dortmund"
 ```
 
-Expected: `… passed` ohne `failed` (die Node-Tests `skipped`, falls kein `node` auf PATH — dann im Bericht „Node-Tests nicht gelaufen", **nicht** „grün"); `git status` für `tests/fixtures/` ohne Ausgabe. `test_vereinte_seite_bleibt_byte_gleich[None]` und `[dortmund-2026]` grün gegen die **unveränderte** Fixture. Ist sie rot: der Fehler liegt in dieser Aufgabe (etwas wurde unbedingt angehängt) — Fixture **nicht** neu erzeugen.
+Expected: `… passed`, kein `failed` (die Node-Tests `skipped`, falls kein `node` auf PATH — dann im Bericht „Node-Tests nicht gelaufen", **nicht** „grün").
+
+- [ ] **Step 6: Bitgleich-Tests — Rot nur wegen Dortmund? Dann Marker, sonst Fehler suchen**
+
+```bash
+git grep -n "mark.dortmund" -- tests
+$PY -m pytest tests/ -q -p no:cacheprovider -k "bitgleich" -rf
+```
+
+Expected: `tests/test_web_vereint_bitgleich.py::test_vereinte_seite_bleibt_byte_gleich[None|dortmund-2026]` und `tests/test_werkbank_bitgleich.py::test_ohne_schalter_bleibt_die_werkbank_byte_gleich[None|dortmund-2026]` sind rot — sie vergleichen die ganze vereinte Seite (samt `_VEREINT_JS` und `css_buehne()`) mit `tests/fixtures/web_vereint_dortmund_vorher.html` bzw. `werkbank_vorher_vereint_*`. Jeder andere `*bitgleich*`-Test bleibt grün; ist einer rot, der **nicht** an einer `*dortmund*`/`*vorgabe*`-Fixture vergleicht, ist das ein Fehler dieser Aufgabe.
+
+Nachweis, dass das Rot **nur** Dortmund ist (Blick, kein formales Tor):
+
+```bash
+env -u IT_WORKSHOP $PY - <<'EOF'
+import difflib, sys
+sys.path.insert(0, ".")
+from interview_theater import sprache, workshop
+from tests import test_web_vereint_bitgleich as t
+workshop.vergiss(); sprache.vergiss()
+t._baue_datenbank()
+alt = t.VORHER.read_text(encoding="utf-8").splitlines()
+neu = t._rendere().splitlines()
+for z in difflib.unified_diff(alt, neu, lineterm="", n=0):
+    if z[:1] in "+-" and z[:3] not in ("+++", "---"):
+        print(z[:110])
+EOF
+```
+
+Expected: jede Zeile gehört zu `bbSchluessel`/`bbZuordnung`/`bbVersatz`/`bbMerke`/`bbSpiele`, zu den zwei neuen Zeilen in `ladeBuehne()` (plus deren Kommentar) oder zu den drei `.begriffsboard .vorgaenger`-CSS-Regeln — sonst nichts. Die Ausgabe (oder ihre ersten ~60 Zeilen) geht in den Bericht.
+
+Dann — **nur** für Tests, die `git grep` oben noch nicht als markiert zeigt — den Marker direkt über die Testfunktion setzen, sonst nichts ändern (keine Fixture neu erzeugen, keine Erwartung anpassen):
+
+```python
+@pytest.mark.dortmund  # Dortmund eingefroren (AGENTS.md, 04.10.2026): vergleicht gegen eine Dortmund-/Vorgabe-Fixture
+@pytest.mark.parametrize("profil", [None, "dortmund-2026"])
+def test_vereinte_seite_bleibt_byte_gleich(monkeypatch, profil):
+```
+
+(dasselbe über `test_ohne_schalter_bleibt_die_werkbank_byte_gleich` in `tests/test_werkbank_bitgleich.py`). Danach:
+
+```bash
+$PY -m pytest tests/ -q -p no:cacheprovider -k "bitgleich" -m "not dortmund"
+```
+
+Expected: `… passed, … deselected`, kein `failed`. Trägt `main` den Marker inzwischen schon (`git grep -n "mark.dortmund" main -- tests`), trotzdem hier setzen — dieselbe Decorator-Zeile auf beiden Seiten löst die spätere [Merge]-Karte trivial.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add interview_theater/web_gestalt.py interview_theater/web_vereint.py tests/test_begriffsboard_flip.py
-git commit -m "Begriffsboard: FLIP-Live-Ranking und Schaerfungs-CSS, nur mit diskussion.aktiv (t_cb2c4678, Aufgabe 5)
+git add interview_theater/web_vereint.py interview_theater/web_gestalt.py tests/test_begriffsboard_flip.py tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py
+git commit -m "Begriffsboard: FLIP-Live-Ranking in ladeBuehne(), Schaerfungs-CSS im CoThinker; Dortmund-Bitgleich markiert (t_cb2c4678, Aufgabe 5)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
+
+(Nur die Testdateien `git add`-en, an denen Step 6 wirklich einen Marker gesetzt hat.)
 
 ---
 
@@ -1529,9 +1502,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 7: AGENTS.md (Teil 1) und der Dortmund-Nachweis für Teil 1
+### Task 7: AGENTS.md (Teil 1)
 
-Die Abschluss-Suite und der Bericht stehen seit dem Nachtrag von Birk (Teil 2) in **Aufgabe 12**. Hier wird nur die Doku für Teil 1 nachgezogen, und es wird belegt, dass Teil 1 kein Byte der Dortmund-Fixtures braucht — **bevor** Teil 2 sie absichtlich ändert (Aufgabe 10). So bleibt der Fixture-Diff in Aufgabe 10 eindeutig der Pause zuzuordnen.
+Die Abschluss-Suite und der Bericht stehen für beide Teile in **Aufgabe 11**. Hier wird nur die Doku für Teil 1 nachgezogen.
 
 **Files:**
 - Modify: `AGENTS.md`
@@ -1539,33 +1512,21 @@ Die Abschluss-Suite und der Bericht stehen seit dem Nachtrag von Birk (Teil 2) i
 - [ ] **Step 1: AGENTS.md nachziehen** — vier Stellen, Wortlaut sinngemäß, im Stil des Dokuments:
 
 (a) Modultabelle, Zeile `begriffsboard.py`: an das Ende der Zelle anhängen:
-„Seit 04.10.2026 (Karte t_cb2c4678) die **Schärfung**: Pflichtfeld `vorheriger_begriff` im Schema, im Code gegen das bisherige Board geprüft (`validiere(…, bisher)`, `_verkette` — nur ein Begriff, der wirklich verschwand, keine Ähnlichkeitsheuristik); daraus die Kette `vorgaenger` (älteste zuerst, nur am Eintrag, wenn nicht leer, nie im Schema, nie Modelltext). Im CoThinker durchgestrichen (`web._begriffsboard_html`, `data-vorgaenger`), Live-Ranking per FLIP (`web_vereint._BEGRIFFSBOARD_JS`, MutationObserver auf den unveränderten Tausch von `ladeBuehne()`, nur mit `diskussion.aktiv`)."
+„Seit 04.10.2026 (Karte t_cb2c4678) die **Schärfung**: Pflichtfeld `vorheriger_begriff` im Schema, im Code gegen das bisherige Board geprüft (`validiere(…, bisher)`, `_verkette` — nur ein Begriff, der wirklich verschwand, keine Ähnlichkeitsheuristik); daraus die Kette `vorgaenger` (älteste zuerst, nur am Eintrag, wenn nicht leer, nie im Schema, nie Modelltext). Im CoThinker durchgestrichen (`web._begriffsboard_html`, `data-vorgaenger`), Live-Ranking per FLIP direkt in `ladeBuehne()` (`_VEREINT_JS`: `bbMerke` vor, `bbSpiele` nach dem Panel-Tausch; ohne `ol.begriffsboard` wirkungslos)."
 
 (b) „Wo man anfängt": neue Zeile
-`| Warum ist ein Begriff durchgestrichen (oder nicht)? | begriffsboard.validiere → _verkette → web._begriffsboard_html → web_vereint._BEGRIFFSBOARD_JS |`
+`| Warum ist ein Begriff durchgestrichen (oder nicht)? | begriffsboard.validiere → _verkette → web._begriffsboard_html → web_vereint._VEREINT_JS (ladeBuehne → bbMerke/bbSpiele) |`
 
-(c) Abschnitt „Die Gestaltung": „neun Zeilen … zehnte" um eine **elfte** Einhängezeile ergänzen: `css_begriffsboard()` in `web_vereint.seite`, nur mit `diskussion.aktiv`, gescopt auf `.panel-buehne`, ohne Bewegung im CSS (die setzt das Skript per CSSOM und nur ohne `prefers-reduced-motion`).
+(c) Abschnitt „Die Gestaltung": ein Satz, dass `css_buehne()` (`_BUEHNE`) seit dem 04.10.2026 auch die ruhende Darstellung der Schärfungskette trägt (`.begriffsboard .vorgaenger`, Pfeil per `::before`) — **ohne** Bewegung im CSS; die setzt `ladeBuehne()` per CSSOM und nur ohne `prefers-reduced-motion`. Keine neue Einhängezeile, kein neuer Schalter.
 
-(d) „Die Übergaben der Karte t_4517d4ad (Begriffsboard …)": drei Punkte anhängen:
+(d) „Die Übergaben der Karte t_4517d4ad (Begriffsboard …)": zwei Punkte anhängen:
 - „**Ungemessen (t_cb2c4678):** kein bezahlter Lauf für `vorheriger_begriff` — ob Kimi/Opus das Feld zuverlässig füllen, weiß niemand. Vergisst das Modell es, fehlt nur der Strich; die Begründung erzählt die Entwicklung trotzdem."
 - „Die Wortzahl „1–3" eines Begriffs (und damit eines Vorgängers) steht im Prompt, nicht im Code; der Code garantiert „ein Begriff, früher schon auf dem Board"."
-- „Ist der CoThinker beim letzten Messen verborgen, sortiert der nächste Tausch ohne Bewegung um (nur das offene „Warum" bleibt)."
-
-- [ ] **Step 2: Teil 1 ist Dortmund-neutral — vor Teil 2 belegt**
-
-```bash
-$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py tests/test_profil_bitgleich.py -q -p no:cacheprovider
-BASIS=<SHA aus Aufgabe 0, Step 3>
-git diff --stat "$BASIS" HEAD -- tests/fixtures/
-```
-
-Expected: `… passed`, kein `failed`; `git diff --stat` **ohne Ausgabe** (Teil 1 hat keine Fixture angefasst). Diese Ausgabe kommt wörtlich in den Bericht (Aufgabe 12).
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Commit**
 
 ```bash
 git add AGENTS.md
-git commit -m "Begriffsboard: AGENTS.md -- Schaerfung, FLIP, elfte Einhaengezeile, Uebergaben (t_cb2c4678, Aufgabe 7)
+git commit -m "Begriffsboard: AGENTS.md -- Schaerfung, FLIP in ladeBuehne, Uebergaben (t_cb2c4678, Aufgabe 7)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1580,12 +1541,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Goal (Teil 2):** Phase 1 hat nur noch Start und Fertig; das Begriffsboard kennt keinen eigenen Abschlusspfad mehr — der Ende-Schnitt ist ein gewöhnlicher Schnitt unter derselben Regel (600 Zeichen), und „Discussion done" zeigt den Top-5-Vorschlag mit dem Board, wie es ist.
 
-**Architecture (Teil 2):** `begriffsboard.soll_laufen(conn, chat_id)` verliert `ist_abschluss` und behandelt `'ende'` wie `'pause'` (ohne Mindestabstand, Begründung unten); `nach_segment` entscheidet bei Fertig neu, sobald ein laufender Lauf endet (`merke_falls_laeuft`). `brainstorm.soll_reagieren` und der Phase-4-Pfad bleiben Zeichen für Zeichen. In `web_chat.py` fallen `#diskussion-pause`, `pausiereDiskussion`/`fortsetzeDiskussion`, `diskussionPauseKnopf`, `data-pausiert` an `#diskussion` und die nur der Diskussions-Pause dienenden Zweige weg — und weil dieser Code schon in Dortmunds Seite steht, werden drei Dortmund-Fixtures in **einer** eigenen Aufgabe neu erzeugt, mit Nachweis, dass sich dabei **nur Löschungen** ergeben.
+**Architecture (Teil 2):** `begriffsboard.soll_laufen(conn, chat_id)` verliert `ist_abschluss` und behandelt `'ende'` wie `'pause'` (ohne Mindestabstand, Begründung unten); `nach_segment` entscheidet bei Fertig neu, sobald ein laufender Lauf endet (`merke_falls_laeuft`). `brainstorm.soll_reagieren` und der Phase-4-Pfad bleiben Zeichen für Zeichen. In `web_chat.py` fallen `#diskussion-pause`, `pausiereDiskussion`/`fortsetzeDiskussion`, `diskussionPauseKnopf`, `data-pausiert` an `#diskussion` und die nur der Diskussions-Pause dienenden Zweige weg. Dass dieser Code auch in Dortmunds (eingefrorener) Seite steht, ändert daran nichts: die Dortmund-Bitgleich-Tests tragen seit Aufgabe 5 `@pytest.mark.dortmund`, keine Fixture wird neu erzeugt (Revision 04.10.2026).
 
 ## Global Constraints (Teil 2, zusätzlich zu oben)
 
-- **D4 gilt für Teil 2 ausdrücklich NICHT für die Fixtures** (Architekt-Entscheidung zum Nachtrag): `tests/fixtures/web_vereint_dortmund_vorher.html` (Zeilen 903, 905, 1905, 3952, 3981–3982, 4034, 4056, 4401–4405) und `tests/fixtures/werkbank_vorher_vereint_vorgabe.html` / `werkbank_vorher_vereint_dortmund-2026.html` (gelesen von `tests/test_werkbank_bitgleich.py`) enthalten den Diskussions-Pause-Code bereits — versteckter Knopf und das unbedingt ausgelieferte `_CHAT_JS`. Er wird **vollständig entfernt** (kein profilgeschalteter toter Code), und genau diese drei Fixtures werden in **Aufgabe 10** neu erzeugt. Teil 1 erzeugt weiterhin **keinen** Fixture-Diff (Aufgabe 7, Step 2).
-- `tests/test_profil_bitgleich.py` (Prompt-Fingerabdruck) bleibt **ohne Änderung** grün — Teil 2 ändert keinen Prompt.
+- **Dortmund eingefroren (Revision):** `tests/fixtures/web_vereint_dortmund_vorher.html` und `tests/fixtures/werkbank_vorher_vereint_vorgabe.html`/`…_dortmund-2026.html` enthalten den Diskussions-Pause-Code (versteckter Knopf, unbedingt ausgeliefertes `_CHAT_JS`; z. B. `web_vereint_dortmund_vorher.html:903, 905, 1905, 3981, 4034, 4056, 4401`). Er wird trotzdem **vollständig entfernt** (kein profilgeschalteter toter Code). Die Fixtures werden **nicht** neu erzeugt; die Tests, die gegen sie vergleichen, sind seit Aufgabe 5 mit `@pytest.mark.dortmund` markiert — Aufgabe 9 prüft nur, dass das so bleibt und dass kein weiterer Test aus anderem Grund rot wird.
+- `tests/test_profil_bitgleich.py` (Prompt-Fingerabdruck, Dortmund-Massstab) ist kein Abnahmekriterium mehr; Teil 2 ändert keinen Prompt, er bleibt also ohnehin grün. Würde er **nur** aus Dortmund-Gründen rot: Marker, keine Anpassung.
 - Unberührt: `brainstorm.soll_reagieren` (Signatur und Verhalten, inkl. des mit Aufgabe 0 gemergten `min_zeichen_override`), `aufnahme._brainstorm_abschliessen`, `#interview-pause`/`pausiereInterview`/`fortsetzeInterview`, `#brainstorm-pause`/`pausiereBrainstorm`/`fortsetzeBrainstorm`, `_TEXT_INTERVIEW_PAUSE`/`_WEITER`/`_PAUSIERT`, `beginneAufnahme` (sein `if (sitzung.pausiert)` dient Interview und Brainstorm), `formatiereUhr`.
 - `diskussion.starte` (Verdichtung) startet weiter auf `schnittgrund == 'ende'` in `aufnahme._diskussion_abschliessen` — unverändert.
 
@@ -1619,10 +1580,6 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 1. Ohne VAD (Rückfall auf den festen Takt, `web_chat.py:2413`) trägt kein Segment einen Schnittgrund — Phase 1 macht dann weder Board-Läufe noch Vorschlag noch Verdichtung. Das war vor dieser Karte genauso (Test `tests/test_web_chat_js.py::test_der_grund_ende_wird_nur_mit_aktivem_vad_gesetzt` hält die Wache absichtlich fest).
 2. Hat das letzte Teilstück bei „Discussion done" keine Bytes, wird es nicht hochgeladen (`web_chat.py` `r.onstop`: `if (teile.length && …)`) — dann kommt kein `'ende'` beim Server an. Ebenfalls vorher schon so.
 
-## Abweichung im Nachweis (Teil 2)
-
-Der Kartennachtrag verlangt für Aufgabe 10 „null `+`-Zeilen" im Fixture-Diff. **Zeilenweise ist das nicht erreichbar:** der Knopf steht in einer gerenderten Zeile mit anderem Inhalt, `tests/fixtures/web_vereint_dortmund_vorher.html:903` `<button type="button" id="diskussion" data-laeuft="0" data-pausiert="0" hidden>Zuhoeren starten</button>` — das Attribut zu streichen ergibt zwangsläufig eine `-`- und eine `+`-Zeile; dasselbe gilt für den Kommentar `:3952` „(#diskussion, #diskussion-pause, #diskussion-beenden)". Der Nachweis wird deshalb **wortweise** geführt (`git diff --word-diff=porcelain`): **null hinzugefügte Wörter**, und jedes gelöschte Stück ist entweder eine in Aufgabe 9 gelöschte Quellzeile von `web_chat.py` oder eines von genau drei benannten Tokens (`data-pausiert="0"`, `#diskussion-pause,`, die Knopfzeile). Das ist dieselbe Aussage — „nur Löschungen, nur Pause-Code" — in einer Form, die maschinell prüfbar ist.
-
 ## Dateiübersicht (Teil 2)
 
 | Datei | Aufgabe | Was |
@@ -1634,9 +1591,10 @@ Der Kartennachtrag verlangt für Aufgabe 10 „null `+`-Zeilen" im Fixture-Diff.
 | `interview_theater/web_chat.py` | 9 | Pause des Mithörens weg (Markup, JS, Kommentare) |
 | `tests/test_web_chat_diskussion_ohne_pause.py` (neu) | 9 | Markup/JS ohne Pause, Ende-Schnitt, Interview/Brainstorm-Pause bleiben |
 | `tests/test_web_chat_js.py`, `tests/test_web_chat_diskussion_knopf.py` | 9 | anpassen bzw. löschen (Liste unten) |
-| `tests/fixtures/web_vereint_dortmund_vorher.html`, `tests/fixtures/werkbank_vorher_vereint_vorgabe.html`, `tests/fixtures/werkbank_vorher_vereint_dortmund-2026.html` | 10 | neu erzeugt, nur Löschungen |
-| `tests/e2e/test_web_diskussion_e2e.py` | 11 | Schlusslauf-Annahme raus, Start+Fertig belegt |
-| `AGENTS.md` | 12 | Diskussionsknöpfe, Auslöser (D1/D6), Übergaben |
+| `tests/fixtures/*` | — | **nicht** angefasst (Dortmund eingefroren) |
+| weitere `*bitgleich*`-Tests, falls **nur** an einer Dortmund-/Vorgabe-Fixture rot | 9 | `@pytest.mark.dortmund` |
+| `tests/e2e/test_web_diskussion_e2e.py` | 10 | Schlusslauf-Annahme raus, Start+Fertig belegt |
+| `AGENTS.md` | 11 | Diskussionsknöpfe, Auslöser (D1/D6), Übergaben |
 
 ## Vollständige Testliste Teil 2 (die Autorität, neu gegrept)
 
@@ -1668,10 +1626,11 @@ Gegrept mit `grep -rn "ist_abschluss\|diskussion-pause\|pausiereDiskussion\|fort
 | `tests/test_web_chat_js.py::test_manuelle_schnitte_tragen_den_grund_ende_fuer_diskussion_auch` | anpassen: nur noch `beendeDiskussion` prüfen | 9 |
 | `tests/test_web_chat_diskussion_knopf.py::test_der_knopf_ist_standardmaessig_verborgen` | anpassen: Kennungen ohne `diskussion-pause`, Docstring „drei Elemente" | 9 |
 | `tests/test_web_chat_diskussion_ohne_pause.py` (4 Tests) | **neu** | 9 |
-| `tests/test_web_vereint_bitgleich.py::test_vereinte_seite_bleibt_byte_gleich[None]`, `[dortmund-2026]` | Code unverändert; **Fixture neu erzeugt** | 10 |
-| `tests/test_werkbank_bitgleich.py::test_ohne_schalter_bleibt_die_werkbank_byte_gleich[None]`, `[dortmund-2026]` | Code unverändert; **Fixtures `werkbank_vorher_vereint_*` neu erzeugt** (`_gruppe_*`/`_koerper_*` bleiben byte-gleich) | 10 |
-| `tests/e2e/test_web_diskussion_e2e.py::test_begriffsboard_im_cothinker_und_top5_vorschlag` | anpassen: `IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS=1` → `IT_BEGRIFFSBOARD_MIN_ZEICHEN=1`; Docstring „Schlusslauf" → „regulärer Lauf auf dem Ende-Schnitt" | 11 |
-| `tests/e2e/test_web_diskussion_e2e.py::test_diskussion_voller_ablauf_im_browser` | anpassen (Ergänzung): nach dem Start genau **ein** Knopf in `#diskussion-aktionen`, kein `#diskussion-pause` | 11 |
+| `tests/test_web_vereint_bitgleich.py::test_vereinte_seite_bleibt_byte_gleich[None]`, `[dortmund-2026]` | nichts zu tun: seit Aufgabe 5 `@pytest.mark.dortmund` (vergleicht gegen die Dortmund-Fixture, die den Pause-Code noch trägt); **keine** Fixture-Neuerzeugung | 9 (nur prüfen) |
+| `tests/test_werkbank_bitgleich.py::test_ohne_schalter_bleibt_die_werkbank_byte_gleich[None]`, `[dortmund-2026]` | dito, seit Aufgabe 5 markiert | 9 (nur prüfen) |
+| jeder weitere `*bitgleich*`-Test, der nach der Pausen-Entfernung **nur** an einer `*dortmund*`/`*vorgabe*`-Fixture rot wird | `@pytest.mark.dortmund` (beim Schreiben keiner erwartet) | 9 |
+| `tests/e2e/test_web_diskussion_e2e.py::test_begriffsboard_im_cothinker_und_top5_vorschlag` | anpassen: `IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS=1` → `IT_BEGRIFFSBOARD_MIN_ZEICHEN=1`; Docstring „Schlusslauf" → „regulärer Lauf auf dem Ende-Schnitt" | 10 |
+| `tests/e2e/test_web_diskussion_e2e.py::test_diskussion_voller_ablauf_im_browser` | anpassen (Ergänzung): nach dem Start genau **ein** Knopf in `#diskussion-aktionen`, kein `#diskussion-pause` | 10 |
 
 **Geprüft und unberührt** (Fundstellen betreffen nur Interview/Brainstorm/Phase 4 oder nennen Pause nur im Kommentar):
 `tests/test_brainstorm.py` (alle, inkl. der beiden `min_zeichen_override`-Tests aus dem Merge — der Override überlebt, `soll_laufen` nutzt ihn weiter), `tests/test_aufnahme.py::test_abschluss_schnitt_feuert_schon_ab_150_zeichen` (Phase-4-Brainstorm), `tests/test_aufnahme_diskussion.py` (Ende-Segment ohne `klm` → kein Lauf, Vorschlag sofort = heutiges Verhalten), `tests/test_web_chat_js.py` Interview-/Brainstorm-Pause-Tests (z. B. `test_pause_weiter_knopf_wechselt_auf_die_richtige_funktion`, `test_formatiereuhr_zaehlt_erfasstems_plus_laufende_spanne`, `test_keine_zweite_parallele_merkvariable_fuer_pause`, `test_pausiert_schutz_lebt_nur_noch_in_beginneaufnahme`, `test_die_seite_traegt_den_modus_schon_beim_laden`, `test_der_brainstorm_knopf_steht_immer_im_markup_aber_hidden_ausserhalb_phase_4`), die zwei Node-Tests `test_zeigemodus_fuehrt_brainstorm_und_diskussion_zusammen_in_node` / `test_zeigemodus_brainstorm_nur_szenario_bleibt_byte_identisch_zu_vor_task6_in_node` (deklarieren `diskussionPauseKnopf` nur noch als ungenutzte Variable — harmlos, bleibt), `test_startebrainstorm_und_pttpointerdown_lehnen_waehrend_diskussion_tatsaechlich_ab_in_node` (`{ pausiert: false }` als Attrappe, harmlos), `tests/test_web_chat_sprache.py` (prüft „Pause" bewusst nicht, `:104-107`), `tests/e2e/test_web_chat_e2e.py` und `tests/e2e/test_web_gestalt_e2e.py` (nur `#interview[data-pausiert]`), `tests/test_sprache_bitgleich.py` (keine Textkonstante fällt weg), `tests/test_profil_bitgleich.py`.
@@ -2001,15 +1960,14 @@ grep -n "ist_abschluss=True\|MIN_ZEICHEN_BEI_ABSCHLUSS" tests/test_begriffsboard
 
 Danach von Hand: in `tests/test_begriffsboard_lauf.py` die Funktion `test_abschluss_mit_niedriger_schwelle` **löschen**; in `tests/test_begriffsboard_mithoeren.py` (Fixture `aktiv`) die Zeile `monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")` ersetzen durch `monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")` (steht diese Zeile dort nach dem Merge schon: nur die Abschluss-Zeile löschen); in `tests/test_begriffsboard_vorschlag.py` die Docstrings/Kommentare, die „Schlusslauf" sagen, auf „Lauf auf dem Ende-Schnitt" umschreiben (Testnamen bleiben). Expected nach dem `grep`: keine Ausgabe mehr außer gegebenenfalls Kommentarzeilen.
 
-- [ ] **Step 7: Grün laufen lassen + Phase-4- und Dortmund-Nachweis**
+- [ ] **Step 7: Grün laufen lassen + Phase-4-Nachweis**
 
 ```bash
-$PY -m pytest tests/test_begriffsboard_abschluss.py tests/test_begriffsboard_lauf.py tests/test_begriffsboard_vorschlag.py tests/test_begriffsboard_mithoeren.py tests/test_aufnahme_diskussion.py tests/test_brainstorm.py tests/test_aufnahme.py -q -p no:cacheprovider
-$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py tests/test_profil_bitgleich.py -q -p no:cacheprovider
+$PY -m pytest tests/test_begriffsboard_abschluss.py tests/test_begriffsboard_lauf.py tests/test_begriffsboard_vorschlag.py tests/test_begriffsboard_mithoeren.py tests/test_aufnahme_diskussion.py tests/test_brainstorm.py tests/test_aufnahme.py -q -p no:cacheprovider -m "not dortmund"
 git diff --stat HEAD -- interview_theater/brainstorm.py tests/test_brainstorm.py
 ```
 
-Expected: beide Läufe `… passed`, kein `failed`; `git diff --stat` ohne Ausgabe (Phase 4 unberührt). Die Bitgleich-Tests sind hier noch grün gegen die **alten** Fixtures — der Server-Teil berührt keine Dortmund-Bytes.
+Expected: `… passed`, kein `failed`; `git diff --stat` ohne Ausgabe (Phase 4 unberührt).
 
 - [ ] **Step 8: Commit**
 
@@ -2031,8 +1989,6 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Produces (Markup-Vertrag): `<button type="button" id="diskussion" data-laeuft="0"[ hidden]>…</button>` und `<div class="interview-aktionen" id="diskussion-aktionen" hidden>` mit **genau einem** Knopf `#diskussion-beenden` (`data-discussion-done="1"`). Im JS gibt es `starteDiskussion`, `zeigeDiskussionModus`, `beendeDiskussion` — kein `pausiereDiskussion`, `fortsetzeDiskussion`, `diskussionPauseKnopf`.
-
-**Regel für jede Änderung in `_CHAT_JS` und im Markup: nur LÖSCHEN.** Eine Quellzeile, die ins ausgelieferte HTML geht, wird entweder ganz gelöscht oder es wird nur ein Teilstück aus ihr gelöscht — nie umformuliert. Sonst kann Aufgabe 10 nicht belegen, dass die Fixtures nur Löschungen tragen. Python-Kommentare außerhalb von `_CHAT_JS` dürfen frei umgeschrieben werden.
 
 - [ ] **Step 1: Failing tests schreiben** — `tests/test_web_chat_diskussion_ohne_pause.py`:
 
@@ -2139,10 +2095,9 @@ Danach belegen:
 
 ```bash
 grep -n "diskussion-pause\|pausiereDiskussion\|fortsetzeDiskussion\|diskussionPauseKnopf" interview_theater/web_chat.py
-git diff -U0 HEAD -- interview_theater/web_chat.py | grep -E '^\+[^+]'
 ```
 
-Expected: erstes `grep` ohne Ausgabe; zweites zeigt **nur** die Python-Zeilen, die nicht ausgeliefert werden (Kommentar über `_TEXT_DISKUSSION_AN`), die Markup-Zeile `f'  <button type="button" id="diskussion" data-laeuft="0"'` (Leerzeichen am Ende weg) und die Kommentarzeile aus Punkt 2 — sonst nichts.
+Expected: keine Ausgabe.
 
 - [ ] **Step 5: Bestehende Tests nachziehen** — die Aufgabe-9-Zeilen der Liste oben, je wörtlich:
   - `test_manuelle_schnitte_tragen_den_grund_ende`: `assert js.count("_grund = 'ende'") == 5`, Kommentar `# pausiereInterview + beendeInterview + pausiereBrainstorm + beendeBrainstorm + beendeDiskussion`.
@@ -2172,14 +2127,18 @@ Expected: erstes `grep` ohne Ausgabe; zweites zeigt **nur** die Python-Zeilen, d
     ```
   - `tests/test_web_chat_diskussion_knopf.py::test_der_knopf_ist_standardmaessig_verborgen`: Tupel `("diskussion", "diskussion-aktionen", "diskussion-beenden")`, Docstring „die drei Elemente".
 
-- [ ] **Step 6: Grün laufen lassen — und das erwartete Rot belegen**
+- [ ] **Step 6: Grün laufen lassen; Bitgleich-Tests: Rot nur wegen Dortmund?**
 
 ```bash
-$PY -m pytest tests/test_web_chat_diskussion_ohne_pause.py tests/test_web_chat_js.py tests/test_web_chat_diskussion_knopf.py tests/test_web_chat_sprache.py tests/test_web_vereint_js_syntax.py tests/test_sprache_bitgleich.py -q -p no:cacheprovider
-$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py -q -p no:cacheprovider -rf
+$PY -m pytest tests/test_web_chat_diskussion_ohne_pause.py tests/test_web_chat_js.py tests/test_web_chat_diskussion_knopf.py tests/test_web_chat_sprache.py tests/test_web_vereint_js_syntax.py -q -p no:cacheprovider -m "not dortmund"
+git grep -n "mark.dortmund" -- tests
+$PY -m pytest tests/ -q -p no:cacheprovider -k "bitgleich" -rf
+$PY -m pytest tests/ -q -p no:cacheprovider -k "bitgleich" -m "not dortmund"
 ```
 
-Expected: erster Lauf `… passed`, kein `failed` (Node-Tests ggf. `skipped`). Zweiter Lauf: **genau vier** `FAILED`, und nur diese — `test_web_vereint_bitgleich.py::test_vereinte_seite_bleibt_byte_gleich[None]`, `[dortmund-2026]`, `test_werkbank_bitgleich.py::test_ohne_schalter_bleibt_die_werkbank_byte_gleich[None]`, `[dortmund-2026]` (Assertion `name == 'vereint'` bzw. der Seitenvergleich); alles andere dort `passed`. Dieses Rot ist beabsichtigt: es sind genau die Fixtures, die den Pause-Code tragen, und Aufgabe 10 erzeugt sie neu. Ein fünfter Fehlschlag ist ein Fehler dieser Aufgabe.
+Expected: erster Lauf `… passed`, kein `failed` (Node-Tests ggf. `skipped`). `git grep` zeigt die Marker aus Aufgabe 5 an `test_vereinte_seite_bleibt_byte_gleich` und `test_ohne_schalter_bleibt_die_werkbank_byte_gleich`. Der dritte Lauf (ohne Markerfilter) zeigt genau diese beiden Funktionen rot (je `[None]` und `[dortmund-2026]`) — jetzt zusätzlich wegen des entfernten Pause-Codes in der Dortmund-Fixture; der vierte (`-m "not dortmund"`) ist `… passed, … deselected` ohne `failed`.
+
+Ist im dritten Lauf ein **weiterer** `*bitgleich*`-Test rot: Blick auf den Unterschied, wie in Aufgabe 5 Step 6 (dort das `difflib`-Snippet). Bestehen die Unterschiede nur aus Pause-Code (`diskussion-pause`, `pausiereDiskussion`, `fortsetzeDiskussion`, `diskussionPauseKnopf`, `data-pausiert` an `#diskussion`, `fortsetzend`) und den Teil-1-Zeilen (`bb…`, `.begriffsboard .vorgaenger`), und vergleicht der Test gegen eine `*dortmund*`/`*vorgabe*`-Fixture: `@pytest.mark.dortmund` über die Testfunktion, Datei mit `git add`-en. Sonst ist es ein Fehler dieser Aufgabe. Für den Bericht genügt derselbe Blick auf `tests/fixtures/web_vereint_dortmund_vorher.html` (Snippet aus Aufgabe 5) — kein formales Tor.
 
 - [ ] **Step 7: Commit**
 
@@ -2187,97 +2146,12 @@ Expected: erster Lauf `… passed`, kein `failed` (Node-Tests ggf. `skipped`). Z
 git add interview_theater/web_chat.py tests/test_web_chat_diskussion_ohne_pause.py tests/test_web_chat_js.py tests/test_web_chat_diskussion_knopf.py
 git commit -m "Phase 1: Pause-Knopf des Mithoerens entfernt, nur Start und Fertig (t_cb2c4678, Aufgabe 9)
 
-Bewusst rot bis Aufgabe 10: die vier Dortmund-Bitgleich-Faelle, deren
-Fixtures den entfernten Code noch tragen.
-
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 10: Dortmund-Fixtures neu erzeugen — Nachweis: nur Löschungen, nur Pause-Code
-
-**Files:**
-- Modify (neu erzeugt): `tests/fixtures/web_vereint_dortmund_vorher.html`, `tests/fixtures/werkbank_vorher_vereint_vorgabe.html`, `tests/fixtures/werkbank_vorher_vereint_dortmund-2026.html`
-
-**Interfaces:**
-- Consumes: der Commit aus Aufgabe 9 ist `HEAD` (Pause-Code entfernt), Teil 1 und Aufgabe 8 sind nachweislich Dortmund-neutral (Aufgabe 7 Step 2, Aufgabe 8 Step 7).
-
-Der im Docstring von `tests/test_web_vereint_bitgleich.py` genannte Erzeuger `.superpowers/sdd/_erzeuge_bitgleich_fixture.py` **existiert in diesem Worktree nicht** (`ls .superpowers/sdd/` zeigt nur zwei Berichte). Deshalb erzeugt der Test selbst die Datei — mit seinen eigenen Funktionen `_baue_datenbank()` und `_rendere()`, also exakt dem Aufruf, gegen den er vergleicht. Die Werkbank-Fixtures schreibt der Test selbst mit `IT_WERKBANK_VORHER_SCHREIBEN=1` (`tests/test_werkbank_bitgleich.py:35`, `:107-113`).
-
-- [ ] **Step 1: Neu erzeugen**
-
-```bash
-env -u IT_WORKSHOP -u IT_UX_ENTWURF $PY - <<'EOF'
-import sys
-sys.path.insert(0, ".")
-from interview_theater import sprache, workshop
-from tests import test_web_vereint_bitgleich as t
-workshop.vergiss(); sprache.vergiss()
-t._baue_datenbank()
-t.VORHER.write_text(t._rendere(), encoding="utf-8")
-print("geschrieben:", t.VORHER)
-EOF
-env -u IT_WORKSHOP -u IT_UX_ENTWURF IT_WERKBANK_VORHER_SCHREIBEN=1 $PY -m pytest tests/test_werkbank_bitgleich.py -q -p no:cacheprovider
-git status --short tests/fixtures/
-```
-
-Expected: `geschrieben: …/tests/fixtures/web_vereint_dortmund_vorher.html`; Werkbank-Lauf `… passed`; `git status` zeigt **genau drei** Zeilen ` M tests/fixtures/web_vereint_dortmund_vorher.html`, ` M tests/fixtures/werkbank_vorher_vereint_dortmund-2026.html`, ` M tests/fixtures/werkbank_vorher_vereint_vorgabe.html` — die `_gruppe_*`- und `_koerper_*`-Fixtures bleiben byte-gleich (sie tragen kein Chat-Panel).
-
-- [ ] **Step 2: Nachweis „null hinzugefügte Wörter"**
-
-```bash
-git diff --word-diff=porcelain -- tests/fixtures/ | grep -E '^\+' | grep -vE '^\+\+\+ ' | wc -l
-```
-
-Expected: `0`.
-
-- [ ] **Step 3: Nachweis „jede Löschung ist Pause-Code"** — gegen die Quell-Löschungen des Aufgabe-9-Commits:
-
-```bash
-$PY - <<'EOF'
-import subprocess
-
-def laeufe(args, zeichen):
-    aus = subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
-    return [" ".join(z[1:].split()) for z in aus.splitlines()
-            if z.startswith(zeichen) and not z.startswith(zeichen * 3)]
-
-quelle = set(laeufe(["diff", "-U0", "HEAD~1", "HEAD", "--", "interview_theater/web_chat.py"], "-"))
-erlaubt = {'data-pausiert="0"', "#diskussion-pause,",
-           '<button type="button" id="diskussion-pause">⏸ Pause</button>'}
-fixture = [s for s in laeufe(["diff", "--word-diff=porcelain", "--", "tests/fixtures/"], "-") if s]
-fremd = [s for s in fixture if s not in quelle and s not in erlaubt]
-print(len(fixture), "geloeschte Stuecke,", len(fremd), "fremd")
-for s in fremd:
-    print("FREMD:", s)
-EOF
-git diff --word-diff=porcelain -- tests/fixtures/ | grep -E '^-' | grep -vE '^--- ' | sort | uniq -c | sort -rn | head -60
-```
-
-Expected: `<N> geloeschte Stuecke, 0 fremd` (N ≈ 3 × die Zahl der in Aufgabe 9 gelöschten ausgelieferten Zeilen + 3 × 3 Tokens). Die zweite Liste wird wörtlich in den Bericht übernommen — jede Zeile ist erkennbar Pause-Code (`pausiert`, `PauseKnopf`, `fortsetz…`, Rumpf von `pausiereDiskussion`/`fortsetzeDiskussion`, `diskussion-pause`). ANNAHME: `--word-diff=porcelain` gibt eine ganz gelöschte Zeile als **eine** `-`-Zeile aus; zerlegt Git sie anders (Treffer unter „FREMD", die erkennbar Bruchstücke gelöschter Quellzeilen sind), die Liste von Hand prüfen und das im Bericht so benennen — **nicht** den Nachweis aufweichen, ohne es zu sagen.
-
-- [ ] **Step 4: Die Bitgleich-Tests sind wieder grün, ohne Testcode-Änderung**
-
-```bash
-$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py tests/test_profil_bitgleich.py -q -p no:cacheprovider
-git diff --stat HEAD -- tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py tests/test_profil_bitgleich.py
-```
-
-Expected: `… passed`, kein `failed`; zweites Kommando ohne Ausgabe.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add tests/fixtures/web_vereint_dortmund_vorher.html tests/fixtures/werkbank_vorher_vereint_vorgabe.html tests/fixtures/werkbank_vorher_vereint_dortmund-2026.html
-git commit -m "Fixtures: Dortmund-Seite ohne den toten Diskussions-Pause-Code neu erzeugt -- nur Loeschungen (t_cb2c4678, Aufgabe 10)
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
----
-
-### Task 11: Browserlauf Phase 1 nachziehen
+### Task 10: Browserlauf Phase 1 nachziehen
 
 **Files:**
 - Modify: `tests/e2e/test_web_diskussion_e2e.py`
@@ -2310,14 +2184,14 @@ Expected: `4 passed` (zwei Diskussions-, zwei Ranking-Tests). Ohne Playwright: i
 
 ```bash
 git add tests/e2e/test_web_diskussion_e2e.py
-git commit -m "e2e Phase 1: Ende-Schnitt unter der Board-Schwelle, nur Start und Fertig (t_cb2c4678, Aufgabe 11)
+git commit -m "e2e Phase 1: Ende-Schnitt unter der Board-Schwelle, nur Start und Fertig (t_cb2c4678, Aufgabe 10)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 12: AGENTS.md (Teil 2), Abschluss-Suite, Bericht
+### Task 11: AGENTS.md (Teil 2), Padua-Abnahme, Abschluss-Suite, Bericht
 
 **Files:**
 - Modify: `AGENTS.md`
@@ -2335,78 +2209,95 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 2: Pflichttests einzeln, mit Namen**
 
 ```bash
-$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_profil_bitgleich.py tests/test_pruefe_sprache.py tests/test_werkbank_bitgleich.py -q -p no:cacheprovider
-$PY -m pytest tests/test_begriffsboard.py tests/test_begriffsboard_lauf.py tests/test_begriffsboard_web.py tests/test_begriffsboard_mithoeren.py tests/test_begriffsboard_vorschlag.py tests/test_begriffsboard_einstieg.py tests/test_begriffsboard_schaerfung.py tests/test_begriffsboard_schaerfung_web.py tests/test_begriffsboard_flip.py tests/test_begriffsboard_abschluss.py tests/test_web_chat_diskussion_ohne_pause.py tests/test_brainstorm.py -q -p no:cacheprovider
+$PY -m pytest tests/test_begriffsboard.py tests/test_begriffsboard_lauf.py tests/test_begriffsboard_web.py tests/test_begriffsboard_mithoeren.py tests/test_begriffsboard_vorschlag.py tests/test_begriffsboard_einstieg.py tests/test_begriffsboard_schaerfung.py tests/test_begriffsboard_schaerfung_web.py tests/test_begriffsboard_flip.py tests/test_begriffsboard_abschluss.py tests/test_web_chat_diskussion_ohne_pause.py tests/test_brainstorm.py tests/test_pruefe_sprache.py -q -p no:cacheprovider -m "not dortmund"
+git grep -n "mark.dortmund" -- tests
 BASIS=<SHA aus Aufgabe 0, Step 3>
 git diff --stat "$BASIS" HEAD -- tests/fixtures/
-git log --oneline "$BASIS"..HEAD -- tests/fixtures/
 ```
 
-Expected: beide Läufe `… passed`, kein `failed`; `git diff --stat` nennt **genau** die drei Fixtures aus Aufgabe 10; `git log` zeigt für `tests/fixtures/` **genau einen** Commit — den aus Aufgabe 10.
+Expected: `… passed`, kein `failed`; `git grep` listet die in Aufgabe 5/9 (und Aufgabe 3, falls nötig) gesetzten Marker — diese Liste geht in den Bericht; `git diff --stat` für `tests/fixtures/` **ohne Ausgabe** (keine Fixture neu erzeugt).
 
-- [ ] **Step 3: Abschluss-Suite im Hintergrund, abwarten**
+- [ ] **Step 3: Padua-Abnahme — Profil und Prompt-Snapshot**
 
 ```bash
-$PY -m pytest -q -p no:cacheprovider --ignore=tests/e2e > .suite.log 2>&1; echo EXIT $?
+$PY -m scripts.pruefe_profil padua-2026; echo EXIT $?
+IT_WORKSHOP=padua-2026 $PY -m scripts.prompt_schnappschuss /tmp/t_cb2c4678-padua-prompts-nachher.txt
+diff /tmp/t_cb2c4678-padua-prompts-vorher.txt /tmp/t_cb2c4678-padua-prompts-nachher.txt
+```
+
+Expected:
+- `pruefe_profil` (Aufruf laut `scripts/pruefe_profil.py`: `python -m scripts.pruefe_profil <name>|--alle|--vorgabe`): erste Zeile `Workshop-Profil padua-2026`, gegebenenfalls `  Hinweis: …`-Zeilen, letzte Zeile `padua-2026: in Ordnung` (oder `padua-2026: in Ordnung, N Hinweis(e)`), `EXIT 0`. Eine Zeile `  FEHLER:  …` / `padua-2026: N Fehler` ist ein Fehler dieser Karte, wenn sie in einem Lauf am Stand `BASIS` nicht auftritt (Gegencheck am Stand `BASIS`, z. B. in einem Wegwerf-Worktree `git worktree add /tmp/t_cb2c4678-basis "$BASIS"`, danach `git worktree remove /tmp/t_cb2c4678-basis`).
+- `prompt_schnappschuss`: `<N> Zeichen nach /tmp/t_cb2c4678-padua-prompts-nachher.txt (Profil: padua-2026)`.
+- `diff`: nur Zeilen, deren Abschnittsname den Begriffsboard-Prompt betrifft (Aufgabe 3) — oder gar keine, wenn der Fingerabdruck diesen Prompt nicht abdeckt. Jede andere geänderte Zeile ist ein Befund und wird vor dem Commit erklärt.
+
+ANNAHME (beim Lauf prüfen): „Prompt-Snapshot nur für Padua" (AGENTS.md auf `main`, Abschnitt „Dortmund eingefroren") hat auf `main` **noch keinen eigenen Befehl oder Test** — beim Schreiben der Revision gibt es nur Dortmund-bezogene Massstäbe (`tests/test_profil_bitgleich.py`, `tests/test_sprache_bitgleich.py`, beide gegen Dortmund/Vorgabe) und das Werkzeug `scripts/prompt_schnappschuss.py`. Der Vorher/Nachher-Vergleich oben ist deshalb die Padua-Abnahme dieser Karte. Der Coder prüft vor dem Lauf mit `git grep -n "padua" main -- tests/test_*bitgleich*.py scripts/prompt_schnappschuss.py docs/prompt-audit`, ob inzwischen ein Padua-Snapshot (Datei oder Test) auf `main` liegt; wenn ja, **den** benutzen und hier im Bericht nennen.
+
+`tests/test_profil_bitgleich.py`: läuft in Step 4 mit; wird er **nur** wegen des Dortmund-/Vorgabe-Massstabs rot, bekommt der betroffene Test `@pytest.mark.dortmund` (wie Aufgabe 5, Step 6), keine Anpassung, kein neuer Schnappschuss. `pruefe_profil dortmund-2026` ist **kein** Abnahmekriterium und wird nicht gefahren.
+
+- [ ] **Step 4: Abschluss-Suite im Hintergrund, abwarten**
+
+```bash
+$PY -m pytest -q -p no:cacheprovider --ignore=tests/e2e -m "not dortmund" > .suite.log 2>&1; echo EXIT $?
 ```
 
 Im Hintergrund starten, bis zum Ende abwarten, nicht abbrechen. Danach `tail -n 3 .suite.log` und `tail -n 3 .suite-baseline.log`.
 
-Expected: `EXIT 0`. Zahl `passed` = Baseline + 46 (Teil 1: Aufgabe 2: 27, 3: 5, 4: 5, 5: 9) + 12 (Teil 2: Aufgabe 8: 8, Aufgabe 9: 4) − 2 gelöschte (`test_abschluss_mit_niedriger_schwelle`, `test_fortsetzediskussion_hat_dieselbe_sperrklinke_wie_brainstorm`) = **Baseline + 56** (Node-Tests ggf. als `skipped` statt `passed`). Keine neuen `failed`: ein Test, der in der Baseline grün und jetzt rot ist, ist Folge dieser Karte und wird vor dem Commit behoben.
+Expected: `EXIT 0`. Rechnung für `passed`: Baseline + 45 (Teil 1: Aufgabe 2: 27, 3: 5, 4: 5, 5: 8) + 12 (Teil 2: Aufgabe 8: 8, Aufgabe 9: 4) − 2 gelöschte (`test_abschluss_mit_niedriger_schwelle`, `test_fortsetzediskussion_hat_dieselbe_sperrklinke_wie_brainstorm`) − M neu markierte Testfälle (mindestens 4: je zwei Parametrisierungen von `test_vereinte_seite_bleibt_byte_gleich` und `test_ohne_schalter_bleibt_die_werkbank_byte_gleich`; sie wandern von `passed` nach `deselected`) = **Baseline + 55 − M**. Node-Tests zählen ggf. als `skipped`. Keine neuen `failed`: ein Test, der in der Baseline grün und jetzt rot ist, ist Folge dieser Karte und wird vor dem Commit behoben — oder, wenn er **nur** an Dortmund-Verhalten scheitert, markiert (und im Bericht genannt).
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add AGENTS.md
-git commit -m "AGENTS.md: Phase 1 nur Start/Fertig, Endstand = Zwischenstand, Uebergaben (t_cb2c4678, Aufgabe 12)
+git commit -m "AGENTS.md: Phase 1 nur Start/Fertig, Endstand = Zwischenstand, Uebergaben (t_cb2c4678, Aufgabe 11)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 5: Abschlussbericht** (als Kartenkommentar, nicht als Datei) — Pflichtinhalt:
-  1. BASIS-SHA aus Aufgabe 0 und die Commit-SHAs der Aufgaben 2–12.
-  2. **Beide** Suite-Zeilen wörtlich: Baseline (`.suite-baseline.log`) und Schluss (`.suite.log`), jeweils mit `EXIT`, und die Rechnung „Baseline + 56".
-  3. Die Pflichttests mit Ergebnis: `tests/test_web_vereint_bitgleich.py`, `tests/test_profil_bitgleich.py`, `tests/test_pruefe_sprache.py`, `tests/test_werkbank_bitgleich.py`.
-  4. Der Fixture-Nachweis aus Aufgabe 10: Ausgabe von Step 2 (`0`), Step 3 (`… 0 fremd`) und die Liste der gelöschten Stücke; dazu Aufgabe 7 Step 2 (Teil 1 ohne Fixture-Diff).
+(Hat Step 3 einen Marker an `tests/test_profil_bitgleich.py` gesetzt, die Datei mit `git add`-en.)
+
+- [ ] **Step 6: Abschlussbericht** (als Kartenkommentar, nicht als Datei) — Pflichtinhalt:
+  1. BASIS-SHA aus Aufgabe 0 und die Commit-SHAs der Aufgaben 2–11.
+  2. **Beide** Suite-Zeilen wörtlich: Baseline (`.suite-baseline.log`) und Schluss (`.suite.log`), jeweils mit `EXIT`, und die Rechnung „Baseline + 55 − M" mit dem tatsächlichen M.
+  3. Die Padua-Abnahme: Ausgabe von `pruefe_profil padua-2026` (letzte Zeile + `EXIT`) und das Ergebnis des Prompt-Snapshot-Vergleichs (bzw. des Padua-Snapshots, falls auf `main` inzwischen vorhanden).
+  4. Die Liste der gesetzten `@pytest.mark.dortmund` (Datei::Test) samt dem Blick auf den Fixture-Diff aus Aufgabe 5 Step 6 und Aufgabe 9 Step 6 (die ersten ~60 Zeilen), als Beleg „rot nur wegen Dortmund".
   5. Die gewählte Option der Abwägung (B) in einem Satz, mit dem hingenommenen Verlust.
   6. Node-Tests gelaufen ja/nein; e2e gelaufen ja/nein (sonst wörtlich „e2e nicht gelaufen"); Pfad und Beschreibung des Screenshots.
   7. Jede ANNAHME dieses Plans mit dem, was sich im Lauf gezeigt hat.
-  8. Ausdrücklich: kein Merge, kein Push, kein bezahlter Lauf.
+  8. Ausdrücklich: kein Merge, kein Push, kein bezahlter Lauf, keine Fixture neu erzeugt, kein Dortmund-Code gelöscht.
 
 ---
 
-## Selbstprüfung des Plans (gegen Abschnitt A–F der Karte und den Nachtrag)
+## Selbstprüfung des Plans (gegen Abschnitt A–F der Karte, den Nachtrag und die Revision)
 
 | Anforderung | Aufgabe |
 |---|---|
-| Vorbedingung prüfen, sonst blockieren, nie kopieren | 0 |
-| Baseline-Suite im Hintergrund, `.suite.log` nicht committet | 1 |
+| Vorbedingung prüfen (jetzt erfüllt), sonst blockieren, nie kopieren | 0 |
+| Baseline-Suite mit `-m "not dortmund"` im Hintergrund, `.suite.log` nicht committet; Padua-Prompt-Fingerabdruck vorher | 1 |
 | D1 Feld + Prüfung in `validiere(…, bisher)` (gültig / erfunden / noch stehend / selbst) | 2 |
 | D1 Kette über zwei Läufe, Erben, altes Board ohne Feld | 2, 3 |
 | D1 keine Heuristik, Begründung | Plankopf |
 | D1 Schema `required`, Prompt DE/EN, Nutzertext mit `vorgaenger` | 3 |
 | „nie mehr als ein Begriff", per Konstruktion begründet | 2 (Step 5 + vier Tests) |
 | D2 `<del>`, maskiert, `data-vorgaenger`, kein `style=`/`on…=`/Zitat, alte Regexe grün | 4 |
-| D3 FLIP, Zuordnung über Vorgänger, Einblenden, reduced motion, `<details>`-Zustand, CSSOM, Node-Test | 5, 6 |
-| D4 (Teil 1) Gating-Test, kein Fixture-Diff | 5, 7 |
-| D5 Phase 4 unberührt | Dateiübersicht, 8 (Step 7) |
-| e2e + Handy-Screenshot, „e2e nicht gelaufen" statt „grün" | 6, 11 |
+| D3 FLIP **in `ladeBuehne()`**, Zuordnung über Vorgänger, Einblenden, reduced motion, `<details>`-Zustand, CSSOM, Node-Test | 5, 6 |
+| Revision: kein Gating, kein neuer Schalter, kein MutationObserver; CSS im regulären CoThinker-CSS ohne `@media`/`transition` | 5 |
+| Revision: `*bitgleich*` rot nur wegen Dortmund → `@pytest.mark.dortmund`, keine Fixture neu erzeugt | 3 (falls nötig), 5, 9, 11 |
+| D5 Phase 4 unberührt | Dateiübersicht, 5 (`bbMerke` → `null`), 8 (Step 7) |
+| e2e + Handy-Screenshot, „e2e nicht gelaufen" statt „grün" | 6, 10 |
 | Nachtrag 1: Pause weg (Markup, JS, `data-pausiert`, Zweige), Interview/Brainstorm-Pause bleiben | 9 |
 | Nachtrag 2: kein eigener Abschlusspfad, Vorschlag mit dem Board, wie es ist, nach laufendem Lauf | 8 |
 | Abwägung A/B/C mit Belegen, Verlust von B beziffert, Mindestabstand entschieden | „Abwägung Abschlusspfad" |
 | `'ende'` kommt weiter aus `beendeDiskussion()` | 9 (`test_fertig_setzt_weiter_den_grund_ende`) |
 | Vollständige Testliste Teil 2, Mutant gegen den alten 150er-Zweig | „Vollständige Testliste", 8 |
-| Fixtures in EINER Aufgabe, nur Löschungen belegt, Teil 1 nicht vermischt | 7 (Step 2), 9 (Step 6), 10 |
-| `test_profil_bitgleich.py` ohne Änderung grün | 8, 10, 12 |
-| AGENTS.md (Teil 1 + Teil 2), Schluss-Suite, beide Zeilen im Bericht | 7, 12 |
+| Abnahme: Suite `-m "not dortmund"`, `pruefe_profil padua-2026`, Prompt-Snapshot Padua | 11 |
+| AGENTS.md (Teil 1 + Teil 2), Schluss-Suite, beide Zeilen im Bericht | 7, 11 |
 
 **ANNAHME-Marker in diesem Plan:**
 1. Aufgabe 3, Step 1: der englische Prompt hat nach dem Merge `0 Treffer` im Sprachprüfer.
-2. Aufgabe 3, Step 9: `scripts/prompt_schnappschuss.py` enthält den Begriffsboard-Prompt nicht (Dortmund-Bitgleich unberührt).
-3. Aufgabe 5, Step 2: die minimale Fixture-Gruppe rendert unter `padua-2026` ohne weitere Arbeitsstandzeilen, und `web._seite` setzt das CSS unverändert ein (der Gating-Test sucht die gescopte CSS-Zeichenkette wörtlich im HTML).
-4. Aufgabe 5, Step 5: `workshop` ist an der Einhängestelle in `seite()` schon importiert.
-5. Aufgabe 6, Step 2: mit `#buehne` ist der CoThinker beim Laden sichtbar und lädt alle 10 s nach.
-6. Aufgabe 6, Step 2: die Lage von „Grenze" kann unverändert bleiben (nicht geprüft).
-7. Abwägung (Teil 2): 600 Zeichen ≈ 37 s Rede gilt nach Erwachsenen-Daten (`brainstorm.py:9-11`); für Schülerinnen und Schüler ungemessen.
-8. Testliste Teil 2: Zeilennummern und Inhalte von `tests/test_begriffsboard_lauf.py`/`tests/test_begriffsboard_mithoeren.py` sind die vor dem Merge aus Aufgabe 0; der Merge ändert dort Umgebungsvariablen und erwartete kwargs, nicht die Testnamen. Ist `tests/test_begriffsboard_mithoeren.py` nach dem Merge schon in der Baseline rot (die Board-Schwelle 600 greift, die Fixture setzt nur `IT_BRAINSTORM_MIN_ZEICHEN`), ist das kein Fehler dieser Karte — Aufgabe 8 Step 6 setzt `IT_BEGRIFFSBOARD_MIN_ZEICHEN` und macht ihn grün.
-9. Aufgabe 10, Step 3: `git diff --word-diff=porcelain` gibt eine ganz gelöschte Zeile als eine `-`-Zeile aus.
+2. Aufgabe 3, Step 9: `tests/test_profil_bitgleich.py` und `tests/test_sprache_bitgleich.py` bleiben mit dem geänderten Begriffsboard-Prompt grün (der Prompt ist erst nach beiden Massstäben entstanden); sonst Marker statt Anpassung.
+3. Aufgabe 5, Step 2: `scope_css` schreibt `.panel-buehne .begriffsboard .vorgaenger` (Scope mit Leerzeichen davor).
+4. Aufgabe 6, Step 2: mit `#buehne` ist der CoThinker beim Laden sichtbar und lädt alle 10 s nach.
+5. Aufgabe 6, Step 2: die Lage von „Grenze" kann unverändert bleiben (nicht geprüft).
+6. Abwägung (Teil 2): 600 Zeichen ≈ 37 s Rede gilt nach Erwachsenen-Daten (`brainstorm.py:9-11`); für Schülerinnen und Schüler ungemessen.
+7. Testliste Teil 2: Zeilennummern sind die des Worktrees vor dem Merge aus Aufgabe 0; die Testnamen ändert der Merge nicht.
+8. Aufgabe 11, Step 3: für „Prompt-Snapshot nur für Padua" gibt es auf `main` noch keinen eigenen Befehl/Test; der Vorher/Nachher-Fingerabdruck mit `scripts/prompt_schnappschuss.py` unter `IT_WORKSHOP=padua-2026` ist die Abnahme, bis ein Padua-Snapshot auf `main` liegt.

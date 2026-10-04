@@ -696,6 +696,21 @@ def setze_status(
 
 
 @_gesperrt
+def setze_zu_kurz_uebersprungen(conn: sqlite3.Connection, aufnahme_id: int) -> None:
+    """Markiert ein Interview als wegen Unterschreitung von
+    ``aufnahme.MINDEST_WOERTER`` uebersprungen (N2/Padua Phasen TEIL 2,
+    Befund 4a) -- Grundlage der Phase-4-Sperre in ``aufnahme.
+    unausgewertete_interviews``: ein zu-kurz uebersprungenes Interview wird
+    NIE automatisch verdichtet und darf die Sperre deshalb nicht auf
+    unbestimmte Zeit offenhalten."""
+    conn.execute(
+        "UPDATE aufnahme SET zu_kurz_uebersprungen = 1 WHERE id = ?",
+        (aufnahme_id,),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def setze_transkript(conn: sqlite3.Connection, aufnahme_id: int, text: str) -> None:
     """Traegt das Transkript einer Aufnahme ein."""
     conn.execute(
@@ -3742,6 +3757,28 @@ def offene_knoepfe_der_nachricht(
 
 
 @_gesperrt
+def anzahl_knoepfe_der_nachricht(
+    conn: sqlite3.Connection, chat_id: int, message_id: int,
+) -> int:
+    """Wie viele Knopfzeilen -- gleich welchen Zustands, auch schon benutzte
+    -- je unter dieser Nachricht angelegt wurden.
+
+    Grundlage der Leisten-Kollisionsregel (Zusatzbefund, Padua Phase-2-Ende
+    04.10.2026): ``offene_knoepfe_der_nachricht`` allein kann eine echte
+    lone-Undo-Quittung (nie mehr als ein Knopf, ``sende_notiert_nur_undo``)
+    nicht von einer GRUNDLEISTE unterscheiden, die ``_nimm_alte_leiste_ab``
+    gerade erst auf ihren Undo-Knopf reduziert hat (Karte U) -- beide zeigen
+    in diesem Moment genau einen offenen Undo-Knopf. Nur die erste darf
+    kollabieren; die zweite ist die ausdrueckliche Zusage aus Karte U ("der
+    Undo-Knopf dieser Nachricht ... darf nicht verschwinden, nur weil eine
+    neue Leiste kommt") und muss ueberleben."""
+    return conn.execute(
+        "SELECT count(*) FROM knopf WHERE chat_id = ? AND message_id = ?",
+        (chat_id, message_id),
+    ).fetchone()[0]
+
+
+@_gesperrt
 def schnappschuss(
     conn: sqlite3.Connection, chat_id: int,
     plan: dict[str, tuple[tuple[str, ...], tuple[str, ...]]],
@@ -4040,6 +4077,203 @@ def nimm_erkenner_lauf_zurueck(
         conn.rollback()
         raise
     return ZURUECK_OK
+
+
+@_gesperrt
+def stelle_erkenner_lauf_wieder_her(
+    conn: sqlite3.Connection, lauf_id: int,
+    verweise: tuple[tuple[str, str, str], ...],
+    weich: tuple[str, ...], hart: tuple[str, ...], geleert: tuple[str, ...],
+) -> str:
+    """Stellt einen zurueckgenommenen Erkennerlauf wieder her -- der Spiegel
+    von ``nimm_erkenner_lauf_zurueck``: wendet ``nachher`` an, wo die
+    Ruecknahme ``vorher`` anwendet, und kehrt bei ``"angelegt"``/
+    ``"geloescht"`` die Richtung um (eine weich entfernte Zeile wird wieder
+    sichtbar statt entfernt, eine vom Undo wieder eingefuegte Zeile wird
+    erneut geloescht).
+
+    Erst wird JEDER Schritt gegen den Stand NACH dem Undo geprueft, und nur
+    wenn alle durchkommen, wird angewendet -- dieselbe Alles-oder-nichts-Regel
+    wie beim Undo: ein halbes Redo waere schlimmer als keins.
+
+    Die Idempotenz haengt an zwei Dingen, wie beim Undo: ``beanspruche_knopf``
+    beim Druck (``knoepfe.behandle``) und dem bedingten UPDATE hier --
+    ``wiederhergestellt_am`` ist die zweite Sperre neben ``zurueckgenommen_am``
+    und setzt zusaetzlich voraus, dass der Lauf ueberhaupt zurueckgenommen
+    wurde (ein Redo ohne vorheriges Undo hat nichts zu tun).
+
+    ``verweise``/``weich``/``hart``/``geleert`` kommen aus ``ruecknahme`` und
+    werden uebergeben wie beim Undo: die Entscheidung, WAS wie wiederhergestellt
+    wird, ist Fachlogik, und diese Datei liest nicht nach oben."""
+    lauf = conn.execute(
+        "SELECT * FROM erkenner_lauf WHERE id = ?", (lauf_id,)
+    ).fetchone()
+    if (
+        lauf is None
+        or lauf["zurueckgenommen_am"] is None
+        or lauf["wiederhergestellt_am"] is not None
+    ):
+        return ZURUECK_SCHON
+
+    schritte = conn.execute(
+        "SELECT * FROM erkenner_lauf_schritt WHERE lauf_id = ? ORDER BY id ASC",
+        (lauf_id,),
+    ).fetchall()
+    if not schritte:
+        return ZURUECK_SCHON
+
+    # 1. Pruefen -- jeder Schritt gegen den Stand NACH dem Undo, bevor einer
+    #    wirkt. Anders als beim Undo gibt es hier KEINE Waisen-Probe: ein
+    #    Redo macht eine Zeile wieder sichtbar (weich) oder entfernt eine
+    #    reine Verknuepfungszeile (hart) -- beides kann keine Waise in
+    #    ``szene_figur``/``schaerfung``/``szenenfassung`` erzeugen, weil
+    #    dabei keine neue figur/szene-id entsteht, auf die etwas zeigen
+    #    koennte (anders als bei ``"angelegt"`` im Undo, wo eine Figur/Szene
+    #    gerade erst wieder auftaucht).
+    for s in schritte:
+        schluessel = json.loads(s["schluessel"])
+        tabelle = s["tabelle"]
+        if s["art"] == "geaendert":
+            vorher = json.loads(s["vorher"])
+            jetzt = _zeile_jetzt(conn, tabelle, schluessel, list(vorher))
+            if jetzt is None or any(
+                json.loads(json.dumps(jetzt.get(spalte)))
+                != json.loads(json.dumps(wert))
+                for spalte, wert in vorher.items()
+            ):
+                return ZURUECK_GEAENDERT
+        elif s["art"] == "geloescht":
+            # Identische Pruefung wie "geaendert": "vorher" ist hier die
+            # Zeile, die das Undo per INSERT OR IGNORE wieder eingefuegt hat.
+            vorher = json.loads(s["vorher"])
+            jetzt = _zeile_jetzt(conn, tabelle, schluessel, list(vorher))
+            if jetzt is None or any(
+                json.loads(json.dumps(jetzt.get(spalte)))
+                != json.loads(json.dumps(wert))
+                for spalte, wert in vorher.items()
+            ):
+                return ZURUECK_GEAENDERT
+        elif s["art"] == "angelegt":
+            nachher = json.loads(s["nachher"]) if s["nachher"] else {}
+            if tabelle in geleert:
+                jetzt = _zeile_jetzt(conn, tabelle, schluessel, list(nachher))
+                if jetzt is None or any(
+                    jetzt.get(spalte) is not None for spalte in nachher
+                ):
+                    return ZURUECK_GEAENDERT
+            elif tabelle in weich:
+                # Das Undo aendert bei weich NUR entfernt_am, nie die
+                # uebrigen Spalten -- die werden hier ohne entfernt_am gegen
+                # nachher geprueft, entfernt_am separat direkt darunter.
+                jetzt = _zeile_jetzt(conn, tabelle, schluessel, list(nachher))
+                if jetzt is None or any(
+                    json.loads(json.dumps(jetzt.get(spalte)))
+                    != json.loads(json.dumps(wert))
+                    for spalte, wert in nachher.items()
+                    if spalte != "entfernt_am"
+                ):
+                    return ZURUECK_GEAENDERT
+                bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+                entfernt_am = conn.execute(
+                    f"SELECT entfernt_am FROM {tabelle} WHERE {bedingung}",
+                    list(schluessel.values()),
+                ).fetchone()
+                if entfernt_am is None or entfernt_am["entfernt_am"] is None:
+                    return ZURUECK_GEAENDERT
+            elif tabelle in hart:
+                if _zeile_jetzt(conn, tabelle, schluessel, []) is not None:
+                    return ZURUECK_GEAENDERT
+            else:
+                # Siehe das Vorbild in nimm_erkenner_lauf_zurueck: eine
+                # VERFOLGT-Tabelle ohne Eintrag in weich/geleert/hart ist ein
+                # Programmierfehler.
+                raise ValueError(
+                    f"Tabelle {tabelle!r} ist weder in weich, geleert "
+                    "noch hart gelistet -- 'angelegt' kann nicht "
+                    "wiederhergestellt werden."
+                )
+
+    # 2. Stempeln und 3. Anwenden stehen in EINEM try/except, aus demselben
+    # Grund wie beim Undo: ein Fehler mitten im Anwenden darf keine halb
+    # offene Transaktion auf der GETEILTEN Verbindung zuruecklassen.
+    try:
+        # 2. Stempeln -- bedingt, in derselben Transaktion. Wer die Zeile
+        #    nicht bekommt, wirkt nicht.
+        cur = conn.execute(
+            "UPDATE erkenner_lauf SET wiederhergestellt_am = ? "
+            "WHERE id = ? AND zurueckgenommen_am IS NOT NULL "
+            "AND wiederhergestellt_am IS NULL",
+            (_jetzt(), lauf_id),
+        )
+        if cur.rowcount != 1:
+            conn.rollback()
+            return ZURUECK_SCHON
+
+        # 3. Anwenden.
+        for s in schritte:
+            tabelle = s["tabelle"]
+            schluessel = json.loads(s["schluessel"])
+            bedingung = " AND ".join(f"{k} = ?" for k in schluessel)
+            werte = list(schluessel.values())
+            if s["art"] == "geaendert":
+                nachher = json.loads(s["nachher"])
+                satz = ", ".join(f"{k} = ?" for k in nachher)
+                conn.execute(
+                    f"UPDATE {tabelle} SET {satz} WHERE {bedingung}",
+                    list(nachher.values()) + werte,
+                )
+            elif s["art"] == "angelegt":
+                nachher = json.loads(s["nachher"]) if s["nachher"] else {}
+                if tabelle in weich:
+                    conn.execute(
+                        f"UPDATE {tabelle} SET entfernt_am = NULL "
+                        f"WHERE {bedingung}",
+                        werte,
+                    )
+                elif tabelle in geleert:
+                    satz = ", ".join(f"{k} = ?" for k in nachher)
+                    conn.execute(
+                        f"UPDATE {tabelle} SET {satz} WHERE {bedingung}",
+                        list(nachher.values()) + werte,
+                    )
+                else:  # hart -- das Undo hat die Zeile geloescht, sie kommt
+                    # wieder, genau wie der "geloescht"-Zweig des Undo-Vorbilds
+                    # eine vorher geloeschte Zeile wieder einfuegt.
+                    zeile = dict(nachher)
+                    zeile.update(schluessel)
+                    zeile.setdefault("chat_id", lauf["chat_id"])
+                    namen = ", ".join(zeile)
+                    fragen = ", ".join("?" for _ in zeile)
+                    conn.execute(
+                        f"INSERT OR IGNORE INTO {tabelle} ({namen}) "
+                        f"VALUES ({fragen})",
+                        list(zeile.values()),
+                    )
+            else:  # geloescht -- die vom Undo wieder eingefuegte Zeile erneut weg
+                conn.execute(f"DELETE FROM {tabelle} WHERE {bedingung}", werte)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    return ZURUECK_OK
+
+
+@_gesperrt
+def letzte_knopf_nachricht_id(
+    conn: sqlite3.Connection, chat_id: int
+) -> int | None:
+    """Die ``message_id`` der zuletzt angelegten Knopfzeile dieser Gruppe,
+    oder ``None``.
+
+    Grundlage der Leisten-Kollisionsregel (Task 2): ein Redo-Knopf soll nicht
+    unter einer Nachricht erscheinen, waehrend direkt darunter schon eine
+    andere, noch offene Leiste haengt."""
+    zeile = conn.execute(
+        "SELECT message_id FROM knopf WHERE chat_id = ? AND message_id "
+        "IS NOT NULL ORDER BY id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+    return None if zeile is None else zeile["message_id"]
 
 
 # --- Der Web-Kanal (30.09.2026, Karte Padua A2) ----------------------------

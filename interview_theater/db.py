@@ -202,7 +202,15 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- rufen, und ``_kurz_abschliessen`` loest dafuer nie einen Gespraechszug
   -- aus: strukturell nie Teil eines Interviews, nie im Gespraechsfenster,
   -- nie im Journal. Additiv nachgeruestet.
-  kalibrierung    INTEGER NOT NULL DEFAULT 0
+  kalibrierung    INTEGER NOT NULL DEFAULT 0,
+  -- Gesetzt (1) = ``aufnahme._zu_kurz_gemeldet`` hat dieses Interview wegen
+  -- Unterschreitung von ``aufnahme.MINDEST_WOERTER`` uebersprungen, OHNE es
+  -- zu verdichten (Padua Phasen TEIL 2, Task 1, Grundlage der Phase-4-Sperre
+  -- in Task 5). ``status`` bleibt dabei trotzdem 'fertig' -- unterscheidet
+  -- also ein zu-kurz uebersprungenes Interview von einem normal fertigen,
+  -- das die Gruppe noch nicht ausgewertet hat. Additiv; bestehende Zeilen
+  -- tragen 0.
+  zu_kurz_uebersprungen INTEGER NOT NULL DEFAULT 0
 );
 -- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
 -- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,
@@ -1006,7 +1014,13 @@ CREATE TABLE IF NOT EXISTS erkenner_lauf (
   meldung             TEXT,
   message_id          INTEGER,
   erstellt_am         TEXT NOT NULL,
-  zurueckgenommen_am  TEXT
+  zurueckgenommen_am  TEXT,
+  -- Zweite Idempotenz-Sperre fuer Redo, analog zu ``zurueckgenommen_am`` fuer
+  -- Undo (Padua Phasen TEIL 2, Task 1): gesetzt, sobald
+  -- ``repo.stelle_erkenner_lauf_wieder_her`` einen Lauf erfolgreich wieder
+  -- hergestellt hat. Ein Lauf ohne ``zurueckgenommen_am`` kann nie
+  -- wiederhergestellt werden -- Redo setzt zurueck, was Undo weggenommen hat.
+  wiederhergestellt_am TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_erkenner_lauf_chat ON erkenner_lauf(chat_id, id);
 

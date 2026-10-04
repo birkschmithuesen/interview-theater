@@ -76,7 +76,7 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
     ART_LEITFADEN,
     ART_NOCH_NICHT, ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA,
     ART_OHNE_KNOPF_NEIN, ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_PRUEFUNG_LASSEN,
-    ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_RICHTUNG,
+    ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_REDO, ART_RICHTUNG,
     ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE,
     ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SCHLAG_VOR, ART_SPEICHERN,
     ART_STAND, ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
@@ -193,11 +193,12 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
 from interview_theater.knoepfe.basis import (  # noqa: F401
     _auswahlleiste, _daten, _ein_feld_je_nachricht, _entferne_tastatur,
     _erster_block, _feld_ist_frei, _id_aus_daten, _ist_bestaetigung,
+    _kollabiere_letzten_einsamen_undo,
     _leistenwert, _merke_botnachricht, _mit_leiste, _nimm_alte_leiste_ab,
     _phasenknopf, _reduziere_auf_undo, _sende_knoepfe, _sende_menue,
     _sende_mit_grundleiste, _sende_rueckspiegelung,
     _speichere, _starte_auftrag, biete_kernthema, biete_phase, grundleiste,
-    kernthema_vorschlaege, offene_art, sende_mit_speicherleiste,
+    kernthema_vorschlaege, offene_art, redo_leiste, sende_mit_speicherleiste,
     sende_notiert_mit_leiste, sende_notiert_nur_undo, speicherleiste,
     undo_leiste,
 )

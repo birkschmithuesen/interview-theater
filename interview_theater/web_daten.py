@@ -1036,6 +1036,15 @@ def _interviews(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
                 or z["status"] in ("fertig", "transkribiert"),
                 "hat_transkript": bool((z["transkript"] or "").strip())
                 or _hat_teil_transkript(conn, z["id"], mit_teilen),
+                # Die vierte Bedingung aus ``aufnahme.unausgewertete_interviews``
+                # (Padua Phasen TEIL 2, Task 5): ein zu-kurz uebersprungenes
+                # Interview gilt nie als offene Auswertung. Die Spalte ist
+                # neu auf diesem Zweig -- eine read-only Verbindung von vor
+                # der Migration kennt sie noch nicht, also wie bei ``_feld``
+                # defensiv lesen statt mit IndexError abzubrechen.
+                "zu_kurz_uebersprungen": bool(z["zu_kurz_uebersprungen"])
+                if "zu_kurz_uebersprungen" in z.keys()
+                else False,
                 "teile": teile,
                 "beginn": _beginn(z),
                 "dauer_sekunden": teile_dauer if teile else z["dauer_sekunden"],
@@ -1475,10 +1484,10 @@ def _offene_interviews(conn: sqlite3.Connection, chat_id: int) -> list[str]:
     aber noch keine Verdichtung -- das read-only Gegenstueck zu
     ``aufnahme.unausgewertete_interviews``.
 
-    Dieselben drei Bedingungen (beendet, Transkript da, keine Verdichtung),
-    nur ohne ``repo``: der Webserver hat die Schreibschicht nicht. Fehlt eine
-    Spalte noch (Datenbank aus der Zeit davor), ist die Liste leer statt ein
-    Fehler."""
+    Dieselben vier Bedingungen (beendet, Transkript da, nicht zu-kurz
+    uebersprungen, keine Verdichtung), nur ohne ``repo``: der Webserver hat
+    die Schreibschicht nicht. Fehlt eine Spalte noch (Datenbank aus der Zeit
+    davor), ist die Liste leer statt ein Fehler."""
     offen = []
     for eintrag in _interviews(conn, chat_id):
         if eintrag["zusammenfassung"]:
@@ -1486,6 +1495,8 @@ def _offene_interviews(conn: sqlite3.Connection, chat_id: int) -> list[str]:
         if not eintrag.get("beendet"):
             continue
         if not eintrag.get("hat_transkript"):
+            continue
+        if eintrag.get("zu_kurz_uebersprungen"):
             continue
         offen.append(eintrag["bezeichnung"])
     return offen

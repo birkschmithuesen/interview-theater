@@ -284,3 +284,37 @@ def test_abschlusszeile_englisch_in_padua(conn, einst, padua):
     zeilen = aufnahme._text_interview_gespeichert_web(conn, row, vid, einst).split("\n")
     assert re.fullmatch(r"Interview 1 saved · \d\d:\d\d · 2 min", zeilen[0])
     assert zeilen[1:] == ["Topics: Ankommen", "Full analysis in the Workbench tab."]
+
+
+# -- Aufgabe 8: Abschluss und "sehr kurz" als Systemzeilen ---------------------
+
+
+def _texte(conn, typ):
+    return [p["text"] or "" for p in _posts(conn, typ)]
+
+
+def test_abschlusszeile_ist_im_web_mit_schalter_eine_systemzeile(conn, web, einst, klm, fliesstext):
+    kopf_id = _interview(conn, web, einst, klm, [TEIL_A, TEIL_B])
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, web, klm, einst, kopf_id)
+
+    assert any(t.startswith("Interview 1 gespeichert · ") for t in _texte(conn, repo.WEB_TYP_SYSTEM))
+    assert not any("gespeichert · " in t for t in _texte(conn, repo.WEB_TYP_TEXT))
+
+
+def test_zu_kurz_ist_im_web_mit_schalter_eine_systemzeile(conn, web, einst, klm, fliesstext):
+    kopf_id = _interview(conn, web, einst, klm, ["nur ein kurzer Satz"])
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, web, klm, einst, kopf_id)
+
+    assert any("war sehr kurz" in t for t in _texte(conn, repo.WEB_TYP_SYSTEM))
+    assert not any("war sehr kurz" in t for t in _texte(conn, repo.WEB_TYP_TEXT))
+
+
+def test_ohne_schalter_bleibt_zu_kurz_eine_textzeile(conn, web, einst, klm):
+    kopf_id = _interview(conn, web, einst, klm, ["nur ein kurzer Satz"])
+    aufnahme.beende_interview(conn, 1)
+    aufnahme.schliesse_ab(conn, web, klm, einst, kopf_id)
+
+    assert any("war sehr kurz" in t for t in _texte(conn, repo.WEB_TYP_TEXT))
+    assert not any("war sehr kurz" in t for t in _texte(conn, repo.WEB_TYP_SYSTEM))

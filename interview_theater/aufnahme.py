@@ -1212,7 +1212,8 @@ def starte_nachgeholten_zug(conn, tg, klm, e, chat_id: int):
     return thread
 
 
-def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text") -> None:
+def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text",
+                     system: bool = False) -> None:
     """Schickt eine Bot-Nachricht und schreibt sie in ``nachricht`` mit --
     wie ``ablauf.antworte`` und ``erkenner.laufe`` es tun.
 
@@ -1220,9 +1221,11 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text") ->
     wird gespeichert (Empfangen und In-den-Prompt-legen sind zwei
     Entscheidungen), taucht aber in keinem Fenster auf -- siehe
     ``repo.TYP_TRANSKRIPT``. Ein Fehlschlag beim Senden wird nur geloggt: der
-    Inhalt selbst steht laengst in der Datenbank."""
+    Inhalt selbst steht laengst in der Datenbank.
+
+    ``system=True`` nur aus ``_sende_nach_interview`` (Karte t_ea994c7f)."""
     try:
-        message_id = tg.sende(chat_id, text)
+        message_id = tg.sende(chat_id, text, system=True) if system else tg.sende(chat_id, text)
         repo.merke_nachricht(
             conn, chat_id, message_id, getattr(e, "bot_name", None), 1, typ,
             text, repo._jetzt(), 1 if typ == repo.TYP_TRANSKRIPT else 0,
@@ -1258,7 +1261,8 @@ def _text_interview_gespeichert_web(conn, row, verdichtung_id: int, e) -> str:
     return "\n".join(zeilen)
 
 
-def _sende_nach_interview(conn, tg, e, chat_id: int, text: str, kopf_id: int | None) -> None:
+def _sende_nach_interview(conn, tg, e, chat_id: int, text: str, kopf_id: int | None,
+                          system: bool = False) -> None:
     """Schickt die Abschlussnachricht eines Interviews MIT der Knopfleiste
     darunter (05.09.2026) und schreibt sie wie jede Bot-Nachricht mit.
 
@@ -1275,10 +1279,10 @@ def _sende_nach_interview(conn, tg, e, chat_id: int, text: str, kopf_id: int | N
     from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
 
     try:
-        message_id = knoepfe.biete_nach_aufnahme(conn, tg, chat_id, text, kopf_id)
+        message_id = knoepfe.biete_nach_aufnahme(conn, tg, chat_id, text, kopf_id, system=system)
     except Exception:
         log.exception("Knopfleiste nach Interview fehlgeschlagen, chat_id=%s", chat_id)
-        _sende_und_merke(conn, tg, e, chat_id, text)
+        _sende_und_merke(conn, tg, e, chat_id, text, system=system)
         return
     try:
         repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
@@ -1647,6 +1651,7 @@ def _zu_kurz_gemeldet(conn, tg, e, row) -> bool:
             woerter=woerter,
         ),
         row["id"],
+        system=fliesstext_aktiv(conn, row["chat_id"]),
     )
     return True
 
@@ -1771,7 +1776,10 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False,
                     if t["zitat_geprueft"] == 1 and t["beleg_zitat"]
                 ),
             )
-        _sende_nach_interview(conn, tg, e, chat_id, text, aufnahme_id)
+        _sende_nach_interview(
+            conn, tg, e, chat_id, text, aufnahme_id,
+            system=fliesstext_aktiv(conn, chat_id),
+        )
         return
     # Die Verdichtung geht als normale Bot-Nachricht in den Chat: anders als
     # das Transkript-Echo GEHOERT sie ins Gespraechsfenster -- sie ist eine

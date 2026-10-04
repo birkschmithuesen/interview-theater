@@ -1012,7 +1012,215 @@ _VEREINT_JS = """
   // NICHT im Chat -- eine neue Karte zeigt sich nur hier. Offen zeigt sich
   // eine neue Karte sofort (derselbe Takt wie Stand/Roadmap); geschlossen
   // reicht ein Punkt am Tab-Knopf (``data-neu``), kein Text, keine Zahl.
+  //
+  // Task 1 (Padua CoThinker-Tab clean, 03.10.2026): die Tafel bekam dazu
+  // einen Browser-seitigen Verlauf (◀/▶), portiert aus
+  // cothinker/stage/stage.py (SCRIPT, "verlauf"/"pos"/"male"/"zeige"/
+  // "blaettern"/"verlaufUebernehmen"). EIN Grundsatz traegt die ganze
+  // Portierung: der Zeiger in den Verlauf (``buehnePos``) lebt NUR hier im
+  // Browser, nie auf dem Server, nie in einer DB-Spalte. Wer zurueckblaettert
+  // und waehrenddessen eine neue Karte verpasst, wird nicht automatisch
+  // dorthin verschoben -- nur die Navigationsleiste bekommt einen "neu:"-
+  // Hinweis (``male()``s Regel). Anders als bei CoThinker gibt es hier aber
+  // keine zweite "live"-Quelle neben dem Verlauf: "aktuell" (``pos===null``)
+  // UND "die neueste Karte der Liste" sind bei uns dasselbe, es gibt also
+  // kein eigenes ``letzte``-Objekt zu pflegen.
+  //
+  // Die fuenf reinen Funktionen unten (``buehneEscape``/``buehneVorschau``/
+  // ``buehneBlaettern``/``buehneUebernehmen``/``buehneNavHtml``) haben KEINE
+  // Abhaengigkeit zu DOM oder den ``buehne*``-Variablen -- absichtlich, damit
+  // tests/test_buehne_nav_js.py sie woertlich herausloesen und unter Node
+  // einzeln aufrufen kann (wie test_web_vereint_js_syntax.py es mit dem
+  // ganzen <script>-Block tut, hier nur je Funktion).
   var buehneLetzter = null;
+  var buehneVerlauf = [];
+  var buehnePos = null;
+  var buehneBasis = '';
+  var buehneZurueckText = '';
+  var buehneNeuPraefix = '';
+
+  function buehneEscape(s) {
+    return String(s).replace(/[&<>"']/g, function (z) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[z];
+    });
+  }
+
+  function buehneVorschau(text) {
+    var t = (text || '').replace(/\\s+/g, ' ').trim();
+    return t.length > 40 ? t.slice(0, 40) + '…' : t;
+  }
+
+  // blaettern-Aequivalent: ``verlauf`` ist AELTESTE ZUERST (wie der
+  // JSON-Baustein es liefert), "aktuell" ist sowohl ``pos===null`` als auch
+  // (gleichbedeutend) der letzte Index -- ein Schritt, der dort landet,
+  // wird deshalb zu ``null`` normalisiert statt den Index zu behalten.
+  function buehneBlaettern(verlauf, pos, schritt) {
+    if (!verlauf || verlauf.length < 2) { return (pos === undefined) ? null : pos; }
+    var ziel = ((pos === null || pos === undefined) ? verlauf.length - 1 : pos) + schritt;
+    if (ziel < 0) { ziel = 0; }
+    if (ziel > verlauf.length - 1) { ziel = verlauf.length - 1; }
+    return (ziel === verlauf.length - 1) ? null : ziel;
+  }
+
+  // verlaufUebernehmen-Aequivalent: der Leser folgt der CONTENT-id, nicht
+  // dem Index -- faellt sie aus einer gedeckelten Liste heraus, wird die
+  // AELTESTE verbliebene Position gehalten (CoThinkers Regel), nie ans Ende
+  // gesprungen: ein Sprung waere der unerwartete Ortswechsel, den die ganze
+  // Portierung vermeiden soll. ``basis`` ruehrt diese Funktion bewusst
+  // nicht an -- das macht nur ``buehneZeige`` beim Umschalten selbst.
+  function buehneUebernehmen(verlauf, pos, neuerVerlauf) {
+    var hier = (pos !== null && pos !== undefined && verlauf && verlauf[pos])
+      ? verlauf[pos].id : null;
+    var neu = Array.isArray(neuerVerlauf) ? neuerVerlauf : [];
+    var neuePos = pos;
+    if (pos !== null && pos !== undefined) {
+      var gefunden = -1;
+      for (var i = 0; i < neu.length; i++) {
+        if (neu[i].id === hier) { gefunden = i; break; }
+      }
+      neuePos = (gefunden >= 0) ? gefunden : (neu.length ? 0 : null);
+    }
+    return { verlauf: neu, pos: neuePos };
+  }
+
+  // male()-Aequivalent, nur der Text/die Markup-Zeichenkette -- das Einsetzen
+  // ins DOM macht ``buehneNavRender()``. ``verlauf``/``pos`` wie oben,
+  // ``basis`` ist die id, die beim Verlassen von "aktuell" galt (vgl.
+  // CoThinkers ``zeige()``), ``zurueckText``/``neuPraefix`` kommen bereits
+  // lokalisiert vom Server (siehe ``web._buehne_html``).
+  function buehneNavHtml(verlauf, pos, basis, zurueckText, neuPraefix) {
+    var n = verlauf ? verlauf.length : 0;
+    if (n < 2) { return ''; }
+    var i = (pos === null || pos === undefined) ? n - 1 : pos;
+    var text = '<span class="zaehler">' + (i + 1) + '/' + n + '</span>';
+    if (pos !== null && pos !== undefined) {
+      text += ' <a href="#" data-v="live">' + buehneEscape(zurueckText) + '</a>';
+      // Ein NEUER Stand waehrend des Zurueckblaetterns wird GEMELDET, nie
+      // angesprungen -- das waere genau die "unexpected displacement", die
+      // die Referenz ausdruecklich verbietet.
+      if (basis && verlauf[n - 1] && verlauf[n - 1].id !== basis) {
+        text += ' <span class="neu">' + buehneEscape(neuPraefix)
+          + buehneEscape(buehneVorschau(verlauf[n - 1].text)) + '</span>';
+      }
+    }
+    return (
+      '<button type="button" data-v="zurueck"' + (i <= 0 ? ' disabled' : '') + '>◀</button>'
+      + '<button type="button" data-v="vor"' + (i >= n - 1 ? ' disabled' : '') + '>▶</button>'
+      + text
+    );
+  }
+
+  function buehneNavRender() {
+    var el = document.getElementById('buehne-nav');
+    if (!el) { return; }
+    el.innerHTML = buehneNavHtml(
+      buehneVerlauf, buehnePos, buehneBasis, buehneZurueckText, buehneNeuPraefix
+    );
+  }
+
+  // zeige()-Aequivalent: setzt die Tafel direkt aus dem Client-Verlauf
+  // (``textContent``, nicht ``innerHTML`` -- die Karte ist reiner Text ohne
+  // Formatierungsbedarf ausser Zeilenumbruechen, die CSS ``white-space:
+  // pre-wrap`` traegt, siehe _CSS_BUEHNE). "aktuell" (``i===null``) liest
+  // dabei die NEUESTE Karte des Verlaufs -- bei uns dieselbe Quelle wie die
+  // naechste Serverantwort, es gibt kein zweites ``letzte``-Objekt.
+  function buehneZeige(i) {
+    if (i !== null && buehnePos === null) {
+      var letzte = buehneVerlauf.length ? buehneVerlauf[buehneVerlauf.length - 1] : null;
+      buehneBasis = letzte ? letzte.id : '';
+    }
+    if (i === null) { buehneBasis = ''; }
+    buehnePos = i;
+    var tafel = document.getElementById('buehne-tafel');
+    if (tafel) {
+      var eintrag = (i === null)
+        ? (buehneVerlauf.length ? buehneVerlauf[buehneVerlauf.length - 1] : null)
+        : buehneVerlauf[i];
+      if (eintrag) { tafel.textContent = eintrag.text || ''; }
+    }
+    buehneNavRender();
+  }
+
+  function buehneAktiv() {
+    return istPhase4() && document.body.dataset.tab === 'buehne';
+  }
+
+  function buehneLiesDaten(doc) {
+    var el = doc.getElementById('buehne-verlauf-daten');
+    if (!el) { return null; }
+    try { return JSON.parse(el.textContent); } catch (e) { return null; }
+  }
+
+  // Anfangszustand: aus dem bereits ausgelieferten Dokument lesen, nicht
+  // erst auf den ersten Poll warten -- sonst zeigt die Nav-Leiste beim
+  // ersten Rendern noch nichts, obwohl der Server schon Verlauf mitgab.
+  (function () {
+    var anfang = buehneLiesDaten(document);
+    if (anfang) {
+      buehneVerlauf = Array.isArray(anfang.karten) ? anfang.karten : [];
+      buehneZurueckText = anfang.zurueck_text || '';
+      buehneNeuPraefix = anfang.neu_praefix || '';
+    }
+    buehneNavRender();
+  })();
+
+  // Ein gemeinsamer Tipp-Schutz fuer Pfeiltasten -- noch ohne Vorbild in
+  // dieser Datei (anders als web_chat.py's PTT-Code gibt es hier keine
+  // ``tippt()``-Funktion zum Wiederverwenden), deshalb neu, aber nach
+  // demselben Muster: Pfeiltasten sollen kein Eingabefeld unterbrechen.
+  function tippt() {
+    var el = document.activeElement;
+    if (!el) { return false; }
+    var tag = (el.tagName || '').toUpperCase();
+    return tag === 'INPUT' || tag === 'TEXTAREA' || !!el.isContentEditable;
+  }
+
+  document.addEventListener('click', function (ev) {
+    if (!buehneAktiv()) { return; }
+    var t = ev.target && ev.target.closest ? ev.target.closest('#buehne-nav [data-v]') : null;
+    if (!t) { return; }
+    var was = t.getAttribute('data-v');
+    if (was === 'zurueck') { buehneZeige(buehneBlaettern(buehneVerlauf, buehnePos, -1)); }
+    else if (was === 'vor') { buehneZeige(buehneBlaettern(buehneVerlauf, buehnePos, 1)); }
+    else if (was === 'live') { buehneZeige(null); }
+    else { return; }
+    ev.preventDefault();
+  });
+
+  document.addEventListener('keydown', function (ev) {
+    if (!buehneAktiv()) { return; }
+    if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) { return; }
+    if (tippt()) { return; }
+    if (ev.key === 'ArrowLeft') { buehneZeige(buehneBlaettern(buehneVerlauf, buehnePos, -1)); }
+    else if (ev.key === 'ArrowRight') { buehneZeige(buehneBlaettern(buehneVerlauf, buehnePos, 1)); }
+    else { return; }
+    ev.preventDefault();
+  });
+
+  // Wischen -- nur ueber der Tafel selbst, nur mit einem Finger, Schwelle
+  // 40px (kein Swipe-Helfer im Repo vorhanden, bewusst minimal gehalten).
+  (function () {
+    var startX = null;
+    var SCHWELLE = 40;
+    document.addEventListener('touchstart', function (ev) {
+      var t = ev.target && ev.target.closest ? ev.target.closest('#buehne-tafel') : null;
+      startX = (buehneAktiv() && t && ev.touches && ev.touches.length === 1)
+        ? ev.touches[0].clientX : null;
+    }, { passive: true });
+    document.addEventListener('touchend', function (ev) {
+      if (startX === null) { return; }
+      var x0 = startX;
+      startX = null;
+      if (!buehneAktiv()) { return; }
+      var endX = (ev.changedTouches && ev.changedTouches.length)
+        ? ev.changedTouches[0].clientX : null;
+      if (endX === null) { return; }
+      var delta = endX - x0;
+      if (Math.abs(delta) < SCHWELLE) { return; }
+      buehneZeige(buehneBlaettern(buehneVerlauf, buehnePos, delta < 0 ? 1 : -1));
+    }, { passive: true });
+  })();
+
   function ladeBuehne() {
     if (!istPhase4()) { return; }
     var panel = document.getElementById('tab-buehne');
@@ -1027,9 +1235,28 @@ _VEREINT_JS = """
         if (!neu || neu === buehneLetzter) { return; }
         buehneLetzter = neu;
         if (!panel.hidden) {
-          // Offen: sofort ersetzen -- kein Scroll-/Aufklapp-Zustand zu
-          // bewahren, das Panel traegt keine eigenen <details>.
-          panel.innerHTML = neu;
+          // Der Verlaufszeiger lebt NUR im Browser (s.o.): ein frischer
+          // Serverstand bringt nur mit, was neu dazukam, verschiebt ``pos``
+          // aber nie selbst (``buehneUebernehmen``).
+          var daten = buehneLiesDaten(doc);
+          if (daten) {
+            var uebernommen = buehneUebernehmen(buehneVerlauf, buehnePos, daten.karten);
+            buehneVerlauf = uebernommen.verlauf;
+            buehnePos = uebernommen.pos;
+            buehneZurueckText = daten.zurueck_text || buehneZurueckText;
+            buehneNeuPraefix = daten.neu_praefix || buehneNeuPraefix;
+          }
+          if (buehnePos === null) {
+            // "Aktuell": komplett ersetzen -- sicher, weil
+            // buehneNavRender() den (absichtlich leeren) Nav-Platzhalter
+            // sofort danach selbst fuellt (siehe web._buehne_html).
+            panel.innerHTML = neu;
+          }
+          // Zurueckgeblaettert (``buehnePos !== null``): Status und Tafel
+          // bleiben UNANGETASTET stehen -- nur die Navigationsleiste bekommt
+          // ggf. den "neu:"-Hinweis. Das ist die eine Verhaltensregel, auf
+          // der die ganze Karte steht.
+          buehneNavRender();
           return;
         }
         // Verborgen: nur der Punkt am Tab-Knopf, kein Inhalt vorab tauschen
@@ -1040,34 +1267,6 @@ _VEREINT_JS = """
       .catch(function () {});
   }
   setInterval(ladeBuehne, __NACHLADEN_MS__);
-  // -- CoThinker-Statuszeile: die tickende Dauer -------------------------
-  //
-  // Karte CoThinker-Statuszeile (03.10.2026): der Server schreibt nie eine
-  // Sekundenzahl ins HTML (siehe ``web._cothinker_status_html``), nur
-  // ``data-seit``/``data-tickt`` als Attribute -- sonst saehe ``ladeBuehne``
-  // oben bei jedem Poll einen neuen HTML-String und tauschte das Panel
-  // unnoetig aus. EIN globaler Takt fuers ganze Dokument, nicht je
-  // ``ladeBuehne()``-Lauf neu registriert (das liefe sonst nach jedem
-  // Panel-Tausch als zusaetzlicher, nie wieder geloeschter Timer weiter).
-  function formatiereDauer(sekunden) {
-    sekunden = Math.max(0, Math.floor(sekunden));
-    var min = Math.floor(sekunden / 60);
-    var sek = sekunden % 60;
-    return min + ':' + String(sek).padStart(2, '0');
-  }
-  function tickeCothinkerStatus() {
-    document.querySelectorAll('.co-dauer[data-tickt="1"]').forEach(function (el) {
-      var zeile = el.closest('#cothinker-status');
-      if (!zeile) { return; }
-      var seit = zeile.getAttribute('data-seit');
-      if (!seit) { return; }
-      var start = new Date(seit).getTime();
-      if (isNaN(start)) { return; }
-      var sek = (Date.now() - start) / 1000;
-      el.textContent = ' · ' + formatiereDauer(sek);
-    });
-  }
-  setInterval(tickeCothinkerStatus, 1000);
   zeige(lies());
 })();
 """
@@ -1326,7 +1525,6 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         )
     css = (
         _CSS_VEREINT
-        + web.CSS_COTHINKER_KEYFRAMES
         + scope_css(web._CSS_GRUPPE, ".panel-stand")
         + scope_css(web._CSS_TEXTBUCH + web._CSS_TEXTBUCH_FASSUNGEN, ".panel-textbuch")
         + scope_css(web._CSS_BUEHNE, ".panel-buehne")

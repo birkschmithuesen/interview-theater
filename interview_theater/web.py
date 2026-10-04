@@ -54,7 +54,7 @@ import urllib.parse
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import cothinker_status, db, phasen, vorspann, web_daten, web_schreiben  # noqa: F401 -- SZENENFELDER im HTML
+from . import db, phasen, vorspann, web_daten, web_schreiben  # noqa: F401 -- SZENENFELDER im HTML
 
 VORGABE_BIND = "127.0.0.1:8010"
 #: Externer URL-Pfad, unter dem nginx auf herkules den Server durchreicht.
@@ -671,79 +671,41 @@ nav.fassungen { display: flex; flex-wrap: wrap; gap: .3rem; margin: .3rem 0; }
 #: ``<section class="panel panel-buehne">``, ueber ``scope_css`` eingehaengt)
 #: statt eines eigenen Umschalters -- hier steht nur noch, wie der Inhalt
 #: DRINNEN aussieht, keine Tab-/Sichtbarkeitsregeln mehr.
+#: Die CoThinker-Tafel (Task 1, Padua CoThinker-Tab clean, 03.10.2026):
+#: EINE Karte auf einmal, gross gesetzt, mit Browser-seitigem Verlauf
+#: (siehe ``_buehne_html``/``_VEREINT_JS`` fuer die Portierung aus
+#: ``cothinker/stage/stage.py``). Ersetzt die gestapelte Kartenliste samt
+#: Stueckkarte-Streifen (``.stueckkarte``/``.sk-*``/``.karte``/``.hoert-zu``
+#: sind damit Geschichte -- eine Retheming-Karte (``wt/t_cc4306db``) fasst
+#: diese neuen Regeln spaeter an, nicht ``.karte`` selbst). Nur Theme-Token
+#: aus ``web_gestalt.TOKENS``, keine neuen Hexfarben.
 _CSS_BUEHNE = """
-/* Die Stueckkarte: ein fester Streifen ueber den Karten -- Setting, Figuren,
-   Geschichte mit Haken/offen, dazu die freien Festlegungen aus demselben
-   Datentopf wie der Abschnitt "Festlegungen" weiter unten (kein zweiter
-   Lesevorgang, siehe web_daten.stueckkarte_felder). */
-.stueckkarte { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem;
-               padding: .5rem .6rem; background: #f2ede1; border-radius: .5rem; }
-.sk-feld { font-size: .85rem; white-space: nowrap; }
-.sk-haken { opacity: .6; margin-right: .15rem; }
-.sk-frei { font-size: .85rem; opacity: .75; }
-/* Die Karten: neueste oben und gross, aeltere kleiner und ausgegraut
-   darunter (Brief: "large type, the newest card on top"). */
-#buehne-panel .karte { background: #fff; border: 1px solid #e6e1d6;
-                       border-radius: .5rem; padding: .8rem .9rem;
-                       margin: 0 0 .7rem; font-size: 1.08rem;
-                       white-space: pre-wrap; }
-#buehne-panel .karte.alt { font-size: .85rem; opacity: .6; padding: .5rem .7rem; }
-#buehne-panel .karte .zeit { display: block; margin-top: .3rem; }
-/* Der ruhige Hinweis, wenn der juengste Versuch ein Schweigen war (Karte
-   Padua Brainstorm, 03.10.2026) -- gedaempft wie ".leer", aber ohne ihren
-   Platz zu beanspruchen: er steht VOR einer noch stehenden letzten Karte. */
-#buehne-panel .hoert-zu { opacity: .55; font-style: italic; font-size: .95rem;
-                          margin: 0 0 .7rem; }
-/* Die CoThinker-Statuszeile UEBER dem Panel (Karte CoThinker-Statuszeile,
-   03.10.2026; Theme-Token-Nachbesserung fuer t_cc4306db, 04.10.2026) -- nur
-   Farb-Tokens aus ``web_gestalt.FARBTOKENS`` (``:root``, immer ueber
-   ``web_gestalt.css_rahmen()`` auf derselben Seite vorhanden, siehe
-   ``web_vereint.seite()``), KEIN rohes Hex hier. ``--warn`` traegt im
-   bestehenden ``KONTRAST``-Vertrag schon die Bedeutung "laufender Zustand
-   in der Karte" (siehe web_gestalt.KONTRAST) -- das ist wortgleich der
-   "denkt"-Zustand hier, deshalb kein neuer Ton. Die eigentliche Animation
-   (``@keyframes``) steht ungescopt in ``CSS_COTHINKER_KEYFRAMES``, siehe
-   dort. Genau eine Zeile, nie zwei: ``flex-wrap: nowrap`` am Rahmen,
-   ``text-overflow: ellipsis`` am Text -- ``min-width: 0`` ist der
-   Flexbox-Kniff, ohne den ein Flex-Kind nicht unter seine Inhaltsbreite
-   schrumpft und das Abschneiden nie greift. */
-#cothinker-status { display: flex; align-items: center; gap: .5rem;
-                     flex-wrap: nowrap; margin: 0 0 .6rem;
-                     padding: .4rem .6rem; border-radius: .5rem;
-                     background: var(--grund-2); color: var(--text);
-                     font-size: .9rem; min-width: 0; }
-#cothinker-status .co-icon { width: .6rem; height: .6rem;
-                              border-radius: 50%; background: currentColor;
-                              flex: 0 0 auto; }
-#cothinker-status.co-hoert, #cothinker-status.co-transkribiert { color: var(--signal); }
-#cothinker-status.co-denkt { color: var(--warn); }
-#cothinker-status.co-schweigt { color: var(--text-leise); opacity: .75; }
-#cothinker-status .co-text { overflow: hidden; text-overflow: ellipsis;
-                              white-space: nowrap; min-width: 0; }
-#cothinker-status .co-dauer { font-variant-numeric: tabular-nums; opacity: .75;
-                               white-space: nowrap; flex: 0 0 auto; }
-#cothinker-status.co-hoert .co-icon,
-#cothinker-status.co-transkribiert .co-icon { animation: co-atmen 1.8s ease-in-out infinite; }
-#cothinker-status.co-denkt .co-icon { animation: co-punkte 1.2s steps(3, end) infinite; }
-"""
-
-#: Die ``@keyframes`` der CoThinker-Statuszeile -- EIGENE, UNGESCOPTE
-#: Konstante (03.10.2026). ``web_vereint.scope_css()`` versteht ``@media``,
-#: aber nicht ``@keyframes``: ihre Regex haette ``50% { ... }`` faelschlich
-#: als verschachtelten Selektor gelesen und zu z. B. ``.panel-buehne 50%``
-#: verunstaltet (derselbe dokumentierte Fehler wie bei ``web_gestalt.py``s
-#: eigenem ``scope_css``, siehe AGENTS.md "``@keyframes`` und ``@media`` nur
-#: in ``css_rahmen()``"). Deshalb geht diese Konstante in
-#: ``web_vereint.seite()`` ROH in die CSS-Verkettung ein, genau wie
-#: ``_CSS_VEREINT`` -- niemals durch ``scope_css()``.
-CSS_COTHINKER_KEYFRAMES = """
-@keyframes co-atmen { 0%, 100% { opacity: .4; transform: scale(.85); }
-                       50% { opacity: 1; transform: scale(1); } }
-@keyframes co-punkte { 0% { opacity: .25; } 50% { opacity: 1; }
-                        100% { opacity: .25; } }
-@media (prefers-reduced-motion: reduce) {
-  #cothinker-status .co-icon { animation: none !important; }
-}
+#buehne-panel { display: flex; flex-direction: column; gap: .9rem;
+                padding: .4rem 0 1.2rem; }
+#buehne-status { margin: 0; font-size: .95rem; color: var(--text-leise); }
+/* Typografie laut Karte: >= 1.15rem auf Telefonbreite, eine Zeilenlaenge,
+   die nicht Kante an Kante laeuft, viel Weissraum, Kontrast aus dem
+   Token-Paar (text, grund-2) -- bereits in web_gestalt.KONTRAST gefuehrt. */
+#buehne-tafel { font-size: 1.15rem; line-height: 1.55; white-space: pre-wrap;
+                max-width: 34rem; margin: 0 auto; width: 100%;
+                box-sizing: border-box; padding: 1.1rem 1.2rem;
+                background: var(--grund-2); border: 1px solid var(--rand);
+                border-radius: var(--radius-gross); color: var(--text); }
+#buehne-tafel .buehne-alter { display: block; margin-top: .7rem;
+                               font-size: .8rem; color: var(--text-leise); }
+/* Die Navigation: Inhalt kommt IMMER aus JS (male()-Aequivalent), das
+   leere Element ist hier nur der Platzhalter. Tippflaechen >= 44px. */
+#buehne-nav { display: flex; align-items: center; justify-content: center;
+              gap: .6rem; flex-wrap: wrap; font-size: .9rem;
+              color: var(--text-leise); }
+#buehne-nav button { min-width: 44px; min-height: 44px; font-size: 1.2rem;
+                      line-height: 1; border: 1px solid var(--rand);
+                      border-radius: var(--radius); background: var(--grund-2);
+                      color: var(--signal); }
+#buehne-nav button:disabled { opacity: .35; }
+#buehne-nav a[data-v="live"] { color: var(--signal); }
+#buehne-nav .neu { color: var(--warn); }
+.buehne-leer { color: var(--text-leise); margin: 1rem 0; }
 """
 
 
@@ -980,19 +942,34 @@ _TEXT_JOURNAL = "Journal ({anzahl})"
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026). Die Tab-Beschriftung
 #: selbst steht seit dem Umzug in Karte Ws Tableiste in
 #: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
-_TEXT_BUEHNE_LEER = "Noch keine Karte."
+#:
+#: Task 1 (Padua CoThinker-Tab clean, 03.10.2026): der leere Zustand nennt
+#: jetzt eine konkrete Handlung statt nur den Mangel ("Noch keine Karte.")
+#: zu melden -- der Chat ist der einzige Weg, wie eine erste Karte entsteht.
+_TEXT_BUEHNE_LEER = "Im Chat sprechen — hier erscheinen die Gedanken."
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
 #: erkennen, ob das Mithoeren ueberhaupt laeuft.
 _TEXT_BUEHNE_HOERT_ZU = "Hört zu … bisher nichts beizutragen."
-_TEXT_BUEHNE_OFFEN = "offen"
-#: Die CoThinker-Statuszeile ueber dem Buehne-Panel (Karte CoThinker-
-#: Statuszeile, 03.10.2026) -- ein Text je ``cothinker_status.ZUSTAND_*``.
-_TEXT_COTHINKER_HOERT = "hört zu"
-_TEXT_COTHINKER_TRANSKRIBIERT = "verschriftlicht"
-_TEXT_COTHINKER_DENKT = "denkt nach"
-_TEXT_COTHINKER_SCHWEIGT = "zugehört, gerade nichts hinzuzufügen"
+#: Task 1: die zweite, bewusst ANDERS formulierte Statuszeile -- eine
+#: laufende/wartende Aufnahme (``aufnahme.status in ('empfangen','laeuft')``)
+#: ist ein anderer Zustand als "das Modell hat zugehoert und nichts
+#: beizutragen" oben, und beide duerfen auf der Tafel nicht gleich klingen
+#: (siehe Report, Abschnitt "Zwei verschiedene 'hört zu'").
+_TEXT_BUEHNE_AUFNAHME_LAEUFT = "Eine Aufnahme läuft gerade."
+#: Der "zurueck zur aktuellen Ansicht"-Baustein der Verlaufsleiste --
+#: INKLUSIVE des eigenen Gedankenstrichs, die JS haengt ihn nur noch ans
+#: Ende der Zaehler-Anzeige (``_VEREINT_JS`` traegt dafuer selbst keinen
+#: Nutzertext, siehe ``tests/test_sprache_texte.py``).
+_TEXT_BUEHNE_ZURUECK = " — zurück zur aktuellen Ansicht"
+#: Das Praefix vor der Vorschau einer neu eingetroffenen Karte, waehrend
+#: wer zurueckgeblaettert hat liest -- nie ein Sprung, nur ein Hinweis
+#: (siehe Brief/Referenz ``cothinker/stage/stage.py``, ``male()``).
+_TEXT_BUEHNE_NEU_PRAEFIX = "neu: "
+#: Die gedaempfte Alterszeile der Tafel -- nur ab 5 Minuten, siehe
+#: ``_buehne_alterszeile``.
+_TEXT_BUEHNE_ALTER = "vor {minuten} Min."
 #: Was das Speichern auf der Gruppenseite neben dem Feld meldet. Das
 #: JavaScript liest sie aus ``data-``-Attributen (``_BEARBEITEN_JS``), damit
 #: kein Nutzertext im Skript steht.
@@ -2790,107 +2767,140 @@ def _interview_html(v: dict) -> str:
 # (``web_vereint.seite``, Tab "buehne", nur in Phase 4): diese Funktionen
 # bauen nur noch den Panel-INHALT, die Tab-Mechanik selbst lebt dort.
 
-def _stueckkarte_streifen_html(
-    felder: list[tuple[str, str | None]], festlegungen: list[dict] | None,
-) -> str:
-    """Der feste Streifen ueber den Karten: die drei Stueckkarte-Felder mit
-    Haken/offen, dazu die freien Festlegungen aus demselben Datentopf wie
-    der Abschnitt "Weitere Festlegungen" weiter unten -- kein zweiter
-    Lesevorgang, keine zweite Formatierung."""
-    teile = [
-        '<span class="sk-feld"><span class="sk-haken">{haken}</span>{name}: {wert}</span>'.format(
-            haken="✓" if wert else "○",
-            name=html.escape(name),
-            wert=_t(wert) if wert else _t(T._TEXT_BUEHNE_OFFEN),
-        )
-        for name, wert in felder
-    ]
-    teile.extend(
-        f'<span class="sk-frei">{_t(z["text"])}</span>' for z in (festlegungen or [])
-    )
-    return f'<div class="stueckkarte">{"".join(teile)}</div>'
+def _buehne_status_text(daten: dict) -> str | None:
+    """Die EINE Statuszeile ueber der Tafel -- genau diese Prioritaet, kein
+    weiteres Signal (Task 1, Padua CoThinker-Tab clean, 03.10.2026):
+
+    1. "thinking" -- NICHT implementiert. Die Erzeugungssperre
+       (``brainstorm._LAEUFT``) lebt im Speicher des BOT-Prozesses; der
+       Webserver oeffnet nur eine read-only DB-Verbindung und sieht sie
+       strukturell nicht (dieselbe Grenze wie beim Szenenlauf-Lock, AGENTS.md
+       "Die Phasenuebersicht"). Eine Zeitstempel-Heuristik waere ein
+       geratener Zustand, der wie ein gemessener aussieht -- deshalb bleibt
+       das hier eine dokumentierte Luecke fuer die separate, noch
+       unzusammengefuehrte Karte ``cothinker_status.py``.
+    2. "listening": eine Aufnahme dieser Gruppe laeuft gerade oder wartet auf
+       Transkription (``aufnahme.status in ('empfangen', 'laeuft')`` --
+       gesetzt von ``web_daten.gruppe_nach_token`` ueber
+       ``_aufnahmen_nach_status``). Eigener Wortlaut, bewusst OHNE "hört zu"
+       -- das ist der Zustand aus Schritt 3, nicht dieser.
+    3. "nothing to add yet": die juengste Buehnenkarte war ein bewusstes
+       Schweigen (``buehnenkarte.schweigen = 1``) -- dieselbe Erkennung wie
+       vor diesem Umbau, nur das Rendering aendert sich.
+    4. sonst: ``None`` -- keine Zeile, nie ein leeres ``<p>``."""
+    if daten.get("buehne_aufnahme_laeuft"):
+        return _t(T._TEXT_BUEHNE_AUFNAHME_LAEUFT)
+    karten = daten.get("buehnenkarten") or []
+    if karten and karten[0]["schweigen"]:
+        return _t(T._TEXT_BUEHNE_HOERT_ZU)
+    return None
 
 
-def _cothinker_status_html(status: dict | None) -> str:
-    """Die Statuszeile UEBER dem Buehne-Panel (CoThinker-Statuszeile,
-    03.10.2026) -- leer, wenn gerade nichts zu zeigen ist (``status`` ist
-    ``None``: ausserhalb Phase 4, oder eine Gruppe, die diesen Zustand noch
-    nie erreicht hat).
+def _buehne_alterszeile(erstellt_am: str | None) -> str:
+    """Eine gedaempfte Alterszeile INNERHALB der Tafel -- NUR wenn die
+    juengste Karte aelter als 5 Minuten ist. Unter 5 Minuten gibt es dieses
+    Element im DOM gar nicht (Vertrag), kein leeres ``<span>``.
 
-    Die tickende Dauer selbst steht NIE hier: ``data-seit`` traegt den
-    rohen ISO-Zeitstempel, Javascript (``web_vereint._VEREINT_JS``)
-    berechnet die Differenz jede Sekunde neu und schreibt sie ins anfangs
-    leere ``.co-dauer``-Element -- sonst aenderte sich dieser HTML-String
-    jede Sekunde und ``web_vereint.py``s ``ladeBuehne()`` taeuschte sich bei
-    jedem Poll eine echte Aenderung vor und tauschte das ganze Panel
-    unnoetig aus.
-
-    Die Texte werden bei jedem Aufruf frisch ueber ``T._TEXT_COTHINKER_*``
-    aufgeloest statt ueber ein beim Modulimport eingefrorenes Dict: der
-    Webdienst laeuft fuer alle Gruppen in einem Prozess, und
-    ``sprache.code()`` haengt am aktiven Profil (dieselbe Begruendung wie
-    bei ``web_gestalt._mikrotexte``)."""
-    if not status:
+    Keine Bibliothek fuer relative Zeit: eine Minutenzahl reicht (Brief:
+    "do not reinvent an elaborate relative-time library for '2 min ago'")."""
+    gelesen = web_daten.lies_zeitstempel(erstellt_am) if erstellt_am else None
+    if gelesen is None:
         return ""
-    zustand = status["zustand"]
-    seit = status.get("seit") or ""
-    tickt = zustand in cothinker_status.TICKT
-    texte = {
-        cothinker_status.ZUSTAND_DENKT: T._TEXT_COTHINKER_DENKT,
-        cothinker_status.ZUSTAND_TRANSKRIBIERT: T._TEXT_COTHINKER_TRANSKRIBIERT,
-        cothinker_status.ZUSTAND_HOERT: T._TEXT_COTHINKER_HOERT,
-        cothinker_status.ZUSTAND_SCHWEIGT: T._TEXT_COTHINKER_SCHWEIGT,
-    }
-    text = _t(texte.get(zustand, zustand))
-    tickt_attr = ' data-tickt="1"' if tickt else ""
-    return (
-        f'<div id="cothinker-status" class="co-status co-{html.escape(zustand)}" '
-        f'data-zustand="{html.escape(zustand)}" data-seit="{html.escape(seit)}">'
-        f'<span class="co-icon" aria-hidden="true"></span>'
-        f'<span class="co-text">{text}</span>'
-        f'<span class="co-dauer"{tickt_attr}></span>'
-        f'</div>'
-    )
-
-
-def _buehnenkarte_html(karte: dict, erste: bool) -> str:
-    klasse = "karte" if erste else "karte alt"
-    text = html.escape(karte["text"] or "").replace("\n", "<br>")
-    return (
-        f'<div class="{klasse}">{text}'
-        f'<span class="zeit">{_zeitpunkt(karte["erstellt_am"])}</span></div>'
-    )
+    minuten = int((datetime.now(timezone.utc) - gelesen).total_seconds() // 60)
+    if minuten < 5:
+        return ""
+    text = _t(T._TEXT_BUEHNE_ALTER.format(minuten=minuten))
+    return f'<span class="buehne-alter">{text}</span>'
 
 
 def _buehne_html(daten: dict) -> str:
-    """Das Panel selbst: Stueckkarte-Streifen, dann die Karten, NEUESTE
-    ZUERST, aeltere kleiner/ausgegraut (Brief: "large type, the newest card
-    on top, older cards smaller/greyed below"). Gerufen von
-    ``web_vereint.seite`` fuer den Tab "buehne" (nur Phase 4) -- die
-    Sichtbarkeit regelt dort das ``hidden``-Attribut des Panels, nicht mehr
-    CSS am ``<body>``.
+    """Die CoThinker-Tafel: GENAU EINE Karte auf einmal, mit Browser-
+    seitiger Verlaufsnavigation (Task 1, Padua CoThinker-Tab clean,
+    03.10.2026 -- Portierung aus ``cothinker/stage/stage.py``s ``verlauf``/
+    ``pos``/``male``/``zeige``/``blaettern``/``verlaufUebernehmen``, siehe
+    ``_VEREINT_JS`` fuer die Browserseite und den Report fuer die
+    Abweichungen).
 
-    Nachtrag Karte Padua Brainstorm (03.10.2026): eine Schweigen-Zeile
-    (``buehnenkarte.schweigen = 1``) ist keine Karte -- sie traegt leeren
-    Text und erscheint nie in der Kartenliste. War der JUENGSTE Versuch ein
-    Schweigen, steht stattdessen (oder zusaetzlich vor der letzten echten
-    Karte) ein ruhiger Hinweis, dass mitgehoert wird: eine leere Flaeche
-    liess nicht erkennen, ob das Mithoeren ueberhaupt laeuft."""
+    Ersetzt die gestapelte Kartenliste samt Stueckkarte-Streifen: Setting,
+    Figuren, Geschichte und die freien Festlegungen stehen bereits im
+    Stand-Tab (``_stueckkarte_html``, ``_festlegungen_html``) -- eine dritte
+    Kopie in diesem Panel war genau die Duplikation, die der Umbau
+    beseitigt.
+
+    **Der Vertrag** (Task-1-Brief, bindend fuer ``_VEREINT_JS``/Task 2):
+    jeder Baustein faellt weg, wenn sein Inhalt leer waere -- niemals eine
+    leere Statuszeile, niemals ein leerer Nav-Platzhalter, niemals eine
+    zweite sichtbare Karte. Gerufen von ``web_vereint.seite`` (Tab "buehne",
+    Sichtbarkeit ueber ``hidden``) UND von ``web_vereint.sende_teil`` fuer
+    jeden Poll-Takt -- eine Renderfunktion, eine Quelle fuer beide.
+
+    Eine Schweigen-Zeile (``buehnenkarte.schweigen = 1``) ist keine Karte --
+    sie traegt leeren Text und zaehlt nirgends mit (gleiche Erkennung wie
+    vor diesem Umbau, siehe ``_buehne_status_text``)."""
     karten = daten.get("buehnenkarten") or []
-    streifen = _stueckkarte_streifen_html(
-        daten.get("stueckkarte_felder") or [], daten.get("festlegungen")
-    )
-    hoert_zu = bool(karten and karten[0]["schweigen"])
-    echte = [k for k in karten if not k["schweigen"]]
+    # ``karten`` kommt NEUESTE ZUERST (web_daten.buehnenkarten, ORDER BY id
+    # DESC) -- fuer die Tafel reicht das erste echte Element, fuer den
+    # JSON-Datenbaustein unten wird die Reihenfolge umgedreht.
+    echte_neueste_zuerst = [k for k in karten if not k["schweigen"]]
+
     teile = []
-    if hoert_zu:
-        teile.append(f'<p class="hoert-zu">{_t(T._TEXT_BUEHNE_HOERT_ZU)}</p>')
-    if echte:
-        teile.append("".join(_buehnenkarte_html(k, i == 0) for i, k in enumerate(echte)))
-    elif not hoert_zu:
-        teile.append(f'<p class="leer">{_t(T._TEXT_BUEHNE_LEER)}</p>')
-    status_html = _cothinker_status_html(daten.get("cothinker_status"))
-    return f'{status_html}<div id="buehne-panel">{streifen}{"".join(teile)}</div>'
+    status = _buehne_status_text(daten)
+    if status:
+        teile.append(f'<p id="buehne-status">{status}</p>')
+
+    if echte_neueste_zuerst:
+        neueste = echte_neueste_zuerst[0]
+        # Plain Text + ``white-space: pre-wrap`` (CSS) statt
+        # ``.replace("\\n", "<br>")``: dieselbe Zeile, die die JS beim
+        # Zurueckblaettern per ``textContent`` setzt (siehe Report,
+        # "textContent vs. innerHTML") -- SSR und Client-Rendering sehen
+        # damit optisch gleich aus, ein Zeilenumbruch ist kein zweiter Weg.
+        text = html.escape(neueste["text"] or "")
+        alter = _buehne_alterszeile(neueste["erstellt_am"])
+        teile.append(f'<div id="buehne-tafel">{text}{alter}</div>')
+
+    if len(echte_neueste_zuerst) >= 2:
+        # Der Inhalt kommt NIE vom Server -- ``_VEREINT_JS`` fuellt ihn aus
+        # dem JSON-Baustein unten, genau wie CoThinkers ``male()`` die
+        # ``#verlauf``-Leiste komplett selbst besitzt. Deshalb ist ein
+        # leerer Platzhalter hier sicher: der erste Skriptlauf ersetzt ihn
+        # sofort.
+        teile.append('<div id="buehne-nav"></div>')
+
+    if echte_neueste_zuerst:
+        aeltest_zuerst = list(reversed(echte_neueste_zuerst))
+        # ``zurueck_text``/``neu_praefix`` kommen RAW (nicht durch ``_t()``
+        # HTML-escaped) in die JSON-Nutzlast -- ``_t()`` ist in diesem Modul
+        # die HTML-Maskierung, keine Uebersetzung (die leistet ``T``/
+        # ``_TEXT_*`` bereits). Eine zusaetzliche HTML-Maskierung vor
+        # ``json.dumps`` wuerde doppelt maskieren, sobald die JS ihrerseits
+        # vor dem Einfuegen in ``innerHTML`` escaped (siehe Report). Die
+        # Lokalisierung selbst ist damit trotzdem vollstaendig: beide Werte
+        # kommen aus ``T``, also schon in der aktiven Sprache.
+        payload = {
+            "karten": [
+                {"id": k["id"], "text": k["text"] or ""} for k in aeltest_zuerst
+            ],
+            "zurueck_text": T._TEXT_BUEHNE_ZURUECK,
+            "neu_praefix": T._TEXT_BUEHNE_NEU_PRAEFIX,
+        }
+        # ``</`` wird entschaerft (``<\/``), damit eine Karte, deren Text
+        # woertlich ``</script`` enthaelt, dieses Skript-Element nicht
+        # vorzeitig beendet -- der Tokenizer des Browsers reagiert auf die
+        # rohen Bytes, nicht auf die JSON-Maskierung innerhalb der Anfuehrungszeichen.
+        # ``\/`` ist eine gueltige JSON-Escape-Sequenz (dekodiert zu ``/``),
+        # derselbe Weg wie ``web_vereint._js_text`` und das inline
+        # ``.replace("</", "<\\/")`` in ``web_chat.py``.
+        teile.append(
+            '<script type="application/json" id="buehne-verlauf-daten">'
+            + json.dumps(payload, ensure_ascii=True).replace("</", "<\\/")
+            + "</script>"
+        )
+
+    if not status and not echte_neueste_zuerst:
+        teile.append(f'<p class="buehne-leer">{_t(T._TEXT_BUEHNE_LEER)}</p>')
+
+    return f'<div id="buehne-panel">{"".join(teile)}</div>'
 
 
 def gruppe_koerper(

@@ -23,9 +23,15 @@ Sortierung, Top 5, Detail-Abgleich. Keine Datenbank, kein Thread, kein
 Modellaufruf -- das kommt mit den Aufgaben 3-6."""
 
 import json
+import logging
+import os
+import threading
 
+from interview_theater import anweisungen, brainstorm, modellwahl, repo, workshop
 from interview_theater import begriffe as begriffe_modul
 from interview_theater import sprache, zitat
+
+log = logging.getLogger(__name__)
 
 STATUS = ("favorit", "kandidat", "verworfen")
 _RANG = {"favorit": 0, "kandidat": 1, "verworfen": 2}
@@ -40,6 +46,9 @@ ZUSTIMMUNG_MAX = 2
 _ZEILE_DETAIL = "- {begriff}: {begruendung}"
 _ZEILE_DETAIL_OHNE_GRUND = "- {begriff}"
 _ZUSATZ_DOPPELBEDEUTUNG = " (Doppelbedeutung: {doppelbedeutung})"
+
+_TRANSKRIPT_KOPF = "Das Transkript der Diskussion bisher:"
+_BOARD_KOPF = "Das bisherige Begriffsboard (JSON):"
 
 T = sprache.Texte(__name__)
 
@@ -167,3 +176,202 @@ def detail_zeilen(detail: list[dict]) -> list[str]:
             zeile += T._ZUSATZ_DOPPELBEDEUTUNG.format(doppelbedeutung=doppel)
         zeilen.append(zeile)
     return zeilen
+
+
+_FELDER = ("begriff", "nennungen", "zustimmung", "begruendung", "zitat",
+           "doppelbedeutung", "status")
+
+#: Jedes Objekt braucht additionalProperties: false und ein required mit
+#: allen Eigenschaften, sonst lehnt der Anbieter den erzwungenen Modus ab
+#: (Kommentar an ``diskussion.SCHEMA``). Die Wurzel ist ein Objekt, weil der
+#: Schema-Modus keine Liste als Wurzel nimmt; ``board`` statt ``begriffe``,
+#: weil ``scripts/pruefe_sprache.py`` "begriffe" als deutsches Wort fuehrt.
+#: ``status`` ist bewusst ein freier String: ``validiere`` macht aus jedem
+#: unbekannten Wert "kandidat".
+SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["board"],
+    "properties": {
+        "board": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": list(_FELDER),
+                "properties": {
+                    "begriff": {"type": "string"},
+                    "nennungen": {"type": "integer"},
+                    "zustimmung": {"type": "integer"},
+                    "begruendung": {"type": "string"},
+                    "zitat": {"type": "string"},
+                    "doppelbedeutung": {"type": "string"},
+                    "status": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+
+ART = "begriffsboard"
+
+VORGABE_TRANSKRIPT_ZEICHEN = 200_000
+
+
+def transkript_zeichen_grenze() -> int:
+    """``IT_BEGRIFFSBOARD_TRANSKRIPT_ZEICHEN`` -- dasselbe Muster wie
+    ``buehnenkarte.transkript_zeichen_grenze``."""
+    roh = (os.environ.get("IT_BEGRIFFSBOARD_TRANSKRIPT_ZEICHEN") or "").strip()
+    if roh.isdigit() and int(roh) > 0:
+        return int(roh)
+    return VORGABE_TRANSKRIPT_ZEICHEN
+
+
+def _nutzertext(transkript: str, board: list[dict]) -> str:
+    """Der isolierte Nutzertext -- NUR das (schon gekuerzte) Transkript und
+    das bisherige Board. Kein ``conn``, keine ``chat_id``: dieser Aufruf sieht
+    nichts anderes, was im Raum gesagt wurde. Das Transkript steht vorn (es
+    waechst nur hinten an, der Prompt-Praefix bleibt cache-stabil)."""
+    return (
+        f"{T._TRANSKRIPT_KOPF}\n{transkript}\n\n"
+        f"{T._BOARD_KOPF}\n{json.dumps(sortiert(board), ensure_ascii=False)}"
+    )
+
+
+def aktuelles(conn, chat_id: int) -> list[dict]:
+    """Der geltende Stand des Boards (letzte Zeile), oder eine leere Liste."""
+    zeile = repo.letztes_begriffsboard(conn, chat_id)
+    return lies(zeile["json"]) if zeile else []
+
+
+def soll_laufen(conn, chat_id: int, *, ist_abschluss: bool) -> bool:
+    """D1: ``brainstorm.soll_reagieren`` unveraendert, mit den eigenen Zahlen
+    der Phase 1 (``repo.begriffsboard_stand``). Kein Modellaufruf."""
+    stand = repo.begriffsboard_stand(conn, chat_id)
+    sekunden = stand["sekunden_seit_letztem_lauf"]
+    return brainstorm.soll_reagieren(
+        unreagierte_zeichen=stand["unreagierte_zeichen"],
+        sekunden_seit_letzter_reaktion=sekunden if sekunden is not None else float("inf"),
+        letzter_schnittgrund=stand["letzter_schnittgrund"],
+        ist_abschluss=ist_abschluss,
+    )
+
+
+#: Ein Sperren-Register je Nebenlaeufigkeit (AGENTS.md: "Gleicher Code,
+#: verschiedene Sperren"), in Form aus ``brainstorm.py``: nie mehr als ein
+#: Boardlauf je Gruppe. Dazu ein Merkplatz fuer Rueckrufe (der Vorschlag nach
+#: "Discussion done"), die NACH dem gerade laufenden Lauf faellig sind --
+#: Nehmen und Merken unter EINEM Schutz, wie ``vorschlagssperre.nimm_oder_merke``.
+#: Grenze: der Merkplatz lebt im Prozess, ein Neustart verliert ihn.
+_LAEUFT_LOCK = threading.Lock()
+_LAEUFT: set[int] = set()
+_DANACH: dict[int, list] = {}
+
+
+def nimm_oder_merke(chat_id: int, danach) -> bool:
+    """True und die Sperre gehoert dem Aufrufer -- oder False, und ``danach``
+    (falls nicht None) laeuft, sobald der laufende Lauf endet."""
+    with _LAEUFT_LOCK:
+        if chat_id not in _LAEUFT:
+            _LAEUFT.add(chat_id)
+            return True
+        if danach is not None:
+            _DANACH.setdefault(chat_id, []).append(danach)
+        return False
+
+
+def versuche_start(chat_id: int) -> bool:
+    return nimm_oder_merke(chat_id, None)
+
+
+def beende(chat_id: int) -> list:
+    """Gibt die Sperre frei und liefert die gemerkten Rueckrufe (der
+    Aufrufer ruft sie, ausserhalb der Sperre)."""
+    with _LAEUFT_LOCK:
+        _LAEUFT.discard(chat_id)
+        return _DANACH.pop(chat_id, [])
+
+
+def laeuft(chat_id: int) -> bool:
+    with _LAEUFT_LOCK:
+        return chat_id in _LAEUFT
+
+
+def _rufe(rueckrufe) -> None:
+    for rueckruf in rueckrufe:
+        try:
+            rueckruf()
+        except Exception:
+            log.exception("Rueckruf nach dem Begriffsboard-Lauf fehlgeschlagen")
+
+
+def _vorfall(conn, e, chat_id: int, art: str, detail: str) -> None:
+    try:
+        repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None), art, detail)
+    except Exception:
+        log.exception("Vorfall %s nicht geschrieben, chat_id=%s", art, chat_id)
+
+
+def _lauf_einmal(conn, klm, e, chat_id: int, bis_id: int) -> None:
+    """EIN Boardlauf. Kennt kein ``tg`` -- er schreibt nie in den Chat (D5)."""
+    transkript = repo.diskussion_transkript(conn, chat_id)
+    if not transkript.strip():
+        return
+    gesehen = transkript
+    grenze = transkript_zeichen_grenze()
+    if len(gesehen) > grenze:
+        gesehen = gesehen[-grenze:]
+        _vorfall(conn, e, chat_id, "begriffsboard_transkript_gekuerzt",
+                 f"Diskussions-Transkript von {len(transkript)} auf {grenze} Zeichen gekuerzt")
+    bisher = aktuelles(conn, chat_id)
+    ueber_claude = modellwahl.konversation_ueber_claude(e, conn, chat_id)
+    ergebnis = modellwahl.aufruf_schema(
+        conn, klm, e, chat_id,
+        system=anweisungen.hole("begriffsboard"),
+        nutzer=_nutzertext(gesehen, bisher), schema=SCHEMA, art=ART,
+        ueber_claude=ueber_claude,
+    )
+    # Geprueft wird gegen das GANZE Transkript: ein Begriff aus dem
+    # weggekuerzten Anfang ist trotzdem woertlich gesagt worden.
+    neu = validiere(ergebnis.get("board") if isinstance(ergebnis, dict) else None, transkript)
+    if not neu and bisher:
+        # Ein leeres Ergebnis ersetzt nie ein volles Board. Keine Zeile, also
+        # keine Markierung: die Zeichen laufen weiter auf.
+        log.info("Begriffsboard-Lauf ohne Ergebnis, altes Board bleibt, chat_id=%s", chat_id)
+        return
+    repo.lege_begriffsboard_an(
+        conn, chat_id, json.dumps(neu, ensure_ascii=False),
+        "claude" if ueber_claude else "sovereign", bis_id,
+    )
+
+
+def starte(conn, klm, e, chat_id: int, *, danach=None) -> bool:
+    """Stoesst einen Boardlauf im eigenen Thread an (Zusage 2). Liefert
+    True, wenn ein Lauf startete. ``danach`` laeuft nach DIESEM Lauf -- oder,
+    wenn gerade schon einer laeuft, nach jenem (``nimm_oder_merke``). Ohne
+    ``klm`` oder ohne Profil passiert nichts, auch ``danach`` nicht: das
+    entscheidet der Aufrufer (``nach_segment``)."""
+    if klm is None or not workshop.diskussion_aktiv():
+        return False
+    if not nimm_oder_merke(chat_id, danach):
+        return False
+    # VOR dem Lauf gelesen (D1): ein waehrend des Laufs neu eingetroffenes
+    # Segment bleibt unreagiert und zaehlt beim naechsten Mal.
+    bis_id = repo.hoechste_diskussion_aufnahme_id(conn, chat_id)
+
+    def _lauf() -> None:
+        try:
+            _lauf_einmal(conn, klm, e, chat_id, bis_id)
+        except Exception:
+            log.exception("Begriffsboard-Lauf fehlgeschlagen, chat_id=%s", chat_id)
+            _vorfall(conn, e, chat_id, "begriffsboard_fehler",
+                     f"Begriffsboard-Lauf fehlgeschlagen fuer chat_id={chat_id}")
+        finally:
+            _rufe(([danach] if danach is not None else []) + beende(chat_id))
+
+    try:
+        threading.Thread(target=_lauf, daemon=True).start()
+    except Exception:
+        _rufe(([danach] if danach is not None else []) + beende(chat_id))
+        raise
+    return True

@@ -817,6 +817,8 @@ _DISKUSSION_KOPF = "Digest of an earlier discussion by the group (background onl
 _ZEILE_DETAIL = "- {begriff}: {begruendung}"
 _ZEILE_DETAIL_OHNE_GRUND = "- {begriff}"
 _ZUSATZ_DOPPELBEDEUTUNG = " (double meaning: {doppelbedeutung})"
+_TRANSKRIPT_KOPF = "The transcript of the discussion so far:"
+_BOARD_KOPF = "The term board so far (JSON):"
 
 ["journal"]
 _BISHERIGES_JOURNAL_KOPF = "Journal so far:\n"

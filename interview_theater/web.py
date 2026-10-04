@@ -778,7 +778,6 @@ CSS_COTHINKER_KEYFRAMES = """
 @media (prefers-reduced-motion: reduce) {
   #cothinker-status .co-icon { animation: none !important; }
 }
->>>>>>> 6676fb7
 """
 
 

@@ -81,6 +81,14 @@ dl { margin: 0; }
                       min-height: 2.4rem; padding: .15rem .4rem .15rem 1.1rem;
                       cursor: pointer; border-radius: .3rem; }
 .roadmap li.aufgabe:hover { background: #f1efe7; }
+
+@keyframes co-atmen { 0%, 100% { opacity: .4; transform: scale(.85); }
+                       50% { opacity: 1; transform: scale(1); } }
+@keyframes co-punkte { 0% { opacity: .25; } 50% { opacity: 1; }
+                        100% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) {
+  #cothinker-status .co-icon { animation: none !important; }
+}
 .panel-stand { background: #fbfaf7; color: #1b1b1b; font-size: 1.05rem;
        max-width: 44rem; margin: 0 auto; }.panel-stand h1 { font-size: 1.6rem; }.panel-stand h2 { border-bottom: 1px solid #ddd8cc; padding-bottom: .2rem; }.panel-stand .szene { margin: 0 0 1.4rem; }.panel-stand .szene .volltext { white-space: pre-wrap; background: #fff; border: 1px solid #e6e1d6;
                    border-radius: .4rem; padding: .7rem .8rem; }.panel-stand .verdichtung { margin: 0 0 1.2rem; }.panel-stand blockquote { margin: .2rem 0 .5rem; padding-left: .7rem;
@@ -181,7 +189,39 @@ body[data-figur] .replik { opacity: .35; }.panel-textbuch[data-figur] .replik.ak
               color: var(--text-leise); }.panel-buehne #buehne-nav button { min-width: 44px; min-height: 44px; font-size: 1.2rem;
                       line-height: 1; border: 1px solid var(--rand);
                       border-radius: var(--radius); background: var(--grund-2);
-                      color: var(--signal); }.panel-buehne #buehne-nav button:disabled { opacity: .35; }.panel-buehne #buehne-nav a[data-v="live"] { color: var(--signal); }.panel-buehne #buehne-nav .neu { color: var(--warn); }.panel-buehne .buehne-leer { color: var(--text-leise); margin: 1rem 0; }
+                      color: var(--signal); }.panel-buehne #buehne-nav button:disabled { opacity: .35; }.panel-buehne #buehne-nav a[data-v="live"] { color: var(--signal); }.panel-buehne #buehne-nav .neu { color: var(--warn); }.panel-buehne .buehne-leer { color: var(--text-leise); margin: 1rem 0; }.panel-buehne /* Die Stueckkarte: ein fester Streifen ueber den Karten -- Setting, .panel-buehne Figuren, .panel-buehne Geschichte mit Haken/offen, .panel-buehne dazu die freien Festlegungen aus demselben
+   Datentopf wie der Abschnitt "Festlegungen" weiter unten (kein zweiter
+   Lesevorgang, .panel-buehne siehe web_daten.stueckkarte_felder). */
+.stueckkarte { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem;
+               padding: .5rem .6rem; background: #f2ede1; border-radius: .5rem; }.panel-buehne .sk-feld { font-size: .85rem; white-space: nowrap; }.panel-buehne .sk-haken { opacity: .6; margin-right: .15rem; }.panel-buehne .sk-frei { font-size: .85rem; opacity: .75; }.panel-buehne /* Die Karten: neueste oben und gross, .panel-buehne aeltere kleiner und ausgegraut
+   darunter (Brief: "large type, .panel-buehne the newest card on top"). */
+#buehne-panel .karte { background: #fff; border: 1px solid #e6e1d6;
+                       border-radius: .5rem; padding: .8rem .9rem;
+                       margin: 0 0 .7rem; font-size: 1.08rem;
+                       white-space: pre-wrap; }.panel-buehne #buehne-panel .karte.alt { font-size: .85rem; opacity: .6; padding: .5rem .7rem; }.panel-buehne #buehne-panel .karte .zeit { display: block; margin-top: .3rem; }.panel-buehne /* Der ruhige Hinweis, .panel-buehne wenn der juengste Versuch ein Schweigen war (Karte
+   Padua Brainstorm, .panel-buehne 03.10.2026) -- gedaempft wie ".leer", .panel-buehne aber ohne ihren
+   Platz zu beanspruchen: er steht VOR einer noch stehenden letzten Karte. */
+#buehne-panel .hoert-zu { opacity: .55; font-style: italic; font-size: .95rem;
+                          margin: 0 0 .7rem; }.panel-buehne /* Die CoThinker-Statuszeile UEBER dem Panel (Karte CoThinker-Statuszeile, .panel-buehne 03.10.2026; Theme-Token-Nachbesserung fuer t_cc4306db, .panel-buehne 04.10.2026) -- nur
+   Farb-Tokens aus ``web_gestalt.FARBTOKENS`` (``:root``, .panel-buehne immer ueber
+   ``web_gestalt.css_rahmen()`` auf derselben Seite vorhanden, .panel-buehne siehe
+   ``web_vereint.seite()``), .panel-buehne KEIN rohes Hex hier. ``--warn`` traegt im
+   bestehenden ``KONTRAST``-Vertrag schon die Bedeutung "laufender Zustand
+   in der Karte" (siehe web_gestalt.KONTRAST) -- das ist wortgleich der
+   "denkt"-Zustand hier, .panel-buehne deshalb kein neuer Ton. Die eigentliche Animation
+   (``@keyframes``) steht ungescopt in ``CSS_COTHINKER_KEYFRAMES``, .panel-buehne siehe
+   dort. Genau eine Zeile, .panel-buehne nie zwei: ``flex-wrap: nowrap`` am Rahmen, .panel-buehne ``text-overflow: ellipsis`` am Text -- ``min-width: 0`` ist der
+   Flexbox-Kniff, .panel-buehne ohne den ein Flex-Kind nicht unter seine Inhaltsbreite
+   schrumpft und das Abschneiden nie greift. */
+#cothinker-status { display: flex; align-items: center; gap: .5rem;
+                     flex-wrap: nowrap; margin: 0 0 .6rem;
+                     padding: .4rem .6rem; border-radius: .5rem;
+                     background: var(--grund-2); color: var(--text);
+                     font-size: .9rem; min-width: 0; }.panel-buehne #cothinker-status .co-icon { width: .6rem; height: .6rem;
+                              border-radius: 50%; background: currentColor;
+                              flex: 0 0 auto; }.panel-buehne #cothinker-status.co-hoert, .panel-buehne #cothinker-status.co-transkribiert { color: var(--signal); }.panel-buehne #cothinker-status.co-denkt { color: var(--warn); }.panel-buehne #cothinker-status.co-schweigt { color: var(--text-leise); opacity: .75; }.panel-buehne #cothinker-status .co-text { overflow: hidden; text-overflow: ellipsis;
+                              white-space: nowrap; min-width: 0; }.panel-buehne #cothinker-status .co-dauer { font-variant-numeric: tabular-nums; opacity: .75;
+                               white-space: nowrap; flex: 0 0 auto; }.panel-buehne #cothinker-status.co-hoert .co-icon, .panel-buehne #cothinker-status.co-transkribiert .co-icon { animation: co-atmen 1.8s ease-in-out infinite; }.panel-buehne #cothinker-status.co-denkt .co-icon { animation: co-punkte 1.2s steps(3, end) infinite; }
 .panel-chat { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
        max-width: 44rem; margin: 0 auto; }.panel-chat .verlauf { display: flex; flex-direction: column; gap: .55rem; }.panel-chat .blase { padding: .55rem .7rem; border-radius: .8rem; max-width: 88%;
          font-size: 1.02rem; overflow-wrap: anywhere; }.panel-chat .blase.bot { background: #fff; border: 1px solid #e0ddd6; align-self: flex-start;
@@ -1610,6 +1650,34 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
       .catch(function () {});
   }
   setInterval(ladeBuehne, 10000);
+  // -- CoThinker-Statuszeile: die tickende Dauer -------------------------
+  //
+  // Karte CoThinker-Statuszeile (03.10.2026): der Server schreibt nie eine
+  // Sekundenzahl ins HTML (siehe ``web._cothinker_status_html``), nur
+  // ``data-seit``/``data-tickt`` als Attribute -- sonst saehe ``ladeBuehne``
+  // oben bei jedem Poll einen neuen HTML-String und tauschte das Panel
+  // unnoetig aus. EIN globaler Takt fuers ganze Dokument, nicht je
+  // ``ladeBuehne()``-Lauf neu registriert (das liefe sonst nach jedem
+  // Panel-Tausch als zusaetzlicher, nie wieder geloeschter Timer weiter).
+  function formatiereDauer(sekunden) {
+    sekunden = Math.max(0, Math.floor(sekunden));
+    var min = Math.floor(sekunden / 60);
+    var sek = sekunden % 60;
+    return min + ':' + String(sek).padStart(2, '0');
+  }
+  function tickeCothinkerStatus() {
+    document.querySelectorAll('.co-dauer[data-tickt="1"]').forEach(function (el) {
+      var zeile = el.closest('#cothinker-status');
+      if (!zeile) { return; }
+      var seit = zeile.getAttribute('data-seit');
+      if (!seit) { return; }
+      var start = new Date(seit).getTime();
+      if (isNaN(start)) { return; }
+      var sek = (Date.now() - start) / 1000;
+      el.textContent = ' · ' + formatiereDauer(sek);
+    });
+  }
+  setInterval(tickeCothinkerStatus, 1000);
   zeige(lies());
 })();
 

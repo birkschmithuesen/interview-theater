@@ -223,6 +223,15 @@ def lauf(tmp_path, monkeypatch):
     # Fallback fuer den Fall, dass pegelAn() im Browser doch einmal fehlschlaegt
     # (kein AudioContext) -- dann greift die feste Segmentlaenge statt der VAD.
     monkeypatch.setenv("IT_WEB_SEGMENT_MS", str(VAD_MAX_MS))
+    # Wie in tests/e2e/test_web_chat_e2e.py's ``server``-Fixture: dieser Lauf
+    # prueft den Diskussionsablauf (Begruessung, Echo-Blase, Fuenf-Begriffe-
+    # Aufforderung), nicht die Kalibrierung davor (eigene Abdeckung dafuer:
+    # tests/e2e/test_web_chat_kalibrierung_e2e.py). Ohne den Schalter bliebe
+    # das Kalibrierungs-Panel offen stehen -- niemand im Test klickt
+    # "Start measuring"/"Skip" -- und der Pegel-/Segmenttakt (gated hinter
+    # kalEntscheideOderStarte) startete nie, kein Segment wuerde je
+    # geschnitten.
+    monkeypatch.setenv("IT_WEB_VAD_KALIBRIERUNG", "0")
 
     pfad = str(tmp_path / "t.db")
     audio = tmp_path / "audio"

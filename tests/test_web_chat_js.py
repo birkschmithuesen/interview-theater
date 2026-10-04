@@ -1881,6 +1881,90 @@ def test_herumreichen_erinnerung_bleibt_ohne_herumreichen_modus_versteckt_live_i
     assert ergebnis["versteckt_geblieben"] is True
 
 
+def test_kalibrierungsknoepfe_wirken_auch_auf_eine_laufende_diskussion_live_in_node(tmp_path):
+    """Regression (03.10.2026 abends, Commit 35dc28f): die neun
+    Kalibrierungs-Klick-Handler suchten die aktive Sitzung nur ueber
+    ``zustand.aufnahme || zustand.brainstorm`` -- die am selben Tag VORMITTAGS
+    eingefuehrte Diskussions-Sitzung (``zustand.diskussion``, Commits 3f4d511/
+    f7aaf4e/095e6e9) fehlte in jedem der neun Ausdruecke. Waehrend einer
+    laufenden Diskussion war ``zustand.aufnahme`` UND ``zustand.brainstorm``
+    beide null/undefined, also rief z. B. der Start-Knopf
+    ``kalStarteStille(undefined)`` auf -- die kal*-Funktionen haben ein
+    fruehes ``if (!sitzung) return;``-Wächter-Muster und taten nichts, das
+    Kalibrierungs-Panel blieb fuer immer offen haengen.
+
+    Dieser Test fuehrt die neun Klick-Handler-Registrierungen WOERTLICH aus
+    dem ausgelieferten Skript aus (Zeilen 2323-2367 vor der Behebung) und
+    prueft, dass ein Klick bei einer laufenden Diskussion (kein ``aufnahme``,
+    kein ``brainstorm``) die zugehoerige kal*-Funktion mit der
+    Diskussions-Sitzung aufruft -- nicht mit ``undefined``."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    registrierung = _extrahiere(js, "if (kalStartKnopf) {", "function beginneAufnahme")
+
+    def baue_knopf(name):
+        return (
+            f"var {name} = {{ _handler: null, "
+            f"addEventListener: function (ev, fn) {{ this._handler = fn; }} }};"
+        )
+
+    knopf_namen = [
+        "kalStartKnopf", "kalSprechenKnopf", "kalNochmalHoerenKnopf",
+        "kalVersuchKnopf", "kalWeiterTrotzdemKnopf", "kalJaKnopf",
+        "kalNeinKnopf", "kalSkipKnopf", "kalNeuKnopf",
+    ]
+    aufrufe = {
+        "kalStartKnopf": "kalStarteStille",
+        "kalSprechenKnopf": "kalStarteSprechen",
+        "kalNochmalHoerenKnopf": "kalNochmalHoeren",
+        "kalVersuchKnopf": "kalVersuchErneut",
+        "kalWeiterTrotzdemKnopf": "kalWeiterTrotzdem",
+        "kalJaKnopf": "kalAntwortJa",
+        "kalNeinKnopf": "kalAntwortNein",
+        "kalSkipKnopf": "kalibrierungSkip",
+        "kalNeuKnopf": "kalibrierungNeu",
+    }
+    knopf_deklarationen = "\n    ".join(baue_knopf(n) for n in knopf_namen)
+    stub_deklarationen = "\n    ".join(
+        f"var {fn}_aufgerufen_mit = 'UNBERUEHRT';\n"
+        f"    function {fn}(sitzung) {{ {fn}_aufgerufen_mit = sitzung; }}"
+        for fn in set(aufrufe.values())
+    )
+
+    quelltext = f"""
+    var diskussionsSitzung = {{ istDiskussion: true }};
+    var zustand = {{ aufnahme: null, brainstorm: null, diskussion: diskussionsSitzung }};
+    {knopf_deklarationen}
+    {stub_deklarationen}
+    {registrierung}
+
+    {knopf_namen[0]}._handler();
+    {knopf_namen[1]}._handler();
+    {knopf_namen[2]}._handler();
+    {knopf_namen[3]}._handler();
+    {knopf_namen[4]}._handler();
+    {knopf_namen[5]}._handler();
+    {knopf_namen[6]}._handler();
+    {knopf_namen[7]}._handler();
+    {knopf_namen[8]}._handler();
+
+    var ergebnisse = {{}};
+    ergebnisse.kalStarteStille = kalStarteStille_aufgerufen_mit === diskussionsSitzung;
+    ergebnisse.kalStarteSprechen = kalStarteSprechen_aufgerufen_mit === diskussionsSitzung;
+    ergebnisse.kalNochmalHoeren = kalNochmalHoeren_aufgerufen_mit === diskussionsSitzung;
+    ergebnisse.kalVersuchErneut = kalVersuchErneut_aufgerufen_mit === diskussionsSitzung;
+    ergebnisse.kalWeiterTrotzdem = kalWeiterTrotzdem_aufgerufen_mit === diskussionsSitzung;
+    ergebnisse.kalAntwortJa = kalAntwortJa_aufgerufen_mit === diskussionsSitzung;
+    ergebnisse.kalAntwortNein = kalAntwortNein_aufgerufen_mit === diskussionsSitzung;
+    ergebnisse.kalibrierungSkip = kalibrierungSkip_aufgerufen_mit === diskussionsSitzung;
+    ergebnisse.kalibrierungNeu = kalibrierungNeu_aufgerufen_mit === diskussionsSitzung;
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse == {name: True for name in aufrufe.values()}
+
+
 # -- Schwellenmarke auf dem Pegelbalken (Task 3, Kanban-Karte Mithoeren      --
 # -- SICHER/Kalibrierung, 03.10.2026): der Balken zeigt seitdem dieselbe     --
 # -- RMS-Messung wie der VAD-Schnitt selbst, mit einer duennen Marke an der  --

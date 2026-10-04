@@ -112,6 +112,28 @@ def test_roadmap_traegt_das_board_merkmal_nur_mit_profil(monkeypatch):
     assert re.search(r'id="roadmap" data-aktive-phase="1" data-begriffsboard="1"', mit)
 
 
+def test_stepper_traegt_das_board_merkmal_nur_mit_profil(monkeypatch):
+    """Derselbe Fall wie oben, aber fuer den Stepper (``_stepper_html``) --
+    den zweiten Renderer von #roadmap, seit Padua live auf ihn umgeschaltet
+    hat (``web.phasennav_stepper``). Bug Birk Live-Test 04.10.2026: nur
+    ``_leiste_html`` haengte ``_board_merkmal()`` an, der Stepper nicht --
+    der CoThinker-Tab blieb in Phase 1 unsichtbar, weil
+    ``istCoThinkerPhase()`` (``_VEREINT_JS``) kein ``data-begriffsboard``
+    fand. Beide Renderer MUESSEN dasselbe Attribut tragen."""
+    daten = [{
+        "nummer": 1, "bezeichnung": "Terms", "name": "Terms",
+        "aktiv": True, "erledigt": 0, "gesamt": 0, "aufgaben": [],
+        "satz": "Take in and sort the list of terms collected in the plenary.",
+        "bereit": True, "fehlt": (),
+    }]
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: False)
+    ohne = web_vereint._stepper_html(daten)
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    mit = web_vereint._stepper_html(daten)
+    assert "data-begriffsboard" not in ohne
+    assert re.search(r'id="roadmap" data-stepper="1" data-aktive-phase="1" data-begriffsboard="1"', mit)
+
+
 # -- Seiten-Test (kopierte Fixture/Helfer aus tests/test_web_vereint.py) ----
 
 

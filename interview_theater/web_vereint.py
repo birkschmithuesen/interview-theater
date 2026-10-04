@@ -1790,7 +1790,14 @@ def _stepper_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
 
     return (
         f'<header class="phasenav" id="roadmap" data-stepper="1" '
-        f'data-aktive-phase="{aktiv["nummer"]}">'
+        f'data-aktive-phase="{aktiv["nummer"]}"'
+        # Bug (Birk Live-Test 04.10.2026): der Stepper ist der ZWEITE
+        # Renderer von #roadmap (siehe _leiste_html oben) -- der haengt
+        # _board_merkmal() schon an, dieser hier tat es nicht. Ohne das
+        # Attribut findet istCoThinkerPhase() (_VEREINT_JS) in Phase 1
+        # kein data-begriffsboard und versteckt den CoThinker-Tab, egal
+        # ob das Profil das Begriffsboard faehrt.
+        f'{_board_merkmal()}>'
         f'<ol class="stepper" role="list">{"".join(segmente)}</ol>'
         f'<div class="phasenav-zeile">'
         f'{pfeil(vorherige, -1, "phasenav-zurueck")}'

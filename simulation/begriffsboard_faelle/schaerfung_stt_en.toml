@@ -1,0 +1,22 @@
+# Frei erfunden (Karte t_2b9d2cbe). Phonetischer Verhoerer "peer" fuer "pier"
+# (1:4), Schaerfung boat -> fishing boat, ein echter Grund (pier), ein
+# Begriff mit ausdruecklich keinem Grund (storm).
+name = "schaerfung_stt_en"
+beschreibung = "EN gesprochen: STT peer/pier, Schaerfung boat -> fishing boat, storm ohne Grund"
+sprache_gesprochen = "en"
+segmente = [
+  "so for me the word is pier, the old pier where the fishermen sit. the pier is falling apart but people still go there every evening to talk.",
+  "yeah pier. I'd suggest boat. a boat. actually not just a boat, a fishing boat, the small fishing boats that come in at five",
+  "fishing boat yes. and the peer should be where the scene starts because that's where the old men tell their stories on the pier",
+  "and storm, I'd suggest storm. storm. no reason, just storm. okay is it still recording",
+]
+varianten = ["peer", "boat"]
+meta = ["word", "recording"]
+mit_grund = ["pier"]
+
+[[soll]]
+alternativen = ["pier", "old pier"]
+[[soll]]
+alternativen = ["fishing boat"]
+[[soll]]
+alternativen = ["storm"]

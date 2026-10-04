@@ -132,3 +132,34 @@ def test_css_ist_ruhend_ohne_media_und_ohne_hexfarbe():
     assert "var(--text-leise)" in teil
     # Ueberlebt das Scoping wie der Rest von css_buehne():
     assert ".panel-buehne .begriffsboard .vorgaenger" in web_vereint.scope_css(css, ".panel-buehne")
+
+
+def test_css_hat_rang_marke_trennlinie_und_verworfen_kursiv():
+    """Design-Erweiterung (Karte t_cb2c4678, 04.10.2026): Rang 1-5 bekommt
+    eine Scheinwerfer-Marke (CSS-Counter auf data-top), der Rest eine
+    Trennlinie direkt danach, ``status="verworfen"`` eine stille
+    Kursivschrift -- durchgestrichen bleibt allein der Schaerfungskette
+    vorbehalten."""
+    css = web_gestalt.css_buehne()
+    assert 'li[data-top="1"]::before' in css
+    assert "counter-increment: bbrang" in css
+    assert 'li[data-top="1"] + li:not([data-top="1"])' in css
+    assert 'li[data-status="verworfen"] .begriff { font-style: italic; }' in css
+    # Durchstreichen bleibt exklusiv der Schaerfungskette: keine neue
+    # text-decoration-Regel fuer verworfen.
+    verworfen_regel = css[css.index('li[data-status="verworfen"]'):]
+    verworfen_regel = verworfen_regel[:verworfen_regel.index("}") + 1]
+    assert "text-decoration" not in verworfen_regel
+    # Ueberlebt das Scoping wie der Rest von css_buehne().
+    gescoped = web_vereint.scope_css(css, ".panel-buehne")
+    assert '.panel-buehne .begriffsboard li[data-top="1"]::before' in gescoped
+    assert '.panel-buehne .begriffsboard li[data-status="verworfen"] .begriff' in gescoped
+
+
+def test_css_ohne_hexfarbe_bleibt_auch_mit_dem_neuen_design_wahr():
+    """Regression auf der bestehenden Zusage: die ganze ``_BUEHNE``-Konstante
+    bleibt frei von rohen Hexfarben, nicht nur der Teil ab ``.vorgaenger``."""
+    css = web_gestalt.css_buehne()
+    assert re.search(r"#[0-9a-fA-F]{3,8}\b", css) is None
+    for verboten in ("@media", "@keyframes", "transition", "animation", "url("):
+        assert verboten not in css, verboten

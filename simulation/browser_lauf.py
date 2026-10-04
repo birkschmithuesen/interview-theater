@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import time
 import urllib.request
 from pathlib import Path
 
@@ -31,6 +32,7 @@ from simulation import (
     browser_judge,
     browser_mitschnitt,
     browser_persona,
+    browser_stationen,
     browser_zaehler,
 )
 
@@ -54,6 +56,60 @@ def _verlaufszeilen(page) -> list[str]:
         "text: (el.innerText || '').trim()}))",
     )
     return [f"{z['von']}: {z['text']}" for z in roh if z["text"]]
+
+
+def _verlaufsblasen(page) -> list[dict]:
+    """Wie ``_verlaufszeilen``, nur strukturiert statt als Zeile -- fuer
+    ``browser_stationen.muss_antworten`` (braucht ``von``/``typ``/``text``
+    getrennt) und fuer die Erklaernote (Pflichtpunkt 1: welche Bot-Blase
+    gerade zu beurteilen ist). ``classList[1]`` ist ``von`` (bot/gruppe),
+    ``classList[2]`` die Darstellungsklasse (``klasseVon`` in
+    ``web_chat.py``: ``text``/``system``/``sprache``/``datei``/``transkript``) --
+    eine Systemzeile (Quittung, Undo-Ergebnis) steht mit ``von=bot``."""
+    return page.eval_on_selector_all(
+        ".blase",
+        "els => els.map(el => ({von: el.classList[1] || '?', "
+        "typ: el.classList[2] || 'text', text: (el.innerText || '').trim()}))",
+    )
+
+
+def _aktion_ausfuehren(page, aktion: dict) -> dict:
+    """Die try/except-Logik aus ``_fuehre_phase_aus``, herausgezogen: auch
+    der Stationslauf braucht sie, und zwei Kopien wuerden irgendwann
+    auseinanderlaufen."""
+    try:
+        return browser_aktionen.fuehre_aus(page, aktion)
+    except browser_aktionen.UnbekannteAktion as fehler:
+        log.warning("unbekannte Persona-Aktion: %s", fehler)
+        return {"art": "unbekannt", "fehler": str(fehler)}
+    except PlaywrightError as fehler:
+        log.warning("Aktion schlug fehl (%s): %s", aktion, fehler)
+        return {"art": "fehlgeschlagen", "fehler": str(fehler)}
+
+
+def _diskussion_laeuft(page) -> bool:
+    return page.locator('#diskussion[data-laeuft="1"]').count() > 0
+
+
+def _entwickler_meta(page) -> list[str]:
+    # ``browser_zaehler.entwickler_meta_seite`` landet erst in Paket F -- der
+    # getattr-Rueckfall haelt dieses Paket eigenstaendig lauffaehig und gibt
+    # Paket F eine Stelle zum Einhaengen, ohne hier noch einmal etwas
+    # anzufassen.
+    zaehler = getattr(browser_zaehler, "entwickler_meta_seite", None)
+    return zaehler(page) if zaehler else []
+
+
+def _erfasse_ohne_persona(page) -> dict:
+    """p1-start: mechanische Erfassung ohne Persona-Aufruf (Pflichtpunkt 2).
+    Liest ``.blase.bot``, ``#kalibrierung*``, ``#diskussion*`` und ``.leer``
+    direkt aus dem DOM."""
+    return {
+        "bot_nachricht": page.locator(".blase.bot").count() > 0,
+        "kalibrierung_sichtbar": page.locator("#kalibrierung:visible").count() > 0,
+        "zuhoeren_laeuft": _diskussion_laeuft(page),
+        "leertext_sichtbar": page.locator(".leer").count() > 0,
+    }
 
 
 def _aktive_phase_nummer(page) -> int | None:
@@ -168,25 +224,11 @@ def _fuehre_phase_aus(
         if aktion.get("type") == "done_phase":
             break
 
-        try:
-            protokoll = browser_aktionen.fuehre_aus(page, aktion)
-        except browser_aktionen.UnbekannteAktion as fehler:
-            # Eine Persona, die eine unbekannte Aktion vorschlaegt, soll den
-            # Lauf nicht beenden -- derselbe "ein Schritt darf scheitern"
-            # Grundsatz wie ueberall sonst in diesem Lauf.
-            log.warning("unbekannte Persona-Aktion: %s", fehler)
-            protokoll = {"art": "unbekannt", "fehler": str(fehler)}
-        except PlaywrightError as fehler:
-            # Realer Betriebsbefund (Padua-Abnahme, 03.10.2026): ein Klick,
-            # der ins Leere trifft (eine veraltete element_id, ein Tab-Name,
-            # den die Persona als Anzeigetext statt als data-tab-Wert
-            # angegeben hat), liess bis hierhin die GANZE Phase abstuerzen --
-            # samt des bis dahin echten, bezahlten Fortschritts und ohne
-            # Richterurteil. Ein einzelner Fehlgriff der Persona ist derselbe
-            # Fall wie eine unbekannte Aktion: der naechste Schritt bekommt
-            # seine Chance, nicht der Rest des Laufs wird dafuer bestraft.
-            log.warning("Aktion schlug fehl (%s): %s", aktion, fehler)
-            protokoll = {"art": "fehlgeschlagen", "fehler": str(fehler)}
+        # Ein einzelner Fehlgriff der Persona (unbekannte Aktion, ins Leere
+        # treffender Klick) soll nur diesen Schritt kosten, nicht die ganze
+        # Phase -- ausgelagert nach ``_aktion_ausfuehren``, das der
+        # Stationslauf ebenfalls braucht.
+        protokoll = _aktion_ausfuehren(page, aktion)
 
         warte = browser_aktionen.warte_auf_antwort(page)
 
@@ -222,8 +264,9 @@ def _fuehre_phase_aus(
             # "gescheitert" in die Bilanz, obwohl die Persona bis dahin
             # produktiv gearbeitet haben kann. Dort einfach das
             # Schritt-Budget enden lassen, ohne Notweg.
-            if aktuelle_phase < phasen.LETZTE:
-                _loese_phasenwechsel_aus(basis_url, token, aktuelle_phase + 1)
+            ziel = browser_stationen.notweg_ziel(aktuelle_phase, _aktive_phase_nummer(page))
+            if ziel is not None and ziel <= phasen.LETZTE:
+                _loese_phasenwechsel_aus(basis_url, token, ziel)
                 fallback_benutzt = True
             break
 
@@ -245,6 +288,203 @@ def _fuehre_phase_aus(
         "fallback_benutzt": fallback_benutzt,
         "screenshots_nach": screenshots_nach,
     }
+
+
+def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mitschnitt,
+                        station: browser_stationen.Station, *, basis_url: str,
+                        token: str, db_pfad: str, chat_id: int, persona_name: str,
+                        beobachter=None, leitbilder=None) -> dict:
+    """Ein Stationsdurchlauf (Abnahmelauf Phase 1-2, 04.10.2026): wie
+    ``_fuehre_phase_aus``, aber gegen ein Stationsziel statt eine Phase, mit
+    Nachfragen-Schutz (``browser_stationen.muss_antworten``), optionalem
+    Zuhoeren (``station.zuhoeren_s``) und Leitbild-Aufnahmen.
+
+    ``station.ohne_persona`` ist die eine Ausnahme (p1-start, Pflichtpunkt
+    2): keine Persona, nur Warten und eine mechanische Lese-Erfassung."""
+    if station.ohne_persona:
+        page.wait_for_timeout(station.warte_s * 1000)
+        erfassung = _erfasse_ohne_persona(page)
+        if leitbilder and station.leitbild_ende:
+            leitbilder.nimm(page, station.phase, station.leitbild_ende)
+        # ``Mitschnitt.schritt`` liest nur ``Path(...).name`` -- ein
+        # Platzhalterpfad reicht, ohne dass dafuer ein Bild geschrieben
+        # werden muss (Abweichung von der woertlichen Vorlage mit
+        # ``screenshot_vorher=None``: ``Path(None)`` wirft ``TypeError``,
+        # siehe Paket-E-Bericht).
+        platzhalter = mitschnitt.screenshot_pfad(station.phase, f"{station.schluessel}-ohne-persona")
+        mitschnitt.schritt(
+            phase=station.phase, screenshot_vorher=platzhalter, screenshot_nachher=platzhalter,
+            elemente=[], aktion={"type": "ohne_persona_warten"}, begruendung="",
+            antwort={}, db_diff={}, station=station.schluessel)
+        return {"schritte": 0, "nachfragen_beantwortet": 0, "offene_fragen": [],
+                "fertig": True, "fallback_benutzt": False, "zaehler_summe": {},
+                "screenshots_nach": [], **erfassung}
+
+    zaehler_summe: dict[str, int] = {}
+    screenshots: list[Path] = []
+    offene: list[str] = []
+    beantwortet = 0
+    hinweis = None
+    gewartet = mitte_genommen = fallback = False
+    vorher = browser_mitschnitt.datenstand(db_pfad, chat_id)
+    if leitbilder and station.leitbild_anfang:
+        leitbilder.nimm(page, station.phase, station.leitbild_anfang)
+
+    schritte = 0
+    while schritte < station.budget:
+        schritte += 1
+        vor = mitschnitt.screenshot_pfad(station.phase, f"{station.schluessel}-vor")
+        vor.write_bytes(browser_elemente.bildschirmfoto(page))
+        elemente = browser_elemente.extrahiere(page)
+        aktion = browser_persona.naechste_aktion(
+            persona_client, persona_name, vor.read_bytes(), elemente,
+            station.ziel, _verlaufszeilen(page), hinweis=hinweis)
+        hinweis = None
+        offene.extend(browser_persona.offene_fragen(aktion))
+        if aktion.get("type") in ("done_phase", "done_station"):
+            if browser_stationen.muss_antworten(_verlaufsblasen(page), beantwortet):
+                beantwortet += 1
+                hinweis = browser_stationen.HINWEIS_NACHFRAGE
+                continue
+            break
+
+        protokoll = _aktion_ausfuehren(page, aktion)
+        warte = browser_aktionen.warte_auf_antwort(page)
+
+        if station.zuhoeren_s and not gewartet and _diskussion_laeuft(page):
+            gewartet = True
+            ende = time.monotonic() + station.zuhoeren_s
+            while time.monotonic() < ende:
+                page.wait_for_timeout(10_000)
+                if beobachter:
+                    beobachter.messe()
+                if leitbilder and station.leitbild_mitte and not mitte_genommen:
+                    mitte_genommen = bool(leitbilder.nimm(page, station.phase, station.leitbild_mitte))
+            hinweis = browser_stationen.HINWEIS_DISKUSSION_ENDE
+
+        if (leitbilder and station.leitbild_mitte and not mitte_genommen
+                and not station.zuhoeren_s
+                and page.locator(".leiste button:visible, #kalibrierung-start:visible").count()):
+            mitte_genommen = bool(leitbilder.nimm(page, station.phase, station.leitbild_mitte))
+
+        nach = mitschnitt.screenshot_pfad(station.phase, f"{station.schluessel}-nach")
+        nach.write_bytes(browser_elemente.bildschirmfoto(page))
+        screenshots.append(nach)
+        nachher = browser_mitschnitt.datenstand(db_pfad, chat_id)
+        db_diff = browser_mitschnitt.unterschied(vorher, nachher)
+        vorher = nachher
+        _zaehler_addieren(zaehler_summe, browser_zaehler.alle(page))
+        if beobachter:
+            beobachter.messe()
+        mitschnitt.schritt(
+            phase=station.phase, screenshot_vorher=vor, screenshot_nachher=nach,
+            elemente=elemente, aktion=protokoll, begruendung=aktion.get("begruendung", ""),
+            antwort=warte, db_diff=db_diff, station=station.schluessel)
+
+        aktiv = _aktive_phase_nummer(page)
+        if station.endet_bei_phasenwechsel and aktiv is not None and aktiv > station.phase:
+            break
+
+    stand = browser_mitschnitt.datenstand(db_pfad, chat_id)
+    fertig = station.fertig(stand) if station.fertig else True
+    if not fertig and station.endet_bei_phasenwechsel:
+        ziel = browser_stationen.notweg_ziel(station.phase, _aktive_phase_nummer(page))
+        if ziel is not None and ziel <= phasen.LETZTE:
+            _loese_phasenwechsel_aus(basis_url, token, ziel)
+            fallback = True
+    if leitbilder and station.leitbild_ende:
+        if station.leitbild_tab:
+            browser_aktionen.fuehre_aus(page, {"type": "tab", "name": station.leitbild_tab})
+        leitbilder.nimm(page, station.phase, station.leitbild_ende)
+        if station.leitbild_tab:
+            browser_aktionen.fuehre_aus(page, {"type": "tab", "name": "chat"})
+    if leitbilder and beobachter and station.leitbild_beobachter:
+        leitbilder.nimm(beobachter.page, station.phase, station.leitbild_beobachter,
+                        geraet="handy")
+    return {"schritte": schritte, "nachfragen_beantwortet": beantwortet,
+            "offene_fragen": offene, "fertig": fertig, "fallback_benutzt": fallback,
+            "zaehler_summe": zaehler_summe, "screenshots_nach": screenshots}
+
+
+def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
+                     chat_id: int, persona_client, judge_client, geraet: str,
+                     persona_name: str, stationen: tuple, lauf_verzeichnis: Path,
+                     beobachter=None, leitbilder=None) -> dict:
+    """Die Stationsmotor-Engine des Abnahmelaufs Phase 1-2 (04.10.2026):
+    Station fuer Station aus ``browser_stationen.STATIONEN``, mit einer
+    eigenen Erklaernote je Station (Pflichtpunkt 1). Schreibt
+    ``lauf_verzeichnis / "ergebnis.json"`` und liefert dasselbe Dict."""
+    lauf_verzeichnis = Path(lauf_verzeichnis)
+    mitschnitt = browser_mitschnitt.Mitschnitt(
+        lauf_verzeichnis, f"{geraet}-{persona_name}", geraet)
+    browser_zaehler.installiere_messung(context)
+    page.goto(f"{basis_url}/g/{token}")
+    page.wait_for_selector("#verlauf")
+    ergebnisse: list[dict] = []
+    fehlgeschlagen_bei = None
+    meta: set[str] = set()
+    # Wie viele Bot-Blasen schon da waren, BEVOR diese Station lief -- die
+    # Erklaernote (Pflichtpunkt 1) soll nur die wirklich NEUEN Bot-Blasen
+    # dieser Station beurteilen, nicht noch einmal die der vorigen (sonst
+    # waechst die Zitatbasis mit jeder Station und eine fruehe Erklaerung
+    # wird mehrfach bewertet).
+    bot_anzahl_vorher = 0
+    for station in stationen:
+        try:
+            lauf = _fuehre_station_aus(
+                page, persona_client, mitschnitt, station, basis_url=basis_url,
+                token=token, db_pfad=db_pfad, chat_id=chat_id,
+                persona_name=persona_name, beobachter=beobachter,
+                leitbilder=leitbilder)
+        except Exception:
+            log.exception("Station %s ist gescheitert", station.schluessel)
+            fehlgeschlagen_bei = fehlgeschlagen_bei or station.schluessel
+            ergebnisse.append({"schluessel": station.schluessel, "phase": station.phase,
+                               "schritte": 0, "nachfragen_beantwortet": 0,
+                               "offene_fragen": [], "fertig": False,
+                               "fallback_benutzt": False, "note": None, "befunde": [],
+                               "zaehler_summe": {}, "screenshots_fuer_bericht": [],
+                               "note_erklaerung": None, "schwaechstes_zitat": "",
+                               "vorschlag": ""})
+            continue
+        meta.update(_entwickler_meta(page))
+        repraesentativ = _repraesentativ(lauf["screenshots_nach"])
+        alle_bot_texte = [b["text"] for b in _verlaufsblasen(page) if b.get("von") == "bot"]
+        bot_texte = alle_bot_texte[bot_anzahl_vorher:]
+        bot_anzahl_vorher = len(alle_bot_texte)
+        bewertung = browser_judge.bewerte_phase(
+            judge_client, station.phase, f"{phasen.kurzname(station.phase)} / {station.schluessel}",
+            [p.read_bytes() for p in repraesentativ], [p.name for p in repraesentativ],
+            lauf["zaehler_summe"]) if not station.ohne_persona else {}
+        erklaerung = browser_judge.bewerte_erklaerung(judge_client, station.schluessel, bot_texte)
+        ergebnisse.append({
+            "schluessel": station.schluessel, "phase": station.phase,
+            **{k: lauf[k] for k in ("schritte", "nachfragen_beantwortet", "offene_fragen",
+                                    "fertig", "fallback_benutzt", "zaehler_summe")},
+            "note": bewertung.get("note"), "befunde": bewertung.get("befunde") or [],
+            "screenshots_fuer_bericht": [p.name for p in repraesentativ],
+            "note_erklaerung": erklaerung.get("note_erklaerung"),
+            "schwaechstes_zitat": erklaerung.get("schwaechstes_zitat", ""),
+            "vorschlag": erklaerung.get("vorschlag", ""),
+            **({k: lauf[k] for k in ("bot_nachricht", "kalibrierung_sichtbar",
+                                     "zuhoeren_laeuft", "leertext_sichtbar") if k in lauf}),
+        })
+
+    beob = beobachter.ergebnis() if beobachter else {
+        "board_verlauf": [], "beobachter_neu_geladen": False, "board_bestanden": False}
+    modelle = _modell_lesen(db_pfad)
+    modelle["persona"] = getattr(persona_client, "modell", "?")
+    modelle["judge"] = getattr(judge_client, "modell", "?")
+    top = [{**b, "station": e["schluessel"]} for e in ergebnisse
+           for b in e["befunde"] if b.get("schwere") == "hoch"]
+    ergebnis = {"geraet": geraet, "persona": persona_name,
+                "stationen_ergebnisse": ergebnisse, **beob,
+                "entwickler_meta": sorted(meta), "modelle": modelle,
+                "top_befunde": top, "fehlgeschlagen_bei": fehlgeschlagen_bei,
+                "db_pfad": db_pfad}
+    (lauf_verzeichnis / "ergebnis.json").write_text(
+        json.dumps(ergebnis, ensure_ascii=False, indent=2), encoding="utf-8")
+    return ergebnis
 
 
 def fuehre_lauf(
@@ -380,6 +620,9 @@ def main() -> None:
     zerleger.add_argument("--persona", choices=sorted(browser_persona.PERSONEN), default="student")
     zerleger.add_argument("--bis-phase", type=int, default=7)
     zerleger.add_argument("--bericht", action="store_true")
+    zerleger.add_argument("--stationen", choices=sorted(browser_stationen.STATIONEN))
+    zerleger.add_argument("--leitbilder", action="store_true",
+                          help="nur Schlusslauf: Leitbilder nach docs/guide/bilder")
     argumente = zerleger.parse_args()
 
     if not argumente.env_datei:
@@ -387,46 +630,96 @@ def main() -> None:
         raise SystemExit(1)
 
     datum = time.strftime("%Y-%m-%d")
-    lauf_name = f"{datum}-{argumente.geraet}"
+    if argumente.stationen:
+        lauf_name = f"{datum}-{argumente.geraet}-{argumente.persona}-{argumente.stationen}"
+    else:
+        lauf_name = f"{datum}-{argumente.geraet}"
     lauf_verzeichnis = Path("simulation/browser_laeufe") / lauf_name
     stack = browser_umgebung.starte_stack(argumente.env_datei, lauf_verzeichnis)
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch()
-            geraet_profil = (
-                {**p.devices["iPhone 13"]} if argumente.geraet == "handy"
-                else {"viewport": {"width": 1440, "height": 900}}
-            )
-            context = browser.new_context(**geraet_profil)
-            seite = context.new_page()
-            persona_klient = Claude()
-            richter_klient = Claude()
-            ergebnis = fuehre_lauf(
-                seite, context, basis_url=stack.web_basis, token=stack.token,
-                db_pfad=stack.db_pfad, chat_id=stack.chat_id,
-                persona_client=persona_klient, judge_client=richter_klient,
-                geraet=argumente.geraet, persona_name=argumente.persona,
-                bis_phase=argumente.bis_phase, lauf_verzeichnis=lauf_verzeichnis,
-            )
-            # Der Kontaktbogen braucht den noch offenen Context (er baut
-            # eine eigene Seite darin) -- deshalb VOR browser.close(), und
-            # nur mit --bericht: ohne das Flag soll ein Lauf (z. B. zum
-            # Debuggen) keine zusaetzlichen Dateien hinterlassen.
-            kontaktbogen_pfade: dict[int, str] = {}
-            if argumente.bericht:
-                for phase in ergebnis["phasen_ergebnisse"]:
-                    nummer = phase["nummer"]
-                    bilder = sorted(lauf_verzeichnis.glob(f"*-phase{nummer}-nach.png"))
-                    if not bilder:
-                        continue
-                    ziel = lauf_verzeichnis / f"kontaktbogen-phase{nummer}.png"
-                    browser_bericht.kontaktbogen(context, bilder, ziel)
-                    kontaktbogen_pfade[nummer] = ziel.name
-            browser.close()
+        if argumente.stationen:
+            # Der Stationsmodus (Abnahmelauf Phase 1-2): erfundene
+            # Diskussion als Audio ueber Chromiums Fake-Media-Flags, dazu
+            # ein zweites, rein zuschauendes Geraet fuer das Begriffsboard
+            # (``browser_beobachter``) -- beide VOR der Persona-Seite, damit
+            # der Beobachter von der ersten Sekunde an mitmisst.
+            from simulation import browser_probe
+            from simulation.browser_beobachter import Beobachter
+            from simulation.erzeuge_diskussion_audio import erzeuge as erzeuge_diskussion
+
+            wav = lauf_verzeichnis / "diskussion.wav"
+            skript_pfad = Path(__file__).parent / "diskussion" / "p1-diskussion.txt"
+            erzeuge_diskussion(skript_pfad, wav)
+            with sync_playwright() as p:
+                browser = p.chromium.launch(args=browser_probe.chromium_argumente(wav))
+                beobachter = Beobachter.oeffne(browser, f"{stack.web_basis}/g/{stack.token}")
+                geraet_profil = (
+                    {**p.devices["iPhone 13"]} if argumente.geraet == "handy"
+                    else {"viewport": {"width": 1440, "height": 900}}
+                )
+                context = browser.new_context(**geraet_profil)
+                seite = context.new_page()
+                persona_klient = Claude()
+                richter_klient = Claude()
+                # Die echten Leitbilder (``browser_leitbilder.Sammler``)
+                # landen erst in Paket G -- ``--leitbilder`` wird hier schon
+                # angenommen, bewirkt aber bewusst noch nichts, damit der
+                # Aufruf nicht abbricht.
+                leitbilder = None
+                ergebnis = fuehre_stationen(
+                    seite, context, basis_url=stack.web_basis, token=stack.token,
+                    db_pfad=stack.db_pfad, chat_id=stack.chat_id,
+                    persona_client=persona_klient, judge_client=richter_klient,
+                    geraet=argumente.geraet, persona_name=argumente.persona,
+                    stationen=browser_stationen.STATIONEN[argumente.stationen],
+                    lauf_verzeichnis=lauf_verzeichnis, beobachter=beobachter,
+                    leitbilder=leitbilder,
+                )
+                beobachter.schliesse()
+                browser.close()
+        else:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                geraet_profil = (
+                    {**p.devices["iPhone 13"]} if argumente.geraet == "handy"
+                    else {"viewport": {"width": 1440, "height": 900}}
+                )
+                context = browser.new_context(**geraet_profil)
+                seite = context.new_page()
+                persona_klient = Claude()
+                richter_klient = Claude()
+                ergebnis = fuehre_lauf(
+                    seite, context, basis_url=stack.web_basis, token=stack.token,
+                    db_pfad=stack.db_pfad, chat_id=stack.chat_id,
+                    persona_client=persona_klient, judge_client=richter_klient,
+                    geraet=argumente.geraet, persona_name=argumente.persona,
+                    bis_phase=argumente.bis_phase, lauf_verzeichnis=lauf_verzeichnis,
+                )
+                # Der Kontaktbogen braucht den noch offenen Context (er baut
+                # eine eigene Seite darin) -- deshalb VOR browser.close(), und
+                # nur mit --bericht: ohne das Flag soll ein Lauf (z. B. zum
+                # Debuggen) keine zusaetzlichen Dateien hinterlassen.
+                kontaktbogen_pfade: dict[int, str] = {}
+                if argumente.bericht:
+                    for phase in ergebnis["phasen_ergebnisse"]:
+                        nummer = phase["nummer"]
+                        bilder = sorted(lauf_verzeichnis.glob(f"*-phase{nummer}-nach.png"))
+                        if not bilder:
+                            continue
+                        ziel = lauf_verzeichnis / f"kontaktbogen-phase{nummer}.png"
+                        browser_bericht.kontaktbogen(context, bilder, ziel)
+                        kontaktbogen_pfade[nummer] = ziel.name
+                browser.close()
     finally:
         stack.beende()
 
     if not argumente.bericht:
+        return
+
+    if argumente.stationen:
+        # Der eigentliche Markdown-Bericht ist ein spaeteres Paket (G) --
+        # hier steht nur der Pfad, unter dem ``ergebnis.json`` liegt.
+        print(f"Ergebnis: {lauf_verzeichnis / 'ergebnis.json'}")
         return
 
     markdown = browser_bericht.baue_markdown(

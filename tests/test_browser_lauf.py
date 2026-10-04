@@ -256,3 +256,74 @@ def test_in_der_letzten_phase_wird_der_notweg_nicht_versucht(stack, tmp_path):
         browser.close()
 
     assert ergebnis["fallback_benutzt"] is False
+
+
+def test_notweg_springt_nicht_in_eine_schon_aktive_phase(stack, tmp_path):
+    """Baseline 04.10.: /phaseklick hin und her erzeugte doppelte
+    Phasentexte. Ist Phase 2 schon aktiv, darf der Notweg aus Phase 1 nichts
+    ausloesen -- eine nicht aufloesende Basis-URL machte jeden Versuch sichtbar."""
+    basis, token, pfad = stack
+    conn = db.verbinde(pfad); repo.setze_phase(conn, CHAT, 2); conn.commit(); conn.close()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page(); seite.goto(f"{basis}/g/{token}")
+        seite.wait_for_selector("#verlauf")
+        ergebnis = browser_lauf._fuehre_phase_aus(
+            seite, _ScriptedClient([{"type": "wait", "duration_ms": 50,
+                                     "begruendung": "w"}] * 5),
+            browser_lauf.browser_mitschnitt.Mitschnitt(tmp_path / "l", "h", "handy"),
+            aktuelle_phase=1, basis_url="http://127.0.0.1:1", token=token,
+            db_pfad=pfad, chat_id=CHAT, persona_name="student",
+            max_schritte=3, fallback_nach_schritten=1)
+        browser.close()
+    assert ergebnis["fallback_benutzt"] is False
+
+
+def test_station_beantwortet_eine_rueckfrage_bevor_sie_endet(stack, tmp_path, monkeypatch):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    monkeypatch.setattr(browser_lauf, "_verlaufsblasen",
+                        lambda page: [{"von": "bot", "typ": "text", "text": "Which terms?"}])
+    station = browser_stationen.Station("t-eins", 1, "Say hello.", budget=4)
+    persona = _ScriptedClient([
+        {"type": "done_station", "begruendung": "fertig", "offene_fragen": ["What is this?"]},
+        {"type": "type_send", "text": "home and border", "begruendung": "antworte"},
+        {"type": "done_station", "begruendung": "jetzt fertig"},
+    ])
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l")
+        browser.close()
+    st = ergebnis["stationen_ergebnisse"][0]
+    assert st["nachfragen_beantwortet"] >= 1
+    assert st["offene_fragen"] == ["What is this?"]
+    assert persona.aufrufe >= 3
+    assert (tmp_path / "l" / "ergebnis.json").exists()
+    zeilen = (tmp_path / "l" / "schritte.jsonl").read_text().splitlines()
+    assert json.loads(zeilen[0])["station"] == "t-eins"
+
+
+def test_ohne_persona_station_wartet_und_erfasst_ohne_persona_aufruf(stack, tmp_path, monkeypatch):
+    """p1-start (Pflichtpunkt 2): keine Persona, nur Warten + mechanische
+    Erfassung. Patch die Wartezeit auf 0 fuer den Test."""
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    station = browser_stationen.Station("p1-start", 1, "Observe.", ohne_persona=True,
+                                        warte_s=0, leitbild_ende="start")
+    persona = _ScriptedClient([{"type": "done_station", "begruendung": "sollte nie gerufen werden"}])
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l")
+        browser.close()
+    assert persona.aufrufe == 0
+    st = ergebnis["stationen_ergebnisse"][0]
+    for feld in ("bot_nachricht", "kalibrierung_sichtbar", "zuhoeren_laeuft", "leertext_sichtbar"):
+        assert feld in st and isinstance(st[feld], bool)

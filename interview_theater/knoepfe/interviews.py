@@ -48,9 +48,14 @@ def biete_stt_sprache(conn, tg, chat_id: int) -> bool:
     return True
 
 
-def biete_aufnahme(conn, tg, chat_id: int, text: str, knopf: bool = True) -> int:
+def biete_aufnahme(conn, tg, chat_id: int, text: str, knopf: bool = True,
+                   system: bool = False) -> int:
     """Haengt den Aufnahme-Umschalter unter ``text``; liefert die
     ``message_id`` der Angebotsnachricht.
+
+    ``system=True`` (Karte t_ea994c7f, nur mit ``aufnahme.fliesstext_aktiv``):
+    "Aufnahme beendet." geht als Systemzeile raus, der Umschalter haengt
+    unveraendert darunter.
 
     Die message_id wird zurueckgegeben, weil der Erkenner-Pfad
     (``erkenner._melde_interviewmodus``) seine Bestaetigung wie jede andere
@@ -72,11 +77,11 @@ def biete_aufnahme(conn, tg, chat_id: int, text: str, knopf: bool = True) -> int
     (``biete_nach_teil``), also dann, wenn es ueberhaupt etwas zu beenden
     gibt."""
     if not knopf:
-        return tg.sende(chat_id, text)
+        return tg.sende(chat_id, text, system=True) if system else tg.sende(chat_id, text)
     laeuft = repo.ist_interviewmodus_an(conn, chat_id)
     beschriftung = T._TEXT_AUFNAHME_BEENDEN if laeuft else T._TEXT_AUFNAHME_STARTEN
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)
-    return _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))])
+    return _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))], system=system)
 
 
 def biete_nach_teil(conn, tg, chat_id: int, text: str) -> int:

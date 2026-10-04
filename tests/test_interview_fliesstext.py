@@ -318,3 +318,43 @@ def test_ohne_schalter_bleibt_zu_kurz_eine_textzeile(conn, web, einst, klm):
 
     assert any("war sehr kurz" in t for t in _texte(conn, repo.WEB_TYP_TEXT))
     assert not any("war sehr kurz" in t for t in _texte(conn, repo.WEB_TYP_SYSTEM))
+
+
+# -- Aufgabe 9: "Aufnahme beendet." als Systemzeile ---------------------------
+
+
+def test_fertig_befehl_meldet_als_systemzeile(conn, web, einst, fliesstext):
+    from interview_theater import befehle
+
+    befehle.behandle(conn, web, einst, 1, "/interview", "Ada")
+    befehle.behandle(conn, web, einst, 1, "/fertig", "Ada")
+
+    assert "Aufnahme beendet." in _texte(conn, repo.WEB_TYP_SYSTEM)
+    assert "Aufnahme beendet." not in _texte(conn, repo.WEB_TYP_TEXT)
+
+
+def test_aufnahme_umschalter_meldet_als_systemzeile(conn, web, einst, fliesstext):
+    from interview_theater import befehle
+
+    befehle.behandle(conn, web, einst, 1, "/aufnahme", "Ada")
+    befehle.behandle(conn, web, einst, 1, "/aufnahme", "Ada")
+
+    assert "Aufnahme beendet." in _texte(conn, repo.WEB_TYP_SYSTEM)
+
+
+def test_erkenner_meldet_das_ende_als_systemzeile(conn, web, einst, fliesstext):
+    from interview_theater import erkenner
+
+    erkenner._melde_interviewmodus(web, conn, einst, 1, [{"art": "interview_beenden"}])
+
+    assert "Aufnahme beendet." in _texte(conn, repo.WEB_TYP_SYSTEM)
+
+
+def test_ohne_schalter_bleibt_aufnahme_beendet_text(conn, web, einst):
+    from interview_theater import befehle
+
+    befehle.behandle(conn, web, einst, 1, "/interview", "Ada")
+    befehle.behandle(conn, web, einst, 1, "/fertig", "Ada")
+
+    assert "Aufnahme beendet." in _texte(conn, repo.WEB_TYP_TEXT)
+    assert "Aufnahme beendet." not in _texte(conn, repo.WEB_TYP_SYSTEM)

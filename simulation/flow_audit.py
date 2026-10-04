@@ -1,4 +1,4 @@
-"""Flow-Audit (Padua Flow Audit, 04.10.2026) -- Schicht 1, Phase 1+2.
+"""Flow-Audit (Padua Flow Audit, 04.10.2026) -- Schicht 1, Phase 1-4.
 
 Anlass der Karte: der Erkenner (``interview_theater/erkenner.py``) und die
 Knopfflaeche (``interview_theater/knoepfe/texte.py``) wachsen unabhaengig
@@ -15,13 +15,15 @@ flow_erwartungen.toml``) mechanisch gegen den Code: hat eine Handlung, die
 per Chat ankommen soll, einen Erkenner-Intent (``erkenner.ARTEN``)? Gibt es
 ueberhaupt einen Weg -- Intent oder Knopf?
 
-**Geltungsbereich dieser Fassung: ausschliesslich Phase 1 (Begriffe/Terms)
-und Phase 2 (Fragen/Questions).** Die Karte, aus der dieses Modul stammt,
-grenzt den Umfang bewusst so ein -- eine Erwartungsliste fuer Phase 3-7
-waere an einem anderen Codestand entstanden (eine aeltere Fassung existiert
-als Referenz unter ``.flow_audit_ref/`` und beschreibt einen Codestand vor
-dem Phase-1/2-Umbau; sie ist nicht mehr gueltig und wird hier nicht
-fortgeschrieben).
+**Geltungsbereich dieser Fassung: Phase 1 (Begriffe/Terms), Phase 2
+(Fragen/Questions), Phase 3 (Interviews) und Phase 4 (Setting, Figuren &
+Geschichte).** Die urspruengliche Karte (t_2cdea48b) grenzte den Umfang
+bewusst auf Phase 1+2 ein; Karte t_92f99911 hat ihn auf Phase 3+4
+erweitert. Phase 5-7 bleiben spaeteren Karten vorbehalten -- eine
+Erwartungsliste dafuer waere an einem anderen Codestand entstanden (eine
+aeltere Fassung existiert als Referenz unter ``.flow_audit_ref/`` und
+beschreibt einen Codestand vor dem Phase-1/2-Umbau; sie ist nicht mehr
+gueltig und wird hier nicht fortgeschrieben).
 
 Drei Befundarten:
     - ``sackgasse``           -- weder Intent noch Knopf noch ein belegter
@@ -89,7 +91,7 @@ from pathlib import Path
 from interview_theater import erkenner
 from interview_theater.knoepfe import texte as knopf_texte
 
-#: Die von Hand gepflegte Liste, nur Phase 1+2.
+#: Die von Hand gepflegte Liste, Phase 1-4.
 ERWARTUNGEN_PFAD = Path(__file__).resolve().parent / "flow_erwartungen.toml"
 
 #: Sortierung der Befundliste -- schwerstes zuerst.
@@ -286,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     befunde = pruefe()
-    print("# Flow-Audit -- Schicht 1 (statisch, Phase 1+2)\n")
+    print("# Flow-Audit -- Schicht 1 (statisch, Phase 1-4)\n")
     print("## Befunde\n")
     print(befunde_text(befunde))
     print("\n\n## Matrix\n")

@@ -1,21 +1,30 @@
 # Die von Hand gepflegte Erwartungsliste des Flow-Audits (Schicht 1, siehe
-# simulation/flow_audit.py). Geltungsbereich dieser Karte: AUSSCHLIESSLICH
-# Phase 1 (Begriffe/Terms) und Phase 2 (Fragen/Questions) -- Padua-Profil
-# (workshop/padua-2026/), Code-Stand 04.10.2026. Keine Zeilen fuer Phase
-# 3-7: eine aeltere Fassung mit Phase 3-7 existiert unter
+# simulation/flow_audit.py). Geltungsbereich dieser Karte (Task A,
+# t_92f99911, erweitert aus der urspruenglichen Phase-1/2-Karte
+# t_2cdea48b): Phase 1 (Begriffe/Terms), Phase 2 (Fragen/Questions),
+# Phase 3 (Interviews) und Phase 4 (Setting, Figuren & Geschichte -- Padua:
+# "Frame") -- Padua-Profil (workshop/padua-2026/), Code-Stand 04.10.2026.
+# Keine Zeilen fuer Phase 5-7: die bleiben spaeteren Karten vorbehalten.
+# Eine aeltere Fassung mit Phase 3-7 existiert unter
 # .flow_audit_ref/flow_erwartungen.toml, beschreibt aber einen Codestand vor
-# dem Phase-1/2-Umbau und ist nicht mehr gueltig.
+# dem Phase-1/2-Umbau und ist nicht mehr gueltig -- die Phase-3/4-Zeilen
+# unten sind neu gegen den heutigen Code gelesen, kein Uebernahme daraus.
 #
 # Jede Zeile wurde gegen den heutigen Code gelesen, nicht nur gegen dieses
-# Briefing. Zwei Zeilen tragen zusaetzlich zu "intent"/"knopf" ein drittes
-# Feld, "code_pfad": ein Freitext-Verweis auf einen verifizierten Chat-
-# Mechanismus ausserhalb von Erkenner-Intent und ART_*-Knopf (ein
-# Markerblock des Gespraechsmodells bzw. eine deterministische Text-Weiche
-# ohne Modellaufruf). Mit gesetztem "code_pfad" meldet pruefe() fuer diese
-# Zeilen KEINEN "sackgasse"/"toter_gespraechsweg"-Befund mehr -- siehe den
-# Modul-Docstring von flow_audit.py, Abschnitt "Der dritte Weg -- code_pfad",
-# und die zugehoerige Grenze (nicht gegen den Code validiert, Vertrauen wie
-# bei einem von Hand gepflegten "beleg"). Siehe tests/test_flow_abdeckung.py.
+# Briefing. Zwei Zeilen (beide Phase 2) tragen zusaetzlich zu
+# "intent"/"knopf" ein drittes Feld, "code_pfad": ein Freitext-Verweis auf
+# einen verifizierten Chat-Mechanismus ausserhalb von Erkenner-Intent und
+# ART_*-Knopf (ein Markerblock des Gespraechsmodells bzw. eine
+# deterministische Text-Weiche ohne Modellaufruf). Mit gesetztem
+# "code_pfad" meldet pruefe() fuer diese Zeilen KEINEN
+# "sackgasse"/"toter_gespraechsweg"-Befund mehr -- siehe den Modul-Docstring
+# von flow_audit.py, Abschnitt "Der dritte Weg -- code_pfad", und die
+# zugehoerige Grenze (nicht gegen den Code validiert, Vertrauen wie bei
+# einem von Hand gepflegten "beleg"). Die Phase-3/4-Zeilen unten brauchen
+# "code_pfad" nicht: wo kein Intent/Knopf-Paar existiert, ist das entweder
+# eine bewusste Knopf-only-Entscheidung ("weg = knopf", analog zum
+# Undo-Knopf in Phase 1) oder in der Beleg-Prosa einer benachbarten Zeile
+# dokumentiert, nicht als eigene Zeile. Siehe tests/test_flow_abdeckung.py.
 
 [[phase.1]]
 aktion = "Begriffe per Chat nennen, ergaenzen oder korrigieren -- auch als Korrektur zum Begriffsboard-Top-5-Vorschlag ('Discussion done') statt den Knopf 'Take these' zu druecken"
@@ -181,4 +190,281 @@ Phase 3 (PHASE_INTERVIEWS = 3), aber der Knopf-Handler ART_AUFNAHME selbst
 (knoepfe/wirkung.py) existiert unveraendert und ist ueber /aufnahme, eine aeltere
 Chatnachricht mit dem Knopf, oder -- hier relevant -- ueber den Erkenner-Intent
 interview_starten per Chat auch aus Phase 1/2 auslösbar.
+"""
+
+# ---------------------------------------------------------------------------
+# Phase 3 -- Interviews (Task A, t_92f99911, 04.10.2026 ff.). Jede Zeile neu
+# gegen den heutigen Code gelesen, siehe .superpowers/sdd/task-A-report.md
+# fuer die Einzelbelege der Recherche.
+# ---------------------------------------------------------------------------
+
+[[phase.3]]
+aktion = "Eine Interview-Aufnahme INNERHALB von Phase 3 selbst per Chat-Satz starten ('wir fangen jetzt an') oder beenden ('fertig', 'I'm done recording'), statt auf den Umschalter-Knopf zu warten"
+weg = "beides"
+intent = "interview_starten|interview_beenden"
+knopf = "ART_AUFNAHME"
+beleg = """
+Gegenprobe zur bestehenden Phase-2-Zeile oben (die den Sprung AUS Phase 1/2
+HERAUS belegt): erkenner.ARTEN enthaelt 'interview_starten' (erkenner.py
+Zeile 66) und 'interview_beenden' (Zeile 67); keines von beiden steht in
+PHASEN_SPEZIFISCHE_ARTEN (Zeilen 218-230) -- beide bleiben also phasenfrei
+und gelten dementsprechend auch INNERHALB Phase 3 unveraendert per Chat-Satz,
+nicht nur beim Hineinspringen. Knopf: knoepfe/texte.py ART_AUFNAHME =
+'aufnahme' ist ein einziger TOGGLE-Knopf -- knoepfe/wirkung.py::_wirkung_aufnahme
+(Zeile 1224 ff) ruft woertlich befehle._befehl_aufnahme auf ('wortgleich
+dasselbe wie /aufnahme'), das je nach aktuellem Modus startet ODER beendet.
+Trivial gruen, wie vom Auftrag (Punkt 1) als Pruefpunkt gefordert.
+"""
+
+[[phase.3]]
+aktion = "Ein Interview -- GERADE LAUFEND oder schon beendet -- per Chat mit Nummer oder Namensteil verwerfen ('entferne Interview 2'), statt erst zu beenden und es dann in einem zweiten Schritt zu loeschen"
+weg = "chat"
+intent = "entfernen"
+knopf = ""
+beleg = """
+Investigiert (Auftrag, Punkt 2 -- es gibt keinen eigenen Intent
+'interview_abbrechen'): erkenner._ENTFERNEN_ZIELE (erkenner.py Zeile 1320)
+listet 'interview' und 'aufnahme' als Ziele. erkenner.entferne() (ab Zeile
+1420) ruft bei diesen Zielen aufnahme.finde_interview(conn, chat_id, rest)
+NUR auf, wenn 'rest' (die Angabe nach dem Zielwort) nicht leer ist -- 'ohne
+Angabe wird NICHT geraten' (Kommentar an derselben Stelle, Zeile ~1471).
+aufnahme.finde_interview (aufnahme.py Zeile 2039) sucht in
+aufnahme.interviews() (Zeile ~1948: 'repo.transkripte(...) if a["klasse"] ==
+"lang"'), und DAS filtert nicht nach status -- repo.transkripte (repo.py
+Zeile 1530) liefert jede Zeile mit teil_von IS NULL, auch einen Kopf mit
+status='laeuft' (eine GERADE LAUFENDE Aufnahme). Ein 'entferne Interview N'
+per Chat findet damit nachweislich AUCH das laufende Interview, nicht nur
+ein beendetes -- anders als die im Auftrag offen gelassene Vermutung.
+repo.entferne_aufnahme (repo.py Zeile 1552) setzt entfernt_am auf dem Kopf,
+allen Teilen ('WHERE id = ? OR teil_von = ?') und einer eventuellen
+Verdichtung, laesst aber gruppe.interviewmodus_seit unberuehrt: die naechste
+Sprachnachricht legt ueber aufnahme.stelle_interview_sicher() ->
+repo.laufendes_interview (das 'entfernt_am IS NULL' filtert) einen FRISCHEN
+Kopf an, weil der verworfene nicht mehr zaehlt. Im Effekt also ein
+einstufiges 'verwerfen und neu anfangen' per Chat-Satz, kein Knopf dafuer.
+"""
+
+[[phase.3]]
+aktion = "Eine Transkript-Korrektur ALS TEXTNACHRICHT waehrend oder nach einem Interview per Chat vornehmen (z. B. 'Whisper hat X statt Y verstanden')"
+weg = "chat"
+intent = "transkript_korrigieren"
+knopf = ""
+beleg = """
+Investigiert (Auftrag, Punkt 3): erkenner.ARTEN enthaelt
+'transkript_korrigieren' (Zeile 72); erkenner.ARTEN_IN_AUFNAHME (Zeilen
+198-208) enthaelt es NICHT -- nur 'interview_beenden', 'interview_benennen',
+'an_den_bot'. Konkret heisst das (gelesen ueber aufnahme._teil_abschliessen,
+aufnahme.py Zeile ~1406, und bot.py Zeilen 356-491): eine TEXTnachricht geht
+IMMER durch bot._zug_und_erkenner -> erkenner.laufe mit der vollen
+ARTEN-Liste (bot.py Zeile 491/372) -- 'transkript_korrigieren' funktioniert
+dort unveraendert, unabhaengig vom Interviewmodus, wie jede andere Art.
+Eine SPRACHNACHRICHT waehrend einer LAUFENDEN Aufnahme nimmt dagegen den
+anderen Pfad (aufnahme.verarbeite -> _teil_abschliessen ->
+erkenner.erkenne_in_aufnahme, erkenner.py Zeile 511, gefiltert auf
+ARTEN_IN_AUFNAHME in Zeile 544) und wuerde eine gesprochene Korrektur NICHT
+als solche erkennen -- sie bliebe wie jedes andere gesprochene Wort Teil des
+Interviewtranskripts. Das ist eine bewusste, dokumentierte Einschraenkung
+(N1, AGENTS.md: 'was eine interviewte Person erzaehlt, ist Material und nie
+eine Absicht der Gruppe'), kein Fehler dieser Karte -- diese Zeile gilt
+deshalb ausdruecklich nur fuer den TEXT-Weg, siehe 'aktion'.
+"""
+
+[[phase.3]]
+aktion = "Nach einer langen Sprachnachricht OHNE laufenden Interviewmodus ('Das klingt nach einem Interview (M:SS)') die Fragen 'Als Interview speichern?' und, bei Ja, 'Fertig, auswerten?' bzw. 'Es kommt noch was' ausschliesslich per Knopf beantworten -- bewusst kein Chat-Text-Weg"
+weg = "knopf"
+intent = ""
+knopf = "ART_OHNE_KNOPF_JA|ART_OHNE_KNOPF_NEIN|ART_OHNE_KNOPF_FERTIG|ART_OHNE_KNOPF_WEITER"
+beleg = """
+Investigiert (Auftrag, Punkt 4): bewusste, dokumentierte Knopf-only-Entscheidung
+(AGENTS.md, Abschnitt 'Eine lange Sprachnachricht ohne Interviewmodus wird
+gefragt, nicht gedeutet' -- 'Keine Antwort -> gar nichts; kein Auto-Ja, kein
+Zeitgeber'). Die vier Knoepfe (knoepfe/texte.py Zeilen 144-149) werden ueber
+knoepfe/interviews.py::biete_interview_ohne_knopf/_weiter (Zeilen ~128-170)
+angeboten; ihre Handler in knoepfe/wirkung.py (_wirkung_ohne_knopf_ja/_nein/
+_fertig/_weiter, ~1141-1200 laut Auftrag) rufen nie ein Modell und haben
+KEIN Erkenner-Gegenstueck -- erkenner.ARTEN enthaelt keine eigene Art fuer
+diese Ja/Nein-Entscheidung. Zu verwechseln ist das NICHT mit dem regulaeren
+'Interview ist fertig' NACH einem schon laufenden, erkannten Interview
+(ART_TEIL_FERTIG, wortgleich 'Aufnahme beenden' -- siehe die Start/Ende-Zeile
+oben, die ueber 'interview_beenden' sehr wohl per Chat-Satz funktioniert).
+Nur dieser EINE Sonderfall -- die Ja/Nein-Entscheidung zu einer AMBIGEN,
+ausserhalb des Modus aufgenommenen langen Sprachnachricht -- ist Knopf-only,
+analog zum Undo-Knopf in Phase 1 (gleiches Muster, gleiche Begruendung:
+'kein Text, der denselben Effekt erzeugen koennte').
+"""
+
+[[phase.3]]
+aktion = "Weiter zu Phase 4 verlangen, waehrend ein frueher als 'zu kurz' uebersprungenes (und deshalb nie verdichtetes) Interview offen stuende -- GEGENPROBE: das blockiert die Phase-4-Sperre NICHT (mehr)"
+weg = "beides"
+intent = "phase_setzen"
+knopf = "ART_PHASE|ART_NOCH_NICHT"
+beleg = """
+Investigiert (Auftrag, Punkt 5): phasen.voraussetzungen(conn, chat_id)[4]
+(phasen.py Zeilen 415-416) haengt an
+'not aufnahme.unausgewertete_interviews(conn, chat_id)'. In
+aufnahme.unausgewertete_interviews (aufnahme.py Zeile 1954 ff) steht:
+'if kopf["zu_kurz_uebersprungen"]: continue' (Zeile 1990) -- ein als zu-kurz
+markiertes Interview wird dort EXPLIZIT uebersprungen und blockiert die
+Sperre folglich NICHT. Der Kommentar an derselben Stelle verweist auf
+'Padua Phasen TEIL 2, Befund 4a' und auf aufnahme.migriere_zu_kurz_altdaten
+(Zeile ~1996) als Nachtrags-Migration fuer Bestandsdaten, die den Fehler
+schon VOR diesem Fix erlebt haben. Das ist also kein offener Klasse-A-Fund,
+sondern ein bereits erfuellter Pruefpunkt -- diese Zeile haelt die
+Gegenprobe fest. Mechanik identisch zur bestehenden Phase-2-Zeile
+(phase_setzen, ART_PHASE/ART_NOCH_NICHT), hier fuer den Uebergang 3->4. Die
+echte DB-Verhaltenspruefung (ein tatsaechlich so markiertes Interview
+anlegen und beobachten, dass Phase 4 trotzdem angeboten wird) ist
+DB-Verhalten und gehoert nach Schicht 2 (Task B) -- diese statische Schicht
+kann nur die Codepfad-Verdrahtung oben belegen, wie vom Auftrag verlangt.
+"""
+
+# ---------------------------------------------------------------------------
+# Phase 4 -- Setting, Figuren & Geschichte (Padua: "Frame", siehe
+# workshop/padua-2026/phasen.toml) -- Task A, t_92f99911, 04.10.2026 ff.
+# ---------------------------------------------------------------------------
+
+[[phase.4]]
+aktion = "Das Setting (Ort, Zeit, Anlass) per Chat nennen oder aendern, statt die Grundleiste zu nutzen"
+weg = "beides"
+intent = "rahmen_setzen"
+knopf = "ART_SPEICHERN|ART_ANDERS|ART_EIGENE"
+beleg = """
+erkenner.ARTEN enthaelt 'rahmen_setzen' (erkenner.py Zeile 84);
+_ARBEITSSTAND_ARTEN (Zeilen 577-585) mappt es auf arbeitsstand.rahmen (das
+Setting); nicht in PHASEN_SPEZIFISCHE_ARTEN, also phasenfrei. Knopf:
+knoepfe/basis.py::offene_art (Zeile 667) liefert fuer Phase 4 zuerst
+'rahmen' als offene Art, solange das Feld leer ist; sende_mit_speicherleiste()
+(Zeile 468 ff -- die Zweige 'figuren' Zeile 568 und 'geschichte' Zeile 576
+sind die einzigen Sonderfaelle) faellt fuer 'rahmen' auf
+_sende_mit_grundleiste() (Zeile 588) zurueck, dieselbe Leiste
+ART_SPEICHERN/ART_ANDERS/ART_EIGENE wie bei Begriffen/Fragen in Phase 1/2;
+knoepfe/wirkung.py::_wirkung_rahmen (Zeile 1018) speichert ueber denselben
+_speichere()-Weg. Der Phaseneintritt selbst (knoepfe/stationen.py::
+biete_proaktiv, Zeilen 221-238) ist dabei eine OFFENE FRAGE ohne eigene
+Knoepfe (Birk, 06.09.2026: 'unter einer offenen Frage gibt es keine Knoepfe,
+weil dahinter nichts Fixes zu speichern ist') -- die Gruppe antwortet
+zwangslaeufig in freier Sprache, und sobald diese Antwort etwas Konkretes
+nennt, laeuft sie ueber rahmen_setzen wie hier beschrieben. Damit ist der
+initiale Phase-4-Impuls IMMER Chat, nie ein Knopf (Auftrag, Punkt 8) -- eine
+eigene Zeile fuer die offene Frage selbst waere hier redundant, weil sie
+keine eigene Handlung mit Intent/Knopf ist, sondern genau in diese Zeile
+(oder in figur_setzen/geschichte_setzen unten) muendet.
+"""
+
+[[phase.4]]
+aktion = "Anzahl oder Namen der Figuren per Chat nennen oder aendern, statt die Anzahl-/Namen-Knoepfe der Figurenliste zu benutzen"
+weg = "beides"
+intent = "figur_setzen"
+knopf = "ART_FIGUREN_ANZAHL_MENU|ART_FIGUREN_ANZAHL|ART_FIGUREN_ANZAHL_FREI|ART_FIGUREN_NAMEN_MENU"
+beleg = """
+erkenner.ARTEN enthaelt 'figur_setzen' (erkenner.py Zeile 94);
+_wende_eine_an() (Zeile 1508) ruft dafuer _wende_figur_an() auf; nicht in
+PHASEN_SPEZIFISCHE_ARTEN, also phasenfrei. Knopf:
+knoepfe/figuren.py::biete_figurenliste() (Zeile 217 ff) bietet
+ART_FIGUREN_ANZAHL_MENU ('Anzahl aendern') und ART_FIGUREN_NAMEN_MENU
+('Namen aendern') PLUS die generische Grundleiste
+(ART_SPEICHERN/ART_ANDERS/ART_EIGENE ueber speicherleiste(conn, chat_id,
+"figuren", wert), Zeile 240) -- ART_FIGUREN_ANZAHL_MENU fuehrt weiter zu
+ART_FIGUREN_ANZAHL bzw. ART_FIGUREN_ANZAHL_FREI (knoepfe/texte.py Zeilen
+101-105). Beide Wege (freier Chat-Text ueber figur_setzen, oder die
+Knopfkette ueber die vom Bot vorgeschlagene Liste) fuehren am Ende auf
+dieselbe Tabelle figur -- ueber unterschiedliche Funktionen
+(knoepfe.figuren._uebernimm_figurenliste vs. erkenner._wende_figur_an).
+"""
+
+[[phase.4]]
+aktion = "Die Geschichte (Bogen + Ende) per Chat selbst erzaehlen oder aendern, statt auf das Richtungs-Menue des Bots zu reagieren"
+weg = "beides"
+intent = "geschichte_setzen"
+knopf = "ART_GESCHICHTE_SPEICHERN|ART_EIGENE"
+beleg = """
+erkenner.ARTEN enthaelt 'geschichte_setzen' (erkenner.py Zeile 90);
+_ARBEITSSTAND_ARTEN (Zeile 583) mappt es auf arbeitsstand.geschichte;
+phasenfrei (nicht in PHASEN_SPEZIFISCHE_ARTEN) -- 'sagt die Gruppe die
+Geschichte einfach, wird sie notiert wie jedes andere Arbeitsstandfeld'
+(Kommentar bei der ARTEN-Definition, Zeile ~88). Knopf: fuer die Geschichte
+dispatcht sende_mit_speicherleiste() NICHT auf die generische Grundleiste,
+sondern auf knoepfe/szenen.py::sende_geschichte() (Zeile 204 ff, Auftrag
+Punkt 7): drei Richtungen als Menue mit ART_GESCHICHTE_SPEICHERN je Option
+(Zeile 261 ff) plus 'Anders' ueber ART_EIGENE mit wert='geschichte' (Zeile
+279). Beide Wege -- freier Erkenner-Intent und Menue-Knopf des
+Bot-Vorschlags -- schreiben am Ende arbeitsstand.geschichte und sind
+gleichwertige, parallele Pfade; keiner ersetzt den anderen.
+"""
+
+[[phase.4]]
+aktion = "Nach der abgeschlossenen Figurenliste 'Schlag du vor' sagen, um die Geschichte vom Bot vorschlagen zu lassen (statt 'Ja, wir zuerst' zu waehlen), ausschliesslich per Knopf"
+weg = "knopf"
+intent = ""
+knopf = "ART_WIR_ZUERST|ART_SCHLAG_VOR"
+beleg = """
+Investigiert (Auftrag, Punkt 8): die zwei Einstiegsknoepfe 'Ja, wir zuerst' /
+'Schlag du vor' wurden am 06.09.2026 vom PHASENEINTRITT selbst entfernt
+(knoepfe/stationen.py::biete_proaktiv, Zeilen 221-238: 'unter einer offenen
+Frage gibt es keine Knoepfe'). Sie leben seitdem NUR noch an der
+Figuren->Geschichte-Naht weiter (knoepfe/figuren.py::_schliesse_figuren_ab,
+Zeile 629, Knoepfe Zeilen 650/652: 'dieselben zwei Knoepfe wie bei jedem
+Eintritt' nach Abschluss der Figurenliste). ART_SCHLAG_VOR fuehrt hier zu
+knoepfe/wirkung.py::_wirkung_schlag_vor (Zeile 1029 ff), die bei
+phase == PHASE_SETTING und offene_art(conn, chat_id) == "geschichte" EXTRA
+szenenfolge.starte_geschichte() in einem eigenen Thread anstoesst -- ein
+Modellaufruf mit einer festen, spezifischen Zeilenform. Dafuer gibt es
+KEINEN Erkenner-Intent: 'schlag_vor'/'schlag_du_vor' steht nicht in
+erkenner.ARTEN; der Docstring von biete_proaktiv ('sagt sie ausdruecklich
+schlag du vor, erkennt das der Erkenner') ist an dieser praezisen Stelle nach
+Code-Lage ungenau -- ein freier Chat-Satz 'schlag doch was vor' laeuft
+hoechstens in den gewoehnlichen Gespraechszug ohne diesen speziellen
+Schreib-/Anstoss-Pfad (moeglicher kleiner Dokumentationsbefund, siehe
+Report). An DIESER Naht ist 'Schlag du vor' deshalb faktisch Knopf-only,
+analog zum Undo-Knopf in Phase 1 (derselbe weg='knopf'-Mechanismus).
+"""
+
+[[phase.4]]
+aktion = "Vor oder beim Einstieg in Phase 4 der Uebermittlung an ein US-Modell zustimmen oder widersprechen ('ja, US-Modell' / 'nein, Schweiz'), statt die zwei Knoepfe zu druecken"
+weg = "beides"
+intent = "szene_usa"
+knopf = "ART_SZENE_USA"
+beleg = """
+erkenner.ARTEN enthaelt 'szene_usa' (erkenner.py Zeile 132), nicht in
+PHASEN_SPEZIFISCHE_ARTEN, also phasenfrei. Investigiert (Auftrag, Punkt 6):
+die Frage steht entgegen der im Kartentext erwarteten Platzierung ('vor
+Phase 4') tatsaechlich schon beim EINTRITT IN PHASE 1
+(knoepfe/stationen.py::eintritt_in_phase, Zeile 305 ff, Zweig 'if nummer ==
+PHASE_BEGRIFFE' ruft _biete_modellwahl_wenn_faellig auf, Zeile 337) -- und
+als 'Sicherheitsnetz' nochmal beim Eintritt in Phase 4 (Zweig 'if nummer ==
+PHASE_SETTING', Zeilen 344-349, _biete_modellwahl_wenn_faellig Zeile 283).
+Das ist also bereits FRUEHER erfuellt als gefordert, kein offener
+Klasse-A-Fund -- diese Zeile haelt den funktionierenden Weg fest.
+erkenner._wende_eine_an() (Zeile 1530 ff) wendet 'szene_usa' nur an, wenn
+das Angebot wirklich offen ist (repo.szene_usa_stand(...) == "offen" UND
+gruppe.szene_usa_angeboten_am gesetzt) und schreibt ueber
+repo.setze_szene_usa einen BOOL (nicht den String 'ja'/'nein' direkt --
+siehe den dokumentierten Fallstrick in AGENTS.md ueber ART_SZENE_USA/
+setze_szene_usa). Knopf: knoepfe/szenen.py::biete_szene_usa (Zeile 150 ff)
+legt ART_SZENE_USA (knoepfe/texte.py Zeile 49) mit wert 'ja'/'nein' an
+(repo.py Zeilen 3613-3657 fuer gruppe.szene_usa_bestaetigt_am).
+"""
+
+[[phase.4]]
+aktion = "Sagen, dass Phase 4 (Setting, Figuren & Geschichte) fertig ist und es weiter zu Phase 5 (Schaerfung/Prose Draft) gehen soll, statt 'Weiter zu Phase 5' zu druecken"
+weg = "beides"
+intent = "phase_setzen"
+knopf = "ART_PHASE|ART_NOCH_NICHT"
+beleg = """
+Derselbe Mechanismus wie die bestehende Phase-2-Zeile fuer den Uebergang
+2->3, hier fuer 4->5 (Auftrag, Punkt 9). phasen.voraussetzungen(conn,
+chat_id)[5] (phasen.py Zeilen 417-418): 'setting and fixiert and
+bool(repo.figuren(conn, chat_id)) and geschichte and szenen' -- Setting
+(arbeitsstand.rahmen), fixierte Figurenliste (figuren_fixiert_am),
+mindestens eine Figur, die Geschichte UND mindestens eine Szene (entweder
+echte Szenenzeilen oder arbeitsstand.szenen_anzahl, Padua-Brainstorming-
+Umbau 02.10.2026, phasen.py Zeilen 383-385). erkenner.ARTEN enthaelt
+'phase_setzen' (Zeile 136), phasenfrei. Knopf: knoepfe/wirkung.py mappt
+ART_PHASE -> _wirkung_phase und ART_NOCH_NICHT -> _wirkung_noch_nicht, Teil
+der Abschlussleiste (knoepfe.biete_phase_proaktiv), die erscheint, sobald
+Phase 5 moeglich ist. In Padua heisst Phase 4 laut
+workshop/padua-2026/phasen.toml 'Frame' (die kurze englische Phasen-
+Stichwortliste), inhaltlich dasselbe Setting/Figuren/Geschichte-Erfinden wie
+in AGENTS.md beschrieben (workshop/padua-2026/phasentexte.toml, Eintritt 4:
+'From here on we invent -- freely, without material...').
 """

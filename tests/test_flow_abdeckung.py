@@ -1,20 +1,25 @@
 """Flow-Audit Schicht 1 (statisch, kein Modellaufruf, SPEC siehe
 ``simulation/flow_audit.py``).
 
-Geltungsbereich dieser Karte: AUSSCHLIESSLICH Phase 1 (Begriffe/Terms) und
-Phase 2 (Fragen/Questions), Padua-Profil, Code-Stand 04.10.2026. Phase 3-7
-sind absichtlich nicht Teil dieser Liste -- eine aeltere Fassung mit
-Phase 3-7 existiert als Referenz unter ``.flow_audit_ref/`` (vor dem
-Phase-1/2-Umbau geschrieben) und ist nicht mehr gueltig.
+Geltungsbereich dieser Karte: Phase 1 (Begriffe/Terms), Phase 2
+(Fragen/Questions), Phase 3 (Interviews) und Phase 4 (Setting, Figuren &
+Geschichte -- Padua: "Frame"), Padua-Profil, Code-Stand 04.10.2026 ff.
+(Task A, t_92f99911, erweitert aus der urspruenglichen Phase-1/2-Karte
+t_2cdea48b). Phase 5-7 sind absichtlich nicht Teil dieser Liste -- eine
+aeltere Fassung mit Phase 3-7 existiert als Referenz unter
+``.flow_audit_ref/`` (vor dem Phase-1/2-Umbau geschrieben) und ist nicht
+mehr gueltig; die Phase-3/4-Zeilen hier sind neu gegen den heutigen Code
+gelesen, keine Uebernahme daraus.
 
-Diese Suite haelt fuenf Dinge fest:
+Diese Suite haelt sechs Dinge fest:
 
-1. Die Erwartungsliste deckt genau {1, 2} ab, nicht mehr und nicht weniger.
+1. Die Erwartungsliste deckt genau {1, 2, 3, 4} ab, nicht mehr und nicht
+   weniger.
 2. Keine ``geist``-Befunde: jeder in der Liste genannte Intent/Knopf
    existiert im heutigen Code.
-3. Die zwei ehemals bekannten "roten" Befunde sind seit dem ``code_pfad``-
-   Feld (dritter, verifizierter Chat-Mechanismus ausserhalb von
-   Erkenner-Intent und ART_*-Knopf -- ein Markerblock des
+3. Die zwei ehemals bekannten "roten" Befunde (beide Phase 2) sind seit dem
+   ``code_pfad``-Feld (dritter, verifizierter Chat-Mechanismus ausserhalb
+   von Erkenner-Intent und ART_*-Knopf -- ein Markerblock des
    Gespraechsmodells bzw. eine deterministische Text-Weiche ohne
    Modellaufruf) kein Befund mehr: ``pruefe()`` meldet fuer den heutigen
    Stand ueberhaupt keine ``sackgasse``/``toter_gespraechsweg``-Zeile.
@@ -23,13 +28,22 @@ Diese Suite haelt fuenf Dinge fest:
    ``code_pfad`` erscheint transparent in ``matrix_text`` statt eines
    stillen ``--``; und eine ``geist``-Pruefung feuert nicht auf
    ``code_pfad`` (es wird nicht gegen ein Frozenset aus dem Code
-   validiert -- das ist die dokumentierte Grenze dieses Feldes).
+   validiert -- das ist die dokumentierte Grenze dieses Feldes). Die neuen
+   Phase-3/4-Zeilen tragen bewusst KEIN ``code_pfad`` -- wo kein
+   Intent/Knopf-Paar existiert, ist das entweder eine dokumentierte
+   Knopf-only-Entscheidung (``weg = "knopf"``) oder in der Beleg-Prosa
+   einer benachbarten Zeile aufgehoben.
 5. Die Mutationsprobe: ein heute funktionierender Intent verschwindet per
    Monkeypatch aus dem echten ``erkenner.ARTEN``, und ``pruefe()`` (ohne
    explizite Parameter, also gegen den echten, mutierten Modulzustand)
    meldet daraufhin einen ``toter_gespraechsweg``. Das ist der Beweis, dass
    Schicht 1 echte Regressionen am Code findet und nicht nur eine feste
-   Liste gegen sich selbst spiegelt.
+   Liste gegen sich selbst spiegelt -- einmal fuer Phase 1
+   (``begriffe_setzen``, der bestehende Test) und einmal fuer Phase 4
+   (``rahmen_setzen``, neu in dieser Karte).
+6. Jede neue Phase-3/4-Zeile mit ``weg in ("chat", "beides")`` erzeugt im
+   heutigen Stand keinen roten Befund -- oder, wo das (noch) nicht so ist,
+   ist es als Knopf-only-Entscheidung deklariert, nicht als Luecke.
 """
 
 from __future__ import annotations
@@ -37,14 +51,13 @@ from __future__ import annotations
 from simulation import flow_audit
 
 
-def test_erwartungsliste_deckt_phase_1_und_2_ab():
-    """Diese Karte grenzt den Umfang bewusst auf Phase 1+2 ein -- eine
-    Zeile fuer Phase 3-7 waere hier falsch (das ist nicht ``range(1, 8)``
-    wie in der alten, vor-refactor Referenzfassung unter
-    ``.flow_audit_ref/``)."""
+def test_erwartungsliste_deckt_phase_1_bis_4_ab():
+    """Diese Karte grenzt den Umfang auf Phase 1-4 ein -- eine Zeile fuer
+    Phase 5-7 waere hier falsch (das ist nicht ``range(1, 8)`` wie in der
+    alten, vor-refactor Referenzfassung unter ``.flow_audit_ref/``)."""
     handlungen = flow_audit.lade_erwartungen()
     phasen_mit_eintrag = {h.phase for h in handlungen}
-    assert phasen_mit_eintrag == {1, 2}
+    assert phasen_mit_eintrag == {1, 2, 3, 4}
 
 
 def test_keine_veraltete_erwartung_im_heutigen_code():
@@ -280,3 +293,79 @@ def test_mutationsprobe_wiederhergestellter_intent_wird_wieder_gruen():
     assert not any(
         "eigene Fragen" in b.aktion and b.schwere == "sackgasse" for b in befunde
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 3+4 (Task A, t_92f99911) -- dieselben Pruefpunkte wie oben fuer die
+# neuen Zeilen, plus die fuer die Karte verbindliche Mutationsprobe.
+# ---------------------------------------------------------------------------
+
+
+def test_phase_3_4_knopf_only_zeilen_erzeugen_keinen_befund():
+    """Zwei neue Zeilen sind -- wie der Undo-Knopf in Phase 1 -- bewusste
+    Knopf-only-Entscheidungen (``weg = "knopf"``): die Ja/Nein-Fragen zu
+    einer langen Sprachnachricht ohne Interviewmodus (Phase 3) und 'Schlag
+    du vor' an der Figuren->Geschichte-Naht (Phase 4). Beide duerfen keinen
+    Befund ergeben, obwohl sie keinen Erkenner-Intent tragen."""
+    befunde = flow_audit.pruefe()
+    betroffen = [
+        b for b in befunde
+        if "Als Interview speichern" in b.aktion
+        or "'Schlag du vor' sagen" in b.aktion
+    ]
+    assert betroffen == []
+
+
+def test_phase_3_4_chat_und_beides_zeilen_haben_keinen_roten_befund():
+    """Jede neue Phase-3/4-Zeile mit ``weg in ("chat", "beides")`` ist im
+    heutigen Stand entweder ueber einen Erkenner-Intent oder ueber Intent+
+    Knopf gemeinsam abgedeckt -- keine Sackgasse, kein toter Gespraechsweg.
+    Eine schaerfere Pruefung als der globale Rote-Befunde-Test unten: diese
+    hier filtert explizit auf die neuen Phasen, damit ein kuenftiger Fund in
+    Phase 1/2 diesen Test nicht zufaellig mitgruen macht."""
+    befunde = flow_audit.pruefe()
+    rote_3_4 = [
+        b for b in befunde
+        if b.phase in (3, 4) and b.schwere in ("sackgasse", "toter_gespraechsweg")
+    ]
+    assert rote_3_4 == []
+
+
+def test_mutationsprobe_phase4_rahmen_setzen_wird_als_toter_weg_gemeldet(monkeypatch):
+    """Dieselbe Mutationsprobe wie fuer ``begriffe_setzen`` oben (Phase 1),
+    hier fuer einen Phase-4-Intent (``rahmen_setzen``, Setting per Chat) --
+    das Abnahmekriterium der ganzen Karte t_92f99911 ('einen Intent aus der
+    Phasenfreigabe entfernen -> Schicht 1 UND Schicht 2 melden den Befund;
+    zuruecksetzen -> gruen'), hier der Schicht-1-Teil davon."""
+    vorher = flow_audit.pruefe()
+    assert not any(
+        b.phase == 4 and b.aktion.startswith("Das Setting") for b in vorher
+    )
+
+    from interview_theater import erkenner
+
+    monkeypatch.setattr(
+        erkenner, "ARTEN",
+        tuple(a for a in erkenner.ARTEN if a != "rahmen_setzen"),
+    )
+
+    waehrend_mutation = flow_audit.pruefe()
+    treffer = [
+        b for b in waehrend_mutation
+        if b.phase == 4 and b.aktion.startswith("Das Setting")
+        and b.schwere == "toter_gespraechsweg"
+    ]
+    assert len(treffer) == 1
+
+    geister = [
+        b for b in waehrend_mutation
+        if b.schwere == "geist" and "rahmen_setzen" in b.was_fehlt
+    ]
+    assert len(geister) == 1
+
+    monkeypatch.undo()
+    nachher = flow_audit.pruefe()
+    assert not any(
+        b.phase == 4 and b.aktion.startswith("Das Setting") for b in nachher
+    )
+    assert nachher == vorher

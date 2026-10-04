@@ -94,3 +94,12 @@ def test_erklaerung_zitat_muss_woertlich_aus_dem_bot_stammen():
     ergebnis2 = browser_judge.bewerte_erklaerung(client2, "p1-eintritt", bot_texte)
     assert ergebnis2["schwaechstes_zitat"] == ""
     assert ergebnis2["zitat_unbelegt"] is True
+
+
+def test_rubrik_erlaubt_das_begriffsboard_beim_zuhoeren():
+    from simulation import browser_judge
+    text = " ".join(browser_judge.lies_rubrik().split())
+    assert ("Tell: a CoThinker-style card or a bot line appears during a pure "
+            "context recording.") not in text
+    assert "term board" in text
+    assert "no bot line in the chat" in text.lower()

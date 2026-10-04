@@ -7,6 +7,8 @@ der Code; was Urteil braucht, liest der Richter.
 
 from __future__ import annotations
 
+import re
+
 #: Telefon-Tastatur: unter diesem Wert gilt ein Eingabefeld als Zoom-Falle
 #: (iOS zoomt beim Fokussieren eines Feldes mit kleinerer Schrift) --
 #: dieselbe Zahl wie in ``participatory-bot-ux`` Abschnitt 7 ("inputs >=16px").
@@ -130,3 +132,22 @@ def bot_text_waehrend_zuhoermodus(modus: str, neue_bot_nachrichten: list[str]) -
     """Schreibt der Bot im Brainstorm-/Zuhoermodus trotzdem in den Chat?
     (``ux_rubrik.md`` Abschnitt 4: "the bot writes NOTHING in the chat")."""
     return modus == "brainstorm" and any(t.strip() for t in neue_bot_nachrichten)
+
+
+_ENTWICKLER_META = re.compile(r"\bcode\b|\bthe code\b|implement|bug", re.I)
+
+
+def entwickler_meta(texte: list[str]) -> list[str]:
+    """Bot-Blasen mit Entwickler-Meta (Baseline 04.10.: "see if the code
+    reads that"). Ziel im bezahlten Lauf: 0."""
+    gesehen, treffer = set(), []
+    for text in texte:
+        if text and _ENTWICKLER_META.search(text) and text not in gesehen:
+            gesehen.add(text)
+            treffer.append(text)
+    return treffer
+
+
+def entwickler_meta_seite(page, selektor: str = ".blase.bot") -> list[str]:
+    return entwickler_meta([(el.text_content() or "").strip()[:200]
+                            for el in page.query_selector_all(selektor)])

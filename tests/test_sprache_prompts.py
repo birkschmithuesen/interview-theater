@@ -592,6 +592,36 @@ def test_padua_phasentexte_nennen_keinen_toten_phasennamen(monkeypatch, conn):
         anweisungen._CACHE.clear()
 
 
+def test_padua_phase2_einleitung_beschreibt_den_echten_ablauf(monkeypatch, conn):
+    """Birk 04.10.2026, 19:40: die Phase-2-Eintrittseinleitung
+    (``phasentexte.toml``, Schluessel ``2``) sagte "I suggest a few for each
+    term, with a gentler wording where a question is sensitive" -- das ist
+    nicht der Padua-Ablauf. In Padua schreibt die Gruppe ihre Fragen ZUERST
+    selbst, die KI-Fragen stehen erst im A/B-Vergleich daneben, und
+    ``fragen_weich.aktiv`` ist in ``profil.toml`` aus (03.10.2026, "hat nicht
+    gut funktioniert"). Eine Persona im echten Browserlauf ist deshalb
+    dreimal ausgewichen ("Please suggest the rest"), weil die Einleitung
+    etwas ankuendigte, das die App gar nicht so tut."""
+    from interview_theater import anweisungen, phasentexte, sprache, workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    anweisungen._CACHE.clear()
+    try:
+        text = phasentexte.eintritt(conn, 1, 2)
+        assert "gentler wording" not in text
+        assert "I suggest a few for each term" not in text
+        assert "you write your own interview questions" in text
+        assert "first" in text
+        assert len(text) <= phasentexte.EINLEITUNG_GRENZE
+    finally:
+        monkeypatch.delenv(workshop.VARIABLE, raising=False)
+        workshop.vergiss()
+        sprache.vergiss()
+        anweisungen._CACHE.clear()
+
+
 def test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben():
     """Karte P2-Fix, Restspannung 8 (02.10.2026).
 

@@ -663,11 +663,14 @@ def main() -> None:
                 seite = context.new_page()
                 persona_klient = Claude()
                 richter_klient = Claude()
-                # Die echten Leitbilder (``browser_leitbilder.Sammler``)
-                # landen erst in Paket G -- ``--leitbilder`` wird hier schon
-                # angenommen, bewirkt aber bewusst noch nichts, damit der
-                # Aufruf nicht abbricht.
+                # Die echten Leitbilder (``browser_leitbilder.Sammler``,
+                # Paket G) -- nur im Schlusslauf mit ``--leitbilder``.
                 leitbilder = None
+                if argumente.leitbilder:
+                    from simulation import browser_leitbilder
+                    leitbilder = browser_leitbilder.Sammler(
+                        token=stack.token, geraet=argumente.geraet,
+                        ziel=Path("docs/guide/bilder"))
                 ergebnis = fuehre_stationen(
                     seite, context, basis_url=stack.web_basis, token=stack.token,
                     db_pfad=stack.db_pfad, chat_id=stack.chat_id,
@@ -677,6 +680,8 @@ def main() -> None:
                     lauf_verzeichnis=lauf_verzeichnis, beobachter=beobachter,
                     leitbilder=leitbilder,
                 )
+                if leitbilder is not None:
+                    leitbilder.schreibe_index()
                 beobachter.schliesse()
                 browser.close()
         else:

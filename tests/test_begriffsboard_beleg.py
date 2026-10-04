@@ -1,0 +1,220 @@
+"""Karte t_2b9d2cbe: Belegpflicht der Begruendung im Begriffsboard (D1, D2).
+
+Alle Beispiele sind frei erfunden -- keine Zeile aus betrieb/padua.db."""
+
+import pytest
+
+from interview_theater import begriffsboard as bb
+
+TRANSKRIPT = (
+    "okay test test eins zwei drei. also der erste Gepäck ist Heimat. "
+    "Heimat, weil meine Oma jeden Sonntag für zwanzig Leute kocht. "
+    "the first term is lighthouse. I'd suggest silence."
+)
+
+
+# -- Wortlisten ----------------------------------------------------------------
+
+@pytest.mark.parametrize("liste", ["_STOPPWOERTER", "_ANSAGEWOERTER", "_METAWOERTER"])
+def test_wortlisten_stehen_in_casefold_form(liste):
+    """_woerter vergleicht casefold -- ein Eintrag mit Grossbuchstaben oder
+    'ß' wuerde nie treffen."""
+    for wort in getattr(bb, liste):
+        assert wort == wort.casefold(), wort
+
+
+def test_beleg_min_ist_zwei():
+    assert bb.BELEG_MIN_INHALTSWOERTER == 2
+
+
+# -- inhaltswoerter -----------------------------------------------------------
+
+@pytest.mark.parametrize("text, begriff, erwartet", [
+    ("the first term is lighthouse", "lighthouse", []),
+    ("I'd suggest silence", "silence", []),
+    ("also der erste Gepäck ist Heimat", "Heimat", []),
+    ("Mikrofon Test eins zwei drei 1 2 3", "Heimat", []),
+    ("weil meine Oma jeden Sonntag für zwanzig Leute kocht", "Heimat",
+     ["oma", "jeden", "sonntag", "zwanzig", "leute", "kocht"]),
+    ("wo meine Oma kocht", "Heimat", ["oma", "kocht"]),
+    ("KI-Roboter, der alles mitschreibt", "KI-Roboter", ["mitschreibt"]),  # "alles" ist Stoppwort
+])
+def test_inhaltswoerter(text, begriff, erwartet):
+    assert bb.inhaltswoerter(text, begriff) == erwartet
+
+
+# -- traegt_beleg -------------------------------------------------------------
+
+def _e(zitat, begriff="Heimat", begruendung="egal"):
+    return {"begriff": begriff, "zitat": zitat, "begruendung": begruendung}
+
+
+def test_beleg_mit_inhalt_traegt():
+    assert bb.traegt_beleg(_e("weil meine Oma jeden Sonntag für zwanzig Leute kocht"), TRANSKRIPT)
+
+
+def test_leeres_zitat_traegt_nicht():
+    assert not bb.traegt_beleg(_e(""), TRANSKRIPT)
+
+
+def test_nicht_woertliches_zitat_traegt_nicht():
+    assert not bb.traegt_beleg(_e("weil die Oma immer kocht und backt"), TRANSKRIPT)
+
+
+def test_nur_ansage_traegt_nicht():
+    assert not bb.traegt_beleg(_e("also der erste Gepäck ist Heimat"), TRANSKRIPT)
+    assert not bb.traegt_beleg(_e("the first term is lighthouse", "lighthouse"), TRANSKRIPT)
+
+
+def test_ein_restwort_traegt_nicht():
+    transkript = "die Sprecherin nennt Heimat als besten Begriff"
+    assert not bb.traegt_beleg(_e("Heimat als besten Begriff"), transkript)
+
+
+# -- ist_fuellsatz ------------------------------------------------------------
+
+@pytest.mark.parametrize("text", [
+    "Wird als Begriff gesammelt.",
+    "Wird als dritter Begriff gesammelt.",
+    "Wird als etwas Erwähntes aufgeführt.",
+    "Wurde im Gespräch genannt.",
+    "Kam zweimal vor.",
+    "Die Sprecherin schlägt es als ersten Gepäck vor.",
+    "Die Gruppe nennt es als Begriff.",
+    "Is mentioned as a term.",
+    "Was suggested by the group.",
+    "Came up twice.",
+    "The speaker proposes it as the first term.",
+])
+def test_fuellsatz_wird_erkannt(text):
+    assert bb.ist_fuellsatz(text)
+
+
+@pytest.mark.parametrize("text", [
+    "",
+    "Wo die Oma kocht.",
+    "Heimat ist für sie der Ort, an dem die Oma sonntags kocht.",
+    "Wird genannt, weil die Oma dort jeden Sonntag kocht.",
+    "It was named because the grandfather kept the light on every night.",
+    "The pier is where the old men tell their stories.",
+])
+def test_echter_grund_ist_kein_fuellsatz(text):
+    assert not bb.ist_fuellsatz(text)
+
+
+# -- ist_metabegriff ----------------------------------------------------------
+
+@pytest.mark.parametrize("begriff", [
+    "Begriff", "Term", "Gepäck", "GEPÄCK", "Gepaeck", "Betreff", "Test",
+    "Test 1 2 3", "Mikrofon Test", "microphone", "Wort",
+])
+def test_metabegriff(begriff):
+    assert bb.ist_metabegriff(begriff)
+
+
+@pytest.mark.parametrize("begriff", [
+    "Heimat", "KI", "KI-Roboter", "Alice Hotel", "Cappuccino", "eins", "", None,
+])
+def test_kein_metabegriff(begriff):
+    assert not bb.ist_metabegriff(begriff)
+
+
+# -- Einhaengung in validiere (Aufgabe 5) -------------------------------------
+
+def _z(**kw):
+    basis = {"begriff": "Heimat", "nennungen": 2, "zustimmung": 1,
+             "begruendung": "The grandmother cooks there every Sunday.",
+             "zitat": "weil meine Oma jeden Sonntag für zwanzig Leute kocht",
+             "doppelbedeutung": "", "status": "kandidat"}
+    basis.update(kw)
+    return basis
+
+
+def _pruefe_begruendung_ohne_zitat_wird_leer():
+    ergebnis = bb.validiere([_z(zitat="")], TRANSKRIPT)
+    assert [e["begriff"] for e in ergebnis] == ["Heimat"]   # Eintrag bleibt
+    assert ergebnis[0]["begruendung"] == ""
+
+
+def test_begruendung_ohne_zitat_wird_leer():
+    _pruefe_begruendung_ohne_zitat_wird_leer()
+
+
+def test_mutant_ohne_belegpruefung_faellt_durch(monkeypatch):
+    """Wer ``_belege`` aus ``validiere`` nimmt, muss den Test oben rot machen."""
+    monkeypatch.setattr(bb, "_belege", lambda eintrag, transkript: None)
+    with pytest.raises(AssertionError):
+        _pruefe_begruendung_ohne_zitat_wird_leer()
+
+
+def test_belegte_begruendung_bleibt():
+    ergebnis = bb.validiere([_z()], TRANSKRIPT)
+    assert ergebnis[0]["begruendung"] == "The grandmother cooks there every Sunday."
+
+
+def test_ansage_als_zitat_leert_die_begruendung():
+    ergebnis = bb.validiere([_z(zitat="also der erste Gepäck ist Heimat")], TRANSKRIPT)
+    assert ergebnis[0]["zitat"] == "also der erste Gepäck ist Heimat"  # Zitat ist woertlich, bleibt
+    assert ergebnis[0]["begruendung"] == ""
+
+
+def test_fuellsatz_mit_gutem_zitat_wird_leer():
+    ergebnis = bb.validiere([_z(begruendung="Wird als Begriff gesammelt.")], TRANSKRIPT)
+    assert ergebnis[0]["begruendung"] == ""
+
+
+def test_leere_begruendung_ist_gueltig():
+    ergebnis = bb.validiere([_z(begruendung="", zitat="")], TRANSKRIPT)
+    assert ergebnis[0]["begruendung"] == "" and ergebnis[0]["begriff"] == "Heimat"
+
+
+def _pruefe_metabegriff_faellt_weg():
+    roh = [_z(), _z(begriff="Test"), _z(begriff="Gepäck"), _z(begriff="test eins zwei drei")]
+    assert [e["begriff"] for e in bb.validiere(roh, TRANSKRIPT)] == ["Heimat"]
+
+
+def test_metabegriff_faellt_weg():
+    _pruefe_metabegriff_faellt_weg()
+
+
+def test_mutant_ohne_metapruefung_faellt_durch(monkeypatch):
+    monkeypatch.setattr(bb, "ist_metabegriff", lambda begriff: False)
+    with pytest.raises(AssertionError):
+        _pruefe_metabegriff_faellt_weg()
+
+
+def test_detail_zeilen_lassen_geleerte_begruendung_weg():
+    board = bb.validiere([_z(begruendung="Wird als Begriff gesammelt.")], TRANSKRIPT)
+    assert bb.detail_zeilen(bb.detail_fuer(board, "Heimat")) == []
+
+
+# -- Prompt (Aufgabe 6) -------------------------------------------------------
+
+from pathlib import Path
+
+_PROMPTS = Path(bb.__file__).parent
+_DE = _PROMPTS / "prompts" / "begriffsboard.md"
+_EN = _PROMPTS / "sprachen" / "en" / "prompts" / "begriffsboard.md"
+
+
+@pytest.mark.parametrize("pfad, verboten", [
+    (_DE, ("ergaenze die\n``begruendung`` um die Entwicklung", "vermerke\ndie Korrektur kurz in ``begruendung``")),
+    (_EN, ("extend\n``begruendung`` with the development", "note the correction\nbriefly in ``begruendung``")),
+])
+def test_prompt_verlangt_keine_merge_spur_in_der_begruendung(pfad, verboten):
+    text = pfad.read_text(encoding="utf-8")
+    for satz in verboten:
+        assert satz not in text
+
+
+def test_en_prompt_verlangt_englische_begruendung_und_kennt_ansagen():
+    text = _EN.read_text(encoding="utf-8")
+    assert "written in English" in text
+    assert "the first term is" in text
+    assert "test, one two three" in text
+
+
+def test_de_prompt_kennt_ansagen_und_stt():
+    text = _DE.read_text(encoding="utf-8")
+    assert "der erste Begriff ist" in text
+    assert "Gepaeck" in text and "Betreff" in text

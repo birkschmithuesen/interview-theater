@@ -149,12 +149,14 @@ OBEN_UNTEN = {"a_rezenz": (OZEAN, GARTEN), "b_konsens": (LEUCHTTURM, MOTORRAD)}
 
 #: Die Mehrheitsregel im EN-Board-Prompt, Anfang und Ende woertlich
 #: (``interview_theater/sprachen/en/prompts/begriffsboard.md``, Stand nach
-#: 41d96c6 -- "Decide by majority AND context plausibility together").
-#: Der Block endet jetzt mit dem nachgestellten Absatz "Add both mention
-#: counts ... heard correctly three times." statt direkt mit "deletes a
-#: real term." -- 41d96c6 hat den Beispielsatz ans Ende verschoben.
+#: 9113cb7 -- "Decide by majority AND context plausibility together").
+#: Der Block endet seit 9113cb7 (t_2b9d2cbe, Aufgabe 6: Belegpflicht der
+#: Begruendung) wieder mit "deletes a real term." statt mit dem
+#: nachgestellten Beispielsatz "heard correctly three times." -- die
+#: Korrektur-Notiz im Absatz danach wurde ersatzlos gestrichen (keine
+#: Korrektur mehr in begruendung).
 _MEHRHEIT_ANFANG = "Decide by majority AND context plausibility together, not by majority\nalone:"
-_MEHRHEIT_ENDE = "heard correctly three times.\""
+_MEHRHEIT_ENDE = "deletes a real term."
 VARIANTE_SINN_ZUERST = (
     "Decide by meaning first: look at what the group is talking about around "
     "each of the two spellings. Keep as ``begriff`` the reading that makes "

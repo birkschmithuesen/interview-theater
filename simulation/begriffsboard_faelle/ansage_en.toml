@@ -1,0 +1,24 @@
+# Frei erfunden (Karte t_2b9d2cbe). Ansage-Formeln, Testgerede, ein STT-Verhoerer
+# von "term" ("germ", "turn"), zwei echte Gruende (lighthouse, silence), zwei
+# Begriffe ohne Grund (ferry, harbour) -- deren begruendung muss leer bleiben.
+name = "ansage_en"
+beschreibung = "EN gesprochen: Ansage-Formeln, Testgerede, STT 'germ'/'turn' fuer 'term'"
+sprache_gesprochen = "en"
+segmente = [
+  "okay test test one two three can you hear me is this recording yes it's recording. okay so the first term is lighthouse. I'd suggest lighthouse because my grandfather kept the light on the island every night and we always waited for the beam.",
+  "another term would be ferry. the next germ is ferry ticket no sorry just ferry. and I'd suggest silence",
+  "silence because nobody on the boat ever said what they were afraid of, they just looked at the water. okay my turn is harbour. harbour",
+  "yes harbour, and lighthouse again, lighthouse for sure, everyone agrees on lighthouse. test is the mic still on okay good",
+]
+varianten = ["ferry ticket"]
+meta = ["term", "germ", "turn", "test", "mic", "recording"]
+mit_grund = ["lighthouse", "silence"]
+
+[[soll]]
+alternativen = ["lighthouse"]
+[[soll]]
+alternativen = ["ferry"]
+[[soll]]
+alternativen = ["silence"]
+[[soll]]
+alternativen = ["harbour", "harbor"]

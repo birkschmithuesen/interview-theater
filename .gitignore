@@ -73,3 +73,6 @@ docs/dramaturgie-berichte/*
 # Zugangs-PDFs/QR-Codes je Gruppe (Karte Padua A6): tragen das Web-Token in
 # der URL -- das Token IST das Login. NIE committen.
 workshop/*/zugang/
+
+# Begriffsboard-Inhaltsmessung (t_2b9d2cbe): Rohantworten der erfundenen Faelle
+docs/begriffsboard-inhalt/roh/

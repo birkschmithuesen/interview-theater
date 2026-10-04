@@ -521,6 +521,27 @@ def test_die_seite_traegt_den_aenderungsstand(server):
     assert f'data-aenderung="{stand}"' in text
 
 
+def test_die_seite_traegt_die_phase(server):
+    """Phasenscroll-Karte (04.10.2026): das JS liest die Phase aus
+    ``#verlauf`` selbst -- ohne eigenes ``daten.phase`` im Zustand wuesste es
+    beim allerersten Seitenaufbau nicht, wonach ``scrolleZuPhasenanfang()``
+    suchen soll."""
+    basis, token, pfad = server
+    conn = db.verbinde(pfad)
+    repo.setze_phase(conn, CHAT, 3)
+    conn.close()
+    _status, text = _hole(f"{basis}/g/{token}/chat")
+    assert 'data-phase="3"' in text
+
+
+def test_die_seite_hat_keine_phase_ohne_gesetzte_phase(server):
+    """Gegenprobe: eine Gruppe ohne Phase (frisch angelegt) bekommt eine
+    leere Zeichenkette, keine erfundene Zahl -- echte Phasen sind 1..7."""
+    basis, token, _pfad = server
+    _status, text = _hole(f"{basis}/g/{token}/chat")
+    assert 'data-phase=""' in text
+
+
 def test_chat_mit_schraegstrich_ist_404(server):
     """Review-Befund 12: unter ``/chat/`` zeigten die relativen Pfade der
     Seite (``chat/zustand``, der Link zur Gruppenseite) ins Leere."""

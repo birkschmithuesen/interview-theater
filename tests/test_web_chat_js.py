@@ -414,12 +414,68 @@ def test_amunterenrand_wird_vor_jeder_dom_aenderung_gelesen():
 def test_nachunten_laeuft_bei_neu_oder_bei_geaenderter_letzter_blase():
     js = web_chat._CHAT_JS
     nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
-    assert "if (neu.length) {\n      nachUnten();\n    } else if " in nimm
+    # Phasenscroll-Karte (04.10.2026): bei neuen Nachrichten entscheidet seit
+    # dieser Karte ``phasenwechsel``, ob zum Phasenanfang statt ans Ende
+    # gescrollt wird -- der zweite Zweig (laufendes Transkript) ist davon
+    # unberuehrt und bleibt woertlich, was er war.
+    assert (
+        "if (neu.length) {\n"
+        "      if (phasenwechsel) { scrolleZuPhasenanfang(); } else { nachUnten(); }\n"
+        "    } else if " in nimm
+    )
     nach_else_if = nimm[nimm.index("} else if ") + len("} else if "):]
     bedingung = nach_else_if[:nach_else_if.index(") {")]
     assert "warUnten" in bedingung
     assert "geaendert.length" in bedingung
     assert "letzteBlaseWurdeGeaendert(geaendert)" in bedingung
+
+
+# -- Phasenscroll-Karte (04.10.2026): Anfang der neuen Phase statt Ende ----
+
+
+def test_die_phasenscroll_funktionen_stehen_im_js():
+    js = web_chat._js()
+    assert "function phasenkopfzeile" in js
+    assert "function scrolleZuPhasenanfang" in js
+
+
+def test_phasenkopfzeile_sucht_rueckwaerts_nach_dem_eintrittspraefix():
+    """Derselbe Praefix wie ``phasentexte._KOPF_EINTRITT`` -- sprachunabhaengig
+    gleich, ohne dass eine neue DB-Spalte dafuer noetig waere."""
+    js = web_chat._CHAT_JS
+    funktion = js[js.index("function phasenkopfzeile"):js.index("function scrolleZuPhasenanfang")]
+    assert "verlauf.querySelectorAll('.blase.bot')" in funktion
+    assert "▶️ Phase " in funktion
+    assert "indexOf('▶️ Phase ') === 0" in funktion
+
+
+def test_scrollezuphasenanfang_faellt_auf_nachunten_zurueck():
+    """``scrollIntoView()`` ohne Argument entspricht der Spezifikation nach
+    genau dem Anfang des Elements oben im Bild -- bewusst ohne das
+    Eigenschaftswort selbst, das sonst den Bestandstest gegen die
+    Slide-zum-Sperren-Geste treffen wuerde (es endet zufaellig auf dieselben
+    vier Buchstaben wie das Wort fuer "verriegeln")."""
+    js = web_chat._CHAT_JS
+    funktion = js[js.index("function scrolleZuPhasenanfang"):js.index("function nimmZustand")]
+    assert "phasenkopfzeile()" in funktion
+    assert "kopf.scrollIntoView();" in funktion
+    assert "nachUnten();" in funktion
+
+
+def test_der_initiale_seitenaufbau_scrollt_zum_phasenanfang():
+    """Ersatz der frueher unbedingten ``nachUnten();`` kurz vor ``hole();`` --
+    der Rueckfall innerhalb der Funktion greift, wenn noch keine Phasenzeile
+    im Verlauf steht."""
+    js = web_chat._CHAT_JS
+    bootstrap = js[js.index("zeigeModus();   //"):]
+    assert "scrolleZuPhasenanfang();" in bootstrap
+    assert "nachUnten();\n  hole();" not in bootstrap
+
+
+def test_zustand_liest_die_phase_aus_dem_dataset():
+    js = web_chat._CHAT_JS
+    zustand_literal = js[js.index("var zustand = {"):js.index("function nonce()")]
+    assert "phase: parseInt(verlauf.dataset.phase, 10) || 0" in zustand_literal
 
 
 def _node_oder_skip():

@@ -3595,13 +3595,9 @@ siehe „Prüflauf vor jeder Anzeige") — offen, jeweils mit Grund:
 Die Übergaben der Karte t_4517d4ad (Begriffsboard, 04.10.2026) — was sie
 bewusst nicht erledigt, jeweils mit Grund:
 
-- **Ungemessen:** kein bezahlter Lauf des neuen Prompts `begriffsboard.md`
-  (DE/EN) gegen das echte Modell; keine Korpusfälle; ob Kimi das
-  verschachtelte Schema im erzwungenen Modus annimmt, ist nur am Muster
-  `erkenner` (Liste von Objekten) plausibel, nicht gemessen. Seit Karte
-  t_2b9d2cbe Messung ausstehend, Kommando im Bericht
-  (`docs/begriffsboard-inhalt/BERICHT.md`); Korpusfälle gibt es weiterhin
-  nicht.
+- Seit Karte t_2b9d2cbe gemessen (vorher/nachher gegen Kimi, Opus-Arm als
+  Entscheidungsvorlage, siehe `docs/begriffsboard-inhalt/BERICHT.md`);
+  Korpusfälle gibt es weiterhin nicht.
 - Die Schwellen sind die des Brainstorms (Erwachsenen-Meetings,
   `brainstorm.py`-Kopf), nicht an Schüler-Diskussionen gemessen.
 - Ein leeres Ergebnis ersetzt nie ein volles Board — dann rückt die

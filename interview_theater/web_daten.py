@@ -1276,6 +1276,7 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     stand = _arbeitsstand(conn, chat_id)
     _aufnahmestatus = _aufnahmen_nach_status(conn, chat_id)
     from interview_theater import fragen_auswertung as _fragen_auswertung_modul
+    from interview_theater import phasen as _phasen
     from interview_theater import workshop as _workshop
 
     return {
@@ -1341,11 +1342,18 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         "buehnenkarten": buehnenkarten(conn, chat_id),
         # Das Begriffsboard (CoThinker in Phase 1, Karte t_4517d4ad) -- nur
         # in Phase 1 und nur mit Profil ``diskussion.aktiv``; Dortmund liest
-        # es nie.
-        "begriffsboard_zeigen": stand.get("phase") == 1 and _workshop.diskussion_aktiv(),
+        # es nie. Bug (Birk Live-Test 04.10.2026): eine Gruppe ohne
+        # arbeitsstand-Zeile hat ``stand["phase"]`` als ``None`` -- das heisst
+        # ERSTE (Phase 1), nicht "keine Phase" (derselbe Fallback wie beim
+        # Interview-/Diskussions-Knopf, ``phasen.ERSTE``). Ohne ihn blieb der
+        # CoThinker in Phase 1 leer, obwohl das Begriffsboard lief.
+        "begriffsboard_zeigen": (
+            (stand.get("phase") or _phasen.ERSTE) == 1 and _workshop.diskussion_aktiv()
+        ),
         "begriffsboard": (
             begriffsboard(conn, chat_id)
-            if stand.get("phase") == 1 and _workshop.diskussion_aktiv() else []
+            if (stand.get("phase") or _phasen.ERSTE) == 1 and _workshop.diskussion_aktiv()
+            else []
         ),
         # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
         # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder

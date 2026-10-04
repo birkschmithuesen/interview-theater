@@ -223,6 +223,20 @@ ART = "begriffsboard"
 
 VORGABE_TRANSKRIPT_ZEICHEN = 200_000
 
+#: Eigene, niedrigere Schwelle als der Brainstorm (Phase 4): ein Testgespraech
+#: in Phase 1 ist kuerzer als eine echte Brainstorm-Sitzung (Birk Live-Test
+#: 04.10.2026: 1200 Zeichen liess das Board zu lange leer stehen).
+VORGABE_MIN_ZEICHEN = 600
+
+
+def min_zeichen() -> int:
+    """``IT_BEGRIFFSBOARD_MIN_ZEICHEN`` -- dasselbe Muster wie
+    ``transkript_zeichen_grenze``/``brainstorm.min_zeichen``."""
+    roh = (os.environ.get("IT_BEGRIFFSBOARD_MIN_ZEICHEN") or "").strip()
+    if roh.isdigit() and int(roh) > 0:
+        return int(roh)
+    return VORGABE_MIN_ZEICHEN
+
 
 def transkript_zeichen_grenze() -> int:
     """``IT_BEGRIFFSBOARD_TRANSKRIPT_ZEICHEN`` -- dasselbe Muster wie
@@ -252,7 +266,8 @@ def aktuelles(conn, chat_id: int) -> list[dict]:
 
 def soll_laufen(conn, chat_id: int, *, ist_abschluss: bool) -> bool:
     """D1: ``brainstorm.soll_reagieren`` unveraendert, mit den eigenen Zahlen
-    der Phase 1 (``repo.begriffsboard_stand``). Kein Modellaufruf."""
+    der Phase 1 (``repo.begriffsboard_stand``) UND der eigenen, niedrigeren
+    Zeichenschwelle (``min_zeichen`` oben). Kein Modellaufruf."""
     stand = repo.begriffsboard_stand(conn, chat_id)
     sekunden = stand["sekunden_seit_letztem_lauf"]
     return brainstorm.soll_reagieren(
@@ -260,6 +275,7 @@ def soll_laufen(conn, chat_id: int, *, ist_abschluss: bool) -> bool:
         sekunden_seit_letzter_reaktion=sekunden if sekunden is not None else float("inf"),
         letzter_schnittgrund=stand["letzter_schnittgrund"],
         ist_abschluss=ist_abschluss,
+        min_zeichen_override=min_zeichen(),
     )
 
 

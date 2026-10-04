@@ -3616,6 +3616,13 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
   function kalStarteEchteSchnitte(sitzung) {
     stoppePegelAn(sitzung);   // falls #kalibrierung-neu einen frueheren Lauf stoppt
     pegelAn(sitzung);
+    // Birk Live-Test 04.10.2026: die Uhr gehoert NICHT hier rein, aber bisher
+    // stand sie schon fest in beginneAufnahme() (vor der Kalibrierungs-
+    // Weiche) -- sie lief also schon waehrend der Stille-/Sprechmessung,
+    // obwohl die echte Aufnahme noch gar nicht lief. uhrAn() jetzt erst HIER,
+    // wenn die Kalibrierung entschieden ist (cache/kill-switch/fertig) und
+    // die echten Schnitte tatsaechlich beginnen.
+    uhrAn(sitzung);
     if (!sitzung.vadAktiv) {
       if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
       sitzung.segmentTakt = setInterval(function () {
@@ -3768,7 +3775,6 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
     sitzung.vadSpeechMs = 0;
     sitzung.vadLetzteRede = sitzung.vadSegmentStart;
     sitzung.gestartet = true;
-    uhrAn(sitzung);
     kalEntscheideOderStarte(sitzung);
   }
 

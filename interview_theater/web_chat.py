@@ -667,6 +667,9 @@ _CHAT_JS = """
   var zustand = {
     letzte: parseInt(verlauf.dataset.letzte, 10) || 0,
     aenderung: parseInt(verlauf.dataset.aenderung, 10) || 0,
+    // Phasenscroll-Karte (04.10.2026): 0 heisst "keine Phase bekannt" --
+    // echte Phasen sind 1..7 und nie 0.
+    phase: parseInt(verlauf.dataset.phase, 10) || 0,
     servermodus: fuss.dataset.interview === '1',
     knopfErlaubt: !interviewKnopf.hidden,   // Padua Hotfix B6: Phase 3 oder Modus
     brainstormErlaubt: !brainstormKnopf.hidden,   // Task 2: Phase 4
@@ -886,6 +889,35 @@ _CHAT_JS = """
     return geaendert.some(function (n) { return String(n.id) === letzteId; });
   }
 
+  // Phasenscroll-Karte (04.10.2026): die juengste Eintrittsnachricht einer
+  // Phase im aktuell geladenen Verlauf -- ihr Praefix ist sprachunabhaengig
+  // gleich (``phasentexte._KOPF_EINTRITT``), eine neue DB-Spalte ist dafuer
+  // nicht noetig. Rueckwaerts gesucht, weil nur die LETZTE Phasenzeile
+  // zaehlt -- eine aeltere stuende sonst im Weg.
+  function phasenkopfzeile() {
+    var blasen = verlauf.querySelectorAll('.blase.bot');
+    for (var i = blasen.length - 1; i >= 0; i--) {
+      if (blasen[i].textContent.indexOf('▶️ Phase ') === 0) { return blasen[i]; }
+    }
+    return null;
+  }
+
+  // Nach einem Phasenwechsel soll der Anfang der neuen Phase im Bild
+  // stehen, nicht das Ende des ganzen (ungetrennten) Verlaufs.
+  // ``scrollIntoView`` passt dabei automatisch jeden scrollbaren Vorfahren
+  // an -- die Chat-Einzelseite (Dokument-Scroll) UND die vereinte Seite
+  // (``verlauf`` scrollt in sich selbst) brauchen dafuer keinen eigenen Weg,
+  // anders als ``nachUnten()``. Ohne Phasenzeile im Verlauf (z. B. ganz am
+  // Anfang von Phase 1) bleibt der bisherige Rueckfall. Ohne Argument
+  // entspricht der Aufruf laut Spezifikation genau dem Anfang des Elements
+  // oben im sichtbaren Bereich und keiner seitlichen Verschiebung -- ebenso
+  // wirksam wie mit ausgeschriebenen Werten.
+  function scrolleZuPhasenanfang() {
+    var kopf = phasenkopfzeile();
+    if (kopf) { kopf.scrollIntoView(); return; }
+    nachUnten();
+  }
+
   function nimmZustand(daten) {
     var warUnten = amUnterenRand();
     // Review-Befund 2: die Seite laedt nie neu, ein Nonce gilt hoechstens
@@ -906,8 +938,15 @@ _CHAT_JS = """
       zustand.aenderung = daten.aenderung;
       verlauf.dataset.aenderung = daten.aenderung;
     }
+    // Phasenscroll-Karte (04.10.2026): ein Wechsel zaehlt nur, wenn vorher
+    // schon eine Phase bekannt war (sonst waere der allererste Poll immer
+    // ein "Wechsel") und die neue sich von ihr unterscheidet.
+    var phaseAlt = zustand.phase;
+    var phaseNeu = (typeof daten.phase === 'number') ? daten.phase : null;
+    var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;
+    if (phaseNeu !== null) { zustand.phase = phaseNeu; }
     if (neu.length) {
-      nachUnten();
+      if (phasenwechsel) { scrolleZuPhasenanfang(); } else { nachUnten(); }
     } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
       nachUnten();
     }
@@ -3158,7 +3197,7 @@ _CHAT_JS = """
   });
 
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
-  nachUnten();
+  scrolleZuPhasenanfang();   // Phasenscroll-Karte: der Anfang der aktuellen Phase, sonst der Rueckfall ans Ende
   hole();
 })();
 """
@@ -3362,7 +3401,11 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f"{gruppenlink}"
         f'<noscript><p class="leer">{html.escape(T._TEXT_OHNE_JS)}</p></noscript>\n'
         f'<div class="verlauf" id="verlauf" data-letzte="{daten["letzte"]}" '
-        f'data-aenderung="{int(daten.get("aenderung") or 0)}">\n'
+        f'data-aenderung="{int(daten.get("aenderung") or 0)}" '
+        # Phasenscroll-Karte (04.10.2026): leer, wenn keine Phase bekannt
+        # ist -- echte Phasen sind 1..7 und nie 0, das JS liest eine leere
+        # Zeichenkette ueber ``parseInt`` ohnehin als 0 (``|| 0``).
+        f'data-phase="{daten.get("phase") or ""}">\n'
         f"{blasen}\n</div>\n"
         f'<div class="tippt" id="tippt"></div>\n'
         f"{nonce_feld}"

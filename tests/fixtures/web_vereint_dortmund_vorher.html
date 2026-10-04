@@ -229,7 +229,9 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
        max-width: 44rem; margin: 0 auto; touch-action: pan-x pan-y; }.panel-chat .verlauf { display: flex; flex-direction: column; gap: .55rem; }.panel-chat .blase { padding: .55rem .7rem; border-radius: .8rem; max-width: 88%;
          font-size: 1.02rem; overflow-wrap: anywhere; }.panel-chat .blase.bot { background: #fff; border: 1px solid #e0ddd6; align-self: flex-start;
              border-bottom-left-radius: .2rem; }.panel-chat .blase.gruppe { background: #1f6f5c; color: #fff; align-self: flex-end;
-                border-bottom-right-radius: .2rem; }.panel-chat .blase.sprache { font-style: italic; opacity: .85; }.panel-chat .blase.system { background: transparent; border: none; color: #6b6f76;
+                border-bottom-right-radius: .2rem; }.panel-chat .blase.sprache { font-style: italic; opacity: .85; }.panel-chat /* Karte t_ea994c7f: die EINE Transkriptblase eines Interviews -- kursiv
+   wie eine Sprachnachricht, .panel-chat aber eine Bot-Blase (Rahmen, .panel-chat Seite). */
+.blase.transkript { font-style: italic; }.panel-chat .blase.system { background: transparent; border: none; color: #6b6f76;
                 font-size: .88rem; padding: .25rem .2rem; max-width: 100%; }.panel-chat /* UX-Knoepfe-Karte, .panel-chat Abschnitt 5: die Telefon-Organisationskarte je Phase. */
 .karte { max-width: 100%; display: block; border-radius: .5rem; margin-bottom: .35rem; }.panel-chat /* UX-Knoepfe-Karte, .panel-chat Abschnitt 1: Knoepfe sind kleine Abkuerzungs-Chips, .panel-chat keine
    vollbreiten Pflichtknoepfe -- die Hauptlast bleibt beim Eingabefeld. */
@@ -585,7 +587,9 @@ h1, h2, a, .leer, .zurueck { color: #000 !important; }
              align-self: flex-start; border-bottom-left-radius: .3rem; }.panel-chat .blase.gruppe { background: var(--signal-tief); border: 1px solid var(--rand);
                 align-self: flex-end; border-bottom-right-radius: .3rem; }.panel-chat /* Kursiv traegt "Sprachnachricht"; leise Schrift auf der Gruppenblase
    (--signal-tief) kam nur auf 4.1:1 (Rundgang, .panel-chat Review an 834edbf). */
-.blase.sprache { color: var(--text); font-style: italic; }.panel-chat .blase q { display: block; margin: .55rem 0; padding-left: .7rem;
+.blase.sprache { color: var(--text); font-style: italic; }.panel-chat /* Karte t_ea994c7f: die Transkriptblase eines Interviews -- Bot-Blase
+   (--grund-2), .panel-chat Text in --text: das Paar text/grund-2 steht in KONTRAST. */
+.blase.transkript { color: var(--text); font-style: italic; }.panel-chat .blase q { display: block; margin: .55rem 0; padding-left: .7rem;
            border-left: 3px solid var(--signal); color: var(--signal);
            font-family: var(--schrift-skript); font-style: italic;
            font-size: 1.15rem; quotes: none; }.panel-chat .blase.vorlaeufig { border-style: dashed; }.panel-chat .blase.vorlaeufig::after { color: var(--signal);
@@ -2085,7 +2089,8 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   }
 
   function klasseVon(n) {
-    if (n.typ === 'sprache' || n.typ === 'datei' || n.typ === 'system') {
+    if (n.typ === 'sprache' || n.typ === 'datei' || n.typ === 'system' ||
+        n.typ === 'transkript') {
       return n.typ;
     }
     return 'text';

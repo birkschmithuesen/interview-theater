@@ -1,0 +1,27 @@
+[Unit]
+Description=InScribe Weboberflaeche Padua TESTINSTANZ (Karte t_12a734ab)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projekte/interview-theater
+# Eigene Datenbank, eigener Port, eigenes Praefix -- getrennt vom Betrieb
+# (padua.db, 8030, /padua). Die Testgruppe erscheint deshalb nie auf der
+# Padua-Uebersicht. Gefuellt wird sie mit scripts/test_uebernehmen.py.
+Environment=IT_DB=betrieb/padua-test.db
+Environment=IT_AUDIO=%h/projekte/interview-theater/audio-padua-test
+# Tailnet-Adresse, nie auf allen Interfaces: Gruppenseiten haben kein Login.
+Environment=IT_WEB_BIND=100.75.24.33:8031
+Environment=IT_WEB_PREFIX=/padua-test
+Environment=IT_WORKSHOP=padua-2026
+# IT_WEB_DASHBOARD_TOKEN steht NICHT hier, sondern im Drop-in
+# interview-theater-padua-test-web.service.d/dashboard-token.conf
+# (Vorlage daneben, Erzeugung in docs/testgruppe-padua.md).
+ExecStart=%h/.local/bin/python3.11 -u -m interview_theater.web
+Restart=always
+RestartSec=5
+StandardOutput=append:%h/projekte/interview-theater/betrieb/padua-test-web.log
+StandardError=append:%h/projekte/interview-theater/betrieb/padua-test-web.log
+
+[Install]
+WantedBy=default.target

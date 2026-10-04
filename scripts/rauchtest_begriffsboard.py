@@ -118,6 +118,29 @@ FAELLE = {
         "erwartet_begriffe_enthalten_eins_von": ["night", "nacht"],
         "erwartet_begriffe_fehlen": ["knight", "ritter"],
     },
+    "italienisches_transkript": {
+        "beschreibung": (
+            "Spracheabdeckung (Birk 04.10.2026): Padua-Workshops koennen auf "
+            "Italienisch gefuehrt werden, es gibt aber NUR einen DE- und einen "
+            "EN-Prompt, kein eigenes it/-Verzeichnis. Dieser Fall nutzt den "
+            "EN-Prompt (Padua-Standard) mit einem rein italienischen "
+            "Transkript inkl. STT-Verhoerer ('piazza' vs. falsch erkanntem "
+            "'piazzo'/'pazza') -- soll pruefen, ob begriff-im-Wortlaut und "
+            "Verhoerer-Erkennung sprachunabhaengig funktionieren, ohne "
+            "italienische Prompt-Fassung."
+        ),
+        "transkript": (
+            "A: Io continuo a pensare alla piazza del paese, è lì che "
+            "dovrebbe succedere tutto.\n"
+            "B: Sì, la piazza è il cuore della storia.\n"
+            "A: Esatto, la piazza raccoglie tutti i personaggi insieme.\n"
+            "B: La piazza di sera è completamente diversa da quella di "
+            "giorno.\n"
+        ),
+        "erwartet_begriffe_enthalten_teilstring": ["piazza"],
+        "erwartet_begriffe_fehlen": [],
+        "erwartet_nennungen_min": {},
+    },
 }
 
 

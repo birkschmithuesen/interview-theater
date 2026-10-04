@@ -1,15 +1,19 @@
 """Flow-Audit Schicht 1 (statisch, kein Modellaufruf, SPEC siehe
 ``simulation/flow_audit.py``).
 
-Geltungsbereich dieser Karte: AUSSCHLIESSLICH Phase 1 (Begriffe/Terms) und
-Phase 2 (Fragen/Questions), Padua-Profil, Code-Stand 04.10.2026. Phase 3-7
-sind absichtlich nicht Teil dieser Liste -- eine aeltere Fassung mit
-Phase 3-7 existiert als Referenz unter ``.flow_audit_ref/`` (vor dem
-Phase-1/2-Umbau geschrieben) und ist nicht mehr gueltig.
+Geltungsbereich dieser Karte: {1, 2, 5, 6, 7} -- Phase 1 (Begriffe/Terms),
+Phase 2 (Fragen/Questions), Phase 5 (Prose Draft), Phase 6 (Rewrite) und
+Phase 7 (Stage Version), Padua-Profil, Code-Stand 04.10.2026. Die
+Phase-5-7-Zeilen kamen mit Teil B dieser Karte dazu (Kanban t_ae2b522e,
+04.10.2026). Phase 3-4 sind absichtlich nicht Teil dieser Liste -- dafuer
+existiert noch keine Planungskarte; eine aeltere Fassung mit Phase 3-7
+existiert als Referenz unter ``.flow_audit_ref/`` (vor dem Phase-1/2-Umbau
+geschrieben) und ist nicht mehr gueltig.
 
 Diese Suite haelt fuenf Dinge fest:
 
-1. Die Erwartungsliste deckt genau {1, 2} ab, nicht mehr und nicht weniger.
+1. Die Erwartungsliste deckt genau {1, 2, 5, 6, 7} ab, nicht mehr und nicht
+   weniger.
 2. Keine ``geist``-Befunde: jeder in der Liste genannte Intent/Knopf
    existiert im heutigen Code.
 3. Die zwei ehemals bekannten "roten" Befunde sind seit dem ``code_pfad``-
@@ -37,14 +41,14 @@ from __future__ import annotations
 from simulation import flow_audit
 
 
-def test_erwartungsliste_deckt_phase_1_und_2_ab():
-    """Diese Karte grenzt den Umfang bewusst auf Phase 1+2 ein -- eine
-    Zeile fuer Phase 3-7 waere hier falsch (das ist nicht ``range(1, 8)``
-    wie in der alten, vor-refactor Referenzfassung unter
-    ``.flow_audit_ref/``)."""
+def test_erwartungsliste_deckt_phase_1_2_5_6_7_ab():
+    """Diese Karte grenzt den Umfang bewusst auf {1, 2, 5, 6, 7} ein -- fast
+    ``range(1, 8)``, nur Phase 3-4 fehlen (dafuer existiert noch keine
+    Planungskarte). Das ist nicht die alte, vor-refactor Referenzfassung
+    unter ``.flow_audit_ref/``, die echtes ``range(1, 8)`` beschreibt."""
     handlungen = flow_audit.lade_erwartungen()
     phasen_mit_eintrag = {h.phase for h in handlungen}
-    assert phasen_mit_eintrag == {1, 2}
+    assert phasen_mit_eintrag == {1, 2, 5, 6, 7}
 
 
 def test_keine_veraltete_erwartung_im_heutigen_code():
@@ -245,6 +249,71 @@ def test_mutationsprobe_entfernter_intent_wird_als_toter_weg_gemeldet(monkeypatc
     nachher = flow_audit.pruefe()
     assert not any(
         b.aktion.startswith("Begriffe per Chat nennen") for b in nachher
+    )
+    assert nachher == vorher
+
+
+def test_mutationsprobe_text_ueberarbeiten_wird_als_toter_weg_gemeldet(monkeypatch):
+    """Dieselbe Mutationsprobe wie oben, diesmal fuer einen Phase-5-7-Intent:
+    nimmt ``text_ueberarbeiten`` (Phase 6, sowohl die 'ganzer Text'- als auch
+    die 'einzelne Szene'-Zeile referenzieren ihn) **im echten Erkenner-Modul**
+    per Monkeypatch heraus. Drei TOML-Zeilen verwenden ``text_ueberarbeiten``
+    (zwei in Phase 6, eine dritte in Phase 7 fuer Buehnenszenen) -- alle drei
+    tragen zusaetzlich einen echten Knopf, werden also ``toter_gespraechsweg``
+    und nicht ``sackgasse``. ``monkeypatch`` setzt ``erkenner.ARTEN`` nach dem
+    Test automatisch zurueck -- ``undo()`` erzwingt das hier zusaetzlich, um
+    "Zuruecksetzen -> gruen" noch in diesem Test zu belegen."""
+    vorher = flow_audit.pruefe()
+    assert not any(
+        "Rueckmeldung zum ganzen Text" in b.aktion
+        or "Rueckmeldung zu einer einzelnen Szene der Ueberarbeitung" in b.aktion
+        for b in vorher
+    )
+
+    from interview_theater import erkenner
+
+    monkeypatch.setattr(
+        erkenner, "ARTEN",
+        tuple(a for a in erkenner.ARTEN if a != "text_ueberarbeiten"),
+    )
+
+    waehrend_mutation = flow_audit.pruefe()
+    ganzer_text = [
+        b for b in waehrend_mutation
+        if "Rueckmeldung zum ganzen Text" in b.aktion
+        and b.schwere == "toter_gespraechsweg"
+    ]
+    einzelne_szene = [
+        b for b in waehrend_mutation
+        if "Rueckmeldung zu einer einzelnen Szene der Ueberarbeitung" in b.aktion
+        and b.schwere == "toter_gespraechsweg"
+    ]
+    assert len(ganzer_text) == 1
+    assert len(einzelne_szene) == 1
+
+    # Insgesamt drei toter_gespraechsweg-Befunde: die zwei obigen plus die
+    # dritte TOML-Zeile (Phase 7, Buehnenszene), die denselben Intent nutzt.
+    alle_toten_wege = [
+        b for b in waehrend_mutation if b.schwere == "toter_gespraechsweg"
+    ]
+    assert len(alle_toten_wege) == 3
+
+    # Die entfernte Art hinterlaesst folgerichtig auch Geist-Befunde: die
+    # Erwartungsliste nennt jetzt einen Intent, den es nicht mehr gibt --
+    # einen je der drei TOML-Zeilen, die ihn referenzieren (anders als beim
+    # Mutationstest fuer 'begriffe_setzen' oben, das nur eine Zeile betrifft).
+    geister = [
+        b for b in waehrend_mutation
+        if b.schwere == "geist" and "text_ueberarbeiten" in b.was_fehlt
+    ]
+    assert len(geister) == 3
+
+    monkeypatch.undo()
+    nachher = flow_audit.pruefe()
+    assert not any(
+        "Rueckmeldung zum ganzen Text" in b.aktion
+        or "Rueckmeldung zu einer einzelnen Szene der Ueberarbeitung" in b.aktion
+        for b in nachher
     )
     assert nachher == vorher
 

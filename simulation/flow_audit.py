@@ -15,13 +15,15 @@ flow_erwartungen.toml``) mechanisch gegen den Code: hat eine Handlung, die
 per Chat ankommen soll, einen Erkenner-Intent (``erkenner.ARTEN``)? Gibt es
 ueberhaupt einen Weg -- Intent oder Knopf?
 
-**Geltungsbereich dieser Fassung: ausschliesslich Phase 1 (Begriffe/Terms)
-und Phase 2 (Fragen/Questions).** Die Karte, aus der dieses Modul stammt,
-grenzt den Umfang bewusst so ein -- eine Erwartungsliste fuer Phase 3-7
-waere an einem anderen Codestand entstanden (eine aeltere Fassung existiert
-als Referenz unter ``.flow_audit_ref/`` und beschreibt einen Codestand vor
-dem Phase-1/2-Umbau; sie ist nicht mehr gueltig und wird hier nicht
-fortgeschrieben).
+**Geltungsbereich dieser Fassung: {1, 2, 5, 6, 7}** -- Phase 1
+(Begriffe/Terms), Phase 2 (Fragen/Questions), Phase 5 (Prose Draft), Phase 6
+(Rewrite) und Phase 7 (Stage Version). Die Phase-5-7-Zeilen kamen mit Teil B
+dieser Karte dazu (Kanban t_ae2b522e, 04.10.2026), nach Padua Phasen TEIL 2,
+mit derselben Methode wie zuvor fuer Phase 1+2. Phase 3 und 4 bleiben out of
+scope -- dafuer existiert noch keine Planungskarte (eine aeltere Fassung mit
+Phase 3-7 existiert als Referenz unter ``.flow_audit_ref/`` und beschreibt
+einen Codestand vor dem Phase-1/2-Umbau; sie ist nicht mehr gueltig und wird
+hier nicht fortgeschrieben).
 
 Drei Befundarten:
     - ``sackgasse``           -- weder Intent noch Knopf noch ein belegter

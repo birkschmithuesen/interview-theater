@@ -1,10 +1,14 @@
 # Die von Hand gepflegte Erwartungsliste des Flow-Audits (Schicht 1, siehe
-# simulation/flow_audit.py). Geltungsbereich dieser Karte: AUSSCHLIESSLICH
-# Phase 1 (Begriffe/Terms) und Phase 2 (Fragen/Questions) -- Padua-Profil
-# (workshop/padua-2026/), Code-Stand 04.10.2026. Keine Zeilen fuer Phase
-# 3-7: eine aeltere Fassung mit Phase 3-7 existiert unter
-# .flow_audit_ref/flow_erwartungen.toml, beschreibt aber einen Codestand vor
-# dem Phase-1/2-Umbau und ist nicht mehr gueltig.
+# simulation/flow_audit.py). Geltungsbereich dieser Karte: {1, 2, 5, 6, 7} --
+# Phase 1 (Begriffe/Terms), Phase 2 (Fragen/Questions), Phase 5 (Prose
+# Draft), Phase 6 (Rewrite) und Phase 7 (Stage Version) -- Padua-Profil
+# (workshop/padua-2026/), Code-Stand 04.10.2026. Phase 3-4 bleiben out of
+# scope -- dafuer existiert noch keine Planungskarte. Die Phase-5-7-Zeilen
+# kamen mit dieser Karte dazu (Padua Flow-Audit Teil B, Kanban t_ae2b522e,
+# 04.10.2026), nach Padua Phasen TEIL 2, mit derselben Methode wie zuvor
+# fuer Phase 1+2 (Kanban t_2cdea48b). Eine aeltere Fassung mit Phase 3-7
+# existiert unter .flow_audit_ref/flow_erwartungen.toml, beschreibt aber
+# einen Codestand vor dem Phase-1/2-Umbau und ist nicht mehr gueltig.
 #
 # Jede Zeile wurde gegen den heutigen Code gelesen, nicht nur gegen dieses
 # Briefing. Zwei Zeilen tragen zusaetzlich zu "intent"/"knopf" ein drittes
@@ -181,4 +185,168 @@ Phase 3 (PHASE_INTERVIEWS = 3), aber der Knopf-Handler ART_AUFNAHME selbst
 (knoepfe/wirkung.py) existiert unveraendert und ist ueber /aufnahme, eine aeltere
 Chatnachricht mit dem Knopf, oder -- hier relevant -- ueber den Erkenner-Intent
 interview_starten per Chat auch aus Phase 1/2 auslösbar.
+"""
+
+# ---------------------------------------------------------------------------
+# Padua Flow-Audit Teil B (04.10.2026, Kanban t_ae2b522e): Phase 5 (Prose
+# Draft), 6 (Rewrite) und 7 (Stage Version) -- nach Padua Phasen TEIL 2.
+# Dieselbe Methode wie oben fuer Phase 1+2 (t_2cdea48b): jede Zeile gegen den
+# heutigen Code gelesen. Alle fuenf neuen Erkenner-Arten dieser Phasen
+# (text_ueberarbeiten, fassung_abnehmen, formen_setzen, sprechweise_setzen,
+# schaerfung_entscheidung, uebersicht_aendern) gelten nur mit
+# workshop.ueberarbeitung_aktiv() bzw. workshop.prosa_entwurf_aktiv() --
+# beide Schalter stehen in workshop/padua-2026/profil.toml auf true, dem
+# Profil, gegen das dieser Audit faehrt.
+# ---------------------------------------------------------------------------
+
+[[phase.5]]
+aktion = "Rueckmeldung zur generierten Story-Uebersicht (Stufe A, Prose Draft) per Chat geben, statt 'No, change it again' zu druecken"
+weg = "beides"
+intent = "uebersicht_aendern"
+knopf = "ART_UEBERSICHT_ANDERS"
+beleg = """
+erkenner.ARTEN enthaelt 'uebersicht_aendern', phasengebunden auf Phase 5
+(PHASEN_SPEZIFISCHE_ARTEN['uebersicht_aendern'] = (5,)) und zusaetzlich
+profil- (workshop.prosa_entwurf_aktiv()) und fixierungsgebunden
+(erkenner._starte_entwurf_uebersicht: kein Lauf, solange
+arbeitsstand.geschichte_uebersicht_fixiert_am gesetzt ist). Stoesst
+entwurf.starte_uebersicht() im eigenen Thread an -- denselben Weg wie der
+Knopf ART_UEBERSICHT_ANDERS (knoepfe/wirkung.py::_wirkung_uebersicht_anders).
+"""
+
+[[phase.5]]
+aktion = "Eine Schaerfungsstelle per Chat annehmen ('scene 2'), verwerfen ('none') oder einer Figur zuordnen, statt 'Diese uebernehmen'/'Keine davon' zu druecken"
+weg = "beides"
+intent = "schaerfung_entscheidung"
+knopf = "ART_SCHAERFUNG_SZENE|ART_SCHAERFUNG_FIGUR|ART_SCHAERFUNG_KEINE"
+beleg = """
+erkenner.ARTEN enthaelt 'schaerfung_entscheidung', phasengebunden auf Phase
+5. erkenner._entscheide_schaerfung() liest 'none'/'scene N'/'character X'
+per Regex und ruft denselben Rumpf wie die drei Knoepfe
+(knoepfe.szenen.verwirf_schaerfung / uebernimm_schaerfung_szene /
+uebernimm_schaerfung_figur). NICHT erfasst (engerer Umfang, kein Befund):
+die Annahme EINER einzelnen Stelle aus einem Mehrfach-Menue
+(ART_SCHAERFUNG_STELLE) und 'Noch eine Runde' (ART_SCHAERFUNG_RUNDE) bleiben
+Knopf-only -- beides eine feinere Auswahl aus einer nummerierten Liste, kein
+Totalverzicht/-annahme wie bei den drei erfassten Knoepfen.
+"""
+
+[[phase.5]]
+aktion = "Die Story-Uebersicht per Chat abnehmen ('yes, save'), statt den Knopf 'Yes, save' zu druecken"
+weg = "beides"
+intent = "fassung_abnehmen"
+knopf = "ART_UEBERSICHT_PASST"
+beleg = """
+erkenner.ARTEN enthaelt 'fassung_abnehmen', phasengebunden auf (5, 6, 7).
+erkenner._starte_teil2() ruft bei fehlendem text_ueberarbeiten
+ueberarbeitung.nimm_ab(), das in Phase 5 (PHASE_ENTWURF) zuerst die noch
+nicht fixierte Uebersicht prueft und denselben Rumpf wie der Knopf
+(entwurf.fixiere_uebersicht) aufruft.
+"""
+
+[[phase.6]]
+aktion = "Rueckmeldung zum ganzen Text per Chat geben ('the pacing in the middle drags'), bevor 'Yes, save' auf dem Ganzen gedrueckt wurde"
+weg = "beides"
+intent = "text_ueberarbeiten"
+knopf = "ART_GESCHICHTE_ANDERS"
+beleg = """
+erkenner.ARTEN enthaelt 'text_ueberarbeiten', phasengebunden auf (6, 7).
+Ohne Szenenbezug (kein 'Scene N:'-Praefix im wert) ruft
+erkenner._starte_teil2() -> ueberarbeitung.ueberarbeite() ohne nummer; ist
+arbeitsstand.gesamttext_fixiert_am noch nicht gesetzt, geht das in
+kurzgeschichte.starte(..., vorlage=True) -- derselbe Effekt wie der Knopf
+ART_GESCHICHTE_ANDERS (knoepfe/wirkung.py::_wirkung_geschichte_anders,
+szenenfolge.erwarte_geschichte_notiz), ueber einen eigenen, zweiten
+Mechanismus (den Erkenner statt der Regie-Notiz-Folgenachricht).
+"""
+
+[[phase.6]]
+aktion = "Rueckmeldung zu einer einzelnen Szene der Ueberarbeitung per Chat geben ('scene 2: cut the middle'), statt 'No, change it again' unter der Szene zu druecken"
+weg = "beides"
+intent = "text_ueberarbeiten"
+knopf = "ART_SZENE_ANDERS"
+beleg = """
+Dieselbe Art wie oben, diesmal MIT Szenenbezug: erkenner._notiz_und_nummer()
+liest 'Scene N: ...' (kuerzung.nummer_aus_wert, englisches Muster
+_MUSTER_NUMMER_EN) und ueberarbeitung.ueberarbeite() ruft szene.starte() mit
+szene.ueberarbeitungsauftrag() fuer genau diese Nummer -- unabhaengig davon,
+ob die Szene die 'aktuelle' (ueberarbeitung.aktuelle_szene) ist. Derselbe
+Effekt wie der Knopf ART_SZENE_ANDERS (knoepfe/wirkung.py::_wirkung_szene_anders).
+"""
+
+[[phase.6]]
+aktion = "Den Gesamttext ODER eine einzelne Szene der Ueberarbeitung per Chat abnehmen ('yes, save'), statt 'Yes, save' zu druecken"
+weg = "beides"
+intent = "fassung_abnehmen"
+knopf = "ART_GESCHICHTE_PASST|ART_SZENE_PASST"
+beleg = """
+erkenner.ARTEN enthaelt 'fassung_abnehmen', phasengebunden auf (5, 6, 7).
+ueberarbeitung.nimm_ab() entscheidet anhand der Materiallage: ist
+arbeitsstand.gesamttext_fixiert_am noch nicht gesetzt, nimmt es das Ganze ab
+(bestaetige_gesamt, wie Knopf ART_GESCHICHTE_PASST); danach die aktuelle
+Szene (bestaetige_szene_6, wie Knopf ART_SZENE_PASST).
+"""
+
+[[phase.7]]
+aktion = "Die Form je Szene in EINER Chat-Antwort festlegen ('1 dialogue, 2 song, 3 rap')"
+weg = "chat"
+intent = "formen_setzen"
+knopf = ""
+beleg = """
+erkenner.ARTEN enthaelt 'formen_setzen', phasengebunden auf Phase 7.
+ueberarbeitung.sende_formwahl() zeigt bewusst KEINE Knoepfe und KEINEN
+Vorschlag (Modul-Docstring: 'keine Knoepfe und kein Vorschlag (Birk 7.1):
+die Antwort kommt im Chat') -- erkenner._wende_formen_an() schreibt
+szene.form je genannter Nummer. weg='chat' ist hier richtig: es gibt
+keinen Knopf, mit dem dieselbe Handlung alternativ ginge (Design-
+Entscheidung, kein Befund).
+"""
+
+[[phase.7]]
+aktion = "Die Sprechweise EINER Figur per Chat aendern ('Mira: short, clipped sentences'), statt die vorgeschlagene Liste komplett per Knopf abzunicken"
+weg = "chat"
+intent = "sprechweise_setzen"
+knopf = ""
+beleg = """
+erkenner.ARTEN enthaelt 'sprechweise_setzen', phasengebunden auf Phase 7.
+sprechweise.wende_an() schreibt figur.sprachstil je 'Name: Text'-Paar (mit
+'|' getrennt) und ueberschreibt dabei auch einen schon gesetzten Stil --
+die Gruppe hat ihn genannt. Fuer EINE einzelne Figur gibt es keinen eigenen
+Knopf (nur ART_SPRECHWEISEN_PASST/_ANDERS fuer die ganze Liste, siehe die
+naechste Phase-7-Zeile) -- weg='chat' ist hier richtig.
+"""
+
+[[phase.7]]
+aktion = "Die ganze vorgeschlagene Sprechweisen-Liste per Chat abnehmen ('yes, save'), statt 'Yes, save' zu druecken"
+weg = "beides"
+intent = "fassung_abnehmen"
+knopf = "ART_SPRECHWEISEN_PASST"
+beleg = """
+Siehe die Phase-5/6-Zeilen zu 'fassung_abnehmen': in Phase 7 nimmt
+ueberarbeitung.nimm_ab() -- solange keine Form offen ist -- die
+Sprechweisen-Liste ab (bestaetige_sprechweisen), sobald jede Figur einen
+Stil hat; danach die aktuelle Buehnenszene.
+"""
+
+[[phase.7]]
+aktion = "Rueckmeldung zu einer einzelnen Buehnenszene per Chat geben ('scene 2: the ending is too soft'), statt 'No, change it again' zu druecken"
+weg = "beides"
+intent = "text_ueberarbeiten"
+knopf = "ART_SZENE_ANDERS"
+beleg = """
+Dieselbe Art wie in Phase 6, hier mit schreibt_prosa()=False: szene.starte()
+schreibt in volltext statt prosa, sonst derselbe Weg
+(szene.ueberarbeitungsauftrag, ohne BISHER_MARKER). Setzt eine Szene ohne
+Buehnentext voraus, die 'aktuell' ist oder explizit genannt wird.
+"""
+
+[[phase.7]]
+aktion = "Eine einzelne Buehnenszene per Chat abnehmen ('yes, save'), statt 'Yes, save' zu druecken"
+weg = "beides"
+intent = "fassung_abnehmen"
+knopf = "ART_SZENE_PASST"
+beleg = """
+Siehe oben: ueberarbeitung.nimm_ab() nimmt in Phase 7 -- sobald Formen und
+Sprechweisen fixiert sind -- die aktuelle Buehnenszene ab
+(bestaetige_szene_7, wie der Knopf ART_SZENE_PASST).
 """

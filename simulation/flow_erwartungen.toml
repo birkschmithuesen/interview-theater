@@ -199,21 +199,58 @@ interview_starten per Chat auch aus Phase 1/2 auslösbar.
 # ---------------------------------------------------------------------------
 
 [[phase.3]]
-aktion = "Eine Interview-Aufnahme INNERHALB von Phase 3 selbst per Chat-Satz starten ('wir fangen jetzt an') oder beenden ('fertig', 'I'm done recording'), statt auf den Umschalter-Knopf zu warten"
+aktion = "Ein LAUFENDES Interview-Aufnahme INNERHALB von Phase 3 per Chat-Satz beenden ('fertig', 'I'm done recording'), statt auf den Umschalter-Knopf zu warten"
 weg = "beides"
-intent = "interview_starten|interview_beenden"
+intent = "interview_beenden"
 knopf = "ART_AUFNAHME"
 beleg = """
 Gegenprobe zur bestehenden Phase-2-Zeile oben (die den Sprung AUS Phase 1/2
-HERAUS belegt): erkenner.ARTEN enthaelt 'interview_starten' (erkenner.py
-Zeile 66) und 'interview_beenden' (Zeile 67); keines von beiden steht in
-PHASEN_SPEZIFISCHE_ARTEN (Zeilen 218-230) -- beide bleiben also phasenfrei
-und gelten dementsprechend auch INNERHALB Phase 3 unveraendert per Chat-Satz,
-nicht nur beim Hineinspringen. Knopf: knoepfe/texte.py ART_AUFNAHME =
-'aufnahme' ist ein einziger TOGGLE-Knopf -- knoepfe/wirkung.py::_wirkung_aufnahme
-(Zeile 1224 ff) ruft woertlich befehle._befehl_aufnahme auf ('wortgleich
-dasselbe wie /aufnahme'), das je nach aktuellem Modus startet ODER beendet.
-Trivial gruen, wie vom Auftrag (Punkt 1) als Pruefpunkt gefordert.
+HERAUS belegt, fuer 'interview_starten'): erkenner.ARTEN enthaelt
+'interview_beenden' (erkenner.py Zeile 67), nicht in
+PHASEN_SPEZIFISCHE_ARTEN (Zeilen 218-230) -- gilt also auch INNERHALB
+Phase 3 unveraendert per Chat-Satz. erkenner._wende_interview_beenden_an
+(Zeile 1241 ff) schaltet den Modus WIRKLICH aus (repo.hole_gruppe(...)
+["interviewmodus_seit"] pruefen, dann aufnahme.beende_interview aufrufen) --
+anders als 'interview_starten' (siehe naechste Zeile) ist hier schon etwas
+im Gange, das man beenden kann, und ein zweiter Weg wuerde es nicht noch
+einmal anders machen. Knopf: knoepfe/texte.py ART_AUFNAHME = 'aufnahme' ist
+ein einziger TOGGLE-Knopf -- knoepfe/wirkung.py::_wirkung_aufnahme ruft
+befehle._befehl_aufnahme auf, das bei laufendem Modus beendet.
+DYNAMISCH BESTAETIGT (Schicht 2, Station 15/16/17 in
+simulation/flow_audit_dynamisch.py): ein 'interview_beenden' per Chat-Satz
+schaltet ``repo.ist_interviewmodus_an`` wirklich auf False.
+"""
+
+[[phase.3]]
+aktion = "Ein Interview-Aufnahme INNERHALB von Phase 3 selbst per Chat-Satz STARTEN ('wir fangen jetzt an'), statt auf den Umschalter-Knopf zu warten"
+weg = "knopf"
+intent = ""
+knopf = "ART_AUFNAHME"
+beleg = """
+**Korrektur gegenueber der ersten Fassung dieser Zeile** (per dynamischer
+Schicht-2-Pruefung gefunden, Station 15 in
+simulation/flow_audit_dynamisch.py -- siehe Report): anders als zunaechst
+aus dem Vorhandensein des Intents 'interview_starten' in erkenner.ARTEN
+angenommen, SCHALTET ein per Chat erkannter 'interview_starten'-Intent den
+Interviewmodus NICHT ein. erkenner._wende_interview_starten_an (Zeile 1214
+ff) sagt das woertlich: "Ein angekuendigtes Interview startet nichts mehr"
+(05.09.2026, Birk nach dem Live-Lauf Gruppe 3: "Start und Ende fielen in
+denselben Erkennerlauf und der Kopf blieb leer"). Der erkannte Intent loest
+nur noch das ANGEBOT aus (_melde_interviewmodus: dieselbe Ablauf-Erklaerung
+und derselbe Knopf wie ohne Modus) -- KEIN Schreibvorgang auf
+gruppe.interviewmodus_seit. Das eigentliche Starten ist seit diesem Tag
+bewusst MECHANISCH: befehle._befehl_aufnahme ("das Interview starten und
+stoppen ist sehr problematisch, ich denke die sicherste Loesung ist das
+mechanisch mit /aufnahme zu machen") bzw. der danach angebotene Knopf
+ART_AUFNAHME. ``weg = "knopf"`` ist deshalb praeziser als 'beides' -- analog
+zum Undo-Knopf in Phase 1, nur dass hier zusaetzlich auch /aufnahme als
+deterministischer BEFEHL (kein Erkenner-Intent) greift.
+**Hinweis fuer den Report**: die BESTEHENDE Phase-2-Zeile oben ('Direkt aus
+Phase 1 oder 2 heraus eine Interview-Aufnahme per Chat starten') traegt
+denselben Intent und beschreibt ihn als tatsaechlich startend -- nach
+diesem Fund ungenau. Nicht hier korrigiert (gehoert zu Karte t_2cdea48b,
+ausserhalb des Geltungsbereichs dieser Aenderung), aber im Report dieser
+Karte als moeglicher Klasse-B-Dokumentationsbefund benannt.
 """
 
 [[phase.3]]

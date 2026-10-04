@@ -148,9 +148,13 @@ VERHOERFAELLE = ("e_verhoerer", "f_kontrolle_mehrheit", "g_zwei_begriffe")
 OBEN_UNTEN = {"a_rezenz": (OZEAN, GARTEN), "b_konsens": (LEUCHTTURM, MOTORRAD)}
 
 #: Die Mehrheitsregel im EN-Board-Prompt, Anfang und Ende woertlich
-#: (``interview_theater/sprachen/en/prompts/begriffsboard.md``).
-_MEHRHEIT_ANFANG = "Decide by majority:"
-_MEHRHEIT_ENDE = "deletes a real\nterm."
+#: (``interview_theater/sprachen/en/prompts/begriffsboard.md``, Stand nach
+#: 41d96c6 -- "Decide by majority AND context plausibility together").
+#: Der Block endet jetzt mit dem nachgestellten Absatz "Add both mention
+#: counts ... heard correctly three times." statt direkt mit "deletes a
+#: real term." -- 41d96c6 hat den Beispielsatz ans Ende verschoben.
+_MEHRHEIT_ANFANG = "Decide by majority AND context plausibility together, not by majority\nalone:"
+_MEHRHEIT_ENDE = "heard correctly three times.\""
 VARIANTE_SINN_ZUERST = (
     "Decide by meaning first: look at what the group is talking about around "
     "each of the two spellings. Keep as ``begriff`` the reading that makes "
@@ -184,9 +188,14 @@ def auftraege(arme, faelle, wiederholungen: int) -> list[tuple[str, str, int]]:
 
 
 def prompt_nur(system: str) -> str:
-    """Arm D: die Mehrheitsregel durch "Sinn zuerst" ersetzt, sonst Zeichen
-    fuer Zeichen der echte Prompt. Fehlt der Anker, ist der Prompt geaendert
-    worden -- dann lieber kein Aufruf als ein Vergleich gegen etwas anderes."""
+    """Arm D: den (seit 41d96c6 hybriden Mehrheit+Kontext-)Verhoererblock durch
+    "Sinn zuerst" ersetzt, sonst Zeichen fuer Zeichen der echte Prompt. Bleibt
+    als Vergleich sinnvoll: die Variante entscheidet NUR nach Sinn (Mehrheit
+    zaehlt nur beim echten Gleichstand), waehrend der echte Prompt Mehrheit UND
+    Kontext zusammen gewichtet -- ob der Hybrid den reinen Sinn-Ansatz noch
+    braucht, ist genau die Frage dieses Arms. Fehlt der Anker, ist der Prompt
+    geaendert worden -- dann lieber kein Aufruf als ein Vergleich gegen etwas
+    anderes."""
     anfang = system.find(_MEHRHEIT_ANFANG)
     ende = system.find(_MEHRHEIT_ENDE, anfang if anfang >= 0 else 0)
     if anfang < 0 or ende < 0:

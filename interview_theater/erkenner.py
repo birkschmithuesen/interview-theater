@@ -239,6 +239,12 @@ PROFILSCHALTER_DER_ARTEN: dict[str, str] = {
     "formen_setzen": "ueberarbeitung",
     "sprechweise_setzen": "ueberarbeitung",
     "schaerfung_entscheidung": "ueberarbeitung",
+    # Padua Modellwahl-Nachtrag (04.10.2026): das GEGENSTUECK zu den
+    # ueberarbeitung-Arten oben -- dort ist die Vorgabe AUS (Dortmund/
+    # Vorgabe sieht nichts), hier ist die Vorgabe AN (die Einwilligungsfrage
+    # wird gestellt, Dortmund/Vorgabe unveraendert). Padua schaltet sie AUS:
+    # ohne Einwilligungsfrage gibt es auch nichts mehr zu beantworten.
+    "szene_usa": "einwilligung",
 }
 
 
@@ -248,7 +254,16 @@ def _ueberarbeitung_an() -> bool:
     return workshop.ueberarbeitung_aktiv()
 
 
-_SCHALTER = {"ueberarbeitung": _ueberarbeitung_an}
+def _einwilligung_an() -> bool:
+    from interview_theater import workshop
+
+    return workshop.modellwahl_einwilligung_aktiv()
+
+
+_SCHALTER = {
+    "ueberarbeitung": _ueberarbeitung_an,
+    "einwilligung": _einwilligung_an,
+}
 
 
 def _schalter_an(art: str) -> bool:

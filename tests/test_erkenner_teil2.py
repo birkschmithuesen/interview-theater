@@ -100,8 +100,13 @@ def test_dortmund_sieht_keine_der_neuen_arten_im_schema(dortmund):
     for art in NEU:
         assert art in erkenner.ARTEN
         assert art not in enum
-    assert enum == erkenner.SCHEMA["properties"]["aenderungen"]["items"][
-        "properties"]["art"]["enum"]
+    # szene_usa ist ein Sonderfall: es steht seit der Padua Modellwahl-Karte
+    # in PROFILSCHALTER_DER_ARTEN und fehlt deshalb in der statischen
+    # ``erkenner.SCHEMA``-Konstante (die alle profilgebundenen Arten
+    # ausschliesst) -- bleibt aber ueber den Schalter ``einwilligung``
+    # (Vorgabe True) im dynamischen ``schema()`` fuer Dortmund erhalten.
+    assert set(enum) == set(erkenner.SCHEMA["properties"]["aenderungen"][
+        "items"]["properties"]["art"]["enum"]) | {"szene_usa"}
     assert len(enum) == 27
 
 

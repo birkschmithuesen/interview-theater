@@ -1056,7 +1056,7 @@ def _kernpaket_text(conn, chat_id: int, ziel=None, *,
     for eintrag in repo.kernzitate(conn, chat_id):
         name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
         if zitate_entfernen:
-            zeile = f"- {name}: (Zitat nicht an Claude uebergeben)"
+            zeile = f"- {name}: {T._TEXT_ZITAT_NICHT_UEBERGEBEN}"
         else:
             zeile = f'- {name}: "{eintrag["zitat"]}"'
         if eintrag["begruendung"]:
@@ -1258,6 +1258,10 @@ CONTINUITY_KUERZUNG_ZEILEN = 15
 
 _TEXT_CONTINUITY_GEKUERZT = "(Anfang gekuerzt, hier der Schluss der Szene:)"
 _TEXT_KEINE_ANGABEN = "(keine Angaben zu dieser Szene)"
+#: Padua Modellwahl, Zitate ab Phase 5 (Task 3): Platzhalter im globalen
+#: Kernzitat-Zweig von ``_kernpaket_text``, wenn ``zitate_entfernen`` das
+#: woertliche Zitat weglaesst -- ohne ihn bliebe die Zeile auf "- {name}: ".
+_TEXT_ZITAT_NICHT_UEBERGEBEN = "(Zitat nicht an Claude uebergeben)"
 
 #: **Das Token-Budget des Szenen-Prompts -- hergeleitet, nicht gesetzt**
 #: (Birk, 06.09.2026 04:30: *"Ob 50k fuer Reasoning reicht, nicht behaupten,

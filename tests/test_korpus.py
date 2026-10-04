@@ -719,7 +719,14 @@ def test_en_traegt_die_padua_arten(en_faelle, art):
 
 
 def test_nur_englisch_sind_genau_die_profilgebundenen_arten():
-    assert NUR_ENGLISCH == set(erkenner.PROFILSCHALTER_DER_ARTEN)
+    """``szene_usa`` ist seit der Padua Modellwahl-Karte (04.10.2026) ebenfalls
+    in ``PROFILSCHALTER_DER_ARTEN``, aber das GEGENSTUECK der
+    ``NUR_ENGLISCH``-Arten: es steht im deutschen UND im englischen Prompt
+    (Dortmund/Vorgabe-Schalter ``einwilligung`` AN, Padua schaltet ihn AUS) --
+    anders als die ``ueberarbeitung``-Arten oben, die nur das englische Padua-
+    Profil lehrt. Dieselbe Unterscheidung steht bereits in
+    ``tests/test_erkenner_teil2.py::test_dortmund_sieht_keine_der_neuen_arten_im_schema``."""
+    assert NUR_ENGLISCH == set(erkenner.PROFILSCHALTER_DER_ARTEN) - {"szene_usa"}
 
 
 def test_en_form_wie_der_deutsche_korpus(en_faelle):

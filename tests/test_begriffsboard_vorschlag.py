@@ -116,9 +116,15 @@ def test_ohne_schlusslauf_sofort_die_top_fuenf_mit_einem_knopf(conn, einst, monk
     beschriftung, daten = leiste[0]
     assert beschriftung == texte.T._TEXT_BOARD_UEBERNEHMEN_KNOPF
     assert daten.startswith("k:") and len(daten.encode()) < 64
+    # Birk Live-Test 04.10.2026: ALLE nicht verworfenen Begriffe stehen in
+    # der Liste, nur die Top 5 bekommen einen Stern -- "Schule" ist der
+    # sechste (nicht verworfene) Begriff und steht trotzdem drin, nur ohne
+    # Stern. "Musik" (verworfen) fehlt weiterhin komplett.
     for nr, begriff in enumerate(["Heimat", "Grenze", "Mut", "Angst", "Freunde"], 1):
-        assert f"{nr}. {begriff}" in text
-    assert "Musik" not in text and "Schule" not in text
+        assert f"{nr}. {begriff} ⭐" in text
+    assert "6. Schule" in text
+    assert "Schule ⭐" not in text
+    assert "Musik" not in text
     knopf = repo.hole_knopf(conn, int(daten[2:]))
     assert knopf["art"] == texte.ART_BOARD_UEBERNEHMEN
     assert knopf["wert"] == "Heimat, Grenze, Mut, Angst, Freunde"

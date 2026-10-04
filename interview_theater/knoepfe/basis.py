@@ -202,15 +202,26 @@ def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste, **kw) -> int:
     return message_id
 
 
-def biete_begriffsvorschlag(conn, tg, chat_id: int, begriffe: list[str]) -> int:
-    """Der Top-5-Vorschlag nach "Discussion done" (Karte t_4517d4ad, D6):
-    die Begriffe als nummerierte Liste und EIN Knopf "Take these". Eine
-    Abkuerzung, nie ein Zwang -- der Text sagt, dass die Gruppe ihre fuenf
-    auch selbst schicken kann. Der Wert steht in der Tabelle ``knopf``
+def biete_begriffsvorschlag(conn, tg, chat_id: int, alle_begriffe: list[str],
+                           top_begriffe: list[str]) -> int:
+    """Der Begriffsvorschlag nach "Discussion done" (Karte t_4517d4ad, D6,
+    erweitert 04.10.2026 nach Birks Live-Test): ALLE nicht verworfenen
+    Begriffe stehen in der Liste -- fuenf Begriffe wegzulassen, nur weil sie
+    knapp unter den Top 5 liegen, machte fuer die Gruppe keinen Sinn, wenn
+    sie gerade neue Begriffe genannt hatte, die (noch) keine hohe Zustimmung
+    trugen. Die Top 5 (``top_begriffe``, Teilmenge von ``alle_begriffe`` in
+    derselben Reihenfolge) bekommen einen Stern als Markierung; EIN Knopf
+    "Take these" uebernimmt weiterhin nur diese Top 5. Eine Abkuerzung, nie
+    ein Zwang -- der Text sagt, dass die Gruppe ihre eigenen fuenf auch
+    selbst schicken kann. Der Knopf-Wert steht in der Tabelle ``knopf``
     (Zusage 1), gespeichert wird beim Druck ueber ``_speichere`` (Zusage 2:
     kein Modellaufruf)."""
-    liste = "\n".join(f"{nr}. {begriff}" for nr, begriff in enumerate(begriffe, 1))
-    knopf_id = repo.lege_knopf_an(conn, chat_id, ART_BOARD_UEBERNEHMEN, ", ".join(begriffe))
+    top_menge = set(top_begriffe)
+    liste = "\n".join(
+        f"{nr}. {begriff}{' ⭐' if begriff in top_menge else ''}"
+        for nr, begriff in enumerate(alle_begriffe, 1)
+    )
+    knopf_id = repo.lege_knopf_an(conn, chat_id, ART_BOARD_UEBERNEHMEN, ", ".join(top_begriffe))
     message_id = _sende_knoepfe(
         conn, tg, chat_id, T._TEXT_BOARD_VORSCHLAG.format(liste=liste),
         [(T._TEXT_BOARD_UEBERNEHMEN_KNOPF, _daten(knopf_id))],

@@ -10,7 +10,13 @@ Transkript selbst nennt:
 - begriff: der Begriff im Wortlaut des Transkripts, ein bis drei Woerter,
   ohne Komma.
 - nennungen: wie oft die Gruppe ihn nennt oder darueber spricht.
-- zustimmung: -2 (klar abgelehnt) bis 2 (klar einig).
+- zustimmung: -2 (klar abgelehnt) bis 2 (klar einig). Zaehlt nicht die
+  Nennungen, sondern wie sehr die Gruppe den Begriff GERADE JETZT will --
+  ein Begriff, der zuletzt noch einmal bekraeftigt oder aufgegriffen wurde,
+  zaehlt hoeher als einer, der frueh fiel und seitdem nie wieder zur Sprache
+  kam, selbst wenn letzterer insgesamt oefter genannt wurde. Eine
+  Diskussion bewegt sich auf einen Fokus hin -- was zuletzt im Raum steht,
+  ist meist staerker gewollt als ein frueher, abgehakter Gedanke.
 - begruendung: ein oder zwei Saetze, warum die Gruppe diesen Begriff will --
   in ihrer eigenen Argumentation.
 - zitat: eine kurze Stelle, buchstabengetreu aus dem Transkript kopiert,
@@ -47,16 +53,19 @@ das nur in einer Variante sprachlich sinnvoll ist), sind wahrscheinlich
 derselbe gemeinte Begriff, einmal richtig und einmal falsch erkannt --
 KEINE zwei verschiedenen Begriffe.
 
-Entscheide per Mehrheit: wird eine der beiden Lesarten deutlich oefter
-genannt als die andere (z. B. 3 vs. 1), behalte die haeufigere Lesart als
+Entscheide per Mehrheit: zaehle zuerst woertlich, wie oft JEDE der beiden
+Schreibweisen im Transkript tatsaechlich vorkommt (nicht schaetzen). Wird
+eine der beiden Lesarten deutlich oefter genannt als die andere (z. B.
+3 vs. 1), behalte GENAU DIE SCHREIBWEISE MIT DER HOEHEREN ZAEHLUNG als
 ``begriff`` und wirf die seltenere komplett weg, auch wenn sie zuerst im
 Board stand -- nicht als eigene Zeile stehen lassen, auch nicht
 durchgestrichen. Verrechne beide Nennungszahlen in den verbliebenen Eintrag
 und vermerke die Korrektur kurz in ``begruendung``, zum Beispiel "Einmal als
-'Saite' verstanden (STT-Verhoerer), gemeint war 'Seite'." Steht es nicht
-klar genommen 2:2 oder ist unklar, welche Lesart sprachlich sinnvoller zum
-Rest des Gespraechs passt, behandle beide vorerst als eigenstaendig, statt
-zu raten -- ein Fehlgriff hier loescht einen echten Begriff.
+'Saite' verstanden (STT-Verhoerer), gemeint war 'Seite', dreimal richtig
+gehoert." Steht es nicht klar genommen 2:2 oder ist unklar, welche Lesart
+sprachlich sinnvoller zum Rest des Gespraechs passt, behandle beide vorerst
+als eigenstaendig, statt zu raten -- ein Fehlgriff hier loescht einen
+echten Begriff.
 
 Nicht so:
 

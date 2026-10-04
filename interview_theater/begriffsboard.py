@@ -400,18 +400,26 @@ def starte(conn, klm, e, chat_id: int, *, danach=None) -> bool:
 
 
 def sende_vorschlag(conn, tg, chat_id: int, rueckfall_text: str | None) -> None:
-    """Nach "Discussion done" (D6): steht mindestens ein nicht verworfener
-    Begriff auf dem Board, die Top 5 mit EINEM Knopf "Take these" -- sonst
-    der bisherige Satz unveraendert. Liest das Board, wie es JETZT ist (nach
-    einem etwaigen Schlusslauf, auch wenn der scheiterte)."""
-    oben = [e["begriff"] for e in top(aktuelles(conn, chat_id))]
-    if not oben:
+    """Nach "Discussion done" (D6): stehen nicht verworfene Begriffe auf dem
+    Board, ALLE in der Liste und die Top 5 markiert, dazu EIN Knopf
+    "Take these" fuer die Top 5 -- sonst der bisherige Satz unveraendert.
+    Liest das Board, wie es JETZT ist (nach einem etwaigen Schlusslauf, auch
+    wenn der scheiterte).
+
+    Birk Live-Test 04.10.2026: vorher bekam die Gruppe NUR die Top 5 zu
+    sehen -- neu genannte Begriffe mit noch niedriger Zustimmung/Nennungen
+    fielen dadurch komplett aus der Anzeige, auch wenn sie frisch gesagt
+    wurden. Jetzt zeigt die Liste alle, markiert nur die Auswahl."""
+    board = [e for e in sortiert(aktuelles(conn, chat_id)) if e.get("status") != "verworfen"]
+    if not board:
         if rueckfall_text:
             tg.sende(chat_id, rueckfall_text)
         return
+    alle = [e["begriff"] for e in board]
+    oben = [e["begriff"] for e in board[:TOP]]
     from interview_theater.knoepfe import basis  # Aufruf nach oben: lokal, wie im ganzen Repo
 
-    basis.biete_begriffsvorschlag(conn, tg, chat_id, oben)
+    basis.biete_begriffsvorschlag(conn, tg, chat_id, alle, oben)
 
 
 def schreibe_detail(conn, chat_id: int, begriffe_text: str | None) -> None:

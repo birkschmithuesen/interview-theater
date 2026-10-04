@@ -10,7 +10,13 @@ transcript:
 - begriff: the term as worded in the transcript, one to three words, no
   comma.
 - nennungen: how often the group names it or talks about it.
-- zustimmung: -2 (clearly rejected) to 2 (clearly agreed).
+- zustimmung: -2 (clearly rejected) to 2 (clearly agreed). This is not a
+  count of mentions -- it measures how much the group wants the term RIGHT
+  NOW. A term that was reaffirmed or picked up again most recently counts
+  higher than one that came up early and was never touched again, even if
+  the latter was named more often overall. A discussion tends to move
+  toward a focus -- what is on the table last is usually wanted more than
+  an earlier, settled thought.
 - begruendung: one or two sentences on why the group wants this term -- in
   the group's own line of argument.
 - zitat: a short passage copied letter for letter from the transcript, or
@@ -44,15 +50,18 @@ read aloud, even if spelled differently -- e.g. "there" / "their", "whether"
 probably the same intended term, once heard correctly and once misheard --
 NOT two distinct terms.
 
-Decide by majority: if one reading is named clearly more often than the
-other (e.g. 3 vs. 1), keep the more frequent reading as ``begriff`` and drop
-the rarer one entirely, even if it was on the board first -- do not leave it
+Decide by majority: first count literally how often EACH of the two
+spellings actually occurs in the transcript (do not estimate). If one
+reading is named clearly more often than the other (e.g. 3 vs. 1), keep
+EXACTLY THE SPELLING WITH THE HIGHER COUNT as ``begriff`` and drop the
+rarer one entirely, even if it was on the board first -- do not leave it
 as its own line, not even struck through. Add both mention counts into the
 remaining entry and note the correction briefly in ``begruendung``, for
-example "Once misheard as 'weather' (STT slip), meant 'whether'." If the
-count is tied (e.g. 2:2) or it is unclear which reading fits the rest of the
-conversation better, treat both as separate for now rather than guessing --
-a wrong call here deletes a real term.
+example "Misheard once as 'whether' (STT slip), meant 'weather', heard
+correctly three times." If the count is tied (e.g. 2:2) or it is unclear
+which reading fits the rest of the conversation better, treat both as
+separate for now rather than guessing -- a wrong call here deletes a real
+term.
 
 Not like this:
 

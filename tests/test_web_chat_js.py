@@ -1181,7 +1181,7 @@ def test_brainstorm_und_interview_schliessen_sich_gegenseitig_aus():
     assert "!!zustand.brainstorm" in zeige_iv
     assert "var nebenAn = !!zustand.brainstorm || !!zustand.diskussion;" in zeige_iv
     assert "interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || nebenAn;" in zeige_iv
-    assert "if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn; }" in zeige_iv
+    assert "if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn || nebenAngeboten; }" in zeige_iv
 
 
 def test_pttpointerdown_lehnt_waehrend_diskussion_ab():
@@ -1596,10 +1596,9 @@ def test_zeigemodus_brainstorm_nur_szenario_bleibt_byte_identisch_zu_vor_task6_i
     """Regressionsnachweis: in einem Szenario, in dem ``zustand.diskussion``
     nie beruehrt wird (der Normalfall jeder Nicht-Padua-Gruppe -- dort
     rendert der ``#diskussion``-Knopf gar nicht erst), muss
-    ``interviewKnopf.disabled``/``pttKnopf.hidden``/die ``nebenknopf``-Klasse
-    GENAU der Formel entsprechen, die vor dem gesamten Task-6-Commit galt:
-    ``an(brainstorm) || (wechsel && !wechsel.ziel)`` fuer ``disabled``,
-    ``modusAn() || wechsel || an(brainstorm)`` fuer ``pttKnopf.hidden`` und
+    ``interviewKnopf.disabled``/die ``nebenknopf``-Klasse GENAU der Formel
+    entsprechen, die vor dem gesamten Task-6-Commit galt:
+    ``an(brainstorm) || (wechsel && !wechsel.ziel)`` fuer ``disabled`` und
     ``brainstormErlaubt || an(brainstorm) || wechsel`` fuer die Klasse --
     unabhaengig davon, in welcher Reihenfolge ``zeigeBrainstormModus()`` und
     ``zeigeDiskussionModus()`` laufen."""
@@ -1641,9 +1640,9 @@ def test_zeigemodus_brainstorm_nur_szenario_bleibt_byte_identisch_zu_vor_task6_i
     function altesDisabled(z) {{
       return !!(z.wechsel && !z.wechsel.ziel) || !!z.brainstorm;
     }}
-    function altesPttHidden(z) {{
+    function neuesPttHidden(z) {{
       var an = !!z.aufnahme || !!z.servermodus;
-      return an || !!z.wechsel || !!z.brainstorm;
+      return an || !!z.wechsel || !!z.brainstorm || !!z.brainstormErlaubt;
     }}
     function altesNebenknopf(z) {{
       return !!z.brainstormErlaubt || !!z.brainstorm || !!z.wechsel;
@@ -1671,7 +1670,7 @@ def test_zeigemodus_brainstorm_nur_szenario_bleibt_byte_identisch_zu_vor_task6_i
         nebenknopf: !!interviewKnopf.classList.werte.nebenknopf,
         pttHidden: pttKnopf.hidden,
         erwartetDisabled: altesDisabled(zustand),
-        erwartetPttHidden: altesPttHidden(zustand),
+        erwartetPttHidden: neuesPttHidden(zustand),
         erwartetNebenknopf: altesNebenknopf(zustand)
       }};
     }}

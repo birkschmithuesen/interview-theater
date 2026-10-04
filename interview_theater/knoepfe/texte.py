@@ -314,10 +314,11 @@ _TEXT_ANDERS_KNOPF = "Nein, nochmal aendern"
 _TEXT_SPEICHERN_KNOPF = "Ja, speichern"
 _TEXT_BOARD_UEBERNEHMEN_KNOPF = "Diese nehmen"
 _TEXT_BOARD_VORSCHLAG = (
-    "Die Diskussion ist zu Ende. Oben auf eurem Begriffsboard stehen:\n"
+    "Die Diskussion ist zu Ende. Auf eurem Begriffsboard stehen:\n"
     "{liste}\n\n"
-    "Nehmt ihr diese? Ihr koennt mir auch eure eigenen fuenf Begriffe "
-    "schicken - getippt oder als Sprachnachricht."
+    "Die mit ⭐ markierten fuenf sind der Vorschlag. Nehmt ihr diese? Ihr "
+    "koennt mir auch eure eigenen fuenf Begriffe schicken - getippt oder "
+    "als Sprachnachricht."
 )
 #: "Passt, aber anders" speichert und fragt dann gezielt -- deterministisch,
 #: kein Modellaufruf (Zusage 2). Der erste Halbsatz ist die Quittung, der

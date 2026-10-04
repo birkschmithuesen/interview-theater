@@ -1962,11 +1962,16 @@ _CHAT_JS = """
     if (interviewPauseKnopf) {
       interviewPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
     }
-    // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ist PTT
-    // ausgeblendet (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine
-    // Bedienung, und eine Pause ist weiterhin "Modus an". Dieselbe
-    // Zusammenfuehrung wie bei interviewKnopf.disabled oben.
-    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn; }
+    // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ODER
+    // sobald Brainstorm/Diskussion angeboten wird (nicht erst wenn sie
+    // LAEUFT) ist PTT ausgeblendet (Birk 04.10.2026: zwei sichtbare
+    // Mikrofon-Knoepfe gleichzeitig sind keine Bedienung -- entweder/oder,
+    // Befehle gehen dann nur noch ueber das Textfeld). Die Klassen-Formel
+    // fuer den Interview-Nebenknopf wird erst drei Zeilen weiter unten
+    // gesetzt -- deshalb hier dieselbe Prosa noch einmal, nicht die
+    // Variable selbst (Reihenfolge der Aufrufe).
+    var nebenAngeboten = !!zustand.brainstormErlaubt || !!zustand.diskussionErlaubt;
+    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn || nebenAngeboten; }
     // Beide Anzeigen bleiben im selben Takt synchron, egal welche der
     // beiden Funktionen zuerst gerufen wurde.
     zeigeBrainstormModus();

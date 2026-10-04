@@ -4111,11 +4111,11 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
         dash_token = os.environ.get("IT_WEB_DASHBOARD_TOKEN", "").strip()
         if pfad == "/" and not dash_token:
             handler._antworte(200, dashboard_html(handler._dashboard(), praefix))
-        elif dash_token and pfad.startswith("/u/") and hmac.compare_digest(
-                pfad[3:].rstrip("/").encode(), dash_token.encode()):
+        elif dash_token and pfad.startswith("/dashboard/") and hmac.compare_digest(
+                pfad[len("/dashboard/"):].rstrip("/").encode(), dash_token.encode()):
             # Birk 04.10.2026: die Uebersicht traegt die Links zu ALLEN
             # Gruppen -- offen unter "/" war sie ein Generalschluessel. Mit
-            # IT_WEB_DASHBOARD_TOKEN liegt sie nur noch unter /u/<token>,
+            # IT_WEB_DASHBOARD_TOKEN liegt sie nur noch unter /dashboard/<token>,
             # "/" antwortet 404 wie jede unbekannte Adresse. Ohne die
             # Variable bleibt alles wie vorher (Dortmund).
             handler._antworte(200, dashboard_html(handler._dashboard(), praefix))

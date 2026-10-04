@@ -1,4 +1,4 @@
-"""Die Uebersicht ist mit IT_WEB_DASHBOARD_TOKEN nur unter /u/<token> lesbar
+"""Die Uebersicht ist mit IT_WEB_DASHBOARD_TOKEN nur unter /dashboard/<token> lesbar
 (Birk 04.10.2026: offen unter "/" verriet sie alle Gruppenlinks)."""
 import threading
 import urllib.error
@@ -59,8 +59,8 @@ def test_mit_token_ist_root_404_und_u_token_zeigt_die_uebersicht(server, monkeyp
     try:
         code, text = _hole(basis, "/padua/")
         assert code == 404 and gtoken not in text
-        assert _hole(basis, "/padua/u/falsch")[0] == 404
-        code, text = _hole(basis, f"/padua/u/{TOKEN}")
+        assert _hole(basis, "/padua/dashboard/falsch")[0] == 404
+        code, text = _hole(basis, f"/padua/dashboard/{TOKEN}")
         assert code == 200 and gtoken in text
         assert _hole(basis, f"/padua/g/{gtoken}")[0] == 200
     finally:

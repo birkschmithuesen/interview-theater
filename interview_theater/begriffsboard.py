@@ -25,6 +25,7 @@ Modellaufruf -- das kommt mit den Aufgaben 3-6."""
 import json
 import logging
 import os
+import re
 import threading
 
 from interview_theater import anweisungen, brainstorm, modellwahl, repo, workshop
@@ -68,6 +69,112 @@ def schluessel(text: str | None) -> str:
 def _steht_im_transkript(begriff: str, transkript: str) -> bool:
     k = schluessel(begriff)
     return bool(k) and k in schluessel(transkript)
+
+
+# -- Belegpflicht (Karte t_2b9d2cbe, D1/D2) -----------------------------------
+#
+# Eine Begruendung gilt nur, wenn ein woertlich geprueftes Zitat sie traegt,
+# das mehr enthaelt als den Begriff und die Ansage ("der erste Begriff ist
+# X"). Die Woerter werden ueber ``schluessel`` (zitat.normalisiere +
+# casefold) gewonnen -- keine zweite Normalisierung. Alle Listen gelten fuer
+# DE und EN zugleich: gemessen schrieb Kimi unter dem EN-Profil deutsche
+# Begruendungen (Live-Board 04.10.2026), eine Liste nur der Profilsprache
+# liesse genau diesen Fall durch. Eintraege in casefold-Form (Test).
+
+#: Mindestzahl Inhaltswoerter im Zitat. Ein einzelnes Restwort ist in den
+#: beobachteten Fehlbildern ein Adjektiv oder ein STT-Rest aus der Ansage
+#: ("als besten Gepaeck vor" -> "besten"); ein Grund braucht Gegenstand und
+#: Aussage ("wo meine Oma kocht" -> "oma", "kocht").
+BELEG_MIN_INHALTSWOERTER = 2
+
+_STOPPWOERTER = frozenset("""
+aber alle alles als also am an auch auf aus bei bin bis bist da dann das dass
+dem den der des dich die dir doch dort du ein eine einem einen einer eines er
+es etwa euch für fuer gar hab habe haben hat hier ich ihm ihn ihr ihre im in
+ist ja jetzt kann kein keine man mal mein meine meinem meinen meiner mich mir
+mit muss nach nee nein nicht nichts noch nur ob oder schon sehr sein seine
+sich sie sind so soll sollte uns und unser vom von war waren was weil wenn wer
+wie wir wird wo zu zum zur äh ähm hm genau eben halt einfach eigentlich
+a about all also am an and any are as at be because been but by can could d
+did do does for from had has have he her here him his how i if in into is it
+its just ll like m me my no not now of oh ok okay on or our re s she so some
+that the their them then there they this to too uh um us ve very we well were
+what when where which who will with would yeah yes you your
+eins zwei drei vier fünf fuenf one two three four five
+""".split())
+
+#: Woerter einer Ansage-Formel ("der erste Begriff ist X", "I'd suggest X")
+#: samt der beobachteten STT-Varianten von "Begriff".
+_ANSAGEWOERTER = frozenset("""
+begriff begriffe term terms wort wörter woerter word words gepäck gepaeck
+betreff vorschlag vorschlagen schlage schlägt schlaegt schlagen vor suggest
+suggests suggestion propose proposes pick nehmen nehme take nenne nennen name
+erste erster ersten erstes zweite zweiter zweiten dritte dritter dritten
+vierte fünfte fuenfte nächste naechste nächster naechster letzte letzter
+weitere weiterer first second third fourth fifth next last another nummer
+number
+""".split())
+
+#: Woerter, die nie ein Begriff der Gruppe sind (D2) -- Ansage- und
+#: Mikrofon-Gerede. Klein und geschlossen.
+_METAWOERTER = frozenset("""
+begriff begriffe term terms wort word gepäck gepaeck betreff test tests
+testing mikrofon mikro microphone mic aufnahme recording hallo hello check
+""".split())
+
+#: Fuell-Begruendungen: sagen nur, DASS der Begriff fiel. Gesucht im
+#: casefold-Text (``schluessel``).
+_FUELL_MUSTER = (
+    re.compile(r"\b(wird|wurde|werden|wurden|ist|sind)\b.{0,80}?\b(genannt|erwähnt|erwaehnt"
+               r"|aufgeführt|aufgefuehrt|gesammelt|vorgeschlagen|aufgelistet|notiert"
+               r"|festgehalten)\b"),
+    re.compile(r"\bkam(en)?\b.{0,40}?\bvor\b"),
+    re.compile(r"\bschl(ä|ae)gt\b.{0,80}?\bvor\b"),
+    re.compile(r"\b(nennt|nennen)\b"),
+    re.compile(r"\b(is|was|are|were|gets|got)\b.{0,80}?\b(named|mentioned|listed|collected"
+               r"|suggested|proposed|noted|brought up|put forward)\b"),
+    re.compile(r"\bcame up\b"),
+    re.compile(r"\b(suggests|proposes|names|mentions)\b"),
+)
+
+#: Ein Grund-Marker macht aus einem Fuellsatz-Treffer einen Satz mit Grund
+#: ("wird genannt, weil ...") -- ob er bleibt, entscheidet dann der Beleg.
+_GRUND_MARKER = re.compile(r"\b(weil|denn|damit|deshalb|darum|because|since|so that|therefore)\b")
+
+
+def _woerter(text: str | None) -> list[str]:
+    return re.findall(r"\w+", schluessel(text))
+
+
+def inhaltswoerter(text: str | None, begriff: str | None) -> list[str]:
+    """Die Woerter von ``text`` ohne Begriff, Ansage-, Meta- und
+    Stoppwoerter und ohne reine Ziffern -- in Reihenfolge, mit Doppelten."""
+    weg = set(_woerter(begriff)) | _STOPPWOERTER | _ANSAGEWOERTER | _METAWOERTER
+    return [w for w in _woerter(text) if w not in weg and not w.isdigit()]
+
+
+def traegt_beleg(eintrag: dict, transkript: str) -> bool:
+    """D1: das Zitat steht woertlich im Transkript (``zitat.pruefe``) UND
+    traegt mindestens ``BELEG_MIN_INHALTSWOERTER`` Inhaltswoerter."""
+    z = str(eintrag.get("zitat") or "").strip()
+    return (bool(z) and zitat.pruefe(z, transkript)
+            and len(inhaltswoerter(z, eintrag.get("begriff"))) >= BELEG_MIN_INHALTSWOERTER)
+
+
+def ist_fuellsatz(text: str | None) -> bool:
+    """D1: eine Begruendung, die nur sagt, dass der Begriff genannt/
+    gesammelt/vorgeschlagen wurde -- ohne Grund-Marker."""
+    k = schluessel(text)
+    return (bool(k) and any(m.search(k) for m in _FUELL_MUSTER)
+            and not _GRUND_MARKER.search(k))
+
+
+def ist_metabegriff(begriff: str | None) -> bool:
+    """D2: der Begriff besteht nur aus Meta-, Stoppwoertern und Ziffern und
+    traegt mindestens ein Meta-Wort ("Test 1 2 3", "Gepaeck")."""
+    woerter = _woerter(begriff)
+    return (any(w in _METAWOERTER for w in woerter)
+            and all(w in _METAWOERTER or w in _STOPPWOERTER or w.isdigit() for w in woerter))
 
 
 def _ganzzahl(wert) -> int:

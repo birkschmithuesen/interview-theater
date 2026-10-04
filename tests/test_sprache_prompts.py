@@ -622,3 +622,50 @@ def test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben():
                   "Show first draft"):
         assert knopf in sechs, knopf
         assert knopf in sieben, knopf
+
+
+# --- Isolierte Laeufe ohne kontext.baue (Tasks 1-4, 04.10.2026) ---
+#
+# fragen_ki.py, diskussion.py, buehnenkarte.py und entwurf.py rufen ihr
+# Modell ausserhalb von kontext.baue auf -- ohne den sonst vererbten
+# Sprachwaechter folgte das Modell der Sprache des gesehenen Eingabetextes
+# (z. B. deutsche Begriffe), auch im Padua-Profil, dessen Chatsprache
+# Englisch ist (sprache.code() == "en"). Diese Tests verriegeln die vier
+# nachgetragenen "Write in English"-Saetze.
+
+_SPRACHVORGABE = {
+    "fragen_ki_vorschlag": "Write in English.",
+    "diskussion_verdichtung": "Write your digest in English",
+    "buehnenkarte": "Write the card in English",
+    "entwurf": "Write in English.",
+}
+
+
+@pytest.mark.parametrize("name", sorted(_SPRACHVORGABE))
+def test_isolierte_laeufe_tragen_eine_englische_sprachvorgabe(padua, name):
+    text = anweisungen.hole(name)
+    assert _SPRACHVORGABE[name] in text
+
+
+def test_fragen_ki_vorschlag_uebersetzt_den_begriff_nicht(padua):
+    """Eigener Test, kein Fall von oben: die Begriffsvorgabe ist eine
+    zweite, inhaltlich andere Regel (Zitatschutz des Begriffs fuer den
+    spaeteren Abgleich mit den eigenen Fragen der Gruppe), nicht nur eine
+    weitere Formulierung der Sprachvorgabe."""
+    text = anweisungen.hole("fragen_ki_vorschlag").lower()
+    assert "never translate the term" in text
+
+
+@pytest.mark.parametrize(
+    "name", ["fragen_ki_vorschlag", "diskussion_verdichtung", "buehnenkarte", "entwurf"]
+)
+def test_deutsche_datei_unveraendert_fuer_isolierte_laeufe(name):
+    """Der deutsche Prompt hat fuer diese vier Namen gar keine eigene
+    Sprachvorgabe-Zeile noetig -- diese Zeile existiert nur in der
+    englischen Fassung. Zusaetzliche, dokumentierende Absicherung neben
+    den bestehenden Bitgleich-Suiten (test_sprache_bitgleich.py,
+    test_profil_bitgleich.py), die die eigentliche mechanische Probe sind."""
+    deutsch = (REPO / f"{name}.md").read_text(encoding="utf-8")
+    assert "Write in English" not in deutsch
+    assert "Write your digest in English" not in deutsch
+    assert "Write the card in English" not in deutsch

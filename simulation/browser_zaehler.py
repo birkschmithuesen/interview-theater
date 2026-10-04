@@ -21,7 +21,11 @@ MIN_TAPZIEL_PX = 44.0
 VERDRAHTETE_SELEKTOREN = (
     "#senden", "#interview", "#interview-pause", "#interview-beenden",
     "#brainstorm", "#brainstorm-pause", "#brainstorm-beenden", "#ptt",
-    "#nachreichen", "#verwerfen", ".leiste button", ".tabs button",
+    "#nachreichen", "#verwerfen", "#diskussion", "#diskussion-pause",
+    "#diskussion-beenden", "#kalibrierung-start", "#kalibrierung-sprechen",
+    "#kalibrierung-ja", "#kalibrierung-nein", "#kalibrierung-versuch",
+    "#kalibrierung-weiter-trotzdem", "#kalibrierung-nochmal-hoeren",
+    "#kalibrierung-skip", ".leiste button", ".tabs button",
     ".phase-knopf", ".phase-abbrechen", ".roadmap li.aufgabe", "a[href]",
 )
 

@@ -135,3 +135,25 @@ def test_data_attribute_kommen_mit(seite):
 def test_bildschirmfoto_liefert_png_bytes(seite):
     bild = browser_elemente.bildschirmfoto(seite)
     assert bild[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+_FIXTURE_ZUHOEREN = """
+<button id="diskussion" data-laeuft="0">Start listening</button>
+<button id="diskussion-beenden">Discussion done</button>
+<div id="kalibrierung"><button id="kalibrierung-start">Start check</button>
+<button id="kalibrierung-skip">Skip</button></div>
+"""
+
+
+def test_zuhoeren_und_kalibrierung_stehen_in_der_elementliste(browser):
+    # Eigene Seite auf dem modulweiten ``browser`` statt eines zweiten,
+    # verschachtelten ``sync_playwright()``: zwei gleichzeitig offene
+    # Sync-API-Kontexte im selben Thread (hier der ``browser``-Fixture oben,
+    # die bis zum Modulende offen bleibt) wirft zuverlaessig "Sync API
+    # inside the asyncio loop" -- unabhaengig vom Seiteninhalt.
+    page = browser.new_page()
+    page.set_content(_FIXTURE_ZUHOEREN)
+    arten = {e["art"] for e in browser_elemente.extrahiere(page)}
+    page.close()
+    assert {"diskussion", "diskussion_beenden", "kalibrierung_start",
+            "kalibrierung_skip"} <= arten

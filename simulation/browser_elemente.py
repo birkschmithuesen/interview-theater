@@ -29,6 +29,17 @@ _ARTEN = (
     ("ptt", "#ptt"),
     ("nachreichen", "#nachreichen"),
     ("verwerfen", "#verwerfen"),
+    ("diskussion", "#diskussion"),
+    ("diskussion_pause", "#diskussion-pause"),
+    ("diskussion_beenden", "#diskussion-beenden"),
+    ("kalibrierung_start", "#kalibrierung-start"),
+    ("kalibrierung_sprechen", "#kalibrierung-sprechen"),
+    ("kalibrierung_ja", "#kalibrierung-ja"),
+    ("kalibrierung_nein", "#kalibrierung-nein"),
+    ("kalibrierung_versuch", "#kalibrierung-versuch"),
+    ("kalibrierung_weiter", "#kalibrierung-weiter-trotzdem"),
+    ("kalibrierung_nochmal", "#kalibrierung-nochmal-hoeren"),
+    ("kalibrierung_skip", "#kalibrierung-skip"),
     ("link", "a[href]"),
 )
 

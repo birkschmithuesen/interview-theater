@@ -30,3 +30,32 @@ Gemäß Aufgabe 0, Schritt 3 des Plans entfallen damit für diesen Lauf die Aufg
 Messung kein Einbau. Sobald Birk den bezahlten Lauf nachholt (Umgebung mit Zugangsdaten, Aufgabe 4 Steps 2–4
 des Plans), kann dieser Bericht ergänzt und die Aufgaben 5–7 bei bestätigtem Gate „Praemisse bestaetigt"
 nachgezogen werden.
+
+## Entscheidung für Birk
+
+1. **Ranking:** Messung ausstehend (keine Zugangsdaten in der Ausführungsumgebung dieses Laufs). Der Code
+   dafür ist fertig und getestet (`scripts/rauchtest_begriffsboard_resonanz.py`, Aufgabe 3, Commit 8240ec8) —
+   es fehlt nur der bezahlte Lauf selbst (Aufgabe 4, Steps 2–4). Reicht das, oder soll zusätzlich `wunsch` aus
+   dem Zweitaufruf (Arm C) in die Sortierung? — ohne Messung nicht zu beantworten.
+2. **Verhörer:** Messung ausstehend. Optionen, billigste zuerst (unverändert aus dem Plan, Abwägung):
+   - Prompt „Sinn zuerst" statt Mehrheitsregel (Arm D) — kein Zusatzaufruf, aber Prompt-Änderung (Korpus-/
+     Rauchtestlauf danach).
+   - Zweitaufruf kombiniert (Arm C) — Kosten/Latenz je 45-min-Diskussion: ausstehend.
+   - Zweitaufruf nur Verhörer (Arm E) — Kosten/Latenz: ausstehend.
+3. **Empfehlung aus den Zahlen:** Keine Empfehlung möglich — der bezahlte Messlauf hat noch nicht
+   stattgefunden. Vorschlag: `python3.11 -m scripts.rauchtest_begriffsboard_resonanz --arme
+   board,prompt_nur,analyse,verhoerer --modell gespraech` und `--arme analyse,verhoerer --modell erkenner`
+   aus einer Umgebung mit gesetzten `IT_*`-Zugangsdaten nachholen (siehe `docs/betrieb-env.beispiel`),
+   dann `--auswerten --bericht docs/begriffsboard-resonanz/rauchtest-tabellen.md`, danach diesen Bericht
+   mit den echten Zahlen ergänzen.
+4. **Nicht gemessen:** Claude-Weg; weitere Infomaniak-Modelle (Mistral-Small, Ministral, Qwen) —
+   `--modell <name>`, erst nach Freigabe im Konto. Zusätzlich in diesem Lauf: alle Arme und Fälle
+   überhaupt (siehe Punkt 1–3).
+
+| Arm | Modell | (a) | (b) | (c) | (d) | (e) | (f) | (g) | Eingabe-Token Ø | Latenz ms Ø | CHF je 45-min-Diskussion |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | – | Messung ausstehend | | | – | | | | | | |
+| B | – | – | – | – | – | – | – | – | – | – | 0 |
+| C | – | Messung ausstehend | | | – | | | | | | |
+| D | – | – | – | – | – | Messung ausstehend | | | | | |
+| E | – | – | – | – | – | Messung ausstehend | | | | | |

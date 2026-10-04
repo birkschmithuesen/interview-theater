@@ -244,28 +244,28 @@ def test_das_dashboard_zeigt_probleme_und_versteckt_die_technik(dienst):
 
 
 def test_der_arbeitsstand_ohne_doppelten_chatlink_und_mit_lesbarer_festlegung(dienst):
+    """Seit der read-only Werkbank (Padua, 03.10.2026): kein Chat-Link, keine
+    Formulare; die Festlegungen stehen unter Phase 4 ("Also agreed") und
+    bleiben lesbar (Marke und Text kleben nicht aneinander); die Phasennamen
+    sind nicht leiser als der Text darunter."""
     basis, token = dienst
     with sync_playwright() as p:
         browser = p.chromium.launch()
         seite = browser.new_page(viewport=HANDY)
         seite.goto(f"{basis}/g/{token}#stand")
         seite.wait_for_selector("#tab-stand:not([hidden])")
-        assert not seite.locator('#tab-stand a[href$="/chat"]').is_visible()
+        assert seite.locator('#tab-stand a[href$="/chat"]').count() == 0
+        assert seite.locator("#tab-stand [data-feld]").count() == 0
+        seite.locator('#tab-stand details.wb-phase[data-wb-phase="4"] > summary').click()
         marke = seite.locator("#tab-stand .festlegung .marke").first.bounding_box()
         text = seite.locator("#tab-stand .festlegung .marke + span").first.bounding_box()
         assert text["x"] >= marke["x"] + marke["width"] + 4
-        # Was fehlt, steht vor den Formularen.
-        fehlt = seite.locator("#tab-stand ul.fehlstellen").bounding_box()
-        formular = seite.locator("#tab-stand [data-feld]").first.bounding_box()
-        assert fehlt["y"] < formular["y"]
-        # Abschnittsueberschriften sind nicht leiser als der Text (Review an
-        # 2841d83): Textfarbe und Gewicht.
-        h2, absatz = seite.evaluate(
-            """() => [getComputedStyle(document.querySelector('#tab-stand h2')),
+        name, absatz = seite.evaluate(
+            """() => [getComputedStyle(document.querySelector('#tab-stand .wb-name')),
                       getComputedStyle(document.querySelector('#tab-stand'))]
                      .map(s => [s.color, s.fontWeight])""")
-        assert h2[0] == absatz[0], (h2, absatz)
-        assert int(h2[1]) >= 600, h2
+        assert name[0] == absatz[0], (name, absatz)
+        assert int(name[1]) >= 600, name
         browser.close()
 
 

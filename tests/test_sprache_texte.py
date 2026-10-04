@@ -115,6 +115,7 @@ BLEIBT_DEUTSCH = {
     "web_gestalt._CHAT_A": "CSS, nur Kommentare deutsch",
     "web_gestalt._CHAT_B": "CSS, nur Kommentare deutsch",
     "web_gestalt._STAND": "CSS, nur Kommentare deutsch",
+    "web_gestalt._WERKBANK": "CSS, nur Kommentare deutsch",
     "web_gestalt._SKRIPT_A": "CSS, nur Kommentare deutsch",
     "web_gestalt._SKRIPT_B": "CSS, nur Kommentare deutsch",
     "web_gestalt._GESTALT_JS": "JavaScript, Texte kommen aus TEXTE (_mikrotexte)",

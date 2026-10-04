@@ -190,6 +190,16 @@ KONTRAST: tuple[Paar, ...] = (
     Paar("signal", "grund-3", "gewaehlter Tab, gedrueckter Filter; Vorfallart als Text im Dashboard-Log", 4.5),
     Paar("warn", "grund-3", "pausierter Aufnahmeknopf", 4.5),
     Paar("text-leise", "grund-3", "Aufgabe der Aktfolge unter dem Finger", 4.5),
+    # Die Statuspunkte der read-only Werkbank (Padua, 03.10.2026): gefuellt /
+    # Ring / gestrichelt -- die Form traegt den Zustand, die Farbe muss als
+    # Grenze eines grafischen Objekts 3:1 halten (WCAG 1.4.11).
+    Paar("signal", "grund", "Werkbank: Punkt erledigt", 3.0),
+    Paar("warn", "grund", "Werkbank: Ring offen", 3.0),
+    Paar("text-leise", "grund", "Werkbank: gestrichelter Ring spaeter", 3.0),
+    Paar("signal", "grund-2", "Werkbank: Punkt erledigt auf gehobener Flaeche", 3.0),
+    Paar("warn", "grund-2", "Werkbank: Ring offen auf gehobener Flaeche", 3.0),
+    Paar("text-leise", "grund-2", "Werkbank: Ring spaeter auf gehobener Flaeche", 3.0),
+    Paar("auf-signal", "signal", "Werkbank: Haken im erledigt-Punkt", 3.0),
 )
 
 
@@ -439,6 +449,15 @@ def css_dashboard(name: str | None = None) -> str:
     Beamer. Fuer beide Entwuerfe gleich, die Tokens tragen den
     Unterschied."""
     return _DASHBOARD
+
+
+def css_werkbank(name: str | None = None) -> str:
+    """Die read-only Werkbank (Padua, 03.10.2026) -- nur mit
+    ``[web] workbench_bearbeitbar = false``, eingehaengt an EINER Stelle in
+    ``web_vereint.seite`` und dort auf ``.panel-stand`` gescopt. Ohne
+    ``@keyframes``/``@media``. Fuer beide Entwuerfe gleich, die Tokens tragen
+    den Unterschied."""
+    return _WERKBANK
 
 
 #: Der Seitenrahmen. ``body`` steht hier und nicht im gescopten Teil: es
@@ -1269,6 +1288,37 @@ ul.stueckkarte { list-style: none; padding-left: 0; }
 ul.stueckkarte li { margin: .2rem 0; }
 ul.stueckkarte li.offen { color: var(--text-leise); }
 table.anteile th, table.anteile td, table.uebersicht td { border-bottom-color: var(--linie); }
+"""
+#: Die read-only Werkbank (Padua, 03.10.2026, Birk: "Anstatt roter und gruener
+#: LEDs passendere Farben im Design. Dezenter, aber trotzdem klar."). Drei
+#: Punkte, die sich in der FORM unterscheiden: gefuellt mit Haken (erledigt),
+#: Ring (offen), gestrichelter Ring (spaeter). Kein Emoji.
+_WERKBANK = """
+.wb-hinweis { color: var(--text-leise); margin: .2rem 0 1rem; }
+details.wb-phase { border-top: 1px solid var(--linie); padding: .1rem 0; }
+details.wb-phase > summary { display: flex; align-items: center; gap: .6rem;
+                             min-height: var(--tippflaeche); list-style: none;
+                             cursor: pointer; }
+details.wb-phase > summary::-webkit-details-marker { display: none; }
+.wb-name { font-family: var(--schrift-skript); font-weight: 700; color: var(--text); }
+.wb-fertig { color: var(--signal); }
+.wb-zahl { margin-left: auto; color: var(--text-leise);
+           font-family: var(--schrift-tech); font-size: .8rem; }
+ul.wb-zeilen { list-style: none; padding-left: 0; margin: .1rem 0 .6rem; }
+.wb-zeile { display: flex; align-items: baseline; gap: .55rem; padding: .15rem 0; }
+.wb-zeile.wb-spaeter { color: var(--text-leise); }
+.wb-punkt { flex: 0 0 auto; position: relative; top: .1rem; width: .85rem;
+            height: .85rem; border-radius: 50%; box-sizing: border-box; }
+.wb-punkt.wb-erledigt { background: var(--signal); border: 2px solid var(--signal); }
+.wb-punkt.wb-erledigt::after { content: "✓"; position: absolute; inset: 0;
+                               display: flex; align-items: center; justify-content: center;
+                               font-size: .55rem; line-height: 1; color: var(--auf-signal); }
+.wb-punkt.wb-offen { background: transparent; border: 2px solid var(--warn); }
+.wb-punkt.wb-spaeter { background: transparent; border: 2px dashed var(--text-leise); }
+.wb-laeuft { color: var(--text-leise); font-size: .85em; }
+.wb-inhalt { padding: 0 0 .8rem 1.4rem; }
+dl.wb-begriffe dd { margin: 0 0 .3rem; }
+details.wb-journal { margin-top: 1.5rem; font-size: .9em; color: var(--text-leise); }
 """
 #: Was ``web._CSS_TEXTBUCH`` fuer helles Papier gesetzt hat und auf dem
 #: dunklen Grund zu blass wird (Review an 834edbf): ein dunkles Ocker fuer

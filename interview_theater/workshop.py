@@ -232,9 +232,15 @@ VORGABE_WERTE: dict[str, Any] = {
     # ``dashboard_gestaltet`` (P2, Aufgabe 3) gibt dem Dashboard die
     # Gestaltung aus ``web_gestalt`` (Tokens, Fortschritt je Gruppe, Hinweis
     # nur bei einem Problem). Aus heisst auch hier: byte-gleich wie vorher.
+    # ``workbench_bearbeitbar`` (Padua, 03.10.2026): der Arbeitsstand-Tab
+    # ("Workbench") mit Formularen. ``false`` macht ihn zur reinen
+    # Statusansicht (``web.werkbank_koerper``), Aenderungen gehen dann nur
+    # ueber den Chat, und der Werkbank-POST antwortet 403. An ist die Zusage
+    # an Dortmund: Seite und Endpunkt bleiben byte-gleich.
     "web": {
         "dashboard_log_einklappen": False,
         "dashboard_gestaltet": False,
+        "workbench_bearbeitbar": True,
     },
 }
 
@@ -975,6 +981,17 @@ def fragen_ab_aktiv(profil: Profil | None = None) -> bool:
     nicht und bleibt unberuehrt."""
     profil = profil or aktiv()
     return bool(profil.wert("fragen_ab.aktiv", False))
+
+
+def workbench_bearbeitbar(profil: Profil | None = None) -> bool:
+    """Ob der Arbeitsstand-Tab ("Workbench") Formulare traegt und der
+    Werkbank-POST schreibt (Padua, 03.10.2026, Karte t_49e7354c).
+
+    Vorgabe true -- Dortmund setzt die Zeile nicht und bleibt byte-gleich.
+    Padua setzt false: dort ist die Werkbank reine Anzeige, geaendert wird
+    im Chat (Birk: "Workbench reiner Status-Ausspieler")."""
+    profil = profil or aktiv()
+    return bool(profil.wert("web.workbench_bearbeitbar", True))
 
 
 def prueflauf_aktiv(profil: Profil | None = None) -> bool:

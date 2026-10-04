@@ -1469,6 +1469,11 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     zurueck, weil ``TABS`` im Skript ohne ``chat`` ankommt und ``lies()`` in
     ``_VEREINT_JS`` jedes unbekannte Wort auf ``VORGABE`` abbildet."""
     from interview_theater import web, web_chat, web_gestalt
+    from interview_theater import workshop
+
+    # Padua (03.10.2026, read-only Werkbank): ohne Formulare traegt das
+    # Stand-Panel auch kein ``id="nonce"``-Feld mehr -- dann steht es im Chat.
+    werkbank_bearbeitbar = workshop.workbench_bearbeitbar()
 
     titel = daten["titel"] or f"Gruppe {daten['chat_id']}"
     tabs = TABS if chat_vorhanden else tuple(t for t in TABS if t != "chat")
@@ -1496,12 +1501,14 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     if chat_vorhanden:
         # ``mit_nonce=False``: das Stand-Panel traegt sein ``id="nonce"``
         # schon (``_bearbeiten_html``), mit demselben Wert -- ein zweites
-        # Element mit derselben id waere ungueltiges HTML.
+        # Element mit derselben id waere ungueltiges HTML. In Padua
+        # (read-only Werkbank) steht es nur hier.
         # ``mit_gruppenlink=False`` (Fix-Runde 1): der Link fuehrt sonst auf
         # die Seite, auf der er selbst steht (``/g/<token>`` -> ``<token>``).
         panels["chat"] = web_chat.chat_koerper(
             chatdaten, nonce_wert, token, segment_ms,
-            basis=f"{token}/", mit_nonce=False, mit_gruppenlink=False,
+            basis=f"{token}/", mit_nonce=not werkbank_bearbeitbar,
+            mit_gruppenlink=False,
         )
     koerper = [_leiste_html(roadmapdaten, klickbar=chat_vorhanden),
               _tabs_html(vorgabe, tabs, phase4=phase4)]
@@ -1541,6 +1548,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         # Phasenleiste und Tabs aus), aber nur, wo es einen Chat gibt.
         css += web_gestalt.css_interview()
     css += scope_css(web_gestalt.css_stand(), ".panel-stand")
+    if not werkbank_bearbeitbar:
+        css += scope_css(web_gestalt.css_werkbank(), ".panel-stand")
     css += scope_css(web_gestalt.css_textbuch(), ".panel-textbuch")
     # Mobile-App-Shell (03.10.2026) zuletzt von allem: sie gewinnt gegen
     # ``_TABS_A``/``_TABS_B``/``_CSS_CHAT`` per Spezifitaet oder Reihenfolge,
@@ -1585,7 +1594,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     skript += web_gestalt.skript(chat_vorhanden=chat_vorhanden)  # Karte UX: Effekte, zuletzt
     return web._seite(
         f"{titel} — interview-theater", css, "\n".join(koerper),
-        bearbeitbar=True, nachladen=False, skript=skript,
+        bearbeitbar=werkbank_bearbeitbar, nachladen=False, skript=skript,
     )
 
 

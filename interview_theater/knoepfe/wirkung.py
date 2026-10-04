@@ -1088,15 +1088,18 @@ def _wirkung_interviews_fertig(conn, d: Druck) -> str:
             conn, d.chat_id, "interviews_fertig_wunsch_seit", repo._jetzt(),
         )
         offen = len(aufnahme.unausgewertete_interviews(conn, d.chat_id))
-        d.tg.sende(d.chat_id, T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=offen))
+        # Keine Dopplung (Praezedenz Commit 7f0782e, "Knopf-Quittung steht
+        # unter der Nachricht, an der gedrueckt wurde"): der Rueckgabewert
+        # IST die Quittung, ``behandle`` schickt sie via answerCallbackQuery
+        # -- ein zusaetzliches d.tg.sende() hier waere derselbe Text zweimal.
         return T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=offen)
     if schliesse_interviews_ab(conn, d.tg, d.klm, d.e, d.chat_id):
         return T._TEXT_ARBEITSSTAND_HINWEIS
     # Sollte wegen phasen.voraussetzungen[4] nicht vorkommen, wenn
     # unausgewertete_interviews() oben schon leer war -- defensiv trotzdem
-    # wie "noch offen" behandeln statt zu schweigen.
+    # wie "noch offen" behandeln statt zu schweigen. Dieselbe Keine-Dopplung-
+    # Regel wie oben gilt auch hier.
     repo.setze_arbeitsstand(conn, d.chat_id, "interviews_fertig_wunsch_seit", repo._jetzt())
-    d.tg.sende(d.chat_id, T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=0))
     return T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=0)
 
 

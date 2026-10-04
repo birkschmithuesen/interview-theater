@@ -696,6 +696,21 @@ def setze_status(
 
 
 @_gesperrt
+def setze_zu_kurz_uebersprungen(conn: sqlite3.Connection, aufnahme_id: int) -> None:
+    """Markiert ein Interview als wegen Unterschreitung von
+    ``aufnahme.MINDEST_WOERTER`` uebersprungen (N2/Padua Phasen TEIL 2,
+    Befund 4a) -- Grundlage der Phase-4-Sperre in ``aufnahme.
+    unausgewertete_interviews``: ein zu-kurz uebersprungenes Interview wird
+    NIE automatisch verdichtet und darf die Sperre deshalb nicht auf
+    unbestimmte Zeit offenhalten."""
+    conn.execute(
+        "UPDATE aufnahme SET zu_kurz_uebersprungen = 1 WHERE id = ?",
+        (aufnahme_id,),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def setze_transkript(conn: sqlite3.Connection, aufnahme_id: int, text: str) -> None:
     """Traegt das Transkript einer Aufnahme ein."""
     conn.execute(

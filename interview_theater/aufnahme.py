@@ -1517,6 +1517,11 @@ def _zu_kurz_gemeldet(conn, tg, e, row) -> bool:
     if woerter >= MINDEST_WOERTER:
         return False
     repo.setze_status(conn, row["id"], "fertig")
+    # Padua Phasen TEIL 2, Task 1/5 (Befund 4a): ohne dieses Flag blieb ein
+    # zu-kurz uebersprungenes Interview in unausgewertete_interviews() stehen
+    # (status='fertig', aber keine Verdichtung) und sperrte Phase 4 auf
+    # unbestimmte Zeit -- genau der Fall der Padua-Gruppe.
+    repo.setze_zu_kurz_uebersprungen(conn, row["id"])
     _sende_nach_interview(
         conn, tg, e, row["chat_id"],
         T._TEXT_ZU_KURZ.format(
@@ -1845,9 +1850,60 @@ def unausgewertete_interviews(conn, chat_id: int) -> list:
         if not (kopf["transkript"] or "").strip():
             if not repo.zusammengefuegtes_transkript(conn, kopf["id"]).strip():
                 continue
+        # Ein zu-kurz uebersprungenes Interview (``_zu_kurz_gemeldet``, N2)
+        # wird NIE automatisch verdichtet -- und darf die Phase-4-Sperre
+        # deshalb nicht auf unbestimmte Zeit offenhalten (Padua Phasen TEIL
+        # 2, Befund 4a). ``/auswerten`` (das die Verdichtung erzwingt) nimmt
+        # es trotzdem ueber den BESTEHENDEN ``verdichtung_zu_aufnahme is
+        # None``-Zweig unten aus der Liste, sobald die Verdichtung existiert
+        # -- das Flag muss dafuer nicht zurueckgesetzt werden.
+        if kopf["zu_kurz_uebersprungen"]:
+            continue
         if repo.verdichtung_zu_aufnahme(conn, kopf["id"]) is None:
             offen.append(kopf)
     return offen
+
+
+def migriere_zu_kurz_altdaten(conn, chat_id: int | None = None) -> int:
+    """Einmaliger Nachtrag fuer Gruppen, die den Fehler aus Befund 4a schon
+    LIVE erlebt haben (Padua Phasen TEIL 2, Task 5) -- z.B. die echte
+    Padua-Gruppe aus dem Kartentext: vor diesem Fix wurden zu kurze
+    Interviews mit ``status='fertig'`` abgeschlossen, OHNE
+    ``zu_kurz_uebersprungen`` zu setzen, und blieben deshalb in
+    ``unausgewertete_interviews()`` stehen -- die Phase-4-Sperre ging nie
+    wieder auf.
+
+    Findet alle Interview-Koepfe (``klasse='lang'``) mit ``status='fertig'``,
+    ``zu_kurz_uebersprungen = 0``, OHNE Verdichtung und mit einer
+    Transkript-Wortzahl unter ``MINDEST_WOERTER``, optional eingeschraenkt
+    auf eine ``chat_id``, und setzt das Flag nach. Liefert die Anzahl der
+    migrierten Zeilen.
+
+    **Kein automatischer Aufruf beim Start** -- das waere eine versteckte
+    Nebenwirkung auf jede Datenbank. Wird explizit aus einem Skript oder
+    einem Test heraus gerufen (hier: dem Replay-Test gegen die Padua-Kopie)."""
+    if chat_id is not None:
+        chat_ids = [chat_id]
+    else:
+        chat_ids = [
+            z["chat_id"]
+            for z in conn.execute("SELECT DISTINCT chat_id FROM aufnahme").fetchall()
+        ]
+    migriert = 0
+    for cid in chat_ids:
+        for kopf in interviews(conn, cid):
+            if kopf["status"] != "fertig" or kopf["zu_kurz_uebersprungen"]:
+                continue
+            if repo.verdichtung_zu_aufnahme(conn, kopf["id"]) is not None:
+                continue
+            text = (kopf["transkript"] or "").strip()
+            if not text:
+                text = repo.zusammengefuegtes_transkript(conn, kopf["id"]).strip()
+            if not text or len(text.split()) >= MINDEST_WOERTER:
+                continue
+            repo.setze_zu_kurz_uebersprungen(conn, kopf["id"])
+            migriert += 1
+    return migriert
 
 
 def finde_interview(conn, chat_id: int, bezeichnung: str = ""):

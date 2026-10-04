@@ -10,7 +10,7 @@ und /auswerten entgegennimmt.
 
 import pytest
 
-from interview_theater import befehle, phasen, repo
+from interview_theater import befehle, phasen, repo, sprache, workshop
 
 
 class TelegramAttrappe:
@@ -726,3 +726,251 @@ def test_szene_auftrag_mit_dem_wort_usa_ist_keine_einwilligung(conn, einst, tg, 
 
     assert repo.szene_usa_stand(conn, 1) == "offen"
     assert gerufen, "der Auftrag ging an szene.starte"
+
+
+# -- Englische Befehlsaliase fuer das Padua-Profil (Task 1 der A1-Hilfe-Karte) --
+#
+# Dieselbe Fixture wie in tests/test_chat_sprache.py::padua: aktiviert das
+# en-Profil fuer die Dauer des Tests und macht es danach rueckgaengig, damit
+# andere Tests im selben Lauf das Vorgabeprofil (de) sehen.
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    yield
+    workshop.vergiss()
+    sprache.vergiss()
+
+
+#: Je deutschem Befehlswort (ohne "/"): ein Argument, mit dem der Befehl auf
+#: einer FRISCHEN, ansonsten leeren Gruppe eine Antwort gibt, die sich
+#: zwischen DE- und EN-Aufruf vergleichen laesst. Leer, wo der Befehl ohne
+#: Argument auskommt.
+_ALIAS_REST = {
+    "aufnahme": "",
+    "fertig": "",
+    "auswerten": "",
+    "kernthema": "Arriving",
+    "stueck": "rahmen A room, one afternoon",
+    "figur": "Peter entfernen",
+    "szene": "",
+    "stand": "",
+    "wortlaut": "",
+    "hilfe": "",
+    "leitfaden": "",
+    "festlegung": "",
+    "sprache": "",
+}
+
+#: "/fertig"/"/done" brauchen ein laufendes Interview, sonst ist "beendet"
+#: fuer beide Aufrufe gleich leer -- kein aussagekraeftiger Vergleich.
+_ALIAS_SETUP = {
+    "fertig": lambda conn, chat_id: repo.setze_interviewmodus(conn, chat_id, repo._jetzt()),
+}
+
+
+class _Attrappe:
+    """Dieselbe schlanke Attrappe wie oben in dieser Datei, hier nur unter
+    eigenem Namen, damit die parametrisierten Alias-Tests zwei unabhaengige
+    Instanzen anlegen koennen, ohne den Namen ``tg`` (die Fixture) zu
+    ueberschatten."""
+
+    def __init__(self):
+        self.gesendet = []
+
+    def sende(self, chat_id, text, **_kw):
+        self.gesendet.append((chat_id, text))
+        return 9001
+
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe, **_kw):
+        self.gesendet.append((chat_id, text))
+        return 9001
+
+    def beantworte_knopf(self, callback_query_id, text=""):
+        pass
+
+    def entferne_knoepfe(self, chat_id, message_id):
+        pass
+
+
+_ALIAS_PAARE = sorted(befehle._BEFEHL_EN.items())
+
+
+@pytest.mark.parametrize("de,en", _ALIAS_PAARE)
+def test_en_alias_hat_denselben_effekt_wie_de(conn, einst, padua, de, en):
+    """Jedes Paar aus der Alias-Tabelle (``/record``/``/aufnahme`` usw.) auf
+    je einer frischen Gruppe aufgerufen, muss denselben beobachtbaren Effekt
+    haben -- hier: denselben gesendeten Text. Ein frischer ``chat_id`` je
+    Aufruf, sonst beeinflusst der erste Aufruf den Zustand fuer den
+    zweiten (siehe Brief)."""
+    index = _ALIAS_PAARE.index((de, en))
+    chat_de, chat_en = 50000 + index, 60000 + index
+    repo.sichere_gruppe(conn, chat_de, "gruppe1", "DE")
+    repo.sichere_gruppe(conn, chat_en, "gruppe1", "EN")
+    setup = _ALIAS_SETUP.get(de)
+    if setup:
+        setup(conn, chat_de)
+        setup(conn, chat_en)
+    rest = _ALIAS_REST.get(de, "")
+
+    tg_de, tg_en = _Attrappe(), _Attrappe()
+    text_de = f"/{de} {rest}".strip()
+    text_en = f"/{en} {rest}".strip()
+
+    behandelt_de = befehle.behandle(conn, tg_de, einst, chat_de, text_de, "Ada")
+    behandelt_en = befehle.behandle(conn, tg_en, einst, chat_en, text_en, "Ada")
+
+    assert behandelt_de is True
+    assert behandelt_en is True
+    assert tg_de.gesendet, f"/{de} hat nichts gesendet"
+    assert tg_en.gesendet, f"/{en} hat nichts gesendet"
+    assert [t for _, t in tg_de.gesendet] == [t for _, t in tg_en.gesendet]
+
+
+def test_record_und_aufnahme_schalten_beide_interviewmodus_an(conn, einst, padua):
+    chat_record, chat_aufnahme = 11001, 11002
+    repo.sichere_gruppe(conn, chat_record, "gruppe1", "Record")
+    repo.sichere_gruppe(conn, chat_aufnahme, "gruppe1", "Aufnahme")
+
+    befehle.behandle(conn, _Attrappe(), einst, chat_record, "/record", "Ada")
+    befehle.behandle(conn, _Attrappe(), einst, chat_aufnahme, "/aufnahme", "Ada")
+
+    assert repo.hole_gruppe(conn, chat_record)["interviewmodus_seit"] is not None
+    assert repo.hole_gruppe(conn, chat_aufnahme)["interviewmodus_seit"] is not None
+
+
+def test_theme_und_kernthema_setzen_beide_dasselbe_arbeitsstandfeld(conn, einst, padua):
+    chat_theme, chat_kernthema = 12001, 12002
+    repo.sichere_gruppe(conn, chat_theme, "gruppe1", "Theme")
+    repo.sichere_gruppe(conn, chat_kernthema, "gruppe1", "Kernthema")
+
+    befehle.behandle(conn, _Attrappe(), einst, chat_theme, "/theme Arriving", "Ada")
+    befehle.behandle(conn, _Attrappe(), einst, chat_kernthema, "/kernthema Arriving", "Ada")
+
+    assert repo.hole_arbeitsstand(conn, chat_theme)["kernthema"] == "Arriving"
+    assert repo.hole_arbeitsstand(conn, chat_kernthema)["kernthema"] == "Arriving"
+
+
+def test_record_ist_im_standardprofil_ein_unbekannter_befehl(conn, einst, tg):
+    """Ohne Profilwechsel (Dortmund/de) bleibt ``/record`` unbekannt --
+    Beweis, dass das de-Profil unveraendert bleibt."""
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/record", "Ada")
+
+    assert behandelt is True
+    assert not any("Bereit" in t for _, t in tg.gesendet)
+    assert repo.ist_interviewmodus_an(conn, 1) is False
+
+
+def test_scene_form_dialogue_setzt_den_kanonischen_wert(conn, einst, padua, tg):
+    """``/scene 2 form dialogue`` (EN-Alias plus EN-Formwort) setzt
+    ``szene.form`` auf den kanonischen Wert ``dialog`` -- nicht den rohen
+    englischen Text."""
+    befehle.behandle(conn, tg, einst, 1, "/scene 2 form dialogue", "Ada")
+
+    szenen = {s["nummer"]: s for s in repo.hole_szenen(conn, 1)}
+    assert szenen[2]["form"] == "dialog"
+
+
+def test_szene_form_unbekanntes_wort_bleibt_roher_text(conn, einst, tg):
+    """Regressionstest: ein unbekanntes Formwort setzt weiterhin den rohen
+    Text -- das Feld ``szene.form`` ist bewusst frei (die Gruppe entscheidet,
+    nicht der Code)."""
+    befehle.behandle(conn, tg, einst, 1, "/szene 2 form Bewegungsszene", "Ada")
+
+    szenen = {s["nummer"]: s for s in repo.hole_szenen(conn, 1)}
+    assert szenen[2]["form"] == "Bewegungsszene"
+
+
+def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_16():
+    assert befehle._BEKANNTE_BEFEHLE == {
+        "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase",
+        "/kernthema", "/stueck", "/figur", "/szene", "/stand", "/wortlaut",
+        "/hilfe", "/leitfaden", "/festlegung", "/sprache", "/phaseklick",
+    }
+
+
+# ---------------------------------------------------------------------------
+# /hilfe auf Englisch -- berechnet statt uebersetzt (Padua-Karte
+# "Help-Text", Task 3, 03.10.2026). Deutsch bleibt unveraendert (siehe
+# test_chat_sprache.py::test_dortmund_unveraendert) -- hier geht es nur um
+# den neuen, englischen Pfad ueber befehle._hilfetext_en.
+# ---------------------------------------------------------------------------
+
+
+def test_hilfe_englisch_nennt_jede_phase_aus_dem_profil(conn, einst, padua, tg):
+    """Jede Phase aus ``phasen.PHASEN`` (profilbewusst gelesen, nicht
+    hartkodiert) taucht in der englischen Hilfe auf -- sonst waere der Text
+    wieder eine zweite, von Hand gepflegte Liste, die veralten kann."""
+    befehle.behandle(conn, tg, einst, 1, "/hilfe", "Ada")
+
+    text = tg.gesendet[-1][1]
+    for _nummer, kurzname, _satz in phasen.PHASEN:
+        assert kurzname in text
+
+
+def test_hilfetext_folgt_dem_profil_nicht_einer_festen_liste(
+    conn, einst, padua, tg, monkeypatch,
+):
+    """Mutationstest: faelscht den Namen von Phase 7 auf einen alten,
+    heute nicht mehr verwendeten Namen ("Polish" -- das steht nur noch als
+    Alt-Stichwort in ``workshop/padua-2026/phasen.toml``, nie als
+    ``name``) und prueft, dass die Hilfe dem GEFAELSCHTEN Profil folgt.
+    Nur so ist belegt, dass der Text wirklich ``phasen.PHASEN`` zur
+    Aufrufzeit liest, statt zufaellig mit einer fest eingetippten Liste
+    uebereinzustimmen."""
+    from interview_theater import workshop
+
+    echte = workshop.phasenliste()
+    gefaelscht = tuple(
+        (n, "Polish" if n == 7 else k, s) for n, k, s in echte
+    )
+    monkeypatch.setattr(workshop, "phasenliste", lambda *a, **kw: gefaelscht)
+
+    befehle.behandle(conn, tg, einst, 1, "/hilfe", "Ada")
+
+    text = tg.gesendet[-1][1]
+    assert "Polish" in text
+    assert "Stage Version" not in text
+
+
+def test_hilfe_englisch_nennt_tabs_nur_im_web_kanal(conn, einst, padua, tg):
+    """Die Tab-Zeile ("tabs") gehoert nur zum Web-Kanal -- eine
+    Telegram-Gruppe hat keine drei Tabs, dort fuehrt der Hinweis nur in die
+    Irre."""
+    import dataclasses
+
+    from interview_theater import einstellungen
+
+    befehle.behandle(conn, tg, einst, 1, "/hilfe", "Ada")
+    assert "tabs" not in tg.gesendet[-1][1]
+
+    mit_web = dataclasses.replace(einst, kanal=einstellungen.KANAL_WEB)
+    tg2 = TelegramAttrappe()
+    befehle.behandle(conn, tg2, mit_web, 1, "/hilfe", "Ada")
+    assert "tabs" in tg2.gesendet[-1][1]
+
+
+def test_hilfe_englisch_befehlsliste_kommt_aus_t_befehle_liste(conn, einst, padua, tg):
+    """Die Befehlsreferenz ist aus ``T.BEFEHLE_LISTE`` gebaut (Task 2), nicht
+    ein zweites Mal von Hand eingetippt -- ein Stichprobencheck reicht, das
+    Mittel (die Iteration) ist das Tragende, nicht der Wortlaut."""
+    befehle.behandle(conn, tg, einst, 1, "/hilfe", "Ada")
+
+    text = tg.gesendet[-1][1]
+    erster = befehle.T.BEFEHLE_LISTE[0]
+    assert f"/{erster['command']}" in text
+    assert erster["description"] in text
+
+
+def test_hilfe_englisch_ohne_altes_interview_tutorial(conn, einst, padua, tg):
+    """Die alte Telegram-Tutorial-Formulierung ("Tap ...") darf nicht mehr
+    vorkommen -- das war genau Birks Beschwerde (Live-Feedback 03.10.2026
+    22:10): die Hilfe beschrieb ein Vorgehen, das es so nicht mehr gibt."""
+    befehle.behandle(conn, tg, einst, 1, "/hilfe", "Ada")
+
+    text = tg.gesendet[-1][1]
+    assert "Tap" not in text
+    assert "HOW TO DO AN INTERVIEW" not in text

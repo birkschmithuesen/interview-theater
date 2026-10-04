@@ -2078,6 +2078,28 @@ def markiere_brainstorm_reaktion(
 
 
 @_gesperrt
+def markiere_buehnenkarten_lauf(
+    conn: sqlite3.Connection, chat_id: int, seit: str | None,
+) -> None:
+    """Haelt fest, seit wann ein Buehnenkarten-Lauf dieser Gruppe aktiv
+    ist (CoThinker-Statuszeile) -- ``seit=None`` loescht die Markierung,
+    wenn der Lauf endet. Eigene Spalte statt Wiederverwendung von
+    ``brainstorm_reaktion_am``: die Zeile hier beschreibt einen LAUFENDEN
+    Vorgang, nicht eine abgeschlossene Reaktion."""
+    conn.execute(
+        """
+        INSERT INTO arbeitsstand (chat_id, brainstorm_lauf_seit, geaendert_am)
+        VALUES (?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            brainstorm_lauf_seit = excluded.brainstorm_lauf_seit,
+            geaendert_am = excluded.geaendert_am
+        """,
+        (chat_id, seit, _jetzt()),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def hoechste_brainstorm_aufnahme_id(conn: sqlite3.Connection, chat_id: int) -> int:
     """Die hoechste ``aufnahme.id`` eines Brainstorm-Segments dieser Gruppe,
     oder 0, wenn es noch keins gibt -- fuer ``markiere_brainstorm_reaktion``,

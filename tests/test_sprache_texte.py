@@ -133,6 +133,17 @@ BLEIBT_DEUTSCH = {
         "gerechneten Soll-Vergleich fuer tests/test_web_gestalt_tokens.py, "
         "geht nie an die Gruppe"
     ),
+    # Padua-Karte "Help-Text" (Task 3, 03.10.2026): die englische /hilfe ist
+    # seitdem kein uebersetzter Text mehr, sondern befehle._hilfetext_en()
+    # -- ein berechneter, phasenbewusster Pfad (aktuelle Phase, Phasenliste,
+    # T.BEFEHLE_LISTE). _TEXT_HILFE bleibt deshalb ohne englischen
+    # Tabelleneintrag und wird in befehle._hilfetext() nackt gelesen (dort
+    # erlaubt, weil nicht mehr registriert -- siehe NACKT_ERLAUBT oben).
+    "befehle._TEXT_HILFE": (
+        "Englisch ist kein uebersetzter Text mehr, sondern "
+        "befehle._hilfetext_en() -- berechnet aus Phase, Phasenliste und "
+        "Befehlsliste, kein Tabelleneintrag"
+    ),
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit
@@ -383,6 +394,14 @@ def _paare(deutsch, englisch, pfad):
         for k, v in deutsch.items():
             e = englisch[k] if k in englisch else englisch[str(k)]
             if k in ("slug", "command"):
+                if k == "command" and pfad.startswith("befehle.BEFEHLE_LISTE["):
+                    # Birk, 03.10.2026: Padua-Befehle sind Englisch im
+                    # Telegram-Menue -- hier ist "command" bewusst KEIN
+                    # Protokoll mehr, sondern der sichtbare, von Sprache zu
+                    # Sprache verschiedene Befehlsname. Platzhalterpruefung
+                    # unten greift trotzdem (hier ohnehin keine).
+                    yield f"{pfad}.{k}", v, e
+                    continue
                 assert e == v, f"{pfad}.{k} ist Protokoll"
                 continue
             yield from _paare(v, e, f"{pfad}.{k}")

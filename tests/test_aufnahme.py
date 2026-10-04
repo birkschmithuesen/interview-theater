@@ -1756,6 +1756,45 @@ def test_ein_laufender_buehnenkarten_lauf_blockiert_einen_zweiten(conn, tg, eins
     assert len(repo.buehnenkarten(conn, 1)) == 1
 
 
+def _brainstorm_lauf_seit(conn, chat_id: int):
+    zeile = conn.execute(
+        "SELECT brainstorm_lauf_seit FROM arbeitsstand WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    return zeile[0] if zeile else None
+
+
+def test_buehnenkarten_lauf_markiert_db_spalte_waehrend_und_leert_sie_danach(
+    conn, tg, einst, monkeypatch,
+):
+    """CoThinker-Statuszeile (03.10.2026): der Webserver-Prozess erfaehrt vom
+    laufenden Buehnenkarten-Lauf ausschliesslich ueber
+    ``arbeitsstand.brainstorm_lauf_seit`` (Prozessgrenze, siehe AGENTS.md
+    "Weboberflaeche") -- ``brainstorm._LAEUFT`` ist In-Prozess-Speicher des
+    Bots. Dieser Test prueft denselben Weg wie
+    ``test_ein_laufender_buehnenkarten_lauf_blockiert_einen_zweiten``
+    (``threading.Event`` statt Raten), nur fuer die DB-Spalte."""
+    gestartet = threading.Event()
+    weiter = threading.Event()
+
+    def _langsam(*a, **k):
+        gestartet.set()
+        weiter.wait(timeout=2)
+        return ("Karte", "infomaniak")
+
+    monkeypatch.setattr(aufnahme.buehnenkarte, "erzeuge", _langsam)
+    assert _brainstorm_lauf_seit(conn, 1) is None
+    aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+    assert gestartet.wait(timeout=2)
+    assert _brainstorm_lauf_seit(conn, 1) is not None
+    weiter.set()
+    for _ in range(50):
+        if repo.buehnenkarten(conn, 1):
+            break
+        time.sleep(0.02)
+    assert _brainstorm_lauf_seit(conn, 1) is None
+
+
 # -- Leeres Brainstorm-Schlusssegment wird still verworfen (Karte Padua -----
 # Brainstorm, 03.10.2026, Live-Fall: aufnahme 16, 4s, 5 Versuche, dann eine
 # unpassende "verstehe ich nicht"-Meldung im Chat) ---------------------------

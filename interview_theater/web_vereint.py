@@ -1267,6 +1267,34 @@ _VEREINT_JS = """
       .catch(function () {});
   }
   setInterval(ladeBuehne, __NACHLADEN_MS__);
+  // -- CoThinker-Statuszeile: die tickende Dauer -------------------------
+  //
+  // Karte CoThinker-Statuszeile (03.10.2026): der Server schreibt nie eine
+  // Sekundenzahl ins HTML (siehe ``web._cothinker_status_html``), nur
+  // ``data-seit``/``data-tickt`` als Attribute -- sonst saehe ``ladeBuehne``
+  // oben bei jedem Poll einen neuen HTML-String und tauschte das Panel
+  // unnoetig aus. EIN globaler Takt fuers ganze Dokument, nicht je
+  // ``ladeBuehne()``-Lauf neu registriert (das liefe sonst nach jedem
+  // Panel-Tausch als zusaetzlicher, nie wieder geloeschter Timer weiter).
+  function formatiereDauer(sekunden) {
+    sekunden = Math.max(0, Math.floor(sekunden));
+    var min = Math.floor(sekunden / 60);
+    var sek = sekunden % 60;
+    return min + ':' + String(sek).padStart(2, '0');
+  }
+  function tickeCothinkerStatus() {
+    document.querySelectorAll('.co-dauer[data-tickt="1"]').forEach(function (el) {
+      var zeile = el.closest('#cothinker-status');
+      if (!zeile) { return; }
+      var seit = zeile.getAttribute('data-seit');
+      if (!seit) { return; }
+      var start = new Date(seit).getTime();
+      if (isNaN(start)) { return; }
+      var sek = (Date.now() - start) / 1000;
+      el.textContent = ' · ' + formatiereDauer(sek);
+    });
+  }
+  setInterval(tickeCothinkerStatus, 1000);
   zeige(lies());
 })();
 """
@@ -1532,6 +1560,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         )
     css = (
         _CSS_VEREINT
+        + web.CSS_COTHINKER_KEYFRAMES
         + scope_css(web._CSS_GRUPPE, ".panel-stand")
         + scope_css(web._CSS_TEXTBUCH + web._CSS_TEXTBUCH_FASSUNGEN, ".panel-textbuch")
         + scope_css(web._CSS_BUEHNE, ".panel-buehne")

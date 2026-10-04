@@ -2,8 +2,9 @@
 Lauf wie ``simulation/flow_audit_dynamisch.py`` (Schicht 2), aber gegen die
 echten Dienste statt der ``SkriptLLM``-Attrappe: ein echtes
 ``interview_theater.llm.LLM`` (Kimi/gemma ueber Infomaniak) treibt die
-14 Stationen, ein Sonnet-Richter (``simulation.claude.Claude``) urteilt
-anschliessend ueber das ganze Transkript. Dazu kommt Schicht 1
+Stationen, ein Richter (``simulation.claude.Claude``, Code-Default Opus --
+siehe ``RICHTER_MODELL`` unten) urteilt anschliessend ueber das ganze
+Transkript. Dazu kommt Schicht 1
 (``simulation.flow_audit.pruefe()``) in denselben Bericht -- "ein Kommando",
 auch wenn es innerlich drei Schichten zusammenfasst.
 
@@ -13,25 +14,30 @@ auch wenn es innerlich drei Schichten zusammenfasst.
 **Die Wiederverwendung ist der ganze Punkt dieser Karte.** Keine
 Stationslogik wird hier neu geschrieben: ``simulation.flow_audit_dynamisch.
 fuehre_alle_aus(conn, tg, klm, e, chat_id)`` ist die eine Stelle, die alle
-14 Stationen faehrt -- genau dieselbe Funktion, die Schicht 2 mit der
-Attrappe aufruft. Nur ``klm`` ist hier ein echtes ``LLM``-Objekt statt
+Stationen faehrt (14 aus der urspruenglichen Karte t_2cdea48b, Phase 1+2,
+plus 13 aus Task B, t_92f99911, Phase 3+4 -- macht 27) -- genau dieselbe
+Funktion, die Schicht 2 mit der Attrappe aufruft. Nur ``klm`` ist hier ein echtes ``LLM``-Objekt statt
 ``SkriptLLM``; ``tg`` bleibt eine ``TelegramAttrappe`` (dieser Lauf schickt
 keine echten Telegram-Nachrichten, siehe Aufgabenbrief -- nur das
 Gespraechs-/Erkennermodell wird real, der Chat-Transport bleibt simuliert).
 
-**Nur Sonnet** (globale Randbedingung dieser Karte): kein Opus irgendwo.
-``simulation.claude.Claude`` wird in diesem Modul **immer** mit
-``modellname="claude-sonnet-5"`` konstruiert -- nie ueber den
-Vorgabewert (``claude-opus-5``) und nie nur ueber eine Umgebungsvariable,
-die veraltet sein kann. ``Einstellungen.szene_modell`` wird aus demselben
-Grund erzwungen, auch wenn dieser Lauf ``szene.py`` nicht aufruft: kein Feld
-soll je auf ein Opus-Modell zeigen.
+**Die Sonnet-Beschraenkung der urspruenglichen Karte (t_2cdea48b) ist
+aufgehoben** (Birk, 03.10.2026 08:12 auf jener Karte: "Kontingent
+zurueckgesetzt, alles wieder auf Opus"; Task B, t_92f99911, haelt sich
+daran). ``RICHTER_MODELL`` ist deshalb ``None`` -- ``simulation.claude.
+Claude(modellname=None)`` faellt auf seinen eigenen Vorgabewert zurueck
+(``claude.MODELL_VORGABE`` = ``"claude-opus-5"``, ueberschreibbar mit
+``IT_SIM_MODELL``), nicht mehr fest auf Sonnet. ``_baue_einstellungen``
+erzwingt ``szene_modell`` ebenfalls nicht mehr -- dieser Lauf ruft
+``szene.py`` ohnehin nie auf, das Feld bleibt also beim Code-Default
+(``szene_claude.MODELL_VORGABE``, ebenfalls Opus) statt auf ein Modell
+gezwungen zu werden, das dieser Lauf gar nicht braucht.
 
 Die Betriebsdaten kommen aus ``betrieb/gruppe1.env``, geladen NUR fuer diesen
 Prozess und nie ausgegeben (vgl. die historische Referenzimplementierung
 ``.flow_audit_ref/flow_audit_lauf.py``, von der dieses Modul die Form von
 ``_lade_env_datei``/``_baue_einstellungen``/``richte``/``schreibe_bericht``/
-``schreibe_verlaufszeile`` uebernimmt -- mit den heutigen 14 Stationen und
+``schreibe_verlaufszeile`` uebernimmt -- mit den heutigen 27 Stationen und
 Schicht 1 statt der drei Phase-4-7-Sondierungen jenes aelteren Codestands).
 
 **Diese Umgebung hat kein ``betrieb/``** (dieser Worktree ist gitignored
@@ -81,8 +87,10 @@ _ENV_KANDIDATEN = (
     Path("/mnt/HC_Volume_106183673/projekte/interview-theater/betrieb/gruppe1.env"),
 )
 
-#: Keine Opus-Spur irgendwo -- siehe Moduldocstring.
-RICHTER_MODELL = "claude-sonnet-5"
+#: Sonnet-Beschraenkung aufgehoben (Task B, t_92f99911) -- siehe Moduldocstring.
+#: ``None`` laesst ``claude.Claude`` auf seinen eigenen Vorgabewert
+#: (Opus, ueberschreibbar mit ``IT_SIM_MODELL``) zurueckfallen.
+RICHTER_MODELL = None
 
 
 def _lade_env_datei(kandidaten: tuple[Path, ...] | None = None) -> dict:
@@ -151,10 +159,10 @@ def _baue_einstellungen(db_pfad: str, env_werte: dict) -> Einstellungen:
     ``zeitzone`` dazugekommen, alle mit Vorgabewerten, die fuer einen
     Flow-Audit-Lauf unveraendert passen).
 
-    ``szene_modell`` wird auf ``"claude-sonnet-5"`` erzwungen und
-    ``kosten_deckel_chf`` niedrig gehalten (3.0 CHF) -- dieser Lauf ist ein
-    Werkzeug, kein Workshoptag, und kein Feld soll je auf Opus zeigen
-    (globale Randbedingung dieser Karte)."""
+    ``szene_modell`` wird NICHT mehr erzwungen (Task B, t_92f99911 --
+    Sonnet-Beschraenkung der urspruenglichen Karte aufgehoben, siehe
+    Moduldocstring); ``kosten_deckel_chf`` bleibt niedrig gehalten
+    (3.0 CHF) -- dieser Lauf ist ein Werkzeug, kein Workshoptag."""
     return Einstellungen(
         bot_token=env_werte.get("IT_BOT_TOKEN", ""),
         bot_name="flow-audit-lauf",
@@ -168,20 +176,20 @@ def _baue_einstellungen(db_pfad: str, env_werte: dict) -> Einstellungen:
         erkenner_modell=env_werte.get("IT_MODELL_ERKENNER", "google/gemma-4-31B-it"),
         szene_anbieter=env_werte.get("IT_SZENE_ANBIETER", "infomaniak"),
         szene_url=env_werte.get("IT_SZENE_URL", "http://127.0.0.1:28764/v1/messages"),
-        # Globale Randbedingung dieser Karte: kein Opus irgendwo -- auch
-        # nicht in einem Feld, das dieser Lauf selbst nie liest.
-        szene_modell="claude-sonnet-5",
+        # Dieser Lauf ruft szene.py nie auf -- das Feld bleibt beim
+        # Code-Default (szene_claude.MODELL_VORGABE), nicht erzwungen.
+        szene_modell=env_werte.get("IT_SZENE_MODELL"),
         kosten_deckel_chf=3.0,
     )
 
 
 # ---------------------------------------------------------------------------
-# Schicht 3: EIN Sonnet-Urteil ueber das ganze Transkript (alle 14 Stationen).
+# Schicht 3: EIN Richterurteil ueber das ganze Transkript (alle Stationen).
 # ---------------------------------------------------------------------------
 
 RICHTER_SYSTEM = (
     "You are judging a theatre-devising chatbot. The transcript below has "
-    "14 stations; each one was driven by one of two personas, named in its "
+    "27 stations; each one was driven by one of two personas, named in its "
     "'persona' field: Giulia (23, acting student in Padua, English B2, "
     "creative, impatient with forms, brings her own ideas, prefers typing "
     "over tapping buttons) or Priya (first-time chatbot user, unsure of her "
@@ -204,7 +212,7 @@ RICHTER_FRAGEN = (
 
 
 def richte(sondierungen: list[Sondierung]) -> dict:
-    """EIN Sonnet-Aufruf ueber ``Sondierung.als_dict()`` aller Stationen.
+    """EIN Richter-Aufruf ueber ``Sondierung.als_dict()`` aller Stationen.
 
     Ein gescheiterter Richterlauf darf den Bericht nicht reissen -- wie bei
     ``.flow_audit_ref/flow_audit_lauf.py::richte`` wird die Ausnahme
@@ -302,7 +310,7 @@ def schreibe_bericht(
     zeilen.append("\n\n## Schicht 1 -- Befunde\n")
     zeilen.append(flow_audit.befunde_text(schicht1_befunde))
 
-    zeilen.append("\n\n## Richterurteil (Schicht 3, Sonnet)\n")
+    zeilen.append("\n\n## Richterurteil (Schicht 3)\n")
     if "fehler" in richterurteil:
         zeilen.append(f"Richter ist nicht gelaufen: {richterurteil['fehler']}\n")
     else:
@@ -353,6 +361,15 @@ def main(argv: list[str] | None = None) -> int:
         "--bericht", action="store_true",
         help="Markdown-Bericht nach simulation/berichte/ + Verlaufszeile schreiben",
     )
+    ap.add_argument(
+        "--env-pfad", type=Path, default=None,
+        help=(
+            "Abweichende Betriebsdatei statt betrieb/gruppe1.env (Task B, "
+            "t_92f99911: eine zweite Padua-Gruppen-env fuer denselben "
+            "Lauf). Wird NUR an _lade_env_datei() gereicht -- der Inhalt "
+            "wird nie ausgegeben oder geloggt."
+        ),
+    )
     args = ap.parse_args(argv)
 
     # Wirft RuntimeError mit einer fuer einen Betreiber verstaendlichen
@@ -362,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
     # dort ankommen und einen freundlichen Satz ausloesen; ruft jemand
     # dieses Skript direkt auf der Kommandozeile, faengt der
     # ``__main__``-Block unten sie ab.
-    env_werte = _lade_env_datei()
+    env_werte = _lade_env_datei((args.env_pfad,) if args.env_pfad else None)
 
     # Padua ist ein EN-Profil (workshop/padua-2026) -- die Phasentexte und
     # der Basisprompt lesen das Profil erst bei Zugriff (PEP 562
@@ -417,7 +434,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"  {s.hinweis}")
 
-    print("\n=== Richterurteil (Schicht 3, Sonnet) ===")
+    print("\n=== Richterurteil (Schicht 3) ===")
     print(json.dumps(richterurteil, indent=2, ensure_ascii=False))
 
     print("\n=== Schicht 1 (statisch) ===")

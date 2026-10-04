@@ -99,22 +99,40 @@ def test_pflichtwert_liefert_den_wert():
     assert fal._pflichtwert({"IT_LLM_URL": "x"}, "IT_LLM_URL") == "x"
 
 
-def test_baue_einstellungen_erzwingt_sonnet_und_niedrigen_kostendeckel(tmp_path):
+def test_baue_einstellungen_liest_szene_modell_aus_der_env_und_haelt_kostendeckel_niedrig(
+    tmp_path,
+):
+    """Seit Task B (t_92f99911) ist die Sonnet-Beschraenkung der
+    urspruenglichen Karte aufgehoben (Birk: "Kontingent zurueckgesetzt,
+    alles wieder auf Opus") -- ``szene_modell`` wird nicht mehr erzwungen,
+    sondern 1:1 aus der Env uebernommen (hier: auf Opus zeigend, wie die
+    Gruppe es eingestellt hat)."""
     env_werte = {
         "IT_LLM_URL": "https://llm.example/v1/chat/completions",
         "IT_LLM_KEY": "k",
         "IT_LLM_MODELL": "kimi",
-        # Versucht absichtlich, auf Opus zu zeigen -- muss ignoriert werden
-        # (globale Randbedingung dieser Karte: nirgends Opus).
         "IT_SZENE_MODELL": "claude-opus-5",
     }
     e = fal._baue_einstellungen(str(tmp_path / "t.db"), env_werte)
-    assert e.szene_modell == "claude-sonnet-5"
+    assert e.szene_modell == "claude-opus-5"
     assert e.kosten_deckel_chf == 3.0
     assert e.llm_url == env_werte["IT_LLM_URL"]
     assert e.llm_key == env_werte["IT_LLM_KEY"]
     assert e.llm_modell == env_werte["IT_LLM_MODELL"]
     assert e.erkenner_modell == "google/gemma-4-31B-it"  # Vorgabe ohne IT_MODELL_ERKENNER
+
+
+def test_baue_einstellungen_szene_modell_ist_none_ohne_env_wert(tmp_path):
+    """Ohne IT_SZENE_MODELL in der Env bleibt das Feld ``None`` -- der
+    Code-Default (szene_claude.MODELL_VORGABE, Opus) greift erst dort, wo
+    das Feld gelesen wird. Dieser Lauf ruft szene.py ohnehin nie auf."""
+    env_werte = {
+        "IT_LLM_URL": "https://llm.example/v1/chat/completions",
+        "IT_LLM_KEY": "k",
+        "IT_LLM_MODELL": "kimi",
+    }
+    e = fal._baue_einstellungen(str(tmp_path / "t.db"), env_werte)
+    assert e.szene_modell is None
 
 
 def test_baue_einstellungen_wirft_wenn_llm_zugangsdaten_fehlen(tmp_path):
@@ -123,7 +141,7 @@ def test_baue_einstellungen_wirft_wenn_llm_zugangsdaten_fehlen(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# richte -- EIN Sonnet-Aufruf, hier ohne Netz (Claude.json_objekt gepatcht).
+# richte -- EIN Richter-Aufruf, hier ohne Netz (Claude.json_objekt gepatcht).
 # ---------------------------------------------------------------------------
 
 
@@ -131,9 +149,11 @@ def _sondierung(phase=1, station="Test", persona="Giulia", **kw) -> Sondierung:
     return Sondierung(phase=phase, station=station, persona=persona, aktion="tun", **kw)
 
 
-def test_richte_konstruiert_claude_immer_mit_sonnet_nie_opus(monkeypatch):
-    """Selbst wenn eine Umgebungsvariable auf Opus zeigt, muss der Aufruf
-    explizit Sonnet verwenden -- globale Randbedingung dieser Karte."""
+def test_richte_konstruiert_claude_ohne_erzwungenes_modell(monkeypatch):
+    """Seit Task B (t_92f99911) ist die Sonnet-Beschraenkung aufgehoben:
+    ``RICHTER_MODELL`` ist ``None`` -- ``claude.Claude`` faellt auf ihren
+    eigenen Vorgabewert zurueck, der ueber ``IT_SIM_MODELL`` steuerbar
+    bleibt (hier: Opus, der Code-Default)."""
     monkeypatch.setenv("IT_SIM_MODELL", "claude-opus-5")
     gesehen = {}
 
@@ -146,7 +166,7 @@ def test_richte_konstruiert_claude_immer_mit_sonnet_nie_opus(monkeypatch):
 
     ergebnis = fal.richte([_sondierung()])
 
-    assert gesehen["modell"] == "claude-sonnet-5"
+    assert gesehen["modell"] == "claude-opus-5"
     assert ergebnis == {"stationen": []}
     # Die Anleitung an den Richter nennt die Persona -- siehe Aufgabenbrief:
     # "judge from the point of view of BOTH personas where relevant".
@@ -205,7 +225,7 @@ def test_schreibe_bericht_enthaelt_alle_abschnitte_und_zeigt_bekannten_fund_zuer
     assert "## Kontrollen, die gewirkt haben" in text
     assert "## Schicht 1 (statisch) -- Matrix" in text
     assert "## Schicht 1 -- Befunde" in text
-    assert "## Richterurteil (Schicht 3, Sonnet)" in text
+    assert "## Richterurteil (Schicht 3)" in text
 
     # Woertliche Nachricht/Antwort stehen drin (Aufgabenbrief: "showing the
     # persona's exact message and the bot's exact reply verbatim").

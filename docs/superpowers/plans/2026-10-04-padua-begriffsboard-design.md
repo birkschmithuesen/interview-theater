@@ -49,6 +49,13 @@ Bindend, nicht neu verhandeln:
   Token-Kombination neu verwendet, die noch nicht in `web_gestalt.KONTRAST` steht, muss sie dort ergänzt werden
   (WCAG ≥ 4.5 für Fließtext, ≥ 3 für Bedienelement-Ränder). **Diese Erweiterung braucht keine neue Kombination** —
   siehe Begründung in Aufgabe 2 (jede verwendete Kombination steht schon in `KONTRAST`).
+- **Kein CSS-Kommentar direkt vor einer Regel in `web_gestalt._BUEHNE`.** Gefunden während der Ausführung dieser
+  Erweiterung (Aufgabe 2): `web_vereint.scope_css` splittet den Text vor jeder Regel an jedem Komma, bevor es den
+  Scope-Präfix setzt, und entfernt Kommentare dabei bewusst **nicht** vorher. Ein mehrkommahaltiger `/* … */`-Block
+  direkt vor einer Regel reißt den Scope-Präfix von ihrem echten Selektor weg — das traf schon die bestehende
+  `.vorgaenger`-Regel (nur durch Zufall von einer folgenden, kommentarlosen Regel „gerettet"). Erklärprosa für
+  diesen Block gehört deshalb in den Python-`#:`-Kommentar **über** `_BUEHNE = """`, nicht als CSS-Kommentar
+  dazwischen. Siehe Aufgabe 2, Schritt 3 für die vollständige Herleitung.
 - **`--text-leise` nie zusätzlich über `opacity` abdunkeln** — das drückt den Kontrast unter 4.5:1 (bestehende
   Regel, siehe `web_gestalt.py` Kommentar bei `_SKRIPT_FLAECHEN`). Ein „älter/leiser"-Eindruck in der
   Schärfungskette entsteht über **Schriftgröße**, nicht über Opazität.
@@ -332,7 +339,8 @@ EOF
 ### Task 2: Kuratierte Rang-Darstellung und eigenes Schärfungs-Design im CSS
 
 **Files:**
-- Modify: `interview_theater/web_gestalt.py:1331-1348` (`_BUEHNE`)
+- Modify: `interview_theater/web_gestalt.py:1326-1348` (`#:`-Kommentar über `_BUEHNE` plus `_BUEHNE` selbst — die
+  Korrektur in Step 3 unten moved alle Erklärprosa in den Kommentar, siehe dort)
 - Modify: `tests/test_begriffsboard_flip.py` (zwei neue Testfunktionen am Dateiende)
 
 **Interfaces:**
@@ -397,11 +405,34 @@ Expected: FAIL — `'li[data-top="1"]::before' in css` schlägt fehl, die Regeln
 Testfunktion (Hexfarben/verbotene Wörter) PASSt bereits (die bestehende `_BUEHNE` hat keine Hexfarben) — das ist
 in Ordnung, sie ist eine Regressionssicherung für den nächsten Schritt.
 
-- [ ] **Step 3: `_BUEHNE` ersetzen**
+- [ ] **Step 3: Planungsfehler gefunden und korrigiert — dann `_BUEHNE` ersetzen**
 
-In `interview_theater/web_gestalt.py`, die gesamte Konstante `_BUEHNE` (aktuell Zeilen 1331–1348):
+**Vorab:** ein erster Implementierungsversuch dieser Aufgabe fand einen echten Fehler in der ursprünglichen
+Fassung dieses Schritts und stoppte korrekt (NEEDS_CONTEXT, nichts committet) statt ihn zu improvisieren. Der
+Plan-Verfasser hat den Fund nachgerechnet und bestätigt: `web_vereint.scope_css` splittet den Text vor jeder
+Regel an **jedem Komma**, bevor es den Scope-Präfix (`.panel-buehne `) davorsetzt
+(`_REGEL = re.compile(r"([^{}]+)\{([^{}]*)\}")`; Kommentare werden bewusst **nicht** vorher entfernt, siehe
+`scope_css`s Docstring). Ein mehrkommahaltiger `/* ... */`-Kommentar direkt vor einer Regel reißt den
+Scope-Präfix von ihrem echten Selektor weg — `.panel-buehne` landet vor einem Komma-Stück des Kommentartexts,
+nicht vor dem Selektor. **Kein neuer Fehler dieser Aufgabe: er steckte schon in der bestehenden
+`.vorgaenger`-Regel.** Nachgewiesen gegen den committeten Stand `38efeae` (vor dieser Aufgabe): die bestehende
+Testzusage `".panel-buehne .begriffsboard .vorgaenger" in scope_css(...)` bestand bisher nur, weil die direkt
+**folgende**, kommentarlose Regel `.vorgaenger del` zufällig dieselbe Teilzeichenkette als Präfix trägt — die
+`.vorgaenger`-Regel selbst hat nie korrekt gescoped. Die Korrektur: **keine CSS-internen Kommentare mehr
+zwischen/vor den Regeln dieses Blocks** — jede Begründung wandert in den Python-`#:`-Kommentar **oberhalb** von
+`_BUEHNE = """` (außerhalb des Strings, von `scope_css` nie gelesen). Das behebt nebenbei den bestehenden
+`.vorgaenger`-Fehler mit, ohne `scope_css` selbst anzufassen (das ist gemeinsame Infrastruktur für alle Panels
+und ausdrücklich außerhalb dieser Aufgabe).
+
+In `interview_theater/web_gestalt.py`, sowohl der `#:`-Kommentar direkt über `_BUEHNE = """` als auch die
+Konstante selbst (aktuell, zusammen Zeilen 1326–1348):
 
 ```python
+#: Das CoThinker-Panel (Birk, Live-Feedback 03.10.2026 23:10: "CoThinker
+#: ist kaum lesbar. Weisser Hintergrund."). ``web._CSS_BUEHNE`` setzt
+#: ``#buehne-panel .karte``/``.stueckkarte`` fest hell -- dieselbe Luecke
+#: wie bei ``_STAND`` oben, nur nie geschlossen. Scoped auf
+#: ``.panel-buehne`` durch den Aufrufer, wie ``css_stand()``.
 _BUEHNE = """
 #buehne-panel .karte { background: var(--grund-2); color: var(--text);
                        border-color: var(--linie); }
@@ -425,6 +456,32 @@ _BUEHNE = """
 wird vollständig ersetzt durch:
 
 ```python
+#: Das CoThinker-Panel (Birk, Live-Feedback 03.10.2026 23:10: "CoThinker
+#: ist kaum lesbar. Weisser Hintergrund."). ``web._CSS_BUEHNE`` setzt
+#: ``#buehne-panel .karte``/``.stueckkarte`` fest hell -- dieselbe Luecke
+#: wie bei ``_STAND`` oben, nur nie geschlossen. Scoped auf
+#: ``.panel-buehne`` durch den Aufrufer, wie ``css_stand()``.
+#:
+#: Begriffsboard -- Design-Erweiterung (Karte t_cb2c4678, 04.10.2026, Birk:
+#: "richtig gut designt, nicht bloss funktional"). Kein aufklappbares
+#: "Warum" mehr (``web._begriffsboard_html``): eine Zeile zeigt nur noch
+#: den Begriff, Rang und Status tragen allein die vorhandenen
+#: ``data-*``-Attribute. Rang 1-5 (``data-top="1"``, ``begriffsboard.top()``)
+#: bekommt eine Scheinwerfer-Marke (CSS-Counter), der Rest eine Trennlinie
+#: direkt danach (Selektor ``li[data-top="1"] + li:not([data-top="1"])``,
+#: ohne feste Positionszahl). ``status="verworfen"`` bleibt sichtbar, aber
+#: kursiv -- durchgestrichen bleibt allein der Schaerfungskette
+#: (``vorgaenger``) vorbehalten, die ein eigenes, per ``border-left``
+#: abgetrenntes Fach bekommt; das Alter eines Vorgaengers traegt die
+#: Schriftgroesse, nicht die Opazitaet (die wuerde ``--text-leise`` unter
+#: 4,5:1 druecken). **Absichtlich kein CSS-Kommentar zwischen den Regeln
+#: hier drin:** ``web_vereint.scope_css`` splittet den Text vor jeder Regel
+#: an jedem Komma, bevor es den Scope-Praefix setzt -- ein mehrkommahaltiger
+#: ``/* ... */``-Block direkt vor einer Regel reisst den Scope-Praefix von
+#: ihrem echten Selektor weg (gemessen an genau dieser Stelle: die alte
+#: ``.vorgaenger``-Erklaerung hier hatte denselben Fehler und wurde nur
+#: durch die direkt folgende, kommentarlose ``.vorgaenger del``-Regel
+#: "gerettet"). Die Begruendung steht deshalb hier, nicht als CSS-Kommentar.
 _BUEHNE = """
 #buehne-panel .karte { background: var(--grund-2); color: var(--text);
                        border-color: var(--linie); }
@@ -434,20 +491,9 @@ _BUEHNE = """
 .stueckkarte { background: var(--grund-3); }
 .sk-haken { color: var(--text-leise); opacity: 1; }
 .sk-frei { color: var(--text-leise); opacity: 1; }
-/* Begriffsboard -- Design-Erweiterung (Karte t_cb2c4678, 04.10.2026,
-   Birk: "richtig gut designt, nicht bloss funktional"). Kein
-   aufklappbares "Warum" mehr (web._begriffsboard_html): eine Zeile zeigt
-   nur noch den Begriff, Rang und Status tragen allein die vorhandenen
-   data-*-Attribute. Nur Ruhendes hier -- die Bewegung (FLIP) setzt
-   ladeBuehne() per CSSOM und nur ohne prefers-reduced-motion; dieser
-   Block laeuft durch scope_css und bleibt deshalb ohne Medienabfrage,
-   Keyframe-Animation oder eine im CSS gesetzte Uebergangsdauer. */
 .begriffsboard { list-style: none; counter-reset: bbrang; margin: 0; padding: 0; }
 .begriffsboard li { display: flex; align-items: baseline; flex-wrap: wrap;
                      gap: .15rem .6rem; padding: .4rem 0; }
-/* Rang 1-5 (data-top="1", begriffsboard.top()): die Zeilen, die
-   "Take these" tatsaechlich vorschlaegt -- eine Scheinwerfer-Marke mit
-   Nummer, der Begriff groesser und in der Buehnenschrift gesetzt. */
 .begriffsboard li[data-top="1"] { counter-increment: bbrang; }
 .begriffsboard li[data-top="1"]::before {
   content: counter(bbrang); flex: 0 0 auto; width: 1.5rem; height: 1.5rem;
@@ -459,30 +505,13 @@ _BUEHNE = """
   font-family: var(--schrift-skript); font-weight: 700; font-size: 1.1em;
   color: var(--text);
 }
-/* Alles unter der Scheinwerfer-Marke ist die Kandidatenliste, nicht mehr
-   der Vorschlag -- kleiner und stiller, keine eigene Marke. */
 .begriffsboard li:not([data-top="1"]) .begriff {
   font-size: .92em; color: var(--text-leise);
 }
-/* Der Schnitt zwischen Vorschlag und Rest: eine duenne Linie, einmal, am
-   ersten Nicht-Rang-Eintrag direkt NACH dem letzten Rang-Eintrag -- ohne
-   feste Positionszahl, falls das Board (noch) weniger als 5 Vorschlaege
-   hat. */
 .begriffsboard li[data-top="1"] + li:not([data-top="1"]) {
   border-top: 1px solid var(--linie); margin-top: .3rem; padding-top: .75rem;
 }
-/* Verworfen (begriffsboard.STATUS) bleibt auf dem Board sichtbar --
-   "Take these" liest nur top() --, aber kursiv wie eine leise
-   Randnotiz. Durchgestrichen bleibt allein der Schaerfungskette
-   vorbehalten (naechste Regel), damit beide Zeichen Verschiedenes
-   bedeuten. */
 .begriffsboard li[data-status="verworfen"] .begriff { font-style: italic; }
-/* Schaerfungskette (vorgaenger, Karte t_cb2c4678): ein eigenes Fach
-   rechts vom lebenden Begriff, durch einen stillen Steg abgetrennt --
-   "zur Seite geschoben" statt nur angehaengtem Text. Der juengste
-   Vorgaenger steht direkt im Steg, jeder aeltere eine Stufe kleiner --
-   das Alter traegt die Groesse, nicht die Opazitaet (die wuerde
-   --text-leise unter 4.5:1 druecken, siehe Modulkopf). */
 .begriffsboard .vorgaenger { display: inline-flex; align-items: baseline;
                              gap: .35em; margin-left: .5em; padding-left: .5em;
                              border-left: 1px solid var(--linie); }
@@ -491,6 +520,24 @@ _BUEHNE = """
 .begriffsboard .vorgaenger del:not(:first-child) { font-size: .75em; }
 """
 ```
+
+**Zur Kontrolle nach dem Ersetzen** (empfohlen vor Step 4, nicht Teil der Commit-Pflicht):
+
+```bash
+$PY -c "
+import sys; sys.path.insert(0, '.')
+from interview_theater import web_gestalt, web_vereint
+css = web_gestalt.css_buehne()
+g = web_vereint.scope_css(css, '.panel-buehne')
+assert '.panel-buehne .begriffsboard li[data-top=\"1\"]::before' in g
+assert '.panel-buehne .begriffsboard li[data-status=\"verworfen\"] .begriff' in g
+assert '.panel-buehne .begriffsboard .vorgaenger {' in g
+print('scope_css Adjazenz: ok')
+"
+```
+
+Expected: `scope_css Adjazenz: ok` — alle drei Selektoren stehen jetzt direkt hinter `.panel-buehne `, ohne
+dazwischenliegenden Kommentartext (vorher war das nur für den ersten der drei durch Zufall der Fall).
 
 - [ ] **Step 4: Tests laufen lassen, Erfolg bestätigen**
 

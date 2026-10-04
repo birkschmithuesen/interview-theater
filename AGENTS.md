@@ -51,7 +51,7 @@ Module unter `interview_theater/`:
 | `bot.py` | Startroutine, Long-Poll-Schleife, Begrüßung, Warmlaufen, Prozessaufsicht |
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
 | `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, Interviewfluss (kurz/teil/lang) |
-| `begriffsboard.py` | Das Begriffsboard der Phase 1 (04.10.2026, Karte t_4517d4ad): laufend mithören wie der Brainstorm in Phase 4 (`brainstorm.soll_reagieren` **unverändert**, eigene Zähler über `aufnahme.diskussion = 1`, eigene Sperre), ein Schema-Aufruf je qualifizierendem Segment im eigenen Thread (Opus nach Einwilligung, sonst Kimi), Tabelle `begriffsboard` (nur anhängen, letzter Stand gilt). Validiert **im Code**: Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`. **Der Lauf kennt kein `tg`** — keine Chatzeile beim Mithören. Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these"; `schreibe_detail` füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe` (AST-Test `tests/test_begriffe_detail_wege.py`). `detail_zeilen` ist die eine Prompt-Form für `kontext` (Phase 2, ≥ 4) und `fragen_ki`. Seit 04.10.2026 (Karte t_cb2c4678) die **Schärfung**: Pflichtfeld `vorheriger_begriff` im Schema, im Code gegen das bisherige Board geprüft (`validiere(…, bisher)`, `_verkette` — nur ein Begriff, der wirklich verschwand, keine Ähnlichkeitsheuristik); daraus die Kette `vorgaenger` (älteste zuerst, nur am Eintrag, wenn nicht leer, nie im Schema, nie Modelltext). Im CoThinker durchgestrichen (`web._begriffsboard_html`, `data-vorgaenger`), Live-Ranking per FLIP direkt in `ladeBuehne()` (`_VEREINT_JS`: `bbMerke` vor, `bbSpiele` nach dem Panel-Tausch; ohne `ol.begriffsboard` wirkungslos). |
+| `begriffsboard.py` | Das Begriffsboard der Phase 1 (04.10.2026, Karte t_4517d4ad): laufend mithören wie der Brainstorm in Phase 4 (`brainstorm.soll_reagieren` **unverändert**, eigene Zähler über `aufnahme.diskussion = 1`, eigene Sperre), ein Schema-Aufruf je qualifizierendem Segment im eigenen Thread (Opus nach Einwilligung, sonst Kimi), Tabelle `begriffsboard` (nur anhängen, letzter Stand gilt). Validiert **im Code**: Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`. **Der Lauf kennt kein `tg`** — keine Chatzeile beim Mithören. Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these" — **ohne eigenen Schlusslauf** (Birk 04.10.2026 14:50: „Zwischenstand und Endstand müssen nicht anders behandelt werden"): der Ende-Schnitt zählt in `soll_laufen` wie ein Pausenschnitt (dieselbe Schwelle `min_zeichen`, 600; nur ohne Mindestabstand), der Vorschlag zeigt das Board, wie es ist — läuft gerade ein Lauf, wird nach ihm neu entschieden (`merke_falls_laeuft`); `schreibe_detail` füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe` (AST-Test `tests/test_begriffe_detail_wege.py`). `detail_zeilen` ist die eine Prompt-Form für `kontext` (Phase 2, ≥ 4) und `fragen_ki`. Seit 04.10.2026 (Karte t_cb2c4678) die **Schärfung**: Pflichtfeld `vorheriger_begriff` im Schema, im Code gegen das bisherige Board geprüft (`validiere(…, bisher)`, `_verkette` — nur ein Begriff, der wirklich verschwand, keine Ähnlichkeitsheuristik); daraus die Kette `vorgaenger` (älteste zuerst, nur am Eintrag, wenn nicht leer, nie im Schema, nie Modelltext). Im CoThinker durchgestrichen (`web._begriffsboard_html`, `data-vorgaenger`), Live-Ranking per FLIP direkt in `ladeBuehne()` (`_VEREINT_JS`: `bbMerke` vor, `bbSpiele` nach dem Panel-Tausch; ohne `ol.begriffsboard` wirkungslos). |
 | `befehle.py` | Die Slash-Befehle (`_BEKANNTE_BEFEHLE`, zurzeit fünfzehn; acht davon stehen über `setMyCommands` im Menü, `BEFEHLE_LISTE`), laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
@@ -1074,8 +1074,19 @@ es jemand im Chat merkt.
   strukturell keine Chatzeile beim Mithören, wie beim Brainstorm kein
   Gesprächszug und kein Erkenner-Lauf auf dieser Nachricht. Validiert wird im
   Code (Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`), die
-  Tabelle `begriffsboard` nur anhängend. Bei „Discussion done" schlägt der
-  Bot die Top 5 mit EINEM Knopf „Take these" vor; `begriffsboard.schreibe_detail`
+  Tabelle `begriffsboard` nur anhängend. **Das Mithören hat nur Start und
+  Fertig** — der Pause-Knopf (`#diskussion-pause`,
+  `pausiereDiskussion`/`fortsetzeDiskussion`) ist seit dem 04.10.2026
+  entfernt; er setzte bis dahin ebenfalls den Ende-Schnitt und löste damit
+  bei jeder Pause Vorschlag und Verdichtung aus. Interview- und
+  Brainstorm-Pause bleiben. Bei „Discussion done" schlägt der
+  Bot die Top 5 mit EINEM Knopf „Take these" vor — **ohne eigenen
+  Schlusslauf** (Birk 04.10.2026 14:50: „Zwischenstand und Endstand müssen
+  nicht anders behandelt werden"): der Ende-Schnitt zählt in `soll_laufen`
+  wie ein Pausenschnitt (dieselbe Schwelle `min_zeichen`, 600; nur ohne
+  Mindestabstand), der Vorschlag zeigt das Board, wie es ist — läuft gerade
+  ein Lauf, wird nach ihm neu entschieden (`merke_falls_laeuft`);
+  `begriffsboard.schreibe_detail`
   füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe`
   und geht von dort nach Phase 2 und ab Phase 4 in den Prompt
   (`kontext.baue`) sowie in den isolierten `fragen_ki`-Aufruf. **Der
@@ -3594,8 +3605,8 @@ bewusst nicht erledigt, jeweils mit Grund:
   Markierung nicht vor, und der nächste Pausenschnitt über der Schwelle löst
   erneut aus.
 - Der Merkplatz für den Vorschlag lebt im Prozess (wie `vorschlagssperre`):
-  ein Neustart zwischen „Discussion done" und Ende des Schlusslaufs verliert
-  den Vorschlag.
+  ein Neustart zwischen „Discussion done" und Ende des laufenden Laufs
+  verliert den Vorschlag.
 - Das Board fließt nicht in die Bühnenkarten der Phase 4
   (`buehnenkarte._kontext_phasen_1_bis_3`) — nur `begriffe_detail` über
   `kontext.baue`.
@@ -3607,6 +3618,14 @@ bewusst nicht erledigt, jeweils mit Grund:
 - Die Wortzahl „1–3" eines Begriffs (und damit eines Vorgängers) steht im
   Prompt, nicht im Code; der Code garantiert „ein Begriff, früher schon auf
   dem Board".
+- **Endstand = Zwischenstand (t_cb2c4678):** ein Rest unter `min_zeichen`
+  (600 Zeichen ≈ 37 s Rede nach den Erwachsenen-Daten in `brainstorm.py`)
+  nach dem letzten Lauf erreicht das Board nicht — so entschieden (Birk).
+  Ungemessen für Schülerinnen und Schüler.
+- Ohne VAD trägt kein Diskussionssegment einen Schnittgrund: dann gibt es
+  weder Board-Lauf noch Vorschlag noch Verdichtung (vor dieser Karte
+  genauso). Und hat das letzte Teilstück bei „Discussion done" keine Bytes,
+  kommt kein Ende-Schnitt an (`r.onstop`).
 
 Die **Weboberflächen sind gebaut** (`web.py`/`web_daten.py`, siehe
 „Weboberfläche" unten) — und **Szenen werden geschrieben** (`szene.py`, seit

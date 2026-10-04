@@ -1028,8 +1028,6 @@ _TEXT_WERKBANK_NUR_LESEN = "Hier wird nur angezeigt – Änderungen bitte im Cha
 _TEXT_BUEHNE_LEER = "Im Chat sprechen — hier erscheinen die Gedanken."
 #: Das Begriffsboard im CoThinker-Tab (Phase 1, Karte t_4517d4ad).
 _TEXT_BOARD_LEER = "Hier erscheinen die Begriffe, die ihr in der Diskussion nennt."
-_TEXT_BOARD_WARUM = "Warum"
-_TEXT_BOARD_DOPPEL = "Doppelbedeutung: {doppelbedeutung}"
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
@@ -2906,10 +2904,15 @@ def _buehne_alterszeile(erstellt_am: str | None) -> str:
 def _begriffsboard_html(eintraege: list[dict]) -> str:
     """Das Begriffsboard im CoThinker-Tab (Phase 1, Karte t_4517d4ad, D9):
     eine Liste in ``begriffsboard.sortiert``-Ordnung, die Top 5 mit
-    ``data-top="1"``, Begruendung und Doppelbedeutung aufklappbar. Nur
-    funktionales Markup mit ``data-*`` -- die Gestaltung macht die UX-Karte.
-    Kein Zitat (``web_daten.begriffsboard`` laesst es weg), kein
-    ``style=``, kein ``on…=`` (CSP).
+    ``data-top="1"``. Seit der Design-Erweiterung (Karte t_cb2c4678,
+    04.10.2026, Birk: "nicht bloss funktional") zeigt eine Zeile NUR noch
+    den Begriff -- Begruendung, Zitat und Doppelbedeutung bleiben in der
+    Datenbank, stehen aber ohne ``<details>``/``<summary>`` in der Anzeige.
+    Rang, Trennlinie zum Rest und die stille Kursivschrift fuer
+    ``status="verworfen"`` haengen allein an den vorhandenen ``data-*``
+    Attributen -- ``web_gestalt.css_buehne()`` macht daraus das Bild. Kein
+    Zitat (``web_daten.begriffsboard`` laesst es weg), kein ``style=``,
+    kein ``on…=`` (CSP).
 
     Eine Schärfungskette (``vorgaenger``, Karte t_cb2c4678) steht
     durchgestrichen hinter dem Begriff, der jüngste zuerst, und als
@@ -2941,24 +2944,12 @@ def _begriffsboard_html(eintraege: list[dict]) -> str:
             + "</span>"
             if kette else ""
         )
-        teile = []
-        if eintrag.get("begruendung"):
-            teile.append(
-                f'<p data-feld="begruendung">{html.escape(eintrag["begruendung"])}</p>'
-            )
-        if eintrag.get("doppelbedeutung"):
-            teile.append(
-                '<p data-feld="doppelbedeutung">'
-                f'{_t(T._TEXT_BOARD_DOPPEL.format(doppelbedeutung=eintrag["doppelbedeutung"]))}</p>'
-            )
-        mehr = (f'<details><summary>{_t(T._TEXT_BOARD_WARUM)}</summary>{"".join(teile)}</details>'
-                if teile else "")
         zeilen.append(
             f'<li data-begriff="{begriff}" data-status="{html.escape(eintrag["status"])}" '
             f'data-zustimmung="{int(eintrag["zustimmung"])}" '
             f'data-nennungen="{int(eintrag["nennungen"])}"{vorgaenger_merkmal}{top_merkmal}>'
             f'<span class="begriff">{html.escape(eintrag["begriff"])}</span>'
-            f'{vorgaenger_html}{mehr}</li>'
+            f'{vorgaenger_html}</li>'
         )
     return (
         '<div id="buehne-panel" data-ansicht="begriffsboard">'

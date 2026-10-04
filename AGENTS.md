@@ -52,6 +52,7 @@ Module unter `interview_theater/`:
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
 | `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, Interviewfluss (kurz/teil/lang) |
 | `begriffsboard.py` | Das Begriffsboard der Phase 1 (04.10.2026, Karte t_4517d4ad): laufend mithören wie der Brainstorm in Phase 4 (`brainstorm.soll_reagieren` **unverändert**, eigene Zähler über `aufnahme.diskussion = 1`, eigene Sperre), ein Schema-Aufruf je qualifizierendem Segment im eigenen Thread (Opus nach Einwilligung, sonst Kimi), Tabelle `begriffsboard` (nur anhängen, letzter Stand gilt). Validiert **im Code**: Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`. **Der Lauf kennt kein `tg`** — keine Chatzeile beim Mithören. Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these"; `schreibe_detail` füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe` (AST-Test `tests/test_begriffe_detail_wege.py`). `detail_zeilen` ist die eine Prompt-Form für `kontext` (Phase 2, ≥ 4) und `fragen_ki` |
+| `begriffsboard_analyse.py` | Die fokussierte Analyse-Schicht des Begriffsboards (04.10.2026, Karte t_9258d2e9): **ein** Schema-Aufruf mit zwei Fragen — `wunsch` je Boardbegriff (−2…2) und `verhoerer` (STT-Hörfehler nach Sinn, nicht nach Zahl). **Nicht live**: Aufrufer ist allein `scripts/rauchtest_begriffsboard_resonanz.py` (Test `test_kein_live_aufrufer`); ob ein zweiter Live-Aufruf kommt und mit welchem Modell, entscheidet Birk (`docs/begriffsboard-resonanz/BERICHT.md`). EN-Anweisung als Modulkonstante |
 | `befehle.py` | Die Slash-Befehle (`_BEKANNTE_BEFEHLE`, zurzeit fünfzehn; acht davon stehen über `setMyCommands` im Menü, `BEFEHLE_LISTE`), laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
@@ -150,7 +151,7 @@ Versehen).
 |---|---|
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
 | **Dienste** | `llm.py` · `strom.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` · `kosten.py` · `web_grenze.py` |
-| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `begriffsboard.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `begriffsboard.py` · `begriffsboard_analyse.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` |
 | **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` · `web_gestalt.py` |
 
 **Wo man anfängt, je nach Frage:**
@@ -3595,6 +3596,35 @@ bewusst nicht erledigt, jeweils mit Grund:
   (`buehnenkarte._kontext_phasen_1_bis_3`) — nur `begriffe_detail` über
   `kontext.baue`.
 - Die CoThinker-Darstellung ist ungestaltet (`data-*`, UX-Karte).
+
+Die Übergaben der Karte t_9258d2e9 (Begriffsboard-Resonanz, 04.10.2026) —
+offen, jeweils mit Grund:
+
+- **Der fokussierte Zweitaufruf ist gebaut, aber noch nicht gemessen.**
+  `begriffsboard_analyse.analysiere` hat keinen Live-Aufrufer
+  (`interview_theater/begriffsboard_analyse.py`, Test `test_kein_live_aufrufer`);
+  der bezahlte Rauchtest, der ihn gegen das echte Modell misst
+  (`scripts/rauchtest_begriffsboard_resonanz.py`), konnte in diesem Lauf
+  nicht ausgeführt werden (keine Zugangsdaten in der Ausführungsumgebung,
+  siehe `docs/begriffsboard-resonanz/BERICHT.md`, Abschnitt „Ausstehend").
+  Live ja/nein und welches Modell: Birk (Geld, Modellwahl), nach dem
+  nachgeholten Messlauf.
+- **Die Mehrheitsregel für Verhörer im Board-Prompt ist unverändert.** Arm D
+  des Rauchtests misst „Sinn zuerst" nur als String im Skript; eine Änderung
+  an `prompts/begriffsboard.md`/`sprachen/en/prompts/begriffsboard.md` ist
+  Birks Entscheidung auf Grundlage des Berichts.
+- **Resonanz (D4) nicht gebaut.** Der Messlauf vor dem Einbau
+  (`scripts/rauchtest_begriffsboard_resonanz.py`, Aufgabe 4 des Plans) steht
+  aus — ohne ihn kein Gate-Ergebnis und damit kein Einbau (`ohne Messung kein
+  Einbau`, Plan-Vorgabe). Der Plan für den Einbau steht in
+  `docs/superpowers/plans/2026-10-04-padua-begriffsboard-resonanz.md`,
+  Aufgaben 5–7.
+- **Sprachfund nicht gelöst**: das Board-Modell antwortet im EN-Board
+  manchmal deutsch („weather" → „Wetter"); der Rauchtest akzeptiert beides,
+  behoben ist es nicht (eigene Karte).
+- `scripts/rauchtest_begriffsboard_resonanz.py` — **kein Test, läuft nie
+  automatisch, kostet Geld**; Kartendeckel über die Rohdatei
+  `korpus/berichte/begriffsboard_resonanz_roh.jsonl` (gitignored).
 
 Die **Weboberflächen sind gebaut** (`web.py`/`web_daten.py`, siehe
 „Weboberfläche" unten) — und **Szenen werden geschrieben** (`szene.py`, seit

@@ -16,3 +16,5 @@ between three and seven.
 
 Write tightly: the whole overview should come to roughly 1200-1500
 characters once assembled.
+
+Write in English.

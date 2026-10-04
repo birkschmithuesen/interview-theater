@@ -53,6 +53,7 @@ simulation/laeufe/*
 simulation/berichte/*
 !simulation/berichte/.gitkeep
 !simulation/berichte/verlauf.jsonl
+!simulation/berichte/abnahme-p12-*.md
 
 # Padua-Browserlauf (simulation/browser_lauf.py): Rohlaeufe sind gross
 # (Screenshots je Schritt) und koennen Betriebsdetails zeigen -- nur Bericht

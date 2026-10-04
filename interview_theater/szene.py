@@ -983,7 +983,8 @@ KERNPAKET_KOPF = (
 )
 
 
-def _kernpaket_text(conn, chat_id: int, ziel=None) -> str:
+def _kernpaket_text(conn, chat_id: int, ziel=None, *,
+                     zitate_entfernen: bool = False) -> str:
     """Block 2b: die Interviewstellen, die die Gruppe fuer diese Geschichte
     uebernommen hat.
 
@@ -1001,14 +1002,29 @@ def _kernpaket_text(conn, chat_id: int, ziel=None) -> str:
     mehr die globale Kernzitat-Auswahl. Der Unterschied ist der Punkt: eine
     Szene bekommt die Stellen, die zu ihr gehoeren, und keine fremden. Ohne
     Schaerfungen faellt der Code auf die alte Auswahl zurueck (eine Gruppe,
-    die den Umbau nicht mitgemacht hat, verliert nichts)."""
+    die den Umbau nicht mitgemacht hat, verliert nichts).
+
+    **``zitate_entfernen`` (Padua Modellwahl-Nachtrag, 04.10.2026):** mit
+    ``True`` laesst diese Funktion den woertlichen Zitattext (die
+    Interviewstelle selbst) an allen drei Stellen weg, in denen sie eine
+    Zeile mit Anfuehrungszeichen baut -- Thema, Name/Zuordnung und
+    ``begruendung`` bleiben stehen. Das entfernt NICHT den ganzen Zug von
+    Claude: die Entscheidung, ob ein Zug ueberhaupt ueber Claude laeuft,
+    faellt schon vorher und fuer den GANZEN Zug (``nutzer_budget``,
+    ``szene_claude.ist_aktiv``) -- ein zweiter, lokaler Routing-Zweig genau
+    an dieser einen Stelle wuerde der Architektur ("ein Zug, ein Modell")
+    widersprechen. Bewusste Luecke: ``schaerfung.py`` baut mit einem
+    eigenen Mechanismus ebenfalls woertliche Zitate in einen
+    Claude-Prompt -- das bleibt hier unberuehrt (siehe Taskbericht)."""
     zeilen = []
     from interview_theater import kontext
 
     if ziel is not None:
         for eintrag in repo.schaerfungen(conn, chat_id, szene_id=ziel["id"]):
             name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
-            zeile = f'- {name}: {eintrag["thema"]} -- "{eintrag["zitat"]}"'
+            zeile = f'- {name}: {eintrag["thema"]}'
+            if not zitate_entfernen:
+                zeile += f' -- "{eintrag["zitat"]}"'
             if eintrag["begruendung"]:
                 zeile += f" ({eintrag['begruendung']})"
             zeilen.append(zeile)
@@ -1017,10 +1033,12 @@ def _kernpaket_text(conn, chat_id: int, ziel=None) -> str:
                 name = kontext.interviewbezeichnung(
                     conn, chat_id, eintrag["aufnahme_id"]
                 )
-                zeilen.append(
-                    f'- {figur["name"]} ({name}): {eintrag["thema"]} -- '
-                    f'"{eintrag["zitat"]}"'
-                )
+                zeile = f'- {figur["name"]} ({name}): {eintrag["thema"]}'
+                if not zitate_entfernen:
+                    zeile += f' -- "{eintrag["zitat"]}"'
+                if eintrag["begruendung"]:
+                    zeile += f" ({eintrag['begruendung']})"
+                zeilen.append(zeile)
         if zeilen:
             return T.KERNPAKET_KOPF + "\n" + "\n".join(zeilen)
     # Die Zusammenfassung gehoert der Verdichtung, nicht dem Thema: elf
@@ -1037,7 +1055,10 @@ def _kernpaket_text(conn, chat_id: int, ziel=None) -> str:
         zeilen.append(zeile)
     for eintrag in repo.kernzitate(conn, chat_id):
         name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
-        zeile = f'- {name}: "{eintrag["zitat"]}"'
+        if zitate_entfernen:
+            zeile = f"- {name}: (Zitat nicht an Claude uebergeben)"
+        else:
+            zeile = f'- {name}: "{eintrag["zitat"]}"'
         if eintrag["begruendung"]:
             zeile += f" ({eintrag['begruendung']})"
         zeilen.append(zeile)
@@ -1996,10 +2017,16 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
     Chattext: die Gruppe hat davon nichts, das Dashboard alles."""
     nummer = ziel["nummer"] if ziel is not None else nummer_aus_auftrag(auftrag)
     bausteine = _continuity_bloecke(conn, chat_id, nummer)
+    ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id) if e else False
 
     def _bloecke(voll: set[int], chat_anzahl: int, kernpaket_kurz: bool,
                  zitate_kurz: bool) -> dict:
-        kernpaket = _kernpaket_text(conn, chat_id, ziel)
+        zitate_entfernen = (
+            ueber_claude and not workshop.modellwahl_zitate_an_claude_aktiv()
+        )
+        kernpaket = _kernpaket_text(
+            conn, chat_id, ziel, zitate_entfernen=zitate_entfernen
+        )
         if kernpaket_kurz:
             kernpaket = _kernpaket_ohne_begruendungen(kernpaket)
         figuren = _figuren_text(conn, chat_id)
@@ -2027,9 +2054,7 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
             ),
         }
 
-    budget = nutzer_budget(
-        szene_claude.ist_aktiv(e, conn, chat_id) if e else False, system
-    )
+    budget = nutzer_budget(ueber_claude, system)
     voll = {b["nummer"] for b in bausteine}
     text = _zusammen(_bloecke(voll, CHAT_NACHRICHTEN, False, False))
     if schaetze_token(text) <= budget:

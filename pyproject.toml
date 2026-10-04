@@ -26,4 +26,10 @@ markers = [
     # `pytest`-Lauf mit -- dort ueberspringt ihn ein importorskip. Aufruf
     # siehe tests/e2e/README.md.
     "e2e: Browserlauf mit Playwright gegen einen echten Webserver",
+    # Dortmund ist eingefroren (Birk, 04.10.2026): Abnahme laeuft nur noch
+    # an Padua, siehe AGENTS.md ganz oben. Ein Test, der NUR wegen
+    # Dortmund-Verhalten (Profil dortmund-2026, bitgleich-Pruefung) rot
+    # wird, bekommt diesen Marker statt angepasst zu werden. Normaler Lauf
+    # ist `pytest -m "not dortmund"`.
+    "dortmund: Test prueft Dortmund-spezifisches Verhalten, eingefroren seit 04.10.2026",
 ]

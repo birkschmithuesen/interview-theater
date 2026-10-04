@@ -240,7 +240,7 @@ def _sofort_szene(conn, tg, klm, e, chat_id, auftrag, art="szene"):
     # Die Sperre (Pflichtfelder, Sprachprofil) laeuft hier NICHT: der
     # Simulator misst den Szenentext, nicht die Sperre, und seine
     # Netz-Attrappen legen keine Sprachprofile an.
-    if szene_claude.ist_aktiv(e, conn, chat_id):
+    if szene_claude.warnung_angebracht(e, conn, chat_id):
         tg.sende(chat_id, szene._TEXT_WARNUNG_USA)
     try:
         szene.schreibe(conn, tg, klm, e, chat_id, auftrag, art=art)

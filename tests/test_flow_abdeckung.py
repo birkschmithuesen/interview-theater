@@ -7,18 +7,24 @@ sind absichtlich nicht Teil dieser Liste -- eine aeltere Fassung mit
 Phase 3-7 existiert als Referenz unter ``.flow_audit_ref/`` (vor dem
 Phase-1/2-Umbau geschrieben) und ist nicht mehr gueltig.
 
-Diese Suite haelt vier Dinge fest:
+Diese Suite haelt fuenf Dinge fest:
 
 1. Die Erwartungsliste deckt genau {1, 2} ab, nicht mehr und nicht weniger.
 2. Keine ``geist``-Befunde: jeder in der Liste genannte Intent/Knopf
    existiert im heutigen Code.
-3. Die zwei bekannten "roten" Befunde im heutigen Stand -- beide ein
-   dokumentierter blinder Fleck der Schicht-1-Pruefung (sie kennt nur
-   Erkenner-Intents und ART_*-Knoepfe als Chat-Mechanismus, Phase 2 hat
-   aber zwei echte Chat-Wege ausserhalb davon: einen Markerblock des
-   Gespraechsmodells und eine deterministische Text-Weiche ohne
-   Modellaufruf), kein echter Dialog-Dead-End.
-4. Die Mutationsprobe: ein heute funktionierender Intent verschwindet per
+3. Die zwei ehemals bekannten "roten" Befunde sind seit dem ``code_pfad``-
+   Feld (dritter, verifizierter Chat-Mechanismus ausserhalb von
+   Erkenner-Intent und ART_*-Knopf -- ein Markerblock des
+   Gespraechsmodells bzw. eine deterministische Text-Weiche ohne
+   Modellaufruf) kein Befund mehr: ``pruefe()`` meldet fuer den heutigen
+   Stand ueberhaupt keine ``sackgasse``/``toter_gespraechsweg``-Zeile.
+4. Das ``code_pfad``-Feld selbst: eine Zeile mit gesetztem ``code_pfad``
+   erzeugt keinen roten Befund, auch wenn weder Intent noch Knopf greifen;
+   ``code_pfad`` erscheint transparent in ``matrix_text`` statt eines
+   stillen ``--``; und eine ``geist``-Pruefung feuert nicht auf
+   ``code_pfad`` (es wird nicht gegen ein Frozenset aus dem Code
+   validiert -- das ist die dokumentierte Grenze dieses Feldes).
+5. Die Mutationsprobe: ein heute funktionierender Intent verschwindet per
    Monkeypatch aus dem echten ``erkenner.ARTEN``, und ``pruefe()`` (ohne
    explizite Parameter, also gegen den echten, mutierten Modulzustand)
    meldet daraufhin einen ``toter_gespraechsweg``. Das ist der Beweis, dass
@@ -61,46 +67,113 @@ def test_begriffe_setzen_deckt_auch_die_begriffsboard_korrektur_per_chat_ab():
     assert betroffen == []
 
 
-def test_zwei_bekannte_rote_befunde_sind_dokumentierte_schicht1_blinde_flecken():
-    """Schicht 1 kennt nur zwei Chat-Mechanismen: einen Erkenner-Intent oder
-    einen Knopf. Phase 2 hat im Padua-A/B-Fragenfluss zwei echte, lebende
-    Chat-Wege ausserhalb davon:
-
-    - ``knoepfe.fragen.uebernimm_eigene`` wird ausschliesslich aus einem vom
-      GESPRAECHSMODELL selbst erzeugten Markerblock ('VORSCHLAG EIGENE
-      FRAGEN:') gefuettert, abgefangen in
-      ``knoepfe/basis.py::sende_mit_speicherleiste`` -- kein Erkenner-Lauf,
-      kein Knopf. Die mechanische Pruefung sieht weder Intent noch Knopf und
-      meldet 'sackgasse', obwohl das der EINZIGE und voll funktionsfaehige Weg
-      ist, eigene Fragen beizutragen.
-    - ``knoepfe.fragen.nimm_offene_frage_text`` (aufgerufen aus
-      ``ablauf.py::_war_die_erwartete_antwort``) ist eine deterministische
-      Text-Weiche OHNE Erkenner-Lauf fuer Annehmen/Verwerfen/Schaerfen
-      waehrend 'Fragen einzeln durchgehen'. Es gibt dafuer auch Knoepfe
-      (ART_FRAGE_ANNEHMEN/_VERWERFEN/_SCHAERFEN) -- die Pruefung sieht also
-      ``hat_knopf=True``, ``hat_intent=False`` und meldet
-      'toter_gespraechsweg', obwohl der Chat-Weg nachweislich funktioniert.
-
-    Beide sind in ``simulation/flow_erwartungen.toml`` mit einem
-    ausfuehrlichen ``beleg`` als genau dieser blinde Fleck dokumentiert, kein
-    echter Dialog-Dead-End. Steigt die Zahl der roten Befunde ueber diese
-    zwei bekannten, oder verschiebt sich die betroffene Aktion, gehoert ein
-    Blick in den Bericht dazu, statt die Zahl stillschweigend hochzusetzen.
-    Verschwinden beide (z. B. weil Schicht 1 um einen dritten Mechanismus
-    erweitert wird), ist dieser Test bewusst anzupassen."""
+def test_keine_roten_befunde_im_heutigen_stand():
+    """Die beiden ehemals bekannten blinden Flecken dieser Schicht --
+    ``uebernimm_eigene`` (Phase 2, 'eigene Fragen beitragen') und
+    ``nimm_offene_frage_text`` (Phase 2, 'Fragen einzeln durchgehen') --
+    tragen seit dem ``code_pfad``-Feld ihren jeweils dritten, verifizierten
+    Chat-Mechanismus explizit in ``flow_erwartungen.toml``. ``pruefe()``
+    behandelt eine solche Zeile als erfuellt: der heutige Stand liefert
+    ueberhaupt keinen ``sackgasse``/``toter_gespraechsweg``-Befund mehr.
+    Taucht hier wieder ein roter Befund auf, ist das jetzt ein echtes
+    Signal -- kein bekannter blinder Fleck."""
     befunde = flow_audit.pruefe()
     rote = [b for b in befunde if b.schwere in ("sackgasse", "toter_gespraechsweg")]
-    assert len(rote) == 2
+    assert rote == []
 
-    sackgassen = [b for b in rote if b.schwere == "sackgasse"]
-    assert len(sackgassen) == 1
-    assert "eigene Fragen" in sackgassen[0].aktion
-    assert sackgassen[0].phase == 2
 
-    tote_wege = [b for b in rote if b.schwere == "toter_gespraechsweg"]
-    assert len(tote_wege) == 1
-    assert "einzeln durchgehen" in tote_wege[0].aktion
-    assert tote_wege[0].phase == 2
+def test_code_pfad_zeilen_erzeugen_keinen_befund_und_keinen_geist():
+    """Die zwei Zeilen mit ``code_pfad`` im echten ``flow_erwartungen.toml``
+    duerfen in keiner Befundart auftauchen -- auch nicht als ``geist``:
+    ``code_pfad`` ist Freitext und wird nie gegen ein Frozenset aus dem Code
+    geprueft (siehe Modul-Docstring, 'Bekannte Grenze von code_pfad')."""
+    handlungen = flow_audit.lade_erwartungen()
+    code_pfad_zeilen = [h for h in handlungen if h.code_pfad]
+    assert len(code_pfad_zeilen) == 2
+    aktionen = {h.aktion for h in code_pfad_zeilen}
+    assert any("eigene Fragen" in a for a in aktionen)
+    assert any("einzeln durchgehen" in a for a in aktionen)
+
+    befunde = flow_audit.pruefe()
+    betroffen = [
+        b for b in befunde
+        if "eigene Fragen" in b.aktion or "einzeln durchgehen" in b.aktion
+    ]
+    assert betroffen == []
+
+
+def test_code_pfad_rendert_transparent_in_matrix_text():
+    """Eine ``code_pfad``-Zeile soll im Bericht sichtbar bleiben, WARUM sie
+    kein Befund ist -- ``matrix_text`` zeigt den Wert statt eines stillen
+    ``--``."""
+    text = flow_audit.matrix_text()
+    assert "Code-Pfad" in text
+    assert "knoepfe.fragen.uebernimm_eigene" in text
+    assert "knoepfe.fragen.nimm_offene_frage_text" in text
+
+
+def test_code_pfad_ohne_intent_und_knopf_erzeugt_keinen_befund():
+    """Mechanismus-Probe direkt gegen ``pruefe()``, unabhaengig von der
+    echten TOML-Datei: eine Handlung mit ``weg='chat'``, leerem Intent,
+    leerem Knopf, aber gesetztem ``code_pfad`` ist kein Befund -- das ist
+    die neue dritte Spalte der Pruefung, nicht nur ein Zufall der
+    bestehenden zwei Zeilen."""
+    handlung = flow_audit.Handlung(
+        phase=2, aktion="Testhandlung ueber einen dritten Mechanismus",
+        weg="chat", intent="", knopf="", beleg="Testbeleg",
+        code_pfad="irgendein_modul.irgendeine_funktion (frei erfundener Testpfad)",
+    )
+    befunde = flow_audit.pruefe(
+        handlungen=[handlung],
+        intents=flow_audit.bekannte_intents(),
+        knoepfe=flow_audit.bekannte_knoepfe(),
+    )
+    assert befunde == []
+
+
+def test_code_pfad_mit_weg_beides_und_echtem_knopf_erzeugt_keinen_befund():
+    """Derselbe Fall wie oben, aber mit ``weg='beides'`` und einem echten
+    Knopf (wie bei ``nimm_offene_frage_text``) -- ohne ``code_pfad`` waere
+    das ein ``toter_gespraechsweg`` (Knopf wirkt, Intent fehlt), mit
+    ``code_pfad`` ist es keiner."""
+    echter_knopf = next(iter(flow_audit.bekannte_knoepfe()))
+    handlung = flow_audit.Handlung(
+        phase=2, aktion="Testhandlung mit Knopf und drittem Mechanismus",
+        weg="beides", intent="", knopf=echter_knopf, beleg="Testbeleg",
+        code_pfad="irgendein_modul.irgendeine_funktion (frei erfundener Testpfad)",
+    )
+    befunde = flow_audit.pruefe(
+        handlungen=[handlung],
+        intents=flow_audit.bekannte_intents(),
+        knoepfe=flow_audit.bekannte_knoepfe(),
+    )
+    assert befunde == []
+
+
+def test_code_pfad_befreit_nicht_von_der_geist_pruefung_des_eigenen_knopfs():
+    """``code_pfad`` befreit nur von ``sackgasse``/``toter_gespraechsweg``,
+    nicht von der ``geist``-Pruefung eines Intent- oder Knopf-Feldes, das
+    DANEBEN in derselben Zeile steht: nennt eine Zeile einen nicht mehr
+    existierenden Knopf, bleibt das ein ``geist``-Befund, auch wenn
+    ``code_pfad`` gesetzt ist."""
+    handlung = flow_audit.Handlung(
+        phase=2, aktion="Testhandlung mit veraltetem Knopf",
+        weg="beides", intent="", knopf="ART_DAS_GIBT_ES_NICHT_MEHR",
+        beleg="Testbeleg",
+        code_pfad="irgendein_modul.irgendeine_funktion (frei erfundener Testpfad)",
+    )
+    befunde = flow_audit.pruefe(
+        handlungen=[handlung],
+        intents=flow_audit.bekannte_intents(),
+        knoepfe=flow_audit.bekannte_knoepfe(),
+    )
+    geister = [b for b in befunde if b.schwere == "geist"]
+    assert len(geister) == 1
+    assert "ART_DAS_GIBT_ES_NICHT_MEHR" in geister[0].was_fehlt
+    # Und trotz des veralteten Knopfs kein sackgasse/toter_gespraechsweg,
+    # weil code_pfad den dritten Mechanismus belegt.
+    rote = [b for b in befunde if b.schwere in ("sackgasse", "toter_gespraechsweg")]
+    assert rote == []
 
 
 def test_direkter_interviewstart_und_phasenwechsel_per_chat_sind_kein_befund():

@@ -22,6 +22,10 @@ bestehenden Szenen-Schalter): Phase 1 (Diskussionsverdichtung), Phase 2
 unabhaengig von der Einwilligung: dort stecken die Rohdaten der
 interviewten Personen, und diese eine Ausnahme ist nicht verhandelbar.
 
+Padua kann die Einwilligungsfrage per Profilschalter
+(``workshop.modellwahl_einwilligung_aktiv``) ganz abschalten; Dortmund und
+das Vorgabeprofil bleiben unveraendert (Einwilligung weiterhin noetig).
+
 ``szene_claude.ist_aktiv`` traegt genau diese zwei Bedingungen (Schalter +
 Zustimmung) bereits -- fuer Szene, Kurzgeschichte, Szenenfolge,
 Stueckpruefung und die Buehnenkarten (Brainstorming-Sparring) reicht das, sie

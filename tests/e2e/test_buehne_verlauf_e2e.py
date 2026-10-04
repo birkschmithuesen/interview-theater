@@ -65,6 +65,7 @@ CHAT_HOERT = 8_100_000_000_005        # keine Karten, Aufnahme "empfangen"
 CHAT_EINE_KARTE = 8_100_000_000_006   # genau eine Karte (kein Nav)
 CHAT_NAV_HANDY = 8_100_000_000_007    # 4 Karten, eigene Kopie fuer den
 CHAT_NAV_LAPTOP = 8_100_000_000_008   # Screenshot-Lauf je Bildschirmgroesse
+CHAT_HINTERGRUND = 8_100_000_000_009  # Karte entsteht, waehrend der Chat-Tab vorn ist
 
 HANDY = {"width": 390, "height": 844}
 GEDULD = 8000
@@ -128,6 +129,9 @@ def _baue_datenbank() -> dict:
 
     tokens["nav_laptop"] = _lege_gruppe(conn, CHAT_NAV_LAPTOP, "gruppe-nav-laptop", "Die Laptopgruppe")
     _vier_karten(conn, CHAT_NAV_LAPTOP)
+
+    tokens["hintergrund"] = _lege_gruppe(conn, CHAT_HINTERGRUND, "gruppe-hintergrund", "Die Abwesenden")
+    repo.lege_buehnenkarte_an(conn, CHAT_HINTERGRUND, "Erste.", "infomaniak")
 
     conn.commit()
     conn.close()
@@ -397,6 +401,30 @@ def test_auf_aktuell_zieht_ein_poll_automatisch_nach(server, browser, tokens, co
         assert _zaehler(seite) == "5/5"
         assert seite.locator('#buehne-nav [data-v="live"]').count() == 0
         assert seite.locator("#buehne-nav .neu").count() == 0
+    finally:
+        kontext.close()
+
+
+# -- 6b. Karte entsteht bei verborgenem Panel (Birk Live-Test 04.10.2026) ---
+#
+# Frueher merkte sich ``ladeBuehne`` den Stand auch dann als "gezeigt", wenn
+# das Panel verborgen war -- nach dem Oeffnen tauschte kein Takt mehr, das
+# Panel blieb bis zum Reload auf dem alten (oft leeren) Stand.
+
+def test_karte_im_hintergrund_erscheint_nach_dem_oeffnen_ohne_reload(server, browser, tokens, conn):
+    kontext, seite = _oeffne(browser, tokens["hintergrund"])
+    try:
+        assert seite.evaluate("document.body.dataset.tab") != "buehne"
+        repo.lege_buehnenkarte_an(conn, CHAT_HINTERGRUND, "Zweite.", "infomaniak")
+        conn.commit()
+        assert _warte(
+            seite,
+            lambda: seite.get_attribute('.tabs button[data-tab="buehne"]', "data-neu") == "1",
+            ms=web_vereint.NACHLADEN_MS + 6000,
+        )
+        _zur_buehne(seite)
+        # Sofort beim Oeffnen geholt -- deutlich unter einem Nachladetakt.
+        assert _warte(seite, lambda: _tafel(seite) == "Zweite.", ms=4000)
     finally:
         kontext.close()
 

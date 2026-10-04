@@ -1119,6 +1119,9 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     if (name === 'buehne') {
       var buehneKnopf = document.querySelector('.tabs button[data-tab="buehne"]');
       if (buehneKnopf) { delete buehneKnopf.dataset.neu; }
+      // Beim Oeffnen sofort frisch holen, nicht bis zum naechsten Takt
+      // (bis zu NACHLADEN_MS) einen veralteten Stand zeigen.
+      if (typeof ladeBuehne === 'function') { ladeBuehne(); }
     }
   };
   var setze = function (name) {
@@ -1694,8 +1697,14 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
         var doc = new DOMParser().parseFromString(text, 'text/html');
         var neu = doc.body ? doc.body.innerHTML : null;
         if (!neu || neu === buehneLetzter) { return; }
-        buehneLetzter = neu;
+        // Bug Birk Live-Test 04.10.2026 ("CoThinker leer bis Reload"):
+        // ``buehneLetzter`` stand frueher VOR dieser Weiche -- ein Stand, der
+        // bei verborgenem Panel ankam, galt damit als "schon gezeigt", und
+        // nach dem Oeffnen fand jeder weitere Takt ``neu === buehneLetzter``
+        // und tauschte nie. ``buehneLetzter`` heisst "steht im Panel", wird
+        // also NUR gesetzt, wenn wirklich eingesetzt wurde.
         if (!panel.hidden) {
+          buehneLetzter = neu;
           // Der Verlaufszeiger lebt NUR im Browser (s.o.): ein frischer
           // Serverstand bringt nur mit, was neu dazukam, verschiebt ``pos``
           // aber nie selbst (``buehneUebernehmen``).
@@ -2975,7 +2984,12 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       var MIN_SPEECH_MS = parseInt(fuss.dataset.vadMinSpeechMs, 10) || 500;
       var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
       var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
-      var BODEN_FENSTER = Math.ceil(5000 / 120);
+      // Erkennungstakt der RMS-Messung (Birk 04.10.2026: Latenz zwischen
+      // echtem Rede-/Pausenbeginn und Erkennung soll kleiner werden) --
+      // von 120ms auf 60ms halbiert, BODEN_FENSTER unten bleibt dieselbe
+      // Zeitspanne (~5s), nur mit doppelt so vielen Messpunkten.
+      var VAD_TAKT_MS = 60;
+      var BODEN_FENSTER = Math.ceil(5000 / VAD_TAKT_MS);
       // Deckel auf den Rauschboden, nicht aus CoThinker, sondern gegen eine
       // gemessene Falle gesetzt (siehe Kommentar im Takt unten): ohne ihn
       // zieht eine durchgehend laute Aufnahme den Boden auf ihre eigene
@@ -3032,7 +3046,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
         pegelFeld.classList.toggle('ueber-schwelle', rms > schwelle);
         var jetzt = Date.now();
         if (rms > schwelle) {
-          sitzung.vadSpeechMs += 120;
+          sitzung.vadSpeechMs += VAD_TAKT_MS;
           sitzung.vadLetzteRede = jetzt;
         }
         if (!sitzung.recorder) { return; }
@@ -3051,7 +3065,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
         // Segment getragen", ohne Audio-Bytes ueber zwei MediaRecorder-
         // Instanzen hinweg zusammenfuegen zu muessen, was keine einzelne
         // dekodierbare Datei mehr ergaebe).
-      }, 120);
+      }, VAD_TAKT_MS);
     } catch (e) { /* ohne Pegel geht es auch -- dann der feste Takt (Rueckfall unten) */ }
   }
 
@@ -3145,11 +3159,16 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     if (interviewPauseKnopf) {
       interviewPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
     }
-    // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ist PTT
-    // ausgeblendet (Birk, Punkt 2): zwei Mikrofone gleichzeitig sind keine
-    // Bedienung, und eine Pause ist weiterhin "Modus an". Dieselbe
-    // Zusammenfuehrung wie bei interviewKnopf.disabled oben.
-    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn; }
+    // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ODER
+    // sobald Brainstorm/Diskussion angeboten wird (nicht erst wenn sie
+    // LAEUFT) ist PTT ausgeblendet (Birk 04.10.2026: zwei sichtbare
+    // Mikrofon-Knoepfe gleichzeitig sind keine Bedienung -- entweder/oder,
+    // Befehle gehen dann nur noch ueber das Textfeld). Die Klassen-Formel
+    // fuer den Interview-Nebenknopf wird erst drei Zeilen weiter unten
+    // gesetzt -- deshalb hier dieselbe Prosa noch einmal, nicht die
+    // Variable selbst (Reihenfolge der Aufrufe).
+    var nebenAngeboten = !!zustand.brainstormErlaubt || !!zustand.diskussionErlaubt;
+    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn || nebenAngeboten; }
     // Beide Anzeigen bleiben im selben Takt synchron, egal welche der
     // beiden Funktionen zuerst gerufen wurde.
     zeigeBrainstormModus();

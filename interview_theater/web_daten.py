@@ -1405,7 +1405,9 @@ def begriffsboard(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     Phase 1, Karte t_4517d4ad) -- sortiert wie der Top-5-Vorschlag
     (``begriffsboard.sortiert``) und OHNE ``zitat``: auf der Seite steht kein
     Zitat aus dem Mitschnitt (AGENTS.md, "Drei Grenzen"). Fehlt die Tabelle
-    (Deploy vor Bot-Neustart), eine leere Liste."""
+    (Deploy vor Bot-Neustart), eine leere Liste.
+
+    ``vorgaenger`` (nur Begriffswortlaut, Karte t_cb2c4678) geht mit."""
     try:
         zeile = conn.execute(
             "SELECT json FROM begriffsboard WHERE chat_id = ? ORDER BY id DESC LIMIT 1",

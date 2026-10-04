@@ -2909,7 +2909,12 @@ def _begriffsboard_html(eintraege: list[dict]) -> str:
     ``data-top="1"``, Begruendung und Doppelbedeutung aufklappbar. Nur
     funktionales Markup mit ``data-*`` -- die Gestaltung macht die UX-Karte.
     Kein Zitat (``web_daten.begriffsboard`` laesst es weg), kein
-    ``style=``, kein ``on…=`` (CSP)."""
+    ``style=``, kein ``on…=`` (CSP).
+
+    Eine Schärfungskette (``vorgaenger``, Karte t_cb2c4678) steht
+    durchgestrichen hinter dem Begriff, der jüngste zuerst, und als
+    ``data-vorgaenger`` am ``<li>`` -- für die FLIP-Zuordnung im Browser
+    (``ladeBuehne()`` in ``web_vereint._VEREINT_JS``)."""
     from interview_theater import begriffsboard as _begriffsboard
 
     if not eintraege:
@@ -2923,6 +2928,19 @@ def _begriffsboard_html(eintraege: list[dict]) -> str:
         begriff = html.escape(eintrag["begriff"], quote=True)
         top_merkmal = (' data-top="1"'
                        if _begriffsboard.schluessel(eintrag["begriff"]) in oben else "")
+        kette = eintrag.get("vorgaenger") or []
+        vorgaenger_merkmal = (
+            f' data-vorgaenger="{html.escape(kette[-1], quote=True)}"' if kette else ""
+        )
+        # Der juengste Vorgaenger steht direkt neben dem neuen Begriff (D2,
+        # Karte t_cb2c4678); der Pfeil kommt aus dem CSS
+        # (``web_gestalt.css_buehne``), nie aus einem style-Attribut.
+        vorgaenger_html = (
+            '<span class="vorgaenger">'
+            + " ".join(f"<del>{html.escape(v)}</del>" for v in reversed(kette))
+            + "</span>"
+            if kette else ""
+        )
         teile = []
         if eintrag.get("begruendung"):
             teile.append(
@@ -2938,8 +2956,9 @@ def _begriffsboard_html(eintraege: list[dict]) -> str:
         zeilen.append(
             f'<li data-begriff="{begriff}" data-status="{html.escape(eintrag["status"])}" '
             f'data-zustimmung="{int(eintrag["zustimmung"])}" '
-            f'data-nennungen="{int(eintrag["nennungen"])}"{top_merkmal}>'
-            f'<span class="begriff">{html.escape(eintrag["begriff"])}</span>{mehr}</li>'
+            f'data-nennungen="{int(eintrag["nennungen"])}"{vorgaenger_merkmal}{top_merkmal}>'
+            f'<span class="begriff">{html.escape(eintrag["begriff"])}</span>'
+            f'{vorgaenger_html}{mehr}</li>'
         )
     return (
         '<div id="buehne-panel" data-ansicht="begriffsboard">'

@@ -50,18 +50,30 @@ read aloud, even if spelled differently -- e.g. "there" / "their", "whether"
 probably the same intended term, once heard correctly and once misheard --
 NOT two distinct terms.
 
-Decide by majority: first count literally how often EACH of the two
-spellings actually occurs in the transcript (do not estimate). If one
-reading is named clearly more often than the other (e.g. 3 vs. 1), keep
-EXACTLY THE SPELLING WITH THE HIGHER COUNT as ``begriff`` and drop the
-rarer one entirely, even if it was on the board first -- do not leave it
-as its own line, not even struck through. Add both mention counts into the
-remaining entry and note the correction briefly in ``begruendung``, for
-example "Misheard once as 'whether' (STT slip), meant 'weather', heard
-correctly three times." If the count is tied (e.g. 2:2) or it is unclear
-which reading fits the rest of the conversation better, treat both as
-separate for now rather than guessing -- a wrong call here deletes a real
-term.
+Decide by majority AND context plausibility together, not by majority
+alone: first count literally how often EACH of the two spellings actually
+occurs in the transcript (do not estimate), and at the same time check
+which reading actually makes sense in context (does the sentence with
+"weather" or with "whether" make sense given the rest of the
+conversation?). Both signals together decide:
+
+- If majority AND context agree on the same reading (the normal case,
+  e.g. 3 vs. 1 AND that one reading makes sense everywhere): keep EXACTLY
+  THAT SPELLING as ``begriff`` and drop the other entirely, even if it was
+  on the board first -- do not leave it as its own line, not even struck
+  through.
+- If majority and context disagree (the more frequent spelling makes no
+  sense in at least one place, e.g. "whether" counted three times, but
+  the sentence "the whether should decide how they feel" is grammatically/
+  semantically nonsensical): context plausibility wins -- keep the
+  reading that actually makes sense, even if it is less frequent.
+- If the count is genuinely tied (e.g. 2:2) AND context is also unclear:
+  treat both as separate for now rather than guessing -- a wrong call
+  here deletes a real term.
+
+Add both mention counts into the remaining entry and note the correction
+briefly in ``begruendung``, for example "Misheard once as 'whether' (STT
+slip), meant 'weather', heard correctly three times."
 
 Not like this:
 

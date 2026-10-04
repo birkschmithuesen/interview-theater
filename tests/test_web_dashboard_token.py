@@ -65,3 +65,17 @@ def test_mit_token_ist_root_404_und_u_token_zeigt_die_uebersicht(server, monkeyp
         assert _hole(basis, f"/padua/g/{gtoken}")[0] == 200
     finally:
         srv.shutdown()
+
+
+def test_startseite_unter_root_wenn_gesetzt(server, monkeypatch, tmp_path):
+    pfad, gtoken = server
+    seite = tmp_path / "programm.html"
+    seite.write_text("<h1>Programme</h1>", encoding="utf-8")
+    monkeypatch.setenv("IT_WEB_STARTSEITE", str(seite))
+    srv, basis = _laufe(pfad, monkeypatch, TOKEN)
+    try:
+        code, text = _hole(basis, "/padua/")
+        assert code == 200 and "Programme" in text and gtoken not in text
+        assert _hole(basis, f"/padua/dashboard/{TOKEN}")[0] == 200
+    finally:
+        srv.shutdown()

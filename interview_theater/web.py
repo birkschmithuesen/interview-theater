@@ -4109,8 +4109,19 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
         return
     try:
         dash_token = os.environ.get("IT_WEB_DASHBOARD_TOKEN", "").strip()
+        startseite = os.environ.get("IT_WEB_STARTSEITE", "").strip()
         if pfad == "/" and not dash_token:
             handler._antworte(200, dashboard_html(handler._dashboard(), praefix))
+        elif pfad == "/" and startseite:
+            # Birk 04.10.2026: unter "/" das oeffentliche Wochenprogramm
+            # (statische HTML-Datei, bei jedem Aufruf frisch gelesen -- eine
+            # Aenderung in der Datei ist sofort live). Die Uebersicht liegt
+            # mit Token unter /dashboard/<token>.
+            try:
+                with open(startseite, encoding="utf-8") as datei:
+                    handler._antworte(200, datei.read())
+            except OSError:
+                handler._antworte(404, "nicht gefunden")
         elif dash_token and pfad.startswith("/dashboard/") and hmac.compare_digest(
                 pfad[len("/dashboard/"):].rstrip("/").encode(), dash_token.encode()):
             # Birk 04.10.2026: die Uebersicht traegt die Links zu ALLEN

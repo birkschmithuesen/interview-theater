@@ -51,7 +51,7 @@ Module unter `interview_theater/`:
 | `bot.py` | Startroutine, Long-Poll-Schleife, Begrüßung, Warmlaufen, Prozessaufsicht |
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
 | `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, Interviewfluss (kurz/teil/lang) |
-| `begriffsboard.py` | Das Begriffsboard der Phase 1 (04.10.2026, Karte t_4517d4ad): laufend mithören wie der Brainstorm in Phase 4 (`brainstorm.soll_reagieren` **unverändert**, eigene Zähler über `aufnahme.diskussion = 1`, eigene Sperre), ein Schema-Aufruf je qualifizierendem Segment im eigenen Thread (Opus nach Einwilligung, sonst Kimi), Tabelle `begriffsboard` (nur anhängen, letzter Stand gilt). Validiert **im Code**: Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`. **Der Lauf kennt kein `tg`** — keine Chatzeile beim Mithören. Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these"; `schreibe_detail` füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe` (AST-Test `tests/test_begriffe_detail_wege.py`). `detail_zeilen` ist die eine Prompt-Form für `kontext` (Phase 2, ≥ 4) und `fragen_ki` |
+| `begriffsboard.py` | Das Begriffsboard der Phase 1 (04.10.2026, Karte t_4517d4ad): laufend mithören wie der Brainstorm in Phase 4 (`brainstorm.soll_reagieren` **unverändert**, eigene Zähler über `aufnahme.diskussion = 1`, eigene Sperre), ein Schema-Aufruf je qualifizierendem Segment im eigenen Thread (Opus nach Einwilligung, sonst Kimi), Tabelle `begriffsboard` (nur anhängen, letzter Stand gilt). Validiert **im Code**: Begriff muss im Transkript stehen und darf kein Ansage-/Mikrofonwort sein (`ist_metabegriff`), Zitat über `zitat.pruefe`, und eine `begruendung` bleibt nur mit Beleg (`traegt_beleg`: geprüftes Zitat mit ≥ `BELEG_MIN_INHALTSWOERTER` = 2 Inhaltswörtern jenseits von Begriff/Ansage) und ohne Füllsatz (`ist_fuellsatz`) -- sonst `""` (Karte t_2b9d2cbe). **Der Lauf kennt kein `tg`** — keine Chatzeile beim Mithören. Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these"; `schreibe_detail` füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe` (AST-Test `tests/test_begriffe_detail_wege.py`). `detail_zeilen` ist die eine Prompt-Form für `kontext` (Phase 2, ≥ 4) und `fragen_ki` |
 | `befehle.py` | Die Slash-Befehle (`_BEKANNTE_BEFEHLE`, zurzeit fünfzehn; acht davon stehen über `setMyCommands` im Menü, `BEFEHLE_LISTE`), laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
@@ -1073,7 +1073,22 @@ es jemand im Chat merkt.
   strukturell keine Chatzeile beim Mithören, wie beim Brainstorm kein
   Gesprächszug und kein Erkenner-Lauf auf dieser Nachricht. Validiert wird im
   Code (Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`), die
-  Tabelle `begriffsboard` nur anhängend. Bei „Discussion done" schlägt der
+  Tabelle `begriffsboard` nur anhängend.
+
+  **Belegpflicht der Begründung** (Karte t_2b9d2cbe, 04.10.2026): eine
+  `begruendung` gilt nur, wenn ein geprüftes Zitat sie trägt, das nach Abzug
+  von Begriff, Ansage-Formel (DE+EN samt STT-Varianten „Gepäck"/„Betreff"),
+  Meta- und Stoppwörtern noch mindestens zwei Inhaltswörter hat, und wenn sie
+  kein Füllsatz ist („wird genannt/gesammelt", „came up"); sonst wird sie
+  leer. Die Wortlisten gelten für DE und EN zugleich, weil Kimi unter dem
+  EN-Profil deutsch begründete. Leer ist gültig -- `detail_zeilen` lässt solche
+  Einträge weg, in die Phase-2-Prompts geht nur Belegtes. Merge- und
+  STT-Spuren gehören nicht in die Begründung (Prompt). Gemessen:
+  `docs/begriffsboard-inhalt/BERICHT.md`, Messskript
+  `scripts/rauchtest_begriffsboard_inhalt.py` (kein Test, kostet Geld; `live`
+  nur read-only und nie an Opus).
+
+  Bei „Discussion done" schlägt der
   Bot die Top 5 mit EINEM Knopf „Take these" vor; `begriffsboard.schreibe_detail`
   füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe`
   und geht von dort nach Phase 2 und ab Phase 4 in den Prompt
@@ -3582,7 +3597,10 @@ bewusst nicht erledigt, jeweils mit Grund:
 - **Ungemessen:** kein bezahlter Lauf des neuen Prompts `begriffsboard.md`
   (DE/EN) gegen das echte Modell; keine Korpusfälle; ob Kimi das
   verschachtelte Schema im erzwungenen Modus annimmt, ist nur am Muster
-  `erkenner` (Liste von Objekten) plausibel, nicht gemessen.
+  `erkenner` (Liste von Objekten) plausibel, nicht gemessen. Seit Karte
+  t_2b9d2cbe Messung ausstehend, Kommando im Bericht
+  (`docs/begriffsboard-inhalt/BERICHT.md`); Korpusfälle gibt es weiterhin
+  nicht.
 - Die Schwellen sind die des Brainstorms (Erwachsenen-Meetings,
   `brainstorm.py`-Kopf), nicht an Schüler-Diskussionen gemessen.
 - Ein leeres Ergebnis ersetzt nie ein volles Board — dann rückt die

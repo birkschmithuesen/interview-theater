@@ -3190,8 +3190,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 2: Volle Suite (lang, > 800 s) — bis zum Ende abwarten und die Summenzeile lesen, bevor irgendetwas als fertig gemeldet wird**
 
-Run: `$PY -m pytest -q --ignore=tests/e2e`
-Expected: Summenzeile ohne `failed`/`error`. Jeder Fehler wird behoben. Hält ihn jemand für vorbestehend, muss er das belegen: der Plan-Commit dieses Branches ist die Basis; den fehlschlagenden Test gegen die Basisfassung des berührten Codes lesen (`git diff <plan-commit> -- <datei>`) und Befund samt Ausgabe in den Bericht schreiben — kein `git stash` (geteilter Stapel, siehe Umgebung).
+Run: `$PY -m pytest -q --ignore=tests/e2e > .suite.log 2>&1; echo EXIT=$? >> .suite.log`
+Die Suite lief zuletzt 835 s (Merge-Bericht t_b2d4ac2c), ein einzelner Bash-Aufruf bricht nach 600 s ab, und `pytest-xdist` ist im Interpreter nicht installiert (geprüft 04.10.2026). Deshalb im Hintergrund starten (`run_in_background`), auf das Prozessende warten, dann die letzten Zeilen von `.suite.log` lesen (Summenzeile + `EXIT=`). Nie eine Teilausgabe als Ergebnis melden. `.suite.log` bleibt ungetrackt.
+Expected: Summenzeile ohne `failed`/`error`, `EXIT=0`. Jeder Fehler wird behoben. Hält ihn jemand für vorbestehend, muss er das belegen: der Plan-Commit dieses Branches ist die Basis; den fehlschlagenden Test gegen die Basisfassung des berührten Codes lesen (`git diff <plan-commit> -- <datei>`) und Befund samt Ausgabe in den Bericht schreiben — kein `git stash` (geteilter Stapel, siehe Umgebung).
 
 Run: `$E2E -m pytest tests/e2e/test_web_diskussion_e2e.py -q`
 Expected: 2 passed.

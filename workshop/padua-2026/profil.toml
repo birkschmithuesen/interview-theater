@@ -195,3 +195,10 @@ aktiv = true
 # Stueckpruefung; Texte im Script-Tab statt im Chat.
 [ueberarbeitung]
 aktiv = true
+
+# Ein Interview = EINE Transkriptblase im Web-Chat (04.10.2026, Karte
+# t_ea994c7f): Fliesstext mit Mikrofon statt "part K:" je Sprachnachricht,
+# und die Statuszeilen rund ums Interview als Systemzeilen. Nur Web --
+# Telegram bleibt beim Echo je Teil.
+[interview]
+fliesstext = true

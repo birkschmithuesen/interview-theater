@@ -91,6 +91,22 @@ def _diskussion_laeuft(page) -> bool:
     return page.locator('#diskussion[data-laeuft="1"]').count() > 0
 
 
+def _beende_diskussion_deterministisch(page) -> bool:
+    """Druecke ``#diskussion-beenden`` direkt, statt der Persona per Hinweis
+    zu ueberlassen, ob sie es tut (Abnahme P1-2, Fortsetzung: Robo-Diagnose
+    zeigte, dass ``ist_abschluss=True`` -- der einzige verlaessliche Ausloeser
+    fuer eine Begriffsboard-Reaktion ohne Pausen-Schnitt -- in keinem der
+    vier echten Laeufe erreicht wurde, weil die Persona den Knopf nie
+    anfasste). Ein stummes Mithoeren ohne Chat-Feedback braucht keine
+    LLM-Entscheidung zum Beenden -- derselbe Gedanke wie bei der
+    ``ohne_persona``-Station ``p1-start``. Liefert True, wenn geklickt
+    wurde."""
+    if page.locator("#diskussion-beenden:visible").count() == 0:
+        return False
+    page.click("#diskussion-beenden")
+    return True
+
+
 def _entwickler_meta(page) -> list[str]:
     # ``browser_zaehler.entwickler_meta_seite`` landet erst in Paket F -- der
     # getattr-Rueckfall haelt dieses Paket eigenstaendig lauffaehig und gibt
@@ -362,7 +378,11 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
                     beobachter.messe()
                 if leitbilder and station.leitbild_mitte and not mitte_genommen:
                     mitte_genommen = bool(leitbilder.nimm(page, station.phase, station.leitbild_mitte))
-            hinweis = browser_stationen.HINWEIS_DISKUSSION_ENDE
+            if _beende_diskussion_deterministisch(page):
+                if beobachter:
+                    beobachter.messe()
+            else:
+                hinweis = browser_stationen.HINWEIS_DISKUSSION_ENDE
 
         if (leitbilder and station.leitbild_mitte and not mitte_genommen
                 and not station.zuhoeren_s

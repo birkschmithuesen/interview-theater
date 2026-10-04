@@ -336,3 +336,38 @@ def test_ohne_persona_station_wartet_und_erfasst_ohne_persona_aufruf(stack, tmp_
         eintrag = json.loads(zeile)
         assert Path(tmp_path / "l" / eintrag["screenshot_vorher"]).exists()
         assert Path(tmp_path / "l" / eintrag["screenshot_nachher"]).exists()
+
+
+_FIXTURE_DISKUSSION_LAEUFT = """
+<button id="diskussion" data-laeuft="1">Start listening</button>
+<button id="diskussion-beenden">Discussion done</button>
+"""
+
+_FIXTURE_DISKUSSION_OHNE_KNOPF = """
+<button id="diskussion" data-laeuft="1">Start listening</button>
+"""
+
+
+def test_beende_diskussion_deterministisch_klickt_den_knopf():
+    """Abnahme P1-2, Fortsetzung: Robo-Diagnose gegen eine echte sim.db-
+    Kopie zeigte, dass in keinem der vier echten Laeufe 'Discussion done'
+    gedrueckt wurde -- die Persona reagierte auf den Hinweis nicht
+    zuverlaessig. Das Beenden eines stummen Mithoerens braucht keine
+    LLM-Entscheidung und wird deshalb deterministisch geklickt."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_LAEUFT)
+        geklickt = browser_lauf._beende_diskussion_deterministisch(seite)
+        browser.close()
+    assert geklickt is True
+
+
+def test_beende_diskussion_deterministisch_ohne_knopf_liefert_false():
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_OHNE_KNOPF)
+        geklickt = browser_lauf._beende_diskussion_deterministisch(seite)
+        browser.close()
+    assert geklickt is False

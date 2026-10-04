@@ -276,15 +276,16 @@ def test_der_aktwechsel_zeigt_seinen_moment_und_raeumt_ihn_weg(dienst):
         browser.close()
 
 
-def test_akt_marke_und_lichter_ueberleben_den_tausch_der_aktfolge(dienst):
+def test_die_lichter_ueberleben_den_tausch_der_aktfolge(dienst):
     """Karte W tauscht #roadmap nach einem Phasenklick per outerHTML aus
-    (/teil/roadmap). Review an 834edbf: danach fehlten "Akt 3/7" und die
-    Lichter -- sichtbar im Akte- und im Textbuch-Bild."""
+    (/teil/roadmap). Review an 834edbf: danach fehlten die Lichter --
+    sichtbar im Akte- und im Textbuch-Bild. (Die Akt-Marke selbst ist seit
+    der Kopfzeilen-Karte entfernt, siehe test_web_kopfzeile_e2e.py.)"""
     basis, token = dienst
     with sync_playwright() as p:
         browser = p.chromium.launch(args=MIKROFON)
         seite = _oeffne(browser, basis, token)
-        seite.wait_for_selector("#roadmap .ux-akt", state="attached")
+        seite.wait_for_selector("#roadmap #ux-balken", state="attached")
         alt = seite.evaluate_handle("() => document.getElementById('roadmap')")
         seite.eval_on_selector("#roadmap", "el => el.open = true")
         knopf = seite.locator('.phase-knopf[data-phase="4"]')
@@ -293,10 +294,9 @@ def test_akt_marke_und_lichter_ueberleben_den_tausch_der_aktfolge(dienst):
         seite.wait_for_function(
             "(alt) => document.getElementById('roadmap') !== alt", arg=alt,
             timeout=10_000)
-        seite.wait_for_selector("#roadmap .ux-akt", state="attached",
+        seite.wait_for_selector("#roadmap #ux-balken", state="attached",
                                 timeout=3000)
         assert seite.locator("#roadmap #ux-balken i").count() == 7
-        assert seite.locator("#roadmap .ux-akt").count() == 1
         browser.close()
 
 
@@ -858,11 +858,22 @@ def test_die_naechste_sache_folgt_dem_tausch_der_aktfolge(dienst):
         seite = _oeffne(browser, basis, token)
         seite.wait_for_selector("#ux-naechstes:not([hidden])", state="attached")
         vorher = seite.locator("#ux-naechstes b").inner_text().strip()
+        # Kopfzeilen-Karte: der echte /teil/roadmap-Fetch liefert IMMER
+        # unverzierte Server-HTML (ohne #ux-balken, ohne #ux-naechstes --
+        # beide entstehen erst client-seitig). Ein rohes cloneNode(true)
+        # haette die schon dekorierte Live-Kopie samt #ux-balken UND dem
+        # jetzt in <summary> verschachtelten #ux-naechstes mitgenommen und
+        # damit dekoriere()s Wache ("schon dekoriert, nichts zu tun")
+        # faelschlich ausgeloest -- genau das simuliert kein echter Tausch.
         seite.evaluate("""() => {
           const alt = document.getElementById('roadmap');
           const kopie = alt.cloneNode(true);
           kopie.querySelectorAll('.phase.aktiv .aufgabe:not(.erledigt)')
             .forEach((a, i) => { if (i === 0) { a.classList.add('erledigt'); } });
+          var alterBalken = kopie.querySelector('#ux-balken');
+          if (alterBalken) { alterBalken.remove(); }
+          var alteZeile = kopie.querySelector('#ux-naechstes');
+          if (alteZeile) { alteZeile.remove(); }
           alt.outerHTML = kopie.outerHTML;
         }""")
         seite.wait_for_function(

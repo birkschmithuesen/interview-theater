@@ -165,6 +165,11 @@ dashboard_gestaltet = true
 # den Stand je Phase mit Statuspunkten; geaendert wird im Chat. Ohne diese
 # Zeile (Dortmund) bleiben Formulare und Schreibweg wie gehabt.
 workbench_bearbeitbar = false
+# Kopfzeilen-Karte (Birk, 03.10.2026 23:10): der Stepper mit Pfeilen und
+# Bottom-Sheet ersetzt die Zwei-Klick-Bewaffnung aus der Phasenuebersicht,
+# nur fuer Padua -- Dortmund bleibt bei der alten Logik (Profilschalter,
+# Vorgabe false in workshop.VORGABE_WERTE).
+phasennav_stepper = true
 
 # Die zweistufige Phase 5 (Padua Phasen TEIL 1, 03.10.2026): erst eine
 # Uebersicht abnehmen, dann Szene fuer Szene Prosa schreiben, am Ende

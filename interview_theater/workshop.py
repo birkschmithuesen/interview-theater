@@ -241,6 +241,7 @@ VORGABE_WERTE: dict[str, Any] = {
         "dashboard_log_einklappen": False,
         "dashboard_gestaltet": False,
         "workbench_bearbeitbar": True,
+        "phasennav_stepper": False,
     },
 }
 

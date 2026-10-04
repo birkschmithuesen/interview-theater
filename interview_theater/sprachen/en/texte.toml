@@ -1073,7 +1073,8 @@ sings, there's a song; where a list pounds, a rap; where someone stays
 alone, a monologue; where many say the same thing, a chorus. A sequence made
 only of dialogues is a mistake.
 
-Then one sentence and an open question to the group, two lines at most."""
+Then one sentence and an open question to the group, two lines at most.
+Write in English."""
 ANWEISUNG_GESCHICHTE = """You are developing the rough story of a theatre group's play with them.
 
 The group has invented the setting and the characters themselves. Now it's
@@ -1102,7 +1103,8 @@ Title of the third direction — arc, ending and core conflict in two to three s
 Exactly three lines, one direction each, titles under 25 characters. Only
 use characters listed below.
 
-Then one sentence and an open question to the group, two lines at most."""
+Then one sentence and an open question to the group, two lines at most.
+Write in English."""
 ANWEISUNG_GESCHICHTE_SZENEN = """You are developing the scene sequence of a theatre group's play with them.
 
 The group has chosen a direction; the arc and the ending are below. From
@@ -1118,7 +1120,8 @@ Only use characters listed below. **No form** -- whether a scene becomes a
 dialogue, a monologue, a chorus, a song or a rap is decided by the group
 later, in Stage Version, not here.
 
-Then one sentence and an open question to the group, two lines at most."""
+Then one sentence and an open question to the group, two lines at most.
+Write in English."""
 ANWEISUNG_FELDER = """You are planning a single scene with a theatre group.
 
 For the scene below, details are still missing: {felder}.
@@ -1132,7 +1135,8 @@ field: value
 
 One line per field, only the missing fields, the field names exactly as in
 the list above. Then one sentence and an open question to the group, two
-lines at most."""
+lines at most.
+Write in English."""
 _GESCHICHTE_MIT_ENDE = "{bogen}\nEnding: {ende}"
 JOURNAL_INLINE = "Scenes from the chosen direction: {liste}"
 _NOCH_OFFEN = "still open"
@@ -1274,7 +1278,8 @@ Four columns per line, separated by dashes:
 4. **Interview N** -- the number the style comes from, written exactly like
    this.
 
-Then one sentence and an open question, two lines at most."""
+Then one sentence and an open question, two lines at most.
+Write in English."""
 _TEXT_LAEUFT = "I'm listening for how {name} could speak …"
 _TEXT_FEHLER = "The style suggestions didn't work out. Say it again."
 _TEXT_KEIN_MATERIAL = "For the speech style I need interviews with checked quotes - there aren't any yet."
@@ -1490,7 +1495,6 @@ _TEXT_KEIN_INTERVIEW_NOCH = "No interview yet — say “we're doing an intervie
 _TEXT_NICHTS_NOTIERT = "Nothing noted yet."
 _TEXT_GRUPPE = "Group {chat_id}"
 _TITEL_GRUPPENSEITE = "{titel} — interview-theater"
-_TEXT_PROBENANSICHT_LINK = "📖 Rehearsal view — the whole play in one piece, to read and print"
 _UEBERSCHRIFT_UEBERBLICK = "Overview"
 _UEBERSCHRIFT_ARBEITSSTAND = "Where we are"
 _UEBERSCHRIFT_STUECKKARTE = "Play card"
@@ -1880,6 +1884,11 @@ _TEXT_PHASE_FEHLT_HINWEIS = "{was} is still missing – go on anyway?"
 _TEXT_PHASE_ABBRECHEN = "No"
 _TEXT_PHASE_FEHLER_NETZ = "No connection - that didn't go through."
 _TEXT_ROADMAP_KOPF = "Phase {nummer}/{gesamt} · {name} — {erledigt}/{gesamt_aufgaben}"
+_TEXT_SHEET_STATUS_OFFEN = "Still open: {was}"
+_TEXT_SHEET_STATUS_BEREIT = "Ready"
+_TEXT_SHEET_GEHE_ZU = "Go to {bezeichnung}"
+_TEXT_SHEET_BLEIBE = "Stay here"
+_TEXT_STEPPER_HINWEIS = "Tap a phase to move between steps."
 
 ["web_vereint"._TEXT_TAB]
 chat = "Chat"
@@ -1899,7 +1908,6 @@ _TEXT_REC_LAEUFT = "Mic is hot."
 _TEXT_REC_LAEDT = "Hold on — the tape is still walking."
 _TEXT_REC_PAUSIERT = "Paused — nothing is being recorded."
 _TEXT_LEITFADEN = "Interview guide"
-_TEXT_AKT_KOPF = "Act {nummer}/{gesamt}"
 _TEXT_NAECHSTES = "Next up: {was}"
 _TEXT_NAECHSTE_PHASE = "Phase {bezeichnung}"
 _TEXT_BELOHNUNG_AKT = "Act closed."

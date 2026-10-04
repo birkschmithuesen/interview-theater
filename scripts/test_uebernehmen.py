@@ -314,9 +314,34 @@ def _hebe_folgen(conn) -> None:
                          (hoechste, name))
 
 
-def _schreibe_in_ziel(conn, kopie: Path) -> None:
-    """E2: in EINER Transaktion die alte Testgruppe loeschen und die Kopie
-    einfuegen. Kein db.loesche_gruppe -- das committet (db.py:1471)."""
+def _setze_offset(conn, jetzt: datetime) -> int:
+    """E5: der Offset des Testbots auf die hoechste je vergebene web_post-id.
+
+    bot.schleife liest ``hole_update_id + 1`` (bot.py:447) und der Web-Kanal
+    liefert ``id >= offset`` (repo.py:4471-4483) -- nichts Uebernommenes kommt
+    also noch einmal. Die naechste neue Zeile bekommt ``sqlite_sequence + 1``
+    und liegt damit darueber. ``bot.baue_kanal`` setzt nur zurueck, wenn der
+    Offset UEBER ``hoechste_web_post_id`` liegt (bot.py:540-548) -- er ist hier
+    genau gleich. Upsert wie repo.setze_update_id (repo.py:464-473), aber ohne
+    dessen commit (P4)."""
+    offset = repo.hoechste_web_post_id(conn)
+    jetzt_iso = jetzt.isoformat()
+    conn.execute(
+        "INSERT INTO main.bot_zustand (bot_name, letzte_update_id, gestartet_am, "
+        "letzte_aktivitaet_am) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(bot_name) DO UPDATE SET "
+        "letzte_update_id = excluded.letzte_update_id, "
+        "letzte_aktivitaet_am = excluded.letzte_aktivitaet_am",
+        (TEST_BOT_NAME, offset, jetzt_iso, jetzt_iso),
+    )
+    return offset
+
+
+def _schreibe_in_ziel(conn, kopie: Path, jetzt: datetime) -> int:
+    """E2: in EINER Transaktion die alte Testgruppe loeschen, die Kopie
+    einfuegen, die Folge heben und den Offset setzen. Kein db.loesche_gruppe
+    und kein repo.setze_update_id -- beide committen (db.py:1471,
+    repo.py:474). Liefert den Offset."""
     conn.execute("ATTACH DATABASE ? AS kopie", (str(kopie),))
     try:
         spalten = {t: _gemeinsame_spalten(conn, t) for t in UEBERNOMMEN}
@@ -328,12 +353,14 @@ def _schreibe_in_ziel(conn, kopie: Path) -> None:
                 liste = ", ".join(namen)
                 conn.execute(f"INSERT INTO main.{t} ({liste}) SELECT {liste} FROM kopie.{t}")
             _hebe_folgen(conn)
+            offset = _setze_offset(conn, jetzt)
             conn.commit()
         except Exception:
             conn.rollback()
             raise
     finally:
         conn.execute("DETACH DATABASE kopie")
+    return offset
 
 
 def uebernimm(quell_chat_id: int, *, quelle: str, ziel: str, audio_quelle: str,
@@ -355,7 +382,7 @@ def uebernimm(quell_chat_id: int, *, quelle: str, ziel: str, audio_quelle: str,
             bericht["warnungen"] = _bereite_kopie_vor(
                 kopie, quell_chat_id, token or neues_token())
             bericht["backup"] = sichere_ziel(conn, ziel, jetzt) if existierte else None
-            _schreibe_in_ziel(conn, kopie)
+            bericht["offset"] = _schreibe_in_ziel(conn, kopie, jetzt)
             bericht["nachher"] = zaehle(conn, TEST_CHAT_ID)
             bericht["token_neu"] = token is None
         finally:

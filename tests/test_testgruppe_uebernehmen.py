@@ -455,3 +455,70 @@ def test_verweigert_ohne_die_test_db_anzufassen(umgebung):
     with pytest.raises(tu.Verweigert):
         tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
     assert fingerabdruck_db(umgebung.ziel) == vorher
+
+
+# --------------------------------------------------------------------------
+# Task 4: Bot-Wasserzeichen (E5)
+# --------------------------------------------------------------------------
+
+from types import SimpleNamespace  # noqa: E402
+
+from interview_theater import bot  # noqa: E402
+from interview_theater.web_kanal import WebKanal  # noqa: E402
+
+
+def _offset(pfad) -> int:
+    conn = db.verbinde(pfad)
+    try:
+        return repo.hole_update_id(conn, tu.TEST_BOT_NAME)
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("mit_altem_ziel", [True, False])
+def test_kein_uebernommener_eingang_wird_erneut_geliefert(request, mit_altem_ziel):
+    u = request.getfixturevalue("umgebung" if mit_altem_ziel else "umgebung_ohne_ziel")
+    bericht = tu.uebernimm(QUELLE_CHAT, **u.pfade())
+    conn = db.verbinde(u.ziel)
+    offset = repo.hole_update_id(conn, tu.TEST_BOT_NAME)
+    assert offset == bericht["offset"] == repo.hoechste_web_post_id(conn)
+    # mit altem Ziel liegt die Folge bei 900 (alte Testgruppe), sonst bei 104
+    assert offset == (900 if mit_altem_ziel else 104)
+    kanal = WebKanal(conn, TEST, u.audio_ziel)
+    assert kanal.hole_updates(offset + 1, timeout=0) == []          # (a)
+    neu = repo.lege_web_post_an(conn, TEST, repo.RICHTUNG_EIN, repo.WEB_TYP_TEXT,
+                                text="hallo")
+    assert neu == offset + 1
+    assert [x["update_id"] for x in kanal.hole_updates(offset + 1, timeout=0)] == [neu]  # (b)
+    conn.close()
+
+
+def test_baue_kanal_setzt_den_offset_nicht_zurueck(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    vorher = _offset(umgebung.ziel)
+    conn = db.verbinde(umgebung.ziel)
+    e = SimpleNamespace(kanal="web", web_chat_id=TEST, bot_name=tu.TEST_BOT_NAME,
+                        audio_verz=umgebung.audio_ziel, bot_token="")
+    bot.baue_kanal(conn, e, None)
+    assert repo.hole_update_id(conn, tu.TEST_BOT_NAME) == vorher
+    conn.close()
+
+
+def test_erkenner_und_journal_stehen_wie_in_der_quelle(umgebung):
+    """(c): weder die Historie neu noch eine neue Nachricht uebersprungen --
+    die Wasserzeichen sagen im Ziel dasselbe wie in der Quelle."""
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    src = db.verbinde(umgebung.quelle)
+    ziel = db.verbinde(umgebung.ziel)
+    for funktion in (repo.unbeantwortete, repo.unextrahierte, repo.unjournalisierte):
+        quell_ids = [z["message_id"] for z in funktion(src, QUELLE_CHAT)]
+        ziel_ids = [z["message_id"] for z in funktion(ziel, TEST)]
+        assert ziel_ids == quell_ids, funktion.__name__
+    assert [z["message_id"] for z in repo.unbeantwortete(ziel, TEST)] == []
+    neu = repo.lege_web_post_an(ziel, TEST, repo.RICHTUNG_EIN, repo.WEB_TYP_TEXT,
+                                text="neu")
+    repo.merke_nachricht(ziel, TEST, neu, "Gruppe", 0, "text", "neu", ZEIT)
+    assert [z["message_id"] for z in repo.unbeantwortete(ziel, TEST)] == [neu]
+    assert neu in [z["message_id"] for z in repo.unextrahierte(ziel, TEST)]
+    src.close()
+    ziel.close()

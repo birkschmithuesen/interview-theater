@@ -17,7 +17,8 @@ sonst waere die Schicht keine.
 from interview_theater import erkenner, phasen, repo
 
 from interview_theater.knoepfe.texte import (
-    ART_ANDERS, ART_EIGENE, ART_KERNTHEMA, ART_PHASE, ART_SPEICHERN, ART_UNDO,
+    ART_ANDERS, ART_BOARD_UEBERNEHMEN, ART_EIGENE, ART_KERNTHEMA, ART_PHASE,
+    ART_SPEICHERN, ART_UNDO,
     MAX_AUSWAHL, MAX_VORSCHLAEGE, MENUE_KNOPF_LAENGE, PRAEFIX, TRENNER,
     _AUSWAHLMARKER, _FELD_FUER, T, log,
 )
@@ -157,6 +158,23 @@ def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste, **kw) -> int:
     neue Leiste baut, nimmt diese Funktion und nicht ``tg`` direkt."""
     message_id = tg.sende_mit_knoepfen(chat_id, text, leiste, **kw)
     _merke_botnachricht(conn, chat_id, message_id, kw.get("klartext") or text)
+    return message_id
+
+
+def biete_begriffsvorschlag(conn, tg, chat_id: int, begriffe: list[str]) -> int:
+    """Der Top-5-Vorschlag nach "Discussion done" (Karte t_4517d4ad, D6):
+    die Begriffe als nummerierte Liste und EIN Knopf "Take these". Eine
+    Abkuerzung, nie ein Zwang -- der Text sagt, dass die Gruppe ihre fuenf
+    auch selbst schicken kann. Der Wert steht in der Tabelle ``knopf``
+    (Zusage 1), gespeichert wird beim Druck ueber ``_speichere`` (Zusage 2:
+    kein Modellaufruf)."""
+    liste = "\n".join(f"{nr}. {begriff}" for nr, begriff in enumerate(begriffe, 1))
+    knopf_id = repo.lege_knopf_an(conn, chat_id, ART_BOARD_UEBERNEHMEN, ", ".join(begriffe))
+    message_id = _sende_knoepfe(
+        conn, tg, chat_id, T._TEXT_BOARD_VORSCHLAG.format(liste=liste),
+        [(T._TEXT_BOARD_UEBERNEHMEN_KNOPF, _daten(knopf_id))],
+    )
+    repo.merke_knopf_nachricht(conn, [knopf_id], message_id)
     return message_id
 
 

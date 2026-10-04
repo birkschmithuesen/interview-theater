@@ -17,6 +17,7 @@ from interview_theater import phasen, repo, ruecknahme, sprache
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_AUFNAHME, ART_AUSWERTEN, ART_AUSWERTEN_ALLE,
+    ART_BOARD_UEBERNEHMEN,
     ART_DURCHLAUF_SZENE, ART_EIGENE, ART_ERSTENTWURF, ART_DRAMATURGIE,
     ART_DRAMATURGIE_LASSEN,
     ART_DRAMATURGIE_SZENE, ART_FASSUNGEN, ART_SPRECHANTEILE,
@@ -627,6 +628,18 @@ def _wirkung_fassungen(conn, d: Druck) -> str:
 
 
 # --- Die Wirkungen der Grundleiste, der Fragen und der Figuren -------------
+
+
+def _wirkung_board_uebernehmen(conn, d: Druck) -> str:
+    """"Take these" unter dem Top-5-Vorschlag (Karte t_4517d4ad): derselbe
+    Speicherweg wie "Ja, speichern" -- also auch ``begriffe_detail``
+    (``_speichere`` -> ``begriffsboard.schreibe_detail``), dieselbe
+    Ruecknahme, derselbe Uebergang in Phase 2. Ueberschreibt nie still einen
+    schon gesetzten Wert (``nur_bestaetigen``)."""
+    return _speichere(
+        conn, d.tg, d.chat_id, f"begriffe{TRENNER}{d.wert}",
+        nur_bestaetigen=True, uebergang=True, klm=d.klm, e=d.e,
+    )
 
 
 def _wirkung_speichern(conn, d: Druck) -> str:
@@ -1592,6 +1605,7 @@ _WIRKUNGEN = {
     ART_SPRECHANTEILE: _wirkung_sprechanteile,
     ART_FASSUNGEN: _wirkung_fassungen,
     ART_SPEICHERN: _wirkung_speichern,
+    ART_BOARD_UEBERNEHMEN: _wirkung_board_uebernehmen,
     ART_ANDERS: _wirkung_anders,
     ART_EIGENE: _wirkung_eigene,
     ART_FRAGE_WAHL: _wirkung_frage_wahl,

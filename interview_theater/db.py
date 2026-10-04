@@ -522,6 +522,13 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- die Auswertung (spaetere Aufgabe) sie nicht aus den Vorfilterlisten
   -- neu herleiten muss.
   fragen_herkunft_final       TEXT,
+  -- Je Begriff aus ``begriffe`` die Zeile des Begriffsboards (Karte
+  -- t_4517d4ad, 04.10.2026): JSON ``[{begriff, begruendung, zitat,
+  -- doppelbedeutung}]``. Geschrieben allein von
+  -- ``begriffsboard.schreibe_detail``, auf jedem Weg, der ``begriffe``
+  -- schreibt; geleert, wenn ``begriffe`` geleert wird. Das Zitat geht nie
+  -- auf die Webseite (``roadmap.begriffe_detail``).
+  begriffe_detail             TEXT,
   geaendert_am           TEXT
 );
 
@@ -731,6 +738,26 @@ CREATE TABLE IF NOT EXISTS diskussion_verdichtung (
   modell      TEXT,
   UNIQUE (chat_id)
 );
+
+-- Das Begriffsboard der Phase 1 (Padua, Karte t_4517d4ad, 04.10.2026,
+-- ``interview_theater/begriffsboard.py``).
+--
+-- Nur anhaengen (wie ``buehnenkarte``): jeder Lauf legt eine neue Zeile an,
+-- der LETZTE Stand gilt, die Historie bleibt. ``json`` ist die validierte
+-- Liste ``[{begriff, nennungen, zustimmung, begruendung, zitat,
+-- doppelbedeutung, status}]``. ``bis_aufnahme_id`` ist die hoechste
+-- Diskussions-``aufnahme.id``, die VOR dem Lauf bekannt war -- die Markierung
+-- fuer ``repo.begriffsboard_stand``. Kein Chattext steht hier.
+CREATE TABLE IF NOT EXISTS begriffsboard (
+  id               INTEGER PRIMARY KEY,
+  chat_id          INTEGER NOT NULL,
+  json             TEXT NOT NULL,
+  erstellt_am      TEXT NOT NULL,
+  -- 'claude' oder 'sovereign', wie ``diskussion_verdichtung.modell``.
+  modell           TEXT,
+  bis_aufnahme_id  INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_begriffsboard_chat ON begriffsboard(chat_id, id);
 
 -- Die Schaerfung am Material (Phase 6, Umbau 05.09.2026 nachts).
 --
@@ -1208,6 +1235,7 @@ TABELLEN_MIT_CHAT_ID = (
     "festlegung",
     "buehnenkarte",
     "diskussion_verdichtung",
+    "begriffsboard",
     "knopf",
     # Karte U (01.10.2026): die Ruecknahme eines Erkennerlaufs.
     "erkenner_lauf",

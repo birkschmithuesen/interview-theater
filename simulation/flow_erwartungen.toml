@@ -1,0 +1,184 @@
+# Die von Hand gepflegte Erwartungsliste des Flow-Audits (Schicht 1, siehe
+# simulation/flow_audit.py). Geltungsbereich dieser Karte: AUSSCHLIESSLICH
+# Phase 1 (Begriffe/Terms) und Phase 2 (Fragen/Questions) -- Padua-Profil
+# (workshop/padua-2026/), Code-Stand 04.10.2026. Keine Zeilen fuer Phase
+# 3-7: eine aeltere Fassung mit Phase 3-7 existiert unter
+# .flow_audit_ref/flow_erwartungen.toml, beschreibt aber einen Codestand vor
+# dem Phase-1/2-Umbau und ist nicht mehr gueltig.
+#
+# Jede Zeile wurde gegen den heutigen Code gelesen, nicht nur gegen dieses
+# Briefing. Zwei Zeilen tragen zusaetzlich zu "intent"/"knopf" ein drittes
+# Feld, "code_pfad": ein Freitext-Verweis auf einen verifizierten Chat-
+# Mechanismus ausserhalb von Erkenner-Intent und ART_*-Knopf (ein
+# Markerblock des Gespraechsmodells bzw. eine deterministische Text-Weiche
+# ohne Modellaufruf). Mit gesetztem "code_pfad" meldet pruefe() fuer diese
+# Zeilen KEINEN "sackgasse"/"toter_gespraechsweg"-Befund mehr -- siehe den
+# Modul-Docstring von flow_audit.py, Abschnitt "Der dritte Weg -- code_pfad",
+# und die zugehoerige Grenze (nicht gegen den Code validiert, Vertrauen wie
+# bei einem von Hand gepflegten "beleg"). Siehe tests/test_flow_abdeckung.py.
+
+[[phase.1]]
+aktion = "Begriffe per Chat nennen, ergaenzen oder korrigieren -- auch als Korrektur zum Begriffsboard-Top-5-Vorschlag ('Discussion done') statt den Knopf 'Take these' zu druecken"
+weg = "beides"
+intent = "begriffe_setzen"
+knopf = "ART_SPEICHERN|ART_ANDERS|ART_EIGENE|ART_BOARD_UEBERNEHMEN"
+beleg = """
+erkenner.ARTEN enthaelt 'begriffe_setzen' (erkenner.py). _wende_arbeitsstand_an()
+schreibt arbeitsstand.begriffe und ruft begriffsboard.schreibe_detail() auf
+JEDEM Schreibweg, nicht nur ueber den Knopf (erkenner.py, _wende_arbeitsstand_an,
+Zweig 'if feld == "begriffe"': begriffsboard.schreibe_detail(conn, chat_id, wert);
+siehe auch tests/test_begriffe_detail_wege.py, das diese Garantie per AST haelt).
+Investigiert: eine Korrektur zum Begriffsboard-Vorschlag per Chat lauft exakt
+denselben Pfad -- begriffsboard.py hat keinen Sonderfall dafuer, der Boardlauf
+selbst hat strukturell kein 'tg' (kann keine Chatzeile schreiben), und der
+Vorschlagstext von biete_begriffsvorschlag() (knoepfe/basis.py) sagt der Gruppe
+ausdruecklich, dass sie ihre fuenf Begriffe auch selbst schicken kann -- das ist
+dann wieder ein ganz normaler begriffe_setzen-Lauf. Knopf: knoepfe/basis.py
+sende_mit_speicherleiste() bietet fuer die "offene Art" Begriffe in Phase 1 die
+Grundleiste (ART_SPEICHERN -> _wirkung_speichern in knoepfe/wirkung.py,
+ART_ANDERS, ART_EIGENE); begriffsboard.sende_vorschlag() -> biete_begriffsvorschlag()
+bietet zusaetzlich ART_BOARD_UEBERNEHMEN ('Take these', Handler in
+knoepfe/wirkung.py: _wirkung_board_uebernehmen).
+"""
+
+[[phase.1]]
+aktion = "Alle bisherigen Begriffe auf einmal per Chat verwerfen ('Begriffe weg' -- leert das ganze Feld, NICHT das Streichen eines einzelnen Begriffs aus der Liste)"
+weg = "chat"
+intent = "entfernen"
+knopf = ""
+beleg = """
+erkenner.ARTEN enthaelt 'entfernen'. _ENTFERNEN_ARBEITSSTAND (erkenner.py)
+listet 'begriffe' als Ziel; _entferne_arbeitsstandfeld() setzt arbeitsstand.begriffe
+auf NULL und ruft begriffsboard.schreibe_detail(conn, chat_id, None).
+WICHTIG, gegen die Annahme im Task-Briefing geprueft: 'entfernen' fuer ein
+Arbeitsstand-Ziel ignoriert den Rest-Text nach dem Zielwort (_entferne_arbeitsstandfeld
+nimmt nur 'ziel', nicht den 'rest' aus _zerlege_entfernen) -- es gibt keinen Weg,
+per 'entfernen' NUR EINEN Begriff aus einer mehrteiligen Liste zu streichen. Das
+Streichen eines einzelnen Begriffs aus einer laengeren Liste laeuft stattdessen
+ueber begriffe_setzen (Zeile oben): das Modell/die Gruppe stellt die korrigierte
+Gesamtliste neu auf ("Ueberschreiben ist der Normalfall", vgl. den Kommentar bei
+_ARBEITSSTAND_ARTEN). Kein Knopf fuer das Leeren der ganzen Begriffe-Liste.
+"""
+
+[[phase.1]]
+aktion = "Eine fehlerhafte Notiert-Meldung (z. B. falsch erkannte Begriffe) rueckgaengig machen, per Chat statt per Knopf"
+weg = "knopf"
+intent = ""
+knopf = "ART_UNDO"
+beleg = """
+Bewusste, dokumentierte Knopf-only-Entscheidung (Karte U, siehe AGENTS.md
+Abschnitt 'Ein Erkennerlauf ist mit einem Tipp zuruecknehmbar', Punkt 7:
+'Nur die Erkenner-Meldung bekommt Undo.'). erkenner.ARTEN kennt keine Art fuer
+eine Ruecknahme -- die Ruecknahme ist eine diff-basierte Wiederherstellung
+mehrerer Tabellen (interview_theater/ruecknahme.py: plan()/schritte() vergleichen
+zwei Schnappschuesse rund um wende_an()) und wird ausschliesslich aus
+knoepfe/wirkung.py::_wirkung_undo (ART_UNDO) ausgeloest, mit der erkenner_lauf.id
+im Knopfwert -- es gibt keinen Text, der denselben Effekt (alten Wert wiederherstellen,
+geloeschte Verknuepfungen neu einfuegen, 'alles oder nichts' bei Konflikt) erzeugen
+koennte. 'entfernen' ist KEIN Ersatz: es entfernt einen von der Gruppe benannten
+Wert, es stellt keinen vorherigen Wert wieder her. Keine PHASEN_SPEZIFISCHE_ARTEN-
+Einschraenkung auf den Notiert-Weg selbst, der Undo-Knopf erscheint also auch unter
+einer Phase-1-Notiert-Meldung.
+"""
+
+[[phase.2]]
+aktion = "Fragen per Chat formulieren, auswaehlen oder korrigieren (klassischer Fuenf-je-Begriff-Vorschlag, der Weg ausserhalb bzw. unabhaengig vom Padua-A/B-Vergleich)"
+weg = "beides"
+intent = "fragen_setzen"
+knopf = "ART_SPEICHERN|ART_ANDERS|ART_EIGENE"
+beleg = """
+erkenner.ARTEN enthaelt 'fragen_setzen'. _ARBEITSSTAND_ARTEN (erkenner.py) mappt
+es auf arbeitsstand.fragen; _wende_arbeitsstand_an() verwirft das Schreiben nur
+waehrend der Stufe 'Fragen einzeln durchgehen' (knoepfe.einzeln_aktiv(conn, chat_id)
+ist dann wahr) -- ausserhalb dieser Stufe ist es der normale Ueberschreibweg wie bei
+begriffe_setzen. Nicht in PHASEN_SPEZIFISCHE_ARTEN, also phasenfrei. Knopf:
+knoepfe/basis.py sende_mit_speicherleiste() bietet fuer die "offene Art" Fragen in
+Phase 2 dieselbe Grundleiste (ART_SPEICHERN/ART_ANDERS/ART_EIGENE) wie bei Begriffen.
+"""
+
+[[phase.2]]
+aktion = "Im Padua-A/B-Vergleich eigene Fragen per Chat beitragen oder nachtraeglich aendern ('VORSCHLAG EIGENE FRAGEN:')"
+weg = "chat"
+intent = ""
+knopf = ""
+code_pfad = "knoepfe.fragen.uebernimm_eigene (gefuettert aus dem vom Gespraechsmodell selbst erzeugten Markerblock 'VORSCHLAG EIGENE FRAGEN:', abgefangen in knoepfe/basis.py::sende_mit_speicherleiste)"
+beleg = """
+Investigiert: dieser Weg laeuft NICHT ueber einen Erkenner-Intent und NICHT
+ueber einen Knopf. Unter workshop.fragen_ab_aktiv() (Padua: [fragen_ab] aktiv
+= true) erzeugt das GESPRAECHSMODELL selbst bei jeder relevanten Aeusserung
+einen Markerblock 'VORSCHLAG EIGENE FRAGEN:' (workshop/padua-2026/prompts/
+phasen/2.md, Abschnitt 'Keep a running tally and restate it in full, every
+time' -- restated nach jeder zuordenbaren Aeusserung, kumulativ, kein
+einmaliges 'fertig'-Signal). Dieser Block wird in
+knoepfe/basis.py::sende_mit_speicherleiste() abgefangen (Zweig
+'if "eigene_fragen" in bloecke') und an knoepfe/fragen.py::uebernimm_eigene()
+weitergereicht -- das ist ein Vorschlag-Marker-Pfad (interview_theater/vorschlag.py),
+kein Erkenner-Lauf und kein Knopfdruck. Es gibt keinen Knopf, der diese Handlung
+auslöst (einziger Aufrufer von uebernimm_eigene() ist dieser Markerblock-Zweig).
+Der einzige "Fertig"-Text ist das woertliche Satz-Erkennungsmuster
+fragen._fruehzeitig_fertig() ('Own questions done.', siehe
+workshop/padua-2026/prompts/phasen/2.md Zeile ~63) -- auch das ist kein Knopf und
+kein Erkenner-Intent. Chat funktioniert hier nachweislich (es ist der EINZIGE Weg).
+Die rein binaere Intent/Knopf-Pruefung dieser Schicht konnte das urspruenglich
+nicht von einer echten Sackgasse unterscheiden -- deshalb der code_pfad-Eintrag
+oben, der diesen dritten, verifizierten Mechanismus ausdruecklich benennt
+(siehe flow_audit.py Modul-Docstring, Abschnitt 'Der dritte Weg -- code_pfad').
+"""
+
+[[phase.2]]
+aktion = "Waehrend 'Fragen einzeln durchgehen' eine Frage per Chat annehmen, verwerfen oder schaerfen, statt die Knoepfe zu druecken"
+weg = "beides"
+intent = ""
+knopf = "ART_FRAGE_ANNEHMEN|ART_FRAGE_VERWERFEN|ART_FRAGE_SCHAERFEN"
+code_pfad = "knoepfe.fragen.nimm_offene_frage_text (deterministische Text-Weiche ohne Erkenner-Lauf, aufgerufen aus ablauf.py::_war_die_erwartete_antwort)"
+beleg = """
+Investigiert: dieser Weg laeuft NICHT ueber einen Erkenner-Intent, sondern ueber
+eine deterministische Text-Weiche OHNE Modellaufruf:
+interview_theater/ablauf.py::_war_die_erwartete_antwort() (Zeile ~1267) ruft
+knoepfe.fragen.nimm_offene_frage_text(conn, tg, klm, e, chat_id,
+letzte_nachricht["text"]) auf -- diese Funktion prueft arbeitsstand.fragen_warte_auf
+bzw. ob gerade eine Frage offen/unentschieden ist, und behandelt JEDE freie
+Nachricht in diesem Zustand als Schaerfungswunsch bzw. Richtungsantwort, ganz ohne
+Erkenner-Klassifikation (Docstring von nimm_offene_frage_text: 'beide ohne
+Erkenner-Lauf (kein Modellaufruf nur zum Klassifizieren)'). Chat funktioniert hier
+also nachweislich -- die mechanische Pruefung sieht aber weder einen passenden
+Erkenner-Intent (es gibt keinen) noch erkennt sie von sich aus, dass der vorhandene
+Knopfweg (ART_FRAGE_ANNEHMEN/_VERWERFEN/_SCHAERFEN, Handler in knoepfe/wirkung.py:
+_wirkung_frage_annehmen/_wirkung_frage_verwerfen/_wirkung_frage_schaerfen) nur eine
+von zwei gleichwertigen Bedienmoeglichkeiten ist -- deshalb der code_pfad-Eintrag
+oben, der diesen dritten, verifizierten Mechanismus ausdruecklich benennt (siehe
+flow_audit.py Modul-Docstring, Abschnitt 'Der dritte Weg -- code_pfad').
+"""
+
+[[phase.2]]
+aktion = "Sagen, dass Phase 2 (Fragen) fertig ist und es weiter zu Phase 3 (Interviews) gehen soll, statt 'Weiter zu Phase 3' zu druecken"
+weg = "beides"
+intent = "phase_setzen"
+knopf = "ART_PHASE|ART_NOCH_NICHT"
+beleg = """
+erkenner.ARTEN enthaelt 'phase_setzen'. _wende_phase_an() (erkenner.py, Zeile
+~1284) liest die genannte Phasennummer/den Phasennamen (ueber phasen.nummer_fuer,
+tolerantes Mapping) und liefert {"art": "phase_setzen", "wert": str(nummer)};
+nicht in PHASEN_SPEZIFISCHE_ARTEN, also phasenfrei -- gilt in Phase 2 wie in jeder
+anderen. Knopf: knoepfe/wirkung.py mappt ART_PHASE -> _wirkung_phase und
+ART_NOCH_NICHT -> _wirkung_noch_nicht (Teil der Abschlussleiste, die am Ende jeder
+Phase per knoepfe.biete_phase_proaktiv() erscheint, sobald die Voraussetzungen der
+naechsten Phase erfuellt sind).
+"""
+
+[[phase.2]]
+aktion = "Direkt aus Phase 1 oder 2 heraus eine Interview-Aufnahme per Chat starten, statt auf den Knopf zu warten (z. B. 'lass uns schon mal eine Aufnahme machen')"
+weg = "beides"
+intent = "interview_starten"
+knopf = "ART_AUFNAHME"
+beleg = """
+erkenner.ARTEN enthaelt 'interview_starten'. Nicht in PHASEN_SPEZIFISCHE_ARTEN,
+also phasenfrei -- AGENTS.md (Abschnitt 'Aufnahme-Angebote sind phasenabhaengig'):
+'Ausdruecklich Aufnehmen (/aufnahme, erkannte Absicht) bleibt in jeder Phase
+moeglich -- eingeschraenkt ist nur das Angebot.' Das heisst konkret:
+knoepfe._aufnahme_anbieten() zeigt den Knopf 'Aufnahme starten' proaktiv NUR ab
+Phase 3 (PHASE_INTERVIEWS = 3), aber der Knopf-Handler ART_AUFNAHME selbst
+(knoepfe/wirkung.py) existiert unveraendert und ist ueber /aufnahme, eine aeltere
+Chatnachricht mit dem Knopf, oder -- hier relevant -- ueber den Erkenner-Intent
+interview_starten per Chat auch aus Phase 1/2 auslösbar.
+"""

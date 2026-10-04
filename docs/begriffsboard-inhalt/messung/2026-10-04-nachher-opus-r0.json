@@ -1,0 +1,83 @@
+{
+  "arm": "nachher",
+  "modell": "opus",
+  "runde": 0,
+  "vorher_ref": "55f34b58fc50de41114676222ce55e8cd1278b2e",
+  "datum": "2026-10-04T20:19:15",
+  "faelle": {
+    "ansage_en": {
+      "laeufe": 3,
+      "fehler": 0,
+      "roh": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 12,
+        "begruendungen_belegt": 6
+      },
+      "validiert": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 12,
+        "begruendungen_belegt": 6
+      }
+    },
+    "deutsch_stt": {
+      "laeufe": 3,
+      "fehler": 0,
+      "roh": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 12,
+        "begruendungen_belegt": 8
+      },
+      "validiert": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 12,
+        "begruendungen_belegt": 8
+      }
+    },
+    "schaerfung_stt_en": {
+      "laeufe": 3,
+      "fehler": 0,
+      "roh": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 9,
+        "begruendungen_belegt": 4
+      },
+      "validiert": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 9,
+        "begruendungen_belegt": 4
+      }
+    }
+  },
+  "aufrufe": 18,
+  "kosten_chf": 0.0
+}

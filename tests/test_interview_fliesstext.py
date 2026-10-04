@@ -120,3 +120,51 @@ def test_telegram_kennt_transkript_als_no_op():
     parameter = inspect.signature(telegram.Telegram.sende).parameters
     assert parameter["transkript"].default is False
     assert list(parameter)[-2:] == ["system", "transkript"]
+
+
+# -- Aufgabe 4: eine Blase je Interview --------------------------------------
+
+
+def test_vier_teile_sind_genau_eine_transkriptblase(conn, web, einst, klm, fliesstext):
+    _interview(conn, web, einst, klm, TEILE)
+
+    blasen = _posts(conn, repo.WEB_TYP_TRANSKRIPT)
+    assert len(blasen) == 1, "eine Blase je Interview, nicht eine je Teil"
+    text = blasen[0]["text"]
+    assert text == "🎙 Interview 1\n\n" + "\n\n".join(TEILE)
+    assert not re.search(r"\b(Teil|part)\b", text)
+    assert not any(", Teil " in (p["text"] or "") for p in _posts(conn, repo.WEB_TYP_TEXT))
+
+
+def test_die_blase_wird_einmal_mitgeschrieben(conn, web, einst, klm, fliesstext):
+    """Entscheidung F: die nachricht-Zeile entsteht beim Anlegen, spaetere
+    Aenderungen schreiben sie nicht nach (sie steht in keinem Fenster)."""
+    kopf_id = _interview(conn, web, einst, klm, TEILE[:3])
+    mitschrift = conn.execute(
+        "SELECT * FROM nachricht WHERE chat_id = 1 AND typ = 'transkript'"
+    ).fetchall()
+    assert len(mitschrift) == 1
+    assert mitschrift[0]["text"] == "🎙 Interview 1\n\n" + TEILE[0]
+    assert repo.echo_message_id(conn, kopf_id) == _posts(conn, repo.WEB_TYP_TRANSKRIPT)[0]["id"]
+
+
+def test_ohne_schalter_bleibt_es_im_web_ein_echo_je_teil(conn, web, einst, klm):
+    _interview(conn, web, einst, klm, TEILE[:2])
+
+    assert _posts(conn, repo.WEB_TYP_TRANSKRIPT) == []
+    echos = [p["text"] for p in _posts(conn, repo.WEB_TYP_TEXT) if ", Teil " in (p["text"] or "")]
+    assert echos == [
+        f"Interview 1, Teil 1:\n{TEILE[0]}",
+        f"Interview 1, Teil 2:\n{TEILE[1]}",
+    ]
+
+
+def test_telegram_bleibt_auch_mit_schalter_beim_echo_je_teil(conn, einst, klm, fliesstext):
+    tg = TelegramAttrappe()  # hat kein aendere_text -- ein Aufruf waere ein Fehler
+    _interview(conn, tg, einst, klm, TEILE[:2])
+
+    assert [t for _, t, _ in tg.mit_knoepfen] == [
+        f"Interview 1, Teil 1:\n{TEILE[0]}",
+        f"Interview 1, Teil 2:\n{TEILE[1]}",
+    ]
+    assert all(leiste for _, _, leiste in tg.mit_knoepfen), "die Leiste aus biete_nach_teil bleibt"

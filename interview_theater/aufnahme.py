@@ -63,7 +63,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from interview_theater import brainstorm, buehnenkarte, phasen, repo, sprache, stt, verdichter
+from interview_theater import brainstorm, buehnenkarte, phasen, repo, sprache, stt, verdichter, workshop
 
 log = logging.getLogger(__name__)
 
@@ -165,6 +165,12 @@ _TEXT_DISKUSSION_FERTIG_BEGRIFFE = (
 #: Zusammenfassung. Der Kopf sagt, wozu es gehoert -- das ist der ganze
 #: Unterschied zu "Ich hoere durch", das nichts zu kontrollieren gab.
 _TEXT_TEIL_ECHO = "{name}, Teil {nummer}:\n{transkript}"
+
+#: Padua (04.10.2026, Karte t_ea994c7f, ``[interview] fliesstext``): die
+#: erste Zeile der EINEN Transkriptblase eines Interviews im Web-Chat.
+#: Darunter, je durch eine Leerzeile getrennt, alle Teil-Transkripte als
+#: Fliesstext -- ohne "Teil K:" (``transkript_blasentext``).
+_TEXT_TRANSKRIPT_KOPF = "🎙 {name}"
 
 #: Die inhaltliche Rueckmeldung, wenn ein Interview durch ist. Sie ist der
 #: eigentliche Ertrag dieses Nachtrags -- bisher endete ein Interview ohne ein
@@ -1294,9 +1300,76 @@ def _an_den_bot_abzweigen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     )
 
 
+def fliesstext_aktiv(conn, chat_id: int) -> bool:
+    """Gilt fuer diese Gruppe die EINE Transkriptblase je Interview samt der
+    Systemzeilen rund ums Interview (Karte t_ea994c7f)? Nur mit
+    ``[interview] fliesstext`` UND nur im Web-Kanal -- Telegram behaelt das
+    Echo je Teil mit seiner Leiste, auch mit dem Schalter."""
+    return workshop.interview_fliesstext() and ist_web_gruppe(conn, chat_id)
+
+
+def transkript_blasentext(conn, kopf) -> str:
+    """Der ganze Text der Transkriptblase, bei JEDEM Teil neu gebaut statt
+    angehaengt (Entscheidung B): Kopfzeile, Leerzeile, alle Teile mit
+    Transkript in Eingangsreihenfolge, je durch eine Leerzeile getrennt.
+
+    Ausgewaehlt wird nach ``transkript``, nicht nach ``status``: der Teil,
+    der gerade abgeschlossen wird, steht noch auf 'transkribiert'. Ein per
+    ``an_den_bot`` abgezweigter Teil faellt heraus, weil
+    ``repo.loese_aus_interview`` sein ``teil_von`` leert."""
+    teile = [
+        (teil["transkript"] or "").strip()
+        for teil in repo.hole_teile(conn, kopf["id"])
+        if (teil["transkript"] or "").strip()
+    ]
+    kopfzeile = T._TEXT_TRANSKRIPT_KOPF.format(name=anzeigename(conn, kopf, "Interview"))
+    return "\n\n".join([kopfzeile, *teile])
+
+
+def _sende_transkript_blase(conn, tg, e, chat_id: int, kopf_id: int) -> None:
+    """Legt die EINE Transkriptblase eines Interviews an oder schreibt sie
+    weiter (Karte t_ea994c7f).
+
+    Gibt es noch keine (``aufnahme.echo_message_id`` leer), geht sie mit
+    ``transkript=True`` raus, wird am Kopf gemerkt und -- wie jedes
+    Teil-Echo -- einmal versteckt in ``nachricht`` mitgeschrieben.
+    Spaetere Teile tauschen nur ihren Text (``tg.aendere_text``); die
+    Mitschrift wird dabei NICHT nachgezogen: sie steht in keinem Fenster,
+    die Wahrheit ist ``aufnahme.transkript`` (Entscheidung F).
+
+    Ein Fehlschlag kostet nur die Anzeige, nie das Transkript."""
+    kopf = repo.hole_aufnahme(conn, kopf_id)
+    if kopf is None:
+        return
+    text = transkript_blasentext(conn, kopf)
+    message_id = repo.echo_message_id(conn, kopf_id)
+    if message_id is not None:
+        try:
+            tg.aendere_text(chat_id, message_id, text)
+        except Exception:
+            log.exception("Transkriptblase nicht aktualisiert, kopf_id=%s", kopf_id)
+        return
+    try:
+        message_id = tg.sende(chat_id, text, transkript=True)
+    except Exception:
+        log.exception("Transkriptblase nicht gesendet, kopf_id=%s", kopf_id)
+        return
+    repo.setze_echo_message_id(conn, kopf_id, message_id)
+    try:
+        repo.merke_nachricht(
+            conn, chat_id, message_id, getattr(e, "bot_name", None), 1,
+            repo.TYP_TRANSKRIPT, text, repo._jetzt(), 1,
+        )
+    except Exception:
+        log.exception("Transkriptblase mitzuschreiben fehlgeschlagen, chat_id=%s", chat_id)
+
+
 def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -> None:
     """Stellt das Transkript eines Interview-Teils sofort und woertlich in den
     Chat (§ 10.6, Birk 04.09. abends: "Transkript Stueck fuer Stueck").
+
+    Mit ``fliesstext_aktiv`` (Padua, Web) geht statt des Echos je Teil die
+    EINE Transkriptblase raus (``_sende_transkript_blase``).
 
     Kein Kommentar, keine Zusammenfassung -- die Gruppe soll waehrend das
     Gegenueber noch im Raum sitzt kontrollieren koennen, ob angekommen ist,
@@ -1343,13 +1416,19 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
         _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen)
         return
 
-    kopf = repo.hole_aufnahme(conn, row["teil_von"])
-    text = T._TEXT_TEIL_ECHO.format(
-        name=anzeigename(conn, kopf, "Interview") if kopf else "Interview",
-        nummer=repo.teil_nummer(conn, row["id"]),
-        transkript=row["transkript"],
-    )
-    _sende_teil_echo(conn, tg, e, chat_id, text)
+    if fliesstext_aktiv(conn, chat_id):
+        # Padua (04.10.2026, Karte t_ea994c7f): EINE Blase je Interview, aus
+        # allen Teilen mit Transkript neu gebaut -- ohne Leiste, die deckt
+        # im Web der eigene Aufnahme-Regler ab.
+        _sende_transkript_blase(conn, tg, e, chat_id, row["teil_von"])
+    else:
+        kopf = repo.hole_aufnahme(conn, row["teil_von"])
+        text = T._TEXT_TEIL_ECHO.format(
+            name=anzeigename(conn, kopf, "Interview") if kopf else "Interview",
+            nummer=repo.teil_nummer(conn, row["id"]),
+            transkript=row["transkript"],
+        )
+        _sende_teil_echo(conn, tg, e, chat_id, text)
     repo.setze_status(conn, row["id"], "fertig")
     # B7: das Echo traegt das Transkript schon -- die Blase nicht noch einmal.
     _web_sprachblase(conn, chat_id, row["message_id"], None)

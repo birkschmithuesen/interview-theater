@@ -969,6 +969,7 @@ _TEXT_INTERVIEW_OHNE_KNOPF = "That sounds like an interview ({dauer}). Should I 
 _TEXT_INTERVIEW_OHNE_KNOPF_WEITER = "Is the interview finished, or are more voice messages coming?"
 _TEXT_INTERVIEW_OHNE_KNOPF_NEIN = "Fine, then I'll take it as a contribution."
 _TEXT_TEIL_ECHO = "{name}, part {nummer}:\n{transkript}"
+_TEXT_TRANSKRIPT_KOPF = "🎙 {name}"
 _TEXT_INTERVIEW_ABGELEGT = "{name} is recorded and analysed - I'll hold back on it until you have all the interviews together."
 _TEXT_AUSGEWERTET = "{name} analysed: {themen} themes, {zitate} quotes."
 _TEXT_VERDICHTUNG_KOPF = "{name} is done. What I hear in it:"

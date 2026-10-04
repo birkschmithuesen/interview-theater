@@ -68,6 +68,21 @@ def test_html_ist_funktional_mit_data_attributen(pfad):
     assert re.search(r"\son\w+=", html_) is None
 
 
+def test_gruppe_nach_token_zeigt_board_ohne_gesetzte_phase(monkeypatch, pfad):
+    """Bug Birk Live-Test 04.10.2026: eine frische Gruppe hat noch KEINE
+    ``arbeitsstand``-Zeile -- ``stand["phase"]`` ist dann ``None``, was
+    ERSTE (Phase 1) heisst, nicht "keine Phase". Ohne den Fallback blieb
+    ``begriffsboard_zeigen`` False und der CoThinker-Tab leer, obwohl das
+    Begriffsboard schon Eintraege hatte (``repo.lege_begriffsboard_an`` in
+    der ``pfad``-Fixture, aber KEIN ``repo.setze_phase``)."""
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    conn = _ro(pfad)
+    token = repo.stelle_web_token_sicher(db.verbinde(pfad), CHAT)
+    daten = web_daten.gruppe_nach_token(conn, token)
+    assert daten["begriffsboard_zeigen"] is True
+    assert [e["begriff"] for e in daten["begriffsboard"]] == ["Heimat", "Grenze", "Musik"]
+
+
 def test_leeres_board_hat_den_leertext():
     html_ = web._begriffsboard_html([])
     assert 'data-ansicht="begriffsboard"' in html_ and "<li" not in html_

@@ -67,6 +67,32 @@ def test_min_abstand_kommt_aus_der_umgebung(monkeypatch):
     assert brainstorm.min_abstand_s() == 30
 
 
+def test_min_zeichen_override_ersetzt_die_eigene_schwelle():
+    """Begriffsboard-Nutzung (Birk Live-Test 04.10.2026): mit Override
+    entscheidet der uebergebene Wert, nicht ``min_zeichen()``."""
+    assert not brainstorm.soll_reagieren(
+        unreagierte_zeichen=599, sekunden_seit_letzter_reaktion=200,
+        letzter_schnittgrund="pause", ist_abschluss=False,
+        min_zeichen_override=600,
+    )
+    assert brainstorm.soll_reagieren(
+        unreagierte_zeichen=600, sekunden_seit_letzter_reaktion=200,
+        letzter_schnittgrund="pause", ist_abschluss=False,
+        min_zeichen_override=600,
+    )
+
+
+def test_min_zeichen_override_none_aendert_nichts():
+    """Ohne Override bleibt das bisherige Verhalten (``min_zeichen()``,
+    Vorgabe 1200) unveraendert -- Phase 4 (Brainstorm) ruft nie mit
+    Override."""
+    assert not brainstorm.soll_reagieren(
+        unreagierte_zeichen=1199, sekunden_seit_letzter_reaktion=200,
+        letzter_schnittgrund="pause", ist_abschluss=False,
+        min_zeichen_override=None,
+    )
+
+
 def test_min_zeichen_bei_abschluss_kommt_aus_der_umgebung(monkeypatch):
     monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "75")
     assert brainstorm.min_zeichen_bei_abschluss() == 75

@@ -18,7 +18,7 @@ HEIMAT = {"begriff": "Heimat", "nennungen": 2, "zustimmung": 1, "begruendung": "
 @pytest.fixture(autouse=True)
 def aktiv(monkeypatch):
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
     monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "1")
     monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
     # Die Gesamtverdichtung ist nicht Gegenstand dieser Datei.

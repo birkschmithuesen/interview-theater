@@ -63,7 +63,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from interview_theater import brainstorm, buehnenkarte, phasen, repo, sprache, stt, verdichter
+from interview_theater import brainstorm, buehnenkarte, phasen, repo, sprache, stt, verdichter, workshop
 
 log = logging.getLogger(__name__)
 
@@ -166,6 +166,12 @@ _TEXT_DISKUSSION_FERTIG_BEGRIFFE = (
 #: Unterschied zu "Ich hoere durch", das nichts zu kontrollieren gab.
 _TEXT_TEIL_ECHO = "{name}, Teil {nummer}:\n{transkript}"
 
+#: Padua (04.10.2026, Karte t_ea994c7f, ``[interview] fliesstext``): die
+#: erste Zeile der EINEN Transkriptblase eines Interviews im Web-Chat.
+#: Darunter, je durch eine Leerzeile getrennt, alle Teil-Transkripte als
+#: Fliesstext -- ohne "Teil K:" (``transkript_blasentext``).
+_TEXT_TRANSKRIPT_KOPF = "🎙 {name}"
+
 #: Die inhaltliche Rueckmeldung, wenn ein Interview durch ist. Sie ist der
 #: eigentliche Ertrag dieses Nachtrags -- bisher endete ein Interview ohne ein
 #: Wort darueber, was darin steckt.
@@ -189,6 +195,14 @@ _TEXT_INTERVIEW_ABGELEGT = (
 #: hinter dem Knopf: **kein** Volltext ohne Knopfdruck, das bleibt die
 #: Entscheidung vom 05.09.2026.
 _TEXT_AUSGEWERTET = "{name} ausgewertet: {themen} Themen, {zitate} Zitate."
+
+#: Die Zeile nach einem Interview im Web-Kanal (02.10.2026), Bausteine fuer
+#: ``_text_interview_gespeichert_web``. Bis 04.10.2026 standen sie als
+#: Literale in der Funktion und gingen an der Sprachschicht vorbei -- Padua
+#: (englisch) sah deutschen Text. Wortlaut unveraendert.
+_TEXT_GESPEICHERT_WEB = "{name} gespeichert · {uhrzeit} Uhr · {minuten} Min"
+_TEXT_THEMEN_WEB = "Themen: "
+_TEXT_AUSWERTUNG_IM_TAB = "Ganze Auswertung im Tab Arbeitsstand."
 
 _TEXT_VERDICHTUNG_KOPF = "{name} ist durch. Was ich darin hoere:"
 _TEXT_VERDICHTUNG_THEMEN = "Kernthemen:"
@@ -1197,7 +1211,8 @@ def starte_nachgeholten_zug(conn, tg, klm, e, chat_id: int):
     return thread
 
 
-def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text") -> None:
+def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text",
+                     system: bool = False) -> None:
     """Schickt eine Bot-Nachricht und schreibt sie in ``nachricht`` mit --
     wie ``ablauf.antworte`` und ``erkenner.laufe`` es tun.
 
@@ -1205,9 +1220,11 @@ def _sende_und_merke(conn, tg, e, chat_id: int, text: str, typ: str = "text") ->
     wird gespeichert (Empfangen und In-den-Prompt-legen sind zwei
     Entscheidungen), taucht aber in keinem Fenster auf -- siehe
     ``repo.TYP_TRANSKRIPT``. Ein Fehlschlag beim Senden wird nur geloggt: der
-    Inhalt selbst steht laengst in der Datenbank."""
+    Inhalt selbst steht laengst in der Datenbank.
+
+    ``system=True`` nur aus ``_sende_nach_interview`` (Karte t_ea994c7f)."""
     try:
-        message_id = tg.sende(chat_id, text)
+        message_id = tg.sende(chat_id, text, system=True) if system else tg.sende(chat_id, text)
         repo.merke_nachricht(
             conn, chat_id, message_id, getattr(e, "bot_name", None), 1, typ,
             text, repo._jetzt(), 1 if typ == repo.TYP_TRANSKRIPT else 0,
@@ -1231,19 +1248,20 @@ def _text_interview_gespeichert_web(conn, row, verdichtung_id: int, e) -> str:
     uhrzeit = datetime.now(ort).strftime("%H:%M")
     sekunden = sum((teil["dauer_sekunden"] or 0) for teil in repo.hole_teile(conn, row["id"]))
     minuten = max(1, round(sekunden / 60))
-    zeilen = [f"{name} gespeichert · {uhrzeit} Uhr · {minuten} Min"]
+    zeilen = [T._TEXT_GESPEICHERT_WEB.format(name=name, uhrzeit=uhrzeit, minuten=minuten)]
     themen = [
         (t["kurz"] or "").strip()
         for t in repo.themen_zu(conn, verdichtung_id)
         if (t["kurz"] or "").strip()
     ][:3]
     if themen:
-        zeilen.append("Themen: " + " · ".join(themen))
-    zeilen.append("Ganze Auswertung im Tab Arbeitsstand.")
+        zeilen.append(T._TEXT_THEMEN_WEB + " · ".join(themen))
+    zeilen.append(T._TEXT_AUSWERTUNG_IM_TAB)
     return "\n".join(zeilen)
 
 
-def _sende_nach_interview(conn, tg, e, chat_id: int, text: str, kopf_id: int | None) -> None:
+def _sende_nach_interview(conn, tg, e, chat_id: int, text: str, kopf_id: int | None,
+                          system: bool = False) -> None:
     """Schickt die Abschlussnachricht eines Interviews MIT der Knopfleiste
     darunter (05.09.2026) und schreibt sie wie jede Bot-Nachricht mit.
 
@@ -1260,10 +1278,10 @@ def _sende_nach_interview(conn, tg, e, chat_id: int, text: str, kopf_id: int | N
     from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
 
     try:
-        message_id = knoepfe.biete_nach_aufnahme(conn, tg, chat_id, text, kopf_id)
+        message_id = knoepfe.biete_nach_aufnahme(conn, tg, chat_id, text, kopf_id, system=system)
     except Exception:
         log.exception("Knopfleiste nach Interview fehlgeschlagen, chat_id=%s", chat_id)
-        _sende_und_merke(conn, tg, e, chat_id, text)
+        _sende_und_merke(conn, tg, e, chat_id, text, system=system)
         return
     try:
         repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
@@ -1293,9 +1311,104 @@ def _an_den_bot_abzweigen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     )
 
 
+#: Eine Sperre je Interview-Kopf fuer "Teile lesen + Blase anlegen oder
+#: aendern + echo_message_id merken" (Karte t_ea994c7f, Entscheidung C).
+#: Teile laufen im Pool (``bot.POOL_GROESSE``): ohne die Sperre laegen zwei
+#: gleichzeitig fertige Teile beide "noch keine Blase" und legten zwei an,
+#: oder der spaetere Text ueberschriebe den vollstaendigeren. Je Kopf statt
+#: je Gruppe, wie die Register in ``ablauf``/``szene`` -- gemeinsam haette
+#: es nichts zu schuetzen.
+_blasen_sperren: dict[int, threading.Lock] = {}
+_blasen_sperren_schutz = threading.Lock()
+
+
+def _blasen_sperre(kopf_id: int) -> threading.Lock:
+    """Liefert die (ggf. neu angelegte) Sperre fuer einen Interview-Kopf."""
+    with _blasen_sperren_schutz:
+        sperre = _blasen_sperren.get(kopf_id)
+        if sperre is None:
+            sperre = threading.Lock()
+            _blasen_sperren[kopf_id] = sperre
+        return sperre
+
+
+def fliesstext_aktiv(conn, chat_id: int) -> bool:
+    """Gilt fuer diese Gruppe die EINE Transkriptblase je Interview samt der
+    Systemzeilen rund ums Interview (Karte t_ea994c7f)? Nur mit
+    ``[interview] fliesstext`` UND nur im Web-Kanal -- Telegram behaelt das
+    Echo je Teil mit seiner Leiste, auch mit dem Schalter."""
+    return workshop.interview_fliesstext() and ist_web_gruppe(conn, chat_id)
+
+
+def transkript_blasentext(conn, kopf) -> str:
+    """Der ganze Text der Transkriptblase, bei JEDEM Teil neu gebaut statt
+    angehaengt (Entscheidung B): Kopfzeile, Leerzeile, alle Teile mit
+    Transkript in Eingangsreihenfolge, je durch eine Leerzeile getrennt.
+
+    Ausgewaehlt wird nach ``transkript``, nicht nach ``status``: der Teil,
+    der gerade abgeschlossen wird, steht noch auf 'transkribiert'. Ein per
+    ``an_den_bot`` abgezweigter Teil faellt heraus, weil
+    ``repo.loese_aus_interview`` sein ``teil_von`` leert."""
+    teile = [
+        (teil["transkript"] or "").strip()
+        for teil in repo.hole_teile(conn, kopf["id"])
+        if (teil["transkript"] or "").strip()
+    ]
+    kopfzeile = T._TEXT_TRANSKRIPT_KOPF.format(name=anzeigename(conn, kopf, "Interview"))
+    return "\n\n".join([kopfzeile, *teile])
+
+
+def _sende_transkript_blase(conn, tg, e, chat_id: int, kopf_id: int, nur_aendern: bool = False) -> None:
+    """Legt die EINE Transkriptblase eines Interviews an oder schreibt sie
+    weiter (Karte t_ea994c7f).
+
+    Gibt es noch keine (``aufnahme.echo_message_id`` leer), geht sie mit
+    ``transkript=True`` raus, wird am Kopf gemerkt und -- wie jedes
+    Teil-Echo -- einmal versteckt in ``nachricht`` mitgeschrieben.
+    Spaetere Teile tauschen nur ihren Text (``tg.aendere_text``); die
+    Mitschrift wird dabei NICHT nachgezogen: sie steht in keinem Fenster,
+    die Wahrheit ist ``aufnahme.transkript`` (Entscheidung F).
+
+    ``nur_aendern=True`` schreibt nur eine schon vorhandene Blase neu und
+    legt nie eine an (Nachlauf nach ``an_den_bot``).
+
+    Ein Fehlschlag kostet nur die Anzeige, nie das Transkript.
+    Unter ``_blasen_sperre(kopf_id)``."""
+    with _blasen_sperre(kopf_id):
+        kopf = repo.hole_aufnahme(conn, kopf_id)
+        if kopf is None:
+            return
+        text = transkript_blasentext(conn, kopf)
+        message_id = repo.echo_message_id(conn, kopf_id)
+        if message_id is not None:
+            try:
+                tg.aendere_text(chat_id, message_id, text)
+            except Exception:
+                log.exception("Transkriptblase nicht aktualisiert, kopf_id=%s", kopf_id)
+            return
+        if nur_aendern:
+            return
+        try:
+            message_id = tg.sende(chat_id, text, transkript=True)
+        except Exception:
+            log.exception("Transkriptblase nicht gesendet, kopf_id=%s", kopf_id)
+            return
+        repo.setze_echo_message_id(conn, kopf_id, message_id)
+        try:
+            repo.merke_nachricht(
+                conn, chat_id, message_id, getattr(e, "bot_name", None), 1,
+                repo.TYP_TRANSKRIPT, text, repo._jetzt(), 1,
+            )
+        except Exception:
+            log.exception("Transkriptblase mitzuschreiben fehlgeschlagen, chat_id=%s", chat_id)
+
+
 def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -> None:
     """Stellt das Transkript eines Interview-Teils sofort und woertlich in den
     Chat (§ 10.6, Birk 04.09. abends: "Transkript Stueck fuer Stueck").
+
+    Mit ``fliesstext_aktiv`` (Padua, Web) geht statt des Echos je Teil die
+    EINE Transkriptblase raus (``_sende_transkript_blase``).
 
     Kein Kommentar, keine Zusammenfassung -- die Gruppe soll waehrend das
     Gegenueber noch im Raum sitzt kontrollieren koennen, ob angekommen ist,
@@ -1334,7 +1447,13 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
     )
 
     if any(a.get("art") == "an_den_bot" for a in aenderungen):
+        kopf_id = row["teil_von"]
         _an_den_bot_abzweigen(conn, tg, klm, e, row, zug, nachgeholt)
+        # Karte t_ea994c7f: ein paralleler Teil kann die Blase schon MIT
+        # diesem Transkript gebaut haben -- jetzt, wo es aus dem Interview
+        # geloest ist, einmal ohne es neu schreiben. Nie neu anlegen.
+        if kopf_id is not None and fliesstext_aktiv(conn, chat_id):
+            _sende_transkript_blase(conn, tg, e, chat_id, kopf_id, nur_aendern=True)
         # Die uebrigen Arten gelten weiter: "fertig, und zeig mir die
         # Verdichtungen" ist beides. Erst abzweigen (die Aufnahme steht danach
         # auf 'fertig'), dann anwenden -- sonst faende schliesse_ab sie noch
@@ -1342,13 +1461,19 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
         _wende_aus_aufnahme_an(conn, tg, klm, e, chat_id, row, aenderungen)
         return
 
-    kopf = repo.hole_aufnahme(conn, row["teil_von"])
-    text = T._TEXT_TEIL_ECHO.format(
-        name=anzeigename(conn, kopf, "Interview") if kopf else "Interview",
-        nummer=repo.teil_nummer(conn, row["id"]),
-        transkript=row["transkript"],
-    )
-    _sende_teil_echo(conn, tg, e, chat_id, text)
+    if fliesstext_aktiv(conn, chat_id):
+        # Padua (04.10.2026, Karte t_ea994c7f): EINE Blase je Interview, aus
+        # allen Teilen mit Transkript neu gebaut -- ohne Leiste, die deckt
+        # im Web der eigene Aufnahme-Regler ab.
+        _sende_transkript_blase(conn, tg, e, chat_id, row["teil_von"])
+    else:
+        kopf = repo.hole_aufnahme(conn, row["teil_von"])
+        text = T._TEXT_TEIL_ECHO.format(
+            name=anzeigename(conn, kopf, "Interview") if kopf else "Interview",
+            nummer=repo.teil_nummer(conn, row["id"]),
+            transkript=row["transkript"],
+        )
+        _sende_teil_echo(conn, tg, e, chat_id, text)
     repo.setze_status(conn, row["id"], "fertig")
     # B7: das Echo traegt das Transkript schon -- die Blase nicht noch einmal.
     _web_sprachblase(conn, chat_id, row["message_id"], None)
@@ -1530,6 +1655,7 @@ def _zu_kurz_gemeldet(conn, tg, e, row) -> bool:
             woerter=woerter,
         ),
         row["id"],
+        system=fliesstext_aktiv(conn, row["chat_id"]),
     )
     return True
 
@@ -1654,7 +1780,10 @@ def _interview_abschliessen(conn, tg, klm, e, row, erzwungen: bool = False,
                     if t["zitat_geprueft"] == 1 and t["beleg_zitat"]
                 ),
             )
-        _sende_nach_interview(conn, tg, e, chat_id, text, aufnahme_id)
+        _sende_nach_interview(
+            conn, tg, e, chat_id, text, aufnahme_id,
+            system=fliesstext_aktiv(conn, chat_id),
+        )
         return
     # Die Verdichtung geht als normale Bot-Nachricht in den Chat: anders als
     # das Transkript-Echo GEHOERT sie ins Gespraechsfenster -- sie ist eine

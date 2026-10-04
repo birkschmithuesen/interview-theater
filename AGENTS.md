@@ -10,6 +10,33 @@ Dienste gezeigt hat. Bei Widerspruch zwischen SPEC und Code gilt der Code;
 Abschnitt „Wo SPEC und Code auseinanderlaufen" unten hält die bekannten
 Fälle fest.
 
+## 🔴 Dortmund eingefroren seit 04.10.2026 — Abnahme nur noch an Padua
+
+Birk, 04.10.2026: Dortmund wird nicht mehr gepflegt. Kein Dortmund-Bot läuft
+mehr, nur die drei Padua-Bots sind live. **„Dortmund byte-gleich/bitgleich"
+und `pruefe_profil dortmund-2026` sind keine Abnahmekriterien mehr.**
+Abgenommen wird nur noch:
+- Suite grün (mit `-m "not dortmund"`, siehe unten)
+- `pruefe_profil padua-2026` grün
+- Prompt-Snapshot nur für Padua
+
+Der Dortmund-Workshop-Stand ist eingefroren und jederzeit reproduzierbar
+unter dem Tag `dortmund-2026-final` (SHA `2e552399749311f3787b375fa4df7d1e30e4097d`,
+letzter live-gelaufener Commit am 06.09.2026 08:42, laut `docs/NACHTBERICHT-2026-09-06.md`).
+
+Ein Test, der NUR wegen Dortmund-Verhalten rot wird, bekommt den Marker
+`@pytest.mark.dortmund` statt angepasst zu werden (registriert in
+`pyproject.toml`). Die Dortmund-/Vorgabe-Fixtures (`tests/fixtures/*dortmund*`,
+`*vorgabe*`) werden NICHT mehr neu erzeugt. Neue Funktionen werden nur für
+Padua gebaut — wo bisher ein Profilschalter Dortmund/Padua trennt, wird
+direkt das Padua-Verhalten umgesetzt, keine neuen Schalter. Bestehende
+Schalter bleiben stehen, Abbau erst beim Aufräumen nach dem Workshop
+(ab 10.10.2026, Birks Entscheidung). Nicht anfassen: `betrieb/gruppe1-4.env`,
+Dortmund-Daten in `betrieb/soap.db`, Dortmund-Code — nichts löschen.
+
+An jeder Stelle unten, wo Dortmund als bindende Invariante verlangt wird,
+gilt stattdessen dieser Absatz.
+
 ## Aufbau
 
 Ein Python-Prozess je Gruppe (gleicher Code, eigener Bot-Token,
@@ -2029,13 +2056,15 @@ können damit parallel auf einem Server laufen).
 **Ohne Variable gilt das eingebaute Vorgabeprofil**
 (`workshop.VORGABE_WERTE` und die drei Geschwister) mit exakt den Werten,
 die vorher im Code standen. `workshop/dortmund-2026/` trägt dieselben. Das
-ist keine Redundanz aus Bequemlichkeit, sondern das Abnahmekriterium des
-Umbaus: mit `IT_WORKSHOP=dortmund-2026` und ohne Variable entstehen
-zeichengleiche Prompts. Geprüft wird das dreifach in
+war das Abnahmekriterium des Umbaus bis 04.10.2026: mit `IT_WORKSHOP=dortmund-2026`
+und ohne Variable entstehen zeichengleiche Prompts. Geprüft wurde das dreifach in
 `tests/test_profil_bitgleich.py` gegen
 `docs/prompt-audit/schnappschuss-vor-profilumbau.txt` — 114 Abschnitte, je
 ein SHA-256, erzeugt mit `scripts/prompt_schnappschuss.py` vor dem ersten
-Umbauschritt.
+Umbauschritt. **Seit 04.10.2026 ist das kein Abnahmekriterium mehr** — siehe
+den Absatz „Dortmund eingefroren" ganz oben. `test_profil_bitgleich.py`
+bleibt bestehen, wird aber nicht mehr als Gate behandelt; rot nur wegen
+Dortmund-Abweichung → `@pytest.mark.dortmund`.
 
 **Der Einhängepunkt ist `anweisungen.py`** und nur der: es ist die einzige
 Stelle, an der Prompt-Text entsteht. Die Reihenfolge im Gesprächs-Prompt
@@ -2100,7 +2129,8 @@ der Lader verhindert.
 jedes Profil; `tests/profile/test_dortmund.py` prüft die Werte im Wortlaut
 und läuft ausdrücklich mit `IT_WORKSHOP=dortmund-2026`. Wer ein Literal
 durch einen Profil-Lookup ersetzt, prüft am Ende nur noch, dass zwei
-Stellen dasselbe sagen.
+Stellen dasselbe sagen. Seit 04.10.2026 kein Abnahmekriterium mehr — siehe
+„Dortmund eingefroren" oben; rot nur wegen Dortmund → `@pytest.mark.dortmund`.
 
 Anleitung zum Anlegen eines Profils, offene Punkte und der Grund für jede
 Abweichung von der Analyse: `docs/workshop-profil-umbau-2026-09-06.md`.
@@ -2808,6 +2838,32 @@ Minuten nur bei `kanal != 'web'` ein. Im Browser ist eine PTT-Nachricht
 ausdrücklich „an den Bot", und Segmente gehen erst raus, wenn der Poll den
 Modus meldet. Telegram bitgleich (Test).
 
+**Ein Interview ist im Web EINE Blase** (04.10.2026, Karte t_ea994c7f,
+nur mit `[interview] fliesstext = true` — gesetzt allein in
+`workshop/padua-2026/profil.toml`, Zugriff `workshop.interview_fliesstext()`).
+Statt „Interview N, Teil K:" je Sprachnachricht schreibt jeder fertige Teil
+dieselbe Blase weiter: `aufnahme._sende_transkript_blase` baut den Text
+bei **jedem** Teil neu aus `repo.hole_teile` (Kopfzeile `🎙 Interview N`,
+dann alle Teile mit Transkript, je durch eine Leerzeile), legt die Blase
+beim ersten Teil mit `tg.sende(..., transkript=True)` an
+(`web_post.typ = 'transkript'`, kursiv in der Chatansicht) und merkt ihre
+id am Kopf (`aufnahme.echo_message_id`, ueberlebt einen Neustart); danach
+nur noch `tg.aendere_text`. Eine Sperre je Kopf
+(`aufnahme._blasen_sperre`) verhindert zwei Blasen, wenn zwei Teile im Pool
+gleichzeitig fertig werden. In `nachricht` steht die Blase einmal, beim
+Anlegen — spaetere Aenderungen ziehen dort nichts nach (die Wahrheit ist
+`aufnahme.transkript`). Mit demselben Schalter gehen „Aufnahme beendet.",
+die Abschlusszeile und „… war sehr kurz …" als Systemzeilen raus
+(`system=True` an `knoepfe.biete_aufnahme`/`biete_nach_aufnahme`).
+**Telegram bleibt beim Echo je Teil samt Leiste, auch mit Schalter**
+(`aufnahme.fliesstext_aktiv` = Schalter **und** `ist_web_gruppe`). Nicht
+gebaut: einen Teil loeschen und die Blase neu aufbauen (es gibt keinen
+Loeschweg; der Neuaufbau aus `hole_teile` machte ihn spaeter einfach),
+Telegram-Folgeblasen ueber 4096 Zeichen, eine „…"-Zeile waehrend der
+Transkription. Unabhaengig vom Schalter laeuft die Abschlusszeile im Web
+seither ueber die Sprachschicht (`_TEXT_GESPEICHERT_WEB` & Co.) — Padua
+liest sie englisch, Deutsch ist zeichengleich.
+
 **Der Offset hängt am `bot_name`, nicht am Kanal** (Abschlussreview I2). Ein
 Bot, der vorher Telegram fuhr, bringt eine getUpdates-Position um 10^8 mit
 und hörte im Web nie etwas. `scripts/web_gruppe.py` setzt den Offset deshalb
@@ -2985,7 +3041,9 @@ Team-Dashboard bekommt **neues Markup** (`_fortschritt_html`,
 der Hinweis „Needs attention", die gekappte Karte) — aber **nur hinter dem
 Profilschalter `[web] dashboard_gestaltet`** (gesetzt allein in
 `workshop/padua-2026/profil.toml`); ohne ihn bleibt das Dashboard-HTML
-byte-gleich (`tests/test_web_dashboard_en.py`).
+byte-gleich (`tests/test_web_dashboard_en.py`). Seit 04.10.2026 kein
+Abnahmekriterium mehr, wenn die Abweichung nur Dortmund betrifft — siehe
+„Dortmund eingefroren" oben; Test ggf. `@pytest.mark.dortmund`.
 
 **Ein Block Design-Tokens ist der ganze Entwurf.** `TOKENS["a"]`
 („Terminal zuerst": Phosphor auf Schwarzblau, Monospace, Tableiste unten)
@@ -3073,7 +3131,9 @@ nur bei einem Problem (`web.ACHTUNG_VORFAELLE`, Fehlschlaege und Vorfaelle
 der letzten 2 h, Kosten ab 80 % des Deckels, Web-Eingaenge, die der Bot seit
 3 min nicht abgeholt hat), keine leeren Felder, kein Leitfaden, kein
 Botname. Ohne Profil und mit `dortmund-2026` bleibt das HTML byte-gleich —
-`tests/test_web_dashboard_en.py` haelt es fest. **Betrieb:** die
+`tests/test_web_dashboard_en.py` haelt es fest. Seit 04.10.2026 kein
+Abnahmekriterium mehr, wenn die Abweichung nur Dortmund betrifft — siehe
+„Dortmund eingefroren" oben; Test ggf. `@pytest.mark.dortmund`. **Betrieb:** die
 Kostenwarnung liest `IT_KOSTEN_DECKEL_CHF` aus der Umgebung des
 **Webdienstes** (Vorgabe 5.0); `docs/interview-theater-web.service` setzt
 die Variable nicht. Wer den Deckel in den Bot-Envs aendert, setzt ihn auch
@@ -3107,7 +3167,9 @@ in `teil/stand` keinen mehr, der Chat-Poll hält ihn frisch. Das CSS
 (`web_gestalt.css_werkbank`) ist die zehnte Einhängezeile, nur mit dem
 Schalter `false`. Ohne Profil und mit `dortmund-2026` bleibt alles
 byte-gleich — `tests/test_werkbank_bitgleich.py` gegen
-`tests/fixtures/werkbank_vorher_*.html`. Grenze: die Einzelseite
+`tests/fixtures/werkbank_vorher_*.html`. Seit 04.10.2026 kein
+Abnahmekriterium mehr, wenn die Abweichung nur Dortmund betrifft — siehe
+„Dortmund eingefroren" oben; Test ggf. `@pytest.mark.dortmund`. Grenze: die Einzelseite
 `gruppe_html` (von keiner Route mehr ausgeliefert) zeigt die Punkte
 ungestaltet. Screenshots: `docs/ux-padua/workbench/`.
 

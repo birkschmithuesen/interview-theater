@@ -218,3 +218,16 @@ def test_prueflauf_und_ueberarbeitung_nur_in_padua():
         assert schalter(None) is False
         assert schalter(workshop.lade("dortmund-2026")) is False
         assert schalter(workshop.lade("padua-2026")) is True
+
+
+def test_interview_fliesstext_nur_in_padua():
+    """Karte t_ea994c7f: wie [prueflauf] -- aus in der Vorgabe und in
+    Dortmund, an nur in Padua."""
+    assert workshop.interview_fliesstext(None) is False
+    assert workshop.interview_fliesstext(workshop.lade("dortmund-2026")) is False
+    assert workshop.interview_fliesstext(workshop.lade("padua-2026")) is True
+
+
+def test_interview_fliesstext_liest_den_baum():
+    profil = workshop.Profil("test", None, {"interview": {"fliesstext": True}})
+    assert workshop.interview_fliesstext(profil) is True

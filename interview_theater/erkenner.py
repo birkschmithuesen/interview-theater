@@ -2253,7 +2253,7 @@ def _melde_interviewmodus(tg, conn, e, chat_id: int, wirkliche: list[dict]) -> N
     (``knoepfe.TEXT_ABLAUF``) mit dem Knopf "Interview starten" darunter --
     erst sein Druck schaltet den Modus an. Beim Ende bleibt es beim
     bisherigen Weg: "Aufnahme beendet." mit dem Umschalter darunter."""
-    from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
+    from interview_theater import aufnahme, knoepfe  # spaeter Import, haelt den Modulkopf frei
 
     texte = _interviewmodus_texte()
     for aenderung in wirkliche:
@@ -2262,7 +2262,8 @@ def _melde_interviewmodus(tg, conn, e, chat_id: int, wirkliche: list[dict]) -> N
         if text is None:
             continue
         try:
-            message_id = knoepfe.biete_aufnahme(conn, tg, chat_id, text)
+            system = art == "interview_beenden" and aufnahme.fliesstext_aktiv(conn, chat_id)
+            message_id = knoepfe.biete_aufnahme(conn, tg, chat_id, text, system=system)
             repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
         except Exception:
             log.exception(

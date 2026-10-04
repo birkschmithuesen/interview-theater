@@ -502,3 +502,41 @@ def test_kein_absendername_im_verlauf(lauf):
     assert "None:" not in klm.nutzertexte[0]
     gruppe = [n for n in _zustand(basis, token)["nachrichten"] if n["von"] == "gruppe"]
     assert gruppe and all("name" not in n for n in gruppe)
+
+
+def test_drei_segmente_ergeben_eine_transkriptblase(lauf, monkeypatch):
+    """Karte t_ea994c7f, ueber den echten Weg (bot.schleife mit WebKanal,
+    echter Webserver): mit ``[interview] fliesstext`` werden drei Segmente
+    EINE Transkriptblase, und "Aufnahme beendet." ist eine Systemzeile."""
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "interview_fliesstext", lambda profil=None: True)
+    basis, token, pfad, klm = lauf
+    _post(basis, token, "interview", {"an": True})
+    _warte_auf(pfad, lambda c: repo.ist_interviewmodus_an(c, CHAT), "Modus an")
+
+    for nummer in (1, 2, 3):
+        _lade_segment(basis, token, nummer)
+
+    def drei_teile_in_einer_blase(conn):
+        zeilen = conn.execute(
+            "SELECT text FROM web_post WHERE chat_id = ? AND typ = 'transkript'", (CHAT,)
+        ).fetchall()
+        return len(zeilen) == 1 and zeilen[0]["text"].count(INTERVIEWTEXT) == 3
+
+    _warte_auf(pfad, drei_teile_in_einer_blase, "eine Blase mit drei Teilen")
+
+    blasen = [n for n in _zustand(basis, token)["nachrichten"] if n["typ"] == "transkript"]
+    assert len(blasen) == 1, "der Poll liefert genau eine Transkriptblase"
+    assert blasen[0]["von"] == "bot"
+
+    _post(basis, token, "interview", {"an": False})
+    _warte_auf(
+        pfad,
+        lambda c: c.execute(
+            "SELECT 1 FROM web_post WHERE chat_id = ? AND typ = 'system' "
+            "AND text = 'Aufnahme beendet.'", (CHAT,),
+        ).fetchone(),
+        "Aufnahme beendet. als Systemzeile",
+    )
+    _warte_auf(pfad, lambda c: klm.verdichtet >= 1, "Verdichtung")

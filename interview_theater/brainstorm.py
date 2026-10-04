@@ -52,6 +52,7 @@ def min_zeichen_bei_abschluss() -> int:
 def soll_reagieren(
     *, unreagierte_zeichen: int, sekunden_seit_letzter_reaktion: float,
     letzter_schnittgrund: str | None, ist_abschluss: bool,
+    min_zeichen_override: int | None = None,
 ) -> bool:
     """Code-Entscheidung, kein Modellaufruf.
 
@@ -64,11 +65,16 @@ def soll_reagieren(
     ``ist_abschluss``: Pause/Beenden-Knopf der Gruppe -- dort reicht eine
     niedrigere Schwelle (``min_zeichen_bei_abschluss``) ohne Wartezeit und
     ohne Pausenschnitt-Bedingung, weil die Gruppe selbst gerade aufgehoert
-    hat zu sprechen."""
+    hat zu sprechen.
+    ``min_zeichen_override``: Birk Live-Test 04.10.2026 -- das Begriffsboard
+    (Phase 1) braucht eine eigene, niedrigere Schwelle als der Brainstorm
+    (Phase 4): beide teilen sich diese Funktion, aber ein Testgespraech in
+    Phase 1 ist kuerzer als eine echte Brainstorm-Sitzung. ``None`` heisst
+    unveraendert ``min_zeichen()``."""
     if ist_abschluss:
         return unreagierte_zeichen >= min_zeichen_bei_abschluss()
     return (
-        unreagierte_zeichen >= min_zeichen()
+        unreagierte_zeichen >= (min_zeichen_override if min_zeichen_override is not None else min_zeichen())
         and sekunden_seit_letzter_reaktion >= min_abstand_s()
         and letzter_schnittgrund == "pause"
     )

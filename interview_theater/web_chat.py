@@ -274,6 +274,9 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .blase.gruppe { background: #1f6f5c; color: #fff; align-self: flex-end;
                 border-bottom-right-radius: .2rem; }
 .blase.sprache { font-style: italic; opacity: .85; }
+/* Karte t_ea994c7f: die EINE Transkriptblase eines Interviews -- kursiv
+   wie eine Sprachnachricht, aber eine Bot-Blase (Rahmen, Seite). */
+.blase.transkript { font-style: italic; }
 .blase.system { background: transparent; border: none; color: #6b6f76;
                 font-size: .88rem; padding: .25rem .2rem; max-width: 100%; }
 /* UX-Knoepfe-Karte, Abschnitt 5: die Telefon-Organisationskarte je Phase. */
@@ -906,7 +909,8 @@ _CHAT_JS = """
   }
 
   function klasseVon(n) {
-    if (n.typ === 'sprache' || n.typ === 'datei' || n.typ === 'system') {
+    if (n.typ === 'sprache' || n.typ === 'datei' || n.typ === 'system' ||
+        n.typ === 'transkript') {
       return n.typ;
     }
     return 'text';
@@ -2420,6 +2424,13 @@ _CHAT_JS = """
   function kalStarteEchteSchnitte(sitzung) {
     stoppePegelAn(sitzung);   // falls #kalibrierung-neu einen frueheren Lauf stoppt
     pegelAn(sitzung);
+    // Birk Live-Test 04.10.2026: die Uhr gehoert NICHT hier rein, aber bisher
+    // stand sie schon fest in beginneAufnahme() (vor der Kalibrierungs-
+    // Weiche) -- sie lief also schon waehrend der Stille-/Sprechmessung,
+    // obwohl die echte Aufnahme noch gar nicht lief. uhrAn() jetzt erst HIER,
+    // wenn die Kalibrierung entschieden ist (cache/kill-switch/fertig) und
+    // die echten Schnitte tatsaechlich beginnen.
+    uhrAn(sitzung);
     if (!sitzung.vadAktiv) {
       if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
       sitzung.segmentTakt = setInterval(function () {
@@ -2572,7 +2583,6 @@ _CHAT_JS = """
     sitzung.vadSpeechMs = 0;
     sitzung.vadLetzteRede = sitzung.vadSegmentStart;
     sitzung.gestartet = true;
-    uhrAn(sitzung);
     kalEntscheideOderStarte(sitzung);
   }
 
@@ -3671,6 +3681,12 @@ def _blase_html(n: dict, basis: str = "") -> str:
         if n["text"]:
             inhalt = sichere_html(n["text"]) + "<br>" + inhalt
         klasse = "datei"
+    elif n["typ"] == "transkript":
+        # Karte t_ea994c7f: die EINE Transkriptblase eines Interviews
+        # (Padua, ``[interview] fliesstext``). Inhalt wie jede Bot-Zeile;
+        # das Mikrofon steht im Text, kursiv macht das CSS.
+        inhalt = sichere_html(n["text"])
+        klasse = "transkript"
     elif n["typ"] == "system":
         # UX-Knoepfe-Karte, Abschnitt 3: eine Speicherquittung ("Notiert: …",
         # ein Rueckgaengig-Ergebnis) ist keine Aeusserung des Bots, sondern

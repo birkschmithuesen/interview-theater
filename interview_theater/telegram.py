@@ -164,7 +164,8 @@ class Telegram:
             return antwort.json()["result"]["message_id"]
 
     def sende(self, chat_id: int, text: str, parse_mode: str | None = None,
-              klartext: str | None = None, system: bool = False) -> int:
+              klartext: str | None = None, system: bool = False,
+              transkript: bool = False) -> int:
         """Schickt eine Textnachricht. Liefert die message_id der gesendeten Nachricht.
 
         Telegram nimmt hoechstens 4096 Zeichen je Nachricht (Bot-API,
@@ -184,7 +185,12 @@ class Telegram:
         Chatansicht des Web-Kanals stellt sie gedaempft dar
         (``web_kanal.WebKanal.sende``). Das Argument steht hier nur, damit
         ``tg.sende(..., system=True)`` an beiden Kanaelen gleich aussieht --
-        kein Aufrufer muss nach Kanal unterscheiden."""
+        kein Aufrufer muss nach Kanal unterscheiden.
+
+        ``transkript`` ist ebenfalls ein No-Op (Karte t_ea994c7f): nur die
+        Chatansicht des Web-Kanals kennt die EINE kursive Transkriptblase
+        eines Interviews (``web_kanal.WebKanal.sende``). Telegram bekommt sie
+        nie -- dort bleibt das Echo je Teil (``aufnahme.fliesstext_aktiv``)."""
         stuecke = teile_text(text)
         roh = teile_text(klartext) if klartext is not None else stuecke
         letzte = 0

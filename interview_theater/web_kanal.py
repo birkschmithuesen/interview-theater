@@ -397,7 +397,7 @@ class WebKanal:
     # -- Ausgang -----------------------------------------------------------
 
     def sende(self, chat_id: int, text: str, parse_mode=None, klartext=None,
-              system: bool = False) -> int:
+              system: bool = False, transkript: bool = False) -> int:
         """Eine Textnachricht. Liefert die ``message_id``.
 
         **Nicht geteilt**, anders als in Telegram (``teile_text``, 4000
@@ -414,8 +414,17 @@ class WebKanal:
         bekommt ``web_post.typ = WEB_TYP_SYSTEM`` statt ``WEB_TYP_TEXT`` --
         die Chatansicht stellt sie damit als gedaempfte Systemzeile statt
         als Sprechblase dar. Nur eine Anzeige-Unterscheidung: die Mitschrift
-        in ``nachricht`` (fuer das Gespraechsmodell) ist davon unberuehrt."""
-        typ = repo.WEB_TYP_SYSTEM if system else repo.WEB_TYP_TEXT
+        in ``nachricht`` (fuer das Gespraechsmodell) ist davon unberuehrt.
+
+        ``transkript`` (Karte t_ea994c7f): die EINE Transkriptblase eines
+        Interviews -- ``web_post.typ = WEB_TYP_TRANSKRIPT``, danach nur noch
+        ueber ``aendere_text`` weitergeschrieben (der ``typ`` bleibt)."""
+        if transkript:
+            typ = repo.WEB_TYP_TRANSKRIPT
+        elif system:
+            typ = repo.WEB_TYP_SYSTEM
+        else:
+            typ = repo.WEB_TYP_TEXT
         return repo.lege_web_post_an(
             self._conn, chat_id, repo.RICHTUNG_AUS, typ, text=text,
         )

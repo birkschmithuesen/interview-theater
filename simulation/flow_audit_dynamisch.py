@@ -6,7 +6,10 @@ ob der Chat-Weg, wenn er existiert, tatsaechlich etwas bewirkt: ein Intent
 kann im Schema stehen und trotzdem nie greifen, weil eine Wache davor sitzt,
 die niemand gemessen hat (Phase, Profilschalter, ein konkurrierender
 deterministischer Text-Pfad). Dieses Modul faehrt deshalb zwei Personas durch
-Phase 1 (Begriffe) und Phase 2 (Fragen) **gegen den echten Bot-Code**
+Phase 1 (Begriffe), Phase 2 (Fragen), Phase 3 (Interviews) und Phase 4
+(Setting, Figuren & Geschichte -- Stationen 15-27, Task B, t_92f99911,
+erweitert aus der urspruenglichen Phase-1/2-Karte t_2cdea48b)
+**gegen den echten Bot-Code**
 (``bot.verarbeite_update``, ``bot._zug_und_erkenner``, ``knoepfe.behandle``,
 eine echte SQLite-Verbindung) und misst, nicht vermutet.
 
@@ -240,6 +243,19 @@ class SkriptLLM:
         self._text_plan: dict[tuple[str, str], list[str]] = {}
         self._text_zaehler: dict[tuple[str, str], int] = {}
         self._erkenner_plan: dict[str, list[dict]] = {}
+        #: Phase-3-Nachtrag (Task B, t_92f99911): eine vorbereitete Antwort
+        #: fuer ``art="verdichter"`` (``verdichter.verdichte``). Ohne diesen
+        #: Plan liefert ``.schema()`` fuer diese ``art`` dasselbe
+        #: ``{"antwort": ...}``-Dict wie fuer den Gespraechszug --
+        #: ``verdichter.verdichte`` greift aber am Ende direkt auf
+        #: ``ergebnis["zusammenfassung"]`` zu (kein ``.get``) und wuerde mit
+        #: einem ``KeyError`` abbrechen, sobald eine Station wirklich eine
+        #: Verdichtung durchlaufen laesst (``aufnahme.schliesse_ab`` ->
+        #: ``verdichter.verdichte``). Eine Station OHNE diese Konfiguration
+        #: darf also nie bis zur Verdichtung durchlaufen (sie wuerde dort
+        #: crashen) -- ``.verdichtung(...)`` ist deshalb Pflicht fuer jede
+        #: Station, die ``schliesse_ab``/``verarbeite`` tatsaechlich aufruft.
+        self._verdichtung_plan: dict[str, dict] = {}
         #: Einmalige kuenstliche Verzoegerung je Stufe (Station 13) -- siehe
         #: Moduldocstring, Abschnitt "Wartezustand".
         self._verzoegerung_s: dict[str, float] = {}
@@ -263,6 +279,20 @@ class SkriptLLM:
         self._erkenner_plan[stufe] = list(aenderungen)
         return self
 
+    def verdichtung(self, stufe: str, zusammenfassung: str,
+                    kernthemen: list[dict] | None = None) -> "SkriptLLM":
+        """Bequemlichkeit fuer ``art="verdichter"`` (siehe
+        ``_verdichtung_plan`` oben) -- ``kernthemen`` im Schema von
+        ``verdichter.SCHEMA`` (``[{"thema":..., "beleg_zitat":...,
+        "kurz":...}]``), Vorgabe leer (eine Verdichtung ohne belegtes Thema
+        ist fuer eine Station, die nur die Phase-4-Sperre misst, voellig
+        ausreichend)."""
+        self._verdichtung_plan[stufe] = {
+            "zusammenfassung": zusammenfassung,
+            "kernthemen": kernthemen or [],
+        }
+        return self
+
     def verzoegere(self, stufe: str, sekunden: float) -> "SkriptLLM":
         self._verzoegerung_s[stufe] = sekunden
         return self
@@ -284,6 +314,10 @@ class SkriptLLM:
             time.sleep(verzug)
         if art == "erkenner":
             return self._antwort_erkenner(stufe)
+        if art == "verdichter":
+            geplant = self._verdichtung_plan.get(stufe or "")
+            if geplant is not None:
+                return dict(geplant)
         return {"antwort": self._antwort_text(stufe, art)}
 
     def _antwort_text(self, stufe: str | None, art: str) -> str:
@@ -1271,10 +1305,737 @@ def station_14_priya_begriffe_korrektur(conn, tg, klm, e, chat_id: int) -> Sondi
     return s
 
 
+# ---------------------------------------------------------------------------
+# Phase 3 -- Interviews (Task B, t_92f99911, erweitert aus der
+# urspruenglichen Phase-1/2-Karte t_2cdea48b). Keine Stimme simuliert
+# echtes Audio/Whisper -- Interviews kommen als Text herein
+# (``aufnahme.importiere_text``), wie im grossen Simulator
+# (``simulation/lauf.py``, SPEC § 10.5). Audio/STT/Segmente bleiben
+# ausserhalb des Geltungsbereichs dieses Werkzeugs (siehe die bestehende
+# Anmerkung am Ende dieser Datei, ``test_phase3_fehlermeldungen_...`` in
+# ``tests/test_flow_audit_dynamisch.py``) -- das deckt auch "Sprache
+# automatisch" (Whisper-Spracherkennung) ab: das ist ein STT-Pfad, den eine
+# Text-Simulation strukturell nicht erreicht.
+# ---------------------------------------------------------------------------
+
+
+def _gehe_nach_phase_3(conn, chat_id: int) -> None:
+    from interview_theater import phasen
+
+    phasen.setze(conn, chat_id, 3, "befehl")
+
+
+def _seed_phase3_voraussetzungen(conn, chat_id: int) -> None:
+    """Die drei Felder, die ``phasen.voraussetzungen(...)[3]`` braucht
+    (``fragen_weich`` ist in Padua abgeschaltet und zaehlt nicht, wie schon
+    in Station 12) -- gemeinsame Vorbereitung fuer jede Phase-3-Station, die
+    unabhaengig von einer vorherigen Sitzung lauffaehig bleiben soll."""
+    from interview_theater import repo
+
+    repo.setze_arbeitsstand(
+        conn, chat_id, "fragen", "Tell me about the day you arrived here.",
+    )
+    repo.setze_arbeitsstand(
+        conn, chat_id, "interview_eroeffnung",
+        "Hi, we're a theatre group collecting voices for a play ...",
+    )
+    repo.setze_arbeitsstand(
+        conn, chat_id, "interview_abschluss", "Thank you so much for your time.",
+    )
+
+
+def _starte_interview_direkt(conn, chat_id: int) -> int:
+    """Startet ein Interview genau wie ``befehle._befehl_aufnahme``/
+    ``_befehl_interview`` es tun (``repo.setze_interviewmodus`` +
+    ``aufnahme.stelle_interview_sicher``) -- siehe die Erklaerung bei
+    Station 15, warum eine Station den Modus NICHT ueber einen erkannten
+    ``interview_starten``-Intent einschalten kann. Liefert die neue
+    ``aufnahme_id``."""
+    from interview_theater import aufnahme, repo
+
+    repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
+    return aufnahme.stelle_interview_sicher(conn, chat_id)
+
+
+def station_15_interview_starten_ist_knopf_bzw_befehl_only(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """**Gefundene Abweichung von der im Aufgabenbrief erwarteten Pruefung**
+    (Punkt 1): ein per Chat erkannter ``interview_starten``-Intent schaltet
+    den Interviewmodus NICHT ein. ``erkenner._wende_interview_starten_an``
+    sagt das woertlich: 'Ein angekuendigtes Interview startet nichts mehr'
+    (05.09.2026, Birk nach dem Live-Lauf Gruppe 3 -- Start und Ende fielen in
+    denselben Erkennerlauf, der Kopf blieb leer). Der erkannte Intent loest
+    nur noch das ANGEBOT aus: dieselbe Ablauf-Erklaerung und denselben Knopf
+    wie ``/aufnahme`` ohne laufenden Modus. **Das widerspricht der Lesart der
+    bestehenden Phase-2-Zeile in flow_erwartungen.toml** ('Direkt aus Phase 1
+    oder 2 heraus eine Interview-Aufnahme per Chat starten'), die nahelegt,
+    der Chat starte direkt -- siehe Report (moeglicher Klasse-B-
+    Dokumentationsbefund an der VORHERIGEN Karte t_2cdea48b, nicht an
+    dieser; die Zeile selbst bleibt unangetastet). Das eigentliche Starten
+    bleibt ``/aufnahme`` oder der danach angebotene Knopf -- diese Station
+    drueckt ihn im zweiten Schritt, damit Stationen 16/17 einen wirklich
+    laufenden Interviewmodus vorfinden."""
+    from interview_theater import repo
+
+    _gehe_nach_phase_3(conn, chat_id)
+
+    stufe = "p15_angebot"
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "Sounds good -- tap the button below whenever you're ready.",
+    )
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe, [{"art": "interview_starten", "wert": ""}])
+
+    vor_chat = repo.ist_interviewmodus_an(conn, chat_id)
+    antwort = sende_nachricht(
+        conn, tg, klm, e, chat_id, GIULIA, "we're starting the recording now",
+    )
+    nach_chat = repo.ist_interviewmodus_an(conn, chat_id)
+    start_knopf = finde_knopf(tg, "Start interview") or finde_knopf(tg, "Aufnahme starten")
+
+    gestartet_ueber_knopf = False
+    if start_knopf is not None:
+        druecke_knopf(conn, tg, klm, e, chat_id, start_knopf)
+        gestartet_ueber_knopf = repo.ist_interviewmodus_an(conn, chat_id)
+
+    s = Sondierung(
+        phase=3, station="'interview_starten' per Chat ist nur ein Angebot, kein Start",
+        persona=GIULIA.name,
+        aktion="Pruefen, ob ein per Chat erkannter 'interview_starten'-Intent "
+               "den Modus direkt einschaltet, oder nur den Start-Knopf anbietet",
+        nachricht="we're starting the recording now", bot_antwort=antwort,
+        schreibvorgang=(
+            not vor_chat and not nach_chat
+            and start_knopf is not None and gestartet_ueber_knopf
+        ),
+    )
+    s.hinweis = (
+        f"Interviewmodus nach dem Chat-Satz allein: {nach_chat} (erwartet: "
+        "False -- 'interview_starten' loest nur das Angebot aus); Start-"
+        f"Knopf wurde angeboten: {start_knopf is not None}; nach dem "
+        f"Knopfdruck wirklich gestartet: {gestartet_ueber_knopf}"
+    )
+    return s
+
+
+def station_16_interview_verwerfen_laufend(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """**Die erste MISST-statt-vermutet-Station** (Auftrag, Punkt 2 --
+    es gibt keinen eigenen Erkenner-Intent fuer 'Interview abbrechen').
+    Priya startet (ueber den echten Umschalter-Mechanismus, siehe Station
+    15 -- der Chat allein startet nichts) ein Interview, es bekommt
+    Transkriptinhalt, und WAEHREND es noch laeuft, sagt sie 'can we just
+    delete this one' -- der Erkenner liest das als ``entfernen`` mit Ziel
+    'interview'/'aufnahme'. Gemessen wird, ob das GERADE LAUFENDE Interview
+    wirklich weich geloescht wird (nicht nur ein schon beendetes), und dass
+    der Interviewmodus danach UNVERAENDERT an bleibt
+    (``gruppe.interviewmodus_seit`` wird von ``entferne()`` nicht beruehrt --
+    die naechste Sprachnachricht legt einen frischen Kopf an, siehe die
+    Phase-3-Zeile 'Ein Interview ... verwerfen' in
+    ``flow_erwartungen.toml``)."""
+    from interview_theater import repo
+
+    _gehe_nach_phase_3(conn, chat_id)
+    _starte_interview_direkt(conn, chat_id)
+
+    kopf_vorher = repo.laufendes_interview(conn, chat_id)
+    if kopf_vorher is not None:
+        repo.setze_transkript(conn, kopf_vorher["id"], "some early words already spoken")
+
+    stufe2 = "p16_verwerfen"
+    _konfiguriere_falls_attrappe(klm, stufe2).gespraech(
+        stufe2, "Got it, deleting that one -- start again whenever you like.",
+    )
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe2, [{"art": "entfernen", "wert": "Interview 1"}])
+
+    nachricht = "actually, can we just delete this one and start over"
+    antwort = sende_nachricht(conn, tg, klm, e, chat_id, PRIYA, nachricht)
+
+    kopf_nachher = repo.hole_aufnahme(conn, kopf_vorher["id"]) if kopf_vorher else None
+    laufendes_danach = repo.laufendes_interview(conn, chat_id)
+    modus_noch_an = repo.ist_interviewmodus_an(conn, chat_id)
+    geloescht = bool(kopf_nachher and kopf_nachher["entfernt_am"])
+
+    s = Sondierung(
+        phase=3, station="Interview per Chat verwerfen (noch laufend)", persona=PRIYA.name,
+        aktion="Ein GERADE LAUFENDES Interview per Chat-Satz verwerfen, "
+               "statt es erst zu beenden und dann in einem zweiten Schritt zu loeschen",
+        nachricht=nachricht, bot_antwort=antwort,
+        schreibvorgang=(kopf_vorher is not None and geloescht and modus_noch_an),
+        fragen_der_persona=[
+            "did that actually work?",
+            "do I need to say start again, or does it just happen?",
+        ],
+    )
+    s.hinweis = (
+        f"Kopf vorhanden vor dem Versuch: {kopf_vorher is not None}; "
+        f"entfernt_am danach gesetzt: {geloescht}; Interviewmodus danach "
+        f"noch an: {modus_noch_an}; laufendes_interview() liefert danach "
+        f"{'None (der entfernte Kopf zaehlt nicht mehr)' if laufendes_danach is None else 'einen Kopf -- unerwartet'}"
+    )
+    return s
+
+
+def station_17_transkript_korrektur_waehrend_interview(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """Investigiert Auftrag Punkt 3: eine Transkript-Korrektur als
+    TEXTNACHRICHT waehrend ein Interview laeuft, geht IMMER durch den
+    normalen Gespraechs-/Erkennerzug (``erkenner.ARTEN_IN_AUFNAHME`` gilt nur
+    fuer SPRACHnachrichten innerhalb der Aufnahme-Pipeline -- eine
+    Textnachricht landet nie dort). Die Korrektur muss also unveraendert
+    greifen, auch mitten im Interviewmodus."""
+    from interview_theater import repo
+
+    _gehe_nach_phase_3(conn, chat_id)
+    _starte_interview_direkt(conn, chat_id)
+
+    kopf = repo.laufendes_interview(conn, chat_id)
+    repo.setze_transkript(
+        conn, kopf["id"], "she told us about the gepoekt market near the station",
+    )
+
+    stufe2 = "p17_korrektur"
+    _konfiguriere_falls_attrappe(klm, stufe2).gespraech(
+        stufe2, "Thanks, I'll fix that in the transcript.",
+    )
+    nachricht = "quick correction -- Whisper heard 'gepoekt' but it should be 'gepogt'"
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe2, [
+            {"art": "transkript_korrigieren", "wert": "gepoekt -> gepogt"},
+        ])
+
+    vorher = (repo.hole_aufnahme(conn, kopf["id"])["transkript"] or "")
+    antwort = sende_nachricht(conn, tg, klm, e, chat_id, GIULIA, nachricht)
+    nachher = (repo.hole_aufnahme(conn, kopf["id"])["transkript"] or "")
+
+    s = Sondierung(
+        phase=3, station="Transkript-Korrektur als Text waehrend eines laufenden Interviews",
+        persona=GIULIA.name,
+        aktion="Eine Transkript-Korrektur ALS TEXTNACHRICHT waehrend/nach "
+               "einem Interview per Chat vornehmen",
+        nachricht=nachricht, bot_antwort=antwort,
+        schreibvorgang=("gepogt" in nachher and "gepoekt" not in nachher),
+    )
+    s.hinweis = f"Transkript vorher={vorher!r} nachher={nachher!r}"
+    return s
+
+
+def _seed_fertige_verdichtung(conn, chat_id: int, text: str, name: str) -> int:
+    """Legt direkt ueber ``repo`` ein beendetes, VERDICHTETES Interview an --
+    ohne einen echten Modellaufruf (kein ``klm.schema(art='verdichter')``
+    noetig). Grundlage fuer Stationen, die die Phase-4-Sperre pruefen wollen
+    und dafuer selbststaendig (ohne eine vorherige Station in derselben
+    Sitzung) eine Baseline brauchen, bei der ``bool(repo.verdichtungen(...))``
+    bereits wahr ist (``phasen.voraussetzungen(...)[4]`` braucht BEIDES:
+    mindestens eine Verdichtung UND keine unausgewerteten Interviews)."""
+    from interview_theater import aufnahme, repo
+
+    aufnahme_id = aufnahme.importiere_text(
+        conn, None, chat_id, 0, text, name=name,
+    )
+    repo.setze_status(conn, aufnahme_id, "fertig")
+    repo.speichere_verdichtung(conn, chat_id, aufnahme_id, f"Summary of {name}", [])
+    return aufnahme_id
+
+
+def _raeume_unausgewertete_interviews(conn, chat_id: int) -> None:
+    """Entfernt (weich) jedes gerade unausgewertete Interview -- Aufraeumen
+    VOR einer Station, die eine SAUBERE Phase-4-Baseline braucht,
+    unabhaengig davon, was eine vorherige Station in DERSELBEN Sitzung
+    absichtlich offen gelassen hat. Station 20 laesst bewusst ein offenes
+    Interview stehen, um die Sperre zu demonstrieren -- ohne dieses
+    Aufraeumen wuerde jede danach laufende Station in ``fuehre_alle_aus``
+    dieselbe Sperre erben, obwohl sie ihre eigene, unabhaengige Baseline
+    aufbauen will (gefunden beim ersten vollen Sitzungslauf aller 27
+    Stationen, Task B)."""
+    from interview_theater import aufnahme, repo
+
+    for kopf in aufnahme.unausgewertete_interviews(conn, chat_id):
+        repo.entferne_aufnahme(conn, chat_id, kopf["id"])
+
+
+def station_18_normales_interview_wird_echt_verdichtet(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """Die Baseline/Gegenprobe: ein Interview mit genug Material (>=
+    ``aufnahme.MINDEST_WOERTER``) laeuft durch den ECHTEN Produktionspfad
+    (``aufnahme.importiere_text`` -> ``aufnahme.verarbeite`` ->
+    ``aufnahme._interview_abschliessen`` -> ``verdichter.verdichte``) --
+    anders als die Stationen 19/20 unten, die ihre Baseline direkt ueber
+    ``repo`` seeden, exerziert DIESE Station den vollen, bezahlten Lauf
+    einmal wirklich durch (ueber ``SkriptLLM.verdichtung``, Task-B-Nachtrag
+    an ``simulation.flow_audit_dynamisch.SkriptLLM``), um zu beweisen, dass
+    diese Baseline-Annahme der beiden anderen Stationen stimmt und keine
+    Fiktion ist."""
+    from interview_theater import aufnahme, phasen, repo
+
+    _gehe_nach_phase_3(conn, chat_id)
+    _seed_phase3_voraussetzungen(conn, chat_id)
+    _raeume_unausgewertete_interviews(conn, chat_id)
+
+    text = (
+        "We talked for a long time about the day she arrived in this city, "
+        "how quiet the streets were, how she waited at the station for "
+        "almost an hour before anyone came, how strange the silence felt "
+        "and how she slowly began to feel at home here after meeting her "
+        "neighbours and sharing meals with them every week since then."
+    )
+    assert len(text.split()) >= 40
+
+    stufe = "p18_verdichtung"
+    if isinstance(klm, SkriptLLM):
+        klm.stelle(stufe).verdichtung(
+            stufe, "Arrival, waiting at the station, and slowly feeling at home.",
+        )
+    aufnahme_id = aufnahme.importiere_text(
+        conn, e, chat_id, tg.naechste_message_id(), text, name="Interview 1",
+    )
+    aufnahme.verarbeite(conn, tg, klm, e, None, aufnahme_id)
+
+    verdichtung = repo.verdichtung_zu_aufnahme(conn, aufnahme_id)
+    kopf = repo.hole_aufnahme(conn, aufnahme_id)
+    phase4_moeglich = phasen.voraussetzungen(conn, chat_id)[4]
+
+    s = Sondierung(
+        phase=3, station="Ein normales Interview wird echt verdichtet", persona=GIULIA.name,
+        aktion="Ein ausreichend langes Interview ueber den echten "
+               "Verdichtungslauf abschliessen lassen",
+        schreibvorgang=(
+            verdichtung is not None and not kopf["zu_kurz_uebersprungen"]
+            and phase4_moeglich is True
+        ),
+    )
+    s.hinweis = (
+        f"Verdichtung angelegt: {verdichtung is not None}; "
+        f"zu_kurz_uebersprungen: {bool(kopf['zu_kurz_uebersprungen'])}; "
+        f"Phase 4 moeglich: {phase4_moeglich}"
+    )
+    return s
+
+
+def station_19_kurzes_interview_blockiert_phase4_nicht(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """Investigiert Auftrag Punkt 5 (erster Teil, der Kernbefund der zu-kurz-
+    Reparatur 'Padua Phasen TEIL 2, Befund 4a'): ein Interview unter
+    ``aufnahme.MINDEST_WOERTER`` (40) wird bei ``aufnahme.verarbeite`` NICHT
+    verdichtet (``_zu_kurz_gemeldet`` greift VOR jedem Modellaufruf), bekommt
+    ``zu_kurz_uebersprungen=1`` -- und blockiert die Phase-4-Sperre
+    (``phasen.voraussetzungen(...)[4]``) TROTZDEM NICHT, solange mindestens
+    eine ANDERE, echte Verdichtung existiert. Selbststaendig lauffaehig: die
+    Baseline-Verdichtung wird direkt geseedet (``_seed_fertige_verdichtung``),
+    unabhaengig davon, ob Station 18 vorher in derselben Sitzung lief."""
+    from interview_theater import aufnahme, phasen, repo
+
+    _gehe_nach_phase_3(conn, chat_id)
+    _seed_phase3_voraussetzungen(conn, chat_id)
+    _raeume_unausgewertete_interviews(conn, chat_id)
+    _seed_fertige_verdichtung(
+        conn, chat_id, "A long, unrelated interview about the market.", "Interview 1",
+    )
+
+    kurzer_text = "Yes. No. It was fine, I guess. Nothing much to say really."
+    assert len(kurzer_text.split()) < aufnahme.MINDEST_WOERTER
+
+    vorher_gesendet = len(tg.gesendet)
+    aufnahme_id = aufnahme.importiere_text(
+        conn, e, chat_id, tg.naechste_message_id(), kurzer_text, name="Interview 2",
+    )
+    aufnahme.verarbeite(conn, tg, klm, e, None, aufnahme_id)
+    neue = tg.gesendet[vorher_gesendet:]
+
+    kopf = repo.hole_aufnahme(conn, aufnahme_id)
+    phase4_moeglich = phasen.voraussetzungen(conn, chat_id)[4]
+    offen = aufnahme.unausgewertete_interviews(conn, chat_id)
+
+    s = Sondierung(
+        phase=3, station="Kurzes Interview blockiert Phase 4 nicht", persona=PRIYA.name,
+        aktion="Ein sehr kurzes Interview (< 40 Woerter) abschliessen lassen "
+               "und pruefen, dass Phase 4 trotzdem erreichbar bleibt",
+        bot_antwort="\n".join(n["text"] for n in neue if n.get("text")),
+        schreibvorgang=(
+            bool(kopf["zu_kurz_uebersprungen"]) and phase4_moeglich is True
+            and aufnahme_id not in {o["id"] for o in offen}
+        ),
+    )
+    s.hinweis = (
+        f"zu_kurz_uebersprungen: {bool(kopf['zu_kurz_uebersprungen'])}; "
+        f"Phase 4 moeglich: {phase4_moeglich}; dieses Interview noch in "
+        f"unausgewertete_interviews(): {aufnahme_id in {o['id'] for o in offen}}"
+    )
+    return s
+
+
+def station_20_offenes_interview_blockiert_phase4(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """**Die zweite MISST-statt-vermutet-Station**, das Gegenstueck zu
+    Station 19 (Auftrag Punkt 5, zweiter Teil -- 'Phase-4-Sperre nur bei
+    echt LAUFENDER Verdichtung'): ein ausreichend langes Interview wird
+    importiert (also 'beendet' im Sinn von
+    ``aufnahme.unausgewertete_interviews``: ``status='transkribiert'``),
+    aber NIE verdichtet (kein ``verarbeite``-Aufruf). Das muss die
+    Phase-4-Sperre WIRKLICH blockieren -- anders als das zu-kurze Interview
+    aus Station 19, das genau dieselbe Form hat, aber die Sperre NICHT
+    bloeckt, weil ``zu_kurz_uebersprungen`` gesetzt ist. Selbststaendig
+    lauffaehig wie Station 19 (eigene Baseline-Verdichtung geseedet)."""
+    from interview_theater import aufnahme, phasen
+
+    _gehe_nach_phase_3(conn, chat_id)
+    _seed_phase3_voraussetzungen(conn, chat_id)
+    _raeume_unausgewertete_interviews(conn, chat_id)
+    _seed_fertige_verdichtung(
+        conn, chat_id, "A long, unrelated interview about the market.", "Interview 1",
+    )
+    phase4_vorher = phasen.voraussetzungen(conn, chat_id)[4]
+
+    langer_text = (
+        "We spoke for quite a while about her childhood neighbourhood, the "
+        "shop on the corner that closed years ago, the friends she lost "
+        "touch with, and how different the street sounds now compared to "
+        "when she was young and everyone still knew each other by name."
+    )
+    assert len(langer_text.split()) >= aufnahme.MINDEST_WOERTER
+    aufnahme_id = aufnahme.importiere_text(
+        conn, e, chat_id, tg.naechste_message_id(), langer_text, name="Interview 2",
+    )
+    # Bewusst KEIN aufnahme.verarbeite(...) hier -- das Interview bleibt
+    # 'transkribiert' und unverdichtet, genau der Fall, den diese Station
+    # misst.
+
+    offen = aufnahme.unausgewertete_interviews(conn, chat_id)
+    phase4_nachher = phasen.voraussetzungen(conn, chat_id)[4]
+
+    s = Sondierung(
+        phase=3, station="Offenes, nie verdichtetes Interview blockiert Phase 4",
+        persona=GIULIA.name,
+        aktion="Ein ausreichend langes, aber nie verdichtetes Interview "
+               "liegen lassen und pruefen, dass Phase 4 dadurch gesperrt bleibt",
+        schreibvorgang=(
+            phase4_vorher is True
+            and aufnahme_id in {o["id"] for o in offen}
+            and phase4_nachher is False
+        ),
+    )
+    s.hinweis = (
+        f"Phase 4 vor dem offenen Interview: {phase4_vorher}; dieses "
+        f"Interview in unausgewertete_interviews(): "
+        f"{aufnahme_id in {o['id'] for o in offen}}; Phase 4 danach: {phase4_nachher}"
+    )
+    return s
+
+
+def station_21_phasenhinweis_genau_einmal(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """Investigiert Auftrag Punkt 5 ('Meldung genau 1x'). **Gefundene
+    Abweichung vom urspruenglich dokumentierten Mechanismus**:
+    ``aufnahme._phasenfrage`` (der in AGENTS.md beschriebene Weg, "Kommen
+    noch Interviews, oder gehen wir ans Kernthema?" an die
+    Verdichtungsnachricht zu haengen) hat HEUTE keinen einzigen Aufrufer
+    mehr im Code -- der Kommentar in ``aufnahme._interview_abschliessen``
+    (bei ``Zeile ~1792``) sagt woertlich, dass sie seit dem 05.09.2026
+    bewusst entfernt wurde ('die Gruppe macht ein Interview nach dem anderen
+    und entscheidet selbst, wann sie weitergeht'). Der tatsaechlich wirkende
+    Mechanismus fuer 'genau einmal anbieten' ist seitdem ausschliesslich
+    ``kontext._baue_phasenhinweis`` (im naechsten Gespraechszug, nicht an
+    der Verdichtungsnachricht) -- mit demselben Merkposten
+    (``phasen.offenes_angebot``/``merke_angebot``). Diese Station misst
+    GENAU DIESEN, heute wirkenden Mechanismus direkt."""
+    from interview_theater import kontext, phasen
+
+    _gehe_nach_phase_3(conn, chat_id)
+    _seed_phase3_voraussetzungen(conn, chat_id)
+    _raeume_unausgewertete_interviews(conn, chat_id)
+    _seed_fertige_verdichtung(
+        conn, chat_id, "A complete, verdichted interview.", "Interview 1",
+    )
+
+    erstes_angebot = phasen.offenes_angebot(conn, chat_id)
+    erster_hinweistext = kontext._baue_phasenhinweis(conn, chat_id)
+    zweites_angebot = phasen.offenes_angebot(conn, chat_id)
+    zweiter_hinweistext = kontext._baue_phasenhinweis(conn, chat_id)
+
+    s = Sondierung(
+        phase=3, station="Phasenhinweis auf Phase 4 kommt genau einmal", persona=PRIYA.name,
+        aktion="Nach einem abgeschlossenen Interview pruefen, dass der "
+               "Phase-4-Hinweis im naechsten Gespraechszug genau einmal "
+               "erscheint und sich danach nicht wiederholt",
+        schreibvorgang=(
+            erstes_angebot == 4 and bool(erster_hinweistext)
+            and zweites_angebot is None and not zweiter_hinweistext
+        ),
+    )
+    s.hinweis = (
+        f"offenes_angebot() 1. Aufruf: {erstes_angebot} (Hinweistext "
+        f"{'vorhanden' if erster_hinweistext else 'LEER'}); 2. Aufruf: "
+        f"{zweites_angebot} (Hinweistext "
+        f"{'vorhanden -- unerwartet' if zweiter_hinweistext else 'leer, wie erwartet'}). "
+        "aufnahme._phasenfrage ist seit 05.09.2026 toter Code (kein "
+        "Aufrufer mehr) -- AGENTS.md beschreibt ihn noch als aktiven Weg, "
+        "siehe Report (moeglicher Klasse-B-Dokumentationsbefund)."
+    )
+    return s
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 -- Setting, Figuren & Geschichte (Padua: "Frame") -- Task B,
+# t_92f99911.
+# ---------------------------------------------------------------------------
+
+
+def _gehe_nach_phase_4(conn, chat_id: int) -> None:
+    from interview_theater import phasen
+
+    phasen.setze(conn, chat_id, 4, "befehl")
+
+
+def station_22_eintritt_phase4_offene_frage_ohne_knoepfe(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """Eintritt in Phase 4: Klartext-Pruefung wie Station 1/6, PLUS die seit
+    06.09.2026 geltende Design-Entscheidung ('unter einer offenen Frage gibt
+    es keine Knoepfe, weil dahinter nichts Fixes zu speichern ist',
+    ``knoepfe/stationen.py::biete_proaktiv``): der Phaseneintritt bietet
+    KEINE Knoepfe 'Ja, wir zuerst'/'Schlag du vor' mehr an -- die Gruppe
+    antwortet zwangslaeufig in freier Sprache."""
+    stufe = "p22_eintritt"
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe,
+        "From here on we invent, freely -- what should the people in this "
+        "story be like, and where does it take place?",
+    )
+    from interview_theater import knoepfe as knoepfe_modul
+
+    vorher = len(tg.gesendet)
+    knoepfe_modul.eintritt_in_phase(conn, tg, klm, e, chat_id, 4)
+    warte_auf_neue_nachricht(tg, vorher, timeout=5.0)
+
+    gesamter_text = "\n".join(
+        n["text"] for n in tg.gesendet[vorher:] if n.get("text")
+    )
+    jargon = jargon_treffer(gesamter_text)
+    schlag_vor_knopf = finde_knopf(tg, "Schlag du vor")
+    wir_zuerst_knopf = finde_knopf(tg, "wir zuerst")
+
+    s = Sondierung(
+        phase=4, station="Eintritt Phase 4", persona=GIULIA.name,
+        aktion="Klartext-Pruefung beim Phaseneintritt, UND pruefen, dass "
+               "der Einstieg selbst keine 'Ja, wir zuerst'/'Schlag du "
+               "vor'-Knoepfe mehr anbietet (offene Frage statt Knopf, seit 06.09.2026)",
+        bot_antwort=gesamter_text,
+    )
+    s.hinweis = (
+        f"Jargon-Treffer: {jargon or 'keine'}; 'Schlag du vor'-Knopf beim "
+        f"Eintritt angeboten: {schlag_vor_knopf is not None} (erwartet: "
+        f"False); 'wir zuerst'-Knopf angeboten: {wir_zuerst_knopf is not None} "
+        "(erwartet: False)"
+    )
+    return s
+
+
+def station_23_setting_per_chat(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """**Die Mutationsprobe-Station dieser Karte fuer Phase 4** (das
+    Abnahmekriterium von t_92f99911: 'einen Intent ... entfernen -> Schicht
+    1 UND Schicht 2 melden den Befund'). Giulia nennt das Setting per
+    Chat-Satz, ohne VORSCHLAG-Block -- die Aenderung kommt ausschliesslich
+    ueber den Absichtserkenner (``rahmen_setzen``), wie Station 3 fuer
+    Begriffe."""
+    from interview_theater import repo
+
+    _gehe_nach_phase_4(conn, chat_id)
+
+    stufe = "p23_setting"
+    nachricht = "let's set it at a late-night laundromat, two years from now"
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "Got it -- a late-night laundromat, two years from now.",
+    )
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe, [
+            {"art": "rahmen_setzen", "wert": "A late-night laundromat, two years from now."},
+        ])
+
+    vorher = repo.hole_arbeitsstand(conn, chat_id)
+    vorher_wert = vorher["rahmen"] if vorher else None
+    antwort = sende_nachricht(conn, tg, klm, e, chat_id, GIULIA, nachricht)
+    nachher = repo.hole_arbeitsstand(conn, chat_id)
+    nachher_wert = nachher["rahmen"] if nachher else None
+
+    s = Sondierung(
+        phase=4, station="Das Setting per Chat nennen (Mutationsprobe)", persona=GIULIA.name,
+        aktion="Das Setting (Ort, Zeit, Anlass) per Chat nennen, statt die Grundleiste zu nutzen",
+        nachricht=nachricht, bot_antwort=antwort,
+        schreibvorgang=(vorher_wert != nachher_wert and bool(nachher_wert)),
+    )
+    s.hinweis = f"arbeitsstand.rahmen vorher={vorher_wert!r} nachher={nachher_wert!r}"
+    return s
+
+
+def station_24_figuren_per_chat(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """Priya nennt eine Figur per Chat-Satz (``figur_setzen``, Format 'Name:
+    Beschreibung') -- parallel zum Knopfweg ueber die Figurenliste
+    (``knoepfe/figuren.py``), aber ohne auf den Anzahl-/Namen-Knopf zu
+    warten."""
+    from interview_theater import repo
+
+    _gehe_nach_phase_4(conn, chat_id)
+
+    stufe = "p24_figur"
+    nachricht = "there should be a character called Mira, she's curious and speaks her mind"
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "Nice -- Mira, curious and speaks her mind. Noted.",
+    )
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe, [
+            {"art": "figur_setzen", "wert": "Mira: curious, speaks her mind"},
+        ])
+
+    vorher = repo.figuren(conn, chat_id)
+    antwort = sende_nachricht(conn, tg, klm, e, chat_id, PRIYA, nachricht)
+    nachher = repo.figuren(conn, chat_id)
+    mira = next((f for f in nachher if f["name"].strip().lower() == "mira"), None)
+
+    s = Sondierung(
+        phase=4, station="Eine Figur per Chat nennen", persona=PRIYA.name,
+        aktion="Anzahl oder Namen der Figuren per Chat nennen, statt die "
+               "Anzahl-/Namen-Knoepfe der Figurenliste zu benutzen",
+        nachricht=nachricht, bot_antwort=antwort,
+        schreibvorgang=(len(nachher) > len(vorher) and mira is not None),
+        fragen_der_persona=[
+            "do I need to say her age too?",
+            "will this be saved even without pressing anything?",
+        ],
+    )
+    s.hinweis = f"Figuren vorher={len(vorher)} nachher={len(nachher)}, Mira gefunden: {mira is not None}"
+    return s
+
+
+def station_25_geschichte_per_chat(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """Giulia erzaehlt die Geschichte (Bogen + Ende) einfach per Chat, statt
+    auf das Richtungs-Menue des Bots (``knoepfe/szenen.py::sende_geschichte``)
+    zu reagieren -- ``geschichte_setzen`` ist phasenfrei und 'wird notiert
+    wie jedes andere Arbeitsstandfeld' (Kommentar bei der Definition in
+    ``erkenner.ARTEN``)."""
+    from interview_theater import repo
+
+    _gehe_nach_phase_4(conn, chat_id)
+
+    stufe = "p25_geschichte"
+    nachricht = (
+        "here's what happens: two strangers keep running into each other "
+        "at the laundromat every week, and in the end they realise they've "
+        "been avoiding going home for the same reason"
+    )
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "I love that arc -- noted as your story.",
+    )
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe, [
+            {"art": "geschichte_setzen", "wert": (
+                "Two strangers keep running into each other at the "
+                "laundromat every week, and in the end they realise "
+                "they've been avoiding going home for the same reason."
+            )},
+        ])
+
+    vorher = repo.hole_arbeitsstand(conn, chat_id)
+    vorher_wert = vorher["geschichte"] if vorher else None
+    antwort = sende_nachricht(conn, tg, klm, e, chat_id, GIULIA, nachricht)
+    nachher = repo.hole_arbeitsstand(conn, chat_id)
+    nachher_wert = nachher["geschichte"] if nachher else None
+
+    s = Sondierung(
+        phase=4, station="Die Geschichte per Chat erzaehlen", persona=GIULIA.name,
+        aktion="Die Geschichte (Bogen + Ende) per Chat selbst erzaehlen, "
+               "statt auf das Richtungs-Menue des Bots zu reagieren",
+        nachricht=nachricht, bot_antwort=antwort,
+        schreibvorgang=(vorher_wert != nachher_wert and bool(nachher_wert)),
+    )
+    s.hinweis = f"arbeitsstand.geschichte gesetzt: {bool(nachher_wert)}"
+    return s
+
+
+def station_26_us_einwilligung_per_chat(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """Investigiert Auftrag Punkt 6. **Gefundene Abweichung vom im
+    Kartentext erwarteten Zeitpunkt** -- in die GUTE Richtung: die
+    Einwilligungsfrage zum US-Modell steht laut Code (``knoepfe/
+    stationen.py::eintritt_in_phase``, Zweig ``PHASE_BEGRIFFE``) bereits
+    seit dem 03.10.2026 beim Eintritt in PHASE 1, nicht erst bei Phase 4 --
+    und zusaetzlich nochmal als Sicherheitsnetz beim Eintritt in Phase 4
+    selbst. Diese Station prueft den CHAT-Weg (statt der zwei Knoepfe): die
+    Erkenner-art ``szene_usa`` ist phasenfrei und greift, sobald das Angebot
+    einmal gestellt wurde (``repo.merke_szene_usa_angeboten``)."""
+    from interview_theater import repo
+
+    _gehe_nach_phase_4(conn, chat_id)
+    repo.merke_szene_usa_angeboten(conn, chat_id)
+
+    stufe = "p26_usa"
+    nachricht = "yes, the US model is fine with us"
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "Great, scenes will use the US model from now on.",
+    )
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe, [{"art": "szene_usa", "wert": "ja"}])
+
+    vorher = repo.szene_usa_stand(conn, chat_id)
+    antwort = sende_nachricht(conn, tg, klm, e, chat_id, PRIYA, nachricht)
+    nachher = repo.szene_usa_stand(conn, chat_id)
+
+    s = Sondierung(
+        phase=4, station="US-Einwilligung per Chat beantworten", persona=PRIYA.name,
+        aktion="Der Uebermittlung an ein US-Modell per Chat zustimmen, "
+               "statt die zwei Knoepfe zu druecken",
+        nachricht=nachricht, bot_antwort=antwort,
+        schreibvorgang=(vorher == "offen" and nachher == "ja"),
+        fragen_der_persona=["does this mean my voice goes to America too?"],
+    )
+    s.hinweis = f"szene_usa_stand vorher={vorher!r} nachher={nachher!r}"
+    return s
+
+
+def station_27_phasenwechsel_4_zu_5_per_chat(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """Investigiert Auftrag Punkt 9, Gegenstueck zu Station 12 (Phase 2->3)
+    fuer den Uebergang 4->5: ``phase_setzen`` ist phasenfrei, greift also
+    auch hier per Chat-Satz statt per Knopf ('Weiter zu Phase 5' /
+    ``ART_PHASE``)."""
+    from interview_theater import knoepfe as knoepfe_modul, phasen, repo
+
+    _gehe_nach_phase_4(conn, chat_id)
+    repo.setze_arbeitsstand(conn, chat_id, "rahmen", "A late-night laundromat.")
+    repo.setze_figur(conn, chat_id, "Mira", "curious, speaks her mind")
+    repo.setze_arbeitsstand(conn, chat_id, "figuren_fixiert_am", repo._jetzt())
+    repo.setze_arbeitsstand(
+        conn, chat_id, "geschichte",
+        "Two strangers keep running into each other and finally talk.",
+    )
+    repo.setze_arbeitsstand(conn, chat_id, "szenen_anzahl", "3")
+    assert phasen.voraussetzungen(conn, chat_id)[5] is True
+
+    vorher_angebot = len(tg.gesendet)
+    knoepfe_modul.biete_phase_proaktiv(conn, tg, chat_id)
+    angebot_text = "\n".join(
+        n["text"] for n in tg.gesendet[vorher_angebot:] if n.get("text")
+    )
+
+    stufe = "p27_wechsel"
+    nachricht = "that's it, let's move on to the next step"
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(stufe, "Great, moving on!")
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe, [{"art": "phase_setzen", "wert": "5"}])
+
+    vorher_phase = phasen.aktuelle(conn, chat_id)
+    antwort = sende_nachricht(conn, tg, klm, e, chat_id, GIULIA, nachricht)
+    nachher_phase = phasen.aktuelle(conn, chat_id)
+
+    s = Sondierung(
+        phase=4, station="Phasenwechsel 4->5 per Chat statt Knopf", persona=GIULIA.name,
+        aktion="Sagen, dass Phase 4 fertig ist und es weiter zu Phase 5 "
+               "gehen soll, statt 'Weiter zu Phase 5' zu druecken",
+        nachricht=nachricht, bot_antwort=antwort,
+        schreibvorgang=(nachher_phase == 5 and vorher_phase == 4),
+    )
+    s.hinweis = (
+        f"Angebotstext enthielt 'Phase': {'Phase' in angebot_text}; "
+        f"Phase vorher={vorher_phase}, nachher={nachher_phase}"
+    )
+    return s
+
+
 #: Die Reihenfolge, in der eine Persona-Sitzung die Karte durchlaeuft --
 #: dieselbe Reihenfolge wie im Aufgabenbrief, plus Station 14 (Review-
-#: Nachtrag, siehe oben) angehaengt. ``fuehre_alle_aus`` ruft sie alle gegen
-#: DIESELBE ``conn``/``tg``/``klm``/``chat_id``, wie eine echte Sitzung; jede
+#: Nachtrag Phase 1+2) und die Stationen 15-27 (Task B, t_92f99911: Phase 3
+#: Interviews + Phase 4 Setting/Figuren/Geschichte) angehaengt.
+#: ``fuehre_alle_aus`` ruft sie alle gegen DIESELBE
+#: ``conn``/``tg``/``klm``/``chat_id``, wie eine echte Sitzung; jede
 #: einzelne Funktion bleibt trotzdem fuer sich lauffaehig (sie seedet, was
 #: sie zusaetzlich zur bisherigen Sitzung braucht, direkt ueber ``repo``).
 ALLE_STATIONEN = (
@@ -1292,13 +2053,27 @@ ALLE_STATIONEN = (
     station_12_phasenwechsel_per_chat,
     station_13_wartezustand,
     station_14_priya_begriffe_korrektur,
+    station_15_interview_starten_ist_knopf_bzw_befehl_only,
+    station_16_interview_verwerfen_laufend,
+    station_17_transkript_korrektur_waehrend_interview,
+    station_18_normales_interview_wird_echt_verdichtet,
+    station_19_kurzes_interview_blockiert_phase4_nicht,
+    station_20_offenes_interview_blockiert_phase4,
+    station_21_phasenhinweis_genau_einmal,
+    station_22_eintritt_phase4_offene_frage_ohne_knoepfe,
+    station_23_setting_per_chat,
+    station_24_figuren_per_chat,
+    station_25_geschichte_per_chat,
+    station_26_us_einwilligung_per_chat,
+    station_27_phasenwechsel_4_zu_5_per_chat,
 )
 
 
 def fuehre_alle_aus(conn, tg, klm, e, chat_id: int) -> list[Sondierung]:
-    """Faehrt alle 14 Stationen in der Reihenfolge des Aufgabenbriefs
-    (Station 14 angehaengt, siehe Kommentar vor ihrer Definition) gegen EINE
-    geteilte Sitzung. Bricht bei einer werfenden Station nicht ab -- ein
+    """Faehrt alle 27 Stationen in der Reihenfolge des Aufgabenbriefs
+    (Station 14 angehaengt als Phase-1/2-Review-Nachtrag; Stationen 15-27
+    aus Task B, t_92f99911, siehe Kommentare vor ihren Definitionen) gegen
+    EINE geteilte Sitzung. Bricht bei einer werfenden Station nicht ab -- ein
     Fehlschlag einer Station ist selbst ein Befund und wird als Sondierung
     mit dem Fehlertext im ``hinweis`` weitergegeben, damit ein Bericht
     trotzdem vollstaendig bleibt.
@@ -1312,7 +2087,7 @@ def fuehre_alle_aus(conn, tg, klm, e, chat_id: int) -> list[Sondierung]:
     Station in diesem Bericht wie Station 2 aus (``schreibvorgang=None``,
     "nichts zu schreiben erwartet, wie vorgesehen") -- im echten,
     kostenpflichtigen Lauf stand deshalb "Keine -- alle Sondierungen haben
-    gewirkt", obwohl alle 14 Stationen gecrasht waren."""
+    gewirkt", obwohl alle Stationen gecrasht waren."""
     ergebnisse: list[Sondierung] = []
     for station in ALLE_STATIONEN:
         try:

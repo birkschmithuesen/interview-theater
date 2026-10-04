@@ -253,13 +253,204 @@ def test_station_13_wartezustand_zeigt_tippanzeige(conn, einst, tg, klm):
 
 
 # ---------------------------------------------------------------------------
+# Phase 3, einzeln (Task B, t_92f99911).
+# ---------------------------------------------------------------------------
+
+
+def test_station_15_interview_starten_per_chat_schaltet_nichts_ein(conn, einst, tg, klm):
+    """Der Kernfund dieser Station: ein per Chat erkannter
+    'interview_starten'-Intent schaltet den Modus NICHT ein, er bietet nur
+    den Start-Knopf an -- erst dessen Druck startet wirklich."""
+    s = fad.station_15_interview_starten_ist_knopf_bzw_befehl_only(
+        conn, tg, klm, einst, CHAT_ID,
+    )
+    assert s.schreibvorgang is True
+    assert s.wirkungslos is False
+    assert "Start-Knopf wurde angeboten: True" in s.hinweis
+    assert "nach dem Knopfdruck wirklich gestartet: True" in s.hinweis
+
+
+def test_station_16_interview_verwerfen_laufend_entfernt_den_laufenden_kopf(
+    conn, einst, tg, klm,
+):
+    s = fad.station_16_interview_verwerfen_laufend(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert s.wirkungslos is False
+    assert "entfernt_am danach gesetzt: True" in s.hinweis
+    assert "Interviewmodus danach noch an: True" in s.hinweis
+
+
+def test_station_17_transkript_korrektur_als_text_waehrend_interview_greift(
+    conn, einst, tg, klm,
+):
+    s = fad.station_17_transkript_korrektur_waehrend_interview(
+        conn, tg, klm, einst, CHAT_ID,
+    )
+    assert s.schreibvorgang is True
+    assert "gepogt" in s.hinweis
+    assert "gepoekt market" not in s.hinweis.split("nachher=")[-1]
+
+
+def test_station_18_normales_interview_wird_echt_verdichtet(conn, einst, tg, klm):
+    s = fad.station_18_normales_interview_wird_echt_verdichtet(
+        conn, tg, klm, einst, CHAT_ID,
+    )
+    assert s.schreibvorgang is True
+    assert "Verdichtung angelegt: True" in s.hinweis
+    assert "Phase 4 moeglich: True" in s.hinweis
+
+
+def test_station_19_kurzes_interview_blockiert_phase4_nicht(conn, einst, tg, klm):
+    """Padua Phasen TEIL 2, Befund 4a -- ein zu-kurz uebersprungenes
+    Interview darf die Phase-4-Sperre nicht auf unbestimmte Zeit offen
+    halten."""
+    s = fad.station_19_kurzes_interview_blockiert_phase4_nicht(
+        conn, tg, klm, einst, CHAT_ID,
+    )
+    assert s.schreibvorgang is True
+    assert s.wirkungslos is False
+    assert "zu_kurz_uebersprungen: True" in s.hinweis
+    assert "Phase 4 moeglich: True" in s.hinweis
+
+
+def test_station_20_offenes_interview_blockiert_phase4(conn, einst, tg, klm):
+    """Das Gegenstueck zu Station 19: ein ausreichend langes, aber nie
+    verdichtetes Interview MUSS die Sperre auf Phase 4 auslösen."""
+    s = fad.station_20_offenes_interview_blockiert_phase4(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert s.wirkungslos is False
+    assert "Phase 4 vor dem offenen Interview: True" in s.hinweis
+    assert "Phase 4 danach: False" in s.hinweis
+
+
+def test_station_21_phasenhinweis_kommt_genau_einmal(conn, einst, tg, klm):
+    """Der heute wirkende Mechanismus (``kontext._baue_phasenhinweis``,
+    NICHT das tote ``aufnahme._phasenfrage``) bietet Phase 4 genau einmal
+    an."""
+    s = fad.station_21_phasenhinweis_genau_einmal(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert s.wirkungslos is False
+    assert "1. Aufruf: 4" in s.hinweis
+    assert "2. Aufruf: None" in s.hinweis
+
+
+# ---------------------------------------------------------------------------
+# Phase 4, einzeln (Task B, t_92f99911).
+# ---------------------------------------------------------------------------
+
+
+def test_station_22_eintritt_phase4_ohne_jargon_und_ohne_schlag_vor_knopf(
+    conn, einst, tg, klm,
+):
+    s = fad.station_22_eintritt_phase4_offene_frage_ohne_knoepfe(
+        conn, tg, klm, einst, CHAT_ID,
+    )
+    assert fad.jargon_treffer(s.bot_antwort) == []
+    assert "'Schlag du vor'-Knopf beim Eintritt angeboten: False" in s.hinweis
+    assert "'wir zuerst'-Knopf angeboten: False" in s.hinweis
+
+
+def test_station_23_setting_per_chat_schreibt_rahmen(conn, einst, tg, klm):
+    s = fad.station_23_setting_per_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    from interview_theater import repo
+
+    stand = repo.hole_arbeitsstand(conn, CHAT_ID)
+    assert "laundromat" in (stand["rahmen"] or "")
+
+
+def test_station_24_figuren_per_chat_legt_eine_figur_an(conn, einst, tg, klm):
+    s = fad.station_24_figuren_per_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert len(s.fragen_der_persona) >= 1
+
+
+def test_station_25_geschichte_per_chat_schreibt_geschichte(conn, einst, tg, klm):
+    s = fad.station_25_geschichte_per_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+
+
+def test_station_26_us_einwilligung_per_chat_setzt_den_stand_auf_ja(
+    conn, einst, tg, klm,
+):
+    s = fad.station_26_us_einwilligung_per_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    from interview_theater import repo
+
+    assert repo.szene_usa_stand(conn, CHAT_ID) == "ja"
+
+
+def test_station_27_phasenwechsel_4_zu_5_per_chat_greift(conn, einst, tg, klm):
+    from interview_theater import phasen
+
+    assert phasen.aktuelle(conn, CHAT_ID) != 5
+    s = fad.station_27_phasenwechsel_4_zu_5_per_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert phasen.aktuelle(conn, CHAT_ID) == 5
+
+
+# ---------------------------------------------------------------------------
+# Die Mutationsprobe dieser Karte (Phase 4) -- das Abnahmekriterium von
+# t_92f99911: einen Intent aus der Phasenfreigabe entfernen -> Schicht 1 UND
+# Schicht 2 melden den Befund; zuruecksetzen -> gruen. Der Schicht-1-Teil
+# steht in tests/test_flow_abdeckung.py
+# (test_mutationsprobe_phase4_rahmen_setzen_wird_als_toter_weg_gemeldet);
+# dies hier ist der Schicht-2-Teil, am selben Intent (rahmen_setzen).
+# ---------------------------------------------------------------------------
+
+
+def test_mutationsprobe_rahmen_setzen_macht_station_23_wirkungslos(
+    conn, einst, tg, klm, monkeypatch,
+):
+    """Gegenprobe zuerst: ohne Mutation schreibt Station 23 wirklich."""
+    s_vorher = fad.station_23_setting_per_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s_vorher.schreibvorgang is True
+    assert s_vorher.wirkungslos is False
+
+
+def test_mutationsprobe_rahmen_setzen_entfernt_erzeugt_wirkungslos(
+    conn, einst, tg, klm, monkeypatch,
+):
+    """Die Probe selbst: ``erkenner.ARTEN`` ohne ``rahmen_setzen`` -- Station
+    23 muss ``wirkungslos``/``behauptet_nicht_getan`` werden, wie
+    ``test_mutation_probe_begriffe_setzen_ohne_intent_ist_wirkungslos`` fuer
+    Phase 1 es schon tut."""
+    from interview_theater import erkenner
+
+    gepatcht = tuple(a for a in erkenner.ARTEN if a != "rahmen_setzen")
+    assert "rahmen_setzen" not in gepatcht
+    monkeypatch.setattr(erkenner, "ARTEN", gepatcht)
+
+    s = fad.station_23_setting_per_chat(conn, tg, klm, einst, CHAT_ID)
+
+    assert s.schreibvorgang is False
+    assert s.wirkungslos is True
+    assert s.behauptet_nicht_getan is True
+
+
+def test_mutationsprobe_rahmen_setzen_erholt_sich_nach_dem_monkeypatch(
+    conn, einst, tg, klm,
+):
+    """``monkeypatch`` revertiert automatisch nach dem vorigen Test -- dieser
+    eigenstaendige Test (frische Fixtures) zeigt, dass ``erkenner.ARTEN``
+    wieder vollstaendig ist und Station 23 wieder normal schreibt
+    ('Zuruecksetzen -> gruen' aus der Abnahme)."""
+    from interview_theater import erkenner
+
+    assert "rahmen_setzen" in erkenner.ARTEN
+    s = fad.station_23_setting_per_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert s.wirkungslos is False
+
+
+# ---------------------------------------------------------------------------
 # Der ganze Lauf, in Reihenfolge.
 # ---------------------------------------------------------------------------
 
 
-def test_fuehre_alle_aus_liefert_14_sondierungen_ohne_ausnahme(conn, einst, tg, klm):
+def test_fuehre_alle_aus_liefert_27_sondierungen_ohne_ausnahme(conn, einst, tg, klm):
     ergebnisse = fad.fuehre_alle_aus(conn, tg, klm, einst, CHAT_ID)
-    assert len(ergebnisse) == len(fad.ALLE_STATIONEN) == 14
+    assert len(ergebnisse) == len(fad.ALLE_STATIONEN) == 27
     fehlgeschlagen = [s for s in ergebnisse if s.phase == 0]
     assert fehlgeschlagen == [], (
         "Eine oder mehrere Stationen sind mit einer Ausnahme abgebrochen: "
@@ -268,12 +459,30 @@ def test_fuehre_alle_aus_liefert_14_sondierungen_ohne_ausnahme(conn, einst, tg, 
     personen = {s.persona for s in ergebnisse}
     phase1_personen = {s.persona for s in ergebnisse if s.phase == 1}
     phase2_personen = {s.persona for s in ergebnisse if s.phase == 2}
+    phase3_personen = {s.persona for s in ergebnisse if s.phase == 3}
+    phase4_personen = {s.persona for s in ergebnisse if s.phase == 4}
     assert fad.PRIYA.name in personen
     assert fad.PRIYA.name in phase1_personen, (
         "Priya muss mindestens einmal in Phase 1 auftreten (Review-Fund "
         "04.10.2026, Station 14)"
     )
     assert fad.PRIYA.name in phase2_personen
+    assert fad.PRIYA.name in phase3_personen and fad.GIULIA.name in phase3_personen, (
+        "Beide Personas muessen in Phase 3 auftreten (Task B, t_92f99911)"
+    )
+    assert fad.PRIYA.name in phase4_personen and fad.GIULIA.name in phase4_personen, (
+        "Beide Personas muessen in Phase 4 auftreten (Task B, t_92f99911)"
+    )
+    # Der einzige bekannte rote Befund im vollen Sitzungslauf ist der schon
+    # dokumentierte Phase-2-Fund (Station 10, 'Priya akzeptiert eine Frage
+    # per Chat') -- kein neuer, unbekannter roter Befund darf hier
+    # auftauchen, ohne dass jemand ihn bemerkt.
+    rote = [s for s in ergebnisse if s.wirkungslos]
+    unbekannt = [s for s in rote if "GEFUNDENER TOTER WEG" not in s.hinweis]
+    assert unbekannt == [], (
+        "Unbekannter roter Befund im vollen Sitzungslauf: "
+        + "; ".join(f"{s.station}: {s.hinweis}" for s in unbekannt)
+    )
 
 
 # ---------------------------------------------------------------------------

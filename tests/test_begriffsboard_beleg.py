@@ -186,3 +186,35 @@ def test_mutant_ohne_metapruefung_faellt_durch(monkeypatch):
 def test_detail_zeilen_lassen_geleerte_begruendung_weg():
     board = bb.validiere([_z(begruendung="Wird als Begriff gesammelt.")], TRANSKRIPT)
     assert bb.detail_zeilen(bb.detail_fuer(board, "Heimat")) == []
+
+
+# -- Prompt (Aufgabe 6) -------------------------------------------------------
+
+from pathlib import Path
+
+_PROMPTS = Path(bb.__file__).parent
+_DE = _PROMPTS / "prompts" / "begriffsboard.md"
+_EN = _PROMPTS / "sprachen" / "en" / "prompts" / "begriffsboard.md"
+
+
+@pytest.mark.parametrize("pfad, verboten", [
+    (_DE, ("ergaenze die\n``begruendung`` um die Entwicklung", "vermerke\ndie Korrektur kurz in ``begruendung``")),
+    (_EN, ("extend\n``begruendung`` with the development", "note the correction\nbriefly in ``begruendung``")),
+])
+def test_prompt_verlangt_keine_merge_spur_in_der_begruendung(pfad, verboten):
+    text = pfad.read_text(encoding="utf-8")
+    for satz in verboten:
+        assert satz not in text
+
+
+def test_en_prompt_verlangt_englische_begruendung_und_kennt_ansagen():
+    text = _EN.read_text(encoding="utf-8")
+    assert "written in English" in text
+    assert "the first term is" in text
+    assert "test, one two three" in text
+
+
+def test_de_prompt_kennt_ansagen_und_stt():
+    text = _DE.read_text(encoding="utf-8")
+    assert "der erste Begriff ist" in text
+    assert "Gepaeck" in text and "Betreff" in text

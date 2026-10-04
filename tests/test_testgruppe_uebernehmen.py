@@ -618,3 +618,87 @@ def test_fehlende_audiodatei_gibt_eine_warnung_ohne_inhalt(umgebung):
     bericht = tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
     assert any("fehlt" in w for w in bericht["warnungen"])
     assert all(GEHEIM not in w for w in bericht["warnungen"])
+
+
+# --------------------------------------------------------------------------
+# Task 6: --leer (E8)
+# --------------------------------------------------------------------------
+
+from interview_theater import phasen  # noqa: E402
+from scripts import web_gruppe  # noqa: E402
+
+
+def test_leer_nach_uebernahme_ist_frische_phase_1_mit_gleichem_link(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    tu.leere(ziel=umgebung.ziel, audio_ziel=umgebung.audio_ziel)
+    conn = db.verbinde(umgebung.ziel)
+    zeilen = tu.zaehle(conn, TEST)
+    assert zeilen.pop("gruppe") == 1
+    assert set(zeilen.values()) == {0}
+    assert phasen.aktuelle(conn, TEST) == 1
+    g = repo.hole_gruppe(conn, TEST)
+    assert g["web_token"] == "fester-testtoken"
+    assert g["bot_name"] == tu.TEST_BOT_NAME and g["kanal"] == "web"
+    offset = repo.hole_update_id(conn, tu.TEST_BOT_NAME)
+    assert offset == repo.hoechste_web_post_id(conn)
+    kanal = WebKanal(conn, TEST, umgebung.audio_ziel)
+    assert kanal.hole_updates(offset + 1, timeout=0) == []
+    neu = repo.lege_web_post_an(conn, TEST, repo.RICHTUNG_EIN, repo.WEB_TYP_TEXT, text="a")
+    assert [x["update_id"] for x in kanal.hole_updates(offset + 1, timeout=0)] == [neu]
+    conn.close()
+    assert not (Path(umgebung.audio_ziel) / str(TEST)).exists()
+
+
+def test_leer_ohne_test_db_legt_sie_an(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    bericht = tu.leere(ziel="betrieb/padua-test.db", audio_ziel="audio-padua-test")
+    assert bericht["token_neu"] is True and bericht["backup"] is None
+    conn = db.verbinde("betrieb/padua-test.db")
+    assert repo.hole_gruppe(conn, TEST)["web_token"]
+    conn.close()
+
+
+def test_leer_legt_dieselben_felder_an_wie_web_gruppe_anlegen(tmp_path, monkeypatch):
+    """P8: dieselbe Lage wie scripts/web_gruppe.py anlegen, nur mit fester
+    chat_id und festem Token."""
+    monkeypatch.chdir(tmp_path)
+    tu.leere(ziel="betrieb/padua-test.db", audio_ziel="audio-padua-test")
+    vergleich = db.verbinde(str(tmp_path / "vergleich.db"))
+    db.initialisiere(vergleich)
+    daten = web_gruppe.lege_an(vergleich, tu.TEST_BOT_NAME, tu.TITEL_LEER, "")
+    conn = db.verbinde("betrieb/padua-test.db")
+    unsere = dict(repo.hole_gruppe(conn, TEST))
+    ihre = dict(repo.hole_gruppe(vergleich, daten["chat_id"]))
+    for feld in ("chat_id", "web_token", "erste_nachricht_am"):
+        unsere.pop(feld)
+        ihre.pop(feld)
+    assert unsere == ihre
+    assert repo.hole_update_id(conn, tu.TEST_BOT_NAME) == repo.hoechste_web_post_id(conn)
+    conn.close()
+    vergleich.close()
+
+
+def test_leer_trockenlauf_veraendert_nichts(umgebung):
+    vorher = fingerabdruck_db(umgebung.ziel)
+    audio_vorher = fingerabdruck_baum(umgebung.audio_ziel)
+    bericht = tu.plane_leer(ziel=umgebung.ziel, audio_ziel=umgebung.audio_ziel)
+    text = tu.leer_berichtstext(bericht, trocken=True)
+    assert "nachricht: 1" in text
+    assert GEHEIM not in text and "fester-testtoken" not in text
+    assert fingerabdruck_db(umgebung.ziel) == vorher
+    assert fingerabdruck_baum(umgebung.audio_ziel) == audio_vorher
+
+
+def test_leer_verweigert_bei_fremden_gruppen(umgebung):
+    conn = db.verbinde(umgebung.ziel)
+    fuelle_zeile(conn, "gruppe", ANDERE_CHAT, 1, bot_name="alt")
+    conn.commit()
+    conn.close()
+    with pytest.raises(tu.Verweigert, match="fremde"):
+        tu.leere(ziel=umgebung.ziel, audio_ziel=umgebung.audio_ziel)
+
+
+def test_leer_verweigert_die_betriebsdatenbank(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(tu.Verweigert):
+        tu.leere(ziel="betrieb/padua.db", audio_ziel="audio-padua-test")

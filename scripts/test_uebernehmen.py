@@ -468,6 +468,53 @@ def uebernimm(quell_chat_id: int, *, quelle: str, ziel: str, audio_quelle: str,
     return bericht
 
 
+def plane_leer(*, ziel: str, audio_ziel: str) -> dict:
+    """Was --leer taete -- reine Leseabfrage."""
+    pruefe_ziel(ziel, audio_ziel)
+    anzahl, groesse = audio_bestand(Path(audio_ziel) / str(TEST_CHAT_ID))
+    return {"ziel": ziel, "ziel_lage": lies_ziel(ziel),
+            "audio_dateien": anzahl, "audio_bytes": groesse}
+
+
+def leere(*, ziel: str, audio_ziel: str, jetzt: datetime | None = None) -> dict:
+    """E8: die Testgruppe auf eine frische Phase 1 -- dieselben Felder wie
+    scripts/web_gruppe.py anlegen (web_gruppe.py:42-51), aber in EINER
+    Transaktion mit fester chat_id und festem Token (P8). Phase 1 heisst:
+    keine arbeitsstand-Zeile, phasen.aktuelle liefert dann die erste Phase
+    (phasen.py:274-281)."""
+    jetzt = jetzt or datetime.now(timezone.utc)
+    bericht = plane_leer(ziel=ziel, audio_ziel=audio_ziel)
+    existierte = Path(ziel).exists()
+    Path(ziel).parent.mkdir(parents=True, exist_ok=True)
+    conn = db.verbinde(ziel)
+    try:
+        db.initialisiere(conn)
+        token = _token_der_testgruppe(conn)
+        bericht["backup"] = sichere_ziel(conn, ziel, jetzt) if existierte else None
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            for t in db.TABELLEN_MIT_CHAT_ID:
+                conn.execute(f"DELETE FROM main.{t} WHERE chat_id = ?", (TEST_CHAT_ID,))
+            conn.execute(
+                "INSERT INTO main.gruppe (chat_id, bot_name, titel, "
+                "erste_nachricht_am, kanal, web_token) VALUES (?, ?, ?, ?, 'web', ?)",
+                (TEST_CHAT_ID, TEST_BOT_NAME, TITEL_LEER, jetzt.isoformat(),
+                 token or neues_token()),
+            )
+            bericht["offset"] = _setze_offset(conn, jetzt)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        bericht["token_neu"] = token is None
+    finally:
+        conn.close()
+    verz = Path(audio_ziel) / str(TEST_CHAT_ID)
+    if verz.exists():
+        shutil.rmtree(verz)
+    return bericht
+
+
 # --------------------------------------------------------------------------
 # Texte (nur Zahlen, E10)
 # --------------------------------------------------------------------------
@@ -497,4 +544,24 @@ def berichtstext(bericht: dict, trocken: bool) -> str:
             z.append(f"  Offset von {TEST_BOT_NAME}: {bericht['offset']}")
         for warnung in bericht.get("warnungen", []):
             z.append(f"  WARNUNG: {warnung}")
+    return "\n".join(z)
+
+
+def leer_berichtstext(bericht: dict, trocken: bool) -> str:
+    kopf = "Trockenlauf --leer" if trocken else "Geleert"
+    lage = bericht["ziel_lage"]
+    z = [f"{kopf}: Testgruppe {TEST_CHAT_ID} ({bericht['ziel']}) -> frische Phase 1"]
+    if lage["existiert"]:
+        z.append("  Zeilen der Testgruppe, die wegfallen:")
+        z += [f"    {t}: {n}" for t, n in lage["zeilen"].items() if n]
+    else:
+        z.append("  Test-DB gibt es noch nicht -- wird angelegt")
+    z.append(f"  Audio der Testgruppe, das wegfaellt: {bericht['audio_dateien']} "
+             f"Datei(en), {bericht['audio_bytes']} Bytes")
+    z.append("  Link der Testgruppe: "
+             + ("bleibt gleich" if lage["token_vorhanden"] else "wird neu erzeugt"))
+    if not trocken:
+        if bericht.get("backup"):
+            z.append(f"  Backup: {bericht['backup']}")
+        z.append(f"  Offset von {TEST_BOT_NAME}: {bericht['offset']}")
     return "\n".join(z)

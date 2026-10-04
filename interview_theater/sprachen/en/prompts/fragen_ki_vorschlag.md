@@ -37,6 +37,10 @@ first term first, then the three for the second ...), one question per
 line, in the format "Term: Question" -- no heading, no numbering, no comment
 before or after, no marker word:
 
+Write in English. Never translate the term itself, even though you answer in
+English -- keep it exactly as given, in whichever language it was, so the
+later comparison with the group's own questions still matches by term.
+
 Home: Tell me about a place where you felt at home for the first time.
 Home: What did you take with you the last time you moved -- and why exactly
 that?

@@ -149,13 +149,20 @@ Opus über `simulation/claude.py`.
   kein `IT_BOT_TOKEN`). Nachprüfen mit `--trocken` in Aufgabe 3 Schritt 9.
 - ANNAHME: Die Live-Diskussion der Gruppe `7000000000000` steht in
   `/mnt/HC_Volume_106183673/projekte/interview-theater/betrieb/padua.db`
-  (16 `aufnahme`-Zeilen mit `diskussion = 1`, zusammen 1 395 Zeichen, deutsch
-  gesprochen). Nachprüfen mit `--trocken` (gibt nur Segmentzahl und
+  (gemessen vom Architekten über `repo.diskussion_transkript`: 14 Segmente,
+  1 421 Zeichen, deutsch gesprochen; die Rohzählung über `aufnahme` ergab
+  16 Zeilen / 1 395 Zeichen -- Unterschied durch Leerzeilen/Zusammenfügung).
+  Nachprüfen mit `--trocken` (gibt nur Segmentzahl und
   Zeichenzahl aus).
-- ANNAHME: Die Start-Soll-Liste für `live` (Aufgabe 3 Schritt 5) stammt aus
-  dem Board-Auszug des Architekten, nicht aus dem Transkript. Der Coder prüft
-  sie **vor** dem ersten Vorher-Lauf gegen das Transkript (lokal, stdout) und
-  korrigiert sie nach der Regel in Aufgabe 3 Schritt 5.
+- Geprüft vom Architekten (04.10.2026, ja/nein ohne Ausgabe des Transkripts):
+  Die Soll-Liste für `live` (Aufgabe 3, `LIVE`) stammt aus dem Kimi-Board
+  v2 dieser Gruppe. Jeder Soll-Begriff und jede Variante steht im Transkript
+  (14 Segmente, 1 421 Zeichen über `repo.diskussion_transkript`). Der Coder
+  bestätigt das nur noch per ja/nein (Aufgabe 3 Schritt 5) und ändert die
+  Liste nicht.
+- ANNAHME: Die Soll-Liste ist vollständig. Ein Begriff, den Kimi nie aufs
+  Board gesetzt hat, fehlt darin. Prüfbar nur durch einen Menschen, der das
+  Transkript liest (Birk); im Bericht als Grenze benennen.
 - ANNAHME: Der Opus-Proxy läuft unter `IT_SIM_URL` (Vorgabe
   `http://127.0.0.1:28764/v1/messages`), Modell `IT_SIM_MODELL` (Vorgabe
   `claude-opus-5`). Nachprüfen in Aufgabe 7 Schritt 7 mit einem Einzelaufruf.
@@ -1177,16 +1184,25 @@ LIVE = zaehler.Fall(
     beschreibung="Live-Diskussion Padua Gruppe 1 (DE gesprochen, EN-Profil), read-only",
     sprache_gesprochen="de",
     segmente=(),
+    # Vom Architekten festgelegt (04.10.2026): Begriffe des Kimi-Boards v2,
+    # jeder per ja/nein-Probe als im Transkript stehend bestaetigt -- das
+    # Transkript selbst hat dabei niemand gelesen (Kartenregel: kein US-Modell).
     soll=(
         ("Cappuccino",),
+        ("Espresso",),
+        ("Tiramisu",),
+        ("Restaurantroboter",),
         ("Alice Hotel",),
         ("Rolle",),
         ("Strasse", "Straße"),
         ("Tuch",),
+        ("gemaltes Bild",),
         ("Biennale",),
         ("KI",),
+        ("Seemöwen", "Tauben", "Geier"),
+        ("Strand", "Urlaub am Strand"),
     ),
-    varianten=(),
+    varianten=("Kiranesu", "Strandheiz", "K.U. Roboter"),
     meta=("Begriff", "Gepäck", "Gepaeck", "Betreff", "Test", "Mikrofon"),
     mit_grund=(),
 )
@@ -1403,32 +1419,41 @@ Zwei Hinweise für den Coder:
 - Der Opus-Arm bekommt den `klient` mit `timeout=180.0`; `Claude` nimmt
   einen fremden Klienten und schließt ihn nicht.
 
-- [ ] **Schritt 5: Live-Soll-Liste prüfen** (vor jedem bezahlten Lauf; die
-  Liste oben ist eine ANNAHME aus dem Board-Auszug des Architekten)
+- [ ] **Schritt 5: Live-Soll-Liste nur per ja/nein bestätigen** (vor jedem
+  bezahlten Lauf)
 
-Das Transkript **nur auf stdout** lesen, nie in eine Datei:
+🔴 **Das Live-Transkript wird NIE ausgegeben, auch nicht auf stdout.** Wer
+diesen Plan ausführt, ist Claude Code -- ein US-Modell. Alles, was ein
+Kommando ausgibt, landet in dessen Kontext. Das wäre genau der Weg, den die
+Karte verbietet („nur lokal, KEIN US-Modell“). Die Soll-Liste in `LIVE`
+hat der Architekt festgelegt. Er hat jeden Eintrag per ja/nein-Probe gegen das
+Transkript geprüft, ohne es zu lesen (04.10.2026: alle Soll-Begriffe und
+Varianten „ja“, 14 Segmente, 1 421 Zeichen). Der Coder **ändert die Liste
+nicht**, er bestätigt nur:
 
 ```bash
-python3.11 -c "from scripts.rauchtest_begriffsboard_inhalt import *; print('\n---\n'.join(lies_live_segmente(LIVE_DB_VORGABE, LIVE_CHAT_ID)))"
+python3.11 -c "
+from scripts.rauchtest_begriffsboard_inhalt import LIVE, LIVE_DB_VORGABE, LIVE_CHAT_ID, lies_live_segmente
+from interview_theater.begriffsboard import schluessel
+k = schluessel('\n\n'.join(lies_live_segmente(LIVE_DB_VORGABE, LIVE_CHAT_ID)))
+for gruppe in LIVE.soll + tuple((v,) for v in LIVE.varianten):
+    print(gruppe[0], 'ja' if any(schluessel(a) in k for a in gruppe) else 'nein')"
 ```
 
-Regel für die Soll-Liste (in den Kommentar über `LIVE` übernehmen):
-- **Soll** ist jeder Begriff, den die Gruppe ausdrücklich als Begriff
-  vorschlägt (Ansage-Formel oder klare Diskussion darüber) -- in der
-  Schreibweise, die im Transkript steht (`begriffsboard.validiere` verlangt
-  das ohnehin). Schreibvarianten derselben Sache als Alternativen derselben
-  Gruppe.
-- **Variante** ist ein Wort, das ein STT-Verhörer eines Soll-Begriffs ist
-  oder eine Vorstufe, die die Gruppe selbst geschärft hat.
-- Nicht Soll: Füllwörter, Mikrofon-/Testgerede, Ansagewörter.
-- Jeder Eintrag muss im Transkript stehen (`schluessel(...) in
-  schluessel(transkript)`).
+Expected: jede Zeile `<Begriff> ja` -- es wird nur der Begriff aus der
+Liste und ja/nein ausgegeben, nie eine Zeile des Transkripts. Steht dort ein
+`nein`: Liste **nicht** raten, sondern im Bericht „Soll-Liste weicht ab:
+<Begriff>“ vermerken und weitermessen (der Zähler `begriffe_fehlend` für
+`live` ist dann um diesen Eintrag zu hoch; im Bericht so benennen).
 
-Die Liste in `LIVE` entsprechend korrigieren. **Keine Zeile des
-Transkripts, kein Zitat in den Kommentar oder die Commit-Nachricht.**
-Läuft Schritt 5 wegen fehlender Rechte nicht (Live-DB nicht lesbar): Liste
-so lassen, im Bericht als „Soll-Liste ungeprüft (ANNAHME)“ führen, und
-`live` aus allen bezahlten Läufen weglassen (`--faelle ansage_en,deutsch_stt,schaerfung_stt_en`).
+Ebenso verboten: das Transkript, die Live-Boardzeilen (`begriffsboard.json`)
+oder Rohantworten des Falls `live` per `read_file`, `sqlite3`-Ausgabe oder
+`print` anzusehen. Die Settings des Coder-Laufs sollen
+`Read(**/betrieb/*.db*)` und `Read(**/betrieb/*.env)` verbieten. Das Skript
+darf die DB als Python-Prozess lesen, der Agent selbst nicht.
+Läuft die ja/nein-Probe nicht (Live-DB nicht lesbar): `live` aus allen
+bezahlten Läufen weglassen (`--faelle ansage_en,deutsch_stt,schaerfung_stt_en`)
+und im Bericht als ausstehend führen.
 
 - [ ] **Schritt 6: Grün sehen**
 

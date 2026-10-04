@@ -1522,6 +1522,15 @@ Die Abschluss-Suite und der Bericht stehen für beide Teile in **Aufgabe 11**. H
 (d) „Die Übergaben der Karte t_4517d4ad (Begriffsboard …)": zwei Punkte anhängen:
 - „**Ungemessen (t_cb2c4678):** kein bezahlter Lauf für `vorheriger_begriff` — ob Kimi/Opus das Feld zuverlässig füllen, weiß niemand. Vergisst das Modell es, fehlt nur der Strich; die Begründung erzählt die Entwicklung trotzdem."
 - „Die Wortzahl „1–3" eines Begriffs (und damit eines Vorgängers) steht im Prompt, nicht im Code; der Code garantiert „ein Begriff, früher schon auf dem Board"."
+
+- [ ] **Step 1b: Nachweis (Architekt-Ergänzung)**
+
+```bash
+grep -c "vorheriger_begriff" AGENTS.md          # Expected: >= 2 (Modultabelle + Uebergabe)
+grep -n "bbMerke/bbSpiele" AGENTS.md             # Expected: genau 1 Trefferzeile ("Wo man anfaengt")
+grep -n "Ungemessen (t_cb2c4678)" AGENTS.md      # Expected: genau 1 Trefferzeile
+```
+
 - [ ] **Step 2: Commit**
 
 ```bash

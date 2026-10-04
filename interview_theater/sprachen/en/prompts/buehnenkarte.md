@@ -36,6 +36,11 @@ quote at most a short half-sentence if truly necessary. NEVER ask whether
 the group should record an interview, and NEVER use interview material (you
 don't get any anyway).
 
+Write the card in English, even if the brainstorm itself was held in a
+different language. This applies only to your surrounding prose -- a short
+quote from the group's own words stays exactly as spoken, in its original
+language and exact wording, never translated.
+
 If there is genuinely NOTHING helpful to say right now -- the group doesn't
 need a card, there's no new thought that would justify one -- then reply
 with ONLY the one word: NICHTS

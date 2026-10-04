@@ -1787,7 +1787,12 @@ _CHAT_JS = """
       var MIN_SPEECH_MS = parseInt(fuss.dataset.vadMinSpeechMs, 10) || 500;
       var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
       var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
-      var BODEN_FENSTER = Math.ceil(5000 / 120);
+      // Erkennungstakt der RMS-Messung (Birk 04.10.2026: Latenz zwischen
+      // echtem Rede-/Pausenbeginn und Erkennung soll kleiner werden) --
+      // von 120ms auf 60ms halbiert, BODEN_FENSTER unten bleibt dieselbe
+      // Zeitspanne (~5s), nur mit doppelt so vielen Messpunkten.
+      var VAD_TAKT_MS = 60;
+      var BODEN_FENSTER = Math.ceil(5000 / VAD_TAKT_MS);
       // Deckel auf den Rauschboden, nicht aus CoThinker, sondern gegen eine
       // gemessene Falle gesetzt (siehe Kommentar im Takt unten): ohne ihn
       // zieht eine durchgehend laute Aufnahme den Boden auf ihre eigene
@@ -1844,7 +1849,7 @@ _CHAT_JS = """
         pegelFeld.classList.toggle('ueber-schwelle', rms > schwelle);
         var jetzt = Date.now();
         if (rms > schwelle) {
-          sitzung.vadSpeechMs += 120;
+          sitzung.vadSpeechMs += VAD_TAKT_MS;
           sitzung.vadLetzteRede = jetzt;
         }
         if (!sitzung.recorder) { return; }
@@ -1863,7 +1868,7 @@ _CHAT_JS = """
         // Segment getragen", ohne Audio-Bytes ueber zwei MediaRecorder-
         // Instanzen hinweg zusammenfuegen zu muessen, was keine einzelne
         // dekodierbare Datei mehr ergaebe).
-      }, 120);
+      }, VAD_TAKT_MS);
     } catch (e) { /* ohne Pegel geht es auch -- dann der feste Takt (Rueckfall unten) */ }
   }
 

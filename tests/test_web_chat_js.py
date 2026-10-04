@@ -124,7 +124,7 @@ def test_vad_liest_alle_fuenf_werte_aus_dem_fuss():
 def test_kappe_schneidet_immer_pause_nur_mit_genug_rede():
     js = web_chat._CHAT_JS
     takt = js[js.index("sitzung.pegelTakt = setInterval"):]
-    takt = takt[:takt.index("}, 120)")]
+    takt = takt[:takt.index("}, VAD_TAKT_MS)")]
     assert "schneideSegment(sitzung, 'cap')" in takt
     assert "schneideSegment(sitzung, 'pause')" in takt
     assert "sitzung.vadSpeechMs >= MIN_SPEECH_MS" in takt
@@ -2088,7 +2088,7 @@ def test_pegeltakt_verwendet_keine_frequenzdaten_mehr():
     diesen Test ROT machen."""
     js = web_chat._CHAT_JS
     takt = js[js.index("sitzung.pegelTakt = setInterval"):]
-    takt = takt[:takt.index("}, 120)")]
+    takt = takt[:takt.index("}, VAD_TAKT_MS)")]
     assert "getByteFrequencyData" not in takt
     assert "frequenzWerte" not in takt
     assert "getFloatTimeDomainData" in takt
@@ -2097,7 +2097,7 @@ def test_pegeltakt_verwendet_keine_frequenzdaten_mehr():
 def test_pegeltakt_setzt_breite_marke_und_farbzustand_aus_derselben_rms():
     js = web_chat._CHAT_JS
     takt = js[js.index("sitzung.pegelTakt = setInterval"):]
-    takt = takt[:takt.index("}, 120)")]
+    takt = takt[:takt.index("}, VAD_TAKT_MS)")]
     assert "pegelBalken.style.width" in takt
     assert "(rms / PEGEL_MAX_RMS) * 100" in takt
     assert "pegelSchwelle.style.left" in takt
@@ -2118,13 +2118,14 @@ def test_pegeltakt_zeichnet_breite_marke_und_farbzustand_live_in_node(tmp_path):
     node = _node_oder_skip()
     js = web_chat._CHAT_JS
     takt = js[js.index("sitzung.pegelTakt = setInterval(function () {"):]
-    takt = takt[:takt.index("}, 120)")]
+    takt = takt[:takt.index("}, VAD_TAKT_MS)")]
     rumpf = takt[takt.index("{") + 1:]
     quelltext = f"""
     var PEGEL_MAX_RMS = 0.3;
     var BODEN_FENSTER = 10;
     var RMS_SCHWELLE = 0.01, BODEN_FAKTOR = 2.5, BODEN_DECKEL_FAKTOR = 10;
     var MAX_MS = 90000, PAUSE_MS = 2500, MIN_SPEECH_MS = 500;
+    var VAD_TAKT_MS = 60;
     var __schwelleWert = 0;
     function kalBerechneBodenUndSchwelle() {{
       return {{ boden: 0, schwelle: __schwelleWert }};

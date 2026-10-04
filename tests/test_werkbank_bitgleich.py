@@ -102,6 +102,7 @@ def seiten(tmp_path) -> dict[str, str]:
     }
 
 
+@pytest.mark.dortmund
 @pytest.mark.parametrize("profil", [None, "dortmund-2026"])
 def test_ohne_schalter_bleibt_die_werkbank_byte_gleich(tmp_path, monkeypatch, profil):
     _profil(monkeypatch, profil)

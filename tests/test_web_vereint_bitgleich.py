@@ -105,6 +105,7 @@ def _db():
             os.remove(DB_PFAD + endung)
 
 
+@pytest.mark.dortmund
 @pytest.mark.parametrize("profil", [None, "dortmund-2026"])
 def test_vereinte_seite_bleibt_byte_gleich(monkeypatch, profil):
     _profil(monkeypatch, profil)

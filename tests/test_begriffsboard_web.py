@@ -57,12 +57,16 @@ def test_web_daten_ohne_tabelle_ist_leer(tmp_path):
 
 
 def test_html_ist_funktional_mit_data_attributen(pfad):
+    """Seit der Design-Erweiterung (Karte t_cb2c4678, 04.10.2026) zeigt eine
+    Zeile NUR noch den Begriff -- Begruendung und Doppelbedeutung bleiben in
+    der Datenbank (``web_daten.begriffsboard`` liest sie weiter), aber ohne
+    ``<details>`` in der Anzeige."""
     html_ = web._begriffsboard_html(web_daten.begriffsboard(_ro(pfad), CHAT))
     assert 'data-ansicht="begriffsboard"' in html_
     assert re.search(r'<li data-begriff="Heimat" data-status="favorit"[^>]*data-top="1"', html_)
     assert re.search(r'<li data-begriff="Musik" data-status="verworfen"(?![^>]*data-top)[^>]*>', html_)
-    assert "<details>" in html_ and "Ort und Gefuehl" in html_
-    assert "&lt;Oma&gt;" in html_ and "<Oma>" not in html_
+    assert "<details>" not in html_ and "<summary>" not in html_
+    assert "Ort und Gefuehl" not in html_ and "&lt;Oma&gt;" not in html_ and "<Oma>" not in html_
     assert "ZITAT-NIE-IM-WEB" not in html_
     assert "style=" not in html_
     assert re.search(r"\son\w+=", html_) is None

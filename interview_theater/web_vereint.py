@@ -1592,6 +1592,27 @@ def phase_post(handler, db_pfad: str, token: str, chat_id: int,
     web_chat._angenommen(handler, {"message_id": message_id})
 
 
+def start_post(handler, db_pfad: str, token: str, chat_id: int,
+               schluessel: bytes) -> None:
+    """``POST /g/<token>/chat/start`` -- der erste Seitenaufruf einer
+    frischen Web-Gruppe (Pflichtpunkt 2, Fix 1 von 2, 04.10.2026). Legt
+    ``/start`` nur an, solange der Chat noch leer ist
+    (``repo.hat_bot_nachricht``) -- das macht den zweiten Aufruf
+    wirkungslos, ohne dass der Bot zur Pruefzeit laufen muss."""
+    from interview_theater import repo, web_chat
+
+    if web_chat._koerper_oder_400(handler, token, schluessel) is None:
+        return
+    message_id = None
+    with web_chat.schreibend(db_pfad) as conn:
+        if not repo.hat_bot_nachricht(conn, chat_id):
+            message_id = repo.lege_web_post_an(
+                conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
+                text="/start",
+            )
+    web_chat._angenommen(handler, {"message_id": message_id})
+
+
 def _board_merkmal() -> str:
     """``data-begriffsboard="1"`` am ``#roadmap``, wenn das Profil das
     Begriffsboard faehrt (Karte t_4517d4ad) -- HINTER ``data-aktive-phase``,

@@ -1,0 +1,276 @@
+"""Flow-Audit Schicht 2 (dynamischer Persona-Lauf, Padua, 04.10.2026) --
+Tests fuer ``simulation/flow_audit_dynamisch.py``.
+
+Laeuft vollstaendig offline: eine echte SQLite-Verbindung
+(``tests/conftest.py``-Fixtures ``conn``/``einst``), eine
+``TelegramAttrappe`` statt Netz, ein ``SkriptLLM`` statt eines echten
+Sprachmodells. Kein ``betrieb/``-Zugriff, keine Kosten.
+
+**Die Mutationsprobe** (``test_mutation_*``) ist das Abnahmekriterium dieser
+Karte: ohne ``erkenner.ARTEN`` auf eine mutierte Menge zu stellen, bliebe
+unklar, ob diese Schicht wirklich den ECHTEN Code misst oder nur eine
+Attrappe bestaetigt, die sich selbst zustimmt."""
+
+from __future__ import annotations
+
+import ast
+import re
+from pathlib import Path
+
+import pytest
+
+from interview_theater import anweisungen, erkenner, phasen, repo, workshop
+from simulation import flow_audit_dynamisch as fad
+from simulation.attrappe import TelegramAttrappe
+
+
+@pytest.fixture(autouse=True)
+def padua_profil(monkeypatch):
+    """Alle Tests dieser Datei laufen gegen das Padua-Profil (Englisch, die
+    A/B-Fragenrunde, kein ``fragen_weich``) -- derselbe Umschaltweg wie
+    ``tests/profile/test_dortmund.py`` und
+    ``tests/test_web_dashboard_en.py`` (``monkeypatch.setenv`` reicht,
+    ``workshop.aktiv()`` liest ``IT_WORKSHOP`` bei jedem Aufruf frisch; die
+    beiden ``vergiss``/``_CACHE.clear``-Aufrufe sind reine Vorsicht gegen
+    profilgebundene Caches in anderen Modulen)."""
+    monkeypatch.delenv(workshop.BASIS_VARIABLE, raising=False)
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+    yield
+    workshop.vergiss()
+    anweisungen._CACHE.clear()
+
+
+@pytest.fixture
+def tg():
+    return TelegramAttrappe()
+
+
+@pytest.fixture
+def klm():
+    return fad.SkriptLLM()
+
+
+CHAT_ID = 1  # dieselbe Testgruppe, die tests/conftest.py::conn anlegt
+
+
+# ---------------------------------------------------------------------------
+# Die Mutationsprobe -- DAS Abnahmekriterium dieser Karte.
+# ---------------------------------------------------------------------------
+
+
+def test_mutation_probe_begriffe_setzen_schreibt_normal(conn, einst, tg, klm):
+    """Gegenprobe zuerst: ohne Mutation schreibt Station 3 wirklich --
+    sonst waere ein spaeteres ``wirkungslos`` kein Befund, sondern der
+    Normalzustand."""
+    s = fad.station_03_korrektur_via_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert s.wirkungslos is False
+    assert s.behauptet_nicht_getan is False
+
+
+def test_mutation_probe_begriffe_setzen_ohne_intent_ist_wirkungslos(
+    conn, einst, tg, klm, monkeypatch,
+):
+    """Die Probe selbst: ``erkenner.ARTEN`` ohne ``begriffe_setzen`` --
+    SkriptLLM prueft ``erkenner.ARTEN`` LEBEND bei jedem Aufruf (siehe
+    ``SkriptLLM._antwort_erkenner``), nicht einmal beim Bau. Ohne das wuerde
+    dieser Test nichts beweisen: er pruefte dann nur, dass eine Attrappe tut,
+    was man ihr sagt -- nicht, dass der echte Code auf eine fehlende
+    Modell-Faehigkeit reagiert."""
+    gepatcht = tuple(a for a in erkenner.ARTEN if a != "begriffe_setzen")
+    assert "begriffe_setzen" not in gepatcht  # die Mutation griff wirklich
+    monkeypatch.setattr(erkenner, "ARTEN", gepatcht)
+
+    s = fad.station_03_korrektur_via_chat(conn, tg, klm, einst, CHAT_ID)
+
+    assert s.schreibvorgang is False
+    assert s.wirkungslos is True
+    # "Got it -- swapping that in." klingt nach erledigt, obwohl nichts
+    # geschrieben wurde -- genau das Muster, das diese Schicht jagt.
+    assert s.behauptet_nicht_getan is True
+
+
+def test_mutation_probe_erholt_sich_nach_dem_monkeypatch(conn, einst, tg, klm):
+    """``monkeypatch`` revertiert automatisch nach dem vorigen Test --
+    dieser eigenstaendige Test (frische Fixtures, kein geteilter Zustand)
+    zeigt, dass ``erkenner.ARTEN`` wieder vollstaendig ist und Station 3
+    wieder normal schreibt."""
+    assert "begriffe_setzen" in erkenner.ARTEN
+    s = fad.station_03_korrektur_via_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert s.wirkungslos is False
+
+
+# ---------------------------------------------------------------------------
+# Phase 1, einzeln.
+# ---------------------------------------------------------------------------
+
+
+def test_station_01_eintritt_ohne_jargon_mit_cothinker_hinweis(conn, einst, tg, klm):
+    s = fad.station_01_eintritt(conn, tg, klm, einst, CHAT_ID)
+    assert fad.jargon_treffer(s.bot_antwort) == []
+    assert fad.erwaehnt_zweites_handy(s.bot_antwort) is True
+
+
+def test_station_02_begriffe_vorschlag_hat_hoechstens_eine_ruckfrage(
+    conn, einst, tg, klm,
+):
+    s = fad.station_02_begriffe_vorschlag(conn, tg, klm, einst, CHAT_ID)
+    assert s.rueckfragen_vor_aktion <= 1
+    assert "Yes, save" in s.hinweis
+    assert "True" in s.hinweis  # der Speicher-Knopf stand da
+
+
+def test_station_03_korrektur_schreibt_ueber_den_erkenner(conn, einst, tg, klm):
+    s = fad.station_03_korrektur_via_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert "Neighbours" in (fad._begriff_feld(conn, CHAT_ID) or "")
+
+
+def test_station_04_begriffsboard_korrektur_schreibt_begriffe_und_detail(
+    conn, einst, tg, klm,
+):
+    s = fad.station_04_begriffsboard_korrektur(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert "begriffe_detail geaendert: True" in s.hinweis
+    assert "'Take these'-Knopf stand vorher da: True" in s.hinweis
+    detail = fad._begriffe_detail_feld(conn, CHAT_ID)
+    assert detail and "Departure" in detail
+
+
+def test_station_05_echo_wird_erkannt_und_neu_angefordert(conn, einst, tg, klm):
+    s = fad.station_05_echo_kontrolle(conn, tg, klm, einst, CHAT_ID)
+    assert s.echo_erkannt is True
+    assert klm.anzahl_aufrufe("p5_echo", "gespraech") == 2
+    assert s.nachricht.lower() not in s.bot_antwort.lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 2, einzeln.
+# ---------------------------------------------------------------------------
+
+
+def test_station_06_eintritt_phase2_ohne_jargon(conn, einst, tg, klm):
+    s = fad.station_06_eintritt_phase2(conn, tg, klm, einst, CHAT_ID)
+    assert fad.jargon_treffer(s.bot_antwort) == []
+
+
+def test_station_07_priya_eigene_frage_wird_gespeichert(conn, einst, tg, klm):
+    s = fad.station_07_priya_eigene_frage(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert len(s.fragen_der_persona) >= 1
+
+
+def test_station_08_giulia_aendert_frage_per_chat(conn, einst, tg, klm):
+    s = fad.station_08_giulia_aendert_frage(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+
+
+def test_station_09_fruehzeitig_fertig_loest_gegenueberstellung_aus(
+    conn, einst, tg, klm,
+):
+    s = fad.station_09_fruehzeitig_fertig(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    stand = repo.hole_arbeitsstand(conn, CHAT_ID)
+    assert stand["fragen_auswahl"]
+
+
+def test_station_10_priya_akzeptiert_per_chat_ist_wirkungslos(conn, einst, tg, klm):
+    """Dokumentiert den gefundenen toten Weg: ein getipptes 'yes' entscheidet
+    die Frage nicht (siehe Docstring der Station)."""
+    s = fad.station_10_priya_akzeptiert_per_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.wirkungslos is True
+    assert s.behauptet_nicht_getan is True
+    assert len(s.fragen_der_persona) >= 1
+
+
+def test_station_11_klickzwang_chat_wirkungslos_knopf_wirkt(conn, einst, tg, klm):
+    s = fad.station_11_klickzwang(conn, tg, klm, einst, CHAT_ID)
+    assert s.klickzwang is True
+    assert s.schreibvorgang is True
+
+
+def test_station_12_phasenwechsel_per_chat_greift(conn, einst, tg, klm):
+    assert phasen.aktuelle(conn, CHAT_ID) != 3
+    s = fad.station_12_phasenwechsel_per_chat(conn, tg, klm, einst, CHAT_ID)
+    assert s.schreibvorgang is True
+    assert phasen.aktuelle(conn, CHAT_ID) == 3
+
+
+def test_station_13_wartezustand_zeigt_tippanzeige(conn, einst, tg, klm):
+    """Kostet echte ~4,2 Sekunden Testlaufzeit -- siehe Docstring der
+    Station fuer die Begruendung (sonst ein Scheinbefund aus Schnelligkeit)."""
+    s = fad.station_13_wartezustand(conn, tg, klm, einst, CHAT_ID)
+    treffer = re.search(r"aufgerufen: (\d+) Mal", s.hinweis)
+    assert treffer is not None
+    assert int(treffer.group(1)) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Der ganze Lauf, in Reihenfolge.
+# ---------------------------------------------------------------------------
+
+
+def test_fuehre_alle_aus_liefert_13_sondierungen_ohne_ausnahme(conn, einst, tg, klm):
+    ergebnisse = fad.fuehre_alle_aus(conn, tg, klm, einst, CHAT_ID)
+    assert len(ergebnisse) == len(fad.ALLE_STATIONEN) == 13
+    fehlgeschlagen = [s for s in ergebnisse if s.phase == 0]
+    assert fehlgeschlagen == [], (
+        "Eine oder mehrere Stationen sind mit einer Ausnahme abgebrochen: "
+        + "; ".join(f"{s.station}: {s.hinweis}" for s in fehlgeschlagen)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Onboarding-Pflichtpruefpunkt 5 (Verstaendlichkeit der Fehlermeldungen) --
+# EIN rein statischer Test, kein Modellaufruf, keine Sondierung. Phase 3
+# (aufnahme.py, web_chat.py) ist fuer DIESE Karte nicht der Pruefgegenstand
+# (Audio/STT/Segmente bleiben aussen vor) -- dieser Test liest den
+# Phase-3-Code nur als Nachweis fuer den Onboarding-Pflichtpruefpunkt
+# "verstaendliche Fehlerfaelle" und bewertet Phase 3 selbst nicht.
+# ---------------------------------------------------------------------------
+
+_ROT_FLAGGEN = re.compile(
+    r"\b(?:400|401|403|404|405|408|409|413|415|429|500|502|503)\b"
+    r"|Exception|Traceback|\bError\b",
+)
+
+
+def _text_konstanten(pfad: Path) -> list[str]:
+    """Alle String-Literale, die einer ``_TEXT_*``/``TEXT_*``-Konstante
+    zugewiesen werden -- per ``ast``, nicht per Regex, weil mehrzeilige
+    Dreifach-Anfuehrungszeichen und f-Strings sonst falsch geschnitten
+    wuerden."""
+    baum = ast.parse(pfad.read_text(encoding="utf-8"))
+    werte: list[str] = []
+    for knoten in ast.walk(baum):
+        if not isinstance(knoten, ast.Assign):
+            continue
+        namen = [t.id for t in knoten.targets if isinstance(t, ast.Name)]
+        if not any(n.startswith("_TEXT_") or n.startswith("TEXT_") for n in namen):
+            continue
+        for teil in ast.walk(knoten.value):
+            if isinstance(teil, ast.Constant) and isinstance(teil.value, str):
+                werte.append(teil.value)
+    return werte
+
+
+def test_phase3_fehlermeldungen_enthalten_keine_rohen_codes():
+    """Nachweis fuer Onboarding-Pflichtpruefpunkt 5 ('Understandable error
+    cases: mic denied, upload failed, empty transcript'). Diese zwei Module
+    (``aufnahme.py``, ``web_chat.py``) sind Phase-3-Mechanik und liegen
+    ausserhalb des dynamischen Geltungsbereichs dieser Karte (nur Phase 1+2) --
+    gelesen wird hier rein als Text, kein Modellaufruf, keine Bewertung von
+    Phase 3 selbst."""
+    wurzel = Path(__file__).resolve().parent.parent / "interview_theater"
+    treffer: list[tuple[str, str]] = []
+    for datei in ("aufnahme.py", "web_chat.py"):
+        for text in _text_konstanten(wurzel / datei):
+            if _ROT_FLAGGEN.search(text):
+                treffer.append((datei, text))
+    assert treffer == [], (
+        "Nutzertext-Konstante mit rohem HTTP-Code oder Exception-Namen "
+        f"gefunden: {treffer}"
+    )

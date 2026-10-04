@@ -182,8 +182,16 @@ body[data-figur] .replik { opacity: .35; }.panel-textbuch[data-figur] .replik.ak
                       line-height: 1; border: 1px solid var(--rand);
                       border-radius: var(--radius); background: var(--grund-2);
                       color: var(--signal); }.panel-buehne #buehne-nav button:disabled { opacity: .35; }.panel-buehne #buehne-nav a[data-v="live"] { color: var(--signal); }.panel-buehne #buehne-nav .neu { color: var(--warn); }.panel-buehne .buehne-leer { color: var(--text-leise); margin: 1rem 0; }
-.panel-chat { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
-       max-width: 44rem; margin: 0 auto; }.panel-chat .verlauf { display: flex; flex-direction: column; gap: .55rem; }.panel-chat .blase { padding: .55rem .7rem; border-radius: .8rem; max-width: 88%;
+.panel-chat /* Bild-Overlay-Karte (04.10.2026): seitenweites Pinch-/Doppeltipp-Zoom im
+   Chat ist aus -- es liess vorher den fixen Fuss (Record-/PTT-/Senden-
+   Knopf) beim Zoomen ueberproportional mitwachsen. ``pan-x pan-y`` statt
+   ``none``: Scrollen/Wischen bleibt erlaubt, .panel-chat nur Zoomen per Geste nicht --
+   und statt ``manipulation`` (das Doppeltipp-Zoom zwar auch abschaltet, .panel-chat aber nichts ueber Pinch sagt und je Browser unterschiedlich ausgelegt
+   wird). ``body`` wird auf der vereinten Seite beim Scopen zur Scope-
+   Klasse selbst (``web_vereint.scope_css``), .panel-chat die Sperre bleibt also auf
+   den Chat beschraenkt. */
+body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
+       max-width: 44rem; margin: 0 auto; touch-action: pan-x pan-y; }.panel-chat .verlauf { display: flex; flex-direction: column; gap: .55rem; }.panel-chat .blase { padding: .55rem .7rem; border-radius: .8rem; max-width: 88%;
          font-size: 1.02rem; overflow-wrap: anywhere; }.panel-chat .blase.bot { background: #fff; border: 1px solid #e0ddd6; align-self: flex-start;
              border-bottom-left-radius: .2rem; }.panel-chat .blase.gruppe { background: #1f6f5c; color: #fff; align-self: flex-end;
                 border-bottom-right-radius: .2rem; }.panel-chat .blase.sprache { font-style: italic; opacity: .85; }.panel-chat .blase.system { background: transparent; border: none; color: #6b6f76;
@@ -234,7 +242,20 @@ body[data-figur] .replik { opacity: .35; }.panel-textbuch[data-figur] .replik.ak
                     border: 1px solid #e0ddd6; background: #fff; color: #6b6f76; }.panel-chat #kalibrierung-neu[hidden] { display: none; }.panel-chat .kalibrierung-balken { position: relative; height: .6rem; border-radius: .35rem;
                        background: #e0ddd6; overflow: visible; }.panel-chat .kalibrierung-balken[hidden] { display: none; }.panel-chat .kalibrierung-balken span { display: block; height: 100%; width: 0; border-radius: .35rem;
                             background: #a8201a; }.panel-chat .kalibrierung-marke { position: absolute; top: -.2rem; bottom: -.2rem; width: 2px;
-                      background: #17181b; left: 0; }.panel-chat .kalibrierung-erinnerung { font-size: .85rem; text-align: center; color: #1f6f5c; }.panel-chat .kalibrierung-erinnerung[hidden] { display: none; }.panel-chat .mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }.panel-chat .mitlauf-hinweis[hidden] { display: none; }
+                      background: #17181b; left: 0; }.panel-chat .kalibrierung-erinnerung { font-size: .85rem; text-align: center; color: #1f6f5c; }.panel-chat .kalibrierung-erinnerung[hidden] { display: none; }.panel-chat .mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }.panel-chat .mitlauf-hinweis[hidden] { display: none; }.panel-chat /* Bild-Overlay-Karte: die Telefon-Organisationskarte (``.karte``) gross und
+   zoombar. ``inset: 0`` statt ``100vw``/``100vh`` -- ein fixes Element
+   braucht dafuer keine viewport-relative Einheit. ``touch-action:
+   pinch-zoom`` auf Huelle UND Bild hebt die Sperre am ``body`` fuer dieses
+   Element gezielt wieder auf. */
+.bild-overlay { position: fixed; inset: 0; z-index: 9999;
+                background: rgba(0, 0, 0, .9); display: flex;
+                align-items: center; justify-content: center;
+                touch-action: pinch-zoom; }.panel-chat .bild-overlay[hidden] { display: none; }.panel-chat .bild-overlay img { max-width: 100%; max-height: 100%; object-fit: contain;
+                     touch-action: pinch-zoom; }.panel-chat .bild-overlay button { position: absolute; top: .6rem; right: .6rem;
+                        min-width: 2.75rem; min-height: 2.75rem;
+                        border-radius: 999px; border: 0;
+                        background: rgba(255, 255, 255, .15); color: #fff;
+                        font-size: 1.3rem; }
 @media (prefers-color-scheme: dark) {.panel-chat { background: #14161a; color: #e7e9ec; }.panel-chat .blase.bot { background: #1d2026; border-color: #2c313a; }.panel-chat .fuss { background: #14161a; border-color: #2c313a; }.panel-chat .zeile input { background: #1d2026; color: #e7e9ec; border-color: #2c313a; }.panel-chat .leiste button { background: #1d2026; color: #6fcfb6; border-color: #2c6a58; }.panel-chat .leiste-label { color: #7d8290; }.panel-chat .interview-aktionen button { background: #1d2026; color: #e7e9ec; }.panel-chat .kalibrierung button, .panel-chat #kalibrierung-neu { background: #1d2026; color: #e7e9ec;
                                             border-color: #2c6a58; }
 }
@@ -780,7 +801,7 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {
 <section class="panel panel-chat" id="tab-chat" role="tabpanel">
 <h1>Test group</h1>
 <noscript><p class="leer">Fuer Chat und Aufnahme braucht diese Seite JavaScript. Die Gruppenseite und das Textbuch funktionieren auch ohne.</p></noscript>
-<div class="verlauf" id="verlauf" data-letzte="0" data-aenderung="0">
+<div class="verlauf" id="verlauf" data-letzte="0" data-aenderung="0" data-phase="6">
 <p class="leer">Noch nichts da. Schreibt mir, womit ihr anfangen wollt.</p>
 </div>
 <div class="tippt" id="tippt"></div>
@@ -838,6 +859,10 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {
     <button type="button" id="ptt" title="Tippen und sprechen">🎤</button>
     <button type="button" id="senden">Senden</button>
   </div>
+</div>
+<div class="bild-overlay" id="bild-overlay" hidden>
+  <button type="button" id="bild-overlay-schliessen" aria-label="Schließen">✕</button>
+  <img id="bild-overlay-img" src="" alt="">
 </div>
 
 </section>
@@ -1752,6 +1777,11 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
   var angehaltenText = document.getElementById('angehalten-text');
   var nachreichenKnopf = document.getElementById('nachreichen');
   var verwerfenKnopf = document.getElementById('verwerfen');
+  // Bild-Overlay-Karte (04.10.2026): die Telefon-Organisationskarte
+  // (``.karte``) gross und per Pinch-Zoom vergroesserbar.
+  var bildOverlay = document.getElementById('bild-overlay');
+  var bildOverlayImg = document.getElementById('bild-overlay-img');
+  var bildOverlaySchliessen = document.getElementById('bild-overlay-schliessen');
   var SEGMENT_MS = parseInt(fuss.dataset.segmentMs, 10) || 45000;
 
   // -- Pegel-Kalibrierung: die Bedienelemente --------------------------------
@@ -1785,6 +1815,9 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
   var zustand = {
     letzte: parseInt(verlauf.dataset.letzte, 10) || 0,
     aenderung: parseInt(verlauf.dataset.aenderung, 10) || 0,
+    // Phasenscroll-Karte (04.10.2026): 0 heisst "keine Phase bekannt" --
+    // echte Phasen sind 1..7 und nie 0.
+    phase: parseInt(verlauf.dataset.phase, 10) || 0,
     servermodus: fuss.dataset.interview === '1',
     knopfErlaubt: !interviewKnopf.hidden,   // Padua Hotfix B6: Phase 3 oder Modus
     brainstormErlaubt: !brainstormKnopf.hidden,   // Task 2: Phase 4
@@ -1852,6 +1885,53 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
     if (!n.bild) { return ''; }
     return '<img src="' + weg('static/handys/' + n.bild) + '" alt="' +
            escape(n.text || '') + '" loading="lazy" class="karte">';
+  }
+
+  // Bild-Overlay-Karte (04.10.2026): die Telefon-Organisationskarte
+  // (``.karte``, aus ``bildVon`` oben) vollbildig mit Pinch-Zoom. Ein
+  // delegierter Klick-Listener auf ``verlauf`` (statt je Bild einzeln) --
+  // Bilder kommen sowohl serverseitig vorgerendert als auch spaeter per
+  // ``blase()``/``ersetze()`` dynamisch dazu.
+  var ueberlagerungOffen = false;
+  function oeffneBildOverlay(src, alt) {
+    if (!bildOverlay || !bildOverlayImg) { return; }
+    bildOverlayImg.src = src;
+    bildOverlayImg.alt = alt || '';
+    bildOverlay.hidden = false;
+    ueberlagerungOffen = true;
+    history.pushState({ bildUeberlagerung: true }, '');
+  }
+  function schliesseBildOverlay() {
+    if (!ueberlagerungOffen || !bildOverlay) { return; }
+    bildOverlay.hidden = true;
+    bildOverlayImg.src = '';
+    ueberlagerungOffen = false;
+    if (history.state && history.state.bildUeberlagerung) { history.back(); }
+  }
+  if (bildOverlay) {
+    verlauf.addEventListener('click', function (ev) {
+      var img = ev.target.closest ? ev.target.closest('img.karte') : null;
+      if (img) { oeffneBildOverlay(img.src, img.alt); }
+    });
+    // Tippen auf den dunklen Hintergrund schliesst -- auf das Bild selbst
+    // NICHT, sonst stoert ein Tipp mitten in einer Pinch-Geste.
+    bildOverlay.addEventListener('click', function (ev) {
+      if (ev.target === bildOverlay) { schliesseBildOverlay(); }
+    });
+    if (bildOverlaySchliessen) {
+      bildOverlaySchliessen.addEventListener('click', schliesseBildOverlay);
+    }
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') { schliesseBildOverlay(); }
+    });
+    // Zurueck-Geste/-Taste: schliesst das Overlay, OHNE erneut
+    // ``history.back()`` aufzurufen -- der Browser ist schon zurueck.
+    window.addEventListener('popstate', function () {
+      if (!ueberlagerungOffen) { return; }
+      bildOverlay.hidden = true;
+      bildOverlayImg.src = '';
+      ueberlagerungOffen = false;
+    });
   }
 
   function inhaltVon(n) {
@@ -2004,6 +2084,35 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
     return geaendert.some(function (n) { return String(n.id) === letzteId; });
   }
 
+  // Phasenscroll-Karte (04.10.2026): die juengste Eintrittsnachricht einer
+  // Phase im aktuell geladenen Verlauf -- ihr Praefix ist sprachunabhaengig
+  // gleich (``phasentexte._KOPF_EINTRITT``), eine neue DB-Spalte ist dafuer
+  // nicht noetig. Rueckwaerts gesucht, weil nur die LETZTE Phasenzeile
+  // zaehlt -- eine aeltere stuende sonst im Weg.
+  function phasenkopfzeile() {
+    var blasen = verlauf.querySelectorAll('.blase.bot');
+    for (var i = blasen.length - 1; i >= 0; i--) {
+      if (blasen[i].textContent.indexOf('▶️ Phase ') === 0) { return blasen[i]; }
+    }
+    return null;
+  }
+
+  // Nach einem Phasenwechsel soll der Anfang der neuen Phase im Bild
+  // stehen, nicht das Ende des ganzen (ungetrennten) Verlaufs.
+  // ``scrollIntoView`` passt dabei automatisch jeden scrollbaren Vorfahren
+  // an -- die Chat-Einzelseite (Dokument-Scroll) UND die vereinte Seite
+  // (``verlauf`` scrollt in sich selbst) brauchen dafuer keinen eigenen Weg,
+  // anders als ``nachUnten()``. Ohne Phasenzeile im Verlauf (z. B. ganz am
+  // Anfang von Phase 1) bleibt der bisherige Rueckfall. Ohne Argument
+  // entspricht der Aufruf laut Spezifikation genau dem Anfang des Elements
+  // oben im sichtbaren Bereich und keiner seitlichen Verschiebung -- ebenso
+  // wirksam wie mit ausgeschriebenen Werten.
+  function scrolleZuPhasenanfang() {
+    var kopf = phasenkopfzeile();
+    if (kopf) { kopf.scrollIntoView(); return; }
+    nachUnten();
+  }
+
   function nimmZustand(daten) {
     var warUnten = amUnterenRand();
     // Review-Befund 2: die Seite laedt nie neu, ein Nonce gilt hoechstens
@@ -2024,8 +2133,15 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
       zustand.aenderung = daten.aenderung;
       verlauf.dataset.aenderung = daten.aenderung;
     }
+    // Phasenscroll-Karte (04.10.2026): ein Wechsel zaehlt nur, wenn vorher
+    // schon eine Phase bekannt war (sonst waere der allererste Poll immer
+    // ein "Wechsel") und die neue sich von ihr unterscheidet.
+    var phaseAlt = zustand.phase;
+    var phaseNeu = (typeof daten.phase === 'number') ? daten.phase : null;
+    var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;
+    if (phaseNeu !== null) { zustand.phase = phaseNeu; }
     if (neu.length) {
-      nachUnten();
+      if (phasenwechsel) { scrolleZuPhasenanfang(); } else { nachUnten(); }
     } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
       nachUnten();
     }
@@ -4276,7 +4392,7 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
   });
 
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
-  nachUnten();
+  scrolleZuPhasenanfang();   // Phasenscroll-Karte: der Anfang der aktuellen Phase, sonst der Rueckfall ans Ende
   hole();
 })();
 

@@ -407,6 +407,17 @@ GEAENDERT: dict[str, str] = {
         "(docs/ux-padua/BERICHT.md, Abschnitt \"Mobile-App-Shell, "
         "Nachbesserung 03.10.\")."
     ),
+    "web._CSS_GRUPPE": (
+        "Padua UX Kopfzeilen-Karte (03.10.2026, Task 4): Birk, live am "
+        "Handy -- 'der Link zur Rehearsal view ist unsinnig, da identisch "
+        "mit Script-Tab.' Der redundante Probenansicht-Link aus dem "
+        "Arbeitsstand-Panel entfaellt; die dazugehoerigen, jetzt toten "
+        "``.probenansicht``/``.probenansicht a``-Regeln sind mit ihm "
+        "entfernt (tests/test_web_textbuch.py::"
+        "test_die_gruppenseite_verlinkt_die_probenansicht_nicht_mehr). "
+        "Reines Layout-CSS, kein Nutzertext -- die Route "
+        "/g/<token>/textbuch und der Textbuch-Tab selbst sind unveraendert."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

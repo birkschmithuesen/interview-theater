@@ -1328,6 +1328,27 @@ table.anteile th, table.anteile td, table.uebersicht td { border-bottom-color: v
 #: ``#buehne-panel .karte``/``.stueckkarte`` fest hell -- dieselbe Luecke
 #: wie bei ``_STAND`` oben, nur nie geschlossen. Scoped auf
 #: ``.panel-buehne`` durch den Aufrufer, wie ``css_stand()``.
+#:
+#: Begriffsboard -- Design-Erweiterung (Karte t_cb2c4678, 04.10.2026, Birk:
+#: "richtig gut designt, nicht bloss funktional"). Kein aufklappbares
+#: "Warum" mehr (``web._begriffsboard_html``): eine Zeile zeigt nur noch
+#: den Begriff, Rang und Status tragen allein die vorhandenen
+#: ``data-*``-Attribute. Rang 1-5 (``data-top="1"``, ``begriffsboard.top()``)
+#: bekommt eine Scheinwerfer-Marke (CSS-Counter), der Rest eine Trennlinie
+#: direkt danach (Selektor ``li[data-top="1"] + li:not([data-top="1"])``,
+#: ohne feste Positionszahl). ``status="verworfen"`` bleibt sichtbar, aber
+#: kursiv -- durchgestrichen bleibt allein der Schaerfungskette
+#: (``vorgaenger``) vorbehalten, die ein eigenes, per ``border-left``
+#: abgetrenntes Fach bekommt; das Alter eines Vorgaengers traegt die
+#: Schriftgroesse, nicht die Opazitaet (die wuerde ``--text-leise`` unter
+#: 4,5:1 druecken). **Absichtlich kein CSS-Kommentar zwischen den Regeln
+#: hier drin:** ``web_vereint.scope_css`` splittet den Text vor jeder Regel
+#: an jedem Komma, bevor es den Scope-Praefix setzt -- ein mehrkommahaltiger
+#: ``/* ... */``-Block direkt vor einer Regel reisst den Scope-Praefix von
+#: ihrem echten Selektor weg (gemessen an genau dieser Stelle: die alte
+#: ``.vorgaenger``-Erklaerung hier hatte denselben Fehler und wurde nur
+#: durch die direkt folgende, kommentarlose ``.vorgaenger del``-Regel
+#: "gerettet"). Die Begruendung steht deshalb hier, nicht als CSS-Kommentar.
 _BUEHNE = """
 #buehne-panel .karte { background: var(--grund-2); color: var(--text);
                        border-color: var(--linie); }
@@ -1337,14 +1358,33 @@ _BUEHNE = """
 .stueckkarte { background: var(--grund-3); }
 .sk-haken { color: var(--text-leise); opacity: 1; }
 .sk-frei { color: var(--text-leise); opacity: 1; }
-/* Begriffsboard (Karte t_cb2c4678): die Schaerfungskette steht leise und
-   durchgestrichen hinter dem Begriff, der Pfeil zeigt vom alten Wortlaut
-   zum neuen. Nur Ruhendes: die Bewegung (FLIP) setzt ladeBuehne() per
-   CSSOM und nur ohne prefers-reduced-motion -- hier steht weder
-   transition noch @media (dieser Block laeuft durch scope_css). */
-.begriffsboard .vorgaenger { color: var(--text-leise); margin-left: 0.4em; }
-.begriffsboard .vorgaenger::before { content: "\\2190\\00a0"; }
-.begriffsboard .vorgaenger del { text-decoration-thickness: 1px; }
+.begriffsboard { list-style: none; counter-reset: bbrang; margin: 0; padding: 0; }
+.begriffsboard li { display: flex; align-items: baseline; flex-wrap: wrap;
+                     gap: .15rem .6rem; padding: .4rem 0; }
+.begriffsboard li[data-top="1"] { counter-increment: bbrang; }
+.begriffsboard li[data-top="1"]::before {
+  content: counter(bbrang); flex: 0 0 auto; width: 1.5rem; height: 1.5rem;
+  border-radius: 50%; background: var(--signal); color: var(--auf-signal);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--schrift-tech); font-size: .78rem; font-weight: 700;
+}
+.begriffsboard li[data-top="1"] .begriff {
+  font-family: var(--schrift-skript); font-weight: 700; font-size: 1.1em;
+  color: var(--text);
+}
+.begriffsboard li:not([data-top="1"]) .begriff {
+  font-size: .92em; color: var(--text-leise);
+}
+.begriffsboard li[data-top="1"] + li:not([data-top="1"]) {
+  border-top: 1px solid var(--linie); margin-top: .3rem; padding-top: .75rem;
+}
+.begriffsboard li[data-status="verworfen"] .begriff { font-style: italic; }
+.begriffsboard .vorgaenger { display: inline-flex; align-items: baseline;
+                             gap: .35em; margin-left: .5em; padding-left: .5em;
+                             border-left: 1px solid var(--linie); }
+.begriffsboard .vorgaenger del { color: var(--text-leise); font-size: .85em;
+                                 text-decoration-thickness: 1px; }
+.begriffsboard .vorgaenger del:not(:first-child) { font-size: .75em; }
 """
 #: Die read-only Werkbank (Padua, 03.10.2026, Birk: "Anstatt roter und gruener
 #: LEDs passendere Farben im Design. Dezenter, aber trotzdem klar."). Drei

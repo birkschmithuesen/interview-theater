@@ -306,14 +306,16 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         erfassung = _erfasse_ohne_persona(page)
         if leitbilder and station.leitbild_ende:
             leitbilder.nimm(page, station.phase, station.leitbild_ende)
-        # ``Mitschnitt.schritt`` liest nur ``Path(...).name`` -- ein
-        # Platzhalterpfad reicht, ohne dass dafuer ein Bild geschrieben
-        # werden muss (Abweichung von der woertlichen Vorlage mit
-        # ``screenshot_vorher=None``: ``Path(None)`` wirft ``TypeError``,
-        # siehe Paket-E-Bericht).
-        platzhalter = mitschnitt.screenshot_pfad(station.phase, f"{station.schluessel}-ohne-persona")
+        # Reiner Beobachtungsschritt, kein Vorher/Nachher -- ein einziges
+        # echtes Bild dient fuer beide Felder (Abweichung von der woertlichen
+        # Vorlage mit ``screenshot_vorher=None``: ``Path(None)`` wirft
+        # ``TypeError``, siehe Paket-E-Bericht). ``schritte.jsonl`` darf keinen
+        # Pfad ohne Datei dahinter enthalten (Invariante, siehe
+        # ``test_browser_lauf.py``).
+        bild_pfad = mitschnitt.screenshot_pfad(station.phase, f"{station.schluessel}-ohne-persona")
+        bild_pfad.write_bytes(browser_elemente.bildschirmfoto(page))
         mitschnitt.schritt(
-            phase=station.phase, screenshot_vorher=platzhalter, screenshot_nachher=platzhalter,
+            phase=station.phase, screenshot_vorher=bild_pfad, screenshot_nachher=bild_pfad,
             elemente=[], aktion={"type": "ohne_persona_warten"}, begruendung="",
             antwort={}, db_diff={}, station=station.schluessel)
         return {"schritte": 0, "nachfragen_beantwortet": 0, "offene_fragen": [],

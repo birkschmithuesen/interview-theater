@@ -327,3 +327,12 @@ def test_ohne_persona_station_wartet_und_erfasst_ohne_persona_aufruf(stack, tmp_
     st = ergebnis["stationen_ergebnisse"][0]
     for feld in ("bot_nachricht", "kalibrierung_sichtbar", "zuhoeren_laeuft", "leertext_sichtbar"):
         assert feld in st and isinstance(st[feld], bool)
+    # Regressionsschutz: der ohne_persona-Schritt darf keinen Platzhalterpfad
+    # ohne Datei dahinter in schritte.jsonl hinterlassen (sonst scheitert ein
+    # spaeterer Leser wie der Berichtsbauer am Bild).
+    zeilen = (tmp_path / "l" / "schritte.jsonl").read_text().splitlines()
+    assert len(zeilen) >= 1
+    for zeile in zeilen:
+        eintrag = json.loads(zeile)
+        assert Path(tmp_path / "l" / eintrag["screenshot_vorher"]).exists()
+        assert Path(tmp_path / "l" / eintrag["screenshot_nachher"]).exists()

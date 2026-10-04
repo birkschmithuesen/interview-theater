@@ -31,3 +31,8 @@ NOTHING
 
 Keep your answer to **at most 150 words**. Shorter and backed by evidence
 beats longer and vague.
+
+Write your digest in English, even if the discussion itself was held in a
+different language. This applies only to your surrounding prose -- every
+verbatim quote stays exactly as spoken, in its original language and exact
+wording, never translated.

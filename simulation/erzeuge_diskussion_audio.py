@@ -19,6 +19,23 @@ _ESPEAK_RATE = 1
 _WOERTER_JE_MINUTE = 130
 _PAUSEN = (1.5, 2.25, 3.0, 1.8, 2.6)
 
+#: Die clientseitige VAD-Pausenschwelle (``IT_WEB_VAD_PAUSE_MS``, Vorgabe
+#: 2500ms, ``interview_theater/web_chat.py``) -- hier als dokumentierter
+#: Wert dupliziert, nicht importiert (reine Simulation, kein
+#: Produktivimport noetig). Abnahme P1-2, Fortsetzung (Robo-Diagnose gegen
+#: eine echte sim.db-Kopie): keines der sieben echten Segmente hatte
+#: ``schnittgrund='pause'`` -- alle bisherigen Zeilenpausen (1.5-3.0s) lagen
+#: darunter, die Begriffsboard-Karte reagiert aber nur auf einen
+#: Pausen-Schnitt (oder auf "Discussion done", siehe browser_stationen.py).
+VAD_PAUSE_SCHWELLE_S = 2.5
+#: Deutlich ueber der Schwelle, mit Sicherheitsabstand.
+LANGE_PAUSE_S = 4.0
+#: Drei Stellen im 24-zeiligen Skript, an denen eine lange Stille die
+#: Pause ueberschreibt -- verteilt, nicht gehaeuft, damit auch ein
+#: laufender Pausen-Schnitt mitten in der Diskussion entsteht, nicht nur am
+#: Ende.
+_LANGE_PAUSE_INDIZES = (6, 13, 19)
+
 
 def lies_skript(pfad: Path) -> list[tuple[str, str]]:
     zeilen = []
@@ -32,7 +49,11 @@ def lies_skript(pfad: Path) -> list[tuple[str, str]]:
 
 
 def plane(zeilen: list[tuple[str, str]]) -> list[tuple[str, str, float]]:
-    return [(STIMMEN[s], t, _PAUSEN[i % len(_PAUSEN)]) for i, (s, t) in enumerate(zeilen)]
+    plan = []
+    for i, (s, t) in enumerate(zeilen):
+        pause = LANGE_PAUSE_S if i in _LANGE_PAUSE_INDIZES else _PAUSEN[i % len(_PAUSEN)]
+        plan.append((STIMMEN[s], t, pause))
+    return plan
 
 
 def _espeak():

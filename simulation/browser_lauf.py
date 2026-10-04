@@ -377,7 +377,7 @@ def main() -> None:
     zerleger = argparse.ArgumentParser(prog="python -m simulation.browser_lauf")
     zerleger.add_argument("--env-datei", default=os.environ.get("IT_SIM_ENV", ""))
     zerleger.add_argument("--geraet", choices=["handy", "laptop"], default="handy")
-    zerleger.add_argument("--persona", choices=["student", "clicker"], default="student")
+    zerleger.add_argument("--persona", choices=sorted(browser_persona.PERSONEN), default="student")
     zerleger.add_argument("--bis-phase", type=int, default=7)
     zerleger.add_argument("--bericht", action="store_true")
     argumente = zerleger.parse_args()

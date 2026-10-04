@@ -1280,9 +1280,10 @@ _VEREINT_JS = """
   // davor und bbSpiele() spielt UNMITTELBAR danach FLIP: jede Zeile startet
   // optisch an ihrer alten Stelle und gleitet an die neue. Zuordnung ueber
   // data-begriff, fuer einen geschaerften Begriff ueber data-vorgaenger.
-  // Ein offenes "Warum" (<details>) bleibt offen. Ohne ol.begriffsboard
-  // (Phase 4, Buehnenkarten) tun beide nichts. Bewegung nur per CSSOM (CSP)
-  // und nie bei prefers-reduced-motion: reduce.
+  // Seit der Design-Erweiterung gibt es kein aufklappbares "Warum" mehr --
+  // bbMerke/bbSpiele muessen keinen Auf-/Zu-Zustand mehr tragen. Ohne
+  // ol.begriffsboard (Phase 4, Buehnenkarten) tun beide nichts. Bewegung
+  // nur per CSSOM (CSP) und nie bei prefers-reduced-motion: reduce.
   var BB_DAUER_MS = 320;
 
   function bbSchluessel(text) {
@@ -1319,14 +1320,12 @@ _VEREINT_JS = """
   function bbMerke(panel) {
     var ol = panel.querySelector('ol.begriffsboard');
     if (!ol) { return null; }
-    var vorher = { alt: [], lagen: {}, offen: {} };
+    var vorher = { alt: [], lagen: {} };
     Array.prototype.forEach.call(ol.children, function (li) {
       var b = li.getAttribute('data-begriff');
       var k = bbSchluessel(b);
-      var d = li.querySelector('details');
       vorher.alt.push(b);
       vorher.lagen[k] = li.getBoundingClientRect().top;
-      if (d && d.open) { vorher.offen[k] = true; }
     });
     return vorher;
   }
@@ -1340,12 +1339,6 @@ _VEREINT_JS = """
       return { begriff: li.getAttribute('data-begriff'),
                vorgaenger: li.getAttribute('data-vorgaenger') };
     }));
-    // Erst den Auf-/Zu-Zustand zurueck, DANN messen: ein offenes "Warum"
-    // verschiebt alle Zeilen darunter.
-    quellen.forEach(function (q, i) {
-      var d = lis[i].querySelector('details');
-      if (d && q !== null && vorher.offen[q]) { d.open = true; }
-    });
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return;
     }

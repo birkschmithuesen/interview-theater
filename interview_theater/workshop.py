@@ -1026,3 +1026,35 @@ def interview_fliesstext(profil: Profil | None = None) -> bool:
     behaelt auch mit dem Schalter das Echo je Teil samt Leiste."""
     profil = profil or aktiv()
     return bool(profil.wert("interview.fliesstext", False))
+
+
+def modellwahl_einwilligung_aktiv(profil: Profil | None = None) -> bool:
+    """Ob vor einem Claude-Szenenlauf die US-Provider-Einwilligungsfrage
+    ueberhaupt gestellt wird (Padua Modellwahl-Nachtrag, 04.10.2026, Birk:
+    "nur die Interviews auf Kimi, aller Rest auf Opus").
+
+    Vorgabe true -- Dortmund und das eingebaute Profil bleiben dadurch
+    unveraendert (Einwilligung noetig). Padua setzt false: sobald der
+    Betreiber Claude erlaubt (IT_SZENE_ANBIETER=claude), laeuft jede Phase
+    ausser Phase 3 (Interviews) ohne Rueckfrage auf Claude --
+    ``szene_claude.ist_aktiv``/``angebot_faellig``/``wartet_auf_antwort``
+    und die Erkenner-Art ``szene_usa`` lesen diesen Schalter (naechster
+    Task)."""
+    profil = profil or aktiv()
+    return bool(profil.wert("modellwahl.einwilligung", True))
+
+
+def modellwahl_zitate_an_claude_aktiv(profil: Profil | None = None) -> bool:
+    """Ob woertliche Interview-Belegzitate im Claude-Szenen-Prompt stehen
+    duerfen (Padua Modellwahl-Nachtrag, 04.10.2026; Birk live 18:20
+    bestaetigt: die interviewten Personen werden vor der Aufnahme darauf
+    hingewiesen).
+
+    Vorgabe true -- unveraendertes Verhalten. Padua setzt die Zeile
+    explizit auf true, damit die Entscheidung im Profil steht statt nur
+    implizit vom Default zu kommen. Mit false entfernt
+    ``szene._kernpaket_text`` den woertlichen Zitattext fuer einen
+    Claude-Lauf (Thema/Zuordnung bleiben) -- der Unterschalter bleibt
+    damit jederzeit mit einer Zeile umkehrbar."""
+    profil = profil or aktiv()
+    return bool(profil.wert("modellwahl.zitate_an_claude", True))

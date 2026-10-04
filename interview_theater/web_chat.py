@@ -212,10 +212,9 @@ _TEXT_INTERVIEW_PAUSIERT = "Pause · {zeit}"
 _TEXT_BRAINSTORM_AN = "🎙 Brainstorm mithören"
 _TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit}"
 #: Hintergrund-Mithoeren Phase 1 (Padua Phase 1+2 Umbau, 03.10.2026, Task 5):
-#: derselbe Drei-Zustands-Regler wie Interview/Brainstorm -- Pause/Weiter
-#: teilen sich die Interview-Beschriftungen (_TEXT_INTERVIEW_PAUSE usw.),
-#: nur der grosse Knopf, die Laeuft-Zeile und der eigene Beenden-Knopftext
-#: sind eigene.
+#: nur Start und Fertig -- seit Birks Entscheidung vom 04.10.2026 ohne
+#: Pause/Weiter; eigene Beschriftungen fuer den grossen Knopf, die
+#: Laeuft-Zeile und den Fertig-Knopf.
 _TEXT_DISKUSSION_AN = "Zuhoeren starten"
 _TEXT_DISKUSSION_LAEUFT = "Hoert zu ({zeit})"
 _TEXT_DISKUSSION_FERTIG_KNOPF = "Diskussion fertig"
@@ -718,7 +717,6 @@ _CHAT_JS = """
   // Task 5 IMMER im Markup, ``hidden`` folgt der Phase per Poll.
   var diskussionKnopf = document.getElementById('diskussion');
   var diskussionAktionenFeld = document.getElementById('diskussion-aktionen');
-  var diskussionPauseKnopf = document.getElementById('diskussion-pause');
   var diskussionBeendenKnopf = document.getElementById('diskussion-beenden');
   var angehaltenFeld = document.getElementById('angehalten');
   var angehaltenText = document.getElementById('angehalten-text');
@@ -2772,7 +2770,7 @@ _CHAT_JS = """
   //
   // Derselbe Aufbau wie Brainstorm oben -- eigener Zustandsslot
   // (zustand.diskussion, nicht zustand.brainstorm), eigene DOM-Elemente
-  // (#diskussion, #diskussion-pause, #diskussion-beenden), aber dieselbe
+  // (#diskussion, #diskussion-beenden), aber dieselbe
   // Segment-Mechanik OHNE Modus-Befehl: ein Diskussion-Segment ist
   // serverseitig immer eine gewoehnliche 'kurz'-Aufnahme. sitzung.art =
   // 'diskussion' schaltet bereit() auf "immer senden" (siehe dort);
@@ -2783,13 +2781,9 @@ _CHAT_JS = """
     if (!diskussionKnopf) { return; }
     var sitzung = zustand.diskussion;
     var an = !!sitzung;
-    var pausiert = an && sitzung.pausiert;
     diskussionKnopf.dataset.laeuft = an ? '1' : '0';
-    diskussionKnopf.dataset.pausiert = pausiert ? '1' : '0';
     if (!an) {
       diskussionKnopf.textContent = TEXT.diskussion_an;
-    } else if (pausiert) {
-      diskussionKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
     } else {
       diskussionKnopf.textContent = TEXT.diskussion_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
@@ -2801,9 +2795,6 @@ _CHAT_JS = """
     var sichtbar = zustand.diskussionErlaubt || an || !!zustand.wechsel;
     diskussionKnopf.hidden = !sichtbar;
     if (diskussionAktionenFeld) { diskussionAktionenFeld.hidden = !an; }
-    if (diskussionPauseKnopf) {
-      diskussionPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
-    }
     // interviewKnopf.disabled/classList und pttKnopf.hidden werden seit
     // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal,
     // zusammengefuehrt mit zustand.brainstorm (siehe dort). Vorher
@@ -2824,8 +2815,7 @@ _CHAT_JS = """
       segmentTakt: null, offen: 0, gestartet: false, beendet: false,
       verworfen: false, angehalten: false, geparkt: [],
       fertigEingereiht: true, naechsteNr: 0, einzureihen: 0, fertige: {},
-      pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true,
-      fortsetzend: false
+      pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true
     };
     zustand.diskussion = sitzung;
     zeigeDiskussionModus();
@@ -2852,60 +2842,6 @@ _CHAT_JS = """
       zeigeDiskussionModus();
       meldeFehler(TEXT.fehler_mikro);
     });
-  }
-
-  function pausiereDiskussion() {
-    var sitzung = zustand.diskussion;
-    if (!sitzung || sitzung.pausiert || sitzung.verworfen || sitzung.beendet) { return; }
-    if (sitzung.mikroUnterwegs) {
-      sitzung.pausiert = true;
-      zeigeDiskussionModus();
-      return;
-    }
-    sitzung.erfassteMs += Date.now() - sitzung.legStart;
-    sitzung.legStart = null;
-    sitzung.pausiert = true;
-    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
-    var alt = sitzung.recorder;
-    sitzung.recorder = null;
-    if (alt && sitzung.vadAktiv) { alt._grund = 'ende'; alt._redeMs = sitzung.vadSpeechMs; }
-    if (alt && alt.state !== 'inactive') { alt.stop(); }
-    gibFrei(sitzung);
-    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
-    if (uhrFeld) { uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung)); }
-    zeigeDiskussionModus();
-  }
-
-  function fortsetzeDiskussion() {
-    var sitzung = zustand.diskussion;
-    // Dieselben Waechter wie fortsetzeBrainstorm(): "pausiert" nur einmal
-    // zuruecknehmen, und eine Sperrklinke (fortsetzend) gegen einen
-    // hastigen Doppeldruck, der sonst zwei Recorder auf demselben Mikrofon
-    // startete.
-    if (!sitzung || !sitzung.pausiert || sitzung.verworfen || sitzung.beendet ||
-        sitzung.fortsetzend) { return; }
-    if (sitzung.mikroUnterwegs) { sitzung.pausiert = false; return; }
-    sitzung.pausiert = false;
-    sitzung.fortsetzend = true;
-    sitzung.mikroUnterwegs = true;
-    holeStrom().then(function (strom) {
-      sitzung.mikroUnterwegs = false;
-      sitzung.fortsetzend = false;
-      if (!zustand.diskussion || zustand.diskussion !== sitzung || sitzung.beendet) {
-        strom.getTracks().forEach(function (t) { t.stop(); });
-        return;
-      }
-      sitzung.strom = strom;
-      beginneAufnahme(sitzung);
-      zeigeDiskussionModus();
-    }).catch(function () {
-      sitzung.mikroUnterwegs = false;
-      sitzung.fortsetzend = false;
-      sitzung.pausiert = true;
-      zeigeDiskussionModus();
-      meldeFehler(TEXT.fehler_mikro);
-    });
-    zeigeDiskussionModus();
   }
 
   function beendeDiskussion() {
@@ -3221,13 +3157,6 @@ _CHAT_JS = """
     });
   }
 
-  if (diskussionPauseKnopf) {
-    diskussionPauseKnopf.addEventListener('click', function () {
-      var sitzung = zustand.diskussion;
-      if (!sitzung) { return; }
-      if (sitzung.pausiert) { fortsetzeDiskussion(); } else { pausiereDiskussion(); }
-    });
-  }
   if (diskussionBeendenKnopf) {
     diskussionBeendenKnopf.addEventListener('click', beendeDiskussion);
   }
@@ -3861,13 +3790,10 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'  </div>\n'
         )
         + (
-            f'  <button type="button" id="diskussion" data-laeuft="0" '
-            f'data-pausiert="0"'
+            f'  <button type="button" id="diskussion" data-laeuft="0"'
             + ('' if diskussion_erlaubt else ' hidden')
             + f'>{html.escape(T._TEXT_DISKUSSION_AN)}</button>\n'
             f'  <div class="interview-aktionen" id="diskussion-aktionen" hidden>\n'
-            f'    <button type="button" id="diskussion-pause">'
-            f'{html.escape(T._TEXT_INTERVIEW_PAUSE)}</button>\n'
             f'    <button type="button" id="diskussion-beenden" '
             f'data-discussion-done="1">'
             f'{html.escape(T._TEXT_DISKUSSION_FERTIG_KNOPF)}</button>\n'

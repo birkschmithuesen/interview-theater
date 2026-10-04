@@ -196,6 +196,14 @@ _TEXT_INTERVIEW_ABGELEGT = (
 #: Entscheidung vom 05.09.2026.
 _TEXT_AUSGEWERTET = "{name} ausgewertet: {themen} Themen, {zitate} Zitate."
 
+#: Die Zeile nach einem Interview im Web-Kanal (02.10.2026), Bausteine fuer
+#: ``_text_interview_gespeichert_web``. Bis 04.10.2026 standen sie als
+#: Literale in der Funktion und gingen an der Sprachschicht vorbei -- Padua
+#: (englisch) sah deutschen Text. Wortlaut unveraendert.
+_TEXT_GESPEICHERT_WEB = "{name} gespeichert · {uhrzeit} Uhr · {minuten} Min"
+_TEXT_THEMEN_WEB = "Themen: "
+_TEXT_AUSWERTUNG_IM_TAB = "Ganze Auswertung im Tab Arbeitsstand."
+
 _TEXT_VERDICHTUNG_KOPF = "{name} ist durch. Was ich darin hoere:"
 _TEXT_VERDICHTUNG_THEMEN = "Kernthemen:"
 _TEXT_VERDICHTUNG_FRAGE = "Stimmt das so? Sonst sagt es mir."
@@ -1238,15 +1246,15 @@ def _text_interview_gespeichert_web(conn, row, verdichtung_id: int, e) -> str:
     uhrzeit = datetime.now(ort).strftime("%H:%M")
     sekunden = sum((teil["dauer_sekunden"] or 0) for teil in repo.hole_teile(conn, row["id"]))
     minuten = max(1, round(sekunden / 60))
-    zeilen = [f"{name} gespeichert · {uhrzeit} Uhr · {minuten} Min"]
+    zeilen = [T._TEXT_GESPEICHERT_WEB.format(name=name, uhrzeit=uhrzeit, minuten=minuten)]
     themen = [
         (t["kurz"] or "").strip()
         for t in repo.themen_zu(conn, verdichtung_id)
         if (t["kurz"] or "").strip()
     ][:3]
     if themen:
-        zeilen.append("Themen: " + " · ".join(themen))
-    zeilen.append("Ganze Auswertung im Tab Arbeitsstand.")
+        zeilen.append(T._TEXT_THEMEN_WEB + " · ".join(themen))
+    zeilen.append(T._TEXT_AUSWERTUNG_IM_TAB)
     return "\n".join(zeilen)
 
 

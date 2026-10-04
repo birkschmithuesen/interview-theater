@@ -242,3 +242,45 @@ def test_nur_aendern_legt_nie_eine_blase_an(conn, web, einst, fliesstext):
     kopf_id = interview_an(conn)
     aufnahme._sende_transkript_blase(conn, web, einst, 1, kopf_id, nur_aendern=True)
     assert _posts(conn, repo.WEB_TYP_TRANSKRIPT) == []
+
+
+# -- Aufgabe 7: die Abschlusszeile spricht die Workshop-Sprache ----------------
+
+
+def _verdichtetes_interview(conn):
+    kopf_id = repo.lege_interview_an(conn, 1)
+    teil = repo.lege_aufnahme_an(conn, 1, 720, "teil", "sprache", dauer=120,
+                                 teil_von=kopf_id, status="fertig")
+    repo.setze_transkript(conn, teil, "egal")
+    vid = repo.speichere_verdichtung(conn, 1, kopf_id, "Zusammenfassung", [
+        {"thema": "Ankommen", "kurz": "Ankommen", "beleg_zitat": "egal", "zitat_geprueft": 1},
+    ])
+    return repo.hole_aufnahme(conn, kopf_id), vid
+
+
+def test_abschlusszeile_deutsch_ohne_profil(conn, einst):
+    row, vid = _verdichtetes_interview(conn)
+    zeilen = aufnahme._text_interview_gespeichert_web(conn, row, vid, einst).split("\n")
+    assert re.fullmatch(r"Interview 1 gespeichert · \d\d:\d\d Uhr · 2 Min", zeilen[0])
+    assert zeilen[1:] == ["Themen: Ankommen", "Ganze Auswertung im Tab Arbeitsstand."]
+
+
+def test_abschlusszeile_deutsch_in_dortmund(conn, einst, monkeypatch):
+    monkeypatch.setenv(workshop.VARIABLE, "dortmund-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    try:
+        row, vid = _verdichtetes_interview(conn)
+        zeilen = aufnahme._text_interview_gespeichert_web(conn, row, vid, einst).split("\n")
+    finally:
+        workshop.vergiss()
+        sprache.vergiss()
+    assert re.fullmatch(r"Interview 1 gespeichert · \d\d:\d\d Uhr · 2 Min", zeilen[0])
+    assert zeilen[1:] == ["Themen: Ankommen", "Ganze Auswertung im Tab Arbeitsstand."]
+
+
+def test_abschlusszeile_englisch_in_padua(conn, einst, padua):
+    row, vid = _verdichtetes_interview(conn)
+    zeilen = aufnahme._text_interview_gespeichert_web(conn, row, vid, einst).split("\n")
+    assert re.fullmatch(r"Interview 1 saved · \d\d:\d\d · 2 min", zeilen[0])
+    assert zeilen[1:] == ["Topics: Ankommen", "Full analysis in the Workbench tab."]

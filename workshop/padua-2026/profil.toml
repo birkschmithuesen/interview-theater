@@ -218,3 +218,10 @@ fliesstext = true
 # siehe docs/entscheidung-modellwahl-2026-10-02.md, Nachtrag 2026-10-04.
 [modellwahl]
 einwilligung = false
+# Birk, 04.10.2026 18:20 (live bestaetigt): belegte woertliche
+# Interviewzitate duerfen ab Phase 5 an Opus gehen -- er weist die
+# interviewten Personen vor der Aufnahme darauf hin. Explizit gesetzt
+# (entspricht dem Vorgabewert), damit die Entscheidung im Profil steht
+# und nicht nur implizit vom Code-Default kommt. Der Unterschalter bleibt
+# vollstaendig gebaut und mit einer Zeile umkehrbar (false).
+zitate_an_claude = true

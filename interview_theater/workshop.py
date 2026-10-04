@@ -1046,12 +1046,15 @@ def modellwahl_einwilligung_aktiv(profil: Profil | None = None) -> bool:
 
 def modellwahl_zitate_an_claude_aktiv(profil: Profil | None = None) -> bool:
     """Ob woertliche Interview-Belegzitate im Claude-Szenen-Prompt stehen
-    duerfen (Padua Modellwahl-Nachtrag, 04.10.2026).
+    duerfen (Padua Modellwahl-Nachtrag, 04.10.2026; Birk live 18:20
+    bestaetigt: die interviewten Personen werden vor der Aufnahme darauf
+    hingewiesen).
 
-    Vorgabe true -- unveraendertes Verhalten, Birks Antwort zu dieser
-    Frage steht noch aus. Mit false entfernt ``szene._kernpaket_text`` den
-    woertlichen Zitattext fuer einen Claude-Lauf (Thema/Zuordnung
-    bleiben); NICHT fuer Padua auf false gesetzt -- nur die Faehigkeit
-    (spaeterer Task)."""
+    Vorgabe true -- unveraendertes Verhalten. Padua setzt die Zeile
+    explizit auf true, damit die Entscheidung im Profil steht statt nur
+    implizit vom Default zu kommen. Mit false entfernt
+    ``szene._kernpaket_text`` den woertlichen Zitattext fuer einen
+    Claude-Lauf (Thema/Zuordnung bleiben) -- der Unterschalter bleibt
+    damit jederzeit mit einer Zeile umkehrbar."""
     profil = profil or aktiv()
     return bool(profil.wert("modellwahl.zitate_an_claude", True))

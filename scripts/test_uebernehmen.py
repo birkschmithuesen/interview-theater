@@ -27,8 +27,10 @@ darf mit ``test``/``Test`` anfangen -- sonst liefe sie als Test
 (tests/test_testgruppe_uebernehmen.py haelt das fest).
 """
 
+import argparse
 import secrets
 import shutil
+import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -73,6 +75,21 @@ TITEL_KOPIE = "Testgruppe (Kopie von {bot_name})"
 TEXT_AUFNAHME_LAEUFT = (
     "In Gruppe {chat_id} laeuft gerade eine Aufnahme oder der Interviewmodus "
     "ist an. Erst beenden lassen, dann uebernehmen."
+)
+
+TEXT_DIENST_LAEUFT = (
+    "Der Testbot laeuft (interview-theater@{bot}). Erst stoppen: "
+    "systemctl --user stop interview-theater@{bot} -- sonst liefert ihm sein "
+    "laufender Poll die uebernommene Historie als neuen Eingang (P1)."
+)
+TEXT_DANACH = (
+    "\nJetzt den Testbot starten: systemctl --user start interview-theater@{bot}\n"
+    "Link der Testgruppe: IT_DB={ziel} IT_WEB_URL={url} python scripts/web_links.py"
+)
+TEXT_NICHTS = "\nNichts geschrieben. Mit --ja ausfuehren (Testbot vorher stoppen)."
+TEXT_AUFRUF = (
+    "Aufruf: python -m scripts.test_uebernehmen <quell_chat_id> [--ja]\n"
+    "    oder python -m scripts.test_uebernehmen --leer [--ja]"
 )
 
 
@@ -565,3 +582,70 @@ def leer_berichtstext(bericht: dict, trocken: bool) -> str:
             z.append(f"  Backup: {bericht['backup']}")
         z.append(f"  Offset von {TEST_BOT_NAME}: {bericht['offset']}")
     return "\n".join(z)
+
+
+# --------------------------------------------------------------------------
+# Einstieg
+# --------------------------------------------------------------------------
+
+
+def dienst_laeuft(bot_name: str) -> bool:
+    """Laeuft die Unit des Testbots? (P1) Ohne systemctl (Entwicklungsrechner)
+    gilt sie als gestoppt."""
+    try:
+        ergebnis = subprocess.run(
+            ["systemctl", "--user", "is-active", "--quiet",
+             f"interview-theater@{bot_name}"],
+            check=False, timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    return ergebnis.returncode == 0
+
+
+def main(argv: list | None = None) -> int:
+    zerleger = argparse.ArgumentParser(
+        prog="python -m scripts.test_uebernehmen",
+        description="Spielt eine Padua-Gruppe auf die Testinstanz "
+                    f"(chat_id {TEST_CHAT_ID}) oder setzt sie zurueck.",
+    )
+    zerleger.add_argument("quell_chat_id", nargs="?", type=int)
+    zerleger.add_argument("--ja", action="store_true", help="wirklich schreiben")
+    zerleger.add_argument("--leer", action="store_true", help="frische Phase 1")
+    zerleger.add_argument("--quelle", default=VORGABE_QUELLE)
+    zerleger.add_argument("--ziel", default=VORGABE_ZIEL)
+    zerleger.add_argument("--audio-quelle", default=VORGABE_AUDIO_QUELLE)
+    zerleger.add_argument("--audio-ziel", default=VORGABE_AUDIO_ZIEL)
+    a = zerleger.parse_args(argv)
+    if a.leer == (a.quell_chat_id is not None):
+        print(TEXT_AUFRUF)
+        return 1
+    try:
+        if a.ja and dienst_laeuft(TEST_BOT_NAME):
+            raise Verweigert(TEXT_DIENST_LAEUFT.format(bot=TEST_BOT_NAME))
+        if a.leer:
+            if a.ja:
+                bericht = leere(ziel=a.ziel, audio_ziel=a.audio_ziel)
+            else:
+                bericht = plane_leer(ziel=a.ziel, audio_ziel=a.audio_ziel)
+            print(leer_berichtstext(bericht, trocken=not a.ja))
+        else:
+            pfade = {"quelle": a.quelle, "ziel": a.ziel,
+                     "audio_quelle": a.audio_quelle, "audio_ziel": a.audio_ziel}
+            if a.ja:
+                bericht = uebernimm(a.quell_chat_id, **pfade)
+            else:
+                bericht = plane(a.quell_chat_id, **pfade)
+            print(berichtstext(bericht, trocken=not a.ja))
+    except Verweigert as fehler:
+        print(f"Verweigert: {fehler}")
+        return 1
+    if a.ja:
+        print(TEXT_DANACH.format(bot=TEST_BOT_NAME, ziel=a.ziel, url=VORGABE_URL))
+    else:
+        print(TEXT_NICHTS)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

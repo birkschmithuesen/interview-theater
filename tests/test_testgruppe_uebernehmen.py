@@ -702,3 +702,89 @@ def test_leer_verweigert_die_betriebsdatenbank(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     with pytest.raises(tu.Verweigert):
         tu.leere(ziel="betrieb/padua.db", audio_ziel="audio-padua-test")
+
+
+# --------------------------------------------------------------------------
+# Task 7: Kommandozeile
+# --------------------------------------------------------------------------
+
+
+def _argv(u: Umgebung) -> list:
+    return ["--quelle", u.quelle, "--ziel", u.ziel,
+            "--audio-quelle", u.audio_quelle, "--audio-ziel", u.audio_ziel]
+
+
+def test_main_trockenlauf_schreibt_nichts_und_zeigt_keine_inhalte(umgebung, capsys):
+    vorher = fingerabdruck_db(umgebung.ziel)
+    assert tu.main([str(QUELLE_CHAT), *_argv(umgebung)]) == 0
+    aus = capsys.readouterr().out
+    assert "Trockenlauf" in aus and "Nichts geschrieben" in aus
+    assert GEHEIM not in aus and "fester-testtoken" not in aus
+    assert fingerabdruck_db(umgebung.ziel) == vorher
+
+
+def test_main_ja_uebernimmt_und_nennt_den_startbefehl(umgebung, capsys):
+    assert tu.main([str(QUELLE_CHAT), "--ja", *_argv(umgebung)]) == 0
+    aus = capsys.readouterr().out
+    assert "systemctl --user start interview-theater@padua-test" in aus
+    assert "Backup:" in aus
+    assert GEHEIM not in aus
+    conn = lies(umgebung.ziel)
+    assert conn.execute("SELECT COUNT(*) FROM web_post WHERE chat_id = ?",
+                        (TEST,)).fetchone()[0] == 4
+    conn.close()
+
+
+def test_main_verweigert_bei_laufendem_testbot(umgebung, monkeypatch, capsys):
+    monkeypatch.setattr(tu, "dienst_laeuft", lambda bot_name: True)
+    vorher = fingerabdruck_db(umgebung.ziel)
+    assert tu.main([str(QUELLE_CHAT), "--ja", *_argv(umgebung)]) == 1
+    assert "systemctl --user stop interview-theater@padua-test" in capsys.readouterr().out
+    assert fingerabdruck_db(umgebung.ziel) == vorher
+    assert tu.main(["--leer", "--ja", "--ziel", umgebung.ziel,
+                    "--audio-ziel", umgebung.audio_ziel]) == 1
+    assert fingerabdruck_db(umgebung.ziel) == vorher
+
+
+def test_main_trockenlauf_braucht_keinen_gestoppten_bot(umgebung, monkeypatch):
+    monkeypatch.setattr(tu, "dienst_laeuft", lambda bot_name: True)
+    assert tu.main([str(QUELLE_CHAT), *_argv(umgebung)]) == 0
+
+
+def test_main_verweigert_quelle_gleich_ziel_mit_exitcode_1(umgebung, capsys):
+    argv = ["--quelle", umgebung.quelle, "--ziel", umgebung.quelle,
+            "--audio-quelle", umgebung.audio_quelle, "--audio-ziel", umgebung.audio_ziel]
+    assert tu.main([str(QUELLE_CHAT), "--ja", *argv]) == 1
+    assert "Verweigert" in capsys.readouterr().out
+
+
+def test_main_verweigert_laufende_aufnahme_und_ziel_bleibt(umgebung):
+    conn = db.verbinde(umgebung.quelle)
+    conn.execute("UPDATE gruppe SET interviewmodus_seit = ? WHERE chat_id = ?",
+                 (ZEIT, QUELLE_CHAT))
+    conn.commit()
+    conn.close()
+    vorher = fingerabdruck_db(umgebung.ziel)
+    assert tu.main([str(QUELLE_CHAT), "--ja", *_argv(umgebung)]) == 1
+    assert fingerabdruck_db(umgebung.ziel) == vorher
+
+
+def test_main_leer_ja(umgebung, capsys):
+    assert tu.main(["--leer", "--ja", "--ziel", umgebung.ziel,
+                    "--audio-ziel", umgebung.audio_ziel]) == 0
+    assert "Geleert" in capsys.readouterr().out
+
+
+def test_main_braucht_genau_eins_von_chat_id_und_leer(umgebung, capsys):
+    assert tu.main([*_argv(umgebung)]) == 1
+    assert tu.main([str(QUELLE_CHAT), "--leer", *_argv(umgebung)]) == 1
+
+
+def test_dienst_laeuft_ohne_systemctl_ist_falsch(monkeypatch):
+    monkeypatch.undo()  # die autouse-Attrappe zuruecknehmen: echte Funktion
+
+    def kein_systemctl(*a, **k):
+        raise FileNotFoundError("systemctl")
+
+    monkeypatch.setattr(tu.subprocess, "run", kein_systemctl)
+    assert tu.dienst_laeuft("padua-test") is False

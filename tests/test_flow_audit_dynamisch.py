@@ -103,6 +103,37 @@ def test_mutation_probe_erholt_sich_nach_dem_monkeypatch(conn, einst, tg, klm):
     assert s.wirkungslos is False
 
 
+def test_skript_llm_antwort_erkenner_filtert_direkt_gegen_erkenner_arten(
+    klm, monkeypatch,
+):
+    """Isoliert ``SkriptLLM._antwort_erkenner`` selbst -- OHNE den Umweg
+    ueber eine Station, ``bot._zug_und_erkenner`` oder ``erkenner.erkenne``.
+
+    Die drei ``test_mutation_probe_*``-Tests oben beweisen eine
+    End-zu-Ende-Eigenschaft (Station 3 schreibt/schreibt nicht), aber eine
+    kaputte oder rueckdatierte ``_antwort_erkenner`` wuerde dort NICHT
+    auffallen: ``erkenner.erkenne`` hat selbst ein redundantes
+    ``if art not in ARTEN: continue`` und wuerde eine aus ``ARTEN``
+    entfernte Absicht ohnehin herausfiltern, auch wenn die Attrappe sie
+    faelschlich zurueckgeben wuerde. Dieser Test ruft die Attrappen-Methode
+    direkt auf und prueft NUR ihre eigene Lebend-Pruefung."""
+    stufe = "unit_direkt_erkenner"
+    klm.erkenner(stufe, [{"art": "begriffe_setzen", "wert": "x"}])
+
+    assert "begriffe_setzen" in erkenner.ARTEN
+    mit_intent = klm._antwort_erkenner(stufe)
+    assert mit_intent == {
+        "aenderungen": [{"art": "begriffe_setzen", "wert": "x"}],
+    }
+
+    gepatcht = tuple(a for a in erkenner.ARTEN if a != "begriffe_setzen")
+    assert "begriffe_setzen" not in gepatcht
+    monkeypatch.setattr(erkenner, "ARTEN", gepatcht)
+
+    ohne_intent = klm._antwort_erkenner(stufe)
+    assert ohne_intent == {"aenderungen": []}
+
+
 # ---------------------------------------------------------------------------
 # Phase 1, einzeln.
 # ---------------------------------------------------------------------------
@@ -145,6 +176,19 @@ def test_station_05_echo_wird_erkannt_und_neu_angefordert(conn, einst, tg, klm):
     assert s.echo_erkannt is True
     assert klm.anzahl_aufrufe("p5_echo", "gespraech") == 2
     assert s.nachricht.lower() not in s.bot_antwort.lower()
+
+
+def test_station_14_priya_begriffe_korrektur_schreibt_ueber_den_erkenner(
+    conn, einst, tg, klm,
+):
+    """Review-Nachtrag: Priya muss auch in Phase 1 auftreten (mindestens
+    einmal), nicht nur in Phase 2 -- siehe Docstring der Station."""
+    s = fad.station_14_priya_begriffe_korrektur(conn, tg, klm, einst, CHAT_ID)
+    assert s.phase == 1
+    assert s.persona == fad.PRIYA.name
+    assert s.schreibvorgang is True
+    assert "Outsiders" in (fad._begriff_feld(conn, CHAT_ID) or "")
+    assert len(s.fragen_der_persona) >= 1
 
 
 # ---------------------------------------------------------------------------
@@ -213,14 +257,23 @@ def test_station_13_wartezustand_zeigt_tippanzeige(conn, einst, tg, klm):
 # ---------------------------------------------------------------------------
 
 
-def test_fuehre_alle_aus_liefert_13_sondierungen_ohne_ausnahme(conn, einst, tg, klm):
+def test_fuehre_alle_aus_liefert_14_sondierungen_ohne_ausnahme(conn, einst, tg, klm):
     ergebnisse = fad.fuehre_alle_aus(conn, tg, klm, einst, CHAT_ID)
-    assert len(ergebnisse) == len(fad.ALLE_STATIONEN) == 13
+    assert len(ergebnisse) == len(fad.ALLE_STATIONEN) == 14
     fehlgeschlagen = [s for s in ergebnisse if s.phase == 0]
     assert fehlgeschlagen == [], (
         "Eine oder mehrere Stationen sind mit einer Ausnahme abgebrochen: "
         + "; ".join(f"{s.station}: {s.hinweis}" for s in fehlgeschlagen)
     )
+    personen = {s.persona for s in ergebnisse}
+    phase1_personen = {s.persona for s in ergebnisse if s.phase == 1}
+    phase2_personen = {s.persona for s in ergebnisse if s.phase == 2}
+    assert fad.PRIYA.name in personen
+    assert fad.PRIYA.name in phase1_personen, (
+        "Priya muss mindestens einmal in Phase 1 auftreten (Review-Fund "
+        "04.10.2026, Station 14)"
+    )
+    assert fad.PRIYA.name in phase2_personen
 
 
 # ---------------------------------------------------------------------------

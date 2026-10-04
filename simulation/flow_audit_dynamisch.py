@@ -1103,12 +1103,73 @@ def station_13_wartezustand(conn, tg, klm, e, chat_id: int) -> Sondierung:
     return s
 
 
+# ---------------------------------------------------------------------------
+# Phase 1, Nachtrag (Review-Fund, 04.10.2026): die urspruengliche Fassung
+# dieser Karte liess Priya ausschliesslich in Phase 2 auftreten (Stationen
+# 7+10) -- der Aufgabenbrief fordert sie aber auch in Phase 1 (mindestens
+# einmal). Angehaengt statt eingeschoben, bewusst gemaess der Korrekturregel
+# der Karte ("extend the existing ALLE_STATIONEN tuple"): die bestehende
+# Nummerierung 01-13 bleibt unberuehrt, kein Test und keine Prosa-Verweisstelle
+# auf eine bestehende Stationsnummer muss deshalb mitgeaendert werden.
+# ---------------------------------------------------------------------------
+
+
+def station_14_priya_begriffe_korrektur(conn, tg, klm, e, chat_id: int) -> Sondierung:
+    """Priya korrigiert einen Begriff per Chat-Satz -- parallel zur Form von
+    Station 3 (Korrektur per Chat statt Knopf, derselbe ``begriffe_setzen``-
+    Weg ueber den Absichtserkenner, kein ``VORSCHLAG``-Block in der
+    Gespraechsantwort), aber mit Priyas eigener Stimme: zoegerlich, unsicher
+    ueber ihr Englisch, noch nie mit einem Chatbot oder Push-to-Talk
+    gearbeitet. Eigenstaendig lauffaehig wie Station 3 -- setzt
+    ``arbeitsstand.begriffe`` vorher direkt (ohne Chat) auf einen
+    Ausgangswert."""
+    from interview_theater import repo
+
+    repo.setze_arbeitsstand(
+        conn, chat_id, "begriffe", "Arrival, Silence, Waiting, Home, Strangers",
+    )
+
+    stufe = "p14_priya_korrektur"
+    nachricht = (
+        "um, sorry, is it ok if I say something here -- I think maybe "
+        "'outsiders' fits better than 'strangers'? not sure if that is the "
+        "right word though"
+    )
+    # Bewusst OHNE VORSCHLAG-Block, wie Station 3: eine Antwort, die nach
+    # Erledigung klingt, ohne dass der Gespraechszug selbst etwas schreibt.
+    klm.stelle(stufe).gespraech(stufe, "Got it -- swapping that in, thank you.")
+    klm.erkenner(stufe, [
+        {"art": "begriffe_setzen",
+         "wert": "Arrival, Silence, Waiting, Home, Outsiders"},
+    ])
+
+    vorher = _begriff_feld(conn, chat_id)
+    antwort = sende_nachricht(conn, tg, klm, e, chat_id, PRIYA, nachricht)
+    nachher = _begriff_feld(conn, chat_id)
+
+    s = Sondierung(
+        phase=1, station="Priya korrigiert einen Begriff im Chat (Nachtrag)",
+        persona=PRIYA.name,
+        aktion="Zoegerlich einen Begriff per Chat-Satz vorschlagen, statt "
+               "nach einem Knopf dafuer zu suchen",
+        nachricht=nachricht, bot_antwort=antwort,
+        schreibvorgang=(vorher != nachher),
+        fragen_der_persona=[
+            "did I do this right?",
+            "should I wait for a reply?",
+            "is my phone the one that's listening?",
+        ],
+    )
+    s.hinweis = f"arbeitsstand.begriffe vorher={vorher!r} nachher={nachher!r}"
+    return s
+
+
 #: Die Reihenfolge, in der eine Persona-Sitzung die Karte durchlaeuft --
-#: dieselbe Reihenfolge wie im Aufgabenbrief. ``fuehre_alle_aus`` ruft sie
-#: alle gegen DIESELBE ``conn``/``tg``/``klm``/``chat_id``, wie eine echte
-#: Sitzung; jede einzelne Funktion bleibt trotzdem fuer sich lauffaehig
-#: (sie seedet, was sie zusaetzlich zur bisherigen Sitzung braucht, direkt
-#: ueber ``repo``).
+#: dieselbe Reihenfolge wie im Aufgabenbrief, plus Station 14 (Review-
+#: Nachtrag, siehe oben) angehaengt. ``fuehre_alle_aus`` ruft sie alle gegen
+#: DIESELBE ``conn``/``tg``/``klm``/``chat_id``, wie eine echte Sitzung; jede
+#: einzelne Funktion bleibt trotzdem fuer sich lauffaehig (sie seedet, was
+#: sie zusaetzlich zur bisherigen Sitzung braucht, direkt ueber ``repo``).
 ALLE_STATIONEN = (
     station_01_eintritt,
     station_02_begriffe_vorschlag,
@@ -1123,15 +1184,17 @@ ALLE_STATIONEN = (
     station_11_klickzwang,
     station_12_phasenwechsel_per_chat,
     station_13_wartezustand,
+    station_14_priya_begriffe_korrektur,
 )
 
 
 def fuehre_alle_aus(conn, tg, klm, e, chat_id: int) -> list[Sondierung]:
-    """Faehrt alle 13 Stationen in der Reihenfolge des Aufgabenbriefs gegen
-    EINE geteilte Sitzung. Bricht bei einer werfenden Station nicht ab --
-    ein Fehlschlag einer Station ist selbst ein Befund und wird als
-    Sondierung mit dem Fehlertext im ``hinweis`` weitergegeben, damit ein
-    Bericht trotzdem vollstaendig bleibt."""
+    """Faehrt alle 14 Stationen in der Reihenfolge des Aufgabenbriefs
+    (Station 14 angehaengt, siehe Kommentar vor ihrer Definition) gegen EINE
+    geteilte Sitzung. Bricht bei einer werfenden Station nicht ab -- ein
+    Fehlschlag einer Station ist selbst ein Befund und wird als Sondierung
+    mit dem Fehlertext im ``hinweis`` weitergegeben, damit ein Bericht
+    trotzdem vollstaendig bleibt."""
     ergebnisse: list[Sondierung] = []
     for station in ALLE_STATIONEN:
         try:

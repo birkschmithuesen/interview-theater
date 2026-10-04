@@ -1300,6 +1300,27 @@ def _an_den_bot_abzweigen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     )
 
 
+#: Eine Sperre je Interview-Kopf fuer "Teile lesen + Blase anlegen oder
+#: aendern + echo_message_id merken" (Karte t_ea994c7f, Entscheidung C).
+#: Teile laufen im Pool (``bot.POOL_GROESSE``): ohne die Sperre laegen zwei
+#: gleichzeitig fertige Teile beide "noch keine Blase" und legten zwei an,
+#: oder der spaetere Text ueberschriebe den vollstaendigeren. Je Kopf statt
+#: je Gruppe, wie die Register in ``ablauf``/``szene`` -- gemeinsam haette
+#: es nichts zu schuetzen.
+_blasen_sperren: dict[int, threading.Lock] = {}
+_blasen_sperren_schutz = threading.Lock()
+
+
+def _blasen_sperre(kopf_id: int) -> threading.Lock:
+    """Liefert die (ggf. neu angelegte) Sperre fuer einen Interview-Kopf."""
+    with _blasen_sperren_schutz:
+        sperre = _blasen_sperren.get(kopf_id)
+        if sperre is None:
+            sperre = threading.Lock()
+            _blasen_sperren[kopf_id] = sperre
+        return sperre
+
+
 def fliesstext_aktiv(conn, chat_id: int) -> bool:
     """Gilt fuer diese Gruppe die EINE Transkriptblase je Interview samt der
     Systemzeilen rund ums Interview (Karte t_ea994c7f)? Nur mit
@@ -1337,31 +1358,33 @@ def _sende_transkript_blase(conn, tg, e, chat_id: int, kopf_id: int) -> None:
     Mitschrift wird dabei NICHT nachgezogen: sie steht in keinem Fenster,
     die Wahrheit ist ``aufnahme.transkript`` (Entscheidung F).
 
-    Ein Fehlschlag kostet nur die Anzeige, nie das Transkript."""
-    kopf = repo.hole_aufnahme(conn, kopf_id)
-    if kopf is None:
-        return
-    text = transkript_blasentext(conn, kopf)
-    message_id = repo.echo_message_id(conn, kopf_id)
-    if message_id is not None:
+    Ein Fehlschlag kostet nur die Anzeige, nie das Transkript.
+    Unter ``_blasen_sperre(kopf_id)``."""
+    with _blasen_sperre(kopf_id):
+        kopf = repo.hole_aufnahme(conn, kopf_id)
+        if kopf is None:
+            return
+        text = transkript_blasentext(conn, kopf)
+        message_id = repo.echo_message_id(conn, kopf_id)
+        if message_id is not None:
+            try:
+                tg.aendere_text(chat_id, message_id, text)
+            except Exception:
+                log.exception("Transkriptblase nicht aktualisiert, kopf_id=%s", kopf_id)
+            return
         try:
-            tg.aendere_text(chat_id, message_id, text)
+            message_id = tg.sende(chat_id, text, transkript=True)
         except Exception:
-            log.exception("Transkriptblase nicht aktualisiert, kopf_id=%s", kopf_id)
-        return
-    try:
-        message_id = tg.sende(chat_id, text, transkript=True)
-    except Exception:
-        log.exception("Transkriptblase nicht gesendet, kopf_id=%s", kopf_id)
-        return
-    repo.setze_echo_message_id(conn, kopf_id, message_id)
-    try:
-        repo.merke_nachricht(
-            conn, chat_id, message_id, getattr(e, "bot_name", None), 1,
-            repo.TYP_TRANSKRIPT, text, repo._jetzt(), 1,
-        )
-    except Exception:
-        log.exception("Transkriptblase mitzuschreiben fehlgeschlagen, chat_id=%s", chat_id)
+            log.exception("Transkriptblase nicht gesendet, kopf_id=%s", kopf_id)
+            return
+        repo.setze_echo_message_id(conn, kopf_id, message_id)
+        try:
+            repo.merke_nachricht(
+                conn, chat_id, message_id, getattr(e, "bot_name", None), 1,
+                repo.TYP_TRANSKRIPT, text, repo._jetzt(), 1,
+            )
+        except Exception:
+            log.exception("Transkriptblase mitzuschreiben fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -> None:

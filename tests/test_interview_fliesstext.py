@@ -168,3 +168,43 @@ def test_telegram_bleibt_auch_mit_schalter_beim_echo_je_teil(conn, einst, klm, f
         f"Interview 1, Teil 2:\n{TEILE[1]}",
     ]
     assert all(leiste for _, _, leiste in tg.mit_knoepfen), "die Leiste aus biete_nach_teil bleibt"
+
+
+# -- Aufgabe 5: Nebenlaeufigkeit ---------------------------------------------
+
+
+class _LangsamerKanal(_Kanal):
+    """Haelt ``sende`` 0,2 s auf -- genug, damit zwei Threads ohne Sperre
+    beide "noch keine Blase" lesen und beide eine anlegen."""
+
+    def sende(self, *args, **kw):
+        time.sleep(0.2)
+        return super().sende(*args, **kw)
+
+
+def test_zwei_gleichzeitige_teile_ergeben_eine_blase(conn, einst, tmp_path, fliesstext):
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    kanal = _LangsamerKanal(conn, 1, str(tmp_path / "audio"), schritt_s=0.01)
+    kopf_id = interview_an(conn)
+    for i, text in enumerate(TEILE[:2]):
+        aid = repo.lege_aufnahme_an(
+            conn, 1, 700 + i, "teil", "sprache", dauer=5, teil_von=kopf_id,
+            status="transkribiert",
+        )
+        repo.setze_transkript(conn, aid, text)
+
+    start = threading.Barrier(2)
+
+    def lauf():
+        start.wait()
+        aufnahme._sende_transkript_blase(conn, kanal, einst, 1, kopf_id)
+
+    faeden = [threading.Thread(target=lauf) for _ in range(2)]
+    for faden in faeden:
+        faden.start()
+    for faden in faeden:
+        faden.join(timeout=10)
+
+    blasen = _posts(conn, repo.WEB_TYP_TRANSKRIPT)
+    assert len(blasen) == 1
+    assert TEILE[0] in blasen[0]["text"] and TEILE[1] in blasen[0]["text"]

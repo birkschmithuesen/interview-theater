@@ -876,7 +876,8 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
     **Ein Diskussions-Segment (``row['diskussion']``, Phase 1, Padua
     03.10.2026) geht einen vierten, noch einfacheren Weg** -- siehe
     ``_diskussion_abschliessen``: reines Mithoeren, nie ein Gespraechsbeitrag,
-    kein Zug, kein Erkenner, keine CoThinker-Vorschlagskarte. Diese Pruefung
+    kein Zug, kein Erkenner, keine Buehnenkarte; laufend wird nur das
+    Begriffsboard fortgeschrieben (``begriffsboard.nach_segment``). Diese Pruefung
     steht VOR der Brainstorm-Pruefung, weil beide Flags sich ausschliessen
     (verschiedene Phasen) -- die Reihenfolge entscheidet hier nichts, macht
     die Absicht aber am Quelltext sichtbar: Phase 1 vor Phase 4.
@@ -952,40 +953,38 @@ def _kurz_abschliessen(conn, tg, klm, e, row, zug, nachgeholt) -> None:
 
 
 def _diskussion_abschliessen(conn, tg, klm, e, row) -> None:
-    """Ein Segment des Hintergrund-Mithoerens (Phase 1, "nur zuhoeren", Padua
-    03.10.2026): die Gruppe diskutiert im Raum, das Mikrofon laeuft mit, und
-    was dabei entsteht ist reines Material -- nie ein Gespraechsbeitrag der
-    Gruppe AN den Bot. Die ``nachricht``-Zeile bleibt unveraendert, wie
-    ``empfange()`` sie anlegte (``typ='sprache'``, ``text=NULL``,
-    ``unterdrueckt=1``); nur das Transkript in ``aufnahme.transkript`` (schon
-    gesetzt, siehe ``_verarbeite``) ist das Material.
+    """Ein Segment des Hintergrund-Mithoerens (Phase 1, Padua 03.10.2026):
+    die Gruppe diskutiert im Raum, das Mikrofon laeuft mit -- reines
+    Material, nie ein Gespraechsbeitrag an den Bot. Die ``nachricht``-Zeile
+    bleibt, wie ``empfange()`` sie anlegte (``unterdrueckt=1``); das
+    Transkript in ``aufnahme.transkript`` ist das Material.
 
-    Diese Funktion tut auf JEDEM Segment zwei Dinge: Status auf ``fertig``
-    setzen und das Transkript als Sprechblasen-Update in den Web-Chat
-    spiegeln (B7, wie bei jeder Sprachnachricht). **Sonst nichts** -- kein
-    Gespraechszug, kein Absichtserkenner, kein Journal-Extraktor, und anders
-    als beim strukturell verwandten Brainstorm-Weg
-    (``_brainstorm_abschliessen``) auch KEINE Pruefung, ob eine
-    Vorschlagskarte faellig waere: ``brainstorm.soll_reagieren`` und
-    ``_starte_buehnenkarte`` werden hier nie gerufen. Phase 1 hoert nur zu,
-    sie denkt nicht mit.
+    Auf JEDEM Segment: Status ``fertig``, das Transkript als Sprechblase
+    (B7) -- und seit Karte t_4517d4ad (04.10.2026, Birk: Phase 1 und 4
+    laufen EINHEITLICH automatisch) die Code-Entscheidung, ob das
+    Begriffsboard fortgeschrieben wird: ``begriffsboard.nach_segment`` ruft
+    ``brainstorm.soll_reagieren`` mit den eigenen Zahlen der Phase 1 und
+    stoesst den Lauf im eigenen Thread an. Kein Gespraechszug, kein
+    Absichtserkenner, keine Buehnenkarte und KEINE Chatzeile -- das Board
+    steht nur im CoThinker-Tab.
 
-    **Genau EINMAL** -- beim Abschluss-Segment (``schnittgrund == 'ende'``,
-    derselbe manuelle Flush wie bei ``_brainstorm_abschliessen``) -- kommen
-    zwei weitere Dinge dazu, in dieser Reihenfolge: zuerst die
-    deterministische Aufforderung "jetzt eure fuenf Begriffe" **synchron** in
-    den Chat (die Gruppe soll nicht auf den Modellaufruf warten, um
-    weiterzuwissen, was als Naechstes kommt), danach der EINE
-    Verdichtungslauf ueber das ganze Transkript (``interview_theater.diskussion.starte``,
-    nicht blockierend fuer den Chat -- er haengt in seinem eigenen Thread und
-    seiner eigenen Sperre, siehe dort)."""
+    Beim Abschluss-Segment (``schnittgrund == 'ende'``) kommt danach der
+    Vorschlag der Top 5 (oder, bei leerem Board, die bisherige Aufforderung
+    "jetzt eure fuenf Begriffe") -- nach einem etwaigen Schlusslauf -- und,
+    unabhaengig davon, der EINE Verdichtungslauf (``diskussion.starte``)."""
     repo.setze_status(conn, row["id"], "fertig")
     _web_sprachblase(conn, row["chat_id"], row["message_id"], row["transkript"] or None)
 
-    if row["schnittgrund"] == "ende":
+    from interview_theater import begriffsboard  # lokaler Import, wie diskussion unten
+
+    ende = row["schnittgrund"] == "ende"
+    begriffsboard.nach_segment(
+        conn, tg, klm, e, row["chat_id"], ist_abschluss=ende,
+        rueckfall_text=T._TEXT_DISKUSSION_FERTIG_BEGRIFFE,
+    )
+    if ende:
         from interview_theater import diskussion  # lokaler Import, wie an anderen Cross-Modul-Stellen dieser Datei (z. B. bot)
 
-        tg.sende(row["chat_id"], T._TEXT_DISKUSSION_FERTIG_BEGRIFFE)
         diskussion.starte(conn, tg, klm, e, row["chat_id"])
 
 

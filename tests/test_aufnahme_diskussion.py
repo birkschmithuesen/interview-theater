@@ -98,26 +98,18 @@ def test_diskussion_segment_schreibt_transkript_in_die_sprachblase(conn, einst, 
     assert aufrufe == [(1, 702, "Das steht im Hintergrund.")]
 
 
-def test_diskussion_segment_ruft_weder_soll_reagieren_noch_buehnenkarte_auf(
-    conn, einst, monkeypatch,
-):
-    """Der entscheidende Unterschied zum Brainstorm-Weg: ein Diskussions-
-    Segment prueft nie, ob eine CoThinker-Karte faellig ist, und startet nie
-    einen Buehnenkarten-Lauf -- es ist stilles Material, kein Gespraechsbeitrag
-    mit eigener Reaktionslogik."""
-    soll_reagieren_aufgerufen = []
+def test_diskussion_segment_startet_nie_eine_buehnenkarte(conn, einst, monkeypatch):
+    """Ein Diskussions-Segment startet nie einen Buehnenkarten-Lauf (Phase
+    4). Seit Karte t_4517d4ad prueft es aber ``soll_reagieren`` -- fuer das
+    Begriffsboard (``begriffsboard.nach_segment``), siehe
+    ``tests/test_begriffsboard_mithoeren.py``."""
     buehnenkarte_aufgerufen = []
-    monkeypatch.setattr(
-        aufnahme.brainstorm, "soll_reagieren",
-        lambda **kw: soll_reagieren_aufgerufen.append(kw) or False,
-    )
     monkeypatch.setattr(
         aufnahme, "_starte_buehnenkarte",
         lambda *a, **k: buehnenkarte_aufgerufen.append(1),
     )
     row = _diskussion_zeile(conn, 1, 703, "x" * 200)
     aufnahme._kurz_abschliessen(conn, None, None, einst, row, aufnahme._kein_zug, False)
-    assert not soll_reagieren_aufgerufen
     assert not buehnenkarte_aufgerufen
 
 

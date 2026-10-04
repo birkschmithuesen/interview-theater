@@ -375,3 +375,31 @@ def starte(conn, klm, e, chat_id: int, *, danach=None) -> bool:
         _rufe(([danach] if danach is not None else []) + beende(chat_id))
         raise
     return True
+
+
+def sende_vorschlag(conn, tg, chat_id: int, rueckfall_text: str | None) -> None:
+    """Nach "Discussion done": der Vorschlag aus dem Board -- oder, solange
+    das Board leer ist, der bisherige Satz (D6). Aufgabe 6 baut den Knopf ein."""
+    if rueckfall_text:
+        tg.sende(chat_id, rueckfall_text)
+
+
+def nach_segment(conn, tg, klm, e, chat_id: int, *, ist_abschluss: bool,
+                 rueckfall_text: str | None = None) -> None:
+    """Der Einhaengepunkt in ``aufnahme._diskussion_abschliessen``, je
+    Segment. Entscheidet per Code (D1), ob ein Boardlauf faellig ist, und
+    stoesst ihn im Thread an. Beim Abschluss-Segment (``ist_abschluss``)
+    kommt danach der Vorschlag (D6): nach dem Schlusslauf, oder sofort,
+    wenn keiner noetig ist. Ohne Profil, ohne Modell: nur der Satz, wie
+    bisher."""
+    danach = None
+    if ist_abschluss:
+        def danach() -> None:
+            sende_vorschlag(conn, tg, chat_id, rueckfall_text)
+
+    if (klm is None or not workshop.diskussion_aktiv()
+            or not soll_laufen(conn, chat_id, ist_abschluss=ist_abschluss)):
+        if danach is not None:
+            danach()
+        return
+    starte(conn, klm, e, chat_id, danach=danach)

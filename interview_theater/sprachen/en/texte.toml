@@ -1832,7 +1832,12 @@ _TEXT_INTERVIEW_WEITER = "▶ Continue"
 _TEXT_INTERVIEW_ENDEN = "■ Stop"
 _TEXT_INTERVIEW_LAEUFT = "● Interview running · {zeit}"
 _TEXT_INTERVIEW_PAUSIERT = "Paused · {zeit}"
-_TEXT_PTT = "Tap and speak"
+_TEXT_PTT = "Hold to talk"
+# Task 1 (Kanban-Karte Buehne/PTT, 04.10.2026, Telegram pattern): literal
+# wording from the card for the hint and nothing paraphrased there.
+_TEXT_PTT_HINWEIS = "Hold to talk, slide up to lock"
+_TEXT_PTT_WISCHEN = "slide to cancel"
+_TEXT_PTT_VERWERFEN = "Discard recording"
 # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): the
 # button-gated noise/speech calibration -- literal wording from the card,
 # nothing paraphrased.

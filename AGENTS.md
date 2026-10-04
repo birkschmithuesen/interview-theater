@@ -125,7 +125,12 @@ führt in Bestandsdaten Platzhalterfiguren mit ihren Nachbenennungen zusammen
 (`--trocken`, läuft **nie** automatisch — es verändert Arbeitsergebnisse
 einer Gruppe). `scripts/web_gruppe.py anlegen <bot_name>` legt eine Gruppe
 für den Web-Kanal an und gibt Link, chat_id und die zwei Env-Zeilen aus
-(siehe „Der Web-Kanal").
+(siehe „Der Web-Kanal"). `scripts/test_uebernehmen.py <quell_chat_id> [--ja]`
+spielt den Stand einer Padua-Gruppe auf die getrennte Testinstanz
+(`betrieb/padua-test.db`, Web 8031 `/padua-test`, Bot `padua-test`, feste
+chat_id `7000000000099`, fester Link), `--leer` setzt sie auf Phase 1 zurück
+— Quelle nur `mode=ro`, Testbot vorher stoppen, Anleitung
+`docs/testgruppe-padua.md`.
 
 `web_daten.py` ist die einzige Ausnahme von „SQL nur in `repo.py` und
 `db.py`". Grund: die Weboberfläche liest mit einer eigenen, read-only

@@ -129,3 +129,38 @@ schon vorher waren. **Phase 3 (Interviews) und jede Interview-Verdichtung
 bleiben unverändert unbedingt bei Kimi** — der Mechanismus ist derselbe wie
 zuvor: `verdichter.py` ruft `modellwahl` nie an, und das ist die ganze
 Durchsetzung.
+
+## Nachtrag 2026-10-04
+
+Birk, live: „nur die Interviews auf Kimi, aller Rest auf Opus" — für Padua
+soll die US-Provider-Einwilligungsfrage ganz entfallen, nicht nur früher
+kommen.
+
+**Umsetzung (dieser Task, nur die Profil-Infrastruktur):** ein neuer
+Profilschalter `[modellwahl] einwilligung` (Vorgabe `true`, Getter
+`workshop.modellwahl_einwilligung_aktiv()`) steht in
+`workshop/padua-2026/profil.toml` auf `false`. Dortmund und das eingebaute
+Vorgabeprofil setzen die Zeile nicht und bleiben dadurch unverändert — die
+Einwilligungsfrage bleibt dort bestehen.
+
+**Was sich bei ausgeschaltetem Schalter ändert — angekündigt, noch nicht
+gebaut (späterer Task in diesem Plan):**
+
+- `szene_claude.ist_aktiv` prüft dann nur noch den Betreiber-Schalter
+  (`IT_SZENE_ANBIETER=claude`), nicht mehr zusätzlich die Einwilligung.
+- `angebot_faellig`/`wartet_auf_antwort` liefern immer `False` — es gibt
+  nichts mehr anzubieten oder abzuwarten.
+- Die Erkenner-Art `szene_usa` verschwindet aus dem Schema.
+- Die US-Warnung vor einem Szenenlauf wird nicht mehr gesendet.
+
+**Phase 3 (Interviews) bleibt davon unberührt und UNBEDINGT Kimi** — dieser
+Schalter ändert nichts an der Durchsetzung über `verdichter.py`, das
+`modellwahl` nie anruft.
+
+**Zweiter, unabhängiger Schalter `[modellwahl] zitate_an_claude`** (Vorgabe
+`true`, Getter `workshop.modellwahl_zitate_an_claude_aktiv()`): mit `false`
+würde `szene._kernpaket_text` (späterer Task) den wörtlichen
+Interview-Zitattext aus dem Claude-Szenen-Prompt entfernen — Thema und
+Zuordnung blieben stehen, nur das Belegzitat selbst nicht. Für Padua **nicht**
+auf `false` gesetzt, Birks Antwort zu dieser Frage steht noch aus — dieser
+Task baut nur die Fähigkeit, nicht die Entscheidung.

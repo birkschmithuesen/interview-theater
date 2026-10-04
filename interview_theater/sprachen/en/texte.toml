@@ -813,6 +813,11 @@ _NACHTRAG_WOERTLICH = "\n\nIMPORTANT, second attempt: In the first attempt, supp
 _BEGRIFFE_KOPF = "The group's terms:"
 _DISKUSSION_KOPF = "Digest of an earlier discussion by the group (background only, not a template):"
 
+["begriffsboard"]
+_ZEILE_DETAIL = "- {begriff}: {begruendung}"
+_ZEILE_DETAIL_OHNE_GRUND = "- {begriff}"
+_ZUSATZ_DOPPELBEDEUTUNG = " (double meaning: {doppelbedeutung})"
+
 ["journal"]
 _BISHERIGES_JOURNAL_KOPF = "Journal so far:\n"
 _AUSSCHNITT_KOPF = "Excerpt:\n"

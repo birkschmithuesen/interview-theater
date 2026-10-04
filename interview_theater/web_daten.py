@@ -1887,8 +1887,14 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         # Vorgabe false -- Dortmund bleibt unberuehrt). Beide Bedingungen
         # greifen unabhaengig voneinander, wie beim Brainstorm-Knopf gibt es
         # dafuer keine serverseitige "laeuft gerade"-Ausnahme.
+        # Bug (Birk Live-Test 04.10.2026): eine Gruppe ganz am Anfang hat noch
+        # KEINE arbeitsstand-Zeile -- _feld liefert dann None, nicht die
+        # Vorgabephase. Derselbe Fallback wie beim Interview-Knopf zwei
+        # Zeilen drueber (``or phasen.ERSTE``), sonst bleibt der
+        # Diskussions-Knopf fuer jede frische Gruppe unsichtbar.
         "diskussion_knopf": (
-            _feld(stand, "phase") == 1 and workshop.diskussion_aktiv()
+            (_feld(stand, "phase") or phasen.ERSTE) == 1
+            and workshop.diskussion_aktiv()
         ),
         "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
         "nachrichten": nachrichten,

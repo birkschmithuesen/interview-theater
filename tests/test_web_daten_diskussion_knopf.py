@@ -60,10 +60,21 @@ def test_andere_phase_mit_profilflag_an_ergibt_falsch(datenbank, monkeypatch, ph
     assert zustand["diskussion_knopf"] is False
 
 
-def test_ohne_arbeitsstand_ergibt_falsch(datenbank, monkeypatch):
-    """Keine Phase gesetzt (``_feld(stand, "phase")`` liefert ``None``) --
-    ``None == 1`` ist falsch, unabhaengig vom Profilflag."""
+def test_ohne_arbeitsstand_mit_profilflag_ergibt_wahr(datenbank, monkeypatch):
+    """Keine Phase gesetzt (``_feld(stand, "phase")`` liefert ``None``) heisst
+    ERSTE (Phase 1), nicht "keine Phase" -- Bug Birk Live-Test 04.10.2026:
+    eine frische Gruppe hat noch keine ``arbeitsstand``-Zeile und sah den
+    Knopf nie, obwohl sie in Phase 1 war. Derselbe Fallback wie beim
+    Interview-Knopf (``phasen.ERSTE``)."""
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    pfad, token = datenbank
+    zustand = _zustand(pfad, token, phase=None)
+    assert zustand["diskussion_knopf"] is True
+
+
+def test_ohne_arbeitsstand_ohne_profilflag_ergibt_falsch(datenbank, monkeypatch):
+    """Dieselbe Lage, aber Dortmund (Profilflag aus) bleibt unberuehrt."""
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: False)
     pfad, token = datenbank
     zustand = _zustand(pfad, token, phase=None)
     assert zustand["diskussion_knopf"] is False

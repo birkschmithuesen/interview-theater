@@ -339,6 +339,7 @@ def test_aufnahme_umschalter_meldet_als_systemzeile(conn, web, einst, fliesstext
     befehle.behandle(conn, web, einst, 1, "/aufnahme", "Ada")
     befehle.behandle(conn, web, einst, 1, "/aufnahme", "Ada")
 
+    assert "Bereit - schickt eure Sprachnachrichten." not in _texte(conn, repo.WEB_TYP_SYSTEM)
     assert "Aufnahme beendet." in _texte(conn, repo.WEB_TYP_SYSTEM)
 
 

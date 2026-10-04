@@ -51,7 +51,7 @@ Module unter `interview_theater/`:
 | `bot.py` | Startroutine, Long-Poll-Schleife, Begrüßung, Warmlaufen, Prozessaufsicht |
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
 | `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, Interviewfluss (kurz/teil/lang) |
-| `begriffsboard.py` | Das Begriffsboard der Phase 1 (04.10.2026, Karte t_4517d4ad): laufend mithören wie der Brainstorm in Phase 4 (`brainstorm.soll_reagieren` **unverändert**, eigene Zähler über `aufnahme.diskussion = 1`, eigene Sperre), ein Schema-Aufruf je qualifizierendem Segment im eigenen Thread (Opus nach Einwilligung, sonst Kimi), Tabelle `begriffsboard` (nur anhängen, letzter Stand gilt). Validiert **im Code**: Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`. **Der Lauf kennt kein `tg`** — keine Chatzeile beim Mithören. Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these"; `schreibe_detail` füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe` (AST-Test `tests/test_begriffe_detail_wege.py`). `detail_zeilen` ist die eine Prompt-Form für `kontext` (Phase 2, ≥ 4) und `fragen_ki` |
+| `begriffsboard.py` | Das Begriffsboard der Phase 1 (04.10.2026, Karte t_4517d4ad): laufend mithören wie der Brainstorm in Phase 4 (`brainstorm.soll_reagieren` **unverändert**, eigene Zähler über `aufnahme.diskussion = 1`, eigene Sperre), ein Schema-Aufruf je qualifizierendem Segment im eigenen Thread (Opus nach Einwilligung, sonst Kimi), Tabelle `begriffsboard` (nur anhängen, letzter Stand gilt). Validiert **im Code**: Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`. **Der Lauf kennt kein `tg`** — keine Chatzeile beim Mithören. Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these"; `schreibe_detail` füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe` (AST-Test `tests/test_begriffe_detail_wege.py`). `detail_zeilen` ist die eine Prompt-Form für `kontext` (Phase 2, ≥ 4) und `fragen_ki`. Seit 04.10.2026 (Karte t_cb2c4678) die **Schärfung**: Pflichtfeld `vorheriger_begriff` im Schema, im Code gegen das bisherige Board geprüft (`validiere(…, bisher)`, `_verkette` — nur ein Begriff, der wirklich verschwand, keine Ähnlichkeitsheuristik); daraus die Kette `vorgaenger` (älteste zuerst, nur am Eintrag, wenn nicht leer, nie im Schema, nie Modelltext). Im CoThinker durchgestrichen (`web._begriffsboard_html`, `data-vorgaenger`), Live-Ranking per FLIP direkt in `ladeBuehne()` (`_VEREINT_JS`: `bbMerke` vor, `bbSpiele` nach dem Panel-Tausch; ohne `ol.begriffsboard` wirkungslos). |
 | `befehle.py` | Die Slash-Befehle (`_BEKANNTE_BEFEHLE`, zurzeit fünfzehn; acht davon stehen über `setMyCommands` im Menü, `BEFEHLE_LISTE`), laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
@@ -178,6 +178,7 @@ Versehen).
 | Wo steht Phase 6/7 gerade? | `ueberarbeitung.weiter_6`/`weiter_7` → `aktuelle_szene` |
 | Was zeigt die Werkbank in Padua? | `roadmap.werkbank` → `web_daten.werkbank` → `web.werkbank_koerper` |
 | Was steht auf dem Begriffsboard (und warum nicht)? | `aufnahme._diskussion_abschliessen` → `begriffsboard.nach_segment` → `soll_laufen` → `_lauf_einmal` → `validiere` |
+| Warum ist ein Begriff durchgestrichen (oder nicht)? | `begriffsboard.validiere` → `_verkette` → `web._begriffsboard_html` → `web_vereint._VEREINT_JS` (`ladeBuehne` → bbMerke/bbSpiele) |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -3043,7 +3044,11 @@ Profilschalter `[web] dashboard_gestaltet`** (gesetzt allein in
 `workshop/padua-2026/profil.toml`); ohne ihn bleibt das Dashboard-HTML
 byte-gleich (`tests/test_web_dashboard_en.py`). Seit 04.10.2026 kein
 Abnahmekriterium mehr, wenn die Abweichung nur Dortmund betrifft — siehe
-„Dortmund eingefroren" oben; Test ggf. `@pytest.mark.dortmund`.
+„Dortmund eingefroren" oben; Test ggf. `@pytest.mark.dortmund`. Seit dem
+04.10.2026 trägt `css_buehne()` (`_BUEHNE`) auch die ruhende Darstellung der
+Schärfungskette (`.begriffsboard .vorgaenger`, Pfeil per `::before`) —
+**ohne** Bewegung im CSS; die setzt `ladeBuehne()` per CSSOM und nur ohne
+`prefers-reduced-motion`. Keine neue Einhängezeile, kein neuer Schalter.
 
 **Ein Block Design-Tokens ist der ganze Entwurf.** `TOKENS["a"]`
 („Terminal zuerst": Phosphor auf Schwarzblau, Monospace, Tableiste unten)
@@ -3595,6 +3600,13 @@ bewusst nicht erledigt, jeweils mit Grund:
   (`buehnenkarte._kontext_phasen_1_bis_3`) — nur `begriffe_detail` über
   `kontext.baue`.
 - Die CoThinker-Darstellung ist ungestaltet (`data-*`, UX-Karte).
+- **Ungemessen (t_cb2c4678):** kein bezahlter Lauf für `vorheriger_begriff` —
+  ob Kimi/Opus das Feld zuverlässig füllen, weiß niemand. Vergisst das
+  Modell es, fehlt nur der Strich; die Begründung erzählt die Entwicklung
+  trotzdem.
+- Die Wortzahl „1–3" eines Begriffs (und damit eines Vorgängers) steht im
+  Prompt, nicht im Code; der Code garantiert „ein Begriff, früher schon auf
+  dem Board".
 
 Die **Weboberflächen sind gebaut** (`web.py`/`web_daten.py`, siehe
 „Weboberfläche" unten) — und **Szenen werden geschrieben** (`szene.py`, seit

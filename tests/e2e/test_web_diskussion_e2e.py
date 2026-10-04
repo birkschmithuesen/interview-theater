@@ -84,7 +84,8 @@ sys.path.insert(0, str(WURZEL))
 import httpx  # noqa: E402
 
 from interview_theater import (  # noqa: E402
-    aufnahme, bot, db, einstellungen, repo, web, web_chat, web_kanal, workshop,
+    aufnahme, begriffsboard, bot, db, einstellungen, knoepfe, repo, web, web_chat,
+    web_kanal, workshop,
 )
 
 CHAT = 7_000_000_000_002  # eigene chat_id -- nie dieselbe wie test_web_e2e_http.py
@@ -142,6 +143,7 @@ class LLMAttrappe:
     def __init__(self):
         self.nutzertexte = []
         self.diskussion_verdichtet = 0
+        self.board = []
         self._sperre = threading.Lock()
 
     def _gespraech(self, nutzer: str) -> str:
@@ -157,6 +159,10 @@ class LLMAttrappe:
             return {"aenderungen": []}
         if art == "journal":
             return {"eintraege": []}
+        if art == "begriffsboard":
+            # Karte t_4517d4ad: der Boardlauf -- ``self.board`` setzt der
+            # jeweilige Test; leer heisst: der heutige Satz bleibt.
+            return {"board": list(self.board)}
         if art == "diskussion_verdichtung":
             with self._sperre:
                 self.diskussion_verdichtet += 1
@@ -223,14 +229,12 @@ def lauf(tmp_path, monkeypatch):
     # Fallback fuer den Fall, dass pegelAn() im Browser doch einmal fehlschlaegt
     # (kein AudioContext) -- dann greift die feste Segmentlaenge statt der VAD.
     monkeypatch.setenv("IT_WEB_SEGMENT_MS", str(VAD_MAX_MS))
-    # Wie in tests/e2e/test_web_chat_e2e.py's ``server``-Fixture: dieser Lauf
-    # prueft den Diskussionsablauf (Begruessung, Echo-Blase, Fuenf-Begriffe-
-    # Aufforderung), nicht die Kalibrierung davor (eigene Abdeckung dafuer:
-    # tests/e2e/test_web_chat_kalibrierung_e2e.py). Ohne den Schalter bliebe
-    # das Kalibrierungs-Panel offen stehen -- niemand im Test klickt
-    # "Start measuring"/"Skip" -- und der Pegel-/Segmenttakt (gated hinter
-    # kalEntscheideOderStarte) startete nie, kein Segment wuerde je
-    # geschnitten.
+    # Seit "Mithoeren SICHER" (35dc28f, nach dieser Datei gemerged) haengt vor
+    # dem ersten echten Schnitt ein Kalibrierungs-Dialog (kalEntscheideOderStarte()
+    # faehrt sonst auf #kalibrierung-* statt auf kalStarteEchteSchnitte()) --
+    # diese Datei prueft die Diskussion/das Begriffsboard, nicht die
+    # Kalibrierung (die hat tests/e2e/test_web_chat_kalibrierung_e2e.py), genau
+    # wie test_web_chat_e2e.py::server es fuer seinen Lauf abschaltet.
     monkeypatch.setenv("IT_WEB_VAD_KALIBRIERUNG", "0")
 
     pfad = str(tmp_path / "t.db")
@@ -456,6 +460,11 @@ def test_diskussion_voller_ablauf_im_browser(lauf, seite):
     seite.click("#senden")
     expect(seite.locator(".blase.bot").first).to_contain_text(text_diskussion_an)
 
+    # Karte t_4517d4ad (D10): hinter der Begruessung steht der Einstiegssatz.
+    expect(
+        seite.locator(".blase.bot").filter(has_text=begriffsboard.T._TEXT_EINSTIEG).first
+    ).to_be_visible(timeout=GEDULD_MS)
+
     # Die Begruessung fragt (noch) nicht nach den fuenf Begriffen -- das ist
     # erst die Aufforderung NACH "Discussion done".
     expect(seite.locator(".verlauf")).not_to_contain_text(text_fuenf_begriffe)
@@ -515,3 +524,48 @@ def test_diskussion_voller_ablauf_im_browser(lauf, seite):
         time.sleep(SCHRITT_S)
     # Entscheidend ist nur, dass kein zweiter, unerwarteter Gespraechszug lief:
     assert seite.locator(".blase.bot", has_text=_UNERWARTET).count() == 0
+
+
+def test_begriffsboard_im_cothinker_und_top5_vorschlag(lauf, seite, monkeypatch):
+    """Karte t_4517d4ad: Start -> Segment -> "Discussion done" -> Schlusslauf
+    -> Board-Eintrag im CoThinker-Panel -> Top-5-Vorschlag mit EINEM Knopf
+    "Take these". Der Zwischenlauf nach einem Pausenschnitt ist im Browser
+    nicht herstellbar (Dauerton, nur ``cap``-Schnitte, siehe Dateikopf) und
+    in ``tests/test_begriffsboard_mithoeren.py`` am echten ``aufnahme``-Pfad
+    getestet."""
+    _basis, _token, _pfad, klm = lauf
+    # Schlusslauf schon ab einem Zeichen (die Segmente tragen nur TRANSKRIPT).
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "1")
+    klm.board = [{
+        "begriff": "ankamen", "nennungen": 2, "zustimmung": 2,
+        "begruendung": "Das Ankommen hier verbindet uns.",
+        "zitat": "als wir hier ankamen", "doppelbedeutung": "", "status": "favorit",
+    }]
+    knopf_text = knoepfe.T._TEXT_BOARD_UEBERNEHMEN_KNOPF
+
+    seite.fill("#eingabe", "Hallo, wir sind da!")
+    seite.click("#senden")
+    expect(seite.locator(".blase.bot").first).to_contain_text(web_chat.T._TEXT_DISKUSSION_AN)
+
+    seite.click("#diskussion")
+    expect(seite.locator("#diskussion")).to_have_attribute("data-laeuft", "1")
+    segment_blase = seite.locator(".blase.gruppe.sprache").filter(has_text=TRANSKRIPT)
+    expect(segment_blase.first).to_be_visible(timeout=GEDULD_MS)
+
+    seite.click("#diskussion-beenden")
+    expect(seite.locator("#diskussion")).to_have_attribute("data-laeuft", "0")
+
+    # Der Top-5-Vorschlag ersetzt den heutigen Satz und traegt genau einen Knopf.
+    vorschlag = seite.locator(".blase.bot").filter(has_text="1. ankamen")
+    expect(vorschlag.first).to_be_visible(timeout=GEDULD_MS)
+    expect(seite.get_by_role("button", name=knopf_text)).to_have_count(1)
+    assert seite.locator(".blase.bot").filter(
+        has_text=aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE).count() == 0
+
+    # Der CoThinker-Tab ist in Phase 1 da und zeigt den Board-Eintrag als Top.
+    tab = seite.locator('.tabs button[data-tab="buehne"]')
+    expect(tab).to_be_visible(timeout=GEDULD_MS)
+    tab.click()
+    eintrag = seite.locator('#tab-buehne li[data-begriff="ankamen"][data-top="1"]')
+    expect(eintrag).to_be_visible(timeout=GEDULD_MS)
+    assert seite.locator("#tab-buehne").inner_text().count("als wir hier ankamen") == 0

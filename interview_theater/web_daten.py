@@ -1339,6 +1339,14 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Rest dieser Funktion. Die Karten tragen NIE ein Belegzitat (Phase 4
         # ist interview-frei), siehe buehnenkarte.py/db.py.
         "buehnenkarten": buehnenkarten(conn, chat_id),
+        # Das Begriffsboard (CoThinker in Phase 1, Karte t_4517d4ad) -- nur
+        # in Phase 1 und nur mit Profil ``diskussion.aktiv``; Dortmund liest
+        # es nie.
+        "begriffsboard_zeigen": stand.get("phase") == 1 and _workshop.diskussion_aktiv(),
+        "begriffsboard": (
+            begriffsboard(conn, chat_id)
+            if stand.get("phase") == 1 and _workshop.diskussion_aktiv() else []
+        ),
         # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
         # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder
         # wartet auf Transkription. Ueber ``_aufnahmen_nach_status`` (schon
@@ -1382,6 +1390,27 @@ def buehnenkarten(
         ).fetchall()
     except sqlite3.OperationalError:
         return []
+
+
+def begriffsboard(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Das read-only Gegenstueck zu ``begriffsboard.aktuelles`` (CoThinker in
+    Phase 1, Karte t_4517d4ad) -- sortiert wie der Top-5-Vorschlag
+    (``begriffsboard.sortiert``) und OHNE ``zitat``: auf der Seite steht kein
+    Zitat aus dem Mitschnitt (AGENTS.md, "Drei Grenzen"). Fehlt die Tabelle
+    (Deploy vor Bot-Neustart), eine leere Liste."""
+    try:
+        zeile = conn.execute(
+            "SELECT json FROM begriffsboard WHERE chat_id = ? ORDER BY id DESC LIMIT 1",
+            (chat_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return []
+    from interview_theater import begriffsboard as _begriffsboard
+
+    return [
+        {k: v for k, v in eintrag.items() if k != "zitat"}
+        for eintrag in _begriffsboard.sortiert(_begriffsboard.lies(zeile["json"] if zeile else None))
+    ]
 
 
 def stueckkarte_felder(

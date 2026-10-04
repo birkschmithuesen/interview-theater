@@ -89,7 +89,7 @@ def test_nutzertext_signatur_kennt_weder_conn_noch_chat_id():
     aus dieser Funktion heraus die Datenbank oder den Phase-2-Chat zu
     lesen."""
     parameter = list(inspect.signature(fragen_ki._nutzertext).parameters)
-    assert parameter == ["begriffe", "diskussion_text"]
+    assert parameter == ["begriffe", "diskussion_text", "begriffe_detail"]
     assert "conn" not in parameter
     assert "chat_id" not in parameter
 

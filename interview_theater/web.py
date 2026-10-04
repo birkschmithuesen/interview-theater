@@ -1026,6 +1026,10 @@ _TEXT_WERKBANK_NUR_LESEN = "Hier wird nur angezeigt – Änderungen bitte im Cha
 #: jetzt eine konkrete Handlung statt nur den Mangel ("Noch keine Karte.")
 #: zu melden -- der Chat ist der einzige Weg, wie eine erste Karte entsteht.
 _TEXT_BUEHNE_LEER = "Im Chat sprechen — hier erscheinen die Gedanken."
+#: Das Begriffsboard im CoThinker-Tab (Phase 1, Karte t_4517d4ad).
+_TEXT_BOARD_LEER = "Hier erscheinen die Begriffe, die ihr in der Diskussion nennt."
+_TEXT_BOARD_WARUM = "Warum"
+_TEXT_BOARD_DOPPEL = "Doppelbedeutung: {doppelbedeutung}"
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
@@ -2899,6 +2903,50 @@ def _buehne_alterszeile(erstellt_am: str | None) -> str:
     return f'<span class="buehne-alter">{text}</span>'
 
 
+def _begriffsboard_html(eintraege: list[dict]) -> str:
+    """Das Begriffsboard im CoThinker-Tab (Phase 1, Karte t_4517d4ad, D9):
+    eine Liste in ``begriffsboard.sortiert``-Ordnung, die Top 5 mit
+    ``data-top="1"``, Begruendung und Doppelbedeutung aufklappbar. Nur
+    funktionales Markup mit ``data-*`` -- die Gestaltung macht die UX-Karte.
+    Kein Zitat (``web_daten.begriffsboard`` laesst es weg), kein
+    ``style=``, kein ``on…=`` (CSP)."""
+    from interview_theater import begriffsboard as _begriffsboard
+
+    if not eintraege:
+        return (
+            '<div id="buehne-panel" data-ansicht="begriffsboard">'
+            f'<p class="buehne-leer">{_t(T._TEXT_BOARD_LEER)}</p></div>'
+        )
+    oben = {_begriffsboard.schluessel(e["begriff"]) for e in _begriffsboard.top(eintraege)}
+    zeilen = []
+    for eintrag in _begriffsboard.sortiert(eintraege):
+        begriff = html.escape(eintrag["begriff"], quote=True)
+        top_merkmal = (' data-top="1"'
+                       if _begriffsboard.schluessel(eintrag["begriff"]) in oben else "")
+        teile = []
+        if eintrag.get("begruendung"):
+            teile.append(
+                f'<p data-feld="begruendung">{html.escape(eintrag["begruendung"])}</p>'
+            )
+        if eintrag.get("doppelbedeutung"):
+            teile.append(
+                '<p data-feld="doppelbedeutung">'
+                f'{_t(T._TEXT_BOARD_DOPPEL.format(doppelbedeutung=eintrag["doppelbedeutung"]))}</p>'
+            )
+        mehr = (f'<details><summary>{_t(T._TEXT_BOARD_WARUM)}</summary>{"".join(teile)}</details>'
+                if teile else "")
+        zeilen.append(
+            f'<li data-begriff="{begriff}" data-status="{html.escape(eintrag["status"])}" '
+            f'data-zustimmung="{int(eintrag["zustimmung"])}" '
+            f'data-nennungen="{int(eintrag["nennungen"])}"{top_merkmal}>'
+            f'<span class="begriff">{html.escape(eintrag["begriff"])}</span>{mehr}</li>'
+        )
+    return (
+        '<div id="buehne-panel" data-ansicht="begriffsboard">'
+        f'<ol class="begriffsboard">{"".join(zeilen)}</ol></div>'
+    )
+
+
 def _buehne_html(daten: dict) -> str:
     """Die CoThinker-Tafel: GENAU EINE Karte auf einmal, mit Browser-
     seitiger Verlaufsnavigation (Task 1, Padua CoThinker-Tab clean,
@@ -2923,6 +2971,10 @@ def _buehne_html(daten: dict) -> str:
     Eine Schweigen-Zeile (``buehnenkarte.schweigen = 1``) ist keine Karte --
     sie traegt leeren Text und zaehlt nirgends mit (gleiche Erkennung wie
     vor diesem Umbau, siehe ``_buehne_status_text``)."""
+    if daten.get("begriffsboard_zeigen"):
+        # Phase 1 (Karte t_4517d4ad): der CoThinker zeigt das Begriffsboard
+        # statt der Buehnenkarten -- eine Renderfunktion fuer Seite UND Poll.
+        return _begriffsboard_html(daten.get("begriffsboard") or [])
     karten = daten.get("buehnenkarten") or []
     # ``karten`` kommt NEUESTE ZUERST (web_daten.buehnenkarten, ORDER BY id
     # DESC) -- fuer die Tafel reicht das erste echte Element, fuer den

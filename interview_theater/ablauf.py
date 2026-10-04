@@ -895,6 +895,10 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
     # die richtige Antwort UND direkt darunter eine verwirrende Fehlermeldung
     # zu genau derselben Antwort gesehen.
     versand_erfolgreich = False
+    # Karte t_4517d4ad (D10): die erste Antwort einer neuen Gruppe bekommt
+    # den Einstiegssatz zum Mithoeren dahinter -- VOR dem Zug gemessen, danach
+    # gibt es eine Bot-Nachricht.
+    erstkontakt_zug = not repo.hat_bot_nachricht(conn, chat_id)
     try:
         if befehle.behandle(
             conn, tg, e, chat_id, letzte_nachricht["text"] or "",
@@ -937,6 +941,8 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         versand_erfolgreich = True
         strom.schliesse(tg, chat_id, message_id)
         _nach_dem_senden(conn, tg, e, chat_id, message_id, text)
+        if erstkontakt_zug and phasen.aktuelle(conn, chat_id) == 1:
+            _sende_board_einstieg(conn, tg, e, chat_id)
     except Exception:
         log.exception("Gespraechszug fehlgeschlagen, chat_id=%s", chat_id)
         strom.verwirf(tg, chat_id)
@@ -970,6 +976,18 @@ def _nach_dem_senden(conn, tg, e, chat_id: int, message_id: int, text: str) -> N
         knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
     except Exception:
         log.exception("Phasenangebot fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def _sende_board_einstieg(conn, tg, e, chat_id: int) -> None:
+    """Der Einstiegssatz des Begriffsboards hinter der ersten Antwort (Karte
+    t_4517d4ad). Ein Fehlschlag darf die schon verschickte Antwort nicht
+    nachtraeglich zum Fehlerfall machen."""
+    try:
+        from interview_theater import begriffsboard
+
+        begriffsboard.sende_einstieg(conn, tg, e, chat_id)
+    except Exception:
+        log.exception("Einstiegssatz des Begriffsboards fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def _wiederholt_die_vorige(conn, e, chat_id: int, text: str,

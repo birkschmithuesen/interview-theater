@@ -81,6 +81,9 @@ ART_HILFE = "hilfe"
 #: '|' und nicht ':', weil ein Kernthema regelmaessig einen Doppelpunkt
 #: enthaelt ("Ankommen: zwischen zwei Sprachen").
 ART_SPEICHERN = "speichern"
+#: "Take these" unter dem Top-5-Vorschlag des Begriffsboards (Karte
+#: t_4517d4ad, D6): EIN Knopf, der Wert ist die Begriffsliste.
+ART_BOARD_UEBERNEHMEN = "board_uebernehmen"
 #: "Passt, aber anders" (05.09.2026 abends, Birk): speichert die aktuelle
 #: Fassung TROTZDEM -- damit ueberhaupt etwas in der Datenbank steht -- und
 #: fragt danach gezielt nach, was anders werden soll. Der ``wert`` traegt
@@ -309,6 +312,13 @@ TRENNER = "|"
 _TEXT_EIGENE_KNOPF = "Anders"
 _TEXT_ANDERS_KNOPF = "Nein, nochmal aendern"
 _TEXT_SPEICHERN_KNOPF = "Ja, speichern"
+_TEXT_BOARD_UEBERNEHMEN_KNOPF = "Diese nehmen"
+_TEXT_BOARD_VORSCHLAG = (
+    "Die Diskussion ist zu Ende. Oben auf eurem Begriffsboard stehen:\n"
+    "{liste}\n\n"
+    "Nehmt ihr diese? Ihr koennt mir auch eure eigenen fuenf Begriffe "
+    "schicken - getippt oder als Sprachnachricht."
+)
 #: "Passt, aber anders" speichert und fragt dann gezielt -- deterministisch,
 #: kein Modellaufruf (Zusage 2). Der erste Halbsatz ist die Quittung, der
 #: zweite die Frage: eine offene Aufforderung ("sagt mir, was anders sein

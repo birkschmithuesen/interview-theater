@@ -1860,6 +1860,10 @@ _ARBEITSSTAND_FELDER = (
     # (Sprechweisen) abgenommen -- derselbe eine Schreibweg wie alles andere
     # im Arbeitsstand.
     "gesamttext_fixiert_am", "sprechweisen_fixiert_am",
+    # Das Begriffsboard je gespeichertem Begriff (Karte t_4517d4ad):
+    # derselbe eine Schreibweg, gesetzt allein von
+    # ``begriffsboard.schreibe_detail``.
+    "begriffe_detail",
 )
 
 
@@ -2185,6 +2189,78 @@ def diskussion_verdichtung_text(conn: sqlite3.Connection, chat_id: int) -> str |
         "SELECT text FROM diskussion_verdichtung WHERE chat_id = ?", (chat_id,),
     ).fetchone()
     return zeile["text"] if zeile else None
+
+
+@_gesperrt
+def lege_begriffsboard_an(
+    conn: sqlite3.Connection, chat_id: int, eintraege_json: str,
+    modell: str | None, bis_aufnahme_id: int,
+) -> int:
+    """Haengt einen Stand des Begriffsboards an (nur anhaengen, der letzte
+    gilt -- Tabellenkommentar in db.py)."""
+    cur = conn.execute(
+        "INSERT INTO begriffsboard (chat_id, json, erstellt_am, modell, bis_aufnahme_id) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (chat_id, eintraege_json, _jetzt(), modell, bis_aufnahme_id),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+@_gesperrt
+def letztes_begriffsboard(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | None:
+    """Der geltende (juengste) Stand des Begriffsboards, oder None."""
+    return conn.execute(
+        "SELECT * FROM begriffsboard WHERE chat_id = ? ORDER BY id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+
+
+@_gesperrt
+def hoechste_diskussion_aufnahme_id(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die hoechste ``aufnahme.id`` eines Diskussionssegments, oder 0 --
+    das Gegenstueck zu ``hoechste_brainstorm_aufnahme_id``."""
+    zeile = conn.execute(
+        "SELECT MAX(id) FROM aufnahme WHERE chat_id = ? AND diskussion = 1 "
+        "AND entfernt_am IS NULL", (chat_id,),
+    ).fetchone()
+    return int(zeile[0]) if zeile and zeile[0] is not None else 0
+
+
+@_gesperrt
+def begriffsboard_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
+    """Die drei Zahlen fuer ``brainstorm.soll_reagieren`` -- wie
+    ``brainstorm_stand``, aber ueber Diskussionssegmente (Phase 1) und mit
+    der Markierung aus der juengsten Boardzeile statt aus ``arbeitsstand``
+    (Karte t_4517d4ad, D1)."""
+    board = conn.execute(
+        "SELECT erstellt_am, bis_aufnahme_id FROM begriffsboard "
+        "WHERE chat_id = ? ORDER BY id DESC LIMIT 1", (chat_id,),
+    ).fetchone()
+    markierung = (board["bis_aufnahme_id"] or 0) if board else 0
+    zeichen = conn.execute(
+        "SELECT COALESCE(SUM(LENGTH(transkript)), 0) FROM aufnahme "
+        "WHERE chat_id = ? AND diskussion = 1 AND entfernt_am IS NULL "
+        "AND transkript IS NOT NULL AND id > ?",
+        (chat_id, markierung),
+    ).fetchone()[0]
+    letzter = conn.execute(
+        "SELECT schnittgrund FROM aufnahme WHERE chat_id = ? AND diskussion = 1 "
+        "AND entfernt_am IS NULL ORDER BY id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+    sekunden = None
+    if board and board["erstellt_am"]:
+        sekunden = max(
+            0.0,
+            (datetime.now(timezone.utc) - datetime.fromisoformat(board["erstellt_am"]))
+            .total_seconds(),
+        )
+    return {
+        "unreagierte_zeichen": int(zeichen),
+        "sekunden_seit_letztem_lauf": sekunden,
+        "letzter_schnittgrund": letzter["schnittgrund"] if letzter else None,
+    }
 
 
 @_gesperrt

@@ -95,6 +95,9 @@ BUDGETS = {
     # dokumentarisch gefuehrt -- durchgesetzt wird er in der Kuerzungsleiter
     # durch Wegwerfen im Ganzen, siehe ``_baue_diskussion_block``.
     "diskussion": 800,
+    # Die Begruendungen je Begriff aus dem Begriffsboard (Karte t_4517d4ad):
+    # klein wie die Diskussion, und wie sie bei Platznot im Ganzen weg.
+    "begriffe_detail": 400,
     "phasenhinweis": 50,
     "figurenhinweis": 100,
     "szene": 2000,
@@ -231,8 +234,8 @@ PAUSE_AB_MINUTEN = 60
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
     "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "festlegungen",
-    "diskussion", "phasenhinweis", "figurenhinweis", "szene", "journal", "fenster",
-    "ausloeser", "erstkontakt",
+    "diskussion", "begriffe_detail", "phasenhinweis", "figurenhinweis", "szene",
+    "journal", "fenster", "ausloeser", "erstkontakt",
 )
 
 
@@ -849,6 +852,30 @@ def _baue_diskussion_block(conn, chat_id: int) -> str:
     if not text:
         return ""
     return f"{T.DISKUSSION_KOPF}\n\n{text}"
+
+
+#: Die Kopfzeile des Begriffs-Blocks (Karte t_4517d4ad, 04.10.2026).
+BEGRIFFE_DETAIL_KOPF = "Warum ihr diese Begriffe gewaehlt habt:"
+
+
+def _baue_begriffe_detail(conn, chat_id: int) -> str:
+    """Begruendung und Doppelbedeutung je gespeichertem Begriff, aus dem
+    Begriffsboard der Phase 1 (``arbeitsstand.begriffe_detail``) -- in Phase
+    2 (die Fragen entstehen aus den Begriffen) und ab Phase 4 (Setting,
+    Figuren, Geschichte). Nicht in Phase 3: dort wird interviewt. Nie das
+    Zitat (``roadmap.begriffe_detail`` wirft es weg). Datengetrieben: ohne
+    Detail (Dortmund) kein Block."""
+    phase = phasen.aktuelle(conn, chat_id)
+    if phase != 2 and phase < 4:
+        return ""
+    from interview_theater import begriffsboard, roadmap
+
+    zeilen = begriffsboard.detail_zeilen(
+        roadmap.begriffe_detail(repo.hole_arbeitsstand(conn, chat_id))
+    )
+    if not zeilen:
+        return ""
+    return T.BEGRIFFE_DETAIL_KOPF + "\n" + "\n".join(zeilen)
 
 
 #: Der Hinweisblock, mit dem der Bot einen Phasenwechsel zur Sprache bringt.
@@ -1662,6 +1689,9 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         # Profil sie faehrt (``workshop.diskussion_aktiv``) -- datengetrieben
         # ueber die Tabelle, keine eigene Abfrage hier noetig.
         "diskussion": _baue_diskussion_block(conn, chat_id),
+        # Direkt dahinter: warum die Gruppe ihre Begriffe gewaehlt hat
+        # (Begriffsboard, Phase 2 und ab 4).
+        "begriffe_detail": _baue_begriffe_detail(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
@@ -1777,6 +1807,8 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
     # sich ein stufenweises Kappen lohnen wuerde.
     if _zu_lang() and bloecke["diskussion"]:
         bloecke["diskussion"] = ""
+    if _zu_lang() and bloecke["begriffe_detail"]:
+        bloecke["begriffe_detail"] = ""
     if _zu_lang():
         bloecke["verdichtungen"] = ""
     if _zu_lang() and bloecke["szene"]:

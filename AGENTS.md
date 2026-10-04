@@ -24,6 +24,7 @@ Module unter `interview_theater/`:
 | `bot.py` | Startroutine, Long-Poll-Schleife, Begrüßung, Warmlaufen, Prozessaufsicht |
 | `ablauf.py` | Gesprächszug: Sperre je `chat_id` fürs Sammeln, Kontextaufbau anstoßen, Antwort verschicken |
 | `aufnahme.py` | Aufnahme-Pipeline: Download, Transkription, Verdichtung, Nachhol-Arbeiter, Interviewfluss (kurz/teil/lang) |
+| `begriffsboard.py` | Das Begriffsboard der Phase 1 (04.10.2026, Karte t_4517d4ad): laufend mithören wie der Brainstorm in Phase 4 (`brainstorm.soll_reagieren` **unverändert**, eigene Zähler über `aufnahme.diskussion = 1`, eigene Sperre), ein Schema-Aufruf je qualifizierendem Segment im eigenen Thread (Opus nach Einwilligung, sonst Kimi), Tabelle `begriffsboard` (nur anhängen, letzter Stand gilt). Validiert **im Code**: Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`. **Der Lauf kennt kein `tg`** — keine Chatzeile beim Mithören. Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these"; `schreibe_detail` füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe` (AST-Test `tests/test_begriffe_detail_wege.py`). `detail_zeilen` ist die eine Prompt-Form für `kontext` (Phase 2, ≥ 4) und `fragen_ki` |
 | `befehle.py` | Die Slash-Befehle (`_BEKANNTE_BEFEHLE`, zurzeit fünfzehn; acht davon stehen über `setMyCommands` im Menü, `BEFEHLE_LISTE`), laufen vor jedem Kontextaufbau und vor jedem Gespraechsaufruf |
 | `erkenner.py` | Absichtserkenner: erkennt Änderungsabsichten im Gesprächsverlauf, wendet sie an, baut die Sammelmeldung |
 | `journal.py` | Journal-Extraktor: erkennt `vorgeschlagen`-Einträge im aus dem Fenster verdrängten Gesprächsabschnitt |
@@ -122,7 +123,7 @@ Versehen).
 |---|---|
 | **Ablage** | `db.py` (Schema, Migration, Löschweg) · `repo.py` (alles SQL des Bots, `RLock`-serialisiert) · `web_daten.py` (die read-only Leseseite) |
 | **Dienste** | `llm.py` · `strom.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` · `kosten.py` · `web_grenze.py` |
-| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `begriffsboard.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` |
 | **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` · `web_gestalt.py` |
 
 **Wo man anfängt, je nach Frage:**
@@ -149,6 +150,7 @@ Versehen).
 | Warum hat sich der Text vor der Anzeige geändert? | `prueflauf.pruefe_szene` → `schleife.schliesse` → Tabelle `prueflauf` |
 | Wo steht Phase 6/7 gerade? | `ueberarbeitung.weiter_6`/`weiter_7` → `aktuelle_szene` |
 | Was zeigt die Werkbank in Padua? | `roadmap.werkbank` → `web_daten.werkbank` → `web.werkbank_koerper` |
+| Was steht auf dem Begriffsboard (und warum nicht)? | `aufnahme._diskussion_abschliessen` → `begriffsboard.nach_segment` → `soll_laufen` → `_lauf_einmal` → `validiere` |
 
 **Das Paket `knoepfe/`** (06.09.2026 aus einer Datei von 5.516 Zeilen
 entstanden, die entlang dieser Schichten von selbst zerfiel):
@@ -1033,6 +1035,30 @@ es jemand im Chat merkt.
   (gleiches Modell ohne `IT_JUDGE_MODELL`, USA verneint) keine Prüfung, und
   der Betreiberhinweis steht im Hinweis an die Gruppe; ein Rücksprung nach 5
   setzt die Abnahmen aus 6 nicht zurück (offen, Birk). Mehr: „Was bewusst fehlt".
+
+- **Phase 1 hört seit 04.10.2026 laufend mit, wie Phase 4** (Karte
+  t_4517d4ad, Birk 15:15: „Phase 1 und 4 laufen einheitlich automatisch").
+  Die Hintergrund-Diskussion der Phase 1 speist über `begriffsboard.py` ein
+  laufendes Begriffsboard: derselbe Auslöser wie beim Brainstorm der Phase 4
+  (`brainstorm.soll_reagieren`, unverändert), eigene Zähler nur über
+  `aufnahme`-Zeilen mit `diskussion = 1`, ein Schema-Aufruf je
+  qualifizierendem Segment im eigenen Thread. **Kein `tg`** im Boardlauf —
+  strukturell keine Chatzeile beim Mithören, wie beim Brainstorm kein
+  Gesprächszug und kein Erkenner-Lauf auf dieser Nachricht. Validiert wird im
+  Code (Begriff muss im Transkript stehen, Zitat über `zitat.pruefe`), die
+  Tabelle `begriffsboard` nur anhängend. Bei „Discussion done" schlägt der
+  Bot die Top 5 mit EINEM Knopf „Take these" vor; `begriffsboard.schreibe_detail`
+  füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe`
+  und geht von dort nach Phase 2 und ab Phase 4 in den Prompt
+  (`kontext.baue`) sowie in den isolierten `fragen_ki`-Aufruf. **Der
+  CoThinker-Tab zeigt seitdem auch Phase 1**: bisher nur in Phase 4 sichtbar
+  (die Brainstorm-Karten), rendert `teil/buehne` dort jetzt das
+  Begriffsboard, sobald `workshop.diskussion_aktiv()` gilt — im Markup am Attribut
+  `#roadmap[data-begriffsboard]`, im Client an `istCoThinkerPhase()`, das den
+  bisherigen Early-Return `if (!istPhase4())` in `ladeBuehne` (und die drei
+  anderen Phase-4-Weichen) für Phase 1 passieren lässt. Nur funktionales
+  Markup (`data-*`, `<details>` für Begründung/Doppelbedeutung), keine
+  Gestaltung — wie beim Rest des Boards.
 
 ## Die Dramaturgie-Prüfung
 
@@ -3124,11 +3150,12 @@ der UX-Karte Padua, und nur hinter dem Profilschalter
 
 **Ein vierter Tab braucht nur drei Stellen.** `web_vereint.TABS` ist die
 EINE Liste, die Tableiste, Panel-Schleife und das Hash-Routing im Browser
-treibt (sie geht als `__TABS__` in `_VEREINT_JS` ein) — eine künftige
-„Bühne"-Karte (Phase-4-Regiekarten aus einem anderen Zweig) braucht dafür
-nur einen Eintrag in `TABS`, eine Beschriftung in `_TEXT_TAB` (plus ihre
-englische Fassung in `sprachen/en/texte.toml`) und einen Panel-Rumpf im
-`panels`-Dict von `web_vereint.seite` — sonst nichts.
+treibt (sie geht als `__TABS__` in `_VEREINT_JS` ein) — der inzwischen
+gebaute „Bühne"-Tab (CoThinker, Phase-4-Regiekarten, seit 04.10.2026 auch
+Phase 1, siehe oben) brauchte dafür nur einen Eintrag in `TABS`, eine
+Beschriftung in `_TEXT_TAB` (plus ihre englische Fassung in
+`sprachen/en/texte.toml`) und einen Panel-Rumpf im `panels`-Dict von
+`web_vereint.seite` — sonst nichts.
 
 ### Die Phasenübersicht (30.09.2026, Karte W)
 
@@ -3486,6 +3513,26 @@ siehe „Prüflauf vor jeder Anzeige") — offen, jeweils mit Grund:
   `--skript padua` (`IT_WORKSHOP=padua-2026 python -m scripts.simulation
   --set 1 --seed 7 --skript padua --bericht`) — ob die Stimmen die
   Schrittbudgets der Phasen 5–7 einhalten, weiß niemand.
+
+Die Übergaben der Karte t_4517d4ad (Begriffsboard, 04.10.2026) — was sie
+bewusst nicht erledigt, jeweils mit Grund:
+
+- **Ungemessen:** kein bezahlter Lauf des neuen Prompts `begriffsboard.md`
+  (DE/EN) gegen das echte Modell; keine Korpusfälle; ob Kimi das
+  verschachtelte Schema im erzwungenen Modus annimmt, ist nur am Muster
+  `erkenner` (Liste von Objekten) plausibel, nicht gemessen.
+- Die Schwellen sind die des Brainstorms (Erwachsenen-Meetings,
+  `brainstorm.py`-Kopf), nicht an Schüler-Diskussionen gemessen.
+- Ein leeres Ergebnis ersetzt nie ein volles Board — dann rückt die
+  Markierung nicht vor, und der nächste Pausenschnitt über der Schwelle löst
+  erneut aus.
+- Der Merkplatz für den Vorschlag lebt im Prozess (wie `vorschlagssperre`):
+  ein Neustart zwischen „Discussion done" und Ende des Schlusslaufs verliert
+  den Vorschlag.
+- Das Board fließt nicht in die Bühnenkarten der Phase 4
+  (`buehnenkarte._kontext_phasen_1_bis_3`) — nur `begriffe_detail` über
+  `kontext.baue`.
+- Die CoThinker-Darstellung ist ungestaltet (`data-*`, UX-Karte).
 
 Die **Weboberflächen sind gebaut** (`web.py`/`web_daten.py`, siehe
 „Weboberfläche" unten) — und **Szenen werden geschrieben** (`szene.py`, seit

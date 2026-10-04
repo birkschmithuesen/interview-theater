@@ -677,17 +677,22 @@ _VEREINT_JS = """
   // in TABS (das Panel existiert immer im Dokument, nur ``hidden`` je nach
   // Phase) -- ``lies()`` muss den alten Rueckfall deshalb selbst nachbauen,
   // nicht mehr ueber ein fehlendes Array-Element: ein mitgebrachtes
-  // ``#buehne`` (alter Link) ausserhalb Phase 4 faellt weiterhin auf
-  // VORGABE zurueck, genau wie zuvor.
-  function istPhase4() {
+  // ``#buehne`` (alter Link) ausserhalb Phase 4 (oder Phase 1 mit
+  // Begriffsboard) faellt weiterhin auf VORGABE zurueck, genau wie zuvor.
+  // Karte t_4517d4ad: der CoThinker steht in Phase 4 (Buehnenkarten) UND in
+  // Phase 1, wenn das Profil das Begriffsboard faehrt (``#roadmap`` traegt
+  // dann ``data-begriffsboard="1"``, gesetzt von ``_leiste_html``).
+  function istCoThinkerPhase() {
     var rm = document.getElementById('roadmap');
-    return !!rm && rm.dataset.aktivePhase === '4';
+    if (!rm) { return false; }
+    var p = rm.dataset.aktivePhase;
+    return p === '4' || (p === '1' && rm.dataset.begriffsboard === '1');
   }
   var lies = function () {
     var teile = location.hash.replace(/^#/, '').split('&');
     for (var i = 0; i < teile.length; i++) {
       if (TABS.indexOf(teile[i]) >= 0) {
-        if (teile[i] === 'buehne' && !istPhase4()) { continue; }
+        if (teile[i] === 'buehne' && !istCoThinkerPhase()) { continue; }
         return teile[i];
       }
     }
@@ -1001,15 +1006,16 @@ _VEREINT_JS = """
     ladeRoadmap();
     // CoThinker-Root-Cause-Fix (Birk 02.10.2026): Tab-Knopf UND Panel
     // folgen der frisch geladenen Phase -- unabhaengig davon, wie die
-    // Gruppe in Phase 4 eingetreten ist (Chat, Phasenleiste-Klick, "Ja
-    // speichern"). KEIN automatischer Tab-Wechsel beim Erscheinen (Birk:
-    // "no surprise jumps") -- nur beim VERLASSEN von Phase 4, waehrend der
-    // Buehne-Tab gerade vorn ist, faellt die Seite auf VORGABE zurueck,
-    // weil ihr Panel sonst leer verborgen vorn staende.
+    // Gruppe in Phase 4 (oder Phase 1 mit Begriffsboard) eingetreten ist
+    // (Chat, Phasenleiste-Klick, "Ja speichern"). KEIN automatischer
+    // Tab-Wechsel beim Erscheinen (Birk: "no surprise jumps") -- nur beim
+    // VERLASSEN der CoThinker-Phase, waehrend der Buehne-Tab gerade vorn
+    // ist, faellt die Seite auf VORGABE zurueck, weil ihr Panel sonst leer
+    // verborgen vorn staende.
     var buehnePanel = document.getElementById('tab-buehne');
     var buehneKnopf = document.querySelector('.tabs button[data-tab="buehne"]');
     if (buehnePanel && buehneKnopf) {
-      var p4 = istPhase4();
+      var p4 = istCoThinkerPhase();
       buehneKnopf.hidden = !p4;
       if (!p4) {
         buehnePanel.hidden = true;
@@ -1187,7 +1193,8 @@ _VEREINT_JS = """
   }
 
   function buehneAktiv() {
-    return istPhase4() && document.body.dataset.tab === 'buehne';
+    // Phase 4 (oder Phase 1 mit Begriffsboard).
+    return istCoThinkerPhase() && document.body.dataset.tab === 'buehne';
   }
 
   function buehneLiesDaten(doc) {
@@ -1267,7 +1274,8 @@ _VEREINT_JS = """
   })();
 
   function ladeBuehne() {
-    if (!istPhase4()) { return; }
+    // Phase 4 (oder Phase 1 mit Begriffsboard).
+    if (!istCoThinkerPhase()) { return; }
     var panel = document.getElementById('tab-buehne');
     if (!panel) { return; }
     if (buehneLetzter === null) { buehneLetzter = panel.innerHTML; }
@@ -1575,6 +1583,16 @@ def phase_post(handler, db_pfad: str, token: str, chat_id: int,
     web_chat._angenommen(handler, {"message_id": message_id})
 
 
+def _board_merkmal() -> str:
+    """``data-begriffsboard="1"`` am ``#roadmap``, wenn das Profil das
+    Begriffsboard faehrt (Karte t_4517d4ad) -- HINTER ``data-aktive-phase``,
+    damit ``tests/test_web_vereint.py`` dessen Regex unveraendert findet.
+    Ohne Profil: nichts, Dortmund bleibt byte-gleich."""
+    from interview_theater import workshop
+
+    return ' data-begriffsboard="1"' if workshop.diskussion_aktiv() else ""
+
+
 def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
     """Die Phasenuebersicht: zugeklappt eine Zeile, aufgeklappt die volle Liste.
 
@@ -1671,7 +1689,8 @@ def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
         # Phase steht hier schon serverseitig fest -- das JS liest sie bei
         # jedem Roadmap-Takt, um den CoThinker-Tab (Button + Panel) ein-
         # und auszublenden, OHNE auf ein volles Neuladen zu warten.
-        f'<details class="roadmap" id="roadmap" data-aktive-phase="{aktiv["nummer"]}">'
+        f'<details class="roadmap" id="roadmap" data-aktive-phase="{aktiv["nummer"]}"'
+        f'{_board_merkmal()}>'
         f'<summary><span class="roadmap-kopf">{html.escape(kopf)}</span></summary>'
         f'<ol class="phasen">{"".join(zeilen)}</ol>'
         f'</details>\n'
@@ -1825,7 +1844,11 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     # kein Neuladen noetig. Eine Telegram-Gruppe (kein Web-Kanal) bekommt den
     # Tab ebenso: die Buehne haengt an der Phase, nicht am Kanal (wie bisher).
     tabs = tabs + ("buehne",)
-    phase4 = (daten.get("arbeitsstand") or {}).get("phase") == 4
+    phase = (daten.get("arbeitsstand") or {}).get("phase")
+    # Der CoThinker-Tab ist sichtbar in Phase 4 -- und in Phase 1, wenn das
+    # Profil das Begriffsboard faehrt (Karte t_4517d4ad). Derselbe Zustand,
+    # den ``istCoThinkerPhase()`` im Browser bei jedem Takt neu herstellt.
+    phase4 = phase == 4 or (phase == 1 and workshop.diskussion_aktiv())
     vorgabe = VORGABE_TAB if chat_vorhanden else "stand"
     panels = {
         "stand": web.gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),

@@ -1081,17 +1081,22 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   // in TABS (das Panel existiert immer im Dokument, nur ``hidden`` je nach
   // Phase) -- ``lies()`` muss den alten Rueckfall deshalb selbst nachbauen,
   // nicht mehr ueber ein fehlendes Array-Element: ein mitgebrachtes
-  // ``#buehne`` (alter Link) ausserhalb Phase 4 faellt weiterhin auf
-  // VORGABE zurueck, genau wie zuvor.
-  function istPhase4() {
+  // ``#buehne`` (alter Link) ausserhalb Phase 4 (oder Phase 1 mit
+  // Begriffsboard) faellt weiterhin auf VORGABE zurueck, genau wie zuvor.
+  // Karte t_4517d4ad: der CoThinker steht in Phase 4 (Buehnenkarten) UND in
+  // Phase 1, wenn das Profil das Begriffsboard faehrt (``#roadmap`` traegt
+  // dann ``data-begriffsboard="1"``, gesetzt von ``_leiste_html``).
+  function istCoThinkerPhase() {
     var rm = document.getElementById('roadmap');
-    return !!rm && rm.dataset.aktivePhase === '4';
+    if (!rm) { return false; }
+    var p = rm.dataset.aktivePhase;
+    return p === '4' || (p === '1' && rm.dataset.begriffsboard === '1');
   }
   var lies = function () {
     var teile = location.hash.replace(/^#/, '').split('&');
     for (var i = 0; i < teile.length; i++) {
       if (TABS.indexOf(teile[i]) >= 0) {
-        if (teile[i] === 'buehne' && !istPhase4()) { continue; }
+        if (teile[i] === 'buehne' && !istCoThinkerPhase()) { continue; }
         return teile[i];
       }
     }
@@ -1405,15 +1410,16 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     ladeRoadmap();
     // CoThinker-Root-Cause-Fix (Birk 02.10.2026): Tab-Knopf UND Panel
     // folgen der frisch geladenen Phase -- unabhaengig davon, wie die
-    // Gruppe in Phase 4 eingetreten ist (Chat, Phasenleiste-Klick, "Ja
-    // speichern"). KEIN automatischer Tab-Wechsel beim Erscheinen (Birk:
-    // "no surprise jumps") -- nur beim VERLASSEN von Phase 4, waehrend der
-    // Buehne-Tab gerade vorn ist, faellt die Seite auf VORGABE zurueck,
-    // weil ihr Panel sonst leer verborgen vorn staende.
+    // Gruppe in Phase 4 (oder Phase 1 mit Begriffsboard) eingetreten ist
+    // (Chat, Phasenleiste-Klick, "Ja speichern"). KEIN automatischer
+    // Tab-Wechsel beim Erscheinen (Birk: "no surprise jumps") -- nur beim
+    // VERLASSEN der CoThinker-Phase, waehrend der Buehne-Tab gerade vorn
+    // ist, faellt die Seite auf VORGABE zurueck, weil ihr Panel sonst leer
+    // verborgen vorn staende.
     var buehnePanel = document.getElementById('tab-buehne');
     var buehneKnopf = document.querySelector('.tabs button[data-tab="buehne"]');
     if (buehnePanel && buehneKnopf) {
-      var p4 = istPhase4();
+      var p4 = istCoThinkerPhase();
       buehneKnopf.hidden = !p4;
       if (!p4) {
         buehnePanel.hidden = true;
@@ -1591,7 +1597,8 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   }
 
   function buehneAktiv() {
-    return istPhase4() && document.body.dataset.tab === 'buehne';
+    // Phase 4 (oder Phase 1 mit Begriffsboard).
+    return istCoThinkerPhase() && document.body.dataset.tab === 'buehne';
   }
 
   function buehneLiesDaten(doc) {
@@ -1671,7 +1678,8 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   })();
 
   function ladeBuehne() {
-    if (!istPhase4()) { return; }
+    // Phase 4 (oder Phase 1 mit Begriffsboard).
+    if (!istCoThinkerPhase()) { return; }
     var panel = document.getElementById('tab-buehne');
     if (!panel) { return; }
     if (buehneLetzter === null) { buehneLetzter = panel.innerHTML; }

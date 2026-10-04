@@ -3,7 +3,8 @@
 
 Die Gruppe diskutiert frei im Hintergrund, waehrend das Mikrofon mitlaeuft
 (``aufnahme._diskussion_abschliessen``); jedes Segment bleibt reines
-Material, ohne Gespraechszug, ohne Absichtserkenner, ohne CoThinker-Karte.
+Material, ohne Gespraechszug und ohne Absichtserkenner; laufend schreibt nur
+das Begriffsboard mit (``begriffsboard.py``, Karte t_4517d4ad).
 Erst wenn die Diskussion endet (``schnittgrund == 'ende'``), laeuft genau
 EIN Schema-Aufruf ueber das ganze zusammengefuegte Transkript und destilliert
 daraus, was Phase 2 (Fragenentwicklung) und Phase 4+ (Geschichte) spaeter

@@ -59,6 +59,7 @@ _DISKUSSION_KOPF = (
     "Verdichtung einer vorangegangenen Diskussion der Gruppe (nur "
     "Hintergrund, kein Diktat):"
 )
+_BEGRUENDUNG_KOPF = "Warum die Gruppe diese Begriffe gewaehlt hat:"
 T = sprache.Texte(__name__)
 
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
@@ -76,13 +77,20 @@ SCHEMA = {
 ART = "fragen_ki_vorschlag"
 
 
-def _nutzertext(begriffe: str, diskussion_text: str | None) -> str:
-    """Der isolierte Nutzertext -- NUR die Begriffe und, falls vorhanden, die
-    Verdichtung einer vorangegangenen Diskussion. Kein ``conn``, keine
+def _nutzertext(begriffe: str, diskussion_text: str | None,
+                begriffe_detail: list[dict] | None = None) -> str:
+    """Der isolierte Nutzertext -- NUR die Begriffe, ihre Begruendungen aus
+    dem Begriffsboard (Karte t_4517d4ad, ohne Zitat) und, falls vorhanden,
+    die Verdichtung einer vorangegangenen Diskussion. Kein ``conn``, keine
     ``chat_id`` in der Signatur: dieser Aufruf kann strukturell nichts
     anderes sehen, insbesondere keine eigene Frage der Gruppe."""
+    from interview_theater import begriffsboard
+
     liste = begriffe_modul.zerlege(begriffe)
     text = T._BEGRIFFE_KOPF + "\n" + "\n".join(f"- {b}" for b in liste)
+    zeilen = begriffsboard.detail_zeilen(begriffe_detail or [])
+    if zeilen:
+        text += "\n\n" + T._BEGRUENDUNG_KOPF + "\n" + "\n".join(zeilen)
     if diskussion_text and diskussion_text.strip():
         text += "\n\n" + T._DISKUSSION_KOPF + "\n" + diskussion_text.strip()
     return text
@@ -156,10 +164,13 @@ def starte(conn, tg, klm, e, chat_id: int) -> None:
 
     begriffe_feld = stand["begriffe"] if stand is not None else None
     diskussion_text = repo.diskussion_verdichtung_text(conn, chat_id)
+    from interview_theater import roadmap
+
+    begriffe_detail = roadmap.begriffe_detail(stand)
 
     def _lauf() -> None:
         try:
-            nutzertext = _nutzertext(begriffe_feld or "", diskussion_text)
+            nutzertext = _nutzertext(begriffe_feld or "", diskussion_text, begriffe_detail)
             ueber_claude = modellwahl.konversation_ueber_claude(e, conn, chat_id)
             ergebnis = modellwahl.aufruf_schema(
                 conn, klm, e, chat_id,

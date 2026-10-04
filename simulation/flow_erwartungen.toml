@@ -7,14 +7,15 @@
 # dem Phase-1/2-Umbau und ist nicht mehr gueltig.
 #
 # Jede Zeile wurde gegen den heutigen Code gelesen, nicht nur gegen dieses
-# Briefing. Zwei Zeilen (markiert in ihrem "beleg") sind ein bekannter
-# blinder Fleck dieser Schicht: sie werden mechanisch als "sackgasse" bzw.
-# "toter_gespraechsweg" gemeldet, obwohl der Chat-Weg nachweislich
-# funktioniert -- nur eben weder ueber einen Erkenner-Intent noch einen
-# Knopf, sondern ueber einen dritten Mechanismus (Markerblock des
-# Gespraechsmodells bzw. eine deterministische Text-Weiche ausserhalb des
-# Erkenners), den dieses statische Modell nicht abbilden kann. Siehe
-# tests/test_flow_abdeckung.py und den Modul-Docstring von flow_audit.py.
+# Briefing. Zwei Zeilen tragen zusaetzlich zu "intent"/"knopf" ein drittes
+# Feld, "code_pfad": ein Freitext-Verweis auf einen verifizierten Chat-
+# Mechanismus ausserhalb von Erkenner-Intent und ART_*-Knopf (ein
+# Markerblock des Gespraechsmodells bzw. eine deterministische Text-Weiche
+# ohne Modellaufruf). Mit gesetztem "code_pfad" meldet pruefe() fuer diese
+# Zeilen KEINEN "sackgasse"/"toter_gespraechsweg"-Befund mehr -- siehe den
+# Modul-Docstring von flow_audit.py, Abschnitt "Der dritte Weg -- code_pfad",
+# und die zugehoerige Grenze (nicht gegen den Code validiert, Vertrauen wie
+# bei einem von Hand gepflegten "beleg"). Siehe tests/test_flow_abdeckung.py.
 
 [[phase.1]]
 aktion = "Begriffe per Chat nennen, ergaenzen oder korrigieren -- auch als Korrektur zum Begriffsboard-Top-5-Vorschlag ('Discussion done') statt den Knopf 'Take these' zu druecken"
@@ -100,16 +101,16 @@ aktion = "Im Padua-A/B-Vergleich eigene Fragen per Chat beitragen oder nachtraeg
 weg = "chat"
 intent = ""
 knopf = ""
+code_pfad = "knoepfe.fragen.uebernimm_eigene (gefuettert aus dem vom Gespraechsmodell selbst erzeugten Markerblock 'VORSCHLAG EIGENE FRAGEN:', abgefangen in knoepfe/basis.py::sende_mit_speicherleiste)"
 beleg = """
-BEKANNTER BLINDER FLECK DIESER SCHICHT (siehe flow_audit.py Modul-Docstring) --
-kein echter Befund, siehe tests/test_flow_abdeckung.py. Investigiert: dieser Weg
-laeuft NICHT ueber einen Erkenner-Intent und NICHT ueber einen Knopf. Unter
-workshop.fragen_ab_aktiv() (Padua: [fragen_ab] aktiv = true) erzeugt das
-GESPRAECHSMODELL selbst bei jeder relevanten Aeusserung einen Markerblock
-'VORSCHLAG EIGENE FRAGEN:' (workshop/padua-2026/prompts/phasen/2.md, Abschnitt
-'Keep a running tally and restate it in full, every time' -- restated nach jeder
-zuordenbaren Aeusserung, kumulativ, kein einmaliges 'fertig'-Signal). Dieser Block
-wird in knoepfe/basis.py::sende_mit_speicherleiste() abgefangen (Zweig
+Investigiert: dieser Weg laeuft NICHT ueber einen Erkenner-Intent und NICHT
+ueber einen Knopf. Unter workshop.fragen_ab_aktiv() (Padua: [fragen_ab] aktiv
+= true) erzeugt das GESPRAECHSMODELL selbst bei jeder relevanten Aeusserung
+einen Markerblock 'VORSCHLAG EIGENE FRAGEN:' (workshop/padua-2026/prompts/
+phasen/2.md, Abschnitt 'Keep a running tally and restate it in full, every
+time' -- restated nach jeder zuordenbaren Aeusserung, kumulativ, kein
+einmaliges 'fertig'-Signal). Dieser Block wird in
+knoepfe/basis.py::sende_mit_speicherleiste() abgefangen (Zweig
 'if "eigene_fragen" in bloecke') und an knoepfe/fragen.py::uebernimm_eigene()
 weitergereicht -- das ist ein Vorschlag-Marker-Pfad (interview_theater/vorschlag.py),
 kein Erkenner-Lauf und kein Knopfdruck. Es gibt keinen Knopf, der diese Handlung
@@ -117,9 +118,11 @@ auslöst (einziger Aufrufer von uebernimm_eigene() ist dieser Markerblock-Zweig)
 Der einzige "Fertig"-Text ist das woertliche Satz-Erkennungsmuster
 fragen._fruehzeitig_fertig() ('Own questions done.', siehe
 workshop/padua-2026/prompts/phasen/2.md Zeile ~63) -- auch das ist kein Knopf und
-kein Erkenner-Intent. Chat funktioniert hier nachweislich (es ist der EINZIGE Weg),
-die mechanische Pruefung kann das aber nicht von einer echten Sackgasse
-unterscheiden, weil sie nur erkenner.ARTEN und ART_*-Knoepfe kennt.
+kein Erkenner-Intent. Chat funktioniert hier nachweislich (es ist der EINZIGE Weg).
+Die rein binaere Intent/Knopf-Pruefung dieser Schicht konnte das urspruenglich
+nicht von einer echten Sackgasse unterscheiden -- deshalb der code_pfad-Eintrag
+oben, der diesen dritten, verifizierten Mechanismus ausdruecklich benennt
+(siehe flow_audit.py Modul-Docstring, Abschnitt 'Der dritte Weg -- code_pfad').
 """
 
 [[phase.2]]
@@ -127,24 +130,24 @@ aktion = "Waehrend 'Fragen einzeln durchgehen' eine Frage per Chat annehmen, ver
 weg = "beides"
 intent = ""
 knopf = "ART_FRAGE_ANNEHMEN|ART_FRAGE_VERWERFEN|ART_FRAGE_SCHAERFEN"
+code_pfad = "knoepfe.fragen.nimm_offene_frage_text (deterministische Text-Weiche ohne Erkenner-Lauf, aufgerufen aus ablauf.py::_war_die_erwartete_antwort)"
 beleg = """
-BEKANNTER BLINDER FLECK DIESER SCHICHT (siehe flow_audit.py Modul-Docstring) --
-kein echter Befund, siehe tests/test_flow_abdeckung.py. Investigiert: dieser Weg
-laeuft NICHT ueber einen Erkenner-Intent, sondern ueber eine deterministische
-Text-Weiche OHNE Modellaufruf: interview_theater/ablauf.py::_war_die_erwartete_antwort()
-(Zeile ~1267) ruft knoepfe.fragen.nimm_offene_frage_text(conn, tg, klm, e, chat_id,
+Investigiert: dieser Weg laeuft NICHT ueber einen Erkenner-Intent, sondern ueber
+eine deterministische Text-Weiche OHNE Modellaufruf:
+interview_theater/ablauf.py::_war_die_erwartete_antwort() (Zeile ~1267) ruft
+knoepfe.fragen.nimm_offene_frage_text(conn, tg, klm, e, chat_id,
 letzte_nachricht["text"]) auf -- diese Funktion prueft arbeitsstand.fragen_warte_auf
 bzw. ob gerade eine Frage offen/unentschieden ist, und behandelt JEDE freie
 Nachricht in diesem Zustand als Schaerfungswunsch bzw. Richtungsantwort, ganz ohne
 Erkenner-Klassifikation (Docstring von nimm_offene_frage_text: 'beide ohne
 Erkenner-Lauf (kein Modellaufruf nur zum Klassifizieren)'). Chat funktioniert hier
 also nachweislich -- die mechanische Pruefung sieht aber weder einen passenden
-Erkenner-Intent (es gibt keinen) noch erkennt sie, dass der vorhandene Knopfweg
-(ART_FRAGE_ANNEHMEN/_VERWERFEN/_SCHAERFEN, Handler in knoepfe/wirkung.py:
+Erkenner-Intent (es gibt keinen) noch erkennt sie von sich aus, dass der vorhandene
+Knopfweg (ART_FRAGE_ANNEHMEN/_VERWERFEN/_SCHAERFEN, Handler in knoepfe/wirkung.py:
 _wirkung_frage_annehmen/_wirkung_frage_verwerfen/_wirkung_frage_schaerfen) nur eine
-von zwei gleichwertigen Bedienmoeglichkeiten ist, und meldet deshalb
-'toter_gespraechsweg'. Das ist ein Artefakt der binaeren Intent/Knopf-Pruefung
-dieser Schicht, keine Regression im Code.
+von zwei gleichwertigen Bedienmoeglichkeiten ist -- deshalb der code_pfad-Eintrag
+oben, der diesen dritten, verifizierten Mechanismus ausdruecklich benennt (siehe
+flow_audit.py Modul-Docstring, Abschnitt 'Der dritte Weg -- code_pfad').
 """
 
 [[phase.2]]

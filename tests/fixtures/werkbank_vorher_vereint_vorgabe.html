@@ -3508,47 +3508,47 @@ TOMAS: Sure.</p></div></details></section><section class="probe-szene"><h2 class
 
   if (kalStartKnopf) {
     kalStartKnopf.addEventListener('click', function () {
-      kalStarteStille(zustand.aufnahme || zustand.brainstorm);
+      kalStarteStille(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
     });
   }
   if (kalSprechenKnopf) {
     kalSprechenKnopf.addEventListener('click', function () {
-      kalStarteSprechen(zustand.aufnahme || zustand.brainstorm);
+      kalStarteSprechen(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
     });
   }
   if (kalNochmalHoerenKnopf) {
     kalNochmalHoerenKnopf.addEventListener('click', function () {
-      kalNochmalHoeren(zustand.aufnahme || zustand.brainstorm);
+      kalNochmalHoeren(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
     });
   }
   if (kalVersuchKnopf) {
     kalVersuchKnopf.addEventListener('click', function () {
-      kalVersuchErneut(zustand.aufnahme || zustand.brainstorm);
+      kalVersuchErneut(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
     });
   }
   if (kalWeiterTrotzdemKnopf) {
     kalWeiterTrotzdemKnopf.addEventListener('click', function () {
-      kalWeiterTrotzdem(zustand.aufnahme || zustand.brainstorm);
+      kalWeiterTrotzdem(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
     });
   }
   if (kalJaKnopf) {
     kalJaKnopf.addEventListener('click', function () {
-      kalAntwortJa(zustand.aufnahme || zustand.brainstorm);
+      kalAntwortJa(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
     });
   }
   if (kalNeinKnopf) {
     kalNeinKnopf.addEventListener('click', function () {
-      kalAntwortNein(zustand.aufnahme || zustand.brainstorm);
+      kalAntwortNein(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
     });
   }
   if (kalSkipKnopf) {
     kalSkipKnopf.addEventListener('click', function () {
-      kalibrierungSkip(zustand.aufnahme || zustand.brainstorm);
+      kalibrierungSkip(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
     });
   }
   if (kalNeuKnopf) {
     kalNeuKnopf.addEventListener('click', function () {
-      kalibrierungNeu(zustand.aufnahme || zustand.brainstorm);
+      kalibrierungNeu(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
     });
   }
 

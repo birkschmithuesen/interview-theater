@@ -19,6 +19,9 @@ Transkript selbst nennt:
   sonst "".
 - status: "favorit", wenn die Gruppe sich einig ist; "verworfen", wenn sie
   ihn fallen laesst; sonst "kandidat".
+- vorheriger_begriff: wenn dieser Eintrag einen Eintrag des bisherigen
+  Boards ersetzt (Zusammenfuehren, siehe unten), genau dessen ``begriff``
+  aus dem bisherigen Board; sonst "".
 
 Begriffe aus dem bisherigen Board, die im Transkript stehen, behaeltst du
 und schreibst ihre Zahlen fort.
@@ -36,6 +39,13 @@ eigene Zeile. Zwei Begriffe, die inhaltlich eigenstaendig sind (z. B.
 "Straße" und "Rolle"), bleiben getrennt -- zusammenfuehren nur bei echter
 Bedeutungsgleichheit oder Praezisierung, nicht bei blosser thematischer
 Naehe.
+
+Wer ersetzt, nennt den ersetzten Eintrag in ``vorheriger_begriff`` -- im
+Wortlaut des bisherigen Boards. Ein Begriff, der im bisherigen Board in der
+Liste ``vorgaenger`` eines Eintrags steht, ist schon zusammengefuehrt: nimm
+ihn nicht wieder als eigenen Eintrag auf, auch wenn er weiter im Transkript
+steht -- das Transkript waechst, das alte Wort bleibt darin stehen.
+``vorgaenger`` schreibst du nie selbst; diese Liste fuehrt das Programm.
 
 Verhoerer der Spracherkennung erkennen und korrigieren: das Transkript kommt
 aus einer automatischen Spracherkennung (STT) und schreibt gelegentlich
@@ -68,6 +78,8 @@ Nicht so:
 - Keine Begruendung, die die Gruppe nicht gegeben hat.
 - Keine Beschreibung einzelner Sprecherinnen oder Sprecher ("eine meinte
   ...").
+- Kein ``vorheriger_begriff``, der nicht wortgleich als ``begriff`` im
+  bisherigen Board steht.
 - Kein Text ausserhalb des JSON.
 
 Eine Diskussion ohne Begriffe ergibt {"board": []}.

@@ -171,3 +171,82 @@ def test_lies_eines_alten_boards_ohne_feld():
 def test_lies_liest_vorgaenger_defensiv(roh, erwartet):
     eintrag = begriffsboard.lies(f'[{{"begriff": "Mut", "vorgaenger": {roh}}}]')[0]
     assert eintrag.get("vorgaenger") == erwartet
+
+
+# -- Aufgabe 3: Schema, Nutzertext, Lauf, Prompt -------------------------------
+
+from pathlib import Path  # noqa: E402
+
+from interview_theater import db, einstellungen, repo, workshop  # noqa: E402
+
+WURZEL = Path(__file__).resolve().parent.parent
+CHAT = 1
+
+
+def test_schema_verlangt_vorheriger_begriff_als_string():
+    zeile = begriffsboard.SCHEMA["properties"]["board"]["items"]
+    assert "vorheriger_begriff" in zeile["required"]
+    assert zeile["properties"]["vorheriger_begriff"] == {"type": "string"}
+    assert "vorgaenger" not in zeile["properties"]
+
+
+def test_nutzertext_zeigt_dem_modell_die_kette():
+    """Sofort gruen (der Dump traegt alle Felder) -- ein Waechter: ohne die
+    Kette im Nutzertext spaltete das Modell "Roboter" im naechsten Lauf
+    wieder ab, weil das Wort weiter im Transkript steht."""
+    board = begriffsboard.lies(json.dumps([_z("KI-Roboter", vorgaenger=["Roboter"])]))
+    text = begriffsboard._nutzertext("Roboter. KI-Roboter.", board)
+    assert '"vorgaenger": ["Roboter"]' in text
+    assert "vorheriger_begriff" not in text
+
+
+class _KLM:
+    def __init__(self):
+        self.boards = []
+
+    def schema(self, chat_id, system, nutzer, schema, art, modell=None, bei_teil=None):
+        return {"board": self.boards.pop(0)}
+
+
+@pytest.fixture
+def lauf(tmp_path, monkeypatch):
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    conn = db.verbinde(str(tmp_path / "t.db"))
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "gruppe1", "Testgruppe")
+    aid = repo.lege_aufnahme_an(conn, CHAT, 10, "kurz", "sprache", status="transkribiert",
+                                diskussion=True, schnittgrund="pause")
+    repo.setze_transkript(conn, aid, TRANSKRIPT)
+    repo.setze_status(conn, aid, "fertig")
+    einst = einstellungen.Einstellungen(
+        bot_token="T", bot_name="gruppe1", db_pfad=str(tmp_path / "t.db"),
+        audio_verz=str(tmp_path / "audio"),
+        llm_url="https://llm.test/v1/chat/completions", llm_key="K", llm_modell="kimi",
+        stt_basis="https://stt.test", stt_produkt="PRODUKT-ID",
+    )
+    return conn, einst, aid
+
+
+def test_lauf_fuehrt_die_kette_ueber_drei_laeufe(lauf):
+    conn, einst, aid = lauf
+    klm = _KLM()
+    klm.boards = [
+        [_z("Roboter")],
+        [_z("KI-Roboter", "Roboter")],
+        [_z("sozialen KI-Roboter", "KI-Roboter")],
+    ]
+    for _ in range(3):
+        begriffsboard._lauf_einmal(conn, klm, einst, CHAT, aid)
+    assert _ketten(begriffsboard.aktuelles(conn, CHAT)) == {
+        "sozialen KI-Roboter": ["Roboter", "KI-Roboter"],
+    }
+
+
+@pytest.mark.parametrize("pfad", [
+    "interview_theater/prompts/begriffsboard.md",
+    "interview_theater/sprachen/en/prompts/begriffsboard.md",
+])
+def test_prompt_nennt_feld_und_kettenregel(pfad):
+    text = (WURZEL / pfad).read_text(encoding="utf-8")
+    assert "vorheriger_begriff" in text
+    assert "``vorgaenger``" in text

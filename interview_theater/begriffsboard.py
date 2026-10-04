@@ -253,7 +253,7 @@ def detail_zeilen(detail: list[dict]) -> list[str]:
 
 
 _FELDER = ("begriff", "nennungen", "zustimmung", "begruendung", "zitat",
-           "doppelbedeutung", "status")
+           "doppelbedeutung", "status", "vorheriger_begriff")
 
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
 #: allen Eigenschaften, sonst lehnt der Anbieter den erzwungenen Modus ab
@@ -262,6 +262,11 @@ _FELDER = ("begriff", "nennungen", "zustimmung", "begruendung", "zitat",
 #: weil ``scripts/pruefe_sprache.py`` "begriffe" als deutsches Wort fuehrt.
 #: ``status`` ist bewusst ein freier String: ``validiere`` macht aus jedem
 #: unbekannten Wert "kandidat".
+#: ``vorheriger_begriff`` (Karte t_cb2c4678) ist Pflicht und darf "" sein;
+#: ``validiere`` prueft es gegen das bisherige Board. ``vorgaenger`` steht
+#: bewusst NICHT hier: die Kette fuehrt allein der Code. Beide Namen sind
+#: fuer ``scripts/pruefe_sprache.py`` unkritisch (snake_case faellt dort
+#: heraus, "vorgaenger" steht in keiner Liste).
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -281,6 +286,7 @@ SCHEMA = {
                     "zitat": {"type": "string"},
                     "doppelbedeutung": {"type": "string"},
                     "status": {"type": "string"},
+                    "vorheriger_begriff": {"type": "string"},
                 },
             },
         },
@@ -423,7 +429,8 @@ def _lauf_einmal(conn, klm, e, chat_id: int, bis_id: int) -> None:
     )
     # Geprueft wird gegen das GANZE Transkript: ein Begriff aus dem
     # weggekuerzten Anfang ist trotzdem woertlich gesagt worden.
-    neu = validiere(ergebnis.get("board") if isinstance(ergebnis, dict) else None, transkript)
+    neu = validiere(ergebnis.get("board") if isinstance(ergebnis, dict) else None, transkript,
+                    bisher=bisher)
     if not neu and bisher:
         # Ein leeres Ergebnis ersetzt nie ein volles Board. Keine Zeile, also
         # keine Markierung: die Zeichen laufen weiter auf.

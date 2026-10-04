@@ -99,6 +99,48 @@ FAELLE = {
         ),
         "erwartet_zustimmung_hoeher": (("ocean", "ozean"), ("garden", "garten")),
     },
+    "mehrheit_widerspricht_kontext": {
+        "beschreibung": (
+            "Konflikt-Test (Birk 04.10.2026): die STT-fehlerhafte Lesart "
+            "'knight' kommt durch wiederholte Fehlerkennung oefter vor (3x) "
+            "als die richtige 'night' (1x), aber nur 'night' ergibt in JEDEM "
+            "Satz Sinn -- 'knight' waere grammatisch/inhaltlich Unsinn. "
+            "Kontextplausibilitaet soll hier die Mehrheit ueberstimmen."
+        ),
+        "transkript": (
+            "A: I think the whole scene should happen at knight, like late, "
+            "when everyone is asleep.\n"
+            "B: Yes, knight time, that's when the fear really comes out.\n"
+            "A: Definitely knight -- the darkness is the whole point.\n"
+            "B: Actually I said night, like the time of day, not a person in "
+            "armor. Night is when the story needs to happen.\n"
+        ),
+        "erwartet_begriffe_enthalten_eins_von": ["night", "nacht"],
+        "erwartet_begriffe_fehlen": ["knight", "ritter"],
+    },
+    "italienisches_transkript": {
+        "beschreibung": (
+            "Spracheabdeckung (Birk 04.10.2026): Padua-Workshops koennen auf "
+            "Italienisch gefuehrt werden, es gibt aber NUR einen DE- und einen "
+            "EN-Prompt, kein eigenes it/-Verzeichnis. Dieser Fall nutzt den "
+            "EN-Prompt (Padua-Standard) mit einem rein italienischen "
+            "Transkript inkl. STT-Verhoerer ('piazza' vs. falsch erkanntem "
+            "'piazzo'/'pazza') -- soll pruefen, ob begriff-im-Wortlaut und "
+            "Verhoerer-Erkennung sprachunabhaengig funktionieren, ohne "
+            "italienische Prompt-Fassung."
+        ),
+        "transkript": (
+            "A: Io continuo a pensare alla piazza del paese, è lì che "
+            "dovrebbe succedere tutto.\n"
+            "B: Sì, la piazza è il cuore della storia.\n"
+            "A: Esatto, la piazza raccoglie tutti i personaggi insieme.\n"
+            "B: La piazza di sera è completamente diversa da quella di "
+            "giorno.\n"
+        ),
+        "erwartet_begriffe_enthalten_teilstring": ["piazza"],
+        "erwartet_begriffe_fehlen": [],
+        "erwartet_nennungen_min": {},
+    },
 }
 
 

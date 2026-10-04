@@ -53,19 +53,32 @@ das nur in einer Variante sprachlich sinnvoll ist), sind wahrscheinlich
 derselbe gemeinte Begriff, einmal richtig und einmal falsch erkannt --
 KEINE zwei verschiedenen Begriffe.
 
-Entscheide per Mehrheit: zaehle zuerst woertlich, wie oft JEDE der beiden
-Schreibweisen im Transkript tatsaechlich vorkommt (nicht schaetzen). Wird
-eine der beiden Lesarten deutlich oefter genannt als die andere (z. B.
-3 vs. 1), behalte GENAU DIE SCHREIBWEISE MIT DER HOEHEREN ZAEHLUNG als
-``begriff`` und wirf die seltenere komplett weg, auch wenn sie zuerst im
-Board stand -- nicht als eigene Zeile stehen lassen, auch nicht
-durchgestrichen. Verrechne beide Nennungszahlen in den verbliebenen Eintrag
-und vermerke die Korrektur kurz in ``begruendung``, zum Beispiel "Einmal als
-'Saite' verstanden (STT-Verhoerer), gemeint war 'Seite', dreimal richtig
-gehoert." Steht es nicht klar genommen 2:2 oder ist unklar, welche Lesart
-sprachlich sinnvoller zum Rest des Gespraechs passt, behandle beide vorerst
-als eigenstaendig, statt zu raten -- ein Fehlgriff hier loescht einen
-echten Begriff.
+Entscheide per Mehrheit UND Kontextplausibilität zusammen, nicht per
+Mehrheit allein: zaehle zuerst woertlich, wie oft JEDE der beiden
+Schreibweisen im Transkript tatsaechlich vorkommt (nicht schaetzen), und
+pruefe gleichzeitig, welche Lesart inhaltlich zum Rest des Gespraechs
+passt (ergibt der Satz mit "Seite" oder mit "Saite" ueberhaupt Sinn im
+Kontext der Diskussion?). Die beiden Signale zusammen entscheiden:
+
+- Stimmen Mehrheit UND Kontext auf dieselbe Lesart (der Normalfall, z. B.
+  3 vs. 1 UND diese eine ergibt ueberall Sinn): behalte GENAU DIESE
+  SCHREIBWEISE als ``begriff`` und wirf die andere komplett weg, auch wenn
+  sie zuerst im Board stand -- nicht als eigene Zeile stehen lassen, auch
+  nicht durchgestrichen.
+- Widersprechen sich Mehrheit und Kontext (die haeufigere Schreibweise
+  ergibt an mindestens einer Stelle keinen Sinn, z. B. "whether" dreimal
+  gezaehlt, aber der Satz "the whether should decide how they feel" ist
+  grammatisch/inhaltlich unsinnig): die Kontextplausibilität gewinnt --
+  behalte die Lesart, die tatsaechlich Sinn ergibt, auch wenn sie seltener
+  vorkommt.
+- Steht es klar genommen 2:2 UND ist auch der Kontext nicht eindeutig:
+  behandle beide vorerst als eigenstaendig, statt zu raten -- ein
+  Fehlgriff hier loescht einen echten Begriff.
+
+Verrechne beide Nennungszahlen in den verbliebenen Eintrag und vermerke
+die Korrektur kurz in ``begruendung``, zum Beispiel "Einmal als 'Saite'
+verstanden (STT-Verhoerer), gemeint war 'Seite', dreimal richtig
+gehoert."
 
 Nicht so:
 

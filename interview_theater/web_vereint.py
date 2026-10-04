@@ -711,6 +711,9 @@ _VEREINT_JS = """
     if (name === 'buehne') {
       var buehneKnopf = document.querySelector('.tabs button[data-tab="buehne"]');
       if (buehneKnopf) { delete buehneKnopf.dataset.neu; }
+      // Beim Oeffnen sofort frisch holen, nicht bis zum naechsten Takt
+      // (bis zu NACHLADEN_MS) einen veralteten Stand zeigen.
+      if (typeof ladeBuehne === 'function') { ladeBuehne(); }
     }
   };
   var setze = function (name) {
@@ -1286,8 +1289,14 @@ _VEREINT_JS = """
         var doc = new DOMParser().parseFromString(text, 'text/html');
         var neu = doc.body ? doc.body.innerHTML : null;
         if (!neu || neu === buehneLetzter) { return; }
-        buehneLetzter = neu;
+        // Bug Birk Live-Test 04.10.2026 ("CoThinker leer bis Reload"):
+        // ``buehneLetzter`` stand frueher VOR dieser Weiche -- ein Stand, der
+        // bei verborgenem Panel ankam, galt damit als "schon gezeigt", und
+        // nach dem Oeffnen fand jeder weitere Takt ``neu === buehneLetzter``
+        // und tauschte nie. ``buehneLetzter`` heisst "steht im Panel", wird
+        // also NUR gesetzt, wenn wirklich eingesetzt wurde.
         if (!panel.hidden) {
+          buehneLetzter = neu;
           // Der Verlaufszeiger lebt NUR im Browser (s.o.): ein frischer
           // Serverstand bringt nur mit, was neu dazukam, verschiebt ``pos``
           // aber nie selbst (``buehneUebernehmen``).

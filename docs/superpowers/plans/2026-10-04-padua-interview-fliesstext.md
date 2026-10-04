@@ -1688,9 +1688,9 @@ Expected: alle `passed`.
 Run: `$PY -m scripts.pruefe_profil padua-2026; $PY -m scripts.pruefe_profil dortmund-2026; $PY -m scripts.pruefe_profil --vorgabe`
 Expected: je eine Zeile `…: in Ordnung…`, jeder Exit-Code 0.
 
-- [ ] **Step 3: Volle Suite im Vordergrund** (Timeout des Werkzeugaufrufs **mindestens 900 s**; nicht in den Hintergrund schieben)
+- [ ] **Step 3: Volle Suite, auf das Ende warten** (Architekt-Korrektur: ein Werkzeugaufruf im Vordergrund ist bei Claude Code wie bei Hermes auf 600 s begrenzt, die Suite brauchte zuletzt rund 300 s und waechst. Deshalb in eine Datei schreiben und auf das Ende warten, NICHT abbrechen und nicht ohne Ergebnis weitermachen: Claude Code `timeout: 600000`; reicht das nicht, `$PY -m pytest -q > .suite.log 2>&1; echo EXIT $?` im Hintergrund starten und das Ende abwarten, dann die Zusammenfassungszeile aus `.suite.log` zitieren. `.suite.log` nicht committen.)
 
-Run: `$PY -m pytest -q`
+Run: `$PY -m pytest -q > .suite.log 2>&1; echo EXIT $?`
 Expected: `… passed …`, `0 failed`, keine Errors. Die Playwright-Dateien unter `tests/e2e/` erscheinen ohne Playwright als `skipped`.
 
 - [ ] **Step 4: Nur Planumfang geaendert**

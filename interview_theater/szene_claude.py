@@ -265,10 +265,17 @@ def ist_aktiv(e, conn=None, chat_id: int | None = None) -> bool:
     """True, wenn diese Szene ueber Claude laufen soll: der Betreiber hat es
     erlaubt (IT_SZENE_ANBIETER=claude) UND die Gruppe hat zugestimmt
     (gruppe.szene_usa_bestaetigt_am = 'ja:...'). Ohne conn/chat_id nur die
-    Betreiber-Seite -- fuer Tests und Skripte."""
+    Betreiber-Seite -- fuer Tests und Skripte.
+
+    Ist ``workshop.modellwahl_einwilligung_aktiv()`` aus (Padua), entfaellt
+    die Einwilligungspruefung komplett: Betreiber-Erlaubnis reicht."""
     erlaubt = (getattr(e, "szene_anbieter", None) or "infomaniak").lower() == "claude"
     if not erlaubt:
         return False
+    from interview_theater import workshop
+
+    if not workshop.modellwahl_einwilligung_aktiv():
+        return True
     if conn is None or chat_id is None:
         return True
     return repo.szene_usa_stand(conn, chat_id) == "ja"
@@ -278,7 +285,14 @@ def angebot_faellig(e, conn, chat_id: int) -> bool:
     """True, wenn der Bot der Gruppe den Wechsel VORSCHLAGEN soll: Betreiber
     erlaubt es, die Gruppe wurde noch nicht gefragt -- und das Angebot steht
     noch nicht im Chat (gemessen 05.09.: es kam zweimal, weil nur der Stand
-    'offen' geprueft wurde, nicht ob schon gefragt war)."""
+    'offen' geprueft wurde, nicht ob schon gefragt war).
+
+    Ist ``workshop.modellwahl_einwilligung_aktiv()`` aus (Padua), gibt es
+    nichts anzubieten -- die Frage faellt ganz weg."""
+    from interview_theater import workshop
+
+    if not workshop.modellwahl_einwilligung_aktiv():
+        return False
     erlaubt = (getattr(e, "szene_anbieter", None) or "infomaniak").lower() == "claude"
     if not erlaubt or repo.szene_usa_stand(conn, chat_id) != "offen":
         return False
@@ -290,12 +304,32 @@ def angebot_faellig(e, conn, chat_id: int) -> bool:
 def wartet_auf_antwort(e, conn, chat_id: int) -> bool:
     """True, wenn gefragt wurde und die Gruppe noch nicht geantwortet hat.
     Dann wird keine Szene geschrieben und nicht nochmal gefragt -- nur kurz
-    erinnert."""
+    erinnert.
+
+    Ist ``workshop.modellwahl_einwilligung_aktiv()`` aus (Padua), wurde nie
+    gefragt -- also wird auch nie gewartet."""
+    from interview_theater import workshop
+
+    if not workshop.modellwahl_einwilligung_aktiv():
+        return False
     erlaubt = (getattr(e, "szene_anbieter", None) or "infomaniak").lower() == "claude"
     if not erlaubt or repo.szene_usa_stand(conn, chat_id) != "offen":
         return False
     g = repo.hole_gruppe(conn, chat_id)
     return bool(g and "szene_usa_angeboten_am" in g.keys() and g["szene_usa_angeboten_am"])
+
+
+def warnung_angebracht(e, conn, chat_id: int) -> bool:
+    """True, wenn vor einem Claude-Szenenlauf die US-Warnung
+    (``szene._TEXT_WARNUNG_USA``) gezeigt werden soll: Claude ist aktiv
+    UND die Einwilligungsfrage ist der Grund dafuer. Laeuft Claude ohne
+    Einwilligungsfrage (Padua-Profilschalter aus), waere die Warnung eine
+    Antwort auf eine Frage, die nie gestellt wurde."""
+    from interview_theater import workshop
+
+    if not ist_aktiv(e, conn, chat_id):
+        return False
+    return workshop.modellwahl_einwilligung_aktiv()
 
 
 def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,

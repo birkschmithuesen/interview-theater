@@ -2654,7 +2654,7 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str,
         _sende_und_merke(conn, tg, e, chat_id, T._TEXT_BESETZT)
         return None
 
-    if szene_claude.ist_aktiv(e, conn, chat_id):
+    if szene_claude.warnung_angebracht(e, conn, chat_id):
         _sende_und_merke(conn, tg, e, chat_id, T._TEXT_WARNUNG_USA)
     _sende_und_merke(conn, tg, e, chat_id, T._TEXT_ANGEKUENDIGT)
     # Hinweis, keine Sperre: die Szene wird trotzdem geschrieben.

@@ -13,8 +13,8 @@ import httpx
 import pytest
 
 from interview_theater import (
-    knoepfe, kontext, kosten, modellwahl, repo, szene_claude, szenenfolge,
-    vorschlagssperre,
+    erkenner, knoepfe, kontext, kosten, modellwahl, repo, szene_claude,
+    szenenfolge, vorschlagssperre, workshop,
 )
 from interview_theater.knoepfe.stationen import PHASE_BEGRIFFE
 
@@ -33,6 +33,25 @@ def opus_e(einst):
     """Dieselbe Einstellungen-Attrappe wie ueberall, nur mit erlaubtem
     Claude-Schalter (IT_SZENE_ANBIETER=claude)."""
     return dataclasses.replace(einst, szene_anbieter="claude")
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    """Wie ``test_erkenner_teil2.py::padua`` -- IT_WORKSHOP=padua-2026 per
+    monkeypatch, Profil-Cache davor und danach vergessen."""
+    monkeypatch.delenv(workshop.BASIS_VARIABLE, raising=False)
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    yield
+    workshop.vergiss()
+
+
+@pytest.fixture
+def opus_e_padua(opus_e, padua):
+    """``opus_e`` (Betreiber erlaubt Claude) UNTER dem Padua-Profil
+    (``modellwahl.einwilligung = false``) -- die Einwilligungsfrage ist
+    hier komplett abgeschaltet."""
+    return opus_e
 
 
 def _stimme_zu(conn, chat_id=CHAT, ja=True):
@@ -458,3 +477,62 @@ def test_phase_1_ohne_betreiberschalter_wird_nicht_gefragt(conn, einst):
     knoepfe.eintritt_in_phase(conn, tg, None, einst, CHAT, PHASE_BEGRIFFE)
     assert _angebot_texte(tg) == []
     assert repo.szene_usa_stand(conn, CHAT) == "offen"
+
+
+# --------------------------------------------------------------------------
+# Padua Modellwahl-Nachtrag: Einwilligungsfrage komplett abschaltbar
+# (``workshop.modellwahl_einwilligung_aktiv`` = False)
+# --------------------------------------------------------------------------
+
+
+def test_padua_ist_aktiv_ohne_einwilligung_und_ohne_repo_aufruf(conn, opus_e_padua):
+    """Betreiber erlaubt Claude, Padua-Profil aktiv -- ``ist_aktiv`` ist
+    True, OHNE dass ``repo.setze_szene_usa`` je aufgerufen wurde. Gilt auch
+    ganz ohne conn/chat_id."""
+    assert szene_claude.ist_aktiv(opus_e_padua, conn, CHAT) is True
+    assert szene_claude.ist_aktiv(opus_e_padua) is True
+
+
+@pytest.mark.parametrize("phase", [1, 4])
+def test_padua_angebot_faellig_ist_immer_false(conn, opus_e_padua, phase):
+    repo.setze_phase(conn, CHAT, phase)
+    assert szene_claude.angebot_faellig(opus_e_padua, conn, CHAT) is False
+
+
+def test_padua_wartet_auf_antwort_ist_false(conn, opus_e_padua):
+    assert szene_claude.wartet_auf_antwort(opus_e_padua, conn, CHAT) is False
+
+
+def test_padua_warnung_nicht_angebracht_obwohl_claude_aktiv(conn, opus_e_padua):
+    """Claude laeuft (``ist_aktiv`` True), aber die Warnung vor der US-
+    Datenuebermittlung waere eine Antwort auf eine nie gestellte Frage."""
+    assert szene_claude.ist_aktiv(opus_e_padua, conn, CHAT) is True
+    assert szene_claude.warnung_angebracht(opus_e_padua, conn, CHAT) is False
+
+
+def test_dortmund_warnung_angebracht_wenn_zugestimmt(conn, opus_e):
+    """Regression: unter Dortmund/Vorgabe bleibt die Warnung an die
+    Einwilligung gekoppelt -- ohne Zustimmung keine Warnung, mit
+    Zustimmung schon (weil ``ist_aktiv`` dort weiterhin True wird)."""
+    assert szene_claude.warnung_angebracht(opus_e, conn, CHAT) is False
+    _stimme_zu(conn)
+    assert szene_claude.warnung_angebracht(opus_e, conn, CHAT) is True
+
+
+def test_padua_szene_usa_nicht_im_schema(padua):
+    assert "szene_usa" not in erkenner.arten_fuer_schema()
+
+
+def test_dortmund_szene_usa_weiterhin_im_schema(einst):
+    assert "szene_usa" in erkenner.arten_fuer_schema()
+
+
+def test_dortmund_regression_ist_aktiv_haengt_weiterhin_an_der_einwilligung(
+    conn, opus_e,
+):
+    """Zeigt, dass Task 2 den bestehenden Dortmund/Vorgabe-Pfad nicht
+    gebrochen hat: ``ist_aktiv`` bleibt ohne Zustimmung False und wird erst
+    nach ``repo.setze_szene_usa`` True."""
+    assert szene_claude.ist_aktiv(opus_e, conn, CHAT) is False
+    repo.setze_szene_usa(conn, CHAT, True)
+    assert szene_claude.ist_aktiv(opus_e, conn, CHAT) is True

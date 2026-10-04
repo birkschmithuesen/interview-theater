@@ -337,6 +337,49 @@ def test_ein_phasenklick_fragt_nach_und_legt_dann_den_eingang_ab(seite, conn):
     eingaenge = repo.web_eingang(conn, CHAT, 0)
     assert len(eingaenge) == vor + 1
     assert eingaenge[-1]["text"] == "/phaseklick 5"
+    # Das Menue schliesst sich nach dem erfolgreichen Sprung selbst (Teil B)
+    # -- und bleibt es, auch ueber den naechsten Nachlade-Takt hinweg (siehe
+    # unten im Betreff von ``ladeRoadmap``/``warOffen``).
+    assert seite.locator("#roadmap").get_attribute("open") is None
+
+
+def test_nein_bei_der_ruckfrage_schliesst_das_menue(seite, conn):
+    """"Stay here": Abbrechen schliesst die Roadmap, ohne einen Eingang
+    anzulegen -- die Rueckfrage wurde verworfen, kein Sprung (Teil B)."""
+    seite.click(".roadmap summary")
+    knopf = seite.locator('.phase-knopf[data-phase="5"]')
+    knopf.click()
+    seite.wait_for_function(
+        "document.querySelector('.phase-knopf[data-phase=\"5\"]')"
+        ".getAttribute('data-sicher') === '1'", timeout=5_000)
+
+    vor = len(repo.web_eingang(conn, CHAT, 0))
+    seite.click('.phase-abbrechen[data-phase="5"]')
+    seite.wait_for_selector(".roadmap .phasen", state="hidden")
+    assert seite.locator("#roadmap").get_attribute("open") is None
+    assert len(repo.web_eingang(conn, CHAT, 0)) == vor
+
+
+def test_tap_aussen_schliesst_das_menue(seite):
+    """Ein Klick ausserhalb des Menues klappt es zu; ein Klick auf das Menue
+    selbst (Knopf oder ``<summary>``) loest diesen Mechanismus NICHT aus --
+    sonst merkt ein Bug, der bei JEDEM Klick zuklappt, niemand (Teil B)."""
+    seite.click(".roadmap summary")
+    seite.wait_for_selector(".roadmap .phasen", state="visible")
+
+    # Gegenprobe zuerst: ein Klick AUF einen Knopf im Menue schliesst es
+    # nicht ueber den Aussen-Mechanismus (die eigene Logik bewaffnet ihn
+    # stattdessen -- das Menue bleibt offen).
+    seite.click('.phase-knopf[data-phase="5"]')
+    seite.wait_for_function(
+        "document.querySelector('.phase-knopf[data-phase=\"5\"]')"
+        ".getAttribute('data-sicher') === '1'", timeout=5_000)
+    assert seite.locator("#roadmap").get_attribute("open") == ""
+
+    # Jetzt ausserhalb klicken (ein Tab-Knopf) -- das Menue klappt zu.
+    seite.click('.tabs button[data-tab="stand"]')
+    seite.wait_for_selector(".roadmap .phasen", state="hidden")
+    assert seite.locator("#roadmap").get_attribute("open") is None
 
 
 def test_telegram_gruppe_oeffnet_auf_stand_ohne_chat_tab(server, browser, telegram_token):

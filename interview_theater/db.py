@@ -202,7 +202,15 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- rufen, und ``_kurz_abschliessen`` loest dafuer nie einen Gespraechszug
   -- aus: strukturell nie Teil eines Interviews, nie im Gespraechsfenster,
   -- nie im Journal. Additiv nachgeruestet.
-  kalibrierung    INTEGER NOT NULL DEFAULT 0
+  kalibrierung    INTEGER NOT NULL DEFAULT 0,
+  -- Nur am Interview-KOPF (klasse='lang'): die web_post-id der EINEN
+  -- Transkriptblase dieses Interviews im Web-Chat (Padua, 04.10.2026,
+  -- Karte t_ea994c7f, [interview] fliesstext). NULL = noch keine Blase.
+  -- In der Datenbank statt im Prozess, weil der Nachhol-Arbeiter einen
+  -- Teil auch nach einem Neustart fertig machen kann -- dann schreibt er
+  -- dieselbe Blase weiter. Additiv nachgeruestet ueber
+  -- _migriere_fehlende_spalten.
+  echo_message_id INTEGER
 );
 -- Bewusst KEIN Index auf teil_von: initialisiere() faehrt erst das ganze
 -- SCHEMA und ergaenzt danach fehlende Spalten -- ein Index auf eine Spalte,

@@ -3577,10 +3577,20 @@ def hat_gruppennachricht(conn: sqlite3.Connection, chat_id: int) -> bool:
     tag1-Simulationslaeufen).
 
     Transkript-Echos zaehlen nicht mit (``typ='transkript'``): sie sind
-    Interviewinhalt, kein Beitrag der Gruppe."""
+    Interviewinhalt, kein Beitrag der Gruppe. Ein Schraegstrich-Befehl
+    zaehlt ebenfalls nicht (Abnahme P1-2, 04.10.2026): der versteckte
+    ``/start`` (Pflichtpunkt 2) legt beim allerersten Seitenaufruf einer
+    Web-Gruppe genau eine solche Zeile an, bevor die Gruppe je etwas
+    geschrieben hat -- ohne diesen Ausschluss waehlte ``bot.erstkontakt``
+    faelschlich ``_TEXT_ERSTKONTAKT_BEGRIFFE_DA`` ("Eure Begriffe habe ich
+    schon"), und das Gespraechsmodell erfand im naechsten Zug eine
+    Begriffsliste, weil ``arbeitsstand.begriffe`` in Wahrheit leer war
+    (gemessen im echten Browserlauf: "Liminality, Ritual, Mimesis, Kairos,
+    Catharsis, Skene, Prosopon, Festive Play, Theatron, Daimon")."""
     zeile = conn.execute(
         "SELECT 1 FROM nachricht WHERE chat_id = ? AND ist_bot = 0 "
-        "AND (typ IS NULL OR typ != 'transkript') LIMIT 1",
+        "AND (typ IS NULL OR typ != 'transkript') "
+        "AND (text IS NULL OR text NOT LIKE '/%') LIMIT 1",
         (chat_id,),
     ).fetchone()
     return zeile is not None

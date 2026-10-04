@@ -77,6 +77,22 @@ def test_transkript_echo_zaehlt_nicht_als_gruppennachricht(conn):
     assert not repo.hat_gruppennachricht(conn, CHAT)
 
 
+def test_start_befehl_zaehlt_nicht_als_gruppennachricht(conn, einst):
+    """Abnahme P1-2, 04.10.2026 (echter Browserlauf): der versteckte
+    ``/start``-Eingang beim ersten Seitenaufruf einer frischen Web-Gruppe
+    wurde vor diesem Fix als Gruppennachricht gezaehlt -- ``bot.erstkontakt``
+    waehlte dann faelschlich "Eure Begriffe habe ich schon" statt "Schickt
+    mir eure Begriffe", und das Modell erfand im naechsten Zug eine
+    Begriffsliste."""
+    repo.merke_nachricht(conn, CHAT, 1, "Gruppe", 0, "text", "/start", repo._jetzt())
+
+    assert not repo.hat_gruppennachricht(conn, CHAT)
+
+    tg = TelegramAttrappe()
+    bot.erstkontakt(conn, tg, einst, CHAT)
+    assert "Als Erstes schickt ihr mir eure Begriffe" in tg.gesendet[0]["text"]
+
+
 # --- Fix 2: die Form wird vorgeschlagen, nicht gesetzt ----------------------
 
 

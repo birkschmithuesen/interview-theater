@@ -1586,6 +1586,18 @@ def _wirkung_redo(conn, d: Druck) -> str:
     if stand != repo.ZURUECK_OK:
         return T._TEXT_SCHON_BENUTZT
 
+    # Befund 2 (Padua Phase-2-Ende): steht nach dem Redo arbeitsstand.fragen
+    # wieder und fehlt die Eroeffnung noch, startet sie automatisch --
+    # derselbe Weg wie _schliesse_fragen_ab/frage_weich_uebernehmen/
+    # frage_weich_lassen in fragen.py. Ohne das blieb die Gruppe nach einem
+    # Redo bei der allgemeinen Interview-Bedienhilfe haengen, weil
+    # interview_eroeffnung/-abschluss nie gesetzt wurden.
+    stand_jetzt = repo.hole_arbeitsstand(conn, d.chat_id)
+    if (stand_jetzt is not None
+            and (stand_jetzt["fragen"] or "").strip()
+            and not (stand_jetzt["interview_eroeffnung"] or "").strip()):
+        starte_eroeffnung(conn, d.tg, d.klm, d.e, d.chat_id)
+
     zeilen = lauf["meldung"] or ""
     repo.schreibe_journal(
         conn, d.chat_id, "entschieden",

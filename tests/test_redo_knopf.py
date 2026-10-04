@@ -21,7 +21,7 @@ tests/test_undo_fragen_abschluss.py). Erfundenes Material, keine Echtdaten.
 
 import pytest
 
-from interview_theater import ablauf, knoepfe, phasen, repo
+from interview_theater import ablauf, anweisungen, knoepfe, phasen, repo, ruecknahme
 
 
 class TelegramAttrappe:
@@ -290,3 +290,115 @@ def test_eine_leere_leiste_kollabiert_nichts(conn, tg):
 # --- 4. Englische Texte vollstaendig ---------------------------------------
 # (gepruefte Aussage, kein eigener Test hier noetig -- siehe Testlaufbericht:
 # ``pytest tests/test_sprache_texte.py`` bleibt gruen.)
+
+
+# --- 5. Eroeffnung startet automatisch nach Redo (Befund 2) ----------------
+#
+# Nach ``_schliesse_beide_fragen_ab`` hat der klassische Weg (keine weichen
+# Fassungen) bereits einmal ``starte_eroeffnung`` gerufen -- die Attrappe
+# zeichnet das als ersten Eintrag in ``auftraege`` auf, OHNE
+# ``arbeitsstand.interview_eroeffnung`` je zu setzen (das wuerde einen
+# echten Modelllauf brauchen, den dieser Test nicht hat). Ein Undo gefolgt
+# von einem Redo muss deshalb GENAU EINEN weiteren Eintrag anhaengen --
+# nicht keinen (Befund 2 waere unbehoben) und nicht die doppelte Kette.
+
+
+def test_eroeffnung_startet_automatisch_nach_redo(conn, tg, einst, auftraege):
+    _schliesse_beide_fragen_ab(conn, tg, einst)
+    vor_redo = len(auftraege)
+
+    undo_daten, undo_message = _knopf_der_letzten_leiste_mit_art(
+        conn, tg, knoepfe.ART_UNDO)
+    knoepfe.behandle(
+        conn, tg, None, einst,
+        _druck(undo_daten, message_id=undo_message, query_id="q-undo"),
+    )
+
+    redo_daten, redo_message = _knopf_der_letzten_leiste_mit_art(
+        conn, tg, knoepfe.ART_REDO)
+    knoepfe.behandle(
+        conn, tg, None, einst,
+        _druck(redo_daten, message_id=redo_message, query_id="q-redo"),
+    )
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["fragen"], "Redo hat die Fragen wiederhergestellt"
+    assert len(auftraege) == vor_redo + 1, (
+        "Redo nach einem Fragen-Abschluss muss genau einen weiteren "
+        "Auftragszug (die Eroeffnung) ausloesen"
+    )
+    erwartet = anweisungen.fuelle(knoepfe.T.ANWEISUNG_EROEFFNUNG).format(
+        fragen=stand["fragen"] or ""
+    )
+    assert auftraege[-1] == erwartet
+
+
+def test_eroeffnung_startet_nicht_doppelt_wenn_schon_gesetzt(
+    conn, tg, einst, auftraege,
+):
+    _schliesse_beide_fragen_ab(conn, tg, einst)
+    undo_daten, undo_message = _knopf_der_letzten_leiste_mit_art(
+        conn, tg, knoepfe.ART_UNDO)
+    knoepfe.behandle(
+        conn, tg, None, einst,
+        _druck(undo_daten, message_id=undo_message, query_id="q-undo"),
+    )
+    # Die Gruppe hat die Eroeffnung zwischenzeitlich anders gesetzt --
+    # ein Redo darf das nicht ueberschreiben, indem es einen zweiten
+    # Eroeffnungslauf anstoesst.
+    repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Schon da von Hand")
+    vor_redo = len(auftraege)
+
+    redo_daten, redo_message = _knopf_der_letzten_leiste_mit_art(
+        conn, tg, knoepfe.ART_REDO)
+    knoepfe.behandle(
+        conn, tg, None, einst,
+        _druck(redo_daten, message_id=redo_message, query_id="q-redo"),
+    )
+
+    assert len(auftraege) == vor_redo, (
+        "Redo hat trotz gesetzter interview_eroeffnung einen zweiten "
+        "Eroeffnungslauf gestartet"
+    )
+    assert (
+        repo.hole_arbeitsstand(conn, 1)["interview_eroeffnung"]
+        == "Schon da von Hand"
+    )
+
+
+def test_redo_ohne_fragen_bezug_bleibt_unberuehrt(conn, tg, einst, auftraege):
+    """Ein Redo, das NICHT ``arbeitsstand.fragen`` betrifft (hier:
+    ``kernthema_setzen``, Vorbild ``tests/test_undo_knopf.py::
+    _lauf_mit_kernthema``), loest keine Eroeffnung aus."""
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Alt")
+    plan = ruecknahme.plan(["kernthema_setzen"])
+    vorher = repo.schnappschuss(conn, 1, plan)
+    repo.setze_arbeitsstand(conn, 1, "kernthema", "Ankommen")
+    nachher = repo.schnappschuss(conn, 1, plan)
+    lauf_id = repo.lege_erkenner_lauf_an(
+        conn, 1, "Kernthema: Ankommen", ruecknahme.schritte(vorher, nachher),
+    )
+
+    undo_daten = knoepfe.undo_leiste(conn, 1, lauf_id)[0][1]
+    undo_message = 601
+    repo.merke_knopf_nachricht(
+        conn, [int(undo_daten[len(knoepfe.PRAEFIX):])], undo_message,
+    )
+    repo.merke_erkenner_lauf_nachricht(conn, lauf_id, undo_message)
+    knoepfe.behandle(
+        conn, tg, None, einst,
+        _druck(undo_daten, message_id=undo_message, query_id="q-undo"),
+    )
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Alt"
+
+    redo_daten, redo_message = _knopf_der_letzten_leiste_mit_art(
+        conn, tg, knoepfe.ART_REDO)
+    knoepfe.behandle(
+        conn, tg, None, einst,
+        _druck(redo_daten, message_id=redo_message, query_id="q-redo"),
+    )
+
+    assert repo.hole_arbeitsstand(conn, 1)["kernthema"] == "Ankommen"
+    assert auftraege == [], (
+        "Ein Redo ohne Fragen-Bezug darf keine Eroeffnung ausloesen"
+    )

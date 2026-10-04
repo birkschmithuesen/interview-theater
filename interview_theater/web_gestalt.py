@@ -1337,6 +1337,14 @@ _BUEHNE = """
 .stueckkarte { background: var(--grund-3); }
 .sk-haken { color: var(--text-leise); opacity: 1; }
 .sk-frei { color: var(--text-leise); opacity: 1; }
+/* Begriffsboard (Karte t_cb2c4678): die Schaerfungskette steht leise und
+   durchgestrichen hinter dem Begriff, der Pfeil zeigt vom alten Wortlaut
+   zum neuen. Nur Ruhendes: die Bewegung (FLIP) setzt ladeBuehne() per
+   CSSOM und nur ohne prefers-reduced-motion -- hier steht weder
+   transition noch @media (dieser Block laeuft durch scope_css). */
+.begriffsboard .vorgaenger { color: var(--text-leise); margin-left: 0.4em; }
+.begriffsboard .vorgaenger::before { content: "\\2190\\00a0"; }
+.begriffsboard .vorgaenger del { text-decoration-thickness: 1px; }
 """
 #: Die read-only Werkbank (Padua, 03.10.2026, Birk: "Anstatt roter und gruener
 #: LEDs passendere Farben im Design. Dezenter, aber trotzdem klar."). Drei

@@ -159,8 +159,14 @@ Schalter ändert nichts an der Durchsetzung über `verdichter.py`, das
 
 **Zweiter, unabhängiger Schalter `[modellwahl] zitate_an_claude`** (Vorgabe
 `true`, Getter `workshop.modellwahl_zitate_an_claude_aktiv()`): mit `false`
-würde `szene._kernpaket_text` (späterer Task) den wörtlichen
-Interview-Zitattext aus dem Claude-Szenen-Prompt entfernen — Thema und
-Zuordnung blieben stehen, nur das Belegzitat selbst nicht. Für Padua **nicht**
-auf `false` gesetzt, Birks Antwort zu dieser Frage steht noch aus — dieser
-Task baut nur die Fähigkeit, nicht die Entscheidung.
+entfernt `szene._kernpaket_text` den wörtlichen Interview-Zitattext aus dem
+Claude-Szenen-Prompt — Thema und Zuordnung bleiben stehen, nur das
+Belegzitat selbst nicht.
+
+**Birk, live 04.10.2026 18:20 (bestätigt):** belegte wörtliche
+Interviewzitate dürfen ab Phase 5 an Opus gehen — er weist die
+interviewten Personen vor der Aufnahme darauf hin. Padua setzt
+`zitate_an_claude = true` deshalb **explizit** (entspricht dem Vorgabewert,
+steht aber als bewusste, dokumentierte Entscheidung im Profil statt nur
+implizit vom Code-Default zu kommen). Der Unterschalter bleibt vollständig
+gebaut und mit einer Zeile (`false`) umkehrbar, falls sich das ändert.

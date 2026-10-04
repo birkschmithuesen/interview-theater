@@ -28,6 +28,7 @@ darf mit ``test``/``Test`` anfangen -- sonst liefe sie als Test
 """
 
 import secrets
+import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,6 +61,11 @@ UEBERNOMMEN = tuple(t for t in db.TABELLEN_MIT_CHAT_ID if t not in NICHT_UEBERNO
 #: P2: bot-weite Vorfaelle (chat_id NULL) der Test-DB koennten dieselben ids
 #: tragen. Auf vorfall.id zeigt keine Spalte -- also neue ids.
 NEUE_IDS = ("vorfall",)
+
+#: Die Spalten, die auf Dateien zeigen (Schema-grep: db.py:139, db.py:1124;
+#: web_post.dateiname ist nur ein Anzeigename, web_post.bild ein Name unter
+#: interview_theater/static/handys/). Ein Test haelt die Liste am Schema fest.
+PFADSPALTEN = (("aufnahme", "audio_pfad"), ("web_post", "datei"))
 
 TITEL_LEER = "Testgruppe"
 TITEL_KOPIE = "Testgruppe (Kopie von {bot_name})"
@@ -251,10 +257,55 @@ def _schnappschuss(quelle: str, kopie: Path) -> None:
         src.close()
 
 
-def _bereite_kopie_vor(kopie: Path, quell_chat_id: int, token: str) -> list[str]:
+def setze_pfad_um(wert: str, quell_chat_id: int, audio_quelle: str,
+                  audio_ziel: str) -> str | None:
+    """``<audio_quelle>/<quell_chat_id>/REST`` -> ``<audio_ziel>/<TEST>/REST``.
+
+    Relativ bleibt relativ (der Bot schreibt mit seinem relativen IT_AUDIO,
+    aufnahme.py:515-518, web_kanal.py:476), absolut bleibt absolut und
+    aufgeloest (der Webdienst schreibt so, web_chat.py:4412-4421). None, wenn
+    der Pfad nicht unter dem Verzeichnis der Quellgruppe liegt -- dann bleibt
+    er stehen und es gibt eine Warnung."""
+    alt = Path(wert)
+    try:
+        rel = alt.resolve().relative_to(Path(audio_quelle).resolve())
+    except ValueError:
+        return None
+    if not rel.parts or rel.parts[0] != str(quell_chat_id):
+        return None
+    basis = Path(audio_ziel).resolve() if alt.is_absolute() else Path(audio_ziel)
+    return str(basis / str(TEST_CHAT_ID) / Path(*rel.parts[1:]))
+
+
+def kopiere_audio(audio_quelle: str, audio_ziel: str, quell_chat_id: int) -> Path:
+    """Kopiert das Audioverzeichnis der Quellgruppe in ein Staging-Verzeichnis
+    neben dem Ziel (P3). Die Quelle wird nur gelesen."""
+    quelle = Path(audio_quelle) / str(quell_chat_id)
+    staging = Path(audio_ziel) / f".neu-{TEST_CHAT_ID}"
+    if staging.exists():
+        shutil.rmtree(staging)
+    if quelle.exists():
+        shutil.copytree(quelle, staging)
+    else:
+        staging.mkdir(parents=True)
+    return staging
+
+
+def tausche_audio(staging: Path, audio_ziel: str) -> None:
+    """Nach dem Commit: das alte Audio der Testgruppe weg, Staging an seinen
+    Platz. Nur dieses eine Verzeichnis wird geleert (E6)."""
+    ziel = Path(audio_ziel) / str(TEST_CHAT_ID)
+    if ziel.exists():
+        shutil.rmtree(ziel)
+    staging.rename(ziel)
+
+
+def _bereite_kopie_vor(kopie: Path, quell_chat_id: int, token: str, *,
+                       audio_quelle: str, audio_ziel: str) -> list[str]:
     """Macht aus der Temp-DB genau die kuenftige Testgruppe: nur die
     Quellgruppe, chat_id umgeschrieben, Token der Testinstanz, fluechtige
-    Felder leer, kein bot_zustand. Liefert Warnungen (ohne Inhalte)."""
+    Felder leer, kein bot_zustand, Audiopfade aufs Testverzeichnis. Liefert
+    Warnungen (nur Tabelle, Spalte, rowid, Pfad -- keine Inhalte)."""
     warnungen: list[str] = []
     k = db.verbinde(str(kopie))
     try:
@@ -267,6 +318,23 @@ def _bereite_kopie_vor(kopie: Path, quell_chat_id: int, token: str) -> list[str]
                 k.execute(f"DELETE FROM {t}")
                 continue
             k.execute(f"DELETE FROM {t} WHERE chat_id IS NOT ?", (quell_chat_id,))
+        for tabelle, spalte in PFADSPALTEN:
+            for zeile in k.execute(
+                f"SELECT rowid AS r, {spalte} AS p FROM {tabelle} "
+                f"WHERE {spalte} IS NOT NULL"
+            ).fetchall():
+                if not Path(zeile["p"]).exists():
+                    warnungen.append(f"{tabelle}.{spalte} rowid {zeile['r']}: "
+                                     f"Datei fehlt ({zeile['p']})")
+                neu = setze_pfad_um(zeile["p"], quell_chat_id, audio_quelle, audio_ziel)
+                if neu is None:
+                    warnungen.append(f"{tabelle}.{spalte} rowid {zeile['r']}: liegt "
+                                     f"nicht unter {audio_quelle}/{quell_chat_id} "
+                                     "-- unveraendert")
+                    continue
+                k.execute(f"UPDATE {tabelle} SET {spalte} = ? WHERE rowid = ?",
+                          (neu, zeile["r"]))
+        for t in UEBERNOMMEN:
             k.execute(f"UPDATE {t} SET chat_id = ? WHERE chat_id = ?",
                       (TEST_CHAT_ID, quell_chat_id))
         k.execute(
@@ -365,12 +433,16 @@ def _schreibe_in_ziel(conn, kopie: Path, jetzt: datetime) -> int:
 
 def uebernimm(quell_chat_id: int, *, quelle: str, ziel: str, audio_quelle: str,
               audio_ziel: str, jetzt: datetime | None = None) -> dict:
-    """Der Ernstfall. Verweigert (``Verweigert``) VOR jedem Schreibzugriff."""
+    """Der Ernstfall. Verweigert (``Verweigert``) VOR jedem Schreibzugriff.
+
+    Reihenfolge: Schnappschuss -> Kopie vorbereiten (P9-Pruefung) -> Audio
+    ins Staging -> Backup -> EINE Transaktion -> Audio tauschen (P3)."""
     jetzt = jetzt or datetime.now(timezone.utc)
     bericht = plane(quell_chat_id, quelle=quelle, ziel=ziel,
                     audio_quelle=audio_quelle, audio_ziel=audio_ziel)
     existierte = Path(ziel).exists()
     Path(ziel).parent.mkdir(parents=True, exist_ok=True)
+    staging = None
     with tempfile.TemporaryDirectory(prefix=".testuebernahme-",
                                      dir=Path(ziel).resolve().parent) as tmp:
         kopie = Path(tmp) / "kopie.db"
@@ -380,13 +452,19 @@ def uebernimm(quell_chat_id: int, *, quelle: str, ziel: str, audio_quelle: str,
             db.initialisiere(conn)
             token = _token_der_testgruppe(conn)
             bericht["warnungen"] = _bereite_kopie_vor(
-                kopie, quell_chat_id, token or neues_token())
+                kopie, quell_chat_id, token or neues_token(),
+                audio_quelle=audio_quelle, audio_ziel=audio_ziel)
+            staging = kopiere_audio(audio_quelle, audio_ziel, quell_chat_id)
             bericht["backup"] = sichere_ziel(conn, ziel, jetzt) if existierte else None
             bericht["offset"] = _schreibe_in_ziel(conn, kopie, jetzt)
+            tausche_audio(staging, audio_ziel)
+            staging = None
             bericht["nachher"] = zaehle(conn, TEST_CHAT_ID)
             bericht["token_neu"] = token is None
         finally:
             conn.close()
+            if staging is not None and staging.exists():
+                shutil.rmtree(staging)
     return bericht
 
 

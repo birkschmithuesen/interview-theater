@@ -522,3 +522,99 @@ def test_erkenner_und_journal_stehen_wie_in_der_quelle(umgebung):
     assert neu in [z["message_id"] for z in repo.unextrahierte(ziel, TEST)]
     src.close()
     ziel.close()
+
+
+# --------------------------------------------------------------------------
+# Task 5: Audio (E6)
+# --------------------------------------------------------------------------
+
+
+def test_pfadspalten_sind_vollstaendig():
+    """Jede Spalte im Schema, die auf eine Datei zeigt, steht in PFADSPALTEN
+    -- eine neue (z. B. 'x_pfad') faellt hier auf, nicht im Testbot."""
+    gefunden = set()
+    for tabelle, spalten in db._tabellenspalten_aus_schema().items():
+        for name, _ in spalten:
+            if name.endswith("pfad") or name == "datei":
+                gefunden.add((tabelle, name))
+    assert gefunden == set(tu.PFADSPALTEN)
+
+
+def test_setze_pfad_um_relativ_bleibt_relativ(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    neu = tu.setze_pfad_um(f"audio-padua/{QUELLE_CHAT}/102.webm", QUELLE_CHAT,
+                           "audio-padua", "audio-padua-test")
+    assert neu == f"audio-padua-test/{TEST}/102.webm"
+
+
+def test_setze_pfad_um_absolut_bleibt_absolut(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    alt = str((tmp_path / "audio-padua" / str(QUELLE_CHAT) / "web-eingang" / "102.webm"))
+    neu = tu.setze_pfad_um(alt, QUELLE_CHAT, "audio-padua", "audio-padua-test")
+    assert neu == str((tmp_path / "audio-padua-test").resolve() / str(TEST)
+                      / "web-eingang" / "102.webm")
+
+
+def test_setze_pfad_um_laesst_fremdes_stehen(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert tu.setze_pfad_um("/etc/passwd", QUELLE_CHAT, "audio-padua", "audio-padua-test") is None
+    assert tu.setze_pfad_um(f"audio-padua/{ANDERE_CHAT}/1.webm", QUELLE_CHAT,
+                            "audio-padua", "audio-padua-test") is None
+
+
+def test_audio_ist_kopiert_und_die_pfade_zeigen_darauf(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    ziel_verz = Path(umgebung.audio_ziel) / str(TEST)
+    assert fingerabdruck_baum(ziel_verz) == fingerabdruck_baum(
+        Path(umgebung.audio_quelle) / str(QUELLE_CHAT))
+    ziel = lies(umgebung.ziel)
+    pfade = [z[0] for z in ziel.execute(
+        "SELECT audio_pfad FROM aufnahme WHERE chat_id = ? AND audio_pfad IS NOT NULL "
+        "UNION ALL SELECT datei FROM web_post WHERE chat_id = ? AND datei IS NOT NULL",
+        (TEST, TEST))]
+    ziel.close()
+    assert len(pfade) == 3
+    wurzel = ziel_verz.resolve()
+    for pfad in pfade:
+        assert Path(pfad).exists(), pfad
+        assert Path(pfad).resolve().is_relative_to(wurzel), pfad
+
+
+def test_relative_und_absolute_pfade_behalten_ihre_form(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    ziel = lies(umgebung.ziel)
+    aufnahme = ziel.execute("SELECT audio_pfad FROM aufnahme WHERE chat_id = ?",
+                            (TEST,)).fetchone()[0]
+    eingang = ziel.execute("SELECT datei FROM web_post WHERE id = 102").fetchone()[0]
+    ausgang = ziel.execute("SELECT datei FROM web_post WHERE id = 104").fetchone()[0]
+    ziel.close()
+    assert not Path(aufnahme).is_absolute()
+    assert Path(eingang).is_absolute()
+    assert not Path(ausgang).is_absolute()
+
+
+def test_altes_testaudio_ist_weg_und_fremdes_nie_kopiert(umgebung):
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    ziel_verz = Path(umgebung.audio_ziel) / str(TEST)
+    assert not (ziel_verz / "alt.webm").exists()
+    assert not (Path(umgebung.audio_ziel) / str(ANDERE_CHAT)).exists()
+    assert [p.name for p in Path(umgebung.audio_ziel).iterdir()] == [str(TEST)]
+
+
+def test_der_webkanal_des_testbots_kann_das_segment_laden(umgebung, tmp_path):
+    """WebKanal.lade_datei prueft die Wurzel (web_kanal.py:584-590) -- der
+    umgeschriebene absolute Pfad muss unter dem IT_AUDIO des Testbots liegen."""
+    tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    conn = db.verbinde(umgebung.ziel)
+    kanal = WebKanal(conn, TEST, umgebung.audio_ziel)
+    ziel = tmp_path / "geladen.webm"
+    kanal.lade_datei("web:102.webm", ziel)
+    assert ziel.read_bytes() == b"webm-" + str(QUELLE_CHAT).encode()
+    conn.close()
+
+
+def test_fehlende_audiodatei_gibt_eine_warnung_ohne_inhalt(umgebung):
+    (Path(umgebung.audio_quelle) / str(QUELLE_CHAT) / "102.webm").unlink()
+    bericht = tu.uebernimm(QUELLE_CHAT, **umgebung.pfade())
+    assert any("fehlt" in w for w in bericht["warnungen"])
+    assert all(GEHEIM not in w for w in bericht["warnungen"])

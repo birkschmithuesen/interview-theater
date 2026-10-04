@@ -17,6 +17,12 @@ bleibt nur, wenn ein geprueftes Zitat sie traegt, das mehr enthaelt als
 Begriff und Ansage (``traegt_beleg``), und wenn sie kein Fuellsatz ist
 ("wird genannt/gesammelt", ``ist_fuellsatz``); sonst wird sie leer.
 
+**Schaerfung (Karte t_cb2c4678):** das Modell nennt je Eintrag
+``vorheriger_begriff`` (den ersetzten Begriff oder ""), der Code prueft es
+gegen das bisherige Board und fuehrt daraus ``vorgaenger`` (aelteste
+zuerst, nur am Eintrag, wenn nicht leer). Die Kette ist nie Modelltext:
+jedes Element ist der Wortlaut eines frueheren ``begriff`` dieses Boards.
+
 **Der Boardlauf kennt kein ``tg``** (``starte``/``_lauf_einmal``): er kann
 strukturell keine Chatzeile schreiben (D5). Der einzige Chatweg dieses
 Moduls ist der Vorschlag nach "Discussion done" (``sende_vorschlag``) und
@@ -198,19 +204,46 @@ def _ganzzahl(wert) -> int:
         return 0
 
 
+def _ein_begriff(roh) -> str | None:
+    """EIN Begriff in fester Form (Whitespace zusammengezogen), oder None,
+    wenn ``roh`` leer ist oder einen Listentrenner traegt -- er zerfiele beim
+    Speichern (``begriffe.zerlege``) in zwei. Dieselbe Regel fuer ``begriff``
+    und fuer jedes Element von ``vorgaenger``."""
+    teile = begriffe_modul.zerlege(" ".join(str(roh or "").split()))
+    return teile[0] if len(teile) == 1 else None
+
+
+def _vorgaenger(roh, eigener: str) -> list[str]:
+    """Eine Vorgaengerkette defensiv gelesen (Karte t_cb2c4678, D1): nur
+    Zeichenketten, die als EIN Begriff durchgehen, ohne den eigenen Begriff,
+    ohne Doppelte (erste Nennung gilt), aelteste zuerst. Fehlt sie oder ist
+    sie keine Liste: keine Kette."""
+    if not isinstance(roh, list):
+        return []
+    kette: list[str] = []
+    gesehen = {schluessel(eigener)}
+    for element in roh:
+        begriff = _ein_begriff(element) if isinstance(element, str) else None
+        if begriff is None or schluessel(begriff) in gesehen:
+            continue
+        gesehen.add(schluessel(begriff))
+        kette.append(begriff)
+    return kette
+
+
 def _eintrag(zeile) -> dict | None:
     """Eine Zeile in die feste Form -- ohne Transkriptpruefung (die macht
-    ``validiere``). None, wenn sie keinen brauchbaren Begriff traegt."""
+    ``validiere``). None, wenn sie keinen brauchbaren Begriff traegt.
+    ``vorgaenger`` steht nur da, wenn die Kette nicht leer ist: ein Board
+    ohne Schaerfung bleibt Zeichen fuer Zeichen, wie es war."""
     if not isinstance(zeile, dict):
         return None
-    teile = begriffe_modul.zerlege(" ".join(str(zeile.get("begriff") or "").split()))
-    if len(teile) != 1:
-        # Leer, oder ein Listentrenner im Begriff: er zerfiele beim
-        # Speichern (``begriffe.zerlege``) in zwei.
+    begriff = _ein_begriff(zeile.get("begriff"))
+    if begriff is None:
         return None
     status = str(zeile.get("status") or "").strip().casefold()
-    return {
-        "begriff": teile[0],
+    eintrag = {
+        "begriff": begriff,
         "nennungen": max(0, _ganzzahl(zeile.get("nennungen"))),
         "zustimmung": min(ZUSTIMMUNG_MAX, max(ZUSTIMMUNG_MIN, _ganzzahl(zeile.get("zustimmung")))),
         "begruendung": str(zeile.get("begruendung") or "").strip(),
@@ -218,14 +251,45 @@ def _eintrag(zeile) -> dict | None:
         "doppelbedeutung": str(zeile.get("doppelbedeutung") or "").strip(),
         "status": status if status in STATUS else "kandidat",
     }
+    kette = _vorgaenger(zeile.get("vorgaenger"), begriff)
+    if kette:
+        eintrag["vorgaenger"] = kette
+    return eintrag
 
 
-def validiere(roh, transkript: str) -> list[dict]:
+def _verkette(neu: list[dict], links: list, bisher: list[dict]) -> None:
+    """Fuehrt ``vorgaenger`` (D1, Karte t_cb2c4678) -- allein der Code.
+
+    Ein Eintrag mit einem Schluessel aus ``bisher`` erbt dessen Kette. Ein
+    ``vorheriger_begriff`` des Modells zaehlt NUR, wenn er auf einen Eintrag
+    aus ``bisher`` zeigt, der im neuen Board nicht mehr als eigene Zeile
+    steht und nicht der Eintrag selbst ist; dann wird dessen Kette plus
+    dessen Begriff angehaengt -- im Wortlaut des BISHERIGEN Boards, nie im
+    Wortlaut des Modells. Alles andere ist kein Link: ein vergessenes Feld
+    heisst "kein Strich", nie "ein falscher". Zuletzt faellt aus jeder Kette,
+    was als eigene Zeile im neuen Board steht (sonst stuende es zweimal da)."""
+    alt = {schluessel(e["begriff"]): e for e in bisher}
+    eigene = {schluessel(e["begriff"]) for e in neu}
+    for eintrag, link in zip(neu, links):
+        k = schluessel(eintrag["begriff"])
+        kette = list(alt[k].get("vorgaenger") or []) if k in alt else []
+        lk = schluessel(link) if isinstance(link, str) else ""
+        if lk and lk != k and lk in alt and lk not in eigene:
+            kette += list(alt[lk].get("vorgaenger") or []) + [alt[lk]["begriff"]]
+        kette = [v for v in _vorgaenger(kette, eintrag["begriff"]) if schluessel(v) not in eigene]
+        if kette:
+            eintrag["vorgaenger"] = kette
+
+
+def validiere(roh, transkript: str, bisher: list[dict] | None = None) -> list[dict]:
     """Die Modellantwort gegen das Transkript (D3). Nichts erfinden: nur
-    Begriffe, die im Transkript stehen; Zitate nur woertlich."""
+    Begriffe, die im Transkript stehen; Zitate nur woertlich. Mit ``bisher``
+    (dem geltenden Board vor diesem Lauf) zusaetzlich die Schaerfungskette
+    (``_verkette``); ohne ``bisher`` genau das Verhalten von vorher."""
     if not isinstance(roh, list):
         return []
     ergebnis: list[dict] = []
+    links: list = []
     gesehen: set[str] = set()
     for zeile in roh:
         eintrag = _eintrag(zeile)
@@ -240,9 +304,13 @@ def validiere(roh, transkript: str) -> list[dict]:
         if eintrag["zitat"] and not zitat.pruefe(eintrag["zitat"], transkript):
             eintrag["zitat"] = ""
         _belege(eintrag, transkript)
+        # Die Kette schreibt allein der Code -- eine mitgeschickte faellt weg.
+        eintrag.pop("vorgaenger", None)
+        links.append(zeile.get("vorheriger_begriff"))
         ergebnis.append(eintrag)
         if len(ergebnis) >= HOECHSTENS:
             break
+    _verkette(ergebnis, links, bisher or [])
     return ergebnis
 
 

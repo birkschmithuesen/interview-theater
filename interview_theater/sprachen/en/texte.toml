@@ -1101,7 +1101,8 @@ sings, there's a song; where a list pounds, a rap; where someone stays
 alone, a monologue; where many say the same thing, a chorus. A sequence made
 only of dialogues is a mistake.
 
-Then one sentence and an open question to the group, two lines at most."""
+Then one sentence and an open question to the group, two lines at most.
+Write in English."""
 ANWEISUNG_GESCHICHTE = """You are developing the rough story of a theatre group's play with them.
 
 The group has invented the setting and the characters themselves. Now it's
@@ -1130,7 +1131,8 @@ Title of the third direction — arc, ending and core conflict in two to three s
 Exactly three lines, one direction each, titles under 25 characters. Only
 use characters listed below.
 
-Then one sentence and an open question to the group, two lines at most."""
+Then one sentence and an open question to the group, two lines at most.
+Write in English."""
 ANWEISUNG_GESCHICHTE_SZENEN = """You are developing the scene sequence of a theatre group's play with them.
 
 The group has chosen a direction; the arc and the ending are below. From
@@ -1146,7 +1148,8 @@ Only use characters listed below. **No form** -- whether a scene becomes a
 dialogue, a monologue, a chorus, a song or a rap is decided by the group
 later, in Stage Version, not here.
 
-Then one sentence and an open question to the group, two lines at most."""
+Then one sentence and an open question to the group, two lines at most.
+Write in English."""
 ANWEISUNG_FELDER = """You are planning a single scene with a theatre group.
 
 For the scene below, details are still missing: {felder}.
@@ -1160,7 +1163,8 @@ field: value
 
 One line per field, only the missing fields, the field names exactly as in
 the list above. Then one sentence and an open question to the group, two
-lines at most."""
+lines at most.
+Write in English."""
 _GESCHICHTE_MIT_ENDE = "{bogen}\nEnding: {ende}"
 JOURNAL_INLINE = "Scenes from the chosen direction: {liste}"
 _NOCH_OFFEN = "still open"
@@ -1302,7 +1306,8 @@ Four columns per line, separated by dashes:
 4. **Interview N** -- the number the style comes from, written exactly like
    this.
 
-Then one sentence and an open question, two lines at most."""
+Then one sentence and an open question, two lines at most.
+Write in English."""
 _TEXT_LAEUFT = "I'm listening for how {name} could speak …"
 _TEXT_FEHLER = "The style suggestions didn't work out. Say it again."
 _TEXT_KEIN_MATERIAL = "For the speech style I need interviews with checked quotes - there aren't any yet."

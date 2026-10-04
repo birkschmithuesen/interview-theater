@@ -5,6 +5,8 @@
 Kanban: Plan-Karte t_5e484a08, Ausführung auf Karte t_cb2c4678, Branch `wt/t_cb2c4678`, **in diesem Worktree**
 (`/mnt/HC_Volume_106183673/projekte/interview-theater/.worktrees/t_cb2c4678`). Ziel ist `main` über eine spätere [Merge]-Karte.
 
+**Zwei Teile, eine Ausführung in Reihenfolge 0 → 12.** Teil 1 (Aufgaben 0–7): Live-Ranking und Schärfungs-Historie. Teil 2 (Aufgaben 8–12, Birks Nachtrag vom 04.10.2026 14:50, eigener Abschnitt weiter unten): Pause-Knopf des Mithörens weg, Endstand = Zwischenstand. Die Abschluss-Suite und der Bericht stehen für beide Teile in Aufgabe 12. **Für Teil 2 ist D4 bei den Fixtures ausdrücklich aufgehoben** (siehe dort).
+
 **Goal:** Der CoThinker-Tab der Phase 1 (Begriffsboard, nur Padua, Profilschalter `diskussion.aktiv`) sortiert seine Begriffe live um, ohne dass die Liste springt; schärft das Modell einen Begriff („Roboter" → „KI-Roboter"), zeigt dieselbe Zeile den alten Wortlaut durchgestrichen neben dem neuen, während die Begründung die Entwicklung weiter in Prosa erzählt.
 
 **Architecture:** Hybrid (Architekt D1): das Modell liefert je Eintrag ein neues Pflichtfeld `vorheriger_begriff`, der **Code** prüft es gegen das bisherige Board (`begriffsboard.validiere(roh, transkript, bisher)`) und führt daraus die Kette `vorgaenger` (älteste zuerst), die nie im Schema steht. `web._begriffsboard_html` zeigt die Kette als `<del>` und trägt `data-vorgaenger`; ein **eigenes**, nur mit `workshop.diskussion_aktiv()` ausgeliefertes Skript (`web_vereint._BEGRIFFSBOARD_JS`) hängt sich per `MutationObserver` an den unveränderten Panel-Tausch von `ladeBuehne()` und spielt FLIP, samt Erhalt der aufgeklappten „Warum"-Zeilen. Dortmund sieht kein Byte davon.
@@ -25,7 +27,7 @@ Bindende Entscheidungen (Architekt, Abschnitt D der Karte) — **nicht neu verha
 - Code-Bezeichner deutsch wie im Repo, Kommentare in ae/oe/ue wie im umgebenden Code. Nur erfundenes Material in Tests und Screenshots. Nie `.env`/`betrieb/` lesen.
 - Branch `wt/t_cb2c4678`, **kein Merge nach main, kein Push** (ein Push auf origin/main ist ≤ 5 min später LIVE). Nie den Haupt-Arbeitsbaum anfassen und **nie** dessen uncommittete Änderungen von Hand herüberkopieren. Ein Commit je Aufgabe, nur die genannten Dateien `git add`-en (nie `git add -A`; `.suite.log`, `.cc-*`, `.superpowers-*` bleiben ungetrackt). Commit-Nachrichten enden mit
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Testbefehle immer abwarten. Einzige Ausnahme sind die beiden Suite-Läufe (Aufgaben 1 und 7): im Hintergrund in `.suite.log`, **abwarten bis zum Ende, nicht abbrechen**.
+- Testbefehle immer abwarten. Einzige Ausnahme sind die beiden Suite-Läufe (Aufgaben 1 und 12): im Hintergrund in `.suite.log`, **abwarten bis zum Ende, nicht abbrechen**.
 - Kein bezahlter Modelllauf (Korpus, Simulation, `pruefe_prompts`) — Geld entscheidet Birk; der Prompt-Zusatz bleibt „ungemessen" (AGENTS.md, Aufgabe 7).
 
 **Abkürzungen in diesem Plan:**
@@ -118,10 +120,10 @@ Expected: kein Konflikt (der Branch trägt bis hierher nur diese Plandatei). Bei
 grep -n "def min_zeichen\|VORGABE_MIN_ZEICHEN = 600" interview_theater/begriffsboard.py
 grep -n "Zusammenfuehren statt verdoppeln" interview_theater/prompts/begriffsboard.md
 grep -n "Merge instead of duplicating" interview_theater/sprachen/en/prompts/begriffsboard.md
-$PY -m pytest tests/test_begriffsboard_lauf.py tests/test_begriffsboard_web.py tests/test_brainstorm.py -q -p no:cacheprovider
+$PY -m pytest tests/test_begriffsboard_lauf.py tests/test_begriffsboard_web.py tests/test_brainstorm.py tests/test_begriffsboard_mithoeren.py tests/test_begriffsboard_vorschlag.py -q -p no:cacheprovider
 ```
 
-Expected: drei Trefferzeilen, danach `… passed` ohne `failed`.
+Expected: drei Trefferzeilen, danach `… passed` ohne `failed`. Ist `tests/test_begriffsboard_mithoeren.py` oder `…_vorschlag.py` nach dem Merge rot, weil die neue Board-Schwelle (600) greift und die Fixtures nur `IT_BRAINSTORM_MIN_ZEICHEN` senken: **nicht hier reparieren** — als vorbestehend in der Baseline (Aufgabe 1) notieren; Aufgabe 8 stellt die Fixtures ohnehin auf `IT_BEGRIFFSBOARD_MIN_ZEICHEN` um (ANNAHME 8).
 
 Kein eigener Commit (der Merge ist der Commit).
 
@@ -701,7 +703,7 @@ $PY -m scripts.pruefe_sprache --dateien interview_theater/sprachen/en/prompts/be
 grep -n "begriffsboard" scripts/prompt_schnappschuss.py
 ```
 
-Expected: `… passed` ohne `failed`; Prüfer `0 Treffer`; `grep` ohne Ausgabe (ANNAHME: der Begriffsboard-Prompt steht nicht im Dortmund-Schnappschuss — gibt es doch einen Treffer, muss in Aufgabe 7 `tests/test_profil_bitgleich.py` trotzdem grün sein, weil der Prompt nur unter `padua-2026` gelesen wird; ist er rot, STOPP und berichten statt den Schnappschuss neu zu erzeugen).
+Expected: `… passed` ohne `failed`; Prüfer `0 Treffer`; `grep` ohne Ausgabe (ANNAHME: der Begriffsboard-Prompt steht nicht im Dortmund-Schnappschuss — gibt es doch einen Treffer, muss in Aufgabe 7/12 `tests/test_profil_bitgleich.py` trotzdem grün sein, weil der Prompt nur unter `padua-2026` gelesen wird; ist er rot, STOPP und berichten statt den Schnappschuss neu zu erzeugen).
 
 - [ ] **Step 10: Commit**
 
@@ -1527,7 +1529,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 7: AGENTS.md, Abschluss-Suite, Bericht
+### Task 7: AGENTS.md (Teil 1) und der Dortmund-Nachweis für Teil 1
+
+Die Abschluss-Suite und der Bericht stehen seit dem Nachtrag von Birk (Teil 2) in **Aufgabe 12**. Hier wird nur die Doku für Teil 1 nachgezogen, und es wird belegt, dass Teil 1 kein Byte der Dortmund-Fixtures braucht — **bevor** Teil 2 sie absichtlich ändert (Aufgabe 10). So bleibt der Fixture-Diff in Aufgabe 10 eindeutig der Pause zuzuordnen.
 
 **Files:**
 - Modify: `AGENTS.md`
@@ -1547,16 +1551,798 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - „Die Wortzahl „1–3" eines Begriffs (und damit eines Vorgängers) steht im Prompt, nicht im Code; der Code garantiert „ein Begriff, früher schon auf dem Board"."
 - „Ist der CoThinker beim letzten Messen verborgen, sortiert der nächste Tausch ohne Bewegung um (nur das offene „Warum" bleibt)."
 
-- [ ] **Step 2: Gezielte Pflichttests einzeln, mit Namen**
+- [ ] **Step 2: Teil 1 ist Dortmund-neutral — vor Teil 2 belegt**
 
 ```bash
-$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_profil_bitgleich.py tests/test_pruefe_sprache.py -q -p no:cacheprovider
-$PY -m pytest tests/test_begriffsboard.py tests/test_begriffsboard_lauf.py tests/test_begriffsboard_web.py tests/test_begriffsboard_mithoeren.py tests/test_begriffsboard_vorschlag.py tests/test_begriffsboard_einstieg.py tests/test_begriffsboard_schaerfung.py tests/test_begriffsboard_schaerfung_web.py tests/test_begriffsboard_flip.py -q -p no:cacheprovider
+$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py tests/test_profil_bitgleich.py -q -p no:cacheprovider
 BASIS=<SHA aus Aufgabe 0, Step 3>
 git diff --stat "$BASIS" HEAD -- tests/fixtures/
 ```
 
-Expected: beide Läufe `… passed`, kein `failed`; `git diff --stat` ohne Ausgabe (keine Fixture neu erzeugt).
+Expected: `… passed`, kein `failed`; `git diff --stat` **ohne Ausgabe** (Teil 1 hat keine Fixture angefasst). Diese Ausgabe kommt wörtlich in den Bericht (Aufgabe 12).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add AGENTS.md
+git commit -m "Begriffsboard: AGENTS.md -- Schaerfung, FLIP, elfte Einhaengezeile, Uebergaben (t_cb2c4678, Aufgabe 7)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+# Teil 2: Pause weg, Endstand = Zwischenstand (Birk, 04.10.2026 14:50)
+
+**Birks Entscheidung, wörtlich (Kartennachtrag):**
+1. Den Pause-Knopf des Mithörens in Phase 1 vollständig entfernen. Es bleiben nur Start („Start listening") und Fertig („Discussion done"). Interview-Pause (`#interview-pause`, `pausiereInterview`) und Brainstorm-Pause (Phase 4) bleiben unberührt; `_TEXT_INTERVIEW_PAUSE` bleibt (das Interview braucht ihn).
+2. „Bei Abschluss kann Ergebnis als Zwischenstand direkt kommen. Wenn es weitergeht aendert sich der Stand. Zwischenstand und Endstand muessen nicht anders behandelt werden."
+
+**Goal (Teil 2):** Phase 1 hat nur noch Start und Fertig; das Begriffsboard kennt keinen eigenen Abschlusspfad mehr — der Ende-Schnitt ist ein gewöhnlicher Schnitt unter derselben Regel (600 Zeichen), und „Discussion done" zeigt den Top-5-Vorschlag mit dem Board, wie es ist.
+
+**Architecture (Teil 2):** `begriffsboard.soll_laufen(conn, chat_id)` verliert `ist_abschluss` und behandelt `'ende'` wie `'pause'` (ohne Mindestabstand, Begründung unten); `nach_segment` entscheidet bei Fertig neu, sobald ein laufender Lauf endet (`merke_falls_laeuft`). `brainstorm.soll_reagieren` und der Phase-4-Pfad bleiben Zeichen für Zeichen. In `web_chat.py` fallen `#diskussion-pause`, `pausiereDiskussion`/`fortsetzeDiskussion`, `diskussionPauseKnopf`, `data-pausiert` an `#diskussion` und die nur der Diskussions-Pause dienenden Zweige weg — und weil dieser Code schon in Dortmunds Seite steht, werden drei Dortmund-Fixtures in **einer** eigenen Aufgabe neu erzeugt, mit Nachweis, dass sich dabei **nur Löschungen** ergeben.
+
+## Global Constraints (Teil 2, zusätzlich zu oben)
+
+- **D4 gilt für Teil 2 ausdrücklich NICHT für die Fixtures** (Architekt-Entscheidung zum Nachtrag): `tests/fixtures/web_vereint_dortmund_vorher.html` (Zeilen 903, 905, 1905, 3952, 3981–3982, 4034, 4056, 4401–4405) und `tests/fixtures/werkbank_vorher_vereint_vorgabe.html` / `werkbank_vorher_vereint_dortmund-2026.html` (gelesen von `tests/test_werkbank_bitgleich.py`) enthalten den Diskussions-Pause-Code bereits — versteckter Knopf und das unbedingt ausgelieferte `_CHAT_JS`. Er wird **vollständig entfernt** (kein profilgeschalteter toter Code), und genau diese drei Fixtures werden in **Aufgabe 10** neu erzeugt. Teil 1 erzeugt weiterhin **keinen** Fixture-Diff (Aufgabe 7, Step 2).
+- `tests/test_profil_bitgleich.py` (Prompt-Fingerabdruck) bleibt **ohne Änderung** grün — Teil 2 ändert keinen Prompt.
+- Unberührt: `brainstorm.soll_reagieren` (Signatur und Verhalten, inkl. des mit Aufgabe 0 gemergten `min_zeichen_override`), `aufnahme._brainstorm_abschliessen`, `#interview-pause`/`pausiereInterview`/`fortsetzeInterview`, `#brainstorm-pause`/`pausiereBrainstorm`/`fortsetzeBrainstorm`, `_TEXT_INTERVIEW_PAUSE`/`_WEITER`/`_PAUSIERT`, `beginneAufnahme` (sein `if (sitzung.pausiert)` dient Interview und Brainstorm), `formatiereUhr`.
+- `diskussion.starte` (Verdichtung) startet weiter auf `schnittgrund == 'ende'` in `aufnahme._diskussion_abschliessen` — unverändert.
+
+## Abwägung Abschlusspfad
+
+**Belegte Fakten (gegen den Stand nach Aufgabe 0 geprüft, Zeilen aus dem Worktree vor dem Merge):**
+
+- `brainstorm.soll_reagieren` ohne `ist_abschluss` löst nur aus, wenn `letzter_schnittgrund == "pause"` **und** `unreagierte_zeichen >= min_zeichen` **und** `sekunden_seit_letzter_reaktion >= min_abstand_s()` (`interview_theater/brainstorm.py:68-74`; nach dem Merge mit `min_zeichen_override`, siehe Diff in Aufgabe 0). `min_abstand_s()` ist 90 s (`brainstorm.py:22`).
+- `repo.begriffsboard_stand` zählt die Zeichen aller Diskussionssegmente **seit `bis_aufnahme_id` des letzten Boards** und liefert den Schnittgrund des **jüngsten** davon (`repo.py`, `begriffsboard_stand`; Test `tests/test_repo_begriffsboard.py::test_stand_zaehlt_nur_diskussionssegmente_nach_der_markierung`).
+- Das letzte Segment trägt `'ende'` nur aus `beendeDiskussion()` — **und bis heute auch aus `pausiereDiskussion()`** (`interview_theater/web_chat.py:2861` und `:2915`, je `if (… && sitzung.vadAktiv) { …_grund = 'ende' … }`). Server: `aufnahme._diskussion_abschliessen` macht aus jedem `'ende'` den Vorschlag **und** einen Verdichtungslauf (`interview_theater/aufnahme.py:980-988`). Heute löst also **jede Pause** einen Top-5-Vorschlag und eine Verdichtung aus — mit dem Wegfall der Pause gibt es `'ende'` nur noch einmal, bei „Discussion done".
+- Ohne Pausenschnitt (Dauerrede, harte Schnitte `'cap'` nach `IT_WEB_VAD_MAX_MS`) läuft das Board laufend **nie** (`tests/e2e/test_web_diskussion_e2e.py:97-102`: mit dem Chromium-Dauerton tragen alle Segmente `'cap'`).
+- Daten zum Sprechtempo: ~16 Zeichen/s, ein Gedanke median 614 Zeichen (`interview_theater/brainstorm.py:9-11`, gemessen an **Erwachsenen**-Meetings).
+
+**Wird der Sonderpfad einfach gelöscht**, kann das `'ende'`-Segment nie einen Lauf auslösen (es ist kein `'pause'`), und alles seit dem letzten Pausen-Lauf erreicht das Board nie — auch über 600 Zeichen, auch die ganze Diskussion, wenn alle Schnitte `'cap'` waren.
+
+| Option | Was bei „Discussion done" passiert | Was verloren geht | Eigene Regel? |
+|---|---|---|---|
+| **A** kein Lauf bei Fertig | nur der Vorschlag mit dem Board von zuletzt | alles seit dem letzten Pausen-Lauf, **unbegrenzt** (bei nur `'cap'`-Schnitten: alles) | nein |
+| **B** `'ende'` zählt als gewöhnlicher Schnitt, gleiche Schwelle 600 | Lauf, wenn ≥ 600 unreagierte Zeichen; danach der Vorschlag | ein Rest **unter** 600 Zeichen ≈ **unter ~37 s Rede** (600 ÷ 16 Zeichen/s) | nein — eine Regel, eine Schwelle |
+| **C** jeder Rest > 0 löst aus | Lauf schon bei wenigen Wörtern | nichts | **ja** — eine eigene Schwelle (> 0) nur für Fertig, genau der Sonderpfad, den Birk streicht |
+
+**Gewählt: B.** Es ist wörtlich „Endstand = Zwischenstand": der Ende-Schnitt durchläuft dieselbe Regel mit derselben Schwelle wie jeder Pausenschnitt, und ein großer Rest wird nicht weggeworfen. Was B verliert — ein Rest unter 600 Zeichen, nach den Erwachsenen-Daten unter rund 37 Sekunden Rede (ANNAHME: Schülerinnen und Schüler sprechen nicht wesentlich langsamer; ungemessen) — ist nach Birks Satz hingenommen: der Zwischenstand ist der Endstand. A verliert bis zur ganzen letzten Strecke, C führt den gestrichenen Sonderpfad unter anderem Namen wieder ein.
+
+**Mindestabstand bei `'ende'`: gilt nicht.** `min_abstand_s` (90 s) drosselt Läufe, *während* weitergeredet wird; ein abgewiesener Lauf verliert dort nichts, „die Zeichen laufen weiter auf" (`begriffsboard.py`, `_lauf_einmal`-Kommentar; `brainstorm.py` Kopf). Beim Ende-Schnitt kommt kein weiterer Schnitt mehr, der das Aufgeschobene nachholt — Aufschieben hieße dort Verwerfen, im schlimmsten Fall von weit mehr als 600 Zeichen (Lauf vor 80 s, danach 70 s Rede ≈ 1 100 Zeichen). Schwelle und Schnittbedingung bleiben dieselben; nur die Wartezeit, deren Zweck am Ende entfällt, fällt weg. Umgesetzt **in `begriffsboard.soll_laufen`** (`'ende'` → wie `'pause'`, Sekunden → ∞), `brainstorm.soll_reagieren` bleibt unverändert.
+
+**Ein laufender Lauf bei „Discussion done".** Heute (`nach_segment`) kommt der Vorschlag sofort, wenn kein Schlusslauf nötig ist — auch wenn gerade ein regulärer Lauf läuft, also mit dem Board **vor** diesem Lauf; und ist ein Schlusslauf nötig, aber einer läuft schon, merkt `nimm_oder_merke` nur den Vorschlag, der Rest seit dessen Markierung (`bis_id` wird **vor** dem Lauf gelesen) bliebe ungelesen. Birk: „with the board AS IT IS (if a regular run is in flight, after it)". Deshalb merkt `nach_segment` bei Fertig, wenn ein Lauf unterwegs ist, **sich selbst** (`merke_falls_laeuft`) und entscheidet nach dessen Ende neu — dieselbe Regel B auf den dann aktuellen Zahlen. Kein eigener Pfad: es ist derselbe Aufruf, nur später.
+
+**Bestätigt: der Ende-Schnitt kommt weiter aus `beendeDiskussion()`** (`web_chat.py:2915`) — der Test `test_fertig_setzt_weiter_den_grund_ende` (Aufgabe 9) hält es fest. Er gilt, wie bisher, **nur mit aktivem VAD** (`sitzung.vadAktiv`); siehe Befund 1 unten.
+
+**Befunde, außerhalb dieser Karte (nicht behoben, in AGENTS.md als Übergabe):**
+1. Ohne VAD (Rückfall auf den festen Takt, `web_chat.py:2413`) trägt kein Segment einen Schnittgrund — Phase 1 macht dann weder Board-Läufe noch Vorschlag noch Verdichtung. Das war vor dieser Karte genauso (Test `tests/test_web_chat_js.py::test_der_grund_ende_wird_nur_mit_aktivem_vad_gesetzt` hält die Wache absichtlich fest).
+2. Hat das letzte Teilstück bei „Discussion done" keine Bytes, wird es nicht hochgeladen (`web_chat.py` `r.onstop`: `if (teile.length && …)`) — dann kommt kein `'ende'` beim Server an. Ebenfalls vorher schon so.
+
+## Abweichung im Nachweis (Teil 2)
+
+Der Kartennachtrag verlangt für Aufgabe 10 „null `+`-Zeilen" im Fixture-Diff. **Zeilenweise ist das nicht erreichbar:** der Knopf steht in einer gerenderten Zeile mit anderem Inhalt, `tests/fixtures/web_vereint_dortmund_vorher.html:903` `<button type="button" id="diskussion" data-laeuft="0" data-pausiert="0" hidden>Zuhoeren starten</button>` — das Attribut zu streichen ergibt zwangsläufig eine `-`- und eine `+`-Zeile; dasselbe gilt für den Kommentar `:3952` „(#diskussion, #diskussion-pause, #diskussion-beenden)". Der Nachweis wird deshalb **wortweise** geführt (`git diff --word-diff=porcelain`): **null hinzugefügte Wörter**, und jedes gelöschte Stück ist entweder eine in Aufgabe 9 gelöschte Quellzeile von `web_chat.py` oder eines von genau drei benannten Tokens (`data-pausiert="0"`, `#diskussion-pause,`, die Knopfzeile). Das ist dieselbe Aussage — „nur Löschungen, nur Pause-Code" — in einer Form, die maschinell prüfbar ist.
+
+## Dateiübersicht (Teil 2)
+
+| Datei | Aufgabe | Was |
+|---|---|---|
+| `interview_theater/begriffsboard.py` | 8 | `soll_laufen(conn, chat_id)`, `merke_falls_laeuft`, `nach_segment`, Moduldocstring |
+| `interview_theater/aufnahme.py` | 8 | nur Docstring von `_diskussion_abschliessen` |
+| `tests/test_begriffsboard_abschluss.py` (neu) | 8 | B, Mindestabstand, laufender Lauf, Mutant |
+| `tests/test_begriffsboard_lauf.py`, `tests/test_begriffsboard_vorschlag.py`, `tests/test_begriffsboard_mithoeren.py` | 8 | anpassen bzw. löschen (Liste unten) |
+| `interview_theater/web_chat.py` | 9 | Pause des Mithörens weg (Markup, JS, Kommentare) |
+| `tests/test_web_chat_diskussion_ohne_pause.py` (neu) | 9 | Markup/JS ohne Pause, Ende-Schnitt, Interview/Brainstorm-Pause bleiben |
+| `tests/test_web_chat_js.py`, `tests/test_web_chat_diskussion_knopf.py` | 9 | anpassen bzw. löschen (Liste unten) |
+| `tests/fixtures/web_vereint_dortmund_vorher.html`, `tests/fixtures/werkbank_vorher_vereint_vorgabe.html`, `tests/fixtures/werkbank_vorher_vereint_dortmund-2026.html` | 10 | neu erzeugt, nur Löschungen |
+| `tests/e2e/test_web_diskussion_e2e.py` | 11 | Schlusslauf-Annahme raus, Start+Fertig belegt |
+| `AGENTS.md` | 12 | Diskussionsknöpfe, Auslöser (D1/D6), Übergaben |
+
+## Vollständige Testliste Teil 2 (die Autorität, neu gegrept)
+
+Gegrept mit `grep -rn "ist_abschluss\|diskussion-pause\|pausiereDiskussion\|fortsetzeDiskussion\|diskussionPauseKnopf\|data-pausiert\|MIN_ZEICHEN_BEI_ABSCHLUSS\|min_zeichen_bei_abschluss\|_grund = 'ende'\|beginneAufnahme(sitzung);" tests` plus Lesen jeder Fundstelle. ANNAHME: Zeilennummern sind die des Worktrees **vor** dem Merge aus Aufgabe 0; der Merge ändert in `tests/test_begriffsboard_lauf.py` die Umgebungsvariablen und die erwarteten kwargs (Diff in Aufgabe 0), nicht die Testnamen.
+
+| Datei::Test | Änderung | Aufgabe |
+|---|---|---|
+| `tests/test_begriffsboard_lauf.py::test_unter_der_zeichenschwelle_kein_lauf` | anpassen: `soll_laufen(conn, CHAT)` statt `…, ist_abschluss=False)` | 8 |
+| `tests/test_begriffsboard_lauf.py::test_ueber_der_schwelle_nach_pause_laeuft` | anpassen: dito | 8 |
+| `tests/test_begriffsboard_lauf.py::test_cap_schnitt_loest_nicht_aus` | anpassen: dito | 8 |
+| `tests/test_begriffsboard_lauf.py::test_mindestabstand_nach_einem_lauf` | anpassen: dito | 8 |
+| `tests/test_begriffsboard_lauf.py::test_abschluss_mit_niedriger_schwelle` | **löschen** (prüft genau den gestrichenen Pfad; ersetzt durch `test_keine_eigene_abschlussschwelle` + Mutant) | 8 |
+| `tests/test_begriffsboard_lauf.py::test_soll_laufen_ruft_brainstorm_soll_reagieren_unveraendert` | anpassen: Aufruf ohne `ist_abschluss`; erwartete kwargs bleiben (`ist_abschluss: False`, `min_zeichen_override: begriffsboard.min_zeichen()`) | 8 |
+| `tests/test_begriffsboard_vorschlag.py::test_leeres_board_heutiger_text` | anpassen: `IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS` → `IT_BEGRIFFSBOARD_MIN_ZEICHEN` (Wert 100000) | 8 |
+| `tests/test_begriffsboard_vorschlag.py::test_ohne_schlusslauf_sofort_die_top_fuenf_mit_einem_knopf` | anpassen: dito (100000) | 8 |
+| `tests/test_begriffsboard_vorschlag.py::test_mit_schlusslauf_kommt_der_vorschlag_erst_danach` | anpassen: dito (Wert 10) — der „Schlusslauf" ist jetzt der reguläre Lauf auf dem Ende-Schnitt; Docstring/Kommentar entsprechend | 8 |
+| `tests/test_begriffsboard_vorschlag.py::test_gescheiterter_schlusslauf_nimmt_das_aktuelle_board` | anpassen: dito (10) | 8 |
+| `tests/test_begriffsboard_vorschlag.py::test_gesamtverdichtung_startet_unabhaengig` | anpassen: dito (100000) | 8 |
+| `tests/test_begriffsboard_vorschlag.py::test_take_these_speichert_begriffe_und_detail_einmal` | anpassen: dito (100000) | 8 |
+| `tests/test_begriffsboard_mithoeren.py` (autouse-Fixture `aktiv`, alle 7 Tests der Datei) | anpassen: Zeile `IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS = "10"` → `IT_BEGRIFFSBOARD_MIN_ZEICHEN = "10"` (steht die Zeile nach dem Merge schon da: nur die Abschluss-Zeile löschen) | 8 |
+| `tests/test_begriffsboard_abschluss.py` (8 Tests) | **neu** | 8 |
+| `tests/test_web_chat_js.py::test_manuelle_schnitte_tragen_den_grund_ende` | anpassen: `== 6` → `== 5`, Kommentar ohne `pausiereDiskussion` | 9 |
+| `tests/test_web_chat_js.py::test_beginneaufnahme_ist_der_einzige_ort_der_die_aufnahme_beginnt` | anpassen: `beginneAufnahme(sitzung);`-Zählung `== 6` → `== 5`, Kommentar ohne `fortsetzeDiskussion` | 9 |
+| `tests/test_web_chat_js.py::test_der_diskussion_knopf_steht_immer_im_markup_aber_hidden_ausserhalb_phase_1` | anpassen: Kennungen ohne `diskussion-pause` („drei" statt „vier" Elemente); erwartete Tags `id="diskussion" data-laeuft="0">` bzw. `… data-laeuft="0" hidden>` (zweimal); Blockkommentar darüber ohne `#diskussion-pause` | 9 |
+| `tests/test_web_chat_js.py::test_starte_diskussion_lehnt_waehrend_interview_oder_wechsel_ab` | anpassen: Schnittende `"function pausiereDiskussion"` → `"function beendeDiskussion"` | 9 |
+| `tests/test_web_chat_js.py::test_fortsetzediskussion_hat_dieselbe_sperrklinke_wie_brainstorm` | **löschen** (Funktion entfällt) | 9 |
+| `tests/test_web_chat_js.py::test_diskussion_pruefeende_tut_nie_etwas` | anpassen: Schnittende → `"function beendeDiskussion"` | 9 |
+| `tests/test_web_chat_js.py::test_diskussion_knoepfe_sind_verdrahtet` | anpassen: Pause-Asserts raus, `wiring` ab `"if (diskussionBeendenKnopf)"`, neu `assert "diskussionPauseKnopf" not in js` | 9 |
+| `tests/test_web_chat_js.py::test_manuelle_schnitte_tragen_den_grund_ende_fuer_diskussion_auch` | anpassen: nur noch `beendeDiskussion` prüfen | 9 |
+| `tests/test_web_chat_diskussion_knopf.py::test_der_knopf_ist_standardmaessig_verborgen` | anpassen: Kennungen ohne `diskussion-pause`, Docstring „drei Elemente" | 9 |
+| `tests/test_web_chat_diskussion_ohne_pause.py` (4 Tests) | **neu** | 9 |
+| `tests/test_web_vereint_bitgleich.py::test_vereinte_seite_bleibt_byte_gleich[None]`, `[dortmund-2026]` | Code unverändert; **Fixture neu erzeugt** | 10 |
+| `tests/test_werkbank_bitgleich.py::test_ohne_schalter_bleibt_die_werkbank_byte_gleich[None]`, `[dortmund-2026]` | Code unverändert; **Fixtures `werkbank_vorher_vereint_*` neu erzeugt** (`_gruppe_*`/`_koerper_*` bleiben byte-gleich) | 10 |
+| `tests/e2e/test_web_diskussion_e2e.py::test_begriffsboard_im_cothinker_und_top5_vorschlag` | anpassen: `IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS=1` → `IT_BEGRIFFSBOARD_MIN_ZEICHEN=1`; Docstring „Schlusslauf" → „regulärer Lauf auf dem Ende-Schnitt" | 11 |
+| `tests/e2e/test_web_diskussion_e2e.py::test_diskussion_voller_ablauf_im_browser` | anpassen (Ergänzung): nach dem Start genau **ein** Knopf in `#diskussion-aktionen`, kein `#diskussion-pause` | 11 |
+
+**Geprüft und unberührt** (Fundstellen betreffen nur Interview/Brainstorm/Phase 4 oder nennen Pause nur im Kommentar):
+`tests/test_brainstorm.py` (alle, inkl. der beiden `min_zeichen_override`-Tests aus dem Merge — der Override überlebt, `soll_laufen` nutzt ihn weiter), `tests/test_aufnahme.py::test_abschluss_schnitt_feuert_schon_ab_150_zeichen` (Phase-4-Brainstorm), `tests/test_aufnahme_diskussion.py` (Ende-Segment ohne `klm` → kein Lauf, Vorschlag sofort = heutiges Verhalten), `tests/test_web_chat_js.py` Interview-/Brainstorm-Pause-Tests (z. B. `test_pause_weiter_knopf_wechselt_auf_die_richtige_funktion`, `test_formatiereuhr_zaehlt_erfasstems_plus_laufende_spanne`, `test_keine_zweite_parallele_merkvariable_fuer_pause`, `test_pausiert_schutz_lebt_nur_noch_in_beginneaufnahme`, `test_die_seite_traegt_den_modus_schon_beim_laden`, `test_der_brainstorm_knopf_steht_immer_im_markup_aber_hidden_ausserhalb_phase_4`), die zwei Node-Tests `test_zeigemodus_fuehrt_brainstorm_und_diskussion_zusammen_in_node` / `test_zeigemodus_brainstorm_nur_szenario_bleibt_byte_identisch_zu_vor_task6_in_node` (deklarieren `diskussionPauseKnopf` nur noch als ungenutzte Variable — harmlos, bleibt), `test_startebrainstorm_und_pttpointerdown_lehnen_waehrend_diskussion_tatsaechlich_ab_in_node` (`{ pausiert: false }` als Attrappe, harmlos), `tests/test_web_chat_sprache.py` (prüft „Pause" bewusst nicht, `:104-107`), `tests/e2e/test_web_chat_e2e.py` und `tests/e2e/test_web_gestalt_e2e.py` (nur `#interview[data-pausiert]`), `tests/test_sprache_bitgleich.py` (keine Textkonstante fällt weg), `tests/test_profil_bitgleich.py`.
+
+---
+
+### Task 8: Endstand = Zwischenstand im Begriffsboard
+
+**Files:**
+- Modify: `interview_theater/begriffsboard.py` (`soll_laufen`, neu `merke_falls_laeuft` direkt hinter `laeuft`, `nach_segment`, Moduldocstring)
+- Modify: `interview_theater/aufnahme.py` (nur Docstring `_diskussion_abschliessen`)
+- Create: `tests/test_begriffsboard_abschluss.py`
+- Modify: `tests/test_begriffsboard_lauf.py`, `tests/test_begriffsboard_vorschlag.py`, `tests/test_begriffsboard_mithoeren.py` (Liste oben)
+
+**Interfaces:**
+- Consumes: `begriffsboard.min_zeichen()` (Aufgabe 0), `brainstorm.soll_reagieren(*, unreagierte_zeichen, sekunden_seit_letzter_reaktion, letzter_schnittgrund, ist_abschluss, min_zeichen_override=None)` (unverändert), `repo.begriffsboard_stand`, `nimm_oder_merke`/`beende`/`_rufe`.
+- Produces:
+  - `begriffsboard.soll_laufen(conn, chat_id: int) -> bool` — **ohne** `ist_abschluss`.
+  - `begriffsboard.merke_falls_laeuft(chat_id: int, danach) -> bool` — True: ein Lauf ist unterwegs, `danach` läuft nach ihm; False: nichts gemerkt.
+  - `begriffsboard.nach_segment(conn, tg, klm, e, chat_id, *, ist_abschluss: bool, rueckfall_text=None) -> None` — Signatur unverändert (Aufrufer `aufnahme._diskussion_abschliessen` bleibt), `ist_abschluss` heißt nur noch „Sitzung zu Ende, danach der Vorschlag".
+
+- [ ] **Step 1: Failing tests schreiben** — `tests/test_begriffsboard_abschluss.py`:
+
+```python
+"""Karte t_cb2c4678, Teil 2 (Birk 04.10.2026 14:50): "Zwischenstand und
+Endstand muessen nicht anders behandelt werden." Der Ende-Schnitt
+("Discussion done") ist ein gewoehnlicher Schnitt unter derselben Regel wie
+ein Pausenschnitt (600 Zeichen, ``begriffsboard.min_zeichen``) -- ohne eigene
+Schwelle, ohne Mindestabstand (danach kommt kein Schnitt mehr). Laeuft gerade
+ein Lauf, wird nach ihm neu entschieden. Nur erfundenes Material."""
+
+import inspect
+import threading
+import time
+
+import pytest
+
+from interview_theater import (aufnahme, begriffsboard, brainstorm, db, diskussion,
+                               einstellungen, repo, workshop)
+
+CHAT = 1
+KURZ = "Heimat und Grenze."
+LANG = "Heimat und Grenze und Mut. " * 12   # 324 Zeichen
+HEIMAT = {"begriff": "Heimat", "nennungen": 2, "zustimmung": 2, "begruendung": "Weil Heimat.",
+          "zitat": "", "doppelbedeutung": "", "status": "favorit"}
+GRENZE = dict(HEIMAT, begriff="Grenze", begruendung="Weil Grenze.", status="kandidat")
+
+
+@pytest.fixture(autouse=True)
+def aktiv(monkeypatch):
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(diskussion, "starte", lambda *a, **k: None)
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "1")
+
+
+@pytest.fixture
+def einst(tmp_path):
+    return einstellungen.Einstellungen(
+        bot_token="T", bot_name="gruppe1", db_pfad=str(tmp_path / "t.db"),
+        audio_verz=str(tmp_path / "audio"),
+        llm_url="https://llm.test/v1/chat/completions", llm_key="K", llm_modell="kimi",
+        stt_basis="https://stt.test", stt_produkt="PRODUKT-ID",
+    )
+
+
+@pytest.fixture
+def conn(tmp_path):
+    c = db.verbinde(str(tmp_path / "t.db"))
+    db.initialisiere(c)
+    repo.sichere_gruppe(c, CHAT, "gruppe1", "Testgruppe")
+    return c
+
+
+class _TG:
+    def __init__(self):
+        self.gesendet, self.mit_knoepfen, self._id = [], [], 900
+
+    def sende(self, chat_id, text, **_kw):
+        self.gesendet.append((chat_id, text))
+        self._id += 1
+        return self._id
+
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
+        mid = self.sende(chat_id, text)
+        self.mit_knoepfen.append((chat_id, text, list(knoepfe_)))
+        return mid
+
+    # Wie ``tests/test_begriffsboard_vorschlag.py::_TG`` -- falls der
+    # Vorschlagsweg sie beruehrt.
+    def beantworte_knopf(self, callback_query_id, text=""):
+        pass
+
+    def entferne_knoepfe(self, chat_id, message_id):
+        pass
+
+    def tippt(self, chat_id):
+        pass
+
+
+class _KLM:
+    """Liefert der Reihe nach ``boards``; der erste Aufruf wartet auf ``halt``."""
+
+    def __init__(self, *boards, halt=None):
+        self.boards, self.halt, self.aufrufe = list(boards), halt, 0
+
+    def schema(self, chat_id, system, nutzer, schema, art, modell=None, bei_teil=None):
+        self.aufrufe += 1
+        if self.halt is not None and self.aufrufe == 1:
+            self.halt.wait(5)
+        return {"board": self.boards.pop(0) if self.boards else []}
+
+
+def _zeile(conn, message_id, schnittgrund, text=KURZ):
+    aid = repo.lege_aufnahme_an(conn, CHAT, message_id, "kurz", "sprache", status="transkribiert",
+                                diskussion=True, schnittgrund=schnittgrund)
+    repo.setze_transkript(conn, aid, text)
+    repo.merke_nachricht(conn, CHAT, message_id, "Gruppe", 0, "sprache", None, repo._jetzt(), 1)
+    return repo.hole_aufnahme(conn, aid)
+
+
+def _warte_bis(bedingung, timeout=5.0):
+    ende = time.monotonic() + timeout
+    while time.monotonic() < ende:
+        if bedingung():
+            return
+        time.sleep(0.01)
+    assert bedingung(), "Bedingung nie eingetreten"
+
+
+def test_soll_laufen_kennt_keinen_abschluss_mehr():
+    assert list(inspect.signature(begriffsboard.soll_laufen).parameters) == ["conn", "chat_id"]
+
+
+def test_ende_schnitt_zaehlt_wie_ein_pausenschnitt(conn, monkeypatch):
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
+    _zeile(conn, 10, "ende")
+    assert begriffsboard.soll_laufen(conn, CHAT) is True
+
+
+def _pruefe_keine_eigene_abschlussschwelle(conn, einst):
+    """Ende-Schnitt mit 18 Zeichen: unter der Board-Schwelle (1000), ueber
+    der alten Abschluss-Schwelle (10) -- es darf KEIN Lauf starten, und der
+    Vorschlag kommt sofort (leeres Board -> der heutige Satz)."""
+    klm, tg = _KLM([HEIMAT]), _TG()
+    aufnahme._kurz_abschliessen(conn, tg, klm, einst, _zeile(conn, 20, "ende"),
+                                aufnahme._kein_zug, False)
+    time.sleep(0.1)
+    _warte_bis(lambda: not begriffsboard.laeuft(CHAT))
+    assert klm.aufrufe == 0
+    assert tg.gesendet == [(CHAT, aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE)]
+
+
+def test_keine_eigene_abschlussschwelle(conn, einst, monkeypatch):
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1000")
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
+    _pruefe_keine_eigene_abschlussschwelle(conn, einst)
+
+
+def test_mutant_mit_dem_alten_abschlusszweig_faellt_durch(conn, einst, monkeypatch):
+    """Mutant: wer den alten Zweig (``ist_abschluss=True`` mit
+    ``min_zeichen_bei_abschluss``, Vorgabe 150) zurueckbringt, muss den Test
+    oben rot machen."""
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1000")
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
+    echt = begriffsboard.soll_laufen
+
+    def alter_zweig(conn_, chat_id):
+        stand = repo.begriffsboard_stand(conn_, chat_id)
+        if stand["letzter_schnittgrund"] == "ende":
+            return brainstorm.soll_reagieren(
+                unreagierte_zeichen=stand["unreagierte_zeichen"],
+                sekunden_seit_letzter_reaktion=0.0,
+                letzter_schnittgrund="ende", ist_abschluss=True,
+            )
+        return echt(conn_, chat_id)
+
+    monkeypatch.setattr(begriffsboard, "soll_laufen", alter_zweig)
+    with pytest.raises(AssertionError):
+        _pruefe_keine_eigene_abschlussschwelle(conn, einst)
+
+
+def test_ende_ignoriert_den_mindestabstand_ein_pausenschnitt_nicht(conn, monkeypatch):
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "3600")
+    a = _zeile(conn, 30, "pause")
+    repo.lege_begriffsboard_an(conn, CHAT, "[]", "sovereign", a["id"])
+    _zeile(conn, 31, "pause")
+    assert begriffsboard.soll_laufen(conn, CHAT) is False   # gleich nach einem Lauf
+    _zeile(conn, 32, "ende")
+    assert begriffsboard.soll_laufen(conn, CHAT) is True    # am Ende: nichts mehr aufschieben
+
+
+def test_vorschlag_wartet_auf_den_laufenden_lauf_und_zeigt_dessen_board(conn, einst, monkeypatch):
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1000")   # der Rest reicht nicht
+    _zeile(conn, 40, "pause")
+    halt = threading.Event()
+    klm, tg = _KLM([HEIMAT], halt=halt), _TG()
+    assert begriffsboard.starte(conn, klm, einst, CHAT) is True
+    _warte_bis(lambda: klm.aufrufe == 1)
+    aufnahme._kurz_abschliessen(conn, tg, klm, einst, _zeile(conn, 41, "ende"),
+                                aufnahme._kein_zug, False)
+    time.sleep(0.1)
+    assert tg.gesendet == [] and tg.mit_knoepfen == []       # noch nicht: es laeuft einer
+    halt.set()
+    _warte_bis(lambda: len(tg.mit_knoepfen) == 1)
+    assert "1. Heimat" in tg.mit_knoepfen[0][1]
+    assert klm.aufrufe == 1
+
+
+def test_rest_ueber_der_schwelle_wird_nach_dem_laufenden_lauf_gelesen(conn, einst, monkeypatch):
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100")
+    _zeile(conn, 50, "pause", LANG)
+    halt = threading.Event()
+    klm, tg = _KLM([HEIMAT], [HEIMAT, GRENZE], halt=halt), _TG()
+    assert begriffsboard.starte(conn, klm, einst, CHAT) is True
+    _warte_bis(lambda: klm.aufrufe == 1)
+    aufnahme._kurz_abschliessen(conn, tg, klm, einst, _zeile(conn, 51, "ende", LANG),
+                                aufnahme._kein_zug, False)
+    halt.set()
+    _warte_bis(lambda: len(tg.mit_knoepfen) == 1)
+    assert klm.aufrufe == 2
+    assert "Grenze" in tg.mit_knoepfen[0][1]
+
+
+def test_merke_falls_laeuft():
+    gerufen = []
+    assert begriffsboard.merke_falls_laeuft(99, lambda: gerufen.append(1)) is False
+    assert begriffsboard.nimm_oder_merke(99, None) is True
+    assert begriffsboard.merke_falls_laeuft(99, lambda: gerufen.append(2)) is True
+    begriffsboard._rufe(begriffsboard.beende(99))
+    assert gerufen == [2]
+```
+
+- [ ] **Step 2: Rot laufen lassen**
+
+Run: `$PY -m pytest tests/test_begriffsboard_abschluss.py -q -p no:cacheprovider`
+Expected: FAIL — u. a. `test_soll_laufen_kennt_keinen_abschluss_mehr` (`['conn', 'chat_id', 'ist_abschluss']`), `TypeError: soll_laufen() missing 1 required keyword-only argument: 'ist_abschluss'`, `AttributeError: … 'merke_falls_laeuft'`, `test_keine_eigene_abschlussschwelle` (`klm.aufrufe == 1`: der alte Zweig startet bei 18 ≥ 10 Zeichen). `test_mutant_…` ist schon grün (er erwartet das Rot des alten Verhaltens).
+
+- [ ] **Step 3: `soll_laufen`** — in `begriffsboard.py` ersetzen durch:
+
+```python
+def soll_laufen(conn, chat_id: int) -> bool:
+    """D1 und Birk 04.10.2026 14:50 ("Zwischenstand und Endstand muessen
+    nicht anders behandelt werden"): EINE Regel fuer jeden Lauf --
+    ``brainstorm.soll_reagieren`` unveraendert, mit den eigenen Zahlen der
+    Phase 1 (``repo.begriffsboard_stand``) und der eigenen Schwelle
+    (``min_zeichen``). Der Schnitt "Discussion done" (``'ende'``) zaehlt wie
+    ein Pausenschnitt; nur der Mindestabstand gilt dort nicht -- er schiebt
+    auf, und nach dem Ende kommt kein Schnitt mehr, der das Aufgeschobene
+    nachholt. Kein eigener Abschlusspfad, keine eigene Schwelle (Abwaegung
+    im Plan 2026-10-04-padua-begriffsboard-ranking-schaerfung, Teil 2).
+    Kein Modellaufruf."""
+    stand = repo.begriffsboard_stand(conn, chat_id)
+    grund = stand["letzter_schnittgrund"]
+    sekunden = stand["sekunden_seit_letztem_lauf"]
+    ende = grund == "ende"
+    return brainstorm.soll_reagieren(
+        unreagierte_zeichen=stand["unreagierte_zeichen"],
+        sekunden_seit_letzter_reaktion=(
+            float("inf") if ende or sekunden is None else sekunden),
+        letzter_schnittgrund="pause" if ende else grund,
+        ist_abschluss=False,
+        min_zeichen_override=min_zeichen(),
+    )
+```
+
+(Der Pausenfall ruft damit **wortgleich** dieselben kwargs wie vorher — `test_soll_laufen_ruft_brainstorm_soll_reagieren_unveraendert` hält das fest.)
+
+- [ ] **Step 4: `merke_falls_laeuft`** — direkt hinter `laeuft()`:
+
+```python
+def merke_falls_laeuft(chat_id: int, danach) -> bool:
+    """True, wenn gerade ein Boardlauf dieser Gruppe laeuft -- dann laeuft
+    ``danach`` nach seinem Ende (``beende`` liefert es). False: es laeuft
+    keiner, nichts gemerkt. Unter derselben Sperre wie ``nimm_oder_merke``:
+    zwischen "laeuft" und "gemerkt" kann kein ``beende`` den Merkplatz leeren."""
+    with _LAEUFT_LOCK:
+        if chat_id in _LAEUFT:
+            _DANACH.setdefault(chat_id, []).append(danach)
+            return True
+        return False
+```
+
+- [ ] **Step 5: `nach_segment`** — ersetzen durch:
+
+```python
+def nach_segment(conn, tg, klm, e, chat_id: int, *, ist_abschluss: bool,
+                 rueckfall_text: str | None = None) -> None:
+    """Der Einhaengepunkt in ``aufnahme._diskussion_abschliessen``, je
+    Segment. Entscheidet per Code (``soll_laufen``, EINE Regel fuer jeden
+    Schnitt), ob ein Boardlauf faellig ist, und stoesst ihn im Thread an.
+
+    ``ist_abschluss`` heisst seit Birks Entscheidung vom 04.10.2026 nur
+    noch "die Sitzung ist zu Ende": es aendert KEINE Schwelle, es haengt
+    nur den Vorschlag (``sende_vorschlag``) an -- nach dem Lauf, den dieser
+    Schnitt ausloest, sonst sofort, mit dem Board, wie es ist. Laeuft beim
+    Ende gerade ein Lauf, wird nach ihm NEU entschieden (derselbe Aufruf,
+    nur spaeter): sonst bliebe der Rest seit seiner Markierung ungelesen,
+    und der Vorschlag zeigte den Stand davor. Ohne Profil, ohne Modell: nur
+    der Satz, wie bisher."""
+    if ist_abschluss and merke_falls_laeuft(chat_id, lambda: nach_segment(
+            conn, tg, klm, e, chat_id, ist_abschluss=True, rueckfall_text=rueckfall_text)):
+        return
+    danach = None
+    if ist_abschluss:
+        def danach() -> None:
+            sende_vorschlag(conn, tg, chat_id, rueckfall_text)
+
+    if klm is not None and workshop.diskussion_aktiv() and soll_laufen(conn, chat_id):
+        starte(conn, klm, e, chat_id, danach=danach)
+        return
+    if danach is not None:
+        danach()
+```
+
+Im Moduldocstring den Satz „bei "Discussion done" schlaegt der Bot seine Top 5 vor" ergänzen um: „— nach Birks Entscheidung vom 04.10.2026 ohne eigenen Schlusslauf: der Ende-Schnitt ist ein gewöhnlicher Schnitt (`soll_laufen`), der Vorschlag zeigt das Board, wie es ist."
+
+In `aufnahme._diskussion_abschliessen` den letzten Docstring-Absatz ersetzen durch: „Beim Abschluss-Segment (`schnittgrund == 'ende'`, allein aus „Discussion done" — Phase 1 hat seit 04.10.2026 keinen Pause-Knopf mehr) kommt danach der Vorschlag der Top 5 (oder, bei leerem Board, die bisherige Aufforderung) — nach einem Lauf, den dieser Schnitt unter der gewöhnlichen Regel auslöst, oder nach einem gerade laufenden — und, unabhängig davon, der EINE Verdichtungslauf (`diskussion.starte`)." Code dort unverändert.
+
+- [ ] **Step 6: Bestehende Tests nachziehen** (Liste „Vollständige Testliste Teil 2", Aufgabe 8):
+
+```bash
+sed -i 's/begriffsboard.soll_laufen(conn, CHAT, ist_abschluss=False)/begriffsboard.soll_laufen(conn, CHAT)/' tests/test_begriffsboard_lauf.py
+sed -i 's/"IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS"/"IT_BEGRIFFSBOARD_MIN_ZEICHEN"/' tests/test_begriffsboard_vorschlag.py
+grep -n "ist_abschluss=True\|MIN_ZEICHEN_BEI_ABSCHLUSS" tests/test_begriffsboard_lauf.py tests/test_begriffsboard_vorschlag.py tests/test_begriffsboard_mithoeren.py
+```
+
+Danach von Hand: in `tests/test_begriffsboard_lauf.py` die Funktion `test_abschluss_mit_niedriger_schwelle` **löschen**; in `tests/test_begriffsboard_mithoeren.py` (Fixture `aktiv`) die Zeile `monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")` ersetzen durch `monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")` (steht diese Zeile dort nach dem Merge schon: nur die Abschluss-Zeile löschen); in `tests/test_begriffsboard_vorschlag.py` die Docstrings/Kommentare, die „Schlusslauf" sagen, auf „Lauf auf dem Ende-Schnitt" umschreiben (Testnamen bleiben). Expected nach dem `grep`: keine Ausgabe mehr außer gegebenenfalls Kommentarzeilen.
+
+- [ ] **Step 7: Grün laufen lassen + Phase-4- und Dortmund-Nachweis**
+
+```bash
+$PY -m pytest tests/test_begriffsboard_abschluss.py tests/test_begriffsboard_lauf.py tests/test_begriffsboard_vorschlag.py tests/test_begriffsboard_mithoeren.py tests/test_aufnahme_diskussion.py tests/test_brainstorm.py tests/test_aufnahme.py -q -p no:cacheprovider
+$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py tests/test_profil_bitgleich.py -q -p no:cacheprovider
+git diff --stat HEAD -- interview_theater/brainstorm.py tests/test_brainstorm.py
+```
+
+Expected: beide Läufe `… passed`, kein `failed`; `git diff --stat` ohne Ausgabe (Phase 4 unberührt). Die Bitgleich-Tests sind hier noch grün gegen die **alten** Fixtures — der Server-Teil berührt keine Dortmund-Bytes.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add interview_theater/begriffsboard.py interview_theater/aufnahme.py tests/test_begriffsboard_abschluss.py tests/test_begriffsboard_lauf.py tests/test_begriffsboard_vorschlag.py tests/test_begriffsboard_mithoeren.py
+git commit -m "Begriffsboard: Endstand = Zwischenstand -- Ende-Schnitt unter derselben Regel, kein Abschlusspfad (t_cb2c4678, Aufgabe 8)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 9: Pause-Knopf des Mithörens entfernen (Markup + JS)
+
+**Files:**
+- Modify: `interview_theater/web_chat.py`
+- Create: `tests/test_web_chat_diskussion_ohne_pause.py`
+- Modify: `tests/test_web_chat_js.py`, `tests/test_web_chat_diskussion_knopf.py` (Liste oben)
+
+**Interfaces:**
+- Produces (Markup-Vertrag): `<button type="button" id="diskussion" data-laeuft="0"[ hidden]>…</button>` und `<div class="interview-aktionen" id="diskussion-aktionen" hidden>` mit **genau einem** Knopf `#diskussion-beenden` (`data-discussion-done="1"`). Im JS gibt es `starteDiskussion`, `zeigeDiskussionModus`, `beendeDiskussion` — kein `pausiereDiskussion`, `fortsetzeDiskussion`, `diskussionPauseKnopf`.
+
+**Regel für jede Änderung in `_CHAT_JS` und im Markup: nur LÖSCHEN.** Eine Quellzeile, die ins ausgelieferte HTML geht, wird entweder ganz gelöscht oder es wird nur ein Teilstück aus ihr gelöscht — nie umformuliert. Sonst kann Aufgabe 10 nicht belegen, dass die Fixtures nur Löschungen tragen. Python-Kommentare außerhalb von `_CHAT_JS` dürfen frei umgeschrieben werden.
+
+- [ ] **Step 1: Failing tests schreiben** — `tests/test_web_chat_diskussion_ohne_pause.py`:
+
+```python
+"""Karte t_cb2c4678, Teil 2 (Birk 04.10.2026 14:50): das Mithoeren der
+Phase 1 hat nur noch Start und Fertig. Interview- und Brainstorm-Pause
+bleiben unberuehrt."""
+
+import re
+
+from interview_theater import web_chat
+
+DATEN = {"nachrichten": [], "letzte": 0, "aenderung": 0, "interviewmodus": False,
+         "titel": None, "phase": 1, "diskussion_knopf": True}
+
+
+def _seite(**kw):
+    return web_chat.chat_html(dict(DATEN, **kw), "1.x", "tok", "", 45000)
+
+
+def _fn(js, name, bis):
+    return js[js.index(f"function {name}"):js.index(f"function {bis}")]
+
+
+def test_markup_hat_nur_start_und_fertig():
+    seite = _seite()
+    assert "diskussion-pause" not in seite
+    assert 'id="diskussion" data-laeuft="0">' in seite
+    assert 'id="diskussion" data-laeuft="0" hidden>' in _seite(diskussion_knopf=False)
+    aktionen = re.search(r'id="diskussion-aktionen" hidden>(.*?)</div>', seite, re.S).group(1)
+    assert aktionen.count("<button") == 1
+    assert 'id="diskussion-beenden" data-discussion-done="1"' in aktionen
+
+
+def test_js_kennt_keine_diskussionspause():
+    js = web_chat._CHAT_JS
+    for name in ("pausiereDiskussion", "fortsetzeDiskussion", "diskussionPauseKnopf",
+                 "diskussion-pause"):
+        assert name not in js, name
+    assert "pausiert" not in _fn(js, "zeigeDiskussionModus", "starteDiskussion")
+    assert "fortsetzend" not in _fn(js, "starteDiskussion", "beendeDiskussion")
+
+
+def test_fertig_setzt_weiter_den_grund_ende():
+    """Der Ende-Schnitt markiert das Sitzungsende fuer ``diskussion.starte``
+    und den Vorschlag -- er kommt allein aus ``beendeDiskussion``."""
+    beenden = _fn(web_chat._CHAT_JS, "beendeDiskussion", "starteInterview")
+    assert "letzter && sitzung.vadAktiv) { letzter._grund = 'ende'" in beenden
+
+
+def test_interview_und_brainstorm_pause_bleiben():
+    js, seite = web_chat._CHAT_JS, _seite()
+    for name in ("function pausiereInterview", "function fortsetzeInterview",
+                 "function pausiereBrainstorm", "function fortsetzeBrainstorm",
+                 "interviewPauseKnopf", "brainstormPauseKnopf"):
+        assert name in js, name
+    assert 'id="interview-pause"' in seite and 'id="brainstorm-pause"' in seite
+    assert web_chat._TEXT_INTERVIEW_PAUSE in seite
+```
+
+- [ ] **Step 2: Rot laufen lassen**
+
+Run: `$PY -m pytest tests/test_web_chat_diskussion_ohne_pause.py -q -p no:cacheprovider`
+Expected: `test_markup_hat_nur_start_und_fertig` und `test_js_kennt_keine_diskussionspause` FAIL; `test_fertig_setzt_weiter_den_grund_ende` und `test_interview_und_brainstorm_pause_bleiben` grün (Wächter für das, was bleiben muss).
+
+- [ ] **Step 3: Markup** — in `web_chat.chat_html` (Block `id="diskussion"`, ~Z. 3847–3858):
+
+```python
+        + (
+            f'  <button type="button" id="diskussion" data-laeuft="0"'
+            + ('' if diskussion_erlaubt else ' hidden')
+            + f'>{html.escape(T._TEXT_DISKUSSION_AN)}</button>\n'
+            f'  <div class="interview-aktionen" id="diskussion-aktionen" hidden>\n'
+            f'    <button type="button" id="diskussion-beenden" '
+            f'data-discussion-done="1">'
+            f'{html.escape(T._TEXT_DISKUSSION_FERTIG_KNOPF)}</button>\n'
+            f'  </div>\n'
+        )
+```
+
+(Gelöscht: die Zeile `f'data-pausiert="0"'`, die zwei Zeilen des `#diskussion-pause`-Knopfs, und das Leerzeichen am Ende von `data-laeuft="0" '` — sonst stünde ohne `hidden` `data-laeuft="0" >`. Gerendert ist das für Dortmund genau das Löschen des Tokens ` data-pausiert="0"` und der Knopfzeile.)
+
+- [ ] **Step 4: JS (`_CHAT_JS`)** — nur löschen:
+  1. `var diskussionPauseKnopf = document.getElementById('diskussion-pause');` (~Z. 718) — Zeile weg.
+  2. Kommentar über `zeigeDiskussionModus` (~Z. 2765): aus `(#diskussion, #diskussion-pause, #diskussion-beenden), aber dieselbe` nur das Teilstück `#diskussion-pause, ` löschen.
+  3. In `zeigeDiskussionModus` die Zeilen löschen:
+     ```
+         var pausiert = an && sitzung.pausiert;
+         diskussionKnopf.dataset.pausiert = pausiert ? '1' : '0';
+         } else if (pausiert) {
+           diskussionKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
+         if (diskussionPauseKnopf) {
+           diskussionPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
+         }
+     ```
+     (Übrig bleibt `if (!an) { … } else { …diskussion_laeuft… }`.)
+  4. In `starteDiskussion` im Sitzungsobjekt die Zeile `      fortsetzend: false` löschen (das Komma am Ende von `mikroUnterwegs: true,` bleibt — ein abschließendes Komma im Objektliteral ist gültiges JS). `pausiert: false, erfassteMs: 0, legStart: null` **bleiben**: `beginneAufnahme` und `formatiereUhr` lesen sie für jede Sitzungsart.
+  5. Die ganzen Funktionen `pausiereDiskussion()` und `fortsetzeDiskussion()` samt der Leerzeile danach löschen.
+  6. Die Verdrahtung `if (diskussionPauseKnopf) { … }` (7 Zeilen, ~Z. 3214–3220) löschen.
+
+Python-Kommentar über `_TEXT_DISKUSSION_AN` (~Z. 214–218, **nicht** in `_CHAT_JS`) neu fassen: „Hintergrund-Mithören Phase 1 (…): nur Start und Fertig — seit Birks Entscheidung vom 04.10.2026 ohne Pause/Weiter; eigene Beschriftungen für den großen Knopf, die Läuft-Zeile und den Fertig-Knopf."
+
+Danach belegen:
+
+```bash
+grep -n "diskussion-pause\|pausiereDiskussion\|fortsetzeDiskussion\|diskussionPauseKnopf" interview_theater/web_chat.py
+git diff -U0 HEAD -- interview_theater/web_chat.py | grep -E '^\+[^+]'
+```
+
+Expected: erstes `grep` ohne Ausgabe; zweites zeigt **nur** die Python-Zeilen, die nicht ausgeliefert werden (Kommentar über `_TEXT_DISKUSSION_AN`), die Markup-Zeile `f'  <button type="button" id="diskussion" data-laeuft="0"'` (Leerzeichen am Ende weg) und die Kommentarzeile aus Punkt 2 — sonst nichts.
+
+- [ ] **Step 5: Bestehende Tests nachziehen** — die Aufgabe-9-Zeilen der Liste oben, je wörtlich:
+  - `test_manuelle_schnitte_tragen_den_grund_ende`: `assert js.count("_grund = 'ende'") == 5`, Kommentar `# pausiereInterview + beendeInterview + pausiereBrainstorm + beendeBrainstorm + beendeDiskussion`.
+  - `test_beginneaufnahme_ist_der_einzige_ort_der_die_aufnahme_beginnt`: `assert js.count("beginneAufnahme(sitzung);") == 5`, Kommentar ohne `fortsetzeDiskussion`.
+  - `test_der_diskussion_knopf_steht_immer_im_markup_aber_hidden_ausserhalb_phase_1`: beide Tupel → `("diskussion", "diskussion-aktionen", "diskussion-beenden")`; `'id="diskussion" data-laeuft="0">'`; zweimal `'id="diskussion" data-laeuft="0" hidden>'`; Docstring „die drei Diskussion-Elemente"; Blockkommentar darüber `#diskussion`/`#diskussion-beenden`.
+  - `test_starte_diskussion_lehnt_waehrend_interview_oder_wechsel_ab` und `test_diskussion_pruefeende_tut_nie_etwas`: `js.index("function beendeDiskussion")` als Schnittende.
+  - `test_fortsetzediskussion_hat_dieselbe_sperrklinke_wie_brainstorm`: Funktion löschen.
+  - `test_diskussion_knoepfe_sind_verdrahtet`:
+    ```python
+    def test_diskussion_knoepfe_sind_verdrahtet():
+        js = web_chat._CHAT_JS
+        assert "diskussionPauseKnopf" not in js
+        assert "diskussionBeendenKnopf.addEventListener('click', beendeDiskussion);" in js
+        assert "diskussionKnopf.addEventListener('click'" in js
+        wiring = js[js.index("if (diskussionBeendenKnopf)"):js.index("-- Push-to-Talk")]
+        assert "starteDiskussion()" in wiring
+    ```
+  - `test_manuelle_schnitte_tragen_den_grund_ende_fuer_diskussion_auch`:
+    ```python
+    def test_manuelle_schnitte_tragen_den_grund_ende_fuer_diskussion_auch():
+        """``beendeDiskussion`` flusht wie beim Interview/Brainstorm ueber
+        ``_grund = 'ende'`` -- seit 04.10.2026 der einzige Ende-Schnitt."""
+        js = web_chat._CHAT_JS
+        beenden = js[js.index("function beendeDiskussion"):
+                     js.index("function starteInterview")]
+        assert "_grund = 'ende'" in beenden
+    ```
+  - `tests/test_web_chat_diskussion_knopf.py::test_der_knopf_ist_standardmaessig_verborgen`: Tupel `("diskussion", "diskussion-aktionen", "diskussion-beenden")`, Docstring „die drei Elemente".
+
+- [ ] **Step 6: Grün laufen lassen — und das erwartete Rot belegen**
+
+```bash
+$PY -m pytest tests/test_web_chat_diskussion_ohne_pause.py tests/test_web_chat_js.py tests/test_web_chat_diskussion_knopf.py tests/test_web_chat_sprache.py tests/test_web_vereint_js_syntax.py tests/test_sprache_bitgleich.py -q -p no:cacheprovider
+$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py -q -p no:cacheprovider -rf
+```
+
+Expected: erster Lauf `… passed`, kein `failed` (Node-Tests ggf. `skipped`). Zweiter Lauf: **genau vier** `FAILED`, und nur diese — `test_web_vereint_bitgleich.py::test_vereinte_seite_bleibt_byte_gleich[None]`, `[dortmund-2026]`, `test_werkbank_bitgleich.py::test_ohne_schalter_bleibt_die_werkbank_byte_gleich[None]`, `[dortmund-2026]` (Assertion `name == 'vereint'` bzw. der Seitenvergleich); alles andere dort `passed`. Dieses Rot ist beabsichtigt: es sind genau die Fixtures, die den Pause-Code tragen, und Aufgabe 10 erzeugt sie neu. Ein fünfter Fehlschlag ist ein Fehler dieser Aufgabe.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add interview_theater/web_chat.py tests/test_web_chat_diskussion_ohne_pause.py tests/test_web_chat_js.py tests/test_web_chat_diskussion_knopf.py
+git commit -m "Phase 1: Pause-Knopf des Mithoerens entfernt, nur Start und Fertig (t_cb2c4678, Aufgabe 9)
+
+Bewusst rot bis Aufgabe 10: die vier Dortmund-Bitgleich-Faelle, deren
+Fixtures den entfernten Code noch tragen.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 10: Dortmund-Fixtures neu erzeugen — Nachweis: nur Löschungen, nur Pause-Code
+
+**Files:**
+- Modify (neu erzeugt): `tests/fixtures/web_vereint_dortmund_vorher.html`, `tests/fixtures/werkbank_vorher_vereint_vorgabe.html`, `tests/fixtures/werkbank_vorher_vereint_dortmund-2026.html`
+
+**Interfaces:**
+- Consumes: der Commit aus Aufgabe 9 ist `HEAD` (Pause-Code entfernt), Teil 1 und Aufgabe 8 sind nachweislich Dortmund-neutral (Aufgabe 7 Step 2, Aufgabe 8 Step 7).
+
+Der im Docstring von `tests/test_web_vereint_bitgleich.py` genannte Erzeuger `.superpowers/sdd/_erzeuge_bitgleich_fixture.py` **existiert in diesem Worktree nicht** (`ls .superpowers/sdd/` zeigt nur zwei Berichte). Deshalb erzeugt der Test selbst die Datei — mit seinen eigenen Funktionen `_baue_datenbank()` und `_rendere()`, also exakt dem Aufruf, gegen den er vergleicht. Die Werkbank-Fixtures schreibt der Test selbst mit `IT_WERKBANK_VORHER_SCHREIBEN=1` (`tests/test_werkbank_bitgleich.py:35`, `:107-113`).
+
+- [ ] **Step 1: Neu erzeugen**
+
+```bash
+env -u IT_WORKSHOP -u IT_UX_ENTWURF $PY - <<'EOF'
+import sys
+sys.path.insert(0, ".")
+from interview_theater import sprache, workshop
+from tests import test_web_vereint_bitgleich as t
+workshop.vergiss(); sprache.vergiss()
+t._baue_datenbank()
+t.VORHER.write_text(t._rendere(), encoding="utf-8")
+print("geschrieben:", t.VORHER)
+EOF
+env -u IT_WORKSHOP -u IT_UX_ENTWURF IT_WERKBANK_VORHER_SCHREIBEN=1 $PY -m pytest tests/test_werkbank_bitgleich.py -q -p no:cacheprovider
+git status --short tests/fixtures/
+```
+
+Expected: `geschrieben: …/tests/fixtures/web_vereint_dortmund_vorher.html`; Werkbank-Lauf `… passed`; `git status` zeigt **genau drei** Zeilen ` M tests/fixtures/web_vereint_dortmund_vorher.html`, ` M tests/fixtures/werkbank_vorher_vereint_dortmund-2026.html`, ` M tests/fixtures/werkbank_vorher_vereint_vorgabe.html` — die `_gruppe_*`- und `_koerper_*`-Fixtures bleiben byte-gleich (sie tragen kein Chat-Panel).
+
+- [ ] **Step 2: Nachweis „null hinzugefügte Wörter"**
+
+```bash
+git diff --word-diff=porcelain -- tests/fixtures/ | grep -E '^\+' | grep -vE '^\+\+\+ ' | wc -l
+```
+
+Expected: `0`.
+
+- [ ] **Step 3: Nachweis „jede Löschung ist Pause-Code"** — gegen die Quell-Löschungen des Aufgabe-9-Commits:
+
+```bash
+$PY - <<'EOF'
+import subprocess
+
+def laeufe(args, zeichen):
+    aus = subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
+    return [" ".join(z[1:].split()) for z in aus.splitlines()
+            if z.startswith(zeichen) and not z.startswith(zeichen * 3)]
+
+quelle = set(laeufe(["diff", "-U0", "HEAD~1", "HEAD", "--", "interview_theater/web_chat.py"], "-"))
+erlaubt = {'data-pausiert="0"', "#diskussion-pause,",
+           '<button type="button" id="diskussion-pause">⏸ Pause</button>'}
+fixture = [s for s in laeufe(["diff", "--word-diff=porcelain", "--", "tests/fixtures/"], "-") if s]
+fremd = [s for s in fixture if s not in quelle and s not in erlaubt]
+print(len(fixture), "geloeschte Stuecke,", len(fremd), "fremd")
+for s in fremd:
+    print("FREMD:", s)
+EOF
+git diff --word-diff=porcelain -- tests/fixtures/ | grep -E '^-' | grep -vE '^--- ' | sort | uniq -c | sort -rn | head -60
+```
+
+Expected: `<N> geloeschte Stuecke, 0 fremd` (N ≈ 3 × die Zahl der in Aufgabe 9 gelöschten ausgelieferten Zeilen + 3 × 3 Tokens). Die zweite Liste wird wörtlich in den Bericht übernommen — jede Zeile ist erkennbar Pause-Code (`pausiert`, `PauseKnopf`, `fortsetz…`, Rumpf von `pausiereDiskussion`/`fortsetzeDiskussion`, `diskussion-pause`). ANNAHME: `--word-diff=porcelain` gibt eine ganz gelöschte Zeile als **eine** `-`-Zeile aus; zerlegt Git sie anders (Treffer unter „FREMD", die erkennbar Bruchstücke gelöschter Quellzeilen sind), die Liste von Hand prüfen und das im Bericht so benennen — **nicht** den Nachweis aufweichen, ohne es zu sagen.
+
+- [ ] **Step 4: Die Bitgleich-Tests sind wieder grün, ohne Testcode-Änderung**
+
+```bash
+$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py tests/test_profil_bitgleich.py -q -p no:cacheprovider
+git diff --stat HEAD -- tests/test_web_vereint_bitgleich.py tests/test_werkbank_bitgleich.py tests/test_profil_bitgleich.py
+```
+
+Expected: `… passed`, kein `failed`; zweites Kommando ohne Ausgabe.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tests/fixtures/web_vereint_dortmund_vorher.html tests/fixtures/werkbank_vorher_vereint_vorgabe.html tests/fixtures/werkbank_vorher_vereint_dortmund-2026.html
+git commit -m "Fixtures: Dortmund-Seite ohne den toten Diskussions-Pause-Code neu erzeugt -- nur Loeschungen (t_cb2c4678, Aufgabe 10)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 11: Browserlauf Phase 1 nachziehen
+
+**Files:**
+- Modify: `tests/e2e/test_web_diskussion_e2e.py`
+
+- [ ] **Step 1: Anpassen**
+  - `test_begriffsboard_im_cothinker_und_top5_vorschlag`: die Zeile `monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "1")` ersetzen durch
+    ```python
+    # Endstand = Zwischenstand (Birk 04.10.2026): der Ende-Schnitt laeuft
+    # unter derselben Regel wie ein Pausenschnitt -- die Schwelle dafuer ist
+    # die des Boards, hier auf ein Zeichen gesenkt.
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1")
+    ```
+    und im Docstring „Schlusslauf" → „regulärer Lauf auf dem Ende-Schnitt".
+  - `test_diskussion_voller_ablauf_im_browser`: direkt hinter `expect(seite.locator("#diskussion")).to_have_attribute("data-laeuft", "1")` (Schritt 3) einfügen:
+    ```python
+    # Birk 04.10.2026: nur Start und Fertig -- kein Pause-Knopf mehr.
+    expect(seite.locator("#diskussion-aktionen button")).to_have_count(1)
+    assert seite.locator("#diskussion-pause").count() == 0
+    ```
+
+- [ ] **Step 2: Laufen lassen (Playwright-venv)**
+
+```bash
+$E2E -m pytest tests/e2e/test_web_diskussion_e2e.py tests/e2e/test_web_begriffsboard_ranking_e2e.py -q -p no:cacheprovider
+```
+
+Expected: `4 passed` (zwei Diskussions-, zwei Ranking-Tests). Ohne Playwright: im Bericht wörtlich „e2e nicht gelaufen".
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add tests/e2e/test_web_diskussion_e2e.py
+git commit -m "e2e Phase 1: Ende-Schnitt unter der Board-Schwelle, nur Start und Fertig (t_cb2c4678, Aufgabe 11)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 12: AGENTS.md (Teil 2), Abschluss-Suite, Bericht
+
+**Files:**
+- Modify: `AGENTS.md`
+
+- [ ] **Step 1: AGENTS.md nachziehen** — drei Stellen:
+
+(a) Modultabelle, Zeile `begriffsboard.py`: „Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these"" ersetzen durch: „Bei „Discussion done" der Top-5-Vorschlag mit EINEM Knopf „Take these" — **ohne eigenen Schlusslauf** (Birk 04.10.2026 14:50: „Zwischenstand und Endstand müssen nicht anders behandelt werden"): der Ende-Schnitt zählt in `soll_laufen` wie ein Pausenschnitt (dieselbe Schwelle `min_zeichen`, 600; nur ohne Mindestabstand), der Vorschlag zeigt das Board, wie es ist — läuft gerade ein Lauf, wird nach ihm neu entschieden (`merke_falls_laeuft`)."
+
+(b) Absatz „**Phase 1 hört seit 04.10.2026 laufend mit, wie Phase 4**": den Satz „Bei „Discussion done" schlägt der Bot die Top 5 mit EINEM Knopf „Take these" vor" um denselben Halbsatz ergänzen und davor einfügen: „**Das Mithören hat nur Start und Fertig** — der Pause-Knopf (`#diskussion-pause`, `pausiereDiskussion`/`fortsetzeDiskussion`) ist seit dem 04.10.2026 entfernt; er setzte bis dahin ebenfalls den Ende-Schnitt und löste damit bei jeder Pause Vorschlag und Verdichtung aus. Interview- und Brainstorm-Pause bleiben."
+
+(c) „Die Übergaben der Karte t_4517d4ad": den Punkt „ein Neustart zwischen „Discussion done" und Ende des Schlusslaufs verliert den Vorschlag" auf „… und Ende des laufenden Laufs …" umstellen und zwei Punkte anhängen:
+- „**Endstand = Zwischenstand (t_cb2c4678):** ein Rest unter `min_zeichen` (600 Zeichen ≈ 37 s Rede nach den Erwachsenen-Daten in `brainstorm.py`) nach dem letzten Lauf erreicht das Board nicht — so entschieden (Birk). Ungemessen für Schülerinnen und Schüler."
+- „Ohne VAD trägt kein Diskussionssegment einen Schnittgrund: dann gibt es weder Board-Lauf noch Vorschlag noch Verdichtung (vor dieser Karte genauso). Und hat das letzte Teilstück bei „Discussion done" keine Bytes, kommt kein Ende-Schnitt an (`r.onstop`)."
+
+- [ ] **Step 2: Pflichttests einzeln, mit Namen**
+
+```bash
+$PY -m pytest tests/test_web_vereint_bitgleich.py tests/test_profil_bitgleich.py tests/test_pruefe_sprache.py tests/test_werkbank_bitgleich.py -q -p no:cacheprovider
+$PY -m pytest tests/test_begriffsboard.py tests/test_begriffsboard_lauf.py tests/test_begriffsboard_web.py tests/test_begriffsboard_mithoeren.py tests/test_begriffsboard_vorschlag.py tests/test_begriffsboard_einstieg.py tests/test_begriffsboard_schaerfung.py tests/test_begriffsboard_schaerfung_web.py tests/test_begriffsboard_flip.py tests/test_begriffsboard_abschluss.py tests/test_web_chat_diskussion_ohne_pause.py tests/test_brainstorm.py -q -p no:cacheprovider
+BASIS=<SHA aus Aufgabe 0, Step 3>
+git diff --stat "$BASIS" HEAD -- tests/fixtures/
+git log --oneline "$BASIS"..HEAD -- tests/fixtures/
+```
+
+Expected: beide Läufe `… passed`, kein `failed`; `git diff --stat` nennt **genau** die drei Fixtures aus Aufgabe 10; `git log` zeigt für `tests/fixtures/` **genau einen** Commit — den aus Aufgabe 10.
 
 - [ ] **Step 3: Abschluss-Suite im Hintergrund, abwarten**
 
@@ -1566,28 +2352,30 @@ $PY -m pytest -q -p no:cacheprovider --ignore=tests/e2e > .suite.log 2>&1; echo 
 
 Im Hintergrund starten, bis zum Ende abwarten, nicht abbrechen. Danach `tail -n 3 .suite.log` und `tail -n 3 .suite-baseline.log`.
 
-Expected: `EXIT 0`; Zahl `passed` = Baseline + die neuen Tests (Aufgabe 2: 27, Aufgabe 3: 5, Aufgabe 4: 5, Aufgabe 5: 9 — zusammen +46, Node-Tests ggf. als `skipped`); keine neuen `failed`. Ein Test, der in der Baseline grün und jetzt rot ist, ist Folge dieser Karte und wird behoben, bevor committet wird.
+Expected: `EXIT 0`. Zahl `passed` = Baseline + 46 (Teil 1: Aufgabe 2: 27, 3: 5, 4: 5, 5: 9) + 12 (Teil 2: Aufgabe 8: 8, Aufgabe 9: 4) − 2 gelöschte (`test_abschluss_mit_niedriger_schwelle`, `test_fortsetzediskussion_hat_dieselbe_sperrklinke_wie_brainstorm`) = **Baseline + 56** (Node-Tests ggf. als `skipped` statt `passed`). Keine neuen `failed`: ein Test, der in der Baseline grün und jetzt rot ist, ist Folge dieser Karte und wird vor dem Commit behoben.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add AGENTS.md
-git commit -m "Begriffsboard: AGENTS.md -- Schaerfung, FLIP, elfte Einhaengezeile, Uebergaben (t_cb2c4678, Aufgabe 7)
+git commit -m "AGENTS.md: Phase 1 nur Start/Fertig, Endstand = Zwischenstand, Uebergaben (t_cb2c4678, Aufgabe 12)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 - [ ] **Step 5: Abschlussbericht** (als Kartenkommentar, nicht als Datei) — Pflichtinhalt:
-  1. BASIS-SHA aus Aufgabe 0 und die Commit-SHAs der Aufgaben 2–7.
-  2. **Beide** Suite-Zeilen wörtlich: Baseline (`.suite-baseline.log`) und Schluss (`.suite.log`), jeweils mit `EXIT`.
-  3. Die drei Pflichttests mit Ergebnis: `tests/test_web_vereint_bitgleich.py`, `tests/test_profil_bitgleich.py`, `tests/test_pruefe_sprache.py`.
-  4. Node-Tests gelaufen ja/nein; e2e gelaufen ja/nein (sonst wörtlich „e2e nicht gelaufen"); Pfad und Beschreibung des Screenshots.
-  5. Jede ANNAHME dieses Plans mit dem, was sich im Lauf gezeigt hat.
-  6. Ausdrücklich: kein Merge, kein Push, kein bezahlter Lauf.
+  1. BASIS-SHA aus Aufgabe 0 und die Commit-SHAs der Aufgaben 2–12.
+  2. **Beide** Suite-Zeilen wörtlich: Baseline (`.suite-baseline.log`) und Schluss (`.suite.log`), jeweils mit `EXIT`, und die Rechnung „Baseline + 56".
+  3. Die Pflichttests mit Ergebnis: `tests/test_web_vereint_bitgleich.py`, `tests/test_profil_bitgleich.py`, `tests/test_pruefe_sprache.py`, `tests/test_werkbank_bitgleich.py`.
+  4. Der Fixture-Nachweis aus Aufgabe 10: Ausgabe von Step 2 (`0`), Step 3 (`… 0 fremd`) und die Liste der gelöschten Stücke; dazu Aufgabe 7 Step 2 (Teil 1 ohne Fixture-Diff).
+  5. Die gewählte Option der Abwägung (B) in einem Satz, mit dem hingenommenen Verlust.
+  6. Node-Tests gelaufen ja/nein; e2e gelaufen ja/nein (sonst wörtlich „e2e nicht gelaufen"); Pfad und Beschreibung des Screenshots.
+  7. Jede ANNAHME dieses Plans mit dem, was sich im Lauf gezeigt hat.
+  8. Ausdrücklich: kein Merge, kein Push, kein bezahlter Lauf.
 
 ---
 
-## Selbstprüfung des Plans (gegen Abschnitt A–F der Karte)
+## Selbstprüfung des Plans (gegen Abschnitt A–F der Karte und den Nachtrag)
 
 | Anforderung | Aufgabe |
 |---|---|
@@ -1600,10 +2388,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 | „nie mehr als ein Begriff", per Konstruktion begründet | 2 (Step 5 + vier Tests) |
 | D2 `<del>`, maskiert, `data-vorgaenger`, kein `style=`/`on…=`/Zitat, alte Regexe grün | 4 |
 | D3 FLIP, Zuordnung über Vorgänger, Einblenden, reduced motion, `<details>`-Zustand, CSSOM, Node-Test | 5, 6 |
-| D4 Gating-Test, Bitgleich gegen unveränderte Fixture | 5, 7 |
-| D5 Phase 4 unberührt | Dateiübersicht („Nicht angefasst") |
-| e2e + Handy-Screenshot, „e2e nicht gelaufen" statt „grün" | 6 |
-| Schluss-Suite, beide Zeilen im Bericht, AGENTS.md | 7 |
+| D4 (Teil 1) Gating-Test, kein Fixture-Diff | 5, 7 |
+| D5 Phase 4 unberührt | Dateiübersicht, 8 (Step 7) |
+| e2e + Handy-Screenshot, „e2e nicht gelaufen" statt „grün" | 6, 11 |
+| Nachtrag 1: Pause weg (Markup, JS, `data-pausiert`, Zweige), Interview/Brainstorm-Pause bleiben | 9 |
+| Nachtrag 2: kein eigener Abschlusspfad, Vorschlag mit dem Board, wie es ist, nach laufendem Lauf | 8 |
+| Abwägung A/B/C mit Belegen, Verlust von B beziffert, Mindestabstand entschieden | „Abwägung Abschlusspfad" |
+| `'ende'` kommt weiter aus `beendeDiskussion()` | 9 (`test_fertig_setzt_weiter_den_grund_ende`) |
+| Vollständige Testliste Teil 2, Mutant gegen den alten 150er-Zweig | „Vollständige Testliste", 8 |
+| Fixtures in EINER Aufgabe, nur Löschungen belegt, Teil 1 nicht vermischt | 7 (Step 2), 9 (Step 6), 10 |
+| `test_profil_bitgleich.py` ohne Änderung grün | 8, 10, 12 |
+| AGENTS.md (Teil 1 + Teil 2), Schluss-Suite, beide Zeilen im Bericht | 7, 12 |
 
 **ANNAHME-Marker in diesem Plan:**
 1. Aufgabe 3, Step 1: der englische Prompt hat nach dem Merge `0 Treffer` im Sprachprüfer.
@@ -1612,3 +2407,6 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 4. Aufgabe 5, Step 5: `workshop` ist an der Einhängestelle in `seite()` schon importiert.
 5. Aufgabe 6, Step 2: mit `#buehne` ist der CoThinker beim Laden sichtbar und lädt alle 10 s nach.
 6. Aufgabe 6, Step 2: die Lage von „Grenze" kann unverändert bleiben (nicht geprüft).
+7. Abwägung (Teil 2): 600 Zeichen ≈ 37 s Rede gilt nach Erwachsenen-Daten (`brainstorm.py:9-11`); für Schülerinnen und Schüler ungemessen.
+8. Testliste Teil 2: Zeilennummern und Inhalte von `tests/test_begriffsboard_lauf.py`/`tests/test_begriffsboard_mithoeren.py` sind die vor dem Merge aus Aufgabe 0; der Merge ändert dort Umgebungsvariablen und erwartete kwargs, nicht die Testnamen. Ist `tests/test_begriffsboard_mithoeren.py` nach dem Merge schon in der Baseline rot (die Board-Schwelle 600 greift, die Fixture setzt nur `IT_BRAINSTORM_MIN_ZEICHEN`), ist das kein Fehler dieser Karte — Aufgabe 8 Step 6 setzt `IT_BEGRIFFSBOARD_MIN_ZEICHEN` und macht ihn grün.
+9. Aufgabe 10, Step 3: `git diff --word-diff=porcelain` gibt eine ganz gelöschte Zeile als eine `-`-Zeile aus.

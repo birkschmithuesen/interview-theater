@@ -277,6 +277,132 @@ def test_fuehre_alle_aus_liefert_14_sondierungen_ohne_ausnahme(conn, einst, tg, 
 
 
 # ---------------------------------------------------------------------------
+# Klasse-A-Fix (04.10.2026): ein echtes ``klm`` darf nicht crashen.
+#
+# Der echte, kostenpflichtige Lauf von ``scripts/flow_audit_lauf.py`` gegen
+# ``interview_theater.llm.LLM`` liess vor diesem Fix ALLE 14 Stationen mit
+# ``AttributeError: 'LLM' object has no attribute 'stelle'`` abstuerzen --
+# kein einziger Test in dieser Datei hatte das je geprueft, weil die
+# ``klm``-Fixture oben immer ``fad.SkriptLLM`` baut. Diese Attrappe hat
+# bewusst NUR ``.schema()`` -- die oeffentliche Schnittstelle von
+# ``interview_theater.llm.LLM``, die jede Station tatsaechlich braucht --
+# und ausdruecklich KEINE der SkriptLLM-spezifischen Konfigurationsmethoden
+# (``.stelle()``, ``.antwort()``, ``.erkenner()``, ``.verzoegere()``,
+# ``.anzahl_aufrufe()``). Direkter Regressionstest fuer genau den
+# Produktionsabsturz.
+# ---------------------------------------------------------------------------
+
+
+class _NurSchemaLLM:
+    """Minimale Fake-``klm`` fuer den Regressionstest: nur ``.schema()``,
+    mit derselben Signatur wie ``interview_theater.llm.LLM.schema`` (siehe
+    dort), sonst nichts. Liefert eine feste, plausible Antwort unabhaengig
+    vom Inhalt -- genug, um zu beweisen, dass eine Station selbst nichts
+    aufruft, das dieser Fake nicht hat."""
+
+    def schema(self, chat_id, system, nutzer, schema, art, modell=None,
+               temperature=None, bei_teil=None, teil_feld="antwort") -> dict:
+        if art == "erkenner":
+            return {"aenderungen": []}
+        return {
+            "antwort": "A plausible, fixed reply -- this fake implements "
+                       "only .schema(), nothing SkriptLLM-specific.",
+        }
+
+
+def test_echtes_klm_ohne_attrappenmethoden_crasht_nicht_bei_gespraech_kette(
+    conn, einst, tg,
+):
+    """Call-Form 1: die Kettensyntax ``klm.stelle(stufe).gespraech(...)``
+    (hier: ueber ``_konfiguriere_falls_attrappe``) -- Station 1 ist die
+    erste Station jeder Sitzung und nutzt sie beim Phaseneintritt. Vor dem
+    Fix: ``AttributeError: 'LLM' object has no attribute 'stelle'``, noch
+    bevor ein Modellaufruf stattfand."""
+    klm = _NurSchemaLLM()
+    s = fad.station_01_eintritt(conn, tg, klm, einst, CHAT_ID)
+    assert isinstance(s, fad.Sondierung)
+
+
+def test_echtes_klm_ohne_attrappenmethoden_crasht_nicht_bei_standalone_erkenner(
+    conn, einst, tg,
+):
+    """Call-Form 2: der NICHT gekettete, eigenstaendige Aufruf
+    ``klm.erkenner(stufe, [...])`` (Station 3, die Mutationsprobe-Station).
+    Ob am Ende wirklich etwas geschrieben wurde, ist hier nicht der Punkt
+    (die Fake-``klm.schema`` liefert fuer ``art='erkenner'`` eine leere
+    Liste -- ein plausibles, aber leeres Ergebnis) -- entscheidend ist
+    allein, dass die Station durchlaeuft, ohne an einer fehlenden
+    SkriptLLM-Methode zu krachen."""
+    klm = _NurSchemaLLM()
+    s = fad.station_03_korrektur_via_chat(conn, tg, klm, einst, CHAT_ID)
+    assert isinstance(s, fad.Sondierung)
+    assert s.schreibvorgang in (True, False)
+
+
+def test_echtes_klm_ohne_attrappenmethoden_station_05_skippt_messung_ehrlich(
+    conn, einst, tg,
+):
+    """Call-Form 3: die Messung-statt-Konfiguration-Stationen (Aufgabenbrief
+    Punkt 2). Station 5 braucht ``klm.anzahl_aufrufe()`` -- eine reine
+    SkriptLLM-Messgroesse ohne Gegenstueck bei einem echten Modell (ein
+    echtes Sprachmodell spiegelt eine Nutzernachricht so gut wie nie
+    woertlich). Gegen ein ``klm`` ohne diese Methode darf die Station nicht
+    crashen UND darf keinen erfundenen Befund vortaeuschen -- sie muss die
+    Messung ueberspringen und das im Hinweis sagen."""
+    klm = _NurSchemaLLM()
+    s = fad.station_05_echo_kontrolle(conn, tg, klm, einst, CHAT_ID)
+    assert isinstance(s, fad.Sondierung)
+    assert s.echo_erkannt is None
+    assert "uebersprungen" in s.hinweis
+
+
+def test_echtes_klm_ohne_attrappenmethoden_station_13_skippt_verzoegerung(
+    conn, einst, tg,
+):
+    """Dieselbe Call-Form wie Station 5, am anderen Pflichtfall
+    (Aufgabenbrief Punkt 2): Station 13 braucht ``klm.verzoegere()``. Gegen
+    ein echtes ``klm`` entfaellt die kuenstliche Verzoegerung, aber die
+    Zaehlung von ``tg.getippt`` bleibt sinnvoll und laeuft unveraendert
+    weiter (was am echten Modell messbar bleibt, bleibt gemessen)."""
+    klm = _NurSchemaLLM()
+    s = fad.station_13_wartezustand(conn, tg, klm, einst, CHAT_ID)
+    assert isinstance(s, fad.Sondierung)
+    assert "keine kuenstliche Verzoegerung" in s.hinweis
+    treffer = re.search(r"aufgerufen: (\d+) Mal", s.hinweis)
+    assert treffer is not None
+
+
+def test_fuehre_alle_aus_markiert_eine_abgebrochene_station_als_befund(
+    conn, einst, tg, klm, monkeypatch,
+):
+    """Der zweite Klasse-A-Fund: eine werfende Station sah im Bericht vor
+    dem Fix wie Station 2 aus (``schreibvorgang=None`` -> ``wirkungslos``
+    FALSE -- 'nichts zu schreiben erwartet, wie vorgesehen'). Der echte,
+    kostenpflichtige Lauf stand deshalb trotz 14/14 Abstuerzen mit 'Keine --
+    alle Sondierungen haben gewirkt' im Bericht, denn
+    ``scripts/flow_audit_lauf.py::schreibe_bericht`` gruppiert die
+    Befunde-Sektion ausschliesslich ueber ``Sondierung.wirkungslos``.
+
+    Monkeypatcht ``ALLE_STATIONEN`` auf eine einzelne, absichtlich werfende
+    Funktion -- isoliert, ohne auf einen echten Bot-Fehlerpfad angewiesen
+    zu sein, der eine Ausnahme eventuell selbst schon abfaengt."""
+    def _werfende_station(conn, tg, klm, e, chat_id):
+        raise RuntimeError("absichtlich fuer diesen Test")
+
+    monkeypatch.setattr(fad, "ALLE_STATIONEN", (_werfende_station,))
+
+    ergebnisse = fad.fuehre_alle_aus(conn, tg, klm, einst, CHAT_ID)
+
+    assert len(ergebnisse) == 1
+    s = ergebnisse[0]
+    assert s.phase == 0
+    assert s.schreibvorgang is False
+    assert s.wirkungslos is True
+    assert "RuntimeError" in s.hinweis
+    assert "absichtlich fuer diesen Test" in s.hinweis
+
+
+# ---------------------------------------------------------------------------
 # Onboarding-Pflichtpruefpunkt 5 (Verstaendlichkeit der Fehlermeldungen) --
 # EIN rein statischer Test, kein Modellaufruf, keine Sondierung. Phase 3
 # (aufnahme.py, web_chat.py) ist fuer DIESE Karte nicht der Pruefgegenstand

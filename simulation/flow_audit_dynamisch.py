@@ -304,6 +304,55 @@ class SkriptLLM:
 
 
 # ---------------------------------------------------------------------------
+# Die Weiche zwischen Attrappe und echtem Modell (Klasse-A-Fix, 04.10.2026).
+#
+# Jede Station rief bis dahin die SkriptLLM-KONFIGURATIONSmethoden
+# (``.stelle()``, ``.gespraech()``, ``.antwort()``, ``.erkenner()``) direkt
+# auf ``klm`` auf. Das ging zwei Review-Runden lang unbemerkt durch, weil
+# jeder Testlauf ``klm`` als ``SkriptLLM`` baute -- der erste echte,
+# kostenpflichtige Lauf (``scripts/flow_audit_lauf.py`` gegen
+# ``interview_theater.llm.LLM``) liess alle 14 Stationen sofort mit
+# ``AttributeError: 'LLM' object has no attribute 'stelle'`` abbrechen, noch
+# bevor ein echter Modellaufruf stattfand. Der echte ``LLM`` entscheidet
+# selbst, was er antwortet, und kennt/braucht keine Vorab-Konfiguration --
+# fuer ihn muss jeder dieser Aufrufe ein No-Op sein, nicht ein Fehler.
+# ---------------------------------------------------------------------------
+
+
+class _KeinOpAttrappe:
+    """Sentinel fuer jedes ``klm``, das KEINE ``SkriptLLM``-Instanz ist.
+
+    Jede Konfigurationsmethode ist ein No-Op, das sich selbst zurueckgibt --
+    damit die bestehende Kettensyntax der Aufrufstellen (``.gespraech(...)``
+    nach ``_konfiguriere_falls_attrappe(...)``) unveraendert weiter
+    funktioniert, nur dass sie gegen ein echtes Modell nichts tut."""
+
+    def gespraech(self, *_args, **_kwargs) -> "_KeinOpAttrappe":
+        return self
+
+    def antwort(self, *_args, **_kwargs) -> "_KeinOpAttrappe":
+        return self
+
+    def erkenner(self, *_args, **_kwargs) -> "_KeinOpAttrappe":
+        return self
+
+
+_KEIN_OP = _KeinOpAttrappe()
+
+
+def _konfiguriere_falls_attrappe(klm, stufe: str):
+    """Richtet die ``SkriptLLM``-Attrappe fuer diese Stufe ein -- No-Op fuer
+    jeden anderen ``klm`` (insbesondere den echten
+    ``interview_theater.llm.LLM``, siehe Abschnittskopf oben). Ersetzt an
+    jeder Aufrufstelle genau ``klm.stelle(stufe)`` (nicht die ganze Kette),
+    die SkriptLLM-spezifischen Konfigurationsaufrufe wie
+    ``.gespraech(...)``/``.antwort(...)`` haengen weiterhin per Kette daran."""
+    if isinstance(klm, SkriptLLM):
+        return klm.stelle(stufe)
+    return _KEIN_OP
+
+
+# ---------------------------------------------------------------------------
 # Die zwei Fahrmuster (Nachricht / Knopf) -- klm und tg sind Parameter,
 # dieses Modul baut sie nicht selbst (Bauregel der Karte).
 # ---------------------------------------------------------------------------
@@ -446,7 +495,7 @@ def station_01_eintritt(conn, tg, klm, e, chat_id: int) -> Sondierung:
     Chatverlauf, nicht nur eine einzelne Nachricht: genau das, was eine
     Gruppe beim ersten Blick auf ihr Telefon sieht."""
     stufe = "p1_eintritt"
-    klm.stelle(stufe).gespraech(
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
         stufe,
         "Hi! Whenever you're ready, send me the terms from your wall -- "
         "typed out or as a voice note, just as they are. I'll keep them "
@@ -488,7 +537,7 @@ def station_02_begriffe_vorschlag(conn, tg, klm, e, chat_id: int) -> Sondierung:
     entsteht."""
     stufe = "p2_begriffe_vorschlag"
     nachricht = "arrival, silence, waiting, home, strangers"
-    klm.stelle(stufe).gespraech(
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
         stufe,
         "Nice set, thank you. Here they are:\n\n"
         "VORSCHLAG BEGRIFFE:\nArrival, Silence, Waiting, Home, Strangers",
@@ -538,11 +587,14 @@ def station_03_korrektur_via_chat(conn, tg, klm, e, chat_id: int) -> Sondierung:
     # Bewusst OHNE VORSCHLAG-Block: eine Antwort, die nach Erledigung
     # KLINGT ("Got it"), ohne dass der Gespraechszug selbst etwas schreibt --
     # genau der Live-Fall, gegen den die Erkenner-Meldung antritt.
-    klm.stelle(stufe).gespraech(stufe, "Got it -- swapping that in.")
-    klm.erkenner(stufe, [
-        {"art": "begriffe_setzen",
-         "wert": "Arrival, Silence, Waiting, Home, Neighbours"},
-    ])
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "Got it -- swapping that in.",
+    )
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe, [
+            {"art": "begriffe_setzen",
+             "wert": "Arrival, Silence, Waiting, Home, Neighbours"},
+        ])
 
     vorher = _begriff_feld(conn, chat_id)
     antwort = sende_nachricht(conn, tg, klm, e, chat_id, GIULIA, nachricht)
@@ -601,11 +653,14 @@ def station_04_begriffsboard_korrektur(conn, tg, klm, e, chat_id: int) -> Sondie
 
     stufe = "p4_board_korrektur"
     nachricht = "let's swap Arrival for Departure, and add Noise too"
-    klm.stelle(stufe).gespraech(stufe, "Sure -- updating the list.")
-    klm.erkenner(stufe, [
-        {"art": "begriffe_setzen",
-         "wert": "Departure, Silence, Home, Strangers, Noise"},
-    ])
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "Sure -- updating the list.",
+    )
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe, [
+            {"art": "begriffe_setzen",
+             "wert": "Departure, Silence, Home, Strangers, Noise"},
+        ])
 
     vorher_begriffe = _begriff_feld(conn, chat_id)
     vorher_detail = _begriffe_detail_feld(conn, chat_id)
@@ -639,23 +694,46 @@ def station_05_echo_kontrolle(conn, tg, klm, e, chat_id: int) -> Sondierung:
     echte Retry-Mechanismus tatsaechlich gegriffen."""
     stufe = "p5_echo"
     nachricht = "I think silence is the strongest one for us"
-    klm.stelle(stufe).gespraech(
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
         stufe,
         nachricht,  # 1. Anlauf: woertliches Echo
         "Noted -- silence stands out. Want me to fold it into the list?",
     )
 
     antwort = sende_nachricht(conn, tg, klm, e, chat_id, GIULIA, nachricht)
-    aufrufe = klm.anzahl_aufrufe(stufe, "gespraech")
+
+    # ``anzahl_aufrufe`` ist eine SkriptLLM-Messgroesse: sie zaehlt, wie oft
+    # DIESE ATTRAPPE fuer die Stufe aufgerufen wurde, um den echten Retry
+    # nach einem erkannten Echo nachzuweisen. Gegen ein echtes Modell gibt
+    # es (a) keinen Zaehler und (b) keine Grundlage: ein echtes
+    # Sprachmodell spiegelt eine Nutzernachricht praktisch nie woertlich,
+    # die Pruefvoraussetzung dieser Station (ein erzeugtes Echo) entfaellt
+    # also von vornherein. Messung wird deshalb bewusst uebersprungen statt
+    # einen erfundenen Befund vorzutaeuschen (Aufgabenbrief Punkt 2).
+    if isinstance(klm, SkriptLLM):
+        aufrufe = klm.anzahl_aufrufe(stufe, "gespraech")
+        echo_erkannt = (
+            aufrufe >= 2 and nachricht.lower() not in antwort.lower()
+        )
+        hinweis = f"Gespraech-Aufrufe fuer diese Nachricht: {aufrufe}"
+    else:
+        echo_erkannt = None
+        hinweis = (
+            "Messung uebersprungen: der Aufrufzaehler je Stufe "
+            "(SkriptLLM.anzahl_aufrufe) gilt nur fuer die Attrappe. Gegen "
+            "ein echtes Sprachmodell faellt die Pruefvoraussetzung dieser "
+            "Station weg -- ein echtes Modell spiegelt eine Nutzernachricht "
+            "praktisch nie woertlich, es gibt also kein Echo zu kontrollieren."
+        )
 
     s = Sondierung(
         phase=1, station="Echo-Kontrolle", persona=GIULIA.name,
         aktion="Pruefen, ob eine woertlich gespiegelte Antwort verworfen "
                "und neu angefordert wird",
         nachricht=nachricht, bot_antwort=antwort,
-        echo_erkannt=(aufrufe >= 2 and nachricht.lower() not in antwort.lower()),
+        echo_erkannt=echo_erkannt,
     )
-    s.hinweis = f"Gespraech-Aufrufe fuer diese Nachricht: {aufrufe}"
+    s.hinweis = hinweis
     return s
 
 
@@ -686,19 +764,22 @@ def station_06_eintritt_phase2(conn, tg, klm, e, chat_id: int) -> Sondierung:
     _gehe_nach_phase_2(conn, chat_id)
 
     stufe = "p6_eintritt"
-    klm.stelle(stufe)
-    klm.antwort(
-        stufe, "gespraech",
-        "Now your terms become interview questions. Write your own first -- "
-        "I'll tidy the wording, never invent the sense. I'm already "
-        "preparing a second set in the background, out of sight, for a "
-        "fair comparison later.",
-    )
-    klm.antwort(
-        stufe, "fragen_ki_vorschlag",
-        "Arrival: Tell me about the day you arrived.\n"
-        "Silence: When did you first notice the silence here?",
-    )
+    # Nicht gekettet (zwei getrennte ``art``-Plaene auf derselben Stufe) --
+    # deshalb ein einzelner Block-Guard statt ``_konfiguriere_falls_attrappe``.
+    if isinstance(klm, SkriptLLM):
+        klm.stelle(stufe)
+        klm.antwort(
+            stufe, "gespraech",
+            "Now your terms become interview questions. Write your own first -- "
+            "I'll tidy the wording, never invent the sense. I'm already "
+            "preparing a second set in the background, out of sight, for a "
+            "fair comparison later.",
+        )
+        klm.antwort(
+            stufe, "fragen_ki_vorschlag",
+            "Arrival: Tell me about the day you arrived.\n"
+            "Silence: When did you first notice the silence here?",
+        )
 
     from interview_theater import knoepfe as knoepfe_modul
 
@@ -732,7 +813,7 @@ def station_07_priya_eigene_frage(conn, tg, klm, e, chat_id: int) -> Sondierung:
     stufe = "p7_priya_frage"
     nachricht = "um, I guess... maybe something about the first day here? " \
                 "like what was it like arriving"
-    klm.stelle(stufe).gespraech(
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
         stufe,
         "Here's where that one fits:\n\n"
         "VORSCHLAG EIGENE FRAGEN:\n"
@@ -778,7 +859,7 @@ def station_08_giulia_aendert_frage(conn, tg, klm, e, chat_id: int) -> Sondierun
     stufe = "p8_giulia_aendert"
     nachricht = "actually scrap the arrival one, let's ask about silence " \
                 "instead: what does silence mean to you here"
-    klm.stelle(stufe).gespraech(
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
         stufe,
         "Updated:\n\nVORSCHLAG EIGENE FRAGEN:\n"
         "Silence: What does silence mean to you here?",
@@ -839,7 +920,7 @@ def station_09_fruehzeitig_fertig(conn, tg, klm, e, chat_id: int) -> Sondierung:
 
     stufe = "p9_fertig"
     nachricht = "let's leave it at that, I think we're ready for the comparison"
-    klm.stelle(stufe).gespraech(
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
         stufe,
         "Sounds good, that's plenty to compare.\n\n"
         "VORSCHLAG EIGENE FRAGEN:\n"
@@ -904,7 +985,9 @@ def station_10_priya_akzeptiert_per_chat(conn, tg, klm, e, chat_id: int) -> Sond
     # Kein VORSCHLAG-FRAGE-Block: ein plausibler, aber verwirrter Modellzug,
     # der auf einen Schaerfungswunsch antwortet, den es inhaltlich gar
     # nicht gab -- und trotzdem wie eine Bestaetigung klingt.
-    klm.stelle(stufe).gespraech(stufe, "Got it -- I'll leave this one as it is.")
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "Got it -- I'll leave this one as it is.",
+    )
 
     vorher_entschieden = repo.hole_arbeitsstand(conn, chat_id)["fragen_entschieden"]
     vorher_aktuell = repo.hole_arbeitsstand(conn, chat_id)["fragen_aktuell"]
@@ -965,7 +1048,9 @@ def station_11_klickzwang(conn, tg, klm, e, chat_id: int) -> Sondierung:
 
     stufe = "p11_klickzwang"
     nachricht = "accept it, that one's fine"
-    klm.stelle(stufe).gespraech(stufe, "Got it -- keeping it as is.")
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "Got it -- keeping it as is.",
+    )
 
     vorher_entschieden = repo.hole_arbeitsstand(conn, chat_id)["fragen_entschieden"]
     sende_nachricht(conn, tg, klm, e, chat_id, GIULIA, nachricht)
@@ -1033,8 +1118,11 @@ def station_12_phasenwechsel_per_chat(conn, tg, klm, e, chat_id: int) -> Sondier
 
     stufe = "p12_phase_wechsel"
     nachricht = "yeah let's go!"
-    klm.stelle(stufe).gespraech(stufe, "Great, moving on!")
-    klm.erkenner(stufe, [{"art": "phase_setzen", "wert": "3"}])
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "Great, moving on!",
+    )
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe, [{"art": "phase_setzen", "wert": "3"}])
 
     vorher_phase = phasen.aktuelle(conn, chat_id)
     antwort = sende_nachricht(conn, tg, klm, e, chat_id, GIULIA, nachricht)
@@ -1071,7 +1159,7 @@ def station_13_wartezustand(conn, tg, klm, e, chat_id: int) -> Sondierung:
     _seed_gegenueberstellung(conn, chat_id)
 
     stufe = "p13_wartezustand"
-    klm.stelle(stufe).gespraech(
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
         stufe,
         "Sounds good, that's plenty to compare.\n\n"
         "VORSCHLAG EIGENE FRAGEN:\n"
@@ -1080,14 +1168,30 @@ def station_13_wartezustand(conn, tg, klm, e, chat_id: int) -> Sondierung:
         "Home: What makes a place feel like home to you?\n\n"
         "Own questions done.",
     )
-    klm.verzoegere(stufe, 4.2)
+    # Die kuenstliche Verzoegerung ist SkriptLLM-spezifisches Setup (siehe
+    # Stationsdocstring) -- ein echtes Modell braucht keine knapp ueber
+    # ``ablauf.TIPP_INTERVALL`` gehaltene Antwortzeit kuenstlich erzeugt,
+    # seine natuerliche Latenz ist Teil dessen, was hier gemessen wird. Die
+    # Zaehlung von ``tg.getippt`` bleibt dagegen SINNVOLL gegen ein echtes
+    # Modell (Aufgabenbrief Punkt 2): ob ``ablauf._tippanzeige`` waehrend
+    # eines tatsaechlichen, langsameren Netz-Umwegs ueberhaupt einmal
+    # ``tg.tippt`` ruft, laesst sich unveraendert messen.
+    if isinstance(klm, SkriptLLM):
+        klm.verzoegere(stufe, 4.2)
+        verzoegerung_hinweis = "Verzoegerung=4.2s (SkriptLLM)"
+    else:
+        verzoegerung_hinweis = (
+            "keine kuenstliche Verzoegerung gesetzt -- gilt nur fuer "
+            "SkriptLLM, gemessen wird hier allein die natuerliche "
+            "Antwortzeit des echten Modells"
+        )
 
     vorher_getippt = len(tg.getippt)
     sende_nachricht(
         conn, tg, klm, e, chat_id, GIULIA,
         "let's leave it at that, ready for the comparison",
     )
-    getippt_wearend_lauf = len(tg.getippt) - vorher_getippt
+    getippt_waehrend_lauf = len(tg.getippt) - vorher_getippt
 
     s = Sondierung(
         phase=2, station="Wartezustand sichtbar waehrend Hintergrundarbeit",
@@ -1097,8 +1201,8 @@ def station_13_wartezustand(conn, tg, klm, e, chat_id: int) -> Sondierung:
         schreibvorgang=None,
     )
     s.hinweis = (
-        f"tg.tippt() waehrend des Zuges aufgerufen: {getippt_wearend_lauf} Mal "
-        f"(TIPP_INTERVALL=4.0s, Verzoegerung=4.2s)"
+        f"tg.tippt() waehrend des Zuges aufgerufen: {getippt_waehrend_lauf} "
+        f"Mal (TIPP_INTERVALL=4.0s, {verzoegerung_hinweis})"
     )
     return s
 
@@ -1137,11 +1241,14 @@ def station_14_priya_begriffe_korrektur(conn, tg, klm, e, chat_id: int) -> Sondi
     )
     # Bewusst OHNE VORSCHLAG-Block, wie Station 3: eine Antwort, die nach
     # Erledigung klingt, ohne dass der Gespraechszug selbst etwas schreibt.
-    klm.stelle(stufe).gespraech(stufe, "Got it -- swapping that in, thank you.")
-    klm.erkenner(stufe, [
-        {"art": "begriffe_setzen",
-         "wert": "Arrival, Silence, Waiting, Home, Outsiders"},
-    ])
+    _konfiguriere_falls_attrappe(klm, stufe).gespraech(
+        stufe, "Got it -- swapping that in, thank you.",
+    )
+    if isinstance(klm, SkriptLLM):
+        klm.erkenner(stufe, [
+            {"art": "begriffe_setzen",
+             "wert": "Arrival, Silence, Waiting, Home, Outsiders"},
+        ])
 
     vorher = _begriff_feld(conn, chat_id)
     antwort = sende_nachricht(conn, tg, klm, e, chat_id, PRIYA, nachricht)
@@ -1194,7 +1301,18 @@ def fuehre_alle_aus(conn, tg, klm, e, chat_id: int) -> list[Sondierung]:
     geteilte Sitzung. Bricht bei einer werfenden Station nicht ab -- ein
     Fehlschlag einer Station ist selbst ein Befund und wird als Sondierung
     mit dem Fehlertext im ``hinweis`` weitergegeben, damit ein Bericht
-    trotzdem vollstaendig bleibt."""
+    trotzdem vollstaendig bleibt.
+
+    **Klasse-A-Fix (04.10.2026):** eine abgebrochene Station setzt
+    ``schreibvorgang=False`` -- NICHT den Default ``None`` --, damit
+    ``Sondierung.wirkungslos`` (``schreibvorgang is False``) fuer sie
+    ``True`` ist. ``scripts/flow_audit_lauf.py:schreibe_bericht`` gruppiert
+    die Abschnitt-"Befunde" ausschliesslich ueber ``wirkungslos``; mit dem
+    alten Default ``None`` sah eine mit ``AttributeError`` abgebrochene
+    Station in diesem Bericht wie Station 2 aus (``schreibvorgang=None``,
+    "nichts zu schreiben erwartet, wie vorgesehen") -- im echten,
+    kostenpflichtigen Lauf stand deshalb "Keine -- alle Sondierungen haben
+    gewirkt", obwohl alle 14 Stationen gecrasht waren."""
     ergebnisse: list[Sondierung] = []
     for station in ALLE_STATIONEN:
         try:
@@ -1203,6 +1321,7 @@ def fuehre_alle_aus(conn, tg, klm, e, chat_id: int) -> list[Sondierung]:
             ergebnisse.append(Sondierung(
                 phase=0, station=station.__name__, persona="?",
                 aktion="(Station ist mit einer Ausnahme abgebrochen)",
+                schreibvorgang=False,
                 hinweis=f"{type(fehler).__name__}: {fehler}",
             ))
     return ergebnisse

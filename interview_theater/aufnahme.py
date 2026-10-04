@@ -1347,7 +1347,7 @@ def transkript_blasentext(conn, kopf) -> str:
     return "\n\n".join([kopfzeile, *teile])
 
 
-def _sende_transkript_blase(conn, tg, e, chat_id: int, kopf_id: int) -> None:
+def _sende_transkript_blase(conn, tg, e, chat_id: int, kopf_id: int, nur_aendern: bool = False) -> None:
     """Legt die EINE Transkriptblase eines Interviews an oder schreibt sie
     weiter (Karte t_ea994c7f).
 
@@ -1357,6 +1357,9 @@ def _sende_transkript_blase(conn, tg, e, chat_id: int, kopf_id: int) -> None:
     Spaetere Teile tauschen nur ihren Text (``tg.aendere_text``); die
     Mitschrift wird dabei NICHT nachgezogen: sie steht in keinem Fenster,
     die Wahrheit ist ``aufnahme.transkript`` (Entscheidung F).
+
+    ``nur_aendern=True`` schreibt nur eine schon vorhandene Blase neu und
+    legt nie eine an (Nachlauf nach ``an_den_bot``).
 
     Ein Fehlschlag kostet nur die Anzeige, nie das Transkript.
     Unter ``_blasen_sperre(kopf_id)``."""
@@ -1371,6 +1374,8 @@ def _sende_transkript_blase(conn, tg, e, chat_id: int, kopf_id: int) -> None:
                 tg.aendere_text(chat_id, message_id, text)
             except Exception:
                 log.exception("Transkriptblase nicht aktualisiert, kopf_id=%s", kopf_id)
+            return
+        if nur_aendern:
             return
         try:
             message_id = tg.sende(chat_id, text, transkript=True)
@@ -1431,7 +1436,13 @@ def _teil_abschliessen(conn, tg, klm, e, row, zug=_kein_zug, nachgeholt=False) -
     )
 
     if any(a.get("art") == "an_den_bot" for a in aenderungen):
+        kopf_id = row["teil_von"]
         _an_den_bot_abzweigen(conn, tg, klm, e, row, zug, nachgeholt)
+        # Karte t_ea994c7f: ein paralleler Teil kann die Blase schon MIT
+        # diesem Transkript gebaut haben -- jetzt, wo es aus dem Interview
+        # geloest ist, einmal ohne es neu schreiben. Nie neu anlegen.
+        if kopf_id is not None and fliesstext_aktiv(conn, chat_id):
+            _sende_transkript_blase(conn, tg, e, chat_id, kopf_id, nur_aendern=True)
         # Die uebrigen Arten gelten weiter: "fertig, und zeig mir die
         # Verdichtungen" ist beides. Erst abzweigen (die Aufnahme steht danach
         # auf 'fertig'), dann anwenden -- sonst faende schliesse_ab sie noch

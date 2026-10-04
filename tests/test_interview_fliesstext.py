@@ -208,3 +208,37 @@ def test_zwei_gleichzeitige_teile_ergeben_eine_blase(conn, einst, tmp_path, flie
     blasen = _posts(conn, repo.WEB_TYP_TRANSKRIPT)
     assert len(blasen) == 1
     assert TEILE[0] in blasen[0]["text"] and TEILE[1] in blasen[0]["text"]
+
+
+# -- Aufgabe 6: an_den_bot ----------------------------------------------------
+
+
+def test_ein_abgezweigter_teil_verschwindet_aus_der_blase(conn, web, einst, klm, fliesstext, monkeypatch):
+    from interview_theater import erkenner
+
+    kopf_id = interview_an(conn)
+    erster = repo.lege_aufnahme_an(conn, 1, 710, "teil", "sprache", dauer=5,
+                                   teil_von=kopf_id, status="fertig")
+    repo.setze_transkript(conn, erster, TEILE[0])
+    frage = repo.lege_aufnahme_an(conn, 1, 711, "teil", "sprache", dauer=5,
+                                  teil_von=kopf_id, status="transkribiert")
+    repo.setze_transkript(conn, frage, "Zeig mir die Verdichtungen.")
+    # Ein paralleler Teil hat die Blase schon gebaut -- mit der Frage darin.
+    aufnahme._sende_transkript_blase(conn, web, einst, 1, kopf_id)
+    assert "Zeig mir" in _posts(conn, repo.WEB_TYP_TRANSKRIPT)[0]["text"]
+
+    monkeypatch.setattr(
+        erkenner, "erkenne_in_aufnahme",
+        lambda *a, **k: [{"art": "an_den_bot", "wert": ""}],
+    )
+    aufnahme._teil_abschliessen(conn, web, klm, einst, repo.hole_aufnahme(conn, frage))
+
+    blasen = _posts(conn, repo.WEB_TYP_TRANSKRIPT)
+    assert len(blasen) == 1
+    assert blasen[0]["text"] == "🎙 Interview 1\n\n" + TEILE[0]
+
+
+def test_nur_aendern_legt_nie_eine_blase_an(conn, web, einst, fliesstext):
+    kopf_id = interview_an(conn)
+    aufnahme._sende_transkript_blase(conn, web, einst, 1, kopf_id, nur_aendern=True)
+    assert _posts(conn, repo.WEB_TYP_TRANSKRIPT) == []

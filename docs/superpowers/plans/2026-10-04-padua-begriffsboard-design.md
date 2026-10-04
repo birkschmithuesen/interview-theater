@@ -66,9 +66,14 @@ Bindend, nicht neu verhandeln:
   Behauptung ohne Beleg. Begründung/Zitat/Doppelbedeutung bleiben in der Datenbank — nur das **Rendering** ändert
   sich (`web._begriffsboard_html` zeigt sie nicht mehr an).
 - **Dortmund-Code/-Fixtures nicht löschen, nicht neu erzeugen.** Wird ein `*bitgleich*`-Test NUR wegen einer
-  Dortmund-/Vorgabe-Fixture rot, bekommt er `@pytest.mark.dortmund` (registriert in `pyproject.toml`) — diese
-  Erweiterung berührt nach aktueller Prüfung aber keine `*bitgleich*`-Fixture (CoThinker/Begriffsboard ist ein
-  Padua-exklusives Profilmerkmal, in keiner Dortmund-Fixture aktiv).
+  Dortmund-/Vorgabe-Fixture rot, bekommt er `@pytest.mark.dortmund` (registriert in `pyproject.toml`). **Korrektur
+  während der Ausführung (nach Aufgabe 3):** die ursprüngliche Annahme hier war falsch — `css_buehne()` liefert
+  `_BUEHNE` unconditional für **jedes** Profil (nicht nur Padua), das eingebettete `<style>` jeder gerenderten
+  Seite ändert sich also auch für Dortmund/Vorgabe, obwohl das Begriffsboard-**Element** selbst Padua-exklusiv
+  bleibt. `tests/test_web_vereint_bitgleich.py::test_vereinte_seite_bleibt_byte_gleich` trägt dafür bereits
+  `@pytest.mark.dortmund` auf der ganzen (parametrisierten) Testfunktion — verifiziert während Aufgabe 3: unter
+  dem planvorgeschriebenen Suite-Befehl (`-m "not dortmund"`) wird dieser Test vollständig deselektiert, zählt
+  also nicht als Fehlschlag. Kein weiterer Marker nötig, keine Fixture neu erzeugt.
 - **Keine neuen Profilschalter.** Das Begriffsboard rendert weiterhin nur, wenn `workshop.diskussion_aktiv()`
   (Padua) — diese Erweiterung ändert nichts an der Sichtbarkeitslogik.
 - Code-Bezeichner deutsch wie im Repo, Kommentare in ae/oe/ue wie im umgebenden Code. Nur erfundenes Material in

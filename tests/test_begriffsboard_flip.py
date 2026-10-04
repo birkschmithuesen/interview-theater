@@ -163,3 +163,14 @@ def test_css_ohne_hexfarbe_bleibt_auch_mit_dem_neuen_design_wahr():
     assert re.search(r"#[0-9a-fA-F]{3,8}\b", css) is None
     for verboten in ("@media", "@keyframes", "transition", "animation", "url("):
         assert verboten not in css, verboten
+
+
+def test_bbmerke_und_bbspiele_verfolgen_kein_warum_mehr():
+    """Design-Erweiterung (Karte t_cb2c4678, 04.10.2026): ohne
+    aufklappbares "Warum" (Aufgabe 1) gibt es keinen Auf-/Zu-Zustand mehr,
+    den die FLIP-Helfer ueber den Panel-Tausch retten muessten."""
+    js = web_vereint._VEREINT_JS
+    merke = _extrahiere(js, "bbMerke")
+    spiele = _extrahiere(js, "bbSpiele")
+    assert "details" not in merke and "details" not in spiele
+    assert "offen" not in merke and "offen" not in spiele

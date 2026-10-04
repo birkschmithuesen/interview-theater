@@ -101,6 +101,13 @@ def einleitungen(wert: str | None) -> dict[int, str]:
     return ergebnis
 
 
+def sprache_workshop():
+    """``workshop`` spaet importiert -- leitfaden wird von workshop-nahen
+    Modulen frueh geladen."""
+    from interview_theater import workshop
+    return workshop
+
+
 def bausteine(felder: dict) -> dict | None:
     """Die Bestandteile des Leitfadens -- oder None, wenn es keinen gibt.
 
@@ -127,7 +134,7 @@ def bausteine(felder: dict) -> dict | None:
     # Die weichen Fassungen liegen in derselben Form wie die Einleitungen vor
     # (``<Nummer> — <Text>``) und werden mit demselben Leser gelesen: es gibt
     # einen nummerierten Zeilenblock in diesem Projekt, nicht zwei.
-    weich = einleitungen(feld("fragen_weich"))
+    weich = einleitungen(feld("fragen_weich")) if sprache_workshop().fragen_weich_aktiv() else {}
     eintraege = []
     for nummer, frage in enumerate(liste, start=1):
         # **Die weiche Fassung ist der Text, den die Gruppe spricht**

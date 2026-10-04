@@ -952,6 +952,20 @@ def diskussion_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("diskussion.aktiv", False))
 
 
+def fragen_weich_aktiv(profil: Profil | None = None) -> bool:
+    """Ob Phase 2 sensible Fragen zusaetzlich in eine weiche Fassung
+    umschreiben laesst (``VORSCHLAG FRAGEN WEICH:``, Angebot nach der letzten
+    Entscheidung, weiche Fassung im Leitfaden).
+
+    Vorgabe true -- Dortmund bleibt unberuehrt. Padua schaltet es ab (Birk,
+    03.10.2026 live: „Die ganze Softwaregeschichte beim Fragen entwickeln
+    kannst du fuer Padua deaktivieren [...] Es hat nicht gut funktioniert,
+    aber deaktivier das einfach.“). Ausgeschaltet heisst: kein Prompt-Auftrag,
+    nichts gespeichert, kein Angebot, im Leitfaden steht die Frage selbst."""
+    profil = profil or aktiv()
+    return bool(profil.wert("fragen_weich.aktiv", True))
+
+
 def fragen_ab_aktiv(profil: Profil | None = None) -> bool:
     """Ob Phase 2 den A/B-Vergleich eigene-vs-KI-Fragen faehrt (Padua Phase
     1+2 Umbau, 03.10.2026).

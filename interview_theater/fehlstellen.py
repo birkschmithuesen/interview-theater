@@ -138,7 +138,10 @@ def _begriffe_und_fragen(stand) -> list[dict]:
             "fragen", T._SATZ_FRAGEN, 2,
         ))
         return offen
-    if not (_gesetzt(stand, "fragen_weich") or _gesetzt(stand, "frage_einleitungen")):
+    from interview_theater import workshop
+    if workshop.fragen_weich_aktiv() and not (
+        _gesetzt(stand, "fragen_weich") or _gesetzt(stand, "frage_einleitungen")
+    ):
         offen.append(_eintrag(
             "fragen", T._SATZ_FRAGEN_UNGEPRUEFT, 2,
         ))

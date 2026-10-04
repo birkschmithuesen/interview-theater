@@ -186,6 +186,9 @@ _TEXTE_BUEHNE_NEUE_KARTE = (
     "Neue Karte im Tab Bühne", "New card in the Stage tab",
 )
 _TEXT_ZUR_GRUPPENSEITE = "Zur Gruppenseite"
+#: Bild-Overlay-Karte (04.10.2026): der ✕-Knopf braucht ein Label fuer
+#: Vorleseprogramme, das Zeichen selbst steht dort als Text.
+_TEXT_BILD_SCHLIESSEN = "Schließen"
 #: Padua Hotfix B6/B7: ohne Emoji und ueber ``T`` nachgeschlagen (EN-Mirror,
 #: ["web_chat"] in sprachen/en/texte.toml) -- der Knopftext ist einer der
 #: wenigen uebersetzten in diesem Modul.
@@ -252,8 +255,17 @@ _TEXT_ZU_SCHNELL = "Das war zu viel auf einmal — einen Moment, dann wieder."
 #: Die Seite ist gross gesetzt: sie liegt auf einem Telefon in einem
 #: Probenraum, und die Gruppe liest im Stehen.
 _CSS_CHAT = """
+/* Bild-Overlay-Karte (04.10.2026): seitenweites Pinch-/Doppeltipp-Zoom im
+   Chat ist aus -- es liess vorher den fixen Fuss (Record-/PTT-/Senden-
+   Knopf) beim Zoomen ueberproportional mitwachsen. ``pan-x pan-y`` statt
+   ``none``: Scrollen/Wischen bleibt erlaubt, nur Zoomen per Geste nicht --
+   und statt ``manipulation`` (das Doppeltipp-Zoom zwar auch abschaltet,
+   aber nichts ueber Pinch sagt und je Browser unterschiedlich ausgelegt
+   wird). ``body`` wird auf der vereinten Seite beim Scopen zur Scope-
+   Klasse selbst (``web_vereint.scope_css``), die Sperre bleibt also auf
+   den Chat beschraenkt. */
 body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
-       max-width: 44rem; margin: 0 auto; }
+       max-width: 44rem; margin: 0 auto; touch-action: pan-x pan-y; }
 .verlauf { display: flex; flex-direction: column; gap: .55rem; }
 .blase { padding: .55rem .7rem; border-radius: .8rem; max-width: 88%;
          font-size: 1.02rem; overflow-wrap: anywhere; }
@@ -384,6 +396,23 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .kalibrierung-erinnerung[hidden] { display: none; }
 .mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }
 .mitlauf-hinweis[hidden] { display: none; }
+/* Bild-Overlay-Karte: die Telefon-Organisationskarte (``.karte``) gross und
+   zoombar. ``inset: 0`` statt ``100vw``/``100vh`` -- ein fixes Element
+   braucht dafuer keine viewport-relative Einheit. ``touch-action:
+   pinch-zoom`` auf Huelle UND Bild hebt die Sperre am ``body`` fuer dieses
+   Element gezielt wieder auf. */
+.bild-overlay { position: fixed; inset: 0; z-index: 9999;
+                background: rgba(0, 0, 0, .9); display: flex;
+                align-items: center; justify-content: center;
+                touch-action: pinch-zoom; }
+.bild-overlay[hidden] { display: none; }
+.bild-overlay img { max-width: 100%; max-height: 100%; object-fit: contain;
+                     touch-action: pinch-zoom; }
+.bild-overlay button { position: absolute; top: .6rem; right: .6rem;
+                        min-width: 2.75rem; min-height: 2.75rem;
+                        border-radius: 999px; border: 0;
+                        background: rgba(255, 255, 255, .15); color: #fff;
+                        font-size: 1.3rem; }
 @media (prefers-color-scheme: dark) {
   body { background: #14161a; color: #e7e9ec; }
   .blase.bot { background: #1d2026; border-color: #2c313a; }
@@ -692,6 +721,11 @@ _CHAT_JS = """
   var angehaltenText = document.getElementById('angehalten-text');
   var nachreichenKnopf = document.getElementById('nachreichen');
   var verwerfenKnopf = document.getElementById('verwerfen');
+  // Bild-Overlay-Karte (04.10.2026): die Telefon-Organisationskarte
+  // (``.karte``) gross und per Pinch-Zoom vergroesserbar.
+  var bildOverlay = document.getElementById('bild-overlay');
+  var bildOverlayImg = document.getElementById('bild-overlay-img');
+  var bildOverlaySchliessen = document.getElementById('bild-overlay-schliessen');
   var SEGMENT_MS = parseInt(fuss.dataset.segmentMs, 10) || 45000;
 
   // -- Pegel-Kalibrierung: die Bedienelemente --------------------------------
@@ -725,6 +759,9 @@ _CHAT_JS = """
   var zustand = {
     letzte: parseInt(verlauf.dataset.letzte, 10) || 0,
     aenderung: parseInt(verlauf.dataset.aenderung, 10) || 0,
+    // Phasenscroll-Karte (04.10.2026): 0 heisst "keine Phase bekannt" --
+    // echte Phasen sind 1..7 und nie 0.
+    phase: parseInt(verlauf.dataset.phase, 10) || 0,
     servermodus: fuss.dataset.interview === '1',
     knopfErlaubt: !interviewKnopf.hidden,   // Padua Hotfix B6: Phase 3 oder Modus
     brainstormErlaubt: !brainstormKnopf.hidden,   // Task 2: Phase 4
@@ -792,6 +829,53 @@ _CHAT_JS = """
     if (!n.bild) { return ''; }
     return '<img src="' + weg('static/handys/' + n.bild) + '" alt="' +
            escape(n.text || '') + '" loading="lazy" class="karte">';
+  }
+
+  // Bild-Overlay-Karte (04.10.2026): die Telefon-Organisationskarte
+  // (``.karte``, aus ``bildVon`` oben) vollbildig mit Pinch-Zoom. Ein
+  // delegierter Klick-Listener auf ``verlauf`` (statt je Bild einzeln) --
+  // Bilder kommen sowohl serverseitig vorgerendert als auch spaeter per
+  // ``blase()``/``ersetze()`` dynamisch dazu.
+  var ueberlagerungOffen = false;
+  function oeffneBildOverlay(src, alt) {
+    if (!bildOverlay || !bildOverlayImg) { return; }
+    bildOverlayImg.src = src;
+    bildOverlayImg.alt = alt || '';
+    bildOverlay.hidden = false;
+    ueberlagerungOffen = true;
+    history.pushState({ bildUeberlagerung: true }, '');
+  }
+  function schliesseBildOverlay() {
+    if (!ueberlagerungOffen || !bildOverlay) { return; }
+    bildOverlay.hidden = true;
+    bildOverlayImg.src = '';
+    ueberlagerungOffen = false;
+    if (history.state && history.state.bildUeberlagerung) { history.back(); }
+  }
+  if (bildOverlay) {
+    verlauf.addEventListener('click', function (ev) {
+      var img = ev.target.closest ? ev.target.closest('img.karte') : null;
+      if (img) { oeffneBildOverlay(img.src, img.alt); }
+    });
+    // Tippen auf den dunklen Hintergrund schliesst -- auf das Bild selbst
+    // NICHT, sonst stoert ein Tipp mitten in einer Pinch-Geste.
+    bildOverlay.addEventListener('click', function (ev) {
+      if (ev.target === bildOverlay) { schliesseBildOverlay(); }
+    });
+    if (bildOverlaySchliessen) {
+      bildOverlaySchliessen.addEventListener('click', schliesseBildOverlay);
+    }
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') { schliesseBildOverlay(); }
+    });
+    // Zurueck-Geste/-Taste: schliesst das Overlay, OHNE erneut
+    // ``history.back()`` aufzurufen -- der Browser ist schon zurueck.
+    window.addEventListener('popstate', function () {
+      if (!ueberlagerungOffen) { return; }
+      bildOverlay.hidden = true;
+      bildOverlayImg.src = '';
+      ueberlagerungOffen = false;
+    });
   }
 
   function inhaltVon(n) {
@@ -944,6 +1028,35 @@ _CHAT_JS = """
     return geaendert.some(function (n) { return String(n.id) === letzteId; });
   }
 
+  // Phasenscroll-Karte (04.10.2026): die juengste Eintrittsnachricht einer
+  // Phase im aktuell geladenen Verlauf -- ihr Praefix ist sprachunabhaengig
+  // gleich (``phasentexte._KOPF_EINTRITT``), eine neue DB-Spalte ist dafuer
+  // nicht noetig. Rueckwaerts gesucht, weil nur die LETZTE Phasenzeile
+  // zaehlt -- eine aeltere stuende sonst im Weg.
+  function phasenkopfzeile() {
+    var blasen = verlauf.querySelectorAll('.blase.bot');
+    for (var i = blasen.length - 1; i >= 0; i--) {
+      if (blasen[i].textContent.indexOf('▶️ Phase ') === 0) { return blasen[i]; }
+    }
+    return null;
+  }
+
+  // Nach einem Phasenwechsel soll der Anfang der neuen Phase im Bild
+  // stehen, nicht das Ende des ganzen (ungetrennten) Verlaufs.
+  // ``scrollIntoView`` passt dabei automatisch jeden scrollbaren Vorfahren
+  // an -- die Chat-Einzelseite (Dokument-Scroll) UND die vereinte Seite
+  // (``verlauf`` scrollt in sich selbst) brauchen dafuer keinen eigenen Weg,
+  // anders als ``nachUnten()``. Ohne Phasenzeile im Verlauf (z. B. ganz am
+  // Anfang von Phase 1) bleibt der bisherige Rueckfall. Ohne Argument
+  // entspricht der Aufruf laut Spezifikation genau dem Anfang des Elements
+  // oben im sichtbaren Bereich und keiner seitlichen Verschiebung -- ebenso
+  // wirksam wie mit ausgeschriebenen Werten.
+  function scrolleZuPhasenanfang() {
+    var kopf = phasenkopfzeile();
+    if (kopf) { kopf.scrollIntoView(); return; }
+    nachUnten();
+  }
+
   function nimmZustand(daten) {
     var warUnten = amUnterenRand();
     // Review-Befund 2: die Seite laedt nie neu, ein Nonce gilt hoechstens
@@ -964,8 +1077,15 @@ _CHAT_JS = """
       zustand.aenderung = daten.aenderung;
       verlauf.dataset.aenderung = daten.aenderung;
     }
+    // Phasenscroll-Karte (04.10.2026): ein Wechsel zaehlt nur, wenn vorher
+    // schon eine Phase bekannt war (sonst waere der allererste Poll immer
+    // ein "Wechsel") und die neue sich von ihr unterscheidet.
+    var phaseAlt = zustand.phase;
+    var phaseNeu = (typeof daten.phase === 'number') ? daten.phase : null;
+    var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;
+    if (phaseNeu !== null) { zustand.phase = phaseNeu; }
     if (neu.length) {
-      nachUnten();
+      if (phasenwechsel) { scrolleZuPhasenanfang(); } else { nachUnten(); }
     } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
       nachUnten();
     }
@@ -3444,7 +3564,7 @@ _CHAT_JS = """
   });
 
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
-  nachUnten();
+  scrolleZuPhasenanfang();   // Phasenscroll-Karte: der Anfang der aktuellen Phase, sonst der Rueckfall ans Ende
   hole();
 })();
 """
@@ -3651,7 +3771,11 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f"{gruppenlink}"
         f'<noscript><p class="leer">{html.escape(T._TEXT_OHNE_JS)}</p></noscript>\n'
         f'<div class="verlauf" id="verlauf" data-letzte="{daten["letzte"]}" '
-        f'data-aenderung="{int(daten.get("aenderung") or 0)}">\n'
+        f'data-aenderung="{int(daten.get("aenderung") or 0)}" '
+        # Phasenscroll-Karte (04.10.2026): leer, wenn keine Phase bekannt
+        # ist -- echte Phasen sind 1..7 und nie 0, das JS liest eine leere
+        # Zeichenkette ueber ``parseInt`` ohnehin als 0 (``|| 0``).
+        f'data-phase="{daten.get("phase") or ""}">\n'
         f"{blasen}\n</div>\n"
         f'<div class="tippt" id="tippt"></div>\n'
         f"{nonce_feld}"
@@ -3762,6 +3886,16 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'    <button type="button" id="senden">'
         f'{html.escape(T._TEXT_SENDEN)}</button>\n'
         f"  </div>\n"
+        f"</div>\n"
+        # Bild-Overlay-Karte: EIN Overlay fuer beide Seiten (Chat-Einzelseite
+        # UND vereinte Seite teilen sich diesen Koerper). Ausserhalb von
+        # ``.fuss``, als eigenes Vollbild-Element -- seine Groesse kommt aus
+        # ``position: fixed; inset: 0`` in ``_CSS_CHAT``, nicht aus seiner
+        # Stellung im Markup.
+        f'<div class="bild-overlay" id="bild-overlay" hidden>\n'
+        f'  <button type="button" id="bild-overlay-schliessen" '
+        f'aria-label="{html.escape(_TEXT_BILD_SCHLIESSEN, quote=True)}">✕</button>\n'
+        f'  <img id="bild-overlay-img" src="" alt="">\n'
         f"</div>\n"
     )
 

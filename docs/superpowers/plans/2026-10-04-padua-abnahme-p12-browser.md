@@ -27,6 +27,125 @@
   `$PY -m pytest -q -p no:cacheprovider --ignore=tests/e2e -m "not dortmund" > .suite.log 2>&1; echo EXIT $?` → `EXIT 0`, plus `$PY -m scripts.pruefe_profil padua-2026` → Exit 0.
 - Alles, was beim Planen nicht selbst verifiziert wurde, traegt `ANNAHME:` plus die Pruefung.
 
+## 🔴 Verbindlich: acht Arbeitspakete + zwei Pflichtpunkte (Birk via Robo, 04.10. 18:50/19:00)
+
+Dieser Abschnitt geht allem Folgenden vor. Die Tasks 0–12 unten bleiben die
+Detailvorlage (Tests, Schnittstellen, Kommandos). **Abgearbeitet wird in diesen
+acht Paketen, je Paket ein Commit (oder mehrere), Reihenfolge A→H.** Was ein
+Detail-Task offen laesst, klaert die Umsetzung selbst; nur Birk-Fragen (Geld,
+Wortlaut, Loeschung) werden B-Befunde.
+
+| Paket | umfasst | Nachweis |
+|---|---|---|
+| A | Task 0 + 1 + 2 | `$PY -m pytest tests/test_browser_persona.py tests/test_browser_elemente.py tests/test_browser_aktionen.py -q -p no:cacheprovider` → passed; `git check-ignore -q simulation/berichte/abnahme-p12-2026-10-04.md; echo $?` → `1` |
+| B | Task 3 **+ Station `p1-start` (Pflichtpunkt 2)** | `$PY -m pytest tests/test_browser_stationen.py -q -p no:cacheprovider` → passed, darunter `test_p1_start_ist_die_erste_station_und_ruft_keine_persona` |
+| C | Task 4 | `$W -m pytest tests/test_browser_beobachter.py -q -p no:cacheprovider` → passed |
+| D | Task 5 + 6 (Step 4 = controller, ≤ 0.01 CHF) | `$W -m pytest tests/test_diskussion_audio.py tests/test_browser_probe.py -q -p no:cacheprovider` → passed; Probenotiz `simulation/browser_laeufe/probe-2026-10-04.txt` existiert |
+| E | Task 7 **+ Erklaernote (Pflichtpunkt 1)** | `$PY -m pytest tests/test_browser_lauf.py tests/test_browser_judge.py -q -p no:cacheprovider` → passed, darunter `test_erklaerung_zitat_muss_woertlich_aus_dem_bot_stammen` |
+| F | Task 8 (Rubrik = Pflichtpunkt 3, Phase-2-Regel, `entwickler_meta`) **+ Start-ohne-Tippen-Fix bzw. B** | Kommandos aus Task 8 Step 4; `$PY -m scripts.pruefe_profil padua-2026; echo EXIT $?` → `EXIT 0` |
+| G | Task 9 + 10 (Bericht bekommt Erklaerspalte + Station `p1-start`) | `$PY -m pytest tests/test_browser_leitbilder.py tests/test_guide_bilder.py tests/test_browser_abnahme.py -q -p no:cacheprovider` → passed; dann die volle Suite (Task 10 Step 5) → `EXIT 0` |
+| H | Task 11 + 12, **controller-executed**, Budget wie dort (≤ 4 Laeufe, Stopp bei Σ > 1.50 CHF) | Bericht `simulation/berichte/abnahme-p12-2026-10-04.md`, erste Zeile `Phase 1-2 abnahmebereit: ja|nein — …`; `docs/guide/bilder/index.json` committet |
+
+**Die Abnahme muss sofort starten koennen:** Liegen A–G nach einer Stunde nicht
+vor, faehrt der Controller H trotzdem mit dem, was da ist. Was fehlt, steht als
+Harness-Notiz im Bericht. Ohne `p1-zuhoeren`/Beobachter ist das Urteil hoechstens
+„nein — Mithoeren ungeprueft“.
+
+### Pflichtpunkt 1 — Erklaernote je Station (in Paket E)
+
+Neben der UX-Note bekommt **jede Station** eine eigene Note 1–5 auf die Frage
+„Ist das, was der Bot hier sagt, eine gute Erklaerung?“. Kriterien, woertlich
+in den Richter-Prompt: verstaendlich fuer eine Erstnutzerin ohne
+Tool-Erfahrung; kurz; macht Lust; sagt, was jetzt passiert und was die Gruppe
+tut; kein Jargon; keine Entwickler-Meta.
+
+- `simulation/browser_judge.py`, neu:
+  `bewerte_erklaerung(client, station: str, bot_texte: list[str]) -> dict`.
+  Rueckgabe `{"note_erklaerung": int | None, "schwaechstes_zitat": str, "vorschlag": str}`.
+  Eingabe sind die **Texte** der Bot-Blasen, die in dieser Station neu
+  erschienen sind (aus `_verlaufsblasen`, `von == "bot"`, Systemzeilen
+  eingeschlossen; die sind auch Erklaerungen). Ohne neue Bot-Blase wird
+  kein Aufruf gemacht, das Ergebnis ist `{"note_erklaerung": None, "schwaechstes_zitat": "", "vorschlag": ""}`.
+  Ein eigener Opus-Aufruf (`art="browser_erklaerung"`) ueber den Abo-Proxy
+  kostet nichts. Kein Bild, nur Text.
+- **Das Zitat wird mechanisch geprueft:** `schwaechstes_zitat` muss
+  (whitespace-normalisiert) Teilstring eines der `bot_texte` sein. Sonst gibt es
+  einen Retry mit dem Hinweis „your quote does not occur in the bot texts“.
+  Danach gilt: `note_erklaerung` bleibt stehen, das Zitat wird `""`, und das Feld
+  `zitat_unbelegt: True` wird gesetzt. Dieselbe Haltung wie `dramaturgie/beleg.py`.
+- Tests (`tests/test_browser_judge.py`, Attrappen-Client wie dort ueblich):
+  `test_erklaerung_kriterien_stehen_im_prompt` (alle sechs Kriterien im
+  System-Text), `test_erklaerung_ohne_bot_text_ruft_kein_modell`,
+  `test_erklaerung_zitat_muss_woertlich_aus_dem_bot_stammen` (erst falsches
+  Zitat → Retry → richtiges Zitat wird uebernommen; zweimal falsch →
+  `zitat_unbelegt`).
+- `fuehre_stationen` legt je Station `note_erklaerung`, `schwaechstes_zitat`
+  und `vorschlag` ins Ergebnis.
+- **Einordnung (Paket H):** Note ≤ 2 ist ein Befund wie jeder andere. Stammt der
+  Text aus `sprachen/en/texte.toml`, `phasentexte.py` oder einem Prompt unter
+  `workshop/padua-2026/prompts/`, gibt es genau einen besseren Wortlaut. Das ist
+  **Klasse A**: Text ersetzen, Test auf den neuen Wortlaut, Commit
+  `Abnahme P1-2: Erklaerung <station>`. Kommt der Text frei vom Gespraechsmodell,
+  ist es eine Prompt-Regel, und auch die zaehlt als A, wenn sie eindeutig ist.
+  Andernfalls wird es B. Der Bericht (Paket G) bekommt je Station die Spalten
+  `Erklaerung`, `schwaechstes Zitat` und `Vorschlag`.
+
+### Pflichtpunkt 2 — Start ohne Tippen (Stationen in Paket B, Fix in Paket F)
+
+Birks Wunsch vom 04.10.: Phase 1 startet beim Oeffnen der Seite von selbst.
+Begruessung, Kalibrierung und Mithoeren sollen ohne Tippen beginnen. Das
+**ersetzt** die Stilllegung von `scripts/begruessen.py` vom 02.10.2026 („die
+Gruppe schreibt zuerst“, siehe dort).
+
+- **Station `p1-start`** steht als erste in `STATIONEN_P12`, vor `p1-eintritt`.
+  Sie hat **keinen** Persona-Aufruf: Die Seite wird frisch geoeffnet, 60 s lang
+  wird nichts getippt und nichts geklickt, dann wird mechanisch festgehalten:
+  `{"bot_nachricht": bool, "kalibrierung_sichtbar": bool, "zuhoeren_laeuft": bool, "leertext_sichtbar": bool}`.
+  Gelesen wird aus `.blase.bot`, `#kalibrierung*` und `#diskussion*` im DOM;
+  der Leertext ist `.leer` bzw. `T._TEXT_LEER`. Sie liefert ein Leitbild
+  `phase-1-start-<geraet>.png`. Das Station-Datenfeld dafuer ist
+  `ohne_persona=True, warte_s=60`. Test:
+  `test_p1_start_ist_die_erste_station_und_ruft_keine_persona`
+  (Attrappen-Persona zaehlt Aufrufe → 0).
+- **Fix (Paket F), zweigeteilt:**
+  1. **Begruessung beim ersten Seitenaufruf, Klasse A, wenn klein:**
+     Ist der Chat einer Web-Gruppe leer (`repo.hat_bot_nachricht` falsch),
+     loest der erste Seitenaufruf genau einen Eingang aus. Das geht ueber
+     denselben Nahtweg wie `phase_post`: ein versteckter Befehl `/start` als
+     `WEB_TYP_BEFEHL`, mit Nonce, idempotent, weil der Bot ihn nur bei leerem
+     Chat ausfuehrt. Der Bot faehrt darauf genau die Begruessung, die heute
+     der erste Gespraechszug liefert (`kontext.ERSTKONTAKT_DISKUSSION`).
+     Ob ueber einen synthetischen Ausloeser oder ueber `bot.erstkontakt`,
+     entscheidet die Umsetzung: Es zaehlt der kleinere Eingriff ohne neuen
+     Prompt-Wortlaut.
+     Tests: Erster Aufruf erzeugt genau einen `web_post` mit `/start`; der
+     zweite Aufruf erzeugt keinen. `/start` bei nicht leerem Chat → keine
+     Wirkung. `/start` steht nicht in `BEFEHLE_LISTE` (versteckt, wie
+     `/phaseklick`). Konflikt mit t_cb2c4678/t_2b9d2cbe: In `web_vereint.py`
+     sind hoechstens ~15 Zeilen erlaubt (Route + ein JS-Aufruf). Mehr wird
+     B-Befund.
+  2. **Kalibrierung und Mithoeren automatisch:** `ANNAHME:` Chromium verlangt
+     fuer `AudioContext`/die erste Mikrofonfreigabe eine Nutzergeste
+     (Autoplay-/Permission-Policy). Ein echter Autostart ohne jeden Tipp ist
+     dann technisch nicht moeglich. Pruefen in der Probe (Paket D): ohne
+     Fake-UI-Flag und ohne Klick `getUserMedia` + `AudioContext.state`
+     ausgeben. Bestaetigt sich die Annahme, ist das **B** mit Vorschlag:
+     „ein grosser Knopf ‚Start' = Begruessung gelesen + Kalibrierung +
+     Mithoeren in EINEM Tipp“. Widerlegt sie sich, ist es A: Kalibrierung
+     startet nach der Begruessung von selbst.
+- Bericht: Die eigene Station steht oben in der Stationstabelle mit
+  der Frage „Seite neu oeffnen, nichts tippen: Was passiert?“ und den vier
+  Messwerten.
+
+### Pflichtpunkt 3 — Rubrik
+
+Ist durch Task 8 abgedeckt (Paket F): `simulation/ux_rubrik.md` §
+„Background listening“ wird fuer Padua Phase 1 korrigiert. Das
+Begriffsboard im CoThinker ist gewollt (Birk 04.10.), nur im **Chat** bleibt
+es still. Zusaetzlich nimmt die Rubrik die sechs Erklaerkriterien aus
+Pflichtpunkt 1 als eigenen Abschnitt „Explanation quality“ auf, damit UX- und
+Erklaerrichter dieselbe Quelle lesen.
+
 ## Dateikarte
 
 | Datei | Aenderung | Verantwortung |

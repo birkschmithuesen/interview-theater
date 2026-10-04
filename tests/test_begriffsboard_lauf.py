@@ -90,6 +90,7 @@ def test_schema_ist_streng():
     assert zeile["additionalProperties"] is False
     assert set(zeile["required"]) == set(zeile["properties"]) == {
         "begriff", "nennungen", "zustimmung", "begruendung", "zitat", "doppelbedeutung", "status",
+        "vorheriger_begriff",
     }
 
 

@@ -29,6 +29,9 @@ transcript:
   "".
 - status: "favorit" when the group agrees on it; "verworfen" when it drops
   it; otherwise "kandidat".
+- vorheriger_begriff: when this entry replaces an entry of the board so far
+  (merge, see below), exactly that entry's ``begriff`` from the board so
+  far; otherwise "".
 
 Keep the terms from the board so far that appear in the transcript and
 update their numbers.
@@ -44,6 +47,13 @@ with status "verworfen". Two terms
 that are genuinely distinct (e.g. "street" and "role") stay separate --
 merge only on real meaning equivalence or sharpening, not on mere thematic
 closeness.
+
+When you replace an entry, name the replaced one in ``vorheriger_begriff``
+-- worded as on the board so far. A term that the board so far lists under
+an entry's ``vorgaenger`` has already been merged: do not add it back as an
+entry of its own, even if it still appears in the transcript -- the
+transcript keeps growing and the old word stays in it. You never write
+``vorgaenger`` yourself; the program keeps that list.
 
 Catch and correct speech-recognition mishearings: the transcript comes from
 automatic speech recognition (STT), which occasionally writes something
@@ -107,6 +117,8 @@ Not like this:
 - No begruendung that only says the term was named, collected or suggested.
 - No line for a merged or misheard wording.
 - No description of individual speakers ("one of them thought ...").
+- No ``vorheriger_begriff`` that is not worded exactly like a ``begriff``
+  on the board so far.
 - No text outside the JSON.
 
 A discussion without terms gives {"board": []}.

@@ -188,6 +188,9 @@ GEAENDERT: dict[str, str] = {
         "das Profil ``diskussion.aktiv``) und faellt in _zusammen ersatzlos "
         "weg -- der Nutzertext ist zeichengleich (tests/test_kontext.py, "
         "tests/test_profil_bitgleich.py)."
+        " Karte t_4517d4ad (04.10.2026): \"begriffe_detail\" steht direkt "
+        "hinter \"diskussion\" -- fuer Dortmund ebenfalls leer (keine Spalte "
+        "begriffe_detail ohne Begriffsboard) und ersatzlos weg."
     ),
     # Padua-Brainstorming-Umbau, Phase 4 (02.10.2026, .phase4-brainstorm-brief.md):
     # die neue Erkenner-Art ``szenenanzahl_setzen`` (Anzahl Szenen ist ein

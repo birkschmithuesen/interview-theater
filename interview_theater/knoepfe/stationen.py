@@ -247,10 +247,18 @@ def biete_proaktiv(conn, tg, chat_id: int, phase: int, vorspann: str | None = No
             undo_behalten=True,
         )
         return
-    message_id = tg.sende(chat_id, _mit_vorspann(vorspann, T._TEXT_PROAKTIV))
+    text = _mit_vorspann(vorspann, T._TEXT_PROAKTIV)
+    if phase == PHASE_INTERVIEWS and vorspann:
+        # P34 Runde 2, Befund A8: im Web-Kanal (Padua) haengt an den
+        # Interview-Eintritt keine offene Frage -- Phase 3 stellt keine
+        # Fragen, sie zeigt den Rekorder. Telegram bleibt unveraendert.
+        from interview_theater import aufnahme
+
+        if aufnahme.ist_web_gruppe(conn, chat_id):
+            text = vorspann
+    message_id = tg.sende(chat_id, text)
     repo.merke_nachricht(
-        conn, chat_id, message_id, None, 1, "text",
-        _mit_vorspann(vorspann, T._TEXT_PROAKTIV), repo._jetzt(),
+        conn, chat_id, message_id, None, 1, "text", text, repo._jetzt(),
     )
 
 

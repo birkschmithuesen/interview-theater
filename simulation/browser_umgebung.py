@@ -172,6 +172,46 @@ def starte_bot(env_datei: str, db_pfad: str, audio_verz: str, chat_id: int,
     return prozess, log
 
 
+#: Phase-1/2-Ergebnis fuer einen Lauf, der in Phase 3 beginnt -- dieselben
+#: erfundenen Werte wie scripts/fixture_padua_voll._STAND_JE_PHASE[1]/[2]
+#: (dort ist es eine private Konstante, hier die oeffentliche Abschrift).
+STAND_PHASE_1_2 = (
+    ("begriffe", "arrival, waiting, strangers, noise, belonging, home, trust, family"),
+    ("fragen", "1. What do you remember about your first day here?\n"
+               "2. Where did you wait the longest in your life?\n"
+               "3. When did a strange place start to feel like yours?"),
+    ("interview_eroeffnung", "Hi, we are acting students from the academy. "
+                             "Do you have ten minutes for three questions?"),
+    ("interview_abschluss", "Thank you. Your answers stay anonymous and become "
+                            "material for a fictional play."),
+)
+
+
+def bereite_vor(db_pfad: str, chat_id: int, *, startphase: int) -> None:
+    """Fuellt fuer ``startphase > 1`` den Stand der Phasen davor und laesst
+    die Gruppe in ``startphase - 1`` stehen -- den Wechsel selbst macht
+    ``browser_lauf.main`` ueber den echten Endpunkt (Eintrittsnachricht wie
+    live). Heute nur Phase 3 gebaut; andere Werte > 3 sind ein ValueError.
+
+    Padua (``workshop/padua-2026/profil.toml``, ``[fragen_weich] aktiv =
+    false``) braucht fuer ``phasen.voraussetzungen()[3]`` NICHT zusaetzlich
+    ``fragen_weich``/``frage_einleitungen`` -- die Bedingung
+    ``not workshop.fragen_weich_aktiv() or geprueft(...)`` ist mit
+    ``fragen_weich_aktiv() == False`` schon erfuellt."""
+    if startphase <= 1:
+        return
+    if startphase != 3:
+        raise ValueError(f"startphase {startphase} nicht gebaut")
+    conn = db.verbinde(db_pfad)
+    try:
+        for feld, wert in STAND_PHASE_1_2:
+            repo.setze_arbeitsstand(conn, chat_id, feld, wert)
+        repo.setze_phase(conn, chat_id, 2)
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @dataclass
 class Gruppe:
     token: str
@@ -208,7 +248,7 @@ class Stack:
 
 
 def starte_stack(env_datei: str, lauf_verzeichnis: Path, *,
-                 app_wurzel: Path = WURZEL, gruppen: int = 1) -> Stack:
+                 app_wurzel: Path = WURZEL, gruppen: int = 1, startphase: int = 1) -> Stack:
     """Baut den Stack aus ``app_wurzel`` (Vorgabe: dieser Checkout) --
     ``app_wurzel`` kann ein anderer Checkout sein (z. B. der alte Stand vor
     einem Live-Befund), um die alte App mit dem neuen Harness laufen zu
@@ -219,7 +259,12 @@ def starte_stack(env_datei: str, lauf_verzeichnis: Path, *,
 
     Der Laufordner wird absolut gemacht: Web und Bot laufen mit
     ``cwd=app_wurzel`` -- ein relativer Pfad liesse sie bei einem anderen
-    Checkout eine fremde, leere ``sim.db`` oeffnen."""
+    Checkout eine fremde, leere ``sim.db`` oeffnen.
+
+    ``startphase`` (Task 2, ``browser_stationen.STARTPHASE``) fuellt per
+    ``bereite_vor`` den Stand der Phasen davor in der ERSTEN Gruppe, BEVOR
+    Web und Bot starten -- den tatsaechlichen Phasenwechsel macht erst
+    ``browser_lauf.main`` ueber den echten Endpunkt."""
     lauf_verzeichnis = Path(lauf_verzeichnis).resolve()
     db_pfad = str(lauf_verzeichnis / "sim.db")
     audio_verz = str(lauf_verzeichnis / "audio")
@@ -229,6 +274,7 @@ def starte_stack(env_datei: str, lauf_verzeichnis: Path, *,
         name = "padua-browser-sim" if i == 0 else f"padua-browser-sim-{i + 1}"
         chat_id, token = baue_gruppe(db_pfad, name)
         gruppen_liste.append(Gruppe(token=token, chat_id=chat_id))
+    bereite_vor(db_pfad, gruppen_liste[0].chat_id, startphase=startphase)
     web_prozess, web_log, web_basis = starte_web(
         db_pfad, audio_verz, str(lauf_verzeichnis / "web.log"), app_wurzel=app_wurzel)
     bot_prozess, bot_log = starte_bot(

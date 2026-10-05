@@ -881,6 +881,26 @@ def test_interviews_fertig_springt_direkt_wenn_alles_verdichtet(conn, tg, klm, e
     assert klm.aufrufe == 0, "kein Modellaufruf im Knopf-Handler (Zusage 2)"
 
 
+def test_interviews_fertig_nennt_den_tab_hinweis_genau_einmal(conn, tg, klm, einst):
+    """P34 Runde 2, Befund A9 (Lauf 220222, web_post 24/27): der Hinweis auf
+    den Tab kam zweimal -- als Chatzeile (``schliesse_interviews_ab``) UND als
+    Knopf-Quittung. Er steht genau einmal da; die Quittung nennt die Phase
+    wie der Knopf "Weiter zu ..." (``_ANTWORT_PHASE``)."""
+    phasen.setze(conn, 1, 3, "befehl")
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    kopf_id = _interview(conn)
+    repo.speichere_verdichtung(conn, 1, kopf_id, "Es ging ums Ankommen.", [])
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+
+    _druecke(conn, tg, einst, "Interviews fertig", klm=klm)
+
+    hinweis = knoepfe.T._TEXT_ARBEITSSTAND_HINWEIS
+    alle = [t for _, t in tg.gesendet] + [t for _, t in tg.beantwortet]
+    assert alle.count(hinweis) == 1
+    assert tg.beantwortet[-1][1] == knoepfe.T._ANTWORT_PHASE.format(nummer=4)
+    assert klm.aufrufe == 0
+
+
 def test_interviews_fertig_merkt_den_wunsch_wenn_noch_offen(conn, tg, klm, einst):
     """Haengt noch ein unausgewertetes Interview offen rum, merkt der Knopf
     den Wunsch und bleibt in Phase 3 -- der Auto-Uebergang holt ihn spaeter
@@ -906,6 +926,33 @@ def test_interviews_fertig_merkt_den_wunsch_wenn_noch_offen(conn, tg, klm, einst
         "1 Interview(s) werden noch ausgewertet" in t for _, t in tg.gesendet
     ), "keine Dopplung: der Text geht nicht zusaetzlich ueber d.tg.sende()"
     assert klm.aufrufe == 0, "kein Modellaufruf im Knopf-Handler (Zusage 2)"
+
+
+@pytest.mark.parametrize("verdichtet", [True, False])
+def test_veralteter_interviews_fertig_knopf_in_phase_4_tut_nichts(
+    conn, tg, klm, einst, verdichtet,
+):
+    """P34 Final-Review (A12): ein stehengebliebener Knopf "Interviews
+    fertig", gedrueckt erst in Phase 4, darf weder die Phase weiterschalten
+    (``schliesse_interviews_ab`` -> ``naechste_moegliche`` koennte 4 -> 5
+    springen) noch den Wunsch merken (eine spaetere Verdichtung schaltete
+    sonst automatisch um) noch "0 Interview(s) ..." melden. Die Quittung
+    nennt die aktuelle Phase -- die Phase setzt allein die Gruppe."""
+    phasen.setze(conn, 1, 3, "befehl")
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    kopf_id = _interview(conn)
+    if verdichtet:
+        repo.speichere_verdichtung(conn, 1, kopf_id, "Es ging ums Ankommen.", [])
+    knoepfe.biete_nach_aufnahme(conn, tg, 1, "Interview 1 ist abgelegt.", kopf_id)
+    phasen.setze(conn, 1, 4, "befehl")
+
+    _druecke(conn, tg, einst, "Interviews fertig", klm=klm)
+
+    assert phasen.aktuelle(conn, 1) == 4
+    assert repo.hole_arbeitsstand(conn, 1)["interviews_fertig_wunsch_seit"] is None
+    assert tg.beantwortet[-1][1] == knoepfe.T._ANTWORT_PHASE.format(nummer=4)
+    assert not any("werden noch ausgewertet" in t for _, t in tg.beantwortet)
+    assert klm.aufrufe == 0
 
 
 def test_wunsch_schliesst_automatisch_nach_letzter_verdichtung(conn, tg, klm, einst):

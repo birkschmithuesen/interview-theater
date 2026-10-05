@@ -193,6 +193,12 @@ _TEXT_DISKUSSION_KEINE_BEGRIFFE = (
 ENDE_WARTEN_S = 90.0
 ENDE_WARTEN_TAKT_S = 0.5
 
+#: Wie lange das Brainstorm-Ende auf den Kartenlauf des VORIGEN Bogens
+#: wartet (t_cf87ee0a, Review I1): ein Lauf darf ``buehnenkarte.TIMEOUT_S``
+#: dauern, plus Spielraum. Reicht auch das nicht, gibt es eine sichtbare
+#: Schweigen-Zeile (``modell='belegt'``) statt gar keiner Reaktion.
+ENDE_LAUF_WARTEN_S = buehnenkarte.TIMEOUT_S + 30.0
+
 #: Das Transkript-Echo eines Teils (§ 10.6): woertlich, ohne Kommentar, ohne
 #: Zusammenfassung. Der Kopf sagt, wozu es gehoert -- das ist der ganze
 #: Unterschied zu "Ich hoere durch", das nichts zu kontrollieren gab.
@@ -1086,22 +1092,27 @@ def _diskussion_entscheide(conn, tg, klm, e, row) -> None:
         diskussion.starte(conn, tg, klm, e, row["chat_id"])
 
 
-def _warte_auf_offene_segmente(conn, e, row) -> None:
+def _warte_auf_offene_segmente(conn, e, row, *, zaehle=None,
+                               vorfall="diskussion_ende_segmente_offen") -> None:
     """Der Ende-Schnitt wartet, bis alle Segmente seiner Sitzung fertig sind
     (``ENDE_WARTEN_S``, 05.10.2026) -- erst dann sieht der Schlusslauf das
     komplette Transkript. Ein Segment, das in der Zwischenzeit fertig wird,
     geht seinen gewoehnlichen Weg (``begriffsboard.nach_segment`` ohne
     Abschluss; ``soll_laufen`` sieht dort schon den Ende-Schnitt als
     juengsten); laeuft dadurch gerade ein Lauf, entscheidet ``nach_segment``
-    nach ihm neu. Laeuft im Pool-Thread, nie in einem Knopf-Handler."""
+    nach ihm neu. Laeuft im Pool-Thread, nie in einem Knopf-Handler.
+
+    ``zaehle``/``vorfall``: dieselbe Wartebauart fuer den Brainstorm der
+    Phase 4 (t_cf87ee0a) -- dort mit ``repo.offene_brainstorm_segmente``."""
+    zaehle = zaehle or repo.offene_diskussion_segmente
     frist = time.monotonic() + ENDE_WARTEN_S
-    while repo.offene_diskussion_segmente(conn, row["chat_id"], row["id"]):
+    while zaehle(conn, row["chat_id"], row["id"]):
         if time.monotonic() >= frist:
-            log.warning("Diskussionsende ohne alle Segmente, chat_id=%s", row["chat_id"])
+            log.warning("Ende ohne alle Segmente (%s), chat_id=%s", vorfall, row["chat_id"])
             try:
                 repo.merke_vorfall(
                     conn, row["chat_id"], getattr(e, "bot_name", None),
-                    "diskussion_ende_segmente_offen",
+                    vorfall,
                     f"ende_id={row['id']} warten_s={ENDE_WARTEN_S:.0f}",
                 )
             except Exception:
@@ -1150,10 +1161,10 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
     reicht es fuer eine Buehnenkarte? ``brainstorm.soll_reagieren`` prueft
     das rein anhand von Zahlen aus ``repo.brainstorm_stand``.
 
-    ``schnittgrund == 'ende'`` heisst: dieses Segment ist der manuelle Flush
-    von Pause/Beenden (siehe ``_CHAT_JS``, ``pausiereInterview``/
-    ``beendeInterview`` setzen ihn vor ``alt.stop()``) -- genau das Signal,
-    das der Brief mit "OR on Pause/Beenden if >= 150 unreacted chars" meint.
+    ``schnittgrund == 'ende'`` heisst: dieses Segment ist der Flush beim
+    Stopp des Toggles (t_cf87ee0a, Birk 03.10.2026: ein Toggle = ein
+    Gedankenbogen; der Browser setzt ``'ende'`` vor ``alt.stop()``) -- das
+    einzige Signal, das eine Karte (oder ein sichtbares Schweigen) ausloest.
     Es gibt dafuer keinen eigenen Serveraufruf: die Brainstorm-Sitzung kennt
     keinen Modus-Befehl, das LETZTE hochgeladene Segment TRAEGT das Ende."""
     repo.setze_status(conn, row["id"], "fertig")
@@ -1169,43 +1180,126 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
 def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
     """Die Code-Entscheidung nach einem Brainstorm-Segment (Buehnenkarte ja
     oder nein) -- getrennt von ``_brainstorm_abschliessen`` aus demselben
-    Grund wie ``_diskussion_entscheide``."""
-    ist_abschluss = row["schnittgrund"] == "ende"
-    stand = repo.brainstorm_stand(conn, row["chat_id"])
+    Grund wie ``_diskussion_entscheide``.
+
+    Seit t_cf87ee0a (Birk 03.10.2026): EIN Toggle = EIN Gedankenbogen.
+    Waehrend der Toggle an ist, entsteht keine Karte (``pause``/``cap`` sind
+    stille technische Schnitte); erst das Bogenende (``ende``) wartet auf alle
+    Segmente des Bogens und entscheidet dann genau einmal: Karte (ueber
+    ``_starte_buehnenkarte``) oder -- unter der Abschlussschwelle -- eine
+    sichtbare Schweigen-Zeile. ``IT_BRAINSTORM_MIN_ZEICHEN``/``_MIN_ABSTAND_S``
+    sind damit im Brainstorm ohne Wirkung (``soll_reagieren`` bleibt
+    unveraendert, das Begriffsboard der Phase 1 nutzt es weiter).
+
+    Laeuft beim Ende noch die Karte des VORIGEN Bogens, wartet das Ende auf
+    sie (``_warte_auf_freien_kartenlauf``, hoechstens ``ENDE_LAUF_WARTEN_S``)
+    -- sonst ginge dieser Bogen still leer aus, weil
+    ``brainstorm.versuche_start`` belegt ist. Bleibt der Lauf trotzdem belegt
+    (Frist abgelaufen, oder zwei Enden im selben Augenblick), kommt eine
+    sichtbare Schweigen-Zeile (``modell='belegt'``) -- nie gar nichts.
+
+    Der Bogen endet an ``row['id']`` (Review I2): Schwelle und Markierung
+    zaehlen nur Segmente bis zum Ende-Segment; ein Segment des naechsten
+    Bogens (Toggle waehrend des Wartens neu gestartet) bleibt unreagiert.
+
+    Die Wartezeiten laufen im Pool- oder im Nachhol-Thread (``nachholen``
+    kann dadurch bis zu ``ENDE_WARTEN_S + ENDE_LAUF_WARTEN_S`` blockieren),
+    nie in einem Knopf-Handler."""
+    if row["schnittgrund"] != "ende":
+        return
+    _warte_auf_offene_segmente(conn, e, row, zaehle=repo.offene_brainstorm_segmente,
+                               vorfall="brainstorm_ende_segmente_offen")
+    if klm is not None:
+        _warte_auf_freien_kartenlauf(conn, e, row)
+    # P34 Final-Review: hat die Karte eines SPAETER verarbeiteten Bogenendes
+    # diesen Bogen schon abgedeckt, still auslassen -- keine 'schwelle'-Zeile
+    # ueber der echten Karte.
+    arbeitsstand = repo.hole_arbeitsstand(conn, row["chat_id"])
+    if arbeitsstand and (arbeitsstand["brainstorm_markierung_id"] or 0) >= row["id"]:
+        return
+    stand = repo.brainstorm_stand(conn, row["chat_id"], bis_id=row["id"])
     sekunden = stand["sekunden_seit_letzter_reaktion"]
     soll = brainstorm.soll_reagieren(
         unreagierte_zeichen=stand["unreagierte_zeichen"],
         sekunden_seit_letzter_reaktion=sekunden if sekunden is not None else float("inf"),
         letzter_schnittgrund=stand["letzter_schnittgrund"],
-        ist_abschluss=ist_abschluss,
+        ist_abschluss=True,
     )
-    if soll:
-        _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"])
+    if klm is None:
+        if soll:
+            _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"], bis_id=row["id"])
+        return
+    if not soll:
+        repo.lege_buehnenkarte_an(conn, row["chat_id"], "", "schwelle", schweigen=True)
+    elif not _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"], bis_id=row["id"]):
+        repo.lege_buehnenkarte_an(conn, row["chat_id"], "", "belegt", schweigen=True)
 
 
-def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
+def _warte_auf_freien_kartenlauf(conn, e, row) -> None:
+    """Wartet (hoechstens ``ENDE_LAUF_WARTEN_S``, laenger als ein Kartenlauf
+    nach ``buehnenkarte.TIMEOUT_S`` dauern darf), bis kein Buehnenkarten-Lauf
+    dieser Gruppe mehr laeuft (t_cf87ee0a: genau eine Reaktion je Bogen).
+    Erst danach liest ``brainstorm_stand`` -- die Markierung des vorigen
+    Laufs steht dann, die Zeichen DIESES Bogens zaehlen als unreagiert.
+    Laeuft im Pool- oder Nachhol-Thread, nie in einem Knopf-Handler."""
+    frist = time.monotonic() + ENDE_LAUF_WARTEN_S
+    while brainstorm.laeuft(row["chat_id"]):
+        if time.monotonic() >= frist:
+            log.warning("Brainstorm-Ende: Kartenlauf noch belegt, chat_id=%s", row["chat_id"])
+            try:
+                repo.merke_vorfall(
+                    conn, row["chat_id"], getattr(e, "bot_name", None),
+                    "brainstorm_ende_lauf_belegt",
+                    f"ende_id={row['id']} warten_s={ENDE_LAUF_WARTEN_S:.0f}",
+                )
+            except Exception:
+                log.exception("Vorfall nicht geschrieben, chat_id=%s", row["chat_id"])
+            return
+        time.sleep(ENDE_WARTEN_TAKT_S)
+
+
+def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int, *,
+                         bis_id: int | None = None) -> bool:
     """Stoesst einen Buehnenkarten-Lauf in einem eigenen Thread an (Zusage 2:
     kein Modellaufruf hier selbst). Hoechstens ein Lauf je Gruppe gleichzeitig
     (``brainstorm.versuche_start``) -- wer die Sperre nicht bekommt, verliert
     nichts: die unreagierten Zeichen bleiben stehen und zaehlen beim naechsten
     qualifizierenden Segment einfach weiter mit ("pending text accumulates
-    into the next turn")."""
+    into the next turn").
+
+    Liefert, ob der Lauf gestartet wurde -- das Bogenende schreibt sonst eine
+    sichtbare Schweigen-Zeile (Review I1). ``bis_id``: die Markierung endet
+    am Ende-Segment des Bogens statt an der juengsten Brainstorm-id (Review
+    I2). Wirft der Lauf, haengt er ebenfalls eine Schweigen-Zeile an
+    (``modell='fehler'``, Review M2) -- einziger Aufrufer ist der Brainstorm
+    der Phase 4."""
     if klm is None:
-        return
+        return False
     if not brainstorm.versuche_start(chat_id):
-        return
-    repo.markiere_buehnenkarten_lauf(conn, chat_id, repo._jetzt())
-    # VOR dem Lauf gelesen: die Markierung soll genau die Segmente abdecken,
-    # die die Karte tatsaechlich gesehen hat -- ein waehrend des Laufs neu
-    # eingetroffenes Segment bleibt UNREAGIERT und zaehlt beim naechsten Mal.
-    markierung_id = repo.hoechste_brainstorm_aufnahme_id(conn, chat_id)
+        return False
+    try:
+        repo.markiere_buehnenkarten_lauf(conn, chat_id, repo._jetzt())
+        # VOR dem Lauf gelesen: die Markierung soll genau die Segmente
+        # abdecken, die die Karte tatsaechlich gesehen hat -- ein waehrend des
+        # Laufs neu eingetroffenes Segment bleibt UNREAGIERT und zaehlt beim
+        # naechsten Mal.
+        markierung_id = (bis_id if bis_id is not None
+                         else repo.hoechste_brainstorm_aufnahme_id(conn, chat_id))
+    except BaseException:
+        # P34 Final-Review: ohne Thread kein ``finally`` in ``_lauf`` -- die
+        # Sperre wuerde haengen, und jedes spaetere Bogenende wartete
+        # ``ENDE_LAUF_WARTEN_S`` und schwiege dann 'belegt'.
+        brainstorm.beende(chat_id)
+        raise
 
     def _lauf() -> None:
+        angelegt = False
         try:
             text, modell = buehnenkarte.erzeuge(conn, e, klm, chat_id)
             if text:
                 repo.markiere_brainstorm_reaktion(conn, chat_id, markierung_id)
                 repo.lege_buehnenkarte_an(conn, chat_id, text, modell)
+                angelegt = True
                 # Birk, 02.10.2026 (Padua-Feedback b): KEINE Chat-Zeile mehr --
                 # der Bot "antwortet" im Brainstorm-Modus nirgends sonst als
                 # ueber den unaufdringlichen Marker am CoThinker-Tab (den
@@ -1222,13 +1316,22 @@ def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
                 # geschwiegen" von "nie gelaufen" nicht zu unterscheiden --
                 # weder im Dashboard noch im Buehne-Panel.
                 repo.lege_buehnenkarte_an(conn, chat_id, "", modell, schweigen=True)
+                angelegt = True
         except Exception:
             log.exception("Buehnenkarten-Lauf fehlgeschlagen, chat_id=%s", chat_id)
+            if not angelegt:
+                # Review M2: auch ein geworfener Lauf ist fuer die Gruppe
+                # eine sichtbare Reaktion ("nothing to add"), kein Nichts.
+                try:
+                    repo.lege_buehnenkarte_an(conn, chat_id, "", "fehler", schweigen=True)
+                except Exception:
+                    log.exception("Schweigen-Zeile nicht geschrieben, chat_id=%s", chat_id)
         finally:
             brainstorm.beende(chat_id)
             repo.markiere_buehnenkarten_lauf(conn, chat_id, None)
 
     threading.Thread(target=_lauf, daemon=True).start()
+    return True
 
 
 def dauer_mmss(sekunden: int) -> str:

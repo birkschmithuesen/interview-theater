@@ -1,0 +1,11 @@
+pfad	art	phase	weg	modell	quelle	system_zeichen	nutzer_zeichen	token_gesamt	tok_system	tok_status	tok_verlauf	tok_zusammenfassung
+06-gespraech-phase3	gespraech	3	infomaniak	moonshotai/Kimi-K2.6	abgefangen	30874	14199	15024	10273	246	4321	160
+07-gespraech-phase4	gespraech	4	claude	claude-opus-5	abgefangen	36029	2609	12878	11991	518	311	37
+10-erkenner-verlauf	erkenner	4	infomaniak	google/gemma-4-31B-it	abgefangen	31460	2261	11239				
+11-erkenner-aufnahme	erkenner	3	infomaniak	google/gemma-4-31B-it	abgefangen	31460	2294	11250				
+12-journal	journal	4	infomaniak	google/gemma-4-31B-it	abgefangen	4892	3543	2811				
+16-verdichter	verdichter	3	infomaniak	moonshotai/Kimi-K2.6	abgefangen	3204	2436	1880				
+17-buehnenkarte	brainstorm_karte	4	claude	claude-opus-5	abgefangen	2168	1019	1061				
+18-szenenfolge	szenenfolge	4	claude	claude-opus-5	abgefangen	7531	1857	3129				
+19-geschichte	geschichte	4	claude	claude-opus-5	gebaut	10234	1203	3812				
+20-szenenfelder	szenenfelder	4	claude	claude-opus-5	gebaut	496	2050	848				

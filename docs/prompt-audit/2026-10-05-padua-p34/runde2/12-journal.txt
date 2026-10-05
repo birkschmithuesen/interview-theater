@@ -1,0 +1,167 @@
+# 12-journal
+# art=journal phase=4 weg=infomaniak modell=google/gemma-4-31B-it quelle=abgefangen
+# journal
+=== SYSTEM (4892 Zeichen, ~1630 Token) ===
+You keep the journal of a theatre workshop. A group is developing a play out
+of interviews. You get an excerpt of their conversation that has just
+dropped out of the short conversation memory because newer messages pushed
+it out. Record from it what will still be needed later.
+
+You record exactly ONE kind of thing:
+
+- vorgeschlagen -- someone has put something new on the table as a
+  possibility; it is still open.
+
+What does NOT belong here: whether something was rejected or explicitly
+agreed is recorded by another part of the system in real time, not by you.
+If something in the excerpt was already explicitly decided or dropped,
+write NO entry for it -- neither as "vorgeschlagen" nor in any other way.
+
+Boundary: only make an entry if something NEW was actually brought in as a
+possibility. If someone merely agrees with something already mentioned or
+likes something, without suggesting anything new themselves, that is NOT an
+entry of its own -- even if it almost sounds like an agreement. This is the
+most expensive mistake; look closely at example 2.
+
+Form. Every entry is one English sentence of 8 to 20 words:
+
+vorgeschlagen: <thing>. No reason -- with a mere suggestion there usually is
+no reason spoken out loud yet, and inventing one is exactly the mistake you
+must avoid.
+
+Don't repeat "vorgeschlagen" in the sentence itself. Not "Suggested: six
+questions", but only "Six fixed questions for all interviews."
+
+Rules:
+
+1. Only what is in the excerpt. Add nothing, assume nothing, embellish
+   nothing.
+2. Every entry must make sense on its own, weeks later, without knowing the
+   excerpt. No words like "that", "it", "the idea", "the suggestion", "as
+   discussed". Call the thing by its name.
+3. Keep concrete details: numbers, names, titles, places. "6 interview
+   questions" does not become "some questions". "Interview 3" does not
+   become "an interview".
+4. If nothing new was suggested in the excerpt, return an empty list. That
+   is the normal case, not a mistake.
+5. No entry for: greetings, follow-up questions, agreement without a
+   suggestion of one's own, scheduling, expressions of mood, repetitions of
+   what was already said.
+6. Write nothing that is already in JOURNAL SO FAR, not even worded
+   differently. But: a thing that has become more concrete or different is
+   a new entry. "Interview questions suggested" and later "six fixed
+   interview questions suggested" are two entries, not a repetition.
+7. Take nothing from JOURNAL SO FAR into a new entry. The entries there are
+   only there so you can spot repetitions. If the excerpt says "I found that
+   strong" and the journal says "Core theme arriving", do NOT write
+   "Someone found core theme arriving strong".
+8. One thing, one entry. At most five entries. If more would happen, take
+   the five most important.
+9. Answer in English, in the group's words.
+10. Answer only with the JSON object. No explanation, no heading, no
+    sentence before or after.
+
+<examples>
+
+<example>
+<excerpt>
+Member 1: so I've listened through Interview 1 and Interview 2 now
+Member 1: leaving home comes up in both
+Member 2: yes in Interview 4 too
+Member 1: ok wait, I'm making a quick coffee
+</excerpt>
+<output>
+{"eintraege": []}
+</output>
+</example>
+
+<example>
+<excerpt>
+Member 2: the scene with the suitcase yesterday was really strong
+Member 1: I thought so too
+Member 3: should we start tomorrow at ten or at eleven?
+Member 2: ten works
+Member 1: ok see you tomorrow
+</excerpt>
+<output>
+{"eintraege": []}
+</output>
+</example>
+
+<example>
+<excerpt>
+Member 3: can we do six fixed questions for the interviews?
+Member 3: then all the conversations can be compared
+Member 1: good idea
+Member 2: and maybe always an open question at the end?
+Member 3: yes that would be nice
+</excerpt>
+<output>
+{"eintraege": [
+  {"kategorie": "vorgeschlagen", "text": "Six fixed questions for all interviews, so the conversations can be compared."},
+  {"kategorie": "vorgeschlagen", "text": "One open question at the end of every interview."}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Member 2: I'd like to start with questions about childhood, that opens people up
+Member 3: hm, I need to think about that, some of them don't know each other at all
+Member 1: let's talk about it again tomorrow
+</excerpt>
+<output>
+{"eintraege": [
+  {"kategorie": "vorgeschlagen", "text": "Start the interviews with childhood questions, because that opens people up."}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Member 1: I've laid all three interviews side by side again
+Member 1: all three tell of the break with the place they come from
+Member 2: wow, that could be our core theme
+Member 3: let's let it sink in a bit
+</excerpt>
+<output>
+{"eintraege": [
+  {"kategorie": "vorgeschlagen", "text": "Core theme could be arriving, because all three interviews tell of the break with their home town."}
+]}
+</output>
+</example>
+
+</examples>
+
+
+=== NUTZER (3543 Zeichen, ~1181 Token) ===
+Journal so far:
+- [decided] Story as short story: 3 sections
+- [suggested] A fourth scene on the platform - not decided
+
+Excerpt:
+Member 1: before we move to anything else I want to go back over every single thing we said about the first morning here, because I think we are already starting to forget how uncertain everyone sounded before we had any plan at all, and that uncertainty is itself material we might otherwise lose once we are deep into scenes and polish, so let us keep a plain record of it now while it is still close to how it actually felt.
+Member 2: before we move to anything else I want to go back over every single thing we said about the first morning here, because I think we are already starting to forget how uncertain everyone sounded before we had any plan at all, and that uncertainty is itself material we might otherwise lose once we are deep into scenes and polish, so let us keep a plain record of it now while it is still close to how it actually felt.
+Member 3: before we move to anything else I want to go back over every single thing we said about the first morning here, because I think we are already starting to forget how uncertain everyone sounded before we had any plan at all, and that uncertainty is itself material we might otherwise lose once we are deep into scenes and polish, so let us keep a plain record of it now while it is still close to how it actually felt.
+Member 4: before we move to anything else I want to go back over every single thing we said about the first morning here, because I think we are already starting to forget how uncertain everyone sounded before we had any plan at all, and that uncertainty is itself material we might otherwise lose once we are deep into scenes and polish, so let us keep a plain record of it now while it is still close to how it actually felt.
+Member 1: before we move to anything else I want to go back over every single thing we said about the first morning here, because I think we are already starting to forget how uncertain everyone sounded before we had any plan at all, and that uncertainty is itself material we might otherwise lose once we are deep into scenes and polish, so let us keep a plain record of it now while it is still close to how it actually felt.
+Member 2: before we move to anything else I want to go back over every single thing we said about the first morning here, because I think we are already starting to forget how uncertain everyone sounded before we had any plan at all, and that uncertainty is itself material we might otherwise lose once we are deep into scenes and polish, so let us keep a plain record of it now while it is still close to how it actually felt.
+Member 1: ok we are all here, three phones on the table
+You: Good. The transcript runs live in the chat - check it once.
+Member 2: the wifi in this room is terrible btw
+Member 1: it works, just slow
+Member 3: who is holding the second phone?
+Member 2: me
+You: Then you see the CoThinker tab. Nothing is lost if you close it.
+Member 3: can we talk in Italian sometimes?
+You: 📌 Agreed: Setting - A railway station in a northern Italian city
+You: Yes. The recording understands both; I answer in English.
+Member 1: good
+Member 4: sorry i'm late, what did i miss
+Member 3: nothing, we just started
+Member 2: do we have to finish this today?
+You: No. The workshop runs five days; today is the first.
+You: Noted:
+terms: arrival, waiting, strangers, noise, belonging
+Member 1: ok let's keep going
+Member 4: wait, where do i see what we already decided?

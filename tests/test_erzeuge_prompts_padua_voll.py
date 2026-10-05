@@ -1,11 +1,12 @@
-"""Der Padua-Prompt-Dump fuer Phase 1+2, offline in ein Temp-Verzeichnis.
+"""Der Padua-Prompt-Dump fuer Phase 1+2 und 3+4, offline in ein Temp-Verzeichnis.
 
 Der Lauf geht nie ins Netz: ``scripts.mitschnitt`` ersetzt den Modellklienten,
 ``simulation.attrappe.TelegramAttrappe`` den Kanal, und die Datenbank ist eine
 Wegwerfdatei.
 
-Beschraenkt auf die fuenf Dumps aus Phase 1 und 2 (Karte t_bf16f3a7) -- die
-restlichen 34 Inventareintraege haben in diesem Scope keinen Treiber.
+Scopes p12 (Karte t_bf16f3a7, Phase 1+2) und p34 (Task 3, Phase 3+4) --
+zusammen die zehn Dumps mit Treiber; die restlichen Inventareintraege haben
+in diesem Skript keinen Treiber.
 """
 from pathlib import Path
 
@@ -95,3 +96,36 @@ def test_die_phase_1_2_eintraege_haben_einen_treiber():
     p12 = [e.datei for e in inv.INVENTAR if e.phase in (1, 2)]
     fehlend = [d for d in p12 if d not in dump.TREIBER]
     assert not fehlend, fehlend
+
+
+#: Die zehn Dumps, fuer die der Scope p34 Treiber hat (Task 3).
+TEIL_P3_P4 = (
+    "06-gespraech-phase3", "11-erkenner-aufnahme", "16-verdichter",
+    "07-gespraech-phase4", "10-erkenner-verlauf", "12-journal",
+    "17-buehnenkarte", "18-szenenfolge", "19-geschichte", "20-szenenfelder",
+)
+
+
+@pytest.mark.parametrize("name", TEIL_P3_P4)
+def test_jeder_p34_dump_entsteht(tmp_path, name):
+    dump.main_fuer_test(tmp_path, nur=[name])
+    text = (tmp_path / f"{name}.txt").read_text(encoding="utf-8")
+    assert "=== SYSTEM" in text and "=== NUTZER" in text
+    assert len(dump_system(text)) > 200, name
+
+
+def test_phase3_gespraech_laeuft_nie_ueber_claude(tmp_path):
+    """Datenschutz: Phase 3 bleibt unbedingt Kimi (modellwahl.konversation_ueber_claude)."""
+    dump.main_fuer_test(tmp_path, nur=["06-gespraech-phase3"])
+    assert "weg=claude" not in (tmp_path / "06-gespraech-phase3.txt").read_text(encoding="utf-8")
+
+
+def test_phase4_gespraech_laeuft_ueber_claude(tmp_path):
+    dump.main_fuer_test(tmp_path, nur=["07-gespraech-phase4"])
+    assert "weg=claude" in (tmp_path / "07-gespraech-phase4.txt").read_text(encoding="utf-8")
+
+
+def test_die_phase_3_4_eintraege_haben_einen_treiber():
+    p34 = [e.datei for e in inv.INVENTAR if e.phase in (3, 4)]
+    assert sorted(p34) == sorted(dump.SCOPE_P3_P4)
+    assert not [d for d in p34 if d not in dump.TREIBER]

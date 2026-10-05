@@ -12,6 +12,9 @@ import wave
 from pathlib import Path
 
 STIMMEN = {"A": "en-gb+m3", "B": "en-us+f2", "C": "en-gb+f4", "D": "en-us+m5"}
+#: Weitere Sprecher fuer Interviews mit gemischter Sprache (P34): I italienisch,
+#: G deutsch. Getrennt von STIMMEN, deren Menge ein Test festhaelt.
+STIMMEN_ZUSATZ = {"I": "it+m3", "G": "de+f2"}
 _AUDIO_OUTPUT_SYNCHRONOUS = 0x02
 _POS_CHARACTER = 1
 _ESPEAK_CHARS_UTF8 = 1
@@ -52,7 +55,7 @@ def plane(zeilen: list[tuple[str, str]]) -> list[tuple[str, str, float]]:
     plan = []
     for i, (s, t) in enumerate(zeilen):
         pause = LANGE_PAUSE_S if i in _LANGE_PAUSE_INDIZES else _PAUSEN[i % len(_PAUSEN)]
-        plan.append((STIMMEN[s], t, pause))
+        plan.append((STIMMEN.get(s) or STIMMEN_ZUSATZ[s], t, pause))
     return plan
 
 

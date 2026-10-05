@@ -1,0 +1,137 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "18-szenenfolge",
+    "zeile": 29,
+    "zitat": "## Current phase: 6 · Rewrite",
+    "regel": "07-gespraech-phase4, Zeile 451: \"## Current phase: 4 · Frame\" -- der Dump ist art=szenenfolge phase=4",
+    "vorschlag": "Den ganzen Phasenblock Zeile 29-134 durch den Phase-4-Block ersetzen (identisch zu 19-geschichte Zeile 38-197); die Rewrite-Beschreibung (\"The story already exists: it was written out as prose\", \"Script tab\", \"Yes, save\"/\"Shorter (25 %)\") hat in Phase 4 nichts zu suchen.",
+    "phase": 4
+  },
+  {
+    "kategorie": "b",
+    "datei": "18-szenenfolge",
+    "zeile": 19,
+    "zitat": "**The form is mandatory** and stands as the fourth column of every line.",
+    "regel": "selbe Datei Zeile 74: \"- **No forms in this phase.** The form of each scene (Dialogue, Monologue, Chorus, Song, Rap) is\"; 07-gespraech-phase4 Zeile 571: \"**No form and no reason as a column**\"; UX-Regel \"Don't decide things before the phase where they matter\"",
+    "vorschlag": "Zeile 19-24 streichen und das Ausgabeformat Zeile 11-12 auf drei Spalten kuerzen (\"Title — one sentence about what happens — Character, Character\"), wie in 07 Zeile 566-569 vorgegeben.",
+    "phase": 4
+  },
+  {
+    "kategorie": "a",
+    "datei": "20-szenenfelder",
+    "zeile": 59,
+    "zitat": "This is the scene you are to write. The details are binding -- replace nothing, invent nothing that contradicts them:",
+    "regel": "UX-Regel 1: \"**Bot proposals are never saved as decisions.** Only what the group said or confirmed is saved.\" -- Journal in 07-gespraech-phase4 Zeile 642: \"- [suggested] A fourth scene on the platform - not decided\"",
+    "vorschlag": "Szene 4 nicht als bindend einspeisen: entweder diesen Aufruf erst nach einem gespeicherten szenenanzahl_setzen/szene_planen starten, oder Zeile 57-62 ersetzen durch \"Scene 4 (The platform) is only proposed, not decided -- ask the group first\".",
+    "phase": 4
+  },
+  {
+    "kategorie": "b",
+    "datei": "20-szenenfelder",
+    "zeile": 40,
+    "zitat": "This has already been written and stands. Continue from it: characters, motifs, movement patterns, key lines and tone carry on; repeat nothing word for word, except as a deliberate echo.",
+    "regel": "07-gespraech-phase4 Zeile 598: \"- No scene texts. The text comes two stations later; here there is one\" / \"sentence per scene.\"",
+    "vorschlag": "Zeile 39-40 ersetzen durch \"Scene sequence so far (one sentence per scene, no text written yet):\" -- gleiche Korrektur in 18-szenenfolge Zeile 154-155.",
+    "phase": 4
+  },
+  {
+    "kategorie": "b",
+    "datei": "18-szenenfolge",
+    "zeile": 49,
+    "zitat": "the **sharpenings**: for each scene and each character the interview passages with their",
+    "regel": "19-geschichte Zeile 19-21: \"Interviews, summaries and quotes are\" / \"deliberately not available to you\"; 07-gespraech-phase4 Zeile 590: \"- **No material.** No interview excerpt, no quote, no summary, no interview\"",
+    "vorschlag": "Zeile 47-51 auf das in Phase 4 wirklich gelieferte Material kuerzen (Setting, Figuren, Geschichte, Szenenfelder) und die Erwaehnung der Schaerfungen/Interviewpassagen loeschen.",
+    "phase": 4
+  },
+  {
+    "kategorie": "b",
+    "datei": "07-gespraech-phase4",
+    "zeile": 638,
+    "zitat": "Ask in the flow of the conversation whether the group wants to go there yet -- one sentence, no announcement (\"Are more interviews coming, or shall we move on?\")",
+    "regel": "selbe Datei Zeile 478: \"Don't ask for them either.\" und Zeile 592: \"number attached to a character -- and no question about which interview a\" / Zeile 471: \"Never offer here to record or\"",
+    "vorschlag": "Das Beispiel austauschen: (\"Shall we take this to Prose Draft now?\") -- die Interview-Frage gehoert in Phase 3 und widerspricht der interviewfreien Phase 4.",
+    "phase": 4
+  },
+  {
+    "kategorie": "b",
+    "datei": "07-gespraech-phase4",
+    "zeile": 150,
+    "zitat": "There are twelve markers, no more:",
+    "regel": "selbe Datei Zeile 566: \"VORSCHLAG SZENENFOLGE:\" und 20-szenenfelder Zeile 12: \"VORSCHLAG SZENE:\" -- beide fehlen in der Liste Zeile 152-178",
+    "vorschlag": "\"twelve\" auf \"fourteen\" korrigieren und `VORSCHLAG SZENENFOLGE:` sowie `VORSCHLAG SZENE:` mit ihrem Format in die Liste Zeile 152-178 aufnehmen.",
+    "phase": 4
+  },
+  {
+    "kategorie": "b",
+    "datei": "18-szenenfolge",
+    "zeile": 26,
+    "zitat": "Then one sentence and an open question to the group, two lines at most.",
+    "regel": "07-gespraech-phase4 Zeile 186: \"- **At most ONE question per message -- never a mandatory close, only when it helps.**\"; Profil Zeile 615: \"only when it helps -- never as a closing line\"",
+    "vorschlag": "In 18 Zeile 26, 19 Zeile 34 und 20 Zeile 17 jeweils ersetzen durch \"Then one sentence to the group, and only if it genuinely helps, one open question.\"",
+    "phase": 4
+  },
+  {
+    "kategorie": "b",
+    "datei": "19-geschichte",
+    "zeile": 223,
+    "zitat": "Suggest the rough story: what happens, how it ends, which scenes.",
+    "regel": "selbe Datei Zeile 11: \"**NO scene sequence in this step.** No scene titles, no forms, no numbers --\"",
+    "vorschlag": "Den Auftragssatz in Zeile 223 auf \"Suggest three directions for the rough story: what happens, how it ends, what the fight is about.\" aendern -- \"which scenes\" streichen.",
+    "phase": 4
+  },
+  {
+    "kategorie": "a",
+    "datei": "17-buehnenkarte",
+    "zeile": 8,
+    "zitat": "write ONE short card from it, which appears on a stage (its own screen area,",
+    "regel": "UX-Regel 4: \"**Name surfaces by function, not by metaphor.** „Stage“ was wrong for the bot's commentary tab [...] and chose CoThinker\" -- 07-gespraech-phase4 Zeile 100 nennt den Reiter \"CoThinker\"",
+    "vorschlag": "\"on a stage (its own screen area, not in the chat)\" durch \"in the CoThinker tab (not in the chat)\" ersetzen, damit der Bot bei Rueckfragen denselben Namen benutzt wie die App.",
+    "phase": 4
+  },
+  {
+    "kategorie": "d",
+    "datei": "07-gespraech-phase4",
+    "zeile": 664,
+    "zitat": "You: That is yours to decide. Say a number and I will plan with it.",
+    "regel": "Kontextaufbau: unter \"Now:\" muss die letzte Gruppennachricht stehen (hier Zeile 662: \"Member 2: how many scenes do we need?\"), nicht die eigene Bot-Zeile",
+    "vorschlag": "Die eigene Bot-Antwort aus dem \"Now:\"-Block entfernen und sie als letzte Verlaufszeile fuehren; unter \"Now:\" die letzte Teilnehmer-Nachricht setzen, sonst antwortet das Modell auf sich selbst.",
+    "phase": 4
+  },
+  {
+    "kategorie": "d",
+    "datei": "12-journal",
+    "zeile": 144,
+    "zitat": "Member 2: before we move to anything else I want to go back over every single thing we said about the first morning here,",
+    "regel": "Kontextaufbau: Duplikate im Verlauf; Zeile 143-148 sind sechsmal derselbe Text, Zeile 149-167 stehen zudem noch im lebenden Gespraechsverlauf (07 Zeile 644 ff.)",
+    "vorschlag": "Vor dem Senden identische aufeinanderfolgende Nachrichten zu einer zusammenfassen und den Journal-Auszug genau dort abschneiden, wo der Gespraechsverlauf (07 Zeile 644) beginnt -- kein Overlap.",
+    "phase": 4
+  },
+  {
+    "kategorie": "d",
+    "datei": "10-erkenner-verlauf",
+    "zeile": 769,
+    "zitat": "You: So the story ends with him laughing for the first time here.",
+    "regel": "Kontextaufbau: der Arbeitsstand in Zeile 724-732 enthaelt weder \"Story:\" noch \"Scene 1/2/3\" noch die \"Further agreements\", die in 07 Zeile 624-636 stehen",
+    "vorschlag": "Den Progress-Block des Erkenners identisch zum Gespraech aufbauen (Story, Scene 1-3, Festlegungen mitgeben), sonst traegt er bereits gespeicherte Geschichte/Szenen erneut ein und kann \"entfernen\" nicht pruefen.",
+    "phase": 4
+  },
+  {
+    "kategorie": "d",
+    "datei": "10-erkenner-verlauf",
+    "zeile": 743,
+    "zitat": "You: 📌 Agreed: Setting - A railway station in a northern Italian city",
+    "regel": "Kontextaufbau: Systemzeilen (📌, \"Noted:\" in Zeile 750-751) gehoeren nicht in den Erkenner-Auszug -- vgl. Systemregel Zeile 403: \"[...] are therefore not in your excerpt at all\"",
+    "vorschlag": "Beim Bauen des Auszugs alle Status-/Systemzeilen (📌 …, \"Noted:\" …, \"Changed since …\") herausfiltern; nur Teilnehmer- und echte Bot-Chatzeilen uebergeben.",
+    "phase": 4
+  },
+  {
+    "kategorie": "d",
+    "datei": "07-gespraech-phase4",
+    "zeile": 648,
+    "zitat": "You: Changed since - please fix it in the work status",
+    "regel": "Kontextaufbau/UX-Regel 4: \"**Status is not conversation.** Saved/stopped/length notices render as the system line (🖥), never as a chat bubble\"",
+    "vorschlag": "Diese abgeschnittene Statusmeldung nicht als \"You:\"-Chatzeile in den Verlauf mischen: entweder als \"System: …\" kennzeichnen oder aus dem Verlauf streichen, damit der Bot sie nicht als eigene Aussage fortfuehrt.",
+    "phase": 4
+  }
+]

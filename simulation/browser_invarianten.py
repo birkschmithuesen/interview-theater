@@ -49,11 +49,15 @@ gebrauchten Spalten):
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import time
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
+
+from interview_theater import aufnahme
 
 URSACHE_UNGEKLAERT = "App oder Werkzeug – ungeklaert"
 FRIST_NACH_ENDE_S = 60.0
@@ -428,6 +432,512 @@ def pruefe_kontext(prompt: str, sichtbar: Sichtbar, station: str) -> list[Befund
         befunde.append(Befund(CHAT_KENNT_WERKBANK_NICHT, station,
                               f"Werkbank zeigt Begriffe, die im Gespraechsprompt fehlen: {', '.join(fehlt)}."))
     return befunde
+
+
+# --- Padua live-reif, Phase 3+4 (Karte t_92f99911, Task 2, 05.10.2026) ------
+#
+# Dieselbe Haltung wie oben: ein Symptom ist ein App-Fehler bis zum
+# Gegenbeweis, und eine Pruefung ohne Material ist "nicht_pruefbar", nie
+# stilles []. ``P34Stand`` liest nur lesend, eigenes SQL wie ``lese_p1_stand``.
+
+INTERVIEW_OHNE_BLASE = "interview_ohne_transkriptblase"
+INTERVIEW_OHNE_STATUS = "interview_ohne_statuszeile"
+INTERVIEW_STATUS_DOPPELT = "interview_status_doppelt"          # mittel
+INTERVIEW_STATUS_DEUTSCH = "interview_status_nicht_englisch"   # mittel
+P4_GESPERRT_OHNE_VERDICHTUNG = "p4_gesperrt_ohne_laufende_verdichtung"
+BRAINSTORM_OHNE_REAKTION = "brainstorm_ohne_karte_oder_schweigen"
+BRAINSTORM_MEHRERE_KARTEN = "brainstorm_mehrere_karten_je_bogen"
+BRAINSTORM_KARTE_WAEHREND_BOGEN = "brainstorm_karte_waehrend_bogen"
+BRAINSTORM_ENDE_NICHT_ANGEKOMMEN = "brainstorm_ende_nicht_angekommen"
+COTHINKER_UNGEERDET = "cothinker_karte_ungeerdet"               # mittel (t_c5cc5a62)
+P3_GESPRAECH_OPUS = "p3_gespraech_ueber_opus"                   # hoch: Datenschutz
+P4_GESPRAECH_NICHT_OPUS = "p4_gespraech_nicht_opus"             # mittel
+EINWILLIGUNG_GEFRAGT = "einwilligung_gefragt"                   # hoch: Padua fragt nicht
+P5_NICHT_ANGEBOTEN = "p5_nicht_angeboten"
+FRIST_NACH_INTERVIEW_S = 120.0
+FRIST_NACH_BRAINSTORM_S = 60.0
+#: Woerter, an denen eine deutsche Statuszeile in einer EN-Gruppe auffaellt.
+DE_MARKEN = (" ist ", " und ", " nicht ", "Wörter", "gespeichert", "zu kurz")
+#: I3 (Review 05.10.2026, Fix round 1): mit ``{4,}`` zaehlten auch generische
+#: englische Funktionswoerter als "Inhaltswort" -- ein Satz wie "What if that
+#: is the whole story?" traf dann zufaellig zwei Transkriptwoerter, ohne dass
+#: die Karte irgendetwas Konkretes aus dem Gehoerten aufgriff. Erweitert um
+#: gaengige 4-Buchstaben-Funktionswoerter (Pronomen, Hilfsverben, Adverbien);
+#: gegen die Original-Testfaelle UND den echten ``brainstorm-bogen``-Text
+#: geprueft (``test_karte_geerdet_gegen_bogen_lehnt_generische_saetze_ab``).
+#: I1 (Review 05.10.2026, Fix round 2): die erste Liste war gegen den echten
+#: Transkript-Text (``simulation/diskussion/p4-brainstorm-bogen.txt``) noch
+#: NICHT geprueft -- Woerter wie "whole", "never", "always", "same", "every",
+#: "single", "right", "actually" stehen WORTGLEICH im Transkript (als
+#: generische Fuellwoerter des erfundenen Dialogs, nicht als konkreter
+#: Inhalt), trafen also auch nach dem Wortgrenzen-Fix (siehe
+#: ``karte_geerdet`` unten) noch zufaellig. Deutlich erweitert (~150+
+#: Woerter) auf eine umfassende Liste generischer/Funktionswoerter; die drei
+#: Beispielsaetze aus dem Taskbrief laufen jetzt mit gegen den echten
+#: Bogen-Text (``test_karte_geerdet_gegen_bogen_lehnt_generische_saetze_ab``).
+#: Die Brainstorm-Skripte (``simulation/diskussion/*.txt``) sind durchgehend
+#: Englisch -- keine italienischen/deutschen Funktionswoerter noetig.
+_STOPP = frozenset({
+    "about", "there", "their", "which", "would", "could", "because", "really",
+    "that", "what", "with", "have", "they", "this", "when", "from", "then", "them",
+    "were", "will", "into", "more", "some", "like", "just", "been", "here", "only",
+    "also", "does", "very", "well", "much", "time", "maybe",
+    # Fix round 2 (I1): Woerter aus dem Taskbrief, direkt gegen den echten
+    # Bogen-Text getroffen.
+    "whole", "might", "never", "always", "same", "every", "single", "right",
+    "where", "such", "actually", "until", "gets", "thing", "things",
+    "something", "everyone", "away", "story",
+    # Fix round 2 (I1): weitere generische/Funktionswoerter (Pronomen,
+    # Hilfsverben, Quantoren, Adverbien, Konjunktionen, haeufige vage Verben
+    # und Fuellnomen), unabhaengig davon, ob sie im aktuellen Bogen-Text
+    # vorkommen -- dieselbe Vorsicht wie bei jeder Pruefung ohne Material:
+    # ein kuenftiger Bogen-Text soll nicht erneut dieselbe Lueckenklasse treffen.
+    "after", "again", "against", "almost", "along", "already", "although",
+    "among", "another", "anyone", "anything", "anywhere", "around", "aside",
+    "back", "before", "behind", "below", "beside", "besides", "between",
+    "beyond", "both", "cannot", "cause", "certain", "certainly", "come",
+    "comes", "coming", "done", "doing", "down", "during", "each", "either",
+    "else", "enough", "ever", "every", "everybody", "everything",
+    "everywhere", "except", "fairly", "feel", "feels", "felt", "find",
+    "finds", "found", "further", "getting", "give", "gives", "given",
+    "giving", "goes", "going", "gone", "good", "great", "happen",
+    "happened", "happens", "hardly", "having", "hence", "herself",
+    "himself", "however", "indeed", "inside", "instead", "itself", "keep",
+    "keeps", "kept", "kind", "kinds", "knew", "know", "known", "knows",
+    "last", "least", "less", "little", "long", "look", "looked", "looking",
+    "looks", "made", "make", "makes", "making", "many", "matter",
+    "matters", "mean", "means", "meant", "mere", "merely", "might",
+    "moment", "moments", "most", "mostly", "much", "must", "myself",
+    "nearly", "need", "needs", "needed", "neither", "next", "nobody",
+    "none", "nothing", "nowhere", "often", "once", "onto", "other",
+    "others", "ourselves", "outside", "over", "overall", "own", "part",
+    "parts", "perhaps", "place", "places", "plenty", "quite", "rather",
+    "sees", "seem", "seemed", "seems", "several", "shall", "should",
+    "simply", "since", "someone", "somehow", "someplace", "somewhat",
+    "somewhere", "soon", "sort", "start", "started", "starts", "still",
+    "stuff", "such", "sure", "take", "takes", "taken", "taking", "than",
+    "themselves", "these", "think", "thinks", "those", "though",
+    "through", "thus", "times", "together", "took", "toward", "towards",
+    "truly", "turn", "turned", "turns", "under", "unless", "upon", "used",
+    "uses", "using", "usual", "usually", "want", "wanted", "wants", "went",
+    "whatever", "whenever", "wherever", "whether", "whom", "whose",
+    "within", "without", "wonder", "wondered", "wonders", "year", "years",
+    "yours", "yourself", "yourselves",
+})
+#: Deutsche und englische Konstanten der USA-Einwilligungsfrage
+#: (``interview_theater/knoepfe/texte.py`` bzw. ``sprachen/en/texte.toml``) --
+#: Padua fragt nicht, ein Treffer ist also immer ein Befund.
+_USA_FRAGE_TEXTE = ("Tippt an, was gelten soll:", "Tap what should apply:")
+_USA_JA_KNOPF_TEXTE = ("Ja, US-Modell", "Yes, US model")
+#: Die reine Bestaetigung des Beenden-Knopfs (``befehle._befehl_fertig``,
+#: ``T._TEXT_INTERVIEW_AUS``) -- im Web-Kanal IMMER als ``typ='system'``
+#: verschickt (``system=True``), bei JEDEM ``/fertig``, unabhaengig davon, ob
+#: die eigentliche Auswertungszeile ("zu kurz"/"gespeichert",
+#: ``aufnahme._TEXT_ZU_KURZ``/``_TEXT_AUSGEWERTET``/``_text_interview_gespeichert_web``)
+#: je ankommt. Ohne diesen Ausschluss kann INTERVIEW_OHNE_STATUS nie feuern --
+#: jeder Klick auf "End interview" erzeugt diese Zeile zuerst (I1, Review
+#: 05.10.2026, Fix round 1).
+_INTERVIEW_AUS_TEXTE = ("Aufnahme beendet.", "Recording stopped.")
+#: Mindestlaenge eines Inhaltsworts fuer ``karte_geerdet`` -- bewusst 4 statt
+#: der ersten Annahme 5: ein echtes Transkript wie "the bench and the cafe"
+#: traegt mit "cafe" ein viertes, fuer die Pruefung zentrales Wort, das bei
+#: {5,} nie mitgezaehlt wuerde (siehe Taskbericht, Abweichung von der
+#: Brief-Prosa "[a-zà-ü]{5,}" -- gegen den woertlichen Testfall geprueft).
+_WORT_MINDESTLAENGE = 4
+_WORT = re.compile(rf"[a-zà-ü]{{{_WORT_MINDESTLAENGE},}}")
+
+
+@dataclass(frozen=True)
+class P34Stand:
+    max_post_id: int = 0
+    #: (id, text) aus ``web_post`` ``richtung='aus' AND typ='transkript'``.
+    transkript_posts: tuple = ()
+    #: (id, text) aus ``web_post`` ``richtung='aus' AND typ='system'``.
+    system_posts: tuple = ()
+    #: Je Interview-Kopf (``klasse='lang'``): id, status, beendet_am (roh),
+    #: beendet (bool, Nachbau von ``aufnahme.unausgewertete_interviews``:
+    #: ``beendet_am`` gesetzt ODER Status in (fertig, transkribiert)),
+    #: zu_kurz (bool), hat_verdichtung (bool), hat_transkript (bool, faellt
+    #: wie ``repo.zusammengefuegtes_transkript`` auf die Teile zurueck).
+    koepfe: tuple = ()
+    #: (id, schweigen, text) aus ``buehnenkarte``.
+    karten: tuple = ()
+    max_aufnahme_id: int = 0
+    #: Hoechste ``aufnahme.id`` mit ``brainstorm=1 AND schnittgrund='ende'``.
+    brainstorm_ende_id: int = 0
+    #: Alle ``brainstorm=1``-Transkripte mit Status ``fertig``, verbunden.
+    brainstorm_text: str = ""
+    #: (id, art, modus) aus ``aufruf``.
+    aufrufe: tuple = ()
+    #: Ob eine USA-Einwilligungsfrage je gestellt wurde (Padua fragt nicht).
+    usa_gefragt: bool = False
+    phase: int | None = None
+    phase_angeboten: int | None = None
+    #: SQL-Nachbau von ``phasen.voraussetzungen()[5]``.
+    p5_moeglich: bool = False
+
+
+def _hat_spalte(conn: sqlite3.Connection, tabelle: str, spalte: str) -> bool:
+    try:
+        return any(r[1] == spalte for r in conn.execute(f"PRAGMA table_info({tabelle})"))
+    except sqlite3.OperationalError:
+        return False
+
+
+def lese_p34_stand(conn: sqlite3.Connection, chat_id: int) -> P34Stand:
+    max_post_id = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM web_post WHERE chat_id = ?", (chat_id,)
+    ).fetchone()[0]
+    transkript_posts = tuple(
+        (z["id"], z["text"]) for z in conn.execute(
+            "SELECT id, text FROM web_post WHERE chat_id = ? AND richtung = 'aus' "
+            "AND typ = 'transkript' ORDER BY id", (chat_id,)))
+    system_posts = tuple(
+        (z["id"], z["text"]) for z in conn.execute(
+            "SELECT id, text FROM web_post WHERE chat_id = ? AND richtung = 'aus' "
+            "AND typ = 'system' ORDER BY id", (chat_id,)))
+    zu_kurz_ausdruck = "zu_kurz_uebersprungen" if _hat_spalte(conn, "aufnahme", "zu_kurz_uebersprungen") else "0"
+    koepfe = tuple(
+        {"id": z["id"], "status": z["status"], "beendet_am": z["beendet_am"],
+         "beendet": bool(z["beendet_am"]) or z["status"] in ("fertig", "transkribiert"),
+         "zu_kurz": bool(z["zu_kurz"]),
+         "hat_transkript": bool((z["transkript"] or "").strip() or (z["teile_transkript"] or "").strip()),
+         "hat_verdichtung": bool(z["verdichtungen"])}
+        for z in conn.execute(
+            f"""
+            SELECT a.id, a.status, a.beendet_am, a.transkript, {zu_kurz_ausdruck} AS zu_kurz,
+                   (SELECT COUNT(*) FROM verdichtung v WHERE v.aufnahme_id = a.id) AS verdichtungen,
+                   (SELECT GROUP_CONCAT(t.transkript, '') FROM aufnahme t
+                    WHERE t.teil_von = a.id AND t.transkript IS NOT NULL AND t.transkript != '')
+                   AS teile_transkript
+            FROM aufnahme a WHERE a.chat_id = ? AND a.klasse = 'lang' ORDER BY a.id
+            """, (chat_id,)))
+    karten = tuple(
+        (z["id"], z["schweigen"], z["text"]) for z in conn.execute(
+            "SELECT id, schweigen, text FROM buehnenkarte WHERE chat_id = ? ORDER BY id", (chat_id,)))
+    max_aufnahme_id = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM aufnahme WHERE chat_id = ?", (chat_id,)).fetchone()[0]
+    brainstorm_ende_id = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND schnittgrund = 'ende'", (chat_id,)).fetchone()[0]
+    brainstorm_text = " ".join(
+        (z["transkript"] or "").strip() for z in conn.execute(
+            "SELECT transkript FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+            "AND status = 'fertig' ORDER BY id", (chat_id,))).strip()
+    aufrufe = tuple(
+        (z["id"], z["art"], z["modus"]) for z in conn.execute(
+            "SELECT id, art, modus FROM aufruf WHERE chat_id = ? ORDER BY id", (chat_id,)))
+    usa_gefragt = bool(conn.execute(
+        "SELECT COUNT(*) FROM web_post WHERE chat_id = ? AND richtung = 'aus' AND ("
+        "text IN (?, ?) OR knoepfe LIKE ? OR knoepfe LIKE ?)",
+        (chat_id, *_USA_FRAGE_TEXTE, f"%{_USA_JA_KNOPF_TEXTE[0]}%", f"%{_USA_JA_KNOPF_TEXTE[1]}%"),
+    ).fetchone()[0])
+    arbeitsstand = conn.execute(
+        "SELECT phase, phase_angeboten, rahmen, geschichte, szenen_anzahl, figuren_fixiert_am "
+        "FROM arbeitsstand WHERE chat_id = ?", (chat_id,)).fetchone()
+    # M2 (Review 05.10.2026, Fix round 1): weich entfernte Figuren/Szenen
+    # (``repo.entferne_figur``/``figur.entfernt_am``) zaehlten bisher mit --
+    # ``repo.figuren``/``repo.hole_szenen`` filtern sie aus jeder Ansicht,
+    # hier taeten sie ``p5_moeglich`` faelschlich wahr machen. ``_hat_spalte``
+    # wie beim bestehenden ``zu_kurz_uebersprungen``-Muster: die Testfixtur
+    # (``db34``) traegt die Spalte nicht auf jedem Stand.
+    figur_filter = " AND entfernt_am IS NULL" if _hat_spalte(conn, "figur", "entfernt_am") else ""
+    szene_filter = " AND entfernt_am IS NULL" if _hat_spalte(conn, "szene", "entfernt_am") else ""
+    figuren = conn.execute(
+        f"SELECT COUNT(*) FROM figur WHERE chat_id = ?{figur_filter}", (chat_id,)).fetchone()[0]
+    szenen = conn.execute(
+        f"SELECT COUNT(*) FROM szene WHERE chat_id = ?{szene_filter}", (chat_id,)).fetchone()[0]
+    p5_moeglich = bool(
+        arbeitsstand and (arbeitsstand["rahmen"] or "").strip()
+        and (arbeitsstand["figuren_fixiert_am"] or "").strip()
+        and (arbeitsstand["geschichte"] or "").strip()
+        and figuren >= 1
+        and (bool((arbeitsstand["szenen_anzahl"] or "").strip()) or szenen >= 1)
+    )
+    return P34Stand(
+        max_post_id=max_post_id, transkript_posts=transkript_posts, system_posts=system_posts,
+        koepfe=koepfe, karten=karten, max_aufnahme_id=max_aufnahme_id,
+        brainstorm_ende_id=brainstorm_ende_id, brainstorm_text=brainstorm_text, aufrufe=aufrufe,
+        usa_gefragt=usa_gefragt,
+        phase=(arbeitsstand["phase"] if arbeitsstand else None),
+        phase_angeboten=(arbeitsstand["phase_angeboten"] if arbeitsstand else None),
+        p5_moeglich=p5_moeglich,
+    )
+
+
+def _sekunden_seit(iso: str | None, jetzt_iso: str) -> float | None:
+    """Sekunden zwischen ``iso`` und ``jetzt_iso`` (beide ``repo._jetzt()``-
+    Format), oder ``None`` wenn ``iso`` fehlt oder nicht parsbar ist (z. B.
+    ein Platzhalterwert in einer Testfixtur) -- dann gilt die Zeile als noch
+    nicht ueber die Frist, dieselbe Vorsicht wie bei jeder Pruefung ohne
+    Material."""
+    if not iso:
+        return None
+    try:
+        dann = datetime.fromisoformat(iso)
+        jetzt = datetime.fromisoformat(jetzt_iso)
+    except ValueError:
+        return None
+    if dann.tzinfo is None:
+        dann = dann.replace(tzinfo=timezone.utc)
+    if jetzt.tzinfo is None:
+        jetzt = jetzt.replace(tzinfo=timezone.utc)
+    return (jetzt - dann).total_seconds()
+
+
+def pruefe_p4_sperre(stand: P34Stand, station: str, *, jetzt_iso: str | None = None) -> list[Befund]:
+    """Jeder beendete Interview-Kopf (``beendet`` -- Nachbau von
+    ``aufnahme.unausgewertete_interviews``, siehe ``P34Stand.koepfe``) mit
+    Transkript, nicht zu-kurz-uebersprungen und ohne Verdichtung -- Phase 4
+    bleibt gesperrt, ohne dass ein Verdichtungslauf sichtbar laeuft (Padua
+    Phasen TEIL 2, Befund 4a).
+
+    Status ``laeuft``/``empfangen`` bekommt, solange ``beendet_am`` juenger
+    als ``FRIST_NACH_INTERVIEW_S`` ist, noch Zeit (eine normal laufende
+    Verdichtung): ein haengender Kopf -- ``beendet_am`` gesetzt, Status aber
+    weiter ``laeuft``, laenger als die Frist -- zaehlt dagegen (I5, Review
+    05.10.2026, Fix round 1: vorher war jeder Status in (laeuft, empfangen)
+    BLIND ausgenommen, egal wie lange er schon so stand)."""
+    jetzt_iso = jetzt_iso or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    befunde = []
+    for kopf in stand.koepfe:
+        if not (kopf["beendet"] and kopf["hat_transkript"] and not kopf["zu_kurz"]
+                and not kopf["hat_verdichtung"]):
+            continue
+        if kopf["status"] in ("laeuft", "empfangen"):
+            sekunden = _sekunden_seit(kopf.get("beendet_am"), jetzt_iso)
+            if sekunden is None or sekunden < FRIST_NACH_INTERVIEW_S:
+                continue  # normale Verarbeitung hat noch Zeit
+        befunde.append(Befund(
+            P4_GESPERRT_OHNE_VERDICHTUNG, station,
+            f"Interview {kopf['id']} (Status {kopf['status']!r}) ist beendet, hat ein "
+            "Transkript und keine Verdichtung -- Phase 4 bleibt gesperrt, ohne dass ein "
+            "Verdichtungslauf sichtbar laeuft.",
+        ))
+    return befunde
+
+
+def hat_neue_statuszeile(vorher: P34Stand, stand: P34Stand) -> bool:
+    """Positiv-Signal fuer ``warte_auf`` (I2): mindestens eine neue
+    Systemzeile ist da, die NICHT die reine Beenden-Bestaetigung ist -- die
+    eigentliche Statuszeile (zu kurz/gespeichert) kann trotzdem noch ein
+    zweites Mal kommen; das prueft ``pruefe_nach_interview``, nicht dieses
+    Signal."""
+    return any(i > vorher.max_post_id and (t or "") not in _INTERVIEW_AUS_TEXTE
+               for i, t in stand.system_posts)
+
+
+def pruefe_nach_interview(vorher: P34Stand, nachher: P34Stand, station: str) -> list[Befund]:
+    befunde: list[Befund] = []
+    neue_transkripte = [t for i, t in nachher.transkript_posts if i > vorher.max_post_id]
+    # I1 (Review 05.10.2026, Fix round 1): die reine Beenden-Bestaetigung
+    # (``_INTERVIEW_AUS_TEXTE``) laeuft bei JEDEM "End interview"-Klick,
+    # unabhaengig davon, ob die eigentliche Auswertungszeile je ankommt --
+    # ohne den Ausschluss hier konnte INTERVIEW_OHNE_STATUS nie feuern.
+    neue_system = [(i, t) for i, t in nachher.system_posts
+                   if i > vorher.max_post_id and (t or "") not in _INTERVIEW_AUS_TEXTE]
+    if not neue_transkripte:
+        befunde.append(Befund(
+            INTERVIEW_OHNE_BLASE, station,
+            "Nach dem Interview-Ende kam keine Transkript-Blase ('🎙 ...') im Chat an."))
+    elif any(not (t or "").startswith("🎙") for t in neue_transkripte):
+        befunde.append(Befund(
+            INTERVIEW_OHNE_BLASE, station,
+            "Eine neue Transkript-Zeile beginnt nicht mit dem Mikrofon-Emoji '🎙'."))
+    if not neue_system:
+        befunde.append(Befund(
+            INTERVIEW_OHNE_STATUS, station,
+            "Nach dem Interview-Ende kam keine Statuszeile (zu kurz/gespeichert) im Chat an."))
+    else:
+        texte = [t for _, t in neue_system]
+        for text in dict.fromkeys(texte):
+            if texte.count(text) >= 2:
+                befunde.append(Befund(
+                    INTERVIEW_STATUS_DOPPELT, station,
+                    f"Die Statuszeile {text!r} kam {texte.count(text)}-mal an.", schwere="mittel"))
+            if any(marke in (text or "") for marke in DE_MARKEN):
+                befunde.append(Befund(
+                    INTERVIEW_STATUS_DEUTSCH, station,
+                    f"Statuszeile auf Deutsch in einer englischsprachigen Gruppe: {text!r}.",
+                    schwere="mittel"))
+    befunde += pruefe_p4_sperre(nachher, station)
+    return befunde
+
+
+def _inhaltswoerter(text: str) -> set[str]:
+    return {w for w in _WORT.findall((text or "").casefold()) if w not in _STOPP}
+
+
+def karte_geerdet(karte: str, transkript: str) -> bool:
+    """Mindestens zwei verschiedene Inhaltswoerter aus ``transkript`` stehen
+    in ``karte`` -- der CoThinker hat wirklich zugehoert, statt etwas
+    Generisches zu schreiben.
+
+    I1 (Review 05.10.2026, Fix round 2): vorher wurde jedes Transkriptwort
+    per ``in karte_cf`` als TEILSTRING in der Karte gesucht -- ein kurzes
+    Wort wie "cat" traf dann auch mitten in "indicate" oder "location",
+    ohne dass die Karte das Wort wirklich enthielt. Jetzt werden ganze
+    Woerter verglichen: ``_WORT.findall`` auf der Karte liefert dieselbe
+    Tokenisierung wie auf dem Transkript, der Treffer ist eine
+    Mengenschnittmenge."""
+    kandidaten = _inhaltswoerter(transkript)
+    karte_woerter = set(_WORT.findall((karte or "").casefold()))
+    treffer = kandidaten & karte_woerter
+    return len(treffer) >= 2
+
+
+def hat_neue_karte(vor_ende: P34Stand, stand: P34Stand) -> bool:
+    """Positiv-Signal fuer ``warte_auf`` (I2): mindestens eine neue
+    Buehnenkarte (echt oder vermerktes Schweigen) ist da -- ob es zu VIELE
+    sind (``BRAINSTORM_MEHRERE_KARTEN``, eine spaet eintreffende zweite),
+    prueft erst die finale Pruefung nach der Gnadenfrist."""
+    vorher_ids = {k[0] for k in vor_ende.karten}
+    return any(k[0] not in vorher_ids for k in stand.karten)
+
+
+def pruefe_nach_brainstorm(vorher: P34Stand, vor_ende: P34Stand, nachher: P34Stand,
+                           station: str) -> list[Befund]:
+    befunde: list[Befund] = []
+    if nachher.brainstorm_ende_id <= vorher.max_aufnahme_id:
+        befunde.append(Befund(
+            BRAINSTORM_ENDE_NICHT_ANGEKOMMEN, station,
+            "Nach dem Beenden des Mithoerens kam keine Aufnahme mit brainstorm=1 und "
+            f"schnittgrund='ende' an (keine neue Ende-Zeile hinter Aufnahme {vorher.max_aufnahme_id})."))
+    vor_ende_ids = {k[0] for k in vor_ende.karten}
+    waehrend = [k for k in vor_ende.karten if k[0] not in {k2[0] for k2 in vorher.karten}]
+    if waehrend:
+        befunde.append(Befund(
+            BRAINSTORM_KARTE_WAEHREND_BOGEN, station,
+            f"{len(waehrend)} Buehnenkarte(n) entstanden WAEHREND des Bogens, vor dem Ende-Schnitt."))
+    neue_karten = [k for k in nachher.karten if k[0] not in vor_ende_ids]
+    if not neue_karten:
+        befunde.append(Befund(
+            BRAINSTORM_OHNE_REAKTION, station,
+            "Nach dem Ende des Bogens kam keine Buehnenkarte und kein vermerktes Schweigen an."))
+    elif len(neue_karten) > 1:
+        befunde.append(Befund(
+            BRAINSTORM_MEHRERE_KARTEN, station,
+            f"{len(neue_karten)} Buehnenkarten nach einem einzigen Bogen -- erwartet war genau eine."))
+    for _id, schweigen, text in neue_karten:
+        if schweigen:
+            continue
+        if not karte_geerdet(text, nachher.brainstorm_text):
+            befunde.append(Befund(
+                COTHINKER_UNGEERDET, station,
+                f"Buehnenkarte {text!r} nimmt kein erkennbares Wort aus dem Brainstorm-Transkript auf.",
+                schwere="mittel"))
+    return befunde
+
+
+def pruefe_modellwahl(stand: P34Stand, phase3: tuple[int, int], phase4: tuple[int, int],
+                      station: str, *, nur_phase: int | None = None) -> list[Befund]:
+    """``phase3``/``phase4`` sind (von, bis)-Grenzen der ``aufruf.id`` dieser
+    Phase (siehe ``_aufruf_bereiche``/``_teile_bereich_am_phasenwechsel`` in
+    Task 2c/Fix round 1): ``von < id <= bis``.
+
+    I4 (Review 05.10.2026, Fix round 1): hat ``phase4`` im geprueften
+    Bereich gar keinen ``gespraech``-Aufruf (leerer Bereich, oder die
+    Stationen dieser Phase sind noch nicht gelaufen), ist
+    ``P4_GESPRAECH_NICHT_OPUS`` nicht pruefbar -- vorher lieferte das still
+    ``[]``, als waere alles in Ordnung.
+
+    ``nur_phase`` (M2, Review 05.10.2026, Fix round 2): der ``modellwahl``-
+    Haken laeuft an ZWEI Stationen (``p3-uebergang``, ``p4-uebergang``) mit
+    DEMSELBEN Phase-3-Bereich -- ohne Einschraenkung lieferte das an
+    ``p3-uebergang`` IMMER ``nicht_pruefbar:p4_gespraech_nicht_opus`` (der
+    Phase-4-Bereich ist dort naturgemaess noch leer, keine Phase-4-Station
+    ist gelaufen), und ein echter ``P3_GESPRAECH_OPUS``-Befund kaeme an
+    ``p4-uebergang`` ein zweites Mal. ``None`` (Vorgabe) prueft weiterhin
+    beide Teile -- fuer direkte Aufrufe/Tests dieser Funktion unveraendert;
+    der Produktionsaufruf (``browser_pruefhaken._modellwahl``) reicht die
+    Stationsphase durch und bekommt so nur noch den passenden Teil."""
+    def _im_bereich(bereich: tuple[int, int], i: int) -> bool:
+        von, bis = bereich
+        return von < i <= bis
+
+    befunde: list[Befund] = []
+    if nur_phase in (None, 3):
+        gespraeche3 = [a for a in stand.aufrufe if a[1] == "gespraech" and _im_bereich(phase3, a[0])]
+        if any(a[2] == "C" for a in gespraeche3):
+            befunde.append(Befund(
+                P3_GESPRAECH_OPUS, station,
+                "Ein Gespraechsaufruf in Phase 3 lief ueber Opus (modus 'C') -- Datenschutz, "
+                "die Interviews gehen in Phase 3 nicht an die USA."))
+    if nur_phase in (None, 4):
+        gespraeche4 = [a for a in stand.aufrufe if a[1] == "gespraech" and _im_bereich(phase4, a[0])]
+        if not gespraeche4:
+            befunde.append(nicht_pruefbar(
+                P4_GESPRAECH_NICHT_OPUS, station,
+                f"keine Gespraechsaufrufe im geprueften Phase-4-Bereich {phase4}."))
+        elif any(a[2] != "C" for a in gespraeche4):
+            befunde.append(Befund(
+                P4_GESPRAECH_NICHT_OPUS, station,
+                "Ein Gespraechsaufruf in Phase 4 lief NICHT ueber Opus (modus != 'C').",
+                schwere="mittel"))
+    if stand.usa_gefragt:
+        befunde.append(Befund(
+            EINWILLIGUNG_GEFRAGT, station,
+            "Die USA-Einwilligungsfrage wurde gestellt -- Padua fragt nicht danach."))
+    return befunde
+
+
+def pruefe_p5_angebot(stand: P34Stand, station: str) -> list[Befund]:
+    if stand.p5_moeglich and (stand.phase_angeboten or 0) < 5 and (stand.phase or 0) < 5:
+        return [Befund(
+            P5_NICHT_ANGEBOTEN, station,
+            "Setting, fixierte Figuren, Geschichte und Szenenzahl stehen, aber Phase 5 wurde "
+            "nicht angeboten (arbeitsstand.phase_angeboten < 5).")]
+    return []
+
+
+#: Nach dem Positiv-Signal (oder der Frist) wird noch diese Zeit abgewartet,
+#: bevor ``warte_auf`` EIN letztes Mal prueft -- sonst sieht eine fruehe
+#: "saubere" Zwischenmessung eine zweite, verspaetete Statuszeile oder
+#: Buehnenkarte nie (I2, Review 05.10.2026, Fix round 1). Bleibt die Vorgabe
+#: fuer den Brainstorm-Pfad (M3, Fix round 2): die CoThinker-Karte entsteht
+#: ``_brainstorm_abschliessen``/``_brainstorm_entscheide`` direkt im selben
+#: Transkriptions-Durchlauf (kein periodischer Arbeiter dazwischen) -- 10 s
+#: Verarbeitungs-Spielraum reichen hier aus.
+GRACE_NACH_SIGNAL_S = 10.0
+#: M3 (Review 05.10.2026, Fix round 2): fuer den Interview-Pfad war
+#: ``GRACE_NACH_SIGNAL_S`` (10 s) KUERZER als der Takt des Nachhol-Arbeiters
+#: (``aufnahme.NACHHOL_INTERVALL_S`` = 60 s, der Arbeiter, der eine
+#: gescheiterte Verdichtung erneut versucht) -- eine zweite, erst durch
+#: einen Nachhol-Lauf entstandene Statuszeile kam dann oft NACH der finalen
+#: Pruefung an und wurde nie geprueft. 5 s Sicherheitsabstand ueber einen
+#: vollen Nachhol-Takt hinaus.
+GRACE_NACH_INTERVIEW_S = aufnahme.NACHHOL_INTERVALL_S + 5.0
+
+
+def warte_auf(lese: Callable[[], object], pruefe: Callable[[object], list[Befund]], *,
+             frist_s: float, ende: Callable[[object], bool] | None = None,
+             grace_s: float = GRACE_NACH_SIGNAL_S, takt_s: float = 2.0,
+             schlafe: Callable[[float], None] = time.sleep,
+             uhr: Callable[[], float] = time.monotonic) -> tuple[list[Befund], object]:
+    """Generische Fassung von ``warte_nach_diskussion``: pollt ``lese()``,
+    bis ``ende(stand)`` wahr wird (ohne ``ende``: bis ``pruefe(stand)`` leer
+    ist -- das alte Verhalten) oder die Frist ``frist_s`` ablaeuft; wartet
+    DANACH zusaetzlich ``grace_s`` und liefert GENAU das Ergebnis dieser
+    letzten, finalen Pruefung. ``warte_nach_diskussion`` bleibt unveraendert
+    stehen -- diese Funktion ist der Einhaengepunkt fuer ``nach_interview``/
+    ``nach_brainstorm`` (Task 2c).
+
+    I2 (Review 05.10.2026, Fix round 1): der fruehere Entwurf gab beim
+    ersten befundfreien Zwischenstand sofort zurueck -- eine zweite,
+    verspaetete Statuszeile (``INTERVIEW_STATUS_DOPPELT``), eine zweite
+    Buehnenkarte (``BRAINSTORM_MEHRERE_KARTEN``) oder eine deutsche
+    Statuszeile, die erst nach der ersten (englischen) ankam
+    (``INTERVIEW_STATUS_DEUTSCH``), kam dann NIE zur Pruefung. Jetzt zaehlt
+    nur noch die Pruefung NACH der Gnadenfrist."""
+    ende_zeit = uhr() + frist_s
+    stand = lese()
+    weiter = (lambda s: not ende(s)) if ende is not None else (lambda s: bool(pruefe(s)))
+    while weiter(stand) and uhr() < ende_zeit:
+        schlafe(takt_s)
+        stand = lese()
+    schlafe(grace_s)
+    stand = lese()
+    return pruefe(stand), stand
 
 
 def pruefe_wissensantwort(antwort: str, board: tuple[str, ...], station: str) -> list[Befund]:

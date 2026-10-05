@@ -37,6 +37,8 @@ UMGESTELLT: set[str] = {
     "sprachstil", "kernzitate", "stueckpruefung", "dramaturgie.beleg",
     "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben", "web",
     "laengen", "sprachpass", "web_vereint", "web_gestalt",
+    # P34 Runde 1, Befund A5: Nutzertext des CoThinker-Aufrufs.
+    "buehnenkarte",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -50,7 +52,7 @@ ALLE_MODULE = {
     "phasentexte", "schaerfung", "sprachprofil", "sprachstil", "sprecher",
     "stile", "stueckpruefung", "szene", "szenenfolge", "verdichter",
     "vorspann", "web", "web_schreiben", "laengen", "sprachpass",
-    "web_vereint", "web_gestalt",
+    "web_vereint", "web_gestalt", "buehnenkarte",
 }
 
 #: Bleibt deutsch, mit Grund (nie im Chat, nie im Prompt einer Gruppe).
@@ -284,6 +286,10 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
     # laeuft es ueber T -- die vier Ausnahmen dafuer sind entfallen.
     ("web", "interview-theater-web hoert auf http://{"):
         "Startzeile des Dienstes (stdout, betrieb/web.log), Betreiberausgabe",
+    # P34 Runde 1, Befund A5: buehnenkarte ist umgestellt, das Vorfall-Detail
+    # bleibt deutsch (Dashboard des Teams).
+    ("buehnenkarte", "Brainstorm-Transkript von {} auf {} Zeic"):
+        "Vorfall-Detail brainstorm_transkript_gekuerzt (repo.merke_vorfall)",
 }
 
 _STOPP = re.compile(
@@ -680,3 +686,41 @@ def test_alle_module_sind_umgestellt():
     """Aufgabe 17: ab jetzt gilt der Waechter fuer das ganze Paket -- jedes
     Modul mit Nutzertexten liest ueber ``T``."""
     assert UMGESTELLT == ALLE_MODULE
+
+
+def test_phasenhinweis_beispiel_ist_phasenneutral():
+    """P34 Runde 1, Befund A6 (= L4-6, Dump 07-gespraech-phase4.txt:638):
+    das feste Beispiel "Are more interviews coming, or shall we move on?"
+    passt nur zum Schritt 3->4 und stand auch in Phase 4 (interview-frei).
+    Nur Englisch: die DE-Konstante steht in kontext.py (Parallel-Worktree
+    robo-fbl, Dortmund eingefroren)."""
+    text = _tabelle()["kontext"]["_PHASENHINWEIS"]
+    assert "interview" not in text.lower()
+    assert "{bezeichnung}" in text
+
+
+def _alle_texte_en(knoten):
+    if isinstance(knoten, str):
+        yield knoten
+    elif isinstance(knoten, dict):
+        for wert in knoten.values():
+            yield from _alle_texte_en(wert)
+    elif isinstance(knoten, (list, tuple)):
+        for wert in knoten:
+            yield from _alle_texte_en(wert)
+
+
+def test_der_arbeitsstand_tab_heisst_ueberall_wie_der_tab():
+    """P34 Runde 2, Befund A9 (Lauf 220222, web_post 24/27/28): der Bot nannte
+    den Tab "Where we are", die Oberflaeche heisst ihn "Workbench"
+    (``["web_vereint"._TEXT_TAB] stand``). Jeder EN-Text, der den Tab nennt,
+    benutzt dessen Beschriftung."""
+    tabelle = _tabelle()
+    tab = tabelle["web_vereint"]["_TEXT_TAB"]["stand"]
+    falsch = [
+        t for t in _alle_texte_en(tabelle)
+        if re.search(r'Where we are"? tab|tab "?Where we are', t)
+    ]
+    assert falsch == []
+    assert tab in tabelle["knoepfe.texte"]["_TEXT_ARBEITSSTAND_HINWEIS"]
+    assert tab in tabelle["kontext"]["EINSTIEG_SETTING"]

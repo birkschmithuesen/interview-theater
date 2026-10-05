@@ -40,6 +40,12 @@ def test_mindestens_zwei_pausen_ueberschreiten_die_vad_schwelle():
     assert all(p > e.VAD_PAUSE_SCHWELLE_S for p in lange)
 
 
+def test_gemischtes_interview_hat_italienische_und_deutsche_stimme():
+    plan = e.plane(e.lies_skript(Path("simulation/diskussion/p3-interview-gemischt.txt")))
+    stimmen = {stimme for stimme, _, _ in plan}
+    assert {"it+m3", "de+f2"} <= stimmen
+
+
 def test_erzeugt_eine_wav_von_mindestens_zwei_minuten(tmp_path):
     pytest.importorskip("espeakng_loader")
     ziel = tmp_path / "d.wav"

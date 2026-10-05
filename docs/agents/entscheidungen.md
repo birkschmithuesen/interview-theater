@@ -862,8 +862,10 @@
   Fertig** — der Pause-Knopf (`#diskussion-pause`,
   `pausiereDiskussion`/`fortsetzeDiskussion`) ist seit dem 04.10.2026
   entfernt; er setzte bis dahin ebenfalls den Ende-Schnitt und löste damit
-  bei jeder Pause Vorschlag und Verdichtung aus. Interview- und
-  Brainstorm-Pause bleiben.
+  bei jeder Pause Vorschlag und Verdichtung aus. Die Interview-Pause bleibt;
+  Brainstorm kennt seit dem Toggle-Umbau (t_cf87ee0a) keinen Pausenschnitt
+  mehr, nur noch den 90-Sekunden-Deckel (`grund='cap'`) und das Ende über den
+  Toggle-Stopp.
 
   **Belegpflicht der Begründung** (Karte t_2b9d2cbe, 04.10.2026): eine
   `begruendung` gilt nur, wenn ein geprüftes Zitat sie trägt, das nach Abzug

@@ -31,18 +31,23 @@ would suggest for the same terms, side by side with yours, and you decide \
 question by question what stays, what goes and what gets reworked. Then \
 we agree on how you open and close a conversation. At the end you have an \
 interview guide to take with you."""
+# Phase 3: Padua arbeitet nur im Browser -- die Knopfnamen sind die des
+# Rekorders (sprachen/en/texte.toml, web_chat: _TEXT_INTERVIEW_AN/_PAUSE/
+# _WEITER/_ENDEN), keine Sprachnachrichten, kein "say done" (P34 A8).
 3 = """\
-Now you do the interviews - you have the guide with you. Tap Start interview, \
-then record the conversation as voice messages, as many as you need. I type \
-everything up. At the end tap End interview (or say "done" at the end of the \
-recording), and I summarise the interview by myself - the themes and the \
-word-for-word quotes we will work with later."""
+Now you do the interviews - you have the guide with you. Tap Start interview \
+and the phone records the conversation; with ⏸ Pause and ▶ Continue you can \
+interrupt it. When the interview is over, tap ■ Stop. I type everything up \
+and summarise the interview by myself - the themes and the word-for-word \
+quotes we will work with later. For the next person, tap Start interview \
+again."""
 4 = """\
 From here on we invent - freely, without material. You decide where your play \
 is set (place, time, occasion), who is in it, and what happens: the story in \
 outline, how it ends, and the sequence of scenes with a title, one sentence, \
 the characters and a suggested form. I help with suggestions if you want. \
-Right after that the interviews come in and sharpen what you have built."""
+Right after that the interviews come in and sharpen what you have built. \
+In the brainstorm, tap once, say your thought, pass it on. When the thought is complete, tap again: then the CoThinker responds."""
 5 = """\
 Now the interviews come back automatically: next to every scene and every \
 character I place the passages from your recordings that fit, with the \

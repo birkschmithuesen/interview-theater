@@ -120,3 +120,29 @@ def test_die_deutschen_textreste_bleiben_ohne_profil_deutsch(datenbank):
         assert wort in seite or wort in skript, wort
     for wort in ("Pause", "Weiter", "Beenden"):
         assert _enthaelt_wort(seite, wort) or _enthaelt_wort(skript, wort), wort
+
+
+def test_tipp_anzeige_und_stillezaehler_englisch(padua):
+    """P34 Runde 1, Befunde A2 (J-p3-eintritt-2) und A7 (J-p4-geschichte-5),
+    Lauf 205532. A2: die Messkarte kuendigt 5 Sekunden Stille an, der
+    Countdown las "Quiet for 2 seconds" -- das DE "noch" fehlte, es klang
+    wie ein Widerspruch. A7: die Tipp-Anzeige stand als "SCHREIBT …" in der
+    EN-Oberflaeche (Screenshot 068), tippt fehlte im T-Override."""
+    import json
+
+    skript = web_chat._js()
+    texte = json.loads(re.search(r'var TEXT = (\{.*?\});', skript).group(1))
+    assert texte["tippt"] == web_chat.T._TEXT_TIPPT
+    assert "schreibt" not in texte["tippt"]
+    stille = texte["kal_stille"]
+    assert "{s}" in stille
+    assert "Quiet for {s} seconds" not in stille
+    assert "left" in stille or "more" in stille
+
+
+def test_tipp_anzeige_ohne_profil_deutsch():
+    import json
+
+    texte = json.loads(re.search(r'var TEXT = (\{.*?\});', web_chat._js()).group(1))
+    assert texte["tippt"] == "schreibt …"
+    assert "noch {s}" in texte["kal_stille"]

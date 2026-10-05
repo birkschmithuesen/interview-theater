@@ -22,7 +22,7 @@ MIN_TAPZIEL_PX = 44.0
 #: darf wachsen, wenn ein neues UI-Stueck dazukommt.
 VERDRAHTETE_SELEKTOREN = (
     "#senden", "#interview", "#interview-pause", "#interview-beenden",
-    "#brainstorm", "#brainstorm-pause", "#brainstorm-beenden", "#ptt",
+    "#brainstorm", "#ptt",
     "#nachreichen", "#verwerfen", "#diskussion", "#diskussion-pause",
     "#diskussion-beenden", "#kalibrierung-start", "#kalibrierung-sprechen",
     "#kalibrierung-ja", "#kalibrierung-nein", "#kalibrierung-versuch",

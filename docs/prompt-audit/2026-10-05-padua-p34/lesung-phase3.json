@@ -1,0 +1,137 @@
+[
+  {
+    "kategorie": "a",
+    "datei": "06-gespraech-phase3",
+    "zeile": 290,
+    "zitat": "**In Terms and Questions a suggestion saves itself the moment you",
+    "regel": "UX RULES §1: \"**Bot proposals are never saved as decisions.** Only what the group said or confirmed is saved.\"",
+    "vorschlag": "Delete the clause in lines 290-292 and replace it with: a suggestion of yours is only written into the progress once the group says yes to it (button or one word in the chat); until then it is an offer.",
+    "phase": 3
+  },
+  {
+    "kategorie": "a",
+    "datei": "11-erkenner-aufnahme",
+    "zeile": 340,
+    "zitat": "A worked-out version in the excerpt counts even without a nod.",
+    "regel": "UX RULES §1: \"**Bot proposals are never saved as decisions.** Only what the group said or confirmed is saved.\"",
+    "vorschlag": "Delete that sentence in line 340 and also the example in lines 513-528 (\"You: Sure. Bicycle: ...\" -> fragen_setzen without any group answer); record a bot suggestion only when a group message agrees to it.",
+    "phase": 3
+  },
+  {
+    "kategorie": "a",
+    "datei": "11-erkenner-aufnahme",
+    "zeile": 403,
+    "zitat": "(\"Interview 2, part 3: ...\") are therefore not in your excerpt at all.",
+    "regel": "UX RULES §4: \"**A transcript reads as one text.** One interview = one growing message, parts appended in place, no per-part labels\"",
+    "vorschlag": "Replace the parenthesis in line 403 with the real form, one growing transcript message per interview without part labels, e.g. \"(the running transcript of the interview)\".",
+    "phase": 3
+  },
+  {
+    "kategorie": "a",
+    "datei": "06-gespraech-phase3",
+    "zeile": 173,
+    "zitat": "then one line per scene `Title — one sentence — characters — form`.",
+    "regel": "UX RULES §1: \"**Don't decide things before the phase where they matter.** Scene styles (rap, dialogue) were removed from the scene-planning phase because they belong later.\" -- and line 66 of the same file: a form only \"once the group reaches station 7\"",
+    "vorschlag": "Delete \"— form\" from line 173, so VORSCHLAG GESCHICHTE reads `Title — one sentence — characters`; the forms come only in station 7.",
+    "phase": 3
+  },
+  {
+    "kategorie": "b",
+    "datei": "06-gespraech-phase3",
+    "zeile": 501,
+    "zitat": "**Ask first, then suggest -- and only ever ONE question per message.**",
+    "regel": "same file, line 480: \"- **In this phase you ask almost nothing.** The group is busy\"",
+    "vorschlag": "Delete the block lines 501-508 from the phase-3 section (it is the generic rule from lines 114-124) and keep only line 480-483; otherwise the phase text orders asking and forbidding it in the same breath.",
+    "phase": 3
+  },
+  {
+    "kategorie": "b",
+    "datei": "06-gespraech-phase3",
+    "zeile": 470,
+    "zitat": "- **The way is the recording button** -- it is under the bot's messages,",
+    "regel": "same file, line 262: \"answer; \"press the button below\" is therefore always wrong.\" and line 255: \"point to the button \"Start interview\"\"",
+    "vorschlag": "Rewrite line 470 to: \"The way is the button \"Start interview\", which a system line shows after your answer -- never point to it as if it were already below your message.\"",
+    "phase": 3
+  },
+  {
+    "kategorie": "b",
+    "datei": "06-gespraech-phase3",
+    "zeile": 546,
+    "zitat": "The material would allow phase 4 · Frame. Ask in the flow of the conversation whether the group wants to go there yet",
+    "regel": "same file, line 477: \"no summary, no suggestion about what comes next. The group\" (phase-3 rule: after an interview no follow-up question, no suggestion about what comes next)",
+    "vorschlag": "Either drop this injected line while phase 3 is running with only one interview, or add to line 476-479 an explicit exception: \"the only question allowed is the one the context line asks you to put\".",
+    "phase": 3
+  },
+  {
+    "kategorie": "b",
+    "datei": "16-verdichter",
+    "zeile": 5,
+    "zitat": "You are the summariser for a theatre workshop project. Amateur actors",
+    "regel": "06-gespraech-phase3, line 527: \"The group are acting students in professional training, not an amateur group\" (and line 9: interviews \"the participants have carried out with other people\")",
+    "vorschlag": "Replace line 5-6 with: \"Acting students in professional training interview other people; later a play is to grow out of the interviews.\"",
+    "phase": 3
+  },
+  {
+    "kategorie": "b",
+    "datei": "06-gespraech-phase3",
+    "zeile": 96,
+    "zitat": "under 500 characters if possible. One question, and two to three options",
+    "regel": "same file, line 186: \"- **At most ONE question per message -- never a mandatory close, only when it helps.**\"",
+    "vorschlag": "Change line 96 to \"under 500 characters if possible. At most one question, and two to four options to choose from\" -- so the summary no longer prescribes a question and matches the \"two to four numbered options\" of line 127.",
+    "phase": 3
+  },
+  {
+    "kategorie": "c",
+    "datei": "06-gespraech-phase3",
+    "zeile": 280,
+    "zitat": "if the group explicitly asks for them: `/verbatim` (full transcripts),",
+    "regel": "dead text: `/character`, `/scene`, `/interview`, `/done` appear in no other prompt; the recogniser only knows wortlaut_an/wortlaut_aus and content arts, and line 284 forbids naming slash commands anyway",
+    "vorschlag": "Delete lines 279-282 and keep in the command list only /record, /status, /theme, /play, /analyse, /phase, /help.",
+    "phase": 3
+  },
+  {
+    "kategorie": "d",
+    "datei": "06-gespraech-phase3",
+    "zeile": 331,
+    "zitat": "**Repeat nothing that is in your last three messages or in the journal.**",
+    "regel": "context structure: the user part (lines 552-574) contains only \"Member 1-4\" turns, not a single bot turn, so the bot cannot see its last three messages",
+    "vorschlag": "Build the history with both sides, the bot's turns labelled \"You:\" as in the recogniser examples (11-erkenner-aufnahme, line 431), at least the last 3 bot messages; otherwise delete the no-repeat rule.",
+    "phase": 3
+  },
+  {
+    "kategorie": "d",
+    "datei": "06-gespraech-phase3",
+    "zeile": 536,
+    "zitat": "Current phase: 3 · Interviews",
+    "regel": "context structure: the saved work status names no interview count and no recording state, although the whole phase section (lines 460-499) turns on whether a recording runs",
+    "vorschlag": "Add directly under line 536: \"Interviews: 1 saved and summarised (Interview 1) · Recording: not running\" -- named, counted, and marked as saved rather than proposed.",
+    "phase": 3
+  },
+  {
+    "kategorie": "d",
+    "datei": "06-gespraech-phase3",
+    "zeile": 549,
+    "zitat": "- [decided] Story as short story: 3 sections",
+    "regel": "context structure: the Journal contradicts the status two blocks above, line 543: \"- [form] One episode, the first of a series - not a closed play.\"",
+    "vorschlag": "Merge Journal and \"Further agreements\" into one status list, newest entry last, and drop outdated entries like line 549 when a newer agreement replaces them.",
+    "phase": 3
+  },
+  {
+    "kategorie": "d",
+    "datei": "06-gespraech-phase3",
+    "zeile": 550,
+    "zitat": "- [suggested] A fourth scene on the platform - not decided",
+    "regel": "context structure: saved vs. only proposed -- a non-decision stands inside the status block the bot treats as progress (line 320: \"If something is in the progress, never ask about it again.\")",
+    "vorschlag": "Remove merely suggested items from the status block, or move them into a clearly separate section \"Open, not saved:\" placed after the saved status and before the history.",
+    "phase": 3
+  },
+  {
+    "kategorie": "d",
+    "datei": "11-erkenner-aufnahme",
+    "zeile": 724,
+    "zitat": "A voice message from an ongoing interview, just transcribed:",
+    "regel": "same file, line 7: \"directly. You get the current progress and an excerpt of the conversation\" -- and line 326: \"**Removing only what is there.** entfernen only for something that stands\"",
+    "vorschlag": "Prefix the user part with a short \"Progress:\" block (phase, terms, questions, interviews so far, characters) before the transcript, as every example in lines 410-718 does.",
+    "phase": 3
+  }
+]

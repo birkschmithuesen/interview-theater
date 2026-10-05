@@ -79,7 +79,7 @@ _TEXT_OHNE_KNOPF_WEITER = "Good, I'm still listening."
 _TEXT_OHNE_KNOPF_UNBEKANNT = "I don't know this recording any more."
 _TEXT_INTERVIEWS_FERTIG_KNOPF = "Interviews done"
 _TEXT_INTERVIEWS_NOCH_OFFEN = "{anzahl} interview(s) are still being analysed - it will continue automatically once they're done."
-_TEXT_ARBEITSSTAND_HINWEIS = "You'll find the full analysis in the Where we are tab."
+_TEXT_ARBEITSSTAND_HINWEIS = "You'll find the full analysis in the Workbench tab."
 TEXT_ABLAUF = """\
 This is how an interview works: tap "Start interview". Then send the \
 voice message or voice messages of your interviewee - after each one you \
@@ -552,6 +552,7 @@ most one sentence and one question."""
 
 ["befehle"]
 _TEXT_INTERVIEW_AN = "Ready - send your voice messages. After each one you get the typed-out text."
+_TEXT_INTERVIEW_AN_WEB = "Recording is on. When the interview is over, tap “{stopp}”."
 _TEXT_INTERVIEW_AUS = "Recording stopped."
 _TEXT_KERNTHEMA_LEER = "Write the core theme after the command, for example: /theme Arriving"
 _TEXT_UNBEKANNT = "I don't know that command."
@@ -863,6 +864,20 @@ _TRANSKRIPT_KOPF = "The transcript of the discussion so far:"
 _BOARD_KOPF = "The term board so far (JSON):"
 _TEXT_EINSTIEG = "Lay one phone in the middle -- it listens. Open the CoThinker tab on a second phone: the terms you mention appear there."
 
+["buehnenkarte"]
+# P34 Runde 1, Befund A5: Nutzertext des CoThinker-Aufrufs (Phase 4).
+_UEBERSCHRIFT_BEGRIFFE_FRAGEN = "Terms and questions (phases 1-3):"
+_ZEILE_BEGRIFFE = "Terms: {wert}"
+_ZEILE_FRAGEN = "Questions: {wert}"
+_UEBERSCHRIFT_STUECKKARTE = "Piece card:"
+_TEXT_NOCH_OFFEN = "(still open)"
+_UEBERSCHRIFT_MITSCHNITT = "Brainstorm transcript so far:"
+
+["buehnenkarte".FELD_BESCHRIFTUNG]
+Setting = "Setting"
+Figuren = "Characters"
+Geschichte = "Story"
+
 ["journal"]
 _BISHERIGES_JOURNAL_KOPF = "Journal so far:\n"
 _AUSSCHNITT_KOPF = "Excerpt:\n"
@@ -887,8 +902,11 @@ _BEZEICHNUNG_JOURNAL = "Journal: {text}"
 _BEZEICHNUNG_FESTLEGUNG = "Agreement: {text}"
 _BEZEICHNUNG_FIGUR = "Character {name}"
 _BEZEICHNUNG_SZENE = "Scene {nummer}"
-_ZEILE_EINE_FIGUR = "one character: {liste}"
-_ZEILE_FIGUREN = "{zahlwort} characters: {liste}"
+# P34 Runde 2, Befund A11: "one character: Toni" las sich wie die ganze
+# Figurenliste. Die Zeile meldet, was gespeichert wurde (neu oder geaendert,
+# erkenner._wende_figur_an); das Zahlwort steht am Zeilenanfang, daher gross.
+_ZEILE_EINE_FIGUR = "Character saved: {liste}"
+_ZEILE_FIGUREN = "{zahlwort} characters saved: {liste}"
 _JOURNAL_ZUSAMMENGEFUEHRT = "{alt} became {neu} -- speech style and scene casting moved along."
 _JOURNAL_KORRIGIERT = "Transcript corrected: {text}"
 _NOTIERT_KOPF = "Noted:\n"
@@ -908,10 +926,10 @@ rahmen = "Setting"
 hauptkonflikt = "Main conflict"
 
 ["erkenner"._FIGUREN_ZAHLWORT]
-2 = "two"
-3 = "three"
-4 = "four"
-5 = "five"
+2 = "Two"
+3 = "Three"
+4 = "Four"
+5 = "Five"
 
 ["erkenner"._FELD_BESCHRIFTUNG]
 kernthema = "Core theme"
@@ -973,7 +991,7 @@ MITGEHOERT_KOPF = "What the group said while you listened in (discussion/brainst
 _MITGEHOERT_DISKUSSION = "[discussion]"
 _MITGEHOERT_BRAINSTORM = "[brainstorm]"
 _MARKE_MITGEHOERT = "{anzahl} voice recording(s) listened in, words in the block above"
-_PHASENHINWEIS = "The material would allow phase {bezeichnung}. Ask in the flow of the conversation whether the group wants to go there yet -- one sentence, no announcement (\"Are more interviews coming, or shall we move on?\"). You don't switch yourself; the group's answer does that."
+_PHASENHINWEIS = "The material would allow phase {bezeichnung}. Ask in the flow of the conversation whether the group wants to go there yet -- one sentence, no announcement (\"Anything else for this step, or shall we move on?\"). You don't switch yourself; the group's answer does that."
 _FIGURENHINWEIS = "These characters are still missing the interview they speak from: {namen}. If it fits, ONE sentence about it, at most: '<character name> could speak like <interview name> -- does that fit?' No quote, no reasoning, no explanation of what the assignment is for, and nothing repeated that has already been said or noted (the assignment used to be too long-winded). Only character names from the list above and interview names from the summaries. If the group says a character is entirely made up, stop asking about it. One interview may feed several characters."
 _TEXT_SZENE_GEKUERZT = "[... middle part of the scene left out ...]"
 ERSTKONTAKT = "{anlass} First respond to what was just said, then take your time: this is the moment when the group understands how the work goes here. Cover the following, in this order and in full sentences, not as a list: who you are and what you do together (the group's terms turn into questions, the group takes the questions out and does interviews, the interviews later become the play); that you read everything and answer everything, typed or spoken; **that an interview starts with the button \"Start interview\" and that after every voice message a button asks whether it goes on or is finished** -- the buttons under your message show the way, **don't mention any slash command**{link}. **End with the question about the terms**: the group has collected terms in the room -- ask them to send you that list, typed or as a voice message. That is the first working step, and the welcome ends with it. No form, no bullet-point list -- a warm, detailed start that begins with what was said and ends with the request for the terms. Never address anyone by first name."
@@ -983,7 +1001,7 @@ ERSTKONTAKT_LINK = "; and that the group can follow everything that has been rec
 ERSTKONTAKT_DISKUSSION = "{anlass} First respond briefly to what was just said. Then explain, short and friendly, in at most six short lines -- no list, no headings -- in this order: who you are (the theatre bot for this workshop); that the group uses two phones, called \"Phone A\" and \"Phone B\" (use exactly these names, they are on the picture of the phones): Phone A lies in the middle of the table and listens -- that is this chat; Phone B opens the same group link and shows the \"CoThinker\" tab, where the terms they mention appear live; that first you briefly check the room: a few seconds of quiet, then one of them says a sentence; that after that they discuss which terms matter for their play and give every term one sentence on why they chose it (that also helps you hear the terms right), and you only listen and say nothing until they tap \"Discussion done\". **Don't mention buttons under your message, a URL or web address, or any slash command**{link}. End with exactly this sentence as the last line: Now press \"Start listening\" for mic calibration."
 ERSTKONTAKT_DISKUSSION_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
 ERSTKONTAKT_DISKUSSION_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
-EINSTIEG_SETTING = "The group is entering phase 4 (Frame) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (Prose Draft) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Where we are\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
+EINSTIEG_SETTING = "The group is entering phase 4 (Frame) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (Prose Draft) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Workbench\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
 
 ["kontext".JOURNALART_BESCHRIFTUNG]
 vorgeschlagen = "suggested"
@@ -1019,7 +1037,7 @@ _TEXT_DAS_INTERVIEW = "The interview"
 _TEXT_DOWNLOAD_FEHLER = "The recording didn't reach me - please send it again."
 _TEXT_BITTE_NOCHMAL = "I couldn't understand {beschreibung} - please send it again."
 _TEXT_VERDICHTUNG_GESCHEITERT = "I couldn't analyse {beschreibung}. The transcript stays saved, only the summary is missing."
-_TEXT_BUEHNE_NEUE_KARTE = "New card in the Stage tab"
+_TEXT_BUEHNE_NEUE_KARTE = "New card in the CoThinker tab"
 _TEXT_DISKUSSION_FERTIG_BEGRIFFE = "The discussion is over. Now send me your five terms - typed or as a voice message."
 _TEXT_DISKUSSION_KEINE_BEGRIFFE = "I couldn't make out any terms from the discussion - tap \"Start listening\" and talk again, or type the terms here."
 _ARTIKEL_GROSS = "the"
@@ -1891,9 +1909,13 @@ _TEXT_EINGABE = "Write or speak freely – or tap a shortcut"
 _TEXT_EINGABE_FRAGEN = "Say what should be different about the question …"
 _TEXT_EINGABE_SETTING = "Tell us your idea …"
 _TEXT_ABKUERZUNG = "Shortcut:"
+# P34 Runde 1, Befund A7: Tipp-Anzeige (vorher deutsch "schreibt …").
+_TEXT_TIPPT = "writing …"
 # Padua Hotfix B6/B7 (02.10.2026): nur die Texte, die diese Karte anfasst.
 # Der Rest der Chatansicht bleibt vorerst deutsch (offener Punkt, Karte A1).
-_TEXT_INTERVIEW_AN = "Record interview"
+# P34 Runde 1, Befund A3: derselbe Name wie im Phaseneintritt und im
+# Gespraechs-Prompt ("Start interview").
+_TEXT_INTERVIEW_AN = "Start interview"
 _TEXT_INTERVIEW_AUS = "Stop recording"
 _TEXT_SPRACHE = "Voice message ({dauer})"
 _TEXT_SPRACHE_LAEUFT = "{dauer} · transcribing..."
@@ -1909,7 +1931,7 @@ _TEXT_SENDEN = "Send"
 _TEXT_REST_NACHREICHEN = "Submit the rest as an interview"
 _TEXT_REST_VERWERFEN = "Discard the rest"
 _TEXT_BRAINSTORM_AN = "🎙 Join the brainstorm"
-_TEXT_BRAINSTORM_LAEUFT = "● Listening · {zeit}"
+_TEXT_BRAINSTORM_LAEUFT = "● Listening · {zeit} · tap when the thought is complete"
 # Task 5 (Padua Phase 1+2 Umbau, 03.10.2026): background listening in phase 1.
 _TEXT_DISKUSSION_AN = "Start listening"
 _TEXT_DISKUSSION_LAEUFT = "Listening ({zeit})"
@@ -1930,7 +1952,7 @@ _TEXT_PTT_VERWERFEN = "Discard recording"
 # nothing paraphrased.
 _TEXT_KALIBRIERUNG_ANKUENDIGUNG = "Put this phone in the middle of the table, where it will stay during the discussion. Sit as you will sit while talking — don't lean in or speak into the phone. We'll test it exactly like the real situation. When you press the button below, please stay completely silent for 5 seconds — then one of you will say a sentence in a normal voice."
 _TEXT_KALIBRIERUNG_START_KNOPF = "Start measuring"
-_TEXT_KALIBRIERUNG_STILLE = "Quiet for {s} seconds — measuring the room …"
+_TEXT_KALIBRIERUNG_STILLE = "Stay quiet — {s} s left, measuring the room …"
 _TEXT_KALIBRIERUNG_SPRECHEN_ANKUENDIGUNG = "Silence measured. Now one of you will say a sentence in your normal voice — ideally the person sitting furthest from the phone. Speak from where you sit, at normal volume, not into the phone. Press the button, then start talking."
 _TEXT_KALIBRIERUNG_SPRECHEN_KNOPF = "Start speaking"
 _TEXT_KALIBRIERUNG_HOEREN = "Listening … start whenever you're ready."

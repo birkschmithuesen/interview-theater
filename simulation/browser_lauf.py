@@ -107,6 +107,27 @@ def _diskussion_laeuft(page) -> bool:
     return page.locator('#diskussion[data-laeuft="1"]').count() > 0
 
 
+def _aufnahme_laeuft(page, art: str = "diskussion") -> bool:
+    """Wie ``_diskussion_laeuft``, aber je Aufnahmeart (Padua live-reif
+    Phase 3+4, Task 2): ``diskussion`` delegiert unveraendert an die
+    bestehende Funktion (Dortmund/P1-2-Verhalten bleibt gleich), Interview
+    und Brainstorm lesen ``browser_stationen.LAEUFT[art]``."""
+    if art == "diskussion":
+        return _diskussion_laeuft(page)
+    return page.locator(browser_stationen.LAEUFT[art]).count() > 0
+
+
+def _beende_aufnahme_deterministisch(page, art: str = "diskussion") -> bool:
+    """Wie ``_beende_diskussion_deterministisch``, je Aufnahmeart."""
+    if art == "diskussion":
+        return _beende_diskussion_deterministisch(page)
+    knopf = browser_stationen.ENDE[art]
+    if page.locator(f"{knopf}:visible").count() == 0:
+        return False
+    page.click(knopf)
+    return True
+
+
 def _schliesse_offenes_phasensheet(page) -> bool:
     """Schliesst ein offenes Padua-Stepper-Bestaetigungsblatt
     (``#phasensheet``) deterministisch ueber "Stay here", BEVOR die Persona
@@ -385,6 +406,11 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
     beantwortet = 0
     hinweis = None
     gewartet = mitte_genommen = fallback = False
+    #: Hoechste ``aufruf.id`` im Moment des erkannten Phasenwechsels (I4,
+    #: Fix round 1) -- None, solange keiner erkannt wurde. Grundlage von
+    #: ``_teile_bereich_am_phasenwechsel``: ohne sie zaehlte eine Antwort,
+    #: die faktisch schon in der naechsten Phase lief, noch als diese.
+    phasenwechsel_aufruf_id: int | None = None
     # Station mit gesprochenem Skript (``station.diskussion``): sie endet,
     # sobald die Diskussion vorbei ist -- Harness-Klick auf "Discussion
     # done" oder eine laufende Diskussion, die nach einer Aktion nicht mehr
@@ -409,7 +435,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         ``mitte_genommen`` Schleifenzustand sind, der ueber beide
         Aufrufstellen hinweg gilt."""
         nonlocal gewartet, mitte_genommen, hinweis, diskussion_vorbei, diskussion_lief
-        if not (station.zuhoeren_s and not gewartet and _diskussion_laeuft(page)):
+        if not (station.zuhoeren_s and not gewartet and _aufnahme_laeuft(page, station.aufnahme)):
             return False
         gewartet = diskussion_lief = True
         ende = time.monotonic() + station.zuhoeren_s
@@ -421,7 +447,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
                 mitte_genommen = bool(leitbilder.nimm(page, station.phase, station.leitbild_mitte))
         if vor_ende is not None:
             vor_ende()
-        if _beende_diskussion_deterministisch(page):
+        if _beende_aufnahme_deterministisch(page, station.aufnahme):
             diskussion_vorbei = True
             if nach_klick is not None:
                 nach_klick()
@@ -460,7 +486,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
 
         _warte_und_beende_diskussion_falls_noetig()
         if station.diskussion:
-            if _diskussion_laeuft(page):
+            if _aufnahme_laeuft(page, station.aufnahme):
                 diskussion_lief = True
             elif diskussion_lief:
                 diskussion_vorbei = True
@@ -486,6 +512,14 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
 
         aktiv = _aktive_phase_nummer(page)
         if station.endet_bei_phasenwechsel and aktiv is not None and aktiv > station.phase:
+            # I4 (Fix round 1): GENAU der Moment, in dem der Wechsel in die
+            # naechste Phase sichtbar wird -- Grundlage fuer
+            # ``_teile_bereich_am_phasenwechsel``, damit eine Antwort NACH
+            # dem Wechsel nicht noch als diese (die alte) Phase zaehlt.
+            # P34 Runde 1, C1: die Grenze ist der Zeitpunkt des Wechsels
+            # (``phase_gesetzt_am``), nicht "jetzt" -- sonst zaehlte der
+            # schon gebuchte Phase-4-Einstieg noch als Phase 3.
+            phasenwechsel_aufruf_id = _aufruf_id_bei_phasenwechsel(db_pfad, chat_id)
             break
         if station.diskussion and diskussion_vorbei:
             break
@@ -508,7 +542,8 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
                         geraet="handy")
     return {"schritte": schritte, "nachfragen_beantwortet": beantwortet,
             "offene_fragen": offene, "fertig": fertig, "fallback_benutzt": fallback,
-            "zaehler_summe": zaehler_summe, "screenshots_nach": screenshots}
+            "zaehler_summe": zaehler_summe, "screenshots_nach": screenshots,
+            "phasenwechsel_aufruf_id": phasenwechsel_aufruf_id}
 
 
 #: Wie lange nach dem Senden von ``station.sage`` hoechstens auf eine neue
@@ -553,6 +588,94 @@ def _diskussions_audio(station, lauf_verzeichnis: Path) -> tuple[Path, int]:
 def _lies_p1(db_pfad: str, chat_id: int) -> browser_invarianten.P1Stand:
     with browser_invarianten.oeffne_lesend(db_pfad) as conn:
         return browser_invarianten.lese_p1_stand(conn, chat_id)
+
+
+def _lies_p34(db_pfad: str, chat_id: int) -> browser_invarianten.P34Stand:
+    with browser_invarianten.oeffne_lesend(db_pfad) as conn:
+        return browser_invarianten.lese_p34_stand(conn, chat_id)
+
+
+def _max_aufruf_id(db_pfad: str) -> int:
+    """Hoechste ``aufruf.id`` -- read-only, wie ``_modell_lesen``: fehlt die
+    Tabelle (eine ganz frische Datenbank), ist das Ergebnis 0 statt ein
+    Fehler. Grundlage von ``aufruf_bereiche`` (``_modellwahl``-Haken,
+    Task 2c): welche Aufrufe in welche Station/Phase fielen."""
+    try:
+        with browser_invarianten.oeffne_lesend(db_pfad) as conn:
+            return conn.execute("SELECT COALESCE(MAX(id), 0) FROM aufruf").fetchone()[0]
+    except sqlite3.OperationalError:
+        return 0
+
+
+def _aufruf_id_bei_phasenwechsel(db_pfad: str, chat_id: int) -> int:
+    """Hoechste ``aufruf.id``, die spaetestens beim Setzen der aktuellen
+    Phase (``arbeitsstand.phase_gesetzt_am``) gebucht war -- die Grenze fuer
+    ``_teile_bereich_am_phasenwechsel``.
+
+    P34 Runde 1, C1 (Ursache Werkzeug, Lauf 205532): vorher stand hier
+    ``_max_aufruf_id`` NACH ``warte_auf_antwort`` -- da war der
+    Phase-4-Einstieg (Opus) schon gebucht und zaehlte als Phase 3
+    (falsches ``p3_gespraech_ueber_opus``). Verglichen wird als Zeitpunkt,
+    nicht als String: ``aufruf.erstellt_am`` ist sekundengenau,
+    ``phase_gesetzt_am`` mikrosekundengenau. Ohne Zeitstempel (alte Gruppe)
+    oder bei einem Lesefehler bleibt es beim bisherigen ``_max_aufruf_id``.
+
+    Grenze des Verfahrens (P34 Runde 2): ``arbeitsstand`` haelt nur den
+    LETZTEN ``phase_gesetzt_am``, es gibt keinen Phasenverlauf in der
+    Datenbank. Springt die Gruppe innerhalb eines Schritts ueber Phase 4
+    hinaus (3 -> 4 -> 5), ist die Grenze der Wechsel in die spaetere Phase,
+    nicht der in Phase 4 -- Aufrufe aus dem kurzen Phase-4-Stueck zaehlen
+    dann als Phase 3. Der Split nimmt ausserdem immer ``station.phase + 1``
+    als Folgephase."""
+    from datetime import datetime
+
+    try:
+        with browser_invarianten.oeffne_lesend(db_pfad) as conn:
+            zeile = conn.execute(
+                "SELECT phase_gesetzt_am FROM arbeitsstand WHERE chat_id = ?", (chat_id,),
+            ).fetchone()
+            gesetzt = zeile[0] if zeile else None
+            if not gesetzt:
+                return _max_aufruf_id(db_pfad)
+            grenze = datetime.fromisoformat(gesetzt)
+            ergebnis = 0
+            for aufruf_id, erstellt_am in conn.execute(
+                    "SELECT id, erstellt_am FROM aufruf ORDER BY id"):
+                if datetime.fromisoformat(erstellt_am) <= grenze:
+                    ergebnis = max(ergebnis, aufruf_id)
+            return ergebnis
+    except (sqlite3.OperationalError, ValueError, TypeError):
+        return _max_aufruf_id(db_pfad)
+
+
+def _teile_bereich_am_phasenwechsel(aufruf_bereiche: dict, stationen_phase: dict,
+                                    schluessel: str, phase: int, von: int, bis: int,
+                                    wechsel_aufruf_id: int | None) -> None:
+    """Schreibt ``(von, bis)`` in ``aufruf_bereiche[schluessel]`` -- AUSSER
+    der Aufruf-Bereich dieser Station reicht ueber den tatsaechlichen
+    Phasenwechsel hinweg (``wechsel_aufruf_id`` zwischen ``von`` und ``bis``,
+    siehe ``_fuehre_station_aus``, ``station.endet_bei_phasenwechsel``):
+    dann wird die Station in zwei Buckets gesplittet -- der Teil VOR dem
+    Wechsel bleibt bei ``phase``, der Teil DANACH wandert unter einem
+    eigenen Schluessel (``<schluessel>:nach_phasenwechsel``) in die naechste
+    Phase. Ohne diesen Split zaehlte eine Antwort, die faktisch schon in
+    Phase 4 lief, noch als Phase 3 -- genau die Station, die den Wechsel
+    selbst ausloest (``p3-uebergang``), ist dafuer anfaellig (I4, Review
+    05.10.2026, Fix round 1).
+
+    P34 Runde 2 (C1 Rest): die Bedingung ist ``von <= wechsel < bis``.
+    Wechselt die Gruppe, bevor die Station einen Aufruf gebucht hat, ist die
+    Grenze genau ``von``; der Vorher-Bereich ``(von, von)`` ist dann leer und
+    der ganze Bereich zaehlt als naechste Phase (vorher: alles Phase 3 ->
+    falsches ``p3_gespraech_ueber_opus``). ``wechsel == bis`` (kein Aufruf
+    nach dem Wechsel) und ``wechsel < von`` splitten nicht."""
+    if wechsel_aufruf_id is not None and von <= wechsel_aufruf_id < bis:
+        aufruf_bereiche[schluessel] = (von, wechsel_aufruf_id)
+        nach_schluessel = f"{schluessel}:nach_phasenwechsel"
+        aufruf_bereiche[nach_schluessel] = (wechsel_aufruf_id, bis)
+        stationen_phase[nach_schluessel] = phase + 1
+    else:
+        aufruf_bereiche[schluessel] = (von, bis)
 
 
 def _oeffne_gruppe(page, basis_url: str, token: str) -> None:
@@ -616,15 +739,31 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
     # wird mehrfach bewertet).
     bot_anzahl_vorher = 0
     ergebnis: dict = {}
+    # Task 2c: welche ``aufruf``-Zeilen in welche Station/Phase fielen --
+    # Grundlage des ``modellwahl``-Hakens (Phase-3/4-Bereich = Vereinigung
+    # der Bereiche aller Stationen dieser Phase). Dieselben Dicts wandern in
+    # JEDE ``PruefKontext`` dieses Laufs (Referenz, nicht Kopie), damit ein
+    # spaeterer Haken den vollen bisherigen Stand sieht.
+    aufruf_bereiche: dict[str, tuple[int, int]] = {}
+    stationen_phase: dict[str, int] = {}
+    #: M2 (Review 05.10.2026, Fix round 2): wie ``aufruf_bereiche`` --
+    #: dasselbe ``set``-Objekt wandert per Referenz in jede ``PruefKontext``
+    #: dieses Laufs, siehe ``browser_pruefhaken._modellwahl``.
+    modellwahl_phasen_geprueft: set[int] = set()
     try:
         for station in stationen:
             befunde: list[browser_invarianten.Befund] = []
+            stationen_phase[station.schluessel] = station.phase
             kontext = PruefKontext(
                 db_pfad=db_pfad, gruppen=gruppen, page=page, beobachter=beobachter,
                 hole_prompt=hole_prompt, warte=warte, lauf_verzeichnis=lauf_verzeichnis,
-                beobachter_start=len(beobachter.verlauf) if beobachter else 0, notizen=notizen)
+                beobachter_start=len(beobachter.verlauf) if beobachter else 0, notizen=notizen,
+                aufruf_bereiche=aufruf_bereiche, stationen_phase=stationen_phase,
+                modellwahl_phasen_geprueft=modellwahl_phasen_geprueft)
             kontext.sende = lambda text, k=kontext: _sende_und_lies_antwort(k.page, text)
             lauf = None
+            von_aufruf = _max_aufruf_id(db_pfad)
+            aufruf_bereiche[station.schluessel] = (von_aufruf, von_aufruf)
             try:
                 gruppe = gruppen[station.gruppe - 1]
                 if station.diskussion:
@@ -646,9 +785,47 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
 
                     def nach_klick(k=kontext, st=station, cid=gruppe.chat_id):
                         warte_nach_klick(st, k, cid)
+                elif "nach_interview" in station.pruefung or "nach_brainstorm" in station.pruefung:
+                    # Dasselbe Muster fuer Interview/Brainstorm (Padua live-
+                    # reif Phase 3+4, Task 2c): ``vor_ende`` liest zusaetzlich
+                    # ``vor_ende_p34``, ``nach_klick`` wartet mit
+                    # ``browser_invarianten.warte_auf``.
+                    kontext.vorher_p34 = _lies_p34(db_pfad, gruppe.chat_id)
+                    ist_brainstorm = "nach_brainstorm" in station.pruefung
+                    frist_s = (browser_invarianten.FRIST_NACH_BRAINSTORM_S if ist_brainstorm
+                              else browser_invarianten.FRIST_NACH_INTERVIEW_S)
+                    # M3 (Review 05.10.2026, Fix round 2): der Interview-Pfad
+                    # braucht laenger als die kurze Vorgabe
+                    # (GRACE_NACH_SIGNAL_S < aufnahme.NACHHOL_INTERVALL_S) --
+                    # siehe browser_invarianten.GRACE_NACH_INTERVIEW_S.
+                    grace_s = (browser_invarianten.GRACE_NACH_SIGNAL_S if ist_brainstorm
+                              else browser_invarianten.GRACE_NACH_INTERVIEW_S)
+
+                    def _pruefe_p34(stand, k=kontext, st=station, brainstorm=ist_brainstorm):
+                        if brainstorm:
+                            return browser_invarianten.pruefe_nach_brainstorm(
+                                k.vorher_p34, k.vor_ende_p34 or k.vorher_p34, stand, st.schluessel)
+                        return browser_invarianten.pruefe_nach_interview(k.vorher_p34, stand, st.schluessel)
+
+                    def _ende_p34(stand, k=kontext, brainstorm=ist_brainstorm):
+                        # I2 (Fix round 1): das Positiv-Signal, hinter dem
+                        # ``warte_auf`` erst noch die Gnadenfrist abwartet,
+                        # bevor es final prueft -- sonst verdeckt eine fruehe
+                        # "saubere" Zwischenmessung ein spaeteres Duplikat.
+                        if brainstorm:
+                            return browser_invarianten.hat_neue_karte(
+                                k.vor_ende_p34 or k.vorher_p34, stand)
+                        return browser_invarianten.hat_neue_statuszeile(k.vorher_p34, stand)
+
+                    def nach_klick(k=kontext, cid=gruppe.chat_id, frist_s=frist_s, pruefe=_pruefe_p34,
+                                   ende=_ende_p34, grace_s=grace_s):
+                        k.ergebnis_p34 = k.warte_p34(
+                            lambda: _lies_p34(db_pfad, cid), pruefe, frist_s=frist_s, ende=ende,
+                            grace_s=grace_s)
 
                 def vor_ende(k=kontext, cid=gruppe.chat_id):
                     k.vorher = _lies_p1(db_pfad, cid)
+                    k.vor_ende_p34 = _lies_p34(db_pfad, cid)
 
                 lauf = _fuehre_station_aus(
                     page, persona_client, mitschnitt, station, basis_url=basis_url,
@@ -659,6 +836,17 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                 log.exception("Station %s ist gescheitert", station.schluessel)
                 fehlgeschlagen_bei = fehlgeschlagen_bei or station.schluessel
                 befunde.append(befund_ausnahme(station, fehler))
+            finally:
+                # M1 (Review 05.10.2026, Fix round 1): vorher stand diese
+                # Zeile NUR im try-Block, direkt nach einem erfolgreichen
+                # ``_fuehre_station_aus`` -- ein Aufruf, der WAEHREND einer
+                # gescheiterten Station entstand, blieb dann fuer immer
+                # ausserhalb jedes Bereichs (der ``modellwahl``-Haken einer
+                # spaeteren Phase sah ihn nie). ``finally`` deckt beide Faelle.
+                _teile_bereich_am_phasenwechsel(
+                    aufruf_bereiche, stationen_phase, station.schluessel, station.phase,
+                    von_aufruf, _max_aufruf_id(db_pfad),
+                    lauf.get("phasenwechsel_aufruf_id") if lauf else None)
             # Die Haken laufen auch nach einer Ausnahme: ein Harness-Fehler
             # darf ein App-Symptom nicht verdecken (Symptomregel).
             befunde += fuehre_pruefungen(station, kontext)
@@ -961,10 +1149,27 @@ def main() -> None:
         argumente.stationen or "", jetzt)
     lauf_name = lauf_verzeichnis.name
     stationsliste = browser_stationen.STATIONEN[argumente.stationen] if argumente.stationen else ()
+    # Padua live-reif Phase 3+4 (Task 2): die Stationsliste ``p34`` startet
+    # in Phase 3 -- ``bereite_vor`` (in ``starte_stack``) fuellt nur den
+    # Stand davor, den Phasenwechsel selbst loest dieser Block ueber den
+    # echten Endpunkt aus (Eintrittsnachricht wie live).
+    startphase = browser_stationen.STARTPHASE.get(argumente.stationen or "", 1)
     stack = browser_umgebung.starte_stack(
         argumente.env_datei, lauf_verzeichnis, app_wurzel=app_wurzel,
-        gruppen=max((st.gruppe for st in stationsliste), default=1))
+        gruppen=max((st.gruppe for st in stationsliste), default=1), startphase=startphase)
     try:
+        if startphase > 1:
+            _loese_phasenwechsel_aus(stack.web_basis, stack.token, startphase)
+            ende = time.monotonic() + 30.0
+            while True:
+                stand = browser_mitschnitt.datenstand(stack.db_pfad, stack.chat_id)
+                if (stand.get("arbeitsstand") or {}).get("phase") == startphase:
+                    break
+                if time.monotonic() >= ende:
+                    raise RuntimeError(
+                        f"Phasenwechsel nach Phase {startphase} nicht angekommen, siehe "
+                        f"{lauf_verzeichnis / 'bot.log'}")
+                time.sleep(1.0)
         if argumente.stationen:
             # Der Stationsmodus (Abnahmelauf Phase 1-2): erfundene
             # Diskussion als Audio ueber Chromiums Fake-Media-Flags, dazu

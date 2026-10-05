@@ -39,7 +39,18 @@ _NICHT_GESPRAECH = ("system", "transkript")
 
 #: Welche deterministischen Pruefungen (browser_invarianten) eine Station
 #: nach ihrem Ende durchlaufen soll -- Werte stehen in ``Station.pruefung``.
-PRUEFUNGEN = ("nach_ende", "wissen", "raumcheck", "zweite_gruppe", "verhoerer", "p2_werkbank")
+PRUEFUNGEN = ("nach_ende", "wissen", "raumcheck", "zweite_gruppe", "verhoerer", "p2_werkbank",
+              "nach_interview", "nach_brainstorm", "modellwahl", "p5_angebot")
+
+#: Je Aufnahmeart: woran der Harness "laeuft" erkennt und was er zum Beenden
+#: drueckt. Brainstorm ist seit Task 5 (t_cf87ee0a) ein Toggle -- derselbe
+#: Knopf beendet.
+LAEUFT = {"diskussion": '#diskussion[data-laeuft="1"]',
+          "interview": '#interview[data-laeuft="1"]',
+          "brainstorm": '#brainstorm[data-laeuft="1"]'}
+ENDE = {"diskussion": "#diskussion-beenden",
+        "interview": "#interview-beenden",
+        "brainstorm": "#brainstorm"}
 
 
 @dataclass(frozen=True)
@@ -62,6 +73,7 @@ class Station:
     pruefung: tuple[str, ...] = ()              # Werte aus PRUEFUNGEN, die nach dieser Station laufen
     sage: str | None = None                     # Text, den der Harness selbst schickt (Station ohne Persona)
     gruppe: int = 1                             # welches Geraet/welche Gruppe im Mehrgruppen-Lauf diese Station spielt
+    aufnahme: str = "diskussion"                # welcher Rekorder das Skript aus `diskussion` abspielt (LAEUFT/ENDE)
 
 
 def _feld(stand: dict, name: str):
@@ -212,4 +224,70 @@ STATIONEN_INVARIANTEN: tuple[Station, ...] = (
             budget=6, endet_bei_phasenwechsel=True, leitbild_beobachter="cothinker"),
 )
 
-STATIONEN: dict[str, tuple[Station, ...]] = {"p12": STATIONEN_P12, "invarianten": STATIONEN_INVARIANTEN}
+#: Padua live-reif, Phase 3+4 (Karte t_92f99911, Task 2, 05.10.2026): kein
+#: Abnahme-Durchlauf von Phase 1, sondern Interviews, Uebergang 3->4,
+#: Brainstorm, Rahmen/Figuren/Geschichte und das Angebot von Phase 5 --
+#: startet deshalb in Phase 3 (siehe STARTPHASE, browser_umgebung.bereite_vor).
+STATIONEN_P34: tuple[Station, ...] = (
+    Station("p3-eintritt", 3,
+            "Your group is now in the interview phase. Read the screen and find "
+            "out how you record an interview with someone.",
+            budget=3, leitbild_ende="eintritt"),
+    Station("p3-interview-kurz", 3,
+            "Do a very short test interview with one passer-by: start an "
+            "interview, let the person answer, then finish the interview.",
+            fertig=lambda st: st.get("interview_koepfe", 0) >= 1,
+            budget=6, zuhoeren_s=None, aufnahme="interview",
+            diskussion="interview-kurz", pruefung=("nach_interview",)),
+    Station("p3-interview-gemischt", 3,
+            "Now do a real interview with a second person, who answers partly in "
+            "Italian. Start the interview, let them talk, then finish it.",
+            fertig=lambda st: st.get("interview_koepfe", 0) >= 2,
+            budget=6, zuhoeren_s=None, aufnahme="interview",
+            diskussion="interview-gemischt", pruefung=("nach_interview",)),
+    Station("p3-uebergang", 3,
+            "Your interviews are done. Move on to the next phase.",
+            fertig=lambda st: (_feld(st, "phase") or 3) >= 4,
+            budget=5, endet_bei_phasenwechsel=True, leitbild_ende="uebergang",
+            pruefung=("modellwahl",)),
+    Station("p4-eintritt", 4,
+            "Read what the app says about this phase and find out how your "
+            "group can brainstorm with it.",
+            budget=3, leitbild_ende="eintritt"),
+    Station("p4-brainstorm", 4,
+            "Your group brainstorms one thought about a character from the "
+            "interviews. Let the app listen while you talk; when the thought is "
+            "complete, stop listening and look at what the CoThinker says.",
+            fertig=lambda st: st.get("brainstorm_aufnahmen", 0) > 0,
+            budget=6, zuhoeren_s=None, aufnahme="brainstorm",
+            diskussion="brainstorm-bogen", leitbild_beobachter="cothinker",
+            pruefung=("nach_brainstorm",)),
+    Station("p4-setting-figuren", 4,
+            "Agree as a group where and when your play is set and who is in it, "
+            "and settle the list of characters.",
+            fertig=lambda st: bool(_feld(st, "rahmen")) and bool(_feld(st, "figuren_fixiert_am")),
+            budget=12, leitbild_ende="ergebnis", leitbild_tab="stand"),
+    Station("p4-geschichte", 4,
+            "Agree on the story in outline and how many scenes the play has.",
+            fertig=lambda st: bool(_feld(st, "geschichte"))
+            and (bool(_feld(st, "szenen_anzahl")) or st.get("szenen_anzahl", 0) > 0),
+            budget=10),
+    Station("p4-uebergang", 4,
+            "Check whether the app now offers you the next phase. Do not start "
+            "it yet.",
+            fertig=lambda st: (_feld(st, "phase_angeboten") or 0) >= 5
+            or (_feld(st, "phase") or 4) >= 5,
+            # I4 (Review 05.10.2026, Fix round 1): ``modellwahl`` lief
+            # bisher NUR an ``p3-uebergang`` -- zu diesem Zeitpunkt ist noch
+            # keine einzige Phase-4-Station gelaufen, der Phase-4-Bereich ist
+            # also immer leer und ``P4_GESPRAECH_NICHT_OPUS`` kann nie
+            # feuern. Hier, am Ende von Phase 4, hat der Bereich Inhalt.
+            budget=3, leitbild_ende="uebergang", pruefung=("modellwahl", "p5_angebot")),
+)
+
+STATIONEN: dict[str, tuple[Station, ...]] = {
+    "p12": STATIONEN_P12, "invarianten": STATIONEN_INVARIANTEN, "p34": STATIONEN_P34}
+#: Von welcher Phase ein Lauf startet -- >1 heisst: browser_umgebung.bereite_vor
+#: fuellt die Phasen davor, browser_lauf.main schaltet ueber den echten
+#: Phasenwechsel-Endpunkt in diese Phase.
+STARTPHASE: dict[str, int] = {"p12": 1, "invarianten": 1, "p34": 3}

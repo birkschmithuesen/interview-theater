@@ -221,9 +221,11 @@ def test_das_js_maskiert_den_text_und_kennt_den_platzhalter():
 
 
 def test_brainstorm_segment_zeigt_sein_transkript_im_chat(conn, pfad, einst, tg):
-    """Birk 02.10.2026: im Brainstorm-Modus erscheint nach jedem Pausenschnitt
-    das Transkript in der Chatblase (Feedback fuers Zuhoeren) -- ohne dass der
-    Bot antwortet und ohne dass es in den Gespraechsprompt kommt."""
+    """Birk 02.10.2026: im Brainstorm-Modus erscheint nach jedem Segment --
+    seit t_cf87ee0a ueber den Toggle-Stopp oder den 90-Sekunden-Deckel, nicht
+    mehr ueber einen Pausenschnitt -- das Transkript in der Chatblase
+    (Feedback fuers Zuhoeren) -- ohne dass der Bot antwortet und ohne dass es
+    in den Gespraechsprompt kommt."""
     post_id, aid = _sprachpost(conn, tg, einst, dauer=12)
     conn.execute("UPDATE aufnahme SET brainstorm = 1, schnittgrund = 'pause' WHERE id = ?", (aid,))
     conn.commit()

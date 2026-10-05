@@ -24,8 +24,6 @@ _ARTEN = (
     ("interview_pause", "#interview-pause"),
     ("interview_beenden", "#interview-beenden"),
     ("brainstorm", "#brainstorm"),
-    ("brainstorm_pause", "#brainstorm-pause"),
-    ("brainstorm_beenden", "#brainstorm-beenden"),
     ("ptt", "#ptt"),
     ("nachreichen", "#nachreichen"),
     ("verwerfen", "#verwerfen"),

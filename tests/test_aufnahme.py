@@ -1655,14 +1655,16 @@ def test_trigger_feuert_nicht_unter_der_zeichengrenze(conn, tg, einst, monkeypat
     assert not aufgerufen
 
 
-def test_trigger_feuert_bei_genug_zeichen_und_pausenschnitt(conn, tg, einst, monkeypatch):
+def test_pausenschnitt_loest_im_brainstorm_keine_karte_mehr_aus(conn, tg, einst, monkeypatch):
+    """Birk 03.10.2026 (t_cf87ee0a): waehrend der Toggle an ist, entsteht
+    KEINE Karte -- nur das Bogenende ('ende') loest den CoThinker aus."""
     monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
     monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "0")
     aufgerufen = []
     monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
-    row = _brainstorm_zeile(conn, 1, 505, "x" * 20, schnittgrund="pause")
+    row = _brainstorm_zeile(conn, 1, 505, "x" * 2000, schnittgrund="pause")
     aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
-    assert aufgerufen
+    assert not aufgerufen
 
 
 def test_trigger_feuert_nicht_bei_kappenschnitt(conn, tg, einst, monkeypatch):

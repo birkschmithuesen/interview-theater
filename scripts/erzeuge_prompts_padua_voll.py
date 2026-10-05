@@ -1,10 +1,10 @@
 """Jeder Modellaufruf, der in Padua live vorkommt -- als Volltext-Dump.
 
-**Beschraenkt auf Phase 1+2** (Karte t_bf16f3a7, 05.10.2026): dieses Skript
-hat nur Treiber fuer die fuenf Dumps aus ``prompt_inventar.INVENTAR``, deren
-``phase`` 1 oder 2 ist. Die restlichen 34 Eintraege sind Sache einer
-spaeteren Karte -- ein Lauf ueber sie wuerde mit ``TreiberFehler`` abbrechen,
-weil ``TREIBER`` sie nicht kennt.
+**Scopes p12 und p34**: dieses Skript hat Treiber fuer die fuenf Dumps aus
+Phase 1+2 (Karte t_bf16f3a7, 05.10.2026, ``SCOPE_P1_P2``) und die zehn Dumps
+aus Phase 3+4 (Task 3, ``SCOPE_P3_P4``) von ``prompt_inventar.INVENTAR``. Die
+restlichen Eintraege sind Sache einer spaeteren Karte -- ein Lauf ueber sie
+wuerde mit ``TreiberFehler`` abbrechen, weil ``TREIBER`` sie nicht kennt.
 
 Aufruf::
 
@@ -84,6 +84,16 @@ SCOPE_P1_P2 = (
     "01-gespraech-phase1", "05-gespraech-phase2", "13-begriffsboard",
     "14-diskussion-verdichtung", "15-fragen-ki",
 )
+
+#: Die zehn Dumps aus Phase 3+4, fuer die Task 3 Treiber ergaenzt hat.
+SCOPE_P3_P4 = (
+    "06-gespraech-phase3", "11-erkenner-aufnahme", "16-verdichter",
+    "07-gespraech-phase4", "10-erkenner-verlauf", "12-journal",
+    "17-buehnenkarte", "18-szenenfolge", "19-geschichte", "20-szenenfelder",
+)
+
+#: Welche Dumps `--scope` ausliefert, wenn `--nur` fehlt.
+SCOPES = {"p12": SCOPE_P1_P2, "p34": SCOPE_P3_P4}
 
 
 class TreiberFehler(RuntimeError):
@@ -256,12 +266,124 @@ def _fragen_ki(conn, e, tg, klm, chats):
     return None
 
 
+def _joine(faden) -> None:
+    if faden is not None and hasattr(faden, "join"):
+        faden.join(THREAD_FRIST_S)
+
+
+def _interview_kopf(conn, chat_id):
+    from interview_theater import aufnahme
+    return aufnahme.interviews(conn, chat_id)[-1]
+
+
+def _erkenner_aufnahme(conn, e, tg, klm, chats):
+    from interview_theater import erkenner
+    chat_id = chats[3]
+    kopf = _interview_kopf(conn, chat_id)
+    with contextlib.suppress(Exception):
+        erkenner.erkenne_in_aufnahme(klm, conn, e, chat_id, kopf["transkript"] or "")
+    return None
+
+
+def _verdichter(conn, e, tg, klm, chats):
+    from interview_theater import verdichter
+    with contextlib.suppress(Exception):
+        verdichter.verdichte(klm, conn, e, _interview_kopf(conn, chats[3])["id"])
+    return None
+
+
+def _erkenner_verlauf(conn, e, tg, klm, chats):
+    from interview_theater import erkenner
+    with contextlib.suppress(Exception):
+        erkenner.erkenne(klm, conn, e, chats[4])
+    return None
+
+
+#: Fuellt ``_journal`` unten vorne an: der Phase-4-Verlauf der Fixture allein
+#: ist zu kurz, um ueber die 600-Token-Schwelle (``journal.SCHWELLE_
+#: VERDRAENGUNG``) zu kommen -- das Fenster schneidet zwar 18 Nachrichten ab,
+#: aber ihr Text schaetzt sich auf nur ~280 Token (gemessen). Sechs lange,
+#: aeltere Zeilen (vor dem eigentlichen Verlauf, also sicher ausserhalb des
+#: Fensters) reissen die Schwelle zuverlaessig.
+_JOURNAL_FUELLER = (
+    "before we move to anything else I want to go back over every single "
+    "thing we said about the first morning here, because I think we are "
+    "already starting to forget how uncertain everyone sounded before we "
+    "had any plan at all, and that uncertainty is itself material we might "
+    "otherwise lose once we are deep into scenes and polish, so let us keep "
+    "a plain record of it now while it is still close to how it actually felt."
+)
+
+
+def _journal(conn, e, tg, klm, chats):
+    from interview_theater import journal
+    chat_id = chats[4]
+    sprecher = ("Giulia", "Marco", "Chiara", "Luca", "Giulia", "Marco")
+    for i, name in enumerate(sprecher):
+        repo.merke_nachricht(conn, chat_id, 500 + i, name, 0, "text",
+                              _JOURNAL_FUELLER, f"2026-10-05T04:0{i}:00+00:00")
+    with contextlib.suppress(Exception):
+        journal.extrahiere(klm, conn, e, chat_id)
+    return None
+
+
+def _buehnenkarte(conn, e, tg, klm, chats):
+    from interview_theater import buehnenkarte
+    chat_id = chats[4]
+    # Die Fixture hat in Phase 4 kein Brainstorm-Transkript -- ein Segment,
+    # wie es der Knopf "Brainstorm mithoeren" anlegt.
+    aid = repo.lege_aufnahme_an(conn, chat_id, 990, "kurz", "web", status="fertig",
+                                brainstorm=True, schnittgrund="ende")
+    repo.setze_transkript(conn, aid, "What if Samir never leaves the bench, and the "
+                                     "cafe woman brings him the coffee he never orders?")
+    with contextlib.suppress(Exception):
+        buehnenkarte.erzeuge(conn, e, klm, chat_id)
+    return None
+
+
+def _szenenfolge(conn, e, tg, klm, chats):
+    from interview_theater import szenenfolge
+    _joine(szenenfolge.starte(conn, tg, klm, e, chats[4], anzahl=3))
+    return None
+
+
+def _geschichte(conn, e, tg, klm, chats):
+    from interview_theater import szenenfolge
+    _joine(szenenfolge.starte_geschichte(conn, tg, klm, e, chats[4], anzahl=3))
+    return None
+
+
+def _szenenfelder(conn, e, tg, klm, chats):
+    from interview_theater import szenenfolge
+    chat_id = chats[4]
+    # Alle drei Szenen aus der Fixture haben ort/was_passiert/figuren schon
+    # gesetzt -- szene_modul.fehlendes() liefert dort nichts, und
+    # starte_feldvorschlag haette ohne Luecke nichts zu tun (gemessen: kein
+    # Aufruf). Eine zusaetzliche, bewusst unvollstaendige Szene (ohne
+    # Kurzbeschreibung, ohne Figuren) gibt ``ziel`` eine echte Luecke.
+    nummer = max(s["nummer"] for s in repo.hole_szenen(conn, chat_id)) + 1
+    szene_id = repo.lege_szene_an(conn, chat_id, nummer, "The platform", None, None)
+    ziel = repo.hole_szene(conn, szene_id)
+    _joine(szenenfolge.starte_feldvorschlag(conn, tg, klm, e, chat_id, ziel))
+    return None
+
+
 TREIBER = {
     "01-gespraech-phase1": _gespraech(1),
     "05-gespraech-phase2": _gespraech(2),
     "13-begriffsboard": _begriffsboard,
     "14-diskussion-verdichtung": _diskussion,
     "15-fragen-ki": _fragen_ki,
+    "06-gespraech-phase3": _gespraech(3),
+    "07-gespraech-phase4": _gespraech(4),
+    "11-erkenner-aufnahme": _erkenner_aufnahme,
+    "16-verdichter": _verdichter,
+    "10-erkenner-verlauf": _erkenner_verlauf,
+    "12-journal": _journal,
+    "17-buehnenkarte": _buehnenkarte,
+    "18-szenenfolge": _szenenfolge,
+    "19-geschichte": _geschichte,
+    "20-szenenfelder": _szenenfelder,
 }
 
 
@@ -356,16 +478,20 @@ def main_fuer_test(ziel, nur=None) -> list[dict]:
 def main() -> None:
     import argparse
 
-    zerleger = argparse.ArgumentParser(description="Padua-Prompt-Dump (Phase 1+2)")
+    zerleger = argparse.ArgumentParser(description="Padua-Prompt-Dump (Phase 1+2, 3+4)")
     zerleger.add_argument(
         "ziel", nargs="?", default="docs/prompt-audit/2026-10-05-padua-p12")
     zerleger.add_argument(
+        "--scope", choices=sorted(SCOPES), default="p12",
+        help="Welche Dumps ohne --nur laufen (Vorgabe: p12 -- die fuenf "
+             "Dumps aus Phase 1+2; p34 die zehn Dumps aus Phase 3+4)")
+    zerleger.add_argument(
         "--nur", default=None,
-        help="Kommaliste von Dumpnamen (Vorgabe: die fuenf Dumps aus "
-             "SCOPE_P1_P2 -- dieser Lauf hat keine Treiber fuer die "
-             "restlichen Inventareintraege)")
+        help="Kommaliste von Dumpnamen (Vorgabe: die Dumps aus --scope -- "
+             "dieser Lauf hat nur fuer SCOPE_P1_P2 und SCOPE_P3_P4 Treiber, "
+             "nicht fuer die restlichen Inventareintraege)")
     argumente = zerleger.parse_args()
-    nur = argumente.nur.split(",") if argumente.nur else list(SCOPE_P1_P2)
+    nur = argumente.nur.split(",") if argumente.nur else list(SCOPES[argumente.scope])
     zeilen = _lauf(Path(argumente.ziel), nur)
     print("\t".join(TSV_SPALTEN))
     for zeile in zeilen:

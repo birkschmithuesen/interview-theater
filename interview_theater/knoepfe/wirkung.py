@@ -1135,6 +1135,14 @@ def _wirkung_interviews_fertig(conn, d: Druck) -> str:
     from interview_theater import aufnahme
     from interview_theater.knoepfe.stationen import schliesse_interviews_ab
 
+    # P34 Final-Review (A12): ein stehengebliebener Knopf, gedrueckt erst
+    # ausserhalb von Phase 3, tut nichts -- kein Wunsch (eine spaetere
+    # Verdichtung schaltete sonst still um), kein Abschluss (der koennte
+    # 4 -> 5 springen). Die Phase setzt allein die Gruppe; die Quittung nennt
+    # die aktuelle Phase.
+    aktuell = phasen.aktuelle(conn, d.chat_id)
+    if aktuell != 3:
+        return T._ANTWORT_PHASE.format(nummer=aktuell)
     if aufnahme.unausgewertete_interviews(conn, d.chat_id):
         repo.setze_arbeitsstand(
             conn, d.chat_id, "interviews_fertig_wunsch_seit", repo._jetzt(),
@@ -1146,7 +1154,11 @@ def _wirkung_interviews_fertig(conn, d: Druck) -> str:
         # -- ein zusaetzliches d.tg.sende() hier waere derselbe Text zweimal.
         return T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=offen)
     if schliesse_interviews_ab(conn, d.tg, d.klm, d.e, d.chat_id):
-        return T._TEXT_ARBEITSSTAND_HINWEIS
+        # Der Tab-Hinweis steht schon als Chatzeile da
+        # (``schliesse_interviews_ab``); als Quittung kaeme er ein zweites
+        # Mal (P34 Runde 2, Befund A9). Die Quittung nennt die Phase wie
+        # ``_wirkung_phase``.
+        return T._ANTWORT_PHASE.format(nummer=phasen.aktuelle(conn, d.chat_id))
     # Sollte wegen phasen.voraussetzungen[4] nicht vorkommen, wenn
     # unausgewertete_interviews() oben schon leer war -- defensiv trotzdem
     # wie "noch offen" behandeln statt zu schweigen. Dieselbe Keine-Dopplung-

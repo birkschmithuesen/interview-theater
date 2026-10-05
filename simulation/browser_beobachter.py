@@ -21,6 +21,22 @@ def _vor_goto(context) -> None:
     """Einhaengepunkt fuer Tests (``page.route``); im Lauf leer."""
 
 
+def _waehle_cothinker(page) -> None:
+    """Klickt den CoThinker-Tab, wenn er sichtbar und noch nicht gewaehlt
+    ist. Ausserhalb der CoThinker-Phasen (z. B. Phase 3, Start der
+    Stationsliste ``p34``) ist der Tab ``hidden`` -- dann kein Klick (frueher
+    wartete ``page.click`` 30 s und brach den Lauf ab); ``messe`` holt den
+    Wechsel nach, sobald die App den Tab zeigt. Ein Hash-Wechsel, kein
+    Neuladen: die Fenster-Marke bleibt."""
+    tab = page.locator(_TAB)
+    if tab.count() == 0 or not tab.first.is_visible():
+        return
+    if page.url.endswith("#buehne") or tab.first.get_attribute("aria-selected") == "true":
+        return
+    tab.first.click()
+    page.wait_for_timeout(300)
+
+
 class Beobachter:
     def __init__(self, context, page):
         self.context = context
@@ -34,12 +50,12 @@ class Beobachter:
         page = context.new_page()
         page.goto(url)
         page.wait_for_selector(".tabs")
-        page.click(_TAB)
-        page.wait_for_timeout(300)
+        _waehle_cothinker(page)
         page.evaluate("window.__beobachterMarke = 1")
         return cls(context, page)
 
     def messe(self) -> int:
+        _waehle_cothinker(self.page)
         anzahl = self.page.locator(BOARD_SELEKTOR).count()
         self.verlauf.append(anzahl)
         return anzahl

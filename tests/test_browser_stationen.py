@@ -91,7 +91,7 @@ def test_p1_start_ist_die_erste_station_und_ruft_keine_persona():
 
 
 def test_ziele_statt_rezepte_in_beiden_listen():
-    for liste in (s.STATIONEN_P12, s.STATIONEN_INVARIANTEN):
+    for liste in (s.STATIONEN_P12, s.STATIONEN_INVARIANTEN, s.STATIONEN_P34):
         for st in liste:
             if st.schluessel in {"p1-zuhoeren", "p1-zuhoeren-2", "p1-zuhoeren-3"}:
                 continue  # 'Start listening' ist hier die Aufgabe selbst
@@ -132,3 +132,52 @@ def test_p12_prueft_nach_ende_und_p2_werkbank():
     p12 = {st.schluessel: st for st in s.STATIONEN_P12}
     assert "nach_ende" in p12["p1-zuhoeren"].pruefung
     assert "p2_werkbank" in p12["p2-einzeldurchgang"].pruefung
+
+
+# --- Task 2: Stationen p34 (Interviews, Übergang 3→4, Brainstorm, Rahmen, Angebot 5) ---
+
+from interview_theater import aufnahme, brainstorm
+
+
+def test_stationen_p34_vollstaendig_und_geordnet():
+    schluessel = [st.schluessel for st in s.STATIONEN["p34"]]
+    assert schluessel == [
+        "p3-eintritt", "p3-interview-kurz", "p3-interview-gemischt", "p3-uebergang",
+        "p4-eintritt", "p4-brainstorm", "p4-setting-figuren", "p4-geschichte",
+        "p4-uebergang"]
+    phasen = [st.phase for st in s.STATIONEN_P34]
+    assert phasen == sorted(phasen) and set(phasen) == {3, 4}
+    assert s.STARTPHASE == {"p12": 1, "invarianten": 1, "p34": 3}
+
+
+def test_p34_aufnahmestationen_haben_skript_und_pruefung():
+    st = {x.schluessel: x for x in s.STATIONEN_P34}
+    for name in ("p3-interview-kurz", "p3-interview-gemischt"):
+        assert st[name].aufnahme == "interview" and st[name].diskussion in DISKUSSIONEN
+        assert "nach_interview" in st[name].pruefung
+    assert st["p4-brainstorm"].aufnahme == "brainstorm"
+    assert "nach_brainstorm" in st["p4-brainstorm"].pruefung
+    assert "modellwahl" in st["p3-uebergang"].pruefung
+    assert "p5_angebot" in st["p4-uebergang"].pruefung
+    # I4 (Review 05.10.2026, Fix round 1): ``modellwahl`` lief bisher NUR an
+    # p3-uebergang -- zu diesem Zeitpunkt ist noch keine Phase-4-Station
+    # gelaufen, der Phase-4-Bereich also immer leer, P4_GESPRAECH_NICHT_OPUS
+    # konnte nie feuern. Jetzt auch am Ende von Phase 4.
+    assert "modellwahl" in st["p4-uebergang"].pruefung
+    assert all(p in s.PRUEFUNGEN for x in s.STATIONEN_P34 for p in x.pruefung)
+
+
+def test_p34_skripte_treffen_die_schwellen():
+    # kurz: unter der Mindestlaenge (darf Phase 4 nicht sperren),
+    # gemischt: darueber (wird verdichtet), Bogen: ueber der Abschlussschwelle.
+    assert len(DISKUSSIONEN["interview-kurz"].text().split()) < aufnahme.MINDEST_WOERTER
+    assert len(DISKUSSIONEN["interview-gemischt"].text().split()) >= aufnahme.MINDEST_WOERTER
+    assert DISKUSSIONEN["brainstorm-bogen"].zeichen() >= brainstorm.VORGABE_MIN_ZEICHEN_BEI_ABSCHLUSS
+
+
+def test_selektoren_je_aufnahmeart():
+    assert set(s.LAEUFT) == set(s.ENDE) == {"diskussion", "interview", "brainstorm"}
+    assert s.LAEUFT["interview"] == '#interview[data-laeuft="1"]'
+    assert s.ENDE["diskussion"] == "#diskussion-beenden"
+    assert s.ENDE["interview"] == "#interview-beenden"
+    assert s.ENDE["brainstorm"] == "#brainstorm"     # Toggle (Task 5)

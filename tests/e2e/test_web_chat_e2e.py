@@ -294,8 +294,15 @@ class BotAttrappe(threading.Thread):
             (CHAT, self.letzte),
         ).fetchall()
         for zeile in zeilen:
-            an = zeile["text"] == web_chat.BEFEHL_INTERVIEW_AN
-            setze_modus(an, conn)
+            # Nur /interview und /fertig schalten den Modus -- wie beim echten
+            # Bot. Das /start, das die Seite beim ersten Aufruf einer Gruppe
+            # ohne Bot-Nachricht schickt (web_vereint.start_post), liess den
+            # Modus frueher still fallen: test_seite_im_interviewmodus_geladen
+            # sah den Modus dann schon vor dem eigenen 'aus' aus und wurde
+            # je nach Zeitablauf rot.
+            if zeile["text"] in (web_chat.BEFEHL_INTERVIEW_AN,
+                                 web_chat.BEFEHL_INTERVIEW_AUS):
+                setze_modus(zeile["text"] == web_chat.BEFEHL_INTERVIEW_AN, conn)
             self.letzte = zeile["id"]
 
     def offen(self) -> int:

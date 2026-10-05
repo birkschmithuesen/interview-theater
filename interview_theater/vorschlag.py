@@ -122,12 +122,19 @@ _ARTEN_MUSTER = (
     r"|SZENENFOLGE|GESCHICHTE|SZENE|EINLEITUNGEN|EROEFFNUNG|STIL)"
 )
 
+#: Eines dieser Dekorationszeichen (ohne Mengenangabe) -- fuer die
+#: Grenzprueung vor einem Marker mitten in der Zeile (``_MARKER_IRGENDWO``).
+#: ``_DEKO`` selbst (naechste Zeile) laesst auch null Zeichen zu, das reicht
+#: dort, weil es nur zusaetzlich toleriert wird; die Grenzpruefung braucht
+#: mindestens eines.
+_DEKO_ZEICHEN = r"[*_#>•\-]"
+
 #: Dekorationszeichen, die ein Modell um die Markerzeile legen kann:
 #: Markdown fett/kursiv (``*``/``_``), eine Ueberschrift (``#``), ein
 #: Zitatpfeil (``>``) oder ein Aufzaehlungszeichen -- sie gehoeren nicht zum
 #: Marker selbst, werden aber toleriert UND mitentfernt (sonst bliebe z. B.
 #: "**" im Chattext stehen, P2-M4, Prompt-Check 05.10.2026).
-_DEKO = r"[*_#>•\-]*"
+_DEKO = _DEKO_ZEICHEN + r"*"
 
 _ZEILE = re.compile(
     r"^\s*" + _DEKO + r"\s*VORSCHLAG\s+" + _ARTEN_MUSTER +
@@ -141,9 +148,39 @@ _ZEILE = re.compile(
 #: Position 0 heissen "steht ohnehin schon am Zeilenanfang" (``_ZEILE``
 #: greift direkt); ein Treffer dahinter zerlegt die Zeile vorher
 #: (``_vorzeilen``) in Fliesstext + Markerzeile.
+#:
+#: **Review-Fix (05.10.2026, nach c63e210).** Diese Regel war zuerst
+#: GROSS-/Kleinschreibung gleich (``re.IGNORECASE``) und liess vor dem
+#: Marker beliebig viel -- auch NULL -- Whitespace/Dekoration zu. Damit traf
+#: sie auch gewoehnlichen Fliesstext wie "Mein Vorschlag Rahmen:
+#: Mittwochabend, Herbst 1920 ..." (ein deutsches Nomen, nur der erste
+#: Buchstabe gross) und zerschnitt die Zeile mitten im Satz -- ``lies()``
+#: lieferte dann einen erfundenen Wert. Der Moduldocstring ist hier
+#: bindend: der Marker ist GROSSBUCHSTABEN, WEIL er im Fliesstext nicht
+#: vorkommt -- also muss die Mid-line-Suche das auch einfordern, nicht nur
+#: die saubere Zeile am Anfang (``_ZEILE`` bleibt dort ``IGNORECASE``, das
+#: ist unveraendert). Deshalb jetzt zweifach verschaerft:
+#:
+#: * **Kein** ``re.IGNORECASE`` -- "VORSCHLAG" muss hier woertlich in
+#:   Grossbuchstaben stehen (ebenso die Art danach, ``_ARTEN_MUSTER`` ist
+#:   bereits in Grossbuchstaben geschrieben).
+#: * Direkt davor muss eine ECHTE Grenze stehen, nicht nur optionaler
+#:   Whitespace: Satzschlusszeichen (``.!?``) gefolgt von Whitespace (die
+#:   beiden lebend beobachteten Formen "... clear. VORSCHLAG ..." und "...
+#:   good. VORSCHLAG ..."), ODER mindestens ein Dekorationszeichen
+#:   (``_DEKO_ZEICHEN``, deckt "**VORSCHLAG ...**" ab). Das
+#:   Satzschlusszeichen bleibt als Lookbehind stehen (gehoert zum
+#:   Fliesstext davor, nicht zur Markerzeile); die Dekorationszeichen werden
+#:   dagegen MIT in die neue Markerzeile gezogen (sonst bliebe z. B. "**"
+#:   als eigene, sinnlose Fliesstextzeile stehen).
+#:
+#: Steht der Marker schon an Position 0 der Zeile (mit oder ohne
+#: Dekoration, mit oder ohne Kleinschreibung), braucht diese Regel gar
+#: nichts zu finden -- ``_ZEILE`` liest ihn in diesem Fall direkt, das ist
+#: von dieser Verschaerfung nicht betroffen.
 _MARKER_IRGENDWO = re.compile(
-    r"\s*" + _DEKO + r"\s*VORSCHLAG\s+" + _ARTEN_MUSTER + r"\s*:",
-    re.IGNORECASE,
+    r"(?:(?<=[.!?])\s+|" + _DEKO_ZEICHEN + r"+\s*)"
+    r"VORSCHLAG\s+" + _ARTEN_MUSTER + r"\s*:"
 )
 
 

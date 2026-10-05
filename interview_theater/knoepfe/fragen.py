@@ -1129,7 +1129,7 @@ def _starte_schaerfung(conn, tg, klm, e, chat_id: int, nummer: int, wunsch: str)
 
 
 def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
-                         weich_block: str | None) -> int:
+                         weich_block: str | None, antwort: str = "") -> int:
     """Die Antwort auf eine Schaerfung: ersetzt genau die aktuelle Frage
     (Text und, falls vorhanden, ihre weiche Fassung) und zeigt sie wieder --
     erst Annehmen oder Verwerfen bringt die naechste.
@@ -1141,7 +1141,13 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
     Zahl landete dort in der Spalte ``message_id``, SQLite sortiert TEXT ueber
     jedem INTEGER, und ``erkenner.erkenne`` (``max(n[\"message_id\"] ...)``)
     stolperte seitdem bei JEDEM Lauf dieser Gruppe ueber einen TypeError --
-    der Erkenner blieb fuer die Gruppe fuer immer stumm)."""
+    der Erkenner blieb fuer die Gruppe fuer immer stumm).
+
+    ``antwort`` ist der Text des Modells um den Block herum (T10). Er wird
+    nur gebraucht, wenn die Frage unveraendert zurueckkommt: dann war die
+    Nachricht der Gruppe eine Rueckfrage ("Does Accept save it?"), und der
+    Text beantwortet sie -- statt der vorgefertigten Zeile "What do you want
+    to change?", die die Antwort wegwarf."""
     from interview_theater import vorschlag
 
     nummer = _aktuelle_offene_nummer(conn, chat_id)
@@ -1157,7 +1163,10 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
         # Kommt die Frage unveraendert zurueck, stand dieselbe Karte bis zu
         # dreimal untereinander. Die Karte darueber bleibt die bedienbare.
         _warte_weiter_auf_wunsch(conn, chat_id)
-        return tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
+        # T10: hat das Modell etwas dazu gesagt (eine Rueckfrage wie "Does
+        # Accept save it?" beantwortet), steht SEINE Antwort da; nur ohne
+        # eigenen Text die Rueckfrage nach dem Aenderungswunsch.
+        return tg.sende(chat_id, (antwort or "").strip() or T._TEXT_FRAGE_WAS_AENDERN)
     if neue_frage:
         _setze_frage_zeile(conn, chat_id, nummer, neue_frage)
         # Aufgabe 13, Punkt 9: eine editierte KI-Frage wird markiert, eine

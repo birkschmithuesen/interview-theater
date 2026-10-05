@@ -528,6 +528,9 @@ The group wants to change interview question {nummer}:\n{frage}\n\
 {sensibel_hinweis}This should change: {wunsch}\n\
 Write a reworked version and attach it as a block 'VORSCHLAG FRAGE:', \
 exactly one line in the format 'Term: Question'. \
+If the message is not a change but a question to you (for example how the \
+buttons work), answer it in one or two sentences and put the question \
+unchanged into the block. \
 Check each question: does it touch on a sensitive topic (family, origin, \
 religion, violence, love and the body, money, illness, flight, \
 discrimination)? Rewrite every sensitive question additionally into ONE \

@@ -1000,6 +1000,28 @@ def test_unveraenderte_schaerfung_zeigt_keine_zweite_karte(conn, tg, einst):
     assert repo.offene_knoepfe(conn, CHAT, knoepfe.ART_FRAGE_ANNEHMEN)
 
 
+def test_rueckfrage_waehrend_offener_frage_bekommt_die_antwort_des_modells(conn, tg, einst):
+    """T10: "Does Accept save it?" waehrend einer offenen Frage ist eine
+    Rueckfrage, kein Aenderungswunsch. Das Modell beantwortet sie und gibt
+    die Frage unveraendert zurueck -- dann steht seine Antwort im Chat, nicht
+    die vorgefertigte Zeile "What do you want to change?" (die die Antwort
+    wegwarf). Keine zweite Karte."""
+    repo.setze_arbeitsstand(
+        conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?\nStreit: Zweite?",
+    )
+    knoepfe.starte_durchgehen(conn, tg, CHAT)
+    karten_vorher = len(tg.knoepfe)
+    antwort = "Yes -- Accept keeps this question in your list."
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT, antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
+    )
+
+    assert len(tg.knoepfe) == karten_vorher
+    assert tg.texte[-1] == antwort
+    assert T._TEXT_FRAGE_WAS_AENDERN not in tg.texte
+
+
 def test_geschaerfte_karte_nimmt_der_alten_die_leiste_ab(conn, tg, einst):
     repo.setze_arbeitsstand(
         conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?\nStreit: Zweite?",

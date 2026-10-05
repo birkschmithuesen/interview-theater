@@ -402,3 +402,71 @@ def test_redo_ohne_fragen_bezug_bleibt_unberuehrt(conn, tg, einst, auftraege):
     assert auftraege == [], (
         "Ein Redo ohne Fragen-Bezug darf keine Eroeffnung ausloesen"
     )
+
+
+# --- 6. Redo eines Erkennerlaufs mit eigenen Fragen (H1, Runde 2) ----------
+#
+# Feedbackloop P1-2, Runde 2, Befund H1 (Padua, Phase 2): der Erkenner hatte
+# die eigenen Fragen der Gruppe in ``arbeitsstand.fragen`` geschrieben (Lauf
+# 13 in ``sim.db``), die Gruppe drueckte Undo und dann Redo -- und das Redo
+# stiess die Eroeffnung an, deren Autosave sprang ohne Zutun der Gruppe nach
+# Phase 3. KI-Vergleich und Einzeldurchgang liefen nie. Redo stellt nur Daten
+# her; die Eroeffnung kommt erst, wenn der Durchgang Frage fuer Frage
+# abgeschlossen ist (``fragen_herkunft_final`` gesetzt -- dieselbe Marke wie
+# ``roadmap.fragenuebersicht``), wie auf dem normalen Weg
+# (``_schliesse_fragen_ab``).
+
+
+def _erkennerlauf_mit_eigenen_fragen(conn) -> int:
+    plan = ruecknahme.plan(["fragen_setzen"])
+    vorher = repo.schnappschuss(conn, 1, plan)
+    repo.setze_arbeitsstand(
+        conn, 1, "fragen",
+        "home: What sound tells you that you are home?\n"
+        "waiting: Where do you wait the most?",
+    )
+    nachher = repo.schnappschuss(conn, 1, plan)
+    return repo.lege_erkenner_lauf_an(
+        conn, 1, "Questions: home: ...", ruecknahme.schritte(vorher, nachher),
+    )
+
+
+def test_redo_eigener_fragen_vor_dem_durchgang_startet_keine_eroeffnung(
+    conn, tg, einst, auftraege, monkeypatch,
+):
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "autosave_phase1_2_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(workshop, "fragen_ab_aktiv", lambda *a, **k: True)
+    phasen.setze(conn, 1, 2, "test")
+    lauf_id = _erkennerlauf_mit_eigenen_fragen(conn)
+    gesetzt = repo.hole_arbeitsstand(conn, 1)["fragen"]
+
+    undo_daten = knoepfe.undo_leiste(conn, 1, lauf_id)[0][1]
+    undo_message = 602
+    repo.merke_knopf_nachricht(
+        conn, [int(undo_daten[len(knoepfe.PRAEFIX):])], undo_message,
+    )
+    repo.merke_erkenner_lauf_nachricht(conn, lauf_id, undo_message)
+    knoepfe.behandle(
+        conn, tg, None, einst,
+        _druck(undo_daten, message_id=undo_message, query_id="q-undo"),
+    )
+    assert not (repo.hole_arbeitsstand(conn, 1)["fragen"] or "").strip()
+    assert auftraege == [], "Undo stoesst nichts an"
+
+    redo_daten, redo_message = _knopf_der_letzten_leiste_mit_art(
+        conn, tg, knoepfe.ART_REDO)
+    knoepfe.behandle(
+        conn, tg, None, einst,
+        _druck(redo_daten, message_id=redo_message, query_id="q-redo"),
+    )
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["fragen"] == gesetzt, "Redo stellt die Daten wieder her"
+    assert stand["fragen_herkunft_final"] is None
+    assert auftraege == [], (
+        "Redo vor abgeschlossenem Durchgang darf die Eroeffnung nicht starten"
+    )
+    assert phasen.aktuelle(conn, 1) == 2
+    assert phasen.meldung(3) not in tg.texte

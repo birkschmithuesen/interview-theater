@@ -343,6 +343,23 @@ def top(eintraege: list[dict], n: int = TOP) -> list[dict]:
     return [e for e in sortiert(eintraege) if e.get("status") != "verworfen"][:n]
 
 
+def verlauf_merge(conn, chat_id: int) -> list[dict]:
+    """Der GANZE Begriffsboard-Verlauf zu einem Stand zusammengefuehrt, nicht
+    nur die juengste Zeile (AGG-2/R-1, Birk 05.10.2026: "Der Chat muss immer
+    alles wissen"). Je Begriffsschluessel gilt der Eintrag aus der Zeile, in
+    der er zuletzt (also zuerst in ``repo.begriffsboard_verlauf``, juengste
+    zuerst) vorkam -- ein Begriff, den ein spaeterer Lauf nicht mehr nennt
+    (zum Beispiel, weil das Modell einen verworfenen Begriff nicht
+    wiederholt), behaelt so seine Begruendung statt sie zu verlieren."""
+    gesehen: dict[str, dict] = {}
+    for zeile in repo.begriffsboard_verlauf(conn, chat_id):
+        for eintrag in lies(zeile["json"]):
+            k = schluessel(eintrag["begriff"])
+            if k not in gesehen:
+                gesehen[k] = eintrag
+    return list(gesehen.values())
+
+
 def detail_fuer(board: list[dict], begriffe_text: str | None) -> list[dict]:
     """Je gespeichertem Begriff (Reihenfolge und Wortlaut der Gruppe) die
     Boardzeile -- Begriffe ohne Boardzeile mit leeren Feldern (D7)."""
@@ -759,15 +776,18 @@ def schreibe_detail(conn, chat_id: int, begriffe_text: str | None) -> None:
     ``arbeitsstand.begriffe`` schreibt (festgenagelt in
     ``tests/test_begriffe_detail_wege.py``). Leere Begriffe leeren das
     Detail. Ohne Board (Dortmund, oder nie mitgehoert) bleibt die Spalte,
-    wie sie ist -- dort entsteht kein Detail."""
+    wie sie ist -- dort entsteht kein Detail.
+
+    **Liest den ganzen Verlauf** (``verlauf_merge``), nicht nur die juengste
+    Zeile (AGG-2/R-1): sonst verliert ein gespeicherter Begriff seine
+    Begruendung, sobald ein spaeterer Boardlauf ihn nicht mehr nennt."""
     stand = repo.hole_arbeitsstand(conn, chat_id)
     bisher = stand["begriffe_detail"] if stand is not None else None
-    zeile = repo.letztes_begriffsboard(conn, chat_id)
-    if not (begriffe_text or "").strip() or zeile is None:
+    if not (begriffe_text or "").strip() or repo.letztes_begriffsboard(conn, chat_id) is None:
         if bisher:
             repo.setze_arbeitsstand(conn, chat_id, "begriffe_detail", None)
         return
-    detail = detail_fuer(lies(zeile["json"]), begriffe_text)
+    detail = detail_fuer(verlauf_merge(conn, chat_id), begriffe_text)
     repo.setze_arbeitsstand(
         conn, chat_id, "begriffe_detail", json.dumps(detail, ensure_ascii=False),
     )

@@ -963,20 +963,32 @@ def _fasse_marker_zusammen(fenster_eintraege: list) -> None:
 
 
 def _baue_begriffe_detail(conn, chat_id: int) -> str:
-    """Begruendung und Doppelbedeutung je gespeichertem Begriff, aus dem
-    Begriffsboard der Phase 1 (``arbeitsstand.begriffe_detail``) -- in Phase
-    2 (die Fragen entstehen aus den Begriffen) und ab Phase 4 (Setting,
-    Figuren, Geschichte). Nicht in Phase 3: dort wird interviewt. Nie das
-    Zitat (``roadmap.begriffe_detail`` wirft es weg). Datengetrieben: ohne
-    Detail (Dortmund) kein Block."""
-    phase = phasen.aktuelle(conn, chat_id)
-    if phase != 2 and phase < 4:
-        return ""
+    """Begruendung und Doppelbedeutung je gespeichertem Begriff
+    (``arbeitsstand.begriffe_detail``) -- nur fuer die Begriffe, deren
+    Begruendung der Board-Block (``_baue_board``) NICHT schon zeigt (ein
+    Fakt, eine Stelle). Das sind vor allem Begriffe, die das Board als
+    "verworfen" fuehrt: ``_baue_board`` listet nur nicht verworfene
+    Begriffe, aber eine Gruppe kann einen verworfenen trotzdem gespeichert
+    haben -- ohne diesen Block verlor er seine Begruendung komplett (R-1).
+
+    **In jeder Phase** (05.10.2026, Birk: "Der Chat muss immer alles
+    wissen") -- bis zum 05.10.2026 lief das nur in Phase 2 und ab 4, nie in
+    1 oder 3; seit das Board selbst in jeder Phase steht, gilt dieselbe
+    Regel fuer die Begriffe, die es nicht zeigt. Nie das Zitat
+    (``roadmap.begriffe_detail`` wirft es weg). Datengetrieben: ohne Detail
+    (Dortmund) kein Block."""
     from interview_theater import begriffsboard, roadmap
 
-    zeilen = begriffsboard.detail_zeilen(
-        roadmap.begriffe_detail(repo.hole_arbeitsstand(conn, chat_id))
-    )
+    detail = roadmap.begriffe_detail(repo.hole_arbeitsstand(conn, chat_id))
+    gezeigt = {
+        begriffsboard.schluessel(e["begriff"])
+        for e in begriffsboard.aktuelles(conn, chat_id)
+        if e.get("status") != "verworfen"
+    }
+    zeilen = begriffsboard.detail_zeilen([
+        e for e in detail
+        if begriffsboard.schluessel(e.get("begriff")) not in gezeigt
+    ])
     if not zeilen:
         return ""
     return T.BEGRIFFE_DETAIL_KOPF + "\n" + "\n".join(zeilen)
@@ -1006,7 +1018,19 @@ def _baue_phasenhinweis(conn, chat_id: int) -> str:
     stuende der Block in jedem Zug erneut da, und der Bot fragte alle zwei
     Minuten dasselbe -- aus einer Frage wuerde Draengeln. Antwortet die
     Gruppe, aendert sich die Phase, und beim naechsten erreichbaren Schritt
-    gibt es eine neue Frage; antwortet sie nicht, bleibt es still."""
+    gibt es eine neue Frage; antwortet sie nicht, bleibt es still.
+
+    **Nie in Phase 1** (P1-L1, Prompt-Check Padua P1/P2, 05.10.2026): dort
+    widersprach die Aufforderung "Ask ... whether the group wants to go
+    there yet" der Phase-1-Regel "Don't ask what comes next"
+    (``workshop/padua-2026/prompts/phasen/1.md``) -- und die Abschluss-
+    nachricht nach "Discussion done" fragt ohnehin schon "Shall we move
+    on?" mit zwei Knoepfen (``knoepfe/basis.biete_board_gespeichert``).
+    Kein Merkposten wird hier gesetzt: ``offenes_angebot`` bleibt
+    unverbraucht, falls ein anderer Kanal (``knoepfe.biete_phase_proaktiv``)
+    das Angebot ausspricht."""
+    if phasen.aktuelle(conn, chat_id) == 1:
+        return ""
     stufe = phasen.offenes_angebot(conn, chat_id)
     if stufe is None:
         return ""
@@ -1398,6 +1422,13 @@ _SYSTEMANFAENGE = (
 #: existiert im Code nicht mehr, der Eintrag oben ist ein Altbestand fuer
 #: alte Chatverlaeufe. "Withdrawn:" ist der Anfang von
 #: ``erkenner._JOURNAL_ZURUECK``.
+#:
+#: **Erweitert 05.10.2026 (P1-L6, Prompt-Check Padua P1/P2):** vier weitere
+#: Bot-Meldungen standen im Fenster als "You:"-Zug, obwohl sie Ereignisse
+#: sind -- ``_TEXT_UNDO_ERLEDIGT``/``_TEXT_REDO_ERLEDIGT`` ("Undone:"/
+#: "Redone:"), ``_ANTWORT_UNDO_GEAENDERT``/``_ANTWORT_REDO_GEAENDERT``
+#: ("Changed since."), ``erkenner._ZEILE_FESTGELEGT`` ("📌 Agreed:") und
+#: ``_TEXT_FRAGE_KOPF``/``_TEXT_FRAGE_KOPF_OHNE_BEGRIFF`` ("Question ").
 _SYSTEMANFAENGE_EN = (
     "I'm back.",
     "Noted:",
@@ -1409,6 +1440,11 @@ _SYSTEMANFAENGE_EN = (
     "I'm analysing the open interviews",
     "Removed:",
     "Withdrawn:",
+    "Undone:",
+    "Redone:",
+    "Changed since.",
+    "📌 Agreed:",
+    "Question ",
 )
 
 
@@ -1805,10 +1841,11 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         # Mitgehoerten.
         "board": board,
         "mitgehoert": mitgehoert,
-        # Direkt dahinter: warum die Gruppe ihre Begriffe gewaehlt hat
-        # (Begriffsboard, Phase 2 und ab 4) -- nur ohne Board-Block, der
-        # dieselben Begruendungen schon traegt (ein Fakt, eine Stelle).
-        "begriffe_detail": "" if board else _baue_begriffe_detail(conn, chat_id),
+        # Direkt dahinter: warum die Gruppe ihre Begriffe gewaehlt hat --
+        # nur die Begriffe, die der Board-Block NICHT schon zeigt (ein
+        # Fakt, eine Stelle; R-1: ein verworfener, aber gespeicherter
+        # Begriff fehlt dort und braucht diesen Block, in jeder Phase).
+        "begriffe_detail": _baue_begriffe_detail(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),

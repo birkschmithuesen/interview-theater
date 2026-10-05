@@ -71,6 +71,30 @@ def test_schreibe_detail_mit_board(conn):
     ]
 
 
+def test_schreibe_detail_findet_begruendung_aus_frueherer_boardzeile(conn):
+    """AGG-2: ``schreibe_detail`` las bisher nur die JUENGSTE Boardzeile. Ein
+    Begriff, den ein spaeterer Boardlauf nicht mehr nennt (z.B. weil er
+    inzwischen verworfen ist und das Modell verworfene Begriffe nicht
+    wiederholt), verlor so seine Begruendung -- obwohl die Gruppe ihn
+    gespeichert hat. Birk: "der Chat muss immer alles wissen"."""
+    _board(conn)  # Heimat/Grenze mit Begruendung, Zeile 1
+    repo.lege_begriffsboard_an(
+        conn, CHAT,
+        json.dumps([{"begriff": "Schule", "nennungen": 1, "zustimmung": 0,
+                     "begruendung": "", "zitat": "", "doppelbedeutung": "",
+                     "status": "kandidat"}]),
+        "sovereign", 2,
+    )  # Zeile 2: Heimat kommt hier nicht mehr vor
+
+    begriffsboard.schreibe_detail(conn, CHAT, "Heimat, Schule")
+
+    assert _detail(conn) == [
+        {"begriff": "Heimat", "begruendung": "Wo die Oma kocht.",
+         "zitat": "wo meine Oma kocht", "doppelbedeutung": "Ort und Gefuehl"},
+        {"begriff": "Schule", "begruendung": "", "zitat": "", "doppelbedeutung": ""},
+    ]
+
+
 def test_ohne_board_bleibt_die_spalte_unberuehrt(conn):
     """Dortmund hat nie ein Board -- dort entsteht kein begriffe_detail."""
     repo.setze_arbeitsstand(conn, CHAT, "begriffe", "A, B")

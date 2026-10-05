@@ -693,6 +693,10 @@ _CHAT_JS = """
   var KAL_LS_BODEN = 'vad_boden_mess';
   var KAL_LS_REDE = 'vad_rede_mess';
   var KAL_LS_SCHWELLE = 'vad_schwelle';
+  // Birk, 05.10.2026 22:00: hat DIESES Geraet den Chat in dieser Phase schon
+  // geoeffnet? Schluessel "phase_gesehen:<gruppe>:<phase>" (kalSchluessel),
+  // zweite und letzte localStorage-Ausnahme neben der Kalibrierung.
+  var PHASE_LS_GESEHEN = 'phase_gesehen';
 
   var verlauf = document.getElementById('verlauf');
   var fuss = document.getElementById('fuss');
@@ -1115,7 +1119,24 @@ _CHAT_JS = """
                 vorher.classList.contains('bot') &&
                 vorher.querySelector('img.karte')) ? vorher : kopf;
     ziel.scrollIntoView();
+    // Birk, 05.10.2026 22:00: der Sprung (erstes Oeffnen ODER Live-Wechsel)
+    // merkt die Phase -- das naechste Oeffnen dieses Geraets geht ans Ende.
+    ersteOeffnungInPhase(kalSpeicher(), kalGruppeAus(location.pathname), zustand.phase);
   }
+
+  // Birk, 05.10.2026 22:00: beim Oeffnen der Seite nur dann zum
+  // Phasenanfang, wenn dieses Geraet den Chat in dieser Phase zum ERSTEN Mal
+  // oeffnet -- jedes spaetere Oeffnen steht unten bei der neuesten
+  // Nachricht. Ohne Phasenzeile (Phase 1 vor dem ersten Wechsel) wie bisher
+  // ans Ende, dann wird auch nichts gemerkt.
+  function scrolleBeimOeffnen() {
+    if (phasenkopfzeile() && ersteOeffnungInPhase(kalSpeicher(), kalGruppeAus(location.pathname), zustand.phase)) {
+      scrolleZuPhasenanfang();
+    } else {
+      nachUnten();
+    }
+  }
+
 
   // Phasenscroll-Karte, Nachtrag (05.10.2026): eine eigene Aktion (Text,
   // Audioaufnahme, Knopfdruck) soll IMMER wieder ans Ende springen, auch
@@ -2117,6 +2138,18 @@ _CHAT_JS = """
 
   function kalSpeicher() {
     try { return window.localStorage; } catch (e) { return null; }
+  }
+
+  // Birk, 05.10.2026 22:00: true beim ersten Oeffnen dieser Phase auf diesem
+  // Geraet -- und merkt sie zugleich als gesehen. Fehlt der Speicher oder
+  // wirft er (privater Modus, alter Browser), bleibt es beim bisherigen
+  // Verhalten: true, also Sprung zum Phasenanfang.
+  function ersteOeffnungInPhase(speicher, gruppe, phase) {
+    try {
+      if (speicher.getItem(kalSchluessel(PHASE_LS_GESEHEN, gruppe, phase))) { return false; }
+      speicher.setItem(kalSchluessel(PHASE_LS_GESEHEN, gruppe, phase), '1');
+    } catch (e) { /* localStorage kann fehlen -- Rueckfall: Phasenanfang */ }
+    return true;
   }
 
   function kalibrierungCacheLesen(speicher, gruppe, datum) {
@@ -3678,7 +3711,7 @@ _CHAT_JS = """
   });
 
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
-  scrolleZuPhasenanfang();   // Phasenscroll-Karte: der Anfang der aktuellen Phase, sonst der Rueckfall ans Ende
+  scrolleBeimOeffnen();   // Phasenanfang nur beim ersten Oeffnen dieser Phase auf diesem Geraet, sonst ans Ende
   // Pflichtpunkt 2, Fix 1 von 2: der erste Seitenaufruf stoesst die
   // Begruessung an. Der Server legt /start nur an, solange der Chat noch
   // leer ist -- ein spaeterer Aufruf (Reload, zweites Geraet) bewirkt nichts.

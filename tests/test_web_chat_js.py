@@ -506,14 +506,130 @@ def test_scrollezuphasenanfang_faellt_auf_nachunten_zurueck():
     assert "nachUnten();" in funktion
 
 
-def test_der_initiale_seitenaufbau_scrollt_zum_phasenanfang():
-    """Ersatz der frueher unbedingten ``nachUnten();`` kurz vor ``hole();`` --
-    der Rueckfall innerhalb der Funktion greift, wenn noch keine Phasenzeile
-    im Verlauf steht."""
+def test_der_initiale_seitenaufbau_entscheidet_ueber_scrollebeimoeffnen():
+    """Birk, 05.10.2026 22:00: zum Phasenanfang nur beim ERSTEN Oeffnen
+    dieses Geraets in dieser Phase, sonst ans Ende. Der Seitenaufbau ruft
+    deshalb ``scrolleBeimOeffnen()`` statt ``scrolleZuPhasenanfang()``."""
     js = web_chat._CHAT_JS
     bootstrap = js[js.index("zeigeModus();   //"):]
-    assert "scrolleZuPhasenanfang();" in bootstrap
+    assert "scrolleBeimOeffnen();" in bootstrap
+    assert "scrolleZuPhasenanfang();" not in bootstrap
     assert "nachUnten();\n  hole();" not in bootstrap
+    funktion = _extrahiere(js, "function scrolleBeimOeffnen", "var erzwingeNachUnten")
+    assert ("phasenkopfzeile() && ersteOeffnungInPhase(kalSpeicher(), "
+            "kalGruppeAus(location.pathname), zustand.phase)") in funktion
+    assert "scrolleZuPhasenanfang();" in funktion
+    assert "nachUnten();" in funktion
+
+
+def test_der_sprung_zum_phasenanfang_merkt_die_phase():
+    """Auch der Live-Wechsel (``nimmZustand`` -> ``scrolleZuPhasenanfang``)
+    merkt die neue Phase als gesehen -- das naechste Oeffnen geht ans Ende."""
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function scrolleZuPhasenanfang", "function scrolleBeimOeffnen")
+    assert funktion.index("ziel.scrollIntoView();") < funktion.index(
+        "ersteOeffnungInPhase(kalSpeicher(), kalGruppeAus(location.pathname), zustand.phase);")
+
+
+def _speicher_js():
+    """Ein Speicher mit der Flaeche von ``localStorage`` -- ``Map`` dahinter."""
+    return """
+    function neuerSpeicher() {
+      var m = new Map();
+      return { getItem: function (k) { return m.has(k) ? m.get(k) : null; },
+               setItem: function (k, v) { m.set(k, String(v)); },
+               keys: function () { return Array.from(m.keys()); } };
+    }
+    var wirft = { getItem: function () { throw new Error('SecurityError'); },
+                  setItem: function () { throw new Error('SecurityError'); } };
+    """
+
+
+def test_ersteoeffnunginphase_entscheidet_live_in_node(tmp_path):
+    """``ersteOeffnungInPhase`` WOERTLICH aus dem Skript: erstes Oeffnen
+    wahr (und gemerkt), zweites falsch, andere Phase/andere Gruppe wieder
+    wahr; fehlender oder werfender Speicher -> wahr (bisheriges Verhalten:
+    Sprung zum Phasenanfang)."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    helfer = _extrahiere(js, "function kalSchluessel", "function kalibrierungCacheLesen")
+    quelltext = f"""
+    var PHASE_LS_GESEHEN = {json.dumps(re.search(r"var PHASE_LS_GESEHEN = '([a-z_]+)';", js).group(1))};
+    var window = {{}};
+    {helfer}
+    {_speicher_js()}
+    var s = neuerSpeicher();
+    var e = {{
+      erstes: ersteOeffnungInPhase(s, 'tokA', 3),
+      zweites: ersteOeffnungInPhase(s, 'tokA', 3),
+      andere_phase: ersteOeffnungInPhase(s, 'tokA', 4),
+      andere_gruppe: ersteOeffnungInPhase(s, 'tokB', 3),
+      wirft: ersteOeffnungInPhase(wirft, 'tokA', 3),
+      fehlt: ersteOeffnungInPhase(null, 'tokA', 3),
+      schluessel: s.keys()
+    }};
+    console.log(JSON.stringify(e));
+    """
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["erstes"] is True
+    assert e["zweites"] is False
+    assert e["andere_phase"] is True
+    assert e["andere_gruppe"] is True
+    assert e["wirft"] is True
+    assert e["fehlt"] is True
+    assert e["schluessel"] == ["phase_gesehen:tokA:3", "phase_gesehen:tokA:4",
+                               "phase_gesehen:tokB:3"]
+
+
+def test_scrollebeimoeffnen_ablauf_in_node(tmp_path):
+    """Der ganze Ablauf mit den echten Funktionen ``scrolleZuPhasenanfang``
+    und ``scrolleBeimOeffnen``: erstes Oeffnen -> Phasenanfang, Reload ->
+    Ende; Live-Wechsel springt und merkt, das naechste Oeffnen geht ans Ende;
+    ohne Phasenzeile -> Ende und nichts gemerkt; ohne Speicher -> Anfang."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    helfer = _extrahiere(js, "function kalGruppeAus", "function kalibrierungCacheLesen")
+    scroll = _extrahiere(js, "function scrolleZuPhasenanfang", "var erzwingeNachUnten")
+    quelltext = f"""
+    var PHASE_LS_GESEHEN = {json.dumps(re.search(r"var PHASE_LS_GESEHEN = '([a-z_]+)';", js).group(1))};
+    {_speicher_js()}
+    var log = [];
+    var speicher = neuerSpeicher();
+    var window = {{ get localStorage() {{ if (speicher === 'wirft') {{ throw new Error('x'); }} return speicher; }} }};
+    var location = {{ pathname: '/g/tokA/chat' }};
+    var zustand = {{ phase: 3 }};
+    var mitKopf = true;
+    function nachUnten() {{ log.push('unten'); }}
+    function phasenkopfzeile() {{
+      return mitKopf ? {{ previousElementSibling: null,
+                          scrollIntoView: function () {{ log.push('anfang'); }} }} : null;
+    }}
+    {helfer}
+    {scroll}
+    function schritt(f) {{ log = []; f(); return log.join(','); }}
+    var e = {{}};
+    e.erstes = schritt(scrolleBeimOeffnen);
+    e.reload = schritt(scrolleBeimOeffnen);
+    e.live = schritt(function () {{ zustand.phase = 4; scrolleZuPhasenanfang(); }});
+    e.nach_live = schritt(scrolleBeimOeffnen);
+    mitKopf = false; zustand.phase = 5;
+    e.ohne_kopf = schritt(scrolleBeimOeffnen);
+    mitKopf = true;
+    e.dann_mit_kopf = schritt(scrolleBeimOeffnen);
+    speicher = 'wirft'; zustand.phase = 3;
+    e.ohne_speicher = schritt(scrolleBeimOeffnen);
+    console.log(JSON.stringify(e));
+    """
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e == {
+        "erstes": "anfang",
+        "reload": "unten",
+        "live": "anfang",
+        "nach_live": "unten",
+        "ohne_kopf": "unten",
+        "dann_mit_kopf": "anfang",
+        "ohne_speicher": "anfang",
+    }
 
 
 def test_zustand_liest_die_phase_aus_dem_dataset():
@@ -1083,7 +1199,15 @@ def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
     ``<Basis>:<Gruppe>:<JJJJ-MM-TT>`` (``kalSchluessel``), sonst galt eine
     Messung in Gruppe 1 auch fuer Gruppe 2. Das ist bewusst eng: kein Link
     haengt daran, ein zweites Telefon sieht dieselbe Gruppe weiterhin
-    unveraendert, es misst nur sein eigenes Mikrofon noch einmal."""
+    unveraendert, es misst nur sein eigenes Mikrofon noch einmal.
+
+    Die ZWEITE Ausnahme (Birk, 05.10.2026 22:00): ein vierter Wert
+    ``phase_gesehen:<Gruppe>:<Phase>`` -- ob DIESES Geraet den Chat in dieser
+    Phase schon geoeffnet hat. Nur dann springt die Seite beim Oeffnen zum
+    Phasenanfang, sonst ans Ende. Ebenso eng: kein Link haengt daran, ein
+    zweites Telefon springt beim ersten Oeffnen einmal selbst zum Anfang.
+    Derselbe eine Zugriffspunkt (``kalSpeicher``) und derselbe
+    Schluesselbau (``kalSchluessel``)."""
     assert "document.cookie" not in web_chat._CHAT_JS
     assert "sessionStorage" not in web_chat._CHAT_JS
     assert "WebSocket" not in web_chat._CHAT_JS
@@ -1097,14 +1221,16 @@ def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
     assert zugriffe, "kein Speicherzugriff gefunden"
     basen = set()
     for arg in zugriffe:
-        treffer = re.match(r"kalSchluessel\((KAL_LS_[A-Z]+), gruppe, datum\)", arg)
+        treffer = (re.match(r"kalSchluessel\((KAL_LS_[A-Z]+), gruppe, datum\)", arg)
+                   or re.match(r"kalSchluessel\((PHASE_LS_GESEHEN), gruppe, phase\)", arg))
         assert treffer, arg
         basen.add(treffer.group(1))
     konstanten = dict(re.findall(
-        r"var (KAL_LS_[A-Z]+) = '([a-z_]+)';", web_chat._CHAT_JS,
+        r"var ((?:KAL_LS_[A-Z]+|PHASE_LS_GESEHEN)) = '([a-z_]+)';", web_chat._CHAT_JS,
     ))
     assert basen == set(konstanten)
-    assert set(konstanten.values()) == {"vad_boden_mess", "vad_rede_mess", "vad_schwelle"}
+    assert set(konstanten.values()) == {"vad_boden_mess", "vad_rede_mess", "vad_schwelle",
+                                        "phase_gesehen"}
 
 
 # -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ---------------------

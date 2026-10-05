@@ -269,3 +269,158 @@ P2 Z311/350/475/537) wie in Runde 1 falsch positiv. P1 System 31690 Zeichen (+54
 - Opus-Lesungen: 8 Aufrufe ueber den lokalen Proxy, 0 CHF.
 
 ## Runde 3
+
+Stand `bb2454c`. Task-Reports `.superpowers/sdd/R3-*-report.md`.
+
+### Gefixt in Runde 3 (Befund -> Commit)
+
+| Task | Befunde | Commits |
+|---|---|---|
+| R3-1 Redo vor dem Durchgang | H1 (`_wirkung_redo` startet die Eroeffnung nur noch mit `fragen_herkunft_final`) | `04e226a` |
+| R3-2 EN-Prompts + Marker | a-Treffer Runde 2 (`system.md:75` Pflichtfrage, `system.md:154` "— form", `BOARD_KOPF` ohne Fuenferzahl), c459 (Entwicklervermerk in `phasen/2.md`), M1 (`ABSCHLUSS:` -> `CLOSING:`, `vorschlag.ohne_marker` streicht die Unterzeile, 📌 aus zerlegtem Text) | `bf0a5b3` |
+| R3-3 Eine Quittung | S5 (Erkenner haengt Transkriptkorrektur an die Quittung des Zugs; "BEGRIFFE <x>" nimmt nur diesen Begriff, leert nicht mehr das Feld) | `64b27af` |
+| R3-4 Undo der Eroeffnung | M2 (`biete_stt_sprache` sendet mit `undo_behalten=True`) | `c246ae5` |
+| R3-5 Fixture | c569/b647 ("Workbench" statt "work status tab"), d566/d642 (Historie alterniert) | `bb2454c` |
+
+Nicht gebaut: N1 (kam in Runde 3 nicht wieder vor), S2/S4 (B4), S6/S8/N2 (B1), Klasse B.
+
+Volle Suite nach Runde 3: **8041 passed, 10 skipped, 0 failed** (`-m "not dortmund"`).
+
+### Simulation (handy, giulia, 11 Stationen p12)
+
+Lauf `simulation/browser_laeufe/2026-10-05-handy-giulia-p12/` (Runde 3 = `chat_id 7000000000002`
+in `sim.db`, msg 154-234; Screenshots 001-136 sind jetzt die von Runde 3), Rohbericht
+`simulation/berichte/feedbackloop-p12-2026-10-05-r3.md`. Richter roh: 9 hoch / 19 mittel /
+10 niedrig. Nach Sichtung (Screenshots, `sim.db`, `bot.log`) bleiben **3 hoch, 4 mittel,
+3 niedrig** (davon Klasse A: 1 hoch, 2 mittel, 1 niedrig).
+
+Ablauf laut `sim.db`: P1 mit fuenf Sprachsegmenten, die Persona tippt die korrigierte Liste,
+**eine** Quittung "Updated – saved ... Move on?" (msg 166, ein Undo knopf 89), "Move on"
+(knopf 87) -> Phase 2 um 19:18:17. Eigene Fragen per Chat, der Erkenner speichert sie vorzeitig
+(S2, lauf 20-22), Undo/Redo von lauf 20 (19:19:09/19:19:16) **ohne** Phasensprung (H1 bestaetigt
+gefixt). Um 19:21:25 schreibt die Gruppe "Then the list is finished for me and we can go to the
+interviews"; der Zug antwortet "Own questions done. Next comes the side-by-side comparison"
+und legt Karte "Question 1/27" hin (msg 187/188, 19:21:35); **sechs Sekunden spaeter setzt der
+Erkenner aus derselben Nachricht `phase_setzen 3`** (msg 189 "Noted: We're now at 3 ·
+Interviews", `phase_gesetzt_am` 19:21:41). Der ganze Einzeldurchgang (msg 188-234) lief danach in
+Phase 3 -- mit Kimi und dem P3-Prompt statt Opus/P2-Prompt. Eroeffnung/Abschluss nie erreicht.
+
+**hoch**
+
+| ID | Station | Was | Klasse | Beleg |
+|---|---|---|---|---|
+| H2 | p2-eigene-fragen -> p2-eroeffnung | **Phasenwechsel per Chat mitten im Einzeldurchgang.** Erkenner setzt Phase 3 aus der Nachricht, auf die der Zug gerade den Vergleich gestartet hat. Die Fragekarte laeuft in Phase 3 weiter (Stepper "3 · Interviews", P2 mit ✓, RECORD INTERVIEW), das Gespraech laeuft mit Kimi/P3-Prompt ohne Wissen um den Durchgang: zweimal Deutsch (msg 198, 202), erfundene MINE/YOURS-Vergleiche, "I can't fix the 27 counter myself — that is a system display I don't control" (msg 213), Freitext ersetzt die laufende Karte durch Fragen anderer Begriffe (msg 215/218/220/222: "2/27" springt Noise -> Waiting). Gruppenwunsch war woertlich da (Invariante "Phase setzt die Gruppe"), deshalb Entscheidung noetig: offenen Durchgang beim Phasenwechsel schliessen, pausieren oder den Sprung erst nach dem Durchgang anbieten (Option A: wie R3-3 einen Merker "Zug hat auf diese Nachricht schon den Vergleich gestartet" -> `phase_setzen` faellt weg). | B (neu) | `093-…png`; msg 186-189; knopf 99-159; `aufruf` 123-155 (Kimi) |
+| H3 | p2-einzeldurchgang (real P3) | **Erkenner leert `fragen` waehrend des Durchgangs.** "Noted: Removed: Questions" (lauf 24, 19:25:03): `entfernen FRAGEN` loescht alle sieben eigenen Fragen (`erkenner_lauf_schritt` 28: vorher 7 Zeilen, nachher NULL). Der Schutz `knoepfe.einzeln_aktiv` gilt nur fuer `fragen_setzen` (`erkenner.py:636-651`), nicht fuer `entfernen`. Folge: Workbench "2 · Questions 0 of 3" (Richter p2-eroeffnung), Arbeitsstand 205 -> 36 Zeichen im Prompt. Gleiche Fehlerklasse wie S5-"Removed: Terms". | A | msg 217, `bot.log` (arbeitsstand=36 ab 19:25), `erkenner.py:1497`/`1540` |
+| S2 | p2-eigene-fragen | Erkenner speichert eigene Fragen vor dem Vergleich ("📌 Agreed: Questions", msg 173/180/183). Erfuellt damit `phasen.voraussetzungen` fuer Phase 3 und macht H2 erst moeglich. | B4-Branch | lauf 20-22 |
+
+**mittel**
+
+| ID | Station | Was | Klasse | Beleg |
+|---|---|---|---|---|
+| M5 | p2-ab-vergleich (Folge H2) | Ablauf-Erklaerung "So geht ein Interview: Tippt ..." **deutsch** in der EN-App. `erkenner._interviewmodus_texte` liest `knoepfe.TEXT_ABLAUF` am `T` vorbei; der EN-Eintrag existiert (`sprachen/en/texte.toml:83`, Tabelle `knoepfe.texte`). Ausloeser ist ein Chat-Satz ("then we record"), also auch aus P2 erreichbar. | A | msg 204; `erkenner.py:2396` |
+| M6 | p2-einzeldurchgang (Folge H2) | Freitext waehrend des Durchgangs ueberschreibt die aktuelle Karte mit einem Modellvorschlag zu einer **anderen** Frage (Gruppe fragt nach Nr. 5, Karte 2 wird Noise, dann Waiting, dann die Frage der Gruppe). Ob das mit P2-Prompt/Opus auch passiert, ist ungeprueft. | A nach H2/B4 (`knoepfe/fragen.py` liegt in B4) | msg 214-222, `fragen_bearbeitet` ",,,1,1" |
+| S6 | p1-kalibrierung | Raumcheck-Karte ("Transcribing the test sentence …", Skip) und "Listening (0:53)" + "Discussion done" gleichzeitig. | B1-Branch | `013-…png` |
+| S8 | mehrere | Chat laeuft unter den Titel "Padua UX-Simulation", oberste Blase angeschnitten. | B1-Branch | `013-…png`, `093-…png` |
+
+**niedrig**
+
+| ID | Station | Was | Klasse | Beleg |
+|---|---|---|---|---|
+| N3 | p1-begriffe (real P2) | Undo/Redo wiederholt die ganze Fragenliste ("Undone: I've reverted this. / Questions: ..."), zusammen mit der 📌-Zeile dreimal derselbe Block. | B (zu R-5b) | msg 173/175/177 |
+| N4 | p2-eigene-fragen | P2-Eintritt und Zug versprechen "side by side with yours"; der Durchgang zeigt die Fragen je Begriff nacheinander ("(yours)", dann "(AI)"). Persona sucht wiederholt "your version". | A (Text, `texte.toml`/P2-Prompt -- P2-Prompt liegt in B4) | msg 170, 187, 201 |
+| N2 | p1-zuhoeren | Transkriptblasen ohne Korrekturmoeglichkeit an der Blase; Kopfbereich ~1/4 der Hoehe. | B1 / P1-M1 | Richter p1-zuhoeren |
+
+**Ausserhalb P1/P2 (fuer die P3-Schleife):** Kimi antwortet in Phase 3 wieder deutsch (zum zweiten
+Mal nach Runde 2, msg 142); `fragen_eigene_vorschlag` steht am Ende auf Italienisch (vermutlich ein
+Kimi-Block in Phase 3 nach der Sprachwahl "Italiano", nicht gemessen).
+
+**Nicht als Produktbefund gezaehlt:** Richter "hoch" p1-zuhoeren ("kein 📌/↶ fuer die Begriffe")
+-- Fehllesung, msg 166 traegt Quittung und Undo (knopf 89). Richter "hoch" p1-kalibrierung ("We
+heard … Is that what was said?") -- Raumcheck-Bestaetigung, B1-Branch/by design. "Bot schlaegt eine
+fuenfte Frage vor" -- Fehllesung, "And maybe a fifth" schreibt die Persona (msg 197). 27 Fragen im
+Durchgang (6 eigene + 21 KI, `fragen_herkunft`) und Einzeltakt: by design (B3). RECORD INTERVIEW /
+"3 · Interviews" im Fragenteil: echte Phase 3 (H2). Sim (t_fc2c1bfa): Stationen folgen nicht der
+echten Phase (Persona tippt in P3 neue "eigene Fragen", msg 197), Kopfzeile "p1-begriffe nicht
+erreicht", `p1-uebergang`/`p2-uebergang` ohne Screenshots, Mehrfachfragen-Zaehler (36-64 je Station)
+zaehlt Karten mit. Board auf Geraet B: 0 -> 7 ohne Reload, bestanden (spaeter 0 = P2-Tab-Inhalt,
+nicht weiter geprueft). Entwickler-Meta im Chat: 0.
+
+### Stand der frueheren Befunde
+
+| ID | Stand | Anmerkung |
+|---|---|---|
+| H1 | **gefixt, im Lauf bestaetigt** | Redo knopf 93 um 19:19:16, Phase blieb 2; der spaetere Sprung ist H2 (Chat), nicht Redo |
+| S1 | gefixt (Tests), per Knopf **nicht geprueft** | Durchgang erreicht, Accept 6x gedrueckt, Sharpen nie (Persona schrieb Freitext) |
+| S2 | offen | B4; jetzt Wegbereiter von H2 |
+| S3 | gefixt | kein "order is fixed" mehr im Dump, Frage kam nicht vor |
+| S5 | **gefixt, im Lauf bestaetigt** | eine Quittung, ein Undo, kein "Removed: Terms", Begriffe vollstaendig |
+| S6, S8 | unveraendert | B1 |
+| S7, S9, S11 | nicht erreicht / unveraendert | S11 ("Accepted" ohne ↶) weiter Klasse B |
+| S10 | gefixt | Persona fragt nach, Antwort sauber (msg 158) |
+| M1, M2 | gefixt (Tests), **nicht erreicht** | Eroeffnung kam wegen H2 nie |
+| M3 | unveraendert | Workbench "0 of 3" diesmal durch H3 |
+| M4 | nicht erreicht | P1 endete ohne "Discussion done" |
+| N1 | nicht wieder aufgetreten | offen gelassen |
+
+### Prompt-Check
+
+Dump `docs/prompt-audit/2026-10-05-padua-p12-r3/` (Mechanik + 2 Opus-Lesungen).
+
+| Phase | a | b | c | d | Summe |
+|---|---|---|---|---|---|
+| P1 Runde 1 | 4 | 4 | 2 | 5 | 15 |
+| P1 Runde 2 | 2 | 4 | 3 | 5 | 14 |
+| P1 Runde 3 | 2 | 5 | 2 | 5 | 14 |
+| P2 Runde 1 | 4 | 4 | 2 | 5 | 15 |
+| P2 Runde 2 | 1 | 8 | 1 | 5 | 15 |
+| P2 Runde 3 | 2 | 5 | 3 | 5 | 15 |
+
+Alle drei a-Treffer aus Runde 2 und c459 sind weg (R3-2). Die vier neuen a-Treffer am Dump geprueft
+-- **alle vier Saetze standen woertlich schon in den Dumps von Runde 0, 1 und 2** (r1 Z114/520/
+594/485, r2 Z115/526/603/491) und wurden dort nicht als a gefuehrt; P1 Z115 fuehrt die P2-Lesung
+derselben Runde als **b**. Die Treffer sind also keine Folge der Runde-3-Aenderungen, sondern
+Stichproben des Lesers aus einem festen Bestand an Grenzsaetzen in 31-36k Zeichen Prompt.
+
+| Dump:Zeile | Zitat | Urteil | Quelle | Fix |
+|---|---|---|---|---|
+| P1 01:115 | "You ask first, you suggest afterwards. In EVERY phase: ONE open question" | **echt, schwach**: "EVERY phase" liest sich als Pflichtfrage, auch beim Mithoeren (gegen Regel 4, gegen Z477 "no question at the end") | `sprachen/en/prompts/system.md:95` | "Before you suggest anything, ask one open question about the group's idea -- if there is nothing to suggest, there is nothing to ask." ("In EVERY phase" streichen) |
+| P1 01:526 | "It is saved automatically; without a block nothing is saved" | **by design** (Autosave der Gruppenliste, `d41d40f`); Lese-Risiko: der Satz sagt nicht, dass nur Gruppenwortlaut in den Block darf | `workshop/padua-2026/prompts/phasen/1.md:70` (+ `sprachen/en/prompts/phasen/1.md:54`) | billig: Satz davor "Only terms the group said or confirmed go into the block; your own ideas stay in your text." |
+| P2 05:599 | "don't say any more that saying 'we're doing an interview now' is enough: the button is the reliable way" | **by design** (Birk 05.09.2026: der Erkenner startet nicht selbst, ein Chat-Satz bringt die Ablauf-Erklaerung mit Knopf); Wortlaut klingt nach "nur der Knopf" (Regel 2) | `workshop/padua-2026/prompts/phasen/2.md:142` (B4-Datei) | nach B4-Merge: "If the group says it, the start button comes by itself; don't explain more." |
+| P2 05:486 | "Reformulate cleanly, never invent. If a term's question is rough, ..." | **Fehllesung** fuer Regel 4 (die Gruppe schreibt zuerst, der Bot glaettet nur); beruehrt aber die Fairness des A/B-Vergleichs (geglaettete statt woertliche Gruppenfassung) -> Klasse-B-Frage | `workshop/padua-2026/prompts/phasen/2.md:30` (B4-Datei) | keiner ohne Entscheidung |
+
+Ergebnis: 1 echte (schwache) a-Stelle, 2 by design mit billigem Wortlaut-Fix, 1 Fehllesung.
+Die b-Treffer b632 ("The material would allow phase 3") und b651 ("Your three are saved",
+Fixture) stehen weiter; b632 ist dieselbe Voraussetzung, die H2 ermoeglicht.
+Mechanik: "Yes, save" Z290 echte Knopfbeschriftung, alle "ask whether" (P1 Z311/350, P2
+Z311/350/470/532) wie bisher falsch positiv. P1 System 31712 Zeichen (+22 gegen Runde 2),
+P2 System 36169.
+
+**Einschaetzung Abnahmekriterium "0 a":** Mit einer einzelnen, nichtdeterministischen Opus-Lesung
+je Phase ist "0 a" kein stabiler Endzustand -- jede Runde zieht 1-4 andere Grenzsaetze aus
+unveraenderten Prompt-Teilen. Konvergenz waere nur ueber eine Regel erreichbar, z. B.: ein a-Treffer
+zaehlt erst, wenn er nach Sichtung als echt gilt (by design/Fehllesung werden mit Begruendung
+protokolliert und nicht wieder gezaehlt), oder wenn er in mindestens zwei von drei Lesungen
+auftaucht. Das ist eine Entscheidung fuer Birk.
+
+### Offen nach Runde 3 und warum
+
+- Klasse A, Runde 4: H3 (Erkenner-`entfernen FRAGEN` waehrend des Durchgangs) + M5 (`TEXT_ABLAUF`
+  am `T` vorbei), beide `erkenner.py`; Prompt P1 Z115 (`system.md:95`) und Klarstellung P1 Z526
+  (`padua-2026/prompts/phasen/1.md:70`, `sprachen/en/prompts/phasen/1.md:54`).
+- Wartet auf B4-Merge (`knoepfe/fragen.py`, `vorschlag.py`, `workshop/padua-2026/prompts/phasen/2.md`
+  sind dort geaendert): S2, S4, M6, N4-Prompttext, P2 Z599-Wortlaut.
+- B1: S6, S8, N2.
+- Klasse B offen: **H2** (Phasenwechsel per Chat bei offenem Durchgang), P2 Z486 (woertliche oder
+  geglaettete Gruppenfassung im Vergleich), N3/R-5b (Umfang von Undo/Redo-Meldungen), S7, M3, M4,
+  S11, B2, B5, AGG-3, NB1 und das Abnahmekriterium "0 a" (s. o.).
+- P3-Schleife: Kimi antwortet deutsch, italienische `fragen_eigene_vorschlag`.
+- Sim (t_fc2c1bfa): Stationen an echte Phase koppeln, Mehrfachfragen-Zaehler, Uebergangs-Screenshots.
+
+### Kosten bisher
+
+- Simulation handy Runde 3: 0.3355 CHF (Erkenner gemma 0.1035, Gespraech Kimi in Phase 3 0.1527,
+  Journal 0.0052, Whisper 0.0741; Opus/Proxy 0 CHF).
+- Simulation kumuliert: 0.5374 CHF (harte Grenze 1.50 CHF).
+- Opus-Lesungen: 12 Aufrufe ueber den lokalen Proxy, 0 CHF.
+
+## Runde 4

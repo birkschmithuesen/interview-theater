@@ -91,10 +91,24 @@
     "unterschrift_en": "Going through the questions one at a time with buttons."
   },
   {
+    "datei": "phase-2-ergebnis-handy.png",
+    "phase": 2,
+    "station": "ergebnis",
+    "geraet": "handy",
+    "unterschrift_en": "Where we are: questions, opening and closing at a glance."
+  },
+  {
     "datei": "phase-2-ergebnis-laptop.png",
     "phase": 2,
     "station": "ergebnis",
     "geraet": "laptop",
     "unterschrift_en": "Where we are: questions, opening and closing at a glance."
+  },
+  {
+    "datei": "phase-2-uebergang-handy.png",
+    "phase": 2,
+    "station": "uebergang",
+    "geraet": "handy",
+    "unterschrift_en": "Questions ready, the app offers the interview phase."
   }
 ]

@@ -370,7 +370,7 @@ def test_web_interviewstart_spricht_nicht_von_sprachnachrichten(conn, web, einst
     texte = " ".join(_alle_texte(conn))
     assert "voice message" not in texte
     assert "send your" not in texte
-    assert web_chat.T._TEXT_INTERVIEW_AUS in texte
+    assert web_chat.T._TEXT_INTERVIEW_ENDEN in texte
 
 
 def test_web_interviewstart_deutsch_ohne_sprachnachrichten(conn, web, einst):
@@ -382,7 +382,7 @@ def test_web_interviewstart_deutsch_ohne_sprachnachrichten(conn, web, einst):
 
     texte = " ".join(_alle_texte(conn))
     assert "Sprachnachricht" not in texte
-    assert web_chat.T._TEXT_INTERVIEW_AUS in texte
+    assert web_chat.T._TEXT_INTERVIEW_ENDEN in texte
 
 
 def test_ohne_schalter_bleibt_aufnahme_beendet_text(conn, web, einst):

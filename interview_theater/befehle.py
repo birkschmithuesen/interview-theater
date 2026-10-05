@@ -137,9 +137,10 @@ _TEXT_INTERVIEW_AN = (
 )
 #: Dito im Web-Kanal (P34 Runde 1, Befund A1, Lauf 205532): im Browser gibt
 #: es keine Sprachnachrichten zu schicken -- die Aufnahme laeuft ueber den
-#: Rekorder, beendet wird mit seinem Knopf. ``{stopp}`` ist dessen
-#: Beschriftung (``web_chat.T._TEXT_INTERVIEW_AUS``), damit Text und Knopf
-#: nie verschieden heissen.
+#: Rekorder, beendet wird mit seinem Knopf. ``{stopp}`` ist die
+#: Beschriftung des Beenden-Knopfs, der WAEHREND der Aufnahme in der Leiste
+#: steht (``web_chat.T._TEXT_INTERVIEW_ENDEN``), damit Text und Knopf nie
+#: verschieden heissen.
 _TEXT_INTERVIEW_AN_WEB = (
     "Die Aufnahme läuft. Wenn das Interview vorbei ist, tippt auf „{stopp}“."
 )
@@ -385,7 +386,7 @@ def _interview_an_text(conn, chat_id: int) -> str:
         return T._TEXT_INTERVIEW_AN
     from interview_theater import web_chat
 
-    return T._TEXT_INTERVIEW_AN_WEB.format(stopp=web_chat.T._TEXT_INTERVIEW_AUS)
+    return T._TEXT_INTERVIEW_AN_WEB.format(stopp=web_chat.T._TEXT_INTERVIEW_ENDEN)
 
 
 def _befehl_fertig(conn, tg, klm, e, chat_id: int) -> None:

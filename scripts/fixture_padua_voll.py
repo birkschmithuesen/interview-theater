@@ -34,19 +34,28 @@ CHAT_ID_BASIS = 9_100_000_000_000
 
 INTERVIEW = Path("simulation/interviews/set1/2-ferzan-bahnhof.md")
 
-#: Je Gruppe gleich: Ankunft, Technik, Alltag. 26 Zeilen.
+#: Je Gruppe gleich: Ankunft, Technik, Alltag. 30 Zeilen.
 #:
 #: Reihenfolge seit P1-L7 (lesung.json 05.10., Fund Kategorie d, Datei
 #: ``01-gespraech-phase1``, Zeile 529): das Fenster (``kontext.FENSTER_NACHRICHTEN
 #: = 20``) schnitt hier so, dass es mit einer verwaisten Bot-Antwort begann
-#: ("In the work status tab...", die Frage davor war schon abgeschnitten),
-#: gefolgt von acht Zuegen reinem Rauschen (Handy schlaeft ein, "is anyone
-#: writing this down") -- der Pruefer las das faelschlich als Produktbefund
-#: zur Fensterbildung. Deshalb liegt das inhaltsfreie Rauschen jetzt GESCHLOSSEN
+#: ("In the Workbench...", die Frage davor war schon abgeschnitten), gefolgt
+#: von acht Zuegen reinem Rauschen (Handy schlaeft ein, "is anyone writing
+#: this down") -- der Pruefer las das faelschlich als Produktbefund zur
+#: Fensterbildung. Deshalb liegt das inhaltsfreie Rauschen jetzt GESCHLOSSEN
 #: am Anfang (dort, wo das Fenster ohnehin abschneidet) und die informativen
 #: InScribe-Saetze stehen am Ende, in sich abgeschlossen -- keine Antwort ohne
 #: ihre Frage im selben Fenster (gemessen in ``fensterbefund``/Testfall
 #: "test_fenster_beginnt_nicht_mit_verwaistem_rauschen").
+#:
+#: Runde-2-Befund (c569/b647 und d566/d642, lesung.json 05.10.): die vier
+#: InScribe-Erklaersaetze zu Transkript/CoThinker/Sprache/Workshopdauer
+#: standen ohne eine einzige Gruppen-Nachricht dazwischen direkt
+#: hintereinander -- eine echte Gruppe fragt zwischendurch, sie bekommt nicht
+#: vier Bot-Zuege am Stueck. Jetzt hat jede der vier Antworten ihre eigene
+#: Frage davor. Dieselbe Lesung fand "In the work status tab..." -- die
+#: Fixture erfand den Namen; die Oberflaeche nennt dieselbe Sache ueberall
+#: "Workbench" (``sprachen/en/texte.toml``, ``stand = "Workbench"``).
 _GRUNDVERLAUF = (
     ("Giulia", "ok we are all here, three phones on the table"),
     ("Marco", "the wifi in this room is terrible btw"),
@@ -65,12 +74,16 @@ _GRUNDVERLAUF = (
     ("Chiara", "the bot is"),
     ("Marco", "right"),
     ("Giulia", "ok"),
+    ("Chiara", "does the transcript show up somewhere?"),
     ("InScribe", "Good. The transcript runs live in the chat - check it once."),
+    ("Marco", "and if i close that tab?"),
     ("InScribe", "Then you see the CoThinker tab. Nothing is lost if you close it."),
+    ("Luca", "can it understand italian too?"),
     ("InScribe", "Yes. The recording understands both; I answer in English."),
+    ("Giulia", "is today the only day we do this?"),
     ("InScribe", "No. The workshop runs five days; today is the first."),
     ("Luca", "wait, where do i see what we already decided?"),
-    ("InScribe", "In the work status tab. Everything saved is there."),
+    ("InScribe", "In the Workbench. Everything saved is there."),
     ("Luca", "ah ok"),
     ("Giulia", "ok can we go on"),
     ("InScribe", "Of course. Go ahead."),
@@ -625,26 +638,40 @@ def _iso(minuten: float) -> str:
     return (BASIS + timedelta(minutes=minuten)).isoformat(timespec="seconds")
 
 
-#: Minutenschritt der ersten Haelfte in ``_zeitpunkte``. Gemessen (nicht
-#: geraten) gegen die tatsaechliche Zeilenzahl dieser Fixture: mit 5 oder 10
-#: Minuten liegt die aelteste der letzten zwanzig Nachrichten noch keine 30
-#: Minuten vor der juengsten, und ``kontext.FENSTER_MINUTEN`` schneidet nie.
-#: Erst ab 25 liegt dieser Abstand zuverlaessig darueber (siehe
-#: ``fensterbefund`` / Testfall "minuten").
+#: Minutenschritt des weit auseinanderliegenden Teils in ``_zeitpunkte``.
+#: Gemessen (nicht geraten) gegen die tatsaechliche Zeilenzahl dieser Fixture:
+#: mit 5 oder 10 Minuten liegt die aelteste der letzten zwanzig Nachrichten
+#: noch keine 30 Minuten vor der juengsten, und ``kontext.FENSTER_MINUTEN``
+#: schneidet nie. Erst ab 25 liegt dieser Abstand zuverlaessig darueber
+#: (siehe ``fensterbefund`` / Testfall "minuten").
 _ZEITSCHRITT_MINUTEN = 25.0
+
+#: Groesse des dichten (0.5-Minuten-Schritt) Teils am Ende -- knapp unter
+#: ``kontext.FENSTER_NACHRICHTEN`` (20), nicht die halbe Zeilenzahl: R3-5
+#: (feedbackloop-p12-2026-10-05.md, Runde 3) fuegte der Fixture zusaetzliche
+#: Zuege hinzu (vier Fragen vor den vier InScribe-Antworten, damit die
+#: Historie nicht mit vier Bot-Zuegen in Folge beginnt) und ein Split auf
+#: Zeilenhaelfte haette dann fuer JEDE Gruppe mehr als zwanzig dichte Zuege
+#: am Ende ergeben -- die letzten zwanzig Nachrichten laegen dann alle unter
+#: 10 Minuten auseinander und ``minuten`` als Fenstergrund waere fuer KEINE
+#: Gruppe mehr erreichbar. Mit einer festen Groesse hier bleibt mindestens
+#: ein weit auseinanderliegender Zug unter den letzten zwanzig, unabhaengig
+#: davon, wie viele Zuege insgesamt dazukommen.
+_HINTEN_ANZAHL = 19
 
 
 def _zeitpunkte(anzahl: int) -> list[float]:
     """Minutenversaetze fuer ``anzahl`` Zuege -- vorne weit, hinten dicht.
 
-    Die erste Haelfte liegt in ``_ZEITSCHRITT_MINUTEN``-Schritten (deutlich
-    mehr als ``kontext.FENSTER_MINUTEN`` vor dem Ende), die zweite in halben
-    Minuten. Damit greift die weiche Minutengrenze, ohne dass das Fenster
-    leer wird (``FENSTER_MIN_NACHRICHTEN``)."""
-    haelfte = anzahl // 2
-    vorne = [i * _ZEITSCHRITT_MINUTEN for i in range(haelfte)]
+    Der vordere Teil liegt in ``_ZEITSCHRITT_MINUTEN``-Schritten (deutlich
+    mehr als ``kontext.FENSTER_MINUTEN`` vor dem Ende), der hintere (hoechstens
+    ``_HINTEN_ANZAHL`` Zuege) in halben Minuten. Damit greift die weiche
+    Minutengrenze, ohne dass das Fenster leer wird (``FENSTER_MIN_NACHRICHTEN``)."""
+    hinten_anzahl = min(_HINTEN_ANZAHL, anzahl)
+    vorne_anzahl = anzahl - hinten_anzahl
+    vorne = [i * _ZEITSCHRITT_MINUTEN for i in range(vorne_anzahl)]
     start = vorne[-1] + _ZEITSCHRITT_MINUTEN if vorne else 0.0
-    hinten = [start + i * 0.5 for i in range(anzahl - haelfte)]
+    hinten = [start + i * 0.5 for i in range(hinten_anzahl)]
     return vorne + hinten
 
 

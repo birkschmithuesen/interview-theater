@@ -294,24 +294,136 @@ def _ohne_weich_auftrag(anweisung: str) -> str:
 # Chat.
 
 
-def _zeilen_je_begriff(begriffe: list[str], zeilen: list[str]) -> dict[str, list[str]]:
-    """Gruppiert ``Begriff: Frage``-Zeilen nach den Begriffen der Gruppe --
-    case-insensitiver Abgleich wie ``fragenliste()``. Eine Zeile ohne
-    passenden Begriff faellt heraus: kein Begriff wird erfunden, keiner
-    stillschweigend einem falschen zugeschlagen. Die Rueckgabe normalisiert
-    die Gross-/Kleinschreibung des Begriffs auf die Schreibweise der
-    Gruppe."""
+#: Feedbackloop P1-2, P2-H2 (05.10.2026): was ein Modell um den Begriff herum
+#: schreibt, ohne dass es zum Begriff gehoert -- Markdown-Hervorhebung und
+#: Anfuehrungszeichen aller Art.
+_KOPF_ZIERDE = re.compile(r"[*_`\"'“”‘’«»„‚]")
+#: Trenner zwischen Begriff und Frage, in dieser Reihenfolge versucht: der
+#: verlangte Doppelpunkt, dann die Gedankenstriche, die Modelle stattdessen
+#: setzen (nur mit Leerzeichen drumherum -- "Self-image" bleibt ein Wort).
+_TRENNER = (":", " – ", " — ", " -- ", " - ")
+_ARTIKEL = ("the ", "a ", "an ")
+#: Ein Begriffskopf ist kurz; alles Laengere ist ein Satz, in dem zufaellig
+#: ein Doppelpunkt steht.
+_KOPF_MAX = 60
+
+
+def _kopfform(text: str) -> str:
+    """Ein Begriffskopf in Vergleichsform: ohne Zierde, klein, Whitespace
+    zu einem Leerzeichen, ohne Satzzeichen am Rand und ohne fuehrenden
+    englischen Artikel."""
+    roh = _platt(_KOPF_ZIERDE.sub("", text or "")).strip(" .,;:!?-–—")
+    for artikel in _ARTIKEL:
+        if roh.startswith(artikel):
+            roh = roh[len(artikel):]
+            break
+    return roh
+
+
+def _gleich(a: str, b: str) -> bool:
+    """Gleich bis auf ein Plural-s ("robot"/"robots", "box"/"boxes")."""
+    return a == b or a + "s" == b or b + "s" == a or a + "es" == b or b + "es" == a
+
+
+def _finde_begriff(kopf: str, begriffe: list[str]) -> str | None:
+    """Der Begriff der Gruppe, den ``kopf`` meint -- oder None. Erst
+    Gleichheit (bis auf Zierde, Gross-/Kleinschreibung, Artikel, Plural-s),
+    dann ein Begriff mit angehaengter Klammer ("Home (term 3)"); bei
+    mehreren Treffern gewinnt der laengste Begriff. Kein Enthalten-Abgleich
+    im Satz: "Tell me about home" ist eine Frage, kein Kopf."""
+    if not kopf.strip() or len(kopf) > _KOPF_MAX:
+        return None
+    form = _kopfform(kopf)
+    if not form:
+        return None
+    treffer = [b for b in begriffe if _gleich(form, _kopfform(b))]
+    if not treffer:
+        ohne_klammer = _kopfform(re.sub(r"\s*[(\[].*$", "", form))
+        if ohne_klammer and ohne_klammer != form:
+            treffer = [b for b in begriffe if _gleich(ohne_klammer, _kopfform(b))]
+    if not treffer:
+        return None
+    return max(treffer, key=len)
+
+
+def _teile_zeile(zeile: str, begriffe: list[str]) -> tuple[str | None, str]:
+    """(Begriff, Frage) einer Zeile -- der erste Trenner, dessen Kopf ein
+    Begriff ist, gewinnt. Ohne passenden Kopf ``(None, zeile)``."""
+    for trenner in _TRENNER:
+        kopf, gefunden, rest = zeile.partition(trenner)
+        if not gefunden:
+            continue
+        begriff = _finde_begriff(kopf, begriffe)
+        if begriff is not None:
+            # "**Home:** Frage" laesst die schliessenden Sternchen im Rest.
+            return begriff, re.sub(r"^[\s*_]+", "", rest).strip()
+    return None, zeile
+
+
+def _ist_fortsetzung(zeile: str, vorige: str) -> bool:
+    """Eine umbrochene Frage (das Beispiel im Prompt ist selbst umbrochen):
+    die vorige Zeile endet nicht mit einem Satzzeichen, oder diese beginnt
+    klein."""
+    return bool(zeile) and (zeile[0].islower() or vorige.rstrip()[-1:] not in ".?!…")
+
+
+def _hat_fremden_kopf(zeile: str) -> bool:
+    """Die Zeile traegt selbst einen kurzen Kopf ("Family: ...") -- einen
+    Begriff, den die Gruppe nicht hat. Sie gehoert dann nicht unter die
+    vorige Ueberschrift."""
+    kopf, trenner, rest = zeile.partition(":")
+    kopf = kopf.strip()
+    return bool(trenner and rest.strip() and kopf and len(kopf) <= 30
+                and len(kopf.split()) <= 4)
+
+
+def _ordne_zeilen(begriffe: list[str], zeilen: list[str]
+                  ) -> tuple[dict[str, list[str]], list[str]]:
+    """Ordnet Fragezeilen den Begriffen der Gruppe zu -- tolerant gegenueber
+    echter Modellausgabe (Feedbackloop P1-2, P2-H2: der exakte Praefix
+    "<Begriff>: " liess KI-Fragen aus dem A/B-Vergleich fallen).
+
+    Erkannt werden ``Begriff: Frage`` mit Zierde (fett, Anfuehrungszeichen),
+    anderer Schreibung, Artikel, Plural-s oder Gedankenstrich statt
+    Doppelpunkt; eine Zwischenueberschrift (Zeile nur mit dem Begriff), unter
+    der die Fragen ohne Kopf folgen; eine umbrochene Frage als Fortsetzung der
+    vorigen. Liefert ``(je_begriff, rest)``: ``rest`` sind die Zeilen ohne
+    erkennbaren Begriff -- kein Begriff wird erfunden, keine Frage einem
+    falschen zugeschlagen, aber auch keine weggeworfen."""
     je_begriff: dict[str, list[str]] = {b: [] for b in begriffe}
-    nachschlag = {b.lower(): b for b in begriffe}
+    rest: list[str] = []
+    aktuell: str | None = None
+    letzte: list[str] | None = None  # die Liste, in der die vorige Frage steht
     for zeile in zeilen:
-        kopf, trenner, rest = zeile.partition(":")
-        if not trenner or not rest.strip():
+        zeile = zeile.strip()
+        if not zeile:
             continue
-        begriff = nachschlag.get(kopf.strip().lower())
-        if begriff is None:
+        begriff, frage = _teile_zeile(zeile, begriffe)
+        if begriff is None and _finde_begriff(zeile, begriffe) is not None:
+            begriff, frage = _finde_begriff(zeile, begriffe), ""
+        if begriff is not None:
+            aktuell = begriff
+            if frage:
+                je_begriff[begriff].append(f"{begriff}: {frage}")
+                letzte = je_begriff[begriff]
+            else:
+                letzte = None  # Zwischenueberschrift
             continue
-        je_begriff.setdefault(begriff, []).append(f"{begriff}: {rest.strip()}")
-    return je_begriff
+        if letzte and _ist_fortsetzung(zeile, letzte[-1]):
+            letzte[-1] = f"{letzte[-1]} {zeile}"
+        elif aktuell is not None and not _hat_fremden_kopf(zeile):
+            je_begriff[aktuell].append(f"{aktuell}: {zeile}")
+            letzte = je_begriff[aktuell]
+        else:
+            rest.append(zeile)
+            letzte = rest
+    return je_begriff, rest
+
+
+def _zeilen_je_begriff(begriffe: list[str], zeilen: list[str]) -> dict[str, list[str]]:
+    """Die Zeilen je Begriff aus ``_ordne_zeilen``, in der Schreibweise der
+    Gruppe -- ohne die Zeilen, die keinem Begriff zuzuordnen sind."""
+    return _ordne_zeilen(begriffe, zeilen)[0]
 
 
 def _herkunft_liste(conn, chat_id: int) -> list[str]:
@@ -438,8 +550,8 @@ def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
         from interview_theater import vorschlag
 
         begriffe = begriffe_modul.zerlege(begriffe_feld)
-        eigene_je_begriff = _zeilen_je_begriff(begriffe, vorschlag.zeilen(eigene_roh))
-        ki_je_begriff = _zeilen_je_begriff(begriffe, vorschlag.zeilen(ki_roh))
+        eigene_je_begriff, eigene_rest = _ordne_zeilen(begriffe, vorschlag.zeilen(eigene_roh))
+        ki_je_begriff, ki_rest = _ordne_zeilen(begriffe, vorschlag.zeilen(ki_roh))
 
         zeilen: list[str] = []
         herkunft: list[str] = []
@@ -450,6 +562,19 @@ def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
             for zeile in ki_je_begriff.get(begriff, []):
                 zeilen.append(zeile)
                 herkunft.append("ki")
+        # P2-H2: was keinem Begriff zuzuordnen ist, steht am Ende, so wie es
+        # kam -- verloren geht keine Frage.
+        for zeile in eigene_rest:
+            zeilen.append(zeile)
+            herkunft.append("eigen")
+        for zeile in ki_rest:
+            zeilen.append(zeile)
+            herkunft.append("ki")
+        if not zeilen:
+            # Nichts zu vergleichen: nicht offenbaren. Eine leere
+            # ``fragen_auswahl`` liefe in "I don't know this selection any
+            # more" -- und bei jedem weiteren Versuch wieder.
+            return None
 
         repo.setze_arbeitsstand(conn, chat_id, "fragen_auswahl", "\n".join(zeilen))
         # Reset VOR dem Setzen von fragen_herkunft: seit dem Abschluss-Review
@@ -458,6 +583,11 @@ def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
         # wegwerfen, die gerade erst gebaut wurde.
         _reset_fragenrunde(conn, chat_id)
         repo.setze_arbeitsstand(conn, chat_id, "fragen_herkunft", ",".join(herkunft))
+
+        # R-3: "Suggest questions" (an der Wartezeile) und "We have more /
+        # Yes, suggest some" haben ab hier nichts mehr zu tun.
+        _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_VORSCHLAGEN)
+        _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_JA_VORSCHLAGEN)
 
         # Die EINE kurze Ueberleitungszeile (Korrektur-Wortlaut), danach der
         # bestehende Weg -- ``fragenliste``/``starte_durchgehen`` werden
@@ -496,13 +626,23 @@ def uebernimm_eigene(conn, tg, chat_id: int, wert: str, text: str | None = None)
     return _eigene_fertig(conn, tg, chat_id)
 
 
-def _eigene_fertig(conn, tg, chat_id: int) -> int:
+def _eigene_fertig(conn, tg, chat_id: int, klm=None, e=None) -> int:
     """Die Gruppe ist mit ihren eigenen Fragen fertig: einmal den Zeitpunkt
     merken, dann die Gegenueberstellung -- oder, solange die KI-Fragen noch
     im Hintergrund entstehen, eine Zeile; ``fragen_ki.starte`` offenbart
     nach seinem Lauf von selbst. Gemeinsamer Weg von "Own questions done."
     (``uebernimm_eigene``) und dem Knopf "Yes, suggest some"
-    (``ja_vorschlagen``)."""
+    (``ja_vorschlagen``).
+
+    Feedbackloop P1-2, R-3/P2-H2b: ist der Lauf beim Eintritt gescheitert
+    (kein ``fragen_ki_vorschlag``, keiner laeuft), stoesst ``fragen_ki.starte``
+    ihn hier neu an -- im eigenen Thread, kein Modellaufruf in diesem Weg
+    (Zusage 2), nie doppelt (``fragen_ki.versuche_start``). Ohne ``klm``
+    (der Chatweg) geht das nicht; deshalb traegt die Wartezeile den Knopf
+    "Suggest questions": scheitert auch dieser Lauf, fuehrt er ueber "Yes,
+    suggest some" zurueck hierher. Die Zeile geht VOR dem Start raus, damit
+    ein schneller Lauf ihre Leiste beim Offenbaren schon vorfindet und
+    abnimmt."""
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_VORSCHLAGEN)
     stand = repo.hole_arbeitsstand(conn, chat_id)
     try:
@@ -515,7 +655,12 @@ def _eigene_fertig(conn, tg, chat_id: int) -> int:
     ergebnis = versuche_gegenueberstellung(conn, tg, chat_id)
     if ergebnis is not None:
         return ergebnis
-    return tg.sende(chat_id, T._TEXT_FRAGEN_EIGENE_WARTET_AUF_KI)
+    message_id = sende_mit_vorschlagen(conn, tg, chat_id, T._TEXT_FRAGEN_EIGENE_WARTET_AUF_KI)
+    if klm is not None:
+        from interview_theater import fragen_ki
+
+        fragen_ki.starte(conn, tg, klm, e, chat_id)
+    return message_id
 
 
 # --- "Suggest questions" (Birk, 05.10.2026) -----------------------------------
@@ -599,10 +744,12 @@ def noch_eigene(conn, tg, chat_id: int) -> int:
     return tg.sende(chat_id, T._TEXT_FRAGEN_NOCH_EIGENE)
 
 
-def ja_vorschlagen(conn, tg, chat_id: int) -> int:
-    """"Yes, suggest some": derselbe Weg wie "Own questions done."."""
+def ja_vorschlagen(conn, tg, chat_id: int, klm=None, e=None) -> int:
+    """"Yes, suggest some": derselbe Weg wie "Own questions done." -- mit
+    ``klm``/``e``, damit ein gescheiterter KI-Lauf nachgeholt werden kann
+    (``_eigene_fertig``)."""
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_NOCH_EIGENE)
-    return _eigene_fertig(conn, tg, chat_id)
+    return _eigene_fertig(conn, tg, chat_id, klm=klm, e=e)
 
 
 # --- Frage fuer Frage --------------------------------------------------------
@@ -652,6 +799,10 @@ def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
 
     text = f"{kopf}\n\n{frage_text}"
 
+    # P2-H3 (Feedbackloop P1-2): nur die neueste Fragekarte ist bedienbar --
+    # nach einer Schaerfung stand sonst die alte Karte mit lebendem
+    # "Accept" darueber ("Which Accept belongs to the newest question?").
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGE_ANNEHMEN)
     leiste = [
         (T._TEXT_FRAGE_ANNEHMEN_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_ANNEHMEN, str(nummer)))),
@@ -718,7 +869,9 @@ def frage_waehlt_schaerfen(conn, tg, chat_id: int, nummer: int) -> str:
     eine aus Versehen verschobene Reihenfolge."""
     repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", str(nummer))
     tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
-    return T._TEXT_FRAGE_WAS_AENDERN
+    # P2-N1 (Feedbackloop P1-2): die Rueckfrage steht schon als Blase da --
+    # dieselbe Zeile noch einmal als Knopf-Quittung stand doppelt.
+    return ""
 
 
 def _starte_schaerfung(conn, tg, klm, e, chat_id: int, nummer: int, wunsch: str) -> None:
@@ -757,6 +910,14 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
         return tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
     zeilen = vorschlag.zeilen(frage_block)
     neue_frage = zeilen[0] if zeilen else frage_block.strip()
+    alte = _auswahlfragen(conn, chat_id)
+    if (neue_frage and nummer <= len(alte) and not weich_block
+            and _fragetext(neue_frage) == _fragetext(alte[nummer - 1])):
+        # P2-H3 (Feedbackloop P1-2): jede freie Nachricht zu einer offenen
+        # Frage ist ein Schaerfungswunsch -- auch "Does Accept save it?".
+        # Kommt die Frage unveraendert zurueck, stand dieselbe Karte bis zu
+        # dreimal untereinander. Die Karte darueber bleibt die bedienbare.
+        return tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
     if neue_frage:
         _setze_frage_zeile(conn, chat_id, nummer, neue_frage)
         # Aufgabe 13, Punkt 9: eine editierte KI-Frage wird markiert, eine
@@ -771,6 +932,12 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
         weich.pop(nummer, None)
     _setze_weich(conn, chat_id, weich)
     return _zeige_frage(conn, tg, chat_id, nummer)
+
+
+def _fragetext(zeile: str) -> str:
+    """Der Fragetext einer ``Begriff: Frage``-Zeile in Vergleichsform."""
+    _, trenner, rest = zeile.partition(":")
+    return _platt(rest if trenner and rest.strip() else zeile)
 
 
 def nimm_offene_frage_text(conn, tg, klm, e, chat_id: int, text: str) -> bool:

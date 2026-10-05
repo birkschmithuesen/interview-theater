@@ -797,8 +797,11 @@ def _wirkung_fragen_noch_eigene(conn, d: Druck) -> str:
 
 def _wirkung_fragen_ja_vorschlagen(conn, d: Druck) -> str:
     """"Yes, suggest some": die Gegenueberstellung mit den KI-Fragen, die
-    beim Eintritt in Phase 2 im Hintergrund entstanden sind."""
-    ja_vorschlagen(conn, d.tg, d.chat_id)
+    beim Eintritt in Phase 2 im Hintergrund entstanden sind. ``klm``/``e``
+    reichen durch, damit ein gescheiterter Lauf im Hintergrund nachgeholt
+    wird (Feedbackloop P1-2, R-3) -- der Modellaufruf selbst laeuft im
+    Thread von ``fragen_ki.starte``, nie hier."""
+    ja_vorschlagen(conn, d.tg, d.chat_id, klm=d.klm, e=d.e)
     return T._TEXT_FRAGE_ENTSCHIEDEN
 
 

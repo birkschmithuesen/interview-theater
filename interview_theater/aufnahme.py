@@ -634,7 +634,11 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
             return
         text = _transkribiere_mit_meldung(conn, tg, e, klient, row)
         if text is None:
-            return  # Fehler wurde schon gemeldet/aufgezeichnet
+            # Fehler wurde schon gemeldet/aufgezeichnet. Ist es endgueltig
+            # (leer oder aufgegeben) und war es der Ende-Schnitt einer
+            # Diskussion/eines Brainstorms, laeuft der Abschluss trotzdem.
+            _abschluss_trotz_verworfenem_ende(conn, tg, klm, e, aufnahme_id)
+            return
         melde_rueckkehr(conn, tg, e, row["chat_id"])
         repo.setze_transkript(conn, aufnahme_id, text)
         repo.setze_status(conn, aufnahme_id, "transkribiert")
@@ -1011,7 +1015,15 @@ def _diskussion_abschliessen(conn, tg, klm, e, row) -> None:
     unabhaengig davon, der EINE Verdichtungslauf (``diskussion.starte``)."""
     repo.setze_status(conn, row["id"], "fertig")
     _web_sprachblase(conn, row["chat_id"], row["message_id"], row["transkript"] or None)
+    _diskussion_entscheide(conn, tg, klm, e, row)
 
+
+def _diskussion_entscheide(conn, tg, klm, e, row) -> None:
+    """Die Entscheidung nach einem Diskussionssegment: Boardlauf, und beim
+    Ende-Schnitt Abschluss (Vorschlag/Rueckfall) und Verdichtung. Getrennt
+    von ``_diskussion_abschliessen``, weil sie seit 05.10.2026 auch nach
+    einem VERWORFENEN Ende-Segment laeuft
+    (``_abschluss_trotz_verworfenem_ende``)."""
     from interview_theater import begriffsboard  # lokaler Import, wie diskussion unten
 
     ende = row["schnittgrund"] == "ende"
@@ -1051,6 +1063,31 @@ def _warte_auf_offene_segmente(conn, e, row) -> None:
         time.sleep(ENDE_WARTEN_TAKT_S)
 
 
+def _abschluss_trotz_verworfenem_ende(conn, tg, klm, e, aufnahme_id: int) -> None:
+    """Birk, Live-Test 05.10.2026 (Gruppe 2, Aufnahme 36): das Segment von
+    "Discussion done" war leer (nur Stille nach dem Druck), wurde still
+    verworfen -- und weil nur ein fertig transkribiertes Segment je bei
+    ``_diskussion_abschliessen`` ankam, gab es keinen Schlusslauf, keine
+    Verdichtung, keinen Vorschlag: der Bot schwieg, der letzte Begriff kam
+    nie aufs Board. Seitdem: ist ein Ende-Segment endgueltig verworfen
+    (``status='fehlgeschlagen'`` -- leer oder nach ``MAX_VERSUCHE``), laeuft
+    derselbe Abschluss wie nach einem Ende-Segment mit Text; verworfen ist
+    nur das Segment selbst. Ein Zwischensegment bleibt still wie bisher, und
+    ein Segment, das noch einmal versucht wird (``empfangen``), wartet auf
+    seinen naechsten Anlauf. Dasselbe fuer den Brainstorm der Phase 4."""
+    row = repo.hole_aufnahme(conn, aufnahme_id)
+    if row is None or row["status"] != "fehlgeschlagen" or row["schnittgrund"] != "ende":
+        return
+    try:
+        if row["diskussion"]:
+            _diskussion_entscheide(conn, tg, klm, e, row)
+        elif row["brainstorm"]:
+            _brainstorm_entscheide(conn, tg, klm, e, row)
+    except Exception:
+        log.exception("Abschluss nach verworfenem Ende-Segment fehlgeschlagen, chat_id=%s",
+                      row["chat_id"])
+
+
 def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
     """Ein Segment des Knopfs "Brainstorm mithören" (Phase 4, nur Web,
     02.10.2026): bleibt ein stiller Gespraechsbeitrag der Gruppe -- die
@@ -1079,7 +1116,13 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
     # (B7) -- NUR die Anzeige: die ``nachricht``-Zeile bleibt
     # ``unterdrueckt``, kein Gespraechszug, kein Erkenner (siehe oben).
     _web_sprachblase(conn, row["chat_id"], row["message_id"], row["transkript"] or None)
+    _brainstorm_entscheide(conn, tg, klm, e, row)
 
+
+def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
+    """Die Code-Entscheidung nach einem Brainstorm-Segment (Buehnenkarte ja
+    oder nein) -- getrennt von ``_brainstorm_abschliessen`` aus demselben
+    Grund wie ``_diskussion_entscheide``."""
     ist_abschluss = row["schnittgrund"] == "ende"
     stand = repo.brainstorm_stand(conn, row["chat_id"])
     sekunden = stand["sekunden_seit_letzter_reaktion"]

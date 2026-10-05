@@ -1516,6 +1516,28 @@ def _entferne_arbeitsstandfeld(conn, chat_id: int, ziel: str) -> str | None:
     return T._FELD_BESCHRIFTUNG.get(feld, bezeichnung)
 
 
+def _entferne_einen_begriff(conn, chat_id: int, begriff: str) -> str | None:
+    """"BEGRIFFE noise": nur DIESEN Begriff aus der Liste nehmen, nicht das
+    ganze Feld leeren (Feedbackloop P1-2, Befund S5 -- "Removed: Terms" hatte
+    die ganze Liste geloescht). Verglichen ohne Gross-/Kleinschreibung; steht
+    der Begriff nicht in der Liste, passiert nichts (wie jedes "nicht
+    gefunden" in ``entferne``)."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    alt = [b.strip() for b in ((stand["begriffe"] if stand else None) or "").split(",")
+           if b.strip()]
+    gesucht = begriff.strip().casefold()
+    neu = [b for b in alt if b.casefold() != gesucht]
+    if len(neu) == len(alt):
+        return None
+    wert = ", ".join(neu) or None
+    repo.setze_arbeitsstand(conn, chat_id, "begriffe", wert)
+    from interview_theater import begriffsboard
+
+    begriffsboard.schreibe_detail(conn, chat_id, wert)
+    getroffen = next(b for b in alt if b.casefold() == gesucht)
+    return f"{T._FELD_BESCHRIFTUNG['begriffe']} ({getroffen})"
+
+
 def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | None:
     """Entfernt weich, was ``wert`` benennt (art ``entfernen``, NACHTRAG N3).
 
@@ -1559,7 +1581,9 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
         )
         return {"art": "entfernen", "wert": T._BEZEICHNUNG_FESTLEGUNG.format(text=alter_text)}
 
-    if ziel in _ENTFERNEN_ARBEITSSTAND:
+    if ziel == "begriffe" and rest:
+        bezeichnung = _entferne_einen_begriff(conn, chat_id, rest)
+    elif ziel in _ENTFERNEN_ARBEITSSTAND:
         bezeichnung = _entferne_arbeitsstandfeld(conn, chat_id, ziel)
     elif ziel == "figur":
         name = repo.entferne_figur(conn, chat_id, rest) if rest else None
@@ -3003,6 +3027,46 @@ def _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id: int, wirkliche: list
         log.exception("Phaseneintritt nach dem Erkennerlauf fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def _betrifft_begriffe(aenderung: dict) -> bool:
+    """``begriffe_setzen`` oder ``entfernen`` mit Ziel Begriffe."""
+    art = aenderung.get("art")
+    if art == "begriffe_setzen":
+        return True
+    if art != "entfernen":
+        return False
+    zerlegt = _zerlege_entfernen(str(aenderung.get("wert") or ""))
+    return zerlegt is not None and zerlegt[0] == "begriffe"
+
+
+def _haenge_an_zugquittung(conn, chat_id: int, zug_lauf: int | None,
+                           vorher: dict | None, nachher: dict | None,
+                           wirkliche: list[dict]) -> bool:
+    """Feedbackloop P1-2, Befund S5: der Gespraechszug hat die Begriffe
+    schon gespeichert und mit "Updated – saved ... Move on?" quittiert
+    (``knoepfe.basis._korrigiere_begriffe``); was der Erkenner auf derselben
+    Nachricht noch findet, ist die Transkriptkorrektur ("foam -> home"). Sie
+    kommt in den Lauf DIESER Quittung (``repo.haenge_an_erkenner_lauf``),
+    damit ihr eines Undo beides zuruecknimmt -- statt einer zweiten
+    "Noted:"-Nachricht mit zweitem Undo.
+
+    Nur fuer reine Transkriptkorrekturen; alles andere (ein Phasenwunsch,
+    eine Festlegung) bleibt eine eigene Meldung. False, wenn nicht
+    angehaengt wurde -- dann meldet der Aufrufer wie bisher."""
+    if zug_lauf is None or vorher is None or nachher is None or not wirkliche:
+        return False
+    if any(a.get("art") != "transkript_korrigieren" for a in wirkliche):
+        return False
+    try:
+        return repo.haenge_an_erkenner_lauf(
+            conn, zug_lauf, "\n".join(undo_zeilen(wirkliche)),
+            ruecknahme.schritte(vorher, nachher),
+        )
+    except Exception:
+        log.exception("Korrektur nicht an die Quittung des Zugs gehaengt, "
+                      "chat_id=%s, lauf_id=%s", chat_id, zug_lauf)
+        return False
+
+
 def laufe(klm, tg, conn, e, chat_id: int) -> None:
     """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
     melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5),
@@ -3030,6 +3094,13 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
 
         stapel = ([n["message_id"] for n in repo.unextrahierte(conn, chat_id)]
                   if ueberarbeitung.aktiv() else [])
+        # Feedbackloop P1-2, Befund S5: hat der Gespraechszug zu dieser
+        # Nachricht die Begriffe schon gespeichert und quittiert ("Updated –
+        # saved ... Move on?"), ist das die EINE Quittung -- vor ``erkenne``
+        # gefragt, das das Wasserzeichen weiterschiebt.
+        from interview_theater.knoepfe import basis as _basis
+
+        begriffe_im_zug, zug_lauf = _basis.nimm_begriffe_im_zug(conn, chat_id)
         aenderungen = erkenne(klm, conn, e, chat_id)
         if not aenderungen:
             return
@@ -3049,6 +3120,11 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             a for a in aenderungen
             if _ist_phasenpassend(conn, chat_id, a.get("art"))
         ])
+        if begriffe_im_zug:
+            # Die Liste des Zugs gilt -- der Erkenner liest dieselbe
+            # Nachricht nur ein zweites Mal und hat sie im Lauf schon einmal
+            # geleert ("noise comes off the list" -> entfernen BEGRIFFE).
+            freigegeben = [a for a in freigegeben if not _betrifft_begriffe(a)]
         # Der Stand VOR und NACH dem Anwenden, direkt um ``wende_an`` und
         # unter ``repo._LOCK`` -- Grundlage des Undo-Knopfs (Karte U).
         wirkliche, vorher, nachher = _wende_an_mit_schnappschuss(
@@ -3094,6 +3170,11 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # bei _starte_szene/_starte_kuerzung, kein Schreibpfad in wende_an.
         _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id, freigegeben)
         text = baue_meldung(wirkliche, conn, chat_id)
+        if text is not None and begriffe_im_zug and _haenge_an_zugquittung(
+                conn, chat_id, zug_lauf, vorher, nachher, wirkliche):
+            # Befund S5: die Transkriptkorrektur steht jetzt im Undo der
+            # schon gezeigten "Move on?"-Frage -- keine zweite Quittung.
+            text = None
         # Dieselbe Notiert-Zeile nicht zweimal (06.09.2026, Testgruppe
         # 21:50/21:52: derselbe Szenenfolge-Block stand wortgleich zweimal im
         # Chat). Gespeichert wurde in so einem Fall trotzdem korrekt -- nur

@@ -793,7 +793,56 @@ def _korrigiere_begriffe(conn, tg, chat_id: int, wert: str, vorspann: str,
     repo.schreibe_journal(
         conn, chat_id, "entschieden", f"{titel}: {wert}", quelle="knopf",
     )
+    _merke_begriffe_im_zug(conn, chat_id, lauf_id)
     return biete_begriffe_aktualisiert(conn, tg, chat_id, wert, lauf_id, vorspann)
+
+
+#: Feedbackloop P1-2, Befund S5 (05.10.2026): welche Gruppe ihre Begriffe in
+#: DIESEM Gespraechszug schon ueber den Vorschlagsblock gespeichert und
+#: quittiert hat (``_korrigiere_begriffe``, "Updated – saved ... Move on?").
+#: chat_id -> (message_id der Gruppennachricht, Lauf-id der Quittung).
+#: ``bot._zug_und_erkenner`` laesst danach den Erkenner auf DERSELBEN
+#: Nachricht laufen; der las sie ein zweites Mal ("Noted: Corrected: foam ->
+#: home", "Noted: Removed: Terms" -- und leerte dabei das Feld). Der Erkenner
+#: holt den Eintrag ab (``nimm_begriffe_im_zug``): eine Nachricht, ein Lauf.
+#: Im Prozess wie ``ablauf._notiz_verbraucht``; ein Neustart verliert ihn,
+#: dann kommt hoechstens die alte zweite Quittung.
+_begriffe_im_zug: dict[int, tuple[int, int | None]] = {}
+
+
+def _merke_begriffe_im_zug(conn, chat_id: int, lauf_id: int | None) -> None:
+    """Gebunden an die juengste Gruppennachricht, die der Erkenner noch lesen
+    wird (``repo.unextrahierte``) -- ohne sie (Aufruf ausserhalb eines
+    Gespraechszugs) gibt es keinen Merker."""
+    try:
+        ids = [n["message_id"] for n in repo.unextrahierte(conn, chat_id)
+               if not n["ist_bot"]]
+    except Exception:
+        log.exception("Begriffe-Merker nicht gesetzt, chat_id=%s", chat_id)
+        return
+    if not ids:
+        return
+    _begriffe_im_zug[chat_id] = (max(ids), lauf_id)
+
+
+def nimm_begriffe_im_zug(conn, chat_id: int) -> tuple[bool, int | None]:
+    """Hat der Gespraechszug zu einer der Nachrichten, die der Erkenner gleich
+    liest (``repo.unextrahierte`` -- also VOR ``erkenner.erkenne`` fragen,
+    das das Wasserzeichen weiterschiebt), die Begriffe schon gespeichert?
+    Liefert ``(ja, lauf_id)`` und raeumt den Eintrag in jedem Fall ab -- er
+    gilt fuer genau einen Erkennerlauf. Ohne Eintrag keine Abfrage."""
+    eintrag = _begriffe_im_zug.pop(chat_id, None)
+    if eintrag is None:
+        return False, None
+    ids = {n["message_id"] for n in repo.unextrahierte(conn, chat_id)}
+    if eintrag[0] not in ids:
+        return False, None
+    return True, eintrag[1]
+
+
+def vergiss_begriffe_im_zug() -> None:
+    """Fuer Tests: alle Merker abraeumen."""
+    _begriffe_im_zug.clear()
 
 
 def _sende_mit_grundleiste(

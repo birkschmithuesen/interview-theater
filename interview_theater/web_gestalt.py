@@ -52,11 +52,18 @@ from typing import NamedTuple
 
 from interview_theater import sprache
 
-#: Die zwei Entwuerfe aus ``docs/ux-padua/``.
-ENTWUERFE = ("a", "b")
+#: Die Entwuerfe aus ``docs/ux-padua/``. ``"c"`` (dunkel-violett + Salbei,
+#: Karte t_1599392a, 05.10.2026) ist ein reiner Farbtausch auf dem
+#: strukturellen Geruest von ``"b"`` -- alle Komponenten-Abweichungen
+#: (Tab-Ort, Knopfform, Akt-Moment, Skript-Satz) sind an ``== "a"`` geknuepft,
+#: nicht an einen festen Zweiersatz, und gelten fuer ``"c"`` deshalb wie
+#: fuer ``"b"``.
+ENTWUERFE = ("a", "b", "c")
 
 #: Welcher gilt, solange die Umgebung nichts anderes sagt. Gesetzt in
-#: Aufgabe 1 Schritt 5 aus ``docs/ux-padua/ENTWUERFE.md``.
+#: Aufgabe 1 Schritt 5 aus ``docs/ux-padua/ENTWUERFE.md``. **Bleibt ``"b"``**
+#: -- Entwurf ``"c"`` ist nur ueber ``IT_UX_ENTWURF=c`` erreichbar, nie
+#: automatisch aktiv (Karte t_1599392a: "nichts geht live ohne Birks OK").
 VORGABE_ENTWURF = "b"
 
 #: Die Umgebungsvariable, die umschaltet. Gelesen wird sie hier und nicht
@@ -147,6 +154,41 @@ TOKENS: dict[str, dict[str, str]] = {
         "takt-moment": "560ms",
         "vorhang-1": "#2a0f14",   # B: der Samt des Vorhangs
         "vorhang-2": "#3a161c",
+    },
+    # -- C: dunkel-violett + Salbei (Karte t_1599392a, Birk 05.10.2026) --
+    #    dasselbe Geruest wie B (Serife, Aktleiste/Tabs oben, runder Knopf),
+    #    nur der Farbsatz getauscht: tiefes Violett als Grund, Salbeigruen
+    #    als Signalfarbe, ein warmes Lavendel als Warnfarbe (bewusst kein
+    #    Gelb, das waere zu nah an B). ``rec`` bleibt klar rot -- Aufnahme
+    #    muss rot sein, unabhaengig vom Farbentwurf. Jedes Paar unten ist
+    #    gegen ``KONTRAST`` gerechnet (``tests/test_web_gestalt_tokens.py``).
+    "c": {
+        "grund": "#17121f",
+        "grund-2": "#201a2b",
+        "grund-3": "#2a2238",
+        "linie": "#3a3142",
+        "rand": "#8a7f93",
+        "text": "#f1ece6",
+        "text-leise": "#ab9fae",
+        "signal": "#9cb8a0",
+        "signal-tief": "#24332a",
+        "auf-signal": "#12101a",
+        "warn": "#c9b6dd",
+        "auf-warn": "#15101f",
+        "rec": "#c0362c",
+        "auf-rec": "#ffffff",
+        "radius": ".7rem",
+        "radius-gross": "1.1rem",
+        "tippflaeche": "2.75rem",
+        "rec-hoehe": "4.75rem",
+        "tabs-hoehe": "0rem",
+        "schrift-lesen": _SANS,
+        "schrift-tech": _MONO,
+        "schrift-skript": _SERIF,
+        "takt-schnell": "90ms",
+        "takt-moment": "560ms",
+        "vorhang-1": "#1f1730",   # C: der Samt des Vorhangs, violett
+        "vorhang-2": "#2d2240",
     },
 }
 
@@ -1417,40 +1459,69 @@ ul.wb-zeilen { list-style: none; padding-left: 0; margin: .1rem 0 .6rem; }
 dl.wb-begriffe dd { margin: 0 0 .3rem; }
 details.wb-journal { margin-top: 1.5rem; font-size: .9em; color: var(--text-leise); }
 """
-#: Der Padua-Stepper (BINDING ADDITION, Birk 03.10.2026 23:10): sieben
-#: nummerierte Segmente, Pfeile links/rechts der aktiven Phase, ein
-#: Bottom-Sheet statt der Zwei-Klick-Bewaffnung. Nur Theme-Tokens, keine
-#: rohen Hexfarben; ``--tippflaeche`` (2.75rem ≈ 44px) traegt jede
-#: Tipp-Flaeche, keine neue Groesse erfunden. ``.kommend`` daempft ueber
-#: ``--text-leise`` allein, NICHT zusaetzlich ueber ``opacity`` -- dieselbe
-#: Regel wie bei ``_SKRIPT_FLAECHEN`` oben ("opacity auf --text-leise
-#: faellt unter 4.5").
+#: Der Padua-Stepper (BINDING ADDITION, Birk 03.10.2026 23:10, dezenter seit
+#: 05.10.2026, Karte t_1599392a: "die Phasenknoepfe oben sind sehr fett. Kann
+#: wesentlich dezenter, Haupt-Navi ueber vor und zurueck mit Phasentitel,
+#: gern mit Nummer davor im selben Stil wie oben, mit Kasten drumherum, in
+#: klein."). Sieben nummerierte Segmente, Pfeile links/rechts der aktiven
+#: Phase, ein Bottom-Sheet statt der Zwei-Klick-Bewaffnung. Nur
+#: Theme-Tokens, keine rohen Hexfarben; ``--tippflaeche`` (2.75rem ≈ 44px)
+#: traegt jede Tipp-Flaeche, keine neue Groesse erfunden. ``.kommend``
+#: daempft ueber ``--text-leise`` allein, NICHT zusaetzlich ueber
+#: ``opacity`` -- dieselbe Regel wie bei ``_SKRIPT_FLAECHEN`` oben ("opacity
+#: auf --text-leise faellt unter 4.5").
+#:
+#: **Die Trennung von Tippflaeche und sichtbarer Groesse ist der Kern der
+#: Dezenz-Aenderung** (WCAG 2.5.8): ``.stepper-segment`` (das ``<li>``, und
+#: ebenso der Pfeilknopf) behaelt ``min-height``/``min-width: var(--tippflaeche)``
+#: als UNSICHTBARE Hit-Area -- nur ``.stepper-marke``/``.phasenav-nummer``
+#: DARIN ist die sichtbare kleine Box (duenne Linie, kein vollflaechiger
+#: Hintergrund, kein 700er-Gewicht), zentriert ueber Flexbox. Dieselbe Box
+#: traegt jetzt auch die Phasennummer in der Haupt-Navi-Zeile, mit denselben
+#: drei Zustandsklassen (``erledigt``/``aktiv``/``kommend``) wie der Stepper
+#: selbst -- eine Vorphase ist immer erledigt, eine Folgephase immer
+#: kommend, die aktuelle traegt die Akzentfarbe. ``test_tapflaeche_mindestens_44px``
+#: (``tests/e2e/test_web_phasenstepper_e2e.py``) misst weiterhin
+#: ``.stepper-segment`` selbst, nicht ``.stepper-marke`` -- die sichtbare
+#: Verkleinerung aendert daran nichts.
 _STEPPER = """
 header.phasenav { position: sticky; top: 0; z-index: 4;
                    background: var(--grund); border-bottom: 1px solid var(--linie);
-                   padding: .5rem .75rem; display: flex; flex-direction: column;
-                   gap: .35rem; max-width: 44rem; margin: 0 auto; width: 100%;
+                   padding: .4rem .75rem .5rem; display: flex; flex-direction: column;
+                   gap: .15rem; max-width: 44rem; margin: 0 auto; width: 100%;
                    box-sizing: border-box; }
-.stepper { display: flex; gap: .3rem; list-style: none; margin: 0; padding: 0;
+.stepper { display: flex; gap: .15rem; list-style: none; margin: 0; padding: 0;
            justify-content: space-between; }
 .stepper-segment { flex: 1 1 0; min-height: var(--tippflaeche);
                     min-width: var(--tippflaeche); display: flex;
                     align-items: center; justify-content: center;
-                    border-radius: var(--radius); border: 1px solid var(--rand);
-                    background: var(--grund-2); color: var(--text-leise);
-                    cursor: pointer; font-family: var(--schrift-tech); }
-.stepper-segment.erledigt { color: var(--signal); border-color: var(--signal); }
-.stepper-segment.aktiv { color: var(--auf-warn); background: var(--warn);
-                          border-color: var(--warn); font-weight: 700; }
+                    background: transparent; border: 0; padding: 0;
+                    cursor: pointer; }
+.stepper-marke, .phasenav-nummer {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 1.6rem; min-width: 1.6rem; padding: 0 .3rem; box-sizing: border-box;
+    border-radius: var(--radius); border: 1px solid var(--linie);
+    color: var(--text-leise); background: transparent;
+    font-family: var(--schrift-tech); font-size: .8rem; font-weight: 400;
+    line-height: 1; }
+.stepper-segment.erledigt .stepper-marke, .phasenav-nummer.erledigt {
+    color: var(--signal); border-color: var(--signal); }
+.stepper-segment.aktiv .stepper-marke, .phasenav-nummer.aktiv {
+    color: var(--warn); border-color: var(--warn); background: var(--grund-3); }
 .phasenav-zeile { display: flex; align-items: center; justify-content: space-between;
-                   gap: .4rem; }
+                   gap: .4rem; padding: .2rem 0; }
 .phasenav-zurueck, .phasenav-vor {
-    min-height: var(--tippflaeche); font: inherit; background: transparent;
-    color: var(--signal); border: 0; padding: 0 .3rem; cursor: pointer;
+    min-height: var(--tippflaeche); font: inherit; font-size: .95rem;
+    background: transparent; color: var(--signal); border: 0; padding: 0 .2rem;
+    cursor: pointer; display: inline-flex; align-items: center; gap: .3rem;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
-.phasenav-aktuell { color: var(--text); font-weight: 600; text-align: center;
-                     flex: 1 1 auto; min-width: 0; overflow: hidden;
-                     text-overflow: ellipsis; white-space: nowrap; }
+.phasenav-pfeil { flex: 0 0 auto; }
+.phasenav-name { overflow: hidden; text-overflow: ellipsis; }
+.phasenav-aktuell { display: inline-flex; align-items: center; justify-content: center;
+                     gap: .4rem; color: var(--text); font-weight: 600;
+                     font-size: 1.05rem; text-align: center;
+                     flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.phasenav-aktuell .phasenav-name { text-overflow: ellipsis; white-space: nowrap; }
 .stepper-hinweis { font-size: .82rem; color: var(--text-leise); margin: 0; }
 .sheet { position: fixed; inset: 0; z-index: 11; display: flex;
          align-items: flex-end; }

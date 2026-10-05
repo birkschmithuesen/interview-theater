@@ -19,16 +19,16 @@ FARBE = re.compile(r"^#[0-9a-f]{6}$")
 # -- Vollstaendigkeit --------------------------------------------------------
 
 
-def test_es_gibt_genau_zwei_entwuerfe():
-    assert web_gestalt.ENTWUERFE == ("a", "b")
+def test_es_gibt_genau_drei_entwuerfe():
+    assert web_gestalt.ENTWUERFE == ("a", "b", "c")
     assert set(web_gestalt.TOKENS) == set(web_gestalt.ENTWUERFE)
 
 
-def test_beide_entwuerfe_tragen_dieselben_tokennamen():
+def test_alle_entwuerfe_tragen_dieselben_tokennamen():
     """Sonst waere der Tausch kein Tausch: eine Regel des
     Komponenten-CSS liefe beim anderen Entwurf ins Leere."""
-    a, b = web_gestalt.TOKENS["a"], web_gestalt.TOKENS["b"]
-    assert set(a) == set(b), set(a) ^ set(b)
+    a, b, c = web_gestalt.TOKENS["a"], web_gestalt.TOKENS["b"], web_gestalt.TOKENS["c"]
+    assert set(a) == set(b) == set(c), (set(a) ^ set(b)) | (set(b) ^ set(c))
 
 
 @pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
@@ -110,7 +110,7 @@ def test_die_umgebung_schaltet_um(monkeypatch):
     assert web_gestalt.entwurf() == "b"
 
 
-@pytest.mark.parametrize("wert", ["", "c", "A B", "0"])
+@pytest.mark.parametrize("wert", ["", "d", "A B", "0"])
 def test_ein_unbekannter_wert_faellt_auf_die_vorgabe_zurueck(monkeypatch, wert):
     """Ein Tippfehler in einer Env-Datei soll am Workshoptag keine
     ungestylte Seite ergeben."""
@@ -121,6 +121,16 @@ def test_ein_unbekannter_wert_faellt_auf_die_vorgabe_zurueck(monkeypatch, wert):
 def test_grossschreibung_ist_egal(monkeypatch):
     monkeypatch.setenv(web_gestalt.UMGEBUNG, "B")
     assert web_gestalt.entwurf() == "b"
+
+
+def test_entwurf_c_ist_nur_per_umgebung_erreichbar(monkeypatch):
+    """Karte t_1599392a: Entwurf C geht nicht live, ohne dass jemand es
+    ausdruecklich anfordert -- die Vorgabe bleibt B."""
+    monkeypatch.delenv(web_gestalt.UMGEBUNG, raising=False)
+    assert web_gestalt.VORGABE_ENTWURF == "b"
+    assert web_gestalt.entwurf() != "c"
+    monkeypatch.setenv(web_gestalt.UMGEBUNG, "c")
+    assert web_gestalt.entwurf() == "c"
 
 
 # -- Der ausgegebene Block ---------------------------------------------------

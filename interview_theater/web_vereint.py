@@ -1852,9 +1852,15 @@ def _stepper_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
     def pfeil(ziel, richtung, css_klasse):
         if ziel is None:
             return f'<span class="{css_klasse}" aria-hidden="true"></span>'
-        pfeilzeichen = "‹ " if richtung == -1 else " ›"
-        text = (f"{pfeilzeichen}{html.escape(ziel['name'])}" if richtung == -1
-                else f"{html.escape(ziel['name'])}{pfeilzeichen}")
+        zustand = "erledigt" if ziel["nummer"] < aktiv["nummer"] else "kommend"
+        pfeil_span = (
+            f'<span class="phasenav-pfeil" aria-hidden="true">'
+            f'{"‹" if richtung == -1 else "›"}</span>'
+        )
+        nummer_span = f'<span class="phasenav-nummer {zustand}">{ziel["nummer"]}</span>'
+        name_span = f'<span class="phasenav-name">{html.escape(ziel["name"])}</span>'
+        text = (f'{pfeil_span}{nummer_span}{name_span}' if richtung == -1
+                else f'{nummer_span}{name_span}{pfeil_span}')
         if not klickbar:
             return f'<span class="{css_klasse}">{text}</span>'
         fehlt_text = ", ".join(ziel.get("fehlt") or ())
@@ -1904,7 +1910,10 @@ def _stepper_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
         f'<ol class="stepper" role="list">{"".join(segmente)}</ol>'
         f'<div class="phasenav-zeile">'
         f'{pfeil(vorherige, -1, "phasenav-zurueck")}'
-        f'<span class="phasenav-aktuell">{html.escape(aktiv["bezeichnung"])}</span>'
+        f'<span class="phasenav-aktuell">'
+        f'<span class="phasenav-nummer aktiv">{aktiv["nummer"]}</span>'
+        f'<span class="phasenav-name">{html.escape(aktiv["name"])}</span>'
+        f'</span>'
         f'{pfeil(naechste, 1, "phasenav-vor")}'
         f'</div>'
         f'<p id="ux-naechstes" hidden></p>'

@@ -198,3 +198,19 @@ def test_system_en_erklaert_diskussion_und_begriffe_detail_koepfe():
     text = (EN / "system.md").read_text(encoding="utf-8")
     assert "From your term discussion:" in text
     assert "Why you chose these terms:" in text
+
+
+def test_system_en_frage_vor_vorschlag_ist_keine_pflicht_je_nachricht():
+    """Lesung Runde 3 (05.10.2026), Prompt-Check Klasse A
+    (``docs/prompt-audit/2026-10-05-padua-p12-r3/lesung-p1.json``, Zeile
+    115): 'In EVERY phase: ONE open question about the group's idea' liest
+    sich als Pflichtfrage je Nachricht -- Widerspruch zu UX-Regel 4 ('No
+    mandatory question per thought ... The bot may say nothing') und zu
+    Zeile 536 ('only when it helps -- never as a closing line'). Die
+    Formulierung ist jetzt dieselbe 'at most one question'-Zusage wie an
+    Zeile 75 (R3-2), nicht ein zweites Mal wortgleich hingeschrieben."""
+    roh = (EN / "system.md").read_text(encoding="utf-8")
+    text = " ".join(roh.split())
+    assert "In EVERY phase: ONE open" not in roh
+    assert "a message may also end without one" in text.lower()
+    assert text.lower().count("at most one") >= 2

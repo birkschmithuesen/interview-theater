@@ -40,3 +40,16 @@ def test_phase1_behaelt_den_vorschlag_begriffe_marker_fuer_chat_korrekturen():
     die Rahmenerzaehlung aendert sich."""
     text = DATEI.read_text(encoding="utf-8")
     assert "VORSCHLAG BEGRIFFE:" in text
+
+
+def test_phase1_begriffe_block_nur_mit_eigenem_wortlaut_der_gruppe():
+    """Lesung Runde 3 (05.10.2026), Prompt-Check Klasse A
+    (``docs/prompt-audit/2026-10-05-padua-p12-r3/lesung-p1.json``, Zeile
+    526): 'It is saved automatically; without a block nothing is saved'
+    sagt nicht, WAS in den Block darf -- UX-Regel 1 ('Bot proposals are
+    never saved as decisions. Only what the group said or confirmed is
+    saved.') braucht einen eigenen Satz, sonst speichert der Autosave
+    eine Erfindung des Bots als Begriffs-Entscheidung."""
+    text = " ".join(DATEI.read_text(encoding="utf-8").split())
+    assert "without a block nothing is saved" in text
+    assert "wording the group itself said or confirmed" in text

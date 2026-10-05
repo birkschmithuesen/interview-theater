@@ -1472,6 +1472,33 @@ def bearbeite(conn, tg, klm, e, chat_id: int, hinweis: str | None = None) -> Non
 _AUFTRAG_KOPF = "Deine Aufgabe in genau diesem Zug:"
 
 
+#: Die Anweisung des Auftragszugs, dessen Antwort in DIESEM Thread gerade
+#: abgeliefert wird (S1-Review, Feedbackloop P1-2): eine Schaerfung der
+#: Phase 2 laeuft ohne Sperre je Gruppe im eigenen Thread, waehrenddessen kann
+#: die Gruppe die Frage schon annehmen. ``fragen.uebernimm_schaerfung`` ordnet
+#: die spaete Antwort darueber der Frage zu, fuer die sie gestartet wurde --
+#: nicht der, die inzwischen dasteht. Thread-lokal statt eines weiteren
+#: Parameters, weil ``starte_auftrag`` seine Signatur mit dem Simulator teilt.
+_LAUFENDER_AUFTRAG = threading.local()
+
+
+@contextmanager
+def laeuft_als_auftrag(anweisung: str):
+    """Rahmen um die Ablieferung einer Auftragsantwort (``auftragszug``)."""
+    vorher = getattr(_LAUFENDER_AUFTRAG, "anweisung", None)
+    _LAUFENDER_AUFTRAG.anweisung = anweisung
+    try:
+        yield
+    finally:
+        _LAUFENDER_AUFTRAG.anweisung = vorher
+
+
+def laufender_auftrag() -> str | None:
+    """Die Anweisung des Auftrags, dessen Antwort dieser Thread gerade
+    abliefert -- None ausserhalb von ``laeuft_als_auftrag``."""
+    return getattr(_LAUFENDER_AUFTRAG, "anweisung", None)
+
+
 def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
                 arbeitszeile: str | None = None,
                 arbeitsart: str | None = None) -> None:
@@ -1536,9 +1563,10 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         return
 
     try:
-        message_id, _ = knoepfe.sende_mit_speicherleiste(
-            conn, tg, chat_id, text, klm=klm, e=e,
-        )
+        with laeuft_als_auftrag(anweisung):
+            message_id, _ = knoepfe.sende_mit_speicherleiste(
+                conn, tg, chat_id, text, klm=klm, e=e,
+            )
         text = vorschlag.ohne_marker(text) or text
     except Exception:
         log.exception("Leiste am Auftragszug fehlgeschlagen, chat_id=%s", chat_id)

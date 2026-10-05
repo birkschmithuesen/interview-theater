@@ -1146,7 +1146,40 @@ def _starte_schaerfung(conn, tg, klm, e, chat_id: int, nummer: int, wunsch: str)
     anweisung = _ohne_weich_auftrag(T.ANWEISUNG_FRAGE_SCHAERFEN.format(
         nummer=nummer, frage=frage, wunsch=wunsch, sensibel_hinweis=sensibel_hinweis,
     ))
+    _merke_schaerfungsziel(chat_id, anweisung, nummer)
     _starte_auftrag(conn, tg, klm, e, chat_id, anweisung)
+
+
+#: Fuer welche Frage eine Schaerfung gestartet wurde, je (Gruppe, Anweisung)
+#: -- S1-Review (Feedbackloop P1-2): seit S1 traegt "Was soll sich aendern?"
+#: Annehmen/Verwerfen, waehrend die Schaerfung noch im Thread laeuft. Die
+#: spaete Antwort darf nicht die Frage ersetzen, die inzwischen dasteht.
+#: Im Speicher, weil auch der Thread nur im Speicher lebt (ein Neustart
+#: beendet beide); begrenzt, damit gescheiterte Auftraege nichts anhaeufen.
+_SCHAERFUNGSZIEL: dict[tuple[int, str], int] = {}
+_SCHAERFUNGSZIEL_MAX = 256
+_SCHAERFUNGSZIEL_LOCK = threading.Lock()
+
+
+def _merke_schaerfungsziel(chat_id: int, anweisung: str, nummer: int) -> None:
+    with _SCHAERFUNGSZIEL_LOCK:
+        _SCHAERFUNGSZIEL.pop((chat_id, anweisung), None)
+        _SCHAERFUNGSZIEL[(chat_id, anweisung)] = nummer
+        while len(_SCHAERFUNGSZIEL) > _SCHAERFUNGSZIEL_MAX:
+            del _SCHAERFUNGSZIEL[next(iter(_SCHAERFUNGSZIEL))]
+
+
+def _schaerfungsziel(chat_id: int) -> int | None:
+    """Die Frage, fuer die die gerade abgelieferte Antwort gestartet wurde --
+    None, wenn sie aus keinem Schaerfungsauftrag kommt (dann gilt wie bisher
+    die aktuelle Frage)."""
+    from interview_theater import ablauf  # lokal: Oberflaeche, Aufruf nach oben
+
+    anweisung = ablauf.laufender_auftrag()
+    if anweisung is None:
+        return None
+    with _SCHAERFUNGSZIEL_LOCK:
+        return _SCHAERFUNGSZIEL.get((chat_id, anweisung))
 
 
 def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
@@ -1172,7 +1205,11 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
     from interview_theater import vorschlag
 
     nummer = _aktuelle_offene_nummer(conn, chat_id)
-    if nummer is None:
+    ziel = _schaerfungsziel(chat_id)
+    if nummer is None or (ziel is not None and ziel != nummer):
+        # S1-Review: die Frage, fuer die geschaerft wurde, ist inzwischen
+        # entschieden -- die spaete Antwort ersetzt NICHT die naechste Frage
+        # und nimmt ihr auch die Leiste nicht ab.
         return tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
     zeilen = vorschlag.zeilen(frage_block)
     neue_frage = zeilen[0] if zeilen else frage_block.strip()

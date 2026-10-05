@@ -303,7 +303,268 @@ def _verdichter(conn, e, tg, klm, chats):
     return None
 
 
+def _joine(faden) -> None:
+    """Wartet auf einen Thread, den ein ``starte_*`` aufgemacht hat.
+
+    ``None`` heisst: es gab nichts anzustossen (Sperre, Vorbedingung) -- dann
+    faellt ``treibe`` mit ``TreiberFehler`` auf, und das ist richtig: ein
+    Dump, der still nicht entsteht, ist ein Loch im Check."""
+    if faden is not None and hasattr(faden, "join"):
+        faden.join(THREAD_FRIST_S)
+
+
+def _buehnenkarte(conn, e, tg, klm, chats):
+    from interview_theater import buehnenkarte
+
+    buehnenkarte.erzeuge(conn, e, klm, chats[4])
+    return None
+
+
+def _szenenfolge(conn, e, tg, klm, chats):
+    from interview_theater import szenenfolge
+
+    _joine(szenenfolge.starte(conn, tg, klm, e, chats[4], anzahl=3))
+    return None
+
+
+def _geschichte(conn, e, tg, klm, chats):
+    from interview_theater import szenenfolge
+
+    _joine(szenenfolge.starte_geschichte(conn, tg, klm, e, chats[4], anzahl=3))
+    return None
+
+
+def _szenenfelder(conn, e, tg, klm, chats):
+    """Treiber-Fund: die Fixture-Szenen der Phase-4-Gruppe haben bereits ALLE
+    Pflichtfelder (``ort``/``figuren``/``was_passiert``) -- ``form`` zaehlt in
+    Phase 4 nicht mit (``szene.fehlendes``: ``schreibt_prosa`` schliesst es
+    aus, solange die Phase <= 6 ist). ``szene_modul.fehlendes`` liefert also
+    ``([], [])``, und ``starte_feldvorschlag`` bricht ohne Aufruf ab
+    (``szenenfolge.py:1361``: ``if not fehlende: return None``). Ein Feld
+    wird deshalb hier im Treiber geleert -- nicht in der Fixture -- derselbe
+    Weg wie bei ``_sprechweise``."""
+    from interview_theater import szenenfolge
+
+    chat_id = chats[4]
+    ziel = repo.hole_szenen(conn, chat_id)[0]
+    repo.setze_szenenfeld(conn, ziel["id"], "was_passiert", None)
+    ziel = repo.hole_szenen(conn, chat_id)[0]
+    _joine(szenenfolge.starte_feldvorschlag(conn, tg, klm, e, chat_id, ziel))
+    return None
+
+
+def _schaerfung(conn, e, tg, klm, chats):
+    """Treiber-Fund: ``schaerfung.mappe`` nimmt ``(klm, conn, e, chat_id)`` --
+    **nicht** ``(conn, klm, e, chat_id, eintraege)`` wie im Brief-Entwurf. Die
+    Funktion holt ihr Material (``_eintraege``) selbst; ein zusaetzliches
+    Argument waere ein ``TypeError`` (verifiziert: ``schaerfung.py:197``)."""
+    from interview_theater import schaerfung
+
+    chat_id = chats[5]
+    schaerfung.mappe(klm, conn, e, chat_id)
+    return None
+
+
+def _entwurf(conn, e, tg, klm, chats):
+    from interview_theater import entwurf
+
+    entwurf.generiere_uebersicht(klm, conn, e, chats[5])
+    return None
+
+
+def _sprachprofil(conn, e, tg, klm, chats):
+    """Treiber-Fund: ``sprachprofil.erzeuge`` existiert nicht -- der
+    synchrone Modellaufruf heisst ``erstelle(klm, conn, e, figur_id)``
+    (verifiziert: ``sprachprofil.py:119``). ``starte`` waere der Thread-Weg
+    und hinge am selben Aufruf, nur ueber ``_lauf``; ``erstelle`` erreicht
+    ihn direkter."""
+    from interview_theater import sprachprofil
+
+    chat_id = chats[5]
+    aufnahme = repo.transkripte(conn, chat_id)[0]
+    figur = repo.figuren(conn, chat_id)[0]
+    repo.setze_figur_quelle(conn, figur["id"], aufnahme["id"])
+    sprachprofil.erstelle(klm, conn, e, figur["id"])
+    return None
+
+
+def _kernzitate(conn, e, tg, klm, chats):
+    """Treiber-Fund: ``kernzitate.waehle`` nimmt ``(klm, conn, e, chat_id)``
+    -- dieselbe Reihenfolge wie ``schaerfung.mappe``, nicht
+    ``(conn, klm, e, chat_id)`` wie im Brief-Entwurf (verifiziert:
+    ``kernzitate.py:179``)."""
+    from interview_theater import kernzitate
+
+    chat_id = chats[5]
+    repo.setze_arbeitsstand(conn, chat_id, "kernthema", "waiting and belonging")
+    repo.setze_arbeitsstand(
+        conn, chat_id, "kernfrage",
+        "When does a place you only waited in start to be yours?")
+    kernzitate.waehle(klm, conn, e, chat_id)
+    return None
+
+
+#: Die Regie-Notiz, mit der die Szenen- und Prosalaeufe gefahren werden.
+#: Erfunden, englisch, und genau der Satz aus dem Fixture-Verlauf der Phase 6
+#: -- so steht im Dump dieselbe Bitte, die die Gruppe im Chat geaeussert hat.
+NOTIZ_PROSA = "Elena should say something to him, a bit rude at first."
+NOTIZ_SZENE = "Rewrite scene 2."
+
+
+def _kurzgeschichte(conn, e, tg, klm, chats):
+    """Treiber-Fund: der Brief-Entwurf baute ``system``/``nutzer`` von Hand
+    und rief ``klm.prosa`` immer direkt -- das umgeht
+    ``szene_claude.ist_aktiv`` und haette in Padua (``szene_anbieter="claude"``,
+    AGENTS.md: Phase 6 schreibt ein Opus-Lauf) ``weg=infomaniak`` aufgezeichnet,
+    obwohl der echte Lauf ueber Claude ginge. ``kurzgeschichte.hole_text`` ist
+    der oeffentliche, synchrone \"nur der Modellaufruf\"-Weg
+    (``kurzgeschichte.py:425``): er baut dieselben zwei Texte und verzweigt
+    selbst auf ``szene_claude.prosa``/``klm.prosa`` -- echt statt nachgebaut,
+    passend zu ``weg=\"abgefangen\"`` in ``prompt_inventar``. Die Laengen-
+    Budgets (Padua: ``[laengen] aktiv = true``) kommen wie im echten
+    ``schreibe()`` aus ``budget_eintraege``."""
+    from interview_theater import kurzgeschichte
+
+    chat_id = chats[6]
+    eintraege = kurzgeschichte.budget_eintraege(
+        conn, chat_id, faktor=kurzgeschichte._faktor(conn, chat_id))
+    kurzgeschichte.hole_text(conn, klm, e, chat_id, NOTIZ_PROSA, eintraege=eintraege)
+    return None
+
+
+def _kurzgeschichte_kuerzer(conn, e, tg, klm, chats):
+    """Derselbe Fund wie ``_kurzgeschichte``, hier mit ``vorlage=True`` --
+    der Kuerzungslauf der Kuerzung.notiz_fuer_prosa ist dieselbe Aufrufstelle
+    wie 25, nur mit anderer Regie-Notiz (Grund in ``prompt_inventar.py``,
+    Eintrag ``03-kurzgeschichte-phase6``: \"Der Kuerzungslauf derselben
+    Stelle\")."""
+    from interview_theater import kuerzung, kurzgeschichte
+
+    chat_id = chats[6]
+    eintraege = kurzgeschichte.budget_eintraege(
+        conn, chat_id, faktor=kurzgeschichte._faktor(conn, chat_id))
+    kurzgeschichte.hole_text(
+        conn, klm, e, chat_id, kuerzung.notiz_fuer_prosa(), vorlage=True,
+        eintraege=eintraege)
+    return None
+
+
+def _szene(phase: int, form: str, auftrag: str, datei_art: str = "szene"):
+    """Ein Szenen-Dump je Form. ``weg="gebaut"`` (siehe Inventar): der live
+    verschickte Prompt IST ``systemanweisung(form, stil)`` plus
+    ``baue_nutzertext(..., system=system)`` (szene.py:2361-2362)."""
+    def treiber(conn, e, tg, klm, chats):
+        from interview_theater import szene as szene_modul
+
+        chat_id = chats[phase]
+        ziel = repo.hole_szenen(conn, chat_id)[1]
+        system = szene_modul.systemanweisung(
+            form, ziel["stil"] if "stil" in ziel.keys() else None)
+        nutzer = szene_modul.baue_nutzertext(
+            conn, chat_id, auftrag, ziel, e, system=system)
+        klm.prosa(chat_id, system, nutzer, datei_art)
+        return None
+    return treiber
+
+
+def _sprechweise(conn, e, tg, klm, chats):
+    """Treiber-Fund: die Fixture setzt ``figur.sprachstil`` fuer jede Figur
+    ab Phase 4 (``fixture_padua_voll.baue``, Block ``if phase >= 4``).
+    ``sprechweise.fehlende()`` ist dadurch fuer JEDE Gruppe leer, und
+    ``sprechweise._lauf`` ruft ohne eine fehlende Figur ueberhaupt kein
+    Modell (``sprechweise.py:166``: ``if fehlende(conn, chat_id):``). Eine
+    Figur wird deshalb hier im Treiber -- nicht in der Fixture -- auf
+    \"noch kein Stil\" zurueckgesetzt, derselbe Weg wie beim
+    Kernzitate-Treiber (``repo.setze_arbeitsstand`` direkt im Treiber)."""
+    from interview_theater import sprechweise
+
+    chat_id = chats[7]
+    figur = repo.figuren(conn, chat_id)[0]
+    repo.setze_figur_sprachstil(conn, figur["id"], None)
+    _joine(sprechweise.starte(conn, tg, klm, e, chat_id))
+    return None
+
+
+def _stueckpruefung(conn, e, tg, klm, chats):
+    from interview_theater import stueckpruefung
+
+    _joine(stueckpruefung.starte(conn, tg, klm, e, chats[7]))
+    return None
+
+
+def _richter(e, conn, chat_id):
+    """Der Richter, wie ihn der Prueflauf waehlt.
+
+    Kein eigener Code: ``fanout.waehle_richter`` entscheidet, und mit
+    ``szene_anbieter="claude"`` ist das Infomaniak-Modell (``e.llm_modell``)
+    -- die Gegenmassnahme gegen den Self-Enhancement Bias."""
+    from interview_theater.dramaturgie import fanout
+
+    return fanout.waehle_richter(e, conn, chat_id)
+
+
+def _dramaturgie(frage: str):
+    """Treiber-Fund: ``mechanik.lage`` existiert nicht -- die Funktion, die
+    eine ``Szenenlage`` liest, heisst ``mechanik.lies(conn, chat_id)``
+    (verifiziert: ``mechanik.py:343``). ``a6`` fehlt hier bewusst: es ist
+    in Padua strukturell unerreichbar (siehe ``prompt_inventar.py``,
+    Kommentar an der Stelle der frueheren ``37-dramaturgie-a6``) und steht
+    deshalb auch nicht mehr in ``TREIBER``.
+
+    ``a9`` braucht einen Hauptkonflikt (``mechanik.hauptkonflikt`` liest
+    ``arbeitsstand.hauptkonflikt`` -- ohne ihn liefert ``frage_a9`` sofort
+    ``None``, ``fanout.py:631``); die Fixture setzt das Feld nicht, also
+    setzt der Treiber es hier, genau wie beim Kernthema in
+    ``_kernzitate``."""
+    def treiber(conn, e, tg, klm, chats):
+        from interview_theater.dramaturgie import fanout, mechanik
+
+        phase = 7 if frage in ("a10", "c1") else 6
+        chat_id = chats[phase]
+        richter = _richter(e, conn, chat_id)
+        szenen = repo.hole_szenen(conn, chat_id)
+        if frage == "b1":
+            fanout.frage_b1(conn, e, klm, chat_id, richter, szenen[0])
+        elif frage == "a9":
+            repo.setze_arbeitsstand(
+                conn, chat_id, "hauptkonflikt",
+                "Samir's quiet refusal to ask for help versus his need for it")
+            konflikt = mechanik.hauptkonflikt(conn, chat_id)
+            fanout.frage_a9(conn, e, klm, chat_id, richter, szenen[0], konflikt)
+        elif frage == "a10":
+            fanout.frage_a10(conn, e, klm, chat_id, richter, szenen[0])
+        elif frage == "a11":
+            fanout.frage_a11(conn, e, klm, chat_id, richter)
+        elif frage == "a2":
+            fanout.frage_a2(conn, e, klm, chat_id, richter)
+        elif frage == "c1":
+            ziel = szenen[0]
+            figuren = [f["name"] for f in repo.figuren(conn, chat_id)]
+            # Treiber-Fund: C1_REPLIKEN_MIN = 6 (fanout.py:112) -- die
+            # Fixture-Szene hat nur zwei Repliken ("SAMIR: ...\nELENA: And?"),
+            # frage_c1 liefert darunter sofort None (fanout.py:1040). Ein
+            # reicherer Dialog wird deshalb hier im Treiber gesetzt, nicht in
+            # der Fixture -- derselbe Weg wie bei ``hauptkonflikt`` oben.
+            reich = (
+                "SAMIR: I did not expect anyone to notice me here.\n"
+                "ELENA: I notice everyone, eventually.\n"
+                "SAMIR: Three hours, maybe more.\n"
+                "ELENA: You could have asked for a coffee.\n"
+                "SAMIR: I rehearsed the words. They never came out.\n"
+                "ELENA: Next time, just point."
+            )
+            repo.aktualisiere_szene(
+                conn, ziel["id"], ziel["titel"], ziel["kurzbeschreibung"],
+                reich, prosa=ziel["prosa"])
+            repliken = mechanik.repliken(reich, figuren)
+            fanout.frage_c1(conn, e, klm, chat_id, richter, ziel["nummer"],
+                            repliken)
+        return None
+    return treiber
+
+
 TREIBER = {
+    # Phasen 1-3 (Task 6)
     "01-gespraech-phase1": _gespraech(1),
     "05-gespraech-phase2": _gespraech(2),
     "06-gespraech-phase3": _gespraech(3),
@@ -314,6 +575,39 @@ TREIBER = {
     "14-diskussion-verdichtung": _diskussion,
     "15-fragen-ki": _fragen_ki,
     "16-verdichter": _verdichter,
+    # Phase 4
+    "07-gespraech-phase4": _gespraech(4),
+    "17-buehnenkarte": _buehnenkarte,
+    "18-szenenfolge": _szenenfolge,
+    "19-geschichte": _geschichte,
+    "20-szenenfelder": _szenenfelder,
+    # Phase 5
+    "08-gespraech-phase5": _gespraech(5),
+    "21-schaerfung": _schaerfung,
+    "22-entwurf-uebersicht": _entwurf,
+    "23-sprachprofil": _sprachprofil,
+    "24-kernzitate": _kernzitate,
+    # Phase 6
+    "02-gespraech-phase6": _gespraech(6),
+    "25-kurzgeschichte": _kurzgeschichte,
+    "03-kurzgeschichte-phase6": _kurzgeschichte_kuerzer,
+    "04-szene-prosa-phase6": _szene(6, "prosa", NOTIZ_SZENE),
+    # Phase 7
+    "09-gespraech-phase7": _gespraech(7),
+    "27-sprechweise": _sprechweise,
+    "28-szene-dialog": _szene(7, "dialog", "Write scene 2."),
+    "29-szene-monolog": _szene(7, "monolog", "Write scene 2."),
+    "30-szene-chor": _szene(7, "chor", "Write scene 2."),
+    "31-szene-lied": _szene(7, "lied", "Write scene 2."),
+    "32-szene-rap": _szene(7, "rap", "Write scene 2."),
+    "34-stueckpruefung": _stueckpruefung,
+    # Die Richterfragen des Prueflaufs (a6 entfaellt, siehe _dramaturgie)
+    "35-dramaturgie-b1": _dramaturgie("b1"),
+    "36-dramaturgie-a2": _dramaturgie("a2"),
+    "38-dramaturgie-a9": _dramaturgie("a9"),
+    "39-dramaturgie-a10": _dramaturgie("a10"),
+    "40-dramaturgie-a11": _dramaturgie("a11"),
+    "41-dramaturgie-c1": _dramaturgie("c1"),
 }
 
 

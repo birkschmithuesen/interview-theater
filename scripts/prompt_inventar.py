@@ -149,15 +149,10 @@ INVENTAR = (
             "interview_theater.szenenfolge", "art"),
     Eintrag("19-geschichte", "geschichte", 4,
             "interview_theater.szenenfolge", "art",
-            weg="gebaut",
-            grund="Dieselbe Aufrufstelle wie 18; der Unterschied steckt "
-                  "allein in systemanweisung_geschichte/baue_nutzertext_"
-                  "geschichte, die der Treiber direkt ruft."),
+            weg="abgefangen", grund=""),
     Eintrag("20-szenenfelder", "szenenfelder", 4,
             "interview_theater.szenenfolge", "art",
-            weg="gebaut",
-            grund="Ebenfalls dieselbe Aufrufstelle; System- und Nutzertext "
-                  "baut starte_feldvorschlag inline (szenenfolge.py:1374)."),
+            weg="abgefangen", grund=""),
     # --- Phase 5
     Eintrag("21-schaerfung", "schaerfung", 5,
             "interview_theater.schaerfung", "ART"),
@@ -207,24 +202,31 @@ INVENTAR = (
     Eintrag("35-dramaturgie-b1", "dramaturgie_b1", 6,
             "interview_theater.dramaturgie.fanout", "art"),
     Eintrag("36-dramaturgie-a2", "dramaturgie_a2", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Dieselbe Aufrufstelle wie b1 (Richter.frage); der Treiber "
-                  "ruft frage_a2 und faengt dort ab."),
-    Eintrag("37-dramaturgie-a6", "dramaturgie_a6", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a6 (frage_a6)."),
+            "interview_theater.dramaturgie.fanout", "art",
+            weg="abgefangen", grund=""),
+    # 37-dramaturgie-a6 entfaellt (Task 7, Praezisierung von Task 3): kein
+    # Fixture-Inhalt kann einen Aufruf erzeugen. mechanik.tschechow_kandidaten
+    # liefert nur im Deutschen je ueberhaupt Kandidaten
+    # (mechanik.py: "if sprache.code() != sprache.DEUTSCH: return []"), und
+    # Padua laeuft fest auf Englisch (workshop/padua-2026/profil.toml:32,
+    # "sprache.code = \"en\""). fanout.pruefe ruft frage_a6 ausschliesslich
+    # mit genau diesem (immer leeren) Ergebnis (fanout.py:1328); ohne
+    # Kandidaten liefert frage_a6 sofort None, vor jeder Belegpflicht und vor
+    # jedem Modellaufruf (fanout.py:1019-1020). Die Aufrufstelle selbst
+    # (dramaturgie.fanout, art) bleibt ueber die anderen sechs Fragen
+    # abgedeckt -- kein eigener NICHT_LIVE_IN_PADUA-Eintrag noetig.
     Eintrag("38-dramaturgie-a9", "dramaturgie_a9", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a9 (frage_a9)."),
+            "interview_theater.dramaturgie.fanout", "art",
+            weg="abgefangen", grund=""),
     Eintrag("39-dramaturgie-a10", "dramaturgie_a10", 7,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a10 (frage_a10) -- ab Phase 7 die Formregeln."),
+            "interview_theater.dramaturgie.fanout", "art",
+            weg="abgefangen", grund=""),
     Eintrag("40-dramaturgie-a11", "dramaturgie_a11", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a11 (frage_a11)."),
+            "interview_theater.dramaturgie.fanout", "art",
+            weg="abgefangen", grund=""),
     Eintrag("41-dramaturgie-c1", "dramaturgie_c1", 7,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage c1 (frage_c1)."),
+            "interview_theater.dramaturgie.fanout", "art",
+            weg="abgefangen", grund=""),
 )
 
 #: Aufrufstellen, die in Padua NICHT live sind -- mit Grund, nicht nur mit

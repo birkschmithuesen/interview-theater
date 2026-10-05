@@ -11,14 +11,8 @@ import pytest
 from scripts import erzeuge_prompts_padua_voll as dump
 from scripts import prompt_inventar as inv
 
-#: Die Dumps, die Task 6 fahren muss. Task 7 setzt diese Liste auf
-#: ``[e.datei for e in inv.INVENTAR]`` hoch.
-TEIL1 = (
-    "01-gespraech-phase1", "05-gespraech-phase2", "06-gespraech-phase3",
-    "10-erkenner-verlauf", "11-erkenner-aufnahme", "12-journal",
-    "13-begriffsboard", "14-diskussion-verdichtung", "15-fragen-ki",
-    "16-verdichter",
-)
+#: Alle Dumps des Inventars -- Task 7 hebt die Teilliste aus Task 6 auf.
+ALLE = tuple(e.datei for e in inv.INVENTAR)
 
 
 def test_umgebung_spiegelt_den_padua_betrieb():
@@ -53,7 +47,7 @@ def test_kopfzeile_nennt_art_phase_weg_modell_und_quelle():
         assert stueck in zeile, stueck
 
 
-@pytest.mark.parametrize("name", TEIL1)
+@pytest.mark.parametrize("name", ALLE)
 def test_jeder_dump_entsteht_und_traegt_system_und_nutzertext(tmp_path, name):
     zeilen = dump.main_fuer_test(tmp_path, nur=[name])
     pfad = tmp_path / f"{name}.txt"
@@ -113,3 +107,78 @@ def test_das_skript_oeffnet_nie_betrieb():
     quelle = inspect.getsource(dump)
     for wort in ("betrieb/", "soap.db"):
         assert wort not in quelle, wort
+
+
+def test_alle_inventareintraege_haben_einen_treiber():
+    fehlend = [e.datei for e in inv.INVENTAR if e.datei not in dump.TREIBER]
+    assert not fehlend, fehlend
+
+
+def test_ein_voller_lauf_schreibt_jede_datei_und_die_uebersicht(tmp_path):
+    zeilen = dump.main_fuer_test(tmp_path)
+    assert len(zeilen) == len(inv.INVENTAR)
+    for eintrag in inv.INVENTAR:
+        assert (tmp_path / f"{eintrag.datei}.txt").exists(), eintrag.datei
+    kopf = (tmp_path / "uebersicht.tsv").read_text(
+        encoding="utf-8").splitlines()[0].split("\t")
+    assert kopf == list(dump.TSV_SPALTEN)
+
+
+def test_die_gespraechsdumps_tragen_blockanteile(tmp_path):
+    dump.main_fuer_test(tmp_path, nur=["07-gespraech-phase4"])
+    zeile = dict(zip(
+        dump.TSV_SPALTEN,
+        (tmp_path / "uebersicht.tsv").read_text(
+            encoding="utf-8").splitlines()[1].split("\t")))
+    for spalte in ("tok_system", "tok_status", "tok_verlauf",
+                   "tok_zusammenfassung"):
+        assert zeile[spalte] != "", spalte
+        assert int(zeile[spalte]) >= 0
+    assert int(zeile["tok_verlauf"]) > 0
+    assert int(zeile["tok_zusammenfassung"]) > 0
+
+
+def test_blockgruppen_decken_jeden_block_des_umrisses_ab():
+    """Sonst faellt ein Block still aus der Messung -- und genau das war
+    Befund C.1 des Audits vom 06.09.2026 (die Systemanweisung fehlte im
+    Umriss, also war ein Viertel des Prompts unvermessen)."""
+    from interview_theater import kontext
+
+    gruppiert = {name for namen in dump.BLOCKGRUPPEN.values() for name in namen}
+    assert set(kontext._REIHENFOLGE) == gruppiert, (
+        set(kontext._REIHENFOLGE) ^ gruppiert)
+
+
+def test_szene_und_kurzgeschichte_sind_als_gebaut_gekennzeichnet(tmp_path):
+    dump.main_fuer_test(tmp_path, nur=["28-szene-dialog"])
+    kopf = (tmp_path / "28-szene-dialog.txt").read_text(encoding="utf-8")
+    assert "quelle=gebaut" in kopf
+
+
+def test_die_fuenf_formen_liefern_fuenf_verschiedene_systemtexte(tmp_path):
+    namen = ["28-szene-dialog", "29-szene-monolog", "30-szene-chor",
+             "31-szene-lied", "32-szene-rap"]
+    dump.main_fuer_test(tmp_path, nur=namen)
+    texte = {
+        n: dump_system((tmp_path / f"{n}.txt").read_text(encoding="utf-8"))
+        for n in namen
+    }
+    assert len(set(texte.values())) == 5, "ein Regelblock je Form"
+
+
+def test_die_richterdumps_laufen_nicht_auf_dem_schreibermodell(tmp_path):
+    """Self-Enhancement Bias: der Richter ist nie das schreibende Modell
+    (dramaturgie/fanout.waehle_richter)."""
+    namen = [e.datei for e in inv.INVENTAR if e.art.startswith("dramaturgie_")]
+    dump.main_fuer_test(tmp_path, nur=namen)
+    for name in namen:
+        kopf = (tmp_path / f"{name}.txt").read_text(encoding="utf-8")
+        assert "weg=infomaniak" in kopf, name
+        assert "claude" not in kopf.splitlines()[1], name
+
+
+def test_phase7_szene_sieht_den_sprachstil_der_figuren(tmp_path):
+    """Padua M1: figur.sprachstil steht als eigene Zeile im Szenen-Prompt."""
+    dump.main_fuer_test(tmp_path, nur=["28-szene-dialog"])
+    text = (tmp_path / "28-szene-dialog.txt").read_text(encoding="utf-8")
+    assert "questions instead of statements" in text

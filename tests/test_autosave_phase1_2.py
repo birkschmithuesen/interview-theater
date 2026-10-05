@@ -23,6 +23,7 @@ monkeypatch abgefangen. Erfundenes Material."""
 import pytest
 
 from interview_theater import erkenner, knoepfe, phasen, repo, workshop
+from interview_theater.knoepfe import stationen
 
 from test_knoepfe import TelegramAttrappe, _druck
 
@@ -151,6 +152,36 @@ def test_begriffe_setzen_per_erkenner_bekommt_festgelegt_zeile_und_nur_undo(
     assert [b for b, _ in tg.knoepfe[-1][2]] == ["Rueckgaengig"]
 
 
+def test_begriffe_autosave_bietet_stille_phasenfrage_wenn_sprung_ausbleibt(
+    conn, tg, einst, padua_autosave, monkeypatch,
+):
+    """Mutationstest-Befund (Review t_e5b1df39, Karte t_c980f86c): der
+    Fallback-Zweig in ``_autospeichere`` -- "automatischer Sprung nicht
+    moeglich, also stille Phasenfrage anbieten"
+    (``if not uebergang_nach_speichern(...): _biete_phase_leise(...)``) --
+    lief in keinem der neun bisherigen Tests dieser Datei durch: ein
+    invertiertes "not" an dieser Zeile liess die Suite unveraendert gruen.
+
+    ``uebergang_nach_speichern`` wird hier auf ``False`` erzwungen -- das ist
+    die Grenze dieses Tests: OB er selbst richtig entscheidet, prueft
+    ``tests/test_knoepfe_navigation.py``; hier geht es nur um den Zweig
+    DANACH. Die Materiallage bleibt dabei echt: nach dem Schreiben der
+    Begriffe ist Phase 2 tatsaechlich erreichbar (``phasen.voraussetzungen``
+    braucht dafuer nur ``begriffe``), und die ungemockte
+    ``biete_phase_proaktiv`` zeigt das sichtbar an -- ein "Weiter zu"-Knopf,
+    derselbe Marker wie in ``tests/test_phasenende_eine_nachricht.py``."""
+    monkeypatch.setattr(stationen, "uebergang_nach_speichern", lambda *a, **k: False)
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit", e=einst,
+    )
+
+    # (a) kein automatischer Sprung -- die Phase bleibt stehen.
+    assert phasen.aktuelle(conn, 1) == 1
+    # (b) die stille Phasenfrage wurde angeboten: ein "Weiter zu"-Knopf.
+    assert any(b.startswith("Weiter zu") for b in _alle_beschriftungen(tg))
+
+
 # --- Phase 2: Eroeffnung, der Vorschlagsblock-Weg --------------------------
 
 
@@ -191,6 +222,36 @@ def test_eroeffnung_undo_nimmt_beide_felder_zurueck(conn, tg, einst, padua_autos
     stand = repo.hole_arbeitsstand(conn, 1)
     assert not (stand["interview_eroeffnung"] or "").strip()
     assert not (stand["interview_abschluss"] or "").strip()
+
+
+def test_eroeffnung_autosave_bietet_stille_phasenfrage_wenn_sprung_ausbleibt(
+    conn, tg, einst, padua_autosave, monkeypatch,
+):
+    """Dieselbe Luecke wie bei Begriffe (siehe
+    ``test_begriffe_autosave_bietet_stille_phasenfrage_wenn_sprung_ausbleibt``),
+    hier fuer den zweiten Fallback-Aufruf in
+    ``knoepfe.fragen.schreibe_eroeffnung_automatisch``.
+
+    Materiallage: ``fragen`` steht schon, ``fragen_weich`` ist auf einen
+    geprueften (leeren) Stand gesetzt -- die Phase-3-Pruefung zaehlt eine
+    leere Fassung als "geprueft, nichts noetig" (``phasen._feld_geprueft``).
+    Der Autosave selbst schreibt Eroeffnung UND Abschluss -- damit sind nach
+    diesem einen Aufruf alle vier Voraussetzungen von Phase 3 erfuellt, und
+    die ungemockte ``biete_phase_proaktiv`` hat wirklich etwas anzubieten.
+    ``uebergang_nach_speichern`` wird trotzdem erzwungen auf ``False``
+    gesetzt, um gezielt den Zweig DANACH zu pruefen, unabhaengig davon, ob
+    die echte Phasenlogik hier zufaellig denselben Weg naehme."""
+    phasen.setze(conn, 1, 2, "test")
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Wann warst du zuletzt fremd?")
+    repo.setze_arbeitsstand(conn, 1, "fragen_weich", "")
+    monkeypatch.setattr(stationen, "uebergang_nach_speichern", lambda *a, **k: False)
+
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, VORSCHLAG_EROEFFNUNG, e=einst)
+
+    # (a) kein automatischer Sprung -- die Phase bleibt stehen.
+    assert phasen.aktuelle(conn, 1) == 2
+    # (b) die stille Phasenfrage wurde angeboten: ein "Weiter zu"-Knopf.
+    assert any(b.startswith("Weiter zu") for b in _alle_beschriftungen(tg))
 
 
 # --- Dortmund/Vorgabeprofil bleibt unveraendert ----------------------------

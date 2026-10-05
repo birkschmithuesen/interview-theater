@@ -267,7 +267,9 @@ def main(argv: list | None = None) -> int:
 
         conn = db.verbinde(a.db)
         try:
-            db.initialisiere(conn)
+            # Kein ``db.initialisiere`` hier: das ist ein Schreibzugriff
+            # (Migration) VOR der Sicherung; die Betriebs-DB ist vom Bot
+            # laengst initialisiert (Review 05.10.2026).
             vorher = zustand(conn, a.chat_id)
             ergebnis = fuehre_aus(conn, a.db, a.chat_id, ki_neu=a.ki_neu)
         finally:

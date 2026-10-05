@@ -312,3 +312,81 @@ def test_fragenuebersicht_langer_begriff():
     stand = {"begriffe": lang, "fragen": f"{lang}: I social ti avvicinano?",
              "fragen_eigene_vorschlag": None, "fragen_herkunft_final": None}
     assert roadmap.fragenuebersicht(stand)[0]["fragen"] == ["I social ti avvicinano?"]
+
+
+# --- Review-Fix 05.10.2026: alte Karten, mehrere ✎, Wunsch nach Schaerfung ---
+
+
+def test_fertig_sortiert_nimmt_die_offene_karte_ab(conn, tg, auftraege, padua):
+    _auswahl(conn)
+    fragen.starte_durchgehen(conn, tg, CHAT, hinweis=False)
+    assert repo.offene_knoepfe(conn, CHAT, fragen.ART_FRAGE_ANNEHMEN)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,nein")
+    fragen.sortierung_abschliessen(conn, tg, None, None, CHAT)
+    assert not repo.offene_knoepfe(conn, CHAT, fragen.ART_FRAGE_ANNEHMEN)
+
+
+def test_alte_karte_nach_abschluss_startet_nichts_neu(conn, tg, auftraege, padua):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,nein")
+    fragen.sortierung_abschliessen(conn, tg, None, None, CHAT)
+    fertig = _feld(conn, "fragen")
+    vorher = len(tg.gesendet)
+    for wert in ("ja", "nein"):
+        assert fragen.entscheide(conn, tg, None, None, CHAT, 1, wert) \
+            == T._TEXT_FRAGEN_KEINE_AUSWAHL
+    assert fragen.frage_waehlt_schaerfen(conn, tg, CHAT, 1) == T._TEXT_FRAGEN_KEINE_AUSWAHL
+    assert _feld(conn, "fragen") == fertig
+    assert _feld(conn, "fragen_entschieden") is None
+    assert _feld(conn, "fragen_aktuell") is None
+    assert not _feld(conn, "fragen_warte_auf")
+    assert len(tg.gesendet) == vorher
+
+
+def test_druck_auf_nicht_aktuelle_karte_wird_ignoriert(conn, tg, auftraege, padua):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,ja")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_aktuell", "3")
+    assert fragen.entscheide(conn, tg, None, None, CHAT, 1, "nein") \
+        == T._TEXT_FRAGEN_KEINE_AUSWAHL
+    assert _feld(conn, "fragen_entschieden") == "ja,ja"
+    assert _feld(conn, "fragen_aktuell") == "3"
+
+
+def test_zwei_schaerfen_fragen_beide_mit_rueckfrage(conn, tg, auftraege, padua):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,schaerfen,nein,schaerfen,")
+    fragen.sortierung_abschliessen(conn, tg, None, None, CHAT)
+    assert _feld(conn, "fragen_aktuell") == "2"
+    assert fragen.nimm_offene_frage_text(conn, tg, None, None, CHAT, "kuerzer") is True
+    fragen.uebernimm_schaerfung(conn, tg, CHAT, "A: zwei kurz?", None)
+
+    fragen.entscheide(conn, tg, None, None, CHAT, 2, "ja")
+    assert _feld(conn, "fragen_aktuell") == "4"
+    texte = [t for _, t in tg.gesendet]
+    assert "vier?" in texte[-2] and texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
+    assert _feld(conn, "fragen_warte_auf") == "schaerfen"
+    assert fragen.nimm_offene_frage_text(
+        conn, tg, None, None, CHAT, "Could it be shorter?") is True
+    assert len(auftraege) == 2
+    fragen.uebernimm_schaerfung(conn, tg, CHAT, "A: vier kurz?", None)
+
+    fragen.entscheide(conn, tg, None, None, CHAT, 4, "ja")
+    assert _feld(conn, "fragen") == "A: eins?\nA: zwei kurz?\nA: vier kurz?\nA: fuenf?"
+
+
+def test_nach_schaerfung_ist_eine_frage_wieder_der_wunsch(conn, tg, auftraege, padua):
+    _karte_offen(conn)
+    assert fragen.nimm_offene_frage_text(conn, tg, None, None, CHAT, "make it shorter") is True
+    assert not _feld(conn, "fragen_warte_auf")
+    fragen.uebernimm_schaerfung(conn, tg, CHAT, "A: zwei kurz?", None)
+    assert _feld(conn, "fragen_warte_auf") == "schaerfen"
+    assert fragen.nimm_offene_frage_text(
+        conn, tg, None, None, CHAT, "Could it be shorter?") is True
+    assert len(auftraege) == 2
+
+
+def test_dortmund_schaerfung_wartet_nicht(conn, tg, auftraege, dortmund):
+    _karte_offen(conn)
+    fragen.uebernimm_schaerfung(conn, tg, CHAT, "A: zwei kurz?", None)
+    assert not _feld(conn, "fragen_warte_auf")

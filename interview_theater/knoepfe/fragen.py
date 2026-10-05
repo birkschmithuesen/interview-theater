@@ -1008,13 +1008,38 @@ def sortierung_abschliessen(conn, tg, klm, e, chat_id: int) -> None:
         wert = entschieden[nummer - 1] if nummer <= len(entschieden) else ""
         neu.append(wert if wert in ("ja", "nein", "schaerfen") else "ja")
     repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", ",".join(neu))
+    # Review 05.10.2026: die gerade offene Chat-Karte verliert ihre Knoepfe --
+    # ein spaeterer Druck darauf startete sonst den Durchgang neu.
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGE_ANNEHMEN)
     if "schaerfen" in neu:
-        _zeige_frage(conn, tg, chat_id, neu.index("schaerfen") + 1)
+        _zeige_naechste(conn, tg, chat_id, neu.index("schaerfen") + 1)
+        return
+    _schliesse_fragen_ab(conn, tg, klm, e, chat_id)
+
+
+def _zeige_naechste(conn, tg, chat_id: int, nummer: int) -> None:
+    """Zeigt die naechste offene Karte. Steht sie auf "schaerfen" (in der
+    Sortierliste mit ✎ markiert), folgt die Rueckfrage, was sich aendern
+    soll -- fuer JEDE ✎-Karte, nicht nur die erste (Review 05.10.2026); in
+    Padua wartet die naechste Nachricht dann auf den Wunsch."""
+    _zeige_frage(conn, tg, chat_id, nummer)
+    entschieden = _decisions(conn, chat_id)
+    if nummer <= len(entschieden) and entschieden[nummer - 1] == "schaerfen":
         if workshop.diskussion_aktiv():
             repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", "schaerfen")
         tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
-        return
-    _schliesse_fragen_ab(conn, tg, klm, e, chat_id)
+
+
+def _ist_aktuelle_karte(conn, chat_id: int, nummer: int) -> bool:
+    """True, wenn ``nummer`` die gerade vorgelegte Karte ist. Ein Druck auf
+    eine ueberholte Karte (nach "Fertig sortiert" oder nach Abschluss der
+    Runde) aendert nichts (Review 05.10.2026)."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = ((stand["fragen_aktuell"] if stand else "") or "").strip()
+    except (IndexError, KeyError):
+        return False
+    return roh.isdigit() and int(roh) == nummer
 
 
 def frage_warten_auf_richtung(conn, tg, chat_id: int) -> None:
@@ -1038,6 +1063,8 @@ def entscheide(conn, tg, klm, e, chat_id: int, nummer: int, wert: str) -> str:
     if nummer < 1 or nummer > len(fragen):
         tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
         return T._TEXT_FRAGEN_KEINE_AUSWAHL
+    if not _ist_aktuelle_karte(conn, chat_id, nummer):
+        return T._TEXT_FRAGEN_KEINE_AUSWAHL
     _setze_entscheidung(conn, chat_id, nummer, wert)
     _vergiss_schaerfen_warten(conn, chat_id)
     quittung = T._TEXT_FRAGE_ANGENOMMEN if wert == "ja" else T._TEXT_FRAGE_VERWORFEN
@@ -1045,7 +1072,7 @@ def entscheide(conn, tg, klm, e, chat_id: int, nummer: int, wert: str) -> str:
     if naechste is None:
         _schliesse_fragen_ab(conn, tg, klm, e, chat_id)
         return quittung
-    _zeige_frage(conn, tg, chat_id, naechste)
+    _zeige_naechste(conn, tg, chat_id, naechste)
     return quittung
 
 
@@ -1054,7 +1081,12 @@ def frage_waehlt_schaerfen(conn, tg, chat_id: int, nummer: int) -> str:
     Antwort kommt als normale Nachricht und wird ueber
     ``nimm_offene_frage_text`` abgefangen, weil ``fragen_aktuell`` hier
     defensiv (erneut) auf diese Frage gesetzt wird -- derselbe Schutz wie
-    eine aus Versehen verschobene Reihenfolge."""
+    eine aus Versehen verschobene Reihenfolge.
+
+    Ein Druck auf eine ueberholte Karte (Runde abgeschlossen, andere Karte
+    vorgelegt) aendert nichts (Review 05.10.2026)."""
+    if not _ist_aktuelle_karte(conn, chat_id, nummer):
+        return T._TEXT_FRAGEN_KEINE_AUSWAHL
     repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", str(nummer))
     if workshop.diskussion_aktiv():
         # Padua: die naechste Nachricht ist der Wunsch -- auch als Frage
@@ -1109,6 +1141,7 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
         # Frage ist ein Schaerfungswunsch -- auch "Does Accept save it?".
         # Kommt die Frage unveraendert zurueck, stand dieselbe Karte bis zu
         # dreimal untereinander. Die Karte darueber bleibt die bedienbare.
+        _warte_weiter_auf_wunsch(conn, chat_id)
         return tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
     if neue_frage:
         _setze_frage_zeile(conn, chat_id, nummer, neue_frage)
@@ -1123,7 +1156,17 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
     else:
         weich.pop(nummer, None)
     _setze_weich(conn, chat_id, weich)
-    return _zeige_frage(conn, tg, chat_id, nummer)
+    message_id = _zeige_frage(conn, tg, chat_id, nummer)
+    _warte_weiter_auf_wunsch(conn, chat_id)
+    return message_id
+
+
+def _warte_weiter_auf_wunsch(conn, chat_id: int) -> None:
+    """Padua (Review 05.10.2026): nach einer Schaerfung steht dieselbe Karte
+    wieder da, die Gruppe formuliert sie offensichtlich noch um -- auch ein
+    als Frage formulierter Nachwunsch ("Could it be shorter?") gilt ihr."""
+    if workshop.diskussion_aktiv():
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", "schaerfen")
 
 
 def _fragetext(zeile: str) -> str:

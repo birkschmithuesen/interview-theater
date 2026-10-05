@@ -208,3 +208,23 @@ def test_vorgabe_db_ist_betrieb_padua(monkeypatch, tmp_path, kein_modellaufruf):
     monkeypatch.chdir(tmp_path)
     _baue_db(tmp_path)
     assert neu.main([str(CHAT)]) == 0
+
+
+def test_apply_schreibt_vor_der_sicherung_nichts(tmp_path, monkeypatch, kein_modellaufruf):
+    # Review 05.10.2026: ``db.initialisiere`` (Migration, ein Schreibzugriff)
+    # lief vor ``VACUUM INTO`` -- die Sicherung muss vor JEDEM Schreiben liegen.
+    pfad = _baue_db(tmp_path)
+    reihenfolge = []
+    echtes_fuehre_aus = neu.fuehre_aus
+
+    def _initialisiere(conn):
+        reihenfolge.append("initialisiere")
+
+    def _fuehre_aus(*a, **k):
+        reihenfolge.append("sicherung")
+        return echtes_fuehre_aus(*a, **k)
+
+    monkeypatch.setattr(neu.db, "initialisiere", _initialisiere)
+    monkeypatch.setattr(neu, "fuehre_aus", _fuehre_aus)
+    assert neu.main([str(CHAT), "--db", str(pfad), "--apply"]) == 0
+    assert reihenfolge[0] == "sicherung"

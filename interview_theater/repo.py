@@ -3691,6 +3691,27 @@ def setze_kalibrierung_modus_herumreichen(conn: sqlite3.Connection, chat_id: int
 
 
 @_gesperrt
+def setze_kalibrierung_werte(conn: sqlite3.Connection, chat_id: int,
+                             boden: float, rede: float | None,
+                             schwelle: float) -> None:
+    """Merkt die zuletzt gemessenen Pegel-Kalibrierungswerte GRUPPENWEIT
+    (Karte 'keine Kalibrierung in Phase 3/4', 05.10.2026) -- egal ob die
+    Messung manuell im Panel (mit Testsatz, ``rede`` gesetzt) oder
+    automatisch im Hintergrund (ohne Testsatz, ``rede`` ``None``) entstand.
+    Anders als die drei je Geraet und Tag geltenden ``localStorage``-
+    Schluessel gilt dieser Stand fuer jedes Geraet und jede Phase, ohne
+    Tagesgrenze -- die naechste Aufnahme jeder Art liest ihn ueber
+    ``web_daten.web_chatzustand``. Keine Historie: eine neue Messung
+    ueberschreibt die alte, wie ``setze_kalibrierung_modus_herumreichen``."""
+    conn.execute(
+        "UPDATE gruppe SET kalibrierung_boden = ?, kalibrierung_rede = ?, "
+        "kalibrierung_schwelle = ?, kalibrierung_gemessen_am = ? WHERE chat_id = ?",
+        (boden, rede, schwelle, _jetzt(), chat_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def ist_interviewmodus_an(conn: sqlite3.Connection, chat_id: int) -> bool:
     """Liefert True, wenn der Interviewmodus dieser Gruppe an ist (teil-b.md
     Aufgabe 5) -- Grundlage von aufnahme.klasse_fuer(). Eine unbekannte

@@ -554,6 +554,29 @@ def test_knopf_klicken_legt_einen_druck_an(seite):
     expect(seite.locator(".leiste button").first).to_be_disabled()
 
 
+def test_undo_steht_dezent_in_der_blase(seite):
+    """Birk live 05.10.2026: der Undo-Knopf sitzt klein IN der Blase, deren
+    Speichern er zuruecknimmt -- nicht als Chip in der Leiste darunter."""
+    from interview_theater import web_chat
+    conn = db.verbinde(DB_PFAD)
+    try:
+        kanal = web_kanal.WebKanal(conn, CHAT, AUDIO, schritt_s=0.01)
+        undo = web_chat.T._TEXT_UNDO_ERKENNUNG
+        mid = kanal.sende_mit_knoepfen(CHAT, "Gespeichert: drei Begriffe.",
+                                       [("Weiter", "k:991"), (undo, "k:992")])
+    finally:
+        conn.close()
+    blase = seite.locator(f'.blase[data-id="{mid}"]')
+    expect(blase.locator(".undo-mini")).to_have_count(1)
+    expect(blase.locator(".undo-mini")).to_have_text(undo)
+    leiste = seite.locator(f'.leiste[data-message="{mid}"]')
+    expect(leiste.locator("button")).to_have_count(1)
+    expect(leiste.locator("button")).to_have_text("Weiter")
+    vorher = _zaehle("knopf")
+    blase.locator(".undo-mini").click()
+    assert _warte(seite, lambda: _zaehle("knopf") > vorher)
+
+
 def test_aenderungen_des_bots_kommen_ohne_neuladen_an(seite):
     """B10: Text getauscht, Leiste weg, Nachricht geloescht -- per Poll."""
     conn = db.verbinde(DB_PFAD)

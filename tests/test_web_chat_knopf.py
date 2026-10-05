@@ -209,3 +209,14 @@ def test_kein_neuer_knopf_handler_im_web():
     assert "beanspruche_knopf" not in quelle
     assert "import knoepfe" not in quelle
     assert "from interview_theater.knoepfe" not in quelle
+
+
+def test_undo_erkennung_gleich_knopftext():
+    """Der Chat erkennt den Undo-Knopf an seiner Beschriftung (dezent in der
+    Blase, Birk 05.10.2026) -- beide Konstanten muessen in jeder Sprache
+    gleich sein."""
+    from interview_theater import sprache
+    from interview_theater.knoepfe import texte as kt
+    assert web_chat._TEXT_UNDO_ERKENNUNG == kt._TEXT_UNDO_KNOPF
+    en = sprache.tabelle("en")
+    assert en["web_chat"]["_TEXT_UNDO_ERKENNUNG"] == en["knoepfe.texte"]["_TEXT_UNDO_KNOPF"]

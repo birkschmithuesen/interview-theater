@@ -156,6 +156,10 @@ _TEXT_SENDEN = "Senden"
 #: das kleine, gedaempfte Label sagt das jedes Mal, wenn eine Chip-Leiste
 #: steht, ohne dass jemand lesen muesste.
 _TEXT_ABKUERZUNG = "Abkürzung:"
+#: Beschriftung des Undo-Knopfs (MUSS gleich ``knoepfe.texte._TEXT_UNDO_KNOPF``
+#: sein, Test) -- daran erkennt der Chat den Undo und setzt ihn dezent in die
+#: Blase (Birk live 05.10.2026). Kein Import des Knopf-Pakets (Hausregel).
+_TEXT_UNDO_ERKENNUNG = "Rueckgaengig"
 
 #: UX-Knoepfe-Karte, Abschnitt 1: die VIER Texte oben (Platzhalter +
 #: Abkuerzungs-Label) und, dazu, Padua Hotfix B6/B7: Interview-Knopftext,
@@ -296,6 +300,12 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
    geworden), wird aber gedaempft -- rein optisch, der Server entscheidet
    weiterhin allein, wann ein Knopf wirklich verfaellt. */
 .leiste.ueberholt button { opacity: .4; border-color: #c9c4b8; color: #8b8f97; }
+/* Birk live 05.10.2026: Undo sitzt dezent IN der Blase, deren Speichern es
+   zuruecknimmt -- nicht als gleichwertiger Chip in der Leiste darunter. */
+.undo-mini { display: block; margin: .35rem 0 0 auto; padding: 0; border: 0;
+             background: none; font: inherit; font-size: .78rem;
+             color: #8b8f97; text-decoration: underline; cursor: pointer; }
+.undo-mini:disabled { opacity: .45; }
 .quittung { font-size: .82rem; opacity: .7; align-self: flex-start; }
 .tippt { font-size: .85rem; opacity: .6; height: 1.2em; }
 .fuss { position: fixed; left: 0; right: 0; bottom: 0; background: #fbfaf8;
@@ -604,6 +614,7 @@ _JS_TEXTE = {
     "mitlauf_hinweis": _TEXT_MITLAUF_HINWEIS,
     "ptt_hinweis": _TEXT_PTT_HINWEIS,
     "abkuerzung": _TEXT_ABKUERZUNG,
+    "undo": _TEXT_UNDO_ERKENNUNG,
     "kal_ankuendigung": _TEXT_KALIBRIERUNG_ANKUENDIGUNG,
     "kal_start_knopf": _TEXT_KALIBRIERUNG_START_KNOPF,
     "kal_stille": _TEXT_KALIBRIERUNG_STILLE,
@@ -934,12 +945,30 @@ _CHAT_JS = """
     return label;
   }
 
+  // Birk live 05.10.2026: der Undo-Knopf gehoert zur Blase, deren Speichern
+  // er zuruecknimmt -- dezent unten in der Blase statt als Chip daneben.
+  function istUndo(paar) { return paar && paar[0] === TEXT.undo; }
+
+  function undoInBlase(huelle, n) {
+    if (!huelle || !n.knoepfe) { return; }
+    n.knoepfe.filter(istUndo).forEach(function (paar) {
+      var k = document.createElement('button');
+      k.type = 'button';
+      k.className = 'undo-mini';
+      k.textContent = paar[0];
+      k.dataset.message = n.id;
+      k.dataset.daten = paar[1];
+      huelle.appendChild(k);
+    });
+  }
+
   function baueLeiste(n) {
-    if (!n.knoepfe || !n.knoepfe.length) { return null; }
+    var rest = (n.knoepfe || []).filter(function (paar) { return !istUndo(paar); });
+    if (!rest.length) { return null; }
     var leiste = document.createElement('div');
     leiste.className = 'leiste';
     leiste.dataset.message = n.id;
-    n.knoepfe.forEach(function (paar) {
+    rest.forEach(function (paar) {
       var knopf = document.createElement('button');
       knopf.type = 'button';
       knopf.textContent = paar[0];
@@ -979,6 +1008,7 @@ _CHAT_JS = """
     huelle.className = 'blase ' + n.von + ' ' + klasseVon(n);
     huelle.dataset.id = n.id;
     huelle.innerHTML = inhaltVon(n);
+    undoInBlase(huelle, n);
     verlauf.appendChild(huelle);
     var leiste = baueLeiste(n);
     if (leiste) {
@@ -997,6 +1027,7 @@ _CHAT_JS = """
     if (n.geloescht) { entferne(huelle); entferne(altesLabel); entferne(alte); return; }
     if (!huelle) { return; }
     huelle.innerHTML = inhaltVon(n);
+    undoInBlase(huelle, n);
     var neue = baueLeiste(n);
     if (alte && neue) { alte.parentNode.replaceChild(neue, alte); }
     else if (alte) { entferne(altesLabel); entferne(alte); }
@@ -1282,12 +1313,12 @@ _CHAT_JS = """
   }
 
   document.addEventListener('click', function (ev) {
-    var knopf = ev.target.closest ? ev.target.closest('.leiste button') : null;
+    var knopf = ev.target.closest ? ev.target.closest('.leiste button, .undo-mini') : null;
     if (!knopf) { return; }
     // Alle Knoepfe der Leiste aus: der zweite Druck wirkt serverseitig
     // idempotent nicht mehr, aber ein Knopf, der weiter klickbar
     // dasteht, laedt dazu ein.
-    var leiste = knopf.closest('.leiste');
+    var leiste = knopf.closest('.leiste') || knopf.parentNode;
     schalteLeiste(leiste, true);
     erzwingeNachUnten = true;
     postJson(`chat/knopf`, {
@@ -3670,6 +3701,7 @@ def _js() -> str:
         # Live 05.10.2026 (Birk): ohne diese Zeile stand im Padua-Chat das
         # deutsche "Abkürzung:" vor jeder Knopfleiste, die der Poll baut.
         abkuerzung=T._TEXT_ABKUERZUNG,
+        undo=T._TEXT_UNDO_ERKENNUNG,
         interview_an=T._TEXT_INTERVIEW_AN, interview_aus=T._TEXT_INTERVIEW_AUS,
         sprache=T._TEXT_SPRACHE, sprache_laeuft=T._TEXT_SPRACHE_LAEUFT,
         interview_pause=T._TEXT_INTERVIEW_PAUSE,

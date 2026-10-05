@@ -1867,6 +1867,7 @@ _TEXT_PAUSE = """Today's budget is used up — I'm pausing until midnight (Itali
 Your work is saved. You can keep recording (I'll listen tomorrow), and your group page stays readable."""
 
 ["web_chat"]
+_TEXT_UNDO_ERKENNUNG = "Undo"
 # UX-Knoepfe-Karte, Abschnitt 1 (02.10.2026): nur die vier Texte, die ueber
 # web_chat.T laufen -- Platzhalter des Eingabefelds und das Abkuerzungs-Label.
 # Der Rest von web_chat.py ist nicht umgestellt (docs/agents/was-bewusst-fehlt.md, Uebergabe an A1).

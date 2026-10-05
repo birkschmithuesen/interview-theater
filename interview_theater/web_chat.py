@@ -806,7 +806,17 @@ _CHAT_JS = """
     // {message_id, status, transkript} oder null) und der gruppenweite
     // Hinweis-Modus ("herumreichen" oder null).
     kalibrierung: null,
-    kalibrierungModus: fuss.dataset.kalibrierungModus || null
+    kalibrierungModus: fuss.dataset.kalibrierungModus || null,
+    // Karte "keine Kalibrierung in Phase 3/4" (05.10.2026): die
+    // serverseitigen Gruppenwerte -- {boden, rede, schwelle} oder null,
+    // JEDE Phase, JEDES Geraet, keine Tagesgrenze (anders als der
+    // localStorage-Cache). Der Poll uebernimmt sie unten unveraendert aus
+    // dem schon typisierten JSON (daten.kalibrierung_gruppe), nur der
+    // erste Stand beim Laden kommt als dataset-String und braucht
+    // kalGruppenwerteAus().
+    kalibrierungGruppe: kalGruppenwerteAus(
+      fuss.dataset.kalibrierungBoden, fuss.dataset.kalibrierungRede,
+      fuss.dataset.kalibrierungSchwelle)
   };
 
   function nonce() {
@@ -1198,6 +1208,12 @@ _CHAT_JS = """
     zustand.kalibrierung = daten.kalibrierung || null;
     if (daten.kalibrierung_modus !== undefined) {
       zustand.kalibrierungModus = daten.kalibrierung_modus || null;
+    }
+    // Gruppenwerte (Karte "keine Kalibrierung in Phase 3/4"): schon ein
+    // typisiertes Objekt oder null aus dem JSON, keine zweite Parse-Stufe
+    // wie beim dataset-String oben.
+    if (daten.kalibrierung_gruppe !== undefined) {
+      zustand.kalibrierungGruppe = daten.kalibrierung_gruppe || null;
     }
     // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
     // vorn in der Schlange steht.
@@ -1878,6 +1894,21 @@ _CHAT_JS = """
   function kalSchwelle(bodenMess, redeMess) {
     return Math.min(Math.max(Math.sqrt(bodenMess * redeMess), KAL_SCHWELLE_ABS_MIN),
                      KAL_SCHWELLE_ABS_MAX);
+  }
+
+  // Karte "keine Kalibrierung in Phase 3/4" (05.10.2026): die serverseitigen
+  // Gruppenwerte kommen beim ersten Laden als drei dataset-Strings
+  // (``data-kalibrierung-*``, web_chat._kal_gruppe_attribut) -- leer ohne
+  // Messung oder (AUTO-Pfad) ohne Testsatz. ``boden``/``schwelle`` sind die
+  // beiden Werte, die die Schwellenformel tatsaechlich braucht; ohne beide
+  // gibt es keine gueltigen Gruppenwerte. Spaetere Polls liefern dasselbe
+  // Dreier-Objekt schon typisiert aus dem JSON (kein zweiter Aufruf hier).
+  function kalGruppenwerteAus(bodenStr, redeStr, schwelleStr) {
+    var boden = parseFloat(bodenStr);
+    var schwelle = parseFloat(schwelleStr);
+    if (!isFinite(boden) || !isFinite(schwelle)) { return null; }
+    var rede = parseFloat(redeStr);
+    return { boden: boden, rede: isFinite(rede) ? rede : null, schwelle: schwelle };
   }
 
   // 2d: der kalibrierte Festwert (sitzung.vadSchwelleFix) ist, wenn gesetzt,
@@ -2592,6 +2623,10 @@ _CHAT_JS = """
     }
     kalibrierungCacheSchreiben(kalSpeicher(), kalGruppeAus(location.pathname),
       kalDatum(new Date()), k.bodenMess, k.redeMess, schwelle);
+    // Karte "keine Kalibrierung in Phase 3/4": derselbe Stand geht
+    // GRUPPENWEIT an den Server, damit die naechste Aufnahme -- jedes
+    // Geraet, jede Phase -- das Panel gar nicht erst zeigt.
+    kalMeldeGruppenwerte(k.bodenMess, k.redeMess, schwelle);
     kalibrierungBeenden(sitzung, schwelle, k.bodenMess);
   }
 
@@ -2685,30 +2720,99 @@ _CHAT_JS = """
     }
   }
 
-  // Die EINE Weiche zwischen cache/kill-switch/frischem Ablauf -- aufgerufen
-  // aus beginneAufnahme() UND von #kalibrierung-neu (das sitzung.kalibriert
-  // vorher auf false setzt und dieselbe Weiche erneut anstoesst, ohne den
-  // Cache zu pruefen, siehe kalibrierungNeu()).
+  // Karte "keine Kalibrierung in Phase 3/4" (05.10.2026), reine Funktion
+  // (node-testbar, tests/test_web_chat_js.py): die EINE Stelle, die die vier
+  // Quellen ordnet. "sitzung"/"kill" sind unveraendert aus der alten Weiche
+  // (schon entschiedene Sitzung bzw. Kill-Switch aus), "cache" gewinnt
+  // bewusst VOR "gruppe" (lokale Messung von heute ist naeher am Raum JETZT
+  // als ein serverseitiger Stand, der auch von einem anderen Geraet oder
+  // einer frueheren Phase stammen kann). Ohne Cache UND ohne Gruppenwerte
+  // bleibt die Diskussion (Phase 1, Birk 05.10.2026 13:10) beim expliziten,
+  // button-gated Panel -- Interview und Brainstorm gehen stattdessen
+  // automatisch (kein Nutzer, der vor dem ersten Satz etwas druecken muss).
+  function kalWaehleQuelle(sitzungKalibriert, kalAktiv, cache, gruppenWerte, art) {
+    if (sitzungKalibriert) { return 'sitzung'; }
+    if (!kalAktiv) { return 'kill'; }
+    if (cache) { return 'cache'; }
+    if (gruppenWerte) { return 'gruppe'; }
+    return art === 'diskussion' ? 'panel' : 'auto';
+  }
+
+  // Die EINE Weiche zwischen cache/gruppe/kill-switch/auto/panel --
+  // aufgerufen aus beginneAufnahme() UND von #kalibrierung-neu (das
+  // sitzung.kalibriert vorher auf false setzt und dieselbe Weiche erneut
+  // anstoesst, ohne Cache oder Gruppenwerte zu pruefen, siehe
+  // kalibrierungNeu()).
   function kalEntscheideOderStarte(sitzung) {
     kalZeigeHerumreichenErinnerungWennNeu(sitzung);
-    if (sitzung.kalibriert) {
-      kalStarteEchteSchnitte(sitzung);
-      return;
-    }
-    if (!kalibrierungAktiv()) {
-      sitzung.kalibriert = true;
-      kalStarteEchteSchnitte(sitzung);
-      return;
-    }
     var cache = kalibrierungCacheLesen(kalSpeicher(), kalGruppeAus(location.pathname), kalDatum(new Date()));
-    if (cache) {
+    var quelle = kalWaehleQuelle(!!sitzung.kalibriert, kalibrierungAktiv(), cache,
+                                  zustand.kalibrierungGruppe, sitzung.art);
+    if (quelle === 'panel') {
+      kalibrierungStarte(sitzung);
+      return;
+    }
+    if (quelle === 'auto') {
+      kalStarteAuto(sitzung);
+      return;
+    }
+    if (quelle === 'cache') {
       sitzung.vadBodenMess = cache.boden;
       sitzung.vadSchwelleFix = cache.schwelle;
-      sitzung.kalibriert = true;
-      kalStarteEchteSchnitte(sitzung);
-      return;
+    } else if (quelle === 'gruppe') {
+      sitzung.vadBodenMess = zustand.kalibrierungGruppe.boden;
+      sitzung.vadSchwelleFix = zustand.kalibrierungGruppe.schwelle;
     }
-    kalibrierungStarte(sitzung);
+    sitzung.kalibriert = true;
+    kalStarteEchteSchnitte(sitzung);
+  }
+
+  // Meldet ein Messergebnis gruppenweit an den Server (dieselbe
+  // best-effort-Haltung wie kalMeldeZuLeise): weder die manuelle
+  // Bestaetigung (kalAntwortJa) noch der AUTO-Pfad warten auf die Antwort,
+  // und ein Fehlschlag blockiert die laufende Aufnahme nicht.
+  function kalMeldeGruppenwerte(boden, rede, schwelle) {
+    postJson('chat/kalibrierung', { boden: boden, rede: rede, schwelle: schwelle })
+      .catch(function () { /* best effort, wie kalMeldeZuLeise */ });
+  }
+
+  //: Wie lange die AUTO-Kalibrierung den rollenden Boden sammelt, bevor sie
+  //: ihn einfriert -- dieselbe Fensterlaenge wie BODEN_FENSTER in pegelAn()
+  //: (~5s bei VAD_TAKT_MS=60), hier als eigene Konstante, weil pegelAn()s
+  //: BODEN_FENSTER in dessen eigenem Geltungsbereich eingeschlossen ist.
+  var KAL_AUTO_MESS_MS = 5000;
+
+  // AUTO-Kalibrierung (Build-Punkt 3 der Karte): kein Panel, keine
+  // Nutzeraktion -- die Aufnahme laeuft sofort mit der unkalibrierten,
+  // rollenden Formel (kalBerechneBodenUndSchwelle(), sitzung.vadSchwelleFix
+  // bleibt zunaechst ungesetzt), nach KAL_AUTO_MESS_MS friert
+  // kalSchliesseAutoAb() den bis dahin gesammelten Boden als festen Wert
+  // ein -- derselbe Festwert-Mechanismus wie eine manuelle Messung
+  // (kalibrierungBeenden()), nur ohne Sprachprobe.
+  function kalStarteAuto(sitzung) {
+    kalStarteEchteSchnitte(sitzung);
+    setTimeout(function () { kalSchliesseAutoAb(sitzung); }, KAL_AUTO_MESS_MS);
+  }
+
+  function kalSchliesseAutoAb(sitzung) {
+    // #kalibrierung-neu oder ein Sitzungsende kam zuerst -- nichts mehr
+    // einzufrieren.
+    if (sitzung.beendet || sitzung.vadSchwelleFix != null) { return; }
+    var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
+    var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
+    var boden = kalMedian(sitzung.vadBoden || []);
+    var schwelle = Math.max(RMS_SCHWELLE, boden * BODEN_FAKTOR);
+    sitzung.vadBodenMess = boden;
+    sitzung.vadSchwelleFix = schwelle;
+    sitzung.kalibriert = true;
+    // kalibrierungCacheLesen() verlangt drei ENDLICHE Werte (sonst gilt der
+    // ganze Cache als leer) -- ``boden`` steht hier fuer "rede", weil der
+    // AUTO-Pfad keine Sprachprobe hat UND der Wert beim Lesen ohnehin nie
+    // verwendet wird (nur cache.boden/cache.schwelle werden uebernommen).
+    // Dem Server (anders als dem Cache) wird ehrlich ``null`` gemeldet.
+    kalibrierungCacheSchreiben(kalSpeicher(), kalGruppeAus(location.pathname),
+      kalDatum(new Date()), boden, boden, schwelle);
+    kalMeldeGruppenwerte(boden, null, schwelle);
   }
 
   // Panel-level Messen-Knopf (#kalibrierung-neu, bewusst andere id als
@@ -3905,6 +4009,18 @@ def _blase_html(n: dict, basis: str = "") -> str:
     return "\n".join(teile)
 
 
+def _kal_gruppe_attribut(daten: dict, feld: str) -> str:
+    """Ein Wert aus ``daten["kalibrierung_gruppe"]`` (``web_daten.
+    web_chatzustand``) als Attributstext -- leer ohne Messung oder ohne den
+    einen Wert (``rede`` fehlt auf dem AUTO-Pfad), das JS liest eine leere
+    Zeichenkette ueber ``parseFloat`` ohnehin als ``NaN`` (dieselbe Lesart
+    wie die ``vad-*``-Attribute)."""
+    gruppenwerte = daten.get("kalibrierung_gruppe")
+    if not gruppenwerte or gruppenwerte.get(feld) is None:
+        return ""
+    return str(gruppenwerte[feld])
+
+
 def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
                   basis: str = "", mit_nonce: bool = True,
                   mit_gruppenlink: bool = True, vad: dict | None = None) -> str:
@@ -3991,6 +4107,9 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'     data-vad-kalibrierung="{1 if vad.get("kalibrierung", True) else 0}"\n'
         f'     data-kalibrierung-modus="'
         f'{html.escape(daten.get("kalibrierung_modus") or "", quote=True)}"\n'
+        f'     data-kalibrierung-boden="{_kal_gruppe_attribut(daten, "boden")}" '
+        f'data-kalibrierung-rede="{_kal_gruppe_attribut(daten, "rede")}" '
+        f'data-kalibrierung-schwelle="{_kal_gruppe_attribut(daten, "schwelle")}"\n'
         f'     data-interview="{1 if modus else 0}" '
         f'data-basis="{html.escape(basis, quote=True)}">\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'

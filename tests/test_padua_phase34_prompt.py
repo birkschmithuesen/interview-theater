@@ -19,7 +19,7 @@ import pytest
 
 from interview_theater import anweisungen, sprache, web_chat, workshop
 
-DATEI = Path("workshop/padua-2026/prompts/phasen/3.md")
+DATEI = Path(__file__).parents[1] / "workshop/padua-2026/prompts/phasen/3.md"
 
 
 @pytest.fixture

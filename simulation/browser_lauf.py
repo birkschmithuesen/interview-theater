@@ -618,7 +618,15 @@ def _aufruf_id_bei_phasenwechsel(db_pfad: str, chat_id: int) -> int:
     (falsches ``p3_gespraech_ueber_opus``). Verglichen wird als Zeitpunkt,
     nicht als String: ``aufruf.erstellt_am`` ist sekundengenau,
     ``phase_gesetzt_am`` mikrosekundengenau. Ohne Zeitstempel (alte Gruppe)
-    oder bei einem Lesefehler bleibt es beim bisherigen ``_max_aufruf_id``."""
+    oder bei einem Lesefehler bleibt es beim bisherigen ``_max_aufruf_id``.
+
+    Grenze des Verfahrens (P34 Runde 2): ``arbeitsstand`` haelt nur den
+    LETZTEN ``phase_gesetzt_am``, es gibt keinen Phasenverlauf in der
+    Datenbank. Springt die Gruppe innerhalb eines Schritts ueber Phase 4
+    hinaus (3 -> 4 -> 5), ist die Grenze der Wechsel in die spaetere Phase,
+    nicht der in Phase 4 -- Aufrufe aus dem kurzen Phase-4-Stueck zaehlen
+    dann als Phase 3. Der Split nimmt ausserdem immer ``station.phase + 1``
+    als Folgephase."""
     from datetime import datetime
 
     try:
@@ -653,8 +661,15 @@ def _teile_bereich_am_phasenwechsel(aufruf_bereiche: dict, stationen_phase: dict
     Phase. Ohne diesen Split zaehlte eine Antwort, die faktisch schon in
     Phase 4 lief, noch als Phase 3 -- genau die Station, die den Wechsel
     selbst ausloest (``p3-uebergang``), ist dafuer anfaellig (I4, Review
-    05.10.2026, Fix round 1)."""
-    if wechsel_aufruf_id is not None and von < wechsel_aufruf_id < bis:
+    05.10.2026, Fix round 1).
+
+    P34 Runde 2 (C1 Rest): die Bedingung ist ``von <= wechsel < bis``.
+    Wechselt die Gruppe, bevor die Station einen Aufruf gebucht hat, ist die
+    Grenze genau ``von``; der Vorher-Bereich ``(von, von)`` ist dann leer und
+    der ganze Bereich zaehlt als naechste Phase (vorher: alles Phase 3 ->
+    falsches ``p3_gespraech_ueber_opus``). ``wechsel == bis`` (kein Aufruf
+    nach dem Wechsel) und ``wechsel < von`` splitten nicht."""
+    if wechsel_aufruf_id is not None and von <= wechsel_aufruf_id < bis:
         aufruf_bereiche[schluessel] = (von, wechsel_aufruf_id)
         nach_schluessel = f"{schluessel}:nach_phasenwechsel"
         aufruf_bereiche[nach_schluessel] = (wechsel_aufruf_id, bis)

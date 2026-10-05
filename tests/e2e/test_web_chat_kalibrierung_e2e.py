@@ -252,6 +252,52 @@ def _starte(seite) -> None:
     seite.wait_for_selector('#interview[data-laeuft="1"]')
 
 
+# -- Karte "keine Kalibrierung in Phase 3/4" (05.10.2026): mit serverseitigen
+# -- Gruppenwerten zeigt Phase 3 das Panel gar nicht erst -------------------
+
+
+def test_gruppenwerte_ueberspringen_das_panel_und_die_aufnahme_startet_sofort(
+    server, bot, browser, token,
+):
+    """Abnahme woertlich: 'phase 3 start interview with group values present
+    -> no calibration panel visible, recording starts'. Eigene Seite statt
+    der ``seite``-Fixture: die Gruppenwerte muessen VOR dem ersten Laden
+    stehen (sie kommen als ``data-kalibrierung-*`` schon im ersten HTML,
+    kein Warten auf den ersten Poll)."""
+    setze_modus(False)
+    conn = db.verbinde(DB_PFAD)
+    conn.execute("UPDATE gruppe SET kalibrierung_modus = NULL WHERE chat_id = ?", (CHAT,))
+    repo.setze_kalibrierung_werte(conn, CHAT, 0.01, 0.2, 0.03)
+    conn.commit()
+    conn.close()
+    kontext = browser.new_context(
+        viewport=HANDY, permissions=["microphone"], base_url=BASIS,
+        is_mobile=True, has_touch=True,
+    )
+    kontext.add_init_script(_MESSUNG)
+    kontext.add_init_script("try { localStorage.clear(); } catch (e) {}")
+    blatt = kontext.new_page()
+    blatt.set_default_timeout(GEDULD)
+    blatt.goto(f"{BASIS}/g/{token}/chat")
+    try:
+        blatt.evaluate("window.__t.setzeRms(0.6)")
+        _starte(blatt)   # wartet auf #interview[data-laeuft="1"] -- die Aufnahme laeuft
+        blatt.wait_for_timeout(1000)   # genug Zeit, in der ein Panel sichtbar wuerde
+        assert blatt.is_hidden("#kalibrierung")
+        assert blatt.is_hidden("#kalibrierung-start")
+        assert blatt.is_hidden("#uhr") is False
+    finally:
+        kontext.close()
+        conn = db.verbinde(DB_PFAD)
+        conn.execute(
+            "UPDATE gruppe SET kalibrierung_boden = NULL, kalibrierung_rede = NULL, "
+            "kalibrierung_schwelle = NULL WHERE chat_id = ?", (CHAT,),
+        )
+        conn.commit()
+        conn.close()
+        setze_modus(False)
+
+
 # -- (a) Kein Klick auf "Start measuring" -> kein Stille-Countdown ---------
 
 

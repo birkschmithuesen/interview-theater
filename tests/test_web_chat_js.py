@@ -2078,9 +2078,9 @@ def test_pegeltakt_setzt_breite_marke_und_farbzustand_aus_derselben_rms():
     takt = js[js.index("sitzung.pegelTakt = setInterval"):]
     takt = takt[:takt.index("}, VAD_TAKT_MS)")]
     assert "pegelBalken.style.width" in takt
-    assert "(rms / PEGEL_MAX_RMS) * 100" in takt
+    assert "pegelProzent(rms)" in takt
     assert "pegelSchwelle.style.left" in takt
-    assert "(schwelle / PEGEL_MAX_RMS) * 100" in takt
+    assert "pegelProzent(schwelle)" in takt
     assert "classList.toggle('ueber-schwelle', rms > schwelle)" in takt
     # Breite UND Marke stehen erst, nachdem ``schwelle`` aus der kalibrierten
     # Formel berechnet wurde -- sonst zeigte die Marke die Schwelle des
@@ -2093,14 +2093,15 @@ def test_pegeltakt_zeichnet_breite_marke_und_farbzustand_live_in_node(tmp_path):
     ``_CHAT_JS`` extrahiert, nicht nachgebaut) mit einer gefaelschten
     Zeitdomaenen-Messung und einer gefaelschten, festen Schwelle -- und
     prueft, dass Breite, Markenposition und Farbzustand auf derselben
-    ``PEGEL_MAX_RMS``-Skala herauskommen."""
+    ``pegelProzent``-dB-Skala herauskommen."""
     node = _node_oder_skip()
     js = web_chat._CHAT_JS
+    pegel_prozent = _extrahiere(js, "function pegelProzent", "function pegelAn")
     takt = js[js.index("sitzung.pegelTakt = setInterval(function () {"):]
     takt = takt[:takt.index("}, VAD_TAKT_MS)")]
     rumpf = takt[takt.index("{") + 1:]
     quelltext = f"""
-    var PEGEL_MAX_RMS = 0.3;
+    {pegel_prozent}
     var BODEN_FENSTER = 10;
     var RMS_SCHWELLE = 0.01, BODEN_FAKTOR = 2.5, BODEN_DECKEL_FAKTOR = 10;
     var MAX_MS = 90000, PAUSE_MS = 2500, MIN_SPEECH_MS = 500;
@@ -2139,23 +2140,61 @@ def test_pegeltakt_zeichnet_breite_marke_und_farbzustand_live_in_node(tmp_path):
     console.log(JSON.stringify({{
       halb: pruefe(0.15, 0.1),
       leise: pruefe(0.03, 0.1),
-      gedeckelt: pruefe(0.5, 0.1)
+      gedeckelt: pruefe(2.0, 0.1)
     }}));
     """
     ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
     ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
-    # halb: rms=0.15 -> 50% Breite; schwelle=0.1 -> 33.33% Markenposition;
+    # halb: rms=0.15 -> 20*log10(0.15) = -16.478... dB ->
+    # ((-16.478+60)/60)*100 = 72.537...% Breite; schwelle=0.1 ->
+    # 20*log10(0.1) = -20 dB -> ((-20+60)/60)*100 = 66.667% Markenposition;
     # 0.15 > 0.1 -> ueber-schwelle.
-    assert ergebnisse["halb"]["breite"] == pytest.approx(50.0)
-    assert ergebnisse["halb"]["links"] == pytest.approx(100 / 3)
+    assert ergebnisse["halb"]["breite"] == pytest.approx(72.537, abs=0.1)
+    assert ergebnisse["halb"]["links"] == pytest.approx(200 / 3, abs=0.1)
     assert ergebnisse["halb"]["ueber"] is True
-    # leise: rms=0.03 -> 10% Breite, noch unter derselben Schwelle.
-    assert ergebnisse["leise"]["breite"] == pytest.approx(10.0)
-    assert ergebnisse["leise"]["links"] == pytest.approx(100 / 3)
+    # leise: rms=0.03 -> 20*log10(0.03) = -30.458... dB ->
+    # ((-30.458+60)/60)*100 = 49.236...% Breite, noch unter derselben Schwelle.
+    assert ergebnisse["leise"]["breite"] == pytest.approx(49.237, abs=0.1)
+    assert ergebnisse["leise"]["links"] == pytest.approx(200 / 3, abs=0.1)
     assert ergebnisse["leise"]["ueber"] is False
-    # gedeckelt: rms=0.5 -> ueber 100% der Skala, auf 100 geklemmt.
+    # gedeckelt: rms=2.0 -> 20*log10(2.0) = 6.021 dB ->
+    # ((6.021+60)/60)*100 = 110.03%, auf der dB-Skala ueber 100% -- bei 0.5
+    # RMS (altes Testbeispiel) greift der Deckel auf dieser Skala NICHT mehr
+    # (89.97%), deshalb rms=2.0 fuer einen echten Deckel-Fall.
     assert ergebnisse["gedeckelt"]["breite"] == pytest.approx(100.0)
     assert ergebnisse["gedeckelt"]["ueber"] is True
+
+
+def test_pegelprozent_isoliert_live_in_node(tmp_path):
+    """``pegelProzent`` woertlich aus ``_CHAT_JS`` extrahiert (keine zweite,
+    abweichende Kopie der dB-Formel im Testcode) -- gegen die Sonderfaelle
+    aus dem Auftrag: normale Sprechlautstaerke, der -60-dBFS-Nullpunkt und
+    der Wächter gegen ``log10(0)``/negative Werte."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function pegelProzent", "function pegelAn")
+    quelltext = f"""
+    {funktion}
+    console.log(JSON.stringify({{
+      normal: pegelProzent(0.05),
+      nullpunkt: pegelProzent(0.001),
+      null_rms: pegelProzent(0),
+      negativ: pegelProzent(-0.01)
+    }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    # normal: rms=0.05 -> 20*log10(0.05) = -26.0206 dB ->
+    # ((-26.0206+60)/60)*100 = 56.632...%.
+    assert ergebnisse["normal"] == pytest.approx(56.632, abs=1.0)
+    # nullpunkt: rms=0.001 -> 20*log10(0.001) = -60 dB (exakt) ->
+    # ((-60+60)/60)*100 = 0%.
+    assert ergebnisse["nullpunkt"] == pytest.approx(0.0, abs=0.01)
+    # Wächter gegen log10(0) = -Infinity und negative RMS-Werte (kommen in
+    # der Praxis nicht vor, aber ``!(rms > 0)`` faengt beide als Sonderfall
+    # ab, statt NaN/-Infinity an .style.width/.style.left weiterzugeben).
+    assert ergebnisse["null_rms"] == 0
+    assert ergebnisse["negativ"] == 0
 
 
 # -- Einmaliger Mitschnitt-Hinweis nach dem ersten Segment (Task 4, Kanban- --

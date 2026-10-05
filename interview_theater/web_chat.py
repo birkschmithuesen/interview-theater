@@ -1796,6 +1796,19 @@ _CHAT_JS = """
     return { boden: boden, schwelle: schwelle };
   }
 
+  // Anzeige-Skala des Pegelbalkens (rein kosmetisch, keine
+  // IT_WEB_VAD_*-Variable): dB-Skala statt linearer RMS-Skala -- -60 dBFS
+  // = 0% Balkenbreite, 0 dBFS = 100%, logarithmisch statt linear. Birks
+  // Befund: die vorherige lineare Skala (0.3 RMS = 100%) liess normale
+  // Sprache (RMS ~0.05-0.1) nie ueber ~30% Balkenbreite kommen -- eine
+  // dB-Skala entspricht dem menschlichen Lautstaerkeempfinden und nutzt den
+  // Balken auch bei normaler Sprechlautstaerke sichtbar aus.
+  function pegelProzent(rms) {
+    if (!(rms > 0)) { return 0; }
+    var db = 20 * Math.log10(rms);
+    return Math.min(100, Math.max(0, ((db + 60) / 60) * 100));
+  }
+
   function pegelAn(sitzung) {
     var Kontext = window.AudioContext || window.webkitAudioContext;
     if (!pegelBalken || !Kontext) { return; }
@@ -1823,11 +1836,6 @@ _CHAT_JS = """
       // zieht eine durchgehend laute Aufnahme den Boden auf ihre eigene
       // Lautstaerke und die Pause-Erkennung faellt dauerhaft aus.
       var BODEN_DECKEL_FAKTOR = 10;
-      // Anzeige-Skala des Pegelbalkens (rein kosmetisch, keine
-      // IT_WEB_VAD_*-Variable): 0.3 RMS = 100% Balkenbreite, deutlich ueber
-      // KAL_SCHWELLE_ABS_MAX (0.08), damit auch eine kalibrierte, hohe
-      // Schwelle noch sichtbar Platz nach oben laesst.
-      var PEGEL_MAX_RMS = 0.3;
       sitzung.vadMinSpeechMs = MIN_SPEECH_MS;
       sitzung.vadAktiv = true;
       sitzung.vadBoden = [];
@@ -1865,11 +1873,9 @@ _CHAT_JS = """
         // RMS-Skala wie der Schnitt selbst (vorher: Frequenzmittel * 2.2,
         // eine andere Zahl als die Schwelle) -- Anzeige und Entscheidung
         // sind damit dieselbe Messung, nur einmal gezeichnet.
-        pegelBalken.style.width =
-          Math.min(100, (rms / PEGEL_MAX_RMS) * 100) + '%';
+        pegelBalken.style.width = pegelProzent(rms) + '%';
         if (pegelSchwelle) {
-          pegelSchwelle.style.left =
-            Math.min(100, (schwelle / PEGEL_MAX_RMS) * 100) + '%';
+          pegelSchwelle.style.left = pegelProzent(schwelle) + '%';
         }
         pegelFeld.classList.toggle('ueber-schwelle', rms > schwelle);
         var jetzt = Date.now();
@@ -3393,7 +3399,7 @@ _CHAT_JS = """
         druck.kontext = messer.kontext;
         druck.pegelTakt = setInterval(function () {
           if (pttPegelBalken) {
-            pttPegelBalken.style.width = Math.min(100, (messer.rms() / 0.3) * 100) + '%';
+            pttPegelBalken.style.width = pegelProzent(messer.rms()) + '%';
           }
         }, 120);
       }

@@ -335,10 +335,32 @@ gefundenen Befunde (Abschnitt 6, Punkt 2 der Mechanik) stehen in Abschnitt
 
 ## 8. Behoben in diesem Lauf
 
-Keine Fixes in Task 9 selbst (dieser Abschnitt ist fuer Task 10 reserviert,
-die auf Basis der Opus-Lesung arbeitet -- ohne sie bleibt dieser Abschnitt
-vorerst nur mit den mechanischen Befunden bestueckbar, siehe Abschnitt 6
-und 10).
+**Task 10: keine Fixes, kein Commit** -- und das ist nach der
+Entscheidungsregel D7 des Plans richtig so, nicht nur ein Ausweichen vor
+der fehlenden Opus-Lesung. Ohne `lesung.json` gibt es keine Kategorie-
+a/b/c-Befunde; uebrig bleiben nur die mechanischen Treffer aus Abschnitt 6,
+und jeder einzelne davon faellt unter D7 auf eine andere Art durch:
+- „Yes, save"/„No, change it again" beschreiben einen Knopf, den es im
+  Code wirklich gibt (D7 Schritt 5: nicht eindeutig) -> Abschnitt 10,
+  Punkt 3.
+- Die beiden hartcodierten deutschen Strings
+  (`interview_theater/diskussion.py`, `interview_theater/buehnenkarte.py`)
+  sind **keine** Dateien unter
+  `interview_theater/sprachen/en/prompts/` -- Task 10 darf laut eigener
+  Dateiliste ausschliesslich Prompt-Dateien dort aendern, keine
+  Python-Module. Ein inhaltlich eindeutiger Fix existiert (die Strings
+  uebersetzen), aber **nicht als Prompt-Dateiaenderung** -> Abschnitt 10,
+  Punkt 1.
+- „ask whether"/„how many scenes" sind Falsch-Positive des mechanischen
+  Pruefers (die Textstelle verbietet genau das, was das Muster zu finden
+  vorgibt) -- nichts zu beheben.
+- `37-dramaturgie-a6` ist ein Code-Befund (Sprachsperre in
+  `mechanik.py`), kein Prompt-Text -> Abschnitt 10, Punkt 2.
+
+Die Rechnung geht auf: 0 behoben + 0 bei t_0b702d1d + 4 auf der Birk-Liste
+(Abschnitt 10, Punkte 1-4) + die uebrigen mechanischen Treffer als
+Falsch-Positive erklaert = alles, was ohne Opus-Lesung ueberhaupt zu
+bewerten war.
 
 ## 9. Liegt bei t_0b702d1d
 

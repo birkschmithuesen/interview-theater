@@ -984,6 +984,18 @@ def test_leerer_vergleich_laeuft_nicht_in_keine_auswahl(conn):
 # ---------------------------------------------------------------------------
 
 
+def _keine_zweite_karte(conn, tg, karten_vorher):
+    """P2-H3 + S1 (Runde 2): die unveraenderte Frage wird nicht noch einmal
+    als Karte gezeigt -- aber die juengste Nachricht traegt die Leiste der
+    offenen Frage (vorher kam nur Text, nach "Schaerfen" eine Sackgasse), und
+    es gibt genau EINE bedienbare Leiste."""
+    neu = tg.knoepfe[karten_vorher:]
+    assert all("Eine Frage?" not in text for _, text, _ in neu), neu
+    offen = repo.offene_knoepfe(conn, CHAT, knoepfe.ART_FRAGE_ANNEHMEN)
+    assert len(offen) == 1
+    assert offen[0]["message_id"] == tg.naechste_message_id
+
+
 def test_unveraenderte_schaerfung_zeigt_keine_zweite_karte(conn, tg, einst):
     repo.setze_arbeitsstand(
         conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?\nStreit: Zweite?",
@@ -994,10 +1006,8 @@ def test_unveraenderte_schaerfung_zeigt_keine_zweite_karte(conn, tg, einst):
     fragen.uebernimm_schaerfung(conn, tg, CHAT, "Heimat:  eine frage?", None)
     fragen.uebernimm_schaerfung(conn, tg, CHAT, "Heimat: Eine Frage?", None)
 
-    assert len(tg.knoepfe) == karten_vorher
+    _keine_zweite_karte(conn, tg, karten_vorher)
     assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
-    # Die erste Karte bleibt bedienbar.
-    assert repo.offene_knoepfe(conn, CHAT, knoepfe.ART_FRAGE_ANNEHMEN)
 
 
 def test_rueckfrage_waehrend_offener_frage_bekommt_die_antwort_des_modells(conn, tg, einst):
@@ -1017,7 +1027,7 @@ def test_rueckfrage_waehrend_offener_frage_bekommt_die_antwort_des_modells(conn,
         conn, tg, CHAT, antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
     )
 
-    assert len(tg.knoepfe) == karten_vorher
+    _keine_zweite_karte(conn, tg, karten_vorher)
     assert tg.texte[-1] == antwort
     assert T._TEXT_FRAGE_WAS_AENDERN not in tg.texte
 
@@ -1040,7 +1050,7 @@ def test_antwort_die_die_frage_in_prosa_wiederholt_wird_zur_rueckfrage(conn, tg,
         "Here it is again: Heimat: Eine Frage?\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
     )
 
-    assert len(tg.knoepfe) == karten_vorher
+    _keine_zweite_karte(conn, tg, karten_vorher)
     assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
 
 
@@ -1055,7 +1065,7 @@ def test_nur_einleitung_ohne_aenderung_wird_zur_rueckfrage(conn, tg, einst):
         "Here is a sharper version:\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
     )
 
-    assert len(tg.knoepfe) == karten_vorher
+    _keine_zweite_karte(conn, tg, karten_vorher)
     assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
 
 
@@ -1072,7 +1082,7 @@ def test_echo_der_gruppennachricht_wird_zur_rueckfrage(conn, tg, einst):
         conn, tg, CHAT, gesagt + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
     )
 
-    assert len(tg.knoepfe) == karten_vorher
+    _keine_zweite_karte(conn, tg, karten_vorher)
     assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
 
 
@@ -1088,7 +1098,7 @@ def test_echte_antwort_neben_gruppennachricht_bleibt_stehen(conn, tg, einst):
         conn, tg, CHAT, antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
     )
 
-    assert len(tg.knoepfe) == karten_vorher
+    _keine_zweite_karte(conn, tg, karten_vorher)
     assert tg.texte[-1] == antwort
 
 
@@ -1106,7 +1116,7 @@ def test_gleiche_weiche_fassung_gilt_als_unveraendert(conn, tg, einst):
         "\n\nVORSCHLAG FRAGEN WEICH:\n1 — Erzaehl mal, ganz locker.",
     )
 
-    assert len(tg.knoepfe) == karten_vorher
+    _keine_zweite_karte(conn, tg, karten_vorher)
     assert tg.texte[-1] == antwort
 
 
@@ -1130,7 +1140,7 @@ def test_padua_ohne_weiche_fassungen_ignoriert_den_weich_block(conn, tg, einst, 
             "\n\nVORSCHLAG FRAGEN WEICH:\n1 — Tell me, very casually.",
         )
 
-        assert len(tg.knoepfe) == karten_vorher
+        _keine_zweite_karte(conn, tg, karten_vorher)
         assert tg.texte[-1] == antwort
     finally:
         monkeypatch.delenv(workshop.VARIABLE)

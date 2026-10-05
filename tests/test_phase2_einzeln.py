@@ -625,6 +625,86 @@ def test_schaerfen_dann_freitext_dann_erkenner_erzeugt_nur_eine_leiste(
     )
 
 
+# --- 9b. S1 (Feedbackloop P1-2, Runde 2): keine Sackgasse nach Schaerfen ----
+
+
+def _offene_annehmen(conn):
+    return repo.offene_knoepfe(conn, 1, knoepfe.ART_FRAGE_ANNEHMEN)
+
+
+def test_nach_schaerfen_bleiben_annehmen_und_verwerfen_bedienbar(
+    conn, tg, einst, auftraege,
+):
+    """Live-Befund S1 (sim.db knopf 51-53): "Schaerfen" nahm der Karte die
+    ganze Leiste ab -- auch Annehmen/Verwerfen. Die Rueckfrage "Was soll sich
+    aendern?" traegt jetzt selbst Annehmen/Verwerfen fuer DIESE Frage, und es
+    bleibt genau eine bedienbare Leiste."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    _druecke(conn, tg, einst, "Schaerfen")
+
+    assert auftraege == []
+    _, text, leiste = tg.knoepfe[-1]
+    assert text == knoepfe.T._TEXT_FRAGE_WAS_AENDERN
+    assert [b for b, _ in leiste] == ["Annehmen", "Verwerfen"]
+    offen = _offene_annehmen(conn)
+    assert len(offen) == 1 and offen[0]["wert"] == "1"
+    assert offen[0]["message_id"] == tg.naechste_message_id
+
+
+def test_unveraenderte_antwort_nach_schaerfen_ist_keine_sackgasse(
+    conn, tg, einst, auftraege,
+):
+    """S1: Schaerfen, dann eine Nachricht, das Modell gibt die Frage
+    unveraendert zurueck. Vorher kam nur Text -- Annehmen/Verwerfen waren
+    weg, Frage 2 unerreichbar. Jetzt traegt die Antwort die Leiste der
+    aktuellen Frage (die vorige wird abgenommen), und Annehmen fuehrt weiter."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    _druecke(conn, tg, einst, "Schaerfen")
+    knoepfe.nimm_offene_frage_text(conn, tg, None, einst, 1, "Wo ist Annehmen?")
+    antwort = "Annehmen steht direkt unter dieser Nachricht."
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1,
+        antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Wann hast du dich zuletzt "
+        "fremd gefuehlt?",
+    )
+
+    _, text, leiste = tg.knoepfe[-1]
+    assert text == antwort
+    assert [b for b, _ in leiste] == ["Annehmen", "Verwerfen", "Schaerfen"]
+    offen = _offene_annehmen(conn)
+    assert len(offen) == 1 and offen[0]["message_id"] == tg.naechste_message_id
+
+    _druecke(conn, tg, einst, "Annehmen")
+
+    assert tg.gesendet[-1][1].startswith("Frage 2/3")
+    assert repo.hole_arbeitsstand(conn, 1)["fragen_aktuell"] == "2"
+
+
+def test_unveraenderte_antwort_ohne_eigenen_text_fragt_mit_leiste(
+    conn, tg, einst, auftraege,
+):
+    """Ohne verwertbaren Modelltext kommt "Was soll sich aendern?" -- auch
+    diese Zeile traegt Annehmen/Verwerfen, nicht nur Text."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1,
+        "VORSCHLAG FRAGE:\nHeimat: Wann hast du dich zuletzt fremd gefuehlt?",
+    )
+
+    _, text, leiste = tg.knoepfe[-1]
+    assert text == knoepfe.T._TEXT_FRAGE_WAS_AENDERN
+    assert [b for b, _ in leiste] == ["Annehmen", "Verwerfen"]
+    assert len(_offene_annehmen(conn)) == 1
+    _druecke(conn, tg, einst, "Verwerfen")
+    assert tg.gesendet[-1][1].startswith("Frage 2/3")
+
+
 # --- 10. Weiche Fassungen als Angebot am Ende (Fund 02.10.2026) ------------
 
 

@@ -366,6 +366,36 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
     if leitbilder and station.leitbild_anfang:
         leitbilder.nimm(page, station.phase, station.leitbild_anfang)
 
+    def _warte_und_beende_diskussion_falls_noetig() -> bool:
+        """Kapselt den Zuhoer-Takt (Warten bis ``zuhoeren_s`` um ist, dann
+        deterministisch beenden) -- aufgerufen an ZWEI Stellen (siehe unten):
+        nach einer normalen Aktion UND bevor ein ``done_station``/
+        ``done_phase`` die Station vorzeitig beenden darf. Ohne die zweite
+        Stelle (Abnahme P1-2, Fortsetzung, 05.10.2026, echter Lauf) konnte
+        die Persona die Diskussion starten und dann sofort "done_station"
+        sagen -- die Schleife brach VOR diesem Block ab, die Diskussion
+        blieb unbeendet, und das Begriffsboard sah nie ein
+        ``ist_abschluss=True``. ``nonlocal``, weil ``gewartet``/
+        ``mitte_genommen`` Schleifenzustand sind, der ueber beide
+        Aufrufstellen hinweg gilt."""
+        nonlocal gewartet, mitte_genommen, hinweis
+        if not (station.zuhoeren_s and not gewartet and _diskussion_laeuft(page)):
+            return False
+        gewartet = True
+        ende = time.monotonic() + station.zuhoeren_s
+        while time.monotonic() < ende:
+            page.wait_for_timeout(10_000)
+            if beobachter:
+                beobachter.messe()
+            if leitbilder and station.leitbild_mitte and not mitte_genommen:
+                mitte_genommen = bool(leitbilder.nimm(page, station.phase, station.leitbild_mitte))
+        if _beende_diskussion_deterministisch(page):
+            if beobachter:
+                beobachter.messe()
+        else:
+            hinweis = browser_stationen.HINWEIS_DISKUSSION_ENDE
+        return True
+
     schritte = 0
     while schritte < station.budget:
         schritte += 1
@@ -379,6 +409,11 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         hinweis = None
         offene.extend(browser_persona.offene_fragen(aktion))
         if aktion.get("type") in ("done_phase", "done_station"):
+            # Die Diskussion zuerst sauber beenden, falls sie noch laeuft --
+            # sonst wuerde die Station enden, waehrend im Hintergrund weiter
+            # aufgezeichnet wird und nie jemand "Discussion done" drueckt.
+            if _warte_und_beende_diskussion_falls_noetig():
+                break
             if browser_stationen.muss_antworten(_verlaufsblasen(page), beantwortet):
                 beantwortet += 1
                 hinweis = browser_stationen.HINWEIS_NACHFRAGE
@@ -388,20 +423,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         protokoll = _aktion_ausfuehren(page, aktion)
         warte = browser_aktionen.warte_auf_antwort(page)
 
-        if station.zuhoeren_s and not gewartet and _diskussion_laeuft(page):
-            gewartet = True
-            ende = time.monotonic() + station.zuhoeren_s
-            while time.monotonic() < ende:
-                page.wait_for_timeout(10_000)
-                if beobachter:
-                    beobachter.messe()
-                if leitbilder and station.leitbild_mitte and not mitte_genommen:
-                    mitte_genommen = bool(leitbilder.nimm(page, station.phase, station.leitbild_mitte))
-            if _beende_diskussion_deterministisch(page):
-                if beobachter:
-                    beobachter.messe()
-            else:
-                hinweis = browser_stationen.HINWEIS_DISKUSSION_ENDE
+        _warte_und_beende_diskussion_falls_noetig()
 
         if (leitbilder and station.leitbild_mitte and not mitte_genommen
                 and not station.zuhoeren_s

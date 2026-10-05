@@ -428,3 +428,59 @@ def test_schliesse_offenes_phasensheet_ohne_offenes_blatt_liefert_false():
         geschlossen = browser_lauf._schliesse_offenes_phasensheet(seite)
         browser.close()
     assert geschlossen is False
+
+
+_FIXTURE_DISKUSSION_TOGGLE = """
+<div id="roadmap" data-aktive-phase="1"></div>
+<button id="diskussion" data-laeuft="0" onclick="this.dataset.laeuft='1'">Start listening</button>
+<button id="diskussion-beenden" onclick="document.getElementById('diskussion').dataset.laeuft='0'">Discussion done</button>
+"""
+
+
+def test_done_station_wartet_die_laufende_diskussion_zuerst_aus(
+    tmp_path, monkeypatch
+):
+    """Abnahme P1-2, Fortsetzung (05.10.2026, echter Lauf): die Persona
+    klickte 'Start listening' und sagte auf dem naechsten Schritt sofort
+    'done_station' -- die Schleife brach VOR dem Zuhoer-Takt ab, die
+    Diskussion blieb unbeendet. Jetzt wird der Zuhoer-Takt zuerst
+    nachgeholt, bevor ein done_station/done_phase die Station beendet."""
+    from simulation import browser_mitschnitt, browser_stationen
+
+    pfad = str(tmp_path / "d.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "g", "G")
+    conn.commit()
+    conn.close()
+
+    beendet_aufrufe = []
+    monkeypatch.setattr(
+        browser_lauf, "_beende_diskussion_deterministisch",
+        lambda page: beendet_aufrufe.append(1) or True,
+    )
+    # Der 10s-Wartetakt selbst ist fuer den Test irrelevant -- nur, DASS er
+    # laeuft, bevor "done_station" greift. ``time.monotonic``/``wait_for_timeout``
+    # bleiben echt (ein ``zuhoeren_s`` von 1 braucht wegen der festen
+    # 10s-Taktung trotzdem einmal 10s Realzeit; kurz genug fuer einen Test).
+    station = browser_stationen.Station(
+        "t-zuhoeren", 1, "Press Start listening, then say you are done.",
+        budget=4, zuhoeren_s=1,
+    )
+    persona = _ScriptedClient([
+        {"type": "click", "element_id": 0, "begruendung": "start listening"},
+        {"type": "done_station", "begruendung": "fertig"},
+    ])
+    mitschnitt = browser_mitschnitt.Mitschnitt(tmp_path / "l", "h", "handy")
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_TOGGLE)
+        ergebnis = browser_lauf._fuehre_station_aus(
+            seite, persona, mitschnitt, station, basis_url="http://127.0.0.1:1",
+            token="t", db_pfad=pfad, chat_id=CHAT, persona_name="giulia",
+            beobachter=None, leitbilder=None,
+        )
+        browser.close()
+    assert beendet_aufrufe == [1]
+    assert ergebnis["fertig"] is True

@@ -550,7 +550,7 @@ first question - three to five sentences: who we are, what it is about \
 material for a play), that you can stop at any time, and asking \
 permission to record the conversation. Add a short closing: thanks and \
 what happens next. Attach both as a block 'VORSCHLAG EROEFFNUNG:' - first \
-the opening, then a line that starts with 'ABSCHLUSS:'. Language like a \
+the opening, then a line that starts with 'CLOSING:'. Language like a \
 young person's, no official-sounding sentences. The text stands ONLY in the \
 block - don't also write it before it in the running text; before it, at \
 most one sentence and one question."""
@@ -994,7 +994,7 @@ KERNPAKET_KOPF = "The core package - this is what you work from. Characters and 
 FESTLEGUNGEN_KOPF = "Further agreements of the group (they count like the progress above):"
 DISKUSSION_KOPF = "From your term discussion:"
 BEGRIFFE_DETAIL_KOPF = "Why you chose these terms:"
-BOARD_KOPF = "The CoThinker board -- the terms the group sees live on the second phone, ranked (the first five are saved as their terms). Refer to it; take changes (a misheard term, a different order, a missing term) in the chat:"
+BOARD_KOPF = "The CoThinker board -- the terms the group sees live on the second phone, ranked (the saved terms are the ones under Terms above). Refer to it; take changes (a misheard term, a different order, a missing term) in the chat:"
 _BOARD_ZEILE = "{nr}. {begriff}{favorit}{grund}"
 _BOARD_FAVORIT = " (favourite)"
 _BOARD_GRUND = " -- {begruendung}"

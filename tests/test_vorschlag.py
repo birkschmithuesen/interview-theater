@@ -321,6 +321,33 @@ def test_ohne_marker_streicht_fliesstext_der_den_block_wiederholt():
     assert sauber.rstrip().endswith("wir melden uns.")
 
 
+def test_ohne_marker_streicht_den_grossgeschriebenen_abschluss_marker():
+    """Padua-Befund M1 (Lesung Runde 2, 05.10.2026): der EN-Auftrag laesst
+    den Bot woertlich 'ABSCHLUSS:' schreiben (K6-Protokoll-Token,
+    ``knoepfe.T.ANWEISUNG_EROEFFNUNG``) -- das stand GROSSGESCHRIEBEN im
+    Chat (Simulationslauf 2026-10-05-handy-giulia-p12, Nachricht 119/120).
+    Nur die GROSSGESCHRIEBENE Form ist Technik; das deutsche Fliesstextwort
+    'Abschluss:' (klein geschrieben, siehe Test oben) bleibt unberuehrt --
+    deshalb bewusst ohne ``re.IGNORECASE``, wie ``_MARKER_IRGENDWO``."""
+    from interview_theater import vorschlag
+
+    text = (
+        "Here is a first version.\n\n"
+        "VORSCHLAG EROEFFNUNG:\n"
+        "Hi, we are from the theatre project. Is it ok to record?\n"
+        "ABSCHLUSS: Thank you, that was really good to hear."
+    )
+    sauber = vorschlag.ohne_marker(text)
+    assert "ABSCHLUSS:" not in sauber
+    assert "Thank you, that was really good to hear." in sauber
+
+    # Die umbenannte Form (CLOSING:, system.md) faellt genauso weg.
+    umbenannt = text.replace("ABSCHLUSS:", "CLOSING:")
+    sauber_umbenannt = vorschlag.ohne_marker(umbenannt)
+    assert "CLOSING:" not in sauber_umbenannt
+    assert "Thank you, that was really good to hear." in sauber_umbenannt
+
+
 # --- Marker nicht am Zeilenanfang (P2-M4, Prompt-Check 05.10.2026) --------
 # Live-Befund: "VORSCHLAG EIGENE FRAGEN:" landete sichtbar im Chat, weil
 # das Modell den Marker nicht als eigene Zeile schrieb -- mitten im

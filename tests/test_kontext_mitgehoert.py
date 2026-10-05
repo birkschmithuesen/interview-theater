@@ -166,3 +166,22 @@ def test_englische_systemanweisung_sagt_dass_alles_vorliegt(monkeypatch):
         monkeypatch.delenv(workshop.VARIABLE)
         workshop.vergiss()
         sprache.vergiss()
+
+
+def test_englischer_board_kopf_behauptet_keine_feste_top_fuenf(monkeypatch):
+    """Lesung Runde 2 (05.10.2026), Prompt-Check "by design", Dump P1
+    01:551: ``BOARD_KOPF`` behauptete "the first five are saved as their
+    terms" -- das Top-5-Autosave gilt nur, solange die Gruppe keine eigene
+    Liste hat (Fixture Runde 2: gespeichert waren fuenf andere Begriffe in
+    anderer Reihenfolge als der Board-Rang, ``begriffe_board_wert``). Die
+    Klammer nennt jetzt keine Zahl mehr, nur den Verweis auf "Terms"."""
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    try:
+        assert "the first five are saved as their terms" not in kontext.T.BOARD_KOPF
+        assert "the saved terms are the ones under Terms above" in kontext.T.BOARD_KOPF
+    finally:
+        monkeypatch.delenv(workshop.VARIABLE)
+        workshop.vergiss()
+        sprache.vergiss()

@@ -26,3 +26,16 @@ def test_phase2_ohne_toten_verweis_auf_fragen_weich():
     text = " ".join(DATEI.read_text(encoding="utf-8").split())
     assert "FRAGEN WEICH" not in text
     assert "The group words its questions itself." in text
+
+
+def test_phase2_ohne_entwicklervermerk_im_modellkontext():
+    """Lesung Runde 2 (05.10.2026), billiger Fund c459: die Datei begann
+    mit einem Entwicklervermerk ('Padua Phase 1+2 card, Task 13
+    (2026-10-03): this file completely replaces the shared `phasen/2.md`
+    for this profile only ...') -- eine Begruendung fuer Entwicklerinnen,
+    kein Satz fuer das Modell, das diese Datei als Teil des Systemprompts
+    liest."""
+    text = DATEI.read_text(encoding="utf-8")
+    assert "Task 13" not in text
+    assert "completely replaces" not in text
+    assert text.startswith("## What this phase is about")

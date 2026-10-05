@@ -1671,8 +1671,13 @@ def schreibe_eroeffnung_automatisch(
         )
         repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
 
+    # Anzeige aus dem schon zerlegten Text, nicht aus dem rohen ``wert``:
+    # der traegt den internen Unterzeilen-Marker ("ABSCHLUSS:"/"CLOSING:")
+    # noch mit, und der landete sonst woertlich im Chat (Padua-Befund M1,
+    # Lesung Runde 2 05.10.2026).
+    anzeige = "\n".join(teil for teil in (eroeffnung, abschluss) if teil)
     titel = erkenner.T._FELD_BESCHRIFTUNG["eroeffnung"]
-    text = erkenner.T._ZEILE_FESTGELEGT.format(titel=titel, text=wert)
+    text = erkenner.T._ZEILE_FESTGELEGT.format(titel=titel, text=anzeige)
     lauf_id = erkenner.lauf_fuer_knopf(conn, e, chat_id, text, _schreibe)
     repo.schreibe_journal(
         conn, chat_id, "entschieden", T._JOURNAL_EROEFFNUNG_FESTGELEGT,

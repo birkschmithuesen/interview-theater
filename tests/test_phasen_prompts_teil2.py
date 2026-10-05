@@ -142,13 +142,38 @@ def test_system_en_form_erst_in_station_7():
     ('with a suggested form for each scene', 'already in the scene
     sequence suggestion ... changed with a button'), obwohl sie laut
     Station 7 erst dort gewaehlt wird. Das Zeilenformat von
-    `VORSCHLAG GESCHICHTE:` (mit einem Form-Feld) bleibt unveraendert --
-    der Parser der Szenenfolge ist nicht Teil dieser Karte."""
+    `VORSCHLAG GESCHICHTE:` liess damals noch ein Form-Feld stehen (Fix
+    dafuer: ``test_system_en_geschichte_zeile_ohne_form``, Runde 3)."""
     text = (EN / "system.md").read_text(encoding="utf-8")
     assert "with a suggested form for each scene" not in text
     assert "already in the scene sequence suggestion" not in text
     assert "but only once the group reaches phase 7" in text
     assert "then one line per scene `Title" in text
+
+
+def test_system_en_geschichte_zeile_ohne_form():
+    """Lesung Runde 2 (05.10.2026), Prompt-Check Klasse A, Dump P1 01:174:
+    `Title -- one sentence -- characters -- form` verlangte die Form schon
+    beim ersten Geschichtsvorschlag (Phase 4) -- Widerspruch zu Zeile 66
+    ('but only once the group reaches phase 7'). ``szenenfolge.zerlege``
+    (Zeile 278) liest das vierte Feld ohnehin optional und faellt auf
+    ``workshop.form_vorgabe()`` zurueck -- die Form faellt in der Zeile
+    deshalb ersatzlos weg."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "characters — form`" not in text
+    assert "then one line per scene `Title — one sentence — characters`" in text
+
+
+def test_system_en_frage_ist_keine_pflicht():
+    """Lesung Runde 2 (05.10.2026), Prompt-Check Klasse A, Dump P2 05:95:
+    'One question, and two to three options' stand als Pflicht am
+    Zeilenanfang -- Widerspruch zu Zeile 167 ('At most ONE question per
+    message -- never a mandatory close, only when it helps') und zu
+    UX-Regel 4 (keine Pflichtfrage je Gedanke). Eine Nachricht darf jetzt
+    ohne Frage enden."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "One question, and two to three options" not in text
+    assert "at most one question" in text.lower()
 
 
 def test_system_en_marker_katalog_ohne_fragenauswahl():

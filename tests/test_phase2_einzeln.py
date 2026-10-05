@@ -705,6 +705,123 @@ def test_unveraenderte_antwort_ohne_eigenen_text_fragt_mit_leiste(
     assert tg.gesendet[-1][1].startswith("Frage 2/3")
 
 
+def _antwort_im_auftrag(conn, tg, anweisung, text):
+    """Die Modellantwort so, wie ``ablauf.auftragszug`` sie im Thread des
+    Auftrags abliefert -- im Rahmen genau dieses Auftrags."""
+    with ablauf.laeuft_als_auftrag(anweisung):
+        return knoepfe.sende_mit_speicherleiste(conn, tg, 1, text)
+
+
+@pytest.mark.parametrize("entscheidung", ["Annehmen", "Verwerfen"])
+def test_spaete_schaerfung_ueberschreibt_nicht_die_naechste_frage(
+    conn, tg, einst, auftraege, entscheidung,
+):
+    """S1-Review: seit S1 traegt "Was soll sich aendern?" Annehmen/Verwerfen,
+    waehrend die Schaerfung von Frage 1 noch im Thread laeuft. Entscheidet die
+    Gruppe dazwischen, steht Frage 2 da -- die spaete Modellantwort fuer
+    Frage 1 darf Frage 2 nicht ersetzen (sie hing vorher an
+    ``fragen_aktuell``, nicht an der Frage, fuer die sie gestartet wurde)."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    _druecke(conn, tg, einst, "Schaerfen")
+    knoepfe.nimm_offene_frage_text(conn, tg, None, einst, 1, "mach sie persoenlicher")
+    assert len(auftraege) == 1
+    _druecke(conn, tg, einst, entscheidung)
+    assert tg.gesendet[-1][1].startswith("Frage 2/3")
+    vorher = repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"]
+    karten_vorher = len(tg.knoepfe)
+
+    message_id, _ = _antwort_im_auftrag(
+        conn, tg, auftraege[0],
+        "VORSCHLAG FRAGE:\nHeimat: Wann warst du zuletzt fremd?",
+    )
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["fragen_auswahl"] == vorher, "Frage 2 (und 1) unveraendert"
+    assert stand["fragen_aktuell"] == "2"
+    assert len(tg.knoepfe) == karten_vorher, "keine neue Karte, keine neue Leiste"
+    offen = _offene_annehmen(conn)
+    assert len(offen) == 1 and offen[0]["wert"] == "2", "die Leiste von Frage 2 bleibt"
+    assert isinstance(message_id, int)
+
+
+def test_spaete_unveraenderte_schaerfung_nimmt_der_naechsten_frage_nicht_die_leiste(
+    conn, tg, einst, auftraege,
+):
+    """Dasselbe fuer eine unveraendert zurueckkommende Frage 1: ihre Antwort
+    haengte vorher die Leiste von Frage 2 unter Text zu Frage 1."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    knoepfe.nimm_offene_frage_text(conn, tg, None, einst, 1, "Was heisst das?")
+    _druecke(conn, tg, einst, "Annehmen")
+    karten_vorher = len(tg.knoepfe)
+
+    _antwort_im_auftrag(
+        conn, tg, auftraege[0],
+        "Das heisst: wann warst du fremd.\n\nVORSCHLAG FRAGE:\nHeimat: Wann "
+        "hast du dich zuletzt fremd gefuehlt?",
+    )
+
+    assert len(tg.knoepfe) == karten_vorher
+    offen = _offene_annehmen(conn)
+    assert len(offen) == 1 and offen[0]["wert"] == "2"
+
+
+def test_ueberlappende_schaerfungen_landen_je_bei_ihrer_frage(
+    conn, tg, einst, auftraege,
+):
+    """Schaerfung A fuer Frage 1 laeuft noch, die Gruppe nimmt an und schickt
+    schon den Wunsch B fuer Frage 2. Kommt A danach an, bleibt Frage 2
+    unberuehrt; B ersetzt sie wie immer."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    knoepfe.nimm_offene_frage_text(conn, tg, None, einst, 1, "persoenlicher")
+    _druecke(conn, tg, einst, "Annehmen")
+    knoepfe.nimm_offene_frage_text(conn, tg, None, einst, 1, "kuerzer")
+    assert len(auftraege) == 2
+
+    _antwort_im_auftrag(
+        conn, tg, auftraege[0],
+        "VORSCHLAG FRAGE:\nHeimat: Wann warst du zuletzt fremd?",
+    )
+    fragen = vorschlag.zeilen(repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"])
+    assert fragen[1] == "Heimat: Was nimmst du mit, wenn du umziehen musst?"
+
+    _antwort_im_auftrag(
+        conn, tg, auftraege[1], "VORSCHLAG FRAGE:\nHeimat: Was nimmst du mit?",
+    )
+
+    fragen = vorschlag.zeilen(repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"])
+    assert fragen[0] == "Heimat: Wann hast du dich zuletzt fremd gefuehlt?"
+    assert fragen[1] == "Heimat: Was nimmst du mit?"
+    assert tg.gesendet[-1][1].startswith("Frage 2/3")
+
+
+def test_auftragszug_liefert_seine_antwort_im_rahmen_seines_auftrags(
+    conn, tg, einst, monkeypatch,
+):
+    """Die Zuordnung haengt daran, dass ``auftragszug`` die Antwort im Rahmen
+    seiner Anweisung abliefert (``ablauf.laufender_auftrag``)."""
+    gesehen = []
+
+    def _leiste(conn_, tg_, chat_id, text, klm=None, e=None):
+        gesehen.append(ablauf.laufender_auftrag())
+        return tg_.sende(chat_id, text), False
+
+    class _Klm:
+        pass
+
+    monkeypatch.setattr(knoepfe, "sende_mit_speicherleiste", _leiste)
+    monkeypatch.setattr(
+        ablauf.modellwahl, "aufruf_schema",
+        lambda *a, **k: {"antwort": "Eine Antwort."},
+    )
+    ablauf.auftragszug(conn, tg, _Klm(), einst, 1, "Die Anweisung.")
+
+    assert gesehen == ["Die Anweisung."]
+    assert ablauf.laufender_auftrag() is None
+
+
 # --- 10. Weiche Fassungen als Angebot am Ende (Fund 02.10.2026) ------------
 
 

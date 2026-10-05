@@ -892,6 +892,10 @@ _TEXT_FRAGEN_EIGENE_WARTET_AUF_KI = (
     "Eure Fragen sind gespeichert - ich warte noch auf die KI-Fragen im "
     "Hintergrund."
 )
+#: Unter ``workshop.fragen_eigene_min`` eigenen Fragen (Padua: 5, Birk
+#: 05.10.2026 14:05): ein alter "Suggest questions"-Knopf oder "eigene
+#: Fragen fertig" startet nichts.
+_TEXT_FRAGEN_EIGENE_ZU_WENIG = "Sammelt erst mindestens fünf eigene Fragen."
 #: Die EINE kurze Ueberleitungszeile beim automatischen Start der
 #: Gegenueberstellung (KORREKTUR-PHASE2-KEIN-KNOPF.md).
 _TEXT_GEGENUEBERSTELLUNG_BEREIT = (

@@ -232,6 +232,7 @@ _TEXT_FRAGEN_NOCH_EIGENE = "Great – just write or say them, I'll add them."
 _TEXT_FRAGEN_EIGENE_WARTET_AUF_KI = """\
 Your questions are saved - I'm still waiting for the AI questions in the \
 background."""
+_TEXT_FRAGEN_EIGENE_ZU_WENIG = "First collect at least five questions of your own."
 _TEXT_GEGENUEBERSTELLUNG_BEREIT = "Your questions and the AI's are now side by side:"
 _TEXT_HERKUNFT_EIGEN = " (yours)"
 _TEXT_HERKUNFT_KI = " (AI)"

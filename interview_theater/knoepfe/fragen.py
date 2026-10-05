@@ -693,6 +693,8 @@ def uebernimm_eigene(conn, tg, chat_id: int, wert: str, text: str | None = None)
     zeilen = _mische_eigene_fragen(bestehend, neue_zeilen)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_eigene_vorschlag", "\n".join(zeilen))
 
+    if _fruehzeitig_fertig(text) and not _genug_eigene(conn, chat_id):
+        return sende_mit_vorschlagen(conn, tg, chat_id, T._TEXT_FRAGEN_EIGENE_ZU_WENIG)
     if not _fruehzeitig_fertig(text):
         antwort = (text or "").strip()
         return sende_mit_vorschlagen(
@@ -767,8 +769,15 @@ def sende_mit_vorschlagen(conn, tg, chat_id: int, text: str,
     Undo-Knopf. ``_sende_knoepfe`` liesse ihn verfallen
     (``_kollabiere_letzten_einsamen_undo``) -- hier bleibt er stehen: er ist
     der einzige Weg, die Begriffe zurueckzunehmen, und "Suggest questions"
-    ist kein zweiter Speicherweg, der mit ihm konkurriert."""
+    ist kein zweiter Speicherweg, der mit ihm konkurriert.
+
+    Unter ``workshop.fragen_eigene_min`` eigenen Fragen geht ``text`` ohne
+    den Knopf raus (Padua, Birk 05.10.2026 14:05)."""
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_VORSCHLAGEN)
+    if not _genug_eigene(conn, chat_id):
+        message_id = tg.sende(chat_id, text)
+        _merke_botnachricht(conn, chat_id, message_id, text)
+        return message_id
     leiste = vorschlagen_leiste(conn, chat_id)
     if undo_behalten:
         message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
@@ -779,6 +788,22 @@ def sende_mit_vorschlagen(conn, tg, chat_id: int, text: str,
         conn, [_id_aus_daten(daten) for _, daten in leiste], message_id,
     )
     return message_id
+
+
+def _genug_eigene(conn, chat_id: int) -> bool:
+    """Ob die Gruppe mindestens ``workshop.fragen_eigene_min`` eigene Fragen
+    hat (Zeilen in ``fragen_eigene_vorschlag``); Vorgabe 0 = immer."""
+    from interview_theater import vorschlag
+
+    mindestens = workshop.fragen_eigene_min()
+    if mindestens <= 0:
+        return True
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_eigene_vorschlag"] or "") if stand else ""
+    except (IndexError, KeyError):
+        roh = ""
+    return len(vorschlag.zeilen(roh) if roh else []) >= mindestens
 
 
 def _hat_eigene_fragen(conn, chat_id: int) -> bool:
@@ -794,8 +819,11 @@ def _hat_eigene_fragen(conn, chat_id: int) -> bool:
 def frage_nach_eigenen(conn, tg, chat_id: int) -> int:
     """Druck auf "Suggest questions": die Rueckfrage zum Selberdenken mit
     "We have more" / "Yes, suggest some". Ohne eine einzige eigene Frage die
-    deutlichere Fassung -- eigene Fragen zuerst."""
+    deutlichere Fassung -- eigene Fragen zuerst. Unter
+    ``workshop.fragen_eigene_min`` (ein alter Knopf) nur eine Zeile."""
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_VORSCHLAGEN)
+    if not _genug_eigene(conn, chat_id):
+        return tg.sende(chat_id, T._TEXT_FRAGEN_EIGENE_ZU_WENIG)
     text = (T._TEXT_FRAGEN_SELBST_RUECKFRAGE if _hat_eigene_fragen(conn, chat_id)
             else T._TEXT_FRAGEN_SELBST_RUECKFRAGE_LEER)
     leiste = [
@@ -824,6 +852,8 @@ def ja_vorschlagen(conn, tg, chat_id: int, klm=None, e=None) -> int:
     ``klm``/``e``, damit ein gescheiterter KI-Lauf nachgeholt werden kann
     (``_eigene_fertig``)."""
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_NOCH_EIGENE)
+    if not _genug_eigene(conn, chat_id):
+        return tg.sende(chat_id, T._TEXT_FRAGEN_EIGENE_ZU_WENIG)
     return _eigene_fertig(conn, tg, chat_id, klm=klm, e=e)
 
 

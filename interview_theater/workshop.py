@@ -984,6 +984,15 @@ def fragen_ab_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("fragen_ab.aktiv", False))
 
 
+def fragen_eigene_min(profil: Profil | None = None) -> int:
+    """Ab wie vielen eigenen Fragen der Knopf "Suggest questions" (und der
+    Schluss "eigene Fragen fertig") in Phase 2 gilt (Padua, Birk 05.10.2026
+    14:05). Vorgabe 0 -- ohne ``[fragen] eigene_min`` bleibt alles wie
+    bisher; Dortmund setzt die Zeile nicht."""
+    profil = profil or aktiv()
+    return int(profil.wert("fragen.eigene_min", 0))
+
+
 def workbench_bearbeitbar(profil: Profil | None = None) -> bool:
     """Ob der Arbeitsstand-Tab ("Workbench") Formulare traegt und der
     Werkbank-POST schreibt (Padua, 03.10.2026, Karte t_49e7354c).

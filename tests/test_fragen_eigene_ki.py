@@ -1039,3 +1039,84 @@ def test_ordne_zeilen_unpunktierte_aufzaehlung_wird_nicht_verschmolzen():
     zeilen = vorschlag.zeilen("**Home**\n- Tell me about a place\n- Who cooked there")
     je_begriff = fragen._zeilen_je_begriff(BEGRIFFE_REAL, zeilen)
     assert je_begriff["Home"] == ["Home: Tell me about a place", "Home: Who cooked there"]
+
+
+# ---------------------------------------------------------------------------
+# Padua Phase 2 (Birk 05.10.2026 14:05): "Suggest questions" erst ab fuenf
+# eigenen Fragen (``[fragen] eigene_min``)
+# ---------------------------------------------------------------------------
+
+
+def _eigene(n: int) -> str:
+    return "\n".join(f"Heimat: Frage {i}?" for i in range(1, n + 1))
+
+
+class _KnopfTG(_TG):
+    def __init__(self):
+        super().__init__()
+        self.mit_knopf = []
+
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
+        self.mit_knopf.append(text)
+        return super().sende_mit_knoepfen(chat_id, text, knoepfe_, **_kw)
+
+
+def test_padua_profil_setzt_eigene_min_fuenf():
+    assert workshop.fragen_eigene_min(workshop.lade("padua-2026")) == 5
+
+
+def test_eigene_min_vorgabe_null():
+    assert workshop.fragen_eigene_min() == 0
+
+
+def test_vier_eigene_kein_vorschlagen_knopf(conn, einst, monkeypatch):
+    monkeypatch.setattr(workshop, "fragen_eigene_min", lambda *a: 5)
+    _setze_begriffe(conn, "Heimat")
+    tg = _KnopfTG()
+    fragen.uebernimm_eigene(conn, tg, CHAT, _eigene(4), text="Noch eine?")
+    assert tg.texte == ["Noch eine?"]
+    assert tg.mit_knopf == []
+
+
+def test_fuenf_eigene_mit_vorschlagen_knopf(conn, einst, monkeypatch):
+    monkeypatch.setattr(workshop, "fragen_eigene_min", lambda *a: 5)
+    _setze_begriffe(conn, "Heimat")
+    tg = _KnopfTG()
+    fragen.uebernimm_eigene(conn, tg, CHAT, _eigene(5), text="Noch eine?")
+    assert tg.mit_knopf == ["Noch eine?"]
+
+
+def test_alter_vorschlagen_knopf_mit_drei_eigenen_startet_nichts(conn, einst, monkeypatch):
+    monkeypatch.setattr(workshop, "fragen_eigene_min", lambda *a: 5)
+    aufrufe = []
+    monkeypatch.setattr(
+        fragen, "versuche_gegenueberstellung",
+        lambda *a, **k: aufrufe.append(a) or None,
+    )
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_eigene_vorschlag", _eigene(3))
+    tg = _KnopfTG()
+    fragen.frage_nach_eigenen(conn, tg, CHAT)
+    fragen.ja_vorschlagen(conn, tg, CHAT)
+    assert aufrufe == []
+    assert tg.mit_knopf == []
+    assert tg.texte == [T._TEXT_FRAGEN_EIGENE_ZU_WENIG] * 2
+    assert _feld(conn, CHAT, "fragen_eigene_erstellt_am") is None
+
+
+def test_fertig_satz_mit_drei_eigenen_sammelt_weiter(conn, einst, monkeypatch):
+    monkeypatch.setattr(workshop, "fragen_eigene_min", lambda *a: 5)
+    aufrufe = []
+    monkeypatch.setattr(
+        fragen, "versuche_gegenueberstellung",
+        lambda *a, **k: aufrufe.append(a) or None,
+    )
+    _setze_begriffe(conn, "Heimat")
+    tg = _KnopfTG()
+    fragen.uebernimm_eigene(
+        conn, tg, CHAT, _eigene(3),
+        text="Gut. " + T._SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG,
+    )
+    assert aufrufe == []
+    assert _feld(conn, CHAT, "fragen_eigene_erstellt_am") is None
+    assert tg.mit_knopf == []
+    assert tg.texte == [T._TEXT_FRAGEN_EIGENE_ZU_WENIG]

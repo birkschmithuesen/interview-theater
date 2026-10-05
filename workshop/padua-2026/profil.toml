@@ -188,6 +188,12 @@ aktiv = true
 [fragen_ab]
 aktiv = true
 
+# "Suggest questions" erst ab fuenf eigenen Fragen der Gruppe (Birk,
+# 05.10.2026 14:05); darunter kein Knopf und kein Vergleich. Ohne die
+# Zeile: 0 (immer).
+[fragen]
+eigene_min = 5
+
 # Weiche Fassungen sensibler Fragen in Phase 2 AUS (Birk, 03.10.2026 live:
 # „Die ganze Softwaregeschichte beim Fragen entwickeln kannst du fuer Padua
 # deaktivieren [...] Es hat nicht gut funktioniert.“). Ohne die Zeile: an.

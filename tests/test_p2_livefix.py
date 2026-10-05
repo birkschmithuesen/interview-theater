@@ -405,7 +405,12 @@ def _knopf_daten(tg, beschriftung):
     raise AssertionError(f"kein Knopf {beschriftung!r}: {tg.knoepfe}")
 
 
-def _phase2_mit_ki(conn, eigene=ERSTE):
+#: Fuenf eigene Fragen -- ab da bietet Padua "Suggest questions" an
+#: (``[fragen] eigene_min = 5``, Birk 05.10.2026 14:05).
+FUENF = "\n".join([ERSTE, ZWEITE] + [f"robots: Robot question {i}?" for i in (3, 4, 5)])
+
+
+def _phase2_mit_ki(conn, eigene=FUENF):
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Living on mars, robots")
     phasen.setze(conn, 1, 2, "test")
     if eigene:
@@ -420,6 +425,12 @@ def test_n_eintritt_in_phase_2_traegt_den_knopf_suggest_questions(conn, tg, eins
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Living on mars, robots")
     from interview_theater.knoepfe import stationen
 
+    stationen.biete_proaktiv(conn, tg, 1, 2, vorspann="Phase 2")
+    # Ohne fuenf eigene Fragen kein Knopf (Birk 05.10.2026 14:05).
+    assert tg.knoepfe == []
+    assert tg.texte[-1].startswith("Phase 2")
+
+    repo.setze_arbeitsstand(conn, 1, "fragen_eigene_vorschlag", FUENF)
     stationen.biete_proaktiv(conn, tg, 1, 2, vorspann="Phase 2")
     assert [b for b, _ in tg.knoepfe[-1][2]] == ["Suggest questions"]
 
@@ -440,7 +451,9 @@ def test_n_druck_fragt_erst_nach_eigenen_und_erzeugt_nichts(conn, tg, einst, pad
     assert not stand["fragen_eigene_erstellt_am"]
 
 
-def test_n_ohne_eigene_frage_kommt_die_deutlichere_rueckfrage(conn, tg, einst, padua):
+def test_n_ohne_eigene_frage_kommt_die_deutlichere_rueckfrage(conn, tg, einst, padua, monkeypatch):
+    # Nur ohne Mindestzahl erreichbar (Padua: ``eigene_min = 5``).
+    monkeypatch.setattr(workshop, "fragen_eigene_min", lambda *a: 0)
     _phase2_mit_ki(conn, eigene=None)
     from interview_theater.knoepfe import stationen
 
@@ -519,7 +532,8 @@ def test_n_undo_der_begriffe_ueberlebt_den_sprung_in_phase_2(conn, tg, einst, pa
 
     assert phasen.aktuelle(conn, 1) == 2
     beschriftungen = [[b for b, _ in leiste] for _, _, leiste, _ in tg.knoepfe]
-    assert ["Suggest questions"] in beschriftungen
+    # Ohne eigene Fragen traegt der Eintritt keinen Knopf (eigene_min = 5).
+    assert ["Suggest questions"] not in beschriftungen
     assert repo.hole_knopf(conn, int(undo[2:]))["benutzt_am"] is None
     assert tg.entfernt == [(1, 777)] and tg.aktualisiert == []
 

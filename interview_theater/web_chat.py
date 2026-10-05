@@ -1267,6 +1267,7 @@ _CHAT_JS = """
     var weg_ = `chat/audio?dauer=${auftrag.dauer}`;
     if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
     if (auftrag.redeMs != null) { weg_ += `&rede=${Math.round(auftrag.redeMs)}`; }
+    if (auftrag.weichMs != null) { weg_ += `&weichms=${Math.round(auftrag.weichMs)}`; }
     if (auftrag.sitzung && auftrag.sitzung.art === 'brainstorm') { weg_ += '&brainstorm=1'; }
     if (auftrag.sitzung && auftrag.sitzung.art === 'diskussion') { weg_ += '&diskussion=1'; }
     if (auftrag.kalibrierung) { weg_ += '&kalibrierung=1'; }
@@ -1590,6 +1591,7 @@ _CHAT_JS = """
       // pausiereInterview()/beendeInterview() (Flush) VOR stop() gesetzt;
       // ohne VAD (Rueckfall auf den festen Takt) bleiben beide undefined.
       var redeMs = r._redeMs;
+      var weichMs = r._weichMs;
       var grund = r._grund || null;
       // Frueher wurde hier ueber redeMs verworfen (Birk, Szenario A: eine zu
       // hoch eingestellte Schwelle liess leise, aber echte Rede als "nicht
@@ -1607,7 +1609,8 @@ _CHAT_JS = """
           art: 'audio', sitzung: sitzung,
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
           dauer: Math.max(1, Math.round((Date.now() - von) / 1000)),
-          grund: grund, redeMs: redeMs, kalibrierung: !!r._kalibrierung
+          grund: grund, redeMs: redeMs, weichMs: weichMs,
+          kalibrierung: !!r._kalibrierung
         };
       }
       // Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): einmal je
@@ -1782,16 +1785,42 @@ _CHAT_JS = """
   // Schneidet sitzung.recorder NIE direkt -- das macht schneideSegment(),
   // das den Nachfolge-Recorder gleich mitanlegt, damit zwischen zwei
   // Segmenten keine Luecke entsteht.
-  function schneideSegment(sitzung, grund) {
+  function schneideSegment(sitzung, grund, weichMs) {
     var alt = sitzung.recorder;
     if (!alt) { return; }
     alt._grund = grund;
     alt._redeMs = sitzung.vadSpeechMs;
+    alt._weichMs = weichMs;
     if (alt.state !== 'inactive') { alt.stop(); }   // liefert sein Segment im onstop
     sitzung.recorder = neuesSegment(sitzung);
     sitzung.vadSegmentStart = Date.now();
     sitzung.vadSpeechMs = 0;
     sitzung.vadLetzteRede = sitzung.vadSegmentStart;
+  }
+
+  // Weicher Schnitt an natuerlichen Pausen (Padua VAD, 05.10.2026): gemessen
+  // 05.10.2026 (betrieb/padua.db, 61 Segmente Phase-1-Diskussion) liefen 64%
+  // der Segmente bis zur Hartkappe (MAX_MS) durch -- eine lebhafte
+  // Gruppendiskussion erreicht PAUSE_MS (2.5s) fast nie, Saetze reissen
+  // mitten im Wort. Ab WEICH_AB_MS Alter reicht deshalb schon ein kuerzerer
+  // Ruecklauf unter die Schwelle (WEICH_PAUSE_MS), BEVOR MAX_MS greift.
+  // Reine Entscheidungsfunktion (wie kalSchwelle/kalZuLeise), damit sie
+  // woertlich in einem Node-Testlauf lebt (tests/test_web_chat_js.py).
+  function entscheideSchnitt(sitzung, jetzt, MAX_MS, PAUSE_MS, MIN_SPEECH_MS,
+                              WEICH_AB_MS, WEICH_PAUSE_MS) {
+    if ((jetzt - sitzung.vadSegmentStart) >= MAX_MS) {
+      return 'cap';                          // IMMER, letztes Mittel
+    }
+    var ruhigSeit = jetzt - sitzung.vadLetzteRede;
+    if (ruhigSeit >= PAUSE_MS && sitzung.vadSpeechMs >= MIN_SPEECH_MS) {
+      return 'pause';
+    }
+    var altGenug = (jetzt - sitzung.vadSegmentStart) >= WEICH_AB_MS;
+    if (altGenug && ruhigSeit >= WEICH_PAUSE_MS &&
+        sitzung.vadSpeechMs >= MIN_SPEECH_MS) {
+      return 'weich';
+    }
+    return null;
   }
 
   // -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/           --
@@ -1864,6 +1893,11 @@ _CHAT_JS = """
       var MIN_SPEECH_MS = parseInt(fuss.dataset.vadMinSpeechMs, 10) || 500;
       var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
       var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
+      // Weicher Schnitt (05.10.2026): eigene Env-/Data-Attribut-Zahlen wie
+      // die fuenf Werte oben, Vorgaben 30s/700ms (ANNAHME -- keine Messung
+      // der eigenen Raeume, siehe Kanban-Karte).
+      var WEICH_AB_MS = parseInt(fuss.dataset.vadWeichAbMs, 10) || 30000;
+      var WEICH_PAUSE_MS = parseInt(fuss.dataset.vadWeichPauseMs, 10) || 700;
       // Erkennungstakt der RMS-Messung (Birk 04.10.2026: Latenz zwischen
       // echtem Rede-/Pausenbeginn und Erkennung soll kleiner werden) --
       // von 120ms auf 60ms halbiert, BODEN_FENSTER unten bleibt dieselbe
@@ -1930,21 +1964,25 @@ _CHAT_JS = """
           sitzung.vadLetzteRede = jetzt;
         }
         if (!sitzung.recorder) { return; }
-        var kappe = (jetzt - sitzung.vadSegmentStart) >= MAX_MS;
-        var pause = (jetzt - sitzung.vadLetzteRede) >= PAUSE_MS;
-        if (kappe) {
-          // Hart: schneidet IMMER, auch ohne Pause und auch mit zu wenig
+        var grund = entscheideSchnitt(
+          sitzung, jetzt, MAX_MS, PAUSE_MS, MIN_SPEECH_MS,
+          WEICH_AB_MS, WEICH_PAUSE_MS
+        );
+        if (grund === 'weich') {
+          // weichMs = Alter des Segments beim Schnitt -- reines
+          // Diagnose-Metadatum (wie redeMs), damit morgige Daten die
+          // Vorgaben 30s/700ms justieren koennen.
+          schneideSegment(sitzung, 'weich', jetzt - sitzung.vadSegmentStart);
+        } else if (grund) {
+          // 'cap': schneidet IMMER, auch ohne Pause und auch mit zu wenig
           // Rede (der seltene Fall landet in onstop() ohne Upload -- siehe
-          // dortigen Kommentar).
-          schneideSegment(sitzung, 'cap');
-        } else if (pause && sitzung.vadSpeechMs >= MIN_SPEECH_MS) {
-          schneideSegment(sitzung, 'pause');
+          // dortigen Kommentar). 'pause': die alte 2.5s-Regel.
+          schneideSegment(sitzung, grund);
         }
-        // pause && vadSpeechMs < MIN_SPEECH_MS: kein Schnitt -- die Stille
-        // wird Teil desselben, weiterlaufenden Segments ("in das naechste
-        // Segment getragen", ohne Audio-Bytes ueber zwei MediaRecorder-
-        // Instanzen hinweg zusammenfuegen zu muessen, was keine einzelne
-        // dekodierbare Datei mehr ergaebe).
+        // kein grund: die Stille wird Teil desselben, weiterlaufenden
+        // Segments ("in das naechste Segment getragen", ohne Audio-Bytes
+        // ueber zwei MediaRecorder-Instanzen hinweg zusammenfuegen zu
+        // muessen, was keine einzelne dekodierbare Datei mehr ergaebe).
       }, VAD_TAKT_MS);
     } catch (e) { /* ohne Pegel geht es auch -- dann der feste Takt (Rueckfall unten) */ }
   }

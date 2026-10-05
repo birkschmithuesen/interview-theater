@@ -121,13 +121,20 @@ def test_vad_liest_alle_fuenf_werte_aus_dem_fuss():
         assert f"fuss.dataset.{attribut}" in js, attribut
 
 
-def test_kappe_schneidet_immer_pause_nur_mit_genug_rede():
+def test_der_takt_ruft_entscheideschnitt_auf_und_schneidet_entsprechend():
+    """Die Grund-Entscheidung (cap/pause/weich) ist seit der Kanban-Karte
+    "Padua VAD: weicher Schnitt an natuerlichen Pausen" (05.10.2026) in
+    ``entscheideSchnitt`` ausgelagert (derselbe Griff wie
+    ``kalBerechneBodenUndSchwelle`` fuer die Schwelle) -- der Takt ruft sie
+    nur noch auf. Die Entscheidungslogik selbst lebt live in Node
+    (test_entscheideschnitt_*_live_in_node unten); hier steht nur, dass der
+    Takt sie tatsaechlich verwendet statt sie nachzubauen."""
     js = web_chat._CHAT_JS
     takt = js[js.index("sitzung.pegelTakt = setInterval"):]
     takt = takt[:takt.index("}, VAD_TAKT_MS)")]
-    assert "schneideSegment(sitzung, 'cap')" in takt
-    assert "schneideSegment(sitzung, 'pause')" in takt
-    assert "sitzung.vadSpeechMs >= MIN_SPEECH_MS" in takt
+    assert "entscheideSchnitt(" in takt
+    assert "schneideSegment(sitzung, 'weich'" in takt
+    assert "schneideSegment(sitzung, grund)" in takt
 
 
 def test_manuelle_schnitte_tragen_den_grund_ende():
@@ -1911,6 +1918,100 @@ def test_pegelan_ruft_die_kalibrierte_formel_auf():
     js = web_chat._CHAT_JS
     pegel_an = js[js.index("function pegelAn"):js.index("function formatiereUhr")]
     assert "kalBerechneBodenUndSchwelle(" in pegel_an
+    assert "entscheideSchnitt(" in pegel_an
+
+
+# -- Weicher Schnitt an natuerlichen Pausen (Padua VAD, 05.10.2026) --------
+#
+# Gemessen 05.10.2026 (betrieb/padua.db, 61 Segmente Phase-1-Diskussion):
+# 64% der Segmente liefen bis zur Hartkappe (90s) durch, nur 11 von 61 durch
+# echten Pausenschnitt -- eine lebhafte Gruppendiskussion erreicht die
+# 2.5s-Pausenregel fast nie. ``entscheideSchnitt`` ist deshalb eine reine,
+# woertlich aus dem ausgelieferten Skript gezogene Funktion (wie
+# kalSchwelle/kalZuLeise), gegen die hier fuenf Szenarien live in Node
+# laufen -- jedes benennt den Mutanten, den es faengt.
+
+
+def _entscheide(node, tmp_path, jetzt, sitzung, *, max_ms=90_000, pause_ms=2500,
+                 min_speech_ms=500, weich_ab_ms=30_000, weich_pause_ms=700):
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function entscheideSchnitt", "function kalMedian")
+    quelltext = f"""
+    {funktion}
+    var sitzung = {json.dumps(sitzung)};
+    console.log(JSON.stringify(entscheideSchnitt(
+      sitzung, {jetzt}, {max_ms}, {pause_ms}, {min_speech_ms},
+      {weich_ab_ms}, {weich_pause_ms}
+    )));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    return json.loads(ausgabe.strip().splitlines()[-1])
+
+
+def test_entscheideschnitt_weich_bei_dip_nach_35s_live_in_node(tmp_path):
+    """Das Kernszenario der Karte: durchgehende Rede, eine 700ms-Delle bei
+    35s (Segment aelter als WEICH_AB_MS 30s) -- die alte 2.5s-Pausenregel
+    greift hier nie, die Hartkappe (90s) liegt noch weit weg. Mutant: fehlte
+    der 'weich'-Zweig ganz, bliebe das Ergebnis null."""
+    node = _node_oder_skip()
+    ergebnis = _entscheide(
+        node, tmp_path, 35_700,
+        {"vadSegmentStart": 0, "vadLetzteRede": 35_000, "vadSpeechMs": 20_000},
+    )
+    assert ergebnis == "weich"
+
+
+def test_entscheideschnitt_kein_schnitt_vor_dem_weich_alter_live_in_node(tmp_path):
+    """Dieselbe 700ms-Delle, aber schon bei 20s -- juenger als WEICH_AB_MS
+    (30s). Mutant: fehlte das Alters-Gate (``altGenug``), schnitte hier
+    faelschlich 'weich', obwohl das Segment noch jung ist (genau das
+    Szenario, das die Pausenregel seit jeher unangetastet laesst)."""
+    node = _node_oder_skip()
+    ergebnis = _entscheide(
+        node, tmp_path, 20_700,
+        {"vadSegmentStart": 0, "vadLetzteRede": 20_000, "vadSpeechMs": 15_000},
+    )
+    assert ergebnis is None
+
+
+def test_entscheideschnitt_pause_bei_zweieinhalb_sekunden_mit_zwanzig_sekunden_alter_live_in_node(tmp_path):
+    """Die alte 2.5s-Pausenregel bleibt VOR dem Weich-Schnitt-Alter
+    unveraendert: ein erst 20s altes Segment schneidet trotzdem bei einer
+    echten Pause. Mutant: wuerde die Pause-Pruefung HINTER das altGenug-Gate
+    verdrahtet statt davor, faele dieser Fall faelschlich auf null."""
+    node = _node_oder_skip()
+    ergebnis = _entscheide(
+        node, tmp_path, 22_500,
+        {"vadSegmentStart": 0, "vadLetzteRede": 20_000, "vadSpeechMs": 15_000},
+    )
+    assert ergebnis == "pause"
+
+
+def test_entscheideschnitt_cap_nach_90s_ohne_dip_live_in_node(tmp_path):
+    """Durchgehende Rede 90s lang, nie eine Pause -- die Hartkappe bleibt
+    das letzte Mittel. Mutant: ``>=`` zu ``>`` am MAX_MS-Vergleich liesse die
+    Kappe bei genau 90000ms ausfallen -- die Grenze steht exakt darauf, kein
+    Puffer in den Testdaten."""
+    node = _node_oder_skip()
+    ergebnis = _entscheide(
+        node, tmp_path, 90_000,
+        {"vadSegmentStart": 0, "vadLetzteRede": 90_000, "vadSpeechMs": 89_000},
+    )
+    assert ergebnis == "cap"
+
+
+def test_entscheideschnitt_kein_schnitt_unter_min_speech_ms_live_in_node(tmp_path):
+    """Eine 700ms-Delle nach 35s, aber nur 400ms erkannte Rede im ganzen
+    Segment (< MIN_SPEECH_MS 500) -- wie beim alten Pausenschnitt zaehlt zu
+    wenig Stimme nicht als Schnittanlass (gemessene Falle: 3 Pausensegmente
+    mit nur 600-660ms Sprache trugen nur 1-6 Woerter). Mutant: fehlte das
+    MIN_SPEECH_MS-Gate am Weich-Zweig, schnitte hier faelschlich 'weich'."""
+    node = _node_oder_skip()
+    ergebnis = _entscheide(
+        node, tmp_path, 35_700,
+        {"vadSegmentStart": 0, "vadLetzteRede": 35_000, "vadSpeechMs": 400},
+    )
+    assert ergebnis is None
 
 
 def test_herumreichen_erinnerung_zeigt_sich_nur_beim_ersten_mal_live_in_node(tmp_path):

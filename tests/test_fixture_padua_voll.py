@@ -149,7 +149,7 @@ def test_fixture_nennt_kein_betriebsverzeichnis():
 #: gelesen wurden -- nach dem Fix muss keine davon mehr das erste Fensterglied
 #: sein (``_GRUNDVERLAUF`` legt das abgeschnittene Rauschen jetzt nach vorn).
 _ORPHAN_UND_RAUSCHEN = (
-    "In the work status tab. Everything saved is there.",
+    "In the Workbench. Everything saved is there.",
     "is anyone writing this down",
     "my phone went to sleep",
     "mine too, annoying",
@@ -245,3 +245,37 @@ def test_phase2_verlauf_endet_nicht_mit_einem_bot_zug(conn):
     letzte = repo.letzte_nachrichten(conn, chat_id, anzahl=1)
     assert letzte, "chat_id 2 muss Nachrichten tragen"
     assert not letzte[-1]["ist_bot"], dict(letzte[-1])
+
+
+def test_keine_erfundene_tab_bezeichnung_im_verlauf(conn):
+    """Runde-2-Befund (c569/b647, lesung.json): die Fixture schrieb "In the
+    work status tab...", einen von der Fixture erfundenen Wortlaut -- die
+    Oberflaeche nennt dieselbe Sache ueberall "Workbench"
+    (``sprachen/en/texte.toml``: ``stand = "Workbench"``,
+    ``_TEXT_UNDO_GEAENDERT`` u.a., ``sprachen/en/prompts/system.md:79``). Der
+    Pruefer liest den erfundenen Wortlaut faelschlich als Produktbefund."""
+    for phase in fix.PHASEN:
+        chat_id = fix.chat_id_fuer(phase)
+        texte = [n["text"] for n in _alle_nachrichten(conn, chat_id)]
+        for text in texte:
+            assert "work status" not in text.lower(), (phase, text)
+
+
+def test_grundverlauf_beginnt_nicht_mit_vier_bot_zuegen_in_folge(conn):
+    """Runde-2-Befund (d566/d642, lesung.json): im Dump folgen vier
+    "You: ..."-Zeilen direkt aufeinander ("Good. The transcript runs live...",
+    "Then you see the CoThinker tab...", "Yes. The recording understands
+    both...", "No. The workshop runs five days..."), ohne eine einzige
+    Gruppen-Nachricht dazwischen. Eine echte Gruppe fragt zwischendurch --
+    eine Unterhaltung wechselt die Seite, sie stapelt keine vier Bot-Zuege."""
+    for phase in fix.PHASEN:
+        chat_id = fix.chat_id_fuer(phase)
+        lauf = 0
+        for n in _alle_nachrichten(conn, chat_id):
+            if n["typ"] != "text":
+                continue
+            if n["ist_bot"]:
+                lauf += 1
+                assert lauf < 4, (phase, n["text"])
+            else:
+                lauf = 0

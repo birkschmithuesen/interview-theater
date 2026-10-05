@@ -24,7 +24,12 @@ import time
 import urllib.request
 from pathlib import Path
 
-from playwright.sync_api import Error as PlaywrightError
+try:
+    from playwright.sync_api import Error as PlaywrightError
+except (ImportError, ModuleNotFoundError):
+    # Fallback bei Playwright-Import-Fehler (z.B. Greenlet-Kompatibilitätsproblem)
+    # Dies erlaubt Tests ohne Playwright-Abhängigkeit, z.B. _app_commit
+    PlaywrightError = Exception
 
 from interview_theater import phasen
 from simulation import (
@@ -685,7 +690,7 @@ def _app_commit(app_wurzel: Path) -> str | None:
             ["git", "-C", str(app_wurzel), "rev-parse", "--short", "HEAD"],
             capture_output=True, text=True, timeout=10,
         )
-    except OSError:
+    except (OSError, subprocess.SubprocessError):
         return None
     if lauf.returncode != 0:
         return None

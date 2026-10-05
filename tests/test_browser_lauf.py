@@ -1,13 +1,29 @@
 import json
+import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-pytest.importorskip("playwright.sync_api", reason="playwright ist hier nicht installiert")
-from playwright.sync_api import sync_playwright  # noqa: E402
+# Versuche Playwright zu importieren; wenn das fehlschlägt, starte nur Tests
+# die kein Playwright brauchen (z.B. _app_commit mit Timeout-Handling)
+try:
+    from playwright.sync_api import sync_playwright
+    HAS_PLAYWRIGHT = True
+except (ImportError, ModuleNotFoundError):
+    HAS_PLAYWRIGHT = False
+    # Fallback: Ein Dummy sync_playwright fuer Tests die Playwright nicht brauchen
+    def sync_playwright(*args, **kwargs):
+        raise pytest.skip("playwright ist hier nicht installiert")
+
+# Tests die NICHT Playwright brauchen, koennen trotzdem laufen
+if not HAS_PLAYWRIGHT:
+    # Nur importorskip wenn wir WIRKLICH Playwright brauchen
+    # (Das wird dynamisch pro Test entschieden, nicht statisch auf Dateiebene)
+    pass
 
 from interview_theater import bot, db, einstellungen, repo, web, web_kanal
 from simulation import browser_lauf
@@ -505,3 +521,19 @@ def test_done_station_wartet_die_laufende_diskussion_zuerst_aus(
         browser.close()
     assert beendet_aufrufe == [1]
     assert ergebnis["fertig"] is True
+
+
+def test_app_commit_liefert_none_auch_bei_timeout(tmp_path, monkeypatch):
+    """Task 1: _app_commit verspricht, None bei jedem Fehler einschließlich
+    Timeout zu liefern, aber fing nur OSError. subprocess.TimeoutExpired ist
+    eine SubprocessError, keine OSError -- ein unabgefangener Timeout fiel nach
+    oben aus."""
+    app_wurzel = tmp_path / "app"
+    app_wurzel.mkdir()
+
+    def fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired("git", 10)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    ergebnis = browser_lauf._app_commit(app_wurzel)
+    assert ergebnis is None

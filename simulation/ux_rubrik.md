@@ -82,14 +82,18 @@ task, say so and ask; do not silently pick.
   switch along with the phase bar („der Chat soll pro Phase angezeigt werden
   und mit jeder Phase neu bei 0 anfangen“).
 - **No wake word** for a bot that is already listening in a session.
-- **Background listening is a mode of its own: record, no feedback.** When the
+- **Background listening is a mode of its own: record, no chat feedback.** When the
   recording only serves as context for later phases (Phase 1 term discussion),
   the phone lies in the middle and runs the whole time: no arc buttons, no
-  cards, no comments, only pause/stop/resume; one condensation at the very
-  end, extracting what later phases need („es gibt überhaupt gar kein
-  Feedback. Das ist einfach nur ein Mitschneiden, damit die KI das
-  Hintergrundwissen aus der Diskussion hat“, 03.10.2026). Tell: a
-  CoThinker-style card or a bot line appears during a pure context recording.
+  comments, only pause/stop/resume; one condensation at the very end
+  („es gibt überhaupt gar kein Feedback. Das ist einfach nur ein
+  Mitschneiden, damit die KI das Hintergrundwissen aus der Diskussion hat“,
+  03.10.2026). Since 04.10.2026 (Birk, card t_4517d4ad) Phase 1 listening
+  fills the term board in the CoThinker tab, meant for a second phone: that
+  growing term board is intended, not a violation. Still no bot line in the
+  chat while listening. Tell: a bot line appears in the chat during a pure
+  context recording, or a CoThinker card with comments (other than the term
+  board) appears.
 - **Own ideas first, AI second, then compare openly.** In question
   development the group writes its own questions before the bot proposes any;
   both sets are offered side by side for choosing, and the share of AI vs.

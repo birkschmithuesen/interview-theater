@@ -382,6 +382,27 @@ def test_ist_erfundenes_notiert():
     assert not ablauf.ist_erfundenes_notiert(None)
 
 
+# --- Anbieter-Systeminjektion (Abnahme P1-2, Fortsetzung) -------------------
+
+
+def test_ist_anbieter_systeminjektion():
+    """Echter Browserlauf (handy/giulia, 05.10.2026): die Antwort begann mit
+    'Benutzer hat Chat-Standort (New Zealand) erhalten...' -- eine
+    anbieterseitige Standort-/Sprachhinweis-Injektion (Infomaniak/Kimi), die
+    als Gespraechsantwort durchgereicht und gespeichert wurde."""
+    assert ablauf.ist_anbieter_systeminjektion(
+        "Benutzer hat Chat-Standort (New Zealand) erhalten. Er/Sie spricht "
+        "vielleicht Englisch mit neuseeländischem Dialekt."
+    )
+    assert ablauf.ist_anbieter_systeminjektion(
+        "Du kannst es immer auf \"Wähle eine Sprache\" ändern."
+    )
+    assert not ablauf.ist_anbieter_systeminjektion(
+        "I like the direction for grandmother's kitchen -- sharper."
+    )
+    assert not ablauf.ist_anbieter_systeminjektion(None)
+
+
 def test_notiert_wache_nur_in_padua_phase_6_und_7(conn, einst, padua):
     phasen.setze(conn, 1, 7, "test")
     assert ablauf._erfundenes_notiert(conn, einst, 1, "Noted: angrier")

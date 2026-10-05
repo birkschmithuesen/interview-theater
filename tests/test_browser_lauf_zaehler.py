@@ -110,3 +110,11 @@ def test_bot_text_waehrend_zuhoermodus_ist_ein_befund():
     assert z.bot_text_waehrend_zuhoermodus("brainstorm", ["Here's a thought..."]) is True
     assert z.bot_text_waehrend_zuhoermodus("brainstorm", []) is False
     assert z.bot_text_waehrend_zuhoermodus("chat", ["anything"]) is False
+
+
+def test_entwickler_meta_findet_code_gerede():
+    from simulation import browser_zaehler as z
+    texte = ["keep tapping Accept -- or say 'accept all mine' and see if the code reads that",
+             "Saved your questions.", "That is a bug on my side."]
+    assert z.entwickler_meta(texte) == [texte[0], texte[2]]
+    assert z.entwickler_meta(["Your opening is warm."]) == []

@@ -256,3 +256,175 @@ def test_in_der_letzten_phase_wird_der_notweg_nicht_versucht(stack, tmp_path):
         browser.close()
 
     assert ergebnis["fallback_benutzt"] is False
+
+
+def test_notweg_springt_nicht_in_eine_schon_aktive_phase(stack, tmp_path):
+    """Baseline 04.10.: /phaseklick hin und her erzeugte doppelte
+    Phasentexte. Ist Phase 2 schon aktiv, darf der Notweg aus Phase 1 nichts
+    ausloesen -- eine nicht aufloesende Basis-URL machte jeden Versuch sichtbar."""
+    basis, token, pfad = stack
+    conn = db.verbinde(pfad); repo.setze_phase(conn, CHAT, 2); conn.commit(); conn.close()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page(); seite.goto(f"{basis}/g/{token}")
+        seite.wait_for_selector("#verlauf")
+        ergebnis = browser_lauf._fuehre_phase_aus(
+            seite, _ScriptedClient([{"type": "wait", "duration_ms": 50,
+                                     "begruendung": "w"}] * 5),
+            browser_lauf.browser_mitschnitt.Mitschnitt(tmp_path / "l", "h", "handy"),
+            aktuelle_phase=1, basis_url="http://127.0.0.1:1", token=token,
+            db_pfad=pfad, chat_id=CHAT, persona_name="student",
+            max_schritte=3, fallback_nach_schritten=1)
+        browser.close()
+    assert ergebnis["fallback_benutzt"] is False
+
+
+def test_station_beantwortet_eine_rueckfrage_bevor_sie_endet(stack, tmp_path, monkeypatch):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    monkeypatch.setattr(browser_lauf, "_verlaufsblasen",
+                        lambda page: [{"von": "bot", "typ": "text", "text": "Which terms?"}])
+    station = browser_stationen.Station("t-eins", 1, "Say hello.", budget=4)
+    persona = _ScriptedClient([
+        {"type": "done_station", "begruendung": "fertig", "offene_fragen": ["What is this?"]},
+        {"type": "type_send", "text": "home and border", "begruendung": "antworte"},
+        {"type": "done_station", "begruendung": "jetzt fertig"},
+    ])
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l")
+        browser.close()
+    st = ergebnis["stationen_ergebnisse"][0]
+    assert st["nachfragen_beantwortet"] >= 1
+    assert st["offene_fragen"] == ["What is this?"]
+    assert persona.aufrufe >= 3
+    assert (tmp_path / "l" / "ergebnis.json").exists()
+    zeilen = (tmp_path / "l" / "schritte.jsonl").read_text().splitlines()
+    assert json.loads(zeilen[0])["station"] == "t-eins"
+
+
+def test_ohne_persona_station_wartet_und_erfasst_ohne_persona_aufruf(stack, tmp_path, monkeypatch):
+    """p1-start (Pflichtpunkt 2): keine Persona, nur Warten + mechanische
+    Erfassung. Patch die Wartezeit auf 0 fuer den Test."""
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    station = browser_stationen.Station("p1-start", 1, "Observe.", ohne_persona=True,
+                                        warte_s=0, leitbild_ende="start")
+    persona = _ScriptedClient([{"type": "done_station", "begruendung": "sollte nie gerufen werden"}])
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l")
+        browser.close()
+    assert persona.aufrufe == 0
+    st = ergebnis["stationen_ergebnisse"][0]
+    for feld in ("bot_nachricht", "kalibrierung_sichtbar", "zuhoeren_laeuft", "leertext_sichtbar"):
+        assert feld in st and isinstance(st[feld], bool)
+    # Regressionsschutz: der ohne_persona-Schritt darf keinen Platzhalterpfad
+    # ohne Datei dahinter in schritte.jsonl hinterlassen (sonst scheitert ein
+    # spaeterer Leser wie der Berichtsbauer am Bild).
+    zeilen = (tmp_path / "l" / "schritte.jsonl").read_text().splitlines()
+    assert len(zeilen) >= 1
+    for zeile in zeilen:
+        eintrag = json.loads(zeile)
+        assert Path(tmp_path / "l" / eintrag["screenshot_vorher"]).exists()
+        assert Path(tmp_path / "l" / eintrag["screenshot_nachher"]).exists()
+
+
+_FIXTURE_DISKUSSION_LAEUFT = """
+<button id="diskussion" data-laeuft="1">Start listening</button>
+<button id="diskussion-beenden">Discussion done</button>
+"""
+
+_FIXTURE_DISKUSSION_OHNE_KNOPF = """
+<button id="diskussion" data-laeuft="1">Start listening</button>
+"""
+
+
+def test_beende_diskussion_deterministisch_klickt_den_knopf():
+    """Abnahme P1-2, Fortsetzung: Robo-Diagnose gegen eine echte sim.db-
+    Kopie zeigte, dass in keinem der vier echten Laeufe 'Discussion done'
+    gedrueckt wurde -- die Persona reagierte auf den Hinweis nicht
+    zuverlaessig. Das Beenden eines stummen Mithoerens braucht keine
+    LLM-Entscheidung und wird deshalb deterministisch geklickt."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_LAEUFT)
+        geklickt = browser_lauf._beende_diskussion_deterministisch(seite)
+        browser.close()
+    assert geklickt is True
+
+
+def test_beende_diskussion_deterministisch_ohne_knopf_liefert_false():
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_OHNE_KNOPF)
+        geklickt = browser_lauf._beende_diskussion_deterministisch(seite)
+        browser.close()
+    assert geklickt is False
+
+
+_FIXTURE_PHASENSHEET_OFFEN = """
+<div class="sheet" id="phasensheet" role="dialog" aria-modal="true">
+  <div class="sheet-hintergrund"></div>
+  <div class="sheet-inhalt">
+    <h3 id="phasensheet-titel">1 Terms</h3>
+    <div class="sheet-knoepfe">
+      <button type="button" id="phasensheet-los">Go to 1 Terms</button>
+      <button type="button" id="phasensheet-bleib">Stay here</button>
+    </div>
+  </div>
+</div>
+<button id="senden" type="button">Send</button>
+"""
+
+_FIXTURE_PHASENSHEET_ZU = """
+<div class="sheet" id="phasensheet" hidden role="dialog" aria-modal="true">
+  <div class="sheet-hintergrund"></div>
+  <div class="sheet-inhalt">
+    <div class="sheet-knoepfe">
+      <button type="button" id="phasensheet-los">Go</button>
+      <button type="button" id="phasensheet-bleib">Stay here</button>
+    </div>
+  </div>
+</div>
+<button id="senden" type="button">Send</button>
+"""
+
+
+def test_schliesse_offenes_phasensheet_klickt_stay_here():
+    """Abnahme P1-2, Fortsetzung (05.10.2026, echter Lauf nach dem Merge):
+    das Padua-Stepper-Bestaetigungsblatt oeffnete sich unbeabsichtigt und
+    blockierte per unsichtbarem Hintergrund-Abdunkler jeden weiteren Klick
+    30 Sekunden lang, bis der Lauf abbrach. Keine der elf Stationen
+    navigiert ueber dieses Blatt absichtlich -- ein offenes Blatt wird
+    deshalb deterministisch geschlossen, ohne LLM-Entscheidung."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        seite = browser.new_page()
+        seite.set_content(_FIXTURE_PHASENSHEET_OFFEN)
+        geschlossen = browser_lauf._schliesse_offenes_phasensheet(seite)
+        # Nach dem Klick auf "Stay here" wuerde die echte Seite das Blatt
+        # per JS wieder verstecken -- hier pruefen wir nur den Rueckgabewert
+        # und dass der Knopf wirklich erreichbar war (kein Timeout).
+        browser.close()
+    assert geschlossen is True
+
+
+def test_schliesse_offenes_phasensheet_ohne_offenes_blatt_liefert_false():
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        seite = browser.new_page()
+        seite.set_content(_FIXTURE_PHASENSHEET_ZU)
+        geschlossen = browser_lauf._schliesse_offenes_phasensheet(seite)
+        browser.close()
+    assert geschlossen is False

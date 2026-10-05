@@ -40,8 +40,9 @@ def fuehre_aus(page, aktion: dict) -> dict:
         page.click("#senden")
         return {"art": "type_send", "text": aktion.get("text", "")}
     if art == "tab":
-        page.click(f'.tabs button[data-tab="{aktion["name"]}"]')
-        return {"art": "tab", "ziel": aktion["name"]}
+        wert = _tab_wert(page, aktion["name"])
+        page.click(f'.tabs button[data-tab="{wert}"]')
+        return {"art": "tab", "ziel": wert}
     if art == "phase":
         selektor = f'.phase-knopf[data-phase="{aktion["nummer"]}"]'
         # Die Roadmap ist auf der echten Seite per Vorgabe geschlossen
@@ -71,6 +72,26 @@ def fuehre_aus(page, aktion: dict) -> dict:
     if art == "done_phase":
         return {"art": "done_phase"}
     raise UnbekannteAktion(f"unbekannte Aktion: {art!r}")
+
+
+def _tab_wert(page, name: str) -> str:
+    """Loest einen ``data-tab``-Wert auf -- entweder der rohe Wert selbst
+    oder der sichtbare Anzeigetext eines Tabs (casefold, getrimmt,
+    Praefix-Treffer erlaubt). Kein Treffer -> ``name`` unveraendert zurueck,
+    damit ein schon korrekter roher Wert weiterhin funktioniert."""
+    tabs = page.eval_on_selector_all(
+        ".tabs button",
+        "els => els.map(e => ({tab: e.dataset.tab || '', text: (e.innerText || '').trim()}))",
+    )
+    gesucht = (name or "").strip().casefold()
+    for t in tabs:
+        if t["tab"] == name:
+            return name
+    for t in tabs:
+        text = t["text"].casefold()
+        if t["tab"] and (text == gesucht or text.startswith(gesucht)):
+            return t["tab"]
+    return name
 
 
 def _element(page, aktion: dict):

@@ -380,6 +380,45 @@ def test_ohne_bloecke_laesst_den_fliesstext_unberuehrt():
     assert vorschlag.ohne_bloecke(text) == "What makes you feel at home?"
 
 
+# --- Mid-line-Treffer nur an einer echten Grenze (Review-Fix 05.10.2026) -
+# Befund nach c63e210: ``_MARKER_IRGENDWO`` traf GROSS-/Kleinschreibung
+# gleich und ueberall in der Zeile -- ein gewoehnliches deutsches Nomen
+# "Vorschlag" (klein geschrieben bis auf den Satzanfang) im Fliesstext wurde
+# faelschlich als Marker gelesen und die Zeile zerschnitten.
+
+
+def test_deutsches_nomen_vorschlag_rahmen_im_fliesstext_bleibt_unberuehrt():
+    text = (
+        "Mein Vorschlag Rahmen: Mittwochabend, Herbst 1920, "
+        "im Hinterzimmer.\n\nWeiter so."
+    )
+    assert vorschlag.ohne_marker(text) == text
+    assert vorschlag.lies(text, "rahmen") is None
+
+
+def test_deutsches_nomen_vorschlag_namen_im_fliesstext_bleibt_unberuehrt():
+    text = "Ihr Vorschlag Namen: Anna, Lotte, schlage ich vor."
+    assert vorschlag.ohne_marker(text) == text
+    assert vorschlag.lies(text, "namen") is None
+
+
+def test_marker_nach_einem_satz_wird_weiterhin_erkannt():
+    """Gegenprobe zu den beiden Tests oben: der ECHTE Marker (GROSSBUCHSTABEN)
+    mitten im Fliesstext muss weiterhin erkannt werden -- nur die
+    Kleinschreibung eines normalen Nomens soll verschont bleiben."""
+    text = "That's good. VORSCHLAG EIGENE FRAGEN:\nHome: etwas"
+    assert vorschlag.lies(text, "eigene_fragen") == "Home: etwas"
+    sauber = vorschlag.ohne_marker(text)
+    assert "VORSCHLAG" not in sauber
+    assert "That's good." in sauber
+
+
+def test_marker_kleingeschrieben_mitten_in_der_zeile_wird_nicht_erkannt():
+    text = "Thanks. vorschlag eigene fragen: Home: etwas"
+    assert vorschlag.lies(text, "eigene_fragen") is None
+    assert vorschlag.ohne_marker(text) == text
+
+
 def test_ohne_block_entfernt_auch_den_weichen_fragenblock():
     """Padua-Test 02.10.2026: der weiche Block (Marker mit Leerzeichen,
     Art mit Unterstrich) blieb im Chattext stehen -- die Gruppe sah

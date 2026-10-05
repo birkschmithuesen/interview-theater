@@ -2143,6 +2143,13 @@ _CHAT_JS = """
   // (r._kalVerworfen, nie verschickt -- siehe onstop in neuesSegment()).
   function kalSchneideOhneMarkierung(sitzung) {
     var alt = sitzung.recorder;
+    if (sitzung.kalVorStart) {
+      // Diskussion vor dem Start (Birk 05.10.2026): kein Stueck davor geht
+      // als Diskussion raus, hier beginnt nur der Clip der Sprechprobe.
+      if (alt) { kalSchneideUndVerwerfen(sitzung); }
+      sitzung.recorder = neuesSegment(sitzung);
+      return;
+    }
     if (!alt) { return; }
     if (alt.state !== 'inactive') { alt.stop(); }
     sitzung.recorder = neuesSegment(sitzung);
@@ -2162,7 +2169,8 @@ _CHAT_JS = """
     sitzung._kalMessageId = null;
     if (sitzung._kal) { sitzung._kal.ueberschrieben = false; }
     if (alt.state !== 'inactive') { alt.stop(); }
-    sitzung.recorder = neuesSegment(sitzung);
+    // Vor dem Diskussionsstart laeuft nach der Probe KEIN Recorder weiter.
+    sitzung.recorder = sitzung.kalVorStart ? null : neuesSegment(sitzung);
   }
 
   function kalSchneideUndVerwerfen(sitzung) {
@@ -2170,7 +2178,7 @@ _CHAT_JS = """
     if (!alt) { return; }
     alt._kalVerworfen = true;
     if (alt.state !== 'inactive') { alt.stop(); }
-    sitzung.recorder = neuesSegment(sitzung);
+    sitzung.recorder = sitzung.kalVorStart ? null : neuesSegment(sitzung);
   }
 
   function kalAufraeumen(sitzung) {
@@ -2198,6 +2206,12 @@ _CHAT_JS = """
     sitzung._kal = { messer: messer };
     sitzung._kalZuLeiseZaehler = sitzung._kalZuLeiseZaehler || 0;
     kalZeigePanel(true);
+    if (sitzung.kalVorStart) {
+      // Diskussion (Birk 05.10.2026): "Start listening" war schon der eine
+      // Tipp -- kein zweiter "Start measuring", die Stille laeuft sofort.
+      kalStarteStille(sitzung);
+      return;
+    }
     kalZeigeSchritt(TEXT.kal_ankuendigung, [kalStartKnopf]);
   }
 
@@ -2467,6 +2481,22 @@ _CHAT_JS = """
   // Funktion, weil jetzt ZWEI Aufrufer sie brauchen -- der Normalfall
   // (beginneAufnahme) und das Ende eines Kalibrierungslaufs.
   function kalStarteEchteSchnitte(sitzung) {
+    if (sitzung.kalVorStart) {
+      // Birk 05.10.2026 13:10: erst der Raumcheck, dann die Diskussion --
+      // ihre Aufnahme und ihre Uhr beginnen erst HIER, bei 0.
+      sitzung.kalVorStart = false;
+      if (sitzung.beendet) { return; }
+      var rest = sitzung.recorder;   // z. B. Skip mitten in der Sprechprobe
+      if (rest) {
+        rest._kalVerworfen = true;
+        if (rest.state !== 'inactive') { rest.stop(); }
+      }
+      sitzung.legStart = Date.now();
+      sitzung.recorder = neuesSegment(sitzung);
+      sitzung.vadSegmentStart = Date.now();
+      sitzung.vadSpeechMs = 0;
+      sitzung.vadLetzteRede = sitzung.vadSegmentStart;
+    }
     stoppePegelAn(sitzung);   // falls #kalibrierung-neu einen frueheren Lauf stoppt
     pegelAn(sitzung);
     // Birk Live-Test 04.10.2026: die Uhr gehoert NICHT hier rein, aber bisher
@@ -2614,12 +2644,21 @@ _CHAT_JS = """
   // Mikrofon sofort wieder frei.
   //
   // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung): die Aufnahme
-  // startet weiter SOFORT (sonst gehen die ersten Worte der echten
-  // Diskussion verloren) -- gegated ist allein kalEntscheideOderStarte()
+  // startet weiter SOFORT (sonst gehen die ersten Worte verloren; die
+  // Diskussion der Phase 1 ist seit 05.10.2026 die Ausnahme) -- gegated ist allein kalEntscheideOderStarte()
   // (pegelAn() + der Segment-Takt-Rueckfall), nie neuesSegment() selbst.
   function beginneAufnahme(sitzung) {
     if (sitzung.pausiert) {
       gibFrei(sitzung);
+      return;
+    }
+    // Ausnahme Diskussion (Phase 1, Birk 05.10.2026 13:10): erst der
+    // Raumcheck, dann die Diskussion. Kein Recorder, keine Uhr, bis
+    // kalStarteEchteSchnitte() nach Kalibrierung/Skip/Cache startet.
+    if (sitzung.art === 'diskussion' && !sitzung.kalibriert) {
+      sitzung.kalVorStart = true;
+      sitzung.gestartet = true;
+      kalEntscheideOderStarte(sitzung);
       return;
     }
     sitzung.legStart = Date.now();
@@ -2905,6 +2944,13 @@ _CHAT_JS = """
     if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
     var letzter = sitzung.recorder;
     sitzung.recorder = null;
+    if (sitzung.kalVorStart) {
+      // Fertig mitten im Raumcheck: die Diskussion hat nie begonnen, also
+      // geht auch nichts als Diskussion raus.
+      kalAufraeumen(sitzung);
+      kalZeigePanel(false);
+      if (letzter) { letzter._kalVerworfen = true; }
+    }
     if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
     if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
     // Anders als beendeInterview(): pruefeEnde() tut bei Diskussion NIE

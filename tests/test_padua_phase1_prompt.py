@@ -22,6 +22,17 @@ def test_phase1_erzaehlt_kein_plenum_und_keine_wand():
     assert "phone in the middle" in text
 
 
+def test_phase1_kopf_nicht_doppelt_mit_der_statuszeile():
+    """Prompt-Check Padua P1-2 (05.10.2026), Befund P2-M3 (Kopf): die
+    Ueberschrift '## Current phase: 1 - Terms' duplizierte woertlich die
+    separat gebaute Statuszeile 'Current phase: 1 - Terms' im Nutzerteil
+    (kontext.py, nicht Teil dieser Karte) -- derselbe Satz stand zweimal im
+    selben Prompt."""
+    text = DATEI.read_text(encoding="utf-8")
+    assert "## Current phase" not in text
+    assert text.startswith("## What this phase is about")
+
+
 def test_phase1_behaelt_den_vorschlag_begriffe_marker_fuer_chat_korrekturen():
     """Die Gruppe darf ihre Begriffe weiterhin per Chat tippen oder
     korrigieren (gemessen: das ist in jedem der vier echten Laeufe

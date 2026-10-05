@@ -29,15 +29,19 @@ def test_phase7_en_nennt_formwahl_sprechweisen_und_script_tab():
 def test_system_en_marker_katalog_nennt_eigene_fragen():
     """Prompt-Check Padua P1-2 (05.10.2026): Padua Phase 2
     (workshop/padua-2026/prompts/phasen/2.md) laesst den Bot
-    ``VORSCHLAG EIGENE FRAGEN:`` als 13. Marker schreiben
-    (interview_theater/knoepfe/fragen.py:uebernimm_eigene), aber der
-    EN-Systemprompt behauptete 'There are twelve markers, no more' und
-    listete ihn nicht -- ein Modell, das die Behauptung ernst nimmt,
-    haette den Marker fuer ungueltig gehalten."""
+    ``VORSCHLAG EIGENE FRAGEN:`` schreiben
+    (interview_theater/knoepfe/fragen.py:uebernimm_eigene) -- der
+    EN-Systemprompt muss ihn im Katalog nennen, sonst haelt ein Modell, das
+    die 'no more'-Behauptung ernst nimmt, ihn fuer ungueltig. Die genaue
+    Zaehlung ('twelve'/'thirteen') aenderte sich seither zweimal (Fix 1
+    dieser Karte am 05.10. zaehlte zwoelf -> dreizehn, Befund P2-H1b im
+    selben Lauf nahm FRAGENAUSWAHL/FRAGEN wieder heraus und fuegte FRAGE
+    hinzu, zurueck auf zwoelf) -- dieser Test prueft nur noch, dass die
+    Zahl zur tatsaechlichen Liste passt, nicht eine feste Zahl."""
     text = (EN / "system.md").read_text(encoding="utf-8")
-    assert "There are twelve markers, no more" not in text
-    assert "There are thirteen markers, no more" in text
     assert "VORSCHLAG EIGENE FRAGEN:" in text
+    assert "There are twelve markers, no more" in text
+    assert "There are thirteen markers, no more" not in text
 
 
 def test_system_en_widerspricht_nicht_dem_echten_phase1_ablauf():
@@ -55,3 +59,97 @@ def test_system_en_widerspricht_nicht_dem_echten_phase1_ablauf():
     text = (EN / "system.md").read_text(encoding="utf-8")
     assert "Phase 1 is a handover" not in text
     assert "that happens offline" not in text
+
+
+# --- Prompt-Hygiene EN, Runde 1 Task T1 (05.10.2026, Karte Feedback-Schleife
+# P1-2) -- Befunde aus docs/prompt-audit/2026-10-05-padua-p12/BEFUND.md und
+# lesung.json ---
+
+def test_system_en_beschreibt_die_web_app_statt_telegram():
+    """Befund P1-H3: der EN-Systemprompt erklaerte Telegram-Bedienung
+    ('Telegram shows them raw') statt der Web-App, die die Gruppe
+    tatsaechlich benutzt, und beschrieb ihre Bedienelemente (Start
+    listening, Discussion done, Mikro-Knopf, Tabs) gar nicht. Die Gruppe
+    kann auch ueber den Web-Kanal laufen, ohne Telegram -- deshalb
+    kanalneutral ('the chat'), kein Produktname."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "Telegram" not in text
+    assert "The chat shows them raw" in text
+    assert "Start listening" in text
+    assert "Discussion done" in text
+    assert "Workbench" in text
+    assert "CoThinker" in text
+
+
+def test_system_en_erklaert_nie_aufnahmetechnik():
+    """Befund P1-N3: 'Stay quiet for 2 seconds' ist Modelltext, keine
+    Code-Zeile -- die Regel, Aufnahmetechnik (Pausen, Segmentschnitt,
+    Countdown) nie zu erklaeren, steht jetzt im selben Absatz wie die
+    Web-App-Beschreibung aus P1-H3."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "never explain the mechanics" in text
+    assert "segments" in text
+
+
+def test_system_en_ist_keine_amateurgruppe():
+    """Befund P1-L2: system.md sagte 'an amateur theatre group', die
+    Padua-Profilanweisung (workshop/padua-2026/prompts/anweisung.md) sagt
+    das Gegenteil ('not an amateur group', 'acting students in
+    professional training') -- derselbe geladene Prompt widersprach sich."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "amateur" not in text.lower()
+
+
+def test_system_en_stationen_5_6_nicht_doppelt_prosa():
+    """Befund P1-L4: Stationen 5 und 6 behaupteten wortgleich, eine Szene
+    werde 'als Prosa' geschrieben -- Station 6 ist aber die Ueberarbeitung
+    der in Station 5 geschriebenen Prosa, kein zweiter Schreiblauf."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "Rewrite -- tell each scene as prose" not in text
+    assert "go through the prose scenes again" in text
+
+
+def test_system_en_play_ohne_toten_format_satz():
+    """Befund P1-L4: unter '/play setting' stand noch ein toter Satz zum
+    nicht mehr existierenden 'format' der Auffuehrung."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "no longer discussed" not in text
+    assert "staging in rehearsal" not in text
+
+
+def test_system_en_form_erst_in_station_7():
+    """Befund P2-M1: die Form je Szene wurde schon in Station 4 angeboten
+    ('with a suggested form for each scene', 'already in the scene
+    sequence suggestion ... changed with a button'), obwohl sie laut
+    Station 7 erst dort gewaehlt wird. Das Zeilenformat von
+    `VORSCHLAG GESCHICHTE:` (mit einem Form-Feld) bleibt unveraendert --
+    der Parser der Szenenfolge ist nicht Teil dieser Karte."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "with a suggested form for each scene" not in text
+    assert "already in the scene sequence suggestion" not in text
+    assert "but only once the group reaches station 7" in text
+    assert "then one line per scene `Title" in text
+
+
+def test_system_en_marker_katalog_ohne_fragenauswahl():
+    """Befund P2-H1b: `VORSCHLAG FRAGENAUSWAHL:` und `VORSCHLAG FRAGEN:`
+    standen im Katalog, obwohl Padua in Phase 2 nie den Zehn-Fragen-Katalog
+    schreibt (die eigene-Fragen-Karte ersetzt ihn); das Schaerfen EINER
+    Frage in Phase 2 braucht aber den bislang ungenannten Marker
+    `VORSCHLAG FRAGE:`."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "VORSCHLAG FRAGENAUSWAHL:" not in text
+    assert "`VORSCHLAG FRAGEN:`" not in text
+    assert "`VORSCHLAG FRAGE:`" in text
+    assert "There are twelve markers, no more" in text
+    assert "There are thirteen markers, no more" not in text
+
+
+def test_system_en_erklaert_diskussion_und_begriffe_detail_koepfe():
+    """AGG-1 (offener Teil): die Kopfzeilen 'From your term discussion:'
+    und 'Why you chose these terms:' (texte.toml, nicht Teil dieser Karte)
+    kamen im Nutzerteil unerklaert vor -- ein Satz in system.md ordnet sie
+    jetzt ein, analog zum schon erklaerten CoThinker-Board."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "From your term discussion:" in text
+    assert "Why you chose these terms:" in text

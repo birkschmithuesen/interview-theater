@@ -1930,6 +1930,38 @@ def setze_arbeitsstand(
 
 
 @_gesperrt
+def setze_fragen_entscheidung(
+    conn: sqlite3.Connection, chat_id: int, nummer: int, wert: str
+) -> bool:
+    """Setzt die Entscheidung zu genau einer Frage der laufenden Auswahl
+    (``fragen_entschieden``, 1-basiert, ausgerichtet auf die Zeilen von
+    ``fragen_auswahl`` nach ``vorschlag.zeilen``) -- fuer die Sortierliste
+    im CoThinker und die Karten im Chat (Padua, 05.10.2026).
+
+    False ohne Schreiben bei unbekanntem Wert (``auswahl.ZUSTAENDE``), bei
+    einer Nummer ausserhalb der Liste oder ohne Arbeitsstand. Eine kuerzere
+    Liste wird mit "" (offen) aufgefuellt. Lesen und Schreiben unter
+    demselben ``_LOCK`` -- zwei Klicks kurz hintereinander verlieren keinen."""
+    from interview_theater import auswahl, vorschlag
+
+    if wert not in auswahl.ZUSTAENDE or not isinstance(nummer, int):
+        return False
+    stand = hole_arbeitsstand(conn, chat_id)
+    if stand is None:
+        return False
+    gesamt = len(vorschlag.zeilen(stand["fragen_auswahl"] or ""))
+    if nummer < 1 or nummer > gesamt:
+        return False
+    roh = stand["fragen_entschieden"] or ""
+    entschieden = roh.split(",") if roh else []
+    while len(entschieden) < nummer:
+        entschieden.append("")
+    entschieden[nummer - 1] = wert
+    setze_arbeitsstand(conn, chat_id, "fragen_entschieden", ",".join(entschieden))
+    return True
+
+
+@_gesperrt
 def hole_phase(conn: sqlite3.Connection, chat_id: int) -> int | None:
     """Die gespeicherte Arbeitsphase (1-7) oder None, wenn noch keine gesetzt
     wurde (interview_theater/phasen.py, SPEC § 0 Leitsatz 3 Nachtrag).

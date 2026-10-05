@@ -352,16 +352,25 @@ def _finde_begriff(kopf: str, begriffe: list[str]) -> str | None:
 
 def _teile_zeile(zeile: str, begriffe: list[str]) -> tuple[str | None, str]:
     """(Begriff, Frage) einer Zeile -- der erste Trenner, dessen Kopf ein
-    Begriff ist, gewinnt. Ohne passenden Kopf ``(None, zeile)``."""
+    Begriff ist, gewinnt. Ohne passenden Kopf ``(None, zeile)``.
+
+    Padua G3 (05.10.2026): ein Begriff, der selbst einen Doppelpunkt traegt
+    ("EVENTO: dall'esterno all'interno"), scheiterte am ersten Trenner -- der
+    Kopf "EVENTO" ist kein Begriff. Deshalb zuerst jedes Vorkommen jedes
+    Trenners pruefen, der laengste Kopf, der ein Begriff ist, gewinnt."""
+    treffer: tuple[int, str, str] | None = None
     for trenner in _TRENNER:
-        kopf, gefunden, rest = zeile.partition(trenner)
-        if not gefunden:
-            continue
-        begriff = _finde_begriff(kopf, begriffe)
-        if begriff is not None:
-            # "**Home:** Frage" laesst die schliessenden Sternchen im Rest.
-            return begriff, re.sub(r"^[\s*_]+", "", rest).strip()
-    return None, zeile
+        pos = zeile.find(trenner)
+        while 0 < pos <= _KOPF_MAX:
+            begriff = _finde_begriff(zeile[:pos], begriffe)
+            if begriff is not None and (treffer is None or pos > treffer[0]):
+                treffer = (pos, begriff, zeile[pos + len(trenner):])
+            pos = zeile.find(trenner, pos + 1)
+    if treffer is None:
+        return None, zeile
+    _, begriff, rest = treffer
+    # "**Home:** Frage" laesst die schliessenden Sternchen im Rest.
+    return begriff, re.sub(r"^[\s*_]+", "", rest).strip()
 
 
 def _ist_fortsetzung(zeile: str, vorige: str) -> bool:

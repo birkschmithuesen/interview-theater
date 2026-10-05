@@ -1076,6 +1076,13 @@ _CHAT_A = """
 /* P2, Aufgabe 2: vorher ``var(--rec)`` -- als Text nur 3.45:1 (B) auf dem
    Grund, unter AA. Der laufende Zustand steht im Wortlaut und in der Uhr. */
 #interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--text); }
+/* Feedbackloop P1-H1b: die Zeile gehoert allein dem Interview-Knopf
+   (``_JS_AUFNAHME`` haengt sie an ``#interview``) -- ausserhalb Phase 3
+   (``#interview[hidden]``) oder waehrend die Diskussion laeuft (ein
+   anderes Mikrofon, dieselbe Zeile), blieb "Tap once to start." stehen,
+   obwohl der Knopf, den sie beschreibt, gar nicht zu sehen ist. */
+#interview[hidden] + #ux-rec-zeile,
+#diskussion[data-laeuft="1"] ~ #ux-rec-zeile { display: none; }
 
 /* -- Knopf 2: Push-to-Talk (halten) ---------------------------------
    Andere Form (Kreis), anderer Ort (in der Eingabezeile), andere Farbe
@@ -1182,6 +1189,9 @@ _CHAT_B = """
 /* P2, Aufgabe 2: vorher ``var(--rec)`` -- als Text nur 3.45:1 (B) auf dem
    Grund, unter AA. Der laufende Zustand steht im Wortlaut und in der Uhr. */
 #interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--text); }
+/* Feedbackloop P1-H1b: siehe _CHAT_A -- dieselbe Regel, nur hier fuer B. */
+#interview[hidden] + #ux-rec-zeile,
+#diskussion[data-laeuft="1"] ~ #ux-rec-zeile { display: none; }
 
 /* -- Knopf 2: Push-to-Talk als Pille -------------------------------- */
 #ptt { min-width: 3.5rem; min-height: var(--tippflaeche);
@@ -1537,6 +1547,21 @@ header.phasenav { position: sticky; top: 0; z-index: 4;
                          background: var(--grund-3); color: var(--text); }
 #phasensheet-los { background: var(--signal); color: var(--auf-signal);
                     border-color: var(--signal); font-weight: 600; }
+/* Feedbackloop P1-M3 (gemessen am echten Chromium, 360x640: Kopf + Tabs
+   zusammen 255px von 640px = 40% des Schirms, Stepper-Hinweis UND "Next
+   up" zugleich sichtbar): auf schmalen Telefonen kompakter, ohne eine
+   Tippflaeche unter 44px zu druecken -- nur Polster/Abstand schrumpft,
+   und der Hinweis ("Tap a phase to move between steps.") faellt weg, weil
+   dieselbe Bedienung ohne ihn auffindbar bleibt (jedes Segment ist selbst
+   ein Knopf). ``@media`` steht hier und nicht in ``css_rahmen()``: diese
+   Konstante ist schon unskopiert UND Padua-exklusiv (``css_stepper()``,
+   nie fuer Dortmund gerendert) -- ``scope_css`` bekommt sie nie zu sehen,
+   und ``css_rahmen()`` bleibt fuer Dortmund unberuehrt (``tests/
+   test_web_vereint_bitgleich.py``). */
+@media (max-width: 430px) {
+  header.phasenav { padding: .35rem .6rem; gap: .25rem; }
+  .stepper-hinweis { display: none; }
+}
 """
 #: Was ``web._CSS_TEXTBUCH`` fuer helles Papier gesetzt hat und auf dem
 #: dunklen Grund zu blass wird (Review an 834edbf): ein dunkles Ocker fuer

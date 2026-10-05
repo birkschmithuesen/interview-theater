@@ -418,6 +418,11 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .kalibrierung-balken[hidden] { display: none; }
 .kalibrierung-balken span { display: block; height: 100%; width: 0; border-radius: .35rem;
                             background: #a8201a; }
+/* P1-M4: derselbe Zwei-Farben-Vertrag wie ``.pegel``/``.ueber-schwelle``
+   (``kalZeigeBalken`` setzt die Klasse) -- vorher blieb der Balken immer
+   rot, auch sobald die Stimme die Zielmarke (rechts daneben) erreicht
+   hatte, und niemand sah, was "laut genug" ueberhaupt bedeutet. */
+.kalibrierung-balken.ueber-schwelle span { background: #1f6f5c; }
 .kalibrierung-marke { position: absolute; top: -.2rem; bottom: -.2rem; width: 2px;
                       background: #17181b; left: 0; }
 .kalibrierung-erinnerung { font-size: .85rem; text-align: center; color: #1f6f5c; }
@@ -2339,6 +2344,9 @@ _CHAT_JS = """
     if (kalBalkenMarke) {
       kalBalkenMarke.style.left = Math.min(100, ((bodenMess * 3) / deckel) * 100) + '%';
     }
+    // P1-M4: dieselbe Zielmarke, die kalZuLeise() entscheidet (3x
+    // Raumpegel) -- jetzt auch als Farbwechsel sichtbar, kein neuer Text.
+    kalBalkenFeld.classList.toggle('ueber-schwelle', redeMess >= bodenMess * 3);
   }
 
   function kalZeigePanel(an) {
@@ -2637,7 +2645,7 @@ _CHAT_JS = """
     var k = sitzung._kal;
     if (!k) { return; }
     var transkript = (k.letzterTranskript || '').trim();
-    var woerter = transkript ? transkript.split(/\s+/).filter(Boolean) : [];
+    var woerter = transkript ? transkript.split(/\\s+/).filter(Boolean) : [];
     // k.ueberschrieben (gesetzt von kalWeiterTrotzdem): die Gruppe hat die
     // Pegel-Warnung schon einmal bewusst uebergangen -- derselbe Pegel
     // wuerde hier sonst dieselbe "zu leise" zurueckgeben und den Knopf

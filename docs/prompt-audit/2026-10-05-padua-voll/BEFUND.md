@@ -257,27 +257,49 @@ Verdichtet aus `mechanik.md` (vollstaendig im selben Ordner):
 
 Der Dump-Lauf und der mechanische Pruefer sind vollstaendig und oben
 dokumentiert. Die Opus-Lesung (`scripts/pruefe_prompts_lesung.py`, ohne
-`--trocken`) ist in dieser Session **nicht zu Ende gekommen** -- nicht,
-weil der Proxy unerreichbar ist (eine kleine Testanfrage an
-`http://127.0.0.1:28764/v1/messages` beantwortete der Proxy in unter drei
-Sekunden korrekt), sondern weil die reale Phase-1-Anfrage (67.412 Zeichen
-Nutzertext: UX-Regeln + Rubrik + drei nummerierte Dumps) **wiederholt mit
-`ReadTimeout` scheiterte** -- sowohl mit dem Vorgabe-Timeout
-(`simulation.claude.TIMEOUT_S = 120.0`, vier Versuche à 120 s) als auch mit
-einem eigens verlaengerten Testlauf (900 s Client-Timeout, `wartezeiten`
-auf einen Versuch reduziert): der Antwortversuch brach nach rund 245
-Sekunden mit demselben Fehler ab. Eine kuenstlich erzeugte, gleich grosse
-Fuellanfrage (68.054 Zeichen Lorem-Text, triviale Zusammenfassungsaufgabe)
-beantwortete derselbe Proxy dagegen in 2,5 Sekunden -- die Antwortzeit
-haengt also nicht an der blossen Zeichenzahl, sondern an der tatsaechlichen
-Analyseaufgabe (Widersprueche in UX-Regeln, Rubrik und mehreren
-nummerierten Dumps finden und mit woertlichem Zitat belegen), die
-offenkundig deutlich laenger braucht, als der lokale Proxy in dieser
-Session zulaesst.
+`--trocken`) ist in dieser Session **nicht zu Ende gekommen** -- der
+Proxy selbst ist erreichbar (eine kleine Testanfrage an
+`http://127.0.0.1:28764/v1/messages` beantwortete er in unter drei
+Sekunden korrekt), aber die reale Phase-1-Anfrage (67.412 Zeichen
+Nutzertext: UX-Regeln + Rubrik + drei nummerierte Dumps, `max_tokens=16000`
+Vorgabe) scheiterte wiederholt mit `ReadTimeout`.
 
-**Befehl zum Nachholen** (unveraendert, keine Codeaenderung noetig -- sehr
-wahrscheinlich reicht ein Lauf in einer Umgebung mit weniger
-Netz-/Proxy-Latenz oder mit mehr Geduld):
+**Root Cause gefunden, nicht nur vermutet:** `simulation.claude.Claude._sende`
+setzt das HTTP-Timeout **hartcodiert auf `TIMEOUT_S = 120.0`** je Versuch
+(`antwort = self._klient.post(..., timeout=TIMEOUT_S)`) -- ein eigener,
+laengerer Timeout auf dem uebergebenen `httpx.Client` wird dabei
+**ueberschrieben und hat keine Wirkung** (gemessen: ein Testlauf mit
+`httpx.Client(timeout=900.0)` schlug nach rund 245 Sekunden fehl, also
+nach genau zwei Versuchen zu je 120 Sekunden plus Wartezeit -- nicht nach
+900). Ein zweiter Test mit stark reduziertem Ausgabebudget
+(`max_tokens=1500`) zeigte den eigentlichen Mechanismus: der **erste**
+Versuch scheiterte ebenfalls nach 120 s, der **zweite** Versuch kam
+diesmal durch (nur ~22 s Laufzeit) -- aber mit
+`ClaudeFehler: keine Textbloecke in der Antwort ... (stop_reason=max_tokens,
+bloecke=['thinking'])`: das Modell hatte das **gesamte** Ausgabebudget mit
+**Denken (extended thinking)** verbraucht, bevor es auch nur ein Zeichen
+Antworttext schreiben konnte. Eine kuenstlich erzeugte, gleich grosse
+Fuellanfrage (68.054 Zeichen Lorem-Text, triviale Zusammenfassungsaufgabe
+ohne Denkaufwand) beantwortete derselbe Proxy dagegen in 2,5 Sekunden.
+
+**Schlussfolgerung:** die reale Lesungsaufgabe (Widersprueche in UX-Regeln,
+Rubrik und mehreren nummerierten Dumps finden, mit woertlichem Zitat
+belegen) ist fuer das Modell denkaufwendig genug, dass das Denken allein
+laenger als 120 Sekunden dauert -- der harte, nicht konfigurierbare
+120-Sekunden-Timeout in `simulation/claude.py` killt die Verbindung, bevor
+das Modell ueberhaupt zu antworten beginnt, bei jedem der vier Versuche
+gleich. Das ist kein Netzwerk- oder Erreichbarkeitsproblem, sondern eine
+**Eigenschaft des bestehenden Produktivcodes** (`simulation/claude.py`,
+ausserhalb des Mandats dieser Karte) im Zusammenspiel mit einer
+rechenintensiven Aufgabe. Ein kleineres `max_tokens` behebt es nicht (das
+Denken wird dadurch nicht schneller, nur der Fehler aendert sich von
+`ReadTimeout` zu `stop_reason=max_tokens`); es braucht entweder einen
+hoeheren `TIMEOUT_S` in `simulation/claude.py` (Codeaenderung, nicht Teil
+dieser Karte) oder eine Umgebung, in der dieselbe Anfrage schneller denkt
+(z. B. ohne gleichzeitige Last auf demselben lokalen Proxy).
+
+**Befehl zum Nachholen** (unveraendert; wird wahrscheinlich nur in einer
+Umgebung/Codeversion mit hoeherem Timeout durchlaufen):
 
 ```
 python3.11 -m scripts.pruefe_prompts_lesung docs/prompt-audit/2026-10-05-padua-voll
@@ -377,20 +399,27 @@ Karte nicht angefasst.
    als Zeremonie missversteht -- das waere die Grundlage fuer eine
    Entscheidung. **Kosten:** 0 CHF (Lesung ueber das Abo), aber abhaengig von
    Abschnitt 7.
-4. **Die Opus-Lesung ist in dieser Session nicht durchgelaufen** (siehe
-   Abschnitt 7) -- der lokale Claude-Proxy antwortet auf kleine Anfragen
-   sofort, aber auf die reale, komplexe Lesungs-Anfrage durchgaengig mit
-   `ReadTimeout`, auch bei stark verlaengertem Client-Timeout (900 s,
-   tatsaechlicher Abbruch nach ~245 s). **Warum das Birk betrifft:** ohne
-   die Lesung hat diese Karte keine Kategorie-a/b/c/d-Befunde fuer Task 10,
-   und der in AGENTS.md vorgesehene feste Abnahmeschritt
-   (`docs/flow-audit/vorlagen.md`) kann in dieser Session nicht vollstaendig
-   demonstriert werden. **Empfehlung:** den Lauf
-   (`python3.11 -m scripts.pruefe_prompts_lesung docs/prompt-audit/2026-10-05-padua-voll`)
-   in einer Umgebung mit kuerzerer Latenz zum lokalen Proxy nachholen,
-   oder -- falls das Timing-Problem reproduzierbar ist -- die Phasen
-   einzeln mit `--phase N` fahren (kleinere Einzelanfragen koennten
-   schneller durchkommen als alle sieben in Folge). **Kosten:** 0 CHF.
+4. **Die Opus-Lesung ist in dieser Session nicht durchgelaufen -- Ursache
+   gefunden, nicht nur vermutet** (siehe Abschnitt 7): `simulation.claude.
+   Claude._sende` setzt das HTTP-Timeout **hartcodiert auf 120 Sekunden**
+   je Versuch, unabhaengig von jedem selbst gesetzten Client-Timeout
+   (gemessen). Fuer die reale Lesungsaufgabe (Widersprueche in UX-Regeln,
+   Rubrik und mehreren Dumps finden, mit Zitat belegen) braucht das Modell
+   laenger als 120 Sekunden allein zum Denken, bevor der erste
+   Antwort-Token geschrieben wird -- bestaetigt durch einen Test mit
+   stark reduziertem `max_tokens`, der statt eines Timeouts den Fehler
+   `stop_reason=max_tokens, bloecke=['thinking']` zeigte (das gesamte
+   Budget ging ins Denken, kein Zeichen Antworttext). **Warum das Birk
+   betrifft:** ohne die Lesung hat diese Karte keine Kategorie-a/b/c/d-
+   Befunde fuer Task 10, und der in AGENTS.md vorgesehene feste
+   Abnahmeschritt (`docs/flow-audit/vorlagen.md`) kann in dieser Session
+   nicht vollstaendig demonstriert werden. **Empfehlung:** `TIMEOUT_S` in
+   `simulation/claude.py` erhoehen (z. B. auf 300-600 s) -- das ist eine
+   Codeaenderung an einem von mehreren Werkzeugen benutzten Modul, nicht
+   Teil des Mandats dieser Karte, und sollte Birks Entscheidung sein, weil
+   sie jeden Aufrufer von `simulation.claude.Claude` betrifft, nicht nur
+   diese Lesung. **Kosten:** 0 CHF (Lesung selbst); die Codeaenderung ist
+   eine einzige Zeile, aber ausserhalb des Mandats dieser Karte.
 5. **Die Systemanweisung dominiert jeden Gespraechs-Prompt mit 84-95 % des
    Tokenbudgets** (Abschnitt 4) -- Verlauf und Zusammenfassung sind
    durchgaengig klein dagegen. **Warum das Birk interessieren könnte:** das

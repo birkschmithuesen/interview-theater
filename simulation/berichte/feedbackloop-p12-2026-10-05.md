@@ -133,3 +133,139 @@ Weitere Fixture-Artefakte (d/b): P2-Verlauf endet mit "You:" unter "Now:",
 - Summe: 0.0425 CHF (harte Grenze 1.50 CHF).
 
 ## Runde 2
+
+Stand `fce1392`. Task-Reports `.superpowers/sdd/R2-*-report.md`.
+
+### Gefixt in Runde 2 (Befund -> Commit)
+
+| Task | Befunde | Commits |
+|---|---|---|
+| R2-1 Sackgasse Einzeldurchgang | S1 (Accept/Discard bleibt nach "Sharpen"; Review: spaete Schaerfung ueberschreibt nicht die naechste Frage, spaet verworfene schickt keine Fehlzeile) | `70bf096`, `0747a69`, `6240c97` |
+| R2-3 EN-Prompts | a1 ("stations" -> "phases"), a2 (Autosave-Satz Terms/Questions), a3 (US-Frage "before the scene phase"), a7/S3 (Reihenfolge nicht als Sperre, Zeile zur Phasenleiste), S9 (Schaerfen: konkret nachfragen), S10 (Begruessung erklaert "terms") | `f7490f3` |
+| R2-4 Fixture | a6 (echter Wortlaut "Changed since."), Board/Diskussion/`begriffe_detail` in jeder Phase, P2-Verlauf endet mit Gruppenzug | `18560d7` |
+| R2-6 Chat-Kante | S8 nur optisch (Maske/Ausblendung oben, `padding-bottom`); echter Fix braucht die Scroll-Logik in `web_chat.py` (Branch `wt/robo-b1`) | `fce1392` |
+
+Nicht gebaut: S2 (Erkenner speichert eigene Fragen vorzeitig; Klasse-B-Entscheidung B4 wird in
+`wt/robo-b4` gebaut), S5, B2, B5 (nicht entschieden bzw. nicht dran), P1-M1.
+
+Volle Suite nach Runde 2: **8021 passed, 10 skipped, 0 failed** (650 s, `-m "not dortmund"`).
+
+### Simulation (handy, giulia, 11 Stationen p12)
+
+Lauf `simulation/browser_laeufe/2026-10-05-handy-giulia-p12/` (Runde 2 = `chat_id 7000000000001`
+in `sim.db`, Schritte 68-132 in `schritte.jsonl`; die Screenshots 001-131 sind jetzt die von
+Runde 2), Rohbericht `simulation/berichte/feedbackloop-p12-2026-10-05-r2.md`. Richter roh:
+13 hoch / 21 mittel / 13 niedrig. Nach Sichtung bleiben **2 hoch, 6 mittel, 3 niedrig**.
+
+Ablauf laut `sim.db`: P1 sauber bis zur korrigierten Begriffsliste; um 16:06:22 Phase 2 ueber den
+Knopf "Yes, on to the questions" (knopf 64, `phase=2`) -- die Persona wollte laut Begruendung
+"Change something" druecken; zwei Sekunden vorher kam die Board-Nachricht (msg 106) mit eigenen
+Knoepfen dazu, die Elementnummern haben sich verschoben (Sim). Um **16:07:38 sprang die Gruppe ohne
+eigenes Zutun in Phase 3** (s. H1). Ab Station `p2-eigene-fragen` lief die Persona deshalb in
+Phase 3 und kreiste ~40 Schritte zwischen Workbench-Zeile "2 · Questions 3 of 3" und dem Sheet
+"Go to 2 · Questions / Stay here", ohne je einen der beiden Knoepfe zu druecken.
+KI-Vergleich und Einzeldurchgang wurden in Runde 2 **nie erreicht**.
+
+**hoch**
+
+| ID | Station | Was | Klasse | Beleg |
+|---|---|---|---|---|
+| H1 | p1-begriffe (real P2) | **Redo eines Erkennerlaufs mit eigenen Fragen ueberspringt Phase 2.** Undo/Redo der vom Erkenner gespeicherten eigenen Fragen (lauf 13, S2) -> `_wirkung_redo` sieht `fragen` gesetzt und keine Eroeffnung -> `starte_eroeffnung` -> Autosave der Eroeffnung (`schreibe_eroeffnung_automatisch`) -> `uebergang_nach_speichern` -> Phase 3. KI-Vergleich, Einzeldurchgang und Lead-ins fallen aus; Workbench zeigt "2 · Questions ✓ 3 of 3"; der P2-Prompt-Hinweis "The material would allow phase 3" (Lesung P2 b637) kommt aus derselben Voraussetzung. | A | knopf 71 (redo 13) 16:07:33; msg 119/120/124 und `phase_gesetzt_am` 16:07:38; `interview_theater/knoepfe/wirkung.py:1645-1654`, `knoepfe/fragen.py:1388-1392`, `knoepfe/stationen.py:38-51`; `fragen_herkunft_final` leer |
+| S2 | p1-zuhoeren (real P2), weiter in P3 | Erkenner schreibt eigene Fragen vor dem Vergleich in `fragen` ("📌 Agreed: Questions ..."), auch in Phase 3 noch zweimal (msg 143/146). Ausloeser von H1. | B4-Branch | msg 113, 143, 146; `erkenner.py:2106` (`_AUTOSAVE_FELDER_1_2` enthaelt `fragen`) |
+
+**mittel**
+
+| ID | Station | Was | Klasse | Beleg |
+|---|---|---|---|---|
+| S5 | p1-kalibrierung, p1-zuhoeren | Weiter zwei Quittungen je Korrektur ("Updated – saved ... Move on?" + "Noted: Corrected: foam -> home"); neu "Noted: Removed: Terms" (Feld geleert, weil gleich neu gesetzt) -- die Gruppe fragt "what did you remove?". | A | msg 90/91, 98/99, 104; erkenner_lauf 8/9; `erkenner.py:2160-2168` |
+| M1 | p1-begriffe (real P2) | Interner Marker **"ABSCHLUSS:"** steht im Chat (Vorschlag und 📌-Zeile der Eroeffnung). Ursache: EN-Prompts verlangen den deutschen Marker; `_teile_eroeffnung` (`knoepfe/fragen.py:1295`) versteht auch "closing". | A | msg 119, 120; `sprachen/en/texte.toml:550`, `sprachen/en/prompts/system.md:147`, `workshop/padua-2026/prompts/phasen/2.md:126` |
+| M2 | p1-begriffe | Undo der automatisch gespeicherten Eroeffnung ist sofort weg (knopf 72 in derselben Sekunde angelegt und verbraucht, beim Phasensprung); das naechste "Undo" der Persona trifft ein altes Begriffs-Undo -> "That's changed since then". Ursache noch zu messen. | A | knopf 72 `erstellt_am = benutzt_am` 16:07:38; knopf 58 16:08:04; msg 129 |
+| M3 | p2-* | Workbench: abgeschlossene Phase zeigt nur "3 of 3" (Aufgaben, die Persona liest es als Fragenzahl), keine Fragentexte; Tippen auf die Zeile oeffnet das Sprung-Sheet (S7) statt den Inhalt. | B (neu) | `067-…png`, `097-…png`; `roadmap.werkbank`, `web.py:3317` |
+| M4 | p1-zuhoeren | Zwei konkurrierende Angebote fuer denselben Begriffsbeschluss binnen 2 s: Autosave-Liste "Move on?" (Reihenfolge der Gruppe) und Board-Ende "Take these?" (andere Reihenfolge). Laut `d41d40f` ist "Take these" neben eigenen Begriffen gewollt -- die Kollision nicht. | B (neu) | msg 105/106, knopf 64/67 |
+| S6 | p1-eintritt, p1-kalibrierung | Kalibrier-Panel und "Listening (…)"-Chip gleichzeitig; Panel schiebt die Eingabe aus dem Bild; erster Schritt sagt nicht "bitte still sein". | B1-Branch | Richter p1-eintritt/-kalibrierung |
+
+**niedrig**
+
+| ID | Station | Was | Klasse | Beleg |
+|---|---|---|---|---|
+| S8 | mehrere | Oberste Blase weiter angeschnitten, jetzt ausgeblendet; Richter wertet es weiter (p2-eigene-fragen). | B1-Branch (Scroll-JS) | `027-…png` |
+| N1 | p1-eintritt | "The room check shows its own result on screen, so I can't judge the volume from here." -- Selbsterklaerung statt Hinweis. | A (Prompt, klein) | msg 83 |
+| N2 | p1-zuhoeren | Transkript-Segmente linksbuendig wie Bot-Blasen. | B1 / P1-M1 | Richter p1-zuhoeren |
+
+**Ausserhalb P1/P2 (Folge von H1, Phase 3):** Kimi antwortet einmal deutsch ("Die Interviewphase
+laeuft bereits ...", msg 142); "I won't note them myself -- the system records what you decide"
+(msg 145) und zwei Zuege spaeter "Your six questions are noted" (msg 148). Fuer die P3-Schleife notiert.
+
+**Nicht als Produktbefund gezaehlt (Sim, Karte t_fc2c1bfa):** Fehlklick in Phase 2 durch
+verschobene Elementnummern (s. o.); Persona-Schleife Workbench <-> Sheet ohne Entscheidung;
+`.phase-knopf[data-phase="2"]` nicht gefunden (Schritt 125, Padua rendert den Stepper);
+Stationen folgen nicht der echten Phase (alle "Phase 3 aktiv, obwohl Phase 2"-Befunde); Zaehler
+"mehrere Fragen pro Nachricht" (4-84 je Station) zaehlt Karten und Statuszeilen mit;
+`_TEXT_WIEDERKEHR`-Warnung im Bot-Log (Start als `__main__`). Board auf Geraet B: bestanden
+ohne Reload. Entwickler-Meta im Chat: 0.
+
+### Stand der Runde-1-Befunde
+
+| ID | Stand | Anmerkung |
+|---|---|---|
+| S1 | gefixt (Tests), im Lauf **nicht geprueft** | Einzeldurchgang wegen H1 nie erreicht |
+| S2 | offen, **verschaerft** | loest jetzt H1 aus (B4-Branch) |
+| S3 | gefixt | Prompt-Check ohne "station"-Treffer; Frage kam im Lauf nicht vor |
+| S4 | nicht erreicht | B4-Branch |
+| S5 | **unveraendert** | dazu "Removed: Terms" |
+| S6 | unveraendert | B1-Branch |
+| S7 | unveraendert, haeufiger getroffen | jetzt auch ueber die Workbench-Zeile (M3) |
+| S8 | teilweise | optisch entschaerft, geometrisch weiter angeschnitten (B1) |
+| S9 | gefixt (Prompt), nicht erreicht | kein Schaerfen im Lauf |
+| S10 | gefixt | Begruessung erklaert "terms"; Persona fragt trotzdem nach, Bot antwortet sauber (msg 81) |
+| S11 | nicht erreicht | -- |
+
+### Prompt-Check
+
+Dump `docs/prompt-audit/2026-10-05-padua-p12-r2/` (Mechanik + 2 Opus-Lesungen).
+
+| Phase | a | b | c | d | Summe |
+|---|---|---|---|---|---|
+| P1 Runde 1 | 4 | 4 | 2 | 5 | 15 |
+| P1 Runde 2 | 2 | 4 | 3 | 5 | 14 |
+| P2 Runde 1 | 4 | 4 | 2 | 5 | 15 |
+| P2 Runde 2 | 1 | 8 | 1 | 5 | 15 |
+
+Aus Runde 1 weg: a1, a2, a3, a7, a6 (Fixture), "Board-Block fehlt in P2". a5 ("exactly THREE")
+wird jetzt als b gefuehrt (by design, B3). Die drei a-Treffer am Dump geprueft:
+
+| Dump:Zeile | Zitat | echt? | Quelle | Fix (nur EN) |
+|---|---|---|---|---|
+| P1 01:551 | "ranked (the first five are saved as their terms)" | **by design** (Top-5-Autosave, `d41d40f`, = a4 Runde 1), aber der Satz stimmt nicht, sobald die Gruppe eine eigene Liste hat (Runde 2: gespeichert "home, belonging, border, waiting, night shift", Board-Rang anders, `begriffe_board_wert`) | `sprachen/en/texte.toml:974` (`BOARD_KOPF`) | Klammer ersetzen durch "the saved terms are the ones under Terms above" -- keine Zahl im Kopf, kein Widerspruch |
+| P1 01:174 | "then one line per scene `Title — one sentence — characters — form`" | **echt** (Widerspruch zu Zeile 66 "form only in phase 7" im selben Prompt), in P1/P2 ohne Wirkung | `sprachen/en/prompts/system.md:154` | "— form" streichen; `szenenfolge.py:278` liest das 4. Feld optional |
+| P2 05:95 | "under 500 characters if possible. One question, and two to three options" | **echt** (Pflichtfrage gegen Zeile 187 "at most ONE question ... only when it helps") | `sprachen/en/prompts/system.md:75` | "At most one question -- and if you offer choices, two to three options (see below)." |
+
+Ergebnis: 2 echte a-Stellen (beide `system.md`), 1 by design mit billigem Textfix.
+Weitere billige Funde aus der Lesung: c459 Entwicklervermerk "Padua Phase 1+2 card, Task 13" im
+Modellkontext (`workshop/padua-2026/prompts/phasen/2.md:3-6`); c569/b647 "work status tab" statt
+"Workbench" ist Fixture (`scripts/fixture_padua_voll.py:73`), ebenso die Historie, die mit vier
+Bot-Zuegen beginnt (d566/d642). b637 (`_PHASENHINWEIS` waehrend der eigenen Fragen) verschwindet
+mit H1-Fix in `phasen.py`. b489 ("say nothing" vs. eine Frage je Nachricht) = B2.
+Mechanik: "Yes, save" Z290 ist die echte Knopfbeschriftung, alle "ask whether" (P1 Z311/350,
+P2 Z311/350/475/537) wie in Runde 1 falsch positiv. P1 System 31690 Zeichen (+545 gegen Runde 1).
+
+### Offen nach Runde 2 und warum
+
+- H1, S5, M1, M2, N1 und die drei a-Stellen + c459 + Fixture: Klasse A, Runde 3.
+- S2/S4: `wt/robo-b4` (B4); H1-Fix muss mit B4 zusammenpassen (gleicher Ausloeser).
+- S6, S8-Rest, N2: `wt/robo-b1` (Scroll-/Kalibrier-UI in `web_chat.py`).
+- Klasse B offen: S7 (Sheet beim Zuruecknavigieren), M3 (Workbench-Inhalt abgeschlossener Phasen,
+  "3 of 3"), M4 (Board "Take these" neben gespeicherter Gruppenliste), S11 (Accepted ohne ↶),
+  B2, B5, R-5b, AGG-3, NB1 (Zahl-Ausnahmen a4/a5 ausdruecklich in die Regel).
+- P1-M1: braucht Spalte/Sortierschluessel (`aufnahme.py`/`repo.py`/`db.py`), nicht in dieser Schleife.
+- Sim (t_fc2c1bfa): Stepper-Selektor, Stationen an echte Phase koppeln, Fragekarten-Zaehler,
+  Elementnummern nach spaet eintreffenden Nachrichten neu einlesen, Schleifenbremse fuer Sheets.
+
+### Kosten bisher
+
+- Simulation handy Runde 2: 0.1594 CHF (Erkenner gemma 0.0616, Gespraech Kimi in Phase 3 0.0521,
+  Journal 0.0026, Whisper 0.0431; Opus/Proxy 0 CHF).
+- Simulation kumuliert: 0.2019 CHF (harte Grenze 1.50 CHF).
+- Opus-Lesungen: 8 Aufrufe ueber den lokalen Proxy, 0 CHF.
+
+## Runde 3

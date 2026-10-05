@@ -783,6 +783,255 @@ def test_letzteblasewurdegeaendert_entscheidet_live_in_node(tmp_path):
     }
 
 
+# -- Karte "keine Kalibrierung in Phase 3/4" (05.10.2026) -------------------
+
+
+def test_kalgruppenwerteaus_braucht_boden_und_schwelle_rede_optional_live_in_node(tmp_path):
+    """Reine Funktion: ohne ``boden`` oder ohne ``schwelle`` gibt es keine
+    gueltigen Gruppenwerte -- ``rede`` fehlt auf dem AUTO-Pfad (kein
+    Testsatz) und darf trotzdem null sein. Mutant: wuerde die isFinite-
+    Pruefung nur auf EINEN der beiden Pflichtwerte greifen, bliebe
+    ``ohne_boden``/``ohne_schwelle`` faelschlich ein Objekt statt null."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function kalGruppenwerteAus", "function kalBerechneBodenUndSchwelle")
+
+    quelltext = f"""
+    {funktion}
+    var ergebnisse = {{
+      vollstaendig: kalGruppenwerteAus('0.01', '0.2', '0.03'),
+      ohne_rede: kalGruppenwerteAus('0.01', '', '0.03'),
+      ohne_boden: kalGruppenwerteAus('', '0.2', '0.03'),
+      ohne_schwelle: kalGruppenwerteAus('0.01', '0.2', ''),
+      alles_leer: kalGruppenwerteAus('', '', '')
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse["vollstaendig"] == {"boden": 0.01, "rede": 0.2, "schwelle": 0.03}
+    assert ergebnisse["ohne_rede"] == {"boden": 0.01, "rede": None, "schwelle": 0.03}
+    assert ergebnisse["ohne_boden"] is None
+    assert ergebnisse["ohne_schwelle"] is None
+    assert ergebnisse["alles_leer"] is None
+
+
+def test_kalwaehlequelle_ordnet_die_vier_quellen_live_in_node(tmp_path):
+    """Reine Entscheidungsfunktion (node-testbar, keine DOM/Audio-
+    Abhaengigkeit): schon entschiedene Sitzung und Kill-Switch zuerst, dann
+    der lokale Cache VOR den serverseitigen Gruppenwerten (Karte "keine
+    Kalibrierung in Phase 3/4": "cache today wins"), ohne beides geht
+    Interview/Brainstorm automatisch, nur die Diskussion bekommt das
+    explizite Panel. Mutanten, die diese Reihenfolge vertauschen oder die
+    ``art``-Unterscheidung am Ende verlieren, lassen mindestens eines der
+    acht Felder kippen."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function kalWaehleQuelle", "function kalEntscheideOderStarte")
+
+    quelltext = f"""
+    {funktion}
+    var CACHE = {{ boden: 0.01, schwelle: 0.03 }};
+    var GRUPPE = {{ boden: 0.02, schwelle: 0.05 }};
+    var ergebnisse = {{
+      schon_kalibriert: kalWaehleQuelle(true, true, CACHE, GRUPPE, 'interview'),
+      kill_switch: kalWaehleQuelle(false, false, CACHE, GRUPPE, 'interview'),
+      cache_gewinnt_vor_gruppe: kalWaehleQuelle(false, true, CACHE, GRUPPE, 'interview'),
+      gruppe_ohne_cache: kalWaehleQuelle(false, true, null, GRUPPE, 'interview'),
+      auto_fuer_interview: kalWaehleQuelle(false, true, null, null, 'interview'),
+      auto_fuer_brainstorm: kalWaehleQuelle(false, true, null, null, 'brainstorm'),
+      panel_fuer_diskussion: kalWaehleQuelle(false, true, null, null, 'diskussion'),
+      gruppe_gewinnt_fuer_diskussion: kalWaehleQuelle(false, true, null, GRUPPE, 'diskussion')
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse == {
+        "schon_kalibriert": "sitzung",
+        "kill_switch": "kill",
+        "cache_gewinnt_vor_gruppe": "cache",
+        "gruppe_ohne_cache": "gruppe",
+        "auto_fuer_interview": "auto",
+        "auto_fuer_brainstorm": "auto",
+        "panel_fuer_diskussion": "panel",
+        "gruppe_gewinnt_fuer_diskussion": "gruppe",
+    }
+
+
+def test_kalentscheideoderstarte_wendet_die_quelle_an_live_in_node(tmp_path):
+    """Die Abnahme woertlich: serverseitige Gruppenwerte starten ohne Panel
+    mit angewendeter Schwelle; ohne jede Quelle startet der AUTO-Pfad ohne
+    Panel; der lokale Cache gewinnt vor den Gruppenwerten. Alle Abhaengig-
+    keiten von ``kalEntscheideOderStarte`` (Cache-Lesen, Kill-Switch,
+    Panel/Auto/echte-Schnitte) sind hier Attrappen -- nur ``kalWaehleQuelle``
+    selbst (oben einzeln getestet) ist der echte Code.
+
+    Mutanten: ein vertauschtes ``if``/``else if`` fuer cache/gruppe liesse
+    ``server_werte_interview`` auf ``vadSchwelleFix: null`` fallen; ein
+    fehlendes ``return`` nach dem panel/auto-Zweig riefe zusaetzlich
+    ``kalStarteEchteSchnitte`` auf."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function kalWaehleQuelle", "function kalMeldeGruppenwerte")
+
+    quelltext = f"""
+    var CACHE, KAL_AKTIV, zustand;
+    var aufrufe;
+    function kalZeigeHerumreichenErinnerungWennNeu(s) {{}}
+    function kalSpeicher() {{ return null; }}
+    function kalGruppeAus(p) {{ return 'g'; }}
+    function kalDatum(d) {{ return 'd'; }}
+    function kalibrierungCacheLesen() {{ return CACHE; }}
+    function kalibrierungAktiv() {{ return KAL_AKTIV; }}
+    function kalibrierungStarte(s) {{ aufrufe.panel++; }}
+    function kalStarteAuto(s) {{ aufrufe.auto++; }}
+    function kalStarteEchteSchnitte(s) {{ aufrufe.echteSchnitte++; }}
+    var location = {{ pathname: '/g/tok1/chat' }};
+    {funktion}
+
+    function szenario(art, cache, gruppenWerte, kalAktiv) {{
+      CACHE = cache; KAL_AKTIV = kalAktiv; zustand = {{ kalibrierungGruppe: gruppenWerte }};
+      aufrufe = {{ panel: 0, auto: 0, echteSchnitte: 0 }};
+      var sitzung = {{ art: art }};
+      kalEntscheideOderStarte(sitzung);
+      return {{
+        panel: aufrufe.panel, auto: aufrufe.auto, echteSchnitte: aufrufe.echteSchnitte,
+        vadBodenMess: (sitzung.vadBodenMess === undefined ? null : sitzung.vadBodenMess),
+        vadSchwelleFix: (sitzung.vadSchwelleFix === undefined ? null : sitzung.vadSchwelleFix),
+        kalibriert: !!sitzung.kalibriert
+      }};
+    }}
+
+    var ergebnisse = {{
+      server_werte_interview: szenario('interview', null, {{boden: 0.01, rede: 0.2, schwelle: 0.03}}, true),
+      keine_werte_interview: szenario('interview', null, null, true),
+      keine_werte_diskussion: szenario('diskussion', null, null, true),
+      cache_gewinnt: szenario('interview', {{boden: 0.05, rede: 0.5, schwelle: 0.09}},
+                               {{boden: 0.01, rede: 0.2, schwelle: 0.03}}, true),
+      kill_switch: szenario('interview', null, null, false)
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    # "server values -> no panel, threshold applied"
+    assert ergebnisse["server_werte_interview"] == {
+        "panel": 0, "auto": 0, "echteSchnitte": 1,
+        "vadBodenMess": 0.01, "vadSchwelleFix": 0.03, "kalibriert": True,
+    }
+    # "no values -> auto path, no panel" (Interview/Brainstorm)
+    assert ergebnisse["keine_werte_interview"] == {
+        "panel": 0, "auto": 1, "echteSchnitte": 0,
+        "vadBodenMess": None, "vadSchwelleFix": None, "kalibriert": False,
+    }
+    # Diskussion ohne jede Quelle behaelt das explizite Panel.
+    assert ergebnisse["keine_werte_diskussion"] == {
+        "panel": 1, "auto": 0, "echteSchnitte": 0,
+        "vadBodenMess": None, "vadSchwelleFix": None, "kalibriert": False,
+    }
+    # "cache today wins" -- 0.09 (Cache), nicht 0.03 (Gruppenwerte).
+    assert ergebnisse["cache_gewinnt"] == {
+        "panel": 0, "auto": 0, "echteSchnitte": 1,
+        "vadBodenMess": 0.05, "vadSchwelleFix": 0.09, "kalibriert": True,
+    }
+    assert ergebnisse["kill_switch"] == {
+        "panel": 0, "auto": 0, "echteSchnitte": 1,
+        "vadBodenMess": None, "vadSchwelleFix": None, "kalibriert": True,
+    }
+
+
+def test_kalstarteauto_friert_den_rollenden_boden_nach_der_wartezeit_live_in_node(tmp_path):
+    """Die AUTO-Kalibrierung selbst: startet sofort ohne Panel, und friert
+    nach ``KAL_AUTO_MESS_MS`` den rollenden Boden (``kalMedian`` ueber
+    ``sitzung.vadBoden``) als Festwert ein -- Schwelle nach derselben
+    ``max(RMS_SCHWELLE, boden*BODEN_FAKTOR)``-Formel wie die unkalibrierte
+    Anzeige. Der Server bekommt ehrlich ``rede: null`` (kein Testsatz),
+    der lokale Cache (der ALLE drei Werte als endliche Zahl verlangt)
+    bekommt ``boden`` als Platzhalter -- ungenutzt beim Wiederlesen.
+
+    Mutanten: ein vertauschtes max/min liesse die Schwelle unter
+    RMS_SCHWELLE fallen; ``null`` statt ``boden`` im Cache-Aufruf machte den
+    Cache fuer den Rest des Tages unlesbar (kalibrierungCacheLesen verlangt
+    drei endliche Werte)."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    kal_median = _extrahiere(js, "function kalMedian", "function kalPerzentil")
+    auto = _extrahiere(js, "function kalMeldeGruppenwerte", "function kalibrierungNeu")
+
+    quelltext = f"""
+    var zeitplaene = [];
+    function setTimeout(fn, ms) {{ zeitplaene.push({{ fn: fn, ms: ms }}); }}
+    var fuss = {{ dataset: {{ vadRms: '0.01', vadFloorFaktor: '2.5' }} }};
+    var echteSchnitteAufrufe = 0;
+    function kalStarteEchteSchnitte(s) {{ echteSchnitteAufrufe++; }}
+    var cacheSchreibenAufrufe = [];
+    function kalibrierungCacheSchreiben(speicher, gruppe, datum, boden, rede, schwelle) {{
+      cacheSchreibenAufrufe.push({{ boden: boden, rede: rede, schwelle: schwelle }});
+    }}
+    function kalSpeicher() {{ return null; }}
+    function kalGruppeAus(p) {{ return 'g'; }}
+    function kalDatum(d) {{ return 'd'; }}
+    var location = {{ pathname: '/g/tok1/chat' }};
+    var gemeldet = [];
+    function postJson(pfad, nutzlast) {{ gemeldet.push(nutzlast); return {{ catch: function () {{}} }}; }}
+    {kal_median}
+    {auto}
+
+    var sitzung = {{ vadBoden: [0.004, 0.006, 0.005, 0.2, 0.2] }};
+    kalStarteAuto(sitzung);
+    var vorDemAblauf = {{
+      echteSchnitteAufrufe: echteSchnitteAufrufe,
+      zeitplaene: zeitplaene.map(function (z) {{ return z.ms; }}),
+      vadSchwelleFix: (sitzung.vadSchwelleFix === undefined ? null : sitzung.vadSchwelleFix)
+    }};
+
+    zeitplaene[0].fn();   // derselbe Lauf, wie ihn der echte Timer ausgeloest haette
+    var nachDemAblauf = {{
+      vadBodenMess: sitzung.vadBodenMess, vadSchwelleFix: sitzung.vadSchwelleFix,
+      kalibriert: !!sitzung.kalibriert,
+      cacheSchreibenAufrufe: cacheSchreibenAufrufe, gemeldet: gemeldet
+    }};
+    console.log(JSON.stringify({{ vor: vorDemAblauf, nach: nachDemAblauf }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnis = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnis["vor"] == {
+        "echteSchnitteAufrufe": 1, "zeitplaene": [5000], "vadSchwelleFix": None,
+    }
+    assert ergebnis["nach"]["kalibriert"] is True
+    assert ergebnis["nach"]["vadBodenMess"] == pytest.approx(0.006)
+    assert ergebnis["nach"]["vadSchwelleFix"] == pytest.approx(0.015)
+    assert ergebnis["nach"]["cacheSchreibenAufrufe"] == [
+        {"boden": pytest.approx(0.006), "rede": pytest.approx(0.006), "schwelle": pytest.approx(0.015)},
+    ]
+    assert ergebnis["nach"]["gemeldet"] == [
+        {"boden": pytest.approx(0.006), "rede": None, "schwelle": pytest.approx(0.015)},
+    ]
+
+
+def test_die_kalibrierung_attribute_stehen_am_fuss_mit_gruppenwerten():
+    """Python-Seite der Lieferung (kein node noetig): ``chat_html`` schreibt
+    die drei Gruppenwerte als ``data-kalibrierung-*`` -- dieselbe Ablesung
+    wie bei den ``vad-*``-Attributen."""
+    daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
+             "interviewmodus": False, "titel": None, "brainstorm_knopf": False,
+             "kalibrierung_gruppe": {"boden": 0.01, "rede": 0.2, "schwelle": 0.03}}
+    seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
+    assert 'data-kalibrierung-boden="0.01"' in seite
+    assert 'data-kalibrierung-rede="0.2"' in seite
+    assert 'data-kalibrierung-schwelle="0.03"' in seite
+
+
+def test_die_kalibrierung_attribute_bleiben_leer_ohne_gruppenwerte():
+    daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
+             "interviewmodus": False, "titel": None, "brainstorm_knopf": False}
+    seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
+    assert 'data-kalibrierung-boden=""' in seite
+    assert 'data-kalibrierung-rede=""' in seite
+    assert 'data-kalibrierung-schwelle=""' in seite
+
+
 def test_beforeunload_warnt_waehrend_aufnahme_und_upload():
     assert "beforeunload" in web_chat._CHAT_JS
 

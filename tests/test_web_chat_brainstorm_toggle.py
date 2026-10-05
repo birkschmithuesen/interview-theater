@@ -66,3 +66,30 @@ def test_hoehenaenderung_des_fusses_haelt_den_verlauf_unten():
 def test_laeuft_text_sagt_wie_man_den_bogen_schliesst():
     assert "{zeit}" in web_chat._TEXT_BRAINSTORM_LAEUFT
     assert "tippen" in web_chat._TEXT_BRAINSTORM_LAEUFT.casefold()
+
+
+# Fix round 1 (Review, Task 5): drei Minor-Befunde.
+
+def test_der_tipp_hinweis_verschwindet_unter_dem_laufenden_toggle():
+    # Befund 1: "Einmal tippen zum Starten." (#ux-rec-zeile, aus
+    # web_gestalt.py) sitzt als Geschwister von #interview im Fuss, nicht
+    # in .zeile -- die bestehende Regel blendet ihn also nicht mit aus.
+    assert '.fuss[data-brainstorm="1"] #ux-rec-zeile { display: none; }' in web_chat._CSS_CHAT
+
+
+def test_die_redundante_brainstorm_breite_ist_weg():
+    # Befund 3: "#brainstorm { width: 100% }" steht schon in der
+    # unbedingten Regel (ganzer Knopf ist immer volle Breite) --
+    # die Wiederholung unter [data-brainstorm="1"] war totes Gewicht.
+    assert web_chat._CSS_CHAT.count("#brainstorm") >= 1
+    assert '.fuss[data-brainstorm="1"] #brainstorm { width: 100%; }' not in web_chat._CSS_CHAT
+
+
+def test_zeigebrainstormmodus_scrollt_nur_bei_tatsaechlichem_wechsel():
+    # Befund 2: zeigeModus() ruft zeigeBrainstormModus() bei JEDEM Poll --
+    # vorher riss "if (warUnten) { nachUnten(); }" den Verlauf bei jedem
+    # Tick nach unten, auch ohne Aenderung an fuss.dataset.brainstorm.
+    zeige = _fn("zeigeBrainstormModus", "starteBrainstorm")
+    assert "var fussVorher = fuss.dataset.brainstorm;" in zeige
+    assert "if (warUnten) { nachUnten(); }" not in zeige
+    assert "if (warUnten && fuss.dataset.brainstorm !== fussVorher) { nachUnten(); }" in zeige

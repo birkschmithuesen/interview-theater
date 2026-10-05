@@ -105,6 +105,9 @@ def test_toggle_pause_schneidet_nicht_und_ende_geht_hoch(lauf, browser):
         seite.click("#brainstorm")
         seite.wait_for_selector('#brainstorm[data-laeuft="1"]')
         assert seite.is_hidden(".fuss .zeile")                # Modus belegt den Platz
+        # Fix round 1 (Review, Befund 1): "Einmal tippen zum Starten."
+        # (#ux-rec-zeile) verschwindet mit unter dem roten Toggle.
+        assert seite.is_hidden("#ux-rec-zeile")
         seite.evaluate("window.__t.setzeRms(0.6)")
         seite.wait_for_timeout(1500)
         seite.evaluate("window.__t.setzeRms(0.0)")
@@ -116,6 +119,8 @@ def test_toggle_pause_schneidet_nicht_und_ende_geht_hoch(lauf, browser):
         ende = [u for u in uploads if "grund=ende" in u and "brainstorm=1" in u]
         assert len(ende) == 1, uploads
         assert seite.is_visible(".fuss .zeile")
+        # Fix round 1 (Review, Befund 1): nach dem Stopp wieder sichtbar.
+        assert seite.is_visible("#ux-rec-zeile")
     finally:
         kontext.close()
 

@@ -321,7 +321,7 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 #brainstorm[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
                                color: #fff; min-height: 4rem; font-size: 1.15rem; }
 .fuss[data-brainstorm="1"] .zeile { display: none; }
-.fuss[data-brainstorm="1"] #brainstorm { width: 100%; }
+.fuss[data-brainstorm="1"] #ux-rec-zeile { display: none; }
 #interview.nebenknopf { font-weight: 400; min-height: 2.4rem; font-size: .9rem;
                         opacity: .8; }
 .interview-aktionen { display: flex; gap: .5rem; margin-top: .4rem; }
@@ -2731,6 +2731,7 @@ _CHAT_JS = """
     // t_a8129d7f: die Fusshoehe aendert sich, wenn der Modus die
     // Eingabezeile ersetzt -- wer unten war, bleibt unten.
     var warUnten = amUnterenRand();
+    var fussVorher = fuss.dataset.brainstorm;
     brainstormKnopf.dataset.laeuft = an ? '1' : '0';
     // t_a8129d7f: der laufende Bogen belegt den Platz der Eingabezeile
     // (CSS .fuss[data-brainstorm="1"] .zeile).
@@ -2761,7 +2762,10 @@ _CHAT_JS = """
     // Interview-Knopf folgt derselben Sichtbarkeit wie das Server-Markup.
     var sichtbar = zustand.brainstormErlaubt || an || !!zustand.wechsel;
     brainstormKnopf.hidden = !sichtbar;
-    if (warUnten) { nachUnten(); }
+    // Fix round 1 (Review): zeigeModus() ruft diese Funktion bei JEDEM
+    // Poll -- ohne den Vergleich riss nachUnten() den Verlauf bei jedem
+    // Tick nach unten, auch wenn sich am Fuss nichts geaendert hatte.
+    if (warUnten && fuss.dataset.brainstorm !== fussVorher) { nachUnten(); }
     // interviewKnopf.disabled/classList und pttKnopf.hidden werden seit
     // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal,
     // zusammengefuehrt mit zustand.diskussion (siehe dort).

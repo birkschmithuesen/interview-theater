@@ -184,6 +184,16 @@ def baue_phase6(conn) -> int:
 def main() -> None:
     # Das Skript ist Padua-spezifisch: ohne Variable haengt es das Profil
     # selbst ein, eine andere Variable weist es ab.
+    #
+    # ACHTUNG (t_809cb7f1, 05.10.2026): os.environ["IT_WORKSHOP"]/["IT_DB"]
+    # werden hier gesetzt und NIE zurueckgesetzt -- dasselbe Leak-Muster wie
+    # in scripts/erzeuge_prompts_padua_voll.py._lauf() (dort behoben, siehe
+    # dessen try/finally). Hier bislang folgenlos, weil main() nur per
+    # ``python -m`` als eigener Prozess laeuft und keine Testdatei
+    # main_fuer_test-artig innerhalb einer pytest-Session aufruft. Entsteht
+    # ein solcher Testaufrufer, muss dasselbe try/finally-Muster her, sonst
+    # kontaminiert dieser Lauf jeden Nachfolgetest (workshop.aktiv() liest
+    # IT_WORKSHOP live).
     os.environ.setdefault(workshop.VARIABLE, "padua-2026")
     workshop.vergiss()
     anweisungen._CACHE.clear()

@@ -204,3 +204,45 @@ def test_phase7_szene_sieht_den_sprachstil_der_figuren(tmp_path):
     dump.main_fuer_test(tmp_path, nur=["28-szene-dialog"])
     text = (tmp_path / "28-szene-dialog.txt").read_text(encoding="utf-8")
     assert "questions instead of statements" in text
+
+
+def test_der_lauf_hinterlaesst_os_environ_exakt_wie_vorher(tmp_path, monkeypatch):
+    """t_809cb7f1: _lauf() setzte IT_WORKSHOP/IT_DB ohne sie zurueckzusetzen --
+    IT_WORKSHOP blieb fuer den Rest der pytest-Session auf 'padua-2026' stehen
+    und faerbte jeden spaeteren Test rot, der workshop.workbench_bearbeitbar()
+    durchlaeuft (das Profil hat [web] workbench_bearbeitbar = false).
+
+    Exakt heisst hier: fehlte die Variable VOR dem Lauf, muss sie NACHHER
+    wieder fehlen -- nicht nur 'irgendeinen' alten Wert tragen."""
+    monkeypatch.delenv("IT_WORKSHOP", raising=False)
+    monkeypatch.delenv("IT_DB", raising=False)
+    import os
+
+    assert "IT_WORKSHOP" not in os.environ
+    assert "IT_DB" not in os.environ
+
+    dump.main_fuer_test(tmp_path, nur=["13-begriffsboard"])
+
+    assert "IT_WORKSHOP" not in os.environ, (
+        "IT_WORKSHOP leakt aus _lauf() in die Prozessumgebung")
+    assert "IT_DB" not in os.environ, (
+        "IT_DB leakt aus _lauf() in die Prozessumgebung")
+
+
+def test_der_lauf_stellt_einen_vorher_gesetzten_wert_auch_bei_abbruch_wieder_her(
+    tmp_path, monkeypatch
+):
+    """War vor dem Lauf bereits ein anderer IT_WORKSHOP gesetzt (z.B. der
+    echte Betriebs-Workshop), darf _lauf() ihn nicht dauerhaft durch
+    'padua-2026' ersetzen -- auch wenn ``setdefault`` den fremden Wert gar
+    nicht erst ueberschreibt und deshalb ``workshop.name() != 'padua-2026'``
+    sofort mit SystemExit abbricht. Das finally muss trotzdem greifen."""
+    monkeypatch.setenv("IT_WORKSHOP", "dortmund-2026")
+    monkeypatch.setenv("IT_DB", "/pfad/zur/echten/betriebsdatenbank.db")
+    import os
+
+    with pytest.raises(SystemExit):
+        dump.main_fuer_test(tmp_path, nur=["13-begriffsboard"])
+
+    assert os.environ["IT_WORKSHOP"] == "dortmund-2026"
+    assert os.environ["IT_DB"] == "/pfad/zur/echten/betriebsdatenbank.db"

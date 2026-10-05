@@ -666,40 +666,62 @@ def _schreibe_tsv(ziel: Path, zeilen: list[dict]) -> str:
 
 
 def _lauf(ziel: Path, nur: list[str] | None) -> list[dict]:
-    os.environ.setdefault(workshop.VARIABLE, "padua-2026")
-    workshop.vergiss()
-    anweisungen._CACHE.clear()
-    if workshop.name() != "padua-2026":
-        raise SystemExit(
-            "IT_WORKSHOP=padua-2026 setzen -- sonst entsteht der Dortmunder Prompt."
-        )
-    ziel.mkdir(parents=True, exist_ok=True)
-    eintraege = [e for e in inv.INVENTAR if not nur or e.datei in nur]
-    if nur:
-        bekannt = {e.datei for e in inv.INVENTAR}
-        fehlend = [n for n in nur if n not in bekannt]
-        if fehlend:
-            raise TreiberFehler(f"nicht im Inventar: {fehlend}")
+    # ANNAHME (t_809cb7f1, 05.10.2026): os.environ wird hier fuer die Dauer
+    # des Laufs manipuliert (IT_WORKSHOP, IT_DB) und muss danach wieder exakt
+    # den Vorzustand tragen -- auch wenn eine Variable vorher gar nicht
+    # gesetzt war. Ohne das bleibt IT_WORKSHOP=padua-2026 fuer den Rest der
+    # pytest-Session gesetzt (workshop.aktiv() liest live aus os.environ) und
+    # faerbt jeden spaeteren Test rot, der workshop.workbench_bearbeitbar()
+    # durchlaeuft. Siehe scripts/erzeuge_prompts_padua.py fuer denselben
+    # Mangel, dort ohne Testaufrufer bisher folgenlos.
+    vorher_workshop = os.environ.get(workshop.VARIABLE)
+    vorher_db = os.environ.get("IT_DB")
+    try:
+        os.environ.setdefault(workshop.VARIABLE, "padua-2026")
+        workshop.vergiss()
+        anweisungen._CACHE.clear()
+        if workshop.name() != "padua-2026":
+            raise SystemExit(
+                "IT_WORKSHOP=padua-2026 setzen -- sonst entsteht der Dortmunder Prompt."
+            )
+        ziel.mkdir(parents=True, exist_ok=True)
+        eintraege = [e for e in inv.INVENTAR if not nur or e.datei in nur]
+        if nur:
+            bekannt = {e.datei for e in inv.INVENTAR}
+            fehlend = [n for n in nur if n not in bekannt]
+            if fehlend:
+                raise TreiberFehler(f"nicht im Inventar: {fehlend}")
 
-    from simulation.attrappe import TelegramAttrappe
+        from simulation.attrappe import TelegramAttrappe
 
-    zeilen: list[dict] = []
-    with tempfile.TemporaryDirectory() as tmp:
-        pfad = os.path.join(tmp, "padua-prompts.db")
-        os.environ["IT_DB"] = pfad
-        conn = db.verbinde(pfad)
-        db.initialisiere(conn)
-        chats = fixture.baue_alle(conn)
-        e = umgebung()
-        tg = TelegramAttrappe()
-        klm = ms.Mitschnitt(e)
-        with ms.fange_alles(klm):
-            for eintrag in eintraege:
-                aufruf, umriss = treibe(conn, e, tg, klm, chats, eintrag)
-                zeilen.append(schreibe_dump(ziel, eintrag, aufruf, umriss))
-        conn.close()
-    _schreibe_tsv(ziel, zeilen)
-    return zeilen
+        zeilen: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            pfad = os.path.join(tmp, "padua-prompts.db")
+            os.environ["IT_DB"] = pfad
+            conn = db.verbinde(pfad)
+            db.initialisiere(conn)
+            chats = fixture.baue_alle(conn)
+            e = umgebung()
+            tg = TelegramAttrappe()
+            klm = ms.Mitschnitt(e)
+            with ms.fange_alles(klm):
+                for eintrag in eintraege:
+                    aufruf, umriss = treibe(conn, e, tg, klm, chats, eintrag)
+                    zeilen.append(schreibe_dump(ziel, eintrag, aufruf, umriss))
+            conn.close()
+        _schreibe_tsv(ziel, zeilen)
+        return zeilen
+    finally:
+        if vorher_workshop is None:
+            os.environ.pop(workshop.VARIABLE, None)
+        else:
+            os.environ[workshop.VARIABLE] = vorher_workshop
+        if vorher_db is None:
+            os.environ.pop("IT_DB", None)
+        else:
+            os.environ["IT_DB"] = vorher_db
+        workshop.vergiss()
+        anweisungen._CACHE.clear()
 
 
 def main_fuer_test(ziel, nur=None) -> list[dict]:

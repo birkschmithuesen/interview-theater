@@ -4742,15 +4742,30 @@ def _auswahl_fertig(handler, db_pfad: str, token: str, chat_id: int,
     web_vereint.auswahl_fertig_post(handler, db_pfad, token, chat_id, schluessel)
 
 
+def _zahl_oder_none(wert):
+    """``wert`` als ``float``, wenn es eine echte Zahl ist (kein ``bool`` --
+    das ist in Python auch ein ``int``) -- sonst ``None``, defensiv wie
+    ``_interview``s ``isinstance(an, bool)``-Pruefung."""
+    if isinstance(wert, bool) or not isinstance(wert, (int, float)):
+        return None
+    return float(wert)
+
+
 def _kalibrierung(handler, db_pfad: str, token: str, chat_id: int,
                   schluessel: bytes) -> None:
-    """Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): die
-    zweite "zu leise"-Messung in Folge einer Sitzung merkt gruppenweit, dass
-    ein Handy in der Mitte fuer diesen Raum nicht reicht
-    (``gruppe.kalibrierung_modus = 'herumreichen'``) -- unabhaengig davon, ob
-    die Gruppe danach den Versuch- oder den Weiter-trotzdem-Knopf drueckt, und
-    unabhaengig von jedem Audio-Upload (der an dieser Stelle noch gar nicht
-    stattgefunden haben muss).
+    """Zwei Ergebnisse teilen sich diesen einen Weg (Karte "keine
+    Kalibrierung in Phase 3/4", 05.10.2026, UND die aeltere Task 2, Kanban-
+    Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
+
+    1. Ein erfolgreicher Durchlauf (manuell im Panel ODER automatisch im
+       Hintergrund) schickt ``boden``/``schwelle`` (``rede`` nur, wenn ein
+       Testsatz gemessen wurde -- der AUTO-Pfad hat keinen) -- gespeichert
+       GRUPPENWEIT (``repo.setze_kalibrierung_werte``), damit die naechste
+       Aufnahme jeder Art, jedes Geraets, jeder Phase das Panel ueberspringt.
+    2. Ein leerer Rumpf (die zweite "zu leise"-Messung in Folge: Task 2 oben)
+       merkt stattdessen ``gruppe.kalibrierung_modus = 'herumreichen'`` --
+       unabhaengig davon, ob die Gruppe danach den Versuch- oder den
+       Weiter-trotzdem-Knopf drueckt, und unabhaengig von jedem Audio-Upload.
 
     Reiner Metadatum-Schreibweg wie ``web_schreiben.py``, kein Knopf im
     ``knoepfe``-Sinn und kein Modellaufruf (Zusage 2 gilt analog): die
@@ -4759,8 +4774,15 @@ def _kalibrierung(handler, db_pfad: str, token: str, chat_id: int,
     daten = _koerper_oder_400(handler, token, schluessel)
     if daten is None:
         return
+    boden = _zahl_oder_none(daten.get("boden"))
+    schwelle = _zahl_oder_none(daten.get("schwelle"))
     with schreibend(db_pfad) as conn:
-        repo.setze_kalibrierung_modus_herumreichen(conn, chat_id)
+        if boden is not None and schwelle is not None:
+            repo.setze_kalibrierung_werte(
+                conn, chat_id, boden, _zahl_oder_none(daten.get("rede")), schwelle,
+            )
+        else:
+            repo.setze_kalibrierung_modus_herumreichen(conn, chat_id)
     handler._antworte(
         200, json.dumps({"ok": True}), "application/json; charset=utf-8",
     )

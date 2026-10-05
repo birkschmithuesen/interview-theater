@@ -943,3 +943,26 @@ def test_schaerfen_knopf_quittiert_nicht_mit_derselben_frage(conn, tg, einst):
 
     assert tg.texte.count(T._TEXT_FRAGE_WAS_AENDERN) == 1
     assert T._TEXT_FRAGE_WAS_AENDERN not in [t for _, t in tg.beantwortet]
+
+
+# --- Review T2 (e1d8f47) ----------------------------------------------------
+
+
+def test_ordne_zeilen_unpraefigierte_zeile_nach_inline_kopf_geht_in_den_rest():
+    je_begriff, rest = fragen._ordne_zeilen(
+        ["Home", "robots"], ["Home: q1?", "Who repairs a robot?"],
+    )
+    assert je_begriff["Home"] == ["Home: q1?"]
+    assert je_begriff["robots"] == []
+    assert rest == ["Who repairs a robot?"]
+
+
+def test_finde_begriff_genaue_gleichheit_schlaegt_plural():
+    je_begriff = fragen._zeilen_je_begriff(["robot", "robots"], ["Robot: q1?", "Robots: q2?"])
+    assert je_begriff == {"robot": ["robot: q1?"], "robots": ["robots: q2?"]}
+
+
+def test_ordne_zeilen_unpunktierte_aufzaehlung_wird_nicht_verschmolzen():
+    zeilen = vorschlag.zeilen("**Home**\n- Tell me about a place\n- Who cooked there")
+    je_begriff = fragen._zeilen_je_begriff(BEGRIFFE_REAL, zeilen)
+    assert je_begriff["Home"] == ["Home: Tell me about a place", "Home: Who cooked there"]

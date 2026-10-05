@@ -109,9 +109,12 @@ def test_undo_texte_dortmund_deutsch(conn):
 def test_undo_knopf_traegt_in_padua_englisch(conn, padua):
     assert knoepfe.T._TEXT_UNDO_KNOPF == "Undo"
     assert knoepfe.T._TEXT_UNDO_ERLEDIGT == "Undone:\n{zeilen}"
-    assert knoepfe.T._TEXT_UNDO_GEAENDERT == (
-        "Changed since - please fix it in the work status"
-    )
+    # Abnahme P1-2, Fortsetzung: "please fix it in the work status" war
+    # kryptisch (zwei echte Browserlaeufe, Befund #3) -- jetzt konkret, mit
+    # dem echten Tab-Namen ("Workbench") statt "work status", und einer
+    # zweiten Option ("tell me ... here in the chat").
+    assert "Workbench tab" in knoepfe.T._TEXT_UNDO_GEAENDERT
+    assert "tell me the new value here in the chat" in knoepfe.T._TEXT_UNDO_GEAENDERT
 
 
 def test_undo_steht_als_letzte_zeile_unter_der_grundleiste(conn):

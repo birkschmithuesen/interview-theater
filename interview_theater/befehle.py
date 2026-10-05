@@ -704,6 +704,22 @@ def _befehl_phaseklick(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     wechsle_phase(conn, tg, klm, e, chat_id, nummer, quelle="web")
 
 
+def _befehl_start(conn, tg, e, chat_id: int, rest: str) -> None:
+    """Der erste Seitenaufruf einer frischen Web-Gruppe (Pflichtpunkt 2, Fix 1
+    von 2, 04.10.2026). Kein ``klm``: die Begruessung ruft kein Modell.
+
+    **Versteckt**, wie ``/phaseklick`` -- niemand tippt ihn, er ist der Weg
+    des ersten Seitenaufrufs durch die Naht von Karte A2. Der Webserver legt
+    ``/start`` schon nur an, solange der Chat noch leer ist; die Pruefung hier
+    ist die defensive Gegenpruefung gegen das Wettrennen zweier fast
+    gleichzeitiger Seitenaufrufe, bevor einer der beiden Schreibvorgaenge
+    gelandet ist."""
+    from interview_theater import bot  # spaeter Import, haelt den Zyklus auf (bot importiert befehle)
+
+    if not repo.hat_bot_nachricht(conn, chat_id):
+        bot.erstkontakt(conn, tg, e, chat_id)
+
+
 def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     """Baut die Stand-Antwort ausschliesslich aus der Datenbank -- ohne
     Sprachmodell, kann also nicht am LLM scheitern (teil-b.md Aufgabe 6).
@@ -1082,6 +1098,11 @@ _BEKANNTE_BEFEHLE_DE: frozenset[str] = frozenset({
     # die Naht, siehe ``_befehl_phaseklick``. Keine EN-Form: er wird nie
     # getippt.
     "/phaseklick",
+    # Versteckt (Pflichtpunkt 2, Fix 1 von 2, 04.10.2026): der erste
+    # Seitenaufruf einer frischen Web-Gruppe. Niemand tippt ihn -- wie
+    # ``/phaseklick`` ist er der Weg eines Ereignisses (hier: das Laden der
+    # Seite) durch die Karte-A2-Naht. Keine EN-Form: er wird nie getippt.
+    "/start",
 })
 
 
@@ -1197,6 +1218,8 @@ def behandle(
         _befehl_sprache(conn, tg, chat_id, rest)
     elif befehl == "/phaseklick":
         _befehl_phaseklick(conn, tg, klm, e, chat_id, rest)
+    elif befehl == "/start":
+        _befehl_start(conn, tg, e, chat_id, rest)
     return True
 
 

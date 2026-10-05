@@ -383,3 +383,36 @@ in den Bot-Kindprozess; dieses Werkzeug liest sie selbst nie.
 **Kostet Geld (die echte Modellkette des Bots), laeuft nie automatisch.**
 Bericht: `simulation/browser_berichte/<lauf>.md`; Screenshots und
 `schritte.jsonl` unter `simulation/browser_laeufe/<lauf>/`.
+
+## Der Abnahmelauf Phase 1-2 im Browser
+
+`--stationen p12` ersetzt den Phasenmodus durch den Stationsmotor
+(`browser_lauf.fuehre_stationen`): statt "Phase fuer Phase bis `bis_phase`"
+faehrt eine Persona `browser_stationen.STATIONEN["p12"]` Station fuer
+Station, mit Nachfragen-Schutz, Zuhoeren und einer eigenen Erklaernote je
+Station (Pflichtpunkt 1, `browser_judge.bewerte_erklaerung`).
+
+```
+IT_SIM_ENV=/pfad/zu/betrieb/padua-test.env \
+  $PY -m simulation.browser_lauf --stationen p12 --geraet handy --persona priya --bericht
+$PY -m simulation.browser_lauf --env-datei betrieb/padua-test.env \
+  --stationen p12 --geraet laptop --persona giulia --bericht
+```
+
+Ein **zweites Geraet** (`browser_beobachter.Beobachter`) oeffnet dieselbe
+Gruppen-URL vor der Persona und schaut nur dem Begriffsboard zu, ohne je
+neu zu laden -- es prueft, ob das Board auch dann waechst, wenn niemand es
+anstoesst. Die erfundene Begriffsdiskussion (`p1-eintritt`/`p1-zuhoeren`)
+kommt als Offline-Audio aus `erzeuge_diskussion_audio.py` (espeak-ng ueber
+`espeakng_loader`, nur in der `it-webtest`-venv installiert) und laeuft
+ueber Chromiums Fake-Media-Flags (`browser_probe.chromium_argumente`) als
+Mikrofoneingang -- kein echtes Mikrofon, kein Netz-TTS.
+
+`p1-start` ist ohne Persona (Birks "Start ohne Tippen"): 60 Sekunden passiert
+nichts, danach liest der Motor vier Booleans mechanisch aus dem DOM.
+
+**Kostet Geld, controller-executed.** `--leitbilder` wird schon angenommen,
+bewirkt in diesem Paket aber noch nichts -- der echte Leitbilder-Sammler
+landet erst in einem spaeteren Paket. Mit `--bericht` steht am Ende nur der
+Pfad zu `ergebnis.json`; der Markdown-Bericht fuer den Stationsmodus ist
+ebenfalls ein spaeteres Paket.

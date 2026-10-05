@@ -1,0 +1,114 @@
+[
+  {
+    "datei": "phase-1-start-handy.png",
+    "phase": 1,
+    "station": "start",
+    "geraet": "handy",
+    "unterschrift_en": "The app, freshly opened: nothing typed, nothing tapped yet."
+  },
+  {
+    "datei": "phase-1-start-laptop.png",
+    "phase": 1,
+    "station": "start",
+    "geraet": "laptop",
+    "unterschrift_en": "The app, freshly opened: nothing typed, nothing tapped yet."
+  },
+  {
+    "datei": "phase-1-eintritt-handy.png",
+    "phase": 1,
+    "station": "eintritt",
+    "geraet": "handy",
+    "unterschrift_en": "Phase 1 starts: the app explains what this phase is for."
+  },
+  {
+    "datei": "phase-1-eintritt-laptop.png",
+    "phase": 1,
+    "station": "eintritt",
+    "geraet": "laptop",
+    "unterschrift_en": "Phase 1 starts: the app explains what this phase is for."
+  },
+  {
+    "datei": "phase-1-kalibrierung-handy.png",
+    "phase": 1,
+    "station": "kalibrierung",
+    "geraet": "handy",
+    "unterschrift_en": "A short microphone check before the group starts talking."
+  },
+  {
+    "datei": "phase-1-kalibrierung-laptop.png",
+    "phase": 1,
+    "station": "kalibrierung",
+    "geraet": "laptop",
+    "unterschrift_en": "A short microphone check before the group starts talking."
+  },
+  {
+    "datei": "phase-1-zuhoeren-handy.png",
+    "phase": 1,
+    "station": "zuhoeren",
+    "geraet": "handy",
+    "unterschrift_en": "Listening: the phone lies in the middle while the group discusses."
+  },
+  {
+    "datei": "phase-1-zuhoeren-laptop.png",
+    "phase": 1,
+    "station": "zuhoeren",
+    "geraet": "laptop",
+    "unterschrift_en": "Listening: the phone lies in the middle while the group discusses."
+  },
+  {
+    "datei": "phase-1-cothinker-handy.png",
+    "phase": 1,
+    "station": "cothinker",
+    "geraet": "handy",
+    "unterschrift_en": "A second phone shows the term board growing in the CoThinker tab."
+  },
+  {
+    "datei": "phase-1-uebergang-laptop.png",
+    "phase": 1,
+    "station": "uebergang",
+    "geraet": "laptop",
+    "unterschrift_en": "Terms saved, the app offers the next phase."
+  },
+  {
+    "datei": "phase-2-eintritt-handy.png",
+    "phase": 2,
+    "station": "eintritt",
+    "geraet": "handy",
+    "unterschrift_en": "Phase 2 starts: the group writes its own questions first."
+  },
+  {
+    "datei": "phase-2-eintritt-laptop.png",
+    "phase": 2,
+    "station": "eintritt",
+    "geraet": "laptop",
+    "unterschrift_en": "Phase 2 starts: the group writes its own questions first."
+  },
+  {
+    "datei": "phase-2-arbeit-laptop.png",
+    "phase": 2,
+    "station": "arbeit",
+    "geraet": "laptop",
+    "unterschrift_en": "Going through the questions one at a time with buttons."
+  },
+  {
+    "datei": "phase-2-ergebnis-handy.png",
+    "phase": 2,
+    "station": "ergebnis",
+    "geraet": "handy",
+    "unterschrift_en": "Where we are: questions, opening and closing at a glance."
+  },
+  {
+    "datei": "phase-2-ergebnis-laptop.png",
+    "phase": 2,
+    "station": "ergebnis",
+    "geraet": "laptop",
+    "unterschrift_en": "Where we are: questions, opening and closing at a glance."
+  },
+  {
+    "datei": "phase-2-uebergang-handy.png",
+    "phase": 2,
+    "station": "uebergang",
+    "geraet": "handy",
+    "unterschrift_en": "Questions ready, the app offers the interview phase."
+  }
+]

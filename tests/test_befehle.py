@@ -884,11 +884,14 @@ def test_szene_form_unbekanntes_wort_bleibt_roher_text(conn, einst, tg):
     assert szenen[2]["form"] == "Bewegungsszene"
 
 
-def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_16():
+def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_17():
+    # Pflichtpunkt 2, Fix 1 von 2 (04.10.2026): "/start" kam als 17. Eintrag
+    # dazu -- versteckt wie "/phaseklick", siehe tests/test_start_befehl.py.
     assert befehle._BEKANNTE_BEFEHLE == {
         "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase",
         "/kernthema", "/stueck", "/figur", "/szene", "/stand", "/wortlaut",
         "/hilfe", "/leitfaden", "/festlegung", "/sprache", "/phaseklick",
+        "/start",
     }
 
 

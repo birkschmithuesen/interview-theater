@@ -1941,6 +1941,13 @@ _TEXT_INTERVIEW_WEITER = "▶ Continue"
 _TEXT_INTERVIEW_ENDEN = "■ Stop"
 _TEXT_INTERVIEW_LAEUFT = "● Interview running · {zeit}"
 _TEXT_INTERVIEW_PAUSIERT = "Paused · {zeit}"
+# Nachtfix 05.10.2026: a second phone (or a reloaded one) while the
+# interview mode is on -- "this phone isn't recording", never "another is".
+_TEXT_INTERVIEW_FREMD = "Interview open · this phone isn't recording"
+_TEXT_INTERVIEW_HIER = "▶ Record on this phone"
+_TEXT_INTERVIEW_HIER_SICHER = "Another phone already recording? If not, tap again"
+_TEXT_INTERVIEW_ENDEN_SICHER = "End the interview for everyone? Tap again"
+_TEXT_INTERVIEW_STARTET = "● Starting mic … · {zeit}"
 _TEXT_PTT = "Hold to talk"
 # Task 1 (Kanban-Karte Buehne/PTT, 04.10.2026, Telegram pattern): literal
 # wording from the card for the hint and nothing paraphrased there.
@@ -2014,6 +2021,7 @@ _TEXT_REC_STARTET = "Warming up the mic …"
 _TEXT_REC_LAEUFT = "Mic is hot."
 _TEXT_REC_LAEDT = "Hold on — the tape is still walking."
 _TEXT_REC_PAUSIERT = "Paused — nothing is being recorded."
+_TEXT_REC_FREMD = "Another phone recording? Then leave this one alone."
 _TEXT_LEITFADEN = "Interview guide"
 _TEXT_NAECHSTES = "Next up: {was}"
 _TEXT_NAECHSTE_PHASE = "Phase {bezeichnung}"

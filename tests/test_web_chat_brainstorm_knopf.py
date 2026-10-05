@@ -69,11 +69,13 @@ def test_die_seite_rendert_den_knopf_hidden_ausserhalb_von_phase_4(datenbank, ph
     pfad, token = datenbank
     zustand = _zustand(pfad, token, phase)
     seite = web_chat.chat_html(zustand, "n", token, "", 45000)
-    # Die vier Elemente stehen IMMER im Markup (wie #interview) -- nur
-    # ``hidden`` folgt der Phase.
-    for kennung in ("brainstorm", "brainstorm-aktionen", "brainstorm-pause",
-                    "brainstorm-beenden"):
+    # Der Knopf steht IMMER im Markup (wie #interview) -- nur ``hidden``
+    # folgt der Phase. t_cf87ee0a: Toggle statt Pause/Beenden -- die
+    # Aktionsleiste (#brainstorm-aktionen/-pause/-beenden) gibt es nicht mehr.
+    for kennung in ("brainstorm",):
         assert f'id="{kennung}"' in seite, kennung
+    for weg in ("brainstorm-aktionen", "brainstorm-pause", "brainstorm-beenden"):
+        assert f'id="{weg}"' not in seite, weg
     tag = _brainstorm_tag(seite)
     assert (" hidden" in tag) is verborgen
 

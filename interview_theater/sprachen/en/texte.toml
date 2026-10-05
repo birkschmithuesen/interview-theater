@@ -1892,7 +1892,7 @@ _TEXT_SENDEN = "Send"
 _TEXT_REST_NACHREICHEN = "Submit the rest as an interview"
 _TEXT_REST_VERWERFEN = "Discard the rest"
 _TEXT_BRAINSTORM_AN = "🎙 Join the brainstorm"
-_TEXT_BRAINSTORM_LAEUFT = "● Listening · {zeit}"
+_TEXT_BRAINSTORM_LAEUFT = "● Listening · {zeit} · tap when the thought is complete"
 # Task 5 (Padua Phase 1+2 Umbau, 03.10.2026): background listening in phase 1.
 _TEXT_DISKUSSION_AN = "Start listening"
 _TEXT_DISKUSSION_LAEUFT = "Listening ({zeit})"

@@ -43,8 +43,8 @@ PRUEFUNGEN = ("nach_ende", "wissen", "raumcheck", "zweite_gruppe", "verhoerer", 
               "nach_interview", "nach_brainstorm", "modellwahl", "p5_angebot")
 
 #: Je Aufnahmeart: woran der Harness "laeuft" erkennt und was er zum Beenden
-#: drueckt. Brainstorm ist seit Task 5 ein Toggle -- derselbe Knopf beendet.
-#: Ohne Task 5 hier "#brainstorm-beenden" eintragen.
+#: drueckt. Brainstorm ist seit Task 5 (t_cf87ee0a) ein Toggle -- derselbe
+#: Knopf beendet.
 LAEUFT = {"diskussion": '#diskussion[data-laeuft="1"]',
           "interview": '#interview[data-laeuft="1"]',
           "brainstorm": '#brainstorm[data-laeuft="1"]'}

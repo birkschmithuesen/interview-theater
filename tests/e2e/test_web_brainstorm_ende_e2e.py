@@ -2,8 +2,8 @@
 ``5532c95``) -- im echten Browser.
 
 Ohne Pegelmesser (kein AudioContext, z. B. ein altes Mobilgeraet oder ein
-Browser ohne WebAudio) blieb ``sitzung.vadAktiv`` leer; ``beendeBrainstorm``/
-``pausiereBrainstorm`` setzten ``grund 'ende'`` bisher nur mit aktiver VAD --
+Browser ohne WebAudio) blieb ``sitzung.vadAktiv`` leer; ``beendeBrainstorm``
+(und das seit t_cf87ee0a entfallene ``pausiereBrainstorm``) setzten ``grund 'ende'`` bisher nur mit aktiver VAD --
 das letzte Segment ging dann ohne 'ende' hoch, der Server lief nie mit
 ``ist_abschluss`` (keine CoThinker-Karte). Jetzt immer.
 
@@ -93,7 +93,8 @@ def test_beenden_ohne_vad_schickt_das_ende(lauf, browser):
         seite.click("#brainstorm")
         seite.wait_for_selector('#brainstorm[data-laeuft="1"]')
         seite.wait_for_timeout(2000)
-        seite.click("#brainstorm-beenden")        # ab Task 5: seite.click("#brainstorm")
+        # t_cf87ee0a: Toggle statt Pause/Beenden -- derselbe Knopf schliesst.
+        seite.click("#brainstorm")
         seite.wait_for_selector('#brainstorm[data-laeuft="0"]')
         seite.wait_for_timeout(1500)
         ende = [u for u in uploads if "grund=ende" in u]

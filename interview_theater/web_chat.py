@@ -205,12 +205,12 @@ _TEXT_INTERVIEW_ENDEN = "■ Beenden"
 #: erfasste Aufnahmedauer selbst an, nicht nur das separate ``#uhr``-Feld.
 _TEXT_INTERVIEW_LAEUFT = "● Interview läuft · {zeit}"
 _TEXT_INTERVIEW_PAUSIERT = "Pause · {zeit}"
-#: Brainstorm mithören (Phase 4, nur Web, 02.10.2026): derselbe
-#: Drei-Zustands-Regler wie beim Interview (Pause/Weiter/Beenden teilen sich
-#: dieselben Beschriftungen, _TEXT_INTERVIEW_PAUSE usw.), nur der grosse
-#: Knopf und die Laeuft-Zeile sind eigene -- "Brainstorm" ist kein Interview.
+#: Brainstorm mithören (Phase 4, nur Web): seit t_cf87ee0a (Birk
+#: 03.10.2026) ein Toggle je Gedankenbogen -- Tippen startet, Tippen
+#: schliesst den Bogen und loest den CoThinker aus; kein Pause/Beenden mehr.
+#: Die Laeuft-Zeile sagt deshalb, wie man den Bogen schliesst.
 _TEXT_BRAINSTORM_AN = "🎙 Brainstorm mithören"
-_TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit}"
+_TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit} · tippen, wenn der Gedanke rund ist"
 #: Hintergrund-Mithoeren Phase 1 (Padua Phase 1+2 Umbau, 03.10.2026, Task 5):
 #: nur Start und Fertig -- seit Birks Entscheidung vom 04.10.2026 ohne
 #: Pause/Weiter; eigene Beschriftungen fuer den grossen Knopf, die
@@ -320,8 +320,8 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
               margin-bottom: .5rem; }
 #brainstorm[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
                                color: #fff; min-height: 4rem; font-size: 1.15rem; }
-#brainstorm[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
-                                                  border-color: #8a8a8a; }
+.fuss[data-brainstorm="1"] .zeile { display: none; }
+.fuss[data-brainstorm="1"] #brainstorm { width: 100%; }
 #interview.nebenknopf { font-weight: 400; min-height: 2.4rem; font-size: .9rem;
                         opacity: .8; }
 .interview-aktionen { display: flex; gap: .5rem; margin-top: .4rem; }
@@ -717,10 +717,8 @@ _CHAT_JS = """
   // Brainstorm mithören (Phase 4, nur Web) -- die Elemente stehen seit
   // Task 2 (Kanban-Karte Buehne/PTT) IMMER im Markup, ``hidden`` folgt der
   // Phase per Poll (wie beim Interview-Knopf), nicht mehr ihrer Existenz.
+  // t_cf87ee0a: ein Toggle je Gedankenbogen, kein Pause-/Beenden-Paar mehr.
   var brainstormKnopf = document.getElementById('brainstorm');
-  var brainstormAktionenFeld = document.getElementById('brainstorm-aktionen');
-  var brainstormPauseKnopf = document.getElementById('brainstorm-pause');
-  var brainstormBeendenKnopf = document.getElementById('brainstorm-beenden');
   // Hintergrund-Mithoeren Phase 1 (Padua Phase 1+2 Umbau, 03.10.2026, Task 6):
   // derselbe Aufbau wie Brainstorm (Task 2/5) -- die Elemente stehen seit
   // Task 5 IMMER im Markup, ``hidden`` folgt der Phase per Poll.
@@ -1906,7 +1904,9 @@ _CHAT_JS = """
           // Rede (der seltene Fall landet in onstop() ohne Upload -- siehe
           // dortigen Kommentar).
           schneideSegment(sitzung, 'cap');
-        } else if (pause && sitzung.vadSpeechMs >= MIN_SPEECH_MS) {
+        } else if (pause && sitzung.vadSpeechMs >= MIN_SPEECH_MS && sitzung.art !== 'brainstorm') {
+          // Brainstorm: keine Pausenerkennung (t_cf87ee0a) -- nur der
+          // stille 'cap'-Schnitt oben, der nie eine Karte ausloest.
           schneideSegment(sitzung, 'pause');
         }
         // pause && vadSpeechMs < MIN_SPEECH_MS: kein Schnitt -- die Stille
@@ -2728,13 +2728,15 @@ _CHAT_JS = """
     if (!brainstormKnopf) { return; }
     var sitzung = zustand.brainstorm;
     var an = !!sitzung;
-    var pausiert = an && sitzung.pausiert;
+    // t_a8129d7f: die Fusshoehe aendert sich, wenn der Modus die
+    // Eingabezeile ersetzt -- wer unten war, bleibt unten.
+    var warUnten = amUnterenRand();
     brainstormKnopf.dataset.laeuft = an ? '1' : '0';
-    brainstormKnopf.dataset.pausiert = pausiert ? '1' : '0';
+    // t_a8129d7f: der laufende Bogen belegt den Platz der Eingabezeile
+    // (CSS .fuss[data-brainstorm="1"] .zeile).
+    fuss.dataset.brainstorm = an ? '1' : '0';
     if (!an) {
       brainstormKnopf.textContent = TEXT.brainstorm_an;
-    } else if (pausiert) {
-      brainstormKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
     } else {
       brainstormKnopf.textContent = TEXT.brainstorm_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
@@ -2759,10 +2761,7 @@ _CHAT_JS = """
     // Interview-Knopf folgt derselben Sichtbarkeit wie das Server-Markup.
     var sichtbar = zustand.brainstormErlaubt || an || !!zustand.wechsel;
     brainstormKnopf.hidden = !sichtbar;
-    if (brainstormAktionenFeld) { brainstormAktionenFeld.hidden = !an; }
-    if (brainstormPauseKnopf) {
-      brainstormPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
-    }
+    if (warUnten) { nachUnten(); }
     // interviewKnopf.disabled/classList und pttKnopf.hidden werden seit
     // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal,
     // zusammengefuehrt mit zustand.diskussion (siehe dort).
@@ -2810,65 +2809,6 @@ _CHAT_JS = """
       zeigeBrainstormModus();
       meldeFehler(TEXT.fehler_mikro);
     });
-  }
-
-  function pausiereBrainstorm() {
-    var sitzung = zustand.brainstorm;
-    if (!sitzung || sitzung.pausiert || sitzung.verworfen || sitzung.beendet) { return; }
-    if (sitzung.mikroUnterwegs) {
-      sitzung.pausiert = true;
-      zeigeBrainstormModus();
-      return;
-    }
-    sitzung.erfassteMs += Date.now() - sitzung.legStart;
-    sitzung.legStart = null;
-    sitzung.pausiert = true;
-    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
-    var alt = sitzung.recorder;
-    sitzung.recorder = null;
-    // 'ende' IMMER, nicht nur mit VAD (wie beendeDiskussion seit 5532c95):
-    // sonst entscheidet der Server nie mit ist_abschluss (keine Karte).
-    if (alt) {
-      alt._grund = 'ende';
-      if (sitzung.vadAktiv) { alt._redeMs = sitzung.vadSpeechMs; }
-    }
-    if (alt && alt.state !== 'inactive') { alt.stop(); }
-    gibFrei(sitzung);
-    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
-    if (uhrFeld) { uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung)); }
-    zeigeBrainstormModus();
-  }
-
-  function fortsetzeBrainstorm() {
-    var sitzung = zustand.brainstorm;
-    // Dieselben Waechter wie fortsetzeInterview(): "pausiert" nur einmal
-    // zuruecknehmen, und eine Sperrklinke (fortsetzend) gegen einen
-    // hastigen Doppeldruck, der sonst zwei Recorder auf demselben Mikrofon
-    // startete.
-    if (!sitzung || !sitzung.pausiert || sitzung.verworfen || sitzung.beendet ||
-        sitzung.fortsetzend) { return; }
-    if (sitzung.mikroUnterwegs) { sitzung.pausiert = false; return; }
-    sitzung.pausiert = false;
-    sitzung.fortsetzend = true;
-    sitzung.mikroUnterwegs = true;
-    holeStrom().then(function (strom) {
-      sitzung.mikroUnterwegs = false;
-      sitzung.fortsetzend = false;
-      if (!zustand.brainstorm || zustand.brainstorm !== sitzung || sitzung.beendet) {
-        strom.getTracks().forEach(function (t) { t.stop(); });
-        return;
-      }
-      sitzung.strom = strom;
-      beginneAufnahme(sitzung);
-      zeigeBrainstormModus();
-    }).catch(function () {
-      sitzung.mikroUnterwegs = false;
-      sitzung.fortsetzend = false;
-      sitzung.pausiert = true;
-      zeigeBrainstormModus();
-      meldeFehler(TEXT.fehler_mikro);
-    });
-    zeigeBrainstormModus();
   }
 
   function beendeBrainstorm() {
@@ -3292,20 +3232,13 @@ _CHAT_JS = """
     starteInterview();
   });
 
-  if (brainstormPauseKnopf) {
-    brainstormPauseKnopf.addEventListener('click', function () {
-      var sitzung = zustand.brainstorm;
-      if (!sitzung) { return; }
-      if (sitzung.pausiert) { fortsetzeBrainstorm(); } else { pausiereBrainstorm(); }
-    });
-  }
-  if (brainstormBeendenKnopf) {
-    brainstormBeendenKnopf.addEventListener('click', beendeBrainstorm);
-  }
   if (brainstormKnopf) {
     brainstormKnopf.addEventListener('click', function () {
-      if (brainstormKnopf.disabled || zustand.brainstorm) { return; }
-      starteBrainstorm();
+      if (brainstormKnopf.disabled) { return; }
+      // Ein Toggle = ein Gedankenbogen (Birk 03.10.2026, t_cf87ee0a):
+      // Tippen startet, Tippen schliesst den Bogen -- das Ende loest den
+      // CoThinker aus (serverseitig _brainstorm_entscheide).
+      if (zustand.brainstorm) { beendeBrainstorm(); } else { starteBrainstorm(); }
     });
   }
 
@@ -3654,6 +3587,36 @@ _CHAT_JS = """
     return TEXT.verlassen;
   });
 
+  // t_a8129d7f Punkt 1 (neueste Nachricht nie verdeckt): waechst der Fuss
+  // (Brainstorm-Knopf erscheint, Modus ersetzt die Eingabezeile, Pegel/Uhr
+  // blenden sich ein) oder schrumpft der Verlauf aus einem anderen Grund,
+  // bleibt scrollTop stehen und die letzte Blase rutscht aus dem Bild.
+  // Gemessen (e2e, 05.10.2026, 390x844, Phase 4, vereinte Seite): ohne
+  // diesen Beobachter lag die letzte Blase schon beim Laden 60px unter dem
+  // sichtbaren Ende -- der erste nachUnten() lief, bevor die vereinte Seite
+  // ihre endgueltige Hoehe hatte. "War unten?" wird deshalb gegen die ALTE
+  // Verlaufshoehe gerechnet: im Beobachter ist die neue schon gesetzt, und
+  // ein Scroll-Ereignis dazwischen saehe den Verlauf schon "nicht unten".
+  // Das Fenster (Chat-Einzelseite, fester Fuss) merkt sich sein "unten"
+  // ueber das Scroll-Ereignis -- dieselbe UND-Verknuepfung wie
+  // amUnterenRand().
+  if (window.ResizeObserver && fuss) {
+    var fensterWarUnten = true;
+    window.addEventListener('scroll', function () {
+      fensterWarUnten = (window.innerHeight + window.scrollY)
+        >= (document.body.scrollHeight - UNTEN_TOLERANZ_PX);
+    }, { passive: true });
+    var alteVerlaufHoehe = verlauf.clientHeight;
+    var hoehenBeobachter = new window.ResizeObserver(function () {
+      var verlaufWarUnten = (verlauf.scrollTop + alteVerlaufHoehe)
+        >= (verlauf.scrollHeight - UNTEN_TOLERANZ_PX);
+      alteVerlaufHoehe = verlauf.clientHeight;
+      if (verlaufWarUnten && fensterWarUnten) { nachUnten(); }
+    });
+    hoehenBeobachter.observe(fuss);
+    hoehenBeobachter.observe(verlauf);
+  }
+
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
   scrolleZuPhasenanfang();   // Phasenscroll-Karte: der Anfang der aktuellen Phase, sonst der Rueckfall ans Ende
   // Pflichtpunkt 2, Fix 1 von 2: der erste Seitenaufruf stoesst die
@@ -3938,16 +3901,11 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'{html.escape(T._TEXT_REST_VERWERFEN)}</button>\n'
         f'  </div>\n'
         + (
-            f'  <button type="button" id="brainstorm" data-laeuft="0" '
-            f'data-pausiert="0"'
+            # t_cf87ee0a: Toggle statt Pause/Beenden -- ein Knopf je
+            # Gedankenbogen, kein #brainstorm-aktionen mehr.
+            f'  <button type="button" id="brainstorm" data-laeuft="0"'
             + ('' if brainstorm_erlaubt else ' hidden')
             + f'>{html.escape(T._TEXT_BRAINSTORM_AN)}</button>\n'
-            f'  <div class="interview-aktionen" id="brainstorm-aktionen" hidden>\n'
-            f'    <button type="button" id="brainstorm-pause">'
-            f'{html.escape(T._TEXT_INTERVIEW_PAUSE)}</button>\n'
-            f'    <button type="button" id="brainstorm-beenden">'
-            f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'
-            f'  </div>\n'
         )
         + (
             f'  <button type="button" id="diskussion" data-laeuft="0"'

@@ -46,11 +46,12 @@ def test_fertig_setzt_weiter_den_grund_ende():
     assert "letzter && sitzung.vadAktiv) { letzter._grund" not in beenden
 
 
-def test_interview_und_brainstorm_pause_bleiben():
+def test_interview_pause_bleibt():
+    # t_cf87ee0a: Toggle statt Pause/Beenden -- Brainstorm hat keine Pause
+    # mehr (tests/test_web_chat_brainstorm_toggle.py), nur noch Interview.
     js, seite = web_chat._CHAT_JS, _seite()
     for name in ("function pausiereInterview", "function fortsetzeInterview",
-                 "function pausiereBrainstorm", "function fortsetzeBrainstorm",
-                 "interviewPauseKnopf", "brainstormPauseKnopf"):
+                 "interviewPauseKnopf"):
         assert name in js, name
-    assert 'id="interview-pause"' in seite and 'id="brainstorm-pause"' in seite
+    assert 'id="interview-pause"' in seite
     assert web_chat._TEXT_INTERVIEW_PAUSE in seite

@@ -19,8 +19,6 @@ def test_beenden_markiert_das_ende_immer_auch_ohne_vad():
     assert "if (sitzung.vadAktiv) { letzter._redeMs" in beenden
 
 
-def test_pause_markiert_das_ende_immer_auch_ohne_vad():
-    pause = _fn("pausiereBrainstorm", "fortsetzeBrainstorm")
-    assert "alt && sitzung.vadAktiv) { alt._grund" not in pause
-    assert "alt._grund = 'ende'" in pause
-    assert "if (sitzung.vadAktiv) { alt._redeMs" in pause
+
+# t_cf87ee0a: Toggle statt Pause/Beenden -- pausiereBrainstorm gibt es nicht
+# mehr, der Pause-Test entfaellt (tests/test_web_chat_brainstorm_toggle.py).

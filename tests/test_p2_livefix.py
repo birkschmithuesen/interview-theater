@@ -181,7 +181,7 @@ def test_l_bleibt_nichts_uebrig_steht_ein_vorfall_ohne_inhalt(conn, einst, monke
 
     assert repo.diskussion_verdichtung_text(conn, 1) is None
     vorfall = conn.execute(
-        "SELECT text FROM vorfall WHERE art = 'diskussion_verdichtung_leer'"
+        "SELECT detail FROM vorfall WHERE art = 'diskussion_verdichtung_leer'"
     ).fetchone()
     assert vorfall is not None
     # Nur Zahlen, nie Inhalt der Gruppe.
@@ -203,7 +203,13 @@ def test_l_phase2_prompt_enthaelt_verdichtung_und_begriffs_begruendung(
 ):
     """Sobald eine Verdichtung existiert, steht sie im Gespraechsprompt der
     Phase 2; und Begriffe, die gespeichert werden, bringen ihre Begruendung
-    vom Board mit (``begriffe_detail``)."""
+    vom Board mit (``begriffe_detail``).
+
+    Seit a667b4c (P1-Live, 05.10.2026) steht das Board in jeder Phase im
+    Prompt (``kontext._baue_board``) und traegt dieselben Begruendungen --
+    ``begriffe_detail`` faellt dann bewusst weg (ein Fakt, eine Stelle).
+    Geprueft wird deshalb: die Begruendung steht GENAU EINMAL im Prompt, ueber
+    den Board-Block."""
     repo.lege_begriffsboard_an(conn, 1, json.dumps([
         {"begriff": "robots", "nennungen": 3, "zustimmung": 2,
          "begruendung": "who does the boring jobs", "zitat": "", "doppelbedeutung": "",
@@ -223,8 +229,9 @@ def test_l_phase2_prompt_enthaelt_verdichtung_und_begriffs_begruendung(
 
     assert kontext.T.DISKUSSION_KOPF in prompt
     assert "The group doubted life on Mars." in prompt
-    assert kontext.T.BEGRIFFE_DETAIL_KOPF in prompt
-    assert "who does the boring jobs" in prompt
+    assert kontext.T.BOARD_KOPF in prompt
+    assert prompt.count("who does the boring jobs") == 1
+    assert kontext.T.BEGRIFFE_DETAIL_KOPF not in prompt
 
 
 def test_l_werkbank_zeigt_keine_diskussionszeile(tmp_path, monkeypatch):

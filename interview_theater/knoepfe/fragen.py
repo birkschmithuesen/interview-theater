@@ -1183,7 +1183,7 @@ def _schaerfungsziel(chat_id: int) -> int | None:
 
 
 def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
-                         weich_block: str | None, antwort: str = "") -> int:
+                         weich_block: str | None, antwort: str = "") -> int | None:
     """Die Antwort auf eine Schaerfung: ersetzt genau die aktuelle Frage
     (Text und, falls vorhanden, ihre weiche Fassung) und zeigt sie wieder --
     erst Annehmen oder Verwerfen bringt die naechste.
@@ -1195,7 +1195,9 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
     Zahl landete dort in der Spalte ``message_id``, SQLite sortiert TEXT ueber
     jedem INTEGER, und ``erkenner.erkenne`` (``max(n[\"message_id\"] ...)``)
     stolperte seitdem bei JEDEM Lauf dieser Gruppe ueber einen TypeError --
-    der Erkenner blieb fuer die Gruppe fuer immer stumm).
+    der Erkenner blieb fuer die Gruppe fuer immer stumm). ``None``, wenn die
+    Antwort verworfen wurde (siehe unten) -- ``ablauf.auftragszug`` schickt
+    dann selbst nichts und schreibt nichts mit.
 
     ``antwort`` ist der Text des Modells um den Block herum (T10). Er wird
     nur gebraucht, wenn die Frage unveraendert zurueckkommt: dann war die
@@ -1210,7 +1212,16 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
         # S1-Review: die Frage, fuer die geschaerft wurde, ist inzwischen
         # entschieden -- die spaete Antwort ersetzt NICHT die naechste Frage
         # und nimmt ihr auch die Leiste nicht ab.
-        return tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+        #
+        # R2-1 (Fund aus dem Testbetrieb, Fehlerschleife "I don't know this
+        # selection any more"): vorher stand hier ``tg.sende(chat_id,
+        # T._TEXT_FRAGEN_KEINE_AUSWAHL)`` -- eine Zeile, die NUR existierte,
+        # weil ``ablauf.auftragszug`` eine echte ``message_id`` brauchte, um
+        # den Strom zu schliessen und die Antwort mitzuschreiben. Die Gruppe
+        # bekam fuer eine Antwort, die sie nie zu sehen bekommen sollte,
+        # trotzdem eine verwirrende Fehlzeile. Jetzt wird nichts verschickt;
+        # ``None`` sagt dem Aufrufer, dass gar nichts zu tun ist.
+        return None
     zeilen = vorschlag.zeilen(frage_block)
     neue_frage = zeilen[0] if zeilen else frage_block.strip()
     alte = _auswahlfragen(conn, chat_id)

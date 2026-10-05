@@ -266,3 +266,35 @@ def test_scheitert_der_versand_im_auftragszug_wird_der_strom_abgebrochen(
                            "Schlag etwas vor.")
     zeilen = _stroeme(conn)
     assert [z["zustand"] for z in zeilen] == [repo.STROM_ABGEBROCHEN]
+
+
+# --- R2-1: eine spaet verworfene Schaerfung schickt nichts an die Gruppe ---
+
+
+def test_spaet_verworfene_schaerfung_im_auftragszug_schickt_nichts(
+        conn, einst, web):
+    """Live-Beschwerde "I don't know this selection any more": eine Frage
+    1 ist laengst entschieden, als die Antwort der Schaerfung ankommt.
+    ``fragen.uebernimm_schaerfung`` verwirft sie jetzt stumm (liefert
+    ``None``) -- vorher schickte sie trotzdem die Fehlzeile
+    ``T._TEXT_FRAGEN_KEINE_AUSWAHL``, weil ``auftragszug`` eine echte
+    ``message_id`` brauchte. Kein ``web_post``, kein ``nachricht``-Eintrag,
+    der Strom endet ohne ``post_id`` -- fuer den Browser (``web_vereint.
+    scope_css``) wie ein abgebrochener Strom: ersatzlos weg."""
+    vorher_posts = conn.execute(
+        "SELECT COUNT(*) AS n FROM web_post WHERE chat_id = 1").fetchone()["n"]
+    vorher_nachrichten = conn.execute(
+        "SELECT COUNT(*) AS n FROM nachricht WHERE chat_id = 1").fetchone()["n"]
+
+    klm = Klm(antworten=["VORSCHLAG FRAGE:\nHeimat: Wann warst du zuletzt fremd?"])
+    ablauf.auftragszug(conn, web, klm, einst, 1, "Mach die Frage persoenlicher.")
+
+    zeilen = _stroeme(conn)
+    assert [z["zustand"] for z in zeilen] == [repo.STROM_FERTIG]
+    assert zeilen[0]["post_id"] is None
+    nachher_posts = conn.execute(
+        "SELECT COUNT(*) AS n FROM web_post WHERE chat_id = 1").fetchone()["n"]
+    nachher_nachrichten = conn.execute(
+        "SELECT COUNT(*) AS n FROM nachricht WHERE chat_id = 1").fetchone()["n"]
+    assert nachher_posts == vorher_posts, "kein neuer Post an die Gruppe"
+    assert nachher_nachrichten == vorher_nachrichten, "nichts mitgeschrieben"

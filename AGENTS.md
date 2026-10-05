@@ -187,6 +187,8 @@ Jede gemessen, keine geraten (Volltext: `docs/agents/fallen.md`).
 8. **Infomaniak drosselt Parallelität mit 429/5xx** — eigene Werkzeuge seriell.
 9. **Prompts werden heiß nachgeladen** (mtime), **TOML-Profile nur beim Start** — Änderung an `workshop/<name>/*.toml` braucht einen Bot-Neustart (den macht nicht der Agent).
 10. **Ein Test ist nur wegen Dortmund rot?** Marker `@pytest.mark.dortmund`, keine Anpassung, keine neue Fixture.
+11. **Eigene Skripte immer als Modul starten:** `uv run --extra dev python -m scripts.<name>` — ein direkter Dateiaufruf (`python scripts/x.py`) endet in `ModuleNotFoundError: interview_theater` (Repo-Wurzel fehlt in `sys.path`).
+12. **Während der Arbeit nur gezielte Tests**, die volle Suite (~10 min) einmal am Ende; nie im Hintergrund starten und dann pollen.
 
 ## Index: docs/agents/
 

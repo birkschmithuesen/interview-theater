@@ -209,6 +209,16 @@ _TEXT_INTERVIEW_ENDEN = "■ Beenden"
 #: erfasste Aufnahmedauer selbst an, nicht nur das separate ``#uhr``-Feld.
 _TEXT_INTERVIEW_LAEUFT = "● Interview läuft · {zeit}"
 _TEXT_INTERVIEW_PAUSIERT = "Pause · {zeit}"
+#: Fremdes Geraet (Nachtfix 05.10.2026): dieses Telefon hat keine eigene
+#: Sitzung, der Server meldet den Modus aber an. Der Server weiss nicht, ob
+#: irgendwo aufgenommen wird (keine serverseitige Pause), und ein neu
+#: geladenes aufnehmendes Telefon ist von einem zweiten nicht zu
+#: unterscheiden -- deshalb "dieses Handy nimmt nicht auf", nie "ein anderes
+#: nimmt auf". Weiter und Beenden brauchen dort einen zweiten Tipp.
+_TEXT_INTERVIEW_FREMD = "Interview offen · dieses Handy nimmt nicht auf"
+_TEXT_INTERVIEW_HIER = "▶ Hier aufnehmen"
+_TEXT_INTERVIEW_HIER_SICHER = "Nimmt schon ein anderes Handy auf? Sonst nochmal tippen"
+_TEXT_INTERVIEW_ENDEN_SICHER = "Interview für alle beenden? Nochmal tippen"
 #: Brainstorm mithören (Phase 4, nur Web, 02.10.2026): derselbe
 #: Drei-Zustands-Regler wie beim Interview (Pause/Weiter/Beenden teilen sich
 #: dieselben Beschriftungen, _TEXT_INTERVIEW_PAUSE usw.), nur der grosse
@@ -596,6 +606,11 @@ _JS_TEXTE = {
     "interview_weiter": _TEXT_INTERVIEW_WEITER,
     "interview_laeuft": _TEXT_INTERVIEW_LAEUFT,
     "interview_pausiert": _TEXT_INTERVIEW_PAUSIERT,
+    "interview_enden": _TEXT_INTERVIEW_ENDEN,
+    "interview_fremd": _TEXT_INTERVIEW_FREMD,
+    "interview_hier": _TEXT_INTERVIEW_HIER,
+    "interview_hier_sicher": _TEXT_INTERVIEW_HIER_SICHER,
+    "interview_enden_sicher": _TEXT_INTERVIEW_ENDEN_SICHER,
     "brainstorm_an": _TEXT_BRAINSTORM_AN,
     "brainstorm_laeuft": _TEXT_BRAINSTORM_LAEUFT,
     "diskussion_an": _TEXT_DISKUSSION_AN,
@@ -801,6 +816,10 @@ _CHAT_JS = """
     fehlerTakt: null,
     ptt: null,          // der laufende PTT-Druck, je Druck ein eigenes Objekt
     angehalten: [],     // Aufnahmen, deren Modus ohne dieses Telefon endete (Re-Review H)
+    // Nachtfix 05.10.2026: fremdes Geraet -- welcher Knopf ('weiter' oder
+    // 'enden') nach dem ersten Tipp auf den zweiten wartet, und seit wann.
+    fremdScharf: null,
+    fremdScharfSeit: 0,
     // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): der
     // Stand des zuletzt eingereichten Kalibrierungs-Testsatzes (vom Poll,
     // {message_id, status, transkript} oder null) und der gruppenweite
@@ -2027,11 +2046,21 @@ _CHAT_JS = """
     var an = modusAn();
     var sitzung = zustand.aufnahme;
     var pausiert = an && (!sitzung || sitzung.pausiert);
+    // Nachtfix 05.10.2026 (fremdes Geraet): keine eigene Sitzung, aber der
+    // Server meldet den Modus -- ein anderes Telefon kann gerade aufnehmen.
+    // data-pausiert bleibt dabei 1 (graue Darstellung, bestehende
+    // Selektoren); Weiter/Beenden brauchen hier einen zweiten Tipp
+    // (fremdBestaetigt).
+    var fremd = an && !sitzung && !zustand.wechsel && zustand.servermodus;
+    if (!fremd) { zustand.fremdScharf = null; }
     fuss.dataset.interview = an ? '1' : '0';
     interviewKnopf.dataset.laeuft = an ? '1' : '0';
     interviewKnopf.dataset.pausiert = pausiert ? '1' : '0';
+    interviewKnopf.dataset.fremd = fremd ? '1' : '0';
     if (!an) {
       interviewKnopf.textContent = TEXT.interview_an;
+    } else if (fremd) {
+      interviewKnopf.textContent = TEXT.interview_fremd;
     } else if (pausiert) {
       interviewKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
     } else {
@@ -2058,7 +2087,13 @@ _CHAT_JS = """
     // Pause/Weiter und Beenden stehen in der eigenen Leiste darunter.
     if (interviewAktionenFeld) { interviewAktionenFeld.hidden = !an; }
     if (interviewPauseKnopf) {
-      interviewPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
+      interviewPauseKnopf.textContent = fremd
+        ? (zustand.fremdScharf === 'weiter' ? TEXT.interview_hier_sicher : TEXT.interview_hier)
+        : (pausiert ? TEXT.interview_weiter : TEXT.interview_pause);
+    }
+    if (interviewAktionenFeld && interviewBeendenKnopf) {
+      interviewBeendenKnopf.textContent = (fremd && zustand.fremdScharf === 'enden')
+        ? TEXT.interview_enden_sicher : TEXT.interview_enden;
     }
     // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ODER
     // sobald Brainstorm/Diskussion angeboten wird (nicht erst wenn sie
@@ -3326,18 +3361,40 @@ _CHAT_JS = """
   if (nachreichenKnopf) { nachreichenKnopf.addEventListener('click', reicheNach); }
   if (verwerfenKnopf) { verwerfenKnopf.addEventListener('click', verwirfRest); }
 
+  // Nachtfix 05.10.2026 (fremdes Geraet): ohne eigene Sitzung bei laufendem
+  // Modus loesen "Hier aufnehmen" (zweiter Recorder im selben Raum) und
+  // "Beenden" (beendet das Interview des aufnehmenden Telefons) erst beim
+  // ZWEITEN Tipp derselben Art innerhalb von FREMD_SCHARF_MS aus. Kein
+  // Browser-Dialog (iOS). Liefert true, wenn der Tipp gilt.
+  var FREMD_SCHARF_MS = 5000;
+  function fremdBestaetigt(art) {   // art: 'weiter' | 'enden'
+    if (zustand.fremdScharf === art && Date.now() - zustand.fremdScharfSeit < FREMD_SCHARF_MS) {
+      zustand.fremdScharf = null;
+      return true;
+    }
+    zustand.fremdScharf = art;
+    zustand.fremdScharfSeit = Date.now();
+    setTimeout(function () {
+      if (zustand.fremdScharf === art) { zustand.fremdScharf = null; zeigeModus(); }
+    }, FREMD_SCHARF_MS);
+    zeigeModus();
+    return false;
+  }
+
   if (interviewPauseKnopf) {
     interviewPauseKnopf.addEventListener('click', function () {
       var sitzung = zustand.aufnahme;
       if (sitzung) {
         if (sitzung.pausiert) { fortsetzeInterview(sitzung); } else { pausiereInterview(sitzung); }
-      } else if (zustand.servermodus) {
-        fortsetzeInterview(null);
-      }
+      } else if (zustand.servermodus && fremdBestaetigt('weiter')) { fortsetzeInterview(null); }
     });
   }
   if (interviewBeendenKnopf) {
-    interviewBeendenKnopf.addEventListener('click', beendeInterview);
+    interviewBeendenKnopf.addEventListener('click', function () {
+      if (!zustand.aufnahme && zustand.servermodus && !zustand.wechsel &&
+          !fremdBestaetigt('enden')) { return; }
+      beendeInterview();
+    });
   }
 
   // Der grosse Knopf ist nur noch im Leerlauf ein Schalter -- waehrend
@@ -3741,6 +3798,11 @@ def _js() -> str:
         interview_weiter=T._TEXT_INTERVIEW_WEITER,
         interview_laeuft=T._TEXT_INTERVIEW_LAEUFT,
         interview_pausiert=T._TEXT_INTERVIEW_PAUSIERT,
+        interview_enden=T._TEXT_INTERVIEW_ENDEN,
+        interview_fremd=T._TEXT_INTERVIEW_FREMD,
+        interview_hier=T._TEXT_INTERVIEW_HIER,
+        interview_hier_sicher=T._TEXT_INTERVIEW_HIER_SICHER,
+        interview_enden_sicher=T._TEXT_INTERVIEW_ENDEN_SICHER,
         brainstorm_an=T._TEXT_BRAINSTORM_AN,
         brainstorm_laeuft=T._TEXT_BRAINSTORM_LAEUFT,
         diskussion_an=T._TEXT_DISKUSSION_AN,
@@ -4019,18 +4081,22 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         + (
             f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
             f'data-pausiert="{1 if modus else 0}"'
+            # Nachtfix 05.10.2026: ein frisch geladenes Dokument hat nie eine
+            # lokale Sitzung -- bei laufendem Modus ist es das fremde Geraet
+            # (wie zeigeModus() es gleich danach setzt).
+            + (' data-fremd="1"' if modus else "")
             + (' class="nebenknopf"' if brainstorm_erlaubt else "")
             # Padua Hotfix B6: ausserhalb von Phase 3 (oder bei laufender
             # Aufnahme) kein Angebot -- dieselbe Bedingung wie das JS-Pendant
             # ``zustand.knopfErlaubt`` oben.
             + ('' if daten.get("interview_knopf", True) or modus else ' hidden')
             + '>'
-            f'{html.escape(T._TEXT_INTERVIEW_AUS if modus else T._TEXT_INTERVIEW_AN)}'
+            f'{html.escape(T._TEXT_INTERVIEW_FREMD if modus else T._TEXT_INTERVIEW_AN)}'
             f'</button>\n'
             f'  <div class="interview-aktionen" id="interview-aktionen"'
             f'{"" if modus else " hidden"}>\n'
             f'    <button type="button" id="interview-pause">'
-            f'{html.escape(T._TEXT_INTERVIEW_WEITER if modus else T._TEXT_INTERVIEW_PAUSE)}'
+            f'{html.escape(T._TEXT_INTERVIEW_HIER if modus else T._TEXT_INTERVIEW_PAUSE)}'
             f'</button>\n'
             f'    <button type="button" id="interview-beenden">'
             f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'

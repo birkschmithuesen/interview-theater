@@ -795,11 +795,13 @@ def test_die_seite_traegt_den_modus_schon_beim_laden(tmp_path, monkeypatch):
     daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
              "interviewmodus": True, "titel": None, "brainstorm_knopf": False}
     seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
-    assert (f'data-laeuft="1" data-pausiert="1">{web_chat._TEXT_INTERVIEW_AUS}'
-            f'</button>') in seite
+    # Nachtfix 05.10.2026: ohne lokale Sitzung ist es das fremde Geraet --
+    # derselbe Text, den zeigeModus() sofort danach setzt.
+    assert (f'data-laeuft="1" data-pausiert="1" data-fremd="1">'
+            f'{web_chat._TEXT_INTERVIEW_FREMD}</button>') in seite
     assert '<button type="button" id="ptt" hidden' in seite
     assert 'id="interview-aktionen"' in seite and 'id="interview-aktionen" hidden' not in seite
-    assert f'id="interview-pause">{web_chat._TEXT_INTERVIEW_WEITER}</button>' in seite
+    assert f'id="interview-pause">{web_chat._TEXT_INTERVIEW_HIER}</button>' in seite
     assert f'id="interview-beenden">{web_chat._TEXT_INTERVIEW_ENDEN}</button>' in seite
     aus = web_chat.chat_html(dict(daten, interviewmodus=False), "1.x", "tok", "", 45000)
     assert '<button type="button" id="ptt" title=' in aus
@@ -1024,9 +1026,13 @@ def test_interview_beenden_knopf_ruft_dieselbe_funktion_wie_bisher():
     """Beenden dupliziert die Stop-Logik nicht neu -- Druck auf
     #interview-beenden ruft exakt ``beendeInterview`` (dieselbe Funktion wie
     beim alten Umschalter), die ``pruefeEnde``/``onstop`` unveraendert
-    weiterverwendet."""
+    weiterverwendet. Seit dem Nachtfix 05.10.2026 steht davor nur die
+    Zwei-Tipp-Sperre des fremden Geraets (fremdBestaetigt)."""
     js = web_chat._CHAT_JS
-    assert "interviewBeendenKnopf.addEventListener('click', beendeInterview);" in js
+    verdrahtung = js[js.index("if (interviewBeendenKnopf)"):]
+    verdrahtung = verdrahtung[:verdrahtung.index("\n  }\n")]
+    assert "interviewBeendenKnopf.addEventListener('click', function () {" in verdrahtung
+    assert verdrahtung.count("beendeInterview()") == 1
 
 
 def test_pause_weiter_knopf_wechselt_auf_die_richtige_funktion():
@@ -1052,6 +1058,189 @@ def test_keine_zweite_parallele_merkvariable_fuer_pause():
     zweiten Feld von ``zustand`` -- ``zustand.pausiert`` darf es nicht
     geben."""
     assert "zustand.pausiert" not in web_chat._CHAT_JS
+
+
+# -- Fremdes Geraet (Nachtfix 05.10.2026, Geraete-Analyse Brief 1) ----------
+#
+# Ein Telefon ohne eigene Interview-Sitzung, waehrend der Server den Modus
+# meldet: vorher "Pause -- nichts wird aufgenommen" und ein Ein-Tipp-Weiter
+# (zweiter Recorder im selben Raum) bzw. Ein-Tipp-Stop (beendet das
+# Interview des aufnehmenden Telefons).
+
+_ZEIGEMODUS_TEXTE = {
+    "interview_an": "AN", "interview_laeuft": "LAEUFT {zeit}",
+    "interview_pausiert": "PAUSIERT {zeit}", "interview_pause": "PAUSE",
+    "interview_weiter": "WEITER", "interview_enden": "ENDEN",
+    "interview_fremd": "FREMD", "interview_hier": "HIER",
+    "interview_hier_sicher": "HIER_SICHER",
+    "interview_enden_sicher": "ENDEN_SICHER",
+    "interview_startet": "STARTET {zeit}",
+}
+
+
+def _zeigemodus_harness(faelle_js: str) -> str:
+    """``modusAn`` + ``zeigeModus`` + ``formatiereUhr`` WOERTLICH aus dem
+    ausgelieferten Skript, gegen Attrappen-Knoepfe. ``faelle_js`` ruft
+    ``lauf({...zustand...})`` und gibt per ``console.log`` JSON aus."""
+    js = web_chat._CHAT_JS
+    zeige = _extrahiere(js, "function modusAn", "function verwirfPtt")
+    uhr = _extrahiere(js, "function formatiereUhr", "function uhrAn")
+    minuten = _extrahiere(js, "function minuten", "function bildVon")
+    return f"""
+    var TEXT = {json.dumps(_ZEIGEMODUS_TEXTE)};
+    function attrappe() {{
+      return {{ dataset: {{}}, textContent: '', hidden: false, disabled: false,
+               classList: {{ toggle: function () {{}} }} }};
+    }}
+    var fuss, interviewKnopf, interviewPauseKnopf, interviewBeendenKnopf,
+        interviewAktionenFeld, pttKnopf, zustand;
+    function zeigeBrainstormModus() {{}}
+    function zeigeDiskussionModus() {{}}
+    {minuten}
+    {uhr}
+    {zeige}
+    function lauf(z) {{
+      zustand = Object.assign({{
+        wechsel: null, aufnahme: null, servermodus: false, warteschlange: [],
+        knopfErlaubt: true, brainstorm: null, diskussion: null,
+        fremdScharf: null, fremdScharfSeit: 0
+      }}, z);
+      fuss = attrappe(); interviewKnopf = attrappe();
+      interviewPauseKnopf = attrappe(); interviewBeendenKnopf = attrappe();
+      interviewAktionenFeld = attrappe(); pttKnopf = attrappe();
+      zeigeModus();
+      return {{
+        fremd: interviewKnopf.dataset.fremd,
+        pausiert: interviewKnopf.dataset.pausiert,
+        startet: interviewKnopf.dataset.startet,
+        text: interviewKnopf.textContent,
+        pause: interviewPauseKnopf.textContent,
+        enden: interviewBeendenKnopf.textContent,
+        scharf: zustand.fremdScharf
+      }};
+    }}
+    {faelle_js}
+    """
+
+
+def test_fremdes_geraet_zeigt_nicht_pausiert_live_in_node(tmp_path):
+    node = _node_oder_skip()
+    quelltext = _zeigemodus_harness("""
+    var eigen_pausiert = { pausiert: true, erfassteMs: 65000, legStart: null };
+    var eigen_laeuft = { pausiert: false, erfassteMs: 0, legStart: Date.now() };
+    console.log(JSON.stringify({
+      fremd: lauf({ servermodus: true }),
+      fremd_weiter_scharf: lauf({ servermodus: true, fremdScharf: 'weiter' }),
+      fremd_enden_scharf: lauf({ servermodus: true, fremdScharf: 'enden' }),
+      eigen_pausiert: lauf({ servermodus: true, aufnahme: eigen_pausiert,
+                             fremdScharf: 'weiter' }),
+      eigen_laeuft: lauf({ servermodus: true, aufnahme: eigen_laeuft }),
+      aus: lauf({ servermodus: false })
+    }));
+    """)
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+
+    assert e["fremd"]["fremd"] == "1"
+    assert e["fremd"]["pausiert"] == "1"          # graue CSS bleibt
+    assert e["fremd"]["text"] == "FREMD"
+    assert e["fremd"]["pause"] == "HIER"
+    assert e["fremd"]["enden"] == "ENDEN"
+    assert e["fremd_weiter_scharf"]["pause"] == "HIER_SICHER"
+    assert e["fremd_weiter_scharf"]["enden"] == "ENDEN"
+    assert e["fremd_enden_scharf"]["enden"] == "ENDEN_SICHER"
+    assert e["fremd_enden_scharf"]["pause"] == "HIER"
+
+    assert e["eigen_pausiert"]["fremd"] == "0"
+    assert e["eigen_pausiert"]["text"] == "PAUSIERT 1:05"
+    assert e["eigen_pausiert"]["pause"] == "WEITER"
+    assert e["eigen_pausiert"]["scharf"] is None   # eigene Sitzung: nichts scharf
+
+    assert e["eigen_laeuft"]["fremd"] == "0"
+    assert e["eigen_laeuft"]["pausiert"] == "0"
+    assert e["eigen_laeuft"]["text"].startswith("LAEUFT")
+    assert e["eigen_laeuft"]["enden"] == "ENDEN"
+
+    assert e["aus"]["fremd"] == "0"
+    assert e["aus"]["text"] == "AN"
+
+
+def test_fremdbestaetigt_braucht_zwei_tipps_live_in_node(tmp_path):
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    start = js.index("var FREMD_SCHARF_MS")
+    funktion = js[start:js.index("if (interviewPauseKnopf)", start)]
+    quelltext = f"""
+    var jetzt = 1000000;
+    Date.now = function () {{ return jetzt; }};
+    var uhren = [];
+    function setTimeout(f, ms) {{ uhren.push({{ f: f, ms: ms }}); }}
+    var gezeigt = 0;
+    function zeigeModus() {{ gezeigt += 1; }}
+    var zustand = {{ fremdScharf: null, fremdScharfSeit: 0 }};
+    {funktion}
+    var r = {{}};
+    r.erster = fremdBestaetigt('weiter');
+    r.zweiter = fremdBestaetigt('weiter');
+    r.nach_erfolg_wieder_erster = fremdBestaetigt('weiter');
+    r.artwechsel = fremdBestaetigt('enden');
+    r.zurueck = fremdBestaetigt('weiter');
+    jetzt += FREMD_SCHARF_MS + 1;
+    r.zu_spaet = fremdBestaetigt('weiter');
+    r.scharf_vor_ablauf = zustand.fremdScharf;
+    uhren[uhren.length - 1].f();
+    r.scharf_nach_ablauf = zustand.fremdScharf;
+    r.ms = uhren[0].ms;
+    r.gezeigt = gezeigt;
+    console.log(JSON.stringify(r));
+    """
+    r = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert r["erster"] is False
+    assert r["zweiter"] is True
+    assert r["nach_erfolg_wieder_erster"] is False
+    assert r["artwechsel"] is False
+    assert r["zurueck"] is False
+    assert r["zu_spaet"] is False
+    assert r["scharf_vor_ablauf"] == "weiter"
+    assert r["scharf_nach_ablauf"] is None
+    assert r["ms"] == 5000
+    assert r["gezeigt"] >= 5   # jeder scharfe Tipp aendert die Anzeige
+
+
+def test_fremdes_weiter_und_beenden_nur_nach_zweitem_tipp():
+    js = web_chat._CHAT_JS
+    pause = js[js.index("interviewPauseKnopf.addEventListener"):
+               js.index("if (interviewBeendenKnopf)")]
+    assert ("else if (zustand.servermodus && fremdBestaetigt('weiter')) "
+            "{ fortsetzeInterview(null); }") in pause
+    beenden = js[js.index("if (interviewBeendenKnopf)"):]
+    beenden = beenden[:beenden.index("\n  }\n") + 4]
+    assert "fremdBestaetigt('enden')" in beenden
+    assert "beendeInterview()" in beenden
+    assert beenden.index("fremdBestaetigt('enden')") < beenden.index("beendeInterview()")
+    # Nur ohne eigene Sitzung: wer selbst aufnimmt, beendet mit EINEM Tipp.
+    assert "!zustand.aufnahme && zustand.servermodus && !zustand.wechsel" in beenden
+
+
+def test_fremd_texte_stehen_in_beiden_textsaetzen():
+    for schluessel in ("interview_fremd", "interview_hier",
+                       "interview_hier_sicher", "interview_enden_sicher",
+                       "interview_enden"):
+        assert schluessel in web_chat._JS_TEXTE, schluessel
+    assert web_chat._JS_TEXTE["interview_enden"] == web_chat._TEXT_INTERVIEW_ENDEN
+    assert web_chat._JS_TEXTE["interview_fremd"] == web_chat._TEXT_INTERVIEW_FREMD
+
+
+def test_fremd_texte_kommen_englisch_ueber_t(monkeypatch):
+    from interview_theater import sprache
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    fertig = web_chat._js()
+    texte = json.loads(re.search(r"var TEXT = (\{.*?\});\n", fertig).group(1))
+    assert texte["interview_fremd"] == "Interview open · this phone isn't recording"
+    assert texte["interview_hier"] == "▶ Record on this phone"
+    assert texte["interview_hier_sicher"] == (
+        "Another phone already recording? If not, tap again")
+    assert texte["interview_enden_sicher"] == "End the interview for everyone? Tap again"
+    assert texte["interview_enden"] == "■ Stop"
 
 
 def test_pause_vor_dem_mikrofon_verschluckt_den_tipp_nicht():
@@ -1671,7 +1860,7 @@ def test_zeigemodus_fuehrt_brainstorm_und_diskussion_zusammen_in_node(tmp_path):
 
     quelltext = f"""
     var zustand, TEXT, interviewKnopf, pttKnopf, fuss,
-        interviewAktionenFeld, interviewPauseKnopf,
+        interviewAktionenFeld, interviewPauseKnopf, interviewBeendenKnopf,
         brainstormKnopf, brainstormAktionenFeld, brainstormPauseKnopf,
         diskussionKnopf, diskussionAktionenFeld, diskussionPauseKnopf;
 
@@ -1767,7 +1956,7 @@ def test_zeigemodus_brainstorm_nur_szenario_bleibt_byte_identisch_zu_vor_task6_i
 
     quelltext = f"""
     var zustand, TEXT, interviewKnopf, pttKnopf, fuss,
-        interviewAktionenFeld, interviewPauseKnopf,
+        interviewAktionenFeld, interviewPauseKnopf, interviewBeendenKnopf,
         brainstormKnopf, brainstormAktionenFeld, brainstormPauseKnopf,
         diskussionKnopf, diskussionAktionenFeld, diskussionPauseKnopf;
 

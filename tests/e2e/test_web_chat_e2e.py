@@ -1125,7 +1125,7 @@ def test_gehaltener_ptt_wird_beim_interviewstart_verworfen(seite):
     assert folge[-1] == "aus"
 
 
-def test_seite_im_interviewmodus_geladen(oeffne):
+def test_seite_im_interviewmodus_geladen(oeffne, bot):
     """B11: Modus beim Laden an -> Pause-Darstellung (kein lokaler Recorder
     auf diesem frisch geladenen Telefon, Punkt 5), kein PTT.
 
@@ -1137,26 +1137,76 @@ def test_seite_im_interviewmodus_geladen(oeffne):
     tut es (unveraendert ein POST wie zuvor) -- ein zusaetzlicher
     eigenstaendiger Test wuerde den geteilten Ein-Minuten-Topf von
     ``/chat/interview`` (``web_grenze.TOPF_NACHRICHT``, 20/min je chat_id)
-    unnoetig weiter belasten, den dieser Testblock schon fast ausschoepft."""
+    unnoetig weiter belasten, den dieser Testblock schon fast ausschoepft.
+
+    Nachtfix 05.10.2026 (fremdes Geraet): "Hier aufnehmen" und Beenden
+    brauchen ohne eigene Sitzung zwei Tipps; der Fall "Beenden auf fremdem
+    Geraet" steht aus demselben Topf-Grund hier mit drin (ein POST mehr)."""
     setze_modus(True)
-    seite = oeffne()
+    gestartet = []
+    seite = oeffne(vorher=lambda blatt: blatt.on(
+        "response", lambda r: gestartet.append(1) if "/chat/start" in r.url else None))
+    expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "1")
+    # Laeuft dieser Test allein (leerer Chat), legt der erste Seitenaufruf
+    # ein /start an -- die Bot-Attrappe nimmt jeden Befehl ausser
+    # /interview als "Modus aus". Erst abarbeiten lassen, dann den Modus des
+    # (gedachten) anderen Telefons wieder setzen.
+    assert _warte(seite, lambda: bool(gestartet) and not bot.offen())
+    setze_modus(True)
     expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "1")
     expect(seite.locator("#interview")).to_have_attribute("data-pausiert", "1")
-    expect(seite.locator("#interview-pause")).to_have_text("▶ Weiter")
+    # Nachtfix 05.10.2026 (Geraete-Analyse Brief 1): ohne eigene Sitzung ist
+    # dies das fremde Geraet -- kein "Pausiert", kein Ein-Tipp-Weiter/Stop.
+    expect(seite.locator("#interview")).to_have_attribute("data-fremd", "1")
+    expect(seite.locator("#interview")).to_have_text(web_chat._TEXT_INTERVIEW_FREMD)
+    expect(seite.locator("#interview-pause")).to_have_text(web_chat._TEXT_INTERVIEW_HIER)
     expect(seite.locator("#ptt")).to_be_hidden()
     befehle_vorher = _zaehle("befehl")
 
-    seite.click("#interview-pause")   # Weiter, aus der Pause-nach-Neuladen-Lage
+    # Ein Tipp auf Beenden beendet auf dem fremden Geraet NICHTS.
+    seite.click("#interview-beenden")
+    expect(seite.locator("#interview-beenden")).to_have_text(
+        web_chat._TEXT_INTERVIEW_ENDEN_SICHER)
+    seite.wait_for_timeout(500)
+    assert _zaehle("befehl") == befehle_vorher
+    assert _modus_an()
+
+    # Ein Tipp auf "Hier aufnehmen" startet keinen Recorder (Artwechsel
+    # entschaerft dabei das Beenden wieder).
+    seite.click("#interview-pause")
+    expect(seite.locator("#interview-pause")).to_have_text(
+        web_chat._TEXT_INTERVIEW_HIER_SICHER)
+    expect(seite.locator("#interview-beenden")).to_have_text(web_chat._TEXT_INTERVIEW_ENDEN)
+    seite.wait_for_timeout(500)
+    assert _t(seite, "starts") == 0
+
+    seite.click("#interview-pause")   # zweiter Tipp: hier aufnehmen
     assert _warte(seite, lambda: _t(seite, "starts") >= 1)
+    expect(seite.locator("#interview")).to_have_attribute("data-fremd", "0")
     expect(seite.locator("#interview")).to_have_attribute("data-pausiert", "0")
     expect(seite.locator("#interview-pause")).to_have_text("⏸ Pause")
     seite.wait_for_timeout(300)
     assert _zaehle("befehl") == befehle_vorher   # kein zweites /interview
 
+    # Eigene Sitzung: Beenden mit EINEM Tipp, wie bisher.
     seite.click("#interview-beenden")
     assert _warte(seite, lambda: not _modus_an(), ms=10000)
     assert "aus" in _form(_posts(seite))
     expect(seite.locator("#ptt")).to_be_visible()
+    expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "0")
+
+    # Fremdes Geraet, zweiter Tipp: der Modus geht wieder an (anderes
+    # Telefon), Beenden braucht zwei Tipps und beendet dann.
+    setze_modus(True)
+    expect(seite.locator("#interview")).to_have_attribute("data-fremd", "1")
+    aus_vorher = _form(_posts(seite)).count("aus")
+    seite.click("#interview-beenden")
+    seite.wait_for_timeout(500)
+    assert _modus_an()
+    assert _form(_posts(seite)).count("aus") == aus_vorher
+    seite.click("#interview-beenden")
+    assert _warte(seite, lambda: not _modus_an(), ms=10000)
+    assert _form(_posts(seite)).count("aus") == aus_vorher + 1
     expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "0")
 
 

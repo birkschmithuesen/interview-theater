@@ -268,6 +268,10 @@ _TEXT_REC_LAEDT = "Die letzten Stücke gehen noch raus."
 #: Pause "Aufnahme läuft." neben einer stehenden Uhr -- ein falscher
 #: Zustand, und genau falsche Zustaende kosteten in Dortmund die 14 Drucke.
 _TEXT_REC_PAUSIERT = "Pausiert – nichts wird aufgenommen."
+#: Nachtfix 05.10.2026: ein Telefon ohne eigene Sitzung bei laufendem Modus
+#: (zweites Geraet oder neu geladen). "Pausiert" war dort falsch, wenn ein
+#: anderes Telefon aufnimmt -- der Server weiss es nicht, also die Frage.
+_TEXT_REC_FREMD = "Nimmt ein anderes Handy auf? Dann hier nichts tippen."
 #: Die Kopfzeile des zugeklappten Leitfadens im Interview-Modus.
 _TEXT_LEITFADEN = "Leitfaden"
 
@@ -1827,7 +1831,10 @@ _JS_AUFNAHME = """
       // Pause bleibt im Attribut "laeuft" (der Modus ist an), bekommt aber
       // ihren eigenen Satz -- vorher stand dort "Aufnahme laeuft."
       // neben einer stehenden Uhr (P2, Aufgabe 2).
-      var satz = (neu === 'laeuft' && knopf.dataset.pausiert === '1')
+      // Nachtfix 05.10.2026: ohne eigene Sitzung (data-fremd) ist "pausiert"
+      // nur fuer DIESES Telefon wahr -- ein anderes kann gerade aufnehmen.
+      var satz = (neu === 'laeuft' && knopf.dataset.fremd === '1') ? TEXTE.rec_fremd
+        : (neu === 'laeuft' && knopf.dataset.pausiert === '1')
         ? TEXTE.rec_pausiert : TEXTE['rec_' + neu];
       if (zeile.textContent !== (satz || '')) { zeile.textContent = satz || ''; }
       if (neu === zustand) { return; }
@@ -1869,7 +1876,7 @@ _JS_AUFNAHME = """
       lies();
     }).observe(fuss, { attributes: true, attributeFilter: ['data-interview'] });
     new MutationObserver(lies).observe(
-      knopf, { attributes: true, attributeFilter: ['data-pausiert'] });
+      knopf, { attributes: true, attributeFilter: ['data-pausiert', 'data-fremd'] });
     if (uhr) {
       new MutationObserver(lies).observe(
         uhr, { attributes: true, attributeFilter: ['hidden'] });
@@ -2167,6 +2174,7 @@ def _mikrotexte() -> dict[str, str]:
         "rec_laeuft": T._TEXT_REC_LAEUFT,
         "rec_laedt": T._TEXT_REC_LAEDT,
         "rec_pausiert": T._TEXT_REC_PAUSIERT,
+        "rec_fremd": T._TEXT_REC_FREMD,
         "leitfaden": T._TEXT_LEITFADEN,
         "naechstes": T._TEXT_NAECHSTES,
         "naechste_phase": T._TEXT_NAECHSTE_PHASE,

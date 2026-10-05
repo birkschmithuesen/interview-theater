@@ -694,6 +694,27 @@ def _fragen_sammeln(conn, chat_id: int) -> bool:
     )
 
 
+def _fragen_schluessel(zeile: str) -> set[str]:
+    """Woran eine Fragezeile wiedererkannt wird: die ganze Zeile und -- im
+    Format "Thema: Frage" -- die Frage allein (Gross-/Kleinschreibung und
+    Leerraum egal).
+
+    P2-H3 (T10, 05.10.2026): nach "Questions saved" las der Erkenner die
+    Liste im Verlauf erneut und schrieb dieselbe Frage unter einem anderen
+    Themenwort ("Mars: ..." statt "Living on mars: ...") oder ganz ohne. Der
+    Abgleich ueber die ganze Zeile hielt sie fuer neu, haengte sie doppelt an
+    und schickte den "Noted:"-Block ein zweites Mal. Ein Doppelpunkt, vor dem
+    schon ein Fragezeichen steht, trennt kein Thema ab."""
+    def normal(text: str) -> str:
+        return re.sub(r"\s+", " ", text).strip().casefold()
+
+    schluessel = {normal(zeile)}
+    thema, trenner, frage = zeile.partition(":")
+    if trenner and "?" not in thema and normal(frage):
+        schluessel.add(normal(frage))
+    return schluessel
+
+
 def _haenge_fragen_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
     """Haengt jede Zeile von ``wert``, die noch nicht in ``fragen`` steht
     (Gross-/Kleinschreibung und Leerraum egal), als eigene Zeile an.
@@ -706,13 +727,13 @@ def _haenge_fragen_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
     bisher = vorschlag.zeilen((stand["fragen"] if stand else None) or "")
-    gesehen = {re.sub(r"\s+", " ", z).strip().casefold() for z in bisher}
+    gesehen = {s for z in bisher for s in _fragen_schluessel(z)}
     neu = []
     for zeile in vorschlag.zeilen(wert):
-        schluessel = re.sub(r"\s+", " ", zeile).strip().casefold()
-        if schluessel in gesehen:
+        schluessel = _fragen_schluessel(zeile)
+        if schluessel & gesehen:
             continue
-        gesehen.add(schluessel)
+        gesehen |= schluessel
         neu.append(zeile)
     if not neu:
         return None

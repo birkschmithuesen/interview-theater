@@ -84,6 +84,25 @@ def test_k_dublette_wird_nicht_zweimal_angehaengt(conn, tg, einst, padua):
     assert repo.hole_arbeitsstand(conn, 1)["fragen"] == f"{ERSTE}\n{ZWEITE}"
 
 
+def test_k_dieselbe_frage_unter_anderem_thema_ist_keine_neue(conn, tg, einst, padua):
+    """P2-H3 (T10): nach "Questions saved" las der Erkenner die Liste im
+    Verlauf erneut und schrieb dieselben Fragen unter einem anderen
+    Themenwort ("Mars: ..." statt "Living on mars: ...") oder ganz ohne --
+    der Abgleich sah nur ganze Zeilen, haengte sie als neu an und schickte
+    den "Noted:"-Block ein zweites Mal. Verglichen wird jetzt (auch) die
+    Frage hinter dem Themenwort."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Living on mars, robots")
+    repo.setze_arbeitsstand(conn, 1, "fragen", f"{ERSTE}\n{ZWEITE}")
+    phasen.setze(conn, 1, 2, "test")
+
+    _bestaetige(conn, tg, einst, 41,
+                "Mars: Would you like to live on Mars?\n"
+                "Would you like to have a robot that serves you?")
+
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == f"{ERSTE}\n{ZWEITE}"
+    assert not any("Noted" in text or "📌" in text for _, text in tg.gesendet)
+
+
 def test_k_undo_nimmt_genau_die_letzte_frage_zurueck(conn, tg, einst, padua):
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Living on mars, robots")
     phasen.setze(conn, 1, 2, "test")

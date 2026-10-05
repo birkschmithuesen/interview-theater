@@ -94,6 +94,34 @@ def test_baue_gruppe_zweimal_legt_zwei_verschiedene_gruppen_an(tmp_path):
     assert token_1 != token_2
 
 
+def test_starte_stack_gibt_absolute_pfade_an_web_und_bot(tmp_path, monkeypatch):
+    """Web und Bot laufen mit ``cwd=app_wurzel`` -- ein relativer Laufordner
+    (so baut ihn ``browser_lauf.main``) liesse sie bei ``--app-wurzel`` auf
+    einen anderen Checkout eine fremde, leere ``sim.db`` oeffnen."""
+    harness = tmp_path / "harness"
+    harness.mkdir()
+    monkeypatch.chdir(harness)
+    gesehen = {}
+
+    def starte_web(db_pfad, audio_verz, log_pfad, *, app_wurzel):
+        gesehen["web"] = (db_pfad, audio_verz)
+        return None, None, "http://x"
+
+    def starte_bot(env_datei, db_pfad, audio_verz, chat_id, log_pfad, *, app_wurzel):
+        gesehen["bot"] = (db_pfad, audio_verz)
+        return None, None
+
+    monkeypatch.setattr(u, "starte_web", starte_web)
+    monkeypatch.setattr(u, "starte_bot", starte_bot)
+    lauf = Path("simulation/browser_laeufe/x")
+    lauf.mkdir(parents=True)
+    stack = u.starte_stack("/x.env", lauf, app_wurzel=tmp_path / "alt")
+    for db_pfad, audio_verz in gesehen.values():
+        assert Path(db_pfad).is_absolute() and Path(audio_verz).is_absolute()
+        assert Path(db_pfad) == harness / lauf / "sim.db"
+    assert Path(stack.db_pfad).is_absolute()
+
+
 def test_lauf_verzeichnis_ist_je_lauf_eindeutig(tmp_path):
     # Lazy-Import mit importorskip wie in tests/test_browser_lauf.py: nur
     # dieser eine Test braucht browser_lauf (zieht playwright beim Import

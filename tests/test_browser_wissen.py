@@ -4,6 +4,7 @@ ein echter Abzug gegen den aktuellen ``kontext`` (ohne Netz, ohne Modell)."""
 import json
 import sqlite3
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -58,6 +59,28 @@ def test_hole_prompt_ruft_abzug_im_app_checkout(tmp_path):
     assert kw.get("cwd") == app or str(app) in befehl
     for vorgabe in browser_umgebung.CODE_VORGABEN_ENTFERNEN:
         assert vorgabe in befehl
+
+
+def test_hole_prompt_gibt_absoluten_kopiepfad_an_den_app_checkout(tmp_path, monkeypatch):
+    """Der Abzug laeuft mit ``cwd=app_wurzel`` -- ein relativer Laufordner
+    (``simulation/browser_laeufe/...`` aus ``main``) zeigte dort ins Leere,
+    sobald ``--app-wurzel`` ein anderer Checkout ist."""
+    aufrufe = []
+
+    def ausfuehren(args, **kw):
+        aufrufe.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout=json.dumps({"prompt": "P"}) + "\n", stderr="")
+
+    harness = tmp_path / "harness"
+    (harness / "lauf").mkdir(parents=True)
+    sqlite3.connect(harness / "lauf" / "sim.db").close()
+    app = tmp_path / "app"
+    app.mkdir()
+    monkeypatch.chdir(harness)
+    bw.hole_prompt(app_wurzel=app, env_datei=tmp_path / "x.env", db=Path("lauf/sim.db"),
+                   chat_id=7, text="x", arbeitsordner=Path("lauf"), ausfuehren=ausfuehren)
+    args, = aufrufe
+    assert f"--db {harness / 'lauf' / 'abzug-7.db'}" in " ".join(args)
 
 
 def test_hole_prompt_fehler_wird_laut(tmp_path):

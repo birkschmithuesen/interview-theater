@@ -42,7 +42,9 @@ def kopiere_db(quelle: Path, ziel: Path) -> Path:
 
 def hole_prompt(*, app_wurzel: Path, env_datei: Path, db: Path, chat_id: int, text: str,
                 arbeitsordner: Path, ausfuehren=subprocess.run) -> str:
-    kopie = kopiere_db(db, Path(arbeitsordner) / f"abzug-{chat_id}.db")
+    # Absolut: der Abzug laeuft mit ``cwd=app_wurzel`` (evtl. ein anderer
+    # Checkout), ein relativer Pfad zeigte dort ins Leere.
+    kopie = kopiere_db(db, Path(arbeitsordner).resolve() / f"abzug-{chat_id}.db")
     aufruf = (
         f"{shlex.quote(str(ABZUG))} --db {shlex.quote(str(kopie))} --chat-id {int(chat_id)} "
         f"--text {shlex.quote(text)} --workshop {WORKSHOP} --bot-name {BOT_NAME} --web-url ''"

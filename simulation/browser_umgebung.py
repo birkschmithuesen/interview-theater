@@ -215,7 +215,12 @@ def starte_stack(env_datei: str, lauf_verzeichnis: Path, *,
     lassen. ``gruppen`` legt mehrere Web-Gruppen in derselben ``sim.db`` an
     (``baue_gruppe`` laeuft dafuer in-process weiter gegen den Harness --
     das additive Schema vertraegt die alte wie die neue App); Web- und
-    Bot-Prozess laufen weiter fuer die ERSTE Gruppe, wie bisher."""
+    Bot-Prozess laufen weiter fuer die ERSTE Gruppe, wie bisher.
+
+    Der Laufordner wird absolut gemacht: Web und Bot laufen mit
+    ``cwd=app_wurzel`` -- ein relativer Pfad liesse sie bei einem anderen
+    Checkout eine fremde, leere ``sim.db`` oeffnen."""
+    lauf_verzeichnis = Path(lauf_verzeichnis).resolve()
     db_pfad = str(lauf_verzeichnis / "sim.db")
     audio_verz = str(lauf_verzeichnis / "audio")
     os.makedirs(audio_verz, exist_ok=True)

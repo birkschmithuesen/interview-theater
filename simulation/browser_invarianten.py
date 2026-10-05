@@ -53,6 +53,7 @@ import re
 import sqlite3
 import time
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -455,12 +456,33 @@ FRIST_NACH_INTERVIEW_S = 120.0
 FRIST_NACH_BRAINSTORM_S = 60.0
 #: Woerter, an denen eine deutsche Statuszeile in einer EN-Gruppe auffaellt.
 DE_MARKEN = (" ist ", " und ", " nicht ", "Wörter", "gespeichert", "zu kurz")
-_STOPP = frozenset({"about", "there", "their", "which", "would", "could", "because", "really"})
+#: I3 (Review 05.10.2026, Fix round 1): mit ``{4,}`` zaehlten auch generische
+#: englische Funktionswoerter als "Inhaltswort" -- ein Satz wie "What if that
+#: is the whole story?" traf dann zufaellig zwei Transkriptwoerter, ohne dass
+#: die Karte irgendetwas Konkretes aus dem Gehoerten aufgriff. Erweitert um
+#: gaengige 4-Buchstaben-Funktionswoerter (Pronomen, Hilfsverben, Adverbien);
+#: gegen die Original-Testfaelle UND den echten ``brainstorm-bogen``-Text
+#: geprueft (``test_karte_geerdet_gegen_bogen_lehnt_generische_saetze_ab``).
+_STOPP = frozenset({
+    "about", "there", "their", "which", "would", "could", "because", "really",
+    "that", "what", "with", "have", "they", "this", "when", "from", "then", "them",
+    "were", "will", "into", "more", "some", "like", "just", "been", "here", "only",
+    "also", "does", "very", "well", "much", "time", "maybe",
+})
 #: Deutsche und englische Konstanten der USA-Einwilligungsfrage
 #: (``interview_theater/knoepfe/texte.py`` bzw. ``sprachen/en/texte.toml``) --
 #: Padua fragt nicht, ein Treffer ist also immer ein Befund.
 _USA_FRAGE_TEXTE = ("Tippt an, was gelten soll:", "Tap what should apply:")
 _USA_JA_KNOPF_TEXTE = ("Ja, US-Modell", "Yes, US model")
+#: Die reine Bestaetigung des Beenden-Knopfs (``befehle._befehl_fertig``,
+#: ``T._TEXT_INTERVIEW_AUS``) -- im Web-Kanal IMMER als ``typ='system'``
+#: verschickt (``system=True``), bei JEDEM ``/fertig``, unabhaengig davon, ob
+#: die eigentliche Auswertungszeile ("zu kurz"/"gespeichert",
+#: ``aufnahme._TEXT_ZU_KURZ``/``_TEXT_AUSGEWERTET``/``_text_interview_gespeichert_web``)
+#: je ankommt. Ohne diesen Ausschluss kann INTERVIEW_OHNE_STATUS nie feuern --
+#: jeder Klick auf "End interview" erzeugt diese Zeile zuerst (I1, Review
+#: 05.10.2026, Fix round 1).
+_INTERVIEW_AUS_TEXTE = ("Aufnahme beendet.", "Recording stopped.")
 #: Mindestlaenge eines Inhaltsworts fuer ``karte_geerdet`` -- bewusst 4 statt
 #: der ersten Annahme 5: ein echtes Transkript wie "the bench and the cafe"
 #: traegt mit "cafe" ein viertes, fuer die Pruefung zentrales Wort, das bei
@@ -477,8 +499,11 @@ class P34Stand:
     transkript_posts: tuple = ()
     #: (id, text) aus ``web_post`` ``richtung='aus' AND typ='system'``.
     system_posts: tuple = ()
-    #: Je Interview-Kopf (``klasse='lang'``): id, status, beendet (bool),
-    #: zu_kurz (bool), hat_verdichtung (bool), hat_transkript (bool).
+    #: Je Interview-Kopf (``klasse='lang'``): id, status, beendet_am (roh),
+    #: beendet (bool, Nachbau von ``aufnahme.unausgewertete_interviews``:
+    #: ``beendet_am`` gesetzt ODER Status in (fertig, transkribiert)),
+    #: zu_kurz (bool), hat_verdichtung (bool), hat_transkript (bool, faellt
+    #: wie ``repo.zusammengefuegtes_transkript`` auf die Teile zurueck).
     koepfe: tuple = ()
     #: (id, schweigen, text) aus ``buehnenkarte``.
     karten: tuple = ()
@@ -518,13 +543,18 @@ def lese_p34_stand(conn: sqlite3.Connection, chat_id: int) -> P34Stand:
             "AND typ = 'system' ORDER BY id", (chat_id,)))
     zu_kurz_ausdruck = "zu_kurz_uebersprungen" if _hat_spalte(conn, "aufnahme", "zu_kurz_uebersprungen") else "0"
     koepfe = tuple(
-        {"id": z["id"], "status": z["status"], "beendet": bool(z["beendet_am"]),
-         "zu_kurz": bool(z["zu_kurz"]), "hat_transkript": bool((z["transkript"] or "").strip()),
+        {"id": z["id"], "status": z["status"], "beendet_am": z["beendet_am"],
+         "beendet": bool(z["beendet_am"]) or z["status"] in ("fertig", "transkribiert"),
+         "zu_kurz": bool(z["zu_kurz"]),
+         "hat_transkript": bool((z["transkript"] or "").strip() or (z["teile_transkript"] or "").strip()),
          "hat_verdichtung": bool(z["verdichtungen"])}
         for z in conn.execute(
             f"""
             SELECT a.id, a.status, a.beendet_am, a.transkript, {zu_kurz_ausdruck} AS zu_kurz,
-                   (SELECT COUNT(*) FROM verdichtung v WHERE v.aufnahme_id = a.id) AS verdichtungen
+                   (SELECT COUNT(*) FROM verdichtung v WHERE v.aufnahme_id = a.id) AS verdichtungen,
+                   (SELECT GROUP_CONCAT(t.transkript, '') FROM aufnahme t
+                    WHERE t.teil_von = a.id AND t.transkript IS NOT NULL AND t.transkript != '')
+                   AS teile_transkript
             FROM aufnahme a WHERE a.chat_id = ? AND a.klasse = 'lang' ORDER BY a.id
             """, (chat_id,)))
     karten = tuple(
@@ -550,10 +580,18 @@ def lese_p34_stand(conn: sqlite3.Connection, chat_id: int) -> P34Stand:
     arbeitsstand = conn.execute(
         "SELECT phase, phase_angeboten, rahmen, geschichte, szenen_anzahl, figuren_fixiert_am "
         "FROM arbeitsstand WHERE chat_id = ?", (chat_id,)).fetchone()
+    # M2 (Review 05.10.2026, Fix round 1): weich entfernte Figuren/Szenen
+    # (``repo.entferne_figur``/``figur.entfernt_am``) zaehlten bisher mit --
+    # ``repo.figuren``/``repo.hole_szenen`` filtern sie aus jeder Ansicht,
+    # hier taeten sie ``p5_moeglich`` faelschlich wahr machen. ``_hat_spalte``
+    # wie beim bestehenden ``zu_kurz_uebersprungen``-Muster: die Testfixtur
+    # (``db34``) traegt die Spalte nicht auf jedem Stand.
+    figur_filter = " AND entfernt_am IS NULL" if _hat_spalte(conn, "figur", "entfernt_am") else ""
+    szene_filter = " AND entfernt_am IS NULL" if _hat_spalte(conn, "szene", "entfernt_am") else ""
     figuren = conn.execute(
-        "SELECT COUNT(*) FROM figur WHERE chat_id = ?", (chat_id,)).fetchone()[0]
+        f"SELECT COUNT(*) FROM figur WHERE chat_id = ?{figur_filter}", (chat_id,)).fetchone()[0]
     szenen = conn.execute(
-        "SELECT COUNT(*) FROM szene WHERE chat_id = ?", (chat_id,)).fetchone()[0]
+        f"SELECT COUNT(*) FROM szene WHERE chat_id = ?{szene_filter}", (chat_id,)).fetchone()[0]
     p5_moeglich = bool(
         arbeitsstand and (arbeitsstand["rahmen"] or "").strip()
         and (arbeitsstand["figuren_fixiert_am"] or "").strip()
@@ -572,28 +610,77 @@ def lese_p34_stand(conn: sqlite3.Connection, chat_id: int) -> P34Stand:
     )
 
 
-def pruefe_p4_sperre(stand: P34Stand, station: str) -> list[Befund]:
-    """Jeder beendete Interview-Kopf mit Transkript, nicht zu-kurz-
-    uebersprungen, ohne Verdichtung und mit einem Status, der nicht mehr
-    laeuft -- Phase 4 bleibt gesperrt, ohne dass ein Verdichtungslauf
-    sichtbar laeuft (Padua Phasen TEIL 2, Befund 4a)."""
+def _sekunden_seit(iso: str | None, jetzt_iso: str) -> float | None:
+    """Sekunden zwischen ``iso`` und ``jetzt_iso`` (beide ``repo._jetzt()``-
+    Format), oder ``None`` wenn ``iso`` fehlt oder nicht parsbar ist (z. B.
+    ein Platzhalterwert in einer Testfixtur) -- dann gilt die Zeile als noch
+    nicht ueber die Frist, dieselbe Vorsicht wie bei jeder Pruefung ohne
+    Material."""
+    if not iso:
+        return None
+    try:
+        dann = datetime.fromisoformat(iso)
+        jetzt = datetime.fromisoformat(jetzt_iso)
+    except ValueError:
+        return None
+    if dann.tzinfo is None:
+        dann = dann.replace(tzinfo=timezone.utc)
+    if jetzt.tzinfo is None:
+        jetzt = jetzt.replace(tzinfo=timezone.utc)
+    return (jetzt - dann).total_seconds()
+
+
+def pruefe_p4_sperre(stand: P34Stand, station: str, *, jetzt_iso: str | None = None) -> list[Befund]:
+    """Jeder beendete Interview-Kopf (``beendet`` -- Nachbau von
+    ``aufnahme.unausgewertete_interviews``, siehe ``P34Stand.koepfe``) mit
+    Transkript, nicht zu-kurz-uebersprungen und ohne Verdichtung -- Phase 4
+    bleibt gesperrt, ohne dass ein Verdichtungslauf sichtbar laeuft (Padua
+    Phasen TEIL 2, Befund 4a).
+
+    Status ``laeuft``/``empfangen`` bekommt, solange ``beendet_am`` juenger
+    als ``FRIST_NACH_INTERVIEW_S`` ist, noch Zeit (eine normal laufende
+    Verdichtung): ein haengender Kopf -- ``beendet_am`` gesetzt, Status aber
+    weiter ``laeuft``, laenger als die Frist -- zaehlt dagegen (I5, Review
+    05.10.2026, Fix round 1: vorher war jeder Status in (laeuft, empfangen)
+    BLIND ausgenommen, egal wie lange er schon so stand)."""
+    jetzt_iso = jetzt_iso or datetime.now(timezone.utc).isoformat(timespec="seconds")
     befunde = []
     for kopf in stand.koepfe:
-        if (kopf["beendet"] and kopf["hat_transkript"] and not kopf["zu_kurz"]
-                and not kopf["hat_verdichtung"] and kopf["status"] not in ("laeuft", "empfangen")):
-            befunde.append(Befund(
-                P4_GESPERRT_OHNE_VERDICHTUNG, station,
-                f"Interview {kopf['id']} (Status {kopf['status']!r}) ist beendet, hat ein "
-                "Transkript und keine Verdichtung -- Phase 4 bleibt gesperrt, ohne dass ein "
-                "Verdichtungslauf sichtbar laeuft.",
-            ))
+        if not (kopf["beendet"] and kopf["hat_transkript"] and not kopf["zu_kurz"]
+                and not kopf["hat_verdichtung"]):
+            continue
+        if kopf["status"] in ("laeuft", "empfangen"):
+            sekunden = _sekunden_seit(kopf.get("beendet_am"), jetzt_iso)
+            if sekunden is None or sekunden < FRIST_NACH_INTERVIEW_S:
+                continue  # normale Verarbeitung hat noch Zeit
+        befunde.append(Befund(
+            P4_GESPERRT_OHNE_VERDICHTUNG, station,
+            f"Interview {kopf['id']} (Status {kopf['status']!r}) ist beendet, hat ein "
+            "Transkript und keine Verdichtung -- Phase 4 bleibt gesperrt, ohne dass ein "
+            "Verdichtungslauf sichtbar laeuft.",
+        ))
     return befunde
+
+
+def hat_neue_statuszeile(vorher: P34Stand, stand: P34Stand) -> bool:
+    """Positiv-Signal fuer ``warte_auf`` (I2): mindestens eine neue
+    Systemzeile ist da, die NICHT die reine Beenden-Bestaetigung ist -- die
+    eigentliche Statuszeile (zu kurz/gespeichert) kann trotzdem noch ein
+    zweites Mal kommen; das prueft ``pruefe_nach_interview``, nicht dieses
+    Signal."""
+    return any(i > vorher.max_post_id and (t or "") not in _INTERVIEW_AUS_TEXTE
+               for i, t in stand.system_posts)
 
 
 def pruefe_nach_interview(vorher: P34Stand, nachher: P34Stand, station: str) -> list[Befund]:
     befunde: list[Befund] = []
     neue_transkripte = [t for i, t in nachher.transkript_posts if i > vorher.max_post_id]
-    neue_system = [(i, t) for i, t in nachher.system_posts if i > vorher.max_post_id]
+    # I1 (Review 05.10.2026, Fix round 1): die reine Beenden-Bestaetigung
+    # (``_INTERVIEW_AUS_TEXTE``) laeuft bei JEDEM "End interview"-Klick,
+    # unabhaengig davon, ob die eigentliche Auswertungszeile je ankommt --
+    # ohne den Ausschluss hier konnte INTERVIEW_OHNE_STATUS nie feuern.
+    neue_system = [(i, t) for i, t in nachher.system_posts
+                   if i > vorher.max_post_id and (t or "") not in _INTERVIEW_AUS_TEXTE]
     if not neue_transkripte:
         befunde.append(Befund(
             INTERVIEW_OHNE_BLASE, station,
@@ -636,6 +723,15 @@ def karte_geerdet(karte: str, transkript: str) -> bool:
     return len(treffer) >= 2
 
 
+def hat_neue_karte(vor_ende: P34Stand, stand: P34Stand) -> bool:
+    """Positiv-Signal fuer ``warte_auf`` (I2): mindestens eine neue
+    Buehnenkarte (echt oder vermerktes Schweigen) ist da -- ob es zu VIELE
+    sind (``BRAINSTORM_MEHRERE_KARTEN``, eine spaet eintreffende zweite),
+    prueft erst die finale Pruefung nach der Gnadenfrist."""
+    vorher_ids = {k[0] for k in vor_ende.karten}
+    return any(k[0] not in vorher_ids for k in stand.karten)
+
+
 def pruefe_nach_brainstorm(vorher: P34Stand, vor_ende: P34Stand, nachher: P34Stand,
                            station: str) -> list[Befund]:
     befunde: list[Befund] = []
@@ -673,7 +769,14 @@ def pruefe_nach_brainstorm(vorher: P34Stand, vor_ende: P34Stand, nachher: P34Sta
 def pruefe_modellwahl(stand: P34Stand, phase3: tuple[int, int], phase4: tuple[int, int],
                       station: str) -> list[Befund]:
     """``phase3``/``phase4`` sind (von, bis)-Grenzen der ``aufruf.id`` dieser
-    Phase (siehe ``_aufruf_bereiche`` in Task 2c): ``von < id <= bis``."""
+    Phase (siehe ``_aufruf_bereiche``/``_teile_bereich_am_phasenwechsel`` in
+    Task 2c/Fix round 1): ``von < id <= bis``.
+
+    I4 (Review 05.10.2026, Fix round 1): hat ``phase4`` im geprueften
+    Bereich gar keinen ``gespraech``-Aufruf (leerer Bereich, oder die
+    Stationen dieser Phase sind noch nicht gelaufen), ist
+    ``P4_GESPRAECH_NICHT_OPUS`` nicht pruefbar -- vorher lieferte das still
+    ``[]``, als waere alles in Ordnung."""
     def _im_bereich(bereich: tuple[int, int], i: int) -> bool:
         von, bis = bereich
         return von < i <= bis
@@ -686,7 +789,11 @@ def pruefe_modellwahl(stand: P34Stand, phase3: tuple[int, int], phase4: tuple[in
             P3_GESPRAECH_OPUS, station,
             "Ein Gespraechsaufruf in Phase 3 lief ueber Opus (modus 'C') -- Datenschutz, "
             "die Interviews gehen in Phase 3 nicht an die USA."))
-    if any(a[2] != "C" for a in gespraeche4):
+    if not gespraeche4:
+        befunde.append(nicht_pruefbar(
+            P4_GESPRAECH_NICHT_OPUS, station,
+            f"keine Gespraechsaufrufe im geprueften Phase-4-Bereich {phase4}."))
+    elif any(a[2] != "C" for a in gespraeche4):
         befunde.append(Befund(
             P4_GESPRAECH_NICHT_OPUS, station,
             "Ein Gespraechsaufruf in Phase 4 lief NICHT ueber Opus (modus != 'C').",
@@ -707,22 +814,42 @@ def pruefe_p5_angebot(stand: P34Stand, station: str) -> list[Befund]:
     return []
 
 
+#: Nach dem Positiv-Signal (oder der Frist) wird noch diese Zeit abgewartet,
+#: bevor ``warte_auf`` EIN letztes Mal prueft -- sonst sieht eine fruehe
+#: "saubere" Zwischenmessung eine zweite, verspaetete Statuszeile oder
+#: Buehnenkarte nie (I2, Review 05.10.2026, Fix round 1).
+GRACE_NACH_SIGNAL_S = 10.0
+
+
 def warte_auf(lese: Callable[[], object], pruefe: Callable[[object], list[Befund]], *,
-             frist_s: float, takt_s: float = 2.0,
+             frist_s: float, ende: Callable[[object], bool] | None = None,
+             grace_s: float = GRACE_NACH_SIGNAL_S, takt_s: float = 2.0,
              schlafe: Callable[[float], None] = time.sleep,
              uhr: Callable[[], float] = time.monotonic) -> tuple[list[Befund], object]:
-    """Generische Fassung von ``warte_nach_diskussion``: pollt ``lese()`` und
-    ``pruefe(stand)``, bis entweder keine Befunde mehr da sind oder die
-    Frist ablaeuft. ``warte_nach_diskussion`` bleibt unveraendert stehen --
-    diese Funktion ist der Einhaengepunkt fuer ``nach_interview``/
-    ``nach_brainstorm`` (Task 2c)."""
-    ende = uhr() + frist_s
-    while True:
-        stand = lese()
-        befunde = pruefe(stand)
-        if not befunde or uhr() >= ende:
-            return befunde, stand
+    """Generische Fassung von ``warte_nach_diskussion``: pollt ``lese()``,
+    bis ``ende(stand)`` wahr wird (ohne ``ende``: bis ``pruefe(stand)`` leer
+    ist -- das alte Verhalten) oder die Frist ``frist_s`` ablaeuft; wartet
+    DANACH zusaetzlich ``grace_s`` und liefert GENAU das Ergebnis dieser
+    letzten, finalen Pruefung. ``warte_nach_diskussion`` bleibt unveraendert
+    stehen -- diese Funktion ist der Einhaengepunkt fuer ``nach_interview``/
+    ``nach_brainstorm`` (Task 2c).
+
+    I2 (Review 05.10.2026, Fix round 1): der fruehere Entwurf gab beim
+    ersten befundfreien Zwischenstand sofort zurueck -- eine zweite,
+    verspaetete Statuszeile (``INTERVIEW_STATUS_DOPPELT``), eine zweite
+    Buehnenkarte (``BRAINSTORM_MEHRERE_KARTEN``) oder eine deutsche
+    Statuszeile, die erst nach der ersten (englischen) ankam
+    (``INTERVIEW_STATUS_DEUTSCH``), kam dann NIE zur Pruefung. Jetzt zaehlt
+    nur noch die Pruefung NACH der Gnadenfrist."""
+    ende_zeit = uhr() + frist_s
+    stand = lese()
+    weiter = (lambda s: not ende(s)) if ende is not None else (lambda s: bool(pruefe(s)))
+    while weiter(stand) and uhr() < ende_zeit:
         schlafe(takt_s)
+        stand = lese()
+    schlafe(grace_s)
+    stand = lese()
+    return pruefe(stand), stand
 
 
 def pruefe_wissensantwort(antwort: str, board: tuple[str, ...], station: str) -> list[Befund]:

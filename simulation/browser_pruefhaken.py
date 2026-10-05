@@ -275,12 +275,16 @@ def _lies_p34(kontext: PruefKontext, chat_id: int) -> inv.P34Stand:
         return inv.lese_p34_stand(conn, chat_id)
 
 
-def _nach_aufnahme_p34(station, kontext: PruefKontext, chat_id: int, *, pruefe, frist_s: float,
+def _nach_aufnahme_p34(station, kontext: PruefKontext, chat_id: int, *, pruefe, ende, frist_s: float,
                        knopf_text: str) -> list[inv.Befund]:
     """Gemeinsamer Kern von ``_nach_interview``/``_nach_brainstorm``: wie
     ``_nach_ende``, aber ueber ``P34Stand`` und ``kontext.warte_p34``
-    (andere Signatur als ``kontext.warte``: ``(lese, pruefe, *, frist_s)``,
-    siehe ``browser_invarianten.warte_auf``)."""
+    (andere Signatur als ``kontext.warte``: ``(lese, pruefe, *, frist_s,
+    ende)``, siehe ``browser_invarianten.warte_auf``).
+
+    ``ende`` (I2, Fix round 1): das Positiv-Signal, das ``warte_auf`` von der
+    reinen "keine Befunde"-Zwischenmessung unterscheidet -- ohne ``ende``
+    wuerde eine zweite, verspaetete Statuszeile/Karte nie geprueft."""
     if kontext.ergebnis_p34 is not None:
         befunde, stand = kontext.ergebnis_p34
     else:
@@ -291,7 +295,8 @@ def _nach_aufnahme_p34(station, kontext: PruefKontext, chat_id: int, *, pruefe, 
             f"{station.schluessel}: kein Harness-Klick auf {knopf_text!r} -- Vorher-Stand vom "
             "Stationsbeginn, Wartezeit ab Stationsende")
         befunde, stand = kontext.warte_p34(
-            lambda: _lies_p34(kontext, chat_id), lambda s: pruefe(vorher, s), frist_s=frist_s)
+            lambda: _lies_p34(kontext, chat_id), lambda s: pruefe(vorher, s), frist_s=frist_s,
+            ende=lambda s: ende(vorher, s))
     kontext.stand_p34 = stand
     return list(befunde)
 
@@ -300,6 +305,7 @@ def _nach_interview(station, kontext: PruefKontext, chat_id: int) -> list[inv.Be
     return _nach_aufnahme_p34(
         station, kontext, chat_id,
         pruefe=lambda vorher, stand: inv.pruefe_nach_interview(vorher, stand, station.schluessel),
+        ende=inv.hat_neue_statuszeile,
         frist_s=inv.FRIST_NACH_INTERVIEW_S, knopf_text="End interview")
 
 
@@ -308,6 +314,7 @@ def _nach_brainstorm(station, kontext: PruefKontext, chat_id: int) -> list[inv.B
         station, kontext, chat_id,
         pruefe=lambda vorher, stand: inv.pruefe_nach_brainstorm(
             vorher, kontext.vor_ende_p34 or vorher, stand, station.schluessel),
+        ende=lambda vorher, stand: inv.hat_neue_karte(kontext.vor_ende_p34 or vorher, stand),
         frist_s=inv.FRIST_NACH_BRAINSTORM_S, knopf_text="Brainstorm-Toggle")
 
 

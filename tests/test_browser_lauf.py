@@ -660,6 +660,37 @@ def test_ausnahme_in_station_wird_befund_nicht_verschluckt(stack, tmp_path, monk
     assert ergebnis["fehlgeschlagen_bei"] == "t-kaputt"
 
 
+def test_aufruf_waehrend_gescheiterter_station_bleibt_fuer_modellwahl_sichtbar(
+        stack, tmp_path, monkeypatch):
+    """M1 (Review 05.10.2026, Fix round 1): ein Aufruf, der WAEHREND einer
+    gescheiterten Station entsteht, darf nicht aus ``aufruf_bereiche``
+    herausfallen -- vorher wurde der Bereich einer Station NUR nach einem
+    ERFOLGREICHEN ``_fuehre_station_aus`` aktualisiert, bei einer Ausnahme
+    blieb er auf (von, von) stehen und der Aufruf war fuer den
+    ``modellwahl``-Haken der naechsten Phase unsichtbar -- egal, ob er in
+    Phase 3 oder 4 fiel."""
+    basis, token, pfad = stack
+
+    def fake(page, persona_client, mitschnitt, station, **kw):
+        if station.schluessel == "p3-kaputt":
+            conn = db.verbinde(pfad)
+            conn.execute(
+                "INSERT INTO aufruf (chat_id, art, modus, erstellt_am) VALUES (?, 'gespraech', 'C', ?)",
+                (CHAT, repo._jetzt()))
+            conn.commit(); conn.close()
+            raise RuntimeError("kaputt waehrend aufruf")
+        return {"schritte": 0, "nachfragen_beantwortet": 0, "offene_fragen": [],
+                "fertig": True, "fallback_benutzt": False, "zaehler_summe": {},
+                "screenshots_nach": []}
+
+    monkeypatch.setattr(browser_lauf, "_fuehre_station_aus", fake)
+    station_a = browser_stationen.Station("p3-kaputt", 3, "x", budget=1)
+    station_b = browser_stationen.Station("p4-check", 4, "x", pruefung=("modellwahl",))
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [station_a, station_b])
+    schluessel = [b["schluessel"] for b in ergebnis["invarianten"]]
+    assert inv.P3_GESPRAECH_OPUS in schluessel
+
+
 @pytest.mark.parametrize("schluessel_fuer, erwartet", [
     (lambda t2: "vad_schwelle", True),
     (lambda t2: f"vad_schwelle:{t2}:2026-10-05", False),
@@ -768,22 +799,92 @@ def test_fuehre_pruefungen_ohne_browser(tmp_path):
 def test_fuehre_pruefungen_p34_nach_interview_ohne_browser(tmp_path):
     """Wie ``test_fuehre_pruefungen_ohne_browser``, aber fuer den neuen
     ``nach_interview``-Haken (Padua live-reif Phase 3+4, Task 2c): ohne
-    Browser, mit einer Attrappe fuer ``warte_p34``, die sofort liefert."""
+    Browser, mit einer Attrappe fuer ``warte_p34``.
+
+    I6 (Review 05.10.2026, Fix round 1): die alte Attrappe gab ``pruefe``
+    NIE weiter (``return [], lese()``) -- die eigentliche Verdrahtung
+    (``_nach_aufnahme_p34`` -> ``kontext.warte_p34`` -> ``pruefe``) war damit
+    gar nicht getestet, nur dass irgendetwas Leeres zurueckkommt. Jetzt ruft
+    die Attrappe ``pruefe(lese())`` wirklich auf, gegen eine leere DB, die
+    einen echten Befund liefert (keine Transkript-Blase, keine Statuszeile)."""
     pfad = str(tmp_path / "p34.db")
     aufbau = db.verbinde(pfad)
     db.initialisiere(aufbau)
     aufbau.close()
     gruppen = [Gruppe(token="tok1", chat_id=CHAT)]
 
-    def warte_p34(lese, pruefe, *, frist_s):
-        return [], lese()
+    def warte_p34(lese, pruefe, *, frist_s, ende=None):
+        stand = lese()
+        return pruefe(stand), stand
 
     kontext = browser_lauf.PruefKontext(
         db_pfad=pfad, gruppen=gruppen, page=None, warte_p34=warte_p34)
     station = browser_stationen.Station("p3-x", 3, "x", pruefung=("nach_interview",),
                                         aufnahme="interview")
     befunde = browser_lauf.fuehre_pruefungen(station, kontext)
-    assert befunde == []
+    assert {b.schluessel for b in befunde} == {inv.INTERVIEW_OHNE_BLASE, inv.INTERVIEW_OHNE_STATUS}
+
+
+def test_bereich_je_phase_vereinigt_alle_stationen_dieser_phase():
+    """I6 (Review 05.10.2026, Fix round 1): reiner Test von
+    ``browser_pruefhaken._bereich_je_phase`` mit vorbereiteten
+    ``aufruf_bereiche``/``stationen_phase`` -- bisher nur indirekt ueber den
+    Browser-Lauf gestreift."""
+    from simulation import browser_pruefhaken as bph
+
+    kontext = browser_lauf.PruefKontext(
+        db_pfad="x", gruppen=[Gruppe("tok1", CHAT)], page=None,
+        aufruf_bereiche={"p3-a": (0, 5), "p3-b": (5, 9), "p4-a": (9, 20)},
+        stationen_phase={"p3-a": 3, "p3-b": 3, "p4-a": 4})
+    assert bph._bereich_je_phase(kontext, 3) == (0, 9)
+    assert bph._bereich_je_phase(kontext, 4) == (9, 20)
+    # Keine Station dieser Phase gelaufen -- (0, 0), der "nichts da"-Fall.
+    assert bph._bereich_je_phase(kontext, 5) == (0, 0)
+
+
+def test_modellwahl_haken_nutzt_bereich_je_phase(tmp_path):
+    """I6 (Review 05.10.2026, Fix round 1): reiner Test von
+    ``browser_pruefhaken._modellwahl`` -- liest die aufbereiteten Bereiche
+    aus dem Kontext und reicht sie an ``pruefe_modellwahl`` weiter."""
+    from simulation import browser_pruefhaken as bph
+
+    pfad = str(tmp_path / "p34.db")
+    aufbau = db.verbinde(pfad); db.initialisiere(aufbau); aufbau.close()
+    conn = db.verbinde(pfad)
+    for i, (art, modus) in enumerate([("gespraech", "A"), ("gespraech", "A")], 1):
+        conn.execute(
+            "INSERT INTO aufruf (id, chat_id, art, modus, erstellt_am) VALUES (?, ?, ?, ?, ?)",
+            (i, CHAT, art, modus, repo._jetzt()))
+    conn.commit(); conn.close()
+    kontext = browser_lauf.PruefKontext(
+        db_pfad=pfad, gruppen=[Gruppe("tok1", CHAT)], page=None,
+        aufruf_bereiche={"p3-uebergang": (0, 1), "p4-uebergang": (1, 2)},
+        stationen_phase={"p3-uebergang": 3, "p4-uebergang": 4})
+    station = browser_stationen.Station("p4-uebergang", 4, "x", pruefung=("modellwahl",))
+    befunde = bph._modellwahl(station, kontext, CHAT)
+    assert [b.schluessel for b in befunde] == [inv.P4_GESPRAECH_NICHT_OPUS]
+
+
+def test_teile_bereich_am_phasenwechsel_splittet_nur_wenn_wechsel_dazwischen_liegt():
+    """I4 (Review 05.10.2026, Fix round 1): reiner Test von
+    ``browser_lauf._teile_bereich_am_phasenwechsel``."""
+    bereiche, phasen_je_station = {}, {}
+    browser_lauf._teile_bereich_am_phasenwechsel(
+        bereiche, phasen_je_station, "p3-uebergang", 3, 5, 12, 8)
+    assert bereiche == {"p3-uebergang": (5, 8), "p3-uebergang:nach_phasenwechsel": (8, 12)}
+    assert phasen_je_station == {"p3-uebergang:nach_phasenwechsel": 4}
+
+    bereiche2, phasen2 = {}, {}
+    browser_lauf._teile_bereich_am_phasenwechsel(bereiche2, phasen2, "p4-eintritt", 4, 5, 12, None)
+    assert bereiche2 == {"p4-eintritt": (5, 12)}
+    assert phasen2 == {}
+
+    # Der Wechsel liegt NICHT innerhalb des Bereichs (z. B. schon vorher
+    # erkannt) -- kein Split.
+    bereiche3, phasen3 = {}, {}
+    browser_lauf._teile_bereich_am_phasenwechsel(bereiche3, phasen3, "p3-uebergang", 3, 5, 12, 5)
+    assert bereiche3 == {"p3-uebergang": (5, 12)}
+    assert phasen3 == {}
 
 
 def test_fuehre_pruefungen_zweite_gruppe_mit_dom_hinweis():

@@ -44,9 +44,19 @@ def datenstand(db_pfad: str, chat_id: int) -> dict:
         diskussion = zahl("SELECT COUNT(*) FROM aufnahme WHERE chat_id = ? AND diskussion = 1")
         # Padua live-reif Phase 3+4 (Task 2): die Fertig-Praedikate der
         # neuen Stationen (``browser_stationen.STATIONEN_P34``) brauchen
-        # diese drei Zaehler.
-        interview_koepfe = zahl("SELECT COUNT(*) FROM aufnahme WHERE chat_id = ? AND klasse = 'lang'")
-        brainstorm_aufnahmen = zahl("SELECT COUNT(*) FROM aufnahme WHERE chat_id = ? AND brainstorm = 1")
+        # diese drei Zaehler. M2 (Review 05.10.2026, Fix round 1):
+        # ``entfernt_am IS NULL`` wie ``repo.transkripte``/``repo.entferne_
+        # aufnahme`` -- ein leerer Interview-Kopf ohne ein einziges Teil wird
+        # weich entfernt (``aufnahme._verwirf_leeres_interview``); ohne den
+        # Filter zaehlte er trotzdem und das Fertig-Praedikat von
+        # ``p3-interview-kurz``/``-gemischt`` (``interview_koepfe >= 1/2``)
+        # haette schon "fertig" gemeldet, bevor ein echtes Interview stand.
+        interview_koepfe = zahl(
+            "SELECT COUNT(*) FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+            "AND entfernt_am IS NULL")
+        brainstorm_aufnahmen = zahl(
+            "SELECT COUNT(*) FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+            "AND entfernt_am IS NULL")
         buehnenkarten = zahl("SELECT COUNT(*) FROM buehnenkarte WHERE chat_id = ?")
         zeile = conn.execute("SELECT kalibrierung_modus FROM gruppe WHERE chat_id = ?",
                              (chat_id,)).fetchone()

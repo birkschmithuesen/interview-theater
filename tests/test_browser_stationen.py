@@ -159,6 +159,11 @@ def test_p34_aufnahmestationen_haben_skript_und_pruefung():
     assert "nach_brainstorm" in st["p4-brainstorm"].pruefung
     assert "modellwahl" in st["p3-uebergang"].pruefung
     assert "p5_angebot" in st["p4-uebergang"].pruefung
+    # I4 (Review 05.10.2026, Fix round 1): ``modellwahl`` lief bisher NUR an
+    # p3-uebergang -- zu diesem Zeitpunkt ist noch keine Phase-4-Station
+    # gelaufen, der Phase-4-Bereich also immer leer, P4_GESPRAECH_NICHT_OPUS
+    # konnte nie feuern. Jetzt auch am Ende von Phase 4.
+    assert "modellwahl" in st["p4-uebergang"].pruefung
     assert all(p in s.PRUEFUNGEN for x in s.STATIONEN_P34 for p in x.pruefung)
 
 

@@ -16,6 +16,7 @@ UND HEAD geprueft -- identisch an beiden Staenden):
 
 import json
 import sqlite3
+from datetime import datetime, timezone
 
 import pytest
 
@@ -456,8 +457,8 @@ def db34(tmp_path):
         CREATE TABLE arbeitsstand (chat_id INTEGER PRIMARY KEY, phase INTEGER, phase_angeboten INTEGER,
                                    rahmen TEXT, geschichte TEXT, szenen_anzahl TEXT,
                                    figuren_fixiert_am TEXT, begriffe TEXT);
-        CREATE TABLE figur (id INTEGER PRIMARY KEY, chat_id INTEGER, name TEXT);
-        CREATE TABLE szene (id INTEGER PRIMARY KEY, chat_id INTEGER);
+        CREATE TABLE figur (id INTEGER PRIMARY KEY, chat_id INTEGER, name TEXT, entfernt_am TEXT);
+        CREATE TABLE szene (id INTEGER PRIMARY KEY, chat_id INTEGER, entfernt_am TEXT);
         """)
     conn.commit(); conn.close()
     return pfad
@@ -502,6 +503,28 @@ def test_doppelte_statuszeile_und_deutscher_status_sind_mittel(db34):
     assert befunde[inv.INTERVIEW_STATUS_DEUTSCH].schwere == "mittel"
 
 
+def test_interview_nur_mit_beenden_bestaetigung_ist_ohne_statuszeile(db34):
+    """I1 (Review 05.10.2026, Fix round 1): jedes '/fertig' schickt zuerst
+    die reine Beenden-Bestaetigung ("Recording stopped."/"Aufnahme
+    beendet.") als Systemzeile -- sie darf INTERVIEW_OHNE_STATUS nicht
+    verdecken, wenn die eigentliche Auswertungszeile (zu kurz/gespeichert)
+    nie ankommt. Vorher zaehlte diese eine Zeile schon als "eine
+    Statuszeile", INTERVIEW_OHNE_STATUS konnte dadurch nie feuern."""
+    vorher = _p34(db34)
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, beendet_am, transkript) "
+                    "VALUES (1, 7, 'lang', 'fertig', 'x', 'a b c')")
+    _schreibe(db34, "INSERT INTO web_post (chat_id, richtung, typ, text) VALUES "
+                    "(7, 'aus', 'transkript', '🎙 Interview 1')")
+    _schreibe(db34, "INSERT INTO web_post (chat_id, richtung, typ, text) VALUES "
+                    "(7, 'aus', 'system', 'Recording stopped.')")
+    befunde = {b.schluessel for b in inv.pruefe_nach_interview(vorher, _p34(db34), "p3-interview-kurz")}
+    assert inv.INTERVIEW_OHNE_STATUS in befunde
+    _schreibe(db34, "INSERT INTO web_post (chat_id, richtung, typ, text) VALUES "
+                    "(7, 'aus', 'system', 'Aufnahme beendet.')")
+    befunde_de = {b.schluessel for b in inv.pruefe_nach_interview(vorher, _p34(db34), "p3-interview-kurz")}
+    assert inv.INTERVIEW_OHNE_STATUS in befunde_de
+
+
 def test_phase4_gesperrt_ohne_laufende_verdichtung(db34):
     # beendet, Transkript da, nicht zu kurz, keine Verdichtung, Status steht
     # (transkribiert nach gescheitertem Versuch) -- sperrt, ohne dass etwas laeuft.
@@ -509,6 +532,30 @@ def test_phase4_gesperrt_ohne_laufende_verdichtung(db34):
                     "VALUES (1, 7, 'lang', 'transkribiert', 'x', 'viele woerter')")
     befunde = inv.pruefe_p4_sperre(_p34(db34), "p3-uebergang")
     assert [b.schluessel for b in befunde] == [inv.P4_GESPERRT_OHNE_VERDICHTUNG]
+
+
+def test_phase4_sperre_erkennt_haengenden_kopf_status_laeuft(db34):
+    """I5 (Review 05.10.2026, Fix round 1): ``aufnahme.unausgewertete_
+    interviews`` zaehlt ``beendet_am`` gesetzt ODER Status fertig/
+    transkribiert als 'beendet' -- ein Kopf, der WEITERHIN auf 'laeuft'
+    steht, obwohl ``beendet_am`` laengst (ueber ``FRIST_NACH_INTERVIEW_S``
+    hinaus) gesetzt ist, ist ein haengender Kopf und zaehlt. Vorher schloss
+    ``pruefe_p4_sperre`` jeden Status in (laeuft, empfangen) BLIND aus,
+    egal wie lange er schon so stand."""
+    alt = "2000-01-01T00:00:00+00:00"
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, beendet_am, transkript) "
+                    f"VALUES (1, 7, 'lang', 'laeuft', '{alt}', 'viele woerter')")
+    befunde = inv.pruefe_p4_sperre(_p34(db34), "p3-uebergang")
+    assert [b.schluessel for b in befunde] == [inv.P4_GESPERRT_OHNE_VERDICHTUNG]
+
+
+def test_phase4_sperre_laesst_frisch_beendeten_kopf_in_ruhe(db34):
+    """Gegenstueck: ein Kopf, dessen ``beendet_am`` gerade erst gesetzt
+    wurde, bekommt die normale Verarbeitung noch ihre Zeit (keine Sperre)."""
+    jetzt = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, beendet_am, transkript) "
+                    f"VALUES (1, 7, 'lang', 'laeuft', '{jetzt}', 'viele woerter')")
+    assert inv.pruefe_p4_sperre(_p34(db34), "p3-uebergang") == []
 
 
 def test_brainstorm_genau_eine_reaktion_nach_dem_ende(db34):
@@ -539,16 +586,49 @@ def test_karte_geerdet_braucht_zwei_inhaltswoerter():
     assert not inv.karte_geerdet("A dragon appears.", "bench cousin cafe bag")
 
 
+def test_karte_geerdet_gegen_bogen_lehnt_generische_saetze_ab():
+    """I3 (Review 05.10.2026, Fix round 1): mit ``{4,}`` zaehlten generische
+    englische Funktionswoerter (what/that/maybe/could/time/...) als
+    'Inhaltswort' -- gegen den echten Brainstorm-Skript-Text getestet, nicht
+    nur gegen den kurzen Kunstfall aus dem Brief."""
+    from simulation.diskussionen import DISKUSSIONEN
+
+    transkript = DISKUSSIONEN["brainstorm-bogen"].text()
+    assert not inv.karte_geerdet("What if that is the whole story?", transkript)
+    assert not inv.karte_geerdet("Maybe they could have more time together.", transkript)
+    # Eine wirklich geerdete Karte bleibt erkannt.
+    assert inv.karte_geerdet(
+        "The cousin waits by the bench near the cafe with his broken bag.", transkript)
+
+
 def test_modellwahl_phase3_nie_opus_phase4_opus_keine_usa_frage(db34):
     for i, (art, modus) in enumerate([("gespraech", "A"), ("gespraech", "C"), ("verdichter", "A")], 1):
         _schreibe(db34, "INSERT INTO aufruf (id, chat_id, art, modus) VALUES (?, 7, ?, ?)", i, art, modus)
     stand = _p34(db34)
     befunde = inv.pruefe_modellwahl(stand, phase3=(0, 2), phase4=(2, 9), station="p3-uebergang")
-    assert {b.schluessel for b in befunde} == {inv.P3_GESPRAECH_OPUS}
+    # I4 (Fix round 1): phase4=(2, 9) enthaelt hier keinen einzigen
+    # 'gespraech'-Aufruf (nur den 'verdichter') -- das ist nicht "in
+    # Ordnung", sondern nicht pruefbar, und wird seitdem auch so gemeldet.
+    assert {b.schluessel for b in befunde} == {
+        inv.P3_GESPRAECH_OPUS, f"{inv.NICHT_PRUEFBAR}:{inv.P4_GESPRAECH_NICHT_OPUS}"}
     _schreibe(db34, "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe) VALUES "
                     "(7, 'aus', 'text', 'Tap what should apply:', '[[\"Yes, US model\", \"k:1\"]]')")
     assert inv.EINWILLIGUNG_GEFRAGT in {
         b.schluessel for b in inv.pruefe_modellwahl(_p34(db34), (0, 0), (0, 9), "p3-uebergang")}
+
+
+def test_modellwahl_phase4_leer_ist_nicht_pruefbar(db34):
+    """I4 (Review 05.10.2026, Fix round 1): kein 'gespraech'-Aufruf im
+    geprueften Phase-4-Bereich (leerer Bereich ODER nur andersartige
+    Aufrufe) -- P4_GESPRAECH_NICHT_OPUS ist nicht pruefbar, nicht stillschweigend
+    in Ordnung."""
+    _schreibe(db34, "INSERT INTO aufruf (id, chat_id, art, modus) VALUES (1, 7, 'verdichter', 'A')")
+    stand = _p34(db34)
+    befunde = inv.pruefe_modellwahl(stand, phase3=(0, 0), phase4=(0, 1), station="p4-uebergang")
+    assert [b.schluessel for b in befunde] == [f"{inv.NICHT_PRUEFBAR}:{inv.P4_GESPRAECH_NICHT_OPUS}"]
+    # Ein leerer Bereich (noch keine Phase-4-Station gelaufen) ist derselbe Fall.
+    befunde_leer = inv.pruefe_modellwahl(stand, phase3=(0, 1), phase4=(0, 0), station="p4-uebergang")
+    assert [b.schluessel for b in befunde_leer] == [f"{inv.NICHT_PRUEFBAR}:{inv.P4_GESPRAECH_NICHT_OPUS}"]
 
 
 def test_p5_nicht_angeboten_obwohl_moeglich(db34):
@@ -557,3 +637,65 @@ def test_p5_nicht_angeboten_obwohl_moeglich(db34):
     _schreibe(db34, "INSERT INTO figur (chat_id, name) VALUES (7, 'Samir')")
     assert [b.schluessel for b in inv.pruefe_p5_angebot(_p34(db34), "p4-uebergang")] \
         == [inv.P5_NICHT_ANGEBOTEN]
+
+
+def test_p5_nicht_moeglich_wenn_einzige_figur_weich_entfernt_wurde(db34):
+    """M2 (Review 05.10.2026, Fix round 1): ``lese_p34_stand`` zaehlte
+    weich entfernte Figuren/Szenen mit (``figur.entfernt_am`` ignoriert) --
+    ``repo.figuren``/``repo.hole_szenen`` filtern sie ueberall sonst raus.
+    Mit einer entfernten Figur ist Phase 5 in Wahrheit NICHT moeglich."""
+    _schreibe(db34, "INSERT INTO arbeitsstand (chat_id, phase, phase_angeboten, rahmen, geschichte, "
+                    "szenen_anzahl, figuren_fixiert_am) VALUES (7, 4, NULL, 'r', 'g', '3', 'x')")
+    _schreibe(db34, "INSERT INTO figur (chat_id, name, entfernt_am) VALUES (7, 'Samir', 'x')")
+    assert inv.pruefe_p5_angebot(_p34(db34), "p4-uebergang") == []
+
+
+# --- I2 (Review 05.10.2026, Fix round 1): ``warte_auf`` darf nicht beim
+# ersten befundfreien Zwischenstand zurueckgeben -- eine zweite, verspaetete
+# Statuszeile/Karte kam dann nie zur Pruefung. Fake-Leser-Folgen, keine Zeit.
+
+
+def test_warte_auf_meldet_verspaetetes_duplikat_nach_der_gnadenfrist():
+    folge = iter([
+        {"status": ()},                 # noch keine Statuszeile -- ende() falsch
+        {"status": ("x",)},             # erstes Signal -- ende() wird wahr, Schleife haelt an
+        {"status": ("x", "x")},         # erst WAEHREND der Gnadenfrist kommt das Duplikat
+    ])
+    letzter = {"stand": None}
+
+    def lese():
+        letzter["stand"] = next(folge, letzter["stand"])
+        return letzter["stand"]
+
+    def pruefe(stand):
+        return ["doppelt"] if len(stand["status"]) >= 2 else []
+
+    schlafzeiten = []
+    befunde, stand = inv.warte_auf(
+        lese, pruefe, frist_s=30.0, ende=lambda s: bool(s["status"]),
+        grace_s=5.0, takt_s=1.0, schlafe=schlafzeiten.append, uhr=lambda: 0.0)
+    assert befunde == ["doppelt"]
+    assert stand == {"status": ("x", "x")}
+    assert 5.0 in schlafzeiten    # die Gnadenfrist wurde tatsaechlich abgewartet
+
+
+def test_warte_auf_wartet_die_gnadenfrist_auch_nach_der_frist_ab():
+    """Ohne ``ende`` (oder wenn es nie wahr wird) blieb frueher schon die
+    Frist allein massgeblich -- jetzt kommt in JEDEM Fall noch die
+    Gnadenfrist VOR der finalen Pruefung dazu."""
+    zeit = {"t": 0.0}
+    rufe = []
+
+    def lese():
+        rufe.append("lese")
+        return len(rufe)
+
+    def schlafe(sekunden):
+        rufe.append(("schlafe", sekunden))
+        zeit["t"] += sekunden
+
+    befunde, stand = inv.warte_auf(
+        lese, lambda s: [], frist_s=2.0, ende=lambda s: False, grace_s=7.0,
+        takt_s=1.0, schlafe=schlafe, uhr=lambda: zeit["t"])
+    assert ("schlafe", 7.0) in rufe
+    assert befunde == []

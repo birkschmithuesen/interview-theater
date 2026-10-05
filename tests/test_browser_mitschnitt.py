@@ -66,6 +66,32 @@ def test_datenstand_zaehlt_kalibrierung_und_diskussion(tmp_path):
     assert "kalibrierung_modus" in stand
 
 
+def test_datenstand_interview_koepfe_ignoriert_weich_entfernte(tmp_path):
+    """M2 (Review 05.10.2026, Fix round 1): ein leerer Interview-Kopf ohne
+    ein einziges Teil wird weich entfernt (``aufnahme._verwirf_leeres_
+    interview`` -> ``repo.entferne_aufnahme``, ``entfernt_am`` gesetzt).
+    Ohne den Filter zaehlte ``interview_koepfe`` ihn trotzdem -- das
+    Fertig-Praedikat von ``p3-interview-kurz``/``-gemischt``
+    (``interview_koepfe >= 1/2``) haette dann schon "fertig" gemeldet, bevor
+    ueberhaupt ein echtes Interview stand."""
+    from interview_theater import aufnahme, db, repo
+    from simulation import browser_mitschnitt as m
+
+    chat = 7_000_000_000_888
+    pfad = str(tmp_path / "e.db")
+    conn = db.verbinde(pfad); db.initialisiere(conn)
+    repo.sichere_gruppe(conn, chat, "g", "G")
+    kopf_id = aufnahme.stelle_interview_sicher(conn, chat)
+    conn.commit()
+    stand_vor = m.datenstand(pfad, chat)
+    assert stand_vor["interview_koepfe"] == 1
+
+    repo.entferne_aufnahme(conn, chat, kopf_id)
+    conn.commit(); conn.close()
+    stand_nach = m.datenstand(pfad, chat)
+    assert stand_nach["interview_koepfe"] == 0
+
+
 def test_schritt_schreibt_die_station(tmp_path):
     import json
     from simulation import browser_mitschnitt as m

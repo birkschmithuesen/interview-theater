@@ -406,6 +406,11 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
     beantwortet = 0
     hinweis = None
     gewartet = mitte_genommen = fallback = False
+    #: Hoechste ``aufruf.id`` im Moment des erkannten Phasenwechsels (I4,
+    #: Fix round 1) -- None, solange keiner erkannt wurde. Grundlage von
+    #: ``_teile_bereich_am_phasenwechsel``: ohne sie zaehlte eine Antwort,
+    #: die faktisch schon in der naechsten Phase lief, noch als diese.
+    phasenwechsel_aufruf_id: int | None = None
     # Station mit gesprochenem Skript (``station.diskussion``): sie endet,
     # sobald die Diskussion vorbei ist -- Harness-Klick auf "Discussion
     # done" oder eine laufende Diskussion, die nach einer Aktion nicht mehr
@@ -507,6 +512,11 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
 
         aktiv = _aktive_phase_nummer(page)
         if station.endet_bei_phasenwechsel and aktiv is not None and aktiv > station.phase:
+            # I4 (Fix round 1): GENAU der Moment, in dem der Wechsel in die
+            # naechste Phase sichtbar wird -- Grundlage fuer
+            # ``_teile_bereich_am_phasenwechsel``, damit eine Antwort NACH
+            # dem Wechsel nicht noch als diese (die alte) Phase zaehlt.
+            phasenwechsel_aufruf_id = _max_aufruf_id(db_pfad)
             break
         if station.diskussion and diskussion_vorbei:
             break
@@ -529,7 +539,8 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
                         geraet="handy")
     return {"schritte": schritte, "nachfragen_beantwortet": beantwortet,
             "offene_fragen": offene, "fertig": fertig, "fallback_benutzt": fallback,
-            "zaehler_summe": zaehler_summe, "screenshots_nach": screenshots}
+            "zaehler_summe": zaehler_summe, "screenshots_nach": screenshots,
+            "phasenwechsel_aufruf_id": phasenwechsel_aufruf_id}
 
 
 #: Wie lange nach dem Senden von ``station.sage`` hoechstens auf eine neue
@@ -591,6 +602,29 @@ def _max_aufruf_id(db_pfad: str) -> int:
             return conn.execute("SELECT COALESCE(MAX(id), 0) FROM aufruf").fetchone()[0]
     except sqlite3.OperationalError:
         return 0
+
+
+def _teile_bereich_am_phasenwechsel(aufruf_bereiche: dict, stationen_phase: dict,
+                                    schluessel: str, phase: int, von: int, bis: int,
+                                    wechsel_aufruf_id: int | None) -> None:
+    """Schreibt ``(von, bis)`` in ``aufruf_bereiche[schluessel]`` -- AUSSER
+    der Aufruf-Bereich dieser Station reicht ueber den tatsaechlichen
+    Phasenwechsel hinweg (``wechsel_aufruf_id`` zwischen ``von`` und ``bis``,
+    siehe ``_fuehre_station_aus``, ``station.endet_bei_phasenwechsel``):
+    dann wird die Station in zwei Buckets gesplittet -- der Teil VOR dem
+    Wechsel bleibt bei ``phase``, der Teil DANACH wandert unter einem
+    eigenen Schluessel (``<schluessel>:nach_phasenwechsel``) in die naechste
+    Phase. Ohne diesen Split zaehlte eine Antwort, die faktisch schon in
+    Phase 4 lief, noch als Phase 3 -- genau die Station, die den Wechsel
+    selbst ausloest (``p3-uebergang``), ist dafuer anfaellig (I4, Review
+    05.10.2026, Fix round 1)."""
+    if wechsel_aufruf_id is not None and von < wechsel_aufruf_id < bis:
+        aufruf_bereiche[schluessel] = (von, wechsel_aufruf_id)
+        nach_schluessel = f"{schluessel}:nach_phasenwechsel"
+        aufruf_bereiche[nach_schluessel] = (wechsel_aufruf_id, bis)
+        stationen_phase[nach_schluessel] = phase + 1
+    else:
+        aufruf_bereiche[schluessel] = (von, bis)
 
 
 def _oeffne_gruppe(page, basis_url: str, token: str) -> None:
@@ -711,9 +745,20 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                                 k.vorher_p34, k.vor_ende_p34 or k.vorher_p34, stand, st.schluessel)
                         return browser_invarianten.pruefe_nach_interview(k.vorher_p34, stand, st.schluessel)
 
-                    def nach_klick(k=kontext, cid=gruppe.chat_id, frist_s=frist_s, pruefe=_pruefe_p34):
+                    def _ende_p34(stand, k=kontext, brainstorm=ist_brainstorm):
+                        # I2 (Fix round 1): das Positiv-Signal, hinter dem
+                        # ``warte_auf`` erst noch die Gnadenfrist abwartet,
+                        # bevor es final prueft -- sonst verdeckt eine fruehe
+                        # "saubere" Zwischenmessung ein spaeteres Duplikat.
+                        if brainstorm:
+                            return browser_invarianten.hat_neue_karte(
+                                k.vor_ende_p34 or k.vorher_p34, stand)
+                        return browser_invarianten.hat_neue_statuszeile(k.vorher_p34, stand)
+
+                    def nach_klick(k=kontext, cid=gruppe.chat_id, frist_s=frist_s, pruefe=_pruefe_p34,
+                                   ende=_ende_p34):
                         k.ergebnis_p34 = k.warte_p34(
-                            lambda: _lies_p34(db_pfad, cid), pruefe, frist_s=frist_s)
+                            lambda: _lies_p34(db_pfad, cid), pruefe, frist_s=frist_s, ende=ende)
 
                 def vor_ende(k=kontext, cid=gruppe.chat_id):
                     k.vorher = _lies_p1(db_pfad, cid)
@@ -724,11 +769,21 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                     token=gruppe.token, db_pfad=db_pfad, chat_id=gruppe.chat_id,
                     persona_name=persona_name, beobachter=beobachter,
                     leitbilder=leitbilder, vor_ende=vor_ende, nach_klick=nach_klick)
-                aufruf_bereiche[station.schluessel] = (von_aufruf, _max_aufruf_id(db_pfad))
             except Exception as fehler:
                 log.exception("Station %s ist gescheitert", station.schluessel)
                 fehlgeschlagen_bei = fehlgeschlagen_bei or station.schluessel
                 befunde.append(befund_ausnahme(station, fehler))
+            finally:
+                # M1 (Review 05.10.2026, Fix round 1): vorher stand diese
+                # Zeile NUR im try-Block, direkt nach einem erfolgreichen
+                # ``_fuehre_station_aus`` -- ein Aufruf, der WAEHREND einer
+                # gescheiterten Station entstand, blieb dann fuer immer
+                # ausserhalb jedes Bereichs (der ``modellwahl``-Haken einer
+                # spaeteren Phase sah ihn nie). ``finally`` deckt beide Faelle.
+                _teile_bereich_am_phasenwechsel(
+                    aufruf_bereiche, stationen_phase, station.schluessel, station.phase,
+                    von_aufruf, _max_aufruf_id(db_pfad),
+                    lauf.get("phasenwechsel_aufruf_id") if lauf else None)
             # Die Haken laufen auch nach einer Ausnahme: ein Harness-Fehler
             # darf ein App-Symptom nicht verdecken (Symptomregel).
             befunde += fuehre_pruefungen(station, kontext)

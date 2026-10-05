@@ -277,7 +277,12 @@ STATIONEN_P34: tuple[Station, ...] = (
             "it yet.",
             fertig=lambda st: (_feld(st, "phase_angeboten") or 0) >= 5
             or (_feld(st, "phase") or 4) >= 5,
-            budget=3, leitbild_ende="uebergang", pruefung=("p5_angebot",)),
+            # I4 (Review 05.10.2026, Fix round 1): ``modellwahl`` lief
+            # bisher NUR an ``p3-uebergang`` -- zu diesem Zeitpunkt ist noch
+            # keine einzige Phase-4-Station gelaufen, der Phase-4-Bereich ist
+            # also immer leer und ``P4_GESPRAECH_NICHT_OPUS`` kann nie
+            # feuern. Hier, am Ende von Phase 4, hat der Bereich Inhalt.
+            budget=3, leitbild_ende="uebergang", pruefung=("modellwahl", "p5_angebot")),
 )
 
 STATIONEN: dict[str, tuple[Station, ...]] = {

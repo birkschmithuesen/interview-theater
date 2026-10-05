@@ -113,6 +113,38 @@ def test_die_vad_attribute_stehen_am_fuss(seite):
     assert 'data-vad-weich-pause-ms="700"' in seite
 
 
+# Zweiter Nachtrag (Birk, 05.10.2026 ~23:55): Padua zeigt gar keine
+# Kalibrierungs-UI mehr -- der "Erneut messen"-Knopf und das Panel bleiben
+# nur noch hinter demselben Kill-Switch stehen, den die JS-Seite schon
+# vorher kannte (kein neuer Schalter).
+
+
+def _koerper_mit_killswitch(an: bool) -> str:
+    daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
+             "interviewmodus": False, "titel": None, "brainstorm_knopf": False}
+    vad = dict(web_chat._vad_werte())
+    vad["kalibrierung"] = an
+    return web_chat.chat_koerper(daten, "1.x", "tok", 45000, vad=vad)
+
+
+def test_kein_kalibrierungs_panel_und_kein_knopf_wenn_der_kill_switch_aus_ist():
+    seite = _koerper_mit_killswitch(False)
+    assert 'id="kalibrierung-neu"' not in seite
+    assert 'id="kalibrierung"' not in seite
+    assert 'id="kalibrierung-erinnerung"' not in seite
+    assert 'id="kalibrierung-skip"' not in seite
+    assert 'data-vad-kalibrierung="0"' in seite
+
+
+def test_kalibrierungs_panel_und_knopf_stehen_mit_dem_kill_switch_an():
+    seite = _koerper_mit_killswitch(True)
+    assert 'id="kalibrierung-neu"' in seite
+    assert 'id="kalibrierung"' in seite
+    assert 'id="kalibrierung-erinnerung"' in seite
+    assert 'id="kalibrierung-skip"' in seite
+    assert 'data-vad-kalibrierung="1"' in seite
+
+
 def test_vad_ersetzt_den_festen_takt_mit_rueckfall():
     js = web_chat._CHAT_JS
     assert "sitzung.segmentTakt = setInterval" in js   # Rueckfall bleibt

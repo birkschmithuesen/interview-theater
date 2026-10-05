@@ -4120,6 +4120,48 @@ def _kal_gruppe_attribut(daten: dict, feld: str) -> str:
     return str(gruppenwerte[feld])
 
 
+def _kalibrierung_panel_html(vad: dict) -> str:
+    """Der manuelle Kalibrierungs-Knopf ("Erneut messen") und das Panel
+    dahinter -- zweiter Nachtrag (Birk, 05.10.2026 ~23:55): Padua zeigt gar
+    keine Kalibrierungs-UI mehr (die Hintergrund-adaptive Schwelle laeuft
+    ohne Nutzeraktion), dieser Codepfad bleibt nur noch fuer Dortmund hinter
+    demselben Kill-Switch stehen, der die JS-Seite schon vorher kannte
+    (``kalibrierungAktiv()``/``vad.kalibrierung``) -- kein neuer Schalter.
+    Aufgerufen aus ``chat_koerper`` nur, wenn ``vad["kalibrierung"]`` wahr
+    ist; sonst liefert dieser Aufruf gar nichts."""
+    return (
+        f'  <button type="button" id="kalibrierung-neu" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
+        f'  <div class="kalibrierung-erinnerung" id="kalibrierung-erinnerung" '
+        f'role="status" hidden></div>\n'
+        f'  <div class="kalibrierung" id="kalibrierung" hidden>\n'
+        f'    <p id="kalibrierung-text"></p>\n'
+        f'    <div class="kalibrierung-balken" id="kalibrierung-balken" hidden '
+        f'aria-label="{html.escape(T._TEXT_KALIBRIERUNG_BALKEN_LABEL, quote=True)}">\n'
+        f'      <span></span><i class="kalibrierung-marke"></i>\n'
+        f'    </div>\n'
+        f'    <div class="kalibrierung-knoepfe">\n'
+        f'      <button type="button" id="kalibrierung-start" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_START_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-sprechen" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_SPRECHEN_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-nochmal-hoeren" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-versuch" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_NOCHMAL_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-weiter-trotzdem" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_WEITER_TROTZDEM)}</button>\n'
+        f'      <button type="button" id="kalibrierung-ja" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_JA_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-nein" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_NEIN_KNOPF)}</button>\n'
+        f'    </div>\n'
+        f'    <button type="button" id="kalibrierung-skip">'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_SKIP_KNOPF)}</button>\n'
+        f'  </div>\n'
+    )
+
+
 def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
                   basis: str = "", mit_nonce: bool = True,
                   mit_gruppenlink: bool = True, vad: dict | None = None) -> str:
@@ -4214,35 +4256,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'  <div class="uhr" id="uhr" hidden></div>\n'
         f'  <div class="pegel" id="pegel" hidden>'
         f'<span></span><i class="pegel-schwelle"></i></div>\n'
-        f'  <button type="button" id="kalibrierung-neu" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
-        f'  <div class="kalibrierung-erinnerung" id="kalibrierung-erinnerung" '
-        f'role="status" hidden></div>\n'
-        f'  <div class="kalibrierung" id="kalibrierung" hidden>\n'
-        f'    <p id="kalibrierung-text"></p>\n'
-        f'    <div class="kalibrierung-balken" id="kalibrierung-balken" hidden '
-        f'aria-label="{html.escape(T._TEXT_KALIBRIERUNG_BALKEN_LABEL, quote=True)}">\n'
-        f'      <span></span><i class="kalibrierung-marke"></i>\n'
-        f'    </div>\n'
-        f'    <div class="kalibrierung-knoepfe">\n'
-        f'      <button type="button" id="kalibrierung-start" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_START_KNOPF)}</button>\n'
-        f'      <button type="button" id="kalibrierung-sprechen" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_SPRECHEN_KNOPF)}</button>\n'
-        f'      <button type="button" id="kalibrierung-nochmal-hoeren" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
-        f'      <button type="button" id="kalibrierung-versuch" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_NOCHMAL_KNOPF)}</button>\n'
-        f'      <button type="button" id="kalibrierung-weiter-trotzdem" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_WEITER_TROTZDEM)}</button>\n'
-        f'      <button type="button" id="kalibrierung-ja" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_JA_KNOPF)}</button>\n'
-        f'      <button type="button" id="kalibrierung-nein" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_NEIN_KNOPF)}</button>\n'
-        f'    </div>\n'
-        f'    <button type="button" id="kalibrierung-skip">'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_SKIP_KNOPF)}</button>\n'
-        f'  </div>\n'
+        f"{_kalibrierung_panel_html(vad) if vad.get('kalibrierung', True) else ''}"
         f'  <div class="warteschlange" id="warteschlange"></div>\n'
         f'  <div class="fehler" id="fehler" role="alert" hidden></div>\n'
         f'  <p class="mitlauf-hinweis" id="mitlauf-hinweis" role="status" hidden></p>\n'

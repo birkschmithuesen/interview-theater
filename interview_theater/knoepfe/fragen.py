@@ -38,11 +38,12 @@ from interview_theater import begriffe as begriffe_modul
 
 from interview_theater.knoepfe.texte import (
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
-    ART_FRAGEN_ANDERE, ART_FRAGEN_EINZELN, ART_FRAGEN_WEICH_LASSEN,
+    ART_FRAGEN_ANDERE, ART_FRAGEN_EINZELN, ART_FRAGEN_JA_VORSCHLAGEN,
+    ART_FRAGEN_NOCH_EIGENE, ART_FRAGEN_VORSCHLAGEN, ART_FRAGEN_WEICH_LASSEN,
     ART_FRAGEN_WEICH_UEBERNEHMEN, ART_LEITFADEN, T,
 )
 from interview_theater.knoepfe.basis import (
-    _daten, _id_aus_daten, _nimm_alte_leiste_ab, _sende_knoepfe,
+    _daten, _id_aus_daten, _merke_botnachricht, _nimm_alte_leiste_ab, _sende_knoepfe,
     _starte_auftrag, sende_notiert_nur_undo,
 )
 
@@ -428,7 +429,10 @@ def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
         # nicht schon mit der ersten eigenen Frage. Sonst offenbarte ein
         # spaet fertiger KI-Lauf mitten ins Sammeln hinein (05.10.2026: seit
         # es keine Mindestzahl mehr gibt, ist "fertig" allein ihre Ansage).
-        if not eigene_roh or not ki_roh or not eigene_fertig:
+        # Ohne eine einzige eigene Frage geht es nur, wenn die Gruppe das
+        # ausdruecklich will ("Yes, suggest some", ``ja_vorschlagen``) -- dann
+        # stehen allein die KI-Fragen da.
+        if not ki_roh or not eigene_fertig:
             return None
 
         from interview_theater import vorschlag
@@ -486,8 +490,20 @@ def uebernimm_eigene(conn, tg, chat_id: int, wert: str, text: str | None = None)
 
     if not _fruehzeitig_fertig(text):
         antwort = (text or "").strip()
-        return tg.sende(chat_id, antwort or T._TEXT_FRAGEN_EIGENE_IM_COTHINKER)
+        return sende_mit_vorschlagen(
+            conn, tg, chat_id, antwort or T._TEXT_FRAGEN_EIGENE_IM_COTHINKER,
+        )
+    return _eigene_fertig(conn, tg, chat_id)
 
+
+def _eigene_fertig(conn, tg, chat_id: int) -> int:
+    """Die Gruppe ist mit ihren eigenen Fragen fertig: einmal den Zeitpunkt
+    merken, dann die Gegenueberstellung -- oder, solange die KI-Fragen noch
+    im Hintergrund entstehen, eine Zeile; ``fragen_ki.starte`` offenbart
+    nach seinem Lauf von selbst. Gemeinsamer Weg von "Own questions done."
+    (``uebernimm_eigene``) und dem Knopf "Yes, suggest some"
+    (``ja_vorschlagen``)."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_VORSCHLAGEN)
     stand = repo.hole_arbeitsstand(conn, chat_id)
     try:
         schon = bool(stand["fragen_eigene_erstellt_am"]) if stand else False
@@ -500,6 +516,93 @@ def uebernimm_eigene(conn, tg, chat_id: int, wert: str, text: str | None = None)
     if ergebnis is not None:
         return ergebnis
     return tg.sende(chat_id, T._TEXT_FRAGEN_EIGENE_WARTET_AUF_KI)
+
+
+# --- "Suggest questions" (Birk, 05.10.2026) -----------------------------------
+#
+# Der Knopf, mit dem die Gruppe die KI-Fragen anfordert. Er erzeugt nichts
+# sofort, sondern fragt zuerst, ob die Gruppe selbst noch Fragen hat
+# (Birk: "Proaktive Aufforderung zum Selberdenken"). Freitext ist
+# gleichwertig: "we're done" im Chat laeuft ueber den Satz
+# ``_SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG`` (``uebernimm_eigene``). Kein
+# Modellaufruf in diesen Wegen (Zusage 2) -- die KI-Fragen entstehen beim
+# Eintritt in Phase 2 im Hintergrund (``fragen_ki.starte``).
+
+
+def vorschlagen_leiste(conn, chat_id: int) -> list[tuple[str, str]]:
+    """Der eine Knopf "Suggest questions"."""
+    return [(
+        T._TEXT_FRAGEN_VORSCHLAGEN_KNOPF,
+        _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_VORSCHLAGEN, None)),
+    )]
+
+
+def sende_mit_vorschlagen(conn, tg, chat_id: int, text: str,
+                          undo_behalten: bool = False) -> int:
+    """``text`` mit dem Knopf "Suggest questions" darunter -- die vorige
+    Leiste dieser Art kommt vorher ab, damit immer nur einer bedienbar ist.
+
+    ``undo_behalten`` (der Eintritt in Phase 2): direkt davor steht meist die
+    📌-Zeile der gerade automatisch gespeicherten Begriffe mit ihrem
+    Undo-Knopf. ``_sende_knoepfe`` liesse ihn verfallen
+    (``_kollabiere_letzten_einsamen_undo``) -- hier bleibt er stehen: er ist
+    der einzige Weg, die Begriffe zurueckzunehmen, und "Suggest questions"
+    ist kein zweiter Speicherweg, der mit ihm konkurriert."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_VORSCHLAGEN)
+    leiste = vorschlagen_leiste(conn, chat_id)
+    if undo_behalten:
+        message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+        _merke_botnachricht(conn, chat_id, message_id, text)
+    else:
+        message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id,
+    )
+    return message_id
+
+
+def _hat_eigene_fragen(conn, chat_id: int) -> bool:
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_eigene_vorschlag"] or "") if stand else ""
+        bestaetigt = (stand["fragen"] or "") if stand else ""
+    except (IndexError, KeyError):
+        return False
+    return bool(roh.strip() or bestaetigt.strip())
+
+
+def frage_nach_eigenen(conn, tg, chat_id: int) -> int:
+    """Druck auf "Suggest questions": die Rueckfrage zum Selberdenken mit
+    "We have more" / "Yes, suggest some". Ohne eine einzige eigene Frage die
+    deutlichere Fassung -- eigene Fragen zuerst."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_VORSCHLAGEN)
+    text = (T._TEXT_FRAGEN_SELBST_RUECKFRAGE if _hat_eigene_fragen(conn, chat_id)
+            else T._TEXT_FRAGEN_SELBST_RUECKFRAGE_LEER)
+    leiste = [
+        (T._TEXT_FRAGEN_NOCH_EIGENE_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_NOCH_EIGENE, None))),
+        (T._TEXT_FRAGEN_JA_VORSCHLAGEN_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_JA_VORSCHLAGEN, None))),
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id,
+    )
+    return message_id
+
+
+def noch_eigene(conn, tg, chat_id: int) -> int:
+    """"We have more": einladen, nichts erzeugen. Die naechste Nachricht der
+    Gruppe laeuft durch den normalen Gespraechszug (``VORSCHLAG EIGENE
+    FRAGEN:``), der den Knopf wieder anbietet."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_JA_VORSCHLAGEN)
+    return tg.sende(chat_id, T._TEXT_FRAGEN_NOCH_EIGENE)
+
+
+def ja_vorschlagen(conn, tg, chat_id: int) -> int:
+    """"Yes, suggest some": derselbe Weg wie "Own questions done."."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_NOCH_EIGENE)
+    return _eigene_fertig(conn, tg, chat_id)
 
 
 # --- Frage fuer Frage --------------------------------------------------------

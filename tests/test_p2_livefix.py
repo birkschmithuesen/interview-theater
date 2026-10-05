@@ -392,3 +392,122 @@ def test_m_padua_prompt_nennt_keine_soll_zahl_je_begriff(padua):
     assert "before every term has three questions" not in text
     assert "reaches three per term" not in text
     assert "Own questions done." in text
+
+
+# --- N: "Suggest questions" mit Rueckfrage zum Selberdenken ------------------
+
+
+def _knopf_daten(tg, beschriftung):
+    for _, _, leiste, _ in reversed(tg.knoepfe):
+        for text, daten in leiste:
+            if text == beschriftung:
+                return daten
+    raise AssertionError(f"kein Knopf {beschriftung!r}: {tg.knoepfe}")
+
+
+def _phase2_mit_ki(conn, eigene=ERSTE):
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Living on mars, robots")
+    phasen.setze(conn, 1, 2, "test")
+    if eigene:
+        repo.setze_arbeitsstand(conn, 1, "fragen_eigene_vorschlag", eigene)
+    repo.setze_arbeitsstand(
+        conn, 1, "fragen_ki_vorschlag",
+        "Living on mars: What would you miss on Mars?\nrobots: Who repairs a robot?",
+    )
+
+
+def test_n_eintritt_in_phase_2_traegt_den_knopf_suggest_questions(conn, tg, einst, padua):
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Living on mars, robots")
+    from interview_theater.knoepfe import stationen
+
+    stationen.biete_proaktiv(conn, tg, 1, 2, vorspann="Phase 2")
+    assert [b for b, _ in tg.knoepfe[-1][2]] == ["Suggest questions"]
+
+
+def test_n_druck_fragt_erst_nach_eigenen_und_erzeugt_nichts(conn, tg, einst, padua):
+    _phase2_mit_ki(conn)
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "Nice.\n\nVORSCHLAG EIGENE FRAGEN:\n" + ERSTE,
+    )
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Suggest questions")))
+
+    letzte = tg.knoepfe[-1]
+    assert letzte[1].startswith("Before I suggest any")
+    assert [b for b, _ in letzte[2]] == ["We have more", "Yes, suggest some"]
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert not (stand["fragen_auswahl"] or "").strip()
+    assert not stand["fragen_eigene_erstellt_am"]
+
+
+def test_n_ohne_eigene_frage_kommt_die_deutlichere_rueckfrage(conn, tg, einst, padua):
+    _phase2_mit_ki(conn, eigene=None)
+    from interview_theater.knoepfe import stationen
+
+    stationen.biete_proaktiv(conn, tg, 1, 2)
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Suggest questions")))
+
+    assert tg.knoepfe[-1][1].startswith("You haven't added any of your own yet")
+
+
+def test_n_we_have_more_laedt_nur_ein(conn, tg, einst, padua):
+    _phase2_mit_ki(conn)
+    from interview_theater.knoepfe import stationen
+
+    stationen.biete_proaktiv(conn, tg, 1, 2)
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Suggest questions"), query_id="q1"))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "We have more"), query_id="q2"))
+
+    assert tg.texte[-1].startswith("Great – just write or say them")
+    assert not (repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"] or "").strip()
+
+
+def test_n_yes_suggest_some_startet_die_gegenueberstellung(conn, tg, einst, padua):
+    _phase2_mit_ki(conn)
+    from interview_theater.knoepfe import stationen
+
+    stationen.biete_proaktiv(conn, tg, 1, 2)
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Suggest questions"), query_id="q1"))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Yes, suggest some"), query_id="q2"))
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["fragen_eigene_erstellt_am"]
+    auswahl = stand["fragen_auswahl"].splitlines()
+    assert ERSTE in auswahl and "robots: Who repairs a robot?" in auswahl
+    assert "Your questions and the AI's are now side by side:" in tg.texte
+
+
+def test_n_yes_suggest_some_wartet_wenn_die_ki_fragen_noch_fehlen(conn, tg, einst, padua):
+    _phase2_mit_ki(conn)
+    repo.setze_arbeitsstand(conn, 1, "fragen_ki_vorschlag", None)
+    from interview_theater.knoepfe import stationen
+
+    stationen.biete_proaktiv(conn, tg, 1, 2)
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Suggest questions"), query_id="q1"))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Yes, suggest some"), query_id="q2"))
+
+    assert tg.texte[-1].startswith("Your questions are saved")
+    # Die Gruppe hat entschieden -- kommt der KI-Lauf spaeter, offenbart er.
+    assert repo.hole_arbeitsstand(conn, 1)["fragen_eigene_erstellt_am"]
+
+
+def test_n_kein_deutsches_abkuerzung_label_im_padua_chat(padua):
+    from interview_theater import web_chat
+
+    js = web_chat._js()
+    assert "Abkürzung" not in js
+    assert '"abkuerzung": "Shortcut:"' in js
+
+
+def test_n_undo_der_begriffe_ueberlebt_den_sprung_in_phase_2(conn, tg, einst, padua):
+    """Der Knopf am Phase-2-Eintritt darf die Undo-Quittung der gerade
+    automatisch gespeicherten Begriffe nicht verfallen lassen."""
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG BEGRIFFE:\nLiving on mars, robots", e=einst,
+    )
+
+    assert phasen.aktuelle(conn, 1) == 2
+    beschriftungen = [[b for b, _ in leiste] for _, _, leiste, _ in tg.knoepfe]
+    assert ["Undo"] in beschriftungen
+    assert ["Suggest questions"] in beschriftungen
+    assert tg.entfernt == [] and tg.aktualisiert == []

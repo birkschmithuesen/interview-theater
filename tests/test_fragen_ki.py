@@ -67,6 +67,11 @@ class _TG:
         self.gesendet.append((chat_id, text))
         return 1
 
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe, **kw):
+        # Seit 05.10.2026 traegt der Eintritt in Padua Phase 2 den Knopf
+        # "Suggest questions".
+        return self.sende(chat_id, text, **kw)
+
 
 def _setze_begriffe(conn, begriffe: str = "Heimat, Streit", chat_id: int = CHAT) -> None:
     repo.setze_arbeitsstand(conn, chat_id, "begriffe", begriffe)

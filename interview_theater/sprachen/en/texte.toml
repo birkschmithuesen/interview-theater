@@ -222,6 +222,12 @@ _TEXT_FRAGE_VERWORFEN = "✗ Discarded"
 _TEXT_FRAGE_ENTSCHIEDEN = "Noted"
 # Own questions vs. AI (Padua Phase 1+2 card, Task 13, 2026-10-03).
 _TEXT_FRAGEN_EIGENE_IM_COTHINKER = "Noted. Your questions per term are in the CoThinker."
+_TEXT_FRAGEN_VORSCHLAGEN_KNOPF = "Suggest questions"
+_TEXT_FRAGEN_SELBST_RUECKFRAGE = "Before I suggest any: is every question you came up with yourselves already in? Anything still on your minds – even half a thought?"
+_TEXT_FRAGEN_SELBST_RUECKFRAGE_LEER = "You haven't added any of your own yet – try one first? Even a rough one is great."
+_TEXT_FRAGEN_NOCH_EIGENE_KNOPF = "We have more"
+_TEXT_FRAGEN_JA_VORSCHLAGEN_KNOPF = "Yes, suggest some"
+_TEXT_FRAGEN_NOCH_EIGENE = "Great – just write or say them, I'll add them."
 _TEXT_FRAGEN_EIGENE_WARTET_AUF_KI = """\
 Your questions are saved - I'm still waiting for the AI questions in the \
 background."""

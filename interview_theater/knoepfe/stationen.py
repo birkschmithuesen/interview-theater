@@ -231,7 +231,22 @@ def biete_proaktiv(conn, tg, chat_id: int, phase: int, vorspann: str | None = No
 
     Deterministischer Systemtext, kein Modellaufruf. ``vorspann`` ist die
     Eintrittsnachricht der Phase (``phasentexte.eintritt``): Kopfzeile,
-    Einleitung, Checkliste -- in DERSELBEN Nachricht wie die Frage."""
+    Einleitung, Checkliste -- in DERSELBEN Nachricht wie die Frage.
+
+    Eine Ausnahme (Padua Phase 2, Birk 05.10.2026): mit dem A/B-Vergleich
+    der Fragen (``workshop.fragen_ab_aktiv``) steht darunter der eine Knopf
+    "Suggest questions" -- er erzeugt nichts, er fragt zuerst nach eigenen
+    Fragen (``fragen.frage_nach_eigenen``)."""
+    from interview_theater import workshop
+
+    if phase == PHASE_FRAGEN and workshop.fragen_ab_aktiv():
+        from interview_theater.knoepfe.fragen import sende_mit_vorschlagen
+
+        sende_mit_vorschlagen(
+            conn, tg, chat_id, _mit_vorspann(vorspann, T._TEXT_PROAKTIV),
+            undo_behalten=True,
+        )
+        return
     message_id = tg.sende(chat_id, _mit_vorspann(vorspann, T._TEXT_PROAKTIV))
     repo.merke_nachricht(
         conn, chat_id, message_id, None, 1, "text",

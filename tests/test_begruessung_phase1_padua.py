@@ -31,7 +31,8 @@ ERWARTET = (
     "your terms appear there live.\n\n"
     "First I check the room briefly: a few seconds of quiet, then one of you "
     "says a sentence.\n"
-    "After that, discuss freely which terms matter for your play - I only "
+    "Then discuss which terms matter for your play. Give every term one "
+    "sentence on why you chose it - that also helps me hear it right. I only "
     "listen until you tap \"Discussion done\".\n\n"
     + SCHLUSS
 )
@@ -103,6 +104,7 @@ def test_feste_begruessung_ohne_knoepfe_und_ohne_gruppenseite(conn, einst):
     assert "buttons below" not in text.lower()
     assert text.endswith(SCHLUSS)
     assert len([z for z in text.splitlines() if z.strip()]) <= 6
+    assert "why you chose it" in text          # F: Begruendung je Begriff
     # mitgeschrieben, damit der naechste Zug sie im Fenster sieht
     assert repo.hat_bot_nachricht(conn, CHAT)
 
@@ -117,6 +119,8 @@ def test_prompt_weg_verlangt_dieselben_inhalte_ohne_link_und_knoepfe(conn, einst
         assert "same group link" in anweisung
         assert "quiet" in anweisung and "sentence" in anweisung
         assert SCHLUSS in anweisung
+        # F (Birk 05.10.2026): jeden Begriff mit einem Satz begruenden.
+        assert "one sentence on why they chose it" in anweisung
         assert "Start interview" not in anweisung
 
 
@@ -169,3 +173,12 @@ def _web_db(tmp_path):
     db.initialisiere(c)
     repo.sichere_gruppe(c, CHAT, "padua1", "Testgruppe")
     return c
+
+
+def test_raumcheck_vor_der_diskussion_nennt_die_begruendung():
+    from interview_theater import web_chat
+
+    assert "why you chose it" in web_chat.T._TEXT_KALIBRIERUNG_ERFOLG_DISKUSSION
+    assert "why" not in web_chat.T._TEXT_KALIBRIERUNG_ERFOLG
+    assert "sitzung.art === 'diskussion'" in web_chat._CHAT_JS
+    assert "TEXT.kal_erfolg_diskussion" in web_chat._CHAT_JS

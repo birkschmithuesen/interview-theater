@@ -557,6 +557,14 @@ _TEXT_KALIBRIERUNG_FLOOR_HINWEIS = (
     "Sprechenden."
 )
 _TEXT_KALIBRIERUNG_ERFOLG = "Raum gemessen ✓ — ihr seid bereit."
+#: Dasselbe nach dem Raumcheck VOR einer Begriffs-Diskussion (Phase 1, Birk
+#: 05.10.2026): dort folgt der Hinweis, jeden Begriff mit einem Satz zu
+#: begruenden -- das gibt dem Mithoeren Kontext gegen Verhoerer
+#: ("Eisenversorgung"). Interview und Brainstorm behalten den kurzen Satz.
+_TEXT_KALIBRIERUNG_ERFOLG_DISKUSSION = (
+    "Raum gemessen ✓ — jetzt besprecht eure Begriffe. Sagt zu jedem Begriff "
+    "einen Satz, warum ihr ihn waehlt; so verstehe ich ihn richtig."
+)
 _TEXT_KALIBRIERUNG_SKIP_KNOPF = "Überspringen"
 _TEXT_KALIBRIERUNG_BALKEN_LABEL = "Deine Stimme im Vergleich zum Raum"
 _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG = (
@@ -615,6 +623,7 @@ _JS_TEXTE = {
     "kal_nein_knopf": _TEXT_KALIBRIERUNG_NEIN_KNOPF,
     "kal_floor_hinweis": _TEXT_KALIBRIERUNG_FLOOR_HINWEIS,
     "kal_erfolg": _TEXT_KALIBRIERUNG_ERFOLG,
+    "kal_erfolg_diskussion": _TEXT_KALIBRIERUNG_ERFOLG_DISKUSSION,
     "kal_skip_knopf": _TEXT_KALIBRIERUNG_SKIP_KNOPF,
     "kal_balken_label": _TEXT_KALIBRIERUNG_BALKEN_LABEL,
     "kal_herumreichen_erinnerung": _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
@@ -2423,7 +2432,8 @@ _CHAT_JS = """
       meldeFehler(TEXT.kal_floor_hinweis);
       schwelle = KAL_SCHWELLE_FALLBACK;
     } else {
-      meldeFehler(TEXT.kal_erfolg);
+      meldeFehler(sitzung && sitzung.art === 'diskussion'
+        ? TEXT.kal_erfolg_diskussion : TEXT.kal_erfolg);
     }
     kalibrierungCacheSchreiben(kalSpeicher(), kalGruppeAus(location.pathname),
       kalDatum(new Date()), k.bodenMess, k.redeMess, schwelle);
@@ -3589,6 +3599,7 @@ def _js() -> str:
         kal_nein_knopf=T._TEXT_KALIBRIERUNG_NEIN_KNOPF,
         kal_floor_hinweis=T._TEXT_KALIBRIERUNG_FLOOR_HINWEIS,
         kal_erfolg=T._TEXT_KALIBRIERUNG_ERFOLG,
+        kal_erfolg_diskussion=T._TEXT_KALIBRIERUNG_ERFOLG_DISKUSSION,
         kal_skip_knopf=T._TEXT_KALIBRIERUNG_SKIP_KNOPF,
         kal_balken_label=T._TEXT_KALIBRIERUNG_BALKEN_LABEL,
         kal_herumreichen_erinnerung=T._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,

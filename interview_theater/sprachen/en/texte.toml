@@ -659,8 +659,9 @@ appear there live.
 
 First I check the room briefly: a few seconds of quiet, then one of you says \
 a sentence.
-After that, discuss freely which terms matter for your play - I only listen \
-until you tap "Discussion done".
+Then discuss which terms matter for your play. Give every term one sentence \
+on why you chose it - that also helps me hear it right. I only listen until \
+you tap "Discussion done".
 
 Now press "Start listening" for mic calibration."""
 _TEXT_GRUPPENSEITE = """
@@ -968,7 +969,7 @@ ERSTKONTAKT = "{anlass} First respond to what was just said, then take your time
 ERSTKONTAKT_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
 ERSTKONTAKT_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
 ERSTKONTAKT_LINK = "; and that the group can follow everything that has been recorded at {url} (only for this group, give the link exactly like this)"
-ERSTKONTAKT_DISKUSSION = "{anlass} First respond briefly to what was just said. Then explain, short and friendly, in at most six short lines -- no list, no headings -- in this order: who you are (the theatre bot for this workshop); that the group uses two phones: phone 1 lies in the middle of the table and listens -- that is this chat; phone 2 opens the same group link and shows the \"CoThinker\" tab, where the terms they mention appear live; that first you briefly check the room: a few seconds of quiet, then one of them says a sentence; that after that they discuss freely which terms matter for their play, and you only listen and say nothing until they tap \"Discussion done\". **Don't mention buttons under your message, a URL or web address, or any slash command**{link}. End with exactly this sentence as the last line: Now press \"Start listening\" for mic calibration."
+ERSTKONTAKT_DISKUSSION = "{anlass} First respond briefly to what was just said. Then explain, short and friendly, in at most six short lines -- no list, no headings -- in this order: who you are (the theatre bot for this workshop); that the group uses two phones: phone 1 lies in the middle of the table and listens -- that is this chat; phone 2 opens the same group link and shows the \"CoThinker\" tab, where the terms they mention appear live; that first you briefly check the room: a few seconds of quiet, then one of them says a sentence; that after that they discuss which terms matter for their play and give every term one sentence on why they chose it (that also helps you hear the terms right), and you only listen and say nothing until they tap \"Discussion done\". **Don't mention buttons under your message, a URL or web address, or any slash command**{link}. End with exactly this sentence as the last line: Now press \"Start listening\" for mic calibration."
 ERSTKONTAKT_DISKUSSION_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
 ERSTKONTAKT_DISKUSSION_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
 EINSTIEG_SETTING = "The group is entering phase 4 (Frame) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (Prose Draft) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Where we are\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
@@ -1919,6 +1920,7 @@ _TEXT_KALIBRIERUNG_JA_KNOPF = "Yes, correct"
 _TEXT_KALIBRIERUNG_NEIN_KNOPF = "No, try again"
 _TEXT_KALIBRIERUNG_FLOOR_HINWEIS = "The room is loud or the phone is far away — move it closer to the speakers."
 _TEXT_KALIBRIERUNG_ERFOLG = "Room measured ✓ — you're ready."
+_TEXT_KALIBRIERUNG_ERFOLG_DISKUSSION = "Room measured ✓ — now discuss your terms. Give every term one sentence on why you chose it; that helps me hear it right."
 _TEXT_KALIBRIERUNG_SKIP_KNOPF = "Skip"
 _TEXT_KALIBRIERUNG_BALKEN_LABEL = "Your voice vs. the room"
 _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG = "Remember: pass the phone to whoever speaks."

@@ -3390,8 +3390,8 @@ _CHAT_JS = """
     }).catch(function () {
       sitzung.mikroUnterwegs = false;
       sitzung.fortsetzend = false;
-      // Nachtfix 05.10.2026: kein Mikrofon, also zurueck in die Pause (wie
-      // fortsetzeBrainstorm) -- vorher stand dauerhaft "laeuft" ohne
+      // Nachtfix 05.10.2026: kein Mikrofon, also zurueck in die Pause
+      // -- vorher stand dauerhaft "laeuft" ohne
       // Recorder da. Die Pause-Uhr kommt zurueck, wenn es eine gab.
       sitzung.pausiert = true;
       if (uhrFeld && uhrWarDa) { uhrFeld.hidden = false; }

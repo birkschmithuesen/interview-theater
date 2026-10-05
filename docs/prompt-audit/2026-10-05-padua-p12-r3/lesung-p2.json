@@ -1,0 +1,137 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 651,
+    "zitat": "You: Your three are saved. Do you want to see mine next to them?",
+    "regel": "same file, line 536: \"- **Never claim the questions have been saved.** You don't write anything\" (and line 355: \"**You never say \\\"I have saved / noted / corrected / deleted / restored /\")",
+    "vorschlag": "Do not feed bot turns with save claims back into the history: filter bot lines containing \"saved/noted\" for phase 2, or rewrite this echoed line to \"You: Your three are in the list. Do you want to see mine next to them?\" before it is put into the user part.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "15-fragen-ki",
+    "zeile": 15,
+    "zitat": "Write exactly THREE open, experience-oriented interview questions for EVERY",
+    "regel": "05-gespraech-phase2, line 500: \"- **How many questions a term gets is the group's decision.** Never name a\"",
+    "vorschlag": "Replace \"exactly THREE ... for EVERY term\" with \"one to three per term, and never state a per-term count anywhere\"; or pass the count the group itself set into this prompt as a variable instead of hard-coding three.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 632,
+    "zitat": "The material would allow phase 3 · Interviews. Ask in the flow of the conversation whether the group wants to go there yet -- one sentence, no announcement (\"Are more interviews coming, or shall we move on?\").",
+    "regel": "same file, line 534: \"- **Don't push the interviews while questions are still being written.**\" and line 540: \"Don't suggest an interview on your own as long as no question is there.\"",
+    "vorschlag": "Suppress this whole phase-hint paragraph in the user part as long as the own-questions stage of phase 2 is open (i.e. as long as \"Own questions done.\" has not been sent); only insert it after the one-by-one comparison is finished.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 599,
+    "zitat": "the message. Also don't say any more that saying \"we're doing an interview",
+    "regel": "UX rule 2: \"**Buttons are shortcuts, never obligations.** [...] Free text and voice must visibly stay possible\"",
+    "vorschlag": "Delete the sentence in lines 599-600 (\"Also don't say any more that saying ... has to remember.\") and replace with: \"Saying 'we're doing an interview now' works too; the button is only the shortcut.\"",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 486,
+    "zitat": "- **Reformulate cleanly, never invent.** If a term's question is rough,",
+    "regel": "UX rule 4: \"**Own ideas first, AI second, then compare openly.** In question development the group writes its own questions before the bot proposes any\"; same file line 161: \"running record of what the group wrote, not an offer to choose from.\"",
+    "vorschlag": "Restrict rewriting to the chat text: add \"The lines inside VORSCHLAG EIGENE FRAGEN: carry the group's own wording verbatim; a tidier version you offer in your text, and it only enters the block once the group adopts it.\" — otherwise the A/B comparison compares bot wording with bot wording.",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 51,
+    "zitat": "plain headers you should recognise: \"From your term discussion:\" is what",
+    "regel": "the user part never uses this header; line 627 reads \"What the group said while you listened in (discussion/brainstorm, oldest first, very old parts may be missing):\"",
+    "vorschlag": "Either rename the user-part header in line 627 to \"From your term discussion:\" or correct line 51 to quote the header that is actually sent; one of the two strings must go.",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 471,
+    "zitat": "tap \"Suggest questions\" - and ask whether they still have one of their own,",
+    "regel": "no such button exists in the button list of lines 286-298, and the comparison is started by the sentence \"Own questions done.\" (line 526)",
+    "vorschlag": "Delete the clause \"or when they tap \\\"Suggest questions\\\"\" from lines 470-471; the only trigger named to the bot should be the group saying it is done.",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 170,
+    "zitat": "- `VORSCHLAG KERNTHEMA:` -- three to four fully worded core themes for the",
+    "regel": "the seven-phase map in lines 14-24 contains no core-theme phase (phase 4 is \"Frame -- freely invent WHERE it is set (place, time, occasion), WHO\")",
+    "vorschlag": "Either name the core theme explicitly in the phase-4 line 17 of the map, or delete the markers VORSCHLAG RICHTUNGEN/VORSCHLAG KERNTHEMA (lines 168-171) and all \"core theme\" mentions (lines 141, 325, 349) and lower \"twelve markers\" in line 151 to ten.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 128,
+    "zitat": "exactly one open question -- either just the question, or two to four",
+    "regel": "same file, line 96: \"offer choices, two to three options to choose from (see below).\"",
+    "vorschlag": "Change \"two to four\" in line 128 to \"two to three\" so both places give the same range.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 115,
+    "zitat": "**You ask first, you suggest afterwards.** In EVERY phase: ONE open",
+    "regel": "same file, line 187: \"- **At most ONE question per message -- never a mandatory close, only when it helps.**\"; UX rule 4: \"No mandatory question per thought\"",
+    "vorschlag": "Reword line 115 to \"You may ask before you suggest: where the group's idea is unclear, ONE open question comes first -- but a question is never obligatory.\"",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 612,
+    "zitat": "Questions: 1. What do you remember about your first day here?",
+    "regel": "same file, line 294: \"**In Questions nothing is saved as a decision while the group is still\"",
+    "vorschlag": "Rename this block in the user part from \"Questions:\" to \"Your own questions so far (collected, not yet decided):\" so the bot cannot read them as saved progress and repeat \"saved\" to the group.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 635,
+    "zitat": "- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.",
+    "regel": "duplicates line 620 \"- waiting (double meaning: empty time and what fills it)\", line 624 \"1. waiting -- everybody waited for something\" and line 628 \"[discussion] we keep coming back to waiting. everybody waited for something\"",
+    "vorschlag": "Keep the reason exactly once: drop journal entries whose text already appears in \"Why you chose these terms:\", and drop the one-line notes behind the CoThinker ranking when they repeat the discussion lines.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 632,
+    "zitat": "The material would allow phase 3 · Interviews.",
+    "regel": "section order should be context -> status -> history -> \"Now\"; here an instruction sits between the context blocks and the Journal/history (lines 634-655)",
+    "vorschlag": "If the hint is kept at all, move this paragraph to directly above \"Now:\" (line 656), after the history, together with the other instruction lines.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 609,
+    "zitat": "Current phase: 2 · Questions",
+    "regel": "the status says nothing about the stage inside phase 2 (own questions still open / \"Own questions done.\" sent / comparison running), although the last turn (line 657 \"Member 2: ok, show us yours then\") asks for exactly the step the code owns (line 549)",
+    "vorschlag": "Add one status line after line 609, e.g. \"Stage: own questions open -- comparison not started; the AI questions are not yours to show\", so the bot knows it must not deliver the AI list itself.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 638,
+    "zitat": "Member 4: can it understand italian too?",
+    "regel": "history should carry the turns that matter for the open question; lines 637-646 are closed onboarding small talk (italian, workshop days, where decisions are kept) before the question work starts",
+    "vorschlag": "Cut the history at the start of the question work (from line 647 \"Member 1: we wrote our own questions first, here they are\") and keep at most two turns before it.",
+    "phase": 2
+  }
+]

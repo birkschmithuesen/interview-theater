@@ -1,0 +1,137 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 290,
+    "zitat": "**In Terms and Questions a suggestion saves itself the moment you",
+    "regel": "same file, line 536: \"- **Never claim the questions have been saved.** You don't write anything\" (and line 459 \"Nothing is recorded yet --\")",
+    "vorschlag": "Delete the clause on lines 290-292 for this profile (or restrict it to \"Terms\" only): in Phase 2 nothing is written until the comparison and the one-by-one decisions are through, so the sentence \"a suggestion saves itself the moment you make it\" must not stand next to line 536.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 635,
+    "zitat": "You: Your three are saved. Do you want to see mine next to them?",
+    "regel": "same file, line 351: \"**You never say \\\"I have saved / noted / corrected / deleted / restored /\" and line 536 \"**Never claim the questions have been saved.**\"",
+    "vorschlag": "The context builder must not hand back bot lines that claim a write. Replace such a history line with the real system confirmation (\"Noted: ...\") when echoing it, and add to the status block the explicit note \"own questions: proposed, not yet saved\".",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "15-fragen-ki",
+    "zeile": 15,
+    "zitat": "Write exactly THREE open, experience-oriented interview questions for EVERY",
+    "regel": "UX rule 1: \"**Numbers and scope are the group's call.** The bot asks, never proposes a count\"; also 05-gespraech-phase2 line 500: \"- **How many questions a term gets is the group's decision.** Never name a\"",
+    "vorschlag": "Replace the fixed \"exactly THREE\" by the number the group itself used per term (pass it in the user part, e.g. \"the group wrote N per term\"), default one per term, so the AI set does not impose a quota the chat bot is forbidden to name.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 624,
+    "zitat": "You: Changed since - please fix it in the work status",
+    "regel": "UX rule 7: \"**The status page is a status player, not a form.** Changes happen in the chat; the workbench shows read-only status\"",
+    "vorschlag": "Add an explicit prohibition to the system part: \"Never send the group to the Workbench to change something -- corrections happen in the chat; the Workbench only displays.\" And drop this line from the echoed history.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 534,
+    "zitat": "**Never offer the order as a choice.** The order is fixed: first the",
+    "regel": "UX rule 2: \"**Navigation is always open.** Back/forward through phases at any time\" / \"**Creative work has no fixed order.**\"",
+    "vorschlag": "Reword lines 534-535 to \"Don't push the interviews while questions are still being written -- but if the group wants to interview now, that is its decision\" (which is what line 540 already says); delete the words \"The order is fixed\".",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 124,
+    "zitat": "invent three options. Only when the group explicitly says \"you suggest\"",
+    "regel": "same file, line 468: \"\\\"to get things started\\\". If the group asks you to suggest something anyway\" -- there the bot must refuse and point to the prepared set",
+    "vorschlag": "Add an exception at line 124: \"-- except for interview questions in phase 2, where your own set is prepared in the background and you never lay out options yourself.\"",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 615,
+    "zitat": "The material would allow phase 3 · Interviews. Ask in the flow of the conversation whether the group wants to go there yet",
+    "regel": "same file, line 548: \"**Once the comparison is running, the flow is the code's, not yours.**\" and line 520 \"they want to add more or go on to the comparison - not again after that.\"",
+    "vorschlag": "Suppress this phase-3 nudge while the A/B comparison in phase 2 is still open (the group has just asked to see the AI questions); and drop the example sentence \"Are more interviews coming, or shall we move on?\" -- no interview exists yet in this state.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 372,
+    "zitat": "a system message with two buttons underneath when the group enters the scene phase",
+    "regel": "UX rule 8: \"**after explicit consent, asked BEFORE that phase starts**\"",
+    "vorschlag": "Change the wording to \"before the group enters the scene phase (at the end of station 4)\", so the consent question comes before the phase in which the frontier model is used.",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 281,
+    "zitat": "`/character`, `/scene`, `/interview` and `/done` (older names for",
+    "regel": "UX rule 4: \"**Help and commands follow the live flow and the workshop language.** The help text is generated from the current phases [...] never a frozen manual from an older channel\"",
+    "vorschlag": "Delete lines 279-282 (the parked legacy commands); nothing else in these prompts refers to /verbatim, /character, /scene, /interview or /done.",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 471,
+    "zitat": "tap \"Suggest questions\" - and ask whether they still have one of their own,",
+    "regel": "same file, line 526: the only comparison trigger described is the sentence \"Own questions done.\"; the button list on lines 284-292 contains no \"Suggest questions\" button",
+    "vorschlag": "Either add \"Suggest questions\" to the button list on lines 284-292 (if it exists on screen) or delete the half-sentence \"or when they tap \\\"Suggest questions\\\"\" and name only the group's own \"we're ready for the comparison\" as the trigger.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 607,
+    "zitat": "Questions: 1. What do you remember about your first day here?",
+    "regel": "work status must be unambiguous saved-vs-proposed; line 536 says nothing is written before the comparison, and lines 494-496 require the format \"Term: Question\"",
+    "vorschlag": "Rename the block to \"Own questions (proposed, not yet saved -- comparison still open)\" and write each line as \"arrival: What do you remember about your first day here?\" so the term assignment the bot is asked to keep is visible in the status it is given.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 623,
+    "zitat": "You: Yes. The recording understands both; I answer in English.",
+    "regel": "history must be cut at a turn boundary; lines 621-625 are five consecutive \"You:\" lines whose group turns were cut away (this one answers an invisible question)",
+    "vorschlag": "Cut the history at a group turn and keep pairs: drop every bot line whose preceding group message falls outside the window (here lines 621-625), or include those group messages.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 640,
+    "zitat": "You: You decide. Mine are only there to compare.",
+    "regel": "section order context -> status -> history -> \"Now\": \"Now:\" must hold the open group message, not a bot line",
+    "vorschlag": "Put the last group message (\"Member 4: but we decide, right\") under \"Now:\" and move this bot line into the history above it; never place a \"You:\" line under \"Now:\".",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 51,
+    "zitat": "plain headers you should recognise: \"From your term discussion:\" is what",
+    "regel": "the system part promises two context blocks (\"From your term discussion:\", \"Why you chose these terms:\") that do not appear anywhere in the user part of this phase",
+    "vorschlag": "Either add both blocks (the phase-1 discussion digest and the one-sentence reasons per term) to the user part after \"Progress:\", or delete lines 50-55 so the bot does not act as if it had material it was never given.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 611,
+    "zitat": "Further agreements of the group (they count like the progress above):",
+    "regel": "order and weight: status, then journal, then history, then \"Now\"; the phase-3 nudge (line 615) and the journal (line 617) currently sit between status and history",
+    "vorschlag": "Move the \"The material would allow phase 3\" paragraph (line 615) to directly above \"Now:\" and keep the journal right after the agreements, so the reminder is read last and the status stays one block.",
+    "phase": 2
+  }
+]

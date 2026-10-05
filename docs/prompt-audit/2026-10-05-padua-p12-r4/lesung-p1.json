@@ -1,0 +1,137 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 460,
+    "zitat": "The group does NOT collect terms on paper or on a wall before talking to",
+    "regel": "Nutzerteil Zeile 577: \"Member 1: here is our wall: arrival, waiting, strangers, home, noise, trust, belonging, the city at night, family\" -- und Zeile 545 \"Terms: arrival, waiting, strangers, noise, belonging, home, trust, family, the city at night\"",
+    "vorschlag": "Zeilen 460-467 und 501-504 umschreiben: \"Die Gruppe kann ihre Begriffe live diskutieren ODER eine fertige Liste in den Chat geben -- beides geht in den Block.\" Den Satzteil \"because none of that happened\" (Zeile 504) streichen, sonst widerspricht der Bot der Gruppe, deren Wandliste gerade gespeichert wurde.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 14,
+    "zitat": "1. Terms -- take in and sort the list of terms collected in the plenary session",
+    "regel": "Zeile 462: \"live -- you only listen while they do, you say nothing until they tap\" / Zeile 460 (kein Plenum, kein Zettel)",
+    "vorschlag": "Zeile 14 ersetzen durch \"1. Terms -- listen in on the group's live term discussion and keep the term board\"; sonst steht in derselben Prompt zweimal gegensaetzlich, woher die Begriffe kommen.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 508,
+    "zitat": "Never offer that as a choice.",
+    "regel": "SKILL §2 \"Navigation is always open. Back/forward through phases at any time (phase bar). Requirements are a one-line yes/no hint, not a lock.\" -- ausserdem Zeile 80 derselben Datei: \"Never contradict the group by pointing to an order -- there is none it would\"",
+    "vorschlag": "Zeilen 505-508 loeschen und ersetzen durch: \"If the group asks what comes next, name in one sentence that questions usually follow the terms, and leave the decision to them.\"",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 464,
+    "zitat": "automatically: after \"Discussion done\" a message lists the top five as",
+    "regel": "Nutzerteil Zeile 545 fuehrt neun gespeicherte Begriffe, und die aktuelle Frage Zeile 586 lautet \"Member 2: can we keep nine terms or is that too many?\"; SKILL §1 \"Numbers and scope are the group's call. The bot asks, never proposes a count\"",
+    "vorschlag": "In Zeile 464 \"the top five\" streichen: \"a message lists the saved terms\". Keine Zahl im Prompt, sonst behauptet der Bot eine Fuenfer-Grenze gegen die neun gespeicherten Begriffe.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 486,
+    "zitat": "object can later become a scene, \"home\" can't) -- do you ask once for the",
+    "regel": "Zeile 324: \"**If something is in the progress, never ask about it again.** Not about the\" -- und \"home\" steht als gespeicherter Begriff im Nutzerteil Zeile 545; Zeile 509: \"Don't judge anything, don't sort anything out, don't replace a term with a\"",
+    "vorschlag": "Beispiel \"home\" in Zeile 486 streichen und die Nachfrage auf Begriffe begrenzen, die noch NICHT unter \"Terms:\" stehen: \"...only for a term that is not yet saved\".",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 537,
+    "zitat": "<!-- Profil-Anweisung, abgenommen Birk 01.10.2026 -->",
+    "regel": "Redaktionskommentar aus der Prompt-Pflege, der im Systemtext an das Modell geht (alles andere ist englischer Anweisungstext)",
+    "vorschlag": "Zeile 537 ersatzlos loeschen.",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 283,
+    "zitat": "`/character`, `/scene`, `/interview` and `/done` (older names for",
+    "regel": "SKILL §4 \"Help and commands follow the live flow and the workshop language ... never a frozen manual from an older channel\"; in Phase 1 existiert laut Zeilen 98-111 nur Chat/Workbench/CoThinker, \"Start listening\", \"Discussion done\", Mikrofonknopf, Phasenleiste",
+    "vorschlag": "Zeilen 281-284 (Altnamen-Block) komplett loeschen; in der Phase-1-Prompt zusaetzlich die Interview-Kommandos 253-279 auf /status, /phase, /help kuerzen.",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "13-begriffsboard",
+    "zeile": 58,
+    "zitat": "an entry's ``vorgaenger`` has already been merged: do not add it back as an",
+    "regel": "Das Feld ``vorgaenger`` kommt weder im Ausgabeschema (Zeilen 13-38) noch im uebergebenen Board-JSON (Zeile 140) vor -- dort stehen nur begriff, nennungen, zustimmung, begruendung, zitat, doppelbedeutung, status",
+    "vorschlag": "Die Saetze zu ``vorgaenger`` (Zeile 57 ab \"A term that the board\" bis Zeile 61 \"the program keeps that list.\") loeschen -- oder das Feld tatsaechlich im uebergebenen Board-JSON mitliefern.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "13-begriffsboard",
+    "zeile": 112,
+    "zitat": "the transcript is in another language; begriff stays worded exactly as in",
+    "regel": "Zeile 86: \"semantically nonsensical): context plausibility wins -- keep the\" (also eine Schreibung, die so nicht im Transkript steht) und Zeile 47: \"wording as ``begriff`` and add the mention counts together.\"",
+    "vorschlag": "Zeile 112/113 praezisieren: \"begriff keeps the group's own wording, except where a merge (sharpened wording) or a corrected mishearing applies.\"",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 423,
+    "zitat": "\"Script as a file\" -- you don't invent any text and don't summarise any.",
+    "regel": "Die App-Beschreibung derselben Prompt (Zeilen 98-111) kennt nur die Tabs Chat/Workbench/CoThinker und die Knoepfe \"Start listening\", \"Discussion done\", Mikrofon und Phasenleiste -- Szenenknoepfe gibt es in dieser Phase nicht",
+    "vorschlag": "Zeilen 419-441 (Szenentexte, Szenen-Job-Saetze, \"Write the story\") aus der Phase-1-Prompt streichen; sie gehoeren in die Phasen 5-7.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 555,
+    "zitat": "The CoThinker board -- the terms the group sees live on the second phone, ranked (the saved terms are the ones under Terms above). Refer to it; take changes (a misheard term, a different order, a missing term) in the chat:",
+    "regel": "Arbeitsstand muss eindeutig sein: unter \"Terms:\" stehen neun gespeicherte Begriffe, das Board darunter nur zwei -- und die Jetzt-Frage (Zeile 586) ist genau \"can we keep nine terms or is that too many?\"",
+    "vorschlag": "Entweder alle gespeicherten Begriffe in der Board-Rangfolge ausgeben, oder den Klammersatz ersetzen durch: \"Das Board enthaelt nur, was in der Live-Diskussion gehoert wurde; vollstaendig gespeichert sind die 9 Begriffe oben.\"",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 565,
+    "zitat": "- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.",
+    "regel": "Dieselbe Information steht schon in Zeile 552 \"- waiting (double meaning: empty time and what fills it)\" und woertlich in der Historie Zeile 582 \"You: Then 'waiting' carries two meanings for you: the empty time, and what fills it.\"",
+    "vorschlag": "Journal-Eintraege unterdruecken, die bereits unter \"Why you chose these terms\" oder in den letzten Historienzeilen stehen -- hier die Zeilen 564-566 ganz weglassen.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 556,
+    "zitat": "1. waiting -- everybody waited for something",
+    "regel": "Duplikat des direkt folgenden Mitschnitts, Zeile 560: \"[discussion] we keep coming back to waiting. everybody waited for something\" (ebenso Zeile 557 zu 561)",
+    "vorschlag": "Im Board-Block nur Rang und Begriff ausgeben (\"1. waiting / 2. noise\") und die Begruendungen weglassen, da das Diskussionstranskript unmittelbar darunter steht.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 567,
+    "zitat": "You: Then you see the CoThinker tab. Nothing is lost if you close it.",
+    "regel": "Abschnittsfolge Kontext -> Status -> Historie -> \"Now\": die Chathistorie beginnt ohne Ueberschrift direkt nach dem Block \"Journal:\", wo jede andere Sektion einen Kopf hat",
+    "vorschlag": "Vor Zeile 567 eine Kopfzeile einfuegen: \"Chat so far (oldest first; 'You' = your own earlier messages):\".",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 569,
+    "zitat": "Member 4: can it understand italian too?",
+    "regel": "Historienschnitt: sechs der vierzehn mitgegebenen Turns (Zeilen 567-574) sind erledigtes Tool-Onboarding (Tabs, Sprache, Workshoptage), waehrend das inhaltlich relevante Begriffsgespraech erst ab Zeile 577 beginnt",
+    "vorschlag": "Historie beim ersten inhaltlichen Turn schneiden (ab Zeile 577 \"Member 1: here is our wall: ...\") und reine Bedien-Frage-Antwort-Paare aus der Historie herausfiltern.",
+    "phase": 1
+  }
+]

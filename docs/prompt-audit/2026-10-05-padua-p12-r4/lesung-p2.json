@@ -1,0 +1,128 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "15-fragen-ki",
+    "zeile": 15,
+    "zitat": "Write exactly THREE open, experience-oriented interview questions for EVERY",
+    "regel": "05-gespraech-phase2, Zeile 501: \"- **How many questions a term gets is the group's decision.** Never name a\" (plus Zeile 502: target number (\"three per term\"...)",
+    "vorschlag": "In 15-fragen-ki Zeile 15 die Zahl streichen: \"Write open, experience-oriented interview questions for the terms -- as many as the material carries, you decide nothing about the group's count\". Sonst sieht die Gruppe im Vergleich genau das Raster (3 pro Begriff), das der Chat-Bot laut Zeile 501/502 nie nennen darf.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 612,
+    "zitat": "Questions: 1. What do you remember about your first day here?",
+    "regel": "selbe Datei Zeile 460: \"The terms turn into interview questions. Nothing is recorded yet --\" und Zeile 537: \"- **Never claim the questions have been saved.** You don't write anything\"",
+    "vorschlag": "Den Statusblock umbenennen in \"Own questions so far (written by the group, not yet decided):\" -- oder in Phase 2 ganz weglassen, solange der Vergleich nicht gelaufen ist. So wie es dasteht, liest der Bot drei Fragen als gespeicherten Stand und widerspricht Zeile 460/537.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 652,
+    "zitat": "You: Your three are saved. Do you want to see mine next to them?",
+    "regel": "selbe Datei Zeile 537: \"- **Never claim the questions have been saved.** You don't write anything\"",
+    "vorschlag": "Bot-Zeilen mit Speicherbehauptung nicht in die Historie zurueckspeisen: diese Zeile beim Bauen des Nutzerteils filtern (oder die Historie auf Teilnehmer-Zeilen + Systemzeilen reduzieren). Der Bot imitiert sonst seine eigene Luege.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 633,
+    "zitat": "The material would allow phase 3 · Interviews. Ask in the flow of the conversation whether the group wants to go there yet",
+    "regel": "selbe Datei Zeile 535: \"- **Don't push the interviews while questions are still being written.**\"",
+    "vorschlag": "Diesen Hinweisblock in Phase 2 unterdruecken, solange der Vergleich/die Eins-zu-eins-Entscheidungen nicht durch sind; erst danach einfuegen. Sonst erzwingt der Nutzerteil genau die Interview-Frage, die Zeile 535 verbietet.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 598,
+    "zitat": "Don't name **any slash command** - the button is the way, and it is under",
+    "regel": "selbe Datei Zeile 304: \"instead of explaining a process. Only if someone explicitly asks for\" (305: \"a command do you name it.\")",
+    "vorschlag": "Eine Regel behalten: Zeile 304/305 (\"Only if someone explicitly asks for a command do you name it.\") streichen und in Zeile 598 die Ausnahme ausdruecklich nennen -- oder umgekehrt Zeile 598 auf \"Don't name a slash command unless someone explicitly asks for one\" aendern.",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 282,
+    "zitat": "if the group explicitly asks for them: `/verbatim` (full transcripts),",
+    "regel": "toter Text: Zeile 283/284 bezeichnet `/character`, `/scene`, `/interview`, `/done` selbst als \"older names for `/record`\"; in keinem der Prompts existiert noch eine Mechanik dazu",
+    "vorschlag": "Zeilen 281-284 loeschen. Alte Befehlsnamen im Systemprompt kosten nur Token und verleiten zu Nennungen, die Zeile 598 verbietet.",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 472,
+    "zitat": "tap \"Suggest questions\" - and ask whether they still have one of their own,",
+    "regel": "toter Button: die vollstaendige Buttonliste in Zeile 288-299 kennt nur \"Analyse\", \"Next interview\", \"On to phase N\", \"Start interview\", \"Where we are\", \"Help\", Optionszeilen, \"Something else\", \"Yes, save\", \"No, change it again\"",
+    "vorschlag": "Entweder \"Suggest questions\" in die Buttonliste bei Zeile 288-294 aufnehmen (wenn der Knopf existiert) oder in Zeile 472 den Hinweis streichen: \"...will show up once theirs are in\". Ein Bot, der auf einen nicht vorhandenen Knopf zeigt, laesst die Gruppe suchen.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 292,
+    "zitat": "a reflection of ONE value in later phases \"Yes, save\" and \"No, change it",
+    "regel": "UX-Regel 3: \"Decisions the group states are saved **automatically** (no yes/no ceremony), shown as one quiet system line (📌 …) with **↶ Rückgängig**.\"",
+    "vorschlag": "Zeile 292/293 ersetzen: statt \"Yes, save\"/\"No, change it again\" dieselbe Mechanik wie in Terms beschreiben (automatisch gespeichert, darunter nur ein leises \"Undo\") -- wie es Zeile 293/294 fuer Terms schon sagt.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 554,
+    "zitat": "through every question one at a time - accepted, discarded, or reworked at",
+    "regel": "UX-Regel 2: \"**Creative work has no fixed order.** One question after another is „kontraintuitiv für kreative Arbeit“\" / Checkliste Punkt 2",
+    "vorschlag": "Zeile 550-555 so formulieren, dass die kombinierte Liste als Feld zum freien Auswaehlen angeboten wird (Mehrfachauswahl, jederzeit verlassbar) und die Eins-zu-eins-Runde nur eine Abkuerzung ist: \"...shows an overview the group can pick from freely; question by question is one offered shortcut, not the only way\".",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 638,
+    "zitat": "You: Then you see the CoThinker tab. Nothing is lost if you close it.",
+    "regel": "UX-Regel 2/4: \"**Chat per phase (planned).** The chat should start empty in each phase\" -- hier traegt die Historie Onboarding-Geplauder aus Phase 1 (Zeilen 638-647) in Phase 2 hinein",
+    "vorschlag": "Historie am Phaseneintritt schneiden: nur die Turns ab Betreten von Phase 2 mitgeben (hier Zeilen 648-656), die Phase-1-Zeilen 638-647 raus; falls aelterer Kontext noetig ist, gehoert er in die Zusammenfassung, nicht in die Chatliste.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 636,
+    "zitat": "- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.",
+    "regel": "selbe Datei Zeile 621 \"- waiting (double meaning: empty time and what fills it)\" und Zeile 629 \"[discussion] we keep coming back to waiting. everybody waited for something\" -- dieselbe Information dreifach",
+    "vorschlag": "Journal-Eintraege unterdruecken, die schon unter \"Why you chose these terms:\" stehen (Abgleich auf Begriff); so bleibt pro Information eine Stelle, und das Journal traegt nur Neues.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 633,
+    "zitat": "The material would allow phase 3 · Interviews. Ask in the flow of the conversation whether the group wants to go there yet",
+    "regel": "Reihenfolge Kontext -> Status -> Historie -> \"Now\": die Handlungsanweisung steht hier zwischen Diskussions-Echo und Journal, also vor der Historie",
+    "vorschlag": "Diesen Block (sofern er ueberhaupt gesendet wird) direkt ueber \"Now:\" (Zeile 657) setzen, zusammen mit der Reminder-Zeile; Statusbloecke und Journal davor ohne Anweisungen lassen.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "15-fragen-ki",
+    "zeile": 64,
+    "zitat": "Why the group chose these terms:",
+    "regel": "System derselben Datei Zeile 7: \"group's terms and, if there is one, a short digest of an earlier discussion\" -- der angekuendigte Block heisst anders und fehlt",
+    "vorschlag": "Entweder die Ueberschrift im Nutzerteil an den Systemtext anpassen (\"Digest of the earlier term discussion:\") oder Zeile 7-8 des Systemprompts auf den real gelieferten Block umschreiben (\"...and, if there is one, the group's own one-sentence reason per term\").",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 624,
+    "zitat": "The CoThinker board -- the terms the group sees live on the second phone, ranked (the saved terms are the ones under Terms above).",
+    "regel": "Statusstruktur: der Block zeigt nur 2 der 9 Begriffe aus Zeile 611 und wiederholt das Diskussions-Echo (Zeile 629/630), erklaert sich dann selbst",
+    "vorschlag": "Den Board-Block in Phase 2 weglassen, wenn er eine Teilmenge der gespeicherten Terms ist; stattdessen nur abweichende Punkte melden (\"Board differs: ...\"), damit der Status eine Achse behaelt.",
+    "phase": 2
+  }
+]

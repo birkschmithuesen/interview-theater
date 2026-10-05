@@ -1,0 +1,137 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 453,
+    "zitat": "The group does NOT collect terms on paper or on a wall before talking to",
+    "regel": "Dieselbe Prompt, Nutzerteil Zeile 564: \"Member 1: here is our wall: arrival, waiting, strangers, home, noise, trust, belonging, the city at night, family\" -- und Zeile 535 \"Terms: arrival, waiting, strangers, noise, belonging, home, trust, family, the city at night\"",
+    "vorschlag": "Zeilen 453-460 umschreiben: statt \"The group does NOT collect terms on paper or on a wall\" -> \"The group may have collected terms before (wall, paper) AND discusses live; both are material. You never ask them to go and collect terms now.\" Das pauschale \"that is not how this phase works here\" (459-460) streichen, sonst widerspricht der Bot der Wandliste, die im Arbeitsstand steht.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 291,
+    "zitat": "In Terms and Questions a suggestion saves itself the moment you",
+    "regel": "UX-Regel 1: \"Bot proposals are never saved as decisions. Only what the group said or confirmed is saved.\"",
+    "vorschlag": "Zeile 291-292 ersetzen durch: \"In Terms and Questions the block only mirrors what the GROUP said; a suggestion of your own is never written -- it appears as buttons the group taps.\" Autosave nur fuer Bloecke, die eine Gruppenaussage wiedergeben (Zeile 467-471), nicht fuer eigene Vorschlaege.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 498,
+    "zitat": "**Don't ask what comes next.** After the terms come",
+    "regel": "Zeile 80 derselben Datei: \"Never contradict the group by pointing to an order --\" (und Zeile 11 \"not an order you enforce\")",
+    "vorschlag": "Zeile 498-501 auf das Noetige kuerzen: \"Don't ask the group which phase comes next -- the phase bar does that.\" Die Begruendung \"in that order\" und \"Never offer that as a choice\" streichen, weil Zeile 77-81 ausdruecklich jede Reihenfolge freigibt.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 457,
+    "zitat": "a message lists the top five as",
+    "regel": "UX-Regel 1: \"Numbers and scope are the group's call. The bot asks, never proposes a count\"",
+    "vorschlag": "\"the top five\" in Zeile 457 (und \"(the first five are saved as their terms)\" im Nutzerteil Zeile 541) durch \"the terms the group agreed on\" ersetzen; keine feste Zahl im Prompt, sonst kann der Bot die offene Frage \"can we keep nine terms or is that too many?\" (Zeile 573) nur mit seiner eigenen Zahl beantworten.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 485,
+    "zitat": "idea, take their answer and flesh it out into two to three options",
+    "regel": "Zeile 471 derselben Datei: \"Don't comment, no associations, no question at the end.\" und Zeile 152: \"`VORSCHLAG BEGRIFFE:` -- the list, on one line, separated by commas.\"",
+    "vorschlag": "Den Absatz 483-490 in dieser Phasendatei loeschen: in Phase 1 gibt es nur die kommagetrennte Begriffsliste (Zeile 513-517), keine Titel-Beschreibung-Optionen und laut 471 keine Frage am Ende.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 127,
+    "zitat": "exactly one open question -- either just the question, or two to four",
+    "regel": "Zeile 116: \"you take what they said and flesh it out into **two to three options**\"; Zeile 135: \"the code does the numbering,\"",
+    "vorschlag": "In Zeile 127-128 \"two to four numbered options\" auf \"two to three options\" aendern und das Wort \"numbered\" streichen, da Zeile 135 die Numerierung dem Code zuweist.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 372,
+    "zitat": "a system message with two buttons underneath when the group enters the scene phase",
+    "regel": "UX-Regel 8: Frontier-Modell \"after explicit consent, asked BEFORE that phase starts\"",
+    "vorschlag": "Zeile 371-373 umformulieren: die Frage erscheint am Ende der vorigen Phase, bevor die Szenenphase betreten wird (\"before the group enters the scene phase\"); den Nachzuegler \"once more from the scene run\" dann streichen.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 11,
+    "zitat": "seven stations -- not an order you enforce, but a map you use for",
+    "regel": "UX-Regel 7: \"never two labels for the same thing (Act vs. Phase)\" -- der Nutzerteil nennt dasselbe \"Current phase: 1 · Terms\" (Zeile 534)",
+    "vorschlag": "Im ganzen Systemteil \"station(s)\" durch \"phase(s)\" ersetzen (Zeilen 11, 14-24, 57-60, 66-68, 76-83, 270, 290) und Zeile 76-77 (\"Which station ... appears as \\\"Current phase\\\"\") loeschen, da die Erklaerung dann ueberfluessig ist.",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 281,
+    "zitat": "`/character`, `/scene`, `/interview` and `/done` (older names for",
+    "regel": "UX-Regel 4: Hilfe/Befehle \"never a frozen manual from an older channel\"; diese Namen kommen in keinem der vorliegenden Prompts sonst vor",
+    "vorschlag": "Zeilen 279-282 komplett loeschen; nur die aktuell existierenden Befehle (251-277) im Prompt behalten.",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "13-begriffsboard",
+    "zeile": 58,
+    "zitat": "an entry's ``vorgaenger`` has already been merged: do not add it back as an",
+    "regel": "Das Board-JSON im Nutzerteil (Zeile 140) enthaelt kein Feld ``vorgaenger`` -- nur begriff, nennungen, zustimmung, begruendung, zitat, doppelbedeutung, status",
+    "vorschlag": "Entweder ``vorgaenger`` in das uebergebene Board-JSON aufnehmen, oder Zeilen 57-61 (\"A term that the board so far lists under ... the program keeps that list.\") streichen, weil das Modell diese Liste nicht sieht.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 541,
+    "zitat": "(the first five are saved as their terms)",
+    "regel": "Arbeitsstand muss eindeutig benannt und vollstaendig sein; Zaehler nicht als Quote formuliert",
+    "vorschlag": "Drei widerspruechliche Listen vereinheitlichen: Zeile 535 fuehrt 9 Begriffe als \"Terms:\", das Board zeigt nur 2 Eintraege, der Hinweis behauptet 5 gespeicherte. Nutzerteil so bauen: \"Saved terms (in this order): ...\" mit genau der gespeicherten Liste, darunter \"CoThinker board (live, not yet saved): ...\"; den Klammerzusatz \"(the first five are saved as their terms)\" loeschen.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 557,
+    "zitat": "You: Changed since - please fix it in the work status",
+    "regel": "Chatverlauf: Botzeilen ohne zugehoerige Nutzerzeile, Schnitt an falscher Stelle (Zeilen 553-558: eine Member-Zeile, dann fuenf \"You:\"-Zeilen in Folge)",
+    "vorschlag": "Verlauf paarweise schneiden: eine Botzeile nur mitgeben, wenn die ausloesende Member-Zeile im Fenster bleibt. Zeilen 554-558 entweder mit ihren Member-Fragen ergaenzen oder ganz weglassen; der Fragmentsatz in 557 ist ohne Frage unverstaendlich.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 552,
+    "zitat": "- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.",
+    "regel": "Zusammenfassungen duerfen die Historie nicht doppeln -- derselbe Inhalt steht als Botzeile 569 \"You: Then 'waiting' carries two meanings for you: the empty time, and what fills it.\"; Systemregel Zeile 331 \"Repeat nothing that is in your last three messages or in the journal.\"",
+    "vorschlag": "Journal-Eintraege herausfiltern, deren Inhalt im mitgegebenen Verlauf schon vorkommt; hier Zeile 551-552 weglassen, solange Zeile 569 im Fenster ist.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 538,
+    "zitat": "Further agreements of the group (they count like the progress above):",
+    "regel": "Reihenfolge und Gewicht: phasenfremde Spaetentscheidungen stehen vor dem Phase-1-Material, Labels in zwei Sprachen (\"[stil]\")",
+    "vorschlag": "Block 538-540 hinter Board und Diskussion verschieben und auf phasenrelevante Eintraege filtern (\"At most one page per scene\" gehoert in Phase 5-7); Labels einheitlich englisch (\"[style]\" statt \"[stil]\").",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 542,
+    "zitat": "1. waiting -- everybody waited for something",
+    "regel": "Doppelung: dieselbe Aussage steht wortgleich im Diskussionsblock Zeile 546 \"[discussion] we keep coming back to waiting. everybody waited for something\"",
+    "vorschlag": "Im Board nur Rang und Begriff liefern (\"1. waiting\", \"2. noise\"); die Begruendungs-/Zitattexte weglassen, weil der Diskussionsblock sie im Original enthaelt. Ausserdem bei Zeile 545 die vage Formel \"very old parts may be missing\" durch die konkrete Angabe ersetzen (\"last N segments\").",
+    "phase": 1
+  }
+]

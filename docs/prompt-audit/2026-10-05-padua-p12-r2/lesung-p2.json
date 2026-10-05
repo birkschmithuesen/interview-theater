@@ -1,0 +1,137 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 124,
+    "zitat": "invent three options. Only when the group explicitly says \"you suggest\"",
+    "regel": "Phasenteil derselben Datei, Zeile 471: \"**Don't suggest questions yourself in this phase -- the group writes first;\" (und 473-476: auf \"you come up with one\" nur sagen, die eigenen Vorschlaege seien in Vorbereitung)",
+    "vorschlag": "In Zeile 124-125 eine Ausnahme einbauen: \"Only when the group explicitly says 'you suggest' do you lay out three options -- except in phase 2, where your questions are prepared in the background and you say so instead.\" Sonst trifft der Bot im aktuellen 'Now' (Zeile 661: \"ok, show us yours then\") auf zwei gegenteilige Anweisungen.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 637,
+    "zitat": "The material would allow phase 3 · Interviews. Ask in the flow of the conversation whether the group wants to go there yet",
+    "regel": "Zeile 539: \"- **Don't push the interviews while questions are still being written.**\" und Zeile 587: \"The phase is finished when the group would go into the first interview with\"",
+    "vorschlag": "Diesen Hinweis im Nutzerteil erst einsetzen, wenn der Vergleich durch ist (Satz \"Own questions done.\" gefallen bzw. Fragen entschieden); solange die eigenen Fragen laufen, Zeile 637 ganz weglassen.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "15-fragen-ki",
+    "zeile": 15,
+    "zitat": "Write exactly THREE open, experience-oriented interview questions for EVERY",
+    "regel": "05-gespraech-phase2, Zeile 505: \"- **How many questions a term gets is the group's decision.** Never name a\" (506: target number (\"three per term\" ...))",
+    "vorschlag": "Die Zahl aus dem Nutzerteil uebergeben (von der Gruppe gesetzt) statt sie im System festzuschreiben; ersatzweise \"one to three per term, at most three\" und im Vergleichsschritt die Zahl nicht nennen. So steht die vorbereitete KI-Liste nicht mit einer Quote da, die die Gruppe nie beschlossen hat.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 95,
+    "zitat": "under 500 characters if possible. One question, and two to three options",
+    "regel": "UX-Regel 4: \"No mandatory question per thought: that is „wieder so 'n Zwang“\" -- und Zeile 187 derselben Datei: \"**At most ONE question per message -- never a mandatory close, only when it helps.**\"",
+    "vorschlag": "Zeile 95-96 umformulieren auf \"At most one question, and two to three options to choose from -- see below.\" Das Pflicht-\"One question\" streichen.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 655,
+    "zitat": "You: Your three are saved. Do you want to see mine next to them?",
+    "regel": "Zeile 541: \"- **Never claim the questions have been saved.** You don't write anything\" und Zeile 610: \"never claim to have saved anything\"",
+    "vorschlag": "Solche Botzeilen beim Bauen der History filtern oder ersetzen (\"You: Your three are in the list. ...\"); zusaetzlich im Statusblock eine Zeile \"nothing saved as a decision yet\" setzen, damit das Modell den Fehler nicht als Vorbild fortschreibt.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 174,
+    "zitat": "then one line per scene `Title — one sentence — characters — form`.",
+    "regel": "Zeile 66: \"**Every scene gets a form** -- exactly one of five: Dialogue, Monologue,\" (67-69: \"but only once the group reaches phase 7\")",
+    "vorschlag": "Das Feld \"— form\" aus dem Zeilenformat von `VORSCHLAG GESCHICHTE:` streichen; Form erst im Phase-7-Marker verlangen.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 647,
+    "zitat": "You: In the work status tab. Everything saved is there.",
+    "regel": "Zeile 99: \"(where you talk), Workbench (what has been agreed so far) and CoThinker\"",
+    "vorschlag": "Einen Namen festlegen und ueberall verwenden (z.B. \"Workbench\"); die History-Zeile 647 entsprechend korrigieren, damit der Bot keinen zweiten Tab-Namen etabliert.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 602,
+    "zitat": "Don't name **any slash command** - the button is the way, and it is under",
+    "regel": "Zeile 303-304: \"Only if someone explicitly asks for\" / \"a command do you name it.\"",
+    "vorschlag": "Zeile 602 auf \"Don't name any slash command on your own -- the button is the way\" aendern, damit die Ausnahme aus Zeile 303 bestehen bleibt.",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 459,
+    "zitat": "Padua Phase 1+2 card, Task 13 (2026-10-03): this file completely replaces",
+    "regel": "Zeile 478: \"**Never talk to the group about code.**\" -- und die genannten Dinge (`phasen/2.md`, Profile, Dortmund, Karten-Task) existieren in keinem der hier gezeigten Prompts",
+    "vorschlag": "Zeilen 459-462 loeschen (oder in einen HTML-Kommentar wie in Zeile 607 verschieben), damit kein Repository-Vermerk im Modellkontext steht.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 128,
+    "zitat": "exactly one open question -- either just the question, or two to four",
+    "regel": "Zeile 117 (\"**two to three options**\") und Zeile 136 (\"characters), it later appears on the button; the code does the numbering,\")",
+    "vorschlag": "Zeile 128-129 auf \"either just the question, or two to three options for that one question\" aendern -- Zahl mit Zeile 117 vereinheitlichen und \"numbered\" streichen, weil der Code numeriert.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 616,
+    "zitat": "Questions: 1. What do you remember about your first day here?",
+    "regel": "Zeile 294-296: \"**In Questions nothing is saved as a decision while the group is still\" / \"writing its own**\" und Zeile 541",
+    "vorschlag": "Den Statusblock umbenennen in \"Own questions so far (proposed, not saved as decisions):\" und die drei Zeilen dort fuehren; \"Questions:\" erst nach den Einzelentscheidungen im Vergleich fuellen.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 628,
+    "zitat": "The CoThinker board -- the terms the group sees live on the second phone, ranked (the first five are saved as their terms). Refer to it; take changes (a misheard term, a different order, a missing term) in the chat:",
+    "regel": "Widerspruch zum Status direkt darueber, Zeile 615: \"Terms: arrival, waiting, strangers, noise, belonging, home, trust, family, the city at night\" -- das Board listet nur zwei Zeilen, nennt aber \"die ersten fuenf\" als gespeichert",
+    "vorschlag": "Entweder das Board vollstaendig mit allen gerankten Begriffen rendern oder den Klammersatz \"(the first five are saved as their terms)\" entfernen und nur \"ranked\" stehen lassen; gespeicherte Begriffe stehen schon in Zeile 615.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 642,
+    "zitat": "You: Good. The transcript runs live in the chat - check it once.",
+    "regel": "Kontextstruktur: die History beginnt mit vier Botzeilen hintereinander (642-645), deren Nutzerfragen fehlen -- \"You: Yes. The recording understands both; I answer in English.\" (644) antwortet auf eine unsichtbare Frage",
+    "vorschlag": "Die History an einer Nutzerzeile abschneiden (hier erst ab Zeile 646 \"Member 4: wait, where do i see what we already decided?\") und Onboarding-/Statuszeilen des Bots aus der Phase-1-Einleitung nicht mitschleppen.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 640,
+    "zitat": "- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.",
+    "regel": "Doppelung zu Zeile 626 (\"- waiting (double meaning: empty time and what fills it)\") und Zeile 633 (\"[discussion] we keep coming back to waiting. everybody waited for something\")",
+    "vorschlag": "Journal-Eintraege, die inhaltlich schon in \"Why you chose these terms:\" stehen, beim Bauen des Nutzerteils herausfiltern; das Journal nur fuer Entscheidungen nutzen, die sonst nirgends im Kontext stehen.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 637,
+    "zitat": "You don't switch yourself; the group's answer does that.",
+    "regel": "Reihenfolge: diese Handlungsanweisung steht zwischen Transkript (632-635) und Journal/History (639-658), also mitten im Material statt bei \"Now:\" (660)",
+    "vorschlag": "Diesen Hinweisblock direkt ueber \"Now:\" setzen, zusammen mit der Reminder-Zeile 663, damit die Reihenfolge Kontext -> Status -> History -> Now/Anweisung bleibt.",
+    "phase": 2
+  }
+]

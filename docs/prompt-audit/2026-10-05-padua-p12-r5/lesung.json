@@ -1,0 +1,119 @@
+[
+  {
+    "kategorie": "a",
+    "datei": "15-fragen-ki",
+    "zeile": 15,
+    "zitat": "Write exactly THREE open, experience-oriented interview questions for EVERY",
+    "regel": "UX rule 1: „Numbers and scope are the group's call. The bot asks, never proposes a count“ — and 05-gespraech-phase2 line 503: \"- **How many questions a term gets is the group's decision.** Never name a\"",
+    "vorschlag": "Replace the hard-coded count in line 15 with a number the code derives from the group's own list (\"for each term, as many questions as the group's own list has for that term, at most three\"), so the A/B overview does not present a 3-per-term quota the group never set.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 389,
+    "zitat": "sentences: recordings, interviews and names stay in Switzerland; the core theme,",
+    "regel": "UX rule 8 (model choice follows data sensitivity) — this very prompt runs on \"modell=claude-opus-5\" (line 2) and carries the verbatim recording transcript in the user part (line 630 \"What the group said while you listened in\")",
+    "vorschlag": "Either route the phase-2 call that contains the listened-in transcript through the sovereign model, or delete the clause \"recordings, interviews and names stay in Switzerland\" from line 389 — as it stands the bot is instructed to tell the group something the pipeline contradicts.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 654,
+    "zitat": "You: Your three are saved. Do you want to see mine next to them?",
+    "regel": "same file line 539: \"- **Never claim the questions have been saved.** You don't write anything\" and line 296: \"**In Questions nothing is saved as a decision while the group is still\"",
+    "vorschlag": "Rewrite the seeded bot turn in the history to \"You: Noted — nothing is decided yet. Do you want to see mine next to them?\"; a history line that models the forbidden claim teaches the model to repeat it.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 635,
+    "zitat": "The material would allow phase 3 · Interviews. Ask in the flow of the conversation whether the group wants to go there yet",
+    "regel": "same file line 537: \"- **Don't push the interviews while questions are still being written.**\"",
+    "vorschlag": "Suppress this phase-nudge block while the own-questions stage of phase 2 is running (only inject it after the sentence \"Own questions done.\" has been sent); delete line 635 from this prompt.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 187,
+    "zitat": "repeat existing values. Never two blocks in one message.",
+    "regel": "same file line 496: \"- **Keep a running tally and restate it in full, every time.** As soon as\" (and line 338 \"**Repeat nothing that is in your last three messages or in the journal.**\")",
+    "vorschlag": "Add an explicit exception to line 187: \"...not to repeat existing values — except `VORSCHLAG EIGENE FRAGEN:`, which is always sent complete and cumulative.\"",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 470,
+    "zitat": "your suggestions are already prepared.** Not one, not as an example, not",
+    "regel": "same file line 548: \"If the group explicitly asks for something outside this focus, you do it\" — and the live turn line 660 \"Member 2: ok, show us yours then\"",
+    "vorschlag": "Resolve the carve-out in line 470 explicitly: \"...not 'to get things started'. This one rule also holds when the group asks — the prepared set only comes via the comparison; say so in one sentence and name the sentence that starts it.\" Otherwise the model follows line 548 and leaks questions.",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 283,
+    "zitat": "`/character`, `/interview` and `/done` (older names for",
+    "regel": "UX rule 4: help and commands follow the live flow, never a frozen manual from an older channel",
+    "vorschlag": "Delete lines 281-284 (the dead aliases `/verbatim`, `/character`, `/interview`, `/done`); keep only the commands that the current flow still has.",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 51,
+    "zitat": "plain headers you should recognise: \"From your term discussion:\" is what",
+    "regel": "the user part never sends that header; it sends line 630 \"What the group said while you listened in (discussion/brainstorm, oldest first, very old parts may be missing):\"",
+    "vorschlag": "Make the two match: either rename the user-part header to \"From your term discussion:\" or correct line 51 to quote the header actually used.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 614,
+    "zitat": "Questions: 1. What do you remember about your first day here?",
+    "regel": "same file line 462: \"The terms turn into interview questions. Nothing is recorded yet --\" and line 499 format \"Term: Question\"",
+    "vorschlag": "Move this list out of \"Progress:\" into its own block headed \"Own questions so far (collected, nothing decided yet):\" and list them as \"Term: Question\", so the model cannot read them as saved decisions.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 640,
+    "zitat": "You: Then you see the CoThinker tab. Nothing is lost if you close it.",
+    "regel": "UX rule 4 „Chat per phase“ — the chat starts empty in each phase; the history here starts in phase-1 onboarding chatter",
+    "vorschlag": "Cut the history to the current phase: start it at line 650 (\"Member 1: we wrote our own questions first, here they are\") and drop lines 640-649.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 638,
+    "zitat": "- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.",
+    "regel": "duplicates line 624 \"- waiting (double meaning: empty time and what fills it)\" and line 631 \"[discussion] we keep coming back to waiting. everybody waited for something\"",
+    "vorschlag": "Drop journal entries whose content is already in \"Why you chose these terms:\" or in the transcript; keep one source per fact (journal only for things not visible elsewhere).",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 630,
+    "zitat": "What the group said while you listened in (discussion/brainstorm, oldest first, very old parts may be missing):",
+    "regel": "same file line 47: \"**You know everything the group has done.**\"",
+    "vorschlag": "Decide one truth: either send the complete phase-1 transcript and delete the hedge \"very old parts may be missing\", or weaken line 47 to \"Everything that is in the blocks below is what you have\" — as it stands the bot is told it knows everything while the data says parts are cut.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "15-fragen-ki",
+    "zeile": 64,
+    "zitat": "Why the group chose these terms:",
+    "regel": "same file line 10: \"group's terms and, if there is one, a short digest of an earlier discussion\"",
+    "vorschlag": "Rename this user-part header to \"Digest of the earlier term discussion:\" (or add \"Why the group chose these terms:\" to the system list in line 10) so the run recognises the block it is told to expect.",
+    "phase": 2
+  }
+]

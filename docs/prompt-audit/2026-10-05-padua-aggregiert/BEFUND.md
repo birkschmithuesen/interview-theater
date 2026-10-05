@@ -260,7 +260,7 @@ Kernfall.
 | 1 (Meryem) | 335 | nein |
 | 2 (Ferzan) | 353 | nein |
 | 3 (Aynur, Fabrikation) | 344 | nein |
-| 4 (Ljiljana) | — | nein |
+| 4 (Ljiljana) | 326 | nein |
 | 5 (Halina) | 381 | nein |
 
 `verdichtung`-Tabelle nach 5 Interviews: **5 Zeilen** (haengt an, wie

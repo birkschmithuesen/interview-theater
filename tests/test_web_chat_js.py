@@ -56,11 +56,13 @@ def test_die_segmentlaenge_kommt_aus_der_umgebung(seite):
 def test_die_vad_werte_haben_vorgaben_ohne_umgebung(monkeypatch):
     for name in ("IT_WEB_VAD_PAUSE_MS", "IT_WEB_VAD_MAX_MS",
                  "IT_WEB_VAD_MIN_SPEECH_MS", "IT_WEB_VAD_RMS",
-                 "IT_WEB_VAD_FLOOR_FACTOR", "IT_WEB_VAD_KALIBRIERUNG"):
+                 "IT_WEB_VAD_FLOOR_FACTOR", "IT_WEB_VAD_KALIBRIERUNG",
+                 "IT_WEB_VAD_WEICH_MS", "IT_WEB_VAD_WEICH_PAUSE_MS"):
         monkeypatch.delenv(name, raising=False)
     assert web_chat._vad_werte() == {
         "pause_ms": 2500, "max_ms": 90_000, "min_speech_ms": 500,
         "rms": 0.01, "floor_faktor": 2.5, "kalibrierung": True,
+        "weich_ab_ms": 30_000, "weich_pause_ms": 700,
     }
 
 
@@ -71,9 +73,12 @@ def test_die_vad_werte_kommen_einzeln_aus_der_umgebung(monkeypatch):
     monkeypatch.setenv("IT_WEB_VAD_RMS", "0.02")
     monkeypatch.setenv("IT_WEB_VAD_FLOOR_FACTOR", "3.0")
     monkeypatch.setenv("IT_WEB_VAD_KALIBRIERUNG", "0")
+    monkeypatch.setenv("IT_WEB_VAD_WEICH_MS", "20000")
+    monkeypatch.setenv("IT_WEB_VAD_WEICH_PAUSE_MS", "500")
     assert web_chat._vad_werte() == {
         "pause_ms": 3000, "max_ms": 60000, "min_speech_ms": 400,
         "rms": 0.02, "floor_faktor": 3.0, "kalibrierung": False,
+        "weich_ab_ms": 20000, "weich_pause_ms": 500,
     }
 
 
@@ -104,6 +109,8 @@ def test_die_vad_attribute_stehen_am_fuss(seite):
     assert 'data-vad-rms="0.01"' in seite
     assert 'data-vad-floor-faktor="2.5"' in seite
     assert 'data-vad-kalibrierung="1"' in seite
+    assert 'data-vad-weich-ab-ms="30000"' in seite
+    assert 'data-vad-weich-pause-ms="700"' in seite
 
 
 def test_vad_ersetzt_den_festen_takt_mit_rueckfall():
@@ -118,6 +125,12 @@ def test_vad_liest_alle_fuenf_werte_aus_dem_fuss():
     js = web_chat._CHAT_JS
     for attribut in ("vadPauseMs", "vadMaxMs", "vadMinSpeechMs", "vadRms",
                      "vadFloorFaktor"):
+        assert f"fuss.dataset.{attribut}" in js, attribut
+
+
+def test_vad_liest_die_beiden_weich_werte_aus_dem_fuss():
+    js = web_chat._CHAT_JS
+    for attribut in ("vadWeichAbMs", "vadWeichPauseMs"):
         assert f"fuss.dataset.{attribut}" in js, attribut
 
 

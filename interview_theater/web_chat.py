@@ -3901,9 +3901,10 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
     bleibt er, weil er dort tatsaechlich woanders hinfuehrt (Vorgabe
     ``True``).
 
-    ``vad`` sind die fuenf Pausen-Schnitt-Zahlen (UX-Knoepfe-Karte,
-    Brainstorm-VAD) -- ungesetzt gilt ``_vad_werte()`` (Umgebung), auf jeder
-    Seite gleich, weil sie nicht je Gruppe variieren."""
+    ``vad`` sind die Pausen-Schnitt-Zahlen (UX-Knoepfe-Karte, Brainstorm-VAD;
+    seit 05.10.2026 inklusive der beiden Weich-Schnitt-Zahlen) -- ungesetzt
+    gilt ``_vad_werte()`` (Umgebung), auf jeder Seite gleich, weil sie nicht
+    je Gruppe variieren."""
     from interview_theater import web   # spaeter Import: web importiert web_chat
 
     vad = vad if vad is not None else _vad_werte()
@@ -3952,6 +3953,8 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'data-vad-min-speech-ms="{int(vad["min_speech_ms"])}"\n'
         f'     data-vad-rms="{vad["rms"]}" '
         f'data-vad-floor-faktor="{vad["floor_faktor"]}"\n'
+        f'     data-vad-weich-ab-ms="{int(vad["weich_ab_ms"])}" '
+        f'data-vad-weich-pause-ms="{int(vad["weich_pause_ms"])}"\n'
         f'     data-vad-kalibrierung="{1 if vad.get("kalibrierung", True) else 0}"\n'
         f'     data-kalibrierung-modus="'
         f'{html.escape(daten.get("kalibrierung_modus") or "", quote=True)}"\n'
@@ -4507,7 +4510,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     # Trigger, kein Sicherheitsmerkmal, eine falsche Zeichenkette soll den
     # Upload nicht scheitern lassen.
     roh_grund = (felder.get("grund") or [""])[0]
-    grund = roh_grund if roh_grund in ("pause", "cap", "ende") else None
+    grund = roh_grund if roh_grund in ("pause", "cap", "ende", "weich") else None
     brainstorm = (felder.get("brainstorm") or [""])[0] == "1"
     # Task 5 (Padua Phase 1+2 Umbau, 03.10.2026): dasselbe Bookkeeping wie
     # ``brainstorm``, nur fuer das Hintergrund-Mithoeren in Phase 1.
@@ -4522,6 +4525,16 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     rede_ms = (
         int(roh_rede)
         if roh_rede.isascii() and roh_rede.isdigit() and len(roh_rede) <= 10
+        else None
+    )
+
+    # weichMs (Padua VAD: weicher Schnitt, 05.10.2026): dasselbe reine
+    # Diagnose-Metadatum wie rede_ms -- Alter des Segments beim Schnitt,
+    # kein Upload-Gate, derselbe defensive Ziffernschutz.
+    roh_weich = (felder.get("weichms") or [""])[0]
+    weich_ms = (
+        int(roh_weich)
+        if roh_weich.isascii() and roh_weich.isdigit() and len(roh_weich) <= 10
         else None
     )
 
@@ -4549,7 +4562,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
             dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
             schnittgrund=grund, brainstorm=brainstorm, diskussion=diskussion,
-            rede_ms=rede_ms, kalibrierung=kalibrierung,
+            rede_ms=rede_ms, kalibrierung=kalibrierung, weich_ms=weich_ms,
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.
@@ -4902,6 +4915,15 @@ def _vad_werte() -> dict:
         "rms": _umgebungszahl("IT_WEB_VAD_RMS", 0.01, ganzzahl=False),
         "floor_faktor": _umgebungszahl(
             "IT_WEB_VAD_FLOOR_FACTOR", 2.5, ganzzahl=False),
+        # Weicher Schnitt (Padua VAD, 05.10.2026): ab diesem Alter des
+        # Segments reicht schon eine kuerzere Pause (weich_pause_ms) statt
+        # der vollen pause_ms, bevor max_ms (Hartkappe) greift -- Vorgaben
+        # 30s/700ms sind eine ANNAHME (keine Messung der eigenen Raeume,
+        # siehe Kanban-Karte "Padua VAD: weicher Schnitt an natuerlichen
+        # Pausen").
+        "weich_ab_ms": _umgebungszahl("IT_WEB_VAD_WEICH_MS", 30_000, ganzzahl=True),
+        "weich_pause_ms": _umgebungszahl(
+            "IT_WEB_VAD_WEICH_PAUSE_MS", 700, ganzzahl=True),
         # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
         # der Not-Aus fuer den Workshop -- "0" schaltet die gemessene
         # Kalibrierung ganz aus, jeder andere Wert (auch das Fehlen der

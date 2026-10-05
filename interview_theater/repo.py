@@ -527,6 +527,7 @@ def lege_aufnahme_an(
     diskussion: bool = False,
     rede_ms: int | None = None,
     kalibrierung: bool = False,
+    weich_ms: int | None = None,
 ) -> int:
     """Legt eine Aufnahme (Sprache oder Textimport) an.
 
@@ -547,7 +548,9 @@ def lege_aufnahme_an(
     Upload-Gate. ``kalibrierung`` (Task 2, dieselbe Karte) markiert den
     Testsatz einer Pegel-Kalibrierung -- ``aufnahme.empfange`` setzt dafuer
     unabhaengig vom Modus ``klasse='kurz'``/``teil_von=None``, hier nur
-    durchgereicht wie jedes andere Flag.
+    durchgereicht wie jedes andere Flag. ``weich_ms`` (Padua VAD: weicher
+    Schnitt, 05.10.2026) ebenso -- dieselbe additive Durchreiche wie
+    ``rede_ms``, nur bei ``schnittgrund='weich'`` gesetzt.
 
     Startstatus 'empfangen', beim Interview-Kopf 'laeuft'; der Aufrufer
     entscheidet ueber weitere Statusuebergaenge."""
@@ -557,12 +560,12 @@ def lege_aufnahme_an(
         INSERT INTO aufnahme
             (chat_id, message_id, name, klasse, quelle, audio_pfad,
              dauer_sekunden, status, empfangen_am, teil_von, schnittgrund,
-             brainstorm, diskussion, rede_ms, kalibrierung)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             brainstorm, diskussion, rede_ms, kalibrierung, weich_ms)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (chat_id, message_id, name, klasse, quelle, audio_pfad, dauer, status,
          _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0,
-         1 if diskussion else 0, rede_ms, 1 if kalibrierung else 0),
+         1 if diskussion else 0, rede_ms, 1 if kalibrierung else 0, weich_ms),
     )
     conn.commit()
     return cur.lastrowid
@@ -4586,7 +4589,8 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
                      bezug_message_id=None, dauer=None,
                      datei=None, mime=None, dateiname=None,
                      schnittgrund=None, brainstorm=False, diskussion=False,
-                     bild=None, rede_ms=None, kalibrierung=False) -> int:
+                     bild=None, rede_ms=None, kalibrierung=False,
+                     weich_ms=None) -> int:
     """Legt eine Zeile in ``web_post`` an und liefert ihre id.
 
     Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
@@ -4595,23 +4599,25 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
     (Hintergrund-Mithoeren Phase 1, Padua 03.10.2026) sind nur bei
     ``typ='sprache'`` gesetzt und wandern unveraendert bis in die
     ``aufnahme``-Zeile (``web_kanal.hole_updates`` -> ``aufnahme.empfange``).
-    ``rede_ms`` (Kanban-Karte Mithoeren SICHER, 03.10.2026) und
-    ``kalibrierung`` (Task 2, dieselbe Karte) sind ebenso nur bei
-    ``typ='sprache'`` gesetzt und wandern genauso durch. ``bild``
-    (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
+    ``rede_ms`` (Kanban-Karte Mithoeren SICHER, 03.10.2026),
+    ``kalibrierung`` (Task 2, dieselbe Karte) und ``weich_ms`` (Padua VAD:
+    weicher Schnitt, 05.10.2026, nur bei ``schnittgrund='weich'`` gesetzt)
+    sind ebenso nur bei ``typ='sprache'`` gesetzt und wandern genauso durch.
+    ``bild`` (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
     Telefon-Organisationskarte unter ``interview_theater/static/handys/``."""
     cur = conn.execute(
         "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
         "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am, "
-        "schnittgrund, brainstorm, diskussion, bild, rede_ms, kalibrierung) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "schnittgrund, brainstorm, diskussion, bild, rede_ms, kalibrierung, "
+        "weich_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             chat_id, richtung, typ, text,
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
             daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
             schnittgrund, 1 if brainstorm else 0, 1 if diskussion else 0, bild,
-            rede_ms, 1 if kalibrierung else 0,
+            rede_ms, 1 if kalibrierung else 0, weich_ms,
         ),
     )
     conn.commit()

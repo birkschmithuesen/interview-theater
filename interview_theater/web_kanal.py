@@ -377,6 +377,10 @@ class WebKanal:
                 # entscheidet damit, den Clip NIE als Interview-Teil
                 # einzusammeln, unabhaengig vom Modus.
                 "kalibrierung": bool(zeile["kalibrierung"]),
+                # weichMs (Padua VAD: weicher Schnitt, 05.10.2026): dieselbe
+                # additive Durchreiche wie ``rede_ms``, aus der gleichnamigen
+                # web_post-Spalte.
+                "weich_ms": zeile["weich_ms"],
             }
         else:
             nachricht["text"] = zeile["text"] or ""

@@ -277,7 +277,8 @@ def test_das_json_post_limit_gilt_fuer_audio_nicht(aufbau):
 
 
 def _lade_mit_grund(basis, token, koerper: bytes, *, grund=None, brainstorm=False,
-                     diskussion=False, dauer=45, rede=None, kalibrierung=False):
+                     diskussion=False, dauer=45, rede=None, kalibrierung=False,
+                     weichms=None):
     kennung = web.nonce(SCHLUESSEL, token)
     url = f"{basis}/g/{token}/chat/audio?nonce={kennung}&dauer={dauer}"
     if grund is not None:
@@ -290,6 +291,8 @@ def _lade_mit_grund(basis, token, koerper: bytes, *, grund=None, brainstorm=Fals
         url += f"&rede={rede}"
     if kalibrierung:
         url += "&kalibrierung=1"
+    if weichms is not None:
+        url += f"&weichms={weichms}"
     anfrage = urllib.request.Request(
         url, data=koerper, headers={"Content-Type": "audio/webm"}, method="POST",
     )
@@ -303,6 +306,15 @@ def test_grund_und_brainstorm_landen_im_web_post(aufbau):
     zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
     assert zeile["schnittgrund"] == "pause"
     assert zeile["brainstorm"] == 1
+
+
+def test_grund_weich_landet_im_web_post(aufbau):
+    """Padua VAD: weicher Schnitt (05.10.2026) -- 'weich' ist seit dieser
+    Karte ein gueltiger Schnittgrund, kein unbekannter Wert mehr."""
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM, grund="weich")
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["schnittgrund"] == "weich"
 
 
 def test_ohne_grund_und_brainstorm_bleiben_sie_leer(aufbau):
@@ -374,6 +386,27 @@ def test_kaputte_rede_wird_zu_leer_statt_den_upload_scheitern_zu_lassen(aufbau, 
 
 # -- kalibrierung-Flag (Task 2, Kanban-Karte Mithoeren SICHER/             --
 # -- Kalibrierung, 03.10.2026) ----------------------------------------------
+
+
+# -- weichMs-Metadatum (Padua VAD: weicher Schnitt, 05.10.2026) -----------
+#
+# Dasselbe reine Diagnose-Metadatum wie redeMs: das Alter des Segments beim
+# Schnitt, nie ein Upload-Gate, damit morgige Daten die Vorgaben 30s/700ms
+# justieren koennen.
+
+
+def test_weichms_landet_im_web_post(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM, grund="weich", weichms="31200")
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["weich_ms"] == 31200
+
+
+def test_ohne_weichms_bleibt_sie_leer(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["weich_ms"] is None
 
 
 def test_kalibrierung_landet_im_web_post(aufbau):

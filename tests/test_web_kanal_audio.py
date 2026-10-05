@@ -89,6 +89,10 @@ def test_die_schluesselmenge_waechst_um_genau_einen_eintrag():
         # kalibrierung (Task 2, dieselbe Karte): ein Kalibrierungs-Testsatz
         # ist aus dem Telegram-Client nicht herstellbar -- immer False.
         "kalibrierung",
+        # weichMs (Padua VAD: weicher Schnitt, 05.10.2026): Alter des
+        # Segments beim Schnitt, nur bei schnittgrund='weich' -- None bei
+        # Telegram.
+        "weich_ms",
     }
 
 

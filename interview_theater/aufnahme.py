@@ -570,6 +570,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
         schnittgrund=n.get("schnittgrund"), brainstorm=bool(n.get("brainstorm")),
         diskussion=bool(n.get("diskussion")),
         rede_ms=n.get("rede_ms"), kalibrierung=kalibrierung,
+        weich_ms=n.get("weich_ms"),
     )
 
 

@@ -373,6 +373,37 @@ def test_web_interviewstart_spricht_nicht_von_sprachnachrichten(conn, web, einst
     assert web_chat.T._TEXT_INTERVIEW_ENDEN in texte
 
 
+def test_padua_web_eintritt_phase3_ohne_telegram_bedienung_und_ohne_frage(conn, web, einst, padua):
+    """P34 Runde 2, Befund A8 (Lauf 220222, web_post 4): der Eintritt in
+    Phase 3 sagte "record the conversation as voice messages", "tap End
+    interview (or say "done" ...)" und endete mit der offenen Frage "Before I
+    suggest anything: do you have ideas of your own?" -- Telegram-Bedienung
+    und eine Frage in der Phase ohne Fragen. Im Web: die Knoepfe der
+    Oberflaeche, keine angehaengte Frage."""
+    from interview_theater import knoepfe, web_chat
+
+    knoepfe.eintritt_in_phase(conn, web, None, einst, 1, 3)
+
+    eintritt = next(t for t in _alle_texte(conn) if t and t.startswith("▶️ Phase 3"))
+    assert "voice message" not in eintritt
+    assert "done" not in eintritt
+    assert "End interview" not in eintritt
+    assert web_chat.T._TEXT_INTERVIEW_AN in eintritt
+    assert web_chat.T._TEXT_INTERVIEW_ENDEN in eintritt
+    assert knoepfe.T._TEXT_PROAKTIV not in eintritt
+    assert not eintritt.rstrip().endswith("?")
+
+
+def test_telegram_eintritt_phase3_behaelt_die_offene_frage(conn, einst):
+    """Gegenprobe: Telegram (Dortmund-Weg) bleibt unveraendert."""
+    from interview_theater import knoepfe
+
+    tg = TelegramAttrappe()
+    knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, 3)
+
+    assert any(t.endswith(knoepfe.T._TEXT_PROAKTIV) for _, t in tg.gesendet)
+
+
 def test_web_interviewstart_deutsch_ohne_sprachnachrichten(conn, web, einst):
     """Dito ohne Profil (Deutsch): Gegenprobe, dass die DE-Konstante
     mitgezogen ist."""

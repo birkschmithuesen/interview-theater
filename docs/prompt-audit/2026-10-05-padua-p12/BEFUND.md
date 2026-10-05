@@ -147,28 +147,71 @@ siehe Abschnitt 8 -- behoben.
 
 ## 7. Opus-Befunde je Phase
 
-**Nicht gelaufen.** Drei Versuche (ein Hintergrundlauf, der durch einen
-Sitzungsneustart unterbrochen wurde, und zwei vordergruendige Laeufe mit
-voller Wartezeit) scheiterten alle an
-`simulation.claude.ClaudeFehler: Simulationsmodell nach 4 Versuchen nicht
-erreichbar (zuletzt: ReadTimeout)` -- 3 Retries je 120 s plus ein finaler
-Versuch, dann Abbruch. Vermutliche Ursache: der lokale Opus-Proxy
-(`http://127.0.0.1:28764/v1/messages` bzw. `IT_SIM_URL`) war waehrend
-dieser Session durch parallel laufende andere Padua-Karten ausgelastet,
-die denselben Proxy nutzen -- der Proxy selbst antwortet auf einen
-einfachen GET mit HTTP 404 (normal fuer einen reinen POST-Endpunkt), lebt
-also.
+**Gelaufen, 29 Befunde (0 unsicher).** Die drei vorherigen Fehlschlaege waren
+NICHT reine Systemlast -- gemessen bei anschliessend niedriger Last
+(load average 1.0 statt 3.4) scheiterte derselbe Aufruf weiterhin:
 
-Nachfahren, sobald der Proxy wieder frei ist:
+1. `TIMEOUT_S = 120.0` in `simulation/claude.py` war echt zu knapp fuer den
+   Datenumfang dieser Lesung. Ein direkter Probe-Aufruf mit genau dem
+   Phase-1-Nutzertext (UX-Regeln + Rubrik + Dump, 57.777 Zeichen) brauchte
+   **190,9 s** bzw. im zweiten Lauf **213,6 s** bei niedriger Last --
+   beides ueber dem alten Zeitbudget, selbst ohne jede Konkurrenz. Fix:
+   `TIMEOUT_S` auf 280 s angehoben (kein Test nagelt den alten Wert).
+2. Danach scheiterte die JSON-Antwort am Ausgabebudget: `stop_reason:
+   "max_tokens"` bei `simulation.claude.MAX_TOKENS = 16_000` -- 8.761
+   Denk- plus 15.772 Textzeichen fuellten den Deckel exakt, die Antwort
+   brach mitten im JSON ab (`Unterminated string`). Fix: eigenes
+   `LESUNG_MAX_TOKENS = 32_000` nur in `pruefe_prompts_lesung.py`, der
+   globale Simulations-Deckel fuer alle anderen Aufrufer (Browser-UX-Sim,
+   Richter) bleibt bei 16.000.
+
+Mit beiden Fixes lief die Lesung erfolgreich:
 ```
-python3.11 -m scripts.pruefe_prompts_lesung docs/prompt-audit/2026-10-05-padua-p12 --phase 1
-python3.11 -m scripts.pruefe_prompts_lesung docs/prompt-audit/2026-10-05-padua-p12 --phase 2
+python3.11 -m scripts.pruefe_prompts_lesung docs/prompt-audit/2026-10-05-padua-p12
+# phase=1 befunde=15 unsicher=0
+# phase=2 befunde=14 unsicher=0
+# gesamt: 29 Befunde, 0 unsicher
 ```
-Das Werkzeug selbst (`scripts/pruefe_prompts_lesung.py`) ist fertig,
-getestet (12 offline Tests gegen eine Attrappe, kein Netzaufruf) und
-committet (siehe Abschnitt 8); nur der echte Lauf gegen das Modell steht
-aus. Keine erfundenen Befunde, keine geschaetzte Lesung -- dieser Abschnitt
-bleibt bewusst leer, bis der Lauf tatsaechlich stattfindet.
+Alle 29 Zitate sind mechanisch gegen die Dumps verifiziert (`zitat.pruefe`,
+dieselbe Funktion wie bei Verdichter/Kernzitaten/Dramaturgie -- kein Fund
+ohne Beleg). Vollstaendige Liste: `docs/prompt-audit/2026-10-05-padua-p12/lesung.json`
+(committet).
+
+**Davon in diesem Lauf behoben** (siehe Abschnitt 8, Fix 2): Kategorie b,
+`01-gespraech-phase1.txt:44` -- `system.md` behauptete "Phase 1 is a
+handover: the terms have been collected in the room ... that happens
+offline, in the plenary session, without the chat", das Gegenteil des
+echten, im selben Prompt geladenen Padua-Ablaufs (Hintergrund-Zuhoeren,
+"Discussion done", automatischer Begriffsvorschlag aus
+`workshop/padua-2026/prompts/phasen/1.md`).
+
+**Die restlichen 28 Befunde** (vier weitere in Phase 1, 13 in Phase 2
+plus 10 Kontextstruktur-Befunde Kategorie d) sind NICHT in diesem Lauf
+behoben -- jeder einzelne Fix ist eine Designentscheidung, die ueber
+"Zeile loeschen" hinausgeht (z. B. Befund mit der "three per term"-Schwelle
+in Phase 2 wuerde das Verhalten der Fragenauswahl aendern, nicht nur den
+Prompt-Wortlaut begradigen), und der Kartenauftrag deckt den Scope
+(Phase 1+2 Prompt-Check als Ganzes), nicht die vollstaendige Abarbeitung
+jedes Einzelfunds. Vollstaendige, geprueft-zitierte Liste in
+`lesung.json` -- Uebergabe an die naechste Runde der Fix-Schleife
+(t_0b702d1d) bzw. als eigene Folgekarte, je nachdem, was Birk entscheidet.
+Auswahl der auffaelligsten (Volltext/Zeile in `lesung.json`):
+
+- (b) Z. 521: Phase 1 wird gleichzeitig verboten UND angewiesen, nach dem
+  Wechsel zu Phase 2 zu fragen (Beispielsatz nennt zudem "Interviews",
+  die es in Phase 1 noch nicht gibt).
+- (a) Z. 276 (beide Phasen): Ja/Nein-Speicherzeremonie bleibt im
+  EN-Systemprompt verlangt -- betrifft Karte t_e5b1df39, siehe Abschnitt 9.
+- (a) Z. 136 (Phase 1) / Z. 136 (Phase 2): fixe Zahl "exactly ten" bzw.
+  "VORSCHLAG FRAGENAUSWAHL:"-Marker widerspricht "Numbers and scope are
+  the group's call" bzw. "the group writes first" in Phase 2.
+- (a) Z. 61 (Phase 2): "Every scene has a form" im Phase-2-Prompt
+  widerspricht der UX-Regel, Formentscheidungen erst in Station 7 zu
+  treffen.
+- (d) mehrfach: Chatverlauf im Nutzerteil enthaelt abgeschnittene
+  System-Echo-Zeilen unter dem Label "You:" ("Changed since - please fix
+  it in the work status", Z531/Z608), sodass das Modell sie als eigene
+  Aussage lesen koennte.
 
 ## 8. Behoben in diesem Lauf
 
@@ -274,9 +317,8 @@ nur Birk treffen kann.
 - **Kein bezahlter Infomaniak-Lauf** -- alle fuenf Dumps laufen ueber den
   Claude-Weg (`weg=claude`), der echte Infomaniak-Pfad fuer Phase 3
   (Kimi) ist in diesem Scope ohnehin nicht enthalten.
-- **Die Opus-Lesung ist nicht gelaufen** (siehe Abschnitt 7) -- jeder
-  Befund, der nur eine tiefere semantische Lesung gefunden haette (nicht
-  nur Stichwort-Matching), fehlt in diesem BEFUND.
+- **Die Opus-Lesung IST gelaufen** (siehe Abschnitt 7) -- 29 Befunde, davon
+  einer in diesem Lauf behoben, 28 als Uebergabe dokumentiert.
 - `ZEICHEN_MAX` der Lesung (240.000) ist ungemessen (uebernommen aus dem
   Gesamtplan, nie gegen einen echten Lauf kalibriert).
 - `ANNAHME` (aus dem Gesamtplan uebernommen, hier nicht erneut geprueft):

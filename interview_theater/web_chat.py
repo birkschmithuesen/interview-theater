@@ -1896,6 +1896,79 @@ _CHAT_JS = """
                      KAL_SCHWELLE_ABS_MAX);
   }
 
+  // Mindest-SNR (p90/p10 auf dem ROHEN Pegel, nicht log10) fuer "bimodal
+  // genug" -- dieselbe Kennzahl, mit der die Robo-Messung ihre drei echten
+  // Gruppendiskussionen validiert hat (39-250x). Ein einzelner Pegel-Peak
+  // (kein Sprachanteil im Messfenster, egal wie breit er in sich streut)
+  // bleibt weit darunter -- gemessen an synthetischen Gegenproben, nicht
+  // geraten.
+  var KAL_OTSU_SNR_MIN = 10;
+
+  // Otsu-Schwelle auf log10(RMS) (Addendum Birk, 05.10.2026 22:22, Robo-
+  // Messung ~/.hermes/profiles/birk/var/padua-nacht/vad/vad_thr.py): die
+  // Pegelverteilung einer Gruppendiskussion ist bimodal (Grundrauschen vs.
+  // Sprache), das Taltal zwischen beiden Verteilungen ist eine robustere
+  // Sprachschwelle als die alte Ad-hoc-Ableitung aus dem rollenden Boden
+  // (gemessen: G3s rede_ms-Schwelle lag bei 2x ihrem Taltal, nur 46% statt
+  // 63% der Ticks zaehlten als Sprache). Log-Skala, weil der Pegel selbst
+  // log-verteilt ist (RMS, keine linearen Dezibel). Bildverarbeitungs-
+  // Standardverfahren: ueber ein Histogramm die Schwelle suchen, die die
+  // Zwischen-Klassen-Varianz maximiert. Liefert ``null`` ohne genug Proben
+  // oder ohne genug SNR (KAL_OTSU_SNR_MIN) -- der Aufrufer faellt dann auf
+  // die alte Rolling-Formel zurueck.
+  function kalOtsuSchwelle(werte) {
+    var positiv = werte.filter(function (r) { return r > 0; });
+    if (positiv.length < 10) { return null; }
+    var sortiert = positiv.slice().sort(function (a, b) { return a - b; });
+    var p10 = sortiert[Math.floor(sortiert.length * 0.1)];
+    var p90 = sortiert[Math.min(sortiert.length - 1, Math.floor(sortiert.length * 0.9))];
+    if (!(p10 > 0) || (p90 / p10) < KAL_OTSU_SNR_MIN) { return null; }
+
+    var logs = sortiert.map(function (r) { return Math.log(r) / Math.LN10; });
+    var minLog = logs[0], maxLog = logs[logs.length - 1];
+    if (maxLog <= minLog) { return null; }
+    var BINS = 64;
+    var histogramm = new Array(BINS);
+    for (var h = 0; h < BINS; h++) { histogramm[h] = 0; }
+    var breite = (maxLog - minLog) / BINS;
+    for (var j = 0; j < logs.length; j++) {
+      var bin = Math.min(BINS - 1, Math.floor((logs[j] - minLog) / breite));
+      histogramm[bin]++;
+    }
+    var gesamt = logs.length;
+    var summeGesamt = 0;
+    for (var b = 0; b < BINS; b++) { summeGesamt += (minLog + (b + 0.5) * breite) * histogramm[b]; }
+
+    // Zwischen-Klassen-Varianz je moeglicher Schnittstelle (-1 = ungueltig,
+    // eine Seite leer).
+    var zwischenVarianzen = [];
+    var anzahlUnten = 0, summeUnten = 0, beste = -1;
+    for (var t = 0; t < BINS - 1; t++) {
+      anzahlUnten += histogramm[t];
+      summeUnten += (minLog + (t + 0.5) * breite) * histogramm[t];
+      var anzahlOben = gesamt - anzahlUnten;
+      if (anzahlUnten === 0 || anzahlOben === 0) { zwischenVarianzen.push(-1); continue; }
+      var mittelUnten = summeUnten / anzahlUnten;
+      var mittelOben = (summeGesamt - summeUnten) / anzahlOben;
+      var wert = (anzahlUnten * anzahlOben / (gesamt * gesamt)) *
+        Math.pow(mittelUnten - mittelOben, 2);
+      zwischenVarianzen.push(wert);
+      if (wert > beste) { beste = wert; }
+    }
+    if (beste < 0) { return null; }
+    // Ein voellig leeres Taltal (komplett getrennte Cluster) macht die
+    // Zwischen-Klassen-Varianz ueber mehrere Schnittstellen hinweg GLEICH
+    // gut -- die MITTE dieses Laufs nehmen, nicht die erste Schnittstelle,
+    // sonst landet die Schwelle am Rand der unteren Klasse statt im Taltal.
+    var kandidaten = [];
+    for (var k = 0; k < zwischenVarianzen.length; k++) {
+      if (zwischenVarianzen[k] >= beste - 1e-9) { kandidaten.push(k); }
+    }
+    var bestesBin = kandidaten[Math.floor(kandidaten.length / 2)];
+    var schwelleLog = minLog + (bestesBin + 1) * breite;
+    return Math.min(Math.max(Math.pow(10, schwelleLog), KAL_SCHWELLE_ABS_MIN), KAL_SCHWELLE_ABS_MAX);
+  }
+
   // Karte "keine Kalibrierung in Phase 3/4" (05.10.2026): die serverseitigen
   // Gruppenwerte kommen beim ersten Laden als drei dataset-Strings
   // (``data-kalibrierung-*``, web_chat._kal_gruppe_attribut) -- leer ohne
@@ -1978,6 +2051,12 @@ _CHAT_JS = """
         var rms = Math.sqrt(quadratsumme / zeitWerte.length);
         sitzung.vadBoden.push(rms);
         if (sitzung.vadBoden.length > BODEN_FENSTER) { sitzung.vadBoden.shift(); }
+        // AUTO-Kalibrierung (Robo-Addendum 05.10.2026 22:22): waehrend
+        // kalStarteAuto() sammelt, braucht die Otsu-Schwelle die ROHEN
+        // Ticks ueber das ganze Messfenster (~20s) -- anders als
+        // sitzung.vadBoden, das auf die letzten ~5s gekappt ist (die
+        // laufende Pause-Erkennung braucht nur die juengste Vergangenheit).
+        if (sitzung._kalAutoProben) { sitzung._kalAutoProben.push(rms); }
         // Niedriges Perzentil der letzten ~5 s als Rauschboden -- GESETZT,
         // NICHT GEMESSEN (anders als PAUSE_MS/MAX_MS/MIN_SPEECH_MS/
         // RMS_SCHWELLE, die aus CoThinker stammen). BODEN_DECKEL_FAKTOR
@@ -2776,20 +2855,25 @@ _CHAT_JS = """
       .catch(function () { /* best effort, wie kalMeldeZuLeise */ });
   }
 
-  //: Wie lange die AUTO-Kalibrierung den rollenden Boden sammelt, bevor sie
-  //: ihn einfriert -- dieselbe Fensterlaenge wie BODEN_FENSTER in pegelAn()
-  //: (~5s bei VAD_TAKT_MS=60), hier als eigene Konstante, weil pegelAn()s
-  //: BODEN_FENSTER in dessen eigenem Geltungsbereich eingeschlossen ist.
-  var KAL_AUTO_MESS_MS = 5000;
+  //: Wie lange die AUTO-Kalibrierung echtes Zuhoeren sammelt, bevor sie eine
+  //: Schwelle einfriert (Addendum Birk, 05.10.2026 22:22: 20s statt der
+  //: anfaenglichen 5s -- die Otsu-Schwelle braucht genug Ticks aus BEIDEN
+  //: Klassen, Grundrauschen UND mindestens eine Sprachpassage, um das
+  //: Taltal zu finden; ein reiner 5s-Rauschboden haette oft noch keine
+  //: Sprache gesehen).
+  var KAL_AUTO_MESS_MS = 20000;
 
-  // AUTO-Kalibrierung (Build-Punkt 3 der Karte): kein Panel, keine
-  // Nutzeraktion -- die Aufnahme laeuft sofort mit der unkalibrierten,
-  // rollenden Formel (kalBerechneBodenUndSchwelle(), sitzung.vadSchwelleFix
-  // bleibt zunaechst ungesetzt), nach KAL_AUTO_MESS_MS friert
-  // kalSchliesseAutoAb() den bis dahin gesammelten Boden als festen Wert
-  // ein -- derselbe Festwert-Mechanismus wie eine manuelle Messung
-  // (kalibrierungBeenden()), nur ohne Sprachprobe.
+  // AUTO-Kalibrierung (Build-Punkt 3 der Karte, Schwelle seit dem Addendum
+  // per Otsu statt Ad-hoc-Ableitung): kein Panel, keine Nutzeraktion -- die
+  // Aufnahme laeuft sofort mit der unkalibrierten, rollenden Formel
+  // (kalBerechneBodenUndSchwelle(), sitzung.vadSchwelleFix bleibt zunaechst
+  // ungesetzt), sitzung._kalAutoProben sammelt parallel JEDEN Tick (pegelAn())
+  // ungekappt fuer die Otsu-Schwelle. Nach KAL_AUTO_MESS_MS friert
+  // kalSchliesseAutoAb() das Ergebnis als Festwert ein -- derselbe
+  // Festwert-Mechanismus wie eine manuelle Messung (kalibrierungBeenden()),
+  // nur ohne Sprachprobe.
   function kalStarteAuto(sitzung) {
+    sitzung._kalAutoProben = [];
     kalStarteEchteSchnitte(sitzung);
     setTimeout(function () { kalSchliesseAutoAb(sitzung); }, KAL_AUTO_MESS_MS);
   }
@@ -2798,10 +2882,25 @@ _CHAT_JS = """
     // #kalibrierung-neu oder ein Sitzungsende kam zuerst -- nichts mehr
     // einzufrieren.
     if (sitzung.beendet || sitzung.vadSchwelleFix != null) { return; }
-    var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
-    var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
-    var boden = kalMedian(sitzung.vadBoden || []);
-    var schwelle = Math.max(RMS_SCHWELLE, boden * BODEN_FAKTOR);
+    var proben = sitzung._kalAutoProben || [];
+    sitzung._kalAutoProben = null;   // pegelAn() sammelt ab jetzt nicht mehr
+    var otsu = kalOtsuSchwelle(proben);
+    var boden, schwelle;
+    if (otsu != null) {
+      // Das Taltal selbst trennt die Proben in Grundrauschen/Sprache --
+      // der Median der UNTEREN Klasse ist der gemessene Boden, ohne eine
+      // zweite willkuerliche Formel dafuer zu erfinden.
+      var unten = proben.filter(function (r) { return r > 0 && r < otsu; });
+      boden = unten.length ? kalMedian(unten) : kalMedian(proben);
+      schwelle = otsu;
+    } else {
+      // Rueckfall (zu wenig Proben oder nicht bimodal genug, Addendum
+      // 05.10.2026): dieselbe Ad-hoc-Ableitung wie vor dem Addendum.
+      var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
+      var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
+      boden = kalMedian(sitzung.vadBoden || []);
+      schwelle = Math.max(RMS_SCHWELLE, boden * BODEN_FAKTOR);
+    }
     sitzung.vadBodenMess = boden;
     sitzung.vadSchwelleFix = schwelle;
     sitzung.kalibriert = true;

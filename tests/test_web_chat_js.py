@@ -941,30 +941,98 @@ def test_kalentscheideoderstarte_wendet_die_quelle_an_live_in_node(tmp_path):
     }
 
 
-def test_kalstarteauto_friert_den_rollenden_boden_nach_der_wartezeit_live_in_node(tmp_path):
-    """Die AUTO-Kalibrierung selbst: startet sofort ohne Panel, und friert
-    nach ``KAL_AUTO_MESS_MS`` den rollenden Boden (``kalMedian`` ueber
-    ``sitzung.vadBoden``) als Festwert ein -- Schwelle nach derselben
-    ``max(RMS_SCHWELLE, boden*BODEN_FAKTOR)``-Formel wie die unkalibrierte
-    Anzeige. Der Server bekommt ehrlich ``rede: null`` (kein Testsatz),
-    der lokale Cache (der ALLE drei Werte als endliche Zahl verlangt)
-    bekommt ``boden`` als Platzhalter -- ungenutzt beim Wiederlesen.
+def test_kalotsuschwelle_findet_das_taltal_oder_faellt_zurueck_live_in_node(tmp_path):
+    """Addendum Birk, 05.10.2026 22:22 (Robo-Messung, echtes Audio): zwei
+    synthetische Serien woertlich gegen den ausgelieferten Code -- eine
+    bimodale (Grundrauschen + Sprache, grosse Luecke dazwischen) findet das
+    Taltal innerhalb +-20% des geometrischen Mittels beider Cluster, eine
+    unimodale (ein einziger Pegel-Peak, egal wie breit er in sich streut)
+    liefert ``null`` -- der Aufrufer faellt dann auf die Rolling-Formel
+    zurueck. Dazu: zu wenig Proben ist ebenfalls ``null``.
 
-    Mutanten: ein vertauschtes max/min liesse die Schwelle unter
-    RMS_SCHWELLE fallen; ``null`` statt ``boden`` im Cache-Aufruf machte den
-    Cache fuer den Rest des Tages unlesbar (kalibrierungCacheLesen verlangt
-    drei endliche Werte)."""
+    Mutanten: ein umgekehrtes SNR-Gate (``>`` statt ``<``) liesse die enge
+    Serie faelschlich durch und die bimodale faelschlich scheitern; ein
+    "ersten Treffer statt Mitte des Taltals nehmen" zoege die Schwelle der
+    bimodalen Serie bis an KAL_SCHWELLE_ABS_MIN (0.004) -- weit ausserhalb
+    der 20%-Toleranz."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "var KAL_OTSU_SNR_MIN", "function kalGruppenwerteAus")
+
+    quelltext = f"""
+    var KAL_SCHWELLE_ABS_MIN = 0.004;
+    var KAL_SCHWELLE_ABS_MAX = 0.08;
+    {funktion}
+
+    function serie(untenVon, untenBis, untenN, obenVon, obenBis, obenN) {{
+      var werte = [];
+      for (var i = 0; i < untenN; i++) {{
+        werte.push(untenVon + i * (untenBis - untenVon) / Math.max(1, untenN));
+      }}
+      for (var j = 0; j < obenN; j++) {{
+        werte.push(obenVon + j * (obenBis - obenVon) / Math.max(1, obenN));
+      }}
+      return werte;
+    }}
+    // Diskretisierte Gauss-Glocke (Binomialgewichte) um EINEN Pegel -- ein
+    // einziger Peak, kein Taltal, egal wie breit er in sich streut.
+    function glocke(zentrumLog, schrittLog) {{
+      var gewichte = [1, 8, 28, 56, 70, 56, 28, 8, 1];
+      var werte = [];
+      for (var k = 0; k < gewichte.length; k++) {{
+        var wert = Math.pow(10, zentrumLog + (k - 4) * schrittLog);
+        for (var n = 0; n < gewichte[k]; n++) {{ werte.push(wert); }}
+      }}
+      return werte;
+    }}
+
+    var bimodal = serie(0.0025, 0.0035, 200, 0.25, 0.35, 100);
+    var ergebnisse = {{
+      bimodal: kalOtsuSchwelle(bimodal),
+      unimodal_eng: kalOtsuSchwelle(glocke(-2, 0.02)),
+      unimodal_breit: kalOtsuSchwelle(glocke(-2, 0.2)),
+      zu_wenig_proben: kalOtsuSchwelle([0.01, 0.02, 0.5])
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    erwartete_mitte = (0.003 * 0.3) ** 0.5   # geometrisches Mittel der beiden Cluster
+    assert ergebnisse["bimodal"] == pytest.approx(erwartete_mitte, rel=0.2)
+    assert ergebnisse["unimodal_eng"] is None
+    assert ergebnisse["unimodal_breit"] is None
+    assert ergebnisse["zu_wenig_proben"] is None
+
+
+def test_kalschliesseautoab_nutzt_otsu_und_faellt_sonst_auf_die_rolling_formel_live_in_node(tmp_path):
+    """Die Verdrahtung in ``kalSchliesseAutoAb``: genug bimodale Proben in
+    ``sitzung._kalAutoProben`` (von pegelAn() ueber das ganze Messfenster
+    gesammelt, siehe kalStarteAuto) ergeben die Otsu-Schwelle und einen
+    Boden aus dem Median der UNTEREN Klasse; zu wenige/unimodale Proben
+    fallen auf die alte Rolling-Formel ueber ``sitzung.vadBoden`` zurueck.
+    Beide Zweige melden das Ergebnis gleich (Server ``rede: null``, Cache
+    ``boden`` als Platzhalter -- siehe Kommentar im Code).
+
+    Mutanten: ``sitzung._kalAutoProben`` nicht leeren liesse eine zweite
+    Fensterauswertung dieselben Proben wiederverwenden; ein vertauschtes
+    max/min im Rueckfallzweig liesse die Schwelle unter RMS_SCHWELLE
+    fallen; ``null`` statt ``boden`` im Cache-Aufruf machte den Cache fuer
+    den Rest des Tages unlesbar (kalibrierungCacheLesen verlangt drei
+    endliche Werte)."""
     node = _node_oder_skip()
     js = web_chat._CHAT_JS
     kal_median = _extrahiere(js, "function kalMedian", "function kalPerzentil")
+    otsu = _extrahiere(js, "var KAL_OTSU_SNR_MIN", "function kalGruppenwerteAus")
     auto = _extrahiere(js, "function kalMeldeGruppenwerte", "function kalibrierungNeu")
 
     quelltext = f"""
+    var KAL_SCHWELLE_ABS_MIN = 0.004;
+    var KAL_SCHWELLE_ABS_MAX = 0.08;
     var zeitplaene = [];
     function setTimeout(fn, ms) {{ zeitplaene.push({{ fn: fn, ms: ms }}); }}
     var fuss = {{ dataset: {{ vadRms: '0.01', vadFloorFaktor: '2.5' }} }};
     var echteSchnitteAufrufe = 0;
-    function kalStarteEchteSchnitte(s) {{ echteSchnitteAufrufe++; }}
+    function kalStarteEchteSchnitte(s) {{ echteSchnitteAufrufe++; }}   // pegelAn() laeuft hier NICHT
     var cacheSchreibenAufrufe = [];
     function kalibrierungCacheSchreiben(speicher, gruppe, datum, boden, rede, schwelle) {{
       cacheSchreibenAufrufe.push({{ boden: boden, rede: rede, schwelle: schwelle }});
@@ -976,38 +1044,63 @@ def test_kalstarteauto_friert_den_rollenden_boden_nach_der_wartezeit_live_in_nod
     var gemeldet = [];
     function postJson(pfad, nutzlast) {{ gemeldet.push(nutzlast); return {{ catch: function () {{}} }}; }}
     {kal_median}
+    {otsu}
     {auto}
 
-    var sitzung = {{ vadBoden: [0.004, 0.006, 0.005, 0.2, 0.2] }};
-    kalStarteAuto(sitzung);
-    var vorDemAblauf = {{
-      echteSchnitteAufrufe: echteSchnitteAufrufe,
-      zeitplaene: zeitplaene.map(function (z) {{ return z.ms; }}),
-      vadSchwelleFix: (sitzung.vadSchwelleFix === undefined ? null : sitzung.vadSchwelleFix)
-    }};
+    function serie(untenVon, untenBis, untenN, obenVon, obenBis, obenN) {{
+      var werte = [];
+      for (var i = 0; i < untenN; i++) {{
+        werte.push(untenVon + i * (untenBis - untenVon) / Math.max(1, untenN));
+      }}
+      for (var j = 0; j < obenN; j++) {{
+        werte.push(obenVon + j * (obenBis - obenVon) / Math.max(1, obenN));
+      }}
+      return werte;
+    }}
 
-    zeitplaene[0].fn();   // derselbe Lauf, wie ihn der echte Timer ausgeloest haette
-    var nachDemAblauf = {{
-      vadBodenMess: sitzung.vadBodenMess, vadSchwelleFix: sitzung.vadSchwelleFix,
-      kalibriert: !!sitzung.kalibriert,
-      cacheSchreibenAufrufe: cacheSchreibenAufrufe, gemeldet: gemeldet
+    function lauf(proben, vadBoden) {{
+      zeitplaene = []; cacheSchreibenAufrufe = []; gemeldet = []; echteSchnitteAufrufe = 0;
+      var sitzung = {{ vadBoden: vadBoden }};
+      kalStarteAuto(sitzung);
+      // pegelAn() ist hier Attrappe (echteSchnitteAufrufe zaehlt nur) --
+      // die Proben kommen stattdessen direkt, wie sie bis zum Fenster-Ende
+      // angesammelt worden waeren.
+      sitzung._kalAutoProben = proben;
+      zeitplaene[0].fn();
+      return {{
+        fensterMs: zeitplaene[0].ms, echteSchnitteAufrufe: echteSchnitteAufrufe,
+        vadBodenMess: sitzung.vadBodenMess, vadSchwelleFix: sitzung.vadSchwelleFix,
+        kalibriert: !!sitzung.kalibriert, kalAutoProben: sitzung._kalAutoProben,
+        cacheSchreibenAufrufe: cacheSchreibenAufrufe, gemeldet: gemeldet
+      }};
+    }}
+
+    var bimodal = serie(0.0025, 0.0035, 200, 0.25, 0.35, 100);
+    var ergebnisse = {{
+      otsu: lauf(bimodal, []),
+      rueckfall: lauf([], [0.004, 0.006, 0.005, 0.2, 0.2])
     }};
-    console.log(JSON.stringify({{ vor: vorDemAblauf, nach: nachDemAblauf }}));
+    console.log(JSON.stringify(ergebnisse));
     """
     ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
-    ergebnis = json.loads(ausgabe.strip().splitlines()[-1])
-    assert ergebnis["vor"] == {
-        "echteSchnitteAufrufe": 1, "zeitplaene": [5000], "vadSchwelleFix": None,
-    }
-    assert ergebnis["nach"]["kalibriert"] is True
-    assert ergebnis["nach"]["vadBodenMess"] == pytest.approx(0.006)
-    assert ergebnis["nach"]["vadSchwelleFix"] == pytest.approx(0.015)
-    assert ergebnis["nach"]["cacheSchreibenAufrufe"] == [
-        {"boden": pytest.approx(0.006), "rede": pytest.approx(0.006), "schwelle": pytest.approx(0.015)},
-    ]
-    assert ergebnis["nach"]["gemeldet"] == [
-        {"boden": pytest.approx(0.006), "rede": None, "schwelle": pytest.approx(0.015)},
-    ]
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+
+    otsu = ergebnisse["otsu"]
+    assert otsu["fensterMs"] == 20000
+    assert otsu["echteSchnitteAufrufe"] == 1
+    assert otsu["kalibriert"] is True
+    assert otsu["kalAutoProben"] is None, "Proben werden nach der Auswertung geleert"
+    erwartete_mitte = (0.003 * 0.3) ** 0.5
+    assert otsu["vadSchwelleFix"] == pytest.approx(erwartete_mitte, rel=0.2)
+    assert otsu["vadBodenMess"] == pytest.approx(0.003, rel=0.2)   # Median der unteren Klasse
+    assert otsu["cacheSchreibenAufrufe"][0]["boden"] == pytest.approx(otsu["vadBodenMess"])
+    assert otsu["cacheSchreibenAufrufe"][0]["rede"] == pytest.approx(otsu["vadBodenMess"])
+    assert otsu["gemeldet"][0]["rede"] is None
+
+    rueckfall = ergebnisse["rueckfall"]
+    assert rueckfall["kalibriert"] is True
+    assert rueckfall["vadBodenMess"] == pytest.approx(0.006)   # kalMedian(vadBoden)
+    assert rueckfall["vadSchwelleFix"] == pytest.approx(0.015)   # max(0.01, 0.006*2.5)
 
 
 def test_die_kalibrierung_attribute_stehen_am_fuss_mit_gruppenwerten():

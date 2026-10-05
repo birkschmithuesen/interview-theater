@@ -256,3 +256,76 @@ def pruefe_p2_werkbank(fragen_text: str | None, sichtbare_fragen: int | None, st
         return [Befund(P2_ZAEHLER, station,
                        f"Werkbank zeigt {sichtbare_fragen} Fragen, gespeichert sind {zahl}.")]
     return []
+
+
+# --- Der Chat weiss, was der Bildschirm zeigt --------------------------------
+#
+# Der Gespraechsprompt des naechsten Zugs (``simulation/prompt_abzug.py``, mit
+# dem ``kontext`` des App-Checkouts gegen eine DB-Kopie gebaut) wird mechanisch
+# mit dem verglichen, was die Gruppe im Browser sieht. Was sichtbar ist und im
+# Prompt fehlt, kann der Bot nicht wissen -- ein Befund, kein Geschmack.
+
+CHAT_KENNT_BOARD_NICHT = "chat_kennt_board_nicht"
+CHAT_KENNT_TRANSKRIPT_NICHT = "chat_kennt_transkript_nicht"
+CHAT_KENNT_WERKBANK_NICHT = "chat_kennt_werkbank_nicht"
+CHAT_NENNT_BOARD_NICHT = "chat_nennt_board_nicht"
+WISSENSFRAGE = "Which terms are on the CoThinker right now?"
+#: Laenge der Probe je Transkript-Blase (normalisiert, vom Anfang) -- lang
+#: genug, um nicht zufaellig zu treffen, kurz genug, um eine Kuerzung des
+#: Blasenendes zu ueberstehen.
+TRANSKRIPT_PROBE_ZEICHEN = 30
+
+
+@dataclass(frozen=True)
+class Sichtbar:
+    board: tuple[str, ...] = ()
+    transkripte: tuple[str, ...] = ()
+    werkbank: tuple[str, ...] = ()
+
+
+def _norm_satz(text: str) -> str:
+    """Kleinbuchstaben, Satzzeichen zu Leerraum, Leerraum zusammengefasst --
+    damit "border." im Prompt "border" auf dem Board trifft."""
+    erlaubt = "".join(c if c.isalnum() or c.isspace() else " " for c in text.casefold())
+    return " ".join(erlaubt.split())
+
+
+def _fehlend(begriffe, prompt_n: str) -> list[str]:
+    return [b for b in begriffe if _norm_satz(b) and _norm_satz(b) not in prompt_n]
+
+
+def pruefe_kontext(prompt: str, sichtbar: Sichtbar, station: str) -> list[Befund]:
+    p = _norm_satz(prompt)
+    befunde = []
+    fehlt = _fehlend(sichtbar.board, p)
+    if fehlt:
+        befunde.append(Befund(CHAT_KENNT_BOARD_NICHT, station,
+                              f"CoThinker zeigt {len(sichtbar.board)} Begriffe, im Gespraechsprompt fehlen: "
+                              f"{', '.join(fehlt)}."))
+    proben = [_norm_satz(t)[:TRANSKRIPT_PROBE_ZEICHEN] for t in sichtbar.transkripte if _norm_satz(t)]
+    if proben:
+        gefunden = sum(1 for pr in proben if pr in p)
+        if gefunden * 2 < len(proben):
+            befunde.append(Befund(CHAT_KENNT_TRANSKRIPT_NICHT, station,
+                                  f"Von {len(proben)} sichtbaren Transkript-Blasen stehen nur {gefunden} "
+                                  "im Gespraechsprompt."))
+    fehlt = _fehlend(sichtbar.werkbank, p)
+    if fehlt:
+        befunde.append(Befund(CHAT_KENNT_WERKBANK_NICHT, station,
+                              f"Werkbank zeigt Begriffe, die im Gespraechsprompt fehlen: {', '.join(fehlt)}."))
+    return befunde
+
+
+def pruefe_wissensantwort(antwort: str, board: tuple[str, ...], station: str) -> list[Befund]:
+    """Antwort auf ``WISSENSFRAGE``: sie muss mindestens drei Board-Begriffe
+    nennen (bei kleinerem Board alle)."""
+    if not board:
+        return []
+    a = _norm_satz(antwort)
+    genannt = [b for b in board if _norm_satz(b) in a]
+    noetig = min(3, len(board))
+    if len(genannt) >= noetig:
+        return []
+    return [Befund(CHAT_NENNT_BOARD_NICHT, station,
+                   f"Auf '{WISSENSFRAGE}' nennt der Bot {len(genannt)} von {len(board)} Board-Begriffen "
+                   f"(noetig {noetig}): {antwort[:160]!r}")]

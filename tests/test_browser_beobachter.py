@@ -37,6 +37,7 @@ def test_board_waechst_ohne_reload(browser, monkeypatch):
     ergebnis = beob.ergebnis()
     assert ergebnis["board_bestanden"] is True
     assert ergebnis["beobachter_neu_geladen"] is False
+    assert beob.begriffe() == ("home", "border")
     beob.schliesse()
 
 

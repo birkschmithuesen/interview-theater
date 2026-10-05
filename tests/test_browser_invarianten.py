@@ -219,3 +219,46 @@ def test_p2_werkbank():
     assert inv.pruefe_p2_werkbank("1. Why?\n2. How?", 3, "s")[0].schluessel == inv.P2_ZAEHLER
     assert inv.pruefe_p2_werkbank("1. Why?\n2. How?", 2, "s") == []
     assert inv.pruefe_p2_werkbank("1. Why?", None, "s") == []
+
+
+def test_kontext_kennt_alles():
+    prompt = "Board: home, border\nThe group said: we miss home because of the border\nWorkbench terms: home"
+    s = inv.Sichtbar(board=("home", "border"), transkripte=("We miss home because of the border.",), werkbank=("home",))
+    assert inv.pruefe_kontext(prompt, s, "p1-wissen") == []
+
+
+def test_kontext_ohne_board_und_transkript():
+    prompt = "You are a helpful workshop bot. [voice message]"
+    s = inv.Sichtbar(board=("home", "border"), transkripte=("We miss home because of the border.", "Noise at night"))
+    schluessel = {b.schluessel for b in inv.pruefe_kontext(prompt, s, "p1-wissen")}
+    assert schluessel == {inv.CHAT_KENNT_BOARD_NICHT, inv.CHAT_KENNT_TRANSKRIPT_NICHT}
+
+
+def test_kontext_ohne_werkbank():
+    s = inv.Sichtbar(werkbank=("home", "night shift"))
+    (b,) = inv.pruefe_kontext("terms: home", s, "p2")
+    assert b.schluessel == inv.CHAT_KENNT_WERKBANK_NICHT
+    assert "night shift" in b.text
+    assert b.ursache == inv.URSACHE_UNGEKLAERT
+
+
+def test_kontext_transkript_mehrheit_reicht_und_normalisiert():
+    prompt = "we  MISS home because of the border"
+    s = inv.Sichtbar(transkripte=("We miss home because of the border.", "Noise at night keeps us awake"))
+    assert inv.pruefe_kontext(prompt, s, "s") == []  # 1 von 2 = Haelfte reicht
+    s3 = inv.Sichtbar(transkripte=("We miss home because of the border.", "Noise at night", "Waiting rooms"))
+    assert inv.pruefe_kontext(prompt, s3, "s")[0].schluessel == inv.CHAT_KENNT_TRANSKRIPT_NICHT
+
+
+def test_kontext_leer_sichtbar_kein_befund():
+    assert inv.pruefe_kontext("", inv.Sichtbar(), "s") == []
+
+
+def test_wissensantwort():
+    board = ("home", "border", "noise", "night shift")
+    assert inv.pruefe_wissensantwort("On the CoThinker: home, border and noise.", board, "s") == []
+    (b,) = inv.pruefe_wissensantwort("I can't see the cothinker page from here.", board, "s")
+    assert b.schluessel == inv.CHAT_NENNT_BOARD_NICHT
+    assert inv.pruefe_wissensantwort("home", ("home",), "s") == []
+    assert inv.pruefe_wissensantwort("anything", (), "s") == []
+    assert inv.WISSENSFRAGE == "Which terms are on the CoThinker right now?"

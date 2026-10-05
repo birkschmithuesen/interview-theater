@@ -44,6 +44,14 @@ class Beobachter:
         self.verlauf.append(anzahl)
         return anzahl
 
+    def begriffe(self) -> tuple[str, ...]:
+        """Die sichtbaren Board-Begriffe (derselbe Selektor wie ``messe``):
+        der Wert von ``data-begriff``, sonst der sichtbare Text."""
+        werte = self.page.locator(BOARD_SELEKTOR).evaluate_all(
+            "els => els.map(e => (e.getAttribute('data-begriff') || '').trim() || e.innerText.trim())"
+        )
+        return tuple(w for w in werte if w)
+
     @property
     def neu_geladen(self) -> bool:
         return not self.page.evaluate("window.__beobachterMarke === 1")

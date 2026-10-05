@@ -197,6 +197,21 @@ def test_freitext_ohne_phasennummer_geht_aus_phase_1_ebenfalls_weiter(
     assert phasen.aktuelle(conn, CHAT) == 2
 
 
+def test_nach_klick_zurueck_auf_phase_1_kein_sofortiges_weiter(
+        conn, einst, nach_dem_board):
+    """Live Padua 05.10.2026 (G3): Klick in der Phasenleiste auf "1 · Terms"
+    -> der Erkenner liest phase_setzen "1" -> der Weiter-Weg darf daraus
+    NICHT sofort Phase 2 machen (Pingpong 1<->2, dreimal hintereinander)."""
+    tg = nach_dem_board
+    _korrigiere_im_chat(conn, tg, einst, "Home, Border, Fear, School")
+    phasen.setze(conn, CHAT, 2, "befehl")
+    phasen.setze(conn, CHAT, 1, "web")          # Klick zurueck, gerade eben
+
+    _erkenner(conn, tg, einst, [{"art": "phase_setzen", "wert": "1"}], "/phaseklick 1")
+
+    assert phasen.aktuelle(conn, CHAT) == 1
+
+
 def test_freitext_weiter_ohne_begriffe_bleibt_in_phase_1(conn, tg, einst, padua):  # noqa: F811
     """Gegenprobe: ohne gespeicherte Begriffe gibt es kein Weiter."""
     _erkenner(conn, tg, einst, [{"art": "phase_setzen", "wert": "next"}], "let's move on")

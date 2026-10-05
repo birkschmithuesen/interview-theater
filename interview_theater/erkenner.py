@@ -44,6 +44,7 @@ grosses Fenster den Erkenner dauerhaft lahmlegen) und ein ``vorfall``
 
 import logging
 import re
+from datetime import datetime, timezone
 
 from interview_theater import kontext, phasen, repo, ruecknahme
 
@@ -1874,6 +1875,11 @@ def _erneuere_angebot_auf_bitte(conn, chat_id: int, aenderungen: list[dict]) -> 
     return True
 
 
+#: Nach einem ausdruecklichen Wechsel nach Phase 1 liest dieser Weg kein
+#: "weiter" (Live Padua 05.10.2026, G3 Pingpong 1<->2).
+ZURUECK_SPERRE_S = 120
+
+
 def _weiter_aus_phase_1(conn, chat_id: int, aenderungen: list[dict]) -> list[dict]:
     """"Let's move on" in Phase 1 geht in Phase 2 (Birk 05.10.2026, Brief
     "p1-bleiben"). Eine gespeicherte Begriffs-Korrektur wechselt dort die
@@ -1897,6 +1903,19 @@ def _weiter_aus_phase_1(conn, chat_id: int, aenderungen: list[dict]) -> list[dic
     )
     if not bitte or phasen.naechste_moegliche(conn, chat_id) != 2:
         return []
+    # Live Padua 05.10.2026 (G3, dreimal 15:02-15:08): die Gruppe klickte in
+    # der Phasenleiste zurueck auf "1 · Terms" (``/phaseklick 1``); der
+    # Erkenner las den Zug als ``phase_setzen`` "1", und dieser Weg machte
+    # daraus "weiter" -- die Gruppe flog sofort wieder in Phase 2. Wer gerade
+    # ausdruecklich nach Phase 1 gewechselt ist, will dort bleiben.
+    gesetzt = repo.hole_phase_gesetzt_am(conn, chat_id)
+    if gesetzt:
+        try:
+            alter = (datetime.now(timezone.utc) - datetime.fromisoformat(gesetzt)).total_seconds()
+        except ValueError:
+            alter = None
+        if alter is not None and alter < ZURUECK_SPERRE_S:
+            return []
     if not phasen.setze(conn, chat_id, 2, "erkenner"):
         return []
     return [{"art": "phase_setzen", "wert": "2"}]

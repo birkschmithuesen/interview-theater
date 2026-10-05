@@ -1853,6 +1853,9 @@ _JS_AUFNAHME = """
       // Uhr steht -- sie geht erst mit dem Recorder an -- oder wenn das
       // Telefon eine Pause zeigt (dann laeuft hier nichts, aber der Modus
       // ist an, wie bisher).
+      // Nachtfix 05.10.2026: data-startet (Tipp bis r.start()) gewinnt vor
+      // einer noch sichtbaren Uhr -- unabhaengig vom Uhr-Weg in _CHAT_JS.
+      if (an && knopf.dataset.startet === '1') { setze('startet'); return; }
       var nimmt = !uhr || !uhr.hidden || knopf.dataset.pausiert === '1';
       if (an && nimmt) { setze('laeuft'); return; }
       if (an) { setze('startet'); return; }
@@ -1876,7 +1879,7 @@ _JS_AUFNAHME = """
       lies();
     }).observe(fuss, { attributes: true, attributeFilter: ['data-interview'] });
     new MutationObserver(lies).observe(
-      knopf, { attributes: true, attributeFilter: ['data-pausiert', 'data-fremd'] });
+      knopf, { attributes: true, attributeFilter: ['data-pausiert', 'data-fremd', 'data-startet'] });
     if (uhr) {
       new MutationObserver(lies).observe(
         uhr, { attributes: true, attributeFilter: ['hidden'] });

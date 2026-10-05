@@ -105,6 +105,7 @@ _MESSUNG = r"""
     stopVerzoegerung: {},   // je Recorder-Index: Millisekunden
     stopVerzoegerungAlle: 0,
     gumVerzoegerung: 0,
+    gumFehler: false,   // Nachtfix 05.10.2026: die naechste Mikrofonanfrage EINMAL ablehnen
     halteAudio: false, gehalten: [],
     posts: []
   };
@@ -140,6 +141,10 @@ _MESSUNG = r"""
   if (geraete && geraete.getUserMedia) {
     var echtGum = geraete.getUserMedia.bind(geraete);
     geraete.getUserMedia = function (vorgabe) {
+      if (T.gumFehler) {
+        T.gumFehler = false;
+        return Promise.reject(new DOMException('Attrappe: Mikrofon belegt', 'NotReadableError'));
+      }
       return echtGum(vorgabe).then(function (strom) {
         T.stroeme.push(strom);
         var ms = T.gumVerzoegerung;
@@ -976,6 +981,11 @@ def test_der_umschalter_erzeugt_mindestens_zwei_segmente(seite):
     seite.evaluate("window.__t.gumVerzoegerung = 1500")
     seite.click("#interview")
     expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "1")
+    # Nachtfix 05.10.2026 (Brief 2): erster Start -- bis r.start() sagt der
+    # Knopf "Mikrofon kommt", nicht "laeuft".
+    expect(seite.locator("#interview")).to_have_attribute("data-startet", "1")
+    expect(seite.locator("#interview")).to_contain_text(
+        web_chat._TEXT_INTERVIEW_STARTET.split(" · ")[0])
     seite.click("#interview-pause")   # Pause, noch VOR der Mikrofon-Antwort
     expect(seite.locator("#interview")).to_have_attribute("data-pausiert", "1")
     expect(seite.locator("#interview-pause")).to_have_text("▶ Weiter")
@@ -1208,6 +1218,81 @@ def test_seite_im_interviewmodus_geladen(oeffne, bot):
     assert _warte(seite, lambda: not _modus_an(), ms=10000)
     assert _form(_posts(seite)).count("aus") == aus_vorher + 1
     expect(seite.locator("#interview")).to_have_attribute("data-laeuft", "0")
+
+def test_weiter_zeigt_startet_bis_der_recorder_laeuft(oeffne, bot):
+    """Nachtfix 05.10.2026 (Geraete-Analyse Brief 2): zwischen dem Tipp auf
+    Weiter und r.start() zeigen Knopf und UX-Zeile "startet", nicht "laeuft"
+    (wer auf "laeuft" hin sprach, verlor die ersten Worte). Ein
+    Mikrofonfehler beim Weiter faellt in die Pause zurueck, statt dauerhaft
+    "laeuft" ohne Recorder zu zeigen.
+
+    Ohne ein einziges ``/chat/interview``-POST (Topf, siehe
+    ``test_der_umschalter_erzeugt_mindestens_zwei_segmente``): der Modus
+    kommt aus der Datenbank, das Telefon steigt ueber "Hier aufnehmen" ein,
+    und am Ende nimmt die Datenbank den Modus wieder zurueck."""
+    from interview_theater import web_gestalt
+
+    setze_modus(True)
+    gestartet = []
+    seite = oeffne(vorher=lambda blatt: blatt.on(
+        "response", lambda r: gestartet.append(1) if "/chat/start" in r.url else None))
+    assert _warte(seite, lambda: bool(gestartet) and not bot.offen())
+    setze_modus(True)
+    expect(seite.locator("#interview")).to_have_attribute("data-fremd", "1")
+    knopf = seite.locator("#interview")
+    zeile = seite.locator("#ux-rec-zeile")
+
+    # Einsteigen (fremdes Geraet: zwei Tipps), Mikrofon verzoegert.
+    seite.evaluate("window.__t.gumVerzoegerung = 1500")
+    seite.click("#interview-pause")
+    seite.click("#interview-pause")
+    expect(knopf).to_have_attribute("data-startet", "1")
+    expect(zeile).to_have_text(web_gestalt._TEXT_REC_STARTET)
+    assert _t(seite, "starts") == 0
+    # Segmente rollen im Test alle SEGMENT_MS -- gezaehlt wird deshalb
+    # relativ: "kein neuer Recorder" heisst "starts unveraendert".
+    assert _warte(seite, lambda: _t(seite, "starts") >= 1)
+    expect(knopf).to_have_attribute("data-startet", "0")
+    expect(seite.locator("#uhr")).to_be_visible()
+    expect(zeile).to_have_text(web_gestalt._TEXT_REC_LAEUFT)
+
+    # Pause, dann Weiter mit verzoegertem Mikrofon.
+    seite.wait_for_timeout(1200)   # etwas erfasste Zeit fuer die Pause-Uhr
+    seite.click("#interview-pause")
+    expect(knopf).to_have_attribute("data-pausiert", "1")
+    expect(seite.locator("#uhr")).to_be_visible()
+    n = _t(seite, "starts")
+    seite.click("#interview-pause")   # Weiter
+    expect(knopf).to_have_attribute("data-startet", "1")
+    expect(seite.locator("#uhr")).to_be_hidden()
+    expect(zeile).to_have_text(web_gestalt._TEXT_REC_STARTET)
+    assert "läuft" not in knopf.inner_text()
+    assert _t(seite, "starts") == n   # noch kein neuer Recorder
+    assert _warte(seite, lambda: _t(seite, "starts") > n)
+    expect(knopf).to_have_attribute("data-startet", "0")
+    expect(seite.locator("#uhr")).to_be_visible()
+    expect(zeile).to_have_text(web_gestalt._TEXT_REC_LAEUFT)
+
+    # Mikrofonfehler beim Weiter: zurueck in die Pause, nicht "laeuft".
+    seite.evaluate("window.__t.gumVerzoegerung = 0")
+    seite.click("#interview-pause")   # Pause
+    expect(knopf).to_have_attribute("data-pausiert", "1")
+    n = _t(seite, "starts")
+    seite.evaluate("window.__t.gumFehler = true")
+    seite.click("#interview-pause")   # Weiter -> Mikrofon abgelehnt
+    expect(seite.locator("#fehler")).to_be_visible()
+    expect(knopf).to_have_attribute("data-pausiert", "1")
+    expect(knopf).to_have_attribute("data-startet", "0")
+    expect(seite.locator("#interview-pause")).to_have_text(web_chat._TEXT_INTERVIEW_WEITER)
+    expect(seite.locator("#uhr")).to_be_visible()
+    expect(zeile).to_have_text(web_gestalt._TEXT_REC_PAUSIERT)
+    assert _t(seite, "starts") == n
+
+    # Und es geht danach normal weiter.
+    seite.click("#interview-pause")
+    assert _warte(seite, lambda: _t(seite, "starts") > n)
+    expect(knopf).to_have_attribute("data-pausiert", "0")
+    setze_modus(False)   # aufraeumen ohne POST
 
 
 # -- Modusende ohne dieses Telefon (Re-Review H) -----------------------------------

@@ -219,6 +219,9 @@ _TEXT_INTERVIEW_FREMD = "Interview offen · dieses Handy nimmt nicht auf"
 _TEXT_INTERVIEW_HIER = "▶ Hier aufnehmen"
 _TEXT_INTERVIEW_HIER_SICHER = "Nimmt schon ein anderes Handy auf? Sonst nochmal tippen"
 _TEXT_INTERVIEW_ENDEN_SICHER = "Interview für alle beenden? Nochmal tippen"
+#: Nachtfix 05.10.2026: zwischen dem Tipp (Start/Weiter) und r.start() --
+#: vorher stand dort schon "laeuft", und die ersten Worte gingen verloren.
+_TEXT_INTERVIEW_STARTET = "● Mikrofon kommt … · {zeit}"
 #: Brainstorm mithören (Phase 4, nur Web, 02.10.2026): derselbe
 #: Drei-Zustands-Regler wie beim Interview (Pause/Weiter/Beenden teilen sich
 #: dieselben Beschriftungen, _TEXT_INTERVIEW_PAUSE usw.), nur der grosse
@@ -611,6 +614,7 @@ _JS_TEXTE = {
     "interview_hier": _TEXT_INTERVIEW_HIER,
     "interview_hier_sicher": _TEXT_INTERVIEW_HIER_SICHER,
     "interview_enden_sicher": _TEXT_INTERVIEW_ENDEN_SICHER,
+    "interview_startet": _TEXT_INTERVIEW_STARTET,
     "brainstorm_an": _TEXT_BRAINSTORM_AN,
     "brainstorm_laeuft": _TEXT_BRAINSTORM_LAEUFT,
     "diskussion_an": _TEXT_DISKUSSION_AN,
@@ -2052,17 +2056,23 @@ _CHAT_JS = """
     // Selektoren); Weiter/Beenden brauchen hier einen zweiten Tipp
     // (fremdBestaetigt).
     var fremd = an && !sitzung && !zustand.wechsel && zustand.servermodus;
+    // Nachtfix 05.10.2026: zwischen Tipp und r.start() "startet", nicht
+    // "laeuft" (die Pause hat Vorrang). Die Uhr steht dabei, legStart ist null.
+    var startet = an && !!sitzung && !sitzung.pausiert && !!sitzung.mikroUnterwegs;
     if (!fremd) { zustand.fremdScharf = null; }
     fuss.dataset.interview = an ? '1' : '0';
     interviewKnopf.dataset.laeuft = an ? '1' : '0';
     interviewKnopf.dataset.pausiert = pausiert ? '1' : '0';
     interviewKnopf.dataset.fremd = fremd ? '1' : '0';
+    interviewKnopf.dataset.startet = startet ? '1' : '0';
     if (!an) {
       interviewKnopf.textContent = TEXT.interview_an;
     } else if (fremd) {
       interviewKnopf.textContent = TEXT.interview_fremd;
     } else if (pausiert) {
       interviewKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
+    } else if (startet) {
+      interviewKnopf.textContent = TEXT.interview_startet.replace('{zeit}', formatiereUhr(sitzung));
     } else {
       interviewKnopf.textContent = TEXT.interview_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
@@ -3140,8 +3150,10 @@ _CHAT_JS = """
     var wechsel = { ziel: true, gesendet: false };
     zustand.aufnahme = sitzung;
     zustand.wechsel = wechsel;
-    zeigeModus();
+    // Nachtfix 05.10.2026: vor der Anzeige gesetzt, damit der Knopf
+    // "Mikrofon kommt" sagt statt schon "laeuft".
     sitzung.mikroUnterwegs = true;
+    zeigeModus();
     holeStrom().then(function (strom) {
       sitzung.mikroUnterwegs = false;
       sitzung.strom = strom;
@@ -3264,6 +3276,9 @@ _CHAT_JS = """
       // Flag, sobald das Mikrofon kommt, und faengt dann gar nicht erst an
       // aufzunehmen (statt den Tipp stillschweigend zu verschlucken).
       sitzung.pausiert = true;
+      // Nachtfix 05.10.2026: fortsetzeInterview() hat die Pause-Uhr bis
+      // r.start() ausgeblendet -- in der Pause gehoert sie wieder hin.
+      if (uhrFeld && sitzung.erfassteMs > 0) { uhrFeld.hidden = false; }
       zeigeModus();
       return;
     }
@@ -3334,10 +3349,16 @@ _CHAT_JS = """
     // statt no-op zu sein), sieht beginneAufnahme() unten sitzung.pausiert
     // wieder true und faengt gar nicht erst an -- derselbe Schutz wie bei
     // starteInterview(), zentral an einer Stelle statt dupliziert.
+    var uhrWarDa = !!uhrFeld && !uhrFeld.hidden;
     sitzung.pausiert = false;
     sitzung.fortsetzend = true;   // Sperrklinke: kein zweiter Recorder bei Doppeldruck
-    zeigeModus();
+    // Nachtfix 05.10.2026: bis r.start() "startet" -- mikroUnterwegs VOR der
+    // Anzeige, und die stehende Pause-Uhr weg (die UX-Zeile liest sie als
+    // "laeuft"); kalStarteEchteSchnitte() -> uhrAn() zeigt sie nach
+    // r.start() wieder.
     sitzung.mikroUnterwegs = true;
+    if (uhrFeld) { uhrFeld.hidden = true; }
+    zeigeModus();
     holeStrom().then(function (strom) {
       sitzung.mikroUnterwegs = false;
       sitzung.fortsetzend = false;
@@ -3353,6 +3374,11 @@ _CHAT_JS = """
     }).catch(function () {
       sitzung.mikroUnterwegs = false;
       sitzung.fortsetzend = false;
+      // Nachtfix 05.10.2026: kein Mikrofon, also zurueck in die Pause (wie
+      // fortsetzeBrainstorm) -- vorher stand dauerhaft "laeuft" ohne
+      // Recorder da. Die Pause-Uhr kommt zurueck, wenn es eine gab.
+      sitzung.pausiert = true;
+      if (uhrFeld && uhrWarDa) { uhrFeld.hidden = false; }
       zeigeModus();
       meldeFehler(TEXT.fehler_mikro);
     });
@@ -3803,6 +3829,7 @@ def _js() -> str:
         interview_hier=T._TEXT_INTERVIEW_HIER,
         interview_hier_sicher=T._TEXT_INTERVIEW_HIER_SICHER,
         interview_enden_sicher=T._TEXT_INTERVIEW_ENDEN_SICHER,
+        interview_startet=T._TEXT_INTERVIEW_STARTET,
         brainstorm_an=T._TEXT_BRAINSTORM_AN,
         brainstorm_laeuft=T._TEXT_BRAINSTORM_LAEUFT,
         diskussion_an=T._TEXT_DISKUSSION_AN,

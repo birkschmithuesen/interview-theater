@@ -1920,6 +1920,7 @@ _TEXT_INTERVIEW_FREMD = "Interview open · this phone isn't recording"
 _TEXT_INTERVIEW_HIER = "▶ Record on this phone"
 _TEXT_INTERVIEW_HIER_SICHER = "Another phone already recording? If not, tap again"
 _TEXT_INTERVIEW_ENDEN_SICHER = "End the interview for everyone? Tap again"
+_TEXT_INTERVIEW_STARTET = "● Starting mic … · {zeit}"
 _TEXT_PTT = "Hold to talk"
 # Task 1 (Kanban-Karte Buehne/PTT, 04.10.2026, Telegram pattern): literal
 # wording from the card for the hint and nothing paraphrased there.

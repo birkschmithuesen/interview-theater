@@ -1243,6 +1243,86 @@ def test_fremd_texte_kommen_englisch_ueber_t(monkeypatch):
     assert texte["interview_enden"] == "■ Stop"
 
 
+
+# -- Mikrofon kommt (Nachtfix 05.10.2026, Geraete-Analyse Brief 2) ----------
+#
+# Zwischen dem Tipp (Start oder Weiter) und r.start() sagte die Seite schon
+# "laeuft" -- wer darauf hin sprach, verlor die ersten Worte. Und ein
+# Mikrofonfehler beim Weiter liess die Anzeige dauerhaft auf "laeuft" ohne
+# Recorder stehen.
+
+def test_zeigemodus_zeigt_startet_solange_mikro_unterwegs_live_in_node(tmp_path):
+    node = _node_oder_skip()
+    quelltext = _zeigemodus_harness("""
+    console.log(JSON.stringify({
+      startet: lauf({ servermodus: true, aufnahme: {
+        pausiert: false, mikroUnterwegs: true, erfassteMs: 65000, legStart: null } }),
+      laeuft: lauf({ servermodus: true, aufnahme: {
+        pausiert: false, mikroUnterwegs: false, erfassteMs: 0, legStart: Date.now() } }),
+      pause_hat_vorrang: lauf({ servermodus: true, aufnahme: {
+        pausiert: true, mikroUnterwegs: true, erfassteMs: 0, legStart: null } }),
+      erster_start: lauf({ wechsel: { ziel: true, gesendet: false }, aufnahme: {
+        pausiert: false, mikroUnterwegs: true, erfassteMs: 0, legStart: null } })
+    }));
+    """)
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["startet"]["text"] == "STARTET 1:05"
+    assert e["startet"]["startet"] == "1"
+    assert e["startet"]["pausiert"] == "0"
+    assert e["laeuft"]["text"].startswith("LAEUFT")
+    assert e["laeuft"]["startet"] == "0"
+    assert e["pause_hat_vorrang"]["text"] == "PAUSIERT 0:00"
+    assert e["pause_hat_vorrang"]["startet"] == "0"
+    assert e["erster_start"]["text"] == "STARTET 0:00"
+    assert e["erster_start"]["startet"] == "1"
+
+
+def test_starteinterview_meldet_das_mikro_vor_der_anzeige():
+    js = web_chat._CHAT_JS
+    start = js[js.index("function starteInterview"):js.index("function brichAb")]
+    vor_strom = start[:start.index("holeStrom().then")]
+    assert ("mikroUnterwegs: true" in vor_strom or
+            vor_strom.index("sitzung.mikroUnterwegs = true") < vor_strom.index("zeigeModus()"))
+
+
+def test_fortsetzen_zeigt_startet_bis_zum_recorder():
+    js = web_chat._CHAT_JS
+    fortsetzen = js[js.index("function fortsetzeInterview"):
+                     js.index("if (nachreichenKnopf)")]
+    vor_strom = fortsetzen[:fortsetzen.index("holeStrom().then")]
+    letzte_anzeige = vor_strom.rindex("zeigeModus()")
+    assert vor_strom.rindex("sitzung.mikroUnterwegs = true") < letzte_anzeige
+    assert "uhrFeld.hidden = true" in vor_strom[vor_strom.rindex("sitzung.pausiert = false"):]
+
+
+def test_mikrofehler_beim_fortsetzen_faellt_in_die_pause_zurueck():
+    js = web_chat._CHAT_JS
+    fortsetzen = js[js.index("function fortsetzeInterview"):
+                     js.index("if (nachreichenKnopf)")]
+    fang = fortsetzen[fortsetzen.index(").catch("):]
+    assert "sitzung.pausiert = true" in fang
+    assert "uhrFeld.hidden = false" in fang
+    assert fang.index("sitzung.pausiert = true") < fang.index("zeigeModus()")
+
+
+def test_pause_waehrend_mikro_kommt_zeigt_die_pause_uhr_wieder():
+    """Weiter blendet die Pause-Uhr bis r.start() aus; eine Pause in genau
+    diesem Fenster bringt sie zurueck -- aber nur, wenn schon Zeit erfasst
+    ist (beim ersten Start gab es nie eine Uhr)."""
+    js = web_chat._CHAT_JS
+    pause = js[js.index("function pausiereInterview"):
+                js.index("function fortsetzeInterview")]
+    vor_falten = pause[:pause.index("sitzung.erfassteMs +=")]
+    assert "if (uhrFeld && sitzung.erfassteMs > 0) { uhrFeld.hidden = false; }" in vor_falten
+
+def test_startet_text_kommt_englisch_ueber_t(monkeypatch):
+    from interview_theater import sprache
+    assert web_chat._JS_TEXTE["interview_startet"] == web_chat._TEXT_INTERVIEW_STARTET
+    assert "{zeit}" in web_chat._TEXT_INTERVIEW_STARTET
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    texte = json.loads(re.search(r"var TEXT = (\{.*?\});\n", web_chat._js()).group(1))
+    assert texte["interview_startet"] == "● Starting mic … · {zeit}"
+
 def test_pause_vor_dem_mikrofon_verschluckt_den_tipp_nicht():
     """Fix-Review, Befund 1: Pause, waehrend starteInterview() noch auf
     holeStrom() wartet (eine vom Menschen beantwortete Berechtigungsfrage --

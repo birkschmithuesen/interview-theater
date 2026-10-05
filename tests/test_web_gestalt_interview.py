@@ -292,3 +292,19 @@ def test_rec_fremd_ist_ein_eigener_uebersetzter_text(monkeypatch):
     monkeypatch.setattr(sprache, "code", lambda: "en")
     assert web_gestalt._mikrotexte()["rec_fremd"] == (
         "Another phone recording? Then leave this one alone.")
+
+
+def test_startet_hat_vorrang_vor_der_sichtbaren_uhr_live_in_node(tmp_path):
+    """Brief 2: zwischen Weiter und r.start() kann die Uhr der Pause noch
+    sichtbar sein -- data-startet entscheidet trotzdem fuer "startet"."""
+    r = _aufnahme_zeile_in_node(tmp_path, """
+    fuss.dataset.interview = '1'; uhr.hidden = false;
+    knopf.dataset.pausiert = '0'; knopf.dataset.startet = '1';
+    feuere(); r.startet = zeile.textContent;
+    knopf.dataset.startet = '0';
+    feuere(); r.laeuft = zeile.textContent;
+    """)
+    texte = web_gestalt._mikrotexte()
+    assert r["startet"] == texte["rec_startet"]
+    assert r["laeuft"] == texte["rec_laeuft"]
+    assert re.search(r"attributeFilter: \[[^\]]*'data-startet'", web_gestalt._JS_AUFNAHME)

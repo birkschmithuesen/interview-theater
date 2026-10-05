@@ -315,13 +315,40 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 /* Brainstorm mithören (Phase 4, nur Web): derselbe grosse Knopf wie
    #interview, Interview bleibt daneben erreichbar, aber kleiner/nachrangig
    (brief: "interview button stays reachable ... smaller/secondary"). */
-#brainstorm { font: inherit; font-weight: 600; min-height: 3.2rem; width: 100%;
+#brainstorm { font: inherit; font-weight: 600; min-height: 3.4rem; width: 100%;
               border-radius: .8rem; border: 1px solid #1f6f5c; background: #fff;
               margin-bottom: .5rem; }
 #brainstorm[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
                                color: #fff; min-height: 4rem; font-size: 1.15rem; }
 #brainstorm[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
                                                   border-color: #8a8a8a; }
+/* Diskussion mithören (Phase 1, nur Web): dieselbe Rolle wie #brainstorm --
+   nur Start und Fertig, kein Pause-Knopf mehr (AGENTS.md "Das Mithören hat
+   nur Start und Fertig"), deshalb kein [data-pausiert]-Zustand hier. */
+#diskussion { font: inherit; font-weight: 600; min-height: 3.4rem; width: 100%;
+              border-radius: .8rem; border: 1px solid #1f6f5c; background: #fff;
+              margin-bottom: .5rem; }
+#diskussion[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
+                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
+/* Der rote Punkt vor dem Text: ein ::before-Pseudo-Element ueberlebt das
+   textContent-Setzen aus _CHAT_JS (zeigeDiskussionModus/zeigeBrainstormModus),
+   weil textContent nur Kindknoten ersetzt, nie Pseudo-Elemente -- kein
+   Markup-Umbau noetig. Im Ruhezustand dieselbe Aufnahme-Rot-Farbe wie der
+   laufende Hintergrund, im laufenden Zustand weiss (muss sich vom eigenen,
+   jetzt roten Hintergrund abheben) und pulsierend -- beide Kontraste in
+   tests/test_web_chat_js.py nachgerechnet. */
+#diskussion::before, #brainstorm::before { content: "\\25cf "; color: #a8201a; }
+#diskussion[data-laeuft="1"]::before, #brainstorm[data-laeuft="1"]::before {
+  color: #fff; animation: mithoeren-punkt-puls 1.6s ease-in-out infinite;
+}
+/* Opacity statt Farbwechsel, 1.6s (~0.6 Hz) statt eines harten Blinkens --
+   deutlich unter den kritischen 3 Hz. */
+@keyframes mithoeren-punkt-puls { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  #diskussion[data-laeuft="1"]::before, #brainstorm[data-laeuft="1"]::before {
+    animation: none;
+  }
+}
 #interview.nebenknopf { font-weight: 400; min-height: 2.4rem; font-size: .9rem;
                         opacity: .8; }
 .interview-aktionen { display: flex; gap: .5rem; margin-top: .4rem; }

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from interview_theater import db, repo, web, web_chat, web_vereint
+from interview_theater import db, repo, web, web_chat, web_gestalt, web_vereint
 
 CHAT = 7_000_000_000_001
 SCHLUESSEL = b"x" * 32
@@ -2264,3 +2264,149 @@ def test_mitlauf_hinweis_guard_zeigt_sich_nur_beim_ersten_segment_live_in_node(t
     assert ergebnisse["a"]["merkposten_erstes_mal"] is True
     assert ergebnisse["b"]["sichtbar_zweites_mal"] is False
     assert ergebnisse["c"]["sichtbar_neue_sitzung"] is True
+
+
+# -- Task 1 (Kanban-Karte "nice to have"): #diskussion/#brainstorm sind       --
+# -- die Start-Mithoeren-Knoepfe der Phasen 1 und 4 -- bisher ohne eigene     --
+# -- Hervorhebung, auf einem 390px-Telefon gingen sie neben den anderen      --
+# -- Knoepfen unter. #interview bleibt bewusst unberuehrt (eigene Rolle mit  --
+# -- Pause-Zustand). ----------------------------------------------------------
+
+def _volle_hexfarbe(wert):
+    """Expandiert eine CSS-Kurzform (``#fff``) auf sechs Hexziffern --
+    ``web_gestalt.kontrastverhaeltnis`` erwartet immer sechs Stellen."""
+    roh = wert.lstrip("#")
+    if len(roh) == 3:
+        roh = "".join(ziffer * 2 for ziffer in roh)
+    return "#" + roh
+
+
+def _media_block(css, anfang):
+    """Schneidet den Media-Query-Block ab ``anfang`` heraus, Klammertiefe
+    gezaehlt statt per Regex geraten -- eine ``@media``-Regel verschachtelt
+    eine weitere ``{...}``-Regel, und ein nicht-gieriges Regex-Match darauf
+    ist nur ein Zufallstreffer der Einrueckung."""
+    start = css.index(anfang)
+    tiefe = 0
+    for i, zeichen in enumerate(css[start:]):
+        if zeichen == "{":
+            tiefe += 1
+        elif zeichen == "}":
+            tiefe -= 1
+            if tiefe == 0:
+                return css[start:start + i + 1]
+    raise AssertionError(f"kein geschlossener Block fuer {anfang!r} gefunden")
+
+
+def test_diskussion_hat_eine_eigene_mindesthoehe_im_ruhezustand():
+    """Ruhezustand (``data-laeuft="0"``) von ``#diskussion`` braucht
+    mindestens 3.4rem ``min-height`` -- das war die konkrete Vorgabe des
+    Taskbriefs gegen den zu kleinen Knopf auf dem 390px-Telefon."""
+    css = web_chat._CSS_CHAT
+    regel = re.search(r"#diskussion\s*\{([^}]*)\}", css)
+    assert regel, "keine eigene Ruhezustand-Regel fuer #diskussion"
+    hoehe = re.search(r"min-height:\s*([\d.]+)rem", regel.group(1))
+    assert hoehe, "keine min-height in der #diskussion-Regel"
+    assert float(hoehe.group(1)) >= 3.4
+
+
+def test_brainstorm_bekommt_dieselbe_mindesthoehe_wie_diskussion():
+    """Gleiche Rolle (Start-Mithoeren), gleiche Behandlung -- #brainstorm
+    hatte vorher 3.2rem und damit dasselbe Problem wie #diskussion."""
+    css = web_chat._CSS_CHAT
+    regel = re.search(r"#brainstorm\s*\{([^}]*)\}", css)
+    assert regel, "keine eigene Ruhezustand-Regel fuer #brainstorm"
+    hoehe = re.search(r"min-height:\s*([\d.]+)rem", regel.group(1))
+    assert hoehe
+    assert float(hoehe.group(1)) >= 3.4
+
+
+def test_der_rote_punkt_steht_vor_dem_text_ueber_ein_before_pseudoelement():
+    """Der Punkt kommt per ``::before`` -- das ueberlebt das
+    ``textContent``-Setzen aus ``zeigeDiskussionModus``/``zeigeBrainstormModus``
+    in ``_CHAT_JS`` (``textContent`` ersetzt nur Kindknoten, nie
+    Pseudo-Elemente), ohne dass der Python-f-string des Markups angefasst
+    werden muss."""
+    css = web_chat._CSS_CHAT
+    ruhe = re.search(
+        r'#diskussion::before,\s*#brainstorm::before\s*\{([^}]*)\}', css,
+    )
+    assert ruhe, "keine gemeinsame ::before-Regel fuer #diskussion/#brainstorm"
+    assert "content:" in ruhe.group(1)
+    # textContent ersetzt nur Kindknoten -- das pruefen wir hier nicht im
+    # DOM (kein Browser in diesem Testmodul), sondern an der Quelle: beide
+    # Knoepfe setzen ihren Text ausschliesslich ueber textContent.
+    js = web_chat._CHAT_JS
+    assert "diskussionKnopf.textContent" in js
+    assert "brainstormKnopf.textContent" in js
+
+
+def test_der_pulsierende_punkt_hat_eine_keyframes_regel_mit_reduced_motion_abschaltung():
+    """``#diskussion``/``#brainstorm`` pulsieren im laufenden Zustand ueber
+    dieselbe ``@keyframes``-Regel, und ``prefers-reduced-motion: reduce``
+    schaltet sie wieder aus -- Pulsieren ist Bewegung, keine reine
+    Textinformation (AGENTS.md "Die Gestaltung": ``prefers-reduced-motion``
+    legt Animationen bewusst still)."""
+    css = web_chat._CSS_CHAT
+    laufend = re.search(
+        r'#diskussion\[data-laeuft="1"\]::before,\s*'
+        r'#brainstorm\[data-laeuft="1"\]::before\s*\{([^}]*)\}',
+        css,
+    )
+    assert laufend, "keine gemeinsame laufende ::before-Regel fuer beide Knoepfe"
+    animation = re.search(r"animation:\s*([\w-]+)\s", laufend.group(1))
+    assert animation, "keine animation-Eigenschaft im laufenden Zustand"
+    name = animation.group(1)
+
+    keyframes = re.search(rf"@keyframes\s+{re.escape(name)}\s*\{{([^}}]*)\}}", css)
+    assert keyframes, f"keine @keyframes-Regel namens {name}"
+    # sub-3Hz: eine Animation, die schneller als alle 333ms umschlaegt, waere
+    # ein hartes Blinken -- hier geht es um sanftes Pulsieren.
+    dauer = re.search(r"animation:\s*[\w-]+\s+([\d.]+)s", laufend.group(1))
+    assert dauer, "keine Animationsdauer angegeben"
+    assert float(dauer.group(1)) > 0.333
+
+    reduziert = _media_block(css, "@media (prefers-reduced-motion: reduce)")
+    assert "#diskussion" in reduziert and "#brainstorm" in reduziert
+    assert "animation: none" in reduziert or "animation:none" in reduziert
+
+
+def test_punkt_kontrast_erfuellt_die_grafik_vorgabe_von_3_zu_1():
+    """WCAG verlangt fuer Grafikelemente (kein Fliesstext) ein
+    Kontrastverhaeltnis von mindestens 3:1 -- geprueft gegen die tatsaechlich
+    in ``_CSS_CHAT`` stehenden Hex-Werte, nicht gegen eine zweite,
+    hartkodierte Kopie davon."""
+    css = web_chat._CSS_CHAT
+
+    ruhe_knopf = re.search(r"#diskussion\s*\{([^}]*)\}", css)
+    ruhe_hintergrund = re.search(r"background:\s*(#[0-9a-fA-F]+)", ruhe_knopf.group(1))
+    assert ruhe_hintergrund, "keine background-Farbe im Ruhezustand von #diskussion"
+
+    ruhe_punkt = re.search(
+        r'#diskussion::before,\s*#brainstorm::before\s*\{([^}]*)\}', css,
+    )
+    ruhe_farbe = re.search(r"color:\s*(#[0-9a-fA-F]+)", ruhe_punkt.group(1))
+    assert ruhe_farbe, "keine color-Angabe im ruhenden ::before"
+
+    laufender_knopf = re.search(r'#diskussion\[data-laeuft="1"\]\s*\{([^}]*)\}', css)
+    laufender_hintergrund = re.search(
+        r"background:\s*(#[0-9a-fA-F]+)", laufender_knopf.group(1),
+    )
+    assert laufender_hintergrund, "keine background-Farbe im laufenden Zustand"
+
+    laufender_punkt = re.search(
+        r'#diskussion\[data-laeuft="1"\]::before,\s*'
+        r'#brainstorm\[data-laeuft="1"\]::before\s*\{([^}]*)\}',
+        css,
+    )
+    laufende_farbe = re.search(r"color:\s*(#[0-9a-fA-F]+)", laufender_punkt.group(1))
+    assert laufende_farbe, "keine color-Angabe im laufenden ::before"
+
+    kontrast_ruhe = web_gestalt.kontrastverhaeltnis(
+        _volle_hexfarbe(ruhe_farbe.group(1)), _volle_hexfarbe(ruhe_hintergrund.group(1)),
+    )
+    kontrast_laufend = web_gestalt.kontrastverhaeltnis(
+        _volle_hexfarbe(laufende_farbe.group(1)), _volle_hexfarbe(laufender_hintergrund.group(1)),
+    )
+    assert kontrast_ruhe >= 3.0, kontrast_ruhe
+    assert kontrast_laufend >= 3.0, kontrast_laufend

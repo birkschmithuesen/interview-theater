@@ -295,6 +295,23 @@ def _schreibe_tsv(ziel: Path, zeilen: list[dict]) -> str:
 
 
 def _lauf(ziel: Path, nur: list[str] | None) -> list[dict]:
+    # Robo 05.10.: Umgebung nach dem Lauf wiederherstellen -- vorher blieben
+    # IT_WORKSHOP/IT_DB gesetzt und verschmutzten jeden spaeteren Test im
+    # selben Prozess (6 rote Tests in test_flow_fixes_0609 im Verbund).
+    alt = {k: os.environ.get(k) for k in (workshop.VARIABLE, "IT_DB")}
+    try:
+        return _lauf_innen(ziel, nur)
+    finally:
+        for k, v in alt.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        workshop.vergiss()
+        anweisungen._CACHE.clear()
+
+
+def _lauf_innen(ziel: Path, nur: list[str] | None) -> list[dict]:
     os.environ.setdefault(workshop.VARIABLE, "padua-2026")
     workshop.vergiss()
     anweisungen._CACHE.clear()

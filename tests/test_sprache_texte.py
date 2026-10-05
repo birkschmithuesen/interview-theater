@@ -697,3 +697,30 @@ def test_phasenhinweis_beispiel_ist_phasenneutral():
     text = _tabelle()["kontext"]["_PHASENHINWEIS"]
     assert "interview" not in text.lower()
     assert "{bezeichnung}" in text
+
+
+def _alle_texte_en(knoten):
+    if isinstance(knoten, str):
+        yield knoten
+    elif isinstance(knoten, dict):
+        for wert in knoten.values():
+            yield from _alle_texte_en(wert)
+    elif isinstance(knoten, (list, tuple)):
+        for wert in knoten:
+            yield from _alle_texte_en(wert)
+
+
+def test_der_arbeitsstand_tab_heisst_ueberall_wie_der_tab():
+    """P34 Runde 2, Befund A9 (Lauf 220222, web_post 24/27/28): der Bot nannte
+    den Tab "Where we are", die Oberflaeche heisst ihn "Workbench"
+    (``["web_vereint"._TEXT_TAB] stand``). Jeder EN-Text, der den Tab nennt,
+    benutzt dessen Beschriftung."""
+    tabelle = _tabelle()
+    tab = tabelle["web_vereint"]["_TEXT_TAB"]["stand"]
+    falsch = [
+        t for t in _alle_texte_en(tabelle)
+        if re.search(r'Where we are"? tab|tab "?Where we are', t)
+    ]
+    assert falsch == []
+    assert tab in tabelle["knoepfe.texte"]["_TEXT_ARBEITSSTAND_HINWEIS"]
+    assert tab in tabelle["kontext"]["EINSTIEG_SETTING"]

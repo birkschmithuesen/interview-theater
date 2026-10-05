@@ -1146,7 +1146,11 @@ def _wirkung_interviews_fertig(conn, d: Druck) -> str:
         # -- ein zusaetzliches d.tg.sende() hier waere derselbe Text zweimal.
         return T._TEXT_INTERVIEWS_NOCH_OFFEN.format(anzahl=offen)
     if schliesse_interviews_ab(conn, d.tg, d.klm, d.e, d.chat_id):
-        return T._TEXT_ARBEITSSTAND_HINWEIS
+        # Der Tab-Hinweis steht schon als Chatzeile da
+        # (``schliesse_interviews_ab``); als Quittung kaeme er ein zweites
+        # Mal (P34 Runde 2, Befund A9). Die Quittung nennt die Phase wie
+        # ``_wirkung_phase``.
+        return T._ANTWORT_PHASE.format(nummer=phasen.aktuelle(conn, d.chat_id))
     # Sollte wegen phasen.voraussetzungen[4] nicht vorkommen, wenn
     # unausgewertete_interviews() oben schon leer war -- defensiv trotzdem
     # wie "noch offen" behandeln statt zu schweigen. Dieselbe Keine-Dopplung-

@@ -36,6 +36,14 @@ nach `docs/agents/` (nur bei Bedarf gelesen), verlinkt aus einem Index.
 7. Regel für Folgearbeit: Übergaben/Nachweise einer Karte gehören in
    `docs/agents/<thema>.md` oder `docs/handoffs/`, **nie** an AGENTS.md
    anhängen.
+8. Pflicht-Fallen aus der CC-Forensik 05.10. (je eine Zeile im Index):
+   - Testkommando: `uv run python -m pytest -q -m "not dortmund" --ignore=tests/e2e`
+     (volle Suite ~7,5 min; e2e nur gezielt, eigenes venv `it-webtest`).
+   - Eigene Diagnoseskripte immer als `uv run python -m <modul>` starten —
+     direkter Dateiaufruf → `ModuleNotFoundError` (Repo-Root fehlt in sys.path).
+   - `simulation/claude.py`: `TIMEOUT_S=120` hart — lange Modellaufrufe
+     scheitern daran, nicht am Netz.
+   - Nur gezielte Tests während der Arbeit, die volle Suite einmal am Ende.
 
 ## Umzug
 

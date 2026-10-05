@@ -154,7 +154,7 @@ def test_padua_tallystufe_fordert_kein_fragen_weich_mehr(monkeypatch):
     try:
         assert workshop.fragen_weich_aktiv() is False
         text = " ".join(anweisungen.hole("phasen/2").split())
-        tally_beginn = text.index("Keep a running tally")
+        tally_beginn = text.index("Report only what is new or explicitly changed")
         vergleich_beginn = text.index("Once the comparison is running")
         tally_abschnitt = text[tally_beginn:vergleich_beginn]
         assert "FRAGEN WEICH" not in tally_abschnitt.upper()
@@ -187,23 +187,96 @@ def test_regex_eigene_fragen_hat_kein_gemeinsames_praefix_mit_den_anderen_fragen
 
 
 # ---------------------------------------------------------------------------
-# uebernimm_eigene: Overwrite-Semantik
+# uebernimm_eigene: additive Semantik (Birk, 05.10.2026 13:25, Fund P2-H6)
+#
+# Die Gegenueberstellung (``versuche_gegenueberstellung``) liest
+# ``fragen_eigene_vorschlag`` erst, wenn die Gruppe fertig ist -- bis dahin
+# ist das Feld der laufende Stand der eigenen Fragen. Der alte Code hat ihn
+# bei JEDEM Zug mit der vom MODELL neu geschriebenen Liste ueberschrieben:
+# ein Begriff, den die Gruppe entfernt hatte, kam zurueck, zwei eigene
+# Fragen verschwanden spurlos, sobald das Modell die kumulative Liste beim
+# Nacherzaehlen nicht mehr vollstaendig wiederholte. Seit diesem Fix haengt
+# der CODE neue Zeilen an, statt dem Modell zu vertrauen, dass es die ganze
+# Liste fehlerfrei zurueckgibt; eine bestehende Frage aendert oder loescht
+# nur ein ausdruecklicher ``CHANGE:``/``DELETE:``-Marker (passend zum
+# angepassten Padua-Prompt, ``workshop/padua-2026/prompts/phasen/2.md``).
 # ---------------------------------------------------------------------------
 
 
-def test_uebernimm_eigene_ueberschreibt_statt_anzuhaengen(conn, einst, monkeypatch):
+def test_uebernimm_eigene_haengt_neue_fragen_an_statt_zu_ueberschreiben(
+    conn, einst, monkeypatch,
+):
     monkeypatch.setattr(fragen, "versuche_gegenueberstellung", lambda *a, **k: None)
     _setze_begriffe(conn, "Heimat")
     tg = _TG()
 
-    fragen.uebernimm_eigene(conn, tg, CHAT, "Heimat: Erste Fassung.")
+    fragen.uebernimm_eigene(conn, tg, CHAT, "Heimat: Erste Frage.")
     erster = _feld(conn, CHAT, "fragen_eigene_vorschlag")
-    assert erster == "Heimat: Erste Fassung."
+    assert erster == "Heimat: Erste Frage."
 
-    fragen.uebernimm_eigene(conn, tg, CHAT, "Heimat: Ganz andere Fassung.")
+    fragen.uebernimm_eigene(conn, tg, CHAT, "Heimat: Zweite Frage.")
     zweiter = _feld(conn, CHAT, "fragen_eigene_vorschlag")
-    assert zweiter == "Heimat: Ganz andere Fassung."
-    assert "Erste Fassung" not in zweiter
+    assert zweiter == "Heimat: Erste Frage.\nHeimat: Zweite Frage."
+
+
+def test_uebernimm_eigene_haengt_dieselbe_frage_nicht_doppelt_an(conn, einst, monkeypatch):
+    """Case-/Whitespace-unabhaengig: kommt dieselbe Frage im naechsten Zug
+    noch einmal (anders geschrieben), entsteht keine Dublette."""
+    monkeypatch.setattr(fragen, "versuche_gegenueberstellung", lambda *a, **k: None)
+    _setze_begriffe(conn, "Heimat")
+    tg = _TG()
+
+    fragen.uebernimm_eigene(conn, tg, CHAT, "Heimat: Erste Frage.")
+    fragen.uebernimm_eigene(conn, tg, CHAT, "heimat :  Erste Frage.  ")
+
+    stand = _feld(conn, CHAT, "fragen_eigene_vorschlag")
+    assert stand == "Heimat: Erste Frage."
+
+
+def test_uebernimm_eigene_modell_rewrite_ohne_marker_laesst_bestehende_frage_unveraendert(
+    conn, einst, monkeypatch,
+):
+    """Fund P2-H6: ein Modellzug, der eine bestehende Frage ohne
+    ausdruecklichen ``CHANGE:``-Marker einfach anders formuliert
+    zurueckschickt, darf die gespeicherte, von der Gruppe gewaehlte Fassung
+    nicht veraendern oder verlieren."""
+    monkeypatch.setattr(fragen, "versuche_gegenueberstellung", lambda *a, **k: None)
+    _setze_begriffe(conn, "Heimat")
+    tg = _TG()
+
+    fragen.uebernimm_eigene(conn, tg, CHAT, "Heimat: Erste Frage, genau so gesagt.")
+    fragen.uebernimm_eigene(conn, tg, CHAT, "Heimat: Eine ganz andere Formulierung.")
+
+    zeilen = _feld(conn, CHAT, "fragen_eigene_vorschlag").splitlines()
+    assert "Heimat: Erste Frage, genau so gesagt." in zeilen
+
+
+def test_uebernimm_eigene_explizite_aenderung_ersetzt_bestehende_frage(conn, einst, monkeypatch):
+    monkeypatch.setattr(fragen, "versuche_gegenueberstellung", lambda *a, **k: None)
+    _setze_begriffe(conn, "Heimat")
+    tg = _TG()
+
+    fragen.uebernimm_eigene(conn, tg, CHAT, "Heimat: Erste Frage.")
+    fragen.uebernimm_eigene(
+        conn, tg, CHAT, "CHANGE: Erste Frage. -> Heimat: Verbesserte erste Frage.",
+    )
+
+    zeilen = _feld(conn, CHAT, "fragen_eigene_vorschlag").splitlines()
+    assert zeilen == ["Heimat: Verbesserte erste Frage."]
+
+
+def test_uebernimm_eigene_explizite_loeschung_entfernt_bestehende_frage(conn, einst, monkeypatch):
+    monkeypatch.setattr(fragen, "versuche_gegenueberstellung", lambda *a, **k: None)
+    _setze_begriffe(conn, "Heimat, Streit")
+    tg = _TG()
+
+    fragen.uebernimm_eigene(
+        conn, tg, CHAT, "Heimat: Erste Frage.\nStreit: Zweite Frage.",
+    )
+    fragen.uebernimm_eigene(conn, tg, CHAT, "DELETE: Erste Frage.")
+
+    zeilen = _feld(conn, CHAT, "fragen_eigene_vorschlag").splitlines()
+    assert zeilen == ["Streit: Zweite Frage."]
 
 
 # ---------------------------------------------------------------------------

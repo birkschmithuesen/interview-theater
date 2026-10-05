@@ -605,11 +605,72 @@ def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
         return message_id
 
 
+#: Fund P2-H6 (Birk, 05.10.2026 13:25): die beiden Marker, mit denen das
+#: Padua-Phase-2-Prompt (``workshop/padua-2026/prompts/phasen/2.md``) eine
+#: ausdrueckliche Aenderung bzw. Loeschung einer BESTEHENDEN eigenen Frage
+#: kennzeichnet -- jede Zeile ohne einen dieser Marker ist eine NEUE Frage,
+#: die angehaengt wird, nie ein Ersatz fuer eine bestehende.
+_EIGENE_AENDERN = re.compile(r"^change\s*:\s*", re.IGNORECASE)
+_EIGENE_LOESCHEN = re.compile(r"^delete\s*:\s*", re.IGNORECASE)
+_EIGENE_AENDERN_PFEIL = re.compile(r"\s*(?:->|→)\s*")
+
+
+def _mische_eigene_fragen(bestehend: list[str], neue_zeilen: list[str]) -> list[str]:
+    """Haengt ``neue_zeilen`` additiv an ``bestehend`` an (Fund P2-H6): eine
+    bestehende Zeile bleibt zeichengleich stehen, ausser eine Zeile aus
+    ``neue_zeilen`` markiert ausdruecklich ``CHANGE: <alter Fragetext> ->
+    <Begriff>: <neuer Fragetext>`` oder ``DELETE: <alter Fragetext>`` --
+    der alte Fragetext wird case-/whitespace-unabhaengig gegen den
+    Fragetext jeder bestehenden Zeile geprueft (``_fragetext``, derselbe
+    Vergleich wie bei einer Schaerfung). Eine Zeile ohne passenden Treffer
+    (Tippfehler im Marker, falsch zitierter alter Text) aendert nichts --
+    raten ist hier so verboten wie beim Vorschlagsmarker selbst
+    (``vorschlag.py``). Eine neue Zeile, deren Fragetext schon vorkommt,
+    wird nicht doppelt angehaengt."""
+    ergebnis = list(bestehend)
+    for zeile in neue_zeilen:
+        zeile = zeile.strip()
+        if not zeile:
+            continue
+        loeschen = _EIGENE_LOESCHEN.match(zeile)
+        if loeschen:
+            ziel = _platt(zeile[loeschen.end():])
+            ergebnis = [z for z in ergebnis if _fragetext(z) != ziel]
+            continue
+        aendern = _EIGENE_AENDERN.match(zeile)
+        if aendern:
+            rest = zeile[aendern.end():]
+            pfeil = _EIGENE_AENDERN_PFEIL.search(rest)
+            if not pfeil:
+                continue
+            ziel = _platt(rest[:pfeil.start()])
+            neue_fassung = rest[pfeil.end():].strip()
+            if not neue_fassung:
+                continue
+            for i, z in enumerate(ergebnis):
+                if _fragetext(z) == ziel:
+                    ergebnis[i] = neue_fassung
+                    break
+            continue
+        if not any(_fragetext(z) == _fragetext(zeile) for z in ergebnis):
+            ergebnis.append(zeile)
+    return ergebnis
+
+
 def uebernimm_eigene(conn, tg, chat_id: int, wert: str, text: str | None = None) -> int:
-    """``VORSCHLAG EIGENE FRAGEN:`` -- die vollstaendige, kumulative eigene
-    Fragenliste der Gruppe (Aufgabe 13, KORREKTUR-PHASE2-KEIN-KNOPF.md).
-    Ueberschreibt ``fragen_eigene_vorschlag`` bei jedem Aufruf vollstaendig
-    -- der Block IST die ganze Liste, kein Zuwachs.
+    """``VORSCHLAG EIGENE FRAGEN:`` -- Zuwachs zur eigenen Fragenliste der
+    Gruppe (Aufgabe 13, KORREKTUR-PHASE2-KEIN-KNOPF.md; additive Semantik
+    seit Fund P2-H6, Birk 05.10.2026 13:25).
+
+    Der Block traegt NICHT mehr die ganze kumulative Liste (das Modell gab
+    sie beim Nacherzaehlen irgendwann unvollstaendig zurueck -- ein von der
+    Gruppe entfernter Begriff kam so zurueck, zwei eigene Fragen
+    verschwanden spurlos). Stattdessen haengt der CODE neue Zeilen an
+    ``fragen_eigene_vorschlag`` an (``_mische_eigene_fragen``); eine
+    bestehende Frage behaelt den exakten Wortlaut der Gruppe, es sei denn,
+    eine Zeile traegt ausdruecklich ``CHANGE: ... -> Begriff: ...`` oder
+    ``DELETE: ...`` (passend zum Padua-Prompt,
+    ``workshop/padua-2026/prompts/phasen/2.md``).
 
     Hat die Gruppe gesagt, dass sie fertig ist (``_fruehzeitig_fertig``),
     startet die Gegenueberstellung mit den KI-Fragen
@@ -622,7 +683,14 @@ def uebernimm_eigene(conn, tg, chat_id: int, wert: str, text: str | None = None)
     dorthin. Kein Modellaufruf hier selbst (Zusage 2)."""
     from interview_theater import vorschlag
 
-    zeilen = vorschlag.zeilen(wert)
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        bestehend_roh = (stand["fragen_eigene_vorschlag"] or "") if stand else ""
+    except (IndexError, KeyError):
+        bestehend_roh = ""
+    bestehend = vorschlag.zeilen(bestehend_roh) if bestehend_roh else []
+    neue_zeilen = vorschlag.zeilen(wert)
+    zeilen = _mische_eigene_fragen(bestehend, neue_zeilen)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_eigene_vorschlag", "\n".join(zeilen))
 
     if not _fruehzeitig_fertig(text):

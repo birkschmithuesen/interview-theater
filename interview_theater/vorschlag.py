@@ -91,10 +91,14 @@ ARTEN = (
     "stil",
     # Die eigenen Fragen der Gruppe in Phase 2 (Padua Phase 1+2 Karte,
     # Aufgabe 13, 03.10.2026, KORREKTUR-PHASE2-KEIN-KNOPF.md): KEIN
-    # einmaliges "fertig"-Signal, sondern die vollstaendige, kumulative
-    # Liste -- bei jedem relevanten Zug neu ausgeschrieben. Eigener Marker
-    # und nicht ``fragen``, weil ein ``FRAGEN``-Block die fertige Auswahl der
-    # Gegenueberstellung meint, nicht den laufenden eigenen Stand.
+    # einmaliges "fertig"-Signal, sondern bei jedem relevanten Zug neu
+    # ausgeschrieben -- seit Fund P2-H6 (05.10.2026) nur noch, was seit dem
+    # letzten Block neu ist (plus ausdrueckliche ``CHANGE:``/``DELETE:``-
+    # Zeilen), nicht mehr die vollstaendige Liste: der CODE haengt an
+    # (``knoepfe/fragen.py:_mische_eigene_fragen``), nicht das Modell.
+    # Eigener Marker und nicht ``fragen``, weil ein ``FRAGEN``-Block die
+    # fertige Auswahl der Gegenueberstellung meint, nicht den laufenden
+    # eigenen Stand.
     "eigene_fragen",
 )
 

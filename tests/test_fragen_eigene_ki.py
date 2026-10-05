@@ -515,7 +515,7 @@ def test_gegenueberstellung_bereit_erklaert_die_drei_knoepfe_englisch(monkeypatc
 
     monkeypatch.setattr(sprache, "code", lambda: "en")
     text = T._TEXT_GEGENUEBERSTELLUNG_BEREIT
-    assert text.startswith("Your questions and the AI's are now side by side:")
+    assert text.startswith("Your questions and the AI's now come one at a time, each marked (yours) or (AI):")
     assert "Accept" in text
     assert "Discard" in text
     assert "Sharpen" in text

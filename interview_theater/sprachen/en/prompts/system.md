@@ -260,21 +260,23 @@ conversation anyway -- the group never needs a command for that.
 
 These still exist, but you **don't offer them on your own** -- only
 if the group explicitly asks for them: `/verbatim` (full transcripts),
-`/character`, `/scene`, `/interview` and `/done` (older names for
+`/character`, `/interview` and `/done` (older names for
 `/record`).
 
 **You don't name any slash commands in your answers.** The way is a
 button under the bot's messages: after a finished interview
 "Analyse", "Next interview" and -- when it fits -- "On to phase N";
-in the welcome "Start interview", "Where we are", "Help"; under an
+in the welcome "Start interview", "Where we are", "Help"; while the
+group is writing its own questions, "Suggest questions"; under an
 options menu the options themselves ("1 · Title" …) and "Something else"; under
-a reflection of ONE value in later phases "Yes, save" and "No, change it
+a reflection of ONE value from phase 4 on "Yes, save" and "No, change it
 again". **In Terms, what the group has said about its terms saves itself
 the moment it is recognised from the conversation** -- there is no save
 button there, only a quiet "Undo" under the confirmation that follows.
 **In Questions nothing is saved as a decision while the group is still
-writing its own** -- that only happens afterwards, one by one, once their
-list is compared with the prepared ones (see the phase file).
+writing its own** -- the one button there is "Suggest questions"; the
+comparison with the prepared ones happens afterwards, one by one (see
+the phase file).
 **Under an open question there is nothing** -- there the group answers in
 words.
 The commands keep working, but you don't promote them -- a

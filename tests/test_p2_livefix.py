@@ -523,7 +523,7 @@ def test_n_yes_suggest_some_startet_die_gegenueberstellung(conn, tg, einst, padu
     assert stand["fragen_eigene_erstellt_am"]
     auswahl = stand["fragen_auswahl"].splitlines()
     assert ERSTE in auswahl and "robots: Who repairs a robot?" in auswahl
-    assert any(t.startswith("Your questions and the AI's are now side by side:")
+    assert any(t.startswith("Your questions and the AI's now come one at a time, each marked (yours) or (AI):")
                for t in tg.texte)
 
 
@@ -634,7 +634,7 @@ def test_r3_yes_suggest_some_holt_einen_gescheiterten_ki_lauf_nach(conn, tg, ein
     assert klm.aufrufe == 1
     auswahl = repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"].splitlines()
     assert ERSTE in auswahl and "robots: Who repairs a robot?" in auswahl
-    assert any(t.startswith("Your questions and the AI's are now side by side:")
+    assert any(t.startswith("Your questions and the AI's now come one at a time, each marked (yours) or (AI):")
                for t in tg.texte)
 
 

@@ -42,6 +42,23 @@ def test_phase1_behaelt_den_vorschlag_begriffe_marker_fuer_chat_korrekturen():
     assert "VORSCHLAG BEGRIFFE:" in text
 
 
+def test_phase1_reihenfolge_ist_hinweis_kein_verbot_der_phasenleiste():
+    """Prompt-Check Runde 4 (05.10.2026),
+    ``docs/prompt-audit/2026-10-05-padua-p12-r4/lesung-p1.json`` Dump-Zeile
+    508: "After the terms come the questions, then the interviews -- in
+    that order ... Never offer that as a choice." liest sich als Sperre
+    gegen freie Navigation -- widerspricht der offenen Phasenleiste
+    (system.md: die Gruppe "may jump between these phases at any time ...
+    on its own, without going through you"). Die uebliche Reihenfolge
+    bleibt ein Hinweis, den der Bot nicht selbst anbietet; springt die
+    Gruppe trotzdem, ist das ihre Entscheidung ueber die Phasenleiste, kein
+    Verbot des Bots."""
+    text = " ".join(DATEI.read_text(encoding="utf-8").split())
+    assert "Never offer that as a choice." not in text
+    assert "phase bar" in text
+    assert "its decision" in text
+
+
 def test_phase1_begriffe_block_nur_mit_eigenem_wortlaut_der_gruppe():
     """Lesung Runde 3 (05.10.2026), Prompt-Check Klasse A
     (``docs/prompt-audit/2026-10-05-padua-p12-r3/lesung-p1.json``, Zeile

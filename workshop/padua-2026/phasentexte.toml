@@ -27,10 +27,10 @@ keep working with."""
 2 = """\
 Now you write your own interview questions for your terms first, as a \
 group, in chat or by voice. Once you have enough, I show you questions I \
-would suggest for the same terms, side by side with yours, and you decide \
-question by question what stays, what goes and what gets reworked. Then \
-we agree on how you open and close a conversation. At the end you have an \
-interview guide to take with you."""
+would suggest for the same terms, one at a time, each marked (yours) or \
+(AI), and you decide question by question what stays, what goes and what \
+gets reworked. Then we agree on how you open and close a conversation. \
+At the end you have an interview guide to take with you."""
 # Phase 3: Padua arbeitet nur im Browser -- die Knopfnamen sind die des
 # Rekorders (sprachen/en/texte.toml, web_chat: _TEXT_INTERVIEW_AN/_PAUSE/
 # _WEITER/_ENDEN), keine Sprachnachrichten, kein "say done" (P34 A8).

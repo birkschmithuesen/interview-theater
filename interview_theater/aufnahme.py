@@ -1270,12 +1270,20 @@ def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int, *,
         return False
     if not brainstorm.versuche_start(chat_id):
         return False
-    repo.markiere_buehnenkarten_lauf(conn, chat_id, repo._jetzt())
-    # VOR dem Lauf gelesen: die Markierung soll genau die Segmente abdecken,
-    # die die Karte tatsaechlich gesehen hat -- ein waehrend des Laufs neu
-    # eingetroffenes Segment bleibt UNREAGIERT und zaehlt beim naechsten Mal.
-    markierung_id = (bis_id if bis_id is not None
-                     else repo.hoechste_brainstorm_aufnahme_id(conn, chat_id))
+    try:
+        repo.markiere_buehnenkarten_lauf(conn, chat_id, repo._jetzt())
+        # VOR dem Lauf gelesen: die Markierung soll genau die Segmente
+        # abdecken, die die Karte tatsaechlich gesehen hat -- ein waehrend des
+        # Laufs neu eingetroffenes Segment bleibt UNREAGIERT und zaehlt beim
+        # naechsten Mal.
+        markierung_id = (bis_id if bis_id is not None
+                         else repo.hoechste_brainstorm_aufnahme_id(conn, chat_id))
+    except BaseException:
+        # P34 Final-Review: ohne Thread kein ``finally`` in ``_lauf`` -- die
+        # Sperre wuerde haengen, und jedes spaetere Bogenende wartete
+        # ``ENDE_LAUF_WARTEN_S`` und schwiege dann 'belegt'.
+        brainstorm.beende(chat_id)
+        raise
 
     def _lauf() -> None:
         angelegt = False

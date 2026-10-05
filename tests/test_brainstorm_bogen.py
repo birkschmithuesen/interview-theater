@@ -237,3 +237,23 @@ def test_kartenlauf_mit_ausnahme_hinterlaesst_eine_schweigen_zeile(conn, tg, ein
             break
         time.sleep(0.02)
     assert not brainstorm.laeuft(1)
+
+
+def test_sperre_bleibt_nicht_haengen_wenn_die_laufmarkierung_wirft(
+    conn, tg, einst, monkeypatch,
+):
+    """P34 Final-Review: wirft ``repo.markiere_buehnenkarten_lauf`` nach
+    ``brainstorm.versuche_start`` (noch vor dem Thread), muss die Sperre
+    trotzdem frei werden -- sonst wartet jedes spaetere Bogenende
+    ``ENDE_LAUF_WARTEN_S`` und schweigt dann 'belegt'."""
+    def _wirft(*a, **k):
+        raise RuntimeError("db kaputt")
+
+    monkeypatch.setattr(aufnahme.repo, "markiere_buehnenkarten_lauf", _wirft)
+    try:
+        with pytest.raises(RuntimeError):
+            aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1)
+        assert not brainstorm.laeuft(1)
+        assert brainstorm.versuche_start(1)
+    finally:
+        brainstorm.beende(1)

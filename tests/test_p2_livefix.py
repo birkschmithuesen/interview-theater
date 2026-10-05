@@ -500,14 +500,25 @@ def test_n_kein_deutsches_abkuerzung_label_im_padua_chat(padua):
 
 
 def test_n_undo_der_begriffe_ueberlebt_den_sprung_in_phase_2(conn, tg, einst, padua):
-    """Der Knopf am Phase-2-Eintritt darf die Undo-Quittung der gerade
-    automatisch gespeicherten Begriffe nicht verfallen lassen."""
+    """Der Knopf am Phase-2-Eintritt darf das Undo der gerade automatisch
+    gespeicherten Begriffe nicht verfallen lassen. Seit dem 05.10.2026
+    mittags (Brief "p1-bleiben") springt das Speichern nicht mehr selbst:
+    die Begriffe stehen mit "Move on?" da, gesprungen wird ueber "Yes, on to
+    the questions". Der Druck nimmt wie jeder Knopfdruck die Tastatur SEINER
+    Nachricht ab (``wirkung.behandle``) -- das Undo steht in derselben
+    Nachricht wie "Yes" und ist danach nicht mehr zu sehen, verfaellt aber
+    nicht; der Phase-2-Eintritt selbst fasst keine Leiste an."""
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG BEGRIFFE:\nLiving on mars, robots", e=einst,
     )
+    assert phasen.aktuelle(conn, 1) == 1
+    undo = _knopf_daten(tg, "Undo")
+
+    knoepfe.behandle(conn, tg, None, einst,
+                     _druck(_knopf_daten(tg, "Yes, on to the questions"), query_id="q1"))
 
     assert phasen.aktuelle(conn, 1) == 2
     beschriftungen = [[b for b, _ in leiste] for _, _, leiste, _ in tg.knoepfe]
-    assert ["Undo"] in beschriftungen
     assert ["Suggest questions"] in beschriftungen
-    assert tg.entfernt == [] and tg.aktualisiert == []
+    assert repo.hole_knopf(conn, int(undo[2:]))["benutzt_am"] is None
+    assert tg.entfernt == [(1, 777)] and tg.aktualisiert == []

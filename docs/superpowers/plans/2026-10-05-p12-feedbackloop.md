@@ -178,6 +178,8 @@ volle Suite einmal (`-m "not dortmund"`); Bericht `simulation/berichte/feedbackl
 
 ## Birks Antworten (05.10. 13:10-13:35, via Robo) — GELTEN AB RUNDE 2
 
+**Robo 13:20 (15-Uhr-Deploy, Birk):** B1 (P1-H1 Raumcheck) und B4 (P2-H6 eigene Fragen) werden SEPARAT gebaut (Branches wt/robo-b1, wt/robo-b4) — in dieser Schleife NICHT anfassen. Runde 1 wird um 13:20 als Zwischenstand (bis e7e4ecc) fuer den Deploy abgezweigt; weiterarbeiten wie geplant.
+
 **Neu einsortieren:** B1 (P1-H1) und B4 (P2-H6) sind jetzt Klasse A -> in Runde 2 fixen, mit Test.
 P1-H2 -> mittel, nur Prompt-Widerspruch. P2-H1, P1-N4 -> by design (kein Befund mehr). B5 -> Klasse A.
 

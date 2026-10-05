@@ -114,6 +114,34 @@ def _oeffne(browser, basis, token, viewport=HANDY, **kw):
     return seite
 
 
+#: Zweiter Dienst, NUR fuer den Padua-Stepper (``[web] phasennav_stepper``,
+#: ``workshop/padua-2026/profil.toml``) -- ``dienst`` oben laeuft ohne
+#: ``IT_WORKSHOP`` und bekommt deshalb nie ``header.phasenav``
+#: (``web_vereint._stepper_html``), sondern die klassische ``.roadmap``.
+#: Eigener Port/eigene DB, damit beide Dienste parallel im selben Lauf
+#: stehen koennen.
+DB_PFAD_PADUA = "/tmp/it-ux-padua.db"
+BIND_PADUA = "127.0.0.1:8024"
+
+
+@pytest.fixture(scope="module")
+def dienst_padua():
+    token = _baue_datenbank(DB_PFAD_PADUA)
+    umgebung = dict(os.environ, IT_DB=DB_PFAD_PADUA, IT_WEB_BIND=BIND_PADUA,
+                     IT_WEB_PREFIX="", IT_WORKSHOP="padua-2026")
+    prozess = subprocess.Popen(
+        [sys.executable, "-m", "interview_theater.web"], cwd=WURZEL, env=umgebung)
+    for _ in range(50):
+        try:
+            urllib.request.urlopen(f"http://{BIND_PADUA}/gesund", timeout=1)
+            break
+        except Exception:
+            time.sleep(0.2)
+    yield f"http://{BIND_PADUA}", token
+    prozess.terminate()
+    prozess.wait(timeout=10)
+
+
 # -- Die vier Zustaende des Aufnahmeknopfes ---------------------------------
 
 
@@ -503,6 +531,37 @@ def test_die_eingabezeile_passt_aufs_telefon(dienst):
             kasten = seite.locator(sel).bounding_box()
             assert kasten["x"] >= 0, sel
             assert kasten["x"] + kasten["width"] <= HANDY["width"], (sel, kasten)
+        browser.close()
+
+
+def test_der_padua_stepper_haelt_die_eingabezeile_im_bild(dienst_padua):
+    """Feedbackloop P1-M3 (Abnahme-Bericht 04.10.2026, handy/p1-zuhoeren:
+    "die untere Steuerleiste ist abgeschnitten -- das Eingabefeld ist gar
+    nicht mehr sichtbar"). Der Padua-Stepper (``header.phasenav``) ist eine
+    andere Kopfzeile als die, die ``test_die_eingabezeile_passt_aufs_
+    telefon`` oben pruefen kann (dort laeuft kein ``IT_WORKSHOP``) -- hier
+    auch mit Stepper-Hinweis UND "Next up" erzwungen sichtbar (der
+    volltaendige Kopf, nicht nur der leere Anfangszustand)."""
+    basis, token = dienst_padua
+    with sync_playwright() as p:
+        browser = p.chromium.launch(args=MIKROFON)
+        seite = _oeffne(browser, basis, token)
+        seite.evaluate("""() => {
+          var n = document.getElementById('ux-naechstes');
+          if (n) { n.hidden = false; n.textContent = 'Next up: something'; }
+          var h = document.getElementById('stepper-hinweis');
+          if (h) { h.hidden = false; }
+        }""")
+        seite.wait_for_timeout(200)
+        eingabe = seite.locator("#eingabe").bounding_box()
+        assert eingabe["y"] >= 0, eingabe
+        assert eingabe["y"] + eingabe["height"] <= HANDY["height"], eingabe
+        kopf = seite.locator("header.phasenav").bounding_box()
+        tabs = seite.locator(".tabs").bounding_box()
+        assert kopf["y"] + kopf["height"] <= tabs["y"] + 1, (kopf, tabs)
+        # Der Kopf allein soll nicht schon fast den halben Schirm fressen.
+        assert kopf["height"] + tabs["height"] < HANDY["height"] * 0.4, \
+            (kopf, tabs)
         browser.close()
 
 

@@ -135,6 +135,40 @@ def test_kein_keyframes_und_kein_media_im_gescopten_teil(name, funktion):
     assert "@media" not in _css(funktion, name)
 
 
+# -- Feedbackloop P1-M3: der Padua-Stepper auf schmalen Telefonen ----------
+
+
+def test_der_stepper_kompaktiert_sich_auf_schmalen_telefonen():
+    """Gemessen am echten Chromium (360x640): Kopf + Tabs zusammen kamen
+    auf 40% des Schirms, sobald Stepper-Hinweis und "Next up" beide
+    sichtbar waren. ``css_stepper()`` ist schon unscopiert UND
+    Padua-exklusiv (nie fuer Dortmund gerendert) -- ein ``@media`` hier
+    verstoesst nicht gegen den scope_css-Grund, dem ``css_rahmen()`` das
+    Privileg vorbehaelt (``test_kein_keyframes_und_kein_media_im_
+    gescopten_teil`` oben gilt nur fuer ``GESCOPT``, nicht fuer den
+    Stepper)."""
+    css = web_gestalt.css_stepper()
+    block = re.search(r"@media\s*\(max-width:\s*430px\)\s*\{(.*?)\n\}\n",
+                       css, flags=re.S)
+    assert block, "keine kompaktierende Regel fuer schmale Telefone"
+    assert "header.phasenav" in block.group(1)
+    assert ".stepper-hinweis" in block.group(1)
+    # Keine Tippflaeche darf unter das Mindestmass fallen -- geschrumpft
+    # wird nur Polster/Abstand, nie ``min-height``/``min-width``.
+    assert "min-height" not in block.group(1)
+    assert "min-width" not in block.group(1)
+
+
+def test_der_stepper_bleibt_padua_exklusiv_und_ausserhalb_von_css_rahmen():
+    """``css_stepper()`` wird nur angehaengt, wenn ``[web]
+    phasennav_stepper`` an ist (``web_vereint.seite``) -- landet also nie
+    in Dortmunds ``<style>``-Block. Die neue Zeile muss deshalb in
+    ``css_stepper()`` stehen, nicht in ``css_rahmen()`` (das bleibt fuer
+    Dortmund bitgleich, ``tests/test_web_vereint_bitgleich.py``)."""
+    assert "max-width: 430px" not in web_gestalt.css_rahmen()
+    assert "max-width: 430px" in web_gestalt.css_stepper()
+
+
 @pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
 def test_jede_benutzte_animation_ist_auch_definiert(name):
     css = _ganzes_css(name)

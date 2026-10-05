@@ -384,17 +384,28 @@ def _css_schale(gewaehlt: str) -> str:
        Polster plus der ohnehin 44px hohen Tastflaeche (``.roadmap >
        summary`` aus ``_ROADMAP``) kam Kopf + Tableiste zusammen auf gemessen
        ueber 110px statt der verlangten 96px.
-    """
+
+    **Feedbackloop P1-M3 (05.10.2026):** der Padua-Stepper (``header.
+    phasenav``, ``css_stepper()``) ist eine ANDERE Kopfzeile als
+    ``.roadmap`` (das ``<details>`` aus ``_leiste_html``) und fehlte hier
+    ganz -- ohne die Flex-Item-Regeln oben blieb sein eigenes ``position:
+    sticky`` aus ``_STEPPER`` wirkungslos (``body`` scrollt seit dieser
+    Karte gar nicht mehr), aber er zaehlte auch nicht als fester Kopf im
+    Flex-Layout. Jetzt bekommt er dieselbe Behandlung wie ``.roadmap``
+    (flex-item, volle Breite, kein Rand) und ``position: static`` statt
+    des wirkungslosen ``sticky``."""
     tabs_reihenfolge = "order: 5;" if gewaehlt == "a" else "order: 1;"
     return f"""
 html {{ height: 100%; overflow-x: hidden; }}
 body {{ display: flex; flex-direction: column; align-items: stretch;
         margin: 0 auto; padding: 1rem 0 0; overflow: hidden;
         height: 100vh; height: 100dvh; height: var(--vh, 100dvh); }}
-.roadmap {{ flex: 0 0 auto; order: 0; min-width: 0; width: 100%; margin: 0;
+.roadmap, header.phasenav {{ flex: 0 0 auto; order: 0; min-width: 0;
+            width: 100%; margin: 0;
             padding-left: 1.2rem; padding-right: 1.2rem; }}
 .roadmap summary {{ padding-top: 0; padding-bottom: 0;
                     min-height: auto; height: var(--tippflaeche); }}
+header.phasenav {{ position: static; }}
 .tabs {{ position: static; flex: 0 0 auto; min-width: 0; {tabs_reihenfolge}
          padding-left: 1.2rem; padding-right: 1.2rem;
          padding-bottom: calc(.3rem + env(safe-area-inset-bottom)); }}

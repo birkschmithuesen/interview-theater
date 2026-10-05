@@ -95,3 +95,100 @@ def test_frageregel_zeilen_stellt_die_widersprueche_nebeneinander():
     texte = [t for _, t in p.frageregel_zeilen(p.teile(DUMP)[0])]
     assert any("ends with an open question" in t for t in texte)
     assert any("that one at the end" in t for t in texte)
+
+
+VERLAUF = """# 98-verlauf
+=== SYSTEM (10 Zeichen, ~3 Token) ===
+You are InScribe.
+
+=== NUTZER (10 Zeichen, ~3 Token) ===
+## What the group has decided so far
+terms: arrival, waiting, strangers
+progress: terms (0/3) done
+
+## The conversation so far
+Member 1: here is our wall of terms from the plenary
+You: Good. The transcript runs live in the chat.
+Member 2: i think waiting is the strongest one here
+You: 📌 Agreed: Setting - A railway station
+You: Noted:
+You: Changed since - please fix it in the work status
+Member 1: here is our wall of terms from the plenary
+🎙 Interview 1: three hours on that bench
+
+## Now
+Member 3: can we go on
+"""
+
+
+def test_verlaufsbefund_zaehlt_zuege_sprecher_und_systemzeilen():
+    """ABWEICHUNG vom Brief (Task-5-Brief, Schritt 1): der Brief erwartet
+    ``zuege == 9`` und ``bot_zeilen == 5``. Gemessen gegen die verbatim aus
+    Schritt 3 uebernommene ``verlaufsbefund`` liefert dieselbe VERLAUF-Fixture
+    ``zuege == 8`` und ``bot_zeilen == 4`` -- die einzige Zeile, die fehlt, ist
+    die ``🎙``-Transkriptzeile, und die darf per Definition KEIN Zug sein
+    (``ECHO_MARKE``-Docstring: genau das Gegenteil waere der Befund, den
+    dieses Feld aufdecken soll). Die anderen vier Felder (``sprecher``,
+    ``systemzeilen``, ``transkript_echos``, ``quoten``) stimmen exakt mit dem
+    Brief ueberein, was die Zaehlung in der Produktionsfunktion bestaetigt --
+    der Brief hat sich bei den zwei Werten schlicht verzaehlt."""
+    befund = p.verlaufsbefund(p.teile(VERLAUF)[1])
+    assert befund["zuege"] == 8
+    assert befund["sprecher"] == ["Member 1", "Member 2", "Member 3", "You"]
+    assert befund["bot_zeilen"] == 4
+    assert befund["systemzeilen"] == 3
+    assert befund["transkript_echos"] == 1
+    assert [z for _, z in befund["quoten"]] == ["progress: terms (0/3) done"]
+
+
+def test_dubletten_quer_findet_die_wortgleiche_wiederholung():
+    treffer = p.dubletten_quer(p.teile(VERLAUF)[1])
+    assert ("Member 1: here is our wall of terms from the plenary", 2) in treffer
+
+
+def test_groessen_liest_die_basis_tsv(tmp_path):
+    tsv = tmp_path / "uebersicht.tsv"
+    tsv.write_text(
+        "pfad\tsystem_zeichen\tnutzer_zeichen\ttoken_gesamt\n"
+        "01-gespraech-phase1\t26943\t393\t9112\n", encoding="utf-8")
+    assert p.groessen(tsv)["01-gespraech-phase1"] == 27336
+    assert p.groessen(None) == {}
+
+
+def test_groessen_liest_auch_eine_tsv_mit_neuen_spalten(tmp_path):
+    """Die neue uebersicht.tsv (Task 7) hat mehr Spalten in anderer Ordnung --
+    ``groessen`` liest deshalb nach SPALTENNAME, nicht nach Position."""
+    tsv = tmp_path / "uebersicht.tsv"
+    tsv.write_text(
+        "pfad\tart\tphase\tsystem_zeichen\tnutzer_zeichen\n"
+        "13-begriffsboard\tbegriffsboard\t1\t100\t50\n", encoding="utf-8")
+    assert p.groessen(tsv)["13-begriffsboard"] == 150
+
+
+def test_bericht_traegt_alle_schluessel(tmp_path):
+    pfad = tmp_path / "98-verlauf.txt"
+    pfad.write_text(VERLAUF, encoding="utf-8")
+    b = p.bericht(pfad, basis={"98-verlauf": 10})
+    for schluessel in ("datei", "name", "system_zeichen", "nutzer_zeichen",
+                       "dubletten", "verboten", "deutsche_reste", "ux_muster",
+                       "frageregeln", "verlauf", "dubletten_quer",
+                       "delta_zeichen"):
+        assert schluessel in b, schluessel
+    assert b["delta_zeichen"] > 0
+
+
+def test_bericht_ohne_basis_meldet_neu(tmp_path):
+    pfad = tmp_path / "98-verlauf.txt"
+    pfad.write_text(VERLAUF, encoding="utf-8")
+    assert p.bericht(pfad, basis={})["delta_zeichen"] is None
+
+
+def test_mechanik_markdown_nennt_datei_zuege_und_quotenzeile(tmp_path):
+    pfad = tmp_path / "98-verlauf.txt"
+    pfad.write_text(VERLAUF, encoding="utf-8")
+    text = p.mechanik_markdown([p.bericht(pfad, basis={})])
+    assert "## 98-verlauf.txt" in text
+    # ABWEICHUNG vom Brief wie oben (test_verlaufsbefund_...): zuege == 8.
+    assert "Zuege=8" in text
+    assert "(0/3)" in text
+    assert "neu" in text

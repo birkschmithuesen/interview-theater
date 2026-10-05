@@ -306,6 +306,9 @@ def test_m_fragenuebersicht_je_begriff_ohne_soll_zahl():
         {"begriff": "Living on mars", "fragen": ["Would you like to live on Mars?"]},
         {"begriff": "robots", "fragen": ["Who repairs the robot?"]},
         {"begriff": "Family", "fragen": []},
+        # Abschlussreview robo-fbl: ohne erkennbaren Begriff nicht mehr
+        # weg, sondern unveraendert in einer letzten Gruppe ohne Begriff.
+        {"begriff": "", "fragen": ["Cats: Do you like cats?"]},
     ]
 
 

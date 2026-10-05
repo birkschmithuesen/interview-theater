@@ -223,6 +223,23 @@ def test_jeder_selektor_traegt_den_scope_praefix_nach_scope_css(name, funktion):
             assert sel.startswith(scope), (funktion, name, sel)
 
 
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+@pytest.mark.parametrize("funktion", GESCOPT)
+def test_kein_css_kommentar_direkt_vor_einer_selektorliste(name, funktion):
+    """Abschlussreview (Branch robo-fbl): der Test oben prueft die Sicht des
+    Browsers (Kommentare entfernt) -- dort stimmt der Praefix, weil
+    ``scope_css`` ihn VOR den Kommentar setzt. Im ausgelieferten Text aber
+    landet bei einer Selektorliste der Praefix an jedem Komma des Kommentars,
+    also MITTEN im Kommentar (``/* ..., .panel-chat dieselbe Regel */``) --
+    genau die Bauart, vor der AGENTS.md fuer ``_BUEHNE`` warnt. Deshalb im
+    gescopten Teil: kein CSS-Kommentar direkt vor einer Regel mit mehreren
+    Selektoren; die Begruendung steht als ``#:``-Kommentar ueber der
+    Konstante."""
+    css = _css(funktion, name)
+    for treffer in re.finditer(r"/\*.*?\*/\s*([^{}/@]+)\{", css, flags=re.S):
+        assert "," not in treffer.group(1), (funktion, name, treffer.group(0)[-120:])
+
+
 # -- 4. Tokens werden benutzt, nicht umgangen -------------------------------
 
 

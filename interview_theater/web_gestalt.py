@@ -1022,6 +1022,16 @@ body { background: var(--grund); color: var(--text); }
 #: Docstring) -- sie blendet den obersten Streifen immer zum Hintergrund
 #: aus, unabhaengig von der Blasenlaenge. Hier nur der textliche Vertrag:
 #: ``tests/test_web_gestalt_css.py``.
+#:
+#: Feedbackloop P1-H1b (Regel ``#interview[hidden] + #ux-rec-zeile, ...``,
+#: auch in ``_CHAT_B``): die Zeile gehoert allein dem Interview-Knopf
+#: (``_JS_AUFNAHME`` haengt sie an ``#interview``) -- ausserhalb Phase 3
+#: (``#interview[hidden]``) oder waehrend die Diskussion laeuft (ein anderes
+#: Mikrofon, dieselbe Zeile), blieb "Tap once to start." stehen, obwohl der
+#: Knopf, den sie beschreibt, gar nicht zu sehen ist. Die Begruendung steht
+#: hier und nicht als CSS-Kommentar vor der Regel: ``web_vereint.scope_css``
+#: setzt den Praefix an jedes Komma, auch an die eines Kommentars direkt
+#: davor (Wache: ``tests/test_web_gestalt_css.py``).
 _CHAT_A = """
 .verlauf { display: flex; flex-direction: column; gap: .5rem;
            padding-bottom: .5rem; }
@@ -1097,11 +1107,6 @@ _CHAT_A = """
 /* P2, Aufgabe 2: vorher ``var(--rec)`` -- als Text nur 3.45:1 (B) auf dem
    Grund, unter AA. Der laufende Zustand steht im Wortlaut und in der Uhr. */
 #interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--text); }
-/* Feedbackloop P1-H1b: die Zeile gehoert allein dem Interview-Knopf
-   (``_JS_AUFNAHME`` haengt sie an ``#interview``) -- ausserhalb Phase 3
-   (``#interview[hidden]``) oder waehrend die Diskussion laeuft (ein
-   anderes Mikrofon, dieselbe Zeile), blieb "Tap once to start." stehen,
-   obwohl der Knopf, den sie beschreibt, gar nicht zu sehen ist. */
 #interview[hidden] + #ux-rec-zeile,
 #diskussion[data-laeuft="1"] ~ #ux-rec-zeile { display: none; }
 
@@ -1141,6 +1146,14 @@ _CHAT_A = """
 #:
 #: ``padding-bottom`` auf ``.verlauf``: siehe die lange Begruendung bei
 #: ``_CHAT_A`` (Feedbackloop S8) -- dieselbe Luft wie ``gap``, hier .6rem.
+#:
+#: ``#interview[hidden] + #ux-rec-zeile, ...``: Feedbackloop P1-H1b, siehe
+#: ``_CHAT_A`` -- dieselbe Regel, nur hier fuer B.
+#:
+#: ``#warteschlange, #fehler, .angehalten``: Meldungen ueber der Knopfzeile
+#: bekommen eine eigene Zeile: am Laptop stand die Warteschlange sonst links
+#: neben dem Kreis und schob den Hinweistext darunter (Review an 834edbf,
+#: Akte-Bild). Leer kostet sie keine Zeile.
 _CHAT_B = """
 .verlauf { display: flex; flex-direction: column; gap: .6rem;
            padding-bottom: .6rem; }
@@ -1214,7 +1227,6 @@ _CHAT_B = """
 /* P2, Aufgabe 2: vorher ``var(--rec)`` -- als Text nur 3.45:1 (B) auf dem
    Grund, unter AA. Der laufende Zustand steht im Wortlaut und in der Uhr. */
 #interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--text); }
-/* Feedbackloop P1-H1b: siehe _CHAT_A -- dieselbe Regel, nur hier fuer B. */
 #interview[hidden] + #ux-rec-zeile,
 #diskussion[data-laeuft="1"] ~ #ux-rec-zeile { display: none; }
 
@@ -1266,22 +1278,22 @@ _CHAT_B = """
 /* Uhr und Pegel teilen sich die erste Zeile, wie im Entwurf; ohne Breite
    schrumpfte der Pegel in der Zeile auf einen Strich. */
 #pegel { flex: 1 1 calc(100% - 7rem); min-width: 4rem; }
-/* Meldungen ueber der Knopfzeile bekommen eine eigene Zeile: am Laptop
-   stand die Warteschlange sonst links neben dem Kreis und schob den
-   Hinweistext darunter (Review an 834edbf, Akte-Bild). Leer kostet sie
-   keine Zeile. */
 #warteschlange, #fehler, .angehalten { flex: 1 1 100%; }
 #warteschlange:empty { display: none; }
 """ + _CHAT_FLAECHEN
 #: Der Arbeitsstand: eine Karte je Feld. Die Formulare der Gruppenseite
 #: (``web._rahmen``, ``_textfeld``, ``_dropdown``) bleiben, wie sie sind --
 #: gestaltet werden nur Flaeche, Rand und Beschriftung.
+#:
+#: ``.feld select, .feld input[type=text], .feld textarea``: Review an
+#: 834edbf, Rundgang ueber alle sichtbaren Texte: ``web._CSS_GRUPPE`` setzt
+#: die Eingabefelder mit ``.feld``-Praefix WEISS bei geerbter (heller)
+#: Schrift -- 1.23:1, die Werte der Gruppe waren unlesbar. Dazu der weisse
+#: Kasten um den Szenentext und Daempfung ueber ``opacity`` statt Farbe.
+#: (Hier statt als CSS-Kommentar vor der Regel -- siehe P1-H1b bei
+#: ``_CHAT_A``.)
 _STAND = """
 body { background: var(--grund); color: var(--text); }
-/* Review an 834edbf, Rundgang ueber alle sichtbaren Texte: ``web._CSS_GRUPPE``
-   setzt die Eingabefelder mit ``.feld``-Praefix WEISS bei geerbter (heller)
-   Schrift -- 1.23:1, die Werte der Gruppe waren unlesbar. Dazu der weisse
-   Kasten um den Szenentext und Daempfung ueber ``opacity`` statt Farbe. */
 .feld select, .feld input[type=text], .feld textarea {
     background: var(--grund-3); color: var(--text); border-color: var(--rand); }
 .szene .volltext { background: var(--grund-2); border-color: var(--linie); }

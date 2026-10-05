@@ -820,7 +820,16 @@ _begriffe_im_zug: dict[int, tuple[int, int | None]] = {}
 def _merke_begriffe_im_zug(conn, chat_id: int, lauf_id: int | None) -> None:
     """Gebunden an die juengste Gruppennachricht, die der Erkenner noch lesen
     wird (``repo.unextrahierte``) -- ohne sie (Aufruf ausserhalb eines
-    Gespraechszugs) gibt es keinen Merker."""
+    Gespraechszugs) gibt es keinen Merker.
+
+    Auch nicht in einem Auftragszug (``ablauf.laufender_auftrag``,
+    Abschlussreview robo-fbl): der hat keine ausloesende Gruppennachricht,
+    der Merker haenge sonst an einer fremden, noch ungelesenen Nachricht,
+    deren Begriffsaenderung der Erkenner dann ueberginge."""
+    from interview_theater import ablauf  # lokal: Oberflaeche, Aufruf nach oben
+
+    if ablauf.laufender_auftrag() is not None:
+        return
     try:
         ids = [n["message_id"] for n in repo.unextrahierte(conn, chat_id)
                if not n["ist_bot"]]

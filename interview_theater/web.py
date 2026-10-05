@@ -3087,10 +3087,14 @@ def _fragenuebersicht_html(eintraege: list[dict]) -> str:
         else:
             inhalt = f'<p class="fragen-offen">{_t(T._TEXT_FRAGEN_UEBERSICHT_OFFEN)}</p>'
         offen = "" if fragen else ' data-offen="1"'
+        # Die letzte Gruppe ohne Begriff (``begriff == ""``, Fragen ohne
+        # erkennbaren Begriff, ``roadmap.fragenuebersicht``) traegt keinen
+        # leeren Kopf -- die Zeilen stehen mit ihrem eigenen Vorsatz da.
+        kopf = (f'<span class="begriff">{html.escape(eintrag["begriff"])}</span>'
+                if eintrag["begriff"] else "")
         zeilen.append(
             f'<li data-begriff="{html.escape(eintrag["begriff"], quote=True)}"{offen}>'
-            f'<span class="begriff">{html.escape(eintrag["begriff"])}</span>'
-            f'{inhalt}</li>'
+            f'{kopf}{inhalt}</li>'
         )
     return (
         '<div id="buehne-panel" data-ansicht="fragen">'

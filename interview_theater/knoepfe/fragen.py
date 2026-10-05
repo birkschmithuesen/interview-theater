@@ -1221,7 +1221,20 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
         # bekam fuer eine Antwort, die sie nie zu sehen bekommen sollte,
         # trotzdem eine verwirrende Fehlzeile. Jetzt wird nichts verschickt;
         # ``None`` sagt dem Aufrufer, dass gar nichts zu tun ist.
-        return None
+        #
+        # Abschlussreview: stumm aber NUR fuer die Antwort eines Auftrags
+        # (``ablauf.laufender_auftrag``). Im normalen Gespraechszug (Phase 2
+        # ausserhalb des Einzeldurchgangs, das Modell schreibt trotzdem einen
+        # ``VORSCHLAG FRAGE:``-Block) reichte ``ablauf.antworte`` das ``None``
+        # weiter -- die Gruppe bekam gar keine Antwort. Dort geht der
+        # sichtbare Text (ohne Block, sonst die Frage selbst) normal raus.
+        from interview_theater import ablauf  # lokal: Oberflaeche, Aufruf nach oben
+
+        if ablauf.laufender_auftrag() is not None:
+            return None
+        sichtbar = (antwort or "").strip() or "\n".join(
+            vorschlag.zeilen(frage_block)) or frage_block.strip()
+        return tg.sende(chat_id, sichtbar)
     zeilen = vorschlag.zeilen(frage_block)
     neue_frage = zeilen[0] if zeilen else frage_block.strip()
     alte = _auswahlfragen(conn, chat_id)

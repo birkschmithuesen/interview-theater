@@ -468,3 +468,57 @@ def test_fragenuebersicht_dedupliziert_ueber_beide_ablagen_trotz_zierde():
     assert roadmap.fragenuebersicht(stand) == [
         {"begriff": "robot", "fragen": ["Who fixes them?"]},
     ]
+
+
+# -- fragenuebersicht: keine Frage verschwindet (Abschlussreview robo-fbl) --
+#
+# ``_ordne_zeilen`` liefert ``(je_begriff, rest)``; ``fragenuebersicht``
+# warf ``rest`` weg -- eine angenommene Frage ohne erkennbaren Begriff stand
+# nirgends in der Uebersicht. Jetzt: eine letzte Gruppe OHNE Begriff (kein
+# Begriff erfunden), die Zeile unveraendert -- wie in der Gegenueberstellung
+# (``knoepfe.fragen.versuche_gegenueberstellung``: "keine Frage verloren").
+
+
+def test_fragenuebersicht_zeigt_fragen_ohne_begriff_in_einer_letzten_gruppe():
+    stand = {
+        "begriffe": "robot",
+        "fragen": "robot: Who fixes them?\nSomething else: Is anyone listening?",
+        "fragen_herkunft_final": "eigen",
+    }
+    assert roadmap.fragenuebersicht(stand) == [
+        {"begriff": "robot", "fragen": ["Who fixes them?"]},
+        {"begriff": "", "fragen": ["Something else: Is anyone listening?"]},
+    ]
+
+
+def test_fragenuebersicht_ohne_rest_keine_leere_letzte_gruppe():
+    stand = {"begriffe": "robot", "fragen": "robot: Who fixes them?",
+             "fragen_herkunft_final": "eigen"}
+    assert [e["begriff"] for e in roadmap.fragenuebersicht(stand)] == ["robot"]
+
+
+def test_fragenuebersicht_rest_dedupliziert_ueber_beide_ablagen():
+    stand = {
+        "begriffe": "robot",
+        "fragen": "Something else: Is anyone listening?",
+        "fragen_eigene_vorschlag": "Something else:  is anyone listening?",
+        "fragen_herkunft_final": None,
+    }
+    assert roadmap.fragenuebersicht(stand)[-1] == {
+        "begriff": "", "fragen": ["Something else: Is anyone listening?"],
+    }
+
+
+def test_buehne_zeigt_die_gruppe_ohne_begriff_ohne_leeren_kopf():
+    from interview_theater import web
+
+    html_ = web._buehne_html({
+        "fragenuebersicht_zeigen": True,
+        "fragenuebersicht": [
+            {"begriff": "robot", "fragen": ["Who fixes them?"]},
+            {"begriff": "", "fragen": ["Something else: Is anyone listening?"]},
+        ],
+    })
+    assert "Something else: Is anyone listening?" in html_
+    assert '<span class="begriff"></span>' not in html_
+    assert "style=" not in html_

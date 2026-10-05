@@ -266,3 +266,27 @@ def test_entfernen_eines_unbekannten_begriffs_aendert_nichts(conn, padua):  # no
 
     assert erkenner.entferne(conn, CHAT, "BEGRIFFE noise") is None
     assert _begriffe(conn) == "home, waiting"
+
+
+def test_auftragszug_setzt_keinen_begriffe_merker(conn, tg, einst, padua):  # noqa: F811
+    """Abschlussreview (Branch robo-fbl): ``_korrigiere_begriffe`` wird auch
+    aus ``ablauf.auftragszug`` erreicht (z. B. Neu-Vorschlag in Phase 1 per
+    Knopf). Dann gibt es keine ausloesende Gruppennachricht -- der Merker
+    haengte sich an eine fremde, noch nicht gelesene Nachricht, und der
+    Erkenner ueberging deren Begriffsaenderung."""
+    from interview_theater import ablauf
+    from interview_theater.knoepfe import basis
+
+    basis.vergiss_begriffe_im_zug()
+    phasen.setze(conn, CHAT, 1, "befehl")
+    repo.merke_nachricht(conn, CHAT, 50, "Gruppe", 0, "text", "add night shift",
+                         repo._jetzt())
+
+    with ablauf.laeuft_als_auftrag("Schlag neue Begriffe vor."):
+        knoepfe.sende_mit_speicherleiste(
+            conn, tg, CHAT, "Here it is.\n\nVORSCHLAG BEGRIFFE:\nhome, border",
+            e=einst,
+        )
+
+    assert _begriffe(conn) == "home, border"
+    assert basis.nimm_begriffe_im_zug(conn, CHAT) == (False, None)

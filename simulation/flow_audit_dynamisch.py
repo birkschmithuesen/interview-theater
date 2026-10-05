@@ -936,7 +936,11 @@ def station_09_fruehzeitig_fertig(conn, tg, klm, e, chat_id: int) -> Sondierung:
         "VORSCHLAG EIGENE FRAGEN:\n"
         "Arrival: Tell me about the day you arrived here.\n"
         "Silence: What does silence mean to you here?\n"
-        "Home: What makes a place feel like home to you?\n\n"
+        "Home: What makes a place feel like home to you?\n"
+        # Birk 05.10.2026 14:05: Padua verlangt mindestens fuenf eigene
+        # Fragen ([fragen] eigene_min), sonst startet kein Vergleich.
+        "Arrival: Who was the first person you spoke to here?\n"
+        "Silence: When did the quiet here surprise you?\n\n"
         "Own questions done.",
     )
 
@@ -1175,7 +1179,11 @@ def station_13_wartezustand(conn, tg, klm, e, chat_id: int) -> Sondierung:
         "VORSCHLAG EIGENE FRAGEN:\n"
         "Arrival: Tell me about the day you arrived here.\n"
         "Silence: What does silence mean to you here?\n"
-        "Home: What makes a place feel like home to you?\n\n"
+        "Home: What makes a place feel like home to you?\n"
+        # Birk 05.10.2026 14:05: Padua verlangt mindestens fuenf eigene
+        # Fragen ([fragen] eigene_min), sonst startet kein Vergleich.
+        "Arrival: Who was the first person you spoke to here?\n"
+        "Silence: When did the quiet here surprise you?\n\n"
         "Own questions done.",
     )
     # Die kuenstliche Verzoegerung ist SkriptLLM-spezifisches Setup (siehe

@@ -149,12 +149,15 @@ def test_laeuft_ist_ein_wort_am_offenen_punkt(padua):
 
 
 def test_der_zaehler_und_der_haken(padua):
+    """Padua schaltet die weiche Fassung ab ([fragen_weich] aktiv = false)
+    -- "Einleitungen" zaehlt dort nicht mit, Phase 2 hat drei Aufgaben, nicht
+    vier (Feedbackloop P1-2, P2-H4: sonst wurde der Kreis nie voll)."""
     phasen_liste = roadmap.werkbank(_lage(phase=2, stand={"begriffe": "x"}), 2)
     seite = web.werkbank_koerper(_mini(phasen_liste))
     eins = seite[seite.index('data-wb-phase="1"'):seite.index('data-wb-phase="2"')]
     zwei = seite[seite.index('data-wb-phase="2"'):seite.index('data-wb-phase="3"')]
     assert "1 of 1" in eins and 'class="wb-fertig"' in eins
-    assert "0 of 4" in zwei and 'class="wb-fertig"' not in zwei
+    assert "0 of 3" in zwei and 'class="wb-fertig"' not in zwei
 
 
 def test_das_journal_steht_unten_und_zu(tmp_path, padua):

@@ -160,7 +160,14 @@ AUFGABEN: dict[int, tuple[Aufgabe, ...]] = {
 
 #: Wann eine Aufgabe 'laeuft' statt 'offen' ist -- nur, wo der DATENSTAND es
 #: zeigt. Siehe die Grenze im Moduldocstring.
+#:
+#: Feedbackloop P1-2, P2-H4 (05.10.2026): "Fragen" zeigte "offen" ohne jeden
+#: Vermerk, solange noch keine Frage angenommen war -- obwohl die Gruppe
+#: laengst eigene Fragen sammelt oder ein Vorschlag auf dem Tisch liegt.
+#: "Laeuft", sobald eine der beiden laufenden Ablagen etwas traegt.
 _LAEUFT: dict[str, Callable[[dict], bool]] = {
+    "fragen": lambda l: bool(_text(l["stand"], "fragen_eigene_vorschlag")
+                              or _text(l["stand"], "fragen_auswahl")),
     "interviews": lambda l: bool(l["interviewmodus"]),
     "auswertungen": lambda l: bool(l["interviewmodus"]),
     "szenentexte": lambda l: l["strom"] in ("szene", "prosa")
@@ -173,6 +180,24 @@ def _zustand(aufgabe: Aufgabe, lage: dict) -> str:
         return "erledigt"
     laeuft = _LAEUFT.get(aufgabe.kennung)
     return "laeuft" if laeuft is not None and laeuft(lage) else "offen"
+
+
+def _aufgaben_fuer(nummer: int) -> tuple[Aufgabe, ...]:
+    """``AUFGABEN[nummer]`` ohne "Einleitungen", wenn das Profil die weiche
+    Fassung sensibler Fragen abschaltet (Padua: ``[fragen_weich] aktiv =
+    false``) -- derselbe Filter fuer die Phasen-Checkliste (``aus_daten``)
+    UND die Werkbank (``werkbank``).
+
+    Feedbackloop P1-2, P2-H4 (05.10.2026): die Werkbank zeigte
+    "Einleitungen" weiterhin an, obwohl das Profil-Prompt die weiche Fassung
+    nie liefert -- der Zaehler ("2 · Questions 0 of 4") wurde dadurch nie
+    voll. ``aus_daten`` filterte das schon vor dieser Karte, ``werkbank``
+    noch nicht; jetzt teilen sich beide denselben Filter statt ihn zweimal
+    zu pflegen."""
+    return tuple(
+        a for a in AUFGABEN.get(nummer, ())
+        if not (a.kennung == "einleitungen" and not _weich_aktiv())
+    )
 
 
 #: Die Voraussetzung je Phase -- dieselbe Quelle wie ``phasen.voraussetzungen``
@@ -256,9 +281,7 @@ def aus_daten(lage: dict) -> list[dict]:
     ergebnis = []
     for nummer, name, satz in phasen.PHASEN:
         aufgaben = []
-        for aufgabe in AUFGABEN.get(nummer, ()):
-            if aufgabe.kennung == "einleitungen" and not _weich_aktiv():
-                continue
+        for aufgabe in _aufgaben_fuer(nummer):
             zustand = _zustand(aufgabe, lage)
             aufgaben.append({
                 "kennung": aufgabe.kennung,
@@ -362,7 +385,7 @@ def werkbank(lage: dict, aktuelle_phase: int) -> list[dict]:
     ergebnis = []
     for nummer, name, _satz in phasen.PHASEN:
         zeilen = []
-        for aufgabe in AUFGABEN.get(nummer, ()):
+        for aufgabe in _aufgaben_fuer(nummer):
             stand = status(aufgabe.erledigt(lage), nummer, aktuelle_phase)
             zeilen.append({
                 "kennung": aufgabe.kennung, "art": "aufgabe",
@@ -448,8 +471,20 @@ def fragenuebersicht(stand) -> list[dict]:
     Entscheidung Frage fuer Frage schon (``fragen_herkunft_final`` ist nicht
     NULL), gilt nur noch ``fragen`` -- eine verworfene eigene Frage soll dann
     nicht mehr dastehen. Eine Zeile ohne passenden Begriff faellt heraus:
-    kein Begriff wird erfunden. Rein, kein SQL."""
+    kein Begriff wird erfunden. Rein, kein SQL.
+
+    Der Begriffsabgleich ist derselbe wie im A/B-Vergleich
+    (``knoepfe.fragen._ordne_zeilen``, P2-H2, Feedbackloop P1-2): tolerant
+    gegenueber Markdown-Zierde, Anfuehrungszeichen, Artikel, Plural-s und
+    Gedankenstrich statt Doppelpunkt -- vorher verlangte diese Funktion den
+    exakten Praefix "<Begriff>: " und liess echte Modellausgabe (fett,
+    Artikel vorweg) genauso stumm aus der Uebersicht fallen wie damals aus
+    dem Vergleich. ``roadmap`` ist Fachlogik, ``knoepfe`` Oberflaeche --
+    deshalb ein lokaler Import hier statt am Modulkopf (AGENTS.md,
+    Modulkarte: Aufrufe nach oben stehen als lokaler Import in der
+    Funktion, die sie braucht)."""
     from interview_theater import begriffe as begriffe_modul
+    from interview_theater.knoepfe.fragen import _ordne_zeilen
 
     begriffe = begriffe_modul.zerlege(_text(stand, "begriffe"))
     if not begriffe:
@@ -457,21 +492,27 @@ def fragenuebersicht(stand) -> list[dict]:
     zeilen = _fragenzeilen(_text(stand, "fragen"))
     if _roh(stand, "fragen_herkunft_final") is None:
         zeilen += _fragenzeilen(_text(stand, "fragen_eigene_vorschlag"))
-    nachschlag = {b.casefold(): b for b in begriffe}
-    je_begriff: dict[str, list[str]] = {b: [] for b in begriffe}
+    # ``rest`` (Zeilen ohne erkennbaren Begriff) hat in dieser Rueckgabeform
+    # keinen Platz -- sie ist strikt "je Begriff", kein Begriff wird
+    # erfunden (siehe oben). Wie bisher: eine solche Zeile faellt heraus,
+    # nicht in eine neue Rubrik.
+    je_begriff, _rest = _ordne_zeilen(begriffe, zeilen)
     gesehen: set[tuple[str, str]] = set()
-    for zeile in zeilen:
-        kopf, trenner, frage = zeile.partition(":")
-        begriff = nachschlag.get(kopf.strip().casefold())
-        frage = " ".join(frage.split())
-        if not trenner or begriff is None or not frage:
-            continue
-        schluessel = (begriff, frage.casefold())
-        if schluessel in gesehen:
-            continue
-        gesehen.add(schluessel)
-        je_begriff[begriff].append(frage)
-    return [{"begriff": b, "fragen": je_begriff[b]} for b in begriffe]
+    ergebnis = []
+    for begriff in begriffe:
+        fragen = []
+        for zeile in je_begriff.get(begriff, []):
+            _, _, frage = zeile.partition(":")
+            frage = " ".join(frage.split())
+            if not frage:
+                continue
+            schluessel = (begriff, frage.casefold())
+            if schluessel in gesehen:
+                continue
+            gesehen.add(schluessel)
+            fragen.append(frage)
+        ergebnis.append({"begriff": begriff, "fragen": fragen})
+    return ergebnis
 
 
 def register(conn, chat_id: int) -> list[dict]:

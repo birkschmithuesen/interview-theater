@@ -98,6 +98,20 @@ def test_zaehler_und_fertig():
     assert (zwei["erledigt"], zwei["gesamt"], zwei["fertig"]) == (0, 4, False)
 
 
+def test_einleitungen_fehlt_ohne_weiche_fassung(monkeypatch):
+    """Feedbackloop P1-2, P2-H4: Padua schaltet ``[fragen_weich] aktiv`` ab
+    -- das Profil-Prompt liefert nie eine weiche Fassung, also darf die
+    Werkbank "Einleitungen" nicht als vierte Aufgabe mitzaehlen (sonst
+    bleibt der Kreis "Questions x of 4" fuer immer leer)."""
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "fragen_weich_aktiv", lambda *a, **k: False)
+    liste = roadmap.werkbank(_lage(phase=2, stand={"begriffe": "x"}), 2)
+    zwei = _phase(liste, 2)
+    assert [z["kennung"] for z in zwei["zeilen"]] == ["fragen", "eroeffnung", "abschluss"]
+    assert zwei["gesamt"] == 3
+
+
 # -- Detailzeilen ------------------------------------------------------------
 
 

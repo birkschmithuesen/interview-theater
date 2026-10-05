@@ -137,6 +137,33 @@ def test_was_schon_steht_bleibt_erledigt_auch_wenn_etwas_laeuft():
     assert _zustand(ergebnis, 3, "auswertungen") == "erledigt"
 
 
+def test_fragen_laeuft_wenn_eigene_fragen_gesammelt_werden():
+    """Feedbackloop P1-2, P2-H4: die Werkbank zeigte "Questions 0 of 4" ohne
+    jeden Vermerk, obwohl die Gruppe laengst eigene Fragen sammelt -- "Fragen"
+    ist dann "laeuft", nicht nur "offen"."""
+    ergebnis = roadmap.aus_daten(
+        _lage(stand={"fragen_eigene_vorschlag": "Heimat: Was war im Koffer?"}))
+    assert _zustand(ergebnis, 2, "fragen") == "laeuft"
+
+
+def test_fragen_laeuft_wenn_ein_vorschlag_auf_dem_tisch_liegt():
+    ergebnis = roadmap.aus_daten(
+        _lage(stand={"fragen_auswahl": "Heimat: Was war im Koffer?"}))
+    assert _zustand(ergebnis, 2, "fragen") == "laeuft"
+
+
+def test_fragen_bleibt_erledigt_auch_mit_laufender_ablage():
+    ergebnis = roadmap.aus_daten(_lage(stand={
+        "fragen": "Heimat: Was war im Koffer?",
+        "fragen_eigene_vorschlag": "Heimat: Noch eine?",
+    }))
+    assert _zustand(ergebnis, 2, "fragen") == "erledigt"
+
+
+def test_fragen_ohne_jede_ablage_bleibt_offen():
+    assert _zustand(roadmap.aus_daten(_lage()), 2, "fragen") == "offen"
+
+
 # -- die aktive Phase --------------------------------------------------------
 
 
@@ -405,3 +432,39 @@ def test_web_daten_liefert_dieselbe_bereitschaft_wie_der_bot(tmp_path):
         return [(p["nummer"], p["bereit"], p["fehlt"]) for p in liste]
 
     assert kurz(vom_web) == kurz(vom_bot)
+
+
+# -- fragenuebersicht: derselbe tolerante Abgleich wie der A/B-Vergleich ----
+#
+# Feedbackloop P1-2, T5 (05.10.2026): ``fragenuebersicht`` verlangte bisher
+# den exakten Praefix "<Begriff>: " (``zeile.partition(":")`` + Gleichheit
+# bis auf Gross-/Kleinschreibung) -- genau der Fehler, den P2-H2 schon fuer
+# den A/B-Vergleich behoben hat (``knoepfe.fragen._ordne_zeilen``: Zierde,
+# Artikel, Plural-s, Gedankenstrich). Keine zweite Toleranzregel pflegen:
+# ``fragenuebersicht`` ruft dieselbe Funktion.
+
+
+def test_fragenuebersicht_erkennt_abweichende_begriffsform():
+    stand = {
+        "begriffe": "robot, Family",
+        "fragen": "**Robots:** Who fixes them?\n\"The Family\": Who is missing?",
+        "fragen_herkunft_final": "eigen",
+    }
+    assert roadmap.fragenuebersicht(stand) == [
+        {"begriff": "robot", "fragen": ["Who fixes them?"]},
+        {"begriff": "Family", "fragen": ["Who is missing?"]},
+    ]
+
+
+def test_fragenuebersicht_dedupliziert_ueber_beide_ablagen_trotz_zierde():
+    """Dieselbe Frage einmal exakt (``fragen``), einmal mit Markdown-Zierde
+    (``fragen_eigene_vorschlag``) -- zaehlt als eine."""
+    stand = {
+        "begriffe": "robot",
+        "fragen": "robot: Who fixes them?",
+        "fragen_eigene_vorschlag": "**Robot:** Who fixes them?",
+        "fragen_herkunft_final": None,
+    }
+    assert roadmap.fragenuebersicht(stand) == [
+        {"begriff": "robot", "fragen": ["Who fixes them?"]},
+    ]

@@ -121,6 +121,19 @@ def test_vergleich_abnahme_nicht_erfuellt_wenn_nachher_noch_da():
     assert "station_nicht_erreicht:p1-begriffe" in md  # Restbefunde nachher
 
 
+def test_board_nicht_nachgezogen_gehoert_zur_board_zeile():
+    """Abnahmelauf cb200e4: ein Board mit Vorgeschichte, das die knappe
+    Nennung nie liest, ist dieselbe Zeile wie das leere Board."""
+    vorher = _inv_lauf("cb200e4", "board_nicht_nachgezogen", "stille_nach_leerem_ende",
+                        "werkbank_leer_phase2_gesperrt", "chat_kennt_board_nicht",
+                        "chat_kennt_transkript_nicht", "raumcheck_domainweit")
+    md = ab.vergleichstabelle(vorher, _inv_lauf("abc1234"))
+    assert md.count("gemeldet (hoch)") == 6
+    assert "Abnahme erfüllt: ja" in md
+    md = ab.vergleichstabelle(vorher, _inv_lauf("abc1234", "board_nicht_nachgezogen"))
+    assert "Abnahme erfüllt: nein" in md
+
+
 def test_invarianten_abschnitt_und_urteil():
     lauf = _inv_lauf("cb200e4", "werkbank_leer_phase2_gesperrt")
     md = ab.invarianten_abschnitt([lauf])

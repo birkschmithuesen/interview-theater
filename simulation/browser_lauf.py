@@ -385,6 +385,13 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
     beantwortet = 0
     hinweis = None
     gewartet = mitte_genommen = fallback = False
+    # Station mit gesprochenem Skript (``station.diskussion``): sie endet,
+    # sobald die Diskussion vorbei ist -- Harness-Klick auf "Discussion
+    # done" oder eine laufende Diskussion, die nach einer Aktion nicht mehr
+    # laeuft. Abnahmelauf cb200e4 (05.10.2026): die Persona startete danach
+    # neu, drueckte "Take these" und landete in Phase 2 -- der CoThinker
+    # zeigte kein Board mehr, Wissensfrage und Nachtrag liefen ins Leere.
+    diskussion_lief = diskussion_vorbei = False
     vorher = browser_mitschnitt.datenstand(db_pfad, chat_id)
     if leitbilder and station.leitbild_anfang:
         leitbilder.nimm(page, station.phase, station.leitbild_anfang)
@@ -401,10 +408,10 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         ``ist_abschluss=True``. ``nonlocal``, weil ``gewartet``/
         ``mitte_genommen`` Schleifenzustand sind, der ueber beide
         Aufrufstellen hinweg gilt."""
-        nonlocal gewartet, mitte_genommen, hinweis
+        nonlocal gewartet, mitte_genommen, hinweis, diskussion_vorbei, diskussion_lief
         if not (station.zuhoeren_s and not gewartet and _diskussion_laeuft(page)):
             return False
-        gewartet = True
+        gewartet = diskussion_lief = True
         ende = time.monotonic() + station.zuhoeren_s
         while time.monotonic() < ende:
             page.wait_for_timeout(10_000)
@@ -415,6 +422,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         if vor_ende is not None:
             vor_ende()
         if _beende_diskussion_deterministisch(page):
+            diskussion_vorbei = True
             if nach_klick is not None:
                 nach_klick()
             if beobachter:
@@ -451,6 +459,11 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         warte = browser_aktionen.warte_auf_antwort(page)
 
         _warte_und_beende_diskussion_falls_noetig()
+        if station.diskussion:
+            if _diskussion_laeuft(page):
+                diskussion_lief = True
+            elif diskussion_lief:
+                diskussion_vorbei = True
 
         if (leitbilder and station.leitbild_mitte and not mitte_genommen
                 and not station.zuhoeren_s
@@ -473,6 +486,8 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
 
         aktiv = _aktive_phase_nummer(page)
         if station.endet_bei_phasenwechsel and aktiv is not None and aktiv > station.phase:
+            break
+        if station.diskussion and diskussion_vorbei:
             break
 
     stand = browser_mitschnitt.datenstand(db_pfad, chat_id)

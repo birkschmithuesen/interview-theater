@@ -808,6 +808,63 @@ def test_vorher_stand_wird_direkt_vor_discussion_done_gelesen(tmp_path, monkeypa
     assert reihenfolge == ["vorher", "beende"]
 
 
+def _leere_db(tmp_path) -> str:
+    pfad = str(tmp_path / "d.db")
+    conn = db.verbinde(pfad); db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "g", "G"); conn.commit(); conn.close()
+    return pfad
+
+
+def test_diskussionsstation_endet_nach_dem_harness_klick(tmp_path, monkeypatch):
+    """Abnahmelauf cb200e4 (05.10.2026): nach dem Klick auf 'Discussion
+    done' startete die Persona neu und drueckte 'Take these' -- Phase 2,
+    kein Board mehr im CoThinker. Eine Station mit ``diskussion`` endet
+    deshalb mit dem Klick; die Persona wird danach nicht mehr gefragt."""
+    from simulation import browser_mitschnitt
+
+    pfad = _leere_db(tmp_path)
+    monkeypatch.setattr(browser_lauf, "_beende_diskussion_deterministisch", lambda page: True)
+    station = browser_stationen.Station("t-disk", 1, "x", budget=5, zuhoeren_s=1,
+                                        diskussion="knapp")
+    persona = _ScriptedClient([
+        {"type": "click", "element_id": 0, "begruendung": "start listening"},
+        {"type": "wait", "duration_ms": 10, "begruendung": "darf nie kommen"},
+    ])
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_TOGGLE)
+        ergebnis = browser_lauf._fuehre_station_aus(
+            seite, persona, browser_mitschnitt.Mitschnitt(tmp_path / "l", "h", "handy"),
+            station, basis_url="http://127.0.0.1:1", token="t", db_pfad=pfad, chat_id=CHAT,
+            persona_name="student")
+        browser.close()
+    assert persona.aufrufe == 1 and ergebnis["schritte"] == 1
+
+
+def test_diskussionsstation_endet_wenn_die_persona_selbst_beendet(tmp_path, monkeypatch):
+    """Beendet die Persona die laufende Diskussion selbst (vor dem
+    Harness), endet die Station ebenfalls nach diesem Schritt."""
+    from simulation import browser_mitschnitt
+
+    pfad = _leere_db(tmp_path)
+    station = browser_stationen.Station("t-disk", 1, "x", budget=5, zuhoeren_s=0,
+                                        diskussion="knapp")
+    persona = _ScriptedClient([
+        {"type": "click", "element_id": 0, "begruendung": "start listening"},
+        {"type": "click", "element_id": 1, "begruendung": "discussion done"},
+        {"type": "wait", "duration_ms": 10, "begruendung": "darf nie kommen"},
+    ])
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_TOGGLE)
+        ergebnis = browser_lauf._fuehre_station_aus(
+            seite, persona, browser_mitschnitt.Mitschnitt(tmp_path / "l", "h", "handy"),
+            station, basis_url="http://127.0.0.1:1", token="t", db_pfad=pfad, chat_id=CHAT,
+            persona_name="student")
+        browser.close()
+    assert persona.aufrufe == 2 and ergebnis["schritte"] == 2
+
+
 def test_diskussions_audio_zuhoerdauer_aus_wav(tmp_path, monkeypatch):
     from simulation import erzeuge_diskussion_audio as eda
 

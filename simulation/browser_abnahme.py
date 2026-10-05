@@ -60,7 +60,8 @@ def urteil(laeufe: list[dict]) -> tuple[bool, str]:
 #: ein Label und die Invarianten-Schluessel, die diese Zeile erfuellen --
 #: gepflegt fuer ``vergleichstabelle`` (Task 7).
 ABNAHME_BEFUNDE: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("Board-Schwelle (Board leer trotz Transkript)", ("board_leer_nach_ende", "board_beobachter_leer")),
+    ("Board-Schwelle (Board leer bzw. liest Transkript nicht)",
+     ("board_leer_nach_ende", "board_nicht_nachgezogen", "board_beobachter_leer")),
     ("Leeres Ende-Segment (Stille nach Discussion done)", ("stille_nach_leerem_ende",)),
     ("Werkbank leer / Phase 2 gesperrt", ("werkbank_leer_phase2_gesperrt",)),
     ("Chat kennt Board nicht", ("chat_kennt_board_nicht", "chat_nennt_board_nicht")),

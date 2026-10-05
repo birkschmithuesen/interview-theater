@@ -22,7 +22,9 @@ gebrauchten Spalten):
   das noch nicht fertig transkribiert ist, hat (wie ein echtes Leer-Segment)
   einen leeren `transkript`-Wert -- ohne den Statusfilter waere das ein
   falscher `stille_nach_leerem_ende`-Befund mitten in einer Rennlage.
-  Deshalb zaehlt `lese_p1_stand` nur `status = 'fertig'`-Zeilen.
+  Deshalb zaehlt `lese_p1_stand` nur `status = 'fertig'`-Zeilen -- fuer
+  `ende_leer` zusaetzlich `fehlgeschlagen` (endgueltig, so endet ein leeres
+  Ende-Segment an cb200e4, siehe `_STATUS_ENDGUELTIG`).
 - Bot-Blasen im Browser: `web_kanal.WebKanal.sende` (die Padua-Weboberflaeche,
   um die es in dieser Simulation geht) schreibt ausschliesslich nach
   `web_post` (`repo.lege_web_post_an`, `richtung = 'aus'`); die Tabelle
@@ -58,6 +60,7 @@ FRIST_NACH_ENDE_S = 60.0
 GRUPPENSCHLUESSEL_PRAEFIXE = ("vad_",)
 
 BOARD_LEER = "board_leer_nach_ende"
+BOARD_NICHT_NACHGEZOGEN = "board_nicht_nachgezogen"
 STILLE_LEERES_ENDE = "stille_nach_leerem_ende"
 STILLE_NACH_ENDE = "stille_nach_ende"
 WERKBANK_LEER = "werkbank_leer_phase2_gesperrt"
@@ -69,9 +72,21 @@ BOARD_BEOBACHTER_LEER = "board_beobachter_leer"
 STATION_NICHT_ERREICHT = "station_nicht_erreicht"
 
 #: Status, ab dem eine `aufnahme`-Zeile als abgeschlossen gilt (siehe
-#: Docstring oben) -- nur solche Zeilen zaehlen fuer `ende_leer` und die
-#: Zeichenzahl.
+#: Docstring oben) -- nur solche Zeilen zaehlen fuer die Zeichenzahl.
 _STATUS_FERTIG = "fertig"
+#: Fuer `ende_leer` zaehlt zusaetzlich `fehlgeschlagen`: ein leeres
+#: Ende-Segment endet dort ("leeres Transkript -- Stille ist kein gueltiges
+#: Ergebnis", Abnahmelauf cb200e4 05.10.2026, Aufnahme 7 -- Birks Live-Fall).
+#: Beide Status sind endgueltig; nur noch laufende bleiben aussen vor.
+_STATUS_ENDGUELTIG = ("fertig", "fehlgeschlagen")
+#: Bot-Zeilen, die NICHT auf "Discussion done" antworten: die
+#: Zwischenmeldung beim langsamen Abtippen eines frueheren Segments
+#: (``aufnahme._TEXT_ZWISCHENMELDUNG``, an cb200e4 und HEAD gleich, EN und
+#: DE). Im Lauf gegen cb200e4 verdeckte sie die Stille nach dem Ende.
+KEINE_ANTWORT_AUF_ENDE = (
+    "I'm still typing up the voice message, one moment.",
+    "Ich tippe die Sprachnachricht noch ab, einen Moment.",
+)
 
 
 @dataclass(frozen=True)
@@ -95,6 +110,9 @@ class P1Stand:
     arbeitsstand_begriffe: str
     max_bot_id: int
     bot_ids: tuple[int, ...]
+    #: Fertige Diskussionszeichen hinter ``bis_aufnahme_id`` des letzten
+    #: Boardlaufs (ohne Boardlauf: alle) -- 0, wenn die Spalte fehlt.
+    ungelesen_zeichen: int = 0
 
 
 def oeffne_lesend(db_pfad) -> sqlite3.Connection:
@@ -123,26 +141,29 @@ def board_begriffe_aus_json(roh: str | None) -> tuple[str, ...]:
 
 def lese_p1_stand(conn: sqlite3.Connection, chat_id: int) -> P1Stand:
     letzte = conn.execute(
-        "SELECT json FROM begriffsboard WHERE chat_id = ? ORDER BY id DESC LIMIT 1", (chat_id,)
+        "SELECT * FROM begriffsboard WHERE chat_id = ? ORDER BY id DESC LIMIT 1", (chat_id,)
     ).fetchone()
     board_zeilen = conn.execute(
         "SELECT COUNT(*) FROM begriffsboard WHERE chat_id = ?", (chat_id,)
     ).fetchone()[0]
-    aufnahmen = conn.execute(
-        "SELECT transkript, schnittgrund FROM aufnahme "
-        "WHERE chat_id = ? AND diskussion = 1 AND status = ? ORDER BY id",
-        (chat_id, _STATUS_FERTIG),
+    platzhalter = ", ".join("?" for _ in _STATUS_ENDGUELTIG)
+    alle = conn.execute(
+        "SELECT id, transkript, schnittgrund, status FROM aufnahme "
+        f"WHERE chat_id = ? AND diskussion = 1 AND status IN ({platzhalter}) ORDER BY id",
+        (chat_id, *_STATUS_ENDGUELTIG),
     ).fetchall()
+    aufnahmen = [a for a in alle if a["status"] == _STATUS_FERTIG]
     stand = conn.execute("SELECT begriffe FROM arbeitsstand WHERE chat_id = ?", (chat_id,)).fetchone()
+    ausnahmen = ", ".join("?" for _ in KEINE_ANTWORT_AUF_ENDE)
     bot_ids = tuple(
         z[0]
         for z in conn.execute(
             "SELECT id FROM web_post WHERE chat_id = ? AND richtung = 'aus' "
-            "AND geloescht_am IS NULL ORDER BY id",
-            (chat_id,),
+            f"AND geloescht_am IS NULL AND COALESCE(text, '') NOT IN ({ausnahmen}) ORDER BY id",
+            (chat_id, *KEINE_ANTWORT_AUF_ENDE),
         )
     )
-    ende = [a for a in aufnahmen if a["schnittgrund"] == "ende"]
+    ende = [a for a in alle if a["schnittgrund"] == "ende"]
     return P1Stand(
         board_begriffe=board_begriffe_aus_json(letzte["json"] if letzte else None),
         board_zeilen=board_zeilen,
@@ -151,7 +172,21 @@ def lese_p1_stand(conn: sqlite3.Connection, chat_id: int) -> P1Stand:
         arbeitsstand_begriffe=(stand["begriffe"] or "") if stand else "",
         max_bot_id=max(bot_ids, default=0),
         bot_ids=bot_ids,
+        ungelesen_zeichen=_ungelesen(letzte, aufnahmen),
     )
+
+
+def _ungelesen(letzte, aufnahmen) -> int:
+    """Zeichen der fertigen Diskussionssegmente hinter dem letzten Boardlauf
+    (``begriffsboard.bis_aufnahme_id``, an cb200e4 und HEAD vorhanden). Ohne
+    Boardlauf ist alles ungelesen; fehlt die Spalte, 0 (nicht beurteilbar)."""
+    if letzte is None:
+        bis = 0
+    elif "bis_aufnahme_id" in letzte.keys():
+        bis = letzte["bis_aufnahme_id"] or 0
+    else:
+        return 0
+    return sum(len((a["transkript"] or "").strip()) for a in aufnahmen if a["id"] > bis)
 
 
 def pruefe_nach_diskussion(vorher: P1Stand, nachher: P1Stand, station: str) -> list[Befund]:
@@ -161,6 +196,15 @@ def pruefe_nach_diskussion(vorher: P1Stand, nachher: P1Stand, station: str) -> l
             BOARD_LEER, station,
             f"Nach 'Discussion done' ist das Board leer, obwohl {nachher.transkript_zeichen} Zeichen "
             f"transkribiert sind ({nachher.board_zeilen} Board-Laeufe).",
+        ))
+    elif nachher.ungelesen_zeichen > 0:
+        # Dasselbe Symptom mit Vorgeschichte (Abnahmelauf cb200e4): das
+        # Board ist aus einer frueheren Runde gefuellt, die knappe Nennung
+        # danach liest es auch nach dem Ende nie.
+        befunde.append(Befund(
+            BOARD_NICHT_NACHGEZOGEN, station,
+            f"Nach 'Discussion done' hat das Board {nachher.ungelesen_zeichen} Zeichen Transkript "
+            f"nie gelesen ({nachher.board_zeilen} Board-Laeufe).",
         ))
     if not any(i > vorher.max_bot_id for i in nachher.bot_ids):
         if nachher.ende_leer:

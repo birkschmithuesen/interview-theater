@@ -153,9 +153,14 @@ STATIONEN_INVARIANTEN: tuple[Station, ...] = (
             "You just opened the app with your group for the first time. Read "
             "the screen, say hello, and find out what this first phase is about.",
             budget=3, leitbild_ende="eintritt"),
+    # Abnahmelauf cb200e4 (05.10.2026): mit "Get through the room check"
+    # uebersprang die Persona den Raumcheck ohne einen Fehlschlag ("Skip is
+    # the fastest") -- ohne Messung kein Raumcheck-Cache, die Invariante
+    # ``raumcheck_domainweit`` blieb ungeprueft. Weiter ein Ziel, kein Rezept.
     Station("p1-kalibrierung", 1,
-            "The app wants to check the room before you start. Get through the "
-            "room check; if it fails twice, skip it.",
+            "The app wants to check the room before you start. Do the room "
+            "check completely, until the app confirms it is done. Skip it only "
+            "if it has failed twice.",
             fertig=lambda s: s.get("kalibrierung_aufnahmen", 0) > 0
             or bool(s.get("kalibrierung_modus")),
             budget=6, leitbild_mitte="kalibrierung", pruefung=("raumcheck",)),

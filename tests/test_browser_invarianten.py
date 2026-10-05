@@ -108,6 +108,100 @@ def test_nicht_fertiges_ende_segment_zaehlt_nicht_als_leer(db):
     assert nachher.ende_leer is False
 
 
+def test_verworfenes_leeres_ende_segment_ist_leer(db):
+    """Abnahmelauf cb200e4 (05.10.2026, Aufnahme 7): das leere Ende-Segment
+    endet als ``fehlgeschlagen`` ("leeres Transkript -- Stille ist kein
+    gueltiges Ergebnis") -- genau Birks Live-Fall. Es ist ein leeres Ende,
+    kein fehlendes; nur noch laufende Status bleiben aussen vor."""
+    vorher = _stand(db)
+    _schreibe(db, "INSERT INTO aufnahme VALUES (1, 7, 1, 'pause', 'home because', 'fertig')")
+    _schreibe(db, "INSERT INTO aufnahme VALUES (2, 7, 1, 'ende', NULL, 'fehlgeschlagen')")
+    nachher = _stand(db)
+    assert nachher.ende_leer is True
+    assert nachher.transkript_zeichen == len("home because")
+    schluessel = {b.schluessel for b in inv.pruefe_nach_diskussion(vorher, nachher, "s")}
+    assert inv.STILLE_LEERES_ENDE in schluessel
+    assert inv.STILLE_NACH_ENDE not in schluessel
+
+
+def test_zwischenmeldung_ist_keine_antwort_auf_das_ende(db):
+    """Die Zwischenmeldung beim langsamen Abtippen eines frueheren Segments
+    (``aufnahme._TEXT_ZWISCHENMELDUNG``) antwortet nicht auf 'Discussion
+    done' -- im Lauf gegen cb200e4 verdeckte sie die Stille danach."""
+    vorher = _stand(db)
+    _bot_post(db, 7, "I'm still typing up the voice message, one moment.")
+    _bot_post(db, 7, "Ich tippe die Sprachnachricht noch ab, einen Moment.")
+    nachher = _stand(db)
+    assert inv.STILLE_NACH_ENDE in {b.schluessel for b in inv.pruefe_nach_diskussion(vorher, nachher, "s")}
+    _bot_post(db, 7, "The discussion is over.")
+    nachher = _stand(db)
+    assert not {b.schluessel for b in inv.pruefe_nach_diskussion(vorher, nachher, "s")} & {
+        inv.STILLE_NACH_ENDE, inv.STILLE_LEERES_ENDE}
+
+
+@pytest.fixture
+def db_bis(tmp_path):
+    """Wie ``db``, aber ``begriffsboard`` mit ``bis_aufnahme_id`` (reales
+    Schema an cb200e4 und HEAD)."""
+    pfad = tmp_path / "sim.db"
+    conn = sqlite3.connect(pfad)
+    conn.executescript(
+        """
+        CREATE TABLE begriffsboard (id INTEGER PRIMARY KEY, chat_id INTEGER, json TEXT,
+                                    bis_aufnahme_id INTEGER);
+        CREATE TABLE aufnahme (id INTEGER PRIMARY KEY, chat_id INTEGER, diskussion INTEGER,
+                               schnittgrund TEXT, transkript TEXT, status TEXT);
+        CREATE TABLE arbeitsstand (chat_id INTEGER PRIMARY KEY, begriffe TEXT);
+        CREATE TABLE web_post (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER,
+                               richtung TEXT, typ TEXT, text TEXT, geloescht_am TEXT);
+        """
+    )
+    conn.commit()
+    conn.close()
+    return pfad
+
+
+def test_board_liest_knappe_nennung_nach_dem_ende_nicht(db_bis):
+    """Abnahmelauf cb200e4: das Board war schon aus einer frueheren Runde
+    gefuellt (Lauf bis Aufnahme 3), die knappe Nennung danach (unter 600
+    Zeichen) las es auch nach 'Discussion done' nie -- dasselbe Symptom wie
+    das leere Board, nur mit Vorgeschichte."""
+    _schreibe(db_bis, "INSERT INTO aufnahme VALUES (1, 7, 1, 'pause', 'foam and home', 'fertig')")
+    _schreibe(db_bis, "INSERT INTO begriffsboard VALUES (1, 7, ?, 1)",
+              json.dumps([{"begriff": "home", "status": "kandidat"}]))
+    _bot_post(db_bis, 7, "welcome", post_id=1)
+    vorher = _stand(db_bis)
+    assert vorher.ungelesen_zeichen == 0
+    _schreibe(db_bis, "INSERT INTO aufnahme VALUES (2, 7, 1, 'pause', 'Border. Waiting.', 'fertig')")
+    _schreibe(db_bis, "INSERT INTO aufnahme VALUES (3, 7, 1, 'ende', NULL, 'fehlgeschlagen')")
+    _schreibe(db_bis, "INSERT INTO arbeitsstand VALUES (7, 'home')")
+    _bot_post(db_bis, 7, "The discussion is over.", post_id=2)
+    nachher = _stand(db_bis)
+    assert nachher.ungelesen_zeichen == len("Border. Waiting.")
+    befunde = inv.pruefe_nach_diskussion(vorher, nachher, "p1-zuhoeren")
+    assert [b.schluessel for b in befunde] == [inv.BOARD_NICHT_NACHGEZOGEN]
+    assert "16 Zeichen" in befunde[0].text and befunde[0].schwere == "hoch"
+    # Der Lauf nach dem Ende liest bis Aufnahme 3: kein Befund mehr.
+    _schreibe(db_bis, "INSERT INTO begriffsboard VALUES (2, 7, ?, 3)",
+              json.dumps([{"begriff": "border", "status": "kandidat"}]))
+    assert inv.pruefe_nach_diskussion(vorher, _stand(db_bis), "p1-zuhoeren") == []
+
+
+def test_ohne_bis_spalte_kein_ungelesen(db):
+    _schreibe(db, "INSERT INTO aufnahme VALUES (1, 7, 1, 'pause', 'home', 'fertig')")
+    _schreibe(db, "INSERT INTO begriffsboard VALUES (1, 7, ?)", json.dumps([{"begriff": "home"}]))
+    assert _stand(db).ungelesen_zeichen == 0
+
+
+def test_ohne_boardlauf_ist_alles_ungelesen_aber_board_leer_meldet(db_bis):
+    vorher = _stand(db_bis)
+    _schreibe(db_bis, "INSERT INTO aufnahme VALUES (1, 7, 1, 'ende', 'home', 'fertig')")
+    nachher = _stand(db_bis)
+    assert nachher.ungelesen_zeichen == 4
+    schluessel = {b.schluessel for b in inv.pruefe_nach_diskussion(vorher, nachher, "s")}
+    assert inv.BOARD_LEER in schluessel and inv.BOARD_NICHT_NACHGEZOGEN not in schluessel
+
+
 def test_gesunder_abschluss_ohne_befund(db):
     _bot_post(db, 7, "welcome", post_id=1)
     vorher = _stand(db)

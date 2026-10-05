@@ -99,9 +99,11 @@ def test_der_knopftext_ist_in_padua_englisch(datenbank, padua):
     pfad, token = datenbank
     zustand = _zustand(pfad, token, 3)
     seite = web_chat.chat_html(zustand, "n", token, "", 45000)
-    assert ">Record interview</button>" in seite
+    # P34 Runde 1, Befund A3: "Start interview" wie im Phaseneintritt und im
+    # Gespraechs-Prompt (vorher "Record interview").
+    assert ">Start interview</button>" in seite
     assert "Interview aufnehmen" not in seite
-    assert '"interview_an": "Record interview"' in web_chat._js()
+    assert '"interview_an": "Start interview"' in web_chat._js()
     assert '"interview_aus": "Stop recording"' in web_chat._js()
 
 

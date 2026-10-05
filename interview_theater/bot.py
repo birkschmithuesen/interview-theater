@@ -323,6 +323,13 @@ def erstkontakt(conn, tg, e, chat_id: int) -> None:
         text += T._TEXT_GRUPPENSEITE.format(url=url)
     try:
         if mit_diskussion:
+            # Birk 05.10.2026 (Nachtrag 8): die Handy-Karte der Phase 1
+            # (zwei echte Screenshots, "A · Chat" / "B · CoThinker") steht
+            # VOR der Begruessung -- einmal, denn ``erstkontakt`` laeuft nur
+            # ohne Bot-Nachricht. Dieselbe Funktion wie beim Phaseneintritt.
+            from interview_theater.knoepfe import stationen
+
+            stationen._sende_karte(tg, chat_id, stationen.PHASE_BEGRIFFE)
             message_id = tg.sende(chat_id, text)
         else:
             message_id = knoepfe.biete_einstieg(conn, tg, chat_id, text)

@@ -26,8 +26,8 @@ SCHLUSS = 'Now press "Start listening" for mic calibration.'
 
 ERWARTET = (
     "Hi, I'm the theatre bot for this workshop.\n\n"
-    "Phone 1 lies in the middle of the table and listens - that's this chat.\n"
-    "Phone 2 opens the same group link and shows the \"CoThinker\" tab: "
+    "Phone A lies in the middle of the table and listens - that's this chat.\n"
+    "Phone B opens the same group link and shows the \"CoThinker\" tab: "
     "your terms appear there live.\n\n"
     "First I check the room briefly: a few seconds of quiet, then one of you "
     "says a sentence.\n"
@@ -165,7 +165,10 @@ def test_web_gruppe_bekommt_keinen_abkuerzungs_hinweis_vor_der_begruessung(tmp_p
     bot.erstkontakt(conn_web, kanal, einst, CHAT)
     texte = [z["text"] for z in conn_web.execute(
         "SELECT text FROM web_post WHERE chat_id = ? ORDER BY id", (CHAT,))]
-    assert texte == [ERWARTET]
+    # Seit Nachtrag 8 steht die Handy-Karte (Bild + Satz) davor -- eine
+    # Systemzeile ohne Knoepfe, also weiterhin kein Abkuerzungs-Hinweis.
+    from interview_theater import handykarten
+    assert texte == [handykarten.satz(1), ERWARTET]
 
 
 def _web_db(tmp_path):
@@ -182,3 +185,34 @@ def test_raumcheck_vor_der_diskussion_nennt_die_begruendung():
     assert "why" not in web_chat.T._TEXT_KALIBRIERUNG_ERFOLG
     assert "sitzung.art === 'diskussion'" in web_chat._CHAT_JS
     assert "TEXT.kal_erfolg_diskussion" in web_chat._CHAT_JS
+
+
+# -- Nachtrag 8 (Birk 05.10.2026): die Handy-Karte VOR der Begruessung ------
+
+
+def test_erster_seitenaufruf_karte_vor_der_begruessung_einmal(tmp_path, einst):
+    """Web-Kanal wie live: ``/start`` -> ``bot.erstkontakt``. Erst die
+    Phase-1-Karte (Bild + Satz mit Phone A/B), dann die Begruessung; ein
+    zweiter Aufruf (Reload) schickt keine zweite Karte."""
+    from interview_theater import handykarten, web_kanal
+
+    conn_web = _web_db(tmp_path)
+    kanal = web_kanal.WebKanal(conn_web, CHAT, str(tmp_path / "audio"))
+    bot.erstkontakt(conn_web, kanal, einst, CHAT)
+    bot.erstkontakt(conn_web, kanal, einst, CHAT)
+    zeilen = conn_web.execute(
+        "SELECT text, bild FROM web_post WHERE chat_id = ? ORDER BY id", (CHAT,)).fetchall()
+    assert [z["bild"] for z in zeilen] == ["phase-1-en.png", None]
+    assert zeilen[0]["text"] == handykarten.satz(1)
+    assert "Phone A" in zeilen[0]["text"] and "Phone B" in zeilen[0]["text"]
+    assert zeilen[1]["text"] == ERWARTET
+
+
+def test_karte_und_begruessung_nennen_die_handys_gleich():
+    from scripts.handy_karten import PHASEN_EN
+
+    _nr, _name, satz, phones = PHASEN_EN[0]
+    assert [tab for tab, *_ in phones] == ["Chat", "CoThinker"]
+    for name in ("Phone A", "Phone B"):
+        assert name in satz and name in ERWARTET
+    assert "Phone 1" not in ERWARTET and "Phone 2" not in ERWARTET

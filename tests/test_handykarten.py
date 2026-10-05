@@ -102,3 +102,34 @@ def test_lookup_folgt_der_profilsprache(monkeypatch):
 def test_englischer_dateiname_passt_durch_die_static_positivliste():
     from interview_theater import web
     assert web._STATIC_NAME.fullmatch("phase-4-en.png")
+
+
+# --- Nachtrag 8/9 (Birk 05.10.2026): echte Screenshots, Phase 1 zwei Handys ---
+
+
+def _png_masse(pfad) -> tuple[int, int]:
+    import struct
+    kopf = pfad.read_bytes()[:24]
+    return struct.unpack(">II", kopf[16:24])
+
+
+def test_englische_karten_sind_screenshot_karten_nicht_das_alte_schema():
+    """Die alten Schema-Karten waren 1000x560; die Screenshot-Karten sind
+    hoeher (Handy-Bildschirme 390x844 im Rahmen)."""
+    from scripts.handy_karten import OUT
+    for nr, *_ in PHASEN_EN:
+        breite, hoehe = _png_masse(OUT / SPRACHEN["en"][3].format(nr=nr))
+        assert breite >= 1000 and hoehe > 700, (nr, breite, hoehe)
+
+
+def test_phase_1_und_2_zwei_handys_chat_und_cothinker():
+    for nr in (1, 2):
+        _nr, _name, satz, phones = PHASEN_EN[nr - 1]
+        assert [tab for tab, *_ in phones] == ["Chat", "CoThinker"], nr
+        assert "Phone A" in satz and "Phone B" in satz and "CoThinker" in satz
+
+
+def test_deutsche_karten_bleiben_das_eingefrorene_schema():
+    from scripts.handy_karten import OUT
+    for nr, *_ in PHASEN:
+        assert _png_masse(OUT / f"phase-{nr}.png") == (1000, 560), nr

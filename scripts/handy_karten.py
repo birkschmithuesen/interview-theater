@@ -14,7 +14,11 @@ Die Tab-Namen hier MUESSEN mit ``web_vereint._TEXT_TAB`` uebereinstimmen
 (Chat, Arbeitsstand, Textbuch, CoThinker) -- ein Bild, das einen Tab zeigt, den
 es auf der echten Seite nicht gibt, verwirrt mehr, als es hilft.
 
-Aufruf: ``python scripts/handy_karten.py`` (braucht ``chromium`` im PATH).
+Aufruf: ``python -m scripts.handy_karten`` (braucht Playwright mit Chromium).
+Die englischen Karten (Padua) zeigen seit dem 05.10.2026 ECHTE Screenshots
+der Seite je Phase (``scripts/handy_karten_bilder.py``, Wegwerf-DB mit
+erfundenem Material); die deutschen Schema-Karten bleiben eingefroren und
+entstehen nur noch mit ``--de``.
 Aendern: die Tabelle ``PHASEN`` unten, dann neu laufen lassen -- das ist die
 EINE Stelle, die der Betreiber anfasst.
 """
@@ -83,13 +87,22 @@ TAB_EN = {
 }
 
 PHASEN_EN = [
+    # Phase 1 (Birk 05.10.2026, Nachtrag 8): ZWEI Handys -- A hoert in der
+    # Mitte zu, B zeigt das Board. Vorher stand hier "One phone is enough".
+    # Die Buchstaben A/B sind dieselben wie in der Begruessung
+    # (``bot._TEXT_ERSTKONTAKT_DISKUSSION``) -- eine Begrifflichkeit.
     (1, "Terms",
-     "One phone is enough. Everyone else talks – the phone types along.",
-     [("Chat", "one person types", "")]),
+     "Phone A lies in the middle and listens. Phone B shows the CoThinker – "
+     "your terms appear there live.",
+     [("Chat", "listens", "in the middle · Start listening"),
+      ("CoThinker", "terms appear live", "")]),
+    # Phase 2 (Birk 05.10.2026, Nachtrag 9): B ist der CoThinker, nicht die
+    # Workbench -- er zeigt je Begriff die Fragen bzw. was noch fehlt.
     (2, "Questions",
-     "One phone decides, one shows the list. You discuss each question together.",
-     [("Chat", "decides", "Accept · Drop · Sharpen"),
-      ("Workbench", "reads along", "question list")]),
+     "Phone A decides in the chat. Phone B shows the CoThinker: the questions "
+     "for each term.",
+     [("Chat", "decides", ""),
+      ("CoThinker", "questions per term", "")]),
     (3, "Interviews",
      "One interview after the other. The recording phone lies with the interviewee.",
      [("Chat", "🎙 records", "lies with the interviewee"),
@@ -165,28 +178,45 @@ def satz_fuer(nr: int) -> str:
     return next(satz for n, _name, satz, _p in PHASEN if n == nr)
 
 
-def erzeuge() -> None:
+def _erzeuge_schema(code: str) -> None:
+    """Die alten Schema-Karten (Icon statt Bildschirm) -- nur noch fuer
+    Deutsch, und nur auf ausdrueckliches ``--de``: Dortmund ist seit dem
+    04.10.2026 eingefroren, ``phase-N.png`` wird nicht neu erzeugt."""
+    tabelle, tabs, kopf, muster = SPRACHEN[code]
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_pfad = pathlib.Path(tmp)
+        for nr, name, satz, phones in tabelle:
+            seite = f"""<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>
+            <div class="kopf">{html.escape(kopf.format(nr=nr))}</div>
+            <h1>{html.escape(name)}</h1>
+            <div class="satz">{html.escape(satz)}</div>
+            <div class="reihe">{''.join(phone(*p, tabs=tabs) for p in phones)}</div>
+            </body></html>"""
+            src = tmp_pfad / f"phase-{nr}.html"
+            src.write_text(seite, encoding="utf-8")
+            png = OUT / muster.format(nr=nr)
+            subprocess.run(
+                ["chromium", "--headless", "--no-sandbox", "--disable-gpu",
+                 "--hide-scrollbars", f"--window-size={W},{H}",
+                 f"--screenshot={png}", src.as_uri()],
+                check=True, capture_output=True, timeout=60,
+            )
+            print(png, png.stat().st_size)
+
+
+def erzeuge(argv: list[str] | None = None) -> None:
+    """Englisch (Padua) mit ECHTEN Screenshots (Birk 05.10.2026, Nachtrag 8:
+    "Die echten Screenshots sind besser. Mache das gleich in allen Phasen.")
+    -- siehe ``scripts/handy_karten_bilder.py``. ``--de`` erzeugt zusaetzlich
+    die alten deutschen Schema-Karten (eingefroren, normalerweise nicht)."""
+    argv = sys.argv[1:] if argv is None else argv
     OUT.mkdir(parents=True, exist_ok=True)
-    for _code, (tabelle, tabs, kopf, muster) in SPRACHEN.items():
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_pfad = pathlib.Path(tmp)
-            for nr, name, satz, phones in tabelle:
-                seite = f"""<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>
-                <div class="kopf">{html.escape(kopf.format(nr=nr))}</div>
-                <h1>{html.escape(name)}</h1>
-                <div class="satz">{html.escape(satz)}</div>
-                <div class="reihe">{''.join(phone(*p, tabs=tabs) for p in phones)}</div>
-                </body></html>"""
-                src = tmp_pfad / f"phase-{nr}.html"
-                src.write_text(seite, encoding="utf-8")
-                png = OUT / muster.format(nr=nr)
-                subprocess.run(
-                    ["chromium", "--headless", "--no-sandbox", "--disable-gpu",
-                     "--hide-scrollbars", f"--window-size={W},{H}",
-                     f"--screenshot={png}", src.as_uri()],
-                    check=True, capture_output=True, timeout=60,
-                )
-                print(png, png.stat().st_size)
+    from scripts import handy_karten_bilder
+
+    handy_karten_bilder.erzeuge_en()
+    if "--de" in argv:
+        _erzeuge_schema("de")
+
 
 if __name__ == "__main__":
     sys.exit(erzeuge())

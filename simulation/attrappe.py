@@ -84,6 +84,17 @@ class TelegramAttrappe:
         })
         return message_id
 
+    def sende_bild(self, chat_id: int, dateiname: str, inhalt: bytes,
+                   beschreibung: str = "") -> int:
+        """Die Handy-Karte einer Phase (``knoepfe.stationen._sende_karte``):
+        wie ``sende``, der Satz unter dem Bild ist der Text, ``bild`` der
+        Dateiname. Seit 05.10.2026 -- vorher fehlte die Methode, und die
+        Simulation sah die Karte nie, obwohl beide echten Kanaele sie
+        schicken (der Phase-1-Satz nennt Phone A/B und den CoThinker)."""
+        message_id = self.sende(chat_id, beschreibung)
+        self.gesendet[-1]["bild"] = dateiname
+        return message_id
+
     def sende_mit_knoepfen(self, chat_id: int, text: str, knoepfe, **_kw) -> int:
         """Inline-Knoepfe (interview_theater/knoepfe.py) im simulierten Lauf.
 

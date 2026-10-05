@@ -458,7 +458,8 @@ def test_diskussion_voller_ablauf_im_browser(lauf, seite):
     # das am Marker "Discussion done" und antwortet mit GRUSS_DISKUSSION.
     seite.fill("#eingabe", "Hallo, wir sind da!")
     seite.click("#senden")
-    expect(seite.locator(".blase.bot").first).to_contain_text(text_diskussion_an)
+    # Seit 05.10.2026 steht die Handy-Karte (Bild) vor der Begruessung.
+    expect(seite.locator(".blase.bot").filter(has_text=text_diskussion_an).first).to_be_visible(timeout=GEDULD_MS)
     # Die Antwort auf "Hallo" abwarten, bevor gezaehlt wird: seit dem
     # versteckten /start (P1-2) steht die feste Begruessung schon beim
     # Seitenaufruf da, die Modellantwort kommt danach.
@@ -565,7 +566,7 @@ def test_begriffsboard_im_cothinker_und_top5_vorschlag(lauf, seite, monkeypatch)
 
     seite.fill("#eingabe", "Hallo, wir sind da!")
     seite.click("#senden")
-    expect(seite.locator(".blase.bot").first).to_contain_text(web_chat.T._TEXT_DISKUSSION_AN)
+    expect(seite.locator(".blase.bot").filter(has_text=web_chat.T._TEXT_DISKUSSION_AN).first).to_be_visible(timeout=GEDULD_MS)
     expect(seite.locator(".blase.bot").filter(has_text="Great to have you here").first
            ).to_be_visible(timeout=GEDULD_MS)
 

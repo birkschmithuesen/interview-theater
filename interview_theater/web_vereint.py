@@ -1088,6 +1088,15 @@ _VEREINT_JS = """
   // einzeln aufrufen kann (wie test_web_vereint_js_syntax.py es mit dem
   // ganzen <script>-Block tut, hier nur je Funktion).
   var buehneLetzter = null;
+  // Fix 05.10.2026 (Auswahlliste, Padua): ``gen`` zaehlt die fertigen
+  // Tipp-POSTs, ``unterwegs`` die laufenden (gepflegt von ``_AUSWAHL_JS``).
+  // Eine Panel-Antwort, deren Anfrage VOR dem letzten fertigen Tipp lief,
+  // ist veraltet und wird verworfen -- sonst klappt die Zeile zurueck.
+  // ``gesehen`` laesst ``holePanel`` ``buehneLetzter`` mitfuehren.
+  var buehneTakt = window.buehneTakt = {
+    gen: 0, unterwegs: 0,
+    gesehen: function (html) { buehneLetzter = html; }
+  };
   var buehneVerlauf = [];
   var buehnePos = null;
   var buehneBasis = '';
@@ -1373,10 +1382,12 @@ _VEREINT_JS = """
     var panel = document.getElementById('tab-buehne');
     if (!panel) { return; }
     if (buehneLetzter === null) { buehneLetzter = panel.innerHTML; }
+    var taktGen = buehneTakt.gen;
     fetch(BASIS_TEIL + 'buehne', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.text() : null; })
       .then(function (text) {
         if (text === null) { return; }
+        if (buehneTakt.gen !== taktGen || buehneTakt.unterwegs > 0) { return; }
         var doc = new DOMParser().parseFromString(text, 'text/html');
         var neu = doc.body ? doc.body.innerHTML : null;
         if (!neu || neu === buehneLetzter) { return; }
@@ -1620,6 +1631,8 @@ _AUSWAHL_JS = """
   var BASIS_TEIL = '__BASIS_TEIL__';
   var ZAEHLER = __AUSWAHL_ZAEHLER__;
   var FEHLER_NETZ = __AUSWAHL_FEHLER_NETZ__;
+  var FEHLER_UNGUELTIG = __AUSWAHL_FEHLER_UNGUELTIG__;
+  var TAKT = window.buehneTakt || { gen: 0, unterwegs: 0, gesehen: function () {} };
   var unterwegs = {};
   var anzahlUnterwegs = 0;
 
@@ -1652,10 +1665,10 @@ _AUSWAHL_JS = """
     });
   }
   var fehlerTakt = null;
-  function zeigeFehler() {
+  function zeigeFehler(text) {
     var feld = document.getElementById('fehler');
     if (!feld) { return; }
-    feld.textContent = FEHLER_NETZ;
+    feld.textContent = text || FEHLER_NETZ;
     feld.hidden = false;
     if (fehlerTakt) { clearTimeout(fehlerTakt); }
     fehlerTakt = setTimeout(function () { feld.hidden = true; feld.textContent = ''; }, 8000);
@@ -1691,12 +1704,15 @@ _AUSWAHL_JS = """
   function holePanel() {
     var tab = document.getElementById('tab-buehne');
     if (!tab) { return; }
+    var gen = TAKT.gen;
     fetch(BASIS_TEIL + 'buehne', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.text() : null; })
       .then(function (text) {
-        if (text === null || anzahlUnterwegs > 0) { return; }
+        if (text === null || anzahlUnterwegs > 0 || TAKT.gen !== gen) { return; }
         var doc = new DOMParser().parseFromString(text, 'text/html');
-        if (doc.body && doc.body.innerHTML !== tab.innerHTML) {
+        if (!doc.body) { return; }
+        TAKT.gesehen(doc.body.innerHTML);
+        if (doc.body.innerHTML !== tab.innerHTML) {
           tab.innerHTML = doc.body.innerHTML;
         }
       })
@@ -1724,11 +1740,16 @@ _AUSWAHL_JS = """
       zaehle(panel);
       unterwegs[nummer] = wert;
       anzahlUnterwegs += 1;
+      TAKT.unterwegs = anzahlUnterwegs;
       sende('chat/auswahl', { liste: panel.getAttribute('data-liste'), nummer: nummer, wert: wert })
-        .then(function (r) { if (!r.ok) { zeigeFehler(); } })
+        .then(function (r) {
+          if (!r.ok) { zeigeFehler(r.status === 400 ? FEHLER_UNGUELTIG : ''); }
+        })
         .catch(function () { zeigeFehler(); })
         .then(function () {
           anzahlUnterwegs -= 1;
+          TAKT.unterwegs = anzahlUnterwegs;
+          TAKT.gen += 1;
           if (unterwegs[nummer] === wert) { delete unterwegs[nummer]; }
           if (anzahlUnterwegs === 0) { holePanel(); }
         });
@@ -2325,6 +2346,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
             .replace("__AUSWAHL_ZAEHLER__", _js_text(web.T._TEXT_AUSWAHL_ZAEHLER))
             .replace("__AUSWAHL_FEHLER_NETZ__", _js_text(T._TEXT_PHASE_FEHLER_NETZ))
+            .replace("__AUSWAHL_FEHLER_UNGUELTIG__", _js_text(T._TEXT_AUSWAHL_UNGUELTIG))
         )
     # ``chat_vorhanden`` durchreichen (UX-Fix an Aufgabe 8): Baustein 3
     # (``_JS_AUFNAHME``) nennt Elemente, die nur im Chat-Panel existieren

@@ -173,3 +173,56 @@ def test_ein_tipp_sortiert_und_fertig_geht_zum_chat(server):
             kontext.close()
         finally:
             chromium.close()
+
+
+def test_veraltete_panelantwort_klappt_den_tipp_nicht_zurueck(server):
+    """Fix 05.10.2026: ein Panel-Takt, der VOR dem Tipp losging und erst
+    NACH dessen POST ankommt, darf die Zeile nicht zurueckklappen."""
+    basis, token = server
+    with sync_playwright() as p:
+        chromium = p.chromium.launch()
+        try:
+            kontext = chromium.new_context(viewport=HANDY, is_mobile=True, has_touch=True)
+            seite = kontext.new_page()
+            seite.set_default_timeout(GEDULD_MS)
+            seite.goto(f"{basis}/g/{token}#buehne")
+            zeile = seite.locator('#tab-buehne li[data-nummer="2"]')
+            zeile.wait_for(state="visible")
+
+            gehalten = []
+
+            def halte(route):
+                if not gehalten:
+                    gehalten.append((route, route.fetch()))  # alter Stand
+                else:
+                    route.continue_()
+
+            seite.route("**/buehne", halte)
+            ende = time.time() + 20
+            while not gehalten and time.time() < ende:
+                seite.wait_for_timeout(100)
+            assert gehalten, "kein Panel-Takt abgefangen"
+
+            zeile.locator('.auswahl-knopf[data-wert="nein"]').click()
+            ende = time.time() + 10
+            while _stand()[0] != "ja,nein,," and time.time() < ende:
+                seite.wait_for_timeout(100)
+            assert _stand()[0] == "ja,nein,,"
+            # holePanel nach dem Tipp ist durch, und mindestens ein weiterer
+            # (frischer) Takt hat ``buehneLetzter`` auf den neuen Stand gesetzt
+            # -- erst dann unterscheidet sich der alte Stand davon.
+            gesehen = []
+            seite.on("requestfinished",
+                     lambda a: gesehen.append(1) if a.url.endswith("/buehne") else None)
+            ende = time.time() + 20
+            while len(gesehen) < 2 and time.time() < ende:
+                seite.wait_for_timeout(100)
+            seite.wait_for_timeout(300)
+
+            route, alt = gehalten[0]
+            route.fulfill(response=alt)
+            seite.wait_for_timeout(1500)
+            assert zeile.get_attribute("data-zustand") == "nein"
+            kontext.close()
+        finally:
+            chromium.close()

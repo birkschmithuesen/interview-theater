@@ -176,6 +176,11 @@ def test_auswahl_skript_haengt_nur_unter_padua(datenbank, monkeypatch):
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
     mit = rendere()
     assert "sende('chat/auswahl'" in mit and "sende('chat/auswahl_fertig'" in mit
+    # Fix 05.10.2026: 400 zeigt den Auswahl-Satz, nicht den Netzfehler.
+    assert ("var FEHLER_UNGUELTIG = "
+            + web_vereint._js_text(web_vereint.T._TEXT_AUSWAHL_UNGUELTIG)) in mit
+    assert "__AUSWAHL_FEHLER_UNGUELTIG__" not in mit
+    assert "r.status === 400 ? FEHLER_UNGUELTIG" in mit
 
 
 # -- POST ---------------------------------------------------------------------

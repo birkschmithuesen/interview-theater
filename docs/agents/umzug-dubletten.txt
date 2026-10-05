@@ -1,0 +1,8 @@
+# Dubletten des AGENTS.md-Umzugs (Spec 2026-10-05). Je Zeile: alte Startzeile
+# (git show cb200e4:AGENTS.md) eines Absatzes aus der aelteren Fassung eines
+# doppelten Kapitels, der in der juengeren Fassung in neuerer Form steht.
+# Gelesen von scripts/pruefe_agents_umzug.py.
+1368  # Befehlsliste (aeltere Fassung, "elf"/"zehn Befehle") -> spec-abweichungen.md, Befehlstabelle mit "dreizehn Befehlen"
+1384  # "elften Befehl anhaengt" (aeltere Fassung) -> spec-abweichungen.md, derselbe Absatz mit "vierzehnten Befehl anhaengt"
+1481  # Simulation-Absatz (aeltere Fassung, ohne Phasen-Datengetrieben-Satz) -> starten-und-testen.md, derselbe Absatz mit "Wie viele Phasen das sind, steht nirgends im Simulator ..."
+1524  # Routen-Absatz (aeltere, kuerzere Fassung) -> weboberflaeche.md, Routen-Absatz mit allen spaeter dazugekommenen Routen (Chat, Strom, Phasenklick, Textbuch, Leitfaden ...)

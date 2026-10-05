@@ -274,7 +274,15 @@ class BotAttrappe(threading.Thread):
     """Spielt vom Bot genau das, was der Umschalter braucht: ``/interview``
     setzt den Modus, ``/fertig`` nimmt ihn zurueck. Mit ``aktiv = False``
     bleibt der Eingang liegen (der Bot "haengt") und wird beim Wiederanlaufen
-    der Reihe nach abgearbeitet."""
+    der Reihe nach abgearbeitet.
+
+    R-2: ``typ='befehl'``-Eintraege sind nicht nur ``/interview``/``/fertig``
+    -- ``web_vereint.start_post``/``phase_post`` legen z.B. ``/start`` bzw.
+    ``/phaseklick N`` im selben Typ ab (jeder Seitenaufruf schreibt ein
+    ``/start``). Alles ausser den beiden Modus-Befehlen wird deshalb
+    ignoriert (aber als abgearbeitet markiert) -- genau wie beim echten Bot,
+    dessen ``befehle.behandle`` jeden Slash-Befehl einzeln dispatcht, statt
+    jeden unbekannten Text als ``/fertig`` zu lesen."""
 
     def __init__(self):
         super().__init__(daemon=True)
@@ -1140,6 +1148,38 @@ def test_gehaltener_ptt_wird_beim_interviewstart_verworfen(seite):
     folge = _form(_posts(seite))
     assert folge[0] == "an", folge          # kein PTT-Audio vor dem Interview
     assert folge[-1] == "aus"
+
+
+def test_botattrappe_ignoriert_fremde_befehle(bot):
+    """R-2 (Ursache des ~1/5-Wackelns von
+    ``test_seite_im_interviewmodus_geladen``): ``web_vereint.start_post``
+    legt bei jedem Seitenaufruf einen ``typ='befehl'``-Eintrag ``/start``
+    an (ueber ``chat/start``) -- denselben Typ wie ``/interview``/``/fertig``.
+    Die Attrappe las frueher JEDEN Text ausser ``/interview`` als ``/fertig``
+    und schaltete den Modus deshalb aus, sobald sie den ``/start``-Eintrag
+    zufaellig abarbeitete -- unabhaengig vom tatsaechlichen Beenden-Klick.
+    Der echte Bot (``befehle.behandle``) kennt ``/start`` als eigenen Befehl
+    und ruehrt den Interviewmodus dabei nicht an; die Attrappe muss das
+    nachbilden: nur ``/interview``/``/fertig`` duerfen den Modus beruehren,
+    alles andere wird ignoriert (aber als abgearbeitet markiert)."""
+    bot.aktiv = False
+    conn = db.verbinde(DB_PFAD)
+    try:
+        setze_modus(True, conn)
+        conn.commit()
+        repo.lege_web_post_an(
+            conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL, text="/start",
+        )
+        conn.commit()
+        bot.aktiv = True
+        ende = time.time() + 2
+        while bot.offen() and time.time() < ende:
+            time.sleep(0.02)
+        assert repo.ist_interviewmodus_an(conn, CHAT)
+    finally:
+        setze_modus(False, conn)
+        conn.commit()
+        conn.close()
 
 
 def test_seite_im_interviewmodus_geladen(oeffne, bot):

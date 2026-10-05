@@ -620,6 +620,38 @@ def test_auch_das_zweite_echo_wird_gesendet(conn, einst, tg):
     assert _vorfallarten(conn) == ["echo_verworfen", "echo_wiederholt"]
 
 
+def test_ohne_echo_ignoriert_die_vorgeschriebene_wiederholung_im_vorschlagsblock(
+    conn, einst, tg
+):
+    """P2-M9 (Padua Phase 2, Prompt-Check 05.10.2026): die diktierte Frage
+    steht zwingend auch im ``VORSCHLAG EIGENE FRAGEN:``-Block (Format
+    ``Begriff: Frage``) -- das darf keinen Fehlalarm und keinen zweiten
+    Anlauf mehr ausloesen, sonst zitiert der Bot live doppelt."""
+    repo.merke_nachricht(conn, 1, 1, "Birk", 0, "text", _LANGE_NACHRICHT, repo._jetzt())
+    antwort = f"Noted.\n\nVORSCHLAG EIGENE FRAGEN:\nThema: {_LANGE_NACHRICHT}"
+    klm = KLMNacheinander(antwort)
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert len(klm.gesehen) == 1, "kein zweiter Anlauf wegen des Blockinhalts"
+    assert _vorfallarten(conn) == []
+
+
+def test_ohne_echo_erkennt_ein_echo_im_fliesstext_trotz_vorschlagsblock(
+    conn, einst, tg
+):
+    """Gegenprobe: steht das Echo auch im sichtbaren Fliesstext (nicht nur
+    im Block), muss es weiter auffliegen."""
+    repo.merke_nachricht(conn, 1, 1, "Birk", 0, "text", _LANGE_NACHRICHT, repo._jetzt())
+    erste = f"{_LANGE_NACHRICHT}\n\nVORSCHLAG EIGENE FRAGEN:\nThema: etwas ganz anderes"
+    klm = KLMNacheinander(erste, _EIGENE_ANTWORT)
+
+    ablauf.bearbeite(conn, tg, klm, einst, 1)
+
+    assert len(klm.gesehen) == 2, "Echo im sichtbaren Text wird weiter erkannt"
+    assert _vorfallarten(conn) == ["echo_verworfen"]
+
+
 def test_scheitert_der_zweite_anlauf_gilt_der_erste(conn, einst, tg):
     """Eine schwache Antwort ist besser als 'Bei mir hakt gerade etwas' -- die
     Gruppe wartet, und der Fehler waere hier ein selbstgemachter."""

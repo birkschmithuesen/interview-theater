@@ -175,7 +175,7 @@ def _diskussion_aktiv(monkeypatch):
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
 
 
-def test_ende_segment_sendet_die_begriffe_aufforderung_und_startet_die_verdichtung(
+def test_ende_segment_ohne_modell_sendet_den_rueckfall_und_startet_die_verdichtung(
     conn, einst, monkeypatch,
 ):
     from interview_theater import diskussion
@@ -188,7 +188,7 @@ def test_ende_segment_sendet_die_begriffe_aufforderung_und_startet_die_verdichtu
     tg = _TelegramAttrappe()
     row = _diskussion_zeile(conn, 1, 710, "Der letzte Gedanke.", schnittgrund="ende")
     aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
-    assert tg.gesendet == [(1, aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE)]
+    assert tg.gesendet == [(1, aufnahme.T._TEXT_DISKUSSION_KEINE_BEGRIFFE)]
     assert gestartet == [1]
 
 

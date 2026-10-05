@@ -10,7 +10,7 @@ hier zusammengefuehrt:
   ``BotAttrappe`` liest nur ``/interview``/``/fertig`` aus ``web_post`` und
   schaltet ``repo.setze_interviewmodus``. Fuer die Diskussion reicht das
   nicht: die Begruessung (``kontext.ERSTKONTAKT_DISKUSSION``), das
-  Abschlusswort (``aufnahme._TEXT_DISKUSSION_FERTIG_BEGRIFFE``) und der
+  Abschlusswort (``aufnahme._TEXT_DISKUSSION_KEINE_BEGRIFFE``) und der
   Verdichtungslauf (``diskussion.starte``) entstehen erst im echten
   ``aufnahme``-/``ablauf``-Code.
 * ``tests/test_web_e2e_http.py`` faehrt genau diesen echten Code --
@@ -566,8 +566,9 @@ def test_begriffsboard_im_cothinker_und_top5_vorschlag(lauf, seite, monkeypatch)
     vorschlag = seite.locator(".blase.bot").filter(has_text="1. ankamen")
     expect(vorschlag.first).to_be_visible(timeout=GEDULD_MS)
     expect(seite.get_by_role("button", name=knopf_text)).to_have_count(1)
-    assert seite.locator(".blase.bot").filter(
-        has_text=aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE).count() == 0
+    for satz in (aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE,
+                 aufnahme.T._TEXT_DISKUSSION_KEINE_BEGRIFFE):
+        assert seite.locator(".blase.bot").filter(has_text=satz).count() == 0
 
     # Der CoThinker-Tab ist in Phase 1 da und zeigt den Board-Eintrag als Top.
     tab = seite.locator('.tabs button[data-tab="buehne"]')

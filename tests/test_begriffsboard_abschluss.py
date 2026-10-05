@@ -1,9 +1,12 @@
-"""Karte t_cb2c4678, Teil 2 (Birk 04.10.2026 14:50): "Zwischenstand und
-Endstand muessen nicht anders behandelt werden." Der Ende-Schnitt
-("Discussion done") ist ein gewoehnlicher Schnitt unter derselben Regel wie
-ein Pausenschnitt (600 Zeichen, ``begriffsboard.min_zeichen``) -- ohne eigene
-Schwelle, ohne Mindestabstand (danach kommt kein Schnitt mehr). Laeuft gerade
-ein Lauf, wird nach ihm neu entschieden. Nur erfundenes Material."""
+"""Karte t_cb2c4678, Teil 2, und Birks Entscheidung vom 05.10.2026.
+
+Bis 04.10.2026 (Birk 14:50, "Zwischenstand und Endstand muessen nicht
+anders behandelt werden") hing der Ende-Schnitt ("Discussion done") wie ein
+Pausenschnitt an der Board-Schwelle (600 Zeichen). Live am 05.10.2026
+(Gruppe 2: 298 Zeichen, kein Lauf) ersetzt: nach "Discussion done" laeuft
+das Board IMMER, sobald es ungelesenes Transkript gibt -- ohne Schwelle, ohne
+Mindestabstand. Zwischenlaeufe behalten ihre Regel. Laeuft gerade ein Lauf,
+wird nach ihm neu entschieden. Nur erfundenes Material."""
 
 import inspect
 import threading
@@ -114,52 +117,67 @@ def test_soll_laufen_kennt_keinen_abschluss_mehr():
     assert list(inspect.signature(begriffsboard.soll_laufen).parameters) == ["conn", "chat_id"]
 
 
-def test_ende_schnitt_zaehlt_wie_ein_pausenschnitt(conn, monkeypatch):
+def test_ende_schnitt_laeuft(conn, monkeypatch):
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
     _zeile(conn, 10, "ende")
     assert begriffsboard.soll_laufen(conn, CHAT) is True
 
 
-def _pruefe_keine_eigene_abschlussschwelle(conn, einst):
-    """Ende-Schnitt mit 18 Zeichen: unter der Board-Schwelle (1000), ueber
-    der alten Abschluss-Schwelle (10) -- es darf KEIN Lauf starten, und der
-    Vorschlag kommt sofort (leeres Board -> der heutige Satz)."""
+def _pruefe_ende_laeuft_ohne_schwelle(conn, einst):
+    """Ende-Schnitt mit 18 Zeichen: unter der Board-Schwelle (1000) UND unter
+    der Abschluss-Schwelle des Brainstorms (1000) -- der Lauf kommt trotzdem,
+    und danach der Vorschlag mit seinem Board."""
     klm, tg = _KLM([HEIMAT]), _TG()
     aufnahme._kurz_abschliessen(conn, tg, klm, einst, _zeile(conn, 20, "ende"),
                                 aufnahme._kein_zug, False)
-    time.sleep(0.1)
+    _warte_bis(lambda: len(tg.mit_knoepfen) == 1)
     _warte_bis(lambda: not begriffsboard.laeuft(CHAT))
-    assert klm.aufrufe == 0
-    assert tg.gesendet == [(CHAT, aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE)]
+    assert klm.aufrufe == 1
+    assert "1. Heimat" in tg.mit_knoepfen[0][1]
 
 
-def test_keine_eigene_abschlussschwelle(conn, einst, monkeypatch):
+def test_ende_laeuft_ohne_schwelle(conn, einst, monkeypatch):
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1000")
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
-    _pruefe_keine_eigene_abschlussschwelle(conn, einst)
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "1000")
+    _pruefe_ende_laeuft_ohne_schwelle(conn, einst)
+
+
+def test_mutant_mit_der_regel_vom_04_10_faellt_durch(conn, einst, monkeypatch):
+    """Mutant: wer die Regel vom 04.10.2026 zurueckbringt (Ende-Schnitt wie
+    ein Pausenschnitt an ``min_zeichen``), muss den Test oben rot machen."""
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1000")
+
+    def regel_vom_04_10(conn_, chat_id):
+        stand = repo.begriffsboard_stand(conn_, chat_id)
+        return brainstorm.soll_reagieren(
+            unreagierte_zeichen=stand["unreagierte_zeichen"],
+            sekunden_seit_letzter_reaktion=float("inf"),
+            letzter_schnittgrund="pause", ist_abschluss=False,
+            min_zeichen_override=begriffsboard.min_zeichen(),
+        )
+
+    monkeypatch.setattr(begriffsboard, "soll_laufen", regel_vom_04_10)
+    with pytest.raises(AssertionError):
+        _pruefe_ende_laeuft_ohne_schwelle(conn, einst)
 
 
 def test_mutant_mit_dem_alten_abschlusszweig_faellt_durch(conn, einst, monkeypatch):
-    """Mutant: wer den alten Zweig (``ist_abschluss=True`` mit
-    ``min_zeichen_bei_abschluss``, Vorgabe 150) zurueckbringt, muss den Test
-    oben rot machen."""
+    """Mutant: der noch aeltere Zweig (``ist_abschluss=True`` mit
+    ``min_zeichen_bei_abschluss``) macht den Test oben ebenfalls rot."""
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1000")
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
-    echt = begriffsboard.soll_laufen
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "1000")
 
     def alter_zweig(conn_, chat_id):
         stand = repo.begriffsboard_stand(conn_, chat_id)
-        if stand["letzter_schnittgrund"] == "ende":
-            return brainstorm.soll_reagieren(
-                unreagierte_zeichen=stand["unreagierte_zeichen"],
-                sekunden_seit_letzter_reaktion=0.0,
-                letzter_schnittgrund="ende", ist_abschluss=True,
-            )
-        return echt(conn_, chat_id)
+        return brainstorm.soll_reagieren(
+            unreagierte_zeichen=stand["unreagierte_zeichen"],
+            sekunden_seit_letzter_reaktion=0.0,
+            letzter_schnittgrund="ende", ist_abschluss=True,
+        )
 
     monkeypatch.setattr(begriffsboard, "soll_laufen", alter_zweig)
     with pytest.raises(AssertionError):
-        _pruefe_keine_eigene_abschlussschwelle(conn, einst)
+        _pruefe_ende_laeuft_ohne_schwelle(conn, einst)
 
 
 def test_ende_ignoriert_den_mindestabstand_ein_pausenschnitt_nicht(conn, monkeypatch):
@@ -174,7 +192,7 @@ def test_ende_ignoriert_den_mindestabstand_ein_pausenschnitt_nicht(conn, monkeyp
 
 
 def test_vorschlag_wartet_auf_den_laufenden_lauf_und_zeigt_dessen_board(conn, einst, monkeypatch):
-    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1000")   # der Rest reicht nicht
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1000")   # fuer Zwischenlaeufe zu wenig
     _zeile(conn, 40, "pause")
     halt = threading.Event()
     klm, tg = _KLM([HEIMAT], halt=halt), _TG()
@@ -187,7 +205,10 @@ def test_vorschlag_wartet_auf_den_laufenden_lauf_und_zeigt_dessen_board(conn, ei
     halt.set()
     _warte_bis(lambda: len(tg.mit_knoepfen) == 1)
     assert "1. Heimat" in tg.mit_knoepfen[0][1]
-    assert klm.aufrufe == 1
+    # Seit 05.10.2026: der kurze Rest des Ende-Segments wird nach dem
+    # laufenden Lauf trotzdem gelesen (zweiter Lauf, liefert hier nichts --
+    # ein leeres Ergebnis ersetzt kein volles Board).
+    assert klm.aufrufe == 2
 
 
 def test_rest_ueber_der_schwelle_wird_nach_dem_laufenden_lauf_gelesen(conn, einst, monkeypatch):

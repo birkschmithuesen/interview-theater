@@ -465,25 +465,34 @@ def aktuelles(conn, chat_id: int) -> list[dict]:
 
 
 def soll_laufen(conn, chat_id: int) -> bool:
-    """D1 und Birk 04.10.2026 14:50 ("Zwischenstand und Endstand muessen
-    nicht anders behandelt werden"): EINE Regel fuer jeden Lauf --
-    ``brainstorm.soll_reagieren`` unveraendert, mit den eigenen Zahlen der
-    Phase 1 (``repo.begriffsboard_stand``) und der eigenen Schwelle
-    (``min_zeichen``). Der Schnitt "Discussion done" (``'ende'``) zaehlt wie
-    ein Pausenschnitt; nur der Mindestabstand gilt dort nicht -- er schiebt
-    auf, und nach dem Ende kommt kein Schnitt mehr, der das Aufgeschobene
-    nachholt. Kein eigener Abschlusspfad, keine eigene Schwelle (Abwaegung
-    im Plan 2026-10-04-padua-begriffsboard-ranking-schaerfung, Teil 2).
-    Kein Modellaufruf."""
+    """Zwei Regeln, je nach Schnitt. Kein Modellaufruf.
+
+    **Zwischenlauf** (D1): ``brainstorm.soll_reagieren`` unveraendert, mit
+    den eigenen Zahlen der Phase 1 (``repo.begriffsboard_stand``) und der
+    eigenen Schwelle (``min_zeichen``).
+
+    **Nach "Discussion done"** (``'ende'``, Birk 05.10.2026): der Lauf kommt
+    IMMER, sobald es ueberhaupt ungelesenes Transkript gibt (mehr als null
+    nutzbare Zeichen) -- ohne Schwelle, ohne Mindestabstand. Das ersetzt
+    bewusst die Regel vom 04.10.2026 14:50 ("Zwischenstand und Endstand
+    muessen nicht anders behandelt werden"), unter der der Ende-Schnitt wie
+    ein Pausenschnitt an ``min_zeichen`` (600) hing. Gemessen live am
+    05.10.2026 (Gruppe 2): 8 Segmente mit zusammen 298 Zeichen, kein einziger
+    Lauf, und die Gruppe bekam statt eines Boards die Aufforderung, ihre
+    fuenf Begriffe zu schicken -- eine kurze Diskussion ist am Ende kein
+    Grund, sie ungelesen zu lassen, denn nach dem Ende kommt kein Schnitt
+    mehr, der den Rest nachholt. Ist alles schon gelesen (null ungelesene
+    Zeichen), laeuft nichts: der letzte Lauf hat das komplette Transkript
+    gesehen."""
     stand = repo.begriffsboard_stand(conn, chat_id)
     grund = stand["letzter_schnittgrund"]
+    if grund == "ende":
+        return stand["unreagierte_zeichen"] > 0
     sekunden = stand["sekunden_seit_letztem_lauf"]
-    ende = grund == "ende"
     return brainstorm.soll_reagieren(
         unreagierte_zeichen=stand["unreagierte_zeichen"],
-        sekunden_seit_letzter_reaktion=(
-            float("inf") if ende or sekunden is None else sekunden),
-        letzter_schnittgrund="pause" if ende else grund,
+        sekunden_seit_letzter_reaktion=float("inf") if sekunden is None else sekunden,
+        letzter_schnittgrund=grund,
         ist_abschluss=False,
         min_zeichen_override=min_zeichen(),
     )
@@ -601,8 +610,11 @@ def starte(conn, klm, e, chat_id: int, *, danach=None) -> bool:
     if not nimm_oder_merke(chat_id, danach):
         return False
     # VOR dem Lauf gelesen (D1): ein waehrend des Laufs neu eingetroffenes
-    # Segment bleibt unreagiert und zaehlt beim naechsten Mal.
-    bis_id = repo.hoechste_diskussion_aufnahme_id(conn, chat_id)
+    # Segment bleibt unreagiert und zaehlt beim naechsten Mal. Seit
+    # 05.10.2026 nur bis vor das erste noch offene Segment
+    # (``repo.diskussion_gelesen_bis``): was noch transkribiert wird, liest
+    # dieser Lauf nicht und darf deshalb nicht als gelesen gelten.
+    bis_id = repo.diskussion_gelesen_bis(conn, chat_id)
 
     def _lauf() -> None:
         try:
@@ -671,14 +683,14 @@ def nach_segment(conn, tg, klm, e, chat_id: int, *, ist_abschluss: bool,
     Segment. Entscheidet per Code (``soll_laufen``, EINE Regel fuer jeden
     Schnitt), ob ein Boardlauf faellig ist, und stoesst ihn im Thread an.
 
-    ``ist_abschluss`` heisst seit Birks Entscheidung vom 04.10.2026 nur
-    noch "die Sitzung ist zu Ende": es aendert KEINE Schwelle, es haengt
-    nur den Vorschlag (``sende_vorschlag``) an -- nach dem Lauf, den dieser
-    Schnitt ausloest, sonst sofort, mit dem Board, wie es ist. Laeuft beim
-    Ende gerade ein Lauf, wird nach ihm NEU entschieden (derselbe Aufruf,
-    nur spaeter): sonst bliebe der Rest seit seiner Markierung ungelesen,
-    und der Vorschlag zeigte den Stand davor. Ohne Profil, ohne Modell: nur
-    der Satz, wie bisher."""
+    ``ist_abschluss`` heisst "die Sitzung ist zu Ende": es haengt den
+    Vorschlag (``sende_vorschlag``) an -- nach dem Lauf, den dieser Schnitt
+    ausloest, sonst sofort, mit dem Board, wie es ist. Die Schwelle dafuer
+    waehlt ``soll_laufen`` am Ende-Schnitt selbst (seit 05.10.2026: jeder
+    ungelesene Rest). Laeuft beim Ende gerade ein Lauf, wird nach ihm NEU
+    entschieden (derselbe Aufruf, nur spaeter): so liest am Ende immer ein
+    Lauf das komplette Transkript, und der Vorschlag zeigt dessen Board.
+    Ohne Profil, ohne Modell: nur der Satz."""
     if ist_abschluss and merke_falls_laeuft(chat_id, lambda: nach_segment(
             conn, tg, klm, e, chat_id, ist_abschluss=True, rueckfall_text=rueckfall_text)):
         return

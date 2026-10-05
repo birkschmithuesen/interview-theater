@@ -161,6 +161,27 @@ _TEXT_DISKUSSION_FERTIG_BEGRIFFE = (
     "- getippt oder als Sprachnachricht."
 )
 
+#: Seit 05.10.2026 (Birk, Live-Test Gruppe 2) der Rueckfall nach "Discussion
+#: done" an Stelle von ``_TEXT_DISKUSSION_FERTIG_BEGRIFFE`` (der alte Ablauf,
+#: bleibt als Konstante stehen): das Board laeuft am Ende jetzt IMMER, sobald
+#: es Transkript gibt (``begriffsboard.soll_laufen``). Dieser Satz kommt nur
+#: noch, wenn nichts transkribiert wurde -- oder das Modell trotz Transkript
+#: keinen Begriff lieferte. Keine Aufforderung "schickt mir fuenf".
+_TEXT_DISKUSSION_KEINE_BEGRIFFE = (
+    "Aus der Diskussion konnte ich keine Begriffe heraushoeren - tippt auf "
+    "\"Zuhoeren starten\" und sprecht noch einmal, oder schreibt die Begriffe hier."
+)
+
+#: Wie lange der Ende-Schnitt der Diskussion auf noch offene Segmente
+#: derselben Sitzung wartet (05.10.2026): sie werden im Pool parallel
+#: transkribiert, und das kurze Ende-Segment ist oft vor dem vorigen fertig.
+#: Ohne Warten liefe der Schlusslauf (und die Verdichtung) ueber ein
+#: unvollstaendiges Transkript. Danach geht es trotzdem weiter (Vorfall
+#: ``diskussion_ende_segmente_offen``) -- ein haengendes Segment darf den
+#: Vorschlag nicht ewig aufhalten.
+ENDE_WARTEN_S = 90.0
+ENDE_WARTEN_TAKT_S = 0.5
+
 #: Das Transkript-Echo eines Teils (§ 10.6): woertlich, ohne Kommentar, ohne
 #: Zusammenfassung. Der Kopf sagt, wozu es gehoert -- das ist der ganze
 #: Unterschied zu "Ich hoere durch", das nichts zu kontrollieren gab.
@@ -994,14 +1015,40 @@ def _diskussion_abschliessen(conn, tg, klm, e, row) -> None:
     from interview_theater import begriffsboard  # lokaler Import, wie diskussion unten
 
     ende = row["schnittgrund"] == "ende"
+    if ende:
+        _warte_auf_offene_segmente(conn, e, row)
     begriffsboard.nach_segment(
         conn, tg, klm, e, row["chat_id"], ist_abschluss=ende,
-        rueckfall_text=T._TEXT_DISKUSSION_FERTIG_BEGRIFFE,
+        rueckfall_text=T._TEXT_DISKUSSION_KEINE_BEGRIFFE,
     )
     if ende:
         from interview_theater import diskussion  # lokaler Import, wie an anderen Cross-Modul-Stellen dieser Datei (z. B. bot)
 
         diskussion.starte(conn, tg, klm, e, row["chat_id"])
+
+
+def _warte_auf_offene_segmente(conn, e, row) -> None:
+    """Der Ende-Schnitt wartet, bis alle Segmente seiner Sitzung fertig sind
+    (``ENDE_WARTEN_S``, 05.10.2026) -- erst dann sieht der Schlusslauf das
+    komplette Transkript. Ein Segment, das in der Zwischenzeit fertig wird,
+    geht seinen gewoehnlichen Weg (``begriffsboard.nach_segment`` ohne
+    Abschluss; ``soll_laufen`` sieht dort schon den Ende-Schnitt als
+    juengsten); laeuft dadurch gerade ein Lauf, entscheidet ``nach_segment``
+    nach ihm neu. Laeuft im Pool-Thread, nie in einem Knopf-Handler."""
+    frist = time.monotonic() + ENDE_WARTEN_S
+    while repo.offene_diskussion_segmente(conn, row["chat_id"], row["id"]):
+        if time.monotonic() >= frist:
+            log.warning("Diskussionsende ohne alle Segmente, chat_id=%s", row["chat_id"])
+            try:
+                repo.merke_vorfall(
+                    conn, row["chat_id"], getattr(e, "bot_name", None),
+                    "diskussion_ende_segmente_offen",
+                    f"ende_id={row['id']} warten_s={ENDE_WARTEN_S:.0f}",
+                )
+            except Exception:
+                log.exception("Vorfall nicht geschrieben, chat_id=%s", row["chat_id"])
+            return
+        time.sleep(ENDE_WARTEN_TAKT_S)
 
 
 def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:

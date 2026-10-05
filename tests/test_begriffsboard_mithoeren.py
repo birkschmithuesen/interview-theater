@@ -154,4 +154,4 @@ def test_ohne_profil_bleibt_alles_wie_vorher(conn, einst, monkeypatch):
     aufnahme._kurz_abschliessen(conn, tg, klm, einst, row, aufnahme._kein_zug, False)
     time.sleep(0.1)
     assert klm.aufrufe == 0
-    assert tg.gesendet == [(CHAT, aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE)]
+    assert tg.gesendet == [(CHAT, aufnahme.T._TEXT_DISKUSSION_KEINE_BEGRIFFE)]

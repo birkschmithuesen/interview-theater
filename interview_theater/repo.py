@@ -2246,6 +2246,52 @@ def hoechste_diskussion_aufnahme_id(conn: sqlite3.Connection, chat_id: int) -> i
     return int(zeile[0]) if zeile and zeile[0] is not None else 0
 
 
+#: Status eines Diskussionssegments, das noch transkribiert bzw. noch nicht
+#: abgeschlossen wird (``aufnahme._verarbeite``). ``fehlgeschlagen`` gilt als
+#: erledigt: dort kommt nichts mehr.
+_DISKUSSION_OFFEN = ("empfangen", "transkribiert")
+
+
+@_gesperrt
+def diskussion_gelesen_bis(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die Markierung fuer einen Boardlauf (05.10.2026): die hoechste
+    Diskussions-``aufnahme.id``, bis zu der KEIN Segment mehr offen ist.
+    Segmente werden im Pool parallel transkribiert -- ``hoechste_diskussion_
+    aufnahme_id`` haette ein noch offenes Segment als gelesen markiert,
+    obwohl sein Text dem Lauf fehlte (``diskussion_transkript`` liest nur
+    ``fertig``), und am Ende zaehlte es nicht mehr als ungelesen."""
+    offen = conn.execute(
+        "SELECT MIN(id) FROM aufnahme WHERE chat_id = ? AND diskussion = 1 "
+        "AND entfernt_am IS NULL AND status IN (?, ?)",
+        (chat_id, *_DISKUSSION_OFFEN),
+    ).fetchone()[0]
+    if offen is None:
+        return hoechste_diskussion_aufnahme_id(conn, chat_id)
+    zeile = conn.execute(
+        "SELECT MAX(id) FROM aufnahme WHERE chat_id = ? AND diskussion = 1 "
+        "AND entfernt_am IS NULL AND id < ?", (chat_id, offen),
+    ).fetchone()
+    return int(zeile[0]) if zeile and zeile[0] is not None else 0
+
+
+@_gesperrt
+def offene_diskussion_segmente(conn: sqlite3.Connection, chat_id: int, ende_id: int) -> int:
+    """Wie viele Segmente DERSELBEN Sitzung vor dem Ende-Schnitt ``ende_id``
+    noch offen sind (05.10.2026). Die Sitzung beginnt hinter dem vorigen
+    Ende-Schnitt -- ein haengendes Segment einer frueheren Sitzung haelt
+    den Schluss dieser nicht auf."""
+    vorige = conn.execute(
+        "SELECT MAX(id) FROM aufnahme WHERE chat_id = ? AND diskussion = 1 "
+        "AND entfernt_am IS NULL AND schnittgrund = 'ende' AND id < ?",
+        (chat_id, ende_id),
+    ).fetchone()[0] or 0
+    return int(conn.execute(
+        "SELECT COUNT(*) FROM aufnahme WHERE chat_id = ? AND diskussion = 1 "
+        "AND entfernt_am IS NULL AND id > ? AND id < ? AND status IN (?, ?)",
+        (chat_id, vorige, ende_id, *_DISKUSSION_OFFEN),
+    ).fetchone()[0])
+
+
 @_gesperrt
 def begriffsboard_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
     """Die drei Zahlen fuer ``brainstorm.soll_reagieren`` -- wie
@@ -2257,8 +2303,11 @@ def begriffsboard_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
         "WHERE chat_id = ? ORDER BY id DESC LIMIT 1", (chat_id,),
     ).fetchone()
     markierung = (board["bis_aufnahme_id"] or 0) if board else 0
+    # TRIM (05.10.2026): "nutzbare" Zeichen -- ein Segment, in dem Whisper
+    # nur Leerzeichen hoerte, ist kein Transkript. Am Ende der Diskussion
+    # entscheidet allein "mehr als null" (``begriffsboard.soll_laufen``).
     zeichen = conn.execute(
-        "SELECT COALESCE(SUM(LENGTH(transkript)), 0) FROM aufnahme "
+        "SELECT COALESCE(SUM(LENGTH(TRIM(transkript))), 0) FROM aufnahme "
         "WHERE chat_id = ? AND diskussion = 1 AND entfernt_am IS NULL "
         "AND transkript IS NOT NULL AND id > ?",
         (chat_id, markierung),

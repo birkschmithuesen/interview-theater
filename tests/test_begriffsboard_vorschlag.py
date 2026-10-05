@@ -95,11 +95,12 @@ def _warte_bis(bedingung, timeout=5.0):
     assert bedingung(), "Bedingung nie eingetreten"
 
 
-def test_leeres_board_heutiger_text(conn, einst, monkeypatch):
-    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100000")
+def test_leeres_board_rueckfalltext(conn, einst, monkeypatch):
+    """Ohne Modell kein Lauf, das Board bleibt leer -> der Rueckfallsatz
+    (seit 05.10.2026 ``_TEXT_DISKUSSION_KEINE_BEGRIFFE``)."""
     tg = _TG()
-    aufnahme._kurz_abschliessen(conn, tg, object(), einst, _ende(conn), aufnahme._kein_zug, False)
-    assert tg.gesendet == [(CHAT, aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE)]
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, _ende(conn), aufnahme._kein_zug, False)
+    assert tg.gesendet == [(CHAT, aufnahme.T._TEXT_DISKUSSION_KEINE_BEGRIFFE)]
     assert tg.mit_knoepfen == []
 
 
@@ -107,9 +108,12 @@ def test_ohne_schlusslauf_sofort_die_top_fuenf_mit_einem_knopf(conn, einst, monk
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100000")
     board = [_e("Heimat", "favorit"), _e("Grenze", zustimmung=2), _e("Mut", zustimmung=1),
              _e("Schule"), _e("Freunde"), _e("Angst"), _e("Musik", "verworfen", 2, 9)]
-    repo.lege_begriffsboard_an(conn, CHAT, json.dumps(board), "sovereign", 0)
+    # Das Board hat das Ende-Segment schon gelesen: nichts nachzuholen (seit
+    # 05.10.2026 liefe sonst am Ende jeder ungelesene Rest).
+    ende = _ende(conn)
+    repo.lege_begriffsboard_an(conn, CHAT, json.dumps(board), "sovereign", ende["id"])
     tg = _TG()
-    aufnahme._kurz_abschliessen(conn, tg, object(), einst, _ende(conn), aufnahme._kein_zug, False)
+    aufnahme._kurz_abschliessen(conn, tg, object(), einst, ende, aufnahme._kein_zug, False)
     assert len(tg.mit_knoepfen) == 1
     _chat, text, leiste = tg.mit_knoepfen[0]
     assert len(leiste) == 1
@@ -128,7 +132,7 @@ def test_ohne_schlusslauf_sofort_die_top_fuenf_mit_einem_knopf(conn, einst, monk
     knopf = repo.hole_knopf(conn, int(daten[2:]))
     assert knopf["art"] == texte.ART_BOARD_UEBERNEHMEN
     assert knopf["wert"] == "Heimat, Grenze, Mut, Angst, Freunde"
-    assert aufnahme.T._TEXT_DISKUSSION_FERTIG_BEGRIFFE not in [t for _c, t in tg.gesendet]
+    assert aufnahme.T._TEXT_DISKUSSION_KEINE_BEGRIFFE not in [t for _c, t in tg.gesendet]
 
 
 def test_mit_schlusslauf_kommt_der_vorschlag_erst_danach(conn, einst, monkeypatch):
@@ -174,9 +178,12 @@ def test_gesamtverdichtung_startet_unabhaengig(conn, einst, monkeypatch):
 def test_take_these_speichert_begriffe_und_detail_einmal(conn, einst, monkeypatch):
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100000")
     board = [_e("Heimat", "favorit"), _e("Grenze")]
-    repo.lege_begriffsboard_an(conn, CHAT, json.dumps(board), "sovereign", 0)
+    # Das Board hat das Ende-Segment schon gelesen: nichts nachzuholen (seit
+    # 05.10.2026 liefe sonst am Ende jeder ungelesene Rest).
+    ende = _ende(conn)
+    repo.lege_begriffsboard_an(conn, CHAT, json.dumps(board), "sovereign", ende["id"])
     tg = _TG()
-    aufnahme._kurz_abschliessen(conn, tg, object(), einst, _ende(conn), aufnahme._kein_zug, False)
+    aufnahme._kurz_abschliessen(conn, tg, object(), einst, ende, aufnahme._kein_zug, False)
     daten = tg.mit_knoepfen[0][2][0][1]
 
     assert _druecke(conn, tg, einst, daten) is True

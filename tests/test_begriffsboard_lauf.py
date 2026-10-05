@@ -129,10 +129,28 @@ def test_ueber_der_schwelle_nach_pause_laeuft(conn, monkeypatch):
     assert begriffsboard.soll_laufen(conn, CHAT) is True
 
 
-def test_cap_schnitt_loest_nicht_aus(conn, monkeypatch):
+def test_cap_schnitt_loest_in_phase1_aus(conn, monkeypatch):
+    """Live Padua 05.10.2026: wer durchredet, erzeugt nur 90-s-Deckelschnitte;
+    das Board darf daran nicht einfrieren."""
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
     _segment(conn, 10, schnittgrund="cap")
+    assert begriffsboard.soll_laufen(conn, CHAT) is True
+
+
+def test_cap_schnitt_respektiert_mindestabstand(conn, monkeypatch):
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ABSTAND_S", "3600")
+    a = _segment(conn, 10)
+    repo.lege_begriffsboard_an(conn, CHAT, "[]", "sovereign", a)
+    _segment(conn, 11, "x" * 200, schnittgrund="cap")
     assert begriffsboard.soll_laufen(conn, CHAT) is False
+
+
+def test_brainstorm_cap_loest_weiter_nicht_aus():
+    from interview_theater import brainstorm
+    assert brainstorm.soll_reagieren(
+        unreagierte_zeichen=10_000, sekunden_seit_letzter_reaktion=10_000,
+        letzter_schnittgrund="cap", ist_abschluss=False) is False
 
 
 def test_mindestabstand_nach_einem_lauf(conn, monkeypatch):

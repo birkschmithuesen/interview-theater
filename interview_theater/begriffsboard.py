@@ -530,7 +530,12 @@ def soll_laufen(conn, chat_id: int) -> bool:
     return brainstorm.soll_reagieren(
         unreagierte_zeichen=stand["unreagierte_zeichen"],
         sekunden_seit_letzter_reaktion=float("inf") if sekunden is None else sekunden,
-        letzter_schnittgrund=grund,
+        # Live Padua 05.10.2026 16:40: Gruppen, die durchreden, erzeugen nur
+        # 90-s-Deckelschnitte ('cap') -- mit der Brainstorm-Regel "nur nach
+        # Pausenschnitt" fror das Board fuer Minuten ein (G2 seit 16:32 bei 2
+        # Begriffen, G3 leer, 4-5 volle Segmente). In Phase 1 zaehlt deshalb
+        # auch ein Deckelschnitt; der Brainstorm (Phase 4) bleibt unveraendert.
+        letzter_schnittgrund="pause" if grund == "cap" else grund,
         ist_abschluss=False,
         min_zeichen_override=min_zeichen(),
         min_abstand_override=min_abstand_s(),

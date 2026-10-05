@@ -580,3 +580,255 @@ das ist **die tatsaechliche Gesamtsumme aller vier Simulationslaeufe** (+0.0001 
 - Opus-Lesungen: 16 Aufrufe ueber den lokalen Proxy, 0 CHF.
 
 ## Runde 5
+
+Stand `85d96b4` (Simulation und Prompt-Check liefen auf `296b79a`, also **vor** dem
+Abschlussreview). Task-Report `.superpowers/sdd/R5-1-report.md` (R5-2/R5-3 nur Commit).
+
+### Gefixt in Runde 5 (Befund -> Commit)
+
+| Task | Befunde | Commits |
+|---|---|---|
+| R5-1 Erkenner | H4 (`szene_schreiben`/`szene_kuerzen` erst ab Phase 4, davor still verworfen), M7 (Festlegung aus derselben Nachricht haengt an der Zugquittung) | `1602eca` |
+| R5-2/R5-3 EN-Texte | P1 Z508 ("Never offer that as a choice" -> Hinweis, Phasenleiste entscheidet), c283 (`/scene` aus "older names for /record"), c472 ("Suggest questions" in der Knopfliste), "Yes, save" "from phase 4 on", N4 ("one at a time, each marked (yours)/(AI)") | `296b79a` |
+| Abschlussreview Branch | **wichtig:** normale P2-Antwort wurde verschluckt, wenn das Modell ausserhalb des Durchgangs einen `VORSCHLAG FRAGE`-Block schrieb (eingefuehrt mit dem R2-1-Rennen-Fix); Begriffe-Merker nicht mehr im Auftragszug; CSS-Kommentare vor Selektorlisten (`scope_css`); Fragen ohne Begriff in `roadmap.fragenuebersicht` sichtbar | `85d96b4` |
+
+Abschlussreview des ganzen Branches: "ready to merge" mit diesen Fixes (erledigt).
+Volle Suite nach `85d96b4`: **8083 passed, 10 skipped, 4 deselected, 0 failed** (`-m "not dortmund"`).
+
+### Simulation (handy, giulia, 11 Stationen p12)
+
+Lauf `simulation/browser_laeufe/2026-10-05-handy-giulia-p12/` (Runde 5 = `chat_id 7000000000004`
+in `sim.db`, msg 350-437, letzte ~65 Zeilen von `schritte.jsonl`; Screenshots sind jetzt die von
+Runde 5), Rohbericht `simulation/berichte/feedbackloop-p12-2026-10-05-r5.md`. Richter roh:
+11 hoch / 20 mittel / 11 niedrig. Nach Sichtung (Screenshots, `sim.db`, `bot.log`) bleiben
+**2 hoch, 5 mittel, 5 niedrig** -- **keiner davon Klasse A in diesem Branch baubar ausser N7**
+(beide "hoch" liegen in B4-Dateien).
+
+Ablauf laut `sim.db`: P1 mit Raumcheck und vier Sprachsegmenten; jede getippte Korrektur gibt
+**eine** Quittung "Updated – saved ... Move on?" mit einem Undo (msg 361/363/367; lauf 37 traegt
+die Transkriptkorrektur, M7 bestaetigt). Undo/Redo der Liste sauber (msg 369/371). Phase 2 per
+Chat-Satz der Gruppe ("Keep it saved like this and we can move on", msg 372 -> `phase=2` um
+22:06:59). Eigene Fragen per Chat, Erkenner speichert sie vorzeitig (S2, lauf 38-40). Um 22:08:55
+scheitert der Claude-Proxy einmal (`vorfall` 9 `opus_fallback`, LLMFehler) -- dieser eine Zug
+laeuft auf Kimi (msg 386) und **erfindet drei Fragen, die er als "Your running list" der Gruppe
+fuehrt**; der Erkenner speichert sie in `fragen` (lauf 40). Die Persona drueckt "Yes, suggest"
+(knopf 300) -> Einzeldurchgang "Question 1/28" (22:09:23), schreibt danach aber weiter eigene
+Fragen. Durchgang bis **Frage 9/28**, Eroeffnung/Abschluss per Chat festgelegt (nur als
+Festlegung), kein Phasensprung, Phase 2 bis zum Ende, ein Kimi-Zug (Fallback), kein Deutsch.
+
+**hoch**
+
+| ID | Station | Was | Klasse | Beleg |
+|---|---|---|---|---|
+| H5 | p2-eigene-fragen -> p2-einzeldurchgang | **Eigene Fragen gehen still verloren, KI-Fragen laufen als "(yours)".** Der Durchgang nimmt den Stand von `fragen` beim Start (22:09:23); was die Gruppe danach schreibt (Waiting "waited so long ... belong there", Noise "room was full of noise", Foam "look clean that was not clean"), steht in keiner Karte (`fragen_auswahl` 28 Zeilen ohne diese drei; `fragen_setzen` waehrend des Durchgangs verworfen, `bot.log` 7x -- der H3-Schutz greift richtig, nur gibt es keinen anderen Weg hinein). Der Bot sagt das Gegenteil: "Waiting is in" (msg 394), "Your four, side by side" (msg 404, drei gelistet), "I've taken them out of your list" (msg 394 ueber die Kimi-Fragen -- sie blieben in `fragen` und kommen als Karte 2/28 und 6/28 "(yours)"). Verfaelscht A/B-Herkunft und bricht "Never claim the questions have been saved". | B4-Branch (S2 + S4, `knoepfe/fragen.py`) | msg 386-412; `arbeitsstand.fragen`, `fragen_auswahl`, `fragen_eigene_vorschlag`, `fragen_herkunft` |
+| S2 | p2-eigene-fragen | Erkenner speichert eigene Fragen vor dem Vergleich ("📌 Agreed: Questions", msg 379/382/388), Border doppelt (alte + korrigierte Fassung, Werkbank zeigt beide), dazu die Kimi-Fragen (lauf 40). Wegbereiter von H5. | B4-Branch | lauf 38-40 |
+
+**mittel**
+
+| ID | Station | Was | Klasse | Beleg |
+|---|---|---|---|---|
+| M6+ | p2-ab-vergleich, p2-einzeldurchgang | Freitext im Durchgang wird als Umformulierung der offenen Karte gelesen: "show me the four" -> nur "What do you want to change?" (msg 405/406); jede Gespraechsantwort beginnt mit Karten-Meta ("Nothing changes in question 1 here", msg 396/400/404). Schaerfen per Freitext klappte (Karte 4, 8). Milder als Runde 4. | A, `knoepfe/fragen.py` -> B4 | msg 396-410 |
+| M10 | p2-eroeffnung, p2-uebergang | Eroeffnung/Abschluss mitten im Durchgang: Erkenner legt sie nur als Festlegung (`bereich stil`) ab, `interview_eroeffnung`/`_abschluss` leer, Werkbank zeigt beide offen, Script leer; die Korrektur des Abschlusses (msg 432) landet nirgends. | B (offen seit Runde 4) | festlegung 10, msg 429-433 |
+| M11 | p1-begriffe (real P2) | Alte Undo-Knoepfe bleiben bedienbar: drei Begriffslisten-Undos aus P1 stehen in Phase 2 noch; die Persona will die Fragen zuruecknehmen, trifft das aelteste (knopf 284, lauf 35) -> "That's changed since then, so I can't undo it safely - open the Workbench tab ..." (msg 384). Die Weigerung selbst ist by design (Schnappschuss-Konflikt), dass der Knopf noch angeboten wird, nicht entschieden. Richter "hoch" (Undo verweigert) hierher. | B (neu; zu R-5b/N3) | knopf 284, msg 384 |
+| M12 | p2-eigene-fragen | Kimi-Fallbackzug (Claude-Proxy-Fehler) schlaegt in Phase 2 eigene Fragen vor und fuehrt sie als Gruppenliste -- gegen "Don't suggest questions yourself in this phase" im selben Prompt; Opus korrigiert einen Zug spaeter (msg 394). Fallback ist by design, das Modellverhalten nicht. | Modell (Fallback) | `vorfall` 9, aufruf 256, msg 386 |
+| S6 | p1-eintritt, p1-kalibrierung | Kalibrierkarte und "Listening (0:02)" gleichzeitig, Eingabezeile am unteren Rand abgeschnitten (Richter "hoch" p1-kalibrierung). | B1-Branch | Richter p1-eintritt/-kalibrierung |
+
+**niedrig**
+
+| ID | Station | Was | Klasse | Beleg |
+|---|---|---|---|---|
+| N6 | p1-zuhoeren | Gruppe bestreitet "Noise/Night shift" (stehen im Transkript, aufnahme 36 -- Sim-Skript gegen Sim-Audio); der Bot erfindet eine Erklaerung ("possibly from someone nearby"). | Modell | msg 362/363 |
+| N7 | p2-eroeffnung | Festlegungs-Quittung "Noted: / Agreed: open with ..." ohne 📌 (andere Quittungen tragen es). | A (klein) | msg 430 |
+| N8 | p2-ab-vergleich | Modell zaehlt falsch: "Your four" mit drei Zeilen, Liste beginnt bei "2." (msg 404/408). | Modell | msg 404, 408 |
+| S8 | mehrere | Titel "Padua UX-Simulation" schneidet die oberste Blase an. | B1-Branch | Richter p1-eintritt, p2-uebergang |
+| S11 | p2-einzeldurchgang | "✓ Accepted" ohne ↶. | B | Richter p2-einzeldurchgang/-uebergang |
+
+**Nicht als Produktbefund gezaehlt:** Richter "hoch" Mehrfachfragen (52/36/84/48/18 je Station) --
+der Zaehler zaehlt Fragekarten und Statuszeilen mit (Sim, seit Runde 1). Richter "hoch" Workbench
+ohne ↶ / Border doppelt = S2/S11. Richter "hoch" Einzeldurchgang als "Kaefig", 28 Fragen: B3.
+Richter "hoch" "Bot fragt, ob die Frage noch gespeichert ist": Fehllesung (die Persona fragt,
+msg 409). "Foam" statt "home", "Waving", "Light Shift": Whisper auf Sim-Audio; "Mikro stoppt von
+selbst": Sim-Audio zu Ende. Sheet "Go to 3 · Interviews / Stay here" (p2-uebergang, dreimal
+getippt): S7. `p1-uebergang` ohne Screenshots, Stationen folgen nicht der echten Phase,
+`.phase-knopf` (Sim). Board auf Geraet B: 0 -> 7 ohne Reload, bestanden. Entwickler-Meta im
+Chat: 0.
+
+### Stand der frueheren Befunde
+
+| ID | Stand | Anmerkung |
+|---|---|---|
+| H1 | gefixt | kein Redo-Sprung |
+| H2 | gefixt (Tests), nicht ausgeloest | Phase 2 per Chat-Satz nur am P1-Ende, gewollt |
+| H3 | gefixt, **kein Rueckfall** | `fragen` intakt; Schutz griff 7x -- Kehrseite ist H5 |
+| H4 | gefixt (Tests), **kein Sperrtext** | Eroeffnung/Abschluss per Chat ohne "For Scene 1 ..." |
+| M7 | **gefixt, im Lauf bestaetigt** | msg 367: eine Quittung, ein Undo (knopf 290), Korrektur im Lauf 37 |
+| S3 / P1 Z508 | **bestaetigt** | "Interviews is open: you can tap any phase in the bar at the top" (msg 437) |
+| N4 | gefixt (Text) | P2-Eintritt sagt "one at a time"; das Modell sagt einmal noch "side by side" (msg 404) |
+| S1 | gefixt (Tests), per Knopf nicht geprueft | Sharpen nur per Freitext, ging |
+| S5 | gefixt | drei Korrekturen, je eine Quittung |
+| S2, M6+ | offen (B4) | S2 jetzt Ausloeser von H5 |
+| M8 | nicht erreicht | keine KI-Karte durch eigenen Wortlaut ersetzt |
+| M1, M2 | gefixt (Tests), nicht erreicht | Eroeffnungsschritt kam nicht |
+| M3, M10 | unveraendert (B) | Werkbank Opening/Closing offen |
+| M4 | nicht erreicht | kein Board-"Take these" im Lauf |
+| S6, S8, N2 | unveraendert | B1 |
+
+### Prompt-Check
+
+Dump `docs/prompt-audit/2026-10-05-padua-p12-r5/` (Mechanik + 2 Opus-Lesungen; P1 laut Lauf
++2 unsichere Eintraege, `lesung-unsicher.jsonl` ist leer, nicht gezaehlt).
+
+| Phase | a | b | c | d | Summe |
+|---|---|---|---|---|---|
+| P1 Runde 4 | 1 | 5 | 4 | 5 | 15 |
+| P1 Runde 5 | 1 | 4 | 1 | 5 | 11 |
+| P2 Runde 4 | 2 | 5 | 2 | 5 | 14 |
+| P2 Runde 5 | 2 | 4 | 2 | 5 | 13 |
+
+Die drei a-Treffer aus Runde 4 sind weg (P1 Z508 und "later phases" durch `296b79a`; P2 Z554
+nicht wieder gezogen). Die drei a-Treffer dieser Runde stehen **woertlich seit Runde 0 in jedem
+Dump** (vierte Runde in Folge):
+
+| Dump:Zeile | Zitat | Urteil | Quelle | Fix |
+|---|---|---|---|---|
+| P1 01:467 | "after 'Discussion done' a message lists the top five as saved" | **by design** (Top-5-Autosave, `d41d40f`, = a4 Runde 1) | `workshop/padua-2026/prompts/phasen/1.md:7` | billig: "lists the board's top terms as saved" (keine Zahl) -- NB1 |
+| P2 15:15 | "Write exactly THREE ... for EVERY term" | **by design** (B3, = a5 Runde 1) | `interview_theater/sprachen/en/prompts/fragen_ki_vorschlag.md` | keiner -- NB1 |
+| P2 05:389 | "recordings, interviews and names stay in Switzerland; the core theme, characters with quotes and scene details ... go to a US server for the scene text" | **echt** (s. u.) | `interview_theater/sprachen/en/prompts/system.md:369` (DE `interview_theater/prompts/system.md:341`) | Klasse A fuer den Wortlaut, Inhalt = Frage an Birk |
+
+**P2 Z389 geprueft -- kein Fixture-Artefakt.** Der Absatz erklaert die US-Einwilligungsfrage
+(`szene_usa`), die Padua nie stellt (`workshop/padua-2026/profil.toml` `[modellwahl]
+einwilligung = false`). Mit `einwilligung = false` gibt `szene_claude.ist_aktiv` allein auf
+`IT_SZENE_ANBIETER=claude` hin `True` (`szene_claude.py:270-278`), und das steht in allen fuenf
+`betrieb/padua-*.env`; `modellwahl.konversation_ueber_claude` schickt damit jeden Gespraechszug
+ausser Phase 3 an Claude Opus (Anthropic, USA). Der Dump faehrt den echten Weg
+(`ablauf.antworte`, `scripts/erzeuge_prompts_padua_voll.py:113` `szene_anbieter="claude"` wie im
+Betrieb), `weg=claude` ist also echt; der Simulationslauf bestaetigt es (`aufruf`:
+`gespraech`, `begriffsboard`, `diskussion_verdichtung`, `fragen_ki_vorschlag` auf
+`claude-opus-5-5`). Fuer P1/P2 ist der Satz damit **falsch**: die Vornamen aus dem Chat (msg 353
+"Giulia, Marco and Sara" ging an Opus), das mitgehoerte Diskussionstranskript (Block "What the
+group said while you listened in", Verdichtung, Board) und der ganze Chat gehen in die USA. Wahr
+bleibt: Interview-Audio, -Transkripte und -Verdichtungen bleiben bei Kimi (`verdichter.py` fragt
+`modellwahl` nie), woertliche Zitate ab Phase 5 gehen nach Birks Entscheidung (04.10.) an Opus.
+Fragt eine Padua-Gruppe "wohin gehen unsere Daten?", hat das Modell nur diesen Satz -- und es ist
+der einzige im Prompt. Der Wortlaut ist Klasse A (fuer Padua streichen oder durch die wahre
+Aufteilung ersetzen); **was der Bot der Gruppe ueber den Datenweg sagt, ist eine
+Datenschutz-Entscheidung** und deshalb die Frage an Birk (s. Abschluss).
+
+Ergebnis: 1 echte a-Stelle (Datenschutz-Aussage), 2 by design. c/b billig: c283 (`/character`,
+`/interview`, `/done` weiter als "older names for /record" -- nach `296b79a` nur `/scene` raus;
+Aliasse existieren, Streichen ist Geschmack), c51 ("From your term discussion:" vs. tatsaechlicher
+Kopf "What the group said while you listened in"), b635 ("The material would allow phase 3",
+Folge S2), b654 ("Your three are saved", Fixture). Mechanik: "Yes, save" Z292 (echte
+Knopfbeschriftung, jetzt "from phase 4 on"), "ask whether" P1 Z314/353, P2 Z314/353/473/535 wie
+bisher falsch positiv. P1 System 32128 Zeichen (+162 gegen Runde 4), P2 System 36334.
+
+### Kosten Runde 5
+
+- Simulation handy Runde 5 (`chat_id 7000000000004`, aus `aufruf`): **0.0846 CHF** (Erkenner gemma
+  0.0400, Journal 0.0022, Whisper 0.0349, ein Kimi-Fallbackzug 0.0075; Opus/Proxy 0 CHF). Der
+  Rohbericht nennt 0.5024 CHF -- das ist die Summe aller fuenf Laeufe in `sim.db`.
+- Opus-Lesungen: 21 Aufrufe ueber den lokalen Proxy (ein Wiederholungsaufruf nach ungueltigem
+  JSON), 0 CHF.
+
+## Abschluss
+
+Fuenf Runden, Schleife damit zu Ende (Karte: max. 5 Runden, dann Bericht + EINE Frage).
+
+### Abnahme je Kriterium
+
+| Kriterium | Stand | Rest |
+|---|---|---|
+| Kein "hoch" | **nicht erfuellt** | H5 und S2 (Phase 2, eigene Fragen vor/waehrend des Durchgangs). Beide Klasse A, aber in den Dateien von `wt/robo-b4` (`knoepfe/fragen.py`, Erkenner-Autosave der Fragen, B4 = Birks Entscheidung vom 05.10.); Eigner: B4-Branch. In diesem Branch ist kein "hoch" mehr offen. |
+| Prompt-Check ohne a in P1/P2 | **nicht erfuellt** | 3 Treffer: P2 Z389 **echt** (Datenschutz-Aussage, Frage an Birk); P1 Z467 und P2 15:15 by design (Top-5-Autosave, B3) -- zaehlen nur nicht, wenn NB1/die Abnahmeregel das so festhaelt. |
+| Suite gruen | **erfuellt** | 8083 passed, 10 skipped, 4 deselected, 0 failed (`-m "not dortmund"`, Stand `85d96b4`). `tests/e2e/test_web_gestalt_e2e.py`: 18 rot (Fixtures ohne Bot, auch auf Basis), nicht Teil der Abnahme. |
+
+### Alle Runden
+
+| Runde | Stand | hoch | mittel | niedrig | a P1 / P2 (Leser) | davon echt | Suite | Sim-Kosten (je `chat_id`) |
+|---|---|---|---|---|---|---|---|---|
+| 1 | `a3311c9` | 2 | 5 | 4 | 4 / 4 | 3 (+1 Fehllesung) | 7931 passed (nach T4) | 0.0425 |
+| 2 | `fce1392` | 2 | 6 | 3 | 2 / 1 | 2 | 8021 passed | 0.1168 |
+| 3 | `bb2454c` | 3 | 4 | 3 | 2 / 2 | 1 (schwach) | 8041 passed | 0.1762 |
+| 4 | `7e8e30f` | 3 | 6 | 4 | 1 / 2 | 1 (schwach) | 8050 passed | 0.0823 |
+| 5 | `296b79a` / `85d96b4` | 2 | 5 | 5 | 1 / 2 | 1 (Datenschutz) | 8083 passed | 0.0846 |
+
+"hoch/mittel/niedrig" = Produktbefunde nach Sichtung (Richter roh 12/13/9/14/11 hoch). Die
+"hoch" wechselten jede Runde: R1 S1/S2, R2 H1/S2, R3 H2/H3/S2, R4 H4/M6+/S2, R5 H5/S2 --
+alle in diesem Branch gefundenen sind gefixt, uebrig ist nur die B4-Familie.
+
+### Commits des Branches nach Befund (`61d9f81..HEAD`)
+
+- Plan/Entscheidungen: `a111c26` (Befundliste), `e7e4ecc` (Birks Antworten B1-B6), `ea8c25a` (B1/B4 separat)
+- EN-Prompt-Hygiene Runde 0 (P1-H3, P1-N3, P1-L2..L4, P2-H1b, P2-M1, P2-M3, P2-N3, AGG-1): `632f9ee`, `b310ce9`, `b03ca18`
+- A/B-Vergleich (P2-H2, P2-H2b/R-3, P2-H3, P2-N1): `76f4cb6`, `310269c`
+- Kontext/Board (P1-L1, P1-L6, AGG-2, R-1): `0124ddb`, `8f57f6e`
+- Antwortweg Echo/Marker (P2-M9, P2-M4): `c63e210`, `c861601`
+- Werkbank P2 (P2-H4): `5154314`
+- Web-UI P1 (P1-H1b, P1-M3, P1-M4, scope_css-Wache): `083bbaa`, `7cd5550`
+- e2e-Wackler R-2: `393db5b`
+- Fixture (P1-L7; a6/Board in P2; c569/b647, d566/d642): `8d8abf8`, `18560d7`, `bb2454c`
+- Vormals blockiert (P1-M2, P1-N2, P1-L8/P2-N2, P2-M5): `0db091a`
+- T10 (R-5a, P2-H3-Rest, Freitext in der Einzel-Frage): `351ab13`, `e3718a4`, `b9bc61a`, `a3311c9`
+- S1 Sackgasse Einzeldurchgang: `70bf096`, `0747a69`, `6240c97`
+- Prompt-Check Klasse A je Runde: `f7490f3` (R1: a1, a2, a3, a7/S3, S9, S10), `bf0a5b3` (R2-a + c459 + M1 `CLOSING:`), `7e8e30f` (R3: P1 Z115/Z526), `296b79a` (R4: P1 Z508, c283, c472, "from phase 4 on"; N4)
+- S8 (optisch): `fce1392`
+- H1 Redo-Sprung: `04e226a`
+- S5 eine Quittung: `64b27af`; M7 + H4: `1602eca`
+- M2 Undo der Eroeffnung: `c246ae5`
+- H3, M5, H2 (Option A): `0211bd4`
+- Abschlussreview (verschluckte P2-Antwort, Begriffe-Merker, CSS, Fragenuebersicht): `85d96b4`
+- Berichte: `e835fa9`, `565d5cc`, `6ede800`, `af51745`, dieser Commit
+
+### Offen, mit Eigner und Grund
+
+- **`wt/robo-b4`** (B4, Birks Entscheidung, Dateien dort geaendert): H5, S2, S4, M6+, M8, P2 Z599-Wortlaut. Nach dem B4-Merge mit einem Lauf pruefen; erst dann ist "kein hoch" erreichbar.
+- **`wt/robo-b1`** (B1): S6, S8 (Scroll-Logik in `web_chat.py`), N2.
+- **P2 Z389** (`sprachen/en/prompts/system.md:369`): Wortlaut-Fix Klasse A, wartet auf die Antwort unten.
+- **Klasse A klein, nicht mehr gebaut:** N7 (📌 vor Festlegungs-Quittung), c283/c51 (Prompt), billiger Wortlaut fuer P1 Z467.
+- **Erkenner-Prompt** "BEGRIFFE" ohne Begriff leert ausserhalb des Zug-Falls das Feld (R3-3-Report): Aenderung nur mit bezahltem FP=0-Korpuslauf (`korpus-und-simulation.md`), laeuft nie automatisch -- Birk/eigene Karte.
+- **P1-M1** Blasenreihenfolge: braucht Spalte/Sortierschluessel (`db.py`/`repo.py`/`aufnahme.py`), Schemaarbeit ausserhalb dieser Schleife.
+- **e2e** `tests/e2e/test_web_gestalt_e2e.py`: 18 rot, Fixtures ohne Bot (auch auf Basis) -- eigene Karte.
+- **Simulation (Karte t_fc2c1bfa):** Selektor `.phase-knopf` statt `.stepper-segment` (Padua-Stepper); Kostenbeleg summiert die ganze `sim.db` statt je `chat_id`; Laufverzeichnis wird je Runde ueberschrieben (Screenshots frueherer Runden weg); Stationen folgen nicht der echten Phase; Mehrfachfragen-Zaehler zaehlt Karten mit (Quelle fast aller Richter-"hoch"); `p1-uebergang` ohne Screenshots; `stt_sprache` fuer Sim-Audio; Persona-Skript passt nicht zum Sim-Audio (N6); Elementnummern nach spaet eintreffenden Nachrichten.
+- **P3-Schleife:** Kimi antwortet in Phase 3 deutsch (R2, R3); `fragen_eigene_vorschlag` italienisch (R3).
+- **B5** (entschieden, nicht gebaut): "[suggested]" in P1/P2 nicht im Prompt.
+
+### Klasse-B-Fragen (gesammelt, je eine Zeile)
+
+- **Abnahmeregel "0 a"**: zaehlt ein a-Treffer erst nach Sichtung als echt (by design/Fehllesung protokolliert, nicht wieder gezaehlt) oder ab 2 von 3 Lesungen? (R3)
+- **NB1**: Zahl-Ausnahmen (Top-5-Autosave a4, "exactly THREE" a5) ausdruecklich in die UX-Regel 1 aufnehmen?
+- **P2 Z486 / M9**: im A/B-Vergleich die woertliche oder die geglaettete Gruppenfassung zeigen?
+- **M10**: Eroeffnung/Abschluss schon waehrend des Durchgangs als `interview_eroeffnung`/`_abschluss` speichern?
+- **M11**: veraltete Undo-Knoepfe (ueberschriebener Wert, fruehere Phase) ausblenden oder stehen lassen?
+- **N3 / R-5b**: Umfang von Undo/Redo-Meldungen und der Abschlussnachricht (ganze Liste wiederholen?).
+- **S7**: Sprung-Sheet "Go to N / Stay here" beim Tippen auf Phasenleiste/Werkbank-Zeile -- behalten?
+- **M3**: Werkbank zeigt fuer abgeschlossene Phasen Inhalt statt "3 of 3"?
+- **M4**: Board-"Take these?" neben einer schon gespeicherten Gruppenliste anbieten?
+- **S11**: "✓ Accepted" im Durchgang mit ↶?
+- **B2-Rest**: `phasen/1.md` "say nothing at all" gegen B2 (ein kurzer Satz beim Mithoeren).
+- **AGG-3**: Fliesstext gegen Transkript im Kontext.
+- **Datenweg P1/P2** (P2 Z389): s. die eine Frage unten.
+
+### Kosten gesamt
+
+- Simulation, fuenf Laeufe, je `chat_id` aus `aufruf`: 0.0425 + 0.1168 + 0.1762 + 0.0823 + 0.0846 =
+  **0.5024 CHF** (+0.0001 ohne `chat_id`; harte Grenze 1.50 CHF).
+- Opus-Lesungen Prompt-Check: 21 Aufrufe ueber den lokalen Proxy, **0 CHF**.
+- Summe: **0.50 CHF**.
+
+### Die eine Frage an Birk
+
+Abgewogen: die verbleibenden "hoch" (H5/S2) brauchen keine Entscheidung, nur den B4-Merge; die
+Abnahmeregel fuer den nichtdeterministischen Leser ist eine Verfahrensfrage, die nur die beiden
+by-design-Treffer betrifft. P2 Z389 dagegen betrifft laufende Gruppen: in Padua gehen Chat,
+Vornamen und das mitgehoerte Diskussionstranskript aus P1/P2 an Opus (USA), ohne Einwilligungs-
+frage -- und der einzige Satz zum Datenweg im Prompt sagt "names and recordings stay in
+Switzerland". Deshalb diese Frage:
+
+> **Soll der Padua-Bot einer Gruppe, die fragt, wohin ihre Daten gehen, sagen: "Interviews
+> (Audio, Transkripte) bleiben in der Schweiz; dieser Chat, eure Begriffsdiskussion und ab
+> Phase 5 belegte Zitate laufen ueber ein US-Modell (Anthropic)" -- oder sollen P1/P2 wegen der
+> mitgehoerten Diskussion zurueck auf Kimi?**
+
+Empfehlung: die erste Variante (wahrer Satz statt des Einwilligungsabsatzes, nur EN/Padua,
+Klasse-A-Fix danach eine Zeile). Fuer die Abnahmeregel "0 a" wende ich bis zu einem Widerspruch
+die Empfehlung aus Runde 3 an: ein a-Treffer zaehlt erst, wenn er nach Sichtung als echt gilt.

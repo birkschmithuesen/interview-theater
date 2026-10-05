@@ -475,13 +475,33 @@ def _sprechweise(conn, e, tg, klm, chats):
     Modell (``sprechweise.py:166``: ``if fehlende(conn, chat_id):``). Eine
     Figur wird deshalb hier im Treiber -- nicht in der Fixture -- auf
     \"noch kein Stil\" zurueckgesetzt, derselbe Weg wie beim
-    Kernzitate-Treiber (``repo.setze_arbeitsstand`` direkt im Treiber)."""
+    Kernzitate-Treiber (``repo.setze_arbeitsstand`` direkt im Treiber).
+
+    **Review-Fix (Task 7):** ``chats[7]`` ist dieselbe Gruppe, die alle
+    spaeteren Treiber in diesem Lauf lesen (``28``-``32-szene-*``,
+    ``34-stueckpruefung``, die Dramaturgie-Fragen ab Phase 7) -- und
+    ``szene._figuren_text`` listet ALLE Figuren der Gruppe, nicht nur die in
+    einer Szene besetzten (verifiziert: ``szene.py:1132``,
+    ``for figur in repo.figuren(conn, chat_id)`` ohne Besetzungsfilter). Eine
+    Figur dauerhaft zu nullen wuerde ihre ``ZEILE_SPRACHSTIL``-Zeile in jedem
+    nachfolgenden Dump dieses Laufs zum Verschwinden bringen, obwohl die
+    Fixture (und eine echte Padua-Gruppe ab Phase 4) ihr einen Stil gegeben
+    hat. Der Mitschnitt-Double antwortet mit einem leeren
+    ``{"sprechweisen": []}`` (``minimale_antwort`` fuer ``type: array``), also
+    schreibt ``sprechweise._schreibe`` nichts zurueck -- der urspruengliche
+    Wert wird deshalb hier im Treiber selbst gesichert und nach dem Aufruf
+    wiederhergestellt, damit kein spaeterer Treiber in diesem Lauf die
+    Kontamination sieht."""
     from interview_theater import sprechweise
 
     chat_id = chats[7]
     figur = repo.figuren(conn, chat_id)[0]
+    original = figur["sprachstil"]
     repo.setze_figur_sprachstil(conn, figur["id"], None)
-    _joine(sprechweise.starte(conn, tg, klm, e, chat_id))
+    try:
+        _joine(sprechweise.starte(conn, tg, klm, e, chat_id))
+    finally:
+        repo.setze_figur_sprachstil(conn, figur["id"], original)
     return None
 
 
@@ -515,7 +535,12 @@ def _dramaturgie(frage: str):
     ``arbeitsstand.hauptkonflikt`` -- ohne ihn liefert ``frage_a9`` sofort
     ``None``, ``fanout.py:631``); die Fixture setzt das Feld nicht, also
     setzt der Treiber es hier, genau wie beim Kernthema in
-    ``_kernzitate``."""
+    ``_kernzitate``. **Review-Fund (Task 7):** das ist die vierte
+    DB-mutierende Treiberstelle dieses Moduls, neben ``_kernzitate``,
+    ``_szenenfelder`` und ``_sprechweise`` -- der Task-7-Bericht hatte nur
+    drei genannt; harmlos, weil ``hauptkonflikt`` von keinem spaeteren
+    Treiber in diesem Lauf gelesen wird, aber vollstaendigkeitshalber hier
+    festgehalten."""
     def treiber(conn, e, tg, klm, chats):
         from interview_theater.dramaturgie import fanout, mechanik
 

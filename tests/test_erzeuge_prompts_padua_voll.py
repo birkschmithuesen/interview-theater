@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from scripts import erzeuge_prompts_padua_voll as dump
+from scripts import fixture_padua_voll as fixture
 from scripts import prompt_inventar as inv
 
 #: Alle Dumps des Inventars -- Task 7 hebt die Teilliste aus Task 6 auf.
@@ -122,6 +123,27 @@ def test_ein_voller_lauf_schreibt_jede_datei_und_die_uebersicht(tmp_path):
     kopf = (tmp_path / "uebersicht.tsv").read_text(
         encoding="utf-8").splitlines()[0].split("\t")
     assert kopf == list(dump.TSV_SPALTEN)
+
+
+def test_voller_lauf_kontaminiert_keine_sprachstile(tmp_path):
+    """Review-Fund Task 7: ``27-sprechweise``s Treiber nullt kurzzeitig
+    ``figur.sprachstil`` der ersten Figur der Phase-7-Gruppe (``chats[7]``),
+    um ``sprechweise._lauf`` ueberhaupt einen Modellaufruf machen zu lassen.
+    Ohne Wiederherstellung sah jeder spaetere Dump derselben Gruppe
+    (``28``-``32-szene-*``, ``34-stueckpruefung``, die Dramaturgie-Fragen ab
+    Phase 7) eine Figur ohne Stil, obwohl die Fixture allen drei Figuren
+    einen gibt (``szene._figuren_text`` listet ALLE Figuren der Gruppe ohne
+    Besetzungsfilter). Isoliert gefahren (``nur=["28-szene-dialog"]``) faellt
+    das nicht auf, weil ``_lauf`` pro Test eine frische Fixture baut -- nur
+    der volle Lauf (alle Eintraege zusammen, dieselbe Verbindung) zeigt die
+    Kontamination."""
+    dump.main_fuer_test(tmp_path)
+    nutzer = (tmp_path / "28-szene-dialog.txt").read_text(
+        encoding="utf-8").split("=== NUTZER", 1)[1]
+    for name, _beschreibung, stil in fixture._FIGUREN:
+        if name in nutzer:
+            assert stil in nutzer, (
+                f"{name}: Sprachstil fehlt im Dump nach dem vollen Lauf")
 
 
 def test_die_gespraechsdumps_tragen_blockanteile(tmp_path):

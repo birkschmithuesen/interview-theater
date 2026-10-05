@@ -133,8 +133,8 @@ def test_kappe_schneidet_immer_pause_nur_mit_genug_rede():
 def test_manuelle_schnitte_tragen_den_grund_ende():
     js = web_chat._CHAT_JS
     # pausiereInterview + beendeInterview + pausiereBrainstorm +
-    # beendeBrainstorm + pausiereDiskussion + beendeDiskussion
-    assert js.count("_grund = 'ende'") == 6
+    # beendeBrainstorm + beendeDiskussion
+    assert js.count("_grund = 'ende'") == 5
 
 
 def test_der_grund_ende_wird_nur_mit_aktivem_vad_gesetzt():
@@ -981,8 +981,8 @@ def test_beginneaufnahme_ist_der_einzige_ort_der_die_aufnahme_beginnt():
     js = web_chat._CHAT_JS
     assert js.count("function beginneAufnahme") == 1
     # starteInterview + fortsetzeInterview + starteBrainstorm +
-    # fortsetzeBrainstorm + starteDiskussion + fortsetzeDiskussion
-    assert js.count("beginneAufnahme(sitzung);") == 6
+    # fortsetzeBrainstorm + starteDiskussion
+    assert js.count("beginneAufnahme(sitzung);") == 5
     # Der Segment-Takt wird nur noch EINMAL im ganzen Skript aufgebaut --
     # vorher stand dieselbe setInterval(...)-Konstruktion in beiden
     # Funktionen, und ein Schutz in der einen (Befund 1) galt nicht
@@ -1378,13 +1378,12 @@ def test_manuelle_schnitte_tragen_den_grund_ende_fuer_brainstorm_auch():
 #
 # Derselbe Aufbau wie der Brainstorm-Block oben (eigener Zustandsslot
 # ``zustand.diskussion``, eigene DOM-Elemente ``#diskussion``/
-# ``#diskussion-pause``/``#diskussion-beenden``) -- die Tests hier sind der
-# strukturelle Zwilling der Brainstorm-Tests, nur auf die neuen Namen
-# umgelegt.
+# ``#diskussion-beenden``) -- die Tests hier sind der strukturelle Zwilling
+# der Brainstorm-Tests, nur auf die neuen Namen umgelegt.
 
 
 def test_der_diskussion_knopf_steht_immer_im_markup_aber_hidden_ausserhalb_phase_1():
-    """Wie beim Brainstorm-Knopf (Task 2) rendert ``chat_html`` die vier
+    """Wie beim Brainstorm-Knopf (Task 2) rendert ``chat_html`` die drei
     Diskussion-Elemente IMMER -- nur das ``hidden``-Attribut am
     ``#diskussion``-Knopf folgt ``daten["diskussion_knopf"]`` (server-
     seitige Vorgabe ``False``, anders als Brainstorms ``True`` -- das
@@ -1394,12 +1393,11 @@ def test_der_diskussion_knopf_steht_immer_im_markup_aber_hidden_ausserhalb_phase
              "interviewmodus": False, "titel": None, "phase": 1,
              "diskussion_knopf": True}
     seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
-    for kennung in ("diskussion", "diskussion-aktionen", "diskussion-pause",
-                    "diskussion-beenden"):
+    for kennung in ("diskussion", "diskussion-aktionen", "diskussion-beenden"):
         assert f'id="{kennung}"' in seite, kennung
     assert web_chat._TEXT_DISKUSSION_AN in seite
     assert web_chat._TEXT_DISKUSSION_FERTIG_KNOPF in seite
-    assert 'id="diskussion" data-laeuft="0" data-pausiert="0">' in seite
+    assert 'id="diskussion" data-laeuft="0">' in seite
     # Der Beenden-Knopf traegt die UX-Markierung fuer die parallele Karte
     # (Global Constraints, data-discussion-done="1") -- das landete schon in
     # Task 5, hier nur mitgeprueft, weil die Markup-Form zusammengehoert.
@@ -1407,14 +1405,13 @@ def test_der_diskussion_knopf_steht_immer_im_markup_aber_hidden_ausserhalb_phase
 
     ohne = web_chat.chat_html(
         dict(daten, diskussion_knopf=False), "1.x", "tok", "", 45000)
-    for kennung in ("diskussion", "diskussion-aktionen", "diskussion-pause",
-                    "diskussion-beenden"):
+    for kennung in ("diskussion", "diskussion-aktionen", "diskussion-beenden"):
         assert f'id="{kennung}"' in ohne, kennung
-    assert 'id="diskussion" data-laeuft="0" data-pausiert="0" hidden>' in ohne
+    assert 'id="diskussion" data-laeuft="0" hidden>' in ohne
 
     fehlt = web_chat.chat_html(
         dict(daten, phase=None, diskussion_knopf=False), "1.x", "tok", "", 45000)
-    assert 'id="diskussion" data-laeuft="0" data-pausiert="0" hidden>' in fehlt
+    assert 'id="diskussion" data-laeuft="0" hidden>' in fehlt
 
 
 def test_zeigediskussionmodus_behaelt_die_schutzzeile_fuer_fehlende_elemente():
@@ -1454,7 +1451,7 @@ def test_starte_diskussion_lehnt_waehrend_interview_oder_wechsel_ab():
     einen zweiten Recorder auf demselben Mikrofon starten."""
     js = web_chat._CHAT_JS
     start = js[js.index("function starteDiskussion"):
-               js.index("function pausiereDiskussion")]
+               js.index("function beendeDiskussion")]
     assert ("if (zustand.diskussion || modusAn() || zustand.wechsel || "
             "zustand.brainstorm) { return; }") in start
 
@@ -1697,25 +1694,13 @@ def test_zeigemodus_brainstorm_nur_szenario_bleibt_byte_identisch_zu_vor_task6_i
         assert fall["nebenknopf"] == fall["erwartetNebenknopf"], fall
 
 
-def test_fortsetzediskussion_hat_dieselbe_sperrklinke_wie_brainstorm():
-    """Dieselbe Sperrklinke (``fortsetzend``) und dasselbe Timing von
-    ``mikroUnterwegs`` wie ``fortsetzeBrainstorm``/``fortsetzeInterview``."""
-    js = web_chat._CHAT_JS
-    fortsetzen = js[js.index("function fortsetzeDiskussion"):
-                    js.index("function beendeDiskussion")]
-    assert "sitzung.fortsetzend" in fortsetzen
-    vor_holestrom = fortsetzen[:fortsetzen.index("holeStrom().then")]
-    assert "sitzung.mikroUnterwegs = true;" in vor_holestrom
-    assert "sitzung.fortsetzend = true;" in vor_holestrom
-
-
 def test_diskussion_pruefeende_tut_nie_etwas():
     """``fertigEingereiht`` steht von Anfang an auf ``true`` -- die
     gemeinsame ``pruefeEnde()``-Funktion (Interview-Pfad) reiht fuer eine
     Diskussion-Sitzung deshalb nie ein ``'befehl'``-Auftrag ein."""
     js = web_chat._CHAT_JS
     start = js[js.index("function starteDiskussion"):
-               js.index("function pausiereDiskussion")]
+               js.index("function beendeDiskussion")]
     assert "fertigEingereiht: true" in start
 
 
@@ -1731,24 +1716,19 @@ def test_beendediskussion_gibt_das_mikrofon_sofort_frei():
 
 def test_diskussion_knoepfe_sind_verdrahtet():
     js = web_chat._CHAT_JS
-    assert "diskussionPauseKnopf.addEventListener('click'" in js
+    assert "diskussionPauseKnopf" not in js
     assert "diskussionBeendenKnopf.addEventListener('click', beendeDiskussion);" in js
     assert "diskussionKnopf.addEventListener('click'" in js
-    wiring = js[js.index("if (diskussionPauseKnopf)"):js.index("-- Push-to-Talk")]
-    assert "fortsetzeDiskussion()" in wiring
-    assert "pausiereDiskussion()" in wiring
+    wiring = js[js.index("if (diskussionBeendenKnopf)"):js.index("-- Push-to-Talk")]
     assert "starteDiskussion()" in wiring
 
 
 def test_manuelle_schnitte_tragen_den_grund_ende_fuer_diskussion_auch():
-    """``pausiereDiskussion``/``beendeDiskussion`` flushen wie beim
-    Interview/Brainstorm ueber ``_grund = 'ende'``."""
+    """``beendeDiskussion`` flusht wie beim Interview/Brainstorm ueber
+    ``_grund = 'ende'`` -- seit 04.10.2026 der einzige Ende-Schnitt."""
     js = web_chat._CHAT_JS
-    pause = js[js.index("function pausiereDiskussion"):
-               js.index("function fortsetzeDiskussion")]
     beenden = js[js.index("function beendeDiskussion"):
                  js.index("function starteInterview")]
-    assert "_grund = 'ende'" in pause
     assert "_grund = 'ende'" in beenden
 
 

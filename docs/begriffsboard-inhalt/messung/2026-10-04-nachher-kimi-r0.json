@@ -1,0 +1,107 @@
+{
+  "arm": "nachher",
+  "modell": "moonshotai/Kimi-K2.6",
+  "runde": 0,
+  "vorher_ref": "55f34b58fc50de41114676222ce55e8cd1278b2e",
+  "datum": "2026-10-04T20:13:56",
+  "faelle": {
+    "live": {
+      "laeufe": 3,
+      "fehler": 0,
+      "roh": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 5,
+        "sprache_ungleich_profil": 3,
+        "begriffe_fehlend": 10,
+        "eintraege": 46,
+        "begruendungen_belegt": 5
+      },
+      "validiert": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 5,
+        "sprache_ungleich_profil": 2,
+        "begriffe_fehlend": 10,
+        "eintraege": 45,
+        "begruendungen_belegt": 4
+      }
+    },
+    "ansage_en": {
+      "laeufe": 3,
+      "fehler": 0,
+      "roh": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 12,
+        "begruendungen_belegt": 6
+      },
+      "validiert": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 12,
+        "begruendungen_belegt": 6
+      }
+    },
+    "deutsch_stt": {
+      "laeufe": 3,
+      "fehler": 0,
+      "roh": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 12,
+        "begruendungen_belegt": 7
+      },
+      "validiert": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 12,
+        "begruendungen_belegt": 7
+      }
+    },
+    "schaerfung_stt_en": {
+      "laeufe": 3,
+      "fehler": 0,
+      "roh": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 9,
+        "begruendungen_belegt": 3
+      },
+      "validiert": {
+        "fuell_begruendungen": 0,
+        "begruendung_ohne_beleg": 0,
+        "meta_begriffe": 0,
+        "dubletten": 0,
+        "sprache_ungleich_profil": 0,
+        "begriffe_fehlend": 0,
+        "eintraege": 9,
+        "begruendungen_belegt": 3
+      }
+    }
+  },
+  "aufrufe": 24,
+  "kosten_chf": 0.0466
+}

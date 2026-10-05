@@ -44,12 +44,15 @@ def test_begriff_wird_normalisiert_und_casefold_gefunden():
     assert ergebnis[0]["begriff"] == "heimat"
 
 
-def test_unbelegtes_zitat_wird_leer_begruendung_bleibt():
+def test_unbelegtes_zitat_leert_zitat_und_begruendung():
+    """Karte t_2b9d2cbe, D1: ohne geprueftes Zitat ist die Begruendung
+    unbelegt -- vorher blieb sie stehen (Test hiess
+    test_unbelegtes_zitat_wird_leer_begruendung_bleibt)."""
     ergebnis = begriffsboard.validiere(
         [_zeile(zitat="Heimat ist alles fuer uns")], TRANSKRIPT,
     )
     assert ergebnis[0]["zitat"] == ""
-    assert ergebnis[0]["begruendung"] == "Kam zweimal vor."
+    assert ergebnis[0]["begruendung"] == ""
 
 
 def test_belegtes_zitat_bleibt():

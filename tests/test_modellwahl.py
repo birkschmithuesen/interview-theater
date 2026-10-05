@@ -13,8 +13,8 @@ import httpx
 import pytest
 
 from interview_theater import (
-    knoepfe, kontext, kosten, modellwahl, repo, szene_claude, szenenfolge,
-    vorschlagssperre,
+    erkenner, knoepfe, kontext, kosten, modellwahl, repo, szene, szene_claude,
+    szenenfolge, vorschlagssperre, workshop,
 )
 from interview_theater.knoepfe.stationen import PHASE_BEGRIFFE
 
@@ -33,6 +33,25 @@ def opus_e(einst):
     """Dieselbe Einstellungen-Attrappe wie ueberall, nur mit erlaubtem
     Claude-Schalter (IT_SZENE_ANBIETER=claude)."""
     return dataclasses.replace(einst, szene_anbieter="claude")
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    """Wie ``test_erkenner_teil2.py::padua`` -- IT_WORKSHOP=padua-2026 per
+    monkeypatch, Profil-Cache davor und danach vergessen."""
+    monkeypatch.delenv(workshop.BASIS_VARIABLE, raising=False)
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    yield
+    workshop.vergiss()
+
+
+@pytest.fixture
+def opus_e_padua(opus_e, padua):
+    """``opus_e`` (Betreiber erlaubt Claude) UNTER dem Padua-Profil
+    (``modellwahl.einwilligung = false``) -- die Einwilligungsfrage ist
+    hier komplett abgeschaltet."""
+    return opus_e
 
 
 def _stimme_zu(conn, chat_id=CHAT, ja=True):
@@ -458,3 +477,197 @@ def test_phase_1_ohne_betreiberschalter_wird_nicht_gefragt(conn, einst):
     knoepfe.eintritt_in_phase(conn, tg, None, einst, CHAT, PHASE_BEGRIFFE)
     assert _angebot_texte(tg) == []
     assert repo.szene_usa_stand(conn, CHAT) == "offen"
+
+
+# --------------------------------------------------------------------------
+# Padua Modellwahl-Nachtrag: Einwilligungsfrage komplett abschaltbar
+# (``workshop.modellwahl_einwilligung_aktiv`` = False)
+# --------------------------------------------------------------------------
+
+
+def test_padua_ist_aktiv_ohne_einwilligung_und_ohne_repo_aufruf(conn, opus_e_padua):
+    """Betreiber erlaubt Claude, Padua-Profil aktiv -- ``ist_aktiv`` ist
+    True, OHNE dass ``repo.setze_szene_usa`` je aufgerufen wurde. Gilt auch
+    ganz ohne conn/chat_id."""
+    assert szene_claude.ist_aktiv(opus_e_padua, conn, CHAT) is True
+    assert szene_claude.ist_aktiv(opus_e_padua) is True
+
+
+@pytest.mark.parametrize("phase", [1, 4])
+def test_padua_angebot_faellig_ist_immer_false(conn, opus_e_padua, phase):
+    repo.setze_phase(conn, CHAT, phase)
+    assert szene_claude.angebot_faellig(opus_e_padua, conn, CHAT) is False
+
+
+def test_padua_wartet_auf_antwort_ist_false(conn, opus_e_padua):
+    assert szene_claude.wartet_auf_antwort(opus_e_padua, conn, CHAT) is False
+
+
+def test_padua_warnung_nicht_angebracht_obwohl_claude_aktiv(conn, opus_e_padua):
+    """Claude laeuft (``ist_aktiv`` True), aber die Warnung vor der US-
+    Datenuebermittlung waere eine Antwort auf eine nie gestellte Frage."""
+    assert szene_claude.ist_aktiv(opus_e_padua, conn, CHAT) is True
+    assert szene_claude.warnung_angebracht(opus_e_padua, conn, CHAT) is False
+
+
+def test_dortmund_warnung_angebracht_wenn_zugestimmt(conn, opus_e):
+    """Regression: unter Dortmund/Vorgabe bleibt die Warnung an die
+    Einwilligung gekoppelt -- ohne Zustimmung keine Warnung, mit
+    Zustimmung schon (weil ``ist_aktiv`` dort weiterhin True wird)."""
+    assert szene_claude.warnung_angebracht(opus_e, conn, CHAT) is False
+    _stimme_zu(conn)
+    assert szene_claude.warnung_angebracht(opus_e, conn, CHAT) is True
+
+
+def test_padua_szene_usa_nicht_im_schema(padua):
+    assert "szene_usa" not in erkenner.arten_fuer_schema()
+
+
+def test_dortmund_szene_usa_weiterhin_im_schema(einst):
+    assert "szene_usa" in erkenner.arten_fuer_schema()
+
+
+def test_dortmund_regression_ist_aktiv_haengt_weiterhin_an_der_einwilligung(
+    conn, opus_e,
+):
+    """Zeigt, dass Task 2 den bestehenden Dortmund/Vorgabe-Pfad nicht
+    gebrochen hat: ``ist_aktiv`` bleibt ohne Zustimmung False und wird erst
+    nach ``repo.setze_szene_usa`` True."""
+    assert szene_claude.ist_aktiv(opus_e, conn, CHAT) is False
+    repo.setze_szene_usa(conn, CHAT, True)
+    assert szene_claude.ist_aktiv(opus_e, conn, CHAT) is True
+
+
+# --------------------------------------------------------------------------
+# Padua Modellwahl, Zitate ab Phase 5: ``szene._kernpaket_text`` entfernt
+# den woertlichen Zitattext fuer einen Claude-Zug, wenn der Profilschalter
+# ``workshop.modellwahl_zitate_an_claude_aktiv`` aus ist -- Thema/Zuordnung
+# bleiben, und der Schalter wirkt nur, wenn der Zug wirklich ueber Claude
+# laeuft (Task 3 dieser Karte).
+# --------------------------------------------------------------------------
+
+
+def _verdichtung_mit_zitat(
+    conn, chat_id=CHAT, message_id=90, thema="Arbeit ohne Anerkennung",
+    zitat="Keiner hat gefragt",
+):
+    """Legt eine Aufnahme mit einer geprueften Verdichtung an und liefert
+    ``(aufnahme_id, verdichtung_thema_id)`` -- die gemeinsame Grundlage fuer
+    den Schaerfung- und den globalen Kernzitat-Zweig von
+    ``szene._kernpaket_text``."""
+    repo.merke_nachricht(
+        conn, chat_id, message_id, "Ada", 0, "sprache", None,
+        "2026-10-04T10:00:00+00:00",
+    )
+    aufnahme_id = repo.lege_aufnahme_an(
+        conn, chat_id, message_id, "lang", "sprache", "/tmp/a.ogg", 300,
+    )
+    repo.speichere_verdichtung(
+        conn, chat_id, aufnahme_id, "Zusammenfassung des Interviews.",
+        [{"thema": thema, "beleg_zitat": zitat, "zitat_geprueft": 1}],
+    )
+    thema_row = next(
+        t for t in repo.gepruefte_themen(conn, chat_id) if t["thema"] == thema
+    )
+    return aufnahme_id, thema_row["id"]
+
+
+def _schaerfung_mit_zitat(
+    conn, chat_id=CHAT, message_id=90, zitat="Keiner hat gefragt",
+    begruendung="genau der Einsatz",
+):
+    """Eine Szene mit genau einer Schaerfung -- der ``ziel``-Zweig von
+    ``_kernpaket_text``. Liefert ``ziel`` als Dict mit ``id``, wie
+    ``baue_nutzertext`` es uebergibt."""
+    _aufnahme_id, thema_id = _verdichtung_mit_zitat(
+        conn, chat_id, message_id=message_id, zitat=zitat,
+    )
+    szene_id = repo.lege_szene_an(conn, chat_id, 1, "Am Platz", None, None)
+    repo.lege_schaerfung_an(conn, chat_id, [
+        {"verdichtung_thema_id": thema_id, "szene_id": szene_id,
+         "begruendung": begruendung},
+    ])
+    return {"id": szene_id}
+
+
+def _kernzitat_global(
+    conn, chat_id=CHAT, message_id=91, zitat="Keiner hat gefragt",
+    begruendung="genau der Einsatz",
+):
+    """Der globale Fallback-Zweig (ohne ``ziel``): Kernthema + Kernzitat."""
+    aufnahme_id, thema_id = _verdichtung_mit_zitat(
+        conn, chat_id, message_id=message_id, zitat=zitat,
+    )
+    repo.markiere_themen_zum_kernthema(conn, chat_id, [thema_id])
+    repo.ersetze_kernzitate(
+        conn, chat_id,
+        [{"verdichtung_thema_id": thema_id, "aufnahme_id": aufnahme_id,
+          "zitat": zitat, "begruendung": begruendung}],
+    )
+
+
+def test_kernpaket_text_unveraendert_ohne_zitate_entfernen(conn):
+    """Regression: ohne ``zitate_entfernen`` (Vorgabe False) steht der
+    woertliche Zitattext weiterhin in Anfuehrungszeichen -- im
+    Schaerfung-Zweig (mit ``ziel``) wie im globalen Fallback (ohne
+    ``ziel``)."""
+    ziel = _schaerfung_mit_zitat(conn, message_id=90)
+    text_schaerfung = szene._kernpaket_text(conn, CHAT, ziel)
+    assert '"Keiner hat gefragt"' in text_schaerfung
+    assert "genau der Einsatz" in text_schaerfung
+
+    _kernzitat_global(conn, message_id=91)
+    text_global = szene._kernpaket_text(conn, CHAT, None)
+    assert '"Keiner hat gefragt"' in text_global
+    assert "genau der Einsatz" in text_global
+
+
+def test_kernpaket_text_entfernt_zitate_in_beiden_zweigen(conn):
+    """Mit ``zitate_entfernen=True`` steht das woertliche Zitat in keiner
+    Zeile mehr -- Thema/Name/Zuordnung und ``begruendung`` bleiben."""
+    ziel = _schaerfung_mit_zitat(conn, message_id=90)
+    text_schaerfung = szene._kernpaket_text(
+        conn, CHAT, ziel, zitate_entfernen=True,
+    )
+    assert "Keiner hat gefragt" not in text_schaerfung
+    assert "Arbeit ohne Anerkennung" in text_schaerfung
+    assert "genau der Einsatz" in text_schaerfung
+
+    _kernzitat_global(conn, message_id=91)
+    text_global = szene._kernpaket_text(conn, CHAT, None, zitate_entfernen=True)
+    assert "Keiner hat gefragt" not in text_global
+    assert "genau der Einsatz" in text_global
+
+
+def test_baue_nutzertext_ueber_claude_entfernt_zitat_ohne_schalter(
+    conn, opus_e, monkeypatch,
+):
+    """Integration: laeuft der Zug wirklich ueber Claude (``ist_aktiv`` ==
+    True) und ist der Betreiberschalter aus, enthaelt der Volltext von
+    ``baue_nutzertext`` das Zitat nicht mehr woertlich."""
+    monkeypatch.setattr(
+        workshop, "modellwahl_zitate_an_claude_aktiv", lambda *a, **k: False,
+    )
+    _stimme_zu(conn)
+    _kernzitat_global(conn)
+    assert szene_claude.ist_aktiv(opus_e, conn, CHAT) is True
+
+    text = szene.baue_nutzertext(conn, CHAT, "Szene 1: der Platz", e=opus_e)
+
+    assert "Keiner hat gefragt" not in text
+
+
+def test_baue_nutzertext_kimi_zeigt_zitat_trotz_abgeschaltetem_schalter(
+    conn, einst, monkeypatch,
+):
+    """Der Schalter wirkt NUR, wenn der Zug wirklich ueber Claude laeuft --
+    bei Kimi (``ist_aktiv`` == False) steht das Zitat trotzdem da."""
+    monkeypatch.setattr(
+        workshop, "modellwahl_zitate_an_claude_aktiv", lambda *a, **k: False,
+    )
+    _kernzitat_global(conn)
+    assert szene_claude.ist_aktiv(einst, conn, CHAT) is False
+
+    text = szene.baue_nutzertext(conn, CHAT, "Szene 1: der Platz", e=einst)
+
+    assert '"Keiner hat gefragt"' in text

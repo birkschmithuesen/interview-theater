@@ -1,0 +1,5 @@
+# Vorlage -- NICHT mit echtem Wert committen.
+# Ziel: ~/.config/systemd/user/interview-theater-padua-test-web.service.d/dashboard-token.conf
+# Erzeugung des Werts: docs/testgruppe-padua.md, "Einmalig einrichten".
+[Service]
+Environment=IT_WEB_DASHBOARD_TOKEN=<TOKEN-HIER>

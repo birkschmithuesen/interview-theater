@@ -17,14 +17,21 @@ transcript:
   the latter was named more often overall. A discussion tends to move
   toward a focus -- what is on the table last is usually wanted more than
   an earlier, settled thought.
-- begruendung: one or two sentences on why the group wants this term -- in
-  the group's own line of argument.
-- zitat: a short passage copied letter for letter from the transcript, or
-  "" if there is none.
+- begruendung: one or two sentences on why the group wants this term --
+  only when the group itself gives a reason, and in the group's own line of
+  argument. If it gives none, begruendung is "" -- that is correct, not a
+  gap. That a term was named, collected, listed or suggested is NOT a
+  reason.
+- zitat: the short passage, copied letter for letter from the transcript,
+  that carries the reason -- not the announcement of the term. "" when
+  there is no reason.
 - doppelbedeutung: a second meaning the group itself brings up, otherwise
   "".
 - status: "favorit" when the group agrees on it; "verworfen" when it drops
   it; otherwise "kandidat".
+- vorheriger_begriff: when this entry replaces an entry of the board so far
+  (merge, see below), exactly that entry's ``begriff`` from the board so
+  far; otherwise "".
 
 Keep the terms from the board so far that appear in the transcript and
 update their numbers.
@@ -33,13 +40,20 @@ Merge instead of duplicating: when the group names a synonym, a sharper
 version, or a development of a term already on the board (e.g. "robot" ->
 "AI robot", a typo being corrected, or a translation) -- that is NOT a new
 entry. Replace the existing entry instead: write the sharpened/current
-wording as ``begriff``, add the mention counts together, and extend
-``begruendung`` with the development in one clause, for example "First
-named 'robot', later sharpened to 'AI robot'." That keeps the development
-readable in the reasoning without it showing up as its own line. Two terms
+wording as ``begriff`` and add the mention counts together. Do NOT write the
+development into ``begruendung`` -- it only says why the group wants the
+term. The old wording does not show up as its own line either, not even
+with status "verworfen". Two terms
 that are genuinely distinct (e.g. "street" and "role") stay separate --
 merge only on real meaning equivalence or sharpening, not on mere thematic
 closeness.
+
+When you replace an entry, name the replaced one in ``vorheriger_begriff``
+-- worded as on the board so far. A term that the board so far lists under
+an entry's ``vorgaenger`` has already been merged: do not add it back as an
+entry of its own, even if it still appears in the transcript -- the
+transcript keeps growing and the old word stays in it. You never write
+``vorgaenger`` yourself; the program keeps that list.
 
 Catch and correct speech-recognition mishearings: the transcript comes from
 automatic speech recognition (STT), which occasionally writes something
@@ -71,9 +85,28 @@ conversation?). Both signals together decide:
   treat both as separate for now rather than guessing -- a wrong call
   here deletes a real term.
 
-Add both mention counts into the remaining entry and note the correction
-briefly in ``begruendung``, for example "Misheard once as 'whether' (STT
-slip), meant 'weather', heard correctly three times."
+Add both mention counts into the remaining entry. Do not note the
+correction anywhere -- not in ``begruendung``, not as its own line, not
+with status "verworfen". "verworfen" only means: the group drops a term on
+its merits.
+
+Announcements, test talk, misheard announcements:
+
+- Announcement formulas ("the first term is X", "a term is X", "another
+  term would be X", "I'd suggest X", "my word is X") give ONLY the term X.
+  They never yield a begruendung or a zitat.
+- Ignore microphone and test talk entirely ("test, one two three", "can you
+  hear us?", "is this recording?"): no term, no mention.
+- The words "term", "word", "test", "microphone" themselves are never a
+  term.
+- A word that makes no sense in the slot of an announcement ("the first
+  germ is X", "my turn is X") is a mishearing of "term". Read it that way
+  and never copy it into begriff or begruendung. The same holds when the
+  group speaks another language: an odd word in the place of that
+  language's word for "term" is a mishearing of it.
+- begruendung and doppelbedeutung are always written in English, even when
+  the transcript is in another language; begriff stays worded exactly as in
+  the transcript.
 
 Not like this:
 
@@ -81,7 +114,11 @@ Not like this:
   discussion ("identity" when only "where I come from" was said).
 - No quote that is reworded ("they said home matters" is not a quote).
 - No reason the group did not give.
+- No begruendung that only says the term was named, collected or suggested.
+- No line for a merged or misheard wording.
 - No description of individual speakers ("one of them thought ...").
+- No ``vorheriger_begriff`` that is not worded exactly like a ``begriff``
+  on the board so far.
 - No text outside the JSON.
 
 A discussion without terms gives {"board": []}.

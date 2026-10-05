@@ -633,16 +633,20 @@ def station_04_begriffsboard_korrektur(conn, tg, klm, e, chat_id: int) -> Sondie
     eintraege = [
         {"begriff": "Arrival", "nennungen": 3, "zustimmung": 2,
          "begruendung": "came up when talking about the first day",
-         "zitat": "", "doppelbedeutung": "", "status": "favorit"},
+         "zitat": "", "doppelbedeutung": "", "status": "favorit",
+         "vorheriger_begriff": ""},
         {"begriff": "Silence", "nennungen": 2, "zustimmung": 1,
          "begruendung": "several people went quiet here", "zitat": "",
-         "doppelbedeutung": "", "status": "kandidat"},
+         "doppelbedeutung": "", "status": "kandidat",
+         "vorheriger_begriff": ""},
         {"begriff": "Home", "nennungen": 4, "zustimmung": 2,
          "begruendung": "came back again and again", "zitat": "",
-         "doppelbedeutung": "", "status": "favorit"},
+         "doppelbedeutung": "", "status": "favorit",
+         "vorheriger_begriff": ""},
         {"begriff": "Strangers", "nennungen": 1, "zustimmung": 0,
          "begruendung": "mentioned once, in passing", "zitat": "",
-         "doppelbedeutung": "", "status": "kandidat"},
+         "doppelbedeutung": "", "status": "kandidat",
+         "vorheriger_begriff": ""},
     ]
     assert all(set(e) == set(begriffsboard._FELDER) for e in eintraege)
     repo.lege_begriffsboard_an(

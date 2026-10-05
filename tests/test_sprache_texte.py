@@ -130,6 +130,7 @@ BLEIBT_DEUTSCH = {
     "web_gestalt._JS_INTERVIEW": "JavaScript, nur Kommentare deutsch",
     "web_gestalt._INTERVIEW": "CSS, nur Kommentare deutsch",
     "web_gestalt._STEPPER": "CSS, nur Kommentare deutsch",
+    "web_gestalt._BUEHNE": "CSS, nur Kommentare deutsch",
     "web_gestalt.FARBTOKENS": "Tokennamen (CSS-Variablen wie --grund, --text), kein Nutzertext",
     "web_gestalt.KONTRAST": (
         "Pruefdaten des Kontrasttests -- Paar.zweck beschreibt den "

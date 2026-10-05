@@ -1028,8 +1028,6 @@ _TEXT_WERKBANK_NUR_LESEN = "Hier wird nur angezeigt – Änderungen bitte im Cha
 _TEXT_BUEHNE_LEER = "Im Chat sprechen — hier erscheinen die Gedanken."
 #: Das Begriffsboard im CoThinker-Tab (Phase 1, Karte t_4517d4ad).
 _TEXT_BOARD_LEER = "Hier erscheinen die Begriffe, die ihr in der Diskussion nennt."
-_TEXT_BOARD_WARUM = "Warum"
-_TEXT_BOARD_DOPPEL = "Doppelbedeutung: {doppelbedeutung}"
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
@@ -2906,10 +2904,20 @@ def _buehne_alterszeile(erstellt_am: str | None) -> str:
 def _begriffsboard_html(eintraege: list[dict]) -> str:
     """Das Begriffsboard im CoThinker-Tab (Phase 1, Karte t_4517d4ad, D9):
     eine Liste in ``begriffsboard.sortiert``-Ordnung, die Top 5 mit
-    ``data-top="1"``, Begruendung und Doppelbedeutung aufklappbar. Nur
-    funktionales Markup mit ``data-*`` -- die Gestaltung macht die UX-Karte.
-    Kein Zitat (``web_daten.begriffsboard`` laesst es weg), kein
-    ``style=``, kein ``on…=`` (CSP)."""
+    ``data-top="1"``. Seit der Design-Erweiterung (Karte t_cb2c4678,
+    04.10.2026, Birk: "nicht bloss funktional") zeigt eine Zeile NUR noch
+    den Begriff -- Begruendung, Zitat und Doppelbedeutung bleiben in der
+    Datenbank, stehen aber ohne ``<details>``/``<summary>`` in der Anzeige.
+    Rang, Trennlinie zum Rest und die stille Kursivschrift fuer
+    ``status="verworfen"`` haengen allein an den vorhandenen ``data-*``
+    Attributen -- ``web_gestalt.css_buehne()`` macht daraus das Bild. Kein
+    Zitat (``web_daten.begriffsboard`` laesst es weg), kein ``style=``,
+    kein ``on…=`` (CSP).
+
+    Eine Schärfungskette (``vorgaenger``, Karte t_cb2c4678) steht
+    durchgestrichen hinter dem Begriff, der jüngste zuerst, und als
+    ``data-vorgaenger`` am ``<li>`` -- für die FLIP-Zuordnung im Browser
+    (``ladeBuehne()`` in ``web_vereint._VEREINT_JS``)."""
     from interview_theater import begriffsboard as _begriffsboard
 
     if not eintraege:
@@ -2923,23 +2931,25 @@ def _begriffsboard_html(eintraege: list[dict]) -> str:
         begriff = html.escape(eintrag["begriff"], quote=True)
         top_merkmal = (' data-top="1"'
                        if _begriffsboard.schluessel(eintrag["begriff"]) in oben else "")
-        teile = []
-        if eintrag.get("begruendung"):
-            teile.append(
-                f'<p data-feld="begruendung">{html.escape(eintrag["begruendung"])}</p>'
-            )
-        if eintrag.get("doppelbedeutung"):
-            teile.append(
-                '<p data-feld="doppelbedeutung">'
-                f'{_t(T._TEXT_BOARD_DOPPEL.format(doppelbedeutung=eintrag["doppelbedeutung"]))}</p>'
-            )
-        mehr = (f'<details><summary>{_t(T._TEXT_BOARD_WARUM)}</summary>{"".join(teile)}</details>'
-                if teile else "")
+        kette = eintrag.get("vorgaenger") or []
+        vorgaenger_merkmal = (
+            f' data-vorgaenger="{html.escape(kette[-1], quote=True)}"' if kette else ""
+        )
+        # Der juengste Vorgaenger steht direkt neben dem neuen Begriff (D2,
+        # Karte t_cb2c4678); der Pfeil kommt aus dem CSS
+        # (``web_gestalt.css_buehne``), nie aus einem style-Attribut.
+        vorgaenger_html = (
+            '<span class="vorgaenger">'
+            + " ".join(f"<del>{html.escape(v)}</del>" for v in reversed(kette))
+            + "</span>"
+            if kette else ""
+        )
         zeilen.append(
             f'<li data-begriff="{begriff}" data-status="{html.escape(eintrag["status"])}" '
             f'data-zustimmung="{int(eintrag["zustimmung"])}" '
-            f'data-nennungen="{int(eintrag["nennungen"])}"{top_merkmal}>'
-            f'<span class="begriff">{html.escape(eintrag["begriff"])}</span>{mehr}</li>'
+            f'data-nennungen="{int(eintrag["nennungen"])}"{vorgaenger_merkmal}{top_merkmal}>'
+            f'<span class="begriff">{html.escape(eintrag["begriff"])}</span>'
+            f'{vorgaenger_html}</li>'
         )
     return (
         '<div id="buehne-panel" data-ansicht="begriffsboard">'
@@ -4108,7 +4118,27 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
         handler._antworte(200, "ok", "text/plain; charset=utf-8")
         return
     try:
-        if pfad == "/":
+        dash_token = os.environ.get("IT_WEB_DASHBOARD_TOKEN", "").strip()
+        startseite = os.environ.get("IT_WEB_STARTSEITE", "").strip()
+        if pfad == "/" and not dash_token:
+            handler._antworte(200, dashboard_html(handler._dashboard(), praefix))
+        elif pfad == "/" and startseite:
+            # Birk 04.10.2026: unter "/" das oeffentliche Wochenprogramm
+            # (statische HTML-Datei, bei jedem Aufruf frisch gelesen -- eine
+            # Aenderung in der Datei ist sofort live). Die Uebersicht liegt
+            # mit Token unter /dashboard/<token>.
+            try:
+                with open(startseite, encoding="utf-8") as datei:
+                    handler._antworte(200, datei.read())
+            except OSError:
+                handler._antworte(404, "nicht gefunden")
+        elif dash_token and pfad.startswith("/dashboard/") and hmac.compare_digest(
+                pfad[len("/dashboard/"):].rstrip("/").encode(), dash_token.encode()):
+            # Birk 04.10.2026: die Uebersicht traegt die Links zu ALLEN
+            # Gruppen -- offen unter "/" war sie ein Generalschluessel. Mit
+            # IT_WEB_DASHBOARD_TOKEN liegt sie nur noch unter /dashboard/<token>,
+            # "/" antwortet 404 wie jede unbekannte Adresse. Ohne die
+            # Variable bleibt alles wie vorher (Dortmund).
             handler._antworte(200, dashboard_html(handler._dashboard(), praefix))
         elif pfad.startswith("/g/"):
             _beantworte_gruppenseite(

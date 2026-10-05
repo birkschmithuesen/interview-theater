@@ -90,6 +90,7 @@ def test_schema_ist_streng():
     assert zeile["additionalProperties"] is False
     assert set(zeile["required"]) == set(zeile["properties"]) == {
         "begriff", "nennungen", "zustimmung", "begruendung", "zitat", "doppelbedeutung", "status",
+        "vorheriger_begriff",
     }
 
 
@@ -117,19 +118,19 @@ def test_vorgabe_min_zeichen_ist_600_nicht_1200():
 def test_unter_der_zeichenschwelle_kein_lauf(conn, monkeypatch):
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1000")
     _segment(conn, 10, "kurz")
-    assert begriffsboard.soll_laufen(conn, CHAT, ist_abschluss=False) is False
+    assert begriffsboard.soll_laufen(conn, CHAT) is False
 
 
 def test_ueber_der_schwelle_nach_pause_laeuft(conn, monkeypatch):
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
     _segment(conn, 10)
-    assert begriffsboard.soll_laufen(conn, CHAT, ist_abschluss=False) is True
+    assert begriffsboard.soll_laufen(conn, CHAT) is True
 
 
 def test_cap_schnitt_loest_nicht_aus(conn, monkeypatch):
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
     _segment(conn, 10, schnittgrund="cap")
-    assert begriffsboard.soll_laufen(conn, CHAT, ist_abschluss=False) is False
+    assert begriffsboard.soll_laufen(conn, CHAT) is False
 
 
 def test_mindestabstand_nach_einem_lauf(conn, monkeypatch):
@@ -138,13 +139,7 @@ def test_mindestabstand_nach_einem_lauf(conn, monkeypatch):
     a = _segment(conn, 10)
     repo.lege_begriffsboard_an(conn, CHAT, "[]", "sovereign", a)
     _segment(conn, 11, "x" * 200)
-    assert begriffsboard.soll_laufen(conn, CHAT, ist_abschluss=False) is False
-
-
-def test_abschluss_mit_niedriger_schwelle(conn, monkeypatch):
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
-    _segment(conn, 10, schnittgrund="ende")
-    assert begriffsboard.soll_laufen(conn, CHAT, ist_abschluss=True) is True
+    assert begriffsboard.soll_laufen(conn, CHAT) is False
 
 
 def test_soll_laufen_ruft_brainstorm_soll_reagieren_unveraendert(conn, monkeypatch):
@@ -152,7 +147,7 @@ def test_soll_laufen_ruft_brainstorm_soll_reagieren_unveraendert(conn, monkeypat
     monkeypatch.setattr(begriffsboard.brainstorm, "soll_reagieren",
                         lambda **kw: gesehen.append(kw) or True)
     _segment(conn, 10, "abc", schnittgrund="pause")
-    assert begriffsboard.soll_laufen(conn, CHAT, ist_abschluss=False) is True
+    assert begriffsboard.soll_laufen(conn, CHAT) is True
     assert gesehen == [{
         "unreagierte_zeichen": 3, "sekunden_seit_letzter_reaktion": float("inf"),
         "letzter_schnittgrund": "pause", "ist_abschluss": False,

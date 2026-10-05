@@ -18,13 +18,19 @@ Transkript selbst nennt:
   Diskussion bewegt sich auf einen Fokus hin -- was zuletzt im Raum steht,
   ist meist staerker gewollt als ein frueher, abgehakter Gedanke.
 - begruendung: ein oder zwei Saetze, warum die Gruppe diesen Begriff will --
-  in ihrer eigenen Argumentation.
-- zitat: eine kurze Stelle, buchstabengetreu aus dem Transkript kopiert,
-  oder "" wenn es keine gibt.
+  nur, wenn die Gruppe selbst einen Grund nennt, und in ihrer eigenen
+  Argumentation. Nennt sie keinen, ist begruendung "" -- das ist richtig,
+  keine Luecke. Dass ein Begriff genannt, gesammelt, aufgefuehrt oder
+  vorgeschlagen wurde, ist KEIN Grund.
+- zitat: die kurze Stelle, buchstabengetreu aus dem Transkript kopiert, die
+  den Grund traegt -- nicht die Ansage des Begriffs. Ohne Grund "".
 - doppelbedeutung: eine zweite Bedeutung, die die Gruppe selbst anspricht,
   sonst "".
 - status: "favorit", wenn die Gruppe sich einig ist; "verworfen", wenn sie
   ihn fallen laesst; sonst "kandidat".
+- vorheriger_begriff: wenn dieser Eintrag einen Eintrag des bisherigen
+  Boards ersetzt (Zusammenfuehren, siehe unten), genau dessen ``begriff``
+  aus dem bisherigen Board; sonst "".
 
 Begriffe aus dem bisherigen Board, die im Transkript stehen, behaeltst du
 und schreibst ihre Zahlen fort.
@@ -34,14 +40,20 @@ Praezisierung oder eine Weiterentwicklung eines Begriffs, der schon auf dem
 Board steht (z. B. "Roboter" -> "KI-Roboter", ein Tippfehler, der korrigiert
 wird, oder eine Uebersetzung) -- das ist KEIN neuer Eintrag. Ersetze
 stattdessen den bestehenden Eintrag: schreibe den geschaerften/aktuellen
-Wortlaut als ``begriff``, addiere die Nennungen, und ergaenze die
-``begruendung`` um die Entwicklung in einem Halbsatz, zum Beispiel "Zuerst
-als 'Roboter' genannt, spaeter praezisiert auf 'KI-Roboter'." Die
-Entwicklung bleibt damit in der Begruendung lesbar, erscheint aber nicht als
-eigene Zeile. Zwei Begriffe, die inhaltlich eigenstaendig sind (z. B.
+Wortlaut als ``begriff`` und addiere die Nennungen. Die Entwicklung schreibst
+du NICHT in die ``begruendung`` -- die sagt nur, warum die Gruppe den
+Begriff will. Die alte Fassung erscheint auch nicht als eigene Zeile, auch
+nicht mit status "verworfen". Zwei Begriffe, die inhaltlich eigenstaendig sind (z. B.
 "Straße" und "Rolle"), bleiben getrennt -- zusammenfuehren nur bei echter
 Bedeutungsgleichheit oder Praezisierung, nicht bei blosser thematischer
 Naehe.
+
+Wer ersetzt, nennt den ersetzten Eintrag in ``vorheriger_begriff`` -- im
+Wortlaut des bisherigen Boards. Ein Begriff, der im bisherigen Board in der
+Liste ``vorgaenger`` eines Eintrags steht, ist schon zusammengefuehrt: nimm
+ihn nicht wieder als eigenen Eintrag auf, auch wenn er weiter im Transkript
+steht -- das Transkript waechst, das alte Wort bleibt darin stehen.
+``vorgaenger`` schreibst du nie selbst; diese Liste fuehrt das Programm.
 
 Verhoerer der Spracherkennung erkennen und korrigieren: das Transkript kommt
 aus einer automatischen Spracherkennung (STT) und schreibt gelegentlich
@@ -75,10 +87,25 @@ Kontext der Diskussion?). Die beiden Signale zusammen entscheiden:
   behandle beide vorerst als eigenstaendig, statt zu raten -- ein
   Fehlgriff hier loescht einen echten Begriff.
 
-Verrechne beide Nennungszahlen in den verbliebenen Eintrag und vermerke
-die Korrektur kurz in ``begruendung``, zum Beispiel "Einmal als 'Saite'
-verstanden (STT-Verhoerer), gemeint war 'Seite', dreimal richtig
-gehoert."
+Verrechne beide Nennungszahlen in den verbliebenen Eintrag. Die Korrektur
+vermerkst du nirgends -- nicht in ``begruendung``, nicht als eigene Zeile,
+auch nicht mit status "verworfen". "verworfen" heisst nur: die Gruppe laesst
+einen Begriff inhaltlich fallen.
+
+Ansagen, Testgerede, Verhoerer der Ansage:
+
+- Ansage-Formeln ("der erste Begriff ist X", "ein Begriff ist X", "noch ein
+  Begriff waere X", "ich schlage X vor", "mein Wort ist X") liefern NUR den
+  Begriff X. Aus ihnen entsteht keine begruendung und kein zitat.
+- Mikrofon- und Testgerede ("Test, eins zwei drei", "hoert man uns?", "laeuft
+  die Aufnahme?") ignorierst du ganz: kein Begriff, keine Nennung.
+- "Begriff", "Wort", "Test", "Mikrofon" selbst sind nie ein Begriff.
+- Ein Wort, das an der Stelle einer Ansage keinen Sinn ergibt ("der erste
+  Gepaeck ist X", "der zweite Betreff ist X"), ist ein Verhoerer fuer
+  "Begriff". Lies es so und uebernimm es nie in begriff oder begruendung.
+- begruendung und doppelbedeutung schreibst du auf Deutsch, auch wenn das
+  Transkript in einer anderen Sprache ist; begriff bleibt im Wortlaut des
+  Transkripts.
 
 Nicht so:
 
@@ -88,8 +115,13 @@ Nicht so:
 - Kein Zitat, das umformuliert ist ("sie sagten, Heimat sei wichtig" ist
   kein Zitat).
 - Keine Begruendung, die die Gruppe nicht gegeben hat.
+- Keine Begruendung, die nur sagt, dass der Begriff genannt, gesammelt oder
+  vorgeschlagen wurde.
+- Keine Zeile fuer eine zusammengefuehrte oder verhoerte Fassung.
 - Keine Beschreibung einzelner Sprecherinnen oder Sprecher ("eine meinte
   ...").
+- Kein ``vorheriger_begriff``, der nicht wortgleich als ``begriff`` im
+  bisherigen Board steht.
 - Kein Text ausserhalb des JSON.
 
 Eine Diskussion ohne Begriffe ergibt {"board": []}.

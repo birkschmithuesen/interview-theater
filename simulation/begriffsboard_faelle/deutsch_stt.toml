@@ -1,0 +1,26 @@
+# Frei erfunden (Karte t_2b9d2cbe). DEUTSCH gesprochen bei EN-Profil:
+# Begruendungen muessen trotzdem englisch sein (D4). STT "Gepäck"/"Betreff"
+# fuer "Begriff", Mikrofontest, Schaerfung Roboter -> KI-Roboter, echte
+# Gruende an Heimat und Grenze, Tauben ohne Grund.
+name = "deutsch_stt"
+beschreibung = "DE gesprochen, EN-Profil: STT Gepäck/Betreff, Mikrofontest, Roboter -> KI-Roboter"
+sprache_gesprochen = "de"
+segmente = [
+  "Ja hallo, Mikrofon Test eins zwei drei, hört man uns? Okay. Also der erste Gepäck ist Heimat. Heimat, weil meine Oma in Izmir jeden Sonntag für zwanzig Leute kocht und keiner nach Hause geht, bevor alle satt sind.",
+  "Der zweite Betreff ist Roboter. Ein Roboter, der im Laden an der Kasse steht.",
+  "Nee, nicht einfach Roboter, ein KI-Roboter, der alles mitschreibt, was wir sagen. KI-Roboter. Und noch ein Begriff ist Grenze.",
+  "Grenze, weil man im Bus nach Padua plötzlich nicht mehr verstanden hat, was der Fahrer sagt, und alle still wurden. Und ich schlage Tauben vor. Tauben.",
+  "Tauben, ja, und noch mal KI-Roboter, da sind wir uns einig. Test, ist das noch an?",
+]
+varianten = ["Roboter"]
+meta = ["Gepäck", "Betreff", "Begriff", "Mikrofon", "Test"]
+mit_grund = ["Heimat", "Grenze"]
+
+[[soll]]
+alternativen = ["Heimat"]
+[[soll]]
+alternativen = ["KI-Roboter", "KI Roboter"]
+[[soll]]
+alternativen = ["Grenze"]
+[[soll]]
+alternativen = ["Tauben"]

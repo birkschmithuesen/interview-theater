@@ -1276,6 +1276,96 @@ _VEREINT_JS = """
     }, { passive: true });
   })();
 
+  // -- Begriffsboard: Live-Ranking ohne Springen (Karte t_cb2c4678) -------
+  //
+  // ladeBuehne() tauscht das ganze Panel (panel.innerHTML = neu). Damit die
+  // Liste dabei nicht springt, misst bbMerke() die alten Zeilen UNMITTELBAR
+  // davor und bbSpiele() spielt UNMITTELBAR danach FLIP: jede Zeile startet
+  // optisch an ihrer alten Stelle und gleitet an die neue. Zuordnung ueber
+  // data-begriff, fuer einen geschaerften Begriff ueber data-vorgaenger.
+  // Seit der Design-Erweiterung gibt es kein aufklappbares "Warum" mehr --
+  // bbMerke/bbSpiele muessen keinen Auf-/Zu-Zustand mehr tragen. Ohne
+  // ol.begriffsboard (Phase 4, Buehnenkarten) tun beide nichts. Bewegung
+  // nur per CSSOM (CSP) und nie bei prefers-reduced-motion: reduce.
+  var BB_DAUER_MS = 320;
+
+  function bbSchluessel(text) {
+    return String(text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+  }
+
+  // Je neuem Eintrag der Schluessel der alten Zeile, von der er kommt, oder
+  // null (neu). Erst ueber den eigenen Begriff, dann ueber den juengsten
+  // Vorgaenger -- nur, wenn diese alte Zeile nicht schon vergeben ist.
+  function bbZuordnung(alt, neu) {
+    var frei = {};
+    alt.forEach(function (b) { frei[bbSchluessel(b)] = true; });
+    var erst = neu.map(function (n) {
+      var k = bbSchluessel(n.begriff);
+      if (frei[k]) { frei[k] = false; return k; }
+      return null;
+    });
+    return erst.map(function (k, i) {
+      if (k !== null) { return k; }
+      var v = bbSchluessel(neu[i].vorgaenger);
+      if (v && frei[v]) { frei[v] = false; return v; }
+      return null;
+    });
+  }
+
+  // FLIP "Invert": alte Lage minus neue, je neuem Eintrag; null ohne alte Lage.
+  function bbVersatz(altLagen, quellen, neuLagen) {
+    return quellen.map(function (q, i) {
+      if (q === null || !altLagen || typeof altLagen[q] !== 'number') { return null; }
+      return altLagen[q] - neuLagen[i];
+    });
+  }
+
+  function bbMerke(panel) {
+    var ol = panel.querySelector('ol.begriffsboard');
+    if (!ol) { return null; }
+    var vorher = { alt: [], lagen: {} };
+    Array.prototype.forEach.call(ol.children, function (li) {
+      var b = li.getAttribute('data-begriff');
+      var k = bbSchluessel(b);
+      vorher.alt.push(b);
+      vorher.lagen[k] = li.getBoundingClientRect().top;
+    });
+    return vorher;
+  }
+
+  function bbSpiele(panel, vorher) {
+    if (!vorher) { return; }
+    var ol = panel.querySelector('ol.begriffsboard');
+    if (!ol) { return; }
+    var lis = Array.prototype.slice.call(ol.children);
+    var quellen = bbZuordnung(vorher.alt, lis.map(function (li) {
+      return { begriff: li.getAttribute('data-begriff'),
+               vorgaenger: li.getAttribute('data-vorgaenger') };
+    }));
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    var versatz = bbVersatz(vorher.lagen, quellen, lis.map(function (li) {
+      return li.getBoundingClientRect().top;
+    }));
+    lis.forEach(function (li, i) {
+      if (quellen[i] === null) { li.style.opacity = '0'; }
+      else if (versatz[i]) { li.style.transform = 'translateY(' + versatz[i] + 'px)'; }
+    });
+    ol.getBoundingClientRect();   // Startlage festschreiben (Reflow)
+    requestAnimationFrame(function () {
+      lis.forEach(function (li) {
+        li.style.transition = 'transform ' + BB_DAUER_MS + 'ms ease, opacity '
+          + BB_DAUER_MS + 'ms ease';
+        li.style.transform = '';
+        li.style.opacity = '';
+      });
+      setTimeout(function () {
+        lis.forEach(function (li) { li.style.transition = ''; });
+      }, BB_DAUER_MS + 50);
+    });
+  }
+
   function ladeBuehne() {
     // Phase 4 (oder Phase 1 mit Begriffsboard).
     if (!istCoThinkerPhase()) { return; }
@@ -1311,8 +1401,12 @@ _VEREINT_JS = """
           if (buehnePos === null) {
             // "Aktuell": komplett ersetzen -- sicher, weil
             // buehneNavRender() den (absichtlich leeren) Nav-Platzhalter
-            // sofort danach selbst fuellt (siehe web._buehne_html).
+            // sofort danach selbst fuellt (siehe web._buehne_html). Das
+            // Begriffsboard (Phase 1) gleitet dabei per FLIP an seine neue
+            // Ordnung, statt zu springen (bbMerke/bbSpiele, oben).
+            var bbVorher = bbMerke(panel);
             panel.innerHTML = neu;
+            bbSpiele(panel, bbVorher);
           }
           // Zurueckgeblaettert (``buehnePos !== null``): Status und Tafel
           // bleiben UNANGETASTET stehen -- nur die Navigationsleiste bekommt

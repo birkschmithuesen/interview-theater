@@ -88,18 +88,25 @@ def _baue_datenbank() -> str:
 
 def _wechsle_zu_phase_3() -> None:
     """Simuliert, was der Bot beim Phasenwechsel tut (``knoepfe.eintritt_in_
-    phase`` -> ``phasentexte.eintritt`` + eine Bot-Zeile) -- OHNE Bot-Prozess,
-    direkt gegen dieselbe Datenbank, waehrend die Seite schon offen ist und
-    pollt.
+    phase`` -> ``stationen._sende_karte`` (Bild) + ``phasentexte.eintritt``
+    + eine Bot-Zeile) -- OHNE Bot-Prozess, direkt gegen dieselbe Datenbank,
+    waehrend die Seite schon offen ist und pollt.
 
-    Nach der Kopfzeile stehen noch ein paar weitere, erfundene Zeilen --
-    sonst waere die Kopfzeile zugleich die JUENGSTE Nachricht im Verlauf,
-    und ``nachUnten()`` (das alte, falsche Verhalten) traefe sie dann
-    zufaellig genauso wie der Fix: der Test muss "Anfang der neuen Phase"
-    von "Ende des ganzen Verlaufs" unterscheiden koennen."""
+    Vor der Kopfzeile steht die Telefon-Organisationskarte als eigene Blase
+    mit Bild (``bild=phase-3.png``) -- genau wie ``stationen.eintritt_in_
+    phase`` sie IMMER vor der Kopfzeile sendet. Nach der Kopfzeile stehen
+    noch ein paar weitere, erfundene Zeilen -- sonst waere die Kopfzeile
+    zugleich die JUENGSTE Nachricht im Verlauf, und ``nachUnten()`` (das
+    alte, falsche Verhalten) traefe sie dann zufaellig genauso wie der Fix:
+    der Test muss "Anfang der neuen Phase" von "Ende des ganzen Verlaufs"
+    unterscheiden koennen."""
     conn = db.verbinde(DB_PFAD)
     try:
         repo.setze_phase(conn, CHAT, 3)
+        repo.lege_web_post_an(
+            conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+            text="Die Telefone liegen so.", bild="phase-3.png",
+        )
         repo.lege_web_post_an(
             conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
             text=phasentexte.eintritt(conn, CHAT, 3),
@@ -111,6 +118,21 @@ def _wechsle_zu_phase_3() -> None:
                 repo.WEB_TYP_TEXT,
                 text=f"Weitere erfundene Verlaufszeile Nummer {i}.",
             )
+    finally:
+        conn.close()
+
+
+def _weitere_bot_zeile_nach_dem_wechsel() -> None:
+    """Was ein spaeterer Poll bringen kann, nachdem die Phase-3-Kopfzeile
+    schon im Bild steht (z. B. ``leitfaden.sende_einmal``) -- muss den
+    Anker oben NICHT nach unten reissen, solange niemand selbst
+    runtergescrollt hat."""
+    conn = db.verbinde(DB_PFAD)
+    try:
+        repo.lege_web_post_an(
+            conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+            text="Noch eine Bot-Zeile, die danach eintrifft.",
+        )
     finally:
         conn.close()
 
@@ -183,13 +205,32 @@ def test_phasenwechsel_scrollt_zum_anfang_der_neuen_phase(server, token):
             phase_3_zeile = seite.locator(".blase.bot", has_text="Phase 3")
             expect(phase_3_zeile.last).to_be_in_viewport()
 
-            verlauf_am_ende = seite.eval_on_selector(
-                "#verlauf",
-                "el => (el.scrollTop + el.clientHeight) >= (el.scrollHeight - 2)",
-            )
-            assert not verlauf_am_ende, (
+            def verlauf_am_ende() -> bool:
+                return seite.eval_on_selector(
+                    "#verlauf",
+                    "el => (el.scrollTop + el.clientHeight) >= (el.scrollHeight - 2)",
+                )
+
+            assert not verlauf_am_ende(), (
                 "Der Verlauf steht am Ende -- die Phase-3-Kopfzeile haette "
                 "oben im Bild stehen sollen, nicht das Ende des Verlaufs."
+            )
+
+            # Die Bildkarte (``bild=phase-3.png``) steht VOR der Kopfzeile --
+            # Teil derselben Eintrittsnachricht, sie soll mit oben stehen.
+            bild_karte = seite.locator("#verlauf img.karte").last
+            expect(bild_karte).to_be_in_viewport()
+
+            # Ein spaeterer Poll bringt eine weitere Bot-Zeile (z. B. den
+            # Leitfaden) -- der Anker oben darf davon NICHT nach unten
+            # gerissen werden, solange niemand selbst runtergescrollt hat.
+            _weitere_bot_zeile_nach_dem_wechsel()
+            seite.wait_for_timeout(int(POLL_WARTEN_S * 1000))
+
+            expect(phase_3_zeile.last).to_be_in_viewport()
+            assert not verlauf_am_ende(), (
+                "Eine Bot-Zeile NACH dem Phasenwechsel hat den Anker oben "
+                "wieder ans Ende des Verlaufs gerissen."
             )
 
             SCHUSS_VERZEICHNIS.mkdir(parents=True, exist_ok=True)

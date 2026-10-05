@@ -230,6 +230,20 @@ PHASEN_SPEZIFISCHE_ARTEN: dict[str, tuple[int, ...]] = {
     "schaerfung_entscheidung": (5,),
 }
 
+#: Dieselbe Wache als Untergrenze: eine ART, die erst AB einer Phase wirkt
+#: (bis zur letzten Phase des Profils). Feedbackloop P1-2, Runde 4, Befund
+#: H4: in Phase 2 las der Erkenner "write me the opening and the closing now"
+#: (Interview-Eroeffnung) als ``szene_schreiben``, und ``szene.starte``
+#: schickte zweimal (zwei Nachrichten, zwei Laeufe) "For Scene 1 we still
+#: need ... (phase 4)". Szenen gibt es in beiden Profilen erst ab Phase 4
+#: (Setting/Frame: Szenenfolge, ``szene.PFLICHTFELDER``); davor faellt ein
+#: Szenenauftrag still weg -- keine Meldung, kein Lauf. Eine Untergrenze statt
+#: eines Tupels, damit ein Profil mit mehr Phasen nichts nachtragen muss.
+AB_PHASE_ARTEN: dict[str, int] = {
+    "szene_schreiben": 4,
+    "szene_kuerzen": 4,
+}
+
 #: Welcher Profilschalter eine ART ueberhaupt erst freischaltet -- dieselbe
 #: Tabelle, eine zweite Spalte. Eine ART ohne Eintrag ist profilfrei. Ohne
 #: Schalter steht die ART auch nicht im Schema (``arten_fuer_schema``):
@@ -288,6 +302,10 @@ def _ist_phasenpassend(conn, chat_id: int, art: str) -> bool:
     ueberall erlaubt: das ist der unveraenderte Normalfall. Seit TEIL 2
     zusaetzlich: ohne ihren Profilschalter wirkt eine art nirgends."""
     if not _schalter_an(art):
+        return False
+    ab = AB_PHASE_ARTEN.get(art)
+    if ab is not None and phasen.aktuelle(conn, chat_id) < ab:
+        log.info("%s vor Phase %s verworfen, chat_id=%s", art, ab, chat_id)
         return False
     phasen_liste = PHASEN_SPEZIFISCHE_ARTEN.get(art)
     if phasen_liste is None:
@@ -3060,6 +3078,11 @@ def _betrifft_begriffe(aenderung: dict) -> bool:
     return zerlegt is not None and zerlegt[0] == "begriffe"
 
 
+#: Was der Erkenner an die schon gezeigte Quittung des Zugs haengt, statt
+#: eine eigene "Noted:"-Meldung zu schicken (S5, M7).
+_AN_ZUGQUITTUNG = frozenset({"transkript_korrigieren", "festlegung_setzen"})
+
+
 def _haenge_an_zugquittung(conn, chat_id: int, zug_lauf: int | None,
                            vorher: dict | None, nachher: dict | None,
                            wirkliche: list[dict]) -> bool:
@@ -3071,12 +3094,20 @@ def _haenge_an_zugquittung(conn, chat_id: int, zug_lauf: int | None,
     damit ihr eines Undo beides zuruecknimmt -- statt einer zweiten
     "Noted:"-Nachricht mit zweitem Undo.
 
-    Nur fuer reine Transkriptkorrekturen; alles andere (ein Phasenwunsch,
-    eine Festlegung) bleibt eine eigene Meldung. False, wenn nicht
-    angehaengt wurde -- dann meldet der Aufrufer wie bisher."""
+    Runde 4, Befund M7: dasselbe fuer eine Festlegung aus derselben
+    Nachricht ("Noise stays: the noise of the night shift is what makes home
+    impossible" -> ``festlegung_setzen``) -- sonst stand neben "Move on?"
+    wieder ein "Noted: Agreed: ..." mit zweitem Undo. Der Zug hat den Satz
+    der Gruppe in seiner Antwort schon aufgenommen; das EINE Undo nimmt Liste,
+    Korrektur und Festlegung zurueck ("Undone: ..." nennt alle).
+
+    Nur fuer Transkriptkorrekturen und Festlegungen
+    (``_AN_ZUGQUITTUNG``); alles andere (ein Phasenwunsch) bleibt eine
+    eigene Meldung. False, wenn nicht angehaengt wurde -- dann meldet der
+    Aufrufer wie bisher."""
     if zug_lauf is None or vorher is None or nachher is None or not wirkliche:
         return False
-    if any(a.get("art") != "transkript_korrigieren" for a in wirkliche):
+    if any(a.get("art") not in _AN_ZUGQUITTUNG for a in wirkliche):
         return False
     try:
         return repo.haenge_an_erkenner_lauf(
@@ -3207,8 +3238,9 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         text = baue_meldung(wirkliche, conn, chat_id)
         if text is not None and begriffe_im_zug and _haenge_an_zugquittung(
                 conn, chat_id, zug_lauf, vorher, nachher, wirkliche):
-            # Befund S5: die Transkriptkorrektur steht jetzt im Undo der
-            # schon gezeigten "Move on?"-Frage -- keine zweite Quittung.
+            # Befund S5/M7: Transkriptkorrektur und Festlegung stehen jetzt
+            # im Undo der schon gezeigten "Move on?"-Frage -- keine zweite
+            # Quittung.
             text = None
         # Dieselbe Notiert-Zeile nicht zweimal (06.09.2026, Testgruppe
         # 21:50/21:52: derselbe Szenenfolge-Block stand wortgleich zweimal im

@@ -881,6 +881,7 @@ def test_laufe_stoesst_den_szenen_aufruf_an(conn, einst, monkeypatch):
         szene, "starte",
         lambda conn, tg, klm, e, chat_id, auftrag: gesehen.append((chat_id, auftrag)),
     )
+    repo.setze_phase(conn, 1, 6)  # Szenen erst ab Phase 4 (Runde 4, H4)
     _nachricht(conn, 1, 1, "schreib uns die Szene am Bahnhof aus")
     klm = LLMAttrappe(antwort={"aenderungen": [
         {"art": "szene_schreiben", "wert": "Szene 2: Maria kommt am Bahnhof an"},
@@ -900,6 +901,7 @@ def test_laufe_stoesst_hoechstens_eine_szene_je_lauf_an(conn, einst, monkeypatch
 
     gesehen = []
     monkeypatch.setattr(szene, "starte", lambda *a: gesehen.append(a[5]))
+    repo.setze_phase(conn, 1, 6)  # Szenen erst ab Phase 4 (Runde 4, H4)
     _nachricht(conn, 1, 1, "schreib beide Szenen")
     klm = LLMAttrappe(antwort={"aenderungen": [
         {"art": "szene_schreiben", "wert": "Szene 2: am Bahnhof"},
@@ -966,6 +968,7 @@ def test_laufe_stoesst_die_kuerzung_mit_nummer_an(conn, einst, monkeypatch):
             (chat_id, nummer)
         ),
     )
+    repo.setze_phase(conn, 1, 6)  # Szenen erst ab Phase 4 (Runde 4, H4)
     _nachricht(conn, 1, 1, "szene 2 ist zu lang, mach sie kuerzer")
     klm = LLMAttrappe(antwort={"aenderungen": [
         {"art": "szene_kuerzen", "wert": "2"},
@@ -988,6 +991,7 @@ def test_laufe_stoesst_die_kuerzung_ohne_nummer_an(conn, einst, monkeypatch):
             (chat_id, nummer)
         ),
     )
+    repo.setze_phase(conn, 1, 6)  # Prosaphase: ohne Nummer die ganze Geschichte
     _nachricht(conn, 1, 1, "kuerz die geschichte mal ein")
     klm = LLMAttrappe(antwort={"aenderungen": [
         {"art": "szene_kuerzen", "wert": ""},
@@ -1008,6 +1012,7 @@ def test_laufe_kuerzt_hoechstens_einmal_je_lauf(conn, einst, monkeypatch):
         kuerzung, "starte",
         lambda conn, tg, klm, e, chat_id, nummer=None: gesehen.append(nummer),
     )
+    repo.setze_phase(conn, 1, 6)  # Szenen erst ab Phase 4 (Runde 4, H4)
     _nachricht(conn, 1, 1, "kuerz szene 2 und szene 3")
     klm = LLMAttrappe(antwort={"aenderungen": [
         {"art": "szene_kuerzen", "wert": "2"},

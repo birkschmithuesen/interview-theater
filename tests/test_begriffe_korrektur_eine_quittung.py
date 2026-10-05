@@ -132,6 +132,88 @@ def test_transkriptkorrektur_im_selben_zug_eine_quittung_ein_undo(
     assert "foam -> home" in tg.texte[-1]
 
 
+def _festlegungen(conn):
+    return [r["text"] for r in repo.festlegungen(conn, CHAT)]
+
+
+def test_festlegung_und_korrektur_im_selben_zug_eine_quittung_ein_undo(
+        conn, tg, einst, padua):  # noqa: F811
+    """Runde 4, Befund M7 (msg 258-260, erkenner_lauf 27/28): neben der
+    Transkriptkorrektur liest der Erkenner eine Festlegung ("the noise of the
+    night shift is what makes home impossible") -- bisher eine zweite
+    Quittung "Noted: Agreed: ... / Corrected: foam -> home" mit zweitem Undo.
+    Jetzt haengt beides am Undo der schon gezeigten "Move on?"-Frage."""
+    aufnahme_id = _aufnahme(conn, "I keep thinking about foam. Noise all night.")
+
+    nach_zug = _zug_und_erkenner(
+        conn, tg, einst,
+        'The mic wrote "foam" - it is "home". Noise stays: the noise of the '
+        "night shift is what makes home impossible.",
+        "home, noise, belonging", [
+            {"art": "festlegung_setzen",
+             "wert": "the noise of the night shift is what makes home impossible"},
+            {"art": "transkript_korrigieren", "wert": "foam -> home"},
+        ],
+    )
+
+    assert tg.texte[nach_zug:] == [], tg.texte[nach_zug:]
+    assert _festlegungen(conn) == [
+        "the noise of the night shift is what makes home impossible"]
+    assert _transkript(conn, aufnahme_id) == "I keep thinking about home. Noise all night."
+    undos = [b for _, _, leiste, _ in tg.knoepfe for b, _ in leiste if b == "Undo"]
+    assert len(undos) == 1
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_daten(tg, "Undo"), message_id=900))
+
+    assert _festlegungen(conn) == []
+    assert _transkript(conn, aufnahme_id) == "I keep thinking about foam. Noise all night."
+    assert not _begriffe(conn)
+
+
+def test_nur_festlegung_im_selben_zug_keine_zweite_quittung(
+        conn, tg, einst, padua):  # noqa: F811
+    """Runde 4, msg 267-269 (erkenner_lauf 29/30): "can Night shift go up to
+    number two? ... the place where everything happens in one night" -- der
+    Zug speichert die neue Reihenfolge, der Erkenner notiert dazu "Agreed
+    (Night shift): ..." mit eigenem Undo. Jetzt eine Quittung."""
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "home, border, night shift")
+
+    nach_zug = _zug_und_erkenner(
+        conn, tg, einst,
+        "can Night shift go up to number two? it is the place where everything "
+        "happens in one night",
+        "home, night shift, border", [
+            {"art": "festlegung_setzen",
+             "wert": "sonstiges/Night shift: the place where everything happens in one night"},
+        ],
+    )
+
+    assert tg.texte[nach_zug:] == [], tg.texte[nach_zug:]
+    assert _festlegungen(conn) == ["the place where everything happens in one night"]
+    undos = [b for _, _, leiste, _ in tg.knoepfe for b, _ in leiste if b == "Undo"]
+    assert len(undos) == 1
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(_daten(tg, "Undo"), message_id=900))
+
+    assert _festlegungen(conn) == []
+    assert _begriffe(conn) == "home, border, night shift"
+
+
+def test_phasenwunsch_neben_festlegung_meldet_weiter_selbst(
+        conn, tg, einst, padua):  # noqa: F811
+    """Gegenprobe: alles ausser Korrektur und Festlegung (hier ein
+    Phasenwunsch) bleibt eine eigene Meldung wie bisher."""
+    nach_zug = _zug_und_erkenner(
+        conn, tg, einst, "home stays; let's go on to the questions",
+        "home, border", [
+            {"art": "festlegung_setzen", "wert": "home is where the night shift ends"},
+            {"art": "phase_setzen", "wert": "2"},
+        ],
+    )
+
+    assert tg.texte[nach_zug:] != []
+
+
 def test_ohne_vorschlagsblock_meldet_der_erkenner_wie_bisher(
         conn, tg, einst, padua):  # noqa: F811
     """Gegenprobe: speichert der Zug nichts, bleibt die Erkenner-Meldung."""

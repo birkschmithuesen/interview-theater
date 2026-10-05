@@ -209,6 +209,25 @@ def test_eroeffnung_vorschlag_speichert_sofort_ohne_ja_nein(conn, tg, einst, pad
     assert any("Euer Leitfaden fuers Interview" in t for _, t in tg.gesendet)
 
 
+def test_eroeffnung_autosave_zeigt_nie_den_rohen_abschluss_marker(
+    conn, tg, einst, padua_autosave,
+):
+    """Padua-Befund M1 (Lesung Runde 2, 05.10.2026): die Vorschau UND die
+    📌-Zeile bauten bisher roh aus dem ``VORSCHLAG EROEFFNUNG:``-Wert, der
+    intern den Marker 'ABSCHLUSS:' traegt -- beides landete woertlich im
+    Chat (Simulationslauf 2026-10-05-handy-giulia-p12, Nachricht 119/120).
+    ``vorschlag.ohne_marker`` streicht die GROSSGESCHRIEBENE Unterzeile aus
+    der Vorschau, ``schreibe_eroeffnung_automatisch`` zeigt in der
+    📌-Zeile den schon zerlegten Text statt des rohen Werts."""
+    _phase_zwei_mit_fragen(conn)
+
+    knoepfe.sende_mit_speicherleiste(conn, tg, 1, VORSCHLAG_EROEFFNUNG, e=einst)
+
+    gesendete_texte = [t for _, t in tg.gesendet]
+    assert not any("ABSCHLUSS:" in t for t in gesendete_texte)
+    assert any("Thank you for your time!" in t for t in gesendete_texte)
+
+
 def test_eroeffnung_undo_nimmt_beide_felder_zurueck(conn, tg, einst, padua_autosave):
     _phase_zwei_mit_fragen(conn)
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, VORSCHLAG_EROEFFNUNG, e=einst)

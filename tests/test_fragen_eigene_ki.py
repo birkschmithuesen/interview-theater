@@ -123,26 +123,45 @@ def test_padua_tallystufe_fordert_kein_fragen_weich_mehr(monkeypatch):
     ``basis._ERLAUBTE_BLOCKPAARE`` -- der weiche Block waere von
     ``_ein_feld_je_nachricht`` als zweites, unerwartetes Thema verworfen
     worden (Vorfall ``vorschlag_mehrere_arten``), ohne dass ``fragen_weich``
-    je gesetzt wird. Fix: die Vorlage fordert das waehrend der Tally-Stufe
-    nicht mehr an -- geprueft am tatsaechlich geladenen, gefuellten
-    Prompttext (nicht nur an der Rohdatei), damit ein Hot-Reload-Unterschied
-    nicht unbemerkt bliebe."""
+    je gesetzt wird. Fix (8acd2b8): die Vorlage fordert das waehrend der
+    Tally-Stufe nicht mehr an, sondern nur noch in der spaeteren
+    Einzeldurchgang-Stufe (``VORSCHLAG FRAGE:`` + ``VORSCHLAG FRAGEN
+    WEICH:``, ein Paar, das ``_ERLAUBTE_BLOCKPAARE`` erlaubt).
+
+    Update (Prompt-Hygiene-Karte, T1-Review-Fund, 05.10.2026, P2-N3): kurz
+    danach (7cd6096, 03.10.2026) hat Birk die weiche Fassung fuer Padua
+    komplett per Profilschalter abgeschaltet (``fragen_weich.aktiv = false``
+    in ``workshop/padua-2026/profil.toml``, ``workshop.fragen_weich_aktiv()``
+    == False) -- seitdem verwirft der Code jeden ``fragen_weich``-Wert fuer
+    Padua ohnehin (``knoepfe/fragen.py:_setze_weich``: "Abgeschaltet
+    (Padua): nichts speichern, auch wenn ein Modell den Block doch
+    liefert"), unabhaengig vom Prompttext. Die Einzeldurchgang-Stufe nannte
+    den Marker seitdem nur noch, um ihn ausdruecklich zu VERBIETEN ("No
+    softer versions, ... not here and not anywhere else in this phase
+    (switched off for this workshop)") -- ein toter Verweis, den keine
+    Pruefung mehr braucht, weil der Profilschalter die Wirkung schon
+    abschliessend regelt. Die Karte hat diesen Satz entfernt (nur die
+    positive Regel "The group words its questions itself." bleibt). Diese
+    Erwartung aendert sich deshalb mit: fuer Padua darf der Marker jetzt
+    NIRGENDS mehr im geladenen Phase-2-Prompt vorkommen, nicht einmal als
+    Verbotsklausel -- die urspruengliche Absicht des Tests (Tally-Stufe
+    ohne den Marker) ist weiter erfuellt, nur strenger (ueberall ohne)."""
     from interview_theater import anweisungen
 
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
     workshop.vergiss()
     anweisungen._CACHE.clear()
     try:
+        assert workshop.fragen_weich_aktiv() is False
         text = " ".join(anweisungen.hole("phasen/2").split())
         tally_beginn = text.index("Keep a running tally")
         vergleich_beginn = text.index("Once the comparison is running")
         tally_abschnitt = text[tally_beginn:vergleich_beginn]
         assert "FRAGEN WEICH" not in tally_abschnitt.upper()
-        # Der per-Frage-Weg NACH dem Reveal behaelt die weiche Fassung --
-        # das ist der bestehende, korrekt verdrahtete Pfad (``frage`` +
-        # ``fragen_weich`` steht in ``_ERLAUBTE_BLOCKPAARE``) und soll nicht
-        # mitgestrichen werden.
-        assert "VORSCHLAG FRAGEN WEICH:" in text
+        # Seit dem Profilschalter (7cd6096) und der Entfernung des toten
+        # Verbots-Verweises (P2-N3): der Marker kommt fuer Padua gar nicht
+        # mehr vor, auch nicht in der spaeteren Einzeldurchgang-Stufe.
+        assert "FRAGEN WEICH" not in text.upper()
     finally:
         workshop.vergiss()
         anweisungen._CACHE.clear()

@@ -301,3 +301,123 @@ gruen.
 
 **Commit:** siehe Git-Log, Nachfolgecommit zu `f341831` in diesem
 Worktree.
+
+## Fix-Abschnitt 2: Kollateralschaden an einem Bestandstest (05.10.2026)
+
+**Fund (Koordinator):** Commit `f341831` machte
+`tests/test_fragen_eigene_ki.py::test_padua_tallystufe_fordert_kein_fragen_weich_mehr`
+rot -- der Test erwartet `"VORSCHLAG FRAGEN WEICH:" in text` (Volltext von
+`workshop/padua-2026/prompts/phasen/2.md`), aber mein P2-N3-Fix hat genau
+diese letzte Erwaehnung des Markers entfernt. HEAD stand bei diesem Fund
+schon auf `e1d8f47` (T2-Commit obendrauf) -- T2s Dateien
+(`interview_theater/knoepfe/fragen.py`, `wirkung.py`, `fragen_ki.py`,
+`sprachen/en/prompts/fragen_ki_vorschlag.md`,
+`tests/test_fragen_eigene_ki.py` nur die von T2 NEU angehaengten Tests ab
+Zeile ~756) wurden nicht beruehrt; die betroffene Testfunktion liegt bei
+Zeile 117, weit vor T2s Anhang.
+
+**Untersucht, ob der Test recht hatte (nicht nur die Behauptung des
+Koordinators uebernommen):**
+- `git log --oneline --follow -- workshop/padua-2026/prompts/phasen/2.md`
+  zeigt zwei relevante Vorlaeufer-Commits:
+  - `8acd2b8` ("Fix Task 13 review finding: drop weich-pairing from
+    own-questions tally stage", 03.10.2026): der Test wurde HIER
+    geschrieben, als die weiche Fassung noch in der Einzeldurchgang-Stufe
+    AKTIV genutzt wurde (korrekt verdrahtet, `{"frage","fragen_weich"}` in
+    `basis._ERLAUBTE_BLOCKPAARE`) -- nur die Tally-Stufe-Nutzung war der
+    Bug.
+  - `7cd6096` ("feat(padua): weiche Fassungen in Phase 2 per Profil
+    abschaltbar, Padua aus", spaeter am 03.10.2026): schaltete die weiche
+    Fassung fuer Padua **komplett per Profilschalter ab**
+    (`workshop/padua-2026/profil.toml`: `[fragen_weich]` mit `aktiv =
+    false`; `workshop.fragen_weich_aktiv()` liefert seitdem `False` fuer
+    Padua) und schrieb den Einzeldurchgang-Absatz auf genau den Satz um,
+    den meine Karte als "toten Verweis" (P2-N3) entfernt hat ("No softer
+    versions, ... not here and not anywhere else in this phase (switched
+    off for this workshop)").
+  - Der Test selbst wurde bei `7cd6096` **nicht** aktualisiert -- sein
+    zweiter Assert blieb zufaellig gruen, weil die Verbotsklausel die
+    Zeichenkette "VORSCHLAG FRAGEN WEICH:" noch (negiert) enthielt. Mein
+    Fix hat genau diese Zeichenkette entfernt, der Assert griff zum ersten
+    Mal wirklich.
+- `interview_theater/knoepfe/fragen.py:_setze_weich` (unveraendert von
+  dieser Karte): "Abgeschaltet (Padua): nichts speichern, auch wenn ein
+  Modell den Block doch liefert" -- der Profilschalter faengt einen
+  Modell-Ausreisser ohnehin ab, unabhaengig vom Prompttext. Weitere
+  Fundstellen, die ausschliesslich ueber `workshop.fragen_weich_aktiv()`
+  gaten: `fehlstellen.py:142`, `phasen.py:410`, `leitfaden.py:137`,
+  `roadmap.py:48`.
+- `grep -n WEICH interview_theater/sprachen/en/prompts/system.md` --
+  leer: der Marker stand nie im Marker-Katalog der Basisdatei, nur in
+  phasenspezifischen Overlays (Padua: entfernt; die geteilte,
+  nicht-Padua-Datei `interview_theater/sprachen/en/prompts/phasen/2.md`
+  behaelt ihn unveraendert fuer Profile mit `fragen_weich.aktiv = true`).
+
+**Entscheidung:** der urspruengliche Bug-Fix (`8acd2b8`) ist durch den
+spaeteren Profilschalter (`7cd6096`) laengst ueberholt -- fuer Padua ist
+die weiche Fassung heute vollstaendig und zweifach abgesichert aus (Prompt
+UND Code), die entfernte Verbotsklausel war tatsaechlich redundant/tot
+(bestaetigt P2-N3, keine Reaktivierung noetig). Den toten Verweis
+wiedereinzufuehren waere ein Rueckschritt. Richtig ist, den Bestandstest
+auf die seit `7cd6096` tatsaechlich gueltige, strengere Erwartung zu
+heben: fuer Padua kommt der Marker NIRGENDS mehr im geladenen
+Phase-2-Prompt vor (nicht nur nicht in der Tally-Stufe). Docstring und
+Assert in `tests/test_fragen_eigene_ki.py` entsprechend aktualisiert
+(zweiter Assert von `in text` auf `not in text.upper()` gedreht, dritter,
+neuer Assert `workshop.fragen_weich_aktiv() is False` als Beleg fuer die
+Praemisse ergaenzt).
+
+**Weitere Grep-Pruefung** (alle Strings, die in `system.md`,
+`anweisung.md`, `phasen/1.md`, `phasen/2.md` durch T1 entfernt/geaendert
+wurden, gegen `tests/` gesucht): `VORSCHLAG FRAGENAUSWAHL`, `VORSCHLAG
+FRAGEN WEICH`/`FRAGEN WEICH`, `thirteen markers`, `amateur theatre
+group`, `Telegram shows them raw`, `with a suggested form for each
+scene`, `already in the scene sequence suggestion`, `no longer
+discussed`, `staging in rehearsal`, `Current phase: 1`/`Current phase:
+2`, `tell each scene as prose`, `at the end`, `mic check in one step`,
+`no separate check button`. Alle Treffer ausser dem oben behobenen waren
+entweder (a) meine eigenen, schon gruenen T1-Tests, oder (b) Tests, die
+diese Strings als selbst gebaute Fixtures fuer generischen Dispatcher-Code
+verwenden (`test_phase2_einzeln.py`, `test_redo_knopf.py`,
+`test_undo_fragen_abschluss.py`, `test_phase2_kette.py`,
+`test_ablauf.py`, `test_leitfaden.py`, `test_vorschlag.py`,
+`test_pruefe_sprache.py`, `test_web_e2e_http.py`, `test_fragen_weich.py`,
+`test_phase2_weich_aus.py`, `test_pruefe_prompt_dumps.py`,
+`test_prompt_lesung.py`, `test_begriffsboard_analyse.py`) -- sie lesen
+nicht die tatsaechlichen Prompt-Dateien, sondern konstruieren ihre eigenen
+Beispieltexte, also unberuehrt von Prompt-Aenderungen. `test_anweisungen.py`
+liest zwar `anweisungen.hole("phasen/1")` unter Padua, prueft aber
+"no question at the end" (unveraendert in `phasen/1.md` stehen geblieben,
+nicht Teil meiner Aenderung) -- lief schon vorher gruen und blieb es.
+
+### Befehle und Ergebnis
+
+```
+uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p no:cacheprovider \
+  "tests/test_fragen_eigene_ki.py::test_padua_tallystufe_fordert_kein_fragen_weich_mehr"
+-> vorher: 1 failed; nachher: 1 passed
+```
+
+```
+uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p no:cacheprovider \
+  tests/test_phase2_einzeln.py tests/test_redo_knopf.py tests/test_undo_fragen_abschluss.py \
+  tests/test_phase2_kette.py tests/test_ablauf.py tests/test_leitfaden.py tests/test_vorschlag.py \
+  tests/test_pruefe_sprache.py tests/test_fragen_eigene_ki.py tests/test_web_e2e_http.py \
+  tests/test_fragen_weich.py tests/test_phase2_weich_aus.py tests/test_anweisungen.py \
+  tests/test_begriffsboard_analyse.py tests/test_pruefe_prompt_dumps.py tests/test_prompt_lesung.py \
+  tests/test_padua_phase1_prompt.py tests/test_padua_phase2_prompt.py tests/test_phasen_prompts_teil2.py \
+  tests/test_sprache_prompts.py
+-> 495 passed
+```
+
+```
+uv run --extra dev python -m scripts.pruefe_profil padua-2026
+-> padua-2026: in Ordnung
+```
+
+Nur `tests/test_fragen_eigene_ki.py` geaendert (eine Testfunktion, Zeile
+117-162); `git status --short` nach dem Fix zeigt, dass keine T2-Datei
+beruehrt wurde.
+
+**Commit:** Nachfolgecommit zu `9f07e86` in diesem Worktree (nach dem
+T2-Commit `e1d8f47`).

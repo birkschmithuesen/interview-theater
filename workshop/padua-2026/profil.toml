@@ -225,3 +225,11 @@ einwilligung = false
 # und nicht nur implizit vom Code-Default kommt. Der Unterschalter bleibt
 # vollstaendig gebaut und mit einer Zeile umkehrbar (false).
 zitate_an_claude = true
+
+# Phase 1 (Begriffe) und Phase 2 (Eroeffnung): ein Vorschlag wird sofort
+# gespeichert statt der Ja/Nein-Rueckfrage (Abnahme-Befund t_0b702d1d: beide
+# Knoepfe schrieben ohnehin denselben Wert). Statt "Notiert: ..." + Ja/Nein
+# kommt eine 📌-Zeile mit EINEM Undo-Knopf -- derselbe Mechanismus wie
+# Phase 4. Ohne diese Zeile bleibt die Ja/Nein-Rueckfrage bestehen.
+[speichern]
+autosave_phase1_2 = true

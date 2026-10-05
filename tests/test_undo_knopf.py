@@ -108,13 +108,24 @@ def test_undo_texte_dortmund_deutsch(conn):
 
 def test_undo_knopf_traegt_in_padua_englisch(conn, padua):
     assert knoepfe.T._TEXT_UNDO_KNOPF == "Undo"
-    assert knoepfe.T._TEXT_UNDO_ERLEDIGT == "Undone:\n{zeilen}"
+    # P1-M2 (Prompt-Check Padua P1/P2): kein roher "Undone:"-Block mehr,
+    # sondern ein lesbarer Satz vor der kurzen Liste -- das Praefix
+    # "Undone:" bleibt woertlich stehen (kontext._SYSTEMANFAENGE_EN
+    # erkennt die Zeile daran, siehe tests/test_sprache_parser.py).
+    assert knoepfe.T._TEXT_UNDO_ERLEDIGT == "Undone: I've reverted this.\n{zeilen}"
     # Abnahme P1-2, Fortsetzung: "please fix it in the work status" war
     # kryptisch (zwei echte Browserlaeufe, Befund #3) -- jetzt konkret, mit
     # dem echten Tab-Namen ("Workbench") statt "work status", und einer
     # zweiten Option ("tell me ... here in the chat").
     assert "Workbench tab" in knoepfe.T._TEXT_UNDO_GEAENDERT
     assert "tell me the new value here in the chat" in knoepfe.T._TEXT_UNDO_GEAENDERT
+
+
+def test_redo_knopf_traegt_in_padua_englisch(conn, padua):
+    """Spiegel von ``test_undo_knopf_traegt_in_padua_englisch`` (P1-M2):
+    derselbe lesbare Satz vor der Liste, das Praefix "Redone:" bleibt."""
+    assert knoepfe.T._TEXT_REDO_KNOPF == "Redo"
+    assert knoepfe.T._TEXT_REDO_ERLEDIGT == "Redone: I've restored this.\n{zeilen}"
 
 
 def test_undo_steht_als_letzte_zeile_unter_der_grundleiste(conn):

@@ -108,6 +108,23 @@ def test_nutzertext_nimmt_nur_das_transkript_entgegen():
     assert "Genau dieser Satz und sonst nichts." in text
 
 
+def test_nutzertext_kopf_ist_deutsch_ohne_profil():
+    text = diskussion._nutzertext("Beispielsatz.")
+    assert text.startswith("Das Transkript der Diskussion:")
+
+
+def test_nutzertext_kopf_ist_englisch_in_padua(monkeypatch):
+    """P1-L8/P2-N2 (Prompt-Check Padua P1/P2, Abschnitt 9): der Nutzerteil
+    trug den deutschen Kopf auch in Padua (englisches Profil) -- jetzt ueber
+    die Sprachschicht wie ``begriffsboard._TRANSKRIPT_KOPF``."""
+    from interview_theater import sprache
+
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    text = diskussion._nutzertext("Example sentence.")
+    assert text.startswith("The transcript of the discussion:")
+    assert "Das Transkript" not in text
+
+
 # ---------------------------------------------------------------------------
 # starte(): die Weichen
 # ---------------------------------------------------------------------------

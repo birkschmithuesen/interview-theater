@@ -1,4 +1,10 @@
+import re
+
 from simulation import browser_stationen as s
+from simulation import browser_invarianten as inv
+from simulation.diskussionen import DISKUSSIONEN
+
+REZEPT = re.compile(r"\b(with the button|undo button|press the|click the|tap the|save them)\b", re.I)
 
 
 def _b(von, text, typ="text"):
@@ -82,3 +88,37 @@ def test_p1_start_ist_die_erste_station_und_ruft_keine_persona():
     if not start.ohne_persona:
         client.erzeuge()  # a real engine would call the persona here
     assert aufrufe["n"] == 0
+
+
+def test_ziele_statt_rezepte_in_beiden_listen():
+    for liste in (s.STATIONEN_P12, s.STATIONEN_INVARIANTEN):
+        for st in liste:
+            if st.schluessel in {"p1-zuhoeren", "p1-zuhoeren-2", "p1-zuhoeren-3"}:
+                continue  # 'Start listening' ist hier die Aufgabe selbst
+            assert not REZEPT.search(st.ziel), (st.schluessel, st.ziel)
+
+
+def test_p1_begriffe_ist_ein_ziel():
+    st = next(x for x in s.STATIONEN_P12 if x.schluessel == "p1-begriffe")
+    assert "workbench" in st.ziel.casefold()
+    assert "button" not in st.ziel.casefold()
+
+
+def test_invarianten_liste_deckt_die_abnahme():
+    liste = s.STATIONEN_INVARIANTEN
+    pruefungen = {p for st in liste for p in st.pruefung}
+    assert {"nach_ende", "wissen", "raumcheck", "zweite_gruppe", "verhoerer"} <= pruefungen
+    diskussionen = [st.diskussion for st in liste if st.diskussion]
+    assert diskussionen[0] == "knapp"
+    assert len(diskussionen) >= 3  # erste, zweite, dritte Diskussion in derselben Gruppe
+    assert all(d in DISKUSSIONEN for d in diskussionen)
+    assert any(st.gruppe == 2 for st in liste)
+    wissen = next(st for st in liste if "wissen" in st.pruefung)
+    assert wissen.sage == inv.WISSENSFRAGE
+    assert all(p in s.PRUEFUNGEN for p in pruefungen)
+
+
+def test_p12_prueft_nach_ende_und_p2_werkbank():
+    p12 = {st.schluessel: st for st in s.STATIONEN_P12}
+    assert "nach_ende" in p12["p1-zuhoeren"].pruefung
+    assert "p2_werkbank" in p12["p2-einzeldurchgang"].pruefung

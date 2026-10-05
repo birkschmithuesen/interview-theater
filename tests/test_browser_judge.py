@@ -1,4 +1,5 @@
 from simulation import browser_judge as j
+from simulation.browser_judge import RUBRIK_PFAD
 
 
 class _FakeClient:
@@ -103,3 +104,9 @@ def test_rubrik_erlaubt_das_begriffsboard_beim_zuhoeren():
             "context recording.") not in text
     assert "term board" in text
     assert "no bot line in the chat" in text.lower()
+
+
+def test_rubrik_hat_onboarding_checkliste():
+    text = RUBRIK_PFAD.read_text(encoding="utf-8")
+    for stichwort in ("two phones", "CoThinker", "room check", "first step", "phone card", "web app", "Telegram"):
+        assert stichwort.casefold() in text.casefold(), stichwort

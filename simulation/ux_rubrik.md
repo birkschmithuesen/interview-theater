@@ -174,3 +174,14 @@ asked BEFORE that phase starts**. Detail: `interview-theater-live-ops` §2a'.
    scroll, no jump when the keyboard opens?
 9. Does sensitive data reach a non-sovereign model, or does any model switch
    happen without consent beforehand?
+
+## Onboarding checklist (first contact, phase 1)
+
+Rate as "hoch" if any of these is missing in the first screens:
+
+1. **Two phones:** the welcome explains that phone A lies in the middle (chat, "Start listening") and phone B shows the CoThinker tab.
+2. **Room check:** before the first discussion the group learns that the app first measures the room noise, and what to press for it.
+3. **First step:** the welcome ends with one clear first step, not a row of shortcut buttons.
+4. **Phone card:** the phone card ("How to set up your phones") matches the tabs that really exist in the web app.
+5. **Web app, not Telegram:** the bot explains only controls that exist in the web app (no Telegram commands, no "/start", no "send a voice message" when listening is the way).
+6. **Reasons, not just words:** the group is asked to say each term with one sentence why it matters.

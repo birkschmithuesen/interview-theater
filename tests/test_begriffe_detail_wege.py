@@ -190,8 +190,14 @@ def _aufrufe():
 #: Seit 05.10.2026 mittags (Brief "p1-bleiben") ein zweiter:
 #: ``knoepfe.basis._korrigiere_begriffe`` -- die Begriffs-Korrektur aus dem
 #: Gespraechszug in Phase 1, ``schreibe_detail`` ebenfalls direkt daneben
-#: (``test_korrektur_schreibt_detail`` unten).
-LITERAL_MIT_HAKEN = [("begriffsboard.py", "begriffe"), ("knoepfe/basis.py", "begriffe")]
+#: (``test_korrektur_schreibt_detail`` unten). Seit Feedbackloop P1-2
+#: (Befund S5) ein dritter: ``erkenner._entferne_einen_begriff`` nimmt einen
+#: einzelnen Begriff aus der Liste statt das Feld zu leeren
+#: (``test_einzelner_begriff_entfernen_schreibt_detail`` unten).
+LITERAL_MIT_HAKEN = [
+    ("begriffsboard.py", "begriffe"), ("erkenner.py", "begriffe"),
+    ("knoepfe/basis.py", "begriffe"),
+]
 
 
 def test_kein_literaler_schreibweg_fuer_begriffe():
@@ -203,6 +209,13 @@ def test_korrektur_schreibt_detail(conn, einst):
     _board(conn)
     basis._korrigiere_begriffe(conn, _TG(), CHAT, "Grenze, Heimat", "", e=einst)
     assert [d["begriff"] for d in _detail(conn)] == ["Grenze", "Heimat"]
+
+
+def test_einzelner_begriff_entfernen_schreibt_detail(conn):
+    _board(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "Heimat, Grenze")
+    erkenner.entferne(conn, CHAT, "BEGRIFFE Grenze")
+    assert [d["begriff"] for d in _detail(conn)] == ["Heimat"]
 
 
 def test_jeder_variable_schreibweg_ist_geprueft():

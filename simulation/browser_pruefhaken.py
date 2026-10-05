@@ -92,6 +92,15 @@ class PruefKontext:
     #: ``modellwahl``-Haken (Phase-3- bzw. Phase-4-Bereich ueber alle
     #: Stationen dieser Phase).
     stationen_phase: dict = field(default_factory=dict)
+    #: M2 (Review 05.10.2026, Fix round 2): welche Phasenteile
+    #: (3 und/oder 4) ``_modellwahl`` in DIESEM Lauf schon geprueft hat --
+    #: dasselbe ``set``-Objekt wandert per Referenz in JEDE ``PruefKontext``
+    #: dieses Laufs (wie ``aufruf_bereiche``/``stationen_phase``), damit eine
+    #: spaetere Station nicht denselben Teil ein zweites Mal meldet, ein
+    #: FEHLENDER frueherer Check (z. B. eine gescheiterte Phase-3-Station
+    #: ohne eigenen ``modellwahl``-Haken) aber weiter vollstaendig nachgeholt
+    #: wird (``_modellwahl`` faellt dann auf ``nur_phase=None`` zurueck).
+    modellwahl_phasen_geprueft: set = field(default_factory=set)
 
 
 def speicher_schluessel(page) -> list[str]:
@@ -276,15 +285,19 @@ def _lies_p34(kontext: PruefKontext, chat_id: int) -> inv.P34Stand:
 
 
 def _nach_aufnahme_p34(station, kontext: PruefKontext, chat_id: int, *, pruefe, ende, frist_s: float,
-                       knopf_text: str) -> list[inv.Befund]:
+                       knopf_text: str, grace_s: float = inv.GRACE_NACH_SIGNAL_S) -> list[inv.Befund]:
     """Gemeinsamer Kern von ``_nach_interview``/``_nach_brainstorm``: wie
     ``_nach_ende``, aber ueber ``P34Stand`` und ``kontext.warte_p34``
     (andere Signatur als ``kontext.warte``: ``(lese, pruefe, *, frist_s,
-    ende)``, siehe ``browser_invarianten.warte_auf``).
+    ende, grace_s)``, siehe ``browser_invarianten.warte_auf``).
 
     ``ende`` (I2, Fix round 1): das Positiv-Signal, das ``warte_auf`` von der
     reinen "keine Befunde"-Zwischenmessung unterscheidet -- ohne ``ende``
-    wuerde eine zweite, verspaetete Statuszeile/Karte nie geprueft."""
+    wuerde eine zweite, verspaetete Statuszeile/Karte nie geprueft.
+
+    ``grace_s`` (M3, Fix round 2): ``_nach_interview`` reicht
+    ``inv.GRACE_NACH_INTERVIEW_S`` durch (laenger als der Nachhol-Takt),
+    ``_nach_brainstorm`` laesst die kuerzere Vorgabe stehen."""
     if kontext.ergebnis_p34 is not None:
         befunde, stand = kontext.ergebnis_p34
     else:
@@ -296,7 +309,7 @@ def _nach_aufnahme_p34(station, kontext: PruefKontext, chat_id: int, *, pruefe, 
             "Stationsbeginn, Wartezeit ab Stationsende")
         befunde, stand = kontext.warte_p34(
             lambda: _lies_p34(kontext, chat_id), lambda s: pruefe(vorher, s), frist_s=frist_s,
-            ende=lambda s: ende(vorher, s))
+            ende=lambda s: ende(vorher, s), grace_s=grace_s)
     kontext.stand_p34 = stand
     return list(befunde)
 
@@ -306,7 +319,8 @@ def _nach_interview(station, kontext: PruefKontext, chat_id: int) -> list[inv.Be
         station, kontext, chat_id,
         pruefe=lambda vorher, stand: inv.pruefe_nach_interview(vorher, stand, station.schluessel),
         ende=inv.hat_neue_statuszeile,
-        frist_s=inv.FRIST_NACH_INTERVIEW_S, knopf_text="End interview")
+        frist_s=inv.FRIST_NACH_INTERVIEW_S, knopf_text="End interview",
+        grace_s=inv.GRACE_NACH_INTERVIEW_S)
 
 
 def _nach_brainstorm(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
@@ -328,9 +342,36 @@ def _bereich_je_phase(kontext: PruefKontext, phase: int) -> tuple[int, int]:
 
 
 def _modellwahl(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    """M2 (Review 05.10.2026, Fix round 2): an einer Phase-3-Station
+    (``p3-uebergang``) ist der Phase-4-Bereich naturgemaess noch leer (keine
+    Phase-4-Station ist gelaufen) -- das lieferte dort IMMER
+    ``nicht_pruefbar:p4_gespraech_nicht_opus`` als Rauschen, deshalb wird an
+    einer Phase-3-Station NUR der Phase-3-Teil geprueft.
+
+    An einer Phase-4-Station wird der Phase-3-Teil NUR dann uebersprungen,
+    wenn er schon an einer frueheren Station dieses Laufs geprueft wurde
+    (``kontext.modellwahl_phasen_geprueft``, dasselbe ``set``-Objekt wandert
+    per Referenz durch den ganzen Lauf) -- sonst kaeme ein echter
+    ``P3_GESPRAECH_OPUS``-Befund dort ein zweites Mal. Lief NIE eine eigene
+    Phase-3-Station mit diesem Haken (z. B. weil sie vorher scheiterte), ist
+    der Phase-3-Teil noch UNGEPRUEFT -- dann prueft die Phase-4-Station ihn
+    vollstaendig nach (``nur_phase=None``), damit ein Phase-3-Befund nicht
+    spurlos verschwindet (siehe M1, Fix round 1:
+    ``test_aufruf_waehrend_gescheiterter_station_bleibt_fuer_modellwahl_sichtbar``)."""
     stand = _lies_p34(kontext, chat_id)
-    return inv.pruefe_modellwahl(
-        stand, _bereich_je_phase(kontext, 3), _bereich_je_phase(kontext, 4), station.schluessel)
+    bereich3 = _bereich_je_phase(kontext, 3)
+    bereich4 = _bereich_je_phase(kontext, 4)
+    geprueft = kontext.modellwahl_phasen_geprueft
+    if station.phase == 3:
+        nur_phase = 3
+    elif 3 in geprueft:
+        nur_phase = 4
+    else:
+        nur_phase = None
+    befunde = inv.pruefe_modellwahl(
+        stand, bereich3, bereich4, station.schluessel, nur_phase=nur_phase)
+    geprueft.update({3, 4} if nur_phase is None else {nur_phase})
+    return befunde
 
 
 def _p5_angebot(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:

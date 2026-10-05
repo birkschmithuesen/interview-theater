@@ -601,6 +601,20 @@ def test_karte_geerdet_gegen_bogen_lehnt_generische_saetze_ab():
         "The cousin waits by the bench near the cafe with his broken bag.", transkript)
 
 
+def test_karte_geerdet_gegen_bogen_lehnt_weitere_generische_saetze_ab():
+    """I1 (Review 05.10.2026, Fix round 2): diese drei Saetze trafen vor dem
+    Fix alle als 'geerdet', weil (a) ``in karte_cf`` Transkriptwoerter als
+    Teilstring statt als ganzes Wort suchte und (b) generische, aber im
+    Bogen-Text woertlich vorkommende Fuellwoerter (whole/never/always/same/
+    every/single/right/actually) als 'Inhaltswort' zaehlten."""
+    from simulation.diskussionen import DISKUSSIONEN
+
+    transkript = DISKUSSIONEN["brainstorm-bogen"].text()
+    assert not inv.karte_geerdet("What if the whole thing might never end?", transkript)
+    assert not inv.karte_geerdet("Everyone forgets something right away.", transkript)
+    assert not inv.karte_geerdet("It is always the same, every single time.", transkript)
+
+
 def test_modellwahl_phase3_nie_opus_phase4_opus_keine_usa_frage(db34):
     for i, (art, modus) in enumerate([("gespraech", "A"), ("gespraech", "C"), ("verdichter", "A")], 1):
         _schreibe(db34, "INSERT INTO aufruf (id, chat_id, art, modus) VALUES (?, 7, ?, ?)", i, art, modus)
@@ -629,6 +643,32 @@ def test_modellwahl_phase4_leer_ist_nicht_pruefbar(db34):
     # Ein leerer Bereich (noch keine Phase-4-Station gelaufen) ist derselbe Fall.
     befunde_leer = inv.pruefe_modellwahl(stand, phase3=(0, 1), phase4=(0, 0), station="p4-uebergang")
     assert [b.schluessel for b in befunde_leer] == [f"{inv.NICHT_PRUEFBAR}:{inv.P4_GESPRAECH_NICHT_OPUS}"]
+
+
+def test_modellwahl_nur_phase_beschraenkt_auf_die_eigene_stationsphase(db34):
+    """M2 (Review 05.10.2026, Fix round 2): ohne Einschraenkung pruefte
+    ``pruefe_modellwahl`` an JEDER Station IMMER beide Phasenteile -- an
+    ``p3-uebergang`` ist der Phase-4-Bereich noch leer (keine Phase-4-Station
+    ist gelaufen), das lieferte dort IMMER
+    ``nicht_pruefbar:p4_gespraech_nicht_opus`` als Rauschen; und ein echter
+    ``P3_GESPRAECH_OPUS``-Befund wuerde an der spaeteren Phase-4-Station
+    (``p4-uebergang``) ein zweites Mal gemeldet, weil derselbe
+    Phase-3-Bereich dort erneut geprueft wird. ``nur_phase`` beschraenkt die
+    Pruefung auf den zur Station passenden Teil."""
+    for i, (art, modus) in enumerate([("gespraech", "C"), ("gespraech", "A")], 1):
+        _schreibe(db34, "INSERT INTO aufruf (id, chat_id, art, modus) VALUES (?, 7, ?, ?)", i, art, modus)
+    stand = _p34(db34)
+    # An der Phase-3-Station (nur_phase=3): der P3-Befund kommt, der leere
+    # Phase-4-Bereich bleibt UNGEPRUEFT (kein nicht_pruefbar-Rauschen).
+    befunde3 = inv.pruefe_modellwahl(stand, phase3=(0, 1), phase4=(0, 0), station="p3-uebergang",
+                                     nur_phase=3)
+    assert [b.schluessel for b in befunde3] == [inv.P3_GESPRAECH_OPUS]
+    # An der Phase-4-Station (nur_phase=4): derselbe Phase-3-Bereich wird
+    # NICHT erneut geprueft -- der P3-Befund kommt kein zweites Mal, nur das
+    # Phase-4-Ergebnis (hier: regulaer ueber Opus, also gar kein Befund).
+    befunde4 = inv.pruefe_modellwahl(stand, phase3=(0, 1), phase4=(1, 2), station="p4-uebergang",
+                                     nur_phase=4)
+    assert inv.P3_GESPRAECH_OPUS not in {b.schluessel for b in befunde4}
 
 
 def test_p5_nicht_angeboten_obwohl_moeglich(db34):
@@ -699,3 +739,16 @@ def test_warte_auf_wartet_die_gnadenfrist_auch_nach_der_frist_ab():
         takt_s=1.0, schlafe=schlafe, uhr=lambda: zeit["t"])
     assert ("schlafe", 7.0) in rufe
     assert befunde == []
+
+
+def test_grace_nach_interview_mindestens_nachhol_intervall_plus_fuenf():
+    """M3 (Review 05.10.2026, Fix round 2): ``GRACE_NACH_SIGNAL_S`` (10 s)
+    ist KUERZER als ``aufnahme.NACHHOL_INTERVALL_S`` (60 s) -- fuer den
+    Interview-Pfad reicht das nicht: eine zweite Statuszeile, die erst durch
+    einen Nachhol-Lauf entsteht, kommt oft erst nach ueber 60 s. Pinnt die
+    Beziehung, statt die Zahl ein zweites Mal zu raten."""
+    from interview_theater import aufnahme
+
+    assert inv.GRACE_NACH_INTERVIEW_S == aufnahme.NACHHOL_INTERVALL_S + 5.0
+    assert inv.GRACE_NACH_INTERVIEW_S >= aufnahme.NACHHOL_INTERVALL_S + 5.0
+    assert inv.GRACE_NACH_SIGNAL_S < aufnahme.NACHHOL_INTERVALL_S

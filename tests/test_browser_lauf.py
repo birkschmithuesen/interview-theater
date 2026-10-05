@@ -813,7 +813,7 @@ def test_fuehre_pruefungen_p34_nach_interview_ohne_browser(tmp_path):
     aufbau.close()
     gruppen = [Gruppe(token="tok1", chat_id=CHAT)]
 
-    def warte_p34(lese, pruefe, *, frist_s, ende=None):
+    def warte_p34(lese, pruefe, *, frist_s, ende=None, grace_s=None):
         stand = lese()
         return pruefe(stand), stand
 
@@ -823,6 +823,37 @@ def test_fuehre_pruefungen_p34_nach_interview_ohne_browser(tmp_path):
                                         aufnahme="interview")
     befunde = browser_lauf.fuehre_pruefungen(station, kontext)
     assert {b.schluessel for b in befunde} == {inv.INTERVIEW_OHNE_BLASE, inv.INTERVIEW_OHNE_STATUS}
+
+
+def test_nach_interview_und_nach_brainstorm_reichen_die_passende_gnadenfrist_durch(tmp_path):
+    """M3 (Review 05.10.2026, Fix round 2): ``_nach_interview`` muss die
+    laengere ``inv.GRACE_NACH_INTERVIEW_S`` an ``kontext.warte_p34``
+    weitergeben (kuerzer als der Nachhol-Takt liesse eine zweite, erst
+    nachgeholte Statuszeile unbemerkt), ``_nach_brainstorm`` bleibt bei der
+    kurzen Vorgabe ``inv.GRACE_NACH_SIGNAL_S``."""
+    pfad = str(tmp_path / "p34.db")
+    aufbau = db.verbinde(pfad); db.initialisiere(aufbau); aufbau.close()
+    gruppen = [Gruppe(token="tok1", chat_id=CHAT)]
+    gesehen = {}
+
+    def warte_p34(lese, pruefe, *, frist_s, ende=None, grace_s=None):
+        gesehen["grace_s"] = grace_s
+        stand = lese()
+        return pruefe(stand), stand
+
+    kontext = browser_lauf.PruefKontext(
+        db_pfad=pfad, gruppen=gruppen, page=None, warte_p34=warte_p34)
+    station_interview = browser_stationen.Station(
+        "p3-x", 3, "x", pruefung=("nach_interview",), aufnahme="interview")
+    browser_lauf.fuehre_pruefungen(station_interview, kontext)
+    assert gesehen["grace_s"] == inv.GRACE_NACH_INTERVIEW_S
+
+    kontext2 = browser_lauf.PruefKontext(
+        db_pfad=pfad, gruppen=gruppen, page=None, warte_p34=warte_p34)
+    station_brainstorm = browser_stationen.Station(
+        "p4-x", 4, "x", pruefung=("nach_brainstorm",), aufnahme="brainstorm")
+    browser_lauf.fuehre_pruefungen(station_brainstorm, kontext2)
+    assert gesehen["grace_s"] == inv.GRACE_NACH_SIGNAL_S
 
 
 def test_bereich_je_phase_vereinigt_alle_stationen_dieser_phase():
@@ -863,6 +894,45 @@ def test_modellwahl_haken_nutzt_bereich_je_phase(tmp_path):
     station = browser_stationen.Station("p4-uebergang", 4, "x", pruefung=("modellwahl",))
     befunde = bph._modellwahl(station, kontext, CHAT)
     assert [b.schluessel for b in befunde] == [inv.P4_GESPRAECH_NICHT_OPUS]
+
+
+def test_modellwahl_haken_meldet_p3_befund_nur_an_der_phase3_station(tmp_path):
+    """M2 (Review 05.10.2026, Fix round 2): vor dem Fix prueft
+    ``_modellwahl`` an JEDER Station IMMER beide Phasenteile. An
+    ``p3-uebergang`` lieferte das IMMER
+    ``nicht_pruefbar:p4_gespraech_nicht_opus`` (der Phase-4-Bereich ist dort
+    noch leer, keine Phase-4-Station ist gelaufen), und ein echter
+    ``P3_GESPRAECH_OPUS``-Befund kaeme an der spaeteren Station
+    ``p4-uebergang`` ein zweites Mal (derselbe Phase-3-Bereich wird dort
+    erneut geprueft). Mit ``nur_phase=station.phase`` meldet jede Station
+    nur noch ihren eigenen Teil."""
+    from simulation import browser_pruefhaken as bph
+
+    pfad = str(tmp_path / "p34.db")
+    aufbau = db.verbinde(pfad); db.initialisiere(aufbau); aufbau.close()
+    conn = db.verbinde(pfad)
+    # Ein Opus-Gespraechsaufruf WAEHREND Phase 3 (Datenschutzverstoss).
+    conn.execute(
+        "INSERT INTO aufruf (id, chat_id, art, modus, erstellt_am) VALUES (?, ?, ?, ?, ?)",
+        (1, CHAT, "gespraech", "C", repo._jetzt()))
+    conn.commit(); conn.close()
+    kontext = browser_lauf.PruefKontext(
+        db_pfad=pfad, gruppen=[Gruppe("tok1", CHAT)], page=None,
+        aufruf_bereiche={"p3-uebergang": (0, 1)},
+        stationen_phase={"p3-uebergang": 3})
+    station3 = browser_stationen.Station("p3-uebergang", 3, "x", pruefung=("modellwahl",))
+    befunde3 = bph._modellwahl(station3, kontext, CHAT)
+    # Der P3-Befund kommt, aber KEIN Rauschen ueber den (noch leeren) Phase-4-Bereich.
+    assert [b.schluessel for b in befunde3] == [inv.P3_GESPRAECH_OPUS]
+
+    # Phase 4 ist jetzt (ohne eigenen Gespraechsaufruf) auch gelaufen --
+    # derselbe Phase-3-Bereich bleibt im Kontext unveraendert stehen.
+    kontext.aufruf_bereiche["p4-uebergang"] = (1, 1)
+    kontext.stationen_phase["p4-uebergang"] = 4
+    station4 = browser_stationen.Station("p4-uebergang", 4, "x", pruefung=("modellwahl",))
+    befunde4 = bph._modellwahl(station4, kontext, CHAT)
+    # Der P3-Befund darf an der Phase-4-Station nicht noch einmal kommen.
+    assert inv.P3_GESPRAECH_OPUS not in {b.schluessel for b in befunde4}
 
 
 def test_teile_bereich_am_phasenwechsel_splittet_nur_wenn_wechsel_dazwischen_liegt():

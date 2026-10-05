@@ -57,6 +57,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from interview_theater import aufnahme
+
 URSACHE_UNGEKLAERT = "App oder Werkzeug – ungeklaert"
 FRIST_NACH_ENDE_S = 60.0
 GRUPPENSCHLUESSEL_PRAEFIXE = ("vad_",)
@@ -463,11 +465,64 @@ DE_MARKEN = (" ist ", " und ", " nicht ", "Wörter", "gespeichert", "zu kurz")
 #: gaengige 4-Buchstaben-Funktionswoerter (Pronomen, Hilfsverben, Adverbien);
 #: gegen die Original-Testfaelle UND den echten ``brainstorm-bogen``-Text
 #: geprueft (``test_karte_geerdet_gegen_bogen_lehnt_generische_saetze_ab``).
+#: I1 (Review 05.10.2026, Fix round 2): die erste Liste war gegen den echten
+#: Transkript-Text (``simulation/diskussion/p4-brainstorm-bogen.txt``) noch
+#: NICHT geprueft -- Woerter wie "whole", "never", "always", "same", "every",
+#: "single", "right", "actually" stehen WORTGLEICH im Transkript (als
+#: generische Fuellwoerter des erfundenen Dialogs, nicht als konkreter
+#: Inhalt), trafen also auch nach dem Wortgrenzen-Fix (siehe
+#: ``karte_geerdet`` unten) noch zufaellig. Deutlich erweitert (~150+
+#: Woerter) auf eine umfassende Liste generischer/Funktionswoerter; die drei
+#: Beispielsaetze aus dem Taskbrief laufen jetzt mit gegen den echten
+#: Bogen-Text (``test_karte_geerdet_gegen_bogen_lehnt_generische_saetze_ab``).
+#: Die Brainstorm-Skripte (``simulation/diskussion/*.txt``) sind durchgehend
+#: Englisch -- keine italienischen/deutschen Funktionswoerter noetig.
 _STOPP = frozenset({
     "about", "there", "their", "which", "would", "could", "because", "really",
     "that", "what", "with", "have", "they", "this", "when", "from", "then", "them",
     "were", "will", "into", "more", "some", "like", "just", "been", "here", "only",
     "also", "does", "very", "well", "much", "time", "maybe",
+    # Fix round 2 (I1): Woerter aus dem Taskbrief, direkt gegen den echten
+    # Bogen-Text getroffen.
+    "whole", "might", "never", "always", "same", "every", "single", "right",
+    "where", "such", "actually", "until", "gets", "thing", "things",
+    "something", "everyone", "away", "story",
+    # Fix round 2 (I1): weitere generische/Funktionswoerter (Pronomen,
+    # Hilfsverben, Quantoren, Adverbien, Konjunktionen, haeufige vage Verben
+    # und Fuellnomen), unabhaengig davon, ob sie im aktuellen Bogen-Text
+    # vorkommen -- dieselbe Vorsicht wie bei jeder Pruefung ohne Material:
+    # ein kuenftiger Bogen-Text soll nicht erneut dieselbe Lueckenklasse treffen.
+    "after", "again", "against", "almost", "along", "already", "although",
+    "among", "another", "anyone", "anything", "anywhere", "around", "aside",
+    "back", "before", "behind", "below", "beside", "besides", "between",
+    "beyond", "both", "cannot", "cause", "certain", "certainly", "come",
+    "comes", "coming", "done", "doing", "down", "during", "each", "either",
+    "else", "enough", "ever", "every", "everybody", "everything",
+    "everywhere", "except", "fairly", "feel", "feels", "felt", "find",
+    "finds", "found", "further", "getting", "give", "gives", "given",
+    "giving", "goes", "going", "gone", "good", "great", "happen",
+    "happened", "happens", "hardly", "having", "hence", "herself",
+    "himself", "however", "indeed", "inside", "instead", "itself", "keep",
+    "keeps", "kept", "kind", "kinds", "knew", "know", "known", "knows",
+    "last", "least", "less", "little", "long", "look", "looked", "looking",
+    "looks", "made", "make", "makes", "making", "many", "matter",
+    "matters", "mean", "means", "meant", "mere", "merely", "might",
+    "moment", "moments", "most", "mostly", "much", "must", "myself",
+    "nearly", "need", "needs", "needed", "neither", "next", "nobody",
+    "none", "nothing", "nowhere", "often", "once", "onto", "other",
+    "others", "ourselves", "outside", "over", "overall", "own", "part",
+    "parts", "perhaps", "place", "places", "plenty", "quite", "rather",
+    "sees", "seem", "seemed", "seems", "several", "shall", "should",
+    "simply", "since", "someone", "somehow", "someplace", "somewhat",
+    "somewhere", "soon", "sort", "start", "started", "starts", "still",
+    "stuff", "such", "sure", "take", "takes", "taken", "taking", "than",
+    "themselves", "these", "think", "thinks", "those", "though",
+    "through", "thus", "times", "together", "took", "toward", "towards",
+    "truly", "turn", "turned", "turns", "under", "unless", "upon", "used",
+    "uses", "using", "usual", "usually", "want", "wanted", "wants", "went",
+    "whatever", "whenever", "wherever", "whether", "whom", "whose",
+    "within", "without", "wonder", "wondered", "wonders", "year", "years",
+    "yours", "yourself", "yourselves",
 })
 #: Deutsche und englische Konstanten der USA-Einwilligungsfrage
 #: (``interview_theater/knoepfe/texte.py`` bzw. ``sprachen/en/texte.toml``) --
@@ -716,10 +771,18 @@ def _inhaltswoerter(text: str) -> set[str]:
 def karte_geerdet(karte: str, transkript: str) -> bool:
     """Mindestens zwei verschiedene Inhaltswoerter aus ``transkript`` stehen
     in ``karte`` -- der CoThinker hat wirklich zugehoert, statt etwas
-    Generisches zu schreiben."""
+    Generisches zu schreiben.
+
+    I1 (Review 05.10.2026, Fix round 2): vorher wurde jedes Transkriptwort
+    per ``in karte_cf`` als TEILSTRING in der Karte gesucht -- ein kurzes
+    Wort wie "cat" traf dann auch mitten in "indicate" oder "location",
+    ohne dass die Karte das Wort wirklich enthielt. Jetzt werden ganze
+    Woerter verglichen: ``_WORT.findall`` auf der Karte liefert dieselbe
+    Tokenisierung wie auf dem Transkript, der Treffer ist eine
+    Mengenschnittmenge."""
     kandidaten = _inhaltswoerter(transkript)
-    karte_cf = (karte or "").casefold()
-    treffer = {w for w in kandidaten if w in karte_cf}
+    karte_woerter = set(_WORT.findall((karte or "").casefold()))
+    treffer = kandidaten & karte_woerter
     return len(treffer) >= 2
 
 
@@ -767,7 +830,7 @@ def pruefe_nach_brainstorm(vorher: P34Stand, vor_ende: P34Stand, nachher: P34Sta
 
 
 def pruefe_modellwahl(stand: P34Stand, phase3: tuple[int, int], phase4: tuple[int, int],
-                      station: str) -> list[Befund]:
+                      station: str, *, nur_phase: int | None = None) -> list[Befund]:
     """``phase3``/``phase4`` sind (von, bis)-Grenzen der ``aufruf.id`` dieser
     Phase (siehe ``_aufruf_bereiche``/``_teile_bereich_am_phasenwechsel`` in
     Task 2c/Fix round 1): ``von < id <= bis``.
@@ -776,28 +839,41 @@ def pruefe_modellwahl(stand: P34Stand, phase3: tuple[int, int], phase4: tuple[in
     Bereich gar keinen ``gespraech``-Aufruf (leerer Bereich, oder die
     Stationen dieser Phase sind noch nicht gelaufen), ist
     ``P4_GESPRAECH_NICHT_OPUS`` nicht pruefbar -- vorher lieferte das still
-    ``[]``, als waere alles in Ordnung."""
+    ``[]``, als waere alles in Ordnung.
+
+    ``nur_phase`` (M2, Review 05.10.2026, Fix round 2): der ``modellwahl``-
+    Haken laeuft an ZWEI Stationen (``p3-uebergang``, ``p4-uebergang``) mit
+    DEMSELBEN Phase-3-Bereich -- ohne Einschraenkung lieferte das an
+    ``p3-uebergang`` IMMER ``nicht_pruefbar:p4_gespraech_nicht_opus`` (der
+    Phase-4-Bereich ist dort naturgemaess noch leer, keine Phase-4-Station
+    ist gelaufen), und ein echter ``P3_GESPRAECH_OPUS``-Befund kaeme an
+    ``p4-uebergang`` ein zweites Mal. ``None`` (Vorgabe) prueft weiterhin
+    beide Teile -- fuer direkte Aufrufe/Tests dieser Funktion unveraendert;
+    der Produktionsaufruf (``browser_pruefhaken._modellwahl``) reicht die
+    Stationsphase durch und bekommt so nur noch den passenden Teil."""
     def _im_bereich(bereich: tuple[int, int], i: int) -> bool:
         von, bis = bereich
         return von < i <= bis
 
-    gespraeche3 = [a for a in stand.aufrufe if a[1] == "gespraech" and _im_bereich(phase3, a[0])]
-    gespraeche4 = [a for a in stand.aufrufe if a[1] == "gespraech" and _im_bereich(phase4, a[0])]
     befunde: list[Befund] = []
-    if any(a[2] == "C" for a in gespraeche3):
-        befunde.append(Befund(
-            P3_GESPRAECH_OPUS, station,
-            "Ein Gespraechsaufruf in Phase 3 lief ueber Opus (modus 'C') -- Datenschutz, "
-            "die Interviews gehen in Phase 3 nicht an die USA."))
-    if not gespraeche4:
-        befunde.append(nicht_pruefbar(
-            P4_GESPRAECH_NICHT_OPUS, station,
-            f"keine Gespraechsaufrufe im geprueften Phase-4-Bereich {phase4}."))
-    elif any(a[2] != "C" for a in gespraeche4):
-        befunde.append(Befund(
-            P4_GESPRAECH_NICHT_OPUS, station,
-            "Ein Gespraechsaufruf in Phase 4 lief NICHT ueber Opus (modus != 'C').",
-            schwere="mittel"))
+    if nur_phase in (None, 3):
+        gespraeche3 = [a for a in stand.aufrufe if a[1] == "gespraech" and _im_bereich(phase3, a[0])]
+        if any(a[2] == "C" for a in gespraeche3):
+            befunde.append(Befund(
+                P3_GESPRAECH_OPUS, station,
+                "Ein Gespraechsaufruf in Phase 3 lief ueber Opus (modus 'C') -- Datenschutz, "
+                "die Interviews gehen in Phase 3 nicht an die USA."))
+    if nur_phase in (None, 4):
+        gespraeche4 = [a for a in stand.aufrufe if a[1] == "gespraech" and _im_bereich(phase4, a[0])]
+        if not gespraeche4:
+            befunde.append(nicht_pruefbar(
+                P4_GESPRAECH_NICHT_OPUS, station,
+                f"keine Gespraechsaufrufe im geprueften Phase-4-Bereich {phase4}."))
+        elif any(a[2] != "C" for a in gespraeche4):
+            befunde.append(Befund(
+                P4_GESPRAECH_NICHT_OPUS, station,
+                "Ein Gespraechsaufruf in Phase 4 lief NICHT ueber Opus (modus != 'C').",
+                schwere="mittel"))
     if stand.usa_gefragt:
         befunde.append(Befund(
             EINWILLIGUNG_GEFRAGT, station,
@@ -817,8 +893,20 @@ def pruefe_p5_angebot(stand: P34Stand, station: str) -> list[Befund]:
 #: Nach dem Positiv-Signal (oder der Frist) wird noch diese Zeit abgewartet,
 #: bevor ``warte_auf`` EIN letztes Mal prueft -- sonst sieht eine fruehe
 #: "saubere" Zwischenmessung eine zweite, verspaetete Statuszeile oder
-#: Buehnenkarte nie (I2, Review 05.10.2026, Fix round 1).
+#: Buehnenkarte nie (I2, Review 05.10.2026, Fix round 1). Bleibt die Vorgabe
+#: fuer den Brainstorm-Pfad (M3, Fix round 2): die CoThinker-Karte entsteht
+#: ``_brainstorm_abschliessen``/``_brainstorm_entscheide`` direkt im selben
+#: Transkriptions-Durchlauf (kein periodischer Arbeiter dazwischen) -- 10 s
+#: Verarbeitungs-Spielraum reichen hier aus.
 GRACE_NACH_SIGNAL_S = 10.0
+#: M3 (Review 05.10.2026, Fix round 2): fuer den Interview-Pfad war
+#: ``GRACE_NACH_SIGNAL_S`` (10 s) KUERZER als der Takt des Nachhol-Arbeiters
+#: (``aufnahme.NACHHOL_INTERVALL_S`` = 60 s, der Arbeiter, der eine
+#: gescheiterte Verdichtung erneut versucht) -- eine zweite, erst durch
+#: einen Nachhol-Lauf entstandene Statuszeile kam dann oft NACH der finalen
+#: Pruefung an und wurde nie geprueft. 5 s Sicherheitsabstand ueber einen
+#: vollen Nachhol-Takt hinaus.
+GRACE_NACH_INTERVIEW_S = aufnahme.NACHHOL_INTERVALL_S + 5.0
 
 
 def warte_auf(lese: Callable[[], object], pruefe: Callable[[object], list[Befund]], *,

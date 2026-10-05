@@ -695,6 +695,10 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
     # spaeterer Haken den vollen bisherigen Stand sieht.
     aufruf_bereiche: dict[str, tuple[int, int]] = {}
     stationen_phase: dict[str, int] = {}
+    #: M2 (Review 05.10.2026, Fix round 2): wie ``aufruf_bereiche`` --
+    #: dasselbe ``set``-Objekt wandert per Referenz in jede ``PruefKontext``
+    #: dieses Laufs, siehe ``browser_pruefhaken._modellwahl``.
+    modellwahl_phasen_geprueft: set[int] = set()
     try:
         for station in stationen:
             befunde: list[browser_invarianten.Befund] = []
@@ -703,7 +707,8 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                 db_pfad=db_pfad, gruppen=gruppen, page=page, beobachter=beobachter,
                 hole_prompt=hole_prompt, warte=warte, lauf_verzeichnis=lauf_verzeichnis,
                 beobachter_start=len(beobachter.verlauf) if beobachter else 0, notizen=notizen,
-                aufruf_bereiche=aufruf_bereiche, stationen_phase=stationen_phase)
+                aufruf_bereiche=aufruf_bereiche, stationen_phase=stationen_phase,
+                modellwahl_phasen_geprueft=modellwahl_phasen_geprueft)
             kontext.sende = lambda text, k=kontext: _sende_und_lies_antwort(k.page, text)
             lauf = None
             von_aufruf = _max_aufruf_id(db_pfad)
@@ -738,6 +743,12 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                     ist_brainstorm = "nach_brainstorm" in station.pruefung
                     frist_s = (browser_invarianten.FRIST_NACH_BRAINSTORM_S if ist_brainstorm
                               else browser_invarianten.FRIST_NACH_INTERVIEW_S)
+                    # M3 (Review 05.10.2026, Fix round 2): der Interview-Pfad
+                    # braucht laenger als die kurze Vorgabe
+                    # (GRACE_NACH_SIGNAL_S < aufnahme.NACHHOL_INTERVALL_S) --
+                    # siehe browser_invarianten.GRACE_NACH_INTERVIEW_S.
+                    grace_s = (browser_invarianten.GRACE_NACH_SIGNAL_S if ist_brainstorm
+                              else browser_invarianten.GRACE_NACH_INTERVIEW_S)
 
                     def _pruefe_p34(stand, k=kontext, st=station, brainstorm=ist_brainstorm):
                         if brainstorm:
@@ -756,9 +767,10 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                         return browser_invarianten.hat_neue_statuszeile(k.vorher_p34, stand)
 
                     def nach_klick(k=kontext, cid=gruppe.chat_id, frist_s=frist_s, pruefe=_pruefe_p34,
-                                   ende=_ende_p34):
+                                   ende=_ende_p34, grace_s=grace_s):
                         k.ergebnis_p34 = k.warte_p34(
-                            lambda: _lies_p34(db_pfad, cid), pruefe, frist_s=frist_s, ende=ende)
+                            lambda: _lies_p34(db_pfad, cid), pruefe, frist_s=frist_s, ende=ende,
+                            grace_s=grace_s)
 
                 def vor_ende(k=kontext, cid=gruppe.chat_id):
                     k.vorher = _lies_p1(db_pfad, cid)

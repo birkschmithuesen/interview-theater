@@ -1896,33 +1896,30 @@ _CHAT_JS = """
                      KAL_SCHWELLE_ABS_MAX);
   }
 
-  // Mindest-SNR (p90/p10 auf dem ROHEN Pegel, nicht log10) fuer "bimodal
-  // genug" -- dieselbe Kennzahl, mit der die Robo-Messung ihre drei echten
-  // Gruppendiskussionen validiert hat (39-250x). Ein einzelner Pegel-Peak
-  // (kein Sprachanteil im Messfenster, egal wie breit er in sich streut)
-  // bleibt weit darunter -- gemessen an synthetischen Gegenproben, nicht
-  // geraten.
-  var KAL_OTSU_SNR_MIN = 10;
+  // Wie viel der Gesamtvarianz die beste Otsu-Trennung erklaeren muss, um
+  // als "klar bimodal" zu gelten (Zwischen-Klassen-/Gesamt-Varianz, Otsus
+  // eigenes Trennschaerfe-Mass, 0..1) -- zweiter Nachtrag, Birk 05.10.2026
+  // ~23:55, woertlicher Schwellenwert aus dem Addendum. Konstantes
+  // Rauschen oder ein Monolog ohne Pausen (EIN Pegel, egal wie laut) bleibt
+  // deutlich darunter, eine echte Grundrauschen/Sprache-Trennung (Robo-
+  // Messung) deutlich darueber.
+  var KAL_OTSU_GUETE_MIN = 0.6;
 
-  // Otsu-Schwelle auf log10(RMS) (Addendum Birk, 05.10.2026 22:22, Robo-
-  // Messung ~/.hermes/profiles/birk/var/padua-nacht/vad/vad_thr.py): die
-  // Pegelverteilung einer Gruppendiskussion ist bimodal (Grundrauschen vs.
-  // Sprache), das Taltal zwischen beiden Verteilungen ist eine robustere
-  // Sprachschwelle als die alte Ad-hoc-Ableitung aus dem rollenden Boden
-  // (gemessen: G3s rede_ms-Schwelle lag bei 2x ihrem Taltal, nur 46% statt
-  // 63% der Ticks zaehlten als Sprache). Log-Skala, weil der Pegel selbst
-  // log-verteilt ist (RMS, keine linearen Dezibel). Bildverarbeitungs-
-  // Standardverfahren: ueber ein Histogramm die Schwelle suchen, die die
-  // Zwischen-Klassen-Varianz maximiert. Liefert ``null`` ohne genug Proben
-  // oder ohne genug SNR (KAL_OTSU_SNR_MIN) -- der Aufrufer faellt dann auf
-  // die alte Rolling-Formel zurueck.
+  // Otsu-Schwelle auf log10(RMS) (Addendum Birk, 05.10.2026 22:22 und
+  // ~23:55, Robo-Messung ~/.hermes/profiles/birk/var/padua-nacht/vad/):
+  // die Pegelverteilung einer Gruppendiskussion ist bimodal (Grundrauschen
+  // vs. Sprache), das Taltal zwischen beiden Verteilungen ist eine
+  // robustere Sprachschwelle als die alte Ad-hoc-Ableitung aus dem
+  // rollenden Boden. Log-Skala, weil der Pegel selbst log-verteilt ist
+  // (RMS, keine linearen Dezibel). Bildverarbeitungs-Standardverfahren:
+  // ueber ein Histogramm die Schwelle suchen, die die Zwischen-Klassen-
+  // Varianz maximiert. Liefert ``null`` ohne genug Proben oder ohne genug
+  // Trennschaerfe (KAL_OTSU_GUETE_MIN) -- der Aufrufer bleibt dann bei der
+  // alten Rolling-Formel.
   function kalOtsuSchwelle(werte) {
     var positiv = werte.filter(function (r) { return r > 0; });
     if (positiv.length < 10) { return null; }
     var sortiert = positiv.slice().sort(function (a, b) { return a - b; });
-    var p10 = sortiert[Math.floor(sortiert.length * 0.1)];
-    var p90 = sortiert[Math.min(sortiert.length - 1, Math.floor(sortiert.length * 0.9))];
-    if (!(p10 > 0) || (p90 / p10) < KAL_OTSU_SNR_MIN) { return null; }
 
     var logs = sortiert.map(function (r) { return Math.log(r) / Math.LN10; });
     var minLog = logs[0], maxLog = logs[logs.length - 1];
@@ -1938,6 +1935,11 @@ _CHAT_JS = """
     var gesamt = logs.length;
     var summeGesamt = 0;
     for (var b = 0; b < BINS; b++) { summeGesamt += (minLog + (b + 0.5) * breite) * histogramm[b]; }
+    var mittelGesamt = summeGesamt / gesamt;
+    var varianzGesamt = 0;
+    for (var v = 0; v < logs.length; v++) { varianzGesamt += Math.pow(logs[v] - mittelGesamt, 2); }
+    varianzGesamt /= gesamt;
+    if (varianzGesamt <= 0) { return null; }
 
     // Zwischen-Klassen-Varianz je moeglicher Schnittstelle (-1 = ungueltig,
     // eine Seite leer).
@@ -1956,6 +1958,7 @@ _CHAT_JS = """
       if (wert > beste) { beste = wert; }
     }
     if (beste < 0) { return null; }
+    if ((beste / varianzGesamt) < KAL_OTSU_GUETE_MIN) { return null; }
     // Ein voellig leeres Taltal (komplett getrennte Cluster) macht die
     // Zwischen-Klassen-Varianz ueber mehrere Schnittstellen hinweg GLEICH
     // gut -- die MITTE dieses Laufs nehmen, nicht die erste Schnittstelle,
@@ -2051,12 +2054,16 @@ _CHAT_JS = """
         var rms = Math.sqrt(quadratsumme / zeitWerte.length);
         sitzung.vadBoden.push(rms);
         if (sitzung.vadBoden.length > BODEN_FENSTER) { sitzung.vadBoden.shift(); }
-        // AUTO-Kalibrierung (Robo-Addendum 05.10.2026 22:22): waehrend
-        // kalStarteAuto() sammelt, braucht die Otsu-Schwelle die ROHEN
-        // Ticks ueber das ganze Messfenster (~20s) -- anders als
-        // sitzung.vadBoden, das auf die letzten ~5s gekappt ist (die
-        // laufende Pause-Erkennung braucht nur die juengste Vergangenheit).
-        if (sitzung._kalAutoProben) { sitzung._kalAutoProben.push(rms); }
+        // Hintergrund-adaptive Schwelle (zweiter Nachtrag, Birk 05.10.2026
+        // ~23:55): waehrend sie an ist (Kill-Switch aus, siehe
+        // kalEntscheideOderStarte), sammelt sie ROHE Ticks MIT Zeitstempel
+        // ungekappt -- anders als sitzung.vadBoden, das auf die letzten ~5s
+        // gekappt ist (die laufende Pause-Erkennung braucht nur die
+        // juengste Vergangenheit, die Otsu-Schwelle ein 60s-Fenster).
+        if (sitzung._kalAdaptivAn) {
+          sitzung._kalAdaptivProben.push({ t: Date.now(), r: rms });
+          kalAdaptivAktualisiere(sitzung, Date.now());
+        }
         // Niedriges Perzentil der letzten ~5 s als Rauschboden -- GESETZT,
         // NICHT GEMESSEN (anders als PAUSE_MS/MAX_MS/MIN_SPEECH_MS/
         // RMS_SCHWELLE, die aus CoThinker stammen). BODEN_DECKEL_FAKTOR
@@ -2799,119 +2806,121 @@ _CHAT_JS = """
     }
   }
 
-  // Karte "keine Kalibrierung in Phase 3/4" (05.10.2026), reine Funktion
-  // (node-testbar, tests/test_web_chat_js.py): die EINE Stelle, die die vier
-  // Quellen ordnet. "sitzung"/"kill" sind unveraendert aus der alten Weiche
-  // (schon entschiedene Sitzung bzw. Kill-Switch aus), "cache" gewinnt
-  // bewusst VOR "gruppe" (lokale Messung von heute ist naeher am Raum JETZT
-  // als ein serverseitiger Stand, der auch von einem anderen Geraet oder
-  // einer frueheren Phase stammen kann). Ohne Cache UND ohne Gruppenwerte
-  // bleibt die Diskussion (Phase 1, Birk 05.10.2026 13:10) beim expliziten,
-  // button-gated Panel -- Interview und Brainstorm gehen stattdessen
-  // automatisch (kein Nutzer, der vor dem ersten Satz etwas druecken muss).
-  function kalWaehleQuelle(sitzungKalibriert, kalAktiv, cache, gruppenWerte, art) {
-    if (sitzungKalibriert) { return 'sitzung'; }
-    if (!kalAktiv) { return 'kill'; }
-    if (cache) { return 'cache'; }
-    if (gruppenWerte) { return 'gruppe'; }
-    return art === 'diskussion' ? 'panel' : 'auto';
-  }
-
-  // Die EINE Weiche zwischen cache/gruppe/kill-switch/auto/panel --
-  // aufgerufen aus beginneAufnahme() UND von #kalibrierung-neu (das
-  // sitzung.kalibriert vorher auf false setzt und dieselbe Weiche erneut
-  // anstoesst, ohne Cache oder Gruppenwerte zu pruefen, siehe
-  // kalibrierungNeu()).
+  // Die EINE Weiche (zweiter Nachtrag, Birk 05.10.2026 ~23:55): mit dem
+  // Kill-Switch AN (Dortmund) unveraendert der alte Weg -- Cache von heute,
+  // sonst das button-gated Panel. Mit dem Kill-Switch AUS (Padua: KEINE
+  // Kalibrierungs-UI mehr) startet die Aufnahme immer sofort, serverseitige
+  // Gruppenwerte (falls vorhanden) sind nur der STARTWERT -- die eigentliche
+  // Anpassung uebernimmt danach die Hintergrund-adaptive Schwelle in
+  // pegelAn()/kalAdaptivAktualisiere(), ohne weitere Nutzeraktion.
   function kalEntscheideOderStarte(sitzung) {
     kalZeigeHerumreichenErinnerungWennNeu(sitzung);
+    if (sitzung.kalibriert) {
+      kalStarteEchteSchnitte(sitzung);
+      return;
+    }
+    if (!kalibrierungAktiv()) {
+      if (zustand.kalibrierungGruppe) {
+        sitzung.vadBodenMess = zustand.kalibrierungGruppe.boden;
+        sitzung.vadSchwelleFix = zustand.kalibrierungGruppe.schwelle;
+      }
+      sitzung.kalibriert = true;
+      sitzung._kalAdaptivAn = true;
+      sitzung._kalAdaptivStart = Date.now();
+      sitzung._kalAdaptivProben = [];
+      kalStarteEchteSchnitte(sitzung);
+      return;
+    }
     var cache = kalibrierungCacheLesen(kalSpeicher(), kalGruppeAus(location.pathname), kalDatum(new Date()));
-    var quelle = kalWaehleQuelle(!!sitzung.kalibriert, kalibrierungAktiv(), cache,
-                                  zustand.kalibrierungGruppe, sitzung.art);
-    if (quelle === 'panel') {
-      kalibrierungStarte(sitzung);
-      return;
-    }
-    if (quelle === 'auto') {
-      kalStarteAuto(sitzung);
-      return;
-    }
-    if (quelle === 'cache') {
+    if (cache) {
       sitzung.vadBodenMess = cache.boden;
       sitzung.vadSchwelleFix = cache.schwelle;
-    } else if (quelle === 'gruppe') {
-      sitzung.vadBodenMess = zustand.kalibrierungGruppe.boden;
-      sitzung.vadSchwelleFix = zustand.kalibrierungGruppe.schwelle;
+      sitzung.kalibriert = true;
+      kalStarteEchteSchnitte(sitzung);
+      return;
     }
-    sitzung.kalibriert = true;
-    kalStarteEchteSchnitte(sitzung);
+    kalibrierungStarte(sitzung);
   }
 
   // Meldet ein Messergebnis gruppenweit an den Server (dieselbe
   // best-effort-Haltung wie kalMeldeZuLeise): weder die manuelle
-  // Bestaetigung (kalAntwortJa) noch der AUTO-Pfad warten auf die Antwort,
-  // und ein Fehlschlag blockiert die laufende Aufnahme nicht.
+  // Bestaetigung (kalAntwortJa, Dortmund) noch die Hintergrund-adaptive
+  // Schwelle (Padua) warten auf die Antwort, und ein Fehlschlag blockiert
+  // die laufende Aufnahme nicht.
   function kalMeldeGruppenwerte(boden, rede, schwelle) {
     postJson(`chat/kalibrierung`, { boden: boden, rede: rede, schwelle: schwelle })
       .catch(function () { /* best effort, wie kalMeldeZuLeise */ });
   }
 
-  //: Wie lange die AUTO-Kalibrierung echtes Zuhoeren sammelt, bevor sie eine
-  //: Schwelle einfriert (Addendum Birk, 05.10.2026 22:22: 20s statt der
-  //: anfaenglichen 5s -- die Otsu-Schwelle braucht genug Ticks aus BEIDEN
-  //: Klassen, Grundrauschen UND mindestens eine Sprachpassage, um das
-  //: Taltal zu finden; ein reiner 5s-Rauschboden haette oft noch keine
-  //: Sprache gesehen).
-  var KAL_AUTO_MESS_MS = 20000;
+  //: Hintergrund-adaptive Schwelle (zweiter Nachtrag, Birk 05.10.2026
+  //: ~23:55, ersetzt die einmalige AUTO-Otsu-Messung des ersten Addendums):
+  //: Start erst nach 20s echtem Zuhoeren (genug Ticks fuer ein Taltal),
+  //: danach hoechstens alle 3s ein neues Otsu-Taltal versuchen, ueber ein
+  //: gleitendes 60s-Fenster -- ein laengeres Fenster als die 20s der alten
+  //: einmaligen Messung, weil es laufend neu gebildet wird und dabei auch
+  //: aeltere, nicht mehr repraesentative Ticks verwerfen soll.
+  var KAL_ADAPTIV_START_MS = 20000;
+  var KAL_ADAPTIV_TAKT_MS = 3000;
+  var KAL_ADAPTIV_FENSTER_MS = 60000;
+  //: Wie sanft ein neu akzeptierter Otsu-Wert die Schwelle bewegt (EMA im
+  //: Log-Raum) und wie weit EIN Schritt davon hoechstens ausschlagen darf
+  //: (Faktor auf den linearen Wert, unabhaengig davon, wie weit der neue
+  //: Otsu-Wert selbst daneben liegt) -- beide Zahlen woertlich aus dem
+  //: Addendum.
+  var KAL_ADAPTIV_EMA_ALPHA = 0.3;
+  var KAL_ADAPTIV_MAX_FAKTOR = 1.25;
+  //: Server-Meldungen der adaptiven Schwelle seltener als ihr eigener
+  //: Rechentakt (Addendum: "kein Server-Roundtrip pro Schritt notwendig") --
+  //: ein Zehntel der Frequenz reicht, der naechste Gruppenstart braucht nur
+  //: den LETZTEN Stand, nicht jeden Zwischenschritt.
+  var KAL_ADAPTIV_MELDE_TAKT_MS = 30000;
 
-  // AUTO-Kalibrierung (Build-Punkt 3 der Karte, Schwelle seit dem Addendum
-  // per Otsu statt Ad-hoc-Ableitung): kein Panel, keine Nutzeraktion -- die
-  // Aufnahme laeuft sofort mit der unkalibrierten, rollenden Formel
-  // (kalBerechneBodenUndSchwelle(), sitzung.vadSchwelleFix bleibt zunaechst
-  // ungesetzt), sitzung._kalAutoProben sammelt parallel JEDEN Tick (pegelAn())
-  // ungekappt fuer die Otsu-Schwelle. Nach KAL_AUTO_MESS_MS friert
-  // kalSchliesseAutoAb() das Ergebnis als Festwert ein -- derselbe
-  // Festwert-Mechanismus wie eine manuelle Messung (kalibrierungBeenden()),
-  // nur ohne Sprachprobe.
-  function kalStarteAuto(sitzung) {
-    sitzung._kalAutoProben = [];
-    kalStarteEchteSchnitte(sitzung);
-    setTimeout(function () { kalSchliesseAutoAb(sitzung); }, KAL_AUTO_MESS_MS);
+  // Reine Funktion (node-testbar): der naechste Schwellenwert aus dem alten
+  // Festwert (``null`` = noch nie gesetzt, erster Otsu-Wert gilt direkt,
+  // nur geklemmt) und einem frisch berechneten Otsu-Wert -- EMA im Log-Raum,
+  // deren SCHRITT selbst auf ``maxFaktor`` gedeckelt ist (nicht nur das
+  // Endergebnis), danach auf den bestehenden Rahmen geklemmt.
+  function kalAdaptivNeuerWert(alterWert, otsuWert, alpha, maxFaktor, minWert, maxWert) {
+    if (alterWert == null) {
+      return Math.min(Math.max(otsuWert, minWert), maxWert);
+    }
+    var logAlt = Math.log(alterWert) / Math.LN10;
+    var logNeu = Math.log(otsuWert) / Math.LN10;
+    var maxSchrittLog = Math.log(maxFaktor) / Math.LN10;
+    var schrittLog = Math.min(Math.max(alpha * (logNeu - logAlt), -maxSchrittLog), maxSchrittLog);
+    return Math.min(Math.max(Math.pow(10, logAlt + schrittLog), minWert), maxWert);
   }
 
-  function kalSchliesseAutoAb(sitzung) {
-    // #kalibrierung-neu oder ein Sitzungsende kam zuerst -- nichts mehr
-    // einzufrieren.
-    if (sitzung.beendet || sitzung.vadSchwelleFix != null) { return; }
-    var proben = sitzung._kalAutoProben || [];
-    sitzung._kalAutoProben = null;   // pegelAn() sammelt ab jetzt nicht mehr
-    var otsu = kalOtsuSchwelle(proben);
-    var boden, schwelle;
-    if (otsu != null) {
-      // Das Taltal selbst trennt die Proben in Grundrauschen/Sprache --
-      // der Median der UNTEREN Klasse ist der gemessene Boden, ohne eine
-      // zweite willkuerliche Formel dafuer zu erfinden.
-      var unten = proben.filter(function (r) { return r > 0 && r < otsu; });
-      boden = unten.length ? kalMedian(unten) : kalMedian(proben);
-      schwelle = otsu;
-    } else {
-      // Rueckfall (zu wenig Proben oder nicht bimodal genug, Addendum
-      // 05.10.2026): dieselbe Ad-hoc-Ableitung wie vor dem Addendum.
-      var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
-      var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
-      boden = kalMedian(sitzung.vadBoden || []);
-      schwelle = Math.max(RMS_SCHWELLE, boden * BODEN_FAKTOR);
+  // Ein Versuch, die Hintergrund-Schwelle fortzuschreiben -- aus JEDEM Tick
+  // von pegelAn() gerufen (sitzung._kalAdaptivAn muss dort schon gesetzt
+  // sein), tut aber nur alle KAL_ADAPTIV_TAKT_MS wirklich etwas (die beiden
+  // Zeitstempel auf ``sitzung`` sind der einzige Merkzustand). ``jetzt``
+  // kommt vom Aufrufer (kein eigenes ``Date.now()`` hier) -- node-testbar
+  // mit einer simulierten Uhr, ohne echte Timer abzuwarten.
+  function kalAdaptivAktualisiere(sitzung, jetzt) {
+    if (jetzt - sitzung._kalAdaptivStart < KAL_ADAPTIV_START_MS) { return; }
+    if (sitzung._kalAdaptivLetzterLauf != null &&
+        jetzt - sitzung._kalAdaptivLetzterLauf < KAL_ADAPTIV_TAKT_MS) {
+      return;
     }
-    sitzung.vadBodenMess = boden;
-    sitzung.vadSchwelleFix = schwelle;
-    sitzung.kalibriert = true;
-    // kalibrierungCacheLesen() verlangt drei ENDLICHE Werte (sonst gilt der
-    // ganze Cache als leer) -- ``boden`` steht hier fuer "rede", weil der
-    // AUTO-Pfad keine Sprachprobe hat UND der Wert beim Lesen ohnehin nie
-    // verwendet wird (nur cache.boden/cache.schwelle werden uebernommen).
-    // Dem Server (anders als dem Cache) wird ehrlich ``null`` gemeldet.
-    kalibrierungCacheSchreiben(kalSpeicher(), kalGruppeAus(location.pathname),
-      kalDatum(new Date()), boden, boden, schwelle);
-    kalMeldeGruppenwerte(boden, null, schwelle);
+    sitzung._kalAdaptivLetzterLauf = jetzt;
+    var grenze = jetzt - KAL_ADAPTIV_FENSTER_MS;
+    var proben = sitzung._kalAdaptivProben;
+    while (proben.length && proben[0].t < grenze) { proben.shift(); }
+    var otsu = kalOtsuSchwelle(proben.map(function (p) { return p.r; }));
+    if (otsu == null) { return; }   // nicht bimodal genug -- Schwelle bleibt stehen
+    var unten = proben.filter(function (p) { return p.r > 0 && p.r < otsu; });
+    sitzung.vadBodenMess = unten.length
+      ? kalMedian(unten.map(function (p) { return p.r; }))
+      : kalMedian(proben.map(function (p) { return p.r; }));
+    sitzung.vadSchwelleFix = kalAdaptivNeuerWert(
+      sitzung.vadSchwelleFix, otsu, KAL_ADAPTIV_EMA_ALPHA, KAL_ADAPTIV_MAX_FAKTOR,
+      KAL_SCHWELLE_ABS_MIN, KAL_SCHWELLE_ABS_MAX);
+    if (sitzung._kalAdaptivGemeldetAm == null ||
+        jetzt - sitzung._kalAdaptivGemeldetAm >= KAL_ADAPTIV_MELDE_TAKT_MS) {
+      sitzung._kalAdaptivGemeldetAm = jetzt;
+      kalMeldeGruppenwerte(sitzung.vadBodenMess, null, sitzung.vadSchwelleFix);
+    }
   }
 
   // Panel-level Messen-Knopf (#kalibrierung-neu, bewusst andere id als

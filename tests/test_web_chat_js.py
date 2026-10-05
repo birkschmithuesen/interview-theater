@@ -7,6 +7,7 @@ und jeder Endpunkt, den es ruft.
 """
 
 import json
+import math
 import re
 import threading
 import urllib.request
@@ -848,64 +849,20 @@ def test_kalgruppenwerteaus_braucht_boden_und_schwelle_rede_optional_live_in_nod
     assert ergebnisse["alles_leer"] is None
 
 
-def test_kalwaehlequelle_ordnet_die_vier_quellen_live_in_node(tmp_path):
-    """Reine Entscheidungsfunktion (node-testbar, keine DOM/Audio-
-    Abhaengigkeit): schon entschiedene Sitzung und Kill-Switch zuerst, dann
-    der lokale Cache VOR den serverseitigen Gruppenwerten (Karte "keine
-    Kalibrierung in Phase 3/4": "cache today wins"), ohne beides geht
-    Interview/Brainstorm automatisch, nur die Diskussion bekommt das
-    explizite Panel. Mutanten, die diese Reihenfolge vertauschen oder die
-    ``art``-Unterscheidung am Ende verlieren, lassen mindestens eines der
-    acht Felder kippen."""
+def test_kalentscheideoderstarte_startet_immer_sofort_live_in_node(tmp_path):
+    """Zweiter Nachtrag (Birk, 05.10.2026 ~23:55): mit dem Kill-Switch AUS
+    (Padua) startet die Aufnahme IMMER sofort ohne Panel -- serverseitige
+    Gruppenwerte sind nur der Startwert, danach schreibt die Hintergrund-
+    adaptive Schwelle selbst weiter (hier nur an ``_kalAdaptivAn``/
+    ``_kalAdaptivProben`` erkennbar, nicht ausgefuehrt). Mit dem Kill-Switch
+    AN (Dortmund) bleibt es beim alten Weg: Cache von heute oder Panel.
+
+    Mutanten: ein fehlendes ``return`` nach dem Kill-Switch-Zweig riefe
+    zusaetzlich den Dortmund-Pfad (Cache/Panel) auf; vertauschte
+    boden/schwelle-Zuweisung liesse den Startwert falsch herum stehen."""
     node = _node_oder_skip()
     js = web_chat._CHAT_JS
-    funktion = _extrahiere(js, "function kalWaehleQuelle", "function kalEntscheideOderStarte")
-
-    quelltext = f"""
-    {funktion}
-    var CACHE = {{ boden: 0.01, schwelle: 0.03 }};
-    var GRUPPE = {{ boden: 0.02, schwelle: 0.05 }};
-    var ergebnisse = {{
-      schon_kalibriert: kalWaehleQuelle(true, true, CACHE, GRUPPE, 'interview'),
-      kill_switch: kalWaehleQuelle(false, false, CACHE, GRUPPE, 'interview'),
-      cache_gewinnt_vor_gruppe: kalWaehleQuelle(false, true, CACHE, GRUPPE, 'interview'),
-      gruppe_ohne_cache: kalWaehleQuelle(false, true, null, GRUPPE, 'interview'),
-      auto_fuer_interview: kalWaehleQuelle(false, true, null, null, 'interview'),
-      auto_fuer_brainstorm: kalWaehleQuelle(false, true, null, null, 'brainstorm'),
-      panel_fuer_diskussion: kalWaehleQuelle(false, true, null, null, 'diskussion'),
-      gruppe_gewinnt_fuer_diskussion: kalWaehleQuelle(false, true, null, GRUPPE, 'diskussion')
-    }};
-    console.log(JSON.stringify(ergebnisse));
-    """
-    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
-    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
-    assert ergebnisse == {
-        "schon_kalibriert": "sitzung",
-        "kill_switch": "kill",
-        "cache_gewinnt_vor_gruppe": "cache",
-        "gruppe_ohne_cache": "gruppe",
-        "auto_fuer_interview": "auto",
-        "auto_fuer_brainstorm": "auto",
-        "panel_fuer_diskussion": "panel",
-        "gruppe_gewinnt_fuer_diskussion": "gruppe",
-    }
-
-
-def test_kalentscheideoderstarte_wendet_die_quelle_an_live_in_node(tmp_path):
-    """Die Abnahme woertlich: serverseitige Gruppenwerte starten ohne Panel
-    mit angewendeter Schwelle; ohne jede Quelle startet der AUTO-Pfad ohne
-    Panel; der lokale Cache gewinnt vor den Gruppenwerten. Alle Abhaengig-
-    keiten von ``kalEntscheideOderStarte`` (Cache-Lesen, Kill-Switch,
-    Panel/Auto/echte-Schnitte) sind hier Attrappen -- nur ``kalWaehleQuelle``
-    selbst (oben einzeln getestet) ist der echte Code.
-
-    Mutanten: ein vertauschtes ``if``/``else if`` fuer cache/gruppe liesse
-    ``server_werte_interview`` auf ``vadSchwelleFix: null`` fallen; ein
-    fehlendes ``return`` nach dem panel/auto-Zweig riefe zusaetzlich
-    ``kalStarteEchteSchnitte`` auf."""
-    node = _node_oder_skip()
-    js = web_chat._CHAT_JS
-    funktion = _extrahiere(js, "function kalWaehleQuelle", "function kalMeldeGruppenwerte")
+    funktion = _extrahiere(js, "function kalEntscheideOderStarte", "function kalMeldeGruppenwerte")
 
     quelltext = f"""
     var CACHE, KAL_AKTIV, zustand;
@@ -917,79 +874,83 @@ def test_kalentscheideoderstarte_wendet_die_quelle_an_live_in_node(tmp_path):
     function kalibrierungCacheLesen() {{ return CACHE; }}
     function kalibrierungAktiv() {{ return KAL_AKTIV; }}
     function kalibrierungStarte(s) {{ aufrufe.panel++; }}
-    function kalStarteAuto(s) {{ aufrufe.auto++; }}
     function kalStarteEchteSchnitte(s) {{ aufrufe.echteSchnitte++; }}
     var location = {{ pathname: '/g/tok1/chat' }};
     {funktion}
 
-    function szenario(art, cache, gruppenWerte, kalAktiv) {{
+    function szenario(cache, gruppenWerte, kalAktiv, schonKalibriert) {{
       CACHE = cache; KAL_AKTIV = kalAktiv; zustand = {{ kalibrierungGruppe: gruppenWerte }};
-      aufrufe = {{ panel: 0, auto: 0, echteSchnitte: 0 }};
-      var sitzung = {{ art: art }};
+      aufrufe = {{ panel: 0, echteSchnitte: 0 }};
+      var sitzung = {{ art: 'interview', kalibriert: !!schonKalibriert }};
       kalEntscheideOderStarte(sitzung);
       return {{
-        panel: aufrufe.panel, auto: aufrufe.auto, echteSchnitte: aufrufe.echteSchnitte,
+        panel: aufrufe.panel, echteSchnitte: aufrufe.echteSchnitte,
         vadBodenMess: (sitzung.vadBodenMess === undefined ? null : sitzung.vadBodenMess),
         vadSchwelleFix: (sitzung.vadSchwelleFix === undefined ? null : sitzung.vadSchwelleFix),
-        kalibriert: !!sitzung.kalibriert
+        kalibriert: !!sitzung.kalibriert,
+        adaptivAn: !!sitzung._kalAdaptivAn,
+        adaptivProbenLeer: Array.isArray(sitzung._kalAdaptivProben) && sitzung._kalAdaptivProben.length === 0
       }};
     }}
 
     var ergebnisse = {{
-      server_werte_interview: szenario('interview', null, {{boden: 0.01, rede: 0.2, schwelle: 0.03}}, true),
-      keine_werte_interview: szenario('interview', null, null, true),
-      keine_werte_diskussion: szenario('diskussion', null, null, true),
-      cache_gewinnt: szenario('interview', {{boden: 0.05, rede: 0.5, schwelle: 0.09}},
-                               {{boden: 0.01, rede: 0.2, schwelle: 0.03}}, true),
-      kill_switch: szenario('interview', null, null, false)
+      killswitch_aus_mit_gruppenwerten: szenario(null, {{boden: 0.01, rede: 0.2, schwelle: 0.03}}, false, false),
+      killswitch_aus_ohne_gruppenwerte: szenario(null, null, false, false),
+      killswitch_an_mit_cache: szenario({{boden: 0.05, schwelle: 0.09}}, {{boden: 0.01, schwelle: 0.03}}, true, false),
+      killswitch_an_ohne_cache: szenario(null, null, true, false),
+      schon_kalibriert_startet_direkt: szenario(null, null, true, true)
     }};
     console.log(JSON.stringify(ergebnisse));
     """
     ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
     ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
-    # "server values -> no panel, threshold applied"
-    assert ergebnisse["server_werte_interview"] == {
-        "panel": 0, "auto": 0, "echteSchnitte": 1,
-        "vadBodenMess": 0.01, "vadSchwelleFix": 0.03, "kalibriert": True,
+
+    # Padua, Gruppenwerte vorhanden: sofort, kein Panel, Startwert uebernommen.
+    assert ergebnisse["killswitch_aus_mit_gruppenwerten"] == {
+        "panel": 0, "echteSchnitte": 1, "vadBodenMess": 0.01, "vadSchwelleFix": 0.03,
+        "kalibriert": True, "adaptivAn": True, "adaptivProbenLeer": True,
     }
-    # "no values -> auto path, no panel" (Interview/Brainstorm)
-    assert ergebnisse["keine_werte_interview"] == {
-        "panel": 0, "auto": 1, "echteSchnitte": 0,
-        "vadBodenMess": None, "vadSchwelleFix": None, "kalibriert": False,
+    # Padua, keine Gruppenwerte: trotzdem sofort, kein Panel, kein Startwert.
+    assert ergebnisse["killswitch_aus_ohne_gruppenwerte"] == {
+        "panel": 0, "echteSchnitte": 1, "vadBodenMess": None, "vadSchwelleFix": None,
+        "kalibriert": True, "adaptivAn": True, "adaptivProbenLeer": True,
     }
-    # Diskussion ohne jede Quelle behaelt das explizite Panel.
-    assert ergebnisse["keine_werte_diskussion"] == {
-        "panel": 1, "auto": 0, "echteSchnitte": 0,
-        "vadBodenMess": None, "vadSchwelleFix": None, "kalibriert": False,
+    # Dortmund, Cache von heute: unveraendert -- kein Panel, Cache angewendet.
+    assert ergebnisse["killswitch_an_mit_cache"] == {
+        "panel": 0, "echteSchnitte": 1, "vadBodenMess": 0.05, "vadSchwelleFix": 0.09,
+        "kalibriert": True, "adaptivAn": False, "adaptivProbenLeer": False,
     }
-    # "cache today wins" -- 0.09 (Cache), nicht 0.03 (Gruppenwerte).
-    assert ergebnisse["cache_gewinnt"] == {
-        "panel": 0, "auto": 0, "echteSchnitte": 1,
-        "vadBodenMess": 0.05, "vadSchwelleFix": 0.09, "kalibriert": True,
+    # Dortmund, kein Cache: unveraendert -- das Panel.
+    assert ergebnisse["killswitch_an_ohne_cache"] == {
+        "panel": 1, "echteSchnitte": 0, "vadBodenMess": None, "vadSchwelleFix": None,
+        "kalibriert": False, "adaptivAn": False, "adaptivProbenLeer": False,
     }
-    assert ergebnisse["kill_switch"] == {
-        "panel": 0, "auto": 0, "echteSchnitte": 1,
-        "vadBodenMess": None, "vadSchwelleFix": None, "kalibriert": True,
+    # Schon kalibriert (Pause/Weiter): direkt starten, keine Weiche erneut.
+    assert ergebnisse["schon_kalibriert_startet_direkt"] == {
+        "panel": 0, "echteSchnitte": 1, "vadBodenMess": None, "vadSchwelleFix": None,
+        "kalibriert": True, "adaptivAn": False, "adaptivProbenLeer": False,
     }
 
 
-def test_kalotsuschwelle_findet_das_taltal_oder_faellt_zurueck_live_in_node(tmp_path):
-    """Addendum Birk, 05.10.2026 22:22 (Robo-Messung, echtes Audio): zwei
-    synthetische Serien woertlich gegen den ausgelieferten Code -- eine
-    bimodale (Grundrauschen + Sprache, grosse Luecke dazwischen) findet das
-    Taltal innerhalb +-20% des geometrischen Mittels beider Cluster, eine
-    unimodale (ein einziger Pegel-Peak, egal wie breit er in sich streut)
-    liefert ``null`` -- der Aufrufer faellt dann auf die Rolling-Formel
-    zurueck. Dazu: zu wenig Proben ist ebenfalls ``null``.
+def test_kalotsuschwelle_findet_das_taltal_oder_bleibt_bei_konstanz_bei_null_live_in_node(tmp_path):
+    """Zweiter Nachtrag (Birk, 05.10.2026 ~23:55): das Gate ist jetzt die
+    Zwischen-Klassen-/Gesamt-Varianz (>= 0.6, KAL_OTSU_GUETE_MIN), nicht
+    mehr die SNR des ersten Addendums. Eine bimodale Serie (Grundrauschen +
+    Sprache, grosse Luecke) findet das Taltal innerhalb +-20% des
+    geometrischen Mittels beider Cluster. "Konstantes Rauschen" bzw. "ein
+    Monolog ohne Pausen" (Birks eigene Umschreibung des unimodalen Falls)
+    sind hier woertlich EIN unveraenderlicher Pegel -- Gesamtvarianz 0,
+    ``null`` ueber den expliziten Varianz-Schutz, nicht ueber die
+    Guete-Schwelle selbst (die bei jeder stetigen, nicht perfekt
+    konstanten Verteilung in der Praxis schwer unter 0.6 zu druecken ist).
 
-    Mutanten: ein umgekehrtes SNR-Gate (``>`` statt ``<``) liesse die enge
-    Serie faelschlich durch und die bimodale faelschlich scheitern; ein
-    "ersten Treffer statt Mitte des Taltals nehmen" zoege die Schwelle der
-    bimodalen Serie bis an KAL_SCHWELLE_ABS_MIN (0.004) -- weit ausserhalb
-    der 20%-Toleranz."""
+    Mutanten: ein umgekehrtes Guete-Gate (``>`` statt ``<`` vor dem
+    ``return null``) liesse die bimodale Serie faelschlich scheitern; die
+    Varianzpruefung entfernen liesse die beiden konstanten Serien an einer
+    Division durch Null zu ``NaN`` statt ``null`` werden."""
     node = _node_oder_skip()
     js = web_chat._CHAT_JS
-    funktion = _extrahiere(js, "var KAL_OTSU_SNR_MIN", "function kalGruppenwerteAus")
+    funktion = _extrahiere(js, "var KAL_OTSU_GUETE_MIN", "function kalGruppenwerteAus")
 
     quelltext = f"""
     var KAL_SCHWELLE_ABS_MIN = 0.004;
@@ -1006,23 +967,17 @@ def test_kalotsuschwelle_findet_das_taltal_oder_faellt_zurueck_live_in_node(tmp_
       }}
       return werte;
     }}
-    // Diskretisierte Gauss-Glocke (Binomialgewichte) um EINEN Pegel -- ein
-    // einziger Peak, kein Taltal, egal wie breit er in sich streut.
-    function glocke(zentrumLog, schrittLog) {{
-      var gewichte = [1, 8, 28, 56, 70, 56, 28, 8, 1];
+    function konstant(pegel, n) {{
       var werte = [];
-      for (var k = 0; k < gewichte.length; k++) {{
-        var wert = Math.pow(10, zentrumLog + (k - 4) * schrittLog);
-        for (var n = 0; n < gewichte[k]; n++) {{ werte.push(wert); }}
-      }}
+      for (var i = 0; i < n; i++) {{ werte.push(pegel); }}
       return werte;
     }}
 
     var bimodal = serie(0.0025, 0.0035, 200, 0.25, 0.35, 100);
     var ergebnisse = {{
       bimodal: kalOtsuSchwelle(bimodal),
-      unimodal_eng: kalOtsuSchwelle(glocke(-2, 0.02)),
-      unimodal_breit: kalOtsuSchwelle(glocke(-2, 0.2)),
+      konstantes_rauschen: kalOtsuSchwelle(konstant(0.01, 300)),
+      monolog_ohne_pausen: kalOtsuSchwelle(konstant(0.2, 300)),
       zu_wenig_proben: kalOtsuSchwelle([0.01, 0.02, 0.5])
     }};
     console.log(JSON.stringify(ergebnisse));
@@ -1031,108 +986,160 @@ def test_kalotsuschwelle_findet_das_taltal_oder_faellt_zurueck_live_in_node(tmp_
     ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
     erwartete_mitte = (0.003 * 0.3) ** 0.5   # geometrisches Mittel der beiden Cluster
     assert ergebnisse["bimodal"] == pytest.approx(erwartete_mitte, rel=0.2)
-    assert ergebnisse["unimodal_eng"] is None
-    assert ergebnisse["unimodal_breit"] is None
+    assert ergebnisse["konstantes_rauschen"] is None
+    assert ergebnisse["monolog_ohne_pausen"] is None
     assert ergebnisse["zu_wenig_proben"] is None
 
 
-def test_kalschliesseautoab_nutzt_otsu_und_faellt_sonst_auf_die_rolling_formel_live_in_node(tmp_path):
-    """Die Verdrahtung in ``kalSchliesseAutoAb``: genug bimodale Proben in
-    ``sitzung._kalAutoProben`` (von pegelAn() ueber das ganze Messfenster
-    gesammelt, siehe kalStarteAuto) ergeben die Otsu-Schwelle und einen
-    Boden aus dem Median der UNTEREN Klasse; zu wenige/unimodale Proben
-    fallen auf die alte Rolling-Formel ueber ``sitzung.vadBoden`` zurueck.
-    Beide Zweige melden das Ergebnis gleich (Server ``rede: null``, Cache
-    ``boden`` als Platzhalter -- siehe Kommentar im Code).
+def test_kaladaptivneuerwert_bewegt_sich_sanft_und_gedeckelt_live_in_node(tmp_path):
+    """Reine Funktion: ohne Vorwert gilt der erste Otsu-Wert direkt (nur
+    geklemmt); mit Vorwert bewegt sich die Schwelle per EMA (alpha=0.3) im
+    Log-Raum auf den neuen Wert zu, aber nie weiter als der Faktor 1.25 in
+    EINEM Schritt -- auch wenn der Otsu-Wert selbst viel weiter weg liegt.
 
-    Mutanten: ``sitzung._kalAutoProben`` nicht leeren liesse eine zweite
-    Fensterauswertung dieselben Proben wiederverwenden; ein vertauschtes
-    max/min im Rueckfallzweig liesse die Schwelle unter RMS_SCHWELLE
-    fallen; ``null`` statt ``boden`` im Cache-Aufruf machte den Cache fuer
-    den Rest des Tages unlesbar (kalibrierungCacheLesen verlangt drei
-    endliche Werte)."""
+    Mutanten: alpha im Zaehler/Nenner vertauscht liesse den sanften Fall
+    (kleiner Sprung, weit unter der Deckelung) falsch ausfallen; ein
+    Vorzeichenfehler bei der Deckelung liesse den extremen Fall UNTER
+    0.004*1.25 statt bei genau diesem Faktor landen."""
     node = _node_oder_skip()
     js = web_chat._CHAT_JS
-    kal_median = _extrahiere(js, "function kalMedian", "function kalPerzentil")
-    otsu = _extrahiere(js, "var KAL_OTSU_SNR_MIN", "function kalGruppenwerteAus")
-    auto = _extrahiere(js, "function kalMeldeGruppenwerte", "function kalibrierungNeu")
+    funktion = _extrahiere(js, "function kalAdaptivNeuerWert", "function kalAdaptivAktualisiere")
 
     quelltext = f"""
-    var KAL_SCHWELLE_ABS_MIN = 0.004;
-    var KAL_SCHWELLE_ABS_MAX = 0.08;
-    var zeitplaene = [];
-    function setTimeout(fn, ms) {{ zeitplaene.push({{ fn: fn, ms: ms }}); }}
-    var fuss = {{ dataset: {{ vadRms: '0.01', vadFloorFaktor: '2.5' }} }};
-    var echteSchnitteAufrufe = 0;
-    function kalStarteEchteSchnitte(s) {{ echteSchnitteAufrufe++; }}   // pegelAn() laeuft hier NICHT
-    var cacheSchreibenAufrufe = [];
-    function kalibrierungCacheSchreiben(speicher, gruppe, datum, boden, rede, schwelle) {{
-      cacheSchreibenAufrufe.push({{ boden: boden, rede: rede, schwelle: schwelle }});
-    }}
-    function kalSpeicher() {{ return null; }}
-    function kalGruppeAus(p) {{ return 'g'; }}
-    function kalDatum(d) {{ return 'd'; }}
-    var location = {{ pathname: '/g/tok1/chat' }};
-    var gemeldet = [];
-    function postJson(pfad, nutzlast) {{ gemeldet.push(nutzlast); return {{ catch: function () {{}} }}; }}
-    {kal_median}
-    {otsu}
-    {auto}
-
-    function serie(untenVon, untenBis, untenN, obenVon, obenBis, obenN) {{
-      var werte = [];
-      for (var i = 0; i < untenN; i++) {{
-        werte.push(untenVon + i * (untenBis - untenVon) / Math.max(1, untenN));
-      }}
-      for (var j = 0; j < obenN; j++) {{
-        werte.push(obenVon + j * (obenBis - obenVon) / Math.max(1, obenN));
-      }}
-      return werte;
-    }}
-
-    function lauf(proben, vadBoden) {{
-      zeitplaene = []; cacheSchreibenAufrufe = []; gemeldet = []; echteSchnitteAufrufe = 0;
-      var sitzung = {{ vadBoden: vadBoden }};
-      kalStarteAuto(sitzung);
-      // pegelAn() ist hier Attrappe (echteSchnitteAufrufe zaehlt nur) --
-      // die Proben kommen stattdessen direkt, wie sie bis zum Fenster-Ende
-      // angesammelt worden waeren.
-      sitzung._kalAutoProben = proben;
-      zeitplaene[0].fn();
-      return {{
-        fensterMs: zeitplaene[0].ms, echteSchnitteAufrufe: echteSchnitteAufrufe,
-        vadBodenMess: sitzung.vadBodenMess, vadSchwelleFix: sitzung.vadSchwelleFix,
-        kalibriert: !!sitzung.kalibriert, kalAutoProben: sitzung._kalAutoProben,
-        cacheSchreibenAufrufe: cacheSchreibenAufrufe, gemeldet: gemeldet
-      }};
-    }}
-
-    var bimodal = serie(0.0025, 0.0035, 200, 0.25, 0.35, 100);
+    {funktion}
     var ergebnisse = {{
-      otsu: lauf(bimodal, []),
-      rueckfall: lauf([], [0.004, 0.006, 0.005, 0.2, 0.2])
+      erster_wert_ohne_vorwert: kalAdaptivNeuerWert(null, 0.03, 0.3, 1.25, 0.004, 0.08),
+      geklemmt_nach_oben: kalAdaptivNeuerWert(null, 0.5, 0.3, 1.25, 0.004, 0.08),
+      sanfter_schritt: kalAdaptivNeuerWert(0.01, 0.0112, 0.3, 1.25, 0.004, 0.08),
+      extremer_sprung_gedeckelt_nach_oben: kalAdaptivNeuerWert(0.01, 1, 0.3, 1.25, 0.004, 0.08),
+      extremer_sprung_gedeckelt_nach_unten: kalAdaptivNeuerWert(0.01, 0.0001, 0.3, 1.25, 0.004, 0.08)
     }};
     console.log(JSON.stringify(ergebnisse));
     """
     ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
     ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse["erster_wert_ohne_vorwert"] == pytest.approx(0.03)
+    assert ergebnisse["geklemmt_nach_oben"] == pytest.approx(0.08)
+    # log10(0.0112/0.01) = 0.0492..., *0.3 = 0.01477 -- deutlich unter dem
+    # log10(1.25)=0.0969-Deckel, der EMA-Schritt greift unveraendert.
+    erwartet_sanft = 10 ** (math.log10(0.01) + 0.3 * (math.log10(0.0112) - math.log10(0.01)))
+    assert ergebnisse["sanfter_schritt"] == pytest.approx(erwartet_sanft, rel=1e-6)
+    assert ergebnisse["sanfter_schritt"] < 0.01 * 1.25
+    # Der Otsu-Wert liegt weit ausserhalb -- der Schritt selbst darf den
+    # Vorwert trotzdem nur um den Faktor 1.25 bewegen.
+    assert ergebnisse["extremer_sprung_gedeckelt_nach_oben"] == pytest.approx(0.01 * 1.25, rel=1e-9)
+    assert ergebnisse["extremer_sprung_gedeckelt_nach_unten"] == pytest.approx(0.01 / 1.25, rel=1e-9)
 
-    otsu = ergebnisse["otsu"]
-    assert otsu["fensterMs"] == 20000
-    assert otsu["echteSchnitteAufrufe"] == 1
-    assert otsu["kalibriert"] is True
-    assert otsu["kalAutoProben"] is None, "Proben werden nach der Auswertung geleert"
+
+def test_kaladaptivaktualisiere_konvergiert_bimodal_unimodal_bleibt_unveraendert_live_in_node(tmp_path):
+    """Die Abnahme woertlich: ein bimodaler synthetischer Strom (60ms-Takt)
+    konvergiert innerhalb 30s auf das Taltal (+-20%); ein unimodaler Strom
+    (konstantes Rauschen -- Birks eigene Umschreibung) aktualisiert NIE,
+    die Schwelle bleibt ``null`` (die alte Rolling-Formel bleibt also aktiv,
+    hier nicht mitgefuehrt); die Schrittbegrenzung (max x1.25) haelt ueber
+    eine Folge krasser Regimewechsel.
+
+    Mutanten: KAL_ADAPTIV_START_MS nicht beachtet liesse die Schwelle schon
+    VOR der 20s-Verzoegerung springen (hier durch den ersten Zeitpunkt
+    einer Aenderung geprueft); eine vergessene Fenster-Kappung (60s) liesse
+    sehr alte Proben ewig mitzaehlen -- bei einem Regimewechsel zeigt sich
+    das als ausbleibende Konvergenz nach vielen Minuten (hier: die
+    Schrittfolge selbst, die sonst unbegrenzt waechst, bleibt gedeckelt)."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    otsu = _extrahiere(js, "var KAL_OTSU_GUETE_MIN", "function kalGruppenwerteAus")
+    kal_median = _extrahiere(js, "function kalMedian", "function kalPerzentil")
+    adaptiv = _extrahiere(
+        js, "var KAL_ADAPTIV_START_MS", "// Panel-level Messen-Knopf",
+    )
+
+    quelltext = f"""
+    var KAL_SCHWELLE_ABS_MIN = 0.004;
+    var KAL_SCHWELLE_ABS_MAX = 0.08;
+    var gemeldet = [];
+    function kalMeldeGruppenwerte(boden, rede, schwelle) {{
+      gemeldet.push({{ boden: boden, rede: rede, schwelle: schwelle }});
+    }}
+    {kal_median}
+    {otsu}
+    {adaptiv}
+
+    // Simuliert einen 60ms-Takt ueber ``dauerMs``, ``pegelBei(zeitMs)``
+    // liefert den RMS-Wert fuer jeden Tick -- derselbe Mechanismus wie
+    // pegelAn()s Sammel-Aufruf, nur ohne echten Timer.
+    function simuliere(sitzung, dauerMs, pegelBei) {{
+      var schrittfolge = [];
+      for (var t = 0; t <= dauerMs; t += 60) {{
+        sitzung._kalAdaptivProben.push({{ t: t, r: pegelBei(t) }});
+        var vorher = sitzung.vadSchwelleFix;
+        kalAdaptivAktualisiere(sitzung, t);
+        if (sitzung.vadSchwelleFix !== vorher) {{
+          schrittfolge.push({{ t: t, von: vorher, nach: sitzung.vadSchwelleFix }});
+        }}
+      }}
+      return schrittfolge;
+    }}
+
+    // Bimodal: abwechselnd 400ms Grundrauschen (~0.003), 200ms Sprache
+    // (~0.3) -- grobe Annaeherung an eine echte Diskussion.
+    function bimodalerPegel(t) {{
+      return (Math.floor(t / 400) % 2 === 0) ? 0.003 : 0.3;
+    }}
+    var bimodal = {{ vadSchwelleFix: null, _kalAdaptivStart: 0, _kalAdaptivProben: [] }};
+    var schritteBimodal = simuliere(bimodal, 30000, bimodalerPegel);
+
+    // Unimodal: konstantes Rauschen, kein Sprachanteil im ganzen Fenster.
+    var unimodal = {{ vadSchwelleFix: null, _kalAdaptivStart: 0, _kalAdaptivProben: [] }};
+    var schritteUnimodal = simuliere(unimodal, 30000, function () {{ return 0.01; }});
+
+    // Schrittbegrenzung: zwei krasse Regimewechsel nacheinander (erst sehr
+    // leise, dann sehr laut) -- JEDER einzelne akzeptierte Schritt darf
+    // sich nur um den Faktor 1.25 bewegen, egal wie weit das neue Taltal
+    // selbst entfernt liegt.
+    var deckel = {{ vadSchwelleFix: null, _kalAdaptivStart: 0, _kalAdaptivProben: [] }};
+    var schritteDeckel = simuliere(deckel, 30000, bimodalerPegel).concat(
+      (function () {{
+        deckel._kalAdaptivStart = 30000;   // neues 20s-Anlaufen fuer das zweite Regime
+        deckel._kalAdaptivLetzterLauf = null;
+        deckel._kalAdaptivProben = [];
+        function lautesRegime(t) {{
+          return (Math.floor(t / 400) % 2 === 0) ? 0.03 : 3.0;
+        }}
+        return simuliere(deckel, 30000, function (t) {{ return lautesRegime(t + 30000); }})
+          .map(function (s) {{ return {{ t: s.t + 30000, von: s.von, nach: s.nach }}; }});
+      }})()
+    );
+
+    console.log(JSON.stringify({{
+      bimodal: {{ vadSchwelleFix: bimodal.vadSchwelleFix, ersterSchrittT: (schritteBimodal[0] || {{}}).t,
+                  anzahlSchritte: schritteBimodal.length, gemeldetAnzahl: gemeldet.length }},
+      unimodal: {{ vadSchwelleFix: unimodal.vadSchwelleFix, anzahlSchritte: schritteUnimodal.length }},
+      deckel: schritteDeckel.map(function (s) {{
+        return {{ von: s.von, nach: s.nach, faktor: (s.von == null ? null : s.nach / s.von) }};
+      }})
+    }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnis = json.loads(ausgabe.strip().splitlines()[-1])
+
+    bimodal = ergebnis["bimodal"]
+    assert bimodal["ersterSchrittT"] is not None and bimodal["ersterSchrittT"] >= 20000, (
+        "kein Update vor der 20s-Startverzoegerung"
+    )
     erwartete_mitte = (0.003 * 0.3) ** 0.5
-    assert otsu["vadSchwelleFix"] == pytest.approx(erwartete_mitte, rel=0.2)
-    assert otsu["vadBodenMess"] == pytest.approx(0.003, rel=0.2)   # Median der unteren Klasse
-    assert otsu["cacheSchreibenAufrufe"][0]["boden"] == pytest.approx(otsu["vadBodenMess"])
-    assert otsu["cacheSchreibenAufrufe"][0]["rede"] == pytest.approx(otsu["vadBodenMess"])
-    assert otsu["gemeldet"][0]["rede"] is None
+    assert bimodal["vadSchwelleFix"] == pytest.approx(erwartete_mitte, rel=0.2)
+    assert bimodal["anzahlSchritte"] > 0
+    assert bimodal["gemeldetAnzahl"] > 0
 
-    rueckfall = ergebnisse["rueckfall"]
-    assert rueckfall["kalibriert"] is True
-    assert rueckfall["vadBodenMess"] == pytest.approx(0.006)   # kalMedian(vadBoden)
-    assert rueckfall["vadSchwelleFix"] == pytest.approx(0.015)   # max(0.01, 0.006*2.5)
+    unimodal = ergebnis["unimodal"]
+    assert unimodal["vadSchwelleFix"] is None
+    assert unimodal["anzahlSchritte"] == 0
+
+    for schritt in ergebnis["deckel"]:
+        if schritt["von"] is None:
+            continue
+        assert schritt["faktor"] <= 1.25 + 1e-9
+        assert schritt["faktor"] >= 1 / 1.25 - 1e-9
 
 
 def test_die_kalibrierung_attribute_stehen_am_fuss_mit_gruppenwerten():

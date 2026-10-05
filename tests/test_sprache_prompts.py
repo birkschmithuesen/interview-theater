@@ -237,6 +237,17 @@ def test_padua_systemanweisung_ohne_offenen_platzhalter(padua):
         assert "{{" not in anweisungen.system("gruppe1", phase)
 
 
+def test_padua_anweisung_fragt_nicht_zwingend_am_satzende(padua):
+    """Prompt-Check Padua P1-2 (05.10.2026), Befund P1-L3:
+    workshop/padua-2026/prompts/anweisung.md:3 verlangte woertlich 'at the
+    end' -- Widerspruch zu system.md ('never a mandatory close, only when
+    it helps') und zur Phase-1-Datei ('no question at the end')."""
+    text = anweisungen.hole("anweisung")
+    assert "at the end" not in text
+    assert "only when it helps" in text
+    assert "never as a closing line" in text
+
+
 # --- Aufgabe 19: die Extraktion auf Englisch (erkenner, journal, verdichter,
 # kernzitate, schaerfung, sprachprofil) ---
 

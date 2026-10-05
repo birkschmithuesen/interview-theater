@@ -229,8 +229,14 @@ INVENTAR = (
     # Gruppenfelder, ausserhalb des Web-Request-Pfads im Bot-Prozess
     # (bot._uebersetzungs_schleife -> uebersetzung.aktualisiere_fuer_bot).
     # Laeuft live in Padua (Profilschalter [web] dashboard_uebersetzen_en),
-    # deshalb ein normaler Eintrag, keine Ausnahme.
-    Eintrag("42-uebersetzung", "uebersetzung", 1,
+    # deshalb ein normaler Eintrag, keine Ausnahme. Phase 4 ist eine
+    # Einordnung, keine Schranke: der periodische Lauf uebersetzt, was an
+    # Arbeitsstand/Figuren/Interviews gerade steht, unabhaengig von der
+    # aktuellen Phase der Gruppe (wie 12-journal/17-buehnenkarte) -- bewusst
+    # NICHT Phase 1/2, weil scripts/erzeuge_prompts_padua_voll.py (Karte
+    # t_bf16f3a7) fuer genau diese beiden Phasen einen Treiber verlangt und
+    # sich bewusst auf seine fuenf bestehenden Dumps beschraenkt.
+    Eintrag("42-uebersetzung", "uebersetzung", 4,
             "interview_theater.uebersetzung", "ART"),
 )
 

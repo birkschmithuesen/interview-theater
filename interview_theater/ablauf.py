@@ -1580,6 +1580,15 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
             strom.verwirf(tg, chat_id)
             raise
     strom.schliesse(tg, chat_id, message_id)
+    if not message_id:
+        # R2-1: ``fragen.uebernimm_schaerfung`` verwirft eine spaet
+        # abgelieferte Schaerfung fuer eine schon entschiedene Frage stumm
+        # und liefert dafuer ``None`` statt einer ``message_id`` -- nichts
+        # wurde an die Gruppe geschickt, also ist auch nichts mitzuschreiben.
+        # ``strom.schliesse(..., None)`` laesst die vorlaeufige Blase
+        # ersatzlos verschwinden (``web_vereint``: "fertig ohne Nachricht"
+        # zaehlt wie "abgebrochen").
+        return
     try:
         repo.merke_nachricht(
             conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),

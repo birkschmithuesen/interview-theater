@@ -720,7 +720,12 @@ def test_spaete_schaerfung_ueberschreibt_nicht_die_naechste_frage(
     waehrend die Schaerfung von Frage 1 noch im Thread laeuft. Entscheidet die
     Gruppe dazwischen, steht Frage 2 da -- die spaete Modellantwort fuer
     Frage 1 darf Frage 2 nicht ersetzen (sie hing vorher an
-    ``fragen_aktuell``, nicht an der Frage, fuer die sie gestartet wurde)."""
+    ``fragen_aktuell``, nicht an der Frage, fuer die sie gestartet wurde).
+
+    R2-1: die spaete Antwort schickt der Gruppe jetzt auch gar nichts mehr --
+    vorher kam dafuer die verwirrende Fehlzeile ``T._TEXT_FRAGEN_KEINE_AUSWAHL``
+    (Live-Beschwerde "I don't know this selection any more"), nur weil
+    ``auftragszug`` eine ``message_id`` zum Abschliessen brauchte."""
     _vorschlag_zeigen(conn, tg)
     knoepfe.starte_durchgehen(conn, tg, 1)
     _druecke(conn, tg, einst, "Schaerfen")
@@ -730,6 +735,7 @@ def test_spaete_schaerfung_ueberschreibt_nicht_die_naechste_frage(
     assert tg.gesendet[-1][1].startswith("Frage 2/3")
     vorher = repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"]
     karten_vorher = len(tg.knoepfe)
+    gesendet_vorher = len(tg.gesendet)
 
     message_id, _ = _antwort_im_auftrag(
         conn, tg, auftraege[0],
@@ -740,9 +746,10 @@ def test_spaete_schaerfung_ueberschreibt_nicht_die_naechste_frage(
     assert stand["fragen_auswahl"] == vorher, "Frage 2 (und 1) unveraendert"
     assert stand["fragen_aktuell"] == "2"
     assert len(tg.knoepfe) == karten_vorher, "keine neue Karte, keine neue Leiste"
+    assert len(tg.gesendet) == gesendet_vorher, "gar keine Nachricht an die Gruppe"
     offen = _offene_annehmen(conn)
     assert len(offen) == 1 and offen[0]["wert"] == "2", "die Leiste von Frage 2 bleibt"
-    assert isinstance(message_id, int)
+    assert message_id is None
 
 
 def test_spaete_unveraenderte_schaerfung_nimmt_der_naechsten_frage_nicht_die_leiste(

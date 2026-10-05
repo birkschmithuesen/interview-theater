@@ -2772,7 +2772,7 @@ _CHAT_JS = """
   // Bestaetigung (kalAntwortJa) noch der AUTO-Pfad warten auf die Antwort,
   // und ein Fehlschlag blockiert die laufende Aufnahme nicht.
   function kalMeldeGruppenwerte(boden, rede, schwelle) {
-    postJson('chat/kalibrierung', { boden: boden, rede: rede, schwelle: schwelle })
+    postJson(`chat/kalibrierung`, { boden: boden, rede: rede, schwelle: schwelle })
       .catch(function () { /* best effort, wie kalMeldeZuLeise */ });
   }
 

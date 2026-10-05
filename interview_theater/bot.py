@@ -22,7 +22,7 @@ import httpx
 
 from interview_theater import (
     ablauf, aufnahme, befehle, db, einstellungen, erkenner, journal, knoepfe, phasen,
-    repo, telegram, workshop,
+    repo, telegram, uebersetzung, workshop,
 )
 from interview_theater.einstellungen import Einstellungen
 from interview_theater.llm import LLM
@@ -475,6 +475,23 @@ def _nachhol_schleife(stop: threading.Event, conn, e: Einstellungen, tg, klm, st
         stop.wait(aufnahme.NACHHOL_INTERVALL_S)
 
 
+def _uebersetzungs_schleife(stop: threading.Event, conn, e: Einstellungen, klm) -> None:
+    """Uebersetzt die Dashboard-Felder dieses Bots alle
+    ``uebersetzung.INTERVALL_S`` Sekunden (Karte t_f7770dc4, Padua).
+
+    Dasselbe Muster wie ``_nachhol_schleife``: eigener Daemon-Thread, eine
+    Ausnahme darf ihn nie stoppen (global-constraints.md 'Fehlerhaltung').
+    ``uebersetzung.aktualisiere_fuer_bot`` ist ohne den Profilschalter
+    ``[web] dashboard_uebersetzen_en`` (Dortmund/Vorgabe) ein No-Op --
+    kein Modellaufruf, kein Zugriff auf die Tabelle ``uebersetzung``."""
+    while not stop.is_set():
+        try:
+            uebersetzung.aktualisiere_fuer_bot(conn, klm, e)
+        except Exception:
+            log.exception("Uebersetzung fehlgeschlagen")
+        stop.wait(uebersetzung.INTERVALL_S)
+
+
 def schleife(
     conn: sqlite3.Connection,
     e: Einstellungen,
@@ -665,6 +682,10 @@ def main() -> None:
         target=_nachhol_schleife, args=(stop, conn, e, tg, klm, klient), daemon=True,
     )
     nachhol_thread.start()
+    uebersetzungs_thread = threading.Thread(
+        target=_uebersetzungs_schleife, args=(stop, conn, e, klm), daemon=True,
+    )
+    uebersetzungs_thread.start()
 
     try:
         schleife(conn, e, tg, klm, klient, pool)

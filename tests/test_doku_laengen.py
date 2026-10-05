@@ -1,6 +1,6 @@
 """Die Doku nennt, was diese Karte gebaut hat (30.09.2026, Karte R).
 
-Kein Stilwaechter: geprueft wird nur, dass ein Mensch, der AGENTS.md liest,
+Kein Stilwaechter: geprueft wird nur, dass ein Mensch, der AGENTS.md und docs/agents/ liest,
 die drei neuen Module, die neue Spalte, den Profilabschnitt und die beiden
 neuen ``art``-Werte ueberhaupt findet. Ein Modul, das dort fehlt, wird beim
 naechsten Umbau versehentlich umgangen.
@@ -10,8 +10,10 @@ from pathlib import Path
 
 import pytest
 
+from tests.agents_doku import agents_doku
+
 WURZEL = Path(__file__).resolve().parent.parent
-AGENTS = (WURZEL / "AGENTS.md").read_text(encoding="utf-8")
+AGENTS = agents_doku()
 LIESMICH = (WURZEL / "workshop" / "padua-2026" / "LIESMICH.md").read_text(
     encoding="utf-8")
 

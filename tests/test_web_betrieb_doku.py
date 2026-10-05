@@ -8,6 +8,7 @@ am Workshopmorgen niemand.
 from pathlib import Path
 
 from interview_theater import einstellungen, web_chat, web_kanal
+from tests.agents_doku import agents_doku
 
 WURZEL = Path(__file__).resolve().parent.parent
 
@@ -32,13 +33,13 @@ def test_die_neuen_variablen_stehen_mit_erklaerung_im_beispiel():
 
 
 def test_agents_md_kennt_die_neuen_module():
-    agents = _lies("AGENTS.md")
+    agents = agents_doku()
     for modul in ("web_kanal.py", "web_chat.py", "scripts/web_gruppe.py"):
         assert modul in agents, modul
 
 
 def test_agents_md_nennt_den_kanal_und_die_tabelle():
-    agents = _lies("AGENTS.md")
+    agents = agents_doku()
     assert "IT_KANAL" in agents
     assert "web_post" in agents
     assert "/g/<token>/chat" in agents
@@ -48,13 +49,13 @@ def test_agents_md_nennt_die_zwei_audio_wege():
     """Birks Vorgabe vom 30.09.2026 -- zwei getrennte Knoepfe, kein
     Schieben-zum-Sperren. Eine Entscheidung, die nur im Code steht, wird beim
     naechsten Umbau umgedreht."""
-    agents = _lies("AGENTS.md")
+    agents = agents_doku()
     assert "Push-to-Talk" in agents
     assert "Schieben-zum-Sperren" in agents
 
 
 def test_die_zahlen_in_agents_md_stimmen_mit_dem_code():
-    agents = _lies("AGENTS.md")
+    agents = agents_doku()
     assert str(einstellungen.VORGABE_SEGMENT_MS // 1000) in agents   # 45
     assert str(web_chat.PTT_MIN_MS) in agents                        # 500
     assert str(web_kanal.TIPPT_GUELTIG_S) in agents                  # 8

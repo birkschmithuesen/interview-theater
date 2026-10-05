@@ -906,6 +906,14 @@ _TEXT_GEGENUEBERSTELLUNG_BEREIT = (
 #: kennt beides nicht).
 _TEXT_HERKUNFT_EIGEN = " (eure)"
 _TEXT_HERKUNFT_KI = " (KI)"
+#: Padua 05.10.2026: die Fragen auf einmal sortieren statt nur Karte fuer
+#: Karte -- Hinweis auf die Sortierliste im CoThinker (beim Start des
+#: Durchgehens) und der Zaehler unter "show all" (``fragen.uebersicht_text``).
+_TEXT_FRAGEN_COTHINKER_HINWEIS = (
+    "Ihr könnt alle Fragen auch im CoThinker auf einmal sortieren: "
+    "✓ behalten · ✗ weg · ✎ umformulieren, dann „Fertig sortiert“."
+)
+_TEXT_AUSWAHL_ZAEHLER = "{ja} behalten · {nein} weg · {schaerfen} umformulieren · {offen} offen"
 #: Der Satz, den das Padua-Profil-Prompt
 #: (``workshop/padua-2026/prompts/phasen/2.md``) das Modell woertlich sagen
 #: laesst, wenn die Gruppe mit ihren eigenen Fragen fertig ist und zur

@@ -168,3 +168,140 @@ def test_karte_begriff_mit_doppelpunkt(conn, tg):
     assert T._TEXT_FRAGE_KOPF.format(
         nummer=1, gesamt=1, begriff="EVENTO: dall’esterno all’interno") in text
     assert text.endswith("\n\nDov'eri?")
+
+
+# --- Task 3: "show all", Frage bei offener Karte, Hinweis auf den CoThinker ---
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    assert workshop.diskussion_aktiv() is True
+    yield
+    workshop.vergiss()
+
+
+@pytest.fixture
+def dortmund(monkeypatch):
+    monkeypatch.delenv(workshop.VARIABLE, raising=False)
+    workshop.vergiss()
+    assert workshop.diskussion_aktiv() is False
+    yield
+    workshop.vergiss()
+
+
+def _karte_offen(conn, entschieden="ja"):
+    _auswahl(conn, "A: eins?\nA: zwei?\nB: drei?", begriffe="A, B")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_herkunft", "eigen,ki,ki")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", entschieden)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_aktuell", "2")
+
+
+@pytest.mark.parametrize("wunsch", ["show all", "Mostra tutte!", "show all questions",
+                                     "mostra tutte le domande", "Zeig alle Fragen."])
+def test_show_all_zeigt_die_uebersicht(conn, tg, auftraege, padua, wunsch):
+    _karte_offen(conn, "ja,,nein")
+    assert fragen.nimm_offene_frage_text(conn, tg, None, None, CHAT, wunsch) is True
+    assert auftraege == []
+    text = tg.gesendet[-1][1]
+    assert "— A —" in text and "— B —" in text
+    assert f"1. ✓ eins?{T._TEXT_HERKUNFT_EIGEN}" in text
+    assert f"2. · zwei?{T._TEXT_HERKUNFT_KI}" in text
+    assert f"3. ✗ drei?{T._TEXT_HERKUNFT_KI}" in text
+    assert T._TEXT_AUSWAHL_ZAEHLER.format(ja=1, nein=1, schaerfen=0, offen=1) in text
+    assert text.endswith(T._TEXT_FRAGEN_COTHINKER_HINWEIS)
+
+
+def test_uebersicht_markiert_schaerfen(conn, padua):
+    _karte_offen(conn, "schaerfen")
+    assert "1. ✎ eins?" in fragen.uebersicht_text(conn, CHAT)
+
+
+def test_show_all_ohne_auswahl_bleibt_im_gespraech(conn, tg, auftraege, padua):
+    assert fragen.nimm_offene_frage_text(conn, tg, None, None, CHAT, "show all") is False
+
+
+def test_frage_bei_offener_karte_geht_ins_gespraech(conn, tg, auftraege, padua):
+    _karte_offen(conn)
+    assert fragen.nimm_offene_frage_text(
+        conn, tg, None, None, CHAT, "Can we see all questions?") is False
+    assert auftraege == []
+
+
+def test_nach_schaerfen_druck_ist_eine_frage_der_wunsch(conn, tg, auftraege, padua):
+    _karte_offen(conn)
+    fragen.frage_waehlt_schaerfen(conn, tg, CHAT, 2)
+    assert _feld(conn, "fragen_warte_auf") == "schaerfen"
+    assert fragen.nimm_offene_frage_text(
+        conn, tg, None, None, CHAT, "Could you make it shorter?") is True
+    assert len(auftraege) == 1 and "make it shorter" in auftraege[0]
+    assert not _feld(conn, "fragen_warte_auf")
+
+
+def test_aussage_bei_offener_karte_bleibt_schaerfungswunsch(conn, tg, auftraege, padua):
+    _karte_offen(conn)
+    assert fragen.nimm_offene_frage_text(
+        conn, tg, None, None, CHAT, "make it shorter") is True
+    assert len(auftraege) == 1
+
+
+def test_sortierung_mit_schaerfen_wartet_auf_den_wunsch(conn, tg, auftraege, padua):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,schaerfen")
+    fragen.sortierung_abschliessen(conn, tg, None, None, CHAT)
+    assert _feld(conn, "fragen_warte_auf") == "schaerfen"
+    assert fragen.nimm_offene_frage_text(
+        conn, tg, None, None, CHAT, "Shorter, please?") is True
+    assert len(auftraege) == 1
+
+
+def test_annehmen_nach_schaerfen_druck_raeumt_das_warten_ab(conn, tg, auftraege, padua):
+    _karte_offen(conn)
+    fragen.frage_waehlt_schaerfen(conn, tg, CHAT, 2)
+    fragen.entscheide(conn, tg, None, None, CHAT, 2, "ja")
+    assert not _feld(conn, "fragen_warte_auf")
+    assert fragen.nimm_offene_frage_text(
+        conn, tg, None, None, CHAT, "Is this one good?") is False
+
+
+def test_dortmund_unveraendert(conn, tg, auftraege, dortmund):
+    _karte_offen(conn)
+    assert fragen.nimm_offene_frage_text(conn, tg, None, None, CHAT, "show all") is True
+    assert len(auftraege) == 1  # wie bisher: Schaerfungswunsch
+    assert fragen.nimm_offene_frage_text(
+        conn, tg, None, None, CHAT, "Can we see all questions?") is True
+    fragen.frage_waehlt_schaerfen(conn, tg, CHAT, 2)
+    assert not _feld(conn, "fragen_warte_auf")
+    vorher = len(tg.gesendet)
+    fragen.starte_durchgehen(conn, tg, CHAT)
+    assert all(T._TEXT_FRAGEN_COTHINKER_HINWEIS not in t for _, t in tg.gesendet[vorher:])
+
+
+def test_padua_durchgehen_nennt_den_cothinker(conn, tg, padua):
+    _karte_offen(conn)
+    fragen.starte_durchgehen(conn, tg, CHAT)
+    texte = [t for _, t in tg.gesendet]
+    assert sum(T._TEXT_FRAGEN_COTHINKER_HINWEIS in t for t in texte) == 1
+
+
+def test_padua_gegenueberstellung_nennt_den_cothinker_einmal(conn, tg, padua, monkeypatch):
+    from interview_theater import fragen_ki
+
+    monkeypatch.setattr(fragen_ki, "passt_zu_begriffen", lambda *a, **k: True)
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "A")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_eigene_vorschlag", "A: eins?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_ki_vorschlag", "A: zwei?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_eigene_erstellt_am", "2026-10-05")
+    assert fragen.versuche_gegenueberstellung(conn, tg, CHAT) is not None
+    texte = [t for _, t in tg.gesendet]
+    assert sum(T._TEXT_FRAGEN_COTHINKER_HINWEIS in t for t in texte) == 1
+    assert T._TEXT_GEGENUEBERSTELLUNG_BEREIT in texte[0]
+
+
+def test_hinweis_deutsch_wortlaut():
+    from interview_theater.knoepfe import texte
+
+    assert texte._TEXT_FRAGEN_COTHINKER_HINWEIS == (
+        "Ihr könnt alle Fragen auch im CoThinker auf einmal sortieren: "
+        "✓ behalten · ✗ weg · ✎ umformulieren, dann „Fertig sortiert“.")

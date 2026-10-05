@@ -623,8 +623,11 @@ def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
         # bestehende Weg -- ``fragenliste``/``starte_durchgehen`` werden
         # WIEDERVERWENDET, nicht nachgebaut ("explicit reuse the flow"
         # instruction der Karte).
-        message_id = tg.sende(chat_id, T._TEXT_GEGENUEBERSTELLUNG_BEREIT)
-        starte_durchgehen(conn, tg, chat_id)
+        bereit = T._TEXT_GEGENUEBERSTELLUNG_BEREIT
+        if workshop.diskussion_aktiv():
+            bereit += "\n\n" + T._TEXT_FRAGEN_COTHINKER_HINWEIS
+        message_id = tg.sende(chat_id, bereit)
+        starte_durchgehen(conn, tg, chat_id, hinweis=False)
         return message_id
 
 
@@ -961,14 +964,21 @@ def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
     return message_id
 
 
-def starte_durchgehen(conn, tg, chat_id: int) -> bool:
+def starte_durchgehen(conn, tg, chat_id: int, hinweis: bool = True) -> bool:
     """"Ja, einzeln durchgehen" -- zeigt Frage 1. Liefert False, wenn es
-    nichts zu zeigen gibt (eine ueberholte Nachricht)."""
+    nichts zu zeigen gibt (eine ueberholte Nachricht).
+
+    Padua (05.10.2026): vorher ein Satz, dass sich alle Fragen auch auf
+    einmal im CoThinker sortieren lassen -- ``hinweis=False``, wenn der
+    Aufrufer ihn schon in seiner eigenen Nachricht traegt
+    (``versuche_gegenueberstellung``)."""
     if not _auswahlfragen(conn, chat_id):
         tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
         return False
     repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
+    if hinweis and workshop.diskussion_aktiv():
+        tg.sende(chat_id, T._TEXT_FRAGEN_COTHINKER_HINWEIS)
     _zeige_frage(conn, tg, chat_id, 1)
     return True
 
@@ -993,6 +1003,8 @@ def sortierung_abschliessen(conn, tg, klm, e, chat_id: int) -> None:
     repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", ",".join(neu))
     if "schaerfen" in neu:
         _zeige_frage(conn, tg, chat_id, neu.index("schaerfen") + 1)
+        if workshop.diskussion_aktiv():
+            repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", "schaerfen")
         tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
         return
     _schliesse_fragen_ab(conn, tg, klm, e, chat_id)
@@ -1020,6 +1032,7 @@ def entscheide(conn, tg, klm, e, chat_id: int, nummer: int, wert: str) -> str:
         tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
         return T._TEXT_FRAGEN_KEINE_AUSWAHL
     _setze_entscheidung(conn, chat_id, nummer, wert)
+    _vergiss_schaerfen_warten(conn, chat_id)
     quittung = T._TEXT_FRAGE_ANGENOMMEN if wert == "ja" else T._TEXT_FRAGE_VERWORFEN
     naechste = _naechste_offene(conn, chat_id, len(fragen))
     if naechste is None:
@@ -1036,6 +1049,10 @@ def frage_waehlt_schaerfen(conn, tg, chat_id: int, nummer: int) -> str:
     defensiv (erneut) auf diese Frage gesetzt wird -- derselbe Schutz wie
     eine aus Versehen verschobene Reihenfolge."""
     repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", str(nummer))
+    if workshop.diskussion_aktiv():
+        # Padua: die naechste Nachricht ist der Wunsch -- auch als Frage
+        # formuliert ("Could you make it shorter?").
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", "schaerfen")
     tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
     # P2-N1 (Feedbackloop P1-2): die Rueckfrage steht schon als Blase da --
     # dieselbe Zeile noch einmal als Knopf-Quittung stand doppelt.
@@ -1131,6 +1148,10 @@ def nimm_offene_frage_text(conn, tg, klm, e, chat_id: int, text: str) -> bool:
         warte = (stand["fragen_warte_auf"] or "").strip()
     except (IndexError, KeyError):
         warte = ""
+    padua = workshop.diskussion_aktiv()
+    if padua and ZEIG_ALLE.match(text) and _auswahlfragen(conn, chat_id):
+        tg.sende(chat_id, uebersicht_text(conn, chat_id))
+        return True
     if warte == "richtung":
         repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
         anweisung = frage_fuer_andere_richtung(conn, chat_id, richtung=text)
@@ -1139,9 +1160,64 @@ def nimm_offene_frage_text(conn, tg, klm, e, chat_id: int, text: str) -> bool:
 
     nummer = _aktuelle_offene_nummer(conn, chat_id)
     if nummer is not None:
+        if padua and warte != "schaerfen" and text.rstrip().endswith("?"):
+            # Padua 05.10.2026: "Can we see all questions?" ist kein
+            # Aenderungswunsch an der offenen Karte -- ohne vorherigen Druck
+            # auf "Schaerfen" geht eine Frage ins normale Gespraech.
+            return False
+        if warte == "schaerfen":
+            repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
         _starte_schaerfung(conn, tg, klm, e, chat_id, nummer, text)
         return True
     return False
+
+
+def _vergiss_schaerfen_warten(conn, chat_id: int) -> None:
+    """Nach Annehmen/Verwerfen wartet keine Karte mehr auf einen Wunsch --
+    nur "schaerfen" wird geraeumt, "richtung" bleibt unberuehrt."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        warte = (stand["fragen_warte_auf"] or "") if stand else ""
+    except (IndexError, KeyError):
+        return
+    if warte == "schaerfen":
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
+
+
+#: Padua 05.10.2026: der Wunsch, alle Fragen zu sehen -- wortwoertlich, kein
+#: Erkenner-Lauf (die Bruecke ~/.hermes/.../padua-fragen-uebersicht.py lief
+#: bis dahin als Cron).
+ZEIG_ALLE = re.compile(
+    r"^\s*(show all|show all questions|mostra tutte|mostra tutte le domande"
+    r"|zeig alle|zeig alle fragen)\s*[.!]?\s*$",
+    re.I,
+)
+
+_MARKE = {"ja": "✓", "nein": "✗", "schaerfen": "✎", "": "·"}
+
+
+def uebersicht_text(conn, chat_id: int) -> str:
+    """Alle Fragen der laufenden Auswahl auf einen Blick, je Begriff, mit
+    Zustand (✓ ✗ ✎ ·) und Herkunft, darunter der Zaehler und der Hinweis
+    auf die Sortierliste im CoThinker. Aus ``auswahl.fragen_liste`` --
+    dieselbe Gruppierung wie im CoThinker."""
+    from interview_theater import auswahl
+
+    liste = auswahl.fragen_liste(repo.hole_arbeitsstand(conn, chat_id))
+    zeilen: list[str] = []
+    for gruppe in liste["gruppen"]:
+        if zeilen:
+            zeilen.append("")
+        if gruppe["titel"]:
+            zeilen.append(f"— {gruppe['titel']} —")
+        for eintrag in gruppe["eintraege"]:
+            herkunft = {"eigen": T._TEXT_HERKUNFT_EIGEN,
+                        "ki": T._TEXT_HERKUNFT_KI}.get(eintrag["herkunft"], "")
+            zeilen.append(f"{eintrag['nummer']}. {_MARKE[eintrag['zustand']]} "
+                          f"{eintrag['text']}{herkunft}")
+    zeilen += ["", T._TEXT_AUSWAHL_ZAEHLER.format(**liste["zaehler"]),
+               T._TEXT_FRAGEN_COTHINKER_HINWEIS]
+    return "\n".join(zeilen)
 
 
 def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:

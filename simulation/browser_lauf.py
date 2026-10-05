@@ -91,6 +91,24 @@ def _diskussion_laeuft(page) -> bool:
     return page.locator('#diskussion[data-laeuft="1"]').count() > 0
 
 
+def _schliesse_offenes_phasensheet(page) -> bool:
+    """Schliesst ein offenes Padua-Stepper-Bestaetigungsblatt
+    (``#phasensheet``) deterministisch ueber "Stay here", BEVOR die Persona
+    ihren naechsten Zug plant (Abnahme P1-2, Fortsetzung, 05.10.2026: ein
+    echter Lauf oeffnete dieses Blatt unbeabsichtigt -- es blieb offen und
+    blockierte jeden weiteren Klick per unsichtbarem Hintergrund-Abdunkler,
+    bis ein 30s-Timeout die Station abbrechen liess). Keiner der elf
+    Stationen dieses Abnahmelaufs navigiert ueber dieses Blatt absichtlich
+    -- ein offenes Blatt ist hier immer ein Unfall, das Schliessen braucht
+    keine LLM-Entscheidung, derselbe Gedanke wie beim deterministischen
+    Diskussions-Ende. Liefert True, wenn geschlossen wurde."""
+    bleib = page.locator("#phasensheet-bleib:visible")
+    if bleib.count() == 0:
+        return False
+    bleib.first.click()
+    return True
+
+
 def _beende_diskussion_deterministisch(page) -> bool:
     """Druecke ``#diskussion-beenden`` direkt, statt der Persona per Hinweis
     zu ueberlassen, ob sie es tut (Abnahme P1-2, Fortsetzung: Robo-Diagnose
@@ -351,6 +369,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
     schritte = 0
     while schritte < station.budget:
         schritte += 1
+        _schliesse_offenes_phasensheet(page)
         vor = mitschnitt.screenshot_pfad(station.phase, f"{station.schluessel}-vor")
         vor.write_bytes(browser_elemente.bildschirmfoto(page))
         elemente = browser_elemente.extrahiere(page)

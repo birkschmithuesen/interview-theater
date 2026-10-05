@@ -371,3 +371,60 @@ def test_beende_diskussion_deterministisch_ohne_knopf_liefert_false():
         geklickt = browser_lauf._beende_diskussion_deterministisch(seite)
         browser.close()
     assert geklickt is False
+
+
+_FIXTURE_PHASENSHEET_OFFEN = """
+<div class="sheet" id="phasensheet" role="dialog" aria-modal="true">
+  <div class="sheet-hintergrund"></div>
+  <div class="sheet-inhalt">
+    <h3 id="phasensheet-titel">1 Terms</h3>
+    <div class="sheet-knoepfe">
+      <button type="button" id="phasensheet-los">Go to 1 Terms</button>
+      <button type="button" id="phasensheet-bleib">Stay here</button>
+    </div>
+  </div>
+</div>
+<button id="senden" type="button">Send</button>
+"""
+
+_FIXTURE_PHASENSHEET_ZU = """
+<div class="sheet" id="phasensheet" hidden role="dialog" aria-modal="true">
+  <div class="sheet-hintergrund"></div>
+  <div class="sheet-inhalt">
+    <div class="sheet-knoepfe">
+      <button type="button" id="phasensheet-los">Go</button>
+      <button type="button" id="phasensheet-bleib">Stay here</button>
+    </div>
+  </div>
+</div>
+<button id="senden" type="button">Send</button>
+"""
+
+
+def test_schliesse_offenes_phasensheet_klickt_stay_here():
+    """Abnahme P1-2, Fortsetzung (05.10.2026, echter Lauf nach dem Merge):
+    das Padua-Stepper-Bestaetigungsblatt oeffnete sich unbeabsichtigt und
+    blockierte per unsichtbarem Hintergrund-Abdunkler jeden weiteren Klick
+    30 Sekunden lang, bis der Lauf abbrach. Keine der elf Stationen
+    navigiert ueber dieses Blatt absichtlich -- ein offenes Blatt wird
+    deshalb deterministisch geschlossen, ohne LLM-Entscheidung."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        seite = browser.new_page()
+        seite.set_content(_FIXTURE_PHASENSHEET_OFFEN)
+        geschlossen = browser_lauf._schliesse_offenes_phasensheet(seite)
+        # Nach dem Klick auf "Stay here" wuerde die echte Seite das Blatt
+        # per JS wieder verstecken -- hier pruefen wir nur den Rueckgabewert
+        # und dass der Knopf wirklich erreichbar war (kein Timeout).
+        browser.close()
+    assert geschlossen is True
+
+
+def test_schliesse_offenes_phasensheet_ohne_offenes_blatt_liefert_false():
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        seite = browser.new_page()
+        seite.set_content(_FIXTURE_PHASENSHEET_ZU)
+        geschlossen = browser_lauf._schliesse_offenes_phasensheet(seite)
+        browser.close()
+    assert geschlossen is False

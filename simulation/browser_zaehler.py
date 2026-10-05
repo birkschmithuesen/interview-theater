@@ -29,6 +29,10 @@ VERDRAHTETE_SELEKTOREN = (
     "#kalibrierung-weiter-trotzdem", "#kalibrierung-nochmal-hoeren",
     "#kalibrierung-skip", ".leiste button", ".tabs button",
     ".phase-knopf", ".phase-abbrechen", ".roadmap li.aufgabe", "a[href]",
+    # Padua-Stepper (Abnahme P1-2, Fortsetzung, 05.10.2026) -- siehe
+    # browser_elemente._ARTEN fuer die Begruendung.
+    ".stepper-segment[role='button']", ".phasenav-zurueck", ".phasenav-vor",
+    "#phasensheet-los", "#phasensheet-bleib",
 )
 
 

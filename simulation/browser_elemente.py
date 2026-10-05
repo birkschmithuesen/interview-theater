@@ -40,6 +40,17 @@ _ARTEN = (
     ("kalibrierung_weiter", "#kalibrierung-weiter-trotzdem"),
     ("kalibrierung_nochmal", "#kalibrierung-nochmal-hoeren"),
     ("kalibrierung_skip", "#kalibrierung-skip"),
+    # Padua-Stepper (Abnahme P1-2, Fortsetzung, 05.10.2026, nach dem Merge
+    # von main): ``[web] phasennav_stepper = true`` ersetzt die alte
+    # ``<details class="roadmap">`` vollstaendig durch ein IMMER sichtbares
+    # ``<header id="roadmap">``. Ohne diese drei Eintraege sah die Persona
+    # weder die Phasen-Segmente noch das Bestaetigungsblatt, das sich nach
+    # einem unbeabsichtigten Oeffnen nicht mehr schliessen liess (jeder
+    # weitere Klick lief 30s in einen Timeout).
+    ("stepper_segment", ".stepper-segment[role='button']"),
+    ("phasenav_pfeil", ".phasenav-zurueck, .phasenav-vor"),
+    ("phasensheet_los", "#phasensheet-los"),
+    ("phasensheet_bleib", "#phasensheet-bleib"),
     ("link", "a[href]"),
 )
 

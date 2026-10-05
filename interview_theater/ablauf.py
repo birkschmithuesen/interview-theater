@@ -953,7 +953,7 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
             return
 
-        message_id, text = _sende_mit_leiste(conn, tg, chat_id, text)
+        message_id, text = _sende_mit_leiste(conn, tg, chat_id, text, klm=klm, e=e)
         # Ab hier steht die Antwort in der Gruppe: markiert, BEVOR der Strom
         # schliesst (Fix-Runde Abschluss, Befund 2) -- ``strom.schliesse``
         # schluckt einen werfenden Abschluss zwar selbst schon (``strom.py``),
@@ -1404,7 +1404,8 @@ def _antworttext(ergebnis) -> str:
     return ""
 
 
-def _sende_mit_leiste(conn, tg, chat_id: int, text: str) -> tuple[int, str]:
+def _sende_mit_leiste(conn, tg, chat_id: int, text: str, klm=None,
+                      e=None) -> tuple[int, str]:
     """Schickt die Antwort mit der Speicher-Leiste und liefert
     ``(message_id, text_ohne_marker)`` -- den Text so, wie er auch in
     ``nachricht`` mitgeschrieben wird.
@@ -1415,10 +1416,17 @@ def _sende_mit_leiste(conn, tg, chat_id: int, text: str) -> tuple[int, str]:
     und "Nochmal anders" darunter. Ohne Block gibt es nur den Text; geraten
     wird nichts. Die Markerzeilen fallen dabei weg, die Gruppe sieht sie nie.
 
+    ``klm``/``e`` reichen bis zum Padua-Autosave in Phase 1/2 durch
+    (``knoepfe.basis._autospeichere``): derselbe Undo-Mechanismus wie ein
+    Erkennerlauf (``erkenner.lauf_fuer_knopf``) und derselbe automatische
+    Phasensprung wie am "Ja, speichern"-Knopf (``uebergang_nach_speichern``).
+
     Faellt die Tastatur aus (Telegram-Fehler), geht der Text trotzdem raus: die
     Antwort ist wichtiger als ihre Knoepfe."""
     try:
-        message_id, _ = knoepfe.sende_mit_speicherleiste(conn, tg, chat_id, text)
+        message_id, _ = knoepfe.sende_mit_speicherleiste(
+            conn, tg, chat_id, text, klm=klm, e=e,
+        )
         return message_id, vorschlag.ohne_marker(text) or text
     except Exception:
         log.exception("Speicher-Leiste fehlgeschlagen, chat_id=%s", chat_id)
@@ -1532,7 +1540,9 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         return
 
     try:
-        message_id, _ = knoepfe.sende_mit_speicherleiste(conn, tg, chat_id, text)
+        message_id, _ = knoepfe.sende_mit_speicherleiste(
+            conn, tg, chat_id, text, klm=klm, e=e,
+        )
         text = vorschlag.ohne_marker(text) or text
     except Exception:
         log.exception("Leiste am Auftragszug fehlgeschlagen, chat_id=%s", chat_id)

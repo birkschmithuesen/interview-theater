@@ -902,6 +902,7 @@ figuren_anzahl = "Number of characters"
 begriffe = "Terms"
 fragen = "Questions"
 szenen_anzahl = "Number of scenes"
+eroeffnung = "Opening"
 
 ["kontext"]
 _SPRECHER_BOT = "You"

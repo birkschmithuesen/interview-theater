@@ -1058,3 +1058,21 @@ def modellwahl_zitate_an_claude_aktiv(profil: Profil | None = None) -> bool:
     damit jederzeit mit einer Zeile umkehrbar."""
     profil = profil or aktiv()
     return bool(profil.wert("modellwahl.zitate_an_claude", True))
+
+
+def autosave_phase1_2_aktiv(profil: Profil | None = None) -> bool:
+    """Ob Phase 1 (Begriffe) und Phase 2 (Eroeffnung) einen Vorschlag sofort
+    speichern statt der Ja/Nein-Rueckfrage "Ja, speichern" / "Nein, nochmal
+    aendern" (Padua P1-2, Abnahme-Befund t_0b702d1d: beide Knoepfe schrieben
+    seit dem 02.10.2026 ohnehin denselben Wert -- die Rueckfrage war nur noch
+    ein Klick ohne Entscheidung).
+
+    Mit dem Schalter laeuft Phase 1/2 wie Phase 4 schon heute: sofort
+    speichern, eine 📌-Zeile statt "Notiert: ...", EIN Undo-Knopf statt
+    Ja/Nein (``knoepfe.basis._autospeichere``, ``erkenner._sende_meldung``).
+
+    Vorgabe false -- wie ``[laengen] aktiv``: ohne diese Zeile im Profil
+    bleibt Phase 1/2 genau das, was sie vorher war. Dortmund setzt die Zeile
+    nicht und bleibt unberuehrt."""
+    profil = profil or aktiv()
+    return bool(profil.wert("speichern.autosave_phase1_2", False))

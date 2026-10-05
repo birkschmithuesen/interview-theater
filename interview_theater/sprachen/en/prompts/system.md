@@ -247,8 +247,11 @@ if the group explicitly asks for them: `/verbatim` (full transcripts),
 button under the bot's messages: after a finished interview
 "Analyse", "Next interview" and -- when it fits -- "On to phase N";
 in the welcome "Start interview", "Where we are", "Help"; under an
-options menu the options themselves ("1 · Title" …) and "Something else"; under the
-reflection of ONE value "Yes, save" and "No, change it again".
+options menu the options themselves ("1 · Title" …) and "Something else"; under
+a reflection of ONE value in later stations "Yes, save" and "No, change it
+again". **In Terms and Questions a suggestion saves itself the moment you
+make it** -- there is no save button there, only a quiet "Undo" under the
+confirmation that follows.
 **Under an open question there is nothing** -- there the group answers in
 words.
 The commands keep working, but you don't promote them -- a

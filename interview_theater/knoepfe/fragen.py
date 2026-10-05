@@ -902,11 +902,11 @@ def starte_eroeffnung(conn, tg, klm, e, chat_id: int) -> bool:
     )
 
 
-def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None, klm=None) -> str:
-    """Zerlegt den Block ``VORSCHLAG EROEFFNUNG:`` in Eroeffnung und
-    Abschluss und legt beides ab. Unveraendert seit dem 06.09.2026."""
-    import re
-
+def _teile_eroeffnung(wert: str) -> tuple[str, str]:
+    """Zerlegt den Block ``VORSCHLAG EROEFFNUNG:`` in (Eroeffnung, Abschluss)
+    -- herausgezogen aus ``_speichere_eroeffnung`` (Padua P1-2), damit der
+    Autosave-Weg (``schreibe_eroeffnung_automatisch``) dieselbe Zerlegung
+    liest statt einer zweiten Fassung."""
     eroeffnung: list[str] = []
     abschluss: list[str] = []
     ziel = eroeffnung
@@ -927,11 +927,18 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None, klm=None) -
                 ziel.append(rest.strip())
             continue
         ziel.append(ohne)
+    return "\n".join(eroeffnung).strip(), "\n".join(abschluss).strip()
+
+
+def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None, klm=None) -> str:
+    """Zerlegt den Block ``VORSCHLAG EROEFFNUNG:`` in Eroeffnung und
+    Abschluss und legt beides ab. Unveraendert seit dem 06.09.2026."""
+    eroeffnung, abschluss = _teile_eroeffnung(wert)
     repo.setze_arbeitsstand(
-        conn, chat_id, "interview_eroeffnung", "\n".join(eroeffnung).strip() or None
+        conn, chat_id, "interview_eroeffnung", eroeffnung or None
     )
     repo.setze_arbeitsstand(
-        conn, chat_id, "interview_abschluss", "\n".join(abschluss).strip() or None
+        conn, chat_id, "interview_abschluss", abschluss or None
     )
     repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
     repo.schreibe_journal(
@@ -946,6 +953,54 @@ def _speichere_eroeffnung(conn, tg, chat_id: int, wert: str, e=None, klm=None) -
     if not uebergang_nach_speichern(conn, tg, klm, e, chat_id):
         biete_phase_proaktiv(conn, tg, chat_id)
     return T._TEXT_EROEFFNUNG_QUITTUNG
+
+
+def schreibe_eroeffnung_automatisch(
+    conn, tg, chat_id: int, wert: str, klm=None, e=None,
+) -> int:
+    """Padua Phase 2 Autosave (siehe ``workshop.autosave_phase1_2_aktiv``,
+    aufgerufen aus ``knoepfe.basis._autospeichere``): schreibt Eroeffnung und
+    Abschluss sofort, meldet mit einer 📌-Zeile und EINEM Undo-Knopf statt
+    der Ja/Nein-Rueckfrage.
+
+    Derselbe Weg danach wie ``_speichere_eroeffnung``: Journal, Leitfaden
+    einmal zeigen, dann der automatische Phasensprung
+    (``uebergang_nach_speichern``) -- genau wie am Knopfdruck "Ja,
+    speichern", nur ohne den Druck. Bleibt der Sprung aus (Materiallage noch
+    nicht so weit), kommt stattdessen die stille Phasenfrage
+    (``biete_phase_proaktiv``) -- sonst staende die 📌-Zeile eine Nachricht
+    lang allein, bevor sofort eine zweite, gleich gewichtete Leiste folgt und
+    ihre Undo-Quittung wegkollabiert."""
+    eroeffnung, abschluss = _teile_eroeffnung(wert)
+
+    def _schreibe():
+        repo.setze_arbeitsstand(
+            conn, chat_id, "interview_eroeffnung", eroeffnung or None,
+        )
+        repo.setze_arbeitsstand(
+            conn, chat_id, "interview_abschluss", abschluss or None,
+        )
+        repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+
+    titel = erkenner.T._FELD_BESCHRIFTUNG["eroeffnung"]
+    text = erkenner.T._ZEILE_FESTGELEGT.format(titel=titel, text=wert)
+    lauf_id = erkenner.lauf_fuer_knopf(conn, e, chat_id, text, _schreibe)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden", T._JOURNAL_EROEFFNUNG_FESTGELEGT,
+        quelle="knopf",
+    )
+    if lauf_id is None:
+        message_id = tg.sende(chat_id, text, system=True)
+    else:
+        message_id = sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
+    leitfaden.sende_einmal(conn, tg, chat_id, e=e)
+    from interview_theater.knoepfe.stationen import (
+        biete_phase_proaktiv, uebergang_nach_speichern,
+    )
+
+    if not uebergang_nach_speichern(conn, tg, klm, e, chat_id):
+        biete_phase_proaktiv(conn, tg, chat_id)
+    return message_id
 
 
 def _leitfaden_knopf(conn, chat_id: int) -> tuple[str, str] | None:

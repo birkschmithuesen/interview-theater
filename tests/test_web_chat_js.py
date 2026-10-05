@@ -2397,7 +2397,13 @@ def test_der_pulsierende_punkt_hat_eine_keyframes_regel_mit_reduced_motion_absch
     assert animation, "keine animation-Eigenschaft im laufenden Zustand"
     name = animation.group(1)
 
-    keyframes = re.search(rf"@keyframes\s+{re.escape(name)}\s*\{{([^}}]*)\}}", css)
+    # Die Regel selbst steht NICHT mehr in ``_CSS_CHAT``, sondern ungescopt
+    # in ``CSS_CHAT_KEYFRAMES`` (siehe die Regressionstests dazu unten) --
+    # hier wird nur noch gegen diese Konstante gesucht.
+    keyframes = re.search(
+        rf"@keyframes\s+{re.escape(name)}\s*\{{([^}}]*)\}}",
+        web_chat.CSS_CHAT_KEYFRAMES,
+    )
     assert keyframes, f"keine @keyframes-Regel namens {name}"
     # sub-3Hz: eine Animation, die schneller als alle 333ms umschlaegt, waere
     # ein hartes Blinken -- hier geht es um sanftes Pulsieren.
@@ -2408,6 +2414,44 @@ def test_der_pulsierende_punkt_hat_eine_keyframes_regel_mit_reduced_motion_absch
     reduziert = _media_block(css, "@media (prefers-reduced-motion: reduce)")
     assert "#diskussion" in reduziert and "#brainstorm" in reduziert
     assert "animation: none" in reduziert or "animation:none" in reduziert
+
+
+def test_css_chat_enthaelt_kein_keyframes():
+    """``_CSS_CHAT`` geht ueber ``web_vereint.scope_css()`` in die vereinte
+    Seite ein (``.panel-chat``-Scope) -- und ``scope_css`` versteht nur
+    ``@media``, kein ``@keyframes`` (siehe ``CSS_CHAT_KEYFRAMES`` oben in
+    ``web_chat.py``). Eine neu hineingeschriebene ``@keyframes``-Regel
+    wuerde deshalb beim Scopen zerfallen, genauso wie es der urspruengliche
+    ``mithoeren-punkt-puls`` tat, bevor er ausgelagert wurde."""
+    ohne_kommentare = re.sub(r"/\*.*?\*/", "", web_chat._CSS_CHAT, flags=re.S)
+    assert "@keyframes" not in ohne_kommentare
+
+
+def test_scope_css_zerlegt_css_chat_nicht_in_fragmente():
+    """Der eigentliche Beweis: durch dieselbe Funktion schicken, die
+    ``web_vereint.seite()`` tatsaechlich benutzt, und nachsehen, dass nichts
+    zerfaellt. Vor der Auslagerung von ``mithoeren-punkt-puls`` schlug genau
+    diese Pruefung fehl: ``0%, 100%``/``50%`` wurden als Selektoren gelesen
+    und zu ``.panel-chat 0%``/``.panel-chat 50%`` verunstaltet."""
+    ergebnis = web_vereint.scope_css(web_chat._CSS_CHAT, ".panel-chat")
+    assert ergebnis.count("{") == ergebnis.count("}")
+    assert not re.search(r"\.panel-chat \d+%", ergebnis)
+
+
+def test_css_chat_keyframes_definiert_die_benutzte_animation():
+    """``CSS_CHAT_KEYFRAMES`` ist ungescopt und steht ausserhalb von
+    ``_CSS_CHAT`` -- die darin per ``animation:`` referenzierte Regel muss
+    trotzdem dort wirklich definiert sein, sonst pulsiert der Punkt
+    nirgends (derselbe Abgleich wie
+    ``test_jede_benutzte_animation_ist_auch_definiert`` in
+    ``tests/test_web_gestalt_css.py``)."""
+    assert "@keyframes mithoeren-punkt-puls" in web_chat.CSS_CHAT_KEYFRAMES
+    definiert = set(re.findall(r"@keyframes\s+([\w-]+)", web_chat.CSS_CHAT_KEYFRAMES))
+    benutzt = {
+        t for t in re.findall(r"animation:\s*([\w-]+)", web_chat._CSS_CHAT)
+        if t != "none"
+    }
+    assert benutzt <= definiert, benutzt - definiert
 
 
 def test_punkt_kontrast_erfuellt_die_grafik_vorgabe_von_3_zu_1():

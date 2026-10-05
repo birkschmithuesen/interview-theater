@@ -2012,7 +2012,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         + scope_css(web._CSS_BUEHNE, ".panel-buehne")
     )
     if chat_vorhanden:
-        css += scope_css(web_chat._CSS_CHAT, ".panel-chat")
+        css += web_chat.CSS_CHAT_KEYFRAMES + scope_css(web_chat._CSS_CHAT, ".panel-chat")
     # Gestaltung zuletzt (Karte UX): gleiche Spezifitaet, spaetere Position --
     # und dieselbe Einschraenkung wie die Quellen darueber, sonst waere
     # ``#interview`` schwaecher als ``.panel-chat #interview``.

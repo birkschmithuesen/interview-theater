@@ -342,8 +342,10 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
   color: #fff; animation: mithoeren-punkt-puls 1.6s ease-in-out infinite;
 }
 /* Opacity statt Farbwechsel, 1.6s (~0.6 Hz) statt eines harten Blinkens --
-   deutlich unter den kritischen 3 Hz. */
-@keyframes mithoeren-punkt-puls { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+   deutlich unter den kritischen 3 Hz. Die ``@keyframes``-Regel selbst steht
+   NICHT hier, sondern ungescopt in ``CSS_CHAT_KEYFRAMES`` (siehe dort) --
+   dieser Block bleibt in ``_CSS_CHAT``, weil ``@media`` von ``scope_css``
+   korrekt behandelt wird. */
 @media (prefers-reduced-motion: reduce) {
   #diskussion[data-laeuft="1"]::before, #brainstorm[data-laeuft="1"]::before {
     animation: none;
@@ -453,6 +455,22 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
   .kalibrierung button, #kalibrierung-neu { background: #1d2026; color: #e7e9ec;
                                             border-color: #2c6a58; }
 }
+"""
+
+#: Die ``@keyframes`` des pulsierenden Punkts vor ``#diskussion``/
+#: ``#brainstorm`` -- EIGENE, UNGESCOPTE Konstante (Nachbesserung nach der
+#: urspruenglichen Karte). ``web_vereint.scope_css()`` versteht ``@media``,
+#: aber nicht ``@keyframes``: ihre Regex haette ``0%, 100%``/``50%``
+#: faelschlich als Selektoren gelesen und zu ``.panel-chat 0%``/
+#: ``.panel-chat 50%`` verunstaltet (derselbe dokumentierte Fehler wie bei
+#: ``web_gestalt.py``s eigenem ``scope_css``, siehe AGENTS.md "``@keyframes``
+#: und ``@media`` nur in ``css_rahmen()``", und wie bei
+#: ``web.CSS_COTHINKER_KEYFRAMES``). Deshalb geht diese Konstante in
+#: ``web_vereint.seite()`` ROH in die CSS-Verkettung ein, nie durch
+#: ``scope_css()`` -- und in ``chat_html()`` ebenso roh an ``_CSS_CHAT``
+#: angehaengt, weil dieser Pfad ueberhaupt nie durch ``scope_css()`` laeuft.
+CSS_CHAT_KEYFRAMES = """
+@keyframes mithoeren-punkt-puls { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 """
 
 #: Polltakt der Chatansicht (Millisekunden). Zwei Sekunden, solange der Tab
@@ -3918,7 +3936,7 @@ def chat_html(daten: dict, nonce_wert: str, token: str, praefix: str,
     from interview_theater import web   # spaeter Import: web importiert web_chat
 
     return web._seite(
-        daten.get("titel") or T._TEXT_TITEL, _CSS_CHAT,
+        daten.get("titel") or T._TEXT_TITEL, _CSS_CHAT + CSS_CHAT_KEYFRAMES,
         chat_koerper(daten, nonce_wert, token, segment_ms),
         nachladen=False, skript=_js(),
     )

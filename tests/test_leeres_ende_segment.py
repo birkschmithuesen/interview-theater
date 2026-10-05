@@ -158,3 +158,77 @@ def test_leeres_ende_im_brainstorm_loest_die_abschlusskarte_aus(conn, einst, tmp
     aid = _leeres_ende(conn, tmp_path, 51, diskussion=False, brainstorm=True)
     aufnahme.verarbeite(conn, _TG(), _KLM(), einst, None, aid)
     assert gestartet == [1]
+
+
+# Robo, Simulations-Kontrolllauf 05.10.2026 14:26 gegen 4bf7f5c: das Ende-
+# Segment war 110 Bytes / 1 s (nur der WebM-Kopf), Whisper meldete den Auftrag
+# als 'failed', und der Nachhol-Arbeiter versuchte es MAX_VERSUCHE-mal im
+# 60-s-Takt -- rund fuenf Minuten Stille, bevor der Abschluss lief.
+
+def _ende_mit_bytes(conn, tmp_path, message_id, groesse, *, schnittgrund="ende"):
+    datei = tmp_path / f"{message_id}.webm"
+    datei.write_bytes(b"\x1aE\xdf\xa3" + b"\x00" * (groesse - 4))
+    repo.merke_nachricht(conn, CHAT, message_id, "Gruppe", 0, "sprache", None, repo._jetzt(), 1)
+    return repo.lege_aufnahme_an(conn, CHAT, message_id, "kurz", "sprache",
+                                 audio_pfad=str(datei), dauer=1, schnittgrund=schnittgrund,
+                                 diskussion=True)
+
+
+def test_winziges_ende_segment_geht_nicht_an_whisper(conn, einst, tmp_path, monkeypatch):
+    aufrufe, verdichtet = [], []
+    monkeypatch.setattr(stt, "transkribiere", lambda *a, **k: aufrufe.append(1) or "x")
+    monkeypatch.setattr(diskussion, "starte", lambda *a, **k: verdichtet.append(1))
+    aid = _ende_mit_bytes(conn, tmp_path, 60, 110)
+    klm, tg = _KLM(), _TG()
+    aufnahme.verarbeite(conn, tg, klm, einst, None, aid)
+    assert aufrufe == []
+    assert repo.hole_aufnahme(conn, aid)["status"] == "fehlgeschlagen"
+    assert tg.gesendet == [aufnahme.T._TEXT_DISKUSSION_KEINE_BEGRIFFE]
+    assert verdichtet == [1]
+
+
+def _abgebrochen(*_a, **_k):
+    raise stt.AuftragAbgebrochen("Auftrag b1 endete als 'failed'")
+
+
+def test_ende_segment_mit_failed_schliesst_nach_dem_ersten_anlauf(conn, einst, tmp_path,
+                                                                  monkeypatch):
+    verdichtet = []
+    monkeypatch.setattr(stt, "transkribiere", _abgebrochen)
+    monkeypatch.setattr(diskussion, "starte", lambda *a, **k: verdichtet.append(1))
+    aid = _ende_mit_bytes(conn, tmp_path, 61, 5000)
+    klm, tg = _KLM(), _TG()
+    aufnahme.verarbeite(conn, tg, klm, einst, None, aid)
+    row = repo.hole_aufnahme(conn, aid)
+    assert row["status"] == "fehlgeschlagen"
+    assert tg.gesendet == [aufnahme.T._TEXT_DISKUSSION_KEINE_BEGRIFFE]
+    assert verdichtet == [1]
+
+
+def test_ende_segment_mit_netzfehler_wird_weiter_versucht(conn, einst, tmp_path, monkeypatch):
+    def _netz(*_a, **_k):
+        raise stt.STTFehler("Whisper-Upload nicht erreichbar (zuletzt: HTTPStatusError)")
+
+    verdichtet = []
+    monkeypatch.setattr(stt, "transkribiere", _netz)
+    monkeypatch.setattr(diskussion, "starte", lambda *a, **k: verdichtet.append(1))
+    aid = _ende_mit_bytes(conn, tmp_path, 62, 5000)
+    aufnahme.verarbeite(conn, _TG(), _KLM(), einst, None, aid)
+    row = repo.hole_aufnahme(conn, aid)
+    assert row["status"] == "empfangen" and row["versuche"] == 1
+    assert verdichtet == []
+
+
+def test_winziges_zwischensegment_geht_weiter_an_whisper(conn, einst, tmp_path, monkeypatch):
+    aufrufe = []
+
+    def _zaehle(*_a, **_k):
+        aufrufe.append(1)
+        raise stt.AuftragAbgebrochen("Auftrag b1 endete als 'failed'")
+
+    monkeypatch.setattr(stt, "transkribiere", _zaehle)
+    aid = _ende_mit_bytes(conn, tmp_path, 63, 110, schnittgrund="pause")
+    aufnahme.verarbeite(conn, _TG(), _KLM(), einst, None, aid)
+    row = repo.hole_aufnahme(conn, aid)
+    assert aufrufe == [1]
+    assert row["status"] == "empfangen" and row["versuche"] == 1

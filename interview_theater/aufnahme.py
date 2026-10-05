@@ -83,6 +83,17 @@ BUDGET_KURZ_S = BUDGET_LANG_S
 NACHHOL_INTERVALL_S = 60
 MAX_VERSUCHE = 5
 
+#: Ein Ende-Segment (Diskussion/Brainstorm, ``schnittgrund='ende'``) unter
+#: dieser Dateigroesse geht gar nicht erst an Whisper, sondern wird sofort
+#: verworfen und der Abschluss laeuft (Robo, Simulationslauf 05.10.2026
+#: 14:26: 110 Bytes / 1 s, nur der WebM-Kopf -- Whisper meldete 'failed',
+#: und der Nachhol-Arbeiter brauchte MAX_VERSUCHE x NACHHOL_INTERVALL_S, gut
+#: fuenf Minuten). Die Grenze: der Client schneidet erst ab MIN_SPEECH_MS =
+#: 500 ms Rede (``web_chat.py``); 500 ms Opus brauchen selbst bei sparsamen
+#: 16 kbit/s 1000 Bytes, Kopf nicht mitgezaehlt. Darunter ist keine
+#: Aeusserung moeglich.
+LEERES_ENDE_MAX_BYTES = 1000
+
 #: Unter dieser Wortzahl (ueber das ganze zusammengefuegte Interview) wird
 #: **nicht verdichtet** (Nachtrag N2, 05.09.2026). Aus dem Probelauf: eine
 #: Aufnahme von einer Sekunde ("Das Interview ist fertig.") und eine von vier
@@ -632,6 +643,11 @@ def _verarbeite(conn, tg, klm, e, klient, aufnahme_id, zug, nachgeholt) -> None:
                 # sonst alle 60 s wieder.
                 kosten.melde_pause_wenn_deckel(conn, tg, e, row["chat_id"])
             return
+        if _ist_leeres_ende(row):
+            _verwirf_ende_segment(conn, e, row, "leeres_segment_verworfen",
+                                  f"Ende-Segment unter {LEERES_ENDE_MAX_BYTES} Bytes")
+            _abschluss_trotz_verworfenem_ende(conn, tg, klm, e, aufnahme_id)
+            return
         text = _transkribiere_mit_meldung(conn, tg, e, klient, row)
         if text is None:
             # Fehler wurde schon gemeldet/aufgezeichnet. Ist es endgueltig
@@ -814,6 +830,33 @@ def _sende_verdichtung_gescheitert(conn, tg, chat_id, row) -> None:
         log.exception("Fehlermeldung an die Gruppe fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def _ist_ende_segment(row) -> bool:
+    """Der Ende-Schnitt einer Diskussion (Phase 1) oder eines Brainstorms
+    (Phase 4) -- das Segment, auf dessen Abschluss die Gruppe wartet."""
+    return row["schnittgrund"] == "ende" and bool(row["diskussion"] or row["brainstorm"])
+
+
+def _ist_leeres_ende(row) -> bool:
+    """Ein Ende-Segment, das zu klein fuer Rede ist (``LEERES_ENDE_MAX_BYTES``)."""
+    if not _ist_ende_segment(row) or not row["audio_pfad"]:
+        return False
+    try:
+        return Path(row["audio_pfad"]).stat().st_size < LEERES_ENDE_MAX_BYTES
+    except OSError:
+        return False  # fehlende Datei: der gewoehnliche Fehlerweg entscheidet
+
+
+def _verwirf_ende_segment(conn, e, row, art: str, grund: str, fehlertext: str | None = None) -> None:
+    """Still verwerfen (``status='fehlgeschlagen'``): keine Chatzeile, kein
+    Ausfall-Alarm, kein Nachhol-Anlauf -- siehe ``_melde_transkriptionsfehler``."""
+    repo.merke_vorfall(
+        conn, row["chat_id"], getattr(e, "bot_name", None), art,
+        f"Aufnahme {row['id']}: {grund}, still verworfen",
+    )
+    repo.setze_status(conn, row["id"], "fehlgeschlagen", fehlertext=fehlertext or grund)
+    _web_sprachblase(conn, row["chat_id"], row["message_id"], None)
+
+
 def _melde_transkriptionsfehler(conn, tg, e, row, fehler: Exception) -> None:
     """Bei jedem Fehlschlag: Versuch zaehlen, den einmaligen Whisper-Ausfall-
     Hinweis pruefen (melde_ausfall), und ab MAX_VERSUCHE endgueltig aufgeben.
@@ -849,12 +892,15 @@ def _melde_transkriptionsfehler(conn, tg, e, row, fehler: Exception) -> None:
     chat_id = row["chat_id"]
 
     if isinstance(fehler, stt.LeeresTranskript):
-        repo.merke_vorfall(
-            conn, chat_id, getattr(e, "bot_name", None), "leeres_segment_verworfen",
-            f"Aufnahme {aufnahme_id}: leeres Transkript, still verworfen",
-        )
-        repo.setze_status(conn, aufnahme_id, "fehlgeschlagen", fehlertext=str(fehler))
-        _web_sprachblase(conn, chat_id, row["message_id"], None)
+        _verwirf_ende_segment(conn, e, row, "leeres_segment_verworfen",
+                              "leeres Transkript", fehlertext=str(fehler))
+        return
+    # Ein Ende-Segment, dessen Auftrag Whisper endgueltig abbrach ('failed'),
+    # wartet niemand fuenf Nachhol-Anlaeufe ab: verwerfen, der Aufrufer
+    # schliesst ab. 5xx/Netz bleibt bei der Wiederholung unten.
+    if isinstance(fehler, stt.AuftragAbgebrochen) and _ist_ende_segment(row):
+        _verwirf_ende_segment(conn, e, row, "ende_segment_abgebrochen",
+                              "Whisper-Auftrag abgebrochen", fehlertext=str(fehler))
         return
 
     versuche = repo.zaehle_versuch_hoch(conn, aufnahme_id)

@@ -1023,8 +1023,17 @@ _CHAT_JS = """
   // stand -- VOR jeder DOM-Aenderung gelesen, sonst veraendert eine neue
   // Blase schon scrollHeight, bevor wir nachsehen konnten.
   function amUnterenRand() {
-    return (window.innerHeight + window.scrollY)
+    // Dieselbe Doppelung wie bei ``nachUnten()``: auf der vereinten Seite
+    // scrollt ``verlauf`` in sich selbst (das Dokument bleibt auf
+    // Fensterhoehe stehen), auf der Chat-Einzelseite umgekehrt nur das
+    // Dokument. Die jeweils NICHT zustaendige Haelfte steht ohnehin schon
+    // an ihrem eigenen Ende -- das UND verlangt also in Wahrheit nur vom
+    // tatsaechlich scrollenden Container, dass er unten steht.
+    var verlaufUnten = (verlauf.scrollTop + verlauf.clientHeight)
+      >= (verlauf.scrollHeight - UNTEN_TOLERANZ_PX);
+    var fensterUnten = (window.innerHeight + window.scrollY)
       >= (document.body.scrollHeight - UNTEN_TOLERANZ_PX);
+    return verlaufUnten && fensterUnten;
   }
 
   // Wurde die zurzeit letzte Blase im Verlauf gerade durch ``ersetze()``
@@ -1064,8 +1073,17 @@ _CHAT_JS = """
   // wirksam wie mit ausgeschriebenen Werten.
   function scrolleZuPhasenanfang() {
     var kopf = phasenkopfzeile();
-    if (kopf) { kopf.scrollIntoView(); return; }
-    nachUnten();
+    if (!kopf) { nachUnten(); return; }
+    // Die Telefon-Organisationskarte (``stationen._sende_karte``) kommt
+    // IMMER als eigene Blase direkt VOR der Kopfzeile -- dasselbe
+    // "Phase 3 beginnt"-Ereignis in zwei Nachrichten. Steht sie dort, ist
+    // sie der eigentliche Anfang und soll mit anfangen, nicht erst darunter
+    // auftauchen, nachdem die Kopfzeile schon oben steht.
+    var vorher = kopf.previousElementSibling;
+    var ziel = (vorher && vorher.classList.contains('blase') &&
+                vorher.classList.contains('bot') &&
+                vorher.querySelector('img.karte')) ? vorher : kopf;
+    ziel.scrollIntoView();
   }
 
   function nimmZustand(daten) {
@@ -1096,7 +1114,13 @@ _CHAT_JS = """
     var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;
     if (phaseNeu !== null) { zustand.phase = phaseNeu; }
     if (neu.length) {
-      if (phasenwechsel) { scrolleZuPhasenanfang(); } else { nachUnten(); }
+      // Phasenscroll-Karte, Nachtrag (05.10.2026): ein Phasenwechsel ankert
+      // oben am Phasenanfang -- weitere Nachrichten (selber oder spaeterer
+      // Poll) duerfen diesen Anker nicht wieder nach unten reissen, solange
+      // niemand selbst runtergescrollt ist. ``warUnten`` ist VOR dieser
+      // DOM-Aenderung gelesen, genau wie im ``geaendert``-Zweig unten.
+      if (phasenwechsel) { scrolleZuPhasenanfang(); }
+      else if (warUnten) { nachUnten(); }
     } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
       nachUnten();
     }

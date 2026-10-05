@@ -450,15 +450,17 @@ def test_amunterenrand_wird_vor_jeder_dom_aenderung_gelesen():
 def test_nachunten_laeuft_bei_neu_oder_bei_geaenderter_letzter_blase():
     js = web_chat._CHAT_JS
     nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
-    # Phasenscroll-Karte (04.10.2026): bei neuen Nachrichten entscheidet seit
-    # dieser Karte ``phasenwechsel``, ob zum Phasenanfang statt ans Ende
-    # gescrollt wird -- der zweite Zweig (laufendes Transkript) ist davon
-    # unberuehrt und bleibt woertlich, was er war.
+    # Phasenscroll-Karte (04.10.2026, Nachtrag 05.10.2026): bei neuen
+    # Nachrichten entscheidet ``phasenwechsel``, ob zum Phasenanfang
+    # gescrollt wird -- und sonst ``warUnten``, ob der Anker oben (gesetzt
+    # von einem fruehen Phasenwechsel) ans Ende weiterbeweglich bleibt.
+    # Der zweite Zweig (laufendes Transkript) ist davon unberuehrt.
     assert (
-        "if (neu.length) {\n"
-        "      if (phasenwechsel) { scrolleZuPhasenanfang(); } else { nachUnten(); }\n"
-        "    } else if " in nimm
+        "if (neu.length) {\n" in nimm
     )
+    block = nimm[nimm.index("if (neu.length) {"):nimm.index("} else if ")]
+    assert "if (phasenwechsel) { scrolleZuPhasenanfang(); }" in block
+    assert "else if (warUnten) { nachUnten(); }" in block
     nach_else_if = nimm[nimm.index("} else if ") + len("} else if "):]
     bedingung = nach_else_if[:nach_else_if.index(") {")]
     assert "warUnten" in bedingung
@@ -494,7 +496,7 @@ def test_scrollezuphasenanfang_faellt_auf_nachunten_zurueck():
     js = web_chat._CHAT_JS
     funktion = js[js.index("function scrolleZuPhasenanfang"):js.index("function nimmZustand")]
     assert "phasenkopfzeile()" in funktion
-    assert "kopf.scrollIntoView();" in funktion
+    assert "ziel.scrollIntoView();" in funktion
     assert "nachUnten();" in funktion
 
 
@@ -552,12 +554,26 @@ def test_amunterenrand_entscheidet_live_in_node(tmp_path):
 
     quelltext = f"""
     var UNTEN_TOLERANZ_PX = 48;
-    var window, document;
+    var window, document, verlauf;
     {funktion}
 
+    // ``verlauf`` am Ende seines eigenen Scrolls halten -- diese Positionen
+    // pruefen die Fenster/Dokument-Haelfte (Chat-Einzelseite).
     function pruefe(innerHeight, scrollY, scrollHeight) {{
       window = {{ innerHeight: innerHeight, scrollY: scrollY }};
       document = {{ body: {{ scrollHeight: scrollHeight }} }};
+      verlauf = {{ scrollTop: 1000, clientHeight: 800, scrollHeight: 1800 }};
+      return amUnterenRand();
+    }}
+
+    // ``window``/``document`` am Ende halten, ``verlauf`` (vereinte Seite)
+    // variieren -- die Phasenscroll-Karte (Nachtrag 05.10.2026) haengt
+    // genau davon ab, dass ein hochgescrollter ``verlauf`` NICHT als unten
+    // zaehlt, auch wenn das (dort gar nicht scrollende) Dokument es waere.
+    function pruefeVerlauf(scrollTop, clientHeight, scrollHeight) {{
+      window = {{ innerHeight: 800, scrollY: 1200 }};
+      document = {{ body: {{ scrollHeight: 2000 }} }};
+      verlauf = {{ scrollTop: scrollTop, clientHeight: clientHeight, scrollHeight: scrollHeight }};
       return amUnterenRand();
     }}
 
@@ -565,7 +581,9 @@ def test_amunterenrand_entscheidet_live_in_node(tmp_path):
       genau_am_rand: pruefe(800, 1200, 2000),       // 800+1200 == 2000
       innerhalb_der_toleranz: pruefe(800, 1160, 2000),  // 40px Rest, < 48
       knapp_ausserhalb: pruefe(800, 1100, 2000),    // 100px Rest, > 48
-      weit_hochgescrollt: pruefe(800, 100, 2000)
+      weit_hochgescrollt: pruefe(800, 100, 2000),
+      verlauf_hochgescrollt: pruefeVerlauf(100, 800, 2000),
+      verlauf_unten: pruefeVerlauf(1200, 800, 2000)
     }};
     console.log(JSON.stringify(ergebnisse));
     """
@@ -576,6 +594,8 @@ def test_amunterenrand_entscheidet_live_in_node(tmp_path):
         "innerhalb_der_toleranz": True,
         "knapp_ausserhalb": False,
         "weit_hochgescrollt": False,
+        "verlauf_hochgescrollt": False,
+        "verlauf_unten": True,
     }
 
 

@@ -21,8 +21,14 @@ def _fn(js, name, bis):
 def test_markup_hat_nur_start_und_fertig():
     seite = _seite()
     assert "diskussion-pause" not in seite
-    assert 'id="diskussion" data-laeuft="0">' in seite
-    assert 'id="diskussion" data-laeuft="0" hidden>' in _seite(diskussion_knopf=False)
+    # Birk 05.10.2026 22:00: ``data-mithoeren-ziel`` steht jetzt am Knopf
+    # (Task 2) -- Vorgabe 'diskussion', da ``DATEN`` kein ``mithoeren_ziel``
+    # setzt.
+    assert 'id="diskussion" data-laeuft="0" data-mithoeren-ziel="diskussion">' in seite
+    assert (
+        'id="diskussion" data-laeuft="0" data-mithoeren-ziel="diskussion" hidden>'
+        in _seite(diskussion_knopf=False)
+    )
     aktionen = re.search(r'id="diskussion-aktionen" hidden>(.*?)</div>', seite, re.S).group(1)
     assert aktionen.count("<button") == 1
     assert 'id="diskussion-beenden" data-discussion-done="1"' in aktionen

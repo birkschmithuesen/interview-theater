@@ -1953,25 +1953,39 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         # Knoepfe (``knoepfe._aufnahme_anbieten``, ``nur_phase_3``).
         "interview_knopf": phasen.aufnahme_anbieten(
             _feld(stand, "phase") or phasen.ERSTE, modus, nur_phase_3=True),
-        # Task 2 (Kanban-Karte Buehne/PTT): der Brainstorm-Knopf nur in
-        # Phase 4 -- anders als beim Interview-Knopf gibt es dafuer keine
-        # serverseitige "laeuft gerade"-Ausnahme, das Offenhalten einer
-        # laufenden Sitzung passiert rein clientseitig (siehe web_chat.py).
-        "brainstorm_knopf": _feld(stand, "phase") == 4,
-        # Task 4 (Padua Phase 1+2 Umbau): der Diskussions-Knopf nur in
-        # Phase 1 UND nur, wenn das aktive Profil die Hintergrund-
-        # Diskussionsaufnahme ueberhaupt faehrt (``workshop.diskussion_aktiv``,
-        # Vorgabe false -- Dortmund bleibt unberuehrt). Beide Bedingungen
-        # greifen unabhaengig voneinander, wie beim Brainstorm-Knopf gibt es
-        # dafuer keine serverseitige "laeuft gerade"-Ausnahme.
+        # Birk 05.10.2026 22:00: kein Per-Gedanke-Toggle mehr -- Phase 4
+        # bedient sich mit demselben Knopf wie Phase 1 ("Start listening" /
+        # "Discussion done", t_cf87ee0a abgeloest). Der eigene
+        # ``brainstorm_knopf`` entfaellt deshalb: ``diskussion_knopf``
+        # deckt jetzt BEIDE Phasen ab, ``mithoeren_ziel`` sagt dem Client nur
+        # noch, WOHIN das Audio geht (``&brainstorm=1``/``&diskussion=1``).
+        # Task 4 (Padua Phase 1+2 Umbau): der Diskussions-Knopf in Phase 1
+        # nur, wenn das aktive Profil die Hintergrund-Diskussionsaufnahme
+        # ueberhaupt faehrt (``workshop.diskussion_aktiv``, Vorgabe false --
+        # Dortmund bleibt unberuehrt); in Phase 4 dagegen IMMER, ohne
+        # Profilflag -- die beiden Bedingungen greifen unabhaengig
+        # voneinander, keine serverseitige "laeuft gerade"-Ausnahme.
         # Bug (Birk Live-Test 04.10.2026): eine Gruppe ganz am Anfang hat noch
         # KEINE arbeitsstand-Zeile -- _feld liefert dann None, nicht die
         # Vorgabephase. Derselbe Fallback wie beim Interview-Knopf zwei
         # Zeilen drueber (``or phasen.ERSTE``), sonst bleibt der
         # Diskussions-Knopf fuer jede frische Gruppe unsichtbar.
         "diskussion_knopf": (
-            (_feld(stand, "phase") or phasen.ERSTE) == 1
-            and workshop.diskussion_aktiv()
+            (_feld(stand, "phase") or phasen.ERSTE) == 4
+            or (
+                (_feld(stand, "phase") or phasen.ERSTE) == 1
+                and workshop.diskussion_aktiv()
+            )
+        ),
+        # Birk 05.10.2026 22:00: wohin das Audio dieser Sitzung geht -- nur
+        # in Phase 4 'brainstorm' (Buehnenkarten/CoThinker), sonst
+        # 'diskussion' (Begriffsboard Phase 1). Der Browser liest das beim
+        # Start der Sitzung (``sitzung.ziel``), nicht erst beim Hochladen --
+        # ein Wechsel waehrend einer laufenden Sitzung aendert das Ziel
+        # bewusst nicht (eine in Phase 1 gestartete Sitzung bleibt 'diskussion').
+        "mithoeren_ziel": (
+            "brainstorm" if (_feld(stand, "phase") or phasen.ERSTE) == 4
+            else "diskussion"
         ),
         "tippt": _tippt_noch(gruppe["web_tippt_bis"] if gruppe else None),
         "nachrichten": nachrichten,

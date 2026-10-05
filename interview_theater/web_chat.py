@@ -3945,18 +3945,15 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
 
     vad = vad if vad is not None else _vad_werte()
     modus = bool(daten["interviewmodus"])
-    # Task 2 (Kanban-Karte Buehne/PTT): der Brainstorm-Block steht jetzt
-    # IMMER im Markup (wie #interview), nur ``hidden`` folgt der Phase --
-    # dieselbe Quelle fuer das ``hidden``-Attribut und die ``nebenknopf``-
-    # Klasse am Interview-Knopf, nicht das rohe ``daten.get("phase") == 4``.
-    brainstorm_erlaubt = daten.get("brainstorm_knopf", True)
-    # Task 5 (Padua Phase 1+2 Umbau, 03.10.2026): derselbe Aufbau wie der
-    # Brainstorm-Knopf, aber mit umgekehrter Vorgabe -- anders als Brainstorm
-    # (Vorgabe ``True``) bleibt das Hintergrund-Mithoeren unsichtbar, wenn der
-    # Server den Schluessel aus irgendeinem Grund gar nicht mitschickt. Die
-    # Berechnung selbst (Phase 1 UND Profilflag) steht in
-    # ``web_daten.web_chatzustand`` (Task 4).
+    # Birk 05.10.2026 22:00: kein eigener Brainstorm-Block mehr -- Phase 4
+    # bedient sich mit demselben Knopf wie Phase 1 (``#diskussion``), siehe
+    # ``web_daten.web_chatzustand`` (``diskussion_knopf`` deckt jetzt beide
+    # Phasen ab). Bleibt der Schluessel aus irgendeinem Grund aus, bleibt der
+    # Knopf unsichtbar (Vorgabe ``False``).
     diskussion_erlaubt = daten.get("diskussion_knopf", False)
+    # Wohin das Audio dieser Sitzung geht, als ``data``-Attribut fuer den
+    # Client (``web_daten.web_chatzustand``, Vorgabe 'diskussion').
+    mithoeren_ziel = daten.get("mithoeren_ziel", "diskussion")
     blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(T._TEXT_LEER)}</p>'
@@ -4039,14 +4036,12 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'{html.escape(T._TEXT_REST_VERWERFEN)}</button>\n'
         f'  </div>\n'
         + (
-            # t_cf87ee0a: Toggle statt Pause/Beenden -- ein Knopf je
-            # Gedankenbogen, kein #brainstorm-aktionen mehr.
-            f'  <button type="button" id="brainstorm" data-laeuft="0"'
-            + ('' if brainstorm_erlaubt else ' hidden')
-            + f'>{html.escape(T._TEXT_BRAINSTORM_AN)}</button>\n'
-        )
-        + (
-            f'  <button type="button" id="diskussion" data-laeuft="0"'
+            # Birk 05.10.2026 22:00: EIN Knopf fuer Phase 1 UND Phase 4, kein
+            # eigener #brainstorm-Knopf mehr (t_cf87ee0a abgeloest).
+            # ``data-mithoeren-ziel`` sagt dem Client, wohin das Audio dieser
+            # Sitzung geht (``&brainstorm=1``/``&diskussion=1``).
+            f'  <button type="button" id="diskussion" data-laeuft="0" '
+            f'data-mithoeren-ziel="{html.escape(mithoeren_ziel, quote=True)}"'
             + ('' if diskussion_erlaubt else ' hidden')
             + f'>{html.escape(T._TEXT_DISKUSSION_AN)}</button>\n'
             f'  <div class="interview-aktionen" id="diskussion-aktionen" hidden>\n'
@@ -4058,7 +4053,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         + (
             f'  <button type="button" id="interview" data-laeuft="{1 if modus else 0}" '
             f'data-pausiert="{1 if modus else 0}"'
-            + (' class="nebenknopf"' if brainstorm_erlaubt else "")
+            + (' class="nebenknopf"' if diskussion_erlaubt else "")
             # Padua Hotfix B6: ausserhalb von Phase 3 (oder bei laufender
             # Aufnahme) kein Angebot -- dieselbe Bedingung wie das JS-Pendant
             # ``zustand.knopfErlaubt`` oben.

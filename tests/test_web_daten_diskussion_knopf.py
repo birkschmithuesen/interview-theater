@@ -52,12 +52,40 @@ def test_phase_1_ohne_profilflag_ergibt_falsch(datenbank, monkeypatch):
     assert zustand["diskussion_knopf"] is False
 
 
-@pytest.mark.parametrize("phase", [2, 3, 4, 5, 6, 7])
+@pytest.mark.parametrize("phase", [2, 3, 5, 6, 7])
 def test_andere_phase_mit_profilflag_an_ergibt_falsch(datenbank, monkeypatch, phase):
+    """Phase 4 fliegt hier raus (Birk 05.10.2026 22:00): seit Phase 4
+    denselben Knopf wie Phase 1 benutzt, ist ``diskussion_knopf`` dort immer
+    wahr, auch ohne Profilflag -- siehe
+    ``test_phase_4_zeigt_den_mithoer_knopf_auch_ohne_profilflag``."""
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
     pfad, token = datenbank
     zustand = _zustand(pfad, token, phase=phase)
     assert zustand["diskussion_knopf"] is False
+
+
+def test_phase_4_zeigt_den_mithoer_knopf_auch_ohne_profilflag(datenbank, monkeypatch):
+    """Birk 05.10.2026 22:00: kein Toggle mehr -- Phase 4 bedient sich mit
+    demselben Knopf wie Phase 1, aber OHNE das Profilflag der Phase 1
+    (``workshop.diskussion_aktiv``): Phase 4 braucht es nicht, ``cap``/
+    ``pause`` loesen dort unabhaengig vom Begriffsboard-Profil aus."""
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: False)
+    pfad, token = datenbank
+    zustand = _zustand(pfad, token, phase=4)
+    assert zustand["diskussion_knopf"] is True
+
+
+@pytest.mark.parametrize("phase, ziel", [
+    (1, "diskussion"), (2, "diskussion"), (3, "diskussion"), (4, "brainstorm"),
+    (5, "diskussion"), (6, "diskussion"), (7, "diskussion"),
+])
+def test_mithoeren_ziel_ist_brainstorm_nur_in_phase_4(datenbank, phase, ziel):
+    """Birk 05.10.2026 22:00: ``mithoeren_ziel`` sagt dem Client, wohin das
+    Audio dieser Sitzung geht -- nur in Phase 4 'brainstorm' (Buehnenkarten),
+    sonst 'diskussion' (Begriffsboard Phase 1)."""
+    pfad, token = datenbank
+    zustand = _zustand(pfad, token, phase=phase)
+    assert zustand["mithoeren_ziel"] == ziel
 
 
 def test_ohne_arbeitsstand_mit_profilflag_ergibt_wahr(datenbank, monkeypatch):

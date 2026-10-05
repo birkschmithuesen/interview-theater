@@ -114,6 +114,14 @@ def _bereit_zum_vergleich(conn):
     # S2 (B4): der Erkenner hatte die eigenen Fragen schon vorzeitig in
     # ``fragen`` gespeichert -- damit war Phase 3 erlaubt.
     repo.setze_arbeitsstand(conn, CHAT, "fragen", "Home: Where do you sleep best?")
+    # Padua verlangt ``workshop.fragen_eigene_min`` (5) eigene Fragen, bevor
+    # die Gegenueberstellung ueberhaupt startet (main, f9b5bc4) -- drei
+    # vorab, die zwei aus ``_FERTIG``s VORSCHLAG-Block machen zusammen fuenf.
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_eigene_vorschlag",
+                            "Border: Where does Padua end for you?\n"
+                            "Waiting: What do you wait for most?\n"
+                            "Night shift: Can you tell me about one night "
+                            "you still remember?")
     repo.setze_arbeitsstand(conn, CHAT, "fragen_ki_vorschlag",
                             "Home: KI question 1.\nNoise: KI question 2.")
 

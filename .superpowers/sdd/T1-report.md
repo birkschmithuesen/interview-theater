@@ -214,3 +214,90 @@ blockierte deutsche Rest in `14-diskussion-verdichtung.txt` aus
 - Keine der zehn Karten beruehrt `erkenner.py`, `knoepfe/basis.py`,
   `knoepfe/texte.py`, `sprachen/en/texte.toml`, `simulation/` oder
   deutsche Prompt-/Textdateien.
+
+## Fix-Abschnitt: Review-Fund nach dem ersten Durchgang (05.10.2026)
+
+**Fund (Review):** `interview_theater/sprachen/en/prompts/system.md:80-83`
+(Fassung nach dem ersten Durchgang) behauptete: '"Start listening" starts
+the background listening AND the mic check in one step -- there is no
+separate check button'. Das ist falsch und nahm zudem die offene
+Klasse-B-Frage B1/P1-H1 vorweg.
+
+**Verifiziert:**
+- `interview_theater/sprachen/en/texte.toml:1913`:
+  `_TEXT_KALIBRIERUNG_START_KNOPF = "Start measuring"` -- ein eigener
+  Knopftext.
+- `interview_theater/web_chat.py:2521-2540`
+  (`kalEntscheideOderStarte`): prueft zuerst einen Tages-Cache
+  (`kalibrierungCacheLesen`, Schluessel ueber `kalDatum`); nur wenn kein
+  Cache vorliegt UND die Kalibrierung aktiv ist, ruft sie
+  `kalibrierungStarte(sitzung)` auf.
+- `interview_theater/web_chat.py:2188-2201` (`kalibrierungStarte`): zeigt
+  eine eigene Karte (`kalZeigePanel`) mit dem Text
+  `TEXT.kal_ankuendigung` und darunter dem Knopf `kalStartKnopf` (Label
+  "Start measuring") -- ein zweiter, separater Start-Vorgang mit eigenen
+  Schritten (5s Stillemessung, dann ein Testsatz), nicht Teil eines
+  einzigen "Start listening"-Schritts.
+- Das deckt sich mit dem schon vorher im Plan erfassten Befund **P1-H1**
+  ("Raumcheck-Karte + laufende Aufnahme gleichzeitig, zwei
+  Start-Bedienelemente") -- Klasse **B**, Birk entscheidet (Frage B1).
+  Mein Satz durfte das nicht vorwegnehmen.
+
+**Fix:** Den Satz in `system.md` ersetzt:
+- Vorher: '"Start listening" starts the background listening AND the mic
+  check in one step -- there is no separate check button; "Discussion
+  done" ends it.'
+- Nachher: '"Start listening" starts the background listening;
+  "Discussion done" ends it. The first time on a given day, a short room
+  check may appear first, with its own button -- you may name it if the
+  group asks, but never explain how it measures (a few seconds of
+  silence, then a test sentence).'
+
+Beschreibt nur, was heute tatsaechlich passiert (Tages-Cache, eigene
+Karte, eigener Knopf), ohne B1 zu entscheiden; die Regel "nie die Technik
+erklaeren" (P1-N3) bleibt erhalten und auf den Raumcheck ausgeweitet.
+
+**Test (TDD):** neuer Test
+`tests/test_phasen_prompts_teil2.py::test_system_en_behauptet_keinen_mikro_check_in_einem_schritt`
+prueft, dass die falsche Behauptung fehlt und die neue Formulierung
+steht. Gegen den Stand VOR diesem Fix (Commit `f341831`) lief er rot
+(verifiziert durch Nachbau des alten Dateiinhalts via
+`git show f341831:interview_theater/sprachen/en/prompts/system.md` und
+Pruefen der drei Teilstrings in Python: `mic check in one step` und
+`there is no separate check button` waren True, `a short room check may
+appear first` war False).
+
+### Befehle und Ergebnis
+
+```
+uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p no:cacheprovider \
+  tests/test_phasen_prompts_teil2.py tests/test_padua_phase1_prompt.py \
+  tests/test_padua_phase2_prompt.py tests/test_sprache_prompts.py
+-> 149 passed
+```
+
+```
+uv run --extra dev python -m scripts.pruefe_profil padua-2026
+-> padua-2026: in Ordnung
+```
+
+```
+uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p no:cacheprovider \
+  tests/test_profil_bitgleich.py tests/test_sprache_bitgleich.py
+-> 23 passed (Dortmund-Bitgleich unveraendert gruen -- kein Dortmund-/Basis-Datei angefasst)
+```
+
+Erweiterter Lauf (gleiche Dateiliste wie im ersten Durchgang, plus der
+neue Test):
+
+```
+-> 548 passed, 15 warnings (vorher 547 + 1 neuer Test)
+```
+
+Kein Padua-Prompt-Snapshot-Test existiert (`test_profil_bitgleich.py`
+bindet nur Dortmund) -- deshalb keine Snapshot-Regenerierung noetig;
+`pruefe_profil padua-2026` ist die vorgegebene Padua-Pruefung und ist
+gruen.
+
+**Commit:** siehe Git-Log, Nachfolgecommit zu `f341831` in diesem
+Worktree.

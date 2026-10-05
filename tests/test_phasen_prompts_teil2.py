@@ -91,6 +91,26 @@ def test_system_en_erklaert_nie_aufnahmetechnik():
     assert "segments" in text
 
 
+def test_system_en_behauptet_keinen_mikro_check_in_einem_schritt():
+    """Review-Fund nach dem ersten T1-Durchgang (05.10.2026): system.md
+    behauptete faelschlich, '"Start listening" starts the background
+    listening AND the mic check in one step -- there is no separate check
+    button'. Tatsaechlich zeigt ``kalEntscheideOderStarte()``
+    (web_chat.py:2521-2540), einmal pro Tag (Cache ueber
+    ``kalibrierungCacheLesen``), eine eigene Raumcheck-Karte mit eigenem
+    Knopf 'Start measuring' (texte.toml:``_TEXT_KALIBRIERUNG_START_KNOPF``,
+    ``kalibrierungStarte()`` zeigt ihn ueber ``kalStartKnopf``). Das ist
+    genau der Befund P1-H1 ('zwei Start-Bedienelemente') -- Klasse B,
+    Birk entscheidet, ob das zusammengelegt wird. Dieser Satz darf die
+    Frage nicht vorwegnehmen, nur beschreiben, was heute passiert."""
+    text = " ".join((EN / "system.md").read_text(encoding="utf-8").split())
+    assert "mic check in one step" not in text
+    assert "there is no separate check button" not in text
+    assert "a short room check may appear first" in text
+    assert "with its own button" in text
+    assert "never explain how it measures" in text
+
+
 def test_system_en_ist_keine_amateurgruppe():
     """Befund P1-L2: system.md sagte 'an amateur theatre group', die
     Padua-Profilanweisung (workshop/padua-2026/prompts/anweisung.md) sagt

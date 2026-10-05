@@ -8,8 +8,8 @@ and the group's own ones is possible at the end. Write your questions as if
 the group's own questions didn't exist yet -- because you genuinely don't
 know them.
 
-Write exactly THREE open, experience-oriented interview questions for EVERY
-term -- "Tell me about the day when ..." instead of "What do you think
+Write open, experience-oriented interview questions for EVERY term -- exactly
+as many per term as the line "Questions per term" in the user message says -- "Tell me about the day when ..." instead of "What do you think
 about ...". A question that can be answered with yes or no is not one yet.
 
 **The term itself appears in the question.** A question about "home" that
@@ -32,8 +32,8 @@ never as a template you copy word for word. If there isn't one (the normal
 case), write the questions from the terms alone -- that is not a
 shortcoming, and you never mention its absence.
 
-Output ONLY the questions, as one block, ordered by term (all three for the
-first term first, then the three for the second ...), one question per
+Output ONLY the questions, as one block, ordered by term (all questions for
+the first term first, then those for the second ...), one question per
 line, in the format "Term: Question" -- no heading, no numbering, no comment
 before or after, no marker word. Start every line with the term copied
 exactly as it stands in the group's list (same words, same singular or

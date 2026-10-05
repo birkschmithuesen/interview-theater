@@ -60,6 +60,22 @@ _DISKUSSION_KOPF = (
     "Hintergrund, kein Diktat):"
 )
 _BEGRUENDUNG_KOPF = "Warum die Gruppe diese Begriffe gewaehlt hat:"
+_ANZAHL_ZEILE = "Fragen je Begriff: {n}"
+
+#: Live Padua 05.10.2026 (G3, ein einziger Begriff): die Zahl der KI-Fragen
+#: je Begriff war fest drei. Seit die Zahl der Begriffe frei ist, ergibt sich
+#: die Zahl je Begriff aus einem Ziel fuer die GESAMTZAHL -- ein Begriff
+#: bekommt mehr, viele Begriffe bekommen weniger je Begriff.
+ZIEL_GESAMT = 12
+MIN_JE_BEGRIFF = 2
+MAX_JE_BEGRIFF = 8
+
+
+def fragen_je_begriff(anzahl_begriffe: int) -> int:
+    if anzahl_begriffe <= 0:
+        return 0
+    n = round(ZIEL_GESAMT / anzahl_begriffe)
+    return max(MIN_JE_BEGRIFF, min(MAX_JE_BEGRIFF, n))
 T = sprache.Texte(__name__)
 
 #: Jedes Objekt braucht additionalProperties: false und ein required mit
@@ -88,6 +104,7 @@ def _nutzertext(begriffe: str, diskussion_text: str | None,
 
     liste = begriffe_modul.zerlege(begriffe)
     text = T._BEGRIFFE_KOPF + "\n" + "\n".join(f"- {b}" for b in liste)
+    text += "\n\n" + T._ANZAHL_ZEILE.format(n=fragen_je_begriff(len(liste)))
     zeilen = begriffsboard.detail_zeilen(begriffe_detail or [])
     if zeilen:
         text += "\n\n" + T._BEGRUENDUNG_KOPF + "\n" + "\n".join(zeilen)
@@ -148,7 +165,30 @@ def _hat_vorschlag(stand) -> bool:
 
     if stand is None:
         return False
-    return bool(vorschlag.zeilen(stand["fragen_ki_vorschlag"] or ""))
+    zeilen = vorschlag.zeilen(stand["fragen_ki_vorschlag"] or "")
+    if not zeilen:
+        return False
+    return passt_zu_begriffen(stand["begriffe"] or "", zeilen)
+
+
+def passt_zu_begriffen(begriffe_feld: str, zeilen: list[str]) -> bool:
+    """Deckt der KI-Vorschlag JEDEN aktuellen Begriff mit mindestens einer
+    Frage ab? Live Padua 05.10.2026 (G3): der Lauf entstand beim Eintritt in
+    Phase 2 auf fuenf Begriffen, danach reduzierte die Gruppe auf EINEN
+    neuen -- die Gegenueberstellung zeigte trotzdem die Fragen zu den
+    verworfenen Begriffen. Ein Vorschlag, der die jetzigen Begriffe nicht
+    abdeckt, ist veraltet und wird neu erzeugt."""
+    from interview_theater.knoepfe.fragen import _ordne_zeilen
+
+    begriffe = begriffe_modul.zerlege(begriffe_feld)
+    if not begriffe:
+        return True
+    je_begriff, rest = _ordne_zeilen(begriffe, zeilen)
+    # Veraltet heisst: ein jetziger Begriff hat keine einzige Frage UND der
+    # Vorschlag traegt Fragen zu Begriffen, die es nicht mehr gibt (``rest``).
+    # Nur eines davon reicht nicht -- ein Modell, das zu einem Begriff
+    # nichts lieferte, ist kein Grund fuer einen zweiten bezahlten Lauf.
+    return not (rest and any(not je_begriff.get(b) for b in begriffe))
 
 
 def starte(conn, tg, klm, e, chat_id: int) -> bool:

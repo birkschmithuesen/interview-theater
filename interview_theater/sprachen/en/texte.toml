@@ -850,6 +850,7 @@ _NACHTRAG_WOERTLICH = "\n\nIMPORTANT, second attempt: In the first attempt, supp
 _BEGRIFFE_KOPF = "The group's terms:"
 _DISKUSSION_KOPF = "Digest of an earlier discussion by the group (background only, not a template):"
 _BEGRUENDUNG_KOPF = "Why the group chose these terms:"
+_ANZAHL_ZEILE = "Questions per term: {n}"
 
 ["begriffsboard"]
 _ZEILE_DETAIL = "- {begriff}: {begruendung}"

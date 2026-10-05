@@ -439,3 +439,49 @@ def test_unbrauchbarer_vorschlag_ohne_fragezeile_wird_neu_erzeugt(conn, einst):
     assert fragen_ki.starte(conn, _TG(), klm, einst, CHAT) is True
     _warte_bis(lambda: "Heimat" in (_feld(conn, CHAT, "fragen_ki_vorschlag") or ""))
     assert klm.aufrufe == 1
+
+
+# ---------------------------------------------------------------------------
+# Live Padua 05.10.2026 (G3): Zahl je Begriff dynamisch, veralteter Vorschlag
+# ---------------------------------------------------------------------------
+
+
+def test_fragen_je_begriff_skaliert_mit_der_zahl_der_begriffe():
+    assert fragen_ki.fragen_je_begriff(1) == fragen_ki.MAX_JE_BEGRIFF
+    assert fragen_ki.fragen_je_begriff(4) == 3
+    assert fragen_ki.fragen_je_begriff(5) == 2
+    assert fragen_ki.fragen_je_begriff(12) == fragen_ki.MIN_JE_BEGRIFF
+
+
+def test_nutzertext_nennt_die_zahl_je_begriff():
+    text = fragen_ki._nutzertext("EVENTO", None)
+    assert str(fragen_ki.fragen_je_begriff(1)) in text.splitlines()[-1] or \
+        any(str(fragen_ki.fragen_je_begriff(1)) in z for z in text.splitlines())
+
+
+def test_prompt_nennt_keine_feste_zahl():
+    from interview_theater import anweisungen
+    text = anweisungen.hole("fragen_ki_vorschlag")
+    assert "DREI" not in text and "THREE" not in text
+
+
+def test_vorschlag_zu_verworfenen_begriffen_gilt_als_veraltet(conn, einst):
+    """G3: der Vorschlag entstand auf fuenf Begriffen, die Gruppe hat auf
+    EINEN neuen reduziert -> neuer Lauf statt der alten Fragen."""
+    _setze_begriffe(conn, "Heimat, Streit")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_ki_vorschlag",
+                            "Heimat: Frage eins.\nStreit: Frage zwei.")
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "EVENTO")
+    klm = _KLM("EVENTO: Wo warst du?\nEVENTO: Was blieb?")
+    assert fragen_ki.starte(conn, _TG(), klm, einst, CHAT) is True
+    _warte_bis(lambda: klm.aufrufe == 1)
+    _warte_bis(lambda: "EVENTO" in (_feld(conn, CHAT, "fragen_ki_vorschlag") or ""))
+
+
+def test_passender_vorschlag_bleibt_idempotent(conn, einst):
+    _setze_begriffe(conn, "Heimat, Streit")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_ki_vorschlag",
+                            "Heimat: Frage eins.\nStreit: Frage zwei.")
+    klm = _KLM()
+    assert fragen_ki.starte(conn, _TG(), klm, einst, CHAT) is False
+    assert klm.aufrufe == 0

@@ -553,6 +553,13 @@ def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
         # stehen allein die KI-Fragen da.
         if not ki_roh or not eigene_fertig:
             return None
+        # Live Padua 05.10.2026 (G3): ein KI-Vorschlag zu inzwischen
+        # verworfenen Begriffen wird nicht offenbart -- der Aufrufer
+        # (``_eigene_fertig``) stoesst dann einen neuen Lauf an.
+        from interview_theater import fragen_ki, vorschlag as _v
+
+        if not fragen_ki.passt_zu_begriffen(begriffe_feld, _v.zeilen(ki_roh)):
+            return None
 
         from interview_theater import vorschlag
 

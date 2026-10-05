@@ -69,6 +69,34 @@ ABNAHME_BEFUNDE: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Raumcheck domainweit", ("raumcheck_domainweit",)),
 )
 
+#: Schluessel, die eine Zeile NUR in der nachher-Spalte zusaetzlich als
+#: "noch da" zaehlen (je Leit-Schluessel). Abnahmelauf 05.10.2026: nachher
+#: schwieg der Bot nach dem Ende ganz (``stille_nach_ende``, das 'ende' kam
+#: nie an) -- die Zeile "Leeres Ende-Segment" stand trotzdem auf "–". Vorher
+#: verlangt weiter das leere Ende selbst.
+NACHHER_AUCH: dict[str, tuple[str, ...]] = {
+    "stille_nach_leerem_ende": ("stille_nach_ende",),
+}
+NICHT_PRUEFBAR = "nicht_pruefbar"
+HINWEIS_TABELLE = "– = nicht gemeldet; nicht prüfbar = Prüfung konnte nicht laufen"
+
+
+def _nachher_schluessel(schluessel: tuple[str, ...]) -> tuple[str, ...]:
+    return schluessel + NACHHER_AUCH.get(schluessel[0], ())
+
+
+def _nicht_pruefbar(invarianten: list[dict], schluessel_satz: tuple[str, ...]) -> bool:
+    ziele = {f"{NICHT_PRUEFBAR}:{s}" for s in schluessel_satz}
+    return any(b.get("schluessel") in ziele for b in invarianten)
+
+
+def _spalte(invarianten: list[dict], schluessel_satz: tuple[str, ...]) -> str:
+    if _befund_gemeldet_hoch(invarianten, schluessel_satz):
+        return "gemeldet (hoch)"
+    if _nicht_pruefbar(invarianten, schluessel_satz):
+        return "nicht prüfbar"
+    return "–"
+
 
 def _invarianten_zeile(befund: dict, geraet: str) -> str:
     return (
@@ -121,29 +149,45 @@ def vergleichstabelle(vorher: dict, nachher: dict) -> str:
     Tabelle (Restbefunde) blockieren die Abnahme NICHT -- sie werden nur
     als Zaehler sichtbar gehalten (``Restbefunde hoch nachher: <n>``). Bei
     ``nein`` nennt die letzte Zeile die fehlenden Zeilen in ``vorher`` und
-    die in ``nachher`` noch vorhandenen Zeilen, je per Leit-Schluessel."""
+    die in ``nachher`` noch vorhandenen Zeilen, je per Leit-Schluessel.
+
+    Nachtrag 05.10.2026 (nach dem bezahlten Abnahmelauf): (3) eine Zeile,
+    deren Pruefung in einem Lauf nicht laufen konnte (Befund
+    ``nicht_pruefbar:<schluessel>``, nicht zugleich gemeldet), steht dort
+    als "nicht prüfbar" und verhindert "ja" -- der Grund nennt die Zeile.
+    (4) In der nachher-Spalte zaehlen zusaetzlich ``NACHHER_AUCH``."""
     v_commit = vorher.get("app_commit", "?")
     n_commit = nachher.get("app_commit", "?")
     v_inv = vorher.get("invarianten") or []
     n_inv = nachher.get("invarianten") or []
-    bekannte_schluessel = {s for _, schluessel in ABNAHME_BEFUNDE for s in schluessel}
+    bekannte_schluessel = {
+        praefix + s
+        for _, schluessel in ABNAHME_BEFUNDE
+        for s in _nachher_schluessel(schluessel)
+        for praefix in ("", f"{NICHT_PRUEFBAR}:")
+    }
 
     zeilen = [
+        HINWEIS_TABELLE,
+        "",
         f"| Befund | vorher ({v_commit}) | nachher ({n_commit}) | erwartet |",
         "|---|---|---|---|",
     ]
     fehlend_vorher: list[str] = []
     noch_da_nachher: list[str] = []
+    nicht_pruefbar: list[str] = []
     for label, schluessel in ABNAHME_BEFUNDE:
         leit_schluessel = schluessel[0]
-        v_hoch = _befund_gemeldet_hoch(v_inv, schluessel)
-        n_hoch = _befund_gemeldet_hoch(n_inv, schluessel)
-        if not v_hoch:
+        v_status = _spalte(v_inv, schluessel)
+        n_status = _spalte(n_inv, _nachher_schluessel(schluessel))
+        if v_status == "–":
             fehlend_vorher.append(leit_schluessel)
-        if n_hoch:
+        if n_status == "gemeldet (hoch)":
             noch_da_nachher.append(leit_schluessel)
-        v_status = "gemeldet (hoch)" if v_hoch else "–"
-        n_status = "gemeldet (hoch)" if n_hoch else "–"
+        spalten = [name for name, status in (("vorher", v_status), ("nachher", n_status))
+                   if status == "nicht prüfbar"]
+        if spalten:
+            nicht_pruefbar.append(f"{label} ({', '.join(spalten)})")
         zeilen.append(f"| {label} | {v_status} | {n_status} | vorher gemeldet, nachher weg |")
 
     rest = sorted({
@@ -160,7 +204,7 @@ def vergleichstabelle(vorher: dict, nachher: dict) -> str:
     zeilen.append("")
     zeilen.append(f"Restbefunde hoch nachher: {rest_hoch}")
 
-    erfuellt = not fehlend_vorher and not noch_da_nachher
+    erfuellt = not fehlend_vorher and not noch_da_nachher and not nicht_pruefbar
     zeilen.append("")
     if erfuellt:
         zeilen.append("Abnahme erfüllt: ja")
@@ -170,6 +214,8 @@ def vergleichstabelle(vorher: dict, nachher: dict) -> str:
             gruende.append(f"vorher fehlt: {', '.join(fehlend_vorher)}")
         if noch_da_nachher:
             gruende.append(f"nachher noch da: {', '.join(noch_da_nachher)}")
+        if nicht_pruefbar:
+            gruende.append(f"nicht prüfbar: {'; '.join(nicht_pruefbar)}")
         zeilen.append(f"Abnahme erfüllt: nein — {'; '.join(gruende)}")
     return "\n".join(zeilen)
 

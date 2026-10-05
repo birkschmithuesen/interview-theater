@@ -164,6 +164,60 @@ def test_vergleich_abnahme_erfuellt_trotz_restbefund_ausserhalb_tabelle():
     assert "Restbefunde hoch nachher: 1" in md
 
 
+_VORHER_VOLL = ("board_leer_nach_ende", "stille_nach_leerem_ende",
+                "werkbank_leer_phase2_gesperrt", "chat_kennt_board_nicht",
+                "chat_kennt_transkript_nicht", "raumcheck_domainweit")
+
+
+def _zeile(md, label):
+    return next(z for z in md.splitlines() if z.startswith(f"| {label}"))
+
+
+def test_vergleich_nicht_pruefbar_ist_kein_bestanden():
+    """Abnahmelauf 05.10.2026: eine Pruefung, die nicht laufen konnte, stand
+    als "–" in der nachher-Spalte und sah aus wie behoben."""
+    nachher = _inv_lauf("abc1234", "nicht_pruefbar:raumcheck_domainweit")
+    md = ab.vergleichstabelle(_inv_lauf("cb200e4", *_VORHER_VOLL), nachher)
+    assert _zeile(md, "Raumcheck domainweit").split("|")[3].strip() == "nicht prüfbar"
+    assert "Abnahme erfüllt: ja" not in md
+    schluss = md.splitlines()[-1]
+    assert schluss.startswith("Abnahme erfüllt: nein") and "Raumcheck domainweit" in schluss
+    assert "nicht_pruefbar:raumcheck_domainweit" not in md.split("Restbefunde nachher:")[-1].split(
+        "Restbefunde hoch")[0]
+
+
+def test_vergleich_nicht_pruefbar_vorher():
+    vorher = _inv_lauf("cb200e4", *[s for s in _VORHER_VOLL if s != "chat_kennt_board_nicht"],
+                       "nicht_pruefbar:chat_kennt_board_nicht")
+    md = ab.vergleichstabelle(vorher, _inv_lauf("abc1234"))
+    assert _zeile(md, "Chat kennt Board nicht").split("|")[2].strip() == "nicht prüfbar"
+    schluss = md.splitlines()[-1]
+    assert schluss.startswith("Abnahme erfüllt: nein") and "Chat kennt Board nicht" in schluss
+
+
+def test_vergleich_hinweiszeile_ueber_der_tabelle():
+    md = ab.vergleichstabelle(_inv_lauf("cb200e4"), _inv_lauf("abc1234"))
+    zeilen = md.splitlines()
+    kopf = next(i for i, z in enumerate(zeilen) if z.startswith("| Befund |"))
+    assert "– = nicht gemeldet; nicht prüfbar = Prüfung konnte nicht laufen" in "\n".join(zeilen[:kopf])
+
+
+def test_leeres_ende_nachher_zaehlt_auch_stille_nach_ende():
+    """Nachher schweigt der Bot nach dem Ende (``stille_nach_ende``, z. B.
+    weil das 'ende' nie ankam) -- die Zeile darf nicht gruen werden."""
+    vorher = _inv_lauf("cb200e4", *_VORHER_VOLL)
+    md = ab.vergleichstabelle(vorher, _inv_lauf("abc1234", "stille_nach_ende"))
+    assert _zeile(md, "Leeres Ende-Segment").split("|")[3].strip() == "gemeldet (hoch)"
+    assert "Abnahme erfüllt: nein" in md
+    assert "- stille_nach_ende" not in md     # gehoert zur Zeile, kein Restbefund
+    # vorher verlangt weiter das LEERE Ende.
+    vorher_ohne = _inv_lauf("cb200e4", *[s for s in _VORHER_VOLL if s != "stille_nach_leerem_ende"],
+                            "stille_nach_ende")
+    md = ab.vergleichstabelle(vorher_ohne, _inv_lauf("abc1234"))
+    assert _zeile(md, "Leeres Ende-Segment").split("|")[2].strip() == "–"
+    assert "vorher fehlt: stille_nach_leerem_ende" in md
+
+
 def test_baue_abnahme_enthaelt_invarianten_abschnitt():
     md = ab.baue_abnahme(
         [_lauf("handy"), _lauf("laptop")], belege={}, b_befunde=[], leitbilder=[],

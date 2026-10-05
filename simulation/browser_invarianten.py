@@ -70,6 +70,18 @@ P2_FRAGEN_FEHLEN = "p2_fragen_fehlen"
 P2_ZAEHLER = "p2_zaehler_inkonsistent"
 BOARD_BEOBACHTER_LEER = "board_beobachter_leer"
 STATION_NICHT_ERREICHT = "station_nicht_erreicht"
+ENDE_NICHT_ANGEKOMMEN = "ende_nicht_angekommen"
+RAUMCHECK_NICHT_BESTAETIGT = "raumcheck_nicht_bestaetigt"
+#: Praefix fuer eine Pruefung, die nicht laufen konnte (keine Messung, leeres
+#: Board): ``nicht_pruefbar:<zielschluessel>``. Abnahmelauf 05.10.2026 --
+#: bis dahin lieferten solche Pruefungen ``[]`` und erschienen in der
+#: Vorher/Nachher-Tabelle als "–", also wie behoben.
+NICHT_PRUEFBAR = "nicht_pruefbar"
+
+
+def nicht_pruefbar(ziel: str, station: str, grund: str) -> "Befund":
+    return Befund(f"{NICHT_PRUEFBAR}:{ziel}", station,
+                  f"Pruefung {ziel} konnte nicht laufen: {grund}")
 
 #: Status, ab dem eine `aufnahme`-Zeile als abgeschlossen gilt (siehe
 #: Docstring oben) -- nur solche Zeilen zaehlen fuer die Zeichenzahl.
@@ -113,6 +125,14 @@ class P1Stand:
     #: Fertige Diskussionszeichen hinter ``bis_aufnahme_id`` des letzten
     #: Boardlaufs (ohne Boardlauf: alle) -- 0, wenn die Spalte fehlt.
     ungelesen_zeichen: int = 0
+    #: Hoechste ``aufnahme.id`` der Gruppe (jeder Status) -- im Vorher-Stand
+    #: die Grenze, hinter der die jetzige Diskussion beginnt.
+    max_aufnahme_id: int = 0
+    #: Id der Ende-Zeile, deren Leere ``ende_leer`` beschreibt (0: keine).
+    ende_id: int = 0
+    #: Hoechste Id einer Diskussions-Ende-Zeile in JEDEM Status (auch noch
+    #: laufend) -- fuer ``ende_nicht_angekommen``.
+    max_ende_id: int = 0
 
 
 def oeffne_lesend(db_pfad) -> sqlite3.Connection:
@@ -164,6 +184,11 @@ def lese_p1_stand(conn: sqlite3.Connection, chat_id: int) -> P1Stand:
         )
     )
     ende = [a for a in alle if a["schnittgrund"] == "ende"]
+    max_aufnahme_id = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM aufnahme WHERE chat_id = ?", (chat_id,)).fetchone()[0]
+    max_ende_id = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM aufnahme WHERE chat_id = ? AND diskussion = 1 "
+        "AND schnittgrund = 'ende'", (chat_id,)).fetchone()[0]
     return P1Stand(
         board_begriffe=board_begriffe_aus_json(letzte["json"] if letzte else None),
         board_zeilen=board_zeilen,
@@ -173,6 +198,9 @@ def lese_p1_stand(conn: sqlite3.Connection, chat_id: int) -> P1Stand:
         max_bot_id=max(bot_ids, default=0),
         bot_ids=bot_ids,
         ungelesen_zeichen=_ungelesen(letzte, aufnahmen),
+        max_aufnahme_id=max_aufnahme_id,
+        ende_id=ende[-1]["id"] if ende else 0,
+        max_ende_id=max_ende_id,
     )
 
 
@@ -206,8 +234,20 @@ def pruefe_nach_diskussion(vorher: P1Stand, nachher: P1Stand, station: str) -> l
             f"Nach 'Discussion done' hat das Board {nachher.ungelesen_zeichen} Zeichen Transkript "
             f"nie gelesen ({nachher.board_zeilen} Board-Laeufe).",
         ))
+    # Nur Ende-Zeilen der JETZIGEN Diskussion zaehlen (hinter dem
+    # Vorher-Stand) -- das leere Ende einer frueheren Runde ist erledigt.
+    ende_leer = nachher.ende_leer and nachher.ende_id > vorher.max_aufnahme_id
+    if nachher.max_ende_id <= vorher.max_aufnahme_id:
+        # Abnahmelauf 05.10.2026: ohne aktiven VAD haengt
+        # ``web_chat.beendeDiskussion`` kein 'ende' an -- der Server schliesst
+        # die Diskussion nie ab (kein Board, keine Antwort).
+        befunde.append(Befund(
+            ENDE_NICHT_ANGEKOMMEN, station,
+            "Nach 'Discussion done' kam keine Aufnahme mit schnittgrund='ende' an (keine neue "
+            f"Ende-Zeile hinter Aufnahme {vorher.max_aufnahme_id}); die Diskussion ist nie abgeschlossen.",
+        ))
     if not any(i > vorher.max_bot_id for i in nachher.bot_ids):
-        if nachher.ende_leer:
+        if ende_leer:
             befunde.append(Befund(
                 STILLE_LEERES_ENDE, station,
                 "Nach 'Discussion done' kam keine Bot-Nachricht; das Ende-Segment war leer.",
@@ -256,17 +296,35 @@ def pruefe_raumcheck_schluessel(schluessel: list[str], token: str, station: str,
     """Meldet ``vad_*``-Schluessel ohne Gruppenbezug. ``alle_tokens``: die
     Tokens ALLER Gruppen des Laufs -- ein Schluessel, der irgendeinen davon
     traegt, ist korrekt gruppengebunden (z. B. die Messung von Gruppe 1,
-    gesehen auf der Seite von Gruppe 2) und kein Befund."""
+    gesehen auf der Seite von Gruppe 2) und kein Befund.
+
+    Liegt gar kein ``vad_*``-Schluessel im Speicher, ist die Pruefung nicht
+    gelaufen (``nicht_pruefbar:raumcheck_domainweit``), nicht bestanden."""
     tokens = (token, *alle_tokens)
-    offen = sorted(
-        k for k in schluessel
-        if k.startswith(GRUPPENSCHLUESSEL_PRAEFIXE) and not any(t and t in k for t in tokens)
-    )
+    vad = [k for k in schluessel if k.startswith(GRUPPENSCHLUESSEL_PRAEFIXE)]
+    if not vad:
+        return [nicht_pruefbar(RAUMCHECK_DOMAINWEIT, station,
+                               "keine Messung gespeichert (kein vad_*-Schluessel im localStorage).")]
+    offen = sorted(k for k in vad if not any(t and t in k for t in tokens))
     if not offen:
         return []
     return [Befund(RAUMCHECK_DOMAINWEIT, station,
                    "Raumcheck-Messung liegt ohne Gruppenbezug im localStorage (gilt fuer die ganze Domain, "
                    f"also auch fuer andere Gruppen): {', '.join(offen)}.")]
+
+
+def pruefe_raumcheck_bestaetigt(schluessel: list[str], kalibrierung_modus: str | None,
+                                station: str) -> list[Befund]:
+    """Nach ``p1-kalibrierung``: weder eine Messung (``vad_*`` im
+    localStorage) noch ein gewaehlter Ausweg (``gruppe.kalibrierung_modus``)
+    -- der Raumcheck ist nicht bestaetigt, auch wenn das Fertig-Praedikat
+    der Station (eine Kalibrier-Aufnahme) erfuellt ist. Abnahmelauf
+    05.10.2026: so startete jede neue Zuhoer-Sitzung den Raumcheck neu."""
+    if any(k.startswith(GRUPPENSCHLUESSEL_PRAEFIXE) for k in schluessel) or kalibrierung_modus:
+        return []
+    return [Befund(RAUMCHECK_NICHT_BESTAETIGT, station,
+                   "Raumcheck nicht bestaetigt: kein vad_*-Schluessel im localStorage und kein "
+                   "gruppe.kalibrierung_modus.")]
 
 
 def _norm(text: str) -> str:
@@ -275,6 +333,9 @@ def _norm(text: str) -> str:
 
 def pruefe_verhoerer(board_begriffe, verhoerer: dict[str, str], station: str) -> list[Befund]:
     board = [_norm(b) for b in board_begriffe]
+    if verhoerer and not board:
+        return [nicht_pruefbar(VERHOERER, station,
+                               f"Board leer, Verhoerer {', '.join(repr(f) for f in verhoerer)} nicht auswertbar.")]
     befunde = []
     for falsch, richtig in verhoerer.items():
         hat_falsch = any(_norm(falsch) in b for b in board)
@@ -348,7 +409,10 @@ def pruefe_kontext(prompt: str, sichtbar: Sichtbar, station: str) -> list[Befund
     p = _norm_satz(prompt)
     befunde = []
     fehlt = _fehlend(sichtbar.board, p)
-    if fehlt:
+    if not sichtbar.board:
+        befunde.append(nicht_pruefbar(CHAT_KENNT_BOARD_NICHT, station,
+                                      "Board leer, kein sichtbarer Begriff zum Abgleich."))
+    elif fehlt:
         befunde.append(Befund(CHAT_KENNT_BOARD_NICHT, station,
                               f"CoThinker zeigt {len(sichtbar.board)} Begriffe, im Gespraechsprompt fehlen: "
                               f"{', '.join(fehlt)}."))
@@ -368,9 +432,10 @@ def pruefe_kontext(prompt: str, sichtbar: Sichtbar, station: str) -> list[Befund
 
 def pruefe_wissensantwort(antwort: str, board: tuple[str, ...], station: str) -> list[Befund]:
     """Antwort auf ``WISSENSFRAGE``: sie muss mindestens drei Board-Begriffe
-    nennen (bei kleinerem Board alle)."""
+    nennen (bei kleinerem Board alle). Leeres Board: nicht pruefbar."""
     if not board:
-        return []
+        return [nicht_pruefbar(CHAT_NENNT_BOARD_NICHT, station,
+                               "Board leer, keine Begriffe, die die Antwort nennen koennte.")]
     a = _norm_satz(antwort)
     genannt = [b for b in board if _norm_satz(b) in a]
     noetig = min(3, len(board))

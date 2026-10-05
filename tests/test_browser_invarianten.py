@@ -124,6 +124,35 @@ def test_verworfenes_leeres_ende_segment_ist_leer(db):
     assert inv.STILLE_NACH_ENDE not in schluessel
 
 
+def test_leeres_ende_einer_frueheren_diskussion_zaehlt_nicht(db):
+    """Das leere Ende-Segment der VORIGEN Diskussion (Aufnahme 1) darf die
+    jetzige nicht als "leeres Ende" melden -- nur Zeilen hinter
+    ``vorher.max_aufnahme_id`` zaehlen."""
+    _schreibe(db, "INSERT INTO aufnahme VALUES (1, 7, 1, 'ende', NULL, 'fehlgeschlagen')")
+    vorher = _stand(db)
+    assert vorher.max_aufnahme_id == 1
+    _schreibe(db, "INSERT INTO aufnahme VALUES (2, 7, 1, 'pause', 'home because', 'fertig')")
+    nachher = _stand(db)
+    schluessel = {b.schluessel for b in inv.pruefe_nach_diskussion(vorher, nachher, "s")}
+    assert inv.STILLE_LEERES_ENDE not in schluessel
+    assert inv.STILLE_NACH_ENDE in schluessel
+
+
+def test_ende_nicht_angekommen(db):
+    """Abnahmelauf 05.10.2026: ohne aktiven VAD schickt ``beendeDiskussion``
+    kein 'ende' -- nach der Wartezeit gibt es keine neue Ende-Zeile."""
+    _schreibe(db, "INSERT INTO aufnahme VALUES (1, 7, 1, 'ende', 'old', 'fertig')")
+    vorher = _stand(db)
+    _schreibe(db, "INSERT INTO aufnahme VALUES (2, 7, 1, 'zeit', 'home because', 'fertig')")
+    befunde = inv.pruefe_nach_diskussion(vorher, _stand(db), "p1-zuhoeren")
+    (b,) = [b for b in befunde if b.schluessel == inv.ENDE_NICHT_ANGEKOMMEN]
+    assert b.schwere == "hoch" and b.ursache == inv.URSACHE_UNGEKLAERT
+    # Eine noch laufende Ende-Zeile ist angekommen (Transkription folgt).
+    _schreibe(db, "INSERT INTO aufnahme VALUES (3, 7, 1, 'ende', NULL, 'laeuft')")
+    befunde = inv.pruefe_nach_diskussion(vorher, _stand(db), "p1-zuhoeren")
+    assert inv.ENDE_NICHT_ANGEKOMMEN not in {b.schluessel for b in befunde}
+
+
 def test_zwischenmeldung_ist_keine_antwort_auf_das_ende(db):
     """Die Zwischenmeldung beim langsamen Abtippen eines frueheren Segments
     (``aufnahme._TEXT_ZWISCHENMELDUNG``) antwortet nicht auf 'Discussion
@@ -304,8 +333,30 @@ def test_raumcheck_schluessel_einer_anderen_gruppe_ist_gebunden():
     assert "vad_schwelle." in b.text and "tok1" not in b.text
 
 
-def test_raumcheck_ohne_messung_meldet_nichts():
-    assert inv.pruefe_raumcheck_schluessel(["theme"], "tok", "s") == []
+def _ist_nicht_pruefbar(befund, ziel):
+    assert befund.schluessel == f"nicht_pruefbar:{ziel}"
+    assert befund.schwere == "hoch" and befund.ursache == inv.URSACHE_UNGEKLAERT
+
+
+def test_raumcheck_ohne_messung_ist_nicht_pruefbar():
+    """Abnahmelauf 05.10.2026: ohne bestaetigten Raumcheck gab es keinen
+    ``vad_*``-Schluessel -- die leere Pruefung erschien als "–" und sah aus
+    wie behoben. Sie ist nicht bestanden, sondern nicht pruefbar."""
+    (b,) = inv.pruefe_raumcheck_schluessel(["theme"], "tok", "s")
+    _ist_nicht_pruefbar(b, inv.RAUMCHECK_DOMAINWEIT)
+    assert "keine Messung" in b.text
+    # Ein domainweiter Schluessel (cb200e4) meldet weiter den echten Befund.
+    (b,) = inv.pruefe_raumcheck_schluessel(["vad_schwelle"], "tok", "s")
+    assert b.schluessel == inv.RAUMCHECK_DOMAINWEIT
+
+
+def test_raumcheck_nicht_bestaetigt():
+    (b,) = inv.pruefe_raumcheck_bestaetigt(["theme"], None, "p1-kalibrierung")
+    assert b.schluessel == inv.RAUMCHECK_NICHT_BESTAETIGT
+    assert b.schwere == "hoch" and b.ursache == inv.URSACHE_UNGEKLAERT
+    assert inv.pruefe_raumcheck_bestaetigt(["theme"], "herumreichen", "s") == []
+    assert inv.pruefe_raumcheck_bestaetigt(["vad_schwelle:tok:2026-10-05"], None, "s") == []
+    assert inv.pruefe_raumcheck_bestaetigt(["vad_schwelle"], None, "s") == []
 
 
 def test_verhoerer_nicht_korrigiert():
@@ -313,7 +364,13 @@ def test_verhoerer_nicht_korrigiert():
     assert b.schluessel == inv.VERHOERER
     assert b.schwere == "mittel"
     assert inv.pruefe_verhoerer(("night shift",), {"night shed": "night shift"}, "s") == []
-    assert inv.pruefe_verhoerer((), {"night shed": "night shift"}, "s") == []
+
+
+def test_verhoerer_bei_leerem_board_nicht_pruefbar():
+    (b,) = inv.pruefe_verhoerer((), {"night shed": "night shift"}, "s")
+    _ist_nicht_pruefbar(b, inv.VERHOERER)
+    assert "Board leer" in b.text
+    assert inv.pruefe_verhoerer((), {}, "s") == []   # kein Verhoerer im Skript: nichts zu pruefen
 
 
 def test_p2_werkbank():
@@ -340,7 +397,7 @@ def test_kontext_ohne_board_und_transkript():
 
 
 def test_kontext_ohne_werkbank():
-    s = inv.Sichtbar(werkbank=("home", "night shift"))
+    s = inv.Sichtbar(board=("home",), werkbank=("home", "night shift"))
     (b,) = inv.pruefe_kontext("terms: home", s, "p2")
     assert b.schluessel == inv.CHAT_KENNT_WERKBANK_NICHT
     assert "night shift" in b.text
@@ -349,14 +406,19 @@ def test_kontext_ohne_werkbank():
 
 def test_kontext_transkript_mehrheit_reicht_und_normalisiert():
     prompt = "we  MISS home because of the border"
-    s = inv.Sichtbar(transkripte=("We miss home because of the border.", "Noise at night keeps us awake"))
+    s = inv.Sichtbar(board=("home",),
+                     transkripte=("We miss home because of the border.", "Noise at night keeps us awake"))
     assert inv.pruefe_kontext(prompt, s, "s") == []  # 1 von 2 = Haelfte reicht
-    s3 = inv.Sichtbar(transkripte=("We miss home because of the border.", "Noise at night", "Waiting rooms"))
+    s3 = inv.Sichtbar(board=("home",),
+                      transkripte=("We miss home because of the border.", "Noise at night", "Waiting rooms"))
     assert inv.pruefe_kontext(prompt, s3, "s")[0].schluessel == inv.CHAT_KENNT_TRANSKRIPT_NICHT
 
 
-def test_kontext_leer_sichtbar_kein_befund():
-    assert inv.pruefe_kontext("", inv.Sichtbar(), "s") == []
+def test_kontext_leeres_board_ist_nicht_pruefbar():
+    """Leeres Board: "Chat kennt Board" konnte nicht laufen -- kein stilles []."""
+    (b,) = inv.pruefe_kontext("", inv.Sichtbar(), "s")
+    _ist_nicht_pruefbar(b, inv.CHAT_KENNT_BOARD_NICHT)
+    assert "Board leer" in b.text
 
 
 def test_wissensantwort():
@@ -365,5 +427,7 @@ def test_wissensantwort():
     (b,) = inv.pruefe_wissensantwort("I can't see the cothinker page from here.", board, "s")
     assert b.schluessel == inv.CHAT_NENNT_BOARD_NICHT
     assert inv.pruefe_wissensantwort("home", ("home",), "s") == []
-    assert inv.pruefe_wissensantwort("anything", (), "s") == []
+    (b,) = inv.pruefe_wissensantwort("anything", (), "s")
+    _ist_nicht_pruefbar(b, inv.CHAT_NENNT_BOARD_NICHT)
+    assert "Board leer" in b.text
     assert inv.WISSENSFRAGE == "Which terms are on the CoThinker right now?"

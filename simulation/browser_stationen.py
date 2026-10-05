@@ -12,6 +12,17 @@ Station: die Seite wird frisch geoeffnet, 60 Sekunden passiert nichts
 Paket, hier noch nicht gebaut) vier Booleans mechanisch aus dem DOM. Diese
 eine Station ruft deshalb nie die Persona -- ``ohne_persona`` und
 ``warte_s`` sind die zwei Felder, an denen eine Ausfuehrung das erkennt.
+
+Seit Karte t_fc2c1bfa (05.10.2026) gibt es zwei Listen (``STATIONEN``):
+``STATIONEN_P12`` (die Phasen-Abnahme) und ``STATIONEN_INVARIANTEN`` (das
+kleinste Set, das jede deterministische Pruefung aus
+``browser_invarianten`` einmal durchlaeuft). ``PRUEFUNGEN`` nennt die
+erlaubten Namen der Pruef-Haken (``browser_pruefhaken.HAKEN``). Neue
+``Station``-Felder dafuer: ``pruefung`` (welche Haken nach der Station
+laufen), ``diskussion`` (gesprochenes Skript aus
+``diskussionen.DISKUSSIONEN`` statt freier Rede; ``zuhoeren_s=None`` heisst
+Zuhoerdauer aus der WAV), ``sage`` (Text, den der Harness selbst schickt)
+und ``gruppe`` (welche Gruppe im Mehrgruppen-Lauf die Station spielt).
 """
 
 from __future__ import annotations
@@ -99,7 +110,7 @@ STATIONEN_P12: tuple[Station, ...] = (
             "room check; if it fails twice, skip it.",
             fertig=lambda s: s.get("kalibrierung_aufnahmen", 0) > 0
             or bool(s.get("kalibrierung_modus")),
-            budget=6, leitbild_mitte="kalibrierung"),
+            budget=10, leitbild_mitte="kalibrierung"),
     Station("p1-zuhoeren", 1,
             "Your group now discusses which terms matter for your play. Press "
             "'Start listening' and put the phone down in the middle of the table "
@@ -163,7 +174,11 @@ STATIONEN_INVARIANTEN: tuple[Station, ...] = (
             "if it has failed twice.",
             fertig=lambda s: s.get("kalibrierung_aufnahmen", 0) > 0
             or bool(s.get("kalibrierung_modus")),
-            budget=6, leitbild_mitte="kalibrierung", pruefung=("raumcheck",)),
+            # Budget 10 statt 6 (Abnahmelauf 05.10.2026: 6 Schritte reichten
+            # mit verstuemmeltem Testsatz nicht). Das Fertig-Praedikat bleibt;
+            # ein unbestaetigter Raumcheck wird im Haken ``raumcheck`` zum
+            # Befund ``raumcheck_nicht_bestaetigt``.
+            budget=10, leitbild_mitte="kalibrierung", pruefung=("raumcheck",)),
     Station("p1-zweite-gruppe", 1,
             "Observe the app of the second group for 20 seconds.",
             gruppe=2, ohne_persona=True, warte_s=20, pruefung=("zweite_gruppe",)),

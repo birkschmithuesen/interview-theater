@@ -118,6 +118,16 @@ def test_invarianten_liste_deckt_die_abnahme():
     assert all(p in s.PRUEFUNGEN for p in pruefungen)
 
 
+def test_kalibrierung_hat_budget_fuer_einen_ganzen_raumcheck():
+    """Abnahmelauf 05.10.2026: 6 Schritte reichten fuer einen vollstaendigen
+    Raumcheck mit verstuemmeltem Testsatz nicht."""
+    for liste in (s.STATIONEN_P12, s.STATIONEN_INVARIANTEN):
+        kal = next(st for st in liste if st.schluessel == "p1-kalibrierung")
+        assert kal.budget == 10
+    kal = next(st for st in s.STATIONEN_INVARIANTEN if st.schluessel == "p1-kalibrierung")
+    assert "raumcheck" in kal.pruefung
+
+
 def test_p12_prueft_nach_ende_und_p2_werkbank():
     p12 = {st.schluessel: st for st in s.STATIONEN_P12}
     assert "nach_ende" in p12["p1-zuhoeren"].pruefung

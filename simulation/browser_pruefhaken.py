@@ -211,10 +211,25 @@ def _alle_tokens(kontext: PruefKontext) -> tuple[str, ...]:
     return tuple(g.token for g in kontext.gruppen)
 
 
+def _lies_kalibrierung_modus(kontext: PruefKontext, chat_id: int) -> str | None:
+    with inv.oeffne_lesend(kontext.db_pfad) as conn:
+        zeile = conn.execute("SELECT kalibrierung_modus FROM gruppe WHERE chat_id = ?",
+                             (chat_id,)).fetchone()
+    return zeile["kalibrierung_modus"] if zeile else None
+
+
 def _raumcheck(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    """Nach ``p1-kalibrierung``: domainweite Schluessel (oder nicht pruefbar
+    ohne Messung) und ob der Raumcheck ueberhaupt bestaetigt ist. Die DB
+    wird nur gelesen, wenn kein ``vad_*``-Schluessel da ist."""
     token = kontext.gruppen[station.gruppe - 1].token
-    return inv.pruefe_raumcheck_schluessel(speicher_schluessel(kontext.page), token,
-                                           station.schluessel, alle_tokens=_alle_tokens(kontext))
+    schluessel = speicher_schluessel(kontext.page)
+    befunde = inv.pruefe_raumcheck_schluessel(schluessel, token, station.schluessel,
+                                              alle_tokens=_alle_tokens(kontext))
+    if not any(k.startswith(inv.GRUPPENSCHLUESSEL_PRAEFIXE) for k in schluessel):
+        befunde += inv.pruefe_raumcheck_bestaetigt(
+            schluessel, _lies_kalibrierung_modus(kontext, chat_id), station.schluessel)
+    return befunde
 
 
 def _zweite_gruppe(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:

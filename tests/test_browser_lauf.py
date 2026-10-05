@@ -768,6 +768,37 @@ def test_fuehre_pruefungen_zweite_gruppe_gruppe_eins_schluessel_ist_kein_befund(
     assert browser_lauf.fuehre_pruefungen(station, kontext) == []
 
 
+def test_raumcheck_haken_unbestaetigter_raumcheck(tmp_path):
+    """Abnahmelauf 05.10.2026: p1-kalibrierung galt als erreicht, obwohl
+    weder ``vad_*`` im localStorage noch ``kalibrierung_modus`` stand --
+    das macht der Haken jetzt sichtbar (dazu: domainweit nicht pruefbar)."""
+    pfad = _leere_db(tmp_path)
+    kontext = browser_lauf.PruefKontext(db_pfad=pfad, gruppen=[Gruppe("tok1", CHAT)],
+                                        page=_SeiteAttrappe(["theme"]))
+    station = browser_stationen.Station("p1-kalibrierung", 1, "x", pruefung=("raumcheck",))
+    befunde = browser_lauf.fuehre_pruefungen(station, kontext)
+    assert [b.schluessel for b in befunde] == [
+        "nicht_pruefbar:raumcheck_domainweit", "raumcheck_nicht_bestaetigt"]
+    assert all(b.schwere == "hoch" for b in befunde)
+
+    conn = db.verbinde(pfad)
+    repo.setze_kalibrierung_modus_herumreichen(conn, CHAT); conn.commit(); conn.close()
+    assert [b.schluessel for b in browser_lauf.fuehre_pruefungen(station, kontext)] == [
+        "nicht_pruefbar:raumcheck_domainweit"]
+
+    kontext.page = _SeiteAttrappe(["vad_schwelle:tok1:2026-10-05"])
+    assert browser_lauf.fuehre_pruefungen(station, kontext) == []
+
+
+def test_fuehre_pruefungen_verhoerer_leeres_board_nicht_pruefbar(tmp_path):
+    kontext = browser_lauf.PruefKontext(db_pfad="x", gruppen=[Gruppe("tok1", 1)], page=None,
+                                        stand=_p1_stand(board_begriffe=()))
+    station = browser_stationen.Station("t-v", 1, "x", diskussion="verhoerer",
+                                        pruefung=("verhoerer",))
+    (b,) = browser_lauf.fuehre_pruefungen(station, kontext)
+    assert b.schluessel == "nicht_pruefbar:verhoerer_nicht_korrigiert" and b.schwere == "hoch"
+
+
 def test_fuehre_pruefungen_ausnahme_im_haken_wird_befund():
     def warte(*a, **kw):
         raise RuntimeError("DB weg")

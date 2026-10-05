@@ -102,13 +102,133 @@ def test_ende_unter_der_schwelle_ist_sichtbares_schweigen(conn, tg, einst):
     assert len(karten) == 1 and karten[0]["schweigen"] == 1 and karten[0]["text"] == ""
 
 
-def test_cap_schnitt_loest_nie_eine_karte_aus(conn, tg, einst, monkeypatch):
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
+# Birk 05.10.2026 22:00: kein Toggle, Phase-1-Bedienung -- ein Kappenschnitt
+# zaehlt im Zwischenlauf jetzt wie ein Pausenschnitt (D1, dasselbe Muster wie
+# begriffsboard.soll_laufen). Die alte "cap loest nie aus"-Erwartung ist
+# damit ueberholt; die neue Erwartung (Kappenschnitt mit genug Text loest
+# eine Zwischenkarte aus) steht in tests/test_aufnahme.py als
+# test_kappenschnitt_mit_genug_text_loest_eine_karte_aus.
+
+
+def test_pausenschnitt_unter_schwelle_schreibt_kein_schweigen(conn, tg, einst, monkeypatch):
+    """Birk 05.10.2026 22:00: der Zwischenlauf waehrend des Zuhoerens ist
+    STILL unter der Schwelle -- anders als das Bogenende ('ende') legt er nie
+    eine sichtbare Schweigen-Zeile an, auch nicht wenn ``soll_reagieren``
+    verneint. Die unreagierten Zeichen bleiben einfach stehen und zaehlen
+    beim naechsten Schnitt weiter mit."""
     aufgerufen = []
     monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
-    row = _brainstorm_zeile(conn, 1, 620, "x" * 5000, schnittgrund="cap")
+    row = _brainstorm_zeile(conn, 1, 620, "x" * 5, schnittgrund="pause")
     aufnahme._kurz_abschliessen(conn, tg, object(), einst, row, aufnahme._kein_zug, False)
     assert not aufgerufen and repo.buehnenkarten(conn, 1) == []
+
+
+def test_pausenschnitt_wartet_nie(conn, tg, einst, monkeypatch):
+    """Birk 05.10.2026 22:00: der Zwischenauslöser entscheidet SOFORT -- er
+    wartet nie auf offene Segmente oder einen freien Kartenlauf (das bleibt
+    dem Bogenende vorbehalten). Die beiden Wartefunktionen wuerden hier
+    werfen, wenn sie aufgerufen wuerden."""
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "0")
+
+    def _wirft(*a, **k):
+        raise AssertionError("der Zwischenlauf darf nie warten")
+
+    monkeypatch.setattr(aufnahme, "_warte_auf_offene_segmente", _wirft)
+    monkeypatch.setattr(aufnahme, "_warte_auf_freien_kartenlauf", _wirft)
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: True)
+    row = _brainstorm_zeile(conn, 1, 621, "x" * 20, schnittgrund="pause")
+    aufnahme._kurz_abschliessen(conn, tg, object(), einst, row, aufnahme._kein_zug, False)
+
+
+def test_zwischenkarte_markiert_nur_bis_vor_das_erste_offene_segment(conn, tg, einst, monkeypatch):
+    """Birk 05.10.2026 22:00: die Zwischenmarkierung bleibt -- wie der
+    Boardlauf der Phase 1 (``repo.diskussion_gelesen_bis``) -- vor dem ersten
+    noch offenen (nicht fertigen) Segment stehen, auch wenn ein spaeteres
+    Segment schon fertig ist und den Lauf ausloest."""
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "0")
+    gesehen = []
+    monkeypatch.setattr(
+        aufnahme, "_starte_buehnenkarte",
+        lambda c, t, k, e, chat_id, **kw: gesehen.append(kw.get("bis_id")))
+
+    def _segment(message_id, status, schnittgrund, text=None):
+        aufnahme_id = repo.lege_aufnahme_an(
+            conn, 1, message_id, "kurz", "sprache", status=status,
+            schnittgrund=schnittgrund, brainstorm=True,
+        )
+        if text is not None:
+            repo.setze_transkript(conn, aufnahme_id, text)
+        return aufnahme_id
+
+    erste = _segment(700, "fertig", "pause", "x" * 20)
+    _segment(701, "empfangen", "cap")  # noch offen -- kein Transkript
+    dritte_id = _segment(702, "fertig", "pause", "y" * 20)
+
+    aufnahme._kurz_abschliessen(
+        conn, tg, None, einst, repo.hole_aufnahme(conn, dritte_id),
+        aufnahme._kein_zug, False,
+    )
+    assert gesehen == [erste]
+
+
+def test_ende_nach_zwischenkarte_zaehlt_nur_den_rest(conn, tg, einst, monkeypatch):
+    """Birk 05.10.2026 22:00: nach einer Zwischenkarte (``brainstorm_
+    markierung_id`` gesetzt) zaehlt das Bogenende nur noch den REST seit
+    dieser Markierung -- unter der Abschlussschwelle (150) sichtbares
+    Schweigen, darueber eine Karte."""
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "150")
+    repo.sichere_gruppe(conn, 2, "gruppe2", "Testgruppe2")
+
+    def _segment(chat_id, message_id, schnittgrund, text):
+        aufnahme_id = repo.lege_aufnahme_an(
+            conn, chat_id, message_id, "kurz", "sprache", status="fertig",
+            schnittgrund=schnittgrund, brainstorm=True,
+        )
+        repo.setze_transkript(conn, aufnahme_id, text)
+        return aufnahme_id
+
+    # Chat 1: unter der Schwelle (100 Zeichen Rest) -> sichtbares Schweigen.
+    markiert_bei = _segment(1, 720, "pause", "x" * 50)
+    repo.markiere_brainstorm_reaktion(conn, 1, markiert_bei)
+    ende_unter = _segment(1, 721, "ende", "y" * 100)
+    aufnahme._kurz_abschliessen(
+        conn, tg, object(), einst, repo.hole_aufnahme(conn, ende_unter),
+        aufnahme._kein_zug, False,
+    )
+    karten1 = repo.buehnenkarten(conn, 1)
+    assert [(k["schweigen"], k["modell"]) for k in karten1] == [(1, "schwelle")]
+
+    # Chat 2: ueber der Schwelle (150 Zeichen Rest) -> Karte.
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1) or True)
+    markiert_bei_2 = _segment(2, 722, "pause", "x" * 50)
+    repo.markiere_brainstorm_reaktion(conn, 2, markiert_bei_2)
+    ende_ueber = _segment(2, 723, "ende", "z" * 150)
+    aufnahme._kurz_abschliessen(
+        conn, tg, object(), einst, repo.hole_aufnahme(conn, ende_ueber),
+        aufnahme._kein_zug, False,
+    )
+    assert aufgerufen
+
+
+def test_pausensegment_waehrend_ende_wartet_startet_keine_zwischenkarte(conn, tg, einst, monkeypatch):
+    """Birk 05.10.2026 22:00: ein 'pause'-Segment, das erst NACH dem
+    Bogenende ('ende', hoehere id) fertig wird (langsame Transkription),
+    sieht als juengsten Schnittgrund insgesamt 'ende' -- der Zwischenlauf
+    greift dann nicht, denn die Gruppe hat ja schon aufgehoert."""
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "0")
+    aufgerufen = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1) or True)
+
+    pause_row = _brainstorm_zeile(conn, 1, 740, "x" * 20, schnittgrund="pause")
+    # Das Bogenende ist schon da -- schneller verarbeitet, hoehere id.
+    _brainstorm_zeile(conn, 1, 741, "y" * 20, schnittgrund="ende")
+
+    aufnahme._kurz_abschliessen(conn, tg, None, einst, pause_row, aufnahme._kein_zug, False)
+    assert not aufgerufen
 
 
 def test_offene_brainstorm_segmente_zaehlt_nur_diese_sitzung(conn):

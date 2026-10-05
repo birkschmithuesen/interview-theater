@@ -1159,14 +1159,20 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
 
     Danach die EINE Code-Entscheidung (kein Modellaufruf, Zusage 2):
     reicht es fuer eine Buehnenkarte? ``brainstorm.soll_reagieren`` prueft
-    das rein anhand von Zahlen aus ``repo.brainstorm_stand``.
+    das rein anhand von Zahlen aus ``repo.brainstorm_stand`` -- siehe
+    ``_brainstorm_entscheide``.
 
-    ``schnittgrund == 'ende'`` heisst: dieses Segment ist der Flush beim
-    Stopp des Toggles (t_cf87ee0a, Birk 03.10.2026: ein Toggle = ein
-    Gedankenbogen; der Browser setzt ``'ende'`` vor ``alt.stop()``) -- das
-    einzige Signal, das eine Karte (oder ein sichtbares Schweigen) ausloest.
-    Es gibt dafuer keinen eigenen Serveraufruf: die Brainstorm-Sitzung kennt
-    keinen Modus-Befehl, das LETZTE hochgeladene Segment TRAEGT das Ende."""
+    **Birk 05.10.2026 22:00: kein Toggle; wie Phase 1.** Phase 4 bedient sich
+    seitdem genauso wie das Begriffsboard der Phase 1 ("Start listening" /
+    "Discussion done") -- das loest t_cf87ee0a (ein Toggle = ein
+    Gedankenbogen) ab. ``schnittgrund == 'ende'`` heisst weiterhin: dieses
+    Segment ist der Flush beim Druck auf "Discussion done" (der Browser
+    setzt ``'ende'`` vor ``alt.stop()``) -- das Signal, das GENAU EINE
+    Reaktion ausloest (Karte oder sichtbares Schweigen); jeder andere
+    Schnittgrund (``pause``/``cap``/``weich``) kann waehrend des laufenden
+    Zuhoerens schon eine Karte im Hintergrund ausloesen. Es gibt dafuer
+    keinen eigenen Serveraufruf: das hochgeladene Segment TRAEGT seinen
+    Schnittgrund selbst."""
     repo.setze_status(conn, row["id"], "fertig")
     # Birk 02.10.2026: "das Transcript im Chat anzeigen als Feedback ist
     # wichtig. Nach jeder Pause-Detection [...] soll es sich auch im Chat
@@ -1182,14 +1188,32 @@ def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
     oder nein) -- getrennt von ``_brainstorm_abschliessen`` aus demselben
     Grund wie ``_diskussion_entscheide``.
 
-    Seit t_cf87ee0a (Birk 03.10.2026): EIN Toggle = EIN Gedankenbogen.
-    Waehrend der Toggle an ist, entsteht keine Karte (``pause``/``cap`` sind
-    stille technische Schnitte); erst das Bogenende (``ende``) wartet auf alle
-    Segmente des Bogens und entscheidet dann genau einmal: Karte (ueber
-    ``_starte_buehnenkarte``) oder -- unter der Abschlussschwelle -- eine
-    sichtbare Schweigen-Zeile. ``IT_BRAINSTORM_MIN_ZEICHEN``/``_MIN_ABSTAND_S``
-    sind damit im Brainstorm ohne Wirkung (``soll_reagieren`` bleibt
-    unveraendert, das Begriffsboard der Phase 1 nutzt es weiter).
+    **Birk 05.10.2026 22:00: kein Toggle mehr -- Phase 4 bedient sich wie
+    Phase 1** ("Start listening" / "Discussion done", ``docs/handoffs/``
+    loest t_cf87ee0a ab). Zwei Pfade, nach Schnittgrund:
+
+    **Zwischenlauf** (``pause``/``cap``/``weich``, waehrend des Zuhoerens):
+    CoThinker-Karten entstehen automatisch IM HINTERGRUND, nach derselben
+    Schwelle wie bisher (``brainstorm.soll_reagieren``, ``ist_abschluss=False``,
+    OHNE Override -- die Brainstorm-Vorgaben ``IT_BRAINSTORM_MIN_ZEICHEN``/
+    ``_MIN_ABSTAND_S`` bleiben in Kraft). Ein Deckelschnitt (``cap``) zaehlt
+    dabei wie ein Pausenschnitt -- dasselbe Muster wie
+    ``begriffsboard.soll_laufen`` seit dem Live-Fix vom 05.10. 16:40 (Gruppen,
+    die durchreden, erzeugen sonst nur Deckelschnitte und das Panel friert
+    ein). Dieser Pfad WARTET NIE (keine offenen Segmente, kein freier
+    Kartenlauf) -- er entscheidet sofort mit dem, was gerade in der Datenbank
+    steht, und schreibt bei einer Absage keine sichtbare Schweigen-Zeile: die
+    unreagierten Zeichen bleiben einfach stehen und zaehlen beim naechsten
+    Schnitt weiter mit. Die Markierung (``bis_id``) bleibt -- wie der
+    Boardlauf der Phase 1 (``repo.diskussion_gelesen_bis``) -- vor dem ersten
+    noch offenen (nicht fertigen) Segment stehen (``repo.brainstorm_gelesen_
+    bis``), damit ein noch transkribierendes Segment nicht als gesehen gilt.
+
+    **Bogenende** (``ende``, "Discussion done"): GENAU EINE Reaktion, Karte
+    oder -- unter der niedrigeren Abschlussschwelle -- eine sichtbare
+    Schweigen-Zeile; zaehlt dabei nur den REST seit der letzten Markierung
+    (einer vorigen Zwischenkarte oder dem Bogenanfang). Wartet auf alle
+    Segmente des Bogens (``_warte_auf_offene_segmente``).
 
     Laeuft beim Ende noch die Karte des VORIGEN Bogens, wartet das Ende auf
     sie (``_warte_auf_freien_kartenlauf``, hoechstens ``ENDE_LAUF_WARTEN_S``)
@@ -1200,12 +1224,31 @@ def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
 
     Der Bogen endet an ``row['id']`` (Review I2): Schwelle und Markierung
     zaehlen nur Segmente bis zum Ende-Segment; ein Segment des naechsten
-    Bogens (Toggle waehrend des Wartens neu gestartet) bleibt unreagiert.
+    Bogens (Toggle waehrend des Wartens neu gestartet) bleibt unreagiert. Ein
+    ``pause``-Segment, das erst NACH einem schon verarbeiteten Bogenende
+    fertig wird (langsame Transkription), sieht als juengsten Schnittgrund
+    insgesamt ``'ende'`` -- der Zwischenlauf greift dann nicht (``soll_
+    reagieren`` verlangt ``'pause'``/``'weich'``).
 
     Die Wartezeiten laufen im Pool- oder im Nachhol-Thread (``nachholen``
     kann dadurch bis zu ``ENDE_WARTEN_S + ENDE_LAUF_WARTEN_S`` blockieren),
-    nie in einem Knopf-Handler."""
+    nie in einem Knopf-Handler -- der Zwischenlauf dagegen nie, er entscheidet
+    synchron."""
     if row["schnittgrund"] != "ende":
+        stand = repo.brainstorm_stand(conn, row["chat_id"])
+        sekunden = stand["sekunden_seit_letzter_reaktion"]
+        # D1/D3 (Controller-Entscheidungen 05./06.10.2026): 'cap' zaehlt wie
+        # 'pause' -- siehe Docstring oben.
+        letzter_schnittgrund = ("pause" if stand["letzter_schnittgrund"] == "cap"
+                               else stand["letzter_schnittgrund"])
+        if brainstorm.soll_reagieren(
+            unreagierte_zeichen=stand["unreagierte_zeichen"],
+            sekunden_seit_letzter_reaktion=sekunden if sekunden is not None else float("inf"),
+            letzter_schnittgrund=letzter_schnittgrund,
+            ist_abschluss=False,
+        ):
+            _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"],
+                                 bis_id=repo.brainstorm_gelesen_bis(conn, row["chat_id"]))
         return
     _warte_auf_offene_segmente(conn, e, row, zaehle=repo.offene_brainstorm_segmente,
                                vorfall="brainstorm_ende_segmente_offen")

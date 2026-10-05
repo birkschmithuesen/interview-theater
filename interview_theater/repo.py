@@ -2411,6 +2411,27 @@ def offene_brainstorm_segmente(conn: sqlite3.Connection, chat_id: int, ende_id: 
 
 
 @_gesperrt
+def brainstorm_gelesen_bis(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Wie ``diskussion_gelesen_bis``, fuer den Brainstorm der Phase 4 (Birk
+    05.10.2026 22:00: der Zwischenlauf waehrend des Zuhoerens markiert nach
+    demselben Muster wie der Boardlauf der Phase 1 -- nur bis zu der id, bis
+    zu der kein Segment mehr offen ist, nie an einem noch transkribierenden
+    Segment vorbei."""
+    offen = conn.execute(
+        "SELECT MIN(id) FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL AND status IN (?, ?)",
+        (chat_id, *_DISKUSSION_OFFEN),
+    ).fetchone()[0]
+    if offen is None:
+        return hoechste_brainstorm_aufnahme_id(conn, chat_id)
+    zeile = conn.execute(
+        "SELECT MAX(id) FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL AND id < ?", (chat_id, offen),
+    ).fetchone()
+    return int(zeile[0]) if zeile and zeile[0] is not None else 0
+
+
+@_gesperrt
 def begriffsboard_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
     """Die drei Zahlen fuer ``brainstorm.soll_reagieren`` -- wie
     ``brainstorm_stand``, aber ueber Diskussionssegmente (Phase 1) und mit

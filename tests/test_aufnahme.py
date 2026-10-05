@@ -1655,26 +1655,37 @@ def test_trigger_feuert_nicht_unter_der_zeichengrenze(conn, tg, einst, monkeypat
     assert not aufgerufen
 
 
-def test_pausenschnitt_loest_im_brainstorm_keine_karte_mehr_aus(conn, tg, einst, monkeypatch):
-    """Birk 03.10.2026 (t_cf87ee0a): waehrend der Toggle an ist, entsteht
-    KEINE Karte -- nur das Bogenende ('ende') loest den CoThinker aus."""
+def test_pausenschnitt_mit_genug_text_loest_eine_karte_aus(conn, tg, einst, monkeypatch):
+    """Birk 05.10.2026 22:00: kein Toggle mehr -- Phase 4 bedient sich wie
+    Phase 1 (Start listening/Discussion done), CoThinker-Karten entstehen
+    automatisch IM HINTERGRUND waehrend des Zuhoerens, nicht erst beim
+    Bogenende. Ein Pausenschnitt mit genug unreagiertem Text loest also schon
+    waehrend des laufenden Zuhoerens eine Karte aus, mit ``bis_id``."""
     monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
     monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "0")
     aufgerufen = []
-    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
+    monkeypatch.setattr(
+        aufnahme, "_starte_buehnenkarte",
+        lambda c, t, k, e, chat_id, **kw: aufgerufen.append(kw.get("bis_id")))
     row = _brainstorm_zeile(conn, 1, 505, "x" * 2000, schnittgrund="pause")
     aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
-    assert not aufgerufen
+    assert aufgerufen == [row["id"]]
 
 
-def test_trigger_feuert_nicht_bei_kappenschnitt(conn, tg, einst, monkeypatch):
+def test_kappenschnitt_mit_genug_text_loest_eine_karte_aus(conn, tg, einst, monkeypatch):
+    """D1 (Controller-Entscheidung, 05.10.2026): der Zwischenauslöser
+    behandelt 'cap' wie 'pause' -- exakt dasselbe Muster wie
+    ``begriffsboard.soll_laufen`` seit dem Live-Fix vom 05.10. 16:40, denn
+    Gruppen, die durchreden, erzeugen nur Deckelschnitte."""
     monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN", "10")
     monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "0")
     aufgerufen = []
-    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte", lambda *a, **k: aufgerufen.append(1))
+    monkeypatch.setattr(
+        aufnahme, "_starte_buehnenkarte",
+        lambda c, t, k, e, chat_id, **kw: aufgerufen.append(kw.get("bis_id")))
     row = _brainstorm_zeile(conn, 1, 506, "x" * 20, schnittgrund="cap")
     aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
-    assert not aufgerufen
+    assert aufgerufen == [row["id"]]
 
 
 def test_abschluss_schnitt_feuert_schon_ab_150_zeichen(conn, tg, einst, monkeypatch):

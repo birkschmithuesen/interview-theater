@@ -140,3 +140,32 @@ def test_markiere_buehnenkarten_lauf_beruehrt_andere_gruppe_nicht(conn):
     repo.sichere_gruppe(conn, CHAT + 1, "gruppe2", "Andere")
     repo.markiere_buehnenkarten_lauf(conn, CHAT, "2026-10-03T10:00:00+00:00")
     assert _brainstorm_lauf_seit(conn, CHAT + 1) is None
+
+
+def _lege_segment_mit_status_an(conn, message_id: int, status: str) -> int:
+    return repo.lege_aufnahme_an(
+        conn, CHAT, message_id, "kurz", "sprache", status=status,
+        schnittgrund="pause", brainstorm=True,
+    )
+
+
+def test_brainstorm_gelesen_bis_ohne_offene_segmente_ist_die_hoechste_id(conn):
+    """Birk 05.10.2026 22:00: der Zwischenlauf markiert wie der Boardlauf der
+    Phase 1 (``repo.diskussion_gelesen_bis``) nur bis zu der id, bis zu der
+    kein Segment mehr offen ist -- sind alle fertig, ist das die hoechste."""
+    _lege_segment_mit_status_an(conn, 1, "fertig")
+    zweite = _lege_segment_mit_status_an(conn, 2, "fertig")
+    assert repo.brainstorm_gelesen_bis(conn, CHAT) == zweite
+
+
+def test_brainstorm_gelesen_bis_haelt_vor_einem_offenen_segment(conn):
+    erste = _lege_segment_mit_status_an(conn, 1, "fertig")
+    _lege_segment_mit_status_an(conn, 2, "transkribiert")  # noch offen
+    _lege_segment_mit_status_an(conn, 3, "fertig")
+    assert repo.brainstorm_gelesen_bis(conn, CHAT) == erste
+
+
+def test_brainstorm_gelesen_bis_ist_null_wenn_alles_offen_ist(conn):
+    _lege_segment_mit_status_an(conn, 1, "empfangen")
+    _lege_segment_mit_status_an(conn, 2, "transkribiert")
+    assert repo.brainstorm_gelesen_bis(conn, CHAT) == 0

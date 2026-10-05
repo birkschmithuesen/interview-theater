@@ -63,7 +63,7 @@ def test_abbruchstatus_ist_ein_fehler(einst, tmp_path, monkeypatch):
 
     datei = tmp_path / "a.ogg"
     datei.write_bytes(b"testdaten")
-    with pytest.raises(stt.STTFehler):
+    with pytest.raises(stt.AuftragAbgebrochen):
         stt.transkribiere(einst, _klient(handler), datei, 30.0)
 
 

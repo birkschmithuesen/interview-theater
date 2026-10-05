@@ -112,6 +112,14 @@ class LeeresTranskript(STTFehler):
     Fehlschlag handelt, der einen Wiederholungsversuch verdient."""
 
 
+class AuftragAbgebrochen(STTFehler):
+    """Whisper hat den Auftrag angenommen und endgueltig abgebrochen
+    (``_ABBRUCHSTATUS``, z. B. ``'failed'``) -- anders als ein 5xx oder
+    Transportfehler kein voruebergehender Ausfall. ``aufnahme.py`` verwirft
+    danach ein Ende-Segment sofort, statt es MAX_VERSUCHE-mal nachzuholen
+    (Robo, Simulationslauf 05.10.2026: ein 110-Byte-Segment, fuenf Minuten)."""
+
+
 def absenden(e, klient: httpx.Client, pfad: Path, budget_s: float,
              *, sprache: str | None = "de") -> str:
     """Laedt die Datei hoch und liefert die batch_id. Wiederholt bei 5xx/
@@ -227,7 +235,7 @@ def abholen(e, klient: httpx.Client, batch_id: str, budget_s: float) -> str:
         if status == "success":
             break
         if status in _ABBRUCHSTATUS:
-            raise STTFehler(f"Auftrag {batch_id} endete als {status!r}")
+            raise AuftragAbgebrochen(f"Auftrag {batch_id} endete als {status!r}")
         if time.monotonic() >= frist:
             raise STTFehler(
                 f"Auftrag {batch_id} war nach {budget_s}s noch {status!r}"

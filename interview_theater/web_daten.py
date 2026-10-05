@@ -464,6 +464,27 @@ def _unbeantwortet(
     return {"anzahl": len(alter), "minuten": int(max(alter).total_seconds() // 60)}
 
 
+def _uebersetzung(conn: sqlite3.Connection, chat_id: int) -> dict | None:
+    """Der Uebersetzungscache einer Gruppe (Karte t_f7770dc4), oder None
+    ohne Zeile -- ``uebersetzung.englisch()`` prueft anhand von
+    ``quelle_hash``, ob der Cache noch zur aktuell gespeicherten Quelle
+    passt. ``OperationalError`` faengt eine Datenbank ab, die zwischen
+    einem Deploy und dem naechsten Bot-Neustart noch nicht migriert ist."""
+    try:
+        z = conn.execute(
+            "SELECT quelle_hash, felder FROM uebersetzung WHERE chat_id = ?", (chat_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if z is None:
+        return None
+    try:
+        felder = json.loads(z["felder"])
+    except (TypeError, ValueError):
+        return None
+    return {"quelle_hash": z["quelle_hash"], "felder": felder}
+
+
 def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
     """Alle Gruppen fuer das projizierte Team-Dashboard.
 
@@ -516,6 +537,7 @@ def dashboard(conn: sqlite3.Connection, jetzt: datetime | None = None) -> dict:
                 "kosten_heute_chf": _kosten_heute(conn, chat_id, jetzt),
                 "kosten_deckel_chf": _kosten_deckel(),
                 "unbeantwortet": _unbeantwortet(conn, chat_id, z["bot_name"], jetzt),
+                "uebersetzung": _uebersetzung(conn, chat_id),
             }
         )
     return {

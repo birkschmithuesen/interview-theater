@@ -2161,22 +2161,44 @@ def _form_dashboard(form) -> str:
     return _beschriftung(T.DASHBOARD_FORM_BESCHRIFTUNG, form)
 
 
-def _ergebnisse_html(kurzformen: list[dict]) -> str:
+def _ergebnisse_html(
+    kurzformen: list[dict], en: dict | None = None, uebersetzen: bool = False,
+) -> str:
     """Je Interview eine Zeile mit den Ergebnissen als Kurzform (N6).
 
     **Ohne Zitate, ohne Zusammenfassung, ohne Transkript** -- das Dashboard
     haengt am Beamer. Was hier steht, sind Arbeitsergebnisse in hoechstens
-    acht Woertern je Thema."""
+    acht Woertern je Thema.
+
+    ``en``/``uebersetzen`` (Karte t_f7770dc4): ohne ``uebersetzen`` oder ohne
+    einen Treffer unter ``interview_<i>_<j>`` bleibt eine Kurzform roh --
+    escaped wie zuvor, nur je Kurzform statt am ganzen String, was dasselbe
+    Ergebnis ergibt, weil ``SUMMARY_TRENNER`` keine HTML-Sonderzeichen hat."""
+    en = en or {}
     if not kurzformen:
         return ""
-    zeilen = "".join(
-        '<li><b>{name}</b> {ergebnisse}</li>'.format(
-            name=_t(v["name"], T._TEXT_INTERVIEW),
-            ergebnisse=_t(SUMMARY_TRENNER.join(v["kurzformen"])),
+    zeilen = []
+    for i, v in enumerate(kurzformen):
+        werte = SUMMARY_TRENNER.join(
+            _en_oder_original(en, f"interview_{i}_{j}", kurz, uebersetzen)
+            for j, kurz in enumerate(v["kurzformen"])
         )
-        for v in kurzformen
+        zeilen.append(f'<li><b>{_t(v["name"], T._TEXT_INTERVIEW)}</b> {werte}</li>')
+    return f'<ul class="ergebnisse">{"".join(zeilen)}</ul>'
+
+
+def _en_oder_original(en: dict, schluessel: str, original: str, uebersetzen: bool) -> str:
+    """Der englische Wert eines Segments, wenn der Cache ihn trifft; sonst
+    das Original -- dezent markiert (``ux-ausstehend``), aber nur, wenn der
+    Profilschalter ueberhaupt an ist (sonst bleibt die Zeile byte-gleich)."""
+    text = en.get(schluessel)
+    if text:
+        return _t(text)
+    original_html = _t(original)
+    return (
+        f'<span class="ux-ausstehend">{original_html}</span>'
+        if uebersetzen else original_html
     )
-    return f'<ul class="ergebnisse">{zeilen}</ul>'
 
 
 def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
@@ -2191,12 +2213,16 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
     einem geschlossenen ``<details>``: am Beamer zaehlt der Arbeitsstand,
     der Technikteil ist fuers Team. Ohne den Schalter bleibt die Seite
     byte-gleich wie zuvor."""
-    from interview_theater import workshop
+    from interview_theater import uebersetzung, workshop
 
     einklappen = bool(workshop.aktiv().wert("web.dashboard_log_einklappen", False))
     # P2, Aufgabe 3: die Gestaltung -- ohne den Schalter faellt jeder der
     # folgenden Zweige weg, und die Seite bleibt byte-gleich.
     gestaltet = bool(workshop.aktiv().wert("web.dashboard_gestaltet", False))
+    # Karte t_f7770dc4 (Padua): die Gruppenfelder zusaetzlich auf Englisch,
+    # aus dem Cache in ``uebersetzung.py`` -- kein Modellaufruf hier. Ohne
+    # den Schalter (Dortmund/Vorgabe) bleibt jede Zeile unten byte-gleich.
+    uebersetzen = bool(workshop.aktiv().wert("web.dashboard_uebersetzen_en", False))
     karten = []
     for g in daten["gruppen"]:
         titel = _t(g["titel"], _t(T._TEXT_GRUPPE.format(chat_id=g["chat_id"])))
@@ -2265,14 +2291,22 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
         )
         log = _eingeklappt(T._TEXT_LOG, f"{zahlen}{vorfaelle_html}{aufrufe_html}", einklappen)
         if gestaltet:
+            # Karte t_f7770dc4: ohne den Schalter ist ``en`` immer leer, und
+            # ``kopf_html`` bleibt das alte ``<h2>{titel}</h2>`` -- byte-gleich.
+            en = uebersetzung.englisch(g) if uebersetzen else {}
+            hauptthema_en = en.get("hauptthema") if en else None
+            kopf_html = (
+                f'<h2>{_t(hauptthema_en)}</h2><p class="ux-untertitel">{titel}</p>'
+                if hauptthema_en else f"<h2>{titel}</h2>"
+            )
             # Fortschritt oben, dann ein Hinweis NUR wenn etwas klemmt, dann
             # der Inhalt. Der Botname wandert in die Bot-Zuordnung (Technik).
             karten.append(
                 "<section class=\"karte\">"
-                f'<div class="kopf"><h2>{titel}</h2>{marke}</div>'
+                f'<div class="kopf">{kopf_html}{marke}</div>'
                 f'{_fortschritt_html(g["arbeitsstand"].get("phase"))}'
                 f"{_achtung_html(g)}"
-                f"{_dashboard_inhalt_html(g)}"
+                f"{_dashboard_inhalt_html(g, en, uebersetzen)}"
                 + log
                 + "</section>"
             )
@@ -2390,7 +2424,7 @@ def _achtung_html(g: dict) -> str:
     )
 
 
-def _dashboard_inhalt_html(g: dict) -> str:
+def _dashboard_inhalt_html(g: dict, en: dict | None = None, uebersetzen: bool = False) -> str:
     """Was die Gruppe hat -- und nur das (P2, Aufgabe 3).
 
     Gegenueber ``_arbeitsstand_html`` fehlen: die Phase (steht im
@@ -2399,7 +2433,13 @@ def _dashboard_inhalt_html(g: dict) -> str:
     Rauschen). Reihenfolge der Geschichte nach: Setting, Geschichte,
     Figuren, Interviewergebnisse, dann das Material davor. Kernthema und
     Hauptkonflikt nur, wenn gesetzt. Kein Zitat, kein Transkript -- die
-    Ergebnisse sind die Kurzformen wie bisher."""
+    Ergebnisse sind die Kurzformen wie bisher.
+
+    ``en``/``uebersetzen`` (Karte t_f7770dc4): ohne den Profilschalter (oder
+    ohne einen Treffer im Cache) bleibt jedes Feld roh wie zuvor; mit Treffer
+    steht die englische Fassung, sonst das Original dezent markiert
+    (``ux-ausstehend``, ``web_gestalt.css_dashboard``)."""
+    en = en or {}
     stand = g["arbeitsstand"]
     dt = T.ARBEITSSTAND_BESCHRIFTUNG
     teile = []
@@ -2409,22 +2449,29 @@ def _dashboard_inhalt_html(g: dict) -> str:
     kurz = '<dd class="kurz">'
     for feld in ("rahmen", "geschichte"):
         if stand.get(feld):
-            teile.append(f"<dt>{_t(dt[feld])}</dt>{kurz}{_t(stand[feld])}</dd>")
+            wert = _en_oder_original(en, feld, stand[feld], uebersetzen)
+            teile.append(f"<dt>{_t(dt[feld])}</dt>{kurz}{wert}</dd>")
     if g["figuren"]:
         # Nur die Namen: zehn Figuren mit Beschreibung sind am Beamer eine
         # halbe Karte.
         figuren = SUMMARY_TRENNER.join(
-            f"<b>{_t(f['name'])}</b>" for f in g["figuren"])
+            f'<b>{_en_oder_original(en, f"figur_{i}", f["name"], uebersetzen)}</b>'
+            for i, f in enumerate(g["figuren"]))
         teile.append(
             f'<dt>{_t(dt["figuren"])}</dt><dd class="figuren">{figuren}</dd>')
-    ergebnisse = _ergebnisse_html(g.get("interview_kurzformen") or [])
+    ergebnisse = _ergebnisse_html(g.get("interview_kurzformen") or [], en, uebersetzen)
     if ergebnisse:
         teile.append(f"<dt>{_t(T._UEBERSCHRIFT_INTERVIEWS)}</dt>{kurz}{ergebnisse}</dd>")
     for feld in ("kernthema", "hauptkonflikt", "begriffe"):
         if stand.get(feld):
-            teile.append(f"<dt>{_t(dt[feld])}</dt>{kurz}{_t(stand[feld])}</dd>")
+            wert = _en_oder_original(en, feld, stand[feld], uebersetzen)
+            teile.append(f"<dt>{_t(dt[feld])}</dt>{kurz}{wert}</dd>")
     if stand.get("fragen"):
-        teile.append(f"<dt>{_t(dt['fragen'])}</dt>{kurz}{_fragen_html(stand['fragen'])}</dd>")
+        fragen_en = en.get("fragen")
+        fragen_html = _fragen_html(fragen_en or stand["fragen"])
+        if not fragen_en and uebersetzen:
+            fragen_html = f'<span class="ux-ausstehend">{fragen_html}</span>'
+        teile.append(f"<dt>{_t(dt['fragen'])}</dt>{kurz}{fragen_html}</dd>")
     leer = (
         "" if teile
         else f'<p class="noch-nichts">{_t(T._TEXT_NOCH_NICHTS_FESTGELEGT)}</p>'

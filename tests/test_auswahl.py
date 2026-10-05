@@ -85,3 +85,13 @@ def test_unbekannter_zustand_gilt_als_offen():
     erg = auswahl.fragen_liste(stand)
     assert erg["gruppen"][0]["eintraege"][0]["zustand"] == ""
     assert erg["zaehler"]["offen"] == 1
+
+
+def test_langer_begriff_ueber_60_zeichen():
+    # Live G2, 05.10.2026: ein Begriff mit 78 Zeichen fiel in die Gruppe "".
+    lang = "impatto della tecnologia sulle relazioni interpersonali e sulla comunicazione"
+    stand = _stand(begriffe=f"{lang}, amore",
+                   fragen_auswahl=f"{lang}: I social ti avvicinano?\namore: Cos'è?")
+    erg = auswahl.fragen_liste(stand)
+    assert erg["gruppen"][0]["titel"] == lang
+    assert erg["gruppen"][0]["eintraege"][0]["text"] == "I social ti avvicinano?"

@@ -305,3 +305,10 @@ def test_hinweis_deutsch_wortlaut():
     assert texte._TEXT_FRAGEN_COTHINKER_HINWEIS == (
         "Ihr könnt alle Fragen auch im CoThinker auf einmal sortieren: "
         "✓ behalten · ✗ weg · ✎ umformulieren, dann „Fertig sortiert“.")
+
+
+def test_fragenuebersicht_langer_begriff():
+    lang = "impatto della tecnologia sulle relazioni interpersonali e sulla comunicazione"
+    stand = {"begriffe": lang, "fragen": f"{lang}: I social ti avvicinano?",
+             "fragen_eigene_vorschlag": None, "fragen_herkunft_final": None}
+    assert roadmap.fragenuebersicht(stand)[0]["fragen"] == ["I social ti avvicinano?"]

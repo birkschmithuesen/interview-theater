@@ -315,6 +315,13 @@ _ARTIKEL = ("the ", "a ", "an ")
 _KOPF_MAX = 60
 
 
+def _kopf_max(begriffe: list[str]) -> int:
+    """``_KOPF_MAX``, aber nie kuerzer als der laengste Begriff der Gruppe
+    (Live G2, 05.10.2026: ein Begriff mit 78 Zeichen fand nie seine
+    Fragen)."""
+    return max([_KOPF_MAX] + [len(b) + 10 for b in begriffe])
+
+
 def _kopfform(text: str) -> str:
     """Ein Begriffskopf in Vergleichsform: ohne Zierde, klein, Whitespace
     zu einem Leerzeichen, ohne Satzzeichen am Rand und ohne fuehrenden
@@ -338,7 +345,7 @@ def _finde_begriff(kopf: str, begriffe: list[str]) -> str | None:
     dann ein Begriff mit angehaengter Klammer ("Home (term 3)"); bei
     mehreren Treffern gewinnt der laengste Begriff. Kein Enthalten-Abgleich
     im Satz: "Tell me about home" ist eine Frage, kein Kopf."""
-    if not kopf.strip() or len(kopf) > _KOPF_MAX:
+    if not kopf.strip() or len(kopf) > _kopf_max(begriffe):
         return None
     form = _kopfform(kopf)
     if not form:
@@ -368,7 +375,7 @@ def _teile_zeile(zeile: str, begriffe: list[str]) -> tuple[str | None, str]:
     treffer: tuple[int, str, str] | None = None
     for trenner in _TRENNER:
         pos = zeile.find(trenner)
-        while 0 < pos <= _KOPF_MAX:
+        while 0 < pos <= _kopf_max(begriffe):
             begriff = _finde_begriff(zeile[:pos], begriffe)
             if begriff is not None and (treffer is None or pos > treffer[0]):
                 treffer = (pos, begriff, zeile[pos + len(trenner):])

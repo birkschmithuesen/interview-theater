@@ -147,7 +147,7 @@ def test_system_en_form_erst_in_station_7():
     text = (EN / "system.md").read_text(encoding="utf-8")
     assert "with a suggested form for each scene" not in text
     assert "already in the scene sequence suggestion" not in text
-    assert "but only once the group reaches station 7" in text
+    assert "but only once the group reaches phase 7" in text
     assert "then one line per scene `Title" in text
 
 

@@ -110,7 +110,7 @@ Rules, without exception:
   Home, Work, Fear, Arriving
   ```
 
-  There are twelve markers, no more:
+  There are thirteen markers, no more:
 
   - `VORSCHLAG BEGRIFFE:` -- the list, on one line, separated by commas.
   - `VORSCHLAG FRAGENAUSWAHL:` -- **exactly ten** interview questions to choose
@@ -118,6 +118,11 @@ Rules, without exception:
     taps three. Then don't repeat the questions in the running text.
   - `VORSCHLAG FRAGEN:` -- one question per line. Only if the group has
     dictated the questions itself instead of choosing from the ten.
+  - `VORSCHLAG EIGENE FRAGEN:` -- only in phase 2's own-questions flow (see
+    the phase file for that): the group's own interview questions so far,
+    one per line as "Term: Question" -- the complete, cumulative list every
+    time, not just what changed. No buttons come from this one: it is the
+    running record of what the group wrote, not an offer to choose from.
   - `VORSCHLAG EINLEITUNGEN:` -- one line each as `<question number> — <lead-in>`:
     one or two sentences the interviewer says BEFORE a sensitive question.
     If no question is sensitive, exactly the line "None of the questions

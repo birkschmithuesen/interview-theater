@@ -24,3 +24,17 @@ def test_phase7_en_nennt_formwahl_sprechweisen_und_script_tab():
     text = (EN / "phasen" / "7.md").read_text(encoding="utf-8").lower()
     assert "which form for each number" in text
     assert "script tab" in text
+
+
+def test_system_en_marker_katalog_nennt_eigene_fragen():
+    """Prompt-Check Padua P1-2 (05.10.2026): Padua Phase 2
+    (workshop/padua-2026/prompts/phasen/2.md) laesst den Bot
+    ``VORSCHLAG EIGENE FRAGEN:`` als 13. Marker schreiben
+    (interview_theater/knoepfe/fragen.py:uebernimm_eigene), aber der
+    EN-Systemprompt behauptete 'There are twelve markers, no more' und
+    listete ihn nicht -- ein Modell, das die Behauptung ernst nimmt,
+    haette den Marker fuer ungueltig gehalten."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "There are twelve markers, no more" not in text
+    assert "There are thirteen markers, no more" in text
+    assert "VORSCHLAG EIGENE FRAGEN:" in text

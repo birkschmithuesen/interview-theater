@@ -122,6 +122,20 @@ def _wechsle_zu_phase_3() -> None:
         conn.close()
 
 
+def _bot_antwort_auf_eigene_nachricht() -> None:
+    """Simuliert, was der Bot-Prozess auf eine eigene Nachricht hin
+    normalerweise antwortet -- in diesem Test ohne Bot-Prozess, direkt
+    gegen dieselbe Datenbank (wie ``_weitere_bot_zeile_nach_dem_wechsel``)."""
+    conn = db.verbinde(DB_PFAD)
+    try:
+        repo.lege_web_post_an(
+            conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,
+            text="Antwort des Bots auf die eigene Nachricht.",
+        )
+    finally:
+        conn.close()
+
+
 def _weitere_bot_zeile_nach_dem_wechsel() -> None:
     """Was ein spaeterer Poll bringen kann, nachdem die Phase-3-Kopfzeile
     schon im Bild steht (z. B. ``leitfaden.sende_einmal``) -- muss den
@@ -231,6 +245,34 @@ def test_phasenwechsel_scrollt_zum_anfang_der_neuen_phase(server, token):
             assert not verlauf_am_ende(), (
                 "Eine Bot-Zeile NACH dem Phasenwechsel hat den Anker oben "
                 "wieder ans Ende des Verlaufs gerissen."
+            )
+
+            # Phasenscroll-Karte, Nachtrag (05.10.2026): die Gruppe schreibt
+            # jetzt selbst, waehrend der Anker noch oben am Phasenanfang
+            # steht -- die eigene Zeile UND die Bot-Antwort danach muessen
+            # wieder unten im Bild landen, der Anker darf nicht stehen
+            # bleiben.
+            seite.fill("#eingabe", "Eigene Nachricht nach dem Phasenwechsel.")
+            seite.click("#senden")
+            seite.wait_for_timeout(int(POLL_WARTEN_S * 1000))
+
+            eigene_zeile = seite.locator(".blase.gruppe",
+                                          has_text="Eigene Nachricht nach dem Phasenwechsel.")
+            expect(eigene_zeile.last).to_be_in_viewport()
+            assert verlauf_am_ende(), (
+                "Die eigene Nachricht haette den Verlauf wieder ans Ende "
+                "scrollen sollen, der Anker ist oben stehengeblieben."
+            )
+
+            _bot_antwort_auf_eigene_nachricht()
+            seite.wait_for_timeout(int(POLL_WARTEN_S * 1000))
+
+            bot_antwort = seite.locator(".blase.bot",
+                                         has_text="Antwort des Bots auf die eigene Nachricht.")
+            expect(bot_antwort.last).to_be_in_viewport()
+            assert verlauf_am_ende(), (
+                "Die Bot-Antwort nach der eigenen Nachricht haette unten im "
+                "Bild stehen sollen."
             )
 
             SCHUSS_VERZEICHNIS.mkdir(parents=True, exist_ok=True)

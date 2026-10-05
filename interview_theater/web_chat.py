@@ -1086,6 +1086,14 @@ _CHAT_JS = """
     ziel.scrollIntoView();
   }
 
+  // Phasenscroll-Karte, Nachtrag (05.10.2026): eine eigene Aktion (Text,
+  // Audioaufnahme, Knopfdruck) soll IMMER wieder ans Ende springen, auch
+  // waehrend der Anker oben noch am Phasenanfang steht -- sonst sieht die
+  // Gruppe die eigene Zeile und die Bot-Antwort danach nicht mehr.
+  // Einmal gesetzt, bleibt die Fahne stehen, bis ein Poll tatsaechlich neue
+  // Nachrichten bringt (die eigene braucht manchmal einen Takt laenger).
+  var erzwingeNachUnten = false;
+
   function nimmZustand(daten) {
     var warUnten = amUnterenRand();
     // Review-Befund 2: die Seite laedt nie neu, ein Nonce gilt hoechstens
@@ -1119,8 +1127,8 @@ _CHAT_JS = """
       // Poll) duerfen diesen Anker nicht wieder nach unten reissen, solange
       // niemand selbst runtergescrollt ist. ``warUnten`` ist VOR dieser
       // DOM-Aenderung gelesen, genau wie im ``geaendert``-Zweig unten.
-      if (phasenwechsel) { scrolleZuPhasenanfang(); }
-      else if (warUnten) { nachUnten(); }
+      if (phasenwechsel) { scrolleZuPhasenanfang(); erzwingeNachUnten = false; }
+      else if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }
     } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
       nachUnten();
     }
@@ -1251,7 +1259,8 @@ _CHAT_JS = """
     if (!text) { return; }
     eingabe.value = '';
     veralteLetzteLeiste();
-    function zurueck() { if (!eingabe.value) { eingabe.value = text; } }
+    erzwingeNachUnten = true;
+    function zurueck() { if (!eingabe.value) { eingabe.value = text; } erzwingeNachUnten = false; }
     postJson(`chat/senden`, { text: text }).then(function (r) {
       if (r.ok) { hole(); return; }
       zurueck();
@@ -1280,16 +1289,19 @@ _CHAT_JS = """
     // dasteht, laedt dazu ein.
     var leiste = knopf.closest('.leiste');
     schalteLeiste(leiste, true);
+    erzwingeNachUnten = true;
     postJson(`chat/knopf`, {
       message_id: parseInt(knopf.dataset.message, 10),
       data: knopf.dataset.daten
     }).then(function (r) {
       if (r.ok) { hole(); return; }
       schalteLeiste(leiste, false);
+      erzwingeNachUnten = false;
       hole();
       return fehlerAus(r);
     }).catch(function () {
       schalteLeiste(leiste, false);
+      erzwingeNachUnten = false;
       meldeFehler(TEXT.fehler_netz);
     });
   });
@@ -1477,6 +1489,9 @@ _CHAT_JS = """
         else { brichAb(auftrag.sitzung); }
       }
     }
+    // Phasenscroll-Karte, Nachtrag (05.10.2026): eine Audioaufnahme ist
+    // eine eigene Aktion wie Text/Knopf -- derselbe Zwang ans Ende.
+    if (auftrag.art === 'audio') { erzwingeNachUnten = true; }
     zeigeWarteschlange();
     zeigeAngehalten();   // ein unterwegs gewesenes Segment ist jetzt erledigt
     zeigeModus();

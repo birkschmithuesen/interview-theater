@@ -204,3 +204,27 @@ allein die `art`. `erwartet[].text` im Journal-Korpus ist ein
 **Muss-Stichwort-Set**, mit `|` getrennt (`"sechs|fragen"`), ebenfalls kein
 Wortlaut. `tests/test_korpus.py` prüft Form und Mindestbesetzung mit, ohne
 Netz.
+
+### Invarianten der Browser-Simulation
+
+**Zweck:** Die Padua-Browsersimulation (`simulation/browser_lauf.py`) soll
+Live-Symptome finden, ohne dass jemand sie wegerklärt. Nach jeder Station
+laufen deterministische Prüfungen (`simulation/browser_invarianten.py`,
+`browser_pruefhaken.py`), ohne Modell. Jede Verletzung ist ein Befund `hoch`
+mit der Ursache `App oder Werkzeug – ungeklaert`.
+**Befund-Schlüssel:** `board_leer_nach_ende`, `board_nicht_nachgezogen`,
+`board_beobachter_leer`, `stille_nach_leerem_ende`, `stille_nach_ende`,
+`werkbank_leer_phase2_gesperrt`, `chat_kennt_board_nicht`,
+`chat_nennt_board_nicht`, `chat_kennt_transkript_nicht`,
+`raumcheck_domainweit`, `verhoerer_nicht_korrigiert` (mittel),
+`p2_fragen_fehlen`, `station_nicht_erreicht:<station>`. Dazu kommt
+`pruefung_gescheitert:<haken>`: Das Werkzeug ist gescheitert, nicht die App.
+**Lauf:** `--stationen invarianten` (zwei Gruppen, drei gesprochene
+Diskussionen, Wissensfrage). `--app-wurzel <checkout>` startet Web, Bot und
+Prompt-Abzug aus einem anderen Stand, z. B. cb200e4. Danach vergleicht
+`python -m simulation.browser_abnahme vergleich --vorher <lauf> --nachher
+<lauf> --ausgabe <md>` die sechs Abnahmezeilen. Bericht und Ergebnis vom
+05.10.2026: `simulation/berichte/sim-invarianten-2026-10-05.md`.
+**Symptomregel:** Ein Symptom gilt als App-Fehler, bis das Gegenteil belegt
+ist. Ändert sich ein Befund, muss das an der Prüfung liegen und mit einem Test
+belegt sein. Der Schlüssel wird nie still gestrichen.

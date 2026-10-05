@@ -54,6 +54,7 @@ simulation/berichte/*
 !simulation/berichte/.gitkeep
 !simulation/berichte/verlauf.jsonl
 !simulation/berichte/abnahme-p12-*.md
+!simulation/berichte/sim-invarianten-2026-10-05.md
 
 # Padua-Browserlauf (simulation/browser_lauf.py): Rohlaeufe sind gross
 # (Screenshots je Schritt) und koennen Betriebsdetails zeigen -- nur Bericht

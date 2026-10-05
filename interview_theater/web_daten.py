@@ -1768,15 +1768,24 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
     Geliefert wird genau das, was die Ansicht braucht -- **und der Dateipfad
     ist nicht dabei.** Er ist eine Serverinnerei, und die Seite ist ohne Login
     erreichbar (dieselbe Grenze wie 'kein Volltranskript auf der
-    Gruppenseite')."""
+    Gruppenseite').
+
+    Nachtfix 05.10.2026 (Klasse A): beim Seitenaufbau (``nach=0``) die
+    NEUESTEN ``grenze`` Zeilen, weiter aufsteigend sortiert -- vorher kamen
+    mit ``ORDER BY id ASC LIMIT`` die aeltesten, und ab 200 sichtbaren
+    Nachrichten zeigte die Seite einen alten Stand. Der Poll (``nach>0``)
+    holt wie bisher die naechsten ab ``nach``, aelteste zuerst."""
+    reihenfolge = "DESC" if nach <= 0 else "ASC"
     zeilen = conn.execute(
         "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am, "
         f"bild, {_ABGETIPPT} FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
         f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
         "AND typ != 'knopf' AND (kalibrierung = 0 OR kalibrierung IS NULL) "
-        "ORDER BY id ASC LIMIT ?",
+        f"ORDER BY id {reihenfolge} LIMIT ?",
         (chat_id, nach, *_CHAT_VERBORGEN, grenze),
     ).fetchall()
+    if reihenfolge == "DESC":
+        zeilen = list(reversed(zeilen))
     return [
         {
             "id": int(z["id"]),

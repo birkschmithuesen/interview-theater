@@ -153,6 +153,36 @@ def test_verlauf_ab_nach(datenbank):
     lesend.close()
 
 
+def test_erster_aufbau_traegt_die_neuesten_nachrichten(datenbank):
+    """Nachtfix 05.10.2026 (Klasse A): ``nach=0`` (Seitenaufbau) lieferte mit
+    ``ORDER BY id ASC LIMIT 200`` die AELTESTEN 200 -- ab 200 sichtbaren
+    Nachrichten zeigte die Seite einen alten Stand und der Sprung zum
+    Phasenanfang landete in einer veralteten Phase. Jetzt: die neuesten
+    ``grenze``, aufsteigend. Der Poll mit ``nach>0`` bleibt, wie er war."""
+    pfad, token = datenbank
+    schreibend = db.verbinde(pfad)
+    ids = [repo.lege_web_post_an(schreibend, CHAT, repo.RICHTUNG_AUS,
+                                 repo.WEB_TYP_TEXT, text=f"n{i}")
+           for i in range(250)]
+    schreibend.commit()
+    schreibend.close()
+    lesend = web_daten.oeffne_lesend(pfad)
+    try:
+        erste_seite = [z["id"] for z in web_daten.web_chatverlauf(lesend, CHAT)]
+        assert erste_seite == ids[-web_daten.CHAT_GRENZE:]
+        assert ids[-1] in erste_seite and ids[0] not in erste_seite
+        assert erste_seite == sorted(erste_seite)
+        # Der Poll ab einer id: weiter die naechsten, aelteste zuerst.
+        poll = [z["id"] for z in web_daten.web_chatverlauf(lesend, CHAT, nach=ids[9])]
+        assert poll == ids[10:10 + web_daten.CHAT_GRENZE]
+        # Der Zustand des Seitenaufbaus: data-letzte = hoechste geladene id.
+        zustand = web_daten.web_chatzustand(lesend, token)
+        assert zustand["nachrichten"][-1]["id"] == ids[-1]
+        assert zustand["letzte"] == ids[-1]
+    finally:
+        lesend.close()
+
+
 def test_eine_sprachnachricht_zeigt_die_dauer_und_keinen_pfad(datenbank):
     """Der Dateipfad gehoert nicht ins HTML: er ist eine Serverinnerei, und
     die Ansicht ist ohne Login erreichbar."""

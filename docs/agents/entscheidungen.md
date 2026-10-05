@@ -862,10 +862,26 @@
   Fertig** — der Pause-Knopf (`#diskussion-pause`,
   `pausiereDiskussion`/`fortsetzeDiskussion`) ist seit dem 04.10.2026
   entfernt; er setzte bis dahin ebenfalls den Ende-Schnitt und löste damit
-  bei jeder Pause Vorschlag und Verdichtung aus. Die Interview-Pause bleibt;
-  Brainstorm kennt seit dem Toggle-Umbau (t_cf87ee0a) keinen Pausenschnitt
-  mehr, nur noch den 90-Sekunden-Deckel (`grund='cap'`) und das Ende über den
-  Toggle-Stopp.
+  bei jeder Pause Vorschlag und Verdichtung aus. Die Interview-Pause bleibt.
+
+  **Phase 4 (Brainstorm) hat seit Birk 05.10.2026 22:00 keinen eigenen
+  Knopf mehr** — der Gedankenbogen-Toggle aus dem vorigen Absatz
+  (`t_cf87ee0a`: ein Tipp startet, ein Tipp schließt den Bogen, kein
+  Pausenschnitt) ist damit abgelöst; dieser Teil von `t_cf87ee0a` gilt
+  nicht mehr. Phase 4 bedient sich stattdessen mit genau demselben
+  Start/Fertig-Knopf wie Phase 1 (`#diskussion`/`#diskussion-beenden`,
+  `starteDiskussion`/`beendeDiskussion`/`zeigeDiskussionModus`), inklusive
+  Raumcheck-Wiederverwendung und den normalen VAD-Schnitten (Pause/Weich/
+  90-Sekunden-Deckel) statt des Pausenschnitt-Verbots. Serverseitig laufen
+  CoThinker-Karten jetzt im Hintergrund während des Zuhörens
+  (`aufnahme._brainstorm_entscheide`: derselbe Pause/Deckel-Auslöser wie
+  das Begriffsboard, `grund == 'cap'` zählt wie `'pause'`) plus eine
+  abschließende Karte bei „Discussion done". Welches Audio-Flag und welchen
+  Kalibrierungs-Erfolgstext eine Sitzung bekommt, entscheidet allein das
+  Server-Feld `mithoeren_ziel` bzw. das daraus bei Sitzungsstart
+  eingefrorene `sitzung.ziel` (`'diskussion'`|`'brainstorm'`) — nicht mehr
+  ein eigener Sitzungstyp. Test: `tests/test_web_chat_mithoeren_phase4.py`,
+  `tests/test_web_chat_mithoeren_ziel.py`, `tests/test_phasentexte_padua_p4.py`.
 
   **Belegpflicht der Begründung** (Karte t_2b9d2cbe, 04.10.2026): eine
   `begruendung` gilt nur, wenn ein geprüftes Zitat sie trägt, das nach Abzug

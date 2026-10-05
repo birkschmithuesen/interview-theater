@@ -6,7 +6,7 @@ dasteht -- sonst pruefte der erste Teil nichts Echtes.
 
 ``_sichtbar`` schneidet das eingebettete ``<style>``-Blatt und JS-Kommentare
 (``//`` bis Zeilenende) heraus, bevor verglichen wird: beide tragen deutsche
-Entwicklerkommentare (u. a. "Brainstorm mithören", "Rest verwerfen"), die --
+Entwicklerkommentare (u. a. "Rest verwerfen"), die --
 wie im ganzen Projekt ueblich (``tests/test_sprache_texte.py``, ``BLEIBT_
 DEUTSCH``: "CSS, nur Kommentare deutsch" / "JavaScript, nur Kommentare
 deutsch") nie uebersetzt werden, weil sie kein Nutzertext sind. Ohne diesen
@@ -76,7 +76,7 @@ def _zustand(pfad, token):
 #: Buehne/PTT vom 04.10.2026 (Halten-Geste mit Sperre/Wegwisch-Abbruch) --
 #: davor stand hier "Tippen und sprechen" (Klick-Umschalter, 03.10.2026).
 _WOERTER_AKTUELL = (
-    "Brainstorm mithören", "Halten zum Sprechen", "Zur Gruppenseite",
+    "Halten zum Sprechen", "Zur Gruppenseite",
     "Senden", "Rest verwerfen", "Rest als Interview nachreichen",
 )
 
@@ -85,8 +85,13 @@ _WOERTER_AKTUELL = (
 #: Gegenprobe dafuer: keiner von beiden war je "das aktuelle Deutsch", den
 #: die Gegenprobe gegenpruefen koennte. "Halten und sprechen" war der Stand
 #: vor der Umstellung auf den Klick-Umschalter (03.10.2026), "Tippen und
-#: sprechen" der Stand vor dieser Teilaufgabe (04.10.2026).
-_WOERTER_REGRESSION = ("Halten und sprechen", "Tippen und sprechen")
+#: sprechen" der Stand vor dieser Teilaufgabe (04.10.2026). "Brainstorm
+#: mithören" (``_TEXT_BRAINSTORM_AN``) ist seit Birk 05.10.2026 22:00 ganz
+#: aus dem Modul entfernt (t_cf87ee0a abgeloest) -- anders als die beiden
+#: PTT-Stufen war es nie uebersetzt, darf also unter KEINEM Profil mehr
+#: auftauchen, nicht nur unter Padua.
+_WOERTER_REGRESSION = ("Halten und sprechen", "Tippen und sprechen",
+                        "Brainstorm mithören")
 
 
 def test_keine_bekannten_deutschen_textreste_auf_der_en_seite(datenbank, padua):

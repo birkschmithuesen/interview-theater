@@ -120,7 +120,8 @@ def test_der_diskussion_knopf_zeigt_die_phase_1_beschriftungen(datenbank):
     seite = web_chat.chat_html(zustand, "n", token, "", 45000)
     assert web_chat._TEXT_DISKUSSION_AN in seite
     assert web_chat._TEXT_DISKUSSION_FERTIG_KNOPF in seite
-    assert web_chat._TEXT_BRAINSTORM_AN not in seite
+    # Kein eigener Brainstorm-Text mehr im Modul (t_cf87ee0a abgeloest).
+    assert not hasattr(web_chat, "_TEXT_BRAINSTORM_AN")
 
 
 @pytest.mark.parametrize("phase, nebenknopf", [

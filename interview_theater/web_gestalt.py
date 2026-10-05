@@ -890,8 +890,6 @@ html[data-ux-interview="1"] #ux-ansage,
 html[data-ux-interview="1"] .panel-chat h1,
 html[data-ux-interview="1"] #verlauf,
 html[data-ux-interview="1"] #tippt,
-html[data-ux-interview="1"] #brainstorm,
-html[data-ux-interview="1"] #brainstorm-aktionen,
 html[data-ux-interview="1"] .zeile { display: none; }
 html[data-ux-interview="1"] #tab-chat { display: block; }
 html[data-ux-interview="1"] body .fuss { display: flex; top: 0; bottom: 0;
@@ -988,12 +986,6 @@ body { background: var(--grund); color: var(--text); }
    ihr ``.panel-chat`` voran) -- in ``css_interview()`` (UNGESCOPT) haette
    dieselbe Regel die niedrigere Spezifitaet 1,2,0 und verloere. */
 #interview.nebenknopf[data-ux-zustand="laeuft"] { opacity: 1; }
-#brainstorm { background: var(--grund-2); color: var(--text);
-              border-color: var(--rand); }
-#brainstorm[data-laeuft="1"] { background: var(--rec); color: var(--auf-rec);
-                               border-color: var(--rec); }
-#brainstorm[data-laeuft="1"][data-pausiert="1"] { background: var(--grund-3);
-    border-color: var(--warn); color: var(--warn); }
 """
 #: Der Chat, Entwurf A: Terminal. Monospace, Phosphor als Rahmenfarbe der
 #: Bot-Blase, eine Kennzeile `bot ~ $` darueber. Die Blase der Gruppe
@@ -2017,8 +2009,9 @@ _JS_MOMENT = """
 #: Druck auf "1" (Mikrofon kommt erst) und auch dann, wenn ein ANDERES
 #: Telefon den Modus haelt -- dort bleibt ``#uhr`` verborgen. Push-to-Talk
 #: fasst beides nie an (es schaltet keinen Modus und keine Uhr), und auch
-#: "Brainstorm" (Phase 4) laesst ``data-interview`` auf "0". Die Pause
-#: bleibt Interview: die Uhr steht, ist aber sichtbar.
+#: Die Diskussion/Brainstorm-Sitzung (``#diskussion``, Phase 1 UND Phase 4)
+#: laesst ``data-interview`` ebenfalls auf "0". Die Pause bleibt Interview:
+#: die Uhr steht, ist aber sichtbar.
 #:
 #: **Wake Lock**: ``navigator.wakeLock`` nur, wenn es ihn gibt; jede
 #: Ablehnung wird geschluckt (Akku-Sparmodus, kein Fokus, alte Browser).

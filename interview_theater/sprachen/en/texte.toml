@@ -1921,8 +1921,8 @@ _TEXT_SPRACHE = "Voice message ({dauer})"
 _TEXT_SPRACHE_LAEUFT = "{dauer} · transcribing..."
 # Task 4 (Kanban-Karte Buehne/PTT, 03.10.2026): die serverseitig gerenderten
 # Texte aus chat_koerper/chat_html und ihre Gegenstuecke im laufenden JS
-# (_js()) -- Brainstorm, PTT, Pause/Weiter/Beenden. Der Rest von web_chat.py
-# bleibt weiterhin deutsch (offener Punkt, Karte A1).
+# (_js()) -- PTT, Pause/Weiter/Beenden. Der Rest von web_chat.py bleibt
+# weiterhin deutsch (offener Punkt, Karte A1).
 _TEXT_TITEL = "Chat with the theatre bot"
 _TEXT_LEER = "Nothing here yet. Tell me what you'd like to start with."
 _TEXT_ZUR_GRUPPENSEITE = "To the group page"
@@ -1930,9 +1930,10 @@ _TEXT_OHNE_JS = "This page needs JavaScript for chat and recording. The group pa
 _TEXT_SENDEN = "Send"
 _TEXT_REST_NACHREICHEN = "Submit the rest as an interview"
 _TEXT_REST_VERWERFEN = "Discard the rest"
-_TEXT_BRAINSTORM_AN = "🎙 Join the brainstorm"
-_TEXT_BRAINSTORM_LAEUFT = "● Listening · {zeit} · tap when the thought is complete"
-# Task 5 (Padua Phase 1+2 Umbau, 03.10.2026): background listening in phase 1.
+# Task 5 (Padua Phase 1+2 Umbau, 03.10.2026): background listening in phase 1
+# -- seit Birk 05.10.2026 22:00 auch phase 4 (kein eigener Brainstorm-Toggle
+# mehr, die eigenen Brainstorm-Textkonstanten entfallen, t_cf87ee0a
+# abgeloest).
 _TEXT_DISKUSSION_AN = "Start listening"
 _TEXT_DISKUSSION_LAEUFT = "Listening ({zeit})"
 _TEXT_DISKUSSION_FERTIG_KNOPF = "Discussion done"

@@ -225,16 +225,13 @@ _TEXT_INTERVIEW_ENDEN_SICHER = "Interview für alle beenden? Nochmal tippen"
 #: Nachtfix 05.10.2026: zwischen dem Tipp (Start/Weiter) und r.start() --
 #: vorher stand dort schon "laeuft", und die ersten Worte gingen verloren.
 _TEXT_INTERVIEW_STARTET = "● Mikrofon kommt … · {zeit}"
-#: Brainstorm mithören (Phase 4, nur Web): seit t_cf87ee0a (Birk
-#: 03.10.2026) ein Toggle je Gedankenbogen -- Tippen startet, Tippen
-#: schliesst den Bogen und loest den CoThinker aus; kein Pause/Beenden mehr.
-#: Die Laeuft-Zeile sagt deshalb, wie man den Bogen schliesst.
-_TEXT_BRAINSTORM_AN = "🎙 Brainstorm mithören"
-_TEXT_BRAINSTORM_LAEUFT = "● Hört mit · {zeit} · tippen, wenn der Gedanke rund ist"
 #: Hintergrund-Mithoeren Phase 1 (Padua Phase 1+2 Umbau, 03.10.2026, Task 5):
 #: nur Start und Fertig -- seit Birks Entscheidung vom 04.10.2026 ohne
 #: Pause/Weiter; eigene Beschriftungen fuer den grossen Knopf, die
-#: Laeuft-Zeile und den Fertig-Knopf.
+#: Laeuft-Zeile und den Fertig-Knopf. Seit Birk 05.10.2026 22:00 bedient sich
+#: Phase 4 (Brainstorm) mit demselben Knopf und denselben Texten -- der
+#: eigene Brainstorm-Toggle (t_cf87ee0a, eigene DE-Textkonstanten) ist
+#: damit abgeloest, siehe ``mithoeren_ziel``/``sitzung.ziel`` weiter unten.
 _TEXT_DISKUSSION_AN = "Zuhoeren starten"
 _TEXT_DISKUSSION_LAEUFT = "Hoert zu ({zeit})"
 _TEXT_DISKUSSION_FERTIG_KNOPF = "Diskussion fertig"
@@ -338,16 +335,6 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
 #interview[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
                                                  border-color: #8a8a8a; }
-/* Brainstorm mithören (Phase 4, nur Web): derselbe grosse Knopf wie
-   #interview, Interview bleibt daneben erreichbar, aber kleiner/nachrangig
-   (brief: "interview button stays reachable ... smaller/secondary"). */
-#brainstorm { font: inherit; font-weight: 600; min-height: 3.2rem; width: 100%;
-              border-radius: .8rem; border: 1px solid #1f6f5c; background: #fff;
-              margin-bottom: .5rem; }
-#brainstorm[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
-                               color: #fff; min-height: 4rem; font-size: 1.15rem; }
-.fuss[data-brainstorm="1"] .zeile { display: none; }
-.fuss[data-brainstorm="1"] #ux-rec-zeile { display: none; }
 #interview.nebenknopf { font-weight: 400; min-height: 2.4rem; font-size: .9rem;
                         opacity: .8; }
 .interview-aktionen { display: flex; gap: .5rem; margin-top: .4rem; }
@@ -618,8 +605,6 @@ _JS_TEXTE = {
     "interview_hier_sicher": _TEXT_INTERVIEW_HIER_SICHER,
     "interview_enden_sicher": _TEXT_INTERVIEW_ENDEN_SICHER,
     "interview_startet": _TEXT_INTERVIEW_STARTET,
-    "brainstorm_an": _TEXT_BRAINSTORM_AN,
-    "brainstorm_laeuft": _TEXT_BRAINSTORM_LAEUFT,
     "diskussion_an": _TEXT_DISKUSSION_AN,
     "diskussion_laeuft": _TEXT_DISKUSSION_LAEUFT,
     "warte_eins": _TEXT_WARTE_EINS,
@@ -751,14 +736,11 @@ _CHAT_JS = """
   var pttHinweistext = document.getElementById('ptt-hinweistext');
   var pttSendeKnopf = document.getElementById('ptt-senden');
   var pttVerwerfenKnopf = document.getElementById('ptt-verwerfen');
-  // Brainstorm mithören (Phase 4, nur Web) -- die Elemente stehen seit
-  // Task 2 (Kanban-Karte Buehne/PTT) IMMER im Markup, ``hidden`` folgt der
-  // Phase per Poll (wie beim Interview-Knopf), nicht mehr ihrer Existenz.
-  // t_cf87ee0a: ein Toggle je Gedankenbogen, kein Pause-/Beenden-Paar mehr.
-  var brainstormKnopf = document.getElementById('brainstorm');
-  // Hintergrund-Mithoeren Phase 1 (Padua Phase 1+2 Umbau, 03.10.2026, Task 6):
-  // derselbe Aufbau wie Brainstorm (Task 2/5) -- die Elemente stehen seit
-  // Task 5 IMMER im Markup, ``hidden`` folgt der Phase per Poll.
+  // Hintergrund-Mithoeren (Padua Phase 1+2 Umbau, 03.10.2026, Task 6) --
+  // seit Birk 05.10.2026 22:00 EIN Knopf fuer Phase 1 UND Phase 4 (kein
+  // eigener Brainstorm-Knopf/-Toggle mehr, t_cf87ee0a abgeloest): die
+  // Elemente stehen seit Task 5 IMMER im Markup, ``hidden`` folgt der
+  // Phase per Poll.
   var diskussionKnopf = document.getElementById('diskussion');
   var diskussionAktionenFeld = document.getElementById('diskussion-aktionen');
   var diskussionBeendenKnopf = document.getElementById('diskussion-beenden');
@@ -809,8 +791,13 @@ _CHAT_JS = """
     phase: parseInt(verlauf.dataset.phase, 10) || 0,
     servermodus: fuss.dataset.interview === '1',
     knopfErlaubt: !interviewKnopf.hidden,   // Padua Hotfix B6: Phase 3 oder Modus
-    brainstormErlaubt: !brainstormKnopf.hidden,   // Task 2: Phase 4
-    diskussionErlaubt: !diskussionKnopf.hidden,   // Task 6: Phase 1
+    diskussionErlaubt: !diskussionKnopf.hidden,   // Task 6: Phase 1 (und seit
+                                                   // Birk 05.10.2026 22:00 Phase 4)
+    // Birk 05.10.2026 22:00: wohin ein #diskussion-Start gerade ginge --
+    // 'diskussion' (Phase 1) oder 'brainstorm' (Phase 4), vom Server ueber
+    // data-mithoeren-ziel vorgegeben. starteDiskussion() friert diesen Wert
+    // als sitzung.ziel ein, nimmZustand() haelt ihn ueber jeden Poll aktuell.
+    mithoerenZiel: (diskussionKnopf && diskussionKnopf.dataset.mithoerenZiel) || 'diskussion',
     aufnahme: null,     // die laufende Interview-Aufnahme dieses Telefons
     wechsel: null,      // {ziel, gesendet}: ein Moduswechsel, den der Poll noch nicht zeigt
     warteschlange: [],  // Befehle und Segmente, der Reihe nach
@@ -1214,8 +1201,11 @@ _CHAT_JS = """
     if (daten.platzhalter && eingabe) { eingabe.placeholder = daten.platzhalter; }
     zustand.servermodus = !!daten.interviewmodus;
     if (typeof daten.interview_knopf === 'boolean') { zustand.knopfErlaubt = daten.interview_knopf; }
-    if (typeof daten.brainstorm_knopf === 'boolean') { zustand.brainstormErlaubt = daten.brainstorm_knopf; }
     if (typeof daten.diskussion_knopf === 'boolean') { zustand.diskussionErlaubt = daten.diskussion_knopf; }
+    // Birk 05.10.2026 22:00: der Server meldet bei jedem Poll, wohin ein
+    // Start gerade ginge (Phase 1 oder Phase 4) -- eine schon laufende
+    // Sitzung haelt trotzdem ihr eigenes sitzung.ziel (siehe starteDiskussion).
+    if (typeof daten.mithoeren_ziel === 'string') { zustand.mithoerenZiel = daten.mithoeren_ziel; }
     // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): der
     // Kalibrierungsablauf liest beides selbst (kalWarteAufTranskript), hier
     // nur uebernehmen.
@@ -1313,8 +1303,13 @@ _CHAT_JS = """
     if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
     if (auftrag.redeMs != null) { weg_ += `&rede=${Math.round(auftrag.redeMs)}`; }
     if (auftrag.weichMs != null) { weg_ += `&weichms=${Math.round(auftrag.weichMs)}`; }
-    if (auftrag.sitzung && auftrag.sitzung.art === 'brainstorm') { weg_ += '&brainstorm=1'; }
-    if (auftrag.sitzung && auftrag.sitzung.art === 'diskussion') { weg_ += '&diskussion=1'; }
+    // Birk 05.10.2026 22:00: EINE Sitzungsart ('diskussion'), zwei moegliche
+    // Ziele -- sitzung.ziel (bei Start aus zustand.mithoerenZiel gefroren)
+    // sagt, ob das Audio als Diskussion (Phase 1) oder als Brainstorm
+    // (Phase 4) ankommt. Kein eigener 'brainstorm'-Sitzungstyp mehr.
+    if (auftrag.sitzung && auftrag.sitzung.art === 'diskussion') {
+      weg_ += auftrag.sitzung.ziel === 'brainstorm' ? '&brainstorm=1' : '&diskussion=1';
+    }
     if (auftrag.kalibrierung) { weg_ += '&kalibrierung=1'; }
     return fetch(weg(weg_), {
       method: 'POST', cache: 'no-store',
@@ -1414,13 +1409,10 @@ _CHAT_JS = """
   function bereit(auftrag) {
     var sitzung = auftrag.sitzung;
     if (auftrag.art === 'audio' && sitzung) {
-      // Brainstorm kennt keinen Modus-Befehl (kein /interview, kein
+      // Hintergrund-Mithoeren (Task 6, seit Birk 05.10.2026 22:00 Phase 1
+      // UND Phase 4) kennt keinen Modus-Befehl (kein /interview, kein
       // /fertig) -- ein Segment ist immer eine gewoehnliche 'kurz'-Aufnahme
       // und geht deshalb sofort raus, wie ein PTT-Druck.
-      if (sitzung.art === 'brainstorm') { return true; }
-      // Dasselbe gilt fuer das Hintergrund-Mithoeren in Phase 1 (Task 6):
-      // kein Modus-Befehl, ein Segment ist immer eine gewoehnliche
-      // 'kurz'-Aufnahme.
       if (sitzung.art === 'diskussion') { return true; }
       if (!sitzung.angemeldet || sitzung.angehalten) { return false; }
       if (zustand.servermodus) { sitzung.bestaetigt = true; }
@@ -2139,17 +2131,13 @@ _CHAT_JS = """
       interviewKnopf.textContent = TEXT.interview_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
     // Ein Stopp ist unterwegs: bis der Bot ihn bestaetigt, kein neuer Start.
-    // Laeuft Brainstorm ODER Diskussion, ist der Interview-Knopf ebenfalls
-    // deaktiviert -- zwei gleichzeitige Aufnahmen auf demselben Mikrofon
-    // sind keine Bedienung (dieselbe Regel wie PTT, Phase 4, 02.10.2026).
-    // Re-Review (Task 6, Fund 1): ``nebenAn`` ist die EINE Stelle, die
-    // diese Verknuepfung bildet. Vorher schrieben zeigeBrainstormModus()
-    // und zeigeDiskussionModus() dieselbe Zeile erneut und unbedingt, mit
-    // je nur ihrem eigenen Sitzungsflag -- die zuletzt gerufene Funktion
-    // gewann und loeschte die Sperre der anderen, sobald deren eigene
-    // Sitzung leer war (im Normalfall: Brainstorm laeuft, Diskussion nie
-    // angefasst). Beide Funktionen setzen diese Felder seitdem nicht mehr.
-    var nebenAn = !!zustand.brainstorm || !!zustand.diskussion;
+    // Laeuft die Diskussion/Brainstorm-Sitzung, ist der Interview-Knopf
+    // ebenfalls deaktiviert -- zwei gleichzeitige Aufnahmen auf demselben
+    // Mikrofon sind keine Bedienung (dieselbe Regel wie PTT, Phase 4,
+    // 02.10.2026). Re-Review (Task 6, Fund 1): ``nebenAn`` ist die EINE
+    // Stelle, die diese Verknuepfung bildet -- zeigeDiskussionModus() setzt
+    // dieses Feld seitdem nicht mehr selbst.
+    var nebenAn = !!zustand.diskussion;
     interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || nebenAn;
     // Padua Hotfix B6: ausserhalb von Phase 3 kein Angebot -- nie aber
     // verborgen bei laufender Aufnahme, Wechsel oder voller Schlange.
@@ -2167,26 +2155,22 @@ _CHAT_JS = """
       interviewBeendenKnopf.textContent = (fremd && zustand.fremdScharf === 'enden')
         ? TEXT.interview_enden_sicher : TEXT.interview_enden;
     }
-    // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ODER
-    // sobald Brainstorm/Diskussion angeboten wird (nicht erst wenn sie
+    // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ODER sobald
+    // die Diskussion/Brainstorm-Sitzung angeboten wird (nicht erst wenn sie
     // LAEUFT) ist PTT ausgeblendet (Birk 04.10.2026: zwei sichtbare
     // Mikrofon-Knoepfe gleichzeitig sind keine Bedienung -- entweder/oder,
     // Befehle gehen dann nur noch ueber das Textfeld). Die Klassen-Formel
-    // fuer den Interview-Nebenknopf wird erst drei Zeilen weiter unten
+    // fuer den Interview-Nebenknopf wird erst zwei Zeilen weiter unten
     // gesetzt -- deshalb hier dieselbe Prosa noch einmal, nicht die
     // Variable selbst (Reihenfolge der Aufrufe).
-    var nebenAngeboten = !!zustand.brainstormErlaubt || !!zustand.diskussionErlaubt;
+    var nebenAngeboten = !!zustand.diskussionErlaubt;
     if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn || nebenAngeboten; }
-    // Beide Anzeigen bleiben im selben Takt synchron, egal welche der
-    // beiden Funktionen zuerst gerufen wurde.
-    zeigeBrainstormModus();
     zeigeDiskussionModus();
-    // "Nebenknopf"-Stil am Interview-Knopf: sichtbar, sobald Brainstorm
-    // ODER Diskussion angeboten wird oder laeuft -- aus derselben Formel
-    // wie in den beiden Funktionen oben, hier einmal zusammengefuehrt statt
-    // zweimal unbedingt ueberschrieben (derselbe Fund wie oben).
-    var nebenSichtbar = !!zustand.brainstormErlaubt || !!zustand.brainstorm ||
-                        !!zustand.diskussionErlaubt || !!zustand.diskussion ||
+    // "Nebenknopf"-Stil am Interview-Knopf: sichtbar, sobald die Diskussion/
+    // Brainstorm-Sitzung angeboten wird oder laeuft -- aus derselben Formel
+    // wie oben, hier einmal zusammengefuehrt statt unbedingt ueberschrieben
+    // (derselbe Fund wie oben).
+    var nebenSichtbar = !!zustand.diskussionErlaubt || !!zustand.diskussion ||
                         !!zustand.wechsel;
     interviewKnopf.classList.toggle('nebenknopf', nebenSichtbar);
   }
@@ -2658,7 +2642,14 @@ _CHAT_JS = """
       meldeFehler(TEXT.kal_floor_hinweis);
       schwelle = KAL_SCHWELLE_FALLBACK;
     } else {
-      meldeFehler(sitzung && sitzung.art === 'diskussion'
+      // D2 (Plan Task 3): kal_erfolg_diskussion spricht von "euren
+      // Begriffen" -- das passt nur zur Phase-1-Diskussion, nicht zum
+      // Brainstorm der Phase 4. Seit beide Phasen dieselbe Sitzungsart
+      // nutzen, entscheidet sitzung.ziel ueber den Text, nicht mehr das
+      // gemeinsame Sitzungsfeld: 'brainstorm' faellt auf den neutralen
+      // kal_erfolg zurueck (der Text, den das Brainstorm vor der
+      // Vereinheitlichung ohnehin schon bekam).
+      meldeFehler(sitzung && sitzung.ziel === 'diskussion'
         ? TEXT.kal_erfolg_diskussion : TEXT.kal_erfolg);
     }
     kalibrierungCacheSchreiben(kalSpeicher(), kalGruppeAus(location.pathname),
@@ -2796,47 +2787,47 @@ _CHAT_JS = """
 
   if (kalStartKnopf) {
     kalStartKnopf.addEventListener('click', function () {
-      kalStarteStille(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalStarteStille(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalSprechenKnopf) {
     kalSprechenKnopf.addEventListener('click', function () {
-      kalStarteSprechen(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalStarteSprechen(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalNochmalHoerenKnopf) {
     kalNochmalHoerenKnopf.addEventListener('click', function () {
-      kalNochmalHoeren(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalNochmalHoeren(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalVersuchKnopf) {
     kalVersuchKnopf.addEventListener('click', function () {
-      kalVersuchErneut(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalVersuchErneut(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalWeiterTrotzdemKnopf) {
     kalWeiterTrotzdemKnopf.addEventListener('click', function () {
-      kalWeiterTrotzdem(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalWeiterTrotzdem(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalJaKnopf) {
     kalJaKnopf.addEventListener('click', function () {
-      kalAntwortJa(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalAntwortJa(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalNeinKnopf) {
     kalNeinKnopf.addEventListener('click', function () {
-      kalAntwortNein(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalAntwortNein(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalSkipKnopf) {
     kalSkipKnopf.addEventListener('click', function () {
-      kalibrierungSkip(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalibrierungSkip(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalNeuKnopf) {
     kalNeuKnopf.addEventListener('click', function () {
-      kalibrierungNeu(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalibrierungNeu(zustand.aufnahme || zustand.diskussion);
     });
   }
 
@@ -2857,8 +2848,10 @@ _CHAT_JS = """
   //
   // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung): die Aufnahme
   // startet weiter SOFORT (sonst gehen die ersten Worte verloren; die
-  // Diskussion der Phase 1 ist seit 05.10.2026 die Ausnahme) -- gegated ist allein kalEntscheideOderStarte()
-  // (pegelAn() + der Segment-Takt-Rueckfall), nie neuesSegment() selbst.
+  // Diskussion ist seit 05.10.2026 die Ausnahme -- seit Birk 05.10.2026
+  // 22:00 auch fuer Phase 4, siehe sitzung.art unten) -- gegated ist allein
+  // kalEntscheideOderStarte() (pegelAn() + der Segment-Takt-Rueckfall), nie
+  // neuesSegment() selbst.
   function beginneAufnahme(sitzung) {
     if (sitzung.pausiert) {
       gibFrei(sitzung);
@@ -2882,150 +2875,20 @@ _CHAT_JS = """
     kalEntscheideOderStarte(sitzung);
   }
 
-  // -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ------------------
+  // -- Hintergrund-Mithoeren (Padua Phase 1+2 Umbau, 03.10.2026, Task 6;
+  //    seit Birk 05.10.2026 22:00 auch Phase 4, kein eigener
+  //    Brainstorm-Block mehr, t_cf87ee0a abgeloest) --------------------------
   //
-  // Dieselbe Segment-Mechanik wie beim Interview (neuesSegment,
-  // schneideSegment, pegelAn, beginneAufnahme sind bereits generisch ueber
-  // die uebergebene Sitzung) -- aber OHNE Modus-Befehl: ein
-  // Brainstorm-Segment ist serverseitig immer eine gewoehnliche
-  // 'kurz'-Aufnahme, es gibt nichts anzumelden oder zu bestaetigen.
-  // sitzung.art = 'brainstorm' schaltet bereit() auf "immer senden" (siehe
-  // dort); fertigEingereiht bleibt dauerhaft true, damit pruefeEnde() NIE
-  // ein 'befehl' einreiht. Bewusst eigene, kleinere Funktionen statt eines
-  // sitzung.art-Zweigs mitten in starteInterview()/pausiereInterview()/
-  // beendeInterview(): die dort gehaerteten Rennbedingungen (mehrere
-  // "Re-Review"-Runden) sollen fuer den bestehenden, getesteten Weg
-  // unberuehrt bleiben.
-
-  function zeigeBrainstormModus() {
-    if (!brainstormKnopf) { return; }
-    var sitzung = zustand.brainstorm;
-    var an = !!sitzung;
-    // t_a8129d7f: die Fusshoehe aendert sich, wenn der Modus die
-    // Eingabezeile ersetzt -- wer unten war, bleibt unten.
-    var warUnten = amUnterenRand();
-    var fussVorher = fuss.dataset.brainstorm;
-    brainstormKnopf.dataset.laeuft = an ? '1' : '0';
-    // t_a8129d7f: der laufende Bogen belegt den Platz der Eingabezeile
-    // (CSS .fuss[data-brainstorm="1"] .zeile).
-    fuss.dataset.brainstorm = an ? '1' : '0';
-    if (!an) {
-      brainstormKnopf.textContent = TEXT.brainstorm_an;
-    } else {
-      brainstormKnopf.textContent = TEXT.brainstorm_laeuft.replace('{zeit}', formatiereUhr(sitzung));
-    }
-    // Zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
-    // Bedienung (dieselbe Regel wie PTT vs. Interview). Waehrend ein
-    // Interview-Stopp unterwegs ist (wechsel.ziel === false), ist modusAn()
-    // schon wieder false -- genau wie beim Interview-Knopf selbst
-    // (zeigeModus()) wird deshalb zusaetzlich auf ein laufendes wechsel
-    // geprueft, sonst saehe der Knopf kurz bedienbar aus, obwohl
-    // starteBrainstorm() ihn wegen desselben zustand.wechsel ablehnt.
-    // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt --
-    // symmetrisch zur bestehenden Sperre von starteDiskussion() gegen
-    // zustand.brainstorm (095e6e9). Ohne das blieb der Knopf bedienbar,
-    // waehrend eine Diskussion-Sitzung (Phase 1) noch lief, z. B. wenn eine
-    // Gruppe den Diskussion-Knopf in Phase 1 nie beendet und spaeter in
-    // Phase 4 den Brainstorm-Knopf drueckt -- zwei MediaRecorder auf
-    // demselben Mikrofon.
-    brainstormKnopf.disabled = modusAn() || !!zustand.wechsel || !!zustand.diskussion;
-    // Task 2 (Kanban-Karte Buehne/PTT): ausserhalb Phase 4 kein Angebot --
-    // nie aber verborgen bei laufender Sitzung oder Wechsel, dieselbe Regel
-    // wie beim Interview-Knopf (zeigeModus()). Die ``nebenknopf``-Klasse am
-    // Interview-Knopf folgt derselben Sichtbarkeit wie das Server-Markup.
-    var sichtbar = zustand.brainstormErlaubt || an || !!zustand.wechsel;
-    brainstormKnopf.hidden = !sichtbar;
-    // Fix round 1 (Review): zeigeModus() ruft diese Funktion bei JEDEM
-    // Poll -- ohne den Vergleich riss nachUnten() den Verlauf bei jedem
-    // Tick nach unten, auch wenn sich am Fuss nichts geaendert hatte.
-    if (warUnten && fuss.dataset.brainstorm !== fussVorher) { nachUnten(); }
-    // interviewKnopf.disabled/classList und pttKnopf.hidden werden seit
-    // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal,
-    // zusammengefuehrt mit zustand.diskussion (siehe dort).
-  }
-
-  function starteBrainstorm() {
-    // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt,
-    // wie starteDiskussion()/pttPointerDown() es bereits tun -- sonst koennte eine
-    // Gruppe, die eine Diskussion-Sitzung (Phase 1) nie beendet hat und in
-    // Phase 4 weiterarbeitet, ueber den Brainstorm-Knopf einen zweiten
-    // Recorder auf demselben Mikrofon starten.
-    if (zustand.brainstorm || modusAn() || zustand.wechsel || zustand.diskussion) { return; }
-    if (zustand.ptt) { verwirfPtt(); }
-    var sitzung = {
-      art: 'brainstorm',
-      strom: null, recorder: null, kontext: null, pegelTakt: null,
-      segmentTakt: null, offen: 0, gestartet: false, beendet: false,
-      verworfen: false, angehalten: false, geparkt: [],
-      fertigEingereiht: true, naechsteNr: 0, einzureihen: 0, fertige: {},
-      pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true,
-      fortsetzend: false, hinweisGezeigt: false
-    };
-    zustand.brainstorm = sitzung;
-    zeigeBrainstormModus();
-    holeStrom().then(function (strom) {
-      sitzung.mikroUnterwegs = false;
-      sitzung.strom = strom;
-      if (sitzung.beendet) { gibFrei(sitzung); return; }
-      sitzung.gestartet = true;
-      beginneAufnahme(sitzung);
-      zeigeBrainstormModus();
-    }).catch(function () {
-      sitzung.mikroUnterwegs = false;
-      sitzung.verworfen = true;
-      sitzung.beendet = true;
-      if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
-      if (sitzung.recorder && sitzung.recorder.state !== 'inactive') {
-        try { sitzung.recorder.stop(); } catch (e) { /* schon aus */ }
-      }
-      sitzung.recorder = null;
-      gibFrei(sitzung);
-      entferneAuftraege(sitzung);
-      if (zustand.brainstorm === sitzung) { zustand.brainstorm = null; }
-      anzeigeAus();
-      zeigeBrainstormModus();
-      meldeFehler(TEXT.fehler_mikro);
-    });
-  }
-
-  function beendeBrainstorm() {
-    var sitzung = zustand.brainstorm;
-    if (!sitzung) { return; }
-    zustand.brainstorm = null;
-    anzeigeAus();
-    if (!sitzung.gestartet) {
-      sitzung.beendet = true;
-      zeigeBrainstormModus();
-      return;
-    }
-    sitzung.beendet = true;
-    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
-    var letzter = sitzung.recorder;
-    sitzung.recorder = null;
-    if (letzter) {
-      letzter._grund = 'ende';
-      if (sitzung.vadAktiv) { letzter._redeMs = sitzung.vadSpeechMs; }
-    }
-    if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
-    // Anders als beendeInterview(): pruefeEnde() tut bei Brainstorm NIE
-    // etwas (fertigEingereiht bleibt immer true), also wird das Mikrofon
-    // HIER sofort freigegeben -- wie bei pausiereInterview(), nicht erst im
-    // onstop.
-    gibFrei(sitzung);
-    zeigeBrainstormModus();
-  }
-
-  // -- Hintergrund-Mithoeren Phase 1 (Padua Phase 1+2 Umbau, 03.10.2026,
-  //    Task 6) -----------------------------------------------------------
-  //
-  // Derselbe Aufbau wie Brainstorm oben -- eigener Zustandsslot
-  // (zustand.diskussion, nicht zustand.brainstorm), eigene DOM-Elemente
-  // (#diskussion, #diskussion-beenden), aber dieselbe
-  // Segment-Mechanik OHNE Modus-Befehl: ein Diskussion-Segment ist
-  // serverseitig immer eine gewoehnliche 'kurz'-Aufnahme. sitzung.art =
-  // 'diskussion' schaltet bereit() auf "immer senden" (siehe dort);
-  // fertigEingereiht bleibt dauerhaft true, damit pruefeEnde() NIE ein
-  // 'befehl' einreiht.
+  // Eigener Zustandsslot (zustand.diskussion), eigene DOM-Elemente
+  // (#diskussion, #diskussion-beenden), dieselbe Segment-Mechanik OHNE
+  // Modus-Befehl: ein Segment ist serverseitig immer eine gewoehnliche
+  // 'kurz'-Aufnahme. sitzung.art = 'diskussion' schaltet bereit() auf
+  // "immer senden" (siehe dort); fertigEingereiht bleibt dauerhaft true,
+  // damit pruefeEnde() NIE ein 'befehl' einreiht. sitzung.ziel
+  // ('diskussion'|'brainstorm', aus zustand.mithoerenZiel bei Start
+  // eingefroren) sagt nur, wohin das Audio geht (postAudio) und welchen
+  // Kalibrierungs-Erfolgstext kalAntwortJa zeigt -- die Bedienung selbst
+  // ist fuer beide Phasen identisch.
 
   function zeigeDiskussionModus() {
     if (!diskussionKnopf) { return; }
@@ -3038,29 +2901,22 @@ _CHAT_JS = """
       diskussionKnopf.textContent = TEXT.diskussion_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
     // Zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
-    // Bedienung (dieselbe Regel wie bei Brainstorm/PTT vs. Interview).
+    // Bedienung (dieselbe Regel wie bei PTT vs. Interview).
     diskussionKnopf.disabled = modusAn() || !!zustand.wechsel;
-    // Ausserhalb Phase 1 kein Angebot -- nie aber verborgen bei laufender
-    // Sitzung oder Wechsel, dieselbe Regel wie beim Brainstorm-Knopf.
+    // Ausserhalb Phase 1/4 kein Angebot -- nie aber verborgen bei laufender
+    // Sitzung oder Wechsel.
     var sichtbar = zustand.diskussionErlaubt || an || !!zustand.wechsel;
     diskussionKnopf.hidden = !sichtbar;
     if (diskussionAktionenFeld) { diskussionAktionenFeld.hidden = !an; }
     // interviewKnopf.disabled/classList und pttKnopf.hidden werden seit
-    // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal,
-    // zusammengefuehrt mit zustand.brainstorm (siehe dort). Vorher
-    // ueberschrieb dieser Abschnitt unbedingt, mit nur dem eigenen Flag,
-    // was zeigeBrainstormModus() kurz zuvor gesetzt hatte.
+    // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal.
   }
 
   function starteDiskussion() {
-    // Re-Review (Task 6, Fund 2): auch gegen zustand.brainstorm gesperrt,
-    // wie starteInterview()/pttPointerDown() es bereits tun -- sonst koennte ein
-    // Phase-4-zu-1-Wechsel mit noch laufendem Brainstorm auf einem anderen
-    // Tab einen zweiten Recorder auf demselben Mikrofon starten.
-    if (zustand.diskussion || modusAn() || zustand.wechsel || zustand.brainstorm) { return; }
+    if (zustand.diskussion || modusAn() || zustand.wechsel) { return; }
     if (zustand.ptt) { verwirfPtt(); }
     var sitzung = {
-      art: 'diskussion',
+      art: 'diskussion', ziel: zustand.mithoerenZiel,
       strom: null, recorder: null, kontext: null, pegelTakt: null,
       segmentTakt: null, offen: 0, gestartet: false, beendet: false,
       verworfen: false, angehalten: false, geparkt: [],
@@ -3131,15 +2987,16 @@ _CHAT_JS = """
     if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
     // Anders als beendeInterview(): pruefeEnde() tut bei Diskussion NIE
     // etwas (fertigEingereiht bleibt immer true), also wird das Mikrofon
-    // HIER sofort freigegeben -- wie bei beendeBrainstorm(), nicht erst im
-    // onstop.
+    // HIER sofort freigegeben, nicht erst im onstop.
     gibFrei(sitzung);
     zeigeDiskussionModus();
   }
 
   function starteInterview() {
     // Review-Befund 4: nie zwei Recorder, nie ein Start mitten im Wechsel.
-    if (zustand.aufnahme || zustand.wechsel || zustand.brainstorm) { return; }
+    // zustand.diskussion deckt seit Birk 05.10.2026 22:00 auch die
+    // Phase-4-Sitzung ab (kein eigener Sitzungsslot fuer Brainstorm mehr).
+    if (zustand.aufnahme || zustand.wechsel || zustand.diskussion) { return; }
     // Re-Review F: ein gehaltener PTT-Druck (zweiter Finger) wird verworfen,
     // sonst liefen zwei Recorder.
     if (zustand.ptt) { verwirfPtt(); }
@@ -3447,16 +3304,6 @@ _CHAT_JS = """
     starteInterview();
   });
 
-  if (brainstormKnopf) {
-    brainstormKnopf.addEventListener('click', function () {
-      if (brainstormKnopf.disabled) { return; }
-      // Ein Toggle = ein Gedankenbogen (Birk 03.10.2026, t_cf87ee0a):
-      // Tippen startet, Tippen schliesst den Bogen -- das Ende loest den
-      // CoThinker aus (serverseitig _brainstorm_entscheide).
-      if (zustand.brainstorm) { beendeBrainstorm(); } else { starteBrainstorm(); }
-    });
-  }
-
   if (diskussionBeendenKnopf) {
     diskussionBeendenKnopf.addEventListener('click', beendeDiskussion);
   }
@@ -3620,9 +3467,8 @@ _CHAT_JS = """
   function pttPointerDown(ev) {
     if (!pttKnopf) { return; }
     // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt --
-    // dieselbe Regel wie gegen zustand.brainstorm, PTT ist ein drittes
-    // Mikrofon auf demselben Geraet.
-    if (modusAn() || zustand.wechsel || zustand.brainstorm || zustand.diskussion ||
+    // PTT ist ein drittes Mikrofon auf demselben Geraet.
+    if (modusAn() || zustand.wechsel || zustand.diskussion ||
         zustand.ptt) { return; }
     ev.preventDefault();
     try { pttKnopf.setPointerCapture(ev.pointerId); } catch (e) { /* ohne Capture geht es auch */ }
@@ -3871,8 +3717,6 @@ def _js() -> str:
         interview_hier_sicher=T._TEXT_INTERVIEW_HIER_SICHER,
         interview_enden_sicher=T._TEXT_INTERVIEW_ENDEN_SICHER,
         interview_startet=T._TEXT_INTERVIEW_STARTET,
-        brainstorm_an=T._TEXT_BRAINSTORM_AN,
-        brainstorm_laeuft=T._TEXT_BRAINSTORM_LAEUFT,
         diskussion_an=T._TEXT_DISKUSSION_AN,
         diskussion_laeuft=T._TEXT_DISKUSSION_LAEUFT,
         kal_ankuendigung=T._TEXT_KALIBRIERUNG_ANKUENDIGUNG,

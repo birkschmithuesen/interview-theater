@@ -53,8 +53,9 @@ def test_fertig_setzt_weiter_den_grund_ende():
 
 
 def test_interview_pause_bleibt():
-    # t_cf87ee0a: Toggle statt Pause/Beenden -- Brainstorm hat keine Pause
-    # mehr (tests/test_web_chat_brainstorm_toggle.py), nur noch Interview.
+    # Seit Birk 05.10.2026 22:00 bedient sich Phase 4 (Brainstorm) mit
+    # demselben Start/Fertig-Knopf wie Phase 1 (kein eigener Toggle mehr,
+    # t_cf87ee0a abgeloest) -- nur das Interview hat eine Pause.
     js, seite = web_chat._CHAT_JS, _seite()
     for name in ("function pausiereInterview", "function fortsetzeInterview",
                  "interviewPauseKnopf"):

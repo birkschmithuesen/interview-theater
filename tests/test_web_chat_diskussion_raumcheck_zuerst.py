@@ -2,7 +2,10 @@
 Diskussion. Ein Tipp auf "Start listening" faehrt die Kalibrierung ganz
 durch (Stille, dann Sprechprobe) -- ohne zweiten Start-Knopf; erst danach
 (oder nach Skip) startet die Diskussionsaufnahme, die Uhr bei 0. Interview
-und Brainstorm bleiben beim alten Weg (Aufnahme sofort)."""
+bleibt beim alten Weg (Aufnahme sofort). Seit Birk 05.10.2026 22:00 bekommt
+Phase 4 (Brainstorm) denselben Raumcheck wie Phase 1 -- beide laufen jetzt
+ueber dieselbe Sitzung (``sitzung.art === 'diskussion'``, kein eigenes
+``starteBrainstorm``/``zeigeBrainstormModus`` mehr)."""
 
 from interview_theater import web_chat
 
@@ -14,7 +17,7 @@ def _fn(name, bis):
 
 
 def test_diskussion_startet_ohne_aufnahme_und_ohne_uhr_in_den_raumcheck():
-    beginne = _fn("beginneAufnahme", "zeigeBrainstormModus")
+    beginne = _fn("beginneAufnahme", "zeigeDiskussionModus")
     # Die Weiche sitzt VOR neuesSegment()/legStart.
     weiche = beginne.index("sitzung.kalVorStart")
     assert weiche < beginne.index("sitzung.legStart = Date.now()")
@@ -71,9 +74,11 @@ def test_beenden_markiert_das_ende_immer_auch_ohne_vad():
     assert "if (sitzung.vadAktiv) { letzter._redeMs" in beenden
 
 
-def test_interview_und_brainstorm_unveraendert_sofort():
-    beginne = _fn("beginneAufnahme", "zeigeBrainstormModus")
-    # Nur die Diskussion bekommt kalVorStart; der Rest faellt durch auf den
-    # alten Weg (Recorder sofort, dann kalEntscheideOderStarte).
+def test_interview_bleibt_unveraendert_sofort():
+    beginne = _fn("beginneAufnahme", "zeigeDiskussionModus")
+    # Nur die Diskussion/Brainstorm-Sitzung (sitzung.art === 'diskussion',
+    # seit Birk 05.10.2026 22:00 Phase 1 UND Phase 4) bekommt kalVorStart;
+    # das Interview faellt durch auf den alten Weg (Recorder sofort, dann
+    # kalEntscheideOderStarte).
     assert beginne.count("kalEntscheideOderStarte(sitzung)") >= 1
     assert "sitzung.recorder = neuesSegment(sitzung)" in beginne

@@ -17,7 +17,7 @@ from interview_theater import phasen, repo, ruecknahme, sprache
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_AUFNAHME, ART_AUSWERTEN, ART_AUSWERTEN_ALLE,
-    ART_BOARD_UEBERNEHMEN,
+    ART_BOARD_AENDERN, ART_BOARD_UEBERNEHMEN,
     ART_DURCHLAUF_SZENE, ART_EIGENE, ART_ERSTENTWURF, ART_DRAMATURGIE,
     ART_DRAMATURGIE_LASSEN,
     ART_DRAMATURGIE_SZENE, ART_FASSUNGEN, ART_SPRECHANTEILE,
@@ -51,7 +51,8 @@ from interview_theater.knoepfe.texte import (
     ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_STUECKPRUEFUNG, PHASE_SZENEN, TRENNER, _KETTE, log,
 )
 from interview_theater.knoepfe.basis import (
-    _daten, _entferne_tastatur, _id_aus_daten, _mit_leiste, _sende_knoepfe,
+    _daten, _entferne_tastatur, _id_aus_daten, _merke_botnachricht, _mit_leiste,
+    _sende_knoepfe,
     _speichere, _starte_auftrag, offene_art, redo_leiste,
 )
 from interview_theater.knoepfe.fragen import (
@@ -640,6 +641,19 @@ def _wirkung_board_uebernehmen(conn, d: Druck) -> str:
         conn, d.tg, d.chat_id, f"begriffe{TRENNER}{d.wert}",
         nur_bestaetigen=True, uebergang=True, klm=d.klm, e=d.e,
     )
+
+
+def _wirkung_board_aendern(conn, d: Druck) -> str:
+    """"Etwas aendern" unter der Abschlussnachricht des Begriffsboards (Birk
+    05.10.2026): EIN Satz, was sich aendern soll -- als Bot-Zeile
+    mitgeschrieben, damit der naechste Gespraechszug die Frage im Fenster
+    sieht und die Antwort der Gruppe als Korrektur der Liste liest (dort
+    speichert der Vorschlagsblock automatisch). Kein Modellaufruf
+    (Zusage 2), nichts gespeichert."""
+    text = T._TEXT_BOARD_WAS_AENDERN
+    message_id = d.tg.sende(d.chat_id, text)
+    _merke_botnachricht(conn, d.chat_id, message_id, text)
+    return text
 
 
 def _wirkung_speichern(conn, d: Druck) -> str:
@@ -1676,6 +1690,7 @@ _WIRKUNGEN = {
     ART_FASSUNGEN: _wirkung_fassungen,
     ART_SPEICHERN: _wirkung_speichern,
     ART_BOARD_UEBERNEHMEN: _wirkung_board_uebernehmen,
+    ART_BOARD_AENDERN: _wirkung_board_aendern,
     ART_ANDERS: _wirkung_anders,
     ART_EIGENE: _wirkung_eigene,
     ART_FRAGE_WAHL: _wirkung_frage_wahl,

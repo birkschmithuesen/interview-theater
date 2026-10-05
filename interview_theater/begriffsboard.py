@@ -597,6 +597,12 @@ def _lauf_einmal(conn, klm, e, chat_id: int, bis_id: int) -> None:
         conn, chat_id, json.dumps(neu, ensure_ascii=False),
         "claude" if ueber_claude else "sovereign", bis_id,
     )
+    try:
+        speichere_automatisch(conn, e, chat_id, neu)
+    except Exception:
+        log.exception("Auto-Speichern der Begriffe fehlgeschlagen, chat_id=%s", chat_id)
+        _vorfall(conn, e, chat_id, "begriffsboard_autosave_fehler",
+                 f"Auto-Speichern der Begriffe fehlgeschlagen fuer chat_id={chat_id}")
 
 
 def starte(conn, klm, e, chat_id: int, *, danach=None) -> bool:
@@ -634,27 +640,95 @@ def starte(conn, klm, e, chat_id: int, *, danach=None) -> bool:
     return True
 
 
-def sende_vorschlag(conn, tg, chat_id: int, rueckfall_text: str | None) -> None:
-    """Nach "Discussion done" (D6): stehen nicht verworfene Begriffe auf dem
-    Board, ALLE in der Liste und die Top 5 markiert, dazu EIN Knopf
-    "Take these" fuer die Top 5 -- sonst der bisherige Satz unveraendert.
-    Liest das Board, wie es JETZT ist (nach einem etwaigen Schlusslauf, auch
-    wenn der scheiterte).
+def oben(board: list[dict]) -> list[str]:
+    """Die Top 5 nach Rang (``sortiert``), ohne verworfene -- genau die
+    Begriffe, die gespeichert werden."""
+    return [e["begriff"] for e in sortiert(board) if e.get("status") != "verworfen"][:TOP]
 
-    Birk Live-Test 04.10.2026: vorher bekam die Gruppe NUR die Top 5 zu
-    sehen -- neu genannte Begriffe mit noch niedriger Zustimmung/Nennungen
-    fielen dadurch komplett aus der Anzeige, auch wenn sie frisch gesagt
-    wurden. Jetzt zeigt die Liste alle, markiert nur die Auswahl."""
-    board = [e for e in sortiert(aktuelles(conn, chat_id)) if e.get("status") != "verworfen"]
+
+#: Der juengste Auto-Speicher-Lauf je Gruppe (``erkenner_lauf.id``) -- fuer
+#: den Undo-Knopf der Abschlussnachricht. Lebt im Prozess wie der
+#: Merkplatz oben; nach einem Neustart fehlt nur der Undo-Knopf.
+_LETZTER_AUTOLAUF: dict[int, int] = {}
+
+
+def speichere_automatisch(conn, e, chat_id: int, board: list[dict]) -> bool:
+    """Auto-Speichern (Birk 05.10.2026, Live-Test Gruppe 2: vier Begriffe auf
+    dem Board, aber keine ``arbeitsstand``-Zeile -- der Wechsel zu Phase 2
+    war gesperrt, weil die Begriffe nur ueber "Take these" gespeichert
+    wurden und der nach einem stillen Abschluss nie kam). Seitdem gilt: was
+    im CoThinker steht, IST gespeichert -- die Top 5 nach Rang gehen nach
+    JEDEM Boardlauf in Phase 1 nach ``arbeitsstand.begriffe``, ueber
+    denselben Weg wie ein Knopf-Speichern (``erkenner.lauf_fuer_knopf``:
+    Schnappschuss, Undo-faehig) samt ``schreibe_detail`` und einer
+    Journalzeile. **Ohne Chatzeile** -- waehrend der Aufnahme schweigt der
+    Bot; die eine sichtbare Zeile mit Undo-Knopf ist die Abschlussnachricht
+    (``sende_vorschlag``).
+
+    Nie ueber einen Wert der Gruppe hinweg: geschrieben wird nur, wenn
+    ``begriffe`` leer ist oder noch genau das enthaelt, was das Board
+    zuletzt selbst geschrieben hat (``begriffe_board_wert``). Hat die
+    Gruppe per Chat, Knopf oder Web etwas anderes gesetzt, bleibt es stehen.
+    Liefert True, wenn die Top 5 jetzt in ``begriffe`` stehen."""
+    from interview_theater import erkenner, phasen  # lokal: erkenner haengt an knoepfe
+
+    liste = oben(board)
+    if not liste or phasen.aktuelle(conn, chat_id) != 1:
+        return False
+    wert = ", ".join(liste)
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    bisher = (stand["begriffe"] if stand is not None else None) or None
+    vom_board = (stand["begriffe_board_wert"] if stand is not None else None) or None
+    if bisher is not None and bisher != vom_board:
+        return False
+    if bisher == wert:
+        return True
+
+    def _schreibe() -> None:
+        repo.setze_arbeitsstand(conn, chat_id, "begriffe", wert)
+        repo.setze_arbeitsstand(conn, chat_id, "begriffe_board_wert", wert)
+        schreibe_detail(conn, chat_id, wert)
+
+    titel = erkenner.T._FELD_BESCHRIFTUNG["begriffe"]
+    text = erkenner.T._ZEILE_FESTGELEGT.format(titel=titel, text=wert)
+    lauf_id = erkenner.lauf_fuer_knopf(conn, e, chat_id, text, _schreibe)
+    if lauf_id is not None:
+        _LETZTER_AUTOLAUF[chat_id] = lauf_id
+    repo.schreibe_journal(conn, chat_id, "entschieden", f"{titel}: {wert}", quelle="board")
+    return True
+
+
+def sende_vorschlag(conn, tg, chat_id: int, rueckfall_text: str | None, e=None) -> None:
+    """Nach "Discussion done" (D6), bei JEDEM Diskussionsende -- es gibt
+    keinen Einmal-Merker (Birk 05.10.2026: "der Bot soll weiter proaktiv
+    durchfuehren", nie Stille). Liest das Board, wie es JETZT ist (nach
+    einem etwaigen Schlusslauf, auch wenn der scheiterte).
+
+    Seit dem Auto-Speichern (05.10.2026, ``speichere_automatisch``): stehen
+    die Top 5 in ``begriffe``, kommt ``biete_board_gespeichert`` -- die Liste
+    nach Rang, "gespeichert", EINE Frage mit zwei Knoepfen (weiter zu den
+    Fragen · etwas aendern) und Undo. Hat die Gruppe selbst andere Begriffe
+    gesetzt, bleibt es beim Vorschlag mit "Take these" (Birk Live-Test
+    04.10.2026: dort ALLE nicht verworfenen Begriffe, die Top 5 markiert).
+    Leeres Board: der Rueckfallsatz."""
+    board = [e_ for e_ in sortiert(aktuelles(conn, chat_id)) if e_.get("status") != "verworfen"]
     if not board:
         if rueckfall_text:
             tg.sende(chat_id, rueckfall_text)
         return
-    alle = [e["begriff"] for e in board]
-    oben = [e["begriff"] for e in board[:TOP]]
     from interview_theater.knoepfe import basis  # Aufruf nach oben: lokal, wie im ganzen Repo
 
-    basis.biete_begriffsvorschlag(conn, tg, chat_id, alle, oben)
+    top = oben(board)
+    gespeichert = False
+    try:
+        gespeichert = speichere_automatisch(conn, e, chat_id, board)
+    except Exception:
+        log.exception("Auto-Speichern beim Diskussionsende fehlgeschlagen, chat_id=%s", chat_id)
+    if gespeichert:
+        basis.biete_board_gespeichert(conn, tg, chat_id, top, _LETZTER_AUTOLAUF.get(chat_id))
+        return
+    alle = [e_["begriff"] for e_ in board]
+    basis.biete_begriffsvorschlag(conn, tg, chat_id, alle, top)
 
 
 def schreibe_detail(conn, chat_id: int, begriffe_text: str | None) -> None:
@@ -697,7 +771,7 @@ def nach_segment(conn, tg, klm, e, chat_id: int, *, ist_abschluss: bool,
     danach = None
     if ist_abschluss:
         def danach() -> None:
-            sende_vorschlag(conn, tg, chat_id, rueckfall_text)
+            sende_vorschlag(conn, tg, chat_id, rueckfall_text, e=e)
 
     if klm is not None and workshop.diskussion_aktiv() and soll_laufen(conn, chat_id):
         starte(conn, klm, e, chat_id, danach=danach)

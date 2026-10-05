@@ -104,8 +104,12 @@ def test_leeres_board_rueckfalltext(conn, einst, monkeypatch):
     assert tg.mit_knoepfen == []
 
 
-def test_ohne_schlusslauf_sofort_die_top_fuenf_mit_einem_knopf(conn, einst, monkeypatch):
+def test_eigene_begriffe_sofort_die_top_fuenf_mit_einem_knopf(conn, einst, monkeypatch):
+    """Seit dem Auto-Speichern (05.10.2026) kommt "Take these" nur noch,
+    wenn die Gruppe selbst andere Begriffe gesetzt hat -- sonst stehen die
+    Top 5 schon in ``begriffe`` (``test_begriffsboard_autospeichern.py``)."""
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100000")
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "Hafen, Nacht")
     board = [_e("Heimat", "favorit"), _e("Grenze", zustimmung=2), _e("Mut", zustimmung=1),
              _e("Schule"), _e("Freunde"), _e("Angst"), _e("Musik", "verworfen", 2, 9)]
     # Das Board hat das Ende-Segment schon gelesen: nichts nachzuholen (seit
@@ -183,7 +187,10 @@ def test_take_these_speichert_begriffe_und_detail_einmal(conn, einst, monkeypatc
     ende = _ende(conn)
     repo.lege_begriffsboard_an(conn, CHAT, json.dumps(board), "sovereign", ende["id"])
     tg = _TG()
-    aufnahme._kurz_abschliessen(conn, tg, object(), einst, ende, aufnahme._kein_zug, False)
+    # Der Knopf direkt (seit dem Auto-Speichern kommt er nur noch neben
+    # eigenen Begriffen der Gruppe, und dort ueberschreibt er nie).
+    from interview_theater.knoepfe import basis
+    basis.biete_begriffsvorschlag(conn, tg, CHAT, ["Heimat", "Grenze"], ["Heimat", "Grenze"])
     daten = tg.mit_knoepfen[0][2][0][1]
 
     assert _druecke(conn, tg, einst, daten) is True

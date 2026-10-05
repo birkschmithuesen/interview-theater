@@ -546,7 +546,7 @@ def test_begriffsboard_im_cothinker_und_top5_vorschlag(lauf, seite, monkeypatch)
     """Karte t_4517d4ad: Start -> Segment -> "Discussion done" ->
     regulärer Lauf auf dem Ende-Schnitt
     -> Board-Eintrag im CoThinker-Panel -> Top-5-Vorschlag mit EINEM Knopf
-    "Take these". Der Zwischenlauf nach einem Pausenschnitt ist im Browser
+    "Take these" (seit 05.10.2026: gespeichert, "Change something"). Der Zwischenlauf nach einem Pausenschnitt ist im Browser
     nicht herstellbar (Dauerton, nur ``cap``-Schnitte, siehe Dateikopf) und
     in ``tests/test_begriffsboard_mithoeren.py`` am echten ``aufnahme``-Pfad
     getestet."""
@@ -559,7 +559,9 @@ def test_begriffsboard_im_cothinker_und_top5_vorschlag(lauf, seite, monkeypatch)
         "begruendung": "Das Ankommen hier verbindet uns.",
         "zitat": "als wir hier ankamen", "doppelbedeutung": "", "status": "favorit",
     }]
-    knopf_text = knoepfe.T._TEXT_BOARD_UEBERNEHMEN_KNOPF
+    # Seit dem Auto-Speichern (05.10.2026) sind die Top 5 schon gespeichert:
+    # "Change something" statt "Take these".
+    knopf_text = knoepfe.T._TEXT_BOARD_AENDERN_KNOPF
 
     seite.fill("#eingabe", "Hallo, wir sind da!")
     seite.click("#senden")

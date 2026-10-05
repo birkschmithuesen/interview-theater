@@ -130,6 +130,7 @@ VARIABLE_FELDER = {
     ("laengen.py", "setze_faktor"),                # nur laengen_faktor
 }
 MIT_HAKEN = {
+    ("begriffsboard.py", "_schreibe"),
     ("erkenner.py", "_wende_arbeitsstand_an"),
     ("erkenner.py", "_entferne_arbeitsstandfeld"),
     ("knoepfe/basis.py", "_schreibe"),
@@ -158,9 +159,16 @@ def _aufrufe():
     return literal, variabel
 
 
+#: Literale Schreibwege fuer ``begriffe`` -- nur mit Haken. Seit 05.10.2026
+#: (Birk, Auto-Speichern) einer: ``begriffsboard.speichere_automatisch``
+#: schreibt die Top 5 des Boards, ``schreibe_detail`` direkt daneben
+#: (``test_die_haken_stehen_an_den_drei_stellen`` prueft ``_schreibe``).
+LITERAL_MIT_HAKEN = [("begriffsboard.py", "begriffe")]
+
+
 def test_kein_literaler_schreibweg_fuer_begriffe():
     literal, _ = _aufrufe()
-    assert [s for s in literal if s[1] == "begriffe"] == []
+    assert [s for s in literal if s[1] == "begriffe"] == LITERAL_MIT_HAKEN
 
 
 def test_jeder_variable_schreibweg_ist_geprueft():

@@ -545,6 +545,12 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- schreibt; geleert, wenn ``begriffe`` geleert wird. Das Zitat geht nie
   -- auf die Webseite (``roadmap.begriffe_detail``).
   begriffe_detail             TEXT,
+  -- Der Wert, den das Begriffsboard zuletzt SELBST in ``begriffe``
+  -- geschrieben hat (Birk 05.10.2026, Auto-Speichern: "was im CoThinker
+  -- steht, ist gespeichert"). Steht in ``begriffe`` etwas anderes, hat die
+  -- Gruppe selbst gesetzt -- dann ueberschreibt das Board nie
+  -- (``begriffsboard.speichere_automatisch``). Geschrieben allein dort.
+  begriffe_board_wert         TEXT,
   geaendert_am           TEXT
 );
 

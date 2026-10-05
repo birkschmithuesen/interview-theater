@@ -17,7 +17,7 @@ sonst waere die Schicht keine.
 from interview_theater import erkenner, phasen, repo
 
 from interview_theater.knoepfe.texte import (
-    ART_ANDERS, ART_BOARD_UEBERNEHMEN, ART_EIGENE, ART_KERNTHEMA, ART_PHASE,
+    ART_ANDERS, ART_BOARD_AENDERN, ART_BOARD_UEBERNEHMEN, ART_EIGENE, ART_KERNTHEMA, ART_PHASE,
     ART_REDO, ART_SPEICHERN, ART_UNDO,
     MAX_AUSWAHL, MAX_VORSCHLAEGE, MENUE_KNOPF_LAENGE, PRAEFIX, TRENNER,
     _AUSWAHLMARKER, _FELD_FUER, T, log,
@@ -227,6 +227,35 @@ def biete_begriffsvorschlag(conn, tg, chat_id: int, alle_begriffe: list[str],
         [(T._TEXT_BOARD_UEBERNEHMEN_KNOPF, _daten(knopf_id))],
     )
     repo.merke_knopf_nachricht(conn, [knopf_id], message_id)
+    return message_id
+
+
+def biete_board_gespeichert(conn, tg, chat_id: int, oben: list[str],
+                            lauf_id: int | None) -> int:
+    """Die Nachricht nach "Discussion done", wenn das Board seine Top 5
+    schon gespeichert hat (Birk 05.10.2026, Nachtrag 3/4 zum Live-Test):
+    die Begriffe nach Rang als Liste, "gespeichert", und EINE Frage mit genau
+    zwei Knoepfen -- "Ja, weiter zu den Fragen" (derselbe Phasenknopf wie
+    "Weiter zu ...", ``ART_PHASE`` mit Wert 2) und "Etwas aendern"
+    (``ART_BOARD_AENDERN``) --, darunter der Undo-Knopf des letzten
+    automatischen Speicherns. Kein "Take these" mehr: es ist schon
+    gespeichert. Kommt bei JEDEM Diskussionsende, es gibt keinen
+    Einmal-Merker. Freitext wirkt gleichwertig (Erkenner/Gespraechszug)."""
+    liste = "\n".join(f"{nr}. {begriff}" for nr, begriff in enumerate(oben, 1))
+    if len(oben) == 1:
+        text = T._TEXT_BOARD_GESPEICHERT_EINER.format(liste=liste)
+    else:
+        woerter = [w.strip() for w in T._ZAHLWOERTER.split(",")]
+        anzahl = woerter[len(oben) - 1] if len(oben) <= len(woerter) else str(len(oben))
+        text = T._TEXT_BOARD_GESPEICHERT.format(anzahl=anzahl, liste=liste)
+    weiter_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, "2")
+    aendern_id = repo.lege_knopf_an(conn, chat_id, ART_BOARD_AENDERN, None)
+    leiste = [
+        (T._TEXT_BOARD_WEITER_KNOPF, _daten(weiter_id)),
+        (T._TEXT_BOARD_AENDERN_KNOPF, _daten(aendern_id)),
+    ] + undo_leiste(conn, chat_id, lauf_id)
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return message_id
 
 

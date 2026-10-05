@@ -84,6 +84,11 @@ ART_SPEICHERN = "speichern"
 #: "Take these" unter dem Top-5-Vorschlag des Begriffsboards (Karte
 #: t_4517d4ad, D6): EIN Knopf, der Wert ist die Begriffsliste.
 ART_BOARD_UEBERNEHMEN = "board_uebernehmen"
+#: "Etwas aendern" unter der Abschlussnachricht des Begriffsboards (Birk
+#: 05.10.2026): die Top 5 sind schon gespeichert, der Knopf fragt in EINEM
+#: Satz, was sich aendern soll -- die Antwort geht ueber den Chat (Auto-
+#: Speichern). Kein Wert, kein Modellaufruf.
+ART_BOARD_AENDERN = "board_aendern"
 #: "Passt, aber anders" (05.09.2026 abends, Birk): speichert die aktuelle
 #: Fassung TROTZDEM -- damit ueberhaupt etwas in der Datenbank steht -- und
 #: fragt danach gezielt nach, was anders werden soll. Der ``wert`` traegt
@@ -313,6 +318,25 @@ _TEXT_EIGENE_KNOPF = "Anders"
 _TEXT_ANDERS_KNOPF = "Nein, nochmal aendern"
 _TEXT_SPEICHERN_KNOPF = "Ja, speichern"
 _TEXT_BOARD_UEBERNEHMEN_KNOPF = "Diese nehmen"
+#: Nach "Discussion done", wenn das Board die Top 5 schon gespeichert hat
+#: (Birk 05.10.2026, Nachtrag 3/4 -- Wortlaut der englischen Fassung von
+#: Birk): die Liste nach Rang, "gespeichert", EINE Frage mit zwei Knoepfen.
+#: ``{anzahl}`` ist ein Zahlwort aus ``_ZAHLWOERTER``; fuer genau einen
+#: Begriff gilt ``_TEXT_BOARD_GESPEICHERT_EINER``.
+_TEXT_BOARD_GESPEICHERT = (
+    "Das sind eure {anzahl} Begriffe – gespeichert. Gehen wir weiter?\n\n{liste}"
+)
+_TEXT_BOARD_GESPEICHERT_EINER = (
+    "Das ist euer Begriff – gespeichert. Gehen wir weiter?\n\n{liste}"
+)
+_ZAHLWOERTER = "ein,zwei,drei,vier,fuenf"
+_TEXT_BOARD_WEITER_KNOPF = "Ja, weiter zu den Fragen"
+_TEXT_BOARD_AENDERN_KNOPF = "Etwas aendern"
+#: Die EINE Rueckfrage nach "Etwas aendern" -- deterministisch (Zusage 2).
+_TEXT_BOARD_WAS_AENDERN = (
+    "Was soll sich aendern – ein falsch verstandener Begriff, die "
+    "Reihenfolge oder ein fehlender Begriff?"
+)
 _TEXT_BOARD_VORSCHLAG = (
     "Die Diskussion ist zu Ende. Auf eurem Begriffsboard stehen:\n"
     "{liste}\n\n"

@@ -1883,6 +1883,9 @@ _ARBEITSSTAND_FELDER = (
     # derselbe eine Schreibweg, gesetzt allein von
     # ``begriffsboard.schreibe_detail``.
     "begriffe_detail",
+    # Der zuletzt vom Board selbst gespeicherte Wert (05.10.2026), gesetzt
+    # allein von ``begriffsboard.speichere_automatisch``.
+    "begriffe_board_wert",
 )
 
 

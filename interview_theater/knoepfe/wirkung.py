@@ -1135,6 +1135,14 @@ def _wirkung_interviews_fertig(conn, d: Druck) -> str:
     from interview_theater import aufnahme
     from interview_theater.knoepfe.stationen import schliesse_interviews_ab
 
+    # P34 Final-Review (A12): ein stehengebliebener Knopf, gedrueckt erst
+    # ausserhalb von Phase 3, tut nichts -- kein Wunsch (eine spaetere
+    # Verdichtung schaltete sonst still um), kein Abschluss (der koennte
+    # 4 -> 5 springen). Die Phase setzt allein die Gruppe; die Quittung nennt
+    # die aktuelle Phase.
+    aktuell = phasen.aktuelle(conn, d.chat_id)
+    if aktuell != 3:
+        return T._ANTWORT_PHASE.format(nummer=aktuell)
     if aufnahme.unausgewertete_interviews(conn, d.chat_id):
         repo.setze_arbeitsstand(
             conn, d.chat_id, "interviews_fertig_wunsch_seit", repo._jetzt(),

@@ -516,7 +516,10 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             # naechste Phase sichtbar wird -- Grundlage fuer
             # ``_teile_bereich_am_phasenwechsel``, damit eine Antwort NACH
             # dem Wechsel nicht noch als diese (die alte) Phase zaehlt.
-            phasenwechsel_aufruf_id = _max_aufruf_id(db_pfad)
+            # P34 Runde 1, C1: die Grenze ist der Zeitpunkt des Wechsels
+            # (``phase_gesetzt_am``), nicht "jetzt" -- sonst zaehlte der
+            # schon gebuchte Phase-4-Einstieg noch als Phase 3.
+            phasenwechsel_aufruf_id = _aufruf_id_bei_phasenwechsel(db_pfad, chat_id)
             break
         if station.diskussion and diskussion_vorbei:
             break
@@ -602,6 +605,39 @@ def _max_aufruf_id(db_pfad: str) -> int:
             return conn.execute("SELECT COALESCE(MAX(id), 0) FROM aufruf").fetchone()[0]
     except sqlite3.OperationalError:
         return 0
+
+
+def _aufruf_id_bei_phasenwechsel(db_pfad: str, chat_id: int) -> int:
+    """Hoechste ``aufruf.id``, die spaetestens beim Setzen der aktuellen
+    Phase (``arbeitsstand.phase_gesetzt_am``) gebucht war -- die Grenze fuer
+    ``_teile_bereich_am_phasenwechsel``.
+
+    P34 Runde 1, C1 (Ursache Werkzeug, Lauf 205532): vorher stand hier
+    ``_max_aufruf_id`` NACH ``warte_auf_antwort`` -- da war der
+    Phase-4-Einstieg (Opus) schon gebucht und zaehlte als Phase 3
+    (falsches ``p3_gespraech_ueber_opus``). Verglichen wird als Zeitpunkt,
+    nicht als String: ``aufruf.erstellt_am`` ist sekundengenau,
+    ``phase_gesetzt_am`` mikrosekundengenau. Ohne Zeitstempel (alte Gruppe)
+    oder bei einem Lesefehler bleibt es beim bisherigen ``_max_aufruf_id``."""
+    from datetime import datetime
+
+    try:
+        with browser_invarianten.oeffne_lesend(db_pfad) as conn:
+            zeile = conn.execute(
+                "SELECT phase_gesetzt_am FROM arbeitsstand WHERE chat_id = ?", (chat_id,),
+            ).fetchone()
+            gesetzt = zeile[0] if zeile else None
+            if not gesetzt:
+                return _max_aufruf_id(db_pfad)
+            grenze = datetime.fromisoformat(gesetzt)
+            ergebnis = 0
+            for aufruf_id, erstellt_am in conn.execute(
+                    "SELECT id, erstellt_am FROM aufruf ORDER BY id"):
+                if datetime.fromisoformat(erstellt_am) <= grenze:
+                    ergebnis = max(ergebnis, aufruf_id)
+            return ergebnis
+    except (sqlite3.OperationalError, ValueError, TypeError):
+        return _max_aufruf_id(db_pfad)
 
 
 def _teile_bereich_am_phasenwechsel(aufruf_bereiche: dict, stationen_phase: dict,

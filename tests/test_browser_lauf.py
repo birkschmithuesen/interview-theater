@@ -957,6 +957,61 @@ def test_teile_bereich_am_phasenwechsel_splittet_nur_wenn_wechsel_dazwischen_lie
     assert phasen3 == {}
 
 
+def _p34_db_mit_aufrufen(tmp_path, aufrufe, phase_gesetzt_am):
+    pfad = str(tmp_path / "p34.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "gruppe1", "Testgruppe")
+    if phase_gesetzt_am is not None:
+        repo.setze_phase(conn, CHAT, 4)
+        conn.execute("UPDATE arbeitsstand SET phase_gesetzt_am = ? WHERE chat_id = ?",
+                     (phase_gesetzt_am, CHAT))
+    for i, art, modus, zeit in aufrufe:
+        conn.execute(
+            "INSERT INTO aufruf (id, chat_id, art, modus, erstellt_am) VALUES (?, ?, ?, ?, ?)",
+            (i, CHAT, art, modus, zeit))
+    conn.commit()
+    conn.close()
+    return pfad
+
+
+def test_phasenwechsel_grenze_kommt_aus_phase_gesetzt_am(tmp_path):
+    """P34 Runde 1, C1 (Ursache Werkzeug, Lauf 205532): der Harness las die
+    Grenze erst NACH ``warte_auf_antwort`` (``_max_aufruf_id``) -- da war der
+    Phase-4-Einstieg (aufruf 16, Opus, 19:02:46) schon gebucht, die Phase
+    aber um 19:02:42.93 gesetzt. ``von < 16 < bis`` griff nicht (16 == bis),
+    der Aufruf zaehlte als Phase 3 -> falsches ``p3_gespraech_ueber_opus``.
+    Die Grenze ist jetzt der letzte Aufruf bis ``phase_gesetzt_am``."""
+    pfad = _p34_db_mit_aufrufen(tmp_path, [
+        (14, "gespraech", "A", "2026-10-05T19:02:30+00:00"),
+        (15, "extraktor", "A", "2026-10-05T19:02:42+00:00"),
+        (16, "gespraech", "C", "2026-10-05T19:02:46+00:00"),
+    ], "2026-10-05T19:02:42.930000+00:00")
+
+    grenze = browser_lauf._aufruf_id_bei_phasenwechsel(pfad, CHAT)
+    assert grenze == 15
+
+    bereiche, phasen_je_station = {}, {}
+    browser_lauf._teile_bereich_am_phasenwechsel(
+        bereiche, phasen_je_station, "p3-uebergang", 3, 13, 16, grenze)
+    assert bereiche == {"p3-uebergang": (13, 15), "p3-uebergang:nach_phasenwechsel": (15, 16)}
+    assert phasen_je_station == {"p3-uebergang:nach_phasenwechsel": 4}
+
+    with inv.oeffne_lesend(pfad) as conn:
+        stand = inv.lese_p34_stand(conn, CHAT)
+    befunde = inv.pruefe_modellwahl(stand, bereiche["p3-uebergang"], (0, 0), "p3-uebergang",
+                                    nur_phase=3)
+    assert inv.P3_GESPRAECH_OPUS not in {b.schluessel for b in befunde}
+
+
+def test_phasenwechsel_grenze_ohne_zeitstempel_faellt_auf_max_id_zurueck(tmp_path):
+    pfad = _p34_db_mit_aufrufen(tmp_path, [
+        (1, "gespraech", "A", "2026-10-05T19:02:30+00:00"),
+        (2, "gespraech", "C", "2026-10-05T19:02:46+00:00"),
+    ], None)
+    assert browser_lauf._aufruf_id_bei_phasenwechsel(pfad, CHAT) == 2
+
+
 def test_fuehre_pruefungen_zweite_gruppe_mit_dom_hinweis():
     gruppen = [Gruppe(token="tok1", chat_id=1), Gruppe(token="tok2", chat_id=2)]
     kontext = browser_lauf.PruefKontext(

@@ -192,3 +192,21 @@ def test_mechanik_markdown_nennt_datei_zuege_und_quotenzeile(tmp_path):
     assert "Zuege=8" in text
     assert "(0/3)" in text
     assert "neu" in text
+
+
+# -- Board/Diskussion fehlt im Kontext (Birk 05.10.2026, Nachtrag 5) ---------
+
+def test_kontextluecken_findet_den_nackten_sprachmarker_und_fehlende_bloecke():
+    nutzer = ("Member 1: (sprache)\n"
+              "Member 1: (3 voice recording(s) listened in, words in the block above)\n"
+              "Member 1: The terms are also in the CoThinker\n")
+    befunde = p.kontextluecken(nutzer)
+    assert len(befunde) == 3
+
+
+def test_kontextluecken_still_wenn_die_bloecke_stehen():
+    nutzer = ("The CoThinker board -- the terms the group sees live\n1. Home\n"
+              "What the group said while you listened in (discussion)\n[discussion] Home.\n"
+              "Member 1: (1 voice recording(s) listened in, words in the block above)\n"
+              "Member 1: The terms are also in the CoThinker\n")
+    assert p.kontextluecken(nutzer) == []

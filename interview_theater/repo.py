@@ -2204,6 +2204,21 @@ def merke_diskussion_verdichtung(
 
 
 @_gesperrt
+def mitgehoerte_transkripte(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alles, was im Hintergrund mitgehoert und transkribiert wurde --
+    Diskussion (Phase 1) und Brainstorm (Phase 4), chronologisch, nur
+    ``fertig`` und mit Wortlaut (05.10.2026, Birk: "Alles, was per STT
+    reinkam, soll in den Chat-Kontext"). Fuer ``kontext._baue_mitgehoert``."""
+    return conn.execute(
+        "SELECT id, diskussion, brainstorm, transkript FROM aufnahme "
+        "WHERE chat_id = ? AND (diskussion = 1 OR brainstorm = 1) "
+        "AND entfernt_am IS NULL AND status = 'fertig' "
+        "AND transkript IS NOT NULL AND TRIM(transkript) != '' ORDER BY id ASC",
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
 def diskussion_verdichtung_text(conn: sqlite3.Connection, chat_id: int) -> str | None:
     """Der Text der Diskussionsverdichtung dieser Gruppe, oder ``None``, wenn
     noch keine lief (oder sie nichts Brauchbares ergab)."""

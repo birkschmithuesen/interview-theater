@@ -98,6 +98,14 @@ BUDGETS = {
     # Die Begruendungen je Begriff aus dem Begriffsboard (Karte t_4517d4ad):
     # klein wie die Diskussion, und wie sie bei Platznot im Ganzen weg.
     "begriffe_detail": 400,
+    # Seit 05.10.2026 (Birk: "Der Chat muss immer ueber alles Bescheid
+    # wissen"): das Begriffsboard als eigener Block in jeder Phase, und der
+    # Wortlaut alles Mitgehoerten (Diskussion, Brainstorm). Durchgesetzt wird
+    # ``mitgehoert`` ueber ``MITGEHOERT_ZEICHEN`` (juengstes zuerst
+    # behalten), ``board`` ist durch ``begriffsboard.TOP``-artige Kuerze
+    # klein; beide fallen in der Kuerzungsleiter vor den Verdichtungen.
+    "board": 500,
+    "mitgehoert": 2000,
     "phasenhinweis": 50,
     "figurenhinweis": 100,
     "szene": 2000,
@@ -234,7 +242,8 @@ PAUSE_AB_MINUTEN = 60
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
     "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "festlegungen",
-    "diskussion", "begriffe_detail", "phasenhinweis", "figurenhinweis", "szene",
+    "diskussion", "board", "mitgehoert", "begriffe_detail", "phasenhinweis",
+    "figurenhinweis", "szene",
     "journal", "fenster", "ausloeser", "erstkontakt",
 )
 
@@ -856,6 +865,101 @@ def _baue_diskussion_block(conn, chat_id: int) -> str:
 
 #: Die Kopfzeile des Begriffs-Blocks (Karte t_4517d4ad, 04.10.2026).
 BEGRIFFE_DETAIL_KOPF = "Warum ihr diese Begriffe gewaehlt habt:"
+
+
+#: Die Koepfe der zwei Bloecke vom 05.10.2026 (Birk, Nachtrag 5): das Board,
+#: das die Gruppe auf dem zweiten Handy sieht, und der Wortlaut alles
+#: Mitgehoerten. Der Satz zum Board traegt die Rahmung, die die
+#: Systemanweisung nur noch einmal allgemein nennt.
+BOARD_KOPF = (
+    "Das CoThinker-Board -- die Begriffe, die die Gruppe live auf dem zweiten "
+    "Handy sieht, nach Rang (die ersten fuenf sind als ihre Begriffe "
+    "gespeichert). Bezieh dich darauf; Aenderungen (ein Begriff falsch "
+    "verstanden, andere Reihenfolge, einer fehlt) nimmst du im Chat entgegen:"
+)
+_BOARD_ZEILE = "{nr}. {begriff}{favorit}{grund}"
+_BOARD_FAVORIT = " (Favorit)"
+_BOARD_GRUND = " -- {begruendung}"
+MITGEHOERT_KOPF = (
+    "Was die Gruppe gesagt hat, waehrend du mitgehoert hast (Diskussion/"
+    "Brainstorm, aelteste zuerst, sehr Altes kann fehlen):"
+)
+_MITGEHOERT_DISKUSSION = "[Diskussion]"
+_MITGEHOERT_BRAINSTORM = "[Brainstorm]"
+#: Steht im Verlauf statt "(sprache)" fuer eine Folge mitgehoerter Segmente
+#: ohne eigenen Text -- ihr Wortlaut steht im Block oben.
+_MARKE_MITGEHOERT = "{anzahl} mitgehoerte Sprachaufnahme(n), Wortlaut im Block oben"
+
+#: Obergrenze des Mitgehoert-Blocks in Zeichen (≈ ``BUDGETS["mitgehoert"]``
+#: Token): das JUENGSTE bleibt, aeltere Segmente fallen vorn weg.
+MITGEHOERT_ZEICHEN = 6000
+
+
+def _baue_board(conn, chat_id: int) -> str:
+    """Das Begriffsboard (alle nicht verworfenen Begriffe nach Rang, mit
+    Favorit-Marke und Begruendung) -- in JEDER Phase, sobald es eins gibt
+    (05.10.2026, Birk: "auch das, was im CoThinker steht"). Live hatte der
+    Bot in Phase 1 geantwortet, er sehe die CoThinker-Seite nicht.
+    Datengetrieben: ohne Board (Dortmund, nie mitgehoert) kein Block."""
+    from interview_theater import begriffsboard
+
+    board = [e for e in begriffsboard.sortiert(begriffsboard.aktuelles(conn, chat_id))
+             if e.get("status") != "verworfen"]
+    if not board:
+        return ""
+    zeilen = [
+        T._BOARD_ZEILE.format(
+            nr=nr, begriff=e["begriff"],
+            favorit=T._BOARD_FAVORIT if e.get("status") == "favorit" else "",
+            grund=(T._BOARD_GRUND.format(begruendung=e["begruendung"])
+                   if (e.get("begruendung") or "").strip() else ""),
+        )
+        for nr, e in enumerate(board, 1)
+    ]
+    return T.BOARD_KOPF + "\n" + "\n".join(zeilen)
+
+
+def _baue_mitgehoert(conn, chat_id: int) -> str:
+    """Der Wortlaut alles Mitgehoerten (Diskussion Phase 1, Brainstorm
+    Phase 4), chronologisch -- bei Platznot faellt das AELTESTE vorn weg
+    (``MITGEHOERT_ZEICHEN``). Bis 05.10.2026 stand ein Segment im Verlauf
+    nur als "(sprache)" ohne Text (``nachricht.text`` bleibt dort NULL,
+    ``unterdrueckt`` betrifft nur die Chatanzeige), und der Bot sagte live,
+    er bekomme nur den Marker einer Sprachaufnahme. Datengetrieben."""
+    zeilen = []
+    for row in repo.mitgehoerte_transkripte(conn, chat_id):
+        marke = T._MITGEHOERT_DISKUSSION if row["diskussion"] else T._MITGEHOERT_BRAINSTORM
+        zeilen.append(f"{marke} {row['transkript'].strip()}")
+    behalten, laenge = [], 0
+    for zeile in reversed(zeilen):
+        if behalten and laenge + len(zeile) + 1 > MITGEHOERT_ZEICHEN:
+            break
+        behalten.insert(0, zeile)
+        laenge += len(zeile) + 1
+    if not behalten:
+        return ""
+    return T.MITGEHOERT_KOPF + "\n" + "\n".join(behalten)
+
+
+def _fasse_marker_zusammen(fenster_eintraege: list) -> None:
+    """Ersetzt im Verlauf jede Folge von "(sprache)"-Zeilen ohne Text durch
+    EINE Zeile mit ``_MARKE_MITGEHOERT`` -- an Ort und Stelle, damit die
+    Kuerzungsleiter dieselbe Liste sieht. Nur gerufen, wenn der
+    Mitgehoert-Block steht."""
+    endung = ": (sprache)"
+    neu, folge, sprecher = [], 0, None
+    for eintrag in fenster_eintraege:
+        if isinstance(eintrag, str) and eintrag.endswith(endung):
+            folge += 1
+            sprecher = eintrag[: -len(endung)]
+            continue
+        if folge:
+            neu.append(f"{sprecher}: ({T._MARKE_MITGEHOERT.format(anzahl=folge)})")
+            folge = 0
+        neu.append(eintrag)
+    if folge:
+        neu.append(f"{sprecher}: ({T._MARKE_MITGEHOERT.format(anzahl=folge)})")
+    fenster_eintraege[:] = neu
 
 
 def _baue_begriffe_detail(conn, chat_id: int) -> str:
@@ -1670,6 +1774,10 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
     # alles andere -- es gibt keinen gespeicherten Zustand, nur zwei Felder,
     # die die Lage beschreiben.
     material = material_erlaubt(conn, chat_id)
+    board = _baue_board(conn, chat_id)
+    mitgehoert = _baue_mitgehoert(conn, chat_id)
+    if mitgehoert:
+        _fasse_marker_zusammen(fenster_eintraege)
     kernpaket = (
         _baue_kernpaket(conn, chat_id) if kernpaket_erlaubt(conn, chat_id) else ""
     )
@@ -1692,9 +1800,15 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         # Profil sie faehrt (``workshop.diskussion_aktiv``) -- datengetrieben
         # ueber die Tabelle, keine eigene Abfrage hier noetig.
         "diskussion": _baue_diskussion_block(conn, chat_id),
+        # 05.10.2026 (Birk: "Der Chat muss immer ueber alles Bescheid
+        # wissen"): das Board in jeder Phase und der Wortlaut alles
+        # Mitgehoerten.
+        "board": board,
+        "mitgehoert": mitgehoert,
         # Direkt dahinter: warum die Gruppe ihre Begriffe gewaehlt hat
-        # (Begriffsboard, Phase 2 und ab 4).
-        "begriffe_detail": _baue_begriffe_detail(conn, chat_id),
+        # (Begriffsboard, Phase 2 und ab 4) -- nur ohne Board-Block, der
+        # dieselben Begruendungen schon traegt (ein Fakt, eine Stelle).
+        "begriffe_detail": "" if board else _baue_begriffe_detail(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
@@ -1810,6 +1924,16 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
     # sich ein stufenweises Kappen lohnen wuerde.
     if _zu_lang() and bloecke["diskussion"]:
         bloecke["diskussion"] = ""
+    if _zu_lang() and bloecke["mitgehoert"]:
+        mitzeilen = bloecke["mitgehoert"].split("\n")
+        # Zeile 0 ist der Kopf; das Aelteste faellt zuerst.
+        while _zu_lang() and len(mitzeilen) > 2:
+            mitzeilen = [mitzeilen[0]] + mitzeilen[2:]
+            bloecke["mitgehoert"] = "\n".join(mitzeilen)
+        if _zu_lang():
+            bloecke["mitgehoert"] = ""
+    if _zu_lang() and bloecke["board"]:
+        bloecke["board"] = ""
     if _zu_lang() and bloecke["begriffe_detail"]:
         bloecke["begriffe_detail"] = ""
     if _zu_lang():

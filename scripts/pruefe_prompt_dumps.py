@@ -193,6 +193,38 @@ def verlaufsbefund(nutzer: str) -> dict:
     }
 
 
+#: Die Koepfe der zwei Bloecke vom 05.10.2026 (Birk, Nachtrag 5: "Der Chat
+#: muss immer ueber alles Bescheid wissen") und der Verlaufsmarker fuer
+#: mitgehoerte Segmente -- deutsch UND englisch, wie ``SPRECHER``.
+BOARD_KOEPFE = ("Das CoThinker-Board", "The CoThinker board")
+MITGEHOERT_KOEPFE = ("Was die Gruppe gesagt hat, waehrend du mitgehoert hast",
+                     "What the group said while you listened in")
+MITGEHOERT_MARKEN = ("mitgehoerte Sprachaufnahme", "voice recording(s) listened in")
+
+
+def kontextluecken(nutzer: str) -> list[str]:
+    """Board/Diskussion fehlt im Kontext (05.10.2026, Birk: live sagte der
+    Bot "I can't see what's on the cothinker page" und "only the marker for
+    a voice recording, not the words themselves").
+
+    Drei Befunde, alle aus dem Nutzerteil allein: (1) eine Sprachaufnahme
+    steht nur als Marker "(sprache)" ohne Wortlaut im Verlauf; (2) der
+    Verlauf verweist auf mitgehoerte Aufnahmen, aber der Block mit ihrem
+    Wortlaut fehlt (weggekuerzt); (3) im Verlauf ist vom CoThinker die
+    Rede, aber der Board-Block fehlt."""
+    befunde = []
+    zeilen = [z for _, z in inhaltszeilen(nutzer)]
+    if any(z.rstrip().endswith(": (sprache)") for z in zeilen):
+        befunde.append("Sprachaufnahme nur als Marker '(sprache)', ohne Wortlaut")
+    if (any(m in nutzer for m in MITGEHOERT_MARKEN)
+            and not any(k in nutzer for k in MITGEHOERT_KOEPFE)):
+        befunde.append("Mitgehoertes im Verlauf markiert, Wortlaut-Block fehlt")
+    if ("cothinker" in "\n".join(z for z in zeilen if SPRECHER.match(z)).lower()
+            and not any(k in nutzer for k in BOARD_KOEPFE)):
+        befunde.append("CoThinker im Verlauf erwaehnt, Board-Block fehlt")
+    return befunde
+
+
 def dubletten_quer(nutzer: str) -> list[tuple[str, int]]:
     """Wortgleiche Zeilen im Nutzerteil, ab 20 Zeichen.
 
@@ -258,6 +290,7 @@ def bericht(pfad, basis: dict | None = None) -> dict:
         "frageregeln": frageregel_zeilen(system),
         "verlauf": verlaufsbefund(nutzer),
         "dubletten_quer": dubletten_quer(nutzer),
+        "kontextluecken": kontextluecken(nutzer),
         "delta_zeichen": None if vorher is None else jetzt - vorher,
     }
 
@@ -295,6 +328,7 @@ def mechanik_markdown(berichte: list[dict]) -> str:
              [f"{n}x {z[:110]}" for z, n in sorted(
                  b["dubletten"].items(), key=lambda paar: -paar[1])]),
             ("Verbotene Reste", list(b["verboten"])),
+            ("Board/Diskussion fehlt im Kontext", list(b.get("kontextluecken", []))),
         ):
             if eintraege:
                 aus.append(f"- **{titel}:**")

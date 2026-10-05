@@ -1,0 +1,116 @@
+"""Birk 05.10.2026 (Nachtrag 5, I): "Der Chat muss immer ueber alles
+Bescheid wissen." Live sagte der Bot "I can't see what's on the cothinker
+page" und "what reaches me is only the marker for a voice recording" -- die
+Diskussionssegmente standen im Fenster als "(sprache)" ohne Wortlaut, und
+das Begriffsboard stand in Phase 1 gar nicht im Prompt. Seitdem: was
+mitgehoert wurde, steht mit Wortlaut im Gespraechsprompt (juengstes zuerst
+behalten), das Board als eigener Block, in jeder Phase. Nur erfundenes
+Material."""
+
+import json
+
+import pytest
+
+from interview_theater import db, kontext, repo, sprache, workshop
+
+CHAT = 1
+BOARD = [
+    {"begriff": "Heimat", "nennungen": 3, "zustimmung": 2, "begruendung": "Wo man bleibt.",
+     "zitat": "", "doppelbedeutung": "", "status": "favorit"},
+    {"begriff": "Grenze", "nennungen": 1, "zustimmung": 1, "begruendung": "",
+     "zitat": "", "doppelbedeutung": "", "status": "kandidat"},
+    {"begriff": "Musik", "nennungen": 1, "zustimmung": -2, "begruendung": "",
+     "zitat": "", "doppelbedeutung": "", "status": "verworfen"},
+]
+SEGMENTE = [
+    "Heimat ist fuer mich der Ort, an dem man bleibt.",
+    "Und Grenze, die man nicht sieht, aber spuert.",
+    "Es ist alles so furchtbar kompliziert.",
+]
+
+
+class _E:
+    bot_name = "gruppe1"
+    web_url = ""
+
+
+@pytest.fixture
+def conn(tmp_path):
+    c = db.verbinde(str(tmp_path / "t.db"))
+    db.initialisiere(c)
+    repo.sichere_gruppe(c, CHAT, "gruppe1", "Testgruppe")
+    return c
+
+
+def _segmente(conn, *, brainstorm=False):
+    for i, text in enumerate(SEGMENTE):
+        mid = 10 + i
+        repo.merke_nachricht(conn, CHAT, mid, "Gruppe", 0, "sprache", None, repo._jetzt(), 1)
+        aid = repo.lege_aufnahme_an(conn, CHAT, mid, "kurz", "sprache", status="transkribiert",
+                                    diskussion=not brainstorm, brainstorm=brainstorm,
+                                    schnittgrund="pause")
+        repo.setze_transkript(conn, aid, text)
+        repo.setze_status(conn, aid, "fertig")
+
+
+def _prompt(conn):
+    repo.merke_nachricht(conn, CHAT, 50, "Gruppe", 0, "text",
+                         "Speichere die Begriffe", repo._jetzt())
+    ausloeser = repo.letzte_nachrichten(conn, CHAT, 1)
+    return kontext.baue(conn, CHAT, ausloeser, _E())
+
+
+def test_phase_1_prompt_hat_wortlaut_und_board(conn):
+    _segmente(conn)
+    repo.lege_begriffsboard_an(conn, CHAT, json.dumps(BOARD), "sovereign", 12)
+    text = _prompt(conn)
+    for satz in SEGMENTE:
+        assert satz in text
+    assert kontext.T.MITGEHOERT_KOPF in text
+    assert kontext.T.BOARD_KOPF in text
+    assert "1. Heimat" in text and "2. Grenze" in text
+    assert "Musik" not in text          # verworfen
+    assert "Wo man bleibt." in text     # Begruendung steht mit
+    assert ": (sprache)" not in text    # kein nackter Marker mehr
+
+
+def test_board_steht_auch_in_spaeteren_phasen(conn):
+    repo.lege_begriffsboard_an(conn, CHAT, json.dumps(BOARD), "sovereign", 0)
+    for phase in (2, 3, 4, 5):
+        repo.setze_phase(conn, CHAT, phase)
+        assert kontext.T.BOARD_KOPF in _prompt(conn), phase
+
+
+def test_brainstorm_wortlaut_steht_ebenfalls_im_prompt(conn):
+    _segmente(conn, brainstorm=True)
+    repo.setze_phase(conn, CHAT, 4)
+    text = _prompt(conn)
+    assert "furchtbar kompliziert" in text
+
+
+def test_ohne_mitgehoertes_kein_block(conn):
+    text = _prompt(conn)
+    assert kontext.T.MITGEHOERT_KOPF not in text
+    assert kontext.T.BOARD_KOPF not in text
+
+
+def test_juengstes_bleibt_wenn_das_budget_knapp_ist(conn, monkeypatch):
+    monkeypatch.setattr(kontext, "MITGEHOERT_ZEICHEN", 80)
+    _segmente(conn)
+    block = kontext._baue_mitgehoert(conn, CHAT)
+    assert "furchtbar kompliziert" in block
+    assert "der Ort, an dem man bleibt" not in block
+
+
+def test_englische_systemanweisung_sagt_dass_alles_vorliegt(monkeypatch):
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    try:
+        text = " ".join(kontext.system("gruppe1", 1).split())
+        assert "never ask the group to retype it" in text
+        assert "CoThinker" in text
+    finally:
+        monkeypatch.delenv(workshop.VARIABLE)
+        workshop.vergiss()
+        sprache.vergiss()

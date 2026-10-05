@@ -108,11 +108,13 @@ def test_nutzertext_traegt_transkript_und_board():
 
 # -- Ausloeser (D1) -----------------------------------------------------------
 
-def test_vorgabe_min_zeichen_ist_600_nicht_1200():
+def test_vorgabe_min_zeichen_ist_100_nicht_1200(monkeypatch):
     """Birk Live-Test 04.10.2026: eigene, niedrigere Schwelle als der
     Brainstorm (1200) -- ein Testgespraech in Phase 1 ist kuerzer als eine
-    echte Brainstorm-Sitzung."""
-    assert begriffsboard.min_zeichen() == 600
+    echte Brainstorm-Sitzung (-> 600). Birk Live-Test 05.10.2026: kurze
+    Begriffsnennungen, 100 Zeichen."""
+    monkeypatch.delenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", raising=False)
+    assert begriffsboard.min_zeichen() == 100
 
 
 def test_unter_der_zeichenschwelle_kein_lauf(conn, monkeypatch):
@@ -135,7 +137,7 @@ def test_cap_schnitt_loest_nicht_aus(conn, monkeypatch):
 
 def test_mindestabstand_nach_einem_lauf(conn, monkeypatch):
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "3600")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ABSTAND_S", "3600")
     a = _segment(conn, 10)
     repo.lege_begriffsboard_an(conn, CHAT, "[]", "sovereign", a)
     _segment(conn, 11, "x" * 200)
@@ -152,6 +154,7 @@ def test_soll_laufen_ruft_brainstorm_soll_reagieren_unveraendert(conn, monkeypat
         "unreagierte_zeichen": 3, "sekunden_seit_letzter_reaktion": float("inf"),
         "letzter_schnittgrund": "pause", "ist_abschluss": False,
         "min_zeichen_override": begriffsboard.min_zeichen(),
+        "min_abstand_override": begriffsboard.min_abstand_s(),
     }]
 
 

@@ -423,19 +423,38 @@ ART = "begriffsboard"
 
 VORGABE_TRANSKRIPT_ZEICHEN = 200_000
 
-#: Eigene, niedrigere Schwelle als der Brainstorm (Phase 4): ein Testgespraech
-#: in Phase 1 ist kuerzer als eine echte Brainstorm-Sitzung (Birk Live-Test
-#: 04.10.2026: 1200 Zeichen liess das Board zu lange leer stehen).
-VORGABE_MIN_ZEICHEN = 600
+#: Eigene, niedrigere Werte als der Brainstorm (Phase 4) fuer die
+#: ZWISCHENlaeufe des Boards. Ein Begriff mit einem Satz Begruendung ist
+#: kurz -- in Phase 1 sammelt die Gruppe einzelne Begriffe, sie entwickelt
+#: keine Buehnenidee ueber Minuten. Birk Live-Test 04.10.2026: 1200 Zeichen
+#: liessen das Board zu lange leer (-> 600). Birk Live-Test 05.10.2026
+#: (Gruppe 2, Segmente mit 83/20/11/42/31/38 Zeichen): nach dem ersten Lauf
+#: blockierte der Brainstorm-Mindestabstand von 90 s jeden weiteren, der
+#: letzte Begriff kam nie aufs Board -- seitdem 100 Zeichen und 20 s. Kurze
+#: Laeufe kosten wenig (Modellwahl wie bisher, Birk: ok). Der Schlusslauf
+#: nach "Discussion done" haengt an keinem der beiden (``soll_laufen``).
+VORGABE_MIN_ZEICHEN = 100
+VORGABE_MIN_ABSTAND_S = 20
+
+
+def _umgebungszahl(name: str, vorgabe: int) -> int:
+    roh = (os.environ.get(name) or "").strip()
+    if roh.isdigit() and int(roh) > 0:
+        return int(roh)
+    return vorgabe
 
 
 def min_zeichen() -> int:
     """``IT_BEGRIFFSBOARD_MIN_ZEICHEN`` -- dasselbe Muster wie
     ``transkript_zeichen_grenze``/``brainstorm.min_zeichen``."""
-    roh = (os.environ.get("IT_BEGRIFFSBOARD_MIN_ZEICHEN") or "").strip()
-    if roh.isdigit() and int(roh) > 0:
-        return int(roh)
-    return VORGABE_MIN_ZEICHEN
+    return _umgebungszahl("IT_BEGRIFFSBOARD_MIN_ZEICHEN", VORGABE_MIN_ZEICHEN)
+
+
+def min_abstand_s() -> int:
+    """``IT_BEGRIFFSBOARD_MIN_ABSTAND_S`` -- der Mindestabstand zwischen zwei
+    Zwischenlaeufen in Phase 1, unabhaengig von
+    ``IT_BRAINSTORM_MIN_ABSTAND_S`` (Phase 4)."""
+    return _umgebungszahl("IT_BEGRIFFSBOARD_MIN_ABSTAND_S", VORGABE_MIN_ABSTAND_S)
 
 
 def transkript_zeichen_grenze() -> int:
@@ -468,8 +487,10 @@ def soll_laufen(conn, chat_id: int) -> bool:
     """Zwei Regeln, je nach Schnitt. Kein Modellaufruf.
 
     **Zwischenlauf** (D1): ``brainstorm.soll_reagieren`` unveraendert, mit
-    den eigenen Zahlen der Phase 1 (``repo.begriffsboard_stand``) und der
-    eigenen Schwelle (``min_zeichen``).
+    den eigenen Zahlen der Phase 1 (``repo.begriffsboard_stand``) und seit
+    05.10.2026 eigener Schwelle UND eigenem Mindestabstand
+    (``min_zeichen`` 100, ``min_abstand_s`` 20 s statt der 90 s des
+    Brainstorms -- Begruendung an ``VORGABE_MIN_ZEICHEN``).
 
     **Nach "Discussion done"** (``'ende'``, Birk 05.10.2026): der Lauf kommt
     IMMER, sobald es ueberhaupt ungelesenes Transkript gibt (mehr als null
@@ -495,6 +516,7 @@ def soll_laufen(conn, chat_id: int) -> bool:
         letzter_schnittgrund=grund,
         ist_abschluss=False,
         min_zeichen_override=min_zeichen(),
+        min_abstand_override=min_abstand_s(),
     )
 
 

@@ -30,7 +30,7 @@ GRENZE = dict(HEIMAT, begriff="Grenze", begruendung="Weil Grenze.", status="kand
 def aktiv(monkeypatch):
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
     monkeypatch.setattr(diskussion, "starte", lambda *a, **k: None)
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "1")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ABSTAND_S", "1")
 
 
 @pytest.fixture
@@ -182,7 +182,7 @@ def test_mutant_mit_dem_alten_abschlusszweig_faellt_durch(conn, einst, monkeypat
 
 def test_ende_ignoriert_den_mindestabstand_ein_pausenschnitt_nicht(conn, monkeypatch):
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "10")
-    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "3600")
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ABSTAND_S", "3600")
     a = _zeile(conn, 30, "pause")
     repo.lege_begriffsboard_an(conn, CHAT, "[]", "sovereign", a["id"])
     _zeile(conn, 31, "pause")

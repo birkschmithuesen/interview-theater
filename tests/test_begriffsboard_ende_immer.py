@@ -6,6 +6,7 @@ behalten ihre Regel. Nur erfundenes Material."""
 
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -20,7 +21,7 @@ HEIMAT = {"begriff": "Heimat", "nennungen": 2, "zustimmung": 2, "begruendung": "
 def aktiv(monkeypatch):
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
     monkeypatch.setattr(diskussion, "starte", lambda *a, **k: None)
-    monkeypatch.delenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", raising=False)   # Vorgabe 600
+    monkeypatch.delenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", raising=False)   # Vorgabe 100 (G)
 
 
 @pytest.fixture
@@ -101,7 +102,8 @@ def _kurzer_abschluss(conn):
     return _segment(conn, 12, "ende", "Ja, Heimat und Grenze.")                       # 22 + 3
 
 
-def test_kurzer_abschluss_laeuft(conn):
+def test_kurzer_abschluss_laeuft(conn, monkeypatch):
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "600")   # der Live-Wert vom 05.10. frueh
     _kurzer_abschluss(conn)
     assert repo.begriffsboard_stand(conn, CHAT)["unreagierte_zeichen"] < begriffsboard.min_zeichen()
     assert begriffsboard.soll_laufen(conn, CHAT) is True
@@ -239,3 +241,36 @@ def test_offene_segmente_einer_frueheren_sitzung_halten_nicht_auf(conn, einst, m
     aufnahme._kurz_abschliessen(conn, tg, klm, einst, ende, aufnahme._kein_zug, False)
     assert time.monotonic() - start < 2
     _warte_bis(lambda: len(tg.mit_knoepfen) == 1)
+
+
+# -- G: eigene Phase-1-Werte fuer Zwischenlaeufe (Birk 05.10.2026) -----------
+
+
+def test_phase_1_hat_eigene_vorgaben_fuer_zwischenlaeufe(monkeypatch):
+    monkeypatch.delenv("IT_BEGRIFFSBOARD_MIN_ABSTAND_S", raising=False)
+    assert begriffsboard.min_zeichen() == 100
+    assert begriffsboard.min_abstand_s() == 20
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ABSTAND_S", "45")
+    assert begriffsboard.min_abstand_s() == 45
+
+
+def test_zwischenlauf_wartet_20_statt_90_sekunden(conn, monkeypatch):
+    """Live: nach dem ersten Lauf blockierte der Brainstorm-Mindestabstand
+    (90 s) jeden weiteren -- der letzte Begriff kam nie aufs Board."""
+    monkeypatch.delenv("IT_BEGRIFFSBOARD_MIN_ABSTAND_S", raising=False)
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ABSTAND_S", "90")
+    a = _segment(conn, 10, "pause", "Heimat ist fuer mich der Ort, an dem man bleibt. " * 3)
+    repo.lege_begriffsboard_an(conn, CHAT, "[]", "sovereign", a["id"])
+    vor_30_s = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    conn.execute("UPDATE begriffsboard SET erstellt_am = ? WHERE chat_id = ?", (vor_30_s, CHAT))
+    conn.commit()
+    _segment(conn, 11, "pause", "Es ist alles so furchtbar kompliziert, sagt sie immer. " * 2)
+    assert begriffsboard.soll_laufen(conn, CHAT) is True
+
+
+def test_zwischenlauf_direkt_nach_einem_lauf_wartet_weiter(conn, monkeypatch):
+    monkeypatch.delenv("IT_BEGRIFFSBOARD_MIN_ABSTAND_S", raising=False)
+    a = _segment(conn, 10, "pause", "Heimat " * 30)
+    repo.lege_begriffsboard_an(conn, CHAT, "[]", "sovereign", a["id"])
+    _segment(conn, 11, "pause", "Grenze " * 30)
+    assert begriffsboard.soll_laufen(conn, CHAT) is False

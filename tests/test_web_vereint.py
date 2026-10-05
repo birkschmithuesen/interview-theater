@@ -448,3 +448,32 @@ def test_das_tab_js_schaltet_nur_hidden_um():
     assert "hidden" in web_vereint._VEREINT_JS
     assert "location.href =" not in web_vereint._VEREINT_JS
     assert "location.reload" not in web_vereint._VEREINT_JS
+
+
+# -- Feedbackloop S8: Verlauf faerbt an der oberen Kante zum Hintergrund aus
+
+
+def test_der_verlauf_traegt_eine_ausblendende_maske_an_der_oberen_kante(aufbau):
+    """Browserlauf ``2026-10-05-handy-giulia-p12`` (Befund S8): das
+    automatische Scrollen ans Ende (``web_chat._CHAT_JS``, nicht
+    angefasst) landet oft mitten in einer Blase -- ohne Polster wirkte das
+    wie ein ueberlappender Titel. Ein Geometrie-Fix (Padding) ist
+    content-abhaengig (laengenabhaengig immer wieder ein anderer Schnitt,
+    siehe Docstring von ``web_vereint._css_schale``); robust unabhaengig
+    von der Blasenlaenge ist nur eine Maske, die den obersten Streifen von
+    ``.verlauf`` immer zum Hintergrund ausblendet. Hier nur der textliche
+    Vertrag am ausgelieferten HTML; der visuelle Beweis (Pixelfarbe am
+    echten Chromium) steht in
+    ``tests/e2e/test_web_vereint_sticky_titel_e2e.py``."""
+    basis, token, _pfad = aufbau
+    _status, text, _kopf = _hole(f"{basis}/g/{token}")
+    # Mehrere ``.panel-chat .verlauf``-Regeln liefern Teile des Box-Modells
+    # (``css_chat()`` den ``gap``, ``_css_schale`` zuletzt Polster und die
+    # Maske -- spaetere Eigenschaften gewinnen, siehe deren Docstring).
+    bloecke = re.findall(r"\.panel-chat \.verlauf\s*\{([^{}]*)\}", text)
+    assert bloecke, "keine .panel-chat .verlauf-Regel im ausgelieferten CSS"
+    koerper = "".join(bloecke)
+    assert "mask-image:" in koerper
+    assert "linear-gradient(to bottom, transparent, black" in koerper
+    # Keine Fremdquelle (CSP-Vertrag, docs/agents/weboberflaeche.md):
+    assert "url(" not in koerper

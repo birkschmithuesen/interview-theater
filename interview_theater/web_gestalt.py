@@ -1002,8 +1002,29 @@ body { background: var(--grund); color: var(--text); }
 #: Der Denk-Cursor (``#tippt[data-ux-denkt="1"]::after``) steht am Ende --
 #: ``_JS_DENKT`` setzt nur das Attribut, die Regel dazu gehoert ins Panel,
 #: nicht in ``_BASIS`` (Aufgabe 8 ergaenzt dort noch den Aufnahmeknopf).
+#:
+#: Feedbackloop S8 (05.10.2026, Browserlauf ``2026-10-05-handy-giulia-p12``,
+#: ``100-…``/``015-…png``): ``web_chat._CHAT_JS`` haengt den Verlauf per
+#: ``verlauf.scrollTop = verlauf.scrollHeight`` ans Ende (``web_chat.py``,
+#: ``nachUnten()`` -- nicht angefasst, parallele Karte Dortmund/B1). Traf
+#: das Scroll-Ende mitten in einer Blase, endete die sichtbare Liste GENAU
+#: an der polsterlosen oberen Kante von ``.verlauf``, direkt unter dem
+#: Gruppentitel -- sieht wie ein ueberlappender/"sticky" Titel aus, ist aber
+#: die Schnittkante des Scrollbereichs selbst (der Titel ist ``position:
+#: static`` und ueberlappt nichts, gemessen per Playwright). Dieses
+#: ``padding-bottom`` verschiebt die an die Bodenkante geklammerte Ansicht
+#: um dieselbe Luft, die ohnehin zwischen zwei Blasen steht (``gap``) --
+#: eine kleine, immer sinnvolle Atempause vor dem Fuss, aber KEIN
+#: allgemeiner Beweis gegen jeden Anschnitt: bei anderer Blasenlaenge
+#: trifft die Bodenkante wieder irgendeine Blase (gemessen mit laengerem
+#: Fuelltext). Die content-unabhaengige Loesung ist die Maske auf
+#: ``.panel-chat .verlauf`` in ``web_vereint._css_schale`` (siehe deren
+#: Docstring) -- sie blendet den obersten Streifen immer zum Hintergrund
+#: aus, unabhaengig von der Blasenlaenge. Hier nur der textliche Vertrag:
+#: ``tests/test_web_gestalt_css.py``.
 _CHAT_A = """
-.verlauf { display: flex; flex-direction: column; gap: .5rem; }
+.verlauf { display: flex; flex-direction: column; gap: .5rem;
+           padding-bottom: .5rem; }
 .blase { padding: .5rem .65rem; max-width: 92%; font-size: 1rem;
          border-radius: var(--radius-gross); overflow-wrap: anywhere; }
 .blase.bot { background: var(--grund-2); border: 1px solid var(--linie);
@@ -1117,8 +1138,12 @@ _CHAT_A = """
 
 #: Der Chat, Entwurf B: Buehne. Serifenfreie Leseschrift, weiche Formen,
 #: keine Kennzeile -- Bot und Gruppe unterscheiden sich wie Repliken.
+#:
+#: ``padding-bottom`` auf ``.verlauf``: siehe die lange Begruendung bei
+#: ``_CHAT_A`` (Feedbackloop S8) -- dieselbe Luft wie ``gap``, hier .6rem.
 _CHAT_B = """
-.verlauf { display: flex; flex-direction: column; gap: .6rem; }
+.verlauf { display: flex; flex-direction: column; gap: .6rem;
+           padding-bottom: .6rem; }
 .blase { padding: .6rem .8rem; max-width: 90%; font-size: 1.0625rem;
          border-radius: var(--radius-gross); overflow-wrap: anywhere; }
 .blase.bot { background: var(--grund-2); border: 1px solid var(--linie);

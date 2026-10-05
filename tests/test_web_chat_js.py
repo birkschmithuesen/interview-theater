@@ -226,14 +226,182 @@ def test_postaudio_haengt_den_grund_an():
     assert "auftrag.grund" in ausschnitt
 
 
-def test_schneidesegment_legt_sofort_einen_nachfolger_an():
-    """Zwischen zwei Segmenten darf keine Luecke entstehen -- der neue
-    Recorder steht schon, bevor der alte onstop gefeuert hat."""
+def _schnitt_bloecke() -> dict[str, str]:
+    """Die vier Stellen, an denen ein laufendes Segment in ein neues
+    uebergeht und das alte BEHALTEN wird (Nachtfix 05.10.2026, Schnittluecke)."""
     js = web_chat._CHAT_JS
-    fn = js[js.index("function schneideSegment"):js.index("function pegelAn")]
-    vor_stop = fn.index("alt.stop()")
-    nach_stop = fn.index("sitzung.recorder = neuesSegment(sitzung)")
-    assert vor_stop < nach_stop
+    takt = js[js.index("sitzung.segmentTakt = setInterval(function () {\n"
+                       "        if (!sitzung.recorder) { return; }"):]
+    return {
+        "schneideSegment": _extrahiere(
+            js, "function schneideSegment", "function kalMedian"),
+        "kalSchneideOhneMarkierung": _extrahiere(
+            js, "function kalSchneideOhneMarkierung", "function kalSchneideAlsKalibrierung"),
+        "kalSchneideAlsKalibrierung": _extrahiere(
+            js, "function kalSchneideAlsKalibrierung", "function kalSchneideUndVerwerfen"),
+        "segmentTakt": takt[:takt.index("}, SEGMENT_MS)")],
+    }
+
+
+def test_schnitte_starten_den_nachfolger_und_stoppen_den_alten_erst_nach_ueberlappung():
+    """Nachtfix 05.10.2026 (Birk: "gehen an den Schnitten Audiodaten
+    verloren?"): bis hierher stand ``alt.stop()`` VOR
+    ``neuesSegment(sitzung)``. Gemessen (``tests/e2e/
+    test_web_chat_schnittluecke_e2e.py``) gingen je Schnitt 0-60 ms
+    verloren -- und zwar auch, wenn B nur Mikrosekunden VOR dem Stopp von A
+    startet: der Opus-Encoder wirft bei ``stop()`` den angefangenen
+    60-ms-Rahmen weg. Deshalb startet B zuerst und A stoppt erst
+    ``UEBERLAPP_MS`` spaeter (``stoppeNachUeberlappung``). Dieser Grep-Test
+    ist die Rueckfallpruefung ohne Node; die Node-Tests darunter fuehren die
+    Funktionen wirklich aus."""
+    js = web_chat._CHAT_JS
+    for name, block in _schnitt_bloecke().items():
+        neu = block.rindex("neuesSegment(sitzung)")
+        stopp = block.rindex("stoppeNachUeberlappung(alt)")
+        assert neu < stopp, name
+        assert "alt.stop()" not in block, name
+        for verboten in ("await", ".then("):
+            assert verboten not in block, (name, verboten)
+    hilfe = _extrahiere(js, "var UEBERLAPP_MS", "function schneideSegment")
+    assert re.search(r"var UEBERLAPP_MS = (\d+);", hilfe)
+    assert int(re.search(r"var UEBERLAPP_MS = (\d+);", hilfe).group(1)) >= 120, (
+        "mindestens zwei Opus-Rahmen (2 x 60 ms) Ueberlappung"
+    )
+    assert "alt.state !== 'inactive'" in hilfe   # Spur schon zu -> kein Doppelstopp
+
+
+def _recorder_harness(js: str, rumpf: str) -> str:
+    """``neuesSegment``/``pruefeEnde`` und die Schnittfunktionen WOERTLICH
+    aus dem ausgelieferten Skript, dazu ein MediaRecorder-Stub, der jeden
+    ``start()``/``stop()`` in ``log`` schreibt (Buchstaben A, B, C ... in
+    der Reihenfolge der Konstruktion)."""
+    segment = _extrahiere(js, "function neuesSegment", "// -- Modusende ohne dieses Telefon")
+    schnitt = _extrahiere(js, "var UEBERLAPP_MS", "function kalMedian")
+    kal = _extrahiere(js, "function kalSchneideOhneMarkierung", "function kalAufraeumen")
+    return f"""
+    var log = [];
+    var namen = 'ABCDEFGH';
+    var gebaut = 0;
+    function MediaRecorder(strom) {{
+      this.name = namen[gebaut++];
+      this.state = 'inactive';
+      this.strom = strom;
+    }}
+    MediaRecorder.prototype.start = function () {{
+      log.push(this.name + '.start'); this.state = 'recording';
+    }};
+    MediaRecorder.prototype.stop = function () {{
+      log.push(this.name + '.stop'); this.state = 'inactive';
+    }};
+    function Blob(teile, opt) {{ this.teile = teile; this.type = opt.type; }}
+    var zeitgeber = [];
+    function setTimeout(f, ms) {{ zeitgeber.push({{ f: f, ms: ms }}); }}
+    function laufeZeitgeber() {{
+      var z = zeitgeber.splice(0);
+      z.forEach(function (t) {{ t.f(); }});
+      return z.map(function (t) {{ return t.ms; }});
+    }}
+    var eingereiht = [];
+    function reiheEin(a) {{ eingereiht.push(a); }}
+    function gibFrei() {{}}
+    function zeigeAngehalten() {{}}
+    var mitlaufHinweisFeld = null;
+    var TEXT = {{}};
+    {segment}
+    {schnitt}
+    {kal}
+    function sitzungNeu() {{
+      return {{ strom: {{}}, recorder: null, offen: 0, beendet: false,
+               verworfen: false, angehalten: false, geparkt: [],
+               fertigEingereiht: false, naechsteNr: 0, einzureihen: 0,
+               fertige: {{}}, vadSpeechMs: 0, hinweisGezeigt: true }};
+    }}
+    {rumpf}
+    """
+
+
+def test_schneidesegment_startet_nachfolger_vor_dem_stopp_live_in_node(tmp_path):
+    node = _node_oder_skip()
+    rumpf = """
+    var s = sitzungNeu();
+    s.recorder = neuesSegment(s);
+    var A = s.recorder;
+    s.vadSpeechMs = 1234;
+    log.length = 0;
+    schneideSegment(s, 'cap');
+    var B = s.recorder;
+    var nachSchnitt = { log: log.slice(), offen: s.offen, a_state: A.state };
+    var wartezeiten = laufeZeitgeber();
+    var nachZeitgeber = log.slice();
+    // stop-Ereignis von A kommt (wie im Browser) erst danach
+    A.ondataavailable({ data: { size: 10, type: 'audio/webm' } });
+    A.onstop();
+    console.log(JSON.stringify({
+      log: nachSchnitt.log, log_nach_zeitgeber: nachZeitgeber,
+      wartezeiten: wartezeiten, a_state_nach_schnitt: nachSchnitt.a_state,
+      offen_nach_schnitt: nachSchnitt.offen,
+      offen_nach_onstop: s.offen, b_ist_recorder: B !== A && B.name === 'B',
+      a_grund: A._grund, a_rede: A._redeMs, b_state: B.state,
+      eingereiht: eingereiht.map(function (a) { return a.grund; }),
+      einzureihen: s.einzureihen, naechsteNr: s.naechsteNr,
+      speech: s.vadSpeechMs
+    }));
+    """
+    e = json.loads(_fuehre_js_aus(
+        node, _recorder_harness(web_chat._CHAT_JS, rumpf), tmp_path,
+    ).strip().splitlines()[-1])
+    # B laeuft sofort, A nimmt noch UEBERLAPP_MS weiter auf.
+    assert e["log"] == ["B.start"]
+    assert e["a_state_nach_schnitt"] == "recording"
+    assert len(e["wartezeiten"]) == 1 and e["wartezeiten"][0] >= 120
+    assert e["log_nach_zeitgeber"] == ["B.start", "A.stop"]
+    assert e["b_ist_recorder"] is True
+    assert e["b_state"] == "recording"
+    assert e["a_grund"] == "cap"
+    assert e["a_rede"] == 1234
+    assert e["speech"] == 0
+    # B zaehlt sofort, A erst mit seinem onstop ab -- nie 0 mitten im Schnitt.
+    assert e["offen_nach_schnitt"] == 2
+    assert e["offen_nach_onstop"] == 1
+    # A (nr 0) ist eingereiht, B (nr 1) laeuft noch.
+    assert e["eingereiht"] == ["cap"]
+    assert e["einzureihen"] == 1
+    assert e["naechsteNr"] == 2
+
+
+def test_kalschnitte_starten_nachfolger_vor_dem_stopp_live_in_node(tmp_path):
+    node = _node_oder_skip()
+    rumpf = """
+    var s = sitzungNeu();
+    s.recorder = neuesSegment(s);
+    log.length = 0;
+    kalSchneideOhneMarkierung(s);
+    var ohne = log.slice();
+    laufeZeitgeber();
+    ohne = { vor: ohne, nach: log.slice() };
+    log.length = 0;
+    var vorher = s.recorder;
+    kalSchneideAlsKalibrierung(s);
+    var alsVor = log.slice();
+    laufeZeitgeber();
+    var als = { vor: alsVor, log: log.slice(), markiert: !!vorher._kalibrierung };
+    log.length = 0;
+    var vorher2 = s.recorder;
+    kalSchneideUndVerwerfen(s);
+    var verw = { log: log.slice(), markiert: !!vorher2._kalVerworfen };
+    console.log(JSON.stringify({ ohne: ohne, als: als, verw: verw, offen: s.offen }));
+    """
+    e = json.loads(_fuehre_js_aus(
+        node, _recorder_harness(web_chat._CHAT_JS, rumpf), tmp_path,
+    ).strip().splitlines()[-1])
+    assert e["ohne"] == {"vor": ["B.start"], "nach": ["B.start", "A.stop"]}
+    assert e["als"]["vor"] == ["C.start"]
+    assert e["als"]["log"] == ["C.start", "B.stop"]
+    assert e["als"]["markiert"] is True
+    # Verworfenes braucht keine Ueberlappung: sofort gestoppt.
+    assert e["verw"]["log"] == ["D.start", "C.stop"]
+    assert e["verw"]["markiert"] is True
+    assert e["offen"] == 4   # kein onstop gefeuert: A..D offen
 
 
 def test_das_js_startet_weiterhin_einen_eigenen_recorder_je_segment():

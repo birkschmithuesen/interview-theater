@@ -1806,14 +1806,33 @@ _CHAT_JS = """
   // Schneidet sitzung.recorder NIE direkt -- das macht schneideSegment(),
   // das den Nachfolge-Recorder gleich mitanlegt, damit zwischen zwei
   // Segmenten keine Luecke entsteht.
+  // Nachtfix 05.10.2026 (Birk: "gehen an den Schnitten Audiodaten
+  // verloren?"): JA, gemessen 0-60 ms je Schnitt
+  // (tests/e2e/test_web_chat_schnittluecke_e2e.py). Ursache ist nicht die
+  // Reihenfolge stop/start im JS, sondern der Opus-Encoder: stop() wirft
+  // den angefangenen 60-ms-Rahmen von A weg, jedes Segment endet auf einer
+  // Rahmengrenze. Abhilfe: ERST der Nachfolger B, A laeuft UEBERLAPP_MS
+  // weiter und stoppt dann -- bis zu UEBERLAPP_MS doppeltes Audio an der
+  // Grenze (fuer Whisper harmlos) statt einer Luecke. nr von A ist schon
+  // vergeben (Einreihung bleibt in Reihenfolge), sitzung.offen zaehlt erst
+  // B hoch, dann im onstop A herunter -- /fertig wartet also auch auf A.
+  // Endet die Spur vorher (Pause/Beenden -> gibFrei), stoppt A von selbst
+  // und liefert sein Segment; der Zeitgeber findet ihn dann 'inactive'.
+  var UEBERLAPP_MS = 200;
+  function stoppeNachUeberlappung(alt) {
+    setTimeout(function () {
+      if (alt.state !== 'inactive') { alt.stop(); }   // liefert sein Segment im onstop
+    }, UEBERLAPP_MS);
+  }
+
   function schneideSegment(sitzung, grund, weichMs) {
     var alt = sitzung.recorder;
     if (!alt) { return; }
     alt._grund = grund;
     alt._redeMs = sitzung.vadSpeechMs;
     alt._weichMs = weichMs;
-    if (alt.state !== 'inactive') { alt.stop(); }   // liefert sein Segment im onstop
     sitzung.recorder = neuesSegment(sitzung);
+    stoppeNachUeberlappung(alt);
     sitzung.vadSegmentStart = Date.now();
     sitzung.vadSpeechMs = 0;
     sitzung.vadLetzteRede = sitzung.vadSegmentStart;
@@ -2277,7 +2296,9 @@ _CHAT_JS = """
   }
 
   // Drei Schnitt-Varianten, alle nach demselben Muster wie schneideSegment()
-  // (stop-current/start-next, keine Luecke) -- aber orthogonal zu ``grund``
+  // (seit dem Nachtfix 05.10.2026: start-next, dann stop-current nach
+  // UEBERLAPP_MS -- Ueberlappung statt Luecke; beim Verwerfen sofort) --
+  // aber orthogonal zu ``grund``
   // (der serverseitig gegen einen festen Wertebereich geprueft wird und
   // etwas anderes bedeutet): eine normale Grenze ohne Markierung, der
   // Testsatz-Clip selbst (r._kalibrierung) und der verworfene 30s-Rueckfall
@@ -2292,8 +2313,8 @@ _CHAT_JS = """
       return;
     }
     if (!alt) { return; }
-    if (alt.state !== 'inactive') { alt.stop(); }
     sitzung.recorder = neuesSegment(sitzung);
+    stoppeNachUeberlappung(alt);
   }
 
   function kalSchneideAlsKalibrierung(sitzung) {
@@ -2309,17 +2330,17 @@ _CHAT_JS = """
     // wieder loeschen und auf eine Antwort warten, die nie mehr kommt.
     sitzung._kalMessageId = null;
     if (sitzung._kal) { sitzung._kal.ueberschrieben = false; }
-    if (alt.state !== 'inactive') { alt.stop(); }
     // Vor dem Diskussionsstart laeuft nach der Probe KEIN Recorder weiter.
     sitzung.recorder = sitzung.kalVorStart ? null : neuesSegment(sitzung);
+    stoppeNachUeberlappung(alt);
   }
 
   function kalSchneideUndVerwerfen(sitzung) {
     var alt = sitzung.recorder;
     if (!alt) { return; }
     alt._kalVerworfen = true;
-    if (alt.state !== 'inactive') { alt.stop(); }
     sitzung.recorder = sitzung.kalVorStart ? null : neuesSegment(sitzung);
+    if (alt.state !== 'inactive') { alt.stop(); }
   }
 
   function kalAufraeumen(sitzung) {
@@ -2652,8 +2673,8 @@ _CHAT_JS = """
       sitzung.segmentTakt = setInterval(function () {
         if (!sitzung.recorder) { return; }
         var alt = sitzung.recorder;
-        alt.stop();
-        sitzung.recorder = neuesSegment(sitzung);
+        sitzung.recorder = neuesSegment(sitzung);   // erst der Nachfolger (Nachtfix)
+        stoppeNachUeberlappung(alt);
       }, SEGMENT_MS);
     }
   }

@@ -1184,9 +1184,12 @@ def test_modusende_waehrend_der_aufnahme_parkt_den_rest(seite):
     expect(seite.locator("#ptt")).to_be_visible()
     expect(seite.locator("#uhr")).to_be_hidden()
     stand = len(_posts(seite))
+    seite.wait_for_timeout(SEGMENT_MS + 2000)
+    # Erst NACH der Wartezeit zaehlen (Nachtfix Schnittluecke 05.10.2026):
+    # faellt das Modusende in die UEBERLAPP_MS nach einem Schnitt, laeuft
+    # das alte Segment noch kurz weiter und wird erst danach geparkt.
     geparkt = _geparkt(seite)
     assert geparkt >= 1
-    seite.wait_for_timeout(SEGMENT_MS + 2000)
     assert _posts(seite)[stand:] == []      # nichts still nachgeschickt, kein /fertig
     assert not _modus_an()
 

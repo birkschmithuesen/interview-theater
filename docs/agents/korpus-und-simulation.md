@@ -216,9 +216,15 @@ mit der Ursache `App oder Werkzeug – ungeklaert`.
 `board_beobachter_leer`, `stille_nach_leerem_ende`, `stille_nach_ende`,
 `werkbank_leer_phase2_gesperrt`, `chat_kennt_board_nicht`,
 `chat_nennt_board_nicht`, `chat_kennt_transkript_nicht`,
-`raumcheck_domainweit`, `verhoerer_nicht_korrigiert` (mittel),
-`p2_fragen_fehlen`, `station_nicht_erreicht:<station>`. Dazu kommt
-`pruefung_gescheitert:<haken>`: Das Werkzeug ist gescheitert, nicht die App.
+`chat_kennt_werkbank_nicht`, `raumcheck_domainweit`,
+`raumcheck_nicht_bestaetigt`, `ende_nicht_angekommen`,
+`verhoerer_nicht_korrigiert` (mittel), `p2_fragen_fehlen`,
+`p2_zaehler_inkonsistent`, `station_nicht_erreicht:<station>`. Dazu kommen
+`pruefung_gescheitert:<haken>` und `pruefung_unbekannt:<name>`: Das
+Werkzeug ist gescheitert, nicht die App. `nicht_pruefbar:<schlüssel>`
+heißt: Die Prüfung konnte nicht laufen (keine Messung, leeres Board). Das
+ist kein Bestehen; die Vergleichstabelle zeigt „nicht prüfbar“ und gibt
+kein „ja“.
 **Lauf:** `--stationen invarianten` (zwei Gruppen, drei gesprochene
 Diskussionen, Wissensfrage). `--app-wurzel <checkout>` startet Web, Bot und
 Prompt-Abzug aus einem anderen Stand, z. B. cb200e4. Danach vergleicht

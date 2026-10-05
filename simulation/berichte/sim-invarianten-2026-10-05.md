@@ -19,6 +19,11 @@
 
 ## Vergleich (`browser_abnahme vergleich`)
 
+– = nicht gemeldet; nicht prüfbar = Prüfung konnte nicht laufen. Die Tabelle
+unten stammt aus dem Lauf und kennt „nicht prüfbar“ noch nicht: Ihre „–“ bei
+„Leeres Ende-Segment“, „Chat kennt Board nicht“ und „Raumcheck domainweit“
+heißen nicht „behoben“ (siehe unten).
+
 | Befund | vorher (cb200e4) | nachher (551e61f) | erwartet |
 |---|---|---|---|
 | Board-Schwelle (Board leer bzw. liest Transkript nicht) | gemeldet (hoch) | gemeldet (hoch) | vorher gemeldet, nachher weg |
@@ -61,8 +66,19 @@ nicht Birks Board-Schwelle. Den Schwellen-Fix kann dieser Lauf deshalb weder
 bestätigen noch widerlegen. Weil das Board in beiden Ständen leer blieb, waren
 auch „Chat kennt Board nicht“ und der Verhörer-Check nicht prüfbar. Ohne
 bestätigte Messung gab es keine `vad_*`-Schlüssel, also war auch „Raumcheck
-domainweit“ nicht prüfbar. Diese Zeilen fehlen in vorher; ein Werkzeugfehler
-ist das nicht.
+domainweit“ nicht prüfbar. Diese Zeilen fehlen in vorher.
+
+Die Ursache liegt teils am Werkzeug, teils an der App:
+
+- **Werkzeug:** Das Persona-Budget für `p1-kalibrierung` (6 Schritte) war zu
+  klein, und das Fertig-Prädikat (eine Kalibrier-Aufnahme genügt) war zu
+  schwach. Es meldete die Station als erreicht, ohne dass der Raumcheck
+  bestätigt war.
+- **App:** Das verlorene `ende` ohne VAD ist ein echter App-Fehler. Geprüft ist
+  das am HEAD `web_chat.py:2908` und an cb200e4 `:2871`
+  (`if (letzter && sitzung.vadAktiv)`). Live trifft das jede Gruppe, die den
+  Raumcheck überspringt. Dazu ist der Boardlauf mitten in der Diskussion
+  gesperrt, weil er einen `pause`-Schnitt verlangt (`brainstorm.py:85`).
 
 Belegt umgesetzt ist nachher: **Chat kennt Transkript**. Vorher standen von 2
 sichtbaren Transkriptblasen 0 im Gesprächsprompt, nachher liegt kein Befund vor.
@@ -100,10 +116,13 @@ CHF-Betrag nicht enthalten. Whisper ist ebenfalls nicht in `aufruf` erfasst.
 - `p1-kalibrierung` und `p1-zuhoeren` haben nachher keine Richternote (`note` = null). Einen
   `pruefung_gescheitert:nachbereitung` gab es nicht.
 
-## Verhörer (foam → home)
+## Verhörer (Skript: night shed → night shift; beobachtet: foam → home)
 
-Die Invariante `verhoerer_nicht_korrigiert` braucht ein Board. Vorher und nachher war das Board
-leer, die Invariante wurde also **nicht ausgewertet**.
+Der geskriptete Verhörer der Station `p1-zuhoeren-2` ist „night shed → night shift“
+(`diskussionen.DISKUSSIONEN["verhoerer"]`). Die Invariante `verhoerer_nicht_korrigiert` braucht
+ein Board. Vorher und nachher war das Board leer, „night shed → night shift“ war also **nicht
+prüfbar** (leeres Board). Die Beobachtungen unten zu foam → home betreffen einen ungeplanten
+Verhörer aus der Spracherkennung, nicht das Skript.
 
 - Lauf 1 (125111, cb200e4): Das Board trug „home“ mit dem Zitat „feeling of foam“. Das
   Board-Modell hatte den Verhörer also schon korrigiert; kein Befund.
@@ -171,3 +190,10 @@ Bestätigt.
      nicht erkennbar.
 4. **Werkzeug:** Die Budgets für `p1-kalibrierung` (6) reichen für einen vollständigen
    Raumcheck mit verstümmeltem Testsatz nicht.
+5. App-Fehler (eigene Karte, Birk entscheidet): Ende-Signal geht ohne aktiven VAD verloren
+   (web_chat.py beendeDiskussion; ebenso :2805/:3033/:3085 und pegelAn-Abbruch :1783) – Gruppe
+   ohne Raumcheck bekommt kein Board und keine Antwort.
+6. Harness gehärtet nach dem Lauf: nicht_pruefbar, ende_nicht_angekommen,
+   raumcheck_nicht_bestaetigt – noch nicht in einem bezahlten Lauf erprobt. Dazu: Budget
+   `p1-kalibrierung` 6 → 10, und die Zeile „Leeres Ende-Segment“ zählt nachher auch
+   `stille_nach_ende`.

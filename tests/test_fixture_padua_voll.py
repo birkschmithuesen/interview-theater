@@ -5,6 +5,8 @@ Prompt-Dump ueberhaupt etwas messen kann (Birk, 05.10.2026 00:40): gegen eine
 frische Datenbank zeigt sich keiner der Befunde, die am 06.09.2026 gemessen
 wurden.
 """
+import json
+
 import pytest
 
 from interview_theater import db, kontext, repo
@@ -116,3 +118,74 @@ def test_fixture_nennt_kein_betriebsverzeichnis():
     quelle = inspect.getsource(fix)
     for wort in ("betrieb/", "soap.db", "IT_DB"):
         assert wort not in quelle, wort
+
+
+# --- P1-L7: Fixture-Artefakte, die der Prompt-Pruefer faelschlich als ------
+# Produktbefund liest (docs/prompt-audit/2026-10-05-padua-p12/lesung.json) ---
+
+#: Woertlich die Zeilen, die am 05.10. als "reines Rauschen" am Fensteranfang
+#: gelesen wurden -- nach dem Fix muss keine davon mehr das erste Fensterglied
+#: sein (``_GRUNDVERLAUF`` legt das abgeschnittene Rauschen jetzt nach vorn).
+_ORPHAN_UND_RAUSCHEN = (
+    "In the work status tab. Everything saved is there.",
+    "is anyone writing this down",
+    "my phone went to sleep",
+    "mine too, annoying",
+)
+
+
+def test_fenster_beginnt_nicht_mit_verwaistem_rauschen(conn):
+    """P1-L7: der Pruefer fand das Fenster beginnend mit einer Bot-Antwort
+    ohne die Frage davor ("In the work status tab...", Frage abgeschnitten),
+    gefolgt von acht Zuegen reinem Rauschen (Handy schlaeft ein, "is anyone
+    writing this down"). Reines Rauschen soll immer vorn in ``_GRUNDVERLAUF``
+    liegen -- dort, wo das Fenster ohnehin abschneidet."""
+    for phase in fix.PHASEN:
+        befund = fix.fensterbefund(conn, fix.chat_id_fuer(phase))
+        erste = befund["erste_zeile_text"]
+        for satz in _ORPHAN_UND_RAUSCHEN:
+            assert satz not in erste, (phase, erste)
+
+
+def test_board_begruendung_ist_keine_blosse_erwaehnung(conn):
+    """P1-L7: die Board-Beispielzeile "the group returns to it twice" verstoesst
+    gegen die eigene Regel im Schema-Prompt ("No begruendung that only says
+    the term was named, collected or suggested") -- ein Beispiel, das die
+    Regel bricht, lehrt dem Modell, sie zu brechen."""
+    chat_id = fix.chat_id_fuer(1)
+    zeile = conn.execute(
+        "SELECT json FROM begriffsboard WHERE chat_id=? ORDER BY id DESC LIMIT 1",
+        (chat_id,),
+    ).fetchone()
+    board = json.loads(zeile["json"])
+    eintrag = next(e for e in board if e["begriff"] == "waiting")
+    begruendung = eintrag["begruendung"].lower()
+    assert begruendung
+    for verboten in ("returns to it", "mentioned", "named", "collected", "suggested"):
+        assert verboten not in begruendung, eintrag["begruendung"]
+
+
+#: Journal-Saetze, die nur Sinn ergeben, wenn Geschichte/Szenen schon stehen
+#: (Phase 4+) -- in Phase 1 widersprechen sie dem Arbeitsstand und stehen mit
+#: mehr Gewicht als die Begriffsliste im Prompt (lesung.json Zeile 524).
+_SPAETPHASEN_JOURNAL_WOERTER = ("story as short story", "fourth scene", "platform")
+
+
+def test_journal_in_phase1_nennt_keine_spaetphaseninhalte(conn):
+    chat_id = fix.chat_id_fuer(1)
+    texte = [z["text"] for z in repo.journal(conn, chat_id)]
+    assert texte
+    for text in texte:
+        tief = text.lower()
+        for wort in _SPAETPHASEN_JOURNAL_WOERTER:
+            assert wort not in tief, (text, wort)
+
+
+def test_spaetphasenjournal_kommt_erst_wenn_die_geschichte_da_ist(conn):
+    """Dieselben Saetze duerfen weiterhin stehen, sobald die Phase dazu passt
+    -- die Fixture soll das Material nicht verlieren, nur phasengerecht
+    einordnen."""
+    frueh = [z["text"].lower() for z in repo.journal(conn, fix.chat_id_fuer(1))]
+    spaet = [z["text"].lower() for z in repo.journal(conn, fix.chat_id_fuer(6))]
+    assert not any("story as short story" in t for t in frueh)
+    assert any("story as short story" in t for t in spaet)

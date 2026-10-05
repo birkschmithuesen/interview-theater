@@ -686,3 +686,14 @@ def test_alle_module_sind_umgestellt():
     """Aufgabe 17: ab jetzt gilt der Waechter fuer das ganze Paket -- jedes
     Modul mit Nutzertexten liest ueber ``T``."""
     assert UMGESTELLT == ALLE_MODULE
+
+
+def test_phasenhinweis_beispiel_ist_phasenneutral():
+    """P34 Runde 1, Befund A6 (= L4-6, Dump 07-gespraech-phase4.txt:638):
+    das feste Beispiel "Are more interviews coming, or shall we move on?"
+    passt nur zum Schritt 3->4 und stand auch in Phase 4 (interview-frei).
+    Nur Englisch: die DE-Konstante steht in kontext.py (Parallel-Worktree
+    robo-fbl, Dortmund eingefroren)."""
+    text = _tabelle()["kontext"]["_PHASENHINWEIS"]
+    assert "interview" not in text.lower()
+    assert "{bezeichnung}" in text

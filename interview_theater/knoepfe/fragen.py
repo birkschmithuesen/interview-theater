@@ -46,13 +46,6 @@ from interview_theater.knoepfe.basis import (
     _starte_auftrag, sende_notiert_nur_undo,
 )
 
-#: Mindestzahl eigener Fragen je Begriff, ab der die Gegenueberstellung
-#: automatisch startet (KORREKTUR-PHASE2-KEIN-KNOPF.md: "Sobald fuer JEDEN
-#: Begriff >= 3 eigene Fragen gespeichert sind"). Reine Code-Konstante, keine
-#: Nutzertext-Konstante -- deshalb hier und nicht in ``knoepfe/texte.py``.
-MINDESTANZAHL_EIGENE_FRAGEN = 3
-
-
 # --- Die vorgeschlagene Liste und ihr Zustand ------------------------------
 
 
@@ -291,24 +284,13 @@ def _ohne_weich_auftrag(anweisung: str) -> str:
 # --- Eigene Fragen vs. KI (Padua Phase 1+2 Karte, Aufgabe 13, 03.10.2026) ---
 #
 # KORREKTUR 10:25 (Birk, KORREKTUR-PHASE2-KEIN-KNOPF.md): KEIN "Fertig"-
-# Knopf. Sobald JEDER Begriff >= MINDESTANZAHL_EIGENE_FRAGEN eigene Fragen
-# hat (reine Code-Pruefung, kein Modellaufruf), startet die
-# Gegenueberstellung automatisch; bis dahin eine knappe Stand-Zeile. Will
-# die Gruppe frueher weiter, erkennt das ``_fruehzeitig_fertig`` an einem
-# woertlichen Satz, den das Padua-Profil-Prompt das Modell sagen laesst --
-# keine neue, bezahlte Erkenner-Art.
-
-
-def _begriffe_der_gruppe(conn, chat_id: int) -> list[str]:
-    """``arbeitsstand.begriffe`` zerlegt -- derselbe Leser wie
-    ``fragen_ki._nutzertext``, nur ueber die Datenbank statt als
-    durchgereichter Parameter."""
-    stand = repo.hole_arbeitsstand(conn, chat_id)
-    try:
-        roh = (stand["begriffe"] if stand else "") or ""
-    except (IndexError, KeyError):
-        roh = ""
-    return begriffe_modul.zerlege(roh)
+# Knopf. Seit dem Live-Test 05.10.2026 (Birk: "Anzahl entscheidet die
+# Gruppe") auch keine Mindestzahl je Begriff mehr: die Gegenueberstellung
+# startet, wenn die Gruppe sagt, dass sie fertig ist -- ``_fruehzeitig_fertig``
+# erkennt das an einem woertlichen Satz, den das Padua-Profil-Prompt das
+# Modell sagen laesst (keine neue, bezahlte Erkenner-Art). Was je Begriff
+# schon steht, zeigt der CoThinker (``roadmap.fragenuebersicht``), nicht der
+# Chat.
 
 
 def _zeilen_je_begriff(begriffe: list[str], zeilen: list[str]) -> dict[str, list[str]]:
@@ -382,11 +364,10 @@ def _platt(text: str) -> str:
 
 
 def _fruehzeitig_fertig(text: str | None) -> bool:
-    """Erkennt den Wunsch der Gruppe, frueher zur Gegenueberstellung zu
-    wechseln, bevor jeder Begriff ``MINDESTANZAHL_EIGENE_FRAGEN`` eigene
-    Fragen hat (KORREKTUR-PHASE2-KEIN-KNOPF.md: "Will die Gruppe frueher
-    weiter (spricht/schreibt es), erkennt das der Erkenner/Chat und startet
-    die Gegenueberstellung trotzdem").
+    """Erkennt, dass die Gruppe mit ihren eigenen Fragen fertig ist und zur
+    Gegenueberstellung will (KORREKTUR-PHASE2-KEIN-KNOPF.md; seit dem
+    05.10.2026 der einzige Ausloeser -- es gibt keine Mindestzahl je Begriff
+    mehr, die Anzahl entscheidet die Gruppe).
 
     KEIN Modellaufruf und KEINE neue Erkenner-Art hier: das Padua-Profil-
     Prompt (``workshop/padua-2026/prompts/phasen/2.md``) laesst das
@@ -439,9 +420,15 @@ def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
             eigene_roh = (stand["fragen_eigene_vorschlag"] or "").strip()
             ki_roh = (stand["fragen_ki_vorschlag"] or "").strip()
             begriffe_feld = (stand["begriffe"] or "") if stand else ""
+            eigene_fertig = bool(stand["fragen_eigene_erstellt_am"])
         except (IndexError, KeyError):
             return None
-        if not eigene_roh or not ki_roh:
+        # Die eigene Seite steht erst, wenn die Gruppe fertig gesagt hat
+        # (``uebernimm_eigene`` setzt dann ``fragen_eigene_erstellt_am``) --
+        # nicht schon mit der ersten eigenen Frage. Sonst offenbarte ein
+        # spaet fertiger KI-Lauf mitten ins Sammeln hinein (05.10.2026: seit
+        # es keine Mindestzahl mehr gibt, ist "fertig" allein ihre Ansage).
+        if not eigene_roh or not ki_roh or not eigene_fertig:
             return None
 
         from interview_theater import vorschlag
@@ -483,36 +470,23 @@ def uebernimm_eigene(conn, tg, chat_id: int, wert: str, text: str | None = None)
     Ueberschreibt ``fragen_eigene_vorschlag`` bei jedem Aufruf vollstaendig
     -- der Block IST die ganze Liste, kein Zuwachs.
 
-    Danach die Code-Pruefung ohne Modellaufruf: hat jeder Begriff
-    mindestens ``MINDESTANZAHL_EIGENE_FRAGEN`` eigene Fragen (oder hat die
-    Gruppe explizit frueher Schluss gesagt, ``_fruehzeitig_fertig``), startet
-    automatisch die Gegenueberstellung mit den KI-Fragen
-    (``versuche_gegenueberstellung``). Sonst eine knappe Stand-Zeile, kein
-    Draengen. Kein Modellaufruf hier selbst (Zusage 2)."""
+    Hat die Gruppe gesagt, dass sie fertig ist (``_fruehzeitig_fertig``),
+    startet die Gegenueberstellung mit den KI-Fragen
+    (``versuche_gegenueberstellung``). Sonst geht die eigene Antwort des
+    Modells (``text``, ohne den Block) in den Chat -- seit dem Live-Test
+    05.10.2026 statt der Stand-Zeile "Still missing: Begriff (x/3)", die sich
+    nach jeder Bestaetigung wiederholte und eine Soll-Zahl nannte, die es
+    nicht geben soll (Birk: die Anzahl entscheidet die Gruppe). Was je
+    Begriff steht, zeigt der CoThinker. Ohne Antworttext ein kurzer Verweis
+    dorthin. Kein Modellaufruf hier selbst (Zusage 2)."""
     from interview_theater import vorschlag
 
     zeilen = vorschlag.zeilen(wert)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_eigene_vorschlag", "\n".join(zeilen))
 
-    begriffe = _begriffe_der_gruppe(conn, chat_id)
-    je_begriff = _zeilen_je_begriff(begriffe, zeilen)
-    fehlend = [
-        b for b in begriffe
-        if len(je_begriff.get(b, [])) < MINDESTANZAHL_EIGENE_FRAGEN
-    ]
-    bereit = not fehlend or _fruehzeitig_fertig(text)
-
-    if not bereit:
-        stand_zeile = ", ".join(
-            T._TEXT_FRAGEN_EIGENE_OFFEN_ZEILE.format(
-                begriff=b, anzahl=len(je_begriff.get(b, [])),
-                ziel=MINDESTANZAHL_EIGENE_FRAGEN,
-            )
-            for b in fehlend
-        )
-        return tg.sende(
-            chat_id, T._TEXT_FRAGEN_EIGENE_OFFEN.format(begriffe=stand_zeile),
-        )
+    if not _fruehzeitig_fertig(text):
+        antwort = (text or "").strip()
+        return tg.sende(chat_id, antwort or T._TEXT_FRAGEN_EIGENE_IM_COTHINKER)
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
     try:

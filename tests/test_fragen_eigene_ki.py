@@ -2,14 +2,15 @@
 ``knoepfe.fragen.uebernimm_eigene``/``versuche_gegenueberstellung`` -- der
 A/B-Vergleich eigene-vs-KI-Fragen in Phase 2, OHNE "Fertig"-Knopf.
 
-Der Code prueft nach jedem Speichern eigener Fragen (``VORSCHLAG EIGENE
-FRAGEN:``), ob jeder Begriff mindestens ``MINDESTANZAHL_EIGENE_FRAGEN`` hat,
-und startet dann selbst die Gegenueberstellung mit den isoliert im
-Hintergrund erzeugten KI-Fragen (``fragen_ki.py``, Aufgabe 12). Will die
-Gruppe frueher weiter, erkennt das ``_fruehzeitig_fertig`` an einem
-woertlichen Satz, den das Padua-Profil-Prompt das Modell sagen laesst --
-keine neue, bezahlte Erkenner-Art."""
+Der Code speichert nach jedem Zug die eigenen Fragen (``VORSCHLAG EIGENE
+FRAGEN:``) und startet die Gegenueberstellung mit den isoliert im
+Hintergrund erzeugten KI-Fragen (``fragen_ki.py``, Aufgabe 12), sobald die
+Gruppe fertig ist -- erkannt von ``_fruehzeitig_fertig`` an einem
+woertlichen Satz, den das Padua-Profil-Prompt das Modell sagen laesst
+(keine neue, bezahlte Erkenner-Art). Seit 05.10.2026 ohne Mindestzahl je
+Begriff (Birk: die Anzahl entscheidet die Gruppe)."""
 
+import re
 import threading
 import time
 
@@ -191,7 +192,12 @@ def test_uebernimm_eigene_ueberschreibt_statt_anzuhaengen(conn, einst, monkeypat
 # ---------------------------------------------------------------------------
 
 
-def test_unter_der_mindestzahl_kommt_nur_eine_stand_zeile_kein_reveal(conn, einst, monkeypatch):
+def test_ohne_fertig_satz_geht_die_antwort_des_modells_raus_keine_stand_zeile(
+    conn, einst, monkeypatch,
+):
+    """Live-Test 05.10.2026 (Birk): statt "Still missing: Begriff (x/3)"
+    nach jeder Bestaetigung geht die eigene Antwort des Modells in den Chat
+    -- ohne Soll-Zahl. Der Stand je Begriff steht im CoThinker."""
     aufrufe = []
     monkeypatch.setattr(
         fragen, "versuche_gegenueberstellung",
@@ -200,30 +206,31 @@ def test_unter_der_mindestzahl_kommt_nur_eine_stand_zeile_kein_reveal(conn, eins
     _setze_begriffe(conn, "Heimat, Streit")
     tg = _TG()
 
-    wert = (
-        "Heimat: Frage eins.\nHeimat: Frage zwei.\nHeimat: Frage drei.\n"
-        "Streit: Frage A.\nStreit: Frage B."
-    )
-    fragen.uebernimm_eigene(conn, tg, CHAT, wert)
+    wert = "Heimat: Frage eins.\nStreit: Frage A."
+    fragen.uebernimm_eigene(conn, tg, CHAT, wert, text="Gute Frage zu Heimat!")
 
-    assert aufrufe == []  # kein Reveal-Versuch, solange nicht bereit
+    assert aufrufe == []
     assert _feld(conn, CHAT, "fragen_eigene_erstellt_am") is None
-    assert tg.gesendet
-    letzter_text = tg.gesendet[-1][1]
-    assert "Streit" in letzter_text
-    assert "Heimat" not in letzter_text  # Heimat hat schon drei, steht nicht im Rueckstand
-    assert letzter_text == T._TEXT_FRAGEN_EIGENE_OFFEN.format(
-        begriffe=T._TEXT_FRAGEN_EIGENE_OFFEN_ZEILE.format(
-            begriff="Streit", anzahl=2, ziel=3,
-        ),
-    )
+    assert [t for _, t in tg.gesendet] == ["Gute Frage zu Heimat!"]
+    assert not any(re.search(r"\(\d+/\d+\)", t) for _, t in tg.gesendet)
 
 
-def test_grenzfall_dritte_frage_loest_automatisch_aus_zweite_nicht(conn, einst, monkeypatch):
-    """Das Kartenversprechen woertlich: Bedingung erfuellt -> Gegenueber-
-    stellung laeuft (genau einmal versucht); Mutant '>= 2 statt >= 3' soll
-    diesen Test rot machen (siehe Taskbericht fuer den tatsaechlichen
-    Mutationslauf)."""
+def test_ohne_antworttext_nur_der_verweis_auf_den_cothinker(conn, einst, monkeypatch):
+    monkeypatch.setattr(fragen, "versuche_gegenueberstellung", lambda *a, **k: None)
+    _setze_begriffe(conn, "Heimat")
+    tg = _TG()
+
+    fragen.uebernimm_eigene(conn, tg, CHAT, "Heimat: Frage eins.", text="  ")
+
+    assert [t for _, t in tg.gesendet] == [T._TEXT_FRAGEN_EIGENE_IM_COTHINKER]
+
+
+def test_keine_mindestzahl_drei_fragen_je_begriff_loesen_nichts_automatisch_aus(
+    conn, einst, monkeypatch,
+):
+    """Birk, 05.10.2026: die Anzahl entscheidet die Gruppe. Auch drei (oder
+    mehr) Fragen je Begriff starten die Gegenueberstellung NICHT von selbst
+    -- nur der Satz, mit dem das Modell meldet, dass die Gruppe fertig ist."""
     aufrufe = []
     monkeypatch.setattr(
         fragen, "versuche_gegenueberstellung",
@@ -231,16 +238,14 @@ def test_grenzfall_dritte_frage_loest_automatisch_aus_zweite_nicht(conn, einst, 
     )
     _setze_begriffe(conn, "Heimat")
     tg = _TG()
+    wert = "Heimat: Frage eins.\nHeimat: Frage zwei.\nHeimat: Frage drei."
 
-    # Zweite Frage: NICHT bereit.
-    fragen.uebernimm_eigene(conn, tg, CHAT, "Heimat: Frage eins.\nHeimat: Frage zwei.")
+    fragen.uebernimm_eigene(conn, tg, CHAT, wert, text="Noch eine?")
     assert aufrufe == []
     assert _feld(conn, CHAT, "fragen_eigene_erstellt_am") is None
 
-    # Dritte Frage (die ganze, kumulative Liste wird neu geschickt): bereit.
     fragen.uebernimm_eigene(
-        conn, tg, CHAT,
-        "Heimat: Frage eins.\nHeimat: Frage zwei.\nHeimat: Frage drei.",
+        conn, tg, CHAT, wert, text="Alles klar. Eigene Fragen fertig.",
     )
     assert len(aufrufe) == 1
     assert _feld(conn, CHAT, "fragen_eigene_erstellt_am")
@@ -254,13 +259,14 @@ def test_erstellt_am_wird_nur_einmal_gesetzt(conn, einst, monkeypatch):
     _setze_begriffe(conn, "Heimat")
     tg = _TG()
     wert = "Heimat: Frage eins.\nHeimat: Frage zwei.\nHeimat: Frage drei."
+    fertig = "Eigene Fragen fertig."
 
-    fragen.uebernimm_eigene(conn, tg, CHAT, wert)
+    fragen.uebernimm_eigene(conn, tg, CHAT, wert, text=fertig)
     erster_zeitstempel = _feld(conn, CHAT, "fragen_eigene_erstellt_am")
     assert erster_zeitstempel
 
     time.sleep(0.01)
-    fragen.uebernimm_eigene(conn, tg, CHAT, wert)
+    fragen.uebernimm_eigene(conn, tg, CHAT, wert, text=fertig)
     zweiter_zeitstempel = _feld(conn, CHAT, "fragen_eigene_erstellt_am")
     assert zweiter_zeitstempel == erster_zeitstempel
 
@@ -273,6 +279,7 @@ def test_bereit_ohne_ki_schickt_warte_hinweis(conn, einst, monkeypatch):
     fragen.uebernimm_eigene(
         conn, tg, CHAT,
         "Heimat: Frage eins.\nHeimat: Frage zwei.\nHeimat: Frage drei.",
+        text="Eigene Fragen fertig.",
     )
     assert tg.gesendet[-1][1] == T._TEXT_FRAGEN_EIGENE_WARTET_AUF_KI
 
@@ -350,6 +357,21 @@ def _bereite_gegenueberstellung_vor(conn) -> None:
         "Heimat: KI Frage 1.\nHeimat: KI Frage 2.\nHeimat: KI Frage 3.\n"
         "Streit: KI Frage 1.\nStreit: KI Frage 2.\nStreit: KI Frage 3.",
     )
+    # Die Gruppe hat gesagt, dass sie fertig ist (``uebernimm_eigene``).
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_eigene_erstellt_am", repo._jetzt())
+
+
+def test_kein_reveal_solange_die_gruppe_nicht_fertig_ist(conn):
+    """05.10.2026: ein KI-Lauf, der fertig wird, waehrend die Gruppe noch
+    sammelt, offenbart nicht mitten hinein -- die eigene Seite steht erst
+    mit ``fragen_eigene_erstellt_am``."""
+    _bereite_gegenueberstellung_vor(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_eigene_erstellt_am", None)
+    tg = _TG()
+
+    assert fragen.versuche_gegenueberstellung(conn, tg, CHAT) is None
+    assert not _feld(conn, CHAT, "fragen_auswahl")
+    assert tg.gesendet == []
 
 
 def test_reveal_interleaved_eigene_vor_ki_je_begriff_mit_ausgerichteter_herkunft(conn):

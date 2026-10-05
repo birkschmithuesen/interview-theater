@@ -650,6 +650,8 @@ def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | No
                 "verworfen, chat_id=%s", chat_id,
             )
             return None
+        if _fragen_sammeln(conn, chat_id):
+            return _haenge_fragen_an(conn, chat_id, art, wert)
     if feld == "rahmen" and _ist_geschichte(wert):
         # **Der Rahmen ist das SETTING, nicht die Handlung** (06.09.2026,
         # Birk 11:42, live gemessen: der Erkenner schrieb einen
@@ -674,6 +676,47 @@ def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | No
 
         begriffsboard.schreibe_detail(conn, chat_id, wert)
     return {"art": art, "wert": wert}
+
+
+def _fragen_sammeln(conn, chat_id: int) -> bool:
+    """Padua Phase 1/2 (``workshop.autosave_phase1_2_aktiv``): ein
+    ``fragen_setzen`` haengt an statt zu ueberschreiben (Live-Befund
+    05.10.2026, Gruppe 2: zwei bestaetigte Fragen nacheinander, im Feld stand
+    nur die zweite). Dort bestaetigt die Gruppe Frage fuer Frage, und jede
+    📌-Zeile meint EINE Frage, nicht die ganze Liste. Dortmund und das
+    Vorgabeprofil ueberschreiben wie bisher."""
+    from interview_theater import phasen, workshop
+
+    return (
+        workshop.autosave_phase1_2_aktiv()
+        and phasen.aktuelle(conn, chat_id) in (1, 2)
+    )
+
+
+def _haenge_fragen_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
+    """Haengt jede Zeile von ``wert``, die noch nicht in ``fragen`` steht
+    (Gross-/Kleinschreibung und Leerraum egal), als eigene Zeile an.
+
+    Gemeldet wird nur das Neue -- die 📌-Zeile nennt die eine bestaetigte
+    Frage, nicht die ganze Liste. Undo braucht keinen eigenen Weg: der
+    Schnappschuss um ``wende_an`` stellt genau den Stand vor diesem Lauf
+    wieder her, also faellt genau die zuletzt angehaengte Frage weg."""
+    from interview_theater import vorschlag
+
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    bisher = vorschlag.zeilen((stand["fragen"] if stand else None) or "")
+    gesehen = {re.sub(r"\s+", " ", z).strip().casefold() for z in bisher}
+    neu = []
+    for zeile in vorschlag.zeilen(wert):
+        schluessel = re.sub(r"\s+", " ", zeile).strip().casefold()
+        if schluessel in gesehen:
+            continue
+        gesehen.add(schluessel)
+        neu.append(zeile)
+    if not neu:
+        return None
+    repo.setze_arbeitsstand(conn, chat_id, "fragen", "\n".join(bisher + neu))
+    return {"art": art, "wert": "\n".join(neu)}
 
 
 #: Anzahl Szenen: vernuenftige Grenzen fuer einen Workshop-Abend.

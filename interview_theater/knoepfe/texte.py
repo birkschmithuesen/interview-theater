@@ -846,18 +846,15 @@ _TEXT_FRAGE_ENTSCHIEDEN = "Notiert"
 #
 # KORREKTUR 10:25 (Birk, KORREKTUR-PHASE2-KEIN-KNOPF.md): KEIN "Fertig"-
 # Knopf. ``VORSCHLAG EIGENE FRAGEN:`` ist die vollstaendige, kumulative
-# Liste der eigenen Fragen -- der Code prueft nach jedem Speichern
-# (``knoepfe.fragen.uebernimm_eigene``), ob jeder Begriff genug eigene
-# Fragen hat, und startet dann selbst die Gegenueberstellung mit den
-# KI-Fragen (``knoepfe.fragen.versuche_gegenueberstellung``).
+# Liste der eigenen Fragen -- der Code speichert sie nach jedem Zug
+# (``knoepfe.fragen.uebernimm_eigene``) und startet die Gegenueberstellung
+# mit den KI-Fragen (``knoepfe.fragen.versuche_gegenueberstellung``), sobald
+# die Gruppe sagt, dass sie fertig ist.
 
-#: Die knappe Stand-Zeile, solange noch nicht jeder Begriff genug eigene
-#: Fragen hat -- kein Draengen, nur der Stand (Korrektur-Wortlaut: "Still
-#: missing: <term> 1, <term> 2").
-_TEXT_FRAGEN_EIGENE_OFFEN = "Noch offen: {begriffe}"
-#: Eine Zeile je Begriff mit Rueckstand, eingesetzt in
-#: ``_TEXT_FRAGEN_EIGENE_OFFEN`` (komma-getrennt).
-_TEXT_FRAGEN_EIGENE_OFFEN_ZEILE = "{begriff} ({anzahl}/{ziel})"
+#: Steht neben dem Block kein Antworttext, nur dieser Verweis -- der Stand je
+#: Begriff steht im CoThinker, ohne Soll-Zahl (Birk, 05.10.2026; vorher hier
+#: "Noch offen: Begriff (x/3)" nach jeder Bestaetigung).
+_TEXT_FRAGEN_EIGENE_IM_COTHINKER = "Notiert. Eure Fragen je Begriff stehen im CoThinker."
 #: Gespeichert, aber die KI-Fragen sind noch nicht da -- der Reveal kommt
 #: automatisch, sobald der Hintergrundlauf fertig ist (``fragen_ki.starte``).
 _TEXT_FRAGEN_EIGENE_WARTET_AUF_KI = (
@@ -876,8 +873,8 @@ _TEXT_HERKUNFT_EIGEN = " (eure)"
 _TEXT_HERKUNFT_KI = " (KI)"
 #: Der Satz, den das Padua-Profil-Prompt
 #: (``workshop/padua-2026/prompts/phasen/2.md``) das Modell woertlich sagen
-#: laesst, wenn die Gruppe frueher zur Gegenueberstellung will, bevor jeder
-#: Begriff drei eigene Fragen hat -- KEIN Marker (Marker werden nicht
+#: laesst, wenn die Gruppe mit ihren eigenen Fragen fertig ist und zur
+#: Gegenueberstellung will -- KEIN Marker (Marker werden nicht
 #: uebersetzt, siehe ``vorschlag.py``), ein gewoehnlicher Satz im
 #: Fliesstext, deshalb braucht er eine EN-Fassung
 #: (``sprachen/en/texte.toml``, geprueft von ``_fruehzeitig_fertig``

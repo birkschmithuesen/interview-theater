@@ -1992,6 +1992,15 @@ _ZEITFORMAT_DASHBOARD = "%d.%m.%Y %H:%M · "
 #: Das Dezimalzeichen der Mediandauer: deutsch "5,1 s", englisch "5.1 s".
 _DEZIMALZEICHEN = ","
 
+#: Der Ticker-Tab (Padua, 05.10.2026): nur sichtbar, wenn IT_WEB_TICKER_DATEI
+#: gesetzt ist -- ohne die Variable bleibt das Dashboard byte-gleich
+#: (Dortmund setzt sie nie, siehe ``ticker_html``/``dashboard_html``).
+_TEXT_TAB_TICKER = "Ticker"
+_TITEL_TICKER = "interview_theater — Ticker"
+_UEBERSCHRIFT_TICKER = "Regie-Ticker"
+_TEXT_TICKER_AUS = "Ticker aus."
+_TEXT_TICKER_LEER = "Noch keine Einträge."
+
 #: Wie ein Aufnahmestatus auf dem Dashboard heisst -- Schluessel ist der
 #: Datenbankwert (``aufnahme.status``, Protokoll), deutsch der Wert selbst
 #: (K4). Ein unbekannter Status bleibt als Rohwert stehen.
@@ -2179,12 +2188,17 @@ def _ergebnisse_html(kurzformen: list[dict]) -> str:
     return f'<ul class="ergebnisse">{zeilen}</ul>'
 
 
-def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
+def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX, token: str = "") -> str:
     """Das projizierte Team-Dashboard aus web_daten.dashboard().
 
     ``praefix`` baut den Link zur Gruppenseite (Birk 04.09.: je Gruppe ein
     Link) -- relativ zum Server, damit er hinter nginx genauso geht wie
     direkt auf Port 8010.
+
+    ``token`` ist der Dashboard-Token aus der Route -- nur damit UND mit
+    ``IT_WEB_TICKER_DATEI`` gesetzt erscheint der "Ticker"-Tab (Padua,
+    05.10.2026). Ohne Token (Vorgabe) oder ohne die Variable bleibt die
+    Seite byte-gleich wie vorher -- Dortmund setzt die Variable nie.
 
     Mit ``[web] dashboard_log_einklappen`` im Profil (Padua) stehen je Karte
     Zahlen, Vorfaelle und Aufrufe -- und am Ende die Bot-Zuordnung -- in
@@ -2317,13 +2331,90 @@ def dashboard_html(daten: dict, praefix: str = VORGABE_PRAEFIX) -> str:
         from interview_theater import web_gestalt
 
         css += web_gestalt.tokens_css() + web_gestalt.css_dashboard()
+    tab_ticker_html = (
+        f' <a class="tab-ticker" href="{praefix}/dashboard/{_t(token)}/ticker">'
+        f"{_t(T._TEXT_TAB_TICKER)}</a>"
+        if token and os.environ.get("IT_WEB_TICKER_DATEI", "").strip()
+        else ""
+    )
     return _seite(
         T._TITEL_DASHBOARD,
         css,
-        f'<h1>{_t(T._UEBERSCHRIFT_DASHBOARD)} <span class="stand">{stand}</span></h1>\n'
+        f'<h1>{_t(T._UEBERSCHRIFT_DASHBOARD)} <span class="stand">{stand}</span>'
+        f"{tab_ticker_html}</h1>\n"
         f"{gruppen_html}\n"
         f"{zuordnung_html}",
     )
+
+
+def _ticker_eintraege(pfad: str) -> list[dict]:
+    """Liest ``IT_WEB_TICKER_DATEI`` zeilenweise, neueste zuerst.
+
+    Der Schreiber (``padua-ticker.py``) haengt nur an -- eine Zeile kann
+    trotzdem mitten im Schreiben gelesen werden. Fehlt die Datei, ist sie
+    nicht lesbar, oder ist eine Zeile kein gueltiges JSON-Objekt mit
+    ``zeit``/``text``: die Zeile wird stillschweigend uebersprungen, die
+    Seite scheitert nie (``ticker_html``)."""
+    try:
+        with open(pfad, encoding="utf-8") as datei:
+            zeilen = datei.readlines()
+    except OSError:
+        return []
+    eintraege = []
+    for zeile in zeilen:
+        zeile = zeile.strip()
+        if not zeile:
+            continue
+        try:
+            eintrag = json.loads(zeile)
+        except ValueError:
+            continue
+        if not isinstance(eintrag, dict) or "zeit" not in eintrag or "text" not in eintrag:
+            continue
+        eintraege.append(eintrag)
+    eintraege.reverse()
+    return eintraege
+
+
+def ticker_html() -> str:
+    """Der Regie-Ticker als eigene Seite (Padua, 05.10.2026): Eintraege aus
+    ``IT_WEB_TICKER_DATEI``, neueste zuerst, alle 60 s sanft nachgeladen
+    (dieselbe ``_SCROLL_JS`` wie das Dashboard, nur mit eigenem Intervall).
+
+    Ohne die Variable wird keine Datei angefasst -- die Seite antwortet mit
+    einem freundlichen Hinweis statt mit einem Dateizugriff ins Leere."""
+    ticker_datei = os.environ.get("IT_WEB_TICKER_DATEI", "").strip()
+    if not ticker_datei:
+        koerper = (
+            f"<h1>{_t(T._UEBERSCHRIFT_TICKER)}</h1>"
+            f'<p class="leer">{_t(T._TEXT_TICKER_AUS)}</p>'
+        )
+    else:
+        eintraege = _ticker_eintraege(ticker_datei)
+        if eintraege:
+            zeilen = "".join(
+                '<li><span class="zeit">{zeit}</span> {text}</li>'.format(
+                    zeit=_t(e.get("zeit"), ""), text=_t(e.get("text"), ""))
+                for e in eintraege
+            )
+            koerper = (
+                f"<h1>{_t(T._UEBERSCHRIFT_TICKER)}</h1>"
+                f'<ul class="ticker">{zeilen}</ul>'
+            )
+        else:
+            koerper = (
+                f"<h1>{_t(T._UEBERSCHRIFT_TICKER)}</h1>"
+                f'<p class="leer">{_t(T._TEXT_TICKER_LEER)}</p>'
+            )
+    return _seite(T._TITEL_TICKER, _CSS_DASHBOARD, koerper, nachladen=False,
+                  skript=_TICKER_JS)
+
+
+#: Eigenes Nachlade-Intervall (60 s statt der zehn des Dashboards, Aufgabe
+#: "Padua Regie-Ticker als Webseite"): ein voller Neuladebefehl reicht --
+#: der Ticker traegt keine aufklappbaren <details>, deren Zustand das
+#: sanfte Nachladen von ``_SCROLL_JS`` sonst erhalten muesste.
+_TICKER_JS = "setInterval(function () { location.reload(); }, 60000);"
 
 
 def _fortschritt_html(phase) -> str:
@@ -4240,6 +4331,12 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
                     handler._antworte(200, datei.read())
             except OSError:
                 handler._antworte(404, "nicht gefunden")
+        elif dash_token and pfad.startswith("/dashboard/") and pfad.endswith("/ticker") and hmac.compare_digest(
+                pfad[len("/dashboard/"):-len("/ticker")].encode(), dash_token.encode()):
+            # Birk 05.10.2026: derselbe Token-Check wie /dashboard/<token>
+            # (unten) -- ein falscher Token ist hier genauso 404, nie ein
+            # anderer Status.
+            handler._antworte(200, ticker_html())
         elif dash_token and pfad.startswith("/dashboard/") and hmac.compare_digest(
                 pfad[len("/dashboard/"):].rstrip("/").encode(), dash_token.encode()):
             # Birk 04.10.2026: die Uebersicht traegt die Links zu ALLEN
@@ -4247,7 +4344,7 @@ def _beantworte_get(handler, db_pfad: str, praefix: str,
             # IT_WEB_DASHBOARD_TOKEN liegt sie nur noch unter /dashboard/<token>,
             # "/" antwortet 404 wie jede unbekannte Adresse. Ohne die
             # Variable bleibt alles wie vorher (Dortmund).
-            handler._antworte(200, dashboard_html(handler._dashboard(), praefix))
+            handler._antworte(200, dashboard_html(handler._dashboard(), praefix, dash_token))
         elif pfad.startswith("/g/"):
             _beantworte_gruppenseite(
                 handler, db_pfad, pfad, praefix, schluessel, zerlegt.query

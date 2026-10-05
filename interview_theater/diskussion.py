@@ -25,9 +25,10 @@ gesagt wurde, kein ``kontext.baue``, kein Arbeitsstand.
 
 **Derselbe Zitatschutz wie ueberall sonst** (Verdichter, Kernzitate,
 Schaerfung, Dramaturgie): ``zitat.pruefe`` gegen genau das Transkript, das
-dem Modell vorlag. Eine Zeile mit einem nicht verifizierbaren Zitat wird
-verworfen, nicht geglaettet oder nachkorrigiert -- kein Retry, wie in
-``zitat.py`` selbst begruendet."""
+dem Modell vorlag. Ein nicht verifizierbares Zitat wird aus seiner Zeile
+genommen (seit 05.10.2026; vorher fiel die ganze Zeile), nicht geglaettet
+oder nachkorrigiert -- kein Retry, wie in ``zitat.py`` selbst begruendet.
+Bleibt am Ende nichts, steht ein Vorfall ``diskussion_verdichtung_leer``."""
 
 import logging
 import re
@@ -64,29 +65,82 @@ WORT_GRENZE = 150
 #: und whitespace-unempfindlich verglichen.
 _LEER = {"nichts", "none", "nothing"}
 
-#: Ein woertliches Zitat in doppelten Anfuehrungszeichen -- dieselbe einfache
-#: Form, die die Promptdatei verlangt (kein Markdown, kein Aufzaehlungszeichen
-#: als Voraussetzung).
-_ZITAT_MUSTER = re.compile(r'"([^"]+)"')
+#: Ein woertliches Zitat in Anfuehrungszeichen -- gerade (die Form, die die
+#: Promptdatei verlangt) oder typografisch (Opus setzt sie gern selbst).
+#: Ohne die typografischen Formen bliebe ein solches Zitat ungeprueft stehen.
+_ZITAT_MUSTER = re.compile(r'"([^"]+)"|“([^”]+)”|„([^“”]+)[“”]')
+
+#: Was nach dem Herausnehmen eines Zitats an Satzresten stehen bleibt: eine
+#: leere Klammer, ein haengender Doppelpunkt vor dem Satzende, doppelter
+#: Leerraum.
+_REST_KLAMMER = re.compile(r"\(\s*[,;:]?\s*\)")
+_REST_LEERRAUM = re.compile(r"[ \t]{2,}")
+_REST_VOR_ZEICHEN = re.compile(r"\s+([,.;:!?)])")
+#: Unter so vielen Buchstaben ist von einer Zeile nach dem Herausnehmen nur
+#: ein Fragment uebrig ("as in", "--") -- dann faellt sie weg.
+_REST_MINDEST_BUCHSTABEN = 12
 
 
-def _gefiltert(antwort: str, transkript: str) -> str:
-    """Wirft jede Zeile weg, deren Zitat(e) nicht woertlich im Transkript
-    stehen (``zitat.pruefe``), und behandelt eine blanke NICHTS/NOTHING-
-    Antwort als leer. Eine Zeile ohne jedes Zitat bleibt unangetastet stehen
-    -- es gibt hier nichts zu verifizieren, und nichts, was dagegen spraeche."""
+def _zitate(treffer: re.Match) -> str:
+    return next(g for g in treffer.groups() if g is not None)
+
+
+def _ohne_zitat(zeile: str, treffer: re.Match) -> str:
+    """Die Zeile ohne dieses eine Zitat samt seinen Anfuehrungszeichen."""
+    rest = zeile[:treffer.start()] + zeile[treffer.end():]
+    rest = _REST_KLAMMER.sub("", rest)
+    rest = _REST_LEERRAUM.sub(" ", rest)
+    rest = _REST_VOR_ZEICHEN.sub(r"\1", rest)
+    rest = re.sub(r"[:,]\s*([.;!?])", r"\1", rest)
+    return rest.strip()
+
+
+def _filtere(antwort: str, transkript: str) -> tuple[str, dict]:
+    """Die Zitatwache mit Zaehlung -- ``(text, zahlen)``.
+
+    Eine blanke NICHTS/NOTHING-Antwort ist leer. Sonst wird jedes Zitat, das
+    nicht woertlich im Transkript steht (``zitat.pruefe``), **aus der Zeile
+    genommen** -- die Aussage daneben bleibt stehen (Birk, 05.10.2026: die
+    Verdichtung ist ein Absatz, also EINE Zeile, und ein einziges verhoertes
+    Zitat warf bis dahin die ganze Verdichtung weg; live: 0 gespeicherte
+    Verdichtungen bei erfolgreichem Aufruf). Das Prinzip bleibt: kein
+    unbestaetigtes Zitat wird je gespeichert, geglaettet oder nachkorrigiert.
+
+    ``zahlen`` traegt nur Zahlen, nie Inhalt (Log und Vorfall)."""
     text = (antwort or "").strip()
-    if text.strip().casefold() in _LEER:
-        return ""
+    zahlen = {
+        "zeichen": len(text), "zeilen": 0, "zitate": 0,
+        "zitate_verworfen": 0, "zeilen_verworfen": 0, "nichts": False,
+    }
+    if text.casefold() in _LEER:
+        zahlen["nichts"] = True
+        return "", zahlen
     zeilen = []
     for zeile in text.splitlines():
         if not zeile.strip():
             continue
-        zitate = _ZITAT_MUSTER.findall(zeile)
-        if zitate and not all(zitat.pruefe(z, transkript) for z in zitate):
+        zahlen["zeilen"] += 1
+        treffer = list(_ZITAT_MUSTER.finditer(zeile))
+        zahlen["zitate"] += len(treffer)
+        geaendert = False
+        # Von hinten nach vorn, damit die Positionen der vorderen Treffer
+        # beim Herausschneiden gueltig bleiben.
+        for t in reversed(treffer):
+            if zitat.pruefe(_zitate(t), transkript):
+                continue
+            zeile = _ohne_zitat(zeile, t)
+            zahlen["zitate_verworfen"] += 1
+            geaendert = True
+        if geaendert and len(re.findall(r"[^\W\d_]", zeile)) < _REST_MINDEST_BUCHSTABEN:
+            zahlen["zeilen_verworfen"] += 1
             continue
         zeilen.append(zeile)
-    return "\n".join(zeilen).strip()
+    return "\n".join(zeilen).strip(), zahlen
+
+
+def _gefiltert(antwort: str, transkript: str) -> str:
+    """Der gefilterte Text allein -- siehe ``_filtere``."""
+    return _filtere(antwort, transkript)[0]
 
 
 def _nutzertext(transkript: str) -> str:
@@ -156,10 +210,28 @@ def starte(conn, tg, klm, e, chat_id: int) -> None:
                 nutzer=nutzertext, schema=SCHEMA, art=ART,
                 ueber_claude=ueber_claude,
             )
-            text = _gefiltert(ergebnis.get("antwort", ""), transkript)
+            text, zahlen = _filtere(ergebnis.get("antwort", ""), transkript)
+            # Nur Zahlen ins Log, nie Inhalt: die Antwort zitiert die Gruppe.
+            log.info(
+                "Diskussionsverdichtung chat_id=%s: %s Zeichen, %s Zeilen, "
+                "%s Zitate (%s verworfen), %s Zeilen verworfen, NOTHING=%s, "
+                "gespeichert=%s", chat_id, zahlen["zeichen"], zahlen["zeilen"],
+                zahlen["zitate"], zahlen["zitate_verworfen"],
+                zahlen["zeilen_verworfen"], zahlen["nichts"], bool(text),
+            )
             if text:
                 repo.merke_diskussion_verdichtung(
                     conn, chat_id, text, "claude" if ueber_claude else "sovereign",
+                )
+            else:
+                repo.merke_vorfall(
+                    conn, chat_id, getattr(e, "bot_name", None),
+                    "diskussion_verdichtung_leer",
+                    "Diskussionsverdichtung ohne Ergebnis: "
+                    f"{'NOTHING' if zahlen['nichts'] else 'alles verworfen'}, "
+                    f"{zahlen['zeichen']} Zeichen, {zahlen['zeilen']} Zeilen, "
+                    f"{zahlen['zitate_verworfen']}/{zahlen['zitate']} Zitate verworfen, "
+                    f"Transkript {len(transkript)} Zeichen",
                 )
         except Exception:
             log.exception("Diskussionsverdichtung fehlgeschlagen, chat_id=%s", chat_id)

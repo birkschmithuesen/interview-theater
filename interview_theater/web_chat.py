@@ -2826,7 +2826,12 @@ _CHAT_JS = """
     if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
     var alt = sitzung.recorder;
     sitzung.recorder = null;
-    if (alt && sitzung.vadAktiv) { alt._grund = 'ende'; alt._redeMs = sitzung.vadSpeechMs; }
+    // 'ende' IMMER, nicht nur mit VAD (wie beendeDiskussion seit 5532c95):
+    // sonst entscheidet der Server nie mit ist_abschluss (keine Karte).
+    if (alt) {
+      alt._grund = 'ende';
+      if (sitzung.vadAktiv) { alt._redeMs = sitzung.vadSpeechMs; }
+    }
     if (alt && alt.state !== 'inactive') { alt.stop(); }
     gibFrei(sitzung);
     if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
@@ -2880,7 +2885,10 @@ _CHAT_JS = """
     if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
     var letzter = sitzung.recorder;
     sitzung.recorder = null;
-    if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
+    if (letzter) {
+      letzter._grund = 'ende';
+      if (sitzung.vadAktiv) { letzter._redeMs = sitzung.vadSpeechMs; }
+    }
     if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
     // Anders als beendeInterview(): pruefeEnde() tut bei Brainstorm NIE
     // etwas (fertigEingereiht bleibt immer true), also wird das Mikrofon

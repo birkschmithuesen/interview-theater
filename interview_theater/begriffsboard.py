@@ -690,10 +690,24 @@ def oben(board: list[dict]) -> list[str]:
     return [e["begriff"] for e in sortiert(board) if e.get("status") != "verworfen"][:TOP]
 
 
-#: Der juengste Auto-Speicher-Lauf je Gruppe (``erkenner_lauf.id``) -- fuer
-#: den Undo-Knopf der Abschlussnachricht. Lebt im Prozess wie der
-#: Merkplatz oben; nach einem Neustart fehlt nur der Undo-Knopf.
-_LETZTER_AUTOLAUF: dict[int, int] = {}
+def _meldung(wert: str) -> str:
+    """Die 📌-Zeile eines Auto-Speicherns -- zugleich die ``meldung`` seines
+    ``erkenner_lauf``, ueber die die Abschlussnachricht ihren Undo-Knopf
+    wiederfindet (``letzter_autolauf``)."""
+    from interview_theater import erkenner  # lokal: erkenner haengt an knoepfe
+
+    titel = erkenner.T._FELD_BESCHRIFTUNG["begriffe"]
+    return erkenner.T._ZEILE_FESTGELEGT.format(titel=titel, text=wert)
+
+
+def letzter_autolauf(conn, chat_id: int, top: list[str]) -> int | None:
+    """Der Auto-Speicher-Lauf, der GENAU diese Top 5 geschrieben hat und noch
+    nicht zurueckgenommen ist -- fuer den Undo-Knopf der Abschlussnachricht.
+
+    R-5 (05.10.2026): bis dahin lebte die Lauf-id in einem Prozess-Merkplatz;
+    nach einem Bot-Neustart zwischen Boardlauf und "Discussion done" fehlte
+    der Undo-Knopf. Jetzt aus der Datenbank (``erkenner_lauf.meldung``)."""
+    return repo.juengster_offener_lauf_mit_meldung(conn, chat_id, _meldung(", ".join(top)))
 
 
 def speichere_automatisch(conn, e, chat_id: int, board: list[dict]) -> bool:
@@ -734,10 +748,7 @@ def speichere_automatisch(conn, e, chat_id: int, board: list[dict]) -> bool:
         schreibe_detail(conn, chat_id, wert)
 
     titel = erkenner.T._FELD_BESCHRIFTUNG["begriffe"]
-    text = erkenner.T._ZEILE_FESTGELEGT.format(titel=titel, text=wert)
-    lauf_id = erkenner.lauf_fuer_knopf(conn, e, chat_id, text, _schreibe)
-    if lauf_id is not None:
-        _LETZTER_AUTOLAUF[chat_id] = lauf_id
+    erkenner.lauf_fuer_knopf(conn, e, chat_id, _meldung(wert), _schreibe)
     repo.schreibe_journal(conn, chat_id, "entschieden", f"{titel}: {wert}", quelle="board")
     return True
 
@@ -769,7 +780,7 @@ def sende_vorschlag(conn, tg, chat_id: int, rueckfall_text: str | None, e=None) 
     except Exception:
         log.exception("Auto-Speichern beim Diskussionsende fehlgeschlagen, chat_id=%s", chat_id)
     if gespeichert:
-        basis.biete_board_gespeichert(conn, tg, chat_id, top, _LETZTER_AUTOLAUF.get(chat_id))
+        basis.biete_board_gespeichert(conn, tg, chat_id, top, letzter_autolauf(conn, chat_id, top))
         # Review T3, IMPORTANT 1: diese Nachricht TRAEGT schon den
         # "Weiter zu Phase 2"-Knopf (``ART_PHASE`` mit Wert "2"), setzt aber
         # selbst keinen Merkposten -- ohne ``merke_angebot`` haette der

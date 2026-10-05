@@ -4148,6 +4148,23 @@ def hole_erkenner_lauf(conn: sqlite3.Connection, lauf_id: int) -> sqlite3.Row | 
 
 
 @_gesperrt
+def juengster_offener_lauf_mit_meldung(
+    conn: sqlite3.Connection, chat_id: int, meldung: str
+) -> int | None:
+    """Die id des juengsten, noch nicht zurueckgenommenen Laufs dieser Gruppe
+    mit genau dieser Meldung -- oder ``None``.
+
+    Gebraucht fuer den Undo-Knopf der Board-Abschlussnachricht (R-5): die
+    Lauf-id lebte vorher nur im Prozess und fehlte nach einem Neustart."""
+    zeile = conn.execute(
+        "SELECT id FROM erkenner_lauf WHERE chat_id = ? AND meldung = ? "
+        "AND zurueckgenommen_am IS NULL ORDER BY id DESC LIMIT 1",
+        (chat_id, meldung),
+    ).fetchone()
+    return None if zeile is None else zeile["id"]
+
+
+@_gesperrt
 def erkenner_lauf_schritte(
     conn: sqlite3.Connection, lauf_id: int
 ) -> list[sqlite3.Row]:

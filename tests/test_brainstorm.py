@@ -22,6 +22,16 @@ def test_kein_trigger_bei_kappen_schnitt():
     )
 
 
+def test_trigger_bei_weichem_schnitt():
+    """Padua VAD: weicher Schnitt (05.10.2026) -- 'weich' ist eine echte,
+    natuerliche Sprechpause (nur kuerzer als die alte 2.5s-Regel), kein
+    Schnitt mitten im Sprechen wie 'cap'. Zaehlt deshalb wie 'pause'."""
+    assert brainstorm.soll_reagieren(
+        unreagierte_zeichen=1200, sekunden_seit_letzter_reaktion=90,
+        letzter_schnittgrund="weich", ist_abschluss=False,
+    )
+
+
 def test_kein_trigger_ohne_schnittgrund():
     assert not brainstorm.soll_reagieren(
         unreagierte_zeichen=5000, sekunden_seit_letzter_reaktion=200,

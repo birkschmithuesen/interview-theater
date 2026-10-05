@@ -164,11 +164,15 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- Material.
   uebernommen_von TEXT,
   uebernommen_am  TEXT,
-  -- Pausen-Schnitt (VAD, 02.10.2026): 'pause'|'cap'|'ende'|NULL (Rueckfall
-  -- ohne AnalyserNode, oder eine Zeile von vor dieser Karte). Additiv
-  -- nachgeruestet ueber _migriere_fehlende_spalten. Gebraucht vom
-  -- Brainstorm-Trigger (interview_theater/brainstorm.py): nur ein
-  -- Pausen-Schnitt zaehlt als "die Gruppe hat gerade abgeschlossen".
+  -- Pausen-Schnitt (VAD, 02.10.2026): 'pause'|'cap'|'ende'|'weich'|NULL
+  -- (Rueckfall ohne AnalyserNode, oder eine Zeile von vor dieser Karte).
+  -- 'weich' (Padua VAD: weicher Schnitt, 05.10.2026): ein Schnitt an einer
+  -- kuerzeren Pause, sobald das Segment aelter als IT_WEB_VAD_WEICH_MS ist
+  -- -- zaehlt wie 'pause' als natuerliche Sprechpause (brainstorm.py),
+  -- anders als 'cap' (Schnitt mitten im Sprechen). Additiv nachgeruestet
+  -- ueber _migriere_fehlende_spalten. Gebraucht vom Brainstorm-Trigger
+  -- (interview_theater/brainstorm.py): nur ein Pausen-/Weich-Schnitt zaehlt
+  -- als "die Gruppe hat gerade abgeschlossen".
   schnittgrund    TEXT,
   -- Gesetzt = dieses 'kurz'-Segment kommt vom Knopf "Brainstorm mithören"
   -- (Phase 4, nur Web), nicht von PTT oder einer gewoehnlichen
@@ -194,6 +198,11 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- "nicht genug" durchfallen). NULL = VAD inaktiv oder keine Metadaten,
   -- dieselbe Bedeutung wie ``schnittgrund IS NULL``. Additiv nachgeruestet.
   rede_ms         INTEGER,
+  -- Alter des Segments in Millisekunden beim Schnitt, NUR bei
+  -- ``schnittgrund='weich'`` gesetzt (Padua VAD: weicher Schnitt,
+  -- 05.10.2026) -- dieselbe additive Durchreiche wie ``rede_ms``, rein
+  -- diagnostisch, damit morgige Daten die Vorgaben justieren koennen.
+  weich_ms        INTEGER,
   -- Gesetzt (1) = diese Zeile ist der Testsatz einer Pegel-Kalibrierung
   -- (Task 2, Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026) -- kein
   -- gewoehnlicher Gespraechsbeitrag und kein Interview-Teil.
@@ -1166,7 +1175,14 @@ CREATE TABLE IF NOT EXISTS web_post (
   -- ``_audio`` (``&kalibrierung=1``) bis in die ``aufnahme``-Zeile
   -- (``web_kanal.hole_updates`` -> ``aufnahme.empfange``). Die Zeile faellt
   -- deshalb auch aus dem sichtbaren Chatverlauf heraus (``web_daten``).
-  kalibrierung      INTEGER NOT NULL DEFAULT 0
+  kalibrierung      INTEGER NOT NULL DEFAULT 0,
+  -- Alter des Segments in Millisekunden beim Schnitt, NUR bei
+  -- ``schnittgrund='weich'`` gesetzt (Padua VAD: weicher Schnitt,
+  -- 05.10.2026) -- reines Diagnose-Metadatum wie ``rede_ms``, damit
+  -- morgige Daten die Vorgaben IT_WEB_VAD_WEICH_MS (30s)/
+  -- IT_WEB_VAD_WEICH_PAUSE_MS (700ms) justieren koennen. Additiv
+  -- nachgeruestet ueber _migriere_fehlende_spalten.
+  weich_ms          INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);

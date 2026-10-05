@@ -1686,6 +1686,11 @@ _TEXT_ACHTUNG_STILL_EINS = "The bot hasn't picked up {anzahl} message for {minut
 _TEXT_ACHTUNG_STILL = "The bot hasn't picked up {anzahl} messages for {minuten} min"
 _ZEITFORMAT_DASHBOARD = "%Y-%m-%d %H:%M"
 _DEZIMALZEICHEN = "."
+_TEXT_TAB_TICKER = "Ticker"
+_TITEL_TICKER = "interview_theater — Ticker"
+_UEBERSCHRIFT_TICKER = "Director's ticker"
+_TEXT_TICKER_AUS = "Ticker off."
+_TEXT_TICKER_LEER = "No entries yet."
 
 ["web".ARBEITSSTAND_BESCHRIFTUNG]
 phase = "Phase"

@@ -60,9 +60,12 @@ def soll_reagieren(
     ``unreagierte_zeichen``: Zeichen im Brainstorm-Transkript seit der
     letzten Karte (oder seit Beginn, wenn es noch keine gab).
     ``letzter_schnittgrund``: der Schnittgrund (``'pause'``/``'cap'``/
-    ``'ende'``) des JUENGSTEN seitdem eingetroffenen Segments -- nur ein
-    Pausen-Schnitt zaehlt als "die Gruppe hat gerade abgeschlossen", ein
-    harter Zeitdeckel (``'cap'``) ist ein Schnitt mitten im Sprechen.
+    ``'ende'``/``'weich'``) des JUENGSTEN seitdem eingetroffenen Segments --
+    nur ein Pausen- oder Weich-Schnitt zaehlt als "die Gruppe hat gerade
+    abgeschlossen", ein harter Zeitdeckel (``'cap'``) ist ein Schnitt mitten
+    im Sprechen. ``'weich'`` (Padua VAD: weicher Schnitt, 05.10.2026) ist
+    dieselbe natuerliche Sprechpause wie ``'pause'``, nur an einer kuerzeren
+    Stille erkannt.
     ``ist_abschluss``: Pause/Beenden-Knopf der Gruppe -- dort reicht eine
     niedrigere Schwelle (``min_zeichen_bei_abschluss``) ohne Wartezeit und
     ohne Pausenschnitt-Bedingung, weil die Gruppe selbst gerade aufgehoert
@@ -82,7 +85,7 @@ def soll_reagieren(
         unreagierte_zeichen >= (min_zeichen_override if min_zeichen_override is not None else min_zeichen())
         and sekunden_seit_letzter_reaktion >= (
             min_abstand_override if min_abstand_override is not None else min_abstand_s())
-        and letzter_schnittgrund == "pause"
+        and letzter_schnittgrund in ("pause", "weich")
     )
 
 

@@ -15,7 +15,7 @@ selbst ist reines HTML aus der Tabelle.
 Vorbild: der Phase-1-Versuch ``zwei_handys.py``/``dom_map_server.py``
 (Birks Scratch, 05.10.2026).
 
-**Phase 2, Handy B:** der CoThinker zeigt in Phase 2 die Fragen je Begriff
+**Phase 2, Handy B:** der CoThinker zeigt in Phase 2 die Fragen je Begriff (seit Merge robo/p2-livefix echt, AUS_PHASE leer).
 erst nach dem Merge von ``robo/p2-livefix`` (Punkt M). Bis dahin ist
 ``AUS_PHASE`` gesetzt: der Screenshot von B entsteht als CoThinker der
 Phase 1 (das Begriffsboard) -- ein Platzhalter. Nach dem Merge den Eintrag
@@ -46,7 +46,7 @@ HASH = {"Chat": "chat", "Workbench": "stand", "CoThinker": "buehne", "Script": "
 
 #: (Phase, Handy-Index) -> Phase, deren Daten fuer diesen Screenshot gelten.
 #: Nur fuer den Platzhalter Phase 2 / Handy B (siehe Modulkopf).
-AUS_PHASE = {(2, 1): 1}
+AUS_PHASE: dict = {}
 
 #: Phase 7: die Rollen der drei Script-Handys (Rollenlink ``#textbuch&figur=``).
 ROLLEN_7 = ("LENA", "MALIK", "SOFIA")
@@ -131,6 +131,14 @@ def _saeen(conn, phase: int) -> None:
     _board(conn)
     repo.setze_arbeitsstand(conn, CHAT, "begriffe", BEGRIFFE)
     if phase == 2:
+        # CoThinker Phase 2 zeigt Fragen je Begriff ("Begriff: Frage");
+        # zwei Begriffe bewusst noch ohne Frage (leise markiert).
+        repo.setze_arbeitsstand(conn, CHAT, "fragen", (
+            "home: Where did you feel at home for the first time?\n"
+            "home: What would you take with you if you had to leave tonight?\n"
+            "border: Which border do you still carry with you?\n"
+            "waiting: What were you waiting for, back then?"
+        ))
         _bot(conn, "These are your five terms – saved. Now: which question would you "
                    "ask a stranger about \"home\"?")
         _gruppe(conn, "Where did you feel at home for the first time?")

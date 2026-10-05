@@ -53,10 +53,12 @@ def test_block_erscheint_in_jeder_phase_ohne_board(conn, phase):
 
 def test_block_fehlt_fuer_begriffe_die_das_board_schon_zeigt(conn):
     """Ein Fakt, eine Stelle: zeigt der Board-Block selbst schon die
-    Begruendung eines (nicht verworfenen) Begriffs, bleibt der hier aussen
-    vor -- nur was das Board nicht traegt (hier: Schule, gar nicht auf dem
-    Board), bleibt im Detail-Block uebrig, und Schule hat ohnehin keine
-    Begruendung/Doppelbedeutung."""
+    Begruendung eines (nicht verworfenen) Begriffs, bleibt NUR die
+    Begruendung hier aussen vor. Eine Doppelbedeutung zeigt der Board-Block
+    nie (MINOR 3, Review T3) -- die bleibt im Detail-Block stehen, auch fuer
+    einen Begriff, der schon auf dem Board steht. Schule ist gar nicht auf
+    dem Board und hat ohnehin keine Begruendung/Doppelbedeutung, bleibt also
+    komplett aussen vor."""
     repo.lege_begriffsboard_an(conn, CHAT, json.dumps([
         {"begriff": "Heimat", "nennungen": 1, "zustimmung": 1, "begruendung": GRUND,
          "zitat": "", "doppelbedeutung": "", "status": "favorit"},
@@ -65,7 +67,27 @@ def test_block_fehlt_fuer_begriffe_die_das_board_schon_zeigt(conn):
 
     block = kontext._baue_begriffe_detail(conn, CHAT)
 
-    assert GRUND not in block, "Heimat steht schon (mit Begruendung) im Board-Block"
+    assert GRUND not in block, "Heimat-Begruendung steht schon im Board-Block"
+    assert "Ort und Gefuehl" in block, "die Doppelbedeutung zeigt der Board-Block nie"
+    assert "Schule" not in block, "Schule traegt nichts Zusaetzliches zum Board-Block"
+
+
+def test_block_ganz_leer_wenn_board_wirklich_alles_zeigt(conn):
+    """Ohne Doppelbedeutung traegt ein auf dem Board stehender Begriff nichts
+    mehr, was der Board-Block nicht schon zeigt -- der ganze Eintrag faellt
+    weg wie bisher."""
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe_detail", json.dumps([
+        {"begriff": "Heimat", "begruendung": GRUND, "zitat": ZITAT, "doppelbedeutung": ""},
+        {"begriff": "Schule", "begruendung": "", "zitat": "", "doppelbedeutung": ""},
+    ]))
+    repo.lege_begriffsboard_an(conn, CHAT, json.dumps([
+        {"begriff": "Heimat", "nennungen": 1, "zustimmung": 1, "begruendung": GRUND,
+         "zitat": "", "doppelbedeutung": "", "status": "favorit"},
+    ]), "sovereign", 0)
+    repo.setze_phase(conn, CHAT, 2)
+
+    block = kontext._baue_begriffe_detail(conn, CHAT)
+
     assert block == ""
 
 

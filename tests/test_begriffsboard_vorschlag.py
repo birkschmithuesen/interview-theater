@@ -179,6 +179,28 @@ def test_gesamtverdichtung_startet_unabhaengig(conn, einst, monkeypatch):
     assert gestartet == [1]
 
 
+def test_autosave_vorschlag_verschluckt_das_doppelte_phasenangebot(conn, einst, monkeypatch):
+    """Review T3, IMPORTANT 1: ``basis.biete_board_gespeichert`` bietet nach
+    dem Auto-Speichern schon "Weiter zu Phase 2 / Etwas aendern" an (eigene
+    Knoepfe, kein ``phasen.merke_angebot``) -- ohne das haette der naechste
+    Gespraechszug (``knoepfe.biete_phase_proaktiv``, derselbe Merkposten wie
+    der Gespraechs-Prompt-Hinweis) denselben Wechsel ein zweites Mal
+    angeboten, zwei Leisten uebereinander."""
+    monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100000")
+    board = [_e("Heimat", "favorit"), _e("Grenze")]
+    ende = _ende(conn)
+    repo.lege_begriffsboard_an(conn, CHAT, json.dumps(board), "sovereign", ende["id"])
+    tg = _TG()
+
+    aufnahme._kurz_abschliessen(conn, tg, object(), einst, ende, aufnahme._kein_zug, False)
+
+    assert repo.hole_arbeitsstand(conn, CHAT)["begriffe"] == "Heimat, Grenze"
+    assert any(texte.T._TEXT_BOARD_WEITER_KNOPF in [b for b, _ in leiste]
+               for _c, _t, leiste in tg.mit_knoepfen), "biete_board_gespeichert ist gelaufen"
+
+    assert knoepfe.biete_phase_proaktiv(conn, tg, CHAT) is False
+
+
 def test_take_these_speichert_begriffe_und_detail_einmal(conn, einst, monkeypatch):
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "100000")
     board = [_e("Heimat", "favorit"), _e("Grenze")]

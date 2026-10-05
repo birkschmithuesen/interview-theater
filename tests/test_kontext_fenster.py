@@ -162,15 +162,17 @@ def test_systemzeilen_stehen_nicht_im_fenster(gruppe):
 
 def test_englische_systemzeilen_stehen_nicht_im_fenster(gruppe):
     """P1-L6: die vier englischen Systemzeilen, die ``_SYSTEMANFAENGE_EN``
-    bis jetzt NICHT trug -- Undo/Redo, der Undo-"geaendert seitdem"-Satz,
-    die 📌-Festlegung und der Fragenkopf "Question N/M" -- standen als
-    "You:"-Zug im Verlauf, obwohl sie Ereignisse sind, keine
-    Gespraechsbeitraege (dasselbe Muster wie die deutschen Zeilen oben)."""
+    bis jetzt NICHT trug -- Undo/Redo, der Undo-"geaendert seitdem"-Satz und
+    die 📌-Festlegung -- standen als "You:"-Zug im Verlauf, obwohl sie
+    Ereignisse sind, keine Gespraechsbeitraege (dasselbe Muster wie die
+    deutschen Zeilen oben). Die Fragenkarte ("Question N/M") steht in einem
+    eigenen Test (``_ohne_fragenkopf``): sie wird nicht verschluckt, nur ihr
+    Kopf faellt weg (Review T3, MINOR 1)."""
     _lege_an(gruppe, 210, True, "Undone:\nTerms: Home, Border", 10)
     _lege_an(gruppe, 211, True, "Redone:\nTerms: Home, Border", 9)
     _lege_an(gruppe, 212, True, "Changed since.", 8)
     _lege_an(gruppe, 213, True, "📌 Agreed: Core theme — Belonging", 7)
-    _lege_an(gruppe, 214, True, "Question 1/3 · Home", 6)
+    _lege_an(gruppe, 214, True, "Question reworked", 6)
     _lege_an(gruppe, 215, True, "That fits the scene well.", 5)
     _lege_an(gruppe, 216, False, "ok", 4)
 
@@ -180,9 +182,48 @@ def test_englische_systemzeilen_stehen_nicht_im_fenster(gruppe):
     assert "Redone:" not in texte
     assert "Changed since." not in texte
     assert "Agreed:" not in texte
-    assert "Question 1/3" not in texte
+    assert "Question reworked" not in texte
     assert "That fits the scene well." in texte, "echte Beitraege bleiben"
     assert "ok" in texte
+
+
+def test_fragenkopf_faellt_weg_aber_die_frage_bleibt(gruppe):
+    """Review T3, MINOR 1: die Fragenkarte ("Question 2/5 · Home\\n\\n<Frage>")
+    ist eine Karte wie jede andere Systemzeile, aber die Frage DARUNTER ist
+    Inhalt, auf den sich die Gruppe gerade bezieht -- sie faellt nicht weg,
+    nur die Nummerierung (die die Werkbank ohnehin schon zeigt)."""
+    _lege_an(gruppe, 220, True,
+             "Question 2/5 · Home\n\nWhat was the last thing you packed?", 6)
+    _lege_an(gruppe, 221, False, "That's the one I meant, yes", 5)
+
+    texte = "\n".join(kontext._baue_fenster_eintraege(gruppe, 1, []))
+
+    assert "Question 2/5" not in texte
+    assert "What was the last thing you packed?" in texte
+    assert "That's the one I meant, yes" in texte
+
+
+def test_frage_ohne_begriff_verliert_nur_den_kopf(gruppe):
+    """Dieselbe Regel fuer die begriffslose Fassung des Kopfes
+    (``_TEXT_FRAGE_KOPF_OHNE_BEGRIFF``, "Question N/M" ohne "· Begriff")."""
+    _lege_an(gruppe, 222, True, "Question 1/1\n\nWhat does home mean to you?", 4)
+
+    texte = "\n".join(kontext._baue_fenster_eintraege(gruppe, 1, []))
+
+    assert "Question 1/1" not in texte
+    assert "What does home mean to you?" in texte
+
+
+def test_natuerliche_antwort_ueber_eine_frage_bleibt_stehen(gruppe):
+    """IMPORTANT 2 (Review T3): ein echter Modellsatz, der zufaellig mit
+    "Question <Zahl>" beginnt, ist kein Kartenkopf -- nur "Question N/M"
+    (Ziffer/Ziffer direkt hinter "Question ") zaehlt als Ereignis."""
+    _lege_an(gruppe, 223, True,
+             "Question 2 is strong, but let's keep it as it is for now.", 3)
+
+    texte = "\n".join(kontext._baue_fenster_eintraege(gruppe, 1, []))
+
+    assert "Question 2 is strong, but let's keep it as it is for now." in texte
 
 
 def test_eine_gruppennachricht_faellt_nie_dem_systemfilter_zum_opfer(gruppe):

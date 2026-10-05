@@ -224,3 +224,87 @@ def test_die_englischen_texte_nennen_keine_position(monkeypatch):
         assert wort not in texte["rec_ruht"].lower()
     assert texte["rec_pausiert"] != web_gestalt._TEXT_REC_PAUSIERT
     assert texte["leitfaden"] != web_gestalt._TEXT_LEITFADEN
+
+
+# -- Fremdes Geraet / Mikrofon kommt (Nachtfix 05.10.2026, Geraete-Analyse) --
+
+
+def _aufnahme_zeile_in_node(tmp_path, faelle_js: str) -> dict:
+    """``_JS_AUFNAHME`` WOERTLICH in Node, gegen Attrappen fuer DOM und
+    MutationObserver. ``faelle_js`` setzt Attribute, ruft ``feuere()`` (alle
+    Beobachter) und legt Ergebnisse in ``r`` ab."""
+    import json
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node nicht installiert")
+    texte = json.dumps(web_gestalt._mikrotexte(), ensure_ascii=False)
+    quelltext = """
+    var TEXTE = %s;
+    function attrappe() {
+      return { dataset: {}, textContent: '', hidden: false,
+               setAttribute: function () {}, addEventListener: function () {},
+               parentNode: { insertBefore: function () {} } };
+    }
+    var elemente = { interview: attrappe(), fuss: attrappe(),
+                     warteschlange: attrappe(), uhr: attrappe() };
+    elemente.uhr.hidden = true;
+    function el(id) { return elemente[id] || null; }
+    var zeile = attrappe();
+    var document = { createElement: function () { return zeile; } };
+    var beobachter = [];
+    function MutationObserver(f) { this.observe = function () { beobachter.push(f); }; }
+    function feuere() { beobachter.forEach(function (f) { f(); }); }
+    var knopf = elemente.interview, fuss = elemente.fuss, uhr = elemente.uhr;
+    %s
+    var r = {};
+    %s
+    console.log(JSON.stringify(r));
+    """ % (texte, web_gestalt._JS_AUFNAHME, faelle_js)
+    datei = tmp_path / "aufnahme.js"
+    datei.write_text(quelltext, encoding="utf-8")
+    ergebnis = subprocess.run([node, str(datei)], capture_output=True, text=True, timeout=30)
+    assert ergebnis.returncode == 0, ergebnis.stderr
+    return json.loads(ergebnis.stdout.strip().splitlines()[-1])
+
+
+def test_fremdes_geraet_sagt_nicht_pausiert_live_in_node(tmp_path):
+    r = _aufnahme_zeile_in_node(tmp_path, """
+    fuss.dataset.interview = '1';
+    knopf.dataset.pausiert = '1'; knopf.dataset.fremd = '1';
+    feuere(); r.fremd = zeile.textContent;
+    knopf.dataset.fremd = '0';
+    feuere(); r.eigen_pause = zeile.textContent;
+    """)
+    texte = web_gestalt._mikrotexte()
+    assert r["fremd"] == texte["rec_fremd"]
+    assert r["eigen_pause"] == texte["rec_pausiert"]
+
+
+def test_rec_fremd_ist_ein_eigener_uebersetzter_text(monkeypatch):
+    texte = web_gestalt._mikrotexte()
+    assert texte["rec_fremd"] == web_gestalt._TEXT_REC_FREMD
+    assert texte["rec_fremd"] not in (texte["rec_pausiert"], texte["rec_laeuft"])
+    assert "data-fremd" in web_gestalt._JS_AUFNAHME
+    assert re.search(r"attributeFilter: \[[^\]]*'data-fremd'", web_gestalt._JS_AUFNAHME)
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    assert web_gestalt._mikrotexte()["rec_fremd"] == (
+        "Another phone recording? Then leave this one alone.")
+
+
+def test_startet_hat_vorrang_vor_der_sichtbaren_uhr_live_in_node(tmp_path):
+    """Brief 2: zwischen Weiter und r.start() kann die Uhr der Pause noch
+    sichtbar sein -- data-startet entscheidet trotzdem fuer "startet"."""
+    r = _aufnahme_zeile_in_node(tmp_path, """
+    fuss.dataset.interview = '1'; uhr.hidden = false;
+    knopf.dataset.pausiert = '0'; knopf.dataset.startet = '1';
+    feuere(); r.startet = zeile.textContent;
+    knopf.dataset.startet = '0';
+    feuere(); r.laeuft = zeile.textContent;
+    """)
+    texte = web_gestalt._mikrotexte()
+    assert r["startet"] == texte["rec_startet"]
+    assert r["laeuft"] == texte["rec_laeuft"]
+    assert re.search(r"attributeFilter: \[[^\]]*'data-startet'", web_gestalt._JS_AUFNAHME)

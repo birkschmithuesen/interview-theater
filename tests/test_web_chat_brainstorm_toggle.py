@@ -39,11 +39,12 @@ def test_der_knopf_schaltet_an_und_aus():
     assert "beendeBrainstorm()" in verdrahtung and "starteBrainstorm()" in verdrahtung
 
 
-def test_kein_pausenschnitt_im_brainstorm():
+def test_brainstorm_hat_wieder_pausenschnitte():
+    # Birk 05.10.2026 22:00: kein Toggle, Phase 4 = Bedienung wie Phase 1 --
+    # die Brainstorm-Ausnahme ohne Pausenschnitt (t_cf87ee0a) entfaellt.
     pegel = _fn("pegelAn", "formatiereUhr")
-    assert "sitzung.art !== 'brainstorm'" in pegel
-    # der harte Zeitdeckel bleibt (stiller technischer Schnitt)
-    assert "schneideSegment(sitzung, 'cap')" in pegel
+    assert "sitzung.art !== 'brainstorm'" not in pegel
+    assert "schneideSegment(sitzung, grund)" in pegel
 
 
 def test_laufender_brainstorm_belegt_die_eingabezeile():

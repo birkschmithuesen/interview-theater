@@ -714,6 +714,16 @@ def _befehl_sortiert(conn, tg, klm, e, chat_id: int) -> None:
     fragen.sortierung_abschliessen(conn, tg, klm, e, chat_id)
 
 
+def _befehl_umformulieren(conn, tg, chat_id: int) -> None:
+    """Startet die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026):
+    fragt nach der EINEN Anweisung, die gleich alle behaltenen Fragen
+    umformuliert. **Versteckt**, wie ``/sortiert`` -- kein Modellaufruf hier
+    selbst, nur die Rueckfrage (``knoepfe.fragen.frage_nach_umformulierung``)."""
+    from interview_theater.knoepfe import fragen
+
+    fragen.frage_nach_umformulierung(conn, tg, chat_id)
+
+
 def _befehl_start(conn, tg, e, chat_id: int, rest: str) -> None:
     """Der erste Seitenaufruf einer frischen Web-Gruppe (Pflichtpunkt 2, Fix 1
     von 2, 04.10.2026). Kein ``klm``: die Begruessung ruft kein Modell.
@@ -1117,6 +1127,10 @@ _BEKANNTE_BEFEHLE_DE: frozenset[str] = frozenset({
     # der Phase-2-Fragen im CoThinker -- der Weg des Knopfes durch die Naht,
     # wie ``/phaseklick``. Keine EN-Form: er wird nie getippt.
     "/sortiert",
+    # Versteckt (Testkarte t_266e7485, 06.10.2026): startet die Umformulier-
+    # Runde der behaltenen Fragen -- wie ``/sortiert`` der Weg eines Knopfes
+    # durch die Naht, kein Befehl zum Tippen. Keine EN-Form.
+    "/umformulieren",
 })
 
 
@@ -1236,6 +1250,8 @@ def behandle(
         _befehl_start(conn, tg, e, chat_id, rest)
     elif befehl == "/sortiert":
         _befehl_sortiert(conn, tg, klm, e, chat_id)
+    elif befehl == "/umformulieren":
+        _befehl_umformulieren(conn, tg, chat_id)
     return True
 
 

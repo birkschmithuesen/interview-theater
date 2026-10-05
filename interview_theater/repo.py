@@ -1876,6 +1876,10 @@ _ARBEITSSTAND_FELDER = (
     # ``fragen_herkunft``, gefiltert auf die uebernommenen Indizes, in der
     # Reihenfolge des endgueltigen Felds ``fragen``.
     "fragen_herkunft_final",
+    # Die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026): der zuletzt
+    # vorgeschlagene Umformulierungsblock, an ``fragen`` ausgerichtet, und
+    # welche Positionen davon tatsaechlich eine KI-Frage geaendert haben.
+    "fragen_umformuliert_vorschlag", "fragen_bearbeitet_final",
     # Padua Phasen TEIL 2 (03.10.2026): Phase 6.1 (Gesamttext) und 7.2
     # (Sprechweisen) abgenommen -- derselbe eine Schreibweg wie alles andere
     # im Arbeitsstand.

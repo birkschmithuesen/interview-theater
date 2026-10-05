@@ -217,6 +217,14 @@ ART_FRAGE_SCHAERFEN = "frage_schaerfen"
 #: leer, es gibt je Gruppe genau ein offenes Angebot gleichzeitig.
 ART_FRAGEN_WEICH_UEBERNEHMEN = "fragen_weich_uebernehmen"
 ART_FRAGEN_WEICH_LASSEN = "fragen_weich_lassen"
+#: Die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026, nur Padua): nach
+#: der Vorschau alt->neu nimmt die Gruppe entweder ALLE neuen Formulierungen
+#: an oder behaelt ALLE alten -- einzelne Nummern laufen ueber eine freie
+#: Chatnachricht (``knoepfe.fragen.nimm_offene_frage_text``), nicht ueber
+#: einen Knopf je Frage (das waere bei zehn, zwanzig Fragen eine eigene
+#: Tastatur je Nachricht). ``wert`` bleibt leer wie bei den Weich-Knoepfen.
+ART_FRAGEN_UMFORMULIEREN_ALLE = "fragen_umformulieren_alle"
+ART_FRAGEN_UMFORMULIEREN_KEINE = "fragen_umformulieren_keine"
 
 # --- Phase 6 · Szenen (05.09.2026) ----------------------------------------
 #
@@ -828,6 +836,31 @@ _TEXT_FRAGEN_WEICH_UEBERNEHMEN_KNOPF = "Weiche Fassungen übernehmen"
 _TEXT_FRAGEN_WEICH_LASSEN_KNOPF = "Wie sie sind lassen"
 _TEXT_FRAGEN_WEICH_UEBERNOMMEN = "Weiche Fassungen übernommen"
 _TEXT_FRAGEN_WEICH_BEHALTEN = "Original beibehalten"
+
+#: Die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026, nur Padua): hidden
+#: Befehl ``/umformulieren`` fragt nach der EINEN Anweisung, die gleich alle
+#: behaltenen Fragen umformuliert.
+_TEXT_UMFORMULIEREN_WUNSCH_FRAGE = (
+    "Wie sollen die Fragen umformuliert werden? Schreibt eine Anweisung, "
+    "z.B. „konkreter machen“ oder „leichter zu beantworten“."
+)
+#: Die Vorschau alt->neu, EINE Nachricht fuer alle geaenderten Fragen.
+_TEXT_UMFORMULIEREN_KOPF = "Vorschlag fuer die Umformulierung:"
+_TEXT_UMFORMULIEREN_ZEILE = "{nummer}. {alt}\n   → {neu}"
+#: Erklaert den Chatweg (accept-all/per-number) unter der Vorschau -- die
+#: beiden Knoepfe decken nur "alle"/"keine" ab, einzelne Nummern laufen ueber
+#: diese freie Nachricht.
+_TEXT_UMFORMULIEREN_HINWEIS = (
+    "Antwortet mit den Nummern, die ihr übernehmen wollt (z. B. „1, 3“), "
+    "oder „alle“ - sonst bleiben die alten Formulierungen stehen."
+)
+_TEXT_UMFORMULIEREN_ALLE_KNOPF = "Alle übernehmen"
+_TEXT_UMFORMULIEREN_KEINE_KNOPF = "Alte behalten"
+#: Kein Vorschlag weicht vom Original ab -- es gibt nichts anzunehmen.
+_TEXT_UMFORMULIEREN_UNVERAENDERT = (
+    "Das Modell hat an keiner Frage etwas geändert."
+)
+_TEXT_UMFORMULIEREN_UEBERNOMMEN = "Aktualisiert, eure Fragen:"
 
 #: Der Kopf einer einzelnen vorgelegten Frage (02.10.2026): "Frage 3/15 ·
 #: Heimat". Ohne erkennbaren Begriff (Zeile ohne "Begriff: ") faellt die
@@ -1555,6 +1588,23 @@ ANWEISUNG_FRAGE_SCHAERFEN = (
 #: es eine gab -- sonst bleibt der Platzhalter ein leerer String.
 _TEXT_FRAGE_SCHAERFEN_SENSIBEL_HINWEIS = (
     "Bisher war sie weich formuliert: {weich}\n"
+)
+#: Die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026, nur Padua): EIN
+#: gebuendelter Aufruf statt einer Schaerfung je Frage -- dieselben Ton-
+#: Regeln wie ``ANWEISUNG_FRAGE_SCHAERFEN`` (``_ANWEISUNG_FRAGEN_SENSIBEL``,
+#: ueber ``_ohne_weich_auftrag`` fuer Padua ohnehin herausgeschnitten), keine
+#: neu erfundenen. ``{sprache}`` ist der Sprachname der aktiven Sprachschicht
+#: (``sprache.SPRACHNAMEN``) -- das Modell soll in der Sprache der Gruppe
+#: antworten, nicht zwingend auf Englisch.
+ANWEISUNG_FRAGEN_UMFORMULIEREN = (
+    "Die Gruppe moechte alle {anzahl} behaltenen Interviewfragen nach "
+    "dieser Anweisung neu formulieren: {wunsch}\n"
+    "Die aktuellen Fragen, nummeriert:\n{fragen}\n"
+    "Schreib fuer JEDE Nummer eine ueberarbeitete Fassung, in derselben "
+    "Reihenfolge, genau {anzahl} Zeilen im Format 'Begriff: Frage', ohne "
+    "Nummerierung. Antworte auf {sprache}. Haeng sie als Block 'VORSCHLAG "
+    "FRAGEN UMFORMULIERUNG:' an, nichts sonst in diesem Block. "
+    + _ANWEISUNG_FRAGEN_SENSIBEL
 )
 #: Eroeffnung und Abschluss in einem Block -- es ist eine Entscheidung.
 #:

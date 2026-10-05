@@ -537,6 +537,36 @@ one sensitive question, attach the softer versions as a block \
 numbered as in the list above -- if no question is sensitive, leave this \
 block out entirely."""
 _TEXT_FRAGE_SCHAERFEN_SENSIBEL_HINWEIS = "So far it was worded softly: {weich}\n"
+ANWEISUNG_FRAGEN_UMFORMULIEREN = """\
+The group wants to rephrase all {anzahl} kept interview questions following \
+this instruction: {wunsch}\n\
+The current questions, numbered:\n{fragen}\n\
+Write a reworked version for EVERY number, in the same order, exactly \
+{anzahl} lines in the format 'Term: Question', without numbering. Reply in \
+{sprache}. Attach them as a block 'VORSCHLAG FRAGEN UMFORMULIERUNG:', \
+nothing else in this block. \
+Check each question: does it touch on a sensitive topic (family, origin, \
+religion, violence, love and the body, money, illness, flight, \
+discrimination)? Rewrite every sensitive question additionally into ONE \
+gentle piece of conversation - two to three sentences, informal 'you', \
+easy to say out loud, in the tone of a young person speaking to a \
+stranger; the core of the question stays the same. If there is at least \
+one sensitive question, attach the softer versions as a block \
+'VORSCHLAG FRAGEN WEICH:', one line each as '<number> — <softer version>', \
+numbered as in the list above -- if no question is sensitive, leave this \
+block out entirely."""
+_TEXT_UMFORMULIEREN_WUNSCH_FRAGE = """\
+How should the questions be rephrased? Write an instruction, e.g. "make \
+them more concrete" or "easier to answer"."""
+_TEXT_UMFORMULIEREN_KOPF = "Suggested rewording:"
+_TEXT_UMFORMULIEREN_ZEILE = "{nummer}. {alt}\n   → {neu}"
+_TEXT_UMFORMULIEREN_HINWEIS = """\
+Reply with the numbers you want to take (e.g. "1, 3"), or "all" - \
+otherwise the old wording stays."""
+_TEXT_UMFORMULIEREN_ALLE_KNOPF = "Take all"
+_TEXT_UMFORMULIEREN_KEINE_KNOPF = "Keep old"
+_TEXT_UMFORMULIEREN_UNVERAENDERT = "The model didn't change any question."
+_TEXT_UMFORMULIEREN_UEBERNOMMEN = "Updated, your questions:"
 ANWEISUNG_EROEFFNUNG = """\
 Now we still need how the interview starts and how it ends. Suggest an \
 opening text that the interviewer says to a stranger before they ask the \

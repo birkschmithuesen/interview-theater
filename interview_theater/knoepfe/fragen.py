@@ -223,7 +223,12 @@ def _reset_fragenrunde(conn, chat_id: int) -> None:
     Setzen des frischen ``fragen_herkunft`` fuer ihre eigene Runde auf, nicht
     danach."""
     repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
-    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
+    # Padua (Fix 05.10.2026): "" statt NULL -- eine neue Runde ist offen
+    # (``auswahl.sortierung_offen``), auch wenn ``fragen`` schon steht.
+    repo.setze_arbeitsstand(
+        conn, chat_id, "fragen_entschieden",
+        "" if workshop.diskussion_aktiv() else None,
+    )
     repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_herkunft", None)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_bearbeitet", None)
@@ -982,7 +987,10 @@ def starte_durchgehen(conn, tg, chat_id: int, hinweis: bool = True) -> bool:
     if not _auswahlfragen(conn, chat_id):
         tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
         return False
-    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
+    repo.setze_arbeitsstand(
+        conn, chat_id, "fragen_entschieden",
+        "" if workshop.diskussion_aktiv() else None,
+    )
     repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
     if hinweis and workshop.diskussion_aktiv():
         tg.sende(chat_id, T._TEXT_FRAGEN_COTHINKER_HINWEIS)
@@ -998,9 +1006,16 @@ def sortierung_abschliessen(conn, tg, klm, e, chat_id: int) -> None:
     Rueckfrage, was sich aendern soll -- der Rest laeuft ueber den
     bestehenden Kartenweg (``nimm_offene_frage_text`` -> Schaerfung ->
     Annehmen). Sonst schliesst die Runde sofort ab. Kein Modellaufruf."""
+    from interview_theater import auswahl
+
     fragen = _auswahlfragen(conn, chat_id)
     if not fragen:
         tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+        return
+    # Fix 05.10.2026: ein zweites "Fertig sortiert" (zweites Telefon,
+    # Doppeltipp) nach dem Abschluss aendert nichts und sendet nichts --
+    # sonst ueberschriebe es ``fragen`` mit ALLEN Fragen.
+    if not auswahl.sortierung_offen(repo.hole_arbeitsstand(conn, chat_id)):
         return
     entschieden = _decisions(conn, chat_id)
     neu = []

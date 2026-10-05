@@ -390,3 +390,83 @@ def test_dortmund_schaerfung_wartet_nicht(conn, tg, auftraege, dortmund):
     _karte_offen(conn)
     fragen.uebernimm_schaerfung(conn, tg, CHAT, "A: zwei kurz?", None)
     assert not _feld(conn, "fragen_warte_auf")
+
+
+# --- Fix 05.10.2026: "Sortierung offen" ist EINE Regel -----------------------
+
+
+@pytest.mark.parametrize("stand, offen", [
+    (None, True),
+    ({"fragen": None, "fragen_entschieden": None}, True),
+    ({"fragen": "", "fragen_entschieden": None}, True),
+    ({"fragen": "A: eins?", "fragen_entschieden": None}, False),
+    ({"fragen": "A: eins?", "fragen_entschieden": ""}, True),
+    ({"fragen": "A: eins?", "fragen_entschieden": ",,"}, True),
+])
+def test_sortierung_offen(stand, offen):
+    from interview_theater import auswahl
+
+    assert auswahl.sortierung_offen(stand) is offen
+
+
+def test_zweites_sortiert_nach_abschluss_aendert_nichts(conn, tg, auftraege):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,nein,nein")
+    fragen.sortierung_abschliessen(conn, tg, None, None, CHAT)
+    fertig = _feld(conn, "fragen")
+    assert fertig and "eins?" in fertig and "zwei?" not in fertig
+    vorher = dict(repo.hole_arbeitsstand(conn, CHAT))
+    gesendet = len(tg.gesendet)
+    auftraege_vorher = len(auftraege)
+    fragen.sortierung_abschliessen(conn, tg, None, None, CHAT)
+    nachher = dict(repo.hole_arbeitsstand(conn, CHAT))
+    vorher.pop("geaendert_am", None)
+    nachher.pop("geaendert_am", None)
+    assert nachher == vorher
+    assert len(tg.gesendet) == gesendet
+    assert len(auftraege) == auftraege_vorher
+
+
+def test_setze_fragen_entscheidung_nach_abschluss_false(conn):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen", "A: eins?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", None)
+    assert repo.setze_fragen_entscheidung(conn, CHAT, 1, "ja") is False
+    assert _feld(conn, "fragen_entschieden") is None
+
+
+def test_setze_fragen_entscheidung_in_fremder_transaktion(conn):
+    _auswahl(conn)
+    conn.execute("UPDATE arbeitsstand SET begriffe = 'A' WHERE chat_id = ?", (CHAT,))
+    assert conn.in_transaction
+    assert repo.setze_fragen_entscheidung(conn, CHAT, 2, "ja") is True
+    assert _feld(conn, "fragen_entschieden") == ",ja"
+
+
+
+def test_setze_fragen_entscheidung_nimmt_den_schreib_lock_vor_dem_lesen(conn, monkeypatch):
+    """Zwei Prozesse (Webserver, Bot) teilen sich ``_LOCK`` nicht -- das
+    Lesen muss deshalb schon unter BEGIN IMMEDIATE laufen."""
+    _auswahl(conn)
+    gesehen = []
+    ursprung = repo.hole_arbeitsstand
+
+    def spion(c, chat_id):
+        gesehen.append(c.in_transaction)
+        return ursprung(c, chat_id)
+
+    monkeypatch.setattr(repo, "hole_arbeitsstand", spion)
+    assert repo.setze_fragen_entscheidung(conn, CHAT, 1, "ja") is True
+    assert gesehen and all(gesehen)
+    assert not conn.in_transaction
+
+
+def test_padua_neue_runde_nach_abschluss_ist_offen(conn, tg, padua):
+    from interview_theater import auswahl
+
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen", "A: eins?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", None)
+    fragen.biete_fragenauswahl(conn, tg, CHAT, "A: neu?\nA: auch neu?")
+    assert auswahl.sortierung_offen(repo.hole_arbeitsstand(conn, CHAT))
+    assert repo.setze_fragen_entscheidung(conn, CHAT, 1, "ja") is True

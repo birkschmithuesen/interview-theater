@@ -187,7 +187,14 @@ def fuehre_aus(conn, db_pfad: str, chat_id: int, *, ki_neu: bool,
         repo.setze_arbeitsstand(conn, chat_id, "fragen_herkunft", herkunft_text)
         ki_erzeugt = True
 
-    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", None)
+    # Fix 05.10.2026: leer, aber nicht NULL ("," * (n-1)) -- so ist die
+    # Sortierung wieder offen (``auswahl.sortierung_offen``), auch wenn
+    # ``fragen`` aus der vorigen Runde schon steht.
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    anzahl = len(vorschlag.zeilen((stand["fragen_auswahl"] if stand else "") or ""))
+    repo.setze_arbeitsstand(
+        conn, chat_id, "fragen_entschieden", "," * max(anzahl - 1, 0),
+    )
     repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", None)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
 

@@ -121,7 +121,9 @@ def test_apply_setzt_entscheidungen_zurueck_behaelt_text(tmp_path, capsys, kein_
     pfad = _baue_db(tmp_path)
     assert neu.main([str(CHAT), "--db", str(pfad), "--apply"]) == 0
     nach = _felder(pfad)
-    assert nach["fragen_entschieden"] is None
+    # Fix 05.10.2026: leer, aber nicht NULL -- die Sortierung ist wieder
+    # offen (``auswahl.sortierung_offen``), auch wenn ``fragen`` schon steht.
+    assert nach["fragen_entschieden"] == ","
     assert nach["fragen_aktuell"] is None
     assert nach["fragen_warte_auf"] is None
     assert nach["fragen_auswahl"] == EIGENE
@@ -143,7 +145,7 @@ def test_apply_legt_sicherung_mit_altem_stand_an(tmp_path, kein_modellaufruf):
         gesichert.close()
     # die lebende Datenbank ist inzwischen zurueckgesetzt -- die Sicherung
     # hat den Stand VOR dem Reset eingefangen, nicht danach.
-    assert _felder(pfad)["fragen_entschieden"] is None
+    assert _felder(pfad)["fragen_entschieden"] == ","
 
 
 def test_apply_unbekannte_gruppe_verweigert_ohne_sicherung(tmp_path, capsys, kein_modellaufruf):
@@ -182,7 +184,7 @@ def test_ki_neu_apply_baut_auswahl_und_herkunft_neu(tmp_path, monkeypatch, capsy
     assert zeilen[1] == "Heimat: Was bedeutet das Wort fuer dich?"
     assert zeilen[2].startswith("Streit:")
     assert zeilen[3] == "Streit: Wie hat es angefangen?"
-    assert nach["fragen_entschieden"] is None
+    assert nach["fragen_entschieden"] == ",,,"  # 4 Zeilen, alle offen
     assert nach["fragen_aktuell"] is None
     assert nach["fragen_warte_auf"] is None
 
@@ -228,3 +230,24 @@ def test_apply_schreibt_vor_der_sicherung_nichts(tmp_path, monkeypatch, kein_mod
     monkeypatch.setattr(neu, "fuehre_aus", _fuehre_aus)
     assert neu.main([str(CHAT), "--db", str(pfad), "--apply"]) == 0
     assert reihenfolge[0] == "sicherung"
+
+
+def test_apply_oeffnet_die_sortierung_nach_abschluss(tmp_path, kein_modellaufruf):
+    from interview_theater import auswahl
+
+    pfad = _baue_db(tmp_path)
+    conn = db.verbinde(str(pfad))
+    try:
+        repo.setze_arbeitsstand(conn, CHAT, "fragen", "Heimat: Wann warst du zuletzt dort?")
+        repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", None)
+        assert not auswahl.sortierung_offen(repo.hole_arbeitsstand(conn, CHAT))
+    finally:
+        conn.close()
+    assert neu.main([str(CHAT), "--db", str(pfad), "--apply"]) == 0
+    conn = db.verbinde(str(pfad))
+    try:
+        stand = repo.hole_arbeitsstand(conn, CHAT)
+        assert auswahl.sortierung_offen(stand)
+        assert stand["fragen_entschieden"].split(",") == ["", ""]
+    finally:
+        conn.close()

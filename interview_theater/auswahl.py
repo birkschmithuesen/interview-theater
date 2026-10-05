@@ -48,6 +48,24 @@ def _fremder_kopf(zeile: str) -> tuple[str, str] | None:
     return kopf.strip(" *_"), rest.lstrip(" *_").strip()
 
 
+def sortierung_offen(stand: Mapping | None) -> bool:
+    """Die EINE Regel, ob die Gruppe gerade sortiert (Fix 05.10.2026): offen
+    heisst ``fragen_entschieden IS NOT NULL`` (auch "" oder ",,") ODER
+    ``fragen`` noch leer. ``_schliesse_fragen_ab`` setzt ``fragen`` und
+    ``fragen_entschieden = NULL`` -- danach ist zu, bis eine neue Auswahl
+    (oder ``scripts/padua_fragen_neu.py --apply``) ``fragen_entschieden``
+    wieder auf einen leeren, aber nicht-NULL Wert setzt. Ohne Schemaaenderung.
+    ``repo.setze_fragen_entscheidung`` prueft dieselbe Bedingung inline (die
+    Ablage importiert keine Fachlogik)."""
+    if stand is None:
+        return True
+    try:
+        entschieden = stand["fragen_entschieden"]
+    except (IndexError, KeyError):
+        entschieden = None
+    return entschieden is not None or not _feld(stand, "fragen").strip()
+
+
 def fragen_liste(stand: Mapping | None) -> dict:
     """``{"gruppen": [{"titel", "eintraege": [{nummer, text, herkunft,
     zustand}]}], "zaehler": {ja, nein, schaerfen, offen}}``.

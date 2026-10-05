@@ -275,3 +275,35 @@ def test_fertig_sortiert_unbekannte_liste_ist_400(server):
                       {"nonce": web.nonce(SCHLUESSEL, token), "liste": "x"})
     assert status == 400
     assert _eingaenge(pfad) == []
+
+
+
+# -- Fix 05.10.2026: nach "Fertig sortiert" ist die Liste zu ------------------
+
+
+def _schliesse(pfad):
+    conn = db.verbinde(pfad)
+    try:
+        repo.setze_arbeitsstand(conn, CHAT, "fragen", "Casa: Wo ist dein Zuhause?")
+        repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", None)
+    finally:
+        conn.close()
+
+
+def test_web_daten_nach_abschluss_keine_auswahlliste(datenbank, monkeypatch):
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    pfad, token = datenbank
+    _schliesse(pfad)
+    daten = _gruppe(pfad, token)
+    assert daten["auswahlliste"] is None
+    assert 'data-ansicht="fragen"' in web._buehne_html(daten)
+
+
+def test_auswahl_post_nach_abschluss_ist_400(server):
+    basis, token, pfad = server
+    _schliesse(pfad)
+    status, _ = _post(f"{basis}/g/{token}/chat/auswahl",
+                      {"nonce": web.nonce(SCHLUESSEL, token), "liste": "fragen",
+                       "nummer": 1, "wert": "nein"})
+    assert status == 400
+    assert _entschieden(pfad) is None

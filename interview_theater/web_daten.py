@@ -1470,9 +1470,13 @@ def auswahlliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
     stand = {
         feld: _feld(zeile, feld)
         for feld in ("begriffe", "fragen_auswahl", "fragen_herkunft",
-                     "fragen_entschieden")
+                     "fragen_entschieden", "fragen")
     }
     if not (stand["fragen_auswahl"] or "").strip():
+        return None
+    # Fix 05.10.2026: nach "Fertig sortiert" ist die Liste zu -- dann steht
+    # wieder die Fragenuebersicht (``auswahl.sortierung_offen``).
+    if not _auswahl.sortierung_offen(stand):
         return None
     return _auswahl.fragen_liste(stand)
 

@@ -1946,19 +1946,45 @@ def setze_fragen_entscheidung(
 
     if wert not in auswahl.ZUSTAENDE or not isinstance(nummer, int):
         return False
-    stand = hole_arbeitsstand(conn, chat_id)
-    if stand is None:
-        return False
-    gesamt = len(vorschlag.zeilen(stand["fragen_auswahl"] or ""))
-    if nummer < 1 or nummer > gesamt:
-        return False
-    roh = stand["fragen_entschieden"] or ""
-    entschieden = roh.split(",") if roh else []
-    while len(entschieden) < nummer:
-        entschieden.append("")
-    entschieden[nummer - 1] = wert
-    setze_arbeitsstand(conn, chat_id, "fragen_entschieden", ",".join(entschieden))
-    return True
+    # Fix 05.10.2026: Webserver und Bot sind zwei Prozesse und teilen
+    # ``_LOCK`` nicht -- Lesen und Schreiben laufen deshalb in EINER
+    # ``BEGIN IMMEDIATE``-Transaktion (Schreib-Lock vor dem Lesen). Steht
+    # der Aufrufer schon in einer Transaktion, bleibt es bei seiner.
+    eigene = not conn.in_transaction
+    if eigene:
+        conn.execute("BEGIN IMMEDIATE")
+    try:
+        stand = hole_arbeitsstand(conn, chat_id)
+        if stand is None:
+            return False
+        roh = stand["fragen_entschieden"]
+        # Dieselbe Regel wie ``auswahl.sortierung_offen`` (inline: die Ablage
+        # importiert keine Fachlogik auf Modulebene): nach "Fertig sortiert"
+        # (``fragen`` steht, ``fragen_entschieden`` NULL) ist die Liste zu.
+        if roh is None and (stand["fragen"] or "").strip():
+            return False
+        gesamt = len(vorschlag.zeilen(stand["fragen_auswahl"] or ""))
+        if nummer < 1 or nummer > gesamt:
+            return False
+        entschieden = roh.split(",") if roh else []
+        while len(entschieden) < nummer:
+            entschieden.append("")
+        entschieden[nummer - 1] = wert
+        conn.execute(
+            """
+            INSERT INTO arbeitsstand (chat_id, fragen_entschieden, geaendert_am)
+            VALUES (?, ?, ?)
+            ON CONFLICT(chat_id) DO UPDATE SET
+                fragen_entschieden = excluded.fragen_entschieden,
+                geaendert_am = excluded.geaendert_am
+            """,
+            (chat_id, ",".join(entschieden), _jetzt()),
+        )
+        conn.commit()
+        return True
+    finally:
+        if eigene and conn.in_transaction:
+            conn.rollback()
 
 
 @_gesperrt

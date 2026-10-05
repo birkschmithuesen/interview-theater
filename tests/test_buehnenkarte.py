@@ -138,3 +138,54 @@ def test_nutzertext_enthaelt_keine_interviewverdichtung(conn, monkeypatch):
     buehnenkarte.erzeuge(conn, object(), klm, CHAT)
     nutzer = klm.aufrufe[0][2]
     assert "Geheime Interview-Zusammenfassung" not in nutzer
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    from interview_theater import sprache, workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    yield
+    workshop.vergiss()
+    sprache.vergiss()
+
+
+def _voller_nutzertext(conn, monkeypatch):
+    monkeypatch.setattr(szene_claude, "ist_aktiv", lambda *a, **k: False)
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "arrival, waiting")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen", "1. What do you remember?")
+    repo.setze_arbeitsstand(conn, CHAT, "rahmen", "A railway station at night")
+    _segment(conn, 1, "What if Samir never leaves the bench?")
+    klm = _FakeKlm("NICHTS")
+    buehnenkarte.erzeuge(conn, object(), klm, CHAT)
+    return klm.aufrufe[0][1], klm.aufrufe[0][2]
+
+
+def test_padua_nutzertext_ohne_deutsche_ueberschriften(conn, monkeypatch, padua):
+    """P34 Runde 1, Befund A5 (= M-17 + L4-10, Dump 17-buehnenkarte.txt:49-62):
+    der englische CoThinker-Aufruf trug deutsche Ueberschriften
+    ("Begriffe und Fragen", "Stueckkarte", "Figuren", "Geschichte",
+    "Mitschnitt des Brainstormings bisher") und nannte die Flaeche "a stage"
+    statt "CoThinker"."""
+    system, nutzer = _voller_nutzertext(conn, monkeypatch)
+    for wort in ("Begriffe", "Fragen", "Stueckkarte", "Figuren", "Geschichte",
+                 "Mitschnitt", "noch offen"):
+        assert wort not in nutzer, wort
+    assert "Terms: arrival, waiting" in nutzer
+    assert "Setting: A railway station at night" in nutzer
+    assert "Characters: (still open)" in nutzer
+    assert "What if Samir never leaves the bench?" in nutzer
+    assert "on a stage" not in system
+    assert "CoThinker" in system
+
+
+def test_ohne_profil_bleibt_der_nutzertext_deutsch(conn, monkeypatch):
+    """Gegenprobe: Deutsch (Vorgabe/Dortmund) unveraendert."""
+    _, nutzer = _voller_nutzertext(conn, monkeypatch)
+    assert "Begriffe und Fragen (Phase 1-3):" in nutzer
+    assert "Begriffe: arrival, waiting" in nutzer
+    assert "Stueckkarte:" in nutzer
+    assert "Figuren: (noch offen)" in nutzer
+    assert "Mitschnitt des Brainstormings bisher:" in nutzer

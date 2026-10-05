@@ -37,6 +37,8 @@ UMGESTELLT: set[str] = {
     "sprachstil", "kernzitate", "stueckpruefung", "dramaturgie.beleg",
     "dramaturgie.fanout", "dramaturgie.mechanik", "web_schreiben", "web",
     "laengen", "sprachpass", "web_vereint", "web_gestalt",
+    # P34 Runde 1, Befund A5: Nutzertext des CoThinker-Aufrufs.
+    "buehnenkarte",
 }
 
 #: Was UMGESTELLT in Aufgabe 17 erreicht haben muss.
@@ -50,7 +52,7 @@ ALLE_MODULE = {
     "phasentexte", "schaerfung", "sprachprofil", "sprachstil", "sprecher",
     "stile", "stueckpruefung", "szene", "szenenfolge", "verdichter",
     "vorspann", "web", "web_schreiben", "laengen", "sprachpass",
-    "web_vereint", "web_gestalt",
+    "web_vereint", "web_gestalt", "buehnenkarte",
 }
 
 #: Bleibt deutsch, mit Grund (nie im Chat, nie im Prompt einer Gruppe).
@@ -284,6 +286,10 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
     # laeuft es ueber T -- die vier Ausnahmen dafuer sind entfallen.
     ("web", "interview-theater-web hoert auf http://{"):
         "Startzeile des Dienstes (stdout, betrieb/web.log), Betreiberausgabe",
+    # P34 Runde 1, Befund A5: buehnenkarte ist umgestellt, das Vorfall-Detail
+    # bleibt deutsch (Dashboard des Teams).
+    ("buehnenkarte", "Brainstorm-Transkript von {} auf {} Zeic"):
+        "Vorfall-Detail brainstorm_transkript_gekuerzt (repo.merke_vorfall)",
 }
 
 _STOPP = re.compile(

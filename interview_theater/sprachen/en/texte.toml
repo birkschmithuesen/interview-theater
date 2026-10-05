@@ -860,6 +860,20 @@ _TRANSKRIPT_KOPF = "The transcript of the discussion so far:"
 _BOARD_KOPF = "The term board so far (JSON):"
 _TEXT_EINSTIEG = "Lay one phone in the middle -- it listens. Open the CoThinker tab on a second phone: the terms you mention appear there."
 
+["buehnenkarte"]
+# P34 Runde 1, Befund A5: Nutzertext des CoThinker-Aufrufs (Phase 4).
+_UEBERSCHRIFT_BEGRIFFE_FRAGEN = "Terms and questions (phases 1-3):"
+_ZEILE_BEGRIFFE = "Terms: {wert}"
+_ZEILE_FRAGEN = "Questions: {wert}"
+_UEBERSCHRIFT_STUECKKARTE = "Piece card:"
+_TEXT_NOCH_OFFEN = "(still open)"
+_UEBERSCHRIFT_MITSCHNITT = "Brainstorm transcript so far:"
+
+["buehnenkarte".FELD_BESCHRIFTUNG]
+Setting = "Setting"
+Figuren = "Characters"
+Geschichte = "Story"
+
 ["journal"]
 _BISHERIGES_JOURNAL_KOPF = "Journal so far:\n"
 _AUSSCHNITT_KOPF = "Excerpt:\n"

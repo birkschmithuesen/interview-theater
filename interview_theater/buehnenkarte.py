@@ -16,9 +16,31 @@ import os
 
 import httpx
 
-from interview_theater import anweisungen, repo, szene_claude
+from interview_theater import anweisungen, repo, sprache, szene_claude
 
 log = logging.getLogger(__name__)
+
+#: Die Ueberschriften und Zeilen des Nutzertexts (P34 Runde 1, Befund A5):
+#: vorher Inline-Literale, im englischen CoThinker-Aufruf standen deshalb
+#: deutsche Ueberschriften. Deutsch bleibt hier wortgleich; Englisch in
+#: ``sprachen/en/texte.toml`` (["buehnenkarte"]).
+_UEBERSCHRIFT_BEGRIFFE_FRAGEN = "Begriffe und Fragen (Phase 1-3):"
+_ZEILE_BEGRIFFE = "Begriffe: {wert}"
+_ZEILE_FRAGEN = "Fragen: {wert}"
+_UEBERSCHRIFT_STUECKKARTE = "Stueckkarte:"
+_TEXT_NOCH_OFFEN = "(noch offen)"
+_UEBERSCHRIFT_MITSCHNITT = "Mitschnitt des Brainstormings bisher:"
+
+#: Beschriftung der drei Felder aus ``repo.stueckkarte_felder`` (dessen
+#: Namen sind deutsche Schluessel, die auch ``web.py`` liest -- dort nicht
+#: umbenannt, nur hier beschriftet).
+FELD_BESCHRIFTUNG = {
+    "Setting": "Setting",
+    "Figuren": "Figuren",
+    "Geschichte": "Geschichte",
+}
+
+T = sprache.Texte(__name__)
 
 #: Die Sentinel-Antwort, mit der das Modell sagt "keine Karte jetzt" --
 #: bewusst das deutsche Wort, auch in der englischen Prompt-Fassung
@@ -55,16 +77,18 @@ def _kontext_phasen_1_bis_3(conn, chat_id: int) -> str:
         return ""
     zeilen = []
     if stand["begriffe"]:
-        zeilen.append(f"Begriffe: {stand['begriffe']}")
+        zeilen.append(T._ZEILE_BEGRIFFE.format(wert=stand["begriffe"]))
     if stand["fragen"]:
-        zeilen.append(f"Fragen: {stand['fragen']}")
+        zeilen.append(T._ZEILE_FRAGEN.format(wert=stand["fragen"]))
     return "\n".join(zeilen)
 
 
 def _stueckkarte_text(conn, chat_id: int) -> str:
     zeilen = []
+    beschriftung = T.FELD_BESCHRIFTUNG
     for name, wert in repo.stueckkarte_felder(conn, chat_id):
-        zeilen.append(f"{name}: {wert}" if wert else f"{name}: (noch offen)")
+        name = beschriftung.get(name, name)
+        zeilen.append(f"{name}: {wert or T._TEXT_NOCH_OFFEN}")
     for zeile in repo.festlegungen(conn, chat_id):
         zeilen.append(
             repo.festlegungszeile(zeile["bereich"], zeile["bezug"], zeile["text"])
@@ -92,11 +116,11 @@ def _nutzertext(conn, chat_id: int) -> str:
     teile = []
     kontext_1_3 = _kontext_phasen_1_bis_3(conn, chat_id)
     if kontext_1_3:
-        teile.append(f"Begriffe und Fragen (Phase 1-3):\n{kontext_1_3}")
+        teile.append(f"{T._UEBERSCHRIFT_BEGRIFFE_FRAGEN}\n{kontext_1_3}")
     stueckkarte = _stueckkarte_text(conn, chat_id)
     if stueckkarte:
-        teile.append(f"Stueckkarte:\n{stueckkarte}")
-    teile.append(f"Mitschnitt des Brainstormings bisher:\n{transkript}")
+        teile.append(f"{T._UEBERSCHRIFT_STUECKKARTE}\n{stueckkarte}")
+    teile.append(f"{T._UEBERSCHRIFT_MITSCHNITT}\n{transkript}")
     return "\n\n".join(teile)
 
 

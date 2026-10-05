@@ -2014,11 +2014,37 @@ _CHAT_JS = """
     return fuss.dataset.vadKalibrierung !== '0';
   }
 
-  function kalibrierungCacheLesen() {
+  // Raumcheck je Gruppe UND Tag (Birk, Live-Test 05.10.2026): vorher lagen
+  // die drei Werte unter festen Schluesseln und galten fuer die ganze
+  // Domain -- eine Messung in Gruppe 1 uebersprang den Raumcheck in Gruppe 2
+  // und in der Testgruppe. Jetzt "<KAL_LS_...>:<gruppe>:<JJJJ-MM-TT>", die
+  // Gruppe aus dem Pfad (/g/<token>), das Datum in lokaler Zeit. Alte,
+  // ungekeyte Schluessel liest niemand mehr. "Measure again" bleibt
+  // (kalibrierungNeu ignoriert jeden Cache).
+  function kalGruppeAus(pfad) {
+    var teile = String(pfad || '').split('/');
+    var i = teile.indexOf('g');
+    return (i >= 0 && teile[i + 1]) ? teile[i + 1] : String(pfad || '');
+  }
+
+  function kalDatum(d) {
+    function zwei(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + zwei(d.getMonth() + 1) + '-' + zwei(d.getDate());
+  }
+
+  function kalSchluessel(basis, gruppe, datum) {
+    return basis + ':' + gruppe + ':' + datum;
+  }
+
+  function kalSpeicher() {
+    try { return window.localStorage; } catch (e) { return null; }
+  }
+
+  function kalibrierungCacheLesen(speicher, gruppe, datum) {
     try {
-      var boden = parseFloat(localStorage.getItem(KAL_LS_BODEN));
-      var rede = parseFloat(localStorage.getItem(KAL_LS_REDE));
-      var schwelle = parseFloat(localStorage.getItem(KAL_LS_SCHWELLE));
+      var boden = parseFloat(speicher.getItem(kalSchluessel(KAL_LS_BODEN, gruppe, datum)));
+      var rede = parseFloat(speicher.getItem(kalSchluessel(KAL_LS_REDE, gruppe, datum)));
+      var schwelle = parseFloat(speicher.getItem(kalSchluessel(KAL_LS_SCHWELLE, gruppe, datum)));
       if (isFinite(boden) && isFinite(rede) && isFinite(schwelle)) {
         return { boden: boden, rede: rede, schwelle: schwelle };
       }
@@ -2026,11 +2052,11 @@ _CHAT_JS = """
     return null;
   }
 
-  function kalibrierungCacheSchreiben(boden, rede, schwelle) {
+  function kalibrierungCacheSchreiben(speicher, gruppe, datum, boden, rede, schwelle) {
     try {
-      localStorage.setItem(KAL_LS_BODEN, String(boden));
-      localStorage.setItem(KAL_LS_REDE, String(rede));
-      localStorage.setItem(KAL_LS_SCHWELLE, String(schwelle));
+      speicher.setItem(kalSchluessel(KAL_LS_BODEN, gruppe, datum), String(boden));
+      speicher.setItem(kalSchluessel(KAL_LS_REDE, gruppe, datum), String(rede));
+      speicher.setItem(kalSchluessel(KAL_LS_SCHWELLE, gruppe, datum), String(schwelle));
     } catch (e) { /* Skip bleibt ohnehin die Rueckfallebene */ }
   }
 
@@ -2399,7 +2425,8 @@ _CHAT_JS = """
     } else {
       meldeFehler(TEXT.kal_erfolg);
     }
-    kalibrierungCacheSchreiben(k.bodenMess, k.redeMess, schwelle);
+    kalibrierungCacheSchreiben(kalSpeicher(), kalGruppeAus(location.pathname),
+      kalDatum(new Date()), k.bodenMess, k.redeMess, schwelle);
     kalibrierungBeenden(sitzung, schwelle, k.bodenMess);
   }
 
@@ -2492,7 +2519,7 @@ _CHAT_JS = """
       kalStarteEchteSchnitte(sitzung);
       return;
     }
-    var cache = kalibrierungCacheLesen();
+    var cache = kalibrierungCacheLesen(kalSpeicher(), kalGruppeAus(location.pathname), kalDatum(new Date()));
     if (cache) {
       sitzung.vadBodenMess = cache.boden;
       sitzung.vadSchwelleFix = cache.schwelle;

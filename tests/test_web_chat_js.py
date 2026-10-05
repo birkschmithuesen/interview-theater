@@ -1050,28 +1050,35 @@ def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
     ein Link teilbar bleibt und ein zweites Telefon dieselbe Gruppe sieht.
 
     Die EINE genannte Ausnahme (Task 2, Kanban-Karte Mithoeren SICHER/
-    Kalibrierung, 03.10.2026): genau drei ``localStorage``-Schluessel fuer
-    das gemessene Kalibrierungsergebnis dieses GERAETS (nicht der Gruppe) --
-    ``vad_boden_mess``/``vad_rede_mess``/``vad_schwelle``. Das ist bewusst
-    eng: kein Link haengt daran, ein zweites Telefon sieht dieselbe Gruppe
-    weiterhin unveraendert, es misst nur sein eigenes Mikrofon noch einmal."""
+    Kalibrierung, 03.10.2026): genau drei ``localStorage``-Werte fuer das
+    gemessene Kalibrierungsergebnis dieses GERAETS --
+    ``vad_boden_mess``/``vad_rede_mess``/``vad_schwelle``. Seit 05.10.2026
+    (Birk, Live-Test) je Gruppe und Tag: der Schluessel ist
+    ``<Basis>:<Gruppe>:<JJJJ-MM-TT>`` (``kalSchluessel``), sonst galt eine
+    Messung in Gruppe 1 auch fuer Gruppe 2. Das ist bewusst eng: kein Link
+    haengt daran, ein zweites Telefon sieht dieselbe Gruppe weiterhin
+    unveraendert, es misst nur sein eigenes Mikrofon noch einmal."""
     assert "document.cookie" not in web_chat._CHAT_JS
     assert "sessionStorage" not in web_chat._CHAT_JS
     assert "WebSocket" not in web_chat._CHAT_JS
     assert "EventSource" not in web_chat._CHAT_JS
-    for schluessel in ("getItem", "setItem"):
-        assert f"localStorage.{schluessel}" in web_chat._CHAT_JS, schluessel
-    erlaubte_schluessel = {"vad_boden_mess", "vad_rede_mess", "vad_schwelle"}
-    gefundene = set(re.findall(r"localStorage\.(?:get|set)Item\(([A-Za-z_]+)", web_chat._CHAT_JS))
-    # Die Aufrufe nennen die Konstante, nicht den Schluessel woertlich --
-    # die Konstanten selbst muessen auf genau die drei Namen zeigen.
+    # localStorage wird nur an EINER Stelle geholt, und jeder Zugriff geht
+    # ueber kalSchluessel mit einer der drei Konstanten.
+    assert "localStorage." not in web_chat._CHAT_JS
+    assert web_chat._CHAT_JS.count("window.localStorage") == 1
+    assert "return window.localStorage;" in web_chat._CHAT_JS
+    zugriffe = re.findall(r"\.(?:get|set)Item\(([^)]*\)?)", web_chat._CHAT_JS)
+    assert zugriffe, "kein Speicherzugriff gefunden"
+    basen = set()
+    for arg in zugriffe:
+        treffer = re.match(r"kalSchluessel\((KAL_LS_[A-Z]+), gruppe, datum\)", arg)
+        assert treffer, arg
+        basen.add(treffer.group(1))
     konstanten = dict(re.findall(
         r"var (KAL_LS_[A-Z]+) = '([a-z_]+)';", web_chat._CHAT_JS,
     ))
-    assert gefundene, "kein localStorage-Zugriff ueber eine Konstante gefunden"
-    assert gefundene <= set(konstanten), gefundene
-    assert {konstanten[k] for k in gefundene} <= erlaubte_schluessel
-    assert set(konstanten.values()) == erlaubte_schluessel
+    assert basen == set(konstanten)
+    assert set(konstanten.values()) == {"vad_boden_mess", "vad_rede_mess", "vad_schwelle"}
 
 
 # -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ---------------------

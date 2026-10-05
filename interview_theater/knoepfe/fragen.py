@@ -805,18 +805,36 @@ def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
             frage_text += T._TEXT_HERKUNFT_KI
 
     text = f"{kopf}\n\n{frage_text}"
+    return _sende_mit_frageleiste(conn, tg, chat_id, nummer, text)
 
-    # P2-H3 (Feedbackloop P1-2): nur die neueste Fragekarte ist bedienbar --
-    # nach einer Schaerfung stand sonst die alte Karte mit lebendem
-    # "Accept" darueber ("Which Accept belongs to the newest question?").
+
+def _sende_mit_frageleiste(conn, tg, chat_id: int, nummer: int, text: str,
+                           schaerfen: bool = True) -> int:
+    """Schickt ``text`` mit der Leiste der Frage ``nummer`` (Annehmen /
+    Verwerfen, auf Wunsch Schaerfen) -- die Fragekarte selbst, aber auch die
+    Rueckfrage nach "Schaerfen" und die Antwort neben einer unveraendert
+    zurueckgekommenen Frage.
+
+    S1 (Feedbackloop P1-2, Runde 2): vorher trug nur die Karte die Leiste.
+    "Schaerfen" nahm sie ab (``behandle`` entfernt die Tastatur der
+    gedrueckten Nachricht), und jede weitere Antwort kam als blosser Text --
+    die Gruppe konnte die Frage weder annehmen noch verwerfen, die naechste
+    war unerreichbar. Jetzt traegt die jeweils juengste Nachricht zur offenen
+    Frage die Leiste; dieselbe Karte wird dafuer NICHT erneut gezeigt (P2-H3).
+
+    P2-H3 (Feedbackloop P1-2): nur die neueste Leiste ist bedienbar -- die
+    vorige wird abgenommen und verfaellt ("Which Accept belongs to the newest
+    question?")."""
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGE_ANNEHMEN)
+    arten = [
+        (T._TEXT_FRAGE_ANNEHMEN_KNOPF, ART_FRAGE_ANNEHMEN),
+        (T._TEXT_FRAGE_VERWERFEN_KNOPF, ART_FRAGE_VERWERFEN),
+    ]
+    if schaerfen:
+        arten.append((T._TEXT_FRAGE_SCHAERFEN_KNOPF, ART_FRAGE_SCHAERFEN))
     leiste = [
-        (T._TEXT_FRAGE_ANNEHMEN_KNOPF,
-         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_ANNEHMEN, str(nummer)))),
-        (T._TEXT_FRAGE_VERWERFEN_KNOPF,
-         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_VERWERFEN, str(nummer)))),
-        (T._TEXT_FRAGE_SCHAERFEN_KNOPF,
-         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_SCHAERFEN, str(nummer)))),
+        (beschriftung, _daten(repo.lege_knopf_an(conn, chat_id, art, str(nummer))))
+        for beschriftung, art in arten
     ]
     message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
     repo.merke_knopf_nachricht(
@@ -875,7 +893,13 @@ def frage_waehlt_schaerfen(conn, tg, chat_id: int, nummer: int) -> str:
     defensiv (erneut) auf diese Frage gesetzt wird -- derselbe Schutz wie
     eine aus Versehen verschobene Reihenfolge."""
     repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", str(nummer))
-    tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
+    # S1 (Feedbackloop P1-2, Runde 2): ``behandle`` nimmt der Karte nach
+    # diesem Druck die ganze Leiste ab -- die Rueckfrage traegt deshalb
+    # Annehmen/Verwerfen fuer genau diese Frage weiter (Schaerfen nicht: das
+    # laeuft gerade). Die alte Leiste verfaellt dabei.
+    _sende_mit_frageleiste(
+        conn, tg, chat_id, nummer, T._TEXT_FRAGE_WAS_AENDERN, schaerfen=False,
+    )
     # P2-N1 (Feedbackloop P1-2): die Rueckfrage steht schon als Blase da --
     # dieselbe Zeile noch einmal als Knopf-Quittung stand doppelt.
     return ""
@@ -930,14 +954,19 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
         # P2-H3 (Feedbackloop P1-2): jede freie Nachricht zu einer offenen
         # Frage ist ein Schaerfungswunsch -- auch "Does Accept save it?".
         # Kommt die Frage unveraendert zurueck, stand dieselbe Karte bis zu
-        # dreimal untereinander. Die Karte darueber bleibt die bedienbare.
+        # dreimal untereinander -- die Karte wird nicht wiederholt.
         # T10: hat das Modell etwas dazu gesagt (eine Rueckfrage wie "Does
         # Accept save it?" beantwortet), steht SEINE Antwort da; nur ohne
         # eigenen Text die Rueckfrage nach dem Aenderungswunsch.
-        return tg.sende(
-            chat_id,
-            _antwort_neben_unveraenderter_frage(conn, chat_id, antwort, alte[nummer - 1])
-            or T._TEXT_FRAGE_WAS_AENDERN,
+        # S1 (Runde 2): diese Nachricht traegt die Leiste der offenen Frage
+        # (die vorige verfaellt) -- vorher kam nur Text, und nach "Schaerfen"
+        # gab es kein Annehmen/Verwerfen mehr.
+        eigene = _antwort_neben_unveraenderter_frage(
+            conn, chat_id, antwort, alte[nummer - 1],
+        )
+        return _sende_mit_frageleiste(
+            conn, tg, chat_id, nummer, eigene or T._TEXT_FRAGE_WAS_AENDERN,
+            schaerfen=bool(eigene),
         )
     if neue_frage:
         _setze_frage_zeile(conn, chat_id, nummer, neue_frage)

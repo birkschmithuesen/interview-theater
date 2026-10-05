@@ -23,6 +23,7 @@ datengetrieben wie alles andere, also weg, solange es keine Szene gibt.
 
 import logging
 import os
+import re
 from datetime import datetime, timedelta
 
 from interview_theater import phasen, repo, workshop
@@ -964,12 +965,16 @@ def _fasse_marker_zusammen(fenster_eintraege: list) -> None:
 
 def _baue_begriffe_detail(conn, chat_id: int) -> str:
     """Begruendung und Doppelbedeutung je gespeichertem Begriff
-    (``arbeitsstand.begriffe_detail``) -- nur fuer die Begriffe, deren
-    Begruendung der Board-Block (``_baue_board``) NICHT schon zeigt (ein
-    Fakt, eine Stelle). Das sind vor allem Begriffe, die das Board als
-    "verworfen" fuehrt: ``_baue_board`` listet nur nicht verworfene
-    Begriffe, aber eine Gruppe kann einen verworfenen trotzdem gespeichert
-    haben -- ohne diesen Block verlor er seine Begruendung komplett (R-1).
+    (``arbeitsstand.begriffe_detail``) -- nur das, was der Board-Block
+    (``_baue_board``) NICHT schon zeigt (ein Fakt, eine Stelle). Der
+    Board-Block zeigt je Begriff nur die Begruendung, nie die
+    Doppelbedeutung -- ein Begriff, der dort steht, verliert hier also nur
+    seine Begruendung, nie eine vorhandene Doppelbedeutung (MINOR 3, Review
+    T3). Ganz fehlt ein Begriff hier nur, wenn er NICHTS Zusaetzliches
+    traegt -- allem voran Begriffe, die das Board als "verworfen" fuehrt:
+    ``_baue_board`` listet nur nicht verworfene Begriffe, aber eine Gruppe
+    kann einen verworfenen trotzdem gespeichert haben -- ohne diesen Block
+    verlor er seine Begruendung komplett (R-1).
 
     **In jeder Phase** (05.10.2026, Birk: "Der Chat muss immer alles
     wissen") -- bis zum 05.10.2026 lief das nur in Phase 2 und ab 4, nie in
@@ -985,10 +990,14 @@ def _baue_begriffe_detail(conn, chat_id: int) -> str:
         for e in begriffsboard.aktuelles(conn, chat_id)
         if e.get("status") != "verworfen"
     }
-    zeilen = begriffsboard.detail_zeilen([
-        e for e in detail
-        if begriffsboard.schluessel(e.get("begriff")) not in gezeigt
-    ])
+    bereinigt = []
+    for eintrag in detail:
+        if begriffsboard.schluessel(eintrag.get("begriff")) in gezeigt:
+            if not (eintrag.get("doppelbedeutung") or "").strip():
+                continue  # der Board-Block traegt alles, was dieser Eintrag hat
+            eintrag = dict(eintrag, begruendung="")  # nur die Begruendung ist dort doppelt
+        bereinigt.append(eintrag)
+    zeilen = begriffsboard.detail_zeilen(bereinigt)
     if not zeilen:
         return ""
     return T.BEGRIFFE_DETAIL_KOPF + "\n" + "\n".join(zeilen)
@@ -1423,12 +1432,20 @@ _SYSTEMANFAENGE = (
 #: alte Chatverlaeufe. "Withdrawn:" ist der Anfang von
 #: ``erkenner._JOURNAL_ZURUECK``.
 #:
-#: **Erweitert 05.10.2026 (P1-L6, Prompt-Check Padua P1/P2):** vier weitere
+#: **Erweitert 05.10.2026 (P1-L6, Prompt-Check Padua P1/P2):** fuenf weitere
 #: Bot-Meldungen standen im Fenster als "You:"-Zug, obwohl sie Ereignisse
 #: sind -- ``_TEXT_UNDO_ERLEDIGT``/``_TEXT_REDO_ERLEDIGT`` ("Undone:"/
 #: "Redone:"), ``_ANTWORT_UNDO_GEAENDERT``/``_ANTWORT_REDO_GEAENDERT``
 #: ("Changed since."), ``erkenner._ZEILE_FESTGELEGT`` ("📌 Agreed:") und
-#: ``_TEXT_FRAGE_KOPF``/``_TEXT_FRAGE_KOPF_OHNE_BEGRIFF`` ("Question ").
+#: ``_TEXT_FRAGE_GESCHAERFT`` ("Question reworked").
+#:
+#: **NICHT** "Question " als Praefix (Review T3, IMPORTANT 2): das verschluckte
+#: echte Modellsaetze wie "Question 2 is strong, but ..." komplett. Die
+#: Fragenkarte selbst (``_TEXT_FRAGE_KOPF``/``_TEXT_FRAGE_KOPF_OHNE_BEGRIFF``,
+#: "Question N/M ...") ist kein Praefix-Treffer hier, sondern eine eigene,
+#: engere Regel (``_FRAGENKOPF_MUSTER``/``_ohne_fragenkopf``): nur ihr Kopf
+#: faellt weg, nicht die Frage darunter (MINOR 1) -- die ganze Nachricht zu
+#: verschlucken waere Inhalt, nicht nur Ereignis.
 _SYSTEMANFAENGE_EN = (
     "I'm back.",
     "Noted:",
@@ -1444,7 +1461,7 @@ _SYSTEMANFAENGE_EN = (
     "Redone:",
     "Changed since.",
     "📌 Agreed:",
-    "Question ",
+    "Question reworked",
 )
 
 
@@ -1458,6 +1475,28 @@ def _ist_systemzeile(n) -> bool:
     text = (n["text"] or "").lstrip()
     return any(text.startswith(anfang)
                for anfang in _SYSTEMANFAENGE + _SYSTEMANFAENGE_EN)
+
+
+#: Der Kopf der Fragenkarte ("Question 2/5 · Home" oder kopflos "Question
+#: 1/1", ``knoepfe/fragen.py:_zeige_frage``) plus die Leerzeile direkt
+#: danach -- Review T3, MINOR 1. Verlangt Ziffer/Ziffer direkt hinter
+#: "Question ", damit ein echter Modellsatz ("Question 2 is strong, but
+#: ...") nicht anschlaegt (IMPORTANT 2); verlangt die Leerzeile DAHINTER,
+#: damit ein Kopf ohne Frage (sollte nie vorkommen) nicht versehentlich den
+#: ganzen Text wegfrisst.
+_FRAGENKOPF_MUSTER = re.compile(
+    r"^(?P<praefix>.*?: )Question \d+/\d+(?: · [^\n]*)?\n\n", re.DOTALL,
+)
+
+
+def _ohne_fragenkopf(zeilen: list[str]) -> None:
+    """Nimmt einer formatierten Fensterzeile ("Du: Question 2/5 · Home\\n\\n
+    <Frage>") nur den Kartenkopf -- die Frage darunter bleibt, sie ist der
+    Inhalt, auf den sich die Gruppe gerade bezieht, nicht das Ereignis. Die
+    Nummerierung selbst ist redundant (die Werkbank zeigt den Fortschritt
+    schon). Aendert ``zeilen`` an Ort und Stelle, wie ``_fasse_marker_zusammen``."""
+    for i, zeile in enumerate(zeilen):
+        zeilen[i] = _FRAGENKOPF_MUSTER.sub(r"\g<praefix>", zeile, count=1)
 
 
 def _baue_fenster_eintraege(conn, chat_id: int, ausloeser, namen=None) -> list[str]:
@@ -1527,6 +1566,7 @@ def _baue_fenster_eintraege(conn, chat_id: int, ausloeser, namen=None) -> list[s
         pause = _pausenzeile(vorherige_zeit, bezug)
         if pause:
             eintraege.append(pause)
+    _ohne_fragenkopf(eintraege)
     return eintraege
 
 

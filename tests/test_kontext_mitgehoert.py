@@ -103,6 +103,29 @@ def test_verworfener_aber_gespeicherter_begriff_behaelt_seine_begruendung(conn):
         assert "Kam oft vor" in text, f"Begruendung fehlt in Phase {phase}"
 
 
+def test_begriff_auf_dem_board_behaelt_seine_doppelbedeutung(conn):
+    """MINOR 3 (Review T3): der Board-Block zeigt je Begriff nur die
+    Begruendung (``_baue_board``), nie die Doppelbedeutung. Ein Begriff, der
+    schon auf dem Board steht, darf deshalb nicht KOMPLETT aus dem
+    Detail-Block fallen -- nur seine Begruendung ist dort doppelt, die
+    Doppelbedeutung traegt der Board-Block gar nicht."""
+    board = [
+        {"begriff": "Heimat", "nennungen": 3, "zustimmung": 2,
+         "begruendung": "Wo man bleibt.", "zitat": "",
+         "doppelbedeutung": "Ort und Gefuehl", "status": "favorit"},
+    ]
+    repo.lege_begriffsboard_an(conn, CHAT, json.dumps(board), "sovereign", 0)
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "Heimat")
+    begriffsboard.schreibe_detail(conn, CHAT, "Heimat")
+    repo.setze_phase(conn, CHAT, 2)
+
+    text = _prompt(conn)
+
+    assert "1. Heimat (Favorit) -- Wo man bleibt." in text, "Begruendung steht auf dem Board"
+    assert text.count("Wo man bleibt.") == 1, "die Begruendung steht nicht doppelt"
+    assert "Ort und Gefuehl" in text, "die Doppelbedeutung darf nicht verloren gehen"
+
+
 def test_board_steht_auch_in_spaeteren_phasen(conn):
     repo.lege_begriffsboard_an(conn, CHAT, json.dumps(BOARD), "sovereign", 0)
     for phase in (2, 3, 4, 5):

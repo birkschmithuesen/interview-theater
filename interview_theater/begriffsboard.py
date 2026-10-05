@@ -40,7 +40,7 @@ import os
 import re
 import threading
 
-from interview_theater import anweisungen, brainstorm, modellwahl, repo, workshop
+from interview_theater import anweisungen, brainstorm, modellwahl, phasen, repo, workshop
 from interview_theater import begriffe as begriffe_modul
 from interview_theater import sprache, zitat
 
@@ -765,6 +765,16 @@ def sende_vorschlag(conn, tg, chat_id: int, rueckfall_text: str | None, e=None) 
         log.exception("Auto-Speichern beim Diskussionsende fehlgeschlagen, chat_id=%s", chat_id)
     if gespeichert:
         basis.biete_board_gespeichert(conn, tg, chat_id, top, _LETZTER_AUTOLAUF.get(chat_id))
+        # Review T3, IMPORTANT 1: diese Nachricht TRAEGT schon den
+        # "Weiter zu Phase 2"-Knopf (``ART_PHASE`` mit Wert "2"), setzt aber
+        # selbst keinen Merkposten -- ohne ``merke_angebot`` haette der
+        # naechste Gespraechszug (``knoepfe.biete_phase_proaktiv``, derselbe
+        # Merkposten wie ``kontext._baue_phasenhinweis``) denselben Wechsel
+        # ein zweites Mal angeboten. Nur dieser Zweig (Auto-Speichern
+        # erfolgreich): die andere Marke (``basis.biete_begriffsvorschlag``,
+        # "Take these") bietet keinen Phasenwechsel an, dort entscheidet erst
+        # der naechste Knopfdruck.
+        phasen.merke_angebot(conn, chat_id, 2)
         return
     alle = [e_["begriff"] for e_ in board]
     basis.biete_begriffsvorschlag(conn, tg, chat_id, alle, top)

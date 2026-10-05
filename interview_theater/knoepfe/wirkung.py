@@ -1659,9 +1659,19 @@ def _wirkung_redo(conn, d: Druck) -> str:
     # frage_weich_lassen in fragen.py. Ohne das blieb die Gruppe nach einem
     # Redo bei der allgemeinen Interview-Bedienhilfe haengen, weil
     # interview_eroeffnung/-abschluss nie gesetzt wurden.
+    #
+    # Nur, wenn der Durchgang Frage fuer Frage abgeschlossen ist
+    # (``fragen_herkunft_final`` gesetzt -- nur ``_schliesse_fragen_ab``
+    # schreibt es, dieselbe Marke wie ``roadmap.fragenuebersicht``). Befund
+    # H1 (Feedbackloop P1-2, Runde 2): das Redo eines Erkennerlaufs, der die
+    # eigenen Fragen der Gruppe schon VOR KI-Vergleich und Einzeldurchgang
+    # gespeichert hatte, startete die Eroeffnung -- deren Autosave sprang
+    # ohne Zutun der Gruppe nach Phase 3. Redo stellt Daten her; die Phase
+    # setzt allein die Gruppe (AGENTS.md).
     stand_jetzt = repo.hole_arbeitsstand(conn, d.chat_id)
     if (stand_jetzt is not None
             and (stand_jetzt["fragen"] or "").strip()
+            and stand_jetzt["fragen_herkunft_final"] is not None
             and not (stand_jetzt["interview_eroeffnung"] or "").strip()):
         starte_eroeffnung(conn, d.tg, d.klm, d.e, d.chat_id)
 

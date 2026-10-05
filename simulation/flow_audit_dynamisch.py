@@ -487,19 +487,24 @@ def station_01_eintritt(conn, tg, klm, e, chat_id: int) -> Sondierung:
     gibt den Einstieg an einen Gespraechszug ab
     (``kontext.einstieg_begriffe``, Zeile 350-361 in
     ``interview_theater/knoepfe/stationen.py``) und kehrt zurueck, BEVOR
-    dieser Zug fertig ist. Was tatsaechlich zuerst steht, ist der
-    deterministische Mithoer-Satz des Begriffsboards
-    (``begriffsboard.sende_einstieg``, Zeile 338-343 derselben Funktion,
-    nur mit ``[diskussion] aktiv``) -- DORT steht der CoThinker-Hinweis, nicht
-    im Modelltext. Diese Station prueft deshalb den GESAMTEN bisherigen
+    dieser Zug fertig ist. Was tatsaechlich zuerst steht, ist seit dem
+    05.10.2026 die Handy-Karte der Phase 1 (``stationen._sende_karte``: Bild
+    mit zwei echten Screenshots, darunter der Satz "Phone A ... Phone B shows
+    the CoThinker") -- DORT steht der CoThinker-Hinweis, deterministisch,
+    nicht im Modelltext. Diese Station prueft deshalb den GESAMTEN bisherigen
     Chatverlauf, nicht nur eine einzelne Nachricht: genau das, was eine
     Gruppe beim ersten Blick auf ihr Telefon sieht."""
     stufe = "p1_eintritt"
     _konfiguriere_falls_attrappe(klm, stufe).gespraech(
         stufe,
-        "Hi! Whenever you're ready, send me the terms from your wall -- "
-        "typed out or as a voice note, just as they are. I'll keep them "
-        "and we'll look together at anything that still feels too big.",
+        # Bewusst OHNE Handy-Hinweis (05.10.2026): der Modelltext ist nicht
+        # die Garantie -- die deterministische Handy-Karte der Phase 1
+        # (Bild + Satz mit Phone A/B und dem CoThinker) ist es. Der alte
+        # Stub ("send me the terms from your wall") war ein Dortmunder
+        # Text, den der Padua-Prompt nie erzeugt.
+        "Hi, I'm the theatre bot for this workshop. First we check the "
+        "room, then you discuss your terms. Now press \"Start listening\" "
+        "for mic calibration.",
     )
     from interview_theater import knoepfe as knoepfe_modul
 

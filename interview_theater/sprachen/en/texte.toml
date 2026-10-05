@@ -1642,7 +1642,6 @@ _TEXT_AUSWAHL_JA = "Keep"
 _TEXT_AUSWAHL_NEIN = "Drop"
 _TEXT_AUSWAHL_SCHAERFEN = "Rephrase"
 _TEXT_AUSWAHL_FERTIG = "Done sorting – open ones count as keep"
-_TEXT_AUSWAHL_UNGUELTIG = "This choice is not possible."
 _TEXT_BUEHNE_HOERT_ZU = "Listening … nothing to add yet."
 _TEXT_BUEHNE_AUFNAHME_LAEUFT = "A recording is in progress."
 _TEXT_BUEHNE_ZURUECK = " — back to current"
@@ -1957,6 +1956,7 @@ _TEXT_MITLAUF_HINWEIS = "Check the transcript in the chat — if words are missi
 TEXT_ABKUERZUNG_HINWEIS = "Buttons are shortcuts – you can always just write or speak instead."
 
 ["web_vereint"]
+_TEXT_AUSWAHL_UNGUELTIG = "This choice is not possible."
 _TEXT_PHASE_UNGUELTIG = "There is no such phase."
 _TEXT_PHASE_UNBESTAETIGT = "Please confirm first."
 _TEXT_PHASE_WECHSELN = "Switch to this phase"

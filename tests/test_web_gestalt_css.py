@@ -238,6 +238,46 @@ def test_keine_rohe_hexfarbe_ausserhalb_des_tokenblocks(name):
     assert not re.findall(r"#[0-9a-fA-F]{3,8}\b", ohne_kommentare)
 
 
+# -- 5. Feedbackloop S8: der Verlauf schneidet keine Blase flach unter dem --
+# -- Titel ab -----------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_verlauf_hat_luft_unter_der_letzten_blase(name):
+    """Browserlauf ``2026-10-05-handy-giulia-p12`` (Befund S8, ``100-…``/
+    ``015-…png``): ``web_chat._CHAT_JS`` klemmt den Verlauf per
+    ``verlauf.scrollTop = verlauf.scrollHeight`` ans Ende (nicht angefasst,
+    parallele Karte). Ohne ein Polster UNTER der letzten Blase landete das
+    Scroll-Ende haeufig mitten in einer Blase -- ihr oberer Rand erschien an
+    der oberen Kante von ``.verlauf`` abgeschnitten, direkt unter dem
+    Gruppentitel (der selbst ``position: static`` ist und gar nicht
+    ueberlappt, gemessen per Playwright: der Titel sitzt als gewoehnliches
+    Flex-Geschwister OBERHALB von ``.verlauf``).
+
+    Dieses Polster ist eine kleine, immer sinnvolle Atempause (dieselbe
+    Luft, die ``.verlauf`` ohnehin zwischen zwei Blasen traegt, ``gap`` --
+    hier einmal zusaetzlich am Ende) -- aber KEIN allgemeiner Beweis gegen
+    jeden Anschnitt: bei anderer Blasenlaenge trifft die Bodenkante wieder
+    irgendeine Blase (am echten Chromium nachgemessen mit laengerem
+    Fuelltext). Die content-unabhaengige Loesung ist die Maske auf
+    ``.panel-chat .verlauf`` (``web_vereint._css_schale`` -- siehe deren
+    Docstring fuer die drei verworfenen Kandidaten, darunter
+    ``scroll-padding-top``); ihr Beweis steht in
+    ``tests/e2e/test_web_vereint_sticky_titel_e2e.py`` und
+    ``tests/test_web_vereint.py``. Hier nur der textliche Vertrag fuer das
+    Polster: es existiert und ist nicht kleiner als der Abstand, den
+    ``.verlauf`` ohnehin zwischen zwei Blasen traegt."""
+    css = web_vereint.scope_css(web_gestalt.css_chat(name), ".panel-chat")
+    block = re.search(r"\.panel-chat \.verlauf\s*\{([^{}]*)\}", css)
+    assert block, "keine .verlauf-Regel im gescopten Chat-CSS"
+    koerper = block.group(1)
+    gap = re.search(r"\bgap:\s*([\d.]+)rem", koerper)
+    pad = re.search(r"\bpadding-bottom:\s*([\d.]+)rem", koerper)
+    assert gap, koerper
+    assert pad, koerper
+    assert float(pad.group(1)) >= float(gap.group(1))
+
+
 # -- 5. Buehnenlichter (Entwurf B) gegen die Kaskade -------------------------
 #
 # Review-Befund an Aufgabe 7: ``_TABS_B`` und ``_ROADMAP`` definieren

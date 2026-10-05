@@ -43,8 +43,9 @@ def test_mindestens_zwei_pausen_ueberschreiten_die_vad_schwelle():
 def test_erzeugt_eine_wav_von_mindestens_zwei_minuten(tmp_path):
     pytest.importorskip("espeakng_loader")
     ziel = tmp_path / "d.wav"
-    sekunden = e.erzeuge(SKRIPT, ziel)
+    wav = e.erzeuge(SKRIPT, ziel)
+    sekunden = e.dauer_s(wav)
     assert sekunden >= 120
-    with wave.open(str(ziel)) as w:
+    with wave.open(str(wav)) as w:
         assert w.getnchannels() == 1 and w.getsampwidth() == 2
         assert abs(w.getnframes() / w.getframerate() - sekunden) < 0.5

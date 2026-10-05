@@ -67,7 +67,20 @@ def _espeak():
     return lib, rate
 
 
-def erzeuge(skript: Path, ziel: Path) -> float:
+def verfuegbar() -> bool:
+    """Ob espeak-ng (PyPI ``espeakng_loader``) in dieser Umgebung installiert ist."""
+    try:
+        import espeakng_loader  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+def erzeuge(skript: Path, ziel: Path, *, ende_pause_s: float = 0.0) -> Path:
+    """Erzeugt die WAV und gibt ihren Pfad zurueck. ``ende_pause_s`` haengt
+    nach der letzten Zeile zusaetzliche Stille an -- fuer Birks Nachtrag D
+    (leeres Ende-Segment nach "Discussion done"), ohne das bestehende
+    Verhalten bei ``ende_pause_s=0.0`` zu aendern."""
     lib, rate = _espeak()
     puffer: list[bytes] = []
     callback_typ = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.POINTER(ctypes.c_short),
@@ -88,16 +101,23 @@ def erzeuge(skript: Path, ziel: Path) -> float:
         roh = text.encode("utf-8") + b"\0"
         lib.espeak_Synth(roh, len(roh), 0, _POS_CHARACTER, 0, _ESPEAK_CHARS_UTF8, None, None)
         frames += b"".join(puffer) + b"\0\0" * int(rate * pause)
+    if ende_pause_s:
+        frames += b"\0\0" * int(rate * ende_pause_s)
     ziel.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(ziel), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(rate)
         w.writeframes(bytes(frames))
-    return len(frames) / 2 / rate
+    return ziel
+
+
+def dauer_s(wav: Path) -> float:
+    with wave.open(str(wav)) as w:
+        return w.getnframes() / w.getframerate()
 
 
 if __name__ == "__main__":
     ziel = Path(sys.argv[1])
-    sekunden = erzeuge(Path(__file__).parent / "diskussion" / "p1-diskussion.txt", ziel)
-    print(f"{ziel}: {sekunden:.1f} s")
+    wav = erzeuge(Path(__file__).parent / "diskussion" / "p1-diskussion.txt", ziel)
+    print(f"{wav}: {dauer_s(wav):.1f} s")

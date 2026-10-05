@@ -550,6 +550,7 @@ most one sentence and one question."""
 
 ["befehle"]
 _TEXT_INTERVIEW_AN = "Ready - send your voice messages. After each one you get the typed-out text."
+_TEXT_INTERVIEW_AN_WEB = "Recording is on. When the interview is over, tap “{stopp}”."
 _TEXT_INTERVIEW_AUS = "Recording stopped."
 _TEXT_KERNTHEMA_LEER = "Write the core theme after the command, for example: /theme Arriving"
 _TEXT_UNBEKANNT = "I don't know that command."

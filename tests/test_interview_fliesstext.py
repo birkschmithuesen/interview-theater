@@ -351,6 +351,40 @@ def test_erkenner_meldet_das_ende_als_systemzeile(conn, web, einst, fliesstext):
     assert "Aufnahme beendet." in _texte(conn, repo.WEB_TYP_SYSTEM)
 
 
+def _alle_texte(conn):
+    return [z["text"] for z in conn.execute(
+        "SELECT text FROM web_post WHERE chat_id = 1 AND richtung = 'aus' ORDER BY id"
+    ).fetchall()]
+
+
+@pytest.mark.parametrize("befehl", ["/interview", "/aufnahme"])
+def test_web_interviewstart_spricht_nicht_von_sprachnachrichten(conn, web, einst, padua, befehl):
+    """P34 Runde 1, Befund A1 (= J-p3-eintritt-1, Lauf 205532, Screenshot
+    006): nach ``/interview`` stand im Web-Chat "Ready - send your voice
+    messages ..." -- Telegram-Bedienung; im Browser laeuft die Aufnahme
+    ueber den Rekorder. Der Web-Text nennt den Beenden-Knopf der Oberflaeche."""
+    from interview_theater import befehle, web_chat
+
+    befehle.behandle(conn, web, einst, 1, befehl, "Ada")
+
+    texte = " ".join(_alle_texte(conn))
+    assert "voice message" not in texte
+    assert "send your" not in texte
+    assert web_chat.T._TEXT_INTERVIEW_AUS in texte
+
+
+def test_web_interviewstart_deutsch_ohne_sprachnachrichten(conn, web, einst):
+    """Dito ohne Profil (Deutsch): Gegenprobe, dass die DE-Konstante
+    mitgezogen ist."""
+    from interview_theater import befehle, web_chat
+
+    befehle.behandle(conn, web, einst, 1, "/interview", "Ada")
+
+    texte = " ".join(_alle_texte(conn))
+    assert "Sprachnachricht" not in texte
+    assert web_chat.T._TEXT_INTERVIEW_AUS in texte
+
+
 def test_ohne_schalter_bleibt_aufnahme_beendet_text(conn, web, einst):
     from interview_theater import befehle
 

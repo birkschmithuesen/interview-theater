@@ -135,6 +135,14 @@ _TEXT_INTERVIEW_AN = (
     "Bereit - schickt eure Sprachnachrichten. Nach jeder kommt der abgetippte "
     "Text."
 )
+#: Dito im Web-Kanal (P34 Runde 1, Befund A1, Lauf 205532): im Browser gibt
+#: es keine Sprachnachrichten zu schicken -- die Aufnahme laeuft ueber den
+#: Rekorder, beendet wird mit seinem Knopf. ``{stopp}`` ist dessen
+#: Beschriftung (``web_chat.T._TEXT_INTERVIEW_AUS``), damit Text und Knopf
+#: nie verschieden heissen.
+_TEXT_INTERVIEW_AN_WEB = (
+    "Die Aufnahme läuft. Wenn das Interview vorbei ist, tippt auf „{stopp}“."
+)
 _TEXT_INTERVIEW_AUS = "Aufnahme beendet."
 _TEXT_KERNTHEMA_LEER = "Schreibt das Kernthema hinter den Befehl, zum Beispiel: /kernthema Ankommen"
 #: Ein unbekannter Slash-Text. Statt auf ``/hilfe`` zu verweisen, haengen die
@@ -334,7 +342,7 @@ def _befehl_aufnahme(conn, tg, klm, e, chat_id: int) -> None:
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
     aufnahme.stelle_interview_sicher(conn, chat_id)
     aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl")
-    knoepfe.biete_aufnahme(conn, tg, chat_id, T._TEXT_INTERVIEW_AN, knopf=False)
+    knoepfe.biete_aufnahme(conn, tg, chat_id, _interview_an_text(conn, chat_id), knopf=False)
     # Beim ersten Interviewstart geht der Leitfaden EINMAL mit raus
     # (06.09.2026): die Gruppe steht in dem Moment vor einer fremden Person
     # und braucht Eroeffnung, Einleitungen und Fragen an einer Stelle. Danach
@@ -363,7 +371,21 @@ def _befehl_interview(conn, tg, chat_id: int) -> None:
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
     aufnahme.stelle_interview_sicher(conn, chat_id)
     aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl")
-    tg.sende(chat_id, T._TEXT_INTERVIEW_AN)
+    tg.sende(chat_id, _interview_an_text(conn, chat_id))
+
+
+def _interview_an_text(conn, chat_id: int) -> str:
+    """Die Startbestaetigung je Kanal: Telegram unveraendert
+    (``_TEXT_INTERVIEW_AN``), im Web-Kanal ohne Sprachnachrichten und mit
+    dem Namen des Beenden-Knopfs (P34 Runde 1, Befund A1).
+
+    Lokaler Import von ``web_chat``: Oberflaeche neben Oberflaeche, aber
+    ``web_chat`` zieht viel nach -- nur hier gebraucht."""
+    if not aufnahme.ist_web_gruppe(conn, chat_id):
+        return T._TEXT_INTERVIEW_AN
+    from interview_theater import web_chat
+
+    return T._TEXT_INTERVIEW_AN_WEB.format(stopp=web_chat.T._TEXT_INTERVIEW_AUS)
 
 
 def _befehl_fertig(conn, tg, klm, e, chat_id: int) -> None:

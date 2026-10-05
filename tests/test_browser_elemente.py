@@ -135,3 +135,101 @@ def test_data_attribute_kommen_mit(seite):
 def test_bildschirmfoto_liefert_png_bytes(seite):
     bild = browser_elemente.bildschirmfoto(seite)
     assert bild[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+_FIXTURE_ZUHOEREN = """
+<button id="diskussion" data-laeuft="0">Start listening</button>
+<button id="diskussion-beenden">Discussion done</button>
+<div id="kalibrierung"><button id="kalibrierung-start">Start check</button>
+<button id="kalibrierung-skip">Skip</button></div>
+"""
+
+
+def test_zuhoeren_und_kalibrierung_stehen_in_der_elementliste(browser):
+    # Eigene Seite auf dem modulweiten ``browser`` statt eines zweiten,
+    # verschachtelten ``sync_playwright()``: zwei gleichzeitig offene
+    # Sync-API-Kontexte im selben Thread (hier der ``browser``-Fixture oben,
+    # die bis zum Modulende offen bleibt) wirft zuverlaessig "Sync API
+    # inside the asyncio loop" -- unabhaengig vom Seiteninhalt.
+    page = browser.new_page()
+    page.set_content(_FIXTURE_ZUHOEREN)
+    arten = {e["art"] for e in browser_elemente.extrahiere(page)}
+    page.close()
+    assert {"diskussion", "diskussion_beenden", "kalibrierung_start",
+            "kalibrierung_skip"} <= arten
+
+
+#: Abnahme P1-2, Fortsetzung (05.10.2026, echter Browserlauf nach dem Merge
+#: von main): ``[web] phasennav_stepper = true`` ist jetzt fuer Padua aktiv
+#: und ersetzt die alte ``<details class="roadmap">`` vollstaendig durch
+#: dieses ``<header id="roadmap" data-stepper="1">`` -- die Persona konnte
+#: weder die Stepper-Segmente noch das Bestaetigungsblatt sehen, das
+#: Blatt blieb nach einem Klick offen und blockierte jeden weiteren Klick
+#: (30s-Timeout, Lauf scheiterte an einer spaeteren Station).
+_FIXTURE_STEPPER = """
+<header class="phasenav" id="roadmap" data-stepper="1" data-aktive-phase="2">
+  <ol class="stepper" role="list">
+    <li class="stepper-segment erledigt" data-phase="1"
+        data-bezeichnung="1 Terms" data-satz="" data-bereit="1" data-fehlt=""
+        role="button" tabindex="0" aria-label="1 Terms">
+      <span class="stepper-marke">✓</span>
+    </li>
+    <li class="stepper-segment aktiv" data-phase="2"
+        data-bezeichnung="2 Questions" data-satz="" data-bereit="1"
+        data-fehlt="" role="button" tabindex="0" aria-label="2 Questions">
+      <span class="stepper-marke">2</span>
+    </li>
+  </ol>
+  <div class="phasenav-zeile">
+    <button type="button" class="phasenav-zurueck" data-phase="1"
+            data-bezeichnung="1 Terms" data-satz="" data-bereit="1"
+            data-fehlt="">&lsaquo; 1 Terms</button>
+    <span class="phasenav-aktuell">2 Questions</span>
+    <button type="button" class="phasenav-vor" data-phase="3"
+            data-bezeichnung="3 Interviews" data-satz="" data-bereit="0"
+            data-fehlt="guide">3 Interviews &rsaquo;</button>
+  </div>
+</header>
+<div class="sheet" id="phasensheet" hidden role="dialog" aria-modal="true">
+  <div class="sheet-hintergrund"></div>
+  <div class="sheet-inhalt">
+    <h3 id="phasensheet-titel"></h3>
+    <div class="sheet-knoepfe">
+      <button type="button" id="phasensheet-los">Go</button>
+      <button type="button" id="phasensheet-bleib">Stay here</button>
+    </div>
+  </div>
+</div>
+"""
+
+
+def test_stepper_segmente_und_pfeile_stehen_in_der_elementliste(browser):
+    page = browser.new_page()
+    page.set_content(_FIXTURE_STEPPER)
+    elemente = browser_elemente.extrahiere(page)
+    page.close()
+    arten = {e["art"] for e in elemente}
+    assert {"stepper_segment", "phasenav_pfeil"} <= arten
+    segment = next(e for e in elemente if e["art"] == "stepper_segment"
+                   and e["phase"] == "2")
+    assert segment["bereit"] == "1"
+
+
+def test_phasensheet_knoepfe_fehlen_solange_das_blatt_geschlossen_ist(browser):
+    page = browser.new_page()
+    page.set_content(_FIXTURE_STEPPER)
+    arten = {e["art"] for e in browser_elemente.extrahiere(page)}
+    page.close()
+    assert "phasensheet_bleib" not in arten
+    assert "phasensheet_los" not in arten
+
+
+def test_phasensheet_bleib_erscheint_wenn_das_blatt_offen_ist(browser):
+    page = browser.new_page()
+    page.set_content(_FIXTURE_STEPPER.replace(
+        '<div class="sheet" id="phasensheet" hidden',
+        '<div class="sheet" id="phasensheet"'))
+    elemente = browser_elemente.extrahiere(page)
+    page.close()
+    arten = {e["art"] for e in elemente}
+    assert {"phasensheet_bleib", "phasensheet_los"} <= arten

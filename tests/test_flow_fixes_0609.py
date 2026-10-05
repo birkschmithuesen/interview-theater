@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from interview_theater import (
-    bot, db, einstellungen, erkenner, phasen, phasentexte, repo,
+    bot, db, einstellungen, erkenner, phasen, phasentexte, repo, workshop,
 )
 
 from simulation.attrappe import TelegramAttrappe
@@ -75,6 +75,42 @@ def test_transkript_echo_zaehlt_nicht_als_gruppennachricht(conn):
                          "und dann bin ich gegangen", repo._jetzt())
 
     assert not repo.hat_gruppennachricht(conn, CHAT)
+
+
+def test_start_befehl_zaehlt_nicht_als_gruppennachricht(conn, einst):
+    """Abnahme P1-2, 04.10.2026 (echter Browserlauf): der versteckte
+    ``/start``-Eingang beim ersten Seitenaufruf einer frischen Web-Gruppe
+    wurde vor diesem Fix als Gruppennachricht gezaehlt -- ``bot.erstkontakt``
+    waehlte dann faelschlich "Eure Begriffe habe ich schon" statt "Schickt
+    mir eure Begriffe", und das Modell erfand im naechsten Zug eine
+    Begriffsliste."""
+    repo.merke_nachricht(conn, CHAT, 1, "Gruppe", 0, "text", "/start", repo._jetzt())
+
+    assert not repo.hat_gruppennachricht(conn, CHAT)
+
+    tg = TelegramAttrappe()
+    bot.erstkontakt(conn, tg, einst, CHAT)
+    assert "Als Erstes schickt ihr mir eure Begriffe" in tg.gesendet[0]["text"]
+
+
+def test_erstkontakt_mit_diskussion_aktiv_erzaehlt_kein_plenum(
+    conn, einst, monkeypatch
+):
+    """Echter Browserlauf (handy/giulia, 04.10.2026): mit aktivem
+    Hintergrund-Zuhoeren (``workshop.diskussion_aktiv``) erzaehlte
+    ``bot.erstkontakt`` weiter die alte Dortmunder Abgabe ("aus dem Plenum",
+    "an der Wand") -- die Gruppe erfand daraufhin eine zwanzig Woerter lange
+    Wandliste, die mit ihrer echten Diskussion nichts zu tun hatte. Diese
+    Begruessung ist der Rueckfallweg (``kontext.ERSTKONTAKT_DISKUSSION``
+    traegt den Normalfall), muss aber trotzdem zum aktiven Profil passen."""
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+
+    tg = TelegramAttrappe()
+    bot.erstkontakt(conn, tg, einst, CHAT)
+
+    text = tg.gesendet[0]["text"]
+    assert "Plenum" not in text and "Wand" not in text
+    assert "Handy" in text and "Diskussion fertig" in text
 
 
 # --- Fix 2: die Form wird vorgeschlagen, nicht gesetzt ----------------------

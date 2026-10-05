@@ -1941,6 +1941,11 @@ _NOTIERT_KOPF = "Notiert:\n"
 
 #: Arbeitsstandfeld -> Beschriftung in der Meldung (und in "Entfernt: ...").
 #: Schluessel sind Spaltennamen, uebersetzt werden nur die Werte.
+#: ``eroeffnung`` ist kein Arbeitsstand-Spaltenname (der Block geht in ZWEI
+#: Felder, ``interview_eroeffnung``/``interview_abschluss`` -- siehe
+#: ``knoepfe.fragen.schreibe_eroeffnung_automatisch``), steht hier aber mit,
+#: weil der Autosave-Pfad in Phase 1/2 (``knoepfe.basis._autospeichere``)
+#: dieselbe Titel-Tabelle liest wie diese Meldung.
 _FELD_BESCHRIFTUNG = {
     "kernthema": "Kernthema",
     "format": "Format",
@@ -1951,6 +1956,7 @@ _FELD_BESCHRIFTUNG = {
     "begriffe": "Begriffe",
     "fragen": "Fragen",
     "szenen_anzahl": "Anzahl Szenen",
+    "eroeffnung": "Eröffnung",
 }
 
 #: Die uebrigen Zeilen der Meldung, je mit eigenem Verb.
@@ -1984,17 +1990,31 @@ PHASE_SETTING = 4
 #: Felder, die in Phase 4 die 📌-Fassung bekommen (siehe ``_ZEILE_FESTGELEGT``).
 _FESTGELEGT_FELDER = frozenset({"rahmen", "geschichte", "szenen_anzahl"})
 
+#: Dasselbe fuer Phase 1 (Begriffe) und Phase 2 (Fragen) -- nur mit dem
+#: Profilschalter ``workshop.autosave_phase1_2_aktiv`` (Padua P1-2). Ohne ihn
+#: bleibt "Begriffe: ..."/"Fragen: ..." wie bisher, mit der Ja/Nein-Leiste aus
+#: ``_LEISTENARTEN`` darunter.
+_AUTOSAVE_FELDER_1_2 = frozenset({"begriffe", "fragen"})
+
 
 def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
     """Aus dem Vorgeordneten die Zeilen der Meldung, in fester Reihenfolge."""
     zeilen = []
     beschriftung = T._FELD_BESCHRIFTUNG
     in_phase4 = phase == PHASE_SETTING
+    autosave_1_2 = False
+    if phase in (1, 2):
+        from interview_theater import workshop
+
+        autosave_1_2 = workshop.autosave_phase1_2_aktiv()
 
     def feld(name: str) -> None:
         if not g[name]:
             return
-        if in_phase4 and name in _FESTGELEGT_FELDER:
+        festgelegt = (in_phase4 and name in _FESTGELEGT_FELDER) or (
+            autosave_1_2 and name in _AUTOSAVE_FELDER_1_2
+        )
+        if festgelegt:
             zeilen.append(T._ZEILE_FESTGELEGT.format(
                 titel=beschriftung[name], text=g[name],
             ))
@@ -2759,6 +2779,11 @@ def _sende_meldung(conn, tg, chat_id: int, text: str, wirkliche: list[dict],
         log.exception("Undo-Knopf nicht angelegt, chat_id=%s", chat_id)
     try:
         phase = phasen.aktuelle(conn, chat_id)
+        autosave_1_2 = False
+        if phase in (1, 2):
+            from interview_theater import workshop
+
+            autosave_1_2 = workshop.autosave_phase1_2_aktiv()
         for aenderung in wirkliche:
             eintrag = _LEISTENARTEN.get(aenderung.get("art"))
             if eintrag is None or eintrag[1] != phase:
@@ -2783,6 +2808,14 @@ def _sende_meldung(conn, tg, chat_id: int, text: str, wirkliche: list[dict],
             )
             if ergebnis is not None:
                 return ergebnis[0]
+            if autosave_1_2:
+                # Padua P1-2 (siehe workshop.autosave_phase1_2_aktiv): kein
+                # Phasenangebot faellig, aber auch keine Ja/Nein-Leiste mehr
+                # -- der Wert steht schon (SPEC "Ueberschreiben ist der
+                # Normalfall"), ``text`` traegt schon die 📌-Fassung
+                # (``_meldungszeilen``), und der Undo-Knopf bleibt allein.
+                return knoepfe.sende_notiert_nur_undo(
+                    conn, tg, chat_id, text, lauf_id, leiste=zusatz)
             message_id, _ = knoepfe.sende_notiert_mit_leiste(
                 conn, tg, chat_id, text, eintrag[0], wert, zusatz=zusatz
             )

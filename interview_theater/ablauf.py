@@ -677,6 +677,24 @@ def ist_erfundenes_notiert(text: str | None) -> bool:
     return _NOTIERT_ERFUNDEN_EN.search((text or "")) is not None
 
 
+#: Abnahme P1-2, Fortsetzung (05.10.2026, echter Browserlauf handy/giulia):
+#: eine Antwort kam als "Benutzer hat Chat-Standort (New Zealand) erhalten.
+#: Er/Sie spricht vielleicht Englisch mit neuseelaendischem Dialekt. [...]
+#: BTW, Du kannst es immer auf 'Waehle eine Sprache' aendern, wenn ich etwas
+#: falsch mache." -- eine deutsche, anbieterseitige Standort-/Sprachhinweis-
+#: Injektion (Infomaniak/Kimi), die als Gespraechsantwort durchgereicht und
+#: als Bot-Nachricht gespeichert wurde. Das Fenster liest sie danach bei
+#: jedem weiteren Zug mit und verwirrt die Gruppe ("why does it say New
+#: Zealand?"). Nur EIN Vorkommen bisher gemessen -- der Anker ist bewusst
+#: eng am genauen Wortlaut, damit er nicht versehentlich eine echte
+#: Antwort trifft, die zufaellig "Sprache" oder "Standort" erwaehnt.
+_ANBIETER_INJEKTION = re.compile(r"Chat-Standort|W[aä]hle eine Sprache", re.IGNORECASE)
+
+
+def ist_anbieter_systeminjektion(text: str | None) -> bool:
+    return _ANBIETER_INJEKTION.search((text or "")) is not None
+
+
 #: Angekuendigte Phrasen, die ohne Doppelpunkt enden und trotzdem nichts
 #: liefern (Padua-Befund 02.10.2026, Nachricht 22/24: "I see the button list
 #: didn't come through. I'll try once more with the block format." --
@@ -924,13 +942,18 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             versand_erfolgreich = True
             return
 
+        if _anbieter_systeminjektion(conn, e, chat_id, text):
+            strom.verwirf(tg, chat_id)
+            versand_erfolgreich = True
+            return
+
         if _wiederholt_die_vorige(conn, e, chat_id, text, letzte_message_id):
             strom.verwirf(tg, chat_id)
             versand_erfolgreich = True
             knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
             return
 
-        message_id, text = _sende_mit_leiste(conn, tg, chat_id, text)
+        message_id, text = _sende_mit_leiste(conn, tg, chat_id, text, klm=klm, e=e)
         # Ab hier steht die Antwort in der Gruppe: markiert, BEVOR der Strom
         # schliesst (Fix-Runde Abschluss, Befund 2) -- ``strom.schliesse``
         # schluckt einen werfenden Abschluss zwar selbst schon (``strom.py``),
@@ -1042,6 +1065,24 @@ def _erfundene_systemzeile(conn, e, chat_id: int, text: str) -> bool:
         "gespraech_systemzeile_erfunden",
         "Antwort klang wie eine Systemzeile des Szenenlaufs, "
         "ohne dass ein Lauf lief",
+    )
+    return True
+
+
+def _anbieter_systeminjektion(conn, e, chat_id: int, text: str) -> bool:
+    """Eine anbieterseitige Standort-/Sprachhinweis-Injektion, die als
+    Gespraechsantwort durchgereicht wurde (Abnahme P1-2, Fortsetzung,
+    05.10.2026) -- wird wie eine erfundene Systemzeile ersatzlos verworfen,
+    mit Vorfall, statt die Gruppe zu verwirren und das Fenster dauerhaft zu
+    verschmutzen."""
+    if not ist_anbieter_systeminjektion(text):
+        return False
+    log.info("Anbieter-Systeminjektion verworfen, chat_id=%s", chat_id)
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None),
+        "gespraech_anbieter_injektion",
+        "Antwort enthielt eine anbieterseitige Standort-/Sprachhinweis-"
+        "Injektion statt einer echten Antwort",
     )
     return True
 
@@ -1363,7 +1404,8 @@ def _antworttext(ergebnis) -> str:
     return ""
 
 
-def _sende_mit_leiste(conn, tg, chat_id: int, text: str) -> tuple[int, str]:
+def _sende_mit_leiste(conn, tg, chat_id: int, text: str, klm=None,
+                      e=None) -> tuple[int, str]:
     """Schickt die Antwort mit der Speicher-Leiste und liefert
     ``(message_id, text_ohne_marker)`` -- den Text so, wie er auch in
     ``nachricht`` mitgeschrieben wird.
@@ -1374,10 +1416,17 @@ def _sende_mit_leiste(conn, tg, chat_id: int, text: str) -> tuple[int, str]:
     und "Nochmal anders" darunter. Ohne Block gibt es nur den Text; geraten
     wird nichts. Die Markerzeilen fallen dabei weg, die Gruppe sieht sie nie.
 
+    ``klm``/``e`` reichen bis zum Padua-Autosave in Phase 1/2 durch
+    (``knoepfe.basis._autospeichere``): derselbe Undo-Mechanismus wie ein
+    Erkennerlauf (``erkenner.lauf_fuer_knopf``) und derselbe automatische
+    Phasensprung wie am "Ja, speichern"-Knopf (``uebergang_nach_speichern``).
+
     Faellt die Tastatur aus (Telegram-Fehler), geht der Text trotzdem raus: die
     Antwort ist wichtiger als ihre Knoepfe."""
     try:
-        message_id, _ = knoepfe.sende_mit_speicherleiste(conn, tg, chat_id, text)
+        message_id, _ = knoepfe.sende_mit_speicherleiste(
+            conn, tg, chat_id, text, klm=klm, e=e,
+        )
         return message_id, vorschlag.ohne_marker(text) or text
     except Exception:
         log.exception("Speicher-Leiste fehlgeschlagen, chat_id=%s", chat_id)
@@ -1491,7 +1540,9 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         return
 
     try:
-        message_id, _ = knoepfe.sende_mit_speicherleiste(conn, tg, chat_id, text)
+        message_id, _ = knoepfe.sende_mit_speicherleiste(
+            conn, tg, chat_id, text, klm=klm, e=e,
+        )
         text = vorschlag.ohne_marker(text) or text
     except Exception:
         log.exception("Leiste am Auftragszug fehlgeschlagen, chat_id=%s", chat_id)

@@ -3514,6 +3514,10 @@ _CHAT_JS = """
 
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
   scrolleZuPhasenanfang();   // Phasenscroll-Karte: der Anfang der aktuellen Phase, sonst der Rueckfall ans Ende
+  // Pflichtpunkt 2, Fix 1 von 2: der erste Seitenaufruf stoesst die
+  // Begruessung an. Der Server legt /start nur an, solange der Chat noch
+  // leer ist -- ein spaeterer Aufruf (Reload, zweites Geraet) bewirkt nichts.
+  postJson(`chat/start`, {}).catch(function () { /* best effort */ });
   hole();
 })();
 """
@@ -4003,6 +4007,7 @@ _TOEPFE = {
     "audio": web_grenze.TOPF_UPLOAD,
     "phase": web_grenze.TOPF_NACHRICHT,
     "kalibrierung": web_grenze.TOPF_NACHRICHT,
+    "start": web_grenze.TOPF_START,
 }
 
 
@@ -4455,6 +4460,15 @@ def _phase(handler, db_pfad: str, token: str, chat_id: int,
     web_vereint.phase_post(handler, db_pfad, token, chat_id, schluessel)
 
 
+def _start(handler, db_pfad: str, token: str, chat_id: int,
+          schluessel: bytes) -> None:
+    """Der erste Seitenaufruf einer frischen Web-Gruppe (Pflichtpunkt 2, Fix 1
+    von 2). Nur die Weiche steht hier, wie bei ``_phase``."""
+    from interview_theater import web_vereint
+
+    web_vereint.start_post(handler, db_pfad, token, chat_id, schluessel)
+
+
 def _kalibrierung(handler, db_pfad: str, token: str, chat_id: int,
                   schluessel: bytes) -> None:
     """Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): die
@@ -4489,6 +4503,7 @@ _POSTWEGE = {
     "interview": _interview,
     "phase": _phase,
     "kalibrierung": _kalibrierung,
+    "start": _start,
 }
 
 

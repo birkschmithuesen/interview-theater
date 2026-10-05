@@ -207,6 +207,30 @@ _TEXT_ERSTKONTAKT_BEGRIFFE_DA = (
     "Die Knoepfe unten zeigen euch den Weg."
 )
 
+#: Dieselbe Begruessung fuer ein Profil mit aktivem Hintergrund-Zuhoeren
+#: (``workshop.diskussion_aktiv()``, Padua Phase 1+2 Umbau, 03.10.2026).
+#: Abnahme P1-2 (04.10.2026, echter Browserlauf): ``erstkontakt()`` ist der
+#: Rueckfallweg, wenn der Modellaufruf scheitert (``kontext.ERSTKONTAKT_DISKUSSION``
+#: traegt den Normalfall) -- seit dem versteckten Befehl ``/start``
+#: (Pflichtpunkt 2) laeuft er aber als PRIMAERER Begruessungsweg einer frischen
+#: Web-Gruppe, und die drei Texte oben kennen nur die alte Dortmunder Abgabe
+#: "aus dem Plenum"/"an der Wand" -- in Padua gibt es keine Wand, die Gruppe
+#: legt das Handy in die Mitte und bespricht live. Ohne diesen Zweig
+#: erzaehlte der Bot (und ihm folgend das Gespraechsmodell im naechsten Zug)
+#: der Gruppe eine Plenums-Geschichte, die es nie gab, und die Gruppe erfand
+#: eine zwanzig Woerter lange Wand-Liste, die mit der echten Diskussion
+#: nichts zu tun hatte. Keine eigene "_DA"-Variante: beim Hintergrund-
+#: Zuhoeren gibt es keine geschriebene Liste, die man versehentlich nochmal
+#: erfragen koennte.
+_TEXT_ERSTKONTAKT_DISKUSSION = (
+    "Hallo, ich bin der Theaterbot fuer diesen Workshop.\n\n"
+    "Schreibt oder sprecht einfach - ich lese alles mit und antworte.\n\n"
+    "Als Erstes legt ihr euer Handy in die Mitte und bespricht frei, welche "
+    "Begriffe fuer euer Stueck wichtig sind. Ich hoere dabei nur zu und sage "
+    "nichts, bis ihr auf \"Diskussion fertig\" drueckt.\n\n"
+    "Die Knoepfe unten zeigen euch den Weg."
+)
+
 #: Angehaengt, wenn eine Weboberflaeche konfiguriert ist (IT_WEB_URL): die
 #: Leseansicht der Gruppe, zum Mitlesen neben dem Chat. Der Link ist das
 #: Geheimnis (kein Login) -- er geht nur in diese eine Gruppe.
@@ -276,6 +300,10 @@ def erstkontakt(conn, tg, e, chat_id: int) -> None:
     # nicht, wie man eine Aufnahme startet (05.09.2026).
     if phasen.aktuelle(conn, chat_id) >= knoepfe.PHASE_INTERVIEWS:
         vorlage = T._TEXT_ERSTKONTAKT
+    elif workshop.diskussion_aktiv():
+        # Abnahme P1-2 (04.10.2026): kein Plenum, keine Wand -- die Gruppe
+        # legt das Handy in die Mitte und bespricht live (siehe Konstante).
+        vorlage = T._TEXT_ERSTKONTAKT_DISKUSSION
     elif repo.hat_gruppennachricht(conn, chat_id):
         # Die Gruppe ist mit ihrer Liste vorangegangen -- dann ist "schickt
         # mir die Liste" eine Aufforderung zu etwas, das gerade passiert ist.

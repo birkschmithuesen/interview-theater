@@ -109,3 +109,12 @@ def test_warte_auf_antwort_gibt_fertig_false_wenn_das_budget_abgelaufen_ist(seit
     )
     ergebnis = a.warte_auf_antwort(seite, geduld_s=1, anlauf_s=0.2)
     assert ergebnis["fertig"] is False
+
+
+def test_tab_per_anzeigetext_trifft_den_data_tab(seite):
+    protokoll = a.fuehre_aus(seite, {"type": "tab", "name": "Status"})
+    assert protokoll == {"art": "tab", "ziel": "stand"}
+
+
+def test_tab_per_data_tab_bleibt_unveraendert(seite):
+    assert a.fuehre_aus(seite, {"type": "tab", "name": "stand"})["ziel"] == "stand"

@@ -465,7 +465,9 @@ def _sende_rueckspiegelung(conn, tg, chat_id: int, sauber: str, marker: str,
     return message_id, True
 
 
-def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bool]:
+def sende_mit_speicherleiste(
+    conn, tg, chat_id: int, text: str, klm=None, e=None,
+) -> tuple[int, bool]:
     """Schickt eine Bot-Antwort und haengt die Knoepfe darunter
     (05.09.2026). Liefert ``(message_id, leiste?)``.
 
@@ -493,7 +495,12 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
 
     Zwei Bloecke verschiedener Arten in einer Nachricht raeumt
     ``_ein_feld_je_nachricht`` vorher auf, den Wert der Grundleiste sucht
-    ``_leistenwert``."""
+    ``_leistenwert``.
+
+    ``klm``/``e`` reichen bis zum Padua-Autosave in Phase 1/2 durch
+    (``_autospeichere``): derselbe Undo-Mechanismus wie ein Erkennerlauf
+    (``erkenner.lauf_fuer_knopf``) und derselbe automatische Phasensprung wie
+    am "Ja, speichern"-Knopf (``uebergang_nach_speichern``)."""
     from interview_theater import vorschlag
 
     text, bloecke = _ein_feld_je_nachricht(conn, chat_id, text)
@@ -582,18 +589,111 @@ def sende_mit_speicherleiste(conn, tg, chat_id: int, text: str) -> tuple[int, bo
 
         return sende_geschichte(conn, tg, chat_id, text), True
 
-    return _sende_mit_grundleiste(conn, tg, chat_id, sauber, art, wert)
+    return _sende_mit_grundleiste(conn, tg, chat_id, sauber, art, wert, klm=klm, e=e)
+
+
+#: Arten, die in Phase 1/2 unter ``workshop.autosave_phase1_2_aktiv`` sofort
+#: gespeichert werden (``_autospeichere``) statt die Ja/Nein-Leiste zu zeigen
+#: (Padua P1-2, Abnahme-Befund t_0b702d1d). "fragen" steht bewusst nicht
+#: hier: der Fragenvorschlag selbst laeuft seit dem 02.10.2026 ohnehin nicht
+#: mehr ueber diesen Weg, sondern ueber ``knoepfe.fragen.biete_fragenauswahl``
+#: (Annehmen/Verwerfen/Schaerfen je Frage).
+_AUTOSAVE_ARTEN = frozenset({"begriffe", "eroeffnung"})
+
+
+def _autosave_aktiv(conn, chat_id: int) -> bool:
+    """Phase 1/2 Autosave statt Ja/Nein (Padua, siehe
+    ``workshop.autosave_phase1_2_aktiv``) -- nur in diesen zwei Phasen und
+    nur mit dem Profilschalter. Dortmund und das Vorgabeprofil bleiben
+    unberuehrt."""
+    from interview_theater import workshop
+
+    return (
+        phasen.aktuelle(conn, chat_id) in (1, 2)
+        and workshop.autosave_phase1_2_aktiv()
+    )
+
+
+def _biete_phase_leise(conn, tg, chat_id: int) -> None:
+    """Die proaktive Phasenfrage nach einem Autosave, wenn kein automatischer
+    Sprung moeglich war -- weich, wie ``erkenner._biete_phase_an``: ein
+    Fehlschlag hier darf die 📌-Zeile nicht mitreissen."""
+    try:
+        from interview_theater.knoepfe.stationen import biete_phase_proaktiv
+
+        biete_phase_proaktiv(conn, tg, chat_id)
+    except Exception:
+        log.exception(
+            "Phasenangebot nach Autosave fehlgeschlagen, chat_id=%s", chat_id,
+        )
+
+
+def _autospeichere(conn, tg, chat_id: int, art: str, wert: str,
+                   klm=None, e=None) -> None:
+    """Sofort speichern statt Ja/Nein (Padua Phase 1/2, siehe
+    ``workshop.autosave_phase1_2_aktiv``): dieselbe Schnappschuss-Maschine
+    wie jede automatische Erkenner-Festlegung in Phase 4
+    (``erkenner.lauf_fuer_knopf``) -- eine 📌-Zeile statt "Notiert: ...", EIN
+    Undo-Knopf statt Ja/Nein, danach derselbe Uebergang wie am "Ja,
+    speichern"-Knopf (``_speichere``, ``uebergang=True``): zuerst der
+    automatische Phasensprung (``uebergang_nach_speichern``), nur wenn der
+    ausbleibt die stille Phasenfrage (``_biete_phase_leise``) -- sonst
+    staende die 📌-Zeile eine Nachricht lang allein, bevor sofort eine
+    zweite, gleich gewichtete Leiste folgt und die erste Undo-Quittung
+    wegkollabiert (``_kollabiere_letzten_einsamen_undo``).
+
+    ``art`` ist "begriffe" (Phase 1) oder "eroeffnung" (Phase 2: Eroeffnung
+    und Abschluss stecken in EINEM Block und gehen in ZWEI Felder, derselbe
+    Sonderweg wie am Knopf -- siehe
+    ``knoepfe.fragen.schreibe_eroeffnung_automatisch``)."""
+    if art == "eroeffnung":
+        from interview_theater.knoepfe.fragen import schreibe_eroeffnung_automatisch
+
+        schreibe_eroeffnung_automatisch(conn, tg, chat_id, wert, klm=klm, e=e)
+        return
+
+    def _schreibe():
+        repo.setze_arbeitsstand(conn, chat_id, art, wert)
+        repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+        if art == "begriffe":
+            from interview_theater import begriffsboard
+
+            begriffsboard.schreibe_detail(conn, chat_id, wert)
+
+    titel = erkenner.T._FELD_BESCHRIFTUNG[art]
+    text = erkenner.T._ZEILE_FESTGELEGT.format(titel=titel, text=wert)
+    lauf_id = erkenner.lauf_fuer_knopf(conn, e, chat_id, text, _schreibe)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden", f"{titel}: {wert}", quelle="knopf",
+    )
+    if lauf_id is None:
+        tg.sende(chat_id, text, system=True)
+    else:
+        sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
+    from interview_theater.knoepfe.stationen import uebergang_nach_speichern
+
+    if not uebergang_nach_speichern(conn, tg, klm, e, chat_id):
+        _biete_phase_leise(conn, tg, chat_id)
 
 
 def _sende_mit_grundleiste(
-    conn, tg, chat_id: int, sauber: str, art: str, wert: str,
+    conn, tg, chat_id: int, sauber: str, art: str, wert: str, klm=None, e=None,
 ) -> tuple[int, bool]:
     """Fall 2 der Knopfregel: die Rueckspiegelung EINES Wertes. Begriffe,
     Fragen, Einleitungen sind mehrzeilig, aber EIN Wert -- deshalb Ja/Nein und
     kein Menue.
 
+    Padua, Phase 1/2 (``_autosave_aktiv``): statt der Ja/Nein-Rueckfrage wird
+    sofort gespeichert, als eigene, stille 📌-Zeile mit Undo-Knopf
+    (``_autospeichere``) -- ``sauber`` geht dabei unveraendert als normale
+    Antwort raus, ohne Leiste darunter.
+
     Die alten Leisten kommen vorher ab, damit im Chat nur eine bedienbar
     ist."""
+    if art in _AUTOSAVE_ARTEN and _autosave_aktiv(conn, chat_id):
+        message_id = tg.sende(chat_id, sauber)
+        _autospeichere(conn, tg, chat_id, art, wert, klm=klm, e=e)
+        return message_id, False
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SPEICHERN)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_ANDERS)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_EIGENE)

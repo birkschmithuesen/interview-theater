@@ -528,13 +528,14 @@ def station_01_eintritt(conn, tg, klm, e, chat_id: int) -> Sondierung:
 
 def station_02_begriffe_vorschlag(conn, tg, klm, e, chat_id: int) -> Sondierung:
     """Giulia tippt eine Begriffsliste direkt in den Chat -- erwartet wird
-    ein ``VORSCHLAG BEGRIFFE:``-Block plus Speicher-Knopf, hoechstens EINE
-    Rueckfrage davor.
+    ein ``VORSCHLAG BEGRIFFE:``-Block, hoechstens EINE Rueckfrage davor.
 
-    ``schreibvorgang`` ist bewusst ``None``: der Vorschlag soll NICHT von
-    selbst speichern (das ist Sache von "Yes, save" bzw. der Korrektur in
-    Station 3) -- hier wird nur gemessen, ob der Vorschlagsweg ueberhaupt
-    entsteht."""
+    Padua P1-2 (Abnahme-Befund t_0b702d1d): der Vorschlag speichert sich
+    seitdem selbst, sobald er ankommt -- keine "Yes, save"-Rueckfrage mehr,
+    nur noch die stille 📌-Zeile mit einem Undo-Knopf
+    (``workshop.autosave_phase1_2_aktiv``). ``schreibvorgang`` bleibt
+    trotzdem bewusst ``None``: diese Station misst nur, ob der Vorschlagsweg
+    ueberhaupt entsteht, nicht was er schreibt (das prueft Station 3)."""
     stufe = "p2_begriffe_vorschlag"
     nachricht = "arrival, silence, waiting, home, strangers"
     _konfiguriere_falls_attrappe(klm, stufe).gespraech(
@@ -547,7 +548,7 @@ def station_02_begriffe_vorschlag(conn, tg, klm, e, chat_id: int) -> Sondierung:
     antwort = sende_nachricht(conn, tg, klm, e, chat_id, GIULIA, nachricht)
     neue_nachrichten = tg.gesendet[vorher:]
 
-    hat_knopf = finde_knopf(tg, "Yes, save") is not None
+    hat_undo = finde_knopf(tg, "Undo") is not None
     # Wie viele Bot-Nachrichten kamen vor der Nachricht mit dem Knopf?
     rueckfragen = 0
     for n in neue_nachrichten:
@@ -563,7 +564,7 @@ def station_02_begriffe_vorschlag(conn, tg, klm, e, chat_id: int) -> Sondierung:
         nachricht=nachricht, bot_antwort=antwort,
         rueckfragen_vor_aktion=rueckfragen,
     )
-    s.hinweis = f"Speicher-Knopf ('Yes, save') angeboten: {hat_knopf}"
+    s.hinweis = f"Autosave, Undo-Knopf angeboten: {hat_undo}"
     return s
 
 

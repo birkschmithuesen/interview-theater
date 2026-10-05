@@ -52,3 +52,25 @@ def test_mitschnitt_schreibt_eine_jsonl_zeile(tmp_path):
     assert zeile["phase"] == 1
     assert zeile["begruendung"] == "warte"
     assert zeile["antwort_sekunden"] == 1.2
+
+
+def test_datenstand_zaehlt_kalibrierung_und_diskussion(tmp_path):
+    from interview_theater import db, repo
+    from simulation import browser_mitschnitt as m
+    pfad = str(tmp_path / "d.db")
+    conn = db.verbinde(pfad); db.initialisiere(conn)
+    repo.sichere_gruppe(conn, 7_000_000_000_777, "g", "G"); conn.commit(); conn.close()
+    stand = m.datenstand(pfad, 7_000_000_000_777)
+    assert stand["kalibrierung_aufnahmen"] == 0
+    assert stand["diskussion_aufnahmen"] == 0
+    assert "kalibrierung_modus" in stand
+
+
+def test_schritt_schreibt_die_station(tmp_path):
+    import json
+    from simulation import browser_mitschnitt as m
+    ms = m.Mitschnitt(tmp_path, "l", "handy")
+    ms.schritt(phase=1, screenshot_vorher=tmp_path / "a.png",
+               screenshot_nachher=tmp_path / "b.png", elemente=[], aktion={},
+               begruendung="", antwort={}, db_diff={}, station="p1-eintritt")
+    assert json.loads(ms.jsonl_pfad.read_text())["station"] == "p1-eintritt"

@@ -4007,7 +4007,7 @@ _TOEPFE = {
     "audio": web_grenze.TOPF_UPLOAD,
     "phase": web_grenze.TOPF_NACHRICHT,
     "kalibrierung": web_grenze.TOPF_NACHRICHT,
-    "start": web_grenze.TOPF_NACHRICHT,
+    "start": web_grenze.TOPF_START,
 }
 
 

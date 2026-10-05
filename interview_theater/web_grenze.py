@@ -59,10 +59,18 @@ TOPF_UPLOAD = "upload"
 #: zweite Wahrheit.
 TOPF_VORFALL = "vorfall"
 
+#: Der Start-POST beim ersten Seitenaufruf (05.10.2026, Robo): eigener Topf,
+#: NICHT TOPF_NACHRICHT -- jeder Seitenaufruf/Reload schickt ihn, und im
+#: geteilten 20/min-Topf frass er die Plaetze fuer Senden und Aufnahme-Start
+#: (gemessen: 6 rote E2E-Tests mit 429). Er ist wirkungslos, sobald der Chat
+#: eine Bot-Nachricht hat, ein grosszuegiger eigener Deckel reicht.
+TOPF_START = "start"
+
 GRENZEN = {
     TOPF_NACHRICHT: (NACHRICHTEN_JE_MINUTE, NACHRICHTEN_FENSTER_S),
     TOPF_UPLOAD: (UPLOADS_JE_STUNDE, UPLOADS_FENSTER_S),
     TOPF_VORFALL: (1, NACHRICHTEN_FENSTER_S),
+    TOPF_START: (60, NACHRICHTEN_FENSTER_S),
 }
 
 _SPERRE = threading.Lock()

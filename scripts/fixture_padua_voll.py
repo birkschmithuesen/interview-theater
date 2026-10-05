@@ -34,33 +34,45 @@ CHAT_ID_BASIS = 9_100_000_000_000
 INTERVIEW = Path("simulation/interviews/set1/2-ferzan-bahnhof.md")
 
 #: Je Gruppe gleich: Ankunft, Technik, Alltag. 26 Zeilen.
+#:
+#: Reihenfolge seit P1-L7 (lesung.json 05.10., Fund Kategorie d, Datei
+#: ``01-gespraech-phase1``, Zeile 529): das Fenster (``kontext.FENSTER_NACHRICHTEN
+#: = 20``) schnitt hier so, dass es mit einer verwaisten Bot-Antwort begann
+#: ("In the work status tab...", die Frage davor war schon abgeschnitten),
+#: gefolgt von acht Zuegen reinem Rauschen (Handy schlaeft ein, "is anyone
+#: writing this down") -- der Pruefer las das faelschlich als Produktbefund
+#: zur Fensterbildung. Deshalb liegt das inhaltsfreie Rauschen jetzt GESCHLOSSEN
+#: am Anfang (dort, wo das Fenster ohnehin abschneidet) und die informativen
+#: InScribe-Saetze stehen am Ende, in sich abgeschlossen -- keine Antwort ohne
+#: ihre Frage im selben Fenster (gemessen in ``fensterbefund``/Testfall
+#: "test_fenster_beginnt_nicht_mit_verwaistem_rauschen").
 _GRUNDVERLAUF = (
     ("Giulia", "ok we are all here, three phones on the table"),
-    ("InScribe", "Good. The transcript runs live in the chat - check it once."),
     ("Marco", "the wifi in this room is terrible btw"),
     ("Giulia", "it works, just slow"),
     ("Chiara", "who is holding the second phone?"),
     ("Marco", "me"),
-    ("InScribe", "Then you see the CoThinker tab. Nothing is lost if you close it."),
     ("Chiara", "can we talk in Italian sometimes?"),
-    ("InScribe", "Yes. The recording understands both; I answer in English."),
     ("Giulia", "good"),
     ("Luca", "sorry i'm late, what did i miss"),
     ("Chiara", "nothing, we just started"),
     ("Marco", "do we have to finish this today?"),
-    ("InScribe", "No. The workshop runs five days; today is the first."),
     ("Giulia", "ok let's keep going"),
-    ("Luca", "wait, where do i see what we already decided?"),
-    ("InScribe", "In the work status tab. Everything saved is there."),
-    ("Luca", "ah ok"),
     ("Chiara", "my phone went to sleep"),
     ("Marco", "mine too, annoying"),
-    ("Giulia", "ok can we go on"),
-    ("InScribe", "Of course. Go ahead."),
     ("Luca", "is anyone writing this down"),
     ("Chiara", "the bot is"),
     ("Marco", "right"),
     ("Giulia", "ok"),
+    ("InScribe", "Good. The transcript runs live in the chat - check it once."),
+    ("InScribe", "Then you see the CoThinker tab. Nothing is lost if you close it."),
+    ("InScribe", "Yes. The recording understands both; I answer in English."),
+    ("InScribe", "No. The workshop runs five days; today is the first."),
+    ("Luca", "wait, where do i see what we already decided?"),
+    ("InScribe", "In the work status tab. Everything saved is there."),
+    ("Luca", "ah ok"),
+    ("Giulia", "ok can we go on"),
+    ("InScribe", "Of course. Go ahead."),
 )
 
 #: Je Phase acht Zeilen, die zu ihrer Arbeit gehoeren.
@@ -552,6 +564,25 @@ _FESTLEGUNGEN = (
     ("stil", None, "At most one page per scene from now on."),
 )
 
+#: Journal-Eintraege je Stufe, additiv wie ``_STAND_JE_PHASE``: Phase N
+#: bekommt alles von 1..N. Seit P1-L7 (lesung.json, Fund Kategorie d,
+#: ``01-gespraech-phase1`` Zeile 524): die Geschichte/Szenen-Eintraege
+#: standen bisher auch in Phase 1 im Journal, wo sie dem Arbeitsstand
+#: widersprechen und mit mehr Gewicht als die Begriffsliste erscheinen --
+#: sie stehen jetzt erst, sobald die Geschichte tatsaechlich im Arbeitsstand
+#: steht (ab Phase 6, siehe ``_JE_PHASE[6]``: "Here is your story in three
+#: sections"). Phase 1 bekommt einen eigenen, phasengerechten Eintrag, der
+#: zum dortigen Gespraech passt (siehe ``_JE_PHASE[1]``: "waiting carries
+#: two meanings").
+_JOURNAL_JE_PHASE = {
+    1: (("entschieden",
+         "Term 'waiting' carries two meanings: the empty time, and what "
+         "fills it.", "journal"),),
+    6: (("entschieden", "Story as short story: 3 sections", "szene"),
+        ("vorgeschlagen",
+         "A fourth scene on the platform - not decided", "journal")),
+}
+
 
 def chat_id_fuer(phase: int) -> int:
     return CHAT_ID_BASIS + phase
@@ -656,8 +687,13 @@ def _diskussion(conn, chat_id: int) -> None:
         repo.setze_transkript(conn, aufnahme_id, text)
         letzte = aufnahme_id
     board = [
+        # Begruendung seit P1-L7 (lesung.json: Kategorie b, "No begruendung
+        # that only says the term was named, collected or suggested" --
+        # "the group returns to it twice" war genau so eine blosse
+        # Erwaehnung, kein Grund) auf den Grund der Gruppe selbst gestellt,
+        # woertlich aus ``texte[0]``.
         {"begriff": "waiting", "nennungen": 4, "zitat": texte[0],
-         "begruendung": "the group returns to it twice",
+         "begruendung": "everybody waited for something",
          "doppelbedeutung": "empty time and what fills it"},
         {"begriff": "noise", "nennungen": 2, "zitat": texte[1],
          "begruendung": "named as the thing that blocks thinking",
@@ -713,11 +749,9 @@ def baue(conn, phase: int) -> int:
         # Signatur ist (conn, chat_id, bereich, text, bezug=None, quelle=...)
         # -- NICHT (bereich, bezug, text); verifiziert gegen repo.py.
         repo.schreibe_festlegung(conn, chat_id, bereich, text, bezug)
-    repo.schreibe_journal(conn, chat_id, "entschieden",
-                          "Story as short story: 3 sections", quelle="szene")
-    repo.schreibe_journal(conn, chat_id, "vorgeschlagen",
-                          "A fourth scene on the platform - not decided",
-                          quelle="journal")
+    for stufe in range(1, phase + 1):
+        for art, text, quelle in _JOURNAL_JE_PHASE.get(stufe, ()):
+            repo.schreibe_journal(conn, chat_id, art, text, quelle=quelle)
     _verlauf(conn, chat_id, phase)
     return chat_id
 
@@ -757,4 +791,8 @@ def fensterbefund(conn, chat_id: int) -> dict:
         "im_fenster": len(fenster),
         "zeichen_im_fenster": zeichen,
         "grund": grund,
+        # Seit P1-L7: das erste Fensterglied woertlich, damit ein Test
+        # messen kann, dass es kein verwaister Satz ohne seine Frage ist
+        # (lesung.json, Fund Kategorie d, "01-gespraech-phase1" Zeile 529).
+        "erste_zeile_text": fenster[0]["text"] if fenster else "",
     }

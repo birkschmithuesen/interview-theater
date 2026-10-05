@@ -129,3 +129,34 @@ def test_die_phase_3_4_eintraege_haben_einen_treiber():
     p34 = [e.datei for e in inv.INVENTAR if e.phase in (3, 4)]
     assert sorted(p34) == sorted(dump.SCOPE_P3_P4)
     assert not [d for d in p34 if d not in dump.TREIBER]
+
+
+# --- P1-L7: Fixture-Artefakte duerfen nicht mehr im Dump stehen -----------
+# (docs/prompt-audit/2026-10-05-padua-p12/lesung.json) --------------------
+
+
+def test_phase1_dump_nennt_kein_spaetphasenjournal(tmp_path):
+    dump.main_fuer_test(tmp_path, nur=["01-gespraech-phase1"])
+    text = (tmp_path / "01-gespraech-phase1.txt").read_text(encoding="utf-8")
+    nutzer = text.split("=== NUTZER")[1]
+    assert "Story as short story" not in nutzer
+    assert "fourth scene" not in nutzer.lower()
+
+
+def test_phase1_dump_fenster_beginnt_nicht_mit_verwaistem_rauschen(tmp_path):
+    """Die erste Zeile des Gespraechsverlaufs (nach dem Journal-Block, vor
+    "Now:") darf keine Bot-Antwort ohne ihre Frage und kein Rauschen sein --
+    siehe ``_GRUNDVERLAUF`` in ``fixture_padua_voll.py`` (P1-L7)."""
+    dump.main_fuer_test(tmp_path, nur=["01-gespraech-phase1"])
+    text = (tmp_path / "01-gespraech-phase1.txt").read_text(encoding="utf-8")
+    nutzer = text.split("=== NUTZER")[1]
+    rest = nutzer[nutzer.index("Journal:"):]
+    erste_verlaufszeile = rest.split("\n\n", 1)[1].split("\n", 1)[0]
+    assert "work status tab" not in erste_verlaufszeile
+    assert "is anyone writing this down" not in erste_verlaufszeile
+
+
+def test_begriffsboard_dump_nennt_keine_blosse_erwaehnung(tmp_path):
+    dump.main_fuer_test(tmp_path, nur=["13-begriffsboard"])
+    text = (tmp_path / "13-begriffsboard.txt").read_text(encoding="utf-8")
+    assert "the group returns to it twice" not in text

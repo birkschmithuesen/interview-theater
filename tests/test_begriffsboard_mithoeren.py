@@ -139,12 +139,14 @@ def test_kein_gespraechszug_und_keine_buehnenkarte(conn, einst, monkeypatch):
     assert karten == [] and zuege == []
 
 
-def test_cap_segment_startet_keinen_lauf(conn, einst):
+def test_cap_segment_startet_lauf(conn, einst):
+    """Seit Padua live 05.10.2026: auch ein 90-s-Deckelschnitt loest in
+    Phase 1 einen Boardlauf aus (Gruppen, die durchreden, froren sonst ein)."""
     klm = _KLM([HEIMAT])
     row = _zeile(conn, 702, "cap")
     aufnahme._kurz_abschliessen(conn, _TG(), klm, einst, row, aufnahme._kein_zug, False)
-    time.sleep(0.1)
-    assert klm.aufrufe == 0
+    time.sleep(0.3)
+    assert klm.aufrufe == 1
 
 
 def test_ohne_profil_bleibt_alles_wie_vorher(conn, einst, monkeypatch):

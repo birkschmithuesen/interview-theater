@@ -753,3 +753,174 @@ def test_fragen_ab_inaktiv_populiert_nie_die_neuen_felder(conn, einst, monkeypat
     Marker-Abwesenheit selbst ist in ``tests/test_sprache_prompts.py``/
     ``tests/test_anweisungen.py`` abgedeckt (kein Marker im Repo-Prompt)."""
     assert workshop.fragen_ab_aktiv() is False
+
+
+# ---------------------------------------------------------------------------
+# P2-H2 (Feedbackloop P1-2, 05.10.2026): der A/B-Vergleich verlor KI-Fragen,
+# weil ``_zeilen_je_begriff`` einen exakten "<Begriff>: "-Praefix verlangte.
+# Echte Modellausgaben schreiben den Begriff fett, in Anfuehrungszeichen, im
+# Singular, mit Gedankenstrich statt Doppelpunkt oder als Zwischenueberschrift.
+# ---------------------------------------------------------------------------
+
+BEGRIFFE_REAL = ["Living on mars", "robots", "Home"]
+
+
+@pytest.mark.parametrize("zeile, begriff, frage", [
+    ("**Home**: Tell me about a place.", "Home", "Tell me about a place."),
+    ("**Home:** Tell me about a place.", "Home", "Tell me about a place."),
+    ('"Home": Tell me about a place.', "Home", "Tell me about a place."),
+    ("“Home”: Tell me about a place.", "Home", "Tell me about a place."),
+    ("HOME: Tell me about a place.", "Home", "Tell me about a place."),
+    ("  home :  Tell me about a place.", "Home", "Tell me about a place."),
+    ("Home – Tell me about a place.", "Home", "Tell me about a place."),
+    ("Home — Tell me about a place.", "Home", "Tell me about a place."),
+    ("Home - Tell me about a place.", "Home", "Tell me about a place."),
+    ("Robot: Who repairs a robot?", "robots", "Who repairs a robot?"),
+    ("The robots: Who repairs a robot?", "robots", "Who repairs a robot?"),
+    ("Living on Mars: What would you miss on Mars?", "Living on mars",
+     "What would you miss on Mars?"),
+    ("Home (term 3): Tell me about a place.", "Home", "Tell me about a place."),
+    ("Home – Tell me: where was it?", "Home", "Tell me: where was it?"),
+])
+def test_zeilen_je_begriff_toleriert_echte_modellausgabe(zeile, begriff, frage):
+    je_begriff = fragen._zeilen_je_begriff(BEGRIFFE_REAL, [zeile])
+    assert je_begriff[begriff] == [f"{begriff}: {frage}"]
+
+
+def test_zeilen_je_begriff_liest_zwischenueberschriften():
+    zeilen = vorschlag.zeilen(
+        "**Home**\n- Tell me about a place.\n- Who cooked there?\n\n"
+        "Robots:\n1. Who repairs a robot?"
+    )
+    je_begriff = fragen._zeilen_je_begriff(BEGRIFFE_REAL, zeilen)
+    assert je_begriff["Home"] == [
+        "Home: Tell me about a place.", "Home: Who cooked there?",
+    ]
+    assert je_begriff["robots"] == ["robots: Who repairs a robot?"]
+
+
+def test_zeilen_je_begriff_haengt_umbrochene_fortsetzung_an():
+    """Das Beispiel im Prompt selbst ist umbrochen -- ein Modell, das es
+    nachahmt, schreibt eine Frage ueber zwei Zeilen."""
+    zeilen = vorschlag.zeilen(
+        "Home: What did you take with you the last time you moved -- and why exactly\n"
+        "that?\nHome: Who cooked there?"
+    )
+    je_begriff = fragen._zeilen_je_begriff(BEGRIFFE_REAL, zeilen)
+    assert je_begriff["Home"] == [
+        "Home: What did you take with you the last time you moved -- and why "
+        "exactly that?",
+        "Home: Who cooked there?",
+    ]
+
+
+def test_zeilen_je_begriff_schlaegt_keinen_satzanfang_einem_begriff_zu():
+    """'Tell me about home: ...' ist eine Frage, kein Begriffskopf -- sie
+    wird nicht verstuemmelt und keinem Begriff zugeschlagen."""
+    zeilen, rest = fragen._ordne_zeilen(
+        BEGRIFFE_REAL, ["Tell me about home: what did it smell like?"],
+    )
+    assert all(not z for z in zeilen.values())
+    assert rest == ["Tell me about home: what did it smell like?"]
+
+
+def test_reveal_verliert_keine_ki_frage_bei_echter_modellausgabe(conn):
+    """Live-Fall: alle KI-Zeilen fielen durch, die Gegenueberstellung
+    zeigte nur die eigenen Fragen (oder gar nichts)."""
+    _setze_begriffe(conn, "Living on mars, robots")
+    repo.setze_arbeitsstand(
+        conn, CHAT, "fragen_eigene_vorschlag",
+        "Living on mars: Would you like to live on Mars?",
+    )
+    repo.setze_arbeitsstand(
+        conn, CHAT, "fragen_ki_vorschlag",
+        "**Living on Mars**: What would you miss on Mars?\n"
+        "Robot – Who repairs a robot?\n"
+        "Something else entirely: A question without a term?",
+    )
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_eigene_erstellt_am", repo._jetzt())
+    tg = _TG()
+
+    assert fragen.versuche_gegenueberstellung(conn, tg, CHAT) is not None
+    stand = repo.hole_arbeitsstand(conn, CHAT)
+    assert stand["fragen_auswahl"].splitlines() == [
+        "Living on mars: Would you like to live on Mars?",
+        "Living on mars: What would you miss on Mars?",
+        "robots: Who repairs a robot?",
+        # Kein Begriff erfunden, aber auch keine Frage verloren: am Ende.
+        "Something else entirely: A question without a term?",
+    ]
+    assert stand["fragen_herkunft"].split(",") == ["eigen", "ki", "ki", "ki"]
+    assert T._TEXT_FRAGEN_KEINE_AUSWAHL not in tg.texte
+
+
+def test_leerer_vergleich_laeuft_nicht_in_keine_auswahl(conn):
+    """Ergibt sich keine einzige Zeile, wird nichts offenbart -- keine leere
+    ``fragen_auswahl`` und kein "I don't know this selection any more"
+    (das danach bei jedem Versuch wieder kam)."""
+    _setze_begriffe(conn, "Heimat")
+    # Nicht leer, aber ohne eine einzige Fragezeile (nur Aufzaehlungszeichen).
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_ki_vorschlag", "-\n*")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_eigene_erstellt_am", repo._jetzt())
+    tg = _TG()
+
+    assert fragen.versuche_gegenueberstellung(conn, tg, CHAT) is None
+    assert not _feld(conn, CHAT, "fragen_auswahl")
+    assert T._TEXT_FRAGEN_KEINE_AUSWAHL not in tg.texte
+
+
+# ---------------------------------------------------------------------------
+# P2-H3 (Karte): dieselbe Frage dreimal als Karte. Jede freie Nachricht
+# waehrend einer offenen Frage ist ein Schaerfungswunsch; kam die Frage
+# unveraendert zurueck, stand dieselbe Karte erneut da -- mit einer zweiten
+# lebenden Annehmen-Leiste darueber.
+# ---------------------------------------------------------------------------
+
+
+def test_unveraenderte_schaerfung_zeigt_keine_zweite_karte(conn, tg, einst):
+    repo.setze_arbeitsstand(
+        conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?\nStreit: Zweite?",
+    )
+    knoepfe.starte_durchgehen(conn, tg, CHAT)
+    karten_vorher = len(tg.knoepfe)
+
+    fragen.uebernimm_schaerfung(conn, tg, CHAT, "Heimat:  eine frage?", None)
+    fragen.uebernimm_schaerfung(conn, tg, CHAT, "Heimat: Eine Frage?", None)
+
+    assert len(tg.knoepfe) == karten_vorher
+    assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
+    # Die erste Karte bleibt bedienbar.
+    assert repo.offene_knoepfe(conn, CHAT, knoepfe.ART_FRAGE_ANNEHMEN)
+
+
+def test_geschaerfte_karte_nimmt_der_alten_die_leiste_ab(conn, tg, einst):
+    repo.setze_arbeitsstand(
+        conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?\nStreit: Zweite?",
+    )
+    knoepfe.starte_durchgehen(conn, tg, CHAT)
+    (alt,) = repo.offene_knoepfe(conn, CHAT, knoepfe.ART_FRAGE_ANNEHMEN)
+
+    neue_id = fragen.uebernimm_schaerfung(
+        conn, tg, CHAT, "Heimat: Eine bessere Frage?", None,
+    )
+
+    assert tg.knoepfe[-1][1].endswith("Eine bessere Frage?")
+    offen = repo.offene_knoepfe(conn, CHAT, knoepfe.ART_FRAGE_ANNEHMEN)
+    assert [k["message_id"] for k in offen] == [neue_id]
+    assert (CHAT, alt["message_id"]) in tg.entfernt
+
+
+# ---------------------------------------------------------------------------
+# P2-N1: "What do you want to change?" stand doppelt (Blase + Quittung)
+# ---------------------------------------------------------------------------
+
+
+def test_schaerfen_knopf_quittiert_nicht_mit_derselben_frage(conn, tg, einst):
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?")
+    knoepfe.starte_durchgehen(conn, tg, CHAT)
+    daten = next(d for b, d in tg.knoepfe[-1][2] if b == T._TEXT_FRAGE_SCHAERFEN_KNOPF)
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(daten))
+
+    assert tg.texte.count(T._TEXT_FRAGE_WAS_AENDERN) == 1
+    assert T._TEXT_FRAGE_WAS_AENDERN not in [t for _, t in tg.beantwortet]

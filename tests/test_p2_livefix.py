@@ -522,3 +522,98 @@ def test_n_undo_der_begriffe_ueberlebt_den_sprung_in_phase_2(conn, tg, einst, pa
     assert ["Suggest questions"] in beschriftungen
     assert repo.hole_knopf(conn, int(undo[2:]))["benutzt_am"] is None
     assert tg.entfernt == [(1, 777)] and tg.aktualisiert == []
+
+
+# --- R-3 / P2-H2b (Feedbackloop P1-2): gescheiterter KI-Lauf, Knopf holt nach ---
+
+
+class _BlockierendesKLM:
+    """Antwortet erst, wenn der Test es freigibt -- so ist beweisbar, dass der
+    Knopf-Handler nicht auf das Modell wartet (Zusage 2)."""
+
+    def __init__(self, antwort):
+        import threading
+
+        self.frei = threading.Event()
+        self.aufrufe = 0
+        self._antwort = antwort
+
+    def schema(self, *a, **k):
+        self.aufrufe += 1
+        assert self.frei.wait(5)
+        return {"antwort": self._antwort}
+
+
+def _warte_bis(bedingung, timeout=5.0):
+    import time
+
+    ende = time.monotonic() + timeout
+    while time.monotonic() < ende:
+        if bedingung():
+            return
+        time.sleep(0.01)
+    assert bedingung(), "Bedingung nie eingetreten"
+
+
+def test_r3_yes_suggest_some_holt_einen_gescheiterten_ki_lauf_nach(conn, tg, einst, padua):
+    from interview_theater import fragen_ki
+    from interview_theater.knoepfe import stationen
+
+    _phase2_mit_ki(conn)
+    repo.setze_arbeitsstand(conn, 1, "fragen_ki_vorschlag", None)  # Lauf beim Eintritt gescheitert
+    klm = _BlockierendesKLM("robots: Who repairs a robot?")
+
+    stationen.biete_proaktiv(conn, tg, 1, 2)
+    knoepfe.behandle(conn, tg, klm, einst, _druck(_knopf_daten(tg, "Suggest questions"), query_id="q1"))
+    knoepfe.behandle(conn, tg, klm, einst, _druck(_knopf_daten(tg, "Yes, suggest some"), query_id="q2"))
+
+    # Der Handler ist zurueck, das Modell haengt noch im Thread.
+    assert tg.texte[-1].startswith("Your questions are saved")
+    _warte_bis(lambda: klm.aufrufe == 1)
+    assert not (repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"] or "").strip()
+
+    # Idempotent: ein zweiter Weg zum Nachholen startet keinen zweiten Lauf.
+    knoepfe.behandle(conn, tg, klm, einst, _druck(_knopf_daten(tg, "Suggest questions"), query_id="q3"))
+    knoepfe.behandle(conn, tg, klm, einst, _druck(_knopf_daten(tg, "Yes, suggest some"), query_id="q4"))
+
+    klm.frei.set()
+    _warte_bis(lambda: (repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"] or "").strip())
+    _warte_bis(lambda: fragen_ki.versuche_start(1))
+    fragen_ki.beende(1)
+    assert klm.aufrufe == 1
+    auswahl = repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"].splitlines()
+    assert ERSTE in auswahl and "robots: Who repairs a robot?" in auswahl
+    assert "Your questions and the AI's are now side by side:" in tg.texte
+
+
+def test_r3_wartezeile_traegt_den_knopf_zum_nachholen(conn, tg, einst, padua):
+    """Scheitert der Lauf, waehrend die Gruppe wartet, braucht sie einen Weg
+    zurueck: die Wartezeile traegt "Suggest questions"."""
+    _phase2_mit_ki(conn)
+    repo.setze_arbeitsstand(conn, 1, "fragen_ki_vorschlag", None)
+    from interview_theater.knoepfe import stationen
+
+    stationen.biete_proaktiv(conn, tg, 1, 2)
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Suggest questions"), query_id="q1"))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Yes, suggest some"), query_id="q2"))
+
+    letzte = tg.knoepfe[-1]
+    assert letzte[1].startswith("Your questions are saved")
+    assert [b for b, _ in letzte[2]] == ["Suggest questions"]
+
+
+def test_r3_gegenueberstellung_nimmt_den_nachholknopf_ab(conn, tg, einst, padua):
+    _phase2_mit_ki(conn)
+    repo.setze_arbeitsstand(conn, 1, "fragen_ki_vorschlag", None)
+    from interview_theater.knoepfe import fragen as fragen_modul
+    from interview_theater.knoepfe import stationen
+
+    stationen.biete_proaktiv(conn, tg, 1, 2)
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Suggest questions"), query_id="q1"))
+    knoepfe.behandle(conn, tg, None, einst, _druck(_knopf_daten(tg, "Yes, suggest some"), query_id="q2"))
+    repo.setze_arbeitsstand(conn, 1, "fragen_ki_vorschlag", "robots: Who repairs a robot?")
+
+    assert fragen_modul.versuche_gegenueberstellung(conn, tg, 1) is not None
+    from interview_theater.knoepfe.texte import ART_FRAGEN_VORSCHLAGEN
+
+    assert not repo.offene_knoepfe(conn, 1, ART_FRAGEN_VORSCHLAGEN)

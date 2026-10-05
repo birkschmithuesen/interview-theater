@@ -139,7 +139,7 @@ def _melde_fehler(conn, e, chat_id: int, detail: str) -> None:
         )
 
 
-def starte(conn, tg, klm, e, chat_id: int) -> None:
+def starte(conn, tg, klm, e, chat_id: int) -> bool:
     """Stoesst den EINEN isolierten KI-Fragen-Lauf dieser Gruppe an.
 
     Kein Modellaufruf hier selbst (Zusage 2): der eigentliche Aufruf laeuft
@@ -149,18 +149,23 @@ def starte(conn, tg, klm, e, chat_id: int) -> None:
 
     Idempotent (kein Nachbessern): ist ``fragen_ki_vorschlag`` schon
     gesetzt, passiert nichts -- weder ein zweiter Modellaufruf noch eine
-    Aenderung des gespeicherten Werts."""
+    Aenderung des gespeicherten Werts.
+
+    Liefert True, wenn ein Lauf angestossen wurde (Feedbackloop P1-2, R-3:
+    der Knopf "Yes, suggest some" holt einen beim Eintritt gescheiterten Lauf
+    ueber genau diese Funktion nach -- nie doppelt, weil ein laufender Lauf
+    die Sperre haelt)."""
     if klm is None:
-        return
+        return False
     if not workshop.fragen_ab_aktiv():
-        return
+        return False
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
     if stand is not None and stand["fragen_ki_vorschlag"]:
-        return
+        return False
 
     if not versuche_start(chat_id):
-        return
+        return False
 
     begriffe_feld = stand["begriffe"] if stand is not None else None
     diskussion_text = repo.diskussion_verdichtung_text(conn, chat_id)
@@ -216,3 +221,4 @@ def starte(conn, tg, klm, e, chat_id: int) -> None:
             beende(chat_id)
 
     threading.Thread(target=_lauf, daemon=True).start()
+    return True

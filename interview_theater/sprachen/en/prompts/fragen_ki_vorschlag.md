@@ -35,10 +35,11 @@ shortcoming, and you never mention its absence.
 Output ONLY the questions, as one block, ordered by term (all three for the
 first term first, then the three for the second ...), one question per
 line, in the format "Term: Question" -- no heading, no numbering, no comment
-before or after, no marker word:
+before or after, no marker word. Start every line with the term copied
+exactly as it stands in the group's list (same words, same singular or
+plural), then a colon -- no bold, no quotes, no dash instead of the colon.
+Each question stays on a single line:
 
 Home: Tell me about a place where you felt at home for the first time.
-Home: What did you take with you the last time you moved -- and why exactly
-that?
-Home: When did you last feel like a stranger in a place that was supposed
-to be yours?
+Home: What did you take with you the last time you moved -- and why exactly that?
+Home: When did you last feel like a stranger in a place that was supposed to be yours?

@@ -1584,9 +1584,13 @@ _CHAT_JS = """
       // Eigenstaendig von kalErinnerungFeld/zustand.kalibrierungModus oben
       // (Task 2s "Handy herumreichen"-Erinnerung): anderer Ausloeser,
       // anderer Merkposten, nicht zusammenlegen.
+      // P34 Runde 2, Befund A10: kommt das erste onstop erst nach dem Ende
+      // der Sitzung (Ein-Segment-Interview/-Brainstorm, anzeigeAus() lief
+      // schon), bliebe der Hinweis dauerhaft stehen -- dann nicht mehr
+      // einblenden. Die Diskussion der Phase 1 bleibt unveraendert.
       if (!sitzung.hinweisGezeigt) {
         sitzung.hinweisGezeigt = true;
-        if (mitlaufHinweisFeld) {
+        if (mitlaufHinweisFeld && (!sitzung.beendet || sitzung.art === 'diskussion')) {
           mitlaufHinweisFeld.textContent = TEXT.mitlauf_hinweis;
           mitlaufHinweisFeld.hidden = false;
         }

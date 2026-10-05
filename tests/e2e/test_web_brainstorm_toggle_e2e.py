@@ -121,6 +121,9 @@ def test_toggle_pause_schneidet_nicht_und_ende_geht_hoch(lauf, browser):
         assert seite.is_visible(".fuss .zeile")
         # Fix round 1 (Review, Befund 1): nach dem Stopp wieder sichtbar.
         assert seite.is_visible("#ux-rec-zeile")
+        # P34 Runde 2, Befund A10: der Ein-Segment-Bogen ist zu -- der
+        # Mitlauf-Hinweis darf nicht nach dem Ende noch auftauchen.
+        assert seite.is_hidden("#mitlauf-hinweis")
     finally:
         kontext.close()
 

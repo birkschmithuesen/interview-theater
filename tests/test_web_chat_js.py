@@ -2287,3 +2287,42 @@ def test_mitlauf_hinweis_guard_zeigt_sich_nur_beim_ersten_segment_live_in_node(t
     assert ergebnisse["a"]["merkposten_erstes_mal"] is True
     assert ergebnisse["b"]["sichtbar_zweites_mal"] is False
     assert ergebnisse["c"]["sichtbar_neue_sitzung"] is True
+
+
+def test_mitlauf_hinweis_kommt_nicht_nach_dem_ende_der_sitzung_live_in_node(tmp_path):
+    """P34 Runde 2, Befund A10 (Lauf 220222, Screenshots 012/046/050): bei
+    einem Ein-Segment-Interview/-Brainstorm kam das erste ``onstop`` erst
+    NACH ``anzeigeAus()`` -- der Hinweis "Check the transcript in the chat
+    ..." blieb danach dauerhaft stehen, auch in Phase 4. Eine beendete
+    Sitzung zeigt ihn nicht mehr. Die Diskussion der Phase 1 bleibt
+    unveraendert (zeigt ihn wie bisher)."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    guard = _extrahiere(
+        js, "if (!sitzung.hinweisGezeigt)", "sitzung.fertige[nr] = auftrag;",
+    )
+    quelltext = f"""
+    var TEXT = {{ mitlauf_hinweis: 'Hinweis-Text' }};
+    var mitlaufHinweisFeld = {{ hidden: true, textContent: '' }};
+    function pruefeHinweis(sitzung) {{
+      {guard}
+    }}
+    function sichtbarNach(sitzung) {{
+      mitlaufHinweisFeld.hidden = true;
+      pruefeHinweis(sitzung);
+      return mitlaufHinweisFeld.hidden === false;
+    }}
+    console.log(JSON.stringify({{
+      interview_beendet: sichtbarNach({{ beendet: true, hinweisGezeigt: false }}),
+      brainstorm_beendet: sichtbarNach({{ art: 'brainstorm', beendet: true, hinweisGezeigt: false }}),
+      brainstorm_laeuft: sichtbarNach({{ art: 'brainstorm', beendet: false, hinweisGezeigt: false }}),
+      diskussion_beendet: sichtbarNach({{ art: 'diskussion', beendet: true }})
+    }}));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis == {
+        "interview_beendet": False,
+        "brainstorm_beendet": False,
+        "brainstorm_laeuft": True,
+        "diskussion_beendet": True,
+    }

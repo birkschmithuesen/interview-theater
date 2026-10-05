@@ -289,11 +289,36 @@ nur Birk treffen kann.
   beim manuellen Nachlesen falsch-positiv. Das ist eine bekannte, akzeptierte
   Eigenschaft des Werkzeugs (es listet zum Nebeneinanderlesen, es urteilt
   nicht selbst), keine Karte dieser Session.
-- Eine unrelated Nebenwirkung eines Testlaufs waehrend dieser Session hat
+- Eine unrelated Nebenwirkung eines Testlaufs waehrend dieser Session hatte
   mehrere Screenshot-PNGs unter `docs/ux-padua/` veraendert (binaer anders,
-  nicht neu generiert durch diese Karte). Sie sind **nicht** committet --
-  sie bleiben als unbestaetigte Arbeitsverzeichnis-Aenderung stehen, weil
-  ein `git checkout` ohne Rueckfrage in dieser Sitzung nicht autorisiert
-  werden konnte. Empfehlung an Birk: `git checkout -- docs/ux-padua` vor
-  dem naechsten Commit auf diesem Branch, falls die Dateien nicht aus
-  anderem Grund gebraucht werden.
+  nicht neu generiert durch diese Karte). Vom Worker (Hermes-Seite, nicht
+  Claude Code) mit `git checkout -- docs/ux-padua/` zurueckgesetzt, bevor der
+  finale Commit entstand -- sie stehen nicht mehr im Diff.
+
+## 12. Volle Suite -- Ergebnis und Einordnung (Hermes-Worker, nach dem letzten Claude-Code-Lauf)
+
+`python3.11 -m pytest -m "not dortmund" -q` lieferte **865 failed, 7114
+passed, 2 skipped, 4 deselected** in 2391,53 s. Das ist **keine Regression
+dieser Karte**: das System lief zum Zeitpunkt des Laufs mit load average
+3.23 auf 4 Kernen und nur 185 MiB freiem RAM (mehrere parallele andere
+Padua-Karten liefen gleichzeitig ihre eigenen Claude-Code-Sessions/Testlaeufe
+auf derselben Maschine). Stichproben aus der Fail-Liste laufen isoliert
+grün, z. B. `python3.11 -m pytest -q tests/test_web_edit.py -k
+test_figur_hinzufuegen` -> `1 passed`. Alle fuer diese Karte unmittelbar
+relevanten Testdateien laufen isoliert durchgehend grün:
+
+```
+python3.11 -m pytest -q tests/test_fixture_padua_voll.py tests/test_mitschnitt.py \
+  tests/test_modellaufrufe_inventar.py tests/test_pruefe_prompt_dumps.py \
+  tests/test_prompt_lesung.py tests/test_phasen_prompts_teil2.py \
+  tests/test_padua_phase1_prompt.py tests/test_padua_phase2_prompt.py \
+  tests/test_en_frage_regel_widerspruchsfrei.py tests/test_sprache_prompts.py
+-> 186 passed, 3 warnings in 5.17s
+```
+
+**Nicht ausreichend belegt:** ein zweiter voller Lauf unter ruhiger
+Systemlast, der die 865 Failures auf 0 reduziert (ressourcenbedingt in
+dieser Sitzung nicht durchfuehrbar -- ein Lauf dauert ~40 Minuten und die
+Last liess in der verfuegbaren Zeit nicht nach). Empfehlung an den Reviewer:
+die volle Suite vor dem Merge noch einmal auf einer ruhigeren Maschine
+fahren, nicht blind auf diesem Befund vertrauen.

@@ -65,6 +65,21 @@ def test_notiert_zeile_auf_englisch(padua):
     assert meldung.startswith("Noted:")
 
 
+def test_figurenzeile_liest_sich_als_zugang_nicht_als_ganze_liste(padua):
+    """P34 Runde 2, Befund A11 (Lauf 220222, web_post 35): "Noted:\\none
+    character: Toni" las sich, als bestehe die Figurenliste jetzt nur noch
+    aus Toni. Die Zeile sagt, dass DIESE Figur gespeichert wurde -- auch bei
+    mehreren. (Nur EN; die DE-Konstante ist Dortmund-eingefroren.)"""
+    eine = erkenner.baue_meldung([{"art": "figur_setzen", "wert": "Toni"}])
+    zwei = erkenner.baue_meldung([
+        {"art": "figur_setzen", "wert": "Toni"},
+        {"art": "figur_setzen", "wert": "Lea"},
+    ])
+    assert "one character" not in eine
+    assert "Character saved: Toni" in eine
+    assert "Two characters saved: Toni, Lea" in zwei
+
+
 def test_bot_heisst_im_verlauf_you(padua):
     assert kontext.sprecherzeile({"ist_bot": 1, "absender": "x", "text": "hi", "typ": "text"}) == "You: hi"
 

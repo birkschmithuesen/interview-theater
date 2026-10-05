@@ -898,8 +898,11 @@ _BEZEICHNUNG_JOURNAL = "Journal: {text}"
 _BEZEICHNUNG_FESTLEGUNG = "Agreement: {text}"
 _BEZEICHNUNG_FIGUR = "Character {name}"
 _BEZEICHNUNG_SZENE = "Scene {nummer}"
-_ZEILE_EINE_FIGUR = "one character: {liste}"
-_ZEILE_FIGUREN = "{zahlwort} characters: {liste}"
+# P34 Runde 2, Befund A11: "one character: Toni" las sich wie die ganze
+# Figurenliste. Die Zeile meldet, was gespeichert wurde (neu oder geaendert,
+# erkenner._wende_figur_an); das Zahlwort steht am Zeilenanfang, daher gross.
+_ZEILE_EINE_FIGUR = "Character saved: {liste}"
+_ZEILE_FIGUREN = "{zahlwort} characters saved: {liste}"
 _JOURNAL_ZUSAMMENGEFUEHRT = "{alt} became {neu} -- speech style and scene casting moved along."
 _JOURNAL_KORRIGIERT = "Transcript corrected: {text}"
 _NOTIERT_KOPF = "Noted:\n"
@@ -919,10 +922,10 @@ rahmen = "Setting"
 hauptkonflikt = "Main conflict"
 
 ["erkenner"._FIGUREN_ZAHLWORT]
-2 = "two"
-3 = "three"
-4 = "four"
-5 = "five"
+2 = "Two"
+3 = "Three"
+4 = "Four"
+5 = "Five"
 
 ["erkenner"._FELD_BESCHRIFTUNG]
 kernthema = "Core theme"

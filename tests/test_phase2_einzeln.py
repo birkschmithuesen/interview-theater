@@ -752,6 +752,43 @@ def test_spaete_schaerfung_ueberschreibt_nicht_die_naechste_frage(
     assert message_id is None
 
 
+def test_frage_block_im_gespraechszug_ausserhalb_des_durchgangs_antwortet_trotzdem(
+    conn, tg,
+):
+    """Abschlussreview (Branch robo-fbl): ``uebernimm_schaerfung`` lieferte
+    ``None`` fuer JEDEN Aufruf ohne offene Frage -- auch im normalen
+    Gespraechszug (Phase 2, kein Einzeldurchgang, das Modell schreibt einen
+    ``VORSCHLAG FRAGE:``-Block). ``ablauf.antworte`` reichte das ``None``
+    weiter, die Blase verschwand, die Gruppe bekam GAR KEINE Antwort. Stumm
+    bleibt nur die spaete Antwort eines Schaerfungsauftrags."""
+    phasen.setze(conn, 1, 2, "befehl")
+    gesendet_vorher = len(tg.gesendet)
+
+    message_id, _ = knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1,
+        "Gute Idee, so koennte sie klingen.\n\nVORSCHLAG FRAGE:\n"
+        "Heimat: Wann warst du zuletzt fremd?",
+    )
+
+    assert message_id is not None
+    assert len(tg.gesendet) == gesendet_vorher + 1
+    text = tg.gesendet[-1][1]
+    assert "Gute Idee, so koennte sie klingen." in text
+    assert "VORSCHLAG" not in text
+
+
+def test_frage_block_ohne_eigenen_text_im_gespraechszug_zeigt_die_frage(conn, tg):
+    phasen.setze(conn, 1, 2, "befehl")
+
+    message_id, _ = knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG FRAGE:\nHeimat: Wann warst du zuletzt fremd?",
+    )
+
+    assert message_id is not None
+    assert "Wann warst du zuletzt fremd?" in tg.gesendet[-1][1]
+    assert "VORSCHLAG" not in tg.gesendet[-1][1]
+
+
 def test_spaete_unveraenderte_schaerfung_nimmt_der_naechsten_frage_nicht_die_leiste(
     conn, tg, einst, auftraege,
 ):

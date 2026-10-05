@@ -248,15 +248,63 @@ def biete_board_gespeichert(conn, tg, chat_id: int, oben: list[str],
         woerter = [w.strip() for w in T._ZAHLWOERTER.split(",")]
         anzahl = woerter[len(oben) - 1] if len(oben) <= len(woerter) else str(len(oben))
         text = T._TEXT_BOARD_GESPEICHERT.format(anzahl=anzahl, liste=liste)
+    return _sende_begriffe_frage(conn, tg, chat_id, text, lauf_id)
+
+
+def biete_begriffe_aktualisiert(conn, tg, chat_id: int, wert: str,
+                                lauf_id: int | None, vorspann: str = "") -> int:
+    """Nach JEDER gespeicherten Begriffs-Korrektur in Phase 1 (Birk
+    05.10.2026, Brief "p1-bleiben"): dieselbe Frage wie
+    ``biete_board_gespeichert``, nur knapper -- "Updated – saved:", die
+    Liste nach der Korrektur, "Move on?" --, dieselben zwei Knoepfe und
+    darunter das Undo DIESER Korrektur. Die Phase wechselt dabei nie; weiter
+    geht es nur ueber "Yes, on to the questions" oder einen ausdruecklichen
+    Wunsch im Chat (``erkenner._weiter_aus_phase_1``). Beliebig oft: jede
+    Korrektur bekommt ihre Frage; die vorige Frage behaelt nur ihr Undo
+    (auch die, unter der gerade "Change something" gedrueckt wurde -- ihr
+    "Yes, on to the questions" ist noch offen). ``vorspann`` steht davor
+    (der Satz des Modells im Gespraechszug)."""
+    begriffe = [b.strip() for b in wert.split(",") if b.strip()]
+    liste = "\n".join(f"{nr}. {begriff}" for nr, begriff in enumerate(begriffe, 1))
+    _nimm_leisten_ab(conn, tg, chat_id, list(repo.offene_knoepfe(
+        conn, chat_id, ART_BOARD_AENDERN)) + [
+        k for k in repo.offene_knoepfe(conn, chat_id, ART_PHASE) if k["wert"] == "2"
+    ])
+    text = T._TEXT_BOARD_AKTUALISIERT.format(liste=liste)
+    if vorspann.strip():
+        text = f"{vorspann.strip()}\n\n{text}"
+    return _sende_begriffe_frage(conn, tg, chat_id, text, lauf_id)
+
+
+def _sende_begriffe_frage(conn, tg, chat_id: int, text: str,
+                          lauf_id: int | None) -> int:
+    """Die EINE Frage am Ende der Phase 1 (Board-Abschluss und jede
+    Korrektur danach): "Ja, weiter zu den Fragen" (``ART_PHASE`` mit Wert 2)
+    · "Etwas aendern" (``ART_BOARD_AENDERN``) · Undo. Merkt das Angebot der
+    Phase 2 (``phasen.merke_angebot``): diese Nachricht IST das Angebot, das
+    allgemeine "Weiter zu Phase 2 · Fragen" (``biete_phase_proaktiv``) kaeme
+    sonst gleich hinterher."""
     weiter_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, "2")
     aendern_id = repo.lege_knopf_an(conn, chat_id, ART_BOARD_AENDERN, None)
     leiste = [
         (T._TEXT_BOARD_WEITER_KNOPF, _daten(weiter_id)),
         (T._TEXT_BOARD_AENDERN_KNOPF, _daten(aendern_id)),
     ] + undo_leiste(conn, chat_id, lauf_id)
+    phasen.merke_angebot(conn, chat_id, 2)
     message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return message_id
+
+
+def begriffe_bleiben_in_phase_1(conn, chat_id: int) -> bool:
+    """Speichern von Begriffen wechselt die Phase nicht (Birk 05.10.2026,
+    Brief "p1-bleiben"): in Phase 1 unter dem Padua-Autosave
+    (``workshop.autosave_phase1_2_aktiv``) fuehrt jeder Speicherweg der
+    Begriffe -- Vorschlagsblock (``_korrigiere_begriffe``), Erkenner
+    (``erkenner._sende_meldung``), "Take these" (``_speichere``) -- zur
+    Frage ``biete_begriffe_aktualisiert`` statt zum Sprung in Phase 2.
+    Vorgabeprofil und Dortmund bleiben unberuehrt (kein Autosave)."""
+    return phasen.aktuelle(conn, chat_id) == 1 and _autosave_aktiv(conn, chat_id)
 
 
 def _reduziere_auf_undo(tg, chat_id, message_id, undo) -> None:
@@ -529,7 +577,8 @@ def sende_mit_speicherleiste(
     ``klm``/``e`` reichen bis zum Padua-Autosave in Phase 1/2 durch
     (``_autospeichere``): derselbe Undo-Mechanismus wie ein Erkennerlauf
     (``erkenner.lauf_fuer_knopf``) und derselbe automatische Phasensprung wie
-    am "Ja, speichern"-Knopf (``uebergang_nach_speichern``)."""
+    am "Ja, speichern"-Knopf (``uebergang_nach_speichern``) -- ausser fuer
+    Begriffe in Phase 1, die nie springen (``_korrigiere_begriffe``)."""
     from interview_theater import vorschlag
 
     text, bloecke = _ein_feld_je_nachricht(conn, chat_id, text)
@@ -618,7 +667,8 @@ def sende_mit_speicherleiste(
 
         return sende_geschichte(conn, tg, chat_id, text), True
 
-    return _sende_mit_grundleiste(conn, tg, chat_id, sauber, art, wert, klm=klm, e=e)
+    return _sende_mit_grundleiste(conn, tg, chat_id, sauber, art, wert, klm=klm, e=e,
+                                  text=text)
 
 
 #: Arten, die in Phase 1/2 unter ``workshop.autosave_phase1_2_aktiv`` sofort
@@ -671,6 +721,10 @@ def _autospeichere(conn, tg, chat_id: int, art: str, wert: str,
     zweite, gleich gewichtete Leiste folgt und die erste Undo-Quittung
     wegkollabiert (``_kollabiere_letzten_einsamen_undo``).
 
+    Begriffe in Phase 1 kommen seit dem 05.10.2026 mittags nicht mehr
+    hierher (Brief "p1-bleiben"): ``_korrigiere_begriffe`` speichert sie
+    ohne Sprung und fragt "Move on?".
+
     ``art`` ist "begriffe" (Phase 1) oder "eroeffnung" (Phase 2: Eroeffnung
     und Abschluss stecken in EINEM Block und gehen in ZWEI Felder, derselbe
     Sonderweg wie am Knopf -- siehe
@@ -705,8 +759,42 @@ def _autospeichere(conn, tg, chat_id: int, art: str, wert: str,
         _biete_phase_leise(conn, tg, chat_id)
 
 
+def _korrigiere_begriffe(conn, tg, chat_id: int, wert: str, vorspann: str,
+                         e=None) -> int | None:
+    """Eine Begriffs-Korrektur aus dem Gespraechszug (Padua Phase 1, Birk
+    05.10.2026, Brief "p1-bleiben"): speichern wie ``_autospeichere``
+    (Schnappschuss, Undo, Journal), aber **ohne Phasenwechsel** -- statt
+    📌-Zeile und Sprung kommt die Frage ``biete_begriffe_aktualisiert``, und
+    zwar in DERSELBEN Nachricht wie der Satz des Modells (``vorspann``, der
+    Antworttext ohne den Block): die Liste steht so nur einmal da, nummeriert,
+    und die Strom-Blase im Browser wird durch genau diese Nachricht ersetzt.
+
+    Liefert die ``message_id`` -- oder None, wenn der Block nichts aendert
+    (die Gruppe sagte "passt", das Modell spiegelte die Liste): dann keine
+    Frage, der Aufrufer schickt die Antwort wie sonst."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if stand is not None and (stand["begriffe"] or "").strip() == wert.strip():
+        return None
+
+    def _schreibe():
+        repo.setze_arbeitsstand(conn, chat_id, "begriffe", wert)
+        repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
+        from interview_theater import begriffsboard
+
+        begriffsboard.schreibe_detail(conn, chat_id, wert)
+
+    titel = erkenner.T._FELD_BESCHRIFTUNG["begriffe"]
+    text = erkenner.T._ZEILE_FESTGELEGT.format(titel=titel, text=wert)
+    lauf_id = erkenner.lauf_fuer_knopf(conn, e, chat_id, text, _schreibe)
+    repo.schreibe_journal(
+        conn, chat_id, "entschieden", f"{titel}: {wert}", quelle="knopf",
+    )
+    return biete_begriffe_aktualisiert(conn, tg, chat_id, wert, lauf_id, vorspann)
+
+
 def _sende_mit_grundleiste(
     conn, tg, chat_id: int, sauber: str, art: str, wert: str, klm=None, e=None,
+    text: str | None = None,
 ) -> tuple[int, bool]:
     """Fall 2 der Knopfregel: die Rueckspiegelung EINES Wertes. Begriffe,
     Fragen, Einleitungen sind mehrzeilig, aber EIN Wert -- deshalb Ja/Nein und
@@ -715,10 +803,21 @@ def _sende_mit_grundleiste(
     Padua, Phase 1/2 (``_autosave_aktiv``): statt der Ja/Nein-Rueckfrage wird
     sofort gespeichert, als eigene, stille 📌-Zeile mit Undo-Knopf
     (``_autospeichere``) -- ``sauber`` geht dabei unveraendert als normale
-    Antwort raus, ohne Leiste darunter.
+    Antwort raus, ohne Leiste darunter. Ausnahme Begriffe in Phase 1
+    (``begriffe_bleiben_in_phase_1``): kein Sprung, die Antwort traegt die
+    Frage "Move on?" mit der neuen Liste (``_korrigiere_begriffe``; ``text``
+    ist die Antwort mit Block, fuer ``vorschlag.ohne_block``).
 
     Die alten Leisten kommen vorher ab, damit im Chat nur eine bedienbar
     ist."""
+    if art == "begriffe" and begriffe_bleiben_in_phase_1(conn, chat_id):
+        from interview_theater import vorschlag
+
+        vorspann = vorschlag.ohne_block(text or sauber, "begriffe").strip()
+        message_id = _korrigiere_begriffe(conn, tg, chat_id, wert, vorspann, e=e)
+        if message_id is not None:
+            return message_id, True
+        return tg.sende(chat_id, sauber), False
     if art in _AUTOSAVE_ARTEN and _autosave_aktiv(conn, chat_id):
         message_id = tg.sende(chat_id, sauber)
         _autospeichere(conn, tg, chat_id, art, wert, klm=klm, e=e)
@@ -801,7 +900,8 @@ def offene_art(conn, chat_id: int) -> str | None:
     haengt an der **Phase**, damit in Phase 1 nicht ploetzlich nach Figuren
     gefragt wird:
 
-    * Phase 1 -- ``begriffe``, solange das Feld leer ist.
+    * Phase 1 -- ``begriffe``, solange das Feld leer ist; unter dem
+      Padua-Autosave immer (Korrekturen, Brief "p1-bleiben" 05.10.2026).
     * Phase 2 -- ``fragen``, solange das Feld leer ist.
     * Phase 4 -- ``rahmen`` (das **Setting**: Ort, Zeit, Anlass), solange das
       Feld leer ist; danach ``figuren``, solange die Liste nicht fixiert ist
@@ -830,6 +930,14 @@ def offene_art(conn, chat_id: int) -> str | None:
         return offen
 
     if phase == 1:
+        # Padua-Autosave (Birk 05.10.2026, Brief "p1-bleiben"): in Phase 1
+        # bleiben die Begriffe offen, auch wenn sie stehen -- das Board
+        # speichert sie meist schon vor dem ersten Wort im Chat, und jede
+        # Korrektur danach kommt als Vorschlagsblock (Phasenprompt 1: "Repeat
+        # the block as often as the list changes"). Ohne diese Zeile fiel
+        # der Block nach "Change something" still unter den Tisch.
+        if _autosave_aktiv(conn, chat_id):
+            return "begriffe"
         return "begriffe" if leer("begriffe") else None
     if phase == 2:
         # Seit dem Umbau auf "Fragen einzeln" (02.10.2026) laeuft der
@@ -1072,6 +1180,11 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
     repo.schreibe_journal(
         conn, chat_id, "entschieden", f"{T._NOTIERT[art]}: {wert}", quelle="knopf",
     )
+    if weiterfrage and art == "begriffe" and begriffe_bleiben_in_phase_1(conn, chat_id):
+        # "Take these" (Birk 05.10.2026, Brief "p1-bleiben"): Speichern ist
+        # kein Weiter -- die Frage mit der Liste statt des Sprungs unten.
+        biete_begriffe_aktualisiert(conn, tg, chat_id, wert, lauf_id)
+        return T._TEXT_FELD_UEBERNOMMEN.format(feld=T._NOTIERT[art])
     if lauf_id is None:
         tg.sende(chat_id, text, system=True)
     else:

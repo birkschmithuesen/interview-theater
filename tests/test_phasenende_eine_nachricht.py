@@ -61,15 +61,18 @@ def test_erkenner_phase1_abnahme_ist_genau_eine_nachricht(conn, tg, einst):
 
 
 def test_erkenner_phase1_abnahme_padua_englisch(conn, tg, einst, padua):  # noqa: F811
+    """Padua seit 05.10.2026 mittags (Birk, Brief "p1-bleiben"): statt der
+    B5-Abschlussnachricht dieselbe Frage wie nach dem Begriffsboard -- noch
+    immer genau EINE Nachricht (``tests/test_begriffe_korrektur_bleibt.py``)."""
     _laufe(conn, tg, einst, [{"art": "begriffe_setzen", "wert": "money, staying"}])
 
     assert len(tg.gesendet) == 1, tg.texte
     _, text, leiste, _ = tg.knoepfe[0]
     assert [b for b, _ in leiste] == [
-        "Continue to phase 2 · Questions", "Change terms", "Undo",
+        "Yes, on to the questions", "Change something", "Undo",
     ]
-    assert "money, staying" in text
-    assert not text.startswith("Noted")
+    assert text == "Updated – saved:\n\n1. money\n2. staying\n\nMove on?"
+    assert phasen.aktuelle(conn, 1) == 1
 
 
 def test_korrekturknopf_holt_die_eine_nachricht_nach_der_aenderung_zurueck(

@@ -338,6 +338,11 @@ _TEXT_BOARD_GESPEICHERT = (
 _TEXT_BOARD_GESPEICHERT_EINER = (
     "Das ist euer Begriff – gespeichert. Gehen wir weiter?\n\n{liste}"
 )
+#: Nach JEDER gespeicherten Begriffs-Korrektur in Phase 1 (Birk 05.10.2026,
+#: Brief "p1-bleiben"): die knappe Form derselben Frage -- die Liste nach
+#: der Korrektur, "gespeichert", weiter? Dieselben zwei Knoepfe wie oben
+#: (``basis.biete_begriffe_aktualisiert``); die Phase wechselt nie von selbst.
+_TEXT_BOARD_AKTUALISIERT = "Geaendert – gespeichert:\n\n{liste}\n\nWeiter?"
 _ZAHLWOERTER = "ein,zwei,drei,vier,fuenf"
 _TEXT_BOARD_WEITER_KNOPF = "Ja, weiter zu den Fragen"
 _TEXT_BOARD_AENDERN_KNOPF = "Etwas aendern"

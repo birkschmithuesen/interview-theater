@@ -10,6 +10,11 @@ Ja/Nein-Leiste -- derselbe Mechanismus wie Phase 4
 (``erkenner.lauf_fuer_knopf``), danach derselbe automatische Phasensprung
 wie am "Ja, speichern"-Knopf (``uebergang_nach_speichern``).
 
+**Ausnahme Begriffe in Phase 1** (Birk 05.10.2026, Brief "p1-bleiben"):
+dort springt nichts mehr -- die Antwort traegt die Frage "Move on?" mit der
+gespeicherten Liste und den Knoepfen "Ja, weiter zu den Fragen" · "Etwas
+aendern" · Undo. Ausfuehrlich in ``tests/test_begriffe_korrektur_bleibt.py``.
+
 Die begleitenden Pfade (Erkenner-Weg fuer ``begriffe_setzen``/
 ``fragen_setzen``, die B5-Abschlussnachricht) sind schon in
 ``tests/test_phasenende_eine_nachricht.py`` abgedeckt -- hier geht es um den
@@ -94,21 +99,21 @@ def test_begriffe_vorschlag_speichert_sofort_ohne_ja_nein(conn, tg, padua_autosa
     beschriftungen = _alle_beschriftungen(tg)
     assert "Ja, speichern" not in beschriftungen
     assert "Nein, nochmal aendern" not in beschriftungen
-    assert beschriftungen == ["Rueckgaengig"]
-    assert any("Here is your list." in t for _, t in tg.gesendet)
-    assert any(
-        "📌 Festgelegt: Begriffe — Heimat, Arbeit" in t for _, t in tg.gesendet
+    # Seit 05.10.2026 mittags (Brief "p1-bleiben"): die Frage statt der
+    # 📌-Zeile, in DERSELBEN Nachricht wie die Antwort.
+    assert beschriftungen == ["Ja, weiter zu den Fragen", "Etwas aendern", "Rueckgaengig"]
+    assert tg.knoepfe[-1][1] == (
+        "Here is your list.\n\nGeaendert – gespeichert:\n\n1. Heimat\n2. Arbeit\n\nWeiter?"
     )
 
 
-def test_begriffe_vorschlag_geht_danach_automatisch_in_phase_zwei(conn, tg, padua_autosave):
-    """Dasselbe Verhalten wie der bisherige "Ja, speichern"-Knopf
-    (``test_knopfweg_phase1_abnahme_geht_direkt_automatisch_weiter`` in
-    ``tests/test_phasenende_eine_nachricht.py``): der Sprung ist automatisch,
-    kein zweites "Weiter zu ..."-Angebot noetig."""
+def test_begriffe_vorschlag_bleibt_in_phase_eins(conn, tg, padua_autosave):
+    """Bis 05.10.2026 mittags sprang der Vorschlagsblock hier automatisch in
+    Phase 2 (wie "Ja, speichern"). Birk: eine gespeicherte Begriffs-Korrektur
+    wechselt nie die Phase -- weiter nur ueber den Knopf oder auf Wunsch."""
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
 
-    assert phasen.aktuelle(conn, 1) == 2
+    assert phasen.aktuelle(conn, 1) == 1
     assert not any(b.startswith("Weiter zu") for b in _alle_beschriftungen(tg))
 
 
@@ -122,8 +127,8 @@ def test_begriffe_undo_nimmt_den_wert_zurueck(conn, tg, einst, padua_autosave):
 
     assert ergebnis is True
     assert not (repo.hole_arbeitsstand(conn, 1)["begriffe"] or "").strip()
-    # Die Phase bleibt stehen -- Karte U nimmt nie die Phase zurueck.
-    assert phasen.aktuelle(conn, 1) == 2
+    # Die Phase bleibt stehen (seit 05.10.2026 mittags ohnehin Phase 1).
+    assert phasen.aktuelle(conn, 1) == 1
 
 
 def test_begriffe_setzen_per_erkenner_bekommt_festgelegt_zeile_und_nur_undo(
@@ -152,34 +157,25 @@ def test_begriffe_setzen_per_erkenner_bekommt_festgelegt_zeile_und_nur_undo(
     assert [b for b, _ in tg.knoepfe[-1][2]] == ["Rueckgaengig"]
 
 
-def test_begriffe_autosave_bietet_stille_phasenfrage_wenn_sprung_ausbleibt(
+def test_begriffe_autosave_fragt_nie_nach_dem_uebergang(
     conn, tg, einst, padua_autosave, monkeypatch,
 ):
-    """Mutationstest-Befund (Review t_e5b1df39, Karte t_c980f86c): der
-    Fallback-Zweig in ``_autospeichere`` -- "automatischer Sprung nicht
-    moeglich, also stille Phasenfrage anbieten"
-    (``if not uebergang_nach_speichern(...): _biete_phase_leise(...)``) --
-    lief in keinem der neun bisherigen Tests dieser Datei durch: ein
-    invertiertes "not" an dieser Zeile liess die Suite unveraendert gruen.
+    """Ersetzt den Mutationstest zum Fallback-Zweig in ``_autospeichere``
+    (Review t_e5b1df39, Karte t_c980f86c): Begriffe in Phase 1 erreichen
+    diesen Zweig seit dem 05.10.2026 mittags gar nicht mehr (Brief
+    "p1-bleiben") -- ``uebergang_nach_speichern`` darf nicht einmal gefragt
+    werden, und das allgemeine "Weiter zu"-Angebot kommt auch nicht."""
+    def _verboten(*a, **k):
+        raise AssertionError("kein Uebergang nach einer Begriffs-Korrektur")
 
-    ``uebergang_nach_speichern`` wird hier auf ``False`` erzwungen -- das ist
-    die Grenze dieses Tests: OB er selbst richtig entscheidet, prueft
-    ``tests/test_knoepfe_navigation.py``; hier geht es nur um den Zweig
-    DANACH. Die Materiallage bleibt dabei echt: nach dem Schreiben der
-    Begriffe ist Phase 2 tatsaechlich erreichbar (``phasen.voraussetzungen``
-    braucht dafuer nur ``begriffe``), und die ungemockte
-    ``biete_phase_proaktiv`` zeigt das sichtbar an -- ein "Weiter zu"-Knopf,
-    derselbe Marker wie in ``tests/test_phasenende_eine_nachricht.py``."""
-    monkeypatch.setattr(stationen, "uebergang_nach_speichern", lambda *a, **k: False)
+    monkeypatch.setattr(stationen, "uebergang_nach_speichern", _verboten)
 
     knoepfe.sende_mit_speicherleiste(
         conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat, Arbeit", e=einst,
     )
 
-    # (a) kein automatischer Sprung -- die Phase bleibt stehen.
     assert phasen.aktuelle(conn, 1) == 1
-    # (b) die stille Phasenfrage wurde angeboten: ein "Weiter zu"-Knopf.
-    assert any(b.startswith("Weiter zu") for b in _alle_beschriftungen(tg))
+    assert not any(b.startswith("Weiter zu") for b in _alle_beschriftungen(tg))
 
 
 # --- Phase 2: Eroeffnung, der Vorschlagsblock-Weg --------------------------
@@ -280,15 +276,19 @@ def test_zweiter_autosave_laesst_die_erste_einsame_undo_quittung_verfallen(
     hinterlassen. Der bestehende Kollisionsschutz
     (``knoepfe.basis._kollabiere_letzten_einsamen_undo``, Padua
     Phase-2-Ende) laesst eine einsam stehende Undo-Quittung verfallen,
-    sobald die naechste Leiste kommt -- hier die Eroeffnung direkt nach dem
-    automatischen Sprung aus der Begriffe-Festlegung."""
-    knoepfe.sende_mit_speicherleiste(conn, tg, 1, "VORSCHLAG BEGRIFFE:\nHeimat")
-    assert phasen.aktuelle(conn, 1) == 2
+    sobald die naechste Leiste kommt -- hier die Eroeffnung nach einer
+    Begriffe-Festlegung des Erkenners in Phase 2 (bis 05.10.2026 mittags: nach
+    dem automatischen Sprung aus Phase 1, den es nicht mehr gibt)."""
+    _phase_zwei_mit_fragen(conn)
+    repo.merke_nachricht(
+        conn, 1, 42, "Ada", 0, "text", "unsere begriffe sind heimat", repo._jetzt(),
+    )
+    erkenner.laufe(_ErkennerAttrappe([{"art": "begriffe_setzen", "wert": "Heimat"}]),
+                   tg, conn, einst, 1)
     erste_undo_nachricht = tg.knoepfe[-1][2]
     assert [b for b, _ in erste_undo_nachricht] == ["Rueckgaengig"]
     assert tg.entfernt == []
 
-    repo.setze_arbeitsstand(conn, 1, "fragen", "Wann warst du zuletzt fremd?")
     knoepfe.sende_mit_speicherleiste(conn, tg, 1, VORSCHLAG_EROEFFNUNG, e=einst)
 
     assert len(tg.entfernt) == 1, "die erste, einsame Undo-Quittung ist verfallen"

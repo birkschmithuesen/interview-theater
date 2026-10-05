@@ -887,7 +887,21 @@
   ein Lauf, wird nach ihm neu entschieden (`merke_falls_laeuft`); bleibt das
   Board leer, kommt `aufnahme._TEXT_DISKUSSION_KEINE_BEGRIFFE` statt
   „schickt mir fünf". **Was im CoThinker steht, ist gespeichert**
-  (05.10.2026, Auto-Speichern der Top 5, siehe `begriffsboard.py`-Zeile oben),
+  (05.10.2026, Auto-Speichern der Top 5, siehe `begriffsboard.py`-Zeile oben).
+  **Eine Begriffs-Korrektur wechselt nie die Phase** (Birk 05.10.2026 ~10:50,
+  Padua, unter `workshop.autosave_phase1_2_aktiv`): jeder Speicherweg der
+  Begriffe in Phase 1 — Vorschlagsblock im Gesprächszug
+  (`knoepfe.basis._korrigiere_begriffe`; `offene_art` hält `begriffe` dafür in
+  Phase 1 offen, auch wenn sie stehen), Erkenner `begriffe_setzen`
+  (`erkenner._sende_meldung`), „Take these" (`basis._speichere`) — endet in
+  `basis.biete_begriffe_aktualisiert`: „Updated – saved:" + nummerierte Liste
+  + „Move on?" mit „Yes, on to the questions" · „Change something" · Undo der
+  Korrektur, beliebig oft, die vorige Frage behält nur ihr Undo. Weiter geht
+  es nur auf ausdrücklichen Wunsch: Knopf oder Freitext (Erkenner
+  `phase_setzen`; in Phase 1 gilt auch eines ohne wirksame Nummer als
+  „weiter", `erkenner._weiter_aus_phase_1`). Ersetzt für Padua den
+  automatischen Sprung des Autosave (P1-2) und die B5-Abschlussnachricht am
+  Erkenner-Weg. Test: `tests/test_begriffe_korrektur_bleibt.py`.
   und **der Chat weiß, was mitgehört wurde und auf dem Board steht**
   (`kontext`-Blöcke `board`/`mitgehoert`, EN-Systemanweisung);
   `begriffsboard.schreibe_detail`

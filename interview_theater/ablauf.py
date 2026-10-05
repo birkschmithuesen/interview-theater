@@ -1406,7 +1406,9 @@ def _sende_mit_leiste(conn, tg, chat_id: int, text: str, klm=None,
     ``klm``/``e`` reichen bis zum Padua-Autosave in Phase 1/2 durch
     (``knoepfe.basis._autospeichere``): derselbe Undo-Mechanismus wie ein
     Erkennerlauf (``erkenner.lauf_fuer_knopf``) und derselbe automatische
-    Phasensprung wie am "Ja, speichern"-Knopf (``uebergang_nach_speichern``).
+    Phasensprung wie am "Ja, speichern"-Knopf (``uebergang_nach_speichern``)
+    -- ausser fuer Begriffe in Phase 1: dort kein Sprung, die Antwort traegt
+    die Frage "Move on?" (``knoepfe.basis._korrigiere_begriffe``).
 
     Faellt die Tastatur aus (Telegram-Fehler), geht der Text trotzdem raus: die
     Antwort ist wichtiger als ihre Knoepfe."""

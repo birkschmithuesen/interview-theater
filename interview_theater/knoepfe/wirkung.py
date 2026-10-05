@@ -649,8 +649,9 @@ def _wirkung_board_aendern(conn, d: Druck) -> str:
     05.10.2026): EIN Satz, was sich aendern soll -- als Bot-Zeile
     mitgeschrieben, damit der naechste Gespraechszug die Frage im Fenster
     sieht und die Antwort der Gruppe als Korrektur der Liste liest (dort
-    speichert der Vorschlagsblock automatisch). Kein Modellaufruf
-    (Zusage 2), nichts gespeichert."""
+    speichert der Vorschlagsblock automatisch, und die Frage kommt mit der
+    neuen Liste wieder -- ``basis._korrigiere_begriffe``, ohne
+    Phasenwechsel). Kein Modellaufruf (Zusage 2), nichts gespeichert."""
     text = T._TEXT_BOARD_WAS_AENDERN
     message_id = d.tg.sende(d.chat_id, text)
     _merke_botnachricht(conn, d.chat_id, message_id, text)

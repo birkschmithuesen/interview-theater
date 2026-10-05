@@ -1874,6 +1874,34 @@ def _erneuere_angebot_auf_bitte(conn, chat_id: int, aenderungen: list[dict]) -> 
     return True
 
 
+def _weiter_aus_phase_1(conn, chat_id: int, aenderungen: list[dict]) -> list[dict]:
+    """"Let's move on" in Phase 1 geht in Phase 2 (Birk 05.10.2026, Brief
+    "p1-bleiben"). Eine gespeicherte Begriffs-Korrektur wechselt dort die
+    Phase nie; die Gruppe hat danach die Frage "Move on?" vor sich
+    (``knoepfe.basis.biete_begriffe_aktualisiert``). Liest der Erkenner ihre
+    Antwort als ``phase_setzen`` ohne wirksame Nummer ("next", "1") -- was
+    sonst nur das Angebot erneuert (``_erneuere_angebot_auf_bitte``) --, ist
+    das Ziel hier eindeutig: die Fragen. Nur unter dem Padua-Autosave
+    (``knoepfe.basis.begriffe_bleiben_in_phase_1``) und nur, wenn Phase 2
+    erreichbar ist (Begriffe gespeichert). Liefert die eine
+    ``phase_setzen``-Aenderung fuer ``wirkliche`` -- daran haengen Meldung
+    und Phaseneintritt (``_eintritt_nach_phasenwechsel``)."""
+    from interview_theater.knoepfe import basis
+
+    if not basis.begriffe_bleiben_in_phase_1(conn, chat_id):
+        return []
+    bitte = any(
+        a.get("art") == "phase_setzen"
+        and (phasen.nummer_fuer(a.get("wert"), jetzige=1) or 1) <= 1
+        for a in aenderungen
+    )
+    if not bitte or phasen.naechste_moegliche(conn, chat_id) != 2:
+        return []
+    if not phasen.setze(conn, chat_id, 2, "erkenner"):
+        return []
+    return [{"art": "phase_setzen", "wert": "2"}]
+
+
 def baue_meldung(
     wirkliche_aenderungen: list[dict], conn=None, chat_id: int | None = None,
 ) -> str | None:
@@ -2814,7 +2842,22 @@ def _sende_meldung(conn, tg, chat_id: int, text: str, wirkliche: list[dict],
     offen liegen. Und sie hat ihr **eigenes** try: scheitert sie, steht die
     Grundleiste trotzdem da (Review-Fix Aufgabe 7)."""
     from interview_theater import knoepfe
+    from interview_theater.knoepfe import basis
 
+    try:
+        # Begriffs-Korrektur in Phase 1 (Padua, Birk 05.10.2026, Brief
+        # "p1-bleiben"): dieselbe Frage wie nach dem Vorschlagsblock --
+        # aktualisierte Liste, "Yes, on to the questions" · "Change
+        # something" · Undo -- statt der B5-Abschlussnachricht. Vor
+        # ``undo_leiste`` unten, sonst laege eine zweite, nie gezeigte
+        # Undo-Zeile offen.
+        if wirkliche and all(a.get("art") == "begriffe_setzen" for a in wirkliche) \
+                and basis.begriffe_bleiben_in_phase_1(conn, chat_id):
+            return basis.biete_begriffe_aktualisiert(
+                conn, tg, chat_id, str(wirkliche[-1].get("wert") or ""), lauf_id)
+    except Exception:
+        log.exception("Begriffe-Frage nach dem Erkennerlauf fehlgeschlagen, "
+                      "chat_id=%s", chat_id)
     zusatz = []
     try:
         zusatz = knoepfe.undo_leiste(conn, chat_id, lauf_id)
@@ -2958,6 +3001,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         #
         # Beides raeumt nur den Merkposten ab; verschickt wird weiter unten
         # ueber den einen Weg (``_biete_phase_an``).
+        #
+        # Ausnahme Phase 1 unter Padua (``_weiter_aus_phase_1``): dort ist
+        # die Bitte schon das Weiter.
+        wirkliche = wirkliche + _weiter_aus_phase_1(conn, chat_id, aenderungen)
         _erneuere_angebot_auf_bitte(conn, chat_id, aenderungen)
         if wirkliche:
             phasen.erneuere_nach_aenderung(conn, chat_id)

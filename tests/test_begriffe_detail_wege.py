@@ -163,12 +163,22 @@ def _aufrufe():
 #: (Birk, Auto-Speichern) einer: ``begriffsboard.speichere_automatisch``
 #: schreibt die Top 5 des Boards, ``schreibe_detail`` direkt daneben
 #: (``test_die_haken_stehen_an_den_drei_stellen`` prueft ``_schreibe``).
-LITERAL_MIT_HAKEN = [("begriffsboard.py", "begriffe")]
+#: Seit 05.10.2026 mittags (Brief "p1-bleiben") ein zweiter:
+#: ``knoepfe.basis._korrigiere_begriffe`` -- die Begriffs-Korrektur aus dem
+#: Gespraechszug in Phase 1, ``schreibe_detail`` ebenfalls direkt daneben
+#: (``test_korrektur_schreibt_detail`` unten).
+LITERAL_MIT_HAKEN = [("begriffsboard.py", "begriffe"), ("knoepfe/basis.py", "begriffe")]
 
 
 def test_kein_literaler_schreibweg_fuer_begriffe():
     literal, _ = _aufrufe()
-    assert [s for s in literal if s[1] == "begriffe"] == LITERAL_MIT_HAKEN
+    assert sorted(s for s in literal if s[1] == "begriffe") == LITERAL_MIT_HAKEN
+
+
+def test_korrektur_schreibt_detail(conn, einst):
+    _board(conn)
+    basis._korrigiere_begriffe(conn, _TG(), CHAT, "Grenze, Heimat", "", e=einst)
+    assert [d["begriff"] for d in _detail(conn)] == ["Grenze", "Heimat"]
 
 
 def test_jeder_variable_schreibweg_ist_geprueft():

@@ -605,8 +605,12 @@ def sende_mit_speicherleiste(
     if "frage" in bloecke:
         from interview_theater.knoepfe.fragen import uebernimm_schaerfung
 
+        # T10: der Text um den Block reist mit -- kommt die Frage
+        # unveraendert zurueck, war die Nachricht eine Rueckfrage ("Does
+        # Accept save it?"), und dann ist genau dieser Text die Antwort.
         return uebernimm_schaerfung(
             conn, tg, chat_id, bloecke["frage"], bloecke.get("fragen_weich"),
+            antwort=vorschlag.ohne_block(text, "frage", "fragen_weich"),
         ), True
 
     # Die eigenen Fragen der Gruppe (Padua Phase 1+2 Karte, Aufgabe 13,

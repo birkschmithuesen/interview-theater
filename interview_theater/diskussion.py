@@ -34,7 +34,7 @@ import logging
 import re
 import threading
 
-from interview_theater import anweisungen, modellwahl, repo, workshop, zitat
+from interview_theater import anweisungen, modellwahl, repo, sprache, workshop, zitat
 
 log = logging.getLogger(__name__)
 
@@ -79,6 +79,15 @@ _REST_VOR_ZEICHEN = re.compile(r"\s+([,.;:!?)])")
 #: Unter so vielen Buchstaben ist von einer Zeile nach dem Herausnehmen nur
 #: ein Fragment uebrig ("as in", "--") -- dann faellt sie weg.
 _REST_MINDEST_BUCHSTABEN = 12
+
+#: Der Kopf des isolierten Nutzertextes (``_nutzertext``). Unveraendert
+#: Deutsch -- "Deutsch bleibt die Python-Konstante selbst" (AGENTS.md) --,
+#: mit einem englischen Eintrag in ``sprachen/en/texte.toml`` (Padua liest
+#: EN): Prompt-Check Padua P1/P2, Abschnitt 9, derselbe Fehler wie
+#: ``begriffsboard._TRANSKRIPT_KOPF`` vor seinem Fix.
+_TRANSKRIPT_KOPF = "Das Transkript der Diskussion:"
+
+T = sprache.Texte(__name__)
 
 
 def _zitate(treffer: re.Match) -> str:
@@ -147,7 +156,7 @@ def _nutzertext(transkript: str) -> str:
     """Der isolierte Nutzertext -- NUR das Transkript. Kein ``conn``, keine
     ``chat_id`` in der Signatur: dieser Aufruf kann strukturell nichts
     anderes sehen."""
-    return f"Das Transkript der Diskussion:\n{transkript}"
+    return f"{T._TRANSKRIPT_KOPF}\n{transkript}"
 
 
 #: Ein Sperren-Register je Nebenlaeufigkeit (docs/agents/aufbau.md: "Gleicher Code,

@@ -506,6 +506,21 @@ def test_reveal_interleaved_eigene_vor_ki_je_begriff_mit_ausgerichteter_herkunft
     assert any("Eigene Frage 1" in t for t in tg.texte)
 
 
+def test_gegenueberstellung_bereit_erklaert_die_drei_knoepfe_englisch(monkeypatch):
+    """P2-M5 (Prompt-Check Padua P1/P2): die Ueberleitungszeile sagte nur
+    "... stehen sich jetzt gegenueber:", ohne zu erklaeren, was Accept /
+    Discard / Sharpen je Frage bedeuten. EN-only (die drei Knopftexte,
+    ``_TEXT_FRAGE_ANNEHMEN_KNOPF`` & co., stehen schon englisch)."""
+    from interview_theater import sprache
+
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    text = T._TEXT_GEGENUEBERSTELLUNG_BEREIT
+    assert text.startswith("Your questions and the AI's are now side by side:")
+    assert "Accept" in text
+    assert "Discard" in text
+    assert "Sharpen" in text
+
+
 def test_reveal_ist_danach_ein_dauerhaftes_no_op(conn):
     _bereite_gegenueberstellung_vor(conn)
     tg = _TG()

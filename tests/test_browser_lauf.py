@@ -57,14 +57,17 @@ class _FakeJudge:
 class _LLMAttrappe:
     """Minimal: der Gespraechszug antwortet einmal mit einem gespeicherten
     Begriffsvorschlag, danach immer mit einer Quittung -- genug, um
-    ``/g/<token>`` echt bis zum Tab-Wechsel zu befahren."""
+    ``/g/<token>`` echt bis zum Tab-Wechsel zu befahren. ``antwort`` ist
+    per ``monkeypatch.setattr`` je Test austauschbar."""
+
+    antwort = "Got it, thanks."
 
     def schema(self, chat_id, system, nutzer, schema, art, **kw):
         if art == "erkenner":
             return {"aenderungen": []}
         if art == "journal":
             return {"eintraege": []}
-        return {"antwort": "Got it, thanks."}
+        return {"antwort": self.antwort}
 
 
 @pytest.fixture()
@@ -537,3 +540,298 @@ def test_app_commit_liefert_none_auch_bei_timeout(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
     ergebnis = browser_lauf._app_commit(app_wurzel)
     assert ergebnis is None
+
+
+# --- Task 6: Pruef-Haken, Symptomregel, zweite Gruppe, Wissensfrage --------
+
+from simulation import browser_invarianten as inv  # noqa: E402
+from simulation import browser_stationen  # noqa: E402
+from simulation.browser_umgebung import Gruppe  # noqa: E402
+
+_UNGEKLAERT = "App oder Werkzeug – ungeklaert"
+
+
+def _p1_stand(**kw) -> "inv.P1Stand":
+    werte = dict(board_begriffe=(), board_zeilen=0, transkript_zeichen=0, ende_leer=False,
+                 arbeitsstand_begriffe="", max_bot_id=0, bot_ids=())
+    werte.update(kw)
+    return inv.P1Stand(**werte)
+
+
+def _lege_zweite_gruppe_an(pfad: str) -> Gruppe:
+    conn = db.verbinde(pfad)
+    chat2 = CHAT + 1
+    repo.sichere_gruppe(conn, chat2, "gruppe2", "Testgruppe 2")
+    repo.setze_gruppe_kanal(conn, chat2, "web")
+    token2 = repo.stelle_web_token_sicher(conn, chat2)
+    conn.commit()
+    conn.close()
+    return Gruppe(token=token2, chat_id=chat2)
+
+
+def _stationen_lauf(basis, token, pfad, tmp_path, stationen, *, persona=None,
+                    vorbereitung=None, **kw):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        if vorbereitung:
+            vorbereitung(seite)
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona or _ScriptedClient([]), judge_client=_FakeJudge(),
+            geraet="handy", persona_name="priya", stationen=tuple(stationen),
+            lauf_verzeichnis=tmp_path / "l", **kw)
+        url = seite.url
+        browser.close()
+    return ergebnis, url
+
+
+def test_invarianten_landen_in_ergebnis_json(stack, tmp_path):
+    basis, token, pfad = stack
+    aufrufe = []
+
+    def warte(db_pfad, chat_id, vorher, station, **kw):
+        aufrufe.append((chat_id, station))
+        return [inv.Befund(inv.BOARD_LEER, station, "Board leer (Attrappe).")], _p1_stand()
+
+    station = browser_stationen.Station("t-ende", 1, "Listen.", ohne_persona=True, warte_s=0,
+                                        pruefung=("nach_ende",))
+    _stationen_lauf(basis, token, pfad, tmp_path, [station], warte=warte)
+    ergebnis = json.loads((tmp_path / "l" / "ergebnis.json").read_text())
+    assert aufrufe == [(CHAT, "t-ende")]
+    befund = ergebnis["invarianten"][0]
+    assert befund["schluessel"] == "board_leer_nach_ende"
+    assert befund["schwere"] == "hoch"
+    assert befund["ursache"] == _UNGEKLAERT
+    assert befund["station"] == "t-ende"
+    assert "top_befunde" in ergebnis
+
+
+def test_station_nicht_erreicht_wird_befund_hoch(stack, tmp_path):
+    basis, token, pfad = stack
+    station = browser_stationen.Station("t-ziel", 1, "Unreachable.", fertig=lambda s: False,
+                                        budget=1)
+    persona = _ScriptedClient([{"type": "wait", "duration_ms": 50, "begruendung": "w"}])
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [station], persona=persona)
+    schluessel = [b["schluessel"] for b in ergebnis["invarianten"]]
+    assert "station_nicht_erreicht:t-ziel" in schluessel
+    befund = ergebnis["invarianten"][schluessel.index("station_nicht_erreicht:t-ziel")]
+    assert befund["schwere"] == "hoch" and befund["ursache"] == _UNGEKLAERT
+
+
+def test_ausnahme_in_station_wird_befund_nicht_verschluckt(stack, tmp_path, monkeypatch):
+    basis, token, pfad = stack
+
+    def wirft(*a, **kw):
+        raise RuntimeError("Persona kaputt XYZ")
+
+    monkeypatch.setattr(browser_lauf.browser_persona, "naechste_aktion", wirft)
+    station = browser_stationen.Station("t-kaputt", 1, "Anything.", budget=2)
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [station])
+    befunde = [b for b in ergebnis["invarianten"]
+               if b["schluessel"] == "station_nicht_erreicht:t-kaputt"]
+    assert len(befunde) == 1
+    assert "Persona kaputt XYZ" in befunde[0]["text"]
+    assert befunde[0]["schwere"] == "hoch"
+    assert ergebnis["fehlgeschlagen_bei"] == "t-kaputt"
+
+
+@pytest.mark.parametrize("schluessel_fuer, erwartet", [
+    (lambda t2: "vad_schwelle", True),
+    (lambda t2: f"vad_schwelle:{t2}:2026-10-05", False),
+])
+def test_zweite_gruppe_selber_kontext(stack, tmp_path, schluessel_fuer, erwartet):
+    basis, token, pfad = stack
+    gruppe2 = _lege_zweite_gruppe_an(pfad)
+    gruppen = [Gruppe(token=token, chat_id=CHAT), gruppe2]
+    besucht = []
+
+    def vorbereitung(seite):
+        seite.goto(f"{basis}/g/{token}")
+        seite.wait_for_selector("#verlauf")
+        seite.evaluate("k => localStorage.setItem(k, '0.1')", schluessel_fuer(gruppe2.token))
+        seite.on("framenavigated", lambda f: besucht.append(f.url) if f == seite.main_frame else None)
+
+    station = browser_stationen.Station("t-zweite", 1, "Observe.", gruppe=2, ohne_persona=True,
+                                        warte_s=0, pruefung=("zweite_gruppe",))
+    ergebnis, url = _stationen_lauf(basis, token, pfad, tmp_path, [station],
+                                    vorbereitung=vorbereitung, gruppen=gruppen)
+    schluessel = [b["schluessel"] for b in ergebnis["invarianten"]]
+    assert ("raumcheck_domainweit" in schluessel) is erwartet
+    assert any(f"/g/{gruppe2.token}" in u for u in besucht)
+    assert url.rstrip("/").endswith(f"/g/{token}")
+    assert (tmp_path / "l" / "zweite-gruppe-t-zweite.png").exists()
+
+
+class _BeobachterAttrappe:
+    def __init__(self, begriffe):
+        self._begriffe = tuple(begriffe)
+        self.verlauf: list[int] = []
+        self.page = None
+
+    def messe(self):
+        self.verlauf.append(len(self._begriffe))
+        return len(self._begriffe)
+
+    def begriffe(self):
+        return self._begriffe
+
+    def ergebnis(self):
+        return {"board_verlauf": list(self.verlauf), "beobachter_neu_geladen": False,
+                "board_bestanden": bool(self.verlauf)}
+
+
+@pytest.mark.parametrize("prompt, antwort, erwartet", [
+    ("no board here", "I can't see it", {"chat_kennt_board_nicht", "chat_nennt_board_nicht"}),
+    ("home border", "home and border", set()),
+])
+def test_wissen_vergleicht_prompt_und_antwort(stack, tmp_path, monkeypatch, prompt, antwort, erwartet):
+    basis, token, pfad = stack
+    monkeypatch.setattr(_LLMAttrappe, "antwort", antwort)
+    eingang_beim_abzug = []
+
+    def hole_prompt(chat_id, text):
+        conn = db.verbinde(pfad)
+        eingang_beim_abzug.append(conn.execute(
+            "SELECT COUNT(*) FROM web_post WHERE chat_id = ? AND richtung = 'ein' AND text = ?",
+            (chat_id, text)).fetchone()[0])
+        conn.close()
+        assert text == inv.WISSENSFRAGE
+        return prompt
+
+    station = browser_stationen.Station("t-wissen", 1, "Ask.", ohne_persona=True,
+                                        sage=inv.WISSENSFRAGE, pruefung=("wissen",))
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [station],
+                                  beobachter=_BeobachterAttrappe(("home", "border")),
+                                  hole_prompt=hole_prompt)
+    assert eingang_beim_abzug == [0]        # Prompt VOR dem Senden geholt
+    assert {b["schluessel"] for b in ergebnis["invarianten"]} == erwartet
+    assert (tmp_path / "l" / "prompt-t-wissen.txt").read_text() == prompt
+
+
+class _SeiteAttrappe:
+    def __init__(self, schluessel, measure_again=False):
+        self._schluessel = schluessel
+        self._measure_again = measure_again
+
+    def evaluate(self, js, *a):
+        assert js == "Object.keys(localStorage)"
+        return list(self._schluessel)
+
+    def locator(self, selektor):
+        anzahl = 1 if (self._measure_again and "kalibrierung-neu" in selektor) else 0
+        return type("L", (), {"count": lambda self_: anzahl})()
+
+
+def test_fuehre_pruefungen_ohne_browser(tmp_path):
+    gruppen = [Gruppe(token="tok1", chat_id=1), Gruppe(token="tok2", chat_id=2)]
+    kontext = browser_lauf.PruefKontext(
+        db_pfad=str(tmp_path / "gibt-es-nicht.db"), gruppen=gruppen,
+        page=_SeiteAttrappe(["vad_schwelle", "vad_boden:tok1:2026-10-05", "anderes"]),
+        stand=_p1_stand(board_begriffe=("night shed", "language")))
+    station = browser_stationen.Station("t-rv", 1, "x", diskussion="verhoerer",
+                                        pruefung=("raumcheck", "verhoerer"))
+    befunde = browser_lauf.fuehre_pruefungen(station, kontext)
+    assert [b.schluessel for b in befunde] == ["raumcheck_domainweit", "verhoerer_nicht_korrigiert"]
+    assert "vad_schwelle" in befunde[0].text and "vad_boden:tok1" not in befunde[0].text
+    assert befunde[1].schwere == "mittel"
+
+    kontext.stand = _p1_stand(board_begriffe=("night shift",))
+    kontext.page = _SeiteAttrappe(["vad_boden:tok1:2026-10-05"])
+    assert browser_lauf.fuehre_pruefungen(station, kontext) == []
+
+
+def test_fuehre_pruefungen_zweite_gruppe_mit_dom_hinweis():
+    gruppen = [Gruppe(token="tok1", chat_id=1), Gruppe(token="tok2", chat_id=2)]
+    kontext = browser_lauf.PruefKontext(
+        db_pfad="x", gruppen=gruppen,
+        page=_SeiteAttrappe(["vad_schwelle:tok1:2026-10-05"], measure_again=True))
+    station = browser_stationen.Station("t-z", 1, "x", gruppe=2, pruefung=("zweite_gruppe",))
+    befunde = browser_lauf.fuehre_pruefungen(station, kontext)
+    assert [b.schluessel for b in befunde] == ["raumcheck_domainweit"]
+    assert "Measure again" in befunde[0].text
+
+
+def test_fuehre_pruefungen_ausnahme_im_haken_wird_befund():
+    def warte(*a, **kw):
+        raise RuntimeError("DB weg")
+
+    kontext = browser_lauf.PruefKontext(db_pfad="x", gruppen=[Gruppe("tok1", 1)], page=None,
+                                        vorher=_p1_stand(), warte=warte)
+    station = browser_stationen.Station("t-n", 1, "x", pruefung=("nach_ende",))
+    befunde = browser_lauf.fuehre_pruefungen(station, kontext)
+    assert len(befunde) == 1
+    assert befunde[0].schluessel == "pruefung_gescheitert:nach_ende"
+    assert "DB weg" in befunde[0].text and befunde[0].schwere == "hoch"
+
+
+def test_vorher_stand_wird_direkt_vor_discussion_done_gelesen(tmp_path, monkeypatch):
+    """Der Vorher-Stand fuer ``nach_ende`` entsteht unmittelbar vor dem Klick
+    auf 'Discussion done' (``vor_ende``), nicht am Stationsanfang."""
+    from simulation import browser_mitschnitt
+
+    pfad = str(tmp_path / "d.db")
+    conn = db.verbinde(pfad); db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "g", "G"); conn.commit(); conn.close()
+    reihenfolge = []
+    monkeypatch.setattr(browser_lauf, "_beende_diskussion_deterministisch",
+                        lambda page: reihenfolge.append("beende") or True)
+    station = browser_stationen.Station("t-zuhoeren", 1, "x", budget=3, zuhoeren_s=1)
+    persona = _ScriptedClient([
+        {"type": "click", "element_id": 0, "begruendung": "start listening"},
+        {"type": "done_station", "begruendung": "fertig"},
+    ])
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_TOGGLE)
+        browser_lauf._fuehre_station_aus(
+            seite, persona, browser_mitschnitt.Mitschnitt(tmp_path / "l", "h", "handy"),
+            station, basis_url="http://127.0.0.1:1", token="t", db_pfad=pfad, chat_id=CHAT,
+            persona_name="giulia", vor_ende=lambda: reihenfolge.append("vorher"))
+        browser.close()
+    assert reihenfolge == ["vorher", "beende"]
+
+
+def test_diskussions_audio_zuhoerdauer_aus_wav(tmp_path, monkeypatch):
+    from simulation import erzeuge_diskussion_audio as eda
+
+    erzeugt = []
+    monkeypatch.setattr(eda, "erzeuge", lambda skript, wav, *, ende_pause_s=0.0:
+                        erzeugt.append((skript.name, wav.name, ende_pause_s)) or wav)
+    monkeypatch.setattr(eda, "dauer_s", lambda wav: 41.2)
+    station = browser_stationen.Station("t", 1, "x", zuhoeren_s=None, diskussion="knapp")
+    wav, sekunden = browser_lauf._diskussions_audio(station, tmp_path)
+    assert erzeugt == [("p1-knapp.txt", "diskussion-knapp.wav", 8.0)]
+    assert wav == tmp_path / "diskussion-knapp.wav"
+    assert sekunden == 47
+    fest = browser_stationen.Station("t", 1, "x", zuhoeren_s=30, diskussion="knapp")
+    assert browser_lauf._diskussions_audio(fest, tmp_path)[1] == 30
+
+
+def test_station_mit_diskussion_startet_persona_browser_neu(stack, tmp_path, monkeypatch):
+    """Vor einer Station mit ``diskussion`` ruft der Motor ``wechsle_audio``
+    mit deren WAV und arbeitet danach auf der zurueckgegebenen Seite."""
+    basis, token, pfad = stack
+    monkeypatch.setattr(browser_lauf, "_diskussions_audio",
+                        lambda st, lv: (Path(lv) / f"diskussion-{st.diskussion}.wav", 7))
+    gewechselt = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        neu_ctx = browser.new_context(); neu = neu_ctx.new_page()
+
+        def wechsle_audio(wav):
+            gewechselt.append(wav.name)
+            neu.goto(f"{basis}/g/{token}")
+            neu.wait_for_selector("#verlauf")
+            return neu, neu_ctx
+
+        station = browser_stationen.Station("t-disk", 1, "x", ohne_persona=True, warte_s=0,
+                                            diskussion="verhoerer", zuhoeren_s=None)
+        browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=_ScriptedClient([]), judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l",
+            wechsle_audio=wechsle_audio)
+        browser.close()
+    assert gewechselt == ["diskussion-verhoerer.wav"]

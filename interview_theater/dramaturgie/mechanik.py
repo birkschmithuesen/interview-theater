@@ -669,7 +669,7 @@ def tschechow_befunde(lage: Szenenlage) -> list[Befund]:
 #: der Namen; ``dialog`` ist der Normalfall (``prompts/formen/dialog.md``).
 _NICHT_DIALOG = ("monolog", "chor", "lied", "rap")
 
-#: Die Vorschlagsregel aus dem Szenen-Prompt (AGENTS.md, "Die Form je Szene
+#: Die Vorschlagsregel aus dem Szenen-Prompt (docs/agents/entscheidungen.md, "Die Form je Szene
 #: ist ein Vorschlag"): Szene 1 nie Monolog oder Lied.
 _ERSTE_VERBOTEN = ("monolog", "lied")
 
@@ -702,7 +702,7 @@ def formverteilung(lage: Szenenlage, phase: int | None = None) -> list[Befund]:
     Szene je drei, Szene 1 nie Monolog oder Lied.
 
     Nur **bestaetigte** Formen (``szene.form``), nie ``form_vorschlag``: ein
-    Vorschlag ist keine Entscheidung (AGENTS.md).
+    Vorschlag ist keine Entscheidung (docs/agents/entscheidungen.md).
 
     **Und erst ab dem Feinschliff** (``FORM_AB_PHASE``): in Phase 6 ist der
     Text die Prosafassung, die Formen sind dort noch gar nicht umgesetzt.

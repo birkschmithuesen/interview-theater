@@ -94,7 +94,7 @@ def test_dieselbe_phase_erzeugt_keinen_journaleintrag(tmp_path):
 
 
 def test_der_klickbefehl_wird_nirgends_beworben():
-    """Slash-Befehle werden nicht beworben (AGENTS.md) -- und dieser hier ist
+    """Slash-Befehle werden nicht beworben (docs/agents/entscheidungen.md) -- und dieser hier ist
     ueberhaupt nur der Weg des Knopfes durch die Naht."""
     assert "/phaseklick" in befehle._BEKANNTE_BEFEHLE
     assert "phaseklick" not in {b["command"] for b in befehle.BEFEHLE_LISTE}
@@ -207,7 +207,7 @@ def test_alle_sieben_phasen_sind_klickbar(server):
 
 def test_phaseklick_fuer_telegram_gruppe_ist_404(tmp_path):
     """Eine Gruppe ohne Web-Kanal hat keinen Bot, der ``web_post`` liest
-    (AGENTS.md, Abschlussreview I3) -- derselbe Schutz wie bei jedem
+    (docs/agents/weboberflaeche.md, Abschlussreview I3) -- derselbe Schutz wie bei jedem
     anderen ``/chat/*``-Weg, nicht nur bei diesem neuen."""
     pfad = str(tmp_path / "telegram.db")
     conn = db.verbinde(pfad)

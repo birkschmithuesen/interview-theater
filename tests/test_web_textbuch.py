@@ -196,7 +196,7 @@ def test_eine_ungeschriebene_szene_ist_ein_platzhalter_keine_luecke(basis, token
 
 
 def test_kein_material_in_der_probenansicht(basis, token):
-    """Die harte Grenze (AGENTS.md, "Weboberflaeche"): Szenentexte und
+    """Die harte Grenze (docs/agents/weboberflaeche.md): Szenentexte und
     Szenenplanung -- sonst nichts."""
     koerper = hole(f"{basis}/g/{token}/textbuch")[1]
 

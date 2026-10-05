@@ -1404,7 +1404,7 @@ def begriffsboard(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
     """Das read-only Gegenstueck zu ``begriffsboard.aktuelles`` (CoThinker in
     Phase 1, Karte t_4517d4ad) -- sortiert wie der Top-5-Vorschlag
     (``begriffsboard.sortiert``) und OHNE ``zitat``: auf der Seite steht kein
-    Zitat aus dem Mitschnitt (AGENTS.md, "Drei Grenzen"). Fehlt die Tabelle
+    Zitat aus dem Mitschnitt (docs/agents/weboberflaeche.md, "Drei Grenzen"). Fehlt die Tabelle
     (Deploy vor Bot-Neustart), eine leere Liste.
 
     ``vorgaenger`` (nur Begriffswortlaut, Karte t_cb2c4678) geht mit."""
@@ -1640,7 +1640,7 @@ def dramaturgie(conn: sqlite3.Connection, chat_id: int) -> dict:
 
     **Ohne Belegzitat**, und zwar ohne jedes -- nicht nur ohne ungepruefte.
     Die Grenze auf dieser Seite lautet "kein Belegzitat ohne
-    ``zitat_geprueft = 1``" (AGENTS.md, Weboberflaeche); hier faellt das
+    ``zitat_geprueft = 1``" (docs/agents/weboberflaeche.md); hier faellt das
     Zitat ganz weg, weil es der Nachweis fuer den Code ist und nicht der Text
     fuer die Gruppe. Was auf der Seite steht, ist der Befund -- dass er
     belegt ist, ist die Zusage dahinter.
@@ -1683,7 +1683,7 @@ def dramaturgie(conn: sqlite3.Connection, chat_id: int) -> dict:
 CHAT_GRENZE = 200
 
 #: Was NICHT im Chat steht: der Umschalter-Druck, der als Slash-Text in den
-#: Bot geht. Slash-Befehle werden nicht beworben (AGENTS.md) -- beworben wird
+#: Bot geht. Slash-Befehle werden nicht beworben (docs/agents/entscheidungen.md) -- beworben wird
 #: der Knopf, und der steht schon da.
 _CHAT_VERBORGEN = ("befehl",)
 

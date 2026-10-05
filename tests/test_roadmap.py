@@ -1,13 +1,13 @@
 """Die Roadmap: welche Aufgabe der sieben Phasen steht, welche fehlt.
 
-**Keine zweite Wunschliste** (AGENTS.md, ``fehlstellen``). Was eine Phase
+**Keine zweite Wunschliste** (docs/agents/was-bewusst-fehlt.md, ``fehlstellen``). Was eine Phase
 setzt, steht in ``phasentexte.PARAMETER`` -- und ein Test nagelt Namen und
 Reihenfolge daran fest. Eigen sind nur die **Pruefer**, und das aus einem
 harten Grund: die Leser in ``PARAMETER`` rufen ``repo``, und der Webserver
 bekommt keinen ``repo``-Pfad.
 
 **Nichts hier setzt eine Phase.** Die Uebersicht zeigt den Datenstand; der
-Datenstand schaltet nie (AGENTS.md, "Der automatische Phasensprung").
+Datenstand schaltet nie (docs/agents/was-bewusst-fehlt.md, "Der automatische Phasensprung").
 """
 
 import pytest

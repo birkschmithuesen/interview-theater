@@ -111,7 +111,7 @@ def test_ein_gueltiger_druck_legt_ein_callback_update_an(aufbau):
 
     # Und der Bot liest daraus einen Knopfdruck, keine Nachricht: ein
     # callback_query darf nie in ``nachricht`` landen, sonst liest ihn der
-    # Erkenner als Gruppenbeitrag (AGENTS.md, die Weiche in bot.schleife).
+    # Erkenner als Gruppenbeitrag (docs/agents/entscheidungen.md, die Weiche in bot.schleife).
     kanal = web_kanal.WebKanal(conn, CHAT, "/tmp/audio", schritt_s=0.01)
     update = kanal.hole_updates(post_id, timeout=0)[0]
     assert telegram.lies_nachricht(update) is None

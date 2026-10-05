@@ -72,7 +72,7 @@ SCHLUESSEL = {
 #: geschrieben hat, und ein Szenen-Undo daran, dass die Gruppe inzwischen
 #: eine Form bestaetigt hat. ``szene.form`` traegt allein ein Knopfdruck:
 #: ``erkenner._wende_szene_planen_an`` bildet das Feld ``form`` bewusst auf
-#: ``form_vorschlag`` ab (AGENTS.md, "Die Form je Szene ist ein Vorschlag").
+#: ``form_vorschlag`` ab (docs/agents/entscheidungen.md, "Die Form je Szene ist ein Vorschlag").
 AUSSEN = {
     "arbeitsstand": frozenset({
         "chat_id", "geaendert_am",

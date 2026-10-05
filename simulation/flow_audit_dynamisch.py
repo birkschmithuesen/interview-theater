@@ -54,7 +54,7 @@ inzwischen ueberholten Phasenstands, hier fuer Phase 1/2 neu geschrieben):
    ``erkenner.laufe`` lauft NICHT in einem eigenen Thread.
 2. **Knopfdruck** -- ``knoepfe.behandle(conn, tg, klm, e, {"callback_query_id",
    "data", "chat_id", "message_id"})``, niemals ueber
-   ``bot.verarbeite_update`` (ein Knopfdruck ist keine Nachricht, AGENTS.md
+   ``bot.verarbeite_update`` (ein Knopfdruck ist keine Nachricht, docs/agents/entscheidungen.md
    "Die Weiche sitzt in ``bot.schleife`` vor ``verarbeite_update``").
 
 **Hintergrund-Threads bleiben echt asynchron.** ``ablauf.auftragszug`` (ein
@@ -386,7 +386,7 @@ def druecke_knopf(conn, tg, klm, e, chat_id: int, knopf: dict) -> str:
     """Drueckt einen Knopf aus ``tg.offene_knoepfe()`` (Knopfdruck-Muster).
 
     Geht NICHT ueber ``bot.verarbeite_update`` -- ein Knopfdruck ist keine
-    Nachricht (AGENTS.md). Liefert die neu gesendeten Bot-Nachrichten,
+    Nachricht (docs/agents/entscheidungen.md). Liefert die neu gesendeten Bot-Nachrichten,
     zusammengefuegt (fuer den Fall, dass der Druck selbst synchron
     weiterschaltet, wie ``entscheide``/``_zeige_frage``)."""
     from interview_theater import knoepfe as knoepfe_modul

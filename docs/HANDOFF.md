@@ -480,7 +480,7 @@ Workshop zählt:**
    > mehr gelesen. `journal.SCHWELLE_VERDRAENGUNG` steht bei **600** statt 2.000 —
    > sie bezog sich auf das alte 8.000er Fenster, und an Tag 1 sprang der Extraktor in
    > allen drei Betriebsgruppen kein einziges Mal an. Beide Zahlen sind damit gemessen,
-   > nicht gesetzt. Details in `AGENTS.md`, „Das Gesprächsfenster ist in ZEICHEN
+   > nicht gesetzt. Details in `docs/agents/entscheidungen.md`, „Das Gesprächsfenster ist in ZEICHEN
    > bemessen", und `docs/kontext-audit-2026-09-06.md` C.2/C.3/C.4.
 4. **Zwei Aussetzer beim Anbieter beobachtet:** ein HTTP 502 (Wiederholung nach 0,7 s
    erfolgreich) und ein `ReadTimeout` (zweiter Versuch sofort erfolgreich). Die Wiederholung
@@ -552,7 +552,7 @@ Schritt). Was der Abschnitt darunter als Brainstorming-Einstieg beschreibt,
 ist damit erledigt — er bleibt als Herkunft stehen. Der Stand:
 
 - **Anleitung und offene Punkte:** `docs/workshop-profil-umbau-2026-09-06.md`.
-  Kurzfassung in `AGENTS.md`, Abschnitt „Workshop-Profil".
+  Kurzfassung in `docs/agents/workshop-profil.md`.
 - **Eingehängt** wird mit `IT_WORKSHOP=<name>` je `betrieb/gruppeN.env`.
   Ohne Variable gilt das eingebaute Vorgabeprofil = heutiges Dortmund.
   `workshop/dortmund-2026/` trägt dieselben Werte; `workshop/padua-2026/`

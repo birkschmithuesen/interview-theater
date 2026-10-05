@@ -44,7 +44,7 @@ def aufbau_telegram(tmp_path):
     """Dieselbe Bauart wie ``aufbau``, aber OHNE ``setze_gruppe_kanal`` --
     die Gruppe bleibt auf dem Schema-Vorgabewert (Telegram) und hat deshalb
     keinen Chatzustand (``web_daten.web_chatzustand`` → ``None``,
-    AGENTS.md "Abschlussreview I3"). Eigene Datenbank statt einer zweiten
+    docs/agents/weboberflaeche.md "Abschlussreview I3"). Eigene Datenbank statt einer zweiten
     Gruppe in ``aufbau``, damit kein bestehender Test seine Destrukturierung
     aendern muss."""
     pfad = str(tmp_path / "t-telegram.db")

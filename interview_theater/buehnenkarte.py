@@ -106,7 +106,7 @@ def erzeuge(conn, e, klm, chat_id: int) -> tuple[str | None, str]:
     Aufruf scheiterte.
 
     Ein Scheitern bleibt fuer die Gruppe unsichtbar (wie ein gescheiterter
-    Nachpass, AGENTS.md § 11.1): Phase 4 ist eine Zugabe, niemand wartet auf
+    Nachpass, docs/agents/entscheidungen.md § 11.1): Phase 4 ist eine Zugabe, niemand wartet auf
     eine Karte und niemand muss auf einen Fehler reagieren -- dafuer ein
     Vorfall fuers Dashboard."""
     system = anweisungen.hole("buehnenkarte")

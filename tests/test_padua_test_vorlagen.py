@@ -95,7 +95,7 @@ def test_env_vorlage_ist_web_und_schluesselfrei():
 
 
 def test_web_unit_und_bot_env_zeigen_auf_dasselbe_audioverzeichnis():
-    """AGENTS.md 'Der Web-Kanal', Betrieb: Web-Unit und Web-Bot muessen aufs
+    """docs/agents/weboberflaeche.md 'Der Web-Kanal', Betrieb: Web-Unit und Web-Bot muessen aufs
     selbe IT_AUDIO zeigen -- WebKanal.lade_datei verweigert jeden Pfad
     ausserhalb des eigenen (web_kanal.py:584-590)."""
     unit = UNIT.read_text(encoding="utf-8")

@@ -320,7 +320,7 @@ class WebKanal:
         ``callback_query`` fuer einen Knopfdruck (``telegram.lies_knopfdruck``)
         und eine ``message`` fuer alles andere (``telegram.lies_nachricht``).
         Ein Knopfdruck ist keine Nachricht und darf nie in ``nachricht``
-        landen -- sonst liest ihn der Erkenner als Gruppenbeitrag (AGENTS.md,
+        landen -- sonst liest ihn der Erkenner als Gruppenbeitrag (docs/agents/entscheidungen.md,
         die Weiche in ``bot.schleife``)."""
         post_id = int(zeile["id"])
         chat = {"id": int(zeile["chat_id"]), "type": "group"}
@@ -546,7 +546,7 @@ class WebKanal:
 
     def setze_befehle(self, befehle: list) -> None:
         """No-Op: im Browser gibt es kein Slash-Menue, und Slash-Befehle
-        werden nicht beworben (AGENTS.md) -- beworben wird der Knopf. Die
+        werden nicht beworben (docs/agents/entscheidungen.md) -- beworben wird der Knopf. Die
         Methode existiert, damit ``bot.main`` unveraendert bleibt."""
         log.debug("setze_befehle im Web-Kanal ohne Wirkung (%s Befehle)", len(befehle))
 

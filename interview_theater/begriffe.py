@@ -20,7 +20,7 @@ Text, den der Verdichter schon erzeugt und dessen Zitate schon geprueft sind
    Seite, die die Gruppe waehrend des Workshops mehrfach neu laedt, ist das
    Rauschen.
 3. **Kein Prompt-Risiko.** Ein neuer Prompt haette einen Korpuslauf gegen das
-   echte Modell verlangt (AGENTS.md, \"Prompt geaendert? -> Korpus laufen
+   echte Modell verlangt (docs/agents/korpus-und-simulation.md, \"Prompt geaendert? -> Korpus laufen
    lassen\"), der waehrend des laufenden Workshops nicht zu fahren ist.
 
 Der Preis ist bekannt: ein Interview, das ueber \"Zuhause\" spricht, ohne das
@@ -30,7 +30,7 @@ Behauptung.
 
 Die Zuordnung ist **abgeleitete Anzeige, keine Entscheidung der Gruppe**: sie
 wird bei jedem Lauf neu berechnet und ersetzt (``repo.setze_verdichtung_begriffe``),
-und sie ruehrt die Verdichtung selbst nicht an (AGENTS.md: Verdichtungen
+und sie ruehrt die Verdichtung selbst nicht an (docs/agents/entscheidungen.md: Verdichtungen
 werden nie nachtraeglich geaendert).
 """
 

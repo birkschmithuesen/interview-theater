@@ -12,7 +12,7 @@ ist **idempotent** -- ``repo.setze_verdichtung_begriffe`` ersetzt die Zeilen
 einer Verdichtung, statt sie zu ergaenzen; zweimal laufen aendert nichts.
 
 Er ruehrt **nur** die Tabelle ``verdichtung_begriff`` an: keine Verdichtung,
-kein Transkript, kein Arbeitsstand wird geschrieben (AGENTS.md: Verdichtungen
+kein Transkript, kein Arbeitsstand wird geschrieben (docs/agents/entscheidungen.md: Verdichtungen
 werden nie nachtraeglich geaendert).
 
 Ausgabe **ohne Inhalte**: je Gruppe nur Zahlen. Die Verdichtungen enthalten

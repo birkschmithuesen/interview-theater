@@ -1153,7 +1153,7 @@ def phasenlage(proaktiv: list, selbst: list) -> dict:
     Bots oder ueber den versteckten ``/phase``-Befehl.
 
     Der zweite Weg ist der Befund. Eine echte Gruppe kennt ``/phase`` nicht
-    (Slash-Befehle werden nicht mehr beworben, AGENTS.md) -- wo der Simulator
+    (Slash-Befehle werden nicht mehr beworben, docs/agents/entscheidungen.md) -- wo der Simulator
     ihn braucht, waere eine echte Gruppe steckengeblieben."""
     gesamt = len(proaktiv) + len(selbst)
     return {

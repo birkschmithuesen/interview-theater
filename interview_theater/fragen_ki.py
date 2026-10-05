@@ -38,7 +38,7 @@ nichts zu vergleichen haette.
 ``beende``), hier bewusst noch einmal geschrieben statt importiert: eine
 gemeinsame Sperre wuerde die Hintergrund-Diskussion (Phase 1) und die
 KI-Fragen (Phase 2) aneinanderketten, obwohl die beiden nie gleichzeitig
-eine Gruppe betreffen (AGENTS.md: "Gleicher Code, verschiedene Sperren")."""
+eine Gruppe betreffen (docs/agents/aufbau.md: "Gleicher Code, verschiedene Sperren")."""
 
 import logging
 import threading
@@ -96,7 +96,7 @@ def _nutzertext(begriffe: str, diskussion_text: str | None,
     return text
 
 
-#: Ein Sperren-Register je Nebenlaeufigkeit (AGENTS.md: "Gleicher Code,
+#: Ein Sperren-Register je Nebenlaeufigkeit (docs/agents/aufbau.md: "Gleicher Code,
 #: verschiedene Sperren"), in Form kopiert aus ``diskussion.py``: nie mehr
 #: als ein KI-Fragen-Lauf je Gruppe gleichzeitig.
 _LAEUFT_LOCK = threading.Lock()

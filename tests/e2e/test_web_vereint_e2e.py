@@ -101,7 +101,7 @@ def _baue_datenbank() -> tuple[str, str]:
     token = repo.stelle_web_token_sicher(conn, CHAT)
 
     # Telegram-Gruppe: kein Web-Kanal, also kein Chat-Tab auf ihrer Seite
-    # (AGENTS.md, "Abschlussreview I3" -- kein Bot, der web_post laese).
+    # (docs/agents/weboberflaeche.md, "Abschlussreview I3" -- kein Bot, der web_post laese).
     repo.sichere_gruppe(conn, TELEGRAM_CHAT, "telegramgruppe", "Die Telegramgruppe")
     telegram_token = repo.stelle_web_token_sicher(conn, TELEGRAM_CHAT)
 
@@ -383,7 +383,7 @@ def test_tap_aussen_schliesst_das_menue(seite):
 
 
 def test_telegram_gruppe_oeffnet_auf_stand_ohne_chat_tab(server, browser, telegram_token):
-    """Kein Web-Kanal, kein Chat-Tab (AGENTS.md "Abschlussreview I3")."""
+    """Kein Web-Kanal, kein Chat-Tab (docs/agents/weboberflaeche.md "Abschlussreview I3")."""
     kontext = browser.new_context(viewport=HANDY)
     seite = kontext.new_page()
     seite.set_default_timeout(GEDULD)

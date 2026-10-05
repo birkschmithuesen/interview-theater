@@ -120,7 +120,7 @@ def test_format_steht_nicht_mehr_im_prompt(conn):
     Die Gruppe hat festgelegt: "nur eine Szene, erste Folge einer Serie".
     Das Feld blieb NULL, und selbst wenn es gesetzt worden waere, haette es
     nichts geaendert -- ``format`` ist seit dem 05.09.2026 abends **kein
-    Prompt-Block mehr** (``kontext._baue_arbeitsstand``, AGENTS.md: "``format``
+    Prompt-Block mehr** (``kontext._baue_arbeitsstand``, docs/agents/entscheidungen.md: "``format``
     und ``hauptkonflikt`` bleiben als Spalten stehen und tragen keine
     Entscheidung mehr").
 

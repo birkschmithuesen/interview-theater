@@ -398,7 +398,7 @@ def test_von_phase_eins_bis_zum_ersten_interview_nur_ueber_http(lauf):
     _warte_auf(pfad, lambda c: repo.ist_interviewmodus_an(c, CHAT), "Modus an")
 
     # (5) Zwei Segmente -- und beide transkribiert, BEVOR der Modus endet:
-    # ein offener Teil haelt den Abschluss auf (AGENTS.md, § 10.6), und der
+    # ein offener Teil haelt den Abschluss auf (docs/agents/entscheidungen.md, § 10.6), und der
     # Test soll den Normalfall pruefen, nicht das Nachholen.
     for nummer in (1, 2):
         _lade_segment(basis, token, nummer)

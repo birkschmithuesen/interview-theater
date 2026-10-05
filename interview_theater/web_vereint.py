@@ -1744,7 +1744,7 @@ def _leiste_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
 
     ``klickbar`` ist ``False`` fuer eine Gruppe ohne Web-Kanal (Telegram):
     dort ist jeder ``/chat/*``-Weg 404 (kein Bot, der ``web_post`` liest,
-    AGENTS.md "Abschlussreview I3"), ein Knopf waere also toter Code auf der
+    docs/agents/weboberflaeche.md "Abschlussreview I3"), ein Knopf waere also toter Code auf der
     Seite. Die Uebersicht selbst -- Phase, Fortschritt, Sprungziele -- bleibt
     stehen, nur ohne Knopf und ohne ``data-phase``.
 
@@ -1946,7 +1946,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     (A2), das Stand-Panel ueber ``/g/<token>/teil/stand`` (Aufgabe 12).
 
     ``chat_vorhanden`` ist ``False`` fuer eine Telegram-Gruppe (kein
-    Web-Kanal, AGENTS.md "Abschlussreview I3"): das Chat-Panel samt seinem
+    Web-Kanal, docs/agents/weboberflaeche.md "Abschlussreview I3"): das Chat-Panel samt seinem
     Tab und Skript (``eingabe``, ``interview``, ``ptt``, ``web_chat._js()``)
     faellt dann ganz weg -- ein POST oder Poll dorthin wuerde ohnehin 404
     liefern (``web_chat._gruppe_oder_404`` prueft denselben Web-Kanal), und

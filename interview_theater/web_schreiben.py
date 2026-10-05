@@ -109,7 +109,7 @@ STIL_BESCHRIFTUNG = {
 ARBEITSSTANDFELDER = {
     # ``rahmen`` heisst seit dem Phasen-Umbau nach aussen **Setting** (Ort,
     # Zeit, Anlass) -- der Spaltenname bleibt, die Beschriftung folgt dem, was
-    # die Gruppe im Chat hoert (AGENTS.md, "Phase 4 heisst Setting & Figuren").
+    # die Gruppe im Chat hoert (docs/agents/entscheidungen.md, "Phase 4 heisst Setting & Figuren").
     "rahmen": "Setting",
     # Die Geschichte im Groben (Phase 5): Bogen und Ende. Sie hat die Rolle
     # uebernommen, die frueher das Kernthema hatte.

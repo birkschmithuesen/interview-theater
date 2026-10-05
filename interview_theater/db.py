@@ -274,7 +274,7 @@ CREATE TABLE IF NOT EXISTS verdichtung_thema (
 -- fuer diese Verdichtung ersetzt (repo.setze_verdichtung_begriffe). Deshalb
 -- gibt es hier kein ``entfernt_am`` -- weiches Loeschen haelt Entscheidungen
 -- fest, und eine Zuordnung ist keine. Die Verdichtung selbst bleibt dabei
--- unberuehrt (AGENTS.md: Verdichtungen werden nie nachtraeglich geaendert).
+-- unberuehrt (docs/agents/entscheidungen.md: Verdichtungen werden nie nachtraeglich geaendert).
 --
 -- UNIQUE ueber (verdichtung_id, begriff): derselbe Begriff steht an einer
 -- Verdichtung genau einmal, auch wenn ein Nachtragslauf zweimal faellt.

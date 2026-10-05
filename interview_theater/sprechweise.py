@@ -18,7 +18,7 @@ neue deutsche ``.md`` braucht einen Abschnitt im Dortmund-Schnappschuss. Die
 englische Fassung steht in ``sprachen/en/texte.toml``.
 
 **Eigenes Sperren-Register mit Meta-Lock** wie ``entwurf._sperre_fuer``
-("Ein Sperren-Register je Nebenlaeufigkeit", AGENTS.md). Kein SQL hier, kein
+("Ein Sperren-Register je Nebenlaeufigkeit", docs/agents/aufbau.md). Kein SQL hier, kein
 Modellaufruf ausserhalb des Threads (Zusage 2: ``starte`` wird aus einem
 Knopf-Handler gerufen).
 """

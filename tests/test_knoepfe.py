@@ -1051,7 +1051,7 @@ def test_einstieg_bietet_das_beenden_auch_in_phase_1_an(conn, einst, tg):
     """Die Ausnahme zur Phasenregel: laeuft eine Aufnahme, MUSS der
     Ausschalter da sein. Ein laufendes Interview ohne Knopf waere die
     schlechtere Falle als ein Angebot zur falschen Zeit -- und ausdruecklich
-    aufnehmen darf die Gruppe jederzeit (AGENTS.md, "Fokus, kein Kaefig")."""
+    aufnehmen darf die Gruppe jederzeit (docs/agents/entscheidungen.md, "Fokus, kein Kaefig")."""
     repo.setze_interviewmodus(conn, 1, repo._jetzt())
 
     knoepfe.biete_einstieg(conn, tg, 1, "Hallo.")

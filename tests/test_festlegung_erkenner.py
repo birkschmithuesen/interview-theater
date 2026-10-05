@@ -39,7 +39,7 @@ def test_art_ist_bekannt():
 
 def test_gilt_nicht_aus_einer_aufnahme():
     """Was eine interviewte Person erzaehlt, ist Material und nie eine
-    Absicht der Gruppe (AGENTS.md, Korpusfaelle n12/n26)."""
+    Absicht der Gruppe (docs/agents/entscheidungen.md, Korpusfaelle n12/n26)."""
     assert "festlegung_setzen" not in erkenner.ARTEN_IN_AUFNAHME
 
 

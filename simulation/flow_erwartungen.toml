@@ -66,7 +66,7 @@ weg = "knopf"
 intent = ""
 knopf = "ART_UNDO"
 beleg = """
-Bewusste, dokumentierte Knopf-only-Entscheidung (Karte U, siehe AGENTS.md
+Bewusste, dokumentierte Knopf-only-Entscheidung (Karte U, siehe docs/agents/entscheidungen.md
 Abschnitt 'Ein Erkennerlauf ist mit einem Tipp zuruecknehmbar', Punkt 7:
 'Nur die Erkenner-Meldung bekommt Undo.'). erkenner.ARTEN kennt keine Art fuer
 eine Ruecknahme -- die Ruecknahme ist eine diff-basierte Wiederherstellung
@@ -173,7 +173,7 @@ intent = "interview_starten"
 knopf = "ART_AUFNAHME"
 beleg = """
 erkenner.ARTEN enthaelt 'interview_starten'. Nicht in PHASEN_SPEZIFISCHE_ARTEN,
-also phasenfrei -- AGENTS.md (Abschnitt 'Aufnahme-Angebote sind phasenabhaengig'):
+also phasenfrei -- docs/agents/entscheidungen.md (Abschnitt 'Aufnahme-Angebote sind phasenabhaengig'):
 'Ausdruecklich Aufnehmen (/aufnahme, erkannte Absicht) bleibt in jeder Phase
 moeglich -- eingeschraenkt ist nur das Angebot.' Das heisst konkret:
 knoepfe._aufnahme_anbieten() zeigt den Knopf 'Aufnahme starten' proaktiv NUR ab

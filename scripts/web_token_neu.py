@@ -2,7 +2,7 @@
 danach sofort tot.
 
 **Wozu.** Der Gruppenlink hat kein Login -- das Token IST das Geheimnis. Es
-wandert in der Probe von Hand zu Hand (siehe die Probenansicht in AGENTS.md),
+wandert in der Probe von Hand zu Hand (siehe die Probenansicht in docs/agents/weboberflaeche.md),
 landet in einem Screenshot, auf einem Foto von der Leinwand, in einem
 weitergeleiteten Chat. Bis zum 30.09.2026 gab es dagegen nichts.
 

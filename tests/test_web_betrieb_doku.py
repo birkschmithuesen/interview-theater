@@ -1,6 +1,6 @@
 """Betrieb und Doku halten mit dem Code Schritt.
 
-Der Anlass steht in AGENTS.md selbst: ``IT_MODELL_ERKENNER`` fehlte lange in
+Der Anlass steht in docs/agents/spec-abweichungen.md selbst: ``IT_MODELL_ERKENNER`` fehlte lange in
 ``docs/betrieb-env.beispiel``. Eine Variable, die nur im Code steht, findet
 am Workshopmorgen niemand.
 """

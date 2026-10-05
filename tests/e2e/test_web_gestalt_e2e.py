@@ -219,7 +219,7 @@ def test_push_to_talk_sieht_beim_halten_anders_aus(dienst):
     """Seit Kanban-Karte Buehne/PTT (04.10.2026, Telegram-Vorbild) ist PTT
     wieder ein Halten-Knopf statt eines Klick-Umschalters (die Karte vom
     03.10.2026/Merge t_ea0d33e3 ist damit fuer PTT selbst zurueckgenommen,
-    siehe AGENTS.md-Abschnitt zur Kanban-Karte Buehne/PTT) -- Finger drauf
+    siehe docs/agents/weboberflaeche.md zur Kanban-Karte Buehne/PTT) -- Finger drauf
     und halten startet, Finger weg nach einem Druck ueber ``PTT_MIN_MS``
     beendet und sendet sofort (kein verzoegertes Zuruecksetzen wie beim
     Kurztipp-Hinweis unter der Mindestdauer)."""

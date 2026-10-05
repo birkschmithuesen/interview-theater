@@ -21,7 +21,7 @@ Deshalb zwei Funktionen: ``kosten_chf`` (unveraendert, ``None``) und
 VOR dem Netzaufruf: ``llm.LLM._anfrage``, ``szene_claude.prosa`` und
 ``aufnahme._verarbeite``. Weil das im Bot-Prozess sitzt, gilt er fuer
 Telegram und Web gleichermassen. Pausieren heisst: Empfangen laeuft weiter
-(AGENTS.md, "Empfangen, Antworten und In-den-Prompt-legen sind drei
+(docs/agents/entscheidungen.md, "Empfangen, Antworten und In-den-Prompt-legen sind drei
 getrennte Entscheidungen"); nur Modell- und Whisper-Aufrufe fallen aus, die
 Gruppe bekommt hoechstens alle ``PAUSE_WIEDERHOLUNG_S`` eine Zeile.
 

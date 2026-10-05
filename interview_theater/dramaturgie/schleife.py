@@ -90,7 +90,7 @@ GRUENDE = {
 
 #: Vorfall, wenn eine Ueberarbeitung einen Score gesenkt hat. Er steht neben
 #: der Bilanz und nicht statt ihrer: "gekuerzt" und "reicht nicht" sind zwei
-#: verschiedene Meldungen (AGENTS.md, ``kontext_kuerzung_erfolglos``).
+#: verschiedene Meldungen (docs/agents/entscheidungen.md, ``kontext_kuerzung_erfolglos``).
 VORFALL_GESCHADET = "dramaturgie_verschlechterung"
 
 

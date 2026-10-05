@@ -96,7 +96,7 @@ VERBOTENE_UX = (
      "(UX-Regel 3: jedes Speichern hat ein Undo)."),
     ("ask whether",
      "Rueckfrage vor dem Speichern: 'speichern beim ersten Mal, keine "
-     "Rueckfrage davor' (AGENTS.md, Haltung 06.09.2026)."),
+     "Rueckfrage davor' (docs/agents/entscheidungen.md, Haltung 06.09.2026)."),
     ("how many scenes",
      "Zahl und Umfang entscheidet die Gruppe; der Bot schlaegt keine Anzahl "
      "vor (UX-Regel 1)."),

@@ -728,7 +728,7 @@ def _wende_formen_an(conn, chat_id: int, wert: str) -> list[str]:
     Notiert-Meldung.
 
     Geschrieben wird ``form`` und NICHT ``form_vorschlag``: die Gruppe hat
-    gewaehlt (AGENTS.md, "Eine Menuezeile ist keine Geschichte" -- "die
+    gewaehlt (docs/agents/was-bewusst-fehlt.md, "Eine Menuezeile ist keine Geschichte" -- "die
     Regel haelt den Vorschlag eines Modells aus dem Feld heraus, nicht die
     Wahl der Gruppe"). Kein Richter-Weg schreibt hier
     (``repo.GESCHUETZTE_SZENENFELDER`` bleibt fuer die Pruefung tabu)."""

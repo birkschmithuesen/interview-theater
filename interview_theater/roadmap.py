@@ -12,7 +12,7 @@ ist der **Weg**: sieben Stationen, wo stehen wir, was kommt noch.
 ``phasentexte.PARAMETER``; ``tests/test_roadmap.py`` nagelt Namen und
 Reihenfolge daran fest. Eigen sind hier nur die **Pruefer** -- und das aus
 einem harten Grund: die Leser in ``PARAMETER`` rufen ``repo``, und der
-Webserver bekommt keinen ``repo``-Pfad (AGENTS.md, ``fehlstellen``). Die
+Webserver bekommt keinen ``repo``-Pfad (docs/agents/was-bewusst-fehlt.md, ``fehlstellen``). Die
 Pruefer sind deshalb reine Funktionen ueber Dicts, und sie pruefen genau das,
 woran ``phasen.voraussetzungen`` schon haengt.
 
@@ -22,7 +22,7 @@ rein und kennt nur Dicts, ``register`` holt sie ueber ``repo`` (Bot),
 ``web_daten.roadmap`` ueber die read-only geoeffnete Verbindung (Web).
 
 **Nichts hier setzt eine Phase.** Die Uebersicht zeigt den Datenstand; der
-Datenstand schaltet nie (AGENTS.md, "Der automatische Phasensprung" --
+Datenstand schaltet nie (docs/agents/was-bewusst-fehlt.md, "Der automatische Phasensprung" --
 Datenstand ist nicht Absicht). Umschalten tut allein die Gruppe, per Chat,
 Befehl oder Klick (``befehle.wechsle_phase``).
 
@@ -397,7 +397,7 @@ def begriffe_detail(stand) -> list[dict]:
     Defensiv: fehlt die Spalte, ist sie leer oder kaputt, kommt eine leere
     Liste -- nie ein Fehler (der Webserver migriert nichts). Das ``zitat``
     geht bewusst NICHT mit: es hat keine ``zitat_geprueft``-Pruefung, und auf
-    der Seite steht kein ungeprueftes Zitat (AGENTS.md, "Drei Grenzen")."""
+    der Seite steht kein ungeprueftes Zitat (docs/agents/weboberflaeche.md, "Drei Grenzen")."""
     roh = _text(stand, "begriffe_detail")
     if not roh:
         return []

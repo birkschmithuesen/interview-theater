@@ -57,7 +57,7 @@ def test_jede_einleitung_steht_als_angebot_da(conn, nummer):
 def test_die_angebotszeile_nennt_den_weg_zum_widerspruch():
     """Ein Angebot, das man nicht ablehnen kann, ist keins. Die Zeile sagt
     beides in einem Satz: dass es ein Vorschlag ist und dass Widerspruch
-    genuegt -- in Sprache, ohne Slash-Befehl (AGENTS.md)."""
+    genuegt -- in Sprache, ohne Slash-Befehl (docs/agents/entscheidungen.md)."""
     zeile = phasentexte.ZEILE_ANGEBOT
 
     assert "Vorschlag" in zeile
@@ -67,7 +67,7 @@ def test_die_angebotszeile_nennt_den_weg_zum_widerspruch():
 
 
 def test_das_angebot_haengt_keinen_knopf_an(conn, einst, tg):
-    """Bewusst kein Knopf (AGENTS.md, "Inline-Knoepfe an den
+    """Bewusst kein Knopf (docs/agents/entscheidungen.md, "Inline-Knoepfe an den
     Auswahl-Momenten"): unter dem Angebot ist nichts Fixes zu speichern und
     es gibt keine benannten Alternativen. Angenommen wird es durch
     Weiterarbeiten -- ein Pflichtklick waere genau der Zwang, den das
@@ -106,7 +106,7 @@ def test_jede_einleitung_ist_kurz_und_vollstaendig(nummer):
 
 @pytest.mark.parametrize("nummer", [n for n, _, _ in phasen.PHASEN])
 def test_keine_einleitung_bewirbt_einen_slash_befehl(nummer):
-    """AGENTS.md: Slash-Befehle werden nirgends beworben, beworben wird der
+    """docs/agents/entscheidungen.md: Slash-Befehle werden nirgends beworben, beworben wird der
     Knopf."""
     assert "/" not in phasentexte.EINLEITUNGEN[nummer]
 
@@ -212,7 +212,7 @@ def test_listen_werden_mit_punkt_getrennt(conn):
 
 def test_szenen_stehen_als_nummer_titel_form(conn):
     """Die Form nur, wenn sie bestaetigt ist (``szene.form``) -- ein
-    Vorschlag ist keine Entscheidung (AGENTS.md, 06.09.2026)."""
+    Vorschlag ist keine Entscheidung (docs/agents/entscheidungen.md, 06.09.2026)."""
     szene_id = repo.stelle_szene_sicher(conn, 1, 1)
     repo.setze_szenenfeld(conn, szene_id, "titel", "Vor der Tuer")
     repo.setze_szenenfeld(conn, szene_id, "form_vorschlag", "Monolog")

@@ -114,7 +114,7 @@ CSP_VORLAGE = (
 
 #: Was eine unerwartete Ausnahme nach aussen sagt. Ein Satz, kein Pfad, keine
 #: Klasse, keine Zeile -- das steht im Log (siehe ``log_error``). Die Gruppe
-#: kann daran nichts beheben, aber sie wartet gerade (AGENTS.md: "Die Gruppe
+#: kann daran nichts beheben, aber sie wartet gerade (docs/agents/entscheidungen.md: "Die Gruppe
 #: erfaehrt von einem Fehler nur, wenn sie ihn beheben kann oder gerade
 #: darauf wartet").
 TEXT_500 = "Da ist bei uns etwas schiefgegangen."
@@ -759,7 +759,7 @@ _CSS_BUEHNE = """
 #: aber nicht ``@keyframes``: ihre Regex haette ``50% { ... }`` faelschlich
 #: als verschachtelten Selektor gelesen und zu z. B. ``.panel-buehne 50%``
 #: verunstaltet (derselbe dokumentierte Fehler wie bei ``web_gestalt.py``s
-#: eigenem ``scope_css``, siehe AGENTS.md "``@keyframes`` und ``@media`` nur
+#: eigenem ``scope_css``, siehe docs/agents/weboberflaeche.md "``@keyframes`` und ``@media`` nur
 #: in ``css_rahmen()``"). Deshalb geht diese Konstante in
 #: ``web_vereint.seite()`` ROH in die CSS-Verkettung ein, genau wie
 #: ``_CSS_VEREINT`` -- niemals durch ``scope_css()``.
@@ -1581,7 +1581,7 @@ def _dramaturgie_html(daten: dict) -> str:
     """Der Abschnitt „Dramaturgie-Prüfung" auf der Gruppenseite: die Befunde
     der letzten Runde, **read-only** und **ohne Belegzitat**.
 
-    Dieselbe Grenze wie bei den Verdichtungen (AGENTS.md, „Drei Grenzen"): das
+    Dieselbe Grenze wie bei den Verdichtungen (docs/agents/weboberflaeche.md, „Drei Grenzen"): das
     Belegzitat ist der Nachweis, mit dem der Code den Befund zugelassen hat,
     nicht der Text für die Seite — und eine Seite ohne Login ist nicht der
     Ort, an dem geprüfte und ungeprüfte Zitate nebeneinander stehen.
@@ -2862,7 +2862,7 @@ def _buehne_status_text(daten: dict) -> str | None:
     1. "thinking" -- NICHT implementiert. Die Erzeugungssperre
        (``brainstorm._LAEUFT``) lebt im Speicher des BOT-Prozesses; der
        Webserver oeffnet nur eine read-only DB-Verbindung und sieht sie
-       strukturell nicht (dieselbe Grenze wie beim Szenenlauf-Lock, AGENTS.md
+       strukturell nicht (dieselbe Grenze wie beim Szenenlauf-Lock, docs/agents/weboberflaeche.md
        "Die Phasenuebersicht"). Eine Zeitstempel-Heuristik waere ein
        geratener Zustand, der wie ein gemessener aussieht -- deshalb bleibt
        das hier eine dokumentierte Luecke fuer die separate, noch
@@ -3879,8 +3879,8 @@ def textbuch_koerper(
     Herausgeloest fuer die vereinte Seite (30.09.2026, Karte W), siehe
     ``gruppe_koerper``. Enthaelt **ausschliesslich** Szenentexte und
     Szenenplanung. Kein Interview, kein Journal, kein Belegzitat, keine
-    Verdichtung, kein Nachrichtentext -- die Grenze aus AGENTS.md
-    ("Weboberflaeche") gilt hier strenger als auf der Gruppenseite, weil
+    Verdichtung, kein Nachrichtentext -- die Grenze aus docs/agents/weboberflaeche.md
+    gilt hier strenger als auf der Gruppenseite, weil
     dieser Link im Probenraum herumgereicht wird."""
     bekannte = {(f["name"] or "").upper() for f in daten["figuren"] if f.get("name")}
     abschnitte = []
@@ -3938,7 +3938,7 @@ def textbuch_html(
 
     Enthaelt **ausschliesslich** Szenentexte und Szenenplanung. Kein
     Interview, kein Journal, kein Belegzitat, keine Verdichtung, kein
-    Nachrichtentext -- die Grenze aus AGENTS.md ("Weboberflaeche") gilt hier
+    Nachrichtentext -- die Grenze aus docs/agents/weboberflaeche.md gilt hier
     strenger als auf der Gruppenseite, weil dieser Link im Probenraum
     herumgereicht wird."""
     from interview_theater import web_gestalt

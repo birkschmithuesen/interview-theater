@@ -108,7 +108,8 @@ def test_erstkontakt_mit_diskussion_aktiv_erzaehlt_kein_plenum(
     tg = TelegramAttrappe()
     bot.erstkontakt(conn, tg, einst, CHAT)
 
-    text = tg.gesendet[0]["text"]
+    # Seit 05.10.2026 steht die Handy-Karte (Bild) vor der Begruessung.
+    text = [n for n in tg.gesendet if not n.get("bild")][0]["text"]
     assert "Plenum" not in text and "Wand" not in text
     assert "Handy" in text and "Diskussion fertig" in text
 

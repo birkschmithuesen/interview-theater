@@ -56,7 +56,7 @@ MODELL_VORGABE = "claude-opus-5"
 API_VERSION = "2023-06-01"
 
 #: Zeitbudget eines einzelnen Aufrufs.
-TIMEOUT_S = 120.0
+TIMEOUT_S = 280.0
 
 #: Wartezeiten zwischen den Wiederholungen bei 429/5xx/Transportfehler, plus
 #: Jitter. Macht bis zu vier Versuche insgesamt. Deutlich grosszuegiger als

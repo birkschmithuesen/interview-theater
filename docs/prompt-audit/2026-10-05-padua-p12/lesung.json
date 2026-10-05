@@ -1,0 +1,263 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 44,
+    "zitat": "**Phase 1 is a handover: the terms have been collected in the room, you",
+    "regel": "Same file, line 473: \"**Don't ask the group to collect or send you terms up front.** The\" ... line 475: \"describe a \"handover\" from paper, a wall, or an earlier room session,\" / line 476: \"because none of that happened.\"",
+    "vorschlag": "Delete lines 44-47 (the handover paragraph) entirely; the phase block at lines 437-443 already describes the real mechanic (phone in the middle, \"Discussion done\", automatic proposal).",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 521,
+    "zitat": "The material would allow phase 2 · Questions. Ask in the flow of the conversation whether the group wants to go there yet -- one sentence, no announcement (\"Are more interviews coming, or shall we move on?\"). You don't switch yourself; the group's answer does that.",
+    "regel": "Same file, line 477: \"- **Don't ask what comes next.** After the terms come\" / line 480: \"Never offer that as a choice.\"",
+    "vorschlag": "Delete line 521 from the user part for phase 1 (or delete lines 477-480 and keep the hint) -- as it stands the bot is both forbidden and ordered to ask about the next phase; also the example sentence asks about interviews, which do not exist in phase 1.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 276,
+    "zitat": "reflection of ONE value \"Yes, save\" and \"No, change it again\".",
+    "regel": "UX RULES §3: \"Decisions the group states are saved **automatically** (no yes/no ceremony), shown as one quiet system line (📌 …) with **↶ Rückgängig**.\"",
+    "vorschlag": "Delete the \"Yes, save\" / \"No, change it again\" pair from line 276 and replace it with the automatic 📌 save line plus the undo button (\"↶ Rückgängig\"); mention the undo nowhere-else-mentioned in this prompt.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 510,
+    "zitat": "You ask at most one open question per message, at the end.",
+    "regel": "Same file, line 454: \"comment, no associations, no question at the end: the save button under\" and line 175: \"exactly one, in the text, right before the suggestion block if there is one\"",
+    "vorschlag": "Change line 510 to \"You ask at most one question per message, and only when it helps -- never as a closing line, and never together with a suggestion block\", so it matches lines 171-176 and 454.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 5,
+    "zitat": "You are the dramaturgical companion of an amateur theatre group during a",
+    "regel": "Same file, line 510: \"The group are acting students in professional training, not an amateur group: talk to them the way a dramaturg talks to colleagues\"",
+    "vorschlag": "Rewrite line 5 to \"You are the dramaturgical companion of a group of acting students in professional training during a theatre workshop\" (line 34 already says third-year acting students).",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 136,
+    "zitat": "`VORSCHLAG FRAGENAUSWAHL:` -- **exactly ten** interview questions to choose",
+    "regel": "UX RULES §1: \"**Numbers and scope are the group's call.** The bot asks, never proposes a count\"",
+    "vorschlag": "Drop the fixed numbers on lines 136-138: let the block carry as many questions as the group asked for and delete \"taps three\" (line 138) so the multiple choice has no quota.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 19,
+    "zitat": "(with a suggested form for each scene)",
+    "regel": "UX RULES §1: \"**Don't decide things before the phase where they matter.** Scene styles (rap, dialogue) were removed from the scene-planning phase because they belong later.\" -- and same file line 23: \"7. Stage Version -- choose the form for each scene, translate the story,\"",
+    "vorschlag": "Delete \"(with a suggested form for each scene)\" on line 19 and the \"— form\" field from the GESCHICHTE block (line 158); the form is chosen in station 7 per line 23.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 22,
+    "zitat": "6. Rewrite -- tell each scene as prose, still without a form",
+    "regel": "Same file, line 21: \"material, then write it scene by scene as prose\" (station 5 already is the prose writing)",
+    "vorschlag": "Give stations 5 and 6 distinct jobs in the list: either delete line 22 or reword it to \"6. Rewrite -- revise the prose scenes after the group's notes\".",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 257,
+    "zitat": "A \"format\" of the play is no longer discussed: a script is",
+    "regel": "Dead mechanic: nothing in these prompts offers a \"format\" of the play; the sentence only explains a removed feature.",
+    "vorschlag": "Delete the sentence about the \"format\" on lines 257-258 and keep only \"`/play setting <text>` -- the setting from station 4. `/play` on its own shows it.\"",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "13-begriffsboard",
+    "zeile": 140,
+    "zitat": "\"begruendung\": \"the group returns to it twice\"",
+    "regel": "Same file, line 121: \"- No begruendung that only says the term was named, collected or suggested.\" and line 27: \"gap. That a term was named, collected, listed or suggested is NOT a\"",
+    "vorschlag": "Fix the board-so-far that is fed in: either set this begruendung to \"\" or to the group's own reason (\"everybody waited for something\"); an example input that breaks the rule teaches the model to break it.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 529,
+    "zitat": "You: In the work status tab. Everything saved is there.",
+    "regel": "Context structure: the history starts with a bot answer whose question was cut away, followed by eight turns of pure noise (sleeping phones, \"is anyone writing this down\").",
+    "vorschlag": "Cut the history at line 538 (\"Member 1: here is our wall: ...\") and keep the turns from there to \"Now\"; drop lines 529-537.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 531,
+    "zitat": "You: Changed since - please fix it in the work status",
+    "regel": "Context structure: a truncated system/status line is echoed into the history under the bot's label \"You:\", so the model reads it as its own sentence (and as a text it must not repeat, per line 315).",
+    "vorschlag": "Label system lines in the history as \"System:\" (or 🖥) instead of \"You:\", and either render them in full or leave them out of the history.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 515,
+    "zitat": "Terms: arrival, waiting, strangers, noise, belonging, home, trust, family, the city at night",
+    "regel": "Context structure: the saved status gives no save state and duplicates, in another order, Member 1's list at line 538 (\"here is our wall: arrival, waiting, strangers, home, noise, trust, belonging, the city at night, family\"); the group's open question \"can we keep nine terms\" needs an unambiguous count.",
+    "vorschlag": "Write the status as \"Terms (saved, 9): ...\" and mark it as the saved version of the wall list, or drop the duplicate wall line from the history.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 524,
+    "zitat": "- [decided] Story as short story: 3 sections",
+    "regel": "Context structure: later-phase items contradict each other and the current phase -- line 518: \"- [form] One episode, the first of a series - not a closed play.\" -- and they stand above the phase-1 terms in weight and order.",
+    "vorschlag": "Filter journal and \"Further agreements\" to entries relevant to the current phase (or drop lines 518-525 in phase 1) and put the term list first; if kept, date-stamp them so the newer decision is recognisable.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "14-diskussion-verdichtung",
+    "zeile": 41,
+    "zitat": "Das Transkript der Diskussion:",
+    "regel": "Context structure: the only section label in the user part is German while system prompt and required output are English; 13-begriffsboard line 132 uses \"The transcript of the discussion so far:\".",
+    "vorschlag": "Replace line 41 with \"The transcript of the discussion so far:\" so both phase-1 background prompts use the same English section label.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 618,
+    "zitat": "You: Your three are saved. Do you want to see mine next to them?",
+    "regel": "Line 516: \"**Never claim the questions have been saved.** You don't write anything\" / UX rule 4: \"The bot never claims a state change the code didn't make.\"",
+    "vorschlag": "Rewrite this history line in the context builder so the bot never says \"saved\" in phase 2, e.g. \"You: Those are your three. Do you want to see mine next to them?\"; if the line really came from the model, filter the word \"saved\" out of echoed bot turns in this phase.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 597,
+    "zitat": "The material would allow phase 3 · Interviews. Ask in the flow of the conversation whether the group wants to go there yet",
+    "regel": "Line 513: \"- **Never offer the order as a choice.** The order is fixed: first the\" and line 171: \"**At most ONE question per message -- never a mandatory close, only when it helps.**\"",
+    "vorschlag": "Delete the instruction to ask in this phase; replace line 597 with a pure status hint without an order to ask, e.g. \"Phase 3 · Interviews would be possible. Say nothing about it unless the group asks.\"",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 481,
+    "zitat": "- If a term already has more than three questions, keep only the best or",
+    "regel": "Line 521: \"- Don't decide questions for the group. You listen and tidy up, it chooses.\"",
+    "vorschlag": "Delete lines 481-483; instruct instead: list every question the group wrote under its term, the selection happens in the one-by-one stage with the group.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 529,
+    "zitat": "After the running tally reaches three per term (or the group says it wants",
+    "regel": "UX rule 1: \"**Numbers and scope are the group's call.** The bot asks, never proposes a count\"",
+    "vorschlag": "Remove the fixed \"three per term\" threshold from the prompt: the comparison starts when the group says it is ready (the \"Own questions done.\" sentence, line 505), not at a bot-side quota.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 136,
+    "zitat": "`VORSCHLAG FRAGENAUSWAHL:` -- **exactly ten** interview questions to choose",
+    "regel": "Line 445: \"**Don't suggest questions yourself in this phase -- the group writes first;\" and line 531: the code \"goes through every question one at a time\"",
+    "vorschlag": "In this profile's file delete the markers `VORSCHLAG FRAGENAUSWAHL:` (lines 136-138) and `VORSCHLAG FRAGEN:` (lines 139-140), or mark them explicitly as \"not in this profile\"; adjust the count in line 133.",
+    "phase": 2
+  },
+  {
+    "kategorie": "b",
+    "datei": "05-gespraech-phase2",
+    "zeile": 536,
+    "zitat": "for a reworked version of ONE question: give it back as `VORSCHLAG FRAGE:` -",
+    "regel": "Line 133: \"  There are thirteen markers, no more:\" -- `VORSCHLAG FRAGE:` is not among them",
+    "vorschlag": "Add `VORSCHLAG FRAGE:` -- one line \"Term: Question\" -- to the marker list and raise the count in line 133 to fourteen, or rename the phase-2 marker to one that is already in the list.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 276,
+    "zitat": "reflection of ONE value \"Yes, save\" and \"No, change it again\".",
+    "regel": "UX rule 3: \"Decisions the group states are saved **automatically** (no yes/no ceremony)\" plus \"Every save has an undo.\"",
+    "vorschlag": "Delete the \"Yes, save\" / \"No, change it again\" button pair from line 276 and name the quiet system line with ↶ Rückgängig instead.",
+    "phase": 2
+  },
+  {
+    "kategorie": "a",
+    "datei": "05-gespraech-phase2",
+    "zeile": 61,
+    "zitat": "**Every scene has a form** -- exactly one of five: Dialogue, Monologue, Chorus,",
+    "regel": "UX rule 1: \"**Don't decide things before the phase where they matter.** Scene styles (rap, dialogue) were removed from the scene-planning phase because they belong later.\" (cf. line 23: station 7 \"choose the form for each scene\")",
+    "vorschlag": "Strike \"(with a suggested form for each scene)\" in line 19 and the sentence \"It is already in the scene sequence suggestion\" in lines 62-63; state that the form is chosen in station 7 only, and drop \"form\" from the `VORSCHLAG GESCHICHTE:` line format (line 158).",
+    "phase": 2
+  },
+  {
+    "kategorie": "c",
+    "datei": "05-gespraech-phase2",
+    "zeile": 538,
+    "zitat": "sensitivity check, no `VORSCHLAG FRAGEN WEICH:` block - not here and not",
+    "regel": "Line 133: \"  There are thirteen markers, no more:\" -- no such block exists in the prompts given",
+    "vorschlag": "Delete the clause about `VORSCHLAG FRAGEN WEICH:` from lines 537-540 and keep only the positive rule: \"The group words its questions itself.\"",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 624,
+    "zitat": "You: You decide. Mine are only there to compare.",
+    "regel": "Context structure: the \"Now\" section must end with the group's turn, so the model knows what it has to answer",
+    "vorschlag": "Move this bot line up into the history (after line 621) and let the \"Now:\" section contain the last group message (\"Member 4: but we decide, right\") followed by an empty \"You:\" cue.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 589,
+    "zitat": "Questions: 1. What do you remember about your first day here?",
+    "regel": "Line 443: \"The terms turn into interview questions. Nothing is recorded yet\" / line 515: \"Never claim the questions have been saved.\"",
+    "vorschlag": "Rename this status field to \"Own questions so far (not saved yet, decided after the comparison)\" so the status does not read as saved progress; keep the counter out of a quota phrasing.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 602,
+    "zitat": "- [suggested] A fourth scene on the platform - not decided",
+    "regel": "UX rule 1: \"**Bot proposals are never saved as decisions.** Only what the group said or confirmed is saved.\"; also contradicts line 595 \"[form] One episode, the first of a series - not a closed play.\" vs line 601 \"[decided] Story as short story: 3 sections\"",
+    "vorschlag": "Drop [suggested] entries from the context block entirely (they are not saved work) and reconcile the two conflicting agreements; keep only one of \"One episode of a series\" / \"short story: 3 sections\" in the status.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 608,
+    "zitat": "You: Changed since - please fix it in the work status",
+    "regel": "Context structure: history should carry content turns, not truncated status echoes and device chatter (lines 603-613), and line 615 duplicates the \"Questions:\" status of line 589",
+    "vorschlag": "Cut the history at line 614 (\"we wrote our own questions first\") and filter bot status echoes and non-content turns (\"my phone went to sleep\", \"mine too, annoying\") out of the history builder.",
+    "phase": 2
+  },
+  {
+    "kategorie": "d",
+    "datei": "05-gespraech-phase2",
+    "zeile": 587,
+    "zitat": "Current phase: 2 · Questions",
+    "regel": "Duplicate of system line 435: \"## Current phase: 2 · Questions\"",
+    "vorschlag": "Keep the phase name only in the user status block (line 587) and replace the system heading at line 435 with a neutral \"## Phase instructions\".",
+    "phase": 2
+  }
+]

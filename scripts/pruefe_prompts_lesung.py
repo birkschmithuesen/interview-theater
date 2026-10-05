@@ -48,6 +48,15 @@ FENSTER_ZEILEN = 2
 #: und der BEFUND nennt jede gekappte Phase.
 ZEICHEN_MAX = 240_000
 
+#: Ausgabebudget je Aufruf. Gemessen 05.10.2026 (Karte t_bf16f3a7): mit dem
+#: ``simulation.claude.MAX_TOKENS``-Deckel (16.000) lief Phase 1 im Denken
+#: UND im Text leer (8.761 Denk- + 15.772 Textzeichen = genau 16.000 Token,
+#: ``stop_reason == "max_tokens"``, kein valides JSON mehr). Diese Lesung
+#: braucht ein eigenes, groesseres Budget -- ``json_objekt`` bekommt es
+#: explizit, der globale Simulations-Deckel fuer andere Aufrufer bleibt
+#: unberuehrt.
+LESUNG_MAX_TOKENS = 32_000
+
 KATEGORIEN = ("a", "b", "c", "d")
 
 #: Die Leseanweisung. **Modulkonstante und keine Prompt-Datei**: das ist ein
@@ -170,7 +179,10 @@ def lies_phase(klient, phase: int, dumps: dict[str, str], regeln: str,
                rubrik: str) -> tuple[list[dict], list[dict]]:
     """Ein Aufruf, hoechstens ein Retry. Liefert ``(geprueft, unsicher)``."""
     text, _gekappt = nutzertext(phase, dumps, regeln, rubrik)
-    antwort = klient.json_objekt(ANWEISUNG, text, art=f"lesung-phase{phase}")
+    antwort = klient.json_objekt(
+        ANWEISUNG, text, art=f"lesung-phase{phase}",
+        max_tokens=LESUNG_MAX_TOKENS,
+    )
     befunde = list((antwort or {}).get("befunde") or [])
     geprueft = [b for b in befunde if pruefe_befund(b, dumps)]
     offen = [b for b in befunde if b not in geprueft]
@@ -179,6 +191,7 @@ def lies_phase(klient, phase: int, dumps: dict[str, str], regeln: str,
             ANWEISUNG,
             f"{text}\n\n{_HINWEIS_RETRY}{json.dumps(offen, ensure_ascii=False)}",
             art=f"lesung-phase{phase}-retry",
+            max_tokens=LESUNG_MAX_TOKENS,
         )
         zweite = list((nach or {}).get("befunde") or [])
         neu = [b for b in zweite if pruefe_befund(b, dumps)]

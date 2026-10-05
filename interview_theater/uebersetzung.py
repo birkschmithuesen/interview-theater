@@ -1,0 +1,177 @@
+"""Englische Uebersetzung der gespeicherten Gruppenfelder fuers Regie-
+Dashboard (Padua, Karte t_f7770dc4).
+
+Das Dashboard (``web.py``) ist read-only und darf pro Seitenaufruf kein
+Modell rufen (``docs/refactoring-guidelines.md`` § 6) -- die Uebersetzung
+entsteht deshalb hier, ausserhalb des Web-Request-Pfads, im Bot-Prozess
+(``bot._uebersetzungs_schleife``), und landet in der Tabelle ``uebersetzung``
+(eine Zeile je Gruppe, Cache ueber einen Hash des Quelltexts).
+
+**Ein Hash, ein Aufruf:** ``segmente()`` sammelt alle uebersetzungspflichtigen
+Werte einer Gruppe (Setting, Geschichte, Kernthema, Hauptkonflikt, Begriffe,
+Fragen, Figurennamen, Interview-Kurzformen) in ein flaches Dict fester
+Schluessel. Weicht der Hash dieses Dicts vom gespeicherten ``quelle_hash``
+ab, uebersetzt EIN Modellaufruf ALLE Schluessel auf einmal und ersetzt die
+Zeile komplett -- nie Feld fuer Feld, das waere ein Aufruf je Feld.
+
+**Alles oder nichts beim Lesen:** ``englisch()`` liefert die gecachten Werte
+nur, wenn ihr ``quelle_hash`` zur AKTUELL gespeicherten Quelle passt; sonst
+ein leeres Dict. Eine Karte mit teils frischer, teils veralteter Uebersetzung
+waere verwirrender als eine Karte, die ehrlich sagt "noch nicht uebersetzt"
+und das Original zeigt (``web._dashboard_inhalt_html``, Klasse
+``ux-ausstehend``).
+
+Modell: die bestehende Modellkette des Gruppen-Bots (Infomaniak/Kimi via
+``e.erkenner_modell`` -- Teilnehmerinhalte bleiben beim souveraenen Anbieter,
+keine Claude-Option hier)."""
+
+import hashlib
+import json
+import logging
+
+log = logging.getLogger(__name__)
+
+#: Sekunden zwischen zwei Laeufen des Uebersetzungs-Schreibers
+#: (``bot._uebersetzungs_schleife``). Deutlich laenger als
+#: ``aufnahme.NACHHOL_INTERVALL_S`` (60 s): eine Uebersetzung ist nicht
+#: zeitkritisch, und ein Lauf kostet einen Modellaufruf je geaenderter Gruppe.
+INTERVALL_S = 180
+
+#: Die einfachen, 1:1 uebersetzten Arbeitsstandfelder.
+FELDER_EINFACH = ("rahmen", "geschichte", "kernthema", "hauptkonflikt", "begriffe", "fragen")
+
+ART = "uebersetzung"
+
+_SYSTEM = (
+    "You translate short fields from a theatre workshop's working document "
+    "into English. Translate meaning, not word for word; keep names and "
+    "short phrases short. Reply with a JSON object: each key from the input "
+    "maps to its English translation as a plain string. Do not add or drop "
+    "keys."
+)
+
+
+def hauptthema_quelle(stand: dict) -> str | None:
+    """Was auf der Karte als Hauptthema stehen soll, bevor es uebersetzt
+    ist: das Kernthema, wenn gesetzt, sonst die ersten Begriffe als kurze
+    Zeile -- siehe Kartenbeschreibung ('aus kernthema ableiten, falls
+    gesetzt, sonst aus Begriffen/Board')."""
+    kernthema = (stand or {}).get("kernthema")
+    if kernthema:
+        return kernthema
+    begriffe = (stand or {}).get("begriffe")
+    if begriffe:
+        erste = [b.strip() for b in begriffe.split(",") if b.strip()][:3]
+        if erste:
+            return ", ".join(erste)
+    return None
+
+
+def segmente(stand: dict, figuren: list[dict], kurzformen: list[dict]) -> dict[str, str]:
+    """Alle uebersetzungspflichtigen Werte einer Gruppe als flaches Dict,
+    Schluessel -> Quelltext. Leere/fehlende Felder bleiben draussen -- ein
+    leerer Schluessel waere nichts zu uebersetzen."""
+    stand = stand or {}
+    seg: dict[str, str] = {}
+    for feld in FELDER_EINFACH:
+        if stand.get(feld):
+            seg[feld] = stand[feld]
+    for i, figur in enumerate(figuren or []):
+        name = (figur or {}).get("name")
+        if name:
+            seg[f"figur_{i}"] = name
+    for i, eintrag in enumerate(kurzformen or []):
+        for j, kurz in enumerate((eintrag or {}).get("kurzformen") or []):
+            if kurz:
+                seg[f"interview_{i}_{j}"] = kurz
+    hauptthema = hauptthema_quelle(stand)
+    if hauptthema:
+        seg["hauptthema"] = hauptthema
+    return seg
+
+
+def quelle_hash(stand: dict, figuren: list[dict], kurzformen: list[dict]) -> str:
+    """Ein Hash ueber alle Segmente -- leer, wenn es nichts zu uebersetzen
+    gibt (dann gibt es auch keinen Cache-Eintrag, ``aktualisiere`` legt
+    keinen an)."""
+    seg = segmente(stand, figuren, kurzformen)
+    if not seg:
+        return ""
+    text = json.dumps(seg, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def englisch(g: dict) -> dict[str, str]:
+    """Die gecachten englischen Segmente einer Dashboard-Gruppe
+    (``web_daten.dashboard()``-Form), nur wenn der Cache zur aktuell
+    gespeicherten Quelle passt -- sonst ein leeres Dict (ausstehend)."""
+    cache = g.get("uebersetzung")
+    if not cache or not cache.get("felder"):
+        return {}
+    aktuell = quelle_hash(
+        g.get("arbeitsstand") or {}, g.get("figuren") or [],
+        g.get("interview_kurzformen") or [],
+    )
+    if not aktuell or aktuell != cache.get("quelle_hash"):
+        return {}
+    return cache["felder"]
+
+
+def _schema(schluessel: list[str]) -> dict:
+    return {
+        "type": "object",
+        "properties": {k: {"type": "string"} for k in schluessel},
+        "required": schluessel,
+        "additionalProperties": False,
+    }
+
+
+def _uebersetze(klm, chat_id: int, e, seg: dict[str, str]) -> dict[str, str]:
+    nutzer = json.dumps(seg, ensure_ascii=False)
+    ergebnis = klm.schema(
+        chat_id, _SYSTEM, nutzer, _schema(sorted(seg)), ART, modell=e.erkenner_modell,
+    )
+    return {k: v for k, v in ergebnis.items() if k in seg}
+
+
+def aktualisiere(conn, klm, e, chat_id: int) -> bool:
+    """Uebersetzt die Gruppenfelder ins Englische, wenn sich die Quelle
+    seit dem letzten Lauf geaendert hat.
+
+    Liefert ``True`` bei einem Modellaufruf, ``False`` bei einem
+    Cache-Hit (Hash unveraendert) oder wenn es nichts zu uebersetzen gibt."""
+    from interview_theater import repo
+
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    stand = dict(stand) if stand is not None else {}
+    figuren = [dict(f) for f in repo.figuren(conn, chat_id)]
+    kurzformen = repo.interview_kurzformen(conn, chat_id)
+    seg = segmente(stand, figuren, kurzformen)
+    if not seg:
+        return False
+    hash_ = quelle_hash(stand, figuren, kurzformen)
+    vorhanden = repo.hole_uebersetzung(conn, chat_id)
+    if vorhanden is not None and vorhanden["quelle_hash"] == hash_:
+        return False
+    felder = _uebersetze(klm, chat_id, e, seg)
+    repo.setze_uebersetzung(conn, chat_id, hash_, felder)
+    return True
+
+
+def aktualisiere_fuer_bot(conn, klm, e) -> int:
+    """Uebersetzt alle Gruppen dieses Bot-Prozesses, aber nur mit
+    ``[web] dashboard_uebersetzen_en`` im Profil (Padua) -- ohne den
+    Schalter (Dortmund/Vorgabe) ist diese Funktion ein No-Op, kein
+    Modellaufruf. Liefert die Zahl der tatsaechlichen Uebersetzungslaeufe."""
+    from interview_theater import repo, workshop
+
+    if not bool(workshop.aktiv().wert("web.dashboard_uebersetzen_en", False)):
+        return 0
+    laeufe = 0
+    for gruppe in repo.gruppen_fuer_bot(conn, e.bot_name):
+        try:
+            if aktualisiere(conn, klm, e, gruppe["chat_id"]):
+                laeufe += 1
+        except Exception:
+            log.exception("Uebersetzung fehlgeschlagen, chat_id=%s", gruppe["chat_id"])
+    return laeufe

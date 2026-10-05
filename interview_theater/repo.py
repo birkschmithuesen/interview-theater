@@ -4972,3 +4972,61 @@ def brich_laufende_stroeme_ab(conn, chat_id: int) -> int:
     )
     conn.commit()
     return zeiger.rowcount
+
+
+# --- Dashboard-Uebersetzung (Padua, Karte t_f7770dc4) -----------------------
+
+
+@_gesperrt
+def interview_kurzformen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Je Interview eine Zeile mit Namen und Kurzformen -- dieselbe Form wie
+    ``web_daten._interview_kurzformen``, hier aber ueber die schreibende
+    Verbindung: der Uebersetzungs-Schreiber laeuft im Bot-Prozess und hat
+    keinen Zugriff auf die read-only Verbindung der Weboberflaeche."""
+    ergebnis = []
+    for nummer, z in enumerate(conn.execute(
+        f"SELECT id FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+        f"AND {_NICHT_ENTFERNT} ORDER BY id ASC",
+        (chat_id,),
+    ).fetchall(), start=1):
+        verdichtung = conn.execute(
+            f"SELECT id FROM verdichtung WHERE aufnahme_id = ? AND {_NICHT_ENTFERNT} "
+            "ORDER BY id DESC LIMIT 1",
+            (z["id"],),
+        ).fetchone()
+        if verdichtung is None:
+            continue
+        kurzformen = [t["kurz"] for t in themen_zu(conn, verdichtung["id"]) if t["kurz"]]
+        if kurzformen:
+            ergebnis.append({"name": f"Interview {nummer}", "kurzformen": kurzformen})
+    return ergebnis
+
+
+@_gesperrt
+def hole_uebersetzung(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | None:
+    """Der Uebersetzungscache einer Gruppe, oder None, solange noch nie
+    uebersetzt wurde."""
+    return conn.execute(
+        "SELECT * FROM uebersetzung WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+
+
+@_gesperrt
+def setze_uebersetzung(
+    conn: sqlite3.Connection, chat_id: int, quelle_hash: str, felder: dict
+) -> None:
+    """Ersetzt den Uebersetzungscache einer Gruppe komplett -- eine Zeile
+    je Gruppe, kein Feld-fuer-Feld-Update: der Schreiber uebersetzt immer
+    alle Felder in einem Aufruf (``uebersetzung.aktualisiere``)."""
+    conn.execute(
+        """
+        INSERT INTO uebersetzung (chat_id, quelle_hash, felder, aktualisiert_am)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            quelle_hash = excluded.quelle_hash,
+            felder = excluded.felder,
+            aktualisiert_am = excluded.aktualisiert_am
+        """,
+        (chat_id, quelle_hash, json.dumps(felder, ensure_ascii=False), _jetzt()),
+    )
+    conn.commit()

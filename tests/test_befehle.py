@@ -77,7 +77,7 @@ def test_fertig_schaltet_modus_aus_und_bestaetigt(conn, einst, tg):
 
 
 def test_fertig_gibt_die_verdichtung_an_einen_thread_ab(conn, einst, tg, monkeypatch):
-    """Die Zusage aus AGENTS.md gilt weiter: kein Befehl ruft synchron ein
+    """Die Zusage aus docs/agents/spec-abweichungen.md gilt weiter: kein Befehl ruft synchron ein
     Modell. /fertig stempelt das Interview als beendet und uebergibt den Rest
     an ``aufnahme.starte_abschluss`` (§ 10.6)."""
     from interview_theater import aufnahme
@@ -296,7 +296,7 @@ def test_auswerten_ohne_interview_sagt_es(conn, einst, tg):
 
 
 def test_auswerten_verdichtet_nicht_zweimal_sondern_zeigt_die_vorhandene(conn, einst, tg, monkeypatch):
-    """Eine Verdichtung wird nie ein zweites Mal erzeugt (AGENTS.md) -- seit
+    """Eine Verdichtung wird nie ein zweites Mal erzeugt (docs/agents/entscheidungen.md) -- seit
     05.09.2026 wird die vorhandene aber AUSGESPIELT statt nur zu melden, dass
     es sie gibt. Genau das hat im Live-Lauf gefehlt: verdichtet wird sofort,
     ausgespielt erst auf Wunsch, und der Wunsch bekam bis dahin nur eine

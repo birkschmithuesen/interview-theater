@@ -122,7 +122,7 @@ def test_verlauf_zeigt_beide_richtungen_in_der_reihenfolge(datenbank):
 
 def test_verlauf_verbirgt_befehle_und_geloeschtes(datenbank):
     """'befehl' ist der Umschalter-Druck, der als Slash-Text in den Bot geht.
-    Slash-Befehle werden nicht beworben (AGENTS.md) -- er steht nicht im Chat."""
+    Slash-Befehle werden nicht beworben (docs/agents/entscheidungen.md) -- er steht nicht im Chat."""
     pfad, _token = datenbank
     schreibend = db.verbinde(pfad)
     repo.lege_web_post_an(schreibend, CHAT, repo.RICHTUNG_EIN,
@@ -380,7 +380,7 @@ def test_die_gruppenseite_verlinkt_den_chat(server):
 
 
 def test_kein_transkript_und_kein_pfad_im_chat_html(server):
-    """Dieselben drei Grenzen wie auf der Gruppenseite (AGENTS.md): kein
+    """Dieselben drei Grenzen wie auf der Gruppenseite (docs/agents/weboberflaeche.md): kein
     Volltranskript, kein Dateipfad, kein unbelegtes Zitat -- die Ansicht ist
     ohne Login erreichbar."""
     basis, token, pfad = server

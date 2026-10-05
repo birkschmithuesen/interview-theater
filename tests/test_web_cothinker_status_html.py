@@ -97,7 +97,7 @@ def test_buehne_html_ohne_den_schluessel_zeigt_nichts_neues():
 #
 # ``web_vereint.scope_css()`` versteht ``@media``, aber nicht ``@keyframes``:
 # ihre Regex haette den Rumpf eines ``@keyframes``-Blocks (``50% { ... }``)
-# faelschlich als verschachtelten Selektor gelesen (siehe AGENTS.md
+# faelschlich als verschachtelten Selektor gelesen (siehe docs/agents/weboberflaeche.md
 # "``@keyframes`` und ``@media`` nur in ``css_rahmen()``", derselbe Fehler
 # wie in ``web_gestalt.py``). Deshalb: kein ``@keyframes`` in ``_CSS_BUEHNE``
 # (die gescopt wird), und die eigene Konstante bleibt unangetastet, wenn sie

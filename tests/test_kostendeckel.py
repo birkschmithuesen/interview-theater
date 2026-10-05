@@ -10,7 +10,7 @@ Dazu die drei Eigenschaften, an denen so ein Deckel sonst scheitert:
   * Er setzt um Mitternacht Europe/Rome zurueck, nicht UTC: eine Zeile von
     gestern 23:59 Rom darf heute nicht mitzaehlen.
   * Er laesst das Empfangen in Ruhe. Nachrichten und Audio werden weiter
-    gespeichert -- nicht aufzunehmen ist unumkehrbar (AGENTS.md).
+    gespeichert -- nicht aufzunehmen ist unumkehrbar (docs/agents/entscheidungen.md).
 
 Zeit kommt ueberall als Parameter herein. Kein sleep, kein echter Kalender.
 """
@@ -503,7 +503,7 @@ def test_im_bestehenden_gespraech_kommt_pause_statt_hakt(conn, tmp_path):
 
 
 def test_slash_befehle_laufen_weiter(conn, tmp_path):
-    """Kein Befehl ruft synchron ein Modell (AGENTS.md) -- also darf keiner
+    """Kein Befehl ruft synchron ein Modell (docs/agents/spec-abweichungen.md) -- also darf keiner
     am Deckel scheitern."""
     from interview_theater import befehle
 

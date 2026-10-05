@@ -15,7 +15,7 @@ das denselben Abschlusspfad noch einmal ausloest** -- dieselbe Sperrenform
 wie ``brainstorm.py`` (``versuche_start``/``beende``), hier bewusst noch
 einmal geschrieben statt importiert: eine gemeinsame Sperre wuerde Diskussion
 (Phase 1) und Brainstorm (Phase 4) aneinanderketten, obwohl die beiden nie
-gleichzeitig eine Gruppe betreffen (AGENTS.md: "Gleicher Code, verschiedene
+gleichzeitig eine Gruppe betreffen (docs/agents/aufbau.md: "Gleicher Code, verschiedene
 Sperren").
 
 **Der Nutzertext ist bewusst isoliert** (``_nutzertext``): er nimmt nur das
@@ -96,7 +96,7 @@ def _nutzertext(transkript: str) -> str:
     return f"Das Transkript der Diskussion:\n{transkript}"
 
 
-#: Ein Sperren-Register je Nebenlaeufigkeit (AGENTS.md: "Gleicher Code,
+#: Ein Sperren-Register je Nebenlaeufigkeit (docs/agents/aufbau.md: "Gleicher Code,
 #: verschiedene Sperren"), in Form kopiert aus ``brainstorm.py``: nie mehr
 #: als ein Verdichtungslauf je Gruppe gleichzeitig.
 _LAEUFT_LOCK = threading.Lock()

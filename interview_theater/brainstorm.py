@@ -86,7 +86,7 @@ def soll_reagieren(
     )
 
 
-#: Ein Sperren-Register je Nebenlaeufigkeit (AGENTS.md: "Gleicher Code,
+#: Ein Sperren-Register je Nebenlaeufigkeit (docs/agents/aufbau.md: "Gleicher Code,
 #: verschiedene Sperren"): nie mehr als eine Buehnenkarte je Gruppe
 #: gleichzeitig. Kein Merkplatz wie bei ``vorschlagssperre.py`` -- ein
 #: abgewiesener Versuch verliert nichts, die unreagierten Zeichen bleiben in

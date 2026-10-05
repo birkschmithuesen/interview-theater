@@ -17,7 +17,7 @@ UPLOADS_JE_STUNDE Eintraege je Gruppe und Topf.
 
 **Im Prozessspeicher, und ein Neustart vergisst die Zaehler.** Benannt und
 akzeptiert: nginx auf herkules ist die zweite Schicht (``limit_req``, siehe
-AGENTS.md), und eine Zaehltabelle in SQLite waere ein Schreibvorgang je
+docs/agents/weboberflaeche.md), und eine Zaehltabelle in SQLite waere ein Schreibvorgang je
 Anfrage in eine Datei, an der vier Bot-Prozesse haengen.
 
 **Kein Projektimport** -- reine Standardbibliothek, wie

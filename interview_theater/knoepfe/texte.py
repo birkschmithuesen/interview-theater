@@ -215,7 +215,7 @@ ART_FRAGEN_WEICH_LASSEN = "fragen_weich_lassen"
 # derselben Grundregel wie alles hier: ein Vorschlag steht als Text im Chat,
 # darunter haengen Knoepfe, und der Knopf traegt die Entscheidung selbst.
 # Freie Nachrichten wirken daneben unveraendert weiter -- die Knoepfe sind
-# ein Weg, kein Kaefig (AGENTS.md).
+# ein Weg, kein Kaefig (docs/agents/entscheidungen.md).
 
 #: Die Szenenfolge speichern -- ``wert`` ist "<weiter|anders>|<Vorschlagstext>".
 ART_SZENENFOLGE_SPEICHERN = "szenenfolge_speichern"

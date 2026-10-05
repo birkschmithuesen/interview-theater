@@ -138,7 +138,7 @@ def test_unbekannter_unterpfad_gibt_404(aufbau):
 
 def test_das_dashboard_nimmt_weiter_kein_post_an(aufbau):
     """Es haengt am Beamer -- dort soll niemand im Vorbeigehen etwas
-    umstellen (AGENTS.md)."""
+    umstellen (docs/agents/weboberflaeche.md)."""
     basis, _token, _pfad = aufbau
     with pytest.raises(urllib.error.HTTPError) as fehler:
         _post(f"{basis}/", {"nonce": "x"})

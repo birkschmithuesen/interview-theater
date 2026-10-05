@@ -265,7 +265,7 @@ def test_die_ersatzfassung_der_letzten_phase_ist_zeichengleich():
 
 
 def test_keine_einleitung_bewirbt_einen_slash_befehl():
-    """AGENTS.md: Slash-Befehle werden nirgends beworben, beworben wird der
+    """docs/agents/entscheidungen.md: Slash-Befehle werden nirgends beworben, beworben wird der
     Knopf."""
     for nummer, text in phasentexte.EINLEITUNGEN.items():
         assert "/" not in text, nummer

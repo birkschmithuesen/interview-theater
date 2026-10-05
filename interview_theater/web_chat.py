@@ -149,7 +149,7 @@ _TEXT_EINGABE = "Schreibt oder sprecht einfach – oder tippt eine Abkürzung"
 #: (``fragen.nimm_offene_frage_text``) -- der Platzhalter sagt das.
 _TEXT_EINGABE_FRAGEN = "Sagt, was an der Frage anders soll …"
 #: Phase 4 (Setting, Figuren & Geschichte): freies Erfinden ohne feste
-#: Reihenfolge, siehe AGENTS.md "Erst erfinden, dann schaerfen".
+#: Reihenfolge, siehe docs/agents/entscheidungen.md "Erst erfinden, dann schaerfen".
 _TEXT_EINGABE_SETTING = "Erzählt eure Idee …"
 _TEXT_SENDEN = "Senden"
 #: UX-Knoepfe-Karte, Abschnitt 1: Knoepfe sind Abkuerzungen, keine Pflicht --
@@ -163,7 +163,7 @@ _TEXT_ABKUERZUNG = "Abkürzung:"
 #: (``sprachen/en/texte.toml``, Abschnitt ``[web_chat]``), nachgeschlagen zur
 #: Aufrufzeit ueber ``T`` (oben, ein ``T`` fuer das ganze Modul, wie bei jedem
 #: ``T``-umgestellten Modul, ``sprache.py``). Der Rest von ``web_chat.py``
-#: ist weiterhin unuebersetzt (AGENTS.md, "Englische UI-Texte der
+#: ist weiterhin unuebersetzt (docs/agents/was-bewusst-fehlt.md, "Englische UI-Texte der
 #: Chatansicht", Uebergabe an Karte A1) -- insbesondere ``_JS_TEXTE`` bleibt
 #: ein beim Import eingefrorenes Woerterbuch und liest ``_TEXT_ABKUERZUNG``
 #: deshalb bewusst nackt, nicht ueber ``T``: ein Prozess bedient genau eine
@@ -4469,7 +4469,7 @@ def _interview(handler, db_pfad: str, token: str, chat_id: int,
     ein Modell gerufen wird -- derselbe Weg wie bei einem getippten Befehl.
 
     In der Chatansicht bleibt die Zeile verborgen (``typ='befehl'``):
-    Slash-Befehle werden nicht beworben (AGENTS.md), der Knopf steht schon da.
+    Slash-Befehle werden nicht beworben (docs/agents/entscheidungen.md), der Knopf steht schon da.
 
     ``an`` muss ein echter boolescher Wert sein. Der Fallstrick daneben ist
     dokumentiert: ``repo.setze_szene_usa`` nimmt einen bool, und ein
@@ -4553,7 +4553,7 @@ def _platzhalter_fuer(phase, fragen_aktuell) -> str:
     Nur zwei Phasen bekommen einen eigenen Text, beide aus einem konkreten
     Anlass: Phase 2 mit offener Frage (die Schaerfung ist deterministisch,
     ``fragen.nimm_offene_frage_text``) und Phase 4 (freies Erfinden ohne
-    Material, AGENTS.md "Erst erfinden, dann schaerfen"). Jede andere Lage
+    Material, docs/agents/entscheidungen.md "Erst erfinden, dann schaerfen"). Jede andere Lage
     bleibt beim Standard -- kein Raten, welcher Text sonst passen wuerde."""
     phase = str(phase or "").strip()
     if phase == "2" and (fragen_aktuell or "").strip():

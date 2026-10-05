@@ -24,7 +24,7 @@ def test_befehl_ist_bekannt():
 
 
 def test_befehl_wird_nicht_beworben():
-    """Slash-Befehle werden nicht mehr beworben (AGENTS.md) -- und dieser
+    """Slash-Befehle werden nicht mehr beworben (docs/agents/entscheidungen.md) -- und dieser
     hier schon gar nicht: er ist der Notausgang des Workshop-Teams, nicht
     ein Weg fuer die Gruppe."""
     assert "/festlegung" not in befehle._TEXT_HILFE

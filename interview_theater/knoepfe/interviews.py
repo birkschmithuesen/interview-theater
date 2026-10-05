@@ -134,7 +134,7 @@ def biete_interview_ohne_knopf(
     \"Ja, als Interview\" · \"Nein, war ein Beitrag\" (06.09.2026, Live-Fall
     Gruppe 1 13:32).
 
-    Die Knopfregel ist erfuellt (AGENTS.md): es gibt etwas Fixes zu
+    Die Knopfregel ist erfuellt (docs/agents/entscheidungen.md): es gibt etwas Fixes zu
     speichern, naemlich diese eine Aufnahme, und genau zwei benannte
     Moeglichkeiten. Die ``aufnahme.id`` steht im ``wert`` der Knopfzeile, nie
     in ``callback_data`` (Zusage 1).
@@ -231,7 +231,7 @@ def _aufnahme_anbieten(conn, chat_id: int, nur_phase_3: bool = False) -> bool:
 
     Das ist ausdruecklich nur eine Regel fuer die ANGEBOTE: ``/aufnahme`` und
     der Erkenner-Pfad (``biete_aufnahme``) bleiben phasenunabhaengig, die
-    Gruppe darf jederzeit ausdruecklich aufnehmen (AGENTS.md, "Fokus, kein
+    Gruppe darf jederzeit ausdruecklich aufnehmen (docs/agents/entscheidungen.md, "Fokus, kein
     Kaefig"). Nur das unaufgeforderte Angebot richtet sich nach der
     Reihenfolge der Phasen."""
     if repo.ist_interviewmodus_an(conn, chat_id):

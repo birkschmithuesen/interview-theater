@@ -1859,7 +1859,7 @@ Your work is saved. You can keep recording (I'll listen tomorrow), and your grou
 ["web_chat"]
 # UX-Knoepfe-Karte, Abschnitt 1 (02.10.2026): nur die vier Texte, die ueber
 # web_chat.T laufen -- Platzhalter des Eingabefelds und das Abkuerzungs-Label.
-# Der Rest von web_chat.py ist nicht umgestellt (AGENTS.md, Uebergabe an A1).
+# Der Rest von web_chat.py ist nicht umgestellt (docs/agents/was-bewusst-fehlt.md, Uebergabe an A1).
 _TEXT_EINGABE = "Write or speak freely – or tap a shortcut"
 _TEXT_EINGABE_FRAGEN = "Say what should be different about the question …"
 _TEXT_EINGABE_SETTING = "Tell us your idea …"

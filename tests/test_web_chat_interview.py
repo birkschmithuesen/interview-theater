@@ -87,7 +87,7 @@ def test_der_bot_liest_daraus_eine_gewoehnliche_textnachricht(aufbau):
 
 
 def test_der_umschalter_steht_nicht_im_chatverlauf(aufbau):
-    """Slash-Befehle werden nicht beworben (AGENTS.md) -- der Knopf steht
+    """Slash-Befehle werden nicht beworben (docs/agents/entscheidungen.md) -- der Knopf steht
     schon da, sein Slash-Text gehoert nicht in die Blase."""
     basis, token, _pfad = aufbau
     _post(basis, token, {"an": True})

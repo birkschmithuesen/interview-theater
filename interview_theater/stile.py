@@ -184,7 +184,7 @@ def menuetext(vorschlag: str | None = None, grund: str = "") -> str:
 def reihenfolge_mit_vorschlag(vorschlag: str | None) -> list[dict[str, str]]:
     """Dieselbe Reihenfolge wie ``menuetext`` -- damit Knopf N und Punkt N
     dasselbe meinen. Getrennte Listen waeren genau der Fehler, den die
-    Menue-Knopfregel (AGENTS.md, 06.09.2026 11:05) verhindert."""
+    Menue-Knopfregel (docs/agents/was-bewusst-fehlt.md, 06.09.2026 11:05) verhindert."""
     reihenfolge = list(T.STILE)
     if vorschlag and vorschlag in _NACH_SLUG:
         eintrag = next(s for s in reihenfolge if s["slug"] == vorschlag)

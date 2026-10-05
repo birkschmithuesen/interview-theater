@@ -41,7 +41,7 @@ Abschluss begrenzt und aendert nichts an ``phasen.moegliche_naechste``/
 **Eigenes Sperren-Register**, nicht ``vorschlagssperre`` (die koppelt
 ausschliesslich Schaerfung und Szenenfolge) und nicht ``szene._sperren``
 (das ist je Szene, dieses hier ist je Gruppe fuer den ganzen
-Uebersicht-Lauf) -- "Ein Sperren-Register je Nebenlaeufigkeit" (AGENTS.md).
+Uebersicht-Lauf) -- "Ein Sperren-Register je Nebenlaeufigkeit" (docs/agents/aufbau.md).
 """
 
 from __future__ import annotations
@@ -200,7 +200,7 @@ def uebernimm_szenenfelder(conn, chat_id: int) -> None:
     ``was_passiert`` kommt zeilenweise aus
     ``arbeitsstand.geschichte_uebersicht_szenen`` (die EINZELNEN
     Szenensaetze, getrennt von der zusammengesetzten Anzeige, die ``_lauf``
-    dort ablegt). Ort faellt auf das Setting zurueck (AGENTS.md: das Setting
+    dort ablegt). Ort faellt auf das Setting zurueck (docs/agents/entscheidungen.md: das Setting
     ist die Vorgabe fuer Ort, Zeit und Anlass jeder Szene); die Besetzung
     faellt auf die volle Figurenliste zurueck (dokumentierte Vereinfachung,
     Padua Phasen TEIL 1 -- das Schema liefert keine Besetzung je Szene, um

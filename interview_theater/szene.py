@@ -2339,7 +2339,7 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
     ``bei_teil`` (Karte W, Fix-Runde 1): die Senke des laufenden Texts. Sie
     legt **nur** ``_lauf`` an -- der Lauf, den die Gruppe bestellt hat. Der
     Nachpass, die Dramaturgie-Schleife und die Simulation rufen ``schreibe``
-    ohne sie und streamen deshalb nicht (AGENTS.md: vom Nachpass erfaehrt
+    ohne sie und streamen deshalb nicht (docs/agents/entscheidungen.md: vom Nachpass erfaehrt
     die Gruppe nichts). Abgeschlossen wird sie hier, sobald feststeht, ob
     ein Szenentext da ist; ein Fehler davor faellt an ``_lauf``, das sie
     verwirft."""

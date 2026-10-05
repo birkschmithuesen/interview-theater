@@ -602,7 +602,7 @@ class Lauf:
 
         Der Druck geht bewusst **nicht** durch ``bot.verarbeite_update``: er
         ist keine Nachricht, landet nie in ``nachricht``, und der Erkenner
-        sieht ihn nie (AGENTS.md, Zusage zur Weiche in ``bot.schleife``).
+        sieht ihn nie (docs/agents/entscheidungen.md, Zusage zur Weiche in ``bot.schleife``).
         Deshalb steht er hier als Ereignis im Protokoll und nicht als
         Beitrag."""
         from interview_theater import knoepfe as knoepfe_modul

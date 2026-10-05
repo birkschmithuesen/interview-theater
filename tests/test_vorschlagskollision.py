@@ -165,7 +165,7 @@ def test_die_sperre_haelt_den_szenenlauf_nicht_auf(lage, tg, einst):
     """Die neue Sperre koppelt NUR Schaerfung und Szenenfolge.
 
     Ein Szenenlauf, der an einem Schaerfungslauf haengt, waere genau die
-    gemeinsame Sperre, gegen die AGENTS.md warnt ('eine gemeinsame Sperre
+    gemeinsame Sperre, gegen die docs/agents/aufbau.md warnt ('eine gemeinsame Sperre
     wuerde den Gespraechszug am Szenenlauf haengen lassen')."""
     from interview_theater import szene
 

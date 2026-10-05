@@ -112,7 +112,7 @@ def test_ohne_nonce_passiert_nichts(server):
 
 
 def test_start_fuer_telegram_gruppe_ist_404(tmp_path):
-    """Derselbe Schutz wie bei jedem anderen ``/chat/*``-Weg (AGENTS.md,
+    """Derselbe Schutz wie bei jedem anderen ``/chat/*``-Weg (docs/agents/weboberflaeche.md,
     Abschlussreview I3): eine Telegram-Gruppe hat keinen Bot, der
     ``web_post`` liest."""
     pfad = str(tmp_path / "telegram.db")

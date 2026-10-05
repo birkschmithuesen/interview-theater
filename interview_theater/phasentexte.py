@@ -70,7 +70,7 @@ EINLEITUNG_GRENZE = 700
 #: Zielgruppe und Anrede stehen im Profil (``zielgruppe``,
 #: ``sprache.anrede``). Keine Eigennamen -- weder erfundene Figuren noch
 #: Orte: was hier als Beispiel steht, taucht spaeter als Vorschlag des Bots
-#: wieder auf. Keine Slash-Befehle: beworben wird der Knopf (AGENTS.md,
+#: wieder auf. Keine Slash-Befehle: beworben wird der Knopf (docs/agents/entscheidungen.md,
 #: "Slash-Befehle werden nicht mehr beworben").
 #:
 #: Platzhalter werden beim Lesen gefuellt (``einleitung``), damit die
@@ -135,7 +135,7 @@ _ZEILE_CHECKLISTE = "Dafuer braucht es: {liste}"
 #:
 #: **Kein Knopf** (bewusst): unter dem Angebot gibt es nichts Fixes zu
 #: speichern und keine benannten Alternativen, aus denen zu waehlen waere --
-#: genau die Bedingung, unter der dieses Repo Knoepfe setzt (AGENTS.md,
+#: genau die Bedingung, unter der dieses Repo Knoepfe setzt (docs/agents/entscheidungen.md,
 #: "Inline-Knoepfe an den Auswahl-Momenten"). Angenommen wird das Angebot,
 #: indem die Gruppe weiterarbeitet; abgelehnt, indem sie sagt, was sie
 #: stattdessen will -- das ist Freitext und bleibt Sprache. Ein Knopf
@@ -255,7 +255,7 @@ def _figuren(conn, chat_id: int) -> str:
 def _szenenzeile(zeile) -> str:
     """``Nummer · Titel · Form`` -- die Form nur, wenn sie bestaetigt ist
     (``szene.form``, nicht ``form_vorschlag``: ein Vorschlag ist keine
-    Entscheidung, AGENTS.md 06.09.2026)."""
+    Entscheidung, docs/agents/entscheidungen.md 06.09.2026)."""
     stuecke = [str(zeile["nummer"]) if zeile["nummer"] is not None else "?"]
     if (zeile["titel"] or "").strip():
         stuecke.append(zeile["titel"].strip())

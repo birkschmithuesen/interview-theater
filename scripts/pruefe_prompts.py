@@ -744,7 +744,7 @@ def zustimmungszeilen(gelaufen: list[dict]) -> list[str]:
     gibt, ist ein falscher Eintrag billig (ein Satz nimmt ihn zurueck) und ein
     fehlender teuer (die Website bleibt leer, und niemand merkt es).
 
-    FP = 0 bleibt das Exit-Kriterium -- aber FP ist neu definiert (AGENTS.md,
+    FP = 0 bleibt das Exit-Kriterium -- aber FP ist neu definiert (docs/agents/korpus-und-simulation.md,
     SPEC § 4.3a): ein Eintrag, dem im Abschnitt KEIN konkreter Vorschlag und
     KEINE Zustimmung vorausgeht. Diese Zahl hier steht daneben und geht
     bewusst nicht in den Exit-Code ein: sie misst die andere Richtung, und

@@ -45,7 +45,7 @@ def test_fenster_steht_chronologisch(gruppe):
     **Erweitert am 06.09.2026** (Birk, vor dem Merge von Auftrag 1+2): der
     Fensterumbau hat die Auswahlregel angefasst, und die Falle, gegen die
     dieser Test steht, ist genau die, die schon einmal einen Nachmittag
-    gekostet hat (AGENTS.md: Fenster nach ``gesendet_am``, **nicht** nach
+    gekostet hat (docs/agents/entscheidungen.md: Fenster nach ``gesendet_am``, **nicht** nach
     ``message_id``). Geprueft wird deshalb die ganze Kette: alle Beitraege
     tragen negative, absteigend vergebene ids, die zeitlich juengste steht
     unten, und die letzte Zeile vor dem Ausloeser ist die zeitlich

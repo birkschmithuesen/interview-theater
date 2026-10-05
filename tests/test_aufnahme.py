@@ -1044,7 +1044,7 @@ def test_laufendes_interview_wird_vom_nachhol_arbeiter_nicht_verdichtet(conn, ei
 
 def test_starte_abschluss_laeuft_im_eigenen_thread(conn, einst, tg, klm):
     """/fertig und der Erkenner geben die Verdichtung an einen Thread ab --
-    kein Befehl ruft synchron ein Modell (AGENTS.md)."""
+    kein Befehl ruft synchron ein Modell (docs/agents/spec-abweichungen.md)."""
     kopf_id = _interview_mit_teilen(conn, einst, tg, klm, [TRANSKRIPT], message_id=370)
     aufnahme.beende_interview(conn, 1)
 
@@ -1769,8 +1769,8 @@ def test_buehnenkarten_lauf_markiert_db_spalte_waehrend_und_leert_sie_danach(
 ):
     """CoThinker-Statuszeile (03.10.2026): der Webserver-Prozess erfaehrt vom
     laufenden Buehnenkarten-Lauf ausschliesslich ueber
-    ``arbeitsstand.brainstorm_lauf_seit`` (Prozessgrenze, siehe AGENTS.md
-    "Weboberflaeche") -- ``brainstorm._LAEUFT`` ist In-Prozess-Speicher des
+    ``arbeitsstand.brainstorm_lauf_seit`` (Prozessgrenze, siehe
+    docs/agents/weboberflaeche.md) -- ``brainstorm._LAEUFT`` ist In-Prozess-Speicher des
     Bots. Dieser Test prueft denselben Weg wie
     ``test_ein_laufender_buehnenkarten_lauf_blockiert_einen_zweiten``
     (``threading.Event`` statt Raten), nur fuer die DB-Spalte."""

@@ -14,7 +14,7 @@ Vorschlagslaeufe: ``schaerfung`` und die vier ``starte*`` in
 ``szenenfolge.py``. Gespraechszug (``ablauf``), Szenenlauf (``szene``),
 Prosalauf (``kurzgeschichte``) und Sprachstil behalten ihre eigenen Register
 -- eine gemeinsame Sperre wuerde den Gespraechszug am Szenenlauf haengen
-lassen (AGENTS.md, "Ein Sperren-Register je Nebenlaeufigkeit").
+lassen (docs/agents/aufbau.md, "Ein Sperren-Register je Nebenlaeufigkeit").
 
 **Nichts geht verloren.** Wer die Sperre nicht bekommt, legt seinen Auftrag
 auf einen Merkplatz (einen je ``(chat_id, art)``); ``gib_frei`` gibt zuerst

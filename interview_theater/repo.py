@@ -975,7 +975,7 @@ def setze_verdichtung_begriffe(
     ``DELETE``, dann ``INSERT``, beides in einer Sperre.
 
     Ersetzend heisst NICHT, dass hier eine Verdichtung geaendert wuerde: die
-    Zeilen der Verdichtung selbst bleiben unberuehrt (AGENTS.md). Liefert die
+    Zeilen der Verdichtung selbst bleiben unberuehrt (docs/agents/entscheidungen.md). Liefert die
     Anzahl der gesetzten Begriffe."""
     conn.execute(
         "DELETE FROM verdichtung_begriff WHERE verdichtung_id = ?", (verdichtung_id,)
@@ -1209,7 +1209,7 @@ def schaerfungen(
     Szene oder zu EINER Figur.
 
     Der Filter ist der ganze Punkt: der Szenen-Prompt bekommt die Stellen
-    dieser Szene und die ihrer Figuren, nicht die aller (AGENTS.md, das
+    dieser Szene und die ihrer Figuren, nicht die aller (docs/agents/entscheidungen.md, das
     Kernpaket war bis dahin global)."""
     sql = _SCHAERFUNG_SELECT
     werte: list = [chat_id]
@@ -4455,7 +4455,7 @@ RICHTUNG_EIN = "ein"
 RICHTUNG_AUS = "aus"
 
 #: Die Typen. ``befehl`` geht als Slash-Text in den Bot und bleibt in der
-#: Chatansicht verborgen -- Slash-Befehle werden nicht beworben (AGENTS.md).
+#: Chatansicht verborgen -- Slash-Befehle werden nicht beworben (docs/agents/entscheidungen.md).
 WEB_TYP_TEXT = "text"
 WEB_TYP_SPRACHE = "sprache"
 WEB_TYP_KNOPF = "knopf"

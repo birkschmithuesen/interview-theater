@@ -329,7 +329,7 @@ def test_fehlschlaege_im_fenster(lesend):
     assert gruppe["fehlschlaege_fenster"] == 2
 
 
-#: Erfundene Rohdaten, die NIE auf das Dashboard duerfen (AGENTS.md).
+#: Erfundene Rohdaten, die NIE auf das Dashboard duerfen (docs/agents/weboberflaeche.md).
 GEHEIM_NACHRICHT = "SECRET message text from the group chat"
 GEHEIM_TRANSKRIPT = "SECRET transcript: my grandmother crossed the bridge"
 GEHEIM_ZITAT_UNGEPRUEFT = "SECRET unchecked quote about the bridge"
@@ -339,7 +339,7 @@ GEHEIM_WEB = "SECRET browser message"
 
 
 def test_keine_rohdaten_ueber_die_grenzen(lesend, padua):
-    """Die drei Grenzen aus AGENTS.md: kein Nachrichtentext, kein Transkript,
+    """Die drei Grenzen aus docs/agents/weboberflaeche.md: kein Nachrichtentext, kein Transkript,
     kein Belegzitat (ungeprueft sowieso nicht, und das Dashboard zeigt
     ueberhaupt keine Zitate) -- weder in den Daten noch im HTML."""
     conn, pfad = lesend

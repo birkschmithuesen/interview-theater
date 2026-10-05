@@ -520,7 +520,7 @@ def soll_laufen(conn, chat_id: int) -> bool:
     )
 
 
-#: Ein Sperren-Register je Nebenlaeufigkeit (AGENTS.md: "Gleicher Code,
+#: Ein Sperren-Register je Nebenlaeufigkeit (docs/agents/aufbau.md: "Gleicher Code,
 #: verschiedene Sperren"), in Form aus ``brainstorm.py``: nie mehr als ein
 #: Boardlauf je Gruppe. Dazu ein Merkplatz fuer Rueckrufe (der Vorschlag nach
 #: "Discussion done"), die NACH dem gerade laufenden Lauf faellig sind --

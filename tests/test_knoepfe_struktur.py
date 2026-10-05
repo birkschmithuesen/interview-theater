@@ -7,7 +7,7 @@ ist das Refactoring vom 06.09.2026, das die if/elif-Kaskade in ``_wirke`` durch
 die Tabelle ``knoepfe._WIRKUNGEN`` ersetzt hat: eine Tabelle laesst sich
 auslesen, eine Kaskade nicht.
 
-Die drei Zusagen (AGENTS.md, "Bindende Entwurfsentscheidungen"):
+Die drei Zusagen (docs/agents/entscheidungen.md, "Bindende Entwurfsentscheidungen"):
 
 1. ``callback_data`` bleibt unter **64 Bytes** -- ein Knopf traegt nur
    ``k:<id>``, der Wert steht in der Tabelle ``knopf``.

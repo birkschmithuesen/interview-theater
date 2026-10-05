@@ -1281,7 +1281,7 @@ def _uebernimm_formwahl(conn, tg, chat_id: int, wert: str, formen: dict) -> str:
     entstehen.
 
     ``szene.form`` und nicht ``form_vorschlag``: die Gruppe hat den Knopf
-    **gedrueckt**. Die Regel aus AGENTS.md ("die Form ist ein Vorschlag,
+    **gedrueckt**. Die Regel aus docs/agents/entscheidungen.md ("die Form ist ein Vorschlag,
     keine Vorentscheidung") haelt den Vorschlag eines Modells aus dem Feld
     heraus, nicht die Wahl der Gruppe -- gesetzt wird sie durch einen Druck,
     und der ist hier passiert."""

@@ -969,7 +969,7 @@ def _wende_szene_planen_an(conn, chat_id: int, wert: str) -> dict | None:
 #: Die Arbeitsstandfelder, gegen die eine Festlegung auf Redundanz geprueft
 #: wird (Analyse § 4.4 Risiko 2, "Doppelte Wahrheit"). Ein Fakt hat genau
 #: eine Stelle im Prompt -- steht er an zweien, ist eine davon zu loeschen
-#: (AGENTS.md, "Prompts werden nicht gelesen, sondern erzeugt und gemessen").
+#: (docs/agents/entscheidungen.md, "Prompts werden nicht gelesen, sondern erzeugt und gemessen").
 _FESTLEGUNG_GEGENPROBE = (
     "rahmen", "geschichte", "kernthema", "hauptkonflikt", "format",
     "begriffe", "fragen",
@@ -1583,7 +1583,7 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return None
     if art == "formen_setzen":
         # Padua Phasen TEIL 2: schreibt ``szene.form`` -- die WAHL der Gruppe,
-        # nicht ``form_vorschlag``. AGENTS.md, "Eine Menuezeile ist keine
+        # nicht ``form_vorschlag``. docs/agents/was-bewusst-fehlt.md, "Eine Menuezeile ist keine
         # Geschichte": "die Regel haelt den Vorschlag eines Modells aus dem
         # Feld heraus, nicht die Wahl der Gruppe". Die Gruppe hat die Form im
         # Chat genannt, als Antwort auf die Formwahl-Liste.

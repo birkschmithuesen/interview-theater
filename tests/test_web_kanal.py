@@ -117,7 +117,7 @@ def test_tippt_schreibt_keine_nachricht(conn, kanal):
 
 def test_setze_befehle_tut_nichts_und_faellt_nicht_um(conn, kanal):
     """Im Web gibt es kein Slash-Menue -- und Slash-Befehle werden nicht
-    beworben (AGENTS.md). Die Methode existiert, damit ``bot.main``
+    beworben (docs/agents/entscheidungen.md). Die Methode existiert, damit ``bot.main``
     unveraendert bleibt."""
     kanal.setze_befehle([{"command": "stand", "description": "Stand zeigen"}])
     assert conn.execute("SELECT COUNT(*) FROM web_post").fetchone()[0] == 0

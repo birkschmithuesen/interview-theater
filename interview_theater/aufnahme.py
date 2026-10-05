@@ -524,7 +524,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
     # auftauchen -- alle drei lesen ueber Funktionen, die aus ``nachricht``
     # selektieren (``letzte_nachrichten``/``unextrahierte``/
     # ``unjournalisierte``). Empfangen und In-den-Prompt-legen sind zwei
-    # Entscheidungen (AGENTS.md) -- hier wird bewusst auch das Empfangen in
+    # Entscheidungen (docs/agents/entscheidungen.md) -- hier wird bewusst auch das Empfangen in
     # dieser Tabelle ausgelassen, weil ein Kalibrierungs-Testsatz kein
     # Gruppenbeitrag ist, den es je zu zeigen gaebe.
     if not kalibrierung:
@@ -1096,7 +1096,7 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
     Transkript in ``aufnahme.transkript`` (schon gesetzt, siehe
     ``_verarbeite``) ist das Material. **Kein Gespraechszug, kein
     Absichtserkenner, kein Journal-Extraktor** -- was eine interviewte
-    Person erzaehlt, ist kein Fall dafuer (AGENTS.md), und ein stiller
+    Person erzaehlt, ist kein Fall dafuer (docs/agents/entscheidungen.md), und ein stiller
     Brainstorm-Gedanke erst recht nicht.
 
     Danach die EINE Code-Entscheidung (kein Modellaufruf, Zusage 2):
@@ -1211,7 +1211,7 @@ def _frage_interview_ohne_knopf(conn, tg, e, chat_id: int, aufnahme_id: int, dau
     In-den-Prompt-legen sind zwei Entscheidungen), steht aber versteckt
     (``versteckt=True``) und damit in keinem Fenster, bis die Gruppe geklaert
     hat, was es war. Der Knopf traegt die Auswahl selbst -- es gibt etwas
-    Fixes zu speichern, also ist die Knopfregel erfuellt (AGENTS.md).
+    Fixes zu speichern, also ist die Knopfregel erfuellt (docs/agents/entscheidungen.md).
 
     Kommt keine Antwort, passiert **nichts**: kein Auto-Ja, kein Zeitgeber.
     Das Material liegt da und kann jederzeit ueber \"Interview starten\" als
@@ -1761,7 +1761,7 @@ def zeige_verdichtung(conn, tg, e, kopf_id: int) -> bool:
     ausgespielt (siehe ``_TEXT_INTERVIEW_ABGELEGT``). Wer die Auswertung
     sehen will -- ueber den Knopf "Auswerten" oder ``/auswerten`` --, muss
     sie also aus der Datenbank bekommen und nicht ein zweites Mal verdichten
-    lassen: eine Verdichtung wird nie nachtraeglich geaendert (AGENTS.md),
+    lassen: eine Verdichtung wird nie nachtraeglich geaendert (docs/agents/entscheidungen.md),
     und ein zweiter Lauf waere ein zweiter bezahlter Modellaufruf mit einem
     anderen Ergebnis.
 
@@ -2021,7 +2021,7 @@ def starte_abschluss(conn, tg, klm, e, kopf_id: int) -> threading.Thread:
     zurueck -- dasselbe Muster wie ``szene.starte``.
 
     Grund: ``/fertig`` laeuft in ``befehle.behandle``, und **kein Befehl ruft
-    synchron ein Modell** (AGENTS.md). Der Gespraechszug der Gruppe haelt sonst
+    synchron ein Modell** (docs/agents/spec-abweichungen.md). Der Gespraechszug der Gruppe haelt sonst
     fuer die Dauer der Verdichtung die Sperre je chat_id. Die Gruppe bekommt
     sofort "Aufnahme beendet." und wenige Sekunden spaeter die Verdichtung.
 
@@ -2182,7 +2182,7 @@ def _auswerten(conn, tg, klm, e, kopf_id: int) -> None:
 def starte_auswertung(conn, tg, klm, e, kopf_id: int) -> threading.Thread:
     """Stoesst ``_auswerten`` in einem eigenen Thread an -- dasselbe Muster
     wie ``starte_abschluss``, aus demselben Grund: ``/auswerten`` ist ein
-    Befehl, und **kein Befehl ruft synchron ein Modell** (AGENTS.md)."""
+    Befehl, und **kein Befehl ruft synchron ein Modell** (docs/agents/spec-abweichungen.md)."""
     def _lauf() -> None:
         try:
             _auswerten(conn, tg, klm, e, kopf_id)

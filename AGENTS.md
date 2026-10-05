@@ -126,7 +126,17 @@ führt in Bestandsdaten Platzhalterfiguren mit ihren Nachbenennungen zusammen
 (`--trocken`, läuft **nie** automatisch — es verändert Arbeitsergebnisse
 einer Gruppe). `scripts/web_gruppe.py anlegen <bot_name>` legt eine Gruppe
 für den Web-Kanal an und gibt Link, chat_id und die zwei Env-Zeilen aus
-(siehe „Der Web-Kanal").
+(siehe „Der Web-Kanal"). `scripts/erzeuge_prompts_padua_voll.py` dumpt JEDEN
+Modellaufruf, der in Padua live vorkommt, als Volltext (System- und
+Nutzerteil, mit dem Modell, das ihn bedient) gegen eine erfundene Fixture und
+eine Wegwerf-Datenbank — kein Modellaufruf, kein Netz; `scripts/prompt_inventar.py`
+ist die Liste dazu, und `tests/test_modellaufrufe_inventar.py` macht die
+Suite rot, sobald ein neuer Modellaufruf fehlt. `scripts/pruefe_prompts_lesung.py`
+laesst Opus (Abo, 0 CHF) diese Dumps je Phase gegen
+`docs/prompt-audit/ux-regeln-participatory-bot-ux.md` lesen, mit mechanisch
+geprueftem Zitat je Befund — **kein Test, laeuft nie automatisch**; die
+Befehlsfolge steht in `docs/flow-audit/vorlagen.md`, Abschnitt „Abnahme- und
+END-Schritt: Prompt-Check".
 
 `web_daten.py` ist die einzige Ausnahme von „SQL nur in `repo.py` und
 `db.py`". Grund: die Weboberfläche liest mit einer eigenen, read-only

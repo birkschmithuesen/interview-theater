@@ -383,3 +383,60 @@ in den Bot-Kindprozess; dieses Werkzeug liest sie selbst nie.
 **Kostet Geld (die echte Modellkette des Bots), laeuft nie automatisch.**
 Bericht: `simulation/browser_berichte/<lauf>.md`; Screenshots und
 `schritte.jsonl` unter `simulation/browser_laeufe/<lauf>/`.
+
+## Der Prompt-Check (05.10.2026, Karte t_1dcf3864)
+
+Der Korpus misst einzelne Prompts an einzelnen Faellen, die Simulation den
+Zusammenhang. Was beide nicht zeigen: **was im Prompt wirklich steht** -- in
+jeder Phase, in jedem Aufruf, System- und Nutzerteil. Dafuer gibt es drei
+Befehle. Sie kosten zusammen **0 CHF**: der Dump faengt an der
+Transportgrenze ab (kein Modellaufruf), der Pruefer liest Dateien, und die
+Lesung laeuft ueber den Abo-Proxy (dieselbe Trennlinie wie bei Richter und
+Stimmen der Simulation).
+
+```
+python3.11 -m scripts.erzeuge_prompts_padua_voll docs/prompt-audit/<datum>-padua-voll
+python3.11 -m scripts.pruefe_prompt_dumps docs/prompt-audit/<datum>-padua-voll \
+    --basis docs/prompt-audit/2026-10-02-padua-p2/uebersicht.tsv
+python3.11 -m scripts.pruefe_prompts_lesung docs/prompt-audit/<datum>-padua-voll
+```
+
+1. **Dump** (0 CHF, kein Netz): sieben erfundene Gruppen, eine je Phase
+   (`scripts/fixture_padua_voll.py`), eine Wegwerf-Datenbank, und ein
+   mitschreibendes Double an der Stelle, an der sonst das Modell steht
+   (`scripts/mitschnitt.py`). Je Aufruf eine Datei mit Kopfzeile (art, phase,
+   weg, modell, quelle), `=== SYSTEM ===` und `=== NUTZER ===`, dazu
+   `uebersicht.tsv` mit den Groessen und dem Token-Anteil je Blockgruppe.
+   **Welche Aufrufe gedumpt werden, steht in `scripts/prompt_inventar.py`** --
+   und `tests/test_modellaufrufe_inventar.py` liest den Quelltext aller
+   Modellaufrufe und macht die Suite rot, sobald einer fehlt. Das ist der
+   Grund, warum dieser Check nicht veraltet.
+2. **Pruefer** (0 CHF, kein Modell): deutsche Reste in englischen Prompts
+   (Soll 0), verbotene UX-Muster mit Zeilennummer, die Frageregel-Zeilen
+   nebeneinander, Quotenzaehler, Dubletten, Groesse gegen den letzten Stand,
+   und der Verlaufsbefund (wie viele Zuege, wer spricht, gehen Bot- und
+   Systemzeilen und Transkript-Echos mit). Schreibt `mechanik.md`. **Exit
+   immer 0** -- er ist ein Bericht, kein Gate.
+3. **Lesung** (0 CHF ueber das Abo, sieben Aufrufe, seriell): Opus liest je
+   Phase alle Dumps dieser Phase gegen `docs/prompt-audit/ux-regeln-participatory-bot-ux.md`
+   und `simulation/ux_rubrik.md` und meldet Widersprueche mit Zeilennummer und
+   woertlichem Zitat. **Jedes Zitat wird mechanisch gegen die genannte Zeile
+   geprueft** (`zitat.pruefe`, ein Retry, dann `unsicher`) -- ein Judge
+   begruendet jede Note, auch eine falsche. Schreibt `lesung.json` und
+   `lesung-unsicher.jsonl`.
+
+Ergebnisse liegen unter `docs/prompt-audit/<datum>-padua-voll/`, der Bericht
+heisst `BEFUND.md`. Der letzte Lauf: `docs/prompt-audit/2026-10-05-padua-voll/`
+-- Dump und Pruefer sind dort vollstaendig gelaufen (38 Dumps, alle sieben
+Phasen, `mechanik.md` geschrieben), die Lesung selbst kam in dieser Session
+**nicht durch**: der lokale Claude-Proxy antwortet erreichbar, aber
+`simulation/claude.py` setzt das HTTP-Timeout hartcodiert auf 120 Sekunden je
+Versuch, und die reale Lesungsaufgabe (Widersprueche in UX-Regeln, Rubrik und
+mehreren Dumps finden, mit Zitat belegen) braucht laenger als 120 Sekunden
+allein zum Denken, bevor ein erstes Antwortzeichen entsteht -- gemessen mit
+einem reduzierten `max_tokens`, der statt eines Timeouts
+`stop_reason=max_tokens, bloecke=['thinking']` zeigte. Das ist eine
+Eigenschaft von `simulation/claude.py` (ausserhalb dieser Karte), nicht ein
+Fehler im Dump oder im Pruefer. Details, Root Cause und der unveraenderte
+Befehl zum Nachholen: `docs/prompt-audit/2026-10-05-padua-voll/BEFUND.md`,
+Abschnitt 7.

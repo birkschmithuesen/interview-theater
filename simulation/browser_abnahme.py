@@ -111,9 +111,16 @@ def vergleichstabelle(vorher: dict, nachher: dict) -> str:
     je Zeile, ob der alte Lauf (``vorher``, Commit ``cb200e4``) die
     Invariante gemeldet hat und ob sie im neuen Lauf (``nachher``, fixierter
     Branch) weg ist. Weitere Schluessel, die ``nachher`` noch zeigt und
-    KEINER Zeile zugeordnet sind, landen als 'Restbefunde nachher'. Die
-    Abnahme ist erfuellt, wenn ``nachher`` keine ``hoch``-Invariante mehr
-    traegt -- weder in einer Tabellenzeile noch als Restbefund."""
+    KEINER Zeile zugeordnet sind, landen als 'Restbefunde nachher'.
+
+    "Abnahme erfuellt: ja" verlangt (Review-Entscheidung des Controllers,
+    04.10.2026): (1) JEDE Zeile aus ``ABNAHME_BEFUNDE`` ist in ``vorher``
+    als ``hoch`` gemeldet, UND (2) KEINE dieser Zeilen ist in ``nachher``
+    noch gemeldet. Weitere ``hoch``-Funde in ``nachher`` ausserhalb der
+    Tabelle (Restbefunde) blockieren die Abnahme NICHT -- sie werden nur
+    als Zaehler sichtbar gehalten (``Restbefunde hoch nachher: <n>``). Bei
+    ``nein`` nennt die letzte Zeile die fehlenden Zeilen in ``vorher`` und
+    die in ``nachher`` noch vorhandenen Zeilen, je per Leit-Schluessel."""
     v_commit = vorher.get("app_commit", "?")
     n_commit = nachher.get("app_commit", "?")
     v_inv = vorher.get("invarianten") or []
@@ -124,26 +131,45 @@ def vergleichstabelle(vorher: dict, nachher: dict) -> str:
         f"| Befund | vorher ({v_commit}) | nachher ({n_commit}) | erwartet |",
         "|---|---|---|---|",
     ]
-    alles_behoben = True
+    fehlend_vorher: list[str] = []
+    noch_da_nachher: list[str] = []
     for label, schluessel in ABNAHME_BEFUNDE:
-        v_status = "gemeldet (hoch)" if _befund_gemeldet_hoch(v_inv, schluessel) else "–"
-        n_status = "gemeldet (hoch)" if _befund_gemeldet_hoch(n_inv, schluessel) else "–"
-        if n_status != "–":
-            alles_behoben = False
+        leit_schluessel = schluessel[0]
+        v_hoch = _befund_gemeldet_hoch(v_inv, schluessel)
+        n_hoch = _befund_gemeldet_hoch(n_inv, schluessel)
+        if not v_hoch:
+            fehlend_vorher.append(leit_schluessel)
+        if n_hoch:
+            noch_da_nachher.append(leit_schluessel)
+        v_status = "gemeldet (hoch)" if v_hoch else "–"
+        n_status = "gemeldet (hoch)" if n_hoch else "–"
         zeilen.append(f"| {label} | {v_status} | {n_status} | vorher gemeldet, nachher weg |")
 
     rest = sorted({
         b.get("schluessel", "?") for b in n_inv if b.get("schluessel") not in bekannte_schluessel
     })
     if rest:
-        if any(b.get("schluessel") in rest and b.get("schwere") == "hoch" for b in n_inv):
-            alles_behoben = False
         zeilen.append("")
         zeilen.append("Restbefunde nachher:")
         zeilen.extend(f"- {s}" for s in rest)
-
+    rest_hoch = len({
+        b.get("schluessel", "?") for b in n_inv
+        if b.get("schluessel") not in bekannte_schluessel and b.get("schwere") == "hoch"
+    })
     zeilen.append("")
-    zeilen.append(f"Abnahme erfüllt: {'ja' if alles_behoben else 'nein'}")
+    zeilen.append(f"Restbefunde hoch nachher: {rest_hoch}")
+
+    erfuellt = not fehlend_vorher and not noch_da_nachher
+    zeilen.append("")
+    if erfuellt:
+        zeilen.append("Abnahme erfüllt: ja")
+    else:
+        gruende = []
+        if fehlend_vorher:
+            gruende.append(f"vorher fehlt: {', '.join(fehlend_vorher)}")
+        if noch_da_nachher:
+            gruende.append(f"nachher noch da: {', '.join(noch_da_nachher)}")
+        zeilen.append(f"Abnahme erfüllt: nein — {'; '.join(gruende)}")
     return "\n".join(zeilen)
 
 

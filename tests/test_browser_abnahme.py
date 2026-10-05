@@ -125,3 +125,34 @@ def test_invarianten_abschnitt_und_urteil():
     lauf = _inv_lauf("cb200e4", "werkbank_leer_phase2_gesperrt")
     md = ab.invarianten_abschnitt([lauf])
     assert "werkbank_leer_phase2_gesperrt" in md and "App oder Werkzeug – ungeklaert" in md and "hoch" in md
+
+
+def test_vergleich_abnahme_nicht_erfuellt_wenn_vorher_unvollstaendig():
+    # chat_kennt_transkript_nicht fehlt in vorher -- nachher ist sauber.
+    vorher = _inv_lauf("cb200e4", "board_leer_nach_ende", "stille_nach_leerem_ende",
+                        "werkbank_leer_phase2_gesperrt", "chat_kennt_board_nicht",
+                        "raumcheck_domainweit")
+    nachher = _inv_lauf("abc1234")
+    md = ab.vergleichstabelle(vorher, nachher)
+    assert "Abnahme erfüllt: nein" in md
+    assert "chat_kennt_transkript_nicht" in md  # Grund: fehlt in vorher
+
+
+def test_vergleich_abnahme_erfuellt_trotz_restbefund_ausserhalb_tabelle():
+    # nachher hat nur einen hoch-Fund, der KEINER ABNAHME_BEFUNDE-Zeile
+    # zugeordnet ist -- blockiert die Abnahme nicht, bleibt aber sichtbar.
+    vorher = _inv_lauf("cb200e4", "board_leer_nach_ende", "stille_nach_leerem_ende",
+                        "werkbank_leer_phase2_gesperrt", "chat_kennt_board_nicht",
+                        "chat_kennt_transkript_nicht", "raumcheck_domainweit")
+    nachher = _inv_lauf("abc1234", "station_nicht_erreicht:p1-begriffe")
+    md = ab.vergleichstabelle(vorher, nachher)
+    assert "Abnahme erfüllt: ja" in md
+    assert "station_nicht_erreicht:p1-begriffe" in md  # Restbefunde nachher
+    assert "Restbefunde hoch nachher: 1" in md
+
+
+def test_baue_abnahme_enthaelt_invarianten_abschnitt():
+    md = ab.baue_abnahme(
+        [_lauf("handy"), _lauf("laptop")], belege={}, b_befunde=[], leitbilder=[],
+        harness_notizen=[], modellwahl_satz="")
+    assert "## Invarianten" in md

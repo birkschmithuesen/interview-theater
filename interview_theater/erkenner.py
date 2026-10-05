@@ -1957,6 +1957,13 @@ def baue_meldung(
     zeilen = _meldungszeilen(_sammle_meldbares(wirkliche_aenderungen), phase=phase)
     if not zeilen:
         return None
+    # Birk live 05.10.2026: die Speichermeldung nahm zu viel Raum ein. Eine
+    # Meldung, die NUR aus 📌-Zeilen besteht, braucht den Kopf "Noted:" nicht
+    # -- die Nadel ist das Kennzeichen (eine Zeile weniger).
+    from interview_theater import workshop as _ws
+
+    if _ws.autosave_phase1_2_aktiv() and all(z.startswith("📌") for z in zeilen):
+        return "\n".join(zeilen)
     return T._NOTIERT_KOPF + "\n".join(zeilen)
 
 

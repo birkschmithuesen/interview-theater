@@ -851,6 +851,7 @@ _BEGRIFFE_KOPF = "The group's terms:"
 _DISKUSSION_KOPF = "Digest of an earlier discussion by the group (background only, not a template):"
 _BEGRUENDUNG_KOPF = "Why the group chose these terms:"
 _ANZAHL_ZEILE = "Questions per term: {n}"
+_SPRACHE_ZEILE = "Language of the questions: {sprache} -- the group interviews in this language."
 
 ["begriffsboard"]
 _ZEILE_DETAIL = "- {begriff}: {begruendung}"
@@ -890,7 +891,7 @@ _JOURNAL_ZUSAMMENGEFUEHRT = "{alt} became {neu} -- speech style and scene castin
 _JOURNAL_KORRIGIERT = "Transcript corrected: {text}"
 _NOTIERT_KOPF = "Noted:\n"
 _ZEILE_FESTGEHALTEN = "Agreed{marke}: {text}"
-_ZEILE_FESTGELEGT = "📌 Agreed: {titel} — {text}"
+_ZEILE_FESTGELEGT = "📌 {titel}: {text}"
 _ZEILE_KORRIGIERT = "Corrected: {zeile}"
 _ZEILE_ENTFERNT = "Removed: {was}"
 _ZEILE_PHASE = "We're now at {phase}."

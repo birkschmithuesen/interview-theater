@@ -94,7 +94,7 @@ def test_nutzertext_signatur_kennt_weder_conn_noch_chat_id():
     aus dieser Funktion heraus die Datenbank oder den Phase-2-Chat zu
     lesen."""
     parameter = list(inspect.signature(fragen_ki._nutzertext).parameters)
-    assert parameter == ["begriffe", "diskussion_text", "begriffe_detail"]
+    assert parameter == ["begriffe", "diskussion_text", "begriffe_detail", "sprache_fragen"]
     assert "conn" not in parameter
     assert "chat_id" not in parameter
 
@@ -459,10 +459,14 @@ def test_nutzertext_nennt_die_zahl_je_begriff():
         any(str(fragen_ki.fragen_je_begriff(1)) in z for z in text.splitlines())
 
 
-def test_prompt_nennt_keine_feste_zahl():
-    from interview_theater import anweisungen
-    text = anweisungen.hole("fragen_ki_vorschlag")
-    assert "DREI" not in text and "THREE" not in text
+def test_englischer_prompt_nennt_keine_feste_zahl():
+    """Padua (EN) ist dynamisch; der deutsche Prompt bleibt bitgleich
+    (Dortmund, tests/test_profil_bitgleich.py)."""
+    from pathlib import Path
+    pfad = Path(fragen_ki.__file__).parent / "sprachen" / "en" / "prompts" / "fragen_ki_vorschlag.md"
+    text = pfad.read_text(encoding="utf-8")
+    assert "THREE" not in text
+    assert "Questions per term" in text and "Language of the questions" in text
 
 
 def test_vorschlag_zu_verworfenen_begriffen_gilt_als_veraltet(conn, einst):

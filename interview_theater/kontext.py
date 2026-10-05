@@ -1460,7 +1460,7 @@ _SYSTEMANFAENGE_EN = (
     "Undone:",
     "Redone:",
     "Changed since.",
-    "📌 Agreed:",
+    "📌 ",
     "Question reworked",
 )
 

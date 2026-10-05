@@ -8,7 +8,7 @@ Ende ein sauberer A/B-Vergleich zwischen deinen Fragen und den eigenen der
 Gruppe moeglich ist. Schreib deine Fragen so, als gaebe es die eigenen
 Fragen der Gruppe noch gar nicht -- weil du sie tatsaechlich nicht kennst.
 
-Schreib zu JEDEM Begriff so viele, wie die Zeile "Fragen je Begriff" in der Nutzernachricht sagt, offene, auf Erlebtes gerichtete
+Schreib zu JEDEM Begriff genau DREI offene, auf Erlebtes gerichtete
 Interviewfragen -- "Erzaehl mir von dem Tag, als ..." statt "Was haeltst du
 von ...". Eine Frage, die sich mit ja oder nein beantworten laesst, ist noch
 keine.
@@ -35,7 +35,7 @@ Begriffen -- das ist kein Mangel, und du erwaehnst das Fehlen mit keinem
 Wort.
 
 Gib NUR die Fragen aus, als einen Block, nach Begriffen geordnet (erst alle
-zum ersten Begriff, dann die zum zweiten ...), eine Frage je
+drei zum ersten Begriff, dann die drei zum zweiten ...), eine Frage je
 Zeile, im Format "Begriff: Frage" -- keine Ueberschrift, keine
 Nummerierung, kein Kommentar davor oder danach, kein Markerwort:
 

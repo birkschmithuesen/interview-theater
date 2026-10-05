@@ -41,6 +41,7 @@ KI-Fragen (Phase 2) aneinanderketten, obwohl die beiden nie gleichzeitig
 eine Gruppe betreffen (docs/agents/aufbau.md: "Gleicher Code, verschiedene Sperren")."""
 
 import logging
+import re
 import threading
 
 from interview_theater import anweisungen, modellwahl, repo, sprache, workshop
@@ -61,6 +62,7 @@ _DISKUSSION_KOPF = (
 )
 _BEGRUENDUNG_KOPF = "Warum die Gruppe diese Begriffe gewaehlt hat:"
 _ANZAHL_ZEILE = "Fragen je Begriff: {n}"
+_SPRACHE_ZEILE = "Sprache der Fragen: {sprache} -- in dieser Sprache interviewt die Gruppe."
 
 #: Live Padua 05.10.2026 (G3, ein einziger Begriff): die Zahl der KI-Fragen
 #: je Begriff war fest drei. Seit die Zahl der Begriffe frei ist, ergibt sich
@@ -94,7 +96,8 @@ ART = "fragen_ki_vorschlag"
 
 
 def _nutzertext(begriffe: str, diskussion_text: str | None,
-                begriffe_detail: list[dict] | None = None) -> str:
+                begriffe_detail: list[dict] | None = None,
+                sprache_fragen: str | None = None) -> str:
     """Der isolierte Nutzertext -- NUR die Begriffe, ihre Begruendungen aus
     dem Begriffsboard (Karte t_4517d4ad, ohne Zitat) und, falls vorhanden,
     die Verdichtung einer vorangegangenen Diskussion. Kein ``conn``, keine
@@ -105,6 +108,8 @@ def _nutzertext(begriffe: str, diskussion_text: str | None,
     liste = begriffe_modul.zerlege(begriffe)
     text = T._BEGRIFFE_KOPF + "\n" + "\n".join(f"- {b}" for b in liste)
     text += "\n\n" + T._ANZAHL_ZEILE.format(n=fragen_je_begriff(len(liste)))
+    if sprache_fragen:
+        text += "\n" + T._SPRACHE_ZEILE.format(sprache=sprache_fragen)
     zeilen = begriffsboard.detail_zeilen(begriffe_detail or [])
     if zeilen:
         text += "\n\n" + T._BEGRUENDUNG_KOPF + "\n" + "\n".join(zeilen)
@@ -171,6 +176,30 @@ def _hat_vorschlag(stand) -> bool:
     return passt_zu_begriffen(stand["begriffe"] or "", zeilen)
 
 
+#: Live Padua 05.10.2026 (G3): KI-Fragen kamen auf Englisch, die Gruppe
+#: interviewt auf Italienisch. Die Sprache der Interviews: die eingestellte
+#: (``gruppe.stt_sprache`` ist hier nicht im Stand) -- sonst eine billige
+#: Erkennung an den eigenen Fragen bzw. Begriffen. Nur ein Hinweis an das
+#: Modell, kein Inhalt der Gruppe (Isolation bleibt: keine Frage geht mit).
+_ITALIENISCH = re.compile(
+    r"\b(che|di|il|la|le|per|non|sei|hai|cosa|come|quando|dove|perch[eé]|tua|tuo|"
+    r"della|delle|degli|nella|sono|una|uno)\b", re.I)
+_ENGLISCH = re.compile(r"\b(the|you|your|what|how|when|where|why|is|are|do|did)\b", re.I)
+
+
+def interviewsprache(stand) -> str | None:
+    if stand is None:
+        return None
+    probe = " ".join(str(stand[f] or "") for f in ("fragen_eigene_vorschlag", "fragen", "begriffe"))
+    it = len(_ITALIENISCH.findall(probe))
+    en = len(_ENGLISCH.findall(probe))
+    if it >= 3 and it > en:
+        return "Italiano"
+    if en >= 3 and en > it:
+        return "English"
+    return None
+
+
 def passt_zu_begriffen(begriffe_feld: str, zeilen: list[str]) -> bool:
     """Deckt der KI-Vorschlag JEDEN aktuellen Begriff mit mindestens einer
     Frage ab? Live Padua 05.10.2026 (G3): der Lauf entstand beim Eintritt in
@@ -230,10 +259,12 @@ def starte(conn, tg, klm, e, chat_id: int) -> bool:
     from interview_theater import roadmap
 
     begriffe_detail = roadmap.begriffe_detail(stand)
+    sprache_fragen = interviewsprache(stand)
 
     def _lauf() -> None:
         try:
-            nutzertext = _nutzertext(begriffe_feld or "", diskussion_text, begriffe_detail)
+            nutzertext = _nutzertext(begriffe_feld or "", diskussion_text, begriffe_detail,
+                                     sprache_fragen)
             ueber_claude = modellwahl.konversation_ueber_claude(e, conn, chat_id)
             ergebnis = modellwahl.aufruf_schema(
                 conn, klm, e, chat_id,

@@ -369,6 +369,7 @@ def letzte_bot_nachricht_vor(conn: sqlite3.Connection, chat_id: int, message_id:
         WHERE n.chat_id = ? AND n.message_id < ? AND n.ist_bot = 1
           AND n.text IS NOT NULL AND n.text NOT LIKE 'Notiert:%'
           AND n.text NOT LIKE 'Noted:%'
+          AND n.text NOT LIKE '📌%'
           AND {_OHNE_TRANSKRIPT_ECHO}
         ORDER BY n.message_id DESC LIMIT 1
         """,

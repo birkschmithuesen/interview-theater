@@ -26,6 +26,11 @@ linguistically (no "and then?", no "in that moment", no "that person") --
 each one must be understandable read aloud on its own, as if it were the
 first.
 
+**Language.** If the user message has a line "Language of the questions",
+write every question in that language -- the group will read them aloud to
+people out there. The term at the start of each line stays exactly as the
+group wrote it.
+
 If there is a digest of an earlier discussion, use it only as additional
 background -- which themes, positions, and tensions already came up --,
 never as a template you copy word for word. If there isn't one (the normal

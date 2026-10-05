@@ -242,7 +242,7 @@ PAUSE_AB_MINUTEN = 60
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
     "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "festlegungen",
-    "diskussion", "board", "mitgehoert", "begriffe_detail", "phasenhinweis",
+    "diskussion", "begriffe_detail", "board", "mitgehoert", "phasenhinweis",
     "figurenhinweis", "szene",
     "journal", "fenster", "ausloeser", "erstkontakt",
 )

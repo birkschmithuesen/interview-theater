@@ -891,7 +891,7 @@ def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_17():
         "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase",
         "/kernthema", "/stueck", "/figur", "/szene", "/stand", "/wortlaut",
         "/hilfe", "/leitfaden", "/festlegung", "/sprache", "/phaseklick",
-        "/start",
+        "/start", "/sortiert",
     }
 
 

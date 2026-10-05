@@ -459,6 +459,25 @@ def _fragenzeilen(roh: str) -> list[str]:
     return ergebnis
 
 
+def _einzelfragen(text: str) -> list[str]:
+    """Mehrere Fragen in einer Zeile ("Q1? Q2? Q3?", live G1 05.10.2026 in
+    ``fragen``) als einzelne Fragen -- getrennt nach einem "?" vor einem
+    Grossbuchstaben. Ein kurzes Anhaengsel ("Perché?", "E in che modo?")
+    bleibt an der Frage davor. Nur fuer die Anzeige; gespeichert wird nichts
+    anders."""
+    import re
+
+    if not text:
+        return []
+    teile: list[str] = []
+    for stueck in re.split(r"(?<=\?)\s+(?=[A-ZÀ-ÖØ-Þ¿¡])", text):
+        if teile and len(stueck.split()) < 4:
+            teile[-1] = f"{teile[-1]} {stueck}"
+        else:
+            teile.append(stueck)
+    return teile
+
+
 def fragenuebersicht(stand) -> list[dict]:
     """Der CoThinker in Phase 2 (Birk, 05.10.2026): je Begriff der Gruppe die
     Fragen, die bisher dazu stehen -- ``[{begriff, fragen: [text]}]`` in der
@@ -502,15 +521,17 @@ def fragenuebersicht(stand) -> list[dict]:
     for begriff in begriffe:
         fragen = []
         for zeile in je_begriff.get(begriff, []):
-            _, _, frage = zeile.partition(":")
-            frage = " ".join(frage.split())
-            if not frage:
-                continue
-            schluessel = (begriff, frage.casefold())
-            if schluessel in gesehen:
-                continue
-            gesehen.add(schluessel)
-            fragen.append(frage)
+            # ``_ordne_zeilen`` schreibt "<Begriff>: <Frage>" -- der Begriff
+            # kann selbst einen Doppelpunkt tragen (G3, 05.10.2026: "EVENTO:
+            # dall'esterno all'interno"), also den Begriff abschneiden, nicht
+            # am ersten Doppelpunkt teilen.
+            frage = zeile[len(begriff) + 1:] if zeile.startswith(begriff + ":") else ""
+            for teil in _einzelfragen(" ".join(frage.split())):
+                schluessel = (begriff, teil.casefold())
+                if schluessel in gesehen:
+                    continue
+                gesehen.add(schluessel)
+                fragen.append(teil)
         ergebnis.append({"begriff": begriff, "fragen": fragen})
     return ergebnis
 

@@ -122,13 +122,20 @@ def _setze_entscheidung(conn, chat_id: int, nummer: int, wert: str) -> None:
 
 def _naechste_offene(conn, chat_id: int, gesamt: int) -> int | None:
     """Die erste Frage ohne Entscheidung, oder None, wenn alle entschieden
-    sind."""
+    sind. "schaerfen" (in der Sortierliste des CoThinkers markiert, Padua
+    05.10.2026) ist noch keine Entscheidung."""
     entschieden = _decisions(conn, chat_id)
     for nummer in range(1, gesamt + 1):
         wert = entschieden[nummer - 1] if nummer <= len(entschieden) else ""
-        if not wert:
+        if _ist_offen(wert):
             return nummer
     return None
+
+
+def _ist_offen(wert: str) -> bool:
+    """Offen ist eine Position ohne Wert oder mit "schaerfen" -- nur "ja"
+    und "nein" sind entschieden."""
+    return not wert or wert == "schaerfen"
 
 
 def _aktuelle_offene_nummer(conn, chat_id: int) -> int | None:
@@ -147,7 +154,7 @@ def _aktuelle_offene_nummer(conn, chat_id: int) -> int | None:
     nummer = int(roh)
     entschieden = _decisions(conn, chat_id)
     wert = entschieden[nummer - 1] if nummer <= len(entschieden) else ""
-    return nummer if not wert else None
+    return nummer if _ist_offen(wert) else None
 
 
 def einzeln_aktiv(conn, chat_id: int) -> bool:
@@ -876,6 +883,15 @@ def ja_vorschlagen(conn, tg, chat_id: int, klm=None, e=None) -> int:
 # --- Frage fuer Frage --------------------------------------------------------
 
 
+def _begriffe_mit_doppelpunkt(conn, chat_id: int) -> list[str]:
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["begriffe"] if stand else "") or ""
+    except (IndexError, KeyError):
+        return []
+    return [b for b in begriffe_modul.zerlege(roh) if ":" in b]
+
+
 def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
     """Legt eine Frage als die aktuelle fest und zeigt sie -- Kopf, Frage,
     darunter Annehmen / Verwerfen / Schaerfen.
@@ -902,6 +918,12 @@ def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
     gesamt = len(fragen)
     zeile = fragen[nummer - 1]
     begriff, trenner, rest = zeile.partition(":")
+    # G3 Padua 05.10.2026: ein Begriff, der selbst einen Doppelpunkt traegt,
+    # stand zerrissen auf der Karte. Nur dann der Begriffsabgleich -- sonst
+    # bleibt die Karte byte-gleich.
+    lang, lang_rest = _teile_zeile(zeile, _begriffe_mit_doppelpunkt(conn, chat_id))
+    if lang is not None and lang_rest:
+        begriff, trenner, rest = lang, ":", lang_rest
     if trenner and rest.strip():
         kopf = T._TEXT_FRAGE_KOPF.format(
             nummer=nummer, gesamt=gesamt, begriff=begriff.strip(),
@@ -949,6 +971,31 @@ def starte_durchgehen(conn, tg, chat_id: int) -> bool:
     repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
     _zeige_frage(conn, tg, chat_id, 1)
     return True
+
+
+def sortierung_abschliessen(conn, tg, klm, e, chat_id: int) -> None:
+    """"Fertig sortiert" aus der Sortierliste im CoThinker (versteckter
+    Befehl ``/sortiert``, Padua 05.10.2026): was die Gruppe nicht angetippt
+    hat, gilt als behalten ("" -> "ja"); "ja"/"nein"/"schaerfen" bleiben.
+    Steht noch eine Frage auf "schaerfen", kommt ihre Karte mit der
+    Rueckfrage, was sich aendern soll -- der Rest laeuft ueber den
+    bestehenden Kartenweg (``nimm_offene_frage_text`` -> Schaerfung ->
+    Annehmen). Sonst schliesst die Runde sofort ab. Kein Modellaufruf."""
+    fragen = _auswahlfragen(conn, chat_id)
+    if not fragen:
+        tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+        return
+    entschieden = _decisions(conn, chat_id)
+    neu = []
+    for nummer in range(1, len(fragen) + 1):
+        wert = entschieden[nummer - 1] if nummer <= len(entschieden) else ""
+        neu.append(wert if wert in ("ja", "nein", "schaerfen") else "ja")
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_entschieden", ",".join(neu))
+    if "schaerfen" in neu:
+        _zeige_frage(conn, tg, chat_id, neu.index("schaerfen") + 1)
+        tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
+        return
+    _schliesse_fragen_ab(conn, tg, klm, e, chat_id)
 
 
 def frage_warten_auf_richtung(conn, tg, chat_id: int) -> None:

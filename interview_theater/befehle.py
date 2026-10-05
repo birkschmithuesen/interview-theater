@@ -704,6 +704,16 @@ def _befehl_phaseklick(conn, tg, klm, e, chat_id: int, rest: str) -> None:
     wechsle_phase(conn, tg, klm, e, chat_id, nummer, quelle="web")
 
 
+def _befehl_sortiert(conn, tg, klm, e, chat_id: int) -> None:
+    """"Fertig sortiert" aus der Sortierliste im CoThinker (Padua
+    05.10.2026). **Versteckt**, wie ``/phaseklick``. Schreibt nur und
+    schickt Text -- eine Schaerfung laeuft danach ueber den bestehenden
+    Kartenweg im Thread (``knoepfe.fragen.sortierung_abschliessen``)."""
+    from interview_theater.knoepfe import fragen
+
+    fragen.sortierung_abschliessen(conn, tg, klm, e, chat_id)
+
+
 def _befehl_start(conn, tg, e, chat_id: int, rest: str) -> None:
     """Der erste Seitenaufruf einer frischen Web-Gruppe (Pflichtpunkt 2, Fix 1
     von 2, 04.10.2026). Kein ``klm``: die Begruessung ruft kein Modell.
@@ -1103,6 +1113,10 @@ _BEKANNTE_BEFEHLE_DE: frozenset[str] = frozenset({
     # ``/phaseklick`` ist er der Weg eines Ereignisses (hier: das Laden der
     # Seite) durch die Karte-A2-Naht. Keine EN-Form: er wird nie getippt.
     "/start",
+    # Versteckt (Padua 05.10.2026): "Fertig sortiert" in der Sortierliste
+    # der Phase-2-Fragen im CoThinker -- der Weg des Knopfes durch die Naht,
+    # wie ``/phaseklick``. Keine EN-Form: er wird nie getippt.
+    "/sortiert",
 })
 
 
@@ -1220,6 +1234,8 @@ def behandle(
         _befehl_phaseklick(conn, tg, klm, e, chat_id, rest)
     elif befehl == "/start":
         _befehl_start(conn, tg, e, chat_id, rest)
+    elif befehl == "/sortiert":
+        _befehl_sortiert(conn, tg, klm, e, chat_id)
     return True
 
 

@@ -183,7 +183,8 @@ def _kollabiere_letzten_einsamen_undo(conn, tg, chat_id: int) -> None:
         _entferne_tastatur(tg, chat_id, letzte)
 
 
-def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste, **kw) -> int:
+def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste,
+                   undo_behalten: bool = False, **kw) -> int:
     """``tg.sende_mit_knoepfen`` plus Mitschrift in ``nachricht``.
 
     **Der eine Sendeweg fuer Knopfnachrichten** (06.09.2026, Birk 12:05):
@@ -194,8 +195,14 @@ def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste, **kw) -> int:
     Traegt die neue Leiste mindestens einen Knopf, kollabiert sie zuerst eine
     einsam stehende Undo-Quittung (Zusatzbefund, Padua Phase-2-Ende --
     ``_kollabiere_letzten_einsamen_undo``), damit nie zwei gleich gewichtete
-    Leisten direkt untereinander stehen."""
-    if leiste:
+    Leisten direkt untereinander stehen.
+
+    ``undo_behalten`` schaltet genau dieses Kollabieren ab -- fuer Leisten,
+    die kein zweiter Speicherweg sind und deshalb nicht mit der
+    Undo-Quittung darueber konkurrieren (Padua-Befund M2, 05.10.2026: die
+    Sprachwahl beim Eintritt in Phase 3 liess den Undo der gerade
+    automatisch gespeicherten Eroeffnung verfallen)."""
+    if leiste and not undo_behalten:
         _kollabiere_letzten_einsamen_undo(conn, tg, chat_id)
     message_id = tg.sende_mit_knoepfen(chat_id, text, leiste, **kw)
     _merke_botnachricht(conn, chat_id, message_id, kw.get("klartext") or text)

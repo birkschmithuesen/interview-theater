@@ -2949,9 +2949,21 @@ _CHAT_JS = """
       // geht auch nichts als Diskussion raus.
       kalAufraeumen(sitzung);
       kalZeigePanel(false);
-      if (letzter) { letzter._kalVerworfen = true; }
+      if (letzter) {
+        letzter._kalVerworfen = true;
+        if (letzter.state !== 'inactive') { letzter.stop(); }
+      }
+      // Simulation 05.10.2026 13:43: das Ende muss trotzdem beim Server
+      // ankommen -- ein leeres Ende-Segment, serverseitig
+      // _abschluss_trotz_verworfenem_ende (aufnahme.py, a852d59).
+      letzter = sitzung.strom ? neuesSegment(sitzung) : null;
     }
-    if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
+    // 'ende' IMMER, nicht nur mit VAD: sonst laeuft serverseitig nie der
+    // Abschluss der Diskussion (kein Board, keine Bot-Nachricht).
+    if (letzter) {
+      letzter._grund = 'ende';
+      if (sitzung.vadAktiv) { letzter._redeMs = sitzung.vadSpeechMs; }
+    }
     if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
     // Anders als beendeInterview(): pruefeEnde() tut bei Diskussion NIE
     // etwas (fertigEingereiht bleibt immer true), also wird das Mikrofon

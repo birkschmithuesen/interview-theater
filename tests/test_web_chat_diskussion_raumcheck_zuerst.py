@@ -51,10 +51,24 @@ def test_kein_diskussionssegment_waehrend_des_raumchecks():
     assert "_kalVerworfen = true" in echt
 
 
-def test_beenden_waehrend_des_raumchecks_verschickt_nichts():
+def test_beenden_waehrend_des_raumchecks_verwirft_die_probe_und_schickt_das_ende():
+    # Simulation 05.10.2026 13:43: der Probe-Clip wird verworfen, aber ein
+    # (leeres) Ende-Segment geht hoch -- sonst erfaehrt der Server nie vom Ende.
     beenden = _fn("beendeDiskussion", "starteInterview")
-    assert "sitzung.kalVorStart" in beenden
+    vor = beenden.index("if (sitzung.kalVorStart)")
     assert "kalAufraeumen(sitzung)" in beenden
+    assert beenden.index("_kalVerworfen = true") > vor
+    assert beenden.index("neuesSegment(sitzung)") > beenden.index("_kalVerworfen = true")
+
+
+def test_beenden_markiert_das_ende_immer_auch_ohne_vad():
+    # Ohne VAD (kein Pegelmesser, Takt-Rueckfall) fehlte 'ende' -- serverseitig
+    # lief dann nie der Abschluss (diskussion.py: nur schnittgrund == 'ende').
+    beenden = _fn("beendeDiskussion", "starteInterview")
+    assert "letzter && sitzung.vadAktiv) { letzter._grund" not in beenden
+    ende = beenden.index("letzter._grund = 'ende'")
+    assert beenden.rindex("if (letzter) {", 0, ende) > beenden.index("neuesSegment(sitzung)")
+    assert "if (sitzung.vadAktiv) { letzter._redeMs" in beenden
 
 
 def test_interview_und_brainstorm_unveraendert_sofort():

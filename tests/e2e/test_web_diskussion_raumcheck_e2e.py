@@ -135,5 +135,44 @@ def test_raumcheck_zuerst_dann_diskussion_ab_null(lauf, browser):
         seite.wait_for_timeout(1500)
         diskussion = [u for u in uploads if "kalibrierung=1" not in u]
         assert len(diskussion) == 1, uploads
+        assert "grund=ende" in diskussion[0], uploads
+    finally:
+        kontext.close()
+
+
+def test_fertig_mitten_im_raumcheck_schickt_das_ende(lauf, browser):
+    """Simulation 05.10.2026 13:43: "Discussion done" waehrend der
+    Kalibrierung schickte gar nichts -- der Server erfuhr nie vom Ende, kein
+    Boardlauf, keine Bot-Nachricht. Jetzt geht ein Ende-Segment
+    (``grund=ende``, ``diskussion=1``) hoch; ist es leer, laeuft serverseitig
+    ``_abschluss_trotz_verworfenem_ende`` (a852d59)."""
+    basis, token = lauf
+    kontext = browser.new_context(
+        viewport=HANDY, permissions=["microphone"], base_url=basis,
+        is_mobile=True, has_touch=True,
+    )
+    kontext.add_init_script(_MESSUNG)
+    kontext.add_init_script("try { localStorage.clear(); } catch (e) {}")
+    seite = kontext.new_page()
+    seite.set_default_timeout(GEDULD_MS)
+    uploads = []
+    antworten = []
+    seite.on("request", lambda r: uploads.append(r.url) if "chat/audio" in r.url else None)
+    seite.on("response", lambda r: antworten.append(r.status) if "chat/audio" in r.url else None)
+    try:
+        seite.goto(f"{basis}/g/{token}/chat")
+        seite.evaluate("window.__t.setzeRms(0.0)")
+        seite.click("#diskussion")
+        seite.wait_for_selector("#kalibrierung", state="visible")
+        seite.wait_for_timeout(1000)   # mitten in der Stillemessung
+
+        seite.click("#diskussion-beenden")
+        seite.wait_for_selector('#diskussion[data-laeuft="0"]')
+        seite.wait_for_timeout(2000)
+        assert seite.is_hidden("#kalibrierung")
+        ende = [u for u in uploads if "grund=ende" in u]
+        assert len(ende) == 1, uploads
+        assert "diskussion=1" in ende[0] and "kalibrierung=1" not in ende[0], uploads
+        assert antworten and all(s < 300 for s in antworten), antworten
     finally:
         kontext.close()

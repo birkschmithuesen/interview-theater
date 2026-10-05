@@ -41,7 +41,9 @@ def test_fertig_setzt_weiter_den_grund_ende():
     """Der Ende-Schnitt markiert das Sitzungsende fuer ``diskussion.starte``
     und den Vorschlag -- er kommt allein aus ``beendeDiskussion``."""
     beenden = _fn(web_chat._CHAT_JS, "beendeDiskussion", "starteInterview")
-    assert "letzter && sitzung.vadAktiv) { letzter._grund = 'ende'" in beenden
+    # Seit 05.10.2026 (Simulation 13:43) IMMER, nicht nur mit VAD.
+    assert "letzter._grund = 'ende'" in beenden
+    assert "letzter && sitzung.vadAktiv) { letzter._grund" not in beenden
 
 
 def test_interview_und_brainstorm_pause_bleiben():

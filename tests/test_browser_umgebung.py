@@ -60,3 +60,48 @@ def test_starte_web_antwortet_gesund(tmp_path):
         prozess.terminate()
         prozess.wait(timeout=5)
         log.close()
+
+
+def test_bot_skript_entfernt_board_vorgaben_nach_dem_sourcen(tmp_path):
+    """Die Padua-Env enthaelt seit 05.10. 08:33 eine Sofortmassnahme
+    (IT_BEGRIFFSBOARD_MIN_ZEICHEN=100) -- die Simulation prueft die
+    Code-Vorgaben, sonst saehe sie die Board-Schwelle nie."""
+    env = tmp_path / "x.env"
+    env.write_text("IT_BEGRIFFSBOARD_MIN_ZEICHEN=100\n")
+    text = u.bot_skript(env, modul_oder_datei="-m interview_theater.bot", app_wurzel=tmp_path)
+    pos_source = text.index(str(env))
+    unset_zeile = f"unset {' '.join(u.CODE_VORGABEN_ENTFERNEN)}"
+    assert unset_zeile in text
+    assert text.index(unset_zeile) > pos_source  # NACH dem source, nicht davor
+    assert "exec " in text and "interview_theater.bot" in text
+
+
+def test_bot_skript_nutzt_app_wurzel(tmp_path):
+    app = tmp_path / "alt"
+    app.mkdir()
+    text = u.bot_skript(tmp_path / "x.env", modul_oder_datei="-m interview_theater.bot",
+                        app_wurzel=app)
+    assert str(app) in text
+
+
+def test_baue_gruppe_zweimal_legt_zwei_verschiedene_gruppen_an(tmp_path):
+    """Grundlage fuer ``starte_stack(..., gruppen=2)`` (Task 6): zwei Rufe
+    ohne Netz gegen dieselbe tmp-DB muessen verschiedene Gruppen anlegen."""
+    db_pfad = str(tmp_path / "sim.db")
+    chat_id_1, token_1 = u.baue_gruppe(db_pfad, "padua-browser-sim")
+    chat_id_2, token_2 = u.baue_gruppe(db_pfad, "padua-browser-sim-2")
+    assert chat_id_1 != chat_id_2
+    assert token_1 != token_2
+
+
+def test_lauf_verzeichnis_ist_je_lauf_eindeutig(tmp_path):
+    # Lazy-Import mit importorskip wie in tests/test_browser_lauf.py: nur
+    # dieser eine Test braucht browser_lauf (zieht playwright beim Import
+    # mit), der Rest dieser Datei soll auch ohne Playwright laufen.
+    pytest.importorskip("playwright.sync_api", reason="playwright ist hier nicht installiert")
+    from simulation import browser_lauf as bl
+
+    a = bl.lauf_verzeichnis_fuer(tmp_path, "2026-10-05", "handy", "student", "invarianten", "101500")
+    b = bl.lauf_verzeichnis_fuer(tmp_path, "2026-10-05", "handy", "student", "invarianten", "101501")
+    assert a != b
+    assert a.name.startswith("2026-10-05-handy-student-invarianten")

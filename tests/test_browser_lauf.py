@@ -338,6 +338,27 @@ def test_ohne_persona_station_wartet_und_erfasst_ohne_persona_aufruf(stack, tmp_
         assert Path(tmp_path / "l" / eintrag["screenshot_nachher"]).exists()
 
 
+def test_fuehre_stationen_schreibt_meta_in_ergebnis_json(stack, tmp_path):
+    """Task 1: ``app_wurzel``/``app_commit`` sollen im ergebnis.json landen,
+    damit ein spaeterer Lauf gegen den alten Checkout (cb200e4) erkennbar
+    bleibt."""
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    station = browser_stationen.Station("p1-start", 1, "Observe.", ohne_persona=True, warte_s=0)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=_ScriptedClient([]), judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l",
+            meta={"app_wurzel": "/x/alt", "app_commit": "abc123"})
+        browser.close()
+    ergebnis = json.loads((tmp_path / "l" / "ergebnis.json").read_text())
+    assert ergebnis["app_wurzel"] == "/x/alt"
+    assert ergebnis["app_commit"] == "abc123"
+
+
 _FIXTURE_DISKUSSION_LAEUFT = """
 <button id="diskussion" data-laeuft="1">Start listening</button>
 <button id="diskussion-beenden">Discussion done</button>

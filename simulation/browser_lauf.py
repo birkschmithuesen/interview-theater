@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import subprocess
 import time
 import urllib.request
 from pathlib import Path
@@ -472,11 +473,15 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
 def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                      chat_id: int, persona_client, judge_client, geraet: str,
                      persona_name: str, stationen: tuple, lauf_verzeichnis: Path,
-                     beobachter=None, leitbilder=None) -> dict:
+                     beobachter=None, leitbilder=None, meta: dict | None = None) -> dict:
     """Die Stationsmotor-Engine des Abnahmelaufs Phase 1-2 (04.10.2026):
     Station fuer Station aus ``browser_stationen.STATIONEN``, mit einer
     eigenen Erklaernote je Station (Pflichtpunkt 1). Schreibt
-    ``lauf_verzeichnis / "ergebnis.json"`` und liefert dasselbe Dict."""
+    ``lauf_verzeichnis / "ergebnis.json"`` und liefert dasselbe Dict.
+
+    ``meta`` (z. B. ``{"app_wurzel": ..., "app_commit": ...}``, Task 1) wird
+    unveraendert in dieses Dict gemischt -- so bleibt im Ergebnis erkennbar,
+    aus welchem Checkout die App dieses Laufs gestartet wurde."""
     lauf_verzeichnis = Path(lauf_verzeichnis)
     mitschnitt = browser_mitschnitt.Mitschnitt(
         lauf_verzeichnis, f"{geraet}-{persona_name}", geraet)
@@ -485,7 +490,7 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
     page.wait_for_selector("#verlauf")
     ergebnisse: list[dict] = []
     fehlgeschlagen_bei = None
-    meta: set[str] = set()
+    entwickler_merkmale: set[str] = set()
     # Wie viele Bot-Blasen schon da waren, BEVOR diese Station lief -- die
     # Erklaernote (Pflichtpunkt 1) soll nur die wirklich NEUEN Bot-Blasen
     # dieser Station beurteilen, nicht noch einmal die der vorigen (sonst
@@ -510,7 +515,7 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                                "note_erklaerung": None, "schwaechstes_zitat": "",
                                "vorschlag": ""})
             continue
-        meta.update(_entwickler_meta(page))
+        entwickler_merkmale.update(_entwickler_meta(page))
         repraesentativ = _repraesentativ(lauf["screenshots_nach"])
         alle_bot_texte = [b["text"] for b in _verlaufsblasen(page) if b.get("von") == "bot"]
         bot_texte = alle_bot_texte[bot_anzahl_vorher:]
@@ -542,9 +547,9 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
            for b in e["befunde"] if b.get("schwere") == "hoch"]
     ergebnis = {"geraet": geraet, "persona": persona_name,
                 "stationen_ergebnisse": ergebnisse, **beob,
-                "entwickler_meta": sorted(meta), "modelle": modelle,
+                "entwickler_meta": sorted(entwickler_merkmale), "modelle": modelle,
                 "top_befunde": top, "fehlgeschlagen_bei": fehlgeschlagen_bei,
-                "db_pfad": db_pfad}
+                "db_pfad": db_pfad, **(meta or {})}
     (lauf_verzeichnis / "ergebnis.json").write_text(
         json.dumps(ergebnis, ensure_ascii=False, indent=2), encoding="utf-8")
     return ergebnis
@@ -657,6 +662,36 @@ def fuehre_lauf(
     }
 
 
+def lauf_verzeichnis_fuer(basis: Path, datum: str, geraet: str, persona: str,
+                         stationen: str, jetzt: str) -> Path:
+    """Der Laufordner-Name, eindeutig je Lauf (nicht nur je Tag/Geraet/
+    Argumente) -- vorher wurde ``sim.db`` bei zwei Laeufen desselben Tages
+    mit denselben Argumenten wiederverwendet. ``jetzt`` ist die Uhrzeit
+    (``HHMMSS``), vom Aufrufer uebergeben, damit diese Funktion selbst keine
+    Uhr braucht."""
+    if stationen:
+        name = f"{datum}-{geraet}-{persona}-{stationen}-{jetzt}"
+    else:
+        name = f"{datum}-{geraet}-{jetzt}"
+    return basis / name
+
+
+def _app_commit(app_wurzel: Path) -> str | None:
+    """Der kurze Commit des App-Checkouts, aus dem der Stack gestartet
+    wurde -- ``None`` bei jedem Fehler (kein Git-Repo, ``git`` fehlt, ...),
+    nie eine Ausnahme nach oben."""
+    try:
+        lauf = subprocess.run(
+            ["git", "-C", str(app_wurzel), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except OSError:
+        return None
+    if lauf.returncode != 0:
+        return None
+    return lauf.stdout.strip() or None
+
+
 def main() -> None:
     """Dünner CLI-Wrapper: baut den echten Stack, einen echten Opus-Klienten
     und einen echten Browser, ruft ``fuehre_lauf``, schreibt den Bericht.
@@ -667,6 +702,7 @@ def main() -> None:
     import os
     import sys
     import time
+    from datetime import datetime
     from pathlib import Path
 
     from playwright.sync_api import sync_playwright
@@ -686,19 +722,28 @@ def main() -> None:
     zerleger.add_argument("--stationen", choices=sorted(browser_stationen.STATIONEN))
     zerleger.add_argument("--leitbilder", action="store_true",
                           help="nur Schlusslauf: Leitbilder nach docs/guide/bilder")
+    zerleger.add_argument("--app-wurzel", type=Path, default=browser_umgebung.WURZEL,
+                          help="Checkout, aus dem Web und Bot gestartet werden "
+                               "(Vorgabe: dieser Harness-Checkout)")
     argumente = zerleger.parse_args()
 
     if not argumente.env_datei:
         print("Fehlende Env-Datei: --env-datei oder IT_SIM_ENV", file=sys.stderr)
         raise SystemExit(1)
 
+    app_wurzel = argumente.app_wurzel
+    if not (app_wurzel / "interview_theater").is_dir():
+        print(f"--app-wurzel ohne interview_theater/: {app_wurzel}", file=sys.stderr)
+        raise SystemExit(1)
+
     datum = time.strftime("%Y-%m-%d")
-    if argumente.stationen:
-        lauf_name = f"{datum}-{argumente.geraet}-{argumente.persona}-{argumente.stationen}"
-    else:
-        lauf_name = f"{datum}-{argumente.geraet}"
-    lauf_verzeichnis = Path("simulation/browser_laeufe") / lauf_name
-    stack = browser_umgebung.starte_stack(argumente.env_datei, lauf_verzeichnis)
+    jetzt = datetime.now().strftime("%H%M%S")
+    lauf_verzeichnis = lauf_verzeichnis_fuer(
+        Path("simulation/browser_laeufe"), datum, argumente.geraet, argumente.persona,
+        argumente.stationen or "", jetzt)
+    lauf_name = lauf_verzeichnis.name
+    stack = browser_umgebung.starte_stack(
+        argumente.env_datei, lauf_verzeichnis, app_wurzel=app_wurzel)
     try:
         if argumente.stationen:
             # Der Stationsmodus (Abnahmelauf Phase 1-2): erfundene
@@ -740,6 +785,7 @@ def main() -> None:
                     stationen=browser_stationen.STATIONEN[argumente.stationen],
                     lauf_verzeichnis=lauf_verzeichnis, beobachter=beobachter,
                     leitbilder=leitbilder,
+                    meta={"app_wurzel": str(app_wurzel), "app_commit": _app_commit(app_wurzel)},
                 )
                 if leitbilder is not None:
                     leitbilder.schreibe_index()

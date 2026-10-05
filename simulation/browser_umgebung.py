@@ -54,29 +54,62 @@ def baue_gruppe(db_pfad: str, bot_name: str) -> tuple[int, str]:
     return chat_id, token
 
 
-_BOT_SKRIPT = """\
+# Sofortmassnahme in der Padua-Env seit 05.10.2026 08:33
+# (IT_BEGRIFFSBOARD_MIN_ZEICHEN=100): das sind Code-VORGABEN, keine
+# geheimen Werte -- wuerde das Wrapper-Skript sie aus der Env-Datei
+# durchlassen, saehe die Simulation die neue Board-Schwelle nie, weil die
+# Env-Datei sie nach dem ``source`` ueberschreibt. Deshalb werden sie nach
+# dem ``source`` wieder entfernt: die Simulation soll den Code pruefen, der
+# alten App ebenso wie der neuen.
+CODE_VORGABEN_ENTFERNEN = (
+    "IT_BEGRIFFSBOARD_MIN_ZEICHEN",
+    "IT_BEGRIFFSBOARD_MIN_ABSTAND_S",
+)
+
+_KOPF = """\
 set -euo pipefail
 set -a
 source "{env_datei}"
 set +a
-export IT_DB="{db_pfad}"
-export IT_AUDIO="{audio_verz}"
-export IT_KANAL=web
-export IT_WEB_CHAT_ID="{chat_id}"
-export IT_WORKSHOP=padua-2026
-export IT_BOT_NAME=padua-browser-sim
-export IT_WEB_URL=""
-exec "{py}" -u -m interview_theater.bot
+unset {vorgaben}
+export PYTHONPATH="{app_wurzel}"
 """
 
 
-def bau_bot_skript(env_datei: str, db_pfad: str, audio_verz: str,
-                   chat_id: int, py: str = PY) -> str:
-    """Nur Text -- keine Ausfuehrung, kein Secret wird hier gelesen."""
-    return _BOT_SKRIPT.format(
-        env_datei=env_datei, db_pfad=db_pfad, audio_verz=audio_verz,
-        chat_id=chat_id, py=py,
+def _kopf(env_datei, app_wurzel: Path) -> str:
+    return _KOPF.format(
+        env_datei=env_datei, vorgaben=" ".join(CODE_VORGABEN_ENTFERNEN),
+        app_wurzel=app_wurzel,
     )
+
+
+def bot_skript(env_datei, *, modul_oder_datei: str, app_wurzel: Path, py: str = PY) -> str:
+    """Nur Text -- keine Ausfuehrung, kein Secret wird hier gelesen (siehe
+    Moduldoc). Sourct die Env-Datei, entfernt danach die Code-Vorgaben
+    (``CODE_VORGABEN_ENTFERNEN``) und fuehrt dann ``python
+    MODUL_ODER_DATEI`` mit ``PYTHONPATH=app_wurzel`` aus -- so kann der
+    Aufrufer wahlweise ``-m interview_theater.bot`` oder den Pfad eines
+    Skripts (z. B. ``prompt_abzug.py``) aus einem beliebigen Checkout
+    starten."""
+    return f'{_kopf(env_datei, app_wurzel)}exec "{py}" -u {modul_oder_datei}\n'
+
+
+def bau_bot_skript(env_datei: str, db_pfad: str, audio_verz: str, chat_id: int,
+                   py: str = PY, app_wurzel: Path = WURZEL) -> str:
+    """Der Wrapper fuer den simulationseigenen Web-Bot: baut auf
+    ``bot_skript`` auf (dieselbe Code-Vorgaben-Bereinigung und
+    ``PYTHONPATH``), dazu die eigenen -- nicht geheimen -- Werte fuer DB,
+    Audio-Verzeichnis, Kanal und Chat-ID."""
+    eigene = (
+        f'export IT_DB="{db_pfad}"\n'
+        f'export IT_AUDIO="{audio_verz}"\n'
+        "export IT_KANAL=web\n"
+        f'export IT_WEB_CHAT_ID="{chat_id}"\n'
+        "export IT_WORKSHOP=padua-2026\n"
+        "export IT_BOT_NAME=padua-browser-sim\n"
+        'export IT_WEB_URL=""\n'
+    )
+    return f'{_kopf(env_datei, app_wurzel)}{eigene}exec "{py}" -u -m interview_theater.bot\n'
 
 
 def _warte_gesund(prozess, basis: str, log_pfad: str, sekunden: float = 20.0) -> None:
@@ -93,18 +126,19 @@ def _warte_gesund(prozess, basis: str, log_pfad: str, sekunden: float = 20.0) ->
     raise RuntimeError(f"Webserver nicht erreichbar, siehe {log_pfad}")
 
 
-def starte_web(db_pfad: str, audio_verz: str, log_pfad: str):
+def starte_web(db_pfad: str, audio_verz: str, log_pfad: str, *,
+               app_wurzel: Path = WURZEL):
     bind = f"127.0.0.1:{freier_port()}"
     umgebung = dict(os.environ)
     umgebung.update({
         "IT_DB": db_pfad, "IT_WEB_BIND": bind, "IT_WEB_PREFIX": "",
         "IT_AUDIO": audio_verz, "IT_WORKSHOP": "padua-2026",
-        "IT_WEB_SEGMENT_MS": "45000", "PYTHONPATH": str(WURZEL),
+        "IT_WEB_SEGMENT_MS": "45000", "PYTHONPATH": str(app_wurzel),
     })
     log = open(log_pfad, "w")
     prozess = subprocess.Popen(
         [PY, "-u", "-m", "interview_theater.web"],
-        cwd=str(WURZEL), env=umgebung, stdout=log, stderr=subprocess.STDOUT,
+        cwd=str(app_wurzel), env=umgebung, stdout=log, stderr=subprocess.STDOUT,
     )
     basis = f"http://{bind}"
     try:
@@ -122,11 +156,11 @@ def starte_web(db_pfad: str, audio_verz: str, log_pfad: str):
 
 
 def starte_bot(env_datei: str, db_pfad: str, audio_verz: str, chat_id: int,
-              log_pfad: str):
-    skript = bau_bot_skript(env_datei, db_pfad, audio_verz, chat_id)
+              log_pfad: str, *, app_wurzel: Path = WURZEL):
+    skript = bau_bot_skript(env_datei, db_pfad, audio_verz, chat_id, app_wurzel=app_wurzel)
     log = open(log_pfad, "w")
     prozess = subprocess.Popen(
-        ["bash", "-c", skript], cwd=str(WURZEL),
+        ["bash", "-c", skript], cwd=str(app_wurzel),
         env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
              "HOME": os.environ.get("HOME", "")},
         stdout=log, stderr=subprocess.STDOUT,
@@ -136,6 +170,12 @@ def starte_bot(env_datei: str, db_pfad: str, audio_verz: str, chat_id: int,
         log.close()
         raise RuntimeError(f"Bot-Prozess sofort beendet, siehe {log_pfad}")
     return prozess, log
+
+
+@dataclass
+class Gruppe:
+    token: str
+    chat_id: int
 
 
 @dataclass
@@ -149,6 +189,7 @@ class Stack:
     bot_prozess: subprocess.Popen
     web_log: object
     bot_log: object
+    gruppen: list[Gruppe]
 
     def beende(self) -> None:
         for prozess in (self.bot_prozess, self.web_prozess):
@@ -166,15 +207,27 @@ class Stack:
         self.bot_log.close()
 
 
-def starte_stack(env_datei: str, lauf_verzeichnis: Path) -> Stack:
+def starte_stack(env_datei: str, lauf_verzeichnis: Path, *,
+                 app_wurzel: Path = WURZEL, gruppen: int = 1) -> Stack:
+    """Baut den Stack aus ``app_wurzel`` (Vorgabe: dieser Checkout) --
+    ``app_wurzel`` kann ein anderer Checkout sein (z. B. der alte Stand vor
+    einem Live-Befund), um die alte App mit dem neuen Harness laufen zu
+    lassen. ``gruppen`` legt mehrere Web-Gruppen in derselben ``sim.db`` an
+    (``baue_gruppe`` laeuft dafuer in-process weiter gegen den Harness --
+    das additive Schema vertraegt die alte wie die neue App); Web- und
+    Bot-Prozess laufen weiter fuer die ERSTE Gruppe, wie bisher."""
     db_pfad = str(lauf_verzeichnis / "sim.db")
     audio_verz = str(lauf_verzeichnis / "audio")
     os.makedirs(audio_verz, exist_ok=True)
-    chat_id, token = baue_gruppe(db_pfad, "padua-browser-sim")
+    gruppen_liste = []
+    for i in range(gruppen):
+        name = "padua-browser-sim" if i == 0 else f"padua-browser-sim-{i + 1}"
+        chat_id, token = baue_gruppe(db_pfad, name)
+        gruppen_liste.append(Gruppe(token=token, chat_id=chat_id))
     web_prozess, web_log, web_basis = starte_web(
-        db_pfad, audio_verz, str(lauf_verzeichnis / "web.log"))
+        db_pfad, audio_verz, str(lauf_verzeichnis / "web.log"), app_wurzel=app_wurzel)
     bot_prozess, bot_log = starte_bot(
-        env_datei, db_pfad, audio_verz, chat_id,
-        str(lauf_verzeichnis / "bot.log"))
-    return Stack(db_pfad, audio_verz, chat_id, token, web_basis,
-                web_prozess, bot_prozess, web_log, bot_log)
+        env_datei, db_pfad, audio_verz, gruppen_liste[0].chat_id,
+        str(lauf_verzeichnis / "bot.log"), app_wurzel=app_wurzel)
+    return Stack(db_pfad, audio_verz, gruppen_liste[0].chat_id, gruppen_liste[0].token,
+                web_basis, web_prozess, bot_prozess, web_log, bot_log, gruppen_liste)

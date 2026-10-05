@@ -1028,6 +1028,11 @@ _TEXT_WERKBANK_NUR_LESEN = "Hier wird nur angezeigt – Änderungen bitte im Cha
 _TEXT_BUEHNE_LEER = "Im Chat sprechen — hier erscheinen die Gedanken."
 #: Das Begriffsboard im CoThinker-Tab (Phase 1, Karte t_4517d4ad).
 _TEXT_BOARD_LEER = "Hier erscheinen die Begriffe, die ihr in der Diskussion nennt."
+#: Die Fragenuebersicht im CoThinker-Tab (Phase 2, Birk 05.10.2026) -- ohne
+#: Soll-Zahl: wie viele Fragen ein Begriff bekommt, entscheidet die Gruppe.
+_TEXT_FRAGEN_UEBERSICHT_KOPF = "Eure Fragen"
+_TEXT_FRAGEN_UEBERSICHT_LEER = "Hier erscheinen eure Fragen, je Begriff."
+_TEXT_FRAGEN_UEBERSICHT_OFFEN = "noch keine Frage"
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
@@ -2957,6 +2962,43 @@ def _begriffsboard_html(eintraege: list[dict]) -> str:
     )
 
 
+def _fragenuebersicht_html(eintraege: list[dict]) -> str:
+    """Die Fragenuebersicht im CoThinker-Tab (Phase 2, Birk 05.10.2026):
+    je Begriff eine Zeile mit den bisher gesetzten Fragen, in der
+    Reihenfolge der Begriffe (``roadmap.fragenuebersicht``). Ein Begriff
+    ohne Frage traegt ``data-offen="1"`` und eine leise Zeile -- **keine
+    Soll-Zahl** ("0/3"): wie viele Fragen es werden, entscheidet die Gruppe.
+    Das Bild macht ``web_gestalt.css_buehne()``; kein ``style=``, kein
+    ``on…=`` (CSP)."""
+    if not eintraege:
+        return (
+            '<div id="buehne-panel" data-ansicht="fragen">'
+            f'<p class="buehne-leer">{_t(T._TEXT_FRAGEN_UEBERSICHT_LEER)}</p></div>'
+        )
+    zeilen = []
+    for eintrag in eintraege:
+        fragen = eintrag.get("fragen") or []
+        if fragen:
+            inhalt = (
+                '<ul class="fragen">'
+                + "".join(f"<li>{html.escape(f)}</li>" for f in fragen)
+                + "</ul>"
+            )
+        else:
+            inhalt = f'<p class="fragen-offen">{_t(T._TEXT_FRAGEN_UEBERSICHT_OFFEN)}</p>'
+        offen = "" if fragen else ' data-offen="1"'
+        zeilen.append(
+            f'<li data-begriff="{html.escape(eintrag["begriff"], quote=True)}"{offen}>'
+            f'<span class="begriff">{html.escape(eintrag["begriff"])}</span>'
+            f'{inhalt}</li>'
+        )
+    return (
+        '<div id="buehne-panel" data-ansicht="fragen">'
+        f'<h2 class="fragen-kopf">{_t(T._TEXT_FRAGEN_UEBERSICHT_KOPF)}</h2>'
+        f'<ol class="fragenuebersicht">{"".join(zeilen)}</ol></div>'
+    )
+
+
 def _buehne_html(daten: dict) -> str:
     """Die CoThinker-Tafel: GENAU EINE Karte auf einmal, mit Browser-
     seitiger Verlaufsnavigation (Task 1, Padua CoThinker-Tab clean,
@@ -2985,6 +3027,9 @@ def _buehne_html(daten: dict) -> str:
         # Phase 1 (Karte t_4517d4ad): der CoThinker zeigt das Begriffsboard
         # statt der Buehnenkarten -- eine Renderfunktion fuer Seite UND Poll.
         return _begriffsboard_html(daten.get("begriffsboard") or [])
+    if daten.get("fragenuebersicht_zeigen"):
+        # Phase 2 (Birk, 05.10.2026): was je Begriff an Fragen steht.
+        return _fragenuebersicht_html(daten.get("fragenuebersicht") or [])
     karten = daten.get("buehnenkarten") or []
     # ``karten`` kommt NEUESTE ZUERST (web_daten.buehnenkarten, ORDER BY id
     # DESC) -- fuer die Tafel reicht das erste echte Element, fuer den

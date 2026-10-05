@@ -1349,6 +1349,12 @@ table.anteile th, table.anteile td, table.uebersicht td { border-bottom-color: v
 #: ``.vorgaenger``-Erklaerung hier hatte denselben Fehler und wurde nur
 #: durch die direkt folgende, kommentarlose ``.vorgaenger del``-Regel
 #: "gerettet"). Die Begruendung steht deshalb hier, nicht als CSS-Kommentar.
+#:
+#: Fragenuebersicht (Phase 2, Birk 05.10.2026): dieselbe ruhige Hand wie das
+#: Board -- je Begriff ein Punkt in der FORM der Werkbank (gefuellt: es gibt
+#: eine Frage, gestrichelter Ring in ``--text-leise``: noch keine), die
+#: Fragen darunter in einem Fach mit ``border-left``. Keine Zahl, kein
+#: Ampelrot: was fehlt, ist leise, nicht alarmierend.
 _BUEHNE = """
 #buehne-panel .karte { background: var(--grund-2); color: var(--text);
                        border-color: var(--linie); }
@@ -1385,6 +1391,27 @@ _BUEHNE = """
 .begriffsboard .vorgaenger del { color: var(--text-leise); font-size: .85em;
                                  text-decoration-thickness: 1px; }
 .begriffsboard .vorgaenger del:not(:first-child) { font-size: .75em; }
+.fragen-kopf { font-family: var(--schrift-tech); font-size: .78rem; font-weight: 700;
+               letter-spacing: .08em; text-transform: uppercase;
+               color: var(--text-leise); margin: 0 0 .5rem; }
+.fragenuebersicht { list-style: none; margin: 0; padding: 0; }
+.fragenuebersicht > li { padding: .55rem 0; border-top: 1px solid var(--linie); }
+.fragenuebersicht > li:first-child { border-top: 0; }
+.fragenuebersicht .begriff { display: flex; align-items: center; gap: .5rem;
+                             font-family: var(--schrift-skript); font-weight: 700;
+                             font-size: 1.05em; color: var(--text); }
+.fragenuebersicht .begriff::before { content: ""; flex: 0 0 auto; width: .7rem;
+                                     height: .7rem; border-radius: 50%;
+                                     box-sizing: border-box; background: var(--signal);
+                                     border: 2px solid var(--signal); }
+.fragenuebersicht li[data-offen="1"] .begriff { color: var(--text-leise); }
+.fragenuebersicht li[data-offen="1"] .begriff::before { background: none;
+                                                        border: 2px dashed var(--text-leise); }
+.fragenuebersicht ul.fragen { list-style: none; margin: .35rem 0 0 .35rem;
+                              padding: 0 0 0 .85rem; border-left: 1px solid var(--linie); }
+.fragenuebersicht ul.fragen li { padding: .2rem 0; color: var(--text); line-height: 1.4; }
+.fragenuebersicht .fragen-offen { margin: .25rem 0 0 1.2rem; font-style: italic;
+                                  font-size: .9em; color: var(--text-leise); }
 """
 #: Die read-only Werkbank (Padua, 03.10.2026, Birk: "Anstatt roter und gruener
 #: LEDs passendere Farben im Design. Dezenter, aber trotzdem klar."). Drei

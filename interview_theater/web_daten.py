@@ -1355,6 +1355,16 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
             if (stand.get("phase") or _phasen.ERSTE) == 1 and _workshop.diskussion_aktiv()
             else []
         ),
+        # Der CoThinker in Phase 2 (Birk, 05.10.2026): je Begriff die
+        # bisherigen Fragen. Dasselbe Profil-Gate wie das Begriffsboard.
+        "fragenuebersicht_zeigen": (
+            stand.get("phase") == 2 and _workshop.diskussion_aktiv()
+        ),
+        "fragenuebersicht": (
+            fragenuebersicht(conn, chat_id)
+            if stand.get("phase") == 2 and _workshop.diskussion_aktiv()
+            else []
+        ),
         # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
         # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder
         # wartet auf Transkription. Ueber ``_aufnahmen_nach_status`` (schon
@@ -1421,6 +1431,22 @@ def begriffsboard(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         {k: v for k, v in eintrag.items() if k != "zitat"}
         for eintrag in _begriffsboard.sortiert(_begriffsboard.lies(zeile["json"] if zeile else None))
     ]
+
+
+def fragenuebersicht(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Das read-only Gegenstueck zu ``roadmap.fragenuebersicht`` (CoThinker
+    in Phase 2) -- nur die vier Felder, die sie braucht, alle ueber
+    ``_feld``: der Webserver migriert nichts."""
+    from interview_theater import roadmap as _roadmap
+
+    zeile = conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+    return _roadmap.fragenuebersicht({
+        feld: _feld(zeile, feld)
+        for feld in ("begriffe", "fragen", "fragen_eigene_vorschlag",
+                     "fragen_herkunft_final")
+    })
 
 
 def stueckkarte_felder(
@@ -2159,15 +2185,6 @@ def _werkbank_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
     return {feld: _feld(zeile, feld) for feld in _WERKBANK_STANDFELDER}
 
 
-def _diskussion_verdichtet(conn: sqlite3.Connection, chat_id: int) -> bool:
-    try:
-        return conn.execute(
-            "SELECT 1 FROM diskussion_verdichtung WHERE chat_id = ?", (chat_id,)
-        ).fetchone() is not None
-    except sqlite3.OperationalError:
-        return False
-
-
 def _spalte_je_id(conn: sqlite3.Connection, tabelle: str, spalte: str,
                   chat_id: int) -> dict:
     """``{id: wert}`` einer Spalte -- leer, wenn sie (noch) fehlt. ``tabelle``
@@ -2186,7 +2203,7 @@ def werkbank(conn: sqlite3.Connection, chat_id: int) -> dict:
     """Die read-only Werkbank (``roadmap.werkbank``) -- dieselbe ``lage`` wie
     ``roadmap``, ergaenzt um das, was nur die Detailzeilen brauchen. Kein
     Schreibvorgang, kein Modellaufruf."""
-    from interview_theater import roadmap as modul, workshop
+    from interview_theater import roadmap as modul
 
     lage = _roadmap_lage(conn, chat_id)
     zusatz = _werkbank_stand(conn, chat_id)
@@ -2197,11 +2214,6 @@ def werkbank(conn: sqlite3.Connection, chat_id: int) -> dict:
     ]
     stil = _spalte_je_id(conn, "figur", "sprachstil", chat_id)
     lage["figuren"] = [{**f, "sprachstil": stil.get(f["id"])} for f in lage["figuren"]]
-    # Die Diskussionszeile gibt es nur, wo Phase 1 mitschneidet -- sonst
-    # stuende dort fuer immer ein offener Punkt, den niemand schliessen kann.
-    lage["diskussion"] = (
-        _diskussion_verdichtet(conn, chat_id) if workshop.diskussion_aktiv() else None
-    )
     anzahl = zusatz.get("szenen_anzahl")
     return {
         "phasen": modul.werkbank(lage, lage["phase"]),

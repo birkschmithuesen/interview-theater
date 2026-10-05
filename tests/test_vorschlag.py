@@ -321,6 +321,65 @@ def test_ohne_marker_streicht_fliesstext_der_den_block_wiederholt():
     assert sauber.rstrip().endswith("wir melden uns.")
 
 
+# --- Marker nicht am Zeilenanfang (P2-M4, Prompt-Check 05.10.2026) --------
+# Live-Befund: "VORSCHLAG EIGENE FRAGEN:" landete sichtbar im Chat, weil
+# das Modell den Marker nicht als eigene Zeile schrieb -- mitten im
+# Fliesstext, mit Markdown-Sternchen drumherum, oder direkt nach einem
+# Satz ohne Leerzeile davor. ``_ZEILE`` erkannte nur eine Zeile, die GENAU
+# mit "VORSCHLAG" beginnt -- alles andere blieb als rohe Markerzeile stehen.
+
+
+def test_marker_mitten_im_fliesstext_wird_gelesen_und_entfernt():
+    text = (
+        "Here is my suggestion. VORSCHLAG EIGENE FRAGEN:\n"
+        "Home: What makes you feel at home?"
+    )
+    assert vorschlag.lies(text, "eigene_fragen") == "Home: What makes you feel at home?"
+    sauber = vorschlag.ohne_marker(text)
+    assert "VORSCHLAG" not in sauber
+    assert "Here is my suggestion." in sauber
+    assert "What makes you feel at home?" in sauber
+
+
+def test_marker_mit_markdown_sternchen_wird_gelesen_und_entfernt():
+    text = "**VORSCHLAG EIGENE FRAGEN:**\nHome: What makes you feel at home?"
+    assert vorschlag.lies(text, "eigene_fragen") == "Home: What makes you feel at home?"
+    sauber = vorschlag.ohne_marker(text)
+    assert "VORSCHLAG" not in sauber
+    assert "*" not in sauber
+    assert "What makes you feel at home?" in sauber
+
+
+def test_marker_direkt_nach_einem_satz_ohne_leerzeile_wird_erkannt():
+    """Mid-paragraph: der Marker folgt direkt auf einen Satz, ohne eigene
+    Zeile und ohne Leerzeile davor."""
+    text = (
+        "Thanks, that's clear. VORSCHLAG EIGENE FRAGEN:\n"
+        "Home: What makes you feel at home?\n"
+        "Fear: What are you afraid of?"
+    )
+    assert vorschlag.lies(text, "eigene_fragen") == (
+        "Home: What makes you feel at home?\nFear: What are you afraid of?"
+    )
+    sauber = vorschlag.ohne_marker(text)
+    assert "VORSCHLAG" not in sauber
+    assert "Thanks, that's clear." in sauber
+    assert "What are you afraid of?" in sauber
+
+
+def test_ohne_bloecke_entfernt_jeden_block_fuer_die_echo_pruefung():
+    """P2-M9: der Echo-Check soll den sichtbaren Text pruefen, nicht den
+    Vorschlagsblock -- in Phase 2 steht die diktierte Frage zwingend auch im
+    ``VORSCHLAG EIGENE FRAGEN:``-Block (Format ``Begriff: Frage``)."""
+    text = "Noted.\n\nVORSCHLAG EIGENE FRAGEN:\nHome: What makes you feel at home?"
+    assert vorschlag.ohne_bloecke(text) == "Noted."
+
+
+def test_ohne_bloecke_laesst_den_fliesstext_unberuehrt():
+    text = "What makes you feel at home?\n\nVORSCHLAG EIGENE FRAGEN:\nHome: etwas anderes"
+    assert vorschlag.ohne_bloecke(text) == "What makes you feel at home?"
+
+
 def test_ohne_block_entfernt_auch_den_weichen_fragenblock():
     """Padua-Test 02.10.2026: der weiche Block (Marker mit Leerzeichen,
     Art mit Unterstrich) blieb im Chattext stehen -- die Gruppe sah

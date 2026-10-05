@@ -103,23 +103,68 @@ ARTEN = (
 #: auch fuer eine mitlesende Gruppe als Technik erkennbar.
 MARKER = "VORSCHLAG {art}:"
 
-_ZEILE = re.compile(
-    r"^\s*VORSCHLAG\s+"
-    # ``FRAGEN WEICH`` steht VOR ``FRAGEN``: eine Alternation nimmt die
-    # erste passende, und ``FRAGEN`` allein wuerde die weichen Fassungen als
-    # neue Frageliste verbuchen. ``EIGENE FRAGEN`` (Aufgabe 13) braucht
-    # dieselbe Vorsicht NICHT: es beginnt mit dem eigenen Wort "EIGENE" und
-    # teilt mit ``FRAGEN``/``FRAGE``/``FRAGENAUSWAHL``/``FRAGEN WEICH`` kein
-    # gemeinsames Praefix nach "VORSCHLAG " -- keine Reihenfolge-Falle,
-    # steht hier trotzdem lesbar neben den anderen FRAGEN*-Varianten.
+#: Die Artenliste als Regex-Alternation -- einmal benannt, damit die
+#: Erkennung am Zeilenanfang (``_ZEILE``) und die Suche mitten in der Zeile
+#: (``_MARKER_IRGENDWO``, P2-M4) niemals auseinanderlaufen.
+#:
+#: ``FRAGEN WEICH`` steht VOR ``FRAGEN``: eine Alternation nimmt die erste
+#: passende, und ``FRAGEN`` allein wuerde die weichen Fassungen als neue
+#: Frageliste verbuchen. ``EIGENE FRAGEN`` (Aufgabe 13) braucht dieselbe
+#: Vorsicht NICHT: es beginnt mit dem eigenen Wort "EIGENE" und teilt mit
+#: ``FRAGEN``/``FRAGE``/``FRAGENAUSWAHL``/``FRAGEN WEICH`` kein gemeinsames
+#: Praefix nach "VORSCHLAG " -- keine Reihenfolge-Falle, steht hier trotzdem
+#: lesbar neben den anderen FRAGEN*-Varianten.
+_ARTEN_MUSTER = (
     r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN\s+WEICH|EIGENE\s+FRAGEN|FRAGEN|FRAGE"
     r"|KERNTHEMA|KERNFRAGE"
     r"|FIGUREN|RICHTUNGEN"
     r"|NAMEN|DUKTUS|RAHMEN"
     r"|SZENENFOLGE|GESCHICHTE|SZENE|EINLEITUNGEN|EROEFFNUNG|STIL)"
-    r"\s*:\s*(.*)$",
+)
+
+#: Dekorationszeichen, die ein Modell um die Markerzeile legen kann:
+#: Markdown fett/kursiv (``*``/``_``), eine Ueberschrift (``#``), ein
+#: Zitatpfeil (``>``) oder ein Aufzaehlungszeichen -- sie gehoeren nicht zum
+#: Marker selbst, werden aber toleriert UND mitentfernt (sonst bliebe z. B.
+#: "**" im Chattext stehen, P2-M4, Prompt-Check 05.10.2026).
+_DEKO = r"[*_#>•\-]*"
+
+_ZEILE = re.compile(
+    r"^\s*" + _DEKO + r"\s*VORSCHLAG\s+" + _ARTEN_MUSTER +
+    r"\s*:\s*" + _DEKO + r"\s*(.*)$",
     re.IGNORECASE,
 )
+
+#: Findet den Marker IRGENDWO in einer Zeile, nicht nur am Anfang -- ein
+#: Modell schreibt ihn gelegentlich mitten im Fliesstext ("Thanks, that's
+#: clear. VORSCHLAG EIGENE FRAGEN: ...") statt als eigene Zeile. Treffer bei
+#: Position 0 heissen "steht ohnehin schon am Zeilenanfang" (``_ZEILE``
+#: greift direkt); ein Treffer dahinter zerlegt die Zeile vorher
+#: (``_vorzeilen``) in Fliesstext + Markerzeile.
+_MARKER_IRGENDWO = re.compile(
+    r"\s*" + _DEKO + r"\s*VORSCHLAG\s+" + _ARTEN_MUSTER + r"\s*:",
+    re.IGNORECASE,
+)
+
+
+def _vorzeilen(text: str) -> list[str]:
+    """Wie ``(text or '').splitlines()``, aber ein Marker, der nicht schon
+    am Zeilenanfang steht, bekommt seine eigene Zeile (P2-M4): der Text
+    davor bleibt als eigene Fliesstextzeile stehen, der Rest ab dem Marker
+    wird zu einer neuen Zeile -- danach sieht ``_ZEILE`` ausschliesslich
+    Zeilen, die entweder sauber mit dem Marker beginnen oder gar keinen
+    tragen, egal wie das Modell die Zeile im Original gemischt hat."""
+    ergebnis: list[str] = []
+    for roh in (text or "").splitlines():
+        treffer = _MARKER_IRGENDWO.search(roh)
+        if treffer is None or treffer.start() == 0:
+            ergebnis.append(roh)
+            continue
+        vor = roh[: treffer.start()]
+        if vor.strip():
+            ergebnis.append(vor)
+        ergebnis.append(roh[treffer.start():])
+    return ergebnis
 
 
 def marker(art: str) -> str:
@@ -139,7 +184,7 @@ def _zerlege(text: str) -> dict[str, str]:
     zuletzt gemeint hat.
     """
     gefunden: dict[str, str] = {}
-    zeilen = (text or "").splitlines()
+    zeilen = _vorzeilen(text)
     i = 0
     while i < len(zeilen):
         treffer = _ZEILE.match(zeilen[i])
@@ -215,7 +260,7 @@ def ohne_marker(text: str) -> str:
     Fliesstextzeile, die wortgleich (nach Whitespace/Kleinschreibung) auch im
     Blockinhalt steht, wird deshalb aus dem Fliesstext gestrichen; der Block
     behaelt sie, denn er ist die Fassung, ueber die die Gruppe entscheidet."""
-    roh = (text or "").splitlines()
+    roh = _vorzeilen(text)
     im_block: set[str] = set()
     aktiv = False
     for z in roh:
@@ -259,7 +304,7 @@ def ohne_block(text: str, *arten: str) -> str:
     Ueberall sonst gilt weiter ``ohne_marker``: der Vorschlag ist das,
     worueber die Gruppe entscheidet, und er muss lesbar dastehen.
     """
-    zeilen = (text or "").splitlines()
+    zeilen = _vorzeilen(text)
     ergebnis: list[str] = []
     i = 0
     while i < len(zeilen):
@@ -383,4 +428,20 @@ def enthaelt_block(text: str | None) -> bool:
     Antwort mit Vorschlagsblock traegt einen Wert und wird nie als
     Wiederholung verworfen -- auch wenn sie dem vorigen Vorschlag aehnelt
     (eine Ueberarbeitung tut das immer)."""
-    return any(_ZEILE.match(z) is not None for z in (text or "").splitlines())
+    return any(_ZEILE.match(z) is not None for z in _vorzeilen(text))
+
+
+def ohne_bloecke(text: str) -> str:
+    """Der Fliesstext ohne JEDEN Vorschlagsblock -- Markerzeile UND Inhalt,
+    gleich welcher Art.
+
+    Anders als ``ohne_marker`` (der den Blockinhalt fuer die Gruppe behaelt)
+    ist das hier fuer eine einzige interne Pruefung gedacht: die
+    Echo-Sperre (``ablauf.ist_echo``, P2-M9, Prompt-Check 05.10.2026). In
+    Phase 2 steht die diktierte Frage der Gruppe zwingend auch im Block
+    ``VORSCHLAG EIGENE FRAGEN:`` (Format ``Begriff: Frage``) -- gegen den
+    unveraenderten Text gemessen, loeste das einen Fehlalarm aus ("der Bot
+    zitiert die Gruppe") und einen unnoetigen zweiten Modellaufruf. Ein
+    echtes Echo im sichtbaren Fliesstext bleibt dagegen erkennbar: nur der
+    Block faellt weg, der Rest der Antwort bleibt unangetastet."""
+    return ohne_block(text, *ARTEN)

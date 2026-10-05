@@ -823,8 +823,15 @@ def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
 
     Scheitert der zweite Aufruf, gilt der erste: eine schwache Antwort ist
     besser als 'Bei mir hakt gerade etwas' -- die Gruppe wartet, und der
-    Fehler waere hier ein selbstgemachter."""
-    if not ist_echo(antwort, offen):
+    Fehler waere hier ein selbstgemachter.
+
+    Geprueft wird der Text OHNE Vorschlagsbloecke (P2-M9, Prompt-Check
+    05.10.2026): in Phase 2 steht die diktierte Frage der Gruppe zwingend
+    auch im Block ``VORSCHLAG EIGENE FRAGEN:`` (Format ``Begriff: Frage``)
+    -- gegen den unveraenderten Text gemessen, war das ein Fehlalarm bei
+    jeder diktierten Frage. Ein echtes Echo im sichtbaren Fliesstext bleibt
+    weiter erkennbar, denn ``vorschlag.ohne_bloecke`` laesst ihn stehen."""
+    if not ist_echo(vorschlag.ohne_bloecke(antwort), offen):
         return antwort
     repo.merke_vorfall(
         conn, chat_id, getattr(e, "bot_name", None), "echo_verworfen",
@@ -866,7 +873,7 @@ def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
                     "fehlgeschlagen, chat_id=%s", chat_id,
                 )
         return antwort
-    if ist_echo(zweite, offen):
+    if ist_echo(vorschlag.ohne_bloecke(zweite), offen):
         repo.merke_vorfall(
             conn, chat_id, getattr(e, "bot_name", None), "echo_wiederholt",
             "Auch der zweite Anlauf war ein Zitat -- trotzdem gesendet",

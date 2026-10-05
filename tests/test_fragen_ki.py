@@ -405,3 +405,37 @@ def test_ein_gescheiterter_lauf_erlaubt_einen_retry(conn, einst):
         lambda: _feld(conn, CHAT, "fragen_ki_vorschlag")
     )
     assert klm.aufrufe == 1
+
+
+# --- Review T2 (e1d8f47) ----------------------------------------------------
+
+
+def test_starte_liest_den_vorschlag_nach_der_sperre_neu(conn, einst, monkeypatch):
+    """Race: ein anderer Lauf schreibt den Vorschlag zwischen Lesen und
+    Sperre -- dann kein zweiter (bezahlter) Modellaufruf."""
+    _setze_begriffe(conn)
+    echt = fragen_ki.versuche_start
+
+    def _versuche_start_mit_fremdem_lauf(chat_id):
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_ki_vorschlag", "Heimat: Fremd?")
+        return echt(chat_id)
+
+    monkeypatch.setattr(fragen_ki, "versuche_start", _versuche_start_mit_fremdem_lauf)
+    klm = _KLM()
+    assert fragen_ki.starte(conn, _TG(), klm, einst, CHAT) is False
+    time.sleep(0.05)
+    assert klm.aufrufe == 0
+    monkeypatch.setattr(fragen_ki, "versuche_start", echt)
+    assert fragen_ki.versuche_start(CHAT) is True  # Sperre wieder frei
+    fragen_ki.beende(CHAT)
+
+
+def test_unbrauchbarer_vorschlag_ohne_fragezeile_wird_neu_erzeugt(conn, einst):
+    """Ein Vorschlag ohne eine einzige Zeile ist kein Ergebnis: sonst
+    offenbart nichts, und ``starte`` verweigerte jeden neuen Lauf."""
+    _setze_begriffe(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_ki_vorschlag", "-\n*")
+    klm = _KLM()
+    assert fragen_ki.starte(conn, _TG(), klm, einst, CHAT) is True
+    _warte_bis(lambda: "Heimat" in (_feld(conn, CHAT, "fragen_ki_vorschlag") or ""))
+    assert klm.aufrufe == 1

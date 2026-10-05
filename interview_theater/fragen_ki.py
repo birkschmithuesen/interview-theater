@@ -139,6 +139,18 @@ def _melde_fehler(conn, e, chat_id: int, detail: str) -> None:
         )
 
 
+def _hat_vorschlag(stand) -> bool:
+    """Steht ein brauchbarer KI-Vorschlag? Ein Feld ohne eine einzige
+    Fragezeile (``vorschlag.zeilen`` leer) zaehlt nicht: aus ihm entsteht
+    keine Gegenueberstellung, und ohne neuen Lauf bliebe die Gruppe in der
+    Wartezeile haengen (Review T2)."""
+    from interview_theater import vorschlag
+
+    if stand is None:
+        return False
+    return bool(vorschlag.zeilen(stand["fragen_ki_vorschlag"] or ""))
+
+
 def starte(conn, tg, klm, e, chat_id: int) -> bool:
     """Stoesst den EINEN isolierten KI-Fragen-Lauf dieser Gruppe an.
 
@@ -161,10 +173,16 @@ def starte(conn, tg, klm, e, chat_id: int) -> bool:
         return False
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
-    if stand is not None and stand["fragen_ki_vorschlag"]:
+    if _hat_vorschlag(stand):
         return False
 
     if not versuche_start(chat_id):
+        return False
+    # Review T2: zwischen Lesen und Sperre kann ein anderer Lauf fertig
+    # geworden sein -- nach der Sperre neu lesen, sonst zahlt ein zweiter.
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if _hat_vorschlag(stand):
+        beende(chat_id)
         return False
 
     begriffe_feld = stand["begriffe"] if stand is not None else None

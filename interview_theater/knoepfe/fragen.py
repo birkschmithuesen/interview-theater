@@ -336,11 +336,15 @@ def _finde_begriff(kopf: str, begriffe: list[str]) -> str | None:
     form = _kopfform(kopf)
     if not form:
         return None
-    treffer = [b for b in begriffe if _gleich(form, _kopfform(b))]
+    # Genaue Gleichheit vor Plural: bei "robot" UND "robots" gehoert
+    # "Robot:" zu "robot".
+    treffer = ([b for b in begriffe if form == _kopfform(b)]
+               or [b for b in begriffe if _gleich(form, _kopfform(b))])
     if not treffer:
         ohne_klammer = _kopfform(re.sub(r"\s*[(\[].*$", "", form))
         if ohne_klammer and ohne_klammer != form:
-            treffer = [b for b in begriffe if _gleich(ohne_klammer, _kopfform(b))]
+            treffer = ([b for b in begriffe if ohne_klammer == _kopfform(b)]
+                       or [b for b in begriffe if _gleich(ohne_klammer, _kopfform(b))])
     if not treffer:
         return None
     return max(treffer, key=len)
@@ -362,9 +366,9 @@ def _teile_zeile(zeile: str, begriffe: list[str]) -> tuple[str | None, str]:
 
 def _ist_fortsetzung(zeile: str, vorige: str) -> bool:
     """Eine umbrochene Frage (das Beispiel im Prompt ist selbst umbrochen):
-    die vorige Zeile endet nicht mit einem Satzzeichen, oder diese beginnt
-    klein."""
-    return bool(zeile) and (zeile[0].islower() or vorige.rstrip()[-1:] not in ".?!…")
+    die vorige Zeile endet nicht mit einem Satzzeichen UND diese beginnt
+    klein -- eine Aufzaehlung unpunktierter Fragen bleibt getrennt."""
+    return bool(zeile) and zeile[0].islower() and vorige.rstrip()[-1:] not in ".?!…"
 
 
 def _hat_fremden_kopf(zeile: str) -> bool:
@@ -402,12 +406,15 @@ def _ordne_zeilen(begriffe: list[str], zeilen: list[str]
         if begriff is None and _finde_begriff(zeile, begriffe) is not None:
             begriff, frage = _finde_begriff(zeile, begriffe), ""
         if begriff is not None:
-            aktuell = begriff
             if frage:
                 je_begriff[begriff].append(f"{begriff}: {frage}")
                 letzte = je_begriff[begriff]
+                # Nur eine Zwischenueberschrift nimmt kopflose Zeilen auf;
+                # nach "Begriff: Frage" gehoert eine kopflose Zeile niemandem.
+                aktuell = None
             else:
-                letzte = None  # Zwischenueberschrift
+                aktuell = begriff  # Zwischenueberschrift
+                letzte = None
             continue
         if letzte and _ist_fortsetzung(zeile, letzte[-1]):
             letzte[-1] = f"{letzte[-1]} {zeile}"

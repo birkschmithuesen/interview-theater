@@ -154,7 +154,7 @@ Je eine Zeile; Begründung und Geschichte stehen in der genannten Datei.
 - **Erkenner-Prompt-Änderung gilt nur mit FP = 0** im Korpuslauf; der Lauf kostet Geld und läuft nie automatisch. → `korpus-und-simulation.md`
 - **Kein CSS-Kommentar direkt vor einer Regel** in `_BUEHNE` (`web_gestalt.css_buehne`): `web_vereint.scope_css` reißt sonst das Scope-Präfix ab. → `aufbau.md`
 - **CSP:** kein `style="…"`-Attribut, kein `on…=`-Handler, kein Webfont; dynamische Werte über CSSOM. → `weboberflaeche.md`
-- **Live-Dienste** (`interview-theater@*`, `interview-theater-*-web`) **nie starten, stoppen oder neu starten aus einem Arbeitsauftrag.**
+- **Live-Dienste** (`interview-theater*`) **nie starten, stoppen oder neu starten aus einem Arbeitsauftrag.**
 
 ## Starten und testen
 

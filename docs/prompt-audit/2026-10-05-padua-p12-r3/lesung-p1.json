@@ -1,0 +1,128 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 463,
+    "zitat": "automatically: after \"Discussion done\" a message lists the top five as",
+    "regel": "Nutzerteil derselben Datei, Zeile 541: \"Terms: arrival, waiting, strangers, noise, belonging, home, trust, family, the city at night\" -- neun gespeicherte Begriffe, und die Gruppe fragt im \"Now\" genau danach (\"can we keep nine terms or is that too many?\")",
+    "vorschlag": "In Zeile 463 \"the top five\" streichen: \"a message lists the saved terms as they stand and asks whether to move on or change something\". So kann der Bot nicht behaupten, es seien nur fuenf gespeichert, und muss keine Zahl vorgeben (UX-Regel 1: \"The bot asks, never proposes a count\").",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 489,
+    "zitat": "**Ask first, then suggest -- and only ever ONE question per message.**",
+    "regel": "Zeilen 473-477 derselben Phasenbeschreibung: \"output the complete corrected list, most important first, as a suggestion block (see below). It is saved automatically. Don't comment, no associations, no question at the end.\"",
+    "vorschlag": "Den Absatz Zeile 489-496 in der Phase-1-Beschreibung ganz loeschen. Er ist die generische Regel aus Zeile 115-126 und verlangt in der Begriffsphase Rueckfrage plus \"two to three options (title — description each)\", was der Phasenregel \"no question at the end\" und dem Begriffsblock (eine Zeile, Kommas) direkt widerspricht.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 115,
+    "zitat": "**You ask first, you suggest afterwards.** In EVERY phase: ONE open",
+    "regel": "UX-Regel 4 \"Less is more\": \"No mandatory question per thought: that is „wieder so 'n Zwang“ and feels „gekuenstelt“. The bot may say nothing (`NICHTS`).\" -- und Zeile 536 derselben Datei: \"only when it helps -- never as a closing line\"",
+    "vorschlag": "Zeile 115-116 umschreiben auf: \"You suggest only from what the group has said. If something is genuinely unclear, ask one open question first -- otherwise ask nothing.\" Das Wort \"EVERY phase\" streichen, damit die Hoerphase (Zeile 470: \"say nothing at all\") nicht ausgenommen werden muss.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 504,
+    "zitat": "- **Don't ask what comes next.** After the terms come",
+    "regel": "Zeile 80 derselben Datei: \"contradict the group by pointing to an order -- there is none it would\" (vollstaendig: \"Never contradict the group by pointing to an order -- there is none it would have to keep to.\"), und Zeile 11: \"not an order you enforce\"",
+    "vorschlag": "In Zeile 504-507 die Begruendung streichen und nur behalten: \"Don't ask what comes next -- the group steers that itself.\" Die Saetze \"the questions, then the interviews -- in that order, because the group needs the questions to be able to go out and do interviews. Never offer that as a choice.\" loeschen; sie machen aus der Landkarte eine Pflichtreihenfolge.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 526,
+    "zitat": "It is saved automatically; without a block nothing is saved. Repeat the",
+    "regel": "UX-Regel 1: \"**Bot proposals are never saved as decisions.** Only what the group said or confirmed is saved.\" -- in Verbindung mit Zeile 141 \"if you suggest terms, questions, a core theme or characters, attach the suggestion at the END of your message\" und Zeile 494 \"only when they explicitly say \"you suggest\" do you lay out three options\"",
+    "vorschlag": "Hinter Zeile 526 einen Satz einfuegen: \"Only wording the group itself said or confirmed goes into a BEGRIFFE block. Terms you thought up yourself stay in the text of your message and are never put in the block.\" Damit wird kein Bot-Vorschlag per Autosave zur Entscheidung.",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 51,
+    "zitat": "plain headers you should recognise: \"From your term discussion:\" is what",
+    "regel": "Im Nutzerteil derselben Datei existiert dieser Header nicht; dort steht Zeile 555: \"What the group said while you listened in (discussion/brainstorm, oldest first, very old parts may be missing):\"",
+    "vorschlag": "In Zeile 51 den toten Header-Namen ersetzen: \"\\\"What the group said while you listened in:\\\" is what the group said out loud while discussing their terms\". Sonst sucht das Modell nach einer Ueberschrift, die nicht geliefert wird.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 386,
+    "zitat": "sentences: recordings, interviews and names stay in Switzerland; the core theme,",
+    "regel": "Kopfzeilen der Phase-1-Aufrufe, die genau dieses Mitschnitt-Transkript verarbeiten: 13-begriffsboard Zeile 2 \"# art=begriffsboard phase=1 weg=claude modell=claude-opus-5 quelle=abgefangen\" und 14-diskussion-verdichtung Zeile 2 (ebenfalls claude-opus-5)",
+    "vorschlag": "Entweder Begriffsboard und Verdichtung auf das souveraene Modell legen (UX-Regel 8) oder Zeile 386 korrigieren auf \"the interview recordings and names stay in Switzerland; the term discussion, the core theme, characters with quotes and scene details go to a US server\". So wie es steht, laesst der Prompt den Bot eine falsche Auskunft geben.",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 282,
+    "zitat": "`/character`, `/scene`, `/interview` and `/done` (older names for",
+    "regel": "Zeile 285 derselben Datei: \"**You don't name any slash commands in your answers.**\" -- die vier Altnamen sind in keinem der hier gegebenen Prompts als Mechanik beschrieben, nur als \"older names\"",
+    "vorschlag": "Zeilen 280-283 komplett loeschen. Die Altnamen kosten Kontext in jeder Phase-1-Nachricht und koennen nur dazu fuehren, dass der Bot abgeloeste Befehle nennt.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 128,
+    "zitat": "exactly one open question -- either just the question, or two to four",
+    "regel": "Zeile 96 derselben Datei: \"offer choices, two to three options to choose from (see below)\" und Zeile 117: \"you take what they said and flesh it out into **two to three options**\"",
+    "vorschlag": "In Zeile 128 \"two to four\" auf \"two to three\" aendern, damit ueberall dieselbe Zahl steht.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 547,
+    "zitat": "Why you chose these terms:",
+    "regel": "Dieselbe Information steht im Nutzerteil dreimal: Zeile 548 \"- waiting (double meaning: empty time and what fills it)\", Zeile 561 \"- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.\" und Zeile 578 \"You: Then 'waiting' carries two meanings for you: the empty time, and what fills it.\"",
+    "vorschlag": "Den Journal-Eintrag zu 'waiting' nicht mehr ausspielen, wenn derselbe Grund schon unter \"Why you chose these terms\" steht (Dedupe nach Begriff). Zusaetzlich: der Block nennt Gruende fuer 2 von 9 Begriffen, der Systemteil behauptet Zeile 53 \"the one-sentence reason the group gave for each term\" -- dort \"for each term\" streichen oder die restlichen Begriffe mit \"(no reason given)\" auflisten.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 551,
+    "zitat": "The CoThinker board -- the terms the group sees live on the second phone, ranked (the saved terms are the ones under Terms above). Refer to it; take changes (a misheard term, a different order, a missing term) in the chat:",
+    "regel": "Arbeitsstand muss vollstaendig und eindeutig sein; hier zeigt das Board 2 Eintraege (Zeile 552-553), die gespeicherte Liste 9 (Zeile 541) -- und die Gruppe fragt im \"Now\" nach der Zahl",
+    "vorschlag": "Entweder das vollstaendige Board ausspielen oder den Header auf \"the two top-ranked terms on the board right now\" aendern und darunter \"9 terms saved\" setzen, damit der Bot nicht aus einem 2-Zeilen-Board auf die Begriffszahl schliesst.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 563,
+    "zitat": "You: Then you see the CoThinker tab. Nothing is lost if you close it.",
+    "regel": "Kontextstruktur: die History beginnt mitten im Gespraech mit einer Bot-Zeile, und die ersten vier Wechsel (Zeile 563-570) sind abgeschlossener Meta-Smalltalk (Tab, Sprache, Workshoptage), waehrend die Begriffsdiskussion erst ab Zeile 573 beginnt",
+    "vorschlag": "Den Schnitt der History am Themenwechsel setzen: ab Zeile 571 (\"Member 1: ok can we go on\") beginnen und die Zeilen 563-570 weglassen; oder erledigte Bedienfragen aus der History filtern, damit die freien Token bei den Begriffen liegen.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 560,
+    "zitat": "Journal:",
+    "regel": "Reihenfolge Kontext -> Status -> History -> \"Now\": das Journal ist Status, steht aber hinter Board und Mitschnitt-Transkript, also zwischen Material und Chatverlauf",
+    "vorschlag": "Den Journal-Block direkt unter \"Further agreements of the group\" (nach Zeile 546) schieben, so dass die Ordnung lautet: Progress/Agreements/Journal -> Why-Block + Board + Mitschnitt (Material) -> Chatverlauf -> \"Now\" -> Reminder.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 545,
+    "zitat": "- [stil] At most one page per scene from now on.",
+    "regel": "Statuszeilen muessen eindeutig benannt sein; hier steht ein deutsches Label neben dem englischen \"[form]\" (Zeile 544) im sonst englischen Prompt",
+    "vorschlag": "Label umbenennen in \"[style]\" (und alle weiteren Labels auf Englisch ziehen), damit der Bot die Kategorie nicht als Begriff der Gruppe missversteht.",
+    "phase": 1
+  }
+]

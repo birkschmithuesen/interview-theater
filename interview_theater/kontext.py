@@ -1533,7 +1533,10 @@ def _baue_erstkontakt(conn, chat_id: int, e, rueckkehr: bool = False) -> str:
             T.ERSTKONTAKT_DISKUSSION_ANLASS_RUECKKEHR if rueckkehr
             else T.ERSTKONTAKT_DISKUSSION_ANLASS_ERSTE
         )
-        return T.ERSTKONTAKT_DISKUSSION.format(anlass=anlass, link=link)
+        # Birk, Live-Test 05.10.2026: die Phase-1-Begruessung mit Mithoeren
+        # nennt die Gruppenseite nicht (wie ``bot.erstkontakt``) -- sie
+        # endet mit "Start listening" fuer den Raumcheck.
+        return T.ERSTKONTAKT_DISKUSSION.format(anlass=anlass, link="")
     anlass = T.ERSTKONTAKT_ANLASS_RUECKKEHR if rueckkehr else T.ERSTKONTAKT_ANLASS_ERSTE
     return T.ERSTKONTAKT.format(anlass=anlass, link=link)
 

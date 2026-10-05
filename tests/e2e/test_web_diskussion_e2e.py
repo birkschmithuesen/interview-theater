@@ -459,11 +459,18 @@ def test_diskussion_voller_ablauf_im_browser(lauf, seite):
     seite.fill("#eingabe", "Hallo, wir sind da!")
     seite.click("#senden")
     expect(seite.locator(".blase.bot").first).to_contain_text(text_diskussion_an)
+    # Die Antwort auf "Hallo" abwarten, bevor gezaehlt wird: seit dem
+    # versteckten /start (P1-2) steht die feste Begruessung schon beim
+    # Seitenaufruf da, die Modellantwort kommt danach.
+    expect(seite.locator(".blase.bot").filter(has_text="Great to have you here").first
+           ).to_be_visible(timeout=GEDULD_MS)
 
-    # Karte t_4517d4ad (D10): hinter der Begruessung steht der Einstiegssatz.
+    # Seit 05.10.2026 (Birk, Live-Test) erklaert die Begruessung die zwei
+    # Handys selbst -- der Einstiegssatz aus Karte t_4517d4ad (D10) steht
+    # nicht mehr dahinter.
     expect(
-        seite.locator(".blase.bot").filter(has_text=begriffsboard.T._TEXT_EINSTIEG).first
-    ).to_be_visible(timeout=GEDULD_MS)
+        seite.locator(".blase.bot").filter(has_text=begriffsboard.T._TEXT_EINSTIEG)
+    ).to_have_count(0)
 
     # Die Begruessung fragt (noch) nicht nach den fuenf Begriffen -- das ist
     # erst die Aufforderung NACH "Discussion done".
@@ -507,10 +514,15 @@ def test_diskussion_voller_ablauf_im_browser(lauf, seite):
     seite.click("#diskussion-beenden")
     expect(seite.locator("#diskussion")).to_have_attribute("data-laeuft", "0")
 
-    fuenf_begriffe = seite.locator(".blase.bot").filter(has_text=text_fuenf_begriffe)
-    expect(fuenf_begriffe.first).to_be_visible(timeout=GEDULD_MS)
+    # Seit 05.10.2026 laeuft das Board am Ende-Schnitt immer; die Attrappe
+    # liefert hier ein leeres Board -> der Rueckfallsatz, nicht mehr
+    # "send me your five terms".
+    keine_begriffe = seite.locator(".blase.bot").filter(
+        has_text=aufnahme.T._TEXT_DISKUSSION_KEINE_BEGRIFFE)
+    expect(keine_begriffe.first).to_be_visible(timeout=GEDULD_MS)
+    assert seite.locator(".blase.bot").filter(has_text=text_fuenf_begriffe).count() == 0
 
-    # Genau EINE neue Bot-Blase ist dazugekommen -- die Fuenf-Begriffe-Zeile,
+    # Genau EINE neue Bot-Blase ist dazugekommen -- der Rueckfallsatz,
     # keine zweite (kein CoThinker-Vorschlag, keine Rueckfrage).
     assert seite.locator(".blase.bot").count() == bot_blasen_vor_start + 1
 
@@ -539,9 +551,8 @@ def test_begriffsboard_im_cothinker_und_top5_vorschlag(lauf, seite, monkeypatch)
     in ``tests/test_begriffsboard_mithoeren.py`` am echten ``aufnahme``-Pfad
     getestet."""
     _basis, _token, _pfad, klm = lauf
-    # Endstand = Zwischenstand (Birk 04.10.2026): der Ende-Schnitt laeuft
-    # unter derselben Regel wie ein Pausenschnitt -- die Schwelle dafuer ist
-    # die des Boards, hier auf ein Zeichen gesenkt.
+    # Seit 05.10.2026 laeuft der Ende-Schnitt bei jedem ungelesenen Rest,
+    # unabhaengig von dieser Schwelle (sie bleibt fuer Zwischenlaeufe).
     monkeypatch.setenv("IT_BEGRIFFSBOARD_MIN_ZEICHEN", "1")
     klm.board = [{
         "begriff": "ankamen", "nennungen": 2, "zustimmung": 2,
@@ -553,6 +564,8 @@ def test_begriffsboard_im_cothinker_und_top5_vorschlag(lauf, seite, monkeypatch)
     seite.fill("#eingabe", "Hallo, wir sind da!")
     seite.click("#senden")
     expect(seite.locator(".blase.bot").first).to_contain_text(web_chat.T._TEXT_DISKUSSION_AN)
+    expect(seite.locator(".blase.bot").filter(has_text="Great to have you here").first
+           ).to_be_visible(timeout=GEDULD_MS)
 
     seite.click("#diskussion")
     expect(seite.locator("#diskussion")).to_have_attribute("data-laeuft", "1")

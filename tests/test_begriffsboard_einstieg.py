@@ -85,14 +85,18 @@ def test_eintritt_ohne_profil_ohne_satz(conn, einst):
     assert begriffsboard.T._TEXT_EINSTIEG not in tg.gesendet
 
 
-def test_erste_antwort_einer_neuen_gruppe_bekommt_den_satz_dahinter(conn, einst, monkeypatch):
+def test_erste_antwort_einer_neuen_gruppe_ohne_satz_dahinter(conn, einst, monkeypatch):
+    """Bis 05.10.2026 folgte der Satz der ersten Antwort. Seit Birks
+    Live-Test erklaert die Begruessung die zwei Handys selbst
+    (``kontext.ERSTKONTAKT_DISKUSSION``) und endet mit "Start listening" --
+    der Satz kaeme doppelt und hinter dem Schluss."""
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
     monkeypatch.setattr(ablauf, "_erfrage_antwort", lambda *a, **k: "Willkommen!")
     repo.merke_nachricht(conn, CHAT, 1, "Gruppe", 0, "text", "Hallo", repo._jetzt())
     tg = _TG()
     ablauf.antworte(conn, tg, object(), einst, CHAT, list(repo.unbeantwortete(conn, CHAT)))
-    assert tg.gesendet[-1] == begriffsboard.T._TEXT_EINSTIEG
-    assert any("Willkommen!" in t for t in tg.gesendet[:-1])
+    assert begriffsboard.T._TEXT_EINSTIEG not in tg.gesendet
+    assert any("Willkommen!" in t for t in tg.gesendet)
 
 
 def test_zweite_antwort_ohne_satz(conn, einst, monkeypatch):

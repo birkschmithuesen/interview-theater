@@ -335,12 +335,6 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         # zur Antwort laeuft jeder Gespraechszug auf Kimi
         # (``modellwahl.konversation_ueber_claude``).
         _biete_modellwahl_wenn_faellig(conn, tg, e, chat_id)
-        # Karte t_4517d4ad (D10): der deterministische Einstiegssatz zum
-        # Mithoeren -- vor dem modellgeschriebenen Einstieg, der im Thread
-        # laeuft. Ohne Profil ``diskussion.aktiv`` sendet er nichts.
-        from interview_theater import begriffsboard
-
-        begriffsboard.sende_einstieg(conn, tg, e, chat_id)
     if nummer == PHASE_SETTING:
         # Sicherheitsnetz fuer Gruppen, die den Eintritt in Phase 1 schon vor
         # diesem Umbau durchlaufen haben (``angebot_faellig`` liefert dann
@@ -359,6 +353,15 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
             conn, tg, klm, e, chat_id, kontext.einstieg_begriffe(conn, chat_id, e),
         ):
             return
+    if nummer == PHASE_BEGRIFFE:
+        # Karte t_4517d4ad (D10): der deterministische Einstiegssatz zum
+        # Mithoeren -- seit 05.10.2026 (Birk, Live-Test) nur noch ohne den
+        # modellgeschriebenen Einstieg: der erklaert die zwei Handys selbst
+        # (``kontext.ERSTKONTAKT_DISKUSSION``), der Satz kaeme sonst doppelt.
+        # Ohne Profil ``diskussion.aktiv`` sendet er nichts.
+        from interview_theater import begriffsboard
+
+        begriffsboard.sende_einstieg(conn, tg, e, chat_id)
     if nummer == PHASE_SETTING and klm is not None:
         # Padua-Brainstorming-Umbau (02.10.2026): derselbe Mechanismus wie
         # oben fuer Phase 1 -- kein fester Text, eine Anweisung, das Modell

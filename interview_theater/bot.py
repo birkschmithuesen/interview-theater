@@ -298,9 +298,11 @@ def erstkontakt(conn, tg, e, chat_id: int) -> None:
     # Phase 1 (Begriffe) ist der Regelfall beim Erstkontakt: dann sagt die
     # Begruessung, dass jetzt die Begriffsliste aus dem Plenum kommt, und
     # nicht, wie man eine Aufnahme startet (05.09.2026).
+    mit_diskussion = False
     if phasen.aktuelle(conn, chat_id) >= knoepfe.PHASE_INTERVIEWS:
         vorlage = T._TEXT_ERSTKONTAKT
     elif workshop.diskussion_aktiv():
+        mit_diskussion = True
         # Abnahme P1-2 (04.10.2026): kein Plenum, keine Wand -- die Gruppe
         # legt das Handy in die Mitte und bespricht live (siehe Konstante).
         vorlage = T._TEXT_ERSTKONTAKT_DISKUSSION
@@ -311,11 +313,19 @@ def erstkontakt(conn, tg, e, chat_id: int) -> None:
     else:
         vorlage = T._TEXT_ERSTKONTAKT_BEGRIFFE
     text = vorlage.format(bot_name=e.bot_name)
-    url = stelle_link_sicher(conn, e, chat_id)
+    # Padua (Birk, Live-Test 05.10.2026): die Phase-1-Begruessung mit
+    # Mithoeren traegt KEINE Gruppenseiten-Zeile und KEINE Abkuerzungs-
+    # Knoepfe -- sie endet mit dem einen Schritt, der jetzt dran ist
+    # ("Start listening" fuer den Raumcheck). Das Handy hat den Link ja
+    # schon offen; ein zweites Handy oeffnet denselben.
+    url = None if mit_diskussion else stelle_link_sicher(conn, e, chat_id)
     if url:
         text += T._TEXT_GRUPPENSEITE.format(url=url)
     try:
-        message_id = knoepfe.biete_einstieg(conn, tg, chat_id, text)
+        if mit_diskussion:
+            message_id = tg.sende(chat_id, text)
+        else:
+            message_id = knoepfe.biete_einstieg(conn, tg, chat_id, text)
         repo.merke_nachricht(
             conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),
         )

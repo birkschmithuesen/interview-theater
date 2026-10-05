@@ -353,6 +353,10 @@ def server(token):
         # tests/e2e/test_web_chat_vad_e2e.py ueber eine gefaelschte
         # Analyser-Antwort statt des echten Tons.
         "IT_WEB_VAD_MAX_MS": str(SEGMENT_MS),
+        # Weicher Deckel (Nachtfix 05.10.2026): ohne Einbruch schnitte der
+        # Dauerton erst bei MAX_MS + CAP_NACHLAUF_MS (Vorgabe 30 s) -- 1 ms
+        # Nachlauf macht daraus wieder den harten Deckel bei SEGMENT_MS.
+        "IT_WEB_VAD_CAP_NACHLAUF_MS": "1",
         # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
         # diese Datei prueft die Segment-/Warteschlangen-Mechanik, nicht
         # die Kalibrierung davor -- ohne den Schalter wuerde jeder

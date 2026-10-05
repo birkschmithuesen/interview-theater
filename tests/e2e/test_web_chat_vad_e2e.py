@@ -60,6 +60,9 @@ GEDULD = 8000
 PAUSE_MS = 700
 MAX_MS = 6000
 MIN_SPEECH_MS = 200
+#: Weicher Deckel (Nachtfix 05.10.2026), im Betrieb 300/30000.
+DIP_MS = 300
+CAP_NACHLAUF_MS = 4000
 
 
 def _freier_port() -> int:
@@ -116,6 +119,17 @@ def setze_modus(an: bool) -> None:
         conn.close()
 
 
+def _schnittgruende() -> list:
+    conn = db.verbinde(DB_PFAD)
+    try:
+        return [z[0] for z in conn.execute(
+            "SELECT schnittgrund FROM web_post WHERE chat_id = ? AND typ = 'sprache' "
+            "ORDER BY id", (CHAT,),
+        ).fetchall()]
+    finally:
+        conn.close()
+
+
 def _zaehle_sprachnachrichten() -> int:
     conn = db.verbinde(DB_PFAD)
     try:
@@ -141,6 +155,8 @@ def server(token):
         "IT_WEB_VAD_PAUSE_MS": str(PAUSE_MS),
         "IT_WEB_VAD_MAX_MS": str(MAX_MS),
         "IT_WEB_VAD_MIN_SPEECH_MS": str(MIN_SPEECH_MS),
+        "IT_WEB_VAD_DIP_MS": str(DIP_MS),
+        "IT_WEB_VAD_CAP_NACHLAUF_MS": str(CAP_NACHLAUF_MS),
         # Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
         # dieser Lauf prueft die Pausen-Schnitt-Entscheidung selbst, nicht
         # die Kalibrierung davor -- ohne den Schalter wuerde jeder
@@ -267,13 +283,52 @@ def test_keine_pause_unter_der_schwelle_schneidet_noch_nicht(seite):
 
 
 def test_harter_zeitdeckel_schneidet_auch_ohne_pause(seite):
-    """Durchgehende Rede ohne jede Pause -> der Zeitdeckel MAX_MS schneidet
-    trotzdem."""
+    """Durchgehende Rede ohne jede Pause und ohne Einbruch -> vor
+    MAX_MS + CAP_NACHLAUF_MS kein Schnitt (der weiche Deckel wartet auf einen
+    Einbruch), dann schneidet der harte Deckel trotzdem, als 'cap'."""
     seite.evaluate("window.__t.setzeRms(0.6)")
     vorher = _zaehle_sprachnachrichten()
     _starte(seite)
+    starts = seite.evaluate("window.__t.starts")
+    seite.wait_for_timeout(MAX_MS + CAP_NACHLAUF_MS - 1000)
+    assert seite.evaluate("window.__t.starts") == starts   # noch kein Schnitt
     assert _warte(seite, lambda: _zaehle_sprachnachrichten() > vorher,
-                  ms=MAX_MS + 3000)
+                  ms=3000 + 3000)
+    assert _schnittgruende()[vorher] == "cap"
+    seite.click("#interview-beenden")
+
+
+def test_weicher_deckel_schneidet_im_ersten_einbruch_nach_max(seite):
+    """Nach MAX_MS schneidet der erste Einbruch von DIP_MS unter der
+    Schwelle -- nicht erst der harte Deckel -- und heisst 'cap'."""
+    seite.evaluate("window.__t.setzeRms(0.6)")
+    vorher = _zaehle_sprachnachrichten()
+    _starte(seite)
+    starts = seite.evaluate("window.__t.starts")
+    seite.wait_for_timeout(MAX_MS + 500)
+    assert seite.evaluate("window.__t.starts") == starts   # Rede: noch kein Schnitt
+    seite.evaluate("window.__t.setzeRms(0.0)")
+    seite.wait_for_timeout(DIP_MS + 100)
+    seite.evaluate("window.__t.setzeRms(0.6)")
+    # Der Schnitt faellt in den Einbruch: der Nachfolger laeuft schon.
+    assert _warte(seite, lambda: seite.evaluate("window.__t.starts") > starts, ms=500)
+    assert _warte(seite, lambda: _zaehle_sprachnachrichten() > vorher, ms=5000)
+    assert _schnittgruende()[vorher] == "cap"
+    seite.click("#interview-beenden")
+
+
+def test_ein_zu_kurzer_einbruch_nach_max_schneidet_nicht(seite):
+    """Ein Einbruch unter DIP_MS (hier 120 ms, zwei VAD-Takte) nach MAX_MS
+    ist kein Schnittpunkt -- es wird weiter auf einen echten gewartet."""
+    seite.evaluate("window.__t.setzeRms(0.6)")
+    _starte(seite)
+    starts = seite.evaluate("window.__t.starts")
+    seite.wait_for_timeout(MAX_MS + 500)
+    seite.evaluate("window.__t.setzeRms(0.0)")
+    seite.wait_for_timeout(120)
+    seite.evaluate("window.__t.setzeRms(0.6)")
+    seite.wait_for_timeout(800)
+    assert seite.evaluate("window.__t.starts") == starts
     seite.click("#interview-beenden")
 
 

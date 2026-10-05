@@ -56,11 +56,13 @@ def test_die_segmentlaenge_kommt_aus_der_umgebung(seite):
 def test_die_vad_werte_haben_vorgaben_ohne_umgebung(monkeypatch):
     for name in ("IT_WEB_VAD_PAUSE_MS", "IT_WEB_VAD_MAX_MS",
                  "IT_WEB_VAD_MIN_SPEECH_MS", "IT_WEB_VAD_RMS",
-                 "IT_WEB_VAD_FLOOR_FACTOR", "IT_WEB_VAD_KALIBRIERUNG"):
+                 "IT_WEB_VAD_FLOOR_FACTOR", "IT_WEB_VAD_KALIBRIERUNG",
+                 "IT_WEB_VAD_DIP_MS", "IT_WEB_VAD_CAP_NACHLAUF_MS"):
         monkeypatch.delenv(name, raising=False)
     assert web_chat._vad_werte() == {
         "pause_ms": 2500, "max_ms": 90_000, "min_speech_ms": 500,
         "rms": 0.01, "floor_faktor": 2.5, "kalibrierung": True,
+        "dip_ms": 300, "cap_nachlauf_ms": 30_000,
     }
 
 
@@ -71,9 +73,12 @@ def test_die_vad_werte_kommen_einzeln_aus_der_umgebung(monkeypatch):
     monkeypatch.setenv("IT_WEB_VAD_RMS", "0.02")
     monkeypatch.setenv("IT_WEB_VAD_FLOOR_FACTOR", "3.0")
     monkeypatch.setenv("IT_WEB_VAD_KALIBRIERUNG", "0")
+    monkeypatch.setenv("IT_WEB_VAD_DIP_MS", "250")
+    monkeypatch.setenv("IT_WEB_VAD_CAP_NACHLAUF_MS", "20000")
     assert web_chat._vad_werte() == {
         "pause_ms": 3000, "max_ms": 60000, "min_speech_ms": 400,
         "rms": 0.02, "floor_faktor": 3.0, "kalibrierung": False,
+        "dip_ms": 250, "cap_nachlauf_ms": 20000,
     }
 
 
@@ -104,6 +109,8 @@ def test_die_vad_attribute_stehen_am_fuss(seite):
     assert 'data-vad-rms="0.01"' in seite
     assert 'data-vad-floor-faktor="2.5"' in seite
     assert 'data-vad-kalibrierung="1"' in seite
+    assert 'data-vad-dip-ms="300"' in seite
+    assert 'data-vad-cap-nachlauf-ms="30000"' in seite
 
 
 def test_vad_ersetzt_den_festen_takt_mit_rueckfall():
@@ -114,10 +121,10 @@ def test_vad_ersetzt_den_festen_takt_mit_rueckfall():
     assert "getFloatTimeDomainData" in js
 
 
-def test_vad_liest_alle_fuenf_werte_aus_dem_fuss():
+def test_vad_liest_alle_sieben_werte_aus_dem_fuss():
     js = web_chat._CHAT_JS
     for attribut in ("vadPauseMs", "vadMaxMs", "vadMinSpeechMs", "vadRms",
-                     "vadFloorFaktor"):
+                     "vadFloorFaktor", "vadDipMs", "vadCapNachlaufMs"):
         assert f"fuss.dataset.{attribut}" in js, attribut
 
 
@@ -128,6 +135,52 @@ def test_kappe_schneidet_immer_pause_nur_mit_genug_rede():
     assert "schneideSegment(sitzung, 'cap')" in takt
     assert "schneideSegment(sitzung, 'pause')" in takt
     assert "sitzung.vadSpeechMs >= MIN_SPEECH_MS" in takt
+    # Weicher Deckel (Nachtfix 05.10.2026): die Entscheidung faellt in der
+    # reinen Funktion vadEntscheide, der Takt ruft sie.
+    assert "vadEntscheide(" in takt
+
+
+def test_der_weiche_deckel_verwendet_nur_bekannte_schnittgruende():
+    """Kein neuer Schnittgrund: der Server setzt alles ausser
+    'pause'/'cap'/'ende' still auf NULL, und das Begriffsboard der Phase 1
+    haengt an 'cap' (siehe ``begriffsboard.py``). Auch der weiche Deckel
+    (Einbruch nach MAX_MS) und der harte (MAX_MS + CAP_NACHLAUF_MS) sind
+    'cap'."""
+    js = web_chat._CHAT_JS
+    fn = _extrahiere(js, "function vadEntscheide", "function pegelAn")
+    assert "K.MAX_MS + K.CAP_NACHLAUF_MS" in fn
+    assert "alter >= K.MAX_MS && stille >= K.DIP_MS" in fn
+    gruende = set(re.findall(r"return '([a-z_]+)'", fn))
+    assert gruende == {"cap", "pause"}
+
+
+def test_vadentscheide_tabelle_live_in_node(tmp_path):
+    """Die Tabelle aus der Analyse (Betriebswerte: MAX 90 s, Nachlauf 30 s,
+    Einbruch 300 ms, Pause 2,5 s, Mindestrede 500 ms), WOERTLICH aus dem
+    ausgelieferten Skript ausgefuehrt."""
+    node = _node_oder_skip()
+    fn = _extrahiere(web_chat._CHAT_JS, "function vadEntscheide", "function pegelAn")
+    faelle = [
+        # (alter, stille, rede) -> erwartet
+        (89_000, 0, 60_000, None),        # vor MAX, Rede
+        (91_000, 120, 60_000, None),      # nach MAX, Einbruch zu kurz
+        (91_000, 300, 60_000, "cap"),     # nach MAX, erster Einbruch
+        (119_900, 0, 60_000, None),       # kurz vor hartem Deckel, Rede
+        (120_000, 0, 60_000, "cap"),      # harter Deckel mitten in der Rede
+        (40_000, 2500, 600, "pause"),     # Pause mit genug Rede
+        (40_000, 2500, 300, None),        # Pause mit zu wenig Rede
+    ]
+    quelltext = f"""
+    {fn}
+    var K = {{ MAX_MS: 90000, CAP_NACHLAUF_MS: 30000, DIP_MS: 300,
+              PAUSE_MS: 2500, MIN_SPEECH_MS: 500 }};
+    var faelle = {json.dumps([f[:3] for f in faelle])};
+    console.log(JSON.stringify(faelle.map(function (f) {{
+      return vadEntscheide(f[0], f[1], f[2], K);
+    }})));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis == [f[3] for f in faelle]
 
 
 def test_manuelle_schnitte_tragen_den_grund_ende():

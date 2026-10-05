@@ -1888,6 +1888,21 @@ _CHAT_JS = """
     return { boden: boden, schwelle: schwelle };
   }
 
+  // Die Schnittentscheidung je VAD-Takt als reine Funktion (Nachtfix
+  // 05.10.2026), damit sie woertlich in Node getestet werden kann.
+  // alter = ms seit Segmentbeginn, stille = ms seit der letzten Messung
+  // ueber der Schwelle, speechMs = Redezeit im Segment. Weicher Deckel: ab
+  // MAX_MS beim ERSTEN Einbruch von DIP_MS (Atempause zwischen Phrasen)
+  // statt mitten im Wort; hart erst bei MAX_MS + CAP_NACHLAUF_MS. Beide
+  // heissen 'cap' -- KEIN neuer Grund: der Server setzt Unbekanntes still
+  // auf NULL, und das Begriffsboard der Phase 1 haengt an 'cap'.
+  function vadEntscheide(alter, stille, speechMs, K) {
+    if (alter >= K.MAX_MS + K.CAP_NACHLAUF_MS) { return 'cap'; }
+    if (alter >= K.MAX_MS && stille >= K.DIP_MS) { return 'cap'; }
+    if (stille >= K.PAUSE_MS && speechMs >= K.MIN_SPEECH_MS) { return 'pause'; }
+    return null;
+  }
+
   function pegelAn(sitzung) {
     var Kontext = window.AudioContext || window.webkitAudioContext;
     if (!pegelBalken || !Kontext) { return; }
@@ -1902,6 +1917,10 @@ _CHAT_JS = """
       var PAUSE_MS = parseInt(fuss.dataset.vadPauseMs, 10) || 2500;
       var MAX_MS = parseInt(fuss.dataset.vadMaxMs, 10) || 90000;
       var MIN_SPEECH_MS = parseInt(fuss.dataset.vadMinSpeechMs, 10) || 500;
+      var DIP_MS = parseInt(fuss.dataset.vadDipMs, 10) || 300;
+      var CAP_NACHLAUF_MS = parseInt(fuss.dataset.vadCapNachlaufMs, 10) || 30000;
+      var K = { MAX_MS: MAX_MS, CAP_NACHLAUF_MS: CAP_NACHLAUF_MS, DIP_MS: DIP_MS,
+                PAUSE_MS: PAUSE_MS, MIN_SPEECH_MS: MIN_SPEECH_MS };
       var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
       var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
       // Erkennungstakt der RMS-Messung (Birk 04.10.2026: Latenz zwischen
@@ -1970,8 +1989,14 @@ _CHAT_JS = """
           sitzung.vadLetzteRede = jetzt;
         }
         if (!sitzung.recorder) { return; }
-        var kappe = (jetzt - sitzung.vadSegmentStart) >= MAX_MS;
-        var pause = (jetzt - sitzung.vadLetzteRede) >= PAUSE_MS;
+        // kappe: weich im ersten Einbruch nach MAX_MS, hart bei MAX_MS +
+        // CAP_NACHLAUF_MS (vadEntscheide). Die Pausenzeile darunter bleibt
+        // wie sie war, damit weitere Bedingungen dort angehaengt werden koennen.
+        var entscheid = vadEntscheide(jetzt - sitzung.vadSegmentStart,
+                                      jetzt - sitzung.vadLetzteRede,
+                                      sitzung.vadSpeechMs, K);
+        var kappe = entscheid === 'cap';
+        var pause = entscheid === 'pause';
         if (kappe) {
           // Hart: schneidet IMMER, auch ohne Pause und auch mit zu wenig
           // Rede (der seltene Fall landet in onstop() ohne Upload -- siehe
@@ -3965,7 +3990,9 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'<div class="fuss" id="fuss" data-segment-ms="{int(segment_ms)}"\n'
         f'     data-vad-pause-ms="{int(vad["pause_ms"])}" '
         f'data-vad-max-ms="{int(vad["max_ms"])}" '
-        f'data-vad-min-speech-ms="{int(vad["min_speech_ms"])}"\n'
+        f'data-vad-min-speech-ms="{int(vad["min_speech_ms"])}" '
+        f'data-vad-dip-ms="{int(vad["dip_ms"])}" '
+        f'data-vad-cap-nachlauf-ms="{int(vad["cap_nachlauf_ms"])}"\n'
         f'     data-vad-rms="{vad["rms"]}" '
         f'data-vad-floor-faktor="{vad["floor_faktor"]}"\n'
         f'     data-vad-kalibrierung="{1 if vad.get("kalibrierung", True) else 0}"\n'
@@ -4924,4 +4951,11 @@ def _vad_werte() -> dict:
         # Variable) laesst sie an. Bewusst NICHT ueber _umgebungszahl (die
         # faellt auf eine Zahl > 0 zurueck, nicht auf einen Schalter).
         "kalibrierung": (os.environ.get("IT_WEB_VAD_KALIBRIERUNG") or "1").strip() != "0",
+        # Weicher Deckel (Nachtfix 05.10.2026, Birk: der 90-s-Deckel schnitt
+        # live 39 von 61 Segmenten mitten im Satz): ab ``max_ms`` beim ersten
+        # Einbruch von ``dip_ms`` unter der Schwelle schneiden, hart erst bei
+        # ``max_ms + cap_nachlauf_ms``. Beide Schnitte heissen 'cap'.
+        "dip_ms": _umgebungszahl("IT_WEB_VAD_DIP_MS", 300, ganzzahl=True),
+        "cap_nachlauf_ms": _umgebungszahl(
+            "IT_WEB_VAD_CAP_NACHLAUF_MS", 30_000, ganzzahl=True),
     }

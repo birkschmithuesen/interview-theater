@@ -226,6 +226,9 @@ def lauf(tmp_path, monkeypatch):
     monkeypatch.setenv("IT_WORKSHOP", "padua-2026")
     monkeypatch.setenv("IT_AUDIO", str(tmp_path / "audio"))
     monkeypatch.setenv("IT_WEB_VAD_MAX_MS", str(VAD_MAX_MS))
+    # Weicher Deckel (Nachtfix 05.10.2026): 1 ms Nachlauf = harter Deckel
+    # bei VAD_MAX_MS wie bisher (der Dauerton hat nie einen Einbruch).
+    monkeypatch.setenv("IT_WEB_VAD_CAP_NACHLAUF_MS", "1")
     # Fallback fuer den Fall, dass pegelAn() im Browser doch einmal fehlschlaegt
     # (kein AudioContext) -- dann greift die feste Segmentlaenge statt der VAD.
     monkeypatch.setenv("IT_WEB_SEGMENT_MS", str(VAD_MAX_MS))

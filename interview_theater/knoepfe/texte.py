@@ -225,6 +225,13 @@ ART_FRAGEN_WEICH_LASSEN = "fragen_weich_lassen"
 #: Tastatur je Nachricht). ``wert`` bleibt leer wie bei den Weich-Knoepfen.
 ART_FRAGEN_UMFORMULIEREN_ALLE = "fragen_umformulieren_alle"
 ART_FRAGEN_UMFORMULIEREN_KEINE = "fragen_umformulieren_keine"
+#: Der Ausloeser fuer den versteckten Befehl ``/umformulieren`` selbst
+#: (Review-Fix t_b371c0f1, 06.10.2026): ohne diesen Knopf hatte die
+#: Umformulier-Runde keinen fuer die Gruppe sichtbaren Weg -- genau wie
+#: ``/sortiert`` ueber den Knopf "Fertig sortiert" (web_vereint) erreichbar
+#: ist, macht dieser Knopf ``/umformulieren`` nach "Fragen uebernommen"
+#: erreichbar.
+ART_FRAGEN_UMFORMULIEREN_ANBIETEN = "fragen_umformulieren_anbieten"
 
 # --- Phase 6 · Szenen (05.09.2026) ----------------------------------------
 #
@@ -861,6 +868,11 @@ _TEXT_UMFORMULIEREN_UNVERAENDERT = (
     "Das Modell hat an keiner Frage etwas geändert."
 )
 _TEXT_UMFORMULIEREN_UEBERNOMMEN = "Aktualisiert, eure Fragen:"
+#: Das Angebot direkt nach "Fragen uebernommen" (Review-Fix t_b371c0f1,
+#: 06.10.2026): macht den versteckten Befehl ``/umformulieren`` fuer die
+#: Gruppe erreichbar -- ohne diesen Knopf gab es keinen Ausloeser.
+_TEXT_UMFORMULIEREN_ANBIETEN = "Wollt ihr die Formulierung der Fragen noch aendern?"
+_TEXT_UMFORMULIEREN_ANBIETEN_KNOPF = "Fragen umformulieren"
 
 #: Der Kopf einer einzelnen vorgelegten Frage (02.10.2026): "Frage 3/15 ·
 #: Heimat". Ohne erkennbaren Begriff (Zeile ohne "Begriff: ") faellt die

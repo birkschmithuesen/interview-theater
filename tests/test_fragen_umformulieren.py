@@ -82,6 +82,17 @@ def test_wende_umformulierung_an_ohne_annahme_bleibt_unveraendert():
     assert fragen._wende_umformulierung_an(alte, neue, set()) == alte
 
 
+def test_wende_umformulierung_an_leere_neue_zeile_behaelt_alte():
+    """Mutationsbefund (Review t_b371c0f1): ohne die Pruefung
+    ``neue[n - 1].strip()`` ueberschriebe eine akzeptierte Position mit
+    einer leeren/whitespace-only neuen Zeile die alte Formulierung mit
+    einem Leerstring, statt sie zu behalten."""
+    alte = ["A: eins?", "A: zwei?"]
+    neue = ["A: EINS NEU?", "   "]
+    ergebnis = fragen._wende_umformulierung_an(alte, neue, {1, 2})
+    assert ergebnis == ["A: EINS NEU?", "A: zwei?"]
+
+
 def test_parse_annahme_liest_zahlen():
     assert fragen._parse_annahme("1, 3", 3) == {1, 3}
     assert fragen._parse_annahme("take all", 3) == {1, 2, 3}
@@ -273,6 +284,44 @@ def test_marker_wird_an_biete_umformulierung_weitergeleitet(conn, tg, padua, ein
     )
     assert _feld(conn, "fragen_umformuliert_vorschlag") == "A: EINS NEU?\nA: ZWEI NEU?"
     assert _feld(conn, "fragen_warte_auf") == "umformulieren_auswahl"
+
+
+# --- Verdrahtung: ein ECHTER Ausloeser nach "Fertig sortiert" --------------
+
+
+def test_sortiert_bietet_umformulierung_an_und_knopf_loest_sie_aus(
+    conn, tg, einst, auftraege, padua,
+):
+    """Befund 1 (Review t_b371c0f1): der versteckte Befehl
+    ``/umformulieren`` hatte keinen Ausloeser -- dieser Test faehrt den
+    ECHTEN Pfad nach: ``/sortiert`` (wie ``web_vereint.auswahl_fertig_post``
+    ihn fuer die Gruppe ausloest) schliesst die Fragen ab und bietet jetzt
+    einen Knopf an; ERST der Druck auf diesen Knopf (ueber
+    ``knoepfe.wirkung.behandle``, nicht der direkte Funktionsaufruf) setzt
+    ``fragen_warte_auf`` auf "umformulieren"."""
+    from interview_theater import befehle
+    from interview_theater.knoepfe import wirkung
+
+    from test_knoepfe import _druck
+
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_auswahl", "A: eins?\nA: zwei?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,ja")
+
+    befehle.behandle(conn, tg, einst, CHAT, "/sortiert", None)
+
+    assert _feld(conn, "fragen") == "A: eins?\nA: zwei?"
+    assert _feld(conn, "fragen_warte_auf") != "umformulieren"
+    assert tg.knoepfe, "kein Knopf angeboten -- Umformulier-Runde unerreichbar"
+    chat_id, text, leiste = tg.knoepfe[-1]
+    assert text == T._TEXT_UMFORMULIEREN_ANBIETEN
+    assert leiste[0][0] == T._TEXT_UMFORMULIEREN_ANBIETEN_KNOPF
+    daten = leiste[0][1]
+
+    behandelt = wirkung.behandle(conn, tg, None, einst, _druck(daten, chat_id=CHAT))
+
+    assert behandelt is True
+    assert _feld(conn, "fragen_warte_auf") == "umformulieren"
+    assert tg.gesendet[-1][1] == T._TEXT_UMFORMULIEREN_WUNSCH_FRAGE
 
 
 def test_dortmund_wartezustand_kommt_nie_vor(conn, tg, auftraege, dortmund):

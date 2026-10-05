@@ -40,7 +40,8 @@ from interview_theater.knoepfe.texte import (
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
     ART_FRAGEN_ANDERE, ART_FRAGEN_EINZELN, ART_FRAGEN_JA_VORSCHLAGEN,
     ART_FRAGEN_NOCH_EIGENE, ART_FRAGEN_UMFORMULIEREN_ALLE,
-    ART_FRAGEN_UMFORMULIEREN_KEINE, ART_FRAGEN_VORSCHLAGEN,
+    ART_FRAGEN_UMFORMULIEREN_ANBIETEN, ART_FRAGEN_UMFORMULIEREN_KEINE,
+    ART_FRAGEN_VORSCHLAGEN,
     ART_FRAGEN_WEICH_LASSEN, ART_FRAGEN_WEICH_UEBERNEHMEN, ART_LEITFADEN, T,
 )
 from interview_theater.knoepfe.basis import (
@@ -1510,6 +1511,25 @@ def uebersicht_text(conn, chat_id: int) -> str:
     return "\n".join(zeilen)
 
 
+def _biete_umformulierung_an(conn, tg, chat_id: int) -> int:
+    """Macht den versteckten Befehl ``/umformulieren`` nach "Fragen
+    uebernommen" erreichbar (Review-Fix t_b371c0f1, 06.10.2026): bisher gab
+    es dafuer keinen Ausloeser in der Gruppe -- anders als ``/sortiert``, das
+    der Knopf "Fertig sortiert" (``web_vereint.auswahl_fertig_post``)
+    ausloest. EIN Knopf, der ``frage_nach_umformulierung`` startet; wer ihn
+    nicht drueckt, laeuft unveraendert weiter zur Eroeffnung bzw. zum
+    Weich-Angebot."""
+    leiste = [
+        (T._TEXT_UMFORMULIEREN_ANBIETEN_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UMFORMULIEREN_ANBIETEN, None))),
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, T._TEXT_UMFORMULIEREN_ANBIETEN, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(d) for _, d in leiste], message_id,
+    )
+    return message_id
+
+
 def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
     """Alle Fragen sind entschieden: aus den angenommenen wird
     ``arbeitsstand.fragen``, ihre weichen Fassungen wandern auf die neue
@@ -1612,6 +1632,11 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
         tg.sende(chat_id, text, system=True)
     else:
         sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
+    # Review-Fix t_b371c0f1: nur Padua kennt den versteckten Befehl
+    # ``/umformulieren`` -- Dortmund bekommt diesen Knopf nie, bleibt also
+    # unveraendert.
+    if workshop.diskussion_aktiv():
+        _biete_umformulierung_an(conn, tg, chat_id)
     if neue_weich:
         _biete_weiche_fassungen_an(conn, tg, angenommen, neue_weich, chat_id)
     else:

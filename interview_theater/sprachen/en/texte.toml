@@ -567,6 +567,8 @@ _TEXT_UMFORMULIEREN_ALLE_KNOPF = "Take all"
 _TEXT_UMFORMULIEREN_KEINE_KNOPF = "Keep old"
 _TEXT_UMFORMULIEREN_UNVERAENDERT = "The model didn't change any question."
 _TEXT_UMFORMULIEREN_UEBERNOMMEN = "Updated, your questions:"
+_TEXT_UMFORMULIEREN_ANBIETEN = "Do you want to change how the questions are worded?"
+_TEXT_UMFORMULIEREN_ANBIETEN_KNOPF = "Rephrase questions"
 ANWEISUNG_EROEFFNUNG = """\
 Now we still need how the interview starts and how it ends. Suggest an \
 opening text that the interviewer says to a stranger before they ask the \

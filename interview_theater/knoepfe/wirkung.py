@@ -28,7 +28,8 @@ from interview_theater.knoepfe.texte import (
     ART_FIGUR_PASST, ART_FIGUR_STIL, ART_FIGUR_STIL_FREI, ART_FRAGEN_ANDERE,
     ART_FRAGEN_EIGENE, ART_FRAGEN_EINZELN, ART_FRAGEN_JA_VORSCHLAGEN,
     ART_FRAGEN_NOCH_EIGENE, ART_FRAGEN_UEBERNEHMEN,
-    ART_FRAGEN_UMFORMULIEREN_ALLE, ART_FRAGEN_UMFORMULIEREN_KEINE,
+    ART_FRAGEN_UMFORMULIEREN_ALLE, ART_FRAGEN_UMFORMULIEREN_ANBIETEN,
+    ART_FRAGEN_UMFORMULIEREN_KEINE,
     ART_FRAGEN_VORSCHLAGEN,
     ART_FRAGEN_WEICH_LASSEN, ART_FRAGEN_WEICH_UEBERNEHMEN,
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
@@ -61,7 +62,8 @@ from interview_theater.knoepfe.basis import (
 from interview_theater.knoepfe.fragen import (
     _speichere_eroeffnung, entscheide, fragen_umformulierung_alle_annehmen,
     fragen_umformulierung_alle_verwerfen, frage_nach_eigenen,
-    frage_waehlt_schaerfen, frage_warten_auf_richtung, frage_weich_lassen,
+    frage_nach_umformulierung, frage_waehlt_schaerfen,
+    frage_warten_auf_richtung, frage_weich_lassen,
     frage_weich_uebernehmen, ja_vorschlagen, noch_eigene, starte_durchgehen,
     starte_eroeffnung,
 )
@@ -843,6 +845,14 @@ def _wirkung_fragen_umformulieren_alle(conn, d: Druck) -> str:
 def _wirkung_fragen_umformulieren_keine(conn, d: Druck) -> str:
     fragen_umformulierung_alle_verwerfen(conn, d.tg, d.klm, d.e, d.chat_id)
     return T._TEXT_UMFORMULIEREN_KEINE_KNOPF
+
+
+def _wirkung_fragen_umformulieren_anbieten(conn, d: Druck) -> str:
+    """Der Knopf "Fragen umformulieren" nach "Fragen uebernommen"
+    (Review-Fix t_b371c0f1): loest denselben versteckten Befehl aus wie
+    ``/umformulieren`` -- kein Modellaufruf hier, nur die Rueckfrage."""
+    frage_nach_umformulierung(conn, d.tg, d.chat_id)
+    return T._TEXT_FRAGE_ENTSCHIEDEN
 
 
 def _wirkung_leitfaden(conn, d: Druck) -> str:
@@ -1747,6 +1757,7 @@ _WIRKUNGEN = {
     ART_FRAGEN_WEICH_LASSEN: _wirkung_fragen_weich_lassen,
     ART_FRAGEN_UMFORMULIEREN_ALLE: _wirkung_fragen_umformulieren_alle,
     ART_FRAGEN_UMFORMULIEREN_KEINE: _wirkung_fragen_umformulieren_keine,
+    ART_FRAGEN_UMFORMULIEREN_ANBIETEN: _wirkung_fragen_umformulieren_anbieten,
     ART_LEITFADEN: _wirkung_leitfaden,
     ART_RICHTUNG: _wirkung_richtung,
     ART_FIGUREN_ANZAHL_MENU: _wirkung_figuren_anzahl_menu,

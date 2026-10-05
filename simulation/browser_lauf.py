@@ -107,6 +107,27 @@ def _diskussion_laeuft(page) -> bool:
     return page.locator('#diskussion[data-laeuft="1"]').count() > 0
 
 
+def _aufnahme_laeuft(page, art: str = "diskussion") -> bool:
+    """Wie ``_diskussion_laeuft``, aber je Aufnahmeart (Padua live-reif
+    Phase 3+4, Task 2): ``diskussion`` delegiert unveraendert an die
+    bestehende Funktion (Dortmund/P1-2-Verhalten bleibt gleich), Interview
+    und Brainstorm lesen ``browser_stationen.LAEUFT[art]``."""
+    if art == "diskussion":
+        return _diskussion_laeuft(page)
+    return page.locator(browser_stationen.LAEUFT[art]).count() > 0
+
+
+def _beende_aufnahme_deterministisch(page, art: str = "diskussion") -> bool:
+    """Wie ``_beende_diskussion_deterministisch``, je Aufnahmeart."""
+    if art == "diskussion":
+        return _beende_diskussion_deterministisch(page)
+    knopf = browser_stationen.ENDE[art]
+    if page.locator(f"{knopf}:visible").count() == 0:
+        return False
+    page.click(knopf)
+    return True
+
+
 def _schliesse_offenes_phasensheet(page) -> bool:
     """Schliesst ein offenes Padua-Stepper-Bestaetigungsblatt
     (``#phasensheet``) deterministisch ueber "Stay here", BEVOR die Persona
@@ -409,7 +430,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         ``mitte_genommen`` Schleifenzustand sind, der ueber beide
         Aufrufstellen hinweg gilt."""
         nonlocal gewartet, mitte_genommen, hinweis, diskussion_vorbei, diskussion_lief
-        if not (station.zuhoeren_s and not gewartet and _diskussion_laeuft(page)):
+        if not (station.zuhoeren_s and not gewartet and _aufnahme_laeuft(page, station.aufnahme)):
             return False
         gewartet = diskussion_lief = True
         ende = time.monotonic() + station.zuhoeren_s
@@ -421,7 +442,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
                 mitte_genommen = bool(leitbilder.nimm(page, station.phase, station.leitbild_mitte))
         if vor_ende is not None:
             vor_ende()
-        if _beende_diskussion_deterministisch(page):
+        if _beende_aufnahme_deterministisch(page, station.aufnahme):
             diskussion_vorbei = True
             if nach_klick is not None:
                 nach_klick()
@@ -460,7 +481,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
 
         _warte_und_beende_diskussion_falls_noetig()
         if station.diskussion:
-            if _diskussion_laeuft(page):
+            if _aufnahme_laeuft(page, station.aufnahme):
                 diskussion_lief = True
             elif diskussion_lief:
                 diskussion_vorbei = True
@@ -555,6 +576,23 @@ def _lies_p1(db_pfad: str, chat_id: int) -> browser_invarianten.P1Stand:
         return browser_invarianten.lese_p1_stand(conn, chat_id)
 
 
+def _lies_p34(db_pfad: str, chat_id: int) -> browser_invarianten.P34Stand:
+    with browser_invarianten.oeffne_lesend(db_pfad) as conn:
+        return browser_invarianten.lese_p34_stand(conn, chat_id)
+
+
+def _max_aufruf_id(db_pfad: str) -> int:
+    """Hoechste ``aufruf.id`` -- read-only, wie ``_modell_lesen``: fehlt die
+    Tabelle (eine ganz frische Datenbank), ist das Ergebnis 0 statt ein
+    Fehler. Grundlage von ``aufruf_bereiche`` (``_modellwahl``-Haken,
+    Task 2c): welche Aufrufe in welche Station/Phase fielen."""
+    try:
+        with browser_invarianten.oeffne_lesend(db_pfad) as conn:
+            return conn.execute("SELECT COALESCE(MAX(id), 0) FROM aufruf").fetchone()[0]
+    except sqlite3.OperationalError:
+        return 0
+
+
 def _oeffne_gruppe(page, basis_url: str, token: str) -> None:
     page.goto(f"{basis_url}/g/{token}")
     page.wait_for_selector("#verlauf")
@@ -616,15 +654,26 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
     # wird mehrfach bewertet).
     bot_anzahl_vorher = 0
     ergebnis: dict = {}
+    # Task 2c: welche ``aufruf``-Zeilen in welche Station/Phase fielen --
+    # Grundlage des ``modellwahl``-Hakens (Phase-3/4-Bereich = Vereinigung
+    # der Bereiche aller Stationen dieser Phase). Dieselben Dicts wandern in
+    # JEDE ``PruefKontext`` dieses Laufs (Referenz, nicht Kopie), damit ein
+    # spaeterer Haken den vollen bisherigen Stand sieht.
+    aufruf_bereiche: dict[str, tuple[int, int]] = {}
+    stationen_phase: dict[str, int] = {}
     try:
         for station in stationen:
             befunde: list[browser_invarianten.Befund] = []
+            stationen_phase[station.schluessel] = station.phase
             kontext = PruefKontext(
                 db_pfad=db_pfad, gruppen=gruppen, page=page, beobachter=beobachter,
                 hole_prompt=hole_prompt, warte=warte, lauf_verzeichnis=lauf_verzeichnis,
-                beobachter_start=len(beobachter.verlauf) if beobachter else 0, notizen=notizen)
+                beobachter_start=len(beobachter.verlauf) if beobachter else 0, notizen=notizen,
+                aufruf_bereiche=aufruf_bereiche, stationen_phase=stationen_phase)
             kontext.sende = lambda text, k=kontext: _sende_und_lies_antwort(k.page, text)
             lauf = None
+            von_aufruf = _max_aufruf_id(db_pfad)
+            aufruf_bereiche[station.schluessel] = (von_aufruf, von_aufruf)
             try:
                 gruppe = gruppen[station.gruppe - 1]
                 if station.diskussion:
@@ -646,15 +695,36 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
 
                     def nach_klick(k=kontext, st=station, cid=gruppe.chat_id):
                         warte_nach_klick(st, k, cid)
+                elif "nach_interview" in station.pruefung or "nach_brainstorm" in station.pruefung:
+                    # Dasselbe Muster fuer Interview/Brainstorm (Padua live-
+                    # reif Phase 3+4, Task 2c): ``vor_ende`` liest zusaetzlich
+                    # ``vor_ende_p34``, ``nach_klick`` wartet mit
+                    # ``browser_invarianten.warte_auf``.
+                    kontext.vorher_p34 = _lies_p34(db_pfad, gruppe.chat_id)
+                    ist_brainstorm = "nach_brainstorm" in station.pruefung
+                    frist_s = (browser_invarianten.FRIST_NACH_BRAINSTORM_S if ist_brainstorm
+                              else browser_invarianten.FRIST_NACH_INTERVIEW_S)
+
+                    def _pruefe_p34(stand, k=kontext, st=station, brainstorm=ist_brainstorm):
+                        if brainstorm:
+                            return browser_invarianten.pruefe_nach_brainstorm(
+                                k.vorher_p34, k.vor_ende_p34 or k.vorher_p34, stand, st.schluessel)
+                        return browser_invarianten.pruefe_nach_interview(k.vorher_p34, stand, st.schluessel)
+
+                    def nach_klick(k=kontext, cid=gruppe.chat_id, frist_s=frist_s, pruefe=_pruefe_p34):
+                        k.ergebnis_p34 = k.warte_p34(
+                            lambda: _lies_p34(db_pfad, cid), pruefe, frist_s=frist_s)
 
                 def vor_ende(k=kontext, cid=gruppe.chat_id):
                     k.vorher = _lies_p1(db_pfad, cid)
+                    k.vor_ende_p34 = _lies_p34(db_pfad, cid)
 
                 lauf = _fuehre_station_aus(
                     page, persona_client, mitschnitt, station, basis_url=basis_url,
                     token=gruppe.token, db_pfad=db_pfad, chat_id=gruppe.chat_id,
                     persona_name=persona_name, beobachter=beobachter,
                     leitbilder=leitbilder, vor_ende=vor_ende, nach_klick=nach_klick)
+                aufruf_bereiche[station.schluessel] = (von_aufruf, _max_aufruf_id(db_pfad))
             except Exception as fehler:
                 log.exception("Station %s ist gescheitert", station.schluessel)
                 fehlgeschlagen_bei = fehlgeschlagen_bei or station.schluessel
@@ -961,10 +1031,27 @@ def main() -> None:
         argumente.stationen or "", jetzt)
     lauf_name = lauf_verzeichnis.name
     stationsliste = browser_stationen.STATIONEN[argumente.stationen] if argumente.stationen else ()
+    # Padua live-reif Phase 3+4 (Task 2): die Stationsliste ``p34`` startet
+    # in Phase 3 -- ``bereite_vor`` (in ``starte_stack``) fuellt nur den
+    # Stand davor, den Phasenwechsel selbst loest dieser Block ueber den
+    # echten Endpunkt aus (Eintrittsnachricht wie live).
+    startphase = browser_stationen.STARTPHASE.get(argumente.stationen or "", 1)
     stack = browser_umgebung.starte_stack(
         argumente.env_datei, lauf_verzeichnis, app_wurzel=app_wurzel,
-        gruppen=max((st.gruppe for st in stationsliste), default=1))
+        gruppen=max((st.gruppe for st in stationsliste), default=1), startphase=startphase)
     try:
+        if startphase > 1:
+            _loese_phasenwechsel_aus(stack.web_basis, stack.token, startphase)
+            ende = time.monotonic() + 30.0
+            while True:
+                stand = browser_mitschnitt.datenstand(stack.db_pfad, stack.chat_id)
+                if (stand.get("arbeitsstand") or {}).get("phase") == startphase:
+                    break
+                if time.monotonic() >= ende:
+                    raise RuntimeError(
+                        f"Phasenwechsel nach Phase {startphase} nicht angekommen, siehe "
+                        f"{lauf_verzeichnis / 'bot.log'}")
+                time.sleep(1.0)
         if argumente.stationen:
             # Der Stationsmodus (Abnahmelauf Phase 1-2): erfundene
             # Diskussion als Audio ueber Chromiums Fake-Media-Flags, dazu

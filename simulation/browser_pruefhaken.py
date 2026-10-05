@@ -77,6 +77,21 @@ class PruefKontext:
     #: "Discussion done" -- spaetere Persona-Nachrichten koennen Stille
     #: dann nicht mehr verdecken, und die 60 s beginnen beim Klick.
     ergebnis_nach_ende: tuple | None = None
+    # --- Padua live-reif Phase 3+4 (Task 2c) --------------------------------
+    vorher_p34: inv.P34Stand | None = None     # P34-Stand zu Stationsbeginn
+    vor_ende_p34: inv.P34Stand | None = None   # P34-Stand direkt vor dem Ende-Klick
+    stand_p34: inv.P34Stand | None = None      # Ergebnis von nach_interview/nach_brainstorm
+    #: (befunde, stand) aus ``warte_p34``, gelaufen DIREKT nach dem
+    #: Harness-Klick auf "End interview"/den Brainstorm-Toggle.
+    ergebnis_p34: tuple | None = None
+    warte_p34: Callable = inv.warte_auf
+    #: Station.schluessel -> (von, bis) der ``aufruf.id``, die waehrend
+    #: dieser Station entstanden -- Grundlage des ``modellwahl``-Hakens.
+    aufruf_bereiche: dict = field(default_factory=dict)
+    #: Station.schluessel -> Phase, fuer die Bereichs-Vereinigung im
+    #: ``modellwahl``-Haken (Phase-3- bzw. Phase-4-Bereich ueber alle
+    #: Stationen dieser Phase).
+    stationen_phase: dict = field(default_factory=dict)
 
 
 def speicher_schluessel(page) -> list[str]:
@@ -252,6 +267,69 @@ def _p2_werkbank(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befun
                                   _sichtbare_fragen(kontext.beobachter), station.schluessel)
 
 
+# --- Padua live-reif Phase 3+4 (Task 2c) -------------------------------------
+
+
+def _lies_p34(kontext: PruefKontext, chat_id: int) -> inv.P34Stand:
+    with inv.oeffne_lesend(kontext.db_pfad) as conn:
+        return inv.lese_p34_stand(conn, chat_id)
+
+
+def _nach_aufnahme_p34(station, kontext: PruefKontext, chat_id: int, *, pruefe, frist_s: float,
+                       knopf_text: str) -> list[inv.Befund]:
+    """Gemeinsamer Kern von ``_nach_interview``/``_nach_brainstorm``: wie
+    ``_nach_ende``, aber ueber ``P34Stand`` und ``kontext.warte_p34``
+    (andere Signatur als ``kontext.warte``: ``(lese, pruefe, *, frist_s)``,
+    siehe ``browser_invarianten.warte_auf``)."""
+    if kontext.ergebnis_p34 is not None:
+        befunde, stand = kontext.ergebnis_p34
+    else:
+        vorher = kontext.vorher_p34
+        if vorher is None:
+            vorher = _lies_p34(kontext, chat_id)
+        kontext.notizen.append(
+            f"{station.schluessel}: kein Harness-Klick auf {knopf_text!r} -- Vorher-Stand vom "
+            "Stationsbeginn, Wartezeit ab Stationsende")
+        befunde, stand = kontext.warte_p34(
+            lambda: _lies_p34(kontext, chat_id), lambda s: pruefe(vorher, s), frist_s=frist_s)
+    kontext.stand_p34 = stand
+    return list(befunde)
+
+
+def _nach_interview(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    return _nach_aufnahme_p34(
+        station, kontext, chat_id,
+        pruefe=lambda vorher, stand: inv.pruefe_nach_interview(vorher, stand, station.schluessel),
+        frist_s=inv.FRIST_NACH_INTERVIEW_S, knopf_text="End interview")
+
+
+def _nach_brainstorm(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    return _nach_aufnahme_p34(
+        station, kontext, chat_id,
+        pruefe=lambda vorher, stand: inv.pruefe_nach_brainstorm(
+            vorher, kontext.vor_ende_p34 or vorher, stand, station.schluessel),
+        frist_s=inv.FRIST_NACH_BRAINSTORM_S, knopf_text="Brainstorm-Toggle")
+
+
+def _bereich_je_phase(kontext: PruefKontext, phase: int) -> tuple[int, int]:
+    """Vereinigung der ``aufruf_bereiche`` aller bisher gelaufenen Stationen
+    dieser Phase -- min(``von``) bis max(``bis``), ``(0, 0)`` ohne eine
+    einzige Station dieser Phase (dann gibt es nichts zu pruefen)."""
+    grenzen = [g for schluessel, p in kontext.stationen_phase.items() if p == phase
+               for g in kontext.aufruf_bereiche.get(schluessel, ())]
+    return (min(grenzen), max(grenzen)) if grenzen else (0, 0)
+
+
+def _modellwahl(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    stand = _lies_p34(kontext, chat_id)
+    return inv.pruefe_modellwahl(
+        stand, _bereich_je_phase(kontext, 3), _bereich_je_phase(kontext, 4), station.schluessel)
+
+
+def _p5_angebot(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    return inv.pruefe_p5_angebot(_lies_p34(kontext, chat_id), station.schluessel)
+
+
 HAKEN: dict[str, Callable] = {
     "nach_ende": _nach_ende,
     "verhoerer": _verhoerer,
@@ -259,6 +337,10 @@ HAKEN: dict[str, Callable] = {
     "raumcheck": _raumcheck,
     "zweite_gruppe": _zweite_gruppe,
     "p2_werkbank": _p2_werkbank,
+    "nach_interview": _nach_interview,
+    "nach_brainstorm": _nach_brainstorm,
+    "modellwahl": _modellwahl,
+    "p5_angebot": _p5_angebot,
 }
 
 

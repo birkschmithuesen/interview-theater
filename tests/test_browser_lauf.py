@@ -383,6 +383,28 @@ _FIXTURE_DISKUSSION_LAEUFT = """
 <button id="diskussion-beenden">Discussion done</button>
 """
 
+_FIXTURE_INTERVIEW_LAEUFT = """
+<button id="interview" data-laeuft="1">Recording</button>
+<button id="interview-beenden">End interview</button>
+"""
+
+
+def test_beende_aufnahme_deterministisch_interview():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_INTERVIEW_LAEUFT)
+        assert browser_lauf._aufnahme_laeuft(seite, "interview") is True
+        assert browser_lauf._beende_aufnahme_deterministisch(seite, "interview") is True
+        browser.close()
+
+
+def test_aufnahme_diskussion_delegiert_an_die_alten_funktionen(monkeypatch):
+    # bestehende Tests patchen _diskussion_laeuft/_beende_diskussion_deterministisch
+    monkeypatch.setattr(browser_lauf, "_diskussion_laeuft", lambda page: True)
+    monkeypatch.setattr(browser_lauf, "_beende_diskussion_deterministisch", lambda page: True)
+    assert browser_lauf._aufnahme_laeuft(object(), "diskussion") is True
+    assert browser_lauf._beende_aufnahme_deterministisch(object(), "diskussion") is True
+
 _FIXTURE_DISKUSSION_OHNE_KNOPF = """
 <button id="diskussion" data-laeuft="1">Start listening</button>
 """
@@ -741,6 +763,27 @@ def test_fuehre_pruefungen_ohne_browser(tmp_path):
     kontext.stand = _p1_stand(board_begriffe=("night shift",))
     kontext.page = _SeiteAttrappe(["vad_boden:tok1:2026-10-05"])
     assert browser_lauf.fuehre_pruefungen(station, kontext) == []
+
+
+def test_fuehre_pruefungen_p34_nach_interview_ohne_browser(tmp_path):
+    """Wie ``test_fuehre_pruefungen_ohne_browser``, aber fuer den neuen
+    ``nach_interview``-Haken (Padua live-reif Phase 3+4, Task 2c): ohne
+    Browser, mit einer Attrappe fuer ``warte_p34``, die sofort liefert."""
+    pfad = str(tmp_path / "p34.db")
+    aufbau = db.verbinde(pfad)
+    db.initialisiere(aufbau)
+    aufbau.close()
+    gruppen = [Gruppe(token="tok1", chat_id=CHAT)]
+
+    def warte_p34(lese, pruefe, *, frist_s):
+        return [], lese()
+
+    kontext = browser_lauf.PruefKontext(
+        db_pfad=pfad, gruppen=gruppen, page=None, warte_p34=warte_p34)
+    station = browser_stationen.Station("p3-x", 3, "x", pruefung=("nach_interview",),
+                                        aufnahme="interview")
+    befunde = browser_lauf.fuehre_pruefungen(station, kontext)
+    assert befunde == []
 
 
 def test_fuehre_pruefungen_zweite_gruppe_mit_dom_hinweis():

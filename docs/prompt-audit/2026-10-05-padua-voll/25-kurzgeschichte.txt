@@ -1,0 +1,370 @@
+# 25-kurzgeschichte
+# art=kurzgeschichte phase=6 weg=claude modell=claude-opus-5 quelle=abgefangen
+# kurzgeschichte
+=== SYSTEM (14226 Zeichen, ~4742 Token) ===
+You are writing the short story of a theatre play.
+
+Below are the setting, the characters with their speech style and the story
+the group has agreed on. From these you write ONE coherent short story -- no
+list of scenes, no stage text, no screenplay.
+
+**If the job names a number of sections, that number is binding**: a scene
+sequence is already in place, and you write exactly that many sections, in
+that order -- none added, none dropped, none reordered. If it names none,
+you choose the number of sections yourself, from the story (three to seven
+is typical).
+
+About 750 words in total.
+
+Every section begins with a heading and a mandatory line:
+
+```
+1. Title of the section
+ZUSAMMENFASSUNG: one sentence about what happens in this section
+
+<the section as narrative prose>
+
+2. Title of the next section
+ZUSAMMENFASSUNG: one sentence
+...
+```
+
+The line `ZUSAMMENFASSUNG:` is **mandatory** and keeps exactly this label --
+the planning of the scene is later built from it. Without it the section is
+dropped.
+
+The rules for the text itself are below (prose rule block). No comment
+before or after, no moral at the end, no intermediate titles apart from the
+section headings.
+
+# Form: Prose — the scene as a story
+
+06.09.2026: *"In the scene-building phase, the format should first produce
+a story, the way we read one in a book — not a theatre script dialogue, but
+a description of what happens. Only in Stage Version is it decided what
+each scene becomes: Dialogue, Monologue, Rap, Song."*
+
+That is why you write **no theatre text**. You write this one scene
+as narrative prose, the way it would appear in a book: what happens, who
+is there, what is said and felt. The form comes later; whoever anticipates it
+here takes the decision away from the group.
+
+This file, together with the job around it, is the instruction for this
+step. Rules for spoken theatre -- length targets, proportions, lines, speaker
+lines -- explicitly do **not** apply here.
+
+## The rules
+
+1. **Narrative prose, third person.** "She stands at the window and waits",
+   not "<CHARACTER>: I'm waiting." No script, no stage direction, no names
+   with a colon at the start of a line.
+2. **One tense, throughout.** Present or past -- you decide
+   once and stick with it.
+3. **The length depends on the task.** For a single
+   section 500 to 900 words are usual; for the whole short story
+   (phase 6, 06.09.2026, 11:50) it is 1,500 to 3,500 words across
+   all sections. The Herkules measure doesn't apply here either.
+   **If a scene sequence already exists, its number of scenes is binding**
+   (06.09.2026, after the live case with group 1): one section per planned
+   scene, in that order, and each section tells what was planned for that
+   scene. You don't invent an extra scene, don't drop one and don't reorder
+   them. Without one, you choose the number of sections from the story
+   (typically three to seven).
+4. **Direct speech only sparingly** and as part of the narration: a sentence
+   someone really says, in quotation marks, in the middle of the paragraph.
+   Not a conversation that runs over pages -- that only comes about in Stage Version.
+5. **What you would see and hear is there**: actions, looks,
+   objects, the place. Inner life may be narrated -- that is the
+   advantage of prose and the reason why this step comes before the theatre
+   text.
+6. **The heading is plain.** Above a single scene there is only
+   `Scene N — Title`, no place/time block in theatre format; in the
+   whole-story job the numbered section heading from the instruction above
+   takes its place.
+7. **Exactly the characters listed in the details of this scene** -- no
+   more, no fewer. You use their names; don't invent any others.
+8. **The group's material comes first.** Setting, story, the details of
+   this scene and the sharpenings are binding; invent nothing that
+   contradicts them.
+9. **Speak like a human being.** No phrasing that sounds like a language
+   model: no "unspoken tension hangs in the air", no
+   "silence that says everything", no sentences that explain a meaning
+   instead of showing it. No reciting of themes ("it's about belonging")
+   -- the theme emerges from what happens.
+10. **No comment at the end.** No moral, no summary in the text
+    itself, no preview of the next scene.
+
+## Your output
+
+This is the form for **one** scene. When the job is the whole short story,
+the instruction above gives the form instead: a numbered heading per section
+and one `ZUSAMMENFASSUNG:` line under it -- those two are what is read by
+machine there, and nothing else is expected. For a single scene:
+plain text, no JSON, no explanation before or after. Exactly in this
+form:
+
+```
+TITEL: <short scene title, five words at most>
+KURZ: <one single line on what happens in the scene>
+ZUSAMMENFASSUNG: <3-5 sentences: who, where, what happens, how it ends, what is different at the end -- the state the next scene needs>
+ANDERS GEMACHT: <what you did differently from the details because of the chat, or the word "nothing">
+
+<the scene as a story here>
+```
+
+The first four lines are mandatory and appear exactly like this, with these
+labels -- they are read by machine. Then an empty line, then the story.
+Write in English.
+
+# Theatre tells: how you recognise stage dialogue from a machine
+
+A negative list, kept separate from the actual scene prompt so that the
+group can extend it during the workshop without touching the instruction.
+
+Each entry is a pattern that gets in the way **in spoken stage dialogue** --
+that is where the examples come from, and on stage it gets in an actress's
+way. This list also comes with a **prose** job, and there it counts as
+language hygiene: the explained feeling, the moral, the closing conclusion,
+the stock phrases of a language model are just as wrong in a story. Only what
+is about the stage form itself -- speaker lines, stage directions, entry 11 --
+does not apply when the job is prose.
+
+"Bad" is in each case the form a language model falls into by itself.
+"Better" is not the only solution, but one that shows what it's about.
+
+---
+
+**1. The feeling is spoken instead of played.**
+- Bad: NADIA: I feel like a stranger here.
+- Better: NADIA: (doesn't take her coat off) Is this the hallway or
+  already the room?
+
+**2. The character explains their own motivation.**
+- Bad: INES: I'm not calling her because I'm afraid she'll notice how
+  bad I'm doing.
+- Better: INES: (picks up the phone, puts it down again) Tomorrow.
+
+**3. The closing line as a conclusion.**
+- Bad: NADIA: Maybe home, in the end, is simply where you don't have to
+  explain yourself.
+- Better: NADIA: Will you turn the light off? / INES: I'm still sitting here.
+
+**4. The moral at the end.**
+- Bad: INES: We should all listen more.
+- Better: INES: What did you say? / NADIA: Nothing.
+
+**5. Both characters tell each other what both already know.**
+- Bad: NADIA: As you know, I've been working at the sewing shop for twelve
+  years.
+- Better: NADIA: Twelve years. / INES: Stop it.
+
+**6. Every question gets an answer.**
+- Bad: INES: Where were you? / NADIA: I was at my sister's.
+- Better: INES: Where were you? / NADIA: Do you still have the note?
+
+**7. All characters speak the same English.**
+- Bad: Three characters, all in complete main clauses of medium
+  length.
+- Better: One speaks in half sentences, one talks too long, one says almost
+  nothing and always the same word.
+
+**8. Addressing by name in every other line.**
+- Bad: NADIA: You know, Ines, I think, Ines, that ...
+- Better: The name comes up once in the scene, and then because it does something.
+
+**9. Stage directions that claim an inner life.**
+- Bad: (sad, but with a trace of hope)
+- Better: (folds the note up again)
+
+**10. The stage direction tells what the line already says.**
+- Bad: NADIA: (angry) I'm angry!
+- Better: NADIA: (puts the cup down) There.
+
+**11. Narrative prose in a theatre text** (not in a prose job -- there it is the point).
+- Bad: It is a cold morning. Nadia thinks back to the years in
+  which she ...
+- Better: (<place>, early) -- and the rest is in the lines or
+  nowhere.
+
+**12. The tidy monologue.**
+- Bad: Twelve lines in one go, three neatly built arguments,
+  a closing sentence with a punchline.
+- Better: Four lines, then the other character interrupts. Nobody needs the
+  other eight.
+
+**13. The rhetorical triple.**
+- Bad: NADIA: I've lost everything. My work, my flat,
+  my language.
+- Better: NADIA: The flat is gone. (Pause) The flat is gone.
+
+**14. The metaphor that explains itself.**
+- Bad: INES: This suitcase, that's my whole life, you understand,
+  everything I brought with me.
+- Better: INES: It won't close any more. / NADIA: Then leave something here.
+
+**15. Softener before every statement.**
+- Bad: NADIA: I kind of think that maybe it could possibly
+  be the case that ...
+- Better: NADIA: No.
+
+**16. Therapy language in the mouths of people who don't talk like that.**
+- Bad: INES: I need to communicate my boundaries.
+- Better: INES: I don't want that.
+
+**17. The character speaks subtitles to her own biography.**
+- Bad: NADIA: When I came here in 1998 at twenty, without a
+  word of the language ...
+- Better: NADIA: Back then the kiosk was still there. / INES: Which kiosk?
+
+**18. Agreement loop instead of friction.**
+- Bad: INES: You're right about that. / NADIA: Yes, exactly. / INES: Absolutely.
+- Better: INES: You said that differently last time.
+
+**19. The theme sentence that announces the scene.**
+- Bad: NADIA: Let's talk about arriving.
+- Better: The scene is about arriving without the word ever coming up.
+
+**20. Symmetrical line lengths.**
+- Bad: Every line two lines long, across two pages.
+- Better: One page of one-word lines, then one that is too long
+  because the character can't stop.
+
+**21. The smoothed-over rendering of an interview sentence.**
+- Bad: "so I, yeah, I don't know, that's just how it was" becomes "It
+  was a difficult time for me".
+- Better: The sentence stays as it was said. The breaks are the
+  information.
+
+**22. Explained foreign language.**
+- Bad: INES: Piano piano -- that means slowly, slowly.
+- Better: INES: Piano piano. / NADIA: (waits)
+
+**23. The exclamation mark as a substitute for tension.**
+- Bad: NADIA: You can't do that!
+- Better: NADIA: You can't do that. / (She does it.)
+
+**24. The time jump is announced.**
+- Bad: NADIA: Three weeks later I was sitting at the office and ...
+- Better: (Pause. She's wearing a different coat now.)
+
+The following six come from the evaluation of a manually run
+interview theatre project (Herkules.exe, 2026) -- places where the
+dramaturgy replaced a first version with a better one.
+
+**25. The transplanted original sound.**
+- Bad: LENA: You think, okay, five minutes, and all of a sudden
+  an hour has gone by. (The interview sentence, put into a character's mouth.)
+- Better: INES: Since last night. That's -- (counts) -- fourteen
+  hours. / LENA: Yes. It works. If nothing pulls you out.
+  The quote is the source. On stage the same insight has to be
+  worked out by someone who doesn't have it yet.
+
+**26. The wound in one's own mouth.**
+- Bad: LENA: Back then he told me I was too stupid for the
+  language. Since then I don't speak it any more when strangers are around.
+- Better: (Voices from outside, male, calm.) Too stupid for the language.
+  Too stupid. / (LENA keeps filling in the form. Faster.)
+  Reported, the wound is a report. As an attack in the present tense it
+  hits the audience too.
+
+**27. The silence that is named at once.**
+- Bad: INES: Do you notice that? They're not even talking to me. I'm not
+  even important enough to them.
+- Better: (The others keep talking. Over Ines's head. She stands there.) ...
+  and only two pages later: INES: I know that. Since the first day.
+  The absence has to be endured before it is named. Named at
+  once, it is only a claim.
+
+**28. The softened number.**
+- Bad: NADIA: She's been waiting for the decision for ages.
+- Better: NADIA: For three years and four months.
+  The number achieves what the metaphor claims -- and it was in the interview.
+
+**29. The explained trait.**
+- Bad: NADIA: Doesn't it ever bother you that everyone treats you
+  differently because of the headscarf? / INES: It does. But I wear it because
+  it's my choice.
+- Better: INES: Men who know things are clever. Women who know
+  things are swots. And women like me who know things are -- /
+  NADIA: -- well integrated. / INES: Exactly.
+  As soon as a trait is discussed, it becomes the character's theme. And
+  the label never comes from her own mouth -- someone else supplies it.
+
+**30. The varied repetition.**
+- Bad: (She rings.) ... (The ringing again, longer this time.) ...
+  (One last, desperate ring.)
+- Better: (Doorbell. Everyone waits. Five seconds. Ten.) ... (Doorbell. Everyone
+  waits. Five seconds. Ten. Twenty.) -- letter for letter the same, only the
+  waiting time grows.
+  Variation gives away the arranger. The identical repetition makes the
+  waiting itself unbearable.
+
+The following four are machine tells in the narrow sense: they are counted,
+not judged (interview_theater/sprachpass.py). Each one was measured in a real
+group text on 06.09.2026 and removed by hand afterwards.
+
+**31. The dash instead of a decision.**
+- Bad: She waited—and waited—and waited.
+- Better: She waited. (Pause) She waited.
+  A dash joins what a full stop would separate. On stage the pause does that
+  work, and it does it better. One dash in two thousand words is nothing; six
+  in a thousand is a habit.
+
+**32. "not X but Y".**
+- Bad: It was not a home but a waiting room.
+- Better: A waiting room. With a kettle.
+  The negation carries the thing it denies into the sentence and keeps it
+  there. Say the second half and drop the first.
+
+**33. Three adjectives in a row.**
+- Bad: She was tired, angry, and alone.
+- Better: She had not taken her coat off.
+  Three words for one state is one word three times. An action shows it; a
+  list only sorts it.
+
+**34. The closing line that says what it was about.**
+- Bad: Maybe home is just where you stop explaining.
+- Better: NADIA: Are you turning the light off? / INES: I'm still sitting.
+  The last line is the one the audience takes home. If it names the theme, it
+  takes the theme instead of the scene.
+
+=== NUTZER (1869 Zeichen, ~623 Token) ===
+The group's terms: arrival, waiting, strangers, noise, belonging, home, trust, family, the city at night
+
+The group's questions:
+1. What do you remember about your first day here?
+2. Where did you wait the longest in your life?
+3. When did a strange place start to feel like yours?
+
+Setting: A railway station in a northern Italian city, one wet November evening. A young man has just arrived and waits for a cousin who does not come.
+
+Story so far:
+Samir waits on a bench with two bags, one of them broken. He rehearses how to order a coffee and never goes. The woman at the station cafe notices him. When his cousin finally arrives, the broken bag opens in the middle of the hall - and for the first time Samir laughs here.
+
+Characters:
+- Samir -- just arrived, wants to arrive without asking anyone
+- Elena -- runs the station cafe, sees everyone and says little
+- Tommaso -- the cousin, late, embarrassed, overly cheerful
+
+Scene sequence so far:
+Scene 1 — The bench — Samir waits and rehearses his order.
+Scene 2 — The cafe — Elena watches him not coming in.
+Scene 3 — Socks on the floor — Tommaso arrives, the bag opens.
+
+This is how the characters speak:
+- Samir: Short sentences, corrects himself, drops into his first language.
+- Elena: Dry, practical, questions instead of statements.
+- Tommaso: Talks fast, apologises twice, jokes to cover it.
+
+How long the sections should be:
+- Section 1 (dialog): about 250 words
+- Section 2 (dialog): about 250 words
+- Section 3 (dialog): about 250 words
+About 750 words in total.
+Exactly 3 sections, in this order, with these lengths.
+The lengths differ on purpose. Sections of equal length take the rhythm out of the play.
+These lengths apply. Any other length given in the rules below is overridden.
+
+Your task:
+Write the story in one go.
+The group says about it: Elena should say something to him, a bit rude at first.

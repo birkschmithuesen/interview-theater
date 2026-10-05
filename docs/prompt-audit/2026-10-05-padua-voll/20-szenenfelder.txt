@@ -1,0 +1,65 @@
+# 20-szenenfelder
+# art=szenenfelder phase=4 weg=claude modell=claude-opus-5 quelle=abgefangen
+# szenenfelder
+=== SYSTEM (484 Zeichen, ~161 Token) ===
+You are planning a single scene with a theatre group.
+
+For the scene below, details are still missing: what happens.
+
+Suggest them -- from the material below, not freely invented.
+Answer in EXACTLY this form, without an introduction and without an afterword:
+
+VORSCHLAG SZENE:
+field: value
+field: value
+
+One line per field, only the missing fields, the field names exactly as in
+the list above. Then one sentence and an open question to the group, two
+lines at most.
+Write in English.
+
+=== NUTZER (2072 Zeichen, ~690 Token) ===
+The story / the setting of the play -- this is the group's brief, every scene is part of it and has to fit it:
+A railway station in a northern Italian city, one wet November evening. A young man has just arrived and waits for a cousin who does not come.
+
+Arc and ending:
+Samir waits on a bench with two bags, one of them broken. He rehearses how to order a coffee and never goes. The woman at the station cafe notices him. When his cousin finally arrives, the broken bag opens in the middle of the hall - and for the first time Samir laughs here.
+
+The characters (who they are, what they want). The group chose how they speak -- keep up the speech styles marked below; where none is given, give the character their own distinct way of talking (sentence length, pace, favourite words):
+
+Samir -- just arrived, wants to arrive without asking anyone
+  Speech style (chosen by the group): Short sentences, corrects himself, drops into his first language.
+
+Elena -- runs the station cafe, sees everyone and says little
+  Speech style (chosen by the group): Dry, practical, questions instead of statements.
+
+Tommaso -- the cousin, late, embarrassed, overly cheerful
+  Speech style (chosen by the group): Talks fast, apologises twice, jokes to cover it.
+
+What has happened so far:
+This has already been written and stands. Continue from it: characters, motifs, movement patterns, key lines and tone carry on; repeat nothing word for word, except as a deliberate echo.
+
+Scene 1: The bench
+  Place: the railway station
+  Who: Samir
+
+Scene 2: The cafe
+  Place: the railway station
+  Who: Samir, Elena
+  What happens: Elena watches him not coming in.
+
+Scene 3: Socks on the floor
+  Place: the railway station
+  Who: Samir, Elena, Tommaso
+  What happens: Tommaso arrives, the bag opens.
+
+This is the scene you are to write. The details are binding -- replace nothing, invent nothing that contradicts them:
+Scene 1
+Place: the railway station
+Time: a wet November evening
+Occasion: an arrival nobody meets
+Who: Samir
+Title: The bench
+
+Your task:
+Suggest the missing details for scene 1.

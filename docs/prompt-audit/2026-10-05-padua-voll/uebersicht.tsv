@@ -1,0 +1,39 @@
+pfad	art	phase	weg	modell	quelle	system_zeichen	nutzer_zeichen	token_gesamt	tok_system	tok_status	tok_verlauf	tok_zusammenfassung
+01-gespraech-phase1	gespraech	1	claude	claude-opus-5	abgefangen	28705	1657	10120	9550	191	319	37
+05-gespraech-phase2	gespraech	2	claude	claude-opus-5	abgefangen	33654	1802	11818	11200	247	311	37
+06-gespraech-phase3	gespraech	3	infomaniak	moonshotai/Kimi-K2.6	abgefangen	29649	14199	14616	9865	246	4321	160
+07-gespraech-phase4	gespraech	4	claude	claude-opus-5	abgefangen	34804	2609	12470	11583	518	311	37
+08-gespraech-phase5	gespraech	5	claude	claude-opus-5	abgefangen	30462	3108	11190	10136	686	307	37
+02-gespraech-phase6	gespraech	6	claude	claude-opus-5	abgefangen	32431	3066	11832	10792	685	294	37
+09-gespraech-phase7	gespraech	7	claude	claude-opus-5	abgefangen	31759	3253	11670	10568	741	299	37
+10-erkenner-verlauf	erkenner	4	infomaniak	google/gemma-4-31B-it	abgefangen	31460	2261	11239				
+11-erkenner-aufnahme	erkenner	3	infomaniak	google/gemma-4-31B-it	abgefangen	31460	2294	11250				
+12-journal	journal	4	infomaniak	google/gemma-4-31B-it	abgefangen	4892	9698	4862				
+13-begriffsboard	begriffsboard	1	claude	claude-opus-5	abgefangen	4608	729	1779				
+14-diskussion-verdichtung	diskussion_verdichtung	1	claude	claude-opus-5	abgefangen	1672	208	626				
+15-fragen-ki	fragen_ki_vorschlag	2	claude	claude-opus-5	abgefangen	2390	114	834				
+16-verdichter	verdichter	3	infomaniak	moonshotai/Kimi-K2.6	abgefangen	3204	2436	1880				
+17-buehnenkarte	brainstorm_karte	4	claude	claude-opus-5	abgefangen	2168	924	1030				
+18-szenenfolge	szenenfolge	4	claude	claude-opus-5	abgefangen	7531	1857	3129				
+19-geschichte	geschichte	4	claude	claude-opus-5	abgefangen	10234	1203	3812				
+20-szenenfelder	szenenfelder	4	claude	claude-opus-5	abgefangen	484	2072	851				
+21-schaerfung	schaerfung	5	claude	claude-opus-5	abgefangen	2249	1341	1196				
+22-entwurf-uebersicht	entwurf_uebersicht	5	claude	claude-opus-5	abgefangen	927	655	527				
+23-sprachprofil	sprachprofil	5	infomaniak	google/gemma-4-31B-it	abgefangen	2517	2233	1583				
+24-kernzitate	kernzitate	5	infomaniak	google/gemma-4-31B-it	abgefangen	2658	587	1081				
+25-kurzgeschichte	kurzgeschichte	6	claude	claude-opus-5	abgefangen	14226	1869	5365				
+03-kurzgeschichte-phase6	kurzgeschichte	6	claude	claude-opus-5	gebaut	14226	2478	5568				
+04-szene-prosa-phase6	szene	6	infomaniak	moonshotai/Kimi-K2.6	gebaut	13052	3570	5540				
+27-sprechweise	sprechweise	7	claude	claude-opus-5	abgefangen	592	424	338				
+28-szene-dialog	szene	7	infomaniak	moonshotai/Kimi-K2.6	gebaut	32791	4052	12280				
+29-szene-monolog	szene	7	infomaniak	moonshotai/Kimi-K2.6	gebaut	26229	4052	10093				
+30-szene-chor	szene	7	infomaniak	moonshotai/Kimi-K2.6	gebaut	32791	4052	12280				
+31-szene-lied	szene	7	infomaniak	moonshotai/Kimi-K2.6	gebaut	32791	4052	12280				
+32-szene-rap	szene	7	infomaniak	moonshotai/Kimi-K2.6	gebaut	27399	4052	10483				
+34-stueckpruefung	stueckpruefung	7	claude	claude-opus-5	abgefangen	2712	305	1005				
+35-dramaturgie-b1	dramaturgie_b1	6	infomaniak	moonshotai/Kimi-K2.6	abgefangen	2326	169	831				
+36-dramaturgie-a2	dramaturgie_a2	6	infomaniak	moonshotai/Kimi-K2.6	abgefangen	2193	565	919				
+38-dramaturgie-a9	dramaturgie_a9	6	infomaniak	moonshotai/Kimi-K2.6	abgefangen	4084	262	1448				
+39-dramaturgie-a10	dramaturgie_a10	7	infomaniak	moonshotai/Kimi-K2.6	abgefangen	4133	340	1490				
+40-dramaturgie-a11	dramaturgie_a11	6	infomaniak	moonshotai/Kimi-K2.6	abgefangen	4279	784	1687				
+41-dramaturgie-c1	dramaturgie_c1	7	infomaniak	moonshotai/Kimi-K2.6	abgefangen	1899	328	742				

@@ -89,7 +89,17 @@ CREATE TABLE IF NOT EXISTS gruppe (
   -- herumgeben"), gruppenweit und nicht je Geraet (anders als die drei
   -- localStorage-Schluessel des Geraets). Keine Rueck-Loeschung: die Karte
   -- verlangt keine, und keine soll erfunden werden. Additiv nachgeruestet.
-  kalibrierung_modus              TEXT
+  kalibrierung_modus              TEXT,
+  -- Serverseitige Gruppenwerte der Pegel-Kalibrierung (Karte "keine
+  -- Kalibrierung in Phase 3/4", 05.10.2026): einmal je Gruppe gemessen (ob
+  -- manuell im Panel oder automatisch im Hintergrund), gelten fuer JEDES
+  -- Geraet und JEDE Phase -- anders als der datumsgebundene localStorage-
+  -- Cache eines einzelnen Geraets. NULL = noch nie gemessen. Additiv
+  -- nachgeruestet ueber _migriere_fehlende_spalten.
+  kalibrierung_boden               REAL,
+  kalibrierung_rede                REAL,
+  kalibrierung_schwelle            REAL,
+  kalibrierung_gemessen_am         TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (

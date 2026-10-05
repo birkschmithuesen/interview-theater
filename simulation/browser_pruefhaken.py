@@ -73,6 +73,10 @@ class PruefKontext:
     beobachter_start: int = 0            # Index in beobachter.verlauf zu Stationsbeginn
     stand: inv.P1Stand | None = None     # Ergebnis von nach_ende, fuer verhoerer
     notizen: list = field(default_factory=list)
+    #: (befunde, stand) aus ``warte``, gelaufen DIREKT nach dem Klick auf
+    #: "Discussion done" -- spaetere Persona-Nachrichten koennen Stille
+    #: dann nicht mehr verdecken, und die 60 s beginnen beim Klick.
+    ergebnis_nach_ende: tuple | None = None
 
 
 def speicher_schluessel(page) -> list[str]:
@@ -146,14 +150,27 @@ def _beobachter_nachmessen(kontext: PruefKontext, board_gefuellt: bool) -> None:
         b.messe()
 
 
+def warte_nach_klick(station, kontext: PruefKontext, chat_id: int) -> None:
+    """Rueckruf direkt nach dem Harness-Klick auf "Discussion done"."""
+    kontext.ergebnis_nach_ende = kontext.warte(
+        kontext.db_pfad, chat_id, kontext.vorher, station.schluessel)
+
+
 def _nach_ende(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
-    vorher = kontext.vorher
-    if vorher is None:
-        # Kein Vorher-Stand (weder vor "Discussion done" noch vom
-        # Stationsanfang): dann gilt jetzt -- vermerkt, damit es auffaellt.
-        vorher = _lies_p1(kontext, chat_id)
-        kontext.notizen.append(f"{station.schluessel}: kein Vorher-Stand vor 'Discussion done'")
-    befunde, stand = kontext.warte(kontext.db_pfad, chat_id, vorher, station.schluessel)
+    if kontext.ergebnis_nach_ende is not None:
+        befunde, stand = kontext.ergebnis_nach_ende
+    else:
+        # Der Harness hat "Discussion done" nicht selbst gedrueckt (die
+        # Persona war schneller oder die Diskussion lief nie): Vorher-Stand
+        # ist der Stationsbeginn, gewartet wird erst jetzt -- vermerkt, weil
+        # Bot-Zeilen der Station dann Stille verdecken koennen.
+        vorher = kontext.vorher
+        if vorher is None:
+            vorher = _lies_p1(kontext, chat_id)
+        kontext.notizen.append(
+            f"{station.schluessel}: kein Harness-Klick auf 'Discussion done' -- Vorher-Stand vom "
+            "Stationsbeginn, Wartezeit ab Stationsende")
+        befunde, stand = kontext.warte(kontext.db_pfad, chat_id, vorher, station.schluessel)
     kontext.stand = stand
     befunde = list(befunde)
     if kontext.beobachter is not None:
@@ -190,15 +207,24 @@ def _wissen(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
     return befunde
 
 
+def _alle_tokens(kontext: PruefKontext) -> tuple[str, ...]:
+    return tuple(g.token for g in kontext.gruppen)
+
+
 def _raumcheck(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
     token = kontext.gruppen[station.gruppe - 1].token
-    return inv.pruefe_raumcheck_schluessel(speicher_schluessel(kontext.page), token, station.schluessel)
+    return inv.pruefe_raumcheck_schluessel(speicher_schluessel(kontext.page), token,
+                                           station.schluessel, alle_tokens=_alle_tokens(kontext))
 
 
 def _zweite_gruppe(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    """Gemeldet werden nur ``vad_*``-Schluessel, die KEINEN Gruppentoken
+    tragen: die korrekt gebundene Messung von Gruppe 1 (``vad_*:<tok1>:…``)
+    liegt auf demselben Geraet legitim im Speicher und ist kein Befund."""
     gruppe = kontext.gruppen[max(station.gruppe, 2) - 1]
     befunde = inv.pruefe_raumcheck_schluessel(
-        speicher_schluessel(kontext.page), gruppe.token, station.schluessel)
+        speicher_schluessel(kontext.page), gruppe.token, station.schluessel,
+        alle_tokens=_alle_tokens(kontext))
     if befunde and kontext.page.locator("#kalibrierung-neu:visible").count():
         befunde = [dataclasses.replace(
             b, text=b.text + " DOM: 'Measure again' ist in der zweiten Gruppe sichtbar, "

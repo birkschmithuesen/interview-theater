@@ -605,6 +605,8 @@ def test_invarianten_landen_in_ergebnis_json(stack, tmp_path):
     assert befund["ursache"] == _UNGEKLAERT
     assert befund["station"] == "t-ende"
     assert "top_befunde" in ergebnis
+    # Kein Harness-Klick auf "Discussion done" -> vermerkt (Review, Minor 6).
+    assert any("t-ende" in n and "Discussion done" in n for n in ergebnis["pruef_notizen"])
 
 
 def test_station_nicht_erreicht_wird_befund_hoch(stack, tmp_path):
@@ -745,11 +747,25 @@ def test_fuehre_pruefungen_zweite_gruppe_mit_dom_hinweis():
     gruppen = [Gruppe(token="tok1", chat_id=1), Gruppe(token="tok2", chat_id=2)]
     kontext = browser_lauf.PruefKontext(
         db_pfad="x", gruppen=gruppen,
-        page=_SeiteAttrappe(["vad_schwelle:tok1:2026-10-05"], measure_again=True))
+        page=_SeiteAttrappe(["vad_schwelle", "vad_boden:tok1:2026-10-05"], measure_again=True))
     station = browser_stationen.Station("t-z", 1, "x", gruppe=2, pruefung=("zweite_gruppe",))
     befunde = browser_lauf.fuehre_pruefungen(station, kontext)
     assert [b.schluessel for b in befunde] == ["raumcheck_domainweit"]
     assert "Measure again" in befunde[0].text
+    assert "vad_schwelle" in befunde[0].text and "vad_boden:tok1" not in befunde[0].text
+
+
+def test_fuehre_pruefungen_zweite_gruppe_gruppe_eins_schluessel_ist_kein_befund():
+    """Review Task 6, Important 1: auf dem behobenen Stand liegt die korrekt
+    gebundene Messung von Gruppe 1 (``vad_*:<tok1>:<datum>``) auf demselben
+    Geraet -- auf der Seite von Gruppe 2 ist das KEIN domainweiter Schluessel."""
+    gruppen = [Gruppe(token="tok1", chat_id=1), Gruppe(token="tok2", chat_id=2)]
+    kontext = browser_lauf.PruefKontext(
+        db_pfad="x", gruppen=gruppen,
+        page=_SeiteAttrappe(["vad_schwelle:tok1:2026-10-05", "vad_boden:tok1:2026-10-05",
+                             "vad_rede:tok1:2026-10-05"]))
+    station = browser_stationen.Station("t-z", 1, "x", gruppe=2, pruefung=("zweite_gruppe",))
+    assert browser_lauf.fuehre_pruefungen(station, kontext) == []
 
 
 def test_fuehre_pruefungen_ausnahme_im_haken_wird_befund():
@@ -835,3 +851,80 @@ def test_station_mit_diskussion_startet_persona_browser_neu(stack, tmp_path, mon
             wechsle_audio=wechsle_audio)
         browser.close()
     assert gewechselt == ["diskussion-verhoerer.wav"]
+
+
+def test_nach_ende_wartet_direkt_nach_dem_klick_persona_verdeckt_stille_nicht(
+        stack, tmp_path, monkeypatch):
+    """Review Task 6, Important 2: nach dem Harness-Klick auf 'Discussion
+    done' schweigt der Bot; danach tippt die Persona noch etwas und der Bot
+    antwortet NUR darauf. Diese spaetere Antwort darf die Stille nach dem
+    Klick nicht verdecken -- ``nach_ende`` wartet deshalb direkt nach dem
+    Klick, nicht am Stationsende."""
+    basis, token, pfad = stack
+    monkeypatch.setattr(browser_lauf, "_diskussion_laeuft", lambda page: True)
+    klicks = []
+    monkeypatch.setattr(browser_lauf, "_beende_diskussion_deterministisch",
+                        lambda page: klicks.append(time.monotonic()) or True)
+    gewartet = []
+
+    def warte(db_pfad, chat_id, vorher, station, **kw):
+        gewartet.append(time.monotonic())
+        return inv.warte_nach_diskussion(db_pfad, chat_id, vorher, station,
+                                         frist_s=0.5, takt_s=0.1)
+
+    station = browser_stationen.Station("t-still", 1, "Listen, then chat.", budget=4,
+                                        zuhoeren_s=1, pruefung=("nach_ende",))
+    persona = _ScriptedClient([
+        {"type": "wait", "duration_ms": 50, "begruendung": "liegt auf dem Tisch"},
+        {"type": "type_send", "text": "Are you still there", "begruendung": "nach dem Klick"},
+        {"type": "done_station", "begruendung": "fertig"},
+    ])
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [station], persona=persona,
+                                  warte=warte)
+    assert len(klicks) == 1 and len(gewartet) == 1
+    assert gewartet[0] >= klicks[0]
+    conn = db.verbinde(pfad)
+    antworten = conn.execute(
+        "SELECT COUNT(*) FROM web_post WHERE chat_id = ? AND richtung = 'aus' AND text = ?",
+        (CHAT, _LLMAttrappe.antwort)).fetchone()[0]
+    conn.close()
+    assert antworten >= 1            # der Bot HAT auf die spaetere Nachricht geantwortet
+    schluessel = [b["schluessel"] for b in ergebnis["invarianten"]]
+    assert any(s.startswith("stille_") for s in schluessel), schluessel
+    assert not any("t-still" in n for n in ergebnis["pruef_notizen"])
+
+
+def test_fehler_in_der_nachbereitung_kostet_ergebnis_json_nicht(stack, tmp_path, monkeypatch):
+    """Review Task 6, Minor 7: ein Fehler im Richter/in der Blasenlese nach
+    einer Station wird ein Befund, ergebnis.json entsteht trotzdem."""
+    basis, token, pfad = stack
+
+    def wirft(*a, **kw):
+        raise RuntimeError("Richter kaputt")
+
+    monkeypatch.setattr(browser_lauf.browser_judge, "bewerte_erklaerung", wirft)
+    station = browser_stationen.Station("t-nach", 1, "Observe.", ohne_persona=True, warte_s=0)
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [station])
+    gespeichert = json.loads((tmp_path / "l" / "ergebnis.json").read_text())
+    befunde = [b for b in gespeichert["invarianten"]
+               if b["schluessel"] == "pruefung_gescheitert:nachbereitung"]
+    assert len(befunde) == 1 and "Richter kaputt" in befunde[0]["text"]
+    assert befunde[0]["schwere"] == "hoch"
+    assert gespeichert["stationen_ergebnisse"][0]["schluessel"] == "t-nach"
+    assert ergebnis["invarianten"] == gespeichert["invarianten"]
+
+
+def test_ergebnis_json_auch_bei_durchschlagender_ausnahme(stack, tmp_path, monkeypatch):
+    basis, token, pfad = stack
+
+    class _Abbruch(BaseException):  # nicht von ``except Exception`` gefangen
+        pass
+
+    def wirft(*a, **kw):
+        raise _Abbruch()
+
+    monkeypatch.setattr(browser_lauf, "fuehre_pruefungen", wirft)
+    station = browser_stationen.Station("t-x", 1, "Observe.", ohne_persona=True, warte_s=0)
+    with pytest.raises(_Abbruch):
+        _stationen_lauf(basis, token, pfad, tmp_path, [station])
+    assert (tmp_path / "l" / "ergebnis.json").exists()

@@ -199,6 +199,17 @@ def test_raumcheck_ohne_gruppenschluessel_ist_domainweit():
     assert inv.pruefe_raumcheck_schluessel(neu, "tok123", "s") == []
 
 
+def test_raumcheck_schluessel_einer_anderen_gruppe_ist_gebunden():
+    """Seite von Gruppe 2, Messung von Gruppe 1 korrekt gebunden: kein Befund,
+    sobald alle Tokens des Laufs bekannt sind -- ein ungebundener bleibt einer."""
+    schluessel = ["vad_schwelle:tok1:2026-10-05", "vad_boden_mess:tok1:2026-10-05"]
+    assert inv.pruefe_raumcheck_schluessel(schluessel, "tok2", "s",
+                                           alle_tokens=("tok1", "tok2")) == []
+    (b,) = inv.pruefe_raumcheck_schluessel(schluessel + ["vad_schwelle"], "tok2", "s",
+                                           alle_tokens=("tok1", "tok2"))
+    assert "vad_schwelle." in b.text and "tok1" not in b.text
+
+
 def test_raumcheck_ohne_messung_meldet_nichts():
     assert inv.pruefe_raumcheck_schluessel(["theme"], "tok", "s") == []
 

@@ -207,10 +207,16 @@ def pruefe_beobachter(verlauf: list[int], station: str) -> list[Befund]:
                    f"Das zweite Geraet sah nie einen Begriff im CoThinker (Verlauf {verlauf or '[]'}).")]
 
 
-def pruefe_raumcheck_schluessel(schluessel: list[str], token: str, station: str) -> list[Befund]:
+def pruefe_raumcheck_schluessel(schluessel: list[str], token: str, station: str,
+                                alle_tokens: tuple[str, ...] = ()) -> list[Befund]:
+    """Meldet ``vad_*``-Schluessel ohne Gruppenbezug. ``alle_tokens``: die
+    Tokens ALLER Gruppen des Laufs -- ein Schluessel, der irgendeinen davon
+    traegt, ist korrekt gruppengebunden (z. B. die Messung von Gruppe 1,
+    gesehen auf der Seite von Gruppe 2) und kein Befund."""
+    tokens = (token, *alle_tokens)
     offen = sorted(
         k for k in schluessel
-        if k.startswith(GRUPPENSCHLUESSEL_PRAEFIXE) and token not in k
+        if k.startswith(GRUPPENSCHLUESSEL_PRAEFIXE) and not any(t and t in k for t in tokens)
     )
     if not offen:
         return []

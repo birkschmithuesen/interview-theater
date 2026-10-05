@@ -49,6 +49,7 @@ from simulation.browser_pruefhaken import (  # noqa: F401 -- die Haken-API diese
     fuehre_pruefungen,
     sichtbares,
     speicher_schluessel,
+    warte_nach_klick,
 )
 
 log = logging.getLogger(__name__)
@@ -342,7 +343,8 @@ def _fuehre_phase_aus(
 def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mitschnitt,
                         station: browser_stationen.Station, *, basis_url: str,
                         token: str, db_pfad: str, chat_id: int, persona_name: str,
-                        beobachter=None, leitbilder=None, vor_ende=None) -> dict:
+                        beobachter=None, leitbilder=None, vor_ende=None,
+                        nach_klick=None) -> dict:
     """Ein Stationsdurchlauf (Abnahmelauf Phase 1-2, 04.10.2026): wie
     ``_fuehre_phase_aus``, aber gegen ein Stationsziel statt eine Phase, mit
     Nachfragen-Schutz (``browser_stationen.muss_antworten``), optionalem
@@ -353,7 +355,9 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
 
     ``vor_ende`` (Task 6) laeuft unmittelbar vor dem deterministischen Klick
     auf "Discussion done" -- dort liest ``fuehre_stationen`` den
-    Vorher-Stand fuer die ``nach_ende``-Pruefung."""
+    Vorher-Stand fuer die ``nach_ende``-Pruefung. ``nach_klick`` laeuft
+    direkt nach einem erfolgreichen Klick (dort wartet ``nach_ende`` bis zu
+    60 s auf Board und Bot -- bevor die Persona weitertippen kann)."""
     if station.ohne_persona:
         page.wait_for_timeout(station.warte_s * 1000)
         erfassung = _erfasse_ohne_persona(page)
@@ -411,6 +415,8 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         if vor_ende is not None:
             vor_ende()
         if _beende_diskussion_deterministisch(page):
+            if nach_klick is not None:
+                nach_klick()
             if beobachter:
                 beobachter.messe()
         else:
@@ -569,8 +575,12 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
       ``wissen`` (Tests geben Attrappen).
     - ``wechsle_audio(wav) -> (page, context)``: startet den Persona-Browser
       mit ``wav`` als Mikrofon neu (Chromium liest die Fake-Audio-Datei nur
-      beim Start), vor jeder Station mit ``diskussion``. Ohne ihn bleibt die
-      bisherige Audioquelle."""
+      beim Start), vor jeder Station mit ``diskussion``; er installiert
+      ``browser_zaehler.installiere_messung`` auf dem neuen Kontext selbst,
+      vor ``new_page``. Ohne ihn bleibt die bisherige Audioquelle.
+    - ``nach_ende`` wartet direkt nach dem Harness-Klick auf "Discussion
+      done" (``nach_klick``); ``ergebnis.json`` wird in jedem Fall
+      geschrieben (``finally``)."""
     from simulation.browser_umgebung import Gruppe
 
     lauf_verzeichnis = Path(lauf_verzeichnis)
@@ -590,98 +600,149 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
     # waechst die Zitatbasis mit jeder Station und eine fruehe Erklaerung
     # wird mehrfach bewertet).
     bot_anzahl_vorher = 0
-    for station in stationen:
-        befunde: list[browser_invarianten.Befund] = []
-        kontext = PruefKontext(
-            db_pfad=db_pfad, gruppen=gruppen, page=page, beobachter=beobachter,
-            hole_prompt=hole_prompt, warte=warte, lauf_verzeichnis=lauf_verzeichnis,
-            beobachter_start=len(beobachter.verlauf) if beobachter else 0, notizen=notizen)
-        kontext.sende = lambda text, k=kontext: _sende_und_lies_antwort(k.page, text)
-        lauf = None
-        try:
-            gruppe = gruppen[station.gruppe - 1]
-            if station.diskussion:
-                wav, zuhoeren_s = _diskussions_audio(station, lauf_verzeichnis)
-                station = dataclasses.replace(station, zuhoeren_s=zuhoeren_s)
-                if wechsle_audio is not None:
-                    page, context = wechsle_audio(wav)
-                    browser_zaehler.installiere_messung(context)
-                    kontext.page = page
+    ergebnis: dict = {}
+    try:
+        for station in stationen:
+            befunde: list[browser_invarianten.Befund] = []
+            kontext = PruefKontext(
+                db_pfad=db_pfad, gruppen=gruppen, page=page, beobachter=beobachter,
+                hole_prompt=hole_prompt, warte=warte, lauf_verzeichnis=lauf_verzeichnis,
+                beobachter_start=len(beobachter.verlauf) if beobachter else 0, notizen=notizen)
+            kontext.sende = lambda text, k=kontext: _sende_und_lies_antwort(k.page, text)
+            lauf = None
+            try:
+                gruppe = gruppen[station.gruppe - 1]
+                if station.diskussion:
+                    wav, zuhoeren_s = _diskussions_audio(station, lauf_verzeichnis)
+                    station = dataclasses.replace(station, zuhoeren_s=zuhoeren_s)
+                    if wechsle_audio is not None:
+                        # ``wechsle_audio`` installiert die Messung selbst
+                        # (vor ``new_page``), siehe ``main``.
+                        page, context = wechsle_audio(wav)
+                        kontext.page = page
+                if station.gruppe != 1:
+                    _oeffne_gruppe(page, basis_url, gruppe.token)
+                nach_klick = None
+                if "nach_ende" in station.pruefung:
+                    # Rueckfall, falls der Harness "Discussion done" nicht
+                    # selbst drueckt; ``vor_ende`` ersetzt ihn direkt vor dem
+                    # Klick, ``nach_klick`` wartet direkt danach.
+                    kontext.vorher = _lies_p1(db_pfad, gruppe.chat_id)
+
+                    def nach_klick(k=kontext, st=station, cid=gruppe.chat_id):
+                        warte_nach_klick(st, k, cid)
+
+                def vor_ende(k=kontext, cid=gruppe.chat_id):
+                    k.vorher = _lies_p1(db_pfad, cid)
+
+                lauf = _fuehre_station_aus(
+                    page, persona_client, mitschnitt, station, basis_url=basis_url,
+                    token=gruppe.token, db_pfad=db_pfad, chat_id=gruppe.chat_id,
+                    persona_name=persona_name, beobachter=beobachter,
+                    leitbilder=leitbilder, vor_ende=vor_ende, nach_klick=nach_klick)
+            except Exception as fehler:
+                log.exception("Station %s ist gescheitert", station.schluessel)
+                fehlgeschlagen_bei = fehlgeschlagen_bei or station.schluessel
+                befunde.append(befund_ausnahme(station, fehler))
+            # Die Haken laufen auch nach einer Ausnahme: ein Harness-Fehler
+            # darf ein App-Symptom nicht verdecken (Symptomregel).
+            befunde += fuehre_pruefungen(station, kontext)
+            if lauf is not None and station.sage and "wissen" not in station.pruefung:
+                try:
+                    _sende_und_lies_antwort(page, station.sage)
+                except Exception as fehler:
+                    befunde.append(befund_ausnahme(station, fehler))
             if station.gruppe != 1:
-                _oeffne_gruppe(page, basis_url, gruppe.token)
-            if "nach_ende" in station.pruefung:
-                # Rueckfall, falls der Harness "Discussion done" nicht selbst
-                # drueckt; ``vor_ende`` ersetzt ihn direkt vor dem Klick.
-                kontext.vorher = _lies_p1(db_pfad, gruppe.chat_id)
-
-            def vor_ende(k=kontext, cid=gruppe.chat_id):
-                k.vorher = _lies_p1(db_pfad, cid)
-
-            lauf = _fuehre_station_aus(
-                page, persona_client, mitschnitt, station, basis_url=basis_url,
-                token=gruppe.token, db_pfad=db_pfad, chat_id=gruppe.chat_id,
-                persona_name=persona_name, beobachter=beobachter,
-                leitbilder=leitbilder, vor_ende=vor_ende)
-        except Exception as fehler:
-            log.exception("Station %s ist gescheitert", station.schluessel)
-            fehlgeschlagen_bei = fehlgeschlagen_bei or station.schluessel
-            befunde.append(befund_ausnahme(station, fehler))
-        # Die Haken laufen auch nach einer Ausnahme: ein Harness-Fehler darf
-        # ein App-Symptom nicht verdecken (Symptomregel).
-        befunde += fuehre_pruefungen(station, kontext)
-        if lauf is not None and station.sage and "wissen" not in station.pruefung:
+                try:
+                    (lauf_verzeichnis / f"zweite-gruppe-{station.schluessel}.png").write_bytes(
+                        browser_elemente.bildschirmfoto(page))
+                    _oeffne_gruppe(page, basis_url, gruppen[0].token)
+                except Exception as fehler:
+                    log.exception("Rueckweg auf Gruppe 1 nach %s gescheitert", station.schluessel)
+                    befunde.append(befund_ausnahme(station, fehler))
+            if lauf is not None:
+                befunde += browser_invarianten.pruefe_station_erreicht(
+                    station.schluessel, lauf["fertig"])
+            invarianten.extend(b.als_dict() for b in befunde)
+            leer = {"schluessel": station.schluessel, "phase": station.phase,
+                    "schritte": 0, "nachfragen_beantwortet": 0,
+                    "offene_fragen": [], "fertig": False,
+                    "fallback_benutzt": False, "note": None, "befunde": [],
+                    "zaehler_summe": {}, "screenshots_fuer_bericht": [],
+                    "note_erklaerung": None, "schwaechstes_zitat": "",
+                    "vorschlag": "", "invarianten": [b.schluessel for b in befunde]}
+            if lauf is None:
+                ergebnisse.append(leer)
+                continue
+            # Nachbereitung (Merkmale, Blasen, Richter): ein Fehler hier darf
+            # weder den Lauf noch ergebnis.json kosten -- er wird ein Befund.
             try:
-                _sende_und_lies_antwort(page, station.sage)
+                entwickler_merkmale.update(_entwickler_meta(page))
+                repraesentativ = _repraesentativ(lauf["screenshots_nach"])
+                alle_bot_texte = _bot_texte(page)
+                bot_texte = alle_bot_texte[bot_anzahl_vorher:]
+                bot_anzahl_vorher = len(alle_bot_texte)
+                bewertung = browser_judge.bewerte_phase(
+                    judge_client, station.phase,
+                    f"{phasen.kurzname(station.phase)} / {station.schluessel}",
+                    [p.read_bytes() for p in repraesentativ], [p.name for p in repraesentativ],
+                    lauf["zaehler_summe"]) if not station.ohne_persona else {}
+                erklaerung = browser_judge.bewerte_erklaerung(
+                    judge_client, station.schluessel, bot_texte)
+                ergebnisse.append({
+                    "schluessel": station.schluessel, "phase": station.phase,
+                    **{k: lauf[k] for k in ("schritte", "nachfragen_beantwortet", "offene_fragen",
+                                            "fertig", "fallback_benutzt", "zaehler_summe")},
+                    "note": bewertung.get("note"), "befunde": bewertung.get("befunde") or [],
+                    "screenshots_fuer_bericht": [p.name for p in repraesentativ],
+                    "note_erklaerung": erklaerung.get("note_erklaerung"),
+                    "schwaechstes_zitat": erklaerung.get("schwaechstes_zitat", ""),
+                    "vorschlag": erklaerung.get("vorschlag", ""),
+                    **({k: lauf[k] for k in ("bot_nachricht", "kalibrierung_sichtbar",
+                                             "zuhoeren_laeuft", "leertext_sichtbar") if k in lauf}),
+                    "invarianten": [b.schluessel for b in befunde],
+                })
             except Exception as fehler:
-                befunde.append(befund_ausnahme(station, fehler))
-        if station.gruppe != 1:
-            try:
-                (lauf_verzeichnis / f"zweite-gruppe-{station.schluessel}.png").write_bytes(
-                    browser_elemente.bildschirmfoto(page))
-                _oeffne_gruppe(page, basis_url, gruppen[0].token)
-            except Exception as fehler:
-                log.exception("Rueckweg auf Gruppe 1 nach %s gescheitert", station.schluessel)
-                befunde.append(befund_ausnahme(station, fehler))
-        if lauf is not None:
-            befunde += browser_invarianten.pruefe_station_erreicht(station.schluessel, lauf["fertig"])
-        invarianten.extend(b.als_dict() for b in befunde)
-        if lauf is None:
-            ergebnisse.append({"schluessel": station.schluessel, "phase": station.phase,
-                               "schritte": 0, "nachfragen_beantwortet": 0,
-                               "offene_fragen": [], "fertig": False,
-                               "fallback_benutzt": False, "note": None, "befunde": [],
-                               "zaehler_summe": {}, "screenshots_fuer_bericht": [],
-                               "note_erklaerung": None, "schwaechstes_zitat": "",
-                               "vorschlag": "",
-                               "invarianten": [b.schluessel for b in befunde]})
-            continue
-        entwickler_merkmale.update(_entwickler_meta(page))
-        repraesentativ = _repraesentativ(lauf["screenshots_nach"])
-        alle_bot_texte = [b["text"] for b in _verlaufsblasen(page) if b.get("von") == "bot"]
-        bot_texte = alle_bot_texte[bot_anzahl_vorher:]
-        bot_anzahl_vorher = len(alle_bot_texte)
-        bewertung = browser_judge.bewerte_phase(
-            judge_client, station.phase, f"{phasen.kurzname(station.phase)} / {station.schluessel}",
-            [p.read_bytes() for p in repraesentativ], [p.name for p in repraesentativ],
-            lauf["zaehler_summe"]) if not station.ohne_persona else {}
-        erklaerung = browser_judge.bewerte_erklaerung(judge_client, station.schluessel, bot_texte)
-        ergebnisse.append({
-            "schluessel": station.schluessel, "phase": station.phase,
-            **{k: lauf[k] for k in ("schritte", "nachfragen_beantwortet", "offene_fragen",
-                                    "fertig", "fallback_benutzt", "zaehler_summe")},
-            "note": bewertung.get("note"), "befunde": bewertung.get("befunde") or [],
-            "screenshots_fuer_bericht": [p.name for p in repraesentativ],
-            "note_erklaerung": erklaerung.get("note_erklaerung"),
-            "schwaechstes_zitat": erklaerung.get("schwaechstes_zitat", ""),
-            "vorschlag": erklaerung.get("vorschlag", ""),
-            **({k: lauf[k] for k in ("bot_nachricht", "kalibrierung_sichtbar",
-                                     "zuhoeren_laeuft", "leertext_sichtbar") if k in lauf}),
-            "invarianten": [b.schluessel for b in befunde],
-        })
+                log.exception("Nachbereitung von Station %s gescheitert", station.schluessel)
+                fehlgeschlagen_bei = fehlgeschlagen_bei or station.schluessel
+                befund = browser_invarianten.Befund(
+                    "pruefung_gescheitert:nachbereitung", station.schluessel,
+                    f"Nachbereitung (Merkmale/Blasen/Richter) an Station {station.schluessel} "
+                    f"warf {type(fehler).__name__}: {fehler}")
+                invarianten.append(befund.als_dict())
+                ergebnisse.append({**leer, "fertig": lauf["fertig"],
+                                   "invarianten": leer["invarianten"] + [befund.schluessel]})
+    finally:
+        # Immer schreiben -- auch wenn oben etwas Unerwartetes durchschlaegt
+        # (die Ausnahme laeuft danach weiter nach oben).
+        ergebnis = _schreibe_stationsergebnis(
+            lauf_verzeichnis, beobachter=beobachter, db_pfad=db_pfad,
+            persona_client=persona_client, judge_client=judge_client, geraet=geraet,
+            persona_name=persona_name, ergebnisse=ergebnisse, invarianten=invarianten,
+            notizen=notizen, entwickler_merkmale=entwickler_merkmale,
+            fehlgeschlagen_bei=fehlgeschlagen_bei, meta=meta)
+    return ergebnis
 
-    beob = beobachter.ergebnis() if beobachter else {
-        "board_verlauf": [], "beobachter_neu_geladen": False, "board_bestanden": False}
-    modelle = _modell_lesen(db_pfad)
+
+def _schreibe_stationsergebnis(lauf_verzeichnis: Path, *, beobachter, db_pfad, persona_client,
+                               judge_client, geraet, persona_name, ergebnisse, invarianten,
+                               notizen, entwickler_merkmale, fehlgeschlagen_bei, meta) -> dict:
+    """Baut und schreibt ``ergebnis.json`` -- jeder Teil mit eigenem
+    Rueckfall, damit die Datei auch nach einem kaputten Beobachter oder einer
+    unlesbaren DB entsteht."""
+    try:
+        beob = beobachter.ergebnis() if beobachter else {
+            "board_verlauf": [], "beobachter_neu_geladen": False, "board_bestanden": False}
+    except Exception as fehler:
+        log.exception("Beobachter-Ergebnis nicht lesbar")
+        beob = {"board_verlauf": list(getattr(beobachter, "verlauf", [])),
+                "beobachter_neu_geladen": None, "board_bestanden": False}
+        notizen.append(f"Beobachter-Ergebnis nicht lesbar: {type(fehler).__name__}: {fehler}")
+    try:
+        modelle = _modell_lesen(db_pfad)
+    except Exception:
+        log.exception("Modelle nicht lesbar")
+        modelle = {}
     modelle["persona"] = getattr(persona_client, "modell", "?")
     modelle["judge"] = getattr(judge_client, "modell", "?")
     top = [{**b, "station": e["schluessel"]} for e in ergebnisse
@@ -693,7 +754,7 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                 "pruef_notizen": notizen, "fehlgeschlagen_bei": fehlgeschlagen_bei,
                 "db_pfad": db_pfad, **(meta or {})}
     (lauf_verzeichnis / "ergebnis.json").write_text(
-        json.dumps(ergebnis, ensure_ascii=False, indent=2), encoding="utf-8")
+        json.dumps(ergebnis, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     return ergebnis
 
 
@@ -930,16 +991,19 @@ def main() -> None:
                 context = persona["context"]
 
                 def wechsle_audio(neue_wav: Path):
-                    alt = persona["seite"]
-                    url = alt.url
                     speicher = persona["context"].storage_state()
                     persona["browser"].close()
                     persona["browser"] = p.chromium.launch(
                         args=browser_probe.chromium_argumente(neue_wav))
                     persona["context"] = persona["browser"].new_context(
                         **geraet_profil, storage_state=speicher)
+                    # Messung VOR der ersten Seite -- ein Init-Skript wirkt
+                    # nur auf Seiten, die danach entstehen.
+                    browser_zaehler.installiere_messung(persona["context"])
                     persona["seite"] = persona["context"].new_page()
-                    persona["seite"].goto(url)
+                    # Immer Gruppe 1 (nicht ``alt.url``): eine Station einer
+                    # anderen Gruppe kehrt sonst evtl. nicht zurueck.
+                    persona["seite"].goto(f"{stack.web_basis}/g/{stack.token}")
                     persona["seite"].wait_for_selector("#verlauf")
                     return persona["seite"], persona["context"]
 

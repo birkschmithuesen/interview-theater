@@ -182,8 +182,11 @@ _TEXT_DATEI = "Datei: {name}"
 #: ``web_chat`` nur erkennen, nicht nachladen muss (UX-Knoepfe-Karte,
 #: Abschnitt 5). Beide Fassungen stehen hier, damit die Erkennung
 #: unabhaengig von der Profilsprache des laufenden Prozesses funktioniert.
+#: P34 Runde 3: EN heisst der Tab "CoThinker"; der alte EN-Wortlaut bleibt
+#: erkannt, damit schon gespeicherte Bot-Zeilen antippbar bleiben.
 _TEXTE_BUEHNE_NEUE_KARTE = (
-    "Neue Karte im Tab Bühne", "New card in the Stage tab",
+    "Neue Karte im Tab Bühne", "New card in the CoThinker tab",
+    "New card in the Stage tab",
 )
 _TEXT_ZUR_GRUPPENSEITE = "Zur Gruppenseite"
 #: Bild-Overlay-Karte (04.10.2026): der ✕-Knopf braucht ein Label fuer

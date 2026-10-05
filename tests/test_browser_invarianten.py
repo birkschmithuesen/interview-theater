@@ -431,3 +431,129 @@ def test_wissensantwort():
     _ist_nicht_pruefbar(b, inv.CHAT_NENNT_BOARD_NICHT)
     assert "Board leer" in b.text
     assert inv.WISSENSFRAGE == "Which terms are on the CoThinker right now?"
+
+
+# --- Task 2b: Invarianten P3/P4 (Transkriptblase, Statuszeile, Phase-4-Sperre,
+# CoThinker je Bogen, Modellwahl, Angebot 5) --------------------------------
+
+
+@pytest.fixture
+def db34(tmp_path):
+    pfad = tmp_path / "sim34.db"
+    conn = sqlite3.connect(pfad)
+    conn.executescript(
+        """
+        CREATE TABLE web_post (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER,
+                               richtung TEXT, typ TEXT, text TEXT, knoepfe TEXT, geloescht_am TEXT);
+        CREATE TABLE aufnahme (id INTEGER PRIMARY KEY, chat_id INTEGER, klasse TEXT,
+                               teil_von INTEGER, status TEXT, beendet_am TEXT, transkript TEXT,
+                               zu_kurz_uebersprungen INTEGER DEFAULT 0, brainstorm INTEGER DEFAULT 0,
+                               diskussion INTEGER DEFAULT 0, schnittgrund TEXT, entfernt_am TEXT);
+        CREATE TABLE verdichtung (id INTEGER PRIMARY KEY, chat_id INTEGER, aufnahme_id INTEGER);
+        CREATE TABLE buehnenkarte (id INTEGER PRIMARY KEY, chat_id INTEGER, text TEXT,
+                                   modell TEXT, schweigen INTEGER DEFAULT 0);
+        CREATE TABLE aufruf (id INTEGER PRIMARY KEY, chat_id INTEGER, art TEXT, modus TEXT);
+        CREATE TABLE arbeitsstand (chat_id INTEGER PRIMARY KEY, phase INTEGER, phase_angeboten INTEGER,
+                                   rahmen TEXT, geschichte TEXT, szenen_anzahl TEXT,
+                                   figuren_fixiert_am TEXT, begriffe TEXT);
+        CREATE TABLE figur (id INTEGER PRIMARY KEY, chat_id INTEGER, name TEXT);
+        CREATE TABLE szene (id INTEGER PRIMARY KEY, chat_id INTEGER);
+        """)
+    conn.commit(); conn.close()
+    return pfad
+
+
+def _p34(pfad, chat_id=7):
+    with inv.oeffne_lesend(pfad) as conn:
+        return inv.lese_p34_stand(conn, chat_id)
+
+
+def test_interview_ohne_transkriptblase_und_statuszeile(db34):
+    vorher = _p34(db34)
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, beendet_am, transkript) "
+                    "VALUES (1, 7, 'lang', 'fertig', 'x', 'a b c')")
+    befunde = inv.pruefe_nach_interview(vorher, _p34(db34), "p3-interview-kurz")
+    schluessel = {b.schluessel for b in befunde}
+    assert {inv.INTERVIEW_OHNE_BLASE, inv.INTERVIEW_OHNE_STATUS} <= schluessel
+
+
+def test_interview_mit_blase_und_einer_statuszeile_ist_sauber(db34):
+    vorher = _p34(db34)
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, beendet_am, transkript, "
+                    "zu_kurz_uebersprungen) VALUES (1, 7, 'lang', 'fertig', 'x', 'a b c', 1)")
+    _schreibe(db34, "INSERT INTO web_post (chat_id, richtung, typ, text) VALUES "
+                    "(7, 'aus', 'transkript', '🎙 Interview 1\n\nhi')")
+    _schreibe(db34, "INSERT INTO web_post (chat_id, richtung, typ, text) VALUES "
+                    "(7, 'aus', 'system', 'Interview 1 is too short to summarise (12 words).')")
+    assert inv.pruefe_nach_interview(vorher, _p34(db34), "p3-interview-kurz") == []
+
+
+def test_doppelte_statuszeile_und_deutscher_status_sind_mittel(db34):
+    vorher = _p34(db34)
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, beendet_am, transkript, "
+                    "zu_kurz_uebersprungen) VALUES (1, 7, 'lang', 'fertig', 'x', 'a', 1)")
+    _schreibe(db34, "INSERT INTO web_post (chat_id, richtung, typ, text) VALUES "
+                    "(7, 'aus', 'transkript', '🎙 Interview 1')")
+    for _ in range(2):
+        _schreibe(db34, "INSERT INTO web_post (chat_id, richtung, typ, text) VALUES "
+                        "(7, 'aus', 'system', 'Das Interview ist zu kurz (12 Wörter).')")
+    befunde = {b.schluessel: b for b in inv.pruefe_nach_interview(vorher, _p34(db34), "p3")}
+    assert befunde[inv.INTERVIEW_STATUS_DOPPELT].schwere == "mittel"
+    assert befunde[inv.INTERVIEW_STATUS_DEUTSCH].schwere == "mittel"
+
+
+def test_phase4_gesperrt_ohne_laufende_verdichtung(db34):
+    # beendet, Transkript da, nicht zu kurz, keine Verdichtung, Status steht
+    # (transkribiert nach gescheitertem Versuch) -- sperrt, ohne dass etwas laeuft.
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, beendet_am, transkript) "
+                    "VALUES (1, 7, 'lang', 'transkribiert', 'x', 'viele woerter')")
+    befunde = inv.pruefe_p4_sperre(_p34(db34), "p3-uebergang")
+    assert [b.schluessel for b in befunde] == [inv.P4_GESPERRT_OHNE_VERDICHTUNG]
+
+
+def test_brainstorm_genau_eine_reaktion_nach_dem_ende(db34):
+    vorher = _p34(db34)
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, brainstorm, schnittgrund, "
+                    "transkript) VALUES (5, 7, 'kurz', 'fertig', 1, 'ende', 'the bench and the cafe')")
+    assert {b.schluessel for b in inv.pruefe_nach_brainstorm(vorher, vorher, _p34(db34), "p4")} \
+        == {inv.BRAINSTORM_OHNE_REAKTION}
+    _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell, schweigen) "
+                    "VALUES (7, 'The cousin on the bench waits for the cafe to close.', 'claude', 0)")
+    assert inv.pruefe_nach_brainstorm(vorher, vorher, _p34(db34), "p4") == []
+
+
+def test_karte_waehrend_des_bogens_und_ungeerdete_karte(db34):
+    vorher = _p34(db34)
+    _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell) VALUES (7, 'early', 'claude')")
+    vor_ende = _p34(db34)
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, brainstorm, schnittgrund, "
+                    "transkript) VALUES (5, 7, 'kurz', 'fertig', 1, 'ende', 'the bench and the cafe')")
+    _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell) VALUES "
+                    "(7, 'Pirates sail to Mars tonight.', 'claude')")
+    schluessel = {b.schluessel for b in inv.pruefe_nach_brainstorm(vorher, vor_ende, _p34(db34), "p4")}
+    assert {inv.BRAINSTORM_KARTE_WAEHREND_BOGEN, inv.COTHINKER_UNGEERDET} <= schluessel
+
+
+def test_karte_geerdet_braucht_zwei_inhaltswoerter():
+    assert inv.karte_geerdet("The cousin never comes to the bench.", "bench cousin cafe bag")
+    assert not inv.karte_geerdet("A dragon appears.", "bench cousin cafe bag")
+
+
+def test_modellwahl_phase3_nie_opus_phase4_opus_keine_usa_frage(db34):
+    for i, (art, modus) in enumerate([("gespraech", "A"), ("gespraech", "C"), ("verdichter", "A")], 1):
+        _schreibe(db34, "INSERT INTO aufruf (id, chat_id, art, modus) VALUES (?, 7, ?, ?)", i, art, modus)
+    stand = _p34(db34)
+    befunde = inv.pruefe_modellwahl(stand, phase3=(0, 2), phase4=(2, 9), station="p3-uebergang")
+    assert {b.schluessel for b in befunde} == {inv.P3_GESPRAECH_OPUS}
+    _schreibe(db34, "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe) VALUES "
+                    "(7, 'aus', 'text', 'Tap what should apply:', '[[\"Yes, US model\", \"k:1\"]]')")
+    assert inv.EINWILLIGUNG_GEFRAGT in {
+        b.schluessel for b in inv.pruefe_modellwahl(_p34(db34), (0, 0), (0, 9), "p3-uebergang")}
+
+
+def test_p5_nicht_angeboten_obwohl_moeglich(db34):
+    _schreibe(db34, "INSERT INTO arbeitsstand (chat_id, phase, phase_angeboten, rahmen, geschichte, "
+                    "szenen_anzahl, figuren_fixiert_am) VALUES (7, 4, NULL, 'r', 'g', '3', 'x')")
+    _schreibe(db34, "INSERT INTO figur (chat_id, name) VALUES (7, 'Samir')")
+    assert [b.schluessel for b in inv.pruefe_p5_angebot(_p34(db34), "p4-uebergang")] \
+        == [inv.P5_NICHT_ANGEBOTEN]

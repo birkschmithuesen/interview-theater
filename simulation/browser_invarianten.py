@@ -49,6 +49,7 @@ gebrauchten Spalten):
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import time
 from dataclasses import asdict, dataclass
@@ -428,6 +429,300 @@ def pruefe_kontext(prompt: str, sichtbar: Sichtbar, station: str) -> list[Befund
         befunde.append(Befund(CHAT_KENNT_WERKBANK_NICHT, station,
                               f"Werkbank zeigt Begriffe, die im Gespraechsprompt fehlen: {', '.join(fehlt)}."))
     return befunde
+
+
+# --- Padua live-reif, Phase 3+4 (Karte t_92f99911, Task 2, 05.10.2026) ------
+#
+# Dieselbe Haltung wie oben: ein Symptom ist ein App-Fehler bis zum
+# Gegenbeweis, und eine Pruefung ohne Material ist "nicht_pruefbar", nie
+# stilles []. ``P34Stand`` liest nur lesend, eigenes SQL wie ``lese_p1_stand``.
+
+INTERVIEW_OHNE_BLASE = "interview_ohne_transkriptblase"
+INTERVIEW_OHNE_STATUS = "interview_ohne_statuszeile"
+INTERVIEW_STATUS_DOPPELT = "interview_status_doppelt"          # mittel
+INTERVIEW_STATUS_DEUTSCH = "interview_status_nicht_englisch"   # mittel
+P4_GESPERRT_OHNE_VERDICHTUNG = "p4_gesperrt_ohne_laufende_verdichtung"
+BRAINSTORM_OHNE_REAKTION = "brainstorm_ohne_karte_oder_schweigen"
+BRAINSTORM_MEHRERE_KARTEN = "brainstorm_mehrere_karten_je_bogen"
+BRAINSTORM_KARTE_WAEHREND_BOGEN = "brainstorm_karte_waehrend_bogen"
+BRAINSTORM_ENDE_NICHT_ANGEKOMMEN = "brainstorm_ende_nicht_angekommen"
+COTHINKER_UNGEERDET = "cothinker_karte_ungeerdet"               # mittel (t_c5cc5a62)
+P3_GESPRAECH_OPUS = "p3_gespraech_ueber_opus"                   # hoch: Datenschutz
+P4_GESPRAECH_NICHT_OPUS = "p4_gespraech_nicht_opus"             # mittel
+EINWILLIGUNG_GEFRAGT = "einwilligung_gefragt"                   # hoch: Padua fragt nicht
+P5_NICHT_ANGEBOTEN = "p5_nicht_angeboten"
+FRIST_NACH_INTERVIEW_S = 120.0
+FRIST_NACH_BRAINSTORM_S = 60.0
+#: Woerter, an denen eine deutsche Statuszeile in einer EN-Gruppe auffaellt.
+DE_MARKEN = (" ist ", " und ", " nicht ", "Wörter", "gespeichert", "zu kurz")
+_STOPP = frozenset({"about", "there", "their", "which", "would", "could", "because", "really"})
+#: Deutsche und englische Konstanten der USA-Einwilligungsfrage
+#: (``interview_theater/knoepfe/texte.py`` bzw. ``sprachen/en/texte.toml``) --
+#: Padua fragt nicht, ein Treffer ist also immer ein Befund.
+_USA_FRAGE_TEXTE = ("Tippt an, was gelten soll:", "Tap what should apply:")
+_USA_JA_KNOPF_TEXTE = ("Ja, US-Modell", "Yes, US model")
+#: Mindestlaenge eines Inhaltsworts fuer ``karte_geerdet`` -- bewusst 4 statt
+#: der ersten Annahme 5: ein echtes Transkript wie "the bench and the cafe"
+#: traegt mit "cafe" ein viertes, fuer die Pruefung zentrales Wort, das bei
+#: {5,} nie mitgezaehlt wuerde (siehe Taskbericht, Abweichung von der
+#: Brief-Prosa "[a-zà-ü]{5,}" -- gegen den woertlichen Testfall geprueft).
+_WORT_MINDESTLAENGE = 4
+_WORT = re.compile(rf"[a-zà-ü]{{{_WORT_MINDESTLAENGE},}}")
+
+
+@dataclass(frozen=True)
+class P34Stand:
+    max_post_id: int = 0
+    #: (id, text) aus ``web_post`` ``richtung='aus' AND typ='transkript'``.
+    transkript_posts: tuple = ()
+    #: (id, text) aus ``web_post`` ``richtung='aus' AND typ='system'``.
+    system_posts: tuple = ()
+    #: Je Interview-Kopf (``klasse='lang'``): id, status, beendet (bool),
+    #: zu_kurz (bool), hat_verdichtung (bool), hat_transkript (bool).
+    koepfe: tuple = ()
+    #: (id, schweigen, text) aus ``buehnenkarte``.
+    karten: tuple = ()
+    max_aufnahme_id: int = 0
+    #: Hoechste ``aufnahme.id`` mit ``brainstorm=1 AND schnittgrund='ende'``.
+    brainstorm_ende_id: int = 0
+    #: Alle ``brainstorm=1``-Transkripte mit Status ``fertig``, verbunden.
+    brainstorm_text: str = ""
+    #: (id, art, modus) aus ``aufruf``.
+    aufrufe: tuple = ()
+    #: Ob eine USA-Einwilligungsfrage je gestellt wurde (Padua fragt nicht).
+    usa_gefragt: bool = False
+    phase: int | None = None
+    phase_angeboten: int | None = None
+    #: SQL-Nachbau von ``phasen.voraussetzungen()[5]``.
+    p5_moeglich: bool = False
+
+
+def _hat_spalte(conn: sqlite3.Connection, tabelle: str, spalte: str) -> bool:
+    try:
+        return any(r[1] == spalte for r in conn.execute(f"PRAGMA table_info({tabelle})"))
+    except sqlite3.OperationalError:
+        return False
+
+
+def lese_p34_stand(conn: sqlite3.Connection, chat_id: int) -> P34Stand:
+    max_post_id = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM web_post WHERE chat_id = ?", (chat_id,)
+    ).fetchone()[0]
+    transkript_posts = tuple(
+        (z["id"], z["text"]) for z in conn.execute(
+            "SELECT id, text FROM web_post WHERE chat_id = ? AND richtung = 'aus' "
+            "AND typ = 'transkript' ORDER BY id", (chat_id,)))
+    system_posts = tuple(
+        (z["id"], z["text"]) for z in conn.execute(
+            "SELECT id, text FROM web_post WHERE chat_id = ? AND richtung = 'aus' "
+            "AND typ = 'system' ORDER BY id", (chat_id,)))
+    zu_kurz_ausdruck = "zu_kurz_uebersprungen" if _hat_spalte(conn, "aufnahme", "zu_kurz_uebersprungen") else "0"
+    koepfe = tuple(
+        {"id": z["id"], "status": z["status"], "beendet": bool(z["beendet_am"]),
+         "zu_kurz": bool(z["zu_kurz"]), "hat_transkript": bool((z["transkript"] or "").strip()),
+         "hat_verdichtung": bool(z["verdichtungen"])}
+        for z in conn.execute(
+            f"""
+            SELECT a.id, a.status, a.beendet_am, a.transkript, {zu_kurz_ausdruck} AS zu_kurz,
+                   (SELECT COUNT(*) FROM verdichtung v WHERE v.aufnahme_id = a.id) AS verdichtungen
+            FROM aufnahme a WHERE a.chat_id = ? AND a.klasse = 'lang' ORDER BY a.id
+            """, (chat_id,)))
+    karten = tuple(
+        (z["id"], z["schweigen"], z["text"]) for z in conn.execute(
+            "SELECT id, schweigen, text FROM buehnenkarte WHERE chat_id = ? ORDER BY id", (chat_id,)))
+    max_aufnahme_id = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM aufnahme WHERE chat_id = ?", (chat_id,)).fetchone()[0]
+    brainstorm_ende_id = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND schnittgrund = 'ende'", (chat_id,)).fetchone()[0]
+    brainstorm_text = " ".join(
+        (z["transkript"] or "").strip() for z in conn.execute(
+            "SELECT transkript FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+            "AND status = 'fertig' ORDER BY id", (chat_id,))).strip()
+    aufrufe = tuple(
+        (z["id"], z["art"], z["modus"]) for z in conn.execute(
+            "SELECT id, art, modus FROM aufruf WHERE chat_id = ? ORDER BY id", (chat_id,)))
+    usa_gefragt = bool(conn.execute(
+        "SELECT COUNT(*) FROM web_post WHERE chat_id = ? AND richtung = 'aus' AND ("
+        "text IN (?, ?) OR knoepfe LIKE ? OR knoepfe LIKE ?)",
+        (chat_id, *_USA_FRAGE_TEXTE, f"%{_USA_JA_KNOPF_TEXTE[0]}%", f"%{_USA_JA_KNOPF_TEXTE[1]}%"),
+    ).fetchone()[0])
+    arbeitsstand = conn.execute(
+        "SELECT phase, phase_angeboten, rahmen, geschichte, szenen_anzahl, figuren_fixiert_am "
+        "FROM arbeitsstand WHERE chat_id = ?", (chat_id,)).fetchone()
+    figuren = conn.execute(
+        "SELECT COUNT(*) FROM figur WHERE chat_id = ?", (chat_id,)).fetchone()[0]
+    szenen = conn.execute(
+        "SELECT COUNT(*) FROM szene WHERE chat_id = ?", (chat_id,)).fetchone()[0]
+    p5_moeglich = bool(
+        arbeitsstand and (arbeitsstand["rahmen"] or "").strip()
+        and (arbeitsstand["figuren_fixiert_am"] or "").strip()
+        and (arbeitsstand["geschichte"] or "").strip()
+        and figuren >= 1
+        and (bool((arbeitsstand["szenen_anzahl"] or "").strip()) or szenen >= 1)
+    )
+    return P34Stand(
+        max_post_id=max_post_id, transkript_posts=transkript_posts, system_posts=system_posts,
+        koepfe=koepfe, karten=karten, max_aufnahme_id=max_aufnahme_id,
+        brainstorm_ende_id=brainstorm_ende_id, brainstorm_text=brainstorm_text, aufrufe=aufrufe,
+        usa_gefragt=usa_gefragt,
+        phase=(arbeitsstand["phase"] if arbeitsstand else None),
+        phase_angeboten=(arbeitsstand["phase_angeboten"] if arbeitsstand else None),
+        p5_moeglich=p5_moeglich,
+    )
+
+
+def pruefe_p4_sperre(stand: P34Stand, station: str) -> list[Befund]:
+    """Jeder beendete Interview-Kopf mit Transkript, nicht zu-kurz-
+    uebersprungen, ohne Verdichtung und mit einem Status, der nicht mehr
+    laeuft -- Phase 4 bleibt gesperrt, ohne dass ein Verdichtungslauf
+    sichtbar laeuft (Padua Phasen TEIL 2, Befund 4a)."""
+    befunde = []
+    for kopf in stand.koepfe:
+        if (kopf["beendet"] and kopf["hat_transkript"] and not kopf["zu_kurz"]
+                and not kopf["hat_verdichtung"] and kopf["status"] not in ("laeuft", "empfangen")):
+            befunde.append(Befund(
+                P4_GESPERRT_OHNE_VERDICHTUNG, station,
+                f"Interview {kopf['id']} (Status {kopf['status']!r}) ist beendet, hat ein "
+                "Transkript und keine Verdichtung -- Phase 4 bleibt gesperrt, ohne dass ein "
+                "Verdichtungslauf sichtbar laeuft.",
+            ))
+    return befunde
+
+
+def pruefe_nach_interview(vorher: P34Stand, nachher: P34Stand, station: str) -> list[Befund]:
+    befunde: list[Befund] = []
+    neue_transkripte = [t for i, t in nachher.transkript_posts if i > vorher.max_post_id]
+    neue_system = [(i, t) for i, t in nachher.system_posts if i > vorher.max_post_id]
+    if not neue_transkripte:
+        befunde.append(Befund(
+            INTERVIEW_OHNE_BLASE, station,
+            "Nach dem Interview-Ende kam keine Transkript-Blase ('🎙 ...') im Chat an."))
+    elif any(not (t or "").startswith("🎙") for t in neue_transkripte):
+        befunde.append(Befund(
+            INTERVIEW_OHNE_BLASE, station,
+            "Eine neue Transkript-Zeile beginnt nicht mit dem Mikrofon-Emoji '🎙'."))
+    if not neue_system:
+        befunde.append(Befund(
+            INTERVIEW_OHNE_STATUS, station,
+            "Nach dem Interview-Ende kam keine Statuszeile (zu kurz/gespeichert) im Chat an."))
+    else:
+        texte = [t for _, t in neue_system]
+        for text in dict.fromkeys(texte):
+            if texte.count(text) >= 2:
+                befunde.append(Befund(
+                    INTERVIEW_STATUS_DOPPELT, station,
+                    f"Die Statuszeile {text!r} kam {texte.count(text)}-mal an.", schwere="mittel"))
+            if any(marke in (text or "") for marke in DE_MARKEN):
+                befunde.append(Befund(
+                    INTERVIEW_STATUS_DEUTSCH, station,
+                    f"Statuszeile auf Deutsch in einer englischsprachigen Gruppe: {text!r}.",
+                    schwere="mittel"))
+    befunde += pruefe_p4_sperre(nachher, station)
+    return befunde
+
+
+def _inhaltswoerter(text: str) -> set[str]:
+    return {w for w in _WORT.findall((text or "").casefold()) if w not in _STOPP}
+
+
+def karte_geerdet(karte: str, transkript: str) -> bool:
+    """Mindestens zwei verschiedene Inhaltswoerter aus ``transkript`` stehen
+    in ``karte`` -- der CoThinker hat wirklich zugehoert, statt etwas
+    Generisches zu schreiben."""
+    kandidaten = _inhaltswoerter(transkript)
+    karte_cf = (karte or "").casefold()
+    treffer = {w for w in kandidaten if w in karte_cf}
+    return len(treffer) >= 2
+
+
+def pruefe_nach_brainstorm(vorher: P34Stand, vor_ende: P34Stand, nachher: P34Stand,
+                           station: str) -> list[Befund]:
+    befunde: list[Befund] = []
+    if nachher.brainstorm_ende_id <= vorher.max_aufnahme_id:
+        befunde.append(Befund(
+            BRAINSTORM_ENDE_NICHT_ANGEKOMMEN, station,
+            "Nach dem Beenden des Mithoerens kam keine Aufnahme mit brainstorm=1 und "
+            f"schnittgrund='ende' an (keine neue Ende-Zeile hinter Aufnahme {vorher.max_aufnahme_id})."))
+    vor_ende_ids = {k[0] for k in vor_ende.karten}
+    waehrend = [k for k in vor_ende.karten if k[0] not in {k2[0] for k2 in vorher.karten}]
+    if waehrend:
+        befunde.append(Befund(
+            BRAINSTORM_KARTE_WAEHREND_BOGEN, station,
+            f"{len(waehrend)} Buehnenkarte(n) entstanden WAEHREND des Bogens, vor dem Ende-Schnitt."))
+    neue_karten = [k for k in nachher.karten if k[0] not in vor_ende_ids]
+    if not neue_karten:
+        befunde.append(Befund(
+            BRAINSTORM_OHNE_REAKTION, station,
+            "Nach dem Ende des Bogens kam keine Buehnenkarte und kein vermerktes Schweigen an."))
+    elif len(neue_karten) > 1:
+        befunde.append(Befund(
+            BRAINSTORM_MEHRERE_KARTEN, station,
+            f"{len(neue_karten)} Buehnenkarten nach einem einzigen Bogen -- erwartet war genau eine."))
+    for _id, schweigen, text in neue_karten:
+        if schweigen:
+            continue
+        if not karte_geerdet(text, nachher.brainstorm_text):
+            befunde.append(Befund(
+                COTHINKER_UNGEERDET, station,
+                f"Buehnenkarte {text!r} nimmt kein erkennbares Wort aus dem Brainstorm-Transkript auf.",
+                schwere="mittel"))
+    return befunde
+
+
+def pruefe_modellwahl(stand: P34Stand, phase3: tuple[int, int], phase4: tuple[int, int],
+                      station: str) -> list[Befund]:
+    """``phase3``/``phase4`` sind (von, bis)-Grenzen der ``aufruf.id`` dieser
+    Phase (siehe ``_aufruf_bereiche`` in Task 2c): ``von < id <= bis``."""
+    def _im_bereich(bereich: tuple[int, int], i: int) -> bool:
+        von, bis = bereich
+        return von < i <= bis
+
+    gespraeche3 = [a for a in stand.aufrufe if a[1] == "gespraech" and _im_bereich(phase3, a[0])]
+    gespraeche4 = [a for a in stand.aufrufe if a[1] == "gespraech" and _im_bereich(phase4, a[0])]
+    befunde: list[Befund] = []
+    if any(a[2] == "C" for a in gespraeche3):
+        befunde.append(Befund(
+            P3_GESPRAECH_OPUS, station,
+            "Ein Gespraechsaufruf in Phase 3 lief ueber Opus (modus 'C') -- Datenschutz, "
+            "die Interviews gehen in Phase 3 nicht an die USA."))
+    if any(a[2] != "C" for a in gespraeche4):
+        befunde.append(Befund(
+            P4_GESPRAECH_NICHT_OPUS, station,
+            "Ein Gespraechsaufruf in Phase 4 lief NICHT ueber Opus (modus != 'C').",
+            schwere="mittel"))
+    if stand.usa_gefragt:
+        befunde.append(Befund(
+            EINWILLIGUNG_GEFRAGT, station,
+            "Die USA-Einwilligungsfrage wurde gestellt -- Padua fragt nicht danach."))
+    return befunde
+
+
+def pruefe_p5_angebot(stand: P34Stand, station: str) -> list[Befund]:
+    if stand.p5_moeglich and (stand.phase_angeboten or 0) < 5 and (stand.phase or 0) < 5:
+        return [Befund(
+            P5_NICHT_ANGEBOTEN, station,
+            "Setting, fixierte Figuren, Geschichte und Szenenzahl stehen, aber Phase 5 wurde "
+            "nicht angeboten (arbeitsstand.phase_angeboten < 5).")]
+    return []
+
+
+def warte_auf(lese: Callable[[], object], pruefe: Callable[[object], list[Befund]], *,
+             frist_s: float, takt_s: float = 2.0,
+             schlafe: Callable[[float], None] = time.sleep,
+             uhr: Callable[[], float] = time.monotonic) -> tuple[list[Befund], object]:
+    """Generische Fassung von ``warte_nach_diskussion``: pollt ``lese()`` und
+    ``pruefe(stand)``, bis entweder keine Befunde mehr da sind oder die
+    Frist ablaeuft. ``warte_nach_diskussion`` bleibt unveraendert stehen --
+    diese Funktion ist der Einhaengepunkt fuer ``nach_interview``/
+    ``nach_brainstorm`` (Task 2c)."""
+    ende = uhr() + frist_s
+    while True:
+        stand = lese()
+        befunde = pruefe(stand)
+        if not befunde or uhr() >= ende:
+            return befunde, stand
+        schlafe(takt_s)
 
 
 def pruefe_wissensantwort(antwort: str, board: tuple[str, ...], station: str) -> list[Befund]:

@@ -36,6 +36,12 @@ def biete_stt_sprache(conn, tg, chat_id: int) -> bool:
     Knoepfe gibt. Nur, wenn das Profil Whisper selbst erkennen laesst
     (``sprache.whisper = "auto"``); Dortmund sieht sie nie.
 
+    Laesst eine einsame Undo-Quittung darueber stehen (``undo_behalten``):
+    beim Eintritt in Phase 3 ist das die 📌-Zeile der gerade automatisch
+    gespeicherten Eroeffnung, und ihr Undo ist der einzige Weg, sie
+    zurueckzunehmen -- die Sprachwahl konkurriert nicht mit ihm
+    (Padua-Befund M2, 05.10.2026).
+
     Kein Modellaufruf (Zusage 2). Liefert True, wenn die Leiste rausging."""
     if sprache.whisper_vorgabe() != sprache.AUTO:
         return False
@@ -43,7 +49,9 @@ def biete_stt_sprache(conn, tg, chat_id: int) -> bool:
         (beschriftung, _daten(repo.lege_knopf_an(conn, chat_id, ART_STT_SPRACHE, wert)))
         for wert, beschriftung in STT_KNOEPFE
     ]
-    message_id = _sende_knoepfe(conn, tg, chat_id, T._TEXT_STT_SPRACHE_FRAGE, leiste)
+    message_id = _sende_knoepfe(
+        conn, tg, chat_id, T._TEXT_STT_SPRACHE_FRAGE, leiste, undo_behalten=True,
+    )
     repo.merke_knopf_nachricht(conn, [_id_aus_daten(d) for _, d in leiste], message_id)
     return True
 

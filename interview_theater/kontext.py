@@ -1877,8 +1877,9 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     Passt der Koerper nicht ins Zielbudget ZIEL, unter die Koerpergrenze oder
     -- zusammen mit der Systemanweisung -- unter die Gesamtgrenze, greift die
     Kuerzung aus § 7.2 in der Reihenfolge Transkripte -> Szenenblock ->
-    Fenster -> Journal -> Festlegungen -> Verdichtungen -> Szenenblock auf
-    den Restplatz (``_kuerze_auf_budget``). Das Fenster wird von vorn
+    Fenster -> Journal -> Festlegungen -> Diskussion -> begriffe_detail ->
+    Verdichtungen -> Szenenblock auf den Restplatz (``_kuerze_auf_budget``,
+    dort die vollstaendige Begruendung jeder Stufe). Das Fenster wird von vorn
     beschnitten -- eine ganze Nachricht (oder Pausenzeile) je Schritt, nie
     nur eine physische Zeile eines mehrzeiligen Beitrags. Arbeitsstand,
     Kernpaket, Hinweise und Ausloeser sind von der Kuerzung grundsaetzlich

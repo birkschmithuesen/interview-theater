@@ -963,6 +963,24 @@ def test_diskussion_hat_ein_eigenes_budget():
     assert kontext.BUDGETS["diskussion"] == 800
 
 
+def test_baue_docstring_nennt_diskussion_und_begriffe_detail_in_der_kuerzungsleiter():
+    """``baue()``s Kurzfassung der Kuerzungsreihenfolge war nach dem Padua-
+    Umbau (Diskussion/begriffe_detail in ``_kuerze_auf_budget`` eingefuegt)
+    stehengeblieben, waehrend die ausfuehrliche Begruendung in
+    ``_kuerze_auf_budget`` selbst schon beide Stufen nennt -- zwei
+    Beschreibungen derselben Reihenfolge, die auseinanderliefen (Audit
+    t_97f605c7). Dieser Test haelt die Kurzfassung an der langen fest, statt
+    am Wortlaut, damit eine spaetere Umsortierung der Leiter hier auffaellt."""
+    kurz = kontext.baue.__doc__
+    assert kurz is not None
+    for name in ("Festlegungen", "Diskussion", "begriffe_detail", "Verdichtungen"):
+        assert name in kurz, name
+    positionen = {name: kurz.index(name) for name in
+                  ("Festlegungen", "Diskussion", "begriffe_detail", "Verdichtungen")}
+    reihenfolge = sorted(positionen, key=positionen.get)
+    assert reihenfolge == ["Festlegungen", "Diskussion", "begriffe_detail", "Verdichtungen"]
+
+
 def test_diskussion_block_erscheint_im_fertigen_prompt(conn, einst):
     repo.merke_diskussion_verdichtung(conn, 1, "Streit um Herkunft.", "gemma")
     ausloeser = [_sende(conn, 1, 1, "Sara", "los", _iso(0))]

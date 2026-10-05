@@ -214,3 +214,54 @@ def test_system_en_frage_vor_vorschlag_ist_keine_pflicht_je_nachricht():
     assert "In EVERY phase: ONE open" not in roh
     assert "a message may also end without one" in text.lower()
     assert text.lower().count("at most one") >= 2
+
+
+def test_system_en_scene_ist_kein_alter_name_fuer_record():
+    """Prompt-Check Runde 4 (05.10.2026),
+    ``docs/prompt-audit/2026-10-05-padua-p12-r4/lesung-p1.json`` Dump-Zeile
+    283/``lesung-p2.json`` Zeile 282: system.md zaehlte ``/scene`` unter
+    "older names for `/record`". Verifiziert gegen
+    ``befehle._BEFEHL_EN``/``befehle.T.BEFEHLE_LISTE`` (texte.toml):
+    ``/scene`` ist selbst einer der acht aktiv beworbenen Befehle (Plan a
+    scene, set its form, have it written) -- mit dem Interview-Toggle
+    ``/record`` hat es nichts zu tun. ``/character``, ``/interview`` und
+    ``/done`` bleiben stehen: ``/interview``/``/done`` sind nach
+    ``befehle._befehl_interview``/``_befehl_fertig`` tatsaechlich die alten
+    Einzelschritte von ``/record``, und ``/character`` ist echt, aber nicht
+    in ``BEFEHLE_LISTE``."""
+    roh = (EN / "system.md").read_text(encoding="utf-8")
+    text = " ".join(roh.split())
+    assert "`/scene`" not in roh
+    assert "`/character`" in text
+    assert "`/interview`" in text
+    assert "`/done`" in text
+    assert "older names for `/record`" in text
+
+
+def test_system_en_knopfliste_nennt_fragen_vorschlagen():
+    """Prompt-Check Runde 4, ``lesung-p2.json`` Zeile 472: die Knopfliste in
+    system.md (wo der Bot nennen darf, welcher Knopf unter seiner Nachricht
+    steht) kannte "Suggest questions" nicht, obwohl der Knopf existiert
+    (``knoepfe/fragen.py:vorschlagen_leiste``, Art
+    ``ART_FRAGEN_VORSCHLAGEN``) und waehrend der ganzen
+    Eigene-Fragen-Schreibphase in Phase 2 unter jeder Bot-Nachricht steht."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "Suggest questions" in text
+
+
+def test_system_en_speichern_knoepfe_nicht_vor_phase_4():
+    """Prompt-Check Runde 4, ``lesung-p2.json`` Zeile 292 (Kategorie
+    by design/Fehllesung): "under a reflection of ONE value in later
+    phases 'Yes, save' and 'No, change it again'" ist laut Mechanik ein
+    wiederkehrender falscher Treffer, weil "later phases" unbestimmt
+    bleibt. Verifiziert gegen ``knoepfe/basis.py``: Padua laesst Phase 1
+    (Begriffe) und die Eroeffnung in Phase 2 ueber ``_AUTOSAVE_ARTEN``
+    laufen (stille 📌-Zeile mit Undo statt Ja/Nein), die laufende
+    Fragenauswahl ueber ``knoepfe/fragen.py`` (keine Ja/Nein-Leiste); die
+    ersten echten "Yes, save"/"No, change it again"-Knoepfe entstehen in
+    Phase 4 (Setting/Rahmen, ``knoepfe.basis.offene_art``) und danach
+    (Story-Uebersicht, ``entwurf.py``). Die Klammer nennt deshalb die Phase,
+    nicht "scene phases" (Phase 4 "Frame" schreibt noch keine Szene)."""
+    text = " ".join((EN / "system.md").read_text(encoding="utf-8").split())
+    assert "in later phases \"Yes, save\"" not in text
+    assert "phase 4 on \"Yes, save\"" in text or "phase 4 on" in text

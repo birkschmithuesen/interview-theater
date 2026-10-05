@@ -233,8 +233,9 @@ _TEXT_FRAGEN_EIGENE_WARTET_AUF_KI = """\
 Your questions are saved - I'm still waiting for the AI questions in the \
 background."""
 _TEXT_GEGENUEBERSTELLUNG_BEREIT = """\
-Your questions and the AI's are now side by side: for each one, tap Accept \
-to keep it, Discard to drop it, or Sharpen to improve the wording."""
+Your questions and the AI's now come one at a time, each marked (yours) \
+or (AI): for each one, tap Accept to keep it, Discard to drop it, or \
+Sharpen to improve the wording."""
 _TEXT_HERKUNFT_EIGEN = " (yours)"
 _TEXT_HERKUNFT_KI = " (AI)"
 _SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG = "Own questions done."

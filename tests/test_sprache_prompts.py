@@ -633,6 +633,51 @@ def test_padua_phase2_einleitung_beschreibt_den_echten_ablauf(monkeypatch, conn)
         anweisungen._CACHE.clear()
 
 
+def test_padua_phase2_einleitung_verspricht_keinen_vergleichslayout(monkeypatch, conn):
+    """Stand der frueheren Befunde, Runde 4 (05.10.2026), N4: die
+    Phase-2-Eintrittseinleitung sagte "side by side with yours" --
+    ``workshop/padua-2026/phasentexte.toml:30`` -- das verspricht ein
+    Nebeneinander-Layout. Tatsaechlich zeigt der Durchgang
+    (``knoepfe/fragen.py:_zeige_frage``) genau EINE Frage je Nachricht,
+    nummeriert ("Question N/gesamt"), mit einer Herkunftskennzeichnung
+    " (yours)"/" (AI)" (``T._TEXT_HERKUNFT_EIGEN``/``T._TEXT_HERKUNFT_KI``)
+    angehaengt -- nacheinander, nicht nebeneinander. Eine Persona im echten
+    Lauf fragte deshalb fuenfmal nach der Nebeneinander-Ansicht
+    (``simulation/berichte/feedbackloop-p12-2026-10-05.md``, Stand-Tabelle
+    N4)."""
+    from interview_theater import anweisungen, phasentexte, sprache, workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    anweisungen._CACHE.clear()
+    try:
+        text = phasentexte.eintritt(conn, 1, 2)
+        assert "side by side" not in text
+        assert "one at a time" in text
+        assert "(yours)" in text and "(AI)" in text
+        assert len(text) <= phasentexte.EINLEITUNG_GRENZE
+    finally:
+        monkeypatch.delenv(workshop.VARIABLE, raising=False)
+        workshop.vergiss()
+        sprache.vergiss()
+        anweisungen._CACHE.clear()
+
+
+def test_gegenueberstellung_bereit_verspricht_keinen_vergleichslayout(monkeypatch):
+    """Dasselbe N4-Befund fuer die Ueberleitungszeile, die der Bot beim
+    echten Start des Durchgangs schickt (``T._TEXT_GEGENUEBERSTELLUNG_BEREIT``,
+    ``knoepfe/fragen.py`` Zeile 603): "are now side by side" -- gleicher
+    Widerspruch zum Frage-fuer-Frage-Durchgang."""
+    from interview_theater import sprache
+    from interview_theater.knoepfe.texte import T
+
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    text = T._TEXT_GEGENUEBERSTELLUNG_BEREIT
+    assert "side by side" not in text
+    assert "one at a time" in text
+
+
 def test_der_szene_fuer_szene_ablauf_steht_in_phase_sieben():
     """Karte P2-Fix, Restspannung 8 (02.10.2026).
 

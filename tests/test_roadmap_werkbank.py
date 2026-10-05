@@ -106,11 +106,14 @@ def test_ohne_diskussionsangabe_keine_zeile():
     assert [z["kennung"] for z in zeilen] == ["begriffe"]
 
 
-@pytest.mark.parametrize("da, erwartet", [(True, "erledigt"), (False, "offen")])
-def test_diskussion(da, erwartet):
-    liste = roadmap.werkbank(_lage(diskussion=da), 1)
-    zeile = _zeile(liste, 1, "diskussion")
-    assert (zeile["art"], zeile["status"]) == ("detail", erwartet)
+@pytest.mark.parametrize("da", [True, False])
+def test_diskussion_ist_kein_schritt_der_gruppe(da):
+    """Birk, 05.10.2026: die Diskussionsverdichtung laeuft still im
+    Hintergrund -- keine Zeile in Phase 1, weder offen noch erledigt, und sie
+    zaehlt nicht im Fortschritt."""
+    eins = _phase(roadmap.werkbank(_lage(diskussion=da), 1), 1)
+    assert [z["kennung"] for z in eins["zeilen"]] == ["begriffe"]
+    assert eins["gesamt"] == 1
 
 
 def test_je_interview_eine_zeile():

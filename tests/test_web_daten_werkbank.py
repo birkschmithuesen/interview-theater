@@ -72,15 +72,20 @@ def test_die_roadmap_bleibt_dieselbe(tmp_path, profil):
         lesend.close()
 
 
-def test_diskussion_nur_mit_profilschalter(tmp_path, profil):
+def test_diskussion_ist_in_keinem_profil_eine_werkbankzeile(tmp_path, profil):
+    """Birk, 05.10.2026: die Diskussionsverdichtung laeuft still im
+    Hintergrund und geht in den Phase-2-Prompt -- sie ist kein Schritt der
+    Gruppe, also weder offen noch erledigt in der Werkbank, auch nicht in
+    Padua und auch nicht, wenn sie schon existiert."""
     pfad, conn = _db(tmp_path)
-    profil(None)
-    assert all(z["kennung"] != "diskussion" for z in _werkbank(pfad)["phasen"][0]["zeilen"])
-    profil("padua-2026")
-    assert _zeile(_werkbank(pfad), 1, "diskussion")["status"] == "offen"
+    for name in (None, "padua-2026"):
+        profil(name)
+        assert all(z["kennung"] != "diskussion"
+                   for z in _werkbank(pfad)["phasen"][0]["zeilen"])
     repo.merke_diskussion_verdichtung(conn, CHAT, "Sie redeten ueber Heimat.", None)
     conn.commit()
-    assert _zeile(_werkbank(pfad), 1, "diskussion")["status"] == "erledigt"
+    assert all(z["kennung"] != "diskussion"
+               for z in _werkbank(pfad)["phasen"][0]["zeilen"])
 
 
 def test_ueberarbeitung_gesamttext_form_und_sprechweise(tmp_path, profil):

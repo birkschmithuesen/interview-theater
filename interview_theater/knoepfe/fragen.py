@@ -38,20 +38,14 @@ from interview_theater import begriffe as begriffe_modul
 
 from interview_theater.knoepfe.texte import (
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
-    ART_FRAGEN_ANDERE, ART_FRAGEN_EINZELN, ART_FRAGEN_WEICH_LASSEN,
+    ART_FRAGEN_ANDERE, ART_FRAGEN_EINZELN, ART_FRAGEN_JA_VORSCHLAGEN,
+    ART_FRAGEN_NOCH_EIGENE, ART_FRAGEN_VORSCHLAGEN, ART_FRAGEN_WEICH_LASSEN,
     ART_FRAGEN_WEICH_UEBERNEHMEN, ART_LEITFADEN, T,
 )
 from interview_theater.knoepfe.basis import (
-    _daten, _id_aus_daten, _nimm_alte_leiste_ab, _sende_knoepfe,
+    _daten, _id_aus_daten, _merke_botnachricht, _nimm_alte_leiste_ab, _sende_knoepfe,
     _starte_auftrag, sende_notiert_nur_undo,
 )
-
-#: Mindestzahl eigener Fragen je Begriff, ab der die Gegenueberstellung
-#: automatisch startet (KORREKTUR-PHASE2-KEIN-KNOPF.md: "Sobald fuer JEDEN
-#: Begriff >= 3 eigene Fragen gespeichert sind"). Reine Code-Konstante, keine
-#: Nutzertext-Konstante -- deshalb hier und nicht in ``knoepfe/texte.py``.
-MINDESTANZAHL_EIGENE_FRAGEN = 3
-
 
 # --- Die vorgeschlagene Liste und ihr Zustand ------------------------------
 
@@ -291,24 +285,13 @@ def _ohne_weich_auftrag(anweisung: str) -> str:
 # --- Eigene Fragen vs. KI (Padua Phase 1+2 Karte, Aufgabe 13, 03.10.2026) ---
 #
 # KORREKTUR 10:25 (Birk, KORREKTUR-PHASE2-KEIN-KNOPF.md): KEIN "Fertig"-
-# Knopf. Sobald JEDER Begriff >= MINDESTANZAHL_EIGENE_FRAGEN eigene Fragen
-# hat (reine Code-Pruefung, kein Modellaufruf), startet die
-# Gegenueberstellung automatisch; bis dahin eine knappe Stand-Zeile. Will
-# die Gruppe frueher weiter, erkennt das ``_fruehzeitig_fertig`` an einem
-# woertlichen Satz, den das Padua-Profil-Prompt das Modell sagen laesst --
-# keine neue, bezahlte Erkenner-Art.
-
-
-def _begriffe_der_gruppe(conn, chat_id: int) -> list[str]:
-    """``arbeitsstand.begriffe`` zerlegt -- derselbe Leser wie
-    ``fragen_ki._nutzertext``, nur ueber die Datenbank statt als
-    durchgereichter Parameter."""
-    stand = repo.hole_arbeitsstand(conn, chat_id)
-    try:
-        roh = (stand["begriffe"] if stand else "") or ""
-    except (IndexError, KeyError):
-        roh = ""
-    return begriffe_modul.zerlege(roh)
+# Knopf. Seit dem Live-Test 05.10.2026 (Birk: "Anzahl entscheidet die
+# Gruppe") auch keine Mindestzahl je Begriff mehr: die Gegenueberstellung
+# startet, wenn die Gruppe sagt, dass sie fertig ist -- ``_fruehzeitig_fertig``
+# erkennt das an einem woertlichen Satz, den das Padua-Profil-Prompt das
+# Modell sagen laesst (keine neue, bezahlte Erkenner-Art). Was je Begriff
+# schon steht, zeigt der CoThinker (``roadmap.fragenuebersicht``), nicht der
+# Chat.
 
 
 def _zeilen_je_begriff(begriffe: list[str], zeilen: list[str]) -> dict[str, list[str]]:
@@ -382,11 +365,10 @@ def _platt(text: str) -> str:
 
 
 def _fruehzeitig_fertig(text: str | None) -> bool:
-    """Erkennt den Wunsch der Gruppe, frueher zur Gegenueberstellung zu
-    wechseln, bevor jeder Begriff ``MINDESTANZAHL_EIGENE_FRAGEN`` eigene
-    Fragen hat (KORREKTUR-PHASE2-KEIN-KNOPF.md: "Will die Gruppe frueher
-    weiter (spricht/schreibt es), erkennt das der Erkenner/Chat und startet
-    die Gegenueberstellung trotzdem").
+    """Erkennt, dass die Gruppe mit ihren eigenen Fragen fertig ist und zur
+    Gegenueberstellung will (KORREKTUR-PHASE2-KEIN-KNOPF.md; seit dem
+    05.10.2026 der einzige Ausloeser -- es gibt keine Mindestzahl je Begriff
+    mehr, die Anzahl entscheidet die Gruppe).
 
     KEIN Modellaufruf und KEINE neue Erkenner-Art hier: das Padua-Profil-
     Prompt (``workshop/padua-2026/prompts/phasen/2.md``) laesst das
@@ -439,9 +421,18 @@ def versuche_gegenueberstellung(conn, tg, chat_id: int) -> int | None:
             eigene_roh = (stand["fragen_eigene_vorschlag"] or "").strip()
             ki_roh = (stand["fragen_ki_vorschlag"] or "").strip()
             begriffe_feld = (stand["begriffe"] or "") if stand else ""
+            eigene_fertig = bool(stand["fragen_eigene_erstellt_am"])
         except (IndexError, KeyError):
             return None
-        if not eigene_roh or not ki_roh:
+        # Die eigene Seite steht erst, wenn die Gruppe fertig gesagt hat
+        # (``uebernimm_eigene`` setzt dann ``fragen_eigene_erstellt_am``) --
+        # nicht schon mit der ersten eigenen Frage. Sonst offenbarte ein
+        # spaet fertiger KI-Lauf mitten ins Sammeln hinein (05.10.2026: seit
+        # es keine Mindestzahl mehr gibt, ist "fertig" allein ihre Ansage).
+        # Ohne eine einzige eigene Frage geht es nur, wenn die Gruppe das
+        # ausdruecklich will ("Yes, suggest some", ``ja_vorschlagen``) -- dann
+        # stehen allein die KI-Fragen da.
+        if not ki_roh or not eigene_fertig:
             return None
 
         from interview_theater import vorschlag
@@ -483,37 +474,36 @@ def uebernimm_eigene(conn, tg, chat_id: int, wert: str, text: str | None = None)
     Ueberschreibt ``fragen_eigene_vorschlag`` bei jedem Aufruf vollstaendig
     -- der Block IST die ganze Liste, kein Zuwachs.
 
-    Danach die Code-Pruefung ohne Modellaufruf: hat jeder Begriff
-    mindestens ``MINDESTANZAHL_EIGENE_FRAGEN`` eigene Fragen (oder hat die
-    Gruppe explizit frueher Schluss gesagt, ``_fruehzeitig_fertig``), startet
-    automatisch die Gegenueberstellung mit den KI-Fragen
-    (``versuche_gegenueberstellung``). Sonst eine knappe Stand-Zeile, kein
-    Draengen. Kein Modellaufruf hier selbst (Zusage 2)."""
+    Hat die Gruppe gesagt, dass sie fertig ist (``_fruehzeitig_fertig``),
+    startet die Gegenueberstellung mit den KI-Fragen
+    (``versuche_gegenueberstellung``). Sonst geht die eigene Antwort des
+    Modells (``text``, ohne den Block) in den Chat -- seit dem Live-Test
+    05.10.2026 statt der Stand-Zeile "Still missing: Begriff (x/3)", die sich
+    nach jeder Bestaetigung wiederholte und eine Soll-Zahl nannte, die es
+    nicht geben soll (Birk: die Anzahl entscheidet die Gruppe). Was je
+    Begriff steht, zeigt der CoThinker. Ohne Antworttext ein kurzer Verweis
+    dorthin. Kein Modellaufruf hier selbst (Zusage 2)."""
     from interview_theater import vorschlag
 
     zeilen = vorschlag.zeilen(wert)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_eigene_vorschlag", "\n".join(zeilen))
 
-    begriffe = _begriffe_der_gruppe(conn, chat_id)
-    je_begriff = _zeilen_je_begriff(begriffe, zeilen)
-    fehlend = [
-        b for b in begriffe
-        if len(je_begriff.get(b, [])) < MINDESTANZAHL_EIGENE_FRAGEN
-    ]
-    bereit = not fehlend or _fruehzeitig_fertig(text)
-
-    if not bereit:
-        stand_zeile = ", ".join(
-            T._TEXT_FRAGEN_EIGENE_OFFEN_ZEILE.format(
-                begriff=b, anzahl=len(je_begriff.get(b, [])),
-                ziel=MINDESTANZAHL_EIGENE_FRAGEN,
-            )
-            for b in fehlend
+    if not _fruehzeitig_fertig(text):
+        antwort = (text or "").strip()
+        return sende_mit_vorschlagen(
+            conn, tg, chat_id, antwort or T._TEXT_FRAGEN_EIGENE_IM_COTHINKER,
         )
-        return tg.sende(
-            chat_id, T._TEXT_FRAGEN_EIGENE_OFFEN.format(begriffe=stand_zeile),
-        )
+    return _eigene_fertig(conn, tg, chat_id)
 
+
+def _eigene_fertig(conn, tg, chat_id: int) -> int:
+    """Die Gruppe ist mit ihren eigenen Fragen fertig: einmal den Zeitpunkt
+    merken, dann die Gegenueberstellung -- oder, solange die KI-Fragen noch
+    im Hintergrund entstehen, eine Zeile; ``fragen_ki.starte`` offenbart
+    nach seinem Lauf von selbst. Gemeinsamer Weg von "Own questions done."
+    (``uebernimm_eigene``) und dem Knopf "Yes, suggest some"
+    (``ja_vorschlagen``)."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_VORSCHLAGEN)
     stand = repo.hole_arbeitsstand(conn, chat_id)
     try:
         schon = bool(stand["fragen_eigene_erstellt_am"]) if stand else False
@@ -526,6 +516,93 @@ def uebernimm_eigene(conn, tg, chat_id: int, wert: str, text: str | None = None)
     if ergebnis is not None:
         return ergebnis
     return tg.sende(chat_id, T._TEXT_FRAGEN_EIGENE_WARTET_AUF_KI)
+
+
+# --- "Suggest questions" (Birk, 05.10.2026) -----------------------------------
+#
+# Der Knopf, mit dem die Gruppe die KI-Fragen anfordert. Er erzeugt nichts
+# sofort, sondern fragt zuerst, ob die Gruppe selbst noch Fragen hat
+# (Birk: "Proaktive Aufforderung zum Selberdenken"). Freitext ist
+# gleichwertig: "we're done" im Chat laeuft ueber den Satz
+# ``_SATZ_EIGENE_FRAGEN_FRUEHER_FERTIG`` (``uebernimm_eigene``). Kein
+# Modellaufruf in diesen Wegen (Zusage 2) -- die KI-Fragen entstehen beim
+# Eintritt in Phase 2 im Hintergrund (``fragen_ki.starte``).
+
+
+def vorschlagen_leiste(conn, chat_id: int) -> list[tuple[str, str]]:
+    """Der eine Knopf "Suggest questions"."""
+    return [(
+        T._TEXT_FRAGEN_VORSCHLAGEN_KNOPF,
+        _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_VORSCHLAGEN, None)),
+    )]
+
+
+def sende_mit_vorschlagen(conn, tg, chat_id: int, text: str,
+                          undo_behalten: bool = False) -> int:
+    """``text`` mit dem Knopf "Suggest questions" darunter -- die vorige
+    Leiste dieser Art kommt vorher ab, damit immer nur einer bedienbar ist.
+
+    ``undo_behalten`` (der Eintritt in Phase 2): direkt davor steht meist die
+    📌-Zeile der gerade automatisch gespeicherten Begriffe mit ihrem
+    Undo-Knopf. ``_sende_knoepfe`` liesse ihn verfallen
+    (``_kollabiere_letzten_einsamen_undo``) -- hier bleibt er stehen: er ist
+    der einzige Weg, die Begriffe zurueckzunehmen, und "Suggest questions"
+    ist kein zweiter Speicherweg, der mit ihm konkurriert."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_VORSCHLAGEN)
+    leiste = vorschlagen_leiste(conn, chat_id)
+    if undo_behalten:
+        message_id = tg.sende_mit_knoepfen(chat_id, text, leiste)
+        _merke_botnachricht(conn, chat_id, message_id, text)
+    else:
+        message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id,
+    )
+    return message_id
+
+
+def _hat_eigene_fragen(conn, chat_id: int) -> bool:
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen_eigene_vorschlag"] or "") if stand else ""
+        bestaetigt = (stand["fragen"] or "") if stand else ""
+    except (IndexError, KeyError):
+        return False
+    return bool(roh.strip() or bestaetigt.strip())
+
+
+def frage_nach_eigenen(conn, tg, chat_id: int) -> int:
+    """Druck auf "Suggest questions": die Rueckfrage zum Selberdenken mit
+    "We have more" / "Yes, suggest some". Ohne eine einzige eigene Frage die
+    deutlichere Fassung -- eigene Fragen zuerst."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_VORSCHLAGEN)
+    text = (T._TEXT_FRAGEN_SELBST_RUECKFRAGE if _hat_eigene_fragen(conn, chat_id)
+            else T._TEXT_FRAGEN_SELBST_RUECKFRAGE_LEER)
+    leiste = [
+        (T._TEXT_FRAGEN_NOCH_EIGENE_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_NOCH_EIGENE, None))),
+        (T._TEXT_FRAGEN_JA_VORSCHLAGEN_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_JA_VORSCHLAGEN, None))),
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(daten) for _, daten in leiste], message_id,
+    )
+    return message_id
+
+
+def noch_eigene(conn, tg, chat_id: int) -> int:
+    """"We have more": einladen, nichts erzeugen. Die naechste Nachricht der
+    Gruppe laeuft durch den normalen Gespraechszug (``VORSCHLAG EIGENE
+    FRAGEN:``), der den Knopf wieder anbietet."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_JA_VORSCHLAGEN)
+    return tg.sende(chat_id, T._TEXT_FRAGEN_NOCH_EIGENE)
+
+
+def ja_vorschlagen(conn, tg, chat_id: int) -> int:
+    """"Yes, suggest some": derselbe Weg wie "Own questions done."."""
+    _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGEN_NOCH_EIGENE)
+    return _eigene_fertig(conn, tg, chat_id)
 
 
 # --- Frage fuer Frage --------------------------------------------------------

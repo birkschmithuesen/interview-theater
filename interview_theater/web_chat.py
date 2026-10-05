@@ -3570,6 +3570,9 @@ def _js() -> str:
     # uebersetzten Texte zur Aufrufzeit (``T``).
     texte = dict(
         _JS_TEXTE,
+        # Live 05.10.2026 (Birk): ohne diese Zeile stand im Padua-Chat das
+        # deutsche "Abkürzung:" vor jeder Knopfleiste, die der Poll baut.
+        abkuerzung=T._TEXT_ABKUERZUNG,
         interview_an=T._TEXT_INTERVIEW_AN, interview_aus=T._TEXT_INTERVIEW_AUS,
         sprache=T._TEXT_SPRACHE, sprache_laeuft=T._TEXT_SPRACHE_LAEUFT,
         interview_pause=T._TEXT_INTERVIEW_PAUSE,

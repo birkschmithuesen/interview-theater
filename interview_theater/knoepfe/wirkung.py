@@ -26,7 +26,8 @@ from interview_theater.knoepfe.texte import (
     ART_FIGUR_DUKTUS_MENU, ART_FIGUR_ENTFERNEN, ART_FIGUR_INTERVIEW,
     ART_FIGUR_INTERVIEW_MENU, ART_FIGUR_NAME, ART_FIGUR_NAME_MENU,
     ART_FIGUR_PASST, ART_FIGUR_STIL, ART_FIGUR_STIL_FREI, ART_FRAGEN_ANDERE,
-    ART_FRAGEN_EIGENE, ART_FRAGEN_EINZELN, ART_FRAGEN_UEBERNEHMEN,
+    ART_FRAGEN_EIGENE, ART_FRAGEN_EINZELN, ART_FRAGEN_JA_VORSCHLAGEN,
+    ART_FRAGEN_NOCH_EIGENE, ART_FRAGEN_UEBERNEHMEN, ART_FRAGEN_VORSCHLAGEN,
     ART_FRAGEN_WEICH_LASSEN, ART_FRAGEN_WEICH_UEBERNEHMEN,
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
     ART_FRAGE_WAHL,
@@ -56,9 +57,9 @@ from interview_theater.knoepfe.basis import (
     _speichere, _starte_auftrag, offene_art, redo_leiste,
 )
 from interview_theater.knoepfe.fragen import (
-    _speichere_eroeffnung, entscheide, frage_waehlt_schaerfen,
+    _speichere_eroeffnung, entscheide, frage_nach_eigenen, frage_waehlt_schaerfen,
     frage_warten_auf_richtung, frage_weich_lassen, frage_weich_uebernehmen,
-    starte_durchgehen, starte_eroeffnung,
+    ja_vorschlagen, noch_eigene, starte_durchgehen, starte_eroeffnung,
 )
 from interview_theater.knoepfe.figuren import (
     _biete_interviews, _entwurfszeilen, _ersetze_namen, _interviewkoepfe,
@@ -778,6 +779,26 @@ def _wirkung_fragen_eigene(conn, d: Druck) -> str:
     nichts mehr."""
     d.tg.sende(d.chat_id, T._TEXT_FRAGEN_EIGENE)
     return T._ANTWORT_ERZAEHLT
+
+
+def _wirkung_fragen_vorschlagen(conn, d: Druck) -> str:
+    """"Suggest questions" (Padua Phase 2, Birk 05.10.2026): erst die
+    Rueckfrage zum Selberdenken, kein KI-Vorschlag."""
+    frage_nach_eigenen(conn, d.tg, d.chat_id)
+    return T._TEXT_FRAGE_ENTSCHIEDEN
+
+
+def _wirkung_fragen_noch_eigene(conn, d: Druck) -> str:
+    """"We have more": einladen, nichts erzeugen."""
+    noch_eigene(conn, d.tg, d.chat_id)
+    return T._TEXT_FRAGE_ENTSCHIEDEN
+
+
+def _wirkung_fragen_ja_vorschlagen(conn, d: Druck) -> str:
+    """"Yes, suggest some": die Gegenueberstellung mit den KI-Fragen, die
+    beim Eintritt in Phase 2 im Hintergrund entstanden sind."""
+    ja_vorschlagen(conn, d.tg, d.chat_id)
+    return T._TEXT_FRAGE_ENTSCHIEDEN
 
 
 def _wirkung_fragen_einzeln(conn, d: Druck) -> str:
@@ -1698,6 +1719,9 @@ _WIRKUNGEN = {
     ART_FRAGEN_ANDERE: _wirkung_fragen_andere,
     ART_FRAGEN_EIGENE: _wirkung_fragen_eigene,
     ART_FRAGEN_EINZELN: _wirkung_fragen_einzeln,
+    ART_FRAGEN_VORSCHLAGEN: _wirkung_fragen_vorschlagen,
+    ART_FRAGEN_NOCH_EIGENE: _wirkung_fragen_noch_eigene,
+    ART_FRAGEN_JA_VORSCHLAGEN: _wirkung_fragen_ja_vorschlagen,
     ART_FRAGE_ANNEHMEN: _wirkung_frage_annehmen,
     ART_FRAGE_VERWERFEN: _wirkung_frage_verwerfen,
     ART_FRAGE_SCHAERFEN: _wirkung_frage_schaerfen,

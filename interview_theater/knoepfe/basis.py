@@ -564,10 +564,10 @@ def sende_mit_speicherleiste(
     # 03.10.2026, KORREKTUR-PHASE2-KEIN-KNOPF.md): ``VORSCHLAG EIGENE
     # FRAGEN:`` ist kein Angebot, sondern die laufende, vollstaendige
     # Zusammenfassung dessen, was die Gruppe selbst schon gesagt hat --
-    # jede Zeile "Begriff: Frage". Kein Vorspann-Text, keine Grundleiste:
-    # der Code prueft nach jedem Speichern, ob jeder Begriff genug eigene
-    # Fragen hat, und meldet entweder den Stand oder startet automatisch die
-    # Gegenueberstellung mit den KI-Fragen.
+    # jede Zeile "Begriff: Frage". Keine Grundleiste: der Code speichert die
+    # Liste, schickt die Antwort des Modells ohne den Block und startet die
+    # Gegenueberstellung, sobald die Gruppe fertig gesagt hat (seit
+    # 05.10.2026 ohne Mindestzahl und ohne "Still missing (x/3)").
     if "eigene_fragen" in bloecke:
         from interview_theater.knoepfe.fragen import uebernimm_eigene
 

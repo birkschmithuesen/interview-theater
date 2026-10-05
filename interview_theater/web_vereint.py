@@ -682,11 +682,12 @@ _VEREINT_JS = """
   // Karte t_4517d4ad: der CoThinker steht in Phase 4 (Buehnenkarten) UND in
   // Phase 1, wenn das Profil das Begriffsboard faehrt (``#roadmap`` traegt
   // dann ``data-begriffsboard="1"``, gesetzt von ``_leiste_html``).
+  // Birk 05.10.2026: mit demselben Merkmal auch Phase 2 (Fragenuebersicht).
   function istCoThinkerPhase() {
     var rm = document.getElementById('roadmap');
     if (!rm) { return false; }
     var p = rm.dataset.aktivePhase;
-    return p === '4' || (p === '1' && rm.dataset.begriffsboard === '1');
+    return p === '4' || ((p === '1' || p === '2') && rm.dataset.begriffsboard === '1');
   }
   var lies = function () {
     var teile = location.hash.replace(/^#/, '').split('&');
@@ -1979,7 +1980,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     # Der CoThinker-Tab ist sichtbar in Phase 4 -- und in Phase 1, wenn das
     # Profil das Begriffsboard faehrt (Karte t_4517d4ad). Derselbe Zustand,
     # den ``istCoThinkerPhase()`` im Browser bei jedem Takt neu herstellt.
-    phase4 = phase == 4 or (phase == 1 and workshop.diskussion_aktiv())
+    # Seit 05.10.2026 (Birk) auch Phase 2: die Fragenuebersicht je Begriff.
+    phase4 = phase == 4 or (phase in (1, 2) and workshop.diskussion_aktiv())
     vorgabe = VORGABE_TAB if chat_vorhanden else "stand"
     panels = {
         "stand": web.gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),

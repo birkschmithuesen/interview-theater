@@ -327,9 +327,9 @@ def _szenenzeilen(kennung: str, szenen, feld: str) -> list[tuple]:
 def _details(nummer: int, lage: dict) -> list[tuple]:
     """Die Detailzeilen einer Phase als ``(kennung, erledigt, bezug, titel)``."""
     stand = lage["stand"]
-    if nummer == 1:
-        diskussion = lage.get("diskussion")
-        return [] if diskussion is None else [("diskussion", bool(diskussion), None, None)]
+    # Phase 1 hat keine Detailzeile mehr: "Discussion summarised" ist kein
+    # Schritt der Gruppe, die Verdichtung laeuft still im Hintergrund und
+    # geht in den Phase-2-Prompt (Birk, 05.10.2026).
     if nummer == 3:
         return [
             ("interview", bool(_roh(i, "zusammenfassung")), _roh(i, "bezeichnung"), None)
@@ -420,6 +420,58 @@ def begriffe_detail(stand) -> list[dict]:
             "doppelbedeutung": str(eintrag.get("doppelbedeutung") or "").strip(),
         })
     return ergebnis
+
+
+def _fragenzeilen(roh: str) -> list[str]:
+    """Die Zeilen eines Fragenfelds ohne Aufzaehlungszeichen -- dieselbe
+    Saeuberung wie ``vorschlag.zeilen``, hier nachgebaut, weil der Webserver
+    dieses Modul ohne Bot-Abhaengigkeiten liest."""
+    import re
+
+    ergebnis = []
+    for zeile in (roh or "").splitlines():
+        sauber = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", zeile).strip()
+        if sauber:
+            ergebnis.append(sauber)
+    return ergebnis
+
+
+def fragenuebersicht(stand) -> list[dict]:
+    """Der CoThinker in Phase 2 (Birk, 05.10.2026): je Begriff der Gruppe die
+    Fragen, die bisher dazu stehen -- ``[{begriff, fragen: [text]}]`` in der
+    Reihenfolge der Begriffe. **Keine Soll-Zahl**: wie viele Fragen ein
+    Begriff bekommt, entscheidet die Gruppe; ein Begriff ohne Frage hat eine
+    leere Liste, mehr nicht.
+
+    Quelle sind die bestaetigten Fragen (``fragen``) und die laufende eigene
+    Liste (``fragen_eigene_vorschlag``), Dubletten einmal. Steht die
+    Entscheidung Frage fuer Frage schon (``fragen_herkunft_final`` ist nicht
+    NULL), gilt nur noch ``fragen`` -- eine verworfene eigene Frage soll dann
+    nicht mehr dastehen. Eine Zeile ohne passenden Begriff faellt heraus:
+    kein Begriff wird erfunden. Rein, kein SQL."""
+    from interview_theater import begriffe as begriffe_modul
+
+    begriffe = begriffe_modul.zerlege(_text(stand, "begriffe"))
+    if not begriffe:
+        return []
+    zeilen = _fragenzeilen(_text(stand, "fragen"))
+    if _roh(stand, "fragen_herkunft_final") is None:
+        zeilen += _fragenzeilen(_text(stand, "fragen_eigene_vorschlag"))
+    nachschlag = {b.casefold(): b for b in begriffe}
+    je_begriff: dict[str, list[str]] = {b: [] for b in begriffe}
+    gesehen: set[tuple[str, str]] = set()
+    for zeile in zeilen:
+        kopf, trenner, frage = zeile.partition(":")
+        begriff = nachschlag.get(kopf.strip().casefold())
+        frage = " ".join(frage.split())
+        if not trenner or begriff is None or not frage:
+            continue
+        schluessel = (begriff, frage.casefold())
+        if schluessel in gesehen:
+            continue
+        gesehen.add(schluessel)
+        je_begriff[begriff].append(frage)
+    return [{"begriff": b, "fragen": je_begriff[b]} for b in begriffe]
 
 
 def register(conn, chat_id: int) -> list[dict]:

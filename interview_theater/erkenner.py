@@ -1538,6 +1538,14 @@ def _entferne_einen_begriff(conn, chat_id: int, begriff: str) -> str | None:
     return f"{T._FELD_BESCHRIFTUNG['begriffe']} ({getroffen})"
 
 
+def _durchgang_laeuft(conn, chat_id: int) -> bool:
+    """``knoepfe.einzeln_aktiv`` -- spaeter Import (``knoepfe`` importiert
+    ``erkenner``)."""
+    from interview_theater import knoepfe
+
+    return knoepfe.einzeln_aktiv(conn, chat_id)
+
+
 def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | None:
     """Entfernt weich, was ``wert`` benennt (art ``entfernen``, NACHTRAG N3).
 
@@ -1581,6 +1589,17 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
         )
         return {"art": "entfernen", "wert": T._BEZEICHNUNG_FESTLEGUNG.format(text=alter_text)}
 
+    if ziel == "fragen" and quelle == "erkenner" and _durchgang_laeuft(conn, chat_id):
+        # Feedbackloop P1-2, Runde 3, Befund H3 (erkenner_lauf 24): mitten im
+        # Einzeldurchgang las der Erkenner "you lost the thread, question 2"
+        # als ``entfernen FRAGEN`` und leerte alle sieben eigenen Fragen
+        # ("Noted: Removed: Questions"). Waehrend der Stufe gehoert ``fragen``
+        # dem Durchgang -- derselbe Schutz wie fuer ``fragen_setzen``
+        # (``_wende_arbeitsstand_an``). Still: keine Meldung. Ein getippter
+        # Befehl (``quelle="befehl"``) bleibt ein ausdruecklicher Wunsch.
+        log.info("entfernen FRAGEN waehrend 'Fragen einzeln durchgehen' "
+                 "verworfen, chat_id=%s", chat_id)
+        return None
     if ziel == "begriffe" and rest:
         bezeichnung = _entferne_einen_begriff(conn, chat_id, rest)
     elif ziel in _ENTFERNEN_ARBEITSSTAND:
@@ -2413,13 +2432,16 @@ def _interviewmodus_texte() -> dict[str, str]:
     importiert ``erkenner``, ein Modulimport hier waere ein Zyklus."""
     from interview_theater import befehle
 
-    from interview_theater import knoepfe
+    from interview_theater.knoepfe import texte as knoepfe_texte
 
     # ``interview_starten`` traegt seit 05.09.2026 NICHT mehr die
     # Startbestaetigung (der Modus laeuft ja noch gar nicht), sondern die
     # Ablauf-Erklaerung vor dem Start -- der Knopf darunter schaltet ein.
+    # Ueber die Sprachschicht ``T`` (Feedbackloop P1-2, Runde 3, Befund M5:
+    # die Modulkonstante ist die deutsche Fassung, "So geht ein Interview"
+    # stand in der englischen App).
     return {
-        "interview_starten": knoepfe.TEXT_ABLAUF,
+        "interview_starten": knoepfe_texte.T.TEXT_ABLAUF,
         "interview_beenden": befehle.T._TEXT_INTERVIEW_AUS,
     }
 
@@ -3101,7 +3123,20 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         from interview_theater.knoepfe import basis as _basis
 
         begriffe_im_zug, zug_lauf = _basis.nimm_begriffe_im_zug(conn, chat_id)
+        # Runde 3, Befund H2: hat der Zug auf diese Nachricht den Vergleich
+        # der eigenen Fragen gestartet ("we can go to the interviews" ->
+        # "Question 1/27"), war das ihre Bedeutung -- ein ``phase_setzen``
+        # aus DERSELBEN Nachricht fiele mitten in den Durchgang. Still
+        # verworfen; eine spaetere Nachricht wechselt die Phase wie immer.
+        from interview_theater import ablauf as _ablauf
+
+        vergleich_im_zug = _ablauf.nimm_vergleich_im_zug(conn, chat_id)
         aenderungen = erkenne(klm, conn, e, chat_id)
+        if vergleich_im_zug and aenderungen:
+            if any(a.get("art") == "phase_setzen" for a in aenderungen):
+                log.info("phase_setzen aus der Nachricht, die den Vergleich "
+                         "gestartet hat, verworfen, chat_id=%s", chat_id)
+            aenderungen = [a for a in aenderungen if a.get("art") != "phase_setzen"]
         if not aenderungen:
             return
         notiz_verbraucht = False

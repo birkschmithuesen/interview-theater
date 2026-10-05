@@ -71,9 +71,13 @@ def _begriffe_im_zug_leer():
     chat_id, und fast alle Tests teilen ``CHAT = 1``."""
     from interview_theater.knoepfe import basis
 
+    from interview_theater import ablauf
+
     basis.vergiss_begriffe_im_zug()
+    ablauf.vergiss_vergleich_im_zug()
     yield
     basis.vergiss_begriffe_im_zug()
+    ablauf.vergiss_vergleich_im_zug()
 
 
 @pytest.fixture

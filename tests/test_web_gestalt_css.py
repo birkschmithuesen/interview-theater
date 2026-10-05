@@ -191,6 +191,38 @@ def test_der_gescopte_teil_ueberlebt_scope_css(name):
         assert not re.search(r"\.panel-\w+ \d+%", ergebnis)
 
 
+_GESCOPTE_PRAEFIXE = {
+    "css_chat": ".panel-chat",
+    "css_stand": ".panel-stand",
+    "css_textbuch": ".panel-textbuch",
+}
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+@pytest.mark.parametrize("funktion", GESCOPT)
+def test_jeder_selektor_traegt_den_scope_praefix_nach_scope_css(name, funktion):
+    """Review-Befund zu 083bbaa: ein CSS-Kommentar mit Kommas direkt vor
+    einer Regel (``/* Feedbackloop P1-H1b: ... */`` vor ``#interview[hidden]
+    + #ux-rec-zeile, ...`` in ``_CHAT_A``/``_CHAT_B``) wird von
+    ``web_vereint.scope_css`` an JEDEM Komma gesplittet, bevor der
+    Scope-Praefix gesetzt wird -- der Kommentar selbst enthaelt Kommas, der
+    echte erste Selektor landet deshalb NICHT am Anfang eines Split-Stuecks
+    und bekommt keinen Praefix (``_ein_selektor`` setzt ihn nur vorne an).
+    Jede echte, im Markup benutzte Selektor-Kette, die ``scope_css``
+    ausgibt, muss deshalb mit dem Scope-Praefix beginnen -- gemessen am
+    tatsaechlichen Aufruf aus ``web_vereint.seite``, nicht nur an Klammern-
+    und Fragment-Zaehlung wie oben."""
+    scope = _GESCOPTE_PRAEFIXE[funktion]
+    ergebnis = web_vereint.scope_css(_css(funktion, name), scope)
+    ohne_kommentare = re.sub(r"/\*.*?\*/", "", ergebnis, flags=re.S)
+    for selektoren, _koerper in re.findall(r"([^{}]+)\{([^{}]*)\}", ohne_kommentare):
+        for roh in selektoren.split(","):
+            sel = roh.strip()
+            if not sel:
+                continue
+            assert sel.startswith(scope), (funktion, name, sel)
+
+
 # -- 4. Tokens werden benutzt, nicht umgangen -------------------------------
 
 

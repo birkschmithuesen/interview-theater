@@ -294,6 +294,48 @@ def test_zustand_kalibrierung_upload_ist_ohne_upload_none(datenbank):
     lesend.close()
 
 
+# -- Gruppenweite Kalibrierungswerte (Karte "keine Kalibrierung in Phase    --
+# -- 3/4", 05.10.2026) -------------------------------------------------------
+
+
+def test_zustand_kalibrierung_gruppe_ist_ohne_messung_none(datenbank):
+    pfad, token = datenbank
+    lesend = web_daten.oeffne_lesend(pfad)
+    assert web_daten.web_chatzustand(lesend, token)["kalibrierung_gruppe"] is None
+    lesend.close()
+
+
+def test_zustand_liefert_die_gemessenen_gruppenwerte(datenbank):
+    pfad, token = datenbank
+    schreibend = db.verbinde(pfad)
+    repo.setze_kalibrierung_werte(schreibend, CHAT, 0.01, 0.2, 0.025)
+    schreibend.close()
+    lesend = web_daten.oeffne_lesend(pfad)
+    assert web_daten.web_chatzustand(lesend, token)["kalibrierung_gruppe"] == {
+        "boden": 0.01, "rede": 0.2, "schwelle": 0.025,
+    }
+    lesend.close()
+
+
+def test_zustand_kalibrierung_gruppe_ohne_spalten_ist_none_ohne_500(datenbank):
+    """Die Weboberflaeche migriert nichts (sie oeffnet read-only) -- zwischen
+    einem Bot-Deploy und dem Webserver-Neustart kann eine ``gruppe``-Tabelle
+    noch ohne die vier additiven Spalten vorliegen. Dasselbe Muster wie
+    ``web_daten._feld`` fuer ``kalibrierung_modus``: fehlende Spalte wird
+    ``None``, kein Fehler."""
+    pfad, token = datenbank
+    schreibend = db.verbinde(pfad)
+    for spalte in ("kalibrierung_boden", "kalibrierung_rede",
+                   "kalibrierung_schwelle", "kalibrierung_gemessen_am"):
+        schreibend.execute(f"ALTER TABLE gruppe DROP COLUMN {spalte}")
+    schreibend.commit()
+    schreibend.close()
+    lesend = web_daten.oeffne_lesend(pfad)
+    zustand = web_daten.web_chatzustand(lesend, token)
+    assert zustand["kalibrierung_gruppe"] is None
+    lesend.close()
+
+
 @pytest.mark.parametrize("status,erwartet", [
     ("empfangen", "laufend"),
     ("transkribiert", "laufend"),

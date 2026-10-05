@@ -1875,6 +1875,8 @@ _TEXT_EINGABE = "Write or speak freely – or tap a shortcut"
 _TEXT_EINGABE_FRAGEN = "Say what should be different about the question …"
 _TEXT_EINGABE_SETTING = "Tell us your idea …"
 _TEXT_ABKUERZUNG = "Shortcut:"
+# P34 Runde 1, Befund A7: Tipp-Anzeige (vorher deutsch "schreibt …").
+_TEXT_TIPPT = "writing …"
 # Padua Hotfix B6/B7 (02.10.2026): nur die Texte, die diese Karte anfasst.
 # Der Rest der Chatansicht bleibt vorerst deutsch (offener Punkt, Karte A1).
 _TEXT_INTERVIEW_AN = "Record interview"
@@ -1914,7 +1916,7 @@ _TEXT_PTT_VERWERFEN = "Discard recording"
 # nothing paraphrased.
 _TEXT_KALIBRIERUNG_ANKUENDIGUNG = "Put this phone in the middle of the table, where it will stay during the discussion. Sit as you will sit while talking — don't lean in or speak into the phone. We'll test it exactly like the real situation. When you press the button below, please stay completely silent for 5 seconds — then one of you will say a sentence in a normal voice."
 _TEXT_KALIBRIERUNG_START_KNOPF = "Start measuring"
-_TEXT_KALIBRIERUNG_STILLE = "Quiet for {s} seconds — measuring the room …"
+_TEXT_KALIBRIERUNG_STILLE = "Stay quiet — {s} s left, measuring the room …"
 _TEXT_KALIBRIERUNG_SPRECHEN_ANKUENDIGUNG = "Silence measured. Now one of you will say a sentence in your normal voice — ideally the person sitting furthest from the phone. Speak from where you sit, at normal volume, not into the phone. Press the button, then start talking."
 _TEXT_KALIBRIERUNG_SPRECHEN_KNOPF = "Start speaking"
 _TEXT_KALIBRIERUNG_HOEREN = "Listening … start whenever you're ready."

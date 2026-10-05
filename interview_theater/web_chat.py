@@ -3645,6 +3645,8 @@ def _js() -> str:
         # Live 05.10.2026 (Birk): ohne diese Zeile stand im Padua-Chat das
         # deutsche "Abkürzung:" vor jeder Knopfleiste, die der Poll baut.
         abkuerzung=T._TEXT_ABKUERZUNG,
+        # P34 Runde 1, Befund A7: "SCHREIBT …" in der EN-Oberflaeche.
+        tippt=T._TEXT_TIPPT,
         interview_an=T._TEXT_INTERVIEW_AN, interview_aus=T._TEXT_INTERVIEW_AUS,
         sprache=T._TEXT_SPRACHE, sprache_laeuft=T._TEXT_SPRACHE_LAEUFT,
         interview_pause=T._TEXT_INTERVIEW_PAUSE,

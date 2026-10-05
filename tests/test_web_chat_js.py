@@ -1085,8 +1085,11 @@ def test_kaladaptivaktualisiere_konvergiert_bimodal_unimodal_bleibt_unveraendert
     function bimodalerPegel(t) {{
       return (Math.floor(t / 400) % 2 === 0) ? 0.003 : 0.3;
     }}
+    // 90s statt 30s: lang genug, dass die 60s-Fensterkappung tatsaechlich
+    // etwas wegwerfen MUSS, nicht nur theoretisch koennte.
     var bimodal = {{ vadSchwelleFix: null, _kalAdaptivStart: 0, _kalAdaptivProben: [] }};
-    var schritteBimodal = simuliere(bimodal, 30000, bimodalerPegel);
+    var schritteBimodal = simuliere(bimodal, 90000, bimodalerPegel);
+    var aeltesteProbeAlterMs = 90000 - bimodal._kalAdaptivProben[0].t;
 
     // Unimodal: konstantes Rauschen, kein Sprachanteil im ganzen Fenster.
     var unimodal = {{ vadSchwelleFix: null, _kalAdaptivStart: 0, _kalAdaptivProben: [] }};
@@ -1112,7 +1115,8 @@ def test_kaladaptivaktualisiere_konvergiert_bimodal_unimodal_bleibt_unveraendert
 
     console.log(JSON.stringify({{
       bimodal: {{ vadSchwelleFix: bimodal.vadSchwelleFix, ersterSchrittT: (schritteBimodal[0] || {{}}).t,
-                  anzahlSchritte: schritteBimodal.length, gemeldetAnzahl: gemeldet.length }},
+                  anzahlSchritte: schritteBimodal.length, gemeldetAnzahl: gemeldet.length,
+                  aeltesteProbeAlterMs: aeltesteProbeAlterMs }},
       unimodal: {{ vadSchwelleFix: unimodal.vadSchwelleFix, anzahlSchritte: schritteUnimodal.length }},
       deckel: schritteDeckel.map(function (s) {{
         return {{ von: s.von, nach: s.nach, faktor: (s.von == null ? null : s.nach / s.von) }};
@@ -1130,6 +1134,12 @@ def test_kaladaptivaktualisiere_konvergiert_bimodal_unimodal_bleibt_unveraendert
     assert bimodal["vadSchwelleFix"] == pytest.approx(erwartete_mitte, rel=0.2)
     assert bimodal["anzahlSchritte"] > 0
     assert bimodal["gemeldetAnzahl"] > 0
+    # Getrimmt wird nur BEI einem Rechenlauf (hoechstens alle 3s) -- knapp
+    # ueber 60s zwischen zwei Trimm-Punkten ist also erwartet, deutlich
+    # mehr (hier: die vollen 90s ohne jede Kappung) waere der Fehler.
+    assert bimodal["aeltesteProbeAlterMs"] <= 60000 + 2 * 3000, (
+        "das 60s-Fenster muss aeltere Proben wegwerfen"
+    )
 
     unimodal = ergebnis["unimodal"]
     assert unimodal["vadSchwelleFix"] is None

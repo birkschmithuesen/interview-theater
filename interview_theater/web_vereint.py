@@ -1604,6 +1604,157 @@ _STEPPER_JS = """
 """
 
 
+#: Die Auswahlliste im CoThinker (Padua Phase 2, 05.10.2026): eine eigene,
+#: nur unter ``workshop.diskussion_aktiv()`` angehaengte IIFE -- wie
+#: ``_STEPPER_JS``, damit Dortmunds Skript Zeichen fuer Zeichen bleibt.
+#: Ein Tipp setzt sofort ``data-zustand``/``aria-pressed`` und den Zaehler
+#: (optimistisch), schickt ``chat/auswahl`` und holt danach das Panel neu.
+#: Ein Tipp auf den schon gedrueckten Knopf schickt ``""`` (Rueckgaengig).
+#: Tauscht ``ladeBuehne`` (``_VEREINT_JS``) das Panel, waehrend ein Tipp
+#: unterwegs ist, setzt ein ``MutationObserver`` die offenen Tipps wieder
+#: auf -- der Takt ueberschreibt nichts, was noch nicht angekommen ist.
+#: Keine Textliterale: Zaehlerzeile und Fehlersatz kommen als Platzhalter.
+_AUSWAHL_JS = """
+(function () {
+  var BASIS = '__BASIS__';
+  var BASIS_TEIL = '__BASIS_TEIL__';
+  var ZAEHLER = __AUSWAHL_ZAEHLER__;
+  var FEHLER_NETZ = __AUSWAHL_FEHLER_NETZ__;
+  var unterwegs = {};
+  var anzahlUnterwegs = 0;
+
+  function friskeNonce() {
+    return fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return null; }
+        var quelle = new DOMParser().parseFromString(text, 'text/html')
+          .getElementById('nonce');
+        if (!quelle) { return null; }
+        var feld = document.getElementById('nonce');
+        if (feld) { feld.value = quelle.value; }
+        return quelle.value;
+      })
+      .catch(function () { return null; });
+  }
+  function sende(weg, nutzlast, zweiter) {
+    var koerper = { nonce: (document.getElementById('nonce') || {}).value || '' };
+    Object.keys(nutzlast).forEach(function (k) { koerper[k] = nutzlast[k]; });
+    return fetch(BASIS + weg, {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(koerper)
+    }).then(function (r) {
+      if (r.status === 403 && !zweiter) {
+        return friskeNonce().then(function () { return sende(weg, nutzlast, true); });
+      }
+      return r;
+    });
+  }
+  var fehlerTakt = null;
+  function zeigeFehler() {
+    var feld = document.getElementById('fehler');
+    if (!feld) { return; }
+    feld.textContent = FEHLER_NETZ;
+    feld.hidden = false;
+    if (fehlerTakt) { clearTimeout(fehlerTakt); }
+    fehlerTakt = setTimeout(function () { feld.hidden = true; feld.textContent = ''; }, 8000);
+  }
+  function zaehle(panel) {
+    var feld = panel.querySelector('.auswahl-zaehler');
+    if (!feld) { return; }
+    var n = { ja: 0, nein: 0, schaerfen: 0, offen: 0 };
+    panel.querySelectorAll('ul.auswahl li[data-nummer]').forEach(function (li) {
+      var z = li.getAttribute('data-zustand');
+      n[n.hasOwnProperty(z) ? z : 'offen'] += 1;
+    });
+    feld.textContent = ZAEHLER.replace(/\\{(ja|nein|schaerfen|offen)\\}/g,
+      function (_g, k) { return String(n[k]); });
+  }
+  function setze(li, wert) {
+    li.setAttribute('data-zustand', wert || 'offen');
+    li.querySelectorAll('.auswahl-knopf').forEach(function (k) {
+      k.setAttribute('aria-pressed', k.getAttribute('data-wert') === wert ? 'true' : 'false');
+    });
+  }
+  function wendeUnterwegsAn() {
+    var panel = document.getElementById('buehne-panel');
+    if (!panel || panel.getAttribute('data-ansicht') !== 'auswahl') { return; }
+    Object.keys(unterwegs).forEach(function (nummer) {
+      var li = panel.querySelector('li[data-nummer="' + nummer + '"]');
+      if (li && li.getAttribute('data-zustand') !== (unterwegs[nummer] || 'offen')) {
+        setze(li, unterwegs[nummer]);
+      }
+    });
+    zaehle(panel);
+  }
+  function holePanel() {
+    var tab = document.getElementById('tab-buehne');
+    if (!tab) { return; }
+    fetch(BASIS_TEIL + 'buehne', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (text === null || anzahlUnterwegs > 0) { return; }
+        var doc = new DOMParser().parseFromString(text, 'text/html');
+        if (doc.body && doc.body.innerHTML !== tab.innerHTML) {
+          tab.innerHTML = doc.body.innerHTML;
+        }
+      })
+      .catch(function () {});
+  }
+  var tab = document.getElementById('tab-buehne');
+  if (tab && window.MutationObserver) {
+    new MutationObserver(function () {
+      if (anzahlUnterwegs > 0) { wendeUnterwegsAn(); }
+    }).observe(tab, { childList: true });
+  }
+  document.addEventListener('click', function (ev) {
+    var ziel = ev.target && ev.target.closest ? ev.target : null;
+    if (!ziel) { return; }
+    var knopf = ziel.closest('#buehne-panel[data-ansicht="auswahl"] .auswahl-knopf');
+    if (knopf) {
+      ev.preventDefault();
+      var panel = knopf.closest('#buehne-panel');
+      var li = knopf.closest('li[data-nummer]');
+      if (!li) { return; }
+      var nummer = parseInt(li.getAttribute('data-nummer'), 10);
+      var wert = knopf.getAttribute('aria-pressed') === 'true'
+        ? '' : knopf.getAttribute('data-wert');
+      setze(li, wert);
+      zaehle(panel);
+      unterwegs[nummer] = wert;
+      anzahlUnterwegs += 1;
+      sende('chat/auswahl', { liste: panel.getAttribute('data-liste'), nummer: nummer, wert: wert })
+        .then(function (r) { if (!r.ok) { zeigeFehler(); } })
+        .catch(function () { zeigeFehler(); })
+        .then(function () {
+          anzahlUnterwegs -= 1;
+          if (unterwegs[nummer] === wert) { delete unterwegs[nummer]; }
+          if (anzahlUnterwegs === 0) { holePanel(); }
+        });
+      return;
+    }
+    var fertig = ziel.closest('#buehne-panel[data-ansicht="auswahl"] .auswahl-fertig');
+    if (fertig) {
+      ev.preventDefault();
+      if (fertig.disabled) { return; }
+      fertig.disabled = true;
+      var liste = fertig.closest('#buehne-panel').getAttribute('data-liste');
+      sende('chat/auswahl_fertig', { liste: liste })
+        .then(function (r) {
+          fertig.disabled = false;
+          if (!r.ok) { zeigeFehler(); return; }
+          if (document.querySelector('.tabs button[data-tab="chat"]')) {
+            location.hash = '#chat';
+          }
+        })
+        .catch(function () { fertig.disabled = false; zeigeFehler(); });
+    }
+  });
+})();
+"""
+
+
 def _tabs_html(aktiv: str, tabs=TABS, phase4: bool = True) -> str:
     """``phase4=False`` haengt ein ``hidden`` an den CoThinker-Knopf, damit
     die Seite schon beim ersten Rendern (vor jedem Poll-Takt) stimmt --
@@ -1683,6 +1834,68 @@ def phase_post(handler, db_pfad: str, token: str, chat_id: int,
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
             text=f"/phaseklick {roh}",
+        )
+    web_chat._angenommen(handler, {"message_id": message_id})
+
+
+_TEXT_AUSWAHL_UNGUELTIG = "Diese Auswahl geht nicht."
+#: Welche Liste ein Tipp in der Auswahlliste schreibt (Padua Phase 2,
+#: 05.10.2026): Listenname -> Name der ``repo``-Funktion
+#: ``(conn, chat_id, nummer, wert) -> bool``. Als Name, nicht als Objekt:
+#: ``repo`` wird hier wie ueberall in diesem Modul erst im Aufruf geladen.
+_AUSWAHL_SCHREIBER = {"fragen": "setze_fragen_entscheidung"}
+#: Die erlaubten Werte eines Tipps -- ``""`` ist "wieder offen" (Rueckgaengig).
+_AUSWAHL_WERTE = ("ja", "nein", "schaerfen", "")
+
+
+def auswahl_post(handler, db_pfad: str, token: str, chat_id: int,
+                 schluessel: bytes) -> None:
+    """``POST /g/<token>/chat/auswahl`` -- ein Tipp auf ✓/✗/✎ in der
+    Auswahlliste des CoThinkers. Anders als der Phasenklick schreibt der
+    Webserver hier SELBST: es ist ein Feldwert wie ``web_schreiben``, kein
+    Knopf ``k:<id>`` und kein Modellaufruf. Nonce zuerst (403), dann Wert
+    (400); ``False`` aus dem Schreiber (Nummer ausserhalb der Liste) ist
+    ebenfalls 400."""
+    from interview_theater import repo, web_chat
+
+    daten = web_chat._koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    schreiber = _AUSWAHL_SCHREIBER.get(daten.get("liste"))
+    nummer = daten.get("nummer")
+    wert = daten.get("wert")
+    if (schreiber is None or not isinstance(nummer, int) or isinstance(nummer, bool)
+            or nummer < 1 or not isinstance(wert, str) or wert not in _AUSWAHL_WERTE):
+        handler._fehler(400, T._TEXT_AUSWAHL_UNGUELTIG)
+        return
+    with web_chat.schreibend(db_pfad) as conn:
+        geschrieben = getattr(repo, schreiber)(conn, chat_id, nummer, wert)
+    if not geschrieben:
+        handler._fehler(400, T._TEXT_AUSWAHL_UNGUELTIG)
+        return
+    handler._antworte(
+        200, json.dumps({"ok": True}), "application/json; charset=utf-8",
+    )
+
+
+def auswahl_fertig_post(handler, db_pfad: str, token: str, chat_id: int,
+                        schluessel: bytes) -> None:
+    """``POST /g/<token>/chat/auswahl_fertig`` -- "Fertig sortiert". Wie
+    ``phase_post``: der Webserver legt nur den versteckten Befehl
+    ``/sortiert`` als Eingang ab, der Bot schliesst die Sortierung ab
+    (offene zaehlen als behalten, dann ggf. Umformulieren im Chat)."""
+    from interview_theater import repo, web_chat
+
+    daten = web_chat._koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    if daten.get("liste") not in _AUSWAHL_SCHREIBER:
+        handler._fehler(400, T._TEXT_AUSWAHL_UNGUELTIG)
+        return
+    with web_chat.schreibend(db_pfad) as conn:
+        message_id = repo.lege_web_post_an(
+            conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
+            text="/sortiert",
         )
     web_chat._angenommen(handler, {"message_id": message_id})
 
@@ -2101,6 +2314,17 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             .replace("__SHEET_STATUS_BEREIT__", _js_text(T._TEXT_SHEET_STATUS_BEREIT))
             .replace("__SHEET_STATUS_OFFEN__", _js_text(T._TEXT_SHEET_STATUS_OFFEN))
             .replace("__SHEET_GEHE_ZU__", _js_text(T._TEXT_SHEET_GEHE_ZU))
+        )
+    # Die Auswahlliste im CoThinker (Padua Phase 2): nur mit Chat (die
+    # Wege liegen unter ``/chat/*``) und nur unter dem Profil -- Dortmunds
+    # Skript bleibt unberuehrt, wie beim Stepper.
+    if chat_vorhanden and workshop.diskussion_aktiv():
+        skript += (
+            _AUSWAHL_JS
+            .replace("__BASIS__", f"{token}/")
+            .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
+            .replace("__AUSWAHL_ZAEHLER__", _js_text(web.T._TEXT_AUSWAHL_ZAEHLER))
+            .replace("__AUSWAHL_FEHLER_NETZ__", _js_text(T._TEXT_PHASE_FEHLER_NETZ))
         )
     # ``chat_vorhanden`` durchreichen (UX-Fix an Aufgabe 8): Baustein 3
     # (``_JS_AUFNAHME``) nennt Elemente, die nur im Chat-Panel existieren

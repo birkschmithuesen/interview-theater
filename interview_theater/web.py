@@ -1033,6 +1033,15 @@ _TEXT_BOARD_LEER = "Hier erscheinen die Begriffe, die ihr in der Diskussion nenn
 _TEXT_FRAGEN_UEBERSICHT_KOPF = "Eure Fragen"
 _TEXT_FRAGEN_UEBERSICHT_LEER = "Hier erscheinen eure Fragen, je Begriff."
 _TEXT_FRAGEN_UEBERSICHT_OFFEN = "noch keine Frage"
+#: Die Auswahlliste im CoThinker (Padua Phase 2, 05.10.2026): je Frage
+#: ✓/✗/✎, ein Zaehler und "Fertig sortiert" (``_auswahlliste_html``).
+_TEXT_AUSWAHL_ZAEHLER = "{ja} behalten · {nein} weg · {schaerfen} umformulieren · {offen} offen"
+_TEXT_AUSWAHL_EIGEN = "eigene"
+_TEXT_AUSWAHL_KI = "KI"
+_TEXT_AUSWAHL_JA = "Behalten"
+_TEXT_AUSWAHL_NEIN = "Weg"
+_TEXT_AUSWAHL_SCHAERFEN = "Umformulieren"
+_TEXT_AUSWAHL_FERTIG = "Fertig sortiert – offene zählen als behalten"
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
@@ -2999,6 +3008,56 @@ def _fragenuebersicht_html(eintraege: list[dict]) -> str:
     )
 
 
+def _auswahlliste_html(daten: dict, liste: str) -> str:
+    """Die Auswahlliste im CoThinker (Padua Phase 2, 05.10.2026) --
+    generisch ueber ``liste`` (heute nur ``"fragen"``, Daten aus
+    ``auswahl.fragen_liste``). Je Eintrag drei Knoepfe ✓/✗/✎ mit
+    ``aria-pressed``; ein zweiter Tipp auf den gedrueckten Knopf nimmt die
+    Entscheidung zurueck (das macht ``web_vereint._AUSWAHL_JS``). Kein
+    ``k:<id>``-Knopf: der Tipp ist ein Feldwert (``chat/auswahl``). Alles
+    maskiert, kein ``style=``, kein ``on…=`` (CSP)."""
+    zaehler = daten.get("zaehler") or {}
+    kopf = T._TEXT_AUSWAHL_ZAEHLER.format(
+        **{k: int(zaehler.get(k) or 0) for k in ("ja", "nein", "schaerfen", "offen")}
+    )
+    knoepfe = (("ja", "✓", T._TEXT_AUSWAHL_JA), ("nein", "✗", T._TEXT_AUSWAHL_NEIN),
+               ("schaerfen", "✎", T._TEXT_AUSWAHL_SCHAERFEN))
+    herkunft = {"eigen": T._TEXT_AUSWAHL_EIGEN, "ki": T._TEXT_AUSWAHL_KI}
+    teile = [
+        f'<div id="buehne-panel" data-ansicht="auswahl" '
+        f'data-liste="{html.escape(liste, quote=True)}">',
+        f'<p class="auswahl-zaehler">{html.escape(kopf)}</p>',
+    ]
+    for gruppe in daten.get("gruppen") or []:
+        if gruppe.get("titel"):
+            teile.append(f'<h3 class="auswahl-titel">{html.escape(gruppe["titel"])}</h3>')
+        zeilen = []
+        for eintrag in gruppe.get("eintraege") or []:
+            zustand = eintrag.get("zustand") or ""
+            marke = herkunft.get(eintrag.get("herkunft") or "")
+            marke_html = f' <span class="herkunft">{html.escape(marke)}</span>' if marke else ""
+            reihe = "".join(
+                f'<button type="button" class="auswahl-knopf" data-wert="{wert}" '
+                f'aria-pressed="{"true" if wert == zustand else "false"}" '
+                f'aria-label="{html.escape(name, quote=True)}">{zeichen}</button>'
+                for wert, zeichen, name in knoepfe
+            )
+            zeilen.append(
+                f'<li data-nummer="{int(eintrag["nummer"])}" '
+                f'data-zustand="{html.escape(zustand or "offen", quote=True)}">'
+                f'<span class="auswahl-text">{html.escape(eintrag.get("text") or "")}'
+                f'{marke_html}</span>'
+                f'<span class="auswahl-knoepfe">{reihe}</span></li>'
+            )
+        if zeilen:
+            teile.append(f'<ul class="auswahl">{"".join(zeilen)}</ul>')
+    teile.append(
+        f'<button type="button" class="auswahl-fertig">'
+        f'{html.escape(T._TEXT_AUSWAHL_FERTIG)}</button></div>'
+    )
+    return "".join(teile)
+
+
 def _buehne_html(daten: dict) -> str:
     """Die CoThinker-Tafel: GENAU EINE Karte auf einmal, mit Browser-
     seitiger Verlaufsnavigation (Task 1, Padua CoThinker-Tab clean,
@@ -3027,6 +3086,10 @@ def _buehne_html(daten: dict) -> str:
         # Phase 1 (Karte t_4517d4ad): der CoThinker zeigt das Begriffsboard
         # statt der Buehnenkarten -- eine Renderfunktion fuer Seite UND Poll.
         return _begriffsboard_html(daten.get("begriffsboard") or [])
+    if daten.get("auswahlliste"):
+        # Phase 2 unter Padua, sobald eine Auswahl steht: sortieren statt
+        # nur ansehen (05.10.2026).
+        return _auswahlliste_html(daten["auswahlliste"], liste="fragen")
     if daten.get("fragenuebersicht_zeigen"):
         # Phase 2 (Birk, 05.10.2026): was je Begriff an Fragen steht.
         return _fragenuebersicht_html(daten.get("fragenuebersicht") or [])

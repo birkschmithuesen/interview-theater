@@ -1365,6 +1365,15 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
             if stand.get("phase") == 2 and _workshop.diskussion_aktiv()
             else []
         ),
+        # Die Auswahlliste (Padua Phase 2, 05.10.2026): sobald eine
+        # Fragenauswahl steht, sortiert die Gruppe im CoThinker (✓/✗/✎).
+        # ``None`` ausserhalb Phase 2, ohne Profil oder ohne Auswahl -- dann
+        # bleibt die Fragenuebersicht stehen.
+        "auswahlliste": (
+            auswahlliste(conn, chat_id)
+            if stand.get("phase") == 2 and _workshop.diskussion_aktiv()
+            else None
+        ),
         # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
         # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder
         # wartet auf Transkription. Ueber ``_aufnahmen_nach_status`` (schon
@@ -1447,6 +1456,25 @@ def fragenuebersicht(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         for feld in ("begriffe", "fragen", "fragen_eigene_vorschlag",
                      "fragen_herkunft_final")
     })
+
+
+def auswahlliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
+    """Das read-only Gegenstueck zur Auswahlliste (``auswahl.fragen_liste``,
+    CoThinker in Phase 2) -- ``None``, solange ``fragen_auswahl`` leer ist.
+    Alle Felder ueber ``_feld``: der Webserver migriert nichts."""
+    from interview_theater import auswahl as _auswahl
+
+    zeile = conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)
+    ).fetchone()
+    stand = {
+        feld: _feld(zeile, feld)
+        for feld in ("begriffe", "fragen_auswahl", "fragen_herkunft",
+                     "fragen_entschieden")
+    }
+    if not (stand["fragen_auswahl"] or "").strip():
+        return None
+    return _auswahl.fragen_liste(stand)
 
 
 def stueckkarte_felder(

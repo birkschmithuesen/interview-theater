@@ -66,11 +66,18 @@ TOPF_VORFALL = "vorfall"
 #: eine Bot-Nachricht hat, ein grosszuegiger eigener Deckel reicht.
 TOPF_START = "start"
 
+#: Die Tipps in der Auswahlliste (Padua Phase 2, 05.10.2026): eigener Topf,
+#: NICHT TOPF_NACHRICHT -- 30 Fragen von drei Handys sortiert sind schnell
+#: mehr als 20 Tipps je Minute, und im geteilten Topf sperrten sie das
+#: Senden im Chat. Ein Tipp schreibt nur einen Feldwert, kein Modellaufruf.
+TOPF_AUSWAHL = "auswahl"
+
 GRENZEN = {
     TOPF_NACHRICHT: (NACHRICHTEN_JE_MINUTE, NACHRICHTEN_FENSTER_S),
     TOPF_UPLOAD: (UPLOADS_JE_STUNDE, UPLOADS_FENSTER_S),
     TOPF_VORFALL: (1, NACHRICHTEN_FENSTER_S),
     TOPF_START: (60, NACHRICHTEN_FENSTER_S),
+    TOPF_AUSWAHL: (180, NACHRICHTEN_FENSTER_S),
 }
 
 _SPERRE = threading.Lock()

@@ -1412,6 +1412,43 @@ _BUEHNE = """
 .fragenuebersicht ul.fragen li { padding: .2rem 0; color: var(--text); line-height: 1.4; }
 .fragenuebersicht .fragen-offen { margin: .25rem 0 0 1.2rem; font-style: italic;
                                   font-size: .9em; color: var(--text-leise); }
+.auswahl-zaehler { font-family: var(--schrift-tech); font-size: .8rem; font-weight: 700;
+                   color: var(--text-leise); margin: 0 0 .5rem; position: sticky; top: 0;
+                   background: var(--grund); padding: .35rem 0; z-index: 1; }
+.auswahl-titel { font-family: var(--schrift-skript); font-weight: 700; font-size: 1.05em;
+                 color: var(--text); margin: 1rem 0 .2rem; }
+ul.auswahl { list-style: none; margin: 0; padding: 0; }
+ul.auswahl > li { display: flex; flex-direction: column; gap: .35rem; padding: .6rem 0;
+                  border-top: 1px solid var(--linie); }
+ul.auswahl > li:first-child { border-top: 0; }
+.auswahl-text { color: var(--text); line-height: 1.4; overflow-wrap: anywhere; }
+.auswahl-text .herkunft { font-family: var(--schrift-tech); font-size: .7rem;
+                          color: var(--text-leise); border: 1px solid var(--linie);
+                          border-radius: var(--radius); padding: 0 .3rem;
+                          white-space: nowrap; }
+.auswahl-knoepfe { display: flex; gap: .5rem; }
+.auswahl-knopf { flex: 1 1 0; min-height: max(44px, var(--tippflaeche)); min-width: 44px;
+                 font-size: 1.15rem; line-height: 1; cursor: pointer;
+                 background: var(--grund-2); color: var(--text);
+                 border: 1px solid var(--linie); border-radius: var(--radius);
+                 touch-action: manipulation; }
+.auswahl-knopf[data-wert="ja"][aria-pressed="true"] { background: var(--warn);
+                                                      color: var(--auf-warn);
+                                                      border-color: var(--warn); }
+.auswahl-knopf[data-wert="nein"][aria-pressed="true"] { background: var(--grund-3);
+                                                        color: var(--text);
+                                                        border-color: var(--text-leise); }
+.auswahl-knopf[data-wert="schaerfen"][aria-pressed="true"] { background: var(--signal);
+                                                             color: var(--auf-signal);
+                                                             border-color: var(--signal); }
+ul.auswahl > li[data-zustand="nein"] .auswahl-text { color: var(--text-leise);
+                                                     text-decoration: line-through; }
+ul.auswahl > li[data-zustand="ja"] .auswahl-text { font-weight: 600; }
+.auswahl-fertig { display: block; width: 100%; margin: 1.2rem 0 .5rem;
+                  min-height: max(48px, var(--tippflaeche)); font-weight: 700;
+                  cursor: pointer; background: var(--signal); color: var(--auf-signal);
+                  border: 0; border-radius: var(--radius); padding: .5rem 1rem; }
+.auswahl-fertig:disabled { opacity: .6; }
 """
 #: Die read-only Werkbank (Padua, 03.10.2026, Birk: "Anstatt roter und gruener
 #: LEDs passendere Farben im Design. Dezenter, aber trotzdem klar."). Drei

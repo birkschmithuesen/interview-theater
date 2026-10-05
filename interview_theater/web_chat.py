@@ -4178,6 +4178,8 @@ _TOEPFE = {
     "phase": web_grenze.TOPF_NACHRICHT,
     "kalibrierung": web_grenze.TOPF_NACHRICHT,
     "start": web_grenze.TOPF_START,
+    "auswahl": web_grenze.TOPF_AUSWAHL,
+    "auswahl_fertig": web_grenze.TOPF_NACHRICHT,
 }
 
 
@@ -4639,6 +4641,23 @@ def _start(handler, db_pfad: str, token: str, chat_id: int,
     web_vereint.start_post(handler, db_pfad, token, chat_id, schluessel)
 
 
+def _auswahl(handler, db_pfad: str, token: str, chat_id: int,
+             schluessel: bytes) -> None:
+    """Ein Tipp in der Auswahlliste des CoThinkers (Padua Phase 2). Nur die
+    Weiche steht hier, wie bei ``_phase``."""
+    from interview_theater import web_vereint
+
+    web_vereint.auswahl_post(handler, db_pfad, token, chat_id, schluessel)
+
+
+def _auswahl_fertig(handler, db_pfad: str, token: str, chat_id: int,
+                    schluessel: bytes) -> None:
+    """"Fertig sortiert" in der Auswahlliste. Nur die Weiche."""
+    from interview_theater import web_vereint
+
+    web_vereint.auswahl_fertig_post(handler, db_pfad, token, chat_id, schluessel)
+
+
 def _kalibrierung(handler, db_pfad: str, token: str, chat_id: int,
                   schluessel: bytes) -> None:
     """Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): die
@@ -4674,6 +4693,8 @@ _POSTWEGE = {
     "phase": _phase,
     "kalibrierung": _kalibrierung,
     "start": _start,
+    "auswahl": _auswahl,
+    "auswahl_fertig": _auswahl_fertig,
 }
 
 

@@ -103,6 +103,23 @@ def test_k_dieselbe_frage_unter_anderem_thema_ist_keine_neue(conn, tg, einst, pa
     assert not any("Noted" in text or "📌" in text for _, text in tg.gesendet)
 
 
+def test_k_gleiche_frage_unter_fremdem_begriff_bleibt_erhalten(conn, tg, einst, padua):
+    """T10-Review: dieselbe Fragezeile unter einem ANDEREN Begriff ist eine
+    eigene Frage ("Robots: How would that feel for you?" vs "Mars: How
+    would that feel for you?"). Nur bei fehlendem oder verwandtem Thema
+    ("Mars" in "Living on mars") gilt die Frage allein als Dublette."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Mars, robots")
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Robots: How would that feel for you?")
+    phasen.setze(conn, 1, 2, "test")
+
+    _bestaetige(conn, tg, einst, 41, "Mars: How would that feel for you?")
+
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == (
+        "Robots: How would that feel for you?\n"
+        "Mars: How would that feel for you?"
+    )
+
+
 def test_k_undo_nimmt_genau_die_letzte_frage_zurueck(conn, tg, einst, padua):
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Living on mars, robots")
     phasen.setze(conn, 1, 2, "test")

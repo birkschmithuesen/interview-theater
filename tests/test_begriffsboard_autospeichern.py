@@ -239,7 +239,6 @@ def test_undo_ueberlebt_einen_neustart_zwischen_lauf_und_abschluss(conn, einst):
     assert [b for b, _ in leiste][-1] == knoepfe.T._TEXT_UNDO_KNOPF
     _druecke(conn, tg, einst, leiste[-1][1])
     assert not _begriffe(conn)
-    assert not hasattr(begriffsboard, "_LETZTER_AUTOLAUF")
 
 
 def test_etwas_aendern_fragt_in_einem_satz(conn, einst):

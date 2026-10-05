@@ -1022,6 +1022,122 @@ def test_rueckfrage_waehrend_offener_frage_bekommt_die_antwort_des_modells(conn,
     assert T._TEXT_FRAGE_WAS_AENDERN not in tg.texte
 
 
+def _offene_frage(conn, tg):
+    repo.setze_arbeitsstand(
+        conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?\nStreit: Zweite?",
+    )
+    knoepfe.starte_durchgehen(conn, tg, CHAT)
+    return len(tg.knoepfe)
+
+
+def test_antwort_die_die_frage_in_prosa_wiederholt_wird_zur_rueckfrage(conn, tg, einst):
+    """T10-Review: wiederholt das Modell die Frage im Fliesstext ("Here it is
+    again: Heimat: Eine Frage?"), stand der Kartentext ein zweites Mal da."""
+    karten_vorher = _offene_frage(conn, tg)
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT,
+        "Here it is again: Heimat: Eine Frage?\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
+    )
+
+    assert len(tg.knoepfe) == karten_vorher
+    assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
+
+
+def test_nur_einleitung_ohne_aenderung_wird_zur_rueckfrage(conn, tg, einst):
+    """T10-Review (Minor 4): ein echter Aenderungswunsch, das Modell liefert
+    die Frage trotzdem unveraendert, davor nur "Here is a sharper
+    version:" -- das ist keine Antwort, sondern eine leere Ankuendigung."""
+    karten_vorher = _offene_frage(conn, tg)
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT,
+        "Here is a sharper version:\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
+    )
+
+    assert len(tg.knoepfe) == karten_vorher
+    assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
+
+
+def test_echo_der_gruppennachricht_wird_zur_rueckfrage(conn, tg, einst):
+    """T10-Review: spiegelt das Modell nur die Nachricht der Gruppe zurueck,
+    ist das keine Antwort (dieselbe Echo-Sperre wie ``ablauf.ist_echo``)."""
+    karten_vorher = _offene_frage(conn, tg)
+    gesagt = "Can you make it more about the family at home"
+    repo.merke_nachricht(
+        conn, CHAT, 10**6, "Ada", 0, "text", gesagt, repo._jetzt(),
+    )
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT, gesagt + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
+    )
+
+    assert len(tg.knoepfe) == karten_vorher
+    assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
+
+
+def test_echte_antwort_neben_gruppennachricht_bleibt_stehen(conn, tg, einst):
+    karten_vorher = _offene_frage(conn, tg)
+    repo.merke_nachricht(
+        conn, CHAT, 10**6, "Ada", 0, "text", "Does the accept button save it now?",
+        repo._jetzt(),
+    )
+    antwort = "Yes -- Accept keeps this question in your list."
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT, antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
+    )
+
+    assert len(tg.knoepfe) == karten_vorher
+    assert tg.texte[-1] == antwort
+
+
+def test_gleiche_weiche_fassung_gilt_als_unveraendert(conn, tg, einst):
+    """T10-Review: der Schaerfungsauftrag verlangt fuer sensible Fragen den
+    Block FRAGEN WEICH. Bringt das Modell ihn unveraendert mit, ist die Frage
+    trotzdem unveraendert -- keine zweite Karte, die Antwort bleibt."""
+    karten_vorher = _offene_frage(conn, tg)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_weich", "1 — Erzaehl mal, ganz locker.")
+    antwort = "Yes -- Accept keeps this question in your list."
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT,
+        antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?"
+        "\n\nVORSCHLAG FRAGEN WEICH:\n1 — Erzaehl mal, ganz locker.",
+    )
+
+    assert len(tg.knoepfe) == karten_vorher
+    assert tg.texte[-1] == antwort
+
+
+def test_padua_ohne_weiche_fassungen_ignoriert_den_weich_block(conn, tg, einst, monkeypatch):
+    """T10-Review: in Padua sind weiche Fassungen aus
+    (``workshop.fragen_weich_aktiv``); ein trotzdem gelieferter Block darf
+    die unveraenderte Frage nicht zur "Aenderung" machen."""
+    from interview_theater import sprache
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    try:
+        assert not workshop.fragen_weich_aktiv()
+        karten_vorher = _offene_frage(conn, tg)
+        antwort = "Yes -- Accept keeps this question in your list."
+
+        knoepfe.sende_mit_speicherleiste(
+            conn, tg, CHAT,
+            antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?"
+            "\n\nVORSCHLAG FRAGEN WEICH:\n1 — Tell me, very casually.",
+        )
+
+        assert len(tg.knoepfe) == karten_vorher
+        assert tg.texte[-1] == antwort
+    finally:
+        monkeypatch.delenv(workshop.VARIABLE)
+        workshop.vergiss()
+        sprache.vergiss()
+
+
 def test_geschaerfte_karte_nimmt_der_alten_die_leiste_ab(conn, tg, einst):
     repo.setze_arbeitsstand(
         conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?\nStreit: Zweite?",

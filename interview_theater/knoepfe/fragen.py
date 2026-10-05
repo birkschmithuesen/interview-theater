@@ -1156,7 +1156,8 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
     zeilen = vorschlag.zeilen(frage_block)
     neue_frage = zeilen[0] if zeilen else frage_block.strip()
     alte = _auswahlfragen(conn, chat_id)
-    if (neue_frage and nummer <= len(alte) and not weich_block
+    if (neue_frage and nummer <= len(alte)
+            and _weich_unveraendert(conn, chat_id, nummer, weich_block)
             and _fragetext(neue_frage) == _fragetext(alte[nummer - 1])):
         # P2-H3 (Feedbackloop P1-2): jede freie Nachricht zu einer offenen
         # Frage ist ein Schaerfungswunsch -- auch "Does Accept save it?".
@@ -1166,7 +1167,11 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
         # T10: hat das Modell etwas dazu gesagt (eine Rueckfrage wie "Does
         # Accept save it?" beantwortet), steht SEINE Antwort da; nur ohne
         # eigenen Text die Rueckfrage nach dem Aenderungswunsch.
-        return tg.sende(chat_id, (antwort or "").strip() or T._TEXT_FRAGE_WAS_AENDERN)
+        return tg.sende(
+            chat_id,
+            _antwort_neben_unveraenderter_frage(conn, chat_id, antwort, alte[nummer - 1])
+            or T._TEXT_FRAGE_WAS_AENDERN,
+        )
     if neue_frage:
         _setze_frage_zeile(conn, chat_id, nummer, neue_frage)
         # Aufgabe 13, Punkt 9: eine editierte KI-Frage wird markiert, eine
@@ -1191,6 +1196,54 @@ def _warte_weiter_auf_wunsch(conn, chat_id: int) -> None:
     als Frage formulierter Nachwunsch ("Could it be shorter?") gilt ihr."""
     if workshop.diskussion_aktiv():
         repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", "schaerfen")
+
+
+def _weich_unveraendert(conn, chat_id: int, nummer: int,
+                        weich_block: str | None) -> bool:
+    """Aendert ``weich_block`` nichts an der weichen Fassung von Frage
+    ``nummer``? (T10-Review.) Ohne Block nicht; ebenso nicht, wenn das Profil
+    weiche Fassungen abschaltet (Padua, ``workshop.fragen_weich_aktiv``) --
+    ``_setze_weich`` verwirft ihn dort ohnehin; und nicht, wenn er dieselbe
+    Fassung traegt, die schon gespeichert ist (der Schaerfungsauftrag
+    verlangt sie fuer sensible Fragen jedes Mal neu)."""
+    if not weich_block or not workshop.fragen_weich_aktiv():
+        return True
+    neu = leitfaden.einleitungen(weich_block).get(nummer) or ""
+    return _platt(neu) == _platt(_weich_dict(conn, chat_id).get(nummer, ""))
+
+
+def _antwort_neben_unveraenderter_frage(conn, chat_id: int, antwort: str | None,
+                                        frage: str) -> str:
+    """Was vom Modelltext neben einer unveraendert zurueckgegebenen Frage
+    stehen bleiben darf (T10-Review) -- leer heisst: die vorgefertigte
+    Rueckfrage nach dem Aenderungswunsch.
+
+    Weg fallen Zeilen, die die Frage selbst noch einmal nennen ("Here it is
+    again: Home: ...?" -- die Karte steht schon darueber) und reine
+    Ankuendigungen, die auf einen Block zeigen ("Here is a sharper
+    version:"). Was bleibt, geht durch dieselbe Echo- und Wiederholungssperre
+    wie jede Gespraechsantwort (``ablauf.ist_echo``/``ist_wiederholung``):
+    gegen die juengste Nachricht der Gruppe und die juengste des Bots."""
+    from interview_theater import ablauf  # lokal: Oberflaeche, Aufruf nach oben
+
+    kern = _fragetext(frage)
+    zeilen = [
+        z for z in (antwort or "").splitlines()
+        if not (kern and kern in _platt(z))
+    ]
+    while zeilen and (not zeilen[-1].strip() or zeilen[-1].rstrip().endswith(":")):
+        zeilen.pop()
+    rest = "\n".join(zeilen).strip()
+    if not rest:
+        return ""
+    verlauf = repo.letzte_nachrichten(conn, chat_id, 20)
+    gruppe = [n for n in verlauf if not n["ist_bot"]][-1:]
+    bot = [n for n in verlauf if n["ist_bot"]][-1:]
+    if ablauf.ist_echo(rest, gruppe):
+        return ""
+    if bot and ablauf.ist_wiederholung(rest, bot[0]["text"]):
+        return ""
+    return rest
 
 
 def _fragetext(zeile: str) -> str:

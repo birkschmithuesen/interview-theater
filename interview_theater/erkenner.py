@@ -694,25 +694,42 @@ def _fragen_sammeln(conn, chat_id: int) -> bool:
     )
 
 
-def _fragen_schluessel(zeile: str) -> set[str]:
-    """Woran eine Fragezeile wiedererkannt wird: die ganze Zeile und -- im
-    Format "Thema: Frage" -- die Frage allein (Gross-/Kleinschreibung und
-    Leerraum egal).
+def _fragen_teile(zeile: str) -> tuple[str, str | None, str]:
+    """Zerlegt eine Fragezeile in (ganze Zeile, Thema oder None, Frage),
+    jeweils normalisiert (Gross-/Kleinschreibung und Leerraum egal). Ein
+    Doppelpunkt, vor dem schon ein Fragezeichen steht, trennt kein Thema ab."""
+    def normal(text: str) -> str:
+        return re.sub(r"\s+", " ", text).strip().casefold()
+
+    ganz = normal(zeile)
+    thema, trenner, frage = zeile.partition(":")
+    if trenner and "?" not in thema and normal(thema) and normal(frage):
+        return ganz, normal(thema), normal(frage)
+    return ganz, None, ganz
+
+
+def _ist_fragen_dublette(neu: tuple, alt: tuple) -> bool:
+    """Ist die Zeile ``neu`` dieselbe Frage wie ``alt`` (beide aus
+    ``_fragen_teile``)?
 
     P2-H3 (T10, 05.10.2026): nach "Questions saved" las der Erkenner die
     Liste im Verlauf erneut und schrieb dieselbe Frage unter einem anderen
     Themenwort ("Mars: ..." statt "Living on mars: ...") oder ganz ohne. Der
     Abgleich ueber die ganze Zeile hielt sie fuer neu, haengte sie doppelt an
-    und schickte den "Noted:"-Block ein zweites Mal. Ein Doppelpunkt, vor dem
-    schon ein Fragezeichen steht, trennt kein Thema ab."""
-    def normal(text: str) -> str:
-        return re.sub(r"\s+", " ", text).strip().casefold()
+    und schickte den "Noted:"-Block ein zweites Mal.
 
-    schluessel = {normal(zeile)}
-    thema, trenner, frage = zeile.partition(":")
-    if trenner and "?" not in thema and normal(frage):
-        schluessel.add(normal(frage))
-    return schluessel
+    T10-Review: dieselbe Frage unter einem FREMDEN Begriff ("Robots: How
+    would that feel for you?" / "Mars: How would that feel for you?") ist
+    eine eigene Frage. Die Frage allein zaehlt deshalb nur, wenn einer Seite
+    das Thema fehlt oder die Themen verwandt sind (eines steckt im anderen,
+    "mars" in "living on mars")."""
+    if neu[0] == alt[0]:
+        return True
+    if neu[2] != alt[2]:
+        return False
+    if neu[1] is None or alt[1] is None:
+        return True
+    return neu[1] in alt[1] or alt[1] in neu[1]
 
 
 def _haenge_fragen_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
@@ -727,13 +744,13 @@ def _haenge_fragen_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
     bisher = vorschlag.zeilen((stand["fragen"] if stand else None) or "")
-    gesehen = {s for z in bisher for s in _fragen_schluessel(z)}
+    gesehen = [_fragen_teile(z) for z in bisher]
     neu = []
     for zeile in vorschlag.zeilen(wert):
-        schluessel = _fragen_schluessel(zeile)
-        if schluessel & gesehen:
+        teile = _fragen_teile(zeile)
+        if any(_ist_fragen_dublette(teile, alt) for alt in gesehen):
             continue
-        gesehen |= schluessel
+        gesehen.append(teile)
         neu.append(zeile)
     if not neu:
         return None

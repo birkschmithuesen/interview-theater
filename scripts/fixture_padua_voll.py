@@ -18,6 +18,7 @@ Minutengrenze wirklich greift und ``fensterbefund`` etwas zu messen hat.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -100,6 +101,16 @@ _JE_PHASE = {
         ("Marco", "yes show us"),
         ("Luca", "but we decide, right"),
         ("InScribe", "You decide. Mine are only there to compare."),
+        # P2-Fixture-Artefakt (Runde 1, lesung.json): dieser Verlauf endete
+        # bisher mit der InScribe-Zeile darueber -- ``repo.letzte_nachrichten``
+        # (die Grundlage des Ausloesers, den
+        # ``erzeuge_prompts_padua_voll._gespraech`` an ``ablauf.antworte``
+        # gibt) nahm dann den BOT als Ausloeser, und der Dump zeigte unter
+        # "## Now" einen "You: ..."-Zug, als haette der Bot sich selbst
+        # angestossen. Eine echte Gruppe loest ihren naechsten Zug immer mit
+        # einer eigenen Nachricht aus -- deshalb steht hier jetzt die Antwort
+        # der Gruppe auf den Satz davor.
+        ("Marco", "ok, show us yours then"),
     ),
     3: (
         ("Giulia", "we are at the station, it's loud"),
@@ -497,20 +508,42 @@ _LANGE_TRANSKRIPTDISKUSSION = (
 
 #: Die drei Systemzeilen, mit genau den Wortlauten, die der Code schreibt
 #: (``erkenner._ZEILE_FESTGELEGT`` / ``_TEXT_NOTIERT_ZEILE`` /
-#: ``_TEXT_UNDO_GEAENDERT``, englische Fassung aus ``sprachen/en/texte.toml``).
+#: ``_ANTWORT_UNDO_GEAENDERT``, englische Fassung aus ``sprachen/en/texte.toml``).
 #: Sie stehen hier woertlich und nicht per Import: die Fixture soll den Dump
 #: nicht von der Sprachschicht abhaengig machen, und der Pruefer muss sie im
 #: VERLAUF finden koennen, ohne dass eine Textaenderung ihn blind macht.
+#:
+#: Die dritte Zeile war bis zum Fund a6 (Prompt-Check Runde 1, lesung.json
+#: 05.10.2026) erfunden ("Changed since - please fix it in the work status")
+#: -- ein Wortlaut, den das Produkt nie schreibt und den
+#: ``kontext._SYSTEMANFAENGE_EN`` deshalb NICHT filterte, sodass er
+#: faelschlich als "You: ..."-Zug im Verlauf des Dumps auftauchte. Der echte
+#: Wortlaut ist exakt ``_ANTWORT_UNDO_GEAENDERT`` = "Changed since." -- nur
+#: dieser wird gefiltert (``_ist_systemzeile``).
 _SYSTEMZEILEN = (
     "📌 Agreed: Setting - A railway station in a northern Italian city",
     "Noted:\nterms: arrival, waiting, strangers, noise, belonging",
-    "Changed since - please fix it in the work status",
+    "Changed since.",
 )
+
+#: ``arbeitsstand.begriffe_detail`` (``roadmap.begriffe_detail``): Begruendung
+#: und Doppelbedeutung je Begriff, nicht nur die, die das Board schon zeigt
+#: (``kontext._baue_begriffe_detail``) -- "waiting" traegt dieselbe
+#: Doppelbedeutung wie im Board-Eintrag (``_diskussion``, dort nicht
+#: ausgegeben), "belonging" steht gar nicht auf dem Board und braucht hier
+#: seine einzige Begruendung.
+_BEGRIFFE_DETAIL_PHASE1 = json.dumps([
+    {"begriff": "waiting", "begruendung": "everybody waited for something",
+     "doppelbedeutung": "empty time and what fills it"},
+    {"begriff": "belonging", "begruendung": "you can wait and still belong",
+     "doppelbedeutung": ""},
+], ensure_ascii=False)
 
 #: Die Arbeitsstandfelder je Phase, additiv: Phase N bekommt alles von 1..N.
 _STAND_JE_PHASE = {
     1: (("begriffe", "arrival, waiting, strangers, noise, belonging, home, "
-                     "trust, family, the city at night"),),
+                     "trust, family, the city at night"),
+        ("begriffe_detail", _BEGRIFFE_DETAIL_PHASE1)),
     2: (("fragen", "1. What do you remember about your first day here?\n"
                    "2. Where did you wait the longest in your life?\n"
                    "3. When did a strange place start to feel like yours?"),
@@ -671,9 +704,15 @@ def _material(conn, chat_id: int) -> int:
 
 
 def _diskussion(conn, chat_id: int) -> None:
-    """Phase 1: drei Hintergrund-Segmente plus ein Begriffsboard."""
-    import json
+    """Drei Hintergrund-Segmente plus ein Begriffsboard.
 
+    Gerufen fuer JEDE Phase (``baue``), nicht nur Phase 1: eine Gruppe, die
+    Phase 2 oder spaeter erreicht hat, hat die Diskussion und das Board aus
+    Phase 1 bereits hinter sich, und ``kontext._baue_board``/
+    ``_baue_begriffe_detail`` lesen datengetrieben in jeder Phase (Birk,
+    05.10.2026: "Der Chat muss immer alles wissen"). Bisher legte die Fixture
+    das nur fuer Phase 1 an, wodurch der Pruefer in Phase 2 faelschlich
+    "Board-Block fehlt" meldete (lesung.json, 05.10.2026)."""
     texte = (
         "we keep coming back to waiting. everybody waited for something",
         "and noise. the station is never quiet, you cannot think",
@@ -715,8 +754,7 @@ def baue(conn, phase: int) -> int:
 
     if phase >= 3:
         _material(conn, chat_id)
-    if phase == 1:
-        _diskussion(conn, chat_id)
+    _diskussion(conn, chat_id)
 
     if phase >= 4:
         figuren = {}

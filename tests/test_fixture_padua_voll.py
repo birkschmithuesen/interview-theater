@@ -45,7 +45,7 @@ def test_jede_gruppe_traegt_systemzeilen_und_ein_transkript_echo(conn):
         texte = [n["text"] for n in _alle_nachrichten(conn, chat_id)]
         assert any(t.startswith("📌 Agreed:") for t in texte), phase
         assert any(t.startswith("Noted:") for t in texte), phase
-        assert any("please fix it in the work status" in t for t in texte), phase
+        assert any(t == "Changed since." for t in texte), phase
         echos = conn.execute(
             "SELECT COUNT(*) FROM nachricht WHERE chat_id=? AND typ=?",
             (chat_id, repo.TYP_TRANSKRIPT),
@@ -87,6 +87,28 @@ def test_phase1_hat_diskussionssegmente_und_ein_begriffsboard(conn):
         "SELECT COUNT(*) FROM begriffsboard WHERE chat_id=?", (chat_id,)
     ).fetchone()[0]
     assert board >= 1
+
+
+def test_jede_phase_hat_diskussion_board_und_begriffe_detail(conn):
+    """a6/Board-Rundenbefund (Runde 1): eine echte Gruppe, die Phase 1
+    durchlaufen hat, traegt Diskussion, Board und ``begriffe_detail`` auch in
+    Phase 2+ weiter -- ``kontext._baue_board``/``_baue_begriffe_detail`` lesen
+    datengetrieben in JEDER Phase. Bisher legte die Fixture das nur fuer
+    Phase 1 an, wodurch der Pruefer in Phase 2 faelschlich "Board-Block
+    fehlt" meldete (lesung.json, 05.10.2026)."""
+    for phase in fix.PHASEN:
+        chat_id = fix.chat_id_fuer(phase)
+        segmente = conn.execute(
+            "SELECT COUNT(*) FROM aufnahme WHERE chat_id=? AND diskussion=1",
+            (chat_id,),
+        ).fetchone()[0]
+        assert segmente >= 2, phase
+        board = conn.execute(
+            "SELECT COUNT(*) FROM begriffsboard WHERE chat_id=?", (chat_id,)
+        ).fetchone()[0]
+        assert board >= 1, phase
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        assert stand["begriffe_detail"], phase
 
 
 def test_ab_phase3_gibt_es_ein_verdichtetes_interview(conn):
@@ -181,6 +203,26 @@ def test_journal_in_phase1_nennt_keine_spaetphaseninhalte(conn):
             assert wort not in tief, (text, wort)
 
 
+def test_changed_since_zeile_ist_der_echte_wortlaut_und_wird_gefiltert(conn):
+    """a6 (Runde 1, lesung.json): die Fixture schrieb einen erfundenen
+    Wortlaut ("Changed since - please fix it in the work status"), der NICHT
+    von ``kontext._ist_systemzeile`` erkannt wird und deshalb faelschlich als
+    Produktbefund im Prompt-Dump auftaucht. Der echte Wortlaut ist
+    ``T._ANTWORT_UNDO_GEAENDERT`` = "Changed since." (``sprachen/en/texte.toml``)
+    und wird gefiltert."""
+    chat_id = fix.chat_id_fuer(1)
+    zeilen = [
+        dict(n) for n in conn.execute(
+            "SELECT * FROM nachricht WHERE chat_id=? AND typ='text'",
+            (chat_id,),
+        )
+    ]
+    treffer = [n for n in zeilen if n["text"] == "Changed since."]
+    assert treffer, "die Fixture muss den echten Wortlaut tragen"
+    for n in treffer:
+        assert kontext._ist_systemzeile(n)
+
+
 def test_spaetphasenjournal_kommt_erst_wenn_die_geschichte_da_ist(conn):
     """Dieselben Saetze duerfen weiterhin stehen, sobald die Phase dazu passt
     -- die Fixture soll das Material nicht verlieren, nur phasengerecht
@@ -189,3 +231,17 @@ def test_spaetphasenjournal_kommt_erst_wenn_die_geschichte_da_ist(conn):
     spaet = [z["text"].lower() for z in repo.journal(conn, fix.chat_id_fuer(6))]
     assert not any("story as short story" in t for t in frueh)
     assert any("story as short story" in t for t in spaet)
+
+
+def test_phase2_verlauf_endet_nicht_mit_einem_bot_zug(conn):
+    """P2-Fixture-Artefakt (Runde 1, lesung.json): ``repo.letzte_nachrichten``
+    (die Grundlage des Ausloesers, den ``erzeuge_prompts_padua_voll._gespraech``
+    an ``ablauf.antworte`` gibt) liefert die Nachricht mit der hoechsten
+    ``message_id`` -- bisher die letzte Zeile aus ``_JE_PHASE[2]``, eine
+    Bot-Antwort. Im Dump erschien sie unter "## Now" als "You: ...", als
+    waere der Bot selbst der Ausloeser -- eine echte Gruppe loest ihren
+    naechsten Zug immer mit einer eigenen Nachricht aus."""
+    chat_id = fix.chat_id_fuer(2)
+    letzte = repo.letzte_nachrichten(conn, chat_id, anzahl=1)
+    assert letzte, "chat_id 2 muss Nachrichten tragen"
+    assert not letzte[-1]["ist_bot"], dict(letzte[-1])

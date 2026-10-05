@@ -148,10 +148,13 @@ def test_station_01_eintritt_ohne_jargon_mit_cothinker_hinweis(conn, einst, tg, 
 def test_station_02_begriffe_vorschlag_hat_hoechstens_eine_ruckfrage(
     conn, einst, tg, klm,
 ):
+    """Padua P1-2: der Vorschlag speichert sich selbst, die Rueckfrage
+    ("Yes, save") ist weg -- es bleibt bei hoechstens einer Rueckfrage vor
+    der (jetzt stillen) Festlegung, mit einem Undo-Knopf statt der alten
+    Speicher-Leiste."""
     s = fad.station_02_begriffe_vorschlag(conn, tg, klm, einst, CHAT_ID)
     assert s.rueckfragen_vor_aktion <= 1
-    assert "Yes, save" in s.hinweis
-    assert "True" in s.hinweis  # der Speicher-Knopf stand da
+    assert "True" in s.hinweis  # der Undo-Knopf stand da
 
 
 def test_station_03_korrektur_schreibt_ueber_den_erkenner(conn, einst, tg, klm):

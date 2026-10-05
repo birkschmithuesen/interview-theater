@@ -22,7 +22,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-BASIS = "cb200e4"
+BASIS = "0680d20"
 AUSNAHMEN = Path("docs/agents/umzug-dubletten.txt")
 WURZEL = Path(__file__).resolve().parent.parent
 

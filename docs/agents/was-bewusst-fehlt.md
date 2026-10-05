@@ -394,10 +394,10 @@ bewusst nicht erledigt, jeweils mit Grund:
 - Die Wortzahl „1–3" eines Begriffs (und damit eines Vorgängers) steht im
   Prompt, nicht im Code; der Code garantiert „ein Begriff, früher schon auf
   dem Board".
-- **Endstand = Zwischenstand (t_cb2c4678):** ein Rest unter `min_zeichen`
-  (600 Zeichen ≈ 37 s Rede nach den Erwachsenen-Daten in `brainstorm.py`)
-  nach dem letzten Lauf erreicht das Board nicht — so entschieden (Birk).
-  Ungemessen für Schülerinnen und Schüler.
+- ~~**Endstand = Zwischenstand (t_cb2c4678):** ein Rest unter `min_zeichen`
+  nach dem letzten Lauf erreicht das Board nicht.~~ Seit 05.10.2026 ersetzt
+  (Birk): am Ende-Schnitt läuft jeder ungelesene Rest
+  (`begriffsboard.soll_laufen`).
 - Ohne VAD trägt kein Diskussionssegment einen Schnittgrund: dann gibt es
   weder Board-Lauf noch Vorschlag noch Verdichtung (vor dieser Karte
   genauso). Und hat das letzte Teilstück bei „Discussion done" keine Bytes,

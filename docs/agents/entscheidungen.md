@@ -879,12 +879,17 @@
   nur read-only und nie an Opus).
 
   Bei „Discussion done" schlägt der
-  Bot die Top 5 mit EINEM Knopf „Take these" vor — **ohne eigenen
-  Schlusslauf** (Birk 04.10.2026 14:50: „Zwischenstand und Endstand müssen
-  nicht anders behandelt werden"): der Ende-Schnitt zählt in `soll_laufen`
-  wie ein Pausenschnitt (dieselbe Schwelle `min_zeichen`, 600; nur ohne
-  Mindestabstand), der Vorschlag zeigt das Board, wie es ist — läuft gerade
-  ein Lauf, wird nach ihm neu entschieden (`merke_falls_laeuft`);
+  Bot die Top 5 mit EINEM Knopf „Take these" vor. **Seit 05.10.2026 läuft
+  am Ende-Schnitt immer ein Lauf, sobald ungelesenes Transkript da ist**
+  (Birk nach dem Live-Test: 298 Zeichen, kein Lauf; ersetzt die Regel vom
+  04.10.2026 14:50, unter der der Ende-Schnitt an `min_zeichen` hing) —
+  Zwischenläufe behalten ihre (seit 05.10. eigenen) Schwellen; läuft gerade
+  ein Lauf, wird nach ihm neu entschieden (`merke_falls_laeuft`); bleibt das
+  Board leer, kommt `aufnahme._TEXT_DISKUSSION_KEINE_BEGRIFFE` statt
+  „schickt mir fünf". **Was im CoThinker steht, ist gespeichert**
+  (05.10.2026, Auto-Speichern der Top 5, siehe `begriffsboard.py`-Zeile oben),
+  und **der Chat weiß, was mitgehört wurde und auf dem Board steht**
+  (`kontext`-Blöcke `board`/`mitgehoert`, EN-Systemanweisung);
   `begriffsboard.schreibe_detail`
   füllt `arbeitsstand.begriffe_detail` auf jedem Schreibweg von `begriffe`
   und geht von dort nach Phase 2 und ab Phase 4 in den Prompt

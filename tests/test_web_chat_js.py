@@ -459,8 +459,8 @@ def test_nachunten_laeuft_bei_neu_oder_bei_geaenderter_letzter_blase():
         "if (neu.length) {\n" in nimm
     )
     block = nimm[nimm.index("if (neu.length) {"):nimm.index("} else if ")]
-    assert "if (phasenwechsel) { scrolleZuPhasenanfang(); }" in block
-    assert "else if (warUnten) { nachUnten(); }" in block
+    assert "if (phasenwechsel) { scrolleZuPhasenanfang(); erzwingeNachUnten = false; }" in block
+    assert "else if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }" in block
     nach_else_if = nimm[nimm.index("} else if ") + len("} else if "):]
     bedingung = nach_else_if[:nach_else_if.index(") {")]
     assert "warUnten" in bedingung

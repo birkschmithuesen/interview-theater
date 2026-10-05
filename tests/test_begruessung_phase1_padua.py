@@ -31,7 +31,8 @@ ERWARTET = (
     "your terms appear there live.\n\n"
     "First I check the room briefly: a few seconds of quiet, then one of you "
     "says a sentence.\n"
-    "Then discuss which terms matter for your play. Give every term one "
+    "Then discuss which terms matter for your play - everyday words about "
+    "it, not technical theatre vocabulary. Give every term one "
     "sentence on why you chose it - that also helps me hear it right. I only "
     "listen until you tap \"Discussion done\".\n\n"
     + SCHLUSS

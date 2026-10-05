@@ -176,7 +176,64 @@ beruehrt `erkenner.py`, `knoepfe/basis.py`, `knoepfe/texte.py`, `sprachen/en/tex
 Nach Runde 1: Prompt-Check (alle drei Schritte) + ein Simulationslauf handy, dann laptop;
 volle Suite einmal (`-m "not dortmund"`); Bericht `simulation/berichte/feedbackloop-p12-<datum>.md`.
 
-## Fragen an Birk (Klasse B)
+## Birks Antworten (05.10. 13:10-13:35, via Robo) — GELTEN AB RUNDE 2
+
+**Neu einsortieren:** B1 (P1-H1) und B4 (P2-H6) sind jetzt Klasse A -> in Runde 2 fixen, mit Test.
+P1-H2 -> mittel, nur Prompt-Widerspruch. P2-H1, P1-N4 -> by design (kein Befund mehr). B5 -> Klasse A.
+
+## B1 (P1-H1) Raumcheck — entschieden 05.10. ~13:10
+Birk (Voice): "es soll zuerst die Kalibrierung stattfinden, ordentlich kalibriert werden, Uhr und
+Beispielsprache. Und dann soll erst die inhaltliche ... Diskussion beginnen."
+=> Ablauf: "Start listening" startet ZUERST den Raumcheck (Ruhemessung + Sprechprobe), sauber und
+vollstaendig. Erst danach beginnt die eigentliche Diskussionsaufnahme; die Diskussionsuhr zaehlt
+erst ab da. Kein gleichzeitiges Aufnehmen waehrend der Kalibrierung, kein zweiter Startknopf.
+Unbestaetigt (Voice): "Uhr" vermutlich = "Ruhe" (Ruhemessung). Beide Lesarten fuehren zum selben
+Ablauf.
+
+## B2 (P1-H2) Tippen beim Mithoeren — entschieden 05.10. ~13:15
+Birk: "eigentlich egal, das wird eh nicht vorkommen, aber ... der Bot kann dann auch kurz antworten
+parallel ... wenn er mit 'nem zweiten Handy tippt, passt das."
+=> Getippte Nachricht waehrend laufender Diskussion: Bot antwortet KURZ (ein Satz), parallel zur
+Aufnahme. Kein Schweigezwang, keine Mikro-/Technik-Tipps. Niedrige Prioritaet (kommt selten vor):
+Befund P1-H2 auf "mittel" herabstufen; nur den Prompt-Widerspruch ("say nothing" vs. Antwort)
+aufloesen, keinen neuen Server-Zustand bauen.
+
+## B3 (P2-H1/M6/M8) KI-Fragen Phase 2 — entschieden 05.10. ~13:20
+Birk: "dabei bleiben. Jede Frage einzeln, Accept oder Decline ... das muss bei jeder geredet werden.
+Das soll so bleiben."
+=> Einzelabfrage je Frage mit Accept/Discard BLEIBT (bewusste Designentscheidung: die Gruppe soll
+ueber jede Frage sprechen). NICHT auf Uebersichtsliste/Mehrfachauswahl umbauen, Anzahl nicht
+reduzieren. P2-H1 ist damit kein Befund mehr ("by design"). Weiter fixen darf man nur die echten
+Fehler drumherum: Dubletten, schwankender Zaehler (1/29, 1/28, 1/42), "Please say yes or no"-Kaefig-
+Ton, verlorene KI-Fragen im A/B-Vergleich.
+
+## B4 (P2-H6) Eigene Fragen additiv — entschieden 05.10. ~13:25
+Birk: "Ja, das passt so."
+=> Eigene Fragen der Gruppe werden vom CODE angehaengt, nicht vom Modell neu geschrieben. Aendern
+oder Loeschen einer bestehenden Frage nur auf ausdrueckliche Ansage der Gruppe. Formulierungen der
+Gruppe bleiben wortgleich (kein gestrichenes Wort wieder einsetzen). Klasse A, mit Test.
+
+## B5 (P2-M3) "[suggested]"-Journaleintraege — entschieden 05.10. ~13:30
+Birk: "Ja, das passt, aber ... es muss als Vorschlag von der KI praesentiert werden. Und wenn darauf
+nicht eingegangen wurde, dann wurde es ja eher abgelehnt ... dann kaeme es auch eigentlich weg."
+=> Phase 1+2: [suggested]-Eintraege nicht im Prompt.
+=> Ab Phase 3: nur als KI-Vorschlag gekennzeichnet ("suggested by you, not decided by the group"),
+und nur solange er offen ist. Ist die Gruppe darueber hinweggegangen, ohne ihn aufzugreifen, gilt er
+als abgelehnt und faellt aus dem Prompt. Operationalisierung (Robo, von Birk nicht im Detail
+bestaetigt): ein Vorschlag bleibt nur, bis die Gruppe nach ihm weitergeschrieben hat, ohne ihn
+aufzugreifen (naechster Gruppenzug) -- danach raus. Im Journal selbst (DB) bleibt er erhalten, nur der
+Prompt laesst ihn weg.
+
+## B6 (P1-N4) Aufnahmeknopf P1 vs P2 — entschieden 05.10. ~13:35
+Birk: "passt so ... Funktionalitaet ist ja auch unterschiedlich ... das eine ist ein Toggle und das
+andere ist Push to Talk."
+=> Bewusst verschieden lassen (P1 "Start listening" = Toggle, P2 Mikro = Push-to-Talk halten,
+hochschieben sperrt). Kein Befund mehr ("by design").
+
+## AGG-3 (Fliesstext gegen Transkript pruefen) — offen, nicht gefragt
+Nicht entscheidungsreif fuer P1-2; als offen im Bericht fuehren.
+
+## Fragen an Birk (Klasse B) — beantwortet, siehe oben
 
 - **B1 (P1-H1):** Soll "Start listening" die Ruhemessung direkt starten (kein zweiter Knopf
   "Start measuring") und die Diskussionsuhr erst nach dem Raumcheck zaehlen -- oder bleibt

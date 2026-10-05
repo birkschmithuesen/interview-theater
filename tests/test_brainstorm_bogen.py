@@ -239,6 +239,29 @@ def test_kartenlauf_mit_ausnahme_hinterlaesst_eine_schweigen_zeile(conn, tg, ein
     assert not brainstorm.laeuft(1)
 
 
+def test_spaet_verarbeitetes_ende_eines_schon_gedeckten_bogens_schweigt_still(
+    conn, tg, einst, monkeypatch,
+):
+    """P34 Final-Review: wurde das Ende eines SPAETEREN Bogens zuerst
+    verarbeitet und hat dessen Karte diesen Bogen mit abgedeckt
+    (Markierung >= Ende-id), legt das spaet verarbeitete Ende keine
+    'schwelle'-Schweigen-Zeile ueber die echte Karte."""
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
+    gestartet = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte",
+                        lambda *a, **k: gestartet.append(1) or True)
+    frueh = _brainstorm_zeile(conn, 1, 680, "x" * 20, schnittgrund="ende")
+    spaet = _brainstorm_zeile(conn, 1, 681, "y" * 30, schnittgrund="ende")
+    repo.markiere_brainstorm_reaktion(conn, 1, spaet["id"])
+    repo.lege_buehnenkarte_an(conn, 1, "Karte.", "infomaniak")
+
+    aufnahme._kurz_abschliessen(conn, tg, object(), einst, frueh, aufnahme._kein_zug, False)
+
+    assert gestartet == []
+    karten = repo.buehnenkarten(conn, 1)
+    assert [(k["schweigen"], k["text"]) for k in karten] == [(0, "Karte.")]
+
+
 def test_sperre_bleibt_nicht_haengen_wenn_die_laufmarkierung_wirft(
     conn, tg, einst, monkeypatch,
 ):

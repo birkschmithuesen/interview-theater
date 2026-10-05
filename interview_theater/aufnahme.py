@@ -1210,6 +1210,12 @@ def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
                                vorfall="brainstorm_ende_segmente_offen")
     if klm is not None:
         _warte_auf_freien_kartenlauf(conn, e, row)
+    # P34 Final-Review: hat die Karte eines SPAETER verarbeiteten Bogenendes
+    # diesen Bogen schon abgedeckt, still auslassen -- keine 'schwelle'-Zeile
+    # ueber der echten Karte.
+    arbeitsstand = repo.hole_arbeitsstand(conn, row["chat_id"])
+    if arbeitsstand and (arbeitsstand["brainstorm_markierung_id"] or 0) >= row["id"]:
+        return
     stand = repo.brainstorm_stand(conn, row["chat_id"], bis_id=row["id"])
     sekunden = stand["sekunden_seit_letzter_reaktion"]
     soll = brainstorm.soll_reagieren(

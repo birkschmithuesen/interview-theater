@@ -2326,6 +2326,22 @@ def offene_diskussion_segmente(conn: sqlite3.Connection, chat_id: int, ende_id: 
 
 
 @_gesperrt
+def offene_brainstorm_segmente(conn: sqlite3.Connection, chat_id: int, ende_id: int) -> int:
+    """Wie ``offene_diskussion_segmente``, fuer den Brainstorm der Phase 4
+    (t_cf87ee0a): ein Bogen beginnt hinter dem vorigen Brainstorm-Ende."""
+    vorige = conn.execute(
+        "SELECT MAX(id) FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL AND schnittgrund = 'ende' AND id < ?",
+        (chat_id, ende_id),
+    ).fetchone()[0] or 0
+    return int(conn.execute(
+        "SELECT COUNT(*) FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL AND id > ? AND id < ? AND status IN (?, ?)",
+        (chat_id, vorige, ende_id, *_DISKUSSION_OFFEN),
+    ).fetchone()[0])
+
+
+@_gesperrt
 def begriffsboard_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
     """Die drei Zahlen fuer ``brainstorm.soll_reagieren`` -- wie
     ``brainstorm_stand``, aber ueber Diskussionssegmente (Phase 1) und mit

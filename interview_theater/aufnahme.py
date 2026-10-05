@@ -1085,22 +1085,27 @@ def _diskussion_entscheide(conn, tg, klm, e, row) -> None:
         diskussion.starte(conn, tg, klm, e, row["chat_id"])
 
 
-def _warte_auf_offene_segmente(conn, e, row) -> None:
+def _warte_auf_offene_segmente(conn, e, row, *, zaehle=None,
+                               vorfall="diskussion_ende_segmente_offen") -> None:
     """Der Ende-Schnitt wartet, bis alle Segmente seiner Sitzung fertig sind
     (``ENDE_WARTEN_S``, 05.10.2026) -- erst dann sieht der Schlusslauf das
     komplette Transkript. Ein Segment, das in der Zwischenzeit fertig wird,
     geht seinen gewoehnlichen Weg (``begriffsboard.nach_segment`` ohne
     Abschluss; ``soll_laufen`` sieht dort schon den Ende-Schnitt als
     juengsten); laeuft dadurch gerade ein Lauf, entscheidet ``nach_segment``
-    nach ihm neu. Laeuft im Pool-Thread, nie in einem Knopf-Handler."""
+    nach ihm neu. Laeuft im Pool-Thread, nie in einem Knopf-Handler.
+
+    ``zaehle``/``vorfall``: dieselbe Wartebauart fuer den Brainstorm der
+    Phase 4 (t_cf87ee0a) -- dort mit ``repo.offene_brainstorm_segmente``."""
+    zaehle = zaehle or repo.offene_diskussion_segmente
     frist = time.monotonic() + ENDE_WARTEN_S
-    while repo.offene_diskussion_segmente(conn, row["chat_id"], row["id"]):
+    while zaehle(conn, row["chat_id"], row["id"]):
         if time.monotonic() >= frist:
-            log.warning("Diskussionsende ohne alle Segmente, chat_id=%s", row["chat_id"])
+            log.warning("Ende ohne alle Segmente (%s), chat_id=%s", vorfall, row["chat_id"])
             try:
                 repo.merke_vorfall(
                     conn, row["chat_id"], getattr(e, "bot_name", None),
-                    "diskussion_ende_segmente_offen",
+                    vorfall,
                     f"ende_id={row['id']} warten_s={ENDE_WARTEN_S:.0f}",
                 )
             except Exception:
@@ -1149,10 +1154,10 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
     reicht es fuer eine Buehnenkarte? ``brainstorm.soll_reagieren`` prueft
     das rein anhand von Zahlen aus ``repo.brainstorm_stand``.
 
-    ``schnittgrund == 'ende'`` heisst: dieses Segment ist der manuelle Flush
-    von Pause/Beenden (siehe ``_CHAT_JS``, ``pausiereInterview``/
-    ``beendeInterview`` setzen ihn vor ``alt.stop()``) -- genau das Signal,
-    das der Brief mit "OR on Pause/Beenden if >= 150 unreacted chars" meint.
+    ``schnittgrund == 'ende'`` heisst: dieses Segment ist der Flush beim
+    Stopp des Toggles (t_cf87ee0a, Birk 03.10.2026: ein Toggle = ein
+    Gedankenbogen; der Browser setzt ``'ende'`` vor ``alt.stop()``) -- das
+    einzige Signal, das eine Karte (oder ein sichtbares Schweigen) ausloest.
     Es gibt dafuer keinen eigenen Serveraufruf: die Brainstorm-Sitzung kennt
     keinen Modus-Befehl, das LETZTE hochgeladene Segment TRAEGT das Ende."""
     repo.setze_status(conn, row["id"], "fertig")
@@ -1168,18 +1173,60 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
 def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
     """Die Code-Entscheidung nach einem Brainstorm-Segment (Buehnenkarte ja
     oder nein) -- getrennt von ``_brainstorm_abschliessen`` aus demselben
-    Grund wie ``_diskussion_entscheide``."""
-    ist_abschluss = row["schnittgrund"] == "ende"
+    Grund wie ``_diskussion_entscheide``.
+
+    Seit t_cf87ee0a (Birk 03.10.2026): EIN Toggle = EIN Gedankenbogen.
+    Waehrend der Toggle an ist, entsteht keine Karte (``pause``/``cap`` sind
+    stille technische Schnitte); erst das Bogenende (``ende``) wartet auf alle
+    Segmente des Bogens und entscheidet dann genau einmal: Karte (ueber
+    ``_starte_buehnenkarte``) oder -- unter der Abschlussschwelle -- eine
+    sichtbare Schweigen-Zeile. ``IT_BRAINSTORM_MIN_ZEICHEN``/``_MIN_ABSTAND_S``
+    sind damit im Brainstorm ohne Wirkung (``soll_reagieren`` bleibt
+    unveraendert, das Begriffsboard der Phase 1 nutzt es weiter).
+
+    Laeuft beim Ende noch die Karte des VORIGEN Bogens, wartet das Ende auf
+    sie (``_warte_auf_freien_kartenlauf``) -- sonst ginge dieser Bogen still
+    leer aus, weil ``brainstorm.versuche_start`` belegt ist."""
+    if row["schnittgrund"] != "ende":
+        return
+    _warte_auf_offene_segmente(conn, e, row, zaehle=repo.offene_brainstorm_segmente,
+                               vorfall="brainstorm_ende_segmente_offen")
+    if klm is not None:
+        _warte_auf_freien_kartenlauf(conn, e, row)
     stand = repo.brainstorm_stand(conn, row["chat_id"])
     sekunden = stand["sekunden_seit_letzter_reaktion"]
     soll = brainstorm.soll_reagieren(
         unreagierte_zeichen=stand["unreagierte_zeichen"],
         sekunden_seit_letzter_reaktion=sekunden if sekunden is not None else float("inf"),
         letzter_schnittgrund=stand["letzter_schnittgrund"],
-        ist_abschluss=ist_abschluss,
+        ist_abschluss=True,
     )
     if soll:
         _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"])
+    elif klm is not None:
+        repo.lege_buehnenkarte_an(conn, row["chat_id"], "", "schwelle", schweigen=True)
+
+
+def _warte_auf_freien_kartenlauf(conn, e, row) -> None:
+    """Wartet (hoechstens ``ENDE_WARTEN_S``), bis kein Buehnenkarten-Lauf
+    dieser Gruppe mehr laeuft (t_cf87ee0a: genau eine Reaktion je Bogen).
+    Erst danach liest ``brainstorm_stand`` -- die Markierung des vorigen
+    Laufs steht dann, die Zeichen DIESES Bogens zaehlen als unreagiert.
+    Laeuft im Pool-Thread, nie in einem Knopf-Handler."""
+    frist = time.monotonic() + ENDE_WARTEN_S
+    while brainstorm.laeuft(row["chat_id"]):
+        if time.monotonic() >= frist:
+            log.warning("Brainstorm-Ende: Kartenlauf noch belegt, chat_id=%s", row["chat_id"])
+            try:
+                repo.merke_vorfall(
+                    conn, row["chat_id"], getattr(e, "bot_name", None),
+                    "brainstorm_ende_lauf_belegt",
+                    f"ende_id={row['id']} warten_s={ENDE_WARTEN_S:.0f}",
+                )
+            except Exception:
+                log.exception("Vorfall nicht geschrieben, chat_id=%s", row["chat_id"])
+            return
+        time.sleep(ENDE_WARTEN_TAKT_S)
 
 
 def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:

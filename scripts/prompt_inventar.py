@@ -225,6 +225,13 @@ INVENTAR = (
     Eintrag("41-dramaturgie-c1", "dramaturgie_c1", 7,
             "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
             grund="Wie 36, Frage c1 (frage_c1)."),
+    # --- Regie-Dashboard (Karte t_f7770dc4): die englische Uebersetzung der
+    # Gruppenfelder, ausserhalb des Web-Request-Pfads im Bot-Prozess
+    # (bot._uebersetzungs_schleife -> uebersetzung.aktualisiere_fuer_bot).
+    # Laeuft live in Padua (Profilschalter [web] dashboard_uebersetzen_en),
+    # deshalb ein normaler Eintrag, keine Ausnahme.
+    Eintrag("42-uebersetzung", "uebersetzung", 1,
+            "interview_theater.uebersetzung", "ART"),
 )
 
 #: Aufrufstellen, die in Padua NICHT live sind -- mit Grund, nicht nur mit

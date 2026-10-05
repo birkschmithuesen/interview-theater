@@ -77,8 +77,8 @@ def test_ende_wartet_auf_offene_segmente_des_bogens(conn, tg, einst, monkeypatch
     gesehen = []
     monkeypatch.setattr(
         aufnahme, "_starte_buehnenkarte",
-        lambda c, t, k, e, chat_id: gesehen.append(
-            repo.brainstorm_stand(c, chat_id)["unreagierte_zeichen"]))
+        lambda c, t, k, e, chat_id, **kw: gesehen.append(
+            repo.brainstorm_stand(c, chat_id, bis_id=kw.get("bis_id"))["unreagierte_zeichen"]))
     offen = repo.lege_aufnahme_an(conn, 1, 600, "kurz", "sprache", status="empfangen",
                                   brainstorm=True, schnittgrund="cap")
     ende = _brainstorm_zeile(conn, 1, 601, "x" * 20, schnittgrund="ende")
@@ -134,7 +134,8 @@ def test_ende_wartet_auf_laufende_karte_des_vorigen_bogens(conn, tg, einst, monk
     beim_start_belegt = []
     monkeypatch.setattr(
         aufnahme, "_starte_buehnenkarte",
-        lambda c, t, k, e, chat_id: beim_start_belegt.append(brainstorm.laeuft(chat_id)))
+        lambda c, t, k, e, chat_id, **kw: beim_start_belegt.append(brainstorm.laeuft(chat_id))
+        or True)
     assert brainstorm.versuche_start(1)
     try:
         threading.Timer(0.2, brainstorm.beende, args=(1,)).start()
@@ -143,3 +144,96 @@ def test_ende_wartet_auf_laufende_karte_des_vorigen_bogens(conn, tg, einst, monk
     finally:
         brainstorm.beende(1)
     assert beim_start_belegt == [False]
+
+
+def _warte_auf_karten(conn, anzahl=1):
+    for _ in range(100):
+        if len(repo.buehnenkarten(conn, 1)) >= anzahl:
+            break
+        time.sleep(0.02)
+    return repo.buehnenkarten(conn, 1)
+
+
+def test_ende_schweigt_sichtbar_wenn_voriger_lauf_ueber_die_frist_belegt(
+    conn, tg, einst, monkeypatch,
+):
+    """Review I1: laeuft die Karte des vorigen Bogens laenger als das Ende
+    wartet, darf der neue Bogen nicht still leer ausgehen -- genau eine
+    sichtbare Schweigen-Zeile (modell 'belegt')."""
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
+    monkeypatch.setattr(aufnahme, "ENDE_WARTEN_TAKT_S", 0.01)
+    monkeypatch.setattr(aufnahme, "ENDE_WARTEN_S", 0.05)
+    monkeypatch.setattr(aufnahme, "ENDE_LAUF_WARTEN_S", 0.05, raising=False)
+    assert brainstorm.versuche_start(1)
+    try:
+        row = _brainstorm_zeile(conn, 1, 640, "x" * 20, schnittgrund="ende")
+        aufnahme._kurz_abschliessen(conn, tg, object(), einst, row, aufnahme._kein_zug, False)
+    finally:
+        brainstorm.beende(1)
+    karten = repo.buehnenkarten(conn, 1)
+    assert [(k["schweigen"], k["text"], k["modell"]) for k in karten] == [(1, "", "belegt")]
+
+
+def test_ende_wartet_auf_den_vorigen_lauf_laenger_als_die_segmentfrist():
+    """Review I1: ein Kartenlauf darf ``buehnenkarte.TIMEOUT_S`` dauern --
+    das Ende wartet mindestens so lange auf ihn."""
+    from interview_theater import buehnenkarte
+    assert aufnahme.ENDE_LAUF_WARTEN_S > buehnenkarte.TIMEOUT_S
+
+
+def test_segment_des_naechsten_bogens_zaehlt_nicht_zur_schwelle(conn, tg, einst, monkeypatch):
+    """Review I2: wird der Toggle waehrend des Ende-Wartens neu gestartet,
+    zaehlt ein Segment des NAECHSTEN Bogens nicht zur Schwelle dieses Bogens."""
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "100")
+    gestartet = []
+    monkeypatch.setattr(aufnahme, "_starte_buehnenkarte",
+                        lambda *a, **k: gestartet.append(1) or True)
+    row = _brainstorm_zeile(conn, 1, 650, "x" * 20, schnittgrund="ende")
+    _brainstorm_zeile(conn, 1, 651, "y" * 500, schnittgrund="pause")
+    aufnahme._kurz_abschliessen(conn, tg, object(), einst, row, aufnahme._kein_zug, False)
+    assert gestartet == []
+    karten = repo.buehnenkarten(conn, 1)
+    assert [(k["schweigen"], k["modell"]) for k in karten] == [(1, "schwelle")]
+
+
+def test_segment_des_naechsten_bogens_wird_nicht_als_reagiert_markiert(
+    conn, tg, einst, monkeypatch,
+):
+    """Review I2: die Markierung der Karte endet am Ende-Segment ihres Bogens."""
+    monkeypatch.setenv("IT_BRAINSTORM_MIN_ZEICHEN_BEI_ABSCHLUSS", "10")
+    monkeypatch.setattr(aufnahme.buehnenkarte, "erzeuge",
+                        lambda *a, **k: ("Karte.", "infomaniak"))
+    row = _brainstorm_zeile(conn, 1, 660, "x" * 20, schnittgrund="ende")
+    _brainstorm_zeile(conn, 1, 661, "y" * 500, schnittgrund="pause")
+    aufnahme._kurz_abschliessen(conn, tg, object(), einst, row, aufnahme._kein_zug, False)
+    assert len(_warte_auf_karten(conn)) == 1
+    for _ in range(100):
+        if not brainstorm.laeuft(1):
+            break
+        time.sleep(0.02)
+    assert repo.brainstorm_stand(conn, 1)["unreagierte_zeichen"] == 500
+
+
+def test_brainstorm_stand_mit_bis_id_zaehlt_nur_bis_dorthin(conn):
+    erste = _brainstorm_zeile(conn, 1, 670, "x" * 20, schnittgrund="ende")
+    _brainstorm_zeile(conn, 1, 671, "y" * 500, schnittgrund="pause")
+    assert repo.brainstorm_stand(conn, 1, bis_id=erste["id"])["unreagierte_zeichen"] == 20
+    assert repo.brainstorm_stand(conn, 1)["unreagierte_zeichen"] == 520
+
+
+def test_kartenlauf_mit_ausnahme_hinterlaesst_eine_schweigen_zeile(conn, tg, einst, monkeypatch):
+    """Review M2: wirft der Lauf (z. B. ``_nutzertext`` oder
+    ``anweisungen.hole`` ausserhalb des try in ``erzeuge``), sieht die Gruppe
+    trotzdem eine Reaktion -- eine Schweigen-Zeile (modell 'fehler')."""
+    def _wirft(*a, **k):
+        raise RuntimeError("kaputt")
+
+    monkeypatch.setattr(aufnahme.buehnenkarte, "erzeuge", _wirft)
+    assert aufnahme._starte_buehnenkarte(conn, tg, object(), einst, 1) is True
+    karten = _warte_auf_karten(conn)
+    assert [(k["schweigen"], k["text"], k["modell"]) for k in karten] == [(1, "", "fehler")]
+    for _ in range(100):
+        if not brainstorm.laeuft(1):
+            break
+        time.sleep(0.02)
+    assert not brainstorm.laeuft(1)

@@ -193,6 +193,12 @@ _TEXT_DISKUSSION_KEINE_BEGRIFFE = (
 ENDE_WARTEN_S = 90.0
 ENDE_WARTEN_TAKT_S = 0.5
 
+#: Wie lange das Brainstorm-Ende auf den Kartenlauf des VORIGEN Bogens
+#: wartet (t_cf87ee0a, Review I1): ein Lauf darf ``buehnenkarte.TIMEOUT_S``
+#: dauern, plus Spielraum. Reicht auch das nicht, gibt es eine sichtbare
+#: Schweigen-Zeile (``modell='belegt'``) statt gar keiner Reaktion.
+ENDE_LAUF_WARTEN_S = buehnenkarte.TIMEOUT_S + 30.0
+
 #: Das Transkript-Echo eines Teils (§ 10.6): woertlich, ohne Kommentar, ohne
 #: Zusammenfassung. Der Kopf sagt, wozu es gehoert -- das ist der ganze
 #: Unterschied zu "Ich hoere durch", das nichts zu kontrollieren gab.
@@ -1185,15 +1191,26 @@ def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
     unveraendert, das Begriffsboard der Phase 1 nutzt es weiter).
 
     Laeuft beim Ende noch die Karte des VORIGEN Bogens, wartet das Ende auf
-    sie (``_warte_auf_freien_kartenlauf``) -- sonst ginge dieser Bogen still
-    leer aus, weil ``brainstorm.versuche_start`` belegt ist."""
+    sie (``_warte_auf_freien_kartenlauf``, hoechstens ``ENDE_LAUF_WARTEN_S``)
+    -- sonst ginge dieser Bogen still leer aus, weil
+    ``brainstorm.versuche_start`` belegt ist. Bleibt der Lauf trotzdem belegt
+    (Frist abgelaufen, oder zwei Enden im selben Augenblick), kommt eine
+    sichtbare Schweigen-Zeile (``modell='belegt'``) -- nie gar nichts.
+
+    Der Bogen endet an ``row['id']`` (Review I2): Schwelle und Markierung
+    zaehlen nur Segmente bis zum Ende-Segment; ein Segment des naechsten
+    Bogens (Toggle waehrend des Wartens neu gestartet) bleibt unreagiert.
+
+    Die Wartezeiten laufen im Pool- oder im Nachhol-Thread (``nachholen``
+    kann dadurch bis zu ``ENDE_WARTEN_S + ENDE_LAUF_WARTEN_S`` blockieren),
+    nie in einem Knopf-Handler."""
     if row["schnittgrund"] != "ende":
         return
     _warte_auf_offene_segmente(conn, e, row, zaehle=repo.offene_brainstorm_segmente,
                                vorfall="brainstorm_ende_segmente_offen")
     if klm is not None:
         _warte_auf_freien_kartenlauf(conn, e, row)
-    stand = repo.brainstorm_stand(conn, row["chat_id"])
+    stand = repo.brainstorm_stand(conn, row["chat_id"], bis_id=row["id"])
     sekunden = stand["sekunden_seit_letzter_reaktion"]
     soll = brainstorm.soll_reagieren(
         unreagierte_zeichen=stand["unreagierte_zeichen"],
@@ -1201,19 +1218,24 @@ def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
         letzter_schnittgrund=stand["letzter_schnittgrund"],
         ist_abschluss=True,
     )
-    if soll:
-        _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"])
-    elif klm is not None:
+    if klm is None:
+        if soll:
+            _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"], bis_id=row["id"])
+        return
+    if not soll:
         repo.lege_buehnenkarte_an(conn, row["chat_id"], "", "schwelle", schweigen=True)
+    elif not _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"], bis_id=row["id"]):
+        repo.lege_buehnenkarte_an(conn, row["chat_id"], "", "belegt", schweigen=True)
 
 
 def _warte_auf_freien_kartenlauf(conn, e, row) -> None:
-    """Wartet (hoechstens ``ENDE_WARTEN_S``), bis kein Buehnenkarten-Lauf
+    """Wartet (hoechstens ``ENDE_LAUF_WARTEN_S``, laenger als ein Kartenlauf
+    nach ``buehnenkarte.TIMEOUT_S`` dauern darf), bis kein Buehnenkarten-Lauf
     dieser Gruppe mehr laeuft (t_cf87ee0a: genau eine Reaktion je Bogen).
     Erst danach liest ``brainstorm_stand`` -- die Markierung des vorigen
     Laufs steht dann, die Zeichen DIESES Bogens zaehlen als unreagiert.
-    Laeuft im Pool-Thread, nie in einem Knopf-Handler."""
-    frist = time.monotonic() + ENDE_WARTEN_S
+    Laeuft im Pool- oder Nachhol-Thread, nie in einem Knopf-Handler."""
+    frist = time.monotonic() + ENDE_LAUF_WARTEN_S
     while brainstorm.laeuft(row["chat_id"]):
         if time.monotonic() >= frist:
             log.warning("Brainstorm-Ende: Kartenlauf noch belegt, chat_id=%s", row["chat_id"])
@@ -1221,7 +1243,7 @@ def _warte_auf_freien_kartenlauf(conn, e, row) -> None:
                 repo.merke_vorfall(
                     conn, row["chat_id"], getattr(e, "bot_name", None),
                     "brainstorm_ende_lauf_belegt",
-                    f"ende_id={row['id']} warten_s={ENDE_WARTEN_S:.0f}",
+                    f"ende_id={row['id']} warten_s={ENDE_LAUF_WARTEN_S:.0f}",
                 )
             except Exception:
                 log.exception("Vorfall nicht geschrieben, chat_id=%s", row["chat_id"])
@@ -1229,29 +1251,40 @@ def _warte_auf_freien_kartenlauf(conn, e, row) -> None:
         time.sleep(ENDE_WARTEN_TAKT_S)
 
 
-def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
+def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int, *,
+                         bis_id: int | None = None) -> bool:
     """Stoesst einen Buehnenkarten-Lauf in einem eigenen Thread an (Zusage 2:
     kein Modellaufruf hier selbst). Hoechstens ein Lauf je Gruppe gleichzeitig
     (``brainstorm.versuche_start``) -- wer die Sperre nicht bekommt, verliert
     nichts: die unreagierten Zeichen bleiben stehen und zaehlen beim naechsten
     qualifizierenden Segment einfach weiter mit ("pending text accumulates
-    into the next turn")."""
+    into the next turn").
+
+    Liefert, ob der Lauf gestartet wurde -- das Bogenende schreibt sonst eine
+    sichtbare Schweigen-Zeile (Review I1). ``bis_id``: die Markierung endet
+    am Ende-Segment des Bogens statt an der juengsten Brainstorm-id (Review
+    I2). Wirft der Lauf, haengt er ebenfalls eine Schweigen-Zeile an
+    (``modell='fehler'``, Review M2) -- einziger Aufrufer ist der Brainstorm
+    der Phase 4."""
     if klm is None:
-        return
+        return False
     if not brainstorm.versuche_start(chat_id):
-        return
+        return False
     repo.markiere_buehnenkarten_lauf(conn, chat_id, repo._jetzt())
     # VOR dem Lauf gelesen: die Markierung soll genau die Segmente abdecken,
     # die die Karte tatsaechlich gesehen hat -- ein waehrend des Laufs neu
     # eingetroffenes Segment bleibt UNREAGIERT und zaehlt beim naechsten Mal.
-    markierung_id = repo.hoechste_brainstorm_aufnahme_id(conn, chat_id)
+    markierung_id = (bis_id if bis_id is not None
+                     else repo.hoechste_brainstorm_aufnahme_id(conn, chat_id))
 
     def _lauf() -> None:
+        angelegt = False
         try:
             text, modell = buehnenkarte.erzeuge(conn, e, klm, chat_id)
             if text:
                 repo.markiere_brainstorm_reaktion(conn, chat_id, markierung_id)
                 repo.lege_buehnenkarte_an(conn, chat_id, text, modell)
+                angelegt = True
                 # Birk, 02.10.2026 (Padua-Feedback b): KEINE Chat-Zeile mehr --
                 # der Bot "antwortet" im Brainstorm-Modus nirgends sonst als
                 # ueber den unaufdringlichen Marker am CoThinker-Tab (den
@@ -1268,13 +1301,22 @@ def _starte_buehnenkarte(conn, tg, klm, e, chat_id: int) -> None:
                 # geschwiegen" von "nie gelaufen" nicht zu unterscheiden --
                 # weder im Dashboard noch im Buehne-Panel.
                 repo.lege_buehnenkarte_an(conn, chat_id, "", modell, schweigen=True)
+                angelegt = True
         except Exception:
             log.exception("Buehnenkarten-Lauf fehlgeschlagen, chat_id=%s", chat_id)
+            if not angelegt:
+                # Review M2: auch ein geworfener Lauf ist fuer die Gruppe
+                # eine sichtbare Reaktion ("nothing to add"), kein Nichts.
+                try:
+                    repo.lege_buehnenkarte_an(conn, chat_id, "", "fehler", schweigen=True)
+                except Exception:
+                    log.exception("Schweigen-Zeile nicht geschrieben, chat_id=%s", chat_id)
         finally:
             brainstorm.beende(chat_id)
             repo.markiere_buehnenkarten_lauf(conn, chat_id, None)
 
     threading.Thread(target=_lauf, daemon=True).start()
+    return True
 
 
 def dauer_mmss(sekunden: int) -> str:

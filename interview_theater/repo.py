@@ -2044,8 +2044,14 @@ def setze_phase_angeboten(conn: sqlite3.Connection, chat_id: int, nummer: int) -
 
 
 @_gesperrt
-def brainstorm_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
+def brainstorm_stand(conn: sqlite3.Connection, chat_id: int,
+                     bis_id: int | None = None) -> dict:
     """Die drei Zahlen, die ``brainstorm.soll_reagieren`` braucht.
+
+    ``bis_id`` (t_cf87ee0a, Review I2): nur Segmente bis einschliesslich
+    dieser id zaehlen -- das Bogenende begrenzt so seinen Bogen; ein Segment
+    des naechsten Bogens (Toggle waehrend des Ende-Wartens neu gestartet)
+    zaehlt nicht mit. ``None`` = alle (bisheriges Verhalten).
 
     ``unreagierte_zeichen``: Summe der Transkriptlaenge ueber alle noch
     nicht in einer Buehnenkarte beruecksichtigten Brainstorm-Segmente (id
@@ -2065,17 +2071,18 @@ def brainstorm_stand(conn: sqlite3.Connection, chat_id: int) -> dict:
     markierung_id = zeile["brainstorm_markierung_id"] if zeile else None
     reaktion_am = zeile["brainstorm_reaktion_am"] if zeile else None
 
+    obergrenze = bis_id if bis_id is not None else -1
     zeichen = conn.execute(
         "SELECT COALESCE(SUM(LENGTH(transkript)), 0) FROM aufnahme "
         "WHERE chat_id = ? AND brainstorm = 1 AND entfernt_am IS NULL "
-        "AND transkript IS NOT NULL AND id > ?",
-        (chat_id, markierung_id or 0),
+        "AND transkript IS NOT NULL AND id > ? AND (? < 0 OR id <= ?)",
+        (chat_id, markierung_id or 0, obergrenze, obergrenze),
     ).fetchone()[0]
 
     letzter = conn.execute(
         "SELECT schnittgrund FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
-        "AND entfernt_am IS NULL ORDER BY id DESC LIMIT 1",
-        (chat_id,),
+        "AND entfernt_am IS NULL AND (? < 0 OR id <= ?) ORDER BY id DESC LIMIT 1",
+        (chat_id, obergrenze, obergrenze),
     ).fetchone()
     letzter_schnittgrund = letzter["schnittgrund"] if letzter else None
 

@@ -11,7 +11,7 @@ import json
 
 import pytest
 
-from interview_theater import db, kontext, repo, sprache, workshop
+from interview_theater import begriffsboard, db, kontext, repo, sprache, workshop
 
 CHAT = 1
 BOARD = [
@@ -72,6 +72,35 @@ def test_phase_1_prompt_hat_wortlaut_und_board(conn):
     assert "Musik" not in text          # verworfen
     assert "Wo man bleibt." in text     # Begruendung steht mit
     assert ": (sprache)" not in text    # kein nackter Marker mehr
+
+
+def test_verworfener_aber_gespeicherter_begriff_behaelt_seine_begruendung(conn):
+    """R-1: ein Begriff, den das Board als "verworfen" fuehrt, taucht in
+    ``_baue_board`` gar nicht auf (die Zeile zeigt nur nicht verworfene
+    Begriffe) -- hat die Gruppe ihn trotzdem gespeichert, verliert er so
+    seine Begruendung komplett, denn ``begriffe_detail`` schwieg bisher
+    IMMER, wenn das Board irgendetwas trug (egal in welcher Phase). Jetzt
+    zeigt ``begriffe_detail`` genau die Begriffe, die das Board selbst
+    nicht trägt -- in jeder Phase, auch 1 und 3."""
+    board = BOARD[:2] + [
+        {"begriff": "Musik", "nennungen": 2, "zustimmung": -2,
+         "begruendung": "Kam oft vor, aber die Gruppe will nicht in diese Richtung.",
+         "zitat": "", "doppelbedeutung": "", "status": "verworfen"},
+    ]  # dieselbe Musik-Zeile wie im Modul-BOARD, aber MIT Begruendung --
+       # sonst taeuscht ein Duplikat (zwei "Musik" in derselben Zeile) das
+       # Ergebnis vor.
+    repo.lege_begriffsboard_an(conn, CHAT, json.dumps(board), "sovereign", 0)
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "Heimat, Musik")
+    begriffsboard.schreibe_detail(conn, CHAT, "Heimat, Musik")
+
+    for phase in (1, 3):
+        repo.setze_phase(conn, CHAT, phase)
+        text = _prompt(conn)
+        assert "1. Heimat" in text
+        assert "2. Musik" not in text and "· Musik" not in text, (
+            "Musik steht nicht im Board-Block (verworfen)"
+        )
+        assert "Kam oft vor" in text, f"Begruendung fehlt in Phase {phase}"
 
 
 def test_board_steht_auch_in_spaeteren_phasen(conn):

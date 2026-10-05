@@ -37,12 +37,36 @@ def conn(tmp_path):
     return c
 
 
-@pytest.mark.parametrize("phase, erwartet", [(1, False), (2, True), (3, False), (4, True), (6, True)])
-def test_block_nur_in_phase_2_und_ab_4(conn, phase, erwartet):
+@pytest.mark.parametrize("phase", [1, 2, 3, 4, 6])
+def test_block_erscheint_in_jeder_phase_ohne_board(conn, phase):
+    """R-1 (05.10.2026): bis dahin stand das Detail nur in Phase 2 und ab 4.
+    Seit das CoThinker-Board selbst in jeder Phase im Prompt steht (Birk:
+    "der Chat muss immer alles wissen"), gilt dieselbe Regel fuer die
+    Begriffe, die der Board-Block NICHT zeigt -- ohne Board ueberhaupt (wie
+    in dieser Fixture) zeigt er gar nichts, also bleibt das Detail in jeder
+    Phase."""
     repo.setze_phase(conn, CHAT, phase)
     block = kontext._baue_begriffe_detail(conn, CHAT)
-    assert (GRUND in block) is erwartet
+    assert GRUND in block
     assert ZITAT not in block
+
+
+def test_block_fehlt_fuer_begriffe_die_das_board_schon_zeigt(conn):
+    """Ein Fakt, eine Stelle: zeigt der Board-Block selbst schon die
+    Begruendung eines (nicht verworfenen) Begriffs, bleibt der hier aussen
+    vor -- nur was das Board nicht traegt (hier: Schule, gar nicht auf dem
+    Board), bleibt im Detail-Block uebrig, und Schule hat ohnehin keine
+    Begruendung/Doppelbedeutung."""
+    repo.lege_begriffsboard_an(conn, CHAT, json.dumps([
+        {"begriff": "Heimat", "nennungen": 1, "zustimmung": 1, "begruendung": GRUND,
+         "zitat": "", "doppelbedeutung": "", "status": "favorit"},
+    ]), "sovereign", 0)
+    repo.setze_phase(conn, CHAT, 2)
+
+    block = kontext._baue_begriffe_detail(conn, CHAT)
+
+    assert GRUND not in block, "Heimat steht schon (mit Begruendung) im Board-Block"
+    assert block == ""
 
 
 def test_block_traegt_kopf_und_doppelbedeutung(conn):

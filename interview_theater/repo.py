@@ -2254,6 +2254,21 @@ def letztes_begriffsboard(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row
 
 
 @_gesperrt
+def begriffsboard_verlauf(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle Boardzeilen dieser Gruppe, juengste zuerst (AGG-2/R-1): die
+    Tabelle ist nur-anhaengend, ein einzelner Lauf nennt aber nicht jeden
+    Begriff erneut (ein verworfener bleibt zum Beispiel oft unerwaehnt).
+    ``begriffsboard.verlauf_merge`` fuehrt daraus EIN Board zusammen, in dem
+    jeder Begriff die Begruendung aus der Zeile behaelt, in der er zuletzt
+    vorkam -- nicht nur aus der juengsten Zeile insgesamt
+    (``letztes_begriffsboard``)."""
+    return conn.execute(
+        "SELECT * FROM begriffsboard WHERE chat_id = ? ORDER BY id DESC",
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
 def hoechste_diskussion_aufnahme_id(conn: sqlite3.Connection, chat_id: int) -> int:
     """Die hoechste ``aufnahme.id`` eines Diskussionssegments, oder 0 --
     das Gegenstueck zu ``hoechste_brainstorm_aufnahme_id``."""

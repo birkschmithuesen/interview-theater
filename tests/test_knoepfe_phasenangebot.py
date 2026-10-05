@@ -63,10 +63,20 @@ def test_ohne_moegliche_stufe_bleibt_es_still(conn, tg):
 
 def test_das_angebot_verschluckt_den_prompt_hinweis_nicht_doppelt(conn, tg):
     """EIN Angebot je Stufe, nicht zwei aus zwei Kanaelen: hat der
-    Gespraechs-Prompt den Hinweis schon getragen, schweigt die Nachricht."""
+    Gespraechs-Prompt den Hinweis schon getragen, schweigt die Nachricht.
+
+    Phase 2->3 statt 1->2 (P1-L1, Prompt-Check Padua P1/P2): der
+    Gespraechs-Prompt haelt sich in Phase 1 jetzt grundsaetzlich zurueck
+    (die Abschlussnachricht nach "Discussion done" fragt dort schon selbst),
+    die Doppelverschluckung zwischen den zwei Kanaelen gilt unveraendert fuer
+    jede andere Stufe."""
     from interview_theater import kontext
 
-    repo.setze_arbeitsstand(conn, 1, "begriffe", "Rassismus, Liebe")
+    phasen.setze(conn, 1, 2, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, 1, "frage_einleitungen", "")
+    repo.setze_arbeitsstand(conn, 1, "interview_eroeffnung", "Hallo, wir sind ...")
+    repo.setze_arbeitsstand(conn, 1, "interview_abschluss", "Danke dir!")
     assert kontext._baue_phasenhinweis(conn, 1) != ""
 
     assert knoepfe.biete_phase_proaktiv(conn, tg, 1) is False

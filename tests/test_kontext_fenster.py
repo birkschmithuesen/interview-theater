@@ -160,6 +160,31 @@ def test_systemzeilen_stehen_nicht_im_fenster(gruppe):
     assert "passt" in texte
 
 
+def test_englische_systemzeilen_stehen_nicht_im_fenster(gruppe):
+    """P1-L6: die vier englischen Systemzeilen, die ``_SYSTEMANFAENGE_EN``
+    bis jetzt NICHT trug -- Undo/Redo, der Undo-"geaendert seitdem"-Satz,
+    die 📌-Festlegung und der Fragenkopf "Question N/M" -- standen als
+    "You:"-Zug im Verlauf, obwohl sie Ereignisse sind, keine
+    Gespraechsbeitraege (dasselbe Muster wie die deutschen Zeilen oben)."""
+    _lege_an(gruppe, 210, True, "Undone:\nTerms: Home, Border", 10)
+    _lege_an(gruppe, 211, True, "Redone:\nTerms: Home, Border", 9)
+    _lege_an(gruppe, 212, True, "Changed since.", 8)
+    _lege_an(gruppe, 213, True, "📌 Agreed: Core theme — Belonging", 7)
+    _lege_an(gruppe, 214, True, "Question 1/3 · Home", 6)
+    _lege_an(gruppe, 215, True, "That fits the scene well.", 5)
+    _lege_an(gruppe, 216, False, "ok", 4)
+
+    texte = "\n".join(kontext._baue_fenster_eintraege(gruppe, 1, []))
+
+    assert "Undone:" not in texte
+    assert "Redone:" not in texte
+    assert "Changed since." not in texte
+    assert "Agreed:" not in texte
+    assert "Question 1/3" not in texte
+    assert "That fits the scene well." in texte, "echte Beitraege bleiben"
+    assert "ok" in texte
+
+
 def test_eine_gruppennachricht_faellt_nie_dem_systemfilter_zum_opfer(gruppe):
     """Tippt die Gruppe selbst "Notiert:", sagt sie damit etwas."""
     _lege_an(gruppe, 200, False, "Notiert: wir wollen den Kiosk", 5)

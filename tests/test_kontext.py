@@ -403,25 +403,56 @@ def test_ohne_gesetzte_phase_kein_phasenblock(conn, einst):
     assert "Aktuelle Phase" not in kontext.baue(conn, 1, ausloeser, einst)
 
 
+def _mache_leitfaden_fertig(conn, chat_id=1):
+    """Die vier Felder, die Phase 3 moeglich machen (siehe
+    ``tests/test_phasen.py::test_fragen_erlauben_drei``)."""
+    repo.setze_arbeitsstand(conn, chat_id, "fragen", "Was war in deinem Koffer?")
+    repo.setze_arbeitsstand(conn, chat_id, "frage_einleitungen", "")
+    repo.setze_arbeitsstand(conn, chat_id, "interview_eroeffnung", "Hallo, wir sind ...")
+    repo.setze_arbeitsstand(conn, chat_id, "interview_abschluss", "Danke dir!")
+
+
 def test_hinweisblock_fragt_nach_der_moeglichen_phase_genau_einmal(conn, einst):
     """Der Bot soll EINMAL fragen, nicht in jedem Zug erneut -- sonst wird aus
-    einer Frage Draengeln (arbeitsstand.phase_angeboten)."""
-    repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer, Bahnhof")
+    einer Frage Draengeln (arbeitsstand.phase_angeboten).
+
+    Phase 2->3 statt 1->2 (P1-L1, Prompt-Check Padua P1/P2): der
+    Gespraechshinweis in Phase 1 widerspraeche "Don't ask what comes next"
+    -- die Abschlussnachricht nach "Discussion done" fragt dort schon
+    (``knoepfe/basis.biete_board_gespeichert``)."""
+    phasen.setze(conn, 1, 2, "befehl")
+    _mache_leitfaden_fertig(conn)
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
     erster = kontext.baue(conn, 1, ausloeser, einst)
     zweiter = kontext.baue(conn, 1, ausloeser, einst)
 
-    assert "Materiallage wuerde Phase 2 · Fragen hergeben" in erster
+    assert "Materiallage wuerde Phase 3 · Interviews hergeben" in erster
     assert "Materiallage wuerde" not in zweiter
-    assert repo.hole_phase_angeboten(conn, 1) == 2
+    assert repo.hole_phase_angeboten(conn, 1) == 3
+
+
+def test_in_phase_1_bleibt_der_hinweisblock_still(conn, einst):
+    """P1-L1: in Phase 1 fragt die Abschlussnachricht nach "Discussion done"
+    schon "Shall we move on?" -- der Gespraechs-Prompt darf das nicht ein
+    zweites Mal und widersprechend ("Ask ... whether the group wants to go
+    there yet" gegen "Don't ask what comes next") tun."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer, Bahnhof")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "Materiallage wuerde" not in prompt
+    assert repo.hole_phase_angeboten(conn, 1) is None
 
 
 def test_der_hinweisblock_sagt_dass_der_bot_nicht_selbst_umschaltet(conn, einst):
     """Die Entscheidung vom 05.09.2026 im Prompt: der Datenstand ist eine
     Frage, keine Erlaubnis. Der Bot fragt, die Gruppe antwortet, der Erkenner
-    setzt -- niemand schaltet still."""
-    repo.setze_arbeitsstand(conn, 1, "begriffe", "Koffer, Bahnhof")
+    setzt -- niemand schaltet still. Phase 2->3 wie oben (P1-L1): Phase 1
+    bleibt beim Hinweisblock still."""
+    phasen.setze(conn, 1, 2, "befehl")
+    _mache_leitfaden_fertig(conn)
     ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
 
     prompt = kontext.baue(conn, 1, ausloeser, einst)

@@ -6,7 +6,14 @@ Kostensumme, Entwickler-Meta-Zaehler, B-Befunde und Leitbilder.
 Reine Textzusammenstellung plus ein read-only SQL-Zugriff
 (``modellbeleg``) -- kein Modellaufruf, kein Schreibzugriff. Konsumiert
 das ``ergebnis.json`` der Stationsmotor-Engine aus
-``simulation/browser_lauf.py`` (``fuehre_stationen``)."""
+``simulation/browser_lauf.py`` (``fuehre_stationen``).
+
+Task 7 (04.10.2026): ``invarianten_abschnitt`` zeigt die Invarianten-Befunde
+(``ergebnis.json["invarianten"]``, Task 6) im Bericht, ``urteil`` wird
+``nein``, sobald ein Lauf eine Invariante mit ``schwere == "hoch"`` traegt,
+und der CLI-Unterbefehl ``vergleich`` baut aus zwei Laufordnern (altem
+Commit ``cb200e4`` vs. fixiertem Branch) eine Vorher/Nachher-Tabelle
+(``vergleichstabelle``) ueber die bekannten Symptome (``ABNAHME_BEFUNDE``)."""
 
 from __future__ import annotations
 
@@ -29,8 +36,10 @@ def _ja_nein(wert) -> str:
 
 def urteil(laeufe: list[dict]) -> tuple[bool, str]:
     """ja genau dann, wenn in JEDEM Lauf jede Station ``fertig`` ist,
-    ``board_bestanden`` haelt und ``entwickler_meta`` leer ist. Der Grund
-    nennt bei ``nein`` den ERSTEN Fehlschlag."""
+    ``board_bestanden`` haelt, ``entwickler_meta`` leer ist und keine
+    Invariante mit ``schwere == "hoch"`` gemeldet wurde. Der Grund nennt
+    bei ``nein`` den ERSTEN Fehlschlag (fuer eine Invariante den ersten
+    Schluessel)."""
     for lauf in laeufe:
         geraet = lauf.get("geraet", "?")
         for station in lauf.get("stationen_ergebnisse", []):
@@ -41,7 +50,101 @@ def urteil(laeufe: list[dict]) -> tuple[bool, str]:
         meta = lauf.get("entwickler_meta") or []
         if meta:
             return False, f"{geraet}: Entwickler-Meta im Chat ({meta[0]!r})"
+        for befund in lauf.get("invarianten") or []:
+            if befund.get("schwere") == "hoch":
+                return False, f"{geraet}: Invariante {befund['schluessel']} (hoch)"
     return True, "alle 11 Stationen auf beiden Geraeten erreicht, Board ohne Reload gewachsen"
+
+
+#: Die bekannten Symptome des alten Standes (Commit ``cb200e4``), je Zeile
+#: ein Label und die Invarianten-Schluessel, die diese Zeile erfuellen --
+#: gepflegt fuer ``vergleichstabelle`` (Task 7).
+ABNAHME_BEFUNDE: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Board-Schwelle (Board leer trotz Transkript)", ("board_leer_nach_ende", "board_beobachter_leer")),
+    ("Leeres Ende-Segment (Stille nach Discussion done)", ("stille_nach_leerem_ende",)),
+    ("Werkbank leer / Phase 2 gesperrt", ("werkbank_leer_phase2_gesperrt",)),
+    ("Chat kennt Board nicht", ("chat_kennt_board_nicht", "chat_nennt_board_nicht")),
+    ("Chat kennt Transkript nicht", ("chat_kennt_transkript_nicht",)),
+    ("Raumcheck domainweit", ("raumcheck_domainweit",)),
+)
+
+
+def _invarianten_zeile(befund: dict, geraet: str) -> str:
+    return (
+        f"- **{befund.get('schwere', '?')}** {geraet}/{befund.get('station', '?')} "
+        f"`{befund.get('schluessel', '?')}`: {befund.get('text', '')} "
+        f"(Ursache: {befund.get('ursache', '?')})"
+    )
+
+
+def invarianten_abschnitt(laeufe: list[dict]) -> str:
+    """Markdown-Abschnitt ueber alle gemeldeten Invarianten-Befunde
+    (``ergebnis.json["invarianten"]``, Task 6/7) -- ``schwere == "hoch"``
+    zuerst. Dazu, knapp angehaengt, ``pruef_notizen`` je Lauf, sofern
+    vorhanden."""
+    eintraege = [
+        (befund, lauf.get("geraet") or lauf.get("app_commit", "?"))
+        for lauf in laeufe
+        for befund in (lauf.get("invarianten") or [])
+    ]
+    eintraege.sort(key=lambda paar: 0 if paar[0].get("schwere") == "hoch" else 1)
+    zeilen = [_invarianten_zeile(befund, geraet) for befund, geraet in eintraege]
+    if not zeilen:
+        zeilen = ["Keine Invarianten-Befunde."]
+    notizen = [n for lauf in laeufe for n in (lauf.get("pruef_notizen") or [])]
+    if notizen:
+        zeilen.append("")
+        zeilen.append("Pruef-Notizen:")
+        zeilen.extend(f"- {n}" for n in notizen)
+    return "\n".join(zeilen)
+
+
+def _befund_gemeldet_hoch(invarianten: list[dict], schluessel_satz: tuple[str, ...]) -> bool:
+    return any(
+        b.get("schluessel") in schluessel_satz and b.get("schwere") == "hoch"
+        for b in invarianten
+    )
+
+
+def vergleichstabelle(vorher: dict, nachher: dict) -> str:
+    """Vorher/Nachher-Tabelle (Task 7) ueber die ``ABNAHME_BEFUNDE``-Zeilen:
+    je Zeile, ob der alte Lauf (``vorher``, Commit ``cb200e4``) die
+    Invariante gemeldet hat und ob sie im neuen Lauf (``nachher``, fixierter
+    Branch) weg ist. Weitere Schluessel, die ``nachher`` noch zeigt und
+    KEINER Zeile zugeordnet sind, landen als 'Restbefunde nachher'. Die
+    Abnahme ist erfuellt, wenn ``nachher`` keine ``hoch``-Invariante mehr
+    traegt -- weder in einer Tabellenzeile noch als Restbefund."""
+    v_commit = vorher.get("app_commit", "?")
+    n_commit = nachher.get("app_commit", "?")
+    v_inv = vorher.get("invarianten") or []
+    n_inv = nachher.get("invarianten") or []
+    bekannte_schluessel = {s for _, schluessel in ABNAHME_BEFUNDE for s in schluessel}
+
+    zeilen = [
+        f"| Befund | vorher ({v_commit}) | nachher ({n_commit}) | erwartet |",
+        "|---|---|---|---|",
+    ]
+    alles_behoben = True
+    for label, schluessel in ABNAHME_BEFUNDE:
+        v_status = "gemeldet (hoch)" if _befund_gemeldet_hoch(v_inv, schluessel) else "–"
+        n_status = "gemeldet (hoch)" if _befund_gemeldet_hoch(n_inv, schluessel) else "–"
+        if n_status != "–":
+            alles_behoben = False
+        zeilen.append(f"| {label} | {v_status} | {n_status} | vorher gemeldet, nachher weg |")
+
+    rest = sorted({
+        b.get("schluessel", "?") for b in n_inv if b.get("schluessel") not in bekannte_schluessel
+    })
+    if rest:
+        if any(b.get("schluessel") in rest and b.get("schwere") == "hoch" for b in n_inv):
+            alles_behoben = False
+        zeilen.append("")
+        zeilen.append("Restbefunde nachher:")
+        zeilen.extend(f"- {s}" for s in rest)
+
+    zeilen.append("")
+    zeilen.append(f"Abnahme erfüllt: {'ja' if alles_behoben else 'nein'}")
+    return "\n".join(zeilen)
 
 
 def modellbeleg(db_pfad: str) -> list[tuple[str, str, int, float]]:
@@ -226,6 +329,8 @@ def baue_abnahme(laeufe: list[dict], *, belege: dict[str, list[tuple]],
         _begriffsboard_abschnitt(laeufe),
         "## Richter",
         _richter_abschnitt(laeufe),
+        "## Invarianten",
+        invarianten_abschnitt(laeufe),
         "## Modellbeleg",
         _modellbeleg_abschnitt(belege, modellwahl_satz),
         "## Entwickler-Meta im Chat",
@@ -256,10 +361,25 @@ def main() -> None:
     kosten = unter.add_parser("kosten")
     kosten.add_argument("datenbanken", nargs="+")
 
+    vergleich = unter.add_parser("vergleich")
+    vergleich.add_argument("--vorher", required=True)
+    vergleich.add_argument("--nachher", required=True)
+    vergleich.add_argument("--ausgabe", required=True)
+
     argumente = zerleger.parse_args()
 
     if argumente.befehl == "kosten":
         print(f"Summe CHF: {kosten_summe(argumente.datenbanken):.4f}")
+        return
+
+    if argumente.befehl == "vergleich":
+        vorher = json.loads((Path(argumente.vorher) / "ergebnis.json").read_text(encoding="utf-8"))
+        nachher = json.loads((Path(argumente.nachher) / "ergebnis.json").read_text(encoding="utf-8"))
+        markdown = vergleichstabelle(vorher, nachher) + "\n"
+        ausgabe = Path(argumente.ausgabe)
+        ausgabe.parent.mkdir(parents=True, exist_ok=True)
+        ausgabe.write_text(markdown, encoding="utf-8")
+        print(f"Vergleich geschrieben: {ausgabe}")
         return
 
     laeufe = []

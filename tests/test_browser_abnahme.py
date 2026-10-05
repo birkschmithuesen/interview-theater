@@ -82,3 +82,46 @@ def test_modellbeleg_und_kosten(tmp_path):
     conn.commit(); conn.close()
     assert ab.modellbeleg(pfad) == [("gespraech", "kimi", 2, 0.03), ("stt", "whisper", 1, 0.0)]
     assert ab.kosten_summe([pfad, pfad]) == pytest.approx(0.06)
+
+
+def test_urteil_nein_bei_invariante_hoch():
+    lauf = _lauf("handy")
+    lauf["invarianten"] = [{"schluessel": "raumcheck_domainweit", "station": "p1-zuhoeren",
+                             "text": "x", "schwere": "hoch",
+                             "ursache": "App oder Werkzeug – ungeklaert"}]
+    ok, grund = ab.urteil([lauf, _lauf("laptop")])
+    assert ok is False
+    assert "raumcheck_domainweit" in grund
+
+
+def _inv_lauf(commit, *schluessel):
+    return {"app_commit": commit, "invarianten": [
+        {"schluessel": s, "station": "p1-zuhoeren", "text": f"t {s}", "schwere": "hoch",
+         "ursache": "App oder Werkzeug – ungeklaert"} for s in schluessel]}
+
+
+def test_vergleich_abnahme_erfuellt():
+    vorher = _inv_lauf("cb200e4", "board_leer_nach_ende", "stille_nach_leerem_ende",
+                        "werkbank_leer_phase2_gesperrt", "chat_kennt_board_nicht",
+                        "chat_kennt_transkript_nicht", "raumcheck_domainweit")
+    nachher = _inv_lauf("abc1234")
+    md = ab.vergleichstabelle(vorher, nachher)
+    assert "| Befund | vorher (cb200e4) | nachher (abc1234) |" in md
+    assert md.count("gemeldet (hoch)") == 6
+    assert "Abnahme erfüllt: ja" in md
+
+
+def test_vergleich_abnahme_nicht_erfuellt_wenn_nachher_noch_da():
+    vorher = _inv_lauf("cb200e4", "board_leer_nach_ende", "stille_nach_leerem_ende",
+                        "werkbank_leer_phase2_gesperrt", "chat_kennt_board_nicht",
+                        "chat_kennt_transkript_nicht", "raumcheck_domainweit")
+    nachher = _inv_lauf("abc1234", "raumcheck_domainweit", "station_nicht_erreicht:p1-begriffe")
+    md = ab.vergleichstabelle(vorher, nachher)
+    assert "Abnahme erfüllt: nein" in md
+    assert "station_nicht_erreicht:p1-begriffe" in md  # Restbefunde nachher
+
+
+def test_invarianten_abschnitt_und_urteil():
+    lauf = _inv_lauf("cb200e4", "werkbank_leer_phase2_gesperrt")
+    md = ab.invarianten_abschnitt([lauf])
+    assert "werkbank_leer_phase2_gesperrt" in md and "App oder Werkzeug – ungeklaert" in md and "hoch" in md

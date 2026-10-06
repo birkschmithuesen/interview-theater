@@ -596,6 +596,22 @@ th, td { border-bottom-color: var(--linie); }
                  letter-spacing: .05em; color: var(--text-leise); opacity: 1; }
 .ux-untertitel a { color: inherit; }
 .ux-ausstehend { opacity: .65; font-style: italic; }
+/* Fast-Track 06.10.2026: die Vollliste ausgewaehlter Fragen, nach Begriff
+   geclustert -- bewusst OHNE line-clamp (anders als dd.kurz), das waere hier
+   Verstuemmelung statt Kuerzung. */
+dd.fragen-voll { margin: .1em 0 0; }
+h4.fragen-begriff { font-family: var(--schrift-tech); font-size: .68em;
+                     letter-spacing: .08em; text-transform: uppercase;
+                     color: var(--text-leise); margin: .6em 0 .15em; }
+h4.fragen-begriff:first-child { margin-top: 0; }
+ol.fragen-gruppe { margin: 0 0 .3em; padding-left: 1.3em; }
+ol.fragen-gruppe li { margin: 0 0 .15em; }
+dd.fragen-voll .herkunft { font-family: var(--schrift-tech); font-size: .68em;
+                            letter-spacing: .04em; margin-left: .4em; }
+dd.fragen-voll .herkunft.eigen { color: var(--text-leise); }
+dd.fragen-voll .herkunft.ki { color: var(--signal); }
+.fragen-fortschritt { color: var(--text-leise); font-style: italic;
+                       font-size: .85em; margin: .3em 0 0; }
 """
 
 #: Keyframes -- ALLE hier, nie im gescopten Teil (siehe Modulkopf).

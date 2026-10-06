@@ -252,6 +252,95 @@ def _starte(seite) -> None:
     seite.wait_for_selector('#interview[data-laeuft="1"]')
 
 
+# -- Karte "keine Kalibrierung in Phase 3/4" (05.10.2026): mit serverseitigen
+# -- Gruppenwerten zeigt Phase 3 das Panel gar nicht erst -------------------
+
+
+def test_gruppenwerte_ueberspringen_das_panel_und_die_aufnahme_startet_sofort(
+    bot, browser, token,
+):
+    """Abnahme woertlich: 'phase 3 start interview with group values present
+    -> no calibration panel visible, recording starts'.
+
+    Zweiter Nachtrag (Birk, 05.10.2026 ~23:55) hat den Mechanismus
+    geaendert: Padua zeigt gar keine Kalibrierungs-UI mehr -- das Panel
+    haengt jetzt ALLEIN am Kill-Switch (``IT_WEB_VAD_KALIBRIERUNG``), nicht
+    mehr daran, ob Gruppenwerte vorliegen. Der geteilte Server dieser Datei
+    laeuft bewusst mit dem Kill-Switch AN (Dortmund-Pfad, siehe
+    Moduldocstring) -- dieser Test braucht deshalb einen EIGENEN,
+    kurzlebigen Server mit dem Schalter AUS, auf derselben Datenbank."""
+    conn = db.verbinde(DB_PFAD)
+    conn.execute("UPDATE gruppe SET kalibrierung_modus = NULL WHERE chat_id = ?", (CHAT,))
+    repo.setze_kalibrierung_werte(conn, CHAT, 0.01, 0.2, 0.03)
+    conn.commit()
+    conn.close()
+    setze_modus(False)
+
+    bind = f"127.0.0.1:{_freier_port()}"
+    basis = f"http://{bind}"
+    umgebung = dict(os.environ)
+    umgebung.update({
+        "IT_DB": DB_PFAD, "IT_WEB_BIND": bind, "IT_WEB_PREFIX": PRAEFIX,
+        "IT_AUDIO": AUDIO, "IT_WEB_VAD_KALIBRIERUNG": "0",
+        "PYTHONPATH": str(WURZEL),
+    })
+    log = open("/tmp/it-webchat-kalibrierung-killswitch-aus-server.log", "w")
+    prozess = subprocess.Popen(
+        [sys.executable, "-u", "-m", "interview_theater.web"],
+        cwd=str(WURZEL), env=umgebung, stdout=log, stderr=subprocess.STDOUT,
+    )
+    try:
+        ende = time.time() + 15.0
+        hochgekommen = False
+        while time.time() < ende:
+            if prozess.poll() is not None:
+                raise RuntimeError("Der Kill-Switch-aus-Server ist abgestuerzt.")
+            try:
+                with urllib.request.urlopen(f"{basis}/gesund", timeout=1) as antwort:
+                    if antwort.read().decode().strip() == "ok":
+                        hochgekommen = True
+                        break
+            except (urllib.error.URLError, OSError):
+                time.sleep(0.2)
+        if not hochgekommen:
+            raise RuntimeError("Der Kill-Switch-aus-Server ist nicht hochgekommen.")
+        kontext = browser.new_context(
+            viewport=HANDY, permissions=["microphone"], base_url=basis,
+            is_mobile=True, has_touch=True,
+        )
+        kontext.add_init_script(_MESSUNG)
+        kontext.add_init_script("try { localStorage.clear(); } catch (e) {}")
+        blatt = kontext.new_page()
+        blatt.set_default_timeout(GEDULD)
+        blatt.goto(f"{basis}/g/{token}/chat")
+        try:
+            blatt.evaluate("window.__t.setzeRms(0.6)")
+            _starte(blatt)   # wartet auf #interview[data-laeuft="1"] -- die Aufnahme laeuft
+            blatt.wait_for_timeout(1000)   # genug Zeit, in der ein Panel sichtbar wuerde
+            # Das Panel/der Knopf stehen bei abgeschaltetem Kill-Switch gar
+            # nicht erst im Markup (nicht nur ``hidden``).
+            assert 'id="kalibrierung"' not in blatt.content()
+            assert 'id="kalibrierung-neu"' not in blatt.content()
+            assert blatt.is_hidden("#uhr") is False
+        finally:
+            kontext.close()
+    finally:
+        prozess.terminate()
+        try:
+            prozess.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            prozess.kill()
+        log.close()
+        conn = db.verbinde(DB_PFAD)
+        conn.execute(
+            "UPDATE gruppe SET kalibrierung_boden = NULL, kalibrierung_rede = NULL, "
+            "kalibrierung_schwelle = NULL WHERE chat_id = ?", (CHAT,),
+        )
+        conn.commit()
+        conn.close()
+        setze_modus(False)
+
+
 # -- (a) Kein Klick auf "Start measuring" -> kein Stille-Countdown ---------
 
 

@@ -207,11 +207,14 @@ from interview_theater.knoepfe.basis import (  # noqa: F401
 from interview_theater.knoepfe.fragen import (  # noqa: F401
     _auswahlfragen, _leitfaden_knopf, _schliesse_fragen_ab,
     _speichere_eroeffnung, _starte_schaerfung, _zeige_frage,
-    biete_fragenauswahl, einzeln_aktiv, entscheide, frage_fuer_andere_richtung,
+    biete_fragenauswahl, biete_umformulierung, einzeln_aktiv, entscheide,
+    fragen_umformulierung_alle_annehmen, fragen_umformulierung_alle_verwerfen,
+    frage_fuer_andere_richtung, frage_nach_umformulierung,
     frage_waehlt_schaerfen, frage_warten_auf_richtung,
     frage_weich_lassen, frage_weich_uebernehmen, fragenliste,
     nimm_offene_frage_text, starte_durchgehen, starte_eroeffnung,
-    uebernimm_eigene, uebernimm_schaerfung, versuche_gegenueberstellung,
+    starte_umformulierung, uebernimm_eigene, uebernimm_schaerfung,
+    versuche_gegenueberstellung,
 )
 
 #: Phase 4

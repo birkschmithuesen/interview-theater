@@ -822,7 +822,17 @@ _CHAT_JS = """
     // {message_id, status, transkript} oder null) und der gruppenweite
     // Hinweis-Modus ("herumreichen" oder null).
     kalibrierung: null,
-    kalibrierungModus: fuss.dataset.kalibrierungModus || null
+    kalibrierungModus: fuss.dataset.kalibrierungModus || null,
+    // Karte "keine Kalibrierung in Phase 3/4" (05.10.2026): die
+    // serverseitigen Gruppenwerte -- {boden, rede, schwelle} oder null,
+    // JEDE Phase, JEDES Geraet, keine Tagesgrenze (anders als der
+    // localStorage-Cache). Der Poll uebernimmt sie unten unveraendert aus
+    // dem schon typisierten JSON (daten.kalibrierung_gruppe), nur der
+    // erste Stand beim Laden kommt als dataset-String und braucht
+    // kalGruppenwerteAus().
+    kalibrierungGruppe: kalGruppenwerteAus(
+      fuss.dataset.kalibrierungBoden, fuss.dataset.kalibrierungRede,
+      fuss.dataset.kalibrierungSchwelle)
   };
 
   function nonce() {
@@ -1217,6 +1227,12 @@ _CHAT_JS = """
     zustand.kalibrierung = daten.kalibrierung || null;
     if (daten.kalibrierung_modus !== undefined) {
       zustand.kalibrierungModus = daten.kalibrierung_modus || null;
+    }
+    // Gruppenwerte (Karte "keine Kalibrierung in Phase 3/4"): schon ein
+    // typisiertes Objekt oder null aus dem JSON, keine zweite Parse-Stufe
+    // wie beim dataset-String oben.
+    if (daten.kalibrierung_gruppe !== undefined) {
+      zustand.kalibrierungGruppe = daten.kalibrierung_gruppe || null;
     }
     // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
     // vorn in der Schlange steht.
@@ -1924,6 +1940,97 @@ _CHAT_JS = """
                      KAL_SCHWELLE_ABS_MAX);
   }
 
+  // Wie viel der Gesamtvarianz die beste Otsu-Trennung erklaeren muss, um
+  // als "klar bimodal" zu gelten (Zwischen-Klassen-/Gesamt-Varianz, Otsus
+  // eigenes Trennschaerfe-Mass, 0..1) -- zweiter Nachtrag, Birk 05.10.2026
+  // ~23:55, woertlicher Schwellenwert aus dem Addendum. Konstantes
+  // Rauschen oder ein Monolog ohne Pausen (EIN Pegel, egal wie laut) bleibt
+  // deutlich darunter, eine echte Grundrauschen/Sprache-Trennung (Robo-
+  // Messung) deutlich darueber.
+  var KAL_OTSU_GUETE_MIN = 0.6;
+
+  // Otsu-Schwelle auf log10(RMS) (Addendum Birk, 05.10.2026 22:22 und
+  // ~23:55, Robo-Messung ~/.hermes/profiles/birk/var/padua-nacht/vad/):
+  // die Pegelverteilung einer Gruppendiskussion ist bimodal (Grundrauschen
+  // vs. Sprache), das Taltal zwischen beiden Verteilungen ist eine
+  // robustere Sprachschwelle als die alte Ad-hoc-Ableitung aus dem
+  // rollenden Boden. Log-Skala, weil der Pegel selbst log-verteilt ist
+  // (RMS, keine linearen Dezibel). Bildverarbeitungs-Standardverfahren:
+  // ueber ein Histogramm die Schwelle suchen, die die Zwischen-Klassen-
+  // Varianz maximiert. Liefert ``null`` ohne genug Proben oder ohne genug
+  // Trennschaerfe (KAL_OTSU_GUETE_MIN) -- der Aufrufer bleibt dann bei der
+  // alten Rolling-Formel.
+  function kalOtsuSchwelle(werte) {
+    var positiv = werte.filter(function (r) { return r > 0; });
+    if (positiv.length < 10) { return null; }
+    var sortiert = positiv.slice().sort(function (a, b) { return a - b; });
+
+    var logs = sortiert.map(function (r) { return Math.log(r) / Math.LN10; });
+    var minLog = logs[0], maxLog = logs[logs.length - 1];
+    if (maxLog <= minLog) { return null; }
+    var BINS = 64;
+    var histogramm = new Array(BINS);
+    for (var h = 0; h < BINS; h++) { histogramm[h] = 0; }
+    var breite = (maxLog - minLog) / BINS;
+    for (var j = 0; j < logs.length; j++) {
+      var bin = Math.min(BINS - 1, Math.floor((logs[j] - minLog) / breite));
+      histogramm[bin]++;
+    }
+    var gesamt = logs.length;
+    var summeGesamt = 0;
+    for (var b = 0; b < BINS; b++) { summeGesamt += (minLog + (b + 0.5) * breite) * histogramm[b]; }
+    var mittelGesamt = summeGesamt / gesamt;
+    var varianzGesamt = 0;
+    for (var v = 0; v < logs.length; v++) { varianzGesamt += Math.pow(logs[v] - mittelGesamt, 2); }
+    varianzGesamt /= gesamt;
+    if (varianzGesamt <= 0) { return null; }
+
+    // Zwischen-Klassen-Varianz je moeglicher Schnittstelle (-1 = ungueltig,
+    // eine Seite leer).
+    var zwischenVarianzen = [];
+    var anzahlUnten = 0, summeUnten = 0, beste = -1;
+    for (var t = 0; t < BINS - 1; t++) {
+      anzahlUnten += histogramm[t];
+      summeUnten += (minLog + (t + 0.5) * breite) * histogramm[t];
+      var anzahlOben = gesamt - anzahlUnten;
+      if (anzahlUnten === 0 || anzahlOben === 0) { zwischenVarianzen.push(-1); continue; }
+      var mittelUnten = summeUnten / anzahlUnten;
+      var mittelOben = (summeGesamt - summeUnten) / anzahlOben;
+      var wert = (anzahlUnten * anzahlOben / (gesamt * gesamt)) *
+        Math.pow(mittelUnten - mittelOben, 2);
+      zwischenVarianzen.push(wert);
+      if (wert > beste) { beste = wert; }
+    }
+    if (beste < 0) { return null; }
+    if ((beste / varianzGesamt) < KAL_OTSU_GUETE_MIN) { return null; }
+    // Ein voellig leeres Taltal (komplett getrennte Cluster) macht die
+    // Zwischen-Klassen-Varianz ueber mehrere Schnittstellen hinweg GLEICH
+    // gut -- die MITTE dieses Laufs nehmen, nicht die erste Schnittstelle,
+    // sonst landet die Schwelle am Rand der unteren Klasse statt im Taltal.
+    var kandidaten = [];
+    for (var k = 0; k < zwischenVarianzen.length; k++) {
+      if (zwischenVarianzen[k] >= beste - 1e-9) { kandidaten.push(k); }
+    }
+    var bestesBin = kandidaten[Math.floor(kandidaten.length / 2)];
+    var schwelleLog = minLog + (bestesBin + 1) * breite;
+    return Math.min(Math.max(Math.pow(10, schwelleLog), KAL_SCHWELLE_ABS_MIN), KAL_SCHWELLE_ABS_MAX);
+  }
+
+  // Karte "keine Kalibrierung in Phase 3/4" (05.10.2026): die serverseitigen
+  // Gruppenwerte kommen beim ersten Laden als drei dataset-Strings
+  // (``data-kalibrierung-*``, web_chat._kal_gruppe_attribut) -- leer ohne
+  // Messung oder (AUTO-Pfad) ohne Testsatz. ``boden``/``schwelle`` sind die
+  // beiden Werte, die die Schwellenformel tatsaechlich braucht; ohne beide
+  // gibt es keine gueltigen Gruppenwerte. Spaetere Polls liefern dasselbe
+  // Dreier-Objekt schon typisiert aus dem JSON (kein zweiter Aufruf hier).
+  function kalGruppenwerteAus(bodenStr, redeStr, schwelleStr) {
+    var boden = parseFloat(bodenStr);
+    var schwelle = parseFloat(schwelleStr);
+    if (!isFinite(boden) || !isFinite(schwelle)) { return null; }
+    var rede = parseFloat(redeStr);
+    return { boden: boden, rede: isFinite(rede) ? rede : null, schwelle: schwelle };
+  }
+
   // 2d: der kalibrierte Festwert (sitzung.vadSchwelleFix) ist, wenn gesetzt,
   // die DECKE -- der rollende Boden darf die Schwelle nur noch nach UNTEN
   // ziehen (bis zum absoluten Minimum), nie darueber. Ohne Kalibrierung
@@ -1991,6 +2098,16 @@ _CHAT_JS = """
         var rms = Math.sqrt(quadratsumme / zeitWerte.length);
         sitzung.vadBoden.push(rms);
         if (sitzung.vadBoden.length > BODEN_FENSTER) { sitzung.vadBoden.shift(); }
+        // Hintergrund-adaptive Schwelle (zweiter Nachtrag, Birk 05.10.2026
+        // ~23:55): waehrend sie an ist (Kill-Switch aus, siehe
+        // kalEntscheideOderStarte), sammelt sie ROHE Ticks MIT Zeitstempel
+        // ungekappt -- anders als sitzung.vadBoden, das auf die letzten ~5s
+        // gekappt ist (die laufende Pause-Erkennung braucht nur die
+        // juengste Vergangenheit, die Otsu-Schwelle ein 60s-Fenster).
+        if (sitzung._kalAdaptivAn) {
+          sitzung._kalAdaptivProben.push({ t: Date.now(), r: rms });
+          kalAdaptivAktualisiere(sitzung, Date.now());
+        }
         // Niedriges Perzentil der letzten ~5 s als Rauschboden -- GESETZT,
         // NICHT GEMESSEN (anders als PAUSE_MS/MAX_MS/MIN_SPEECH_MS/
         // RMS_SCHWELLE, die aus CoThinker stammen). BODEN_DECKEL_FAKTOR
@@ -2662,6 +2779,10 @@ _CHAT_JS = """
     }
     kalibrierungCacheSchreiben(kalSpeicher(), kalGruppeAus(location.pathname),
       kalDatum(new Date()), k.bodenMess, k.redeMess, schwelle);
+    // Karte "keine Kalibrierung in Phase 3/4": derselbe Stand geht
+    // GRUPPENWEIT an den Server, damit die naechste Aufnahme -- jedes
+    // Geraet, jede Phase -- das Panel gar nicht erst zeigt.
+    kalMeldeGruppenwerte(k.bodenMess, k.redeMess, schwelle);
     kalibrierungBeenden(sitzung, schwelle, k.bodenMess);
   }
 
@@ -2755,10 +2876,13 @@ _CHAT_JS = """
     }
   }
 
-  // Die EINE Weiche zwischen cache/kill-switch/frischem Ablauf -- aufgerufen
-  // aus beginneAufnahme() UND von #kalibrierung-neu (das sitzung.kalibriert
-  // vorher auf false setzt und dieselbe Weiche erneut anstoesst, ohne den
-  // Cache zu pruefen, siehe kalibrierungNeu()).
+  // Die EINE Weiche (zweiter Nachtrag, Birk 05.10.2026 ~23:55): mit dem
+  // Kill-Switch AN (Dortmund) unveraendert der alte Weg -- Cache von heute,
+  // sonst das button-gated Panel. Mit dem Kill-Switch AUS (Padua: KEINE
+  // Kalibrierungs-UI mehr) startet die Aufnahme immer sofort, serverseitige
+  // Gruppenwerte (falls vorhanden) sind nur der STARTWERT -- die eigentliche
+  // Anpassung uebernimmt danach die Hintergrund-adaptive Schwelle in
+  // pegelAn()/kalAdaptivAktualisiere(), ohne weitere Nutzeraktion.
   function kalEntscheideOderStarte(sitzung) {
     kalZeigeHerumreichenErinnerungWennNeu(sitzung);
     if (sitzung.kalibriert) {
@@ -2766,7 +2890,14 @@ _CHAT_JS = """
       return;
     }
     if (!kalibrierungAktiv()) {
+      if (zustand.kalibrierungGruppe) {
+        sitzung.vadBodenMess = zustand.kalibrierungGruppe.boden;
+        sitzung.vadSchwelleFix = zustand.kalibrierungGruppe.schwelle;
+      }
       sitzung.kalibriert = true;
+      sitzung._kalAdaptivAn = true;
+      sitzung._kalAdaptivStart = Date.now();
+      sitzung._kalAdaptivProben = [];
       kalStarteEchteSchnitte(sitzung);
       return;
     }
@@ -2779,6 +2910,87 @@ _CHAT_JS = """
       return;
     }
     kalibrierungStarte(sitzung);
+  }
+
+  // Meldet ein Messergebnis gruppenweit an den Server (dieselbe
+  // best-effort-Haltung wie kalMeldeZuLeise): weder die manuelle
+  // Bestaetigung (kalAntwortJa, Dortmund) noch die Hintergrund-adaptive
+  // Schwelle (Padua) warten auf die Antwort, und ein Fehlschlag blockiert
+  // die laufende Aufnahme nicht.
+  function kalMeldeGruppenwerte(boden, rede, schwelle) {
+    postJson(`chat/kalibrierung`, { boden: boden, rede: rede, schwelle: schwelle })
+      .catch(function () { /* best effort, wie kalMeldeZuLeise */ });
+  }
+
+  //: Hintergrund-adaptive Schwelle (zweiter Nachtrag, Birk 05.10.2026
+  //: ~23:55, ersetzt die einmalige AUTO-Otsu-Messung des ersten Addendums):
+  //: Start erst nach 20s echtem Zuhoeren (genug Ticks fuer ein Taltal),
+  //: danach hoechstens alle 3s ein neues Otsu-Taltal versuchen, ueber ein
+  //: gleitendes 60s-Fenster -- ein laengeres Fenster als die 20s der alten
+  //: einmaligen Messung, weil es laufend neu gebildet wird und dabei auch
+  //: aeltere, nicht mehr repraesentative Ticks verwerfen soll.
+  var KAL_ADAPTIV_START_MS = 20000;
+  var KAL_ADAPTIV_TAKT_MS = 3000;
+  var KAL_ADAPTIV_FENSTER_MS = 60000;
+  //: Wie sanft ein neu akzeptierter Otsu-Wert die Schwelle bewegt (EMA im
+  //: Log-Raum) und wie weit EIN Schritt davon hoechstens ausschlagen darf
+  //: (Faktor auf den linearen Wert, unabhaengig davon, wie weit der neue
+  //: Otsu-Wert selbst daneben liegt) -- beide Zahlen woertlich aus dem
+  //: Addendum.
+  var KAL_ADAPTIV_EMA_ALPHA = 0.3;
+  var KAL_ADAPTIV_MAX_FAKTOR = 1.25;
+  //: Server-Meldungen der adaptiven Schwelle seltener als ihr eigener
+  //: Rechentakt (Addendum: "kein Server-Roundtrip pro Schritt notwendig") --
+  //: ein Zehntel der Frequenz reicht, der naechste Gruppenstart braucht nur
+  //: den LETZTEN Stand, nicht jeden Zwischenschritt.
+  var KAL_ADAPTIV_MELDE_TAKT_MS = 30000;
+
+  // Reine Funktion (node-testbar): der naechste Schwellenwert aus dem alten
+  // Festwert (``null`` = noch nie gesetzt, erster Otsu-Wert gilt direkt,
+  // nur geklemmt) und einem frisch berechneten Otsu-Wert -- EMA im Log-Raum,
+  // deren SCHRITT selbst auf ``maxFaktor`` gedeckelt ist (nicht nur das
+  // Endergebnis), danach auf den bestehenden Rahmen geklemmt.
+  function kalAdaptivNeuerWert(alterWert, otsuWert, alpha, maxFaktor, minWert, maxWert) {
+    if (alterWert == null) {
+      return Math.min(Math.max(otsuWert, minWert), maxWert);
+    }
+    var logAlt = Math.log(alterWert) / Math.LN10;
+    var logNeu = Math.log(otsuWert) / Math.LN10;
+    var maxSchrittLog = Math.log(maxFaktor) / Math.LN10;
+    var schrittLog = Math.min(Math.max(alpha * (logNeu - logAlt), -maxSchrittLog), maxSchrittLog);
+    return Math.min(Math.max(Math.pow(10, logAlt + schrittLog), minWert), maxWert);
+  }
+
+  // Ein Versuch, die Hintergrund-Schwelle fortzuschreiben -- aus JEDEM Tick
+  // von pegelAn() gerufen (sitzung._kalAdaptivAn muss dort schon gesetzt
+  // sein), tut aber nur alle KAL_ADAPTIV_TAKT_MS wirklich etwas (die beiden
+  // Zeitstempel auf ``sitzung`` sind der einzige Merkzustand). ``jetzt``
+  // kommt vom Aufrufer (kein eigenes ``Date.now()`` hier) -- node-testbar
+  // mit einer simulierten Uhr, ohne echte Timer abzuwarten.
+  function kalAdaptivAktualisiere(sitzung, jetzt) {
+    if (jetzt - sitzung._kalAdaptivStart < KAL_ADAPTIV_START_MS) { return; }
+    if (sitzung._kalAdaptivLetzterLauf != null &&
+        jetzt - sitzung._kalAdaptivLetzterLauf < KAL_ADAPTIV_TAKT_MS) {
+      return;
+    }
+    sitzung._kalAdaptivLetzterLauf = jetzt;
+    var grenze = jetzt - KAL_ADAPTIV_FENSTER_MS;
+    var proben = sitzung._kalAdaptivProben;
+    while (proben.length && proben[0].t < grenze) { proben.shift(); }
+    var otsu = kalOtsuSchwelle(proben.map(function (p) { return p.r; }));
+    if (otsu == null) { return; }   // nicht bimodal genug -- Schwelle bleibt stehen
+    var unten = proben.filter(function (p) { return p.r > 0 && p.r < otsu; });
+    sitzung.vadBodenMess = unten.length
+      ? kalMedian(unten.map(function (p) { return p.r; }))
+      : kalMedian(proben.map(function (p) { return p.r; }));
+    sitzung.vadSchwelleFix = kalAdaptivNeuerWert(
+      sitzung.vadSchwelleFix, otsu, KAL_ADAPTIV_EMA_ALPHA, KAL_ADAPTIV_MAX_FAKTOR,
+      KAL_SCHWELLE_ABS_MIN, KAL_SCHWELLE_ABS_MAX);
+    if (sitzung._kalAdaptivGemeldetAm == null ||
+        jetzt - sitzung._kalAdaptivGemeldetAm >= KAL_ADAPTIV_MELDE_TAKT_MS) {
+      sitzung._kalAdaptivGemeldetAm = jetzt;
+      kalMeldeGruppenwerte(sitzung.vadBodenMess, null, sitzung.vadSchwelleFix);
+    }
   }
 
   // Panel-level Messen-Knopf (#kalibrierung-neu, bewusst andere id als
@@ -3849,6 +4061,60 @@ def _blase_html(n: dict, basis: str = "") -> str:
     return "\n".join(teile)
 
 
+def _kal_gruppe_attribut(daten: dict, feld: str) -> str:
+    """Ein Wert aus ``daten["kalibrierung_gruppe"]`` (``web_daten.
+    web_chatzustand``) als Attributstext -- leer ohne Messung oder ohne den
+    einen Wert (``rede`` fehlt auf dem AUTO-Pfad), das JS liest eine leere
+    Zeichenkette ueber ``parseFloat`` ohnehin als ``NaN`` (dieselbe Lesart
+    wie die ``vad-*``-Attribute)."""
+    gruppenwerte = daten.get("kalibrierung_gruppe")
+    if not gruppenwerte or gruppenwerte.get(feld) is None:
+        return ""
+    return str(gruppenwerte[feld])
+
+
+def _kalibrierung_panel_html(vad: dict) -> str:
+    """Der manuelle Kalibrierungs-Knopf ("Erneut messen") und das Panel
+    dahinter -- zweiter Nachtrag (Birk, 05.10.2026 ~23:55): Padua zeigt gar
+    keine Kalibrierungs-UI mehr (die Hintergrund-adaptive Schwelle laeuft
+    ohne Nutzeraktion), dieser Codepfad bleibt nur noch fuer Dortmund hinter
+    demselben Kill-Switch stehen, der die JS-Seite schon vorher kannte
+    (``kalibrierungAktiv()``/``vad.kalibrierung``) -- kein neuer Schalter.
+    Aufgerufen aus ``chat_koerper`` nur, wenn ``vad["kalibrierung"]`` wahr
+    ist; sonst liefert dieser Aufruf gar nichts."""
+    return (
+        f'  <button type="button" id="kalibrierung-neu" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
+        f'  <div class="kalibrierung-erinnerung" id="kalibrierung-erinnerung" '
+        f'role="status" hidden></div>\n'
+        f'  <div class="kalibrierung" id="kalibrierung" hidden>\n'
+        f'    <p id="kalibrierung-text"></p>\n'
+        f'    <div class="kalibrierung-balken" id="kalibrierung-balken" hidden '
+        f'aria-label="{html.escape(T._TEXT_KALIBRIERUNG_BALKEN_LABEL, quote=True)}">\n'
+        f'      <span></span><i class="kalibrierung-marke"></i>\n'
+        f'    </div>\n'
+        f'    <div class="kalibrierung-knoepfe">\n'
+        f'      <button type="button" id="kalibrierung-start" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_START_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-sprechen" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_SPRECHEN_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-nochmal-hoeren" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-versuch" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_NOCHMAL_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-weiter-trotzdem" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_WEITER_TROTZDEM)}</button>\n'
+        f'      <button type="button" id="kalibrierung-ja" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_JA_KNOPF)}</button>\n'
+        f'      <button type="button" id="kalibrierung-nein" hidden>'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_NEIN_KNOPF)}</button>\n'
+        f'    </div>\n'
+        f'    <button type="button" id="kalibrierung-skip">'
+        f'{html.escape(T._TEXT_KALIBRIERUNG_SKIP_KNOPF)}</button>\n'
+        f'  </div>\n'
+    )
+
+
 def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
                   basis: str = "", mit_nonce: bool = True,
                   mit_gruppenlink: bool = True, vad: dict | None = None) -> str:
@@ -3932,40 +4198,15 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'     data-vad-kalibrierung="{1 if vad.get("kalibrierung", True) else 0}"\n'
         f'     data-kalibrierung-modus="'
         f'{html.escape(daten.get("kalibrierung_modus") or "", quote=True)}"\n'
+        f'     data-kalibrierung-boden="{_kal_gruppe_attribut(daten, "boden")}" '
+        f'data-kalibrierung-rede="{_kal_gruppe_attribut(daten, "rede")}" '
+        f'data-kalibrierung-schwelle="{_kal_gruppe_attribut(daten, "schwelle")}"\n'
         f'     data-interview="{1 if modus else 0}" '
         f'data-basis="{html.escape(basis, quote=True)}">\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
         f'  <div class="pegel" id="pegel" hidden>'
         f'<span></span><i class="pegel-schwelle"></i></div>\n'
-        f'  <button type="button" id="kalibrierung-neu" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
-        f'  <div class="kalibrierung-erinnerung" id="kalibrierung-erinnerung" '
-        f'role="status" hidden></div>\n'
-        f'  <div class="kalibrierung" id="kalibrierung" hidden>\n'
-        f'    <p id="kalibrierung-text"></p>\n'
-        f'    <div class="kalibrierung-balken" id="kalibrierung-balken" hidden '
-        f'aria-label="{html.escape(T._TEXT_KALIBRIERUNG_BALKEN_LABEL, quote=True)}">\n'
-        f'      <span></span><i class="kalibrierung-marke"></i>\n'
-        f'    </div>\n'
-        f'    <div class="kalibrierung-knoepfe">\n'
-        f'      <button type="button" id="kalibrierung-start" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_START_KNOPF)}</button>\n'
-        f'      <button type="button" id="kalibrierung-sprechen" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_SPRECHEN_KNOPF)}</button>\n'
-        f'      <button type="button" id="kalibrierung-nochmal-hoeren" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_MESSEN_KNOPF)}</button>\n'
-        f'      <button type="button" id="kalibrierung-versuch" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_NOCHMAL_KNOPF)}</button>\n'
-        f'      <button type="button" id="kalibrierung-weiter-trotzdem" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_WEITER_TROTZDEM)}</button>\n'
-        f'      <button type="button" id="kalibrierung-ja" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_JA_KNOPF)}</button>\n'
-        f'      <button type="button" id="kalibrierung-nein" hidden>'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_NEIN_KNOPF)}</button>\n'
-        f'    </div>\n'
-        f'    <button type="button" id="kalibrierung-skip">'
-        f'{html.escape(T._TEXT_KALIBRIERUNG_SKIP_KNOPF)}</button>\n'
-        f'  </div>\n'
+        f"{_kalibrierung_panel_html(vad) if vad.get('kalibrierung', True) else ''}"
         f'  <div class="warteschlange" id="warteschlange"></div>\n'
         f'  <div class="fehler" id="fehler" role="alert" hidden></div>\n'
         f'  <p class="mitlauf-hinweis" id="mitlauf-hinweis" role="status" hidden></p>\n'
@@ -4680,15 +4921,30 @@ def _auswahl_fertig(handler, db_pfad: str, token: str, chat_id: int,
     web_vereint.auswahl_fertig_post(handler, db_pfad, token, chat_id, schluessel)
 
 
+def _zahl_oder_none(wert):
+    """``wert`` als ``float``, wenn es eine echte Zahl ist (kein ``bool`` --
+    das ist in Python auch ein ``int``) -- sonst ``None``, defensiv wie
+    ``_interview``s ``isinstance(an, bool)``-Pruefung."""
+    if isinstance(wert, bool) or not isinstance(wert, (int, float)):
+        return None
+    return float(wert)
+
+
 def _kalibrierung(handler, db_pfad: str, token: str, chat_id: int,
                   schluessel: bytes) -> None:
-    """Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): die
-    zweite "zu leise"-Messung in Folge einer Sitzung merkt gruppenweit, dass
-    ein Handy in der Mitte fuer diesen Raum nicht reicht
-    (``gruppe.kalibrierung_modus = 'herumreichen'``) -- unabhaengig davon, ob
-    die Gruppe danach den Versuch- oder den Weiter-trotzdem-Knopf drueckt, und
-    unabhaengig von jedem Audio-Upload (der an dieser Stelle noch gar nicht
-    stattgefunden haben muss).
+    """Zwei Ergebnisse teilen sich diesen einen Weg (Karte "keine
+    Kalibrierung in Phase 3/4", 05.10.2026, UND die aeltere Task 2, Kanban-
+    Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
+
+    1. Ein erfolgreicher Durchlauf (manuell im Panel ODER automatisch im
+       Hintergrund) schickt ``boden``/``schwelle`` (``rede`` nur, wenn ein
+       Testsatz gemessen wurde -- der AUTO-Pfad hat keinen) -- gespeichert
+       GRUPPENWEIT (``repo.setze_kalibrierung_werte``), damit die naechste
+       Aufnahme jeder Art, jedes Geraets, jeder Phase das Panel ueberspringt.
+    2. Ein leerer Rumpf (die zweite "zu leise"-Messung in Folge: Task 2 oben)
+       merkt stattdessen ``gruppe.kalibrierung_modus = 'herumreichen'`` --
+       unabhaengig davon, ob die Gruppe danach den Versuch- oder den
+       Weiter-trotzdem-Knopf drueckt, und unabhaengig von jedem Audio-Upload.
 
     Reiner Metadatum-Schreibweg wie ``web_schreiben.py``, kein Knopf im
     ``knoepfe``-Sinn und kein Modellaufruf (Zusage 2 gilt analog): die
@@ -4697,8 +4953,15 @@ def _kalibrierung(handler, db_pfad: str, token: str, chat_id: int,
     daten = _koerper_oder_400(handler, token, schluessel)
     if daten is None:
         return
+    boden = _zahl_oder_none(daten.get("boden"))
+    schwelle = _zahl_oder_none(daten.get("schwelle"))
     with schreibend(db_pfad) as conn:
-        repo.setze_kalibrierung_modus_herumreichen(conn, chat_id)
+        if boden is not None and schwelle is not None:
+            repo.setze_kalibrierung_werte(
+                conn, chat_id, boden, _zahl_oder_none(daten.get("rede")), schwelle,
+            )
+        else:
+            repo.setze_kalibrierung_modus_herumreichen(conn, chat_id)
     handler._antworte(
         200, json.dumps({"ok": True}), "application/json; charset=utf-8",
     )

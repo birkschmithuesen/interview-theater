@@ -89,7 +89,17 @@ CREATE TABLE IF NOT EXISTS gruppe (
   -- herumgeben"), gruppenweit und nicht je Geraet (anders als die drei
   -- localStorage-Schluessel des Geraets). Keine Rueck-Loeschung: die Karte
   -- verlangt keine, und keine soll erfunden werden. Additiv nachgeruestet.
-  kalibrierung_modus              TEXT
+  kalibrierung_modus              TEXT,
+  -- Serverseitige Gruppenwerte der Pegel-Kalibrierung (Karte "keine
+  -- Kalibrierung in Phase 3/4", 05.10.2026): einmal je Gruppe gemessen (ob
+  -- manuell im Panel oder automatisch im Hintergrund), gelten fuer JEDES
+  -- Geraet und JEDE Phase -- anders als der datumsgebundene localStorage-
+  -- Cache eines einzelnen Geraets. NULL = noch nie gemessen. Additiv
+  -- nachgeruestet ueber _migriere_fehlende_spalten.
+  kalibrierung_boden               REAL,
+  kalibrierung_rede                REAL,
+  kalibrierung_schwelle            REAL,
+  kalibrierung_gemessen_am         TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (
@@ -547,6 +557,17 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- die Auswertung (spaetere Aufgabe) sie nicht aus den Vorfilterlisten
   -- neu herleiten muss.
   fragen_herkunft_final       TEXT,
+  -- Umformulier-Runde (Testkarte t_266e7485, 06.10.2026, nur Padua): der
+  -- zuletzt vorgeschlagene Umformulierungsblock, zeilenweise an ``fragen``
+  -- ausgerichtet -- gesetzt, solange die Gruppe noch ueber ihn entscheidet
+  -- (``fragen_warte_auf = 'umformulieren_auswahl'``), danach wieder NULL.
+  fragen_umformuliert_vorschlag TEXT,
+  -- Welche Position aus ``fragen`` eine Umformulier-Runde tatsaechlich
+  -- geaendert hat ("1"/""), an ``fragen`` ausgerichtet wie
+  -- ``fragen_herkunft_final`` -- nur fuer Positionen, die ``fragen_herkunft_final``
+  -- als "ki" fuehren (eine eigene Frage wird nie als bearbeitet markiert,
+  -- derselbe Unterschied wie bei ``fragen_bearbeitet`` fuer die Vorauswahl).
+  fragen_bearbeitet_final       TEXT,
   -- Je Begriff aus ``begriffe`` die Zeile des Begriffsboards (Karte
   -- t_4517d4ad, 04.10.2026): JSON ``[{begriff, begruendung, zitat,
   -- doppelbedeutung}]``. Geschrieben allein von

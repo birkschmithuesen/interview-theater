@@ -1879,6 +1879,10 @@ _ARBEITSSTAND_FELDER = (
     # ``fragen_herkunft``, gefiltert auf die uebernommenen Indizes, in der
     # Reihenfolge des endgueltigen Felds ``fragen``.
     "fragen_herkunft_final",
+    # Die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026): der zuletzt
+    # vorgeschlagene Umformulierungsblock, an ``fragen`` ausgerichtet, und
+    # welche Positionen davon tatsaechlich eine KI-Frage geaendert haben.
+    "fragen_umformuliert_vorschlag", "fragen_bearbeitet_final",
     # Padua Phasen TEIL 2 (03.10.2026): Phase 6.1 (Gesamttext) und 7.2
     # (Sprechweisen) abgenommen -- derselbe eine Schreibweg wie alles andere
     # im Arbeitsstand.
@@ -3730,6 +3734,27 @@ def setze_kalibrierung_modus_herumreichen(conn: sqlite3.Connection, chat_id: int
     conn.execute(
         "UPDATE gruppe SET kalibrierung_modus = ? WHERE chat_id = ?",
         (KALIBRIERUNG_MODUS_HERUMREICHEN, chat_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_kalibrierung_werte(conn: sqlite3.Connection, chat_id: int,
+                             boden: float, rede: float | None,
+                             schwelle: float) -> None:
+    """Merkt die zuletzt gemessenen Pegel-Kalibrierungswerte GRUPPENWEIT
+    (Karte 'keine Kalibrierung in Phase 3/4', 05.10.2026) -- egal ob die
+    Messung manuell im Panel (mit Testsatz, ``rede`` gesetzt) oder
+    automatisch im Hintergrund (ohne Testsatz, ``rede`` ``None``) entstand.
+    Anders als die drei je Geraet und Tag geltenden ``localStorage``-
+    Schluessel gilt dieser Stand fuer jedes Geraet und jede Phase, ohne
+    Tagesgrenze -- die naechste Aufnahme jeder Art liest ihn ueber
+    ``web_daten.web_chatzustand``. Keine Historie: eine neue Messung
+    ueberschreibt die alte, wie ``setze_kalibrierung_modus_herumreichen``."""
+    conn.execute(
+        "UPDATE gruppe SET kalibrierung_boden = ?, kalibrierung_rede = ?, "
+        "kalibrierung_schwelle = ?, kalibrierung_gemessen_am = ? WHERE chat_id = ?",
+        (boden, rede, schwelle, _jetzt(), chat_id),
     )
     conn.commit()
 

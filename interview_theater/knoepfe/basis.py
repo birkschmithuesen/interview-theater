@@ -636,6 +636,17 @@ def sende_mit_speicherleiste(
             conn, tg, chat_id, bloecke["eigene_fragen"], rest,
         ), True
 
+    # Die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026): EIN
+    # gebuendelter Vorschlag fuer ALLE behaltenen Fragen -- kein Vorspann-
+    # Text, keine Grundleiste, ``biete_umformulierung`` zeigt die Vorschau
+    # alt->neu selbst und wartet auf die Entscheidung der Gruppe.
+    if "fragen_umformulierung" in bloecke:
+        from interview_theater.knoepfe.fragen import biete_umformulierung
+
+        return biete_umformulierung(
+            conn, tg, chat_id, bloecke["fragen_umformulierung"],
+        ), True
+
     # Oben: die Auswahlknoepfe. Kommen mehrere Auswahl-Bloecke in einer
     # Nachricht (das Modell soll das nicht, tut es aber gelegentlich),
     # gewinnt der erste aus _AUSWAHLMARKER -- eine feste Ordnung statt einer

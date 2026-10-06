@@ -2024,7 +2024,7 @@ def test_unfertige_station_wird_einmal_verlaengert_dann_kein_phasensprung(
             persona_name="priya", stationen=(station, s2), lauf_verzeichnis=tmp_path / "l")
         browser.close()
     assert len(ergebnis["stationen_ergebnisse"]) == 1           # Lauf endet
-    assert ergebnis["stationen_ergebnisse"][0]["schritte"] == 3  # 2 + 50 %
+    assert ergebnis["stationen_ergebnisse"][0]["schritte"] == 6  # (2 + 50 %) Schritte, Warten halb
     assert browser_lauf.HINWEIS_STATION_FERTIG in hinweise
     assert ergebnis["abbruch"] == "station_unvollstaendig:t-unfertig"
     assert any(b["schluessel"] == "station_unvollstaendig:t-unfertig"
@@ -2073,3 +2073,19 @@ def test_stationsgedaechtnis_im_persona_prompt():
     t = browser_persona.baue_nutzertext([], "Ziel", [], "step 1: tab chat")
     assert "already did" in t and "step 1: tab chat" in t
     assert "already did" not in browser_persona.baue_nutzertext([], "Ziel", [])
+
+
+def test_wartschritte_zaehlen_nur_halb_gegen_das_budget(stack, tmp_path):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    station = browser_stationen.Station("t-halb", 1, "Go.", budget=2)
+    persona = _ScriptedClient([{"type": "wait", "duration_ms": 10}] * 8)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l")
+        browser.close()
+    assert ergebnis["stationen_ergebnisse"][0]["schritte"] == 4

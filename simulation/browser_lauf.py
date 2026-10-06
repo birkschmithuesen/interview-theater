@@ -112,9 +112,9 @@ def _aktion_ausfuehren(page, aktion: dict) -> dict:
 #: Folge) in einer Station scheitern, bevor die Station endet.
 SCHLEIFE_MAX_FEHLER = 3
 #: Hoechstens so lange darf eine Station dauern (Sekunden).
-STATION_MAX_S = 35 * 60.0
+STATION_MAX_S = 40 * 60.0
 #: Hoechstens so lange darf ein ganzer Lauf dauern (Minuten).
-LAUF_MAX_MINUTEN = 150.0
+LAUF_MAX_MINUTEN = 210.0
 
 
 def _aktionsschluessel(aktion: dict) -> str:
@@ -759,6 +759,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
     pingpong = PingpongWaechter()
     gedaechtnis = StationsGedaechtnis()
     budget = station.budget
+    verbraucht = 0.0  # Warteschritte (reines Warten auf Hintergrundarbeit) zaehlen halb
     erweitert = False
 
     def _erweitern() -> bool:
@@ -779,7 +780,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         return True
 
     while True:
-        if schritte >= budget and not _erweitern():
+        if verbraucht >= budget and not _erweitern():
             break
         if time.monotonic() >= ende_zeit:
             schleifenbefunde.append({
@@ -788,6 +789,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
                         f"Zeitdeckel beendet (max {max_station_s:.0f} s / Lauffrist)."})
             break
         schritte += 1
+        verbraucht += 1.0
         _schliesse_offenes_phasensheet(page)
         vor = mitschnitt.screenshot_pfad(station.phase, f"{station.schluessel}-vor")
         vor.write_bytes(browser_elemente.bildschirmfoto(page))
@@ -797,6 +799,8 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             station.ziel, _verlaufszeilen(page), hinweis=hinweis,
             gedaechtnis=gedaechtnis.text())
         hinweis = None
+        if aktion.get("type") == "wait":
+            verbraucht -= 0.5
         offene.extend(browser_persona.offene_fragen(aktion))
         if aktion.get("type") in ("done_phase", "done_station"):
             # Die Diskussion zuerst sauber beenden, falls sie noch laeuft --

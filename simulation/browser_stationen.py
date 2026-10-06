@@ -376,7 +376,7 @@ STATIONEN_P34: tuple[Station, ...] = (
 #: der Vorgabe ``ANTWORT_GEDULD_S``, 90s) -- Begruendung am Feld
 #: ``Station.geduld_s`` oben: ein Szenenlauf mit Reasoning oder ein
 #: Prueflauf mit zwei Runden braucht laenger als 90s und zeigt dabei unter
-#: Umstaenden kein ``#tippt``. Gesamtbudget 73 Schritte (Risiko-Vorgabe:
+#: Umstaenden kein ``#tippt``. Gesamtbudget 105 Schritte (Risiko-Vorgabe:
 #: hoechstens 80).
 STATIONEN_P57: tuple[Station, ...] = (
     Station("p5-eintritt", 5,
@@ -435,13 +435,13 @@ STATIONEN_P57: tuple[Station, ...] = (
     Station("p6-gesamt", 6,
             "Ask once for the whole story to be shorter, then confirm it.",
             fertig=lambda s: bool(_feld(s, "gesamttext_fixiert_am")),
-            budget=6, geduld_s=600, pruefung=("kuerzung", "prueflauf"),
+            budget=8, geduld_s=600, pruefung=("kuerzung", "prueflauf"),
             warte_bis=lambda s: bool(_feld(s, "gesamttext_fixiert_am"))),
     Station("p6-szenen", 6,
             "Give free feedback on one scene in the chat, then confirm every "
             "scene.",
             fertig=lambda s: (_feld(s, "phase") or 6) >= 7,
-            budget=14, geduld_s=900, endet_bei_phasenwechsel=True,
+            budget=18, geduld_s=900, endet_bei_phasenwechsel=True,
             pruefung=("prueflauf", "chat_volltext", "sprung"),
             # Kein eigener "geschrieben, aber noch nicht abgenommen"-Zaehler
             # wie bei p5-szenen/p7-szenen (``prosa`` wird in Phase 5 UND 6
@@ -454,12 +454,12 @@ STATIONEN_P57: tuple[Station, ...] = (
             "In a single chat message, state a form for every scene -- at "
             "least two different forms across the scenes.",
             fertig=lambda s: s.get("szenen_mit_form", 0) >= s.get("szenen_anzahl", 0) > 0,
-            budget=4, geduld_s=600, pruefung=("formen",),
+            budget=6, geduld_s=600, pruefung=("formen",),
             warte_bis=lambda s: s.get("szenen_mit_form", 0) >= s.get("szenen_anzahl", 0) > 0),
     Station("p7-sprechweisen", 7,
             "Read the suggested way each character speaks, then confirm it.",
             fertig=lambda s: bool(_feld(s, "sprechweisen_fixiert_am")),
-            budget=4, geduld_s=600,
+            budget=6, geduld_s=600,
             warte_bis=lambda s: bool(_feld(s, "sprechweisen_fixiert_am"))),
     Station("p7-szenen", 7,
             "Read every scene's stage text, one by one, and confirm each "
@@ -475,7 +475,7 @@ STATIONEN_P57: tuple[Station, ...] = (
             "Wait for the final check of the whole script, then read the "
             "Script tab.",
             fertig=lambda s: s.get("stueckpruefung_zeilen", 0) > 0,
-            budget=4, geduld_s=600, leitbild_tab="textbuch",
+            budget=6, geduld_s=600, leitbild_tab="textbuch",
             pruefung=("stueckpruefung", "textbuch", "modellwahl57", "sprache57"),
             warte_bis=lambda s: s.get("stueckpruefung_zeilen", 0) > 0),
 )

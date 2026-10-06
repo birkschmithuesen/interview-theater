@@ -1921,8 +1921,16 @@ def auswahl_post(handler, db_pfad: str, token: str, chat_id: int,
     Webserver hier SELBST: es ist ein Feldwert wie ``web_schreiben``, kein
     Knopf ``k:<id>`` und kein Modellaufruf. Nonce zuerst (403), dann Wert
     (400); ``False`` aus dem Schreiber (Nummer ausserhalb der Liste) ist
-    ebenfalls 400."""
-    from interview_theater import repo, web_chat
+    ebenfalls 400.
+
+    Stift ✎ (``wert == "schaerfen"``, Karte t_269062e2, 06.10.2026): unter
+    Padua (``workshop.diskussion_aktiv()``, derselbe Schalter wie die
+    Klickliste selbst) legt der Webserver zusaetzlich den versteckten
+    Befehl ``/schaerfen N`` an -- wie ``auswahl_fertig_post`` den Befehl
+    ``/sortiert``. Nicht beim Rueckgaengig-Tipp (``wert == ""``): nur das
+    SETZEN von "schaerfen" ist eine Uebergabe in den Chat, das Loeschen
+    sendet nichts."""
+    from interview_theater import repo, web_chat, workshop
 
     daten = web_chat._koerper_oder_400(handler, token, schluessel)
     if daten is None:
@@ -1936,6 +1944,11 @@ def auswahl_post(handler, db_pfad: str, token: str, chat_id: int,
         return
     with web_chat.schreibend(db_pfad) as conn:
         geschrieben = getattr(repo, schreiber)(conn, chat_id, nummer, wert)
+        if geschrieben and wert == "schaerfen" and workshop.diskussion_aktiv():
+            repo.lege_web_post_an(
+                conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
+                text=f"/schaerfen {nummer}",
+            )
     if not geschrieben:
         handler._fehler(400, T._TEXT_AUSWAHL_UNGUELTIG)
         return

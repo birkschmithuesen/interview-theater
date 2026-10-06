@@ -764,6 +764,111 @@ def test_warte_bis_ignoriert_das_praedikat_laeuft_bis_geduld_erschoepft(monkeypa
     assert seite.aufrufe >= 1
 
 
+# --- Review-Fix (06.10.2026, P57-Harness): Nachher-Lesung wartet auf ------
+# Hintergrundarbeit, auch wenn das stationseigene Praedikat noch nicht
+# feuert (z. B. Zwischenschritt einer Bestaetigungsschleife).
+
+
+def test_hat_sich_veraendert_erkennt_arbeitsstand_und_zahlen():
+    """Gegenprobe zur Mutation 'immer False liefern': ein unveraenderter
+    Datenstand darf nicht als Veraenderung zaehlen, ein geaendertes
+    Arbeitsstand-Feld UND eine geaenderte Zahl schon."""
+    vorher = {"arbeitsstand": {"phase": 5}, "szenen_mit_prosa": 0}
+    gleich = {"arbeitsstand": {"phase": 5}, "szenen_mit_prosa": 0}
+    neue_zahl = {"arbeitsstand": {"phase": 5}, "szenen_mit_prosa": 1}
+    neues_feld = {"arbeitsstand": {"phase": 5, "gesamttext_fixiert_am": "x"},
+                  "szenen_mit_prosa": 0}
+    assert not browser_lauf._hat_sich_veraendert(vorher, gleich)
+    assert browser_lauf._hat_sich_veraendert(vorher, neue_zahl)
+    assert browser_lauf._hat_sich_veraendert(vorher, neues_feld)
+
+
+def test_warte_bis_kombiniert_mit_veraenderung_haelt_frueher_an(monkeypatch):
+    """Nachbau des Aufrufs in ``_fuehre_station_aus`` (Zeile ~646): das
+    stationseigene Praedikat (hier: ``fertig`` einer Bestaetigungsschleife,
+    wird erst beim dritten Lesen wahr) wird mit ``_hat_sich_veraendert``
+    ODER-verknuepft -- ein Zwischenschritt, der NUR etwas anderes im
+    Datenstand veraendert (hier: Lesung 2), reicht deshalb schon."""
+    seite = _WarteBisSeiteAttrappe()
+    vorher = {"szenen_entwurf_ok": 0, "szenen_anzahl": 3}
+    staende = iter([
+        {"szenen_entwurf_ok": 0, "szenen_anzahl": 3},  # unveraendert
+        {"szenen_entwurf_ok": 0, "szenen_anzahl": 3, "szenen_mit_prosa": 1},  # Fortschritt, aber nicht "fertig"
+        {"szenen_entwurf_ok": 3, "szenen_anzahl": 3},  # "fertig" waere ab hier auch wahr
+    ])
+    station_praedikat = lambda s: s.get("szenen_entwurf_ok", 0) >= s.get("szenen_anzahl", 0) > 0
+    stand = browser_lauf._warte_bis(
+        seite,
+        lambda s: station_praedikat(s) or browser_lauf._hat_sich_veraendert(vorher, s),
+        lambda: next(staende),
+        geduld_s=600)
+    # Haelt schon bei der ZWEITEN Lesung an (Fortschritt erkannt), nicht
+    # erst bei der dritten (wenn das stationseigene Praedikat wahr wird).
+    assert stand == {"szenen_entwurf_ok": 0, "szenen_anzahl": 3, "szenen_mit_prosa": 1}
+    assert seite.aufrufe == 1
+
+
+def test_warte_bis_kombiniert_ohne_veraenderung_wartet_bis_geduld(monkeypatch):
+    """Gegenprobe: bleibt der Datenstand UNVERAENDERT und wird das
+    stationseigene Praedikat NIE wahr, laeuft die Wartung trotzdem nur bis
+    ``geduld_s`` -- kein Endlos-Warten, selbst mit der Ergaenzung."""
+    seite = _WarteBisSeiteAttrappe()
+    vorher = {"n": 0}
+    uhr = {"t": 0.0}
+
+    def monotonic():
+        uhr["t"] += 10.0
+        return uhr["t"]
+
+    monkeypatch.setattr(browser_lauf.time, "monotonic", monotonic)
+    stand = browser_lauf._warte_bis(
+        seite,
+        lambda s: False or browser_lauf._hat_sich_veraendert(vorher, s),
+        lambda: {"n": 0},
+        geduld_s=25.0)
+    assert stand == {"n": 0}
+    assert seite.aufrufe >= 1
+
+
+def test_fuehre_station_aus_warte_bis_wartet_echt_auf_hintergrundarbeit(tmp_path):
+    """Integrationstest (echtes Playwright, echte DB): ein Hintergrund-Thread
+    schreibt die Prosa der Szene erst NACH der Aktion, waehrend des ersten
+    Polls -- ohne den Fix (Nachher-Lesung sofort nach ``_ANLAUF_S``) wuerde
+    der mitgeschnittene ``db_diff`` diese Szene nicht als veraendert zeigen,
+    weil ``_fuehre_station_aus`` sie zu frueh gelesen haette."""
+    from simulation import browser_mitschnitt
+
+    pfad = _leere_db(tmp_path)
+    conn = db.verbinde(pfad)
+    szene_id = repo.lege_szene_an(conn, CHAT, 1, "Szene 1", "kurz", None)
+    conn.commit(); conn.close()
+
+    def _schreibe_prosa_verzoegert():
+        time.sleep(1.0)
+        c = db.verbinde(pfad)
+        repo.aktualisiere_szene(c, szene_id, "Szene 1", "kurz", None, prosa="Es war einmal.")
+        c.commit(); c.close()
+
+    threading.Thread(target=_schreibe_prosa_verzoegert, daemon=True).start()
+
+    station = browser_stationen.Station(
+        "t-warte", 1, "x", budget=1, geduld_s=10,
+        warte_bis=lambda s: s.get("szenen_mit_prosa", 0) > 0)
+    persona = _ScriptedClient([{"type": "click", "element_id": 0, "begruendung": "x"}])
+    mitschnitt = browser_mitschnitt.Mitschnitt(tmp_path / "l", "h", "handy")
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_TOGGLE)
+        browser_lauf._fuehre_station_aus(
+            seite, persona, mitschnitt, station, basis_url="http://127.0.0.1:1",
+            token="t", db_pfad=pfad, chat_id=CHAT, persona_name="x")
+        browser.close()
+
+    zeilen = mitschnitt.jsonl_pfad.read_text(encoding="utf-8").strip().splitlines()
+    letzte = json.loads(zeilen[-1])
+    assert letzte["db_diff"]["zahlen_geaendert"]["szenen_mit_prosa"]["nachher"] == 1
+
+
 # --- Task 6: Pruef-Haken, Symptomregel, zweite Gruppe, Wissensfrage --------
 
 from simulation import browser_invarianten as inv  # noqa: E402

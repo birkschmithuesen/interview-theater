@@ -385,53 +385,98 @@ STATIONEN_P57: tuple[Station, ...] = (
             budget=3, leitbild_ende="eintritt",
             warte_bis=lambda s: s.get("schaerfung_zeilen", 0) >= 1
             or bool(_feld(s, "geschichte_uebersicht"))),
+    # Review-Fix (06.10.2026, P57-Harness): die neun Stationen ab hier
+    # bekommen jetzt ihr eigenes ``warte_bis`` -- vorher hatte nur
+    # ``p5-eintritt`` eines, obwohl KEIN Hintergrund-Modul dieser Phasen
+    # (``entwurf``/``ueberarbeitung``/``prueflauf``/``nachpass``/
+    # ``kurzgeschichte``/``sprechweise``/``schaerfung``/``stueckpruefung``)
+    # ``tg.tippt()`` ruft (dasselbe Code-Audit wie am Feld ``geduld_s``
+    # oben). Ohne ``warte_bis`` liest der Harness den Nachher-Stand sofort
+    # nach ``_ANLAUF_S`` (3s) -- veraltet, solange der Thread noch laeuft.
+    #
+    # Wo moeglich zaehlt das Praedikat FORTSCHRITT statt nur das Stations-
+    # ENDE (``szenen_mit_prosa``/``szenen_mit_volltext`` je gegen den
+    # zugehoerigen Abnahme-Zaehler): bei einer mehrschrittigen
+    # Bestaetigungsschleife (``p5-szenen``, ``p7-szenen``) wird so JEDER
+    # Schritt einzeln erkannt, nicht nur der letzte -- ``browser_lauf.
+    # _fuehre_station_aus`` ergaenzt zusaetzlich generisch
+    # ``_hat_sich_veraendert`` (irgendeine Abweichung vom Stand vor der
+    # Aktion zaehlt auch), fuer die Faelle, in denen kein solcher
+    # Fortschrittszaehler existiert (``p6-szenen``: ``prosa`` wird in Phase 5
+    # UND 6 geschrieben, ein "fertig, aber noch nicht abgenommen"-Zaehler wie
+    # bei den anderen beiden gibt es dafuer nicht).
     Station("p5-schaerfung", 5,
             "Look at the interview passages the app lays next to your scenes "
             "and characters; keep what fits.",
             fertig=lambda s: s.get("schaerfung_uebernommen", 0) >= 1
             or bool(_feld(s, "geschichte_uebersicht_fixiert_am")),
-            budget=8, geduld_s=600, pruefung=("p5_schaerfung",)),
+            budget=8, geduld_s=600, pruefung=("p5_schaerfung",),
+            warte_bis=lambda s: s.get("schaerfung_uebernommen", 0) >= 1
+            or bool(_feld(s, "geschichte_uebersicht_fixiert_am"))),
     Station("p5-uebersicht", 5,
             "Read the story overview the app proposes, ask for one change, "
             "then confirm it.",
             fertig=lambda s: bool(_feld(s, "geschichte_uebersicht_fixiert_am")),
-            budget=6, geduld_s=600, pruefung=("p5_uebersicht",)),
+            budget=6, geduld_s=600, pruefung=("p5_uebersicht",),
+            warte_bis=lambda s: bool(_feld(s, "geschichte_uebersicht_fixiert_am"))),
     Station("p5-szenen", 5,
             "Read every scene draft in the Script tab, one by one, and "
             "confirm each one.",
             fertig=lambda s: (_feld(s, "phase") or 5) >= 6,
             budget=14, geduld_s=600, endet_bei_phasenwechsel=True,
-            pruefung=("prueflauf", "chat_volltext", "sprung")),
+            pruefung=("prueflauf", "chat_volltext", "sprung"),
+            # Fortschritt: eine frisch entworfene, noch nicht abgenommene
+            # Szene (``szenen_mit_prosa`` > ``szenen_entwurf_ok``) ist bereit
+            # zum Lesen -- ODER alle Szenen sind durch (Phasensprung).
+            warte_bis=lambda s: s.get("szenen_mit_prosa", 0) > s.get("szenen_entwurf_ok", 0)
+            or s.get("szenen_entwurf_ok", 0) >= s.get("szenen_anzahl", 0) > 0
+            or (_feld(s, "phase") or 5) >= 6),
     Station("p6-gesamt", 6,
             "Ask once for the whole story to be shorter, then confirm it.",
             fertig=lambda s: bool(_feld(s, "gesamttext_fixiert_am")),
-            budget=6, geduld_s=600, pruefung=("kuerzung", "prueflauf")),
+            budget=6, geduld_s=600, pruefung=("kuerzung", "prueflauf"),
+            warte_bis=lambda s: bool(_feld(s, "gesamttext_fixiert_am"))),
     Station("p6-szenen", 6,
             "Give free feedback on one scene in the chat, then confirm every "
             "scene.",
             fertig=lambda s: (_feld(s, "phase") or 6) >= 7,
             budget=10, geduld_s=600, endet_bei_phasenwechsel=True,
-            pruefung=("prueflauf", "chat_volltext", "sprung")),
+            pruefung=("prueflauf", "chat_volltext", "sprung"),
+            # Kein eigener "geschrieben, aber noch nicht abgenommen"-Zaehler
+            # wie bei p5-szenen/p7-szenen (``prosa`` wird in Phase 5 UND 6
+            # geschrieben, ``szenen_mit_prosa`` ist hier schon seit Phase 5
+            # voll) -- deshalb nur das Stationsziel; die Zwischenschritte
+            # faengt ``browser_lauf._hat_sich_veraendert`` generisch auf.
+            warte_bis=lambda s: s.get("szenen_ueberarbeitung_ok", 0) >= s.get("szenen_anzahl", 0) > 0
+            or (_feld(s, "phase") or 6) >= 7),
     Station("p7-formen", 7,
             "In a single chat message, state a form for every scene -- at "
             "least two different forms across the scenes.",
             fertig=lambda s: s.get("szenen_mit_form", 0) >= s.get("szenen_anzahl", 0) > 0,
-            budget=4, geduld_s=600, pruefung=("formen",)),
+            budget=4, geduld_s=600, pruefung=("formen",),
+            warte_bis=lambda s: s.get("szenen_mit_form", 0) >= s.get("szenen_anzahl", 0) > 0),
     Station("p7-sprechweisen", 7,
             "Read the suggested way each character speaks, then confirm it.",
             fertig=lambda s: bool(_feld(s, "sprechweisen_fixiert_am")),
-            budget=4, geduld_s=600),
+            budget=4, geduld_s=600,
+            warte_bis=lambda s: bool(_feld(s, "sprechweisen_fixiert_am"))),
     Station("p7-szenen", 7,
             "Read every scene's stage text, one by one, and confirm each "
             "one.",
             fertig=lambda s: s.get("szenen_fertig", 0) >= s.get("szenen_anzahl", 0) > 0,
-            budget=14, geduld_s=600),
+            budget=14, geduld_s=600,
+            # Fortschritt: eine frisch uebertragene, noch nicht abgenommene
+            # Szene (``szenen_mit_volltext`` > ``szenen_fertig``) ist bereit
+            # zum Lesen -- ODER alle Szenen sind abgenommen.
+            warte_bis=lambda s: s.get("szenen_mit_volltext", 0) > s.get("szenen_fertig", 0)
+            or s.get("szenen_fertig", 0) >= s.get("szenen_anzahl", 0) > 0),
     Station("p7-schluss", 7,
             "Wait for the final check of the whole script, then read the "
             "Script tab.",
             fertig=lambda s: s.get("stueckpruefung_zeilen", 0) > 0,
             budget=4, geduld_s=600, leitbild_tab="textbuch",
-            pruefung=("stueckpruefung", "textbuch", "modellwahl57", "sprache57")),
+            pruefung=("stueckpruefung", "textbuch", "modellwahl57", "sprache57"),
+            warte_bis=lambda s: s.get("stueckpruefung_zeilen", 0) > 0),
 )
 
 STATIONEN: dict[str, tuple[Station, ...]] = {

@@ -467,6 +467,27 @@ def _warte_bis(page, pruefe, lese_stand, geduld_s: float) -> dict:
     return stand
 
 
+def _hat_sich_veraendert(vorher: dict, nachher: dict) -> bool:
+    """Ob sich der Datenstand gegenueber ``vorher`` IRGENDWO veraendert hat
+    (Review-Fix 06.10.2026, ``docs/handoffs`` P57-Harness): die generische
+    Rueckfallbedingung, mit der ``_fuehre_station_aus`` ``Station.warte_bis``
+    ergaenzt.
+
+    Grund: bei einer mehrschrittigen Bestaetigungsschleife (``p5-szenen``,
+    ``p6-szenen``, ``p7-szenen`` -- ``Station.budget`` bis zu 14) feuert das
+    stationseigene Ziel-Praedikat erst auf dem LETZTEN Schritt ("alle Szenen
+    fertig"/Phasensprung). Ohne diese Rueckfallbedingung wuerde ``_warte_bis``
+    auf JEDEM Zwischenschritt die volle ``geduld_s`` (600s) verbrauchen,
+    obwohl der angestossene Hintergrund-Thread (Prueflauf vor jeder Anzeige,
+    dann die naechste Szene) laengst fertig ist und etwas anderes im
+    Datenstand veraendert hat (ein neuer Prueflauf, eine neu geschriebene
+    Szene, ein neues Zitat). ``browser_mitschnitt.unterschied`` liefert den
+    Vergleich bereits strukturiert -- hier zaehlt jede Abweichung, nicht nur
+    eine bestimmte."""
+    diff = browser_mitschnitt.unterschied(vorher, nachher)
+    return bool(diff["arbeitsstand_geaendert"]) or bool(diff["zahlen_geaendert"])
+
+
 def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mitschnitt,
                         station: browser_stationen.Station, *, basis_url: str,
                         token: str, db_pfad: str, chat_id: int, persona_name: str,
@@ -627,8 +648,24 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             # (``warte_auf_antwort`` oben) -- die deckt den sichtbaren Teil
             # ab (``#tippt``), ``warte_bis`` den unsichtbaren Hintergrund-
             # Thread (Fakt 5).
+            #
+            # Review-Fix (06.10.2026): ODER-verknuepft mit
+            # ``_hat_sich_veraendert(vorher, ...)`` -- ``vorher`` ist hier
+            # noch der Stand VOR dieser Aktion (die Zuweisung ``vorher =
+            # nachher`` unten kommt erst danach). Ohne diese Ergaenzung
+            # wartet eine mehrschrittige Bestaetigungsschleife
+            # (``p5-szenen``/``p6-szenen``/``p7-szenen``) auf JEDEM
+            # Zwischenschritt die volle ``geduld_s``, weil deren
+            # ``warte_bis`` erst auf dem LETZTEN Schritt wahr wird --
+            # obwohl der Hintergrund-Thread dieses Schritts laengst
+            # irgendetwas im Datenstand veraendert hat (neuer Prueflauf,
+            # neu geschriebene Szene).
+            station_praedikat = station.warte_bis
+            vorher_fuer_warte_bis = vorher
             nachher = _warte_bis(
-                page, station.warte_bis,
+                page,
+                lambda s: station_praedikat(s)
+                or _hat_sich_veraendert(vorher_fuer_warte_bis, s),
                 lambda: browser_mitschnitt.datenstand(db_pfad, chat_id),
                 station.geduld_s)
         db_diff = browser_mitschnitt.unterschied(vorher, nachher)

@@ -2008,7 +2008,26 @@ def web_chatzustand(conn, token: str, nach: int = 0,
         # zuletzt hochgeladenen Kalibrierungs-Testsatzes dieser Gruppe.
         "kalibrierung_modus": _feld(gruppe, "kalibrierung_modus"),
         "kalibrierung": kalibrierung_zustand(conn, chat_id),
+        # Karte "keine Kalibrierung in Phase 3/4" (05.10.2026): die
+        # serverseitigen Gruppenwerte -- JEDE Phase, JEDES Geraet, keine
+        # Tagesgrenze (anders als der localStorage-Cache). None ohne
+        # Messung UND auf einer Datenbank ohne die additiven Spalten
+        # (_feld faengt beides gleich ab).
+        "kalibrierung_gruppe": _kalibrierung_gruppenwerte(gruppe),
     }
+
+
+def _kalibrierung_gruppenwerte(gruppe) -> dict | None:
+    """``None`` ohne Messung (oder ohne die additiven Spalten) -- sonst die
+    drei Werte als Dict, wie es das JS braucht (``zustand.kalibrierungGruppe``
+    in ``web_chat._CHAT_JS``). ``rede`` darf fehlen (AUTO-Pfad ohne
+    Testsatz), ``boden``/``schwelle`` sind die beiden Werte, die die
+    Schwellenformel tatsaechlich braucht."""
+    boden = _feld(gruppe, "kalibrierung_boden")
+    schwelle = _feld(gruppe, "kalibrierung_schwelle")
+    if boden is None or schwelle is None:
+        return None
+    return {"boden": boden, "rede": _feld(gruppe, "kalibrierung_rede"), "schwelle": schwelle}
 
 
 def _tippt_noch(bis_iso) -> bool:

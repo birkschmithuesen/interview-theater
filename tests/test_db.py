@@ -604,6 +604,38 @@ def test_kalibrierung_spalten_existieren_frisch_und_werden_nachgeruestet(tmp_pat
     assert zeile["kalibrierung"] == 0
 
 
+def test_migration_ergaenzt_die_gruppenweiten_kalibrierungswerte_ohne_datenverlust(tmp_path):
+    """Karte 'keine Kalibrierung in Phase 3/4' (05.10.2026): die drei
+    Messwerte plus Zeitstempel fahren additiv auf ``gruppe`` mit, dieselbe
+    generische Migration wie ``interviewmodus_seit``/``web_token`` oben --
+    eine Datenbank von vor dieser Karte kennt sie nicht."""
+    pfad = str(tmp_path / "alt.db")
+    c = db.verbinde(pfad)
+    c.executescript(_ALTE_GRUPPE_TABELLE)
+    c.execute(
+        "INSERT INTO gruppe (chat_id, bot_name, titel) VALUES (3, 'gruppe1', 'Dritte Gruppe')"
+    )
+    c.commit()
+    vorher = [r[1] for r in c.execute("PRAGMA table_info(gruppe)")]
+    for spalte in ("kalibrierung_boden", "kalibrierung_rede",
+                   "kalibrierung_schwelle", "kalibrierung_gemessen_am"):
+        assert spalte not in vorher, "Testannahme: die Spalte fehlt wirklich"
+
+    db.initialisiere(c)
+
+    nachher = [r[1] for r in c.execute("PRAGMA table_info(gruppe)")]
+    for spalte in ("kalibrierung_boden", "kalibrierung_rede",
+                   "kalibrierung_schwelle", "kalibrierung_gemessen_am"):
+        assert spalte in nachher
+
+    zeile = c.execute("SELECT * FROM gruppe WHERE chat_id = 3").fetchone()
+    assert zeile["titel"] == "Dritte Gruppe", "Migration darf keine Daten verlieren"
+    assert zeile["kalibrierung_boden"] is None
+    assert zeile["kalibrierung_rede"] is None
+    assert zeile["kalibrierung_schwelle"] is None
+    assert zeile["kalibrierung_gemessen_am"] is None
+
+
 def test_migration_ist_ein_no_op_wenn_alle_spalten_schon_da_sind(conn):
     """Ein zweiter initialisiere()-Lauf auf einer schon aktuellen Datenbank
     darf nicht krachen (kein ALTER TABLE auf eine schon vorhandene Spalte)."""

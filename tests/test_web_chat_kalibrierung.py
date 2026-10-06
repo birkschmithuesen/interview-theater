@@ -79,3 +79,59 @@ def test_zustand_zeigt_den_modus_danach(aufbau):
         assert web_daten.web_chatzustand(lesend, token)["kalibrierung_modus"] == "herumreichen"
     finally:
         lesend.close()
+
+
+# -- Gruppenweite Kalibrierungswerte (Karte "keine Kalibrierung in Phase    --
+# -- 3/4", 05.10.2026): derselbe Weg, mit boden/rede/schwelle im Rumpf.      --
+
+
+def test_werte_im_rumpf_speichern_die_gruppenwerte_statt_herumreichen(aufbau):
+    basis, token, pfad = aufbau
+    status, antwort = _post(basis, token, {"boden": 0.01, "rede": 0.2, "schwelle": 0.025})
+    assert status == 200
+    assert antwort == {"ok": True}
+
+    conn = db.verbinde(pfad)
+    gruppe = repo.hole_gruppe(conn, CHAT)
+    assert gruppe["kalibrierung_boden"] == pytest.approx(0.01)
+    assert gruppe["kalibrierung_rede"] == pytest.approx(0.2)
+    assert gruppe["kalibrierung_schwelle"] == pytest.approx(0.025)
+    assert gruppe["kalibrierung_modus"] is None, "kein Herumreichen-Hinweis bei einem Erfolg"
+
+
+def test_werte_ohne_rede_speichern_den_auto_pfad_ohne_testsatz(aufbau):
+    basis, token, pfad = aufbau
+    status, _antwort = _post(basis, token, {"boden": 0.01, "schwelle": 0.03})
+    assert status == 200
+
+    conn = db.verbinde(pfad)
+    gruppe = repo.hole_gruppe(conn, CHAT)
+    assert gruppe["kalibrierung_boden"] == pytest.approx(0.01)
+    assert gruppe["kalibrierung_rede"] is None
+    assert gruppe["kalibrierung_schwelle"] == pytest.approx(0.03)
+
+
+def test_zustand_liefert_die_gruppenwerte_nach_dem_post(aufbau):
+    basis, token, pfad = aufbau
+    _post(basis, token, {"boden": 0.01, "rede": 0.2, "schwelle": 0.025})
+    lesend = web_daten.oeffne_lesend(pfad)
+    try:
+        assert web_daten.web_chatzustand(lesend, token)["kalibrierung_gruppe"] == {
+            "boden": 0.01, "rede": 0.2, "schwelle": 0.025,
+        }
+    finally:
+        lesend.close()
+
+
+def test_unvollstaendige_werte_speichern_keine_gruppenwerte_sondern_herumreichen(aufbau):
+    """Nur ``boden`` ohne ``schwelle`` ist keine gueltige Messung -- der alte
+    Weg (Hinweis, kein 400) bleibt der Rueckfall, dieselbe Grosszuegigkeit
+    wie beim leeren Rumpf."""
+    basis, token, pfad = aufbau
+    status, _antwort = _post(basis, token, {"boden": 0.01})
+    assert status == 200
+
+    conn = db.verbinde(pfad)
+    gruppe = repo.hole_gruppe(conn, CHAT)
+    assert gruppe["kalibrierung_boden"] is None
+    assert gruppe["kalibrierung_modus"] == "herumreichen"

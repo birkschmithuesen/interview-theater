@@ -1764,6 +1764,8 @@ _TITEL_TICKER = "interview_theater — Ticker"
 _UEBERSCHRIFT_TICKER = "Director's ticker"
 _TEXT_TICKER_AUS = "Ticker off."
 _TEXT_TICKER_LEER = "No entries yet."
+_TEXT_TICKER_INHALT = "Content"
+_TEXT_TICKER_TECHNIK = "Technical"
 _TEXT_FRAGEN_DASHBOARD_FORTSCHRITT = "Sorting in progress · {kept} kept so far"
 
 ["web".ARBEITSSTAND_BESCHRIFTUNG]

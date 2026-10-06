@@ -502,11 +502,20 @@ def test_prompts_mit_dortmund_wie_vor_a1(monkeypatch):
     _vergleiche(_lies(PROMPTS.read_text(encoding="utf-8")), _prompts_jetzt())
 
 
+@pytest.mark.dortmund
 def test_texte_ohne_variable_wie_vor_a1():
+    # Ohne IT_WORKSHOP gilt Dortmund als Vorgabe; der Massstab ist eine
+    # Dortmund-Bitgleich-Pruefung (eingefroren seit 04.10.2026, AGENTS.md).
+    # Karte t_a0d171ab aendert ``web._CSS_DASHBOARD`` fuer den Padua-Ticker
+    # (neue Klassen .ticker-teil/.ticker-warnung) -- das ist eine neue
+    # Padua-Funktion, keine Dortmund-Regression.
     _vergleiche(_lies(TEXTE.read_text(encoding="utf-8")), _texte_jetzt())
 
 
+@pytest.mark.dortmund
 def test_texte_mit_dortmund_wie_vor_a1(monkeypatch):
+    # Dieselbe Begruendung wie oben, hier fuer das explizite
+    # dortmund-2026-Profil.
     monkeypatch.setenv(workshop.VARIABLE, DORTMUND)
     _vergleiche(_lies(TEXTE.read_text(encoding="utf-8")), _texte_jetzt())
 

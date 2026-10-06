@@ -24,6 +24,7 @@ from interview_theater.knoepfe.texte import (
     ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU, ART_GESCHICHTE_PASST,
     ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE,
+    ART_RECHERCHE, ART_RECHERCHE_FRAGE,
     ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE,
     ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SPRECHANTEILE,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
@@ -1673,3 +1674,79 @@ def _biete_weiter_nach_szene(conn, tg, chat_id: int, nummer: int) -> None:
         _mit_leiste(conn, tg, chat_id, T._TEXT_KEINE_NAECHSTE, [phasenknopf])
     else:
         tg.sende(chat_id, T._TEXT_KEINE_NAECHSTE)
+
+
+# --- Internet-Recherche (Karte t_c5117c91, InScribe) ------------------------
+#
+# Ein eigener Materialstrang neben dem Interview: Angebot -> Fragenvorschlag
+# -> Frage waehlen -> Lauf. Kein Modellaufruf in einem Handler (Zusage 2):
+# Fragenvorschlag UND Recherchelauf gehen sofort in einen eigenen Thread.
+
+
+def biete_recherche(conn, tg, chat_id: int) -> int:
+    """Der eine Research-Knopf. Erscheint am Anfang von Phase 5
+    (``knoepfe.stationen.eintritt_in_phase``) und auf Anfrage ab Phase 4
+    (``/stand``, ``befehle.py``) -- nur mit dem Profilschalter
+    ``workshop.recherche_aktiv()``."""
+    knopf_id = repo.lege_knopf_an(conn, chat_id, ART_RECHERCHE, None)
+    return _mit_leiste(
+        conn, tg, chat_id, T._TEXT_RECHERCHE_ANBIETEN,
+        [(T._TEXT_RECHERCHE_KNOPF, _daten(knopf_id))],
+    )
+
+
+def starte_fragenvorschlag(conn, tg, klm, e, chat_id: int) -> None:
+    """Schlaegt im Thread drei Forschungsfragen vor und zeigt sie als
+    Knoepfe -- die Gruppe kann stattdessen auch "Recherche: ..." tippen
+    (Erkenner-art ``recherche_starten``)."""
+    import threading
+
+    from interview_theater import recherche as recherche_modul
+
+    tg.sende(chat_id, T._TEXT_RECHERCHE_FRAGEN_LAEUFT)
+
+    def _lauf() -> None:
+        try:
+            fragen = recherche_modul.schlage_fragen_vor(klm, conn, e, chat_id)
+        except Exception:
+            log.exception("Fragenvorschlag fehlgeschlagen, chat_id=%s", chat_id)
+            return
+        if not fragen:
+            tg.sende(chat_id, T._TEXT_RECHERCHE_KEINE_FRAGEN)
+            return
+        leiste = [
+            (
+                frage[:MENUE_KNOPF_LAENGE],
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_RECHERCHE_FRAGE, frage)),
+            )
+            for frage in fragen
+        ]
+        _mit_leiste(conn, tg, chat_id, T._TEXT_RECHERCHE_FRAGEN_TEXT, leiste)
+
+    threading.Thread(target=_lauf, daemon=True).start()
+
+
+def starte_recherche_lauf(conn, tg, klm, e, chat_id: int, frage: str) -> None:
+    """Fuehrt die Recherche zu ``frage`` im Thread aus und postet die Karte
+    -- derselbe Weg ab einem Fragen-Knopf oder der Erkenner-art
+    ``recherche_starten`` (frei getippt)."""
+    import threading
+
+    from interview_theater import recherche as recherche_modul
+
+    tg.sende(chat_id, T._TEXT_RECHERCHE_LAEUFT)
+
+    def _lauf() -> None:
+        try:
+            recherche_id = recherche_modul.starte(klm, conn, e, chat_id, frage)
+        except Exception:
+            log.exception("Recherche fehlgeschlagen, chat_id=%s", chat_id)
+            recherche_id = None
+        if recherche_id is None:
+            tg.sende(chat_id, T._TEXT_RECHERCHE_NICHTS_GEFUNDEN)
+            return
+        karte = repo.hole_recherche(conn, chat_id, recherche_id)
+        if karte is not None:
+            tg.sende(chat_id, karte["ergebnis_text"])
+
+    threading.Thread(target=_lauf, daemon=True).start()

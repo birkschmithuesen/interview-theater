@@ -1137,6 +1137,25 @@ _TEXT_SPRECHWEISEN_AENDERN = (
     "viel Slang\""
 )
 
+# Internet-Recherche (Karte t_c5117c91, InScribe): ein eigener Materialstrang
+# neben dem Interview. Angebot am Anfang von Phase 5 UND auf Anfrage ab Phase
+# 4 (befehle.py, /stand), nur mit dem Profilschalter ``recherche`` (Vorgabe
+# aus). Drei Schritte, drei Knoepfe: Angebot -> Fragenvorschlag -> Frage
+# waehlen -> Lauf im Thread (Zusage 2, wie ueberall hier).
+ART_RECHERCHE = "recherche"
+ART_RECHERCHE_FRAGE = "recherche_frage"
+_TEXT_RECHERCHE_KNOPF = "Recherche"
+_TEXT_RECHERCHE_ANBIETEN = "Soll ich dazu im Netz nachschauen?"
+_TEXT_RECHERCHE_FRAGEN_LAEUFT = "Ich ueberlege mir drei Forschungsfragen ..."
+_TEXT_RECHERCHE_FRAGEN_TEXT = (
+    "Welche Frage sollen wir klaeren? Oder schreibt eure eigene, z. B. "
+    "\"Recherche: ...\""
+)
+_TEXT_RECHERCHE_KEINE_FRAGEN = "Mir faellt dazu gerade keine Frage ein."
+_TEXT_RECHERCHE_LAEUFT = "Ich schaue im Netz nach (30-60 Sekunden) ..."
+_TEXT_RECHERCHE_NICHTS_GEFUNDEN = "Ich habe dazu nichts Verifizierbares gefunden."
+_ANTWORT_RECHERCHE_GESTARTET = "Ich schaue nach."
+
 
 # --- Verarbeitung ---------------------------------------------------------
 

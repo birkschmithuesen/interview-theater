@@ -765,6 +765,11 @@ _CHAT_JS = """
   // Task 4 (Kanban-Karte Mithoeren SICHER): der einmalige "Mitschnitt
   // pruefen"-Hinweis -- eigenstaendig von kalErinnerungFeld unten.
   var mitlaufHinweisFeld = document.getElementById('mitlauf-hinweis');
+  // Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89).
+  var hintergrundWarnungFeld = document.getElementById('hintergrund-warnung');
+  var hintergrundWarnungText = document.getElementById('hintergrund-warnung-text');
+  var hintergrundWarnungSchliessen = document.getElementById('hintergrund-warnung-schliessen');
+  var hintergrundTippFeld = document.getElementById('hintergrund-tipp');
   var tipptFeld = document.getElementById('tippt');
   var interviewKnopf = document.getElementById('interview');
   var interviewAktionenFeld = document.getElementById('interview-aktionen');
@@ -1336,10 +1341,87 @@ _CHAT_JS = """
     var takt = document.hidden ? POLL_MS_HINTERGRUND : POLL_MS;
     pollTakt = setInterval(hole, takt);
   }
+
+  // -- Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89) --
+  //
+  // Evidence: Clone "G3 Interview 1" #113 meldete 178 s, der Mitschnitt hielt
+  // real nur ~26 s Audio -- die Seite war waehrend des Interviews im
+  // Hintergrund (Tab-Wechsel, Sperrbildschirm), MediaRecorder UND Timer
+  // werden dort vom Browser angehalten (Wake Lock, 3a83071, haelt nur den
+  // Bildschirm an, nicht Seitenwechsel/Sperrbildschirm). Diese Pruefung
+  // laeuft rein lokal (document.hidden/visibilitychange) -- die serverseitige
+  // Gegenpruefung (aufnahme.erkenne_hintergrund_unterbrechung) braucht dafuer
+  // keine Mitarbeit des Clients, hier geht es nur um die Warnung AUF DEM
+  // TELEFON selbst, solange noch aufgenommen wird.
+  //
+  // Unter 3 s Versteckt-Dauer gilt es nicht als Vorfall (ein kurzes
+  // Benachrichtigungs-Wisch ist kein Seitenwechsel).
+  var HINTERGRUND_MIN_MS = 3000;
+  var hintergrundVerstecktSeit = null;
+
+  // Ein Recorder, der WIRKLICH gerade schreibt (state 'recording') -- Pause
+  // setzt sitzung.recorder auf null (pausiereInterview), ein beendetes
+  // Segment hat state 'inactive': beides zaehlt nicht als "aktiv", es gibt
+  // dort nichts, das ein Hintergrund-Wechsel unterbrechen koennte.
+  function aufnahmeLaeuftLokal() {
+    var a = zustand.aufnahme, d = zustand.diskussion;
+    return !!((a && a.recorder && a.recorder.state === 'recording') ||
+              (d && d.recorder && d.recorder.state === 'recording'));
+  }
+
+  // Aufgerufen bei 'hidden' (visibilitychange), 'pagehide' und 'freeze' --
+  // dieselbe Behandlung fuer alle drei: nur merken, WENN gerade aufgenommen
+  // wird, nie ueberschreiben (ein zweites 'hidden' ohne Sichtbarwerden
+  // dazwischen soll den urspruenglichen Zeitpunkt nicht verlieren).
+  function hintergrundVersteckt(jetzt) {
+    if (hintergrundVerstecktSeit == null && aufnahmeLaeuftLokal()) {
+      hintergrundVerstecktSeit = jetzt;
+    }
+  }
+
+  function zeigeHintergrundWarnung(luecke_ms) {
+    if (!hintergrundWarnungFeld || !hintergrundWarnungText) { return; }
+    hintergrundWarnungText.textContent =
+      TEXT.hintergrund_warnung.replace('{zeit}', minuten(Math.round(luecke_ms / 1000)));
+    hintergrundWarnungFeld.hidden = false;
+  }
+
+  // Aufgerufen bei 'visible' (visibilitychange -> !document.hidden). Liefert
+  // die gemessene Luecke in ms, oder null ohne Befund -- fuer Tests bequemer
+  // als nur Seiteneffekte zu pruefen.
+  function hintergrundSichtbar(jetzt) {
+    if (hintergrundVerstecktSeit == null) { return null; }
+    var luecke = jetzt - hintergrundVerstecktSeit;
+    hintergrundVerstecktSeit = null;
+    if (luecke < HINTERGRUND_MIN_MS) { return null; }
+    // Die Sitzung traegt die gemessene Luecke bis zum naechsten Upload
+    // (postAudio haengt sie als ?hintergrund= an, neuesSegment()s onstop
+    // liest sie und setzt sie dort auf 0 zurueck) -- "exakt" schlaegt die
+    // serverseitige Schaetzung (Spezifikation Punkt 3).
+    var sitzung = zustand.aufnahme || zustand.diskussion;
+    if (sitzung) { sitzung.hintergrundMs = (sitzung.hintergrundMs || 0) + luecke; }
+    zeigeHintergrundWarnung(luecke);
+    return luecke;
+  }
+
+  if (hintergrundWarnungSchliessen) {
+    hintergrundWarnungSchliessen.addEventListener('click', function () {
+      hintergrundWarnungFeld.hidden = true;
+    });
+  }
+
   document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { hintergrundVersteckt(Date.now()); }
+    else { hintergrundSichtbar(Date.now()); }
     planePoll();
     if (!document.hidden) { hole(); }
   });
+  // pagehide/freeze (Page Lifecycle API): manche Browser liefern beim
+  // App-Wechsel kein zuverlaessiges 'hidden' VOR dem Einfrieren -- dieselbe
+  // Behandlung wie 'hidden', idempotent (hintergrundVersteckt ueberschreibt
+  // einen schon gesetzten Zeitpunkt nie).
+  window.addEventListener('pagehide', function () { hintergrundVersteckt(Date.now()); });
+  document.addEventListener('freeze', function () { hintergrundVersteckt(Date.now()); });
   planePoll();
 
   // -- POST mit Nonce ------------------------------------------------------
@@ -1366,6 +1448,9 @@ _CHAT_JS = """
     if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
     if (auftrag.redeMs != null) { weg_ += `&rede=${Math.round(auftrag.redeMs)}`; }
     if (auftrag.weichMs != null) { weg_ += `&weichms=${Math.round(auftrag.weichMs)}`; }
+    // Karte t_1423ca89: die vom Client gemessene Hintergrundzeit dieses
+    // Segments -- dasselbe reine Diagnose-Metadatum wie rede/weichms.
+    if (auftrag.hintergrundMs) { weg_ += `&hintergrund=${Math.round(auftrag.hintergrundMs)}`; }
     // Birk 05.10.2026 22:00: EINE Sitzungsart ('diskussion'), zwei moegliche
     // Ziele -- sitzung.ziel (bei Start aus zustand.mithoerenZiel gefroren)
     // sagt, ob das Audio als Diskussion (Phase 1) oder als Brainstorm
@@ -1710,8 +1795,13 @@ _CHAT_JS = """
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
           dauer: Math.max(1, Math.round((Date.now() - von) / 1000)),
           grund: grund, redeMs: redeMs, weichMs: weichMs,
-          kalibrierung: !!r._kalibrierung
+          kalibrierung: !!r._kalibrierung,
+          // Karte t_1423ca89: die seit dem letzten Segment gemessene
+          // Hintergrundzeit faehrt EINMAL mit (nicht doppelt gezaehlt --
+          // zurueckgesetzt, sobald sie hier einem Auftrag zugeteilt ist).
+          hintergrundMs: sitzung.hintergrundMs || null
         };
+        sitzung.hintergrundMs = 0;
       }
       // Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): einmal je
       // Sitzung, direkt nachdem das erste Segment fertig ist -- kein
@@ -2238,6 +2328,13 @@ _CHAT_JS = """
     zustand.uhrTakt = setInterval(function () {
       uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung));
     }, 500);
+    // Karte t_1423ca89: derselbe Schalter wie #uhr/#pegel -- der Tipp gilt
+    // fuer Interview UND Diskussion/Brainstorm, dieselbe Funktion bedient
+    // beide (siehe aufnahmeLaeuftLokal()).
+    if (hintergrundTippFeld) {
+      hintergrundTippFeld.textContent = TEXT.hintergrund_tipp;
+      hintergrundTippFeld.hidden = false;
+    }
   }
 
   function anzeigeAus() {
@@ -2250,6 +2347,7 @@ _CHAT_JS = """
     if (pegelFeld) { pegelFeld.classList.remove('ueber-schwelle'); }
     // Task 4: nicht in einen spaeteren Bildschirmzustand hinueberlaufen.
     if (mitlaufHinweisFeld) { mitlaufHinweisFeld.hidden = true; }
+    if (hintergrundTippFeld) { hintergrundTippFeld.hidden = true; }
   }
 
   function modusAn() {

@@ -2310,7 +2310,9 @@ def test_postaudio_haengt_das_richtige_ziel_flag_an():
     Upload geht -- EINE Sitzungsart (``sitzung.art === 'diskussion'``),
     zwei moegliche Ziele, kein eigener 'brainstorm'-Sitzungstyp mehr."""
     js = web_chat._CHAT_JS
-    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 900]
+    # Karte t_1423ca89 (hintergrund-Metadatum) hat die Funktion um ein paar
+    # Zeilen verlaengert -- das Fenster bleibt grosszuegig ueber ihrer Laenge.
+    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 1100]
     assert "sitzung.art === 'diskussion'" in ausschnitt
     assert "auftrag.sitzung.ziel === 'brainstorm'" in ausschnitt
     assert "&brainstorm=1" in ausschnitt

@@ -244,7 +244,7 @@ PAUSE_AB_MINUTEN = 60
 _REIHENFOLGE = (
     "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "festlegungen",
     "diskussion", "begriffe_detail", "board", "mitgehoert", "phasenhinweis",
-    "figurenhinweis", "szene",
+    "figurenhinweis", "recherche", "szene",
     "journal", "fenster", "ausloeser", "erstkontakt",
 )
 
@@ -866,6 +866,33 @@ def _baue_diskussion_block(conn, chat_id: int) -> str:
 
 #: Die Kopfzeile des Begriffs-Blocks (Karte t_4517d4ad, 04.10.2026).
 BEGRIFFE_DETAIL_KOPF = "Warum ihr diese Begriffe gewaehlt habt:"
+
+#: Die Kopfzeile des Recherche-Blocks (Karte t_c5117c91) -- bewusst klar vom
+#: Interviewmaterial getrennt: eine Internet-Recherche ist eine oeffentliche
+#: Quelle zur Einordnung, nie die Stimme einer interviewten Person. Steht
+#: deshalb in einem eigenen Block statt im Verdichtungs- oder
+#: Transkriptblock (``_baue_recherche``).
+RECHERCHE_KOPF = (
+    "Recherche aus dem Internet (KEIN Interviewmaterial -- oeffentliche "
+    "Quellen zur Einordnung, nie als Aussage einer interviewten Person "
+    "lesen):"
+)
+_RECHERCHE_ZEILE = "- {frage}: {ergebnis_text}"
+
+
+def _baue_recherche(conn, chat_id: int) -> str:
+    """Verifizierte Internet-Recherchen (``repo.hole_recherchen``) als
+    eigener Block -- datengetrieben: ohne Recherche kein Block. Siehe
+    RECHERCHE_KOPF fuer die Abgrenzung vom Interviewmaterial."""
+    recherchen = repo.hole_recherchen(conn, chat_id)
+    if not recherchen:
+        return ""
+    zeilen = [T.RECHERCHE_KOPF]
+    zeilen.extend(
+        T._RECHERCHE_ZEILE.format(frage=r["frage"], ergebnis_text=r["ergebnis_text"])
+        for r in recherchen
+    )
+    return "\n".join(zeilen)
 
 
 #: Die Koepfe der zwei Bloecke vom 05.10.2026 (Birk, Nachtrag 5): das Board,
@@ -1902,6 +1929,9 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         "begriffe_detail": _baue_begriffe_detail(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
+        # Internet-Recherche (Karte t_c5117c91) -- eigener Block, siehe
+        # RECHERCHE_KOPF fuer die Abgrenzung vom Interviewmaterial.
+        "recherche": _baue_recherche(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
         "journal": _baue_journal(conn, chat_id),
         "fenster": "\n".join(fenster_eintraege),
@@ -2027,6 +2057,8 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
         bloecke["board"] = ""
     if _zu_lang() and bloecke["begriffe_detail"]:
         bloecke["begriffe_detail"] = ""
+    if _zu_lang() and bloecke["recherche"]:
+        bloecke["recherche"] = ""
     if _zu_lang():
         bloecke["verdichtungen"] = ""
     if _zu_lang() and bloecke["szene"]:

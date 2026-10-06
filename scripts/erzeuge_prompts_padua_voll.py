@@ -1,8 +1,9 @@
 """Jeder Modellaufruf, der in Padua live vorkommt -- als Volltext-Dump.
 
-**Scopes p12 und p34**: dieses Skript hat Treiber fuer die fuenf Dumps aus
-Phase 1+2 (Karte t_bf16f3a7, 05.10.2026, ``SCOPE_P1_P2``) und die zehn Dumps
-aus Phase 3+4 (Task 3, ``SCOPE_P3_P4``) von ``prompt_inventar.INVENTAR``. Die
+**Scopes p12, p34 und p57**: dieses Skript hat Treiber fuer die fuenf Dumps
+aus Phase 1+2 (Karte t_bf16f3a7, 05.10.2026, ``SCOPE_P1_P2``), die zehn Dumps
+aus Phase 3+4 (Task 3, ``SCOPE_P3_P4``) und die 25 Dumps aus Phase 5-7 (Task 5,
+Karte t_db7c6b2c, ``SCOPE_P5_P7``) von ``prompt_inventar.INVENTAR``. Die
 restlichen Eintraege sind Sache einer spaeteren Karte -- ein Lauf ueber sie
 wuerde mit ``TreiberFehler`` abbrechen, weil ``TREIBER`` sie nicht kennt.
 
@@ -92,8 +93,40 @@ SCOPE_P3_P4 = (
     "17-buehnenkarte", "18-szenenfolge", "19-geschichte", "20-szenenfelder",
 )
 
+#: Die 25 Dumps aus Phase 5-7 (Task 5, Karte t_db7c6b2c): der Gespraechszug,
+#: die Hintergrundwege von Phase 5 (Schaerfung, Uebersicht, Sprachprofil,
+#: Kernzitate), Szene/Kurzgeschichte in Phase 6, die sieben Richterfragen des
+#: Prueflaufs, Sprechweise und die fuenf Formen in Phase 7, die
+#: Stueckpruefung, und die beiden Ueberarbeitungslaeufe (Prueflauf,
+#: Nachpass), die ``prompt_inventar`` dafuer bekommen hat.
+#:
+#: **Reihenfolge ist hier kein Zufall** (gemessen am vollen Lauf, nicht
+#: geraten): ``04-szene-prosa-phase6``, ``28``..``32-szene-*`` und
+#: ``44-nachpass`` SCHREIBEN wirklich in die geteilte Fixture-Datenbank
+#: (``szene.schreibe`` mit der Double-Antwort ``[MITSCHNITT]`` -- ohne
+#: Kopfzeilen faellt ``szene.zerlege`` auf "der ganze Text ist die Szene"
+#: zurueck und ``aktualisiere_szene`` ueberschreibt Kurzbeschreibung und
+#: Prosa/Volltext der Szene wirklich). Jeder Dump, der danach noch
+#: realistischen Szeneninhalt braucht (die Dramaturgie-Fragen, die
+#: Kurzgeschichte/Kuerzung mit ``vorlage=True``, die Stueckpruefung), steht
+#: deshalb VOR diesen drei -- ``kurzgeschichte.schreibe`` selbst schreibt
+#: nie (``zerlege`` findet ohne Kopfzeilen keine Abschnitte und wirft, bevor
+#: etwas gespeichert ist), ist also unabhaengig von der Stelle.
+SCOPE_P5_P7 = (
+    "08-gespraech-phase5", "21-schaerfung", "22-entwurf-uebersicht",
+    "23-sprachprofil", "24-kernzitate",
+    "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
+    "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
+    "38-dramaturgie-a9", "40-dramaturgie-a11", "43-prueflauf-ueberarbeitung",
+    "04-szene-prosa-phase6",
+    "09-gespraech-phase7", "27-sprechweise", "39-dramaturgie-a10",
+    "41-dramaturgie-c1", "34-stueckpruefung",
+    "28-szene-dialog", "29-szene-monolog", "30-szene-chor", "31-szene-lied",
+    "32-szene-rap", "44-nachpass",
+)
+
 #: Welche Dumps `--scope` ausliefert, wenn `--nur` fehlt.
-SCOPES = {"p12": SCOPE_P1_P2, "p34": SCOPE_P3_P4}
+SCOPES = {"p12": SCOPE_P1_P2, "p34": SCOPE_P3_P4, "p57": SCOPE_P5_P7}
 
 
 class TreiberFehler(RuntimeError):
@@ -368,6 +401,219 @@ def _szenenfelder(conn, e, tg, klm, chats):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Phase 5-7 (Task 5, Karte t_db7c6b2c)
+# ---------------------------------------------------------------------------
+
+
+def _schaerfung(conn, e, tg, klm, chats):
+    from interview_theater import schaerfung
+    _joine(schaerfung.starte(conn, tg, klm, e, chats[5]))
+    return None
+
+
+def _entwurf_uebersicht(conn, e, tg, klm, chats):
+    from interview_theater import entwurf
+    _joine(entwurf.starte_uebersicht(conn, tg, klm, e, chats[5]))
+    return None
+
+
+def _sprachprofil(conn, e, tg, klm, chats):
+    from interview_theater import repo as repo_modul
+    from interview_theater import sprachprofil
+    chat_id = chats[5]
+    figur = repo_modul.figuren(conn, chat_id)[0]
+    aufnahme_id = _interview_kopf(conn, chat_id)["id"]
+    repo_modul.setze_figur_quelle(conn, figur["id"], aufnahme_id)
+    _joine(sprachprofil.starte(conn, tg, klm, e, chat_id, [figur["id"]]))
+    return None
+
+
+def _kernzitate(conn, e, tg, klm, chats):
+    from interview_theater import kernzitate
+    _joine(kernzitate.starte(conn, tg, klm, e, chats[5]))
+    return None
+
+
+def _szene_prosa_phase6(conn, e, tg, klm, chats):
+    """``04-szene-prosa-phase6``: derselbe Aufruf wie ``entwurf.
+    fixiere_uebersicht``/``bestaetige_szene`` ihn ausloesen -- die Phase (6)
+    entscheidet in ``szene.schreibe`` allein, ob Prosa oder Buehnentext
+    entsteht (``schreibt_prosa``), der Auftragstext ist zeichengleich."""
+    from interview_theater import entwurf, szene
+    _joine(szene.starte(conn, tg, klm, e, chats[6],
+                        entwurf._AUFTRAG_PROSA.format(nummer=1)))
+    return None
+
+
+def _kurzgeschichte(conn, e, tg, klm, chats):
+    from interview_theater import kurzgeschichte
+    _joine(kurzgeschichte.starte(conn, tg, klm, e, chats[6]))
+    return None
+
+
+def _kurzgeschichte_kuerzung(conn, e, tg, klm, chats):
+    """``03-kurzgeschichte-phase6``: derselbe Aufruf wie 25, aber mit
+    ``vorlage=True`` und der Kuerzungsnotiz -- wie ``kuerzung.starte`` ihn
+    fuer die ganze Geschichte baut (``kuerzung.py:205``)."""
+    from interview_theater import kuerzung, kurzgeschichte
+    _joine(kurzgeschichte.starte(conn, tg, klm, e, chats[6],
+                                 kuerzung.notiz_fuer_prosa(), vorlage=True))
+    return None
+
+
+def _dramaturgie(schluessel: str, phase: int):
+    """Eine der sieben Richterfragen des Prueflaufs (``fanout.pruefe`` mit
+    ``fragen=(schluessel,)``) -- dieselbe Aufrufstelle (``Richter.frage``)
+    fuer alle sieben, nur die Frage und damit die ``art`` unterscheidet sich.
+    ``mechanik=False``: die Mechanik-Pruefung braucht keinen Modellaufruf und
+    soll den Dump nicht verlangsamen.
+
+    Fuer a6, a9 und c1 reicht der generische Weg nicht (siehe die drei
+    eigenen Treiber unten) -- diese Fabrik bleibt fuer b1, a2, a10, a11."""
+    def treiber(conn, e, tg, klm, chats):
+        from interview_theater.dramaturgie import fanout
+        with contextlib.suppress(Exception):
+            fanout.pruefe(conn, e, klm, chats[phase], fragen=(schluessel,),
+                          mechanik=False)
+        return None
+    return treiber
+
+
+def _dramaturgie_a6(conn, e, tg, klm, chats):
+    """``37-dramaturgie-a6``: ``tschechow_kandidaten`` liefert **nie** etwas
+    ausserhalb des Deutschen (``mechanik.py``: ``if sprache.code() !=
+    sprache.DEUTSCH: return []`` -- Annahme A7). In Padua (Englisch) ist A6
+    damit live unerreichbar; der Treiber baut einen Kandidaten von Hand und
+    ruft ``frage_a6`` direkt -- derselbe Aufrufer-Code, nur ohne die
+    sprachgaengige Vorfilterung (Befund fuer den Bericht, nicht nur ein
+    Dump-Kniff)."""
+    from interview_theater.dramaturgie import fanout, mechanik
+    chat_id = chats[6]
+    richter = fanout.waehle_richter(e, conn, chat_id)
+    kandidat = mechanik.Kandidat(
+        "bag", 1, 2, "He held the broken bag shut with his foot.")
+    with contextlib.suppress(Exception):
+        fanout.frage_a6(conn, e, klm, chat_id, richter, [kandidat])
+    return None
+
+
+def _dramaturgie_a9(conn, e, tg, klm, chats):
+    """``38-dramaturgie-a9``: ohne ``arbeitsstand.hauptkonflikt`` gibt es
+    ``"Ohne Hauptkonflikt gibt es keine Frage"`` -- ``frage_a9`` bricht vor
+    dem Modellaufruf ab (``fanout.py``). Die Fixture setzt das Feld nicht
+    (kein Live-Eintrag dafuer vor Padua Phasen TEIL 2); der Treiber traegt es
+    nur fuer diesen Dump nach."""
+    from interview_theater import repo as repo_modul
+    from interview_theater.dramaturgie import fanout
+    chat_id = chats[6]
+    repo_modul.setze_arbeitsstand(
+        conn, chat_id, "hauptkonflikt",
+        "Samir has to let his cousin see him waiting, unsure, not in control.",
+    )
+    with contextlib.suppress(Exception):
+        fanout.pruefe(conn, e, klm, chat_id, fragen=("a9",), mechanik=False)
+    return None
+
+
+def _dramaturgie_c1(conn, e, tg, klm, chats):
+    """``41-dramaturgie-c1``: braucht mindestens ``C1_REPLIKEN_MIN`` (6)
+    Sprecherzeilen aus mindestens ``C1_FIGUREN_MIN`` (2) Figuren
+    (``fanout.py``) -- die zwei Zeilen, die die Fixture fuer die
+    Feinschliff-Szene anlegt, reichen nicht. Der Treiber schreibt der ersten
+    Szene ein laengeres Wechselgespraech, bevor die Frage laeuft."""
+    from interview_theater import repo as repo_modul
+    from interview_theater.dramaturgie import fanout
+    chat_id = chats[7]
+    ziel = next(s for s in repo_modul.hole_szenen(conn, chat_id)
+               if s["nummer"] == 1)
+    repo_modul.aktualisiere_szene(
+        conn, ziel["id"], ziel["titel"], ziel["kurzbeschreibung"],
+        "SAMIR: I have been sitting here for three hours.\n"
+        "ELENA: And you still have not ordered anything.\n"
+        "SAMIR: I was going to.\n"
+        "ELENA: You keep saying that.\n"
+        "SAMIR: The bag is heavier than it looks.\n"
+        "ELENA: Then put it down for a moment.\n",
+        ziel["zusammenfassung"],
+    )
+    with contextlib.suppress(Exception):
+        fanout.pruefe(conn, e, klm, chat_id, fragen=("c1",), mechanik=False)
+    return None
+
+
+def _sprechweise(conn, e, tg, klm, chats):
+    """``27-sprechweise``: die Fixture setzt ``figur.sprachstil`` fuer ALLE
+    Figuren (phasenuebergreifend gleich gebaut) -- ohne eine Figur ohne Stil
+    liefe ``sprechweise._lauf`` ganz ohne Modellaufruf (``fehlende`` leer).
+    Eine Figur wird deshalb hier auf "ohne Stil" zurueckgesetzt, genau der
+    Live-Zustand vor der ersten Uebertragung in Phase 7."""
+    from interview_theater import repo as repo_modul
+    from interview_theater import sprechweise
+    chat_id = chats[7]
+    figur = repo_modul.figuren(conn, chat_id)[0]
+    repo_modul.setze_figur_sprachstil(conn, figur["id"], "")
+    _joine(sprechweise.starte(conn, tg, klm, e, chat_id))
+    return None
+
+
+def _szene_form(form: str):
+    """Eine der fuenf Formen des Feinschliffs (28-32): dieselbe Aufrufstelle
+    wie 04 (``szene.schreibe``), die Form steht auf der Szene selbst
+    (``systemanweisung(form)`` liest ``ziel['form']``)."""
+    def treiber(conn, e, tg, klm, chats):
+        from interview_theater import repo as repo_modul
+        from interview_theater import szene
+        chat_id = chats[7]
+        ziel = next(s for s in repo_modul.hole_szenen(conn, chat_id)
+                   if s["nummer"] == 1)
+        repo_modul.setze_szenenfeld(conn, ziel["id"], "form", form)
+        auftrag = szene.T.TEXT_AUFTRAG_NEU.format(
+            nummer=1, notiz=f"Make it a {form}.")
+        _joine(szene.starte(conn, tg, klm, e, chat_id, auftrag))
+        return None
+    return treiber
+
+
+def _stueckpruefung(conn, e, tg, klm, chats):
+    from interview_theater import stueckpruefung
+    _joine(stueckpruefung.starte(conn, tg, klm, e, chats[7]))
+    return None
+
+
+def _prueflauf_ueberarbeitung(conn, e, tg, klm, chats):
+    """``43-prueflauf-ueberarbeitung``: derselbe Aufruf wie 03/25
+    (``kurzgeschichte.schreibe`` ueber ``starte``), aber direkt ueber
+    ``prueflauf._schreibe_geschichte`` wie ``pruefe_geschichte`` ihn
+    anstoesst -- synchron, keine Sperre, ``zeigen=False``."""
+    from interview_theater import prueflauf
+    chat_id = chats[6]
+    auftraege = [{"szene": None,
+                  "anweisung": "Make the causal chain between scenes clearer."}]
+    with contextlib.suppress(Exception):
+        prueflauf._schreibe_geschichte(conn, tg, klm, e, chat_id, auftraege)
+    return None
+
+
+def _nachpass(conn, e, tg, klm, chats):
+    """``44-nachpass``: derselbe Aufruf wie 04/28-32 (``szene.schreibe``),
+    aber mit ``art=nachpass.ART_SZENE`` und der Regie-Notiz, die
+    ``nachpass.nach_szene`` baut (``nachpass._notiz``, Laenge erzwungen --
+    die Feinschliff-Szenen der Fixture sind zu kurz, um das Budget selbst zu
+    reissen, und ohne Notiz gaebe es keinen Aufruf, ``nach_szene`` Zeile
+    144f.)."""
+    from interview_theater import nachpass, repo as repo_modul, szene
+    chat_id = chats[7]
+    nummer = min(s["nummer"] for s in repo_modul.hole_szenen(conn, chat_id)
+                if s["nummer"] is not None)
+    notiz = nachpass._notiz(True, [])
+    auftrag = szene.T.TEXT_AUFTRAG_NEU.format(nummer=nummer, notiz=notiz)
+    with contextlib.suppress(Exception):
+        szene.schreibe(conn, tg, klm, e, chat_id, auftrag,
+                       art=nachpass.ART_SZENE, zeigen=False)
+    return None
+
+
 TREIBER = {
     "01-gespraech-phase1": _gespraech(1),
     "05-gespraech-phase2": _gespraech(2),
@@ -384,6 +630,32 @@ TREIBER = {
     "18-szenenfolge": _szenenfolge,
     "19-geschichte": _geschichte,
     "20-szenenfelder": _szenenfelder,
+    "08-gespraech-phase5": _gespraech(5),
+    "21-schaerfung": _schaerfung,
+    "22-entwurf-uebersicht": _entwurf_uebersicht,
+    "23-sprachprofil": _sprachprofil,
+    "24-kernzitate": _kernzitate,
+    "04-szene-prosa-phase6": _szene_prosa_phase6,
+    "02-gespraech-phase6": _gespraech(6),
+    "25-kurzgeschichte": _kurzgeschichte,
+    "03-kurzgeschichte-phase6": _kurzgeschichte_kuerzung,
+    "35-dramaturgie-b1": _dramaturgie("b1", 6),
+    "36-dramaturgie-a2": _dramaturgie("a2", 6),
+    "37-dramaturgie-a6": _dramaturgie_a6,
+    "38-dramaturgie-a9": _dramaturgie_a9,
+    "39-dramaturgie-a10": _dramaturgie("a10", 7),
+    "40-dramaturgie-a11": _dramaturgie("a11", 6),
+    "41-dramaturgie-c1": _dramaturgie_c1,
+    "09-gespraech-phase7": _gespraech(7),
+    "27-sprechweise": _sprechweise,
+    "28-szene-dialog": _szene_form("dialog"),
+    "29-szene-monolog": _szene_form("monolog"),
+    "30-szene-chor": _szene_form("chor"),
+    "31-szene-lied": _szene_form("lied"),
+    "32-szene-rap": _szene_form("rap"),
+    "34-stueckpruefung": _stueckpruefung,
+    "43-prueflauf-ueberarbeitung": _prueflauf_ueberarbeitung,
+    "44-nachpass": _nachpass,
 }
 
 
@@ -478,18 +750,20 @@ def main_fuer_test(ziel, nur=None) -> list[dict]:
 def main() -> None:
     import argparse
 
-    zerleger = argparse.ArgumentParser(description="Padua-Prompt-Dump (Phase 1+2, 3+4)")
+    zerleger = argparse.ArgumentParser(description="Padua-Prompt-Dump (Phase 1+2, 3+4, 5-7)")
     zerleger.add_argument(
         "ziel", nargs="?", default="docs/prompt-audit/2026-10-05-padua-p12")
     zerleger.add_argument(
         "--scope", choices=sorted(SCOPES), default="p12",
         help="Welche Dumps ohne --nur laufen (Vorgabe: p12 -- die fuenf "
-             "Dumps aus Phase 1+2; p34 die zehn Dumps aus Phase 3+4)")
+             "Dumps aus Phase 1+2; p34 die zehn Dumps aus Phase 3+4; p57 die "
+             "25 Dumps aus Phase 5-7)")
     zerleger.add_argument(
         "--nur", default=None,
         help="Kommaliste von Dumpnamen (Vorgabe: die Dumps aus --scope -- "
-             "dieser Lauf hat nur fuer SCOPE_P1_P2 und SCOPE_P3_P4 Treiber, "
-             "nicht fuer die restlichen Inventareintraege)")
+             "dieser Lauf hat nur fuer SCOPE_P1_P2, SCOPE_P3_P4 und "
+             "SCOPE_P5_P7 Treiber, nicht fuer die restlichen "
+             "Inventareintraege)")
     argumente = zerleger.parse_args()
     nur = argumente.nur.split(",") if argumente.nur else list(SCOPES[argumente.scope])
     zeilen = _lauf(Path(argumente.ziel), nur)

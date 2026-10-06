@@ -4,10 +4,11 @@ Der Lauf geht nie ins Netz: ``scripts.mitschnitt`` ersetzt den Modellklienten,
 ``simulation.attrappe.TelegramAttrappe`` den Kanal, und die Datenbank ist eine
 Wegwerfdatei.
 
-Scopes p12 (Karte t_bf16f3a7, Phase 1+2) und p34 (Task 3, Phase 3+4) --
-zusammen die zehn Dumps mit Treiber; die restlichen Inventareintraege haben
-in diesem Skript keinen Treiber.
+Scopes p12 (Karte t_bf16f3a7, Phase 1+2), p34 (Task 3, Phase 3+4) und p57
+(Task 5, Karte t_db7c6b2c, Phase 5-7) -- zusammen die 35 Dumps mit Treiber;
+die restlichen Inventareintraege haben in diesem Skript keinen Treiber.
 """
+import re
 from pathlib import Path
 
 import pytest
@@ -173,3 +174,135 @@ def test_begriffsboard_dump_nennt_keine_blosse_erwaehnung(tmp_path):
     dump.main_fuer_test(tmp_path, nur=["13-begriffsboard"])
     text = (tmp_path / "13-begriffsboard.txt").read_text(encoding="utf-8")
     assert "the group returns to it twice" not in text
+
+
+# --- Scope p57 (Task 5, Karte t_db7c6b2c): Phase 5-7, offline -------------
+
+
+#: Die 25 Dumps, fuer die dieser Scope Treiber hat.
+TEIL_P5_P7 = (
+    "08-gespraech-phase5", "21-schaerfung", "22-entwurf-uebersicht",
+    "23-sprachprofil", "24-kernzitate", "04-szene-prosa-phase6",
+    "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
+    "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
+    "38-dramaturgie-a9", "39-dramaturgie-a10", "40-dramaturgie-a11",
+    "41-dramaturgie-c1", "09-gespraech-phase7", "27-sprechweise",
+    "28-szene-dialog", "29-szene-monolog", "30-szene-chor", "31-szene-lied",
+    "32-szene-rap", "34-stueckpruefung",
+    "43-prueflauf-ueberarbeitung", "44-nachpass",
+)
+
+
+def test_scope_p57_ist_genau_die_liste_der_treiber():
+    assert dump.SCOPES["p57"] == dump.SCOPE_P5_P7
+    assert sorted(dump.SCOPE_P5_P7) == sorted(TEIL_P5_P7)
+
+
+@pytest.mark.parametrize("name", TEIL_P5_P7)
+def test_jeder_p57_dump_entsteht(tmp_path, name):
+    dump.main_fuer_test(tmp_path, nur=[name])
+    text = (tmp_path / f"{name}.txt").read_text(encoding="utf-8")
+    assert "=== SYSTEM" in text and "=== NUTZER" in text
+    assert len(dump_system(text)) > 200, name
+
+
+def test_die_phase_5_7_eintraege_haben_einen_treiber():
+    p57 = [e.datei for e in inv.INVENTAR if e.phase in (5, 6, 7)]
+    fehlend = [d for d in p57 if d not in dump.TREIBER]
+    assert not fehlend, fehlend
+
+
+@pytest.mark.parametrize("name", TEIL_P5_P7)
+def test_kein_dump_traegt_einen_offenen_platzhalter(tmp_path, name):
+    """Eine ``{name}``-Luecke, die kein ``.format()`` je fuellte, waere ein
+    kaputter Prompt -- gemessen statt geglaubt (Task 5, "kein {platzhalter}
+    offen")."""
+    dump.main_fuer_test(tmp_path, nur=[name])
+    text = (tmp_path / f"{name}.txt").read_text(encoding="utf-8")
+    ungefuellt = re.findall(r"\{[a-zA-Z_][a-zA-Z0-9_]*\}", text)
+    assert not ungefuellt, (name, ungefuellt)
+
+
+#: Die beiden geprueften Belegzitate aus ``fixture_padua_voll._material`` --
+#: jedes woertliche Zitat in einem Phase->=5-Dump muss eines der beiden sein.
+_GEPRUEFTE_ZITATE = (
+    "Ich habe drei Stunden auf dieser Bank gesessen und nichts gegessen.",
+    "Der Lautsprecher hat geredet und ich habe kein einziges Wort verstanden.",
+)
+
+
+@pytest.mark.parametrize("name", ("21-schaerfung", "24-kernzitate"))
+def test_claude_dumps_phase5_nennen_nur_geprueftes_zitat(tmp_path, name):
+    """Was im Prompt an woertlichem Interviewmaterial steht, muss aus der
+    Fixture stammen -- ``zitat_geprueft = 1`` (Task 5, Testliste).
+
+    Nicht ``23-sprachprofil``: dessen Nutzertext ist das volle Transkript
+    (``sprachprofil.baue_nutzertext``), nicht eine Materialliste mit
+    ``Quote:``-Zeilen -- das Modell zieht die Zitate dort selbst, und
+    ``zitat.pruefe`` prueft sie erst danach.
+
+    **Nur der Nutzertext**, nicht die Systemanweisung: ``prompts/kernzitate.md``
+    traegt selbst ein Few-Shot-Beispiel mit einer erfundenen ``Quote:``-Zeile
+    ("I sewed for twenty years...") -- die gehoert dem Prompt, nicht der
+    Fixture, und darf den Fixture-Check nicht roeten."""
+    dump.main_fuer_test(tmp_path, nur=[name])
+    text = (tmp_path / f"{name}.txt").read_text(encoding="utf-8")
+    zeilen_mit_zitat = [z for z in dump_nutzer(text).splitlines() if "Quote:" in z]
+    assert zeilen_mit_zitat, name
+    for zeile in zeilen_mit_zitat:
+        assert any(z in zeile for z in _GEPRUEFTE_ZITATE), zeile
+
+
+def test_sprachprofil_transkript_enthaelt_die_geprueften_zitate(tmp_path):
+    """Dasselbe Ziel wie oben, nur gegen das volle Transkript statt gegen
+    ``Quote:``-Zeilen."""
+    dump.main_fuer_test(tmp_path, nur=["23-sprachprofil"])
+    nutzer = dump_nutzer(
+        (tmp_path / "23-sprachprofil.txt").read_text(encoding="utf-8"))
+    assert any(z in nutzer for z in _GEPRUEFTE_ZITATE)
+
+
+#: Die Szenen-Dumps aus Phase 6/7, die einen Laengen-Budget-Block tragen
+#: muessen (``laengen.block_szene``, Task 5 Testliste).
+_SZENEN_MIT_LAENGENBLOCK = (
+    "04-szene-prosa-phase6", "28-szene-dialog", "29-szene-monolog",
+    "30-szene-chor", "31-szene-lied", "32-szene-rap", "44-nachpass",
+)
+
+
+@pytest.mark.parametrize("name", _SZENEN_MIT_LAENGENBLOCK)
+def test_szenen_dumps_tragen_den_laengenblock(tmp_path, name):
+    dump.main_fuer_test(tmp_path, nur=[name])
+    text = (tmp_path / f"{name}.txt").read_text(encoding="utf-8")
+    nutzer = dump_nutzer(text)
+    assert "How long this scene should be" in nutzer, name
+
+
+def dump_nutzer(text: str) -> str:
+    return text.split("=== NUTZER")[1]
+
+
+def test_phase6_gespraech_laeuft_ueber_claude(tmp_path):
+    dump.main_fuer_test(tmp_path, nur=["02-gespraech-phase6"])
+    assert "weg=claude" in (tmp_path / "02-gespraech-phase6.txt").read_text(encoding="utf-8")
+
+
+def test_phase7_gespraech_laeuft_ueber_claude(tmp_path):
+    dump.main_fuer_test(tmp_path, nur=["09-gespraech-phase7"])
+    assert "weg=claude" in (tmp_path / "09-gespraech-phase7.txt").read_text(encoding="utf-8")
+
+
+def test_die_fuenf_szenenform_dumps_tragen_je_ihre_form(tmp_path):
+    """28-32 unterscheiden sich NUR in der Form -- jede muss im System- oder
+    Nutzertext der Szene stehen (sonst dumpen alle fuenf denselben Prompt)."""
+    formen = {
+        "28-szene-dialog": "dialog",
+        "29-szene-monolog": "monolog",
+        "30-szene-chor": "chor",
+        "31-szene-lied": "lied",
+        "32-szene-rap": "rap",
+    }
+    for name, form in formen.items():
+        dump.main_fuer_test(tmp_path, nur=[name])
+        text = (tmp_path / f"{name}.txt").read_text(encoding="utf-8")
+        assert form in text.lower(), (name, form)

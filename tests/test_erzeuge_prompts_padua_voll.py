@@ -125,8 +125,21 @@ def test_phase4_gespraech_laeuft_ueber_claude(tmp_path):
     assert "weg=claude" in (tmp_path / "07-gespraech-phase4.txt").read_text(encoding="utf-8")
 
 
+#: 42-uebersetzung steht im Inventar auf phase=4 (naeher an ihrer
+#: Einordnung als phase=1/2), ist aber ein phasenunabhaengiger
+#: Hintergrundlauf (periodischer Dashboard-Uebersetzer, siehe
+#: interview_theater/uebersetzung.py) und kein P3/4-Dump wie die
+#: anderen Eintraege hier -- erzeuge_prompts_padua_voll.py deckt bewusst
+#: nur seine fuenf bestehenden Dumps ab (Karte t_bf16f3a7). Entscheidung
+#: Birk/Karte t_d57c4ddb: kein neuer P34-Treiber, stattdessen diese
+#: benannte Ausnahme (er laeuft live, gehoert also nicht in
+#: NICHT_LIVE_IN_PADUA).
+OHNE_P34_TREIBER = ("42-uebersetzung",)
+
+
 def test_die_phase_3_4_eintraege_haben_einen_treiber():
-    p34 = [e.datei for e in inv.INVENTAR if e.phase in (3, 4)]
+    p34 = [e.datei for e in inv.INVENTAR if e.phase in (3, 4)
+           and e.datei not in OHNE_P34_TREIBER]
     assert sorted(p34) == sorted(dump.SCOPE_P3_P4)
     assert not [d for d in p34 if d not in dump.TREIBER]
 

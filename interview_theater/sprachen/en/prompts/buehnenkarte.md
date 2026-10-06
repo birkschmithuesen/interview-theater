@@ -39,3 +39,9 @@ don't get any anyway).
 If there is genuinely NOTHING helpful to say right now -- the group doesn't
 need a card, there's no new thought that would justify one -- then reply
 with ONLY the one word: NICHTS
+
+**Language of the card: always the language the group is actually speaking
+in the transcript** -- regardless of the workshop's otherwise fixed chat
+language. If the group speaks Italian, write the card in Italian; if they
+switch, switch with them (Birk, 06.10.2026: CoThinker stays in the
+participants' mother tongue).

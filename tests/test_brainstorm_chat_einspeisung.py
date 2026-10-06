@@ -48,6 +48,9 @@ class TelegramAttrappe:
     def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
         return self.sende(chat_id, text)
 
+    def aendere_text(self, chat_id, message_id, text):
+        pass
+
     def tippt(self, chat_id):
         pass
 

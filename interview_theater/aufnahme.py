@@ -1179,13 +1179,59 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
     keinen eigenen Serveraufruf: das hochgeladene Segment TRAEGT seinen
     Schnittgrund selbst."""
     repo.setze_status(conn, row["id"], "fertig")
-    # Birk 02.10.2026: "das Transcript im Chat anzeigen als Feedback ist
-    # wichtig. Nach jeder Pause-Detection [...] soll es sich auch im Chat
-    # updaten." Die Blase bekommt ihr Transkript wie jede Sprachnachricht
-    # (B7) -- NUR die Anzeige: die ``nachricht``-Zeile bleibt
-    # ``unterdrueckt``, kein Gespraechszug, kein Erkenner (siehe oben).
-    _web_sprachblase(conn, row["chat_id"], row["message_id"], row["transkript"] or None)
+    # Birk 06.10.2026: Phase 4 soll wie ein Interview EINE wachsende
+    # Sprechblase zeigen (STT-Kontrolle), keine Chat-Reaktion vor
+    # "Discussion done" -- ersetzt die fruehere Pro-Segment-Blase
+    # (_web_sprachblase je Segment) durch EINE Blase je Bogen, analog
+    # ``_sende_transkript_blase`` bei Interviews.
+    _sende_brainstorm_blase(conn, tg, e, row)
+    if row["schnittgrund"] == "ende":
+        # Bogen zu Ende -- Markierung loeschen, damit der naechste Bogen
+        # eine NEUE Blase bekommt statt die alte weiterzuschreiben.
+        repo.setze_brainstorm_echo_message_id(conn, row["chat_id"], None)
     _brainstorm_entscheide(conn, tg, klm, e, row)
+
+
+def _sende_brainstorm_blase(conn, tg, e, row) -> None:
+    """Legt die EINE Transkriptblase des laufenden Brainstorm-Bogens an oder
+    schreibt sie weiter (Birk 06.10.2026, analog ``_sende_transkript_blase``
+    bei Interviews): zeigt das wortgetreue Mitschnitt-Transkript seit dem
+    Bogenanfang, damit die Gruppe wie beim Interview kontrollieren kann, ob
+    richtig verstanden wurde -- OHNE dass dafuer ein Gespraechszug oder
+    Absichtserkenner laeuft (das bleibt dem Ende-Segment vorbehalten, siehe
+    ``_fuettere_gespraechszug_aus_brainstorm``).
+
+    Nur im Web-Kanal (wie jede Blase hier); ein Fehlschlag kostet nur die
+    Anzeige, nie das Transkript."""
+    if not ist_web_gruppe(conn, row["chat_id"]):
+        return
+    chat_id = row["chat_id"]
+    try:
+        text = repo.brainstorm_arc_text(conn, chat_id, row["id"])
+        if not text:
+            return
+        message_id = repo.brainstorm_echo_message_id(conn, chat_id)
+        if message_id is not None:
+            try:
+                tg.aendere_text(chat_id, message_id, text)
+            except Exception:
+                log.exception("Brainstorm-Blase nicht aktualisiert, chat_id=%s", chat_id)
+            return
+        try:
+            message_id = tg.sende(chat_id, text, transkript=True)
+        except Exception:
+            log.exception("Brainstorm-Blase nicht gesendet, chat_id=%s", chat_id)
+            return
+        repo.setze_brainstorm_echo_message_id(conn, chat_id, message_id)
+        try:
+            repo.merke_nachricht(
+                conn, chat_id, message_id, getattr(e, "bot_name", None), 1,
+                repo.TYP_TRANSKRIPT, text, repo._jetzt(), 1,
+            )
+        except Exception:
+            log.exception("Brainstorm-Blase mitzuschreiben fehlgeschlagen, chat_id=%s", chat_id)
+    except Exception:
+        log.exception("Brainstorm-Blase fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:

@@ -95,6 +95,9 @@ class TelegramAttrappe:
         ziel.write_bytes(b"OggS-fingierte-audiodaten")
         self.heruntergeladen.append((file_id, ziel))
 
+    def aendere_text(self, chat_id, message_id, text):
+        pass
+
 
 class TelegramKaputterDownload(TelegramAttrappe):
     """lade_datei schlaegt IMMER fehl -- fuer den Kritisch-1-Test: ein

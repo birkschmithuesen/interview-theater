@@ -54,7 +54,14 @@ def _scanne(verzeichnis: Path, glob: str = "**/*") -> dict[str, list[str]]:
     for pfad in sorted(verzeichnis.rglob(glob)):
         if not pfad.is_file():
             continue
-        gefunden = _treffer(pfad.read_text(encoding="utf-8"))
+        try:
+            text = pfad.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            # Betriebsordner wie workshop/padua-2026/zugang/ koennen echte
+            # Binaerartefakte enthalten (QR-Code-Screenshots, PDFs) -- die
+            # pruefen wir nicht auf Promptworte, sie sind kein Text.
+            continue
+        gefunden = _treffer(text)
         if gefunden:
             treffer[str(pfad.relative_to(WURZEL))] = gefunden
     return treffer

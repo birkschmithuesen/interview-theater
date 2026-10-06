@@ -544,6 +544,13 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- brainstorm._LAEUFT ist In-Prozess-Speicher des Bots und fuer den
   -- separaten Webserver-Prozess nicht sichtbar.
   brainstorm_lauf_seit TEXT,
+  -- Die EINE Transkriptblase des laufenden Brainstorm-Bogens (Birk
+  -- 06.10.2026: Phase 4 soll wie ein Interview EINE wachsende Sprechblase
+  -- zeigen, keine Chat-Reaktion vor "Discussion done") -- die web_post-id
+  -- der Blase, analog zu aufnahme.echo_message_id bei Interviews. NULL =
+  -- kein Bogen offen / noch keine Blase in diesem Bogen. Wird beim
+  -- Bogenende (schnittgrund='ende') wieder auf NULL gesetzt.
+  brainstorm_echo_message_id INTEGER,
   -- Die Fragen-Gegenueberstellung eigen/KI (Padua Phase 1+2 Karte,
   -- 03.10.2026): der im Hintergrund erzeugte, versteckte KI-Vorschlag
   -- (``Begriff: Frage``-Zeilen wie ``fragen_auswahl``) und sein Zeitstempel.

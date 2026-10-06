@@ -279,7 +279,7 @@ def _zuordnungen(conn, chat_id: int) -> str:
 
 def _geschriebene_szenen(conn, chat_id: int) -> str:
     return TRENNER.join(
-        _szenenzeile(s) for s in repo.hole_szenen(conn, chat_id) if s["volltext"]
+        _szenenzeile(s) for s in repo.hole_szenen(conn, chat_id) if (s["volltext"] or s["prosa"])
     )
 
 

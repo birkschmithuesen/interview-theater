@@ -141,7 +141,11 @@ _ARTEN_MUSTER = (
 #: ``_DEKO`` selbst (naechste Zeile) laesst auch null Zeichen zu, das reicht
 #: dort, weil es nur zusaetzlich toleriert wird; die Grenzpruefung braucht
 #: mindestens eines.
-_DEKO_ZEICHEN = r"[*_#>•\-]"
+#:
+#: P57 Lauf 5 A2 (06.10.2026): auch Klammern ``(`` ``)`` ``[`` ``]`` -- das
+#: Modell setzte den Marker in Phase 6 in Klammern ("(VORSCHLAG BEGRIFFE:)"),
+#: und die Gruppe las ihn roh im Chat.
+_DEKO_ZEICHEN = r"[*_#>•\-()\[\]]"
 
 #: Dekorationszeichen, die ein Modell um die Markerzeile legen kann:
 #: Markdown fett/kursiv (``*``/``_``), eine Ueberschrift (``#``), ein

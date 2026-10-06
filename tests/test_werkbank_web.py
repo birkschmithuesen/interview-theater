@@ -227,7 +227,10 @@ def test_phase_4_setting_figuren_und_auch_vereinbart(tmp_path, padua):
     block = _block(web.gruppe_koerper(daten, None, token), 4)
     assert "A bus stop at night" in block
     assert "<b>Nadia</b>" in block and "the older sister, restless" in block
-    assert html_modul.escape(web.T._TEXT_WB_AUCH_VEREINBART) in block
+    # Birk 06.10.2026: die Ueberschrift "Also agreed" ist ueberfluessig --
+    # Festlegungen stehen direkt unter den anderen Kategorien, ohne eigenen
+    # Block.
+    assert html_modul.escape(web.T._TEXT_WB_AUCH_VEREINBART) not in block
     assert "At most one song." in block                        # eine Festlegung
     assert "<button" not in block
 

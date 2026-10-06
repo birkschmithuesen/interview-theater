@@ -172,12 +172,12 @@ body[data-figur] .replik { opacity: .35; }.panel-textbuch[data-figur] .replik.ak
 .panel-buehne #buehne-panel { display: flex; flex-direction: column; gap: .9rem;
                 padding: .4rem 0 1.2rem; }.panel-buehne #buehne-status { margin: 0; font-size: .95rem; color: var(--text-leise); }.panel-buehne /* Typografie laut Karte: >= 1.15rem auf Telefonbreite, .panel-buehne eine Zeilenlaenge, .panel-buehne die nicht Kante an Kante laeuft, .panel-buehne viel Weissraum, .panel-buehne Kontrast aus dem
    Token-Paar (text, .panel-buehne grund-2) -- bereits in web_gestalt.KONTRAST gefuehrt. */
-#buehne-tafel { font-size: 1.15rem; line-height: 1.55; white-space: pre-wrap;
+#buehne-tafel { font-size: 1.15rem; line-height: 1.55;
                 max-width: 34rem; margin: 0 auto; width: 100%;
                 box-sizing: border-box; padding: 1.1rem 1.2rem;
                 background: var(--grund-2); border: 1px solid var(--rand);
                 border-radius: var(--radius-gross); color: var(--text); }.panel-buehne #buehne-tafel .buehne-alter { display: block; margin-top: .7rem;
-                               font-size: .8rem; color: var(--text-leise); }.panel-buehne /* Die Navigation: Inhalt kommt IMMER aus JS (male()-Aequivalent), .panel-buehne das
+                               font-size: .8rem; color: var(--text-leise); }.panel-buehne #buehne-tafel p { margin: 0 0 .7rem; }.panel-buehne #buehne-tafel p:last-of-type { margin-bottom: 0; }.panel-buehne #buehne-tafel ul { margin: 0 0 .7rem 1.1rem; padding: 0; }.panel-buehne #buehne-tafel li { margin: 0 0 .3rem; }.panel-buehne #buehne-tafel li:last-child { margin-bottom: 0; }.panel-buehne #buehne-tafel .buehne-ueberschrift { margin-top: .9rem; }.panel-buehne #buehne-tafel .buehne-ueberschrift:first-child { margin-top: 0; }.panel-buehne /* Die Navigation: Inhalt kommt IMMER aus JS (male()-Aequivalent), .panel-buehne das
    leere Element ist hier nur der Platzhalter. Tippflaechen >= 44px. */
 #buehne-nav { display: flex; align-items: center; justify-content: center;
               gap: .6rem; flex-wrap: wrap; font-size: .9rem;
@@ -244,24 +244,21 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
    druecken: die Leiste bleibt sichtbar (eine Abkuerzung ist nicht falsch
    geworden), .panel-chat wird aber gedaempft -- rein optisch, .panel-chat der Server entscheidet
    weiterhin allein, .panel-chat wann ein Knopf wirklich verfaellt. */
-.leiste.ueberholt button { opacity: .4; border-color: #c9c4b8; color: #8b8f97; }.panel-chat .quittung { font-size: .82rem; opacity: .7; align-self: flex-start; }.panel-chat .tippt { font-size: .85rem; opacity: .6; height: 1.2em; }.panel-chat .fuss { position: fixed; left: 0; right: 0; bottom: 0; background: #fbfaf8;
+.leiste.ueberholt button { opacity: .4; border-color: #c9c4b8; color: #8b8f97; }.panel-chat /* Birk live 05.10.2026: Undo sitzt dezent IN der Blase, .panel-chat deren Speichern es
+   zuruecknimmt -- nicht als gleichwertiger Chip in der Leiste darunter. */
+.undo-mini { display: block; margin: .35rem 0 0 auto; padding: 0; border: 0;
+             background: none; font: inherit; font-size: .78rem;
+             color: #8b8f97; text-decoration: underline; cursor: pointer; }.panel-chat .undo-mini:disabled { opacity: .45; }.panel-chat .quittung { font-size: .82rem; opacity: .7; align-self: flex-start; }.panel-chat .tippt { font-size: .85rem; opacity: .6; height: 1.2em; }.panel-chat .fuss { position: fixed; left: 0; right: 0; bottom: 0; background: #fbfaf8;
         border-top: 1px solid #e0ddd6; padding: .5rem .7rem .8rem;
         display: flex; flex-direction: column; gap: .5rem; }.panel-chat .zeile { display: flex; gap: .4rem; align-items: stretch; }.panel-chat .zeile input { flex: 1; font: inherit; padding: .6rem .7rem; min-height: 2.9rem;
                border-radius: .7rem; border: 1px solid #c9c4b8; }.panel-chat .zeile button { font: inherit; min-width: 3.4rem; min-height: 2.9rem;
                 border-radius: .7rem; border: 0; background: #1f6f5c; color: #fff; }.panel-chat #interview { font: inherit; font-weight: 600; min-height: 3.2rem; width: 100%;
              border-radius: .8rem; border: 1px solid #1f6f5c; background: #fff; }.panel-chat #interview[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
                               color: #fff; min-height: 4rem; font-size: 1.15rem; }.panel-chat #interview[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
-                                                 border-color: #8a8a8a; }.panel-chat /* Brainstorm mithören (Phase 4, .panel-chat nur Web): derselbe grosse Knopf wie
-   #interview, .panel-chat Interview bleibt daneben erreichbar, .panel-chat aber kleiner/nachrangig
-   (brief: "interview button stays reachable ... smaller/secondary"). */
-#brainstorm { font: inherit; font-weight: 600; min-height: 3.2rem; width: 100%;
-              border-radius: .8rem; border: 1px solid #1f6f5c; background: #fff;
-              margin-bottom: .5rem; }.panel-chat #brainstorm[data-laeuft="1"] { background: #a8201a; border-color: #a8201a;
-                               color: #fff; min-height: 4rem; font-size: 1.15rem; }.panel-chat #brainstorm[data-laeuft="1"][data-pausiert="1"] { background: #8a8a8a;
-                                                  border-color: #8a8a8a; }.panel-chat #interview.nebenknopf { font-weight: 400; min-height: 2.4rem; font-size: .9rem;
+                                                 border-color: #8a8a8a; }.panel-chat #interview.nebenknopf { font-weight: 400; min-height: 2.4rem; font-size: .9rem;
                         opacity: .8; }.panel-chat .interview-aktionen { display: flex; gap: .5rem; margin-top: .4rem; }.panel-chat .interview-aktionen[hidden] { display: none; }.panel-chat .interview-aktionen button { flex: 1; min-height: 2.6rem; border-radius: .6rem;
                              font: inherit; border: 1px solid #1f6f5c;
-                             background: #fff; color: #17181b; }.panel-chat #ptt[hidden], .panel-chat #interview[hidden] { display: none; }.panel-chat #interview:disabled { opacity: .55; }.panel-chat /* PTT wird gehalten: kein Scrollen, .panel-chat kein Markieren, .panel-chat kein Kontextmenue unter
+                             background: #fff; color: #17181b; }.panel-chat #ptt[hidden], .panel-chat #interview[hidden] { display: none; }.panel-chat #interview:disabled { opacity: .55; }.panel-chat #diskussion[aria-disabled="true"] { opacity: .55; }.panel-chat /* PTT wird gehalten: kein Scrollen, .panel-chat kein Markieren, .panel-chat kein Kontextmenue unter
    dem Finger -- sonst bricht das Telefon den Druck ab oder blendet eine Lupe
    ein. */
 #ptt { touch-action: none; user-select: none; -webkit-user-select: none;
@@ -285,7 +282,11 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
                        border: 1px solid #1f6f5c; background: #fff; color: #17181b; }.panel-chat #kalibrierung-skip { border-color: #e0ddd6; color: #6b6f76; min-height: 2.3rem; }.panel-chat #kalibrierung-neu { font: inherit; min-height: 2.1rem; border-radius: .7rem;
                     border: 1px solid #e0ddd6; background: #fff; color: #6b6f76; }.panel-chat #kalibrierung-neu[hidden] { display: none; }.panel-chat .kalibrierung-balken { position: relative; height: .6rem; border-radius: .35rem;
                        background: #e0ddd6; overflow: visible; }.panel-chat .kalibrierung-balken[hidden] { display: none; }.panel-chat .kalibrierung-balken span { display: block; height: 100%; width: 0; border-radius: .35rem;
-                            background: #a8201a; }.panel-chat .kalibrierung-marke { position: absolute; top: -.2rem; bottom: -.2rem; width: 2px;
+                            background: #a8201a; }.panel-chat /* P1-M4: derselbe Zwei-Farben-Vertrag wie ``.pegel``/``.ueber-schwelle``
+   (``kalZeigeBalken`` setzt die Klasse) -- vorher blieb der Balken immer
+   rot, .panel-chat auch sobald die Stimme die Zielmarke (rechts daneben) erreicht
+   hatte, .panel-chat und niemand sah, .panel-chat was "laut genug" ueberhaupt bedeutet. */
+.kalibrierung-balken.ueber-schwelle span { background: #1f6f5c; }.panel-chat .kalibrierung-marke { position: absolute; top: -.2rem; bottom: -.2rem; width: 2px;
                       background: #17181b; left: 0; }.panel-chat .kalibrierung-erinnerung { font-size: .85rem; text-align: center; color: #1f6f5c; }.panel-chat .kalibrierung-erinnerung[hidden] { display: none; }.panel-chat .mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }.panel-chat .mitlauf-hinweis[hidden] { display: none; }.panel-chat /* Bild-Overlay-Karte: die Telefon-Organisationskarte (``.karte``) gross und
    zoombar. ``inset: 0`` statt ``100vw``/``100vh`` -- ein fixes Element
    braucht dafuer keine viewport-relative Einheit. ``touch-action:
@@ -582,7 +583,8 @@ body, .panel-textbuch { background: #fff !important; color: #000 !important; fon
 h1, h2, a, .leer, .zurueck { color: #000 !important; }
 .block, .frage, .frage .vorher { border-color: #000 !important; }
 }
-.panel-chat .verlauf { display: flex; flex-direction: column; gap: .6rem; }.panel-chat .blase { padding: .6rem .8rem; max-width: 90%; font-size: 1.0625rem;
+.panel-chat .verlauf { display: flex; flex-direction: column; gap: .6rem;
+           padding-bottom: .6rem; }.panel-chat .blase { padding: .6rem .8rem; max-width: 90%; font-size: 1.0625rem;
          border-radius: var(--radius-gross); overflow-wrap: anywhere; }.panel-chat .blase.bot { background: var(--grund-2); border: 1px solid var(--linie);
              align-self: flex-start; border-bottom-left-radius: .3rem; }.panel-chat .blase.gruppe { background: var(--signal-tief); border: 1px solid var(--rand);
                 align-self: flex-end; border-bottom-right-radius: .3rem; }.panel-chat /* Kursiv traegt "Sprachnachricht"; leise Schrift auf der Gruppenblase
@@ -624,7 +626,7 @@ h1, h2, a, .leer, .zurueck { color: #000 !important; }
         border-top: 1px solid var(--linie); }.panel-chat #ux-rec-zeile { flex: 1; font-family: var(--schrift-skript);
                 font-size: 1.1rem; color: var(--text); }.panel-chat /* P2, .panel-chat Aufgabe 2: vorher ``var(--rec)`` -- als Text nur 3.45:1 (B) auf dem
    Grund, .panel-chat unter AA. Der laufende Zustand steht im Wortlaut und in der Uhr. */
-#interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--text); }.panel-chat /* -- Knopf 2: Push-to-Talk als Pille -------------------------------- */
+#interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--text); }.panel-chat #interview[hidden] + #ux-rec-zeile, .panel-chat #diskussion[data-laeuft="1"] ~ #ux-rec-zeile { display: none; }.panel-chat /* -- Knopf 2: Push-to-Talk als Pille -------------------------------- */
 #ptt { min-width: 3.5rem; min-height: var(--tippflaeche);
        border-radius: 1.4rem; border: 1px dashed var(--signal);
        background: var(--grund-2); color: var(--signal);
@@ -658,11 +660,7 @@ h1, h2, a, .leer, .zurueck { color: #000 !important; }
    ausserhalb des Bildes (Browserlauf 03.10.2026). */
 .zeile { flex: 1 1 100%; min-width: 0; }.panel-chat /* Uhr und Pegel teilen sich die erste Zeile, .panel-chat wie im Entwurf; ohne Breite
    schrumpfte der Pegel in der Zeile auf einen Strich. */
-#pegel { flex: 1 1 calc(100% - 7rem); min-width: 4rem; }.panel-chat /* Meldungen ueber der Knopfzeile bekommen eine eigene Zeile: am Laptop
-   stand die Warteschlange sonst links neben dem Kreis und schob den
-   Hinweistext darunter (Review an 834edbf, .panel-chat Akte-Bild). Leer kostet sie
-   keine Zeile. */
-#warteschlange, .panel-chat #fehler, .panel-chat .angehalten { flex: 1 1 100%; }.panel-chat #warteschlange:empty { display: none; }.panel-chat { background: var(--grund); color: var(--text); }.panel-chat /* Am Laptop lief der feste Fuss ueber die ganze Breite, .panel-chat waehrend Chat
+#pegel { flex: 1 1 calc(100% - 7rem); min-width: 4rem; }.panel-chat #warteschlange, .panel-chat #fehler, .panel-chat .angehalten { flex: 1 1 100%; }.panel-chat #warteschlange:empty { display: none; }.panel-chat { background: var(--grund); color: var(--text); }.panel-chat /* Am Laptop lief der feste Fuss ueber die ganze Breite, .panel-chat waehrend Chat
    und Tabs auf 46rem zentriert stehen -- Uhr links aussen, .panel-chat Knoepfe
    rechts aussen. Dieselbe Breite wie ``body`` in ``_BASIS``. */
 .fuss { max-width: 46rem; margin: 0 auto; }.panel-chat .zeile input { min-width: 0; }.panel-chat .interview-aktionen button, .panel-chat .angehalten button {
@@ -681,10 +679,7 @@ h1, h2, a, .leer, .zurueck { color: #000 !important; }
    tatsaechliche Selektor aus ``_CHAT_FLAECHEN`` kommt (``scope_css`` haengt
    ihr ``.panel-chat`` voran) -- in ``css_interview()`` (UNGESCOPT) haette
    dieselbe Regel die niedrigere Spezifitaet 1, .panel-chat 2, .panel-chat 0 und verloere. */
-#interview.nebenknopf[data-ux-zustand="laeuft"] { opacity: 1; }.panel-chat #brainstorm { background: var(--grund-2); color: var(--text);
-              border-color: var(--rand); }.panel-chat #brainstorm[data-laeuft="1"] { background: var(--rec); color: var(--auf-rec);
-                               border-color: var(--rec); }.panel-chat #brainstorm[data-laeuft="1"][data-pausiert="1"] { background: var(--grund-3);
-    border-color: var(--warn); color: var(--warn); }
+#interview.nebenknopf[data-ux-zustand="laeuft"] { opacity: 1; }
 
 #ux-leitfaden { display: none; }
 html[data-ux-interview="1"] .panel:not(#tab-chat),
@@ -697,8 +692,6 @@ html[data-ux-interview="1"] #ux-ansage,
 html[data-ux-interview="1"] .panel-chat h1,
 html[data-ux-interview="1"] #verlauf,
 html[data-ux-interview="1"] #tippt,
-html[data-ux-interview="1"] #brainstorm,
-html[data-ux-interview="1"] #brainstorm-aktionen,
 html[data-ux-interview="1"] .zeile { display: none; }
 html[data-ux-interview="1"] #tab-chat { display: block; }
 html[data-ux-interview="1"] body .fuss { display: flex; top: 0; bottom: 0;
@@ -755,11 +748,7 @@ html[data-ux-interview="1"] #interview-beenden { min-height: 4.5rem;
     font-size: 1.3rem; font-weight: 700; background: var(--rec);
     color: var(--auf-rec); border-color: var(--rec);
     border-radius: var(--radius-gross); }
-.panel-stand { background: var(--grund); color: var(--text); }.panel-stand /* Review an 834edbf, .panel-stand Rundgang ueber alle sichtbaren Texte: ``web._CSS_GRUPPE``
-   setzt die Eingabefelder mit ``.feld``-Praefix WEISS bei geerbter (heller)
-   Schrift -- 1.23:1, .panel-stand die Werte der Gruppe waren unlesbar. Dazu der weisse
-   Kasten um den Szenentext und Daempfung ueber ``opacity`` statt Farbe. */
-.feld select, .panel-stand .feld input[type=text], .panel-stand .feld textarea {
+.panel-stand { background: var(--grund); color: var(--text); }.panel-stand .feld select, .panel-stand .feld input[type=text], .panel-stand .feld textarea {
     background: var(--grund-3); color: var(--text); border-color: var(--rand); }.panel-stand .szene .volltext { background: var(--grund-2); border-color: var(--linie); }.panel-stand .leer, .panel-stand .zeit { opacity: 1; color: var(--text-leise); }.panel-stand .zeit a { color: var(--signal); }.panel-stand [data-feld] { background: var(--grund-2); border: 1px solid var(--linie);
               border-radius: var(--radius); padding: .55rem .65rem;
               margin: 0 0 .5rem; }.panel-stand dt { font-family: var(--schrift-tech); font-size: .72rem; letter-spacing: .1em;
@@ -805,7 +794,54 @@ ul.stueckkarte { list-style: none; padding-left: 0; }.panel-stand ul.stueckkarte
            border-color: var(--rand); }.panel-stand .fassung.aktiv { background: var(--signal); border-color: var(--signal);
                  color: var(--auf-signal); }
 .panel-buehne #buehne-panel .karte { background: var(--grund-2); color: var(--text);
-                       border-color: var(--linie); }.panel-buehne #buehne-panel .karte.alt { color: var(--text-leise); opacity: 1; }.panel-buehne #buehne-panel .hoert-zu { color: var(--text-leise); opacity: 1; }.panel-buehne #buehne-panel .leer { color: var(--text-leise); opacity: 1; }.panel-buehne .stueckkarte { background: var(--grund-3); }.panel-buehne .sk-haken { color: var(--text-leise); opacity: 1; }.panel-buehne .sk-frei { color: var(--text-leise); opacity: 1; }
+                       border-color: var(--linie); }.panel-buehne #buehne-panel .karte.alt { color: var(--text-leise); opacity: 1; }.panel-buehne #buehne-panel .hoert-zu { color: var(--text-leise); opacity: 1; }.panel-buehne #buehne-panel .leer { color: var(--text-leise); opacity: 1; }.panel-buehne .stueckkarte { background: var(--grund-3); }.panel-buehne .sk-haken { color: var(--text-leise); opacity: 1; }.panel-buehne .sk-frei { color: var(--text-leise); opacity: 1; }.panel-buehne .begriffsboard { list-style: none; counter-reset: bbrang; margin: 0; padding: 0; }.panel-buehne .begriffsboard li { display: flex; align-items: baseline; flex-wrap: wrap;
+                     gap: .15rem .6rem; padding: .4rem 0; }.panel-buehne .begriffsboard li[data-top="1"] { counter-increment: bbrang; }.panel-buehne .begriffsboard li[data-top="1"]::before {
+  content: counter(bbrang); flex: 0 0 auto; width: 1.5rem; height: 1.5rem;
+  border-radius: 50%; background: var(--signal); color: var(--auf-signal);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--schrift-tech); font-size: .78rem; font-weight: 700;
+}.panel-buehne .begriffsboard li[data-top="1"] .begriff {
+  font-family: var(--schrift-skript); font-weight: 700; font-size: 1.1em;
+  color: var(--text);
+}.panel-buehne .begriffsboard li:not([data-top="1"]) .begriff {
+  font-size: .92em; color: var(--text-leise);
+}.panel-buehne .begriffsboard li[data-top="1"] + li:not([data-top="1"]) {
+  border-top: 1px solid var(--linie); margin-top: .3rem; padding-top: .75rem;
+}.panel-buehne .begriffsboard li[data-status="verworfen"] .begriff { font-style: italic; }.panel-buehne .begriffsboard .vorgaenger { display: inline-flex; align-items: baseline;
+                             gap: .35em; margin-left: .5em; padding-left: .5em;
+                             border-left: 1px solid var(--linie); }.panel-buehne .begriffsboard .vorgaenger del { color: var(--text-leise); font-size: .85em;
+                                 text-decoration-thickness: 1px; }.panel-buehne .begriffsboard .vorgaenger del:not(:first-child) { font-size: .75em; }.panel-buehne .fragen-kopf { font-family: var(--schrift-tech); font-size: .78rem; font-weight: 700;
+               letter-spacing: .08em; text-transform: uppercase;
+               color: var(--text-leise); margin: 0 0 .5rem; }.panel-buehne .fragenuebersicht { list-style: none; margin: 0; padding: 0; }.panel-buehne .fragenuebersicht > li { padding: .55rem 0; border-top: 1px solid var(--linie); }.panel-buehne .fragenuebersicht > li:first-child { border-top: 0; }.panel-buehne .fragenuebersicht .begriff { display: flex; align-items: center; gap: .5rem;
+                             font-family: var(--schrift-skript); font-weight: 700;
+                             font-size: 1.05em; color: var(--text); }.panel-buehne .fragenuebersicht .begriff::before { content: ""; flex: 0 0 auto; width: .7rem;
+                                     height: .7rem; border-radius: 50%;
+                                     box-sizing: border-box; background: var(--signal);
+                                     border: 2px solid var(--signal); }.panel-buehne .fragenuebersicht li[data-offen="1"] .begriff { color: var(--text-leise); }.panel-buehne .fragenuebersicht li[data-offen="1"] .begriff::before { background: none;
+                                                        border: 2px dashed var(--text-leise); }.panel-buehne .fragenuebersicht ul.fragen { list-style: none; margin: .35rem 0 0 .35rem;
+                              padding: 0 0 0 .85rem; border-left: 1px solid var(--linie); }.panel-buehne .fragenuebersicht ul.fragen li { padding: .2rem 0; color: var(--text); line-height: 1.4; }.panel-buehne .fragenuebersicht .fragen-offen { margin: .25rem 0 0 1.2rem; font-style: italic;
+                                  font-size: .9em; color: var(--text-leise); }.panel-buehne .auswahl-zaehler { font-family: var(--schrift-tech); font-size: .8rem; font-weight: 700;
+                   color: var(--text-leise); margin: 0 0 .5rem; position: sticky; top: 0;
+                   background: var(--grund); padding: .35rem 0; z-index: 1; }.panel-buehne .auswahl-titel { font-family: var(--schrift-skript); font-weight: 700; font-size: 1.05em;
+                 color: var(--text); margin: 1rem 0 .2rem; }.panel-buehne ul.auswahl { list-style: none; margin: 0; padding: 0; }.panel-buehne ul.auswahl > li { display: flex; flex-direction: column; gap: .35rem; padding: .6rem 0;
+                  border-top: 1px solid var(--linie); }.panel-buehne ul.auswahl > li:first-child { border-top: 0; }.panel-buehne .auswahl-text { color: var(--text); line-height: 1.4; overflow-wrap: anywhere; }.panel-buehne .auswahl-text .herkunft { font-family: var(--schrift-tech); font-size: .7rem;
+                          color: var(--text-leise); border: 1px solid var(--linie);
+                          border-radius: var(--radius); padding: 0 .3rem;
+                          white-space: nowrap; }.panel-buehne .auswahl-knoepfe { display: flex; gap: .5rem; }.panel-buehne .auswahl-knopf { flex: 1 1 0; min-height: max(44px, var(--tippflaeche)); min-width: 44px;
+                 font-size: 1.15rem; line-height: 1; cursor: pointer;
+                 background: var(--grund-2); color: var(--text);
+                 border: 1px solid var(--linie); border-radius: var(--radius);
+                 touch-action: manipulation; }.panel-buehne .auswahl-knopf[data-wert="ja"][aria-pressed="true"] { background: var(--warn);
+                                                      color: var(--auf-warn);
+                                                      border-color: var(--warn); }.panel-buehne .auswahl-knopf[data-wert="nein"][aria-pressed="true"] { background: var(--grund-3);
+                                                        color: var(--text);
+                                                        border-color: var(--text-leise); }.panel-buehne .auswahl-knopf[data-wert="schaerfen"][aria-pressed="true"] { background: var(--signal);
+                                                             color: var(--auf-signal);
+                                                             border-color: var(--signal); }.panel-buehne ul.auswahl > li[data-zustand="nein"] .auswahl-text { color: var(--text-leise);
+                                                     text-decoration: line-through; }.panel-buehne ul.auswahl > li[data-zustand="ja"] .auswahl-text { font-weight: 600; }.panel-buehne .auswahl-fertig { display: block; width: 100%; margin: 1.2rem 0 .5rem;
+                  min-height: max(48px, var(--tippflaeche)); font-weight: 700;
+                  cursor: pointer; background: var(--signal); color: var(--auf-signal);
+                  border: 0; border-radius: var(--radius); padding: .5rem 1rem; }.panel-buehne .auswahl-fertig:disabled { opacity: .6; }
 .panel-textbuch { background: var(--grund); color: var(--text); }.panel-textbuch .wege a { color: var(--signal); }.panel-textbuch .leer, .panel-textbuch .offen, .panel-textbuch .regie, .panel-textbuch .leiste .marke { opacity: 1; color: var(--text-leise); }.panel-textbuch .replik.aktiv.aktiv.aktiv.aktiv { background: var(--grund-2);
                                   border-left-color: var(--signal); }.panel-textbuch .szenenkopf { font-family: var(--schrift-skript); font-size: 1.25rem;
               color: var(--signal); border-bottom: 1px solid var(--linie);
@@ -822,10 +858,12 @@ html { height: 100%; overflow-x: hidden; }
 body { display: flex; flex-direction: column; align-items: stretch;
         margin: 0 auto; padding: 1rem 0 0; overflow: hidden;
         height: 100vh; height: 100dvh; height: var(--vh, 100dvh); }
-.roadmap { flex: 0 0 auto; order: 0; min-width: 0; width: 100%; margin: 0;
+.roadmap, header.phasenav { flex: 0 0 auto; order: 0; min-width: 0;
+            width: 100%; margin: 0;
             padding-left: 1.2rem; padding-right: 1.2rem; }
 .roadmap summary { padding-top: 0; padding-bottom: 0;
                     min-height: auto; height: var(--tippflaeche); }
+header.phasenav { position: static; }
 .tabs { position: static; flex: 0 0 auto; min-width: 0; order: 1;
          padding-left: 1.2rem; padding-right: 1.2rem;
          padding-bottom: calc(.3rem + env(safe-area-inset-bottom)); }
@@ -842,7 +880,11 @@ body { display: flex; flex-direction: column; align-items: stretch;
                         overflow-y: auto; overflow-x: hidden;
                         overscroll-behavior: contain;
                         -webkit-overflow-scrolling: touch;
-                        padding-left: 1.2rem; padding-right: 1.2rem; }
+                        padding-left: 1.2rem; padding-right: 1.2rem;
+                        -webkit-mask-image:
+                          linear-gradient(to bottom, transparent, black 1rem);
+                        mask-image:
+                          linear-gradient(to bottom, transparent, black 1rem); }
 html:not([data-ux-interview="1"]) .panel-chat .fuss {
   position: static; flex: 0 0 auto; min-width: 0;
   left: auto; right: auto; top: auto; bottom: auto;
@@ -852,7 +894,7 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {
 .zeile { min-width: 0; }
 .zeile input { font-size: 16px; touch-action: manipulation; min-width: 0; }
 .zeile button, .tabs button, .leiste button,
-#interview, #ptt, #senden, #brainstorm { touch-action: manipulation; }
+#interview, #ptt, #senden, #diskussion { touch-action: manipulation; }
 </style></head>
 <body>
 <details class="roadmap" id="roadmap" data-aktive-phase="4"><summary><span class="roadmap-kopf">Phase 4/7 · Setting, Figuren &amp; Geschichte — 4/4</span></summary><ol class="phasen"><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="1" data-bezeichnung="1 · Begriffe" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">1 · Begriffe</button><button type="button" class="phase-abbrechen" data-phase="1" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="begriffe">✅ Begriffe</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="2" data-bezeichnung="2 · Fragen" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">2 · Fragen</button><button type="button" class="phase-abbrechen" data-phase="2" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="fragen">✅ Fragen</li><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="fragen">✅ Einleitungen</li><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="interview_eroeffnung">✅ Eroeffnung</li><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="interview_abschluss">✅ Abschluss</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="3" data-bezeichnung="3 · Interviews" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">3 · Interviews</button><button type="button" class="phase-abbrechen" data-phase="3" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe offen" data-ziel-tab="chat">⬜ Interviews</li><li class="aufgabe offen" data-ziel-tab="stand">⬜ Auswertungen</li></ul></li><li class="phase aktiv"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="4" data-bezeichnung="4 · Setting, Figuren &amp; Geschichte" data-bereit="0" data-fehlt="Auswertungen" title="Zu dieser Phase wechseln">4 · Setting, Figuren &amp; Geschichte</button><button type="button" class="phase-abbrechen" data-phase="4" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="rahmen">✅ Setting</li><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Figuren</li><li class="aufgabe erledigt" data-ziel-tab="stand" data-ziel-feld="geschichte">✅ Geschichte</li><li class="aufgabe erledigt" data-ziel-tab="stand">✅ Szenenfolge</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="5" data-bezeichnung="5 · Schaerfung" data-bereit="0" data-fehlt="Figuren" title="Zu dieser Phase wechseln">5 · Schaerfung</button><button type="button" class="phase-abbrechen" data-phase="5" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe offen" data-ziel-tab="stand">⬜ Zuordnungen</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="6" data-bezeichnung="6 · Szenen als Geschichte" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">6 · Szenen als Geschichte</button><button type="button" class="phase-abbrechen" data-phase="6" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe erledigt" data-ziel-tab="textbuch">✅ Szenentexte</li></ul></li><li class="phase"><div class="phase-kopfzeile"><button type="button" class="phase-knopf" data-phase="7" data-bezeichnung="7 · Feinschliff" data-bereit="1" data-fehlt="" title="Zu dieser Phase wechseln">7 · Feinschliff</button><button type="button" class="phase-abbrechen" data-phase="7" hidden aria-label="Nein">✕</button></div><ul class="aufgaben"><li class="aufgabe offen" data-ziel-tab="stand">⬜ Stueckpruefung</li></ul></li></ol></details>
@@ -868,8 +910,10 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {
 <div class="fuss" id="fuss" data-segment-ms="45000"
      data-vad-pause-ms="2500" data-vad-max-ms="90000" data-vad-min-speech-ms="500"
      data-vad-rms="0.01" data-vad-floor-faktor="2.5"
+     data-vad-weich-ab-ms="30000" data-vad-weich-pause-ms="700"
      data-vad-kalibrierung="1"
      data-kalibrierung-modus=""
+     data-kalibrierung-boden="" data-kalibrierung-rede="" data-kalibrierung-schwelle=""
      data-interview="0" data-basis="deterministischer-bitgleich-test-token/">
   <div class="uhr" id="uhr" hidden></div>
   <div class="pegel" id="pegel" hidden><span></span><i class="pegel-schwelle"></i></div>
@@ -899,14 +943,8 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {
     <button type="button" id="nachreichen">Rest als Interview nachreichen</button>
     <button type="button" id="verwerfen">Rest verwerfen</button>
   </div>
-  <button type="button" id="brainstorm" data-laeuft="0" data-pausiert="0">🎙 Brainstorm mithören</button>
-  <div class="interview-aktionen" id="brainstorm-aktionen" hidden>
-    <button type="button" id="brainstorm-pause">⏸ Pause</button>
-    <button type="button" id="brainstorm-beenden">■ Beenden</button>
-  </div>
-  <button type="button" id="diskussion" data-laeuft="0" data-pausiert="0" hidden>Zuhoeren starten</button>
+  <button type="button" id="diskussion" data-laeuft="0" data-mithoeren-ziel="brainstorm">Zuhoeren starten</button>
   <div class="interview-aktionen" id="diskussion-aktionen" hidden>
-    <button type="button" id="diskussion-pause">⏸ Pause</button>
     <button type="button" id="diskussion-beenden" data-discussion-done="1">Diskussion fertig</button>
   </div>
   <button type="button" id="interview" data-laeuft="0" data-pausiert="0" class="nebenknopf" hidden>Interview aufnehmen</button>
@@ -961,7 +999,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
 
 </section>
 <section class="panel panel-textbuch" id="tab-textbuch" role="tabpanel" data-textbuch="" hidden>
-<h1>Die Ankommenden — Probenansicht</h1>
+<span hidden data-stempel="830217cfed58086d"></span><h1>Die Ankommenden — Probenansicht</h1>
 <p class="wege"><a href="/theatersoap/g/deterministischer-bitgleich-test-token">‹ Arbeitsstand</a><a href="/theatersoap/g/deterministischer-bitgleich-test-token/textbuch.md">Textbuch .md</a><a href="/theatersoap/g/deterministischer-bitgleich-test-token/textbuch.txt">Textbuch .txt</a></p><div class="leiste rollen"><span class="marke">Rolle</span><button type="button" class="rolle" data-figur="" data-name="" aria-pressed="true">alle</button><button type="button" class="rolle" data-figur="MERYEM" data-name="Meryem" aria-pressed="false">Meryem</button><button type="button" class="rolle" data-figur="ERHAN" data-name="Erhan" aria-pressed="false">Erhan</button></div><div class="leiste"><span class="marke">Schrift</span><button type="button" class="schrift" data-schrift="klein" aria-pressed="false">klein</button><button type="button" class="schrift" data-schrift="mittel" aria-pressed="true">mittel</button><button type="button" class="schrift" data-schrift="gross" aria-pressed="false">groß</button><button type="button" class="regie-schalter" aria-pressed="false">Regieanweisungen ausblenden</button></div>
 <article class="stueck"><section class="probe-szene"><h2 class="szenenkopf">Szene 1 — Ankunft am Gleis</h2><div class="text"><p class="replik" data-figur="MERYEM"><b class="sprecher">MERYEM:</b> Drei Jahre. Unter dem Bett. Gepackt.</p><p class="replik" data-figur="ERHAN"><b class="sprecher">ERHAN:</b> Du kannst ihn jetzt auspacken.</p></div></section></article>
 <p class="hinweis-druck leer">Zum Ausdrucken: die Druckfunktion des Browsers — je Szene eine Seite, ohne Leisten und Farben.</p>
@@ -1090,11 +1128,12 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   // Karte t_4517d4ad: der CoThinker steht in Phase 4 (Buehnenkarten) UND in
   // Phase 1, wenn das Profil das Begriffsboard faehrt (``#roadmap`` traegt
   // dann ``data-begriffsboard="1"``, gesetzt von ``_leiste_html``).
+  // Birk 05.10.2026: mit demselben Merkmal auch Phase 2 (Fragenuebersicht).
   function istCoThinkerPhase() {
     var rm = document.getElementById('roadmap');
     if (!rm) { return false; }
     var p = rm.dataset.aktivePhase;
-    return p === '4' || (p === '1' && rm.dataset.begriffsboard === '1');
+    return p === '4' || ((p === '1' || p === '2') && rm.dataset.begriffsboard === '1');
   }
   var lies = function () {
     var teile = location.hash.replace(/^#/, '').split('&');
@@ -1114,6 +1153,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       if (knopf) { knopf.setAttribute('aria-selected', tab === name ? 'true' : 'false'); }
     });
     document.body.dataset.tab = name;
+    if (name === 'textbuch' && typeof ladeTextbuch === 'function') { ladeTextbuch(); }
     // Der unaufdringliche Marker (Birk, Feedback b) gilt nur, solange der
     // Tab nicht vorn ist -- ein Oeffnen raeumt ihn weg, kein zweiter Weg.
     if (name === 'buehne') {
@@ -1495,6 +1535,15 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   // einzeln aufrufen kann (wie test_web_vereint_js_syntax.py es mit dem
   // ganzen <script>-Block tut, hier nur je Funktion).
   var buehneLetzter = null;
+  // Fix 05.10.2026 (Auswahlliste, Padua): ``gen`` zaehlt die fertigen
+  // Tipp-POSTs, ``unterwegs`` die laufenden (gepflegt von ``_AUSWAHL_JS``).
+  // Eine Panel-Antwort, deren Anfrage VOR dem letzten fertigen Tipp lief,
+  // ist veraltet und wird verworfen -- sonst klappt die Zeile zurueck.
+  // ``gesehen`` laesst ``holePanel`` ``buehneLetzter`` mitfuehren.
+  var buehneTakt = window.buehneTakt = {
+    gen: 0, unterwegs: 0,
+    gesehen: function (html) { buehneLetzter = html; }
+  };
   var buehneVerlauf = [];
   var buehnePos = null;
   var buehneBasis = '';
@@ -1505,6 +1554,44 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     return String(s).replace(/[&<>"']/g, function (z) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[z];
     });
+  }
+
+  // Dieselbe sichere Markdown-Teilmenge wie ``web._buehne_inline``/
+  // ``_buehne_markdown`` (Birk 06.10.2026) -- Fett vor Kursiv auf einer
+  // bereits maskierten Zeile, sonst fraesse Kursiv die Fett-Sternpaare an.
+  function buehneInline(zeile) {
+    zeile = zeile.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    return zeile.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  }
+
+  // buehneMarkdown-Aequivalent zu ``web._buehne_markdown``: IMMER zuerst
+  // maskieren (``buehneEscape``), erst danach die vier Regeln -- ein
+  // woertliches ``<script>`` im Kartentext bleibt so Text, nie Markup.
+  function buehneMarkdown(text) {
+    var bloecke = [];
+    var liste = [];
+    function schliesseListe() {
+      if (liste.length) {
+        bloecke.push('<ul>' + liste.map(function (z) { return '<li>' + z + '</li>'; }).join('') + '</ul>');
+        liste = [];
+      }
+    }
+    var zeilen = buehneEscape(text || '').split('\n');
+    for (var i = 0; i < zeilen.length; i++) {
+      var zeile = zeilen[i].trim();
+      if (!zeile) { schliesseListe(); continue; }
+      var aufzaehlung = zeile.match(/^(?:-|•)\s+(.+)$/);
+      if (aufzaehlung) { liste.push(buehneInline(aufzaehlung[1])); continue; }
+      schliesseListe();
+      var ueberschrift = zeile.match(/^\*\*([^*]+)\*\*$/);
+      if (ueberschrift) {
+        bloecke.push('<p class="buehne-ueberschrift"><strong>' + ueberschrift[1] + '</strong></p>');
+        continue;
+      }
+      bloecke.push('<p>' + buehneInline(zeile) + '</p>');
+    }
+    schliesseListe();
+    return bloecke.join('');
   }
 
   function buehneVorschau(text) {
@@ -1580,12 +1667,13 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     );
   }
 
-  // zeige()-Aequivalent: setzt die Tafel direkt aus dem Client-Verlauf
-  // (``textContent``, nicht ``innerHTML`` -- die Karte ist reiner Text ohne
-  // Formatierungsbedarf ausser Zeilenumbruechen, die CSS ``white-space:
-  // pre-wrap`` traegt, siehe _CSS_BUEHNE). "aktuell" (``i===null``) liest
-  // dabei die NEUESTE Karte des Verlaufs -- bei uns dieselbe Quelle wie die
-  // naechste Serverantwort, es gibt kein zweites ``letzte``-Objekt.
+  // zeige()-Aequivalent: setzt die Tafel direkt aus dem Client-Verlauf --
+  // ``innerHTML`` aus ``buehneMarkdown`` (Birk 06.10.2026, vorher
+  // ``textContent`` mit rohem Modelltext samt sichtbaren Sternchen), die
+  // einzige Stelle, die Markup einfuegt, und die maskiert IMMER zuerst.
+  // "aktuell" (``i===null``) liest dabei die NEUESTE Karte des Verlaufs --
+  // bei uns dieselbe Quelle wie die naechste Serverantwort, es gibt kein
+  // zweites ``letzte``-Objekt.
   function buehneZeige(i) {
     if (i !== null && buehnePos === null) {
       var letzte = buehneVerlauf.length ? buehneVerlauf[buehneVerlauf.length - 1] : null;
@@ -1598,7 +1686,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       var eintrag = (i === null)
         ? (buehneVerlauf.length ? buehneVerlauf[buehneVerlauf.length - 1] : null)
         : buehneVerlauf[i];
-      if (eintrag) { tafel.textContent = eintrag.text || ''; }
+      if (eintrag) { tafel.innerHTML = buehneMarkdown(eintrag.text || ''); }
     }
     buehneNavRender();
   }
@@ -1684,16 +1772,108 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     }, { passive: true });
   })();
 
+  // -- Begriffsboard: Live-Ranking ohne Springen (Karte t_cb2c4678) -------
+  //
+  // ladeBuehne() tauscht das ganze Panel (panel.innerHTML = neu). Damit die
+  // Liste dabei nicht springt, misst bbMerke() die alten Zeilen UNMITTELBAR
+  // davor und bbSpiele() spielt UNMITTELBAR danach FLIP: jede Zeile startet
+  // optisch an ihrer alten Stelle und gleitet an die neue. Zuordnung ueber
+  // data-begriff, fuer einen geschaerften Begriff ueber data-vorgaenger.
+  // Seit der Design-Erweiterung gibt es kein aufklappbares "Warum" mehr --
+  // bbMerke/bbSpiele muessen keinen Auf-/Zu-Zustand mehr tragen. Ohne
+  // ol.begriffsboard (Phase 4, Buehnenkarten) tun beide nichts. Bewegung
+  // nur per CSSOM (CSP) und nie bei prefers-reduced-motion: reduce.
+  var BB_DAUER_MS = 320;
+
+  function bbSchluessel(text) {
+    return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  // Je neuem Eintrag der Schluessel der alten Zeile, von der er kommt, oder
+  // null (neu). Erst ueber den eigenen Begriff, dann ueber den juengsten
+  // Vorgaenger -- nur, wenn diese alte Zeile nicht schon vergeben ist.
+  function bbZuordnung(alt, neu) {
+    var frei = {};
+    alt.forEach(function (b) { frei[bbSchluessel(b)] = true; });
+    var erst = neu.map(function (n) {
+      var k = bbSchluessel(n.begriff);
+      if (frei[k]) { frei[k] = false; return k; }
+      return null;
+    });
+    return erst.map(function (k, i) {
+      if (k !== null) { return k; }
+      var v = bbSchluessel(neu[i].vorgaenger);
+      if (v && frei[v]) { frei[v] = false; return v; }
+      return null;
+    });
+  }
+
+  // FLIP "Invert": alte Lage minus neue, je neuem Eintrag; null ohne alte Lage.
+  function bbVersatz(altLagen, quellen, neuLagen) {
+    return quellen.map(function (q, i) {
+      if (q === null || !altLagen || typeof altLagen[q] !== 'number') { return null; }
+      return altLagen[q] - neuLagen[i];
+    });
+  }
+
+  function bbMerke(panel) {
+    var ol = panel.querySelector('ol.begriffsboard');
+    if (!ol) { return null; }
+    var vorher = { alt: [], lagen: {} };
+    Array.prototype.forEach.call(ol.children, function (li) {
+      var b = li.getAttribute('data-begriff');
+      var k = bbSchluessel(b);
+      vorher.alt.push(b);
+      vorher.lagen[k] = li.getBoundingClientRect().top;
+    });
+    return vorher;
+  }
+
+  function bbSpiele(panel, vorher) {
+    if (!vorher) { return; }
+    var ol = panel.querySelector('ol.begriffsboard');
+    if (!ol) { return; }
+    var lis = Array.prototype.slice.call(ol.children);
+    var quellen = bbZuordnung(vorher.alt, lis.map(function (li) {
+      return { begriff: li.getAttribute('data-begriff'),
+               vorgaenger: li.getAttribute('data-vorgaenger') };
+    }));
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    var versatz = bbVersatz(vorher.lagen, quellen, lis.map(function (li) {
+      return li.getBoundingClientRect().top;
+    }));
+    lis.forEach(function (li, i) {
+      if (quellen[i] === null) { li.style.opacity = '0'; }
+      else if (versatz[i]) { li.style.transform = 'translateY(' + versatz[i] + 'px)'; }
+    });
+    ol.getBoundingClientRect();   // Startlage festschreiben (Reflow)
+    requestAnimationFrame(function () {
+      lis.forEach(function (li) {
+        li.style.transition = 'transform ' + BB_DAUER_MS + 'ms ease, opacity '
+          + BB_DAUER_MS + 'ms ease';
+        li.style.transform = '';
+        li.style.opacity = '';
+      });
+      setTimeout(function () {
+        lis.forEach(function (li) { li.style.transition = ''; });
+      }, BB_DAUER_MS + 50);
+    });
+  }
+
   function ladeBuehne() {
     // Phase 4 (oder Phase 1 mit Begriffsboard).
     if (!istCoThinkerPhase()) { return; }
     var panel = document.getElementById('tab-buehne');
     if (!panel) { return; }
     if (buehneLetzter === null) { buehneLetzter = panel.innerHTML; }
+    var taktGen = buehneTakt.gen;
     fetch(BASIS_TEIL + 'buehne', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.text() : null; })
       .then(function (text) {
         if (text === null) { return; }
+        if (buehneTakt.gen !== taktGen || buehneTakt.unterwegs > 0) { return; }
         var doc = new DOMParser().parseFromString(text, 'text/html');
         var neu = doc.body ? doc.body.innerHTML : null;
         if (!neu || neu === buehneLetzter) { return; }
@@ -1719,8 +1899,12 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
           if (buehnePos === null) {
             // "Aktuell": komplett ersetzen -- sicher, weil
             // buehneNavRender() den (absichtlich leeren) Nav-Platzhalter
-            // sofort danach selbst fuellt (siehe web._buehne_html).
+            // sofort danach selbst fuellt (siehe web._buehne_html). Das
+            // Begriffsboard (Phase 1) gleitet dabei per FLIP an seine neue
+            // Ordnung, statt zu springen (bbMerke/bbSpiele, oben).
+            var bbVorher = bbMerke(panel);
             panel.innerHTML = neu;
+            bbSpiele(panel, bbVorher);
           }
           // Zurueckgeblaettert (``buehnePos !== null``): Status und Tafel
           // bleiben UNANGETASTET stehen -- nur die Navigationsleiste bekommt
@@ -1737,6 +1921,41 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       .catch(function () {});
   }
   setInterval(ladeBuehne, 10000);
+  // -- Textbuch-Tab nachladen (P57 Lauf 2, A1) ------------------------------
+  //
+  // Das Panel wurde nur beim Seitenaufbau gerendert: neue Szenenprosa
+  // erschien erst nach vollem Neuladen. Geholt wird nur bei sichtbarem Tab
+  // (und sofort beim Oeffnen, siehe zeige()). Rollenfilter/Schrift stehen
+  // am Panel bzw. im Hash und werden nach dem Tausch ueber ``hashchange``
+  // neu angewendet (die Knoepfe selbst sind frisch gerendert).
+  // Verglichen wird NICHT mit dem ersten Abruf, sondern mit dem Stempel
+  // (Hash des Rumpfes, vom Server in ``textbuch_koerper`` gesetzt): die
+  // Seite wurde evtl. vor der Szene gebaut. Wer den ersten Abruf nur
+  // "merkt", zeigt den veralteten Aufbau-Stand weiter (P57 Lauf 3, A1).
+  function textbuchStempel(wurzel) {
+    var el = wurzel ? wurzel.querySelector('[data-stempel]') : null;
+    return el ? el.getAttribute('data-stempel') : null;
+  }
+  function ladeTextbuch() {
+    var panel = document.getElementById('tab-textbuch');
+    if (!panel || panel.hidden || document.hidden) { return; }
+    fetch(BASIS_TEIL + 'textbuch', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return; }
+        var doc = new DOMParser().parseFromString(text, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        if (!neu || panel.hidden) { return; }
+        var stempel = textbuchStempel(doc.body);
+        if (!stempel || stempel === textbuchStempel(panel)) { return; }
+        var y = panel.scrollTop;
+        panel.innerHTML = neu;
+        panel.scrollTop = y;
+        window.dispatchEvent(new Event('hashchange'));
+      })
+      .catch(function () {});
+  }
+  setInterval(ladeTextbuch, 10000);
   // -- CoThinker-Statuszeile: die tickende Dauer -------------------------
   //
   // Karte CoThinker-Statuszeile (03.10.2026): der Server schreibt nie eine
@@ -1852,7 +2071,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   var PTT_LOCK_PX = 60;
   var PTT_CANCEL_PX = 80;
   var UPLOAD_WARTEN_MS = [1000, 3000, 8000];
-  var TEXT = {"tippt": "schreibt \u2026", "sprache": "Sprachnachricht ({dauer})", "sprache_laeuft": "{dauer} \u00b7 wird abgetippt \u2026", "sprache_text": "\ud83c\udfa4 {dauer} \u00b7 {text}", "datei": "Datei: {name}", "interview_an": "Interview aufnehmen", "interview_aus": "Aufnahme beenden", "interview_pause": "\u23f8 Pause", "interview_weiter": "\u25b6 Weiter", "interview_laeuft": "\u25cf Interview l\u00e4uft \u00b7 {zeit}", "interview_pausiert": "Pause \u00b7 {zeit}", "brainstorm_an": "\ud83c\udf99 Brainstorm mith\u00f6ren", "brainstorm_laeuft": "\u25cf H\u00f6rt mit \u00b7 {zeit}", "diskussion_an": "Zuhoeren starten", "diskussion_laeuft": "Hoert zu ({zeit})", "warte_eins": "Ein St\u00fcck wird hochgeladen \u2026", "warte_mehr": "{n} St\u00fccke werden hochgeladen \u2026", "warte_modus": "Aufnahme l\u00e4uft \u2014 {n} St\u00fcck(e) warten, bis der Bot das Interview angelegt hat.", "warte_netz": "Keine Verbindung \u2014 {n} offen, ich versuche es weiter \u2026", "fehler_netz": "Keine Verbindung \u2014 das ist nicht angekommen.", "fehler_mikro": "Ohne Mikrofon geht das nicht \u2014 bitte den Zugriff erlauben.", "verlassen": "Es wird noch aufgenommen oder hochgeladen.", "uhr": "\u25cf {zeit}", "modus_weg": "Das Interview wurde beendet, die Aufnahme ist gestoppt. {n} St\u00fcck(e) sind noch nicht angekommen.", "modus_weg_leer": "Das Interview wurde beendet, die Aufnahme ist gestoppt.", "nachreichen_spaeter": "Gerade l\u00e4uft ein anderes Interview \u2014 nachreichen geht, sobald es beendet ist.", "mitlauf_hinweis": "Schaut den Mitschnitt im Chat nach \u2014 fehlen Worte, haltet das Handy n\u00e4her ran.", "ptt_hinweis": "Gedr\u00fcckt halten zum Sprechen, nach oben schieben zum Sperren.", "abkuerzung": "Abk\u00fcrzung:", "kal_ankuendigung": "Legt dieses Handy in die Mitte des Tisches, dort wo es w\u00e4hrend des Gespr\u00e4chs bleiben wird. Setzt euch so, wie ihr beim Reden sitzen werdet \u2014 lehnt euch nicht vor und sprecht nicht ins Handy hinein. Wir testen es genauso wie die echte Situation. Wenn du den Knopf unten dr\u00fcckst, seid bitte 5 Sekunden lang vollkommen still \u2014 danach sagt eine*r von euch einen Satz in normaler Lautst\u00e4rke.", "kal_start_knopf": "Messung starten", "kal_stille": "Ruhe f\u00fcr noch {s} Sekunden \u2014 wir messen den Raum \u2026", "kal_sprechen_ankuendigung": "Stille gemessen. Jetzt sagt eine*r von euch einen Satz in normaler Lautst\u00e4rke \u2014 am besten die Person, die am weitesten vom Handy entfernt sitzt. Sprich von deinem Platz aus, in normaler Lautst\u00e4rke, nicht ins Handy hinein. Dr\u00fcck den Knopf, dann fang an zu sprechen.", "kal_sprechen_knopf": "Sprechen starten", "kal_hoeren": "Ich h\u00f6re zu \u2026 fang an, wann du bereit bist.", "kal_nichts_gehoert": "Wir haben nichts geh\u00f6rt \u2014 nochmal versuchen?", "kal_messen_knopf": "Nochmal messen", "kal_zu_leise": "Das war zu leise, um zuverl\u00e4ssig verstanden zu werden.", "kal_zu_leise_1": "Stellt das Handy n\u00e4her in die Mitte und sprecht etwas lauter \u2014 dann versucht es nochmal.", "kal_zu_leise_2": "Der Raum ist zu gro\u00df oder zu laut f\u00fcr ein Handy in der Mitte. Gebt das Handy herum: wer spricht, h\u00e4lt es (oder legt es neben sich). Dann versucht es nochmal.", "kal_nochmal_knopf": "Nochmal versuchen", "kal_weiter_trotzdem": "Trotzdem weiter", "kal_transkribiert_warten": "Der Testsatz wird abgetippt \u2026", "kal_bestaetigung": "Wir haben geh\u00f6rt: \u201e{transkript}\u201c. Stimmt das?", "kal_ja_knopf": "Ja, stimmt", "kal_nein_knopf": "Nein, nochmal", "kal_floor_hinweis": "Der Raum ist laut, oder das Handy ist weit weg \u2014 stellt es n\u00e4her an die Sprechenden.", "kal_erfolg": "Raum gemessen \u2713 \u2014 ihr seid bereit.", "kal_skip_knopf": "\u00dcberspringen", "kal_balken_label": "Deine Stimme im Vergleich zum Raum", "kal_herumreichen_erinnerung": "Denkt daran: Gebt das Handy an die Person weiter, die spricht."};
+  var TEXT = {"tippt": "schreibt \u2026", "sprache": "Sprachnachricht ({dauer})", "sprache_laeuft": "{dauer} \u00b7 wird abgetippt \u2026", "sprache_text": "\ud83c\udfa4 {dauer} \u00b7 {text}", "datei": "Datei: {name}", "interview_an": "Interview aufnehmen", "interview_aus": "Aufnahme beenden", "interview_pause": "\u23f8 Pause", "interview_weiter": "\u25b6 Weiter", "interview_laeuft": "\u25cf Interview l\u00e4uft \u00b7 {zeit}", "interview_pausiert": "Pause \u00b7 {zeit}", "interview_enden": "\u25a0 Beenden", "interview_fremd": "Interview offen \u00b7 dieses Handy nimmt nicht auf", "interview_hier": "\u25b6 Hier aufnehmen", "interview_hier_sicher": "Nimmt schon ein anderes Handy auf? Sonst nochmal tippen", "interview_enden_sicher": "Interview f\u00fcr alle beenden? Nochmal tippen", "interview_startet": "\u25cf Mikrofon kommt \u2026 \u00b7 {zeit}", "diskussion_an": "Zuhoeren starten", "diskussion_laeuft": "Hoert zu ({zeit})", "diskussion_gesperrt": "Es ist noch ein Interview offen - zuerst \u25a0 Beenden tippen.", "warte_eins": "Ein St\u00fcck wird hochgeladen \u2026", "warte_mehr": "{n} St\u00fccke werden hochgeladen \u2026", "warte_modus": "Aufnahme l\u00e4uft \u2014 {n} St\u00fcck(e) warten, bis der Bot das Interview angelegt hat.", "warte_netz": "Keine Verbindung \u2014 {n} offen, ich versuche es weiter \u2026", "fehler_netz": "Keine Verbindung \u2014 das ist nicht angekommen.", "fehler_mikro": "Ohne Mikrofon geht das nicht \u2014 bitte den Zugriff erlauben.", "verlassen": "Es wird noch aufgenommen oder hochgeladen.", "uhr": "\u25cf {zeit}", "modus_weg": "Das Interview wurde beendet, die Aufnahme ist gestoppt. {n} St\u00fcck(e) sind noch nicht angekommen.", "modus_weg_leer": "Das Interview wurde beendet, die Aufnahme ist gestoppt.", "nachreichen_spaeter": "Gerade l\u00e4uft ein anderes Interview \u2014 nachreichen geht, sobald es beendet ist.", "mitlauf_hinweis": "Schaut den Mitschnitt im Chat nach \u2014 fehlen Worte, haltet das Handy n\u00e4her ran.", "ptt_hinweis": "Gedr\u00fcckt halten zum Sprechen, nach oben schieben zum Sperren.", "abkuerzung": "Abk\u00fcrzung:", "undo": "Rueckgaengig", "kal_ankuendigung": "Legt dieses Handy in die Mitte des Tisches, dort wo es w\u00e4hrend des Gespr\u00e4chs bleiben wird. Setzt euch so, wie ihr beim Reden sitzen werdet \u2014 lehnt euch nicht vor und sprecht nicht ins Handy hinein. Wir testen es genauso wie die echte Situation. Wenn du den Knopf unten dr\u00fcckst, seid bitte 5 Sekunden lang vollkommen still \u2014 danach sagt eine*r von euch einen Satz in normaler Lautst\u00e4rke.", "kal_start_knopf": "Messung starten", "kal_stille": "Ruhe f\u00fcr noch {s} Sekunden \u2014 wir messen den Raum \u2026", "kal_sprechen_ankuendigung": "Stille gemessen. Jetzt sagt eine*r von euch einen Satz in normaler Lautst\u00e4rke \u2014 am besten die Person, die am weitesten vom Handy entfernt sitzt. Sprich von deinem Platz aus, in normaler Lautst\u00e4rke, nicht ins Handy hinein. Dr\u00fcck den Knopf, dann fang an zu sprechen.", "kal_sprechen_knopf": "Sprechen starten", "kal_hoeren": "Ich h\u00f6re zu \u2026 fang an, wann du bereit bist.", "kal_nichts_gehoert": "Wir haben nichts geh\u00f6rt \u2014 nochmal versuchen?", "kal_messen_knopf": "Nochmal messen", "kal_zu_leise": "Das war zu leise, um zuverl\u00e4ssig verstanden zu werden.", "kal_zu_leise_1": "Stellt das Handy n\u00e4her in die Mitte und sprecht etwas lauter \u2014 dann versucht es nochmal.", "kal_zu_leise_2": "Der Raum ist zu gro\u00df oder zu laut f\u00fcr ein Handy in der Mitte. Gebt das Handy herum: wer spricht, h\u00e4lt es (oder legt es neben sich). Dann versucht es nochmal.", "kal_nochmal_knopf": "Nochmal versuchen", "kal_weiter_trotzdem": "Trotzdem weiter", "kal_transkribiert_warten": "Der Testsatz wird abgetippt \u2026", "kal_bestaetigung": "Wir haben geh\u00f6rt: \u201e{transkript}\u201c. Stimmt das?", "kal_ja_knopf": "Ja, stimmt", "kal_nein_knopf": "Nein, nochmal", "kal_floor_hinweis": "Der Raum ist laut, oder das Handy ist weit weg \u2014 stellt es n\u00e4her an die Sprechenden.", "kal_erfolg": "Raum gemessen \u2713 \u2014 ihr seid bereit.", "kal_erfolg_diskussion": "Raum gemessen \u2713 \u2014 jetzt besprecht eure Begriffe. Sagt zu jedem Begriff einen Satz, warum ihr ihn waehlt; so verstehe ich ihn richtig.", "kal_skip_knopf": "\u00dcberspringen", "kal_balken_label": "Deine Stimme im Vergleich zum Raum", "kal_herumreichen_erinnerung": "Denkt daran: Gebt das Handy an die Person weiter, die spricht."};
   // Padua Brainstorm, 03.10.2026: wie nah am unteren Rand noch als "dort"
   // zaehlt -- ein Pixel exakt waere auf jedem Geraet eine andere Zahl.
   var UNTEN_TOLERANZ_PX = 48;
@@ -1871,6 +2090,10 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   var KAL_LS_BODEN = 'vad_boden_mess';
   var KAL_LS_REDE = 'vad_rede_mess';
   var KAL_LS_SCHWELLE = 'vad_schwelle';
+  // Birk, 05.10.2026 22:00: hat DIESES Geraet den Chat in dieser Phase schon
+  // geoeffnet? Schluessel "phase_gesehen:<gruppe>:<phase>" (kalSchluessel),
+  // zweite und letzte localStorage-Ausnahme neben der Kalibrierung.
+  var PHASE_LS_GESEHEN = 'phase_gesehen';
 
   var verlauf = document.getElementById('verlauf');
   var fuss = document.getElementById('fuss');
@@ -1903,19 +2126,13 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   var pttHinweistext = document.getElementById('ptt-hinweistext');
   var pttSendeKnopf = document.getElementById('ptt-senden');
   var pttVerwerfenKnopf = document.getElementById('ptt-verwerfen');
-  // Brainstorm mithören (Phase 4, nur Web) -- die Elemente stehen seit
-  // Task 2 (Kanban-Karte Buehne/PTT) IMMER im Markup, ``hidden`` folgt der
-  // Phase per Poll (wie beim Interview-Knopf), nicht mehr ihrer Existenz.
-  var brainstormKnopf = document.getElementById('brainstorm');
-  var brainstormAktionenFeld = document.getElementById('brainstorm-aktionen');
-  var brainstormPauseKnopf = document.getElementById('brainstorm-pause');
-  var brainstormBeendenKnopf = document.getElementById('brainstorm-beenden');
-  // Hintergrund-Mithoeren Phase 1 (Padua Phase 1+2 Umbau, 03.10.2026, Task 6):
-  // derselbe Aufbau wie Brainstorm (Task 2/5) -- die Elemente stehen seit
-  // Task 5 IMMER im Markup, ``hidden`` folgt der Phase per Poll.
+  // Hintergrund-Mithoeren (Padua Phase 1+2 Umbau, 03.10.2026, Task 6) --
+  // seit Birk 05.10.2026 22:00 EIN Knopf fuer Phase 1 UND Phase 4 (kein
+  // eigener Brainstorm-Knopf/-Toggle mehr, t_cf87ee0a abgeloest): die
+  // Elemente stehen seit Task 5 IMMER im Markup, ``hidden`` folgt der
+  // Phase per Poll.
   var diskussionKnopf = document.getElementById('diskussion');
   var diskussionAktionenFeld = document.getElementById('diskussion-aktionen');
-  var diskussionPauseKnopf = document.getElementById('diskussion-pause');
   var diskussionBeendenKnopf = document.getElementById('diskussion-beenden');
   var angehaltenFeld = document.getElementById('angehalten');
   var angehaltenText = document.getElementById('angehalten-text');
@@ -1964,8 +2181,13 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     phase: parseInt(verlauf.dataset.phase, 10) || 0,
     servermodus: fuss.dataset.interview === '1',
     knopfErlaubt: !interviewKnopf.hidden,   // Padua Hotfix B6: Phase 3 oder Modus
-    brainstormErlaubt: !brainstormKnopf.hidden,   // Task 2: Phase 4
-    diskussionErlaubt: !diskussionKnopf.hidden,   // Task 6: Phase 1
+    diskussionErlaubt: !diskussionKnopf.hidden,   // Task 6: Phase 1 (und seit
+                                                   // Birk 05.10.2026 22:00 Phase 4)
+    // Birk 05.10.2026 22:00: wohin ein #diskussion-Start gerade ginge --
+    // 'diskussion' (Phase 1) oder 'brainstorm' (Phase 4), vom Server ueber
+    // data-mithoeren-ziel vorgegeben. starteDiskussion() friert diesen Wert
+    // als sitzung.ziel ein, nimmZustand() haelt ihn ueber jeden Poll aktuell.
+    mithoerenZiel: (diskussionKnopf && diskussionKnopf.dataset.mithoerenZiel) || 'diskussion',
     aufnahme: null,     // die laufende Interview-Aufnahme dieses Telefons
     wechsel: null,      // {ziel, gesendet}: ein Moduswechsel, den der Poll noch nicht zeigt
     warteschlange: [],  // Befehle und Segmente, der Reihe nach
@@ -1976,12 +2198,26 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     fehlerTakt: null,
     ptt: null,          // der laufende PTT-Druck, je Druck ein eigenes Objekt
     angehalten: [],     // Aufnahmen, deren Modus ohne dieses Telefon endete (Re-Review H)
+    // Nachtfix 05.10.2026: fremdes Geraet -- welcher Knopf ('weiter' oder
+    // 'enden') nach dem ersten Tipp auf den zweiten wartet, und seit wann.
+    fremdScharf: null,
+    fremdScharfSeit: 0,
     // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): der
     // Stand des zuletzt eingereichten Kalibrierungs-Testsatzes (vom Poll,
     // {message_id, status, transkript} oder null) und der gruppenweite
     // Hinweis-Modus ("herumreichen" oder null).
     kalibrierung: null,
-    kalibrierungModus: fuss.dataset.kalibrierungModus || null
+    kalibrierungModus: fuss.dataset.kalibrierungModus || null,
+    // Karte "keine Kalibrierung in Phase 3/4" (05.10.2026): die
+    // serverseitigen Gruppenwerte -- {boden, rede, schwelle} oder null,
+    // JEDE Phase, JEDES Geraet, keine Tagesgrenze (anders als der
+    // localStorage-Cache). Der Poll uebernimmt sie unten unveraendert aus
+    // dem schon typisierten JSON (daten.kalibrierung_gruppe), nur der
+    // erste Stand beim Laden kommt als dataset-String und braucht
+    // kalGruppenwerteAus().
+    kalibrierungGruppe: kalGruppenwerteAus(
+      fuss.dataset.kalibrierungBoden, fuss.dataset.kalibrierungRede,
+      fuss.dataset.kalibrierungSchwelle)
   };
 
   function nonce() {
@@ -2124,12 +2360,30 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     return label;
   }
 
+  // Birk live 05.10.2026: der Undo-Knopf gehoert zur Blase, deren Speichern
+  // er zuruecknimmt -- dezent unten in der Blase statt als Chip daneben.
+  function istUndo(paar) { return paar && paar[0] === TEXT.undo; }
+
+  function undoInBlase(huelle, n) {
+    if (!huelle || !n.knoepfe) { return; }
+    n.knoepfe.filter(istUndo).forEach(function (paar) {
+      var k = document.createElement('button');
+      k.type = 'button';
+      k.className = 'undo-mini';
+      k.textContent = paar[0];
+      k.dataset.message = n.id;
+      k.dataset.daten = paar[1];
+      huelle.appendChild(k);
+    });
+  }
+
   function baueLeiste(n) {
-    if (!n.knoepfe || !n.knoepfe.length) { return null; }
+    var rest = (n.knoepfe || []).filter(function (paar) { return !istUndo(paar); });
+    if (!rest.length) { return null; }
     var leiste = document.createElement('div');
     leiste.className = 'leiste';
     leiste.dataset.message = n.id;
-    n.knoepfe.forEach(function (paar) {
+    rest.forEach(function (paar) {
       var knopf = document.createElement('button');
       knopf.type = 'button';
       knopf.textContent = paar[0];
@@ -2169,6 +2423,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     huelle.className = 'blase ' + n.von + ' ' + klasseVon(n);
     huelle.dataset.id = n.id;
     huelle.innerHTML = inhaltVon(n);
+    undoInBlase(huelle, n);
     verlauf.appendChild(huelle);
     var leiste = baueLeiste(n);
     if (leiste) {
@@ -2187,6 +2442,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     if (n.geloescht) { entferne(huelle); entferne(altesLabel); entferne(alte); return; }
     if (!huelle) { return; }
     huelle.innerHTML = inhaltVon(n);
+    undoInBlase(huelle, n);
     var neue = baueLeiste(n);
     if (alte && neue) { alte.parentNode.replaceChild(neue, alte); }
     else if (alte) { entferne(altesLabel); entferne(alte); }
@@ -2213,8 +2469,17 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   // stand -- VOR jeder DOM-Aenderung gelesen, sonst veraendert eine neue
   // Blase schon scrollHeight, bevor wir nachsehen konnten.
   function amUnterenRand() {
-    return (window.innerHeight + window.scrollY)
+    // Dieselbe Doppelung wie bei ``nachUnten()``: auf der vereinten Seite
+    // scrollt ``verlauf`` in sich selbst (das Dokument bleibt auf
+    // Fensterhoehe stehen), auf der Chat-Einzelseite umgekehrt nur das
+    // Dokument. Die jeweils NICHT zustaendige Haelfte steht ohnehin schon
+    // an ihrem eigenen Ende -- das UND verlangt also in Wahrheit nur vom
+    // tatsaechlich scrollenden Container, dass er unten steht.
+    var verlaufUnten = (verlauf.scrollTop + verlauf.clientHeight)
+      >= (verlauf.scrollHeight - UNTEN_TOLERANZ_PX);
+    var fensterUnten = (window.innerHeight + window.scrollY)
       >= (document.body.scrollHeight - UNTEN_TOLERANZ_PX);
+    return verlaufUnten && fensterUnten;
   }
 
   // Wurde die zurzeit letzte Blase im Verlauf gerade durch ``ersetze()``
@@ -2254,9 +2519,43 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   // wirksam wie mit ausgeschriebenen Werten.
   function scrolleZuPhasenanfang() {
     var kopf = phasenkopfzeile();
-    if (kopf) { kopf.scrollIntoView(); return; }
-    nachUnten();
+    if (!kopf) { nachUnten(); return; }
+    // Die Telefon-Organisationskarte (``stationen._sende_karte``) kommt
+    // IMMER als eigene Blase direkt VOR der Kopfzeile -- dasselbe
+    // "Phase 3 beginnt"-Ereignis in zwei Nachrichten. Steht sie dort, ist
+    // sie der eigentliche Anfang und soll mit anfangen, nicht erst darunter
+    // auftauchen, nachdem die Kopfzeile schon oben steht.
+    var vorher = kopf.previousElementSibling;
+    var ziel = (vorher && vorher.classList.contains('blase') &&
+                vorher.classList.contains('bot') &&
+                vorher.querySelector('img.karte')) ? vorher : kopf;
+    ziel.scrollIntoView();
+    // Birk, 05.10.2026 22:00: der Sprung (erstes Oeffnen ODER Live-Wechsel)
+    // merkt die Phase -- das naechste Oeffnen dieses Geraets geht ans Ende.
+    ersteOeffnungInPhase(kalSpeicher(), kalGruppeAus(location.pathname), zustand.phase);
   }
+
+  // Birk, 05.10.2026 22:00: beim Oeffnen der Seite nur dann zum
+  // Phasenanfang, wenn dieses Geraet den Chat in dieser Phase zum ERSTEN Mal
+  // oeffnet -- jedes spaetere Oeffnen steht unten bei der neuesten
+  // Nachricht. Ohne Phasenzeile (Phase 1 vor dem ersten Wechsel) wie bisher
+  // ans Ende, dann wird auch nichts gemerkt.
+  function scrolleBeimOeffnen() {
+    if (phasenkopfzeile() && ersteOeffnungInPhase(kalSpeicher(), kalGruppeAus(location.pathname), zustand.phase)) {
+      scrolleZuPhasenanfang();
+    } else {
+      nachUnten();
+    }
+  }
+
+
+  // Phasenscroll-Karte, Nachtrag (05.10.2026): eine eigene Aktion (Text,
+  // Audioaufnahme, Knopfdruck) soll IMMER wieder ans Ende springen, auch
+  // waehrend der Anker oben noch am Phasenanfang steht -- sonst sieht die
+  // Gruppe die eigene Zeile und die Bot-Antwort danach nicht mehr.
+  // Einmal gesetzt, bleibt die Fahne stehen, bis ein Poll tatsaechlich neue
+  // Nachrichten bringt (die eigene braucht manchmal einen Takt laenger).
+  var erzwingeNachUnten = false;
 
   function nimmZustand(daten) {
     var warUnten = amUnterenRand();
@@ -2286,7 +2585,13 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;
     if (phaseNeu !== null) { zustand.phase = phaseNeu; }
     if (neu.length) {
-      if (phasenwechsel) { scrolleZuPhasenanfang(); } else { nachUnten(); }
+      // Phasenscroll-Karte, Nachtrag (05.10.2026): ein Phasenwechsel ankert
+      // oben am Phasenanfang -- weitere Nachrichten (selber oder spaeterer
+      // Poll) duerfen diesen Anker nicht wieder nach unten reissen, solange
+      // niemand selbst runtergescrollt ist. ``warUnten`` ist VOR dieser
+      // DOM-Aenderung gelesen, genau wie im ``geaendert``-Zweig unten.
+      if (phasenwechsel) { scrolleZuPhasenanfang(); erzwingeNachUnten = false; }
+      else if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }
     } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
       nachUnten();
     }
@@ -2296,14 +2601,23 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     if (daten.platzhalter && eingabe) { eingabe.placeholder = daten.platzhalter; }
     zustand.servermodus = !!daten.interviewmodus;
     if (typeof daten.interview_knopf === 'boolean') { zustand.knopfErlaubt = daten.interview_knopf; }
-    if (typeof daten.brainstorm_knopf === 'boolean') { zustand.brainstormErlaubt = daten.brainstorm_knopf; }
     if (typeof daten.diskussion_knopf === 'boolean') { zustand.diskussionErlaubt = daten.diskussion_knopf; }
+    // Birk 05.10.2026 22:00: der Server meldet bei jedem Poll, wohin ein
+    // Start gerade ginge (Phase 1 oder Phase 4) -- eine schon laufende
+    // Sitzung haelt trotzdem ihr eigenes sitzung.ziel (siehe starteDiskussion).
+    if (typeof daten.mithoeren_ziel === 'string') { zustand.mithoerenZiel = daten.mithoeren_ziel; }
     // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026): der
     // Kalibrierungsablauf liest beides selbst (kalWarteAufTranskript), hier
     // nur uebernehmen.
     zustand.kalibrierung = daten.kalibrierung || null;
     if (daten.kalibrierung_modus !== undefined) {
       zustand.kalibrierungModus = daten.kalibrierung_modus || null;
+    }
+    // Gruppenwerte (Karte "keine Kalibrierung in Phase 3/4"): schon ein
+    // typisiertes Objekt oder null aus dem JSON, keine zweite Parse-Stufe
+    // wie beim dataset-String oben.
+    if (daten.kalibrierung_gruppe !== undefined) {
+      zustand.kalibrierungGruppe = daten.kalibrierung_gruppe || null;
     }
     // Re-Review I: die Sperrklinke rastet auch ein, wenn noch kein Segment
     // vorn in der Schlange steht.
@@ -2394,8 +2708,14 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     var weg_ = `chat/audio?dauer=${auftrag.dauer}`;
     if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
     if (auftrag.redeMs != null) { weg_ += `&rede=${Math.round(auftrag.redeMs)}`; }
-    if (auftrag.sitzung && auftrag.sitzung.art === 'brainstorm') { weg_ += '&brainstorm=1'; }
-    if (auftrag.sitzung && auftrag.sitzung.art === 'diskussion') { weg_ += '&diskussion=1'; }
+    if (auftrag.weichMs != null) { weg_ += `&weichms=${Math.round(auftrag.weichMs)}`; }
+    // Birk 05.10.2026 22:00: EINE Sitzungsart ('diskussion'), zwei moegliche
+    // Ziele -- sitzung.ziel (bei Start aus zustand.mithoerenZiel gefroren)
+    // sagt, ob das Audio als Diskussion (Phase 1) oder als Brainstorm
+    // (Phase 4) ankommt. Kein eigener 'brainstorm'-Sitzungstyp mehr.
+    if (auftrag.sitzung && auftrag.sitzung.art === 'diskussion') {
+      weg_ += auftrag.sitzung.ziel === 'brainstorm' ? '&brainstorm=1' : '&diskussion=1';
+    }
     if (auftrag.kalibrierung) { weg_ += '&kalibrierung=1'; }
     return fetch(weg(weg_), {
       method: 'POST', cache: 'no-store',
@@ -2417,7 +2737,8 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     if (!text) { return; }
     eingabe.value = '';
     veralteLetzteLeiste();
-    function zurueck() { if (!eingabe.value) { eingabe.value = text; } }
+    erzwingeNachUnten = true;
+    function zurueck() { if (!eingabe.value) { eingabe.value = text; } erzwingeNachUnten = false; }
     postJson(`chat/senden`, { text: text }).then(function (r) {
       if (r.ok) { hole(); return; }
       zurueck();
@@ -2439,23 +2760,26 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   }
 
   document.addEventListener('click', function (ev) {
-    var knopf = ev.target.closest ? ev.target.closest('.leiste button') : null;
+    var knopf = ev.target.closest ? ev.target.closest('.leiste button, .undo-mini') : null;
     if (!knopf) { return; }
     // Alle Knoepfe der Leiste aus: der zweite Druck wirkt serverseitig
     // idempotent nicht mehr, aber ein Knopf, der weiter klickbar
     // dasteht, laedt dazu ein.
-    var leiste = knopf.closest('.leiste');
+    var leiste = knopf.closest('.leiste') || knopf.parentNode;
     schalteLeiste(leiste, true);
+    erzwingeNachUnten = true;
     postJson(`chat/knopf`, {
       message_id: parseInt(knopf.dataset.message, 10),
       data: knopf.dataset.daten
     }).then(function (r) {
       if (r.ok) { hole(); return; }
       schalteLeiste(leiste, false);
+      erzwingeNachUnten = false;
       hole();
       return fehlerAus(r);
     }).catch(function () {
       schalteLeiste(leiste, false);
+      erzwingeNachUnten = false;
       meldeFehler(TEXT.fehler_netz);
     });
   });
@@ -2491,13 +2815,10 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   function bereit(auftrag) {
     var sitzung = auftrag.sitzung;
     if (auftrag.art === 'audio' && sitzung) {
-      // Brainstorm kennt keinen Modus-Befehl (kein /interview, kein
+      // Hintergrund-Mithoeren (Task 6, seit Birk 05.10.2026 22:00 Phase 1
+      // UND Phase 4) kennt keinen Modus-Befehl (kein /interview, kein
       // /fertig) -- ein Segment ist immer eine gewoehnliche 'kurz'-Aufnahme
       // und geht deshalb sofort raus, wie ein PTT-Druck.
-      if (sitzung.art === 'brainstorm') { return true; }
-      // Dasselbe gilt fuer das Hintergrund-Mithoeren in Phase 1 (Task 6):
-      // kein Modus-Befehl, ein Segment ist immer eine gewoehnliche
-      // 'kurz'-Aufnahme.
       if (sitzung.art === 'diskussion') { return true; }
       if (!sitzung.angemeldet || sitzung.angehalten) { return false; }
       if (zustand.servermodus) { sitzung.bestaetigt = true; }
@@ -2643,6 +2964,9 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
         else { brichAb(auftrag.sitzung); }
       }
     }
+    // Phasenscroll-Karte, Nachtrag (05.10.2026): eine Audioaufnahme ist
+    // eine eigene Aktion wie Text/Knopf -- derselbe Zwang ans Ende.
+    if (auftrag.art === 'audio') { erzwingeNachUnten = true; }
     zeigeWarteschlange();
     zeigeAngehalten();   // ein unterwegs gewesenes Segment ist jetzt erledigt
     zeigeModus();
@@ -2710,6 +3034,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       // pausiereInterview()/beendeInterview() (Flush) VOR stop() gesetzt;
       // ohne VAD (Rueckfall auf den festen Takt) bleiben beide undefined.
       var redeMs = r._redeMs;
+      var weichMs = r._weichMs;
       var grund = r._grund || null;
       // Frueher wurde hier ueber redeMs verworfen (Birk, Szenario A: eine zu
       // hoch eingestellte Schwelle liess leise, aber echte Rede als "nicht
@@ -2727,7 +3052,8 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
           art: 'audio', sitzung: sitzung,
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
           dauer: Math.max(1, Math.round((Date.now() - von) / 1000)),
-          grund: grund, redeMs: redeMs, kalibrierung: !!r._kalibrierung
+          grund: grund, redeMs: redeMs, weichMs: weichMs,
+          kalibrierung: !!r._kalibrierung
         };
       }
       // Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): einmal je
@@ -2737,9 +3063,13 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       // Eigenstaendig von kalErinnerungFeld/zustand.kalibrierungModus oben
       // (Task 2s "Handy herumreichen"-Erinnerung): anderer Ausloeser,
       // anderer Merkposten, nicht zusammenlegen.
+      // P34 Runde 2, Befund A10: kommt das erste onstop erst nach dem Ende
+      // der Sitzung (Ein-Segment-Interview/-Brainstorm, anzeigeAus() lief
+      // schon), bliebe der Hinweis dauerhaft stehen -- dann nicht mehr
+      // einblenden. Die Diskussion der Phase 1 bleibt unveraendert.
       if (!sitzung.hinweisGezeigt) {
         sitzung.hinweisGezeigt = true;
-        if (mitlaufHinweisFeld) {
+        if (mitlaufHinweisFeld && (!sitzung.beendet || sitzung.art === 'diskussion')) {
           mitlaufHinweisFeld.textContent = TEXT.mitlauf_hinweis;
           mitlaufHinweisFeld.hidden = false;
         }
@@ -2902,16 +3232,61 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   // Schneidet sitzung.recorder NIE direkt -- das macht schneideSegment(),
   // das den Nachfolge-Recorder gleich mitanlegt, damit zwischen zwei
   // Segmenten keine Luecke entsteht.
-  function schneideSegment(sitzung, grund) {
+  // Nachtfix 05.10.2026 (Birk: "gehen an den Schnitten Audiodaten
+  // verloren?"): JA, gemessen 0-60 ms je Schnitt
+  // (tests/e2e/test_web_chat_schnittluecke_e2e.py). Ursache ist nicht die
+  // Reihenfolge stop/start im JS, sondern der Opus-Encoder: stop() wirft
+  // den angefangenen 60-ms-Rahmen von A weg, jedes Segment endet auf einer
+  // Rahmengrenze. Abhilfe: ERST der Nachfolger B, A laeuft UEBERLAPP_MS
+  // weiter und stoppt dann -- bis zu UEBERLAPP_MS doppeltes Audio an der
+  // Grenze (fuer Whisper harmlos) statt einer Luecke. nr von A ist schon
+  // vergeben (Einreihung bleibt in Reihenfolge), sitzung.offen zaehlt erst
+  // B hoch, dann im onstop A herunter -- /fertig wartet also auch auf A.
+  // Endet die Spur vorher (Pause/Beenden -> gibFrei), stoppt A von selbst
+  // und liefert sein Segment; der Zeitgeber findet ihn dann 'inactive'.
+  var UEBERLAPP_MS = 200;
+  function stoppeNachUeberlappung(alt) {
+    setTimeout(function () {
+      if (alt.state !== 'inactive') { alt.stop(); }   // liefert sein Segment im onstop
+    }, UEBERLAPP_MS);
+  }
+
+  function schneideSegment(sitzung, grund, weichMs) {
     var alt = sitzung.recorder;
     if (!alt) { return; }
     alt._grund = grund;
     alt._redeMs = sitzung.vadSpeechMs;
-    if (alt.state !== 'inactive') { alt.stop(); }   // liefert sein Segment im onstop
+    alt._weichMs = weichMs;
     sitzung.recorder = neuesSegment(sitzung);
+    stoppeNachUeberlappung(alt);
     sitzung.vadSegmentStart = Date.now();
     sitzung.vadSpeechMs = 0;
     sitzung.vadLetzteRede = sitzung.vadSegmentStart;
+  }
+
+  // Weicher Schnitt an natuerlichen Pausen (Padua VAD, 05.10.2026): gemessen
+  // 05.10.2026 (betrieb/padua.db, 61 Segmente Phase-1-Diskussion) liefen 64%
+  // der Segmente bis zur Hartkappe (MAX_MS) durch -- eine lebhafte
+  // Gruppendiskussion erreicht PAUSE_MS (2.5s) fast nie, Saetze reissen
+  // mitten im Wort. Ab WEICH_AB_MS Alter reicht deshalb schon ein kuerzerer
+  // Ruecklauf unter die Schwelle (WEICH_PAUSE_MS), BEVOR MAX_MS greift.
+  // Reine Entscheidungsfunktion (wie kalSchwelle/kalZuLeise), damit sie
+  // woertlich in einem Node-Testlauf lebt (tests/test_web_chat_js.py).
+  function entscheideSchnitt(sitzung, jetzt, MAX_MS, PAUSE_MS, MIN_SPEECH_MS,
+                              WEICH_AB_MS, WEICH_PAUSE_MS) {
+    if ((jetzt - sitzung.vadSegmentStart) >= MAX_MS) {
+      return 'cap';                          // IMMER, letztes Mittel
+    }
+    var ruhigSeit = jetzt - sitzung.vadLetzteRede;
+    if (ruhigSeit >= PAUSE_MS && sitzung.vadSpeechMs >= MIN_SPEECH_MS) {
+      return 'pause';
+    }
+    var altGenug = (jetzt - sitzung.vadSegmentStart) >= WEICH_AB_MS;
+    if (altGenug && ruhigSeit >= WEICH_PAUSE_MS &&
+        sitzung.vadSpeechMs >= MIN_SPEECH_MS) {
+      return 'weich';
+    }
+    return null;
   }
 
   // -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/           --
@@ -2950,6 +3325,97 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
                      KAL_SCHWELLE_ABS_MAX);
   }
 
+  // Wie viel der Gesamtvarianz die beste Otsu-Trennung erklaeren muss, um
+  // als "klar bimodal" zu gelten (Zwischen-Klassen-/Gesamt-Varianz, Otsus
+  // eigenes Trennschaerfe-Mass, 0..1) -- zweiter Nachtrag, Birk 05.10.2026
+  // ~23:55, woertlicher Schwellenwert aus dem Addendum. Konstantes
+  // Rauschen oder ein Monolog ohne Pausen (EIN Pegel, egal wie laut) bleibt
+  // deutlich darunter, eine echte Grundrauschen/Sprache-Trennung (Robo-
+  // Messung) deutlich darueber.
+  var KAL_OTSU_GUETE_MIN = 0.6;
+
+  // Otsu-Schwelle auf log10(RMS) (Addendum Birk, 05.10.2026 22:22 und
+  // ~23:55, Robo-Messung ~/.hermes/profiles/birk/var/padua-nacht/vad/):
+  // die Pegelverteilung einer Gruppendiskussion ist bimodal (Grundrauschen
+  // vs. Sprache), das Taltal zwischen beiden Verteilungen ist eine
+  // robustere Sprachschwelle als die alte Ad-hoc-Ableitung aus dem
+  // rollenden Boden. Log-Skala, weil der Pegel selbst log-verteilt ist
+  // (RMS, keine linearen Dezibel). Bildverarbeitungs-Standardverfahren:
+  // ueber ein Histogramm die Schwelle suchen, die die Zwischen-Klassen-
+  // Varianz maximiert. Liefert ``null`` ohne genug Proben oder ohne genug
+  // Trennschaerfe (KAL_OTSU_GUETE_MIN) -- der Aufrufer bleibt dann bei der
+  // alten Rolling-Formel.
+  function kalOtsuSchwelle(werte) {
+    var positiv = werte.filter(function (r) { return r > 0; });
+    if (positiv.length < 10) { return null; }
+    var sortiert = positiv.slice().sort(function (a, b) { return a - b; });
+
+    var logs = sortiert.map(function (r) { return Math.log(r) / Math.LN10; });
+    var minLog = logs[0], maxLog = logs[logs.length - 1];
+    if (maxLog <= minLog) { return null; }
+    var BINS = 64;
+    var histogramm = new Array(BINS);
+    for (var h = 0; h < BINS; h++) { histogramm[h] = 0; }
+    var breite = (maxLog - minLog) / BINS;
+    for (var j = 0; j < logs.length; j++) {
+      var bin = Math.min(BINS - 1, Math.floor((logs[j] - minLog) / breite));
+      histogramm[bin]++;
+    }
+    var gesamt = logs.length;
+    var summeGesamt = 0;
+    for (var b = 0; b < BINS; b++) { summeGesamt += (minLog + (b + 0.5) * breite) * histogramm[b]; }
+    var mittelGesamt = summeGesamt / gesamt;
+    var varianzGesamt = 0;
+    for (var v = 0; v < logs.length; v++) { varianzGesamt += Math.pow(logs[v] - mittelGesamt, 2); }
+    varianzGesamt /= gesamt;
+    if (varianzGesamt <= 0) { return null; }
+
+    // Zwischen-Klassen-Varianz je moeglicher Schnittstelle (-1 = ungueltig,
+    // eine Seite leer).
+    var zwischenVarianzen = [];
+    var anzahlUnten = 0, summeUnten = 0, beste = -1;
+    for (var t = 0; t < BINS - 1; t++) {
+      anzahlUnten += histogramm[t];
+      summeUnten += (minLog + (t + 0.5) * breite) * histogramm[t];
+      var anzahlOben = gesamt - anzahlUnten;
+      if (anzahlUnten === 0 || anzahlOben === 0) { zwischenVarianzen.push(-1); continue; }
+      var mittelUnten = summeUnten / anzahlUnten;
+      var mittelOben = (summeGesamt - summeUnten) / anzahlOben;
+      var wert = (anzahlUnten * anzahlOben / (gesamt * gesamt)) *
+        Math.pow(mittelUnten - mittelOben, 2);
+      zwischenVarianzen.push(wert);
+      if (wert > beste) { beste = wert; }
+    }
+    if (beste < 0) { return null; }
+    if ((beste / varianzGesamt) < KAL_OTSU_GUETE_MIN) { return null; }
+    // Ein voellig leeres Taltal (komplett getrennte Cluster) macht die
+    // Zwischen-Klassen-Varianz ueber mehrere Schnittstellen hinweg GLEICH
+    // gut -- die MITTE dieses Laufs nehmen, nicht die erste Schnittstelle,
+    // sonst landet die Schwelle am Rand der unteren Klasse statt im Taltal.
+    var kandidaten = [];
+    for (var k = 0; k < zwischenVarianzen.length; k++) {
+      if (zwischenVarianzen[k] >= beste - 1e-9) { kandidaten.push(k); }
+    }
+    var bestesBin = kandidaten[Math.floor(kandidaten.length / 2)];
+    var schwelleLog = minLog + (bestesBin + 1) * breite;
+    return Math.min(Math.max(Math.pow(10, schwelleLog), KAL_SCHWELLE_ABS_MIN), KAL_SCHWELLE_ABS_MAX);
+  }
+
+  // Karte "keine Kalibrierung in Phase 3/4" (05.10.2026): die serverseitigen
+  // Gruppenwerte kommen beim ersten Laden als drei dataset-Strings
+  // (``data-kalibrierung-*``, web_chat._kal_gruppe_attribut) -- leer ohne
+  // Messung oder (AUTO-Pfad) ohne Testsatz. ``boden``/``schwelle`` sind die
+  // beiden Werte, die die Schwellenformel tatsaechlich braucht; ohne beide
+  // gibt es keine gueltigen Gruppenwerte. Spaetere Polls liefern dasselbe
+  // Dreier-Objekt schon typisiert aus dem JSON (kein zweiter Aufruf hier).
+  function kalGruppenwerteAus(bodenStr, redeStr, schwelleStr) {
+    var boden = parseFloat(bodenStr);
+    var schwelle = parseFloat(schwelleStr);
+    if (!isFinite(boden) || !isFinite(schwelle)) { return null; }
+    var rede = parseFloat(redeStr);
+    return { boden: boden, rede: isFinite(rede) ? rede : null, schwelle: schwelle };
+  }
+
   // 2d: der kalibrierte Festwert (sitzung.vadSchwelleFix) ist, wenn gesetzt,
   // die DECKE -- der rollende Boden darf die Schwelle nur noch nach UNTEN
   // ziehen (bis zum absoluten Minimum), nie darueber. Ohne Kalibrierung
@@ -2984,6 +3450,11 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       var MIN_SPEECH_MS = parseInt(fuss.dataset.vadMinSpeechMs, 10) || 500;
       var RMS_SCHWELLE = parseFloat(fuss.dataset.vadRms) || 0.01;
       var BODEN_FAKTOR = parseFloat(fuss.dataset.vadFloorFaktor) || 2.5;
+      // Weicher Schnitt (05.10.2026): eigene Env-/Data-Attribut-Zahlen wie
+      // die fuenf Werte oben, Vorgaben 30s/700ms (ANNAHME -- keine Messung
+      // der eigenen Raeume, siehe Kanban-Karte).
+      var WEICH_AB_MS = parseInt(fuss.dataset.vadWeichAbMs, 10) || 30000;
+      var WEICH_PAUSE_MS = parseInt(fuss.dataset.vadWeichPauseMs, 10) || 700;
       // Erkennungstakt der RMS-Messung (Birk 04.10.2026: Latenz zwischen
       // echtem Rede-/Pausenbeginn und Erkennung soll kleiner werden) --
       // von 120ms auf 60ms halbiert, BODEN_FENSTER unten bleibt dieselbe
@@ -3012,6 +3483,16 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
         var rms = Math.sqrt(quadratsumme / zeitWerte.length);
         sitzung.vadBoden.push(rms);
         if (sitzung.vadBoden.length > BODEN_FENSTER) { sitzung.vadBoden.shift(); }
+        // Hintergrund-adaptive Schwelle (zweiter Nachtrag, Birk 05.10.2026
+        // ~23:55): waehrend sie an ist (Kill-Switch aus, siehe
+        // kalEntscheideOderStarte), sammelt sie ROHE Ticks MIT Zeitstempel
+        // ungekappt -- anders als sitzung.vadBoden, das auf die letzten ~5s
+        // gekappt ist (die laufende Pause-Erkennung braucht nur die
+        // juengste Vergangenheit, die Otsu-Schwelle ein 60s-Fenster).
+        if (sitzung._kalAdaptivAn) {
+          sitzung._kalAdaptivProben.push({ t: Date.now(), r: rms });
+          kalAdaptivAktualisiere(sitzung, Date.now());
+        }
         // Niedriges Perzentil der letzten ~5 s als Rauschboden -- GESETZT,
         // NICHT GEMESSEN (anders als PAUSE_MS/MAX_MS/MIN_SPEECH_MS/
         // RMS_SCHWELLE, die aus CoThinker stammen). BODEN_DECKEL_FAKTOR
@@ -3050,21 +3531,25 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
           sitzung.vadLetzteRede = jetzt;
         }
         if (!sitzung.recorder) { return; }
-        var kappe = (jetzt - sitzung.vadSegmentStart) >= MAX_MS;
-        var pause = (jetzt - sitzung.vadLetzteRede) >= PAUSE_MS;
-        if (kappe) {
-          // Hart: schneidet IMMER, auch ohne Pause und auch mit zu wenig
+        var grund = entscheideSchnitt(
+          sitzung, jetzt, MAX_MS, PAUSE_MS, MIN_SPEECH_MS,
+          WEICH_AB_MS, WEICH_PAUSE_MS
+        );
+        if (grund === 'weich') {
+          // weichMs = Alter des Segments beim Schnitt -- reines
+          // Diagnose-Metadatum (wie redeMs), damit morgige Daten die
+          // Vorgaben 30s/700ms justieren koennen.
+          schneideSegment(sitzung, 'weich', jetzt - sitzung.vadSegmentStart);
+        } else if (grund) {
+          // 'cap': schneidet IMMER, auch ohne Pause und auch mit zu wenig
           // Rede (der seltene Fall landet in onstop() ohne Upload -- siehe
-          // dortigen Kommentar).
-          schneideSegment(sitzung, 'cap');
-        } else if (pause && sitzung.vadSpeechMs >= MIN_SPEECH_MS) {
-          schneideSegment(sitzung, 'pause');
+          // dortigen Kommentar). 'pause': die alte 2.5s-Regel.
+          schneideSegment(sitzung, grund);
         }
-        // pause && vadSpeechMs < MIN_SPEECH_MS: kein Schnitt -- die Stille
-        // wird Teil desselben, weiterlaufenden Segments ("in das naechste
-        // Segment getragen", ohne Audio-Bytes ueber zwei MediaRecorder-
-        // Instanzen hinweg zusammenfuegen zu muessen, was keine einzelne
-        // dekodierbare Datei mehr ergaebe).
+        // kein grund: die Stille wird Teil desselben, weiterlaufenden
+        // Segments ("in das naechste Segment getragen", ohne Audio-Bytes
+        // ueber zwei MediaRecorder-Instanzen hinweg zusammenfuegen zu
+        // muessen, was keine einzelne dekodierbare Datei mehr ergaebe).
       }, VAD_TAKT_MS);
     } catch (e) { /* ohne Pegel geht es auch -- dann der feste Takt (Rueckfall unten) */ }
   }
@@ -3126,28 +3611,40 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     var an = modusAn();
     var sitzung = zustand.aufnahme;
     var pausiert = an && (!sitzung || sitzung.pausiert);
+    // Nachtfix 05.10.2026 (fremdes Geraet): keine eigene Sitzung, aber der
+    // Server meldet den Modus -- ein anderes Telefon kann gerade aufnehmen.
+    // data-pausiert bleibt dabei 1 (graue Darstellung, bestehende
+    // Selektoren); Weiter/Beenden brauchen hier einen zweiten Tipp
+    // (fremdBestaetigt).
+    var fremd = an && !sitzung && !zustand.wechsel && zustand.servermodus;
+    // Nachtfix 05.10.2026: zwischen Tipp und r.start() "startet", nicht
+    // "laeuft" (die Pause hat Vorrang). Die Uhr steht dabei, legStart ist null.
+    var startet = an && !!sitzung && !sitzung.pausiert && !!sitzung.mikroUnterwegs;
+    if (!fremd) { zustand.fremdScharf = null; }
     fuss.dataset.interview = an ? '1' : '0';
     interviewKnopf.dataset.laeuft = an ? '1' : '0';
     interviewKnopf.dataset.pausiert = pausiert ? '1' : '0';
+    interviewKnopf.dataset.fremd = fremd ? '1' : '0';
+    interviewKnopf.dataset.startet = startet ? '1' : '0';
     if (!an) {
       interviewKnopf.textContent = TEXT.interview_an;
+    } else if (fremd) {
+      interviewKnopf.textContent = TEXT.interview_fremd;
     } else if (pausiert) {
       interviewKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
+    } else if (startet) {
+      interviewKnopf.textContent = TEXT.interview_startet.replace('{zeit}', formatiereUhr(sitzung));
     } else {
       interviewKnopf.textContent = TEXT.interview_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
     // Ein Stopp ist unterwegs: bis der Bot ihn bestaetigt, kein neuer Start.
-    // Laeuft Brainstorm ODER Diskussion, ist der Interview-Knopf ebenfalls
-    // deaktiviert -- zwei gleichzeitige Aufnahmen auf demselben Mikrofon
-    // sind keine Bedienung (dieselbe Regel wie PTT, Phase 4, 02.10.2026).
-    // Re-Review (Task 6, Fund 1): ``nebenAn`` ist die EINE Stelle, die
-    // diese Verknuepfung bildet. Vorher schrieben zeigeBrainstormModus()
-    // und zeigeDiskussionModus() dieselbe Zeile erneut und unbedingt, mit
-    // je nur ihrem eigenen Sitzungsflag -- die zuletzt gerufene Funktion
-    // gewann und loeschte die Sperre der anderen, sobald deren eigene
-    // Sitzung leer war (im Normalfall: Brainstorm laeuft, Diskussion nie
-    // angefasst). Beide Funktionen setzen diese Felder seitdem nicht mehr.
-    var nebenAn = !!zustand.brainstorm || !!zustand.diskussion;
+    // Laeuft die Diskussion/Brainstorm-Sitzung, ist der Interview-Knopf
+    // ebenfalls deaktiviert -- zwei gleichzeitige Aufnahmen auf demselben
+    // Mikrofon sind keine Bedienung (dieselbe Regel wie PTT, Phase 4,
+    // 02.10.2026). Re-Review (Task 6, Fund 1): ``nebenAn`` ist die EINE
+    // Stelle, die diese Verknuepfung bildet -- zeigeDiskussionModus() setzt
+    // dieses Feld seitdem nicht mehr selbst.
+    var nebenAn = !!zustand.diskussion;
     interviewKnopf.disabled = !!(zustand.wechsel && !zustand.wechsel.ziel) || nebenAn;
     // Padua Hotfix B6: ausserhalb von Phase 3 kein Angebot -- nie aber
     // verborgen bei laufender Aufnahme, Wechsel oder voller Schlange.
@@ -3157,28 +3654,30 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     // Pause/Weiter und Beenden stehen in der eigenen Leiste darunter.
     if (interviewAktionenFeld) { interviewAktionenFeld.hidden = !an; }
     if (interviewPauseKnopf) {
-      interviewPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
+      interviewPauseKnopf.textContent = fremd
+        ? (zustand.fremdScharf === 'weiter' ? TEXT.interview_hier_sicher : TEXT.interview_hier)
+        : (pausiert ? TEXT.interview_weiter : TEXT.interview_pause);
     }
-    // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ODER
-    // sobald Brainstorm/Diskussion angeboten wird (nicht erst wenn sie
+    if (interviewAktionenFeld && interviewBeendenKnopf) {
+      interviewBeendenKnopf.textContent = (fremd && zustand.fremdScharf === 'enden')
+        ? TEXT.interview_enden_sicher : TEXT.interview_enden;
+    }
+    // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ODER sobald
+    // die Diskussion/Brainstorm-Sitzung angeboten wird (nicht erst wenn sie
     // LAEUFT) ist PTT ausgeblendet (Birk 04.10.2026: zwei sichtbare
     // Mikrofon-Knoepfe gleichzeitig sind keine Bedienung -- entweder/oder,
     // Befehle gehen dann nur noch ueber das Textfeld). Die Klassen-Formel
-    // fuer den Interview-Nebenknopf wird erst drei Zeilen weiter unten
+    // fuer den Interview-Nebenknopf wird erst zwei Zeilen weiter unten
     // gesetzt -- deshalb hier dieselbe Prosa noch einmal, nicht die
     // Variable selbst (Reihenfolge der Aufrufe).
-    var nebenAngeboten = !!zustand.brainstormErlaubt || !!zustand.diskussionErlaubt;
+    var nebenAngeboten = !!zustand.diskussionErlaubt;
     if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn || nebenAngeboten; }
-    // Beide Anzeigen bleiben im selben Takt synchron, egal welche der
-    // beiden Funktionen zuerst gerufen wurde.
-    zeigeBrainstormModus();
     zeigeDiskussionModus();
-    // "Nebenknopf"-Stil am Interview-Knopf: sichtbar, sobald Brainstorm
-    // ODER Diskussion angeboten wird oder laeuft -- aus derselben Formel
-    // wie in den beiden Funktionen oben, hier einmal zusammengefuehrt statt
-    // zweimal unbedingt ueberschrieben (derselbe Fund wie oben).
-    var nebenSichtbar = !!zustand.brainstormErlaubt || !!zustand.brainstorm ||
-                        !!zustand.diskussionErlaubt || !!zustand.diskussion ||
+    // "Nebenknopf"-Stil am Interview-Knopf: sichtbar, sobald die Diskussion/
+    // Brainstorm-Sitzung angeboten wird oder laeuft -- aus derselben Formel
+    // wie oben, hier einmal zusammengefuehrt statt unbedingt ueberschrieben
+    // (derselbe Fund wie oben).
+    var nebenSichtbar = !!zustand.diskussionErlaubt || !!zustand.diskussion ||
                         !!zustand.wechsel;
     interviewKnopf.classList.toggle('nebenknopf', nebenSichtbar);
   }
@@ -3213,11 +3712,49 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     return fuss.dataset.vadKalibrierung !== '0';
   }
 
-  function kalibrierungCacheLesen() {
+  // Raumcheck je Gruppe UND Tag (Birk, Live-Test 05.10.2026): vorher lagen
+  // die drei Werte unter festen Schluesseln und galten fuer die ganze
+  // Domain -- eine Messung in Gruppe 1 uebersprang den Raumcheck in Gruppe 2
+  // und in der Testgruppe. Jetzt "<KAL_LS_...>:<gruppe>:<JJJJ-MM-TT>", die
+  // Gruppe aus dem Pfad (/g/<token>), das Datum in lokaler Zeit. Alte,
+  // ungekeyte Schluessel liest niemand mehr. "Measure again" bleibt
+  // (kalibrierungNeu ignoriert jeden Cache).
+  function kalGruppeAus(pfad) {
+    var teile = String(pfad || '').split('/');
+    var i = teile.indexOf('g');
+    return (i >= 0 && teile[i + 1]) ? teile[i + 1] : String(pfad || '');
+  }
+
+  function kalDatum(d) {
+    function zwei(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + zwei(d.getMonth() + 1) + '-' + zwei(d.getDate());
+  }
+
+  function kalSchluessel(basis, gruppe, datum) {
+    return basis + ':' + gruppe + ':' + datum;
+  }
+
+  function kalSpeicher() {
+    try { return window.localStorage; } catch (e) { return null; }
+  }
+
+  // Birk, 05.10.2026 22:00: true beim ersten Oeffnen dieser Phase auf diesem
+  // Geraet -- und merkt sie zugleich als gesehen. Fehlt der Speicher oder
+  // wirft er (privater Modus, alter Browser), bleibt es beim bisherigen
+  // Verhalten: true, also Sprung zum Phasenanfang.
+  function ersteOeffnungInPhase(speicher, gruppe, phase) {
     try {
-      var boden = parseFloat(localStorage.getItem(KAL_LS_BODEN));
-      var rede = parseFloat(localStorage.getItem(KAL_LS_REDE));
-      var schwelle = parseFloat(localStorage.getItem(KAL_LS_SCHWELLE));
+      if (speicher.getItem(kalSchluessel(PHASE_LS_GESEHEN, gruppe, phase))) { return false; }
+      speicher.setItem(kalSchluessel(PHASE_LS_GESEHEN, gruppe, phase), '1');
+    } catch (e) { /* localStorage kann fehlen -- Rueckfall: Phasenanfang */ }
+    return true;
+  }
+
+  function kalibrierungCacheLesen(speicher, gruppe, datum) {
+    try {
+      var boden = parseFloat(speicher.getItem(kalSchluessel(KAL_LS_BODEN, gruppe, datum)));
+      var rede = parseFloat(speicher.getItem(kalSchluessel(KAL_LS_REDE, gruppe, datum)));
+      var schwelle = parseFloat(speicher.getItem(kalSchluessel(KAL_LS_SCHWELLE, gruppe, datum)));
       if (isFinite(boden) && isFinite(rede) && isFinite(schwelle)) {
         return { boden: boden, rede: rede, schwelle: schwelle };
       }
@@ -3225,11 +3762,11 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     return null;
   }
 
-  function kalibrierungCacheSchreiben(boden, rede, schwelle) {
+  function kalibrierungCacheSchreiben(speicher, gruppe, datum, boden, rede, schwelle) {
     try {
-      localStorage.setItem(KAL_LS_BODEN, String(boden));
-      localStorage.setItem(KAL_LS_REDE, String(rede));
-      localStorage.setItem(KAL_LS_SCHWELLE, String(schwelle));
+      speicher.setItem(kalSchluessel(KAL_LS_BODEN, gruppe, datum), String(boden));
+      speicher.setItem(kalSchluessel(KAL_LS_REDE, gruppe, datum), String(rede));
+      speicher.setItem(kalSchluessel(KAL_LS_SCHWELLE, gruppe, datum), String(schwelle));
     } catch (e) { /* Skip bleibt ohnehin die Rueckfallebene */ }
   }
 
@@ -3293,6 +3830,9 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     if (kalBalkenMarke) {
       kalBalkenMarke.style.left = Math.min(100, ((bodenMess * 3) / deckel) * 100) + '%';
     }
+    // P1-M4: dieselbe Zielmarke, die kalZuLeise() entscheidet (3x
+    // Raumpegel) -- jetzt auch als Farbwechsel sichtbar, kein neuer Text.
+    kalBalkenFeld.classList.toggle('ueber-schwelle', redeMess >= bodenMess * 3);
   }
 
   function kalZeigePanel(an) {
@@ -3300,16 +3840,25 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   }
 
   // Drei Schnitt-Varianten, alle nach demselben Muster wie schneideSegment()
-  // (stop-current/start-next, keine Luecke) -- aber orthogonal zu ``grund``
+  // (seit dem Nachtfix 05.10.2026: start-next, dann stop-current nach
+  // UEBERLAPP_MS -- Ueberlappung statt Luecke; beim Verwerfen sofort) --
+  // aber orthogonal zu ``grund``
   // (der serverseitig gegen einen festen Wertebereich geprueft wird und
   // etwas anderes bedeutet): eine normale Grenze ohne Markierung, der
   // Testsatz-Clip selbst (r._kalibrierung) und der verworfene 30s-Rueckfall
   // (r._kalVerworfen, nie verschickt -- siehe onstop in neuesSegment()).
   function kalSchneideOhneMarkierung(sitzung) {
     var alt = sitzung.recorder;
+    if (sitzung.kalVorStart) {
+      // Diskussion vor dem Start (Birk 05.10.2026): kein Stueck davor geht
+      // als Diskussion raus, hier beginnt nur der Clip der Sprechprobe.
+      if (alt) { kalSchneideUndVerwerfen(sitzung); }
+      sitzung.recorder = neuesSegment(sitzung);
+      return;
+    }
     if (!alt) { return; }
-    if (alt.state !== 'inactive') { alt.stop(); }
     sitzung.recorder = neuesSegment(sitzung);
+    stoppeNachUeberlappung(alt);
   }
 
   function kalSchneideAlsKalibrierung(sitzung) {
@@ -3325,16 +3874,17 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     // wieder loeschen und auf eine Antwort warten, die nie mehr kommt.
     sitzung._kalMessageId = null;
     if (sitzung._kal) { sitzung._kal.ueberschrieben = false; }
-    if (alt.state !== 'inactive') { alt.stop(); }
-    sitzung.recorder = neuesSegment(sitzung);
+    // Vor dem Diskussionsstart laeuft nach der Probe KEIN Recorder weiter.
+    sitzung.recorder = sitzung.kalVorStart ? null : neuesSegment(sitzung);
+    stoppeNachUeberlappung(alt);
   }
 
   function kalSchneideUndVerwerfen(sitzung) {
     var alt = sitzung.recorder;
     if (!alt) { return; }
     alt._kalVerworfen = true;
+    sitzung.recorder = sitzung.kalVorStart ? null : neuesSegment(sitzung);
     if (alt.state !== 'inactive') { alt.stop(); }
-    sitzung.recorder = neuesSegment(sitzung);
   }
 
   function kalAufraeumen(sitzung) {
@@ -3362,6 +3912,12 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     sitzung._kal = { messer: messer };
     sitzung._kalZuLeiseZaehler = sitzung._kalZuLeiseZaehler || 0;
     kalZeigePanel(true);
+    if (sitzung.kalVorStart) {
+      // Diskussion (Birk 05.10.2026): "Start listening" war schon der eine
+      // Tipp -- kein zweiter "Start measuring", die Stille laeuft sofort.
+      kalStarteStille(sitzung);
+      return;
+    }
     kalZeigeSchritt(TEXT.kal_ankuendigung, [kalStartKnopf]);
   }
 
@@ -3596,9 +4152,22 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       meldeFehler(TEXT.kal_floor_hinweis);
       schwelle = KAL_SCHWELLE_FALLBACK;
     } else {
-      meldeFehler(TEXT.kal_erfolg);
+      // D2 (Plan Task 3): kal_erfolg_diskussion spricht von "euren
+      // Begriffen" -- das passt nur zur Phase-1-Diskussion, nicht zum
+      // Brainstorm der Phase 4. Seit beide Phasen dieselbe Sitzungsart
+      // nutzen, entscheidet sitzung.ziel ueber den Text, nicht mehr das
+      // gemeinsame Sitzungsfeld: 'brainstorm' faellt auf den neutralen
+      // kal_erfolg zurueck (der Text, den das Brainstorm vor der
+      // Vereinheitlichung ohnehin schon bekam).
+      meldeFehler(sitzung && sitzung.ziel === 'diskussion'
+        ? TEXT.kal_erfolg_diskussion : TEXT.kal_erfolg);
     }
-    kalibrierungCacheSchreiben(k.bodenMess, k.redeMess, schwelle);
+    kalibrierungCacheSchreiben(kalSpeicher(), kalGruppeAus(location.pathname),
+      kalDatum(new Date()), k.bodenMess, k.redeMess, schwelle);
+    // Karte "keine Kalibrierung in Phase 3/4": derselbe Stand geht
+    // GRUPPENWEIT an den Server, damit die naechste Aufnahme -- jedes
+    // Geraet, jede Phase -- das Panel gar nicht erst zeigt.
+    kalMeldeGruppenwerte(k.bodenMess, k.redeMess, schwelle);
     kalibrierungBeenden(sitzung, schwelle, k.bodenMess);
   }
 
@@ -3629,6 +4198,22 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   // Funktion, weil jetzt ZWEI Aufrufer sie brauchen -- der Normalfall
   // (beginneAufnahme) und das Ende eines Kalibrierungslaufs.
   function kalStarteEchteSchnitte(sitzung) {
+    if (sitzung.kalVorStart) {
+      // Birk 05.10.2026 13:10: erst der Raumcheck, dann die Diskussion --
+      // ihre Aufnahme und ihre Uhr beginnen erst HIER, bei 0.
+      sitzung.kalVorStart = false;
+      if (sitzung.beendet) { return; }
+      var rest = sitzung.recorder;   // z. B. Skip mitten in der Sprechprobe
+      if (rest) {
+        rest._kalVerworfen = true;
+        if (rest.state !== 'inactive') { rest.stop(); }
+      }
+      sitzung.legStart = Date.now();
+      sitzung.recorder = neuesSegment(sitzung);
+      sitzung.vadSegmentStart = Date.now();
+      sitzung.vadSpeechMs = 0;
+      sitzung.vadLetzteRede = sitzung.vadSegmentStart;
+    }
     stoppePegelAn(sitzung);   // falls #kalibrierung-neu einen frueheren Lauf stoppt
     pegelAn(sitzung);
     // Birk Live-Test 04.10.2026: die Uhr gehoert NICHT hier rein, aber bisher
@@ -3643,8 +4228,8 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       sitzung.segmentTakt = setInterval(function () {
         if (!sitzung.recorder) { return; }
         var alt = sitzung.recorder;
-        alt.stop();
-        sitzung.recorder = neuesSegment(sitzung);
+        sitzung.recorder = neuesSegment(sitzung);   // erst der Nachfolger (Nachtfix)
+        stoppeNachUeberlappung(alt);
       }, SEGMENT_MS);
     }
   }
@@ -3676,10 +4261,13 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     }
   }
 
-  // Die EINE Weiche zwischen cache/kill-switch/frischem Ablauf -- aufgerufen
-  // aus beginneAufnahme() UND von #kalibrierung-neu (das sitzung.kalibriert
-  // vorher auf false setzt und dieselbe Weiche erneut anstoesst, ohne den
-  // Cache zu pruefen, siehe kalibrierungNeu()).
+  // Die EINE Weiche (zweiter Nachtrag, Birk 05.10.2026 ~23:55): mit dem
+  // Kill-Switch AN (Dortmund) unveraendert der alte Weg -- Cache von heute,
+  // sonst das button-gated Panel. Mit dem Kill-Switch AUS (Padua: KEINE
+  // Kalibrierungs-UI mehr) startet die Aufnahme immer sofort, serverseitige
+  // Gruppenwerte (falls vorhanden) sind nur der STARTWERT -- die eigentliche
+  // Anpassung uebernimmt danach die Hintergrund-adaptive Schwelle in
+  // pegelAn()/kalAdaptivAktualisiere(), ohne weitere Nutzeraktion.
   function kalEntscheideOderStarte(sitzung) {
     kalZeigeHerumreichenErinnerungWennNeu(sitzung);
     if (sitzung.kalibriert) {
@@ -3687,11 +4275,18 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       return;
     }
     if (!kalibrierungAktiv()) {
+      if (zustand.kalibrierungGruppe) {
+        sitzung.vadBodenMess = zustand.kalibrierungGruppe.boden;
+        sitzung.vadSchwelleFix = zustand.kalibrierungGruppe.schwelle;
+      }
       sitzung.kalibriert = true;
+      sitzung._kalAdaptivAn = true;
+      sitzung._kalAdaptivStart = Date.now();
+      sitzung._kalAdaptivProben = [];
       kalStarteEchteSchnitte(sitzung);
       return;
     }
-    var cache = kalibrierungCacheLesen();
+    var cache = kalibrierungCacheLesen(kalSpeicher(), kalGruppeAus(location.pathname), kalDatum(new Date()));
     if (cache) {
       sitzung.vadBodenMess = cache.boden;
       sitzung.vadSchwelleFix = cache.schwelle;
@@ -3700,6 +4295,87 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       return;
     }
     kalibrierungStarte(sitzung);
+  }
+
+  // Meldet ein Messergebnis gruppenweit an den Server (dieselbe
+  // best-effort-Haltung wie kalMeldeZuLeise): weder die manuelle
+  // Bestaetigung (kalAntwortJa, Dortmund) noch die Hintergrund-adaptive
+  // Schwelle (Padua) warten auf die Antwort, und ein Fehlschlag blockiert
+  // die laufende Aufnahme nicht.
+  function kalMeldeGruppenwerte(boden, rede, schwelle) {
+    postJson(`chat/kalibrierung`, { boden: boden, rede: rede, schwelle: schwelle })
+      .catch(function () { /* best effort, wie kalMeldeZuLeise */ });
+  }
+
+  //: Hintergrund-adaptive Schwelle (zweiter Nachtrag, Birk 05.10.2026
+  //: ~23:55, ersetzt die einmalige AUTO-Otsu-Messung des ersten Addendums):
+  //: Start erst nach 20s echtem Zuhoeren (genug Ticks fuer ein Taltal),
+  //: danach hoechstens alle 3s ein neues Otsu-Taltal versuchen, ueber ein
+  //: gleitendes 60s-Fenster -- ein laengeres Fenster als die 20s der alten
+  //: einmaligen Messung, weil es laufend neu gebildet wird und dabei auch
+  //: aeltere, nicht mehr repraesentative Ticks verwerfen soll.
+  var KAL_ADAPTIV_START_MS = 20000;
+  var KAL_ADAPTIV_TAKT_MS = 3000;
+  var KAL_ADAPTIV_FENSTER_MS = 60000;
+  //: Wie sanft ein neu akzeptierter Otsu-Wert die Schwelle bewegt (EMA im
+  //: Log-Raum) und wie weit EIN Schritt davon hoechstens ausschlagen darf
+  //: (Faktor auf den linearen Wert, unabhaengig davon, wie weit der neue
+  //: Otsu-Wert selbst daneben liegt) -- beide Zahlen woertlich aus dem
+  //: Addendum.
+  var KAL_ADAPTIV_EMA_ALPHA = 0.3;
+  var KAL_ADAPTIV_MAX_FAKTOR = 1.25;
+  //: Server-Meldungen der adaptiven Schwelle seltener als ihr eigener
+  //: Rechentakt (Addendum: "kein Server-Roundtrip pro Schritt notwendig") --
+  //: ein Zehntel der Frequenz reicht, der naechste Gruppenstart braucht nur
+  //: den LETZTEN Stand, nicht jeden Zwischenschritt.
+  var KAL_ADAPTIV_MELDE_TAKT_MS = 30000;
+
+  // Reine Funktion (node-testbar): der naechste Schwellenwert aus dem alten
+  // Festwert (``null`` = noch nie gesetzt, erster Otsu-Wert gilt direkt,
+  // nur geklemmt) und einem frisch berechneten Otsu-Wert -- EMA im Log-Raum,
+  // deren SCHRITT selbst auf ``maxFaktor`` gedeckelt ist (nicht nur das
+  // Endergebnis), danach auf den bestehenden Rahmen geklemmt.
+  function kalAdaptivNeuerWert(alterWert, otsuWert, alpha, maxFaktor, minWert, maxWert) {
+    if (alterWert == null) {
+      return Math.min(Math.max(otsuWert, minWert), maxWert);
+    }
+    var logAlt = Math.log(alterWert) / Math.LN10;
+    var logNeu = Math.log(otsuWert) / Math.LN10;
+    var maxSchrittLog = Math.log(maxFaktor) / Math.LN10;
+    var schrittLog = Math.min(Math.max(alpha * (logNeu - logAlt), -maxSchrittLog), maxSchrittLog);
+    return Math.min(Math.max(Math.pow(10, logAlt + schrittLog), minWert), maxWert);
+  }
+
+  // Ein Versuch, die Hintergrund-Schwelle fortzuschreiben -- aus JEDEM Tick
+  // von pegelAn() gerufen (sitzung._kalAdaptivAn muss dort schon gesetzt
+  // sein), tut aber nur alle KAL_ADAPTIV_TAKT_MS wirklich etwas (die beiden
+  // Zeitstempel auf ``sitzung`` sind der einzige Merkzustand). ``jetzt``
+  // kommt vom Aufrufer (kein eigenes ``Date.now()`` hier) -- node-testbar
+  // mit einer simulierten Uhr, ohne echte Timer abzuwarten.
+  function kalAdaptivAktualisiere(sitzung, jetzt) {
+    if (jetzt - sitzung._kalAdaptivStart < KAL_ADAPTIV_START_MS) { return; }
+    if (sitzung._kalAdaptivLetzterLauf != null &&
+        jetzt - sitzung._kalAdaptivLetzterLauf < KAL_ADAPTIV_TAKT_MS) {
+      return;
+    }
+    sitzung._kalAdaptivLetzterLauf = jetzt;
+    var grenze = jetzt - KAL_ADAPTIV_FENSTER_MS;
+    var proben = sitzung._kalAdaptivProben;
+    while (proben.length && proben[0].t < grenze) { proben.shift(); }
+    var otsu = kalOtsuSchwelle(proben.map(function (p) { return p.r; }));
+    if (otsu == null) { return; }   // nicht bimodal genug -- Schwelle bleibt stehen
+    var unten = proben.filter(function (p) { return p.r > 0 && p.r < otsu; });
+    sitzung.vadBodenMess = unten.length
+      ? kalMedian(unten.map(function (p) { return p.r; }))
+      : kalMedian(proben.map(function (p) { return p.r; }));
+    sitzung.vadSchwelleFix = kalAdaptivNeuerWert(
+      sitzung.vadSchwelleFix, otsu, KAL_ADAPTIV_EMA_ALPHA, KAL_ADAPTIV_MAX_FAKTOR,
+      KAL_SCHWELLE_ABS_MIN, KAL_SCHWELLE_ABS_MAX);
+    if (sitzung._kalAdaptivGemeldetAm == null ||
+        jetzt - sitzung._kalAdaptivGemeldetAm >= KAL_ADAPTIV_MELDE_TAKT_MS) {
+      sitzung._kalAdaptivGemeldetAm = jetzt;
+      kalMeldeGruppenwerte(sitzung.vadBodenMess, null, sitzung.vadSchwelleFix);
+    }
   }
 
   // Panel-level Messen-Knopf (#kalibrierung-neu, bewusst andere id als
@@ -3716,47 +4392,47 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
 
   if (kalStartKnopf) {
     kalStartKnopf.addEventListener('click', function () {
-      kalStarteStille(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalStarteStille(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalSprechenKnopf) {
     kalSprechenKnopf.addEventListener('click', function () {
-      kalStarteSprechen(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalStarteSprechen(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalNochmalHoerenKnopf) {
     kalNochmalHoerenKnopf.addEventListener('click', function () {
-      kalNochmalHoeren(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalNochmalHoeren(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalVersuchKnopf) {
     kalVersuchKnopf.addEventListener('click', function () {
-      kalVersuchErneut(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalVersuchErneut(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalWeiterTrotzdemKnopf) {
     kalWeiterTrotzdemKnopf.addEventListener('click', function () {
-      kalWeiterTrotzdem(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalWeiterTrotzdem(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalJaKnopf) {
     kalJaKnopf.addEventListener('click', function () {
-      kalAntwortJa(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalAntwortJa(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalNeinKnopf) {
     kalNeinKnopf.addEventListener('click', function () {
-      kalAntwortNein(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalAntwortNein(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalSkipKnopf) {
     kalSkipKnopf.addEventListener('click', function () {
-      kalibrierungSkip(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalibrierungSkip(zustand.aufnahme || zustand.diskussion);
     });
   }
   if (kalNeuKnopf) {
     kalNeuKnopf.addEventListener('click', function () {
-      kalibrierungNeu(zustand.aufnahme || zustand.brainstorm || zustand.diskussion);
+      kalibrierungNeu(zustand.aufnahme || zustand.diskussion);
     });
   }
 
@@ -3776,12 +4452,23 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   // Mikrofon sofort wieder frei.
   //
   // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung): die Aufnahme
-  // startet weiter SOFORT (sonst gehen die ersten Worte der echten
-  // Diskussion verloren) -- gegated ist allein kalEntscheideOderStarte()
-  // (pegelAn() + der Segment-Takt-Rueckfall), nie neuesSegment() selbst.
+  // startet weiter SOFORT (sonst gehen die ersten Worte verloren; die
+  // Diskussion ist seit 05.10.2026 die Ausnahme -- seit Birk 05.10.2026
+  // 22:00 auch fuer Phase 4, siehe sitzung.art unten) -- gegated ist allein
+  // kalEntscheideOderStarte() (pegelAn() + der Segment-Takt-Rueckfall), nie
+  // neuesSegment() selbst.
   function beginneAufnahme(sitzung) {
     if (sitzung.pausiert) {
       gibFrei(sitzung);
+      return;
+    }
+    // Ausnahme Diskussion (Phase 1, Birk 05.10.2026 13:10): erst der
+    // Raumcheck, dann die Diskussion. Kein Recorder, keine Uhr, bis
+    // kalStarteEchteSchnitte() nach Kalibrierung/Skip/Cache startet.
+    if (sitzung.art === 'diskussion' && !sitzung.kalibriert) {
+      sitzung.kalVorStart = true;
+      sitzung.gestartet = true;
+      kalEntscheideOderStarte(sitzung);
       return;
     }
     sitzung.legStart = Date.now();
@@ -3793,246 +4480,60 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     kalEntscheideOderStarte(sitzung);
   }
 
-  // -- Brainstorm mithoeren (Phase 4, nur Web, 02.10.2026) ------------------
+  // -- Hintergrund-Mithoeren (Padua Phase 1+2 Umbau, 03.10.2026, Task 6;
+  //    seit Birk 05.10.2026 22:00 auch Phase 4, kein eigener
+  //    Brainstorm-Block mehr, t_cf87ee0a abgeloest) --------------------------
   //
-  // Dieselbe Segment-Mechanik wie beim Interview (neuesSegment,
-  // schneideSegment, pegelAn, beginneAufnahme sind bereits generisch ueber
-  // die uebergebene Sitzung) -- aber OHNE Modus-Befehl: ein
-  // Brainstorm-Segment ist serverseitig immer eine gewoehnliche
-  // 'kurz'-Aufnahme, es gibt nichts anzumelden oder zu bestaetigen.
-  // sitzung.art = 'brainstorm' schaltet bereit() auf "immer senden" (siehe
-  // dort); fertigEingereiht bleibt dauerhaft true, damit pruefeEnde() NIE
-  // ein 'befehl' einreiht. Bewusst eigene, kleinere Funktionen statt eines
-  // sitzung.art-Zweigs mitten in starteInterview()/pausiereInterview()/
-  // beendeInterview(): die dort gehaerteten Rennbedingungen (mehrere
-  // "Re-Review"-Runden) sollen fuer den bestehenden, getesteten Weg
-  // unberuehrt bleiben.
-
-  function zeigeBrainstormModus() {
-    if (!brainstormKnopf) { return; }
-    var sitzung = zustand.brainstorm;
-    var an = !!sitzung;
-    var pausiert = an && sitzung.pausiert;
-    brainstormKnopf.dataset.laeuft = an ? '1' : '0';
-    brainstormKnopf.dataset.pausiert = pausiert ? '1' : '0';
-    if (!an) {
-      brainstormKnopf.textContent = TEXT.brainstorm_an;
-    } else if (pausiert) {
-      brainstormKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
-    } else {
-      brainstormKnopf.textContent = TEXT.brainstorm_laeuft.replace('{zeit}', formatiereUhr(sitzung));
-    }
-    // Zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
-    // Bedienung (dieselbe Regel wie PTT vs. Interview). Waehrend ein
-    // Interview-Stopp unterwegs ist (wechsel.ziel === false), ist modusAn()
-    // schon wieder false -- genau wie beim Interview-Knopf selbst
-    // (zeigeModus()) wird deshalb zusaetzlich auf ein laufendes wechsel
-    // geprueft, sonst saehe der Knopf kurz bedienbar aus, obwohl
-    // starteBrainstorm() ihn wegen desselben zustand.wechsel ablehnt.
-    // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt --
-    // symmetrisch zur bestehenden Sperre von starteDiskussion() gegen
-    // zustand.brainstorm (095e6e9). Ohne das blieb der Knopf bedienbar,
-    // waehrend eine Diskussion-Sitzung (Phase 1) noch lief, z. B. wenn eine
-    // Gruppe den Diskussion-Knopf in Phase 1 nie beendet und spaeter in
-    // Phase 4 den Brainstorm-Knopf drueckt -- zwei MediaRecorder auf
-    // demselben Mikrofon.
-    brainstormKnopf.disabled = modusAn() || !!zustand.wechsel || !!zustand.diskussion;
-    // Task 2 (Kanban-Karte Buehne/PTT): ausserhalb Phase 4 kein Angebot --
-    // nie aber verborgen bei laufender Sitzung oder Wechsel, dieselbe Regel
-    // wie beim Interview-Knopf (zeigeModus()). Die ``nebenknopf``-Klasse am
-    // Interview-Knopf folgt derselben Sichtbarkeit wie das Server-Markup.
-    var sichtbar = zustand.brainstormErlaubt || an || !!zustand.wechsel;
-    brainstormKnopf.hidden = !sichtbar;
-    if (brainstormAktionenFeld) { brainstormAktionenFeld.hidden = !an; }
-    if (brainstormPauseKnopf) {
-      brainstormPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
-    }
-    // interviewKnopf.disabled/classList und pttKnopf.hidden werden seit
-    // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal,
-    // zusammengefuehrt mit zustand.diskussion (siehe dort).
-  }
-
-  function starteBrainstorm() {
-    // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt,
-    // wie starteDiskussion()/pttPointerDown() es bereits tun -- sonst koennte eine
-    // Gruppe, die eine Diskussion-Sitzung (Phase 1) nie beendet hat und in
-    // Phase 4 weiterarbeitet, ueber den Brainstorm-Knopf einen zweiten
-    // Recorder auf demselben Mikrofon starten.
-    if (zustand.brainstorm || modusAn() || zustand.wechsel || zustand.diskussion) { return; }
-    if (zustand.ptt) { verwirfPtt(); }
-    var sitzung = {
-      art: 'brainstorm',
-      strom: null, recorder: null, kontext: null, pegelTakt: null,
-      segmentTakt: null, offen: 0, gestartet: false, beendet: false,
-      verworfen: false, angehalten: false, geparkt: [],
-      fertigEingereiht: true, naechsteNr: 0, einzureihen: 0, fertige: {},
-      pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true,
-      fortsetzend: false, hinweisGezeigt: false
-    };
-    zustand.brainstorm = sitzung;
-    zeigeBrainstormModus();
-    holeStrom().then(function (strom) {
-      sitzung.mikroUnterwegs = false;
-      sitzung.strom = strom;
-      if (sitzung.beendet) { gibFrei(sitzung); return; }
-      sitzung.gestartet = true;
-      beginneAufnahme(sitzung);
-      zeigeBrainstormModus();
-    }).catch(function () {
-      sitzung.mikroUnterwegs = false;
-      sitzung.verworfen = true;
-      sitzung.beendet = true;
-      if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); }
-      if (sitzung.recorder && sitzung.recorder.state !== 'inactive') {
-        try { sitzung.recorder.stop(); } catch (e) { /* schon aus */ }
-      }
-      sitzung.recorder = null;
-      gibFrei(sitzung);
-      entferneAuftraege(sitzung);
-      if (zustand.brainstorm === sitzung) { zustand.brainstorm = null; }
-      anzeigeAus();
-      zeigeBrainstormModus();
-      meldeFehler(TEXT.fehler_mikro);
-    });
-  }
-
-  function pausiereBrainstorm() {
-    var sitzung = zustand.brainstorm;
-    if (!sitzung || sitzung.pausiert || sitzung.verworfen || sitzung.beendet) { return; }
-    if (sitzung.mikroUnterwegs) {
-      sitzung.pausiert = true;
-      zeigeBrainstormModus();
-      return;
-    }
-    sitzung.erfassteMs += Date.now() - sitzung.legStart;
-    sitzung.legStart = null;
-    sitzung.pausiert = true;
-    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
-    var alt = sitzung.recorder;
-    sitzung.recorder = null;
-    if (alt && sitzung.vadAktiv) { alt._grund = 'ende'; alt._redeMs = sitzung.vadSpeechMs; }
-    if (alt && alt.state !== 'inactive') { alt.stop(); }
-    gibFrei(sitzung);
-    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
-    if (uhrFeld) { uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung)); }
-    zeigeBrainstormModus();
-  }
-
-  function fortsetzeBrainstorm() {
-    var sitzung = zustand.brainstorm;
-    // Dieselben Waechter wie fortsetzeInterview(): "pausiert" nur einmal
-    // zuruecknehmen, und eine Sperrklinke (fortsetzend) gegen einen
-    // hastigen Doppeldruck, der sonst zwei Recorder auf demselben Mikrofon
-    // startete.
-    if (!sitzung || !sitzung.pausiert || sitzung.verworfen || sitzung.beendet ||
-        sitzung.fortsetzend) { return; }
-    if (sitzung.mikroUnterwegs) { sitzung.pausiert = false; return; }
-    sitzung.pausiert = false;
-    sitzung.fortsetzend = true;
-    sitzung.mikroUnterwegs = true;
-    holeStrom().then(function (strom) {
-      sitzung.mikroUnterwegs = false;
-      sitzung.fortsetzend = false;
-      if (!zustand.brainstorm || zustand.brainstorm !== sitzung || sitzung.beendet) {
-        strom.getTracks().forEach(function (t) { t.stop(); });
-        return;
-      }
-      sitzung.strom = strom;
-      beginneAufnahme(sitzung);
-      zeigeBrainstormModus();
-    }).catch(function () {
-      sitzung.mikroUnterwegs = false;
-      sitzung.fortsetzend = false;
-      sitzung.pausiert = true;
-      zeigeBrainstormModus();
-      meldeFehler(TEXT.fehler_mikro);
-    });
-    zeigeBrainstormModus();
-  }
-
-  function beendeBrainstorm() {
-    var sitzung = zustand.brainstorm;
-    if (!sitzung) { return; }
-    zustand.brainstorm = null;
-    anzeigeAus();
-    if (!sitzung.gestartet) {
-      sitzung.beendet = true;
-      zeigeBrainstormModus();
-      return;
-    }
-    sitzung.beendet = true;
-    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
-    var letzter = sitzung.recorder;
-    sitzung.recorder = null;
-    if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
-    if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
-    // Anders als beendeInterview(): pruefeEnde() tut bei Brainstorm NIE
-    // etwas (fertigEingereiht bleibt immer true), also wird das Mikrofon
-    // HIER sofort freigegeben -- wie bei pausiereInterview(), nicht erst im
-    // onstop.
-    gibFrei(sitzung);
-    zeigeBrainstormModus();
-  }
-
-  // -- Hintergrund-Mithoeren Phase 1 (Padua Phase 1+2 Umbau, 03.10.2026,
-  //    Task 6) -----------------------------------------------------------
-  //
-  // Derselbe Aufbau wie Brainstorm oben -- eigener Zustandsslot
-  // (zustand.diskussion, nicht zustand.brainstorm), eigene DOM-Elemente
-  // (#diskussion, #diskussion-pause, #diskussion-beenden), aber dieselbe
-  // Segment-Mechanik OHNE Modus-Befehl: ein Diskussion-Segment ist
-  // serverseitig immer eine gewoehnliche 'kurz'-Aufnahme. sitzung.art =
-  // 'diskussion' schaltet bereit() auf "immer senden" (siehe dort);
-  // fertigEingereiht bleibt dauerhaft true, damit pruefeEnde() NIE ein
-  // 'befehl' einreiht.
+  // Eigener Zustandsslot (zustand.diskussion), eigene DOM-Elemente
+  // (#diskussion, #diskussion-beenden), dieselbe Segment-Mechanik OHNE
+  // Modus-Befehl: ein Segment ist serverseitig immer eine gewoehnliche
+  // 'kurz'-Aufnahme. sitzung.art = 'diskussion' schaltet bereit() auf
+  // "immer senden" (siehe dort); fertigEingereiht bleibt dauerhaft true,
+  // damit pruefeEnde() NIE ein 'befehl' einreiht. sitzung.ziel
+  // ('diskussion'|'brainstorm', aus zustand.mithoerenZiel bei Start
+  // eingefroren) sagt nur, wohin das Audio geht (postAudio) und welchen
+  // Kalibrierungs-Erfolgstext kalAntwortJa zeigt -- die Bedienung selbst
+  // ist fuer beide Phasen identisch.
 
   function zeigeDiskussionModus() {
     if (!diskussionKnopf) { return; }
     var sitzung = zustand.diskussion;
     var an = !!sitzung;
-    var pausiert = an && sitzung.pausiert;
     diskussionKnopf.dataset.laeuft = an ? '1' : '0';
-    diskussionKnopf.dataset.pausiert = pausiert ? '1' : '0';
     if (!an) {
       diskussionKnopf.textContent = TEXT.diskussion_an;
-    } else if (pausiert) {
-      diskussionKnopf.textContent = TEXT.interview_pausiert.replace('{zeit}', formatiereUhr(sitzung));
     } else {
       diskussionKnopf.textContent = TEXT.diskussion_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
     // Zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
-    // Bedienung (dieselbe Regel wie bei Brainstorm/PTT vs. Interview).
-    diskussionKnopf.disabled = modusAn() || !!zustand.wechsel;
-    // Ausserhalb Phase 1 kein Angebot -- nie aber verborgen bei laufender
-    // Sitzung oder Wechsel, dieselbe Regel wie beim Brainstorm-Knopf.
+    // Bedienung (dieselbe Regel wie bei PTT vs. Interview). Abnahme P3-4 A3
+    // (06.10.2026): KEIN natives disabled mehr -- der Browser feuert dafuer
+    // nie ein click-Event, ein verwaistes/fremdes Interview sperrte diesen
+    // Knopf dadurch bisher voellig stumm (zwoelf Tipps im Abnahmelauf, keine
+    // Reaktion). aria-disabled haelt die Optik (CSS weiter unten), der
+    // Klick-Handler meldet stattdessen einen Hinweis.
+    var gesperrt = modusAn() || !!zustand.wechsel;
+    if (gesperrt) { diskussionKnopf.setAttribute('aria-disabled', 'true'); }
+    else { diskussionKnopf.removeAttribute('aria-disabled'); }
+    // Ausserhalb Phase 1/4 kein Angebot -- nie aber verborgen bei laufender
+    // Sitzung oder Wechsel.
     var sichtbar = zustand.diskussionErlaubt || an || !!zustand.wechsel;
     diskussionKnopf.hidden = !sichtbar;
     if (diskussionAktionenFeld) { diskussionAktionenFeld.hidden = !an; }
-    if (diskussionPauseKnopf) {
-      diskussionPauseKnopf.textContent = pausiert ? TEXT.interview_weiter : TEXT.interview_pause;
-    }
     // interviewKnopf.disabled/classList und pttKnopf.hidden werden seit
-    // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal,
-    // zusammengefuehrt mit zustand.brainstorm (siehe dort). Vorher
-    // ueberschrieb dieser Abschnitt unbedingt, mit nur dem eigenen Flag,
-    // was zeigeBrainstormModus() kurz zuvor gesetzt hatte.
+    // Task 6, Fix 1 NICHT mehr hier gesetzt -- das tut zeigeModus() einmal.
   }
 
   function starteDiskussion() {
-    // Re-Review (Task 6, Fund 2): auch gegen zustand.brainstorm gesperrt,
-    // wie starteInterview()/pttPointerDown() es bereits tun -- sonst koennte ein
-    // Phase-4-zu-1-Wechsel mit noch laufendem Brainstorm auf einem anderen
-    // Tab einen zweiten Recorder auf demselben Mikrofon starten.
-    if (zustand.diskussion || modusAn() || zustand.wechsel || zustand.brainstorm) { return; }
+    if (zustand.diskussion || modusAn() || zustand.wechsel) { return; }
     if (zustand.ptt) { verwirfPtt(); }
     var sitzung = {
-      art: 'diskussion',
+      art: 'diskussion', ziel: zustand.mithoerenZiel,
       strom: null, recorder: null, kontext: null, pegelTakt: null,
       segmentTakt: null, offen: 0, gestartet: false, beendet: false,
       verworfen: false, angehalten: false, geparkt: [],
       fertigEingereiht: true, naechsteNr: 0, einzureihen: 0, fertige: {},
-      pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true,
-      fortsetzend: false
+      pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true
     };
     zustand.diskussion = sitzung;
     zeigeDiskussionModus();
@@ -4061,60 +4562,6 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     });
   }
 
-  function pausiereDiskussion() {
-    var sitzung = zustand.diskussion;
-    if (!sitzung || sitzung.pausiert || sitzung.verworfen || sitzung.beendet) { return; }
-    if (sitzung.mikroUnterwegs) {
-      sitzung.pausiert = true;
-      zeigeDiskussionModus();
-      return;
-    }
-    sitzung.erfassteMs += Date.now() - sitzung.legStart;
-    sitzung.legStart = null;
-    sitzung.pausiert = true;
-    if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
-    var alt = sitzung.recorder;
-    sitzung.recorder = null;
-    if (alt && sitzung.vadAktiv) { alt._grund = 'ende'; alt._redeMs = sitzung.vadSpeechMs; }
-    if (alt && alt.state !== 'inactive') { alt.stop(); }
-    gibFrei(sitzung);
-    if (zustand.uhrTakt) { clearInterval(zustand.uhrTakt); zustand.uhrTakt = null; }
-    if (uhrFeld) { uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung)); }
-    zeigeDiskussionModus();
-  }
-
-  function fortsetzeDiskussion() {
-    var sitzung = zustand.diskussion;
-    // Dieselben Waechter wie fortsetzeBrainstorm(): "pausiert" nur einmal
-    // zuruecknehmen, und eine Sperrklinke (fortsetzend) gegen einen
-    // hastigen Doppeldruck, der sonst zwei Recorder auf demselben Mikrofon
-    // startete.
-    if (!sitzung || !sitzung.pausiert || sitzung.verworfen || sitzung.beendet ||
-        sitzung.fortsetzend) { return; }
-    if (sitzung.mikroUnterwegs) { sitzung.pausiert = false; return; }
-    sitzung.pausiert = false;
-    sitzung.fortsetzend = true;
-    sitzung.mikroUnterwegs = true;
-    holeStrom().then(function (strom) {
-      sitzung.mikroUnterwegs = false;
-      sitzung.fortsetzend = false;
-      if (!zustand.diskussion || zustand.diskussion !== sitzung || sitzung.beendet) {
-        strom.getTracks().forEach(function (t) { t.stop(); });
-        return;
-      }
-      sitzung.strom = strom;
-      beginneAufnahme(sitzung);
-      zeigeDiskussionModus();
-    }).catch(function () {
-      sitzung.mikroUnterwegs = false;
-      sitzung.fortsetzend = false;
-      sitzung.pausiert = true;
-      zeigeDiskussionModus();
-      meldeFehler(TEXT.fehler_mikro);
-    });
-    zeigeDiskussionModus();
-  }
-
   function beendeDiskussion() {
     var sitzung = zustand.diskussion;
     if (!sitzung) { return; }
@@ -4129,19 +4576,39 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     if (sitzung.segmentTakt) { clearInterval(sitzung.segmentTakt); sitzung.segmentTakt = null; }
     var letzter = sitzung.recorder;
     sitzung.recorder = null;
-    if (letzter && sitzung.vadAktiv) { letzter._grund = 'ende'; letzter._redeMs = sitzung.vadSpeechMs; }
+    if (sitzung.kalVorStart) {
+      // Fertig mitten im Raumcheck: die Diskussion hat nie begonnen, also
+      // geht auch nichts als Diskussion raus.
+      kalAufraeumen(sitzung);
+      kalZeigePanel(false);
+      if (letzter) {
+        letzter._kalVerworfen = true;
+        if (letzter.state !== 'inactive') { letzter.stop(); }
+      }
+      // Simulation 05.10.2026 13:43: das Ende muss trotzdem beim Server
+      // ankommen -- ein leeres Ende-Segment, serverseitig
+      // _abschluss_trotz_verworfenem_ende (aufnahme.py, a852d59).
+      letzter = sitzung.strom ? neuesSegment(sitzung) : null;
+    }
+    // 'ende' IMMER, nicht nur mit VAD: sonst laeuft serverseitig nie der
+    // Abschluss der Diskussion (kein Board, keine Bot-Nachricht).
+    if (letzter) {
+      letzter._grund = 'ende';
+      if (sitzung.vadAktiv) { letzter._redeMs = sitzung.vadSpeechMs; }
+    }
     if (letzter && letzter.state !== 'inactive') { letzter.stop(); }
     // Anders als beendeInterview(): pruefeEnde() tut bei Diskussion NIE
     // etwas (fertigEingereiht bleibt immer true), also wird das Mikrofon
-    // HIER sofort freigegeben -- wie bei beendeBrainstorm(), nicht erst im
-    // onstop.
+    // HIER sofort freigegeben, nicht erst im onstop.
     gibFrei(sitzung);
     zeigeDiskussionModus();
   }
 
   function starteInterview() {
     // Review-Befund 4: nie zwei Recorder, nie ein Start mitten im Wechsel.
-    if (zustand.aufnahme || zustand.wechsel || zustand.brainstorm) { return; }
+    // zustand.diskussion deckt seit Birk 05.10.2026 22:00 auch die
+    // Phase-4-Sitzung ab (kein eigener Sitzungsslot fuer Brainstorm mehr).
+    if (zustand.aufnahme || zustand.wechsel || zustand.diskussion) { return; }
     // Re-Review F: ein gehaltener PTT-Druck (zweiter Finger) wird verworfen,
     // sonst liefen zwei Recorder.
     if (zustand.ptt) { verwirfPtt(); }
@@ -4168,8 +4635,10 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     var wechsel = { ziel: true, gesendet: false };
     zustand.aufnahme = sitzung;
     zustand.wechsel = wechsel;
-    zeigeModus();
+    // Nachtfix 05.10.2026: vor der Anzeige gesetzt, damit der Knopf
+    // "Mikrofon kommt" sagt statt schon "laeuft".
     sitzung.mikroUnterwegs = true;
+    zeigeModus();
     holeStrom().then(function (strom) {
       sitzung.mikroUnterwegs = false;
       sitzung.strom = strom;
@@ -4292,6 +4761,9 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       // Flag, sobald das Mikrofon kommt, und faengt dann gar nicht erst an
       // aufzunehmen (statt den Tipp stillschweigend zu verschlucken).
       sitzung.pausiert = true;
+      // Nachtfix 05.10.2026: fortsetzeInterview() hat die Pause-Uhr bis
+      // r.start() ausgeblendet -- in der Pause gehoert sie wieder hin.
+      if (uhrFeld && sitzung.erfassteMs > 0) { uhrFeld.hidden = false; }
       zeigeModus();
       return;
     }
@@ -4362,10 +4834,16 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     // statt no-op zu sein), sieht beginneAufnahme() unten sitzung.pausiert
     // wieder true und faengt gar nicht erst an -- derselbe Schutz wie bei
     // starteInterview(), zentral an einer Stelle statt dupliziert.
+    var uhrWarDa = !!uhrFeld && !uhrFeld.hidden;
     sitzung.pausiert = false;
     sitzung.fortsetzend = true;   // Sperrklinke: kein zweiter Recorder bei Doppeldruck
-    zeigeModus();
+    // Nachtfix 05.10.2026: bis r.start() "startet" -- mikroUnterwegs VOR der
+    // Anzeige, und die stehende Pause-Uhr weg (die UX-Zeile liest sie als
+    // "laeuft"); kalStarteEchteSchnitte() -> uhrAn() zeigt sie nach
+    // r.start() wieder.
     sitzung.mikroUnterwegs = true;
+    if (uhrFeld) { uhrFeld.hidden = true; }
+    zeigeModus();
     holeStrom().then(function (strom) {
       sitzung.mikroUnterwegs = false;
       sitzung.fortsetzend = false;
@@ -4381,6 +4859,11 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     }).catch(function () {
       sitzung.mikroUnterwegs = false;
       sitzung.fortsetzend = false;
+      // Nachtfix 05.10.2026: kein Mikrofon, also zurueck in die Pause
+      // -- vorher stand dauerhaft "laeuft" ohne
+      // Recorder da. Die Pause-Uhr kommt zurueck, wenn es eine gab.
+      sitzung.pausiert = true;
+      if (uhrFeld && uhrWarDa) { uhrFeld.hidden = false; }
       zeigeModus();
       meldeFehler(TEXT.fehler_mikro);
     });
@@ -4389,18 +4872,40 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   if (nachreichenKnopf) { nachreichenKnopf.addEventListener('click', reicheNach); }
   if (verwerfenKnopf) { verwerfenKnopf.addEventListener('click', verwirfRest); }
 
+  // Nachtfix 05.10.2026 (fremdes Geraet): ohne eigene Sitzung bei laufendem
+  // Modus loesen "Hier aufnehmen" (zweiter Recorder im selben Raum) und
+  // "Beenden" (beendet das Interview des aufnehmenden Telefons) erst beim
+  // ZWEITEN Tipp derselben Art innerhalb von FREMD_SCHARF_MS aus. Kein
+  // Browser-Dialog (iOS). Liefert true, wenn der Tipp gilt.
+  var FREMD_SCHARF_MS = 5000;
+  function fremdBestaetigt(art) {   // art: 'weiter' | 'enden'
+    if (zustand.fremdScharf === art && Date.now() - zustand.fremdScharfSeit < FREMD_SCHARF_MS) {
+      zustand.fremdScharf = null;
+      return true;
+    }
+    zustand.fremdScharf = art;
+    zustand.fremdScharfSeit = Date.now();
+    setTimeout(function () {
+      if (zustand.fremdScharf === art) { zustand.fremdScharf = null; zeigeModus(); }
+    }, FREMD_SCHARF_MS);
+    zeigeModus();
+    return false;
+  }
+
   if (interviewPauseKnopf) {
     interviewPauseKnopf.addEventListener('click', function () {
       var sitzung = zustand.aufnahme;
       if (sitzung) {
         if (sitzung.pausiert) { fortsetzeInterview(sitzung); } else { pausiereInterview(sitzung); }
-      } else if (zustand.servermodus) {
-        fortsetzeInterview(null);
-      }
+      } else if (zustand.servermodus && fremdBestaetigt('weiter')) { fortsetzeInterview(null); }
     });
   }
   if (interviewBeendenKnopf) {
-    interviewBeendenKnopf.addEventListener('click', beendeInterview);
+    interviewBeendenKnopf.addEventListener('click', function () {
+      if (!zustand.aufnahme && zustand.servermodus && !zustand.wechsel &&
+          !fremdBestaetigt('enden')) { return; }
+      beendeInterview();
+    });
   }
 
   // Der grosse Knopf ist nur noch im Leerlauf ein Schalter -- waehrend
@@ -4411,36 +4916,19 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     starteInterview();
   });
 
-  if (brainstormPauseKnopf) {
-    brainstormPauseKnopf.addEventListener('click', function () {
-      var sitzung = zustand.brainstorm;
-      if (!sitzung) { return; }
-      if (sitzung.pausiert) { fortsetzeBrainstorm(); } else { pausiereBrainstorm(); }
-    });
-  }
-  if (brainstormBeendenKnopf) {
-    brainstormBeendenKnopf.addEventListener('click', beendeBrainstorm);
-  }
-  if (brainstormKnopf) {
-    brainstormKnopf.addEventListener('click', function () {
-      if (brainstormKnopf.disabled || zustand.brainstorm) { return; }
-      starteBrainstorm();
-    });
-  }
-
-  if (diskussionPauseKnopf) {
-    diskussionPauseKnopf.addEventListener('click', function () {
-      var sitzung = zustand.diskussion;
-      if (!sitzung) { return; }
-      if (sitzung.pausiert) { fortsetzeDiskussion(); } else { pausiereDiskussion(); }
-    });
-  }
   if (diskussionBeendenKnopf) {
     diskussionBeendenKnopf.addEventListener('click', beendeDiskussion);
   }
   if (diskussionKnopf) {
     diskussionKnopf.addEventListener('click', function () {
-      if (diskussionKnopf.disabled || zustand.diskussion) { return; }
+      if (zustand.diskussion) { return; }
+      // Abnahme P3-4 A3: aria-disabled statt disabled (siehe
+      // zeigeDiskussionModus) -- der Klick kommt hier also auch gesperrt an
+      // und bekommt jetzt einen Hinweis statt gar keine Reaktion.
+      if (diskussionKnopf.getAttribute('aria-disabled') === 'true') {
+        meldeFehler(TEXT.diskussion_gesperrt);
+        return;
+      }
       starteDiskussion();
     });
   }
@@ -4598,9 +5086,8 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
   function pttPointerDown(ev) {
     if (!pttKnopf) { return; }
     // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt --
-    // dieselbe Regel wie gegen zustand.brainstorm, PTT ist ein drittes
-    // Mikrofon auf demselben Geraet.
-    if (modusAn() || zustand.wechsel || zustand.brainstorm || zustand.diskussion ||
+    // PTT ist ein drittes Mikrofon auf demselben Geraet.
+    if (modusAn() || zustand.wechsel || zustand.diskussion ||
         zustand.ptt) { return; }
     ev.preventDefault();
     try { pttKnopf.setPointerCapture(ev.pointerId); } catch (e) { /* ohne Capture geht es auch */ }
@@ -4780,8 +5267,42 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     return TEXT.verlassen;
   });
 
+  // t_a8129d7f Punkt 1 (neueste Nachricht nie verdeckt): waechst der Fuss
+  // (Brainstorm-Knopf erscheint, Modus ersetzt die Eingabezeile, Pegel/Uhr
+  // blenden sich ein) oder schrumpft der Verlauf aus einem anderen Grund,
+  // bleibt scrollTop stehen und die letzte Blase rutscht aus dem Bild.
+  // Gemessen (e2e, 05.10.2026, 390x844, Phase 4, vereinte Seite): ohne
+  // diesen Beobachter lag die letzte Blase schon beim Laden 60px unter dem
+  // sichtbaren Ende -- der erste nachUnten() lief, bevor die vereinte Seite
+  // ihre endgueltige Hoehe hatte. "War unten?" wird deshalb gegen die ALTE
+  // Verlaufshoehe gerechnet: im Beobachter ist die neue schon gesetzt, und
+  // ein Scroll-Ereignis dazwischen saehe den Verlauf schon "nicht unten".
+  // Das Fenster (Chat-Einzelseite, fester Fuss) merkt sich sein "unten"
+  // ueber das Scroll-Ereignis -- dieselbe UND-Verknuepfung wie
+  // amUnterenRand().
+  if (window.ResizeObserver && fuss) {
+    var fensterWarUnten = true;
+    window.addEventListener('scroll', function () {
+      fensterWarUnten = (window.innerHeight + window.scrollY)
+        >= (document.body.scrollHeight - UNTEN_TOLERANZ_PX);
+    }, { passive: true });
+    var alteVerlaufHoehe = verlauf.clientHeight;
+    var hoehenBeobachter = new window.ResizeObserver(function () {
+      var verlaufWarUnten = (verlauf.scrollTop + alteVerlaufHoehe)
+        >= (verlauf.scrollHeight - UNTEN_TOLERANZ_PX);
+      alteVerlaufHoehe = verlauf.clientHeight;
+      if (verlaufWarUnten && fensterWarUnten) { nachUnten(); }
+    });
+    hoehenBeobachter.observe(fuss);
+    hoehenBeobachter.observe(verlauf);
+  }
+
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
-  scrolleZuPhasenanfang();   // Phasenscroll-Karte: der Anfang der aktuellen Phase, sonst der Rueckfall ans Ende
+  scrolleBeimOeffnen();   // Phasenanfang nur beim ersten Oeffnen dieser Phase auf diesem Geraet, sonst ans Ende
+  // Pflichtpunkt 2, Fix 1 von 2: der erste Seitenaufruf stoesst die
+  // Begruessung an. Der Server legt /start nur an, solange der Chat noch
+  // leer ist -- ein spaeterer Aufruf (Reload, zweites Geraet) bewirkt nichts.
+  postJson(`chat/start`, {}).catch(function () { /* best effort */ });
   hole();
 })();
 
@@ -4964,7 +5485,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var TAKT_MOMENT = 560;
   var MOMENT = 'vorhang';
-  var TEXTE = {"rec_ruht": "Einmal tippen zum Starten.", "rec_startet": "Das Mikrofon wird freigegeben …", "rec_laeuft": "Aufnahme läuft.", "rec_laedt": "Die letzten Stücke gehen noch raus.", "rec_pausiert": "Pausiert – nichts wird aufgenommen.", "leitfaden": "Leitfaden", "naechstes": "Als Nächstes: {was}", "naechste_phase": "Phase {bezeichnung}", "belohnung_akt": "Akt abgeschlossen.", "belohnung_akt_satz": "{akt} steht. Weiter.", "belohnung_aufnahme": "Interview ist drin.", "belohnung_aufnahme_satz": "Aufgenommen und auf dem Weg zur Auswertung."};
+  var TEXTE = {"rec_ruht": "Einmal tippen zum Starten.", "rec_startet": "Das Mikrofon wird freigegeben …", "rec_laeuft": "Aufnahme läuft.", "rec_laedt": "Die letzten Stücke gehen noch raus.", "rec_pausiert": "Pausiert – nichts wird aufgenommen.", "rec_fremd": "Nimmt ein anderes Handy auf? Dann hier nichts tippen.", "leitfaden": "Leitfaden", "naechstes": "Als Nächstes: {was}", "naechste_phase": "Phase {bezeichnung}", "belohnung_akt": "Akt abgeschlossen.", "belohnung_akt_satz": "{akt} steht. Weiter.", "belohnung_aufnahme": "Interview ist drin.", "belohnung_aufnahme_satz": "Aufgenommen und auf dem Weg zur Auswertung."};
   var el = function (id) { return document.getElementById(id); };
   // Die Bausteine kommen in den Aufgaben 5 bis 9. Ohne sie tut dieses
   // Skript nichts -- und genau das soll es dann auch tun.
@@ -5084,7 +5605,10 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       // Pause bleibt im Attribut "laeuft" (der Modus ist an), bekommt aber
       // ihren eigenen Satz -- vorher stand dort "Aufnahme laeuft."
       // neben einer stehenden Uhr (P2, Aufgabe 2).
-      var satz = (neu === 'laeuft' && knopf.dataset.pausiert === '1')
+      // Nachtfix 05.10.2026: ohne eigene Sitzung (data-fremd) ist "pausiert"
+      // nur fuer DIESES Telefon wahr -- ein anderes kann gerade aufnehmen.
+      var satz = (neu === 'laeuft' && knopf.dataset.fremd === '1') ? TEXTE.rec_fremd
+        : (neu === 'laeuft' && knopf.dataset.pausiert === '1')
         ? TEXTE.rec_pausiert : TEXTE['rec_' + neu];
       if (zeile.textContent !== (satz || '')) { zeile.textContent = satz || ''; }
       if (neu === zustand) { return; }
@@ -5103,6 +5627,9 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       // Uhr steht -- sie geht erst mit dem Recorder an -- oder wenn das
       // Telefon eine Pause zeigt (dann laeuft hier nichts, aber der Modus
       // ist an, wie bisher).
+      // Nachtfix 05.10.2026: data-startet (Tipp bis r.start()) gewinnt vor
+      // einer noch sichtbaren Uhr -- unabhaengig vom Uhr-Weg in _CHAT_JS.
+      if (an && knopf.dataset.startet === '1') { setze('startet'); return; }
       var nimmt = !uhr || !uhr.hidden || knopf.dataset.pausiert === '1';
       if (an && nimmt) { setze('laeuft'); return; }
       if (an) { setze('startet'); return; }
@@ -5126,7 +5653,7 @@ ERHAN: Du kannst ihn jetzt auspacken.</div></details>
       lies();
     }).observe(fuss, { attributes: true, attributeFilter: ['data-interview'] });
     new MutationObserver(lies).observe(
-      knopf, { attributes: true, attributeFilter: ['data-pausiert'] });
+      knopf, { attributes: true, attributeFilter: ['data-pausiert', 'data-fremd', 'data-startet'] });
     if (uhr) {
       new MutationObserver(lies).observe(
         uhr, { attributes: true, attributeFilter: ['hidden'] });

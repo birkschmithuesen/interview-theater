@@ -2337,13 +2337,138 @@ def test_zeigediskussionmodus_ueberschreibt_interview_und_ptt_nicht_mehr():
     js = web_chat._CHAT_JS
     zeige_ds = js[js.index("function zeigeDiskussionModus"):
                   js.index("function starteDiskussion")]
-    assert "diskussionKnopf.disabled = modusAn() || !!zustand.wechsel;" in zeige_ds
+    # Abnahme P3-4 A3 (06.10.2026): kein natives disabled mehr -- ein
+    # verwaistes/fremdes Interview sperrte den Knopf dadurch bisher stumm.
+    assert "diskussionKnopf.disabled" not in zeige_ds
+    assert "var gesperrt = modusAn() || !!zustand.wechsel;" in zeige_ds
+    assert "diskussionKnopf.setAttribute('aria-disabled', 'true');" in zeige_ds
     assert "interviewKnopf.disabled =" not in zeige_ds
     assert "interviewKnopf.classList" not in zeige_ds
     assert "pttKnopf.hidden =" not in zeige_ds
     zeige_iv = js[js.index("function zeigeModus"):js.index("function verwirfPtt")]
     assert "zeigeDiskussionModus();" in zeige_iv
     assert zeige_iv.index("zeigeDiskussionModus();") < zeige_iv.index("nebenSichtbar")
+
+
+# -- Abnahme P3-4 A3 (06.10.2026): verwaistes Interview sperrt "Zuhoeren
+#    starten" stumm --------------------------------------------------------
+#
+# Ein natives disabled-Attribut feuert nie ein click-Event -- ein
+# verwaistes/fremdes Interview (Server meldet den Modus, dieses Handy hat
+# keine eigene Sitzung) liess den Knopf dadurch bisher ohne jede Reaktion
+# stehen (zwoelf Tipps im Abnahmelauf). Fix: aria-disabled statt disabled,
+# der Klick-Handler meldet jetzt einen Hinweis statt stillzuschweigen.
+
+
+def test_der_stop_knopf_bleibt_sichtbar_bei_fremdem_servermodus_allein():
+    """Brief (b): der Stop-Knopf muss sichtbar bleiben, auch ohne eigene
+    Sitzung -- ``an`` kommt aus ``modusAn()`` allein (``zustand.aufnahme``
+    ODER ``zustand.servermodus``), nicht aus einer eigenen Sitzung. War
+    schon so; hier nur als Regressionsschutz festgehalten."""
+    js = web_chat._CHAT_JS
+    zeige_iv = js[js.index("function zeigeModus"):js.index("function verwirfPtt")]
+    assert "var an = modusAn();" in zeige_iv
+    assert "if (interviewAktionenFeld) { interviewAktionenFeld.hidden = !an; }" in zeige_iv
+
+
+def _diskussion_klick_harness(zustand_literal: str) -> str:
+    """Baut eine Node-Harness aus ``modusAn``, ``zeigeDiskussionModus`` und
+    der Klick-Verdrahtung des Diskussion-Knopfs WOERTLICH aus dem
+    ausgelieferten Skript -- derselbe Aufbau wie ``_zeigemodus_harness``,
+    nur mit Attrappen, die ``setAttribute``/``getAttribute``/
+    ``addEventListener`` tragen (kein echtes DOM im Node-Prozess)."""
+    js = web_chat._CHAT_JS
+    modus_an = _extrahiere(js, "function modusAn", "function zeigeModus")
+    zeige_ds = js[js.index("function zeigeDiskussionModus"):
+                   js.index("function starteDiskussion")]
+    klick = js[js.index("if (diskussionBeendenKnopf)"):js.index("-- Push-to-Talk")]
+    return f"""
+    var TEXT = {{ diskussion_an: 'AN', diskussion_laeuft: 'LAEUFT {{zeit}}',
+                  diskussion_gesperrt: 'GESPERRT' }};
+    function attrappe() {{
+      var o = {{ dataset: {{}}, textContent: '', hidden: false, _attrs: {{}},
+                 _handlers: {{}} }};
+      o.setAttribute = function (n, v) {{ o._attrs[n] = v; }};
+      o.removeAttribute = function (n) {{ delete o._attrs[n]; }};
+      o.getAttribute = function (n) {{ return (n in o._attrs) ? o._attrs[n] : null; }};
+      o.addEventListener = function (ev, fn) {{ o._handlers[ev] = fn; }};
+      o.click = function () {{ if (o._handlers.click) {{ o._handlers.click(); }} }};
+      return o;
+    }}
+    function formatiereUhr() {{ return '0:00'; }}
+    var diskussionKnopf = attrappe();
+    var diskussionAktionenFeld = attrappe();
+    var diskussionBeendenKnopf = attrappe();
+    var starteAufrufe = 0;
+    function starteDiskussion() {{ starteAufrufe += 1; }}
+    function beendeDiskussion() {{}}
+    var fehlerMeldungen = [];
+    function meldeFehler(satz) {{ fehlerMeldungen.push(satz); }}
+    {modus_an}
+    {zeige_ds}
+    {klick}
+    var zustand = {zustand_literal};
+    zeigeDiskussionModus();
+    diskussionKnopf.click();
+    console.log(JSON.stringify({{
+      ariaDisabled: diskussionKnopf.getAttribute('aria-disabled'),
+      starteAufrufe: starteAufrufe,
+      fehlerMeldungen: fehlerMeldungen
+    }}));
+    """
+
+
+def test_fremdes_interview_sperrt_den_knopf_aber_der_klick_meldet_jetzt_etwas_live_in_node(tmp_path):
+    """Der Kernfall des Befunds: Server meldet den Modus, dieses Handy hat
+    keine eigene Sitzung (``aufnahme: null``) -- vorher stumm, jetzt
+    ``aria-disabled`` (kein natives ``disabled``, der Klick feuert also)
+    und ein Hinweis statt ``starteDiskussion()``."""
+    node = _node_oder_skip()
+    quelltext = _diskussion_klick_harness(
+        "{ servermodus: true, aufnahme: null, wechsel: null, diskussion: null }"
+    )
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["ariaDisabled"] == "true"
+    assert e["starteAufrufe"] == 0
+    assert e["fehlerMeldungen"] == ["GESPERRT"]
+
+
+def test_ohne_interview_startet_der_klick_ganz_normal_live_in_node(tmp_path):
+    """Gegenprobe: ohne Modus ist der Knopf nicht gesperrt, der Klick
+    startet wie vorher -- kein Hinweis, kein ``aria-disabled``."""
+    node = _node_oder_skip()
+    quelltext = _diskussion_klick_harness(
+        "{ servermodus: false, aufnahme: null, wechsel: null, diskussion: null }"
+    )
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["ariaDisabled"] is None
+    assert e["starteAufrufe"] == 1
+    assert e["fehlerMeldungen"] == []
+
+
+def test_laufende_eigene_diskussion_bleibt_ohne_hinweis_live_in_node(tmp_path):
+    """``zustand.diskussion`` (eigene laufende Sitzung) faengt den Klick vor
+    der aria-disabled-Pruefung ab -- kein Hinweis fuer einen Zustand, den
+    der Knopftext ("Hoert zu ...") schon zeigt."""
+    node = _node_oder_skip()
+    quelltext = _diskussion_klick_harness(
+        "{ servermodus: false, aufnahme: null, wechsel: null, "
+        "diskussion: { pausiert: false, erfassteMs: 0, legStart: Date.now() } }"
+    )
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["starteAufrufe"] == 0
+    assert e["fehlerMeldungen"] == []
+
+
+def test_diskussion_gesperrt_text_kommt_englisch_ueber_t(monkeypatch):
+    """Wie ``test_fremd_texte_kommen_englisch_ueber_t``: derselbe Weg fuer
+    den neuen Hinweistext, mit dem eingesetzten Beenden-Knopftext."""
+    from interview_theater import sprache
+
+    assert "diskussion_gesperrt" in web_chat._JS_TEXTE
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    texte = json.loads(re.search(r"var TEXT = (\{.*?\});\n", web_chat._js()).group(1))
+    assert texte["diskussion_gesperrt"] == "An interview is still open - tap ■ Stop first."
 
 
 def test_diskussion_pruefeende_tut_nie_etwas():

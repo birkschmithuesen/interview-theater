@@ -145,6 +145,15 @@ _TEXT_INTERVIEW_AN_WEB = (
     "Die Aufnahme läuft. Wenn das Interview vorbei ist, tippt auf „{stopp}“."
 )
 _TEXT_INTERVIEW_AUS = "Aufnahme beendet."
+#: Abnahme P3-4 A3 (06.10.2026): ein verwaistes Interview (Handy weg, Gruppe
+#: wechselt trotzdem die Phase) hielt ``interviewmodus_seit`` sonst fuer
+#: immer gesetzt und sperrte damit #diskussion dauerhaft und
+#: phasenunabhaengig -- ohne jede Erklaerung im Chat (b2-analyse.md).
+#: ``wechsle_phase`` beendet das offene Interview deshalb beim Sprung in
+#: Phase >= 4 selbst und meldet es mit dieser Zeile.
+_TEXT_INTERVIEW_BEIM_PHASENWECHSEL_BEENDET = (
+    "Das offene Interview wurde beim Phasenwechsel beendet."
+)
 _TEXT_KERNTHEMA_LEER = "Schreibt das Kernthema hinter den Befehl, zum Beispiel: /kernthema Ankommen"
 #: Ein unbekannter Slash-Text. Statt auf ``/hilfe`` zu verweisen, haengen die
 #: Einstiegsknoepfe darunter (05.09.2026) -- wer sich schon in einem Befehl
@@ -646,6 +655,30 @@ def _befehl_festlegung(conn, tg, chat_id: int, rest: str) -> None:
     )
 
 
+def _beende_interview_bei_phasenwechsel(conn, tg, klm, e, chat_id: int) -> None:
+    """Schliesst ein offenes Interview, bevor die Gruppe in Phase >= 4
+    wechselt (Abnahme P3-4 A3, 06.10.2026, b2-analyse.md).
+
+    ``repo.ist_interviewmodus_an`` ist ein reiner Gruppenschalter, nicht an
+    eine bestimmte ``aufnahme``-Zeile gebunden: bleibt ein Kopf verwaist auf
+    'laeuft' stehen (Handy weg/neu geladen, null Teile) und die Gruppe geht
+    trotzdem weiter, bleibt ``interviewmodus_seit`` sonst fuer immer gesetzt
+    -- das sperrt #diskussion dauerhaft und phasenunabhaengig, ohne jede
+    Erklaerung im Chat. Derselbe Pfad wie ``_befehl_fertig``: kein
+    Datenverlust moeglich, ``aufnahme.schliesse_ab``/
+    ``_verwirf_leeres_interview`` bleiben die einzige, unveraenderte Logik,
+    die zwischen Verdichten und weichem Verwerfen entscheidet."""
+    if not repo.ist_interviewmodus_an(conn, chat_id):
+        return
+    kopf_id = aufnahme.beende_interview(conn, chat_id)
+    if aufnahme.fliesstext_aktiv(conn, chat_id):
+        tg.sende(chat_id, T._TEXT_INTERVIEW_BEIM_PHASENWECHSEL_BEENDET, system=True)
+    else:
+        tg.sende(chat_id, T._TEXT_INTERVIEW_BEIM_PHASENWECHSEL_BEENDET)
+    if kopf_id is not None and klm is not None:
+        aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
+
+
 def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
                   quelle: str = "befehl") -> None:
     """Die Phase umschalten -- der EINE Weg fuer Befehl und Klick
@@ -662,7 +695,22 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
     'web') und steht im Journal.
 
     Geantwortet wird immer, auch wenn die Phase schon stimmte; ins Journal
-    geht der Eintrag nur bei einer echten Aenderung (``phasen.setze``)."""
+    geht der Eintrag nur bei einer echten Aenderung (``phasen.setze``).
+
+    Abnahme P3-4 A3 (06.10.2026): ein Sprung auf Phase >= 4 beendet zuerst
+    ein offenes Interview, falls eines laeuft -- Phase-4-Mechanik
+    (Diskussion/Brainstorm) soll nie wieder von einem verwaisten
+    Phase-3-Interviewflag abhaengen. In ``try/except``, damit ein
+    Fehlschlag dort nie den eigentlichen Phasenwechsel blockiert (derselbe
+    Rahmen wie ``knoepfe.eintritt_in_phase`` zwei Zeilen weiter unten)."""
+    if nummer >= 4:
+        try:
+            _beende_interview_bei_phasenwechsel(conn, tg, klm, e, chat_id)
+        except Exception:
+            log.exception(
+                "Interview-Abschluss bei Phasenwechsel fehlgeschlagen, chat_id=%s",
+                chat_id,
+            )
     phasen.setze(conn, chat_id, nummer, quelle)
     tg.sende(chat_id, phasen.meldung(nummer))
     # Derselbe Rahmen wie ueber den Knopf (06.09.2026): Kopfzeile,

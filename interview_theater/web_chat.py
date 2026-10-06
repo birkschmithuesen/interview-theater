@@ -235,6 +235,14 @@ _TEXT_INTERVIEW_STARTET = "● Mikrofon kommt … · {zeit}"
 _TEXT_DISKUSSION_AN = "Zuhoeren starten"
 _TEXT_DISKUSSION_LAEUFT = "Hoert zu ({zeit})"
 _TEXT_DISKUSSION_FERTIG_KNOPF = "Diskussion fertig"
+#: Abnahme P3-4 A3 (06.10.2026): ein verwaistes/fremdes Interview (Server
+#: meldet den Modus, dieses Handy hat keine eigene Sitzung) sperrte
+#: "Zuhoeren starten" bisher stumm -- ein natives ``disabled``-Attribut
+#: feuert nie ein ``click``-Event, also lief auch kein Hinweis (zwoelf Tipps
+#: im Abnahmelauf, keine Reaktion). ``{beenden}`` ist die Beschriftung des
+#: Beenden-Knopfs (``_TEXT_INTERVIEW_ENDEN``), damit Text und Knopf nie
+#: verschieden heissen.
+_TEXT_DISKUSSION_GESPERRT = "Es ist noch ein Interview offen - zuerst {beenden} tippen."
 #: Kanban-Karte Buehne/PTT (04.10.2026, Telegram-Vorbild): Halten statt
 #: Tippen -- der Knopftitel beschreibt jetzt die Geste, die wirklich gilt.
 _TEXT_PTT = "Halten zum Sprechen"
@@ -344,6 +352,7 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
                              background: #fff; color: #17181b; }
 #ptt[hidden], #interview[hidden] { display: none; }
 #interview:disabled { opacity: .55; }
+#diskussion[aria-disabled="true"] { opacity: .55; }
 /* PTT wird gehalten: kein Scrollen, kein Markieren, kein Kontextmenue unter
    dem Finger -- sonst bricht das Telefon den Druck ab oder blendet eine Lupe
    ein. */
@@ -612,6 +621,7 @@ _JS_TEXTE = {
     "interview_startet": _TEXT_INTERVIEW_STARTET,
     "diskussion_an": _TEXT_DISKUSSION_AN,
     "diskussion_laeuft": _TEXT_DISKUSSION_LAEUFT,
+    "diskussion_gesperrt": _TEXT_DISKUSSION_GESPERRT.format(beenden=_TEXT_INTERVIEW_ENDEN),
     "warte_eins": _TEXT_WARTE_EINS,
     "warte_mehr": _TEXT_WARTE_MEHR,
     "warte_modus": _TEXT_WARTE_MODUS,
@@ -3121,8 +3131,15 @@ _CHAT_JS = """
       diskussionKnopf.textContent = TEXT.diskussion_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
     // Zwei gleichzeitige Aufnahmen auf demselben Mikrofon sind keine
-    // Bedienung (dieselbe Regel wie bei PTT vs. Interview).
-    diskussionKnopf.disabled = modusAn() || !!zustand.wechsel;
+    // Bedienung (dieselbe Regel wie bei PTT vs. Interview). Abnahme P3-4 A3
+    // (06.10.2026): KEIN natives disabled mehr -- der Browser feuert dafuer
+    // nie ein click-Event, ein verwaistes/fremdes Interview sperrte diesen
+    // Knopf dadurch bisher voellig stumm (zwoelf Tipps im Abnahmelauf, keine
+    // Reaktion). aria-disabled haelt die Optik (CSS weiter unten), der
+    // Klick-Handler meldet stattdessen einen Hinweis.
+    var gesperrt = modusAn() || !!zustand.wechsel;
+    if (gesperrt) { diskussionKnopf.setAttribute('aria-disabled', 'true'); }
+    else { diskussionKnopf.removeAttribute('aria-disabled'); }
     // Ausserhalb Phase 1/4 kein Angebot -- nie aber verborgen bei laufender
     // Sitzung oder Wechsel.
     var sichtbar = zustand.diskussionErlaubt || an || !!zustand.wechsel;
@@ -3529,7 +3546,14 @@ _CHAT_JS = """
   }
   if (diskussionKnopf) {
     diskussionKnopf.addEventListener('click', function () {
-      if (diskussionKnopf.disabled || zustand.diskussion) { return; }
+      if (zustand.diskussion) { return; }
+      // Abnahme P3-4 A3: aria-disabled statt disabled (siehe
+      // zeigeDiskussionModus) -- der Klick kommt hier also auch gesperrt an
+      // und bekommt jetzt einen Hinweis statt gar keine Reaktion.
+      if (diskussionKnopf.getAttribute('aria-disabled') === 'true') {
+        meldeFehler(TEXT.diskussion_gesperrt);
+        return;
+      }
       starteDiskussion();
     });
   }
@@ -3939,6 +3963,8 @@ def _js() -> str:
         interview_startet=T._TEXT_INTERVIEW_STARTET,
         diskussion_an=T._TEXT_DISKUSSION_AN,
         diskussion_laeuft=T._TEXT_DISKUSSION_LAEUFT,
+        diskussion_gesperrt=T._TEXT_DISKUSSION_GESPERRT.format(
+            beenden=T._TEXT_INTERVIEW_ENDEN),
         kal_ankuendigung=T._TEXT_KALIBRIERUNG_ANKUENDIGUNG,
         kal_start_knopf=T._TEXT_KALIBRIERUNG_START_KNOPF,
         kal_stille=T._TEXT_KALIBRIERUNG_STILLE,

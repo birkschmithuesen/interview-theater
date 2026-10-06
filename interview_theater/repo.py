@@ -5196,20 +5196,24 @@ def hole_uebersetzung(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | N
 
 @_gesperrt
 def setze_uebersetzung(
-    conn: sqlite3.Connection, chat_id: int, quelle_hash: str, felder: dict
+    conn: sqlite3.Connection, chat_id: int, quelle_hash: str, quelle: dict, felder: dict
 ) -> None:
     """Ersetzt den Uebersetzungscache einer Gruppe komplett -- eine Zeile
-    je Gruppe, kein Feld-fuer-Feld-Update: der Schreiber uebersetzt immer
-    alle Felder in einem Aufruf (``uebersetzung.aktualisiere``)."""
+    je Gruppe, kein Feld-fuer-Feld-Update. ``quelle`` sind die Quellsegmente,
+    die zu ``felder`` gehoeren (``uebersetzung.segmente()``-Form): Grundlage
+    dafuer, dass ein spaeterer Lauf unveraenderte Schluessel wiederverwenden
+    kann, statt sie neu zu uebersetzen."""
     conn.execute(
         """
-        INSERT INTO uebersetzung (chat_id, quelle_hash, felder, aktualisiert_am)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO uebersetzung (chat_id, quelle_hash, quelle, felder, aktualisiert_am)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             quelle_hash = excluded.quelle_hash,
+            quelle = excluded.quelle,
             felder = excluded.felder,
             aktualisiert_am = excluded.aktualisiert_am
         """,
-        (chat_id, quelle_hash, json.dumps(felder, ensure_ascii=False), _jetzt()),
+        (chat_id, quelle_hash, json.dumps(quelle, ensure_ascii=False),
+         json.dumps(felder, ensure_ascii=False), _jetzt()),
     )
     conn.commit()

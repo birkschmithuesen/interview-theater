@@ -7,12 +7,19 @@ entsteht deshalb hier, ausserhalb des Web-Request-Pfads, im Bot-Prozess
 (``bot._uebersetzungs_schleife``), und landet in der Tabelle ``uebersetzung``
 (eine Zeile je Gruppe, Cache ueber einen Hash des Quelltexts).
 
-**Ein Hash, ein Aufruf:** ``segmente()`` sammelt alle uebersetzungspflichtigen
-Werte einer Gruppe (Setting, Geschichte, Kernthema, Hauptkonflikt, Begriffe,
-Fragen, Figurennamen, Interview-Kurzformen) in ein flaches Dict fester
-Schluessel. Weicht der Hash dieses Dicts vom gespeicherten ``quelle_hash``
-ab, uebersetzt EIN Modellaufruf ALLE Schluessel auf einmal und ersetzt die
-Zeile komplett -- nie Feld fuer Feld, das waere ein Aufruf je Feld.
+**Ein Hash, Haeppchen beim Schreiben:** ``segmente()`` sammelt alle
+uebersetzungspflichtigen Werte einer Gruppe (Setting, Geschichte, Kernthema,
+Hauptkonflikt, Begriffe, Fragen, Figurennamen, Interview-Kurzformen) in ein
+flaches Dict fester Schluessel. Weicht der Hash dieses Dicts vom
+gespeicherten ``quelle_hash`` ab, uebernimmt ``aktualisiere`` unveraenderte
+Schluessel aus dem alten Cache (Vergleich ueber die mitgespeicherten
+Quellsegmente, Spalte ``quelle``) und uebersetzt nur die neuen/geaenderten
+in Haeppchen von ``HAEPPCHEN_GROESSE`` Schluesseln je Modellaufruf -- ein
+einziger Aufruf mit allen (teils ueber 200) Schluesseln einer grossen Gruppe
+scheiterte regelmaessig mit ReadTimeout. Die Zeile wird komplett ersetzt,
+aber erst, wenn ALLE Schluessel vorhanden sind (wiederverwendet oder frisch
+uebersetzt) -- scheitert ein Haeppchen endgueltig, bleibt der alte Cache
+unveraendert stehen, und der naechste Lauf setzt dort an.
 
 **Fragen und Begriffe je Zeile/Begriff, nicht als ein Block:** zusaetzlich zu
 ``FELDER_EINFACH`` bekommt jeder Begriff (``begriff_schluessel``) und jede
@@ -45,6 +52,14 @@ log = logging.getLogger(__name__)
 #: ``aufnahme.NACHHOL_INTERVALL_S`` (60 s): eine Uebersetzung ist nicht
 #: zeitkritisch, und ein Lauf kostet einen Modellaufruf je geaenderter Gruppe.
 INTERVALL_S = 180
+
+#: Hoechstzahl Schluessel je Modellaufruf. Nach dem Zusammenfuehren mehrerer
+#: Klon-Gruppen (Padua, 06.10.2026: eine Gruppe mit 205 Schluesseln) schlug
+#: EIN Aufruf mit allen Segmenten regelmaessig mit ReadTimeout fehl (9 von 16
+#: Laeufen, Median 125 s). Ein fester, kleiner Wert statt eines gemessenen
+#: Optimums: jeder Versuch mit mehr als ein paar Dutzend Schluesseln zeigte
+#: in der Praxis denselben Fehler.
+HAEPPCHEN_GROESSE = 15
 
 #: Die einfachen, 1:1 uebersetzten Arbeitsstandfelder.
 FELDER_EINFACH = ("rahmen", "geschichte", "kernthema", "hauptkonflikt", "begriffe", "fragen")
@@ -191,10 +206,17 @@ def _uebersetze(klm, chat_id: int, e, seg: dict[str, str]) -> dict[str, str]:
 
 def aktualisiere(conn, klm, e, chat_id: int) -> bool:
     """Uebersetzt die Gruppenfelder ins Englische, wenn sich die Quelle
-    seit dem letzten Lauf geaendert hat.
+    seit dem letzten Lauf geaendert hat. Schluessel, deren Quelltext
+    unveraendert ist, werden aus dem alten Cache uebernommen; der Rest wird
+    in Haeppchen von ``HAEPPCHEN_GROESSE`` neu uebersetzt. Scheitert ein
+    Haeppchen endgueltig (nach den eigenen Wiederholungen von
+    ``klm.schema``), reisst die Ausnahme durch -- der Cache wird nur
+    geschrieben, wenn ALLE Schluessel vorhanden sind, alt bleibt alt stehen.
 
-    Liefert ``True`` bei einem Modellaufruf, ``False`` bei einem
-    Cache-Hit (Hash unveraendert) oder wenn es nichts zu uebersetzen gibt."""
+    Liefert ``True``, wenn der Cache aktualisiert wurde (mit oder ohne
+    Modellaufruf, falls alle Schluessel wiederverwendet werden konnten),
+    ``False`` bei einem vollstaendigen Cache-Hit (Hash unveraendert) oder
+    wenn es nichts zu uebersetzen gibt."""
     from interview_theater import repo
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
@@ -208,8 +230,19 @@ def aktualisiere(conn, klm, e, chat_id: int) -> bool:
     vorhanden = repo.hole_uebersetzung(conn, chat_id)
     if vorhanden is not None and vorhanden["quelle_hash"] == hash_:
         return False
-    felder = _uebersetze(klm, chat_id, e, seg)
-    repo.setze_uebersetzung(conn, chat_id, hash_, felder)
+
+    alte_quelle = json.loads(vorhanden["quelle"]) if vorhanden is not None and vorhanden["quelle"] else {}
+    alte_felder = json.loads(vorhanden["felder"]) if vorhanden is not None and vorhanden["felder"] else {}
+    felder = {
+        k: alte_felder[k] for k in seg
+        if k in alte_felder and alte_quelle.get(k) == seg[k]
+    }
+    offen = [k for k in seg if k not in felder]
+    for i in range(0, len(offen), HAEPPCHEN_GROESSE):
+        haeppchen = offen[i:i + HAEPPCHEN_GROESSE]
+        teil = {k: seg[k] for k in haeppchen}
+        felder.update(_uebersetze(klm, chat_id, e, teil))
+    repo.setze_uebersetzung(conn, chat_id, hash_, seg, felder)
     return True
 
 

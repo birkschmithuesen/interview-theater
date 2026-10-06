@@ -2003,6 +2003,54 @@ def start_post(handler, db_pfad: str, token: str, chat_id: int,
     web_chat._angenommen(handler, {"message_id": message_id})
 
 
+_TEXT_UX_UNGUELTIG = "Diese Ereignisse gehen nicht."
+
+
+def ereignis_post(handler, db_pfad: str, token: str, chat_id: int,
+                  schluessel: bytes) -> None:
+    """``POST /g/<token>/chat/ereignis`` -- eine Charge UX-Ereignisse
+    (Karte t_10a31406, 06.10.2026): Tab-Wechsel, Klicks, Abbrueche,
+    JS-Fehler, Geraete-ID. **Fire-and-forget vom Client**
+    (``navigator.sendBeacon`` bzw. ``fetch`` ohne Wiederholung, alle 10 s
+    und auf ``pagehide``) -- ein Fehler hier darf dem Client nie sichtbar
+    werden, und das Client-JS zeigt diese Antwort nirgends an.
+
+    **Nur mit dem Profilschalter** ``[ux] ereignisse``
+    (``workshop.ux_ereignisse_aktiv``): ohne ihn kennt der Server diesen
+    Weg nicht (404) -- Dortmund bleibt unberuehrt, die Seite haengt den
+    Batching-Code dort gar nicht erst ein (``seite()``).
+
+    **Groesse und Form werden VOR jedem Schreibzugriff geprueft** (<=
+    ``repo.MAX_UX_EVENTS_JE_BATCH`` Ereignisse, <= ``repo.MAX_UX_BATCH_BYTES``
+    Bytes als JSON) -- eine zu grosse Charge wird komplett abgewiesen (400).
+    Was danach durchkommt, prueft ``repo.speichere_ux_ereignisse`` noch
+    einmal JE EREIGNIS: ein unbekannter ``typ`` oder ein Schmuggelversuch
+    von Freitext durch ``extra`` verwirft nur diese eine Zeile, nicht die
+    Antwort -- die Gruppe soll davon so wenig merken wie moeglich."""
+    from interview_theater import repo, web, web_chat, workshop
+
+    if not workshop.ux_ereignisse_aktiv():
+        handler._antworte(404, web.nicht_gefunden_html())
+        return
+    daten = web_chat._koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    geraet = daten.get("geraet")
+    ereignisse = daten.get("ereignisse")
+    if not isinstance(geraet, str) or not isinstance(ereignisse, list):
+        handler._fehler(400, T._TEXT_UX_UNGUELTIG)
+        return
+    if len(ereignisse) > repo.MAX_UX_EVENTS_JE_BATCH:
+        handler._fehler(400, T._TEXT_UX_UNGUELTIG)
+        return
+    if len(json.dumps(ereignisse, ensure_ascii=False).encode("utf-8")) > repo.MAX_UX_BATCH_BYTES:
+        handler._fehler(400, T._TEXT_UX_UNGUELTIG)
+        return
+    with web_chat.schreibend(db_pfad) as conn:
+        repo.speichere_ux_ereignisse(conn, chat_id, geraet, ereignisse)
+    handler._antworte(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+
+
 def _board_merkmal() -> str:
     """``data-begriffsboard="1"`` am ``#roadmap``, wenn das Profil das
     Begriffsboard faehrt (Karte t_4517d4ad) -- HINTER ``data-aktive-phase``,

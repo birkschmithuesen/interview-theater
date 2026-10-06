@@ -5225,11 +5225,13 @@ UX_EXTRA_FELDER = {
 }
 UX_MSG_ZEICHEN_MAX = 160
 
-#: Harte Obergrenze je Charge -- letzte Verteidigungslinie in der
-#: Repo-Schicht, falls diese Funktion je ohne den Endpunkt
-#: (``web_vereint.ereignis_post``, der denselben Wert vor dem Aufruf
-#: prueft) gerufen wird.
+#: Harte Obergrenzen je Charge -- geprueft vom Endpunkt
+#: (``web_vereint.ereignis_post``, VOR dem Aufruf hier: eine zu grosse
+#: Charge wird dort komplett mit 400 abgewiesen) UND hier noch einmal als
+#: letzte Verteidigungslinie in der Repo-Schicht, falls diese Funktion je
+#: von anderswo gerufen wird.
 MAX_UX_EVENTS_JE_BATCH = 50
+MAX_UX_BATCH_BYTES = 2048
 
 UX_ZIEL_MUSTER = re.compile(r"^[a-z0-9_:\-]{1,40}$")
 UX_GERAET_MUSTER = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")

@@ -2064,6 +2064,7 @@ _TEXT_SHEET_STATUS_BEREIT = "Ready"
 _TEXT_SHEET_GEHE_ZU = "Go to {bezeichnung}"
 _TEXT_SHEET_BLEIBE = "Stay here"
 _TEXT_STEPPER_HINWEIS = "Tap a phase to move between steps."
+_TEXT_UX_UNGUELTIG = "These events don't work."
 
 ["web_vereint"._TEXT_TAB]
 chat = "Chat"

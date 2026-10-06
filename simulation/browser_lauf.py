@@ -492,7 +492,16 @@ def _fuehre_phase_aus(
 _WARTE_BIS_INTERVALL_MS = 2000
 
 
-def _warte_bis(page, pruefe, lese_stand, geduld_s: float) -> dict:
+#: H2 (P57): so lange darf der Datenstand ruhen, nachdem der Bot geantwortet
+#: hat, bevor ``_warte_bis`` aufgibt (statt die volle ``geduld_s`` von 600 s
+#: je Schritt zu verbrennen). Ein sehr langer stiller Hintergrundlauf ohne
+#: Zwischenschreibung koennte so zu frueh abgeschnitten werden -- dann zeigt
+#: die Station "nicht erreicht" statt eines 10-Minuten-Wartens.
+WARTE_RUHE_S = 20.0
+
+
+def _warte_bis(page, pruefe, lese_stand, geduld_s: float, *,
+               ruhe_s: float | None = None, bot_antwort_da=None) -> dict:
     """Pollt ``lese_stand()`` (``browser_mitschnitt.datenstand``), bis
     ``pruefe(stand)`` wahr wird oder ``geduld_s`` verstrichen ist (Task 2,
     BRIEF p57, ``Station.warte_bis``).
@@ -508,9 +517,17 @@ def _warte_bis(page, pruefe, lese_stand, geduld_s: float) -> dict:
     zu warten (``test_warte_bis_...`` in ``tests/test_browser_lauf.py``)."""
     start = time.monotonic()
     stand = lese_stand()
+    letzte_aenderung = start
     while not pruefe(stand) and time.monotonic() - start < geduld_s:
         page.wait_for_timeout(_WARTE_BIS_INTERVALL_MS)
-        stand = lese_stand()
+        neu = lese_stand()
+        jetzt = time.monotonic()
+        if neu != stand:
+            letzte_aenderung = jetzt
+        stand = neu
+        if (ruhe_s is not None and jetzt - letzte_aenderung >= ruhe_s
+                and bot_antwort_da is not None and bot_antwort_da()):
+            break
     return stand
 
 
@@ -685,6 +702,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
                 continue
             break
 
+        bot_vorher = sum(1 for b in _verlaufsblasen(page) if b.get("von") == "bot")
         protokoll = _aktion_ausfuehren(page, aktion)
         aktion_gescheitert = protokoll.get("art") in ("fehlgeschlagen", "unbekannt")
         if aktion_gescheitert:
@@ -735,7 +753,10 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
                 lambda s: station_praedikat(s)
                 or _hat_sich_veraendert(vorher_fuer_warte_bis, s),
                 lambda: browser_mitschnitt.datenstand(db_pfad, chat_id),
-                min(station.geduld_s, max(1.0, ende_zeit - time.monotonic())))
+                min(station.geduld_s, max(1.0, ende_zeit - time.monotonic())),
+                ruhe_s=WARTE_RUHE_S,
+                bot_antwort_da=lambda bv=bot_vorher: sum(
+                    1 for b in _verlaufsblasen(page) if b.get("von") == "bot") > bv)
         db_diff = browser_mitschnitt.unterschied(vorher, nachher)
         vorher = nachher
         _zaehler_addieren(zaehler_summe, browser_zaehler.alle(page))
@@ -775,6 +796,12 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         if ziel is not None and ziel <= phasen.LETZTE:
             _loese_phasenwechsel_aus(basis_url, token, ziel)
             fallback = True
+            schleifenbefunde.append({
+                "schluessel": f"phase_erzwungen:{station.phase}->{ziel}",
+                "text": f"Harness hat Phase {ziel} per Endpunkt erzwungen, weil Station "
+                        f"{station.schluessel} ihr Ziel nicht erreichte -- Folgezustand "
+                        f"(fehlende Szenen/Daten) ist Harness-Artefakt, kein Produktbefund.",
+                "schwere": "mittel"})
     if leitbilder and station.leitbild_ende:
         if station.leitbild_tab:
             browser_aktionen.fuehre_aus(page, {"type": "tab", "name": station.leitbild_tab})
@@ -1144,7 +1171,8 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                     max_station_s=max_station_s, frist=lauf_frist)
                 for sb in lauf.get("schleifenbefunde", []):
                     befunde.append(browser_invarianten.Befund(
-                        sb["schluessel"], station.schluessel, sb["text"]))
+                        sb["schluessel"], station.schluessel, sb["text"],
+                        sb.get("schwere", "hoch")))
             except Exception as fehler:
                 log.exception("Station %s ist gescheitert", station.schluessel)
                 fehlgeschlagen_bei = fehlgeschlagen_bei or station.schluessel
@@ -1570,7 +1598,8 @@ def main() -> None:
                     stationen=stationsliste,
                     lauf_verzeichnis=lauf_verzeichnis, beobachter=beobachter,
                     leitbilder=leitbilder,
-                    meta={"app_wurzel": str(app_wurzel), "app_commit": _app_commit(app_wurzel)},
+                    meta={"app_wurzel": str(app_wurzel), "app_commit": _app_commit(app_wurzel),
+                          "phase_erzwungen_start": startphase if startphase > 1 else None},
                     gruppen=stack.gruppen, hole_prompt=hole_prompt,
                     wechsle_audio=wechsle_audio, kosten_stopp=argumente.kosten_stopp,
                     max_minuten=argumente.max_minuten,

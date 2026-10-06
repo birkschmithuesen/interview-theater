@@ -1941,3 +1941,33 @@ def test_zeitdeckel_je_lauf_ueberspringt_weitere_stationen(stack, tmp_path):
         browser.close()
     assert ergebnis["abbruch"] == "zeitdeckel"
     assert [e["schluessel"] for e in ergebnis["stationen_ergebnisse"]] == ["t-a"]
+
+
+def test_warte_bis_gibt_nach_ruhe_auf_wenn_bot_geantwortet_hat(monkeypatch):
+    """H2: kein Praedikat wahr, Stand ruht, Bot hat geantwortet -> nach
+    ``ruhe_s`` Schluss, nicht erst nach ``geduld_s``."""
+    seite = _WarteBisSeiteAttrappe()
+    uhr = {"t": 0.0}
+
+    def monotonic():
+        uhr["t"] += 2.0
+        return uhr["t"]
+
+    monkeypatch.setattr(browser_lauf.time, "monotonic", monotonic)
+    browser_lauf._warte_bis(seite, lambda s: False, lambda: {"n": 0}, geduld_s=600,
+                            ruhe_s=20.0, bot_antwort_da=lambda: True)
+    assert uhr["t"] < 100
+
+
+def test_warte_bis_wartet_weiter_ohne_botantwort_trotz_ruhe(monkeypatch):
+    seite = _WarteBisSeiteAttrappe()
+    uhr = {"t": 0.0}
+
+    def monotonic():
+        uhr["t"] += 2.0
+        return uhr["t"]
+
+    monkeypatch.setattr(browser_lauf.time, "monotonic", monotonic)
+    browser_lauf._warte_bis(seite, lambda s: False, lambda: {"n": 0}, geduld_s=200,
+                            ruhe_s=20.0, bot_antwort_da=lambda: False)
+    assert uhr["t"] >= 200

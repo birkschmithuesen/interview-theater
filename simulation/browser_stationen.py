@@ -234,6 +234,19 @@ STATIONEN_INVARIANTEN: tuple[Station, ...] = (
 #: Abnahme-Durchlauf von Phase 1, sondern Interviews, Uebergang 3->4,
 #: Brainstorm, Rahmen/Figuren/Geschichte und das Angebot von Phase 5 --
 #: startet deshalb in Phase 3 (siehe STARTPHASE, browser_umgebung.bereite_vor).
+#:
+#: Merge-Nachtrag (06.10.2026, Birk "kein Toggle" + Kill-Switch-Umbau): Phase
+#: 4 bedient sich seit 05.10. 22:00 ueber ``#diskussion``, also ueber genau
+#: das Gate in ``beginneAufnahme()``, das vor der ersten echten Aufnahme auf
+#: ``kalEntscheideOderStarte()`` wartet. ``IT_WEB_VAD_KALIBRIERUNG`` (der
+#: Kill-Switch) ist per Vorgabe AN ("1"), und dieser Lauf startet in Phase 3
+#: -- es gibt keine vorherige Phase-1-Diskussion in DIESEM Lauf, die den
+#: gruppen-/tagesweiten ``vad_*``-Cache schon gefuellt haette. Der
+#: Kalibrierungsdialog kann also beim ersten ``#diskussion``-Start in Phase 4
+#: tatsaechlich erscheinen, genau wie bei ``p1-kalibrierung`` -- deshalb eine
+#: eigene Station davor (``p4-kalibrierung``), nicht nur ein Satz im Zieltext
+#: von ``p4-brainstorm`` (so wie ``p1-zuhoeren`` den Raumcheck auch nicht
+#: mehr erwaehnt, seit es ``p1-kalibrierung`` als eigene Station gibt).
 STATIONEN_P34: tuple[Station, ...] = (
     Station("p3-eintritt", 3,
             "Your group is now in the interview phase. Read the screen and find "
@@ -260,12 +273,24 @@ STATIONEN_P34: tuple[Station, ...] = (
             "Read what the app says about this phase and find out how your "
             "group can brainstorm with it.",
             budget=3, leitbild_ende="eintritt"),
+    # Mirrors "p1-kalibrierung" (siehe Kommentar vor STATIONEN_P34): Phase 4
+    # teilt sich seit 05.10. 22:00 das Diskussions-Gate mit Phase 1, und
+    # dieser Lauf startet in Phase 3 ohne vorherige Phase-1-Diskussion, die
+    # den Cache schon gefuellt haette -- der Dialog kann hier zum ERSTEN Mal
+    # erscheinen.
+    Station("p4-kalibrierung", 4,
+            "The app wants to check the room before you start the "
+            "brainstorm. Get through the room check; if it fails twice, "
+            "skip it.",
+            fertig=lambda st: st.get("kalibrierung_aufnahmen", 0) > 0
+            or bool(st.get("kalibrierung_modus")),
+            budget=10, leitbild_mitte="kalibrierung"),
     Station("p4-brainstorm", 4,
             "Your group brainstorms about a character from the interviews. "
-            "Press 'Start listening', put the phone down and brainstorm -- the "
-            "same button as in phase 1; if the app checks the room first, do "
-            "it. Press 'Discussion done' when finished; then look at the "
-            "CoThinker tab.",
+            "Press 'Start listening' and put the phone down in the middle of "
+            "the table -- the same button as in phase 1. When you are told "
+            "the discussion is over, press 'Discussion done'; then look at "
+            "the CoThinker tab.",
             fertig=lambda st: st.get("brainstorm_aufnahmen", 0) > 0,
             budget=6, zuhoeren_s=None, aufnahme="brainstorm",
             diskussion="brainstorm-bogen", leitbild_beobachter="cothinker",

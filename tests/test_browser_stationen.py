@@ -126,6 +126,11 @@ def test_kalibrierung_hat_budget_fuer_einen_ganzen_raumcheck():
         assert kal.budget == 10
     kal = next(st for st in s.STATIONEN_INVARIANTEN if st.schluessel == "p1-kalibrierung")
     assert "raumcheck" in kal.pruefung
+    # Merge-Nachtrag 06.10.2026: Phase 4 teilt sich das Diskussions-Gate mit
+    # Phase 1 (siehe Kommentar vor STATIONEN_P34) -- derselbe Budget-Bedarf.
+    p4_kal = next(st for st in s.STATIONEN_P34 if st.schluessel == "p4-kalibrierung")
+    assert p4_kal.budget == 10
+    assert p4_kal.zuhoeren_s == 0  # Default: der blockierende Zuhoer-Takt greift hier nie
 
 
 def test_p12_prueft_nach_ende_und_p2_werkbank():
@@ -143,8 +148,8 @@ def test_stationen_p34_vollstaendig_und_geordnet():
     schluessel = [st.schluessel for st in s.STATIONEN["p34"]]
     assert schluessel == [
         "p3-eintritt", "p3-interview-kurz", "p3-interview-gemischt", "p3-uebergang",
-        "p4-eintritt", "p4-brainstorm", "p4-setting-figuren", "p4-geschichte",
-        "p4-uebergang"]
+        "p4-eintritt", "p4-kalibrierung", "p4-brainstorm", "p4-setting-figuren",
+        "p4-geschichte", "p4-uebergang"]
     phasen = [st.phase for st in s.STATIONEN_P34]
     assert phasen == sorted(phasen) and set(phasen) == {3, 4}
     assert s.STARTPHASE == {"p12": 1, "invarianten": 1, "p34": 3}
@@ -188,16 +193,37 @@ def test_selektoren_je_aufnahmeart():
     assert s.ENDE["brainstorm"] == s.ENDE["diskussion"] == "#diskussion-beenden"
 
 
-def test_p4_brainstorm_ziel_nennt_denselben_knopf_wie_phase1_und_den_raumcheck():
+def test_p4_brainstorm_ziel_nennt_denselben_knopf_wie_phase1():
     """Der Zieltext darf nicht mehr von einem einzelnen Gedanken/Tipp
     sprechen (das alte Toggle-Bild), sondern von "Start listening"/
-    "Discussion done" wie Phase 1 -- und muss den moeglichen Raumcheck davor
-    nennen (die Kalibrierungs-Schluessel sind gruppen-/tagesweit, nicht
-    phasengebunden: ohne Cache aus Phase 1 erscheint der Dialog hier zum
-    ERSTEN Mal, siehe docs/handoffs)."""
+    "Discussion done" wie Phase 1. Der moegliche Raumcheck hat seit dem
+    Merge mit main (06.10.2026, Kill-Switch-Umbau) eine eigene Station davor
+    (``p4-kalibrierung``, mirrors ``p1-kalibrierung``) -- genau wie
+    "p1-zuhoeren" ihn seit "p1-kalibrierung" existiert auch nicht mehr selbst
+    erwaehnt, erwaehnt "p4-brainstorm" ihn jetzt auch nicht mehr."""
     st = {x.schluessel: x for x in s.STATIONEN_P34}
     ziel = st["p4-brainstorm"].ziel.casefold()
     assert "start listening" in ziel
     assert "discussion done" in ziel
-    assert "room" in ziel
     assert "tap" not in ziel and "thought is complete" not in ziel
+
+
+def test_p4_kalibrierung_station_mirrors_p1_kalibrierung():
+    """Merge-Nachtrag 06.10.2026: mit dem Kill-Switch per Vorgabe AN und
+    einem Lauf, der in Phase 3 startet (kein Cache aus einer vorherigen
+    Phase-1-Diskussion), kann der Raumcheck-Dialog beim ersten
+    ``#diskussion``-Start in Phase 4 tatsaechlich erscheinen -- derselbe
+    Dialog, dasselbe Gate wie in Phase 1 (``beginneAufnahme``,
+    ``sitzung.art === 'diskussion'``)."""
+    st = {x.schluessel: x for x in s.STATIONEN_P34}
+    kal = st["p4-kalibrierung"]
+    assert kal.phase == 4
+    assert "room" in kal.ziel.casefold()
+    assert kal.fertig is not None
+    assert not kal.fertig({"kalibrierung_aufnahmen": 0, "kalibrierung_modus": None})
+    assert kal.fertig({"kalibrierung_aufnahmen": 1, "kalibrierung_modus": None})
+    assert kal.fertig({"kalibrierung_aufnahmen": 0, "kalibrierung_modus": "herumreichen"})
+    # Station liegt zwischen p4-eintritt und p4-brainstorm.
+    schluessel = [x.schluessel for x in s.STATIONEN_P34]
+    assert schluessel.index("p4-eintritt") < schluessel.index("p4-kalibrierung") \
+        < schluessel.index("p4-brainstorm")

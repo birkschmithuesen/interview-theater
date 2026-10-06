@@ -540,6 +540,13 @@ th { opacity: .6; font-weight: 600; }
 .ergebnisse { margin: .5rem 0 0; font-size: .85rem; }
 .ergebnisse li { margin-bottom: .15rem; }
 ul { margin: .2rem 0; padding-left: 1.1rem; }
+"""
+
+#: Nur der Ticker (Padua, 06.10.2026) -- NICHT in ``_CSS_DASHBOARD``: das
+#: Dashboard (``dashboard_html``) teilt sich die Konstante mit dem Ticker,
+#: und die Bitgleich-Tests (``tests/test_web_dashboard_en.py``) gelten fuer
+#: beide Profile, nicht nur Dortmund (selbst gemessen, kein Dortmund-Fall).
+_CSS_TICKER = """
 .ticker-teil { margin-top: .3rem; }
 .ticker-teil h3 { margin: 0; font-size: .72rem; text-transform: uppercase;
                   letter-spacing: .04em; opacity: .6; }
@@ -2564,8 +2571,8 @@ def ticker_html() -> str:
                 f"<h1>{_t(T._UEBERSCHRIFT_TICKER)}</h1>"
                 f'<p class="leer">{_t(T._TEXT_TICKER_LEER)}</p>'
             )
-    return _seite(T._TITEL_TICKER, _CSS_DASHBOARD, koerper, nachladen=False,
-                  skript=_TICKER_JS)
+    return _seite(T._TITEL_TICKER, _CSS_DASHBOARD + _CSS_TICKER, koerper,
+                  nachladen=False, skript=_TICKER_JS)
 
 
 #: Eigenes Nachlade-Intervall (60 s statt der zehn des Dashboards, Aufgabe

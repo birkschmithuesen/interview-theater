@@ -16,7 +16,7 @@ steht in ``tests/profile/test_dortmund.py``.
 
 import pytest
 
-from interview_theater import anweisungen, szene, szenenfolge, web_schreiben, workshop
+from interview_theater import anweisungen, szene, szenenfolge, ueberarbeitung, web_schreiben, workshop
 
 PADUA = """\
 vorgabe = "dialogo"
@@ -184,3 +184,63 @@ def test_dortmund_traegt_denselben_katalog_wie_die_vorgabe(monkeypatch):
     assert workshop.form_vorgabe(profil) == workshop.form_vorgabe(workshop.VORGABE)
     assert workshop.form_anzeige(profil) == workshop.form_anzeige(workshop.VORGABE)
     assert profil.formen["anzahl_wort"] == workshop.VORGABE.formen["anzahl_wort"]
+
+
+# ---------------------------------------------------------------------------
+# A1 (06.10.2026): "chor"/"lied" bekamen live die Dialog-Regeln, weil ihre
+# Stichwortlisten in ``workshop/padua-2026/formen.toml`` den eigenen Namen
+# nicht enthalten -- anders als "dialog", "monolog" und "rap", wo er
+# zufaellig schon drinstand. ``formdatei()`` prueft jetzt wie
+# ``ueberarbeitung.form_aus_text()`` den Formnamen selbst mit, beide ueber
+# das gemeinsame ``workshop.form_treffer()``.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    """Das echte Padua-Profil, nicht eine Testkopie: der Fehler hing genau
+    an ``workshop/padua-2026/formen.toml`` und waere mit einer eigens
+    gebauten Stichwortliste nicht aufgefallen."""
+    monkeypatch.delenv(workshop.BASIS_VARIABLE, raising=False)
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    yield
+    workshop.vergiss()
+
+
+@pytest.mark.parametrize("form", ["chor", "lied"])
+def test_formdatei_erkennt_chor_und_lied_am_eigenen_namen(padua, form):
+    """Vor dem Fix lieferte ``formdatei("chor")`` den Dialog-Rueckfall,
+    weil "chor" in keiner Stichwortliste von ``formen.toml`` steht -- auch
+    nicht in der eigenen."""
+    assert szene.formdatei(form) == form
+
+
+@pytest.mark.parametrize("form", ["dialog", "monolog", "rap"])
+def test_formdatei_dialog_monolog_rap_unveraendert(padua, form):
+    """Diese drei standen zufaellig schon in ihrer eigenen Stichwortliste
+    und duerfen durch den Fix nicht anders landen."""
+    assert szene.formdatei(form) == form
+
+
+def test_formdatei_stichwoerter_wirken_fuer_chor_lied_rap_weiter(padua):
+    """Der Fix darf die bisherigen Stichwoerter nicht verdraengen."""
+    assert szene.formdatei("a chorus of voices") == "chor"
+    assert szene.formdatei("let's sing a song") == "lied"
+    assert szene.formdatei("a short rap battle") == "rap"
+
+
+def test_formdatei_faellt_bei_unbekannter_form_weiter_auf_dialog(padua):
+    assert szene.formdatei("puppetry") == "dialog"
+    assert szene.formdatei("") == "dialog"
+    assert szene.formdatei(None) == "dialog"
+
+
+def test_form_aus_text_blieb_fuer_chor_lied_schon_immer_richtig(padua):
+    """Gegenprobe: ``ueberarbeitung.form_aus_text`` nahm den Formnamen
+    schon vor dem Fix in die Wortmenge auf -- hier aendert er nichts."""
+    assert ueberarbeitung.form_aus_text("chor") == "chor"
+    assert ueberarbeitung.form_aus_text("lied") == "lied"
+    assert ueberarbeitung.form_aus_text("dialog") == "dialog"
+    assert ueberarbeitung.form_aus_text("monolog") == "monolog"
+    assert ueberarbeitung.form_aus_text("rap") == "rap"

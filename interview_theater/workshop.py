@@ -41,6 +41,7 @@ vorher, ohne einen Bot zu starten.
 """
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -860,6 +861,30 @@ def form_vorgabe(profil: Profil | None = None) -> str:
     ``szene.formdatei`` und die Vorgabe der Szenenfolge."""
     profil = profil or aktiv()
     return profil.formen.get("vorgabe", "")
+
+
+def form_treffer(name: str, text: str, profil: Profil | None = None) -> bool:
+    """Meint der freie Text ``text`` (schon klein geschrieben) die Form
+    ``name``? Verglichen werden mit Wortgrenzen der Formname selbst
+    (``"lied"``), seine Anzeige (``"Song"``) und die Stichwoerter aus dem
+    Profil -- dieselbe Menge, egal ob die Formangabe als Stichwort im
+    Profil steht oder nicht.
+
+    Geteilt von ``szene.formdatei`` und ``ueberarbeitung.form_aus_text``:
+    beide uebersetzen eine frei getippte oder vom Modell vorgeschlagene
+    Formangabe in einen Formnamen und bildeten die Wortmenge bislang je
+    einmal selbst. In ``workshop/padua-2026/formen.toml`` fehlt der
+    Formname in den Stichwoertern von "chor" und "lied" (anders als bei
+    "dialog", "monolog" und "rap", wo er zufaellig schon drinstand) --
+    ``formdatei`` pruefte nur die Stichwoerter und fiel deshalb fuer Chor und
+    Lied live auf Dialog zurueck (A1, 06.10.2026). Wortgrenzen statt
+    Teilstring, weil ein blosses ``in text`` auf englischen Stichwoertern
+    wie "lied" sonst zufaellig in Woertern wie "applied" anschlaegt."""
+    profil = profil or aktiv()
+    anzeige = dict(zip(formen(profil), form_anzeige(profil)))
+    stichwoerter = form_stichwoerter(profil)
+    woerter = {name, anzeige.get(name, "").lower(), *stichwoerter.get(name, ())}
+    return any(w and re.search(rf"\b{re.escape(w)}\b", text) for w in woerter)
 
 
 #: Wie eine Auswahl im Fliesstext verbunden wird ("Lied oder Rap"). Hier und

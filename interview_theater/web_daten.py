@@ -20,6 +20,7 @@ ISO-8601-Text in UTC); Formatierung und Maskierung sind Sache von web.py.
 """
 
 import json
+import re
 import sqlite3
 import statistics
 from datetime import datetime, timedelta, timezone
@@ -1977,8 +1978,33 @@ _ABGETIPPT = (
 )
 
 
+#: Praefix der Phaseneintrittsnachricht (``phasentexte._KOPF_EINTRITT``),
+#: sprachunabhaengig gleich -- dieselbe Konstante, mit der auch das Chat-JS
+#: die Kopfzeile erkennt (``phasenkopfzeile()``).
+_EINTRITT_PRAEFIX = re.compile(r"^▶️ Phase (\d+)")
+
+
+def _massgebliche_phasen(zeilen) -> list:
+    """Fuer jede Zeile (in ``id``-Reihenfolge) die Phase, zu der sie
+    inhaltlich gehoert. Sie aendert sich bei jeder Bot-Eintrittsnachricht
+    (``▶️ Phase N ...``) auf N -- rueckwaerts genauso wie vorwaerts, eine
+    Gruppe kann zu einer frueheren Phase zurueckspringen. Alles davor
+    (auch die allererste Zeile ueberhaupt) zaehlt als Phase 1."""
+    aktuell = 1
+    ergebnis = []
+    for z in zeilen:
+        if z["richtung"] == "aus":
+            treffer = _EINTRITT_PRAEFIX.match(z["text"] or "")
+            if treffer:
+                aktuell = int(treffer.group(1))
+        ergebnis.append(aktuell)
+    return ergebnis
+
+
 def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE) -> list:
-    """Der Chatverlauf einer Web-Gruppe ab ``nach`` (exklusiv), aelteste zuerst.
+    """Der Chatverlauf einer Web-Gruppe ab ``nach`` (exklusiv), aelteste zuerst
+    -- und NUR die aktuelle Phase (frueheren Besuche DERSELBEN Phase
+    inklusive, Kanban-Karte t_60d72fd6: "Verlauf nur der aktuellen Phase").
 
     Geliefert wird genau das, was die Ansicht braucht -- **und der Dateipfad
     ist nicht dabei.** Er ist eine Serverinnerei, und die Seite ist ohne Login
@@ -1989,18 +2015,42 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
     NEUESTEN ``grenze`` Zeilen, weiter aufsteigend sortiert -- vorher kamen
     mit ``ORDER BY id ASC LIMIT`` die aeltesten, und ab 200 sichtbaren
     Nachrichten zeigte die Seite einen alten Stand. Der Poll (``nach>0``)
-    holt wie bisher die naechsten ab ``nach``, aelteste zuerst."""
-    reihenfolge = "DESC" if nach <= 0 else "ASC"
-    zeilen = conn.execute(
+    holt wie bisher die naechsten ab ``nach``, aelteste zuerst.
+
+    Die Phase ist keine eigene Spalte (additiv waere auch ok, aber der
+    Eintrittstext traegt die Information schon, siehe
+    ``_massgebliche_phasen``) -- deshalb wird hier ohne ``id``-Schranke und
+    ohne ``LIMIT`` gelesen (ein Workshoptag bleibt ein paar hundert Zeilen),
+    in Phasen eingeteilt, und erst DANACH auf die aktuelle Phase sowie
+    ``nach``/``grenze`` eingeschraenkt.
+
+    Die "aktuelle Phase" kommt bewusst NICHT aus ``arbeitsstand.phase``,
+    sondern aus der letzten Zeile dieser Liste selbst: Jeder wirkliche
+    Phasenwechsel schreibt die Eintrittsnachricht ueber
+    ``knoepfe.eintritt_in_phase`` -- an allen drei Aufrufstellen
+    (``befehle.wechsle_phase``, ``erkenner.laufe``,
+    ``knoepfe/stationen.py``) in einem ``try/except``, das einen
+    Sendefehler bewusst NICHT den Phasenwechsel selbst blockieren laesst.
+    Schlaegt das Senden fehl, liefe ``arbeitsstand.phase`` dem Verlauf
+    davon und ein Abgleich dagegen zeigte dann dauerhaft eine LEERE
+    Historie -- ueber den Verlauf selbst bleibt der Chat dagegen einfach
+    bei der zuletzt tatsaechlich gezeigten Phase stehen, bis die naechste
+    Eintrittsnachricht ankommt."""
+    alle = conn.execute(
         "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am, "
-        f"bild, {_ABGETIPPT} FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
+        f"bild, {_ABGETIPPT} FROM web_post WHERE chat_id = ? AND geloescht_am IS NULL "
         f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
         "AND typ != 'knopf' AND (kalibrierung = 0 OR kalibrierung IS NULL) "
-        f"ORDER BY id {reihenfolge} LIMIT ?",
-        (chat_id, nach, *_CHAT_VERBORGEN, grenze),
+        "ORDER BY id ASC",
+        (chat_id, *_CHAT_VERBORGEN),
     ).fetchall()
-    if reihenfolge == "DESC":
-        zeilen = list(reversed(zeilen))
+    phasen_je_zeile = _massgebliche_phasen(alle)
+    aktuelle_phase = phasen_je_zeile[-1] if phasen_je_zeile else 1
+    zeilen = [
+        z for z, p in zip(alle, phasen_je_zeile)
+        if p == aktuelle_phase and int(z["id"]) > nach
+    ]
+    zeilen = zeilen[-grenze:] if nach <= 0 else zeilen[:grenze]
     return [
         {
             "id": int(z["id"]),

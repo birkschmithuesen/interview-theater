@@ -112,6 +112,11 @@ def test_sortierung_ohne_schaerfen_schliesst_direkt_ab(conn, tg, auftraege):
     fragen.sortierung_abschliessen(conn, tg, None, None, CHAT)
     fertig = _feld(conn, "fragen")
     assert fertig and "eins?" in fertig and "zwei?" not in fertig and "fuenf?" in fertig
+    # Dortmund (kein Profil) bleibt unveraendert: die Eroeffnung startet
+    # weiter im selben Schritt, ohne Weiche -- nur Padua wartet (Karte
+    # t_1f13a707, siehe tests/test_fragen_umformulieren.py).
+    assert len(auftraege) == 1
+    assert _feld(conn, "fragen_fortsetzung_offen") is None
 
 
 def test_sortierung_ohne_auswahl(conn, tg):

@@ -232,6 +232,13 @@ ART_FRAGEN_UMFORMULIEREN_KEINE = "fragen_umformulieren_keine"
 #: ist, macht dieser Knopf ``/umformulieren`` nach "Fragen uebernommen"
 #: erreichbar.
 ART_FRAGEN_UMFORMULIEREN_ANBIETEN = "fragen_umformulieren_anbieten"
+#: Die echte Weiche daneben (Karte t_1f13a707, 06.10.2026): "Fertig
+#: sortiert" bot bisher EINEN Knopf an, waehrend die Eroeffnung im selben
+#: Schritt schon lief -- der Knopf war erreichbar, aber wirkungslos
+#: begraben. Dieser zweite Knopf setzt die Kette (Weich-Angebot bzw.
+#: Eroeffnung) erst fort, wenn die Gruppe ihn drueckt -- oder eine
+#: Umformulier-Runde zuende laeuft (``_wende_umformulierung_durch``).
+ART_FRAGEN_UMFORMULIEREN_WEITER = "fragen_umformulieren_weiter"
 
 # --- Phase 6 · Szenen (05.09.2026) ----------------------------------------
 #
@@ -873,6 +880,10 @@ _TEXT_UMFORMULIEREN_UEBERNOMMEN = "Aktualisiert, eure Fragen:"
 #: Gruppe erreichbar -- ohne diesen Knopf gab es keinen Ausloeser.
 _TEXT_UMFORMULIEREN_ANBIETEN = "Wollt ihr die Formulierung der Fragen noch aendern?"
 _TEXT_UMFORMULIEREN_ANBIETEN_KNOPF = "Fragen umformulieren"
+#: Der zweite Knopf derselben Weiche (Karte t_1f13a707): setzt die Kette
+#: (Weich-Angebot bzw. Eroeffnung) sofort fort, ohne eine Umformulier-Runde
+#: abzuwarten.
+_TEXT_UMFORMULIEREN_WEITER_KNOPF = "Weiter zur Eroeffnung"
 
 #: Der Kopf einer einzelnen vorgelegten Frage (02.10.2026): "Frage 3/15 ·
 #: Heimat". Ohne erkennbaren Begriff (Zeile ohne "Begriff: ") faellt die

@@ -185,3 +185,14 @@ def test_englischer_board_kopf_behauptet_keine_feste_top_fuenf(monkeypatch):
         monkeypatch.delenv(workshop.VARIABLE)
         workshop.vergiss()
         sprache.vergiss()
+
+
+def test_mitgehoert_grenze_aus_umgebung(monkeypatch):
+    """Padua 06.10.2026: die Grenze ist per IT_MITGEHOERT_ZEICHEN umstellbar,
+    Vorgabe 60.000 (Mutant: Vorgabe zurueck auf 6000 -> zweite Zusicherung rot)."""
+    monkeypatch.delenv("IT_MITGEHOERT_ZEICHEN", raising=False)
+    assert kontext.mitgehoert_zeichen() == 60_000
+    monkeypatch.setenv("IT_MITGEHOERT_ZEICHEN", "12000")
+    assert kontext.mitgehoert_zeichen() == 12_000
+    monkeypatch.setenv("IT_MITGEHOERT_ZEICHEN", "kaputt")
+    assert kontext.mitgehoert_zeichen() == 60_000

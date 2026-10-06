@@ -768,6 +768,7 @@ def test_warte_bis_ignoriert_das_praedikat_laeuft_bis_geduld_erschoepft(monkeypa
 
 from simulation import browser_invarianten as inv  # noqa: E402
 from simulation import browser_stationen  # noqa: E402
+from simulation import browser_zaehler  # noqa: E402
 from simulation.browser_umgebung import Gruppe  # noqa: E402
 
 _UNGEKLAERT = "App oder Werkzeug – ungeklaert"
@@ -1674,3 +1675,64 @@ def test_ergebnis_json_auch_bei_durchschlagender_ausnahme(stack, tmp_path, monke
     with pytest.raises(_Abbruch):
         _stationen_lauf(basis, token, pfad, tmp_path, [station])
     assert (tmp_path / "l" / "ergebnis.json").exists()
+
+
+# --- P57 Task 4: Selektor von entwickler_meta_seite gegen die ECHTE Seite --
+#
+# Recherche-Fakt 5 des Plans ("entwickler_meta ... lieferte in der Nacht
+# trotzdem [] -> Selektor pruefen"): ``browser_zaehler.entwickler_meta_seite``
+# fragt ``.blase.bot`` ab. Die echte Klasse kommt serverseitig aus
+# ``web_chat._blase_html`` (``f'blase {n["von"]} {klasse}'``) und
+# clientseitig aus derselben Zuweisung in JS (``huelle.className = 'blase '
+# + n.von + ' ' + klasseVon(n)``); beide setzen ``n["von"] == "bot"`` fuer
+# jede Zeile mit ``richtung == 'aus'`` (``web_daten.py``). Dieser Test
+# bestaetigt das gegen den ECHTEN, im Browser gerenderten Chat -- nicht nur
+# gegen eine ``set_content``-Attrappe -- mit einer echten Bot-Antwort, die
+# den Entwickler-Meta-Marker "the code" traegt.
+def test_entwickler_meta_seite_findet_echte_bot_blase_mit_code_gerede(stack):
+    basis, token, pfad = stack
+    alte_antwort = _LLMAttrappe.antwort
+    _LLMAttrappe.antwort = "Let's see if the code reads that correctly."
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            context = browser.new_context()
+            seite = context.new_page()
+            seite.goto(f"{basis}/g/{token}")
+            seite.wait_for_selector("#verlauf")
+
+            browser_lauf._sende_und_lies_antwort(seite, "Our terms: arrival, work, night")
+
+            treffer = browser_zaehler.entwickler_meta_seite(seite)
+            browser.close()
+    finally:
+        _LLMAttrappe.antwort = alte_antwort
+
+    assert treffer
+    assert any("the code" in t.lower() for t in treffer)
+
+
+def test_entwickler_meta_seite_selektor_auf_gibtsnicht_findet_nichts(stack):
+    """Mutationsschutz (Plan-Vorgabe): ein falscher Selektor (``.gibtsnicht``
+    statt ``.blase.bot``) darf denselben echten Fund NICHT mehr liefern --
+    sonst waere der obige Test blind gegen genau die Regression, die er
+    pruefen soll."""
+    basis, token, pfad = stack
+    alte_antwort = _LLMAttrappe.antwort
+    _LLMAttrappe.antwort = "Let's see if the code reads that correctly."
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            context = browser.new_context()
+            seite = context.new_page()
+            seite.goto(f"{basis}/g/{token}")
+            seite.wait_for_selector("#verlauf")
+
+            browser_lauf._sende_und_lies_antwort(seite, "Our terms: arrival, work, night")
+
+            treffer = browser_zaehler.entwickler_meta_seite(seite, selektor=".gibtsnicht")
+            browser.close()
+    finally:
+        _LLMAttrappe.antwort = alte_antwort
+
+    assert treffer == []

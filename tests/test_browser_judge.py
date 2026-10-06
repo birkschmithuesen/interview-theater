@@ -110,3 +110,31 @@ def test_rubrik_hat_onboarding_checkliste():
     text = RUBRIK_PFAD.read_text(encoding="utf-8")
     for stichwort in ("two phones", "CoThinker", "room check", "first step", "phone card", "web app", "Telegram"):
         assert stichwort.casefold() in text.casefold(), stichwort
+
+
+def test_rubrik_hat_phasen_5_bis_7_abschnitt_mit_den_ausnahmen():
+    """Task 4 (Karte t_db7c6b2c): die Knopf-/Auto-Sprung-/Formwahl-Ausnahmen
+    aus Phase 5-7 duerfen der Richter nicht als Verstoss werten -- sie muessen
+    also namentlich in der Rubrik stehen, die sein System-Prompt ausmacht."""
+    text = " ".join(j.lies_rubrik().split())
+    for stichwort in (
+        "Phases 5-7", "Script tab", "Yes, save", "No, change it again",
+        "Shorter (25%)", "auto-jump", "form by number", "📌",
+    ):
+        assert stichwort in text, stichwort
+
+
+def test_rubrik_phasen_5_bis_7_nennt_die_vier_pruefpunkte():
+    text = " ".join(j.lies_rubrik().split())
+    for pruefpunkt in (
+        "invent first, sharpen second", "NEXT TO the group's material",
+        "visible as a real cut", "sound different",
+    ):
+        assert pruefpunkt in text, pruefpunkt
+
+
+def test_rubrik_p57_abschnitt_geht_in_den_system_prompt():
+    client = _FakeClient({"note": 4, "befunde": []})
+    j.bewerte_phase(client, 5, "Prose Draft", [], [], {})
+    system = client.aufrufe[0]["system"]
+    assert "Phases 5-7 exceptions" in system

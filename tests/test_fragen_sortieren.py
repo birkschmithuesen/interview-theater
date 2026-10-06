@@ -464,6 +464,15 @@ def test_verwerfen_nach_handover_springt_ebenfalls_nicht_weiter(conn, tg, auftra
     assert neu == [T._TEXT_FRAGE_ZURUECK_ZUR_LISTE]
 
 
+def test_reset_fragenrunde_entfernt_stale_handover_nummer(conn, tg, padua):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,schaerfen,,,")
+    fragen.starte_handover(conn, tg, CHAT, 2)
+    assert _feld(conn, "fragen_handover_nummer") == "2"
+    fragen._reset_fragenrunde(conn, CHAT)
+    assert _feld(conn, "fragen_handover_nummer") is None
+
+
 def test_fertig_sortiert_fragt_bereits_entschiedene_handover_frage_nicht_erneut(
     conn, tg, auftraege, padua,
 ):

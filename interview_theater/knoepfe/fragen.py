@@ -234,6 +234,11 @@ def _reset_fragenrunde(conn, chat_id: int) -> None:
     repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_herkunft", None)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_bearbeitet", None)
+    # Karte t_269062e2, 06.10.2026: eine Uebergabe aus der CoThinker-
+    # Klickliste zeigt auf einen Index der VORIGEN Runde -- in der neuen
+    # Runde waere er bedeutungslos (dieselbe Begruendung wie bei den
+    # anderen Feldern hier).
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_handover_nummer", None)
 
 
 def biete_fragenauswahl(conn, tg, chat_id: int, wert: str,

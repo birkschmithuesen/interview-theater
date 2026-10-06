@@ -256,3 +256,9 @@ def test_formdatei_wortstaemme_und_wortgrenze_beim_namen(padua, text, erwartet):
     """Stichwoerter sind Teilstrings (Wortstaemme); nur der Formname selbst
     braucht Wortgrenzen ("lied" nicht in "applied")."""
     assert szene.formdatei(text) == erwartet
+
+
+def test_form_aus_text_unbekanntes_wort_setzt_keine_form(padua):
+    """/szene form ist frei: Wortgrenzen, kein Teilstring ("Bewegungsszene"
+    enthaelt "szene", ist aber keine bekannte Form)."""
+    assert ueberarbeitung.form_aus_text("Bewegungsszene") is None

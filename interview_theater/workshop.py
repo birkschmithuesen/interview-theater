@@ -863,7 +863,7 @@ def form_vorgabe(profil: Profil | None = None) -> str:
     return profil.formen.get("vorgabe", "")
 
 
-def form_treffer(name: str, text: str, profil: Profil | None = None) -> bool:
+def form_treffer(name: str, text: str, profil: Profil | None = None, *, teilstring: bool = False) -> bool:
     """Meint der freie Text ``text`` (schon klein geschrieben) die Form
     ``name``? Verglichen werden der Formname selbst mit Wortgrenzen
     (``"lied"``), seine Anzeige (``"Song"``); die Stichwoerter aus dem
@@ -886,9 +886,12 @@ def form_treffer(name: str, text: str, profil: Profil | None = None) -> bool:
     eigene = {name, anzeige.get(name, "").lower()}
     if any(w and re.search(rf"\b{re.escape(w)}\b", text) for w in eigene):
         return True
-    # Stichwoerter sind Wortstaemme ("Woerter genuegen", formen.toml):
-    # "monolog" muss "Monologe", "chor" "Chorszene", "lied" "Liedtext" treffen.
-    return any(w and w in text for w in stichwoerter.get(name, ()))
+    if teilstring:
+        # formdatei: Stichwoerter sind Wortstaemme ("Woerter genuegen",
+        # formen.toml): "monolog" muss "Monologe", "chor" "Chorszene" treffen.
+        return any(w and w in text for w in stichwoerter.get(name, ()))
+    # form_aus_text (/szene form): Wortgrenzen, unbekannte Woerter bleiben frei.
+    return any(w and re.search(rf"\b{re.escape(w)}\b", text) for w in stichwoerter.get(name, ()))
 
 
 #: Wie eine Auswahl im Fliesstext verbunden wird ("Lied oder Rap"). Hier und

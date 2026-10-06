@@ -419,15 +419,27 @@ def biete_einstieg(conn, tg, chat_id: int, text: str) -> int:
     Knopf ist der, den die Gruppe im Raum trifft; er darf nicht zwei
     Arbeitsschritte zu weit zeigen.
 
+    Ab Phase 4 heisst derselbe Knopf "Weitere Aufnahme" statt "Interview
+    starten" (Karte t_1493c40d, 06.10.2026, Birk): die Interviews sind dort
+    gelaufen, "Interview starten" wuerde wortwoertlich DAS eine Interview
+    suggerieren. Sichtbar bleibt er trotzdem (``_aufnahme_anbieten``
+    unterscheidet bewusst nicht zwischen Phase 3 und spaeter) -- nur der
+    Wortlaut aendert sich.
+
     Damit steht in der Begruessung selbst kein Slash-Befehl mehr: der Weg ist
     der Knopf, ``/hilfe`` listet die Befehle weiterhin auf, wenn jemand sie
     sucht."""
     knoepfe: list[tuple[str, str]] = []
     if _aufnahme_anbieten(conn, chat_id):
+        if repo.ist_interviewmodus_an(conn, chat_id):
+            beschriftung = T._TEXT_AUFNAHME_BEENDEN
+        elif phasen.aktuelle(conn, chat_id) > PHASE_INTERVIEWS:
+            beschriftung = T._TEXT_WEITERE_AUFNAHME_KNOPF
+        else:
+            beschriftung = T._TEXT_AUFNAHME_STARTEN
         knoepfe.append(
             (
-                T._TEXT_AUFNAHME_STARTEN if not repo.ist_interviewmodus_an(conn, chat_id)
-                else T._TEXT_AUFNAHME_BEENDEN,
+                beschriftung,
                 _daten(repo.lege_knopf_an(conn, chat_id, ART_AUFNAHME, None)),
             )
         )

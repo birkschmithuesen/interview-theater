@@ -35,7 +35,9 @@ def test_padua_nennt_keinen_nichtvorhandenen_knopf(monkeypatch, phase):
     assert "Write the story" not in text
     assert "Geschichte schreiben" not in text
     assert "{{schreiben_hinweis}}" not in text
-    assert "you name no button" in text
+    assert "do not announce or promise a writing button" in text
+    assert "shows it itself" in text
+    assert "Yes, save" in text
     # der echte Ablauf
     assert "drafted as prose automatically" in text
     assert "Script tab" in text

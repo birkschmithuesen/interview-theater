@@ -9,6 +9,7 @@ Tests einen httpx.MockTransport einsetzen koennen und nie ins Netz gehen.
 """
 
 import logging
+import re
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,6 +46,30 @@ def escape_html(text: str) -> str:
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
+
+
+#: Die leichte Markdown-Teilmenge einer freien Modellantwort (Karte
+#: t_cc147548): **fett** und *kursiv*, dieselbe Reihenfolge (fett vor
+#: kursiv, sonst fraesse die Kursiv-Regel die Sternpaare der Fett-Regel an)
+#: wie ``web._buehne_markdown`` -- aber ein eigenes, kleineres Tag-Ziel:
+#: Telegram-HTML kennt kein <ul>/<li>/<p>, nur Inline-Tags und native
+#: Zeilenumbrueche. Aufzaehlungszeilen ("- "/"• ") und Leerzeilen
+#: bleiben deshalb unveraendert stehen -- Telegram zeigt sie als Klartext,
+#: das reicht.
+_MD_FETT = re.compile(r"\*\*([^*]+)\*\*")
+_MD_KURSIV = re.compile(r"\*([^*]+)\*")
+
+
+def leichtes_markdown_html(text: str) -> str:
+    """Rendert die leichte Markdown-Teilmenge einer freien Modellantwort als
+    Telegram-HTML-Subset: ``**fett**`` -> ``<b>``, ``*kursiv*`` -> ``<i>``.
+
+    Maskiert immer zuerst (``escape_html``), wendet DANACH die Ersetzungen
+    auf den schon maskierten Text an -- genau wie ``web._buehne_markdown``,
+    nur fuer Telegrams kleineres Tag-Set statt dem der Chatansicht."""
+    maskiert = escape_html(text or "")
+    maskiert = _MD_FETT.sub(r"<b>\1</b>", maskiert)
+    return _MD_KURSIV.sub(r"<i>\1</i>", maskiert)
 
 
 def _ist_400(fehler: Exception) -> bool:
@@ -165,7 +190,7 @@ class Telegram:
 
     def sende(self, chat_id: int, text: str, parse_mode: str | None = None,
               klartext: str | None = None, system: bool = False,
-              transkript: bool = False) -> int:
+              transkript: bool = False, markdown: bool = False) -> int:
         """Schickt eine Textnachricht. Liefert die message_id der gesendeten Nachricht.
 
         Telegram nimmt hoechstens 4096 Zeichen je Nachricht (Bot-API,
@@ -180,6 +205,15 @@ class Telegram:
         fuer den Rueckfall bei HTTP 400 (``_post_nachricht``). Ohne
         ``parse_mode`` bleibt alles wie vorher -- reiner Text.
 
+        ``markdown`` (Karte t_cc147548): ``text`` ist die leichte
+        Markdown-Teilmenge einer freien Modellantwort (``**fett**``,
+        ``*kursiv*``, Listenzeilen, Absaetze) -- diese Methode rendert sie
+        selbst ueber ``leichtes_markdown_html`` und setzt ``parse_mode``
+        sowie ``klartext`` (der unformatierte Originaltext, Rueckfall bei
+        HTTP 400) automatisch. Ein gleichzeitig uebergebenes ``parse_mode``
+        oder ``klartext`` wird dabei ueberschrieben -- die beiden Wege
+        schliessen sich aus.
+
         ``system`` ist ein No-Op (UX-Knoepfe-Karte, Abschnitt 3): Telegram
         kennt keine eigene Darstellung fuer eine Speicherquittung, nur die
         Chatansicht des Web-Kanals stellt sie gedaempft dar
@@ -191,11 +225,15 @@ class Telegram:
         Chatansicht des Web-Kanals kennt die EINE kursive Transkriptblase
         eines Interviews (``web_kanal.WebKanal.sende``). Telegram bekommt sie
         nie -- dort bleibt das Echo je Teil (``aufnahme.fliesstext_aktiv``)."""
+        if markdown:
+            parse_mode = "HTML"
+            klartext = text
         stuecke = teile_text(text)
         roh = teile_text(klartext) if klartext is not None else stuecke
         letzte = 0
         for i, stueck in enumerate(stuecke):
-            nutzlast = {"chat_id": chat_id, "text": stueck}
+            inhalt = leichtes_markdown_html(stueck) if markdown else stueck
+            nutzlast = {"chat_id": chat_id, "text": inhalt}
             if parse_mode:
                 nutzlast["parse_mode"] = parse_mode
             letzte = self._post_nachricht(
@@ -206,7 +244,7 @@ class Telegram:
     def sende_mit_knoepfen(
         self, chat_id: int, text: str, knoepfe: list[tuple[str, str]],
         parse_mode: str | None = None, klartext: str | None = None,
-        system: bool = False,
+        system: bool = False, markdown: bool = False,
     ) -> int:
         """Wie ``sende``, nur mit einer Inline-Tastatur darunter: je Eintrag
         ``(beschriftung, callback_data)`` eine Zeile, untereinander.
@@ -219,10 +257,17 @@ class Telegram:
         Stelle: schickt der Bot sie zu lang, antwortet Telegram mit
         BUTTON_DATA_INVALID, und der Fehler faende sich erst im Betrieb.
         Ein zu langer Wert ist ein Programmierfehler (der Aufrufer haette eine
-        Knopf-id nehmen muessen), deshalb ValueError statt stiller Kuerzung."""
+        Knopf-id nehmen muessen), deshalb ValueError statt stiller Kuerzung.
+
+        ``markdown`` wie in ``sende``: rendert ``text`` ueber
+        ``leichtes_markdown_html`` und setzt ``parse_mode``/``klartext``
+        selbst."""
         for _, daten in knoepfe:
             if len(daten.encode("utf-8")) > CALLBACK_DATA_GRENZE:
                 raise ValueError(f"callback_data zu lang: {len(daten)} Zeichen")
+        if markdown:
+            parse_mode = "HTML"
+            klartext = text
         tastatur = [[{"text": t, "callback_data": d}] for t, d in knoepfe]
         stuecke = teile_text(text)
         roh = teile_text(klartext) if klartext is not None else stuecke
@@ -230,12 +275,13 @@ class Telegram:
         # unter das Ende des Textes, nicht in seine Mitte.
         for i, stueck in enumerate(stuecke[:-1]):
             self.sende(
-                chat_id, stueck, parse_mode=parse_mode,
+                chat_id, stueck, parse_mode=None if markdown else parse_mode,
                 klartext=roh[i] if i < len(roh) else None,
+                markdown=markdown,
             )
         nutzlast = {
             "chat_id": chat_id,
-            "text": stuecke[-1],
+            "text": leichtes_markdown_html(stuecke[-1]) if markdown else stuecke[-1],
             "reply_markup": {"inline_keyboard": tastatur},
         }
         if parse_mode:

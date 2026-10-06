@@ -414,3 +414,59 @@ def test_sende_mit_html_faellt_bei_400_auf_klartext_zurueck():
     assert len(gesehen) == 2
     assert gesehen[1].get("parse_mode") is None
     assert gesehen[1]["text"] == "1. A"
+
+
+# --- Leichte Markdown-Teilmenge fuer freie Modellantworten (Karte t_cc147548) ---
+
+
+def test_leichtes_markdown_html_rendert_fett_und_kursiv():
+    ergebnis = telegram.leichtes_markdown_html("**Schulhof** ist *leer*.")
+    assert ergebnis == "<b>Schulhof</b> ist <i>leer</i>."
+
+
+def test_leichtes_markdown_html_laesst_listenzeilen_als_text():
+    """Telegram-HTML kennt kein <ul>/<li> -- eine Aufzaehlung bleibt eine
+    Zeile mit "- "-Praefix, nur ihr Inhalt wird noch durchformatiert."""
+    ergebnis = telegram.leichtes_markdown_html("- **Erster** Punkt\n- Zweiter")
+    assert ergebnis == "- <b>Erster</b> Punkt\n- Zweiter"
+
+
+def test_leichtes_markdown_html_maskiert_spitze_klammern_und_kaufmannsund():
+    ergebnis = telegram.leichtes_markdown_html("Ein <Ort> & **Zeit**")
+    assert ergebnis == "Ein &lt;Ort&gt; &amp; <b>Zeit</b>"
+
+
+def test_leichtes_markdown_html_fett_vor_kursiv():
+    """Sonst fraesse die Kursiv-Regel die Sternpaare der Fett-Regel an --
+    dieselbe Reihenfolge wie ``web._buehne_markdown``."""
+    ergebnis = telegram.leichtes_markdown_html("**sehr fett**")
+    assert ergebnis == "<b>sehr fett</b>"
+    assert "<i>" not in ergebnis
+
+
+def test_sende_mit_markdown_rendert_fett_und_faellt_bei_400_auf_klartext_zurueck():
+    """``markdown=True`` rendert die leichte Markdown-Teilmenge zu
+    Telegram-HTML und faellt bei HTTP 400 auf den unformatierten
+    Originaltext zurueck -- derselbe Rueckfallmechanismus wie bei den
+    Menuetexten, nur fuer freie Modellantworten."""
+    gesehen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nutzlast = json.loads(request.content)
+        gesehen.append(nutzlast)
+        if nutzlast.get("parse_mode"):
+            return httpx.Response(400, json={"description": "can't parse entities"})
+        return httpx.Response(200, json={"result": {"message_id": 9}})
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler))
+    tg = telegram.Telegram("TOKEN", klient)
+
+    text = "**Wichtig**: was meint ihr?\n\n- Idee eins\n- Idee zwei"
+    message_id = tg.sende(1, text, markdown=True)
+
+    assert message_id == 9
+    assert len(gesehen) == 2
+    assert gesehen[0]["parse_mode"] == "HTML"
+    assert gesehen[0]["text"] == "<b>Wichtig</b>: was meint ihr?\n\n- Idee eins\n- Idee zwei"
+    assert gesehen[1].get("parse_mode") is None
+    assert gesehen[1]["text"] == text

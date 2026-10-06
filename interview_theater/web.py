@@ -4006,7 +4006,10 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
             for feld, label in T._PROBE_PLANUNG
             if s.get(feld)
         )
-        zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
+        if not prosa:
+            # P57 Lauf 2 B2: "Noch nicht geschrieben" nur ohne Prosa -- mit
+            # Prosa stand es ueber dem vorhandenen Szenentext (Padua 5/6).
+            zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
         if prosa:
             # Die Prosafassung aus Phase 6 ist der eigene Text der Gruppe und
             # kein Material -- sie steht hier, wo sonst nichts stuende, und

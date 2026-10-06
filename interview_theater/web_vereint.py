@@ -45,7 +45,10 @@ NACHLADEN_MS = web.NEULADEN_SEKUNDEN * 1000
 #: der Tab selbst steht jetzt immer im Dokument (nur ``hidden`` je nach
 #: Phase), und sein Inhalt -- neue Karten aus dem Brainstorm -- soll sich
 #: aktualisieren, WAEHREND er offen ist, nicht erst nach einem Neuladen.
-_TEILE = ("stand", "roadmap", "buehne")
+_TEILE = ("stand", "roadmap", "buehne", "textbuch")
+#: ``textbuch`` kam mit P57 Lauf 2 (A1) dazu: das Panel wurde nur beim
+#: Seitenaufbau gerendert und zeigte neue Szenenprosa erst nach einem
+#: vollen Neuladen ("Not written yet" trotz geschriebener Szene).
 
 #: Die drei Panels. Reihenfolge = Reihenfolge der Tableiste. ``buehne`` steht
 #: NICHT fest hier drin (anders als seit 02.10.2026 im gerenderten Markup):
@@ -752,6 +755,7 @@ _VEREINT_JS = """
       if (knopf) { knopf.setAttribute('aria-selected', tab === name ? 'true' : 'false'); }
     });
     document.body.dataset.tab = name;
+    if (name === 'textbuch' && typeof ladeTextbuch === 'function') { ladeTextbuch(); }
     // Der unaufdringliche Marker (Birk, Feedback b) gilt nur, solange der
     // Tab nicht vorn ist -- ein Oeffnen raeumt ihn weg, kein zweiter Weg.
     if (name === 'buehne') {
@@ -1480,6 +1484,34 @@ _VEREINT_JS = """
       .catch(function () {});
   }
   setInterval(ladeBuehne, __NACHLADEN_MS__);
+  // -- Textbuch-Tab nachladen (P57 Lauf 2, A1) ------------------------------
+  //
+  // Das Panel wurde nur beim Seitenaufbau gerendert: neue Szenenprosa
+  // erschien erst nach vollem Neuladen. Geholt wird nur bei sichtbarem Tab
+  // (und sofort beim Oeffnen, siehe zeige()). Rollenfilter/Schrift stehen
+  // am Panel bzw. im Hash und werden nach dem Tausch ueber ``hashchange``
+  // neu angewendet (die Knoepfe selbst sind frisch gerendert).
+  var textbuchLetzter = null;
+  function ladeTextbuch() {
+    var panel = document.getElementById('tab-textbuch');
+    if (!panel || panel.hidden || document.hidden) { return; }
+    if (textbuchLetzter === null) { textbuchLetzter = panel.innerHTML; }
+    fetch(BASIS_TEIL + 'textbuch', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return; }
+        var doc = new DOMParser().parseFromString(text, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        if (!neu || neu === textbuchLetzter || panel.hidden) { return; }
+        var y = panel.scrollTop;
+        panel.innerHTML = neu;
+        textbuchLetzter = neu;
+        panel.scrollTop = y;
+        window.dispatchEvent(new Event('hashchange'));
+      })
+      .catch(function () {});
+  }
+  setInterval(ladeTextbuch, __NACHLADEN_MS__);
   // -- CoThinker-Statuszeile: die tickende Dauer -------------------------
   //
   // Karte CoThinker-Statuszeile (03.10.2026): der Server schreibt nie eine
@@ -2485,6 +2517,10 @@ def sende_teil(handler, db_pfad: str, token: str, name: str, praefix: str,
         return
     if name == "buehne":
         handler._antworte(200, web._buehne_html(daten))
+        return
+    if name == "textbuch":
+        # Reines Lesen, kein Formular, kein Nonce (P57 Lauf 2, A1).
+        handler._antworte(200, web.textbuch_koerper(daten, token, praefix))
         return
     handler._antworte(200, web.gruppe_koerper(
         daten, web.nonce(schluessel, token), token, praefix,

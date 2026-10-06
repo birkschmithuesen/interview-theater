@@ -424,3 +424,18 @@ def test_screenshots(server, browser, token, conn, schuss_verzeichnis,
 
     repo.beende_strom(conn, strom_id, repo.STROM_ABGEBROCHEN)
     kontext.close()
+
+
+def test_das_textbuch_laedt_neue_szenenprosa_ohne_neuladen(seite, conn):
+    """P57 Lauf 2, A1: Szenenprosa, die NACH dem Seitenaufbau entsteht,
+    erscheint im offenen Textbuch-Tab -- ohne Neuladen."""
+    szene_id = repo.lege_szene_an(conn, CHAT, 7, "Nachgeladene Szene", None, None)
+    seite.click('.tabs button[data-tab="textbuch"]')
+    seite.wait_for_selector("#tab-textbuch:not([hidden])")
+    repo.aktualisiere_szene(conn, szene_id, "Nachgeladene Szene", None, None,
+                            prosa="Der Zug fuhr ohne sie ab.")
+    assert _warte(
+        seite,
+        lambda: "Der Zug fuhr ohne sie ab." in seite.inner_text("#tab-textbuch"),
+        ms=40000,
+    )

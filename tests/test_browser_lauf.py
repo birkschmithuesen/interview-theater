@@ -1850,3 +1850,94 @@ def test_entwickler_meta_seite_selektor_auf_gibtsnicht_findet_nichts(stack):
         _LLMAttrappe.antwort = alte_antwort
 
     assert treffer == []
+
+
+# --- P57 Schleifenschutz -------------------------------------------------
+
+def test_waechter_dritter_gleicher_fehlschlag_loest_aus_trotz_neuer_begruendung():
+    w = browser_lauf.Schleifenwaechter()
+    fehl = {"art": "fehlgeschlagen", "fehler": "Failed to find element"}
+    assert w.pruefe({"type": "phase", "nummer": 5, "begruendung": "a"}, fehl) is None
+    assert w.pruefe({"type": "phase", "nummer": 5, "begruendung": "b"}, fehl) is None
+    treffer = w.pruefe({"type": "phase", "nummer": 5, "begruendung": "c"}, fehl)
+    assert treffer[0] == "aktion_wiederholt_fehlgeschlagen:phase:5"
+    assert "Failed to find element" in treffer[1]
+
+
+def test_waechter_erfolg_dazwischen_zaehlt_nur_je_aktion():
+    w = browser_lauf.Schleifenwaechter()
+    a = {"type": "click", "element_id": 3}
+    fehl = {"art": "fehlgeschlagen", "fehler": "timeout 5000ms"}
+    ok = {"art": "click"}
+    assert w.pruefe(a, fehl) is None
+    assert w.pruefe(a, ok) is None
+    assert w.pruefe(a, fehl) is None
+    assert w.pruefe(a, fehl)[0] == "aktion_wiederholt_fehlgeschlagen:click:3"
+
+
+def test_waechter_gleicher_fehler_dreimal_in_folge_bei_verschiedenen_aktionen():
+    w = browser_lauf.Schleifenwaechter()
+    fehl = {"art": "fehlgeschlagen", "fehler": "Page.click: Timeout 5000ms exceeded"}
+    assert w.pruefe({"type": "click", "element_id": 1}, fehl) is None
+    assert w.pruefe({"type": "click", "element_id": 2}, fehl) is None
+    assert w.pruefe({"type": "click", "element_id": 3}, fehl) is not None
+
+
+def test_station_endet_nach_dreimal_gleichem_fehlschlag_ohne_600s_warten(stack, tmp_path):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    station = browser_stationen.Station(
+        "t-schleife", 1, "Go.", budget=10, geduld_s=600, warte_bis=lambda s: False)
+    persona = _ScriptedClient([{"type": "phase", "nummer": 99}] * 9)
+    t0 = time.monotonic()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l")
+        browser.close()
+    assert time.monotonic() - t0 < 120
+    st = ergebnis["stationen_ergebnisse"][0]
+    assert st["schritte"] == 3
+    assert persona.aufrufe == 3
+    assert any(b["schluessel"].startswith("aktion_wiederholt_fehlgeschlagen:phase:99")
+               for b in ergebnis["invarianten"])
+
+
+def test_zeitdeckel_je_station_beendet_sauber(stack, tmp_path):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    station = browser_stationen.Station("t-zeit", 1, "Go.", budget=10)
+    persona = _ScriptedClient([{"type": "wait", "duration_ms": 10}] * 9)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l",
+            max_station_s=0)
+        browser.close()
+    assert ergebnis["stationen_ergebnisse"][0]["schritte"] == 0
+    assert any(b["schluessel"] == "station_zeitdeckel:t-zeit" for b in ergebnis["invarianten"])
+
+
+def test_zeitdeckel_je_lauf_ueberspringt_weitere_stationen(stack, tmp_path):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    s1 = browser_stationen.Station("t-a", 1, "Go.", budget=2)
+    s2 = browser_stationen.Station("t-b", 1, "Go.", budget=2)
+    persona = _ScriptedClient([{"type": "done_station"}] * 4)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(s1, s2), lauf_verzeichnis=tmp_path / "l",
+            max_minuten=0)
+        browser.close()
+    assert ergebnis["abbruch"] == "zeitdeckel"
+    assert [e["schluessel"] for e in ergebnis["stationen_ergebnisse"]] == ["t-a"]

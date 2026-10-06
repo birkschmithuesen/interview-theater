@@ -98,9 +98,56 @@ def _aktion_ausfuehren(page, aktion: dict) -> dict:
     except browser_aktionen.UnbekannteAktion as fehler:
         log.warning("unbekannte Persona-Aktion: %s", fehler)
         return {"art": "unbekannt", "fehler": str(fehler)}
+    except (browser_aktionen.PhasenwechselFehlt,
+            browser_aktionen.PhasenwechselAbgelehnt) as fehler:
+        log.warning("Phasenwechsel nicht moeglich (%s): %s", aktion, fehler)
+        return {"art": "fehlgeschlagen", "fehler": str(fehler)}
     except PlaywrightError as fehler:
         log.warning("Aktion schlug fehl (%s): %s", aktion, fehler)
         return {"art": "fehlgeschlagen", "fehler": str(fehler)}
+
+
+#: P57 Schleifenschutz: so oft darf DIESELBE Aktion (oder derselbe Fehler in
+#: Folge) in einer Station scheitern, bevor die Station endet.
+SCHLEIFE_MAX_FEHLER = 3
+#: Hoechstens so lange darf eine Station dauern (Sekunden).
+STATION_MAX_S = 20 * 60.0
+#: Hoechstens so lange darf ein ganzer Lauf dauern (Minuten).
+LAUF_MAX_MINUTEN = 120.0
+
+
+def _aktionsschluessel(aktion: dict) -> str:
+    """Identitaet einer Aktion fuer den Schleifenschutz: Typ + Ziel, ohne
+    Begruendung/offene Fragen (die formuliert die Persona jedes Mal neu)."""
+    ziel = next((aktion[k] for k in ("nummer", "element_id", "text", "selektor", "name")
+                 if aktion.get(k) not in (None, "")), "")
+    return f"{aktion.get('type')}:{ziel}"
+
+
+class Schleifenwaechter:
+    """Zaehlt fehlgeschlagene Aktionen einer Station. ``pruefe`` liefert beim
+    Erreichen der Schwelle ``(befundschluessel, fehlertext)``, sonst ``None``."""
+
+    def __init__(self, schwelle: int = SCHLEIFE_MAX_FEHLER):
+        self.schwelle = schwelle
+        self._je_aktion: dict[str, int] = {}
+        self._letzter_fehler = None
+        self._folge = 0
+
+    def pruefe(self, aktion: dict, protokoll: dict):
+        if protokoll.get("art") not in ("fehlgeschlagen", "unbekannt"):
+            self._letzter_fehler, self._folge = None, 0
+            return None
+        schluessel = _aktionsschluessel(aktion)
+        fehler = " ".join(str(protokoll.get("fehler", "")).split())
+        self._je_aktion[schluessel] = self._je_aktion.get(schluessel, 0) + 1
+        # Gleicher Fehler in Folge, unabhaengig von der Aktionsformulierung.
+        norm = "".join(c for c in fehler.casefold() if c.isalpha())[:120]
+        self._folge = self._folge + 1 if norm == self._letzter_fehler else 1
+        self._letzter_fehler = norm
+        if self._je_aktion[schluessel] >= self.schwelle or self._folge >= self.schwelle:
+            return (f"aktion_wiederholt_fehlgeschlagen:{schluessel}", fehler)
+        return None
 
 
 def _diskussion_laeuft(page) -> bool:
@@ -492,7 +539,8 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
                         station: browser_stationen.Station, *, basis_url: str,
                         token: str, db_pfad: str, chat_id: int, persona_name: str,
                         beobachter=None, leitbilder=None, vor_ende=None,
-                        nach_klick=None) -> dict:
+                        nach_klick=None, max_station_s: float = STATION_MAX_S,
+                        frist: float | None = None) -> dict:
     """Ein Stationsdurchlauf (Abnahmelauf Phase 1-2, 04.10.2026): wie
     ``_fuehre_phase_aus``, aber gegen ein Stationsziel statt eine Phase, mit
     Nachfragen-Schutz (``browser_stationen.muss_antworten``), optionalem
@@ -601,7 +649,20 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         return True
 
     schritte = 0
+    waechter = Schleifenwaechter()
+    schleifenbefunde: list[dict] = []
+    # Zeitdeckel (P57): Station hoechstens ``max_station_s``, Lauf-Frist
+    # (monotonic) darf nie ueberschritten werden.
+    ende_zeit = time.monotonic() + max_station_s
+    if frist is not None:
+        ende_zeit = min(ende_zeit, frist)
     while schritte < station.budget:
+        if time.monotonic() >= ende_zeit:
+            schleifenbefunde.append({
+                "schluessel": f"station_zeitdeckel:{station.schluessel}",
+                "text": f"Station {station.schluessel} nach {schritte} Schritten wegen "
+                        f"Zeitdeckel beendet (max {max_station_s:.0f} s / Lauffrist)."})
+            break
         schritte += 1
         _schliesse_offenes_phasensheet(page)
         vor = mitschnitt.screenshot_pfad(station.phase, f"{station.schluessel}-vor")
@@ -625,7 +686,14 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             break
 
         protokoll = _aktion_ausfuehren(page, aktion)
-        warte = browser_aktionen.warte_auf_antwort(page, geduld_s=station.geduld_s)
+        aktion_gescheitert = protokoll.get("art") in ("fehlgeschlagen", "unbekannt")
+        if aktion_gescheitert:
+            # Nichts hat sich getan -- keine Antwort- und keine warte_bis-
+            # Wartezeit (sonst 600 s je Fehlgriff, Lauf 2 vom 06.10.).
+            warte = {"fertig": True, "sekunden": 0.0, "ohne_hinweis": False}
+        else:
+            warte = browser_aktionen.warte_auf_antwort(
+                page, geduld_s=min(station.geduld_s, max(1.0, ende_zeit - time.monotonic())))
 
         _warte_und_beende_diskussion_falls_noetig()
         if station.diskussion:
@@ -643,7 +711,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         nach.write_bytes(browser_elemente.bildschirmfoto(page))
         screenshots.append(nach)
         nachher = browser_mitschnitt.datenstand(db_pfad, chat_id)
-        if station.warte_bis is not None:
+        if station.warte_bis is not None and not aktion_gescheitert:
             # Task 2 (BRIEF p57): erst NACH der normalen Wartung
             # (``warte_auf_antwort`` oben) -- die deckt den sichtbaren Teil
             # ab (``#tippt``), ``warte_bis`` den unsichtbaren Hintergrund-
@@ -667,7 +735,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
                 lambda s: station_praedikat(s)
                 or _hat_sich_veraendert(vorher_fuer_warte_bis, s),
                 lambda: browser_mitschnitt.datenstand(db_pfad, chat_id),
-                station.geduld_s)
+                min(station.geduld_s, max(1.0, ende_zeit - time.monotonic())))
         db_diff = browser_mitschnitt.unterschied(vorher, nachher)
         vorher = nachher
         _zaehler_addieren(zaehler_summe, browser_zaehler.alle(page))
@@ -677,6 +745,14 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             phase=station.phase, screenshot_vorher=vor, screenshot_nachher=nach,
             elemente=elemente, aktion=protokoll, begruendung=aktion.get("begruendung", ""),
             antwort=warte, db_diff=db_diff, station=station.schluessel)
+
+        schleife = waechter.pruefe(aktion, protokoll)
+        if schleife is not None:
+            schleifenbefunde.append({
+                "schluessel": schleife[0],
+                "text": f"Station {station.schluessel} beendet: {schleife[0]} "
+                        f"({waechter.schwelle}x gescheitert). Fehler: {schleife[1]}"})
+            break
 
         aktiv = _aktive_phase_nummer(page)
         if station.endet_bei_phasenwechsel and aktiv is not None and aktiv > station.phase:
@@ -712,7 +788,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             "offene_fragen": offene, "fertig": fertig, "fallback_benutzt": fallback,
             "zaehler_summe": zaehler_summe, "screenshots_nach": screenshots,
             "phasenwechsel_aufruf_id": phasenwechsel_aufruf_id,
-            "pause_resume_ok": pause_resume_ok}
+            "pause_resume_ok": pause_resume_ok, "schleifenbefunde": schleifenbefunde}
 
 
 #: Wie lange nach dem Senden von ``station.sage`` hoechstens auf eine neue
@@ -883,7 +959,9 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                      gruppen: list | None = None,
                      warte=browser_invarianten.warte_nach_diskussion,
                      hole_prompt=None, wechsle_audio=None,
-                     kosten_stopp: float | None = None) -> dict:
+                     kosten_stopp: float | None = None,
+                     max_minuten: float = LAUF_MAX_MINUTEN,
+                     max_station_s: float = STATION_MAX_S) -> dict:
     """Die Stationsmotor-Engine des Abnahmelaufs Phase 1-2 (04.10.2026):
     Station fuer Station aus ``browser_stationen.STATIONEN``, mit einer
     eigenen Erklaernote je Station (Pflichtpunkt 1). Schreibt
@@ -958,8 +1036,12 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
     #: Task 2 (BRIEF p57): None, solange kein Kostendeckel gegriffen hat --
     #: landet unveraendert in ``ergebnis["abbruch"]``.
     abbruch: str | None = None
+    lauf_frist = time.monotonic() + max_minuten * 60.0
     try:
         for index, station in enumerate(stationen):
+            if index > 0 and time.monotonic() >= lauf_frist:
+                abbruch = "zeitdeckel"
+                break
             # Nur ZWISCHEN zwei Stationen pruefen (nicht vor der ersten): ein
             # frischer Lauf darf immer mindestens einen Schritt versuchen,
             # auch wenn der Deckel sehr knapp gesetzt ist.
@@ -1058,7 +1140,11 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                     page, persona_client, mitschnitt, station, basis_url=basis_url,
                     token=gruppe.token, db_pfad=db_pfad, chat_id=gruppe.chat_id,
                     persona_name=persona_name, beobachter=beobachter,
-                    leitbilder=leitbilder, vor_ende=vor_ende, nach_klick=nach_klick)
+                    leitbilder=leitbilder, vor_ende=vor_ende, nach_klick=nach_klick,
+                    max_station_s=max_station_s, frist=lauf_frist)
+                for sb in lauf.get("schleifenbefunde", []):
+                    befunde.append(browser_invarianten.Befund(
+                        sb["schluessel"], station.schluessel, sb["text"]))
             except Exception as fehler:
                 log.exception("Station %s ist gescheitert", station.schluessel)
                 fehlgeschlagen_bei = fehlgeschlagen_bei or station.schluessel
@@ -1367,6 +1453,9 @@ def main() -> None:
                           help="Bricht VOR der naechsten Station ab, sobald "
                                "Sigma aufruf.kosten_chf dieser sim.db diesen "
                                "Wert ueberschreitet (nur Stationsmodus)")
+    zerleger.add_argument("--max-minuten", type=float, default=LAUF_MAX_MINUTEN,
+                          help="Zeitdeckel fuer den ganzen Stationslauf (Minuten, "
+                               "Vorgabe 120); danach endet er sauber mit Bericht")
     argumente = zerleger.parse_args()
 
     if not argumente.env_datei:
@@ -1484,6 +1573,7 @@ def main() -> None:
                     meta={"app_wurzel": str(app_wurzel), "app_commit": _app_commit(app_wurzel)},
                     gruppen=stack.gruppen, hole_prompt=hole_prompt,
                     wechsle_audio=wechsle_audio, kosten_stopp=argumente.kosten_stopp,
+                    max_minuten=argumente.max_minuten,
                 )
                 if leitbilder is not None:
                     leitbilder.schreibe_index()

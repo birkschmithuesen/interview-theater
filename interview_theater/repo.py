@@ -2200,6 +2200,38 @@ def brainstorm_arc_text(conn: sqlite3.Connection, chat_id: int, bis_id: int) -> 
 
 
 @_gesperrt
+def brainstorm_echo_message_id(conn: sqlite3.Connection, chat_id: int) -> int | None:
+    """Die web_post-id der EINEN Transkriptblase des laufenden Brainstorm-
+    Bogens (Birk 06.10.2026, analog ``echo_message_id`` bei Interviews), oder
+    ``None`` -- noch keine Blase in diesem Bogen."""
+    zeile = conn.execute(
+        "SELECT brainstorm_echo_message_id FROM arbeitsstand WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    return None if zeile is None else zeile["brainstorm_echo_message_id"]
+
+
+@_gesperrt
+def setze_brainstorm_echo_message_id(
+    conn: sqlite3.Connection, chat_id: int, message_id: int | None,
+) -> None:
+    """Merkt die Blase des laufenden Bogens, oder loescht die Markierung
+    (``message_id=None``) beim Bogenende -- der naechste Bogen bekommt dann
+    wieder eine neue Blase statt die alte weiterzuschreiben."""
+    conn.execute(
+        """
+        INSERT INTO arbeitsstand (chat_id, brainstorm_echo_message_id, geaendert_am)
+        VALUES (?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            brainstorm_echo_message_id = excluded.brainstorm_echo_message_id,
+            geaendert_am = excluded.geaendert_am
+        """,
+        (chat_id, message_id, _jetzt()),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def markiere_brainstorm_reaktion(
     conn: sqlite3.Connection, chat_id: int, aufnahme_id: int,
 ) -> None:

@@ -473,8 +473,9 @@ def test_das_js_nennt_jeden_postweg(seite):
         if weg == "phase":
             assert f"chat/{weg}" in web_vereint._VEREINT_JS, weg
             continue
-        if weg in ("auswahl", "auswahl_fertig"):
-            # Die Auswahlliste im CoThinker (Padua Phase 2, 05.10.2026):
+        if weg in ("auswahl", "auswahl_fertig", "umformulieren"):
+            # Die Auswahlliste im CoThinker (Padua Phase 2, 05.10.2026) und der
+            # Dauerknopf "Fragen umformulieren" (Karte t_1f13a707, 06.10.2026):
             # Aufrufer in ``web_vereint._AUSWAHL_JS``, nur auf der vereinten
             # Seite unter dem Profil.
             assert f"'chat/{weg}'" in web_vereint._AUSWAHL_JS, weg

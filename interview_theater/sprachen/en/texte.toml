@@ -588,6 +588,14 @@ the opening, then a line that starts with 'CLOSING:'. Language like a \
 young person's, no official-sounding sentences. The text stands ONLY in the \
 block - don't also write it before it in the running text; before it, at \
 most one sentence and one question."""
+_TEXT_RECHERCHE_KNOPF = "Research"
+_TEXT_RECHERCHE_ANBIETEN = "Should I look this up online?"
+_TEXT_RECHERCHE_FRAGEN_LAEUFT = "Thinking of three research questions ..."
+_TEXT_RECHERCHE_FRAGEN_TEXT = "Which question should we clear up? Or write your own, e.g. \"Research: ...\""
+_TEXT_RECHERCHE_KEINE_FRAGEN = "I can't think of a question for that right now."
+_TEXT_RECHERCHE_LAEUFT = "Looking this up online (30-60 seconds) ..."
+_TEXT_RECHERCHE_NICHTS_GEFUNDEN = "I couldn't find anything verifiable on that."
+_ANTWORT_RECHERCHE_GESTARTET = "Looking it up."
 
 ["befehle"]
 _TEXT_INTERVIEW_AN = "Ready - send your voice messages. After each one you get the typed-out text."

@@ -1,0 +1,101 @@
+[
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 467,
+    "zitat": "automatically: after \"Discussion done\" a message lists the top five as",
+    "regel": "UX rule 1: „Numbers and scope are the group's call. The bot asks, never proposes a count“ -- und der Nutzerteil Zeile 548 fuehrt neun gespeicherte Begriffe („Terms: arrival, waiting, strangers, noise, belonging, home, trust, family, the city at night“), die Gruppe fragt in „Now“ genau danach (Zeile 589)",
+    "vorschlag": "In Zeile 467 „the top five“ streichen und schreiben: „a message lists the saved terms as saved and asks whether to move on or change something“. Keine Zahl im Prompt, sonst behauptet der Bot eine Begrenzung, die der Arbeitsstand nicht hat.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 143,
+    "zitat": "- **Suggestion block: if you suggest terms, questions, a core theme or",
+    "regel": "Zeile 531/532 derselben Datei: „the group itself said or confirmed goes into this block -- a term you / thought up yourself stays in your sentence above it and never moves into / the block“",
+    "vorschlag": "In Zeile 143 „terms“ aus der Aufzaehlung entfernen („if you suggest questions, a core theme or characters“) und bei `VORSCHLAG BEGRIFFE:` (Zeile 154) ergaenzen: „nur Wortlaut, den die Gruppe selbst gesagt oder bestaetigt hat“.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 161,
+    "zitat": "time, not just what changed. No buttons come from this one: it is the",
+    "regel": "Zeile 184 derselben Datei: „line of a multi-line block becomes a button; without a block there is“",
+    "vorschlag": "Zeile 184 praezisieren: „Each line of a multi-line block becomes a button -- ausser bei `VORSCHLAG EIGENE FRAGEN:` und `VORSCHLAG BEGRIFFE:`, die nur den Stand speichern“. Sonst widersprechen sich Blockkatalog und Button-Regel.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 493,
+    "zitat": "You don't make a suggestion out of nowhere here: you ask about the group's",
+    "regel": "Doppelt zu Zeile 113-126 („When you need the group's input, ask first, then suggest“) und widerspricht dem Phasentext Zeile 512 „Don't judge anything, don't sort anything out, don't replace a term with a“ sowie dem Blockformat Zeile 154 (Kommaliste, keine „title — description“-Optionen)",
+    "vorschlag": "Zeilen 492-499 komplett loeschen; in Phase 1 gibt es kein „Field“ und keine Titel-Beschreibung-Optionen, die allgemeine Regel steht schon in 113-126.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 505,
+    "zitat": "describe a \"handover\" from paper, a wall, or an earlier room session,",
+    "regel": "Nutzerteil Zeile 580: „Member 1: here is our wall: arrival, waiting, strangers, home, noise, trust, belonging, the city at night, family“ -- genau das ist im Verlauf passiert",
+    "vorschlag": "Zeile 506 „because none of that happened.“ streichen und ersetzen durch: „Wenn die Gruppe selbst eine Wandliste in den Chat schreibt, nimm sie als Material und gib die vollstaendige Liste als Block zurueck.“",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 283,
+    "zitat": "`/character`, `/interview` and `/done` (older names for",
+    "regel": "UX rule 4: „Help and commands follow the live flow“, nie „a frozen manual from an older channel“ -- es sind nach eigenem Wortlaut alte Namen",
+    "vorschlag": "Zeilen 281-284 loeschen; nur die aktuell gueltigen Befehle aus 253-279 im Prompt lassen.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 568,
+    "zitat": "- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.",
+    "regel": "Dieselbe Information steht schon in Zeile 555 („- waiting (double meaning: empty time and what fills it)“) und im Verlauf Zeile 585 („You: Then 'waiting' carries two meanings for you: the empty time, and what fills it.“)",
+    "vorschlag": "Journal-Eintraege loeschen, die schon unter „Why you chose these terms:“ stehen -- also Zeile 567-568 in diesem Fall weglassen; Journal nur fuer Entscheidungen, die sonst nirgends im Kontext stehen.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 570,
+    "zitat": "You: Then you see the CoThinker tab. Nothing is lost if you close it.",
+    "regel": "Das System verlangt, dass der Bot die Speicherbestaetigung kennt (Zeile 366: „„Noted:“ line is the confirmation, not your sentence“) -- im Verlauf steht keine einzige System-/Noted-Zeile, und der Verlauf beginnt ohne Schnittmarke mitten im Onboarding",
+    "vorschlag": "Verlauf mit Schnittangabe einleiten (z.B. „Chat of this phase, last 18 turns, oldest first“) und die System-Zeilen („Noted: ...“ / gespeicherte Begriffsliste) als eigene Rolle mitschicken, damit der Bot sieht, was wann gespeichert wurde.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 558,
+    "zitat": "ranked (the saved terms are the ones under Terms above)",
+    "regel": "Das Board listet nur zwei Begriffe (Zeile 559-560), der Arbeitsstand neun (Zeile 548) -- die Klammer flickt einen Widerspruch, statt ihn aufzuloesen",
+    "vorschlag": "Board vollstaendig und in derselben Reihenfolge wie der Arbeitsstand ausgeben, jeden Eintrag mit „(saved)“ bzw. „(only on the board)“ markieren; dann kann die Klammer in Zeile 558 weg.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 551,
+    "zitat": "- [stil] At most one page per scene from now on.",
+    "regel": "Kontextordnung: phasenfremde Abmachungen (Szenenlaenge, Folgenformat) stehen vor dem phasenrelevanten Material (Begruendungen, Board, Diskussion) und tragen einen deutschen Tag im englischen Prompt",
+    "vorschlag": "Block „Further agreements“ in Phase 1 auf phasenrelevante Eintraege filtern bzw. hinter Board und Diskussion schieben und die Tags englisch setzen ([form], [style]).",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "13-begriffsboard",
+    "zeile": 140,
+    "zitat": "[{\"begriff\": \"waiting\", \"nennungen\": 4, \"zustimmung\": 0,",
+    "regel": "System Zeile 73/74 verlangt: „first count literally how often EACH of the two spellings actually / occurs in the transcript (do not estimate)“ -- im mitgesendeten Transkript (Zeile 133-137) kommt „waiting“ zweimal vor",
+    "vorschlag": "Entweder das vollstaendige Transkript mitsenden, aus dem die 4 stammt, oder `nennungen` beim Uebergeben auf die im gesendeten Transkript zaehlbaren Nennungen zuruecksetzen; sonst sind Zaehler und Belegtext im selben Prompt widerspruechlich.",
+    "phase": 1
+  }
+]

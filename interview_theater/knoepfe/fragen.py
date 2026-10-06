@@ -956,18 +956,36 @@ def _zeige_frage(conn, tg, chat_id: int, nummer: int) -> int:
             frage_text += T._TEXT_HERKUNFT_KI
 
     text = f"{kopf}\n\n{frage_text}"
+    return _sende_mit_frageleiste(conn, tg, chat_id, nummer, text)
 
-    # P2-H3 (Feedbackloop P1-2): nur die neueste Fragekarte ist bedienbar --
-    # nach einer Schaerfung stand sonst die alte Karte mit lebendem
-    # "Accept" darueber ("Which Accept belongs to the newest question?").
+
+def _sende_mit_frageleiste(conn, tg, chat_id: int, nummer: int, text: str,
+                           schaerfen: bool = True) -> int:
+    """Schickt ``text`` mit der Leiste der Frage ``nummer`` (Annehmen /
+    Verwerfen, auf Wunsch Schaerfen) -- die Fragekarte selbst, aber auch die
+    Rueckfrage nach "Schaerfen" und die Antwort neben einer unveraendert
+    zurueckgekommenen Frage.
+
+    S1 (Feedbackloop P1-2, Runde 2): vorher trug nur die Karte die Leiste.
+    "Schaerfen" nahm sie ab (``behandle`` entfernt die Tastatur der
+    gedrueckten Nachricht), und jede weitere Antwort kam als blosser Text --
+    die Gruppe konnte die Frage weder annehmen noch verwerfen, die naechste
+    war unerreichbar. Jetzt traegt die jeweils juengste Nachricht zur offenen
+    Frage die Leiste; dieselbe Karte wird dafuer NICHT erneut gezeigt (P2-H3).
+
+    P2-H3 (Feedbackloop P1-2): nur die neueste Leiste ist bedienbar -- die
+    vorige wird abgenommen und verfaellt ("Which Accept belongs to the newest
+    question?")."""
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_FRAGE_ANNEHMEN)
+    arten = [
+        (T._TEXT_FRAGE_ANNEHMEN_KNOPF, ART_FRAGE_ANNEHMEN),
+        (T._TEXT_FRAGE_VERWERFEN_KNOPF, ART_FRAGE_VERWERFEN),
+    ]
+    if schaerfen:
+        arten.append((T._TEXT_FRAGE_SCHAERFEN_KNOPF, ART_FRAGE_SCHAERFEN))
     leiste = [
-        (T._TEXT_FRAGE_ANNEHMEN_KNOPF,
-         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_ANNEHMEN, str(nummer)))),
-        (T._TEXT_FRAGE_VERWERFEN_KNOPF,
-         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_VERWERFEN, str(nummer)))),
-        (T._TEXT_FRAGE_SCHAERFEN_KNOPF,
-         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGE_SCHAERFEN, str(nummer)))),
+        (beschriftung, _daten(repo.lege_knopf_an(conn, chat_id, art, str(nummer))))
+        for beschriftung, art in arten
     ]
     message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
     repo.merke_knopf_nachricht(
@@ -1103,11 +1121,14 @@ def frage_waehlt_schaerfen(conn, tg, chat_id: int, nummer: int) -> str:
     if not _ist_aktuelle_karte(conn, chat_id, nummer):
         return T._TEXT_FRAGEN_KEINE_AUSWAHL
     repo.setze_arbeitsstand(conn, chat_id, "fragen_aktuell", str(nummer))
-    if workshop.diskussion_aktiv():
-        # Padua: die naechste Nachricht ist der Wunsch -- auch als Frage
-        # formuliert ("Could you make it shorter?").
-        repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", "schaerfen")
-    tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
+    _warte_weiter_auf_wunsch(conn, chat_id)
+    # S1 (Feedbackloop P1-2, Runde 2): ``behandle`` nimmt der Karte nach
+    # diesem Druck die ganze Leiste ab -- die Rueckfrage traegt deshalb
+    # Annehmen/Verwerfen fuer genau diese Frage weiter (Schaerfen nicht: das
+    # laeuft gerade). Die alte Leiste verfaellt dabei.
+    _sende_mit_frageleiste(
+        conn, tg, chat_id, nummer, T._TEXT_FRAGE_WAS_AENDERN, schaerfen=False,
+    )
     # P2-N1 (Feedbackloop P1-2): die Rueckfrage steht schon als Blase da --
     # dieselbe Zeile noch einmal als Knopf-Quittung stand doppelt.
     return ""
@@ -1125,11 +1146,44 @@ def _starte_schaerfung(conn, tg, klm, e, chat_id: int, nummer: int, wunsch: str)
     anweisung = _ohne_weich_auftrag(T.ANWEISUNG_FRAGE_SCHAERFEN.format(
         nummer=nummer, frage=frage, wunsch=wunsch, sensibel_hinweis=sensibel_hinweis,
     ))
+    _merke_schaerfungsziel(chat_id, anweisung, nummer)
     _starte_auftrag(conn, tg, klm, e, chat_id, anweisung)
 
 
+#: Fuer welche Frage eine Schaerfung gestartet wurde, je (Gruppe, Anweisung)
+#: -- S1-Review (Feedbackloop P1-2): seit S1 traegt "Was soll sich aendern?"
+#: Annehmen/Verwerfen, waehrend die Schaerfung noch im Thread laeuft. Die
+#: spaete Antwort darf nicht die Frage ersetzen, die inzwischen dasteht.
+#: Im Speicher, weil auch der Thread nur im Speicher lebt (ein Neustart
+#: beendet beide); begrenzt, damit gescheiterte Auftraege nichts anhaeufen.
+_SCHAERFUNGSZIEL: dict[tuple[int, str], int] = {}
+_SCHAERFUNGSZIEL_MAX = 256
+_SCHAERFUNGSZIEL_LOCK = threading.Lock()
+
+
+def _merke_schaerfungsziel(chat_id: int, anweisung: str, nummer: int) -> None:
+    with _SCHAERFUNGSZIEL_LOCK:
+        _SCHAERFUNGSZIEL.pop((chat_id, anweisung), None)
+        _SCHAERFUNGSZIEL[(chat_id, anweisung)] = nummer
+        while len(_SCHAERFUNGSZIEL) > _SCHAERFUNGSZIEL_MAX:
+            del _SCHAERFUNGSZIEL[next(iter(_SCHAERFUNGSZIEL))]
+
+
+def _schaerfungsziel(chat_id: int) -> int | None:
+    """Die Frage, fuer die die gerade abgelieferte Antwort gestartet wurde --
+    None, wenn sie aus keinem Schaerfungsauftrag kommt (dann gilt wie bisher
+    die aktuelle Frage)."""
+    from interview_theater import ablauf  # lokal: Oberflaeche, Aufruf nach oben
+
+    anweisung = ablauf.laufender_auftrag()
+    if anweisung is None:
+        return None
+    with _SCHAERFUNGSZIEL_LOCK:
+        return _SCHAERFUNGSZIEL.get((chat_id, anweisung))
+
+
 def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
-                         weich_block: str | None) -> int:
+                         weich_block: str | None, antwort: str = "") -> int | None:
     """Die Antwort auf eine Schaerfung: ersetzt genau die aktuelle Frage
     (Text und, falls vorhanden, ihre weiche Fassung) und zeigt sie wieder --
     erst Annehmen oder Verwerfen bringt die naechste.
@@ -1141,23 +1195,70 @@ def uebernimm_schaerfung(conn, tg, chat_id: int, frage_block: str,
     Zahl landete dort in der Spalte ``message_id``, SQLite sortiert TEXT ueber
     jedem INTEGER, und ``erkenner.erkenne`` (``max(n[\"message_id\"] ...)``)
     stolperte seitdem bei JEDEM Lauf dieser Gruppe ueber einen TypeError --
-    der Erkenner blieb fuer die Gruppe fuer immer stumm)."""
+    der Erkenner blieb fuer die Gruppe fuer immer stumm). ``None``, wenn die
+    Antwort verworfen wurde (siehe unten) -- ``ablauf.auftragszug`` schickt
+    dann selbst nichts und schreibt nichts mit.
+
+    ``antwort`` ist der Text des Modells um den Block herum (T10). Er wird
+    nur gebraucht, wenn die Frage unveraendert zurueckkommt: dann war die
+    Nachricht der Gruppe eine Rueckfrage ("Does Accept save it?"), und der
+    Text beantwortet sie -- statt der vorgefertigten Zeile "What do you want
+    to change?", die die Antwort wegwarf."""
     from interview_theater import vorschlag
 
     nummer = _aktuelle_offene_nummer(conn, chat_id)
-    if nummer is None:
-        return tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+    ziel = _schaerfungsziel(chat_id)
+    if nummer is None or (ziel is not None and ziel != nummer):
+        # S1-Review: die Frage, fuer die geschaerft wurde, ist inzwischen
+        # entschieden -- die spaete Antwort ersetzt NICHT die naechste Frage
+        # und nimmt ihr auch die Leiste nicht ab.
+        #
+        # R2-1 (Fund aus dem Testbetrieb, Fehlerschleife "I don't know this
+        # selection any more"): vorher stand hier ``tg.sende(chat_id,
+        # T._TEXT_FRAGEN_KEINE_AUSWAHL)`` -- eine Zeile, die NUR existierte,
+        # weil ``ablauf.auftragszug`` eine echte ``message_id`` brauchte, um
+        # den Strom zu schliessen und die Antwort mitzuschreiben. Die Gruppe
+        # bekam fuer eine Antwort, die sie nie zu sehen bekommen sollte,
+        # trotzdem eine verwirrende Fehlzeile. Jetzt wird nichts verschickt;
+        # ``None`` sagt dem Aufrufer, dass gar nichts zu tun ist.
+        #
+        # Abschlussreview: stumm aber NUR fuer die Antwort eines Auftrags
+        # (``ablauf.laufender_auftrag``). Im normalen Gespraechszug (Phase 2
+        # ausserhalb des Einzeldurchgangs, das Modell schreibt trotzdem einen
+        # ``VORSCHLAG FRAGE:``-Block) reichte ``ablauf.antworte`` das ``None``
+        # weiter -- die Gruppe bekam gar keine Antwort. Dort geht der
+        # sichtbare Text (ohne Block, sonst die Frage selbst) normal raus.
+        from interview_theater import ablauf  # lokal: Oberflaeche, Aufruf nach oben
+
+        if ablauf.laufender_auftrag() is not None:
+            return None
+        sichtbar = (antwort or "").strip() or "\n".join(
+            vorschlag.zeilen(frage_block)) or frage_block.strip()
+        return tg.sende(chat_id, sichtbar)
     zeilen = vorschlag.zeilen(frage_block)
     neue_frage = zeilen[0] if zeilen else frage_block.strip()
     alte = _auswahlfragen(conn, chat_id)
-    if (neue_frage and nummer <= len(alte) and not weich_block
+    if (neue_frage and nummer <= len(alte)
+            and _weich_unveraendert(conn, chat_id, nummer, weich_block)
             and _fragetext(neue_frage) == _fragetext(alte[nummer - 1])):
         # P2-H3 (Feedbackloop P1-2): jede freie Nachricht zu einer offenen
         # Frage ist ein Schaerfungswunsch -- auch "Does Accept save it?".
         # Kommt die Frage unveraendert zurueck, stand dieselbe Karte bis zu
-        # dreimal untereinander. Die Karte darueber bleibt die bedienbare.
+        # dreimal untereinander -- die Karte wird nicht wiederholt.
         _warte_weiter_auf_wunsch(conn, chat_id)
-        return tg.sende(chat_id, T._TEXT_FRAGE_WAS_AENDERN)
+        # T10: hat das Modell etwas dazu gesagt (eine Rueckfrage wie "Does
+        # Accept save it?" beantwortet), steht SEINE Antwort da; nur ohne
+        # eigenen Text die Rueckfrage nach dem Aenderungswunsch.
+        # S1 (Runde 2): diese Nachricht traegt die Leiste der offenen Frage
+        # (die vorige verfaellt) -- vorher kam nur Text, und nach "Schaerfen"
+        # gab es kein Annehmen/Verwerfen mehr.
+        eigene = _antwort_neben_unveraenderter_frage(
+            conn, chat_id, antwort, alte[nummer - 1],
+        )
+        return _sende_mit_frageleiste(
+            conn, tg, chat_id, nummer, eigene or T._TEXT_FRAGE_WAS_AENDERN,
+            schaerfen=bool(eigene),
+        )
     if neue_frage:
         _setze_frage_zeile(conn, chat_id, nummer, neue_frage)
         # Aufgabe 13, Punkt 9: eine editierte KI-Frage wird markiert, eine
@@ -1182,6 +1283,54 @@ def _warte_weiter_auf_wunsch(conn, chat_id: int) -> None:
     als Frage formulierter Nachwunsch ("Could it be shorter?") gilt ihr."""
     if workshop.diskussion_aktiv():
         repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", "schaerfen")
+
+
+def _weich_unveraendert(conn, chat_id: int, nummer: int,
+                        weich_block: str | None) -> bool:
+    """Aendert ``weich_block`` nichts an der weichen Fassung von Frage
+    ``nummer``? (T10-Review.) Ohne Block nicht; ebenso nicht, wenn das Profil
+    weiche Fassungen abschaltet (Padua, ``workshop.fragen_weich_aktiv``) --
+    ``_setze_weich`` verwirft ihn dort ohnehin; und nicht, wenn er dieselbe
+    Fassung traegt, die schon gespeichert ist (der Schaerfungsauftrag
+    verlangt sie fuer sensible Fragen jedes Mal neu)."""
+    if not weich_block or not workshop.fragen_weich_aktiv():
+        return True
+    neu = leitfaden.einleitungen(weich_block).get(nummer) or ""
+    return _platt(neu) == _platt(_weich_dict(conn, chat_id).get(nummer, ""))
+
+
+def _antwort_neben_unveraenderter_frage(conn, chat_id: int, antwort: str | None,
+                                        frage: str) -> str:
+    """Was vom Modelltext neben einer unveraendert zurueckgegebenen Frage
+    stehen bleiben darf (T10-Review) -- leer heisst: die vorgefertigte
+    Rueckfrage nach dem Aenderungswunsch.
+
+    Weg fallen Zeilen, die die Frage selbst noch einmal nennen ("Here it is
+    again: Home: ...?" -- die Karte steht schon darueber) und reine
+    Ankuendigungen, die auf einen Block zeigen ("Here is a sharper
+    version:"). Was bleibt, geht durch dieselbe Echo- und Wiederholungssperre
+    wie jede Gespraechsantwort (``ablauf.ist_echo``/``ist_wiederholung``):
+    gegen die juengste Nachricht der Gruppe und die juengste des Bots."""
+    from interview_theater import ablauf  # lokal: Oberflaeche, Aufruf nach oben
+
+    kern = _fragetext(frage)
+    zeilen = [
+        z for z in (antwort or "").splitlines()
+        if not (kern and kern in _platt(z))
+    ]
+    while zeilen and (not zeilen[-1].strip() or zeilen[-1].rstrip().endswith(":")):
+        zeilen.pop()
+    rest = "\n".join(zeilen).strip()
+    if not rest:
+        return ""
+    verlauf = repo.letzte_nachrichten(conn, chat_id, 20)
+    gruppe = [n for n in verlauf if not n["ist_bot"]][-1:]
+    bot = [n for n in verlauf if n["ist_bot"]][-1:]
+    if ablauf.ist_echo(rest, gruppe):
+        return ""
+    if bot and ablauf.ist_wiederholung(rest, bot[0]["text"]):
+        return ""
+    return rest
 
 
 def _fragetext(zeile: str) -> str:
@@ -1535,8 +1684,13 @@ def schreibe_eroeffnung_automatisch(
         )
         repo.setze_arbeitsstand(conn, chat_id, "aenderung_offen", None)
 
+    # Anzeige aus dem schon zerlegten Text, nicht aus dem rohen ``wert``:
+    # der traegt den internen Unterzeilen-Marker ("ABSCHLUSS:"/"CLOSING:")
+    # noch mit, und der landete sonst woertlich im Chat (Padua-Befund M1,
+    # Lesung Runde 2 05.10.2026).
+    anzeige = "\n".join(teil for teil in (eroeffnung, abschluss) if teil)
     titel = erkenner.T._FELD_BESCHRIFTUNG["eroeffnung"]
-    text = erkenner.T._ZEILE_FESTGELEGT.format(titel=titel, text=wert)
+    text = erkenner.T._ZEILE_FESTGELEGT.format(titel=titel, text=anzeige)
     lauf_id = erkenner.lauf_fuer_knopf(conn, e, chat_id, text, _schreibe)
     repo.schreibe_journal(
         conn, chat_id, "entschieden", T._JOURNAL_EROEFFNUNG_FESTGELEGT,

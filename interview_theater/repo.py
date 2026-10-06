@@ -4145,6 +4145,65 @@ def lege_erkenner_lauf_an(
 
 
 @_gesperrt
+def haenge_an_erkenner_lauf(
+    conn: sqlite3.Connection, lauf_id: int, meldung: str,
+    schritte: list[dict],
+) -> bool:
+    """Haengt Ruecknahme-Schritte an einen bestehenden, noch nicht
+    zurueckgenommenen Lauf und ergaenzt seine Meldung um ``meldung`` --
+    damit EIN Undo-Knopf beides zuruecknimmt (Feedbackloop P1-2, Befund S5:
+    Transkriptkorrektur zur Begriffs-Quittung desselben Zugs).
+
+    False (nichts geschrieben), wenn es nichts anzuhaengen gibt, der Lauf
+    fehlt oder schon zurueckgenommen ist, oder ein Schritt dieselbe Zeile
+    trifft wie ein vorhandener: zwei Schritte auf einer Zeile liessen die
+    Pruefung in ``nimm_erkenner_lauf_zurueck`` immer scheitern. Eine
+    Transaktion, wie ``lege_erkenner_lauf_an``."""
+    if not schritte or not (meldung or "").strip():
+        return False
+    lauf = conn.execute(
+        "SELECT meldung, zurueckgenommen_am FROM erkenner_lauf WHERE id = ?",
+        (lauf_id,),
+    ).fetchone()
+    if lauf is None or lauf["zurueckgenommen_am"] is not None:
+        return False
+    vorhanden = {
+        (z["tabelle"], z["schluessel"]) for z in conn.execute(
+            "SELECT tabelle, schluessel FROM erkenner_lauf_schritt WHERE lauf_id = ?",
+            (lauf_id,),
+        )
+    }
+    neu = [(s["tabelle"], json.dumps(s["schluessel"], sort_keys=True)) for s in schritte]
+    if any(k in vorhanden for k in neu) or len(set(neu)) != len(neu):
+        return False
+    chat_id = conn.execute(
+        "SELECT chat_id FROM erkenner_lauf WHERE id = ?", (lauf_id,)
+    ).fetchone()["chat_id"]
+    jetzt = _jetzt()
+    conn.executemany(
+        "INSERT INTO erkenner_lauf_schritt "
+        "(chat_id, lauf_id, tabelle, schluessel, art, vorher, nachher, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                chat_id, lauf_id, s["tabelle"],
+                json.dumps(s["schluessel"], sort_keys=True), s["art"],
+                None if s["vorher"] is None else json.dumps(s["vorher"], sort_keys=True),
+                None if s["nachher"] is None else json.dumps(s["nachher"], sort_keys=True),
+                jetzt,
+            )
+            for s in schritte
+        ],
+    )
+    conn.execute(
+        "UPDATE erkenner_lauf SET meldung = ? WHERE id = ?",
+        (f"{lauf['meldung']}\n{meldung}", lauf_id),
+    )
+    conn.commit()
+    return True
+
+
+@_gesperrt
 def merke_erkenner_lauf_nachricht(
     conn: sqlite3.Connection, lauf_id: int, message_id: int
 ) -> None:
@@ -4166,6 +4225,23 @@ def hole_erkenner_lauf(conn: sqlite3.Connection, lauf_id: int) -> sqlite3.Row | 
     return conn.execute(
         "SELECT * FROM erkenner_lauf WHERE id = ?", (lauf_id,)
     ).fetchone()
+
+
+@_gesperrt
+def juengster_offener_lauf_mit_meldung(
+    conn: sqlite3.Connection, chat_id: int, meldung: str
+) -> int | None:
+    """Die id des juengsten, noch nicht zurueckgenommenen Laufs dieser Gruppe
+    mit genau dieser Meldung -- oder ``None``.
+
+    Gebraucht fuer den Undo-Knopf der Board-Abschlussnachricht (R-5): die
+    Lauf-id lebte vorher nur im Prozess und fehlte nach einem Neustart."""
+    zeile = conn.execute(
+        "SELECT id FROM erkenner_lauf WHERE chat_id = ? AND meldung = ? "
+        "AND zurueckgenommen_am IS NULL ORDER BY id DESC LIMIT 1",
+        (chat_id, meldung),
+    ).fetchone()
+    return None if zeile is None else zeile["id"]
 
 
 @_gesperrt

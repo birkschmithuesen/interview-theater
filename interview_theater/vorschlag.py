@@ -187,6 +187,32 @@ _MARKER_IRGENDWO = re.compile(
     r"VORSCHLAG\s+" + _ARTEN_MUSTER + r"\s*:"
 )
 
+#: Die EROEFFNUNG-interne Unterzeile (``knoepfe.fragen._teile_eroeffnung``
+#: zerlegt ``VORSCHLAG EROEFFNUNG:`` an ihr in Eroeffnung und Abschluss) --
+#: Technik wie der Aussenmarker, darf aber ebenso wenig im Chat stehen
+#: (Padua-Befund M1, Lesung Runde 2 05.10.2026: "ABSCHLUSS:" stand
+#: woertlich im Chat, Simulationslauf 2026-10-05-handy-giulia-p12,
+#: Nachricht 119/120 -- EN-Prompts verlangten bis dahin den deutschen
+#: Wortlaut als Protokoll-Token).
+#:
+#: Bewusst OHNE ``re.IGNORECASE``, aus demselben Grund wie
+#: ``_MARKER_IRGENDWO``: das deutsche Prompt nennt denselben Begriff klein
+#: geschrieben ("Abschluss:") als ganz gewoehnliches Wort im Fliesstext --
+#: das MUSS stehen bleiben (siehe
+#: ``test_ohne_marker_streicht_fliesstext_der_den_block_wiederholt``). Nur
+#: die GROSSGESCHRIEBENE Protokollform ("ABSCHLUSS:"/"CLOSING:") zaehlt als
+#: Technik.
+_UNTERZEILE = re.compile(
+    r"^\s*" + _DEKO + r"\s*(?:ABSCHLUSS|CLOSING)\s*:\s*" + _DEKO + r"\s*"
+)
+
+
+def ohne_unterzeile(text: str) -> str:
+    """Entfernt die GROSSGESCHRIEBENE EROEFFNUNG-Unterzeile aus dem
+    Anzeige-Text, Zeile fuer Zeile -- der Rest der Zeile bleibt stehen, nur
+    das Protokoll-Token faellt weg (Padua-Befund M1)."""
+    return "\n".join(_UNTERZEILE.sub("", z) for z in (text or "").splitlines())
+
 
 def _vorzeilen(text: str) -> list[str]:
     """Wie ``(text or '').splitlines()``, aber ein Marker, der nicht schon
@@ -324,7 +350,7 @@ def ohne_marker(text: str) -> str:
         if not aktiv and _normal(z) in im_block:
             continue
         zeilen.append(z)
-    zusammen = "\n".join(zeilen)
+    zusammen = ohne_unterzeile("\n".join(zeilen))
     return re.sub(r"\n{3,}", "\n\n", zusammen).strip()
 
 

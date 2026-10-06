@@ -920,6 +920,13 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
     # die richtige Antwort UND direkt darunter eine verwirrende Fehlermeldung
     # zu genau derselben Antwort gesehen.
     versand_erfolgreich = False
+    # Befund H2: der Stand VOR dem Zug -- ob er den Vergleich anstoesst,
+    # liest ``_merke_vergleich_im_zug`` im ``finally`` ab.
+    try:
+        vergleich_vorher = _vergleich_stand(conn, chat_id)
+    except Exception:
+        log.exception("Vergleichsstand nicht gelesen, chat_id=%s", chat_id)
+        vergleich_vorher = None
     try:
         if befehle.behandle(
             conn, tg, e, chat_id, letzte_nachricht["text"] or "",
@@ -977,6 +984,7 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         strom.verwirf(tg, chat_id)
         _melde_fehler(conn, tg, e, chat_id, versand_erfolgreich)
     finally:
+        _merke_vergleich_im_zug(conn, chat_id, vergleich_vorher, letzte_message_id)
         repo.setze_beantwortet_bis(conn, chat_id, letzte_message_id)
 
 
@@ -1190,6 +1198,68 @@ def nimm_notiz_verbraucht(chat_id: int, message_ids) -> bool:
             return False
         del _notiz_verbraucht[chat_id]
         return True
+
+
+#: Feedbackloop P1-2, Runde 3, Befund H2 (05.10.2026, sim.db msg 186-189):
+#: welche Gruppennachricht der Gespraechszug schon als "eigene Fragen fertig"
+#: gelesen hat -- er startete darauf den Vergleich ("Question 1/27"), und
+#: sechs Sekunden spaeter setzte der Erkenner aus DERSELBEN Nachricht ("we
+#: can go to the interviews") Phase 3; der Durchgang lief dann in Phase 3.
+#: chat_id -> message_id, im Prozess wie ``_notiz_verbraucht``. Der Erkenner
+#: holt den Eintrag ab (``nimm_vergleich_im_zug``) und laesst fuer genau diese
+#: Nachricht ``phase_setzen`` fallen; eine SPAETERE Nachricht wechselt die
+#: Phase wie immer (die Phase setzt die Gruppe).
+_vergleich_im_zug: dict[int, int] = {}
+_vergleich_im_zug_schutz = threading.Lock()
+
+
+def _vergleich_stand(conn, chat_id: int) -> tuple[bool, bool]:
+    """(eigene Fragen fertig gemeldet, Einzeldurchgang laeuft) -- der Stand,
+    an dem ``antworte`` vor und nach dem Zug abliest, ob GENAU dieser Zug den
+    Vergleich angestossen hat (``knoepfe.fragen._eigene_fertig``: setzt
+    ``fragen_eigene_erstellt_am`` und startet den Durchgang, sobald die
+    KI-Fragen stehen). Gelesen statt in ``knoepfe/fragen.py`` gesetzt."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        fertig = bool(stand["fragen_eigene_erstellt_am"]) if stand else False
+    except (IndexError, KeyError):
+        fertig = False
+    return fertig, knoepfe.einzeln_aktiv(conn, chat_id)
+
+
+def _merke_vergleich_im_zug(conn, chat_id: int, vorher: tuple[bool, bool] | None,
+                            message_id: int) -> None:
+    """Hat sich zwischen ``vorher`` und jetzt einer der beiden Schalter
+    eingeschaltet, war es dieser Zug -- dann gilt der Merker fuer
+    ``message_id``. Weich: ein Fehler hier darf den Zug nicht stoeren."""
+    if vorher is None:
+        return
+    try:
+        nachher = _vergleich_stand(conn, chat_id)
+    except Exception:
+        log.exception("Vergleichs-Merker nicht gesetzt, chat_id=%s", chat_id)
+        return
+    if any(n and not v for v, n in zip(vorher, nachher)):
+        with _vergleich_im_zug_schutz:
+            _vergleich_im_zug[chat_id] = message_id
+
+
+def nimm_vergleich_im_zug(conn, chat_id: int) -> bool:
+    """Hat der Gespraechszug auf eine der Nachrichten, die der Erkenner gleich
+    liest (``repo.unextrahierte`` -- also VOR ``erkenner.erkenne`` fragen),
+    den Vergleich gestartet? Raeumt den Eintrag in jedem Fall ab: eine
+    Nachricht, ein Erkennerlauf."""
+    with _vergleich_im_zug_schutz:
+        message_id = _vergleich_im_zug.pop(chat_id, None)
+    if message_id is None:
+        return False
+    return message_id in {n["message_id"] for n in repo.unextrahierte(conn, chat_id)}
+
+
+def vergiss_vergleich_im_zug() -> None:
+    """Fuer Tests: alle Merker abraeumen."""
+    with _vergleich_im_zug_schutz:
+        _vergleich_im_zug.clear()
 
 
 def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> bool:
@@ -1472,6 +1542,33 @@ def bearbeite(conn, tg, klm, e, chat_id: int, hinweis: str | None = None) -> Non
 _AUFTRAG_KOPF = "Deine Aufgabe in genau diesem Zug:"
 
 
+#: Die Anweisung des Auftragszugs, dessen Antwort in DIESEM Thread gerade
+#: abgeliefert wird (S1-Review, Feedbackloop P1-2): eine Schaerfung der
+#: Phase 2 laeuft ohne Sperre je Gruppe im eigenen Thread, waehrenddessen kann
+#: die Gruppe die Frage schon annehmen. ``fragen.uebernimm_schaerfung`` ordnet
+#: die spaete Antwort darueber der Frage zu, fuer die sie gestartet wurde --
+#: nicht der, die inzwischen dasteht. Thread-lokal statt eines weiteren
+#: Parameters, weil ``starte_auftrag`` seine Signatur mit dem Simulator teilt.
+_LAUFENDER_AUFTRAG = threading.local()
+
+
+@contextmanager
+def laeuft_als_auftrag(anweisung: str):
+    """Rahmen um die Ablieferung einer Auftragsantwort (``auftragszug``)."""
+    vorher = getattr(_LAUFENDER_AUFTRAG, "anweisung", None)
+    _LAUFENDER_AUFTRAG.anweisung = anweisung
+    try:
+        yield
+    finally:
+        _LAUFENDER_AUFTRAG.anweisung = vorher
+
+
+def laufender_auftrag() -> str | None:
+    """Die Anweisung des Auftrags, dessen Antwort dieser Thread gerade
+    abliefert -- None ausserhalb von ``laeuft_als_auftrag``."""
+    return getattr(_LAUFENDER_AUFTRAG, "anweisung", None)
+
+
 def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
                 arbeitszeile: str | None = None,
                 arbeitsart: str | None = None) -> None:
@@ -1536,9 +1633,10 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         return
 
     try:
-        message_id, _ = knoepfe.sende_mit_speicherleiste(
-            conn, tg, chat_id, text, klm=klm, e=e,
-        )
+        with laeuft_als_auftrag(anweisung):
+            message_id, _ = knoepfe.sende_mit_speicherleiste(
+                conn, tg, chat_id, text, klm=klm, e=e,
+            )
         text = vorschlag.ohne_marker(text) or text
     except Exception:
         log.exception("Leiste am Auftragszug fehlgeschlagen, chat_id=%s", chat_id)
@@ -1552,6 +1650,15 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
             strom.verwirf(tg, chat_id)
             raise
     strom.schliesse(tg, chat_id, message_id)
+    if not message_id:
+        # R2-1: ``fragen.uebernimm_schaerfung`` verwirft eine spaet
+        # abgelieferte Schaerfung fuer eine schon entschiedene Frage stumm
+        # und liefert dafuer ``None`` statt einer ``message_id`` -- nichts
+        # wurde an die Gruppe geschickt, also ist auch nichts mitzuschreiben.
+        # ``strom.schliesse(..., None)`` laesst die vorlaeufige Blase
+        # ersatzlos verschwinden (``web_vereint``: "fertig ohne Nachricht"
+        # zaehlt wie "abgebrochen").
+        return
     try:
         repo.merke_nachricht(
             conn, chat_id, message_id, e.bot_name, 1, "text", text, repo._jetzt(),

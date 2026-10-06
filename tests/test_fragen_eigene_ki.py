@@ -506,6 +506,21 @@ def test_reveal_interleaved_eigene_vor_ki_je_begriff_mit_ausgerichteter_herkunft
     assert any("Eigene Frage 1" in t for t in tg.texte)
 
 
+def test_gegenueberstellung_bereit_erklaert_die_drei_knoepfe_englisch(monkeypatch):
+    """P2-M5 (Prompt-Check Padua P1/P2): die Ueberleitungszeile sagte nur
+    "... stehen sich jetzt gegenueber:", ohne zu erklaeren, was Accept /
+    Discard / Sharpen je Frage bedeuten. EN-only (die drei Knopftexte,
+    ``_TEXT_FRAGE_ANNEHMEN_KNOPF`` & co., stehen schon englisch)."""
+    from interview_theater import sprache
+
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    text = T._TEXT_GEGENUEBERSTELLUNG_BEREIT
+    assert text.startswith("Your questions and the AI's now come one at a time, each marked (yours) or (AI):")
+    assert "Accept" in text
+    assert "Discard" in text
+    assert "Sharpen" in text
+
+
 def test_reveal_ist_danach_ein_dauerhaftes_no_op(conn):
     _bereite_gegenueberstellung_vor(conn)
     tg = _TG()
@@ -969,6 +984,18 @@ def test_leerer_vergleich_laeuft_nicht_in_keine_auswahl(conn):
 # ---------------------------------------------------------------------------
 
 
+def _keine_zweite_karte(conn, tg, karten_vorher):
+    """P2-H3 + S1 (Runde 2): die unveraenderte Frage wird nicht noch einmal
+    als Karte gezeigt -- aber die juengste Nachricht traegt die Leiste der
+    offenen Frage (vorher kam nur Text, nach "Schaerfen" eine Sackgasse), und
+    es gibt genau EINE bedienbare Leiste."""
+    neu = tg.knoepfe[karten_vorher:]
+    assert all("Eine Frage?" not in text for _, text, _ in neu), neu
+    offen = repo.offene_knoepfe(conn, CHAT, knoepfe.ART_FRAGE_ANNEHMEN)
+    assert len(offen) == 1
+    assert offen[0]["message_id"] == tg.naechste_message_id
+
+
 def test_unveraenderte_schaerfung_zeigt_keine_zweite_karte(conn, tg, einst):
     repo.setze_arbeitsstand(
         conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?\nStreit: Zweite?",
@@ -979,10 +1006,146 @@ def test_unveraenderte_schaerfung_zeigt_keine_zweite_karte(conn, tg, einst):
     fragen.uebernimm_schaerfung(conn, tg, CHAT, "Heimat:  eine frage?", None)
     fragen.uebernimm_schaerfung(conn, tg, CHAT, "Heimat: Eine Frage?", None)
 
-    assert len(tg.knoepfe) == karten_vorher
+    _keine_zweite_karte(conn, tg, karten_vorher)
     assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
-    # Die erste Karte bleibt bedienbar.
-    assert repo.offene_knoepfe(conn, CHAT, knoepfe.ART_FRAGE_ANNEHMEN)
+
+
+def test_rueckfrage_waehrend_offener_frage_bekommt_die_antwort_des_modells(conn, tg, einst):
+    """T10: "Does Accept save it?" waehrend einer offenen Frage ist eine
+    Rueckfrage, kein Aenderungswunsch. Das Modell beantwortet sie und gibt
+    die Frage unveraendert zurueck -- dann steht seine Antwort im Chat, nicht
+    die vorgefertigte Zeile "What do you want to change?" (die die Antwort
+    wegwarf). Keine zweite Karte."""
+    repo.setze_arbeitsstand(
+        conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?\nStreit: Zweite?",
+    )
+    knoepfe.starte_durchgehen(conn, tg, CHAT)
+    karten_vorher = len(tg.knoepfe)
+    antwort = "Yes -- Accept keeps this question in your list."
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT, antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
+    )
+
+    _keine_zweite_karte(conn, tg, karten_vorher)
+    assert tg.texte[-1] == antwort
+    assert T._TEXT_FRAGE_WAS_AENDERN not in tg.texte
+
+
+def _offene_frage(conn, tg):
+    repo.setze_arbeitsstand(
+        conn, CHAT, "fragen_auswahl", "Heimat: Eine Frage?\nStreit: Zweite?",
+    )
+    knoepfe.starte_durchgehen(conn, tg, CHAT)
+    return len(tg.knoepfe)
+
+
+def test_antwort_die_die_frage_in_prosa_wiederholt_wird_zur_rueckfrage(conn, tg, einst):
+    """T10-Review: wiederholt das Modell die Frage im Fliesstext ("Here it is
+    again: Heimat: Eine Frage?"), stand der Kartentext ein zweites Mal da."""
+    karten_vorher = _offene_frage(conn, tg)
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT,
+        "Here it is again: Heimat: Eine Frage?\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
+    )
+
+    _keine_zweite_karte(conn, tg, karten_vorher)
+    assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
+
+
+def test_nur_einleitung_ohne_aenderung_wird_zur_rueckfrage(conn, tg, einst):
+    """T10-Review (Minor 4): ein echter Aenderungswunsch, das Modell liefert
+    die Frage trotzdem unveraendert, davor nur "Here is a sharper
+    version:" -- das ist keine Antwort, sondern eine leere Ankuendigung."""
+    karten_vorher = _offene_frage(conn, tg)
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT,
+        "Here is a sharper version:\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
+    )
+
+    _keine_zweite_karte(conn, tg, karten_vorher)
+    assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
+
+
+def test_echo_der_gruppennachricht_wird_zur_rueckfrage(conn, tg, einst):
+    """T10-Review: spiegelt das Modell nur die Nachricht der Gruppe zurueck,
+    ist das keine Antwort (dieselbe Echo-Sperre wie ``ablauf.ist_echo``)."""
+    karten_vorher = _offene_frage(conn, tg)
+    gesagt = "Can you make it more about the family at home"
+    repo.merke_nachricht(
+        conn, CHAT, 10**6, "Ada", 0, "text", gesagt, repo._jetzt(),
+    )
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT, gesagt + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
+    )
+
+    _keine_zweite_karte(conn, tg, karten_vorher)
+    assert tg.texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
+
+
+def test_echte_antwort_neben_gruppennachricht_bleibt_stehen(conn, tg, einst):
+    karten_vorher = _offene_frage(conn, tg)
+    repo.merke_nachricht(
+        conn, CHAT, 10**6, "Ada", 0, "text", "Does the accept button save it now?",
+        repo._jetzt(),
+    )
+    antwort = "Yes -- Accept keeps this question in your list."
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT, antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?",
+    )
+
+    _keine_zweite_karte(conn, tg, karten_vorher)
+    assert tg.texte[-1] == antwort
+
+
+def test_gleiche_weiche_fassung_gilt_als_unveraendert(conn, tg, einst):
+    """T10-Review: der Schaerfungsauftrag verlangt fuer sensible Fragen den
+    Block FRAGEN WEICH. Bringt das Modell ihn unveraendert mit, ist die Frage
+    trotzdem unveraendert -- keine zweite Karte, die Antwort bleibt."""
+    karten_vorher = _offene_frage(conn, tg)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_weich", "1 — Erzaehl mal, ganz locker.")
+    antwort = "Yes -- Accept keeps this question in your list."
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, CHAT,
+        antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?"
+        "\n\nVORSCHLAG FRAGEN WEICH:\n1 — Erzaehl mal, ganz locker.",
+    )
+
+    _keine_zweite_karte(conn, tg, karten_vorher)
+    assert tg.texte[-1] == antwort
+
+
+def test_padua_ohne_weiche_fassungen_ignoriert_den_weich_block(conn, tg, einst, monkeypatch):
+    """T10-Review: in Padua sind weiche Fassungen aus
+    (``workshop.fragen_weich_aktiv``); ein trotzdem gelieferter Block darf
+    die unveraenderte Frage nicht zur "Aenderung" machen."""
+    from interview_theater import sprache
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    sprache.vergiss()
+    try:
+        assert not workshop.fragen_weich_aktiv()
+        karten_vorher = _offene_frage(conn, tg)
+        antwort = "Yes -- Accept keeps this question in your list."
+
+        knoepfe.sende_mit_speicherleiste(
+            conn, tg, CHAT,
+            antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Eine Frage?"
+            "\n\nVORSCHLAG FRAGEN WEICH:\n1 — Tell me, very casually.",
+        )
+
+        _keine_zweite_karte(conn, tg, karten_vorher)
+        assert tg.texte[-1] == antwort
+    finally:
+        monkeypatch.delenv(workshop.VARIABLE)
+        workshop.vergiss()
+        sprache.vergiss()
 
 
 def test_geschaerfte_karte_nimmt_der_alten_die_leiste_ab(conn, tg, einst):

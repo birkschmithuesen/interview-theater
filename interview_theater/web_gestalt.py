@@ -994,8 +994,39 @@ body { background: var(--grund); color: var(--text); }
 #: Der Denk-Cursor (``#tippt[data-ux-denkt="1"]::after``) steht am Ende --
 #: ``_JS_DENKT`` setzt nur das Attribut, die Regel dazu gehoert ins Panel,
 #: nicht in ``_BASIS`` (Aufgabe 8 ergaenzt dort noch den Aufnahmeknopf).
+#:
+#: Feedbackloop S8 (05.10.2026, Browserlauf ``2026-10-05-handy-giulia-p12``,
+#: ``100-…``/``015-…png``): ``web_chat._CHAT_JS`` haengt den Verlauf per
+#: ``verlauf.scrollTop = verlauf.scrollHeight`` ans Ende (``web_chat.py``,
+#: ``nachUnten()`` -- nicht angefasst, parallele Karte Dortmund/B1). Traf
+#: das Scroll-Ende mitten in einer Blase, endete die sichtbare Liste GENAU
+#: an der polsterlosen oberen Kante von ``.verlauf``, direkt unter dem
+#: Gruppentitel -- sieht wie ein ueberlappender/"sticky" Titel aus, ist aber
+#: die Schnittkante des Scrollbereichs selbst (der Titel ist ``position:
+#: static`` und ueberlappt nichts, gemessen per Playwright). Dieses
+#: ``padding-bottom`` verschiebt die an die Bodenkante geklammerte Ansicht
+#: um dieselbe Luft, die ohnehin zwischen zwei Blasen steht (``gap``) --
+#: eine kleine, immer sinnvolle Atempause vor dem Fuss, aber KEIN
+#: allgemeiner Beweis gegen jeden Anschnitt: bei anderer Blasenlaenge
+#: trifft die Bodenkante wieder irgendeine Blase (gemessen mit laengerem
+#: Fuelltext). Die content-unabhaengige Loesung ist die Maske auf
+#: ``.panel-chat .verlauf`` in ``web_vereint._css_schale`` (siehe deren
+#: Docstring) -- sie blendet den obersten Streifen immer zum Hintergrund
+#: aus, unabhaengig von der Blasenlaenge. Hier nur der textliche Vertrag:
+#: ``tests/test_web_gestalt_css.py``.
+#:
+#: Feedbackloop P1-H1b (Regel ``#interview[hidden] + #ux-rec-zeile, ...``,
+#: auch in ``_CHAT_B``): die Zeile gehoert allein dem Interview-Knopf
+#: (``_JS_AUFNAHME`` haengt sie an ``#interview``) -- ausserhalb Phase 3
+#: (``#interview[hidden]``) oder waehrend die Diskussion laeuft (ein anderes
+#: Mikrofon, dieselbe Zeile), blieb "Tap once to start." stehen, obwohl der
+#: Knopf, den sie beschreibt, gar nicht zu sehen ist. Die Begruendung steht
+#: hier und nicht als CSS-Kommentar vor der Regel: ``web_vereint.scope_css``
+#: setzt den Praefix an jedes Komma, auch an die eines Kommentars direkt
+#: davor (Wache: ``tests/test_web_gestalt_css.py``).
 _CHAT_A = """
-.verlauf { display: flex; flex-direction: column; gap: .5rem; }
+.verlauf { display: flex; flex-direction: column; gap: .5rem;
+           padding-bottom: .5rem; }
 .blase { padding: .5rem .65rem; max-width: 92%; font-size: 1rem;
          border-radius: var(--radius-gross); overflow-wrap: anywhere; }
 .blase.bot { background: var(--grund-2); border: 1px solid var(--linie);
@@ -1068,6 +1099,8 @@ _CHAT_A = """
 /* P2, Aufgabe 2: vorher ``var(--rec)`` -- als Text nur 3.45:1 (B) auf dem
    Grund, unter AA. Der laufende Zustand steht im Wortlaut und in der Uhr. */
 #interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--text); }
+#interview[hidden] + #ux-rec-zeile,
+#diskussion[data-laeuft="1"] ~ #ux-rec-zeile { display: none; }
 
 /* -- Knopf 2: Push-to-Talk (halten) ---------------------------------
    Andere Form (Kreis), anderer Ort (in der Eingabezeile), andere Farbe
@@ -1102,8 +1135,20 @@ _CHAT_A = """
 
 #: Der Chat, Entwurf B: Buehne. Serifenfreie Leseschrift, weiche Formen,
 #: keine Kennzeile -- Bot und Gruppe unterscheiden sich wie Repliken.
+#:
+#: ``padding-bottom`` auf ``.verlauf``: siehe die lange Begruendung bei
+#: ``_CHAT_A`` (Feedbackloop S8) -- dieselbe Luft wie ``gap``, hier .6rem.
+#:
+#: ``#interview[hidden] + #ux-rec-zeile, ...``: Feedbackloop P1-H1b, siehe
+#: ``_CHAT_A`` -- dieselbe Regel, nur hier fuer B.
+#:
+#: ``#warteschlange, #fehler, .angehalten``: Meldungen ueber der Knopfzeile
+#: bekommen eine eigene Zeile: am Laptop stand die Warteschlange sonst links
+#: neben dem Kreis und schob den Hinweistext darunter (Review an 834edbf,
+#: Akte-Bild). Leer kostet sie keine Zeile.
 _CHAT_B = """
-.verlauf { display: flex; flex-direction: column; gap: .6rem; }
+.verlauf { display: flex; flex-direction: column; gap: .6rem;
+           padding-bottom: .6rem; }
 .blase { padding: .6rem .8rem; max-width: 90%; font-size: 1.0625rem;
          border-radius: var(--radius-gross); overflow-wrap: anywhere; }
 .blase.bot { background: var(--grund-2); border: 1px solid var(--linie);
@@ -1174,6 +1219,8 @@ _CHAT_B = """
 /* P2, Aufgabe 2: vorher ``var(--rec)`` -- als Text nur 3.45:1 (B) auf dem
    Grund, unter AA. Der laufende Zustand steht im Wortlaut und in der Uhr. */
 #interview[data-ux-zustand="laeuft"] + #ux-rec-zeile { color: var(--text); }
+#interview[hidden] + #ux-rec-zeile,
+#diskussion[data-laeuft="1"] ~ #ux-rec-zeile { display: none; }
 
 /* -- Knopf 2: Push-to-Talk als Pille -------------------------------- */
 #ptt { min-width: 3.5rem; min-height: var(--tippflaeche);
@@ -1223,22 +1270,22 @@ _CHAT_B = """
 /* Uhr und Pegel teilen sich die erste Zeile, wie im Entwurf; ohne Breite
    schrumpfte der Pegel in der Zeile auf einen Strich. */
 #pegel { flex: 1 1 calc(100% - 7rem); min-width: 4rem; }
-/* Meldungen ueber der Knopfzeile bekommen eine eigene Zeile: am Laptop
-   stand die Warteschlange sonst links neben dem Kreis und schob den
-   Hinweistext darunter (Review an 834edbf, Akte-Bild). Leer kostet sie
-   keine Zeile. */
 #warteschlange, #fehler, .angehalten { flex: 1 1 100%; }
 #warteschlange:empty { display: none; }
 """ + _CHAT_FLAECHEN
 #: Der Arbeitsstand: eine Karte je Feld. Die Formulare der Gruppenseite
 #: (``web._rahmen``, ``_textfeld``, ``_dropdown``) bleiben, wie sie sind --
 #: gestaltet werden nur Flaeche, Rand und Beschriftung.
+#:
+#: ``.feld select, .feld input[type=text], .feld textarea``: Review an
+#: 834edbf, Rundgang ueber alle sichtbaren Texte: ``web._CSS_GRUPPE`` setzt
+#: die Eingabefelder mit ``.feld``-Praefix WEISS bei geerbter (heller)
+#: Schrift -- 1.23:1, die Werte der Gruppe waren unlesbar. Dazu der weisse
+#: Kasten um den Szenentext und Daempfung ueber ``opacity`` statt Farbe.
+#: (Hier statt als CSS-Kommentar vor der Regel -- siehe P1-H1b bei
+#: ``_CHAT_A``.)
 _STAND = """
 body { background: var(--grund); color: var(--text); }
-/* Review an 834edbf, Rundgang ueber alle sichtbaren Texte: ``web._CSS_GRUPPE``
-   setzt die Eingabefelder mit ``.feld``-Praefix WEISS bei geerbter (heller)
-   Schrift -- 1.23:1, die Werte der Gruppe waren unlesbar. Dazu der weisse
-   Kasten um den Szenentext und Daempfung ueber ``opacity`` statt Farbe. */
 .feld select, .feld input[type=text], .feld textarea {
     background: var(--grund-3); color: var(--text); border-color: var(--rand); }
 .szene .volltext { background: var(--grund-2); border-color: var(--linie); }
@@ -1529,6 +1576,21 @@ header.phasenav { position: sticky; top: 0; z-index: 4;
                          background: var(--grund-3); color: var(--text); }
 #phasensheet-los { background: var(--signal); color: var(--auf-signal);
                     border-color: var(--signal); font-weight: 600; }
+/* Feedbackloop P1-M3 (gemessen am echten Chromium, 360x640: Kopf + Tabs
+   zusammen 255px von 640px = 40% des Schirms, Stepper-Hinweis UND "Next
+   up" zugleich sichtbar): auf schmalen Telefonen kompakter, ohne eine
+   Tippflaeche unter 44px zu druecken -- nur Polster/Abstand schrumpft,
+   und der Hinweis ("Tap a phase to move between steps.") faellt weg, weil
+   dieselbe Bedienung ohne ihn auffindbar bleibt (jedes Segment ist selbst
+   ein Knopf). ``@media`` steht hier und nicht in ``css_rahmen()``: diese
+   Konstante ist schon unskopiert UND Padua-exklusiv (``css_stepper()``,
+   nie fuer Dortmund gerendert) -- ``scope_css`` bekommt sie nie zu sehen,
+   und ``css_rahmen()`` bleibt fuer Dortmund unberuehrt (``tests/
+   test_web_vereint_bitgleich.py``). */
+@media (max-width: 430px) {
+  header.phasenav { padding: .35rem .6rem; gap: .25rem; }
+  .stepper-hinweis { display: none; }
+}
 """
 #: Was ``web._CSS_TEXTBUCH`` fuer helles Papier gesetzt hat und auf dem
 #: dunklen Grund zu blass wird (Review an 834edbf): ein dunkles Ocker fuer

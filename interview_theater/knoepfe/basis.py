@@ -183,7 +183,8 @@ def _kollabiere_letzten_einsamen_undo(conn, tg, chat_id: int) -> None:
         _entferne_tastatur(tg, chat_id, letzte)
 
 
-def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste, **kw) -> int:
+def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste,
+                   undo_behalten: bool = False, **kw) -> int:
     """``tg.sende_mit_knoepfen`` plus Mitschrift in ``nachricht``.
 
     **Der eine Sendeweg fuer Knopfnachrichten** (06.09.2026, Birk 12:05):
@@ -194,8 +195,14 @@ def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste, **kw) -> int:
     Traegt die neue Leiste mindestens einen Knopf, kollabiert sie zuerst eine
     einsam stehende Undo-Quittung (Zusatzbefund, Padua Phase-2-Ende --
     ``_kollabiere_letzten_einsamen_undo``), damit nie zwei gleich gewichtete
-    Leisten direkt untereinander stehen."""
-    if leiste:
+    Leisten direkt untereinander stehen.
+
+    ``undo_behalten`` schaltet genau dieses Kollabieren ab -- fuer Leisten,
+    die kein zweiter Speicherweg sind und deshalb nicht mit der
+    Undo-Quittung darueber konkurrieren (Padua-Befund M2, 05.10.2026: die
+    Sprachwahl beim Eintritt in Phase 3 liess den Undo der gerade
+    automatisch gespeicherten Eroeffnung verfallen)."""
+    if leiste and not undo_behalten:
         _kollabiere_letzten_einsamen_undo(conn, tg, chat_id)
     message_id = tg.sende_mit_knoepfen(chat_id, text, leiste, **kw)
     _merke_botnachricht(conn, chat_id, message_id, kw.get("klartext") or text)
@@ -605,8 +612,12 @@ def sende_mit_speicherleiste(
     if "frage" in bloecke:
         from interview_theater.knoepfe.fragen import uebernimm_schaerfung
 
+        # T10: der Text um den Block reist mit -- kommt die Frage
+        # unveraendert zurueck, war die Nachricht eine Rueckfrage ("Does
+        # Accept save it?"), und dann ist genau dieser Text die Antwort.
         return uebernimm_schaerfung(
             conn, tg, chat_id, bloecke["frage"], bloecke.get("fragen_weich"),
+            antwort=vorschlag.ohne_block(text, "frage", "fragen_weich"),
         ), True
 
     # Die eigenen Fragen der Gruppe (Padua Phase 1+2 Karte, Aufgabe 13,
@@ -789,7 +800,65 @@ def _korrigiere_begriffe(conn, tg, chat_id: int, wert: str, vorspann: str,
     repo.schreibe_journal(
         conn, chat_id, "entschieden", f"{titel}: {wert}", quelle="knopf",
     )
+    _merke_begriffe_im_zug(conn, chat_id, lauf_id)
     return biete_begriffe_aktualisiert(conn, tg, chat_id, wert, lauf_id, vorspann)
+
+
+#: Feedbackloop P1-2, Befund S5 (05.10.2026): welche Gruppe ihre Begriffe in
+#: DIESEM Gespraechszug schon ueber den Vorschlagsblock gespeichert und
+#: quittiert hat (``_korrigiere_begriffe``, "Updated – saved ... Move on?").
+#: chat_id -> (message_id der Gruppennachricht, Lauf-id der Quittung).
+#: ``bot._zug_und_erkenner`` laesst danach den Erkenner auf DERSELBEN
+#: Nachricht laufen; der las sie ein zweites Mal ("Noted: Corrected: foam ->
+#: home", "Noted: Removed: Terms" -- und leerte dabei das Feld). Der Erkenner
+#: holt den Eintrag ab (``nimm_begriffe_im_zug``): eine Nachricht, ein Lauf.
+#: Im Prozess wie ``ablauf._notiz_verbraucht``; ein Neustart verliert ihn,
+#: dann kommt hoechstens die alte zweite Quittung.
+_begriffe_im_zug: dict[int, tuple[int, int | None]] = {}
+
+
+def _merke_begriffe_im_zug(conn, chat_id: int, lauf_id: int | None) -> None:
+    """Gebunden an die juengste Gruppennachricht, die der Erkenner noch lesen
+    wird (``repo.unextrahierte``) -- ohne sie (Aufruf ausserhalb eines
+    Gespraechszugs) gibt es keinen Merker.
+
+    Auch nicht in einem Auftragszug (``ablauf.laufender_auftrag``,
+    Abschlussreview robo-fbl): der hat keine ausloesende Gruppennachricht,
+    der Merker haenge sonst an einer fremden, noch ungelesenen Nachricht,
+    deren Begriffsaenderung der Erkenner dann ueberginge."""
+    from interview_theater import ablauf  # lokal: Oberflaeche, Aufruf nach oben
+
+    if ablauf.laufender_auftrag() is not None:
+        return
+    try:
+        ids = [n["message_id"] for n in repo.unextrahierte(conn, chat_id)
+               if not n["ist_bot"]]
+    except Exception:
+        log.exception("Begriffe-Merker nicht gesetzt, chat_id=%s", chat_id)
+        return
+    if not ids:
+        return
+    _begriffe_im_zug[chat_id] = (max(ids), lauf_id)
+
+
+def nimm_begriffe_im_zug(conn, chat_id: int) -> tuple[bool, int | None]:
+    """Hat der Gespraechszug zu einer der Nachrichten, die der Erkenner gleich
+    liest (``repo.unextrahierte`` -- also VOR ``erkenner.erkenne`` fragen,
+    das das Wasserzeichen weiterschiebt), die Begriffe schon gespeichert?
+    Liefert ``(ja, lauf_id)`` und raeumt den Eintrag in jedem Fall ab -- er
+    gilt fuer genau einen Erkennerlauf. Ohne Eintrag keine Abfrage."""
+    eintrag = _begriffe_im_zug.pop(chat_id, None)
+    if eintrag is None:
+        return False, None
+    ids = {n["message_id"] for n in repo.unextrahierte(conn, chat_id)}
+    if eintrag[0] not in ids:
+        return False, None
+    return True, eintrag[1]
+
+
+def vergiss_begriffe_im_zug() -> None:
+    """Fuer Tests: alle Merker abraeumen."""
+    _begriffe_im_zug.clear()
 
 
 def _sende_mit_grundleiste(

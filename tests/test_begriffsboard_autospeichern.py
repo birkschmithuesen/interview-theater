@@ -31,7 +31,6 @@ TEXT = "Heimat und Grenze und Mut und Schule, darueber reden wir."
 def aktiv(monkeypatch):
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
     monkeypatch.setattr(diskussion, "starte", lambda *a, **k: None)
-    begriffsboard._LETZTER_AUTOLAUF.clear()
 
 
 @pytest.fixture
@@ -222,6 +221,23 @@ def test_undo_nimmt_den_auto_wert_zurueck(conn, einst):
     assert _begriffe(conn)
     _, leiste = tg.mit_knoepfen[-1]
     _druecke(conn, tg, einst, leiste[2][1])
+    assert not _begriffe(conn)
+
+
+def test_undo_ueberlebt_einen_neustart_zwischen_lauf_und_abschluss(conn, einst):
+    """R-5 (a): der Undo-Knopf der Abschlussnachricht hing an einem
+    Prozess-Merkplatz -- nach einem Bot-Neustart zwischen dem letzten
+    Boardlauf und "Discussion done" fehlte er. Jetzt kommt die Lauf-id aus
+    der Datenbank (``erkenner_lauf``)."""
+    repo.setze_status(conn, _segment(conn, 10, "pause")["id"], "fertig")
+    _lauf(conn, einst, _KLM(VIER))
+    assert _begriffe(conn)
+    # Neustart: kein Prozesszustand traegt die Lauf-id hinueber.
+    tg = _TG()
+    _abschluss(conn, einst, tg, _KLM(VIER))
+    _, leiste = tg.mit_knoepfen[-1]
+    assert [b for b, _ in leiste][-1] == knoepfe.T._TEXT_UNDO_KNOPF
+    _druecke(conn, tg, einst, leiste[-1][1])
     assert not _begriffe(conn)
 
 

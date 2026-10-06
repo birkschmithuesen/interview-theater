@@ -1,0 +1,6 @@
+pfad	art	phase	weg	modell	quelle	system_zeichen	nutzer_zeichen	token_gesamt	tok_system	tok_status	tok_verlauf	tok_zusammenfassung
+01-gespraech-phase1	gespraech	1	claude	claude-opus-5	abgefangen	30990	2187	11059	10312	103	378	30
+05-gespraech-phase2	gespraech	2	claude	claude-opus-5	abgefangen	35442	1957	12466	11796	247	369	30
+13-begriffsboard	begriffsboard	1	claude	claude-opus-5	abgefangen	6633	730	2454				
+14-diskussion-verdichtung	diskussion_verdichtung	1	claude	claude-opus-5	abgefangen	1672	211	627				
+15-fragen-ki	fragen_ki_vorschlag	2	claude	claude-opus-5	abgefangen	2612	114	908				

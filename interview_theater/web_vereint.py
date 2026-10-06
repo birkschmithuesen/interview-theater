@@ -384,17 +384,58 @@ def _css_schale(gewaehlt: str) -> str:
        Polster plus der ohnehin 44px hohen Tastflaeche (``.roadmap >
        summary`` aus ``_ROADMAP``) kam Kopf + Tableiste zusammen auf gemessen
        ueber 110px statt der verlangten 96px.
-    """
+
+    **Feedbackloop P1-M3 (05.10.2026):** der Padua-Stepper (``header.
+    phasenav``, ``css_stepper()``) ist eine ANDERE Kopfzeile als
+    ``.roadmap`` (das ``<details>`` aus ``_leiste_html``) und fehlte hier
+    ganz -- ohne die Flex-Item-Regeln oben blieb sein eigenes ``position:
+    sticky`` aus ``_STEPPER`` wirkungslos (``body`` scrollt seit dieser
+    Karte gar nicht mehr), aber er zaehlte auch nicht als fester Kopf im
+    Flex-Layout. Jetzt bekommt er dieselbe Behandlung wie ``.roadmap``
+    (flex-item, volle Breite, kein Rand) und ``position: static`` statt
+    des wirkungslosen ``sticky``.
+
+    **Feedbackloop S8 (05.10.2026):** ``web_chat._CHAT_JS`` haengt
+    ``.verlauf`` nach jedem Poll/Stream-Ereignis per
+    ``verlauf.scrollTop = verlauf.scrollHeight`` ans Ende (``nachUnten()``,
+    nicht angefasst -- parallele Karte). Traf das Scroll-Ende mitten in
+    einer Blase, endete die sichtbare Liste GENAU an der polsterlosen
+    oberen Kante von ``.verlauf`` -- direkt unter dem Gruppentitel, der
+    selbst ``position: static`` ist und gar nichts ueberlappt (gemessen per
+    Playwright: ein gewoehnliches Flex-Geschwister OBERHALB von
+    ``.verlauf``). Zwei Kandidaten wurden gemessen und verworfen, bevor
+    diese Regel entstand: ``scroll-padding-top`` wirkt nur auf
+    ``scrollIntoView``/Scroll-Snap, nicht auf eine direkte
+    ``scrollTop``-Zuweisung (ohne Wirkung gemessen); ``scroll-snap-type`` +
+    ``scroll-snap-align`` griff bei derselben Zuweisung ebenfalls nicht
+    (Chromium rastet nur bei nutzergefuehrtem/animiertem Scrollen ein, nicht
+    beim synchronen Setzen der Eigenschaft -- gemessen, keine Verschiebung).
+    Ein festes ``padding-bottom`` (``web_gestalt._CHAT_A``/``_CHAT_B``)
+    verschiebt die Bodenkante zwar um sich selbst, schneidet aber bei
+    anderer Blasenlaenge/Gesamthoehe trotzdem irgendeine Blase an -- content-
+    abhaengig, kein Beweis fuer den allgemeinen Fall (gemessen mit laengerem
+    Fuelltext). Die einzige Regel, die UNABHAENGIG von Blasenlaenge und
+    Scrollstand wirkt, ist eine Ausblendung am oberen Rand selbst: eine
+    Maske faerbt den obersten Streifen von ``.verlauf`` weich zum
+    Hintergrund aus, WAS AUCH IMMER dort gerade steht -- keine harte
+    Schnittkante mehr, die wie ein ueberlappender Titel aussieht, sondern
+    ein erkennbarer, blasenlaengen-unabhaengiger Scroll-Hinweis (dasselbe
+    Verfahren wie ein "mehr oben"-Schatten in jeder Listen-UI). Kein
+    ``url()``, keine Fremdquelle -- ein reiner CSS-Gradient, von der
+    bestehenden CSP (``style-src 'nonce-…'``, kein ``img-src``) nicht
+    betroffen."""
     tabs_reihenfolge = "order: 5;" if gewaehlt == "a" else "order: 1;"
     return f"""
 html {{ height: 100%; overflow-x: hidden; }}
 body {{ display: flex; flex-direction: column; align-items: stretch;
         margin: 0 auto; padding: 1rem 0 0; overflow: hidden;
         height: 100vh; height: 100dvh; height: var(--vh, 100dvh); }}
-.roadmap {{ flex: 0 0 auto; order: 0; min-width: 0; width: 100%; margin: 0;
+.roadmap, header.phasenav {{ flex: 0 0 auto; order: 0; min-width: 0;
+            width: 100%; margin: 0;
             padding-left: 1.2rem; padding-right: 1.2rem; }}
 .roadmap summary {{ padding-top: 0; padding-bottom: 0;
                     min-height: auto; height: var(--tippflaeche); }}
+header.phasenav {{ position: static; }}
 .tabs {{ position: static; flex: 0 0 auto; min-width: 0; {tabs_reihenfolge}
          padding-left: 1.2rem; padding-right: 1.2rem;
          padding-bottom: calc(.3rem + env(safe-area-inset-bottom)); }}
@@ -411,7 +452,11 @@ body {{ display: flex; flex-direction: column; align-items: stretch;
                         overflow-y: auto; overflow-x: hidden;
                         overscroll-behavior: contain;
                         -webkit-overflow-scrolling: touch;
-                        padding-left: 1.2rem; padding-right: 1.2rem; }}
+                        padding-left: 1.2rem; padding-right: 1.2rem;
+                        -webkit-mask-image:
+                          linear-gradient(to bottom, transparent, black 1rem);
+                        mask-image:
+                          linear-gradient(to bottom, transparent, black 1rem); }}
 html:not([data-ux-interview="1"]) .panel-chat .fuss {{
   position: static; flex: 0 0 auto; min-width: 0;
   left: auto; right: auto; top: auto; bottom: auto;

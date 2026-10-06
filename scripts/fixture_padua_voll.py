@@ -18,6 +18,7 @@ Minutengrenze wirklich greift und ``fensterbefund`` etwas zu messen hat.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -33,34 +34,59 @@ CHAT_ID_BASIS = 9_100_000_000_000
 
 INTERVIEW = Path("simulation/interviews/set1/2-ferzan-bahnhof.md")
 
-#: Je Gruppe gleich: Ankunft, Technik, Alltag. 26 Zeilen.
+#: Je Gruppe gleich: Ankunft, Technik, Alltag. 30 Zeilen.
+#:
+#: Reihenfolge seit P1-L7 (lesung.json 05.10., Fund Kategorie d, Datei
+#: ``01-gespraech-phase1``, Zeile 529): das Fenster (``kontext.FENSTER_NACHRICHTEN
+#: = 20``) schnitt hier so, dass es mit einer verwaisten Bot-Antwort begann
+#: ("In the Workbench...", die Frage davor war schon abgeschnitten), gefolgt
+#: von acht Zuegen reinem Rauschen (Handy schlaeft ein, "is anyone writing
+#: this down") -- der Pruefer las das faelschlich als Produktbefund zur
+#: Fensterbildung. Deshalb liegt das inhaltsfreie Rauschen jetzt GESCHLOSSEN
+#: am Anfang (dort, wo das Fenster ohnehin abschneidet) und die informativen
+#: InScribe-Saetze stehen am Ende, in sich abgeschlossen -- keine Antwort ohne
+#: ihre Frage im selben Fenster (gemessen in ``fensterbefund``/Testfall
+#: "test_fenster_beginnt_nicht_mit_verwaistem_rauschen").
+#:
+#: Runde-2-Befund (c569/b647 und d566/d642, lesung.json 05.10.): die vier
+#: InScribe-Erklaersaetze zu Transkript/CoThinker/Sprache/Workshopdauer
+#: standen ohne eine einzige Gruppen-Nachricht dazwischen direkt
+#: hintereinander -- eine echte Gruppe fragt zwischendurch, sie bekommt nicht
+#: vier Bot-Zuege am Stueck. Jetzt hat jede der vier Antworten ihre eigene
+#: Frage davor. Dieselbe Lesung fand "In the work status tab..." -- die
+#: Fixture erfand den Namen; die Oberflaeche nennt dieselbe Sache ueberall
+#: "Workbench" (``sprachen/en/texte.toml``, ``stand = "Workbench"``).
 _GRUNDVERLAUF = (
     ("Giulia", "ok we are all here, three phones on the table"),
-    ("InScribe", "Good. The transcript runs live in the chat - check it once."),
     ("Marco", "the wifi in this room is terrible btw"),
     ("Giulia", "it works, just slow"),
     ("Chiara", "who is holding the second phone?"),
     ("Marco", "me"),
-    ("InScribe", "Then you see the CoThinker tab. Nothing is lost if you close it."),
     ("Chiara", "can we talk in Italian sometimes?"),
-    ("InScribe", "Yes. The recording understands both; I answer in English."),
     ("Giulia", "good"),
     ("Luca", "sorry i'm late, what did i miss"),
     ("Chiara", "nothing, we just started"),
     ("Marco", "do we have to finish this today?"),
-    ("InScribe", "No. The workshop runs five days; today is the first."),
     ("Giulia", "ok let's keep going"),
-    ("Luca", "wait, where do i see what we already decided?"),
-    ("InScribe", "In the work status tab. Everything saved is there."),
-    ("Luca", "ah ok"),
     ("Chiara", "my phone went to sleep"),
     ("Marco", "mine too, annoying"),
-    ("Giulia", "ok can we go on"),
-    ("InScribe", "Of course. Go ahead."),
     ("Luca", "is anyone writing this down"),
     ("Chiara", "the bot is"),
     ("Marco", "right"),
     ("Giulia", "ok"),
+    ("Chiara", "does the transcript show up somewhere?"),
+    ("InScribe", "Good. The transcript runs live in the chat - check it once."),
+    ("Marco", "and if i close that tab?"),
+    ("InScribe", "Then you see the CoThinker tab. Nothing is lost if you close it."),
+    ("Luca", "can it understand italian too?"),
+    ("InScribe", "Yes. The recording understands both; I answer in English."),
+    ("Giulia", "is today the only day we do this?"),
+    ("InScribe", "No. The workshop runs five days; today is the first."),
+    ("Luca", "wait, where do i see what we already decided?"),
+    ("InScribe", "In the Workbench. Everything saved is there."),
+    ("Luca", "ah ok"),
+    ("Giulia", "ok can we go on"),
+    ("InScribe", "Of course. Go ahead."),
 )
 
 #: Je Phase acht Zeilen, die zu ihrer Arbeit gehoeren.
@@ -88,6 +114,16 @@ _JE_PHASE = {
         ("Marco", "yes show us"),
         ("Luca", "but we decide, right"),
         ("InScribe", "You decide. Mine are only there to compare."),
+        # P2-Fixture-Artefakt (Runde 1, lesung.json): dieser Verlauf endete
+        # bisher mit der InScribe-Zeile darueber -- ``repo.letzte_nachrichten``
+        # (die Grundlage des Ausloesers, den
+        # ``erzeuge_prompts_padua_voll._gespraech`` an ``ablauf.antworte``
+        # gibt) nahm dann den BOT als Ausloeser, und der Dump zeigte unter
+        # "## Now" einen "You: ..."-Zug, als haette der Bot sich selbst
+        # angestossen. Eine echte Gruppe loest ihren naechsten Zug immer mit
+        # einer eigenen Nachricht aus -- deshalb steht hier jetzt die Antwort
+        # der Gruppe auf den Satz davor.
+        ("Marco", "ok, show us yours then"),
     ),
     3: (
         ("Giulia", "we are at the station, it's loud"),
@@ -485,20 +521,42 @@ _LANGE_TRANSKRIPTDISKUSSION = (
 
 #: Die drei Systemzeilen, mit genau den Wortlauten, die der Code schreibt
 #: (``erkenner._ZEILE_FESTGELEGT`` / ``_TEXT_NOTIERT_ZEILE`` /
-#: ``_TEXT_UNDO_GEAENDERT``, englische Fassung aus ``sprachen/en/texte.toml``).
+#: ``_ANTWORT_UNDO_GEAENDERT``, englische Fassung aus ``sprachen/en/texte.toml``).
 #: Sie stehen hier woertlich und nicht per Import: die Fixture soll den Dump
 #: nicht von der Sprachschicht abhaengig machen, und der Pruefer muss sie im
 #: VERLAUF finden koennen, ohne dass eine Textaenderung ihn blind macht.
+#:
+#: Die dritte Zeile war bis zum Fund a6 (Prompt-Check Runde 1, lesung.json
+#: 05.10.2026) erfunden ("Changed since - please fix it in the work status")
+#: -- ein Wortlaut, den das Produkt nie schreibt und den
+#: ``kontext._SYSTEMANFAENGE_EN`` deshalb NICHT filterte, sodass er
+#: faelschlich als "You: ..."-Zug im Verlauf des Dumps auftauchte. Der echte
+#: Wortlaut ist exakt ``_ANTWORT_UNDO_GEAENDERT`` = "Changed since." -- nur
+#: dieser wird gefiltert (``_ist_systemzeile``).
 _SYSTEMZEILEN = (
     "📌 Agreed: Setting - A railway station in a northern Italian city",
     "Noted:\nterms: arrival, waiting, strangers, noise, belonging",
-    "Changed since - please fix it in the work status",
+    "Changed since.",
 )
+
+#: ``arbeitsstand.begriffe_detail`` (``roadmap.begriffe_detail``): Begruendung
+#: und Doppelbedeutung je Begriff, nicht nur die, die das Board schon zeigt
+#: (``kontext._baue_begriffe_detail``) -- "waiting" traegt dieselbe
+#: Doppelbedeutung wie im Board-Eintrag (``_diskussion``, dort nicht
+#: ausgegeben), "belonging" steht gar nicht auf dem Board und braucht hier
+#: seine einzige Begruendung.
+_BEGRIFFE_DETAIL_PHASE1 = json.dumps([
+    {"begriff": "waiting", "begruendung": "everybody waited for something",
+     "doppelbedeutung": "empty time and what fills it"},
+    {"begriff": "belonging", "begruendung": "you can wait and still belong",
+     "doppelbedeutung": ""},
+], ensure_ascii=False)
 
 #: Die Arbeitsstandfelder je Phase, additiv: Phase N bekommt alles von 1..N.
 _STAND_JE_PHASE = {
     1: (("begriffe", "arrival, waiting, strangers, noise, belonging, home, "
-                     "trust, family, the city at night"),),
+                     "trust, family, the city at night"),
+        ("begriffe_detail", _BEGRIFFE_DETAIL_PHASE1)),
     2: (("fragen", "1. What do you remember about your first day here?\n"
                    "2. Where did you wait the longest in your life?\n"
                    "3. When did a strange place start to feel like yours?"),
@@ -552,6 +610,25 @@ _FESTLEGUNGEN = (
     ("stil", None, "At most one page per scene from now on."),
 )
 
+#: Journal-Eintraege je Stufe, additiv wie ``_STAND_JE_PHASE``: Phase N
+#: bekommt alles von 1..N. Seit P1-L7 (lesung.json, Fund Kategorie d,
+#: ``01-gespraech-phase1`` Zeile 524): die Geschichte/Szenen-Eintraege
+#: standen bisher auch in Phase 1 im Journal, wo sie dem Arbeitsstand
+#: widersprechen und mit mehr Gewicht als die Begriffsliste erscheinen --
+#: sie stehen jetzt erst, sobald die Geschichte tatsaechlich im Arbeitsstand
+#: steht (ab Phase 6, siehe ``_JE_PHASE[6]``: "Here is your story in three
+#: sections"). Phase 1 bekommt einen eigenen, phasengerechten Eintrag, der
+#: zum dortigen Gespraech passt (siehe ``_JE_PHASE[1]``: "waiting carries
+#: two meanings").
+_JOURNAL_JE_PHASE = {
+    1: (("entschieden",
+         "Term 'waiting' carries two meanings: the empty time, and what "
+         "fills it.", "journal"),),
+    6: (("entschieden", "Story as short story: 3 sections", "szene"),
+        ("vorgeschlagen",
+         "A fourth scene on the platform - not decided", "journal")),
+}
+
 
 def chat_id_fuer(phase: int) -> int:
     return CHAT_ID_BASIS + phase
@@ -561,26 +638,40 @@ def _iso(minuten: float) -> str:
     return (BASIS + timedelta(minutes=minuten)).isoformat(timespec="seconds")
 
 
-#: Minutenschritt der ersten Haelfte in ``_zeitpunkte``. Gemessen (nicht
-#: geraten) gegen die tatsaechliche Zeilenzahl dieser Fixture: mit 5 oder 10
-#: Minuten liegt die aelteste der letzten zwanzig Nachrichten noch keine 30
-#: Minuten vor der juengsten, und ``kontext.FENSTER_MINUTEN`` schneidet nie.
-#: Erst ab 25 liegt dieser Abstand zuverlaessig darueber (siehe
-#: ``fensterbefund`` / Testfall "minuten").
+#: Minutenschritt des weit auseinanderliegenden Teils in ``_zeitpunkte``.
+#: Gemessen (nicht geraten) gegen die tatsaechliche Zeilenzahl dieser Fixture:
+#: mit 5 oder 10 Minuten liegt die aelteste der letzten zwanzig Nachrichten
+#: noch keine 30 Minuten vor der juengsten, und ``kontext.FENSTER_MINUTEN``
+#: schneidet nie. Erst ab 25 liegt dieser Abstand zuverlaessig darueber
+#: (siehe ``fensterbefund`` / Testfall "minuten").
 _ZEITSCHRITT_MINUTEN = 25.0
+
+#: Groesse des dichten (0.5-Minuten-Schritt) Teils am Ende -- knapp unter
+#: ``kontext.FENSTER_NACHRICHTEN`` (20), nicht die halbe Zeilenzahl: R3-5
+#: (feedbackloop-p12-2026-10-05.md, Runde 3) fuegte der Fixture zusaetzliche
+#: Zuege hinzu (vier Fragen vor den vier InScribe-Antworten, damit die
+#: Historie nicht mit vier Bot-Zuegen in Folge beginnt) und ein Split auf
+#: Zeilenhaelfte haette dann fuer JEDE Gruppe mehr als zwanzig dichte Zuege
+#: am Ende ergeben -- die letzten zwanzig Nachrichten laegen dann alle unter
+#: 10 Minuten auseinander und ``minuten`` als Fenstergrund waere fuer KEINE
+#: Gruppe mehr erreichbar. Mit einer festen Groesse hier bleibt mindestens
+#: ein weit auseinanderliegender Zug unter den letzten zwanzig, unabhaengig
+#: davon, wie viele Zuege insgesamt dazukommen.
+_HINTEN_ANZAHL = 19
 
 
 def _zeitpunkte(anzahl: int) -> list[float]:
     """Minutenversaetze fuer ``anzahl`` Zuege -- vorne weit, hinten dicht.
 
-    Die erste Haelfte liegt in ``_ZEITSCHRITT_MINUTEN``-Schritten (deutlich
-    mehr als ``kontext.FENSTER_MINUTEN`` vor dem Ende), die zweite in halben
-    Minuten. Damit greift die weiche Minutengrenze, ohne dass das Fenster
-    leer wird (``FENSTER_MIN_NACHRICHTEN``)."""
-    haelfte = anzahl // 2
-    vorne = [i * _ZEITSCHRITT_MINUTEN for i in range(haelfte)]
+    Der vordere Teil liegt in ``_ZEITSCHRITT_MINUTEN``-Schritten (deutlich
+    mehr als ``kontext.FENSTER_MINUTEN`` vor dem Ende), der hintere (hoechstens
+    ``_HINTEN_ANZAHL`` Zuege) in halben Minuten. Damit greift die weiche
+    Minutengrenze, ohne dass das Fenster leer wird (``FENSTER_MIN_NACHRICHTEN``)."""
+    hinten_anzahl = min(_HINTEN_ANZAHL, anzahl)
+    vorne_anzahl = anzahl - hinten_anzahl
+    vorne = [i * _ZEITSCHRITT_MINUTEN for i in range(vorne_anzahl)]
     start = vorne[-1] + _ZEITSCHRITT_MINUTEN if vorne else 0.0
-    hinten = [start + i * 0.5 for i in range(anzahl - haelfte)]
+    hinten = [start + i * 0.5 for i in range(hinten_anzahl)]
     return vorne + hinten
 
 
@@ -640,9 +731,15 @@ def _material(conn, chat_id: int) -> int:
 
 
 def _diskussion(conn, chat_id: int) -> None:
-    """Phase 1: drei Hintergrund-Segmente plus ein Begriffsboard."""
-    import json
+    """Drei Hintergrund-Segmente plus ein Begriffsboard.
 
+    Gerufen fuer JEDE Phase (``baue``), nicht nur Phase 1: eine Gruppe, die
+    Phase 2 oder spaeter erreicht hat, hat die Diskussion und das Board aus
+    Phase 1 bereits hinter sich, und ``kontext._baue_board``/
+    ``_baue_begriffe_detail`` lesen datengetrieben in jeder Phase (Birk,
+    05.10.2026: "Der Chat muss immer alles wissen"). Bisher legte die Fixture
+    das nur fuer Phase 1 an, wodurch der Pruefer in Phase 2 faelschlich
+    "Board-Block fehlt" meldete (lesung.json, 05.10.2026)."""
     texte = (
         "we keep coming back to waiting. everybody waited for something",
         "and noise. the station is never quiet, you cannot think",
@@ -656,8 +753,13 @@ def _diskussion(conn, chat_id: int) -> None:
         repo.setze_transkript(conn, aufnahme_id, text)
         letzte = aufnahme_id
     board = [
+        # Begruendung seit P1-L7 (lesung.json: Kategorie b, "No begruendung
+        # that only says the term was named, collected or suggested" --
+        # "the group returns to it twice" war genau so eine blosse
+        # Erwaehnung, kein Grund) auf den Grund der Gruppe selbst gestellt,
+        # woertlich aus ``texte[0]``.
         {"begriff": "waiting", "nennungen": 4, "zitat": texte[0],
-         "begruendung": "the group returns to it twice",
+         "begruendung": "everybody waited for something",
          "doppelbedeutung": "empty time and what fills it"},
         {"begriff": "noise", "nennungen": 2, "zitat": texte[1],
          "begruendung": "named as the thing that blocks thinking",
@@ -679,8 +781,7 @@ def baue(conn, phase: int) -> int:
 
     if phase >= 3:
         _material(conn, chat_id)
-    if phase == 1:
-        _diskussion(conn, chat_id)
+    _diskussion(conn, chat_id)
 
     if phase >= 4:
         figuren = {}
@@ -713,11 +814,9 @@ def baue(conn, phase: int) -> int:
         # Signatur ist (conn, chat_id, bereich, text, bezug=None, quelle=...)
         # -- NICHT (bereich, bezug, text); verifiziert gegen repo.py.
         repo.schreibe_festlegung(conn, chat_id, bereich, text, bezug)
-    repo.schreibe_journal(conn, chat_id, "entschieden",
-                          "Story as short story: 3 sections", quelle="szene")
-    repo.schreibe_journal(conn, chat_id, "vorgeschlagen",
-                          "A fourth scene on the platform - not decided",
-                          quelle="journal")
+    for stufe in range(1, phase + 1):
+        for art, text, quelle in _JOURNAL_JE_PHASE.get(stufe, ()):
+            repo.schreibe_journal(conn, chat_id, art, text, quelle=quelle)
     _verlauf(conn, chat_id, phase)
     return chat_id
 
@@ -757,4 +856,8 @@ def fensterbefund(conn, chat_id: int) -> dict:
         "im_fenster": len(fenster),
         "zeichen_im_fenster": zeichen,
         "grund": grund,
+        # Seit P1-L7: das erste Fensterglied woertlich, damit ein Test
+        # messen kann, dass es kein verwaister Satz ohne seine Frage ist
+        # (lesung.json, Fund Kategorie d, "01-gespraech-phase1" Zeile 529).
+        "erste_zeile_text": fenster[0]["text"] if fenster else "",
     }

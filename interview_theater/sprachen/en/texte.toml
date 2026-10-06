@@ -51,7 +51,7 @@ _TEXT_SCHON_BENUTZT = "I've already taken that on."
 _TEXT_UNBEKANNT = "I don't know this button any more."
 # Karte U: der Undo-Knopf unter jeder Notiert-Meldung.
 _TEXT_UNDO_KNOPF = "Undo"
-_TEXT_UNDO_ERLEDIGT = "Undone:\n{zeilen}"
+_TEXT_UNDO_ERLEDIGT = "Undone: I've reverted this.\n{zeilen}"
 _TEXT_UNDO_GEAENDERT = "That's changed since then, so I can't undo it safely - open the Workbench tab to fix it by hand, or just tell me the new value here in the chat."
 _TEXT_UNDO_FEHLER = "I couldn't undo that - open the Workbench tab to fix it by hand."
 _ANTWORT_UNDO = "Undone."
@@ -59,7 +59,7 @@ _ANTWORT_UNDO_GEAENDERT = "Changed since."
 _JOURNAL_UNDO = "Withdrawn: {zeilen}"
 # Befund 1a, Padua Phase-2-Ende: der Redo-Knopf unter einer Undo-Quittung.
 _TEXT_REDO_KNOPF = "Redo"
-_TEXT_REDO_ERLEDIGT = "Redone:\n{zeilen}"
+_TEXT_REDO_ERLEDIGT = "Redone: I've restored this.\n{zeilen}"
 _TEXT_REDO_GEAENDERT = "That's changed since then, so I can't redo it safely - open the Workbench tab to fix it by hand, or just tell me the new value here in the chat."
 _TEXT_REDO_FEHLER = "I couldn't redo that - open the Workbench tab to fix it by hand."
 _ANTWORT_REDO = "Redone."
@@ -233,7 +233,10 @@ _TEXT_FRAGEN_EIGENE_WARTET_AUF_KI = """\
 Your questions are saved - I'm still waiting for the AI questions in the \
 background."""
 _TEXT_FRAGEN_EIGENE_ZU_WENIG = "First collect at least five questions of your own."
-_TEXT_GEGENUEBERSTELLUNG_BEREIT = "Your questions and the AI's are now side by side:"
+_TEXT_GEGENUEBERSTELLUNG_BEREIT = """\
+Your questions and the AI's now come one at a time, each marked (yours) \
+or (AI): for each one, tap Accept to keep it, Discard to drop it, or \
+Sharpen to improve the wording."""
 _TEXT_HERKUNFT_EIGEN = " (yours)"
 _TEXT_HERKUNFT_KI = " (AI)"
 _TEXT_FRAGEN_COTHINKER_HINWEIS = "You can also sort all questions at once in the CoThinker: ✓ keep · ✗ drop · ✎ rephrase, then “Done sorting”."
@@ -526,6 +529,9 @@ The group wants to change interview question {nummer}:\n{frage}\n\
 {sensibel_hinweis}This should change: {wunsch}\n\
 Write a reworked version and attach it as a block 'VORSCHLAG FRAGE:', \
 exactly one line in the format 'Term: Question'. \
+If the message is not a change but a question to you (for example how the \
+buttons work), answer it in one or two sentences and put the question \
+unchanged into the block. \
 Check each question: does it touch on a sensitive topic (family, origin, \
 religion, violence, love and the body, money, illness, flight, \
 discrimination)? Rewrite every sensitive question additionally into ONE \
@@ -545,7 +551,7 @@ first question - three to five sentences: who we are, what it is about \
 material for a play), that you can stop at any time, and asking \
 permission to record the conversation. Add a short closing: thanks and \
 what happens next. Attach both as a block 'VORSCHLAG EROEFFNUNG:' - first \
-the opening, then a line that starts with 'ABSCHLUSS:'. Language like a \
+the opening, then a line that starts with 'CLOSING:'. Language like a \
 young person's, no official-sounding sentences. The text stands ONLY in the \
 block - don't also write it before it in the running text; before it, at \
 most one sentence and one question."""
@@ -669,7 +675,8 @@ appear there live.
 
 First I check the room briefly: a few seconds of quiet, then one of you says \
 a sentence.
-Then discuss which terms matter for your play. Give every term one sentence \
+Then discuss which terms matter for your play - everyday words about it, \
+not technical theatre vocabulary. Give every term one sentence \
 on why you chose it - that also helps me hear it right. I only listen until \
 you tap "Discussion done".
 
@@ -878,6 +885,11 @@ Setting = "Setting"
 Figuren = "Characters"
 Geschichte = "Story"
 
+["diskussion"]
+# P1-L8/P2-N2 (Prompt-Check Padua P1/P2, Abschnitt 9): der Kopf des
+# isolierten Nutzertextes (``diskussion._nutzertext``).
+_TRANSKRIPT_KOPF = "The transcript of the discussion:"
+
 ["journal"]
 _BISHERIGES_JOURNAL_KOPF = "Journal so far:\n"
 _AUSSCHNITT_KOPF = "Excerpt:\n"
@@ -983,7 +995,7 @@ KERNPAKET_KOPF = "The core package - this is what you work from. Characters and 
 FESTLEGUNGEN_KOPF = "Further agreements of the group (they count like the progress above):"
 DISKUSSION_KOPF = "From your term discussion:"
 BEGRIFFE_DETAIL_KOPF = "Why you chose these terms:"
-BOARD_KOPF = "The CoThinker board -- the terms the group sees live on the second phone, ranked (the first five are saved as their terms). Refer to it; take changes (a misheard term, a different order, a missing term) in the chat:"
+BOARD_KOPF = "The CoThinker board -- the terms the group sees live on the second phone, ranked (the saved terms are the ones under Terms above). Refer to it; take changes (a misheard term, a different order, a missing term) in the chat:"
 _BOARD_ZEILE = "{nr}. {begriff}{favorit}{grund}"
 _BOARD_FAVORIT = " (favourite)"
 _BOARD_GRUND = " -- {begruendung}"
@@ -998,7 +1010,7 @@ ERSTKONTAKT = "{anlass} First respond to what was just said, then take your time
 ERSTKONTAKT_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
 ERSTKONTAKT_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
 ERSTKONTAKT_LINK = "; and that the group can follow everything that has been recorded at {url} (only for this group, give the link exactly like this)"
-ERSTKONTAKT_DISKUSSION = "{anlass} First respond briefly to what was just said. Then explain, short and friendly, in at most six short lines -- no list, no headings -- in this order: who you are (the theatre bot for this workshop); that the group uses two phones, called \"Phone A\" and \"Phone B\" (use exactly these names, they are on the picture of the phones): Phone A lies in the middle of the table and listens -- that is this chat; Phone B opens the same group link and shows the \"CoThinker\" tab, where the terms they mention appear live; that first you briefly check the room: a few seconds of quiet, then one of them says a sentence; that after that they discuss which terms matter for their play and give every term one sentence on why they chose it (that also helps you hear the terms right), and you only listen and say nothing until they tap \"Discussion done\". **Don't mention buttons under your message, a URL or web address, or any slash command**{link}. End with exactly this sentence as the last line: Now press \"Start listening\" for mic calibration."
+ERSTKONTAKT_DISKUSSION = "{anlass} First respond briefly to what was just said. Then explain, short and friendly, in at most six short lines -- no list, no headings -- in this order: who you are (the theatre bot for this workshop); that the group uses two phones, called \"Phone A\" and \"Phone B\" (use exactly these names, they are on the picture of the phones): Phone A lies in the middle of the table and listens -- that is this chat; Phone B opens the same group link and shows the \"CoThinker\" tab, where the terms they mention appear live; that first you briefly check the room: a few seconds of quiet, then one of them says a sentence; that after that they discuss which terms matter for their play - everyday words about it, not technical theatre vocabulary - and give every term one sentence on why they chose it (that also helps you hear the terms right), and you only listen and say nothing until they tap \"Discussion done\". **Don't mention buttons under your message, a URL or web address, or any slash command**{link}. End with exactly this sentence as the last line: Now press \"Start listening\" for mic calibration."
 ERSTKONTAKT_DISKUSSION_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
 ERSTKONTAKT_DISKUSSION_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
 EINSTIEG_SETTING = "The group is entering phase 4 (Frame) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (Prose Draft) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Workbench\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
@@ -1905,7 +1917,7 @@ _TEXT_UNDO_ERKENNUNG = "Undo"
 # UX-Knoepfe-Karte, Abschnitt 1 (02.10.2026): nur die vier Texte, die ueber
 # web_chat.T laufen -- Platzhalter des Eingabefelds und das Abkuerzungs-Label.
 # Der Rest von web_chat.py ist nicht umgestellt (docs/agents/was-bewusst-fehlt.md, Uebergabe an A1).
-_TEXT_EINGABE = "Write or speak freely – or tap a shortcut"
+_TEXT_EINGABE = "Write, speak, or tap a shortcut"
 _TEXT_EINGABE_FRAGEN = "Say what should be different about the question …"
 _TEXT_EINGABE_SETTING = "Tell us your idea …"
 _TEXT_ABKUERZUNG = "Shortcut:"

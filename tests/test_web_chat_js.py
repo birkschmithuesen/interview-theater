@@ -1014,6 +1014,24 @@ def test_das_js_ist_syntaktisch_gueltig(tmp_path):
     assert ergebnis.returncode == 0, ergebnis.stderr
 
 
+def test_das_modul_kompiliert_ohne_escape_warnung():
+    """``_CHAT_JS`` (und jede andere Konstante hier) ist ein normaler,
+    nicht-roher Python-String -- ein JS-Regex wie ``/\\s+/`` darin ist fuer
+    Python eine ungueltige Escape-Sequenz (``\\s`` ist keine bekannte
+    Python-Fluchtsequenz), heute nur eine ``DeprecationWarning``, morgen ein
+    ``SyntaxError`` (Python 3.12+: PEP 672-Nachfolge). ``py_compile`` mit
+    Warnungen als Fehler fasst genau das ab, ohne das Modul zu importieren --
+    ein Mutant, der ``\\\\s`` in ``web_chat.py`` wieder zu ``\\s`` macht,
+    soll diesen Test ROT machen."""
+    import py_compile
+    import warnings
+    from interview_theater import web_chat as modul
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        py_compile.compile(modul.__file__, doraise=True)
+
+
 def test_kein_segment_geht_ohne_modus_raus():
     """Re-Review H: ohne Modus waere ein Segment (45 s, unter
     ``aufnahme.HINWEIS_AB_S``) fuer den Bot ein Gespraechsbeitrag
@@ -2290,6 +2308,33 @@ def test_pegel_css_zeigt_zwei_farben_getrennt_an_der_marke():
     ueber = re.search(r"\.pegel\.ueber-schwelle span\s*\{([^}]*)\}", css)
     assert balken and ueber
     assert balken.group(1) != ueber.group(1)
+
+
+# -- Zielmarke auf dem Kalibrierbalken (Feedbackloop P1-M4): der Balken     --
+# -- ("Deine Stimme im Vergleich zum Raum") trug schon eine duenne Marke an --
+# -- der "laut genug"-Schwelle (3x Raumpegel), blieb aber immer rot -- ohne --
+# -- erkennbaren Zusammenhang zur Marke. Jetzt derselbe Zwei-Farben-        --
+# -- Vertrag wie beim Pegelbalken, kein neuer Text. ---------------------------
+
+
+def test_kalibrierbalken_css_zeigt_zwei_farben_getrennt_an_der_marke():
+    css = web_chat._CSS_CHAT
+    assert ".kalibrierung-marke" in css
+    assert ".kalibrierung-balken.ueber-schwelle span" in css
+    balken = re.search(r"\.kalibrierung-balken span\s*\{([^}]*)\}", css)
+    ueber = re.search(r"\.kalibrierung-balken\.ueber-schwelle span\s*\{([^}]*)\}", css)
+    assert balken and ueber
+    assert balken.group(1) != ueber.group(1)
+
+
+def test_kalzeigebalken_setzt_die_schwellenklasse_aus_derselben_formel_wie_kalzuleise():
+    """``kalZuLeise`` entscheidet ``redeMess < 3 * bodenMess`` -- die neue
+    Farbklasse muss exakt das Gegenteil pruefen, sonst zeigt der Balken
+    Gruen, wo der Knopf trotzdem "zu leise" meldet."""
+    js = web_chat._CHAT_JS
+    funktion = js[js.index("function kalZeigeBalken("):]
+    funktion = funktion[:funktion.index("\n  }\n") + len("\n  }")]
+    assert "classList.toggle('ueber-schwelle', redeMess >= bodenMess * 3)" in funktion
 
 
 def test_pegeltakt_verwendet_keine_frequenzdaten_mehr():

@@ -97,6 +97,24 @@ def test_nur_entwurf_a_kennzeichnet_die_bot_blase():
     assert ".blase.bot::before" not in web_gestalt.css_chat("b")
 
 
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_die_rec_zeile_verbirgt_sich_ohne_ihren_knopf(name):
+    """Feedbackloop P1-H1b: ``#ux-rec-zeile`` ist ``_JS_AUFNAHME``s zweite
+    Zeile neben ``#interview`` -- ausserhalb Phase 3 bleibt ``#interview``
+    verborgen, aber die Zeile stand bisher trotzdem da ("Tap once to
+    start." neben "Discussion done"/"Listening"). Verborgen jetzt, wenn ihr
+    Knopf es ist oder die Diskussion laeuft (ein anderes Mikrofon)."""
+    css = web_gestalt.css_chat(name)
+    assert '#interview[hidden] + #ux-rec-zeile' in css
+    assert '#diskussion[data-laeuft="1"] ~ #ux-rec-zeile' in css
+    regel = re.search(
+        r'#interview\[hidden\] \+ #ux-rec-zeile,\s*'
+        r'#diskussion\[data-laeuft="1"\] ~ #ux-rec-zeile\s*\{([^}]*)\}',
+        css)
+    assert regel, "die beiden Selektoren bilden keine gemeinsame Regel"
+    assert "display: none" in regel.group(1)
+
+
 # -- Tabs und Panels ---------------------------------------------------------
 
 

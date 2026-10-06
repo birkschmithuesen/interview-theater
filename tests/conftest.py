@@ -64,6 +64,22 @@ def _web_grenze_leer():
     web_grenze.vergiss()
 
 
+@pytest.fixture(autouse=True)
+def _begriffe_im_zug_leer():
+    """Derselbe Grund fuer den Merker "Begriffe in diesem Zug gespeichert"
+    (``knoepfe.basis._begriffe_im_zug``, Befund S5): Prozessspeicher je
+    chat_id, und fast alle Tests teilen ``CHAT = 1``."""
+    from interview_theater.knoepfe import basis
+
+    from interview_theater import ablauf
+
+    basis.vergiss_begriffe_im_zug()
+    ablauf.vergiss_vergleich_im_zug()
+    yield
+    basis.vergiss_begriffe_im_zug()
+    ablauf.vergiss_vergleich_im_zug()
+
+
 @pytest.fixture
 def einst(tmp_path):
     return einstellungen.Einstellungen(

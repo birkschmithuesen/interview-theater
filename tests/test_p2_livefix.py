@@ -84,6 +84,42 @@ def test_k_dublette_wird_nicht_zweimal_angehaengt(conn, tg, einst, padua):
     assert repo.hole_arbeitsstand(conn, 1)["fragen"] == f"{ERSTE}\n{ZWEITE}"
 
 
+def test_k_dieselbe_frage_unter_anderem_thema_ist_keine_neue(conn, tg, einst, padua):
+    """P2-H3 (T10): nach "Questions saved" las der Erkenner die Liste im
+    Verlauf erneut und schrieb dieselben Fragen unter einem anderen
+    Themenwort ("Mars: ..." statt "Living on mars: ...") oder ganz ohne --
+    der Abgleich sah nur ganze Zeilen, haengte sie als neu an und schickte
+    den "Noted:"-Block ein zweites Mal. Verglichen wird jetzt (auch) die
+    Frage hinter dem Themenwort."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Living on mars, robots")
+    repo.setze_arbeitsstand(conn, 1, "fragen", f"{ERSTE}\n{ZWEITE}")
+    phasen.setze(conn, 1, 2, "test")
+
+    _bestaetige(conn, tg, einst, 41,
+                "Mars: Would you like to live on Mars?\n"
+                "Would you like to have a robot that serves you?")
+
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == f"{ERSTE}\n{ZWEITE}"
+    assert not any("Noted" in text or "📌" in text for _, text in tg.gesendet)
+
+
+def test_k_gleiche_frage_unter_fremdem_begriff_bleibt_erhalten(conn, tg, einst, padua):
+    """T10-Review: dieselbe Fragezeile unter einem ANDEREN Begriff ist eine
+    eigene Frage ("Robots: How would that feel for you?" vs "Mars: How
+    would that feel for you?"). Nur bei fehlendem oder verwandtem Thema
+    ("Mars" in "Living on mars") gilt die Frage allein als Dublette."""
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Mars, robots")
+    repo.setze_arbeitsstand(conn, 1, "fragen", "Robots: How would that feel for you?")
+    phasen.setze(conn, 1, 2, "test")
+
+    _bestaetige(conn, tg, einst, 41, "Mars: How would that feel for you?")
+
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == (
+        "Robots: How would that feel for you?\n"
+        "Mars: How would that feel for you?"
+    )
+
+
 def test_k_undo_nimmt_genau_die_letzte_frage_zurueck(conn, tg, einst, padua):
     repo.setze_arbeitsstand(conn, 1, "begriffe", "Living on mars, robots")
     phasen.setze(conn, 1, 2, "test")
@@ -270,6 +306,9 @@ def test_m_fragenuebersicht_je_begriff_ohne_soll_zahl():
         {"begriff": "Living on mars", "fragen": ["Would you like to live on Mars?"]},
         {"begriff": "robots", "fragen": ["Who repairs the robot?"]},
         {"begriff": "Family", "fragen": []},
+        # Abschlussreview robo-fbl: ohne erkennbaren Begriff nicht mehr
+        # weg, sondern unveraendert in einer letzten Gruppe ohne Begriff.
+        {"begriff": "", "fragen": ["Cats: Do you like cats?"]},
     ]
 
 
@@ -487,7 +526,7 @@ def test_n_yes_suggest_some_startet_die_gegenueberstellung(conn, tg, einst, padu
     assert stand["fragen_eigene_erstellt_am"]
     auswahl = stand["fragen_auswahl"].splitlines()
     assert ERSTE in auswahl and "robots: Who repairs a robot?" in auswahl
-    assert any(t.startswith("Your questions and the AI's are now side by side:")
+    assert any(t.startswith("Your questions and the AI's now come one at a time, each marked (yours) or (AI):")
                for t in tg.texte)
 
 
@@ -598,7 +637,7 @@ def test_r3_yes_suggest_some_holt_einen_gescheiterten_ki_lauf_nach(conn, tg, ein
     assert klm.aufrufe == 1
     auswahl = repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"].splitlines()
     assert ERSTE in auswahl and "robots: Who repairs a robot?" in auswahl
-    assert any(t.startswith("Your questions and the AI's are now side by side:")
+    assert any(t.startswith("Your questions and the AI's now come one at a time, each marked (yours) or (AI):")
                for t in tg.texte)
 
 

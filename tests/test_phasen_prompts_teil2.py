@@ -142,13 +142,38 @@ def test_system_en_form_erst_in_station_7():
     ('with a suggested form for each scene', 'already in the scene
     sequence suggestion ... changed with a button'), obwohl sie laut
     Station 7 erst dort gewaehlt wird. Das Zeilenformat von
-    `VORSCHLAG GESCHICHTE:` (mit einem Form-Feld) bleibt unveraendert --
-    der Parser der Szenenfolge ist nicht Teil dieser Karte."""
+    `VORSCHLAG GESCHICHTE:` liess damals noch ein Form-Feld stehen (Fix
+    dafuer: ``test_system_en_geschichte_zeile_ohne_form``, Runde 3)."""
     text = (EN / "system.md").read_text(encoding="utf-8")
     assert "with a suggested form for each scene" not in text
     assert "already in the scene sequence suggestion" not in text
-    assert "but only once the group reaches station 7" in text
+    assert "but only once the group reaches phase 7" in text
     assert "then one line per scene `Title" in text
+
+
+def test_system_en_geschichte_zeile_ohne_form():
+    """Lesung Runde 2 (05.10.2026), Prompt-Check Klasse A, Dump P1 01:174:
+    `Title -- one sentence -- characters -- form` verlangte die Form schon
+    beim ersten Geschichtsvorschlag (Phase 4) -- Widerspruch zu Zeile 66
+    ('but only once the group reaches phase 7'). ``szenenfolge.zerlege``
+    (Zeile 278) liest das vierte Feld ohnehin optional und faellt auf
+    ``workshop.form_vorgabe()`` zurueck -- die Form faellt in der Zeile
+    deshalb ersatzlos weg."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "characters — form`" not in text
+    assert "then one line per scene `Title — one sentence — characters`" in text
+
+
+def test_system_en_frage_ist_keine_pflicht():
+    """Lesung Runde 2 (05.10.2026), Prompt-Check Klasse A, Dump P2 05:95:
+    'One question, and two to three options' stand als Pflicht am
+    Zeilenanfang -- Widerspruch zu Zeile 167 ('At most ONE question per
+    message -- never a mandatory close, only when it helps') und zu
+    UX-Regel 4 (keine Pflichtfrage je Gedanke). Eine Nachricht darf jetzt
+    ohne Frage enden."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "One question, and two to three options" not in text
+    assert "at most one question" in text.lower()
 
 
 def test_system_en_marker_katalog_ohne_fragenauswahl():
@@ -173,3 +198,70 @@ def test_system_en_erklaert_diskussion_und_begriffe_detail_koepfe():
     text = (EN / "system.md").read_text(encoding="utf-8")
     assert "From your term discussion:" in text
     assert "Why you chose these terms:" in text
+
+
+def test_system_en_frage_vor_vorschlag_ist_keine_pflicht_je_nachricht():
+    """Lesung Runde 3 (05.10.2026), Prompt-Check Klasse A
+    (``docs/prompt-audit/2026-10-05-padua-p12-r3/lesung-p1.json``, Zeile
+    115): 'In EVERY phase: ONE open question about the group's idea' liest
+    sich als Pflichtfrage je Nachricht -- Widerspruch zu UX-Regel 4 ('No
+    mandatory question per thought ... The bot may say nothing') und zu
+    Zeile 536 ('only when it helps -- never as a closing line'). Die
+    Formulierung ist jetzt dieselbe 'at most one question'-Zusage wie an
+    Zeile 75 (R3-2), nicht ein zweites Mal wortgleich hingeschrieben."""
+    roh = (EN / "system.md").read_text(encoding="utf-8")
+    text = " ".join(roh.split())
+    assert "In EVERY phase: ONE open" not in roh
+    assert "a message may also end without one" in text.lower()
+    assert text.lower().count("at most one") >= 2
+
+
+def test_system_en_scene_ist_kein_alter_name_fuer_record():
+    """Prompt-Check Runde 4 (05.10.2026),
+    ``docs/prompt-audit/2026-10-05-padua-p12-r4/lesung-p1.json`` Dump-Zeile
+    283/``lesung-p2.json`` Zeile 282: system.md zaehlte ``/scene`` unter
+    "older names for `/record`". Verifiziert gegen
+    ``befehle._BEFEHL_EN``/``befehle.T.BEFEHLE_LISTE`` (texte.toml):
+    ``/scene`` ist selbst einer der acht aktiv beworbenen Befehle (Plan a
+    scene, set its form, have it written) -- mit dem Interview-Toggle
+    ``/record`` hat es nichts zu tun. ``/character``, ``/interview`` und
+    ``/done`` bleiben stehen: ``/interview``/``/done`` sind nach
+    ``befehle._befehl_interview``/``_befehl_fertig`` tatsaechlich die alten
+    Einzelschritte von ``/record``, und ``/character`` ist echt, aber nicht
+    in ``BEFEHLE_LISTE``."""
+    roh = (EN / "system.md").read_text(encoding="utf-8")
+    text = " ".join(roh.split())
+    assert "`/scene`" not in roh
+    assert "`/character`" in text
+    assert "`/interview`" in text
+    assert "`/done`" in text
+    assert "older names for `/record`" in text
+
+
+def test_system_en_knopfliste_nennt_fragen_vorschlagen():
+    """Prompt-Check Runde 4, ``lesung-p2.json`` Zeile 472: die Knopfliste in
+    system.md (wo der Bot nennen darf, welcher Knopf unter seiner Nachricht
+    steht) kannte "Suggest questions" nicht, obwohl der Knopf existiert
+    (``knoepfe/fragen.py:vorschlagen_leiste``, Art
+    ``ART_FRAGEN_VORSCHLAGEN``) und waehrend der ganzen
+    Eigene-Fragen-Schreibphase in Phase 2 unter jeder Bot-Nachricht steht."""
+    text = (EN / "system.md").read_text(encoding="utf-8")
+    assert "Suggest questions" in text
+
+
+def test_system_en_speichern_knoepfe_nicht_vor_phase_4():
+    """Prompt-Check Runde 4, ``lesung-p2.json`` Zeile 292 (Kategorie
+    by design/Fehllesung): "under a reflection of ONE value in later
+    phases 'Yes, save' and 'No, change it again'" ist laut Mechanik ein
+    wiederkehrender falscher Treffer, weil "later phases" unbestimmt
+    bleibt. Verifiziert gegen ``knoepfe/basis.py``: Padua laesst Phase 1
+    (Begriffe) und die Eroeffnung in Phase 2 ueber ``_AUTOSAVE_ARTEN``
+    laufen (stille 📌-Zeile mit Undo statt Ja/Nein), die laufende
+    Fragenauswahl ueber ``knoepfe/fragen.py`` (keine Ja/Nein-Leiste); die
+    ersten echten "Yes, save"/"No, change it again"-Knoepfe entstehen in
+    Phase 4 (Setting/Rahmen, ``knoepfe.basis.offene_art``) und danach
+    (Story-Uebersicht, ``entwurf.py``). Die Klammer nennt deshalb die Phase,
+    nicht "scene phases" (Phase 4 "Frame" schreibt noch keine Szene)."""
+    text = " ".join((EN / "system.md").read_text(encoding="utf-8").split())
+    assert "in later phases \"Yes, save\"" not in text
+    assert "phase 4 on \"Yes, save\"" in text or "phase 4 on" in text

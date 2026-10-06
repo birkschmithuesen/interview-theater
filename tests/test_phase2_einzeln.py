@@ -625,6 +625,247 @@ def test_schaerfen_dann_freitext_dann_erkenner_erzeugt_nur_eine_leiste(
     )
 
 
+# --- 9b. S1 (Feedbackloop P1-2, Runde 2): keine Sackgasse nach Schaerfen ----
+
+
+def _offene_annehmen(conn):
+    return repo.offene_knoepfe(conn, 1, knoepfe.ART_FRAGE_ANNEHMEN)
+
+
+def test_nach_schaerfen_bleiben_annehmen_und_verwerfen_bedienbar(
+    conn, tg, einst, auftraege,
+):
+    """Live-Befund S1 (sim.db knopf 51-53): "Schaerfen" nahm der Karte die
+    ganze Leiste ab -- auch Annehmen/Verwerfen. Die Rueckfrage "Was soll sich
+    aendern?" traegt jetzt selbst Annehmen/Verwerfen fuer DIESE Frage, und es
+    bleibt genau eine bedienbare Leiste."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    _druecke(conn, tg, einst, "Schaerfen")
+
+    assert auftraege == []
+    _, text, leiste = tg.knoepfe[-1]
+    assert text == knoepfe.T._TEXT_FRAGE_WAS_AENDERN
+    assert [b for b, _ in leiste] == ["Annehmen", "Verwerfen"]
+    offen = _offene_annehmen(conn)
+    assert len(offen) == 1 and offen[0]["wert"] == "1"
+    assert offen[0]["message_id"] == tg.naechste_message_id
+
+
+def test_unveraenderte_antwort_nach_schaerfen_ist_keine_sackgasse(
+    conn, tg, einst, auftraege,
+):
+    """S1: Schaerfen, dann eine Nachricht, das Modell gibt die Frage
+    unveraendert zurueck. Vorher kam nur Text -- Annehmen/Verwerfen waren
+    weg, Frage 2 unerreichbar. Jetzt traegt die Antwort die Leiste der
+    aktuellen Frage (die vorige wird abgenommen), und Annehmen fuehrt weiter."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    _druecke(conn, tg, einst, "Schaerfen")
+    knoepfe.nimm_offene_frage_text(conn, tg, None, einst, 1, "Wo ist Annehmen?")
+    antwort = "Annehmen steht direkt unter dieser Nachricht."
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1,
+        antwort + "\n\nVORSCHLAG FRAGE:\nHeimat: Wann hast du dich zuletzt "
+        "fremd gefuehlt?",
+    )
+
+    _, text, leiste = tg.knoepfe[-1]
+    assert text == antwort
+    assert [b for b, _ in leiste] == ["Annehmen", "Verwerfen", "Schaerfen"]
+    offen = _offene_annehmen(conn)
+    assert len(offen) == 1 and offen[0]["message_id"] == tg.naechste_message_id
+
+    _druecke(conn, tg, einst, "Annehmen")
+
+    assert tg.gesendet[-1][1].startswith("Frage 2/3")
+    assert repo.hole_arbeitsstand(conn, 1)["fragen_aktuell"] == "2"
+
+
+def test_unveraenderte_antwort_ohne_eigenen_text_fragt_mit_leiste(
+    conn, tg, einst, auftraege,
+):
+    """Ohne verwertbaren Modelltext kommt "Was soll sich aendern?" -- auch
+    diese Zeile traegt Annehmen/Verwerfen, nicht nur Text."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+
+    knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1,
+        "VORSCHLAG FRAGE:\nHeimat: Wann hast du dich zuletzt fremd gefuehlt?",
+    )
+
+    _, text, leiste = tg.knoepfe[-1]
+    assert text == knoepfe.T._TEXT_FRAGE_WAS_AENDERN
+    assert [b for b, _ in leiste] == ["Annehmen", "Verwerfen"]
+    assert len(_offene_annehmen(conn)) == 1
+    _druecke(conn, tg, einst, "Verwerfen")
+    assert tg.gesendet[-1][1].startswith("Frage 2/3")
+
+
+def _antwort_im_auftrag(conn, tg, anweisung, text):
+    """Die Modellantwort so, wie ``ablauf.auftragszug`` sie im Thread des
+    Auftrags abliefert -- im Rahmen genau dieses Auftrags."""
+    with ablauf.laeuft_als_auftrag(anweisung):
+        return knoepfe.sende_mit_speicherleiste(conn, tg, 1, text)
+
+
+@pytest.mark.parametrize("entscheidung", ["Annehmen", "Verwerfen"])
+def test_spaete_schaerfung_ueberschreibt_nicht_die_naechste_frage(
+    conn, tg, einst, auftraege, entscheidung,
+):
+    """S1-Review: seit S1 traegt "Was soll sich aendern?" Annehmen/Verwerfen,
+    waehrend die Schaerfung von Frage 1 noch im Thread laeuft. Entscheidet die
+    Gruppe dazwischen, steht Frage 2 da -- die spaete Modellantwort fuer
+    Frage 1 darf Frage 2 nicht ersetzen (sie hing vorher an
+    ``fragen_aktuell``, nicht an der Frage, fuer die sie gestartet wurde).
+
+    R2-1: die spaete Antwort schickt der Gruppe jetzt auch gar nichts mehr --
+    vorher kam dafuer die verwirrende Fehlzeile ``T._TEXT_FRAGEN_KEINE_AUSWAHL``
+    (Live-Beschwerde "I don't know this selection any more"), nur weil
+    ``auftragszug`` eine ``message_id`` zum Abschliessen brauchte."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    _druecke(conn, tg, einst, "Schaerfen")
+    knoepfe.nimm_offene_frage_text(conn, tg, None, einst, 1, "mach sie persoenlicher")
+    assert len(auftraege) == 1
+    _druecke(conn, tg, einst, entscheidung)
+    assert tg.gesendet[-1][1].startswith("Frage 2/3")
+    vorher = repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"]
+    karten_vorher = len(tg.knoepfe)
+    gesendet_vorher = len(tg.gesendet)
+
+    message_id, _ = _antwort_im_auftrag(
+        conn, tg, auftraege[0],
+        "VORSCHLAG FRAGE:\nHeimat: Wann warst du zuletzt fremd?",
+    )
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["fragen_auswahl"] == vorher, "Frage 2 (und 1) unveraendert"
+    assert stand["fragen_aktuell"] == "2"
+    assert len(tg.knoepfe) == karten_vorher, "keine neue Karte, keine neue Leiste"
+    assert len(tg.gesendet) == gesendet_vorher, "gar keine Nachricht an die Gruppe"
+    offen = _offene_annehmen(conn)
+    assert len(offen) == 1 and offen[0]["wert"] == "2", "die Leiste von Frage 2 bleibt"
+    assert message_id is None
+
+
+def test_frage_block_im_gespraechszug_ausserhalb_des_durchgangs_antwortet_trotzdem(
+    conn, tg,
+):
+    """Abschlussreview (Branch robo-fbl): ``uebernimm_schaerfung`` lieferte
+    ``None`` fuer JEDEN Aufruf ohne offene Frage -- auch im normalen
+    Gespraechszug (Phase 2, kein Einzeldurchgang, das Modell schreibt einen
+    ``VORSCHLAG FRAGE:``-Block). ``ablauf.antworte`` reichte das ``None``
+    weiter, die Blase verschwand, die Gruppe bekam GAR KEINE Antwort. Stumm
+    bleibt nur die spaete Antwort eines Schaerfungsauftrags."""
+    phasen.setze(conn, 1, 2, "befehl")
+    gesendet_vorher = len(tg.gesendet)
+
+    message_id, _ = knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1,
+        "Gute Idee, so koennte sie klingen.\n\nVORSCHLAG FRAGE:\n"
+        "Heimat: Wann warst du zuletzt fremd?",
+    )
+
+    assert message_id is not None
+    assert len(tg.gesendet) == gesendet_vorher + 1
+    text = tg.gesendet[-1][1]
+    assert "Gute Idee, so koennte sie klingen." in text
+    assert "VORSCHLAG" not in text
+
+
+def test_frage_block_ohne_eigenen_text_im_gespraechszug_zeigt_die_frage(conn, tg):
+    phasen.setze(conn, 1, 2, "befehl")
+
+    message_id, _ = knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1, "VORSCHLAG FRAGE:\nHeimat: Wann warst du zuletzt fremd?",
+    )
+
+    assert message_id is not None
+    assert "Wann warst du zuletzt fremd?" in tg.gesendet[-1][1]
+    assert "VORSCHLAG" not in tg.gesendet[-1][1]
+
+
+def test_spaete_unveraenderte_schaerfung_nimmt_der_naechsten_frage_nicht_die_leiste(
+    conn, tg, einst, auftraege,
+):
+    """Dasselbe fuer eine unveraendert zurueckkommende Frage 1: ihre Antwort
+    haengte vorher die Leiste von Frage 2 unter Text zu Frage 1."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    knoepfe.nimm_offene_frage_text(conn, tg, None, einst, 1, "Was heisst das?")
+    _druecke(conn, tg, einst, "Annehmen")
+    karten_vorher = len(tg.knoepfe)
+
+    _antwort_im_auftrag(
+        conn, tg, auftraege[0],
+        "Das heisst: wann warst du fremd.\n\nVORSCHLAG FRAGE:\nHeimat: Wann "
+        "hast du dich zuletzt fremd gefuehlt?",
+    )
+
+    assert len(tg.knoepfe) == karten_vorher
+    offen = _offene_annehmen(conn)
+    assert len(offen) == 1 and offen[0]["wert"] == "2"
+
+
+def test_ueberlappende_schaerfungen_landen_je_bei_ihrer_frage(
+    conn, tg, einst, auftraege,
+):
+    """Schaerfung A fuer Frage 1 laeuft noch, die Gruppe nimmt an und schickt
+    schon den Wunsch B fuer Frage 2. Kommt A danach an, bleibt Frage 2
+    unberuehrt; B ersetzt sie wie immer."""
+    _vorschlag_zeigen(conn, tg)
+    knoepfe.starte_durchgehen(conn, tg, 1)
+    knoepfe.nimm_offene_frage_text(conn, tg, None, einst, 1, "persoenlicher")
+    _druecke(conn, tg, einst, "Annehmen")
+    knoepfe.nimm_offene_frage_text(conn, tg, None, einst, 1, "kuerzer")
+    assert len(auftraege) == 2
+
+    _antwort_im_auftrag(
+        conn, tg, auftraege[0],
+        "VORSCHLAG FRAGE:\nHeimat: Wann warst du zuletzt fremd?",
+    )
+    fragen = vorschlag.zeilen(repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"])
+    assert fragen[1] == "Heimat: Was nimmst du mit, wenn du umziehen musst?"
+
+    _antwort_im_auftrag(
+        conn, tg, auftraege[1], "VORSCHLAG FRAGE:\nHeimat: Was nimmst du mit?",
+    )
+
+    fragen = vorschlag.zeilen(repo.hole_arbeitsstand(conn, 1)["fragen_auswahl"])
+    assert fragen[0] == "Heimat: Wann hast du dich zuletzt fremd gefuehlt?"
+    assert fragen[1] == "Heimat: Was nimmst du mit?"
+    assert tg.gesendet[-1][1].startswith("Frage 2/3")
+
+
+def test_auftragszug_liefert_seine_antwort_im_rahmen_seines_auftrags(
+    conn, tg, einst, monkeypatch,
+):
+    """Die Zuordnung haengt daran, dass ``auftragszug`` die Antwort im Rahmen
+    seiner Anweisung abliefert (``ablauf.laufender_auftrag``)."""
+    gesehen = []
+
+    def _leiste(conn_, tg_, chat_id, text, klm=None, e=None):
+        gesehen.append(ablauf.laufender_auftrag())
+        return tg_.sende(chat_id, text), False
+
+    class _Klm:
+        pass
+
+    monkeypatch.setattr(knoepfe, "sende_mit_speicherleiste", _leiste)
+    monkeypatch.setattr(
+        ablauf.modellwahl, "aufruf_schema",
+        lambda *a, **k: {"antwort": "Eine Antwort."},
+    )
+    ablauf.auftragszug(conn, tg, _Klm(), einst, 1, "Die Anweisung.")
+
+    assert gesehen == ["Die Anweisung."]
+    assert ablauf.laufender_auftrag() is None
+
+
 # --- 10. Weiche Fassungen als Angebot am Ende (Fund 02.10.2026) ------------
 
 

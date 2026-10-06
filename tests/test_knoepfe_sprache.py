@@ -34,23 +34,43 @@ def test_padua_liest_englisch(monkeypatch):
     assert "VORSCHLAG EROEFFNUNG:" in knoepfe.T.ANWEISUNG_EROEFFNUNG
 
 
-def test_englischer_eroeffnungsauftrag_nennt_das_abschluss_token(monkeypatch):
+def test_englischer_eroeffnungsauftrag_nennt_das_closing_token(monkeypatch):
     """Bis Aufgabe 23 liest ``fragen._speichere_eroeffnung`` nur eine Zeile,
-    deren Kopf (klein geschrieben) mit "abschluss" beginnt. Der englische
-    Auftrag nennt das Token deshalb woertlich -- in Grossbuchstaben, als
-    Protokoll-Token wie VORSCHLAG ...: (K6)."""
+    deren Kopf (klein geschrieben) mit "abschluss"/"closing" beginnt. Der
+    englische Auftrag nannte das Token bis Padua-Befund M1 (Lesung Runde 2,
+    05.10.2026) woertlich das deutsche Wort 'ABSCHLUSS:' -- in Grossbuch-
+    staben sah das wie ein technisches Leck aus und stand am Ende
+    tatsaechlich im Chat (Simulationslauf 2026-10-05-handy-giulia-p12,
+    Nachricht 119/120). Das Token heisst jetzt 'CLOSING:', als Protokoll-
+    Token wie VORSCHLAG ...: (K6)."""
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
     workshop.vergiss()
-    assert "'ABSCHLUSS:'" in knoepfe.T.ANWEISUNG_EROEFFNUNG
+    assert "'CLOSING:'" in knoepfe.T.ANWEISUNG_EROEFFNUNG
+    assert "'ABSCHLUSS:'" not in knoepfe.T.ANWEISUNG_EROEFFNUNG
 
 
-def test_eroeffnung_speichert_den_englischen_abschluss(conn):
-    """Nachbesserung (Review zu Commit 50572f6): keine Tautologie mehr,
-    sondern der echte Parser (``fragen._speichere_eroeffnung``, um Zeile
-    297) mit einer Antwort im Format, das der englische Auftrag erzeugt --
-    'ABSCHLUSS:' als woertliches Protokoll-Token (K6). Gepruft wird, dass
+def test_eroeffnung_speichert_den_englischen_closing_token(conn):
+    """Nachbesserung (Review zu Commit 50572f6), umbenannt nach M1: der
+    echte Parser (``fragen._speichere_eroeffnung``, um Zeile 297) mit einer
+    Antwort im Format, das der englische Auftrag seit M1 erzeugt --
+    'CLOSING:' als woertliches Protokoll-Token (K6). Gepruft wird, dass
     Eroeffnung und Abschluss tatsaechlich getrennt im Arbeitsstand landen,
     nicht nur, dass der String im Prompt vorkommt."""
+    tg = TelegramAttrappe()
+    wert = "Hi, we are from the theatre project.\nCLOSING: Thank you for your time."
+
+    knoepfe._speichere_eroeffnung(conn, tg, 1, wert)
+
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert stand["interview_eroeffnung"] == "Hi, we are from the theatre project."
+    assert stand["interview_abschluss"] == "Thank you for your time."
+
+
+def test_eroeffnung_akzeptiert_weiterhin_den_alten_abschluss_token(conn):
+    """Rueckwaertskompatibel: ``_teile_eroeffnung`` erkennt 'abschluss' und
+    'closing' gleichermassen (Gross-/Kleinschreibung gleich) -- eine schon
+    verschickte alte Anweisung oder ein Modell, das die Umbenennung noch
+    nicht mitbekommen hat, speichert weiterhin richtig."""
     tg = TelegramAttrappe()
     wert = "Hi, we are from the theatre project.\nABSCHLUSS: Thank you for your time."
 

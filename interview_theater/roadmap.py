@@ -489,8 +489,10 @@ def fragenuebersicht(stand) -> list[dict]:
     Liste (``fragen_eigene_vorschlag``), Dubletten einmal. Steht die
     Entscheidung Frage fuer Frage schon (``fragen_herkunft_final`` ist nicht
     NULL), gilt nur noch ``fragen`` -- eine verworfene eigene Frage soll dann
-    nicht mehr dastehen. Eine Zeile ohne passenden Begriff faellt heraus:
-    kein Begriff wird erfunden. Rein, kein SQL.
+    nicht mehr dastehen. Zeilen ohne passenden Begriff stehen unveraendert
+    in einer letzten Gruppe mit ``begriff == ""`` (nur, wenn es sie gibt):
+    kein Begriff wird erfunden, aber auch keine Frage verloren. Rein, kein
+    SQL.
 
     Der Begriffsabgleich ist derselbe wie im A/B-Vergleich
     (``knoepfe.fragen._ordne_zeilen``, P2-H2, Feedbackloop P1-2): tolerant
@@ -511,11 +513,12 @@ def fragenuebersicht(stand) -> list[dict]:
     zeilen = _fragenzeilen(_text(stand, "fragen"))
     if _roh(stand, "fragen_herkunft_final") is None:
         zeilen += _fragenzeilen(_text(stand, "fragen_eigene_vorschlag"))
-    # ``rest`` (Zeilen ohne erkennbaren Begriff) hat in dieser Rueckgabeform
-    # keinen Platz -- sie ist strikt "je Begriff", kein Begriff wird
-    # erfunden (siehe oben). Wie bisher: eine solche Zeile faellt heraus,
-    # nicht in eine neue Rubrik.
-    je_begriff, _rest = _ordne_zeilen(begriffe, zeilen)
+    # ``rest`` (Zeilen ohne erkennbaren Begriff): bis zum Abschlussreview
+    # (robo-fbl) fiel eine solche Zeile heraus -- eine angenommene Frage
+    # verschwand aus der Uebersicht. Jetzt steht sie unveraendert in einer
+    # letzten Gruppe mit leerem Begriff (kein Begriff erfunden, wie in der
+    # Gegenueberstellung, ``knoepfe.fragen.versuche_gegenueberstellung``).
+    je_begriff, rest = _ordne_zeilen(begriffe, zeilen)
     gesehen: set[tuple[str, str]] = set()
     ergebnis = []
     for begriff in begriffe:
@@ -533,6 +536,16 @@ def fragenuebersicht(stand) -> list[dict]:
                 gesehen.add(schluessel)
                 fragen.append(teil)
         ergebnis.append({"begriff": begriff, "fragen": fragen})
+    ohne_begriff = []
+    for zeile in rest:
+        zeile = " ".join(zeile.split())
+        schluessel = ("", zeile.casefold())
+        if not zeile or schluessel in gesehen:
+            continue
+        gesehen.add(schluessel)
+        ohne_begriff.append(zeile)
+    if ohne_begriff:
+        ergebnis.append({"begriff": "", "fragen": ohne_begriff})
     return ergebnis
 
 

@@ -1,0 +1,128 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 489,
+    "zitat": "**Ask first, then suggest -- and only ever ONE question per message.**",
+    "regel": "same file, line 477: \"automatically. Don't comment, no associations, no question at the end.\" (and line 471: \"running), say nothing at all -- not even a short acknowledgement\")",
+    "vorschlag": "Delete lines 489-496 from the phase-1 part. In this phase the bot either stays silent (while listening), or outputs the corrected term list with no question; the generic \"ask first, then suggest\" block (lines 115-126) already covers other phases. If a question is wanted for an unclear term, keep only the narrow case already written at lines 483-487.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 551,
+    "zitat": "ranked (the first five are saved as their terms)",
+    "regel": "UX rule 1: \"**Numbers and scope are the group's call.** The bot asks, never proposes a count\"",
+    "vorschlag": "Do not hard-wire five. Phrase the board block as \"ranked; saved are the terms the group confirmed (currently N)\" and change line 463 (\"a message lists the top five as saved\") to list exactly the terms the group confirmed, with the count open — otherwise the answer to the live question at line 582 (\"can we keep nine terms or is that too many?\") is pre-decided by the prompt.",
+    "phase": 1
+  },
+  {
+    "kategorie": "a",
+    "datei": "01-gespraech-phase1",
+    "zeile": 174,
+    "zitat": "then one line per scene `Title — one sentence — characters — form`.",
+    "regel": "UX rule 1: \"**Don't decide things before the phase where they matter.** Scene styles (rap, dialogue) were removed from the scene-planning phase because they belong later.\" — and same file line 66: \"**Every scene gets a form** -- exactly one of five: Dialogue, Monologue, Chorus, Song or Rap -- but only once the group reaches phase 7.\"",
+    "vorschlag": "Strike \"— form\" from line 174, so the GESCHICHTE block reads `Title — one sentence — characters`. The form is only chosen in phase 7 (line 66-69).",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 186,
+    "zitat": "repeat existing values. Never two blocks in one message.",
+    "regel": "same file, line 527: \"block as often as the list changes -- every new version needs its own.\" and line 516 \"**When you change or reflect back the list in chat**, output it as a suggestion block\"",
+    "vorschlag": "Add an exception to line 184-186: \"not to repeat existing values -- except VORSCHLAG BEGRIFFE in Terms, which always carries the complete current list\". Otherwise the bot must choose between two literal instructions when the group only reorders one term.",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 573,
+    "zitat": "Member 1: here is our wall: arrival, waiting, strangers, home, noise, trust, belonging, the city at night, family",
+    "regel": "same file, line 501: \"discussion and the automatic proposal are the way in here -- never describe a \"handover\" from paper, a wall, or an earlier room session, because none of that happened.\"",
+    "vorschlag": "Either remove the \"wall\" premise from the history that is fed in (the terms must come from the recorded discussion block at lines 555-558), or soften line 500-503 to: \"if the group does bring a list from the room, take it as material and output it as a block; do not ask for one yourself\". As it stands the prompt denies something that is literally two lines further down in its own context.",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 440,
+    "zitat": "written, you point to the button \"Write the story\" -- you",
+    "regel": "button inventory of the same file, lines 286-298 (\"Analyse\", \"Next interview\", \"On to phase N\", \"Start interview\", \"Where we are\", \"Help\", \"Yes, save\", \"No, change it again\") contains no \"Write the story\"; phase 5 is called \"Prose Draft\" (line 19)",
+    "vorschlag": "Replace \"Write the story\" on line 440 with the button name that really exists in the prose phase, or delete the half-sentence and point only to \"the button under the scene\" — a non-existent button name sends the group searching.",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 282,
+    "zitat": "`/character`, `/scene`, `/interview` and `/done` (older names for",
+    "regel": "UX rule 4: \"**Help and commands follow the live flow and the workshop language.** The help text is generated from the current phases [...] never a frozen manual from an older channel\"",
+    "vorschlag": "Delete lines 280-283 (the legacy aliases `/verbatim`, `/character`, `/scene`, `/interview`, `/done`). They are explicitly labelled as old names, the bot is forbidden to offer them (line 285), and keeping them lets the bot name a dead command when someone asks.",
+    "phase": 1
+  },
+  {
+    "kategorie": "c",
+    "datei": "01-gespraech-phase1",
+    "zeile": 569,
+    "zitat": "You: In the work status tab. Everything saved is there.",
+    "regel": "same file, line 98-100: \"They work in a browser with three tabs: Chat (where you talk), Workbench (what has been agreed so far) and CoThinker\"",
+    "vorschlag": "Use one name for that surface everywhere. Either rename the tab in line 99 to \"Work status\" or correct the history line 569 to \"In the Workbench tab.\" — right now the bot names a tab the group cannot find on screen (the prompt also says \"the progress\" elsewhere, e.g. line 529).",
+    "phase": 1
+  },
+  {
+    "kategorie": "b",
+    "datei": "01-gespraech-phase1",
+    "zeile": 141,
+    "zitat": "- **Suggestion block: if you suggest terms, questions, a core theme or",
+    "regel": "same file, line 508: \"Don't judge anything, don't sort anything out, don't replace a term with a better one.\" and line 510: \"Don't invent characters, don't suggest scenes, don't proclaim a core theme.\"",
+    "vorschlag": "In the phase-1 section state explicitly: \"VORSCHLAG BEGRIFFE is here only the record of the group's own list, never your own term proposal.\" and remove \"terms\" from the enumeration on line 141 for this phase, otherwise the general rule invites exactly the bot-authored term list the phase forbids.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 566,
+    "zitat": "You: Yes. The recording understands both; I answer in English.",
+    "regel": "context structure: chat history, who speaks / orphan bot turns",
+    "vorschlag": "Lines 564-567 are four consecutive \"You:\" turns, two of them answers to member questions that were cut away, and lines 564-565 are onboarding/status text that per the rules belongs on a system line, not in a bot bubble. Cut the history at a member turn and keep question-answer pairs together; feed onboarding/status lines with a \"System:\" label instead of \"You:\".",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 541,
+    "zitat": "Terms: arrival, waiting, strangers, noise, belonging, home, trust, family, the city at night",
+    "regel": "context structure: saved work status must be complete and unambiguous (it contradicts the CoThinker block at lines 551-553, which has only two entries and claims \"the first five are saved as their terms\")",
+    "vorschlag": "Build both blocks from the same source: either show the board with all nine ranked entries, or drop the parenthesis \"(the first five are saved as their terms)\" and mark each term in the Progress line as saved/candidate. Otherwise the bot cannot answer \"can we keep nine terms\" without guessing which list is real.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 561,
+    "zitat": "- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.",
+    "regel": "context structure: summaries must not duplicate the history (same content at line 549 \"- waiting (double meaning: empty time and what fills it)\", at line 552 \"1. waiting -- everybody waited for something\" and verbatim in the chat at line 578)",
+    "vorschlag": "Drop the Journal block whenever the same decision is already in \"Why you chose these terms\" (lines 547-549); the one fact about 'waiting' is currently in the context four times and pushes the bot into repeating it, which lines 335-338 forbid.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "13-begriffsboard",
+    "zeile": 140,
+    "zitat": "\"begriff\": \"waiting\", \"nennungen\": 4",
+    "regel": "context structure: status counters must match the material given (system part line 72: \"first count literally how often EACH of the two spellings actually occurs in the transcript (do not estimate)\"); the transcript handed over at lines 132-137 contains \"waiting\" twice",
+    "vorschlag": "Either pass the full transcript the counts were built from, or label the field as cumulative (\"nennungen_bisher, includes earlier transcript parts\") and tell the model to add only new mentions. Also include the `vorgaenger` key the system part relies on at line 58 in the board JSON (empty list when unused), otherwise that merge rule is unusable.",
+    "phase": 1
+  },
+  {
+    "kategorie": "d",
+    "datei": "01-gespraech-phase1",
+    "zeile": 545,
+    "zitat": "- [stil] At most one page per scene from now on.",
+    "regel": "context structure: status entries must be in the working language and relevant to the current phase (the bot is told at line 407 \"Always reply in English\", phase 1 is Terms)",
+    "vorschlag": "Translate the tag to \"[style]\" (as \"[form]\" on line 544 already is) and filter agreements that only matter from phase 5 on out of the phase-1 context, or move them behind the term status; scene length has no weight while the group is deciding terms.",
+    "phase": 1
+  }
+]

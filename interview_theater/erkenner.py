@@ -230,6 +230,20 @@ PHASEN_SPEZIFISCHE_ARTEN: dict[str, tuple[int, ...]] = {
     "schaerfung_entscheidung": (5,),
 }
 
+#: Dieselbe Wache als Untergrenze: eine ART, die erst AB einer Phase wirkt
+#: (bis zur letzten Phase des Profils). Feedbackloop P1-2, Runde 4, Befund
+#: H4: in Phase 2 las der Erkenner "write me the opening and the closing now"
+#: (Interview-Eroeffnung) als ``szene_schreiben``, und ``szene.starte``
+#: schickte zweimal (zwei Nachrichten, zwei Laeufe) "For Scene 1 we still
+#: need ... (phase 4)". Szenen gibt es in beiden Profilen erst ab Phase 4
+#: (Setting/Frame: Szenenfolge, ``szene.PFLICHTFELDER``); davor faellt ein
+#: Szenenauftrag still weg -- keine Meldung, kein Lauf. Eine Untergrenze statt
+#: eines Tupels, damit ein Profil mit mehr Phasen nichts nachtragen muss.
+AB_PHASE_ARTEN: dict[str, int] = {
+    "szene_schreiben": 4,
+    "szene_kuerzen": 4,
+}
+
 #: Welcher Profilschalter eine ART ueberhaupt erst freischaltet -- dieselbe
 #: Tabelle, eine zweite Spalte. Eine ART ohne Eintrag ist profilfrei. Ohne
 #: Schalter steht die ART auch nicht im Schema (``arten_fuer_schema``):
@@ -288,6 +302,10 @@ def _ist_phasenpassend(conn, chat_id: int, art: str) -> bool:
     ueberall erlaubt: das ist der unveraenderte Normalfall. Seit TEIL 2
     zusaetzlich: ohne ihren Profilschalter wirkt eine art nirgends."""
     if not _schalter_an(art):
+        return False
+    ab = AB_PHASE_ARTEN.get(art)
+    if ab is not None and phasen.aktuelle(conn, chat_id) < ab:
+        log.info("%s vor Phase %s verworfen, chat_id=%s", art, ab, chat_id)
         return False
     phasen_liste = PHASEN_SPEZIFISCHE_ARTEN.get(art)
     if phasen_liste is None:
@@ -694,6 +712,44 @@ def _fragen_sammeln(conn, chat_id: int) -> bool:
     )
 
 
+def _fragen_teile(zeile: str) -> tuple[str, str | None, str]:
+    """Zerlegt eine Fragezeile in (ganze Zeile, Thema oder None, Frage),
+    jeweils normalisiert (Gross-/Kleinschreibung und Leerraum egal). Ein
+    Doppelpunkt, vor dem schon ein Fragezeichen steht, trennt kein Thema ab."""
+    def normal(text: str) -> str:
+        return re.sub(r"\s+", " ", text).strip().casefold()
+
+    ganz = normal(zeile)
+    thema, trenner, frage = zeile.partition(":")
+    if trenner and "?" not in thema and normal(thema) and normal(frage):
+        return ganz, normal(thema), normal(frage)
+    return ganz, None, ganz
+
+
+def _ist_fragen_dublette(neu: tuple, alt: tuple) -> bool:
+    """Ist die Zeile ``neu`` dieselbe Frage wie ``alt`` (beide aus
+    ``_fragen_teile``)?
+
+    P2-H3 (T10, 05.10.2026): nach "Questions saved" las der Erkenner die
+    Liste im Verlauf erneut und schrieb dieselbe Frage unter einem anderen
+    Themenwort ("Mars: ..." statt "Living on mars: ...") oder ganz ohne. Der
+    Abgleich ueber die ganze Zeile hielt sie fuer neu, haengte sie doppelt an
+    und schickte den "Noted:"-Block ein zweites Mal.
+
+    T10-Review: dieselbe Frage unter einem FREMDEN Begriff ("Robots: How
+    would that feel for you?" / "Mars: How would that feel for you?") ist
+    eine eigene Frage. Die Frage allein zaehlt deshalb nur, wenn einer Seite
+    das Thema fehlt oder die Themen verwandt sind (eines steckt im anderen,
+    "mars" in "living on mars")."""
+    if neu[0] == alt[0]:
+        return True
+    if neu[2] != alt[2]:
+        return False
+    if neu[1] is None or alt[1] is None:
+        return True
+    return neu[1] in alt[1] or alt[1] in neu[1]
+
+
 def _haenge_fragen_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
     """Haengt jede Zeile von ``wert``, die noch nicht in ``fragen`` steht
     (Gross-/Kleinschreibung und Leerraum egal), als eigene Zeile an.
@@ -706,13 +762,13 @@ def _haenge_fragen_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
     bisher = vorschlag.zeilen((stand["fragen"] if stand else None) or "")
-    gesehen = {re.sub(r"\s+", " ", z).strip().casefold() for z in bisher}
+    gesehen = [_fragen_teile(z) for z in bisher]
     neu = []
     for zeile in vorschlag.zeilen(wert):
-        schluessel = re.sub(r"\s+", " ", zeile).strip().casefold()
-        if schluessel in gesehen:
+        teile = _fragen_teile(zeile)
+        if any(_ist_fragen_dublette(teile, alt) for alt in gesehen):
             continue
-        gesehen.add(schluessel)
+        gesehen.append(teile)
         neu.append(zeile)
     if not neu:
         return None
@@ -1478,6 +1534,36 @@ def _entferne_arbeitsstandfeld(conn, chat_id: int, ziel: str) -> str | None:
     return T._FELD_BESCHRIFTUNG.get(feld, bezeichnung)
 
 
+def _entferne_einen_begriff(conn, chat_id: int, begriff: str) -> str | None:
+    """"BEGRIFFE noise": nur DIESEN Begriff aus der Liste nehmen, nicht das
+    ganze Feld leeren (Feedbackloop P1-2, Befund S5 -- "Removed: Terms" hatte
+    die ganze Liste geloescht). Verglichen ohne Gross-/Kleinschreibung; steht
+    der Begriff nicht in der Liste, passiert nichts (wie jedes "nicht
+    gefunden" in ``entferne``)."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    alt = [b.strip() for b in ((stand["begriffe"] if stand else None) or "").split(",")
+           if b.strip()]
+    gesucht = begriff.strip().casefold()
+    neu = [b for b in alt if b.casefold() != gesucht]
+    if len(neu) == len(alt):
+        return None
+    wert = ", ".join(neu) or None
+    repo.setze_arbeitsstand(conn, chat_id, "begriffe", wert)
+    from interview_theater import begriffsboard
+
+    begriffsboard.schreibe_detail(conn, chat_id, wert)
+    getroffen = next(b for b in alt if b.casefold() == gesucht)
+    return f"{T._FELD_BESCHRIFTUNG['begriffe']} ({getroffen})"
+
+
+def _durchgang_laeuft(conn, chat_id: int) -> bool:
+    """``knoepfe.einzeln_aktiv`` -- spaeter Import (``knoepfe`` importiert
+    ``erkenner``)."""
+    from interview_theater import knoepfe
+
+    return knoepfe.einzeln_aktiv(conn, chat_id)
+
+
 def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | None:
     """Entfernt weich, was ``wert`` benennt (art ``entfernen``, NACHTRAG N3).
 
@@ -1521,7 +1607,20 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
         )
         return {"art": "entfernen", "wert": T._BEZEICHNUNG_FESTLEGUNG.format(text=alter_text)}
 
-    if ziel in _ENTFERNEN_ARBEITSSTAND:
+    if ziel == "fragen" and quelle == "erkenner" and _durchgang_laeuft(conn, chat_id):
+        # Feedbackloop P1-2, Runde 3, Befund H3 (erkenner_lauf 24): mitten im
+        # Einzeldurchgang las der Erkenner "you lost the thread, question 2"
+        # als ``entfernen FRAGEN`` und leerte alle sieben eigenen Fragen
+        # ("Noted: Removed: Questions"). Waehrend der Stufe gehoert ``fragen``
+        # dem Durchgang -- derselbe Schutz wie fuer ``fragen_setzen``
+        # (``_wende_arbeitsstand_an``). Still: keine Meldung. Ein getippter
+        # Befehl (``quelle="befehl"``) bleibt ein ausdruecklicher Wunsch.
+        log.info("entfernen FRAGEN waehrend 'Fragen einzeln durchgehen' "
+                 "verworfen, chat_id=%s", chat_id)
+        return None
+    if ziel == "begriffe" and rest:
+        bezeichnung = _entferne_einen_begriff(conn, chat_id, rest)
+    elif ziel in _ENTFERNEN_ARBEITSSTAND:
         bezeichnung = _entferne_arbeitsstandfeld(conn, chat_id, ziel)
     elif ziel == "figur":
         name = repo.entferne_figur(conn, chat_id, rest) if rest else None
@@ -2351,13 +2450,16 @@ def _interviewmodus_texte() -> dict[str, str]:
     importiert ``erkenner``, ein Modulimport hier waere ein Zyklus."""
     from interview_theater import befehle
 
-    from interview_theater import knoepfe
+    from interview_theater.knoepfe import texte as knoepfe_texte
 
     # ``interview_starten`` traegt seit 05.09.2026 NICHT mehr die
     # Startbestaetigung (der Modus laeuft ja noch gar nicht), sondern die
     # Ablauf-Erklaerung vor dem Start -- der Knopf darunter schaltet ein.
+    # Ueber die Sprachschicht ``T`` (Feedbackloop P1-2, Runde 3, Befund M5:
+    # die Modulkonstante ist die deutsche Fassung, "So geht ein Interview"
+    # stand in der englischen App).
     return {
-        "interview_starten": knoepfe.TEXT_ABLAUF,
+        "interview_starten": knoepfe_texte.T.TEXT_ABLAUF,
         "interview_beenden": befehle.T._TEXT_INTERVIEW_AUS,
     }
 
@@ -2965,6 +3067,59 @@ def _eintritt_nach_phasenwechsel(conn, tg, klm, e, chat_id: int, wirkliche: list
         log.exception("Phaseneintritt nach dem Erkennerlauf fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def _betrifft_begriffe(aenderung: dict) -> bool:
+    """``begriffe_setzen`` oder ``entfernen`` mit Ziel Begriffe."""
+    art = aenderung.get("art")
+    if art == "begriffe_setzen":
+        return True
+    if art != "entfernen":
+        return False
+    zerlegt = _zerlege_entfernen(str(aenderung.get("wert") or ""))
+    return zerlegt is not None and zerlegt[0] == "begriffe"
+
+
+#: Was der Erkenner an die schon gezeigte Quittung des Zugs haengt, statt
+#: eine eigene "Noted:"-Meldung zu schicken (S5, M7).
+_AN_ZUGQUITTUNG = frozenset({"transkript_korrigieren", "festlegung_setzen"})
+
+
+def _haenge_an_zugquittung(conn, chat_id: int, zug_lauf: int | None,
+                           vorher: dict | None, nachher: dict | None,
+                           wirkliche: list[dict]) -> bool:
+    """Feedbackloop P1-2, Befund S5: der Gespraechszug hat die Begriffe
+    schon gespeichert und mit "Updated – saved ... Move on?" quittiert
+    (``knoepfe.basis._korrigiere_begriffe``); was der Erkenner auf derselben
+    Nachricht noch findet, ist die Transkriptkorrektur ("foam -> home"). Sie
+    kommt in den Lauf DIESER Quittung (``repo.haenge_an_erkenner_lauf``),
+    damit ihr eines Undo beides zuruecknimmt -- statt einer zweiten
+    "Noted:"-Nachricht mit zweitem Undo.
+
+    Runde 4, Befund M7: dasselbe fuer eine Festlegung aus derselben
+    Nachricht ("Noise stays: the noise of the night shift is what makes home
+    impossible" -> ``festlegung_setzen``) -- sonst stand neben "Move on?"
+    wieder ein "Noted: Agreed: ..." mit zweitem Undo. Der Zug hat den Satz
+    der Gruppe in seiner Antwort schon aufgenommen; das EINE Undo nimmt Liste,
+    Korrektur und Festlegung zurueck ("Undone: ..." nennt alle).
+
+    Nur fuer Transkriptkorrekturen und Festlegungen
+    (``_AN_ZUGQUITTUNG``); alles andere (ein Phasenwunsch) bleibt eine
+    eigene Meldung. False, wenn nicht angehaengt wurde -- dann meldet der
+    Aufrufer wie bisher."""
+    if zug_lauf is None or vorher is None or nachher is None or not wirkliche:
+        return False
+    if any(a.get("art") not in _AN_ZUGQUITTUNG for a in wirkliche):
+        return False
+    try:
+        return repo.haenge_an_erkenner_lauf(
+            conn, zug_lauf, "\n".join(undo_zeilen(wirkliche)),
+            ruecknahme.schritte(vorher, nachher),
+        )
+    except Exception:
+        log.exception("Korrektur nicht an die Quittung des Zugs gehaengt, "
+                      "chat_id=%s, lauf_id=%s", chat_id, zug_lauf)
+        return False
+
+
 def laufe(klm, tg, conn, e, chat_id: int) -> None:
     """Kapselt den ganzen Absichtserkenner-Nachlauf: erkennen, anwenden,
     melden (teil-b.md Aufgabe 4), Interviewmodus bestaetigen (Aufgabe 5),
@@ -2992,7 +3147,27 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
 
         stapel = ([n["message_id"] for n in repo.unextrahierte(conn, chat_id)]
                   if ueberarbeitung.aktiv() else [])
+        # Feedbackloop P1-2, Befund S5: hat der Gespraechszug zu dieser
+        # Nachricht die Begriffe schon gespeichert und quittiert ("Updated –
+        # saved ... Move on?"), ist das die EINE Quittung -- vor ``erkenne``
+        # gefragt, das das Wasserzeichen weiterschiebt.
+        from interview_theater.knoepfe import basis as _basis
+
+        begriffe_im_zug, zug_lauf = _basis.nimm_begriffe_im_zug(conn, chat_id)
+        # Runde 3, Befund H2: hat der Zug auf diese Nachricht den Vergleich
+        # der eigenen Fragen gestartet ("we can go to the interviews" ->
+        # "Question 1/27"), war das ihre Bedeutung -- ein ``phase_setzen``
+        # aus DERSELBEN Nachricht fiele mitten in den Durchgang. Still
+        # verworfen; eine spaetere Nachricht wechselt die Phase wie immer.
+        from interview_theater import ablauf as _ablauf
+
+        vergleich_im_zug = _ablauf.nimm_vergleich_im_zug(conn, chat_id)
         aenderungen = erkenne(klm, conn, e, chat_id)
+        if vergleich_im_zug and aenderungen:
+            if any(a.get("art") == "phase_setzen" for a in aenderungen):
+                log.info("phase_setzen aus der Nachricht, die den Vergleich "
+                         "gestartet hat, verworfen, chat_id=%s", chat_id)
+            aenderungen = [a for a in aenderungen if a.get("art") != "phase_setzen"]
         if not aenderungen:
             return
         notiz_verbraucht = False
@@ -3011,6 +3186,11 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             a for a in aenderungen
             if _ist_phasenpassend(conn, chat_id, a.get("art"))
         ])
+        if begriffe_im_zug:
+            # Die Liste des Zugs gilt -- der Erkenner liest dieselbe
+            # Nachricht nur ein zweites Mal und hat sie im Lauf schon einmal
+            # geleert ("noise comes off the list" -> entfernen BEGRIFFE).
+            freigegeben = [a for a in freigegeben if not _betrifft_begriffe(a)]
         # Der Stand VOR und NACH dem Anwenden, direkt um ``wende_an`` und
         # unter ``repo._LOCK`` -- Grundlage des Undo-Knopfs (Karte U).
         wirkliche, vorher, nachher = _wende_an_mit_schnappschuss(
@@ -3056,6 +3236,12 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # bei _starte_szene/_starte_kuerzung, kein Schreibpfad in wende_an.
         _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id, freigegeben)
         text = baue_meldung(wirkliche, conn, chat_id)
+        if text is not None and begriffe_im_zug and _haenge_an_zugquittung(
+                conn, chat_id, zug_lauf, vorher, nachher, wirkliche):
+            # Befund S5/M7: Transkriptkorrektur und Festlegung stehen jetzt
+            # im Undo der schon gezeigten "Move on?"-Frage -- keine zweite
+            # Quittung.
+            text = None
         # Dieselbe Notiert-Zeile nicht zweimal (06.09.2026, Testgruppe
         # 21:50/21:52: derselbe Szenenfolge-Block stand wortgleich zweimal im
         # Chat). Gespeichert wurde in so einem Fall trotzdem korrekt -- nur

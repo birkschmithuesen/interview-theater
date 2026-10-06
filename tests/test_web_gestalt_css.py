@@ -135,6 +135,40 @@ def test_kein_keyframes_und_kein_media_im_gescopten_teil(name, funktion):
     assert "@media" not in _css(funktion, name)
 
 
+# -- Feedbackloop P1-M3: der Padua-Stepper auf schmalen Telefonen ----------
+
+
+def test_der_stepper_kompaktiert_sich_auf_schmalen_telefonen():
+    """Gemessen am echten Chromium (360x640): Kopf + Tabs zusammen kamen
+    auf 40% des Schirms, sobald Stepper-Hinweis und "Next up" beide
+    sichtbar waren. ``css_stepper()`` ist schon unscopiert UND
+    Padua-exklusiv (nie fuer Dortmund gerendert) -- ein ``@media`` hier
+    verstoesst nicht gegen den scope_css-Grund, dem ``css_rahmen()`` das
+    Privileg vorbehaelt (``test_kein_keyframes_und_kein_media_im_
+    gescopten_teil`` oben gilt nur fuer ``GESCOPT``, nicht fuer den
+    Stepper)."""
+    css = web_gestalt.css_stepper()
+    block = re.search(r"@media\s*\(max-width:\s*430px\)\s*\{(.*?)\n\}\n",
+                       css, flags=re.S)
+    assert block, "keine kompaktierende Regel fuer schmale Telefone"
+    assert "header.phasenav" in block.group(1)
+    assert ".stepper-hinweis" in block.group(1)
+    # Keine Tippflaeche darf unter das Mindestmass fallen -- geschrumpft
+    # wird nur Polster/Abstand, nie ``min-height``/``min-width``.
+    assert "min-height" not in block.group(1)
+    assert "min-width" not in block.group(1)
+
+
+def test_der_stepper_bleibt_padua_exklusiv_und_ausserhalb_von_css_rahmen():
+    """``css_stepper()`` wird nur angehaengt, wenn ``[web]
+    phasennav_stepper`` an ist (``web_vereint.seite``) -- landet also nie
+    in Dortmunds ``<style>``-Block. Die neue Zeile muss deshalb in
+    ``css_stepper()`` stehen, nicht in ``css_rahmen()`` (das bleibt fuer
+    Dortmund bitgleich, ``tests/test_web_vereint_bitgleich.py``)."""
+    assert "max-width: 430px" not in web_gestalt.css_rahmen()
+    assert "max-width: 430px" in web_gestalt.css_stepper()
+
+
 @pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
 def test_jede_benutzte_animation_ist_auch_definiert(name):
     css = _ganzes_css(name)
@@ -157,6 +191,55 @@ def test_der_gescopte_teil_ueberlebt_scope_css(name):
         assert not re.search(r"\.panel-\w+ \d+%", ergebnis)
 
 
+_GESCOPTE_PRAEFIXE = {
+    "css_chat": ".panel-chat",
+    "css_stand": ".panel-stand",
+    "css_textbuch": ".panel-textbuch",
+}
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+@pytest.mark.parametrize("funktion", GESCOPT)
+def test_jeder_selektor_traegt_den_scope_praefix_nach_scope_css(name, funktion):
+    """Review-Befund zu 083bbaa: ein CSS-Kommentar mit Kommas direkt vor
+    einer Regel (``/* Feedbackloop P1-H1b: ... */`` vor ``#interview[hidden]
+    + #ux-rec-zeile, ...`` in ``_CHAT_A``/``_CHAT_B``) wird von
+    ``web_vereint.scope_css`` an JEDEM Komma gesplittet, bevor der
+    Scope-Praefix gesetzt wird -- der Kommentar selbst enthaelt Kommas, der
+    echte erste Selektor landet deshalb NICHT am Anfang eines Split-Stuecks
+    und bekommt keinen Praefix (``_ein_selektor`` setzt ihn nur vorne an).
+    Jede echte, im Markup benutzte Selektor-Kette, die ``scope_css``
+    ausgibt, muss deshalb mit dem Scope-Praefix beginnen -- gemessen am
+    tatsaechlichen Aufruf aus ``web_vereint.seite``, nicht nur an Klammern-
+    und Fragment-Zaehlung wie oben."""
+    scope = _GESCOPTE_PRAEFIXE[funktion]
+    ergebnis = web_vereint.scope_css(_css(funktion, name), scope)
+    ohne_kommentare = re.sub(r"/\*.*?\*/", "", ergebnis, flags=re.S)
+    for selektoren, _koerper in re.findall(r"([^{}]+)\{([^{}]*)\}", ohne_kommentare):
+        for roh in selektoren.split(","):
+            sel = roh.strip()
+            if not sel:
+                continue
+            assert sel.startswith(scope), (funktion, name, sel)
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+@pytest.mark.parametrize("funktion", GESCOPT)
+def test_kein_css_kommentar_direkt_vor_einer_selektorliste(name, funktion):
+    """Abschlussreview (Branch robo-fbl): der Test oben prueft die Sicht des
+    Browsers (Kommentare entfernt) -- dort stimmt der Praefix, weil
+    ``scope_css`` ihn VOR den Kommentar setzt. Im ausgelieferten Text aber
+    landet bei einer Selektorliste der Praefix an jedem Komma des Kommentars,
+    also MITTEN im Kommentar (``/* ..., .panel-chat dieselbe Regel */``) --
+    genau die Bauart, vor der AGENTS.md fuer ``_BUEHNE`` warnt. Deshalb im
+    gescopten Teil: kein CSS-Kommentar direkt vor einer Regel mit mehreren
+    Selektoren; die Begruendung steht als ``#:``-Kommentar ueber der
+    Konstante."""
+    css = _css(funktion, name)
+    for treffer in re.finditer(r"/\*.*?\*/\s*([^{}/@]+)\{", css, flags=re.S):
+        assert "," not in treffer.group(1), (funktion, name, treffer.group(0)[-120:])
+
+
 # -- 4. Tokens werden benutzt, nicht umgangen -------------------------------
 
 
@@ -170,6 +253,46 @@ def test_keine_rohe_hexfarbe_ausserhalb_des_tokenblocks(name):
     ohne_druck = re.sub(r"@media\s+print\s*\{.*?\n\}", "", ohne_tokens, flags=re.S)
     ohne_kommentare = re.sub(r"/\*.*?\*/", "", ohne_druck, flags=re.S)
     assert not re.findall(r"#[0-9a-fA-F]{3,8}\b", ohne_kommentare)
+
+
+# -- 5. Feedbackloop S8: der Verlauf schneidet keine Blase flach unter dem --
+# -- Titel ab -----------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", web_gestalt.ENTWUERFE)
+def test_der_verlauf_hat_luft_unter_der_letzten_blase(name):
+    """Browserlauf ``2026-10-05-handy-giulia-p12`` (Befund S8, ``100-…``/
+    ``015-…png``): ``web_chat._CHAT_JS`` klemmt den Verlauf per
+    ``verlauf.scrollTop = verlauf.scrollHeight`` ans Ende (nicht angefasst,
+    parallele Karte). Ohne ein Polster UNTER der letzten Blase landete das
+    Scroll-Ende haeufig mitten in einer Blase -- ihr oberer Rand erschien an
+    der oberen Kante von ``.verlauf`` abgeschnitten, direkt unter dem
+    Gruppentitel (der selbst ``position: static`` ist und gar nicht
+    ueberlappt, gemessen per Playwright: der Titel sitzt als gewoehnliches
+    Flex-Geschwister OBERHALB von ``.verlauf``).
+
+    Dieses Polster ist eine kleine, immer sinnvolle Atempause (dieselbe
+    Luft, die ``.verlauf`` ohnehin zwischen zwei Blasen traegt, ``gap`` --
+    hier einmal zusaetzlich am Ende) -- aber KEIN allgemeiner Beweis gegen
+    jeden Anschnitt: bei anderer Blasenlaenge trifft die Bodenkante wieder
+    irgendeine Blase (am echten Chromium nachgemessen mit laengerem
+    Fuelltext). Die content-unabhaengige Loesung ist die Maske auf
+    ``.panel-chat .verlauf`` (``web_vereint._css_schale`` -- siehe deren
+    Docstring fuer die drei verworfenen Kandidaten, darunter
+    ``scroll-padding-top``); ihr Beweis steht in
+    ``tests/e2e/test_web_vereint_sticky_titel_e2e.py`` und
+    ``tests/test_web_vereint.py``. Hier nur der textliche Vertrag fuer das
+    Polster: es existiert und ist nicht kleiner als der Abstand, den
+    ``.verlauf`` ohnehin zwischen zwei Blasen traegt."""
+    css = web_vereint.scope_css(web_gestalt.css_chat(name), ".panel-chat")
+    block = re.search(r"\.panel-chat \.verlauf\s*\{([^{}]*)\}", css)
+    assert block, "keine .verlauf-Regel im gescopten Chat-CSS"
+    koerper = block.group(1)
+    gap = re.search(r"\bgap:\s*([\d.]+)rem", koerper)
+    pad = re.search(r"\bpadding-bottom:\s*([\d.]+)rem", koerper)
+    assert gap, koerper
+    assert pad, koerper
+    assert float(pad.group(1)) >= float(gap.group(1))
 
 
 # -- 5. Buehnenlichter (Entwurf B) gegen die Kaskade -------------------------

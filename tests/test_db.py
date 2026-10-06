@@ -680,6 +680,67 @@ def test_echo_message_id_lesen_und_setzen(tmp_path):
     assert repo.echo_message_id(c, 99999) is None
 
 
+def test_client_job_id_spalte_existiert_frisch_und_wird_nachgeruestet(tmp_path):
+    """Karte t_e2b0e489 (kein Aufnahmeverlust am Handy): die Client-Job-Id
+    faehrt additiv auf ``web_post`` mit -- derselbe Weg wie ``rede_ms``/
+    ``kalibrierung``. Der Unique-Index ist der serverseitige Duplikatschutz
+    fuer ein Segment, das der Browser (IndexedDB-Warteschlange) nach einem
+    Neuladen erneut hochlaedt."""
+    frisch = db.verbinde(str(tmp_path / "frisch.db"))
+    db.initialisiere(frisch)
+    assert "client_job_id" in [r[1] for r in frisch.execute("PRAGMA table_info(web_post)")]
+
+    alt = db.verbinde(str(tmp_path / "alt.db"))
+    alt.executescript(_ALTE_AUFNAHME_UND_WEB_POST)
+    alt.execute(
+        "INSERT INTO web_post (chat_id, richtung, typ, erstellt_am) "
+        "VALUES (1, 'ein', 'sprache', '2026-10-06T10:00:00+00:00')"
+    )
+    alt.commit()
+    assert "client_job_id" not in [r[1] for r in alt.execute("PRAGMA table_info(web_post)")], \
+        "Testannahme: die Spalte fehlt wirklich"
+
+    db.initialisiere(alt)  # darf nicht krachen, obwohl die Tabelle schon existiert
+
+    assert "client_job_id" in [r[1] for r in alt.execute("PRAGMA table_info(web_post)")]
+    zeile = alt.execute("SELECT * FROM web_post WHERE chat_id = 1").fetchone()
+    assert zeile["typ"] == "sprache", "Migration darf keine Daten verlieren"
+    assert zeile["client_job_id"] is None
+
+
+def test_client_job_id_ist_je_chat_eindeutig(conn):
+    """Zwei Uploads derselben Client-Job-Id fuer denselben Chat duerfen nicht
+    beide eine Zeile anlegen -- der Unique-Index ist die letzte Verteidigung,
+    falls ``web_chat._audio`` den Dublettencheck je einmal uebersieht."""
+    conn.execute(
+        "INSERT INTO web_post (chat_id, richtung, typ, erstellt_am, client_job_id) "
+        "VALUES (1, 'ein', 'sprache', '2026-10-06T10:00:00+00:00', 'job-1')"
+    )
+    conn.commit()
+    with pytest.raises(db.sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO web_post (chat_id, richtung, typ, erstellt_am, client_job_id) "
+            "VALUES (1, 'ein', 'sprache', '2026-10-06T10:05:00+00:00', 'job-1')"
+        )
+
+    # Eine andere Gruppe darf dieselbe Client-Job-Id haben (die Id ist nur
+    # ein Zufallswert des Browsers, keine global eindeutige Kennung), und
+    # NULL (alte Clients ohne Job-Id) darf beliebig oft vorkommen.
+    conn.execute(
+        "INSERT INTO web_post (chat_id, richtung, typ, erstellt_am, client_job_id) "
+        "VALUES (2, 'ein', 'sprache', '2026-10-06T10:05:00+00:00', 'job-1')"
+    )
+    conn.execute(
+        "INSERT INTO web_post (chat_id, richtung, typ, erstellt_am) "
+        "VALUES (1, 'ein', 'sprache', '2026-10-06T10:06:00+00:00')"
+    )
+    conn.execute(
+        "INSERT INTO web_post (chat_id, richtung, typ, erstellt_am) "
+        "VALUES (1, 'ein', 'sprache', '2026-10-06T10:07:00+00:00')"
+    )
+    conn.commit()
+
+
 def test_loeschen_raeumt_die_gruppe(conn):
     conn.execute("INSERT INTO gruppe (chat_id, bot_name) VALUES (42, 'g1')")
     conn.execute("INSERT INTO nachricht (chat_id, message_id, typ, gesendet_am) "

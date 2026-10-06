@@ -1154,6 +1154,44 @@ _VEREINT_JS = """
     });
   }
 
+  // Dieselbe sichere Markdown-Teilmenge wie ``web._buehne_inline``/
+  // ``_buehne_markdown`` (Birk 06.10.2026) -- Fett vor Kursiv auf einer
+  // bereits maskierten Zeile, sonst fraesse Kursiv die Fett-Sternpaare an.
+  function buehneInline(zeile) {
+    zeile = zeile.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+    return zeile.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
+  }
+
+  // buehneMarkdown-Aequivalent zu ``web._buehne_markdown``: IMMER zuerst
+  // maskieren (``buehneEscape``), erst danach die vier Regeln -- ein
+  // woertliches ``<script>`` im Kartentext bleibt so Text, nie Markup.
+  function buehneMarkdown(text) {
+    var bloecke = [];
+    var liste = [];
+    function schliesseListe() {
+      if (liste.length) {
+        bloecke.push('<ul>' + liste.map(function (z) { return '<li>' + z + '</li>'; }).join('') + '</ul>');
+        liste = [];
+      }
+    }
+    var zeilen = buehneEscape(text || '').split('\\n');
+    for (var i = 0; i < zeilen.length; i++) {
+      var zeile = zeilen[i].trim();
+      if (!zeile) { schliesseListe(); continue; }
+      var aufzaehlung = zeile.match(/^(?:-|•)\\s+(.+)$/);
+      if (aufzaehlung) { liste.push(buehneInline(aufzaehlung[1])); continue; }
+      schliesseListe();
+      var ueberschrift = zeile.match(/^\\*\\*([^*]+)\\*\\*$/);
+      if (ueberschrift) {
+        bloecke.push('<p class="buehne-ueberschrift"><strong>' + ueberschrift[1] + '</strong></p>');
+        continue;
+      }
+      bloecke.push('<p>' + buehneInline(zeile) + '</p>');
+    }
+    schliesseListe();
+    return bloecke.join('');
+  }
+
   function buehneVorschau(text) {
     var t = (text || '').replace(/\\s+/g, ' ').trim();
     return t.length > 40 ? t.slice(0, 40) + '…' : t;
@@ -1227,12 +1265,13 @@ _VEREINT_JS = """
     );
   }
 
-  // zeige()-Aequivalent: setzt die Tafel direkt aus dem Client-Verlauf
-  // (``textContent``, nicht ``innerHTML`` -- die Karte ist reiner Text ohne
-  // Formatierungsbedarf ausser Zeilenumbruechen, die CSS ``white-space:
-  // pre-wrap`` traegt, siehe _CSS_BUEHNE). "aktuell" (``i===null``) liest
-  // dabei die NEUESTE Karte des Verlaufs -- bei uns dieselbe Quelle wie die
-  // naechste Serverantwort, es gibt kein zweites ``letzte``-Objekt.
+  // zeige()-Aequivalent: setzt die Tafel direkt aus dem Client-Verlauf --
+  // ``innerHTML`` aus ``buehneMarkdown`` (Birk 06.10.2026, vorher
+  // ``textContent`` mit rohem Modelltext samt sichtbaren Sternchen), die
+  // einzige Stelle, die Markup einfuegt, und die maskiert IMMER zuerst.
+  // "aktuell" (``i===null``) liest dabei die NEUESTE Karte des Verlaufs --
+  // bei uns dieselbe Quelle wie die naechste Serverantwort, es gibt kein
+  // zweites ``letzte``-Objekt.
   function buehneZeige(i) {
     if (i !== null && buehnePos === null) {
       var letzte = buehneVerlauf.length ? buehneVerlauf[buehneVerlauf.length - 1] : null;
@@ -1245,7 +1284,7 @@ _VEREINT_JS = """
       var eintrag = (i === null)
         ? (buehneVerlauf.length ? buehneVerlauf[buehneVerlauf.length - 1] : null)
         : buehneVerlauf[i];
-      if (eintrag) { tafel.textContent = eintrag.text || ''; }
+      if (eintrag) { tafel.innerHTML = buehneMarkdown(eintrag.text || ''); }
     }
     buehneNavRender();
   }

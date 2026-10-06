@@ -1153,9 +1153,14 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
     (``typ='sprache'``, ``text=NULL``, ``unterdrueckt=1``); nur das
     Transkript in ``aufnahme.transkript`` (schon gesetzt, siehe
     ``_verarbeite``) ist das Material. **Kein Gespraechszug, kein
-    Absichtserkenner, kein Journal-Extraktor** -- was eine interviewte
-    Person erzaehlt, ist kein Fall dafuer (docs/agents/entscheidungen.md), und ein stiller
-    Brainstorm-Gedanke erst recht nicht.
+    Absichtserkenner, kein Journal-Extraktor je Segment** -- was eine
+    interviewte Person erzaehlt, ist kein Fall dafuer
+    (docs/agents/entscheidungen.md), und ein stiller Brainstorm-Gedanke erst
+    recht nicht. **Ausnahme seit dem P4-Quickfix (06.10.2026, Profilschalter
+    ``brainstorm.chat_einspeisen``):** EINMAL je Bogen, auf dem Ende-Segment
+    und NACH der Buehnenkarte, siehe
+    ``_fuettere_gespraechszug_aus_brainstorm`` in ``_brainstorm_entscheide``
+    -- das bleibt ein einziger Zug am Bogenende, nie ein Zug je Segment.
 
     Danach die EINE Code-Entscheidung (kein Modellaufruf, Zusage 2):
     reicht es fuer eine Buehnenkarte? ``brainstorm.soll_reagieren`` prueft
@@ -1271,11 +1276,51 @@ def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
     if klm is None:
         if soll:
             _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"], bis_id=row["id"])
+        _fuettere_gespraechszug_aus_brainstorm(conn, row)
         return
     if not soll:
         repo.lege_buehnenkarte_an(conn, row["chat_id"], "", "schwelle", schweigen=True)
     elif not _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"], bis_id=row["id"]):
         repo.lege_buehnenkarte_an(conn, row["chat_id"], "", "belegt", schweigen=True)
+    _fuettere_gespraechszug_aus_brainstorm(conn, row)
+
+
+#: Praefix vor dem eingespielten Brainstorm-Transkript (P4-Quickfix,
+#: 06.10.2026) -- sagt dem Modell, dass dieser Zug freie Rede ist, kein
+#: getippter Satz. Wortlaut im Code, nicht in einer Promptdatei (Brief).
+_BRAINSTORM_EINSPEISUNG_PRAEFIX = "[Brainstorm, spoken freely:] "
+
+
+def _fuettere_gespraechszug_aus_brainstorm(conn, row) -> None:
+    """P4-Quickfix (Birk 06.10.2026, Live-Test): ein Brainstorm-Bogen blieb
+    bisher fuer den Absichtserkenner unsichtbar (siehe die Ausnahme-Notiz in
+    ``_brainstorm_abschliessen``) -- die Werkbank (Rahmen, Figuren,
+    Geschichte) blieb deshalb leer, obwohl die Gruppe genau das gerade frei
+    gesprochen hatte.
+
+    EINMAL je Bogen, hier auf dem Ende-Segment und NACH der
+    Buehnenkarten-Entscheidung: das zusammenhaengende Transkript des Bogens
+    (``repo.brainstorm_arc_text``) geht als ganz normaler Chatbeitrag ein --
+    ueber ``repo.lege_web_post_an`` denselben Weg, den eine getippte
+    Textnachricht im Web-Chat nimmt (``web_chat._text``). ``bot.schleife``
+    holt die Zeile beim naechsten Takt wie jede andere ueber
+    ``web_kanal.hole_updates`` ab und loest den ganz normalen Gespraechszug
+    samt Absichtserkenner aus (``bot._zug_und_erkenner``) -- dieselbe
+    Bestaetigungsregel wie fuer jeden anderen Beitrag, unveraendert.
+
+    Nur Padua (Profilschalter ``brainstorm.chat_einspeisen``, Vorgabe
+    False/Dortmund unberuehrt) und nur, wenn der Bogen ueberhaupt Text
+    hatte -- ein leerer Bogen (z. B. sofort wieder beendet) speist nichts
+    ein."""
+    if not workshop.aktiv().wert("brainstorm.chat_einspeisen", False):
+        return
+    text = repo.brainstorm_arc_text(conn, row["chat_id"], row["id"])
+    if not text:
+        return
+    repo.lege_web_post_an(
+        conn, row["chat_id"], repo.RICHTUNG_EIN, repo.WEB_TYP_TEXT,
+        text=_BRAINSTORM_EINSPEISUNG_PRAEFIX + text,
+    )
 
 
 def _warte_auf_freien_kartenlauf(conn, e, row) -> None:

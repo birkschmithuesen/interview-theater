@@ -2172,6 +2172,34 @@ def brainstorm_stand(conn: sqlite3.Connection, chat_id: int,
 
 
 @_gesperrt
+def brainstorm_arc_text(conn: sqlite3.Connection, chat_id: int, bis_id: int) -> str:
+    """Das zusammenhaengende Transkript EINES Brainstorm-Bogens (P4-Quickfix,
+    Birk Live-Test 06.10.2026: die Werkbank blieb leer, weil ein Brainstorm-
+    Segment nie den Gespraechszug erreicht, siehe
+    ``aufnahme._fuettere_gespraechszug_aus_brainstorm``).
+
+    Ein Bogen reicht vom VORIGEN Ende-Segment dieser Gruppe (ausschliesslich)
+    bis ``bis_id`` (einschliesslich) -- genau die Segmente seit dem letzten
+    Druck auf "Start listening", unabhaengig davon, ob dazwischen schon eine
+    Zwischenkarte entstanden ist (die Markierung dafuer bleibt unberuehrt).
+    Gibt es noch kein voriges Ende-Segment, zaehlt der Bogen von Anfang an."""
+    start = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM aufnahme WHERE chat_id = ? "
+        "AND brainstorm = 1 AND schnittgrund = 'ende' AND id < ?",
+        (chat_id, bis_id),
+    ).fetchone()[0]
+    zeilen = conn.execute(
+        "SELECT transkript FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL AND transkript IS NOT NULL "
+        "AND id > ? AND id <= ? ORDER BY id",
+        (chat_id, start, bis_id),
+    ).fetchall()
+    return " ".join(
+        zeile["transkript"].strip() for zeile in zeilen if zeile["transkript"] and zeile["transkript"].strip()
+    )
+
+
+@_gesperrt
 def markiere_brainstorm_reaktion(
     conn: sqlite3.Connection, chat_id: int, aufnahme_id: int,
 ) -> None:

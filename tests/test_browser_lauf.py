@@ -835,7 +835,17 @@ def test_fuehre_station_aus_warte_bis_wartet_echt_auf_hintergrundarbeit(tmp_path
     schreibt die Prosa der Szene erst NACH der Aktion, waehrend des ersten
     Polls -- ohne den Fix (Nachher-Lesung sofort nach ``_ANLAUF_S``) wuerde
     der mitgeschnittene ``db_diff`` diese Szene nicht als veraendert zeigen,
-    weil ``_fuehre_station_aus`` sie zu frueh gelesen haette."""
+    weil ``_fuehre_station_aus`` sie zu frueh gelesen haette.
+
+    Der Hintergrund-Thread wird bewusst erst unmittelbar vor
+    ``_fuehre_station_aus`` gestartet (nicht vor dem Browser-Start): Chromium
+    zu starten dauert selbst schon ueber eine Sekunde, ein frueherer Start
+    liesse die Schreibverzoegerung schon VOR der ``vorher``-Lesung
+    verstreichen und den Test seinen eigenen Zweck verfehlen lassen. Die
+    Verzoegerung (4s) liegt bewusst ueber ``browser_aktionen._ANLAUF_S``
+    (3s): die normale Nachher-Lesung (nach ``warte_auf_antwort``) muss die
+    Aenderung VERPASSEN, damit nur noch ``warte_bis``/
+    ``_hat_sich_veraendert`` sie beim naechsten Poll (alle 2s) einfaengt."""
     from simulation import browser_mitschnitt
 
     pfad = _leere_db(tmp_path)
@@ -844,12 +854,10 @@ def test_fuehre_station_aus_warte_bis_wartet_echt_auf_hintergrundarbeit(tmp_path
     conn.commit(); conn.close()
 
     def _schreibe_prosa_verzoegert():
-        time.sleep(1.0)
+        time.sleep(4.0)
         c = db.verbinde(pfad)
         repo.aktualisiere_szene(c, szene_id, "Szene 1", "kurz", None, prosa="Es war einmal.")
         c.commit(); c.close()
-
-    threading.Thread(target=_schreibe_prosa_verzoegert, daemon=True).start()
 
     station = browser_stationen.Station(
         "t-warte", 1, "x", budget=1, geduld_s=10,
@@ -859,9 +867,10 @@ def test_fuehre_station_aus_warte_bis_wartet_echt_auf_hintergrundarbeit(tmp_path
     with sync_playwright() as p:
         browser = p.chromium.launch(); seite = browser.new_page()
         seite.set_content(_FIXTURE_DISKUSSION_TOGGLE)
+        threading.Thread(target=_schreibe_prosa_verzoegert, daemon=True).start()
         browser_lauf._fuehre_station_aus(
             seite, persona, mitschnitt, station, basis_url="http://127.0.0.1:1",
-            token="t", db_pfad=pfad, chat_id=CHAT, persona_name="x")
+            token="t", db_pfad=pfad, chat_id=CHAT, persona_name="giulia")
         browser.close()
 
     zeilen = mitschnitt.jsonl_pfad.read_text(encoding="utf-8").strip().splitlines()

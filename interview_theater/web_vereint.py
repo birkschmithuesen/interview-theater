@@ -1530,7 +1530,14 @@ _VEREINT_JS = """
   // (und sofort beim Oeffnen, siehe zeige()). Rollenfilter/Schrift stehen
   // am Panel bzw. im Hash und werden nach dem Tausch ueber ``hashchange``
   // neu angewendet (die Knoepfe selbst sind frisch gerendert).
-  var textbuchLetzter = null;
+  // Verglichen wird NICHT mit dem ersten Abruf, sondern mit dem Stempel
+  // (Hash des Rumpfes, vom Server in ``textbuch_koerper`` gesetzt): die
+  // Seite wurde evtl. vor der Szene gebaut. Wer den ersten Abruf nur
+  // "merkt", zeigt den veralteten Aufbau-Stand weiter (P57 Lauf 3, A1).
+  function textbuchStempel(wurzel) {
+    var el = wurzel ? wurzel.querySelector('[data-stempel]') : null;
+    return el ? el.getAttribute('data-stempel') : null;
+  }
   function ladeTextbuch() {
     var panel = document.getElementById('tab-textbuch');
     if (!panel || panel.hidden || document.hidden) { return; }
@@ -1541,13 +1548,10 @@ _VEREINT_JS = """
         var doc = new DOMParser().parseFromString(text, 'text/html');
         var neu = doc.body ? doc.body.innerHTML : null;
         if (!neu || panel.hidden) { return; }
-        // Erster Abruf: nur merken (panel.innerHTML ist vom Browser
-        // umserialisiert und wuerde nie gleich sein).
-        if (textbuchLetzter === null) { textbuchLetzter = neu; return; }
-        if (neu === textbuchLetzter) { return; }
+        var stempel = textbuchStempel(doc.body);
+        if (!stempel || stempel === textbuchStempel(panel)) { return; }
         var y = panel.scrollTop;
         panel.innerHTML = neu;
-        textbuchLetzter = neu;
         panel.scrollTop = y;
         window.dispatchEvent(new Event('hashchange'));
       })

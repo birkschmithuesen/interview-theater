@@ -831,3 +831,34 @@ def test_szenentext_englisch_nimmt_die_nummer_des_lesewunschs(englisch, text, so
 ])
 def test_szenentext_deutsch_nimmt_die_nummer_des_lesewunschs(text, soll):
     assert ablauf.szenentext_gewuenscht(text) == soll
+
+
+@pytest.mark.parametrize("text", [
+    # P57 Lauf 3 A3: gemessene Fehlausloeser
+    "Scene 1 is fine, I will read that later",
+    "I'll read scene 1 later",
+    "Scene 1 sounds good, we can read it in the Script tab",
+    "show me the interview passages for scene 2",
+    "show me the quotes for scene 2",
+])
+def test_szenentext_englisch_keine_fehlausloeser(englisch, text):
+    assert ablauf.szenentext_gewuenscht(text) is None
+
+
+@pytest.mark.parametrize("text", [
+    "Szene 1 ist gut, ich lese das spaeter",
+    "Szene 1 lese ich im Reiter Textbuch",
+    "zeig mir die Interviewstellen zu Szene 2",
+])
+def test_szenentext_deutsch_keine_fehlausloeser(text):
+    assert ablauf.szenentext_gewuenscht(text) is None
+
+
+def test_entwurf_prompt_englisch_verlangt_englische_ausgabe():
+    """P57 Lauf 3 A4: ohne Sprachanweisung kam die Uebersicht deutsch."""
+    from pathlib import Path
+    import interview_theater
+
+    text = (Path(interview_theater.__file__).parent / "sprachen" / "en" / "prompts"
+            / "entwurf.md").read_text(encoding="utf-8")
+    assert "in English" in text

@@ -456,6 +456,37 @@ _SZENENTEXT_WOERTER_EN = re.compile(
     r"\bshow\b|\bread\b|\blook at\b|\btext\b|\bwording\b", re.I
 )
 
+#: P57 Lauf 3 A3: Lesewoerter, die KEINE Bitte um den Szenentext sind --
+#: Zukunft/Spaeter ("I will read that later"), Verweis auf den Reiter
+#: ("read it in the Script tab") und Fragen nach Interviewstellen statt dem
+#: Szenentext ("show me the interview passages for scene 2").
+_NICHT_LESEWUNSCH_VOR = {
+    "de": re.compile(r"(?:werden|werde|wir|ich|spaeter|später)\s+(?:\w+\s+)?$", re.I),
+    "en": re.compile(
+        r"(?:\bwill|'ll|\bgoing to|\bgonna|\bwould|\bmight|\bmay|\bshall)\s+(?:\w+\s+)?$",
+        re.I,
+    ),
+}
+_NICHT_LESEWUNSCH_NACH = {
+    "de": re.compile(
+        r"^.{0,40}?(?:\bspaeter\b|\bspäter\b|\bnachher\b|\bim\s+(?:reiter|tab)\b|"
+        r"\bin\s+(?:dem|der)\s+(?:reiter|tab)\b|\btextbuch[-\s]?(?:reiter|tab)\b)",
+        re.I,
+    ),
+    "en": re.compile(
+        r"^.{0,40}?(?:\blater\b|\bafterwards\b|\bin\s+the\s+\w+\s+tab\b|"
+        r"\bin\s+the\s+tab\b|\bscript\s+tab\b|\btab\b)",
+        re.I,
+    ),
+}
+_NICHT_SZENENTEXT = {
+    "de": re.compile(
+        r"interview|passage|passagen|zitat|zitate|stelle\b|stellen\b|belegstell",
+        re.I,
+    ),
+    "en": re.compile(r"interview|passage|quote|excerpt|\bcitation", re.I),
+}
+
 
 def szenentext_gewuenscht(text: str | None) -> int | None:
     """Die Szenennummer, deren TEXT die Gruppe sehen will -- oder None.
@@ -467,7 +498,14 @@ def szenentext_gewuenscht(text: str | None) -> int | None:
     nummer = sprache.je_sprache({"de": _SZENENTEXT_NUMMER, "en": _SZENENTEXT_NUMMER_EN})
     woerter = sprache.je_sprache({"de": _SZENENTEXT_WOERTER, "en": _SZENENTEXT_WOERTER_EN})
     nummern = list(nummer.finditer(roh))
-    leseworte = list(woerter.finditer(roh))
+    sp = "en" if sprache.je_sprache({"de": False, "en": True}) else "de"
+    if _NICHT_SZENENTEXT[sp].search(roh):
+        return None
+    leseworte = [
+        w for w in woerter.finditer(roh)
+        if not _NICHT_LESEWUNSCH_VOR[sp].search(roh[max(0, w.start() - 20):w.start()])
+        and not _NICHT_LESEWUNSCH_NACH[sp].search(roh[w.end():w.end() + 60])
+    ]
     if not nummern or not leseworte:
         return None
     # P57 Lauf 2 A2: nicht die ERSTE Nummer, sondern die, die zum Lesewunsch

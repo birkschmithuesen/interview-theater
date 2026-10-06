@@ -16,3 +16,6 @@ between three and seven.
 
 Write tightly: the whole overview should come to roughly 1200-1500
 characters once assembled.
+
+Write the whole overview in English -- logline, setting, character
+lines, tension arc and scene entries alike. Names stay as the group uses them.

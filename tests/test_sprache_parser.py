@@ -852,3 +852,13 @@ def test_szenentext_englisch_keine_fehlausloeser(englisch, text):
 ])
 def test_szenentext_deutsch_keine_fehlausloeser(text):
     assert ablauf.szenentext_gewuenscht(text) is None
+
+
+def test_entwurf_prompt_englisch_verlangt_englische_ausgabe():
+    """P57 Lauf 3 A4: ohne Sprachanweisung kam die Uebersicht deutsch."""
+    from pathlib import Path
+    import interview_theater
+
+    text = (Path(interview_theater.__file__).parent / "sprachen" / "en" / "prompts"
+            / "entwurf.md").read_text(encoding="utf-8")
+    assert "in English" in text

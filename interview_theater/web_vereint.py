@@ -1982,6 +1982,38 @@ def auswahl_fertig_post(handler, db_pfad: str, token: str, chat_id: int,
     web_chat._angenommen(handler, {"message_id": message_id})
 
 
+def umformulieren_post(handler, db_pfad: str, token: str, chat_id: int,
+                       schluessel: bytes) -> None:
+    """``POST /g/<token>/chat/umformulieren`` -- der Dauerknopf "Fragen
+    umformulieren" im CoThinker/der Werkbank (Karte t_1f13a707). Wie
+    ``auswahl_fertig_post``: der Webserver legt nur den versteckten Befehl
+    ``/umformulieren`` als Eingang ab, der Bot fragt nach der Anweisung
+    (``knoepfe.fragen.frage_nach_umformulierung``).
+
+    Idempotent waehrend eine Runde schon laeuft (``fragen_warte_auf ==
+    'umformulieren'``): ein Doppel-Tap legt dann KEINEN zweiten Eingang an
+    -- sonst bekaeme die Gruppe die Rueckfrage zweimal, bevor sie die erste
+    beantwortet hat. ``message_id`` bleibt in diesem Fall ``None``, die
+    Antwort ist trotzdem 202 (angenommen, nur wirkungslos -- kein Fehler)."""
+    from interview_theater import repo, web_chat
+
+    if web_chat._koerper_oder_400(handler, token, schluessel) is None:
+        return
+    message_id = None
+    with web_chat.schreibend(db_pfad) as conn:
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        try:
+            warte_auf = (stand["fragen_warte_auf"] or "") if stand else ""
+        except (IndexError, KeyError):
+            warte_auf = ""
+        if warte_auf != "umformulieren":
+            message_id = repo.lege_web_post_an(
+                conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
+                text="/umformulieren",
+            )
+    web_chat._angenommen(handler, {"message_id": message_id})
+
+
 def start_post(handler, db_pfad: str, token: str, chat_id: int,
                schluessel: bytes) -> None:
     """``POST /g/<token>/chat/start`` -- der erste Seitenaufruf einer

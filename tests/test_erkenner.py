@@ -204,6 +204,9 @@ def test_arten_enthaelt_alle_werte():
         "formen_setzen",
         "sprechweise_setzen",
         "schaerfung_entscheidung",
+        # Karte t_c5117c91 (InScribe, 06.10.2026): profilgebunden ("recherche"),
+        # der freie Weg neben dem Research-Knopf.
+        "recherche_starten",
     }
     assert set(erkenner.ARTEN) == erwartet
 

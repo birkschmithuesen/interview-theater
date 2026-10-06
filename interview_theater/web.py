@@ -51,7 +51,7 @@ import sys
 import time
 import traceback
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import cothinker_status, db, phasen, vorspann, web_daten, web_schreiben  # noqa: F401 -- SZENENFELDER im HTML
@@ -546,10 +546,29 @@ ul { margin: .2rem 0; padding-left: 1.1rem; }
 #: Dashboard (``dashboard_html``) teilt sich die Konstante mit dem Ticker,
 #: und die Bitgleich-Tests (``tests/test_web_dashboard_en.py``) gelten fuer
 #: beide Profile, nicht nur Dortmund (selbst gemessen, kein Dortmund-Fall).
+#: Addendum 3 (06.10.2026): ein Eintrag, zwei Bloecke (Inhalt gross+offen,
+#: Technik als Ampel-``<details>``), grosse lesbare Schrift fuers Telefon.
 _CSS_TICKER = """
-.ticker-teil { margin-top: .3rem; }
-.ticker-teil h3 { margin: 0; font-size: .72rem; text-transform: uppercase;
-                  letter-spacing: .04em; opacity: .6; }
+.ticker-status { display: flex; flex-wrap: wrap; gap: .25rem 1.2rem;
+                 font-size: .9rem; opacity: .75; margin-bottom: 1rem; }
+.ticker-stale { color: #ffb020; font-weight: 600; opacity: 1; }
+.ticker-liste { font-size: 1.15rem; line-height: 1.5; }
+.ticker-eintrag { display: block; margin-bottom: .9rem; padding: .7rem .9rem;
+                  border: 1px solid #2c313a; border-radius: .6rem; background: #1d2026; }
+.ticker-neu { font-size: 1.08em; border-color: #3a4454; }
+.ticker-alt { opacity: .72; font-size: .9em; }
+.ticker-alt summary { cursor: pointer; }
+.ticker-kopf { font-size: .78em; opacity: .7; margin-bottom: .4rem; }
+.ticker-kopf .zeit { font-weight: 600; opacity: 1; }
+.ticker-inhalt h3 { margin: .6rem 0 .2rem; font-size: .8em; text-transform: uppercase;
+                    letter-spacing: .04em; opacity: .65; }
+.ticker-inhalt h3:first-child { margin-top: 0; }
+.ticker-inhalt ul, .ticker-technik ul { margin: .1rem 0 .4rem; padding-left: 1.2rem; }
+.ticker-technik { margin-top: .5rem; }
+.ticker-technik summary { cursor: pointer; font-weight: 600; list-style: none; }
+.ticker-technik summary::-webkit-details-marker { display: none; }
+.ampel-gruen { color: #7fd99a; }
+.ampel-gelb { color: #ffd166; }
 .ticker-warnung { color: #ff8f8f; }
 """
 
@@ -2116,8 +2135,13 @@ _TITEL_TICKER = "interview_theater — Ticker"
 _UEBERSCHRIFT_TICKER = "Regie-Ticker"
 _TEXT_TICKER_AUS = "Ticker aus."
 _TEXT_TICKER_LEER = "Noch keine Einträge."
-_TEXT_TICKER_INHALT = "Inhalt"
-_TEXT_TICKER_TECHNIK = "Technik"
+_TEXT_TICKER_STATUS_LETZTES = "Letztes Update: {uhrzeit} Uhr ({alter})"
+_TEXT_TICKER_STATUS_NAECHSTES = "Nächstes ~{naechste}"
+_TEXT_TICKER_STATUS_STEHT = "⚠ Ticker steht seit {minuten} min"
+_TEXT_TICKER_ALTER_GERADE = "gerade eben"
+_TEXT_TICKER_ALTER_VOR = "vor {minuten} min"
+_TEXT_TICKER_TECHNIK_OK = "● Technik unauffällig"
+_TEXT_TICKER_TECHNIK_VERDACHT = "● Technik: Verdacht ({anzahl})"
 
 #: Wie ein Aufnahmestatus auf dem Dashboard heisst -- Schluessel ist der
 #: Datenbankwert (``aufnahme.status``, Protokoll), deutsch der Wert selbst
@@ -2528,40 +2552,143 @@ def _ticker_eintraege(pfad: str) -> list[dict]:
     return eintraege
 
 
-def _ticker_teil_html(ueberschrift: str, text) -> str:
-    """Eine Stichpunktliste fuer einen Ticker-Teil (Inhalt oder Technik).
+#: "G1: ..." / "G2: ..." / "G3: ..." am Zeilenanfang (nach einem fuehrenden
+#: "•") -- der INHALT-Teil gruppiert sich daran (Addendum 3, 06.10.2026).
+_TICKER_GRUPPEN_PRAEFIX = re.compile(r"^(G[123]):\s*(.*)$")
 
-    Zeilen, die mit ``⚠`` beginnen, bekommen die CSS-Klasse
-    ``ticker-warnung`` -- so stechen Verdachtshinweise aus den
-    Stichpunkten heraus, ohne eine zweite Textfarbe zu erfinden."""
-    punkte = [z.strip() for z in str(text or "").splitlines() if z.strip()]
-    if not punkte:
+
+def _ticker_uhrzeit(zeit_iso: str | None) -> str:
+    gelesen = web_daten.lies_zeitstempel(zeit_iso)
+    if gelesen is None:
+        return "—"
+    return gelesen.astimezone().strftime("%H:%M")
+
+
+def _ticker_alter_minuten(zeit_iso: str | None) -> int | None:
+    gelesen = web_daten.lies_zeitstempel(zeit_iso)
+    if gelesen is None:
+        return None
+    delta = datetime.now(timezone.utc) - gelesen.astimezone(timezone.utc)
+    return max(0, int(delta.total_seconds() // 60))
+
+
+def _ticker_alter_text(minuten: int | None) -> str:
+    if minuten is None:
         return ""
-    zeilen = "".join(
-        '<li class="ticker-warnung">{p}</li>'.format(p=_t(p))
-        if p.startswith("⚠") else f"<li>{_t(p)}</li>"
-        for p in punkte
+    if minuten < 1:
+        return T._TEXT_TICKER_ALTER_GERADE
+    return T._TEXT_TICKER_ALTER_VOR.format(minuten=minuten)
+
+
+#: Ab diesem Alter des neuesten Eintrags gilt der Ticker als stehend --
+#: Cron-Takt ist 10 min (padua-ticker-brief.md), 15 min ist ein Takt plus
+#: Toleranz, kein Fehlalarm bei einer normal spaeten Minute.
+_TICKER_STEHT_MINUTEN = 15
+_TICKER_TAKT_MINUTEN = 10
+
+
+def _ticker_status_html(eintraege: list[dict]) -> str:
+    """Statuszeile ueber der Liste: letztes Update, naechstes erwartet, und
+    eine Warnung, wenn der neueste Eintrag laenger stillsteht als ein
+    Cron-Takt plus Toleranz -- das sagt der Regie "Cron pausiert/kaputt",
+    bevor sie es am leeren Bildschirm selbst herausfinden muss."""
+    zeit_iso = eintraege[0].get("zeit")
+    alter_min = _ticker_alter_minuten(zeit_iso)
+    gelesen = web_daten.lies_zeitstempel(zeit_iso)
+    naechste = (
+        (gelesen + timedelta(minutes=_TICKER_TAKT_MINUTEN)).astimezone().strftime("%H:%M")
+        if gelesen else "—"
     )
-    return f'<div class="ticker-teil"><h3>{ueberschrift}</h3><ul>{zeilen}</ul></div>'
+    teile = [
+        f"<span>{_t(T._TEXT_TICKER_STATUS_LETZTES.format(uhrzeit=_ticker_uhrzeit(zeit_iso), alter=_ticker_alter_text(alter_min)))}</span>",
+        f"<span>{_t(T._TEXT_TICKER_STATUS_NAECHSTES.format(naechste=naechste))}</span>",
+    ]
+    if alter_min is not None and alter_min > _TICKER_STEHT_MINUTEN:
+        teile.append(
+            f'<span class="ticker-stale">{_t(T._TEXT_TICKER_STATUS_STEHT.format(minuten=alter_min))}</span>')
+    return f'<div class="ticker-status">{"".join(teile)}</div>'
 
 
-def _ticker_eintrag_html(e: dict) -> str:
-    """Ein Ticker-Eintrag: neues Format (``inhalt``/``technik`` getrennt)
-    oder altes Format (nur ``text``), rueckwaertskompatibel (06.10.2026)."""
-    if e.get("inhalt") or e.get("technik"):
-        rumpf = (
-            _ticker_teil_html(_t(T._TEXT_TICKER_INHALT), e.get("inhalt"))
-            + _ticker_teil_html(_t(T._TEXT_TICKER_TECHNIK), e.get("technik"))
-        )
+def _ticker_inhalt_html(text) -> str:
+    """Der INHALT-Teil als echte Liste, pro Gruppe gruppiert, wenn die
+    Zeilen "G1:"/"G2:"/"G3:"-Praefixe tragen (so liefert sie der Brief);
+    Zeilen ohne Praefix (✨/🎬) bleiben eine eigene, ungruppierte Liste."""
+    punkte = [z.strip().lstrip("•").strip() for z in str(text or "").splitlines() if z.strip()]
+    if not punkte:
+        return '<div class="ticker-inhalt"><p class="leer">–</p></div>'
+    gruppen: dict[str, list[str]] = {}
+    reihenfolge: list[str] = []
+    sonstige: list[str] = []
+    for p in punkte:
+        treffer = _TICKER_GRUPPEN_PRAEFIX.match(p)
+        if treffer:
+            g, rest = treffer.group(1), treffer.group(2)
+            if g not in gruppen:
+                gruppen[g] = []
+                reihenfolge.append(g)
+            gruppen[g].append(rest)
+        else:
+            sonstige.append(p)
+    teile = []
+    for g in reihenfolge:
+        zeilen = "".join(f"<li>{_t(z)}</li>" for z in gruppen[g])
+        teile.append(f"<h3>{_t(g)}</h3><ul>{zeilen}</ul>")
+    if sonstige:
+        zeilen = "".join(f"<li>{_t(z)}</li>" for z in sonstige)
+        teile.append(f"<ul>{zeilen}</ul>")
+    return f'<div class="ticker-inhalt">{"".join(teile)}</div>'
+
+
+def _ticker_technik_html(text) -> str:
+    """Der TECHNIK-Teil als eingeklapptes ``<details>`` (nie ``open``): die
+    Ampel im ``<summary>`` bleibt auch zugeklappt sichtbar -- gruen ohne
+    ⚠-Zeilen, gelb mit Anzahl sonst. ⚠-Zeilen stehen zuerst (so liefert sie
+    bereits ``technik_text_mit_einschaetzung`` im Profil-Repo-Skript)."""
+    punkte = [z.strip() for z in str(text or "").splitlines() if z.strip()]
+    anzahl_warnungen = sum(1 for p in punkte if p.startswith("⚠"))
+    if anzahl_warnungen:
+        klasse = "ampel-gelb"
+        label = T._TEXT_TICKER_TECHNIK_VERDACHT.format(anzahl=anzahl_warnungen)
     else:
-        rumpf = f" {_t(e.get('text'))}"
-    return f'<li><span class="zeit">{_t(e.get("zeit"), "")}</span>{rumpf}</li>'
+        klasse = "ampel-gruen"
+        label = T._TEXT_TICKER_TECHNIK_OK
+    zeilen = "".join(
+        f'<li class="ticker-warnung">{_t(p)}</li>' if p.startswith("⚠") else f"<li>{_t(p)}</li>"
+        for p in punkte
+    ) or f"<li>{_t(label)}</li>"
+    return (
+        f'<details class="ticker-technik"><summary class="{klasse}">{_t(label)}</summary>'
+        f"<ul>{zeilen}</ul></details>"
+    )
+
+
+def _ticker_eintrag_html(e: dict, neu: bool) -> str:
+    """Ein Ticker-Eintrag: neues Format (``inhalt``/``technik`` getrennt)
+    oder altes Format (nur ``text``), rueckwaertskompatibel (06.10.2026).
+
+    Der neueste Eintrag (``neu=True``) steht gross und offen als
+    ``<article>``; aeltere stehen gedaempft als ``<details>``, auf die
+    Kopfzeile (Zeit + Alter) eingeklappt."""
+    kopf = (f'<span class="zeit">{_t(_ticker_uhrzeit(e.get("zeit")))}</span> '
+            f'<span class="alter">{_t(_ticker_alter_text(_ticker_alter_minuten(e.get("zeit"))))}</span>')
+    if e.get("inhalt") or e.get("technik"):
+        rumpf = _ticker_inhalt_html(e.get("inhalt")) + _ticker_technik_html(e.get("technik"))
+    else:
+        rumpf = f'<div class="ticker-inhalt"><p>{_t(e.get("text"))}</p></div>'
+    if neu:
+        return f'<article class="ticker-eintrag ticker-neu"><div class="ticker-kopf">{kopf}</div>{rumpf}</article>'
+    return f'<details class="ticker-eintrag ticker-alt"><summary>{kopf}</summary>{rumpf}</details>'
 
 
 def ticker_html() -> str:
-    """Der Regie-Ticker als eigene Seite (Padua, 05.10.2026): Eintraege aus
-    ``IT_WEB_TICKER_DATEI``, neueste zuerst, alle 60 s sanft nachgeladen
-    (dieselbe ``_SCROLL_JS`` wie das Dashboard, nur mit eigenem Intervall).
+    """Der Regie-Ticker als eigene Seite (Padua, 05.10.2026, Addendum 3
+    06.10.2026): Eintraege aus ``IT_WEB_TICKER_DATEI``, neueste zuerst,
+    alle 60 s sanft nachgeladen (voller Neuladebefehl, siehe ``_TICKER_JS``
+    -- die Seite steht ohnehin oben, ein Reload haelt die Scrollposition
+    automatisch dort).
+
+    PRIMAER ist der Inhalt: er steht gross, offen und als erstes; TECHNIK
+    ist je Eintrag ein eingeklapptes Detail mit einer Ampel im Titel.
 
     Ohne die Variable wird keine Datei angefasst -- die Seite antwortet mit
     einem freundlichen Hinweis statt mit einem Dateizugriff ins Leere."""
@@ -2574,10 +2701,13 @@ def ticker_html() -> str:
     else:
         eintraege = _ticker_eintraege(ticker_datei)
         if eintraege:
-            zeilen = "".join(_ticker_eintrag_html(e) for e in eintraege)
+            status = _ticker_status_html(eintraege)
+            liste = "".join(
+                _ticker_eintrag_html(e, neu=(i == 0)) for i, e in enumerate(eintraege))
             koerper = (
                 f"<h1>{_t(T._UEBERSCHRIFT_TICKER)}</h1>"
-                f'<ul class="ticker">{zeilen}</ul>'
+                f"{status}"
+                f'<div class="ticker-liste">{liste}</div>'
             )
         else:
             koerper = (

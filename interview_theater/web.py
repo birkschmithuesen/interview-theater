@@ -540,6 +540,10 @@ th { opacity: .6; font-weight: 600; }
 .ergebnisse { margin: .5rem 0 0; font-size: .85rem; }
 .ergebnisse li { margin-bottom: .15rem; }
 ul { margin: .2rem 0; padding-left: 1.1rem; }
+.ticker-teil { margin-top: .3rem; }
+.ticker-teil h3 { margin: 0; font-size: .72rem; text-transform: uppercase;
+                  letter-spacing: .04em; opacity: .6; }
+.ticker-warnung { color: #ff8f8f; }
 """
 
 _CSS_GRUPPE = """
@@ -2092,6 +2096,8 @@ _TITEL_TICKER = "interview_theater — Ticker"
 _UEBERSCHRIFT_TICKER = "Regie-Ticker"
 _TEXT_TICKER_AUS = "Ticker aus."
 _TEXT_TICKER_LEER = "Noch keine Einträge."
+_TEXT_TICKER_INHALT = "Inhalt"
+_TEXT_TICKER_TECHNIK = "Technik"
 
 #: Wie ein Aufnahmestatus auf dem Dashboard heisst -- Schluessel ist der
 #: Datenbankwert (``aufnahme.status``, Protokoll), deutsch der Wert selbst
@@ -2502,6 +2508,36 @@ def _ticker_eintraege(pfad: str) -> list[dict]:
     return eintraege
 
 
+def _ticker_teil_html(ueberschrift: str, text) -> str:
+    """Eine Stichpunktliste fuer einen Ticker-Teil (Inhalt oder Technik).
+
+    Zeilen, die mit ``⚠`` beginnen, bekommen die CSS-Klasse
+    ``ticker-warnung`` -- so stechen Verdachtshinweise aus den
+    Stichpunkten heraus, ohne eine zweite Textfarbe zu erfinden."""
+    punkte = [z.strip() for z in str(text or "").splitlines() if z.strip()]
+    if not punkte:
+        return ""
+    zeilen = "".join(
+        '<li class="ticker-warnung">{p}</li>'.format(p=_t(p))
+        if p.startswith("⚠") else f"<li>{_t(p)}</li>"
+        for p in punkte
+    )
+    return f'<div class="ticker-teil"><h3>{ueberschrift}</h3><ul>{zeilen}</ul></div>'
+
+
+def _ticker_eintrag_html(e: dict) -> str:
+    """Ein Ticker-Eintrag: neues Format (``inhalt``/``technik`` getrennt)
+    oder altes Format (nur ``text``), rueckwaertskompatibel (06.10.2026)."""
+    if e.get("inhalt") or e.get("technik"):
+        rumpf = (
+            _ticker_teil_html(_t(T._TEXT_TICKER_INHALT), e.get("inhalt"))
+            + _ticker_teil_html(_t(T._TEXT_TICKER_TECHNIK), e.get("technik"))
+        )
+    else:
+        rumpf = f" {_t(e.get('text'))}"
+    return f'<li><span class="zeit">{_t(e.get("zeit"), "")}</span>{rumpf}</li>'
+
+
 def ticker_html() -> str:
     """Der Regie-Ticker als eigene Seite (Padua, 05.10.2026): Eintraege aus
     ``IT_WEB_TICKER_DATEI``, neueste zuerst, alle 60 s sanft nachgeladen
@@ -2518,11 +2554,7 @@ def ticker_html() -> str:
     else:
         eintraege = _ticker_eintraege(ticker_datei)
         if eintraege:
-            zeilen = "".join(
-                '<li><span class="zeit">{zeit}</span> {text}</li>'.format(
-                    zeit=_t(e.get("zeit"), ""), text=_t(e.get("text"), ""))
-                for e in eintraege
-            )
+            zeilen = "".join(_ticker_eintrag_html(e) for e in eintraege)
             koerper = (
                 f"<h1>{_t(T._UEBERSCHRIFT_TICKER)}</h1>"
                 f'<ul class="ticker">{zeilen}</ul>'

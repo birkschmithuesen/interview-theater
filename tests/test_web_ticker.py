@@ -110,6 +110,67 @@ def test_unvollstaendige_zeile_wird_ignoriert(server, monkeypatch, tmp_path):
         srv.shutdown()
 
 
+def test_neues_format_zeigt_inhalt_und_technik_bloecke(server, monkeypatch, tmp_path):
+    datei = tmp_path / "eintraege.jsonl"
+    datei.write_text(
+        json.dumps({
+            "zeit": "2026-10-06T10:00:00+00:00",
+            "text": "Inhalt: G1 diskutiert Begriffe\nTechnik: alles unauffaellig",
+            "inhalt": "• G1 diskutiert Begriffe",
+            "technik": "✓ Technik unauffällig",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    srv, basis = _laufe(server, monkeypatch, ticker_datei=datei)
+    try:
+        code, text = _hole(basis, f"/padua/dashboard/{TOKEN}/ticker")
+        assert code == 200
+        assert "Inhalt" in text
+        assert "Technik" in text
+        assert "G1 diskutiert Begriffe" in text
+        assert "Technik unauffällig" in text
+    finally:
+        srv.shutdown()
+
+
+def test_warnzeile_in_technik_bekommt_eigene_css_klasse(server, monkeypatch, tmp_path):
+    datei = tmp_path / "eintraege.jsonl"
+    datei.write_text(
+        json.dumps({
+            "zeit": "2026-10-06T10:00:00+00:00",
+            "text": "zusammengefasst",
+            "inhalt": "• nichts Neues",
+            "technik": "⚠ Verdacht: G2 Aufnahme haengt seit 7 min\n• 3 Aufn. gesamt",
+        }) + "\n",
+        encoding="utf-8",
+    )
+    srv, basis = _laufe(server, monkeypatch, ticker_datei=datei)
+    try:
+        code, text = _hole(basis, f"/padua/dashboard/{TOKEN}/ticker")
+        assert code == 200
+        assert 'class="ticker-warnung"' in text
+        assert "G2 Aufnahme haengt seit 7 min" in text
+    finally:
+        srv.shutdown()
+
+
+def test_altes_format_ohne_inhalt_technik_unveraendert(server, monkeypatch, tmp_path):
+    datei = tmp_path / "eintraege.jsonl"
+    datei.write_text(
+        json.dumps({"zeit": "2026-10-05T10:00:00+00:00", "text": "alter Eintrag ohne Teile"}) + "\n",
+        encoding="utf-8",
+    )
+    srv, basis = _laufe(server, monkeypatch, ticker_datei=datei)
+    try:
+        code, text = _hole(basis, f"/padua/dashboard/{TOKEN}/ticker")
+        assert code == 200
+        assert "alter Eintrag ohne Teile" in text
+        assert '<div class="ticker-teil">' not in text
+        assert 'class="ticker-warnung"' not in text
+    finally:
+        srv.shutdown()
+
+
 def test_tab_im_dashboard_nur_mit_gesetzter_umgebungsvariable(server, monkeypatch, tmp_path):
     datei = tmp_path / "eintraege.jsonl"
     datei.write_text("", encoding="utf-8")

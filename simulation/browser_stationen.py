@@ -424,7 +424,7 @@ STATIONEN_P57: tuple[Station, ...] = (
             "confirm each one.",
             fertig=lambda s: (_feld(s, "phase") or 5) >= 6
             or s.get("szenen_entwurf_ok", 0) >= s.get("szenen_anzahl", 0) > 0,
-            budget=14, geduld_s=600, endet_bei_phasenwechsel=True,
+            budget=24, geduld_s=900, endet_bei_phasenwechsel=True,
             pruefung=("prueflauf", "chat_volltext", "sprung"),
             # Fortschritt: eine frisch entworfene, noch nicht abgenommene
             # Szene (``szenen_mit_prosa`` > ``szenen_entwurf_ok``) ist bereit
@@ -441,7 +441,7 @@ STATIONEN_P57: tuple[Station, ...] = (
             "Give free feedback on one scene in the chat, then confirm every "
             "scene.",
             fertig=lambda s: (_feld(s, "phase") or 6) >= 7,
-            budget=10, geduld_s=600, endet_bei_phasenwechsel=True,
+            budget=14, geduld_s=900, endet_bei_phasenwechsel=True,
             pruefung=("prueflauf", "chat_volltext", "sprung"),
             # Kein eigener "geschrieben, aber noch nicht abgenommen"-Zaehler
             # wie bei p5-szenen/p7-szenen (``prosa`` wird in Phase 5 UND 6
@@ -465,7 +465,7 @@ STATIONEN_P57: tuple[Station, ...] = (
             "Read every scene's stage text, one by one, and confirm each "
             "one.",
             fertig=lambda s: s.get("szenen_fertig", 0) >= s.get("szenen_anzahl", 0) > 0,
-            budget=14, geduld_s=600,
+            budget=20, geduld_s=900,
             # Fortschritt: eine frisch uebertragene, noch nicht abgenommene
             # Szene (``szenen_mit_volltext`` > ``szenen_fertig``) ist bereit
             # zum Lesen -- ODER alle Szenen sind abgenommen.

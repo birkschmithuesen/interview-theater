@@ -1220,14 +1220,18 @@ class P57Stand:
     gesamttext_fixiert_am: str | None = None
     geschichte_uebersicht_fixiert_am: str | None = None
     sprechweisen_fixiert_am: str | None = None
+    #: ``arbeitsstand.geschichte_uebersicht`` (der angezeigte Uebersichtstext).
+    geschichte_uebersicht: str | None = None
 
 
 def lese_p57_stand(conn: sqlite3.Connection, chat_id: int) -> P57Stand:
     schaerfung_filter = " AND sch.entfernt_am IS NULL" if _hat_spalte(conn, "schaerfung", "entfernt_am") else ""
+    uebernommen_ausdruck = "sch.uebernommen_am" if _hat_spalte(conn, "schaerfung", "uebernommen_am") else "NULL"
     schaerfungen = tuple(
         dict(z) for z in conn.execute(
             f"""
             SELECT sch.id AS id, sch.verdichtung_thema_id AS verdichtung_thema_id,
+                   {uebernommen_ausdruck} AS uebernommen_am,
                    vt.zitat_geprueft AS zitat_geprueft, vt.beleg_zitat AS beleg_zitat
             FROM schaerfung sch JOIN verdichtung_thema vt ON vt.id = sch.verdichtung_thema_id
             WHERE sch.chat_id = ?{schaerfung_filter}
@@ -1277,10 +1281,13 @@ def lese_p57_stand(conn: sqlite3.Connection, chat_id: int) -> P57Stand:
                           if _hat_spalte(conn, "arbeitsstand", "geschichte_uebersicht_fixiert_am") else "NULL")
     sprechweisen_ausdruck = ("sprechweisen_fixiert_am"
                             if _hat_spalte(conn, "arbeitsstand", "sprechweisen_fixiert_am") else "NULL")
+    uebersicht_text_ausdruck = ("geschichte_uebersicht"
+                               if _hat_spalte(conn, "arbeitsstand", "geschichte_uebersicht") else "NULL")
     arbeitsstand = conn.execute(
         f"SELECT phase, {gesamt_ausdruck} AS gesamttext_fixiert_am, "
         f"{uebersicht_ausdruck} AS geschichte_uebersicht_fixiert_am, "
-        f"{sprechweisen_ausdruck} AS sprechweisen_fixiert_am FROM arbeitsstand WHERE chat_id = ?",
+        f"{sprechweisen_ausdruck} AS sprechweisen_fixiert_am, "
+        f"{uebersicht_text_ausdruck} AS geschichte_uebersicht FROM arbeitsstand WHERE chat_id = ?",
         (chat_id,)).fetchone()
 
     return P57Stand(
@@ -1292,7 +1299,37 @@ def lese_p57_stand(conn: sqlite3.Connection, chat_id: int) -> P57Stand:
         geschichte_uebersicht_fixiert_am=(
             arbeitsstand["geschichte_uebersicht_fixiert_am"] if arbeitsstand else None),
         sprechweisen_fixiert_am=(arbeitsstand["sprechweisen_fixiert_am"] if arbeitsstand else None),
+        geschichte_uebersicht=(arbeitsstand["geschichte_uebersicht"] if arbeitsstand else None),
     )
+
+
+UEBERSICHT_FEHLT = "uebersicht_fehlt"
+UEBERSICHT_DEUTSCH = "uebersicht_deutsch"
+UEBERSICHT_VOR_SCHAERFUNG = "uebersicht_vor_schaerfung"
+
+
+def pruefe_p5_uebersicht(uebersicht: str | None, schaerfungen: tuple, station: str) -> list[Befund]:
+    """Die Geschichts-Uebersicht (Phase 5): sie existiert und ist nicht leer
+    (Inhaltspruefung), ist fuer eine englische Gruppe englisch
+    (``DE_MARKEN``) und erscheint erst NACH den Schaerfungs-Entscheidungen
+    (gibt es Schaerfungszeilen, muss mindestens eine entschieden/uebernommen
+    sein)."""
+    text = (uebersicht or "").strip()
+    if not text:
+        return [Befund(UEBERSICHT_FEHLT, station,
+                       "arbeitsstand.geschichte_uebersicht ist leer -- die Uebersicht wurde nie erzeugt.")]
+    befunde: list[Befund] = []
+    if any(marke in text for marke in DE_MARKEN):
+        befunde.append(Befund(
+            UEBERSICHT_DEUTSCH, station,
+            f"Die Uebersicht enthaelt deutsche Marken in einer englischsprachigen Gruppe: {text[:160]!r}",
+            schwere="mittel"))
+    if schaerfungen and not any(z.get("uebernommen_am") for z in schaerfungen):
+        befunde.append(Befund(
+            UEBERSICHT_VOR_SCHAERFUNG, station,
+            "Die Uebersicht steht, aber keine Schaerfungszeile ist uebernommen -- sie kam vor den "
+            "Schaerfungs-Entscheidungen.", schwere="mittel"))
+    return befunde
 
 
 def pruefe_p5_zitat_ungeprueft(schaerfungen: tuple, bot_texte: tuple, station: str) -> list[Befund]:

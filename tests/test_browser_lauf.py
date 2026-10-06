@@ -1992,7 +1992,7 @@ def test_pingpong_waechter_db_aenderung_oder_andere_aktion_setzt_zurueck():
     assert w.pruefe(tab, {"szene": 1}) is None          # DB hat sich bewegt
     for _ in range(5):
         assert w.pruefe(tab, {}) is None
-    assert w.pruefe({"type": "click", "element_id": 1}, {}) is None
+    assert w.pruefe({"type": "type_send", "text": "x"}, {}) is None
     assert w.pruefe(tab, {}) is None
 
 
@@ -2033,3 +2033,43 @@ def test_unfertige_station_wird_einmal_verlaengert_dann_kein_phasensprung(
     zeilen = [json.loads(z) for z in (tmp_path / "l" / "schritte.jsonl").read_text().splitlines()]
     assert all("phase_erzwungen" in z for z in zeilen)
     assert orig is not None
+
+
+_DIFF_LEER = {"arbeitsstand_geaendert": {}, "zahlen_geaendert": {}}
+
+
+def test_pingpong_waechter_echter_leerer_diff_zaehlt():
+    """Lauf 4: ``unterschied`` liefert immer zwei Schluessel -- das darf den
+    Zaehler nicht zuruecksetzen."""
+    w = browser_lauf.PingpongWaechter()
+    tab = lambda n: {"type": "tab", "name": n}
+    erg = [w.pruefe(tab("chat" if i % 2 else "textbuch"), _DIFF_LEER) for i in range(7)]
+    assert erg[5] == "hinweis" and erg[6] == "fehlgriff"
+
+
+def test_pingpong_waechter_klick_ohne_datenwirkung_zaehlt_mit():
+    """Textgroessen-Klicks zwischen Tab-Wechseln unterbrechen die Folge nicht."""
+    w = browser_lauf.PingpongWaechter()
+    aktionen = [{"type": "tab", "name": "chat"}, {"type": "click", "element_id": 3}] * 3
+    erg = [w.pruefe(a, _DIFF_LEER) for a in aktionen]
+    assert erg[5] == "hinweis"
+    assert w.pruefe({"type": "click", "element_id": 3}, {"arbeitsstand_geaendert": {"x": 1},
+                                                          "zahlen_geaendert": {}}) is None
+
+
+def test_stationsgedaechtnis_erinnert_an_gelesenes():
+    g = browser_lauf.StationsGedaechtnis()
+    assert g.text() is None
+    g.notiere(1, {"type": "tab", "name": "textbuch"}, _DIFF_LEER)
+    g.notiere(2, {"type": "tab", "name": "chat"}, _DIFF_LEER)
+    g.notiere(3, {"type": "tab", "name": "textbuch"}, _DIFF_LEER)
+    t = g.text()
+    assert "step 1: tab textbuch" in t and "textbuch tab (2x)" in t
+    assert "Chat tab" in t and "tap one now" in t
+
+
+def test_stationsgedaechtnis_im_persona_prompt():
+    from simulation import browser_persona
+    t = browser_persona.baue_nutzertext([], "Ziel", [], "step 1: tab chat")
+    assert "already did" in t and "step 1: tab chat" in t
+    assert "already did" not in browser_persona.baue_nutzertext([], "Ziel", [])

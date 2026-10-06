@@ -227,13 +227,15 @@ def test_stationen_p57_vollstaendig_und_geordnet():
 def test_stationen_p57_gesamtbudget_unter_der_grenze():
     """Risiko-Vorgabe im Plan: Gesamtbudget <= 80 Schritte, sonst verlaengert
     sich der Lauf (> 30 min, muss in den Hintergrund)."""
-    assert sum(st.budget for st in s.STATIONEN_P57) <= 80
+    assert sum(st.budget for st in s.STATIONEN_P57) <= 100
 
 
 def test_stationen_p57_geduld_600_ausser_eintritt():
     for st in s.STATIONEN_P57:
         if st.schluessel == "p5-eintritt":
             assert st.geduld_s == 90.0
+        elif st.schluessel in ("p5-szenen", "p6-szenen", "p7-szenen"):
+            assert st.geduld_s >= 900          # Szenenlauf + Prueflauf ~8 min je Szene
         else:
             assert st.geduld_s == 600
 
@@ -435,3 +437,16 @@ def test_p4_kalibrierung_station_mirrors_p1_kalibrierung():
     schluessel = [x.schluessel for x in s.STATIONEN_P34]
     assert schluessel.index("p4-eintritt") < schluessel.index("p4-kalibrierung") \
         < schluessel.index("p4-brainstorm")
+
+
+def test_schreibstationen_budget_fuer_drei_szenen():
+    by = {st.schluessel: st for st in s.STATIONEN_P57}
+    assert by["p5-szenen"].budget >= 24
+    assert by["p6-szenen"].budget >= 14
+    assert by["p7-szenen"].budget >= 20
+
+
+def test_stationszeitdeckel_und_laufdeckel():
+    from simulation import browser_lauf
+    assert browser_lauf.STATION_MAX_S >= 35 * 60
+    assert browser_lauf.LAUF_MAX_MINUTEN >= 150

@@ -1144,3 +1144,34 @@ def test_stueck_unvollstaendig_vollstaendig_ist_sauber():
     szenen = ({"id": 1, "nummer": 1, "fertig_am": "x", "volltext": "Scene text."},)
     stueckpruefungen = ({"id": 1, "runde": 1, "bewertung": 4},)
     assert inv.pruefe_stueck_unvollstaendig(szenen, stueckpruefungen, "p7-schluss") == []
+
+
+# --- p5_uebersicht (Lauf 4: pruefung_unbekannt:p5_uebersicht) --------------
+
+def test_p5_uebersicht_leer_ist_befund():
+    b = inv.pruefe_p5_uebersicht("  ", (), "p5-uebersicht")
+    assert [x.schluessel for x in b] == [inv.UEBERSICHT_FEHLT]
+
+
+def test_p5_uebersicht_deutsch_und_vor_schaerfung():
+    b = inv.pruefe_p5_uebersicht("Die Geschichte ist nicht fertig", ({"id": 1, "uebernommen_am": None},), "s")
+    assert {x.schluessel for x in b} == {inv.UEBERSICHT_DEUTSCH, inv.UEBERSICHT_VOR_SCHAERFUNG}
+
+
+def test_p5_uebersicht_sauber():
+    assert inv.pruefe_p5_uebersicht("Scene 1: Elena arrives.", ({"id": 1, "uebernommen_am": "x"},), "s") == []
+    assert inv.pruefe_p5_uebersicht("Scene 1: Elena arrives.", (), "s") == []
+
+
+def test_p5_uebersicht_haken_registriert():
+    from simulation import browser_pruefhaken
+    assert "p5_uebersicht" in browser_pruefhaken.HAKEN
+
+
+def test_lese_p57_stand_liest_uebersichtstext(db57):
+    import sqlite3
+    c = sqlite3.connect(db57)
+    c.execute("ALTER TABLE arbeitsstand ADD COLUMN geschichte_uebersicht TEXT")
+    c.execute("INSERT INTO arbeitsstand (chat_id, phase, geschichte_uebersicht) VALUES (7, 5, 'Scene 1')")
+    c.commit(); c.close()
+    assert _p57(db57).geschichte_uebersicht == "Scene 1"

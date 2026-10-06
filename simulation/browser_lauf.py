@@ -112,9 +112,9 @@ def _aktion_ausfuehren(page, aktion: dict) -> dict:
 #: Folge) in einer Station scheitern, bevor die Station endet.
 SCHLEIFE_MAX_FEHLER = 3
 #: Hoechstens so lange darf eine Station dauern (Sekunden).
-STATION_MAX_S = 20 * 60.0
+STATION_MAX_S = 35 * 60.0
 #: Hoechstens so lange darf ein ganzer Lauf dauern (Minuten).
-LAUF_MAX_MINUTEN = 120.0
+LAUF_MAX_MINUTEN = 150.0
 
 
 def _aktionsschluessel(aktion: dict) -> str:
@@ -564,12 +564,24 @@ HINWEIS_STATION_FERTIG = ("Finish and save all scenes (read and confirm every on
 STATION_ERWEITERUNG = 0.5
 
 
+def _diff_leer(db_diff: dict | None) -> bool:
+    """``browser_mitschnitt.unterschied`` liefert IMMER ein Dict mit zwei
+    Schluesseln -- leer ist es erst, wenn beide Werte leer sind (Lauf 4:
+    ein ``not db_diff`` setzte den Zaehler bei jedem Schritt zurueck)."""
+    return not db_diff or not any(db_diff.values())
+
+
+#: Aktionen, die nur die Oberflaeche bewegen (Tab, Klick ohne Datenwirkung,
+#: z. B. Textgroesse) -- sie zaehlen fuer den Pingpong-Schutz.
+_UI_AKTIONEN = ("tab", "click")
+
+
 class PingpongWaechter:
-    """Zaehlt aufeinanderfolgende Tab-Wechsel ohne DB-Aenderung (auch
-    abwechselnd zwischen zwei Tabs -- die Aktion variiert, der Typ nicht).
+    """Zaehlt aufeinanderfolgende Oberflaechen-Aktionen (Tab, Klick) ohne
+    DB-Aenderung (auch abwechselnd -- die Aktion variiert, der Typ nicht).
     ``pruefe`` liefert ``None``, ``"hinweis"`` (einmal bei Erreichen der
-    Schwelle) oder ``"fehlgriff"`` (jeder weitere wirkungslose Wechsel danach:
-    der Aufrufer fuettert damit den ``Schleifenwaechter``)."""
+    Schwelle) oder ``"fehlgriff"`` (jeder weitere wirkungslose Schritt
+    danach: der Aufrufer fuettert damit den ``Schleifenwaechter``)."""
 
     def __init__(self, schwelle: int = PINGPONG_SCHWELLE):
         self.schwelle = schwelle
@@ -577,7 +589,7 @@ class PingpongWaechter:
         self._genudged = False
 
     def pruefe(self, aktion: dict, db_diff: dict | None) -> str | None:
-        if aktion.get("type") != "tab" or db_diff:
+        if aktion.get("type") not in _UI_AKTIONEN or not _diff_leer(db_diff):
             self._folge, self._genudged = 0, False
             return None
         self._folge += 1
@@ -587,6 +599,40 @@ class PingpongWaechter:
             self._genudged = True
             return "hinweis"
         return "fehlgriff"
+
+
+class StationsGedaechtnis:
+    """Kurzes Gedaechtnis der Persona je Station: was sie schon getan hat
+    (Lauf 4: 24x Script<->Chat mit "ich will es lesen", ohne je zu tippen)."""
+
+    MAX_ZEILEN = 10
+
+    def __init__(self):
+        self._zeilen: list[str] = []
+        self._tabs: dict[str, int] = {}
+        self._ohne_wirkung = 0
+
+    def notiere(self, schritt: int, aktion: dict, db_diff: dict | None) -> None:
+        art = aktion.get("type")
+        ziel = next((aktion[k] for k in ("name", "text", "nummer", "element_id")
+                     if aktion.get(k) not in (None, "")), "")
+        wirkung = "data changed" if not _diff_leer(db_diff) else "nothing changed in the data"
+        self._zeilen.append(f"step {schritt}: {art} {str(ziel)[:60]} -> {wirkung}".replace("  ", " "))
+        if art == "tab" and aktion.get("name"):
+            self._tabs[str(aktion["name"])] = self._tabs.get(str(aktion["name"]), 0) + 1
+        self._ohne_wirkung = 0 if not _diff_leer(db_diff) or art not in _UI_AKTIONEN \
+            else self._ohne_wirkung + 1
+
+    def text(self) -> str | None:
+        if not self._zeilen:
+            return None
+        zeilen = self._zeilen[-self.MAX_ZEILEN:]
+        if self._ohne_wirkung >= 2 or sum(self._tabs.values()) >= 3:
+            gelesen = ", ".join(f"the {n} tab ({k}x)" for n, k in self._tabs.items())
+            zeilen.append(
+                f"You already looked at {gelesen or 'the content'} -- do not read it again. "
+                "The confirm buttons are in the Chat tab: tap one now, or type what to change.")
+        return "\n".join(zeilen)
 
 
 def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mitschnitt,
@@ -711,6 +757,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
     if frist is not None:
         ende_zeit = min(ende_zeit, frist)
     pingpong = PingpongWaechter()
+    gedaechtnis = StationsGedaechtnis()
     budget = station.budget
     erweitert = False
 
@@ -747,7 +794,8 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         elemente = browser_elemente.extrahiere(page)
         aktion = browser_persona.naechste_aktion(
             persona_client, persona_name, vor.read_bytes(), elemente,
-            station.ziel, _verlaufszeilen(page), hinweis=hinweis)
+            station.ziel, _verlaufszeilen(page), hinweis=hinweis,
+            gedaechtnis=gedaechtnis.text())
         hinweis = None
         offene.extend(browser_persona.offene_fragen(aktion))
         if aktion.get("type") in ("done_phase", "done_station"):
@@ -829,6 +877,8 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             elemente=elemente, aktion=protokoll, begruendung=aktion.get("begruendung", ""),
             antwort=warte, db_diff=db_diff, station=station.schluessel)
 
+        if not aktion_gescheitert:
+            gedaechtnis.notiere(schritte, aktion, db_diff)
         pp = pingpong.pruefe(aktion, db_diff) if not aktion_gescheitert else None
         if pp == "hinweis":
             hinweis = HINWEIS_PINGPONG
@@ -1575,7 +1625,7 @@ def main() -> None:
                                "Wert ueberschreitet (nur Stationsmodus)")
     zerleger.add_argument("--max-minuten", type=float, default=LAUF_MAX_MINUTEN,
                           help="Zeitdeckel fuer den ganzen Stationslauf (Minuten, "
-                               "Vorgabe 120); danach endet er sauber mit Bericht")
+                               "Vorgabe 150); danach endet er sauber mit Bericht")
     zerleger.add_argument("--szene-modell", default=None, metavar="NAME",
                           help="setzt IT_SZENE_MODELL im Bot-Wrapper NACH der Env-Datei "
                                "(z. B. claude-sonnet-5 wie live); Vorgabe: unveraendert")

@@ -430,6 +430,11 @@ def _p5_schaerfung(station, kontext: PruefKontext, chat_id: int) -> list[inv.Bef
     return inv.pruefe_p5_zitat_ungeprueft(stand.schaerfungen, stand.bot_texte, station.schluessel)
 
 
+def _p5_uebersicht(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    stand = _lies_p57(kontext, chat_id)
+    return inv.pruefe_p5_uebersicht(stand.geschichte_uebersicht, stand.schaerfungen, station.schluessel)
+
+
 def _prueflauf(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
     stand = _lies_p57(kontext, chat_id)
     return inv.pruefe_prueflauf_zeilen(
@@ -477,6 +482,7 @@ HAKEN: dict[str, Callable] = {
     "p5_angebot": _p5_angebot,
     "pause_resume": _pause_resume,
     "p5_schaerfung": _p5_schaerfung,
+    "p5_uebersicht": _p5_uebersicht,
     "prueflauf": _prueflauf,
     "chat_volltext": _chat_volltext,
     "sprung": _sprung,

@@ -1301,6 +1301,38 @@ CREATE TABLE IF NOT EXISTS uebersetzung (
   felder        TEXT NOT NULL,
   aktualisiert_am TEXT NOT NULL
 );
+
+-- UX-Ereignis-Logging der Weboberflaeche (Padua, Karte t_10a31406,
+-- 06.10.2026): rein CLIENT-seitige Nutzungssignale -- Tab-Wechsel, Klicks,
+-- Abbrueche, JS-Fehler, Geraete-ID -- damit der Nutzerfluss spaeter
+-- ausgewertet werden kann (scripts/ux_auswertung.py). NIE Freitext, NIE
+-- Transkript- oder Chatinhalt, NIE Tastatureingaben -- erzwungen in
+-- repo.speichere_ux_ereignisse: ``typ`` kommt aus einer festen Liste
+-- (repo.UX_TYPEN), ``ziel`` ist ein kurzes Schluesselwort (keine Satzzeichen,
+-- kein Leerzeichen), ``extra_json`` traegt ausschliesslich Zahlenwerte unter
+-- festen Schluesseln (repo.UX_EXTRA_SCHLUESSEL).
+--
+-- Nur mit Profilschalter ``[ux] ereignisse = true``
+-- (workshop.ux_ereignisse_aktiv) -- ohne ihn haengt die Seite den
+-- Batching-Code gar nicht erst ein, Dortmund bleibt byte-gleich.
+--
+-- Nur-anhaengend wie journal/szenenfassung: kein Entfernungspfad ausser
+-- scripts/loeschen.py (``db.loesche_gruppe``, ueber TABELLEN_MIT_CHAT_ID).
+-- ``geraet`` ist eine zufaellige, pro Token in localStorage abgelegte ID --
+-- KEIN Fingerprint, keine Geraeteeigenschaft.
+CREATE TABLE IF NOT EXISTS ux_ereignis (
+  id          INTEGER PRIMARY KEY,
+  chat_id     INTEGER NOT NULL,
+  geraet      TEXT NOT NULL,
+  typ         TEXT NOT NULL,
+  ziel        TEXT NOT NULL,
+  phase       INTEGER,
+  client_t    INTEGER,
+  server_t    TEXT NOT NULL,
+  dauer_ms    INTEGER,
+  extra_json  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ux_ereignis_chat ON ux_ereignis(chat_id, id);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1338,6 +1370,8 @@ TABELLEN_MIT_CHAT_ID = (
     "prueflauf",
     # Karte t_f7770dc4 (05.10.2026): der Uebersetzungscache des Dashboards.
     "uebersetzung",
+    # Karte t_10a31406 (06.10.2026): das UX-Ereignis-Logging.
+    "ux_ereignis",
 )
 
 

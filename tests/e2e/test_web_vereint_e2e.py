@@ -439,3 +439,19 @@ def test_das_textbuch_laedt_neue_szenenprosa_ohne_neuladen(seite, conn):
         lambda: "Der Zug fuhr ohne sie ab." in seite.inner_text("#tab-textbuch"),
         ms=40000,
     )
+
+
+def test_das_textbuch_zeigt_prosa_die_vor_dem_ersten_oeffnen_entstand(seite, conn):
+    """P57 Lauf 3, A1: Prosa entsteht NACH dem Seitenaufbau, aber VOR dem
+    ersten Oeffnen des Tabs. Der erste Abruf wurde nur 'gemerkt' -- das Panel
+    zeigte "Not written yet" weiter (Persona-Schleife, 14 Schritte)."""
+    szene_id = repo.lege_szene_an(conn, CHAT, 8, "Vorab Szene", None, None)
+    repo.aktualisiere_szene(conn, szene_id, "Vorab Szene", None, None,
+                            prosa="Die Tuer blieb offen.")
+    seite.click('.tabs button[data-tab="textbuch"]')
+    seite.wait_for_selector("#tab-textbuch:not([hidden])")
+    assert _warte(
+        seite,
+        lambda: "Die Tuer blieb offen." in seite.inner_text("#tab-textbuch"),
+        ms=40000,
+    )

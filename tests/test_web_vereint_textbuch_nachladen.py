@@ -78,7 +78,42 @@ def test_platzhalter_nicht_ueber_vorhandener_prosa(aufbau):
     assert 'class="offen"' not in text
 
 
-def test_textbuch_merker_kommt_vom_ersten_abruf_nicht_vom_dom():
+def test_textbuch_vergleicht_per_stempel_nicht_mit_erstem_abruf():
+    """P57 Lauf 3 A1: der erste Abruf darf nicht nur 'gemerkt' werden -- die
+    Seite kann vor der Szene gebaut sein und zeigte sonst den Altstand."""
     js = web_vereint._VEREINT_JS
-    assert "textbuchLetzter = panel.innerHTML" not in js
-    assert "if (textbuchLetzter === null) { textbuchLetzter = neu; return; }" in js
+    assert "textbuchLetzter" not in js
+    assert "data-stempel" in js
+
+
+def _koerper(pfad, token):
+    conn = db.verbinde(pfad)
+    from interview_theater import web_daten
+
+    daten = web_daten.gruppe_nach_token(conn, token)
+    return web.textbuch_koerper(daten, token)
+
+
+@pytest.mark.parametrize("phase", [5, 6])
+def test_koerper_zeigt_prosa_statt_platzhalter_in_phase_5_6(aufbau, phase):
+    """Szene mit Prosa, ohne Volltext, Phase 5/6: Text statt 'Noch nicht
+    geschrieben', und der Stempel aendert sich mit dem Inhalt."""
+    _basis, token, pfad, szene_id = aufbau
+    conn = db.verbinde(pfad)
+    repo.setze_phase(conn, CHAT, phase)
+    conn.commit()
+    vorher = _koerper(pfad, token)
+    assert 'class="offen"' in vorher
+    repo.aktualisiere_szene(conn, szene_id, "Ankunft", None, None,
+                            prosa="Der Zug fuhr ohne sie ab.")
+    conn.commit()
+    nachher = _koerper(pfad, token)
+    assert "Der Zug fuhr ohne sie ab." in nachher
+    assert 'class="offen"' not in nachher
+    import re
+
+    def stempel(t):
+        return re.search(r'data-stempel="([0-9a-f]+)"', t).group(1)
+
+    assert stempel(vorher) != stempel(nachher)
+    assert stempel(nachher) == stempel(_koerper(pfad, token))

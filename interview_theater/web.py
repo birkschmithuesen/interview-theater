@@ -4500,12 +4500,18 @@ def textbuch_koerper(
         f"{_t(T._TEXT_REGIE_AUS)}</button></div>"
     )
     kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
-    return (
+    rumpf = (
         f"<h1>{_t(kopfzeile)}</h1>\n"
         f"{wege}{leisten}\n"
         f'<article class="stueck">{stueck}</article>\n'
         f'<p class="hinweis-druck leer">{_t(T._TEXT_DRUCKEN)}</p>'
     )
+    # Stempel fuer das Nachladen im Browser (P57 Lauf 3, A1): der Client
+    # vergleicht ihn mit dem des Panels und tauscht nur bei Unterschied.
+    import hashlib
+
+    stempel = hashlib.sha1(rumpf.encode("utf-8")).hexdigest()[:16]
+    return f'<span hidden data-stempel="{stempel}"></span>{rumpf}'
 
 
 def textbuch_html(

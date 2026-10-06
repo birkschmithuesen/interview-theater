@@ -105,6 +105,24 @@ _EVENT_ATTR = re.compile(
 #: vor der Maskierung, damit das Schema selbst nicht als Text sichtbar bleibt.
 _DANGEROUS_SCHEME = re.compile(r"\b(javascript|data|vbscript):", re.IGNORECASE)
 
+#: Die leichte Markdown-Teilmenge freier Modellantworten (Karte t_cc147548),
+#: derselbe Formatumfang wie ``web._buehne_markdown`` fuer die Tafel:
+#: ``**fett**``/``*kursiv*``, fett vor kursiv (sonst fraesse die
+#: Kursiv-Regel die Sternpaare der Fett-Regel an). Aufzaehlungen ("- "/"• ")
+#: und Absaetze bleiben -- wie in Telegram -- Zeilen mit nativem Umbruch
+#: (``\n`` -> ``<br>`` weiter unten), kein ``<ul>/<li>/<p>``: die Chatblase
+#: ist Inline-Inhalt, kein Block-Layout wie die Tafel.
+_MD_FETT = re.compile(r"\*\*([^*]+)\*\*")
+_MD_KURSIV = re.compile(r"\*([^*]+)\*")
+
+
+def _markdown_inline(maskiert: str) -> str:
+    """Wendet die leichte Markdown-Teilmenge auf bereits maskierten Text an
+    -- NIE davor, sonst waere ``**<script>...**`` ein Weg, einen echten Tag
+    einzuschmuggeln."""
+    maskiert = _MD_FETT.sub(r"<b>\1</b>", maskiert)
+    return _MD_KURSIV.sub(r"<i>\1</i>", maskiert)
+
 
 def sichere_html(text) -> str:
     """Telegram-HTML als sicheres HTML fuer die Chatansicht.
@@ -115,8 +133,10 @@ def sichere_html(text) -> str:
     ``html.escape`` zu ``&amp;amp;`` doppelt maskiert. (0b) Event-Attribute
     und gefaehrliche URI-Schemata aus dem so gewonnenen Rohtext entfernen --
     nicht erst maskieren, sie sollen nicht einmal als Text auftauchen. (1)
-    alles maskieren (``html.escape``, inklusive Anfuehrungszeichen), (2) die
-    geschlossene Liste wieder zulassen, (3) Zeilenumbrueche sichtbar machen.
+    alles maskieren (``html.escape``, inklusive Anfuehrungszeichen), (1b)
+    die leichte Markdown-Teilmenge rendern (``_markdown_inline``, Karte
+    t_cc147548), (2) die geschlossene Liste wieder zulassen, (3)
+    Zeilenumbrueche sichtbar machen.
 
     Dass Schritt 1 (nach 0/0b) kommt, ist die ganze Sicherheit: danach gibt
     es im Text kein einziges ``<`` mehr, und Schritt 2 kann nur das
@@ -127,6 +147,7 @@ def sichere_html(text) -> str:
     roh = _EVENT_ATTR.sub("", roh)
     roh = _DANGEROUS_SCHEME.sub("", roh)
     maskiert = html.escape(roh, quote=True)
+    maskiert = _markdown_inline(maskiert)
     mit_tags = _TAGS.sub(lambda t: f"<{t.group(1)}{t.group(2).lower()}>", maskiert)
     mit_links = _LINK.sub(
         lambda t: (

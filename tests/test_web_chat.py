@@ -97,6 +97,33 @@ def test_ein_echter_vorschlagsblock_bleibt_lesbar():
     assert ergebnis.count("<br>") == 2
 
 
+# -- die leichte Markdown-Teilmenge (Karte t_cc147548) ---------------------
+#
+# Freie Modellantworten tragen jetzt **fett**/*kursiv* statt Telegram-HTML
+# (derselbe Formatumfang wie web._buehne_markdown fuer die Tafel) --
+# sichere_html rendert sie beim Anzeigen, Aufzaehlungen und Absaetze bleiben
+# als Zeilen mit nativen Umbruechen stehen (wie in Telegram).
+
+
+def test_sichere_html_rendert_fett_und_kursiv():
+    ergebnis = web_chat.sichere_html("**Wichtig**: *so* geht es")
+    assert ergebnis == "<b>Wichtig</b>: <i>so</i> geht es"
+
+
+def test_sichere_html_laesst_listenzeilen_als_text_mit_umbruch():
+    ergebnis = web_chat.sichere_html("- **Erster** Punkt\n- Zweiter")
+    assert ergebnis == "- <b>Erster</b> Punkt<br>- Zweiter"
+
+
+def test_sichere_html_maskiert_vor_dem_markdown_rendern():
+    """Erst maskieren, dann die Markdown-Teilmenge anwenden -- sonst waere
+    ``**<script>...**`` ein Weg, einen echten Tag durch die Ersetzung zu
+    schmuggeln."""
+    ergebnis = web_chat.sichere_html("**<script>alert(1)</script>**")
+    assert "<script" not in ergebnis
+    assert ergebnis == "<b>&lt;script&gt;alert(1)&lt;/script&gt;</b>"
+
+
 # -- der Verlauf (web_daten, read-only) ------------------------------------
 
 

@@ -392,6 +392,94 @@ def test_dortmund_schaerfung_wartet_nicht(conn, tg, auftraege, dortmund):
     assert not _feld(conn, "fragen_warte_auf")
 
 
+# --- Direkte Uebergabe aus der CoThinker-Klickliste (Stift ✎, Padua, --------
+# Karte t_269062e2, 06.10.2026): ``starte_handover`` zeigt genau EINE Frage
+# und ihre "was aendern"-Rueckfrage, ohne den Umweg ueber "Fertig sortiert".
+# ``entscheide`` springt danach NICHT automatisch zur naechsten offenen Frage
+# weiter, sondern verweist zurueck auf die Liste.
+
+
+def test_starte_handover_zeigt_karte_und_was_aendern(conn, tg, padua):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,schaerfen,nein,,")
+    fragen.starte_handover(conn, tg, CHAT, 2)
+    assert _feld(conn, "fragen_aktuell") == "2"
+    assert _feld(conn, "fragen_warte_auf") == "schaerfen"
+    assert _feld(conn, "fragen_handover_nummer") == "2"
+    texte = [t for _, t in tg.gesendet]
+    assert "zwei?" in texte[-2]
+    assert texte[-1] == T._TEXT_FRAGE_WAS_AENDERN
+
+
+def test_starte_handover_ohne_schaerfen_markierung_tut_nichts(conn, tg, padua):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,,nein,,")
+    fragen.starte_handover(conn, tg, CHAT, 2)
+    assert tg.gesendet == []
+    assert _feld(conn, "fragen_handover_nummer") is None
+
+
+def test_starte_handover_ausserhalb_der_liste_tut_nichts(conn, tg, padua):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,,nein,,")
+    fragen.starte_handover(conn, tg, CHAT, 99)
+    assert tg.gesendet == []
+    assert _feld(conn, "fragen_handover_nummer") is None
+
+
+def test_befehl_schaerfen_ruft_die_karte_auf(conn, tg, einst, padua, auftraege):
+    from interview_theater import befehle
+
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,schaerfen,nein,,")
+    befehle.behandle(conn, tg, einst, CHAT, "/schaerfen 2", None)
+    assert _feld(conn, "fragen_handover_nummer") == "2"
+    assert [t for _, t in tg.gesendet][-1] == T._TEXT_FRAGE_WAS_AENDERN
+
+
+def test_annehmen_nach_handover_springt_nicht_automatisch_weiter(conn, tg, auftraege, padua):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,schaerfen,,,")
+    fragen.starte_handover(conn, tg, CHAT, 2)
+    vorher = len(tg.gesendet)
+    quittung = fragen.entscheide(conn, tg, None, None, CHAT, 2, "ja")
+    assert quittung == T._TEXT_FRAGE_ANGENOMMEN
+    assert _feld(conn, "fragen_entschieden") == "ja,ja,,,"
+    assert _feld(conn, "fragen_handover_nummer") is None
+    neu = [t for _, t in tg.gesendet[vorher:]]
+    # Kein automatischer Sprung zur naechsten offenen Frage (Nummer 3) --
+    # nur die Zeile zurueck zur Liste.
+    assert neu == [T._TEXT_FRAGE_ZURUECK_ZUR_LISTE]
+
+
+def test_verwerfen_nach_handover_springt_ebenfalls_nicht_weiter(conn, tg, auftraege, padua):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,schaerfen,,,")
+    fragen.starte_handover(conn, tg, CHAT, 2)
+    vorher = len(tg.gesendet)
+    quittung = fragen.entscheide(conn, tg, None, None, CHAT, 2, "nein")
+    assert quittung == T._TEXT_FRAGE_VERWORFEN
+    assert _feld(conn, "fragen_entschieden") == "ja,nein,,,"
+    neu = [t for _, t in tg.gesendet[vorher:]]
+    assert neu == [T._TEXT_FRAGE_ZURUECK_ZUR_LISTE]
+
+
+def test_fertig_sortiert_fragt_bereits_entschiedene_handover_frage_nicht_erneut(
+    conn, tg, auftraege, padua,
+):
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,schaerfen,,,")
+    fragen.starte_handover(conn, tg, CHAT, 2)
+    fragen.entscheide(conn, tg, None, None, CHAT, 2, "ja")
+    fragen.sortierung_abschliessen(conn, tg, None, None, CHAT)
+    fertig = _feld(conn, "fragen")
+    assert "zwei?" in fertig
+    # genau eine "was aendern"-Karte -- die aus starte_handover, keine zweite
+    # aus "Fertig sortiert" fuer dieselbe (laengst entschiedene) Frage 2.
+    texte = [t for _, t in tg.gesendet]
+    assert texte.count(T._TEXT_FRAGE_WAS_AENDERN) == 1
+
+
 # --- Fix 05.10.2026: "Sortierung offen" ist EINE Regel -----------------------
 
 

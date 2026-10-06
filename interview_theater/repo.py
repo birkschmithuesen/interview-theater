@@ -1852,6 +1852,10 @@ _ARBEITSSTAND_FELDER = (
     # vorgelegt ist, der Entscheidungsstand je Frage, und worauf die
     # naechste freie Nachricht deterministisch antwortet.
     "fragen_aktuell", "fragen_entschieden", "fragen_warte_auf",
+    # Direkte Uebergabe aus der CoThinker-Klickliste (Stift ✎, Padua, Karte
+    # t_269062e2, 06.10.2026): derselbe eine Schreibweg wie alles andere im
+    # Arbeitsstand.
+    "fragen_handover_nummer",
     # Der Laengen-Faktor (30.09.2026, Karte R): derselbe eine Schreibweg wie
     # alles andere im Arbeitsstand.
     "laengen_faktor",

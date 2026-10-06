@@ -102,6 +102,11 @@ class PruefKontext:
     #: ohne eigenen ``modellwahl``-Haken) aber weiter vollstaendig nachgeholt
     #: wird (``_modellwahl`` faellt dann auf ``nur_phase=None`` zurueck).
     modellwahl_phasen_geprueft: set = field(default_factory=set)
+    #: Coverage-Luecke Pause/Resume (p34-abnahme-verfahren.md §3): die
+    #: Rueckgabe von ``browser_lauf._fuehre_station_aus`` dieser Station
+    #: (u. a. ``pause_resume_ok``) -- von ``fuehre_stationen`` gesetzt, BEVOR
+    #: ``fuehre_pruefungen`` laeuft.
+    lauf: dict | None = None
 
 
 def speicher_schluessel(page) -> list[str]:
@@ -379,6 +384,20 @@ def _p5_angebot(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund
     return inv.pruefe_p5_angebot(_lies_p34(kontext, chat_id), station.schluessel)
 
 
+def _pause_resume(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    """Coverage-Luecke Pause/Resume (p34-abnahme-verfahren.md §3): liest
+    ``kontext.lauf['pause_resume_ok']`` (von ``browser_lauf.
+    _fuehre_station_aus``, ueber ``Station.pause_resume`` deterministisch
+    ausgeloest -- ``_pausiere_und_fortsetze_aufnahme``). ``versucht`` ist die
+    Stationsabsicht selbst (``station.pause_resume``), nicht nur ob es
+    geklappt hat: eine Station, die es anfordert, aber bei der die Aufnahme
+    nie lief (z. B. H1), soll einen echten Befund zeigen, nicht
+    ``nicht_pruefbar``."""
+    lauf = kontext.lauf or {}
+    return inv.pruefe_pause_resume(
+        bool(lauf.get("pause_resume_ok")), station.pause_resume, station.schluessel)
+
+
 HAKEN: dict[str, Callable] = {
     "nach_ende": _nach_ende,
     "verhoerer": _verhoerer,
@@ -390,6 +409,7 @@ HAKEN: dict[str, Callable] = {
     "nach_brainstorm": _nach_brainstorm,
     "modellwahl": _modellwahl,
     "p5_angebot": _p5_angebot,
+    "pause_resume": _pause_resume,
 }
 
 

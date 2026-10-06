@@ -449,16 +449,19 @@ def db34(tmp_path):
         CREATE TABLE aufnahme (id INTEGER PRIMARY KEY, chat_id INTEGER, klasse TEXT,
                                teil_von INTEGER, status TEXT, beendet_am TEXT, transkript TEXT,
                                zu_kurz_uebersprungen INTEGER DEFAULT 0, brainstorm INTEGER DEFAULT 0,
-                               diskussion INTEGER DEFAULT 0, schnittgrund TEXT, entfernt_am TEXT);
+                               diskussion INTEGER DEFAULT 0, schnittgrund TEXT, entfernt_am TEXT,
+                               echo_message_id INTEGER);
         CREATE TABLE verdichtung (id INTEGER PRIMARY KEY, chat_id INTEGER, aufnahme_id INTEGER);
         CREATE TABLE buehnenkarte (id INTEGER PRIMARY KEY, chat_id INTEGER, text TEXT,
                                    modell TEXT, schweigen INTEGER DEFAULT 0);
-        CREATE TABLE aufruf (id INTEGER PRIMARY KEY, chat_id INTEGER, art TEXT, modus TEXT);
+        CREATE TABLE aufruf (id INTEGER PRIMARY KEY, chat_id INTEGER, art TEXT, modus TEXT,
+                             erstellt_am TEXT);
         CREATE TABLE arbeitsstand (chat_id INTEGER PRIMARY KEY, phase INTEGER, phase_angeboten INTEGER,
                                    rahmen TEXT, geschichte TEXT, szenen_anzahl TEXT,
                                    figuren_fixiert_am TEXT, begriffe TEXT);
         CREATE TABLE figur (id INTEGER PRIMARY KEY, chat_id INTEGER, name TEXT, entfernt_am TEXT);
         CREATE TABLE szene (id INTEGER PRIMARY KEY, chat_id INTEGER, entfernt_am TEXT);
+        CREATE TABLE vorfall (id INTEGER PRIMARY KEY, chat_id INTEGER, art TEXT, erstellt_am TEXT);
         """)
     conn.commit(); conn.close()
     return pfad
@@ -713,6 +716,117 @@ def test_modellwahl_nur_phase_beschraenkt_auf_die_eigene_stationsphase(db34):
     befunde4 = inv.pruefe_modellwahl(stand, phase3=(0, 1), phase4=(1, 2), station="p4-uebergang",
                                      nur_phase=4)
     assert inv.P3_GESPRAECH_OPUS not in {b.schluessel for b in befunde4}
+
+
+def test_modellwahl_opus_fallback_exoneriert_den_kimi_zug(db34):
+    """H2 (Abnahme P3-4, Lauf 042439, 06.10.2026): Opus scheitert (aufruf 1,
+    modus 'C', erfolg egal fuer diese Pruefung), der Fallback laeuft sofort
+    danach auf Kimi (aufruf 2, modus 'A') -- derselbe, einzige Zug. Ein
+    ``vorfall``-Zeile ``art='opus_fallback'`` im selben Zeitfenster (hier:
+    dieselbe Sekunde) exoneriert GENAU DIESEN Zug -- vorher feuerte
+    P4_GESPRAECH_NICHT_OPUS hier immer, auch fuer den dokumentierten
+    Rueckfall (interview_theater/modellwahl.py, ``aufruf_schema``/
+    ``_melde_fallback``, ``VORFALL_OPUS_FALLBACK = 'opus_fallback'``)."""
+    _schreibe(db34, "INSERT INTO aufruf (id, chat_id, art, modus, erstellt_am) VALUES "
+                    "(1, 7, 'gespraech', 'C', '2026-10-06T02:37:10')")
+    _schreibe(db34, "INSERT INTO aufruf (id, chat_id, art, modus, erstellt_am) VALUES "
+                    "(2, 7, 'gespraech', 'A', '2026-10-06T02:37:12')")
+    _schreibe(db34, "INSERT INTO vorfall (id, chat_id, art, erstellt_am) VALUES "
+                    "(1, 7, 'opus_fallback', '2026-10-06T02:37:12')")
+    stand = _p34(db34)
+    befunde = inv.pruefe_modellwahl(stand, phase3=(0, 0), phase4=(0, 2), station="p4-uebergang")
+    assert inv.P4_GESPRAECH_NICHT_OPUS not in {b.schluessel for b in befunde}
+
+
+def test_modellwahl_non_opus_zug_ohne_vorfall_bleibt_ein_befund(db34):
+    """Gegenprobe zu H2: ohne eine passende ``vorfall``-Zeile bleibt ein
+    non-Opus-Gespraechsaufruf in Phase 4 weiterhin ein Befund -- die
+    Exoneration darf nicht zu grosszuegig werden."""
+    _schreibe(db34, "INSERT INTO aufruf (id, chat_id, art, modus, erstellt_am) VALUES "
+                    "(1, 7, 'gespraech', 'A', '2026-10-06T02:37:12')")
+    stand = _p34(db34)
+    befunde = inv.pruefe_modellwahl(stand, phase3=(0, 0), phase4=(0, 1), station="p4-uebergang")
+    assert inv.P4_GESPRAECH_NICHT_OPUS in {b.schluessel for b in befunde}
+
+
+def test_modellwahl_vorfall_ausserhalb_des_fensters_exoneriert_nicht(db34):
+    """Ein ``opus_fallback``-Vorfall, der Minuten entfernt liegt (ein
+    frueherer, unabhaengiger Fallback), darf einen spaeteren non-Opus-Zug
+    nicht exonerieren -- sonst waere die Pruefung wirkungslos."""
+    _schreibe(db34, "INSERT INTO aufruf (id, chat_id, art, modus, erstellt_am) VALUES "
+                    "(1, 7, 'gespraech', 'A', '2026-10-06T02:50:00')")
+    _schreibe(db34, "INSERT INTO vorfall (id, chat_id, art, erstellt_am) VALUES "
+                    "(1, 7, 'opus_fallback', '2026-10-06T02:37:12')")
+    stand = _p34(db34)
+    befunde = inv.pruefe_modellwahl(stand, phase3=(0, 0), phase4=(0, 1), station="p4-uebergang")
+    assert inv.P4_GESPRAECH_NICHT_OPUS in {b.schluessel for b in befunde}
+
+
+# -- H5/Coverage-Luecke: EINE wachsende Transkript-Blase ---------------------
+
+
+def test_transkriptblase_waechst_ist_sauber_bei_laengerem_text(db34):
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, echo_message_id) "
+                    "VALUES (1, 7, 'lang', 'laeuft', 5)")
+    _schreibe(db34, "INSERT INTO web_post (id, chat_id, richtung, typ, text) VALUES "
+                    "(5, 7, 'aus', 'transkript', '🎙 Interview 1\n\nhi')")
+    vorher = _p34(db34)
+    _schreibe(db34, "UPDATE web_post SET text = '🎙 Interview 1\n\nhi\n\nhow are you' WHERE id = 5")
+    nachher = _p34(db34)
+    assert inv.pruefe_transkriptblase_waechst(vorher, nachher, 1, "p3-interview-gemischt") == []
+
+
+def test_transkriptblase_nicht_gewachsen_ist_ein_befund(db34):
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, echo_message_id) "
+                    "VALUES (1, 7, 'lang', 'laeuft', 5)")
+    _schreibe(db34, "INSERT INTO web_post (id, chat_id, richtung, typ, text) VALUES "
+                    "(5, 7, 'aus', 'transkript', '🎙 Interview 1\n\nhi')")
+    vorher = _p34(db34)
+    # kein zweites UPDATE -- derselbe Text, die Blase ist nicht gewachsen.
+    nachher = _p34(db34)
+    befunde = inv.pruefe_transkriptblase_waechst(vorher, nachher, 1, "p3-interview-gemischt")
+    assert [b.schluessel for b in befunde] == [inv.TRANSKRIPTBLASE_NICHT_GEWACHSEN]
+
+
+def test_transkriptblase_mehrere_sichtbare_zeilen_ist_ein_befund(db34):
+    """Mutation-Check: ersetzt man die EINE, wiederverwendete Zeile durch
+    eine zweite (die alte, von Telegram bekannte 'ein Echo je Teil'-Bauart
+    ohne Fliesstext), muss die Pruefung das als Regression erkennen."""
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, echo_message_id) "
+                    "VALUES (1, 7, 'lang', 'laeuft', 5)")
+    _schreibe(db34, "INSERT INTO web_post (id, chat_id, richtung, typ, text) VALUES "
+                    "(5, 7, 'aus', 'transkript', '🎙 Interview 1\n\nhi')")
+    vorher = _p34(db34)
+    _schreibe(db34, "INSERT INTO web_post (id, chat_id, richtung, typ, text) VALUES "
+                    "(6, 7, 'aus', 'transkript', '🎙 Interview 1\n\nhow are you')")
+    nachher = _p34(db34)
+    befunde = inv.pruefe_transkriptblase_waechst(vorher, nachher, 1, "p3-interview-gemischt")
+    assert [b.schluessel for b in befunde] == [inv.TRANSKRIPTBLASE_NICHT_GEWACHSEN]
+
+
+def test_transkriptblase_ohne_echo_id_ist_nicht_pruefbar(db34):
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status) VALUES (1, 7, 'lang', 'laeuft')")
+    stand = _p34(db34)
+    befunde = inv.pruefe_transkriptblase_waechst(stand, stand, 1, "p3-interview-gemischt")
+    assert [b.schluessel for b in befunde] == [f"{inv.NICHT_PRUEFBAR}:{inv.TRANSKRIPTBLASE_NICHT_GEWACHSEN}"]
+
+
+# -- Coverage-Luecke Pause/Resume --------------------------------------------
+
+
+def test_pause_resume_erfolgreich_ist_sauber():
+    assert inv.pruefe_pause_resume(True, True, "p3-interview-gemischt") == []
+
+
+def test_pause_resume_angefordert_aber_nicht_bestaetigt_ist_mittel():
+    befunde = inv.pruefe_pause_resume(False, True, "p3-interview-gemischt")
+    assert befunde[0].schluessel == inv.INTERVIEW_PAUSE_NICHT_BESTAETIGT
+    assert befunde[0].schwere == "mittel"
+
+
+def test_pause_resume_nicht_angefordert_ist_nicht_pruefbar():
+    befunde = inv.pruefe_pause_resume(False, False, "p3-eintritt")
+    assert [b.schluessel for b in befunde] == [f"{inv.NICHT_PRUEFBAR}:{inv.INTERVIEW_PAUSE_NICHT_BESTAETIGT}"]
 
 
 def test_p5_nicht_angeboten_obwohl_moeglich(db34):

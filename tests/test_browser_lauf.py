@@ -414,6 +414,91 @@ def test_beende_aufnahme_deterministisch_brainstorm_nutzt_den_diskussion_knopf()
         browser.close()
 
 
+def test_beende_laufende_aufnahme_interview_beendet_und_liefert_die_art():
+    """H1 (Abnahme P3-4, 06.10.2026): eine laufende Interview-Sitzung auf
+    der aktuellen Seite wird ueber ``#interview-beenden`` beendet, BEVOR
+    irgendetwas mit der Seite geschieht, das sie verwerfen wuerde."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_INTERVIEW_LAEUFT)
+        assert browser_lauf._beende_laufende_aufnahme(seite) == "interview"
+        browser.close()
+
+
+def test_beende_laufende_aufnahme_diskussion_beendet_und_liefert_die_art():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_LAEUFT)
+        assert browser_lauf._beende_laufende_aufnahme(seite) == "diskussion"
+        browser.close()
+
+
+def test_beende_laufende_aufnahme_ohne_laufende_sitzung_liefert_none():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content("<div id='verlauf'></div>")
+        assert browser_lauf._beende_laufende_aufnahme(seite) is None
+        browser.close()
+
+
+_FIXTURE_INTERVIEW_PAUSE_TOGGLE = """
+<button id="interview" data-laeuft="1">Recording</button>
+<button id="interview-pause" onclick="
+  var i = document.getElementById('interview');
+  i.dataset.laeuft = (i.dataset.laeuft === '1') ? '0' : '1';
+">Pause</button>
+"""
+
+
+def test_pausiere_und_fortsetze_aufnahme_zwei_klicks_lassen_sie_weiterlaufen():
+    """Coverage-Luecke Pause/Resume (p34-abnahme-verfahren.md §3):
+    ``#interview-pause`` ist ein Umschalter -- der erste Klick pausiert
+    (``data-laeuft`` faellt auf 0), der zweite setzt fort (``data-laeuft``
+    wieder 1). Liefert True nur, wenn danach wieder ``data-laeuft='1'``
+    steht."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_INTERVIEW_PAUSE_TOGGLE)
+        assert browser_lauf._pausiere_und_fortsetze_aufnahme(seite, "interview") is True
+        assert seite.get_attribute("#interview", "data-laeuft") == "1"
+        browser.close()
+
+
+_FIXTURE_INTERVIEW_OHNE_PAUSE_KNOPF = """
+<button id="interview" data-laeuft="1">Recording</button>
+"""
+
+
+def test_pausiere_und_fortsetze_aufnahme_ohne_knopf_liefert_false():
+    """Mutation-Check: fehlt der Pause-Knopf (z. B. eine kuenftige
+    Regression, die ihn entfernt), liefert die Funktion False statt
+    stillschweigend zu tun, als waere alles in Ordnung."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_INTERVIEW_OHNE_PAUSE_KNOPF)
+        assert browser_lauf._pausiere_und_fortsetze_aufnahme(seite, "interview") is False
+        browser.close()
+
+
+_FIXTURE_INTERVIEW_PAUSE_HAENGT = """
+<button id="interview" data-laeuft="1">Recording</button>
+<button id="interview-pause" onclick="
+  document.getElementById('interview').dataset.laeuft = '0';
+">Pause</button>
+"""
+
+
+def test_pausiere_und_fortsetze_aufnahme_bleibt_pausiert_liefert_false():
+    """Mutation-Check: ein Pause-Knopf, der NICHT umschaltet (eine
+    Regression, die ihn zu einem reinen Stop-Knopf machte), muss als
+    Fehlschlag erkannt werden -- die Aufnahme liefe danach nicht weiter."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_INTERVIEW_PAUSE_HAENGT)
+        assert browser_lauf._pausiere_und_fortsetze_aufnahme(seite, "interview") is False
+        browser.close()
+
+
 def test_aufnahme_diskussion_delegiert_an_die_alten_funktionen(monkeypatch):
     # bestehende Tests patchen _diskussion_laeuft/_beende_diskussion_deterministisch
     monkeypatch.setattr(browser_lauf, "_diskussion_laeuft", lambda page: True)
@@ -1280,6 +1365,96 @@ def test_station_mit_diskussion_startet_persona_browser_neu(stack, tmp_path, mon
             wechsle_audio=wechsle_audio)
         browser.close()
     assert gewechselt == ["diskussion-verhoerer.wav"]
+
+
+def test_fuehre_stationen_beendet_eine_laufende_interview_sitzung_vor_wechsel_audio(
+        stack, tmp_path, monkeypatch):
+    """H1 (Abnahme P3-4, Lauf 042439, 06.10.2026): Priya tippte in
+    ``p3-eintritt`` (einer Station OHNE eigenes ``diskussion``) aus Neugier
+    auf "Start interview" -- die naechste Station MIT ``diskussion`` killte
+    diese Sitzung bisher per Browser-Neustart, bevor ein einziges Segment
+    hochgeladen war (0x POST /chat/audio im ganzen Interviewfenster). Der
+    Motor muss eine auf der aktuellen Seite laufende Aufnahme jetzt VOR
+    ``wechsle_audio`` beenden (``_beende_laufende_aufnahme``, derselbe
+    deterministische Klick wie ``_beende_aufnahme_deterministisch`` --
+    eigens unit-getestet in ``test_beende_laufende_aufnahme_interview_
+    beendet_und_liefert_die_art``) und auf das serverseitige Ende warten
+    (``_warte_auf_aufnahme_ende``), BEVOR ``wechsle_audio`` die Seite
+    verwirft. Diese Orchestrierung wird hier isoliert geprueft (beide
+    Bausteine gepatcht), die DOM-Mechanik der Bausteine selbst in den oben
+    genannten Unit-Tests -- ein echter Server-Navigationsschritt
+    (``_oeffne_gruppe`` am Stationsanfang) wuerde jede per ``set_content``
+    gesetzte Fixture sofort wieder ueberschreiben."""
+    basis, token, pfad = stack
+    monkeypatch.setattr(browser_lauf, "_diskussions_audio",
+                        lambda st, lv: (Path(lv) / f"diskussion-{st.diskussion}.wav", 7))
+    beendet = []
+    monkeypatch.setattr(browser_lauf, "_beende_laufende_aufnahme",
+                        lambda page: beendet.append(page) or "interview")
+    gewartet = []
+    monkeypatch.setattr(
+        browser_lauf, "_warte_auf_aufnahme_ende",
+        lambda db_pfad, chat_id, art, **kw: gewartet.append((db_pfad, chat_id, art)))
+    gewechselt = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        neu_ctx = browser.new_context(); neu = neu_ctx.new_page()
+
+        def wechsle_audio(wav):
+            gewechselt.append(wav.name)
+            neu.goto(f"{basis}/g/{token}")
+            neu.wait_for_selector("#verlauf")
+            return neu, neu_ctx
+
+        station = browser_stationen.Station("t-disk", 3, "x", ohne_persona=True, warte_s=0,
+                                            diskussion="verhoerer", zuhoeren_s=None)
+        browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=_ScriptedClient([]), judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l",
+            wechsle_audio=wechsle_audio)
+        browser.close()
+    # Beendet wurde auf der URSPRUENGLICHEN Seite, VOR dem Wechsel.
+    assert beendet == [seite]
+    assert gewechselt == ["diskussion-verhoerer.wav"]
+    assert gewartet == [(pfad, CHAT, "interview")]
+
+
+def test_fuehre_stationen_ohne_laufende_aufnahme_wechselt_unveraendert(
+        stack, tmp_path, monkeypatch):
+    """Gegenprobe zu H1: ohne eine laufende Aufnahme auf der aktuellen Seite
+    (der weit haeufigere Fall) aendert sich nichts am bisherigen Ablauf --
+    kein Klick, kein Warten, direkter Wechsel wie vorher."""
+    basis, token, pfad = stack
+    monkeypatch.setattr(browser_lauf, "_diskussions_audio",
+                        lambda st, lv: (Path(lv) / f"diskussion-{st.diskussion}.wav", 7))
+    gewartet = []
+    monkeypatch.setattr(
+        browser_lauf, "_warte_auf_aufnahme_ende",
+        lambda db_pfad, chat_id, art, **kw: gewartet.append((chat_id, art)))
+    gewechselt = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        neu_ctx = browser.new_context(); neu = neu_ctx.new_page()
+
+        def wechsle_audio(wav):
+            gewechselt.append(wav.name)
+            neu.goto(f"{basis}/g/{token}")
+            neu.wait_for_selector("#verlauf")
+            return neu, neu_ctx
+
+        station = browser_stationen.Station("t-disk", 3, "x", ohne_persona=True, warte_s=0,
+                                            diskussion="verhoerer", zuhoeren_s=None)
+        browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=_ScriptedClient([]), judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l",
+            wechsle_audio=wechsle_audio)
+        browser.close()
+    assert gewechselt == ["diskussion-verhoerer.wav"]
+    assert gewartet == []
 
 
 def test_nach_ende_wartet_direkt_nach_dem_klick_persona_verdeckt_stille_nicht(

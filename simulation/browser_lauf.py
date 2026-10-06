@@ -128,6 +128,86 @@ def _beende_aufnahme_deterministisch(page, art: str = "diskussion") -> bool:
     return True
 
 
+def _beende_laufende_aufnahme(page) -> str | None:
+    """H1 (Abnahme P3-4, Lauf 042439, 06.10.2026): eine Sitzung, die die
+    Persona in einer FRUEHEREN Station OHNE eigenes ``diskussion`` schon
+    gestartet hat (gemessen: ``p3-eintritt``, Priya tippte aus Neugier auf
+    "Start interview"), wuerde der naechste Browser-Neustart
+    (``wechsle_audio``, vor jeder Station MIT ``diskussion``) sonst killen,
+    BEVOR ein einziges Segment hochgeladen ist -- Chromiums Fake-Mikrofon
+    laeuft nur im alten Prozess. Vor einem solchen Wechsel wird deshalb erst
+    eine auf DIESER Seite noch laufende Aufnahme (Interview oder
+    Diskussion/Brainstorm -- dieselben Selektoren, ``browser_stationen.
+    LAEUFT``/``ENDE``) sauber beendet.
+
+    Der Klick laeuft auf GENAU DER Seite, die die Sitzung gestartet hat --
+    dort ist ``zustand.aufnahme`` serverseitig dieser Seite zugeordnet,
+    also kein Fremdgeraet-Fall (``web_chat.js`` ``fremdBestaetigt``,
+    Doppel-Tipp-Bestaetigung). Liefert die beendete Art oder ``None``, wenn
+    nichts lief (der weit haeufigere Fall -- dann aendert sich nichts am
+    bisherigen Ablauf)."""
+    for art in ("interview", "diskussion"):
+        if _aufnahme_laeuft(page, art) and _beende_aufnahme_deterministisch(page, art):
+            return art
+    return None
+
+
+#: H1: wie lange hoechstens auf das serverseitige Ende gewartet wird, bevor
+#: der Browser trotzdem gewechselt wird -- ein Sicherheitsnetz, kein
+#: Haengenbleiben des Harness bei einem echten Fehler. Grosszuegiger als
+#: ``browser_invarianten.GRACE_NACH_SIGNAL_S`` (10 s), weil hier ein
+#: vollstaendiger Interview-Abschluss (Whisper, Erkenner) abgewartet wird,
+#: nicht nur eine Buehnenkarte.
+FRIST_AUFNAHME_ENDE_VOR_WECHSEL_S = 20.0
+
+
+def _warte_auf_aufnahme_ende(db_pfad: str, chat_id: int, art: str,
+                             frist_s: float = FRIST_AUFNAHME_ENDE_VOR_WECHSEL_S) -> None:
+    """Wartet, bis das von ``_beende_laufende_aufnahme`` ausgeloeste Ende
+    serverseitig angekommen ist -- OHNE das stuerbe der naechste
+    Browser-Neustart (``wechsle_audio``) mitten im letzten Flush (genau der
+    H1-Fehlermodus, nur einen Schritt spaeter). Fuer ``interview`` ist das
+    Signal ``P34Stand.koepfe[-1]['beendet']`` (``aufnahme.beendet_am``
+    gesetzt oder Status fertig/transkribiert, siehe ``lese_p34_stand``).
+    ``diskussion``/``brainstorm`` haben keinen eigenen Kopf-Status -- eine
+    kurze feste Gnadenfrist reicht hier (nur der letzte Chunk-Upload fehlt
+    noch, keine Verdichtung)."""
+    if art != "interview":
+        time.sleep(min(frist_s, 3.0))
+        return
+    ende_zeit = time.monotonic() + frist_s
+    while True:
+        stand = _lies_p34(db_pfad, chat_id)
+        if stand.koepfe and stand.koepfe[-1]["beendet"]:
+            return
+        if time.monotonic() >= ende_zeit:
+            return
+        time.sleep(1.0)
+
+
+def _pausiere_und_fortsetze_aufnahme(page, art: str) -> bool:
+    """Pausiert eine laufende Aufnahme einmal und setzt sie gleich wieder
+    fort -- ``#interview-pause``/``#diskussion-pause`` sind Umschalter
+    (``web_chat.js``, ``interviewPauseKnopf``/``diskussionPauseKnopf``): der
+    erste Klick pausiert, der zweite setzt fort. Deterministisch wie
+    ``_beende_aufnahme_deterministisch`` -- schliesst die Coverage-Luecke
+    "Pause/Resume" (``p34-abnahme-verfahren.md`` §3: keine P34-Station
+    pruefte das bisher) unabhaengig davon, ob die Persona selbst daran
+    denkt, derselbe Gedanke wie beim deterministischen Diskussions-Ende.
+    Liefert True, wenn beide Klicks sassen UND die Aufnahme danach wieder
+    laeuft."""
+    knopf = browser_stationen.PAUSE.get(art)
+    if not knopf or page.locator(f"{knopf}:visible").count() == 0:
+        return False
+    page.click(knopf)
+    page.wait_for_timeout(2000)
+    if page.locator(f"{knopf}:visible").count() == 0:
+        return False
+    page.click(knopf)
+    page.wait_for_timeout(500)
+    return _aufnahme_laeuft(page, art)
+
+
 def _schliesse_offenes_phasensheet(page) -> bool:
     """Schliesst ein offenes Padua-Stepper-Bestaetigungsblatt
     (``#phasensheet``) deterministisch ueber "Stay here", BEVOR die Persona
@@ -406,6 +486,11 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
     beantwortet = 0
     hinweis = None
     gewartet = mitte_genommen = fallback = False
+    #: Coverage-Luecke Pause/Resume (p34-abnahme-verfahren.md §3): ob
+    #: ``_pausiere_und_fortsetze_aufnahme`` mittendrin lief UND bestaetigt
+    #: hat, dass die Aufnahme danach weiterlief -- nur fuer
+    #: ``station.pause_resume`` ueberhaupt versucht (siehe unten).
+    pause_resume_ok = False
     #: Hoechste ``aufruf.id`` im Moment des erkannten Phasenwechsels (I4,
     #: Fix round 1) -- None, solange keiner erkannt wurde. Grundlage von
     #: ``_teile_bereich_am_phasenwechsel``: ohne sie zaehlte eine Antwort,
@@ -434,13 +519,24 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         ``ist_abschluss=True``. ``nonlocal``, weil ``gewartet``/
         ``mitte_genommen`` Schleifenzustand sind, der ueber beide
         Aufrufstellen hinweg gilt."""
-        nonlocal gewartet, mitte_genommen, hinweis, diskussion_vorbei, diskussion_lief
+        nonlocal gewartet, mitte_genommen, hinweis, diskussion_vorbei, diskussion_lief, pause_resume_ok
         if not (station.zuhoeren_s and not gewartet and _aufnahme_laeuft(page, station.aufnahme)):
             return False
         gewartet = diskussion_lief = True
         ende = time.monotonic() + station.zuhoeren_s
+        pause_versucht = False
         while time.monotonic() < ende:
             page.wait_for_timeout(10_000)
+            # Coverage-Luecke Pause/Resume: einmal mittendrin pausieren und
+            # sofort wieder fortsetzen (deterministisch, siehe
+            # ``_pausiere_und_fortsetze_aufnahme``) -- nicht in den letzten
+            # 5s (sonst ueberlappt es mit dem Ende-Klick unten) und nur fuer
+            # Stationen, die das ausdruecklich anfordern
+            # (``station.pause_resume``, z. B. ``p3-interview-gemischt``).
+            if (station.pause_resume and not pause_versucht
+                    and time.monotonic() < ende - 5):
+                pause_versucht = True
+                pause_resume_ok = _pausiere_und_fortsetze_aufnahme(page, station.aufnahme)
             if beobachter:
                 beobachter.messe()
             if leitbilder and station.leitbild_mitte and not mitte_genommen:
@@ -543,7 +639,8 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
     return {"schritte": schritte, "nachfragen_beantwortet": beantwortet,
             "offene_fragen": offene, "fertig": fertig, "fallback_benutzt": fallback,
             "zaehler_summe": zaehler_summe, "screenshots_nach": screenshots,
-            "phasenwechsel_aufruf_id": phasenwechsel_aufruf_id}
+            "phasenwechsel_aufruf_id": phasenwechsel_aufruf_id,
+            "pause_resume_ok": pause_resume_ok}
 
 
 #: Wie lange nach dem Senden von ``station.sage`` hoechstens auf eine neue
@@ -770,6 +867,18 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                     wav, zuhoeren_s = _diskussions_audio(station, lauf_verzeichnis)
                     station = dataclasses.replace(station, zuhoeren_s=zuhoeren_s)
                     if wechsle_audio is not None:
+                        # H1 (Abnahme P3-4, 06.10.2026): eine Sitzung, die
+                        # die Persona in einer FRUEHEREN Station ohne
+                        # eigenes ``diskussion`` schon gestartet hat (z. B.
+                        # ``p3-eintritt``, "Start interview" aus Neugier),
+                        # erst sauber beenden und auf dem Server ankommen
+                        # lassen -- SONST killt der folgende Browser-
+                        # Neustart sie, bevor ein einziges Segment
+                        # hochgeladen ist (Lauf 042439: 0x POST /chat/audio
+                        # im ganzen Interviewfenster).
+                        beendete_art = _beende_laufende_aufnahme(page)
+                        if beendete_art is not None:
+                            _warte_auf_aufnahme_ende(db_pfad, gruppe.chat_id, beendete_art)
                         # ``wechsle_audio`` installiert die Messung selbst
                         # (vor ``new_page``), siehe ``main``.
                         page, context = wechsle_audio(wav)
@@ -849,6 +958,10 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                     lauf.get("phasenwechsel_aufruf_id") if lauf else None)
             # Die Haken laufen auch nach einer Ausnahme: ein Harness-Fehler
             # darf ein App-Symptom nicht verdecken (Symptomregel).
+            # Coverage-Luecke Pause/Resume (p34-abnahme-verfahren.md §3):
+            # ``kontext.lauf`` traegt ``_fuehre_station_aus``s Rueckgabe
+            # (u. a. ``pause_resume_ok``) in den ``pause_resume``-Haken.
+            kontext.lauf = lauf
             befunde += fuehre_pruefungen(station, kontext)
             if lauf is not None and station.sage and "wissen" not in station.pruefung:
                 try:

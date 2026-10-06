@@ -57,7 +57,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from interview_theater import aufnahme
+from interview_theater import aufnahme, modellwahl
 
 URSACHE_UNGEKLAERT = "App oder Werkzeug – ungeklaert"
 FRIST_NACH_ENDE_S = 60.0
@@ -460,6 +460,16 @@ P3_GESPRAECH_OPUS = "p3_gespraech_ueber_opus"                   # hoch: Datensch
 P4_GESPRAECH_NICHT_OPUS = "p4_gespraech_nicht_opus"             # mittel
 EINWILLIGUNG_GEFRAGT = "einwilligung_gefragt"                   # hoch: Padua fragt nicht
 P5_NICHT_ANGEBOTEN = "p5_nicht_angeboten"
+#: H5/Coverage-Luecke (p34-abnahme-verfahren.md §3): "EINE wachsende
+#: Transkript-Blase" war bisher NUR am Ende geprueft (``pruefe_nach_interview``
+#: prueft nur, dass irgendeine neue 🎙-Zeile ankam), nicht WAEHREND des
+#: Interviews dieselbe, wachsende Blase bleibt -- siehe
+#: ``pruefe_transkriptblase_waechst``.
+TRANSKRIPTBLASE_NICHT_GEWACHSEN = "transkriptblase_nicht_gewachsen"
+#: Coverage-Luecke Pause/Resume (p34-abnahme-verfahren.md §3): keine
+#: P34-Station pruefte bisher ``#interview-pause`` -- siehe
+#: ``pruefe_pause_resume``.
+INTERVIEW_PAUSE_NICHT_BESTAETIGT = "interview_pause_resume_nicht_bestaetigt"
 FRIST_NACH_INTERVIEW_S = 120.0
 FRIST_NACH_BRAINSTORM_S = 60.0
 #: Woerter, an denen eine deutsche Statuszeile in einer EN-Gruppe auffaellt.
@@ -564,7 +574,12 @@ class P34Stand:
     #: beendet (bool, Nachbau von ``aufnahme.unausgewertete_interviews``:
     #: ``beendet_am`` gesetzt ODER Status in (fertig, transkribiert)),
     #: zu_kurz (bool), hat_verdichtung (bool), hat_transkript (bool, faellt
-    #: wie ``repo.zusammengefuegtes_transkript`` auf die Teile zurueck).
+    #: wie ``repo.zusammengefuegtes_transkript`` auf die Teile zurueck),
+    #: echo_message_id (``aufnahme.echo_message_id`` -- die EINE,
+    #: wiederverwendete ``web_post``-Zeile der Transkriptblase dieses
+    #: Interviews, ``aufnahme._sende_transkript_blase``/``repo.
+    #: aendere_web_text``; ``None`` ohne Fliesstext-Blase oder ohne die
+    #: Spalte, siehe ``pruefe_transkriptblase_waechst``).
     koepfe: tuple = ()
     #: (id, schweigen, text) aus ``buehnenkarte``.
     karten: tuple = ()
@@ -573,14 +588,34 @@ class P34Stand:
     brainstorm_ende_id: int = 0
     #: Alle ``brainstorm=1``-Transkripte mit Status ``fertig``, verbunden.
     brainstorm_text: str = ""
-    #: (id, art, modus) aus ``aufruf``.
+    #: (id, art, modus, erstellt_am) aus ``aufruf`` -- ``erstellt_am`` ist
+    #: ``None``, wenn die Spalte in dieser Fixture fehlt (``_hat_spalte``,
+    #: dieselbe Vorsicht wie bei ``zu_kurz_uebersprungen``).
     aufrufe: tuple = ()
+    #: H2 (Abnahme P3-4, 06.10.2026): (id, art, erstellt_am) aus ``vorfall``
+    #: dieser ``chat_id`` -- exoneriert einen non-Opus-Gespraechsaufruf in
+    #: Phase 4, wenn er der dokumentierte Fallback nach einem gescheiterten
+    #: Opus-Versuch ist (``modellwahl.VORFALL_OPUS_FALLBACK``, siehe
+    #: ``pruefe_modellwahl``). Leer, wenn die Tabelle fehlt (Fixture).
+    vorfaelle: tuple = ()
     #: Ob eine USA-Einwilligungsfrage je gestellt wurde (Padua fragt nicht).
     usa_gefragt: bool = False
     phase: int | None = None
     phase_angeboten: int | None = None
     #: SQL-Nachbau von ``phasen.voraussetzungen()[5]``.
     p5_moeglich: bool = False
+
+
+def _hat_tabelle(conn: sqlite3.Connection, tabelle: str) -> bool:
+    """H2 (Abnahme P3-4, 06.10.2026): Fixture-Kompatibilitaet wie
+    ``_hat_spalte`` -- die minimale ``db34``-Testfixture kennt die Tabelle
+    ``vorfall`` nicht, die echte Datenbank (``interview_theater.db``) immer."""
+    try:
+        return conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (tabelle,)
+        ).fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
 
 
 def _hat_spalte(conn: sqlite3.Connection, tabelle: str, spalte: str) -> bool:
@@ -603,15 +638,23 @@ def lese_p34_stand(conn: sqlite3.Connection, chat_id: int) -> P34Stand:
             "SELECT id, text FROM web_post WHERE chat_id = ? AND richtung = 'aus' "
             "AND typ = 'system' ORDER BY id", (chat_id,)))
     zu_kurz_ausdruck = "zu_kurz_uebersprungen" if _hat_spalte(conn, "aufnahme", "zu_kurz_uebersprungen") else "0"
+    #: H5/Coverage-Luecke (p34-abnahme-verfahren.md §3, "EINE wachsende
+    #: Transkript-Blase"): ``echo_message_id`` ist die ``web_post``-Zeile,
+    #: die ``aufnahme._sende_transkript_blase`` je Teil per UPDATE
+    #: weiterschreibt (``repo.aendere_web_text``) -- nicht in jeder Fixture
+    #: vorhanden, dieselbe Vorsicht wie bei ``zu_kurz_uebersprungen``.
+    echo_ausdruck = "a.echo_message_id" if _hat_spalte(conn, "aufnahme", "echo_message_id") else "NULL"
     koepfe = tuple(
         {"id": z["id"], "status": z["status"], "beendet_am": z["beendet_am"],
          "beendet": bool(z["beendet_am"]) or z["status"] in ("fertig", "transkribiert"),
          "zu_kurz": bool(z["zu_kurz"]),
          "hat_transkript": bool((z["transkript"] or "").strip() or (z["teile_transkript"] or "").strip()),
-         "hat_verdichtung": bool(z["verdichtungen"])}
+         "hat_verdichtung": bool(z["verdichtungen"]),
+         "echo_message_id": z["echo_message_id"]}
         for z in conn.execute(
             f"""
             SELECT a.id, a.status, a.beendet_am, a.transkript, {zu_kurz_ausdruck} AS zu_kurz,
+                   {echo_ausdruck} AS echo_message_id,
                    (SELECT COUNT(*) FROM verdichtung v WHERE v.aufnahme_id = a.id) AS verdichtungen,
                    (SELECT GROUP_CONCAT(t.transkript, '') FROM aufnahme t
                     WHERE t.teil_von = a.id AND t.transkript IS NOT NULL AND t.transkript != '')
@@ -630,9 +673,22 @@ def lese_p34_stand(conn: sqlite3.Connection, chat_id: int) -> P34Stand:
         (z["transkript"] or "").strip() for z in conn.execute(
             "SELECT transkript FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
             "AND status = 'fertig' ORDER BY id", (chat_id,))).strip()
+    #: H2 (Abnahme P3-4, 06.10.2026): ``erstellt_am`` fuer die
+    #: Opus-Fallback-Exoneration (``pruefe_modellwahl``) -- nicht in jeder
+    #: Fixture vorhanden (dieselbe Vorsicht wie ``zu_kurz_uebersprungen``).
+    aufruf_zeit_ausdruck = "erstellt_am" if _hat_spalte(conn, "aufruf", "erstellt_am") else "NULL"
     aufrufe = tuple(
-        (z["id"], z["art"], z["modus"]) for z in conn.execute(
-            "SELECT id, art, modus FROM aufruf WHERE chat_id = ? ORDER BY id", (chat_id,)))
+        (z["id"], z["art"], z["modus"], z["erstellt_am"]) for z in conn.execute(
+            f"SELECT id, art, modus, {aufruf_zeit_ausdruck} AS erstellt_am "
+            "FROM aufruf WHERE chat_id = ? ORDER BY id", (chat_id,)))
+    #: H2: dieselbe Gruppe, ``art='opus_fallback'`` (``modellwahl.
+    #: VORFALL_OPUS_FALLBACK``) -- die Tabelle fehlt in der minimalen
+    #: ``db34``-Fixture, ``_hat_tabelle`` schuetzt dieselbe Vorsicht wie
+    #: ``_hat_spalte`` ueberall sonst in dieser Funktion.
+    vorfaelle = tuple(
+        (z["id"], z["art"], z["erstellt_am"]) for z in conn.execute(
+            "SELECT id, art, erstellt_am FROM vorfall WHERE chat_id = ? ORDER BY id", (chat_id,))
+    ) if _hat_tabelle(conn, "vorfall") else ()
     usa_gefragt = bool(conn.execute(
         "SELECT COUNT(*) FROM web_post WHERE chat_id = ? AND richtung = 'aus' AND ("
         "text IN (?, ?) OR knoepfe LIKE ? OR knoepfe LIKE ?)",
@@ -664,7 +720,7 @@ def lese_p34_stand(conn: sqlite3.Connection, chat_id: int) -> P34Stand:
         max_post_id=max_post_id, transkript_posts=transkript_posts, system_posts=system_posts,
         koepfe=koepfe, karten=karten, max_aufnahme_id=max_aufnahme_id,
         brainstorm_ende_id=brainstorm_ende_id, brainstorm_text=brainstorm_text, aufrufe=aufrufe,
-        usa_gefragt=usa_gefragt,
+        vorfaelle=vorfaelle, usa_gefragt=usa_gefragt,
         phase=(arbeitsstand["phase"] if arbeitsstand else None),
         phase_angeboten=(arbeitsstand["phase_angeboten"] if arbeitsstand else None),
         p5_moeglich=p5_moeglich,
@@ -770,6 +826,83 @@ def pruefe_nach_interview(vorher: P34Stand, nachher: P34Stand, station: str) -> 
     return befunde
 
 
+def _kopf(stand: P34Stand, kopf_id: int) -> dict | None:
+    return next((k for k in stand.koepfe if k["id"] == kopf_id), None)
+
+
+def _text_zu(stand: P34Stand, post_id: int) -> str:
+    return next((t or "" for i, t in stand.transkript_posts if i == post_id), "")
+
+
+def pruefe_transkriptblase_waechst(vorher: P34Stand, nachher: P34Stand, kopf_id: int,
+                                   station: str) -> list[Befund]:
+    """H5/Coverage-Luecke (p34-abnahme-verfahren.md §3): ``pruefe_nach_interview``
+    prueft nur, dass am ENDE irgendeine neue 🎙-Zeile ankommt -- nicht, dass es
+    WAEHREND des Interviews dieselbe, wachsende Blase bleibt. Datenmodell
+    (``aufnahme._sende_transkript_blase``/``transkript_blasentext``,
+    ``repo.aendere_web_text``): mit Fliesstext (Padua-Web) traegt der
+    Interview-Kopf GENAU EINE ``web_post``-Zeile (``aufnahme.
+    echo_message_id``), die jeder neue Teil per ``UPDATE ... SET text`` neu
+    schreibt -- NIE eine zweite Zeile je Teil (anders als Telegram ohne
+    Fliesstext, ``_sende_teil_echo``, ein Echo je Teil). Diese Pruefung
+    verlangt mit mindestens zwei hochgeladenen Segmenten (``kopf_id``):
+
+    - ``echo_message_id`` ist gesetzt (sonst ist das Interview noch gar
+      nicht so weit -- nicht pruefbar, kein Befund),
+    - es gibt zwischen ``vorher`` und ``nachher`` KEINE zweite, sichtbare
+      (nicht-leere) Transkript-Blase -- GENAU EINE ``web_post``-Zeile mit
+      Text, nicht mehrere,
+    - ihr Text ist LAENGER geworden (``len``), nicht nur ersetzt oder
+      gleich lang."""
+    kopf = _kopf(nachher, kopf_id) or _kopf(vorher, kopf_id)
+    if kopf is None:
+        return [nicht_pruefbar(TRANSKRIPTBLASE_NICHT_GEWACHSEN, station,
+                               f"Kein Interview-Kopf id={kopf_id} im Stand gefunden.")]
+    echo_id = kopf.get("echo_message_id")
+    if echo_id is None:
+        return [nicht_pruefbar(TRANSKRIPTBLASE_NICHT_GEWACHSEN, station,
+                               f"Interview-Kopf {kopf_id} hat noch keine echo_message_id "
+                               "(noch keine Transkriptblase gesendet).")]
+    sichtbare_ids_nachher = {i for i, t in nachher.transkript_posts if (t or "").strip()}
+    if len(sichtbare_ids_nachher) > 1:
+        return [Befund(
+            TRANSKRIPTBLASE_NICHT_GEWACHSEN, station,
+            f"{len(sichtbare_ids_nachher)} sichtbare Transkript-Blasen statt einer "
+            f"(ids={sorted(sichtbare_ids_nachher)}) -- erwartet war GENAU EINE, wiederverwendete "
+            f"Zeile (echo_message_id={echo_id}).")]
+    laenge_vorher = len(_text_zu(vorher, echo_id))
+    laenge_nachher = len(_text_zu(nachher, echo_id))
+    if laenge_nachher <= laenge_vorher:
+        return [Befund(
+            TRANSKRIPTBLASE_NICHT_GEWACHSEN, station,
+            f"Transkriptblase id={echo_id} ist nicht gewachsen "
+            f"({laenge_vorher} -> {laenge_nachher} Zeichen).")]
+    return []
+
+
+def pruefe_pause_resume(pause_resume_ok: bool, versucht: bool, station: str) -> list[Befund]:
+    """Coverage-Luecke Pause/Resume (p34-abnahme-verfahren.md §3): anders als
+    Phase 1 (``diskussion_pause``) pruefte bisher keine P34-Station, dass
+    ``#interview-pause``/``#diskussion-pause`` benutzt wurde UND die
+    Aufnahme danach weiterlief. ``versucht``/``pause_resume_ok`` kommen aus
+    ``browser_lauf._fuehre_station_aus`` (``Station.pause_resume``,
+    ``_pausiere_und_fortsetze_aufnahme``): ``versucht=False`` heisst, die
+    Station hat es gar nicht angefordert (nicht pruefbar, kein Befund an
+    jeder anderen Station); ``versucht=True, pause_resume_ok=False`` heisst,
+    der Knopf fehlte, oder die Aufnahme lief nach dem zweiten Klick nicht
+    mehr weiter -- ein echter Befund."""
+    if not versucht:
+        return [nicht_pruefbar(INTERVIEW_PAUSE_NICHT_BESTAETIGT, station,
+                               "Station fordert kein Pause/Resume an (Station.pause_resume=False).")]
+    if pause_resume_ok:
+        return []
+    return [Befund(
+        INTERVIEW_PAUSE_NICHT_BESTAETIGT, station,
+        "Pause/Resume (#interview-pause/#diskussion-pause) wurde versucht, aber nicht "
+        "bestaetigt -- Knopf fehlte oder die Aufnahme lief nach dem zweiten Klick nicht "
+        "mehr weiter.", schwere="mittel")]
+
+
 def _inhaltswoerter(text: str) -> set[str]:
     return {w for w in _WORT.findall((text or "").casefold()) if w not in _STOPP}
 
@@ -841,6 +974,34 @@ def pruefe_nach_brainstorm(vorher: P34Stand, vor_ende: P34Stand, nachher: P34Sta
     return befunde
 
 
+#: H2 (Abnahme P3-4, Lauf 042439, 06.10.2026): wie weit ``aufruf.erstellt_am``
+#: und ``vorfall.erstellt_am`` hoechstens auseinanderliegen duerfen, damit
+#: der Vorfall GENAU DIESEN Aufruf exoneriert -- derselbe Zug (Opus
+#: scheitert, ``_melde_fallback`` schreibt den Vorfall, dann der sofortige
+#: Kimi-Fallback) laeuft ohne Nutzerwarten dazwischen, Sekunden reichen;
+#: grosszuegig bemessen fuer Messungenauigkeit (sekundengenaue Zeitstempel).
+OPUS_FALLBACK_FENSTER_S = 30.0
+
+
+def _exoneriert_durch_opus_fallback(erstellt_am: str | None, vorfaelle: tuple) -> bool:
+    """H2: ein non-Opus-Gespraechsaufruf in Phase 4 ist der dokumentierte
+    Fallback (``interview_theater.modellwahl``, Docstring "Fallback.",
+    ``aufruf_schema``/``_melde_fallback``), wenn eine ``vorfall``-Zeile mit
+    ``art='opus_fallback'`` (``modellwahl.VORFALL_OPUS_FALLBACK``) im selben
+    Zeitfenster steht. Ohne Zeitstempel (Fixture ohne die Spalte/Tabelle,
+    oder nicht parsbar) gilt KEINE Exoneration -- dieselbe Vorsicht wie bei
+    jeder Pruefung ohne Material: ein Befund wird nicht leise verschluckt."""
+    if not erstellt_am:
+        return False
+    for _id, art, vorfall_zeit in vorfaelle:
+        if art != modellwahl.VORFALL_OPUS_FALLBACK:
+            continue
+        differenz = _sekunden_seit(erstellt_am, vorfall_zeit or "")
+        if differenz is not None and abs(differenz) <= OPUS_FALLBACK_FENSTER_S:
+            return True
+    return False
+
+
 def pruefe_modellwahl(stand: P34Stand, phase3: tuple[int, int], phase4: tuple[int, int],
                       station: str, *, nur_phase: int | None = None) -> list[Befund]:
     """``phase3``/``phase4`` sind (von, bis)-Grenzen der ``aufruf.id`` dieser
@@ -881,11 +1042,22 @@ def pruefe_modellwahl(stand: P34Stand, phase3: tuple[int, int], phase4: tuple[in
             befunde.append(nicht_pruefbar(
                 P4_GESPRAECH_NICHT_OPUS, station,
                 f"keine Gespraechsaufrufe im geprueften Phase-4-Bereich {phase4}."))
-        elif any(a[2] != "C" for a in gespraeche4):
-            befunde.append(Befund(
-                P4_GESPRAECH_NICHT_OPUS, station,
-                "Ein Gespraechsaufruf in Phase 4 lief NICHT ueber Opus (modus != 'C').",
-                schwere="mittel"))
+        else:
+            # H2 (Abnahme P3-4, 06.10.2026): ein non-Opus-Zug ist KEIN
+            # Befund, wenn ein ``vorfall`` mit ``art='opus_fallback'`` im
+            # selben Zeitfenster ihn als den dokumentierten Fallback nach
+            # einem gescheiterten Opus-Versuch ausweist (siehe
+            # ``_exoneriert_durch_opus_fallback``) -- vorher feuerte das
+            # immer, auch fuer genau den vorgesehenen Rueckfall.
+            ungeklaert = [a for a in gespraeche4 if a[2] != "C"
+                         and not _exoneriert_durch_opus_fallback(a[3], stand.vorfaelle)]
+            if ungeklaert:
+                befunde.append(Befund(
+                    P4_GESPRAECH_NICHT_OPUS, station,
+                    "Ein Gespraechsaufruf in Phase 4 lief NICHT ueber Opus (modus != 'C') "
+                    "und ist nicht durch einen vorfall 'opus_fallback' im selben Zeitfenster "
+                    "gedeckt.",
+                    schwere="mittel"))
     if stand.usa_gefragt:
         befunde.append(Befund(
             EINWILLIGUNG_GEFRAGT, station,

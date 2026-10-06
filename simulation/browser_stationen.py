@@ -40,7 +40,7 @@ _NICHT_GESPRAECH = ("system", "transkript")
 #: Welche deterministischen Pruefungen (browser_invarianten) eine Station
 #: nach ihrem Ende durchlaufen soll -- Werte stehen in ``Station.pruefung``.
 PRUEFUNGEN = ("nach_ende", "wissen", "raumcheck", "zweite_gruppe", "verhoerer", "p2_werkbank",
-              "nach_interview", "nach_brainstorm", "modellwahl", "p5_angebot")
+              "nach_interview", "nach_brainstorm", "modellwahl", "p5_angebot", "pause_resume")
 
 #: Je Aufnahmeart: woran der Harness "laeuft" erkennt und was er zum Beenden
 #: drueckt. Brainstorm war unter t_cf87ee0a (Task 5, bis 05.10.2026) ein
@@ -57,6 +57,12 @@ LAEUFT = {"diskussion": '#diskussion[data-laeuft="1"]',
 ENDE = {"diskussion": "#diskussion-beenden",
         "interview": "#interview-beenden",
         "brainstorm": "#diskussion-beenden"}
+#: Derselbe Umschalter-Knopf je Aufnahmeart (erster Klick pausiert, zweiter
+#: setzt fort) -- Grundlage von ``browser_lauf._pausiere_und_fortsetze_aufnahme``
+#: (Coverage-Luecke Pause/Resume, p34-abnahme-verfahren.md §3).
+PAUSE = {"diskussion": "#diskussion-pause",
+         "interview": "#interview-pause",
+         "brainstorm": "#diskussion-pause"}
 
 
 @dataclass(frozen=True)
@@ -80,6 +86,12 @@ class Station:
     sage: str | None = None                     # Text, den der Harness selbst schickt (Station ohne Persona)
     gruppe: int = 1                             # welches Geraet/welche Gruppe im Mehrgruppen-Lauf diese Station spielt
     aufnahme: str = "diskussion"                # welcher Rekorder das Skript aus `diskussion` abspielt (LAEUFT/ENDE)
+    #: Coverage-Luecke Pause/Resume (p34-abnahme-verfahren.md §3): der
+    #: Harness pausiert/setzt waehrend ``zuhoeren_s`` einmal deterministisch
+    #: fort (``browser_lauf._pausiere_und_fortsetze_aufnahme``), unabhaengig
+    #: davon, ob die Persona selbst daran denkt -- geprueft per
+    #: ``pause_resume`` in ``Station.pruefung``.
+    pause_resume: bool = False
 
 
 def _feld(stand: dict, name: str):
@@ -260,10 +272,13 @@ STATIONEN_P34: tuple[Station, ...] = (
             diskussion="interview-kurz", pruefung=("nach_interview",)),
     Station("p3-interview-gemischt", 3,
             "Now do a real interview with a second person, who answers partly in "
-            "Italian. Start the interview, let them talk, then finish it.",
+            "Italian. Start the interview, let them talk. Partway through, you "
+            "may be asked to pause the recording for a moment and then continue "
+            "it -- do that if the app offers a pause button. Then finish the "
+            "interview.",
             fertig=lambda st: st.get("interview_koepfe", 0) >= 2,
-            budget=6, zuhoeren_s=None, aufnahme="interview",
-            diskussion="interview-gemischt", pruefung=("nach_interview",)),
+            budget=6, zuhoeren_s=None, aufnahme="interview", pause_resume=True,
+            diskussion="interview-gemischt", pruefung=("nach_interview", "pause_resume")),
     Station("p3-uebergang", 3,
             "Your interviews are done. Move on to the next phase.",
             fertig=lambda st: (_feld(st, "phase") or 3) >= 4,

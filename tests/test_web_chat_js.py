@@ -3276,6 +3276,40 @@ def test_versteckt_1s_zeigt_keinen_banner_live_in_node(tmp_path):
     assert ergebnis["hidden"] is True
 
 
+def test_versteckt_genau_3000ms_zeigt_banner_live_in_node(tmp_path):
+    """Grenzwert HINTERGRUND_MIN_MS selbst: die Spezifikation der Karte
+    t_1423ca89 sagt "if hidden for >= 3 s" -- bei exakt 3000 ms MUSS der
+    Banner erscheinen. Der Vergleich im Code ist ``luecke < HINTERGRUND_MIN_MS``,
+    schliesst also genau 3000 ms vom "kein Banner"-Fall aus."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(3000);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] == 3000
+    assert ergebnis["hidden"] is False
+
+
+def test_versteckt_2999ms_zeigt_keinen_banner_live_in_node(tmp_path):
+    """1 ms unter der Schwelle HINTERGRUND_MIN_MS -- zusammen mit dem
+    3000-ms-Test grenzt das die Schwelle von beiden Seiten ein."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(2999);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] is None
+    assert ergebnis["hidden"] is True
+
+
 def test_ohne_laufende_aufnahme_zeigt_sich_nie_ein_banner_live_in_node(tmp_path):
     """Kein Recorder im Zustand 'recording' (weder Interview noch
     Diskussion/Brainstorm) -- 10 s "versteckt" bleiben folgenlos, denn

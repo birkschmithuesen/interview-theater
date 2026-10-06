@@ -1789,6 +1789,9 @@ _AUSWAHL_JS = """
       sende('chat/auswahl', { liste: panel.getAttribute('data-liste'), nummer: nummer, wert: wert })
         .then(function (r) {
           if (!r.ok) { zeigeFehler(r.status === 400 ? FEHLER_UNGUELTIG : ''); }
+          else if (wert === 'schaerfen' && document.querySelector('.tabs button[data-tab="chat"]')) {
+            location.hash = '#chat';
+          }
         })
         .catch(function () { zeigeFehler(); })
         .then(function () {

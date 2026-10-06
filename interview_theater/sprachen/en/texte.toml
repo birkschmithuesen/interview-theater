@@ -2016,6 +2016,8 @@ _TEXT_REST_VERWERFEN = "Discard the rest"
 # mehr, die eigenen Brainstorm-Textkonstanten entfallen, t_cf87ee0a
 # abgeloest).
 _TEXT_DISKUSSION_AN = "Start listening"
+# Kanban t_d22af9b2 (06.10.2026): nur fuer Phase 4 (CoThinker-Mithoeren).
+_TEXT_DISKUSSION_AN_COTHINKER = "Start Listening for CoThinker"
 _TEXT_DISKUSSION_LAEUFT = "Listening ({zeit})"
 _TEXT_DISKUSSION_FERTIG_KNOPF = "Discussion done"
 _TEXT_DISKUSSION_GESPERRT = "An interview is still open - tap {beenden} first."

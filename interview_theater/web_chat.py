@@ -233,6 +233,10 @@ _TEXT_INTERVIEW_STARTET = "● Mikrofon kommt … · {zeit}"
 #: eigene Brainstorm-Toggle (t_cf87ee0a, eigene DE-Textkonstanten) ist
 #: damit abgeloest, siehe ``mithoeren_ziel``/``sitzung.ziel`` weiter unten.
 _TEXT_DISKUSSION_AN = "Zuhoeren starten"
+#: Kanban t_d22af9b2 (06.10.2026): eigener Knopftext NUR fuer Phase 4 --
+#: dort hoert der Bot als CoThinker mit, waehrend Phase 1
+#: (Begriffsboard-Diskussion) ``_TEXT_DISKUSSION_AN`` unveraendert behaelt.
+_TEXT_DISKUSSION_AN_COTHINKER = "Zuhören für CoThinker starten"
 _TEXT_DISKUSSION_LAEUFT = "Hoert zu ({zeit})"
 _TEXT_DISKUSSION_FERTIG_KNOPF = "Diskussion fertig"
 #: Abnahme P3-4 A3 (06.10.2026): ein verwaistes/fremdes Interview (Server
@@ -620,6 +624,7 @@ _JS_TEXTE = {
     "interview_enden_sicher": _TEXT_INTERVIEW_ENDEN_SICHER,
     "interview_startet": _TEXT_INTERVIEW_STARTET,
     "diskussion_an": _TEXT_DISKUSSION_AN,
+    "diskussion_an_cothinker": _TEXT_DISKUSSION_AN_COTHINKER,
     "diskussion_laeuft": _TEXT_DISKUSSION_LAEUFT,
     "diskussion_gesperrt": _TEXT_DISKUSSION_GESPERRT.format(beenden=_TEXT_INTERVIEW_ENDEN),
     "warte_eins": _TEXT_WARTE_EINS,
@@ -2288,15 +2293,20 @@ _CHAT_JS = """
         ? TEXT.interview_enden_sicher : TEXT.interview_enden;
     }
     // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ODER sobald
-    // die Diskussion/Brainstorm-Sitzung angeboten wird (nicht erst wenn sie
-    // LAEUFT) ist PTT ausgeblendet (Birk 04.10.2026: zwei sichtbare
-    // Mikrofon-Knoepfe gleichzeitig sind keine Bedienung -- entweder/oder,
-    // Befehle gehen dann nur noch ueber das Textfeld). Die Klassen-Formel
-    // fuer den Interview-Nebenknopf wird erst zwei Zeilen weiter unten
-    // gesetzt -- deshalb hier dieselbe Prosa noch einmal, nicht die
-    // Variable selbst (Reihenfolge der Aufrufe).
+    // die Diskussion-Sitzung angeboten wird (nicht erst wenn sie LAEUFT) ist
+    // PTT ausgeblendet (Birk 04.10.2026: zwei sichtbare Mikrofon-Knoepfe
+    // gleichzeitig sind keine Bedienung -- entweder/oder, Befehle gehen dann
+    // nur noch ueber das Textfeld). Die Klassen-Formel fuer den
+    // Interview-Nebenknopf wird erst zwei Zeilen weiter unten gesetzt --
+    // deshalb hier dieselbe Prosa noch einmal, nicht die Variable selbst
+    // (Reihenfolge der Aufrufe). Kanban t_d22af9b2 (06.10.2026, Birks
+    // Live-Test): diese entweder/oder-Regel gilt nur noch fuer Phase 1
+    // (``mithoerenZiel === 'diskussion'``) -- in Phase 4 (``'brainstorm'``)
+    // bleibt PTT neben dem laufenden CoThinker-Mithoeren ein eigener,
+    // kurzer Befehlskanal.
     var nebenAngeboten = !!zustand.diskussionErlaubt;
-    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn || nebenAngeboten; }
+    var nebenVersteckt = (nebenAn || nebenAngeboten) && zustand.mithoerenZiel !== 'brainstorm';
+    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenVersteckt; }
     zeigeDiskussionModus();
     // "Nebenknopf"-Stil am Interview-Knopf: sichtbar, sobald die Diskussion/
     // Brainstorm-Sitzung angeboten wird oder laeuft -- aus derselben Formel
@@ -3126,7 +3136,10 @@ _CHAT_JS = """
     var an = !!sitzung;
     diskussionKnopf.dataset.laeuft = an ? '1' : '0';
     if (!an) {
-      diskussionKnopf.textContent = TEXT.diskussion_an;
+      // Kanban t_d22af9b2 (06.10.2026): eigener Knopftext NUR fuer Phase 4
+      // -- Phase 1 behaelt TEXT.diskussion_an unveraendert.
+      diskussionKnopf.textContent = zustand.mithoerenZiel === 'brainstorm'
+        ? TEXT.diskussion_an_cothinker : TEXT.diskussion_an;
     } else {
       diskussionKnopf.textContent = TEXT.diskussion_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
@@ -3710,9 +3723,14 @@ _CHAT_JS = """
 
   function pttPointerDown(ev) {
     if (!pttKnopf) { return; }
-    // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt --
-    // PTT ist ein drittes Mikrofon auf demselben Geraet.
-    if (modusAn() || zustand.wechsel || zustand.diskussion ||
+    // Abschluss-Review (Finding 2): grundsaetzlich auch gegen
+    // zustand.diskussion gesperrt -- PTT ist sonst ein drittes Mikrofon auf
+    // demselben Geraet. Ausnahme Kanban t_d22af9b2 (06.10.2026): laeuft die
+    // Sitzung als Brainstorm/CoThinker-Mithoeren (Phase 4), bleibt PTT ein
+    // eigener Befehlskanal -- nur Phase 1 (sitzung.ziel 'diskussion') sperrt
+    // weiterhin.
+    var diskussionBlockiert = zustand.diskussion && zustand.diskussion.ziel !== 'brainstorm';
+    if (modusAn() || zustand.wechsel || diskussionBlockiert ||
         zustand.ptt) { return; }
     ev.preventDefault();
     try { pttKnopf.setPointerCapture(ev.pointerId); } catch (e) { /* ohne Capture geht es auch */ }
@@ -3962,6 +3980,7 @@ def _js() -> str:
         interview_enden_sicher=T._TEXT_INTERVIEW_ENDEN_SICHER,
         interview_startet=T._TEXT_INTERVIEW_STARTET,
         diskussion_an=T._TEXT_DISKUSSION_AN,
+        diskussion_an_cothinker=T._TEXT_DISKUSSION_AN_COTHINKER,
         diskussion_laeuft=T._TEXT_DISKUSSION_LAEUFT,
         diskussion_gesperrt=T._TEXT_DISKUSSION_GESPERRT.format(
             beenden=T._TEXT_INTERVIEW_ENDEN),
@@ -4187,6 +4206,12 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
     # Wohin das Audio dieser Sitzung geht, als ``data``-Attribut fuer den
     # Client (``web_daten.web_chatzustand``, Vorgabe 'diskussion').
     mithoeren_ziel = daten.get("mithoeren_ziel", "diskussion")
+    # Kanban t_d22af9b2 (06.10.2026): eigener Knopftext NUR fuer Phase 4 --
+    # Phase 1 behaelt T._TEXT_DISKUSSION_AN unveraendert.
+    diskussion_an_text = (
+        T._TEXT_DISKUSSION_AN_COTHINKER if mithoeren_ziel == "brainstorm"
+        else T._TEXT_DISKUSSION_AN
+    )
     blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(T._TEXT_LEER)}</p>'
@@ -4251,7 +4276,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'  <button type="button" id="diskussion" data-laeuft="0" '
             f'data-mithoeren-ziel="{html.escape(mithoeren_ziel, quote=True)}"'
             + ('' if diskussion_erlaubt else ' hidden')
-            + f'>{html.escape(T._TEXT_DISKUSSION_AN)}</button>\n'
+            + f'>{html.escape(diskussion_an_text)}</button>\n'
             f'  <div class="interview-aktionen" id="diskussion-aktionen" hidden>\n'
             f'    <button type="button" id="diskussion-beenden" '
             f'data-discussion-done="1">'

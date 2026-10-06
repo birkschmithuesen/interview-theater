@@ -466,10 +466,25 @@ def szenentext_gewuenscht(text: str | None) -> int | None:
         return None
     nummer = sprache.je_sprache({"de": _SZENENTEXT_NUMMER, "en": _SZENENTEXT_NUMMER_EN})
     woerter = sprache.je_sprache({"de": _SZENENTEXT_WOERTER, "en": _SZENENTEXT_WOERTER_EN})
-    treffer = nummer.search(roh)
-    if treffer is None or woerter.search(roh) is None:
+    nummern = list(nummer.finditer(roh))
+    leseworte = list(woerter.finditer(roh))
+    if not nummern or not leseworte:
         return None
-    return int(treffer.group(1))
+    # P57 Lauf 2 A2: nicht die ERSTE Nummer, sondern die, die zum Lesewunsch
+    # gehoert -- "Scene 1 is good now. Please show scene 2." will Szene 2.
+    # Gemessen wird der Abstand zwischen Lesewort und Nummer; bei Gleichstand
+    # gewinnt die Nummer HINTER dem Lesewort ("zeig Szene 2").
+    def abstand(n: re.Match) -> tuple[int, int]:
+        kuerzester = None
+        for w in leseworte:
+            if n.start() >= w.end():
+                kandidat = (n.start() - w.end(), 0)
+            else:
+                kandidat = (max(0, w.start() - n.end()), 1)
+            if kuerzester is None or kandidat < kuerzester:
+                kuerzester = kandidat
+        return kuerzester
+    return int(min(nummern, key=abstand).group(1))
 
 
 def ist_auftrag(text: str | None) -> bool:

@@ -4735,7 +4735,7 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
                      datei=None, mime=None, dateiname=None,
                      schnittgrund=None, brainstorm=False, diskussion=False,
                      bild=None, rede_ms=None, kalibrierung=False,
-                     weich_ms=None) -> int:
+                     weich_ms=None, client_job_id=None) -> int:
     """Legt eine Zeile in ``web_post`` an und liefert ihre id.
 
     Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
@@ -4749,20 +4749,27 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
     weicher Schnitt, 05.10.2026, nur bei ``schnittgrund='weich'`` gesetzt)
     sind ebenso nur bei ``typ='sprache'`` gesetzt und wandern genauso durch.
     ``bild`` (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
-    Telefon-Organisationskarte unter ``interview_theater/static/handys/``."""
+    Telefon-Organisationskarte unter ``interview_theater/static/handys/``.
+    ``client_job_id`` (Karte t_e2b0e489, kein Aufnahmeverlust am Handy) ist
+    die vom Browser selbst vergebene Kennung eines Segments in seiner
+    IndexedDB-Warteschlange -- der Unique-Index ``idx_web_post_client_job``
+    (``db.py``) lehnt eine zweite Zeile mit derselben Kennung fuer dieselbe
+    Gruppe ab; ``web_chat._audio`` prueft davor schon per
+    ``web_daten.web_post_id_fuer_client_job`` und ruft diese Funktion fuer
+    eine echte Dublette gar nicht erst auf."""
     cur = conn.execute(
         "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
         "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am, "
         "schnittgrund, brainstorm, diskussion, bild, rede_ms, kalibrierung, "
-        "weich_ms) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "weich_ms, client_job_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             chat_id, richtung, typ, text,
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
             daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
             schnittgrund, 1 if brainstorm else 0, 1 if diskussion else 0, bild,
-            rede_ms, 1 if kalibrierung else 0, weich_ms,
+            rede_ms, 1 if kalibrierung else 0, weich_ms, client_job_id,
         ),
     )
     conn.commit()

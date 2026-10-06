@@ -4756,6 +4756,35 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     # Sicherheitsmerkmal, ein falscher Wert zaehlt einfach wie keiner.
     kalibrierung = (felder.get("kalibrierung") or [""])[0] == "1"
 
+    # client_job_id (Karte t_e2b0e489, kein Aufnahmeverlust am Handy): die
+    # Kennung, die der Browser seiner IndexedDB-Warteschlange mitgibt
+    # (web_chat._CHAT_JS, postAudio). Kein Sicherheitsmerkmal wie der Nonce
+    # -- eine zu lange oder nicht druckbare Zeichenkette zaehlt einfach wie
+    # keine Kennung (dann wie ein alter Client ohne Warteschlange: kein
+    # Dublettencheck, der Upload scheitert deswegen nie).
+    roh_job = (felder.get("job") or [""])[0]
+    client_job_id = (
+        roh_job if roh_job.isascii() and roh_job.isprintable()
+        and 0 < len(roh_job) <= 128 else None
+    )
+    if client_job_id is not None:
+        # Hat dieselbe Gruppe diese Kennung schon einmal hochgeladen (die
+        # Warteschlange weiss nach einem Neuladen nicht sicher, ob ihr
+        # letzter Versuch ankam, und schickt denselben Job notfalls ein
+        # zweites Mal)? Dann dieselbe message_id zurueck, ohne eine zweite
+        # Zeile oder Datei -- VOR dem Lesen des Koerpers, der Dublettencheck
+        # kostet dann weder Platte noch Whisper-Geld.
+        lese_conn = web_daten.oeffne_lesend(db_pfad)
+        try:
+            vorhanden = web_daten.web_post_id_fuer_client_job(
+                lese_conn, chat_id, client_job_id)
+        finally:
+            lese_conn.close()
+        if vorhanden is not None:
+            _verwerfe_koerper(handler, laenge)
+            _angenommen(handler, {"message_id": vorhanden})
+            return
+
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
         web.schliesse_nach_antwort(handler)
@@ -4769,23 +4798,44 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
         handler._fehler(415, _TEXT_FEHLER_INHALT)
         return
 
-    with schreibend(db_pfad) as conn:
-        message_id = repo.lege_web_post_an(
-            conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
-            dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
-            schnittgrund=grund, brainstorm=brainstorm, diskussion=diskussion,
-            rede_ms=rede_ms, kalibrierung=kalibrierung, weich_ms=weich_ms,
-        )
-        # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
-        # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.
-        ziel = web_kanal.eingangspfad(
-            _audio_verz(), chat_id, message_id, endung,
-        ).resolve()
-        ziel.parent.mkdir(parents=True, exist_ok=True)
-        ziel.write_bytes(koerper)
-        # Erst jetzt der Verweis: bis dahin haelt WebKanal.hole_updates die
-        # Zeile zurueck (C1), statt den Bot einen leeren Pfad lesen zu lassen.
-        repo.setze_web_datei(conn, message_id, str(ziel))
+    try:
+        with schreibend(db_pfad) as conn:
+            message_id = repo.lege_web_post_an(
+                conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+                dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
+                schnittgrund=grund, brainstorm=brainstorm, diskussion=diskussion,
+                rede_ms=rede_ms, kalibrierung=kalibrierung, weich_ms=weich_ms,
+                client_job_id=client_job_id,
+            )
+            # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
+            # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.
+            ziel = web_kanal.eingangspfad(
+                _audio_verz(), chat_id, message_id, endung,
+            ).resolve()
+            ziel.parent.mkdir(parents=True, exist_ok=True)
+            ziel.write_bytes(koerper)
+            # Erst jetzt der Verweis: bis dahin haelt WebKanal.hole_updates die
+            # Zeile zurueck (C1), statt den Bot einen leeren Pfad lesen zu lassen.
+            repo.setze_web_datei(conn, message_id, str(ziel))
+    except sqlite3.IntegrityError:
+        # Der Dublettencheck oben hat nichts gefunden, aber zwischen seinem
+        # SELECT und diesem INSERT kam ein zweiter Upload mit derselben
+        # Client-Job-Id dazwischen -- zwei Tabs desselben Telefons koennen
+        # dieselbe wiederhergestellte IndexedDB-Zeile gleichzeitig abschicken.
+        # Der Unique-Index (db.idx_web_post_client_job) ist genau fuer dieses
+        # Fenster da: jetzt den Gewinner nachschlagen, statt den Verlierer
+        # mit einem 5xx verwerfen zu lassen.
+        if client_job_id is not None:
+            lese_conn = web_daten.oeffne_lesend(db_pfad)
+            try:
+                vorhanden = web_daten.web_post_id_fuer_client_job(
+                    lese_conn, chat_id, client_job_id)
+            finally:
+                lese_conn.close()
+            if vorhanden is not None:
+                _angenommen(handler, {"message_id": vorhanden})
+                return
+        raise
     _angenommen(handler, {"message_id": message_id})
 
 

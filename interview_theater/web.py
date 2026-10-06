@@ -3741,9 +3741,10 @@ def _buehnenkarte_html(karte: dict, erste: bool) -> str:
 
 
 def _auch_vereinbart_html(daten: dict, szenen_anzahl: str | None) -> str:
-    """Stueckkarte und Festlegungen als EINE read-only Liste (Werkbank).
-    Setting, Figuren und Geschichte der Stueckkarte stehen schon darueber --
-    hier bleibt von ihr nur die Szenenzahl. Ohne Loeschknopf (kein Nonce)."""
+    """Freie Festlegungen und die Szenenzahl -- read-only, OHNE eigene
+    Ueberschrift (Birk 06.10.2026: 'Also agreed' war ueberfluessig, die
+    Sektion soll direkt unter den anderen Kategorien von Phase 4 stehen,
+    als Teil derselben Liste statt eines eigenen Blocks)."""
     zeilen = []
     if szenen_anzahl:
         zeilen.append(
@@ -3753,9 +3754,7 @@ def _auch_vereinbart_html(daten: dict, szenen_anzahl: str | None) -> str:
         )
     if daten.get("festlegungen"):
         zeilen.append(_festlegungen_html(daten, None))
-    if not zeilen:
-        return ""
-    return f"<h3>{_t(T._TEXT_WB_AUCH_VEREINBART)}</h3>" + "".join(zeilen)
+    return "".join(zeilen)
 
 
 def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:

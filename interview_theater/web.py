@@ -891,6 +891,15 @@ JOURNALART_BESCHRIFTUNG = {
 #: Datenbankwert (``repo.FESTLEGUNG_BEREICHE``, Protokoll), deutsch der Wert
 #: selbst (K4). ``web`` importiert ``repo`` nicht; ein Test haelt die
 #: Schluessel deckungsgleich.
+#:
+#: Abnahme-Befund A13/laptop-A1 (06.10.2026): zusaetzlich ``rahmen`` -- kein
+#: Bereich aus ``repo.FESTLEGUNG_BEREICHE`` (das Setting hat mit
+#: ``arbeitsstand.rahmen`` schon ein Zuhause, repo.py:3441-3449), aber ein
+#: Modell loest "If none fits, use a short word of your own" bei
+#: ``festlegung_setzen`` manchmal mit genau diesem Wort ein -- es steht
+#: GROSSBUCHSTABEN in derselben Protokollliste, nur fuer ``entfernen``
+#: (sprachen/en/prompts/erkenner.md Punkt 20). Gemessen:
+#: ``festlegung.bereich='RAHMEN'``.
 FESTLEGUNG_BEREICH_BESCHRIFTUNG = {
     "figur": "figur",
     "gruppe": "gruppe",
@@ -899,6 +908,7 @@ FESTLEGUNG_BEREICH_BESCHRIFTUNG = {
     "form": "form",
     "stil": "stil",
     "sonstiges": "sonstiges",
+    "rahmen": "rahmen",
 }
 
 #: Wie eine Pruefkennung der Dramaturgie-Pruefung als Marke heisst --
@@ -1728,7 +1738,15 @@ def _festlegungen_html(daten: dict, nonce_wert: str | None) -> str:
         return f'<p class="leer">{html.escape(T._TEXT_KEINE_FESTLEGUNGEN)}</p>'
     stuecke = []
     for z in zeilen:
-        bereich = T.FESTLEGUNG_BEREICH_BESCHRIFTUNG.get(z["bereich"], z["bereich"])
+        # .lower(): ein kanonischer Bereich kommt aus repo.normiere_bereich
+        # schon kleingeschrieben, ein geleckter (``rahmen``, A13/laptop-A1)
+        # dagegen oft GROSSBUCHSTABEN, wie es das Protokoll fuer den Fall
+        # verlangt, aus dem er stammt (``entfernen``, nicht
+        # ``festlegung_setzen``) -- ohne ``.lower()`` liefe der Nachschlag
+        # an "RAHMEN" vorbei auf den rohen, unuebersetzten Wert zurueck.
+        bereich = T.FESTLEGUNG_BEREICH_BESCHRIFTUNG.get(
+            (z["bereich"] or "").lower(), z["bereich"]
+        )
         marke = bereich + (f" · {z['bezug']}" if z.get("bezug") else "")
         knopf = (
             _rahmen("", "festlegung_entfernen", z["id"], knopf=T.TEXT_ENTFERNEN)

@@ -10,7 +10,7 @@ Fixtures synthetisch.
 
 import pytest
 
-from interview_theater import db, erkenner, repo
+from interview_theater import db, erkenner, repo, sprache
 
 
 @pytest.fixture
@@ -220,6 +220,60 @@ def test_meldung_ohne_bezug():
         ]
     )
     assert meldung == "Notiert:\nFestgehalten: Nur eine Szene"
+
+
+# --- Abnahme-Befund A13/laptop-A1 (06.10.2026): Bereichs-Titel der 📌-Zeile
+# in Phase 4 -- "RAHMEN" (deutsches Protokollwort, oft GROSSBUCHSTABEN) blieb
+# unuebersetzt/GROSSBUCHSTABEN stehen, auch in einer englischen Gruppe.
+# Root Cause: ``_meldungszeilen`` grossschrieb nur den ersten Buchstaben des
+# rohen Bereichswerts, ohne jeden Nachschlag ueber T (DE/EN). ------------
+
+def test_jeder_bereich_den_der_erkenner_kennt_hat_eine_beschriftung():
+    """Die sieben kanonischen Bereiche (``repo.FESTLEGUNG_BEREICHE``) plus
+    ``rahmen`` -- das Wort leckt aus der GROSSBUCHSTABEN-Protokollliste von
+    art=entfernen (sprachen/en/prompts/erkenner.md Punkt 20) in
+    festlegung_setzen, wenn ein Modell "If none fits, use a short word of
+    your own" zu woertlich damit einloest (gemessen:
+    festlegung.bereich='RAHMEN')."""
+    assert set(erkenner._FESTLEGUNG_BEREICH_BESCHRIFTUNG) == (
+        set(repo.FESTLEGUNG_BEREICHE) | {"rahmen"}
+    )
+
+
+def test_bereich_titel_bekannter_bereich_grossgeschrieben():
+    assert erkenner._bereich_titel("figur") == "Figur"
+    assert erkenner._bereich_titel("rahmen") == "Rahmen"
+    # Case-insensitiv: repo.normiere_bereich laesst einen unbekannten
+    # Bereich wie "RAHMEN" unveraendert (nicht kleingeschrieben) stehen.
+    assert erkenner._bereich_titel("RAHMEN") == "Rahmen"
+
+
+def test_bereich_titel_freier_titel_wird_nur_lesbar_nicht_uebersetzt():
+    """Ein echter freier Bereichstitel (den die Gruppe spaeter wiederfinden
+    soll, repo.normiere_bereich-Docstring) bekommt keine erfundene
+    Uebersetzung, aber auch keine stehenbleibenden GROSSBUCHSTABEN mehr --
+    vorher liess ``titel[:1].upper() + titel[1:]`` ein komplett
+    grossgeschriebenes Protokollwort unveraendert."""
+    assert erkenner._bereich_titel("COSTUMES") == "Costumes"
+    assert erkenner._bereich_titel("kostueme") == "Kostueme"
+
+
+def test_bereich_titel_leer_wird_sonstiges():
+    assert erkenner._bereich_titel(None) == erkenner._bereich_titel("sonstiges")
+
+
+def test_festlegung_bereich_rahmen_in_der_notiert_zeile_englisch(conn, monkeypatch):
+    """End-to-end-Reproduktion des Befunds: Gruppe spricht englisch, der
+    Erkenner liefert den Bereich als rohes Protokollwort "RAHMEN", Phase 4
+    ist aktiv -- die 📌-Zeile darf das deutsche Wort nicht zeigen."""
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    repo.setze_phase(conn, 1, 4)
+    wirklich = _wende(
+        conn, "RAHMEN: the departure board still shows her bus every night"
+    )
+    meldung = erkenner.baue_meldung(wirklich, conn, 1)
+    assert "📌 Frame:" in meldung
+    assert "RAHMEN" not in meldung
 
 
 def test_entfernen_nimmt_eine_festlegung_zurueck(conn):

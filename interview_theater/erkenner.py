@@ -2192,6 +2192,46 @@ _FESTGELEGT_FELDER = frozenset({"rahmen", "geschichte", "szenen_anzahl"})
 #: ``_LEISTENARTEN`` darunter.
 _AUTOSAVE_FELDER_1_2 = frozenset({"begriffe", "fragen"})
 
+#: Beschriftung eines Festlegungsbereichs (``g["festgehalten"]``, die
+#: 📌-Zeile) -- eigene Tabelle, nicht ``web.FESTLEGUNG_BEREICH_BESCHRIFTUNG``:
+#: ``erkenner`` ist Fachlogik und liest nie nach oben zur Oberflaeche
+#: (Modulkarte, AGENTS.md), und die Schreibweise unterscheidet sich ohnehin
+#: (hier Titel-Grossschreibung fuer einen Satz, dort Kleinschreibung fuer
+#: einen per CSS grossgeschriebenen Werkbank-Chip). Schluessel deckungsgleich
+#: mit ``repo.FESTLEGUNG_BEREICHE`` plus ``rahmen`` (Abnahme-Befund
+#: A13/laptop-A1, 06.10.2026: kein Bereich aus dem Protokoll von
+#: festlegung_setzen, aber ein GROSSBUCHSTABEN-Wort aus der Protokollliste
+#: von ``entfernen``, das ein Modell manchmal zu woertlich als freien
+#: Bereichsnamen uebernimmt -- gemessen: festlegung.bereich='RAHMEN'); ein
+#: Test (tests/test_festlegung_erkenner.py) haelt beide Mengen deckungsgleich.
+_FESTLEGUNG_BEREICH_BESCHRIFTUNG = {
+    "figur": "Figur",
+    "gruppe": "Gruppe",
+    "ort": "Ort",
+    "struktur": "Struktur",
+    "form": "Form",
+    "stil": "Stil",
+    "sonstiges": "Sonstiges",
+    "rahmen": "Rahmen",
+}
+
+
+def _bereich_titel(bereich: str | None) -> str:
+    """Die Anzeige-Beschriftung eines Festlegungsbereichs fuer die
+    📌-Zeile. Ein bekannter Bereich (``_FESTLEGUNG_BEREICH_BESCHRIFTUNG``,
+    case-insensitiv -- ``repo.normiere_bereich`` laesst einen UNbekannten
+    Bereich in der Schreibweise des Modells stehen, oft GROSSBUCHSTABEN wie
+    vom Protokoll verlangt) bekommt seine feste Uebersetzung. Ein echter
+    freier Titel (den die Gruppe spaeter darunter wiederfindet,
+    ``repo.normiere_bereich``-Docstring) wird nur ordentlich gross-
+    /kleingeschrieben (``str.capitalize``) statt wie bisher
+    (``titel[:1].upper() + titel[1:]``) nur am ersten Buchstaben -- das
+    liess ein GROSSBUCHSTABEN-Protokollwort wie "RAHMEN" oder "COSTUMES"
+    komplett gross stehen (Abnahme-Befund A13/laptop-A1, 06.10.2026)."""
+    bereich = (bereich or "sonstiges").strip()
+    beschriftung = T._FESTLEGUNG_BEREICH_BESCHRIFTUNG.get(bereich.lower())
+    return beschriftung if beschriftung is not None else bereich.capitalize()
+
 
 def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
     """Aus dem Vorgeordneten die Zeilen der Meldung, in fester Reihenfolge."""
@@ -2235,8 +2275,7 @@ def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
     # Chat, um widersprechen zu koennen ("nimm das wieder raus").
     for bereich, bezug, text in g["festgehalten"]:
         if in_phase4:
-            titel = (bereich or "sonstiges")
-            titel = titel[:1].upper() + titel[1:]
+            titel = _bereich_titel(bereich)
             if bezug:
                 titel = f"{titel} · {bezug}"
             zeilen.append(T._ZEILE_FESTGELEGT.format(titel=titel, text=text))

@@ -164,8 +164,34 @@ def _befunde():
 
 
 def test_festlegungsbereiche_decken_das_protokoll():
-    assert set(web.FESTLEGUNG_BEREICH_BESCHRIFTUNG) == set(repo.FESTLEGUNG_BEREICHE)
+    # "rahmen" ist kein Bereich aus repo.FESTLEGUNG_BEREICHE (repo.py:3441-
+    # 3449 nennt ihn absichtlich nicht -- das Setting hat mit
+    # arbeitsstand.rahmen schon ein Zuhause). Er leckt trotzdem als Bereich
+    # in die Festlegung: das Wort steht GROSSBUCHSTABEN in derselben
+    # Prompt-Protokollliste wie die sieben kanonischen Bereiche, nur fuer
+    # art=entfernen statt festlegung_setzen (sprachen/en/prompts/
+    # erkenner.md Punkt 20), und ein Modell loest "If none fits, use a
+    # short word of your own" bei festlegung_setzen manchmal wortgleich
+    # damit ein (Abnahme-Befund A13/laptop-A1, 06.10.2026, gemessen in
+    # festlegung.bereich='RAHMEN'). Er braucht trotzdem eine Beschriftung,
+    # sonst bleibt er deutsch/GROSSBUCHSTABEN in einer englischen Gruppe
+    # stehen.
+    assert set(web.FESTLEGUNG_BEREICH_BESCHRIFTUNG) == set(repo.FESTLEGUNG_BEREICHE) | {"rahmen"}
     assert all(k == v for k, v in web.FESTLEGUNG_BEREICH_BESCHRIFTUNG.items())
+
+
+def test_festlegung_bereich_rahmen_bekommt_einen_titel_englisch(padua):
+    """Reproduziert den Befund A13/laptop-A1 wortgleich: der Erkenner
+    speichert den Bereich roh, oft in GROSSBUCHSTABEN wie vom Protokoll
+    verlangt (``repo.normiere_bereich`` laesst einen unbekannten Bereich
+    unveraendert stehen) -- der Nachschlag muss GROSS-/Kleinschreibung
+    tolerieren."""
+    html = web._festlegungen_html(
+        {"festlegungen": [{"id": 1, "bereich": "RAHMEN", "bezug": None, "text": "x"}]},
+        None,
+    )
+    assert '<span class="marke">frame</span>' in html
+    assert "rahmen" not in html.lower()
 
 
 def test_pruefkennungen_decken_alle_pruefungen():

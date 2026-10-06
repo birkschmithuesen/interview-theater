@@ -11,10 +11,15 @@ import urllib.request
 
 import pytest
 
-from interview_theater import db, repo, web, web_grenze, workshop
+from interview_theater import db, repo, web, web_daten, web_grenze, web_vereint, workshop
 
 CHAT = 7_000_000_000_061
 SCHLUESSEL = b"y" * 32
+
+#: Vor jedem Monkeypatch gesichert (Modulimport laeuft vor jeder Fixture) --
+#: der autouse-Fixture unten patcht ``workshop.ux_ereignisse_aktiv`` selbst,
+#: ein spaeter gesicherter "Originalwert" waere schon die Attrappe.
+_ECHTES_UX_EREIGNISSE_AKTIV = workshop.ux_ereignisse_aktiv
 
 
 @pytest.fixture
@@ -217,3 +222,47 @@ def test_ereignis_post_lehnt_falsches_grundformat_ab(server, nutzlast):
                       dict(nutzlast, nonce=web.nonce(SCHLUESSEL, token)))
     assert status == 400
     assert _gespeicherte_ereignisse(pfad) == []
+
+
+# -- der Batching-Code haengt nur unter dem Profilschalter -------------------
+
+
+def _rendere(pfad, token):
+    lesend = web_daten.oeffne_lesend(pfad)
+    try:
+        daten = web_daten.gruppe_nach_token(lesend, token)
+        chatdaten = web_daten.web_chatzustand(lesend, token)
+        roadmapdaten = web_daten.roadmap(lesend, CHAT)
+    finally:
+        lesend.close()
+    return web_vereint.seite(daten, chatdaten, roadmapdaten, "n", token,
+                             "/theatersoap", 45_000, {}, True)
+
+
+def test_ux_skript_haengt_nur_mit_dem_profilschalter_an(datenbank, monkeypatch):
+    pfad, token = datenbank
+    monkeypatch.setattr(workshop, "ux_ereignisse_aktiv", lambda *a, **k: False)
+    ohne = _rendere(pfad, token)
+    assert "chat/ereignis" not in ohne
+    assert "uxStapelAbschneiden" not in ohne
+
+    monkeypatch.setattr(workshop, "ux_ereignisse_aktiv", lambda *a, **k: True)
+    mit = _rendere(pfad, token)
+    assert "chat/ereignis" in mit
+    assert "uxStapelAbschneiden" in mit
+    assert f"var BASIS = '{token}/';" in mit
+    assert f"var MAX_EVENTS_JE_BATCH = {repo.MAX_UX_EVENTS_JE_BATCH};" in mit
+    assert f"var MAX_BATCH_BYTES = {repo.MAX_UX_BATCH_BYTES};" in mit
+
+
+def test_dortmund_profil_haengt_den_ux_skript_nie_an(datenbank, monkeypatch):
+    """Dortmund (default-aus) bleibt unberuehrt -- derselbe Test wie oben,
+    nur ueber den echten Profilwert statt gepatcht."""
+    dortmund = workshop.lade("dortmund-2026")
+    monkeypatch.setattr(workshop, "ux_ereignisse_aktiv",
+                        lambda *a, **k: _ECHTES_UX_EREIGNISSE_AKTIV(dortmund))
+    assert workshop.ux_ereignisse_aktiv() is False
+    pfad, token = datenbank
+    seite = _rendere(pfad, token)
+    assert "chat/ereignis" not in seite
+    assert "uxStapelAbschneiden" not in seite

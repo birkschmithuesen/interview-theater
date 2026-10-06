@@ -921,6 +921,19 @@ Setting = "Setting"
 Figuren = "Characters"
 Geschichte = "Story"
 
+["nachspeichern"]
+# Karte t_c5d68218: Nutzertext des optionalen Zusatz-Aufrufs nach "Ja, speichern".
+_UEBERSCHRIFT_GESPEICHERT = "Just saved:"
+_ZEILE_FELD = "{feld}: {wert}"
+_UEBERSCHRIFT_STUECKKARTE = "Piece card:"
+_TEXT_NOCH_OFFEN = "(still open)"
+_ZEILE_BEGRIFFE = "Terms: {wert}"
+
+["nachspeichern".FELD_BESCHRIFTUNG]
+Setting = "Setting"
+Figuren = "Characters"
+Geschichte = "Story"
+
 ["diskussion"]
 # P1-L8/P2-N2 (Prompt-Check Padua P1/P2, Abschnitt 9): der Kopf des
 # isolierten Nutzertextes (``diskussion._nutzertext``).

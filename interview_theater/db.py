@@ -1211,7 +1211,14 @@ CREATE TABLE IF NOT EXISTS web_post (
   -- morgige Daten die Vorgaben IT_WEB_VAD_WEICH_MS (30s)/
   -- IT_WEB_VAD_WEICH_PAUSE_MS (700ms) justieren koennen. Additiv
   -- nachgeruestet ueber _migriere_fehlende_spalten.
-  weich_ms          INTEGER
+  weich_ms          INTEGER,
+  -- Kennung, die der Browser selbst vergibt (Karte t_e2b0e489, kein
+  -- Aufnahmeverlust am Handy): ein Segment, das vor dem Upload in
+  -- IndexedDB liegt und nach einem Neuladen erneut geschickt wird, trägt
+  -- dieselbe Id wie beim ersten Versuch. NULL bei jeder Zeile ohne
+  -- Client-Warteschlange (alte Clients, Text/Knopf/Datei). Additiv
+  -- nachgeruestet ueber _migriere_fehlende_spalten.
+  client_job_id     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);
@@ -1395,6 +1402,30 @@ def _migriere_fehlende_spalten(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+#: Der serverseitige Duplikatschutz fuer die IndexedDB-Warteschlange des
+#: Browsers (Karte t_e2b0e489, kein Aufnahmeverlust am Handy): zwei Zeilen
+#: derselben Gruppe mit derselben Client-Job-Id sind ein Fehler, NULL (alte
+#: Clients ohne Warteschlange) darf beliebig oft vorkommen -- deshalb ein
+#: partieller Index statt ``UNIQUE(chat_id, client_job_id)`` in der
+#: Tabellendefinition. **Nicht Teil von SCHEMA**: ``initialisiere`` fuehrt
+#: SCHEMA vor ``_migriere_fehlende_spalten`` aus, und ein Index auf eine
+#: Spalte, die eine bestehende Datenbank noch nicht hat, liesse
+#: ``executescript`` mit ``no such column`` scheitern -- dieser Index
+#: entsteht deshalb erst NACH den additiven Spalten.
+_IDX_WEB_POST_CLIENT_JOB = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_web_post_client_job "
+    "ON web_post(chat_id, client_job_id) WHERE client_job_id IS NOT NULL"
+)
+
+
+def _migriere_fehlende_indizes(conn: sqlite3.Connection) -> None:
+    """Indizes auf additiv nachgeruestete Spalten -- siehe
+    ``_IDX_WEB_POST_CLIENT_JOB``. Eigener Schritt, NACH
+    ``_migriere_fehlende_spalten`` aufgerufen."""
+    conn.execute(_IDX_WEB_POST_CLIENT_JOB)
+    conn.commit()
+
+
 #: Schemastand dieser Codefassung, gespeichert in ``PRAGMA user_version``.
 #: ``0`` ist eine Datenbank aus der Zeit vor der Umnummerierung der
 #: Arbeitsphasen (05.09.2026), ``1`` das siebenstufige Modell desselben Tages,
@@ -1529,6 +1560,7 @@ def initialisiere(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
     conn.commit()
     _migriere_fehlende_spalten(conn)
+    _migriere_fehlende_indizes(conn)
     _migriere_phasennummern(conn)
     _migriere_erste_szenenfassung(conn)
 

@@ -2113,6 +2113,24 @@ def web_leiste(conn, chat_id: int, message_id: int) -> list | None:
     return _web_knoepfe(zeile["knoepfe"])
 
 
+def web_post_id_fuer_client_job(conn, chat_id: int, client_job_id: str) -> int | None:
+    """Die ``id`` der Zeile, die diese Client-Job-Id fuer diese Gruppe schon
+    traegt -- oder ``None``, wenn es noch keine gibt (Karte t_e2b0e489, kein
+    Aufnahmeverlust am Handy).
+
+    ``web_chat._audio`` ruft das VOR jedem Schreiben: die IndexedDB-
+    Warteschlange des Browsers weiss nach einem Neuladen nicht sicher, ob ihr
+    letzter Upload ankam, und schickt denselben Job notfalls ein zweites Mal
+    -- mit derselben Kennung. Ein Treffer hier bedeutet "schon da", die
+    Antwort nennt dieselbe ``message_id`` wie beim ersten Mal, ohne eine
+    zweite Zeile oder eine zweite Datei anzulegen."""
+    zeile = conn.execute(
+        "SELECT id FROM web_post WHERE chat_id = ? AND client_job_id = ?",
+        (chat_id, client_job_id),
+    ).fetchone()
+    return int(zeile["id"]) if zeile is not None else None
+
+
 def web_ausgangsdatei(conn, chat_id: int, post_id: int) -> dict | None:
     """Die Datei zu einer ``sende_datei``-Zeile (Textbuch-Export) -- Pfad und
     Name, oder None. Der Pfad bleibt serverseitig; die Route liefert den

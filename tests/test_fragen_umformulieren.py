@@ -42,6 +42,10 @@ def padua(monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
     workshop.vergiss()
     assert workshop.diskussion_aktiv() is True
+    # Der Dauerknopf-Schalter bleibt in padua-2026/profil.toml bewusst aus
+    # (Birk, 06.10.2026: ON HOLD) -- diese Suite prueft den fertig gebauten
+    # Pfad, also hier bewusst eingeschaltet.
+    monkeypatch.setattr(workshop, "fragen_umformulieren_knopf_aktiv", lambda *a, **k: True)
     yield
     workshop.vergiss()
 
@@ -442,3 +446,30 @@ def test_spaetere_rephrase_runde_stoesst_eroeffnung_nicht_erneut_an(
 
     # Der Umformulier-Auftrag kommt dazu, aber KEIN zweiter Eroeffnungslauf.
     assert len(auftraege) == 2
+
+
+# --- Birks Nachtrag (06.10.2026): ON HOLD -- Schalter aus, altes Verhalten --
+
+
+def test_schalter_aus_zeigt_keine_gabel_sondern_startet_sofort(
+    conn, tg, einst, auftraege, padua, monkeypatch,
+):
+    """[fragen] umformulieren_knopf fehlt (Default false) in padua-2026 --
+    genau das muss nach dem Merge live gehen: KEINE Umformulier-Weiche,
+    Verhalten wie vor Commit 65f3085 (die Eroeffnung bzw. das Weich-Angebot
+    startet im selben Schritt wie das Abschliessen der Fragen, kein Knopf
+    wird angeboten)."""
+    from interview_theater import befehle
+
+    monkeypatch.setattr(workshop, "fragen_umformulieren_knopf_aktiv", lambda *a, **k: False)
+
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_auswahl", "A: eins?\nA: zwei?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,ja")
+
+    befehle.behandle(conn, tg, einst, CHAT, "/sortiert", None)
+
+    assert len(auftraege) == 1  # die Eroeffnung ist sofort gestartet
+    beschriftungen = [b for _, _, leiste in tg.knoepfe for b, _ in leiste]
+    assert T._TEXT_UMFORMULIEREN_ANBIETEN_KNOPF not in beschriftungen
+    assert T._TEXT_UMFORMULIEREN_WEITER_KNOPF not in beschriftungen
+    assert _feld(conn, "fragen_fortsetzung_offen") is None

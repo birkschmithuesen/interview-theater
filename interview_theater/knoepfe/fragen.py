@@ -1888,8 +1888,11 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
         sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
     # Review-Fix t_b371c0f1, echte Weiche seit t_1f13a707: nur Padua kennt
     # den versteckten Befehl ``/umformulieren`` -- Dortmund bekommt diesen
-    # Knopf nie, bleibt also unveraendert und faehrt sofort fort.
-    if workshop.diskussion_aktiv():
+    # Knopf nie, bleibt also unveraendert und faehrt sofort fort. Birks
+    # Nachtrag (06.10.2026): zusaetzlich ON HOLD hinter
+    # ``[fragen] umformulieren_knopf`` -- ohne die Zeile (Default) bleibt
+    # das Verhalten bitgleich zu vor Commit 65f3085.
+    if workshop.diskussion_aktiv() and workshop.fragen_umformulieren_knopf_aktiv():
         repo.setze_arbeitsstand(conn, chat_id, "fragen_fortsetzung_offen", "1")
         _biete_umformulierung_an(conn, tg, chat_id)
     elif neue_weich:

@@ -1971,3 +1971,65 @@ def test_warte_bis_wartet_weiter_ohne_botantwort_trotz_ruhe(monkeypatch):
     browser_lauf._warte_bis(seite, lambda s: False, lambda: {"n": 0}, geduld_s=200,
                             ruhe_s=20.0, bot_antwort_da=lambda: False)
     assert uhr["t"] >= 200
+
+
+# --- P57: kein erzwungener Phasensprung, Pingpong-Schutz -----------------
+
+def test_pingpong_waechter_hinweis_dann_fehlgriff():
+    w = browser_lauf.PingpongWaechter()
+    tab = lambda n: {"type": "tab", "name": n}
+    ergebnisse = [w.pruefe(tab("chat" if i % 2 else "textbuch"), {}) for i in range(8)]
+    assert ergebnisse[:5] == [None] * 5
+    assert ergebnisse[5] == "hinweis"
+    assert ergebnisse[6:] == ["fehlgriff", "fehlgriff"]
+
+
+def test_pingpong_waechter_db_aenderung_oder_andere_aktion_setzt_zurueck():
+    w = browser_lauf.PingpongWaechter()
+    tab = {"type": "tab", "name": "chat"}
+    for _ in range(5):
+        assert w.pruefe(tab, {}) is None
+    assert w.pruefe(tab, {"szene": 1}) is None          # DB hat sich bewegt
+    for _ in range(5):
+        assert w.pruefe(tab, {}) is None
+    assert w.pruefe({"type": "click", "element_id": 1}, {}) is None
+    assert w.pruefe(tab, {}) is None
+
+
+def test_unfertige_station_wird_einmal_verlaengert_dann_kein_phasensprung(
+        stack, tmp_path, monkeypatch):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+
+    def verboten(*a, **k):
+        raise AssertionError("Harness darf keine Phase erzwingen")
+    monkeypatch.setattr(browser_lauf, "_loese_phasenwechsel_aus", verboten)
+    station = browser_stationen.Station(
+        "t-unfertig", 1, "Go.", budget=2, fertig=lambda s: False,
+        endet_bei_phasenwechsel=True)
+    hinweise = []
+    orig = browser_lauf.browser_persona.naechste_aktion
+
+    def spion(*a, hinweis=None, **k):
+        hinweise.append(hinweis)
+        return {"type": "wait", "duration_ms": 10}
+    monkeypatch.setattr(browser_lauf.browser_persona, "naechste_aktion", spion)
+    s2 = browser_stationen.Station("t-danach", 1, "Go.", budget=1)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=_ScriptedClient([]), judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station, s2), lauf_verzeichnis=tmp_path / "l")
+        browser.close()
+    assert len(ergebnis["stationen_ergebnisse"]) == 1           # Lauf endet
+    assert ergebnis["stationen_ergebnisse"][0]["schritte"] == 3  # 2 + 50 %
+    assert browser_lauf.HINWEIS_STATION_FERTIG in hinweise
+    assert ergebnis["abbruch"] == "station_unvollstaendig:t-unfertig"
+    assert any(b["schluessel"] == "station_unvollstaendig:t-unfertig"
+               for b in ergebnis["invarianten"])
+    assert ergebnis["phase_erzwungen"] == []
+    zeilen = [json.loads(z) for z in (tmp_path / "l" / "schritte.jsonl").read_text().splitlines()]
+    assert all("phase_erzwungen" in z for z in zeilen)
+    assert orig is not None

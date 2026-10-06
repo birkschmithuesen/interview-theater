@@ -19,6 +19,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import math
 import sqlite3
 import subprocess
 import time
@@ -552,6 +553,42 @@ def _hat_sich_veraendert(vorher: dict, nachher: dict) -> bool:
     return bool(diff["arbeitsstand_geaendert"]) or bool(diff["zahlen_geaendert"])
 
 
+#: Ab so vielen Tab-Wechseln in Folge ohne DB-Aenderung greift der
+#: Pingpong-Schutz (Lauf 3a: 19 Schritte chat<->textbuch).
+PINGPONG_SCHWELLE = 6
+HINWEIS_PINGPONG = ("The content did not change after your last tab switches. "
+                    "Stop switching tabs and try something else.")
+HINWEIS_STATION_FERTIG = ("Finish and save all scenes (read and confirm every one) "
+                          "before moving on.")
+#: Einmalige Verlaengerung einer unfertigen Station: +50 % Schritte.
+STATION_ERWEITERUNG = 0.5
+
+
+class PingpongWaechter:
+    """Zaehlt aufeinanderfolgende Tab-Wechsel ohne DB-Aenderung (auch
+    abwechselnd zwischen zwei Tabs -- die Aktion variiert, der Typ nicht).
+    ``pruefe`` liefert ``None``, ``"hinweis"`` (einmal bei Erreichen der
+    Schwelle) oder ``"fehlgriff"`` (jeder weitere wirkungslose Wechsel danach:
+    der Aufrufer fuettert damit den ``Schleifenwaechter``)."""
+
+    def __init__(self, schwelle: int = PINGPONG_SCHWELLE):
+        self.schwelle = schwelle
+        self._folge = 0
+        self._genudged = False
+
+    def pruefe(self, aktion: dict, db_diff: dict | None) -> str | None:
+        if aktion.get("type") != "tab" or db_diff:
+            self._folge, self._genudged = 0, False
+            return None
+        self._folge += 1
+        if self._folge < self.schwelle:
+            return None
+        if not self._genudged:
+            self._genudged = True
+            return "hinweis"
+        return "fehlgriff"
+
+
 def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mitschnitt,
                         station: browser_stationen.Station, *, basis_url: str,
                         token: str, db_pfad: str, chat_id: int, persona_name: str,
@@ -673,7 +710,30 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
     ende_zeit = time.monotonic() + max_station_s
     if frist is not None:
         ende_zeit = min(ende_zeit, frist)
-    while schritte < station.budget:
+    pingpong = PingpongWaechter()
+    budget = station.budget
+    erweitert = False
+
+    def _erweitern() -> bool:
+        """Station unfertig am Budgetende: EINMAL um +50 % verlaengern (nur
+        innerhalb der Zeitdeckel), mit ausdruecklichem Persona-Hinweis."""
+        nonlocal budget, erweitert, hinweis
+        if (erweitert or station.fertig is None or not station.endet_bei_phasenwechsel
+                or time.monotonic() >= ende_zeit):
+            return False
+        if station.fertig(browser_mitschnitt.datenstand(db_pfad, chat_id)):
+            return False
+        aktiv_jetzt = _aktive_phase_nummer(page)
+        if aktiv_jetzt is not None and aktiv_jetzt > station.phase:
+            return False
+        erweitert = True
+        budget += max(1, math.ceil(station.budget * STATION_ERWEITERUNG))
+        hinweis = HINWEIS_STATION_FERTIG
+        return True
+
+    while True:
+        if schritte >= budget and not _erweitern():
+            break
         if time.monotonic() >= ende_zeit:
             schleifenbefunde.append({
                 "schluessel": f"station_zeitdeckel:{station.schluessel}",
@@ -699,6 +759,8 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             if browser_stationen.muss_antworten(_verlaufsblasen(page), beantwortet):
                 beantwortet += 1
                 hinweis = browser_stationen.HINWEIS_NACHFRAGE
+                continue
+            if _erweitern():
                 continue
             break
 
@@ -767,6 +829,12 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             elemente=elemente, aktion=protokoll, begruendung=aktion.get("begruendung", ""),
             antwort=warte, db_diff=db_diff, station=station.schluessel)
 
+        pp = pingpong.pruefe(aktion, db_diff) if not aktion_gescheitert else None
+        if pp == "hinweis":
+            hinweis = HINWEIS_PINGPONG
+        elif pp == "fehlgriff":
+            protokoll = {**protokoll, "art": "fehlgeschlagen",
+                         "fehler": "Tab-Pingpong ohne Aenderung der Daten"}
         schleife = waechter.pruefe(aktion, protokoll)
         if schleife is not None:
             schleifenbefunde.append({
@@ -791,17 +859,19 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
 
     stand = browser_mitschnitt.datenstand(db_pfad, chat_id)
     fertig = station.fertig(stand) if station.fertig else True
+    unvollstaendig = False
     if not fertig and station.endet_bei_phasenwechsel:
-        ziel = browser_stationen.notweg_ziel(station.phase, _aktive_phase_nummer(page))
-        if ziel is not None and ziel <= phasen.LETZTE:
-            _loese_phasenwechsel_aus(basis_url, token, ziel)
-            fallback = True
-            schleifenbefunde.append({
-                "schluessel": f"phase_erzwungen:{station.phase}->{ziel}",
-                "text": f"Harness hat Phase {ziel} per Endpunkt erzwungen, weil Station "
-                        f"{station.schluessel} ihr Ziel nicht erreichte -- Folgezustand "
-                        f"(fehlende Szenen/Daten) ist Harness-Artefakt, kein Produktbefund.",
-                "schwere": "mittel"})
+        # P57: KEIN erzwungener Phasensprung (Laeufe 2/3a: p5 -> p6 mit nur
+        # Szene 1 erzeugte einen Zustand, den keine Gruppe erreicht). Der
+        # Lauf endet stattdessen mit einem Befund; ``fuehre_stationen``
+        # bricht danach ab.
+        unvollstaendig = True
+        schleifenbefunde.append({
+            "schluessel": f"station_unvollstaendig:{station.schluessel}",
+            "text": f"Station {station.schluessel} hat ihr Ziel auch nach "
+                    f"{'der Verlaengerung' if erweitert else 'dem Budget'} nicht erreicht; "
+                    f"der Lauf endet hier, Phase wird NICHT erzwungen.",
+            "schwere": "hoch"})
     if leitbilder and station.leitbild_ende:
         if station.leitbild_tab:
             browser_aktionen.fuehre_aus(page, {"type": "tab", "name": station.leitbild_tab})
@@ -815,7 +885,9 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             "offene_fragen": offene, "fertig": fertig, "fallback_benutzt": fallback,
             "zaehler_summe": zaehler_summe, "screenshots_nach": screenshots,
             "phasenwechsel_aufruf_id": phasenwechsel_aufruf_id,
-            "pause_resume_ok": pause_resume_ok, "schleifenbefunde": schleifenbefunde}
+            "pause_resume_ok": pause_resume_ok, "schleifenbefunde": schleifenbefunde,
+            "station_unvollstaendig": unvollstaendig, "station_erweitert": erweitert,
+            "phase_erzwungen": None}
 
 
 #: Wie lange nach dem Senden von ``station.sage`` hoechstens auf eine neue
@@ -1066,6 +1138,8 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
     lauf_frist = time.monotonic() + max_minuten * 60.0
     try:
         for index, station in enumerate(stationen):
+            if abbruch is not None:
+                break
             if index > 0 and time.monotonic() >= lauf_frist:
                 abbruch = "zeitdeckel"
                 break
@@ -1194,6 +1268,8 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
             # ``kontext.lauf`` traegt ``_fuehre_station_aus``s Rueckgabe
             # (u. a. ``pause_resume_ok``) in den ``pause_resume``-Haken.
             kontext.lauf = lauf
+            if lauf is not None and lauf.get("station_unvollstaendig"):
+                abbruch = f"station_unvollstaendig:{station.schluessel}"
             befunde += fuehre_pruefungen(station, kontext)
             if lauf is not None and station.sage and "wissen" not in station.pruefung:
                 try:
@@ -1302,6 +1378,10 @@ def _schreibe_stationsergebnis(lauf_verzeichnis: Path, *, beobachter, db_pfad, p
                 "top_befunde": top, "invarianten": invarianten,
                 "pruef_notizen": notizen, "fehlgeschlagen_bei": fehlgeschlagen_bei,
                 "db_pfad": db_pfad, "abbruch": abbruch, **(meta or {})}
+    # Jeder vom Harness selbst ausgeloeste Phasenwechsel -- erlaubt ist nur
+    # der Startzustand (P57); in Stationen wird nie mehr erzwungen.
+    start = (meta or {}).get("phase_erzwungen_start")
+    ergebnis["phase_erzwungen"] = [{"art": "start", "phase": start}] if start else []
     (lauf_verzeichnis / "ergebnis.json").write_text(
         json.dumps(ergebnis, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     return ergebnis

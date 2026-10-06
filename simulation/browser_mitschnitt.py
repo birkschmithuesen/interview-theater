@@ -144,7 +144,8 @@ class Mitschnitt:
     def schritt(self, *, phase: int, screenshot_vorher: Path,
                screenshot_nachher: Path, elemente: list, aktion: dict,
                begruendung: str, antwort: dict, db_diff: dict,
-               station: str | None = None) -> None:
+               station: str | None = None,
+               phase_erzwungen: str | None = None) -> None:
         zeile = {
             "zeit": time.time(), "phase": phase,
             "screenshot_vorher": Path(screenshot_vorher).name,
@@ -155,6 +156,7 @@ class Mitschnitt:
             "ohne_hinweis": antwort.get("ohne_hinweis"),
             "db_diff": db_diff,
             "station": station,
+            "phase_erzwungen": phase_erzwungen,
         }
         with open(self.jsonl_pfad, "a", encoding="utf-8") as f:
             f.write(json.dumps(zeile, ensure_ascii=False) + "\n")

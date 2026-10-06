@@ -422,7 +422,8 @@ STATIONEN_P57: tuple[Station, ...] = (
     Station("p5-szenen", 5,
             "Read every scene draft in the Script tab, one by one, and "
             "confirm each one.",
-            fertig=lambda s: (_feld(s, "phase") or 5) >= 6,
+            fertig=lambda s: (_feld(s, "phase") or 5) >= 6
+            or s.get("szenen_entwurf_ok", 0) >= s.get("szenen_anzahl", 0) > 0,
             budget=14, geduld_s=600, endet_bei_phasenwechsel=True,
             pruefung=("prueflauf", "chat_volltext", "sprung"),
             # Fortschritt: eine frisch entworfene, noch nicht abgenommene

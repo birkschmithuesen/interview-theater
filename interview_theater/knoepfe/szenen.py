@@ -12,10 +12,11 @@ Textbuch und dem Link auf die Probenansicht (``biete_durchlauf``,
 
 Kein Modellaufruf steht hier: was eines braucht, geht ueber
 ``szenenfolge.py``, ``schaerfung.py``, ``stueckpruefung.py``,
-``kurzgeschichte.py`` oder ``szene.py`` in einen eigenen Thread.
+``kurzgeschichte.py``, ``szene.py`` oder ``nachspeichern.py`` (der
+optionale Zusatz nach "Ja, speichern") in einen eigenen Thread.
 """
 
-from interview_theater import repo
+from interview_theater import nachspeichern, repo
 
 from interview_theater.knoepfe.texte import (
     ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN, ART_DRAMATURGIE_SZENE,
@@ -1468,6 +1469,9 @@ def _nach_szenen_gespeichert(conn, tg, chat_id: int, geschichte: str,
         _mit_leiste(conn, tg, chat_id, T._TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
     else:
         tg.sende(chat_id, T._TEXT_NACH_SPEICHERN_FRAGE)
+    # Die Bestaetigung steht; der optionale Zusatz kommt, wenn ueberhaupt,
+    # als eigene Nachricht aus einem eigenen Thread (Zusage 2).
+    nachspeichern.starte(conn, tg, klm, e, chat_id, T._NOTIERT["geschichte"], geschichte)
     return T._JOURNAL_GESCHICHTE_MIT_SZENEN.format(anzahl=anzahl)
 
 

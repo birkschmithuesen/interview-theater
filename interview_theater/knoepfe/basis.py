@@ -14,7 +14,7 @@ genau vier, und sie stehen als lokaler Import in der jeweiligen Funktion:
 sonst waere die Schicht keine.
 """
 
-from interview_theater import erkenner, phasen, repo
+from interview_theater import erkenner, nachspeichern, phasen, repo
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_BOARD_AENDERN, ART_BOARD_UEBERNEHMEN, ART_EIGENE, ART_KERNTHEMA, ART_PHASE,
@@ -1294,6 +1294,10 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
             _sende_knoepfe(conn, tg, chat_id, T._TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
         else:
             tg.sende(chat_id, T._TEXT_NACH_SPEICHERN_FRAGE)
+        # Die Bestaetigung steht; der optionale Zusatz (Vorschlag oder
+        # kritische Rueckfrage) kommt, wenn ueberhaupt, als eigene Nachricht
+        # aus einem eigenen Thread (Zusage 2, ``nachspeichern.starte``).
+        nachspeichern.starte(conn, tg, klm, e, chat_id, T._NOTIERT[art], wert)
     return T._TEXT_FELD_UEBERNOMMEN.format(feld=T._NOTIERT[art])
 
 

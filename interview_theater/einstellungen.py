@@ -50,6 +50,10 @@ _VORGABEWERTE = {
     # Wonach "heute" sich richtet. Padua liegt in Italien; der Workshoptag
     # soll nicht um 02:00 Ortszeit umschlagen, weil UTC es tut.
     "IT_ZEITZONE": "Europe/Rome",
+    # Internet-Recherche (Karte t_c5117c91): der Loopback-Such-Broker haelt
+    # den Brave-Key, interview_theater ruft nur diese URL (Knowledge/Netzwerk-
+    # Trennung, docs/refactoring-guidelines.md Punkt 7 im Profil-Repo).
+    "IT_SUCHE_URL": "http://127.0.0.1:8789/search",
 }
 
 
@@ -85,6 +89,7 @@ class Einstellungen:
     # kosten.zeitzone.
     kosten_deckel_chf: float = 5.0
     zeitzone: str = "Europe/Rome"
+    suche_url: str = "http://127.0.0.1:8789/search"
 
 
 #: Variablen, die nur der Telegram-Kanal braucht. Im Web-Kanal gibt es keinen
@@ -162,6 +167,7 @@ def laden() -> Einstellungen:
         web_segment_ms=segment_ms,
         kosten_deckel_chf=_zahl(werte["IT_KOSTEN_DECKEL_CHF"], 5.0),
         zeitzone=(werte["IT_ZEITZONE"] or "").strip() or "Europe/Rome",
+        suche_url=(werte["IT_SUCHE_URL"] or "").strip() or "http://127.0.0.1:8789/search",
     )
 
 

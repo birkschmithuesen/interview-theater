@@ -576,6 +576,14 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- als "ki" fuehren (eine eigene Frage wird nie als bearbeitet markiert,
   -- derselbe Unterschied wie bei ``fragen_bearbeitet`` fuer die Vorauswahl).
   fragen_bearbeitet_final       TEXT,
+  -- Die Weiche nach "Fertig sortiert" (Padua, Karte t_1f13a707): "1", solange
+  -- weder "Weiter zur Eroeffnung" gedrueckt noch eine Umformulier-Runde
+  -- abgeschlossen wurde -- erst das setzt die Kette zur Eroeffnung (bzw. zum
+  -- Weich-Angebot) fort. NULL ausserhalb dieses Fensters, auch nach dem
+  -- allerersten Abschluss: eine SPAETERE Umformulier-Runde (ueber den
+  -- Dauerknopf im CoThinker/der Werkbank, bis zum ersten Interview) darf die
+  -- schon gelaufene Eroeffnung nie ein zweites Mal anstossen.
+  fragen_fortsetzung_offen     TEXT,
   -- Je Begriff aus ``begriffe`` die Zeile des Begriffsboards (Karte
   -- t_4517d4ad, 04.10.2026): JSON ``[{begriff, begruendung, zitat,
   -- doppelbedeutung}]``. Geschrieben allein von

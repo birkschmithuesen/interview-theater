@@ -10,6 +10,39 @@ def conn(tmp_path):
     return c
 
 
+def test_setze_kalibrierung_werte_schreibt_alle_drei_werte_und_den_zeitstempel(conn):
+    """Karte 'keine Kalibrierung in Phase 3/4': die serverseitigen
+    Gruppenwerte gelten unabhaengig von Phase und Geraet -- ``repo`` schreibt
+    sie wie ``setze_kalibrierung_modus_herumreichen`` direkt auf ``gruppe``."""
+    assert repo.hole_gruppe(conn, 1)["kalibrierung_boden"] is None
+    repo.setze_kalibrierung_werte(conn, 1, 0.01, 0.2, 0.025)
+    gruppe = repo.hole_gruppe(conn, 1)
+    assert gruppe["kalibrierung_boden"] == pytest.approx(0.01)
+    assert gruppe["kalibrierung_rede"] == pytest.approx(0.2)
+    assert gruppe["kalibrierung_schwelle"] == pytest.approx(0.025)
+    assert gruppe["kalibrierung_gemessen_am"] is not None
+
+
+def test_setze_kalibrierung_werte_ueberschreibt_eine_fruehere_messung(conn):
+    """Eine neue Messung (manuell oder AUTO) gilt gruppenweit sofort -- keine
+    Historie, dieselbe 'nur der letzte Stand zaehlt'-Regel wie bei
+    ``kalibrierung_modus``."""
+    repo.setze_kalibrierung_werte(conn, 1, 0.01, 0.2, 0.025)
+    repo.setze_kalibrierung_werte(conn, 1, 0.03, 0.4, 0.05)
+    gruppe = repo.hole_gruppe(conn, 1)
+    assert gruppe["kalibrierung_boden"] == pytest.approx(0.03)
+    assert gruppe["kalibrierung_schwelle"] == pytest.approx(0.05)
+
+
+def test_setze_kalibrierung_werte_erlaubt_fehlende_rede(conn):
+    """Der AUTO-Pfad (kein Sprach-Testsatz) liefert keine ``rede``-Messung --
+    die Spalte ist nullable, genau dafuer."""
+    repo.setze_kalibrierung_werte(conn, 1, 0.01, None, 0.025)
+    gruppe = repo.hole_gruppe(conn, 1)
+    assert gruppe["kalibrierung_rede"] is None
+    assert gruppe["kalibrierung_schwelle"] == pytest.approx(0.025)
+
+
 def test_nachricht_wird_nicht_doppelt_eingefuegt(conn):
     assert repo.merke_nachricht(conn, 1, 100, "Ada", 0, "text", "hallo", "2026-09-05T10:00:00")
     assert not repo.merke_nachricht(conn, 1, 100, "Ada", 0, "text", "hallo", "2026-09-05T10:00:00")

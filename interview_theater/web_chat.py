@@ -425,6 +425,18 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .kalibrierung-erinnerung[hidden] { display: none; }
 .mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }
 .mitlauf-hinweis[hidden] { display: none; }
+/* Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89):
+   dieselbe Farbe/Rahmung wie .angehalten (ein Alarm, kein Hinweis) --
+   dismissible ueber den eigenen Schliessen-Knopf, nicht automatisch. */
+.hintergrund-warnung { display: flex; align-items: center; gap: .5rem;
+                       font-size: .9rem; border: 1px solid #a8201a;
+                       border-radius: .7rem; padding: .5rem .6rem; }
+.hintergrund-warnung[hidden] { display: none; }
+.hintergrund-warnung p { flex: 1; margin: 0; }
+.hintergrund-warnung button { font: inherit; border: 0; background: transparent;
+                              color: #a8201a; min-width: 2.2rem; min-height: 2.2rem; }
+.hintergrund-tipp { font-size: .8rem; text-align: center; opacity: .7; }
+.hintergrund-tipp[hidden] { display: none; }
 /* Bild-Overlay-Karte: die Telefon-Organisationskarte (``.karte``) gross und
    zoombar. ``inset: 0`` statt ``100vw``/``100vh`` -- ein fixes Element
    braucht dafuer keine viewport-relative Einheit. ``touch-action:
@@ -535,6 +547,24 @@ _TEXT_MITLAUF_HINWEIS = (
     "näher ran."
 )
 
+#: Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89,
+#: Evidence: Clone "G3 Interview 1" #113 -- die Seite war waehrend des
+#: Interviews im Hintergrund, MediaRecorder und Timer dort angehalten).
+#: Erscheint am Telefon, sobald es nach ``HINTERGRUND_MIN_MS`` (3 s)
+#: Verstecktsein wieder sichtbar wird, waehrend eine Aufnahme/
+#: Zuhoersitzung lief. ``{zeit}`` als M:SS wie ``_TEXT_SPRACHE``.
+_TEXT_HINTERGRUND_WARNUNG = (
+    "⚠ Aufnahme {zeit} lang unterbrochen — die Seite war im Hintergrund. "
+    "Bitte diese Seite geöffnet lassen und den Bildschirm an."
+)
+#: Der permanente kleine Tipp unter dem Aufnahme-/Zuhoerknopf, solange
+#: dieses Telefon aufnimmt (an/aus ueber denselben Schalter wie #uhr/
+#: #pegel: ``uhrAn``/``anzeigeAus``).
+_TEXT_HINTERGRUND_TIPP = (
+    "Diese Seite im Vordergrund lassen – Handy nicht sperren oder die App "
+    "wechseln."
+)
+
 # -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/             --
 # -- Kalibrierung, 03.10.2026): Birks Korrektur gilt woertlich -- NICHTS in --
 # -- diesem Ablauf startet von selbst, jeder Schritt wartet auf einen       --
@@ -634,6 +664,8 @@ _JS_TEXTE = {
     "modus_weg_leer": _TEXT_MODUS_WEG_LEER,
     "nachreichen_spaeter": _TEXT_NACHREICHEN_SPAETER,
     "mitlauf_hinweis": _TEXT_MITLAUF_HINWEIS,
+    "hintergrund_warnung": _TEXT_HINTERGRUND_WARNUNG,
+    "hintergrund_tipp": _TEXT_HINTERGRUND_TIPP,
     "ptt_hinweis": _TEXT_PTT_HINWEIS,
     "abkuerzung": _TEXT_ABKUERZUNG,
     "undo": _TEXT_UNDO_ERKENNUNG,
@@ -3989,6 +4021,8 @@ def _js() -> str:
         kal_balken_label=T._TEXT_KALIBRIERUNG_BALKEN_LABEL,
         kal_herumreichen_erinnerung=T._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
         mitlauf_hinweis=T._TEXT_MITLAUF_HINWEIS,
+        hintergrund_warnung=T._TEXT_HINTERGRUND_WARNUNG,
+        hintergrund_tipp=T._TEXT_HINTERGRUND_TIPP,
         ptt_hinweis=T._TEXT_PTT_HINWEIS,
     )
     texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
@@ -4229,6 +4263,11 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'data-kalibrierung-schwelle="{_kal_gruppe_attribut(daten, "schwelle")}"\n'
         f'     data-interview="{1 if modus else 0}" '
         f'data-basis="{html.escape(basis, quote=True)}">\n'
+        f'  <div class="hintergrund-warnung" id="hintergrund-warnung" role="alert" hidden>\n'
+        f'    <p id="hintergrund-warnung-text"></p>\n'
+        f'    <button type="button" id="hintergrund-warnung-schliessen" aria-label="'
+        f'{html.escape(_TEXT_BILD_SCHLIESSEN, quote=True)}">✕</button>\n'
+        f'  </div>\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
         f'  <div class="pegel" id="pegel" hidden>'
         f'<span></span><i class="pegel-schwelle"></i></div>\n'
@@ -4282,6 +4321,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'
             f'  </div>\n'
         )
+        + '  <p class="hintergrund-tipp" id="hintergrund-tipp" hidden></p>\n'
         + _ptt_anzeige_html()
         + f'  <div class="zeile">\n'
         f'    <input type="text" id="eingabe" autocomplete="off" '

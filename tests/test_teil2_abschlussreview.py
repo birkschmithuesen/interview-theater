@@ -13,6 +13,8 @@
 Kein Netz, kein Modell: Laeufe werden an ihrer Einstiegsstelle abgefangen.
 """
 
+import contextlib
+
 import pytest
 
 from interview_theater import (
@@ -56,6 +58,30 @@ def szene_spion(monkeypatch):
 
     monkeypatch.setattr(szene, "starte", spion)
     return gerufen
+
+
+@contextlib.contextmanager
+def _eingefrorene_uhr(monkeypatch):
+    """Haelt ``repo._jetzt``/``repo._jetzt_fein`` auf einem einzigen Moment an.
+
+    Befund 06.10.2026: ``test_padua_phase_6_bietet_phase_7_nicht_an`` war in
+    der vollen Suite (nicht isoliert) vereinzelt rot mit ``assert None == 7``.
+    Ursache: ``_stueck`` schreibt mehrere Zeilen mit der echten Wanduhr
+    (``repo._jetzt``, Sekundengenauigkeit) und ruft ganz am Ende
+    ``phasen.setze`` auf, das ``phase_gesetzt_am`` mit ``repo._jetzt_fein``
+    stempelt. ``neues_material_seit`` zaehlt Material aus DERSELBEN Sekunde
+    wie ``phase_gesetzt_am`` noch als "danach" (Kommentar dort) -- kippt die
+    Wanduhr zwischen dem letzten Materialschreiben und ``phasen.setze`` auf
+    die naechste Sekunde (messbar unter Last, z.B. beim Lauf der vollen
+    Suite), faellt ``phase_gesetzt_am`` eine Sekunde spaeter als alles
+    Material, und ``offenes_angebot`` liefert fälschlich ``None``. Diese
+    Testhilfe friert beide Uhren auf denselben Moment ein, damit der Test
+    unabhaengig von der Ausfuehrungsgeschwindigkeit ist."""
+    eingefroren = repo._jetzt()
+    with monkeypatch.context() as m:
+        m.setattr(repo, "_jetzt", lambda: eingefroren)
+        m.setattr(repo, "_jetzt_fein", lambda: eingefroren)
+        yield
 
 
 def _stueck(conn, phase, *, szenen=(1, 2, 3), formen=None, volltext=True,
@@ -269,9 +295,10 @@ def _unverwandte_aenderung(conn, tg, einst):
     erkenner.laufe(klm, tg, conn, einst, 1)
 
 
-def test_padua_phase_6_bietet_phase_7_nicht_an(conn, padua, tg, einst):
-    _stueck(conn, 6, gesamt_fix=False, ueberarbeitet=False, volltext=False)
-    assert phasen.offenes_angebot(conn, 1) == 7  # die Materiallage gaebe es her
+def test_padua_phase_6_bietet_phase_7_nicht_an(conn, padua, tg, einst, monkeypatch):
+    with _eingefrorene_uhr(monkeypatch):
+        _stueck(conn, 6, gesamt_fix=False, ueberarbeitet=False, volltext=False)
+        assert phasen.offenes_angebot(conn, 1) == 7  # die Materiallage gaebe es her
 
     _unverwandte_aenderung(conn, tg, einst)
 
@@ -302,9 +329,10 @@ def test_padua_andere_uebergaenge_bleiben_angeboten(conn, padua, tg, einst):
     assert "2" in _phasenknoepfe(conn, tg)
 
 
-def test_dortmund_phase_6_bietet_phase_7_weiter_an(conn, dortmund, tg, einst):
-    _stueck(conn, 6, gesamt_fix=False, ueberarbeitet=False, volltext=False)
-    assert phasen.offenes_angebot(conn, 1) == 7
+def test_dortmund_phase_6_bietet_phase_7_weiter_an(conn, dortmund, tg, einst, monkeypatch):
+    with _eingefrorene_uhr(monkeypatch):
+        _stueck(conn, 6, gesamt_fix=False, ueberarbeitet=False, volltext=False)
+        assert phasen.offenes_angebot(conn, 1) == 7
 
     _unverwandte_aenderung(conn, tg, einst)
 

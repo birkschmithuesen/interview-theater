@@ -108,6 +108,10 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
         "phase": _feld(zeile, "phase"),
         "begriffe": zeile["begriffe"] if zeile else None,
         "fragen": _feld(zeile, "fragen"),
+        # Fuer ``auswahl.sortierung_offen`` (Karte t_1f13a707, Dauerknopf
+        # "Fragen umformulieren"): ohne dieses Feld sieht die Pruefung nie
+        # eine laufende Sortierung, nur ein leeres ``fragen``.
+        "fragen_entschieden": _feld(zeile, "fragen_entschieden"),
         # Die Verfeinerungsebene der Fragen (06.09.2026): Einleitungen zu
         # heiklen Fragen, Eroeffnung und Abschluss. Alle drei ueber ``_feld``,
         # weil sie nachtraeglich dazugekommen sind und der Webserver die

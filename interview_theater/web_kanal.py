@@ -401,7 +401,8 @@ class WebKanal:
     # -- Ausgang -----------------------------------------------------------
 
     def sende(self, chat_id: int, text: str, parse_mode=None, klartext=None,
-              system: bool = False, transkript: bool = False) -> int:
+              system: bool = False, transkript: bool = False,
+              markdown: bool = False) -> int:
         """Eine Textnachricht. Liefert die ``message_id``.
 
         **Nicht geteilt**, anders als in Telegram (``teile_text``, 4000
@@ -413,6 +414,14 @@ class WebKanal:
         HTTP 400, den es hier nicht gibt. Gespeichert wird die
         HTML-Fassung -- sie traegt mehr Information, und die Chatansicht
         filtert sie ohnehin serverseitig (Aufgabe 6).
+
+        ``markdown`` (Karte t_cc147548) ist hier ein No-Op: anders als
+        ``telegram.Telegram`` rendert der Web-Kanal die leichte
+        Markdown-Teilmenge nicht beim Versand, sondern erst beim Anzeigen
+        (``web_chat.sichere_html``, derselbe Formatumfang wie
+        ``web._buehne_markdown``) -- gespeichert wird der unveraenderte
+        Rohtext. Der Parameter steht nur fuer die Signaturgleichheit mit
+        ``telegram.Telegram.sende`` (``test_web_kanal_naht``).
 
         ``system`` (UX-Knoepfe-Karte, Abschnitt 3): eine Speicherquittung
         bekommt ``web_post.typ = WEB_TYP_SYSTEM`` statt ``WEB_TYP_TEXT`` --
@@ -435,9 +444,10 @@ class WebKanal:
 
     def sende_mit_knoepfen(self, chat_id: int, text: str, knoepfe,
                            parse_mode=None, klartext=None,
-                           system: bool = False) -> int:
+                           system: bool = False, markdown: bool = False) -> int:
         """Wie ``sende``, mit einer Leiste darunter -- je Eintrag
-        ``(beschriftung, callback_data)``.
+        ``(beschriftung, callback_data)``. ``markdown`` wie in ``sende``:
+        ein No-Op, nur fuer die Signaturgleichheit mit ``telegram.Telegram``.
 
         Die Leiste steht in derselben Zeile wie der Text, und **hier** ist
         deshalb die Wahrheit darueber, was unter einer Nachricht gerade

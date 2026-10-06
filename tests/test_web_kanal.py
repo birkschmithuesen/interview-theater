@@ -66,6 +66,15 @@ def test_sende_nimmt_den_klartext_wenn_es_einen_gibt(conn, kanal):
     )
 
 
+def test_sende_mit_markdown_speichert_den_rohtext(conn, kanal):
+    """``markdown=True`` ist im Web ein No-Op (Karte t_cc147548): anders als
+    Telegram rendert der Web-Kanal nicht beim Versand, sondern erst
+    ``web_chat.sichere_html`` beim Anzeigen -- derselbe Rohtext mit
+    ``**fett**`` geht unveraendert in ``web_post``."""
+    message_id = kanal.sende(CHAT, "**Wichtig**: was meint ihr?", markdown=True)
+    assert repo.hole_web_post(conn, message_id)["text"] == "**Wichtig**: was meint ihr?"
+
+
 def test_sende_mit_knoepfen_haelt_die_leiste_fest(conn, kanal):
     leiste = [("Ja, speichern", "k:1"), ("Nein, nochmal ändern", "k:2")]
     message_id = kanal.sende_mit_knoepfen(CHAT, "Speichern?", leiste)

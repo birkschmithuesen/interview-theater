@@ -39,7 +39,7 @@ everything again. Three exceptions, and only these three:
 something away). They need a clear request to you, not a question; when in
 doubt, no entry.
 
-You recognise exactly thirty-one kinds of changes. Each change is an
+You recognise exactly thirty-two kinds of changes. Each change is an
 object with "art" and "wert":
 
 1.  interview_starten     -- wert: empty (""). The group starts a recording
@@ -286,6 +286,22 @@ object with "art" and "wert":
     passage ("what does that quote mean?") -> no entry.
 
         {"art": "schaerfung_entscheidung", "wert": "scene 1"}
+
+32. recherche_starten      -- wert: the research question, taken over word
+    for word as the group phrased it. Applies when the group asks IN THE
+    CHAT (not via the Research button) for an internet fact-check or
+    lookup: "research: when was the bridge built?", "can you look up
+    whether that law really existed back then?", "fact-check this: ...".
+
+    * **A wish to research later, with no concrete question, is NOT
+      recherche_starten:** "we should research that at some point", "maybe
+      we should fact-check some of this later" -> no entry. There has to
+      be an actual question to look up.
+    * A question addressed to the GROUP itself ("should we even research
+      this?") is not recherche_starten either -- only a request addressed
+      to the bot that names something to look up is.
+
+        {"art": "recherche_starten", "wert": "When was the bridge built?"}
 
 **First the field, then the catch-all.** If a detail fits one of the fields
 above -- terms, questions, core theme, format, setting, main conflict, a

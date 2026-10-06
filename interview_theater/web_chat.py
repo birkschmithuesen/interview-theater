@@ -488,6 +488,12 @@ _TEXT_WARTE_EINS = "Ein Stück wird hochgeladen …"
 _TEXT_WARTE_MEHR = "{n} Stücke werden hochgeladen …"
 _TEXT_WARTE_MODUS = "Aufnahme läuft — {n} Stück(e) warten, bis der Bot das Interview angelegt hat."
 _TEXT_WARTE_NETZ = "Keine Verbindung — {n} offen, ich versuche es weiter …"
+#: Karte t_e2b0e489 (kein Aufnahmeverlust am Handy): Segmente, die die
+#: IndexedDB-Warteschlange beim Laden dieser Seite wiedergefunden hat (ein
+#: Tab wurde geschlossen oder das Telefon ist abgestuerzt, bevor der Upload
+#: bestaetigt war). Vorrang vor den uebrigen ``warte_*``-Texten, solange
+#: noch eines davon offen ist (``zeigeWarteschlange``).
+_TEXT_WARTE_WIEDERHERGESTELLT = "{n} Aufnahme(n) warten auf Upload …"
 _TEXT_FEHLER_NETZ = "Keine Verbindung — das ist nicht angekommen."
 _TEXT_FEHLER_MIKRO = "Ohne Mikrofon geht das nicht — bitte den Zugriff erlauben."
 _TEXT_VERLASSEN = "Es wird noch aufgenommen oder hochgeladen."
@@ -616,6 +622,7 @@ _JS_TEXTE = {
     "warte_mehr": _TEXT_WARTE_MEHR,
     "warte_modus": _TEXT_WARTE_MODUS,
     "warte_netz": _TEXT_WARTE_NETZ,
+    "warte_wiederhergestellt": _TEXT_WARTE_WIEDERHERGESTELLT,
     "fehler_netz": _TEXT_FEHLER_NETZ,
     "fehler_mikro": _TEXT_FEHLER_MIKRO,
     "verlassen": _TEXT_VERLASSEN,
@@ -955,6 +962,12 @@ _CHAT_JS = """
   // zweite und letzte localStorage-Ausnahme neben der Kalibrierung.
   var PHASE_LS_GESEHEN = 'phase_gesehen';
 
+  // Karte t_e2b0e489 (kein Aufnahmeverlust am Handy): die dauerhafte
+  // Warteschlange und der Bildschirm-Wachhalter, woertlich aus
+  // _PERSISTENZ_JS/_WAKELOCK_JS -- siehe deren Docstrings dort.
+__PERSISTENZ_JS__
+__WAKELOCK_JS__
+
   var verlauf = document.getElementById('verlauf');
   var fuss = document.getElementById('fuss');
   if (!verlauf || !fuss) { return; }
@@ -1033,6 +1046,22 @@ _CHAT_JS = """
     || (location.pathname.replace(/\\/+$/, '').replace(/\\/chat$/, '') + '/');
   function weg(pfad) { return BASIS + pfad; }
 
+  // Karte t_e2b0e489: der Schluessel, unter dem die IndexedDB-Warteschlange
+  // ihre Eintraege dieser Gruppe wiederfindet. BASIS ist schon eindeutig
+  // pro Gruppe (sie steckt im Pfad) -- keine zweite Kennung noetig.
+  var GRUPPEN_SCHLUESSEL = BASIS;
+
+  function naechsteJobId() {
+    if (window.crypto && window.crypto.randomUUID) { return window.crypto.randomUUID(); }
+    return 'job-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  }
+  // Mit der Uhrzeit geseedet, nicht bei 0: ein Segment aus einer
+  // vorherigen Seitenladung (wiederhergestellt, kleinere seq) muss IMMER
+  // vor einem live aufgenommenen Segment dieser Ladung sortieren, und die
+  // Zeit laeuft dafuer nur in eine Richtung.
+  var naechsteSeqWert = Date.now();
+  function naechsteSeq() { naechsteSeqWert += 1; return naechsteSeqWert; }
+
   var zustand = {
     letzte: parseInt(verlauf.dataset.letzte, 10) || 0,
     aenderung: parseInt(verlauf.dataset.aenderung, 10) || 0,
@@ -1051,6 +1080,10 @@ _CHAT_JS = """
     aufnahme: null,     // die laufende Interview-Aufnahme dieses Telefons
     wechsel: null,      // {ziel, gesendet}: ein Moduswechsel, den der Poll noch nicht zeigt
     warteschlange: [],  // Befehle und Segmente, der Reihe nach
+    // Karte t_e2b0e489: wie viele der Auftraege gerade in der Schlange aus
+    // der IndexedDB-Wiederherstellung beim Laden stammen -- solange das
+    // nicht 0 ist, zeigt zeigeWarteschlange() den eigenen Hinweistext.
+    wiederhergestellteOffen: 0,
     laeuft: false,      // ist der erste Auftrag gerade unterwegs?
     netzFehler: 0,      // Fehlversuche in Folge (Backoff)
     nachholTakt: null,
@@ -1564,8 +1597,11 @@ _CHAT_JS = """
     });
   }
 
+  // Karte t_e2b0e489: &job= traegt die IndexedDB-Jobkennung, der Server
+  // ignoriert ein Duplikat mit derselben Kennung (web_chat._audio).
   function postAudio(auftrag, zweiter) {
     var weg_ = `chat/audio?dauer=${auftrag.dauer}`;
+    if (auftrag.clientJobId) { weg_ += `&job=${encodeURIComponent(auftrag.clientJobId)}`; }
     if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
     if (auftrag.redeMs != null) { weg_ += `&rede=${Math.round(auftrag.redeMs)}`; }
     if (auftrag.weichMs != null) { weg_ += `&weichms=${Math.round(auftrag.weichMs)}`; }
@@ -1650,7 +1686,30 @@ _CHAT_JS = """
   // /fertig und PTT-Aufnahmen. Ein Auftrag bleibt vorn stehen, bis der
   // Server ihn angenommen (2xx) oder endgueltig abgelehnt (4xx) hat.
 
+  // Karte t_e2b0e489 (kein Aufnahmeverlust am Handy): ein Audio-Auftrag
+  // (nicht aber ein Befehl -- /interview, /fertig tragen keine Bytes, die
+  // ein Absturz vernichten koennte) wird ERST geschrieben, DANN
+  // eingereiht -- stuerzt das Telefon zwischen Aufnahmeende und Upload ab,
+  // steht das Segment beim naechsten Laden noch in IndexedDB.
+  // ``_wiederhergestellt`` markiert einen Auftrag, der schon aus genau
+  // dieser Warteschlange kommt (siehe die Wiederherstellung unten): er
+  // wird nicht ein zweites Mal geschrieben, nur eingereiht.
   function reiheEin(auftrag) {
+    if (auftrag.art === 'audio' && !auftrag._wiederhergestellt) {
+      auftrag.clientJobId = naechsteJobId();
+      auftrag.seq = naechsteSeq();
+      AudioWarteschlangenSpeicher.speichereVorEinreihung(
+        auftrag, GRUPPEN_SCHLUESSEL, auftrag.seq
+      ).catch(function () {
+        // Kein IndexedDB (altes Safari privat, abgeschaltetes Feature) --
+        // die Aufnahme geht trotzdem raus, nur ohne Ueberlebensgarantie.
+      }).then(function () { reiheEinSofort(auftrag); });
+      return;
+    }
+    reiheEinSofort(auftrag);
+  }
+
+  function reiheEinSofort(auftrag) {
     zustand.warteschlange.push(auftrag);
     zeigeWarteschlange();
     arbeiteAb();
@@ -1706,7 +1765,12 @@ _CHAT_JS = """
       return a.art === 'audio';
     }).length;
     var satz = '';
-    if (offen && zustand.netzFehler) {
+    if (zustand.wiederhergestellteOffen > 0) {
+      // Karte t_e2b0e489: Segmente aus einer frueheren Seitenladung, die
+      // IndexedDB beim Start wiedergefunden hat -- Vorrang vor jedem
+      // anderen Warteschlangentext, solange noch eines davon offen ist.
+      satz = TEXT.warte_wiederhergestellt.replace('{n}', zustand.wiederhergestellteOffen);
+    } else if (offen && zustand.netzFehler) {
       satz = TEXT.warte_netz.replace('{n}', offen);
     } else if (stuecke && !bereit(zustand.warteschlange[0])) {
       satz = TEXT.warte_modus.replace('{n}', stuecke);
@@ -1813,6 +1877,17 @@ _CHAT_JS = """
   function erledigt(auftrag, angenommen) {
     zustand.warteschlange.shift();
     zustand.laeuft = false;
+    // Karte t_e2b0e489: die Antwort ist da (2xx oder endgueltiges 4xx,
+    // genau die beiden Faelle, die hierher fuehren) -- der IndexedDB-
+    // Eintrag hat seinen Zweck erfuellt. Ein Netzfehler ruft diese
+    // Funktion nie auf, der Eintrag bleibt dann stehen (arbeiteAb()
+    // versucht es per planeNachholen() erneut).
+    if (auftrag.art === 'audio' && auftrag.clientJobId) {
+      AudioWarteschlangenSpeicher.entferneNachAntwort(auftrag);
+    }
+    if (auftrag._wiederhergestellt && zustand.wiederhergestellteOffen > 0) {
+      zustand.wiederhergestellteOffen -= 1;
+    }
     if (auftrag.art === 'befehl') {
       var w = auftrag.wechsel;
       if (w) {
@@ -1859,6 +1934,11 @@ _CHAT_JS = """
   // Review-Befund 8: Spuren stoppen (sonst bleibt die Mikrofonanzeige des
   // Telefons an), Pegel-Takt und AudioContext schliessen.
   function gibFrei(halter) {
+    // Der EINE Teardown-Punkt aller vier Aufnahmearten (Review-Befund 8) --
+    // deshalb auch der EINE Ort, an dem die Wachsperre wieder los wird
+    // (Karte t_e2b0e489): hoechstens eine Aufnahme laeuft gleichzeitig, ein
+    // einzelnes aktiv-Flag in Wachsperre reicht.
+    Wachsperre.freigeben();
     if (halter.pegelTakt) { clearInterval(halter.pegelTakt); halter.pegelTakt = null; }
     if (halter.kontext) {
       try { halter.kontext.close(); } catch (e) { /* schon zu */ }
@@ -3391,6 +3471,7 @@ _CHAT_JS = """
     zustand.diskussion = sitzung;
     zeigeDiskussionModus();
     holeStrom().then(function (strom) {
+      Wachsperre.anfordern();
       sitzung.mikroUnterwegs = false;
       sitzung.strom = strom;
       if (sitzung.beendet) { gibFrei(sitzung); return; }
@@ -3493,6 +3574,7 @@ _CHAT_JS = """
     sitzung.mikroUnterwegs = true;
     zeigeModus();
     holeStrom().then(function (strom) {
+      Wachsperre.anfordern();
       sitzung.mikroUnterwegs = false;
       sitzung.strom = strom;
       if (sitzung.beendet) { gibFrei(sitzung); return; }   // vorher gestoppt
@@ -3698,6 +3780,7 @@ _CHAT_JS = """
     if (uhrFeld) { uhrFeld.hidden = true; }
     zeigeModus();
     holeStrom().then(function (strom) {
+      Wachsperre.anfordern();
       sitzung.mikroUnterwegs = false;
       sitzung.fortsetzend = false;
       if (sitzung.beendet || sitzung.verworfen) {
@@ -3958,6 +4041,7 @@ _CHAT_JS = """
     }, 500);
     if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) { /* egal */ } }
     holeStrom().then(function (strom) {
+      Wachsperre.anfordern();
       druck.strom = strom;
       // Review-Befund 5: beendet, bevor das Mikrofon da war -- dann gar
       // nicht erst aufnehmen, und das Mikrofon sofort wieder zu.
@@ -4220,6 +4304,8 @@ def _js() -> str:
         .replace("__PTT_LOCK_PX__", str(PTT_LOCK_PX))
         .replace("__PTT_CANCEL_PX__", str(PTT_CANCEL_PX))
         .replace("__UPLOAD_WARTEN_MS__", json.dumps(list(UPLOAD_WARTEN_MS)))
+        .replace("__PERSISTENZ_JS__", _PERSISTENZ_JS)
+        .replace("__WAKELOCK_JS__", _WAKELOCK_JS)
         .replace("__TEXTE__", texte)
     )
 

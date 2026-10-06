@@ -478,6 +478,13 @@ _JOURNAL_REDO = "Wiederhergestellt: {zeilen}"
 #: Gruppe liest.
 _TEXT_AUFNAHME_STARTEN = "Interview starten"
 _TEXT_AUFNAHME_BEENDEN = "Interview beenden"
+#: Karte t_1493c40d (06.10.2026, Birk): ab Phase 4 sind die Interviews
+#: gelaufen -- "Interview starten" wuerde wortwoertlich DAS eine Interview
+#: suggerieren, das es dort nicht mehr gibt. Der Knopf selbst bleibt sichtbar
+#: (``knoepfe._aufnahme_anbieten``, nachtraegliches Interview ist ein
+#: normaler Vorgang), nur sein Text in der Begruessungsleiste
+#: (``knoepfe.biete_einstieg``) aendert sich ab Phase 4.
+_TEXT_WEITERE_AUFNAHME_KNOPF = "Weitere Aufnahme"
 #: Die zwei Knoepfe unter einem Teil-Transkript (05.09.2026).
 _TEXT_TEIL_WEITER_KNOPF = "Interview geht weiter"
 _TEXT_TEIL_FERTIG_KNOPF = "Interview ist fertig"

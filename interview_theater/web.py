@@ -1275,6 +1275,88 @@ def _fragen_html(fragen: str | None) -> str:
     return "<ul class=\"fragen\">" + "".join(zeilen) + "</ul>"
 
 
+#: Fast-Track 06.10.2026 ("so schnell wie möglich live"): die Fortschrittszeile
+#: im Regie-Dashboard, waehrend eine Gruppe noch sortiert
+#: (``auswahl.dashboard_fragen``, ``offen=True``).
+_TEXT_FRAGEN_DASHBOARD_FORTSCHRITT = "Sortierung läuft · {kept} schon behalten"
+
+
+def _fragen_dashboard_html(g: dict, en: dict, uebersetzen: bool) -> str:
+    """Alle ausgewaehlten Fragen des Regie-Dashboards (Fast-Track
+    06.10.2026, ``auswahl.dashboard_fragen``): je Begriff eine Ueberschrift,
+    darunter eine Liste mit der Nummer, die die Frage auch im Chat hat
+    (``<li value>``, deshalb keine durchgehende Nummerierung je Liste),
+    eigen/KI markiert. ``""`` ohne etwas zu zeigen.
+
+    Waehrend die Sortierung noch laeuft, steht zusaetzlich eine
+    Fortschrittszeile ("k schon behalten"). Englisch (``en``/``uebersetzen``):
+    die Ueberschrift wechselt auf den uebersetzten Begriff, wenn die Anzahl
+    der uebersetzten Begriffe zur Gruppe passt; der Fragetext selbst nur in
+    der geschlossenen Liste und nur, wenn die uebersetzte Fassung genauso
+    viele Zeilen hat wie ``fragen`` -- sonst bleibt er Original, markiert wie
+    der Rest der Karte. Kein Modellaufruf hier (P2, Aufgabe 3 / § 6)."""
+    from interview_theater import auswahl as _auswahl
+    from interview_theater import begriffe as begriffe_modul
+    from interview_theater import vorschlag
+    from interview_theater.knoepfe.fragen import _teile_zeile
+
+    stand = g["arbeitsstand"]
+    fd = _auswahl.dashboard_fragen(stand)
+    if not fd or not fd["gruppen"]:
+        return ""
+    begriffe_quelle = begriffe_modul.zerlege(stand.get("begriffe") or "")
+    begriffe_en = None
+    begriffe_en_roh = en.get("begriffe")
+    if begriffe_en_roh:
+        kandidat = [b.strip() for b in begriffe_en_roh.split(",") if b.strip()]
+        if len(kandidat) == len(begriffe_quelle):
+            begriffe_en = dict(zip(begriffe_quelle, kandidat))
+
+    text_en_zeilen = None
+    if not fd["offen"]:
+        fragen_en_roh = en.get("fragen")
+        if fragen_en_roh:
+            kandidat = [z for z in fragen_en_roh.splitlines() if z.strip()]
+            if len(kandidat) == len(vorschlag.zeilen(stand.get("fragen") or "")):
+                text_en_zeilen = kandidat
+
+    def _frage_text(eintrag: dict) -> str:
+        original = eintrag["text"]
+        if text_en_zeilen is None:
+            original_html = _t(original)
+            return (f'<span class="ux-ausstehend">{original_html}</span>'
+                    if uebersetzen else original_html)
+        roh = text_en_zeilen[eintrag["nummer"] - 1]
+        if begriffe_en:
+            _, frage = _teile_zeile(roh, list(begriffe_en.values()))
+            roh = frage or roh
+        return _t(roh)
+
+    marke = {"eigen": T._TEXT_AUSWAHL_EIGEN, "ki": T._TEXT_AUSWAHL_KI}
+    teile = []
+    for gruppe in fd["gruppen"]:
+        if gruppe["titel"]:
+            titel = begriffe_en.get(gruppe["titel"], gruppe["titel"]) if begriffe_en else gruppe["titel"]
+            teile.append(f'<h4 class="fragen-begriff">{_t(titel)}</h4>')
+        zeilen = []
+        for eintrag in gruppe["eintraege"]:
+            name = marke.get(eintrag["herkunft"])
+            marke_html = (
+                f'<span class="herkunft {eintrag["herkunft"]}">{_t(name)}</span>'
+                if name else ""
+            )
+            zeilen.append(
+                f'<li value="{eintrag["nummer"]}">{_frage_text(eintrag)}{marke_html}</li>'
+            )
+        teile.append(f'<ol class="fragen-gruppe">{"".join(zeilen)}</ol>')
+    fortschritt = (
+        f'<p class="fragen-fortschritt">'
+        f'{_t(T._TEXT_FRAGEN_DASHBOARD_FORTSCHRITT.format(kept=fd["kept"]))}</p>'
+        if fd["offen"] else ""
+    )
+    return f'<dd class="fragen-voll">{"".join(teile)}{fortschritt}</dd>'
+
+
 #: Die Beschriftung des Links auf die große Ansicht. Als Konstante, damit
 #: Test und Chat denselben Wortlaut prüfen können.
 TEXT_LEITFADEN_LINK = "Groß und zum Ausdrucken"
@@ -2580,12 +2662,15 @@ def _dashboard_inhalt_html(g: dict, en: dict | None = None, uebersetzen: bool = 
         if stand.get(feld):
             wert = _en_oder_original(en, feld, stand[feld], uebersetzen)
             teile.append(f"<dt>{_t(dt[feld])}</dt>{kurz}{wert}</dd>")
-    if stand.get("fragen"):
-        fragen_en = en.get("fragen")
-        fragen_html = _fragen_html(fragen_en or stand["fragen"])
-        if not fragen_en and uebersetzen:
-            fragen_html = f'<span class="ux-ausstehend">{fragen_html}</span>'
-        teile.append(f"<dt>{_t(dt['fragen'])}</dt>{kurz}{fragen_html}</dd>")
+    # Fast-Track 06.10.2026 ("Regie-Dashboard: alle ausgewaehlten Fragen"):
+    # ``auswahl.dashboard_fragen`` liefert ALLE ausgewaehlten Fragen (auch
+    # waehrend die Gruppe noch sortiert), geclustert nach Begriff, numeriert
+    # wie im Chat -- ``dd.fragen-voll`` traegt deshalb bewusst KEIN
+    # ``line-clamp`` (anders als ``kurz``), das waere hier Verstuemmelung
+    # statt Kuerzung.
+    fragen_dashboard_html = _fragen_dashboard_html(g, en, uebersetzen)
+    if fragen_dashboard_html:
+        teile.append(f"<dt>{_t(dt['fragen'])}</dt>{fragen_dashboard_html}")
     leer = (
         "" if teile
         else f'<p class="noch-nichts">{_t(T._TEXT_NOCH_NICHTS_FESTGELEGT)}</p>'

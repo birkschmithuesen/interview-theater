@@ -120,6 +120,13 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
         # indexgleich zu ``fragen``. Nur ueber ``_feld``: die Spalte gibt es
         # erst seit dem A/B-Vergleich, und der Webserver migriert nichts.
         "fragen_herkunft_final": _feld(zeile, "fragen_herkunft_final"),
+        # Die laufende Sortierung (Padua CoThinker, 05.10.2026) -- nur ueber
+        # ``_feld``: dieselbe Begruendung wie bei ``fragen_herkunft_final``.
+        # Das Regie-Dashboard (``auswahl.dashboard_fragen``) liest sie, um
+        # schon behaltene Fragen zu zeigen, waehrend die Gruppe noch sortiert.
+        "fragen_auswahl": _feld(zeile, "fragen_auswahl"),
+        "fragen_herkunft": _feld(zeile, "fragen_herkunft"),
+        "fragen_entschieden": _feld(zeile, "fragen_entschieden"),
         "interview_eroeffnung": _feld(zeile, "interview_eroeffnung"),
         "interview_abschluss": _feld(zeile, "interview_abschluss"),
         "kernthema": zeile["kernthema"] if zeile else None,

@@ -45,7 +45,7 @@ def _mit_cache() -> dict:
             "kernthema": "EN belonging",
             "hauptkonflikt": "EN stay or leave",
             "begriffe": "EN bridge, market, rain",
-            "fragen": "EN where do people feel at home",
+            "fragen": "Home: EN where do you feel at home?\nWork: EN what do you do all day?",
             "figur_0": "EN Mira",
             "figur_1": "EN Luca",
             "interview_0_0": "EN fishing at dawn",
@@ -90,8 +90,10 @@ def test_zeigt_englische_felder_aus_dem_cache(padua):
 
 def test_zeigt_englische_fragen_aus_dem_cache(padua):
     erste = _karten(web.dashboard_html(_mit_cache()))[0]
-    assert "<li>EN where do people feel at home</li>" in erste
+    assert "EN where do you feel at home?" in erste
+    assert "EN what do you do all day?" in erste
     assert "Where do you feel at home?" not in erste
+    assert "What do you do all day?" not in erste
 
 
 # --- Fallback: Original dezent markiert, solange der Cache fehlt -------------

@@ -76,5 +76,11 @@ docs/dramaturgie-berichte/*
 # der URL -- das Token IST das Login. NIE committen.
 workshop/*/zugang/
 
+# uv.lock: von `uv run` je Arbeitsbaum frisch erzeugt (gemessen 06.10.2026,
+# t_f7770dc4 -- kein pyproject.toml-Unterschied, reine Werkzeug-Ausgabe),
+# nicht im Hauptbaum verfolgt. Ein echter Abhaengigkeitswechsel gehoert ins
+# Repository -- dann hier gezielt mit `git add -f` nachtragen.
+uv.lock
+
 # Begriffsboard-Inhaltsmessung (t_2b9d2cbe): Rohantworten der erfundenen Faelle
 docs/begriffsboard-inhalt/roh/

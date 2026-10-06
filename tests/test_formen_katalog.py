@@ -244,3 +244,15 @@ def test_form_aus_text_blieb_fuer_chor_lied_schon_immer_richtig(padua):
     assert ueberarbeitung.form_aus_text("dialog") == "dialog"
     assert ueberarbeitung.form_aus_text("monolog") == "monolog"
     assert ueberarbeitung.form_aus_text("rap") == "rap"
+
+
+@pytest.mark.parametrize("text,erwartet", [
+    ("songs", "lied"), ("choruses", "chor"), ("rapping", "rap"),
+    ("monologues", "monolog"), ("Monologe", "monolog"),
+    ("Chorszene", "chor"), ("Liedtext", "lied"), ("Gesangsnummer", "lied"),
+    ("applied", "dialog"),
+])
+def test_formdatei_wortstaemme_und_wortgrenze_beim_namen(padua, text, erwartet):
+    """Stichwoerter sind Teilstrings (Wortstaemme); nur der Formname selbst
+    braucht Wortgrenzen ("lied" nicht in "applied")."""
+    assert szene.formdatei(text) == erwartet

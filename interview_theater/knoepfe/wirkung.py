@@ -29,7 +29,7 @@ from interview_theater.knoepfe.texte import (
     ART_FRAGEN_EIGENE, ART_FRAGEN_EINZELN, ART_FRAGEN_JA_VORSCHLAGEN,
     ART_FRAGEN_NOCH_EIGENE, ART_FRAGEN_UEBERNEHMEN,
     ART_FRAGEN_UMFORMULIEREN_ALLE, ART_FRAGEN_UMFORMULIEREN_ANBIETEN,
-    ART_FRAGEN_UMFORMULIEREN_KEINE,
+    ART_FRAGEN_UMFORMULIEREN_KEINE, ART_FRAGEN_UMFORMULIEREN_WEITER,
     ART_FRAGEN_VORSCHLAGEN,
     ART_FRAGEN_WEICH_LASSEN, ART_FRAGEN_WEICH_UEBERNEHMEN,
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
@@ -61,7 +61,8 @@ from interview_theater.knoepfe.basis import (
 )
 from interview_theater.knoepfe.fragen import (
     _speichere_eroeffnung, entscheide, fragen_umformulierung_alle_annehmen,
-    fragen_umformulierung_alle_verwerfen, frage_nach_eigenen,
+    fragen_umformulierung_alle_verwerfen, fragen_umformulierung_weiter,
+    frage_nach_eigenen,
     frage_nach_umformulierung, frage_waehlt_schaerfen,
     frage_warten_auf_richtung, frage_weich_lassen,
     frage_weich_uebernehmen, ja_vorschlagen, noch_eigene, starte_durchgehen,
@@ -853,6 +854,14 @@ def _wirkung_fragen_umformulieren_anbieten(conn, d: Druck) -> str:
     ``/umformulieren`` -- kein Modellaufruf hier, nur die Rueckfrage."""
     frage_nach_umformulierung(conn, d.tg, d.chat_id)
     return T._TEXT_FRAGE_ENTSCHIEDEN
+
+
+def _wirkung_fragen_umformulieren_weiter(conn, d: Druck) -> str:
+    """Der zweite Knopf derselben Weiche (Karte t_1f13a707): "Weiter zur
+    Eroeffnung" -- setzt die Kette sofort fort, ohne eine Umformulier-Runde
+    abzuwarten."""
+    fragen_umformulierung_weiter(conn, d.tg, d.klm, d.e, d.chat_id)
+    return T._TEXT_UMFORMULIEREN_WEITER_KNOPF
 
 
 def _wirkung_leitfaden(conn, d: Druck) -> str:
@@ -1789,6 +1798,7 @@ _WIRKUNGEN = {
     ART_FRAGEN_UMFORMULIEREN_ALLE: _wirkung_fragen_umformulieren_alle,
     ART_FRAGEN_UMFORMULIEREN_KEINE: _wirkung_fragen_umformulieren_keine,
     ART_FRAGEN_UMFORMULIEREN_ANBIETEN: _wirkung_fragen_umformulieren_anbieten,
+    ART_FRAGEN_UMFORMULIEREN_WEITER: _wirkung_fragen_umformulieren_weiter,
     ART_LEITFADEN: _wirkung_leitfaden,
     ART_RICHTUNG: _wirkung_richtung,
     ART_FIGUREN_ANZAHL_MENU: _wirkung_figuren_anzahl_menu,

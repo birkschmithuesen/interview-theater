@@ -41,7 +41,7 @@ from interview_theater.knoepfe.texte import (
     ART_FRAGEN_ANDERE, ART_FRAGEN_EINZELN, ART_FRAGEN_JA_VORSCHLAGEN,
     ART_FRAGEN_NOCH_EIGENE, ART_FRAGEN_UMFORMULIEREN_ALLE,
     ART_FRAGEN_UMFORMULIEREN_ANBIETEN, ART_FRAGEN_UMFORMULIEREN_KEINE,
-    ART_FRAGEN_VORSCHLAGEN,
+    ART_FRAGEN_UMFORMULIEREN_WEITER, ART_FRAGEN_VORSCHLAGEN,
     ART_FRAGEN_WEICH_LASSEN, ART_FRAGEN_WEICH_UEBERNEHMEN, ART_LEITFADEN, T,
 )
 from interview_theater.knoepfe.basis import (
@@ -1643,7 +1643,20 @@ def _wende_umformulierung_durch(conn, tg, klm, e, chat_id: int, akzeptiert: set[
     text = T._TEXT_UMFORMULIEREN_UEBERNOMMEN + "\n" + "\n".join(
         f"{n}. {f}" for n, f in enumerate(geaendert, start=1)
     )
-    return tg.sende(chat_id, text)
+    message_id = tg.sende(chat_id, text)
+    # Fork nach "Fertig sortiert" (Karte t_1f13a707): NUR die Runde, die noch
+    # auf der offenen Weiche steht, stoesst die Eroeffnung an -- eine
+    # SPAETERE Runde (ueber den Dauerknopf im CoThinker/der Werkbank, bis
+    # zum ersten Interview) hat ``fragen_fortsetzung_offen`` schon leer und
+    # startet die laengst gelaufene Eroeffnung nicht ein zweites Mal.
+    try:
+        fortsetzung_offen = (stand["fragen_fortsetzung_offen"] or "") if stand else ""
+    except (IndexError, KeyError):
+        fortsetzung_offen = ""
+    if fortsetzung_offen:
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_fortsetzung_offen", None)
+        _fahre_nach_fragenabschluss_fort(conn, tg, klm, e, chat_id)
+    return message_id
 
 
 def fragen_umformulierung_alle_annehmen(conn, tg, klm, e, chat_id: int) -> int:
@@ -1710,18 +1723,63 @@ def _biete_umformulierung_an(conn, tg, chat_id: int) -> int:
     uebernommen" erreichbar (Review-Fix t_b371c0f1, 06.10.2026): bisher gab
     es dafuer keinen Ausloeser in der Gruppe -- anders als ``/sortiert``, das
     der Knopf "Fertig sortiert" (``web_vereint.auswahl_fertig_post``)
-    ausloest. EIN Knopf, der ``frage_nach_umformulierung`` startet; wer ihn
-    nicht drueckt, laeuft unveraendert weiter zur Eroeffnung bzw. zum
-    Weich-Angebot."""
+    ausloest.
+
+    Seit Karte t_1f13a707 hinter ``workshop.fragen_umformulieren_knopf_aktiv()``
+    eine ECHTE Weiche: ZWEI Knoepfe, "Fragen umformulieren" (startet
+    ``frage_nach_umformulierung``) und "Weiter zur Eroeffnung"
+    (``fragen_umformulierung_weiter``, setzt die Kette sofort fort); die
+    Eroeffnung bzw. das Weich-Angebot startet dann NUR noch, wenn die Gruppe
+    "Weiter" drueckt oder eine Umformulier-Runde zuende laeuft (siehe
+    ``fragen_fortsetzung_offen`` in ``_schliesse_fragen_ab``). Bei
+    Schalter=false (Default, Birks Zusage im Review 06.10.2026) bleibt es
+    bei main nach t_b371c0f1: nur der EINE Knopf, erreichbar aber
+    wirkungslos -- die Kette laeuft ohnehin im selben Schritt weiter."""
     leiste = [
         (T._TEXT_UMFORMULIEREN_ANBIETEN_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UMFORMULIEREN_ANBIETEN, None))),
     ]
+    if workshop.fragen_umformulieren_knopf_aktiv():
+        leiste.append(
+            (T._TEXT_UMFORMULIEREN_WEITER_KNOPF,
+             _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UMFORMULIEREN_WEITER, None))),
+        )
     message_id = _sende_knoepfe(conn, tg, chat_id, T._TEXT_UMFORMULIEREN_ANBIETEN, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(d) for _, d in leiste], message_id,
     )
     return message_id
+
+
+def _fahre_nach_fragenabschluss_fort(conn, tg, klm, e, chat_id: int) -> None:
+    """Die Fortsetzung der Weiche (Karte t_1f13a707): weiche Fassungen
+    anbieten, wenn es welche gibt, sonst direkt die Eroeffnung -- dieselbe
+    Fortsetzung, egal ob die Gruppe gleich "Weiter zur Eroeffnung" drueckt
+    oder erst eine Umformulier-Runde zuende laeuft. Liest ``fragen`` und
+    ``fragen_weich`` frisch aus der DB, nicht aus Werten von
+    ``_schliesse_fragen_ab``: eine Umformulier-Runde kann dazwischen den
+    Wortlaut geaendert haben, die Positionen bleiben aber stabil."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        wert = (stand["fragen"] or "") if stand else ""
+    except (IndexError, KeyError):
+        wert = ""
+    angenommen = wert.split("\n") if wert else []
+    neue_weich = _weich_dict(conn, chat_id)
+    if neue_weich:
+        _biete_weiche_fassungen_an(conn, tg, angenommen, neue_weich, chat_id)
+    else:
+        starte_eroeffnung(conn, tg, klm, e, chat_id)
+
+
+def fragen_umformulierung_weiter(conn, tg, klm, e, chat_id: int) -> None:
+    """Knopf "Weiter zur Eroeffnung": raeumt die Weiche ab und setzt die
+    Kette sofort fort -- unabhaengig davon, ob gerade eine Umformulier-Runde
+    laeuft (die laeuft dann einfach ungenutzt aus, siehe
+    ``_wende_umformulierung_durch``: ohne offene Weiche stoesst ihr
+    Abschluss nichts mehr an)."""
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_fortsetzung_offen", None)
+    _fahre_nach_fragenabschluss_fort(conn, tg, klm, e, chat_id)
 
 
 def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
@@ -1736,6 +1794,14 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
     Birk 02.10.2026) -- die Eroeffnung startet dann erst, wenn die Gruppe
     das Angebot beantwortet hat (``fragen_weich_angebot`` in
     ``_WEICH_ANGEBOT_WIRKUNGEN``).
+
+    Unter Padua (Karte t_1f13a707) kommt VOR beidem noch die Umformulier-
+    Weiche (``_biete_umformulierung_an``): weder das Weich-Angebot noch die
+    Eroeffnung starten in diesem Schritt, sondern erst, wenn die Gruppe
+    "Weiter zur Eroeffnung" drueckt oder eine Umformulier-Runde zuende laeuft
+    (``_fahre_nach_fragenabschluss_fort``). Davor liefen beide im selben
+    Schritt wie das Angebot -- der Knopf war erreichbar, aber wirkungslos
+    begraben.
 
     Baut seit Aufgabe 13 ``fragen_herkunft_final`` im selben Durchgang wie
     ``angenommen`` -- Laenge und Indexreihenfolge identisch zu ``fragen``
@@ -1828,9 +1894,18 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
         sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
     # Review-Fix t_b371c0f1: nur Padua kennt den versteckten Befehl
     # ``/umformulieren`` -- Dortmund bekommt diesen Knopf nie, bleibt also
-    # unveraendert.
+    # unveraendert. Der Knopf selbst bleibt bei Schalter=false SICHTBAR
+    # (bitgleich zu main nach t_b371c0f1, Birks Zusage im Review 06.10.2026
+    # auf t_1f13a707) -- NUR die echte Weiche (Warten auf
+    # ``fragen_fortsetzung_offen``, zweiter Knopf "Weiter zur Eroeffnung")
+    # liegt hinter ``workshop.fragen_umformulieren_knopf_aktiv()``; ohne den
+    # Schalter faehrt die Kette im selben Schritt fort wie vor Commit
+    # 65f3085.
     if workshop.diskussion_aktiv():
         _biete_umformulierung_an(conn, tg, chat_id)
+        if workshop.fragen_umformulieren_knopf_aktiv():
+            repo.setze_arbeitsstand(conn, chat_id, "fragen_fortsetzung_offen", "1")
+            return T._TEXT_FRAGEN_QUITTUNG
     if neue_weich:
         _biete_weiche_fassungen_an(conn, tg, angenommen, neue_weich, chat_id)
     else:

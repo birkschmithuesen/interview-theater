@@ -1887,6 +1887,10 @@ _ARBEITSSTAND_FELDER = (
     # vorgeschlagene Umformulierungsblock, an ``fragen`` ausgerichtet, und
     # welche Positionen davon tatsaechlich eine KI-Frage geaendert haben.
     "fragen_umformuliert_vorschlag", "fragen_bearbeitet_final",
+    # Die Weiche nach "Fertig sortiert" (Karte t_1f13a707): "1", solange die
+    # Gruppe noch nicht "Weiter zur Eroeffnung" gedrueckt oder eine
+    # Umformulier-Runde zuende gefuehrt hat.
+    "fragen_fortsetzung_offen",
     # Padua Phasen TEIL 2 (03.10.2026): Phase 6.1 (Gesamttext) und 7.2
     # (Sprechweisen) abgenommen -- derselbe eine Schreibweg wie alles andere
     # im Arbeitsstand.

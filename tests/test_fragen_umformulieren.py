@@ -42,6 +42,10 @@ def padua(monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
     workshop.vergiss()
     assert workshop.diskussion_aktiv() is True
+    # Der Dauerknopf-Schalter bleibt in padua-2026/profil.toml bewusst aus
+    # (Birk, 06.10.2026: ON HOLD) -- diese Suite prueft den fertig gebauten
+    # Pfad, also hier bewusst eingeschaltet.
+    monkeypatch.setattr(workshop, "fragen_umformulieren_knopf_aktiv", lambda *a, **k: True)
     yield
     workshop.vergiss()
 
@@ -335,3 +339,141 @@ def test_dortmund_wartezustand_kommt_nie_vor(conn, tg, auftraege, dortmund):
     assert fragen.nimm_offene_frage_text(
         conn, tg, None, None, CHAT, "macht sie kuerzer") is False
     assert auftraege == []
+
+
+# --- Karte t_1f13a707: eine ECHTE Weiche statt einer sofortigen Eroeffnung --
+
+
+def test_sortiert_startet_eroeffnung_nicht_mehr_sofort(
+    conn, tg, einst, auftraege, padua,
+):
+    """Bisher lief die Eroeffnung im selben Schritt wie das Angebot -- der
+    Knopf war erreichbar, aber wirkungslos begraben. Jetzt wartet die Kette
+    auf die Entscheidung der Gruppe."""
+    from interview_theater import befehle
+
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_auswahl", "A: eins?\nA: zwei?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,ja")
+
+    befehle.behandle(conn, tg, einst, CHAT, "/sortiert", None)
+
+    assert auftraege == []
+    assert _feld(conn, "fragen_fortsetzung_offen") == "1"
+
+
+def test_biete_umformulierung_an_zeigt_beide_knoepfe(conn, tg, padua):
+    fragen._biete_umformulierung_an(conn, tg, CHAT)
+    chat_id, text, leiste = tg.knoepfe[-1]
+    beschriftungen = [b for b, _ in leiste]
+    assert beschriftungen == [
+        T._TEXT_UMFORMULIEREN_ANBIETEN_KNOPF, T._TEXT_UMFORMULIEREN_WEITER_KNOPF,
+    ]
+
+
+def test_weiter_knopf_setzt_die_kette_sofort_fort(conn, tg, einst, auftraege, padua):
+    from interview_theater import befehle
+    from interview_theater.knoepfe import wirkung
+
+    from test_knoepfe import _druck
+
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_auswahl", "A: eins?\nA: zwei?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,ja")
+    befehle.behandle(conn, tg, einst, CHAT, "/sortiert", None)
+    assert auftraege == []
+
+    chat_id, text, leiste = tg.knoepfe[-1]
+    assert leiste[1][0] == T._TEXT_UMFORMULIEREN_WEITER_KNOPF
+    daten = leiste[1][1]
+
+    behandelt = wirkung.behandle(conn, tg, None, einst, _druck(daten, chat_id=CHAT))
+
+    assert behandelt is True
+    assert len(auftraege) == 1
+    assert _feld(conn, "fragen_fortsetzung_offen") is None
+
+
+def test_rephrase_runde_fertig_setzt_die_kette_auch_fort(
+    conn, tg, einst, auftraege, padua,
+):
+    """'Alle uebernehmen' direkt aus der Weiche heraus setzt die Kette
+    genauso fort wie "Weiter zur Eroeffnung" -- die Eroeffnung startet jetzt
+    erst hier, nicht schon beim Abschluss der Sortierung."""
+    from interview_theater import befehle
+
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_auswahl", "A: eins?\nA: zwei?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,ja")
+    befehle.behandle(conn, tg, einst, CHAT, "/sortiert", None)
+    assert auftraege == []
+
+    fragen.frage_nach_umformulierung(conn, tg, CHAT)
+    fragen.starte_umformulierung(conn, tg, None, None, CHAT, "macht sie kuerzer")
+    # Der Auftrag oben ist die Umformulier-Runde, nicht die Eroeffnung.
+    assert len(auftraege) == 1
+    fragen.biete_umformulierung(conn, tg, CHAT, "A: EINS NEU?\nA: ZWEI NEU?")
+
+    fragen.fragen_umformulierung_alle_annehmen(conn, tg, None, None, CHAT)
+
+    assert len(auftraege) == 2  # Umformulier-Auftrag + Eroeffnung
+    assert _feld(conn, "fragen_fortsetzung_offen") is None
+
+
+def test_spaetere_rephrase_runde_stoesst_eroeffnung_nicht_erneut_an(
+    conn, tg, einst, auftraege, padua,
+):
+    """Der Dauerknopf im CoThinker/der Werkbank bleibt bis zum ersten
+    Interview erreichbar -- eine Runde NACH der schon gelaufenen Eroeffnung
+    darf diese nicht ein zweites Mal anstossen."""
+    from interview_theater import befehle
+    from interview_theater.knoepfe import wirkung
+
+    from test_knoepfe import _druck
+
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_auswahl", "A: eins?\nA: zwei?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,ja")
+    befehle.behandle(conn, tg, einst, CHAT, "/sortiert", None)
+
+    chat_id, text, leiste = tg.knoepfe[-1]
+    behandelt = wirkung.behandle(
+        conn, tg, None, einst, _druck(leiste[1][1], chat_id=CHAT),
+    )
+    assert behandelt is True
+    assert len(auftraege) == 1  # die Eroeffnung ist schon gestartet
+
+    fragen.frage_nach_umformulierung(conn, tg, CHAT)
+    fragen.starte_umformulierung(conn, tg, None, None, CHAT, "noch kuerzer")
+    fragen.biete_umformulierung(conn, tg, CHAT, "A: EINS NOCHMAL?\nA: ZWEI NEU2?")
+    fragen.fragen_umformulierung_alle_annehmen(conn, tg, None, None, CHAT)
+
+    # Der Umformulier-Auftrag kommt dazu, aber KEIN zweiter Eroeffnungslauf.
+    assert len(auftraege) == 2
+
+
+# --- Birks Nachtrag (06.10.2026): ON HOLD -- Schalter aus, altes Verhalten --
+
+
+def test_schalter_aus_zeigt_den_knopf_bitgleich_zu_main_aber_wirkungslos(
+    conn, tg, einst, auftraege, padua, monkeypatch,
+):
+    """[fragen] umformulieren_knopf fehlt (Default false) in padua-2026 --
+    Birks woertliche Zusage (Review 06.10.2026 auf t_1f13a707): bei
+    Schalter=false ist das Verhalten bitgleich zu main nach t_b371c0f1.
+    Dort zeigt der Bot den Chat-Knopf "Fragen umformulieren" IMMER, wenn
+    ``workshop.diskussion_aktiv()`` wahr ist -- erreichbar, aber
+    wirkungslos (die Eroeffnung bzw. das Weich-Angebot startet trotzdem im
+    selben Schritt wie das Abschliessen der Fragen). NUR die neue Gabel aus
+    Karte t_1f13a707 (Warten auf ``fragen_fortsetzung_offen``, zweiter
+    Knopf "Weiter zur Eroeffnung") ist hinter dem Schalter aus."""
+    from interview_theater import befehle
+
+    monkeypatch.setattr(workshop, "fragen_umformulieren_knopf_aktiv", lambda *a, **k: False)
+
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_auswahl", "A: eins?\nA: zwei?")
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,ja")
+
+    befehle.behandle(conn, tg, einst, CHAT, "/sortiert", None)
+
+    assert len(auftraege) == 1  # die Eroeffnung ist sofort gestartet
+    beschriftungen = [b for _, _, leiste in tg.knoepfe for b, _ in leiste]
+    assert T._TEXT_UMFORMULIEREN_ANBIETEN_KNOPF in beschriftungen
+    assert T._TEXT_UMFORMULIEREN_WEITER_KNOPF not in beschriftungen
+    assert _feld(conn, "fragen_fortsetzung_offen") is None

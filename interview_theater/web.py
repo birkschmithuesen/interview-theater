@@ -1052,6 +1052,12 @@ _TEXT_AUSWAHL_JA = "Behalten"
 _TEXT_AUSWAHL_NEIN = "Weg"
 _TEXT_AUSWAHL_SCHAERFEN = "Umformulieren"
 _TEXT_AUSWAHL_FERTIG = "Fertig sortiert – offene zählen als behalten"
+#: Der Dauerknopf "Fragen umformulieren" (Karte t_1f13a707): im CoThinker-
+#: Fragen-Panel UND im Werkbank-Fragenabschnitt, sichtbar unter
+#: ``umformulieren_knopf_zeigen`` (``web_daten.gruppe_nach_token``). Tap legt
+#: nur den versteckten Befehl ``/umformulieren`` als Eingang ab, wie
+#: "Fertig sortiert" bei ``/sortiert`` (``_AUSWAHL_JS``).
+_TEXT_UMFORMULIEREN_KNOPF = "Fragen umformulieren"
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
@@ -3200,18 +3206,38 @@ def _begriffsboard_html(eintraege: list[dict]) -> str:
     )
 
 
-def _fragenuebersicht_html(eintraege: list[dict]) -> str:
+def _umformulieren_knopf_html(zeigen: bool) -> str:
+    """Der Dauerknopf "Fragen umformulieren" (Karte t_1f13a707) -- ein
+    Baustein fuer beide Stellen (CoThinker-Fragen-Panel, Werkbank), kein
+    ``k:<id>``-Knopf: der Tap schickt ``chat/umformulieren`` (``_AUSWAHL_JS``)."""
+    if not zeigen:
+        return ""
+    return (
+        '<button type="button" class="umformulieren-knopf">'
+        f'{_t(T._TEXT_UMFORMULIEREN_KNOPF)}</button>'
+    )
+
+
+def _fragenuebersicht_html(
+    eintraege: list[dict], zeige_umformulieren_knopf: bool = False,
+) -> str:
     """Die Fragenuebersicht im CoThinker-Tab (Phase 2, Birk 05.10.2026):
     je Begriff eine Zeile mit den bisher gesetzten Fragen, in der
     Reihenfolge der Begriffe (``roadmap.fragenuebersicht``). Ein Begriff
     ohne Frage traegt ``data-offen="1"`` und eine leise Zeile -- **keine
     Soll-Zahl** ("0/3"): wie viele Fragen es werden, entscheidet die Gruppe.
     Das Bild macht ``web_gestalt.css_buehne()``; kein ``style=``, kein
-    ``on…=`` (CSP)."""
+    ``on…=`` (CSP).
+
+    ``zeige_umformulieren_knopf`` (Karte t_1f13a707): der Dauerknopf
+    "Fragen umformulieren" unter der Liste, UNABHAENGIG davon, ob es schon
+    Eintraege gibt -- ``umformulieren_knopf_zeigen`` garantiert bereits,
+    dass ``fragen`` nicht leer ist (``auswahl.sortierung_offen``)."""
+    knopf = _umformulieren_knopf_html(zeige_umformulieren_knopf)
     if not eintraege:
         return (
             '<div id="buehne-panel" data-ansicht="fragen">'
-            f'<p class="buehne-leer">{_t(T._TEXT_FRAGEN_UEBERSICHT_LEER)}</p></div>'
+            f'<p class="buehne-leer">{_t(T._TEXT_FRAGEN_UEBERSICHT_LEER)}</p>{knopf}</div>'
         )
     zeilen = []
     for eintrag in eintraege:
@@ -3237,7 +3263,7 @@ def _fragenuebersicht_html(eintraege: list[dict]) -> str:
     return (
         '<div id="buehne-panel" data-ansicht="fragen">'
         f'<h2 class="fragen-kopf">{_t(T._TEXT_FRAGEN_UEBERSICHT_KOPF)}</h2>'
-        f'<ol class="fragenuebersicht">{"".join(zeilen)}</ol></div>'
+        f'<ol class="fragenuebersicht">{"".join(zeilen)}</ol>{knopf}</div>'
     )
 
 
@@ -3325,7 +3351,10 @@ def _buehne_html(daten: dict) -> str:
         return _auswahlliste_html(daten["auswahlliste"], liste="fragen")
     if daten.get("fragenuebersicht_zeigen"):
         # Phase 2 (Birk, 05.10.2026): was je Begriff an Fragen steht.
-        return _fragenuebersicht_html(daten.get("fragenuebersicht") or [])
+        return _fragenuebersicht_html(
+            daten.get("fragenuebersicht") or [],
+            bool(daten.get("umformulieren_knopf_zeigen")),
+        )
     karten = daten.get("buehnenkarten") or []
     # ``karten`` kommt NEUESTE ZUERST (web_daten.buehnenkarten, ORDER BY id
     # DESC) -- fuer die Tafel reicht das erste echte Element, fuer den
@@ -3555,6 +3584,7 @@ def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
         leitfaden = _leitfaden_html(stand, daten.get("web_token"))
         if leitfaden:
             teile.append(f"<dl>{leitfaden}</dl>")
+        teile.append(_umformulieren_knopf_html(bool(daten.get("umformulieren_knopf_zeigen"))))
     elif nummer == 3:
         teile.append("".join(_interview_html(v) for v in daten["interviews"]))
     elif nummer == 4:

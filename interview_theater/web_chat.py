@@ -4459,6 +4459,7 @@ _TOEPFE = {
     "start": web_grenze.TOPF_START,
     "auswahl": web_grenze.TOPF_AUSWAHL,
     "auswahl_fertig": web_grenze.TOPF_NACHRICHT,
+    "umformulieren": web_grenze.TOPF_NACHRICHT,
 }
 
 
@@ -4947,6 +4948,15 @@ def _auswahl_fertig(handler, db_pfad: str, token: str, chat_id: int,
     web_vereint.auswahl_fertig_post(handler, db_pfad, token, chat_id, schluessel)
 
 
+def _umformulieren(handler, db_pfad: str, token: str, chat_id: int,
+                   schluessel: bytes) -> None:
+    """Der Dauerknopf "Fragen umformulieren" (Karte t_1f13a707). Nur die
+    Weiche, wie bei ``_auswahl_fertig``."""
+    from interview_theater import web_vereint
+
+    web_vereint.umformulieren_post(handler, db_pfad, token, chat_id, schluessel)
+
+
 def _zahl_oder_none(wert):
     """``wert`` als ``float``, wenn es eine echte Zahl ist (kein ``bool`` --
     das ist in Python auch ein ``int``) -- sonst ``None``, defensiv wie
@@ -5006,6 +5016,7 @@ _POSTWEGE = {
     "start": _start,
     "auswahl": _auswahl,
     "auswahl_fertig": _auswahl_fertig,
+    "umformulieren": _umformulieren,
 }
 
 

@@ -108,6 +108,10 @@ def _arbeitsstand(conn: sqlite3.Connection, chat_id: int) -> dict:
         "phase": _feld(zeile, "phase"),
         "begriffe": zeile["begriffe"] if zeile else None,
         "fragen": _feld(zeile, "fragen"),
+        # Fuer ``auswahl.sortierung_offen`` (Karte t_1f13a707, Dauerknopf
+        # "Fragen umformulieren"): ohne dieses Feld sieht die Pruefung nie
+        # eine laufende Sortierung, nur ein leeres ``fragen``.
+        "fragen_entschieden": _feld(zeile, "fragen_entschieden"),
         # Die Verfeinerungsebene der Fragen (06.09.2026): Einleitungen zu
         # heiklen Fragen, Eroeffnung und Abschluss. Alle drei ueber ``_feld``,
         # weil sie nachtraeglich dazugekommen sind und der Webserver die
@@ -1304,6 +1308,12 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
     fassungen = szenenfassungen(conn, chat_id, szenen)
     stand = _arbeitsstand(conn, chat_id)
     _aufnahmestatus = _aufnahmen_nach_status(conn, chat_id)
+    # Einmal lesen, zweimal verwendet (Karte t_1f13a707): der Dauerknopf
+    # "Fragen umformulieren" braucht dieselbe Liste wie der Interview-Block
+    # weiter unten -- kein zweiter Lesevorgang fuer "gibt es schon ein
+    # aufgezeichnetes Interview".
+    interviews = _interviews(conn, chat_id)
+    from interview_theater import auswahl as _auswahl
     from interview_theater import fragen_auswertung as _fragen_auswertung_modul
     from interview_theater import phasen as _phasen
     from interview_theater import workshop as _workshop
@@ -1345,7 +1355,7 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Die Erstfassung vor der Pruefung je Szene (Padua Phasen TEIL 2) --
         # nur, wo sie vom aktuellen Text abweicht. Leeres Dict: kein Block.
         "erstentwuerfe": erstentwuerfe(conn, chat_id),
-        "interviews": _interviews(conn, chat_id),
+        "interviews": interviews,
         "journal": _journal(conn, chat_id),
         "bearbeitbares": bearbeitbares(conn, chat_id),
         "schaerfungen": geschaerft,
@@ -1402,6 +1412,20 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
             auswahlliste(conn, chat_id)
             if stand.get("phase") == 2 and _workshop.diskussion_aktiv()
             else None
+        ),
+        # Der Dauerknopf "Fragen umformulieren" im CoThinker und in der
+        # Werkbank (Karte t_1f13a707, neben der Fragenliste): sichtbar vom
+        # Moment, in dem die Fragen feststehen (Sortierung geschlossen), bis
+        # zum ERSTEN aufgezeichneten Interview der Gruppe. Dieselbe
+        # "beendet"-Definition wie ``aufnahme.unausgewertete_interviews``
+        # (Quellkommentar bei ``_interviews`` oben) -- ein zu-kurz
+        # uebersprungenes Interview zaehlt dort als "beendet" und damit hier
+        # als aufgezeichnet.
+        "umformulieren_knopf_zeigen": bool(
+            _workshop.diskussion_aktiv()
+            and _workshop.fragen_umformulieren_knopf_aktiv()
+            and not _auswahl.sortierung_offen(stand)
+            and not any(i["beendet"] for i in interviews)
         ),
         # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
         # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder

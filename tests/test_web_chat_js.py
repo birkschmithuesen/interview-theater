@@ -1710,6 +1710,111 @@ def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
                                         "phase_gesehen"}
 
 
+# -- Interview/PTT vs. Mithoeren schliessen sich aus (Review-Fix Task 3) ----
+#
+# Birk 05.10.2026 22:00 (3a5e8c6): Phase 1 UND Phase 4 laufen jetzt ueber
+# dieselbe Sitzung zustand.diskussion (kein eigener Brainstorm-Sitzungsslot
+# mehr). Die alten Brainstorm-Gegenproben sind deshalb Geschichte -- die
+# beiden verbliebenen Sperren (starteInterview/pttPointerDown gegen
+# zustand.diskussion) hatte der 3a5e8c6-Umbau aber ersatzlos von Tests
+# entbunden. Hier wieder angeschlossen.
+
+
+def test_starteinterview_und_pttpointerdown_lehnen_waehrend_diskussion_ab():
+    """``starteInterview()`` und ``pttPointerDown()`` lehnen beide ab,
+    solange eine Mithoeren-Sitzung (``zustand.diskussion``, seit 3a5e8c6
+    gemeinsam fuer Phase 1 und Phase 4) laeuft -- sonst liefen zwei bzw. drei
+    Recorder auf demselben Mikrofon."""
+    js = web_chat._CHAT_JS
+    start_iv = js[js.index("function starteInterview"):
+                  js.index("function brichAb")]
+    assert "if (zustand.aufnahme || zustand.wechsel || zustand.diskussion) { return; }" in start_iv
+
+    start_ptt = js[js.index("function pttPointerDown"):
+                   js.index("function pttPointerMove")]
+    assert ("if (modusAn() || zustand.wechsel || zustand.diskussion ||\n"
+            "        zustand.ptt) { return; }") in start_ptt
+
+
+def test_starteinterview_und_pttpointerdown_lehnen_waehrend_diskussion_tatsaechlich_ab_in_node(
+    tmp_path,
+):
+    """Verhaltensnachweis in Node (nicht nur String-Match), angepasst aus
+    dem durch 3a5e8c6 geloeschten
+    ``test_startebrainstorm_und_pttpointerdown_lehnen_waehrend_diskussion_tatsaechlich_ab_in_node``
+    (der dortige Brainstorm-Teil entfaellt mit ``zustand.brainstorm``/
+    ``starteBrainstorm``, Phase 4 teilt sich seit dem Umbau
+    ``zustand.diskussion`` mit Phase 1). Das realistische Szenario: "Zuhoeren
+    starten" aus Phase 1 bleibt ueber den Fortschritt in Phase 4 offen
+    (niemand drueckt ``beendeDiskussion()``), und die Gruppe versucht dort
+    ein Interview zu starten bzw. PTT zu druecken. Dieser Test fuehrt
+    ``starteInterview``/``pttPointerDown`` WOERTLICH aus dem ausgelieferten
+    Skript aus und bestaetigt, dass beide bei laufender
+    ``zustand.diskussion`` synchron (vor jedem ``holeStrom()``-Promise)
+    abbrechen, ohne eine eigene Sitzung bzw. einen eigenen PTT-Druck
+    anzulegen."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    modus_an = _extrahiere(js, "function modusAn", "function zeigeModus")
+    start_iv = _extrahiere(js, "function starteInterview", "function brichAb")
+    start_ptt = _extrahiere(js, "function pttPointerDown", "function pttPointerMove")
+
+    quelltext = f"""
+    var zustand, pttKnopf, navigator;
+    var PTT_MAX_MS = {web_chat.PTT_MAX_MS};
+    navigator = {{}};
+
+    {modus_an}
+
+    function verwirfPtt() {{}}
+    function zeigeModus() {{}}
+    function pttZeigeAnzeige() {{}}
+    function holeStrom() {{ return new Promise(function () {{}}); }}
+    function setTimeout() {{ return {{}}; }}
+    function clearTimeout() {{}}
+    function setInterval() {{ return {{}}; }}
+    function clearInterval() {{}}
+
+    {start_iv}
+    {start_ptt}
+
+    function lauf(mitDiskussion) {{
+      zustand = {{
+        aufnahme: null, wechsel: null, servermodus: false,
+        ptt: null, diskussion: mitDiskussion ? {{ pausiert: false }} : null
+      }};
+      pttKnopf = {{ dataset: {{}}, setPointerCapture: function () {{}} }};
+      starteInterview();
+      var interviewGestartet = !!zustand.aufnahme;
+      // unabhaengig von der PTT-Probe testen
+      zustand.aufnahme = null;
+      zustand.wechsel = null;
+      var ev = {{ clientX: 0, clientY: 0, pointerId: 1, preventDefault: function () {{}} }};
+      pttPointerDown(ev);
+      var pttGestartet = !!zustand.ptt;
+      return {{ interviewGestartet: interviewGestartet, pttGestartet: pttGestartet }};
+    }}
+
+    var ergebnisse = {{
+      waehrendDiskussion: lauf(true),
+      ohneDiskussion: lauf(false)
+    }};
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    # Der eigentliche Fix: waehrend zustand.diskussion laeuft, startet KEINE
+    # der beiden Funktionen eine eigene Sitzung bzw. einen eigenen Druck.
+    assert ergebnisse["waehrendDiskussion"] == {
+        "interviewGestartet": False, "pttGestartet": False,
+    }
+    # Gegenprobe: ohne zustand.diskussion funktionieren beide wie zuvor --
+    # der Fix darf den Normalfall nicht mitsperren.
+    assert ergebnisse["ohneDiskussion"] == {
+        "interviewGestartet": True, "pttGestartet": True,
+    }
+
+
 # -- UX-Knoepfe-Karte, Abschnitt 1: Knoepfe als Abkuerzungen ---------------
 
 

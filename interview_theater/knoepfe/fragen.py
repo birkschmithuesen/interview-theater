@@ -39,8 +39,10 @@ from interview_theater import begriffe as begriffe_modul
 from interview_theater.knoepfe.texte import (
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
     ART_FRAGEN_ANDERE, ART_FRAGEN_EINZELN, ART_FRAGEN_JA_VORSCHLAGEN,
-    ART_FRAGEN_NOCH_EIGENE, ART_FRAGEN_VORSCHLAGEN, ART_FRAGEN_WEICH_LASSEN,
-    ART_FRAGEN_WEICH_UEBERNEHMEN, ART_LEITFADEN, T,
+    ART_FRAGEN_NOCH_EIGENE, ART_FRAGEN_UMFORMULIEREN_ALLE,
+    ART_FRAGEN_UMFORMULIEREN_ANBIETEN, ART_FRAGEN_UMFORMULIEREN_KEINE,
+    ART_FRAGEN_VORSCHLAGEN,
+    ART_FRAGEN_WEICH_LASSEN, ART_FRAGEN_WEICH_UEBERNEHMEN, ART_LEITFADEN, T,
 )
 from interview_theater.knoepfe.basis import (
     _daten, _id_aus_daten, _merke_botnachricht, _nimm_alte_leiste_ab, _sende_knoepfe,
@@ -1363,6 +1365,13 @@ def nimm_offene_frage_text(conn, tg, klm, e, chat_id: int, text: str) -> bool:
     except (IndexError, KeyError):
         warte = ""
     padua = workshop.diskussion_aktiv()
+    if padua and warte == "umformulieren":
+        starte_umformulierung(conn, tg, klm, e, chat_id, text)
+        return True
+    if padua and warte == "umformulieren_auswahl":
+        akzeptiert = _parse_annahme(text, len(_aktuelle_fragen(conn, chat_id)))
+        _wende_umformulierung_durch(conn, tg, klm, e, chat_id, akzeptiert)
+        return True
     if padua and ZEIG_ALLE.match(text) and _auswahlfragen(conn, chat_id):
         tg.sende(chat_id, uebersicht_text(conn, chat_id))
         return True
@@ -1384,6 +1393,223 @@ def nimm_offene_frage_text(conn, tg, klm, e, chat_id: int, text: str) -> bool:
         _starte_schaerfung(conn, tg, klm, e, chat_id, nummer, text)
         return True
     return False
+
+
+# --- Umformulier-Runde (Testkarte t_266e7485, 06.10.2026, nur Padua) --------
+#
+# Nach "Fertig sortiert" steht die behaltene Liste in ``arbeitsstand.fragen``
+# (dieselbe, die ``_schliesse_fragen_ab`` gebaut hat). Hidden-Befehl
+# ``/umformulieren`` (wie ``/sortiert``) fragt nach EINER freien Anweisung;
+# die naechste Nachricht der Gruppe loest EINEN gebuendelten Modellaufruf aus,
+# der ALLE Fragen auf einmal neu formuliert (``ANWEISUNG_FRAGEN_UMFORMULIEREN``
+# -- dieselben Ton-Regeln wie ``ANWEISUNG_FRAGE_SCHAERFEN``, keine neuen).
+# Die Gruppe sieht je Frage alt->neu und uebernimmt alle, keine, oder einzelne
+# Nummern per Chat -- Vorgabe ist "alte behalten". Danach steht das Ergebnis
+# wieder in ``fragen``, eine zweite Runde liest genau diesen Stand: beliebig
+# oft wiederholbar.
+#
+# Kein Klick-Weg im CoThinker fuer diese Runde (Karten-Vorgabe "Click-list
+# path ... otherwise leave it out and say so"): die Vorschau alt->neu ist
+# frei formuliert und unterschiedlich lang je Frage -- eine Liste mit
+# Haekchen wie bei der Sortierliste (``auswahl.fragen_liste``) waere ein
+# neues UI-Konzept (zwei Spalten statt einer Zeile je Frage), kein
+# Wiederverwenden eines bestehenden.
+
+
+def _aktuelle_fragen(conn, chat_id: int) -> list[str]:
+    """Die aktuell behaltenen Fragen (``arbeitsstand.fragen``), eine Zeile je
+    Frage -- die Grundlage jeder Umformulier-Runde. Eine zweite Runde liest
+    wieder von hier: das Ergebnis der ersten Runde steht schon in ``fragen``,
+    also arbeitet die zweite automatisch auf ihm."""
+    from interview_theater import vorschlag
+
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand["fragen"] if stand else "") or ""
+    except (IndexError, KeyError):
+        return []
+    return vorschlag.zeilen(roh)
+
+
+def _feld_liste(conn, chat_id: int, feld: str) -> list[str]:
+    """Wie ``_decisions``/``_herkunft_liste``, fuer ein Feld, das an
+    ``fragen`` ausgerichtet ist (``fragen_herkunft_final``,
+    ``fragen_bearbeitet_final``)."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = (stand[feld] if stand else "") or ""
+    except (IndexError, KeyError):
+        return []
+    return roh.split(",") if roh else []
+
+
+def _sprachname() -> str:
+    """Der Sprachname der aktiven Sprachschicht (``sprache.SPRACHNAMEN``),
+    fuer die Anweisung an das Modell -- "Italiano" statt "it", lesbar fuer
+    ein Sprachmodell wie fuer eine Gruppe."""
+    from interview_theater import sprache
+
+    code = sprache.code()
+    return sprache.SPRACHNAMEN.get(code, code)
+
+
+def frage_nach_umformulierung(conn, tg, chat_id: int) -> int:
+    """Hidden-Befehl ``/umformulieren``: fragt nach der EINEN Anweisung, die
+    gleich alle behaltenen Fragen umformuliert. Nur Padua (die Dortmund-Suite
+    ruft diesen Befehl nie auf); ohne eine einzige behaltene Frage passiert
+    nichts, es gibt nichts umzuformulieren."""
+    if not workshop.diskussion_aktiv() or not _aktuelle_fragen(conn, chat_id):
+        return tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", "umformulieren")
+    return tg.sende(chat_id, T._TEXT_UMFORMULIEREN_WUNSCH_FRAGE)
+
+
+def starte_umformulierung(conn, tg, klm, e, chat_id: int, wunsch: str) -> bool:
+    """Die EINE freie Anweisung der Gruppe: EIN gebuendelter Modellaufruf
+    schlaegt neue Formulierungen fuer ALLE behaltenen Fragen vor."""
+    fragen_liste = _aktuelle_fragen(conn, chat_id)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
+    if not fragen_liste:
+        tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+        return False
+    nummeriert = "\n".join(f"{n}. {f}" for n, f in enumerate(fragen_liste, start=1))
+    anweisung = _ohne_weich_auftrag(T.ANWEISUNG_FRAGEN_UMFORMULIEREN.format(
+        anzahl=len(fragen_liste), wunsch=wunsch.strip(), fragen=nummeriert,
+        sprache=_sprachname(),
+    ))
+    return _starte_auftrag(conn, tg, klm, e, chat_id, anweisung)
+
+
+def biete_umformulierung(conn, tg, chat_id: int, block: str) -> int:
+    """Die Antwort auf ``ANWEISUNG_FRAGEN_UMFORMULIEREN``: zeigt je
+    geaenderter Frage alt->neu und wartet auf die Entscheidung der Gruppe
+    (Knopf "Alle uebernehmen"/"Alte behalten" oder eine freie Nachricht mit
+    Nummern). Eine Frage, die das Modell unveraendert zurueckgegeben hat,
+    taucht in der Vorschau gar nicht erst auf -- es gibt nichts zu
+    entscheiden, wo sich nichts aendert."""
+    from interview_theater import vorschlag
+
+    alte = _aktuelle_fragen(conn, chat_id)
+    if not alte:
+        return tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+    neue = vorschlag.zeilen(block)
+    zeilen = [
+        T._TEXT_UMFORMULIEREN_ZEILE.format(nummer=n, alt=alt, neu=neue[n - 1])
+        for n, alt in enumerate(alte, start=1)
+        if n <= len(neue) and neue[n - 1].strip()
+        and _fragetext(neue[n - 1]) != _fragetext(alt)
+    ]
+    if not zeilen:
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_umformuliert_vorschlag", None)
+        return tg.sende(chat_id, T._TEXT_UMFORMULIEREN_UNVERAENDERT)
+    repo.setze_arbeitsstand(
+        conn, chat_id, "fragen_umformuliert_vorschlag", "\n".join(neue),
+    )
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", "umformulieren_auswahl")
+    text = (
+        T._TEXT_UMFORMULIEREN_KOPF + "\n\n" + "\n".join(zeilen)
+        + "\n\n" + T._TEXT_UMFORMULIEREN_HINWEIS
+    )
+    leiste = [
+        (T._TEXT_UMFORMULIEREN_ALLE_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UMFORMULIEREN_ALLE, None))),
+        (T._TEXT_UMFORMULIEREN_KEINE_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UMFORMULIEREN_KEINE, None))),
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, text, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(d) for _, d in leiste], message_id,
+    )
+    return message_id
+
+
+#: Nach "alle"/"all" uebernimmt die Gruppe jede vorgeschlagene Umformulierung
+#: -- deutsch und englisch, weil Padua-Chat auf Englisch laeuft, Gruppen aber
+#: untereinander in ihrer eigenen Sprache schreiben.
+_ALLE_WORT = re.compile(r"\b(alle|all)\b", re.IGNORECASE)
+
+
+def _parse_annahme(text: str, gesamt: int) -> set[int]:
+    """Welche Positionen (1-basiert) die Gruppe mit dieser Nachricht annimmt
+    -- "alle"/"all", oder die darin genannten Zahlen, auf den gueltigen
+    Bereich beschraenkt. Nichts Erkennbares heisst "keine" (Vorgabe: alte
+    Formulierung behalten) -- genau wie beim Vorschlagsmarker gilt: raten ist
+    hier verboten (Out-of-scope der Karte: Annahme/Ablehnung aus Chatworten
+    wie "sì"/"tieni" zu lesen)."""
+    text = (text or "").strip()
+    if not text:
+        return set()
+    if _ALLE_WORT.search(text):
+        return set(range(1, gesamt + 1))
+    zahlen = {int(z) for z in re.findall(r"\d+", text)}
+    return {z for z in zahlen if 1 <= z <= gesamt}
+
+
+def _wende_umformulierung_an(
+    alte: list[str], neue: list[str], akzeptiert: set[int],
+) -> list[str]:
+    """Reine Mischfunktion: Position ``n`` (1-basiert) wird genau dann die
+    neue Formulierung, wenn ``n`` in ``akzeptiert`` steht UND es dort
+    ueberhaupt eine neue Fassung gibt -- jede andere Position bleibt
+    zeichengleich die alte. Abgelehnte Positionen aendern sich nie, egal was
+    der Vorschlag fuer sie trug."""
+    ergebnis = list(alte)
+    for n in akzeptiert:
+        if 1 <= n <= len(ergebnis) and n <= len(neue) and neue[n - 1].strip():
+            ergebnis[n - 1] = neue[n - 1]
+    return ergebnis
+
+
+def _wende_umformulierung_durch(conn, tg, klm, e, chat_id: int, akzeptiert: set[int]) -> int:
+    """Uebernimmt die akzeptierten Positionen aus
+    ``fragen_umformuliert_vorschlag`` in ``fragen`` (``_wende_umformulierung_an``),
+    markiert jede dabei tatsaechlich geaenderte KI-Frage in
+    ``fragen_bearbeitet_final`` -- eine eigene Frage nie, wie bei
+    ``_markiere_bearbeitet_falls_ki`` fuer die Vorauswahl -- und zeigt das
+    Ergebnis. Ohne offenen Vorschlag (ueberholter/doppelter Druck) passiert
+    nichts."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        vorschlag_roh = (stand["fragen_umformuliert_vorschlag"] or "") if stand else ""
+    except (IndexError, KeyError):
+        vorschlag_roh = ""
+    if not vorschlag_roh.strip():
+        return tg.sende(chat_id, T._TEXT_FRAGEN_KEINE_AUSWAHL)
+
+    alte = _aktuelle_fragen(conn, chat_id)
+    neue = vorschlag_roh.splitlines()
+    herkunft_final = _feld_liste(conn, chat_id, "fragen_herkunft_final")
+    bearbeitet_final = _feld_liste(conn, chat_id, "fragen_bearbeitet_final")
+    geaendert = _wende_umformulierung_an(alte, neue, akzeptiert)
+    for n in sorted(akzeptiert):
+        if (1 <= n <= len(geaendert) and n <= len(alte) and geaendert[n - 1] != alte[n - 1]
+                and n <= len(herkunft_final) and herkunft_final[n - 1] == "ki"):
+            while len(bearbeitet_final) < n:
+                bearbeitet_final.append("")
+            bearbeitet_final[n - 1] = "1"
+
+    repo.setze_arbeitsstand(conn, chat_id, "fragen", "\n".join(geaendert))
+    if bearbeitet_final:
+        repo.setze_arbeitsstand(
+            conn, chat_id, "fragen_bearbeitet_final", ",".join(bearbeitet_final),
+        )
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_umformuliert_vorschlag", None)
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
+    text = T._TEXT_UMFORMULIEREN_UEBERNOMMEN + "\n" + "\n".join(
+        f"{n}. {f}" for n, f in enumerate(geaendert, start=1)
+    )
+    return tg.sende(chat_id, text)
+
+
+def fragen_umformulierung_alle_annehmen(conn, tg, klm, e, chat_id: int) -> int:
+    """Knopf "Alle uebernehmen"."""
+    gesamt = len(_aktuelle_fragen(conn, chat_id))
+    return _wende_umformulierung_durch(conn, tg, klm, e, chat_id, set(range(1, gesamt + 1)))
+
+
+def fragen_umformulierung_alle_verwerfen(conn, tg, klm, e, chat_id: int) -> int:
+    """Knopf "Alte behalten"."""
+    return _wende_umformulierung_durch(conn, tg, klm, e, chat_id, set())
 
 
 def _vergiss_schaerfen_warten(conn, chat_id: int) -> None:
@@ -1432,6 +1658,25 @@ def uebersicht_text(conn, chat_id: int) -> str:
     zeilen += ["", T._TEXT_AUSWAHL_ZAEHLER.format(**liste["zaehler"]),
                T._TEXT_FRAGEN_COTHINKER_HINWEIS]
     return "\n".join(zeilen)
+
+
+def _biete_umformulierung_an(conn, tg, chat_id: int) -> int:
+    """Macht den versteckten Befehl ``/umformulieren`` nach "Fragen
+    uebernommen" erreichbar (Review-Fix t_b371c0f1, 06.10.2026): bisher gab
+    es dafuer keinen Ausloeser in der Gruppe -- anders als ``/sortiert``, das
+    der Knopf "Fertig sortiert" (``web_vereint.auswahl_fertig_post``)
+    ausloest. EIN Knopf, der ``frage_nach_umformulierung`` startet; wer ihn
+    nicht drueckt, laeuft unveraendert weiter zur Eroeffnung bzw. zum
+    Weich-Angebot."""
+    leiste = [
+        (T._TEXT_UMFORMULIEREN_ANBIETEN_KNOPF,
+         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UMFORMULIEREN_ANBIETEN, None))),
+    ]
+    message_id = _sende_knoepfe(conn, tg, chat_id, T._TEXT_UMFORMULIEREN_ANBIETEN, leiste)
+    repo.merke_knopf_nachricht(
+        conn, [_id_aus_daten(d) for _, d in leiste], message_id,
+    )
+    return message_id
 
 
 def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
@@ -1536,6 +1781,11 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
         tg.sende(chat_id, text, system=True)
     else:
         sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
+    # Review-Fix t_b371c0f1: nur Padua kennt den versteckten Befehl
+    # ``/umformulieren`` -- Dortmund bekommt diesen Knopf nie, bleibt also
+    # unveraendert.
+    if workshop.diskussion_aktiv():
+        _biete_umformulierung_an(conn, tg, chat_id)
     if neue_weich:
         _biete_weiche_fassungen_an(conn, tg, angenommen, neue_weich, chat_id)
     else:

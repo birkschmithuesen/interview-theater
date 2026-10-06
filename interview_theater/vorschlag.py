@@ -100,6 +100,13 @@ ARTEN = (
     # fertige Auswahl der Gegenueberstellung meint, nicht den laufenden
     # eigenen Stand.
     "eigene_fragen",
+    # Die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026, nur Padua):
+    # EIN gebuendelter Vorschlag fuer ALLE behaltenen Fragen auf einmal,
+    # ausgeloest durch eine freie Anweisung der Gruppe. Eigener Marker und
+    # nicht ``fragen``, weil der Block nichts direkt speichert -- er ist ein
+    # Vorschlag, den die Gruppe je Frage annimmt oder ablehnt
+    # (``knoepfe.fragen.biete_umformulierung``).
+    "fragen_umformulierung",
 )
 
 #: Die Markerzeile. Grossbuchstaben, weil sie im Fliesstext nicht vorkommt
@@ -111,15 +118,18 @@ MARKER = "VORSCHLAG {art}:"
 #: Erkennung am Zeilenanfang (``_ZEILE``) und die Suche mitten in der Zeile
 #: (``_MARKER_IRGENDWO``, P2-M4) niemals auseinanderlaufen.
 #:
-#: ``FRAGEN WEICH`` steht VOR ``FRAGEN``: eine Alternation nimmt die erste
-#: passende, und ``FRAGEN`` allein wuerde die weichen Fassungen als neue
-#: Frageliste verbuchen. ``EIGENE FRAGEN`` (Aufgabe 13) braucht dieselbe
-#: Vorsicht NICHT: es beginnt mit dem eigenen Wort "EIGENE" und teilt mit
-#: ``FRAGEN``/``FRAGE``/``FRAGENAUSWAHL``/``FRAGEN WEICH`` kein gemeinsames
-#: Praefix nach "VORSCHLAG " -- keine Reihenfolge-Falle, steht hier trotzdem
-#: lesbar neben den anderen FRAGEN*-Varianten.
+#: ``FRAGEN WEICH`` und ``FRAGEN UMFORMULIERUNG`` stehen VOR ``FRAGEN``: eine
+#: Alternation nimmt die erste passende, und ``FRAGEN`` allein wuerde die
+#: weichen Fassungen bzw. den Umformulierungsblock als neue Frageliste
+#: verbuchen. ``EIGENE FRAGEN`` (Aufgabe 13) braucht dieselbe Vorsicht NICHT:
+#: es beginnt mit dem eigenen Wort "EIGENE" und teilt mit
+#: ``FRAGEN``/``FRAGE``/``FRAGENAUSWAHL``/``FRAGEN WEICH``/``FRAGEN
+#: UMFORMULIERUNG`` kein gemeinsames Praefix nach "VORSCHLAG " -- keine
+#: Reihenfolge-Falle, steht hier trotzdem lesbar neben den anderen
+#: FRAGEN*-Varianten.
 _ARTEN_MUSTER = (
-    r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN\s+WEICH|EIGENE\s+FRAGEN|FRAGEN|FRAGE"
+    r"(BEGRIFFE|FRAGENAUSWAHL|FRAGEN\s+WEICH|FRAGEN\s+UMFORMULIERUNG"
+    r"|EIGENE\s+FRAGEN|FRAGEN|FRAGE"
     r"|KERNTHEMA|KERNFRAGE"
     r"|FIGUREN|RICHTUNGEN"
     r"|NAMEN|DUKTUS|RAHMEN"

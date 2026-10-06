@@ -167,7 +167,16 @@ INVENTAR = (
             "interview_theater.sprachprofil", "ART"),
     Eintrag("24-kernzitate", "kernzitate", 5,
             "interview_theater.kernzitate", "ART"),
-    # --- Phase 6
+    # --- Phase 6. **Reihenfolge innerhalb dieses Abschnitts ist gemessen,
+    # nicht beliebig** (Task 5, voller p57-Lauf in EINER geteilten Fixture-
+    # Datenbank): ``25``/``03`` schreiben nie wirklich (``kurzgeschichte.
+    # zerlege`` findet ohne Kopfzeilen in der Double-Antwort keine Abschnitte
+    # und wirft, bevor etwas gespeichert ist), die Richterfragen und der
+    # Prueflauf-Ueberarbeitungslauf (``vorlage=True``) brauchen die
+    # unveraenderte Szene 1 als Vorlage/Material -- nur ``04`` schreibt
+    # wirklich (``szene.zerlege`` faellt ohne Kopfzeilen auf "der ganze Text
+    # ist die Szene" zurueck und ``aktualisiere_szene`` speichert das). Es
+    # steht deshalb zuletzt in diesem Abschnitt.
     Eintrag("25-kurzgeschichte", "kurzgeschichte", 6,
             "interview_theater.kurzgeschichte", "art"),
     Eintrag("03-kurzgeschichte-phase6", "kurzgeschichte", 6,
@@ -175,15 +184,53 @@ INVENTAR = (
             weg="gebaut",
             grund="Der Kuerzungslauf derselben Stelle (vorlage=True, "
                   "kuerzung.notiz_fuer_prosa) -- Name aus dem Vorgaengerdump."),
+    # --- Die Richterfragen des Prueflaufs (prueflauf.FRAGEN_*), Phase-6-
+    # Teil (b1/a2/a6/a9/a11 -- a10 und c1 stehen bei Phase 7 unten).
+    Eintrag("35-dramaturgie-b1", "dramaturgie_b1", 6,
+            "interview_theater.dramaturgie.fanout", "art"),
+    Eintrag("36-dramaturgie-a2", "dramaturgie_a2", 6,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Dieselbe Aufrufstelle wie b1 (Richter.frage); der Treiber "
+                  "ruft frage_a2 und faengt dort ab."),
+    Eintrag("37-dramaturgie-a6", "dramaturgie_a6", 6,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Wie 36, Frage a6 (frage_a6)."),
+    Eintrag("38-dramaturgie-a9", "dramaturgie_a9", 6,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Wie 36, Frage a9 (frage_a9)."),
+    Eintrag("40-dramaturgie-a11", "dramaturgie_a11", 6,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Wie 36, Frage a11 (frage_a11)."),
+    Eintrag("43-prueflauf-ueberarbeitung", "prueflauf_ueberarbeitung", 6,
+            "interview_theater.kurzgeschichte", "art", weg="gebaut",
+            grund="Dieselbe Aufrufstelle wie 03/19/20/25 (klm.prosa in "
+                  "kurzgeschichte.hole_text); prueflauf._schreibe_geschichte "
+                  "ruft sie mit art=prueflauf.ART_UEBERARBEITUNG und "
+                  "vorlage=True -- der Regie-Text ist die Auftragsliste der "
+                  "Judge-Fragen (dramaturgie.schleife._regie_fuer_die_"
+                  "geschichte), nicht die Kuerzungsnotiz und nicht die "
+                  "Uebersicht."),
     Eintrag("04-szene-prosa-phase6", "szene", 6,
             "interview_theater.szene", "art",
             weg="gebaut",
             grund="szene._lauf baut system=systemanweisung(form, stil) und "
                   "nutzer=baue_nutzertext(...) und uebergibt sie unveraendert "
                   "-- der gebaute Prompt ist zeichengleich (szene.py:2361)."),
-    # --- Phase 7: Formen, Sprechweise, Stueckpruefung
+    # --- Phase 7: Formen, Sprechweise, Stueckpruefung, Richterfragen (a10/c1).
+    # Dieselbe Reihenfolge-Regel wie Phase 6 oben: a10/c1/Stueckpruefung lesen
+    # die Szenen, 28-32 und der Nachpass (44) schreiben wirklich und stehen
+    # deshalb zuletzt.
     Eintrag("27-sprechweise", "sprechweise", 7,
             "interview_theater.sprechweise", "ART"),
+    Eintrag("39-dramaturgie-a10", "dramaturgie_a10", 7,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Wie 36, Frage a10 (frage_a10) -- ab Phase 7 die Formregeln."),
+    Eintrag("41-dramaturgie-c1", "dramaturgie_c1", 7,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Wie 36, Frage c1 (frage_c1)."),
+    # 33-sprachstil entfaellt: kein Live-Eintrag -- siehe NICHT_LIVE_IN_PADUA.
+    Eintrag("34-stueckpruefung", "stueckpruefung", 7,
+            "interview_theater.stueckpruefung", "ART"),
     Eintrag("28-szene-dialog", "szene", 7,
             "interview_theater.szene", "art", weg="gebaut",
             grund="Wie 04: der Treiber ruft systemanweisung('dialog') und "
@@ -200,31 +247,14 @@ INVENTAR = (
     Eintrag("32-szene-rap", "szene", 7,
             "interview_theater.szene", "art", weg="gebaut",
             grund="Wie 28, derselbe Treiberweg, nur mit Form rap."),
-    # 33-sprachstil entfaellt: kein Live-Eintrag -- siehe NICHT_LIVE_IN_PADUA.
-    Eintrag("34-stueckpruefung", "stueckpruefung", 7,
-            "interview_theater.stueckpruefung", "ART"),
-    # --- Die Richterfragen des Prueflaufs (prueflauf.FRAGEN_*).
-    Eintrag("35-dramaturgie-b1", "dramaturgie_b1", 6,
-            "interview_theater.dramaturgie.fanout", "art"),
-    Eintrag("36-dramaturgie-a2", "dramaturgie_a2", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Dieselbe Aufrufstelle wie b1 (Richter.frage); der Treiber "
-                  "ruft frage_a2 und faengt dort ab."),
-    Eintrag("37-dramaturgie-a6", "dramaturgie_a6", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a6 (frage_a6)."),
-    Eintrag("38-dramaturgie-a9", "dramaturgie_a9", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a9 (frage_a9)."),
-    Eintrag("39-dramaturgie-a10", "dramaturgie_a10", 7,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a10 (frage_a10) -- ab Phase 7 die Formregeln."),
-    Eintrag("40-dramaturgie-a11", "dramaturgie_a11", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a11 (frage_a11)."),
-    Eintrag("41-dramaturgie-c1", "dramaturgie_c1", 7,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage c1 (frage_c1)."),
+    Eintrag("44-nachpass", "szene_nachpass", 7,
+            "interview_theater.szene", "art", weg="gebaut",
+            grund="Dieselbe Aufrufstelle wie 04/28-32 (klm.prosa in "
+                  "szene.schreibe); nachpass.nach_szene ruft sie mit "
+                  "art=nachpass.ART_SZENE und einer Regie-Notiz aus dem "
+                  "Laengen-/Sprachpass-Befund (nachpass._notiz, ueber "
+                  "szene.TEXT_AUFTRAG_NEU) -- ein anderer Auftragstext als "
+                  "jeder gewoehnliche Schreib- oder Kuerzungslauf."),
     # --- Regie-Dashboard (Karte t_f7770dc4): die englische Uebersetzung der
     # Gruppenfelder, ausserhalb des Web-Request-Pfads im Bot-Prozess
     # (bot._uebersetzungs_schleife -> uebersetzung.aktualisiere_fuer_bot).

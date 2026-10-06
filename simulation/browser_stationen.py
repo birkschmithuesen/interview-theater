@@ -30,6 +30,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from simulation import browser_aktionen
 from simulation import browser_invarianten as _inv
 
 MAX_NACHFRAGEN = 3
@@ -39,8 +40,16 @@ _NICHT_GESPRAECH = ("system", "transkript")
 
 #: Welche deterministischen Pruefungen (browser_invarianten) eine Station
 #: nach ihrem Ende durchlaufen soll -- Werte stehen in ``Station.pruefung``.
+#: Die P5-7-Namen (ab ``p5_schaerfung``) bekommen ihren Haken erst in Task 3
+#: (``browser_pruefhaken.HAKEN``) bzw. Task 7 (``kuerzung``, ``formen``,
+#: ``textbuch``, ``modellwahl57``, ``sprache57``) -- bis dahin meldet
+#: ``browser_pruefhaken.fuehre_pruefungen`` fuer einen Namen ohne Haken einen
+#: Befund (``pruefung_unbekannt:<name>``) statt abzustuerzen, kein stilles
+#: Grün.
 PRUEFUNGEN = ("nach_ende", "wissen", "raumcheck", "zweite_gruppe", "verhoerer", "p2_werkbank",
-              "nach_interview", "nach_brainstorm", "modellwahl", "p5_angebot", "pause_resume")
+              "nach_interview", "nach_brainstorm", "modellwahl", "p5_angebot", "pause_resume",
+              "p5_schaerfung", "p5_uebersicht", "prueflauf", "chat_volltext", "sprung",
+              "kuerzung", "formen", "stueckpruefung", "textbuch", "modellwahl57", "sprache57")
 
 #: Je Aufnahmeart: woran der Harness "laeuft" erkennt und was er zum Beenden
 #: drueckt. Brainstorm war unter t_cf87ee0a (Task 5, bis 05.10.2026) ein
@@ -92,6 +101,28 @@ class Station:
     #: davon, ob die Persona selbst daran denkt -- geprueft per
     #: ``pause_resume`` in ``Station.pruefung``.
     pause_resume: bool = False
+    #: Task 2 (BRIEF p57): wie lange ``browser_aktionen.warte_auf_antwort``
+    #: UND ``browser_lauf._warte_bis`` (unten) hoechstens je Aktion warten --
+    #: Vorgabe ``ANTWORT_GEDULD_S`` (90s), P5-7-Stationen setzen 600s
+    #: (Fakt 1/5, Plan): ein Szenenlauf mit Reasoning oder ein Prueflauf mit
+    #: zwei Runden braucht laenger als die alte 90s-Geduld, und zeigt dabei
+    #: unter Umstaenden gar kein ``#tippt``/``.blase.vorlaeufig`` (gemessen
+    #: per Code-Audit, nicht per Playwright-Lauf gegen ein echtes Modell --
+    #: ``grep -n tippt interview_theater/szene.py interview_theater/
+    #: prueflauf.py interview_theater/ueberarbeitung.py interview_theater/
+    #: nachpass.py`` zeigt KEINEN Aufruf von ``tg.tippt``/``kanal.tippt`` in
+    #: einem dieser Module; einzige Aufrufstelle ist ``ablauf.py`` Zeile 614,
+    #: im normalen Gespraechszug. ``#tippt`` kann also waehrend eines dieser
+    #: Hintergrund-Threads gar nicht gesetzt sein -- ``warte_bis`` ist
+    #: deshalb kein Komfort, sondern der einzige Weg, wie der Harness das
+    #: Ende eines solchen Laufs ueberhaupt bemerkt).
+    geduld_s: float = browser_aktionen.ANTWORT_GEDULD_S
+    #: Task 2: nach JEDER Aktion pollt der Harness ``browser_mitschnitt.
+    #: datenstand`` gegen dieses Praedikat, hoechstens ``geduld_s`` lang
+    #: (``browser_lauf._warte_bis``) -- fuer Stationen, deren Fortschritt
+    #: sich nicht ueber ``#tippt``/``.blase.vorlaeufig`` zeigt. ``None``
+    #: (Vorgabe) heisst: kein zusaetzliches Warten, wie bisher.
+    warte_bis: Callable[[dict], bool] | None = None
 
 
 def _feld(stand: dict, name: str):
@@ -333,9 +364,80 @@ STATIONEN_P34: tuple[Station, ...] = (
             budget=3, leitbild_ende="uebergang", pruefung=("modellwahl", "p5_angebot")),
 )
 
+#: Padua live-reif, Phase 5-7 (Karte t_db7c6b2c, Task 2, 06.10.2026): Prose
+#: Draft (Schaerfung -> Uebersicht -> Prosa Szene fuer Szene -> Auto-Sprung
+#: 6), Rewrite (Pruefung Gesamttext -> Szene fuer Szene -> Auto-Sprung 7),
+#: Stage Version (Formen -> Sprechweisen -> Buehnentext je Szene -> Schluss).
+#: Startet in Phase 5 (``browser_umgebung.bereite_vor(..., startphase=5)``,
+#: Task 1) -- die Gruppe steht dort noch in Phase 4, ``browser_lauf.main``
+#: loest den Wechsel ueber den echten Endpunkt aus, wie bei ``p34``.
+#:
+#: Alle Stationen bekommen ``geduld_s=600`` AUSSER dem Eintritt (bleibt bei
+#: der Vorgabe ``ANTWORT_GEDULD_S``, 90s) -- Begruendung am Feld
+#: ``Station.geduld_s`` oben: ein Szenenlauf mit Reasoning oder ein
+#: Prueflauf mit zwei Runden braucht laenger als 90s und zeigt dabei unter
+#: Umstaenden kein ``#tippt``. Gesamtbudget 73 Schritte (Risiko-Vorgabe:
+#: hoechstens 80).
+STATIONEN_P57: tuple[Station, ...] = (
+    Station("p5-eintritt", 5,
+            "Your group has just moved into the Prose Draft phase. Read what "
+            "the screen says about what happens here.",
+            budget=3, leitbild_ende="eintritt",
+            warte_bis=lambda s: s.get("schaerfung_zeilen", 0) >= 1
+            or bool(_feld(s, "geschichte_uebersicht"))),
+    Station("p5-schaerfung", 5,
+            "Look at the interview passages the app lays next to your scenes "
+            "and characters; keep what fits.",
+            fertig=lambda s: s.get("schaerfung_uebernommen", 0) >= 1
+            or bool(_feld(s, "geschichte_uebersicht_fixiert_am")),
+            budget=8, geduld_s=600, pruefung=("p5_schaerfung",)),
+    Station("p5-uebersicht", 5,
+            "Read the story overview the app proposes, ask for one change, "
+            "then confirm it.",
+            fertig=lambda s: bool(_feld(s, "geschichte_uebersicht_fixiert_am")),
+            budget=6, geduld_s=600, pruefung=("p5_uebersicht",)),
+    Station("p5-szenen", 5,
+            "Read every scene draft in the Script tab, one by one, and "
+            "confirm each one.",
+            fertig=lambda s: (_feld(s, "phase") or 5) >= 6,
+            budget=14, geduld_s=600, endet_bei_phasenwechsel=True,
+            pruefung=("prueflauf", "chat_volltext", "sprung")),
+    Station("p6-gesamt", 6,
+            "Ask once for the whole story to be shorter, then confirm it.",
+            fertig=lambda s: bool(_feld(s, "gesamttext_fixiert_am")),
+            budget=6, geduld_s=600, pruefung=("kuerzung", "prueflauf")),
+    Station("p6-szenen", 6,
+            "Give free feedback on one scene in the chat, then confirm every "
+            "scene.",
+            fertig=lambda s: (_feld(s, "phase") or 6) >= 7,
+            budget=10, geduld_s=600, endet_bei_phasenwechsel=True,
+            pruefung=("prueflauf", "chat_volltext", "sprung")),
+    Station("p7-formen", 7,
+            "In a single chat message, state a form for every scene -- at "
+            "least two different forms across the scenes.",
+            fertig=lambda s: s.get("szenen_mit_form", 0) >= s.get("szenen_anzahl", 0) > 0,
+            budget=4, geduld_s=600, pruefung=("formen",)),
+    Station("p7-sprechweisen", 7,
+            "Read the suggested way each character speaks, then confirm it.",
+            fertig=lambda s: bool(_feld(s, "sprechweisen_fixiert_am")),
+            budget=4, geduld_s=600),
+    Station("p7-szenen", 7,
+            "Read every scene's stage text, one by one, and confirm each "
+            "one.",
+            fertig=lambda s: s.get("szenen_fertig", 0) >= s.get("szenen_anzahl", 0) > 0,
+            budget=14, geduld_s=600),
+    Station("p7-schluss", 7,
+            "Wait for the final check of the whole script, then read the "
+            "Script tab.",
+            fertig=lambda s: s.get("stueckpruefung_zeilen", 0) > 0,
+            budget=4, geduld_s=600, leitbild_tab="textbuch",
+            pruefung=("stueckpruefung", "textbuch", "modellwahl57", "sprache57")),
+)
+
 STATIONEN: dict[str, tuple[Station, ...]] = {
-    "p12": STATIONEN_P12, "invarianten": STATIONEN_INVARIANTEN, "p34": STATIONEN_P34}
+    "p12": STATIONEN_P12, "invarianten": STATIONEN_INVARIANTEN, "p34": STATIONEN_P34,
+    "p57": STATIONEN_P57}
 #: Von welcher Phase ein Lauf startet -- >1 heisst: browser_umgebung.bereite_vor
 #: fuellt die Phasen davor, browser_lauf.main schaltet ueber den echten
 #: Phasenwechsel-Endpunkt in diese Phase.
-STARTPHASE: dict[str, int] = {"p12": 1, "invarianten": 1, "p34": 3}
+STARTPHASE: dict[str, int] = {"p12": 1, "invarianten": 1, "p34": 3, "p57": 5}

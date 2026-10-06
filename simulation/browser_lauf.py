@@ -441,6 +441,32 @@ def _fuehre_phase_aus(
     }
 
 
+#: Wie oft ``_warte_bis`` zwischen zwei Pruefungen des Praedikats pausiert.
+_WARTE_BIS_INTERVALL_MS = 2000
+
+
+def _warte_bis(page, pruefe, lese_stand, geduld_s: float) -> dict:
+    """Pollt ``lese_stand()`` (``browser_mitschnitt.datenstand``), bis
+    ``pruefe(stand)`` wahr wird oder ``geduld_s`` verstrichen ist (Task 2,
+    BRIEF p57, ``Station.warte_bis``).
+
+    Fuer Stationen, deren Hintergrund-Thread (Szene mit Reasoning, Prueflauf)
+    ``#tippt``/``.blase.vorlaeufig`` nie zeigt (Fakt 5, Begruendung am Feld
+    ``Station.geduld_s``) -- ohne ``warte_bis`` haette der Harness KEINEN
+    Weg, das Ende so eines Laufs zu bemerken, und wuerde sofort mit einem
+    unfertigen Stand weiterlaufen.
+
+    ``page.wait_for_timeout`` statt ``time.sleep``: dieselbe Uhr wie der Rest
+    dieser Datei, und in Tests durch eine Attrappe ersetzbar, ohne wirklich
+    zu warten (``test_warte_bis_...`` in ``tests/test_browser_lauf.py``)."""
+    start = time.monotonic()
+    stand = lese_stand()
+    while not pruefe(stand) and time.monotonic() - start < geduld_s:
+        page.wait_for_timeout(_WARTE_BIS_INTERVALL_MS)
+        stand = lese_stand()
+    return stand
+
+
 def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mitschnitt,
                         station: browser_stationen.Station, *, basis_url: str,
                         token: str, db_pfad: str, chat_id: int, persona_name: str,
@@ -578,7 +604,7 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
             break
 
         protokoll = _aktion_ausfuehren(page, aktion)
-        warte = browser_aktionen.warte_auf_antwort(page)
+        warte = browser_aktionen.warte_auf_antwort(page, geduld_s=station.geduld_s)
 
         _warte_und_beende_diskussion_falls_noetig()
         if station.diskussion:
@@ -596,6 +622,15 @@ def _fuehre_station_aus(page, persona_client, mitschnitt: browser_mitschnitt.Mit
         nach.write_bytes(browser_elemente.bildschirmfoto(page))
         screenshots.append(nach)
         nachher = browser_mitschnitt.datenstand(db_pfad, chat_id)
+        if station.warte_bis is not None:
+            # Task 2 (BRIEF p57): erst NACH der normalen Wartung
+            # (``warte_auf_antwort`` oben) -- die deckt den sichtbaren Teil
+            # ab (``#tippt``), ``warte_bis`` den unsichtbaren Hintergrund-
+            # Thread (Fakt 5).
+            nachher = _warte_bis(
+                page, station.warte_bis,
+                lambda: browser_mitschnitt.datenstand(db_pfad, chat_id),
+                station.geduld_s)
         db_diff = browser_mitschnitt.unterschied(vorher, nachher)
         vorher = nachher
         _zaehler_addieren(zaehler_summe, browser_zaehler.alle(page))
@@ -704,6 +739,30 @@ def _max_aufruf_id(db_pfad: str) -> int:
         return 0
 
 
+def _kosten_bisher(db_pfad: str) -> float:
+    """Summe ueber ALLE Laeufe, die je ``aufruf.kosten_chf`` in diese
+    ``sim.db`` geschrieben haben (Task 2, BRIEF p57) -- read-only, wie
+    ``_max_aufruf_id``: fehlt die Tabelle, ist das Ergebnis 0.0 statt ein
+    Fehler. Grundlage von ``--kosten-stopp`` (Plan-Vorgabe: hoechstens drei
+    bezahlte Laeufe, Stopp sobald die Summe UEBER ALLE Laeufe > 1,50 CHF)."""
+    try:
+        with browser_invarianten.oeffne_lesend(db_pfad) as conn:
+            zeile = conn.execute("SELECT COALESCE(SUM(kosten_chf), 0) FROM aufruf").fetchone()
+            return float(zeile[0] or 0.0)
+    except sqlite3.OperationalError:
+        return 0.0
+
+
+def _kostenstopp_erreicht(db_pfad: str, kosten_stopp: float | None) -> bool:
+    """Ob die bisherige Kostensumme ueber ``kosten_stopp`` liegt --
+    ``kosten_stopp=None`` (Vorgabe) heisst: kein Deckel, nie ein Abbruch.
+    ``>``, nicht ``>=``: ein Lauf, der GENAU den Deckel erreicht, darf noch
+    zu Ende laufen -- erst ein Ueberschreiten stoppt den naechsten Schritt."""
+    if kosten_stopp is None:
+        return False
+    return _kosten_bisher(db_pfad) > kosten_stopp
+
+
 def _aufruf_id_bei_phasenwechsel(db_pfad: str, chat_id: int) -> int:
     """Hoechste ``aufruf.id``, die spaetestens beim Setzen der aktuellen
     Phase (``arbeitsstand.phase_gesetzt_am``) gebucht war -- die Grenze fuer
@@ -786,7 +845,8 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                      beobachter=None, leitbilder=None, meta: dict | None = None,
                      gruppen: list | None = None,
                      warte=browser_invarianten.warte_nach_diskussion,
-                     hole_prompt=None, wechsle_audio=None) -> dict:
+                     hole_prompt=None, wechsle_audio=None,
+                     kosten_stopp: float | None = None) -> dict:
     """Die Stationsmotor-Engine des Abnahmelaufs Phase 1-2 (04.10.2026):
     Station fuer Station aus ``browser_stationen.STATIONEN``, mit einer
     eigenen Erklaernote je Station (Pflichtpunkt 1). Schreibt
@@ -815,7 +875,13 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
       vor ``new_page``. Ohne ihn bleibt die bisherige Audioquelle.
     - ``nach_ende`` wartet direkt nach dem Harness-Klick auf "Discussion
       done" (``nach_klick``); ``ergebnis.json`` wird in jedem Fall
-      geschrieben (``finally``)."""
+      geschrieben (``finally``).
+    - ``kosten_stopp`` (Task 2, BRIEF p57): zwischen zwei Stationen wird
+      Σ ``aufruf.kosten_chf`` dieser ``sim.db`` gelesen (``_kosten_bisher``);
+      liegt sie darueber, endet der Lauf VOR der naechsten Station sauber
+      (``ergebnis["abbruch"] = "kostenstopp"``, kein Absturz) -- die schon
+      gelaufenen Stationen bleiben im Ergebnis stehen. ``None`` (Vorgabe):
+      kein Deckel."""
     from simulation.browser_umgebung import Gruppe
 
     lauf_verzeichnis = Path(lauf_verzeichnis)
@@ -847,8 +913,17 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
     #: dasselbe ``set``-Objekt wandert per Referenz in jede ``PruefKontext``
     #: dieses Laufs, siehe ``browser_pruefhaken._modellwahl``.
     modellwahl_phasen_geprueft: set[int] = set()
+    #: Task 2 (BRIEF p57): None, solange kein Kostendeckel gegriffen hat --
+    #: landet unveraendert in ``ergebnis["abbruch"]``.
+    abbruch: str | None = None
     try:
-        for station in stationen:
+        for index, station in enumerate(stationen):
+            # Nur ZWISCHEN zwei Stationen pruefen (nicht vor der ersten): ein
+            # frischer Lauf darf immer mindestens einen Schritt versuchen,
+            # auch wenn der Deckel sehr knapp gesetzt ist.
+            if index > 0 and _kostenstopp_erreicht(db_pfad, kosten_stopp):
+                abbruch = "kostenstopp"
+                break
             befunde: list[browser_invarianten.Befund] = []
             stationen_phase[station.schluessel] = station.phase
             kontext = PruefKontext(
@@ -1036,13 +1111,14 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
             persona_client=persona_client, judge_client=judge_client, geraet=geraet,
             persona_name=persona_name, ergebnisse=ergebnisse, invarianten=invarianten,
             notizen=notizen, entwickler_merkmale=entwickler_merkmale,
-            fehlgeschlagen_bei=fehlgeschlagen_bei, meta=meta)
+            fehlgeschlagen_bei=fehlgeschlagen_bei, meta=meta, abbruch=abbruch)
     return ergebnis
 
 
 def _schreibe_stationsergebnis(lauf_verzeichnis: Path, *, beobachter, db_pfad, persona_client,
                                judge_client, geraet, persona_name, ergebnisse, invarianten,
-                               notizen, entwickler_merkmale, fehlgeschlagen_bei, meta) -> dict:
+                               notizen, entwickler_merkmale, fehlgeschlagen_bei, meta,
+                               abbruch: str | None = None) -> dict:
     """Baut und schreibt ``ergebnis.json`` -- jeder Teil mit eigenem
     Rueckfall, damit die Datei auch nach einem kaputten Beobachter oder einer
     unlesbaren DB entsteht."""
@@ -1068,7 +1144,7 @@ def _schreibe_stationsergebnis(lauf_verzeichnis: Path, *, beobachter, db_pfad, p
                 "entwickler_meta": sorted(entwickler_merkmale), "modelle": modelle,
                 "top_befunde": top, "invarianten": invarianten,
                 "pruef_notizen": notizen, "fehlgeschlagen_bei": fehlgeschlagen_bei,
-                "db_pfad": db_pfad, **(meta or {})}
+                "db_pfad": db_pfad, "abbruch": abbruch, **(meta or {})}
     (lauf_verzeichnis / "ergebnis.json").write_text(
         json.dumps(ergebnis, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     return ergebnis
@@ -1244,6 +1320,10 @@ def main() -> None:
     zerleger.add_argument("--app-wurzel", type=Path, default=browser_umgebung.WURZEL,
                           help="Checkout, aus dem Web und Bot gestartet werden "
                                "(Vorgabe: dieser Harness-Checkout)")
+    zerleger.add_argument("--kosten-stopp", type=float, default=None,
+                          help="Bricht VOR der naechsten Station ab, sobald "
+                               "Sigma aufruf.kosten_chf dieser sim.db diesen "
+                               "Wert ueberschreitet (nur Stationsmodus)")
     argumente = zerleger.parse_args()
 
     if not argumente.env_datei:
@@ -1360,7 +1440,7 @@ def main() -> None:
                     leitbilder=leitbilder,
                     meta={"app_wurzel": str(app_wurzel), "app_commit": _app_commit(app_wurzel)},
                     gruppen=stack.gruppen, hole_prompt=hole_prompt,
-                    wechsle_audio=wechsle_audio,
+                    wechsle_audio=wechsle_audio, kosten_stopp=argumente.kosten_stopp,
                 )
                 if leitbilder is not None:
                     leitbilder.schreibe_index()

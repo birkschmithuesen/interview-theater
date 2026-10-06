@@ -92,6 +92,64 @@ def test_datenstand_interview_koepfe_ignoriert_weich_entfernte(tmp_path):
     assert stand_nach["interview_koepfe"] == 0
 
 
+# --- Task 2 (BRIEF p57): neue P5-7-Felder gegen das echte Schema ----------
+
+
+def test_datenstand_zaehlt_p57_felder_leer(tmp_path):
+    """Eine frische Gruppe hat keine Szenen, keine Schaerfung, keinen
+    Prueflauf -- alle neuen Zaehler stehen auf 0."""
+    pfad = _db(tmp_path)
+    stand = m.datenstand(pfad, CHAT)
+    for feld in ("szenen_mit_prosa", "szenen_mit_volltext", "szenen_entwurf_ok",
+                 "szenen_ueberarbeitung_ok", "szenen_fertig", "szenen_mit_form",
+                 "schaerfung_zeilen", "schaerfung_uebernommen", "prueflaeufe",
+                 "stueckpruefung_zeilen", "szenenfassungen"):
+        assert stand[feld] == 0, feld
+
+
+def test_datenstand_zaehlt_p57_felder_gegen_den_phase5_startzustand(tmp_path):
+    """Gegen das ECHTE Schema (``db.initialisiere``) und den Task-1-
+    Startzustand (``browser_umgebung.bereite_vor(..., startphase=5)``):
+    drei Szenen ohne Prosa zu Beginn, dann je eine Abnahme-Spalte gesetzt --
+    der Zaehler muss genau diese EINE Szene zaehlen, nicht alle drei
+    (Lehre B-neu-2: Inhalt pruefen, nicht nur Laenge/Anwesenheit einer
+    Tabelle)."""
+    from simulation import browser_umgebung as u
+
+    chat = 7_000_000_000_991
+    pfad = str(tmp_path / "p57.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, chat, "padua-browser-sim", "p57 Fixture")
+    conn.commit()
+    conn.close()
+    u.bereite_vor(pfad, chat, startphase=5)
+
+    vor = m.datenstand(pfad, chat)
+    assert vor["szenen_anzahl"] == 3
+    assert vor["szenen_mit_prosa"] == 0
+    assert vor["szenen_entwurf_ok"] == 0
+    assert vor["schaerfung_zeilen"] == 0
+    assert vor["prueflaeufe"] == 0
+
+    conn = db.verbinde(pfad)
+    szenen = repo.hole_szenen(conn, chat)
+    erste = szenen[0]
+    repo.aktualisiere_szene(conn, erste["id"], erste["titel"], erste["kurzbeschreibung"],
+                            None, prosa="Samir sat on the bench.")
+    repo.setze_szene_entwurf_bestaetigt(conn, erste["id"])
+    conn.commit()
+    conn.close()
+
+    nach = m.datenstand(pfad, chat)
+    assert nach["szenen_mit_prosa"] == 1
+    assert nach["szenen_entwurf_ok"] == 1
+    # Die anderen zwei Szenen bleiben unberuehrt -- kein Laengen-, sondern
+    # ein Inhaltsbefund (Lehre B-neu-2).
+    assert nach["szenen_mit_volltext"] == 0
+    assert nach["szenen_fertig"] == 0
+
+
 def test_schritt_schreibt_die_station(tmp_path):
     import json
     from simulation import browser_mitschnitt as m

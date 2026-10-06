@@ -665,6 +665,105 @@ def test_app_commit_liefert_none_auch_bei_timeout(tmp_path, monkeypatch):
     assert ergebnis is None
 
 
+# --- Task 2 (BRIEF p57): Kostenstopp, warte_bis -----------------------------
+
+
+def _aufruf_kosten(pfad: str, chat_id: int, kosten_chf: float) -> None:
+    conn = db.verbinde(pfad)
+    conn.execute(
+        "INSERT INTO aufruf (chat_id, art, modus, kosten_chf, erstellt_am) "
+        "VALUES (?, 'gespraech', 'A', ?, ?)",
+        (chat_id, kosten_chf, repo._jetzt()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_kosten_bisher_ohne_tabelle_liefert_null(tmp_path):
+    """Wie ``_max_aufruf_id``: eine Datenbank, die ``db.initialisiere`` nie
+    gesehen hat, hat keine ``aufruf``-Tabelle -- das darf kein Fehler sein,
+    sondern 0.0 (kein Deckel ist je erreicht)."""
+    pfad = str(tmp_path / "leer.db")
+    assert browser_lauf._kosten_bisher(pfad) == 0.0
+    assert browser_lauf._kostenstopp_erreicht(pfad, 1.5) is False
+
+
+def test_kostenstopp_erreicht_summiert_ueber_mehrere_aufruf_zeilen(tmp_path):
+    """Mutationsprobe (Plan, Task 2): zwei Zeilen 0,9 + 0,7 CHF; bei
+    ``kosten_stopp=1.5`` ist die Summe (1.6) GROESSER -- Abbruch; bei 2.0
+    bleibt sie DARUNTER -- kein Abbruch."""
+    pfad = str(tmp_path / "sim.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "g", "G")
+    conn.commit()
+    conn.close()
+    assert browser_lauf._kosten_bisher(pfad) == 0.0
+    assert browser_lauf._kostenstopp_erreicht(pfad, 1.5) is False
+
+    _aufruf_kosten(pfad, CHAT, 0.9)
+    assert browser_lauf._kostenstopp_erreicht(pfad, 1.5) is False  # 0.9 <= 1.5
+
+    _aufruf_kosten(pfad, CHAT, 0.7)
+    assert browser_lauf._kosten_bisher(pfad) == pytest.approx(1.6)
+    assert browser_lauf._kostenstopp_erreicht(pfad, 1.5) is True   # 1.6 > 1.5
+    assert browser_lauf._kostenstopp_erreicht(pfad, 2.0) is False  # 1.6 <= 2.0
+
+
+def test_kostenstopp_ohne_deckel_nie_erreicht(tmp_path):
+    pfad = str(tmp_path / "sim.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "g", "G")
+    conn.commit()
+    conn.close()
+    _aufruf_kosten(pfad, CHAT, 999.0)
+    assert browser_lauf._kostenstopp_erreicht(pfad, None) is False
+
+
+class _WarteBisSeiteAttrappe:
+    """Zaehlt ``wait_for_timeout``-Aufrufe -- fuer ``_warte_bis`` reicht das,
+    echte Zeit wird dabei NIE verstrichen (anders als ``time.sleep``, siehe
+    Docstring von ``_warte_bis``: ``page.wait_for_timeout`` ist in Tests
+    ersetzbar)."""
+
+    def __init__(self):
+        self.aufrufe = 0
+
+    def wait_for_timeout(self, ms):
+        self.aufrufe += 1
+
+
+def test_warte_bis_haelt_an_sobald_das_praedikat_wahr_wird():
+    """Mutationsprobe (Plan, Task 2): das Praedikat wird erst beim DRITTEN
+    Lesen wahr (zwei Polls dazwischen) -- ``_warte_bis`` darf dann nicht bis
+    ``geduld_s`` weiterlaufen."""
+    seite = _WarteBisSeiteAttrappe()
+    staende = iter([{"n": 0}, {"n": 1}, {"n": 2}])
+    stand = browser_lauf._warte_bis(
+        seite, lambda s: s["n"] >= 2, lambda: next(staende), geduld_s=600)
+    assert stand == {"n": 2}
+    assert seite.aufrufe == 2  # zwischen den drei Lesungen liegen zwei Polls
+
+
+def test_warte_bis_ignoriert_das_praedikat_laeuft_bis_geduld_erschoepft(monkeypatch):
+    """Gegenprobe zur Mutation 'warte_bis ignorieren': wird das Praedikat NIE
+    wahr, bricht die Schleife trotzdem ab, sobald die simulierte Zeit
+    ``geduld_s`` erreicht -- kein Endlos-Warten."""
+    seite = _WarteBisSeiteAttrappe()
+    uhr = {"t": 0.0}
+
+    def monotonic():
+        uhr["t"] += 10.0
+        return uhr["t"]
+
+    monkeypatch.setattr(browser_lauf.time, "monotonic", monotonic)
+    stand = browser_lauf._warte_bis(
+        seite, lambda s: False, lambda: {"n": 0}, geduld_s=25.0)
+    assert stand == {"n": 0}
+    assert seite.aufrufe >= 1
+
+
 # --- Task 6: Pruef-Haken, Symptomregel, zweite Gruppe, Wissensfrage --------
 
 from simulation import browser_invarianten as inv  # noqa: E402
@@ -707,6 +806,49 @@ def _stationen_lauf(basis, token, pfad, tmp_path, stationen, *, persona=None,
         url = seite.url
         browser.close()
     return ergebnis, url
+
+
+def test_kostenstopp_bricht_vor_der_naechsten_station_ab(stack, tmp_path):
+    """Integration (Task 2, BRIEF p57): zwei ``aufruf``-Zeilen (0,9 + 0,7 CHF)
+    liegen schon in der sim.db, BEVOR der Lauf startet -- Station 1 laeuft
+    immer (der Deckel wird nur ZWISCHEN Stationen geprueft), vor Station 2
+    liegt die Summe (1.6) ueber ``kosten_stopp=1.5``: Abbruch nach Station 1,
+    Station 2 startet nie."""
+    basis, token, pfad = stack
+    _aufruf_kosten(pfad, CHAT, 0.9)
+    _aufruf_kosten(pfad, CHAT, 0.7)
+    s1 = browser_stationen.Station("p-eins", 1, "x", ohne_persona=True, warte_s=0)
+    s2 = browser_stationen.Station("p-zwei", 1, "x", ohne_persona=True, warte_s=0)
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [s1, s2], kosten_stopp=1.5)
+    assert ergebnis["abbruch"] == "kostenstopp"
+    assert [e["schluessel"] for e in ergebnis["stationen_ergebnisse"]] == ["p-eins"]
+
+
+def test_kostenstopp_kein_abbruch_unter_dem_deckel(stack, tmp_path):
+    """Gegenprobe (Mutationsvorgabe Plan): dieselben beiden Zeilen (Summe
+    1.6), aber ``kosten_stopp=2.0`` -- bleibt darunter, beide Stationen
+    laufen, kein Abbruch."""
+    basis, token, pfad = stack
+    _aufruf_kosten(pfad, CHAT, 0.9)
+    _aufruf_kosten(pfad, CHAT, 0.7)
+    s1 = browser_stationen.Station("p-eins", 1, "x", ohne_persona=True, warte_s=0)
+    s2 = browser_stationen.Station("p-zwei", 1, "x", ohne_persona=True, warte_s=0)
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [s1, s2], kosten_stopp=2.0)
+    assert ergebnis["abbruch"] is None
+    assert [e["schluessel"] for e in ergebnis["stationen_ergebnisse"]] == ["p-eins", "p-zwei"]
+
+
+def test_kostenstopp_ohne_vorgabe_laeuft_unveraendert_durch(stack, tmp_path):
+    """Regressionsschutz: ohne ``--kosten-stopp`` (``kosten_stopp=None``,
+    Vorgabe) aendert sich am bisherigen Verhalten nichts -- auch nicht mit
+    einer hohen Kostensumme in der DB."""
+    basis, token, pfad = stack
+    _aufruf_kosten(pfad, CHAT, 999.0)
+    s1 = browser_stationen.Station("p-eins", 1, "x", ohne_persona=True, warte_s=0)
+    s2 = browser_stationen.Station("p-zwei", 1, "x", ohne_persona=True, warte_s=0)
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [s1, s2])
+    assert ergebnis["abbruch"] is None
+    assert [e["schluessel"] for e in ergebnis["stationen_ergebnisse"]] == ["p-eins", "p-zwei"]
 
 
 def test_invarianten_landen_in_ergebnis_json(stack, tmp_path):

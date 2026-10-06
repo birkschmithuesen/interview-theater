@@ -60,17 +60,47 @@ def datenstand(db_pfad: str, chat_id: int) -> dict:
         buehnenkarten = zahl("SELECT COUNT(*) FROM buehnenkarte WHERE chat_id = ?")
         zeile = conn.execute("SELECT kalibrierung_modus FROM gruppe WHERE chat_id = ?",
                              (chat_id,)).fetchone()
+        # Padua P5-7 live-reif (Task 2): die Fertig-Praedikate von
+        # ``browser_stationen.STATIONEN_P57`` brauchen den Fortschritt je
+        # Szene (Prosa/Volltext/Abnahmen/Form) und die Zeilenzahlen der neuen
+        # Phase-5-7-Tabellen (schaerfung, prueflauf, stueckpruefung,
+        # szenenfassung) -- ``repo.schaerfungen``/``stueckpruefungen``/
+        # ``prueflaeufe`` filtern ``entfernt_am IS NULL`` bereits selbst.
+        szenen = repo.hole_szenen(conn, chat_id)
+        szenen_mit_prosa = sum(1 for sz in szenen if (sz["prosa"] or "").strip())
+        szenen_mit_volltext = sum(1 for sz in szenen if (sz["volltext"] or "").strip())
+        szenen_entwurf_ok = sum(
+            1 for sz in szenen if (sz["entwurf_bestaetigt_am"] or "").strip())
+        szenen_ueberarbeitung_ok = sum(
+            1 for sz in szenen if (sz["ueberarbeitung_bestaetigt_am"] or "").strip())
+        szenen_fertig = sum(1 for sz in szenen if (sz["fertig_am"] or "").strip())
+        szenen_mit_form = sum(1 for sz in szenen if (sz["form"] or "").strip())
+        schaerfungszeilen = repo.schaerfungen(conn, chat_id)
+        schaerfung_uebernommen = sum(
+            1 for sc in schaerfungszeilen if sc["uebernommen_am"])
+        szenenfassungen = zahl("SELECT COUNT(*) FROM szenenfassung WHERE chat_id = ?")
         return {
             "arbeitsstand": felder,
             "journal_anzahl": len(repo.journal(conn, chat_id)),
             "figuren_anzahl": len(repo.figuren(conn, chat_id)),
-            "szenen_anzahl": len(repo.hole_szenen(conn, chat_id)),
+            "szenen_anzahl": len(szenen),
             "kalibrierung_aufnahmen": kalibrierung,
             "diskussion_aufnahmen": diskussion,
             "interview_koepfe": interview_koepfe,
             "brainstorm_aufnahmen": brainstorm_aufnahmen,
             "buehnenkarten": buehnenkarten,
             "kalibrierung_modus": zeile[0] if zeile else None,
+            "szenen_mit_prosa": szenen_mit_prosa,
+            "szenen_mit_volltext": szenen_mit_volltext,
+            "szenen_entwurf_ok": szenen_entwurf_ok,
+            "szenen_ueberarbeitung_ok": szenen_ueberarbeitung_ok,
+            "szenen_fertig": szenen_fertig,
+            "szenen_mit_form": szenen_mit_form,
+            "schaerfung_zeilen": len(schaerfungszeilen),
+            "schaerfung_uebernommen": schaerfung_uebernommen,
+            "prueflaeufe": len(repo.prueflaeufe(conn, chat_id)),
+            "stueckpruefung_zeilen": len(repo.stueckpruefungen(conn, chat_id)),
+            "szenenfassungen": szenenfassungen,
         }
     finally:
         conn.close()
@@ -85,7 +115,11 @@ def unterschied(vorher: dict, nachher: dict) -> dict:
     zahlen = {}
     for name in ("journal_anzahl", "figuren_anzahl", "szenen_anzahl",
                  "kalibrierung_aufnahmen", "diskussion_aufnahmen",
-                 "interview_koepfe", "brainstorm_aufnahmen", "buehnenkarten"):
+                 "interview_koepfe", "brainstorm_aufnahmen", "buehnenkarten",
+                 "szenen_mit_prosa", "szenen_mit_volltext", "szenen_entwurf_ok",
+                 "szenen_ueberarbeitung_ok", "szenen_fertig", "szenen_mit_form",
+                 "schaerfung_zeilen", "schaerfung_uebernommen", "prueflaeufe",
+                 "stueckpruefung_zeilen", "szenenfassungen"):
         if nachher.get(name) != vorher.get(name):
             zahlen[name] = {"vorher": vorher.get(name), "nachher": nachher.get(name)}
     return {"arbeitsstand_geaendert": geaendert, "zahlen_geaendert": zahlen}

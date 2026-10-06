@@ -653,6 +653,251 @@ _JS_TEXTE = {
 }
 
 
+#: Die dauerhafte Audio-Warteschlange im Browser (Karte t_e2b0e489, kein
+#: Aufnahmeverlust am Handy). Ein EIGENSTAENDIGER, in ``_CHAT_JS`` nur
+#: interpolierter Baustein -- genau wie ``web_gestalt._JS_AUFNAHME`` --
+#: damit ``tests/test_web_chat_persistenz_js.py`` ihn woertlich in Node
+#: gegen einen Fake-IndexedDB-Shim laufen lassen kann, ohne die ganzen
+#: DOM-Abhaengigkeiten des restlichen Chat-Skripts mitzuschleppen.
+#:
+#: **Was hier NICHT drinsteht:** wann ein Auftrag geschrieben/geloescht
+#: wird (das entscheidet ``_CHAT_JS``s ``reiheEin``/``erledigt``), und wie
+#: ein Auftrag aus einer laufenden Aufnahme entsteht (``sitzung``). Dieses
+#: Modul kennt nur die Brücke: ein Auftrag <-> ein IndexedDB-Eintrag.
+#:
+#: **Deckel statt Panik:** ``raeumeAuf`` loescht nur Eintraege, die schon
+#: als ``bestaetigt`` markiert sind -- im Normalfall loescht der
+#: Upload-Erfolg selbst sofort (``entferneNachAntwort``), ``bestaetigt``
+#: entsteht nur als Rueckfall, wenn genau dieser Loeschversuch scheitert
+#: (z. B. Safari privat, voller Speicher). Ein Auftrag, der noch nie eine
+#: Antwort hatte, wird NIE geloescht, auch nicht über dem Deckel.
+_PERSISTENZ_JS = """
+var AudioWarteschlangenSpeicher = (function () {
+  var DB_NAME = 'it_audio_warteschlange';
+  var STORE = 'auftraege';
+  var DB_VERSION = 1;
+  var SPEICHER_DECKEL_BYTES = 200 * 1024 * 1024;
+
+  function unterstuetzt() {
+    return typeof indexedDB !== 'undefined' && !!indexedDB;
+  }
+
+  var dbPromise = null;
+  function oeffne() {
+    if (!unterstuetzt()) { return Promise.reject(new Error('kein indexedDB')); }
+    if (dbPromise) { return dbPromise; }
+    dbPromise = new Promise(function (ja, nein) {
+      var anfrage = indexedDB.open(DB_NAME, DB_VERSION);
+      anfrage.onupgradeneeded = function () {
+        var idb = anfrage.result;
+        if (!idb.objectStoreNames.contains(STORE)) {
+          idb.createObjectStore(STORE, { keyPath: 'id' });
+        }
+      };
+      anfrage.onsuccess = function () { ja(anfrage.result); };
+      anfrage.onerror = function () { nein(anfrage.error); };
+    });
+    return dbPromise;
+  }
+
+  function schreibe(eintrag) {
+    return oeffne().then(function (idb) {
+      return new Promise(function (ja, nein) {
+        var tx = idb.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).put(eintrag);
+        tx.oncomplete = function () { ja(); };
+        tx.onerror = function () { nein(tx.error); };
+      });
+    });
+  }
+
+  function loesche(id) {
+    return oeffne().then(function (idb) {
+      return new Promise(function (ja, nein) {
+        var tx = idb.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).delete(id);
+        tx.oncomplete = function () { ja(); };
+        tx.onerror = function () { nein(tx.error); };
+      });
+    });
+  }
+
+  function markiereBestaetigt(id) {
+    return oeffne().then(function (idb) {
+      return new Promise(function (ja, nein) {
+        var tx = idb.transaction(STORE, 'readwrite');
+        var speicher = tx.objectStore(STORE);
+        var holen = speicher.get(id);
+        holen.onsuccess = function () {
+          var eintrag = holen.result;
+          if (eintrag) { eintrag.bestaetigt = true; speicher.put(eintrag); }
+        };
+        tx.oncomplete = function () { ja(); };
+        tx.onerror = function () { nein(tx.error); };
+      });
+    });
+  }
+
+  function alleRoh() {
+    return oeffne().then(function (idb) {
+      return new Promise(function (ja, nein) {
+        var tx = idb.transaction(STORE, 'readonly');
+        var anfrage = tx.objectStore(STORE).getAll();
+        anfrage.onsuccess = function () { ja(anfrage.result || []); };
+        anfrage.onerror = function () { nein(anfrage.error); };
+      });
+    });
+  }
+
+  // Aelteste BESTAETIGTE zuerst (seq aufsteigend); unbestaetigte Auftraege
+  // zaehlen fuer die Raeumung nicht, egal wie voll es ist.
+  function raeumeAuf() {
+    return alleRoh().then(function (liste) {
+      var gesamt = liste.reduce(function (s, e) { return s + (e.bytes || 0); }, 0);
+      if (gesamt <= SPEICHER_DECKEL_BYTES) { return; }
+      var bestaetigte = liste.filter(function (e) { return e.bestaetigt; })
+        .sort(function (a, b) { return a.seq - b.seq; });
+      var i = 0;
+      function weiter() {
+        if (gesamt <= SPEICHER_DECKEL_BYTES || i >= bestaetigte.length) { return; }
+        var eintrag = bestaetigte[i];
+        i += 1;
+        gesamt -= (eintrag.bytes || 0);
+        return loesche(eintrag.id).then(weiter);
+      }
+      return weiter();
+    });
+  }
+
+  // -- Die Bruecke zu einem Warteschlangen-Auftrag (_CHAT_JS) --------------
+
+  function zuEintrag(auftrag, schluessel, seq) {
+    // Diskussion/Brainstorm (Hintergrund-Mithoeren, Phase 1+4) ist die
+    // EINZIGE Sitzungsinformation, die postAudio() fuer die Zielwahl
+    // braucht (&diskussion=1/&brainstorm=1) -- ein Interview-Segment
+    // entscheidet der Server allein ueber den offenen Interviewmodus, kein
+    // Client-Flag, siehe aufnahme.klasse_fuer.
+    var diskussionZiel = (auftrag.sitzung && auftrag.sitzung.art === 'diskussion')
+      ? auftrag.sitzung.ziel : null;
+    return {
+      id: auftrag.clientJobId, token: schluessel, seq: seq,
+      blob: auftrag.blob, bytes: auftrag.blob ? auftrag.blob.size : 0,
+      dauer: auftrag.dauer, grund: auftrag.grund || null,
+      redeMs: auftrag.redeMs == null ? null : auftrag.redeMs,
+      weichMs: auftrag.weichMs == null ? null : auftrag.weichMs,
+      kalibrierung: !!auftrag.kalibrierung, diskussionZiel: diskussionZiel,
+      bestaetigt: false
+    };
+  }
+
+  function ausEintrag(eintrag) {
+    return {
+      art: 'audio', clientJobId: eintrag.id, seq: eintrag.seq,
+      sitzung: eintrag.diskussionZiel
+        ? { art: 'diskussion', ziel: eintrag.diskussionZiel } : null,
+      blob: eintrag.blob, dauer: eintrag.dauer, grund: eintrag.grund,
+      redeMs: eintrag.redeMs, weichMs: eintrag.weichMs,
+      kalibrierung: !!eintrag.kalibrierung,
+      _wiederhergestellt: true
+    };
+  }
+
+  // Schreibt VOR dem Eintritt in die In-Memory-Warteschlange -- der
+  // Aufrufer (_CHAT_JS.reiheEin) haengt den Auftrag erst nach diesem
+  // Versprechen ein. Ohne IndexedDB (altes Safari im privaten Modus, ein
+  // abgeschaltetes Feature) wird einfach nichts geschrieben -- die
+  // Aufnahme geht trotzdem raus, nur ohne Ueberlebensgarantie.
+  function speichereVorEinreihung(auftrag, schluessel, seq) {
+    if (!unterstuetzt()) { return Promise.resolve(); }
+    return schreibe(zuEintrag(auftrag, schluessel, seq)).then(raeumeAuf);
+  }
+
+  // Nach einer Antwort (2xx oder endgueltiges 4xx) aufgerufen -- bei einem
+  // Netzfehler ruft niemand das hier, der Auftrag bleibt stehen. Scheitert
+  // sogar das Loeschen selbst, wird der Eintrag bestaetigt markiert statt
+  // endlos neu versucht -- raeumeAuf() darf ihn dann aufraeumen.
+  function entferneNachAntwort(auftrag) {
+    if (!auftrag.clientJobId || !unterstuetzt()) { return Promise.resolve(); }
+    return loesche(auftrag.clientJobId).catch(function () {
+      return markiereBestaetigt(auftrag.clientJobId).catch(function () {});
+    });
+  }
+
+  function wiederherstellen(schluessel) {
+    if (!unterstuetzt()) { return Promise.resolve([]); }
+    return alleRoh().then(function (liste) {
+      return liste
+        .filter(function (e) { return e.token === schluessel; })
+        .sort(function (a, b) { return a.seq - b.seq; })
+        .map(ausEintrag);
+    });
+  }
+
+  return {
+    unterstuetzt: unterstuetzt,
+    speichereVorEinreihung: speichereVorEinreihung,
+    entferneNachAntwort: entferneNachAntwort,
+    wiederherstellen: wiederherstellen,
+    raeumeAuf: raeumeAuf,
+    markiereBestaetigt: markiereBestaetigt,
+    SPEICHER_DECKEL_BYTES: SPEICHER_DECKEL_BYTES
+  };
+})();
+"""
+
+#: Der Bildschirm-Wachhalter waehrend einer Aufnahme (Karte t_e2b0e489,
+#: kein Aufnahmeverlust am Handy): ein Handy, das den Bildschirm sperrt,
+#: kann das Mikrofon drosseln oder stoppen (geraeteabhaengig). Reines
+#: Feature-Detect -- ohne ``navigator.wakeLock`` passiert nichts, keine
+#: Fehlermeldung, kein Verhaltensunterschied ausser dem fehlenden Schutz.
+#:
+#: Angefordert wird an JEDEM der vier Stellen, an denen ``_CHAT_JS`` das
+#: Mikrofon tatsaechlich bekommt (``holeStrom().then``: Interview,
+#: Hintergrund-Mithoeren, "Weiter" nach Pause, PTT); freigegeben zentral in
+#: ``gibFrei()`` -- dem EINEN Teardown-Punkt aller vier Aufnahmearten
+#: (Review-Befund 8 der urspruenglichen Aufnahme-Karte). Da hoechstens eine
+#: Aufnahme gleichzeitig laeuft (die Zustandsmaschine in ``_CHAT_JS``
+#: schliesst das aus), ist ein einzelnes ``aktiv``-Flag genug.
+_WAKELOCK_JS = """
+var Wachsperre = (function () {
+  var sperre = null;
+  var aktiv = false;
+
+  function unterstuetzt() {
+    return !!(navigator.wakeLock && navigator.wakeLock.request);
+  }
+
+  function anfordern() {
+    aktiv = true;
+    if (!unterstuetzt() || sperre) { return; }
+    navigator.wakeLock.request('screen').then(function (s) {
+      sperre = s;
+      sperre.addEventListener('release', function () { sperre = null; });
+    }).catch(function () {
+      // z.B. Tab im Hintergrund oder Berechtigung verweigert -- die
+      // Aufnahme laeuft trotzdem weiter, nur ohne den Schutz.
+    });
+  }
+
+  function freigeben() {
+    aktiv = false;
+    if (!sperre) { return; }
+    try { sperre.release(); } catch (e) { /* schon frei */ }
+    sperre = null;
+  }
+
+  // Beim Zurueckkommen aus dem Hintergrund ist die alte Sperre weg (der
+  // Browser gibt sie beim Verstecken frei) -- waehrend einer laufenden
+  // Aufnahme wird sie dann neu angefordert.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && aktiv) { anfordern(); }
+  });
+
+  return { anfordern: anfordern, freigeben: freigeben };
+})();
+"""
+
+
 #: Das Chat-JavaScript. Vanilla, kein Build, kein Framework -- wie die
 #: bestehende Seite (``_BEARBEITEN_JS``). Faellt es aus, bleibt der Verlauf
 #: lesbar (serverseitig gerendert); nur Senden und Aufnehmen gehen nicht.

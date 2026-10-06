@@ -578,6 +578,8 @@ dd.figuren { display: -webkit-box; -webkit-box-orient: vertical;
              -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 dd.figuren b { font-weight: 600; }
 dd.kurz ul.fragen li { margin: 0; }
+/* Alle Interviews, ungekappt (Birk 06.10.2026: nur 1-3 sichtbar mit line-clamp). */
+dd.interviews-voll { display: block; overflow: visible; }
 .ergebnisse { margin: 0; font-size: 1em; }
 .ergebnisse li { margin-bottom: .2em; }
 .fragen { margin: 0; padding-left: 1.1em; }

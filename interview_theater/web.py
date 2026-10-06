@@ -2637,7 +2637,10 @@ def _dashboard_inhalt_html(g: dict, en: dict | None = None, uebersetzen: bool = 
             f'<dt>{_t(dt["figuren"])}</dt><dd class="figuren">{figuren}</dd>')
     ergebnisse = _ergebnisse_html(g.get("interview_kurzformen") or [], en, uebersetzen)
     if ergebnisse:
-        teile.append(f"<dt>{_t(T._UEBERSCHRIFT_INTERVIEWS)}</dt>{kurz}{ergebnisse}</dd>")
+        # Birk 06.10.2026 14:20: nach dem Zusammenfuehren 20-37 Interviews je
+        # Gruppe -- im line-clamp von ``dd.kurz`` waren nur 1-3 sichtbar ("...").
+        # Eigene Klasse ohne Kappung, wie ``dd.fragen-voll``.
+        teile.append(f'<dt>{_t(T._UEBERSCHRIFT_INTERVIEWS)}</dt><dd class="interviews-voll">{ergebnisse}</dd>')
     for feld in ("kernthema", "hauptkonflikt", "begriffe"):
         if stand.get(feld):
             wert = _en_oder_original(en, feld, stand[feld], uebersetzen)

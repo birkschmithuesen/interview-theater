@@ -234,6 +234,11 @@ def _reset_fragenrunde(conn, chat_id: int) -> None:
     repo.setze_arbeitsstand(conn, chat_id, "fragen_warte_auf", None)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_herkunft", None)
     repo.setze_arbeitsstand(conn, chat_id, "fragen_bearbeitet", None)
+    # Karte t_269062e2, 06.10.2026: eine Uebergabe aus der CoThinker-
+    # Klickliste zeigt auf einen Index der VORIGEN Runde -- in der neuen
+    # Runde waere er bedeutungslos (dieselbe Begruendung wie bei den
+    # anderen Feldern hier).
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_handover_nummer", None)
 
 
 def biete_fragenauswahl(conn, tg, chat_id: int, wert: str,
@@ -1103,12 +1108,52 @@ def entscheide(conn, tg, klm, e, chat_id: int, nummer: int, wert: str) -> str:
     _setze_entscheidung(conn, chat_id, nummer, wert)
     _vergiss_schaerfen_warten(conn, chat_id)
     quittung = T._TEXT_FRAGE_ANGENOMMEN if wert == "ja" else T._TEXT_FRAGE_VERWORFEN
+    if _ist_handover_ziel(conn, chat_id, nummer):
+        # Direkte Uebergabe aus der CoThinker-Klickliste (Stift ✎, Karte
+        # t_269062e2, 06.10.2026): kein automatischer Sprung zur naechsten
+        # offenen Frage -- die Sortierung bleibt offen, die Gruppe entscheidet
+        # im CoThinker weiter, wann sie die naechste Frage angeht.
+        repo.setze_arbeitsstand(conn, chat_id, "fragen_handover_nummer", None)
+        tg.sende(chat_id, T._TEXT_FRAGE_ZURUECK_ZUR_LISTE)
+        return quittung
     naechste = _naechste_offene(conn, chat_id, len(fragen))
     if naechste is None:
         _schliesse_fragen_ab(conn, tg, klm, e, chat_id)
         return quittung
     _zeige_naechste(conn, tg, chat_id, naechste)
     return quittung
+
+
+def _ist_handover_ziel(conn, chat_id: int, nummer: int) -> bool:
+    """True, wenn ``nummer`` gerade per direkter Uebergabe aus der
+    CoThinker-Klickliste vorgelegt ist (``fragen_handover_nummer``)."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    try:
+        roh = ((stand["fragen_handover_nummer"] if stand else "") or "").strip()
+    except (IndexError, KeyError):
+        return False
+    return roh.isdigit() and int(roh) == nummer
+
+
+def starte_handover(conn, tg, chat_id: int, nummer: int) -> None:
+    """Direkte Uebergabe aus der CoThinker-Klickliste (Stift ✎, Padua, Karte
+    t_269062e2, 06.10.2026): zeigt Frage ``nummer`` als Karte plus die
+    Rueckfrage, was sich aendern soll -- ohne den Umweg ueber "Fertig
+    sortiert". Nur, solange die Liste ``nummer`` tatsaechlich als
+    "schaerfen" markiert hat (ein spaeter angekommener, inzwischen
+    ueberholter Tipp aendert nichts).
+
+    Der versteckte Befehl ``/schaerfen N`` (``befehle._befehl_schaerfen``)
+    ist der einzige Aufrufer; der Webserver legt ihn nur unter Padua an
+    (``workshop.diskussion_aktiv()``, derselbe Schalter wie die Klickliste
+    selbst)."""
+    fragen = _auswahlfragen(conn, chat_id)
+    entschieden = _decisions(conn, chat_id)
+    if (nummer < 1 or nummer > len(fragen)
+            or nummer > len(entschieden) or entschieden[nummer - 1] != "schaerfen"):
+        return
+    repo.setze_arbeitsstand(conn, chat_id, "fragen_handover_nummer", str(nummer))
+    _zeige_naechste(conn, tg, chat_id, nummer)
 
 
 def frage_waehlt_schaerfen(conn, tg, chat_id: int, nummer: int) -> str:

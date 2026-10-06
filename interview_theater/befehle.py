@@ -802,6 +802,18 @@ def _befehl_sortiert(conn, tg, klm, e, chat_id: int) -> None:
     fragen.sortierung_abschliessen(conn, tg, klm, e, chat_id)
 
 
+def _befehl_schaerfen(conn, tg, chat_id: int, rest: str) -> None:
+    """Direkte Uebergabe aus der CoThinker-Klickliste (Stift ✎, Padua, Karte
+    t_269062e2, 06.10.2026): zeigt die angetippte Frage sofort als Karte --
+    ohne den Umweg ueber "Fertig sortiert". **Versteckt**, wie
+    ``/phaseklick``; der Webserver legt ihn nur unter Padua an."""
+    from interview_theater.knoepfe import fragen
+
+    if not rest.strip().isdigit():
+        return
+    fragen.starte_handover(conn, tg, chat_id, int(rest))
+
+
 def _befehl_umformulieren(conn, tg, chat_id: int) -> None:
     """Startet die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026):
     fragt nach der EINEN Anweisung, die gleich alle behaltenen Fragen
@@ -1219,6 +1231,10 @@ _BEKANNTE_BEFEHLE_DE: frozenset[str] = frozenset({
     # Runde der behaltenen Fragen -- wie ``/sortiert`` der Weg eines Knopfes
     # durch die Naht, kein Befehl zum Tippen. Keine EN-Form.
     "/umformulieren",
+    # Versteckt (Karte t_269062e2, 06.10.2026): der Stift-Tipp (✎) in der
+    # CoThinker-Klickliste -- der Weg des Knopfes durch die Naht, wie
+    # ``/sortiert``/``/phaseklick``. Keine EN-Form: er wird nie getippt.
+    "/schaerfen",
 })
 
 
@@ -1340,6 +1356,8 @@ def behandle(
         _befehl_sortiert(conn, tg, klm, e, chat_id)
     elif befehl == "/umformulieren":
         _befehl_umformulieren(conn, tg, chat_id)
+    elif befehl == "/schaerfen":
+        _befehl_schaerfen(conn, tg, chat_id, rest)
     return True
 
 

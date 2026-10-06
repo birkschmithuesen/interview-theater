@@ -480,6 +480,14 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- muessten, waeren sie ein Feld -- vor dem ersten Durchgehen ist
   -- ``fragen_aktuell`` noch leer.
   fragen_warte_auf       TEXT,
+  -- Direkte Uebergabe aus der CoThinker-Klickliste (Stift ✎, Padua, Karte
+  -- t_269062e2, 06.10.2026): die Frage, deren Karte ohne den Umweg ueber
+  -- "Fertig sortiert" gezeigt wurde. NULL ausserhalb einer solchen
+  -- Uebergabe. Haengt daran, dass ``entscheide`` nach Annehmen/Verwerfen
+  -- NICHT automatisch zur naechsten offenen Frage weiterspringt, sondern
+  -- die Gruppe auf die Liste zurueckverweist. Additiv nachgeruestet ueber
+  -- _migriere_fehlende_spalten.
+  fragen_handover_nummer TEXT,
   -- Die Anzahl Szenen (Padua-Brainstorming-Umbau, 02.10.2026): ein fixes
   -- Feld von Phase 4, das die GRUPPE setzt -- der Bot fragt danach, wenn es
   -- beim Abschliessen fehlt, schlaegt selbst aber nie eine Zahl vor

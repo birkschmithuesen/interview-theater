@@ -240,6 +240,59 @@ def test_auswahl_post_schreibt_die_entscheidung(server):
     assert _eingaenge(pfad) == []
 
 
+# -- Stift ✎ uebergibt direkt in den Chat (Karte t_269062e2, 06.10.2026) -----
+
+
+def test_auswahl_post_schaerfen_legt_hidden_befehl_an_unter_padua(server, monkeypatch):
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    basis, token, pfad = server
+    status, _ = _post(f"{basis}/g/{token}/chat/auswahl",
+                      {"nonce": web.nonce(SCHLUESSEL, token), "liste": "fragen",
+                       "nummer": 2, "wert": "schaerfen"})
+    assert status == 200
+    assert _entschieden(pfad) == "ja,schaerfen,nein"
+    assert _eingaenge(pfad) == [(repo.WEB_TYP_BEFEHL, "/schaerfen 2")]
+
+
+def test_auswahl_post_schaerfen_clearing_legt_keinen_befehl_an(server, monkeypatch):
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    basis, token, pfad = server
+    _post(f"{basis}/g/{token}/chat/auswahl",
+          {"nonce": web.nonce(SCHLUESSEL, token), "liste": "fragen",
+           "nummer": 2, "wert": "schaerfen"})
+    # Zweiter Tipp auf den Stift (Rueckgaengig, wert "") -- sendet NICHTS
+    # zusaetzlich an den Chat.
+    status, _ = _post(f"{basis}/g/{token}/chat/auswahl",
+                      {"nonce": web.nonce(SCHLUESSEL, token), "liste": "fragen",
+                       "nummer": 2, "wert": ""})
+    assert status == 200
+    assert _entschieden(pfad) == "ja,,nein"
+    assert _eingaenge(pfad) == [(repo.WEB_TYP_BEFEHL, "/schaerfen 2")]
+
+
+def test_auswahl_post_schaerfen_ohne_padua_kein_befehl(server):
+    # Default-Profil im Test ist ohne diskussion.aktiv -- derselbe Schalter
+    # wie die Klickliste selbst (Dortmund/andere Profile unveraendert).
+    basis, token, pfad = server
+    status, _ = _post(f"{basis}/g/{token}/chat/auswahl",
+                      {"nonce": web.nonce(SCHLUESSEL, token), "liste": "fragen",
+                       "nummer": 2, "wert": "schaerfen"})
+    assert status == 200
+    assert _entschieden(pfad) == "ja,schaerfen,nein"
+    assert _eingaenge(pfad) == []
+
+
+def test_auswahl_post_ja_und_nein_legen_nie_einen_befehl_an(server, monkeypatch):
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    basis, token, pfad = server
+    for nummer, wert in ((1, "ja"), (3, "nein")):
+        status, _ = _post(f"{basis}/g/{token}/chat/auswahl",
+                          {"nonce": web.nonce(SCHLUESSEL, token), "liste": "fragen",
+                           "nummer": nummer, "wert": wert})
+        assert status == 200
+    assert _eingaenge(pfad) == []
+
+
 @pytest.mark.parametrize("nutzlast", [
     {"liste": "fragen", "nummer": 1, "wert": "vielleicht"},
     {"liste": "fragen", "nummer": 1, "wert": None},

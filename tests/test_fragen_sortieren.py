@@ -452,6 +452,32 @@ def test_annehmen_nach_handover_springt_nicht_automatisch_weiter(conn, tg, auftr
     assert neu == [T._TEXT_FRAGE_ZURUECK_ZUR_LISTE]
 
 
+def test_cothinker_liste_zeigt_geschaerften_text_und_ja_nach_handover(
+    conn, tg, auftraege, padua,
+):
+    """Addendum Birk 06.10.2026, 08:10: nach Uebergabe, Schaerfung und
+    Annehmen muss die CoThinker-Klickliste (``auswahl.fragen_liste``, von
+    ``web._buehne_html`` fuer das Panel gelesen) sofort den GEAENDERTEN Text
+    mit Zustand "ja" fuer N zeigen -- nicht mehr "schaerfen" und nicht mehr
+    die alte Fassung."""
+    from interview_theater import auswahl
+
+    _auswahl(conn)
+    repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,schaerfen,,,")
+    fragen.starte_handover(conn, tg, CHAT, 2)
+    assert fragen.nimm_offene_frage_text(conn, tg, None, None, CHAT, "kuerzer") is True
+    fragen.uebernimm_schaerfung(conn, tg, CHAT, "A: zwei kurz?", None)
+    fragen.entscheide(conn, tg, None, None, CHAT, 2, "ja")
+
+    stand = repo.hole_arbeitsstand(conn, CHAT)
+    liste = auswahl.fragen_liste(stand)
+    eintrag = next(
+        e for g in liste["gruppen"] for e in g["eintraege"] if e["nummer"] == 2
+    )
+    assert eintrag["text"] == "zwei kurz?"
+    assert eintrag["zustand"] == "ja"
+
+
 def test_verwerfen_nach_handover_springt_ebenfalls_nicht_weiter(conn, tg, auftraege, padua):
     _auswahl(conn)
     repo.setze_arbeitsstand(conn, CHAT, "fragen_entschieden", "ja,schaerfen,,,")

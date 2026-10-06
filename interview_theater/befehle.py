@@ -919,12 +919,21 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     naechste = phasen.naechste_moegliche(conn, chat_id)
     if naechste is None or naechste <= jetzige:
         tg.sende(chat_id, text)
-        return
-    try:
-        knoepfe.biete_phase(conn, tg, chat_id, text, naechste)
-    except Exception:
-        log.exception("Phasenknopf unter /stand fehlgeschlagen, chat_id=%s", chat_id)
-        tg.sende(chat_id, text)
+    else:
+        try:
+            knoepfe.biete_phase(conn, tg, chat_id, text, naechste)
+        except Exception:
+            log.exception("Phasenknopf unter /stand fehlgeschlagen, chat_id=%s", chat_id)
+            tg.sende(chat_id, text)
+    # Karte t_c5117c91: ab Ende Phase 3 (also sobald Phase 4 steht) bietet
+    # /stand den Research-Knopf zusaetzlich an, auf Anfrage -- eine zweite,
+    # eigene Nachricht unter dem Stand, nur mit dem Profilschalter
+    # ``recherche.aktiv``. Ersetzt nichts: der Stand-Text und ein etwaiger
+    # Phasenknopf stehen unveraendert darueber.
+    from interview_theater import workshop
+
+    if workshop.recherche_aktiv() and jetzige >= knoepfe.PHASE_SETTING:
+        knoepfe.biete_recherche(conn, tg, chat_id)
 
 
 def _befehl_wortlaut(conn, tg, chat_id: int, rest: str) -> None:

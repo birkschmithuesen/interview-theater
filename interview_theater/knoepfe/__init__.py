@@ -248,6 +248,7 @@ from interview_theater.knoepfe.szenen import (  # noqa: F401
     zeige_szenentext,
     _leiste_nach_szenentext, skript_verweis, zeige_geprueft_geschichte,
     zeige_geprueft_szene, biete_sprechweisen,
+    biete_recherche, starte_fragenvorschlag, starte_recherche_lauf,
 )
 
 #: Phase 3

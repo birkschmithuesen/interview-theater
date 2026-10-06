@@ -9,11 +9,29 @@ import time
 
 import pytest
 
-from interview_theater import db, recherche, repo
+from interview_theater import db, knoepfe, recherche, repo, schaerfung, workshop
 from interview_theater.knoepfe import szenen
 from test_erkenner import TelegramAttrappe
 
 CHAT = 1
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    monkeypatch.delenv(workshop.BASIS_VARIABLE, raising=False)
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    yield
+    workshop.vergiss()
+
+
+@pytest.fixture
+def ohne_profil(monkeypatch):
+    monkeypatch.delenv(workshop.BASIS_VARIABLE, raising=False)
+    monkeypatch.delenv(workshop.VARIABLE, raising=False)
+    workshop.vergiss()
+    yield
+    workshop.vergiss()
 
 
 @pytest.fixture
@@ -108,3 +126,32 @@ def test_starte_recherche_lauf_ohne_treffer_sagt_das(conn, monkeypatch):
 
     texte = [t for _, t in tg.gesendet]
     assert len(texte) >= 2  # "laeuft" + "nichts gefunden"
+
+
+# --- Wo der Knopf erscheint (Karte t_c5117c91) ------------------------------
+
+
+def test_phase_5_eintritt_bietet_recherche_mit_aktivem_profilschalter(conn, padua, monkeypatch):
+    """Start von Phase 5 ("frame stands"): der Research-Knopf steht unter
+    der Eintrittsnachricht, direkt neben dem automatischen Schaerfungslauf.
+    Mutant: der Knopf fehlt beim Eintritt."""
+    monkeypatch.setattr(schaerfung, "starte", lambda *a, **k: None)
+    tg = TelegramAttrappe()
+
+    knoepfe.eintritt_in_phase(conn, tg, object(), None, CHAT, knoepfe.PHASE_SCHAERFUNG)
+
+    knoepfe_texte = [text for _, text, _ in tg.mit_knoepfen]
+    assert any(knoepfe.T._TEXT_RECHERCHE_ANBIETEN == t for t in knoepfe_texte)
+
+
+def test_phase_5_eintritt_ohne_profilschalter_bietet_nichts(conn, ohne_profil, monkeypatch):
+    """Dortmund (kein Profilschalter): kein Research-Knopf beim Eintritt --
+    derselbe Eintritt wie vor dieser Karte. Mutant: der Knopf erscheint auch
+    ohne ``recherche.aktiv``."""
+    monkeypatch.setattr(schaerfung, "starte", lambda *a, **k: None)
+    tg = TelegramAttrappe()
+
+    knoepfe.eintritt_in_phase(conn, tg, object(), None, CHAT, knoepfe.PHASE_SCHAERFUNG)
+
+    knoepfe_texte = [text for _, text, _ in tg.mit_knoepfen]
+    assert knoepfe.T._TEXT_RECHERCHE_ANBIETEN not in knoepfe_texte

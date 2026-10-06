@@ -891,9 +891,22 @@ _MITGEHOERT_BRAINSTORM = "[Brainstorm]"
 #: ohne eigenen Text -- ihr Wortlaut steht im Block oben.
 _MARKE_MITGEHOERT = "{anzahl} mitgehoerte Sprachaufnahme(n), Wortlaut im Block oben"
 
-#: Obergrenze des Mitgehoert-Blocks in Zeichen (≈ ``BUDGETS["mitgehoert"]``
-#: Token): das JUENGSTE bleibt, aeltere Segmente fallen vorn weg.
-MITGEHOERT_ZEICHEN = 6000
+#: Obergrenze des Mitgehoert-Blocks in Zeichen: das JUENGSTE bleibt, aeltere
+#: Segmente fallen vorn weg. Padua 06.10.2026 (Birk 13:50): "das komplette
+#: Rohtranskript aus Phase 4 soll in Phase 5" -- 6.000 Zeichen kappten schon
+#: die Phase-1-Diskussion (gemessen 10.900-22.200 Zeichen je Gruppe), ein
+#: Brainstorm haette den Rest verdraengt. 60.000 Zeichen (~15k Token) passen
+#: ab Phase 4 locker ins Opus-Budget (``OPUS_ZEICHEN_GRENZE_VORGABE``); fuer
+#: kleinere Budgets greift weiter die Kuerzungsleiter (``_zu_lang``, aelteste
+#: Zeile zuerst). Ueber ``IT_MITGEHOERT_ZEICHEN`` ohne Neustart umstellbar.
+MITGEHOERT_ZEICHEN = 60_000
+
+
+def mitgehoert_zeichen() -> int:
+    """Die geltende Obergrenze des Mitgehoert-Blocks (Umgebung schlaegt
+    Vorgabe; liest ``MITGEHOERT_ZEICHEN`` zur Laufzeit, damit Tests es
+    weiter per monkeypatch setzen koennen)."""
+    return _aus_umgebung("IT_MITGEHOERT_ZEICHEN", MITGEHOERT_ZEICHEN, 1_000)
 
 
 def _baue_board(conn, chat_id: int) -> str:
@@ -931,9 +944,10 @@ def _baue_mitgehoert(conn, chat_id: int) -> str:
     for row in repo.mitgehoerte_transkripte(conn, chat_id):
         marke = T._MITGEHOERT_DISKUSSION if row["diskussion"] else T._MITGEHOERT_BRAINSTORM
         zeilen.append(f"{marke} {row['transkript'].strip()}")
+    grenze = mitgehoert_zeichen()
     behalten, laenge = [], 0
     for zeile in reversed(zeilen):
-        if behalten and laenge + len(zeile) + 1 > MITGEHOERT_ZEICHEN:
+        if behalten and laenge + len(zeile) + 1 > grenze:
             break
         behalten.insert(0, zeile)
         laenge += len(zeile) + 1

@@ -14,6 +14,15 @@ Schluessel. Weicht der Hash dieses Dicts vom gespeicherten ``quelle_hash``
 ab, uebersetzt EIN Modellaufruf ALLE Schluessel auf einmal und ersetzt die
 Zeile komplett -- nie Feld fuer Feld, das waere ein Aufruf je Feld.
 
+**Fragen und Begriffe je Zeile/Begriff, nicht als ein Block:** zusaetzlich zu
+``FELDER_EINFACH`` bekommt jeder Begriff (``begriff_schluessel``) und jede
+Zeile aus ``fragen``/``fragen_auswahl`` (``zeile_schluessel``, Kopf schon
+entfernt wie im Dashboard, ``auswahl.zeile_ohne_kopf``) einen eigenen,
+inhaltsbasierten Schluessel. So trifft der Cache dieselbe Frage/Ueberschrift
+wieder, auch wenn eine neue Sortierung oder A/B-Runde Reihenfolge oder Anzahl
+aendert -- die fruehere Uebersetzung von ``fragen`` als EIN Block verfiel bei
+jeder solchen Aenderung durch einen Zeilenzahl-Vergleich beim Lesen.
+
 **Alles oder nichts beim Lesen:** ``englisch()`` liefert die gecachten Werte
 nur, wenn ihr ``quelle_hash`` zur AKTUELL gespeicherten Quelle passt; sonst
 ein leeres Dict. Eine Karte mit teils frischer, teils veralteter Uebersetzung
@@ -67,10 +76,42 @@ def hauptthema_quelle(stand: dict) -> str | None:
     return None
 
 
+def zeile_schluessel(zeile: str) -> str:
+    """Der ``segmente()``-Schluessel einer rohen Fragenzeile aus ``fragen``
+    oder ``fragen_auswahl`` -- ueber den INHALT, nicht die Position, damit
+    eine neue Sortierung oder A/B-Runde (andere Reihenfolge, andere Anzahl)
+    den Cache nicht zerreisst wie die fruehere Zeilen-fuer-Zeile-Zaehlung.
+    Auch von ``web._fragen_dashboard_html`` benutzt, um denselben Schluessel
+    fuer eine Zeile zu treffen."""
+    return "q_" + hashlib.sha1(zeile.strip().encode("utf-8")).hexdigest()[:12]
+
+
+def begriff_schluessel(text: str) -> str:
+    """Der ``segmente()``-Schluessel einer Ueberschrift -- ein Begriff der
+    Gruppe ODER ein fremder Kopf (``auswahl.zeile_ohne_kopf``), den die
+    Fragengenerierung sich selbst als Zwischenthema gegeben hat. Dieselbe
+    Hash-ueber-Inhalt-Logik wie ``zeile_schluessel``."""
+    return "b_" + hashlib.sha1(text.strip().encode("utf-8")).hexdigest()[:12]
+
+
 def segmente(stand: dict, figuren: list[dict], kurzformen: list[dict]) -> dict[str, str]:
     """Alle uebersetzungspflichtigen Werte einer Gruppe als flaches Dict,
     Schluessel -> Quelltext. Leere/fehlende Felder bleiben draussen -- ein
-    leerer Schluessel waere nichts zu uebersetzen."""
+    leerer Schluessel waere nichts zu uebersetzen.
+
+    Zusaetzlich zu den Feldern aus ``FELDER_EINFACH``: je Begriff und je
+    Fragenzeile (aus ``fragen`` UND ``fragen_auswahl``, waehrend eine Gruppe
+    noch sortiert) ein eigener Schluessel (``begriff_schluessel``/
+    ``zeile_schluessel``) -- Begriff und Fragetext getrennt, mit dem Kopf
+    bereits entfernt (``auswahl.zeile_ohne_kopf``, derselbe Abgleich, den
+    das Dashboard beim Anzeigen macht). So trifft ein Hash je Zeile/Begriff
+    dieselbe Uebersetzung unabhaengig von Reihenfolge oder Anzahl -- anders
+    als die fruehere Uebersetzung von ``fragen`` als EIN Block, die bei
+    jeder Umsortierung oder A/B-Runde durch Zeilenzahl-Vergleich verfiel."""
+    from interview_theater import auswahl
+    from interview_theater import begriffe as begriffe_modul
+    from interview_theater import vorschlag
+
     stand = stand or {}
     seg: dict[str, str] = {}
     for feld in FELDER_EINFACH:
@@ -87,6 +128,20 @@ def segmente(stand: dict, figuren: list[dict], kurzformen: list[dict]) -> dict[s
     hauptthema = hauptthema_quelle(stand)
     if hauptthema:
         seg["hauptthema"] = hauptthema
+
+    begriffe_liste = begriffe_modul.zerlege(stand.get("begriffe") or "")
+    for begriff in begriffe_liste:
+        seg[begriff_schluessel(begriff)] = begriff
+    zeilen = (vorschlag.zeilen(stand.get("fragen") or "")
+              + vorschlag.zeilen(stand.get("fragen_auswahl") or ""))
+    for zeile in zeilen:
+        schluessel = zeile_schluessel(zeile)
+        if schluessel in seg:
+            continue
+        frage, fremder_kopf = auswahl.zeile_ohne_kopf(zeile, begriffe_liste)
+        seg[schluessel] = frage
+        if fremder_kopf:
+            seg.setdefault(begriff_schluessel(fremder_kopf), fremder_kopf)
     return seg
 
 

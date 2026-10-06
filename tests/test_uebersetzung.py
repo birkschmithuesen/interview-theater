@@ -50,7 +50,59 @@ def test_segmente_sammelt_alle_felder():
         "interview_0_0": "fishing at dawn", "interview_0_1": "a lost key",
         "interview_1_0": "the old bakery",
         "hauptthema": "belonging",
+        "b_2fa1981b4a9a": "bridge", "b_5c9f73af7333": "market", "b_fbec17cb2fcb": "rain",
+        "b_70f8bb9a8a53": "Home",  # fremder Kopf in "fragen", kein Begriff der Gruppe
+        "q_92b8d23bee56": "Where?",
     }
+
+
+# --- segmente(): q_/b_ Schluessel je Fragenzeile/Begriff -----------------------
+
+
+def test_segmente_q_schluessel_je_zeile_aus_fragen_und_fragen_auswahl():
+    """Beide Felder tragen bei, nicht nur ``fragen`` -- waehrend eine Gruppe
+    noch sortiert, steht die Uebersetzung in ``fragen_auswahl``."""
+    stand = {"begriffe": "Home, Work",
+              "fragen": "Home: Q1",
+              "fragen_auswahl": "Home: Q1\nWork: Q2"}
+    seg = uebersetzung.segmente(stand, [], [])
+    assert seg[uebersetzung.zeile_schluessel("Home: Q1")] == "Q1"
+    assert seg[uebersetzung.zeile_schluessel("Work: Q2")] == "Q2"
+
+
+def test_segmente_q_schluessel_dedupliziert_gleiche_zeile():
+    """Dieselbe Zeile in ``fragen`` UND ``fragen_auswahl`` (nach dem
+    Abschluss der Sortierung) erzeugt nur EINEN Schluessel."""
+    stand = {"begriffe": "Home", "fragen": "Home: Q1", "fragen_auswahl": "Home: Q1"}
+    seg = uebersetzung.segmente(stand, [], [])
+    treffer = [k for k in seg if k == uebersetzung.zeile_schluessel("Home: Q1")]
+    assert len(treffer) == 1
+
+
+def test_segmente_b_schluessel_je_begriff():
+    stand = {"begriffe": "Home, Work"}
+    seg = uebersetzung.segmente(stand, [], [])
+    assert seg[uebersetzung.begriff_schluessel("Home")] == "Home"
+    assert seg[uebersetzung.begriff_schluessel("Work")] == "Work"
+
+
+def test_segmente_fremder_kopf_bekommt_eigenen_b_schluessel():
+    """Ein Kopf, der KEIN Begriff der Gruppe ist (ein Ad-hoc-Thema der
+    Fragengenerierung, Padua G3: 'ricordi personali' o.ae.) braucht selbst
+    eine Uebersetzung -- derselbe Schluesselraum wie fuer echte Begriffe."""
+    stand = {"begriffe": "EVENTO", "fragen_auswahl": "ricordi personali: Q1"}
+    seg = uebersetzung.segmente(stand, [], [])
+    assert seg[uebersetzung.begriff_schluessel("ricordi personali")] == "ricordi personali"
+    assert seg[uebersetzung.zeile_schluessel("ricordi personali: Q1")] == "Q1"
+
+
+def test_segmente_zeile_ohne_kopf_bleibt_unveraendert():
+    """Eine Zeile ohne erkennbaren Kopf (keine Fortsetzung, kein Begriff)
+    bleibt als Ganzes der Wert -- dieselbe Zeile, die das Dashboard dann
+    unveraendert zeigt."""
+    stand = {"begriffe": "Home", "fragen_auswahl": "just a loose line"}
+    seg = uebersetzung.segmente(stand, [], [])
+    assert seg[uebersetzung.zeile_schluessel("just a loose line")] == "just a loose line"
 
 
 def test_segmente_leer_ohne_inhalt():

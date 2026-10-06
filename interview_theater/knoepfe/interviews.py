@@ -13,6 +13,7 @@ gibt es nichts aufzunehmen. Ausdrueckliches Aufnehmen bleibt in jeder Phase
 moeglich; eingeschraenkt ist nur das Angebot.
 """
 
+from interview_theater import workshop
 from interview_theater import phasen, repo, sprache
 
 from interview_theater.knoepfe.texte import (
@@ -44,6 +45,10 @@ def biete_stt_sprache(conn, tg, chat_id: int) -> bool:
 
     Kein Modellaufruf (Zusage 2). Liefert True, wenn die Leiste rausging."""
     if sprache.whisper_vorgabe() != sprache.AUTO:
+        return False
+    # Padua 06.10.2026 (Birk): keine Extra-Abfrage -- die Interviewsprache
+    # steht immer auf Auto, die Leiste bleibt aus. /language geht weiter.
+    if not workshop.aktiv().wert("sprache.whisper_wahl_anbieten", True):
         return False
     leiste = [
         (beschriftung, _daten(repo.lege_knopf_an(conn, chat_id, ART_STT_SPRACHE, wert)))

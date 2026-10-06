@@ -900,6 +900,11 @@ _TEXT_FRAGE_GESCHAERFT = "Frage ueberarbeitet"
 _TEXT_FRAGE_ANGENOMMEN = "✓ Angenommen"
 _TEXT_FRAGE_VERWORFEN = "✗ Verworfen"
 _TEXT_FRAGE_ENTSCHIEDEN = "Notiert"
+#: Nach einer direkten Uebergabe aus der CoThinker-Klickliste (Stift ✎,
+#: Padua, Karte t_269062e2, 06.10.2026): Annehmen/Verwerfen springt dort
+#: NICHT automatisch zur naechsten offenen Frage weiter (die Sortierung
+#: bleibt offen) -- diese Zeile verweist stattdessen zurueck.
+_TEXT_FRAGE_ZURUECK_ZUR_LISTE = "Zurück zur Liste: CoThinker-Tab"
 
 # --- Eigene Fragen vs. KI (Padua Phase 1+2 Karte, Aufgabe 13, 03.10.2026) --
 #

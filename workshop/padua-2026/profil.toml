@@ -36,6 +36,9 @@ anrede = "you"
 # Gruppe kann per Knopf in Phase 3 oder /language umstellen. Unbestaetigt,
 # siehe LIESMICH.md (Annahme A1, Rauchtest Aufgabe 9 offen).
 whisper = "auto"
+# Padua 06.10.2026 (Birk): keine Sprachabfrage beim Eintritt in Phase 3 --
+# Whisper erkennt die Sprache immer selbst. /language bleibt als Notweg.
+whisper_wahl_anbieten = false
 
 [datenschutz]
 # E8: der Bot spricht nie mit Vornamen an; im Prompt stehen "Member 1, 2, ...".

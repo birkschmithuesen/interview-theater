@@ -48,6 +48,26 @@ def _fremder_kopf(zeile: str) -> tuple[str, str] | None:
     return kopf.strip(" *_"), rest.lstrip(" *_").strip()
 
 
+def zeile_ohne_kopf(zeile: str, begriffe: list[str]) -> tuple[str, str | None]:
+    """(Frage ohne Begriffskopf, fremder Kopf oder ``None``) -- der
+    zustandslose Teil von ``_cluster``s Kopf/Text-Trennung (ohne die
+    Fortsetzungszeilen-/Zwischenueberschrift-Logik, die nur die GRUPPIERUNG
+    betrifft, nicht den TEXT selbst). Oeffentlich fuer
+    ``uebersetzung.segmente``: ein Hash je roher Zeile dort soll dieselbe
+    Frage treffen, die das Dashboard am Ende zeigt. Der fremde Kopf kommt
+    zweitens zurueck, wenn er KEIN Begriff der Gruppe ist (ein Ad-hoc-Thema
+    der Fragengenerierung) -- er braucht dann selbst eine Uebersetzung."""
+    from interview_theater.knoepfe.fragen import _teile_zeile
+
+    begriff, frage = _teile_zeile(zeile, begriffe)
+    if begriff is not None and frage:
+        return frage, None
+    fremd = _fremder_kopf(zeile)
+    if fremd is not None and fremd[1]:
+        return fremd[1], fremd[0]
+    return zeile, None
+
+
 def sortierung_offen(stand: Mapping | None) -> bool:
     """Die EINE Regel, ob die Gruppe gerade sortiert (Fix 05.10.2026): offen
     heisst ``fragen_entschieden IS NOT NULL`` (auch "" oder ",,") ODER
@@ -178,7 +198,8 @@ def dashboard_fragen(stand: Mapping | None) -> dict | None:
             if zustand != "ja":
                 continue
             h = herkunft[i].strip() if i < len(herkunft) else ""
-            eintraege.append({"text": zeile, "herkunft": h if h in _HERKUENFTE else ""})
+            eintraege.append({"text": zeile, "roh": zeile,
+                               "herkunft": h if h in _HERKUENFTE else ""})
         for n, eintrag in enumerate(eintraege, start=1):
             eintrag["nummer"] = n
         if not eintraege and vorschlag.zeilen(_feld(stand, "fragen")):
@@ -215,7 +236,7 @@ def _geschlossene_liste(stand, begriffe) -> dict | None:
     eintraege = []
     for n, zeile in enumerate(zeilen, start=1):
         h = herkunft_final[n - 1].strip() if n - 1 < len(herkunft_final) else ""
-        eintraege.append({"nummer": n, "text": zeile,
+        eintraege.append({"nummer": n, "text": zeile, "roh": zeile,
                            "herkunft": h if h in _HERKUENFTE else ""})
     return {"offen": False, "kept": len(eintraege),
             "gruppen": _cluster(eintraege, begriffe)}

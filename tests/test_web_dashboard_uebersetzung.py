@@ -51,6 +51,12 @@ def _mit_cache() -> dict:
             "interview_0_0": "EN fishing at dawn",
             "interview_0_1": "EN a lost key",
             "interview_1_0": "EN the old bakery",
+            uebersetzung.begriff_schluessel("Home"): "EN Home",
+            uebersetzung.begriff_schluessel("Work"): "EN Work",
+            uebersetzung.zeile_schluessel("Home: Where do you feel at home?"):
+                "EN where do you feel at home?",
+            uebersetzung.zeile_schluessel("Work: What do you do all day?"):
+                "EN what do you do all day?",
         },
     }
     return daten
@@ -94,6 +100,72 @@ def test_zeigt_englische_fragen_aus_dem_cache(padua):
     assert "EN what do you do all day?" in erste
     assert "Where do you feel at home?" not in erste
     assert "What do you do all day?" not in erste
+
+
+def test_zeigt_englische_ueberschriften_aus_dem_cache(padua):
+    """``Home``/``Work`` in dieser Gruppe sind FREMDE Koepfe -- keine
+    ``begriffe`` der Gruppe (das sind bridge/market/rain) -- und brauchen
+    trotzdem eine Uebersetzung, genau wie ein echter Begriff."""
+    erste = _karten(web.dashboard_html(_mit_cache()))[0]
+    assert '<h4 class="fragen-begriff">EN Home</h4>' in erste
+    assert '<h4 class="fragen-begriff">EN Work</h4>' in erste
+
+
+def test_zeigt_englische_vorher_liste_aus_dem_cache(padua):
+    """Sortierung offen, noch kein Haken -> 'vorher' (bisherige Liste aus
+    ``fragen``, s. ``test_web_dashboard_fragen``); auch dort kommt die
+    Uebersetzung aus denselben q_/b_-Schluesseln wie bei der offenen und
+    der geschlossenen Liste."""
+    stand = {
+        "begriffe": "Home, Work",
+        "fragen": "Home: A\nWork: B",
+        "fragen_herkunft_final": "eigen,ki",
+        "fragen_auswahl": "Home: A\nWork: B\nHome: C",
+        "fragen_herkunft": "eigen,ki,eigen",
+        "fragen_entschieden": ",,,",
+    }
+    g = {"arbeitsstand": stand}
+    en = {
+        uebersetzung.begriff_schluessel("Home"): "EN Home",
+        uebersetzung.begriff_schluessel("Work"): "EN Work",
+        uebersetzung.zeile_schluessel("Home: A"): "EN A",
+        uebersetzung.zeile_schluessel("Work: B"): "EN B",
+    }
+    html = web._fragen_dashboard_html(g, en, True)
+    assert '<h4 class="fragen-begriff">EN Home</h4>' in html
+    assert '<h4 class="fragen-begriff">EN Work</h4>' in html
+    assert ">EN A<" in html
+    assert ">EN B<" in html
+    assert "ux-ausstehend" not in html
+
+
+def test_frage_text_hasht_die_rohe_zeile_nicht_den_gestutzten_text(padua):
+    """Mutationswaechter: haengt ``_frage_text`` den q_-Schluessel an
+    ``eintrag["text"]`` (den schon kopf-gestutzten Wert, z.B. ``"A"``) statt
+    an ``eintrag["roh"]`` (die urspruengliche Zeile, ``"Home: A"``), trifft
+    der Cache nie -- jede Frage mit einem erkannten Kopf bliebe dauerhaft
+    'ausstehend', obwohl ``segmente()`` genau ueber die rohe Zeile hasht."""
+    stand = {"begriffe": "Home", "fragen": "Home: A", "fragen_herkunft_final": "eigen"}
+    g = {"arbeitsstand": stand}
+    en = {uebersetzung.zeile_schluessel("Home: A"): "EN A",
+          uebersetzung.begriff_schluessel("Home"): "EN Home"}
+    html = web._fragen_dashboard_html(g, en, True)
+    assert ">EN A<" in html
+    assert "ux-ausstehend" not in html
+
+
+def test_ohne_q_schluessel_bleibt_fragetext_dezent_markiert(padua):
+    """Fehlt der q_-Schluessel einer Zeile im Cache (z.B. weil die Gruppe
+    seit der letzten Uebersetzung eine Frage geaendert hat), bleibt genau
+    DIESE Zeile ausstehend -- der Rest der Karte bleibt uebersetzt."""
+    daten = _mit_cache()
+    gruppe = daten["gruppen"][0]
+    del gruppe["uebersetzung"]["felder"][
+        uebersetzung.zeile_schluessel("Home: Where do you feel at home?")
+    ]
+    erste = _karten(web.dashboard_html(daten))[0]
+    assert '<span class="ux-ausstehend">Where do you feel at home?</span>' in erste
+    assert "EN what do you do all day?" in erste
 
 
 # --- Fallback: Original dezent markiert, solange der Cache fehlt -------------

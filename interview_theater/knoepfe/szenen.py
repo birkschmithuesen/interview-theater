@@ -1159,7 +1159,12 @@ def zeige_szenentext(conn, tg, chat_id: int, nummer: int) -> str:
     if ziel is None:
         tg.sende(chat_id, T._TEXT_SZENE_UNBEKANNT)
         return T._TEXT_SZENE_UNBEKANNT
-    volltext = (ziel["volltext"] or "").strip()
+    from interview_theater import szene as szene_modul
+
+    # Bis Phase 6 steht der Text in ``prosa`` (P57 Lauf 3 A2), danach in
+    # ``volltext``.
+    volltext = ((ziel["volltext"] or "").strip()
+                or szene_modul.prosa_von(ziel))
     if not volltext:
         tg.sende(chat_id, T._TEXT_SZENE_OHNE_TEXT.format(nummer=nummer))
         return T._TEXT_SZENE_OHNE_TEXT.format(nummer=nummer)

@@ -528,6 +528,7 @@ def lege_aufnahme_an(
     rede_ms: int | None = None,
     kalibrierung: bool = False,
     weich_ms: int | None = None,
+    hintergrund_ms: int | None = None,
 ) -> int:
     """Legt eine Aufnahme (Sprache oder Textimport) an.
 
@@ -550,7 +551,12 @@ def lege_aufnahme_an(
     unabhaengig vom Modus ``klasse='kurz'``/``teil_von=None``, hier nur
     durchgereicht wie jedes andere Flag. ``weich_ms`` (Padua VAD: weicher
     Schnitt, 05.10.2026) ebenso -- dieselbe additive Durchreiche wie
-    ``rede_ms``, nur bei ``schnittgrund='weich'`` gesetzt.
+    ``rede_ms``, nur bei ``schnittgrund='weich'`` gesetzt. ``hintergrund_ms``
+    (Karte t_1423ca89, Warnung "Aufnahme im Hintergrund unterbrochen"): wie
+    viele Millisekunden die Seite waehrend dieses Teils im Hintergrund war,
+    vom Client gemessen -- rein diagnostisch wie ``rede_ms``, geht in
+    ``aufnahme._pruefe_hintergrund_unterbrechung`` ein, wenn vorhanden (exakt
+    statt geschaetzt).
 
     Startstatus 'empfangen', beim Interview-Kopf 'laeuft'; der Aufrufer
     entscheidet ueber weitere Statusuebergaenge."""
@@ -560,12 +566,14 @@ def lege_aufnahme_an(
         INSERT INTO aufnahme
             (chat_id, message_id, name, klasse, quelle, audio_pfad,
              dauer_sekunden, status, empfangen_am, teil_von, schnittgrund,
-             brainstorm, diskussion, rede_ms, kalibrierung, weich_ms)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             brainstorm, diskussion, rede_ms, kalibrierung, weich_ms,
+             hintergrund_ms)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (chat_id, message_id, name, klasse, quelle, audio_pfad, dauer, status,
          _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0,
-         1 if diskussion else 0, rede_ms, 1 if kalibrierung else 0, weich_ms),
+         1 if diskussion else 0, rede_ms, 1 if kalibrierung else 0, weich_ms,
+         hintergrund_ms),
     )
     conn.commit()
     return cur.lastrowid
@@ -4739,7 +4747,7 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
                      datei=None, mime=None, dateiname=None,
                      schnittgrund=None, brainstorm=False, diskussion=False,
                      bild=None, rede_ms=None, kalibrierung=False,
-                     weich_ms=None) -> int:
+                     weich_ms=None, hintergrund_ms=None) -> int:
     """Legt eine Zeile in ``web_post`` an und liefert ihre id.
 
     Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
@@ -4753,20 +4761,23 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
     weicher Schnitt, 05.10.2026, nur bei ``schnittgrund='weich'`` gesetzt)
     sind ebenso nur bei ``typ='sprache'`` gesetzt und wandern genauso durch.
     ``bild`` (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
-    Telefon-Organisationskarte unter ``interview_theater/static/handys/``."""
+    Telefon-Organisationskarte unter ``interview_theater/static/handys/``.
+    ``hintergrund_ms`` (Karte t_1423ca89) ist dieselbe additive Durchreiche
+    wie ``rede_ms``/``weich_ms`` -- die vom Client gemessene Hintergrundzeit
+    dieses Segments, bis in die ``aufnahme``-Zeile."""
     cur = conn.execute(
         "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
         "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am, "
         "schnittgrund, brainstorm, diskussion, bild, rede_ms, kalibrierung, "
-        "weich_ms) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "weich_ms, hintergrund_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             chat_id, richtung, typ, text,
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
             daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
             schnittgrund, 1 if brainstorm else 0, 1 if diskussion else 0, bild,
-            rede_ms, 1 if kalibrierung else 0, weich_ms,
+            rede_ms, 1 if kalibrierung else 0, weich_ms, hintergrund_ms,
         ),
     )
     conn.commit()

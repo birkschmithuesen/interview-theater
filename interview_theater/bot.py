@@ -42,12 +42,16 @@ NACHTSTAU_MINUTEN = 15
 #: Hinweis, dass er wieder da ist, ohne die volle Erstkontakt-Begruessung zu
 #: wiederholen.
 #:
-#: 30 Minuten seit dem 06.09.2026 (Birk, nach der Testgruppe): mit zwei
-#: Stunden schickte der Bot die Zeile am Testabend zweimal in eine Gruppe,
-#: die laengst weiterarbeitete -- und beide Male wortgleich. Eine halbe
-#: Stunde ist die Pause, nach der eine Gruppe tatsaechlich nicht mehr weiss,
-#: ob der Bot noch zuhoert; alles darunter ist eine Unterbrechung.
-PAUSE_GRENZE_MINUTEN = 30
+#: 240 Minuten (4 Stunden) seit dem 06.10.2026 (Birk, nach dem Journal-Befund
+#: aus dem Padua-Dauerbetrieb): im Dauerbetrieb eines mehrtaegigen Workshops
+#: starten Hotfix-Rollouts den Bot alle 25-90 Minuten neu (gemessener
+#: kuerzester Abstand: 25 Min) -- ganz ohne Absturz, einfach geplante
+#: `systemctl restart`. Mit der fruehren 30-Minuten-Schwelle (06.09.2026,
+#: Testgruppe) loeste praktisch jeder dieser Neustarts die Wiederkehr-Zeile
+#: in einer Gruppe aus, die laengst weiterarbeitete. Vier Stunden liegen klar
+#: ueber jedem gemessenen Neustart-Abstand und klar unter einer echten
+#: Werkstattpause (eine Nacht dauert typischerweise 8+ Stunden).
+PAUSE_GRENZE_MINUTEN = 240
 
 
 def ist_nachtstau(gesendet_am: str, jetzt: datetime) -> bool:

@@ -181,8 +181,23 @@ def dashboard_fragen(stand: Mapping | None) -> dict | None:
             eintraege.append({"text": zeile, "herkunft": h if h in _HERKUENFTE else ""})
         for n, eintrag in enumerate(eintraege, start=1):
             eintrag["nummer"] = n
+        if not eintraege and vorschlag.zeilen(_feld(stand, "fragen")):
+            # Padua 06.10.2026 (Birk): eine Gruppe, die neu sortiert und noch
+            # nichts behalten hat, zeigte im Regie-Dashboard GAR NICHTS --
+            # bis zum ersten Haken steht die bisherige Liste da, markiert.
+            vorher = _geschlossene_liste(stand, begriffe)
+            if vorher:
+                vorher.update({"offen": True, "kept": 0, "vorher": True})
+                return vorher
         return {"offen": True, "kept": len(eintraege),
                 "gruppen": _cluster(eintraege, begriffe)}
+
+    return _geschlossene_liste(stand, begriffe)
+
+
+def _geschlossene_liste(stand, begriffe) -> dict | None:
+    """Die endgueltige Liste ``fragen``, 1..n, mit Herkunft (s. ``dashboard_fragen``)."""
+    from interview_theater import vorschlag
 
     zeilen = vorschlag.zeilen(_feld(stand, "fragen"))
     if not zeilen:

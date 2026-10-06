@@ -1279,6 +1279,7 @@ def _fragen_html(fragen: str | None) -> str:
 #: im Regie-Dashboard, waehrend eine Gruppe noch sortiert
 #: (``auswahl.dashboard_fragen``, ``offen=True``).
 _TEXT_FRAGEN_DASHBOARD_FORTSCHRITT = "Sortierung läuft · {kept} schon behalten"
+_TEXT_FRAGEN_DASHBOARD_VORHER = "Sortierung läuft · noch nichts behalten – oben die bisherige Liste"
 
 
 def _fragen_dashboard_html(g: dict, en: dict, uebersetzen: bool) -> str:
@@ -1349,9 +1350,10 @@ def _fragen_dashboard_html(g: dict, en: dict, uebersetzen: bool) -> str:
                 f'<li value="{eintrag["nummer"]}">{_frage_text(eintrag)}{marke_html}</li>'
             )
         teile.append(f'<ol class="fragen-gruppe">{"".join(zeilen)}</ol>')
+    fortschritt_text = (T._TEXT_FRAGEN_DASHBOARD_VORHER if fd.get("vorher")
+                        else T._TEXT_FRAGEN_DASHBOARD_FORTSCHRITT.format(kept=fd["kept"]))
     fortschritt = (
-        f'<p class="fragen-fortschritt">'
-        f'{_t(T._TEXT_FRAGEN_DASHBOARD_FORTSCHRITT.format(kept=fd["kept"]))}</p>'
+        f'<p class="fragen-fortschritt">{_t(fortschritt_text)}</p>'
         if fd["offen"] else ""
     )
     return f'<dd class="fragen-voll">{"".join(teile)}{fortschritt}</dd>'

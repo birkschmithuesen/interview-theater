@@ -1766,6 +1766,7 @@ _UEBERSCHRIFT_TICKER = "Director's ticker"
 _TEXT_TICKER_AUS = "Ticker off."
 _TEXT_TICKER_LEER = "No entries yet."
 _TEXT_FRAGEN_DASHBOARD_FORTSCHRITT = "Sorting in progress · {kept} kept so far"
+_TEXT_FRAGEN_DASHBOARD_VORHER = "Sorting in progress · nothing kept yet – above: the previous list"
 
 ["web".ARBEITSSTAND_BESCHRIFTUNG]
 phase = "Phase"

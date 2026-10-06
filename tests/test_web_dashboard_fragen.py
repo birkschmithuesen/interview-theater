@@ -132,6 +132,29 @@ def test_offen_nur_ja_zeilen_numeriert_1_bis_k():
     assert herkunft == {1: "eigen", 2: "eigen"}
 
 
+def test_offen_ohne_ja_aber_mit_bisheriger_liste_zeigt_die_bisherige():
+    """Padua 06.10. (Birk: 'Auflistung nur bei Gruppe 3'): G1/G2 sortierten neu,
+    noch kein Haken -> Dashboard war leer. Mutant: Rueckfall entfernt -> rot."""
+    stand = _stand(begriffe="Home, Work", fragen="Home: A\nWork: B\nHome: C",
+                   fragen_herkunft_final="eigen,ki,eigen",
+                   fragen_auswahl="Home: A\nWork: B\nHome: C\nWork: D",
+                   fragen_herkunft="eigen,ki,eigen,ki", fragen_entschieden=",,,")
+    fd = auswahl.dashboard_fragen(stand)
+    assert fd["offen"] is True and fd["kept"] == 0 and fd.get("vorher") is True
+    nummern = [e["nummer"] for g in fd["gruppen"] for e in g["eintraege"]]
+    assert sorted(nummern) == [1, 2, 3]
+
+
+def test_html_offen_ohne_ja_zeigt_bisherige_liste_mit_hinweis(monkeypatch):
+    karte = _karte_mit(
+        monkeypatch, begriffe="Home, Work", fragen="Home: A\nWork: B",
+        fragen_herkunft_final="eigen,ki", fragen_auswahl="Home: A\nWork: B\nHome: C",
+        fragen_herkunft="eigen,ki,eigen", fragen_entschieden="nein,,",
+    )
+    assert karte.count("<li value=") == 2
+    assert "previous list" in karte or "bisherige Liste" in karte
+
+
 def test_offen_ohne_eine_einzige_ja_zeile_ist_leer_aber_kein_none():
     stand = _stand(begriffe="Home", fragen_auswahl="Home: Q1", fragen_entschieden="nein")
     assert auswahl.dashboard_fragen(stand) == {"offen": True, "kept": 0, "gruppen": []}

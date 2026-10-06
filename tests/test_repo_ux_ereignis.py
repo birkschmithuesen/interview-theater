@@ -297,3 +297,22 @@ def test_hole_ux_ereignisse_ist_je_gruppe_getrennt(conn):
     ])
     assert len(repo.hole_ux_ereignisse(conn, CHAT)) == 1
     assert len(repo.hole_ux_ereignisse(conn, andere)) == 1
+
+
+# -- web_post_fuer_auswertung -------------------------------------------------
+
+
+def test_web_post_fuer_auswertung_liefert_richtung_typ_und_zeit_chronologisch(conn):
+    repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_EIN, "text", text="Hallo")
+    repo.lege_web_post_an(conn, CHAT, "aus", "text", text="Antwort vom Bot")
+    zeilen = repo.web_post_fuer_auswertung(conn, CHAT)
+    assert [(z["richtung"], z["typ"]) for z in zeilen] == [("ein", "text"), ("aus", "text")]
+    assert all("text" not in z for z in zeilen)  # nie der Nachrichtentext
+
+
+def test_web_post_fuer_auswertung_laesst_geloeschte_zeilen_weg(conn):
+    message_id = repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_EIN, "text", text="Hallo")
+    conn.execute("UPDATE web_post SET geloescht_am = ? WHERE id = ?",
+                 (repo._jetzt(), message_id))
+    conn.commit()
+    assert repo.web_post_fuer_auswertung(conn, CHAT) == []

@@ -5366,3 +5366,30 @@ def hole_ux_ereignisse(
         eintrag["extra"] = json.loads(roh) if roh else {}
         ergebnis.append(eintrag)
     return ergebnis
+
+
+@_gesperrt
+def web_post_fuer_auswertung(
+    conn: sqlite3.Connection, chat_id: int,
+    seit: str | None = None, bis: str | None = None,
+) -> list[dict]:
+    """``id``/``richtung``/``typ``/``erstellt_am`` jeder nicht geloeschten
+    ``web_post``-Zeile einer Gruppe, chronologisch -- fuer
+    ``scripts/ux_auswertung.py`` (z. B. die Zeit von einer Bot-Frage zur
+    Antwort der Gruppe). **Kein Nachrichtentext**: die Auswertung zaehlt nur
+    Zeitpunkte und Richtung, nie Inhalt (dieselbe Grenze wie das Dashboard,
+    docs/agents/weboberflaeche.md)."""
+    bedingungen = ["chat_id = ?", "geloescht_am IS NULL"]
+    parameter: list = [chat_id]
+    if seit:
+        bedingungen.append("erstellt_am >= ?")
+        parameter.append(seit)
+    if bis:
+        bedingungen.append("erstellt_am < ?")
+        parameter.append(bis)
+    zeilen = conn.execute(
+        f"SELECT id, richtung, typ, erstellt_am FROM web_post "
+        f"WHERE {' AND '.join(bedingungen)} ORDER BY id",
+        parameter,
+    ).fetchall()
+    return [dict(z) for z in zeilen]

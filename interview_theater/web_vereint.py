@@ -1495,14 +1495,17 @@ _VEREINT_JS = """
   function ladeTextbuch() {
     var panel = document.getElementById('tab-textbuch');
     if (!panel || panel.hidden || document.hidden) { return; }
-    if (textbuchLetzter === null) { textbuchLetzter = panel.innerHTML; }
     fetch(BASIS_TEIL + 'textbuch', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.text() : null; })
       .then(function (text) {
         if (!text) { return; }
         var doc = new DOMParser().parseFromString(text, 'text/html');
         var neu = doc.body ? doc.body.innerHTML : null;
-        if (!neu || neu === textbuchLetzter || panel.hidden) { return; }
+        if (!neu || panel.hidden) { return; }
+        // Erster Abruf: nur merken (panel.innerHTML ist vom Browser
+        // umserialisiert und wuerde nie gleich sein).
+        if (textbuchLetzter === null) { textbuchLetzter = neu; return; }
+        if (neu === textbuchLetzter) { return; }
         var y = panel.scrollTop;
         panel.innerHTML = neu;
         textbuchLetzter = neu;

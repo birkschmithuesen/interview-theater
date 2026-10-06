@@ -76,3 +76,9 @@ def test_platzhalter_nicht_ueber_vorhandener_prosa(aufbau):
     _status, text = _hole(f"{basis}/g/{token}/{web_vereint.TEIL_PFAD}/textbuch")
     assert "Der Zug fuhr ohne sie ab." in text
     assert 'class="offen"' not in text
+
+
+def test_textbuch_merker_kommt_vom_ersten_abruf_nicht_vom_dom():
+    js = web_vereint._VEREINT_JS
+    assert "textbuchLetzter = panel.innerHTML" not in js
+    assert "if (textbuchLetzter === null) { textbuchLetzter = neu; return; }" in js

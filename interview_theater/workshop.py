@@ -237,11 +237,17 @@ VORGABE_WERTE: dict[str, Any] = {
     # Statusansicht (``web.werkbank_koerper``), Aenderungen gehen dann nur
     # ueber den Chat, und der Werkbank-POST antwortet 403. An ist die Zusage
     # an Dortmund: Seite und Endpunkt bleiben byte-gleich.
+    # ``dashboard_uebersetzen_en`` (Karte t_f7770dc4, Padua): die Werte der
+    # Gruppenfelder zusaetzlich auf Englisch, aus einem Cache
+    # (``uebersetzung.py``) statt eines Modellaufrufs im Web-Request-Pfad.
+    # Aus heisst auch hier: byte-gleich wie vorher -- kein Cache-Zugriff,
+    # keine Zeile in ``_dashboard_inhalt_html`` aendert sich.
     "web": {
         "dashboard_log_einklappen": False,
         "dashboard_gestaltet": False,
         "workbench_bearbeitbar": True,
         "phasennav_stepper": False,
+        "dashboard_uebersetzen_en": False,
     },
 }
 

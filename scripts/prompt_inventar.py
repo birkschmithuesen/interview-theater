@@ -225,6 +225,19 @@ INVENTAR = (
     Eintrag("41-dramaturgie-c1", "dramaturgie_c1", 7,
             "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
             grund="Wie 36, Frage c1 (frage_c1)."),
+    # --- Regie-Dashboard (Karte t_f7770dc4): die englische Uebersetzung der
+    # Gruppenfelder, ausserhalb des Web-Request-Pfads im Bot-Prozess
+    # (bot._uebersetzungs_schleife -> uebersetzung.aktualisiere_fuer_bot).
+    # Laeuft live in Padua (Profilschalter [web] dashboard_uebersetzen_en),
+    # deshalb ein normaler Eintrag, keine Ausnahme. Phase 4 ist eine
+    # Einordnung, keine Schranke: der periodische Lauf uebersetzt, was an
+    # Arbeitsstand/Figuren/Interviews gerade steht, unabhaengig von der
+    # aktuellen Phase der Gruppe (wie 12-journal/17-buehnenkarte) -- bewusst
+    # NICHT Phase 1/2, weil scripts/erzeuge_prompts_padua_voll.py (Karte
+    # t_bf16f3a7) fuer genau diese beiden Phasen einen Treiber verlangt und
+    # sich bewusst auf seine fuenf bestehenden Dumps beschraenkt.
+    Eintrag("42-uebersetzung", "uebersetzung", 4,
+            "interview_theater.uebersetzung", "ART"),
 )
 
 #: Aufrufstellen, die in Padua NICHT live sind -- mit Grund, nicht nur mit

@@ -170,6 +170,11 @@ workbench_bearbeitbar = false
 # nur fuer Padua -- Dortmund bleibt bei der alten Logik (Profilschalter,
 # Vorgabe false in workshop.VORGABE_WERTE).
 phasennav_stepper = true
+# Englische Uebersetzung aller Gruppenfelder und des Hauptthemas als
+# Kartenueberschrift (Karte t_f7770dc4, 05.10.2026): aus einem Cache
+# (uebersetzung.py), nie einem Modellaufruf im Web-Request-Pfad. Ohne diese
+# Zeile (Dortmund) bleibt das Dashboard byte-gleich.
+dashboard_uebersetzen_en = true
 
 # Die zweistufige Phase 5 (Padua Phasen TEIL 1, 03.10.2026): erst eine
 # Uebersicht abnehmen, dann Szene fuer Szene Prosa schreiben, am Ende

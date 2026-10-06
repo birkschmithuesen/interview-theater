@@ -1161,7 +1161,17 @@ def test_botattrappe_ignoriert_fremde_befehle(bot):
     Der echte Bot (``befehle.behandle``) kennt ``/start`` als eigenen Befehl
     und ruehrt den Interviewmodus dabei nicht an; die Attrappe muss das
     nachbilden: nur ``/interview``/``/fertig`` duerfen den Modus beruehren,
-    alles andere wird ignoriert (aber als abgearbeitet markiert)."""
+    alles andere wird ignoriert (aber als abgearbeitet markiert).
+
+    Rebase-Fix: ``bot`` ist modulweit derselbe Thread -- ein Befehl des
+    VORIGEN Tests (z.B. das "/fertig" von ``test_gehaltener_ptt_...``), der
+    beim Einfrieren noch unverarbeitet war, wuerde sonst NACH unserem
+    "/start" nachgezogen und entschiede statt ihm ueber den Modus. Erst
+    abwarten, bis die Attrappe (noch aktiv) jeden Altbestand abgearbeitet
+    hat, dann einfrieren."""
+    ende = time.time() + 2
+    while bot.offen() and time.time() < ende:
+        time.sleep(0.02)
     bot.aktiv = False
     conn = db.verbinde(DB_PFAD)
     try:

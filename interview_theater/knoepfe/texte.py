@@ -385,7 +385,11 @@ _TEXT_ANDERS = "Vorerst gespeichert. Was soll anders sein?"
 _TEXT_EIGENE = "Erzaehlt - ich baue es ein."
 #: Nach einem "Gefaellt uns, weiter": bestaetigen, dann die eine Frage, die
 #: den Zwischenraum offenhaelt, bevor der Phasenknopf kommt.
-_TEXT_NACH_SPEICHERN_FRAGE = "Wollt ihr noch etwas hinzufuegen, bevor es weitergeht?"
+#: Karte t_c5d68218 (06.10.2026): eine Bestaetigungsfrage statt der
+#: Aufforderung, noch etwas hinzuzufuegen -- der optionale, modellgestuetzte
+#: Zusatz (Vorschlag/Rueckfrage) kommt, wenn ueberhaupt, als eigene
+#: Nachricht danach (``nachspeichern.starte``), nie an dieser Stelle erzwungen.
+_TEXT_NACH_SPEICHERN_FRAGE = "Passt das so fuer euch?"
 _TEXT_AUSWERTEN_ALLE_KNOPF = "Alle auswerten"
 _TEXT_AUSWERTEN_ALLE_LAEUFT = "Ich werte die offenen Interviews aus."
 _TEXT_AUSWERTEN_ALLE_NICHTS = "Es ist nichts mehr offen."

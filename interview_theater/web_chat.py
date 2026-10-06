@@ -5016,6 +5016,7 @@ _POSTWEGE = {
     "start": _start,
     "auswahl": _auswahl,
     "auswahl_fertig": _auswahl_fertig,
+    "umformulieren": _umformulieren,
 }
 
 

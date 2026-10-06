@@ -1818,6 +1818,22 @@ _AUSWAHL_JS = """
           }
         })
         .catch(function () { fertig.disabled = false; zeigeFehler(); });
+      return;
+    }
+    var umform = ziel.closest('.umformulieren-knopf');
+    if (umform) {
+      ev.preventDefault();
+      if (umform.disabled) { return; }
+      umform.disabled = true;
+      sende('chat/umformulieren', {})
+        .then(function (r) {
+          umform.disabled = false;
+          if (!r.ok) { zeigeFehler(); return; }
+          if (document.querySelector('.tabs button[data-tab="chat"]')) {
+            location.hash = '#chat';
+          }
+        })
+        .catch(function () { umform.disabled = false; zeigeFehler(); });
     }
   });
 })();

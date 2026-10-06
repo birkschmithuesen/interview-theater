@@ -1235,3 +1235,51 @@ def test_usa_knopf_startet_den_wartenden_szenenauftrag(conn, einst, tg, monkeypa
 
     assert gestartet == ["Szene 1 schreiben"]
     assert repo.hole_und_loesche_offenen_szenenauftrag(conn, 1) is None
+
+
+# ---------------------------------------------------------------------------
+# _sende_knoepfe rendert freie Modellantworten standardmaessig als Markdown
+# (Karte t_cc147548) -- ausser ein Aufrufer bringt sein eigenes parse_mode
+# mit (vorschlag.menuetext, bereits fertiges Telegram-HTML).
+# ---------------------------------------------------------------------------
+
+
+class TelegramKwArgs(TelegramAttrappe):
+    """Zeichnet zusaetzlich die Schluesselwortargumente jedes Sendevorgangs
+    auf -- fuer Tests, die pruefen, OB ``markdown``/``parse_mode`` gesetzt
+    wurde, nicht nur WAS im Text steht."""
+
+    def __init__(self):
+        super().__init__()
+        self.kwargs = []
+
+    def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **kw):
+        self.kwargs.append(kw)
+        return super().sende_mit_knoepfen(chat_id, text, knoepfe_, **kw)
+
+
+def test_sende_knoepfe_rendert_freie_antworten_standardmaessig_als_markdown(conn):
+    from interview_theater.knoepfe import basis
+
+    tg = TelegramKwArgs()
+    basis._sende_knoepfe(conn, tg, 1, "**Wichtig**: was meint ihr?", [("Ja", "k:1")])
+
+    assert tg.kwargs[-1].get("markdown") is True
+    assert "parse_mode" not in tg.kwargs[-1]
+
+
+def test_sende_knoepfe_laesst_ein_eigenes_parse_mode_unberuehrt(conn):
+    """``vorschlag.menuetext`` liefert bereits fertiges Telegram-HTML --
+    ``_sende_knoepfe`` darf dessen ``parse_mode``/``klartext`` nicht mit dem
+    Markdown-Rendern ueberschreiben."""
+    from interview_theater.knoepfe import basis
+
+    tg = TelegramKwArgs()
+    basis._sende_knoepfe(
+        conn, tg, 1, "1. <b>A</b>", [("Ja", "k:1")],
+        parse_mode="HTML", klartext="1. A",
+    )
+
+    assert tg.kwargs[-1].get("markdown") is None
+    assert tg.kwargs[-1]["parse_mode"] == "HTML"
+    assert tg.kwargs[-1]["klartext"] == "1. A"

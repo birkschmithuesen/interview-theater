@@ -1563,7 +1563,7 @@ def _sende_mit_leiste(conn, tg, chat_id: int, text: str, klm=None,
     except Exception:
         log.exception("Speicher-Leiste fehlgeschlagen, chat_id=%s", chat_id)
         sauber = vorschlag.ohne_marker(text) or text
-        return tg.sende(chat_id, sauber), sauber
+        return tg.sende(chat_id, sauber, markdown=True), sauber
 
 
 def bearbeite(conn, tg, klm, e, chat_id: int, hinweis: str | None = None) -> None:
@@ -1708,7 +1708,7 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         log.exception("Leiste am Auftragszug fehlgeschlagen, chat_id=%s", chat_id)
         text = vorschlag.ohne_marker(text) or text
         try:
-            message_id = tg.sende(chat_id, text)
+            message_id = tg.sende(chat_id, text, markdown=True)
         except Exception:
             # Auch der Rueckfall ist gescheitert: keine Nachricht, also auch
             # keine Blase, die auf sie wartet (Fix-Runde 1, Befund 5). Der

@@ -201,9 +201,18 @@ def _sende_knoepfe(conn, tg, chat_id: int, text: str, leiste,
     die kein zweiter Speicherweg sind und deshalb nicht mit der
     Undo-Quittung darueber konkurrieren (Padua-Befund M2, 05.10.2026: die
     Sprachwahl beim Eintritt in Phase 3 liess den Undo der gerade
-    automatisch gespeicherten Eroeffnung verfallen)."""
+    automatisch gespeicherten Eroeffnung verfallen).
+
+    **Markdown als Vorgabe** (Karte t_cc147548): bringt der Aufrufer kein
+    eigenes ``parse_mode`` mit, ist ``text`` die leichte Markdown-Teilmenge
+    einer freien Modellantwort -- ``tg.sende_mit_knoepfen`` rendert sie dann
+    selbst (``markdown=True``). Die vier Stellen mit fertigem Telegram-HTML
+    (``vorschlag.menuetext``, eigenes ``parse_mode``/``klartext``) bleiben
+    unberuehrt."""
     if leiste and not undo_behalten:
         _kollabiere_letzten_einsamen_undo(conn, tg, chat_id)
+    if "parse_mode" not in kw:
+        kw["markdown"] = True
     message_id = tg.sende_mit_knoepfen(chat_id, text, leiste, **kw)
     _merke_botnachricht(conn, chat_id, message_id, kw.get("klartext") or text)
     return message_id
@@ -656,7 +665,7 @@ def sende_mit_speicherleiste(
     art, wert = _leistenwert(conn, chat_id, bloecke)
 
     if marker is None and (not art or not wert):
-        return tg.sende(chat_id, sauber), False
+        return tg.sende(chat_id, sauber, markdown=True), False
 
     if marker is not None:
         # Fall 1 der Knopfregel: ein Optionen-Menue. Nummerierte Optionen mit
@@ -897,9 +906,9 @@ def _sende_mit_grundleiste(
         message_id = _korrigiere_begriffe(conn, tg, chat_id, wert, vorspann, e=e)
         if message_id is not None:
             return message_id, True
-        return tg.sende(chat_id, sauber), False
+        return tg.sende(chat_id, sauber, markdown=True), False
     if art in _AUTOSAVE_ARTEN and _autosave_aktiv(conn, chat_id):
-        message_id = tg.sende(chat_id, sauber)
+        message_id = tg.sende(chat_id, sauber, markdown=True)
         _autospeichere(conn, tg, chat_id, art, wert, klm=klm, e=e)
         return message_id, False
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SPEICHERN)

@@ -86,12 +86,14 @@ def _druecke(conn, tg, einst, beschriftung):
         "chat_id": 1, "message_id": knopf["message_id"]})
 
 
-def test_phase_3_bietet_in_padua_die_drei_sprachknoepfe(conn, einst, monkeypatch):
+def test_phase_3_bietet_in_padua_keine_sprachknoepfe_mehr(conn, einst, monkeypatch):
+    """Bis 05.10. bot Padua hier Auto/English/Italiano an; seit 06.10. (Birk)
+    steht die Interviewsprache immer auf Auto, ohne Abfrage."""
     _padua(monkeypatch)
     tg = TelegramAttrappe()
     knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, knoepfe.PHASE_INTERVIEWS)
     beschriftungen = [k["beschriftung"] for k in tg.offene_knoepfe()]
-    assert {"Auto", "English", "Italiano"} <= set(beschriftungen)
+    assert not {"Auto", "English", "Italiano"} & set(beschriftungen)
 
 
 def test_dortmund_sieht_die_sprachknoepfe_nie(conn, einst):
@@ -102,6 +104,11 @@ def test_dortmund_sieht_die_sprachknoepfe_nie(conn, einst):
 
 def test_knopf_setzt_die_gruppensprache_und_wirkt_nur_einmal(conn, einst, monkeypatch):
     _padua(monkeypatch)
+    # Die Leiste ist in Padua seit 06.10. aus (whisper_wahl_anbieten=false);
+    # die Knopfwirkung selbst bleibt fuer Profile, die sie anbieten.
+    echt = workshop.aktiv().wert
+    monkeypatch.setattr(type(workshop.aktiv()), "wert",
+                        lambda self, k, d=None: True if k == "sprache.whisper_wahl_anbieten" else echt(k, d))
     tg = TelegramAttrappe()
     knoepfe.biete_stt_sprache(conn, tg, 1)
     _druecke(conn, tg, einst, "Italiano")
@@ -135,3 +142,15 @@ def test_englische_texte_des_sprachwegs(conn, einst, monkeypatch):
     tg = TelegramAttrappe()
     befehle.behandle(conn, tg, einst, 1, "/sprache", None)
     assert tg.texte()[-1] == "Interview language: automatic (I detect it myself)."
+
+
+def test_padua_zeigt_keine_sprachabfrage_beim_eintritt(conn, einst, monkeypatch):
+    """Padua 06.10.2026 (Birk): Interviewsprache immer Auto, keine Leiste.
+    Mutant: Profilschalter ``whisper_wahl_anbieten`` ignoriert -> rot."""
+    _padua(monkeypatch)
+    tg = TelegramAttrappe()
+    assert knoepfe.biete_stt_sprache(conn, tg, 1) is False
+    knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, 3)
+    assert "Italiano" not in [k["beschriftung"] for k in tg.offene_knoepfe()]
+    assert repo.stt_sprache(conn, 1) is None
+    assert sprache.whisper_vorgabe() == sprache.AUTO

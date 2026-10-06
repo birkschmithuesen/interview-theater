@@ -1075,6 +1075,19 @@ def modellwahl_zitate_an_claude_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("modellwahl.zitate_an_claude", True))
 
 
+def ux_ereignisse_aktiv(profil: Profil | None = None) -> bool:
+    """Ob die Weboberflaeche client-seitiges UX-Ereignis-Logging sendet
+    (Karte t_10a31406, 06.10.2026): Tab-Wechsel, Klicks, Abbrueche,
+    JS-Fehler, Geraete-ID -- nie Freitext, nie Transkript- oder Chatinhalt.
+
+    Vorgabe false -- wie ``[laengen] aktiv``: ohne diese Zeile im Profil
+    haengt die Seite den Batching-Code gar nicht erst ein, und der Endpunkt
+    ``/chat/ereignis`` antwortet 404. Dortmund setzt die Zeile nicht und
+    bleibt byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("ux.ereignisse", False))
+
+
 def autosave_phase1_2_aktiv(profil: Profil | None = None) -> bool:
     """Ob Phase 1 (Begriffe) und Phase 2 (Eroeffnung) einen Vorschlag sofort
     speichern statt der Ja/Nein-Rueckfrage "Ja, speichern" / "Nein, nochmal

@@ -247,3 +247,10 @@ zitate_an_claude = true
 # Phase 4. Ohne diese Zeile bleibt die Ja/Nein-Rueckfrage bestehen.
 [speichern]
 autosave_phase1_2 = true
+
+# UX-Ereignis-Logging (Karte t_10a31406, 06.10.2026): rein client-seitige
+# Nutzungssignale (Tab-Wechsel, Klicks, Abbrueche, JS-Fehler, Geraete-ID),
+# nie Freitext oder Transkriptinhalt. Ohne diese Zeile (Dortmund,
+# Vorgabeprofil) haengt die Seite den Batching-Code gar nicht erst ein.
+[ux]
+ereignisse = true

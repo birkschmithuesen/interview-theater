@@ -451,14 +451,18 @@ def test_spaetere_rephrase_runde_stoesst_eroeffnung_nicht_erneut_an(
 # --- Birks Nachtrag (06.10.2026): ON HOLD -- Schalter aus, altes Verhalten --
 
 
-def test_schalter_aus_zeigt_keine_gabel_sondern_startet_sofort(
+def test_schalter_aus_zeigt_den_knopf_bitgleich_zu_main_aber_wirkungslos(
     conn, tg, einst, auftraege, padua, monkeypatch,
 ):
     """[fragen] umformulieren_knopf fehlt (Default false) in padua-2026 --
-    genau das muss nach dem Merge live gehen: KEINE Umformulier-Weiche,
-    Verhalten wie vor Commit 65f3085 (die Eroeffnung bzw. das Weich-Angebot
-    startet im selben Schritt wie das Abschliessen der Fragen, kein Knopf
-    wird angeboten)."""
+    Birks woertliche Zusage (Review 06.10.2026 auf t_1f13a707): bei
+    Schalter=false ist das Verhalten bitgleich zu main nach t_b371c0f1.
+    Dort zeigt der Bot den Chat-Knopf "Fragen umformulieren" IMMER, wenn
+    ``workshop.diskussion_aktiv()`` wahr ist -- erreichbar, aber
+    wirkungslos (die Eroeffnung bzw. das Weich-Angebot startet trotzdem im
+    selben Schritt wie das Abschliessen der Fragen). NUR die neue Gabel aus
+    Karte t_1f13a707 (Warten auf ``fragen_fortsetzung_offen``, zweiter
+    Knopf "Weiter zur Eroeffnung") ist hinter dem Schalter aus."""
     from interview_theater import befehle
 
     monkeypatch.setattr(workshop, "fragen_umformulieren_knopf_aktiv", lambda *a, **k: False)
@@ -470,6 +474,6 @@ def test_schalter_aus_zeigt_keine_gabel_sondern_startet_sofort(
 
     assert len(auftraege) == 1  # die Eroeffnung ist sofort gestartet
     beschriftungen = [b for _, _, leiste in tg.knoepfe for b, _ in leiste]
-    assert T._TEXT_UMFORMULIEREN_ANBIETEN_KNOPF not in beschriftungen
+    assert T._TEXT_UMFORMULIEREN_ANBIETEN_KNOPF in beschriftungen
     assert T._TEXT_UMFORMULIEREN_WEITER_KNOPF not in beschriftungen
     assert _feld(conn, "fragen_fortsetzung_offen") is None

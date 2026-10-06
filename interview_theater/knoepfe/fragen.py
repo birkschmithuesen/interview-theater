@@ -1725,19 +1725,25 @@ def _biete_umformulierung_an(conn, tg, chat_id: int) -> int:
     der Knopf "Fertig sortiert" (``web_vereint.auswahl_fertig_post``)
     ausloest.
 
-    Seit Karte t_1f13a707 eine ECHTE Weiche, nicht mehr ein Angebot neben
-    einer schon laufenden Eroeffnung: ZWEI Knoepfe, "Fragen umformulieren"
-    (startet ``frage_nach_umformulierung``) und "Weiter zur Eroeffnung"
-    (``fragen_umformulierung_weiter``, setzt die Kette sofort fort). Die
-    Eroeffnung bzw. das Weich-Angebot startet jetzt NUR noch, wenn die Gruppe
+    Seit Karte t_1f13a707 hinter ``workshop.fragen_umformulieren_knopf_aktiv()``
+    eine ECHTE Weiche: ZWEI Knoepfe, "Fragen umformulieren" (startet
+    ``frage_nach_umformulierung``) und "Weiter zur Eroeffnung"
+    (``fragen_umformulierung_weiter``, setzt die Kette sofort fort); die
+    Eroeffnung bzw. das Weich-Angebot startet dann NUR noch, wenn die Gruppe
     "Weiter" drueckt oder eine Umformulier-Runde zuende laeuft (siehe
-    ``fragen_fortsetzung_offen`` in ``_schliesse_fragen_ab``)."""
+    ``fragen_fortsetzung_offen`` in ``_schliesse_fragen_ab``). Bei
+    Schalter=false (Default, Birks Zusage im Review 06.10.2026) bleibt es
+    bei main nach t_b371c0f1: nur der EINE Knopf, erreichbar aber
+    wirkungslos -- die Kette laeuft ohnehin im selben Schritt weiter."""
     leiste = [
         (T._TEXT_UMFORMULIEREN_ANBIETEN_KNOPF,
          _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UMFORMULIEREN_ANBIETEN, None))),
-        (T._TEXT_UMFORMULIEREN_WEITER_KNOPF,
-         _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UMFORMULIEREN_WEITER, None))),
     ]
+    if workshop.fragen_umformulieren_knopf_aktiv():
+        leiste.append(
+            (T._TEXT_UMFORMULIEREN_WEITER_KNOPF,
+             _daten(repo.lege_knopf_an(conn, chat_id, ART_FRAGEN_UMFORMULIEREN_WEITER, None))),
+        )
     message_id = _sende_knoepfe(conn, tg, chat_id, T._TEXT_UMFORMULIEREN_ANBIETEN, leiste)
     repo.merke_knopf_nachricht(
         conn, [_id_aus_daten(d) for _, d in leiste], message_id,
@@ -1886,16 +1892,21 @@ def _schliesse_fragen_ab(conn, tg, klm, e, chat_id: int) -> str:
         tg.sende(chat_id, text, system=True)
     else:
         sende_notiert_nur_undo(conn, tg, chat_id, text, lauf_id)
-    # Review-Fix t_b371c0f1, echte Weiche seit t_1f13a707: nur Padua kennt
-    # den versteckten Befehl ``/umformulieren`` -- Dortmund bekommt diesen
-    # Knopf nie, bleibt also unveraendert und faehrt sofort fort. Birks
-    # Nachtrag (06.10.2026): zusaetzlich ON HOLD hinter
-    # ``[fragen] umformulieren_knopf`` -- ohne die Zeile (Default) bleibt
-    # das Verhalten bitgleich zu vor Commit 65f3085.
-    if workshop.diskussion_aktiv() and workshop.fragen_umformulieren_knopf_aktiv():
-        repo.setze_arbeitsstand(conn, chat_id, "fragen_fortsetzung_offen", "1")
+    # Review-Fix t_b371c0f1: nur Padua kennt den versteckten Befehl
+    # ``/umformulieren`` -- Dortmund bekommt diesen Knopf nie, bleibt also
+    # unveraendert. Der Knopf selbst bleibt bei Schalter=false SICHTBAR
+    # (bitgleich zu main nach t_b371c0f1, Birks Zusage im Review 06.10.2026
+    # auf t_1f13a707) -- NUR die echte Weiche (Warten auf
+    # ``fragen_fortsetzung_offen``, zweiter Knopf "Weiter zur Eroeffnung")
+    # liegt hinter ``workshop.fragen_umformulieren_knopf_aktiv()``; ohne den
+    # Schalter faehrt die Kette im selben Schritt fort wie vor Commit
+    # 65f3085.
+    if workshop.diskussion_aktiv():
         _biete_umformulierung_an(conn, tg, chat_id)
-    elif neue_weich:
+        if workshop.fragen_umformulieren_knopf_aktiv():
+            repo.setze_arbeitsstand(conn, chat_id, "fragen_fortsetzung_offen", "1")
+            return T._TEXT_FRAGEN_QUITTUNG
+    if neue_weich:
         _biete_weiche_fassungen_an(conn, tg, angenommen, neue_weich, chat_id)
     else:
         starte_eroeffnung(conn, tg, klm, e, chat_id)

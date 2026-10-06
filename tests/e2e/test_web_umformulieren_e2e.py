@@ -91,6 +91,11 @@ def lauf(tmp_path, monkeypatch):
     workshop.vergiss()
     monkeypatch.setenv("IT_WORKSHOP", "padua-2026")
     monkeypatch.setenv("IT_AUDIO", str(tmp_path / "audio"))
+    # Der Dauerknopf-Schalter bleibt in padua-2026/profil.toml bewusst aus
+    # (Birk, Nachtrag 06.10.2026: ON HOLD) -- dieser Lauf prueft den
+    # fertig gebauten Pfad selbst, also hier wie in
+    # ``tests/test_fragen_umformulieren.py::padua`` bewusst eingeschaltet.
+    monkeypatch.setattr(workshop, "fragen_umformulieren_knopf_aktiv", lambda *a, **k: True)
 
     pfad = str(tmp_path / "t.db")
     audio = tmp_path / "audio"

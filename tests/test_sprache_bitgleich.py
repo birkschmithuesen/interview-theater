@@ -445,6 +445,17 @@ GEAENDERT: dict[str, str] = {
         "sie allein schon Beweis fuer eine Denkspur sind. Kein Nutzertext "
         "(tests/test_ablauf.py)."
     ),
+    "knoepfe.texte._TEXT_NACH_SPEICHERN_FRAGE": (
+        "Karte t_c5d68218 (06.10.2026): statt der Aufforderung, noch etwas "
+        "hinzuzufuegen ('Wollt ihr noch etwas hinzufuegen, bevor es "
+        "weitergeht?'), steht jetzt eine Bestaetigungsfrage ('Passt das so "
+        "fuer euch?'). Gewollte Verhaltensaenderung fuer Dortmund: ein "
+        "optionaler, modellgestuetzter Zusatz (Verbesserungsvorschlag oder "
+        "kritische Rueckfrage, nie erzwungen) kann danach als eigene "
+        "Nachricht folgen (interview_theater/nachspeichern.py), die alte "
+        "Konstante selbst bleibt unveraendert in Bedeutung und Aufrufstellen "
+        "(tests/test_nachspeichern_wiring.py)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

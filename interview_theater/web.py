@@ -493,15 +493,6 @@ _CSS_GEMEINSAM = """
 ul.fragen { list-style: none; padding: 0; margin: 0; }
 ul.fragen li { margin: .25em 0; }
 pre.leitfaden { white-space: pre-wrap; font-family: inherit; margin: 0; }
-.leitfaden { margin: 0; }
-.leitfaden-schritt { margin: 0 0 .6em; }
-h4.fragen-begriff { font-size: .85em; text-transform: uppercase;
-                     letter-spacing: .04em; opacity: .65; margin: .8em 0 .2em; }
-h4.fragen-begriff:first-child { margin-top: 0; }
-ol.fragen-gruppe { margin: 0 0 .3em; padding-left: 1.3em; }
-ol.fragen-gruppe li { margin: 0 0 .4em; }
-.leitfaden .herkunft { font-size: .75em; opacity: .6; margin-left: .4em; }
-.leitfaden .kern, .leitfaden .vorher { font-size: .9em; opacity: .75; margin-top: .15em; }
 * { box-sizing: border-box; }
 html { overflow-x: hidden; }
 body { margin: 0; padding: 1rem 1.2rem 3rem; overflow-x: hidden;
@@ -665,6 +656,26 @@ nav.fassungen { display: flex; flex-wrap: wrap; gap: .3rem; margin: .3rem 0; }
 .hinzu { margin-top: .8rem; }
 """
 
+#: Der nach Begriff geclusterte Leitfaden auf der Gruppenseite -- eigene
+#: Konstante statt an ``_CSS_GRUPPE`` angehaengt, damit DIE bitgleich bleibt
+#: (dasselbe Muster wie ``_CSS_BUEHNE``: tests/test_sprache_bitgleich.py
+#: meldet nur eine GEAENDERTE Konstante, keine neue). Nur angehaengt, wenn
+#: ``workshop.werkbank_fragen_geclustert`` an ist (Fast-Track 06.10.2026,
+#: ``web.gruppe_html``/``web_vereint.seite``) -- Dortmunds Gruppenseite
+#: rendert nie ein ``.leitfaden``/``.fragen-begriff`` und bekommt diese
+#: Regeln deshalb auch nicht in ihr ``<style>`` (tests/test_werkbank_bitgleich.py).
+_CSS_WERKBANK_LEITFADEN = """
+.leitfaden { margin: 0; }
+.leitfaden-schritt { margin: 0 0 .6em; }
+h4.fragen-begriff { font-size: .85em; text-transform: uppercase;
+                     letter-spacing: .04em; opacity: .65; margin: .8em 0 .2em; }
+h4.fragen-begriff:first-child { margin-top: 0; }
+ol.fragen-gruppe { margin: 0 0 .3em; padding-left: 1.3em; }
+ol.fragen-gruppe li { margin: 0 0 .4em; }
+.leitfaden .herkunft { font-size: .75em; opacity: .6; margin-left: .4em; }
+.leitfaden .kern, .leitfaden .vorher { font-size: .9em; opacity: .75; margin-top: .15em; }
+"""
+
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026) -- eigene Konstante statt
 #: an ``_CSS_GRUPPE`` angehaengt, damit diese bitgleich bleibt
 #: (tests/test_sprache_bitgleich.py: eine neue Konstante ist kein Befund,
@@ -794,10 +805,6 @@ body { background: #ffffff; color: #000000; font-size: 1.25rem;
 h1 { font-size: 1.35rem; margin: 0 0 1.4rem; font-weight: 600; }
 h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; text-transform: uppercase;
      letter-spacing: .06em; border: 0; opacity: .65; }
-/* Begriffs-Ueberschrift zwischen den Fragenbloecken (Fast-Track
-   06.10.2026) -- nur wenn ``workshop.werkbank_fragen_geclustert`` an ist. */
-h3.begriff { font-size: .9rem; margin: 1.8rem 0 .2rem; text-transform: uppercase;
-             letter-spacing: .06em; opacity: .55; }
 .block { border-top: 3px solid #000; padding-top: .8rem; margin-top: 1.6rem; }
 .frage { border-top: 2px solid #000; padding: 1rem 0 .2rem;
          margin-top: 1.4rem; }
@@ -816,7 +823,7 @@ h3.begriff { font-size: .9rem; margin: 1.8rem 0 .2rem; text-transform: uppercase
      Grauschleier, und jede Frage bleibt auf einer Seite zusammen. */
   body { font-size: 12pt; max-width: none; padding: 0; }
   .zurueck { display: none; }
-  h2, h3.begriff, .frage .nummer, .frage .kern { opacity: 1; }
+  h2, .frage .nummer, .frage .kern { opacity: 1; }
   .frage, .block { page-break-inside: avoid; }
 }
 /* Die Festlegungen: eine Zeile je Eintrag, die Bereichsmarke davor. Ohne
@@ -828,6 +835,22 @@ h3.begriff { font-size: .9rem; margin: 1.8rem 0 .2rem; text-transform: uppercase
 .festlegung .marke { font-size: .72rem; opacity: .6; text-transform: uppercase;
                      letter-spacing: .04em; }
 .festlegung .feld { flex: 0 0 auto; }
+"""
+
+#: Die Begriffs-Ueberschrift zwischen den Fragenbloecken der grossen
+#: Leitfaden-Ansicht -- eigene Konstante statt an ``_CSS_LEITFADEN``
+#: angehaengt, damit DIE bitgleich bleibt (dasselbe Muster wie
+#: ``_CSS_BUEHNE``: tests/test_sprache_bitgleich.py meldet nur eine
+#: GEAENDERTE Konstante, keine neue). Nur angehaengt, wenn
+#: ``workshop.werkbank_fragen_geclustert`` an ist (Fast-Track 06.10.2026) --
+#: Dortmund rendert nie ein ``h3.begriff`` und bekommt diese Regeln deshalb
+#: auch nicht in sein ``<style>``.
+_CSS_LEITFADEN_BEGRIFF = """
+h3.begriff { font-size: .9rem; margin: 1.8rem 0 .2rem; text-transform: uppercase;
+             letter-spacing: .06em; opacity: .55; }
+@media print {
+  h3.begriff { opacity: 1; }
+}
 """
 
 
@@ -3857,9 +3880,12 @@ def gruppe_html(
     from interview_theater import workshop
 
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
+    css = _CSS_GRUPPE
+    if workshop.werkbank_fragen_geclustert():
+        css += _CSS_WERKBANK_LEITFADEN
     return _seite(
         T._TITEL_GRUPPENSEITE.format(titel=titel),
-        _CSS_GRUPPE,
+        css,
         gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
         # Padua: die Werkbank ist reine Anzeige, das Speicher-Skript faellt weg.
         bearbeitbar=bool(nonce_wert) and workshop.workbench_bearbeitbar(),
@@ -4418,7 +4444,7 @@ def leitfaden_html(daten: dict) -> str:
     austauschen.
 
     Steht noch kein Leitfaden, kommt eine ruhige Seite und kein Fehler."""
-    from interview_theater import leitfaden, web_gestalt
+    from interview_theater import leitfaden, web_gestalt, workshop
 
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     teil = leitfaden.bausteine(daten["arbeitsstand"])
@@ -4432,12 +4458,16 @@ def leitfaden_html(daten: dict) -> str:
         if daten.get("token")
         else ""
     )
+    css = _CSS_LEITFADEN
+    if workshop.werkbank_fragen_geclustert():
+        css += _CSS_LEITFADEN_BEGRIFF
+    css += web_gestalt.css_rahmen()
     return (
         "<!doctype html>\n"
         f'<html lang="{html.escape(sprache.code())}"><head><meta charset="utf-8">\n'
         f"{_VIEWPORT_META}\n"
         f"<title>{html.escape(T._TITEL_LEITFADEN.format(titel=titel))}</title>\n"
-        f"<style>{_CSS_LEITFADEN + web_gestalt.css_rahmen()}</style></head>\n<body>\n"
+        f"<style>{css}</style></head>\n<body>\n"
         f"<h1>{_t(titel)}</h1>\n{koerper}\n{zurueck}\n"
         "</body></html>\n"
     )

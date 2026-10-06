@@ -2343,6 +2343,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     css += scope_css(web_gestalt.css_stand(), ".panel-stand")
     if not werkbank_bearbeitbar:
         css += scope_css(web_gestalt.css_werkbank(), ".panel-stand")
+    if workshop.werkbank_fragen_geclustert():
+        css += scope_css(web._CSS_WERKBANK_LEITFADEN, ".panel-stand")
     css += scope_css(web_gestalt.css_buehne(), ".panel-buehne")
     css += scope_css(web_gestalt.css_textbuch(), ".panel-textbuch")
     # Mobile-App-Shell (03.10.2026) zuletzt von allem: sie gewinnt gegen

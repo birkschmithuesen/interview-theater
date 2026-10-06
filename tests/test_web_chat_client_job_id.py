@@ -152,6 +152,27 @@ def test_zweiter_upload_ohne_job_id_legt_zwei_zeilen_an(aufbau):
     assert _zeilen(pfad, CHAT) == 2, "ohne Job-Id gibt es keinen Dublettencheck (alte Clients)"
 
 
+def test_zu_lange_job_id_wird_wie_keine_kennung_behandelt(aufbau):
+    """Laenge > 128: wie der Fall ohne Job-Id behandelt (kein Dublettencheck),
+    nicht etwa ein Fehler -- eine zu lange Kennung ist kein Sicherheitsproblem,
+    nur ein Client, dem der Server nicht vertraut."""
+    basis, token, _token2, pfad, _audio = aufbau
+    zu_lang = "j" * 129
+    status1, _ = _lade(basis, token, WEBM, job=zu_lang)
+    status2, _ = _lade(basis, token, WEBM, job=zu_lang)
+    assert status1 == 202 and status2 == 202
+    assert _zeilen(pfad, CHAT) == 2, "zu lange Job-Id darf nicht dedupliziert werden"
+
+
+def test_nicht_ascii_job_id_wird_wie_keine_kennung_behandelt(aufbau):
+    basis, token, _token2, pfad, _audio = aufbau
+    nicht_ascii = "j%C3%B6b-1"  # "jöb-1" URL-kodiert
+    status1, _ = _lade(basis, token, WEBM, job=nicht_ascii)
+    status2, _ = _lade(basis, token, WEBM, job=nicht_ascii)
+    assert status1 == 202 and status2 == 202
+    assert _zeilen(pfad, CHAT) == 2, "nicht-ASCII Job-Id darf nicht dedupliziert werden"
+
+
 def test_verschiedene_job_ids_legen_zwei_zeilen_an(aufbau):
     basis, token, _token2, pfad, _audio = aufbau
     _lade(basis, token, WEBM, job="job-1")

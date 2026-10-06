@@ -4251,6 +4251,19 @@ __WAKELOCK_JS__
     hoehenBeobachter.observe(verlauf);
   }
 
+  // Karte t_b0eb4968 (Wiederherstellung nach Reload): ein Segment, das ein
+  // Absturz/Tab-Schliessen VOR dem Upload in IndexedDB uebersteht, muss
+  // beim naechsten Laden wieder hochgehen -- ueber reiheEin(), nicht
+  // reiheEinSofort(), DAMIT wiederhergestellteOffen mitzaehlt und die
+  // Warteschlange-Anzeige stimmt. Laeuft asynchron nebenher, blockiert die
+  // uebrige Initialisierung nicht.
+  AudioWarteschlangenSpeicher.wiederherstellen(GRUPPEN_SCHLUESSEL).then(function (liste) {
+    liste.forEach(function (auftrag) {
+      zustand.wiederhergestellteOffen += 1;
+      reiheEin(auftrag);
+    });
+  }).catch(function () { /* kein IndexedDB -- nichts wiederherzustellen */ });
+
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
   scrolleBeimOeffnen();   // Phasenanfang nur beim ersten Oeffnen dieser Phase auf diesem Geraet, sonst ans Ende
   // Pflichtpunkt 2, Fix 1 von 2: der erste Seitenaufruf stoesst die

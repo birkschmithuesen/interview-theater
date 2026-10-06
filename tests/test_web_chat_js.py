@@ -446,6 +446,197 @@ def test_das_js_startet_weiterhin_einen_eigenen_recorder_je_segment():
     assert not re.search(r"\.start\([a-zA-Z0-9_.]+\)", js)
 
 
+# -- t_b0eb4968: Wiederherstellung aus IndexedDB nach einem Reload ---------
+#
+# AudioWarteschlangenSpeicher.wiederherstellen() selbst ist bereits in
+# tests/test_web_chat_persistenz_js.py geprueft (sortiert, je Schluessel
+# getrennt). Was HIER fehlte: der Seitenlade-Code in ``_CHAT_JS`` rief diese
+# Funktion nirgends auf -- ein in IndexedDB ueberlebtes Segment ging beim
+# naechsten Laden nie wieder hoch. Diese Tests fuehren den tatsaechlichen
+# Init-Schnipsel UND ``reiheEin``/``reiheEinSofort`` woertlich aus dem
+# ausgelieferten Skript aus.
+
+
+def _wiederherstellungs_harness(js: str, rumpf: str) -> str:
+    init = _extrahiere(
+        js,
+        "AudioWarteschlangenSpeicher.wiederherstellen(GRUPPEN_SCHLUESSEL)",
+        "zeigeModus();   // den Zustand der Seite sofort anwenden",
+    )
+    reihe_ein = _extrahiere(js, "function reiheEin(auftrag)", "function bereit")
+    return f"""
+    var GRUPPEN_SCHLUESSEL = 'tok-reload';
+    var zustand = {{ warteschlange: [], wiederhergestellteOffen: 0 }};
+    var angezeigt = 0;
+    var abgearbeitet = 0;
+    function zeigeWarteschlange() {{ angezeigt += 1; }}
+    function arbeiteAb() {{ abgearbeitet += 1; }}
+    function naechsteJobId() {{ throw new Error('nicht fuer wiederhergestellte Auftraege'); }}
+    function naechsteSeq() {{ throw new Error('nicht fuer wiederhergestellte Auftraege'); }}
+    {reihe_ein}
+    {rumpf}
+    """
+
+
+def test_das_laden_der_seite_ruft_wiederherstellen_mit_dem_gruppenschluessel_auf(tmp_path):
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    rumpf = """
+    var angefragterSchluessel = null;
+    var AudioWarteschlangenSpeicher = {
+      wiederherstellen: function (schluessel) {
+        angefragterSchluessel = schluessel;
+        return Promise.resolve([]);
+      }
+    };
+    """ + _extrahiere(
+        js,
+        "AudioWarteschlangenSpeicher.wiederherstellen(GRUPPEN_SCHLUESSEL)",
+        "zeigeModus();   // den Zustand der Seite sofort anwenden",
+    ) + """
+    Promise.resolve().then(function () {
+      console.log(JSON.stringify({ angefragterSchluessel: angefragterSchluessel }));
+    });
+    """
+    e = json.loads(_fuehre_js_aus(
+        node, f"var GRUPPEN_SCHLUESSEL = 'tok-reload';\n{rumpf}", tmp_path,
+    ).strip().splitlines()[-1])
+    assert e["angefragterSchluessel"] == "tok-reload"
+
+
+def test_ein_wiederhergestelltes_segment_landet_in_der_warteschlange_und_zaehlt_mit(tmp_path):
+    """Das Abnahmekriterium: ein Segment, das in IndexedDB uebersteht, wird
+    beim naechsten Laden ueber reiheEin() (nicht reiheEinSofort direkt)
+    eingereiht -- NUR so zaehlt wiederhergestellteOffen mit."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    quelltext = _wiederherstellungs_harness(js, """
+    var AudioWarteschlangenSpeicher = {
+      wiederherstellen: function () {
+        return Promise.resolve([
+          { art: 'audio', clientJobId: 'job-alt', seq: 1,
+            sitzung: null, blob: { size: 10 }, dauer: 3, grund: 'ende',
+            redeMs: 200, weichMs: null, kalibrierung: false,
+            _wiederhergestellt: true }
+        ]);
+      }
+    };
+    """ + f"""
+    {_extrahiere(
+        js,
+        "AudioWarteschlangenSpeicher.wiederherstellen(GRUPPEN_SCHLUESSEL)",
+        "zeigeModus();   // den Zustand der Seite sofort anwenden",
+    )}
+    Promise.resolve().then(function () {{
+      return Promise.resolve().then(function () {{}});
+    }}).then(function () {{}}).then(function () {{}}).then(function () {{
+      console.log(JSON.stringify({{
+        n: zustand.warteschlange.length,
+        id: zustand.warteschlange[0] && zustand.warteschlange[0].clientJobId,
+        wiederhergestellteOffen: zustand.wiederhergestellteOffen,
+        angezeigt: angezeigt, abgearbeitet: abgearbeitet
+      }}));
+    }});
+    """)
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["n"] == 1
+    assert e["id"] == "job-alt"
+    assert e["wiederhergestellteOffen"] == 1
+    assert e["angezeigt"] >= 1
+    assert e["abgearbeitet"] >= 1
+
+
+def test_mehrere_wiederhergestellte_segmente_landen_in_der_wiederhergestellten_reihenfolge(tmp_path):
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    quelltext = _wiederherstellungs_harness(js, """
+    var AudioWarteschlangenSpeicher = {
+      wiederherstellen: function () {
+        // kommt laut AudioWarteschlangenSpeicher.wiederherstellen() schon
+        // nach seq sortiert zurueck -- die Reihenfolge hier ist absichtlich
+        // schon die erwartete.
+        return Promise.resolve([
+          { art: 'audio', clientJobId: 'job-frueher', seq: 1, sitzung: null,
+            blob: { size: 1 }, dauer: 1, grund: null, redeMs: null,
+            weichMs: null, kalibrierung: false, _wiederhergestellt: true },
+          { art: 'audio', clientJobId: 'job-spaeter', seq: 2, sitzung: null,
+            blob: { size: 1 }, dauer: 1, grund: null, redeMs: null,
+            weichMs: null, kalibrierung: false, _wiederhergestellt: true }
+        ]);
+      }
+    };
+    """ + f"""
+    {_extrahiere(
+        js,
+        "AudioWarteschlangenSpeicher.wiederherstellen(GRUPPEN_SCHLUESSEL)",
+        "zeigeModus();   // den Zustand der Seite sofort anwenden",
+    )}
+    Promise.resolve().then(function () {{}}).then(function () {{}}).then(function () {{
+      console.log(JSON.stringify({{
+        reihenfolge: zustand.warteschlange.map(function (a) {{ return a.clientJobId; }}),
+        wiederhergestellteOffen: zustand.wiederhergestellteOffen
+      }}));
+    }});
+    """)
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["reihenfolge"] == ["job-frueher", "job-spaeter"]
+    assert e["wiederhergestellteOffen"] == 2
+
+
+def test_ohne_wiederhergestellte_segmente_bleibt_die_warteschlange_leer(tmp_path):
+    """Kein IndexedDB-Rest (neuer Chat, alles schon bestaetigt) darf keinen
+    leeren Auftrag erzeugen und darf wiederhergestellteOffen nicht anruehren."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    quelltext = _wiederherstellungs_harness(js, """
+    var AudioWarteschlangenSpeicher = {
+      wiederherstellen: function () { return Promise.resolve([]); }
+    };
+    """ + f"""
+    {_extrahiere(
+        js,
+        "AudioWarteschlangenSpeicher.wiederherstellen(GRUPPEN_SCHLUESSEL)",
+        "zeigeModus();   // den Zustand der Seite sofort anwenden",
+    )}
+    Promise.resolve().then(function () {{}}).then(function () {{
+      console.log(JSON.stringify({{
+        n: zustand.warteschlange.length,
+        wiederhergestellteOffen: zustand.wiederhergestellteOffen
+      }}));
+    }});
+    """)
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["n"] == 0
+    assert e["wiederhergestellteOffen"] == 0
+
+
+def test_die_initialisierung_blockiert_nicht_auf_die_wiederherstellung(tmp_path):
+    """Pflichtpunkt 4: ``zeigeModus()``/``hole()`` laufen weiter, auch
+    waehrend das Wiederherstellen-Promise noch offen ist."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    quelltext = _wiederherstellungs_harness(js, """
+    var geloest = false;
+    var AudioWarteschlangenSpeicher = {
+      wiederherstellen: function () {
+        return new Promise(function (resolve) {
+          setTimeout(function () { geloest = true; resolve([]); }, 50);
+        });
+      }
+    };
+    """ + f"""
+    {_extrahiere(
+        js,
+        "AudioWarteschlangenSpeicher.wiederherstellen(GRUPPEN_SCHLUESSEL)",
+        "zeigeModus();   // den Zustand der Seite sofort anwenden",
+    )}
+    var zeigeModusLiefSofort = !geloest;
+    console.log(JSON.stringify({{ zeigeModusLiefSofort: zeigeModusLiefSofort }}));
+    """)
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["zeigeModusLiefSofort"] is True
+
+
 def test_der_nonce_steht_im_body_und_nicht_daran(seite):
     """Dieselbe Entscheidung wie auf der Gruppenseite (``web.nonce``):
     abgeleitet, nicht gewuerfelt, und IM body -- sonst reisst ein

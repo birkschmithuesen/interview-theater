@@ -398,6 +398,22 @@ def test_beende_aufnahme_deterministisch_interview():
         browser.close()
 
 
+def test_beende_aufnahme_deterministisch_brainstorm_nutzt_den_diskussion_knopf():
+    """Billige, kostenlose Probe (kein Server, kein Modell) dafuer, dass der
+    Stationstyp "brainstorm" seit 05.10.2026 22:00 wirklich ueber denselben
+    ``#diskussion``/``#diskussion-beenden``-Knopf wie Phase 1 laeuft: dieselbe
+    Fixture wie ``_FIXTURE_DISKUSSION_LAEUFT``, nur mit ``art="brainstorm"``
+    angefragt -- ``browser_stationen.LAEUFT``/``ENDE`` muessen auf den
+    echten Knopf auflaufen, kein eigenes ``#brainstorm`` mehr."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_LAEUFT)
+        assert seite.locator("#brainstorm").count() == 0
+        assert browser_lauf._aufnahme_laeuft(seite, "brainstorm") is True
+        assert browser_lauf._beende_aufnahme_deterministisch(seite, "brainstorm") is True
+        browser.close()
+
+
 def test_aufnahme_diskussion_delegiert_an_die_alten_funktionen(monkeypatch):
     # bestehende Tests patchen _diskussion_laeuft/_beende_diskussion_deterministisch
     monkeypatch.setattr(browser_lauf, "_diskussion_laeuft", lambda page: True)

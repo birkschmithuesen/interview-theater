@@ -958,9 +958,6 @@ def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int
     if zusammenfassung:
         teile.append(zusammenfassung)
     teile.extend(getattr(bericht, "zeilen", None) or [])
-    teile.append(skript_verweis(conn, e, chat_id))
-    text = "\n\n".join(teile)
-
     from interview_theater import phasen
 
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_PASST)
@@ -976,6 +973,12 @@ def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int
         ]
     leiste.append(_knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF,
                          ART_ERSTENTWURF, str(nummer)))
+    # Der naechste Schritt nennt den ersten Knopf der Leiste woertlich
+    # (Padua Lauf 4: wer im Script-Tab gelesen hat, wusste nicht, dass er
+    # hier zurueck und einen Knopf druecken soll).
+    teile.append(skript_verweis(conn, e, chat_id))
+    teile.append(T._TEXT_SZENE_NAECHSTER_SCHRITT.format(knopf=leiste[0][0]))
+    text = "\n\n".join(teile)
     message_id = _mit_leiste(conn, tg, chat_id, text, leiste)
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     return message_id

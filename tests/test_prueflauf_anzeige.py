@@ -364,3 +364,24 @@ def test_padua_fehlerweg_ohne_senke(conn, padua, einst):
 
     assert kanal.senken == []
     assert any(szene.T._TEXT_FEHLER in t for _c, t in kanal.gesendet)
+
+
+def test_szene_fertig_nennt_den_naechsten_schritt_mit_knopfbeschriftung(
+        conn, padua, tg, einst):
+    """Lauf 4: nach "Read it in the Script tab" muss stehen, was dann zu tun
+    ist -- mit der echten Beschriftung des ersten Knopfs."""
+    _stueck(conn, 5)
+
+    _starte_szene_1(conn, tg, Schreiber(), einst)
+
+    _c, hinweis, leiste = tg.knoepfe[-1]
+    erster = leiste[0][0]
+    assert erster == "Looks good"
+    assert f'Then come back here: tap "{erster}" or tell me what to change.' in hinweis
+    assert hinweis.index("Script tab") < hinweis.index("come back here")
+
+
+def test_szene_fertig_naechster_schritt_deutsch():
+    from interview_theater.knoepfe import texte
+    satz = texte._TEXT_SZENE_NAECHSTER_SCHRITT.format(knopf=texte.TEXT_PASST_KNOPF)
+    assert 'Tippt auf "Passt"' in satz and "aendern" in satz

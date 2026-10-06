@@ -4782,6 +4782,19 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     # Sicherheitsmerkmal, ein falscher Wert zaehlt einfach wie keiner.
     kalibrierung = (felder.get("kalibrierung") or [""])[0] == "1"
 
+    # hintergrundMs (Karte t_1423ca89, Warnung "Aufnahme im Hintergrund
+    # unterbrochen"): wie viele ms die Seite waehrend dieses Segments im
+    # Hintergrund war (vom Client ueber visibilitychange/pagehide gemessen)
+    # -- dasselbe reine Diagnose-Metadatum wie rede_ms/weich_ms, derselbe
+    # defensive Ziffernschutz, kein Upload-Gate.
+    roh_hintergrund = (felder.get("hintergrund") or [""])[0]
+    hintergrund_ms = (
+        int(roh_hintergrund)
+        if roh_hintergrund.isascii() and roh_hintergrund.isdigit()
+        and len(roh_hintergrund) <= 10
+        else None
+    )
+
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
         web.schliesse_nach_antwort(handler)
@@ -4801,6 +4814,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
             dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
             schnittgrund=grund, brainstorm=brainstorm, diskussion=diskussion,
             rede_ms=rede_ms, kalibrierung=kalibrierung, weich_ms=weich_ms,
+            hintergrund_ms=hintergrund_ms,
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.

@@ -167,6 +167,38 @@ def test_das_journal_steht_unten_und_zu(tmp_path, padua):
     assert seite.index('class="wb-journal"') > seite.index('data-wb-phase="7"')
 
 
+def test_recherche_abschnitt_steht_unter_dem_journal_und_ist_klar_beschriftet(padua):
+    """Karte t_c5117c91: ein eigener, von den sieben Phasen unabhaengiger
+    Abschnitt -- klar als Internet-Recherche beschriftet, kein
+    Interviewmaterial. Mutant: der Abschnitt fehlt ganz oder zeigt kein
+    eigenes Label."""
+    seite = web.werkbank_koerper(_mini())
+    assert web.T._UEBERSCHRIFT_RECHERCHE == "Research - from the internet (not interview material)"
+    assert '<details class="wb-recherche">' in seite
+    assert web.T._UEBERSCHRIFT_RECHERCHE in seite
+    assert seite.index('class="wb-recherche"') > seite.index('class="wb-journal"')
+
+
+def test_recherche_abschnitt_zeigt_frage_text_und_quellen(padua):
+    daten = _mini()
+    daten["werkbank"]["recherche"] = [{
+        "frage": "When was the bridge built?",
+        "ergebnis_text": "The bridge was built in 1900 (Example, https://x.test).",
+        "quellen": ["Example"],
+    }]
+    block = web.werkbank_koerper(daten)[
+        web.werkbank_koerper(daten).index('class="wb-recherche"'):
+    ]
+    assert "When was the bridge built?" in block
+    assert "The bridge was built in 1900" in block
+    assert "Example" in block
+
+
+def test_recherche_abschnitt_leer_ohne_recherche(padua):
+    seite = web.werkbank_koerper(_mini())
+    assert web.T._TEXT_RECHERCHE_LEER in seite
+
+
 def test_ohne_werkbankdaten_kein_absturz(padua):
     seite = web.werkbank_koerper(_mini(werkbank=None))
     assert 'class="wb-phase"' not in seite

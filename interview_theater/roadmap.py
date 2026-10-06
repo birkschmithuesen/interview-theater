@@ -549,6 +549,36 @@ def fragenuebersicht(stand) -> list[dict]:
     return ergebnis
 
 
+# --- Internet-Recherche (Karte t_c5117c91) ---------------------------------
+#
+# Ein eigener Abschnitt, unabhaengig von den sieben Phasen: eine Recherche
+# gehoert zu keiner Phase und gate't keinen Phasensprung (anders als
+# AUFGABEN/_GATE oben) -- sie ist Material von aussen, das die Werkbank
+# klar als solches zeigt ("Research - from the internet (not interview
+# material)", siehe web.py). Reine Funktion ueber Dicts wie ``aus_daten``/
+# ``werkbank``: ``recherchen`` kommt vom Bot ueber ``repo.hole_recherchen``
+# oder vom Webserver ueber die read-only Leseseite, beide liefern dieselbe
+# Form (``frage``, ``ergebnis_text``, ``quellen``).
+
+
+def recherche_abschnitt(recherchen: list[dict]) -> list[dict]:
+    """Die Recherchekarten fuer die Werkbank, in der Reihenfolge von
+    ``recherchen`` (neueste zuerst, wie ``repo.hole_recherchen``). Eine
+    Quelle ohne Titel zeigt ihre URL -- nie eine erfundene Bezeichnung."""
+    ergebnis = []
+    for r in recherchen:
+        quellen = [
+            (q.get("titel") or "").strip() or q.get("url") or ""
+            for q in (r.get("quellen") or [])
+        ]
+        ergebnis.append({
+            "frage": r.get("frage") or "",
+            "ergebnis_text": r.get("ergebnis_text") or "",
+            "quellen": [q for q in quellen if q],
+        })
+    return ergebnis
+
+
 def register(conn, chat_id: int) -> list[dict]:
     """Der Weg des Bots, ueber ``repo``. Kein Modellaufruf, kein
     Schreibvorgang."""

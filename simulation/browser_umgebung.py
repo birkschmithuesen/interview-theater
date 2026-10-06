@@ -17,6 +17,7 @@ sieht die Werte nie, kann sie also auch nie loggen oder committen.
 from __future__ import annotations
 
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -94,8 +95,20 @@ def bot_skript(env_datei, *, modul_oder_datei: str, app_wurzel: Path, py: str = 
     return f'{_kopf(env_datei, app_wurzel)}exec "{py}" -u {modul_oder_datei}\n'
 
 
+_SZENE_MODELL_MUSTER = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def pruefe_szene_modell(name: str) -> str:
+    """Nur Buchstaben, Ziffern, Punkt, Bindestrich, Unterstrich -- der Name
+    landet in einem Bash-Skript (keine Shell-Einschleusung)."""
+    if not isinstance(name, str) or not _SZENE_MODELL_MUSTER.fullmatch(name):
+        raise ValueError(f"Unzulaessiger Szenenmodell-Name: {name!r}")
+    return name
+
+
 def bau_bot_skript(env_datei: str, db_pfad: str, audio_verz: str, chat_id: int,
-                   py: str = PY, app_wurzel: Path = WURZEL) -> str:
+                   py: str = PY, app_wurzel: Path = WURZEL,
+                   szene_modell: str | None = None) -> str:
     """Der Wrapper fuer den simulationseigenen Web-Bot: baut auf
     ``bot_skript`` auf (dieselbe Code-Vorgaben-Bereinigung und
     ``PYTHONPATH``), dazu die eigenen -- nicht geheimen -- Werte fuer DB,
@@ -109,6 +122,8 @@ def bau_bot_skript(env_datei: str, db_pfad: str, audio_verz: str, chat_id: int,
         "export IT_BOT_NAME=padua-browser-sim\n"
         'export IT_WEB_URL=""\n'
     )
+    if szene_modell:
+        eigene += f'export IT_SZENE_MODELL="{pruefe_szene_modell(szene_modell)}"\n'
     return f'{_kopf(env_datei, app_wurzel)}{eigene}exec "{py}" -u -m interview_theater.bot\n'
 
 
@@ -156,8 +171,10 @@ def starte_web(db_pfad: str, audio_verz: str, log_pfad: str, *,
 
 
 def starte_bot(env_datei: str, db_pfad: str, audio_verz: str, chat_id: int,
-              log_pfad: str, *, app_wurzel: Path = WURZEL):
-    skript = bau_bot_skript(env_datei, db_pfad, audio_verz, chat_id, app_wurzel=app_wurzel)
+              log_pfad: str, *, app_wurzel: Path = WURZEL,
+              szene_modell: str | None = None):
+    skript = bau_bot_skript(env_datei, db_pfad, audio_verz, chat_id,
+                            app_wurzel=app_wurzel, szene_modell=szene_modell)
     log = open(log_pfad, "w")
     prozess = subprocess.Popen(
         ["bash", "-c", skript], cwd=str(app_wurzel),
@@ -352,7 +369,8 @@ class Stack:
 
 
 def starte_stack(env_datei: str, lauf_verzeichnis: Path, *,
-                 app_wurzel: Path = WURZEL, gruppen: int = 1, startphase: int = 1) -> Stack:
+                 app_wurzel: Path = WURZEL, gruppen: int = 1, startphase: int = 1,
+                 szene_modell: str | None = None) -> Stack:
     """Baut den Stack aus ``app_wurzel`` (Vorgabe: dieser Checkout) --
     ``app_wurzel`` kann ein anderer Checkout sein (z. B. der alte Stand vor
     einem Live-Befund), um die alte App mit dem neuen Harness laufen zu
@@ -383,6 +401,7 @@ def starte_stack(env_datei: str, lauf_verzeichnis: Path, *,
         db_pfad, audio_verz, str(lauf_verzeichnis / "web.log"), app_wurzel=app_wurzel)
     bot_prozess, bot_log = starte_bot(
         env_datei, db_pfad, audio_verz, gruppen_liste[0].chat_id,
-        str(lauf_verzeichnis / "bot.log"), app_wurzel=app_wurzel)
+        str(lauf_verzeichnis / "bot.log"), app_wurzel=app_wurzel,
+        szene_modell=szene_modell)
     return Stack(db_pfad, audio_verz, gruppen_liste[0].chat_id, gruppen_liste[0].token,
                 web_basis, web_prozess, bot_prozess, web_log, bot_log, gruppen_liste)

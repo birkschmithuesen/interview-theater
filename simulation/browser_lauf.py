@@ -1444,6 +1444,18 @@ def _app_commit(app_wurzel: Path) -> str | None:
     return lauf.stdout.strip() or None
 
 
+def vermerke_szene_modell(lauf_verzeichnis: Path, name: str) -> None:
+    """Haelt den ``--szene-modell``-Override in ``ergebnis.json`` fest."""
+    pfad = Path(lauf_verzeichnis) / "ergebnis.json"
+    try:
+        daten = json.loads(pfad.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    daten["szene_modell_override"] = name
+    pfad.write_text(json.dumps(daten, ensure_ascii=False, indent=2, default=str),
+                    encoding="utf-8")
+
+
 def main() -> None:
     """Dünner CLI-Wrapper: baut den echten Stack, einen echten Opus-Klienten
     und einen echten Browser, ruft ``fuehre_lauf``, schreibt den Bericht.
@@ -1484,7 +1496,16 @@ def main() -> None:
     zerleger.add_argument("--max-minuten", type=float, default=LAUF_MAX_MINUTEN,
                           help="Zeitdeckel fuer den ganzen Stationslauf (Minuten, "
                                "Vorgabe 120); danach endet er sauber mit Bericht")
+    zerleger.add_argument("--szene-modell", default=None, metavar="NAME",
+                          help="setzt IT_SZENE_MODELL im Bot-Wrapper NACH der Env-Datei "
+                               "(z. B. claude-sonnet-5 wie live); Vorgabe: unveraendert")
     argumente = zerleger.parse_args()
+    if argumente.szene_modell is not None:
+        try:
+            browser_umgebung.pruefe_szene_modell(argumente.szene_modell)
+        except ValueError as fehler:
+            print(str(fehler), file=sys.stderr)
+            raise SystemExit(1)
 
     if not argumente.env_datei:
         print("Fehlende Env-Datei: --env-datei oder IT_SIM_ENV", file=sys.stderr)
@@ -1509,7 +1530,8 @@ def main() -> None:
     startphase = browser_stationen.STARTPHASE.get(argumente.stationen or "", 1)
     stack = browser_umgebung.starte_stack(
         argumente.env_datei, lauf_verzeichnis, app_wurzel=app_wurzel,
-        gruppen=max((st.gruppe for st in stationsliste), default=1), startphase=startphase)
+        gruppen=max((st.gruppe for st in stationsliste), default=1), startphase=startphase,
+        szene_modell=argumente.szene_modell)
     try:
         if startphase > 1:
             _loese_phasenwechsel_aus(stack.web_basis, stack.token, startphase)
@@ -1644,6 +1666,8 @@ def main() -> None:
                 browser.close()
     finally:
         stack.beende()
+        if argumente.szene_modell:
+            vermerke_szene_modell(lauf_verzeichnis, argumente.szene_modell)
 
     if not argumente.bericht:
         return

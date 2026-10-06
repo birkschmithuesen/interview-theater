@@ -47,6 +47,36 @@ def test_bot_skript_sourcet_die_env_datei_und_ueberschreibt_danach():
     assert skript.strip().endswith("-m interview_theater.bot")
 
 
+def test_bot_skript_szene_modell_export_nach_source():
+    skript = u.bau_bot_skript("/geheim/x.env", "/tmp/sim.db", "/tmp/audio", 1,
+                              py="/usr/bin/python3", szene_modell="claude-sonnet-5")
+    zeilen = skript.splitlines()
+    quelle = next(i for i, z in enumerate(zeilen) if "source" in z)
+    export = next(i for i, z in enumerate(zeilen) if "IT_SZENE_MODELL" in z)
+    assert zeilen[export] == 'export IT_SZENE_MODELL="claude-sonnet-5"'
+    assert quelle < export
+
+
+def test_bot_skript_ohne_szene_modell_kein_export():
+    skript = u.bau_bot_skript("/geheim/x.env", "/tmp/sim.db", "/tmp/audio", 1)
+    assert "IT_SZENE_MODELL" not in skript
+
+
+@pytest.mark.parametrize("name", ['a"; rm -rf /; "', "a b", "$(x)", "", "a\nb", "x`y`"])
+def test_bot_skript_unsicherer_szene_modell_name_abgelehnt(name):
+    with pytest.raises(ValueError):
+        u.bau_bot_skript("/x.env", "/tmp/sim.db", "/tmp/audio", 1, szene_modell=name) \
+            if name else u.pruefe_szene_modell(name)
+
+
+def test_starte_stack_reicht_szene_modell_an_den_bot(tmp_path, monkeypatch):
+    gesehen = {}
+    monkeypatch.setattr(u, "starte_web", lambda *a, **k: (None, None, "http://x"))
+    monkeypatch.setattr(u, "starte_bot", lambda *a, **k: gesehen.update(k) or (None, None))
+    u.starte_stack("/x.env", tmp_path, szene_modell="claude-sonnet-5")
+    assert gesehen["szene_modell"] == "claude-sonnet-5"
+
+
 def test_starte_web_antwortet_gesund(tmp_path):
     """Kein Geheimnis noetig: der Webserver braucht keine Modell-Zugangsdaten."""
     db_pfad = str(tmp_path / "sim.db")
@@ -107,7 +137,8 @@ def test_starte_stack_gibt_absolute_pfade_an_web_und_bot(tmp_path, monkeypatch):
         gesehen["web"] = (db_pfad, audio_verz)
         return None, None, "http://x"
 
-    def starte_bot(env_datei, db_pfad, audio_verz, chat_id, log_pfad, *, app_wurzel):
+    def starte_bot(env_datei, db_pfad, audio_verz, chat_id, log_pfad, *, app_wurzel,
+                   szene_modell=None):
         gesehen["bot"] = (db_pfad, audio_verz)
         return None, None
 

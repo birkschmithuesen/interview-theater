@@ -1115,6 +1115,9 @@ _TEXT_GESCHICHTE_BEREIT = "Die ganze Geschichte steht ({gesamt} Szenen)."
 #: Wo der Text steht: im Web-Kanal der Tab, in Telegram der Link darauf.
 _TEXT_SKRIPT_TAB = "Lest sie im Script-Tab."
 _TEXT_SKRIPT_LINK = "Lest sie im Script-Tab: {url}"
+#: Was nach dem Lesen kommt; ``knopf`` ist die Beschriftung des ersten Knopfs.
+_TEXT_SZENE_NAECHSTER_SCHRITT = (
+    "Kommt danach hierher zurueck: Tippt auf \"{knopf}\" oder sagt mir, was ich aendern soll.")
 _TEXT_ERSTENTWURF_KNOPF = "Erste Fassung zeigen"
 _TEXT_ERSTENTWURF = "Die Fassung vor der Pruefung steht im Script-Tab unter \"Erste Fassung\"."
 _TEXT_KEIN_ERSTENTWURF = "Dazu gibt es noch keine fruehere Fassung."

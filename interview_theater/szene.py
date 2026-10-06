@@ -302,18 +302,24 @@ def formdatei(form: str | None) -> str:
     Listenreihenfolge: das Wort "Szene" steht in fast jeder Formangabe, und
     Dialog ist ohnehin der Rueckfall -- er braucht keinen Vorrang, er
     braucht den Rest. Welche Form der Rueckfall ist, sagt seit dem
-    06.09.2026 das Profil (``formen.toml``, ``vorgabe``)."""
+    06.09.2026 das Profil (``formen.toml``, ``vorgabe``).
+
+    Die Wortmenge je Form (Name, Anzeige, Stichwoerter) und der Vergleich
+    mit Wortgrenzen kommen aus ``workshop.form_treffer`` -- geteilt mit
+    ``ueberarbeitung.form_aus_text``, die dieselbe Frage fuer eine andere
+    Quelle (eine Judge-Antwort statt ``szene.form``) beantwortet (A1,
+    06.10.2026: ohne den Formnamen selbst in der Menge fielen "chor" und
+    "lied" live auf Dialog zurueck, weil ihre Stichwortlisten in
+    ``formen.toml`` den eigenen Namen nicht enthalten)."""
     rueckfall = workshop.form_vorgabe()
     text = (form or "").strip().lower()
     if not text:
         return rueckfall
-    stichwoerter = workshop.form_stichwoerter()
     for name in workshop.formen():
         if name == rueckfall:
             continue
-        for stichwort in stichwoerter.get(name, ()):
-            if stichwort in text:
-                return name
+        if workshop.form_treffer(name, text):
+            return name
     return rueckfall
 
 

@@ -705,18 +705,18 @@ def form_aus_text(text: str | None) -> str | None:
     ("chorus", "a song", "Monolog") -- oder ``None``. Anders als
     ``szene.formdatei`` OHNE Rueckfall: eine unbekannte Angabe ("puppetry")
     setzt nichts, statt still Dialog zu werden. Geprueft wie dort: die
-    Rueckfall-Form zuletzt (ihre Stichwoerter sind die allgemeinsten)."""
+    Rueckfall-Form zuletzt (ihre Stichwoerter sind die allgemeinsten).
+
+    Die Wortmenge und der Vergleich kommen aus ``workshop.form_treffer`` --
+    geteilt mit ``szene.formdatei`` (A1, 06.10.2026)."""
     text = " ".join((text or "").lower().split())
     if not text:
         return None
     namen = workshop.formen()
-    anzeige = dict(zip(namen, workshop.form_anzeige()))
-    stichwoerter = workshop.form_stichwoerter()
     rueckfall = workshop.form_vorgabe()
     reihenfolge = [n for n in namen if n != rueckfall] + [n for n in namen if n == rueckfall]
     for name in reihenfolge:
-        woerter = {name, anzeige[name].lower(), *stichwoerter.get(name, ())}
-        if any(w and re.search(rf"\b{re.escape(w)}\b", text) for w in woerter):
+        if workshop.form_treffer(name, text):
             return name
     return None
 

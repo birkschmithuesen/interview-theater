@@ -910,3 +910,237 @@ def test_grace_nach_interview_mindestens_nachhol_intervall_plus_fuenf():
     assert inv.GRACE_NACH_INTERVIEW_S == aufnahme.NACHHOL_INTERVALL_S + 5.0
     assert inv.GRACE_NACH_INTERVIEW_S >= aufnahme.NACHHOL_INTERVALL_S + 5.0
     assert inv.GRACE_NACH_SIGNAL_S < aufnahme.NACHHOL_INTERVALL_S
+
+
+# --- Padua Phasen 5-7 live-reif (Karte t_db7c6b2c, P57 Task 3, 06.10.2026) --
+#
+# db57 ist additiv NEBEN db34 (eigene Fixture, eigenes Schema-Subset) --
+# Minimalset-Tabellen fuer ``P57Stand``: schaerfung+verdichtung_thema, szene,
+# szenenfassung, prueflauf, stueckpruefung, vorfall, web_post, nachricht,
+# arbeitsstand.
+
+@pytest.fixture
+def db57(tmp_path):
+    pfad = tmp_path / "sim57.db"
+    conn = sqlite3.connect(pfad)
+    conn.executescript(
+        """
+        CREATE TABLE verdichtung_thema (id INTEGER PRIMARY KEY, chat_id INTEGER,
+                                         zitat_geprueft INTEGER DEFAULT 0, beleg_zitat TEXT);
+        CREATE TABLE schaerfung (id INTEGER PRIMARY KEY, chat_id INTEGER,
+                                  verdichtung_thema_id INTEGER, entfernt_am TEXT);
+        CREATE TABLE szene (id INTEGER PRIMARY KEY, chat_id INTEGER, nummer INTEGER,
+                             prosa TEXT, volltext TEXT, fertig_am TEXT,
+                             entwurf_bestaetigt_am TEXT, ueberarbeitung_bestaetigt_am TEXT,
+                             entfernt_am TEXT);
+        CREATE TABLE szenenfassung (id INTEGER PRIMARY KEY, chat_id INTEGER, szene_id INTEGER,
+                                     volltext TEXT);
+        CREATE TABLE prueflauf (id INTEGER PRIMARY KEY, chat_id INTEGER, runden INTEGER,
+                                 erstellt_am TEXT, szene_nummer INTEGER, ziel TEXT);
+        CREATE TABLE stueckpruefung (id INTEGER PRIMARY KEY, chat_id INTEGER, runde INTEGER,
+                                      bewertung INTEGER, entfernt_am TEXT);
+        CREATE TABLE vorfall (id INTEGER PRIMARY KEY, chat_id INTEGER, art TEXT, erstellt_am TEXT);
+        CREATE TABLE web_post (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER,
+                                richtung TEXT, typ TEXT, text TEXT, geloescht_am TEXT);
+        CREATE TABLE nachricht (chat_id INTEGER, message_id INTEGER, ist_bot INTEGER, text TEXT);
+        CREATE TABLE arbeitsstand (chat_id INTEGER PRIMARY KEY, phase INTEGER,
+                                    gesamttext_fixiert_am TEXT, geschichte_uebersicht_fixiert_am TEXT,
+                                    sprechweisen_fixiert_am TEXT);
+        """)
+    conn.commit()
+    conn.close()
+    return pfad
+
+
+def _p57(pfad, chat_id=7):
+    with inv.oeffne_lesend(pfad) as conn:
+        return inv.lese_p57_stand(conn, chat_id)
+
+
+def _bot_post57(pfad, chat_id, text):
+    _schreibe(pfad, "INSERT INTO web_post (chat_id, richtung, typ, text) VALUES (?, 'aus', 'text', ?)",
+              chat_id, text)
+
+
+def test_lese_p57_stand_liest_und_dedupliziert_bot_texte(db57):
+    _schreibe(db57, "INSERT INTO web_post (chat_id, richtung, typ, text) VALUES (7, 'aus', 'text', 'Hi there')")
+    _schreibe(db57, "INSERT INTO nachricht (chat_id, message_id, ist_bot, text) VALUES (7, 1, 1, 'Hi there')")
+    _schreibe(db57, "INSERT INTO nachricht (chat_id, message_id, ist_bot, text) VALUES (7, 2, 0, 'from the group')")
+    stand = _p57(db57)
+    assert stand.bot_texte == ("Hi there",)
+
+
+def test_p5_zitat_ungeprueft_schaerfung_auf_ungeprueftes_zitat(db57):
+    _schreibe(db57, "INSERT INTO verdichtung_thema (id, chat_id, zitat_geprueft, beleg_zitat) "
+                    "VALUES (1, 7, 0, 'the bridge was cold')")
+    _schreibe(db57, "INSERT INTO schaerfung (id, chat_id, verdichtung_thema_id) VALUES (1, 7, 1)")
+    befunde = inv.pruefe_p5_zitat_ungeprueft(_p57(db57).schaerfungen, (), "p5-schaerfung")
+    assert [b.schluessel for b in befunde] == [inv.P5_ZITAT_UNGEPRUEFT]
+
+
+def test_p5_zitat_ungeprueft_sauber_bei_geprueftem_zitat(db57):
+    _schreibe(db57, "INSERT INTO verdichtung_thema (id, chat_id, zitat_geprueft, beleg_zitat) "
+                    "VALUES (1, 7, 1, 'the bridge was cold')")
+    _schreibe(db57, "INSERT INTO schaerfung (id, chat_id, verdichtung_thema_id) VALUES (1, 7, 1)")
+    assert inv.pruefe_p5_zitat_ungeprueft(_p57(db57).schaerfungen, (), "p5-schaerfung") == []
+
+
+def test_p5_zitat_ungeprueft_findet_ungeprueftes_zitat_im_bot_text(db57):
+    """Mutationsschutz: der Filter ``zitat_geprueft == 1`` entscheidet, ob
+    ein Zitat ueberhaupt gegen den Chat geprueft wird -- ohne ihn (oder mit
+    ihm entfernt) wuerde auch ein GEPRUEFTES Zitat im Chat als Befund
+    gelten, oder ein ungeprueftes nie geprueft."""
+    stand = inv.pruefe_p5_zitat_ungeprueft(
+        ({"id": 1, "verdichtung_thema_id": 9, "zitat_geprueft": 0, "beleg_zitat": "the bridge was cold"},),
+        ("Yesterday someone said the bridge was cold and empty.",), "p5-schaerfung")
+    assert any(b.schluessel == inv.P5_ZITAT_UNGEPRUEFT for b in stand)
+    # Dasselbe Zitat, aber GEPRUEFT: kein zweiter Befund aus dem Chat-Teil.
+    sauber = inv.pruefe_p5_zitat_ungeprueft(
+        ({"id": 1, "verdichtung_thema_id": 9, "zitat_geprueft": 1, "beleg_zitat": "the bridge was cold"},),
+        ("Yesterday someone said the bridge was cold and empty.",), "p5-schaerfung")
+    assert sauber == []
+
+
+def test_chat_volltext_findet_teilstring_aus_prosa():
+    prosa = "x" * 250
+    szenen = ({"id": 1, "nummer": 1, "prosa": prosa, "volltext": ""},)
+    bot_texte = (f"Here is some chat text. {prosa} And more chat.",)
+    befunde = inv.pruefe_chat_volltext(bot_texte, szenen, "p5-szenen")
+    assert [b.schluessel for b in befunde] == [inv.CHAT_VOLLTEXT]
+
+
+def test_chat_volltext_sauber_ohne_teilstring():
+    szenen = ({"id": 1, "nummer": 1, "prosa": "y" * 250, "volltext": ""},)
+    bot_texte = ("A short status line about the scene.",)
+    assert inv.pruefe_chat_volltext(bot_texte, szenen, "p5-szenen") == []
+
+
+def test_chat_volltext_schwelle_zu_hoch_verdeckt_den_fund():
+    """Mutationsschutz (Plan-Vorgabe): die Teilstring-Schwelle 10 000 statt
+    200 laesst denselben echten Verstoss unentdeckt -- die Schwelle ist
+    keine Kosmetik."""
+    prosa = "x" * 250
+    szenen = ({"id": 1, "nummer": 1, "prosa": prosa, "volltext": ""},)
+    bot_texte = (f"Chat: {prosa}",)
+    assert inv.pruefe_chat_volltext(bot_texte, szenen, "p5-szenen") != []
+    assert inv.pruefe_chat_volltext(bot_texte, szenen, "p5-szenen", schwelle=10_000) == []
+
+
+def test_prueflauf_zeilen_rundenlimit_ueberschritten(db57):
+    befunde = inv.pruefe_prueflauf_zeilen(
+        ({"id": 1, "runden": 3},), (), (), (), "p6-gesamt")
+    assert [b.schluessel for b in befunde] == [inv.PRUEFLAUF_ZEILEN]
+    assert befunde[0].schwere == "mittel"
+
+
+def test_prueflauf_zeilen_innerhalb_des_limits_ist_sauber():
+    assert inv.pruefe_prueflauf_zeilen(({"id": 1, "runden": 2},), (), (), (), "p6-gesamt") == []
+
+
+def test_prueflauf_zeilen_bot_text_mit_zu_vielen_zeilen():
+    text = "\n".join([f"Pruefung (b1): fix {i}" for i in range(4)])
+    befunde = inv.pruefe_prueflauf_zeilen((), (), (text,), (), "p6-gesamt")
+    assert [b.schluessel for b in befunde] == [inv.PRUEFLAUF_ZEILEN]
+
+
+def test_prueflauf_zeilen_fehlt_trotz_abgenommener_szene_mit_grund():
+    szenen = ({"id": 1, "entwurf_bestaetigt_am": "2026-10-06T10:00:00+00:00"},)
+    vorfaelle = ((1, "prueflauf_ohne_richter", "2026-10-06T10:00:01+00:00"),)
+    befunde = inv.pruefe_prueflauf_zeilen((), szenen, (), vorfaelle, "p5-szenen")
+    assert len(befunde) == 1
+    assert "prueflauf_ohne_richter" in befunde[0].text
+
+
+def test_sprung_falsch_phase6_ohne_alle_entwuerfe():
+    szenen = ({"id": 1, "entwurf_bestaetigt_am": "x"}, {"id": 2, "entwurf_bestaetigt_am": None})
+    befunde = inv.pruefe_sprung_falsch(szenen, 6, None, "p5-szenen")
+    assert [b.schluessel for b in befunde] == [inv.SPRUNG_FALSCH]
+
+
+def test_sprung_falsch_phase7_ohne_gesamttext():
+    szenen = ({"id": 1, "entwurf_bestaetigt_am": "x", "ueberarbeitung_bestaetigt_am": "x"},)
+    befunde = inv.pruefe_sprung_falsch(szenen, 7, None, "p6-szenen")
+    assert [b.schluessel for b in befunde] == [inv.SPRUNG_FALSCH]
+
+
+def test_sprung_falsch_kein_autosprung_nach_frist():
+    jetzt = "2026-10-06T12:00:00+00:00"
+    alt = "2026-10-06T11:58:00+00:00"   # 120s zurueck, > SPRUNG_FRIST_S=60
+    szenen = ({"id": 1, "entwurf_bestaetigt_am": alt},)
+    befunde = inv.pruefe_sprung_falsch(szenen, 5, None, "p5-szenen", jetzt_iso=jetzt)
+    assert [b.schluessel for b in befunde] == [inv.SPRUNG_FALSCH]
+
+
+def test_sprung_falsch_innerhalb_der_frist_ist_sauber():
+    jetzt = "2026-10-06T12:00:00+00:00"
+    frisch = "2026-10-06T11:59:50+00:00"   # 10s zurueck, < SPRUNG_FRIST_S=60
+    szenen = ({"id": 1, "entwurf_bestaetigt_am": frisch},)
+    befunde = inv.pruefe_sprung_falsch(szenen, 5, None, "p5-szenen", jetzt_iso=jetzt)
+    assert befunde == []
+
+
+def test_sprung_falsch_korrekter_sprung_ist_sauber():
+    szenen = ({"id": 1, "entwurf_bestaetigt_am": "x", "ueberarbeitung_bestaetigt_am": "x"},)
+    assert inv.pruefe_sprung_falsch(szenen, 6, None, "p5-szenen") == []
+
+
+def test_nur_anhaengen_unveraendert_ist_sauber():
+    vorher = {1: inv.hash_fassung("Act one, scene one.")}
+    assert inv.pruefe_nur_anhaengen(vorher, ((1, "Act one, scene one."),), "p6-szenen") == []
+
+
+def test_nur_anhaengen_gleich_lang_aber_anders_ist_ein_befund():
+    """Mutationsschutz (Plan-Vorgabe, Lehre B-neu-2): ein Laengenvergleich
+    statt des Hashs wuerde diesen Fall faelschlich als unveraendert
+    durchlassen -- beide Texte sind exakt gleich lang."""
+    alt = "Act one, scene one, romance."
+    neu = "Act one, scene one, chances."
+    assert len(alt) == len(neu)
+    vorher = {1: inv.hash_fassung(alt)}
+    befunde = inv.pruefe_nur_anhaengen(vorher, ((1, neu),), "p6-szenen")
+    assert [b.schluessel for b in befunde] == [inv.NUR_ANHAENGEN]
+
+
+def test_nur_anhaengen_fehlende_zeile_ist_ein_befund():
+    vorher = {1: inv.hash_fassung("Act one.")}
+    befunde = inv.pruefe_nur_anhaengen(vorher, (), "p6-szenen")
+    assert [b.schluessel for b in befunde] == [inv.NUR_ANHAENGEN]
+
+
+def test_denkspur_erkennt_selbstgespraech():
+    text = "I should: keep this short. The system instruction says so."
+    befunde = inv.pruefe_denkspur((text,), "p5-szenen")
+    assert [b.schluessel for b in befunde] == [inv.DENKSPUR]
+
+
+def test_denkspur_sauber_bei_normalem_text():
+    assert inv.pruefe_denkspur(("Here is the scene you asked for.",), "p5-szenen") == []
+
+
+def test_deutsch_p57_findet_deutsche_marke():
+    befunde = inv.pruefe_deutsch_p57(("Die Szene ist gespeichert und bereit.",), "p5-szenen")
+    assert [b.schluessel for b in befunde] == [inv.DEUTSCH_P57]
+    assert befunde[0].schwere == "mittel"
+
+
+def test_deutsch_p57_sauber_bei_englischem_text():
+    assert inv.pruefe_deutsch_p57(("The scene is saved and ready.",), "p5-szenen") == []
+
+
+def test_stueck_unvollstaendig_ohne_bewertung():
+    szenen = ({"id": 1, "nummer": 1, "fertig_am": "x", "volltext": "Scene text."},)
+    befunde = inv.pruefe_stueck_unvollstaendig(szenen, (), "p7-schluss")
+    assert [b.schluessel for b in befunde] == [inv.STUECK_UNVOLLSTAENDIG]
+
+
+def test_stueck_unvollstaendig_offene_szene():
+    szenen = ({"id": 1, "nummer": 1, "fertig_am": None, "volltext": ""},)
+    stueckpruefungen = ({"id": 1, "runde": 1, "bewertung": 4},)
+    befunde = inv.pruefe_stueck_unvollstaendig(szenen, stueckpruefungen, "p7-schluss")
+    assert [b.schluessel for b in befunde] == [inv.STUECK_UNVOLLSTAENDIG]
+
+
+def test_stueck_unvollstaendig_vollstaendig_ist_sauber():
+    szenen = ({"id": 1, "nummer": 1, "fertig_am": "x", "volltext": "Scene text."},)
+    stueckpruefungen = ({"id": 1, "runde": 1, "bewertung": 4},)
+    assert inv.pruefe_stueck_unvollstaendig(szenen, stueckpruefungen, "p7-schluss") == []

@@ -913,6 +913,11 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
     #: dasselbe ``set``-Objekt wandert per Referenz in jede ``PruefKontext``
     #: dieses Laufs, siehe ``browser_pruefhaken._modellwahl``.
     modellwahl_phasen_geprueft: set[int] = set()
+    #: P57 Task 3: id -> Hash(``szenenfassung.volltext``) -- dasselbe
+    #: Dict-Objekt wandert per Referenz in jede ``PruefKontext`` dieses
+    #: Laufs (wie ``aufruf_bereiche`` oben), siehe
+    #: ``browser_pruefhaken._sprung``/``PruefKontext.szenenfassung_hashes_p57``.
+    szenenfassung_hashes_p57: dict = {}
     #: Task 2 (BRIEF p57): None, solange kein Kostendeckel gegriffen hat --
     #: landet unveraendert in ``ergebnis["abbruch"]``.
     abbruch: str | None = None
@@ -931,7 +936,8 @@ def fuehre_stationen(page, context, *, basis_url: str, token: str, db_pfad: str,
                 hole_prompt=hole_prompt, warte=warte, lauf_verzeichnis=lauf_verzeichnis,
                 beobachter_start=len(beobachter.verlauf) if beobachter else 0, notizen=notizen,
                 aufruf_bereiche=aufruf_bereiche, stationen_phase=stationen_phase,
-                modellwahl_phasen_geprueft=modellwahl_phasen_geprueft)
+                modellwahl_phasen_geprueft=modellwahl_phasen_geprueft,
+                szenenfassung_hashes_p57=szenenfassung_hashes_p57)
             kontext.sende = lambda text, k=kontext: _sende_und_lies_antwort(k.page, text)
             lauf = None
             von_aufruf = _max_aufruf_id(db_pfad)

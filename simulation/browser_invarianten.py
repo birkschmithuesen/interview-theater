@@ -48,6 +48,7 @@ gebrauchten Spalten):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -57,7 +58,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from interview_theater import aufnahme, modellwahl
+from interview_theater import ablauf, aufnahme, modellwahl
+from interview_theater import prueflauf as it_prueflauf
+from interview_theater import zitat as it_zitat
+from interview_theater.dramaturgie import schleife as it_schleife
 
 URSACHE_UNGEKLAERT = "App oder Werkzeug – ungeklaert"
 FRIST_NACH_ENDE_S = 60.0
@@ -1138,3 +1142,393 @@ def pruefe_wissensantwort(antwort: str, board: tuple[str, ...], station: str) ->
     return [Befund(CHAT_NENNT_BOARD_NICHT, station,
                    f"Auf '{WISSENSFRAGE}' nennt der Bot {len(genannt)} von {len(board)} Board-Begriffen "
                    f"(noetig {noetig}): {antwort[:160]!r}")]
+
+
+# --- Padua Phasen 5-7 live-reif (Karte t_db7c6b2c, P57 Task 3, 06.10.2026) --
+#
+# Dieselbe Haltung wie oben: ein Symptom ist ein App-Fehler bis zum
+# Gegenbeweis, eine Pruefung ohne Material ist "nicht_pruefbar", nie stilles
+# ``[]``. ``P57Stand`` liest nur lesend, eigenes SQL wie ``P34Stand``.
+#
+# **Jede Pruefung hier prueft INHALT, nicht nur Laenge/Anzahl** (Lehre
+# B-neu-2, Nacht 05./06.10.2026: eine Transkript-Blasen-Invariante, die nur
+# die Zeichenzahl zaehlte, liess einen verdoppelten Text unentdeckt durch):
+# ``pruefe_chat_volltext`` sucht einen echten gemeinsamen Teilstring,
+# ``pruefe_nur_anhaengen`` vergleicht einen Hash des ganzen Texts (nicht nur
+# seine Laenge), ``pruefe_p5_zitat_ungeprueft`` filtert ueber
+# ``zitat_geprueft`` und nicht nur ueber die Zahl der Schaerfungs-Zeilen.
+#
+# Bot-Texte stehen in ZWEI Tabellen (Risiko-Hinweis Task 3): ``web_post``
+# (was der Browser als Blase zeigt, ``richtung = 'aus'``) UND ``nachricht``
+# (die Mitschrift fuers Gespraechs-/Erkennerfenster, ``ist_bot = 1``) --
+# beide tragen denselben Bot-Text oft doppelt. ``lese_p57_stand`` liest
+# beide und entfernt Duplikate ueber den (getrimmten) Text selbst.
+
+P5_ZITAT_UNGEPRUEFT = "p5_zitat_ungeprueft"
+CHAT_VOLLTEXT = "chat_volltext"
+PRUEFLAUF_ZEILEN = "prueflauf_zeilen"
+SPRUNG_FALSCH = "sprung_falsch"
+NUR_ANHAENGEN = "nur_anhaengen"
+DENKSPUR = "denkspur"
+DEUTSCH_P57 = "deutsch_p57"
+STUECK_UNVOLLSTAENDIG = "stueck_unvollstaendig"
+
+#: Wie lange nach der letzten Abnahme ALLER Szenen der Auto-Sprung (5->6,
+#: 6->7) Zeit hat, bevor seine Abwesenheit ein Befund wird -- der Sprung
+#: selbst ist eine synchrone Reaktion auf den letzten Knopfdruck, kein
+#: Hintergrundlauf, deshalb reicht dieselbe Groessenordnung wie
+#: ``FRIST_NACH_ENDE_S``.
+SPRUNG_FRIST_S = 60.0
+
+#: Woertlich aus ``interview_theater/prueflauf.py`` abgeschrieben (dort
+#: privat, ``_ZEILE_AUFTRAG = "Pruefung ({pruefung}): {text}"``,
+#: ``_ZEILE_SPRACHPASS``, ``_ZEILE_VERSCHLECHTERT``,
+#: ``_ZEILE_ZITAT_VERWORFEN``) -- die Praefixe, an denen eine Zeile des
+#: Prueflauf-Hinweises in einem Bot-Text erkennbar ist. Mehr als
+#: ``it_prueflauf.ZEILEN_MAX`` solcher Zeilen in EINEM Bot-Text verletzt
+#: Birks Vorgabe ("hoechstens drei Zeilen dazu, was die Pruefung geaendert
+#: hat").
+_PRUEFLAUF_ZEILE_PRAEFIXE = (
+    "Pruefung (", "Sprachpass:", "Die Ueberarbeitung war schwaecher",
+    "hat ein Interviewzitat verloren",
+)
+
+
+@dataclass(frozen=True)
+class P57Stand:
+    #: (id, verdichtung_thema_id, zitat_geprueft, beleg_zitat) je Dict, eine
+    #: Zeile je ``schaerfung`` (ohne weich geloeschte), verbunden mit ihrem
+    #: ``verdichtung_thema``.
+    schaerfungen: tuple = ()
+    #: Je Dict: id, nummer, prosa, volltext, fertig_am,
+    #: entwurf_bestaetigt_am, ueberarbeitung_bestaetigt_am -- alle Szenen
+    #: ohne weich geloeschte.
+    szenen: tuple = ()
+    #: (id, volltext) je Zeile aus ``szenenfassung``.
+    szenenfassungen: tuple = ()
+    #: Je Dict: id, runden, erstellt_am, szene_nummer, ziel.
+    prueflaeufe: tuple = ()
+    #: Je Dict: id, runde, bewertung.
+    stueckpruefungen: tuple = ()
+    #: (id, art, erstellt_am) aus ``vorfall`` -- wie ``P34Stand.vorfaelle``,
+    #: fuer die Richter-Exoneration (``it_prueflauf.VORFALL_OHNE_RICHTER``).
+    vorfaelle: tuple = ()
+    #: Alle Bot-Texte (``web_post`` + ``nachricht``, dedupliziert), getrimmt,
+    #: ohne leere.
+    bot_texte: tuple = ()
+    phase: int | None = None
+    gesamttext_fixiert_am: str | None = None
+    geschichte_uebersicht_fixiert_am: str | None = None
+    sprechweisen_fixiert_am: str | None = None
+
+
+def lese_p57_stand(conn: sqlite3.Connection, chat_id: int) -> P57Stand:
+    schaerfung_filter = " AND sch.entfernt_am IS NULL" if _hat_spalte(conn, "schaerfung", "entfernt_am") else ""
+    schaerfungen = tuple(
+        dict(z) for z in conn.execute(
+            f"""
+            SELECT sch.id AS id, sch.verdichtung_thema_id AS verdichtung_thema_id,
+                   vt.zitat_geprueft AS zitat_geprueft, vt.beleg_zitat AS beleg_zitat
+            FROM schaerfung sch JOIN verdichtung_thema vt ON vt.id = sch.verdichtung_thema_id
+            WHERE sch.chat_id = ?{schaerfung_filter}
+            ORDER BY sch.id
+            """, (chat_id,)))
+
+    szene_filter = " AND entfernt_am IS NULL" if _hat_spalte(conn, "szene", "entfernt_am") else ""
+    szenen = tuple(
+        dict(z) for z in conn.execute(
+            f"SELECT id, nummer, prosa, volltext, fertig_am, entwurf_bestaetigt_am, "
+            f"ueberarbeitung_bestaetigt_am FROM szene WHERE chat_id = ?{szene_filter} ORDER BY id",
+            (chat_id,)))
+
+    szenenfassungen = tuple(
+        (z["id"], z["volltext"] or "") for z in conn.execute(
+            "SELECT id, volltext FROM szenenfassung WHERE chat_id = ? ORDER BY id", (chat_id,)))
+
+    prueflaeufe = tuple(
+        dict(z) for z in conn.execute(
+            "SELECT id, runden, erstellt_am, szene_nummer, ziel FROM prueflauf "
+            "WHERE chat_id = ? ORDER BY id", (chat_id,)))
+
+    stueck_filter = " AND entfernt_am IS NULL" if _hat_spalte(conn, "stueckpruefung", "entfernt_am") else ""
+    stueckpruefungen = tuple(
+        dict(z) for z in conn.execute(
+            f"SELECT id, runde, bewertung FROM stueckpruefung WHERE chat_id = ?{stueck_filter} "
+            "ORDER BY id", (chat_id,)))
+
+    vorfaelle = tuple(
+        (z["id"], z["art"], z["erstellt_am"]) for z in conn.execute(
+            "SELECT id, art, erstellt_am FROM vorfall WHERE chat_id = ? ORDER BY id", (chat_id,))
+    ) if _hat_tabelle(conn, "vorfall") else ()
+
+    bot_web = [
+        (z["text"] or "") for z in conn.execute(
+            "SELECT text FROM web_post WHERE chat_id = ? AND richtung = 'aus' "
+            "AND geloescht_am IS NULL ORDER BY id", (chat_id,))]
+    bot_nachricht = [
+        (z["text"] or "") for z in conn.execute(
+            "SELECT text FROM nachricht WHERE chat_id = ? AND ist_bot = 1 ORDER BY message_id", (chat_id,))
+    ] if _hat_tabelle(conn, "nachricht") else []
+    bot_texte = tuple(dict.fromkeys(t.strip() for t in (*bot_web, *bot_nachricht) if t and t.strip()))
+
+    gesamt_ausdruck = ("gesamttext_fixiert_am" if _hat_spalte(conn, "arbeitsstand", "gesamttext_fixiert_am")
+                       else "NULL")
+    uebersicht_ausdruck = ("geschichte_uebersicht_fixiert_am"
+                          if _hat_spalte(conn, "arbeitsstand", "geschichte_uebersicht_fixiert_am") else "NULL")
+    sprechweisen_ausdruck = ("sprechweisen_fixiert_am"
+                            if _hat_spalte(conn, "arbeitsstand", "sprechweisen_fixiert_am") else "NULL")
+    arbeitsstand = conn.execute(
+        f"SELECT phase, {gesamt_ausdruck} AS gesamttext_fixiert_am, "
+        f"{uebersicht_ausdruck} AS geschichte_uebersicht_fixiert_am, "
+        f"{sprechweisen_ausdruck} AS sprechweisen_fixiert_am FROM arbeitsstand WHERE chat_id = ?",
+        (chat_id,)).fetchone()
+
+    return P57Stand(
+        schaerfungen=schaerfungen, szenen=szenen, szenenfassungen=szenenfassungen,
+        prueflaeufe=prueflaeufe, stueckpruefungen=stueckpruefungen, vorfaelle=vorfaelle,
+        bot_texte=bot_texte,
+        phase=(arbeitsstand["phase"] if arbeitsstand else None),
+        gesamttext_fixiert_am=(arbeitsstand["gesamttext_fixiert_am"] if arbeitsstand else None),
+        geschichte_uebersicht_fixiert_am=(
+            arbeitsstand["geschichte_uebersicht_fixiert_am"] if arbeitsstand else None),
+        sprechweisen_fixiert_am=(arbeitsstand["sprechweisen_fixiert_am"] if arbeitsstand else None),
+    )
+
+
+def pruefe_p5_zitat_ungeprueft(schaerfungen: tuple, bot_texte: tuple, station: str) -> list[Befund]:
+    """Jede ``schaerfung`` muss auf ein GEPRUEFTES Zitat zeigen
+    (``verdichtung_thema.zitat_geprueft == 1``); und kein Bot-Text darf ein
+    Belegzitat zeigen, dessen Pruefung fehlschlug. Beides dieselbe Zusage wie
+    ``docs/agents/weboberflaeche.md``: kein Belegzitat ohne
+    ``zitat_geprueft = 1``."""
+    befunde: list[Befund] = []
+    for s in schaerfungen:
+        if s["zitat_geprueft"] != 1:
+            befunde.append(Befund(
+                P5_ZITAT_UNGEPRUEFT, station,
+                f"Schaerfung id={s['id']} zeigt auf verdichtung_thema_id={s['verdichtung_thema_id']} "
+                f"mit zitat_geprueft={s['zitat_geprueft']!r} -- ungeprueftes Zitat in der Schaerfung."))
+    for s in schaerfungen:
+        if s["zitat_geprueft"] == 1:
+            continue
+        roh = (s.get("beleg_zitat") or "").strip()
+        if not roh:
+            continue
+        z = it_zitat.normalisiere(roh).strip('"\'')
+        if not z:
+            continue
+        for text in bot_texte:
+            if z in it_zitat.normalisiere(text):
+                befunde.append(Befund(
+                    P5_ZITAT_UNGEPRUEFT, station,
+                    f"Bot-Text enthaelt das UNGEPRUEFTE Zitat {roh!r} "
+                    f"(verdichtung_thema_id={s['verdichtung_thema_id']})."))
+                break
+    return befunde
+
+
+def _gemeinsamer_teilstring_mind(a: str, b: str, laenge: int) -> str | None:
+    """Erster Teilstring von ``a`` der Laenge ``laenge``, der auch in ``b``
+    vorkommt -- oder ``None``. Reiner Teilstring-Vergleich (keine Hash-/
+    Laengenabkuerzung): der einzige Weg, eine echte woertliche Kopie zu
+    erkennen und keinen zufaelligen Treffer gleicher Laenge."""
+    if len(a) < laenge or len(b) < laenge:
+        return None
+    for i in range(0, len(a) - laenge + 1):
+        fenster = a[i:i + laenge]
+        if fenster in b:
+            return fenster
+    return None
+
+
+def pruefe_chat_volltext(bot_texte: tuple, szenen: tuple, station: str, *, schwelle: int = 200) -> list[Befund]:
+    """Kein Bot-Post (Phase >= 5) darf einen normalisierten Teilstring von
+    mindestens ``schwelle`` Zeichen aus ``szene.prosa``/``volltext`` zeigen
+    -- der Volltext gehoert in den Tab ``textbuch``, nicht in den Chat."""
+    befunde: list[Befund] = []
+    for sz in szenen:
+        for feld in ("prosa", "volltext"):
+            quelle = (sz.get(feld) or "").strip()
+            if len(quelle) < schwelle:
+                continue
+            qn = _norm(quelle)
+            for text in bot_texte:
+                tn = _norm(text)
+                treffer = _gemeinsamer_teilstring_mind(qn, tn, schwelle)
+                if treffer:
+                    kennung = sz.get("nummer") or sz.get("id")
+                    befunde.append(Befund(
+                        CHAT_VOLLTEXT, station,
+                        f"Bot-Text enthaelt einen Teilstring >= {schwelle} Zeichen aus "
+                        f"szene.{feld} (Szene {kennung}): {treffer[:80]!r}..."))
+                    break
+    return befunde
+
+
+def _grund_ohne_richter(vorfaelle: tuple) -> str:
+    """H2-Muster (``_exoneriert_durch_opus_fallback``): ein ``vorfall`` mit
+    ``it_prueflauf.VORFALL_OHNE_RICHTER`` erklaert, OHNE die ``.env`` zu
+    lesen, warum kein Prueflauf lief -- kein Beweis, nur ein moeglicher
+    Grund im Befundtext (Risiko 3 des Plans: "Richter fehlt")."""
+    if any(art == it_prueflauf.VORFALL_OHNE_RICHTER for _id, art, _zeit in vorfaelle):
+        return (" Moeglicher Grund: vorfall 'prueflauf_ohne_richter' steht fuer diese Gruppe "
+                "(Richter/Env moeglicherweise nicht konfiguriert, aus der DB nicht abschliessend klaerbar).")
+    return ""
+
+
+def pruefe_prueflauf_zeilen(prueflaeufe: tuple, szenen: tuple, bot_texte: tuple, vorfaelle: tuple,
+                            station: str) -> list[Befund]:
+    """``prueflauf.runden`` darf ``it_schleife.RUNDEN_MAX`` nie ueberschreiten;
+    ein Bot-Text darf nie mehr als ``it_prueflauf.ZEILEN_MAX`` erkennbare
+    Prueflauf-Zeilen tragen (``_PRUEFLAUF_ZEILE_PRAEFIXE``); und jede
+    abgenommene Szene (Entwurf, Ueberarbeitung oder fertig) muss mindestens
+    eine ``prueflauf``-Zeile haben."""
+    befunde: list[Befund] = []
+    for pl in prueflaeufe:
+        runden = pl.get("runden") or 0
+        if runden > it_schleife.RUNDEN_MAX:
+            befunde.append(Befund(
+                PRUEFLAUF_ZEILEN, station,
+                f"Prueflauf id={pl['id']} hat {runden} Runden -- mehr als RUNDEN_MAX={it_schleife.RUNDEN_MAX}.",
+                schwere="mittel"))
+    for text in bot_texte:
+        anzahl = sum(1 for zeile in text.splitlines() if zeile.strip().startswith(_PRUEFLAUF_ZEILE_PRAEFIXE))
+        if anzahl > it_prueflauf.ZEILEN_MAX:
+            befunde.append(Befund(
+                PRUEFLAUF_ZEILEN, station,
+                f"Ein Bot-Text zeigt {anzahl} Prueflauf-Zeilen -- mehr als "
+                f"ZEILEN_MAX={it_prueflauf.ZEILEN_MAX}: {text[:200]!r}",
+                schwere="mittel"))
+    abgenommene = [
+        s for s in szenen
+        if (s.get("entwurf_bestaetigt_am") or s.get("ueberarbeitung_bestaetigt_am") or s.get("fertig_am"))
+    ]
+    if abgenommene and not prueflaeufe:
+        befunde.append(Befund(
+            PRUEFLAUF_ZEILEN, station,
+            f"{len(abgenommene)} abgenommene Szene(n), aber keine prueflauf-Zeile."
+            + _grund_ohne_richter(vorfaelle),
+            schwere="mittel"))
+    return befunde
+
+
+def pruefe_sprung_falsch(szenen: tuple, phase: int | None, gesamttext_fixiert_am: str | None, station: str,
+                         *, jetzt_iso: str | None = None, frist_s: float = SPRUNG_FRIST_S) -> list[Befund]:
+    """Phase 6 erst, wenn ALLE Szenen ``entwurf_bestaetigt_am`` tragen; Phase 7
+    erst nach ``gesamttext_fixiert_am`` UND allen ``ueberarbeitung_bestaetigt_am``.
+    Umgekehrt: ist alles abgenommen, aber die Phase haengt laenger als
+    ``frist_s`` dahinter zurueck, ist auch das ein Befund -- der Auto-Sprung
+    ist Birks gewollte Ausnahme (Gruppe hat gedrueckt), kein Nicht-Verhalten."""
+    if not szenen:
+        return [nicht_pruefbar(SPRUNG_FALSCH, station, "keine Szenen im Stand.")]
+    jetzt_iso = jetzt_iso or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    alle_entwurf = all((s.get("entwurf_bestaetigt_am") or "").strip() for s in szenen)
+    alle_ueberarbeitung = all((s.get("ueberarbeitung_bestaetigt_am") or "").strip() for s in szenen)
+    gesamttext_da = bool((gesamttext_fixiert_am or "").strip())
+    befunde: list[Befund] = []
+    if phase is not None and phase >= 6 and not alle_entwurf:
+        befunde.append(Befund(
+            SPRUNG_FALSCH, station,
+            "Phase >= 6, aber nicht alle Szenen haben entwurf_bestaetigt_am -- Sprung 5->6 vor "
+            "vollstaendiger Abnahme."))
+    if phase is not None and phase >= 7 and not (gesamttext_da and alle_ueberarbeitung):
+        befunde.append(Befund(
+            SPRUNG_FALSCH, station,
+            "Phase 7, aber gesamttext_fixiert_am fehlt oder nicht alle Szenen haben "
+            "ueberarbeitung_bestaetigt_am -- Sprung 6->7 vor vollstaendiger Abnahme."))
+    if alle_entwurf and phase is not None and phase < 6:
+        letzte = max((s.get("entwurf_bestaetigt_am") or "" for s in szenen), default="")
+        sekunden = _sekunden_seit(letzte, jetzt_iso)
+        if sekunden is not None and sekunden >= frist_s:
+            befunde.append(Befund(
+                SPRUNG_FALSCH, station,
+                f"Alle Szenen haben entwurf_bestaetigt_am seit {sekunden:.0f}s, Phase ist aber "
+                f"weiterhin {phase} -- kein Auto-Sprung 5->6."))
+    if alle_ueberarbeitung and gesamttext_da and phase is not None and phase < 7:
+        letzte = max((gesamttext_fixiert_am or "", *(s.get("ueberarbeitung_bestaetigt_am") or "" for s in szenen)))
+        sekunden = _sekunden_seit(letzte, jetzt_iso)
+        if sekunden is not None and sekunden >= frist_s:
+            befunde.append(Befund(
+                SPRUNG_FALSCH, station,
+                f"Gesamttext fixiert und alle Szenen ueberarbeitet seit {sekunden:.0f}s, Phase ist "
+                f"aber weiterhin {phase} -- kein Auto-Sprung 6->7."))
+    return befunde
+
+
+def hash_fassung(text: str) -> str:
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def hashes_szenenfassungen(szenenfassungen: tuple) -> dict:
+    return {i: hash_fassung(t) for i, t in szenenfassungen}
+
+
+def pruefe_nur_anhaengen(vorher_hashes: dict, nachher_szenenfassungen: tuple, station: str) -> list[Befund]:
+    """``szenenfassung`` wird nie geaendert, nie geloescht (Modulkarte: "Nur
+    anhaengen"). Vergleicht einen HASH des ganzen Texts, nicht nur seine
+    Laenge -- ein gleich langer, aber anderer Text muss hier auffallen
+    (Lehre B-neu-2)."""
+    nachher_hashes = hashes_szenenfassungen(nachher_szenenfassungen)
+    befunde: list[Befund] = []
+    for id_, alter_hash in vorher_hashes.items():
+        neuer_hash = nachher_hashes.get(id_)
+        if neuer_hash is None:
+            befunde.append(Befund(
+                NUR_ANHAENGEN, station,
+                f"szenenfassung id={id_} aus einem frueheren Schnappschuss fehlt jetzt -- "
+                "nur-anhaengen verletzt."))
+        elif neuer_hash != alter_hash:
+            befunde.append(Befund(
+                NUR_ANHAENGEN, station,
+                f"szenenfassung id={id_} hat sich seit einem frueheren Schnappschuss geaendert -- "
+                "nur-anhaengen verletzt."))
+    return befunde
+
+
+def pruefe_denkspur(texte: tuple, station: str) -> list[Befund]:
+    """``ablauf.ist_denkspur`` auf jeden Bot-Text (und auf ``prosa``/
+    ``volltext``, die derselbe Aufrufer mitgibt) -- Selbstgespraech statt
+    einer Nachricht an die Gruppe."""
+    befunde: list[Befund] = []
+    gesehen: set[str] = set()
+    for text in texte:
+        if text and text not in gesehen and ablauf.ist_denkspur(text):
+            gesehen.add(text)
+            befunde.append(Befund(
+                DENKSPUR, station, f"Text sieht nach Denkspur (Selbstgespraech) aus: {text[:160]!r}"))
+    return befunde
+
+
+def pruefe_deutsch_p57(texte: tuple, station: str) -> list[Befund]:
+    """``DE_MARKEN`` (dieselbe Liste wie P34) auf jeden Bot-Text/Szenentext
+    -- Padua-EN-Gruppen duerfen keine deutsche Zeile sehen."""
+    befunde: list[Befund] = []
+    gesehen: set[str] = set()
+    for text in texte:
+        if text and text not in gesehen and any(marke in text for marke in DE_MARKEN):
+            gesehen.add(text)
+            befunde.append(Befund(
+                DEUTSCH_P57, station,
+                f"Text mit deutschen Marken in einer englischsprachigen Gruppe: {text[:160]!r}",
+                schwere="mittel"))
+    return befunde
+
+
+def pruefe_stueck_unvollstaendig(szenen: tuple, stueckpruefungen: tuple, station: str) -> list[Befund]:
+    """Nach dem Schluss (``p7-schluss``): mindestens eine ``stueckpruefung``
+    mit einer gueltigen Bewertung (1-5), und jede Szene mit ``fertig_am`` UND
+    einem nicht-leeren ``volltext``."""
+    befunde: list[Befund] = []
+    gueltige = [sp for sp in stueckpruefungen if sp.get("bewertung") in (1, 2, 3, 4, 5)]
+    if not gueltige:
+        befunde.append(Befund(
+            STUECK_UNVOLLSTAENDIG, station,
+            "Keine stueckpruefung-Zeile mit gueltiger Bewertung (1-5) -- der Stueck-Judge ist nicht "
+            "gelaufen oder ohne Urteil."))
+    unfertig = [s for s in szenen if not (s.get("fertig_am") and (s.get("volltext") or "").strip())]
+    if unfertig:
+        nummern = ", ".join(str(s.get("nummer") or s.get("id")) for s in unfertig)
+        befunde.append(Befund(
+            STUECK_UNVOLLSTAENDIG, station,
+            f"{len(unfertig)} Szene(n) ohne fertig_am oder ohne volltext beim Schluss: {nummern}."))
+    return befunde

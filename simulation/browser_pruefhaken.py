@@ -107,6 +107,14 @@ class PruefKontext:
     #: (u. a. ``pause_resume_ok``) -- von ``fuehre_stationen`` gesetzt, BEVOR
     #: ``fuehre_pruefungen`` laeuft.
     lauf: dict | None = None
+    # --- Padua Phasen 5-7 live-reif (P57 Task 3) ----------------------------
+    #: id -> Hash(``szenenfassung.volltext``) zu Beginn des LETZTEN Laufs des
+    #: ``sprung``-Hakens in diesem Prozess -- dasselbe Dict-Objekt wandert
+    #: per Referenz in jede ``PruefKontext`` dieses Laufs (wie
+    #: ``aufruf_bereiche``), damit ``nur_anhaengen`` ueber Stationen hinweg
+    #: vergleichen kann. Leer vor dem ersten Lauf (dann nichts zu
+    #: vergleichen, nur erfassen).
+    szenenfassung_hashes_p57: dict = field(default_factory=dict)
 
 
 def speicher_schluessel(page) -> list[str]:
@@ -398,6 +406,64 @@ def _pause_resume(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befu
         bool(lauf.get("pause_resume_ok")), station.pause_resume, station.schluessel)
 
 
+# --- Padua Phasen 5-7 live-reif (P57 Task 3) --------------------------------
+#
+# Fuenf der elf Namen, die ``browser_stationen.STATIONEN_P57`` schon in
+# ``Station.pruefung`` nennt (Karte t_db7c6b2c, Task 2): die Minimalset-
+# Pruefungen aus ``browser_invarianten`` sind inhaltlich gebuendelt, nicht
+# 1:1 je Pruefung ein eigener Stationsname -- ``chat_volltext`` deckt alle
+# drei "was im Chat steht, ist falsch"-Pruefungen ab (Volltext, Denkspur,
+# Deutsch), ``sprung`` deckt Phasenwechsel UND Nur-Anhaengen ab (beide sind
+# "um den Phasenwechsel herum richtig"). Die uebrigen sechs Namen
+# (``p5_uebersicht``, ``kuerzung``, ``formen``, ``textbuch``,
+# ``modellwahl57``, ``sprache57``) bleiben bis Task 7 ``nicht_pruefbar`` --
+# ``fuehre_pruefungen`` faengt das schon ab (Befund ``pruefung_unbekannt:<name>``).
+
+
+def _lies_p57(kontext: PruefKontext, chat_id: int) -> inv.P57Stand:
+    with inv.oeffne_lesend(kontext.db_pfad) as conn:
+        return inv.lese_p57_stand(conn, chat_id)
+
+
+def _p5_schaerfung(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    stand = _lies_p57(kontext, chat_id)
+    return inv.pruefe_p5_zitat_ungeprueft(stand.schaerfungen, stand.bot_texte, station.schluessel)
+
+
+def _prueflauf(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    stand = _lies_p57(kontext, chat_id)
+    return inv.pruefe_prueflauf_zeilen(
+        stand.prueflaeufe, stand.szenen, stand.bot_texte, stand.vorfaelle, station.schluessel)
+
+
+def _chat_volltext(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    stand = _lies_p57(kontext, chat_id)
+    befunde = inv.pruefe_chat_volltext(stand.bot_texte, stand.szenen, station.schluessel)
+    befunde += inv.pruefe_denkspur(stand.bot_texte, station.schluessel)
+    befunde += inv.pruefe_deutsch_p57(stand.bot_texte, station.schluessel)
+    return befunde
+
+
+def _sprung(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    stand = _lies_p57(kontext, chat_id)
+    befunde = inv.pruefe_sprung_falsch(
+        stand.szenen, stand.phase, stand.gesamttext_fixiert_am, station.schluessel)
+    vorher_hashes = kontext.szenenfassung_hashes_p57
+    if vorher_hashes:
+        befunde += inv.pruefe_nur_anhaengen(vorher_hashes, stand.szenenfassungen, station.schluessel)
+    # Dasselbe Dict-Objekt wandert per Referenz weiter (siehe Feld-Docstring)
+    # -- hier NEU befuellen (nicht ersetzen), damit eine spaetere Station
+    # dieselbe Referenz weiter sieht.
+    vorher_hashes.clear()
+    vorher_hashes.update(inv.hashes_szenenfassungen(stand.szenenfassungen))
+    return befunde
+
+
+def _stueckpruefung(station, kontext: PruefKontext, chat_id: int) -> list[inv.Befund]:
+    stand = _lies_p57(kontext, chat_id)
+    return inv.pruefe_stueck_unvollstaendig(stand.szenen, stand.stueckpruefungen, station.schluessel)
+
+
 HAKEN: dict[str, Callable] = {
     "nach_ende": _nach_ende,
     "verhoerer": _verhoerer,
@@ -410,6 +476,11 @@ HAKEN: dict[str, Callable] = {
     "modellwahl": _modellwahl,
     "p5_angebot": _p5_angebot,
     "pause_resume": _pause_resume,
+    "p5_schaerfung": _p5_schaerfung,
+    "prueflauf": _prueflauf,
+    "chat_volltext": _chat_volltext,
+    "sprung": _sprung,
+    "stueckpruefung": _stueckpruefung,
 }
 
 

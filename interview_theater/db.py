@@ -213,6 +213,15 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- 05.10.2026) -- dieselbe additive Durchreiche wie ``rede_ms``, rein
   -- diagnostisch, damit morgige Daten die Vorgaben justieren koennen.
   weich_ms        INTEGER,
+  -- Wie viele Millisekunden die Seite waehrend dieses Teils im Hintergrund
+  -- war (Tab-Wechsel, Sperrbildschirm) -- vom Client gemessen (Karte
+  -- t_1423ca89: Evidence Clone "G3 Interview 1" #113, gemeldet 178 s, real
+  -- ~26 s Audio, weil MediaRecorder und Timer dort angehalten hatten).
+  -- NULL = keine Lücke gemessen (oder ein Telefon ohne diese Fassung).
+  -- Rein diagnostisch wie ``rede_ms``: entscheidet mit ueber die Chatzeile
+  -- in ``aufnahme._pruefe_hintergrund_unterbrechung``, nie ueber ein
+  -- Upload-Gate. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  hintergrund_ms  INTEGER,
   -- Gesetzt (1) = diese Zeile ist der Testsatz einer Pegel-Kalibrierung
   -- (Task 2, Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026) -- kein
   -- gewoehnlicher Gespraechsbeitrag und kein Interview-Teil.
@@ -1211,7 +1220,13 @@ CREATE TABLE IF NOT EXISTS web_post (
   -- morgige Daten die Vorgaben IT_WEB_VAD_WEICH_MS (30s)/
   -- IT_WEB_VAD_WEICH_PAUSE_MS (700ms) justieren koennen. Additiv
   -- nachgeruestet ueber _migriere_fehlende_spalten.
-  weich_ms          INTEGER
+  weich_ms          INTEGER,
+  -- Wie viele Millisekunden die Seite waehrend dieses Segments im
+  -- Hintergrund war (Karte t_1423ca89, Warnung "Aufnahme im Hintergrund
+  -- unterbrochen"), vom Client gemessen (``?hintergrund=`` an chat/audio) --
+  -- dieselbe additive Durchreiche wie ``rede_ms``/``weich_ms``, bis in die
+  -- ``aufnahme``-Zeile (``web_kanal.hole_updates`` -> ``aufnahme.empfange``).
+  hintergrund_ms    INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);

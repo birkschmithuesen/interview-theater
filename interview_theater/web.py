@@ -679,13 +679,20 @@ _CSS_BUEHNE = """
 /* Typografie laut Karte: >= 1.15rem auf Telefonbreite, eine Zeilenlaenge,
    die nicht Kante an Kante laeuft, viel Weissraum, Kontrast aus dem
    Token-Paar (text, grund-2) -- bereits in web_gestalt.KONTRAST gefuehrt. */
-#buehne-tafel { font-size: 1.15rem; line-height: 1.55; white-space: pre-wrap;
+#buehne-tafel { font-size: 1.15rem; line-height: 1.55;
                 max-width: 34rem; margin: 0 auto; width: 100%;
                 box-sizing: border-box; padding: 1.1rem 1.2rem;
                 background: var(--grund-2); border: 1px solid var(--rand);
                 border-radius: var(--radius-gross); color: var(--text); }
 #buehne-tafel .buehne-alter { display: block; margin-top: .7rem;
                                font-size: .8rem; color: var(--text-leise); }
+#buehne-tafel p { margin: 0 0 .7rem; }
+#buehne-tafel p:last-of-type { margin-bottom: 0; }
+#buehne-tafel ul { margin: 0 0 .7rem 1.1rem; padding: 0; }
+#buehne-tafel li { margin: 0 0 .3rem; }
+#buehne-tafel li:last-child { margin-bottom: 0; }
+#buehne-tafel .buehne-ueberschrift { margin-top: .9rem; }
+#buehne-tafel .buehne-ueberschrift:first-child { margin-top: 0; }
 /* Die Navigation: Inhalt kommt IMMER aus JS (male()-Aequivalent), das
    leere Element ist hier nur der Platzhalter. Tippflaechen >= 44px. */
 #buehne-nav { display: flex; align-items: center; justify-content: center;
@@ -3291,6 +3298,64 @@ def _auswahlliste_html(daten: dict, liste: str) -> str:
     return "".join(teile)
 
 
+#: Die EINE sichere Markdown-Teilmenge einer Buehnenkarte (Birk 06.10.2026,
+#: Live-Test P4: das Modell schreibt ``**fett**``/``*kursiv*``/``- Punkte``,
+#: die Tafel zeigte das bisher roh -- Sternchen sichtbar, keine Absaetze).
+#: Maskiert IMMER zuerst (``html.escape``), wendet DANACH nur diese zwei
+#: Ersetzungen auf eine bereits maskierte Zeile an -- nie umgekehrt, sonst
+#: waere ein woertliches ``<script>`` im Kartentext ein XSS-Weg. Fett vor
+#: kursiv: sonst fraesse die Kursiv-Regel die Sternpaare der Fett-Regel an.
+#: Dieselbe Teilmenge, dieselbe Reihenfolge wie ``buehneMarkdown`` in
+#: ``web_vereint._VEREINT_JS`` (Browser-Verlauf, bisher ``textContent``).
+_BUEHNE_FETT = re.compile(r"\*\*([^*]+)\*\*")
+_BUEHNE_KURSIV = re.compile(r"\*([^*]+)\*")
+#: Eine Zeile, die GENAU EIN Fett-Paar ist und nichts sonst -- das wird eine
+#: Blockueberschrift, keine Flieszeile (Brief: "a line that is only a bold
+#: label"). ``[^*]+`` im Inneren verhindert einen Treffer bei zwei Fett-
+#: Spannen auf derselben Zeile.
+_BUEHNE_UEBERSCHRIFT = re.compile(r"^\*\*([^*]+)\*\*$")
+
+
+def _buehne_inline(zeile: str) -> str:
+    """Fett/kursiv auf einer bereits HTML-maskierten Zeile."""
+    zeile = _BUEHNE_FETT.sub(r"<strong>\1</strong>", zeile)
+    return _BUEHNE_KURSIV.sub(r"<em>\1</em>", zeile)
+
+
+def _buehne_markdown(text: str) -> str:
+    """Rendert eine Buehnenkarte als kleine HTML-Teilmenge statt als
+    Rohtext mit ``white-space: pre-wrap`` (siehe ``_CSS_BUEHNE``, die Regel
+    ist mit diesem Umbau raus). Leerzeilen trennen Absaetze, ``- ``/``• ``
+    leitet eine Aufzaehlung ein (fortlaufende Treffer werden zu EINER
+    ``<ul>``), eine Zeile aus genau einem ``**Label**`` wird eine
+    Blockueberschrift -- alles andere ein ``<p>``."""
+    bloecke: list[str] = []
+    liste: list[str] = []
+
+    def schliesse_liste() -> None:
+        if liste:
+            bloecke.append("<ul>" + "".join(f"<li>{z}</li>" for z in liste) + "</ul>")
+            liste.clear()
+
+    for rohzeile in html.escape(text or "").split("\n"):
+        zeile = rohzeile.strip()
+        if not zeile:
+            schliesse_liste()
+            continue
+        aufzaehlung = re.match(r"^(?:-|•)\s+(.+)$", zeile)
+        if aufzaehlung:
+            liste.append(_buehne_inline(aufzaehlung.group(1)))
+            continue
+        schliesse_liste()
+        ueberschrift = _BUEHNE_UEBERSCHRIFT.match(zeile)
+        if ueberschrift:
+            bloecke.append(f'<p class="buehne-ueberschrift"><strong>{ueberschrift.group(1)}</strong></p>')
+            continue
+        bloecke.append(f"<p>{_buehne_inline(zeile)}</p>")
+    schliesse_liste()
+    return "".join(bloecke)
+
+
 def _buehne_html(daten: dict) -> str:
     """Die CoThinker-Tafel: GENAU EINE Karte auf einmal, mit Browser-
     seitiger Verlaufsnavigation (Task 1, Padua CoThinker-Tab clean,
@@ -3339,12 +3404,11 @@ def _buehne_html(daten: dict) -> str:
 
     if echte_neueste_zuerst:
         neueste = echte_neueste_zuerst[0]
-        # Plain Text + ``white-space: pre-wrap`` (CSS) statt
-        # ``.replace("\\n", "<br>")``: dieselbe Zeile, die die JS beim
-        # Zurueckblaettern per ``textContent`` setzt (siehe Report,
-        # "textContent vs. innerHTML") -- SSR und Client-Rendering sehen
-        # damit optisch gleich aus, ein Zeilenumbruch ist kein zweiter Weg.
-        text = html.escape(neueste["text"] or "")
+        # Die kleine Markdown-Teilmenge (``_buehne_markdown``, Birk
+        # 06.10.2026) statt rohem Text -- dieselbe Funktion, die die JS beim
+        # Zurueckblaettern per ``buehneMarkdown`` aufruft (siehe dort): SSR
+        # und Client-Rendering sehen damit gleich aus.
+        text = _buehne_markdown(neueste["text"] or "")
         alter = _buehne_alterszeile(neueste["erstellt_am"])
         teile.append(f'<div id="buehne-tafel">{text}{alter}</div>')
 
@@ -4006,7 +4070,10 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
             for feld, label in T._PROBE_PLANUNG
             if s.get(feld)
         )
-        zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
+        if not prosa:
+            # P57 Lauf 2 B2: "Noch nicht geschrieben" nur ohne Prosa -- mit
+            # Prosa stand es ueber dem vorhandenen Szenentext (Padua 5/6).
+            zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
         if prosa:
             # Die Prosafassung aus Phase 6 ist der eigene Text der Gruppe und
             # kein Material -- sie steht hier, wo sonst nichts stuende, und

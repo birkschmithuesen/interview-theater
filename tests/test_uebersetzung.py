@@ -8,19 +8,35 @@ import pytest
 from interview_theater import repo, uebersetzung, workshop
 
 
+class _Ausfall(Exception):
+    """Steht fuer den LLMFehler, den ``klm.schema`` nach den eigenen
+    Wiederholungen wirft -- hier genuegt eine beliebige Ausnahme, da
+    ``uebersetzung.aktualisiere`` nichts Spezifisches faengt, sondern sie
+    durchreicht."""
+
+
 class _FakeKlm:
     """Steht fuer llm.LLM: zaehlt Aufrufe, uebersetzt durch einen festen
-    Praefix statt eines echten Modells."""
+    Praefix statt eines echten Modells.
 
-    def __init__(self, antwort=None):
+    ``fehler_bei_aufruf`` simuliert ein Haeppchen, das endgueltig scheitert
+    (nach den eigenen Wiederholungen von ``klm.schema``) -- die Aufrufe
+    sind nullbasiert durchnummeriert, unabhaengig davon, wie viele
+    Schluessel je Aufruf uebersetzt werden."""
+
+    def __init__(self, antwort=None, fehler_bei_aufruf=()):
         self.aufrufe = []
         self._antwort = antwort
+        self._fehler_bei_aufruf = set(fehler_bei_aufruf)
 
     def schema(self, chat_id, system, nutzer, schema, art, modell=None,
                temperature=None, bei_teil=None, teil_feld="antwort"):
+        index = len(self.aufrufe)
         self.aufrufe.append(
             {"chat_id": chat_id, "nutzer": nutzer, "schema": schema,
              "art": art, "modell": modell})
+        if index in self._fehler_bei_aufruf:
+            raise _Ausfall(f"simulierter Ausfall bei Aufruf {index}")
         if self._antwort is not None:
             return self._antwort
         seg = json.loads(nutzer)
@@ -252,6 +268,117 @@ def test_aktualisiere_verwendet_figuren_und_interviews(conn, einst):
     felder = json.loads(repo.hole_uebersetzung(conn, CHAT)["felder"])
     assert felder["figur_0"] == "EN:Mira"
     assert felder["interview_0_0"] == "EN:fishing at dawn"
+
+
+# --- aktualisiere(): Haeppchen statt EIN Riesenaufruf (Sofort-Fix 06.10.2026) --
+
+
+def _begriffe(anzahl: int) -> str:
+    return ", ".join(f"term{i}" for i in range(anzahl))
+
+
+def test_aktualisiere_teilt_viele_schluessel_in_haeppchen(conn, einst):
+    """40 Begriffe (plus die Felder ``begriffe`` und ``hauptthema`` selbst,
+    42 Schluessel insgesamt) -> 3 Aufrufe von hoechstens
+    ``HAEPPCHEN_GROESSE`` (15) statt EINEM Aufruf mit allen 42 (der nach
+    dem Zusammenfuehren vieler Interviews regelmaessig mit ReadTimeout
+    scheiterte)."""
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", _begriffe(40))
+    klm = _FakeKlm()
+    assert uebersetzung.aktualisiere(conn, klm, einst, CHAT) is True
+    groessen = [len(json.loads(a["nutzer"])) for a in klm.aufrufe]
+    # Mutation Check: ohne das Haeppchen-Limit waere es EIN Aufruf mit 42.
+    assert len(klm.aufrufe) == 3
+    assert groessen == [15, 15, 12]
+    felder = json.loads(repo.hole_uebersetzung(conn, CHAT)["felder"])
+    assert len(felder) == 42
+
+
+def test_aktualisiere_sendet_unveraenderte_schluessel_nicht_erneut(conn, einst):
+    """Kernkriterium der Karte: nur Schluessel, deren Quelltext sich
+    geaendert hat, werden neu uebersetzt -- ein neuer Begriff bei sonst
+    gleicher Quelle sendet nur den geaenderten ``begriffe``-Rohtext und den
+    neuen Begriff, nicht ``kernthema``/``hauptthema`` oder die schon
+    bekannten Begriffe."""
+    repo.setze_arbeitsstand(conn, CHAT, "kernthema", "fixed")
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "Home, Work")
+    klm = _FakeKlm()
+    assert uebersetzung.aktualisiere(conn, klm, einst, CHAT) is True
+    assert len(klm.aufrufe) == 1
+    erster_aufruf = json.loads(klm.aufrufe[0]["nutzer"])
+    assert set(erster_aufruf) == {
+        "begriffe", "kernthema", "hauptthema",
+        uebersetzung.begriff_schluessel("Home"), uebersetzung.begriff_schluessel("Work"),
+    }
+
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", "Home, Work, Market")
+    assert uebersetzung.aktualisiere(conn, klm, einst, CHAT) is True
+    assert len(klm.aufrufe) == 2
+    zweiter_aufruf = json.loads(klm.aufrufe[1]["nutzer"])
+    # Mutation Check: ohne Wiederverwendung staende hier zusaetzlich
+    # "kernthema", "hauptthema", "Home" und "Work" -- hier nur, was sich
+    # wirklich geaendert hat.
+    assert zweiter_aufruf == {
+        "begriffe": "Home, Work, Market",
+        uebersetzung.begriff_schluessel("Market"): "Market",
+    }
+
+    felder = json.loads(repo.hole_uebersetzung(conn, CHAT)["felder"])
+    assert felder["kernthema"] == "EN:fixed"  # wiederverwendet, nicht neu gesendet
+    assert felder[uebersetzung.begriff_schluessel("Home")] == "EN:Home"
+    assert felder[uebersetzung.begriff_schluessel("Work")] == "EN:Work"
+    assert felder[uebersetzung.begriff_schluessel("Market")] == "EN:Market"
+
+
+def test_aktualisiere_haeppchen_schlaegt_fehl_cache_bleibt_alt(conn, einst):
+    """Scheitert ein Haeppchen endgueltig (alle Wiederholungen von
+    ``klm.schema`` aufgebraucht), wird der Cache NICHT geschrieben -- alt
+    bleibt alt stehen, kein teilweise uebersetzter Zwischenstand. Der
+    naechste Lauf setzt mit demselben offenen Schluessel an, weil der Cache
+    unveraendert ist."""
+    repo.setze_arbeitsstand(conn, CHAT, "kernthema", "belonging")
+    klm = _FakeKlm()
+    uebersetzung.aktualisiere(conn, klm, einst, CHAT)
+    alte_zeile = dict(repo.hole_uebersetzung(conn, CHAT))
+
+    repo.setze_figur(conn, CHAT, "Mira", "a student")
+    klm_ausfall = _FakeKlm(fehler_bei_aufruf=[0])
+    with pytest.raises(_Ausfall):
+        uebersetzung.aktualisiere(conn, klm_ausfall, einst, CHAT)
+    assert len(klm_ausfall.aufrufe) == 1
+    assert json.loads(klm_ausfall.aufrufe[0]["nutzer"]) == {"figur_0": "Mira"}
+
+    # Mutation Check: ohne "alles oder nichts" stuende hier bereits die neue
+    # (unvollstaendige) Zeile oder ein geaenderter quelle_hash.
+    nach_ausfall = dict(repo.hole_uebersetzung(conn, CHAT))
+    assert nach_ausfall == alte_zeile
+
+    klm_erfolg = _FakeKlm()
+    assert uebersetzung.aktualisiere(conn, klm_erfolg, einst, CHAT) is True
+    assert len(klm_erfolg.aufrufe) == 1
+    assert json.loads(klm_erfolg.aufrufe[0]["nutzer"]) == {"figur_0": "Mira"}
+    felder = json.loads(repo.hole_uebersetzung(conn, CHAT)["felder"])
+    assert felder["kernthema"] == "EN:belonging"  # wiederverwendet
+    assert felder["figur_0"] == "EN:Mira"
+
+
+def test_aktualisiere_hash_bleibt_ueber_alle_schluessel_trotz_haeppchen(conn, einst):
+    """``quelle_hash`` bleibt ein Hash ueber ALLE Segmente (``alles oder
+    nichts beim Lesen``, s. Moduldocstring) -- das Haeppchen-Schreiben
+    darf diese Semantik nicht veraendern, sonst erkennt ``englisch()``
+    eine teilweise uebersetzte Quelle faelschlich als passend."""
+    repo.setze_arbeitsstand(conn, CHAT, "begriffe", _begriffe(20))
+    klm = _FakeKlm()
+    uebersetzung.aktualisiere(conn, klm, einst, CHAT)
+    stand = dict(repo.hole_arbeitsstand(conn, CHAT) or {})
+    erwartet = uebersetzung.quelle_hash(stand, [], [])
+    zeile = repo.hole_uebersetzung(conn, CHAT)
+    assert zeile["quelle_hash"] == erwartet
+    assert uebersetzung.englisch({
+        "arbeitsstand": stand, "figuren": [], "interview_kurzformen": [],
+        "uebersetzung": {"quelle_hash": zeile["quelle_hash"],
+                          "felder": json.loads(zeile["felder"])},
+    }) == json.loads(zeile["felder"])
 
 
 # --- aktualisiere_fuer_bot() (der Profilschalter) ------------------------------

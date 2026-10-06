@@ -1295,9 +1295,18 @@ CREATE TABLE IF NOT EXISTS aufruf (
 -- Schluessel es gibt, bestimmt uebersetzung.segmente(). Das Dashboard
 -- (web.py, read-only) nutzt die Zeile nur, wenn quelle_hash zur aktuell
 -- gespeicherten Quelle passt -- sonst gilt sie als ausstehend.
+-- `quelle` haelt die Quellsegmente (dasselbe Schema wie `felder`, aber vor
+-- der Uebersetzung), mit denen `felder` zuletzt gefuellt wurde -- Grundlage
+-- dafuer, dass ein geaenderter Quelltext nur die tatsaechlich geaenderten
+-- Schluessel neu uebersetzt (uebersetzung.aktualisiere) und unveraenderte
+-- aus `felder` uebernimmt, statt bei jeder Aenderung ALLE Schluessel neu zu
+-- uebersetzen. Additiv nachgeruestet ueber _migriere_fehlende_spalten; eine
+-- Zeile von vor der Nachruestung hat '{}' und uebersetzt deshalb beim
+-- naechsten Lauf einmal alles neu (aber in Haeppchen, nicht in einem Aufruf).
 CREATE TABLE IF NOT EXISTS uebersetzung (
   chat_id       INTEGER PRIMARY KEY,
   quelle_hash   TEXT NOT NULL,
+  quelle        TEXT NOT NULL DEFAULT '{}',
   felder        TEXT NOT NULL,
   aktualisiert_am TEXT NOT NULL
 );

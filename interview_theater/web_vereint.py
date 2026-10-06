@@ -45,7 +45,10 @@ NACHLADEN_MS = web.NEULADEN_SEKUNDEN * 1000
 #: der Tab selbst steht jetzt immer im Dokument (nur ``hidden`` je nach
 #: Phase), und sein Inhalt -- neue Karten aus dem Brainstorm -- soll sich
 #: aktualisieren, WAEHREND er offen ist, nicht erst nach einem Neuladen.
-_TEILE = ("stand", "roadmap", "buehne")
+_TEILE = ("stand", "roadmap", "buehne", "textbuch")
+#: ``textbuch`` kam mit P57 Lauf 2 (A1) dazu: das Panel wurde nur beim
+#: Seitenaufbau gerendert und zeigte neue Szenenprosa erst nach einem
+#: vollen Neuladen ("Not written yet" trotz geschriebener Szene).
 
 #: Die drei Panels. Reihenfolge = Reihenfolge der Tableiste. ``buehne`` steht
 #: NICHT fest hier drin (anders als seit 02.10.2026 im gerenderten Markup):
@@ -752,6 +755,7 @@ _VEREINT_JS = """
       if (knopf) { knopf.setAttribute('aria-selected', tab === name ? 'true' : 'false'); }
     });
     document.body.dataset.tab = name;
+    if (name === 'textbuch' && typeof ladeTextbuch === 'function') { ladeTextbuch(); }
     // Der unaufdringliche Marker (Birk, Feedback b) gilt nur, solange der
     // Tab nicht vorn ist -- ein Oeffnen raeumt ihn weg, kein zweiter Weg.
     if (name === 'buehne') {
@@ -1154,6 +1158,44 @@ _VEREINT_JS = """
     });
   }
 
+  // Dieselbe sichere Markdown-Teilmenge wie ``web._buehne_inline``/
+  // ``_buehne_markdown`` (Birk 06.10.2026) -- Fett vor Kursiv auf einer
+  // bereits maskierten Zeile, sonst fraesse Kursiv die Fett-Sternpaare an.
+  function buehneInline(zeile) {
+    zeile = zeile.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+    return zeile.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
+  }
+
+  // buehneMarkdown-Aequivalent zu ``web._buehne_markdown``: IMMER zuerst
+  // maskieren (``buehneEscape``), erst danach die vier Regeln -- ein
+  // woertliches ``<script>`` im Kartentext bleibt so Text, nie Markup.
+  function buehneMarkdown(text) {
+    var bloecke = [];
+    var liste = [];
+    function schliesseListe() {
+      if (liste.length) {
+        bloecke.push('<ul>' + liste.map(function (z) { return '<li>' + z + '</li>'; }).join('') + '</ul>');
+        liste = [];
+      }
+    }
+    var zeilen = buehneEscape(text || '').split('\\n');
+    for (var i = 0; i < zeilen.length; i++) {
+      var zeile = zeilen[i].trim();
+      if (!zeile) { schliesseListe(); continue; }
+      var aufzaehlung = zeile.match(/^(?:-|•)\\s+(.+)$/);
+      if (aufzaehlung) { liste.push(buehneInline(aufzaehlung[1])); continue; }
+      schliesseListe();
+      var ueberschrift = zeile.match(/^\\*\\*([^*]+)\\*\\*$/);
+      if (ueberschrift) {
+        bloecke.push('<p class="buehne-ueberschrift"><strong>' + ueberschrift[1] + '</strong></p>');
+        continue;
+      }
+      bloecke.push('<p>' + buehneInline(zeile) + '</p>');
+    }
+    schliesseListe();
+    return bloecke.join('');
+  }
+
   function buehneVorschau(text) {
     var t = (text || '').replace(/\\s+/g, ' ').trim();
     return t.length > 40 ? t.slice(0, 40) + '…' : t;
@@ -1227,12 +1269,13 @@ _VEREINT_JS = """
     );
   }
 
-  // zeige()-Aequivalent: setzt die Tafel direkt aus dem Client-Verlauf
-  // (``textContent``, nicht ``innerHTML`` -- die Karte ist reiner Text ohne
-  // Formatierungsbedarf ausser Zeilenumbruechen, die CSS ``white-space:
-  // pre-wrap`` traegt, siehe _CSS_BUEHNE). "aktuell" (``i===null``) liest
-  // dabei die NEUESTE Karte des Verlaufs -- bei uns dieselbe Quelle wie die
-  // naechste Serverantwort, es gibt kein zweites ``letzte``-Objekt.
+  // zeige()-Aequivalent: setzt die Tafel direkt aus dem Client-Verlauf --
+  // ``innerHTML`` aus ``buehneMarkdown`` (Birk 06.10.2026, vorher
+  // ``textContent`` mit rohem Modelltext samt sichtbaren Sternchen), die
+  // einzige Stelle, die Markup einfuegt, und die maskiert IMMER zuerst.
+  // "aktuell" (``i===null``) liest dabei die NEUESTE Karte des Verlaufs --
+  // bei uns dieselbe Quelle wie die naechste Serverantwort, es gibt kein
+  // zweites ``letzte``-Objekt.
   function buehneZeige(i) {
     if (i !== null && buehnePos === null) {
       var letzte = buehneVerlauf.length ? buehneVerlauf[buehneVerlauf.length - 1] : null;
@@ -1245,7 +1288,7 @@ _VEREINT_JS = """
       var eintrag = (i === null)
         ? (buehneVerlauf.length ? buehneVerlauf[buehneVerlauf.length - 1] : null)
         : buehneVerlauf[i];
-      if (eintrag) { tafel.textContent = eintrag.text || ''; }
+      if (eintrag) { tafel.innerHTML = buehneMarkdown(eintrag.text || ''); }
     }
     buehneNavRender();
   }
@@ -1480,6 +1523,37 @@ _VEREINT_JS = """
       .catch(function () {});
   }
   setInterval(ladeBuehne, __NACHLADEN_MS__);
+  // -- Textbuch-Tab nachladen (P57 Lauf 2, A1) ------------------------------
+  //
+  // Das Panel wurde nur beim Seitenaufbau gerendert: neue Szenenprosa
+  // erschien erst nach vollem Neuladen. Geholt wird nur bei sichtbarem Tab
+  // (und sofort beim Oeffnen, siehe zeige()). Rollenfilter/Schrift stehen
+  // am Panel bzw. im Hash und werden nach dem Tausch ueber ``hashchange``
+  // neu angewendet (die Knoepfe selbst sind frisch gerendert).
+  var textbuchLetzter = null;
+  function ladeTextbuch() {
+    var panel = document.getElementById('tab-textbuch');
+    if (!panel || panel.hidden || document.hidden) { return; }
+    fetch(BASIS_TEIL + 'textbuch', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return; }
+        var doc = new DOMParser().parseFromString(text, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        if (!neu || panel.hidden) { return; }
+        // Erster Abruf: nur merken (panel.innerHTML ist vom Browser
+        // umserialisiert und wuerde nie gleich sein).
+        if (textbuchLetzter === null) { textbuchLetzter = neu; return; }
+        if (neu === textbuchLetzter) { return; }
+        var y = panel.scrollTop;
+        panel.innerHTML = neu;
+        textbuchLetzter = neu;
+        panel.scrollTop = y;
+        window.dispatchEvent(new Event('hashchange'));
+      })
+      .catch(function () {});
+  }
+  setInterval(ladeTextbuch, __NACHLADEN_MS__);
   // -- CoThinker-Statuszeile: die tickende Dauer -------------------------
   //
   // Karte CoThinker-Statuszeile (03.10.2026): der Server schreibt nie eine
@@ -2485,6 +2559,10 @@ def sende_teil(handler, db_pfad: str, token: str, name: str, praefix: str,
         return
     if name == "buehne":
         handler._antworte(200, web._buehne_html(daten))
+        return
+    if name == "textbuch":
+        # Reines Lesen, kein Formular, kein Nonce (P57 Lauf 2, A1).
+        handler._antworte(200, web.textbuch_koerper(daten, token, praefix))
         return
     handler._antworte(200, web.gruppe_koerper(
         daten, web.nonce(schluessel, token), token, praefix,

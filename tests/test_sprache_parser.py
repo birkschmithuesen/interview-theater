@@ -808,3 +808,26 @@ def test_regienotizen_finden_beide_sprachen(conn, englisch):
     repo.schreibe_journal(conn, 1, "entschieden", "Scene 4: elsewhere", quelle="test")
     notizen = szene_modul._regienotizen(conn, 1, 2)
     assert notizen == ["- Szene 2: ohne den Bruder", "- Scene 2: at night"]
+
+
+@pytest.mark.parametrize("text, soll", [
+    # P57 Lauf 2 A2: die Nummer des Lesewunschs, nicht die erste im Satz.
+    ("Scene 1 is good now. Please show scene 2", 2),
+    ("Scene 1 is good now. Please show scene 2.", 2),
+    ("show scene 2", 2),
+    ("Please read scene 3, scene 1 is fine", 3),
+    ("scene 2 - show me the text", 2),
+    ("in scene 2 he leaves", None),
+])
+def test_szenentext_englisch_nimmt_die_nummer_des_lesewunschs(englisch, text, soll):
+    assert ablauf.szenentext_gewuenscht(text) == soll
+
+
+@pytest.mark.parametrize("text, soll", [
+    ("Szene 1 ist gut. Zeig bitte Szene 2", 2),
+    ("Szene 1 gefaellt uns, lies uns jetzt Szene 3 vor", 3),
+    ("zeig mal Szene 2", 2),
+    ("in Szene 2 soll er gehen", None),
+])
+def test_szenentext_deutsch_nimmt_die_nummer_des_lesewunschs(text, soll):
+    assert ablauf.szenentext_gewuenscht(text) == soll

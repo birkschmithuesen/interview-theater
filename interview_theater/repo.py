@@ -2172,6 +2172,34 @@ def brainstorm_stand(conn: sqlite3.Connection, chat_id: int,
 
 
 @_gesperrt
+def brainstorm_arc_text(conn: sqlite3.Connection, chat_id: int, bis_id: int) -> str:
+    """Das zusammenhaengende Transkript EINES Brainstorm-Bogens (P4-Quickfix,
+    Birk Live-Test 06.10.2026: die Werkbank blieb leer, weil ein Brainstorm-
+    Segment nie den Gespraechszug erreicht, siehe
+    ``aufnahme._fuettere_gespraechszug_aus_brainstorm``).
+
+    Ein Bogen reicht vom VORIGEN Ende-Segment dieser Gruppe (ausschliesslich)
+    bis ``bis_id`` (einschliesslich) -- genau die Segmente seit dem letzten
+    Druck auf "Start listening", unabhaengig davon, ob dazwischen schon eine
+    Zwischenkarte entstanden ist (die Markierung dafuer bleibt unberuehrt).
+    Gibt es noch kein voriges Ende-Segment, zaehlt der Bogen von Anfang an."""
+    start = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM aufnahme WHERE chat_id = ? "
+        "AND brainstorm = 1 AND schnittgrund = 'ende' AND id < ?",
+        (chat_id, bis_id),
+    ).fetchone()[0]
+    zeilen = conn.execute(
+        "SELECT transkript FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL AND transkript IS NOT NULL "
+        "AND id > ? AND id <= ? ORDER BY id",
+        (chat_id, start, bis_id),
+    ).fetchall()
+    return " ".join(
+        zeile["transkript"].strip() for zeile in zeilen if zeile["transkript"] and zeile["transkript"].strip()
+    )
+
+
+@_gesperrt
 def markiere_brainstorm_reaktion(
     conn: sqlite3.Connection, chat_id: int, aufnahme_id: int,
 ) -> None:
@@ -5168,20 +5196,24 @@ def hole_uebersetzung(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | N
 
 @_gesperrt
 def setze_uebersetzung(
-    conn: sqlite3.Connection, chat_id: int, quelle_hash: str, felder: dict
+    conn: sqlite3.Connection, chat_id: int, quelle_hash: str, quelle: dict, felder: dict
 ) -> None:
     """Ersetzt den Uebersetzungscache einer Gruppe komplett -- eine Zeile
-    je Gruppe, kein Feld-fuer-Feld-Update: der Schreiber uebersetzt immer
-    alle Felder in einem Aufruf (``uebersetzung.aktualisiere``)."""
+    je Gruppe, kein Feld-fuer-Feld-Update. ``quelle`` sind die Quellsegmente,
+    die zu ``felder`` gehoeren (``uebersetzung.segmente()``-Form): Grundlage
+    dafuer, dass ein spaeterer Lauf unveraenderte Schluessel wiederverwenden
+    kann, statt sie neu zu uebersetzen."""
     conn.execute(
         """
-        INSERT INTO uebersetzung (chat_id, quelle_hash, felder, aktualisiert_am)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO uebersetzung (chat_id, quelle_hash, quelle, felder, aktualisiert_am)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             quelle_hash = excluded.quelle_hash,
+            quelle = excluded.quelle,
             felder = excluded.felder,
             aktualisiert_am = excluded.aktualisiert_am
         """,
-        (chat_id, quelle_hash, json.dumps(felder, ensure_ascii=False), _jetzt()),
+        (chat_id, quelle_hash, json.dumps(quelle, ensure_ascii=False),
+         json.dumps(felder, ensure_ascii=False), _jetzt()),
     )
     conn.commit()

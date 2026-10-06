@@ -240,6 +240,17 @@ einwilligung = false
 # vollstaendig gebaut und mit einer Zeile umkehrbar (false).
 zitate_an_claude = true
 
+# P4-Quickfix (Birk 06.10.2026, Live-Test): ein Brainstorm-Bogen (Phase 4,
+# "Start listening"/"Discussion done") lief bisher komplett am Erkenner
+# vorbei -- die Werkbank blieb leer, obwohl die Gruppe Setting, Figuren und
+# Geschichte gerade frei gesprochen hatte. Dieser Schalter speist das
+# zusammenhaengende Transkript EINMAL je Bogen (auf dem Ende-Segment, nach
+# der Buehnenkarte) in einen normalen Gespraechszug ein, siehe
+# aufnahme._fuettere_gespraechszug_aus_brainstorm. Ohne diese Zeile (Vorgabe
+# False, Dortmund): unveraendert.
+[brainstorm]
+chat_einspeisen = true
+
 # Phase 1 (Begriffe) und Phase 2 (Eroeffnung): ein Vorschlag wird sofort
 # gespeichert statt der Ja/Nein-Rueckfrage (Abnahme-Befund t_0b702d1d: beide
 # Knoepfe schrieben ohnehin denselben Wert). Statt "Notiert: ..." + Ja/Nein

@@ -318,7 +318,7 @@ def formdatei(form: str | None) -> str:
     for name in workshop.formen():
         if name == rueckfall:
             continue
-        if workshop.form_treffer(name, text):
+        if workshop.form_treffer(name, text, teilstring=True):
             return name
     return rueckfall
 

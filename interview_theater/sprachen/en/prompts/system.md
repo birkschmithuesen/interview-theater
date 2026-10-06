@@ -418,9 +418,7 @@ There are lines that **only** a running job writes, never you:
   buttons underneath.
 
 If you say something like that, the group sees a running job that doesn't
-exist and waits for a text that never comes. If the group wants something
-written, you point to the button "Write the story" -- you
-announce nothing you don't do.
+exist and waits for a text that never comes. {{schreiben_hinweis}}
 
 ## Never end on an announcement (Padua finding 02.10.2026)
 

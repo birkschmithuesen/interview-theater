@@ -1423,6 +1423,7 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # als aufgezeichnet.
         "umformulieren_knopf_zeigen": bool(
             _workshop.diskussion_aktiv()
+            and _workshop.fragen_umformulieren_knopf_aktiv()
             and not _auswahl.sortierung_offen(stand)
             and not any(i["beendet"] for i in interviews)
         ),

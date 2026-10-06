@@ -204,13 +204,70 @@ def test_begriffe_detail_ohne_daten(padua):
 
 
 def test_phase_2_fragen_leitfaden_und_ab_zeile(tmp_path, padua):
+    """Fast-Track 06.10.2026: steht der Leitfaden schon, zeigt die Werkbank
+    die Fragen nur noch EINMAL -- im (geclusterten) Leitfaden -- statt
+    zusaetzlich als rohe ``class="fragen"``-Liste davor (Birk: "Die Fragen
+    am Anfang braucht es nicht")."""
     daten, token = _padua_daten(tmp_path)
     block = _block(web.gruppe_koerper(daten, None, token), 2)
-    assert 'class="fragen"' in block
+    assert 'class="fragen"' not in block
+    assert 'class="fragen-gruppe"' in block
     assert '<pre class="leitfaden">' in block       # _JS_INTERVIEW liest ihn hier
     daten["fragen_auswertung"] = {"gesamt": {"eigen": 2, "ki": 1}}
     block = _block(web.gruppe_koerper(daten, None, token), 2)
     assert web.T._TEXT_FRAGEN_AUSWERTUNG.format(eigen=2, ki=1) in block
+
+
+def _mit_begriffs_fragen(herkunft: str) -> dict:
+    """Dieselbe Minimal-Werkbank (Phase 2) mit zwei Begriffen und drei
+    Fragen, von denen zwei denselben Begriffskopf tragen -- fuer die
+    Cluster-Tests unten."""
+    phasen_liste = roadmap.werkbank(_lage(phase=2, stand={"begriffe": "Family, Work"}), 2)
+    daten = _mini(phasen_liste)
+    daten["arbeitsstand"].update({
+        "begriffe": "Family, Work",
+        "fragen": ("Family: Who do you live with?\n"
+                   "Work: What do you do all day?\n"
+                   "Family: Who do you argue with?"),
+        "fragen_herkunft_final": herkunft,
+    })
+    return daten
+
+
+def test_leitfaden_clustert_fragen_nach_begriff(padua):
+    """Fast-Track 06.10.2026: Ueberschrift je Begriff (Reihenfolge wie bei
+    den Begriffen selbst), Nummerierung wie im Chat, der Begriffskopf
+    ("Family: ...") steht in der sichtbaren Liste nicht mehr -- nur noch im
+    versteckten ``pre.leitfaden`` (Rohtext fuer den Interview-Modus)."""
+    daten = _mit_begriffs_fragen("eigen,ki,eigen")
+    block = _block(web.werkbank_koerper(daten), 2)
+
+    assert block.index('<h4 class="fragen-begriff">Family</h4>') < block.index(
+        '<h4 class="fragen-begriff">Work</h4>')
+    assert '<li value="1">Who do you live with?<span class="herkunft eigen">own</span></li>' in block
+    assert '<li value="2">What do you do all day?<span class="herkunft ki">AI</span></li>' in block
+    assert '<li value="3">Who do you argue with?<span class="herkunft eigen">own</span></li>' in block
+
+    # Der Begriffskopf steht nur noch im versteckten Rohtext (fuer
+    # _JS_INTERVIEW), nicht mehr in der sichtbaren, geclusterten Liste.
+    sichtbar = block.split('<div class="leitfaden">', 1)[1]
+    assert "Family:" not in sichtbar
+    assert "Work:" not in sichtbar
+    assert "Family: Who do you live with?" in block.split('<div class="leitfaden">', 1)[0]
+
+
+def test_mutation_vertauschte_herkunft_aendert_die_marke(padua):
+    """Das Karten-Mandat wie in ``test_fragen_auswertung``: dieselbe
+    Fixture, Herkunft vertauscht -- die Markierung MUSS sich unterscheiden,
+    sonst liest ``leitfaden_gruppen`` die Herkunft gar nicht wirklich."""
+    original = _block(web.werkbank_koerper(_mit_begriffs_fragen("eigen,ki,eigen")), 2)
+    vertauscht = _block(web.werkbank_koerper(_mit_begriffs_fragen("ki,eigen,ki")), 2)
+
+    assert original != vertauscht
+    assert original.count('<span class="herkunft eigen">own</span>') == 2
+    assert original.count('<span class="herkunft ki">AI</span>') == 1
+    assert vertauscht.count('<span class="herkunft eigen">own</span>') == 1
+    assert vertauscht.count('<span class="herkunft ki">AI</span>') == 2
 
 
 def test_phase_3_verdichtung_wie_bisher_ohne_transkript(tmp_path, padua):

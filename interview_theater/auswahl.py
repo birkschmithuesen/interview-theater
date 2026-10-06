@@ -240,3 +240,49 @@ def _geschlossene_liste(stand, begriffe) -> dict | None:
                            "herkunft": h if h in _HERKUENFTE else ""})
     return {"offen": False, "kept": len(eintraege),
             "gruppen": _cluster(eintraege, begriffe)}
+
+
+def leitfaden_gruppen(arbeitsstand: Mapping | None, fragen_bausteine: list[dict]) -> list[dict]:
+    """``fragen_bausteine`` (``leitfaden.bausteine(...)["fragen"]``) nach
+    Begriff geclustert -- ``[{"titel", "eintraege": [{nummer, text, kern,
+    einleitung, herkunft}]}]``. Derselbe ``_cluster`` wie ``fragen_liste``/
+    ``dashboard_fragen`` (kein neuer Begriffsabgleich, Fast-Track
+    06.10.2026) -- hier auf die FERTIGE Frageliste (``arbeitsstand.fragen``,
+    noch mit ihrem ``"Begriff: Frage"``-Kopf) angewandt, nicht auf die
+    laufende Sortierung.
+
+    Der Kopf wird aus der rohen Zeile erkannt, nicht aus
+    ``fragen_bausteine`` selbst -- bei einer weichen Fassung trägt deren
+    Text keinen Kopf mehr. Nur wenn ein Eintrag noch KEINE weiche Fassung
+    hat (kein ``kern``), ersetzt der erkannte Kopf auch seinen Anzeigetext;
+    die weiche Fassung und die Kern-/Einleitungszeile bleiben unberuehrt --
+    wie im Chattext.
+
+    Herkunft (eigen/KI) kommt aus ``fragen_herkunft_final``, nur wenn ihre
+    Laenge zur Frageliste passt -- sonst bleibt sie fuer jeden Eintrag leer,
+    statt zu raten."""
+    from interview_theater import begriffe as begriffe_modul
+    from interview_theater import leitfaden
+
+    begriffe = begriffe_modul.zerlege(_feld(arbeitsstand, "begriffe"))
+    rohzeilen = leitfaden.fragen(_feld(arbeitsstand, "fragen"))
+    herkunft = _liste(_feld(arbeitsstand, "fragen_herkunft_final"))
+    mit_herkunft = len(herkunft) == len(rohzeilen)
+
+    eintraege = []
+    for frage in fragen_bausteine:
+        nummer = frage["nummer"]
+        zeile = rohzeilen[nummer - 1] if nummer - 1 < len(rohzeilen) else ""
+        h = herkunft[nummer - 1].strip() if mit_herkunft and nummer - 1 < len(herkunft) else ""
+        eintraege.append(dict(frage, text=zeile, herkunft=h if h in _HERKUENFTE else ""))
+
+    gruppen = _cluster(eintraege, begriffe)
+    # ``_cluster`` ersetzt "text" durch die reine Frage (ohne Kopf) -- bei
+    # einer weichen Fassung (``kern`` gesetzt) gilt weiterhin die weiche
+    # Fassung selbst, nicht die rohe Frage dahinter.
+    fragen_nach_nummer = {f["nummer"]: f for f in fragen_bausteine}
+    for gruppe in gruppen:
+        for eintrag in gruppe["eintraege"]:
+            if eintrag["kern"]:
+                eintrag["text"] = fragen_nach_nummer[eintrag["nummer"]]["text"]
+    return gruppen

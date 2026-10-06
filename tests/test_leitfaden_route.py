@@ -18,7 +18,7 @@ import urllib.request
 import pytest
 
 from interview_theater import (
-    befehle, db, knoepfe, leitfaden, repo, web, web_daten,
+    befehle, db, knoepfe, leitfaden, repo, web, web_daten, workshop,
 )
 
 from test_knoepfe import TelegramAttrappe
@@ -204,6 +204,54 @@ def test_jede_frage_steht_einzeln(basis, token):
     _, koerper = hole(f"{basis}/g/{token}/{leitfaden.WEB_PFAD}")
 
     assert koerper.count('class="frage"') == 2
+
+
+_BEGRIFFS_ARBEITSSTAND = {
+    "begriffe": "Family, Work",
+    "fragen": ("Family: Who do you live with?\n"
+               "Work: What do you do all day?\n"
+               "Family: Who do you argue with?"),
+    "fragen_herkunft_final": "eigen,ki,eigen",
+    "interview_eroeffnung": None,
+    "interview_abschluss": None,
+}
+
+
+def test_padua_grosse_seite_clustert_fragen_nach_begriff(monkeypatch):
+    """Fast-Track 06.10.2026: die grosse Ansicht clustert wie die Werkbank
+    (``auswahl.leitfaden_gruppen``) -- Ueberschrift je Begriff, Nummerierung
+    wie im Chat, kein Begriffskopf mehr vor der sichtbaren Frage."""
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    try:
+        daten = {"titel": "Test group", "chat_id": 1, "token": None,
+                 "arbeitsstand": _BEGRIFFS_ARBEITSSTAND}
+        seite = web.leitfaden_html(daten)
+    finally:
+        workshop.vergiss()
+
+    assert seite.index('<h3 class="begriff">Family</h3>') < seite.index(
+        '<h3 class="begriff">Work</h3>')
+    assert seite.count('class="frage"') == 3
+    nach_der_ueberschrift = seite.split('<h2>', 2)[-1]
+    assert "Family:" not in nach_der_ueberschrift
+    assert "Work:" not in nach_der_ueberschrift
+
+
+def test_dortmund_grosse_seite_bleibt_byte_gleich_mit_begriffen():
+    """Dieselbe Fixture wie oben, OHNE das Padua-Flag: die Seite bleibt die
+    alte flache Fragenliste mit dem Begriffskopf in der Frage selbst --
+    die byte-gleiche Zusage an Dortmund gilt auch mit Begriffen in den
+    Fragen (nicht nur fuer die kopflosen Test-Fixtures dieser Datei)."""
+    assert not workshop.werkbank_fragen_geclustert()
+    daten = {"titel": "Test group", "chat_id": 1, "token": None,
+             "arbeitsstand": _BEGRIFFS_ARBEITSSTAND}
+
+    seite = web.leitfaden_html(daten)
+
+    assert 'class="begriff"' not in seite
+    assert "Family: Who do you live with?" in seite
+    assert "Work: What do you do all day?" in seite
 
 
 def test_eine_druckregel_ist_dabei(basis, token):

@@ -168,6 +168,12 @@ dashboard_gestaltet = true
 # den Stand je Phase mit Statuspunkten; geaendert wird im Chat. Ohne diese
 # Zeile (Dortmund) bleiben Formulare und Schreibweg wie gehabt.
 workbench_bearbeitbar = false
+# Die Fragen nur noch einmal zeigen -- im Leitfaden, nach Begriff
+# geclustert, statt zusaetzlich als Rohliste davor (Fast-Track 06.10.2026,
+# Birk live: "Die Fragen am Anfang braucht es nicht [...] nach Thema
+# geclustert"). Ohne diese Zeile (Dortmund) bleiben Fragenliste und
+# Leitfaden getrennt wie bisher.
+werkbank_fragen_geclustert = true
 # Kopfzeilen-Karte (Birk, 03.10.2026 23:10): der Stepper mit Pfeilen und
 # Bottom-Sheet ersetzt die Zwei-Klick-Bewaffnung aus der Phasenuebersicht,
 # nur fuer Padua -- Dortmund bleibt bei der alten Logik (Profilschalter,

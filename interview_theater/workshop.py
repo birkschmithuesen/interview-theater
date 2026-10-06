@@ -242,12 +242,18 @@ VORGABE_WERTE: dict[str, Any] = {
     # (``uebersetzung.py``) statt eines Modellaufrufs im Web-Request-Pfad.
     # Aus heisst auch hier: byte-gleich wie vorher -- kein Cache-Zugriff,
     # keine Zeile in ``_dashboard_inhalt_html`` aendert sich.
+    # ``werkbank_fragen_geclustert`` (Fast-Track 06.10.2026): die Fragen
+    # stehen nur noch EINMAL -- im Leitfaden, nach Begriff geclustert --
+    # statt zusaetzlich als Rohliste davor. Aus heisst byte-gleich wie
+    # vorher: die Rohliste UND der unveraenderte ``<pre>``-Leitfadentext
+    # bleiben beide stehen.
     "web": {
         "dashboard_log_einklappen": False,
         "dashboard_gestaltet": False,
         "workbench_bearbeitbar": True,
         "phasennav_stepper": False,
         "dashboard_uebersetzen_en": False,
+        "werkbank_fragen_geclustert": False,
     },
 }
 
@@ -1008,6 +1014,19 @@ def workbench_bearbeitbar(profil: Profil | None = None) -> bool:
     im Chat (Birk: "Workbench reiner Status-Ausspieler")."""
     profil = profil or aktiv()
     return bool(profil.wert("web.workbench_bearbeitbar", True))
+
+
+def werkbank_fragen_geclustert(profil: Profil | None = None) -> bool:
+    """Ob die Fragen auf der Gruppenseite nur noch EINMAL stehen -- im
+    Leitfaden, nach Begriff geclustert -- statt zusaetzlich als Rohliste vor
+    ihm (Fast-Track 06.10.2026, Birk: "Die Fragen am Anfang braucht es
+    nicht ... Die Fragen sollen nach Thema geclustert sein, wie in der
+    Dashboard-Regie-Ansicht").
+
+    Vorgabe false -- Dortmund setzt die Zeile nicht und bleibt byte-gleich.
+    Padua setzt true."""
+    profil = profil or aktiv()
+    return bool(profil.wert("web.werkbank_fragen_geclustert", False))
 
 
 def prueflauf_aktiv(profil: Profil | None = None) -> bool:

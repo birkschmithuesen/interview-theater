@@ -493,6 +493,15 @@ _CSS_GEMEINSAM = """
 ul.fragen { list-style: none; padding: 0; margin: 0; }
 ul.fragen li { margin: .25em 0; }
 pre.leitfaden { white-space: pre-wrap; font-family: inherit; margin: 0; }
+.leitfaden { margin: 0; }
+.leitfaden-schritt { margin: 0 0 .6em; }
+h4.fragen-begriff { font-size: .85em; text-transform: uppercase;
+                     letter-spacing: .04em; opacity: .65; margin: .8em 0 .2em; }
+h4.fragen-begriff:first-child { margin-top: 0; }
+ol.fragen-gruppe { margin: 0 0 .3em; padding-left: 1.3em; }
+ol.fragen-gruppe li { margin: 0 0 .4em; }
+.leitfaden .herkunft { font-size: .75em; opacity: .6; margin-left: .4em; }
+.leitfaden .kern, .leitfaden .vorher { font-size: .9em; opacity: .75; margin-top: .15em; }
 * { box-sizing: border-box; }
 html { overflow-x: hidden; }
 body { margin: 0; padding: 1rem 1.2rem 3rem; overflow-x: hidden;
@@ -785,6 +794,10 @@ body { background: #ffffff; color: #000000; font-size: 1.25rem;
 h1 { font-size: 1.35rem; margin: 0 0 1.4rem; font-weight: 600; }
 h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; text-transform: uppercase;
      letter-spacing: .06em; border: 0; opacity: .65; }
+/* Begriffs-Ueberschrift zwischen den Fragenbloecken (Fast-Track
+   06.10.2026) -- nur wenn ``workshop.werkbank_fragen_geclustert`` an ist. */
+h3.begriff { font-size: .9rem; margin: 1.8rem 0 .2rem; text-transform: uppercase;
+             letter-spacing: .06em; opacity: .55; }
 .block { border-top: 3px solid #000; padding-top: .8rem; margin-top: 1.6rem; }
 .frage { border-top: 2px solid #000; padding: 1rem 0 .2rem;
          margin-top: 1.4rem; }
@@ -803,7 +816,7 @@ h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; text-transform: uppercase;
      Grauschleier, und jede Frage bleibt auf einer Seite zusammen. */
   body { font-size: 12pt; max-width: none; padding: 0; }
   .zurueck { display: none; }
-  h2, .frage .nummer, .frage .kern { opacity: 1; }
+  h2, h3.begriff, .frage .nummer, .frage .kern { opacity: 1; }
   .frage, .block { page-break-inside: avoid; }
 }
 /* Die Festlegungen: eine Zeile je Eintrag, die Bereichsmarke davor. Ohne
@@ -1337,6 +1350,28 @@ def _fragen_dashboard_html(g: dict, en: dict, uebersetzen: bool) -> str:
     return f'<dd class="fragen-voll">{"".join(teile)}{fortschritt}</dd>'
 
 
+def _fragen_block_ueberfluessig(stand: dict) -> bool:
+    """Steht die rohe Frageliste schon -- geclustert -- im Leitfaden, sodass
+    eine zweite, rohe Liste auf derselben Seite ueberfluessig waere
+    (Fast-Track 06.10.2026, ``workshop.werkbank_fragen_geclustert``, Birk:
+    "Die Fragen am Anfang braucht es nicht")? Ohne das Flag (Dortmund) oder
+    ohne Leitfaden steht die Rohliste wie bisher."""
+    from interview_theater import leitfaden, workshop
+
+    return bool(
+        workshop.werkbank_fragen_geclustert() and leitfaden.bausteine(stand) is not None
+    )
+
+
+def _fragen_dt_dd_html(stand: dict) -> str:
+    """Die rohe Frageliste als eigener ``<dt>/<dd>`` -- oder gar nichts,
+    wenn ``_fragen_block_ueberfluessig`` sagt, dass der Leitfaden sie schon
+    zeigt."""
+    if _fragen_block_ueberfluessig(stand):
+        return ""
+    return f"<dt>{_t(T.ARBEITSSTAND_BESCHRIFTUNG['fragen'])}</dt><dd>{_fragen_html(stand.get('fragen'))}</dd>"
+
+
 #: Die Beschriftung des Links auf die große Ansicht. Als Konstante, damit
 #: Test und Chat denselben Wortlaut prüfen können.
 TEXT_LEITFADEN_LINK = "Groß und zum Ausdrucken"
@@ -1389,24 +1424,91 @@ def _leitfaden_html(arbeitsstand: dict, token: str | None = None) -> str:
 
     Read-only und ohne Werbung fuer sich selbst: steht kein Leitfaden, fehlt
     die Zeile ganz, statt als leere Aufgabe dazustehen (dieselbe Regel wie
-    beim Hauptkonflikt). Der Text kommt aus ``leitfaden.aus_feldern`` -- der
-    reinen Funktion, die auch der Chat benutzt, damit auf der Gruppenseite
-    nichts anderes steht als auf dem Telefon. ``leitfaden`` selbst haengt an
-    keinem Schreib-Lock, solange es nur diese Funktion ist.
-    """
-    from interview_theater import leitfaden
+    beim Hauptkonflikt). Gebaut aus ``leitfaden.bausteine`` -- denselben
+    Bausteinen, die auch der Chat benutzt (``leitfaden.aus_feldern``), damit
+    auf der Gruppenseite nichts anderes steht als auf dem Telefon.
 
-    text = leitfaden.aus_feldern(arbeitsstand)
-    if text == leitfaden.T.TEXT_LEER:
+    Fast-Track 06.10.2026 (``workshop.werkbank_fragen_geclustert``): Padua
+    zeigt die Fragen nach Begriff geclustert statt als vorformatierten
+    Fliesstext; Dortmund (Flag aus) bekommt weiterhin genau den ``<pre>``-
+    Text von ``aus_feldern``, byte-gleich wie vorher.
+
+    ``pre.leitfaden`` bleibt in BEIDEN Faellen im HTML -- unsichtbar, wenn
+    geclustert gezeigt wird: der Interview-Modus liest genau dieses Element
+    als Rohtext (``web_gestalt._JS_INTERVIEW``, ``quelle.textContent``), und
+    ein verstecktes Element behaelt seinen ``textContent``."""
+    from interview_theater import leitfaden, workshop
+
+    teil = leitfaden.bausteine(arbeitsstand)
+    if teil is None:
         return ""
+    text_pre = f'<pre class="leitfaden">{_t(leitfaden.aus_feldern(arbeitsstand))}</pre>'
+    inhalt = (
+        f'<div style="display:none">{text_pre}</div>{_leitfaden_gruppen_html(arbeitsstand, teil)}'
+        if workshop.werkbank_fragen_geclustert()
+        else text_pre
+    )
     return (
         f"<dt>{html.escape(T.ARBEITSSTAND_BESCHRIFTUNG['leitfaden'])}</dt><dd>"
-        f'<pre class="leitfaden">{_t(text)}</pre>'
+        f"{inhalt}"
         # Der Link auf die große Ansicht (06.09.2026) -- zusätzlich, der Text
         # bleibt: wer hier liest, will überblicken; wer losgeht, braucht ihn
         # groß.
         f"{_leitfaden_link(token)}</dd>"
     )
+
+
+def _leitfaden_gruppen_html(arbeitsstand: dict, teil: dict) -> str:
+    """Der Leitfaden auf der Gruppenseite nach Begriff geclustert (Fast-
+    Track 06.10.2026, Birk: "Die Fragen sollen nach Thema geclustert sein,
+    wie in der Dashboard-Regie-Ansicht"): Eroeffnung, dann je Begriff eine
+    Ueberschrift mit seinen Fragen -- numeriert wie im Chat
+    (``auswahl.leitfaden_gruppen``, kein neuer Begriffsabgleich), Kern/
+    Einleitung darunter wie bisher, eigen/KI markiert wie im Regie-
+    Dashboard -- dann der Abschluss."""
+    from interview_theater import auswahl, leitfaden
+
+    teile: list[str] = []
+    if teil["eroeffnung"]:
+        teile.append(
+            f'<p class="leitfaden-schritt">'
+            f'<b>{html.escape(leitfaden.T.UEBERSCHRIFT_EROEFFNUNG)}</b> '
+            f'{_t(teil["eroeffnung"])}</p>'
+        )
+    marke = {"eigen": T._TEXT_AUSWAHL_EIGEN, "ki": T._TEXT_AUSWAHL_KI}
+    for gruppe in auswahl.leitfaden_gruppen(arbeitsstand, teil["fragen"]):
+        if gruppe["titel"]:
+            teile.append(f'<h4 class="fragen-begriff">{_t(gruppe["titel"])}</h4>')
+        zeilen = []
+        for frage in gruppe["eintraege"]:
+            name = marke.get(frage["herkunft"])
+            herkunft_html = (
+                f'<span class="herkunft {frage["herkunft"]}">{_t(name)}</span>'
+                if name else ""
+            )
+            unterzeile = ""
+            if frage["einleitung"]:
+                unterzeile = (
+                    f'<div class="vorher">'
+                    f'{_t(T._TEXT_VORHER_SAGEN.format(text=frage["einleitung"]))}</div>'
+                )
+            elif frage["kern"]:
+                unterzeile = (
+                    f'<div class="kern">'
+                    f'{_t(T._TEXT_KERN.format(text=frage["kern"]))}</div>'
+                )
+            zeilen.append(
+                f'<li value="{frage["nummer"]}">{_t(frage["text"])}'
+                f"{herkunft_html}{unterzeile}</li>"
+            )
+        teile.append(f'<ol class="fragen-gruppe">{"".join(zeilen)}</ol>')
+    if teil["abschluss"]:
+        teile.append(
+            f'<p class="leitfaden-schritt">'
+            f'<b>{html.escape(leitfaden.T.UEBERSCHRIFT_ABSCHLUSS)}</b> '
+            f'{_t(teil["abschluss"])}</p>'
+        )
+    return f'<div class="leitfaden">{"".join(teile)}</div>'
 
 
 def _fehlstellen_html(eintraege: list[dict] | None) -> str:
@@ -1892,7 +1994,7 @@ def _bearbeiten_html(daten: dict, nonce_wert: str) -> str:
         # Wechsel an, sobald die Materiallage ihn hergibt.
         f"<dt>{_t(dt['phase'])}</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
         f"<dt>{_t(dt['begriffe'])}</dt><dd>{_t(stand['begriffe'])}</dd>"
-        f"<dt>{_t(dt['fragen'])}</dt><dd>{_fragen_html(stand.get('fragen'))}</dd>"
+        + _fragen_dt_dd_html(stand)
         # Der Leitfaden statt seiner drei Rohfelder: er ist das Ergebnis, das
         # die Gruppe braucht, und er wird gebaut, nicht getippt -- aus
         # denselben Feldern wie im Chat (``leitfaden.aus_feldern``).
@@ -1940,7 +2042,7 @@ def _arbeitsstand_html(
         "<dl>"
         f"<dt>{_t(dt['phase'])}</dt><dd>{_t(phasen.bezeichnung(phase))}</dd>"
         f"<dt>{_t(dt['begriffe'])}</dt><dd>{_t(arbeitsstand['begriffe'])}</dd>"
-        f"<dt>{_t(dt['fragen'])}</dt><dd>{_fragen_html(arbeitsstand.get('fragen'))}</dd>"
+        + _fragen_dt_dd_html(arbeitsstand)
         # Der Leitfaden steht direkt unter den Fragen -- er ist ihre
         # Gebrauchsanweisung (06.09.2026). Read-only wie alles hier: gebaut
         # wird er aus denselben Feldern wie im Chat (``leitfaden.aus_feldern``),
@@ -3546,7 +3648,7 @@ def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
                 for b in detail
             ) + "</dl>")
     elif nummer == 2:
-        if (stand.get("fragen") or "").strip():
+        if (stand.get("fragen") or "").strip() and not _fragen_block_ueberfluessig(stand):
             teile.append(_fragen_html(stand["fragen"]))
         teile.append(_fragen_auswertung_html(daten.get("fragen_auswertung")))
         leitfaden = _leitfaden_html(stand, daten.get("web_token"))
@@ -4323,7 +4425,7 @@ def leitfaden_html(daten: dict) -> str:
     if teil is None:
         koerper = f'<p class="leer">{html.escape(T.TEXT_LEITFADEN_LEER)}</p>'
     else:
-        koerper = _leitfaden_blocks(teil, leitfaden)
+        koerper = _leitfaden_blocks(teil, leitfaden, daten["arbeitsstand"])
     zurueck = (
         f'<a class="zurueck" href="../{_t(daten["token"], "")}">'
         f"{html.escape(T.TEXT_LEITFADEN_ZURUECK)}</a>"
@@ -4341,12 +4443,28 @@ def leitfaden_html(daten: dict) -> str:
     )
 
 
-def _leitfaden_blocks(teil: dict, leitfaden) -> str:
+def _leitfaden_blocks(teil: dict, leitfaden, arbeitsstand: dict) -> str:
     """Eröffnung, dann jede Frage einzeln, dann der Abschluss.
 
     Die Überschriften sind wortgleich die des Chat-Texts
     (``leitfaden.UEBERSCHRIFT_*``) -- wer beides nebeneinander hält, soll
-    dasselbe Dokument erkennen."""
+    dasselbe Dokument erkennen.
+
+    Fast-Track 06.10.2026 (``workshop.werkbank_fragen_geclustert``): Padua
+    setzt vor die Fragen jedes Begriffs eine eigene Überschrift
+    (``auswahl.leitfaden_gruppen``, derselbe Begriffsabgleich wie auf dem
+    Regie-Dashboard); die Nummerierung bleibt die des Chats. Dortmund (Flag
+    aus) bekommt genau eine Gruppe ohne Überschrift -- byte-gleich wie
+    vorher."""
+    from interview_theater import auswahl, workshop
+
+    geclustert = workshop.werkbank_fragen_geclustert()
+    gruppen = (
+        auswahl.leitfaden_gruppen(arbeitsstand, teil["fragen"])
+        if geclustert
+        else [{"titel": "", "eintraege": teil["fragen"]}]
+    )
+
     stuecke = []
     if teil["eroeffnung"]:
         stuecke.append(
@@ -4354,19 +4472,22 @@ def _leitfaden_blocks(teil: dict, leitfaden) -> str:
             f'</h2><p class="sagen">{_t(teil["eroeffnung"])}</p></div>'
         )
     stuecke.append(f"<h2>{html.escape(leitfaden.T.UEBERSCHRIFT_FRAGEN)}</h2>")
-    for frage in teil["fragen"]:
-        block = (
-            f'<div class="frage"><span class="nummer">{frage["nummer"]}</span>'
-            f'<p>{_t(frage["text"])}</p>'
-        )
-        if frage["einleitung"]:
-            block += (
-                f'<div class="vorher">'
-                f'{_t(T._TEXT_VORHER_SAGEN.format(text=frage["einleitung"]))}</div>'
+    for gruppe in gruppen:
+        if geclustert and gruppe["titel"]:
+            stuecke.append(f'<h3 class="begriff">{_t(gruppe["titel"])}</h3>')
+        for frage in gruppe["eintraege"]:
+            block = (
+                f'<div class="frage"><span class="nummer">{frage["nummer"]}</span>'
+                f'<p>{_t(frage["text"])}</p>'
             )
-        if frage["kern"]:
-            block += f'<div class="kern">{_t(T._TEXT_KERN.format(text=frage["kern"]))}</div>'
-        stuecke.append(block + "</div>")
+            if frage["einleitung"]:
+                block += (
+                    f'<div class="vorher">'
+                    f'{_t(T._TEXT_VORHER_SAGEN.format(text=frage["einleitung"]))}</div>'
+                )
+            if frage["kern"]:
+                block += f'<div class="kern">{_t(T._TEXT_KERN.format(text=frage["kern"]))}</div>'
+            stuecke.append(block + "</div>")
     if teil["abschluss"]:
         stuecke.append(
             f'<div class="block"><h2>{html.escape(leitfaden.T.UEBERSCHRIFT_ABSCHLUSS)}'

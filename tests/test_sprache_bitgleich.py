@@ -427,6 +427,24 @@ GEAENDERT: dict[str, str] = {
         "Reines Layout-CSS, kein Nutzertext -- die Route "
         "/g/<token>/textbuch und der Textbuch-Tab selbst sind unveraendert."
     ),
+    "ablauf._DENKSPUR_MARKER": (
+        "Abnahme P3-4, Befund A1 (06.10.2026, Commit bbac086): "
+        "_DENKSPUR_MARKER um das weiche \"ich sollte \" sowie die drei "
+        "eindeutigen Phrasen \"der benutzer fragt\", \"laut den "
+        "instruktionen\", \"die instruktionen sagen\" ergaenzt -- der "
+        "Denkspur-Filter erkennt jetzt auch ein Selbstgespraech, in dem "
+        "das Modell sich als Ausfuehrendes einer Anweisung beschreibt "
+        "bzw. die Systemanweisung zitiert (gemessen in sim.db, "
+        "nachricht.message_id=17). Kein Nutzertext: die Konstante filtert "
+        "Modell-Selbstgespraech aus, bevor eine Antwort die Gruppe "
+        "erreicht, sie wird selbst nie verschickt (tests/test_ablauf.py)."
+    ),
+    "ablauf._DENKSPUR_EINDEUTIG": (
+        "Siehe ablauf._DENKSPUR_MARKER oben -- dieselbe Abnahme-Ergaenzung: "
+        "die drei neuen eindeutigen Phrasen stehen in beiden Mengen, weil "
+        "sie allein schon Beweis fuer eine Denkspur sind. Kein Nutzertext "
+        "(tests/test_ablauf.py)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")

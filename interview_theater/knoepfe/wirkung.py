@@ -1327,6 +1327,15 @@ def _wirkung_noch_nicht(conn, d: Druck) -> str:
 
 def _wirkung_phase(conn, d: Druck) -> str:
     nummer = int(d.knopf["wert"])
+    # Abnahme P3-4 A3 Nachtrag (06.10.2026): derselbe Waechter wie in
+    # ``befehle.wechsle_phase`` -- die Phasenleiste im Browser geht genau
+    # hier entlang (``/phaseklick``), nicht durch ``wechsle_phase``. Import
+    # erst hier: ein Modulimport oben waere ein Zyklus (derselbe Grund wie
+    # in ``_wirkung_aufnahme``).
+    from interview_theater import befehle
+
+    befehle.schliesse_offenes_interview_vor_phasenwechsel(
+        conn, d.tg, d.klm, d.e, d.chat_id, nummer)
     if phasen.setze(conn, d.chat_id, nummer, "knopf"):
         d.tg.sende(d.chat_id, phasen.meldung(nummer))
     # Ein Weg fuer alle acht Phasen (06.09.2026): Eintrittsnachricht mit

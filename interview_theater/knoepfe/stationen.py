@@ -44,6 +44,16 @@ def uebergang_nach_speichern(conn, tg, klm, e, chat_id: int) -> bool:
     nummer = phasen.naechste_moegliche(conn, chat_id)
     if nummer is None:
         return False
+    # Abnahme P3-4 A3 Nachtrag (06.10.2026): derselbe Waechter wie in
+    # ``befehle.wechsle_phase`` -- ein verwaistes Interview (reiner
+    # Gruppenschalter, siehe dort) wuerde sonst auch ueber diesen Weg
+    # (Knopf "Ja, speichern") dauerhaft stehen bleiben. Import erst hier:
+    # ``befehle`` ruft ``knoepfe.eintritt_in_phase`` auf, ein Modulimport
+    # oben waere ein Zyklus (derselbe Grund wie in ``wirkung._wirkung_aufnahme``).
+    from interview_theater import befehle
+
+    befehle.schliesse_offenes_interview_vor_phasenwechsel(
+        conn, tg, klm, e, chat_id, nummer)
     phasen.merke_angebot(conn, chat_id, nummer)
     if phasen.setze(conn, chat_id, nummer, "knopf"):
         tg.sende(chat_id, phasen.meldung(nummer))

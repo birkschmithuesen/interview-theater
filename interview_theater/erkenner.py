@@ -2967,6 +2967,39 @@ def _schliesse_interview_ab(klm, tg, conn, e, wirkliche: list[dict]) -> int | No
     return kopf_id
 
 
+def _schliesse_interview_vor_phasenwechsel(
+    klm, tg, conn, e, chat_id: int, wirkliche: list[dict],
+) -> None:
+    """Die Gruppe wechselt die Phase per Chat ("lass uns zur naechsten
+    Phase", art ``phase_setzen`` -- ``_wende_phase_an``) -- derselbe
+    Waechter wie beim Befehl/Klick (Abnahme P3-4 A3 Nachtrag, 06.10.2026:
+    ``befehle.schliesse_offenes_interview_vor_phasenwechsel``), sonst bleibt
+    ein verwaistes Interview bei diesem, dem haeufigsten Phasenwechselweg,
+    offen -- ``phasen.setze`` ist an dieser Stelle (``_wende_phase_an``)
+    schon gelaufen, aber das Schliessen eines offenen Interviews haengt an
+    keiner Phase, nur am Gruppenschalter ``interviewmodus_seit``.
+
+    Import erst hier (``befehle`` ruft oben im Modul nichts aus
+    ``erkenner`` auf, aber ``erkenner`` liegt in der Fachlogik-Schicht
+    unter der Oberflaeche, zu der ``befehle`` gehoert -- derselbe Rahmen
+    wie ``from interview_theater import befehle`` in ``knoepfe/wirkung.py``,
+    AGENTS.md Modulkarte)."""
+    nummern = []
+    for a in wirkliche:
+        if a.get("art") != "phase_setzen":
+            continue
+        try:
+            nummern.append(int(a.get("wert")))
+        except (TypeError, ValueError):
+            continue
+    if not any(n >= 4 for n in nummern):
+        return
+    from interview_theater import befehle
+
+    befehle.schliesse_offenes_interview_vor_phasenwechsel(
+        conn, tg, klm, e, chat_id, max(nummern))
+
+
 #: Erkenner-Art -> (Ping-Pong-Art der Knopfleiste, Phase, in der sie traegt).
 #: Nur die Arten, ueber die in ihrer Phase im Ping-Pong entschieden wird --
 #: dort und nur dort gehoert die Grundleiste unter die Notiert-Meldung.
@@ -3250,6 +3283,9 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Ausnahme Phase 1 unter Padua (``_weiter_aus_phase_1``): dort ist
         # die Bitte schon das Weiter.
         wirkliche = wirkliche + _weiter_aus_phase_1(conn, chat_id, aenderungen)
+        # Abnahme P3-4 A3 Nachtrag (06.10.2026): ein Phasenwechsel per Chat
+        # beendet ein offenes Interview genauso wie Befehl/Klick.
+        _schliesse_interview_vor_phasenwechsel(klm, tg, conn, e, chat_id, wirkliche)
         _erneuere_angebot_auf_bitte(conn, chat_id, aenderungen)
         if wirkliche:
             phasen.erneuere_nach_aenderung(conn, chat_id)

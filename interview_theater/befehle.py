@@ -679,6 +679,30 @@ def _beende_interview_bei_phasenwechsel(conn, tg, klm, e, chat_id: int) -> None:
         aufnahme.starte_abschluss(conn, tg, klm, e, kopf_id)
 
 
+def schliesse_offenes_interview_vor_phasenwechsel(
+    conn, tg, klm, e, chat_id: int, nummer: int,
+) -> None:
+    """Der EINE Waechter vor jedem Sprung auf Phase >= 4 (Abnahme P3-4 A3
+    Nachtrag, 06.10.2026): ``phasen.setze`` wird an vier Stellen im Code
+    aufgerufen (``wechsle_phase`` hier, ``erkenner.laufe`` -- die Gruppe
+    wechselt die Phase per Chat, ``knoepfe.stationen.
+    uebergang_nach_speichern`` und ``knoepfe.wirkung._wirkung_phase``) --
+    ein verwaistes Interview (``repo.ist_interviewmodus_an`` ist ein reiner
+    Gruppenschalter, siehe ``_beende_interview_bei_phasenwechsel``) kennt
+    keinen Unterschied zwischen Befehl, Chat und Knopf. In try/except,
+    damit ein Fehlschlag hier nie den eigentlichen Phasenwechsel blockiert
+    (derselbe Rahmen wie ``knoepfe.eintritt_in_phase``)."""
+    if nummer < 4:
+        return
+    try:
+        _beende_interview_bei_phasenwechsel(conn, tg, klm, e, chat_id)
+    except Exception:
+        log.exception(
+            "Interview-Abschluss bei Phasenwechsel fehlgeschlagen, chat_id=%s",
+            chat_id,
+        )
+
+
 def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
                   quelle: str = "befehl") -> None:
     """Die Phase umschalten -- der EINE Weg fuer Befehl und Klick
@@ -703,14 +727,7 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
     Phase-3-Interviewflag abhaengen. In ``try/except``, damit ein
     Fehlschlag dort nie den eigentlichen Phasenwechsel blockiert (derselbe
     Rahmen wie ``knoepfe.eintritt_in_phase`` zwei Zeilen weiter unten)."""
-    if nummer >= 4:
-        try:
-            _beende_interview_bei_phasenwechsel(conn, tg, klm, e, chat_id)
-        except Exception:
-            log.exception(
-                "Interview-Abschluss bei Phasenwechsel fehlgeschlagen, chat_id=%s",
-                chat_id,
-            )
+    schliesse_offenes_interview_vor_phasenwechsel(conn, tg, klm, e, chat_id, nummer)
     phasen.setze(conn, chat_id, nummer, quelle)
     tg.sende(chat_id, phasen.meldung(nummer))
     # Derselbe Rahmen wie ueber den Knopf (06.09.2026): Kopfzeile,

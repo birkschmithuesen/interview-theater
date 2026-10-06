@@ -640,6 +640,9 @@ class TelegramAttrappe:
 
     def __init__(self, fehler=None):
         self.gesendet = []
+        #: Texte, die mit ``system=True`` gesendet wurden (Abnahme P3-4 A3
+        #: Nachtrag, 06.10.2026) -- z. B. die Fliesstext-Systemzeile.
+        self.system_texte = []
         #: (chat_id, text, [(beschriftung, callback_data), ...]) je Angebot mit
         #: Inline-Tastatur -- seit dem 05.09.2026 nimmt auch der Erkenner-Pfad
         #: diesen Weg (``_melde_interviewmodus``).
@@ -653,6 +656,11 @@ class TelegramAttrappe:
             raise self._fehler
         self._letzte_message_id += 1
         self.gesendet.append((chat_id, text))
+        # system-Flag separat (Abnahme P3-4 A3 Nachtrag, 06.10.2026) --
+        # ``gesendet`` bleibt ein 2-Tupel, viele bestehende Tests in dieser
+        # Datei entpacken es so.
+        if _kw.get("system"):
+            self.system_texte.append(text)
         return self._letzte_message_id
 
     def sende_mit_knoepfen(self, chat_id, text, knoepfe_, **_kw):
@@ -824,6 +832,86 @@ def test_laufe_interview_beenden_stoesst_den_abschluss_an(conn, einst, monkeypat
 
     assert gestartet == [kopf_id]
     assert repo.hole_aufnahme(conn, kopf_id)["beendet_am"] is not None
+
+
+def test_laufe_phase_setzen_ab_4_schliesst_offenes_interview(conn, einst, monkeypatch):
+    """Abnahme P3-4 A3 Nachtrag (06.10.2026): die Gruppe wechselt die Phase
+    per Chat (``phase_setzen``, ``_wende_phase_an`` ruft ``phasen.setze``
+    direkt auf, ohne durch ``befehle.wechsle_phase`` zu laufen) -- der
+    haeufigste der vier Phasenwechselwege. Ein offenes Interview
+    (``interviewmodus_seit``, reiner Gruppenschalter) muss hier genauso
+    schliessen wie beim Befehl/Klick, sonst bleibt #diskussion dauerhaft
+    gesperrt."""
+    from interview_theater import aufnahme
+
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    kopf_id = aufnahme.stelle_interview_sicher(conn, 1)
+    phasen.setze(conn, 1, 3, "befehl")
+    _nachricht(conn, 1, 1, "wir sind jetzt bei der Diskussion, Phase 4")
+    gestartet = []
+    monkeypatch.setattr(
+        aufnahme, "starte_abschluss",
+        lambda conn, tg, klm, e, kid: gestartet.append(kid),
+    )
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "phase_setzen", "wert": "4"}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert phasen.aktuelle(conn, 1) == 4
+    assert repo.ist_interviewmodus_an(conn, 1) is False
+    assert repo.hole_aufnahme(conn, kopf_id)["beendet_am"] is not None
+    assert gestartet == [kopf_id]
+    assert any(
+        "Phasenwechsel" in text and "beendet" in text for _cid, text in tg.gesendet
+    ), tg.gesendet
+    # Kein Web-/Fliesstext-Kanal hier -- eine gewoehnliche Nachricht, keine
+    # Systemzeile (Gegenprobe: test_laufe_phase_setzen_ab_4_unter_padua_fliesstext...).
+    assert tg.system_texte == []
+
+
+def test_laufe_phase_setzen_ab_4_unter_padua_fliesstext_meldet_mit_system_true(
+    conn, einst, monkeypatch
+):
+    """Wie oben, aber unter Padua-Fliesstext (Web-Kanal, ``[interview]
+    fliesstext``, tests/test_interview_fliesstext.py) -- dort geht die
+    Meldung als Systemzeile (``system=True``) in dieselbe Transkriptblase."""
+    from interview_theater import aufnahme, workshop
+
+    monkeypatch.setattr(workshop, "interview_fliesstext", lambda profil=None: True)
+    repo.setze_gruppe_kanal(conn, 1, "web")
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    kopf_id = aufnahme.stelle_interview_sicher(conn, 1)
+    phasen.setze(conn, 1, 3, "befehl")
+    _nachricht(conn, 1, 1, "wir sind jetzt bei der Diskussion, Phase 4")
+    monkeypatch.setattr(
+        aufnahme, "starte_abschluss",
+        lambda conn, tg, klm, e, kid: None,
+    )
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "phase_setzen", "wert": "4"}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert phasen.aktuelle(conn, 1) == 4
+    assert repo.ist_interviewmodus_an(conn, 1) is False
+    assert any("beendet" in t for t in tg.system_texte), tg.system_texte
+
+
+def test_laufe_phase_setzen_unter_4_laesst_offenes_interview_unberuehrt(conn, einst):
+    """Gegenprobe (keine Verhaltensaenderung fuer Spruenge <= 3, Brief):
+    Phase 2 -> 3 per Chat darf das laufende Interview nicht anfassen."""
+    repo.setze_interviewmodus(conn, 1, repo._jetzt())
+    phasen.setze(conn, 1, 2, "befehl")
+    _nachricht(conn, 1, 1, "wir machen jetzt die Interviews, Phase 3")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "phase_setzen", "wert": "3"}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert phasen.aktuelle(conn, 1) == 3
+    assert repo.ist_interviewmodus_an(conn, 1) is True
+    assert not any("beendet" in text for _cid, text in tg.gesendet)
 
 
 def test_laufe_nur_journaleintrag_sendet_keine_nachricht(conn, einst):

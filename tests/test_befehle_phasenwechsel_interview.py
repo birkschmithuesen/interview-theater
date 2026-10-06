@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 import httpx
 import pytest
 
-from interview_theater import aufnahme, befehle, phasen, repo
+from interview_theater import aufnahme, befehle, phasen, repo, workshop
 
 CHAT = 1
 
@@ -180,9 +180,34 @@ def test_phasenwechsel_3_zu_4_beendet_offenes_interview_mit_teilen_und_verdichte
     assert klm.nutzertexte == [f"{TEIL_A}\n\n{TEIL_B}"]
     assert len(repo.verdichtungen(conn, CHAT)) == 1
 
-    system_zeilen = [t for _, t, _sys in tg.gesendet
-                     if "Interview" in t and "beendet" in t]
-    assert any("Phasenwechsel" in t for t in system_zeilen), tg.gesendet
+    # Ausserhalb des Padua-Fliesstexts (kein Web-Kanal) ist das eine
+    # gewoehnliche Nachricht, keine Systemzeile -- system=True gehoert nur
+    # zum Fliesstext-Pfad (siehe die Gegenprobe unten mit ``fliesstext``).
+    treffer = [(t, s) for _, t, s in tg.gesendet if "Phasenwechsel" in t and "beendet" in t]
+    assert treffer, tg.gesendet
+    assert all(s is False for _t, s in treffer), treffer
+
+
+def test_phasenwechsel_3_zu_4_unter_padua_fliesstext_meldet_mit_system_true(
+    conn, einst, tg, klm, monkeypatch
+):
+    """Padua/Web: ``aufnahme.fliesstext_aktiv`` ist nur mit
+    ``[interview] fliesstext`` UND Web-Kanal wahr (tests/
+    test_interview_fliesstext.py) -- dort geht die Meldung als Systemzeile
+    (``system=True``) in dieselbe Transkriptblase statt als eigene
+    Chatnachricht."""
+    monkeypatch.setattr(workshop, "interview_fliesstext", lambda profil=None: True)
+    repo.setze_gruppe_kanal(conn, CHAT, "web")
+    kopf_id = interview_an(conn)
+    phasen.setze(conn, CHAT, 3, "befehl")
+    tg.gesendet.clear()
+
+    befehle.wechsle_phase(conn, tg, klm, einst, CHAT, 4, quelle="befehl")
+
+    assert repo.ist_interviewmodus_an(conn, CHAT) is False
+    treffer = [(t, s) for _, t, s in tg.gesendet if "beendet" in t]
+    assert treffer, tg.gesendet
+    assert all(s is True for _t, s in treffer), treffer
 
 
 def test_phasenwechsel_3_zu_4_mit_leerem_interview_wird_weich_verworfen(

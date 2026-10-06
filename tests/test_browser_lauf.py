@@ -856,6 +856,28 @@ def test_nach_interview_und_nach_brainstorm_reichen_die_passende_gnadenfrist_dur
     assert gesehen["grace_s"] == inv.GRACE_NACH_SIGNAL_S
 
 
+def test_nach_brainstorm_notiz_nennt_discussion_done_nicht_den_alten_toggle(tmp_path):
+    """Birk 05.10.2026 22:00: kein eigener Brainstorm-Toggle mehr -- die
+    Notiz, die laeuft, wenn der Harness den Ende-Knopf nie selbst geklickt
+    hat (``kontext.ergebnis_p34 is None``), muss "Discussion done" nennen
+    wie beim Diskussions-Haken, nicht mehr "Brainstorm-Toggle"."""
+    pfad = str(tmp_path / "p34.db")
+    aufbau = db.verbinde(pfad); db.initialisiere(aufbau); aufbau.close()
+    gruppen = [Gruppe(token="tok1", chat_id=CHAT)]
+
+    def warte_p34(lese, pruefe, *, frist_s, ende=None, grace_s=None):
+        stand = lese()
+        return pruefe(stand), stand
+
+    kontext = browser_lauf.PruefKontext(
+        db_pfad=pfad, gruppen=gruppen, page=None, warte_p34=warte_p34)
+    station = browser_stationen.Station(
+        "p4-x", 4, "x", pruefung=("nach_brainstorm",), aufnahme="brainstorm")
+    browser_lauf.fuehre_pruefungen(station, kontext)
+    assert any("p4-x" in n and "Discussion done" in n for n in kontext.notizen)
+    assert not any("Toggle" in n for n in kontext.notizen)
+
+
 def test_bereich_je_phase_vereinigt_alle_stationen_dieser_phase():
     """I6 (Review 05.10.2026, Fix round 1): reiner Test von
     ``browser_pruefhaken._bereich_je_phase`` mit vorbereiteten

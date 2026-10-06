@@ -446,8 +446,14 @@ INTERVIEW_STATUS_DOPPELT = "interview_status_doppelt"          # mittel
 INTERVIEW_STATUS_DEUTSCH = "interview_status_nicht_englisch"   # mittel
 P4_GESPERRT_OHNE_VERDICHTUNG = "p4_gesperrt_ohne_laufende_verdichtung"
 BRAINSTORM_OHNE_REAKTION = "brainstorm_ohne_karte_oder_schweigen"
+#: Birk 05.10.2026 22:00 (kein Toggle mehr, Phase-1-Steuerung): Zwischenkarten
+#: WAEHREND des Zuhoerens sind jetzt erwartetes Verhalten (``aufnahme.
+#: _brainstorm_entscheide``'s Zwischenlauf) -- dieser Schluessel zaehlt
+#: deshalb nur noch mehr als EINE Reaktion NACH "Discussion done"; die frueher
+#: eigene Pruefung ``BRAINSTORM_KARTE_WAEHREND_BOGEN`` (eine Karte vor dem
+#: Ende war beim alten Ein-Toggle-Bogen unmoeglich und damit immer ein
+#: Befund) ist ersatzlos entfallen.
 BRAINSTORM_MEHRERE_KARTEN = "brainstorm_mehrere_karten_je_bogen"
-BRAINSTORM_KARTE_WAEHREND_BOGEN = "brainstorm_karte_waehrend_bogen"
 BRAINSTORM_ENDE_NICHT_ANGEKOMMEN = "brainstorm_ende_nicht_angekommen"
 COTHINKER_UNGEERDET = "cothinker_karte_ungeerdet"               # mittel (t_c5cc5a62)
 P3_GESPRAECH_OPUS = "p3_gespraech_ueber_opus"                   # hoch: Datenschutz
@@ -797,18 +803,24 @@ def hat_neue_karte(vor_ende: P34Stand, stand: P34Stand) -> bool:
 
 def pruefe_nach_brainstorm(vorher: P34Stand, vor_ende: P34Stand, nachher: P34Stand,
                            station: str) -> list[Befund]:
+    """Birk 05.10.2026 22:00: kein Toggle mehr -- Phase 4 hoert kontinuierlich
+    zu wie Phase 1, CoThinker-Karten koennen also schon WAEHREND des
+    Zuhoerens entstehen (``vorher`` -> ``vor_ende``), nicht erst danach. Eine
+    solche Zwischenkarte ist deshalb kein eigener Befund mehr -- sie muss nur
+    weiterhin geerdet sein (``karte_geerdet``), genau wie jede Karte NACH dem
+    Ende. ``BRAINSTORM_MEHRERE_KARTEN`` zaehlt dagegen ausschliesslich, was
+    NACH ``vor_ende`` (also nach "Discussion done") entstand -- eine
+    Zwischenkarte zaehlt dafuer nicht mit, der Abschluss bleibt "genau eine
+    Reaktion auf das Ende"."""
     befunde: list[Befund] = []
     if nachher.brainstorm_ende_id <= vorher.max_aufnahme_id:
         befunde.append(Befund(
             BRAINSTORM_ENDE_NICHT_ANGEKOMMEN, station,
             "Nach dem Beenden des Mithoerens kam keine Aufnahme mit brainstorm=1 und "
             f"schnittgrund='ende' an (keine neue Ende-Zeile hinter Aufnahme {vorher.max_aufnahme_id})."))
+    vorher_ids = {k[0] for k in vorher.karten}
     vor_ende_ids = {k[0] for k in vor_ende.karten}
-    waehrend = [k for k in vor_ende.karten if k[0] not in {k2[0] for k2 in vorher.karten}]
-    if waehrend:
-        befunde.append(Befund(
-            BRAINSTORM_KARTE_WAEHREND_BOGEN, station,
-            f"{len(waehrend)} Buehnenkarte(n) entstanden WAEHREND des Bogens, vor dem Ende-Schnitt."))
+    waehrend = [k for k in vor_ende.karten if k[0] not in vorher_ids]
     neue_karten = [k for k in nachher.karten if k[0] not in vor_ende_ids]
     if not neue_karten:
         befunde.append(Befund(
@@ -817,8 +829,8 @@ def pruefe_nach_brainstorm(vorher: P34Stand, vor_ende: P34Stand, nachher: P34Sta
     elif len(neue_karten) > 1:
         befunde.append(Befund(
             BRAINSTORM_MEHRERE_KARTEN, station,
-            f"{len(neue_karten)} Buehnenkarten nach einem einzigen Bogen -- erwartet war genau eine."))
-    for _id, schweigen, text in neue_karten:
+            f"{len(neue_karten)} Buehnenkarten nach 'Discussion done' -- erwartet war genau eine."))
+    for _id, schweigen, text in (*waehrend, *neue_karten):
         if schweigen:
             continue
         if not karte_geerdet(text, nachher.brainstorm_text):

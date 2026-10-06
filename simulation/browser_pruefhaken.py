@@ -82,7 +82,8 @@ class PruefKontext:
     vor_ende_p34: inv.P34Stand | None = None   # P34-Stand direkt vor dem Ende-Klick
     stand_p34: inv.P34Stand | None = None      # Ergebnis von nach_interview/nach_brainstorm
     #: (befunde, stand) aus ``warte_p34``, gelaufen DIREKT nach dem
-    #: Harness-Klick auf "End interview"/den Brainstorm-Toggle.
+    #: Harness-Klick auf "End interview"/"Discussion done" (Brainstorm hat
+    #: seit 05.10.2026 22:00 keinen eigenen Toggle mehr).
     ergebnis_p34: tuple | None = None
     warte_p34: Callable = inv.warte_auf
     #: Station.schluessel -> (von, bis) der ``aufruf.id``, die waehrend
@@ -329,7 +330,7 @@ def _nach_brainstorm(station, kontext: PruefKontext, chat_id: int) -> list[inv.B
         pruefe=lambda vorher, stand: inv.pruefe_nach_brainstorm(
             vorher, kontext.vor_ende_p34 or vorher, stand, station.schluessel),
         ende=lambda vorher, stand: inv.hat_neue_karte(kontext.vor_ende_p34 or vorher, stand),
-        frist_s=inv.FRIST_NACH_BRAINSTORM_S, knopf_text="Brainstorm-Toggle")
+        frist_s=inv.FRIST_NACH_BRAINSTORM_S, knopf_text="Discussion done")
 
 
 def _bereich_je_phase(kontext: PruefKontext, phase: int) -> tuple[int, int]:

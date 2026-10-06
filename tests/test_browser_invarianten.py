@@ -569,16 +569,60 @@ def test_brainstorm_genau_eine_reaktion_nach_dem_ende(db34):
     assert inv.pruefe_nach_brainstorm(vorher, vorher, _p34(db34), "p4") == []
 
 
-def test_karte_waehrend_des_bogens_und_ungeerdete_karte(db34):
+def test_karte_waehrend_des_bogens_ist_kein_befund_wenn_geerdet(db34):
+    """Birk 05.10.2026 22:00: kein Toggle mehr, kontinuierliches Zuhoeren --
+    eine Zwischenkarte WAEHREND des Bogens (vor dem Ende-Schnitt) ist jetzt
+    erwartetes Verhalten, kein Befund mehr (anders als beim alten Toggle,
+    wo eine Karte vor dem Ende unmoeglich war). ``BRAINSTORM_KARTE_
+    WAEHREND_BOGEN`` ist deshalb ersatzlos entfallen."""
     vorher = _p34(db34)
-    _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell) VALUES (7, 'early', 'claude')")
+    _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell) VALUES "
+                    "(7, 'The cousin on the bench waits for the cafe to close.', 'claude')")
     vor_ende = _p34(db34)
     _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, brainstorm, schnittgrund, "
                     "transkript) VALUES (5, 7, 'kurz', 'fertig', 1, 'ende', 'the bench and the cafe')")
     _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell) VALUES "
+                    "(7, 'The broken bag waits by the cafe near the bench.', 'claude')")
+    assert inv.pruefe_nach_brainstorm(vorher, vor_ende, _p34(db34), "p4") == []
+
+
+def test_karte_waehrend_des_bogens_ungeerdet_ist_weiterhin_ein_befund(db34):
+    """Eine Zwischenkarte bleibt pruefbar: ist SIE ungeerdet, feuert
+    ``COTHINKER_UNGEERDET`` -- nur das "waehrend"-Timing selbst ist kein
+    Befund mehr."""
+    vorher = _p34(db34)
+    _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell) VALUES "
                     "(7, 'Pirates sail to Mars tonight.', 'claude')")
+    vor_ende = _p34(db34)
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, brainstorm, schnittgrund, "
+                    "transkript) VALUES (5, 7, 'kurz', 'fertig', 1, 'ende', 'the bench and the cafe')")
+    _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell) VALUES "
+                    "(7, 'The broken bag waits by the cafe near the bench.', 'claude')")
     schluessel = {b.schluessel for b in inv.pruefe_nach_brainstorm(vorher, vor_ende, _p34(db34), "p4")}
-    assert {inv.BRAINSTORM_KARTE_WAEHREND_BOGEN, inv.COTHINKER_UNGEERDET} <= schluessel
+    assert schluessel == {inv.COTHINKER_UNGEERDET}
+    assert not hasattr(inv, "BRAINSTORM_KARTE_WAEHREND_BOGEN")
+
+
+def test_brainstorm_mehrere_karten_zaehlt_nur_karten_nach_dem_ende(db34):
+    """``BRAINSTORM_MEHRERE_KARTEN`` heisst seit dem Umbau "mehr als eine
+    Reaktion NACH dem Ende" -- eine Zwischenkarte waehrend des Bogens plus
+    GENAU EINE Karte nach dem Ende ist weiterhin sauber (keine der beiden
+    Befunde), weil die Abschlusspruefung nur zaehlt, was NACH
+    ``vor_ende`` entstanden ist."""
+    vorher = _p34(db34)
+    _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell) VALUES "
+                    "(7, 'The cousin on the bench waits for the cafe to close.', 'claude')")
+    vor_ende = _p34(db34)
+    _schreibe(db34, "INSERT INTO aufnahme (id, chat_id, klasse, status, brainstorm, schnittgrund, "
+                    "transkript) VALUES (5, 7, 'kurz', 'fertig', 1, 'ende', 'the bench and the cafe')")
+    _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell) VALUES "
+                    "(7, 'The broken bag waits by the cafe near the bench.', 'claude')")
+    assert inv.pruefe_nach_brainstorm(vorher, vor_ende, _p34(db34), "p4") == []
+    # Eine ZWEITE Karte nach dem Ende ist weiterhin ein Befund.
+    _schreibe(db34, "INSERT INTO buehnenkarte (chat_id, text, modell) VALUES "
+                    "(7, 'The cafe owner remembers the bench too.', 'claude')")
+    schluessel = {b.schluessel for b in inv.pruefe_nach_brainstorm(vorher, vor_ende, _p34(db34), "p4")}
+    assert inv.BRAINSTORM_MEHRERE_KARTEN in schluessel
 
 
 def test_karte_geerdet_braucht_zwei_inhaltswoerter():

@@ -22,7 +22,10 @@ MIN_TAPZIEL_PX = 44.0
 #: darf wachsen, wenn ein neues UI-Stueck dazukommt.
 VERDRAHTETE_SELEKTOREN = (
     "#senden", "#interview", "#interview-pause", "#interview-beenden",
-    "#brainstorm", "#ptt",
+    # Kein eigener Brainstorm-Selektor mehr seit 05.10.2026 22:00 (kein
+    # Toggle) -- Phase 4 bedient sich ueber "#diskussion"/"#diskussion-
+    # beenden" unten.
+    "#ptt",
     "#nachreichen", "#verwerfen", "#diskussion", "#diskussion-pause",
     "#diskussion-beenden", "#kalibrierung-start", "#kalibrierung-sprechen",
     "#kalibrierung-ja", "#kalibrierung-nein", "#kalibrierung-versuch",
@@ -45,7 +48,7 @@ def seitliches_rutschen(page) -> bool:
 
 def tap_ziele_zu_klein(page, selektor: str = (
         ".leiste button, .tabs button, .phase-knopf, #senden, #interview, "
-        "#ptt, #brainstorm")) -> list[dict]:
+        "#ptt")) -> list[dict]:
     """Sichtbare Tippziele unter ``MIN_TAPZIEL_PX``."""
     treffer = []
     for el in page.query_selector_all(selektor):

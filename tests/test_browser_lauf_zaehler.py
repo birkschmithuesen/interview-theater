@@ -5,6 +5,17 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 
 from simulation import browser_zaehler as z  # noqa: E402
 
+
+def test_kein_eigener_brainstorm_selektor_mehr():
+    """Birk 05.10.2026 22:00: kein Toggle-Knopf mehr -- ``#brainstorm``
+    existiert im Markup nicht mehr, weder in ``VERDRAHTETE_SELEKTOREN``
+    noch im Vorgabe-Selektor von ``tap_ziele_zu_klein``."""
+    assert "#brainstorm" not in z.VERDRAHTETE_SELEKTOREN
+    import inspect
+
+    vorgabe = inspect.signature(z.tap_ziele_zu_klein).parameters["selektor"].default
+    assert "#brainstorm" not in vorgabe
+
 #: Ein absichtlich kaputter Stand: alle fuenf Mutanten auf einmal, in einem
 #: HTML-Dokument, das sonst wie eine Chip-Leiste/Tabs/Eingabe aussieht.
 _KAPUTT = """

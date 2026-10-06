@@ -176,8 +176,28 @@ def test_p34_skripte_treffen_die_schwellen():
 
 
 def test_selektoren_je_aufnahmeart():
+    # Birk 05.10.2026 22:00: kein Toggle mehr -- Brainstorm (Phase 4) bedient
+    # sich ueber denselben Knopf wie Diskussion (Phase 1), ``#diskussion``/
+    # ``#diskussion-beenden``, mit eigenem Stationstyp "brainstorm" (fuer
+    # ``Station.aufnahme``/die Pruef-Haken) aber denselben Selektoren.
     assert set(s.LAEUFT) == set(s.ENDE) == {"diskussion", "interview", "brainstorm"}
     assert s.LAEUFT["interview"] == '#interview[data-laeuft="1"]'
     assert s.ENDE["diskussion"] == "#diskussion-beenden"
     assert s.ENDE["interview"] == "#interview-beenden"
-    assert s.ENDE["brainstorm"] == "#brainstorm"     # Toggle (Task 5)
+    assert s.LAEUFT["brainstorm"] == s.LAEUFT["diskussion"] == '#diskussion[data-laeuft="1"]'
+    assert s.ENDE["brainstorm"] == s.ENDE["diskussion"] == "#diskussion-beenden"
+
+
+def test_p4_brainstorm_ziel_nennt_denselben_knopf_wie_phase1_und_den_raumcheck():
+    """Der Zieltext darf nicht mehr von einem einzelnen Gedanken/Tipp
+    sprechen (das alte Toggle-Bild), sondern von "Start listening"/
+    "Discussion done" wie Phase 1 -- und muss den moeglichen Raumcheck davor
+    nennen (die Kalibrierungs-Schluessel sind gruppen-/tagesweit, nicht
+    phasengebunden: ohne Cache aus Phase 1 erscheint der Dialog hier zum
+    ERSTEN Mal, siehe docs/handoffs)."""
+    st = {x.schluessel: x for x in s.STATIONEN_P34}
+    ziel = st["p4-brainstorm"].ziel.casefold()
+    assert "start listening" in ziel
+    assert "discussion done" in ziel
+    assert "room" in ziel
+    assert "tap" not in ziel and "thought is complete" not in ziel

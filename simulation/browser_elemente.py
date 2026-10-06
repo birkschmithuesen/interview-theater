@@ -23,7 +23,10 @@ _ARTEN = (
     ("interview", "#interview"),
     ("interview_pause", "#interview-pause"),
     ("interview_beenden", "#interview-beenden"),
-    ("brainstorm", "#brainstorm"),
+    # Birk 05.10.2026 22:00: kein eigener Brainstorm-Knopf mehr -- Phase 4
+    # bedient sich ueber "diskussion" (#diskussion/#diskussion-beenden)
+    # oben; der Stationstyp "brainstorm" (Station.aufnahme) bleibt trotzdem
+    # eigenstaendig fuer die Pruef-Haken.
     ("ptt", "#ptt"),
     ("nachreichen", "#nachreichen"),
     ("verwerfen", "#verwerfen"),

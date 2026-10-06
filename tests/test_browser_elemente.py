@@ -5,6 +5,14 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 
 from simulation import browser_elemente  # noqa: E402
 
+
+def test_kein_eigener_brainstorm_selektor_mehr():
+    """Birk 05.10.2026 22:00: kein Toggle-Knopf mehr -- ``#brainstorm``
+    existiert im Markup nicht mehr (Phase 4 bedient sich ueber
+    ``#diskussion``, das schon einen eigenen Eintrag hat). Der Stationstyp
+    "brainstorm" (``Station.aufnahme``) bleibt unabhaengig davon stehen."""
+    assert not any(selektor == "#brainstorm" for _art, selektor in browser_elemente._ARTEN)
+
 #: Realistischer Default-Zustand: die Roadmap ist ein ``<details>`` OHNE
 #: ``open`` -- exakt wie ``web_vereint._leiste_html`` sie serverseitig
 #: ausliefert (Zeile ~1062). Nur die ``<summary>`` ist dann sichtbar, der

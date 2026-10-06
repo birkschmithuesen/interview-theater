@@ -43,14 +43,20 @@ PRUEFUNGEN = ("nach_ende", "wissen", "raumcheck", "zweite_gruppe", "verhoerer", 
               "nach_interview", "nach_brainstorm", "modellwahl", "p5_angebot")
 
 #: Je Aufnahmeart: woran der Harness "laeuft" erkennt und was er zum Beenden
-#: drueckt. Brainstorm ist seit Task 5 (t_cf87ee0a) ein Toggle -- derselbe
-#: Knopf beendet.
+#: drueckt. Brainstorm war unter t_cf87ee0a (Task 5, bis 05.10.2026) ein
+#: eigener Toggle-Knopf (``#brainstorm``, derselbe Knopf beendet) -- Birk hat
+#: das 05.10.2026 22:00 verworfen: **kein Toggle seit 05.10. 22:00**. Phase 4
+#: bedient sich seitdem ueber genau denselben Knopf wie die Diskussion der
+#: Phase 1 (``#diskussion``/``#diskussion-beenden``, kontinuierliches
+#: Zuhoeren mit VAD-Pausenschnitten statt eines einzigen Bogens) -- der
+#: Stationstyp "brainstorm" bleibt eigenstaendig (``Station.aufnahme``, die
+#: Pruef-Haken), nur die Selektoren sind jetzt identisch mit "diskussion".
 LAEUFT = {"diskussion": '#diskussion[data-laeuft="1"]',
           "interview": '#interview[data-laeuft="1"]',
-          "brainstorm": '#brainstorm[data-laeuft="1"]'}
+          "brainstorm": '#diskussion[data-laeuft="1"]'}
 ENDE = {"diskussion": "#diskussion-beenden",
         "interview": "#interview-beenden",
-        "brainstorm": "#brainstorm"}
+        "brainstorm": "#diskussion-beenden"}
 
 
 @dataclass(frozen=True)
@@ -255,9 +261,11 @@ STATIONEN_P34: tuple[Station, ...] = (
             "group can brainstorm with it.",
             budget=3, leitbild_ende="eintritt"),
     Station("p4-brainstorm", 4,
-            "Your group brainstorms one thought about a character from the "
-            "interviews. Let the app listen while you talk; when the thought is "
-            "complete, stop listening and look at what the CoThinker says.",
+            "Your group brainstorms about a character from the interviews. "
+            "Press 'Start listening', put the phone down and brainstorm -- the "
+            "same button as in phase 1; if the app checks the room first, do "
+            "it. Press 'Discussion done' when finished; then look at the "
+            "CoThinker tab.",
             fertig=lambda st: st.get("brainstorm_aufnahmen", 0) > 0,
             budget=6, zuhoeren_s=None, aufnahme="brainstorm",
             diskussion="brainstorm-bogen", leitbild_beobachter="cothinker",

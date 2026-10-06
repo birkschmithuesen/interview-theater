@@ -48,6 +48,7 @@ def datenbank(tmp_path):
 @pytest.fixture
 def padua(monkeypatch):
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(workshop, "fragen_umformulieren_knopf_aktiv", lambda *a, **k: True)
 
 
 def _gruppe(pfad, token):
@@ -88,6 +89,18 @@ def test_knopf_bleibt_weg_nach_dem_ersten_interview(datenbank, padua):
     conn.commit()
     conn.close()
     daten = _gruppe(pfad, token)
+    assert daten["umformulieren_knopf_zeigen"] is False
+
+
+def test_knopf_bleibt_weg_wenn_der_profilschalter_aus_ist(datenbank, monkeypatch):
+    """Birks Nachtrag (06.10.2026, ON HOLD): der neue Schalter
+    ``[fragen] umformulieren_knopf`` gated zusaetzlich -- auch wenn die
+    drei inhaltlichen Bedingungen (Profil, Sortierung geschlossen, kein
+    Interview) sonst erfuellt waeren, bleibt der Knopf beim Default
+    (Schalter fehlt/false) weg."""
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(workshop, "fragen_umformulieren_knopf_aktiv", lambda *a, **k: False)
+    daten = _gruppe(*datenbank)
     assert daten["umformulieren_knopf_zeigen"] is False
 
 

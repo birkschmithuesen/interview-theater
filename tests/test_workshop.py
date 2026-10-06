@@ -211,6 +211,30 @@ def test_diskussion_und_fragen_ab_aktiv_ueber_profil_aus_dict():
     assert workshop.fragen_ab_aktiv(profil) is True
 
 
+def test_fragen_umformulieren_knopf_aktiv_vorgabe_false():
+    """[fragen] umformulieren_knopf wie [diskussion] aktiv: ohne die Zeile
+    bleibt das Verhalten aus -- Karte t_1f13a707 bleibt ON HOLD (Birk,
+    06.10.2026), bis jemand die Zeile im Profil auf true setzt."""
+    assert workshop.fragen_umformulieren_knopf_aktiv(None) is False
+    assert (
+        workshop.fragen_umformulieren_knopf_aktiv(workshop.lade("dortmund-2026"))
+        is False
+    )
+    # Padua setzt die Zeile bewusst NICHT -- das Feature bleibt versteckt,
+    # bis Birk es manuell einschaltet.
+    assert (
+        workshop.fragen_umformulieren_knopf_aktiv(workshop.lade("padua-2026"))
+        is False
+    )
+
+
+def test_fragen_umformulieren_knopf_aktiv_ueber_profil_aus_dict():
+    profil = workshop.Profil(
+        "test", None, {"fragen": {"umformulieren_knopf": True}},
+    )
+    assert workshop.fragen_umformulieren_knopf_aktiv(profil) is True
+
+
 def test_prueflauf_und_ueberarbeitung_nur_in_padua():
     """Padua Phasen TEIL 2: beide Schalter wie [prosa_entwurf] -- aus in der
     Vorgabe und in Dortmund, an nur in Padua."""

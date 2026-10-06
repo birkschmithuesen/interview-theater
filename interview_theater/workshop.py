@@ -999,6 +999,20 @@ def fragen_eigene_min(profil: Profil | None = None) -> int:
     return int(profil.wert("fragen.eigene_min", 0))
 
 
+def fragen_umformulieren_knopf_aktiv(profil: Profil | None = None) -> bool:
+    """Ob der Dauerknopf "Fragen umformulieren" im CoThinker-Fragen-Panel
+    und der Werkbank erscheint, und ob die Chat-Gabel nach "Fertig
+    sortiert" zwei Knoepfe statt des alten Einzelverhaltens zeigt (Karte
+    t_1f13a707).
+
+    Vorgabe false -- wie ``[diskussion] aktiv``: das Feature ist fertig
+    gebaut, bleibt aber auf Birks Wunsch (06.10.2026) versteckt, bis
+    jemand die Zeile im Profil auf true setzt. Padua setzt die Zeile
+    bewusst nicht."""
+    profil = profil or aktiv()
+    return bool(profil.wert("fragen.umformulieren_knopf", False))
+
+
 def workbench_bearbeitbar(profil: Profil | None = None) -> bool:
     """Ob der Arbeitsstand-Tab ("Workbench") Formulare traegt und der
     Werkbank-POST schreibt (Padua, 03.10.2026, Karte t_49e7354c).

@@ -846,6 +846,57 @@ def test_selbstanweisung_im_wortlaut_der_systemanweisung_ist_denkspur():
     assert not ablauf.ist_denkspur("Klingt gut - womit fangt ihr an?")
 
 
+#: Abnahme P3-4, Befund A1 (06.10.2026): Simulationslauf
+#: 2026-10-06-handy-priya-p34-042439, sim.db Tabelle "nachricht",
+#: message_id=17, 02:29:55 UTC -- Kimi (aufruf.id=9, modus="A") schrieb sein
+#: komplettes deutsches Selbstgespraech, inkl. woertlich zitierter
+#: Systemanweisung, ins "antwort"-Feld und es ging unveraendert in den
+#: englischsprachigen Gruppenchat. Der bisherige Filter traf nur den einen
+#: weichen Marker "ich soll " (aus "Ich soll keine Slash-Commands bewerben");
+#: "Ich sollte kurz sein" (konjugiert, kein Leerzeichen direkt nach "soll")
+#: und die Phrasen "Der Benutzer fragt", "Laut den Instruktionen", "Die
+#: Instruktionen sagen" standen gar nicht in der Markerliste -- nur 1 Treffer
+#: statt der noetigen 2, ist_denkspur() gab False, der Text ging ungefiltert
+#: raus. Text verbatim aus sim.db (keine personenbezogenen Daten: Absender
+#: ist die synthetische Simulationspersona "padua-browser-sim").
+HANDY_PRIYA_DENKSPUR = (
+    "Der Benutzer fragt nach dem richtigen Vorgehen mit nur einem Telefon. "
+    "Laut den Instruktionen zur Phase 3 soll ich die Interview-Anweisungen "
+    "nur einmal am Anfang der Phase geben und sonst kurz und präzise "
+    "antworten. Die Gruppe hat bereits den Leitfaden gesehen und die "
+    "Sprache auf Englisch gesetzt.\n\n"
+    "Die Frage ist rein technisch: Sie haben nur ein Telefon und fragen, ob "
+    "sie \"Record on this phone\" tippen sollen. Ich sollte klarstellen, "
+    "dass sie das Telefon verwenden, auf dem sie gerade sind, und dass der "
+    "Gesprächspartner dann ebenfalls dieses Telefon benutzt (also "
+    "wahrscheinlich das Telefon zwischen ihnen halten oder ähnliches). "
+    "Wichtig: Ich soll keine Slash-Commands bewerben, aber der Benutzer hat "
+    "\"Record on this phone\" erwähnt - das scheint ein Button zu sein, "
+    "nicht ein Slash-Command. \n\n"
+    "Laut Instruktionen: \"The way is the button 'Start interview' -- it is "
+    "at the bottom of the screen, above the input field, not a slash "
+    "command and not under your messages.\"\n\n"
+    "Also: Ja, auf diesem einen Telefon tippen sie Start interview, und "
+    "dann führen sie das Interview auf diesem einen Gerät durch. Ich "
+    "sollte kurz sein, keine Gegenfrage stellen (das ist die Regel für "
+    "Phase 3: \"Answer questions to you in one or two sentences, without a "
+    "counter-question\").\n\n"
+    "Auch wichtig: Die Instruktionen sagen \"reply in English now, even if "
+    "the message above is in another language\" - aber Member 1 hat auf "
+    "Englisch geschrieben. Ich antworte auf Englisch.\n\n"
+    "Kurze, präzise Antwort: Ja, auf diesem einen Telefon Start interview "
+    "tippen. Das Interview findet auf diesem Gerät statt - das Telefon "
+    "liegt dann zwischen ihnen oder sie halten es hin und her. Nach dem "
+    "Interview Stop tippen."
+)
+
+
+def test_denkspur_mit_benutzer_instruktionen_wortlaut_wird_erkannt():
+    """Abnahme P3-4, Befund A1: der gemessene Text (oben) muss als Denkspur
+    erkannt werden -- vorher entging er dem Filter (siehe Kommentar)."""
+    assert ablauf.ist_denkspur(HANDY_PRIYA_DENKSPUR)
+
+
 def test_ueberarbeiteter_vorschlagsblock_ist_keine_wiederholung():
     """06.09.2026 12:30 (Gruppe 1, live): "Kannst du die zweite Formulierung
     umaendern" -> der ueberarbeitete Block teilt >60 % der Woerter mit dem

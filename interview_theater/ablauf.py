@@ -81,12 +81,25 @@ _DENKSPUR_MARKER = (
     # selbst an und nennt nie "dein Zug"/"Systemzeile"/"System-Ankuendigung".
     "du sollst ", "dein zug ist", "systemzeile", "system-ankuendigung",
     "system-ankündigung", "die systemanweisung", "satz zuspruch",
+    # Abnahme P3-4, Befund A1 (06.10.2026, sim.db nachricht.message_id=17):
+    # Kimi schrieb "Der Benutzer fragt ... Ich sollte kurz sein ... Laut den
+    # Instruktionen ... Die Instruktionen sagen ..." -- durchweg Formulierungen,
+    # in denen das Modell sich selbst als Ausfuehrendes einer Anweisung
+    # beschreibt bzw. eine Systemanweisung zitiert. "ich sollte " ist weich
+    # (wie "ich soll ") -- allein zu generisch, erst im Verbund mit einem
+    # zweiten Treffer; die anderen drei sind so eindeutig wie "die
+    # systemanweisung": kein Bot nennt die Gruppe "der Benutzer" oder zitiert
+    # "die Instruktionen" ueber sich selbst.
+    "ich sollte ", "der benutzer fragt", "laut den instruktionen",
+    "die instruktionen sagen",
 )
 #: Diese Marker sind allein schon Beweis -- so redet niemand mit einer Gruppe.
 _DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
                        "keine markdown", "unter 500 zeichen",
                        "dein zug ist", "systemzeile", "system-ankuendigung",
-                       "system-ankündigung", "die systemanweisung")
+                       "system-ankündigung", "die systemanweisung",
+                       "der benutzer fragt", "laut den instruktionen",
+                       "die instruktionen sagen")
 
 #: Dieselben Marker auf Englisch (Karte A1, K5) -- ein Modell denkt auch mal
 #: in der anderen Sprache laut. Gelesen wird die Vereinigung, fuer beide

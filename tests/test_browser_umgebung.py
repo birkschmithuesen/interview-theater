@@ -154,6 +154,73 @@ def test_bereite_vor_tut_bei_startphase_1_nichts(tmp_path):
         conn.close()
 
 
+def test_bereite_vor_startphase_5_erfuellt_voraussetzung_5_und_bleibt_in_phase_4(tmp_path):
+    """Task 1 (BRIEF p57): startphase=5 soll die Materiallage fuer Phase 5
+    herstellen (Setting, fixierte Figuren, Geschichte, Szenenzahl, ein
+    ausgewertetes Interview), den Wechsel selbst aber ``browser_lauf.main``
+    ueber den echten Endpunkt ueberlassen (die Gruppe bleibt in Phase 4)."""
+    from interview_theater import aufnahme, db, phasen, repo
+    from simulation import browser_umgebung as u
+
+    pfad = str(tmp_path / "sim.db")
+    chat_id, _token = u.baue_gruppe(pfad, "padua-browser-sim")
+    u.bereite_vor(pfad, chat_id, startphase=5)
+    conn = db.verbinde(pfad)
+    try:
+        assert phasen.voraussetzungen(conn, chat_id)[5] is True
+        assert phasen.aktuelle(conn, chat_id) == 4
+        assert aufnahme.unausgewertete_interviews(conn, chat_id) == []
+
+        kopf = aufnahme.interviews(conn, chat_id)[0]
+        transkript = repo.hole_aufnahme(conn, kopf["id"])["transkript"]
+        verdichtung = repo.verdichtungen(conn, chat_id)[0]
+        themen = repo.themen_zu(conn, verdichtung["id"])
+        assert themen  # mindestens ein Thema
+        for thema in themen:
+            assert thema["zitat_geprueft"] == 1
+            assert thema["beleg_zitat"] in transkript
+
+        for szene in repo.hole_szenen(conn, chat_id):
+            assert not (szene["prosa"] or "").strip()
+            assert (szene["titel"] or "").strip()
+            assert (szene["was_passiert"] or "").strip()
+
+        for figur in repo.figuren(conn, chat_id):
+            assert not (figur["sprachstil"] or "").strip()
+    finally:
+        conn.close()
+
+
+def test_bereite_vor_startphase_3_bleibt_zeichengleich(tmp_path):
+    """Die neue Fallunterscheidung in ``bereite_vor`` darf den bestehenden
+    ``startphase=3``-Weg nicht veraendern -- derselbe Befund wie der aeltere
+    Test ``test_bereite_vor_fuellt_phase_1_und_2_und_bleibt_in_phase_2``,
+    hier nach der Erweiterung erneut geprueft."""
+    from interview_theater import db, phasen, repo
+    from simulation import browser_umgebung as u
+
+    pfad = str(tmp_path / "sim.db")
+    chat_id, _token = u.baue_gruppe(pfad, "padua-browser-sim")
+    u.bereite_vor(pfad, chat_id, startphase=3)
+    conn = db.verbinde(pfad)
+    try:
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        assert stand["begriffe"] and stand["fragen"]
+        assert stand["interview_eroeffnung"] and stand["interview_abschluss"]
+        assert phasen.aktuelle(conn, chat_id) == 2
+    finally:
+        conn.close()
+
+
+def test_bereite_vor_startphase_6_wirft_valueerror(tmp_path):
+    from simulation import browser_umgebung as u
+
+    pfad = str(tmp_path / "sim.db")
+    chat_id, _token = u.baue_gruppe(pfad, "padua-browser-sim")
+    with pytest.raises(ValueError):
+        u.bereite_vor(pfad, chat_id, startphase=6)
+
+
 def test_lauf_verzeichnis_ist_je_lauf_eindeutig(tmp_path):
     # Lazy-Import mit importorskip wie in tests/test_browser_lauf.py: nur
     # dieser eine Test braucht browser_lauf (zieht playwright beim Import

@@ -187,26 +187,130 @@ STAND_PHASE_1_2 = (
 )
 
 
+#: Phase-4-Ergebnis fuer einen Lauf, der in Phase 5 beginnt -- dieselben
+#: erfundenen Werte wie ``scripts/fixture_padua_voll._STAND_JE_PHASE[4]``
+#: (dort privat, hier die oeffentliche Abschrift), dazu ``szenen_anzahl``:
+#: Padua fragt in Phase 4 nach der Anzahl Szenen (``phasen.voraussetzungen``),
+#: die Fixture legt dort direkt die echten Szenenzeilen an und braucht das
+#: Feld deshalb nicht -- der Startzustand hier schon, weil er KEINE
+#: Szenenfolge-Vorschlagsrunde durchlaeuft.
+STAND_PHASE_4 = (
+    ("rahmen", "A railway station in a northern Italian city, one wet "
+               "November evening. A young man has just arrived and waits "
+               "for a cousin who does not come."),
+    ("geschichte",
+     "Samir waits on a bench with two bags, one of them broken. He "
+     "rehearses how to order a coffee and never goes. The woman at the "
+     "station cafe notices him. When his cousin finally arrives, the broken "
+     "bag opens in the middle of the hall - and for the first time Samir "
+     "laughs here."),
+    ("szenen_anzahl", "3"),
+)
+
+#: Drei Figuren OHNE Sprachstil -- Abschrift der Namen/Beschreibungen aus
+#: ``scripts/fixture_padua_voll._FIGUREN`` (dort privat), der dortige Stil je
+#: Figur wird hier bewusst NICHT uebernommen: Fakt 2 (Plan) misst, dass die
+#: Live-Phase-4 ``figur.sprachstil`` nicht setzt, und Phase 7
+#: (``sprechweise.py``) soll im Lauf genau diese Luecke fuellen.
+FIGUREN_PHASE_4 = (
+    ("Samir", "just arrived, wants to arrive without asking anyone"),
+    ("Elena", "runs the station cafe, sees everyone and says little"),
+    ("Tommaso", "the cousin, late, embarrassed, overly cheerful"),
+)
+
+#: Drei Szenenzeilen mit Titel/``was_passiert``/Besetzung, OHNE Prosa --
+#: Abschrift von ``scripts/fixture_padua_voll._SZENEN`` (dort privat), das
+#: Prosa-Feld wird hier bewusst NICHT uebernommen: Phase 5 soll die Prosa im
+#: Lauf selbst schreiben, nicht vorgefunden.
+SZENEN_PHASE_4 = (
+    (1, "The bench", "Samir waits and rehearses his order.", ("Samir",)),
+    (2, "The cafe", "Elena watches him not coming in.", ("Samir", "Elena")),
+    (3, "Socks on the floor", "Tommaso arrives, the bag opens.",
+     ("Samir", "Tommaso", "Elena")),
+)
+
+#: Dasselbe Interviewmaterial wie ``scripts/fixture_padua_voll.INTERVIEW``,
+#: hier absolut ueber ``WURZEL`` aufgeloest -- dieses Modul soll nicht davon
+#: abhaengen, aus welchem Verzeichnis der Harness gestartet wird.
+INTERVIEW = WURZEL / "simulation" / "interviews" / "set1" / "2-ferzan-bahnhof.md"
+
+#: Die zwei woertlichen, im Transkript stehenden Zitate -- dieselben wie in
+#: ``scripts/fixture_padua_voll._material`` (dort privat).
+_ZITATE_INTERVIEW = (
+    "Ich habe drei Stunden auf dieser Bank gesessen und nichts gegessen.",
+    "Der Lautsprecher hat geredet und ich habe kein einziges Wort verstanden.",
+)
+
+
+def _material(conn, chat_id: int) -> int:
+    """Ein verdichtetes Interview mit zwei geprueften Zitaten -- derselbe Weg
+    wie ``scripts/fixture_padua_voll._material`` (dort privat)."""
+    roh = INTERVIEW.read_text(encoding="utf-8")
+    transkript = roh.split("---", 2)[2].strip()
+    assert all(z in transkript for z in _ZITATE_INTERVIEW), \
+        "Interviewmaterial passt nicht"
+    aufnahme_id = repo.lege_aufnahme_an(
+        conn, chat_id, 5, "lang", "text", status="fertig")
+    repo.setze_transkript(conn, aufnahme_id, transkript)
+    repo.speichere_verdichtung(
+        conn, chat_id, aufnahme_id,
+        "The interviewee remembers his first day: three hours on a station "
+        "bench with a broken bag, waiting for a cousin, too unsure to buy "
+        "food, unable to understand the announcements.",
+        [
+            {"thema": "waiting", "beleg_zitat": _ZITATE_INTERVIEW[0],
+             "zitat_geprueft": 1, "kurz": "three hours on the bench"},
+            {"thema": "noise", "beleg_zitat": _ZITATE_INTERVIEW[1],
+             "zitat_geprueft": 1, "kurz": "the loudspeaker"},
+        ],
+    )
+    return aufnahme_id
+
+
 def bereite_vor(db_pfad: str, chat_id: int, *, startphase: int) -> None:
     """Fuellt fuer ``startphase > 1`` den Stand der Phasen davor und laesst
     die Gruppe in ``startphase - 1`` stehen -- den Wechsel selbst macht
     ``browser_lauf.main`` ueber den echten Endpunkt (Eintrittsnachricht wie
-    live). Heute nur Phase 3 gebaut; andere Werte > 3 sind ein ValueError.
+    live). Gebaut: 3 (zeichengleich zum bisherigen Weg) und 5 (Task 1,
+    BRIEF p57); andere Werte sind ein ValueError.
 
     Padua (``workshop/padua-2026/profil.toml``, ``[fragen_weich] aktiv =
     false``) braucht fuer ``phasen.voraussetzungen()[3]`` NICHT zusaetzlich
     ``fragen_weich``/``frage_einleitungen`` -- die Bedingung
     ``not workshop.fragen_weich_aktiv() or geprueft(...)`` ist mit
-    ``fragen_weich_aktiv() == False`` schon erfuellt."""
+    ``fragen_weich_aktiv() == False`` schon erfuellt.
+
+    ``startphase=5`` baut zusaetzlich den Phase-4-Stand (Setting,
+    Geschichte, Szenenzahl), ein verdichtetes Interview (``_material``), drei
+    Figuren ohne Sprachstil und drei Szenenzeilen ohne Prosa -- die Gruppe
+    bleibt dabei in Phase 4 stehen (``phasen.voraussetzungen()[5]`` wird
+    erfuellt, der Sprung selbst bleibt dem echten Endpunkt vorbehalten)."""
     if startphase <= 1:
         return
-    if startphase != 3:
+    if startphase not in (3, 5):
         raise ValueError(f"startphase {startphase} nicht gebaut")
     conn = db.verbinde(db_pfad)
     try:
         for feld, wert in STAND_PHASE_1_2:
             repo.setze_arbeitsstand(conn, chat_id, feld, wert)
-        repo.setze_phase(conn, chat_id, 2)
+        if startphase == 3:
+            repo.setze_phase(conn, chat_id, 2)
+            conn.commit()
+            return
+        for feld, wert in STAND_PHASE_4:
+            repo.setze_arbeitsstand(conn, chat_id, feld, wert)
+        repo.setze_arbeitsstand(conn, chat_id, "figuren_fixiert_am", repo._jetzt())
+        _material(conn, chat_id)
+        figuren = {}
+        for name, beschreibung in FIGUREN_PHASE_4:
+            repo.setze_figur(conn, chat_id, name, beschreibung)
+            figuren[name] = repo.hole_figur(conn, chat_id, name)["id"]
+        for nummer, titel, was_passiert, besetzung in SZENEN_PHASE_4:
+            szene_id = repo.lege_szene_an(conn, chat_id, nummer, titel, was_passiert, None)
+            repo.setze_szenenfeld(conn, szene_id, "was_passiert", was_passiert)
+            repo.setze_szene_figuren(
+                conn, chat_id, szene_id, [figuren[n] for n in besetzung])
+        repo.setze_phase(conn, chat_id, 4)
         conn.commit()
     finally:
         conn.close()

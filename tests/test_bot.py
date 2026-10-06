@@ -396,8 +396,11 @@ def test_erstkontakt_sendefehlschlag_wird_nur_geloggt(conn, einst):
     assert not repo.hat_bot_nachricht(conn, -100)
 
 
-def test_begruessung_faellig_nach_ueber_zwei_stunden():
-    letzte = (JETZT - timedelta(hours=3)).isoformat()
+def test_begruessung_faellig_nach_ueber_vier_stunden():
+    # Schwelle seit 06.10.2026 bei vier Stunden (Padua-Dauerbetrieb,
+    # Hotfix-Neustarts alle 25-90 Minuten) -- drei Stunden reichen seither
+    # nicht mehr, fuenf schon.
+    letzte = (JETZT - timedelta(hours=5)).isoformat()
     assert bot.begruessung_faellig(letzte, JETZT) is True
 
 

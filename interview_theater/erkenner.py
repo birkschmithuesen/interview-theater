@@ -2020,6 +2020,62 @@ def _weiter_aus_phase_1(conn, chat_id: int, aenderungen: list[dict]) -> list[dic
     return [{"art": "phase_setzen", "wert": "2"}]
 
 
+#: Die einzige Phase, deren Voraussetzung eine FIXIERTE Figurenliste
+#: verlangt (``phasen.voraussetzungen``, Schluessel 5 -- der Faktor
+#: ``fixiert``). ``figuren_fixiert_am`` setzt ausschliesslich der Knopf
+#: "Figuren fixieren" (``knoepfe/figuren.py``, Zeile mit ``repo._jetzt()``)
+#: -- der Erkenner hat dafuer keine eigene ``art``.
+PHASE_BRAUCHT_FIXIERTE_FIGUREN = 5
+
+
+def _ohne_phasensprung_vor_fixierten_figuren(
+    conn, chat_id: int, aenderungen: list[dict],
+) -> list[dict]:
+    """Ein ``phase_setzen`` Richtung ``PHASE_BRAUCHT_FIXIERTE_FIGUREN`` faellt
+    weg, solange ``figuren_fixiert_am`` nicht steht (Karte t_18ae9ea2,
+    G3-Testgruppe 06.10.2026: "Ok, no, then lets move on" -- gesagt, nachdem
+    die Gruppe klargestellt hatte, sich auf eine fruehere Aussage bezogen zu
+    haben, also in Phase 4 an den eigenen offenen Aufgaben weiterarbeiten zu
+    wollen -- schickte den Bot automatisch nach Phase 5 (Prose Draft) und
+    stiess sogar den Prosa-Lauf an, obwohl weder Figuren fixiert noch Rahmen,
+    Geschichte oder Szenenzahl standen, ``phasen.voraussetzungen()[5]`` also
+    False war).
+
+    Weil der Erkenner ``figuren_fixiert_am`` nie selbst setzen kann (keine
+    eigene ``art``, nur der Knopf tut das), ist ein per Chat gelesenes
+    ``phase_setzen`` dorthin IMMER verfrueht, solange die Figurenliste nicht
+    fixiert ist -- unabhaengig davon, wie ausdruecklich die Aeusserung war.
+    Abgefangen wird das deshalb hier in der Auswertung und nicht im Prompt
+    (derselbe Grund wie bei ``_ist_geschichte``: ``erkenner.md`` ist ohne
+    Korpuslauf nicht anzufassen). Der KNOPF-Weg (``_wirkung_phase``) bleibt
+    unberuehrt: ein Klick auf "Weiter zu Phase 5" wechselt wie bisher, auch
+    ohne fixierte Figuren -- diese Waeche gilt nur fuer den freien Chat."""
+    jetzige = phasen.aktuelle(conn, chat_id)
+    if jetzige >= PHASE_BRAUCHT_FIXIERTE_FIGUREN:
+        return aenderungen
+
+    def _zielt_auf_gesperrte_phase(a: dict) -> bool:
+        if a.get("art") != "phase_setzen":
+            return False
+        try:
+            return phasen.nummer_fuer(
+                a.get("wert"), jetzige=jetzige,
+            ) == PHASE_BRAUCHT_FIXIERTE_FIGUREN
+        except Exception:
+            return False
+
+    if not any(_zielt_auf_gesperrte_phase(a) for a in aenderungen):
+        return aenderungen
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if bool(stand and (stand["figuren_fixiert_am"] or "").strip()):
+        return aenderungen
+    log.info(
+        "phase_setzen Richtung %s ohne fixierte Figuren verworfen, chat_id=%s",
+        PHASE_BRAUCHT_FIXIERTE_FIGUREN, chat_id,
+    )
+    return [a for a in aenderungen if not _zielt_auf_gesperrte_phase(a)]
+
+
 def baue_meldung(
     wirkliche_aenderungen: list[dict], conn=None, chat_id: int | None = None,
 ) -> str | None:
@@ -3240,6 +3296,11 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
                 log.info("phase_setzen aus der Nachricht, die den Vergleich "
                          "gestartet hat, verworfen, chat_id=%s", chat_id)
             aenderungen = [a for a in aenderungen if a.get("art") != "phase_setzen"]
+        # Karte t_18ae9ea2: ein "lets move on" im freien Chat darf nicht
+        # nach Phase 5 (Prose Draft) springen, solange die Figurenliste
+        # nicht fixiert ist -- der Erkenner kann diese Voraussetzung nie
+        # selbst herbeifuehren (siehe Docstring der Funktion).
+        aenderungen = _ohne_phasensprung_vor_fixierten_figuren(conn, chat_id, aenderungen)
         if not aenderungen:
             return
         notiz_verbraucht = False

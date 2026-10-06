@@ -194,6 +194,23 @@ def test_festlegung_bereich_rahmen_bekommt_einen_titel_englisch(padua):
     assert "rahmen" not in html.lower()
 
 
+def test_festlegung_bereich_freier_titel_wird_nur_lesbar_nicht_grossbuchstaben():
+    """Mirrort tests/test_festlegung_erkenner.py::
+    test_bereich_titel_freier_titel_wird_nur_lesbar_nicht_uebersetzt: ein
+    echter freier Bereichstitel, den ein Modell manchmal GROSSBUCHSTABEN wie
+    vom Protokoll verlangt uebernimmt (A13/laptop-A1), ist kein bekannter
+    Bereich und bekommt deshalb keine Uebersetzung -- aber auch in der
+    Werkbank (``web._festlegungen_html``) keine stehenbleibenden
+    GROSSBUCHSTABEN mehr, genau wie in der 📌-Zeile des Chats
+    (``erkenner._bereich_titel``)."""
+    html = web._festlegungen_html(
+        {"festlegungen": [{"id": 1, "bereich": "COSTUMES", "bezug": None, "text": "x"}]},
+        None,
+    )
+    assert '<span class="marke">Costumes</span>' in html
+    assert "COSTUMES" not in html
+
+
 def test_pruefkennungen_decken_alle_pruefungen():
     """``fanout.EBENEN`` kennt jede Kennung, die in ``dramaturgie_befund``
     landen kann (Judge-Fragen und mechanische Pruefungen)."""

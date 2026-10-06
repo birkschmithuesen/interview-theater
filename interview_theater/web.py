@@ -1743,10 +1743,15 @@ def _festlegungen_html(daten: dict, nonce_wert: str | None) -> str:
         # dagegen oft GROSSBUCHSTABEN, wie es das Protokoll fuer den Fall
         # verlangt, aus dem er stammt (``entfernen``, nicht
         # ``festlegung_setzen``) -- ohne ``.lower()`` liefe der Nachschlag
-        # an "RAHMEN" vorbei auf den rohen, unuebersetzten Wert zurueck.
-        bereich = T.FESTLEGUNG_BEREICH_BESCHRIFTUNG.get(
-            (z["bereich"] or "").lower(), z["bereich"]
-        )
+        # an "RAHMEN" vorbei auf den rohen, unuebersetzten Wert zurueck. Ein
+        # wirklich freier Titel (kein bekannter Bereich) bekommt wie im Chat
+        # (``erkenner._bereich_titel``) keine erfundene Uebersetzung, aber
+        # auch keine stehenbleibenden GROSSBUCHSTABEN (Review-Fix RAHMEN,
+        # 06.10.2026): ``str.capitalize()`` statt dem rohen Modellwert.
+        roh = z["bereich"] or ""
+        bereich = T.FESTLEGUNG_BEREICH_BESCHRIFTUNG.get(roh.lower())
+        if bereich is None:
+            bereich = roh.capitalize()
         marke = bereich + (f" · {z['bezug']}" if z.get("bezug") else "")
         knopf = (
             _rahmen("", "festlegung_entfernen", z["id"], knopf=T.TEXT_ENTFERNEN)

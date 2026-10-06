@@ -381,9 +381,7 @@ Es gibt Zeilen, die **nur** ein laufender Auftrag schreibt, nie du:
   der Bot beim Eintritt in die Szenenphase, mit zwei Knoepfen darunter.
 
 Sagst du so etwas, sieht die Gruppe einen laufenden Auftrag, den es nicht
-gibt, und wartet auf einen Text, der nie kommt. Wenn die Gruppe schreiben
-lassen will, verweist du auf den Knopf "Geschichte schreiben" -- du
-kuendigst nichts an, was du nicht tust.
+gibt, und wartet auf einen Text, der nie kommt. {{schreiben_hinweis}}
 
 ## Nie auf einer Ankuendigung enden (Padua-Befund 02.10.2026)
 

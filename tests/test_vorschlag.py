@@ -457,3 +457,23 @@ def test_ohne_block_entfernt_auch_den_weichen_fragenblock():
     )
     rest = vorschlag.ohne_block(text, "fragenauswahl", "fragen_weich")
     assert rest == "One sentence."
+
+
+@pytest.mark.parametrize("marker", [
+    "(VORSCHLAG BEGRIFFE:)",
+    "[VORSCHLAG BEGRIFFE:]",
+    "**VORSCHLAG BEGRIFFE:**",
+    "(**VORSCHLAG BEGRIFFE:**)",
+])
+def test_marker_in_klammern_oder_fett_verschwindet(marker):
+    """P57 Lauf 5 A2: "(VORSCHLAG BEGRIFFE:)" stand roh im Chat."""
+    for text in (
+        f"Hier ein paar Ideen.\n\n{marker}\nHeimat, Arbeit",
+        f"Hier ein paar Ideen. {marker}\nHeimat, Arbeit",
+        f"Hier ein paar Ideen.\n\n{marker}",
+    ):
+        sauber = vorschlag.ohne_marker(text)
+        assert "VORSCHLAG" not in sauber
+        assert "(" not in sauber and "[" not in sauber and "**" not in sauber
+        assert sauber.startswith("Hier ein paar Ideen.")
+    assert vorschlag.lies(f"Ideen.\n\n{marker}\nHeimat, Arbeit", "begriffe") == "Heimat, Arbeit"

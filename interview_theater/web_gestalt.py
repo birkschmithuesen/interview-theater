@@ -592,6 +592,10 @@ th, td { border-bottom-color: var(--linie); }
 .vorfaelle { background: var(--grund-3); border-left-color: var(--rec); }
 /* Signal auf grund-3 als TEXT -- in ``KONTRAST`` mit 4.5 gefuehrt. */
 .vorfaelle .art { color: var(--signal); }
+.ux-untertitel { margin: 0; font-family: var(--schrift-tech); font-size: .62em;
+                 letter-spacing: .05em; color: var(--text-leise); opacity: 1; }
+.ux-untertitel a { color: inherit; }
+.ux-ausstehend { opacity: .65; font-style: italic; }
 """
 
 #: Keyframes -- ALLE hier, nie im gescopten Teil (siehe Modulkopf).

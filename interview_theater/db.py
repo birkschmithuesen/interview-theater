@@ -1266,6 +1266,23 @@ CREATE TABLE IF NOT EXISTS aufruf (
   cache_creation_token   INTEGER,
   erstellt_am            TEXT NOT NULL
 );
+
+-- Die englische Uebersetzung der Regie-Dashboard-Felder einer Gruppe (Padua,
+-- Karte t_f7770dc4). Eine Zeile je Gruppe, nicht je Feld: der Schreiber
+-- (uebersetzung.py) uebersetzt alle gespeicherten Felder in einem Aufruf und
+-- ersetzt die Zeile komplett -- billiger als ein Aufruf je Feld, und ein
+-- Hash (quelle_hash) ueber alle Quellfelder entscheidet, ob ueberhaupt neu
+-- uebersetzt wird. `felder` ist ein JSON-Objekt flacher Segmentschluessel
+-- (z. B. "rahmen", "figur_0", "interview_0_1") -> englischer Text; welche
+-- Schluessel es gibt, bestimmt uebersetzung.segmente(). Das Dashboard
+-- (web.py, read-only) nutzt die Zeile nur, wenn quelle_hash zur aktuell
+-- gespeicherten Quelle passt -- sonst gilt sie als ausstehend.
+CREATE TABLE IF NOT EXISTS uebersetzung (
+  chat_id       INTEGER PRIMARY KEY,
+  quelle_hash   TEXT NOT NULL,
+  felder        TEXT NOT NULL,
+  aktualisiert_am TEXT NOT NULL
+);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1301,6 +1318,8 @@ TABELLEN_MIT_CHAT_ID = (
     "aufruf",
     # Padua Phasen TEIL 2 (03.10.2026): das Protokoll jedes Prueflaufs.
     "prueflauf",
+    # Karte t_f7770dc4 (05.10.2026): der Uebersetzungscache des Dashboards.
+    "uebersetzung",
 )
 
 

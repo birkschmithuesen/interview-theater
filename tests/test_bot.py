@@ -275,6 +275,59 @@ def test_nachhol_schleife_ruft_nachholen_auf_und_endet_mit_dem_event(conn, einst
     assert aufrufe == [1]
 
 
+def test_uebersetzungs_schleife_ruft_aktualisiere_fuer_bot_auf_und_endet_mit_dem_event(
+    conn, einst, monkeypatch,
+):
+    """Dasselbe Muster wie die Nachhol-Schleife: aktualisiere_fuer_bot()
+    setzt das Event selbst, stop.wait() kehrt sofort zurueck."""
+    aufrufe = []
+    stop = threading.Event()
+
+    def aktualisiere_und_stoppen(*args, **kwargs):
+        aufrufe.append(1)
+        stop.set()
+        return 0
+
+    monkeypatch.setattr(bot.uebersetzung, "aktualisiere_fuer_bot", aktualisiere_und_stoppen)
+
+    thread = threading.Thread(
+        target=bot._uebersetzungs_schleife,
+        args=(stop, conn, einst, object()),
+    )
+    thread.start()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive(), "die Schleife muss nach dem gesetzten Event enden"
+    assert aufrufe == [1]
+
+
+def test_uebersetzungs_schleife_ueberlebt_eine_ausnahme(conn, einst, monkeypatch):
+    """global-constraints.md 'Fehlerhaltung': eine Ausnahme stoppt die
+    Schleife nicht, sie laeuft bis zum naechsten Intervall weiter."""
+    aufrufe = []
+    stop = threading.Event()
+
+    def wirft_dann_stoppt(*args, **kwargs):
+        aufrufe.append(1)
+        if len(aufrufe) == 1:
+            raise RuntimeError("kaputt")
+        stop.set()
+        return 0
+
+    monkeypatch.setattr(bot.uebersetzung, "INTERVALL_S", 0)
+    monkeypatch.setattr(bot.uebersetzung, "aktualisiere_fuer_bot", wirft_dann_stoppt)
+
+    thread = threading.Thread(
+        target=bot._uebersetzungs_schleife,
+        args=(stop, conn, einst, object()),
+    )
+    thread.start()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive()
+    assert aufrufe == [1, 1]  # Mutation Check: ohne try/except waere es [1].
+
+
 # ---------------------------------------------------------------------------
 # teil-b.md Aufgabe 7: Begruessungsnachricht (erstkontakt, begruessung_faellig,
 # sende_wiederkehr_begruessungen)

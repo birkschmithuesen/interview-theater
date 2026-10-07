@@ -54,8 +54,8 @@ def test_padua_phase_4_traegt_alle_regeln(padua):
     # 3. Nichts von dir als ihres
     assert "Never attribute to the group what you added yourself." in system
     # 4. Phase-4/5-Grenze
-    assert "no question like \"Shall I write scene 1 now?\"" in system
-    assert "One exception: scene texts." in system
+    assert "never asks \"Shall I write scene 1 now?\"" in system
+    assert "this is the one exception to \"you do it anyway\" below." in system
 
 
 def test_deutsche_fassung_traegt_dieselben_regeln():

@@ -980,21 +980,28 @@ def _baue_board(conn, chat_id: int) -> str:
     return T.BOARD_KOPF + "\n" + "\n".join(zeilen)
 
 
-def _baue_mitgehoert(conn, chat_id: int) -> str:
+def _baue_mitgehoert(conn, chat_id: int, voll: bool = False) -> str:
     """Der Wortlaut alles Mitgehoerten (Diskussion Phase 1, Brainstorm
     Phase 4), chronologisch -- bei Platznot faellt das AELTESTE vorn weg
     (``MITGEHOERT_ZEICHEN``). Bis 05.10.2026 stand ein Segment im Verlauf
     nur als "(sprache)" ohne Text (``nachricht.text`` bleibt dort NULL,
     ``unterdrueckt`` betrifft nur die Chatanzeige), und der Bot sagte live,
-    er bekomme nur den Marker einer Sprachaufnahme. Datengetrieben."""
+    er bekomme nur den Marker einer Sprachaufnahme. Datengetrieben.
+
+    ``voll`` (Testbot-Karte 07.10.2026, ``workshop.vollmaterial_phase5_aktiv``
+    + ``ueber_claude``): laesst ``MITGEHOERT_ZEICHEN`` aus -- der Opus-Pfad
+    hat mit 400.000 Zeichen genug Platz fuer das komplette Rohtranskript,
+    und die Kuerzungsleiter (``_zu_lang``) greift ohnehin noch, falls der
+    restliche Prompt trotzdem nicht passt. Der Kimi-Pfad bekommt ``voll``
+    nie uebergeben und bleibt also bei seinem bisherigen Budget."""
     zeilen = []
     for row in repo.mitgehoerte_transkripte(conn, chat_id):
         marke = T._MITGEHOERT_DISKUSSION if row["diskussion"] else T._MITGEHOERT_BRAINSTORM
         zeilen.append(f"{marke} {row['transkript'].strip()}")
-    grenze = mitgehoert_zeichen()
+    grenze = None if voll else mitgehoert_zeichen()
     behalten, laenge = [], 0
     for zeile in reversed(zeilen):
-        if behalten and laenge + len(zeile) + 1 > grenze:
+        if grenze is not None and behalten and laenge + len(zeile) + 1 > grenze:
             break
         behalten.insert(0, zeile)
         laenge += len(zeile) + 1
@@ -1928,7 +1935,8 @@ def _systemgroesse(conn, chat_id: int, e) -> int:
 
 
 def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
-             fenster_eintraege: list, namen: dict[str, str] | None = None) -> dict:
+             fenster_eintraege: list, namen: dict[str, str] | None = None,
+             ueber_claude: bool = False) -> dict:
     """Die Bloecke des Nutzertexts, in ihrer Reihenfolge -- datengetrieben:
     jeder Block bleibt leer, solange seine Daten leer sind (SPEC § 6.1)."""
     # Der Kontext-Filter je Phase (05.09.2026 abends): bis zur Kernfrage
@@ -1937,8 +1945,20 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
     # alles andere -- es gibt keinen gespeicherten Zustand, nur zwei Felder,
     # die die Lage beschreiben.
     material = material_erlaubt(conn, chat_id)
+    # Testbot-Karte 07.10.2026: ab der Schaerfung trug das Kernpaket oft fast
+    # nichts vom Interviewmaterial (0 Kernthemen, 0 Kernzitate), waehrend die
+    # Werkbank alles zeigte. Mit Zustimmung (Opus-Pfad) und Profilschalter
+    # bekommt der Chat ab Phase 5 zusaetzlich ALLE Verdichtungen und das volle
+    # (nicht gekappte) Mitgehoert-Transkript -- der Kimi-Pfad und Dortmund
+    # bleiben unberuehrt (beide Bedingungen muessen stehen).
+    vollmaterial_p5 = (
+        not material
+        and kernpaket_erlaubt(conn, chat_id)
+        and ueber_claude
+        and workshop.vollmaterial_phase5_aktiv()
+    )
     board = _baue_board(conn, chat_id)
-    mitgehoert = _baue_mitgehoert(conn, chat_id)
+    mitgehoert = _baue_mitgehoert(conn, chat_id, voll=vollmaterial_p5)
     if mitgehoert:
         _fasse_marker_zusammen(fenster_eintraege)
     kernpaket = (
@@ -1946,7 +1966,7 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
     )
     return {
         "erstkontakt": _baue_erstkontakt(conn, chat_id, e) if erstkontakt else "",
-        "verdichtungen": _baue_verdichtungen(conn, chat_id) if material else "",
+        "verdichtungen": _baue_verdichtungen(conn, chat_id) if (material or vollmaterial_p5) else "",
         "transkripte": _baue_transkripte(conn, chat_id) if material else "",
         # In 4 und 5 gibt es WEDER Material NOCH Kernpaket: dort wird
         # erfunden (``PHASEN_ERFINDEN``).
@@ -2190,7 +2210,8 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     # E8: die Pseudonyme einmal je Prompt, fuer Fenster UND Ausloeser.
     namen = pseudonyme(conn, chat_id, ausloeser)
     fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser, namen)
-    bloecke = _bloecke(conn, chat_id, ausloeser, e, erstkontakt, fenster_eintraege, namen)
+    bloecke = _bloecke(conn, chat_id, ausloeser, e, erstkontakt, fenster_eintraege, namen,
+                        ueber_claude=ueber_claude)
     # Einmal gemessen, zweimal gebraucht: in der Kuerzung (Gesamtgrenze) und
     # im Umriss (Auftrag 4, Befund C.1).
     system_zeichen = _systemgroesse(conn, chat_id, e)

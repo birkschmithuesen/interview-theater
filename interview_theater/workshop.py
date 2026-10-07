@@ -1129,6 +1129,29 @@ def modellwahl_zitate_an_claude_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("modellwahl.zitate_an_claude", True))
 
 
+def vollmaterial_phase5_aktiv(profil: Profil | None = None) -> bool:
+    """Ob der Gespraechsprompt ab der Schaerfung (Phase 5) zusaetzlich zum
+    Kernpaket ALLE Verdichtungen (mit allen Themen und Belegzitaten, nicht
+    nur die zum Kernthema markierten) und den vollstaendigen Mitgehoert-
+    Block ohne die ``MITGEHOERT_ZEICHEN``-Obergrenze bekommt (Padua,
+    Testbot-Karte 07.10.2026: die Werkbank zeigte mehr als der Chat, weil
+    0 Themen als Kernthema markiert und 0 Kernzitate gesetzt waren -- Phase
+    5 sah dann fast nichts vom Interviewmaterial).
+
+    Gilt nur zusammen mit ``ueber_claude`` (Opus-Pfad, Zustimmung
+    vorausgesetzt): der Kimi-Pfad behaelt sein bisheriges Budget, die
+    zusaetzliche Menge passt nur in die 400.000-Zeichen-Grenze von Claude
+    (``kontext.OPUS_ZEICHEN_GRENZE_VORGABE``).
+
+    Vorgabe false -- wie ``[laengen] aktiv``: ohne diese Zeile im Profil
+    bleibt Phase 5 genau das, was sie vorher war. Dortmund setzt die Zeile
+    nicht und bleibt unberuehrt. **Ungeprueft:** ob der US-Einwilligungstext
+    (``_TEXT_ANGEBOT_USA``) diese Menge an Material deckt, ist eine eigene
+    Entscheidung -- siehe die Uebergabe zur Testbot-Karte."""
+    profil = profil or aktiv()
+    return bool(profil.wert("modellwahl.vollmaterial_phase5", False))
+
+
 def autosave_phase1_2_aktiv(profil: Profil | None = None) -> bool:
     """Ob Phase 1 (Begriffe) und Phase 2 (Eroeffnung) einen Vorschlag sofort
     speichern statt der Ja/Nein-Rueckfrage "Ja, speichern" / "Nein, nochmal

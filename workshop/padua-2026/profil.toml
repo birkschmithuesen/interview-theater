@@ -246,6 +246,17 @@ einwilligung = false
 # vollstaendig gebaut und mit einer Zeile umkehrbar (false).
 zitate_an_claude = true
 
+# Testbot-Karte (Birk/Robo 07.10.2026, 13:33): Phase 5 sah auf dem Opus-Pfad
+# fast kein Interviewmaterial (0 Kernthemen, 0 Kernzitate), die Workbench
+# aber alles. Ab Phase 5 + Zustimmung bekommt der Chat zusaetzlich ALLE
+# Verdichtungen (Themen + Belegzitate) und das volle Mitgehoert-Transkript
+# aus Phase 4 ohne die 60.000-Zeichen-Grenze. UNGEPRUEFT: ob
+# ``_TEXT_ANGEBOT_USA`` ("No recordings, no complete interviews") diese
+# Menge deckt -- siehe die Uebergabe. Gilt fuer JEDE Padua-Gruppe, die mit
+# diesem Profil startet (auch die drei laufenden, bei ihrem naechsten
+# Neustart), nicht nur den Testbot.
+vollmaterial_phase5 = true
+
 # P4-Quickfix (Birk 06.10.2026, Live-Test): ein Brainstorm-Bogen (Phase 4,
 # "Start listening"/"Discussion done") lief bisher komplett am Erkenner
 # vorbei -- die Werkbank blieb leer, obwohl die Gruppe Setting, Figuren und

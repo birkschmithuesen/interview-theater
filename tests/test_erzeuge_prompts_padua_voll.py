@@ -135,7 +135,13 @@ def test_phase4_gespraech_laeuft_ueber_claude(tmp_path):
 #: Birk/Karte t_d57c4ddb: kein neuer P34-Treiber, stattdessen diese
 #: benannte Ausnahme (er laeuft live, gehoert also nicht in
 #: NICHT_LIVE_IN_PADUA).
-OHNE_P34_TREIBER = ("42-uebersetzung",)
+#:
+#: 43-nachspeichern (Karte t_c5d68218, Padua-Integration 07.10.2026) ist
+#: derselbe Fall: ein echter Dump braucht einen Treiber, der erst "Ja,
+#: speichern" klickt und dann den optionalen Zusatz-Thread abwartet --
+#: kein neuer P34-Treiber unter Zeitdruck, stattdessen dieselbe benannte
+#: Ausnahme (laeuft live, siehe INVENTAR-Eintrag 43).
+OHNE_P34_TREIBER = ("42-uebersetzung", "43-nachspeichern")
 
 
 def test_die_phase_3_4_eintraege_haben_einen_treiber():

@@ -735,7 +735,9 @@ _VEREINT_JS = """
     var rm = document.getElementById('roadmap');
     if (!rm) { return false; }
     var p = rm.dataset.aktivePhase;
-    return p === '4' || ((p === '1' || p === '2') && rm.dataset.begriffsboard === '1');
+    // Birk 07.10.2026: auch Phase 5 -- dort steht die Sortierliste der
+    // Interview-Zuordnung (Yes/No) im CoThinker-Tab.
+    return p === '4' || p === '5' || ((p === '1' || p === '2') && rm.dataset.begriffsboard === '1');
   }
   var lies = function () {
     var teile = location.hash.replace(/^#/, '').split('&');
@@ -2382,7 +2384,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     # Profil das Begriffsboard faehrt (Karte t_4517d4ad). Derselbe Zustand,
     # den ``istCoThinkerPhase()`` im Browser bei jedem Takt neu herstellt.
     # Seit 05.10.2026 (Birk) auch Phase 2: die Fragenuebersicht je Begriff.
-    phase4 = phase == 4 or (phase in (1, 2) and workshop.diskussion_aktiv())
+    phase4 = phase in (4, 5) or (phase in (1, 2) and workshop.diskussion_aktiv())
     vorgabe = VORGABE_TAB if chat_vorhanden else "stand"
     panels = {
         "stand": web.gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),

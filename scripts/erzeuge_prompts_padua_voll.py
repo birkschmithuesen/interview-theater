@@ -115,6 +115,7 @@ SCOPE_P3_P4 = (
 SCOPE_P5_P7 = (
     "08-gespraech-phase5", "21-schaerfung", "22-entwurf-uebersicht",
     "23-sprachprofil", "24-kernzitate", "46-szenenkern", "47-szenenkarte", "48-szenenkarte-pruefung", "49-stagescript",
+    "40-recherche-fragen", "41-recherche-karte",
     "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
     "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
     "38-dramaturgie-a9", "40-dramaturgie-a11", "43-prueflauf-ueberarbeitung",
@@ -592,6 +593,41 @@ def _sprechweise(conn, e, tg, klm, chats):
     return None
 
 
+def _recherche_fragen(conn, e, tg, klm, chats):
+    """``40-recherche-fragen``: der Aufruf, den
+    ``knoepfe.szenen.starte_fragenvorschlag`` in seinem Thread macht -- hier
+    direkt, weil der Thread keinen Griff zum Warten herausgibt."""
+    from interview_theater import recherche
+    recherche.schlage_fragen_vor(klm, conn, e, chats[5])
+    return None
+
+
+#: Eine erfundene, oeffentlich wirkende Seite fuer ``41-recherche-karte`` --
+#: der Dump geht nie ins Netz, Such- und Fetch-Broker werden ersetzt.
+_RECHERCHE_SEITE = {
+    "url": "https://example.org/station-history",
+    "title": "Station history",
+    "content": "The night train was discontinued in 2009. Since then the "
+               "first connection leaves at 5:12 in the morning.",
+}
+
+
+def _recherche_karte(conn, e, tg, klm, chats):
+    """``41-recherche-karte``: ``recherche.starte`` (derselbe Weg wie
+    ``knoepfe.szenen.starte_recherche_lauf``) mit Attrappen fuer Suche und
+    Seitenabruf -- beide sind Parameter von ``starte``. Die Double-Antwort
+    traegt keine Aussage, also entsteht keine Karte und die Fixture bleibt
+    unveraendert."""
+    from interview_theater import recherche
+    recherche.starte(
+        klm, conn, e, chats[5], "Did the night train still run in 2010?",
+        suche_fn=lambda q, n: [{"url": _RECHERCHE_SEITE["url"],
+                                "title": _RECHERCHE_SEITE["title"]}],
+        hole_fn=lambda url: dict(_RECHERCHE_SEITE),
+    )
+    return None
+
+
 def _szene_form(form: str):
     """Eine der fuenf Formen des Feinschliffs (28-32): dieselbe Aufrufstelle
     wie 04 (``szene.schreibe``), die Form steht auf der Szene selbst
@@ -680,6 +716,8 @@ TREIBER = {
     "47-szenenkarte": _szenenkarte,
     "48-szenenkarte-pruefung": _szenenkarte_pruefung,
     "49-stagescript": _stagescript,
+    "40-recherche-fragen": _recherche_fragen,
+    "41-recherche-karte": _recherche_karte,
     "04-szene-prosa-phase6": _szene_prosa_phase6,
     # Derselbe Treiber wie 04: der EN/IT-Spiegelpass (Birk, Live-Workshop
     # 07.10.2026 ~17:20) haengt sich in szene.schreibe an denselben Lauf an

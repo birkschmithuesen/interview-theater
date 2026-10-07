@@ -195,6 +195,7 @@ TEIL_P5_P7 = (
     "28-szene-dialog", "29-szene-monolog", "30-szene-chor", "31-szene-lied",
     "32-szene-rap", "34-stueckpruefung",
     "43-prueflauf-ueberarbeitung", "44-nachpass",
+    "40-recherche-fragen", "41-recherche-karte",
 )
 
 

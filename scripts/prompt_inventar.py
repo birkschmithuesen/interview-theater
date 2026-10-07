@@ -279,7 +279,7 @@ INVENTAR = (
     # Block ``formen`` bereits, wenn die Fixture eine geladene Form
     # mitbringt -- ein zweiter Treiber waere derselbe Prompt-Baustein noch
     # einmal (siehe die Begruendung bei "art" oben).
-    Eintrag("43-formberater", "formberater", 4,
+    Eintrag("45-formberater", "formberater", 4,
             "interview_theater.formberater", "ART"),
 )
 

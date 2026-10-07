@@ -276,10 +276,6 @@ ART_SZENE_SO_LASSEN = "szene_so_lassen"
 #: Textbuch als Datei.
 ART_DURCHLAUF_SZENE = "durchlauf_szene"
 ART_TEXTBUCH = "textbuch"
-#: "Weitere Formen & Gegenpol" unter einer Einordnung des Formberaters
-#: (Karte t_256ec777, 07.10.2026): schlaegt im Thread weitere performative
-#: Formen nach (``formberater.starte``) -- Zusage 2, kein Modell hier.
-ART_FORMBERATER = "formberater"
 #: "Wer spricht wie viel" -- die Sprechanteile je Figur (06.09.2026). Reine
 #: Zaehlung ueber die Szentexte (``sprecher.anteile``), deterministisch aus
 #: der Datenbank: Zusage 2 gilt, hier faellt kein Modellaufruf an.
@@ -1414,7 +1410,6 @@ _ANTWORT_BLEIBT = "Bleibt"
 _ANTWORT_SZENEN_EINZELN = "Ich sehe die Szenen einzeln durch"
 _ANTWORT_NOCH_EINMAL = "Ich lese noch einmal"
 _ANTWORT_TEXTBUCH = "Textbuch"
-_ANTWORT_FORMBERATER = "Ich schlage nach ..."
 _ANTWORT_ERZAEHLT = "Erzaehlt"
 _ANTWORT_ANDERE_VOR = "Ich schlage andere vor"
 _ANTWORT_LEITFADEN = "Leitfaden"

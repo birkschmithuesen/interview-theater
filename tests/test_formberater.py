@@ -2,8 +2,9 @@
 
 (a) der Katalog unter ``interview_theater/formen/`` und sein Kurzindex,
 (b) der Schema-Aufruf mit Modellattrappe (keine erfundenen Formen),
-(c) der deterministische Abgleich (Ausloeser A) samt Delta-Logik,
-(d) Einstieg in Phase 5 (Ausloeser B) und der Knopf (Ausloeser C),
+(c) der deterministische Abgleich (Ausloeser A, laeuft ab Phase 4 ohne
+    obere Grenze) samt Delta-Logik,
+(d) Einstieg in Phase 5 (Ausloeser B, ohne Knopf -- Birk 07.10.2026 ~08:05),
 und der Block im Gespraechs-Prompt.
 """
 
@@ -13,7 +14,7 @@ import pathlib
 import pytest
 
 from interview_theater import formberater, knoepfe, kontext, phasen, repo, workshop
-from test_knoepfe import TelegramAttrappe, _druck
+from test_knoepfe import TelegramAttrappe
 
 
 class KLM:
@@ -400,23 +401,24 @@ def test_ablauf_prueft_vor_dem_kontextbau(conn, einst, monkeypatch):
     assert any(formberater.katalog()["body-art"].bot in n for n in klm.gesehen)
 
 
-# --- (d) Einstieg in Phase 5 und der Knopf ---------------------------------------
+# --- (d) Einstieg in Phase 5, ohne Knopf -----------------------------------------
 
 
-def test_einstieg_einmal_als_angebot_mit_knopf(conn, tg, einst, padua):
+def test_einstieg_einmal_als_angebot_ohne_knopf(conn, tg, einst, padua):
+    """Birk 07.10.2026 ~08:05: der Formberater bekommt keinen Knopf -- der
+    Einstiegs-Angebot ist ein reiner Chatbeitrag (``tg.gesendet``, nie
+    ``tg.knoepfe``)."""
     _phase(conn, 5)
     klm = KLM()
     formberater.starte_einstieg(conn, tg, klm, einst, 1).join(10)
 
-    (_cid, text, leiste) = tg.knoepfe[-1]
+    (_cid, text) = tg.gesendet[-1]
     assert text.startswith("🎭 Your form -- something to place it by, not a rule:")
     assert "• Closest to what you are doing: Fluxus event score -- equal actions" in text
     assert "• Could carry your idea further: Happening -- actions in everyday space" in text
     assert "• Counterpoint, to sharpen your own choice: Epic theatre -- " in text
     assert text.endswith("nothing in your piece changes unless you say so.")
-    assert [b for b, _d in leiste] == ["More forms & counterpoint"]
-    knopf = repo.hole_knopf(conn, knoepfe._id_aus_daten(leiste[0][1]))
-    assert knopf["art"] == knoepfe.ART_FORMBERATER
+    assert tg.knoepfe == []
     # Als Bot-Zeile gemerkt: der Gespraechs-Bot sieht das Angebot.
     assert conn.execute(
         "SELECT COUNT(*) FROM nachricht WHERE ist_bot = 1 AND text LIKE '%Fluxus event score%'"
@@ -441,45 +443,6 @@ def test_eintritt_ohne_modell_startet_nichts(conn, tg, einst, monkeypatch):
                         lambda *a, **k: pytest.fail("ohne Modell kein Einstieg"))
     _phase(conn, 5)
     knoepfe.eintritt_in_phase(conn, tg, None, einst, 1, 5)
-
-
-def test_knopf_schlaegt_weitere_formen_nach(conn, tg, einst, padua, monkeypatch):
-    _phase(conn, 5)
-    klm = KLM()
-    formberater.starte_einstieg(conn, tg, klm, einst, 1).join(10)
-    daten = tg.knoepfe[-1][2][0][1]
-
-    faeden = []
-    echt = formberater.starte
-    monkeypatch.setattr(formberater, "starte",
-                        lambda *a, **k: faeden.append(echt(*a, **k)) or faeden[-1])
-    klm.antwort = {
-        "passt": [{"form": "fluxus-event-score", "warum": "schon gezeigt"}],
-        "vorschlag": [{"form": "live-art", "warum": "open, process-based"}],
-        "gegenpol": [],
-    }
-    assert knoepfe.behandle(conn, tg, klm, einst, _druck(daten)) is True
-    faeden[0].join(10)
-
-    assert "Different ones" in klm.aufrufe[-1]["nutzer"]
-    text = tg.knoepfe[-1][1]
-    assert "Live art -- open, process-based" in text
-    assert "Fluxus" not in text   # schon gezeigt, nicht noch einmal
-    assert repo.formberater_zeilen(conn, 1)[-1]["ausloeser"] == "knopf"
-
-
-def test_knopf_ohne_neues_sagt_es(conn, tg, einst, padua):
-    _phase(conn, 5)
-    klm = KLM(antwort={"passt": [], "vorschlag": [], "gegenpol": []})
-    formberater.starte(conn, tg, klm, einst, 1, formberater.AUSLOESER_KNOPF).join(10)
-    assert tg.gesendet[-1][1] == "I can't find another fitting form for this right now."
-
-
-def test_knopf_fehler_sagt_es(conn, tg, einst, padua):
-    _phase(conn, 5)
-    klm = KLM(fehler=RuntimeError("weg"))
-    formberater.starte(conn, tg, klm, einst, 1, formberater.AUSLOESER_KNOPF).join(10)
-    assert tg.gesendet[-1][1].startswith("Looking it up didn't work just now")
 
 
 def test_deutsche_nachricht_nennt_den_deutschen_titel(monkeypatch):

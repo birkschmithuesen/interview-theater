@@ -946,24 +946,28 @@
   Bot-Blöcke (~37.000 Zeichen) passen nicht ins Kimi-Budget — deshalb wählt
   der Modellaufruf aus einem Kurzindex, und nur die gewählten Blöcke (2–4,
   im Prompt höchstens 5, jüngste zuerst) stehen im Block `formen`, der bei
-  Platznot vor dem Fenster fällt. **Drei Auslöser, bindend:** (A) jeder
-  Gesprächszug in Phase 4 macht einen deterministischen Abgleich
-  (`treffer_formen`: Formnamen/Aliase als ganze Wörter, mehrdeutige wie
-  „happening" ausgenommen; `treffer_signale`: Struktur-Stichwörter wie
-  „random", „gleichwertig", „no climax"); eine genannte Form ist sofort im
-  Prompt, der Modellaufruf läuft nur bei einem **neuen** Treffer, im Thread,
-  höchstens `MAX_LAUFEND` je Gruppe und mit `MIN_ABSTAND_S` Abstand, und
-  wirkt ab dem nächsten Zug — ein Stichwort gilt danach als verbraucht, auch
-  wenn der Aufruf scheiterte. (B) Einmal je Gruppe beim Eintritt in Phase 5
-  eine Einordnung im Chat (passt / Vorschlag / Gegenpol), klar als Angebot.
-  (C) Danach nur auf Bedarf: Knopf „Weitere Formen & Gegenpol"
-  (`ART_FORMBERATER`) und der Abgleich für ausdrücklich genannte Formen,
-  ohne Modellaufruf. Modell wie die Bühnenkarte (Claude bei
-  `szene_claude.ist_aktiv`, sonst Kimi; Proxy-Fehler → Kimi für diesen
-  Aufruf). **Datenschutz:** in den Aufruf gehen nur Kurzindex, Stückkarte
-  und die Beiträge der Gruppe seit dem Eintritt in Phase 4 (Journal
-  „Phase 4 · …"), nie Transkript, Verdichtung oder Zitat. Tabelle
-  `formberater` nur anhängend. Tests: `tests/test_formberater.py`.
+  Platznot vor dem Fenster fällt. **Zwei Auslöser, bindend** (Birk,
+  07.10.2026 ~08:05: der Formberater bekommt **keinen Knopf** — der frühere
+  dritte Auslöser, ein Knopf „Weitere Formen & Gegenpol", ist ersatzlos
+  gestrichen): (A) jeder Gesprächszug **ab Phase 4, ohne obere Grenze**
+  macht einen deterministischen Abgleich (`treffer_formen`: Formnamen/
+  Aliase als ganze Wörter, mehrdeutige wie „happening" ausgenommen); eine
+  genannte Form ist sofort im Prompt. **Nur in Phase 4 selbst** zusätzlich
+  `treffer_signale` (Struktur-Stichwörter wie „random", „gleichwertig",
+  „no climax"), die bei einem **neuen** Treffer den Modellaufruf im Thread
+  anstoßen (höchstens `MAX_LAUFEND` je Gruppe, `MIN_ABSTAND_S` Abstand,
+  wirkt ab dem nächsten Zug — ein Stichwort gilt danach als verbraucht,
+  auch wenn der Aufruf scheiterte). Ab Phase 5 bleibt vom selben Auslöser
+  nur der deterministische Abgleich übrig — kein Modellaufruf mehr, das
+  ist jetzt das EINZIGE Lazy-Load jenseits von Phase 4, ohne Knopf. (B)
+  Einmal je Gruppe beim Eintritt in Phase 5 eine Einordnung im Chat
+  (passt / Vorschlag / Gegenpol), klar als Angebot, als reiner Chatbeitrag.
+  Modell wie die Bühnenkarte (Claude bei `szene_claude.ist_aktiv`, sonst
+  Kimi; Proxy-Fehler → Kimi für diesen Aufruf). **Datenschutz:** in den
+  Aufruf gehen nur Kurzindex, Stückkarte und die Beiträge der Gruppe seit
+  dem Eintritt in Phase 4 (Journal „Phase 4 · …"), nie Transkript,
+  Verdichtung oder Zitat. Tabelle `formberater` nur anhängend. Tests:
+  `tests/test_formberater.py`.
 
 - **Phase 4 setzt den Rahmen, sie schreibt keine Szene** (07.10.2026, Karte
   t_b19d37ac, Birk: „Keine Szenen ausformulieren in Phase 4. Nur Rahmen

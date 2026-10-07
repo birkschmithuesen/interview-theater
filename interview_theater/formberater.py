@@ -16,24 +16,24 @@ englischer ``## Bot (EN)``-Block je Form. Alle Bot-Bloecke zusammen sind
 Bot-Bloecke der ausgewaehlten Formen im Gespraechs-Prompt
 (``kontextblock``, hoechstens ``MAX_IM_KONTEXT``).
 
-**Drei Ausloeser** (Birk, 06.10.2026 ~23:50, bindend):
+**Zwei Ausloeser** (Birk, 06.10.2026 ~23:50, Knopf gestrichen 07.10.2026
+~08:05 -- "der Formberater bekommt keinen Knopf", bindend):
 
-A. *Laufend in Phase 4* (``pruefe_zug``, aus ``ablauf.antworte``): bei JEDEM
-   Zug ein deterministischer Abgleich ohne Modellaufruf -- Formnamen und
-   Suchbegriffe (``treffer_formen``) und Struktur-Stichwoerter
-   (``treffer_signale``, "random", "gleichwertig", "no climax" ...) gegen
-   die neuen Beitraege der Gruppe. Nur was NEU ist (Delta gegen die Tabelle
-   ``formberater``), zaehlt: eine genannte Form wird sofort geladen (Zeile
-   'stichwort', wirkt schon in DIESEM Zug), und der Modellaufruf laeuft im
-   Hintergrund (Zeile 'laufend', wirkt ab dem naechsten Zug). Kein eigener
-   Chatbeitrag.
+A. *Laufend ab Phase 4, ohne obere Grenze* (``pruefe_zug``, aus
+   ``ablauf.antworte``): bei JEDEM Zug ein deterministischer Abgleich ohne
+   Modellaufruf -- Formnamen und Suchbegriffe (``treffer_formen``) gegen die
+   neuen Beitraege der Gruppe; eine genannte Form wird sofort geladen (Zeile
+   'stichwort', wirkt schon in DIESEM Zug). NUR in Phase 4 zusaetzlich
+   Struktur-Stichwoerter (``treffer_signale``, "random", "gleichwertig",
+   "no climax" ...), die bei einem NEUEN Treffer (Delta gegen die Tabelle
+   ``formberater``) den teuren Modellaufruf im Hintergrund anstossen (Zeile
+   'laufend', wirkt ab dem naechsten Zug). Ab Phase 5 bleibt so der
+   deterministische Abgleich als einziges, knopfloses Lazy-Load bestehen --
+   kein Modellaufruf mehr, kein eigener Chatbeitrag in jedem Fall.
 B. *Einmal beim Eintritt in Phase 5* (``starte_einstieg``, aus
    ``knoepfe.stationen.eintritt_in_phase``): eine Einordnung von Story und
-   Framing -- ``passt`` / ``vorschlag`` / ``gegenpol`` -- als klar markiertes
-   Angebot im Chat, mit dem Knopf "Weitere Formen".
-C. *Ab Phase 5 nur noch bei Bedarf*: der Knopf (``ART_FORMBERATER``) und der
-   deterministische Abgleich fuer ausdruecklich genannte Formen -- ohne
-   Modellaufruf, ohne Struktur-Stichwoerter.
+   Framing -- ``passt`` / ``vorschlag`` / ``gegenpol`` -- als klar markierter
+   Chatbeitrag, ohne Knopf.
 
 **Modellwahl:** ein Sparring-Schritt, also derselbe Weg wie die
 Buehnenkarte -- Claude, wenn ``szene_claude.ist_aktiv`` (Betreiber +
@@ -45,7 +45,9 @@ Phase 4 -- Phase 4 ist interview-frei; kein Transkript, keine Verdichtung,
 kein Zitat.
 
 Kein SQL hier (``repo``), kein Modellaufruf ausserhalb eines Threads
-(Zusage 2: ``starte`` wird auch aus einem Knopf-Handler gerufen).
+(Zusage 2: ``starte`` laeuft immer im eigenen Thread unter der Sperre der
+Gruppe, auch wenn der Aufrufer selbst -- wie ``ablauf.antworte`` -- es nicht
+ist).
 """
 
 from __future__ import annotations
@@ -69,12 +71,14 @@ VORFALL_FEHLGESCHLAGEN = "formberater_fehlgeschlagen"
 AUSLOESER_STICHWORT = "stichwort"
 AUSLOESER_LAUFEND = "laufend"
 AUSLOESER_EINSTIEG = "einstieg"
-AUSLOESER_KNOPF = "knopf"
 
-#: Ab dieser Phase arbeitet der Formberater (Birk: "NUR ab Phase 4").
+#: Ab dieser Phase arbeitet der Formberater (Birk: "NUR ab Phase 4"), ohne
+#: obere Grenze -- der deterministische Abgleich (Ausloeser A) laeuft in
+#: jeder Phase ab hier.
 PHASE_AB = 4
-#: In dieser Phase laeuft der Modellaufruf laufend (Ausloeser A); danach nur
-#: noch Einstieg und Knopf (B, C).
+#: Nur in dieser Phase laeuft der teure Modellaufruf laufend (Ausloeser A);
+#: danach (ab Phase 5) bleibt vom selben Ausloeser nur der deterministische
+#: Abgleich -- kein Modellaufruf mehr, kein Knopf (Birk 07.10.2026 ~08:05).
 PHASE_LAUFEND = 4
 PHASE_EINSTIEG = 5
 
@@ -512,7 +516,6 @@ _KOPF_STUECK = "Stueckkarte der Gruppe:"
 _KOPF_BEITRAEGE = "Was die Gruppe dazu gesagt hat (aelteste zuerst):"
 _KOPF_STICHWORTE = "Neu im Gespraech aufgefallen: {liste}"
 _ZEILE_SCHON = "Schon nachgeschlagen: {liste}"
-_ZEILE_ANDERE = "Andere als bisher: die Gruppe hat ausdruecklich nach weiteren Formen gefragt."
 
 
 def _beitraege(conn, chat_id: int) -> list[str]:
@@ -548,8 +551,6 @@ def baue_nutzertext(conn, chat_id: int, schon: list[str], ausloeser: str,
         teile.append(T._KOPF_STICHWORTE.format(liste=", ".join(signale)))
     if schon:
         teile.append(T._ZEILE_SCHON.format(liste=", ".join(schon)))
-    if ausloeser == AUSLOESER_KNOPF:
-        teile.append(T._ZEILE_ANDERE)
     return "\n\n".join(teile)
 
 
@@ -609,13 +610,7 @@ def berate(conn, klm, e, chat_id: int, ausloeser: str,
         ueber_claude=szene_claude.ist_aktiv(e, conn, chat_id),
         timeout=TIMEOUT_S,
     )
-    ergebnis = zerlege(antwort)
-    if ausloeser == AUSLOESER_KNOPF:
-        # "Weitere Formen": was schon im Chat stand, nicht noch einmal.
-        gezeigt = set(schon)
-        ergebnis = {feld: [x for x in liste if x["form"] not in gezeigt]
-                    for feld, liste in ergebnis.items()}
-    return ergebnis
+    return zerlege(antwort)
 
 
 # ---------------------------------------------------------------------------
@@ -630,9 +625,6 @@ _TEXT_FUSS = (
     "Nehmt davon, was euch hilft -- an eurem Stueck aendert sich nichts, "
     "solange ihr nichts sagt."
 )
-_TEXT_NICHTS_WEITER = "Dazu finde ich gerade keine weitere passende Form."
-_TEXT_FEHLER = "Das Nachschlagen hat gerade nicht geklappt -- versucht es gleich noch einmal."
-TEXT_KNOPF = "Weitere Formen & Gegenpol"
 
 _ZEILEN = {"passt": "_ZEILE_PASST", "vorschlag": "_ZEILE_VORSCHLAG",
            "gegenpol": "_ZEILE_GEGENPOL"}
@@ -655,16 +647,8 @@ def nachricht(ergebnis: dict[str, list[dict]]) -> str | None:
 
 
 def _sende(conn, tg, e, chat_id: int, text: str) -> None:
-    from interview_theater.knoepfe import texte as knopftexte
-    from interview_theater.knoepfe.basis import _daten
-
-    knopf = (T.TEXT_KNOPF, _daten(repo.lege_knopf_an(
-        conn, chat_id, knopftexte.ART_FORMBERATER, None)))
-    try:
-        message_id = tg.sende_mit_knoepfen(chat_id, text, [knopf])
-    except Exception:
-        log.exception("Formberater-Knopf fehlgeschlagen, chat_id=%s", chat_id)
-        message_id = tg.sende(chat_id, text)
+    """Birk 07.10.2026 ~08:05: kein Knopf -- reiner Chatbeitrag."""
+    message_id = tg.sende(chat_id, text)
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
 
 
@@ -711,18 +695,14 @@ def _lauf(conn, tg, klm, e, chat_id: int, ausloeser: str, signale: list[str],
             # Wiedereintritt nach einem Fehler).
             repo.lege_formberater_an(conn, chat_id, ausloeser, phase, [],
                                      signale, None, modell)
-            if ausloeser == AUSLOESER_KNOPF:
-                tg.sende(chat_id, T._TEXT_FEHLER)
             return
         formen = formen_aus(ergebnis)
         repo.lege_formberater_an(conn, chat_id, ausloeser, phase, formen,
                                  signale, ergebnis, modell)
-        if ausloeser in (AUSLOESER_EINSTIEG, AUSLOESER_KNOPF):
+        if ausloeser == AUSLOESER_EINSTIEG:
             text = nachricht(ergebnis)
             if text:
                 _sende(conn, tg, e, chat_id, text)
-            elif ausloeser == AUSLOESER_KNOPF:
-                tg.sende(chat_id, T._TEXT_NICHTS_WEITER)
     except Exception:
         log.exception("Formberater-Lauf gescheitert, chat_id=%s", chat_id)
     finally:

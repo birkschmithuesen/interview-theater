@@ -89,7 +89,7 @@ Je Modul ein Satz (Volltext mit Begründungen: `docs/agents/aufbau.md`):
 - `sprachprofil.py` — Sprachprofil je Figur aus dem zugeordneten Interview, Zitate geprüft.
 - `sprachstil.py` · `stile.py` — gewählter Sprachstil je Figur bzw. Stilvorlage je Szene.
 - `sprechweise.py` — Sprechweise je Figur vor der Bühnenfassung, nur für Figuren ohne `figur.sprachstil`.
-- `formberater.py` — ab Phase 4: schlägt aus `interview_theater/formen/` (67 performative Formen) die passenden nach — Stichwort-Abgleich je Zug, Modellaufruf nur bei neuem Treffer, Einordnung einmal beim Eintritt in Phase 5, Knopf „Weitere Formen“; Block „Performative Formen“ im Prompt (`docs/agents/entscheidungen.md`).
+- `formberater.py` — ab Phase 4 ohne obere Grenze: schlägt aus `interview_theater/formen/` (67 performative Formen) die passenden nach — Stichwort-Abgleich je Zug (Modellaufruf nur bei neuem Treffer, nur in Phase 4), Einordnung einmal beim Eintritt in Phase 5, kein Knopf; Block „Performative Formen“ im Prompt (`docs/agents/entscheidungen.md`).
 - `kosten.py` — Preistabelle, Kosten je Aufruf, Tagesdeckel je Gruppe; kein SQL.
 - `ruecknahme.py` — Undo eines Erkennerlaufs per Schnappschuss-Diff; reine Funktionen.
 - `laengen.py` — Längen-Rhythmus und Budget je Szene aus dem Profil; kein Modellaufruf.

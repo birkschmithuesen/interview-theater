@@ -1781,6 +1781,7 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
 #: Erkenner-Modell: eine neue ``art`` kostet einen Korpuslauf mit FP = 0,
 #: und der Satz liegt schon vor -- ``erkenner.md`` ist ohne Korpuslauf
 #: nicht anzufassen.
+#:
 #: Ein Verb, das etwas verwirft/neu macht -- allein noch kein Reset-Wunsch
 #: (siehe ``_RESET_TOTALITAET``): "let's start over with this one question"
 #: meint nur eine einzelne Sache neu, nicht die ganze Werkbank.

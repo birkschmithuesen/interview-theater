@@ -1736,3 +1736,27 @@ def test_p5_gespraech_nur_mit_schalter_und_seit_phase5(monkeypatch):
     assert "Interview 3 for scene 2" in text and "VORHER" not in text
     monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: False)
     assert szene._p5_gespraech_text(c, 1) == ""
+
+
+def test_p5_gespraech_endet_mit_phase_6_und_kuerzt_eigene_zeilen(monkeypatch):
+    """Nachtrag Birk 08.10.2026 (inhalt-review): der Block "Phase 5 im
+    Wortlaut" lief bis jetzt -- in Phase 7 standen alte Kartenfassungen darin,
+    und 90 % waren eigene Bot-Texte. Er endet beim Eintritt in die naechste
+    Phase, Gruppenzeilen bleiben ganz, eigene Zeilen werden gekuerzt.
+    Mutant: Endfilter weg -> rot; Kuerzung weg -> rot."""
+    import sqlite3
+    from interview_theater import kontext, repo, szene, workshop
+    c = sqlite3.connect(":memory:"); c.row_factory = sqlite3.Row
+    c.execute("create table journal(id integer primary key, chat_id, text, erstellt_am, entfernt_am)")
+    c.execute("insert into journal(chat_id,text,erstellt_am) values(1,'Phase 5 · Prose Draft','2026-10-07T12:00:00+00:00')")
+    c.execute("insert into journal(chat_id,text,erstellt_am) values(1,'Phase 6 · Rewrite','2026-10-07T13:00:00+00:00')")
+    gruppe = {"text": "GRUPPE " + "g" * 900, "ist_bot": 0, "gesendet_am": "2026-10-07T12:05:00+00:00", "typ": "text"}
+    bot = {"text": "BOTANFANG " + "b" * 3000 + " BOTENDE", "ist_bot": 1, "gesendet_am": "2026-10-07T12:06:00+00:00", "typ": "text"}
+    spaet = {"text": "KARTE AUS PHASE 6", "ist_bot": 1, "gesendet_am": "2026-10-07T13:05:00+00:00", "typ": "text"}
+    monkeypatch.setattr(repo, "letzte_nachrichten", lambda conn, chat_id, anzahl=0: [gruppe, bot, spaet])
+    monkeypatch.setattr(kontext, "_ist_systemzeile", lambda n: False)
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: True)
+    text = szene._p5_gespraech_text(c, 1, ueber_claude=True)
+    assert "KARTE AUS PHASE 6" not in text
+    assert gruppe["text"] in text
+    assert "BOTANFANG" in text and "BOTENDE" not in text

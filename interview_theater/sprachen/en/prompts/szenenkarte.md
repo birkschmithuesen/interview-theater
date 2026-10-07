@@ -8,8 +8,10 @@ conflict or characters the group does not have).
   - moment: the format is immersive / an installation where things happen
     at places in the room among the audience. Then EVERY scene is a moment,
     even if voices speak in it.
-  - instructions: people act in real situations following instructions
-    (social experiment, film with passers-by).
+  - instructions: ONLY when the format is a social experiment or a film
+    where performers act among real people who do not know the game. A
+    ritual or audience participation inside a concert or a stage piece is
+    NOT instructions.
   - spoken: on a stage-like setting, the scene is mainly a written-out
     sequence of spoken or sung texts / testimonies.
   - description: otherwise -- the course of action is described (music,
@@ -21,9 +23,13 @@ conflict or characters the group does not have).
 - "punkte": 3 to 6 short points, what happens, in order.
 - "zitate": the numbers of at most 5 interview passages from the list that
   carry this scene. Only numbers from the list -- the wording stays in the
-  original language.
+  original language. If the group said this scene uses no interviews,
+  "zitate" is empty.
 - "questions": 0 to 3 open questions the group still has to decide.
 
-Stick to what the group described, agreed and said in the conversation;
-discarded ideas do not appear. If there is a change note, it comes before
+Stick to what the group described, agreed and said in the conversation
+(only "Group:" lines are decisions; "You:" lines are earlier suggestions);
+discarded ideas do not appear. The rules of the format hold in every point
+(e.g. "the music never stops"). What the group has not decided yet goes
+into "questions", not into the points. If there is a change note, it comes before
 everything else.

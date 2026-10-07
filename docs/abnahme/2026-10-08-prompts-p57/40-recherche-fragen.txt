@@ -1,0 +1,20 @@
+# 40-recherche-fragen
+# art=recherche phase=5 weg=infomaniak modell=moonshotai/Kimi-K2.6 quelle=abgefangen
+# recherche
+=== SYSTEM (462 Zeichen, ~154 Token) ===
+You propose three research questions for an internet search, for a theatre
+workshop project. You get the frame (setting) and the group's themes --
+**no interview transcripts, no names**.
+
+Your task: propose **exactly three** short, concrete research questions that
+could be answered on the open web (a historical event, a law, a number, a
+date) and that fit the frame or the themes. No questions that only an
+interview could answer.
+
+Reply with the schema only.
+
+
+=== NUTZER (482 Zeichen, ~160 Token) ===
+Frame: A railway station in a northern Italian city, one wet November evening. A young man has just arrived and waits for a cousin who does not come.
+Story so far: Samir waits on a bench with two bags, one of them broken. He rehearses how to order a coffee and never goes. The woman at the station cafe notices him. When his cousin finally arrives, the broken bag opens in the middle of the hall - and for the first time Samir laughs here.
+Themes from the interviews: waiting; noise

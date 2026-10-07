@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 from interview_theater import (
-    anweisungen, erkenner, journal, kernzitate, sprachprofil,
+    anweisungen, erkenner, journal, kernzitate, schaerfung, sprachprofil,
     verdichter, workshop,
 )
 from scripts import prompt_schnappschuss
@@ -54,10 +54,11 @@ GOLDEN_SYSTEM = {
     "07-journal": lambda: journal.prompt(),
     "08-sprachprofil": lambda: sprachprofil.prompt(),
     "09-kernzitate": lambda: kernzitate.prompt(),
-    # "10-schaerfung" entfernt (Birk/Robo 07.10.2026, Zuordnung-Umbau): der
-    # Dump vom 06.09.2026 ist jetzt wie die anderen 15 "ueberholt" --
-    # schaerfung.prompt() beschreibt seitdem Je-Ziel-Aufrufe statt des
-    # Pauschal-Laufs, absichtlich, nicht ein Profil-Leck.
+    # Dump am 07.10.2026 auf den neuen Je-Ziel-Aufruf-Prompt nachgezogen
+    # (Commit 034f055, "Golden-Dump 10-schaerfung auf neuen
+    # Zuordnungsprompt") -- bleibt deshalb in der Deckung, anders als die
+    # 15 seit f908b68 ueberholten Dumps.
+    "10-schaerfung": lambda: schaerfung.prompt(),
 }
 
 _DUMPS = WURZEL / "docs" / "prompt-audit" / "2026-09-06"

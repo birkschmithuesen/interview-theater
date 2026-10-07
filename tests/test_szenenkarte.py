@@ -174,6 +174,30 @@ def test_phase_6_eine_karte_nach_der_anderen(conn, einst, padua):
     assert all(a["art"] in (szenenkarte.ART, szenenkarte.ART_PRUEFUNG) for a in klm.aufrufe)
 
 
+def test_karte_punkte_begrenzt_auf_120_zeichen(conn, einst, padua):
+    """Birk 08.10.2026 ~23:15: Punkte hart auf ~1 Zeile/120 Zeichen begrenzen
+    (Prompt + Anzeige) -- lange Modellantworten duerfen keine Textwaende
+    auf dem Handy ergeben."""
+    _lage(conn)
+    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
+
+    class LangeLLM(LLM):
+        def schema(self, chat_id, system, nutzer, schema, art):
+            if art == szenenkarte.ART:
+                lang = "Wort " * 40
+                return {"typ": "spoken", "worum": "x", "ort": "y", "wer": "z",
+                        "punkte": [lang], "zitate": [], "questions": [lang]}
+            return super().schema(chat_id, system, nutzer, schema, art)
+
+    karte = szenenkarte.erzeuge(conn, LangeLLM(), einst, 1, 1)
+    assert all(len(p) <= 120 for p in karte["punkte"]), karte["punkte"]
+    assert all(len(f) <= 120 for f in karte["fragen"]), karte["fragen"]
+
+
+def test_schema_punkte_beschreibung_nennt_120_zeichen():
+    assert "120" in szenenkarte.SCHEMA["properties"]["punkte"]["description"]
+
+
 def test_eintritt_phase_6_spricht_von_karten(conn, padua):
     from interview_theater import phasentexte
 

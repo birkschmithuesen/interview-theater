@@ -88,4 +88,4 @@ reader sees at once that it is a real voice and not invented text:
   quotation marks. Never a name.
 - Only real interview words get this mark -- never mark your own lines as a
   quote, and never put interview words into the text unmarked.
-- Keep the wording faithful (translated into the language of the text).
+- Quote in the ORIGINAL language of the interview (Italian stays Italian), word for word -- never translate a quote.

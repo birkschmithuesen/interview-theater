@@ -26,6 +26,8 @@ class TelegramAttrappe:
         self.knoepfe = []
         self.beantwortet = []
         self.entfernt = []
+        self.geaendert = []
+        self.geloescht = []
         self.naechste_message_id = 500
 
     def sende(self, chat_id, text, **_kw):
@@ -44,6 +46,13 @@ class TelegramAttrappe:
 
     def entferne_knoepfe(self, chat_id, message_id):
         self.entfernt.append((chat_id, message_id))
+
+    def aendere_text(self, chat_id, message_id, text):
+        self.geaendert.append((chat_id, message_id, text))
+
+    def loesche_nachrichten(self, chat_id, message_ids):
+        self.geloescht.append((chat_id, list(message_ids)))
+        return len(message_ids)
 
     @property
     def texte(self):

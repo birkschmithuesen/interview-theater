@@ -38,6 +38,12 @@ _VORGABEWERTE = {
     "IT_SZENE_ANBIETER": "infomaniak",
     "IT_SZENE_URL": "http://127.0.0.1:28764/v1/messages",
     "IT_SZENE_MODELL": "claude-opus-5",
+    # Eigenes Modell fuer die Schaerfung (Phase 5, Birk/Robo 07.10.2026,
+    # BINDEND): dieser Aufruf soll unabhaengig von IT_SZENE_MODELL (das eine
+    # Gruppe fuer das Gespraech auf claude-sonnet-5 stellen kann) IMMER auf
+    # Opus laufen. Eigene Variable statt eines Sonderfalls in szene_claude,
+    # damit ein Betreiber beides unabhaengig stellen kann.
+    "IT_SCHAERFUNG_MODELL": "claude-opus-5",
     "IT_KANAL": KANAL_TELEGRAM,
     # Die eine Gruppe, die ein Web-Bot-Prozess bedient. Pflicht, sobald
     # IT_KANAL=web -- geprueft in laden().
@@ -81,6 +87,7 @@ class Einstellungen:
     szene_anbieter: str = "infomaniak"
     szene_url: str | None = None
     szene_modell: str | None = None
+    schaerfung_modell: str | None = None
     kanal: str = KANAL_TELEGRAM
     web_chat_id: int | None = None
     web_segment_ms: int = VORGABE_SEGMENT_MS
@@ -162,6 +169,7 @@ def laden() -> Einstellungen:
         szene_anbieter=(werte["IT_SZENE_ANBIETER"] or "infomaniak").lower(),
         szene_url=werte["IT_SZENE_URL"],
         szene_modell=werte["IT_SZENE_MODELL"],
+        schaerfung_modell=werte["IT_SCHAERFUNG_MODELL"],
         kanal=kanal,
         web_chat_id=web_chat_id,
         web_segment_ms=segment_ms,

@@ -850,6 +850,11 @@ CREATE TABLE IF NOT EXISTS schaerfung (
   szene_id             INTEGER,
   figur_id             INTEGER,
   begruendung          TEXT,
+  -- Staerke 1-3 aus dem Je-Szene/Je-Figur-Aufruf (Birk 07.10.2026, Karte
+  -- Zuordnung-Umbau); additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  -- NULL bei einer alten Zeile aus dem frueheren Pauschal-Lauf -- die
+  -- Anzeige sortiert eine NULL ans Ende, nicht vor eine echte Staerke.
+  staerke              INTEGER,
   runde                INTEGER NOT NULL DEFAULT 1,
   uebernommen_am       TEXT,
   erstellt_am          TEXT NOT NULL,

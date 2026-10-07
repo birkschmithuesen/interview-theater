@@ -55,6 +55,15 @@ _GRUND_STATION_4 = (
 #: Abschnitte, deren Wert A1 absichtlich aendert -- mit Grund. Jede Zeile
 #: hier ist eine Verhaltensaenderung fuer Dortmund.
 GEAENDERT: dict[str, str] = {
+    "prompt schaerfung": (
+        "Zuordnung-Umbau (Birk/Robo 07.10.2026, zuordnung-pruefung.md): der "
+        "Pauschal-Lauf ueber alle Szenen/Figuren wird durch Je-Ziel-Aufrufe "
+        "ersetzt (drei statt vier Ausgabelisten: eintrag_nummern/staerke/"
+        "begruendungen statt eintrag_nummern/szenen_nummern/figuren_namen/"
+        "begruendungen), der Prompt beschreibt das neue Ein-Ziel-Verfahren "
+        "und die Staerke-Skala statt \"was nicht passt, bleibt weg\". Nicht "
+        "profilabhaengig -- aendert sich fuer Padua und Dortmund gleich."
+    ),
     "befehle._BEKANNTE_BEFEHLE": (
         "Aufgabe 8: der versteckte Befehl /sprache kommt dazu (Whisper-"
         "Sprache je Gruppe). Kein bestehender Befehl aendert sich, und er "

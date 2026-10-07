@@ -294,9 +294,12 @@ ART_FASSUNGEN = "fassungen"
 #: Phase 4 · Geschichte: den Vorschlag (Bogen, Ende, Szenenfolge) speichern.
 #: ``wert`` ist "<weiter|anders>|<Vorschlagstext>" wie bei der Szenenfolge.
 ART_GESCHICHTE_SPEICHERN = "geschichte_speichern"
-#: Phase 5 · Schaerfung: eine Szenen- bzw. Figuren-Schaerfung uebernehmen
-#: (``wert`` ist die Szenennummer bzw. der Figurenname), eine weitere Runde
-#: anstossen, oder weiter zu den Szenentexten.
+#: Phase 5 · Schaerfung: "Diese uebernehmen" auf der gezeigten Seite einer
+#: Szenen- bzw. Figuren-Schaerfung (``wert`` traegt seit 07.10.2026 die
+#: gezeigten ``schaerfung.id`` durch ``TRENNER`` getrennt, wie
+#: ``ART_SCHAERFUNG_KEINE`` -- NICHT mehr alles, was je fuer dieses Ziel
+#: zugeordnet wurde, siehe ``schaerfung.uebernimm_stellen``), eine weitere
+#: Runde anstossen, oder weiter zu den Szenentexten.
 ART_SCHAERFUNG_SZENE = "schaerfung_szene"
 ART_SCHAERFUNG_FIGUR = "schaerfung_figur"
 ART_SCHAERFUNG_RUNDE = "schaerfung_runde"
@@ -308,6 +311,11 @@ ART_SCHAERFUNG_STELLE = "schaerfung_stelle"
 #: ``TRENNER`` getrennt -- sie fallen weich heraus (N3), damit die naechste
 #: Runde sie nicht erneut vorlegt.
 ART_SCHAERFUNG_KEINE = "schaerfung_keine"
+#: "Mehr zeigen" (07.10.2026, MAX_STELLEN als Gesamtgrenze aufgehoben):
+#: ``wert`` ist "<sammelart>|<sammelwert>|<naechster_versatz>" -- blaettert
+#: dieselbe Szene/Figur eine Seite weiter, ohne erneut zu modellieren (alles
+#: steht schon in der Datenbank, kein Modellaufruf im Knopf-Handler).
+ART_SCHAERFUNG_MEHR = "schaerfung_mehr"
 #: Phase 7 · Schaerfung des Stuecks (06.09.2026): je Befund "Szene N
 #: ueberarbeiten" (``wert`` ist die ``stueckpruefung.id``) und "Lassen",
 #: darunter "Noch eine Pruefrunde".
@@ -781,6 +789,11 @@ TEXT_SCHAERFUNG_RUNDE_KNOPF = "Noch eine Runde"
 #: Die beiden Sammelknoepfe unter dem Schaerfungs-Menue (06.09.2026).
 _TEXT_SCHAERFUNG_ALLE_KNOPF = "Diese uebernehmen"
 _TEXT_SCHAERFUNG_KEINE_KNOPF = "Keine davon"
+#: "Mehr zeigen" (07.10.2026) -- blaettert dieselbe Szene/Figur weiter.
+_TEXT_SCHAERFUNG_MEHR_KNOPF = "Mehr zeigen"
+#: Die Seitenangabe in der Ueberschrift, nur wenn es mehr Stellen gibt als
+#: auf einer Seite passen (sonst zeichengleich wie vor dem Umbau).
+_TEXT_SCHAERFUNG_SEITE = " ({von}–{bis} von {gesamt})"
 _TEXT_SCHAERFUNG_STELLE_UNBEKANNT = "Diese Stelle finde ich nicht mehr."
 _TEXT_SCHAERFUNG_STELLE_UEBERNOMMEN = "Uebernommen: {ziel}."
 _TEXT_SCHAERFUNG_VERWORFEN = "Gut, die lasse ich weg."

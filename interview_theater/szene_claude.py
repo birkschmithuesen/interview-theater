@@ -333,9 +333,18 @@ def warnung_angebracht(e, conn, chat_id: int) -> bool:
 
 
 def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
-          nutzer: str, art: str, timeout: float, bei_teil=None) -> str:
+          nutzer: str, art: str, timeout: float, bei_teil=None,
+          wartezeiten: tuple[float, ...] | None = None,
+          modell: str | None = None) -> str:
     """Ein Aufruf, ein Text. Bucht in ``aufruf`` mit modus 'C' (Claude), damit
     Dashboard und Kostenrechnung den Weg sehen -- mit 0 CHF, weil Abo.
+
+    ``wartezeiten``/``modell`` (Birk/Robo 07.10.2026, Schaerfung-Karte):
+    ohne Angabe gilt wie bisher das Modul-``WARTEZEITEN`` und
+    ``e.szene_modell``/``MODELL_VORGABE`` -- ein Aufrufer, der beides nicht
+    anfasst, bekommt zeichengleiches Verhalten (E1). Mit Angabe kann EIN
+    Aufrufer (z. B. ``schaerfung.py``) eigene Wiederholungen und ein eigenes
+    Modell erzwingen, unabhaengig vom Gespraechs-Modell derselben Gruppe.
 
     ``bei_teil`` (Karte W, Aufgabe 6): eine Senke, die den bisherigen Text
     bekommt, waehrend er entsteht -- Anthropic-SSE statt dem
@@ -348,7 +357,8 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
     # die trotzdem geschrieben wird, koennte sie gar nicht abnehmen.
     kosten.pruefe(conn, chat_id, e)
     url = getattr(e, "szene_url", None) or URL_VORGABE
-    modell = getattr(e, "szene_modell", None) or MODELL_VORGABE
+    modell = modell or getattr(e, "szene_modell", None) or MODELL_VORGABE
+    wartezeiten = WARTEZEITEN if wartezeiten is None else wartezeiten
     koerper = {
         "model": modell,
         "max_tokens": MAX_TOKENS,
@@ -372,7 +382,7 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
     headers = {"content-type": "application/json", "anthropic-version": API_VERSION}
     start = time.monotonic()
     letzter: Exception | None = None
-    for versuch in range(len(WARTEZEITEN) + 1):
+    for versuch in range(len(wartezeiten) + 1):
         try:
             if bei_teil is not None and not _abgeschaltet():
                 try:
@@ -444,10 +454,10 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
             letzter = fehler
         except httpx.TransportError as fehler:
             letzter = fehler
-        if versuch < len(WARTEZEITEN):
-            time.sleep(WARTEZEITEN[versuch])
+        if versuch < len(wartezeiten):
+            time.sleep(wartezeiten[versuch])
     _buche(conn, chat_id, e, art, modell, {}, "abgebrochen", time.monotonic() - start, erfolg=False)
-    raise ClaudeFehler(f"Claude-Proxy nach {len(WARTEZEITEN) + 1} Versuchen: {letzter}")
+    raise ClaudeFehler(f"Claude-Proxy nach {len(wartezeiten) + 1} Versuchen: {letzter}")
 
 
 #: Haengt sich an den System-Prompt eines ``schema``-Aufrufs (Modellwahl-
@@ -489,7 +499,9 @@ class _TeilSenke:
 
 def schema(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
           nutzer: str, schema_: dict, art: str, timeout: float,
-          bei_teil=None, teil_feld: str | None = None) -> dict:
+          bei_teil=None, teil_feld: str | None = None,
+          wartezeiten: tuple[float, ...] | None = None,
+          modell: str | None = None) -> dict:
     """Ein Schema-Aufruf ueber den Claude-Proxy -- dasselbe Versprechen wie
     ``llm.LLM.schema`` (ein JSON-Objekt nach festem Schema), aber ohne
     natives ``response_format``: die Form geht als Anweisung in den
@@ -505,7 +517,7 @@ def schema(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
     )
     innere = _TeilSenke(bei_teil, teil_feld) if bei_teil is not None else None
     text = prosa(conn, e, klient, chat_id, system_mit_schema, nutzer, art,
-                timeout, bei_teil=innere)
+                timeout, bei_teil=innere, wartezeiten=wartezeiten, modell=modell)
     return llm_modul.lies_json(text)
 
 

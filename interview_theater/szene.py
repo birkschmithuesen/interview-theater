@@ -921,6 +921,10 @@ def _format_rahmen_text(conn, chat_id: int) -> str:
     zeilen = []
     if stand["rahmen"]:
         zeilen.append(T._RAHMEN_BLOCK.format(rahmen=stand["rahmen"]))
+    # Padua [skript] verdichtet (Birk 07.10.2026 ~17:45, Messung Robo: das
+    # Format fehlte im Prompt -- G1 ist ein Konzert, kein Drama).
+    if workshop.skript_verdichtet_aktiv() and (stand["format"] or "").strip():
+        zeilen.append(T._FORMAT_BLOCK.format(format=stand["format"].strip()))
     geschichte = stand["geschichte"] if "geschichte" in stand.keys() else None
     if geschichte:
         zeilen.append(T._BOGEN_BLOCK.format(geschichte=geschichte))
@@ -935,6 +939,7 @@ _RAHMEN_BLOCK = (
     "{rahmen}"
 )
 _BOGEN_BLOCK = "Bogen und Ende:\n{geschichte}"
+_FORMAT_BLOCK = "Format des Stuecks -- danach richtet sich, was fuer ein Text entsteht:\n{format}"
 _KERNFRAGE_KOPF = "Kernfrage:\n"
 _ZEILE_HAUPTKONFLIKT = "Hauptkonflikt: {hauptkonflikt}"
 
@@ -1025,13 +1030,19 @@ def _kernpaket_text(conn, chat_id: int, ziel=None, *,
     zeilen = []
     from interview_theater import kontext
 
+    verdichtet = workshop.skript_verdichtet_aktiv()
     if ziel is not None:
-        for eintrag in repo.schaerfungen(conn, chat_id, szene_id=ziel["id"]):
+        stellen = repo.schaerfungen(conn, chat_id, szene_id=ziel["id"])
+        if verdichtet and any(z["uebernommen_am"] for z in stellen):
+            # Padua [skript] verdichtet: nur was die Gruppe uebernommen hat
+            # (G1 Szene 2: 163 zugeordnet, 53 uebernommen), ohne Begruendung.
+            stellen = [z for z in stellen if z["uebernommen_am"]]
+        for eintrag in stellen:
             name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
             zeile = f'- {name}: {eintrag["thema"]}'
             if not zitate_entfernen:
                 zeile += f' -- "{eintrag["zitat"]}"'
-            if eintrag["begruendung"]:
+            if eintrag["begruendung"] and not verdichtet:
                 zeile += f" ({eintrag['begruendung']})"
             zeilen.append(zeile)
         for figur in repo.szene_figuren(conn, ziel["id"]):
@@ -1618,6 +1629,25 @@ _AUFGABE_LETZTE = (
 )
 
 
+_AUFGABE_NEUTRAL = "Aufgabe dieser Szene: das, was die Gruppe fuer sie beschrieben hat."
+
+#: Woran ein Format erkennbar NICHT dramatisch-narrativ ist (Padua G1:
+#: "post-dramatic" Konzert, G2: Dokumentarfilm/Sozialexperiment, G3:
+#: immersive Installation). Klein geschrieben, als Wortanfang gesucht; ohne
+#: Treffer (oder ohne Format) bleibt die Dramen-Aufgabe wie bisher.
+NICHT_DRAMATISCH = (
+    "post-dramat", "postdramat", "concert", "konzert", "concerto", "documentar",
+    "dokumentar", "documentari", "verbatim", "immersiv", "installation",
+    "experiment", "esperimento", "happening",
+)
+
+
+def format_ist_dramatisch(conn, chat_id: int) -> bool:
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    text = ((stand["format"] if stand else "") or "").lower()
+    return not any(re.search(r"\b" + re.escape(w), text) for w in NICHT_DRAMATISCH)
+
+
 def _aufgabe_text(conn, chat_id: int, ziel) -> str:
     """Block: die dramaturgische Aufgabe der Szene an ihrer Position."""
     if ziel is None or ziel["nummer"] is None:
@@ -1628,6 +1658,10 @@ def _aufgabe_text(conn, chat_id: int, ziel) -> str:
     ]
     gesamt = max([s["nummer"] for s in szenen] + [ziel["nummer"]])
     nummer = ziel["nummer"]
+    # Padua [skript] verdichtet: Exposition/Konflikt ist Dramenlogik -- fuer
+    # ein Konzert, einen Dokumentarfilm, eine Installation passt sie nicht.
+    if workshop.skript_verdichtet_aktiv() and not format_ist_dramatisch(conn, chat_id):
+        return T._AUFGABE_NEUTRAL
     if nummer <= 1:
         return T._AUFGABE_ERSTE
     if nummer >= gesamt and gesamt > 1:
@@ -1753,7 +1787,10 @@ def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False,
     if ziel is None:
         return ""
     zeilen = [T.DIESE_SZENE_KOPF, _szenenkopf(ziel["nummer"])]
-    zeilen += _szenenfelder_zeilen(conn, ziel, _DIESE_SZENE_FELDER)
+    if workshop.skript_verdichtet_aktiv():
+        zeilen += _diese_szene_verdichtet(conn, ziel)
+    else:
+        zeilen += _szenenfelder_zeilen(conn, ziel, _DIESE_SZENE_FELDER)
     if vorlage and _prosa_von(ziel):
         zeilen.append("")
         zeilen.append(T.VORLAGE_KOPF.format(form=(ziel["form"] or T._FORM_RUECKFALL)))
@@ -1770,6 +1807,33 @@ def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False,
         zeilen.append("")
         zeilen.append(T.NEU_HINWEIS)
     return "\n".join(zeilen)
+
+
+_ZEILE_WORUM = "Worum es in dieser Szene geht:"
+_ZEILE_STAERKSTE = "Die staerksten Zitate fuer diese Szene (woertlich verwenden):"
+
+
+def _diese_szene_verdichtet(conn, ziel) -> list[str]:
+    """Padua [skript] verdichtet (Birk 07.10.2026 ~17:45): die Felder der
+    Szene ohne die Begruendungskette -- ``was_passiert`` als Beschreibung der
+    Gruppe (Altbestand bereinigt), ``kernsaetze`` nur die eigenen der Gruppe
+    (die Zitate stehen woertlich im Kernpaket), dazu die Kurzform und die
+    staerksten Zitate aus ``szenenkern``."""
+    from interview_theater import szenenkern
+
+    zeile = {k: ziel[k] for k in ziel.keys()}
+    zeile["was_passiert"] = szenenkern.gruppenbeschreibung(conn, ziel["chat_id"], ziel)
+    zeile["kernsaetze"] = " | ".join(szenenkern.gruppen_kernsaetze(conn, ziel["chat_id"], ziel))
+    zeilen = _szenenfelder_zeilen(conn, zeile, _DIESE_SZENE_FELDER)
+    kern = szenenkern.kern_punkte(ziel)
+    if kern:
+        zeilen.append(T._ZEILE_WORUM)
+        zeilen += [f"- {p}" for p in kern]
+    staerkste = szenenkern.kernsaetze_kurz(ziel)
+    if staerkste:
+        zeilen.append(T._ZEILE_STAERKSTE)
+        zeilen += [f"- {z}" for z in staerkste]
+    return zeilen
 
 
 def _verworfen_text(conn, chat_id: int) -> str:
@@ -1813,6 +1877,11 @@ _SPRECHER_GRUPPE = "Gruppe"
 
 #: Der Kopf ueber dem Auftrag, ganz am Ende des Nutzertexts.
 _AUFTRAG_KOPF = "Euer Auftrag:\n"
+_P5_VORRANG = (
+    "Die juengsten Nachrichten sind die frische Absicht der Gruppe: "
+    "widersprechen sie den gespeicherten Angaben, gelten sie -- und du sagst "
+    "in der Zusammenfassungszeile, was du deshalb anders gemacht hast."
+)
 _P5_GESPRAECH_KOPF = ("Was die Gruppe in Phase 5 ueber die Interviews besprochen hat (Wortlaut). "
                       "Nutze es: welche Stimmen, Zitate und Themen sie wollen:")
 
@@ -1946,7 +2015,7 @@ def _p5_gespraech_text(conn, chat_id: int, ueber_claude: bool = False) -> str:
 
 
 def _chat_text(conn, chat_id: int, ziel, nummer: int | None,
-               anzahl: int = CHAT_NACHRICHTEN) -> str:
+               anzahl: int = CHAT_NACHRICHTEN, nur_notizen: bool = False) -> str:
     """Block: der frische Chat plus die Regie-Notizen zu dieser Szene.
 
     **Ohne Klarnamen** (AGENTS.md, Anti-Klarnamen-Regel): jede Nachricht der
@@ -1956,6 +2025,11 @@ def _chat_text(conn, chat_id: int, ziel, nummer: int | None,
     einem Prompt, der ausserdem in die USA geht, hat er nichts zu suchen.
     Genau deshalb wird hier auch nicht ``kontext.sprecherzeile``
     wiederverwendet: die setzt den Vornamen."""
+    if nur_notizen:
+        # Padua [skript] verdichtet: der Phase-5-Gespraechsblock traegt den
+        # Chat schon im Wortlaut -- hier bleiben nur die Regie-Notizen.
+        notizen = _regienotizen(conn, chat_id, nummer)
+        return T.CHAT_REGIE_KOPF + "\n" + "\n".join(notizen) if notizen else ""
     zeilen = []
     du, gruppe = T._SPRECHER_DU, T._SPRECHER_GRUPPE
     for n in _chat_nachrichten(conn, chat_id, ziel, anzahl):
@@ -2085,6 +2159,10 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
         figuren = _figuren_text(conn, chat_id)
         if zitate_kurz:
             figuren = _figuren_mit_wenig_zitaten(figuren)
+        p5_gespraech = _p5_gespraech_text(conn, chat_id, ueber_claude)
+        nur_notizen = bool(p5_gespraech) and workshop.skript_verdichtet_aktiv()
+        if nur_notizen:
+            p5_gespraech += "\n\n" + T._P5_VORRANG
         return {
             "format_rahmen": _format_rahmen_text(conn, chat_id),
             "thema": _thema_text(conn, chat_id),
@@ -2094,9 +2172,10 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
             "figuren": figuren,
             "continuity": _continuity_text(conn, chat_id, nummer, voll),
             "verworfen": _verworfen_text(conn, chat_id),
-            "chat": _chat_text(conn, chat_id, ziel, nummer, chat_anzahl),
+            "chat": _chat_text(conn, chat_id, ziel, nummer, chat_anzahl,
+                               nur_notizen=nur_notizen),
             # Birk 07.10.2026 15:10: die Interview-Diskussion aus Phase 5.
-            "p5_gespraech": _p5_gespraech_text(conn, chat_id, ueber_claude),
+            "p5_gespraech": p5_gespraech,
             "aufgabe": _aufgabe_text(conn, chat_id, ziel),
             "laenge": _laenge_text(conn, chat_id, ziel),
             "diese_szene": _diese_szene_text(

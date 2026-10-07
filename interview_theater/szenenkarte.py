@@ -143,7 +143,7 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None) -> str:
     verworfen = szene_modul.verworfene_zeilen(conn, chat_id)
     if verworfen:
         zeilen.append(T._KOPF_VERWORFEN + "\n" + "\n".join(verworfen))
-    gespraech = szene_modul._p5_gespraech_text(conn, chat_id, ueber_claude=True)
+    gespraech = szene_modul.p5_gespraech_block(conn, chat_id, ueber_claude=True)
     if gespraech:
         zeilen.append(gespraech)
     alle = [f"{s['nummer']}. {s['titel'] or ''}".strip() for s in _szenen(conn, chat_id)]

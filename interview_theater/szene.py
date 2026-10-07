@@ -2025,6 +2025,28 @@ def _p5_gespraech_text(conn, chat_id: int, ueber_claude: bool = False) -> str:
     return T._P5_GESPRAECH_KOPF + "\n" + "\n".join(zeilen)
 
 
+def p5_gespraech_block(conn, chat_id: int, ueber_claude: bool = False) -> str:
+    """Der Block ueber Phase 5, wie ihn alle vier Aufrufer brauchen
+    (``baue_nutzertext`` hier, ``entwurf._voll_bloecke``,
+    ``schaerfung._hintergrund_voll_zeilen``, ``szenenkarte.baue_nutzertext``):
+    der volle Wortlaut (``_p5_gespraech_text``), solange Phase 5 noch die
+    AKTUELLE Phase ist -- sobald sie ABGESCHLOSSEN ist (die Gruppe steht
+    schon in Phase 6 oder hoeher) und ein Phasen-Summary dafuer existiert
+    (Karte t_1bc96848, Padua), tritt das Summary an seine Stelle.
+
+    Ohne gespeichertes Summary (noch nicht erzeugt, Erzeugung fehlgeschlagen,
+    Profilschalter aus) bleibt es beim bisherigen Rohdump -- ein fehlendes
+    Summary ist ein akzeptabler Fehlerfall, kein Blockierer (siehe
+    ``phasen_summary.py``), nie eine Verschlechterung gegenueber vorher."""
+    from interview_theater import phasen, phasen_summary
+
+    if workshop.phasen_summary_aktiv() and phasen.aktuelle(conn, chat_id) > 5:
+        text = phasen_summary.hole_text(conn, chat_id, 5)
+        if text:
+            return text
+    return _p5_gespraech_text(conn, chat_id, ueber_claude)
+
+
 def _chat_text(conn, chat_id: int, ziel, nummer: int | None,
                anzahl: int = CHAT_NACHRICHTEN, nur_notizen: bool = False) -> str:
     """Block: der frische Chat plus die Regie-Notizen zu dieser Szene.
@@ -2170,7 +2192,7 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
         figuren = _figuren_text(conn, chat_id)
         if zitate_kurz:
             figuren = _figuren_mit_wenig_zitaten(figuren)
-        p5_gespraech = _p5_gespraech_text(conn, chat_id, ueber_claude)
+        p5_gespraech = p5_gespraech_block(conn, chat_id, ueber_claude)
         nur_notizen = bool(p5_gespraech) and workshop.skript_verdichtet_aktiv()
         if nur_notizen:
             p5_gespraech += "\n\n" + T._P5_VORRANG

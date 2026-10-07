@@ -174,7 +174,7 @@ def _voll_bloecke(conn, chat_id: int) -> list[str]:
             name = kontext.interviewbezeichnung(conn, chat_id, z["aufnahme_id"])
             teile.append(f'- {name}: {z["thema"]} -- "{z["zitat"]}"')
         bloecke.append("\n".join(teile))
-    gespraech = szene._p5_gespraech_text(conn, chat_id, ueber_claude=True)
+    gespraech = szene.p5_gespraech_block(conn, chat_id, ueber_claude=True)
     if gespraech:
         bloecke.append(gespraech + "\n(This conversation is the most valuable source for the "
                        "logline and the scene lines: what the group said about the interviews, "

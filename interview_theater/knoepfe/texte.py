@@ -385,7 +385,11 @@ _TEXT_ANDERS = "Vorerst gespeichert. Was soll anders sein?"
 _TEXT_EIGENE = "Erzaehlt - ich baue es ein."
 #: Nach einem "Gefaellt uns, weiter": bestaetigen, dann die eine Frage, die
 #: den Zwischenraum offenhaelt, bevor der Phasenknopf kommt.
-_TEXT_NACH_SPEICHERN_FRAGE = "Wollt ihr noch etwas hinzufuegen, bevor es weitergeht?"
+#: Karte t_c5d68218 (06.10.2026): eine Bestaetigungsfrage statt der
+#: Aufforderung, noch etwas hinzuzufuegen -- der optionale, modellgestuetzte
+#: Zusatz (Vorschlag/Rueckfrage) kommt, wenn ueberhaupt, als eigene
+#: Nachricht danach (``nachspeichern.starte``), nie an dieser Stelle erzwungen.
+_TEXT_NACH_SPEICHERN_FRAGE = "Passt das so fuer euch?"
 _TEXT_AUSWERTEN_ALLE_KNOPF = "Alle auswerten"
 _TEXT_AUSWERTEN_ALLE_LAEUFT = "Ich werte die offenen Interviews aus."
 _TEXT_AUSWERTEN_ALLE_NICHTS = "Es ist nichts mehr offen."
@@ -478,6 +482,13 @@ _JOURNAL_REDO = "Wiederhergestellt: {zeilen}"
 #: Gruppe liest.
 _TEXT_AUFNAHME_STARTEN = "Interview starten"
 _TEXT_AUFNAHME_BEENDEN = "Interview beenden"
+#: Karte t_1493c40d (06.10.2026, Birk): ab Phase 4 sind die Interviews
+#: gelaufen -- "Interview starten" wuerde wortwoertlich DAS eine Interview
+#: suggerieren, das es dort nicht mehr gibt. Der Knopf selbst bleibt sichtbar
+#: (``knoepfe._aufnahme_anbieten``, nachtraegliches Interview ist ein
+#: normaler Vorgang), nur sein Text in der Begruessungsleiste
+#: (``knoepfe.biete_einstieg``) aendert sich ab Phase 4.
+_TEXT_WEITERE_AUFNAHME_KNOPF = "Weitere Aufnahme"
 #: Die zwei Knoepfe unter einem Teil-Transkript (05.09.2026).
 _TEXT_TEIL_WEITER_KNOPF = "Interview geht weiter"
 _TEXT_TEIL_FERTIG_KNOPF = "Interview ist fertig"

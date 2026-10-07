@@ -96,13 +96,17 @@ def test_wiederkehr_zeile_nennt_nur_die_phase():
     assert text == "Bin wieder da. Wir sind bei 4 · Setting & Figuren."
 
 
-def test_wiederkehr_erst_nach_einer_halben_stunde():
-    """Am Testabend fiel die Zeile zweimal in eine arbeitende Gruppe, weil
-    die Schwelle bei zwei Stunden lag und der Bot dazwischen neu startete."""
-    jetzt = datetime.fromisoformat("2026-09-06T12:00:00+00:00")
+def test_wiederkehr_erst_nach_vier_stunden():
+    """Befund vom 06.10.2026 (Padua-Dauerbetrieb): Hotfix-Rollouts starten den
+    Bot alle 25-90 Minuten neu, ohne dass die Gruppe eine Pause macht. Mit der
+    alten 30-Minuten-Schwelle loeste jeder dieser geplanten Neustarts die
+    Wiederkehr-Zeile aus. Die Schwelle liegt seither bei vier Stunden -- klar
+    ueber jedem gemessenen Neustart-Abstand, klar unter einer echten
+    Nachtpause."""
+    jetzt = datetime.fromisoformat("2026-10-06T12:00:00+00:00")
 
-    assert bot.begruessung_faellig("2026-09-06T11:50:00+00:00", jetzt) is False
-    assert bot.begruessung_faellig("2026-09-06T11:20:00+00:00", jetzt) is True
+    assert bot.begruessung_faellig("2026-10-06T10:30:00+00:00", jetzt) is False  # 90 Min
+    assert bot.begruessung_faellig("2026-10-06T07:00:00+00:00", jetzt) is True  # 5 Stunden
 
 
 def test_wiederkehr_nimmt_die_gespeicherte_phase(conn):

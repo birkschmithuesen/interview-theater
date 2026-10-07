@@ -114,6 +114,11 @@ def _massstab() -> dict[str, str]:
 
 @pytest.mark.dortmund  # Dortmund eingefroren (AGENTS.md, 04.10.2026): Formberater-Prompt-Haertung (system.md/phasen/4.md, Karte t_256ec777/t_b19d37ac) aendert auch den Dortmund-/Vorgabe-Fingerabdruck
 def test_ohne_variable_wie_vor_dem_umbau():
+    """Ohne ``IT_WORKSHOP`` entspricht dem eingefrorenen Dortmund-Verhalten
+    (``test_dortmund_und_keine_variable_sind_identisch``) -- eine Padua-only
+    Prompt-Haertung (``prompts/phasen/4.md``, Karte Phase 4->5
+    Szenentext-Abgrenzung) macht diesen Massstab bewusst rot, siehe
+    AGENTS.md "Dortmund eingefroren"."""
     _vergleiche(_massstab(), _fingerabdruck())
 
 

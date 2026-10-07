@@ -1047,6 +1047,22 @@ def test_einstieg_bietet_ab_phase_3_die_aufnahme_an(conn, einst, tg):
     ]
 
 
+def test_einstieg_bietet_ab_phase_4_weitere_aufnahme_statt_interview_starten(conn, einst, tg):
+    """Karte t_1493c40d, Aufgabe 2: ab Phase 4 (Setting, Figuren & Geschichte)
+    gibt es kein Interview mehr, das der Bot ankuendigen koennte -- die
+    Interviews sind gelaufen. Der Knopf bleibt sichtbar (nachtraegliches
+    Interview ist ein normaler Vorgang, ``_aufnahme_anbieten``), aber "Interview
+    starten" waere irrefuehrend, weil es wortwoertlich DAS eine Interview
+    suggeriert statt eines zusaetzlichen."""
+    phasen.setze(conn, 1, 4, "befehl")
+
+    knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
+
+    beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
+    assert "Interview starten" not in beschriftungen
+    assert "Weitere Aufnahme" in beschriftungen
+
+
 def test_einstieg_bietet_das_beenden_auch_in_phase_1_an(conn, einst, tg):
     """Die Ausnahme zur Phasenregel: laeuft eine Aufnahme, MUSS der
     Ausschalter da sein. Ein laufendes Interview ohne Knopf waere die

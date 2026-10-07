@@ -1213,6 +1213,61 @@ def test_der_erkenner_schaltet_die_phase_nicht_selbst(conn, einst):
     assert len(tg.gesendet) == 1, "eine Meldung je Lauf"
 
 
+def test_lets_move_on_in_phase_4_springt_nicht_automatisch_nach_phase_5(conn, einst):
+    """Karte t_18ae9ea2 (G3-Testgruppe, Live-Test 06.10.2026 ~20:30,
+    synthetisches Nachbau-Transkript -- keine echten Gruppendaten):
+
+    1. Bot: "Do you want to add anything before we move on?"
+    2. Gruppe: "What do you mean?"
+    3. Bot erklaert, schlaegt Figuren vor.
+    4. Gruppe stellt klar: "No, i reffered to what you wrote before" -- die
+       Frage bezog sich nicht auf fehlende Figuren.
+    5. Gruppe: "Ok, no, then lets move on" -- gemeint: weiter an den noch
+       offenen Aufgaben von Phase 4 (Setting, Figuren & Geschichte), NICHT:
+       Phasenwechsel.
+
+    Der Erkenner las "lets move on" dennoch als ``phase_setzen`` Richtung 5
+    (Prose Draft) -- obwohl ``figuren_fixiert_am`` nicht gesetzt war (und
+    auch Rahmen, Geschichte, Szenenzahl fehlten, ``phasen.voraussetzungen()[5]``
+    also False war). Die Figurenliste wird ausschliesslich ueber den Knopf
+    "Figuren fixieren" fixiert (``knoepfe/figuren.py``) -- der Erkenner hat
+    dafuer keine eigene ``art`` und kann diese Voraussetzung also nie selbst
+    herbeigefuehrt haben. Der Bot darf trotzdem nicht automatisch nach
+    Phase 5 wechseln (und schon gar nicht den Prosa-Lauf anstossen)."""
+    phasen.setze(conn, 1, 4, "befehl")
+    _nachricht(conn, 1, 1, "Do you want to add anything before we move on?", absender="Bot", ist_bot=1)
+    _nachricht(conn, 1, 2, "What do you mean?")
+    _nachricht(conn, 1, 3, "No, i reffered to what you wrote before")
+    _nachricht(conn, 1, 4, "Ok, no, then lets move on")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "phase_setzen", "wert": "5"}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert phasen.aktuelle(conn, 1) == 4
+    assert not any("5" in t for _cid, t in tg.gesendet), tg.gesendet
+
+
+def test_explizite_phasennennung_nach_fixierten_figuren_wechselt_trotzdem(conn, einst):
+    """Gegenprobe: STEHT die Figurenliste fixiert (und die restliche
+    Materiallage trägt Phase 5), wechselt ein ``phase_setzen`` Richtung 5
+    weiterhin wie bisher -- die neue Waeche greift nur, solange
+    ``figuren_fixiert_am`` NICHT gesetzt ist."""
+    phasen.setze(conn, 1, 4, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Padua, heute, ein Marktplatz")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei Familien, ein Streit, eine Versoehnung")
+    repo.setze_arbeitsstand(conn, 1, "szenen_anzahl", "3")
+    repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", repo._jetzt())
+    repo.setze_figur(conn, 1, "Mira", "")
+    _nachricht(conn, 1, 1, "lets move on")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "phase_setzen", "wert": "5"}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert phasen.aktuelle(conn, 1) == 5
+
+
 def test_auch_eine_zweite_figur_schaltet_nichts(conn, einst):
     """Dasselbe fuer die Aenderung, die frueher am haeufigsten gesprungen ist:
     die zweite Figur. Der Arbeitsstand waechst, die Phase nicht."""

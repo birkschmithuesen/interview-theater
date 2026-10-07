@@ -136,11 +136,10 @@ def test_phase4_gespraech_laeuft_ueber_claude(tmp_path):
 #: benannte Ausnahme (er laeuft live, gehoert also nicht in
 #: NICHT_LIVE_IN_PADUA).
 #:
-#: 45-formberater (Karte t_256ec777): laeuft live ab Phase 4, aber nur bei
-#: neuem Stichwort-Treffer/Phasenuebergang/Knopf (interview_theater/
-#: formberater.py), kein eigener Chatbeitrag -- derselbe Grund wie bei
-#: 42-uebersetzung, kein eigener P3/4-Treiber hier.
-OHNE_P34_TREIBER = ("42-uebersetzung", "45-formberater")
+#: 45-formberater (Karte t_256ec777) und 43-nachspeichern (Karte t_c5d68218):
+#: laufen live ab Phase 4, aber ohne eigenen P3/4-Treiber -- derselbe Grund
+#: wie bei 42-uebersetzung.
+OHNE_P34_TREIBER = ("42-uebersetzung", "43-nachspeichern", "45-formberater")
 
 
 def test_die_phase_3_4_eintraege_haben_einen_treiber():

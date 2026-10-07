@@ -28,7 +28,7 @@ _TEXT_BOARD_WAS_AENDERN = "What should change – a misheard term, the order, a 
 _TEXT_BOARD_VORSCHLAG = "The discussion is over. On your term board:\n{liste}\n\nThe five marked with ⭐ are the suggestion. Take these? You can also send me your own five terms - typed or as a voice message."
 _TEXT_ANDERS = "Saved for now. What should be different?"
 _TEXT_EIGENE = "Tell me - I'll work it in."
-_TEXT_NACH_SPEICHERN_FRAGE = "Do you want to add anything before we move on?"
+_TEXT_NACH_SPEICHERN_FRAGE = "Does that sound good for you?"
 _TEXT_AUSWERTEN_ALLE_KNOPF = "Analyse all"
 _TEXT_AUSWERTEN_ALLE_LAEUFT = "I'm analysing the open interviews."
 _TEXT_AUSWERTEN_ALLE_NICHTS = "There's nothing left open."
@@ -67,6 +67,7 @@ _ANTWORT_REDO_GEAENDERT = "Changed since."
 _JOURNAL_REDO = "Redone: {zeilen}"
 _TEXT_AUFNAHME_STARTEN = "Start interview"
 _TEXT_AUFNAHME_BEENDEN = "End interview"
+_TEXT_WEITERE_AUFNAHME_KNOPF = "Record another interview"
 _TEXT_TEIL_WEITER_KNOPF = "Interview continues"
 _TEXT_TEIL_FERTIG_KNOPF = "Interview is finished"
 _TEXT_TEIL_WEITER = "Good, I'm still listening."
@@ -917,6 +918,19 @@ _TEXT_NOCH_OFFEN = "(still open)"
 _UEBERSCHRIFT_MITSCHNITT = "Brainstorm transcript so far:"
 
 ["buehnenkarte".FELD_BESCHRIFTUNG]
+Setting = "Setting"
+Figuren = "Characters"
+Geschichte = "Story"
+
+["nachspeichern"]
+# Karte t_c5d68218: Nutzertext des optionalen Zusatz-Aufrufs nach "Ja, speichern".
+_UEBERSCHRIFT_GESPEICHERT = "Just saved:"
+_ZEILE_FELD = "{feld}: {wert}"
+_UEBERSCHRIFT_STUECKKARTE = "Piece card:"
+_TEXT_NOCH_OFFEN = "(still open)"
+_ZEILE_BEGRIFFE = "Terms: {wert}"
+
+["nachspeichern".FELD_BESCHRIFTUNG]
 Setting = "Setting"
 Figuren = "Characters"
 Geschichte = "Story"
@@ -2004,6 +2018,8 @@ _TEXT_REST_VERWERFEN = "Discard the rest"
 # mehr, die eigenen Brainstorm-Textkonstanten entfallen, t_cf87ee0a
 # abgeloest).
 _TEXT_DISKUSSION_AN = "Start listening"
+# Kanban t_d22af9b2 (06.10.2026): nur fuer Phase 4 (CoThinker-Mithoeren).
+_TEXT_DISKUSSION_AN_COTHINKER = "Start Listening for CoThinker"
 _TEXT_DISKUSSION_LAEUFT = "Listening ({zeit})"
 _TEXT_DISKUSSION_FERTIG_KNOPF = "Discussion done"
 _TEXT_DISKUSSION_GESPERRT = "An interview is still open - tap {beenden} first."

@@ -1701,6 +1701,7 @@ def _zeigemodus_harness(faelle_js: str) -> str:
       zustand = Object.assign({{
         wechsel: null, aufnahme: null, servermodus: false, warteschlange: [],
         knopfErlaubt: true, brainstorm: null, diskussion: null,
+        diskussionErlaubt: false, mithoerenZiel: 'diskussion',
         fremdScharf: null, fremdScharfSeit: 0
       }}, z);
       fuss = attrappe(); interviewKnopf = attrappe();
@@ -1714,7 +1715,8 @@ def _zeigemodus_harness(faelle_js: str) -> str:
         text: interviewKnopf.textContent,
         pause: interviewPauseKnopf.textContent,
         enden: interviewBeendenKnopf.textContent,
-        scharf: zustand.fremdScharf
+        scharf: zustand.fremdScharf,
+        pttHidden: pttKnopf.hidden
       }};
     }}
     {faelle_js}
@@ -2112,10 +2114,14 @@ def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
 
 
 def test_starteinterview_und_pttpointerdown_lehnen_waehrend_diskussion_ab():
-    """``starteInterview()`` und ``pttPointerDown()`` lehnen beide ab,
-    solange eine Mithoeren-Sitzung (``zustand.diskussion``, seit 3a5e8c6
-    gemeinsam fuer Phase 1 und Phase 4) laeuft -- sonst liefen zwei bzw. drei
-    Recorder auf demselben Mikrofon."""
+    """``starteInterview()`` lehnt weiterhin ab, solange eine
+    Mithoeren-Sitzung (``zustand.diskussion``, seit 3a5e8c6 gemeinsam fuer
+    Phase 1 und Phase 4) laeuft -- sonst liefen zwei Recorder auf demselben
+    Mikrofon. ``pttPointerDown()`` lehnt das seit Kanban t_d22af9b2
+    (06.10.2026) NUR noch fuer Phase 1 (``sitzung.ziel !== 'brainstorm'``)
+    ab -- in Phase 4 bleibt PTT ein eigener Befehlskanal neben dem
+    laufenden CoThinker-Mithoeren, siehe
+    ``test_pttpointerdown_erlaubt_waehrend_brainstorm_aber_nicht_waehrend_diskussion_in_node``."""
     js = web_chat._CHAT_JS
     start_iv = js[js.index("function starteInterview"):
                   js.index("function brichAb")]
@@ -2123,7 +2129,11 @@ def test_starteinterview_und_pttpointerdown_lehnen_waehrend_diskussion_ab():
 
     start_ptt = js[js.index("function pttPointerDown"):
                    js.index("function pttPointerMove")]
-    assert ("if (modusAn() || zustand.wechsel || zustand.diskussion ||\n"
+    assert (
+        "var diskussionBlockiert = zustand.diskussion && "
+        "zustand.diskussion.ziel !== 'brainstorm';"
+    ) in start_ptt
+    assert ("if (modusAn() || zustand.wechsel || diskussionBlockiert ||\n"
             "        zustand.ptt) { return; }") in start_ptt
 
 
@@ -2204,6 +2214,144 @@ def test_starteinterview_und_pttpointerdown_lehnen_waehrend_diskussion_tatsaechl
     assert ergebnisse["ohneDiskussion"] == {
         "interviewGestartet": True, "pttGestartet": True,
     }
+
+
+# -- PTT bleibt neben Phase 4 (CoThinker-Mithoeren) ein eigener
+#    Befehlskanal (Kanban t_d22af9b2, 06.10.2026) -----------------------------
+#
+# Birk, Live-Test 06.10.2026: die alte entweder/oder-Regel (04.10.2026, s.o.)
+# galt bisher fuer Phase 1 UND Phase 4 gleich -- jetzt nur noch fuer Phase 1
+# (``sitzung.ziel === 'diskussion'``). Phase 4 (``'brainstorm'``) soll der
+# Gruppe erlauben, dem Bot waehrend des laufenden Mithoerens eine kurze
+# Anweisung per PTT zu geben, ohne das Mithoeren zu beenden.
+
+
+def test_pttpointerdown_erlaubt_waehrend_brainstorm_aber_nicht_waehrend_diskussion_in_node(
+    tmp_path,
+):
+    """Verhaltensnachweis in Node: mit laufender Mithoeren-Sitzung
+    (``zustand.diskussion``) startet ``pttPointerDown()`` einen eigenen
+    PTT-Druck GENAU DANN, wenn ``sitzung.ziel === 'brainstorm'`` ist --
+    bei ``'diskussion'`` (Phase 1) bleibt die alte Sperre bestehen."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    modus_an = _extrahiere(js, "function modusAn", "function zeigeModus")
+    start_ptt = _extrahiere(js, "function pttPointerDown", "function pttPointerMove")
+
+    quelltext = f"""
+    var zustand, pttKnopf, navigator;
+    var PTT_MAX_MS = {web_chat.PTT_MAX_MS};
+    navigator = {{}};
+
+    {modus_an}
+
+    function pttZeigeAnzeige() {{}}
+    function holeStrom() {{ return new Promise(function () {{}}); }}
+    function setTimeout() {{ return {{}}; }}
+    function clearTimeout() {{}}
+    function setInterval() {{ return {{}}; }}
+    function clearInterval() {{}}
+
+    {start_ptt}
+
+    function lauf(ziel) {{
+      zustand = {{
+        aufnahme: null, wechsel: null, servermodus: false, ptt: null,
+        diskussion: {{ pausiert: false, ziel: ziel }}
+      }};
+      pttKnopf = {{ dataset: {{}}, setPointerCapture: function () {{}} }};
+      var ev = {{ clientX: 0, clientY: 0, pointerId: 1, preventDefault: function () {{}} }};
+      pttPointerDown(ev);
+      return !!zustand.ptt;
+    }}
+
+    console.log(JSON.stringify({{
+      brainstorm: lauf('brainstorm'),
+      diskussion: lauf('diskussion')
+    }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnis = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnis["brainstorm"] is True
+    assert ergebnis["diskussion"] is False
+
+
+def test_pttknopf_bleibt_sichtbar_in_phase_4_waehrend_diskussion_erlaubt_oder_laeuft_in_node(
+    tmp_path,
+):
+    """``zeigeModus()`` blendet PTT bei angebotener/laufender
+    Mithoeren-Sitzung nur noch in Phase 1 (``mithoerenZiel ===
+    'diskussion'``) aus -- in Phase 4 (``'brainstorm'``) bleibt der Knopf
+    sichtbar, egal ob die Sitzung nur angeboten wird oder schon laeuft."""
+    node = _node_oder_skip()
+    quelltext = _zeigemodus_harness("""
+    console.log(JSON.stringify({
+      brainstorm_angeboten: lauf({ diskussionErlaubt: true, mithoerenZiel: 'brainstorm' }),
+      brainstorm_laeuft: lauf({ diskussion: { pausiert: false, ziel: 'brainstorm' },
+                                 mithoerenZiel: 'brainstorm' }),
+      diskussion_angeboten: lauf({ diskussionErlaubt: true, mithoerenZiel: 'diskussion' }),
+      diskussion_laeuft: lauf({ diskussion: { pausiert: false, ziel: 'diskussion' },
+                                 mithoerenZiel: 'diskussion' }),
+      ohne_angebot: lauf({ mithoerenZiel: 'brainstorm' })
+    }));
+    """)
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["brainstorm_angeboten"]["pttHidden"] is False
+    assert e["brainstorm_laeuft"]["pttHidden"] is False
+    assert e["diskussion_angeboten"]["pttHidden"] is True
+    assert e["diskussion_laeuft"]["pttHidden"] is True
+    assert e["ohne_angebot"]["pttHidden"] is False
+
+
+def test_zeigediskussionmodus_zeigt_den_cothinker_text_nur_fuer_brainstorm_in_node(tmp_path):
+    """``zeigeDiskussionModus()`` zeigt ``TEXT.diskussion_an_cothinker``
+    statt ``TEXT.diskussion_an``, solange keine Sitzung laeuft UND
+    ``zustand.mithoerenZiel === 'brainstorm'`` ist (Phase 4) -- Phase 1
+    (``'diskussion'``) behaelt den alten Text."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    zeige_ds = _extrahiere(js, "function zeigeDiskussionModus", "function starteDiskussion")
+    modus_an = _extrahiere(js, "function modusAn", "function zeigeModus")
+
+    quelltext = f"""
+    var TEXT = {{ diskussion_an: 'AN', diskussion_an_cothinker: 'AN_COTHINKER',
+                  diskussion_laeuft: 'LAEUFT {{zeit}}' }};
+    function attrappe() {{
+      return {{ dataset: {{}}, textContent: '', hidden: false,
+                setAttribute: function () {{}}, removeAttribute: function () {{}} }};
+    }}
+    function formatiereUhr() {{ return '0:00'; }}
+    var zustand, diskussionKnopf, diskussionAktionenFeld;
+    {modus_an}
+    {zeige_ds}
+    function lauf(ziel) {{
+      diskussionKnopf = attrappe();
+      diskussionAktionenFeld = attrappe();
+      zustand = {{ diskussion: null, wechsel: null, mithoerenZiel: ziel }};
+      zeigeDiskussionModus();
+      return diskussionKnopf.textContent;
+    }}
+    console.log(JSON.stringify({{
+      brainstorm: lauf('brainstorm'),
+      diskussion: lauf('diskussion')
+    }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnis = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnis["brainstorm"] == "AN_COTHINKER"
+    assert ergebnis["diskussion"] == "AN"
+
+
+def test_diskussion_an_cothinker_text_kommt_englisch_ueber_t(monkeypatch):
+    """Wie ``test_diskussion_gesperrt_text_kommt_englisch_ueber_t``: der
+    neue Knopftext geht ueber ``T``, nicht als Literal im JS."""
+    from interview_theater import sprache
+
+    assert "diskussion_an_cothinker" in web_chat._JS_TEXTE
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    texte = json.loads(re.search(r"var TEXT = (\{.*?\});\n", web_chat._js()).group(1))
+    assert texte["diskussion_an_cothinker"] == "Start Listening for CoThinker"
+    assert texte["diskussion_an"] == "Start listening"
 
 
 # -- UX-Knoepfe-Karte, Abschnitt 1: Knoepfe als Abkuerzungen ---------------

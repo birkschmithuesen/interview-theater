@@ -13,7 +13,9 @@ betroffen.
 
 import pytest
 
-from interview_theater import entwurf, phasen, repo, schaerfung, szene, szenenkarte, workshop
+from interview_theater import entwurf, kontext, phasen, repo, schaerfung, szene, szenenkarte, workshop
+
+from test_kontext_mitgehoert import _segmente
 
 
 @pytest.fixture(autouse=True)
@@ -127,6 +129,63 @@ def test_szenenkarte_baue_nutzertext_nutzt_p5_gespraech_block(conn, monkeypatch)
 # ---------------------------------------------------------------------------
 # Dortmund/Vorgabe: der Profilschalter wirkt dort nie
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# kontext._baue_mitgehoert: Diskussion (Phase 1) und Brainstorm (Phase 4)
+# ---------------------------------------------------------------------------
+
+
+def test_mitgehoert_bleibt_rohdump_waehrend_diskussion_noch_laeuft(conn, monkeypatch):
+    monkeypatch.setattr(workshop, "phasen_summary_aktiv", lambda *a, **k: True)
+    _segmente(conn)
+    repo.setze_phase(conn, 1, 1)
+    repo.speichere_phasen_summary(conn, 1, 1, "Decided: home means staying.")
+
+    text = kontext._baue_mitgehoert(conn, 1)
+
+    assert "Heimat ist fuer mich der Ort" in text
+    assert "Decided: home means staying." not in text
+
+
+def test_mitgehoert_nutzt_summary_nach_abgeschlossener_diskussion(conn, monkeypatch):
+    monkeypatch.setattr(workshop, "phasen_summary_aktiv", lambda *a, **k: True)
+    _segmente(conn)
+    repo.setze_phase(conn, 1, 2)
+    repo.speichere_phasen_summary(conn, 1, 1, "Decided: home means staying.")
+
+    text = kontext._baue_mitgehoert(conn, 1)
+
+    assert "Decided: home means staying." in text
+    assert "Heimat ist fuer mich der Ort" not in text
+
+
+def test_mitgehoert_behandelt_diskussion_und_brainstorm_unabhaengig(conn, monkeypatch):
+    """Diskussion (Phase 1) ist abgeschlossen und hat ein Summary, Brainstorm
+    (Phase 4) laeuft noch -- nur die Diskussion wird ersetzt."""
+    monkeypatch.setattr(workshop, "phasen_summary_aktiv", lambda *a, **k: True)
+    _segmente(conn)
+    _segmente(conn, brainstorm=True)
+    repo.setze_phase(conn, 1, 4)
+    repo.speichere_phasen_summary(conn, 1, 1, "Decided: home means staying.")
+
+    text = kontext._baue_mitgehoert(conn, 1)
+
+    assert "[Diskussion] Decided: home means staying." in text
+    assert "[Diskussion] Heimat ist fuer mich der Ort" not in text
+    assert "[Brainstorm] Es ist alles so furchtbar kompliziert." in text
+
+
+def test_mitgehoert_bleibt_rohdump_ohne_profilschalter(conn, monkeypatch):
+    monkeypatch.setattr(workshop, "phasen_summary_aktiv", lambda *a, **k: False)
+    _segmente(conn)
+    repo.setze_phase(conn, 1, 2)
+    repo.speichere_phasen_summary(conn, 1, 1, "Decided: home means staying.")
+
+    text = kontext._baue_mitgehoert(conn, 1)
+
+    assert "Heimat ist fuer mich der Ort" in text
+    assert "Decided: home means staying." not in text
 
 
 def test_dortmund_pfad_bleibt_unberuehrt_auch_mit_gespeichertem_summary(conn, monkeypatch):

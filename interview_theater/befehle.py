@@ -703,6 +703,139 @@ def schliesse_offenes_interview_vor_phasenwechsel(
         )
 
 
+#: Padua, Phase-5-Gate (07.10.2026): Hinweiszeile vor der Werkbank-
+#: Uebersicht, danach die Knoepfe "Alles richtig" - "Etwas aendern".
+_TEXT_P5_CHECK_HINWEIS = (
+    "Bevor wir mit dem Textentwurf starten: ein letzter Check, was feststeht."
+)
+#: Fett statt GROSSSCHRIFT als Kopfzeile (Karte t_cc147548, 07.10.2026: seit
+#: ``telegram.leichtes_markdown``/``web_chat.sichere_html`` rendern beide
+#: Kanaele ``**fett**`` echt, roh angezeigte Sternchen sind seitdem kein
+#: Grund mehr fuer die GROSSSCHRIFT-Behelfsloesung).
+_TEXT_P5_UEBERSICHT_SETTING = "**Rahmen**"
+_TEXT_P5_UEBERSICHT_FIGUREN = "**Figuren**"
+_TEXT_P5_UEBERSICHT_FIGURENZEILE = "• {name} - {beschreibung}"
+_TEXT_P5_UEBERSICHT_GESCHICHTE = "**Geschichte**"
+_TEXT_P5_UEBERSICHT_SZENEN = "**Szenen**"
+_TEXT_P5_UEBERSICHT_SZENENANZAHL = "{anzahl} Szenen geplant."
+_TEXT_P5_UEBERSICHT_FESTLEGUNGEN = "**Weitere Festlegungen**"
+_TEXT_P5_UEBERSICHT_LEER = "noch nichts festgelegt"
+_TEXT_P5_UEBERSICHT_SCHLUSS = (
+    "Ist das endgueltig? Wenn etwas falsch oder unvollstaendig ist, sagt es "
+    "mir jetzt, ich aendere es."
+)
+
+#: Padua, Phase-5-Gate (07.10.2026): die Phase, vor deren Betreten die
+#: Werkbank-Uebersicht einmal bestaetigt werden muss (``workshop.p5_check_aktiv``).
+P5_CHECK_ZIEL = 5
+
+
+def _p5_check_bestaetigt(conn, chat_id: int) -> bool:
+    """Steht die Bestaetigung der Werkbank-Uebersicht schon?"""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    return bool(stand and (stand["p5_check_bestaetigt_am"] or "").strip())
+
+
+def p5_check_noetig(conn, chat_id: int, nummer: int) -> bool:
+    """True, wenn ein Sprung auf Phase ``nummer`` zuerst die Werkbank-
+    Uebersicht zeigen muss, statt die Phase sofort zu setzen (Padua,
+    Phase-5-Gate, 07.10.2026): die Gruppe hat in Phase 4 Setting, Figuren,
+    Geschichte und Szenenfolge festgelegt, und falsche Eintraege praegen
+    alles, was danach kommt (Prosa, Dramaturgie, Textbuch).
+
+    Nur fuer Phase 5 selbst -- ein Ruecksprung oder ein Sprung auf eine
+    andere Phase ist nie betroffen -- und nur mit dem Profilschalter: ohne
+    ihn (Dortmund) bleibt jeder Phasenwechsel unveraendert."""
+    if nummer != P5_CHECK_ZIEL:
+        return False
+    from interview_theater import workshop
+
+    if not workshop.p5_check_aktiv():
+        return False
+    return not _p5_check_bestaetigt(conn, chat_id)
+
+
+def _baue_p5_uebersicht(conn, chat_id: int) -> str:
+    """Die Werkbank-Uebersicht vor Phase 5, deterministisch aus der
+    Datenbank (kein Modellaufruf): Setting, Figuren, Geschichte, Szenen und
+    weitere Festlegungen -- dieselben Daten, aus denen auch ``/stand`` und
+    ``phasen.voraussetzungen`` lesen."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    zeilen = [T._TEXT_P5_UEBERSICHT_SETTING]
+    rahmen = ((stand["rahmen"] if stand else None) or "").strip()
+    zeilen.append(rahmen or T._TEXT_P5_UEBERSICHT_LEER)
+    zeilen.append("")
+
+    zeilen.append(T._TEXT_P5_UEBERSICHT_FIGUREN)
+    figuren = repo.figuren(conn, chat_id)
+    if figuren:
+        for figur in figuren:
+            beschreibung = (figur["beschreibung"] or "").strip()
+            zeilen.append(
+                T._TEXT_P5_UEBERSICHT_FIGURENZEILE.format(
+                    name=figur["name"], beschreibung=beschreibung,
+                ) if beschreibung else f"• {figur['name']}"
+            )
+    else:
+        zeilen.append(T._TEXT_P5_UEBERSICHT_LEER)
+    zeilen.append("")
+
+    zeilen.append(T._TEXT_P5_UEBERSICHT_GESCHICHTE)
+    geschichte = ((stand["geschichte"] if stand else None) or "").strip()
+    zeilen.append(geschichte or T._TEXT_P5_UEBERSICHT_LEER)
+    zeilen.append("")
+
+    zeilen.append(T._TEXT_P5_UEBERSICHT_SZENEN)
+    szenen = repo.hole_szenen(conn, chat_id)
+    if szenen:
+        for eine_szene in szenen:
+            titel = (eine_szene["titel"] or "").strip()
+            zeilen.append(
+                f"{eine_szene['nummer']}. {titel}" if titel
+                else str(eine_szene["nummer"])
+            )
+    else:
+        anzahl = ((stand["szenen_anzahl"] if stand else None) or "").strip()
+        zeilen.append(
+            T._TEXT_P5_UEBERSICHT_SZENENANZAHL.format(anzahl=anzahl)
+            if anzahl else T._TEXT_P5_UEBERSICHT_LEER
+        )
+    zeilen.append("")
+
+    festlegungen = repo.festlegungen(conn, chat_id)
+    if festlegungen:
+        zeilen.append(T._TEXT_P5_UEBERSICHT_FESTLEGUNGEN)
+        zeilen.extend(
+            repo.festlegungszeile(z["bereich"], z["bezug"], z["text"])
+            for z in festlegungen
+        )
+        zeilen.append("")
+
+    zeilen.append(T._TEXT_P5_UEBERSICHT_SCHLUSS)
+    return "\n".join(zeilen)
+
+
+def zeige_p5_check(conn, tg, chat_id: int) -> None:
+    """Schickt den Hinweis, die Werkbank-Uebersicht und die zwei Knoepfe des
+    Phase-5-Gates (Padua)."""
+    tg.sende(chat_id, T._TEXT_P5_CHECK_HINWEIS)
+    knoepfe.biete_p5_check(conn, tg, chat_id, _baue_p5_uebersicht(conn, chat_id))
+
+
+def p5_gate(conn, tg, chat_id: int, nummer: int) -> bool:
+    """Der EINE Phase-5-Check (Padua, Phase-5-Gate): blockiert einen Sprung
+    auf Phase 5, solange die Werkbank nicht bestaetigt ist, und zeigt dann
+    die Uebersicht. Liefert True, wenn blockiert wurde -- jeder der vier
+    Wege, auf denen die Phase gesetzt wird (``wechsle_phase``,
+    ``erkenner._wende_phase_an``, der Knopf "Weiter zu Phase N" und "Ja,
+    speichern"), ruft diese Funktion zuerst und darf dann NICHT weiter
+    umschalten."""
+    if not p5_check_noetig(conn, chat_id, nummer):
+        return False
+    zeige_p5_check(conn, tg, chat_id)
+    return True
+
+
 def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
                   quelle: str = "befehl") -> None:
     """Die Phase umschalten -- der EINE Weg fuer Befehl und Klick
@@ -726,7 +859,13 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
     (Diskussion/Brainstorm) soll nie wieder von einem verwaisten
     Phase-3-Interviewflag abhaengen. In ``try/except``, damit ein
     Fehlschlag dort nie den eigentlichen Phasenwechsel blockiert (derselbe
-    Rahmen wie ``knoepfe.eintritt_in_phase`` zwei Zeilen weiter unten)."""
+    Rahmen wie ``knoepfe.eintritt_in_phase`` zwei Zeilen weiter unten).
+
+    Phase-5-Gate (Padua, 07.10.2026): zuerst geprueft, vor dem Schliessen
+    eines offenen Interviews -- ein blockierter Sprung soll nichts anderes
+    auf dem Weg mit sich ziehen."""
+    if p5_gate(conn, tg, chat_id, nummer):
+        return
     schliesse_offenes_interview_vor_phasenwechsel(conn, tg, klm, e, chat_id, nummer)
     phasen.setze(conn, chat_id, nummer, quelle)
     tg.sende(chat_id, phasen.meldung(nummer))

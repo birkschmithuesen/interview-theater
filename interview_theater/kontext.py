@@ -1051,6 +1051,18 @@ _PHASENHINWEIS = (
     "nicht selbst um; das tut die Antwort der Gruppe."
 )
 
+#: Padua, Phase-5-Gate (07.10.2026): tritt an die Stelle von
+#: ``_PHASENHINWEIS``, solange die Werkbank-Uebersicht vor Phase 5 noch
+#: nicht bestaetigt ist (``befehle.p5_check_noetig``) -- die Gruppe soll in
+#: genau diesem Moment Korrekturen machen koennen, statt erneut gefragt zu
+#: werden, ob sie weiter will.
+_P5_CHECK_GESPRAECHSHINWEIS = (
+    "Die Gruppe prueft gerade zum letzten Mal die Werkbank vor dem "
+    "Uebergang zu Phase 5. Hilf ihr, falsche oder fehlende Eintraege zu "
+    "korrigieren; zeig nach einer Aenderung den korrigierten Eintrag und "
+    "frag, ob jetzt alles passt."
+)
+
 
 def _baue_phasenhinweis(conn, chat_id: int) -> str:
     """Der Hinweis auf eine moegliche naechste Phase -- hoechstens einmal je
@@ -1072,8 +1084,22 @@ def _baue_phasenhinweis(conn, chat_id: int) -> str:
     Kein Merkposten wird hier gesetzt: ``offenes_angebot`` bleibt
     unverbraucht, falls ein anderer Kanal (``knoepfe.biete_phase_proaktiv``)
     das Angebot ausspricht."""
-    if phasen.aktuelle(conn, chat_id) == 1:
+    jetzige = phasen.aktuelle(conn, chat_id)
+    if jetzige == 1:
         return ""
+    # Phase-5-Gate (Padua, 07.10.2026): solange die Werkbank-Uebersicht vor
+    # Phase 5 ansteht, bekommt das Gespraech den Korrektur-Hinweis statt der
+    # gewoehnlichen Phasenfrage -- sonst fragte der Bot "wollt ihr weiter?",
+    # waehrend der Knopfdruck dafuer laengst gesperrt ist. Import erst hier:
+    # ``befehle`` liegt in der Oberflaeche ueber ``kontext`` (Fachlogik),
+    # derselbe Rahmen wie ``from interview_theater import befehle`` in
+    # ``erkenner.py``.
+    if jetzige < 5:
+        from interview_theater import befehle
+
+        if (befehle.p5_check_noetig(conn, chat_id, 5)
+                and phasen.voraussetzungen(conn, chat_id).get(5)):
+            return T._P5_CHECK_GESPRAECHSHINWEIS
     stufe = phasen.offenes_angebot(conn, chat_id)
     if stufe is None:
         return ""

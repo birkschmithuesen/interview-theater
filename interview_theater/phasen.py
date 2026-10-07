@@ -192,6 +192,18 @@ def setze(conn, chat_id: int, nummer: int, quelle: str, notiz: str | None = None
     if repo.hole_phase(conn, chat_id) == nummer:
         return False
     repo.setze_phase(conn, chat_id, nummer)
+    if nummer < 5:
+        # Padua, Phase-5-Gate (07.10.2026): ein Ruecksprung unter Phase 5
+        # verbraucht eine vorhandene Bestaetigung der Werkbank-Uebersicht --
+        # beim naechsten Vorwaertssprung wird sie wieder gezeigt (einfache
+        # Regel statt eines Sonderfalls je Phase). Nur gelesen und
+        # geschrieben, wenn wirklich etwas steht: sonst wuerde jeder
+        # Phasenwechsel -- auch unter Dortmund, das dieses Feld nie setzt --
+        # ``arbeitsstand.geaendert_am`` anfassen und ``neues_material_seit``
+        # verfaelschen.
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        if stand and (stand["p5_check_bestaetigt_am"] or "").strip():
+            repo.setze_arbeitsstand(conn, chat_id, "p5_check_bestaetigt_am", None)
     text = f"Phase {bezeichnung(nummer)}"
     if notiz:
         text = f"{text} ({notiz})"

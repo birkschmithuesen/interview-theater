@@ -196,6 +196,12 @@ aktiv = true
 [fragen_ab]
 aktiv = true
 
+# Phase-5-Gate (07.10.2026, Birk): vor dem Sprung nach Phase 5 (Prose Draft)
+# zeigt der Bot einmal die ganze Werkbank zur Bestaetigung
+# (workshop.p5_check_aktiv, befehle.py).
+[p5_check]
+aktiv = true
+
 # "Suggest questions" erst ab fuenf eigenen Fragen der Gruppe (Birk,
 # 05.10.2026 14:05); darunter kein Knopf und kein Vergleich. Ohne die
 # Zeile: 0 (immer).

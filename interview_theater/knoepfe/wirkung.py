@@ -38,7 +38,8 @@ from interview_theater.knoepfe.texte import (
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_HILFE, ART_INTERVIEWS_FERTIG, ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT,
     ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
-    ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
+    ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_P5_CHECK_AENDERN, ART_P5_CHECK_OK,
+    ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
     ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_REDO, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
     ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_STELLE,
     ART_SCHAERFUNG_SZENE, ART_SCHLAG_VOR, ART_SPEICHERN, ART_STAND,
@@ -1328,12 +1329,15 @@ def _wirkung_noch_nicht(conn, d: Druck) -> str:
 def _wirkung_phase(conn, d: Druck) -> str:
     nummer = int(d.knopf["wert"])
     # Abnahme P3-4 A3 Nachtrag (06.10.2026): derselbe Waechter wie in
-    # ``befehle.wechsle_phase`` -- die Phasenleiste im Browser geht genau
-    # hier entlang (``/phaseklick``), nicht durch ``wechsle_phase``. Import
-    # erst hier: ein Modulimport oben waere ein Zyklus (derselbe Grund wie
-    # in ``_wirkung_aufnahme``).
+    # ``befehle.wechsle_phase``. Import erst hier: ein Modulimport oben
+    # waere ein Zyklus (derselbe Grund wie in ``_wirkung_aufnahme``).
     from interview_theater import befehle
 
+    # Phase-5-Gate (Padua, 07.10.2026): zuerst geprueft -- ein Klick auf
+    # "Weiter zu Phase 5" zeigt die Werkbank-Uebersicht statt sofort
+    # umzuschalten, solange sie nicht bestaetigt ist.
+    if befehle.p5_gate(conn, d.tg, d.chat_id, nummer):
+        return T._ANTWORT_P5_CHECK_NOETIG
     befehle.schliesse_offenes_interview_vor_phasenwechsel(
         conn, d.tg, d.klm, d.e, d.chat_id, nummer)
     if phasen.setze(conn, d.chat_id, nummer, "knopf"):
@@ -1343,6 +1347,31 @@ def _wirkung_phase(conn, d: Druck) -> str:
     # dieser Phase.
     eintritt_in_phase(conn, d.tg, d.klm, d.e, d.chat_id, nummer)
     return T._ANTWORT_PHASE.format(nummer=nummer)
+
+
+def _wirkung_p5_check_ok(conn, d: Druck) -> str:
+    """"Alles richtig" im Phase-5-Gate (Padua, 07.10.2026): die Werkbank-
+    Uebersicht ist bestaetigt, dann startet Phase 5 -- derselbe Weg wie
+    jeder andere Phasenwechsel (``befehle.wechsle_phase``), damit ein Klick
+    nie etwas anderes tut als ein Befehl."""
+    from interview_theater import befehle
+
+    repo.setze_arbeitsstand(
+        conn, d.chat_id, "p5_check_bestaetigt_am", repo._jetzt())
+    repo.schreibe_journal(
+        conn, d.chat_id, "entschieden", T._JOURNAL_P5_CHECK_BESTAETIGT,
+        quelle="knopf",
+    )
+    befehle.wechsle_phase(conn, d.tg, d.klm, d.e, d.chat_id, 5, quelle="knopf")
+    return T._ANTWORT_P5_CHECK_OK
+
+
+def _wirkung_p5_check_aendern(conn, d: Druck) -> str:
+    """"Etwas aendern" im Phase-5-Gate (Padua, 07.10.2026): die Gruppe
+    bleibt in Phase 4 und sagt im naechsten Satz, was zu korrigieren ist --
+    dasselbe freie Gespraech, das jede andere Korrektur in Phase 4 nimmt."""
+    d.tg.sende(d.chat_id, T._TEXT_P5_CHECK_AENDERN_FRAGE)
+    return T._ANTWORT_P5_CHECK_AENDERN
 
 
 def _wirkung_auswerten(conn, d: Druck) -> str:
@@ -1821,6 +1850,8 @@ _WIRKUNGEN = {
     ART_AUFNAHME: _wirkung_aufnahme,
     ART_NOCH_NICHT: _wirkung_noch_nicht,
     ART_PHASE: _wirkung_phase,
+    ART_P5_CHECK_OK: _wirkung_p5_check_ok,
+    ART_P5_CHECK_AENDERN: _wirkung_p5_check_aendern,
     ART_AUSWERTEN: _wirkung_auswerten,
     ART_ZUSAMMENFASSUNG: _wirkung_zusammenfassung,
     ART_TRANSKRIPT: _wirkung_transkript,

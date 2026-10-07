@@ -1022,6 +1022,17 @@ def fragen_ab_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("fragen_ab.aktiv", False))
 
 
+def p5_check_aktiv(profil: Profil | None = None) -> bool:
+    """Ob ein Sprung nach Phase 5 (Prose Draft) zuerst die Werkbank-
+    Uebersicht zur Bestaetigung zeigt (Padua, Phase-5-Gate, 07.10.2026).
+
+    Vorgabe false -- wie ``[fragen_ab] aktiv``: ohne diese Zeile im Profil
+    bleibt ein Phasenwechsel genau das, was er vorher war. Dortmund setzt die
+    Zeile nicht und bleibt unberuehrt."""
+    profil = profil or aktiv()
+    return bool(profil.wert("p5_check.aktiv", False))
+
+
 def fragen_eigene_min(profil: Profil | None = None) -> int:
     """Ab wie vielen eigenen Fragen der Knopf "Suggest questions" (und der
     Schluss "eigene Fragen fertig") in Phase 2 gilt (Padua, Birk 05.10.2026

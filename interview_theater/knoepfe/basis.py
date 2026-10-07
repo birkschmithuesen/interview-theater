@@ -18,6 +18,7 @@ from interview_theater import erkenner, nachspeichern, phasen, repo
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_BOARD_AENDERN, ART_BOARD_UEBERNEHMEN, ART_EIGENE, ART_KERNTHEMA, ART_PHASE,
+    ART_P5_CHECK_AENDERN, ART_P5_CHECK_OK,
     ART_REDO, ART_SPEICHERN, ART_UNDO,
     MAX_AUSWAHL, MAX_VORSCHLAEGE, MENUE_KNOPF_LAENGE, PRAEFIX, TRENNER,
     _AUSWAHLMARKER, _FELD_FUER, T, log,
@@ -109,6 +110,18 @@ def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
     beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.bezeichnung(nummer))
     _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))])
+
+
+def biete_p5_check(conn, tg, chat_id: int, text: str) -> None:
+    """Die zwei Knoepfe des Phase-5-Gates (Padua, 07.10.2026,
+    ``befehle.zeige_p5_check``): die Werkbank-Uebersicht ist richtig, oder
+    es soll noch etwas geaendert werden."""
+    ok_id = repo.lege_knopf_an(conn, chat_id, ART_P5_CHECK_OK, None)
+    aendern_id = repo.lege_knopf_an(conn, chat_id, ART_P5_CHECK_AENDERN, None)
+    _sende_knoepfe(conn, tg, chat_id, text, [
+        (T._TEXT_P5_CHECK_OK_KNOPF, _daten(ok_id)),
+        (T._TEXT_P5_CHECK_AENDERN_KNOPF, _daten(aendern_id)),
+    ])
 
 
 def _phasenknopf(conn, chat_id: int) -> tuple[str, str] | None:

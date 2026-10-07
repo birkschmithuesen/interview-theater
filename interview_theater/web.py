@@ -3923,17 +3923,25 @@ def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
             )
             zeilen.append(f'<dt>{_t(dt["figuren"])}</dt><dd><ul class="figuren">{figuren}</ul></dd>')
         if daten["szenen"]:
+            # Birk 07.10.2026 15:00: je Szene auch, was darin passiert --
+            # nur Titel sagte der Gruppe nicht, ob ihre Beschreibung
+            # gespeichert ist. Leere Beschreibung -> nur der Titel wie bisher.
             szenen = "".join(
-                "<li>{nr}. {titel}</li>".format(
+                "<li><b>{nr}. {titel}</b>{rest}</li>".format(
                     nr=_t("—" if s["nummer"] is None else str(s["nummer"])),
                     titel=_t(s.get("titel"), T._TEXT_OHNE_TITEL),
+                    rest=(f" — {_t((s.get('was_passiert') or s.get('kurzbeschreibung') or '').strip())}"
+                          if (s.get("was_passiert") or s.get("kurzbeschreibung") or "").strip() else ""),
                 )
                 for s in daten["szenen"]
             )
             zeilen.append(f"<dt>{_t(T._UEBERSCHRIFT_SZENEN)}</dt><dd><ul>{szenen}</ul></dd>")
         if any(zeilen):
             teile.append(f"<dl>{''.join(zeilen)}</dl>")
-        teile.append(_auch_vereinbart_html(daten, werkbank.get("szenen_anzahl")))
+        # Die Szenenzahl nur, solange es noch keine Szenen gibt -- sonst
+        # steht dieselbe Information doppelt (Birk 07.10.2026 15:00).
+        teile.append(_auch_vereinbart_html(
+            daten, None if daten["szenen"] else werkbank.get("szenen_anzahl")))
     elif nummer == 6:
         teile.append(_dramaturgie_html(daten.get("dramaturgie")))
     elif nummer == 7:

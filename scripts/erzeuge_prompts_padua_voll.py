@@ -113,8 +113,8 @@ SCOPE_P3_P4 = (
 #: nie (``zerlege`` findet ohne Kopfzeilen keine Abschnitte und wirft, bevor
 #: etwas gespeichert ist), ist also unabhaengig von der Stelle.
 SCOPE_P5_P7 = (
-    "08-gespraech-phase5", "21-schaerfung", "22-entwurf-uebersicht",
-    "23-sprachprofil", "24-kernzitate", "46-szenenkern", "47-szenenkarte", "48-szenenkarte-pruefung", "49-stagescript",
+    "08-gespraech-phase5", "21-schaerfung", "50-schaerfung-zusammenfassung",
+    "22-entwurf-uebersicht", "23-sprachprofil", "24-kernzitate", "46-szenenkern", "47-szenenkarte", "48-szenenkarte-pruefung", "49-stagescript",
     "40-recherche-fragen", "41-recherche-karte",
     "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
     "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
@@ -410,6 +410,12 @@ def _szenenfelder(conn, e, tg, klm, chats):
 def _schaerfung(conn, e, tg, klm, chats):
     from interview_theater import schaerfung
     _joine(schaerfung.starte(conn, tg, klm, e, chats[5]))
+    return None
+
+
+def _schaerfung_zusammenfassung(conn, e, tg, klm, chats):
+    from interview_theater import schaerfung
+    _joine(schaerfung.starte_zusammenfassung(conn, tg, klm, e, chats[5]))
     return None
 
 
@@ -709,6 +715,7 @@ TREIBER = {
     "20-szenenfelder": _szenenfelder,
     "08-gespraech-phase5": _gespraech(5),
     "21-schaerfung": _schaerfung,
+    "50-schaerfung-zusammenfassung": _schaerfung_zusammenfassung,
     "22-entwurf-uebersicht": _entwurf_uebersicht,
     "23-sprachprofil": _sprachprofil,
     "24-kernzitate": _kernzitate,

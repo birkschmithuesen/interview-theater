@@ -196,6 +196,7 @@ TEIL_P5_P7 = (
     "32-szene-rap", "34-stueckpruefung",
     "43-prueflauf-ueberarbeitung", "44-nachpass",
     "40-recherche-fragen", "41-recherche-karte",
+    "50-schaerfung-zusammenfassung",
 )
 
 

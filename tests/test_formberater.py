@@ -474,3 +474,39 @@ def test_zeilen_json_bleibt_lesbar(conn):
 def test_katalog_im_repo_entspricht_dem_ordner():
     ordner = pathlib.Path(formberater.__file__).parent / "formen"
     assert sorted(p.stem for p in ordner.glob("*.md")) == sorted(formberater.katalog())
+
+
+def test_takt_alle_5_beitraege_pflichtaufruf(monkeypatch):
+    """Birk 07.10.2026: nach TAKT_ZUEGE Gruppenbeitraegen seit dem letzten
+    Modellaufruf laeuft der Formberater auch ohne Stichwort."""
+    from interview_theater import formberater as f
+
+    gestartet = []
+    def _starte(*a, **k):
+        gestartet.append(a[5])
+        return object()
+    monkeypatch.setattr(f, "starte", _starte)
+    monkeypatch.setattr(f.time, "monotonic", lambda: 1000.0)
+    monkeypatch.setattr(f, "MIN_ABSTAND_S", 90.0)
+    monkeypatch.setattr(f.repo, "formberater_zeilen", lambda c, ch: [
+        {"ausloeser": "brainstorm", "erstellt_am": "2026-10-07T06:00:00+00:00", "formen": [], "signale": []}])
+    zaehler = {"n": 4}
+    monkeypatch.setattr(f.repo, "gruppentexte_seit", lambda c, ch, seit, n: ["x"] * min(n, zaehler["n"]))
+    monkeypatch.setattr(f.repo, "lege_formberater_an", lambda *a, **k: None)
+    f._zuletzt_gestartet.clear()
+    assert f.pruefe_zug(None, None, object(), None, 1, ["film statt live"], phase=4) is None
+    assert gestartet == []
+    zaehler["n"] = 5
+    assert f.pruefe_zug(None, None, object(), None, 1, ["film statt live"], phase=4) is not None
+    assert gestartet == [f.AUSLOESER_TAKT]
+    # Sperrzeit: direkt danach kein zweiter Takt
+    f.pruefe_zug(None, None, object(), None, 1, ["noch was"], phase=4)
+    assert gestartet == [f.AUSLOESER_TAKT]
+
+
+def test_takt_nicht_vor_phase_4(monkeypatch):
+    from interview_theater import formberater as f
+
+    monkeypatch.setattr(f, "starte", lambda *a, **k: (_ for _ in ()).throw(AssertionError("kein Aufruf")))
+    f._zuletzt_gestartet.clear()
+    assert f.pruefe_zug(None, None, object(), None, 1, ["random"], phase=3) is None

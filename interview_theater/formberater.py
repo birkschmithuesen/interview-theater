@@ -105,6 +105,14 @@ AUSLOESER_BRAINSTORM = "brainstorm"
 BRAINSTORM_ZEICHEN = 30_000
 BRAINSTORM_WARTEN_S = 45.0
 
+#: Birk 07.10.2026: zusaetzlich zum Stichwort-Treffer PFLICHT-Nachschlagen
+#: nach so vielen Gruppenbeitraegen seit dem letzten Modellaufruf -- faengt
+#: Richtungswechsel ohne neues Stichwort ("random, aber jetzt als Film").
+#: Zaehlt ab Phase 4 (auch in 5+, dort als Lazy Load). Im Hintergrund, wirkt
+#: ab dem naechsten Zug; MIN_ABSTAND_S gilt, MAX_LAUFEND nicht.
+AUSLOESER_TAKT = "takt"
+TAKT_ZUEGE = 5
+
 #: Wie viele Beitraege der Gruppe hoechstens in den Aufruf gehen, und wie
 #: viele Zeichen davon (das Juengste gewinnt).
 BEITRAEGE = 30
@@ -415,6 +423,25 @@ def kontextblock(conn, chat_id: int, phase: int | None = None) -> str:
 _zuletzt_gestartet: dict[int, float] = {}
 
 
+_MODELL_AUSLOESER = {"laufend", "einstieg", "brainstorm", "takt", "knopf"}
+
+
+def _takt_faellig(conn, chat_id: int) -> bool:
+    """Sind seit dem letzten Modellaufruf (oder dem Eintritt in Phase 4)
+    mindestens ``TAKT_ZUEGE`` Beitraege der Gruppe eingegangen?"""
+    zeilen = repo.formberater_zeilen(conn, chat_id)
+    seit = None
+    for z in reversed(zeilen):
+        if z["ausloeser"] in _MODELL_AUSLOESER:
+            seit = z["erstellt_am"]
+            break
+    if not seit:
+        seit = repo.phase_eintritt_am(conn, chat_id, PHASE_LAUFEND)
+    if not seit:
+        return False
+    return len(repo.gruppentexte_seit(conn, chat_id, seit, TAKT_ZUEGE)) >= TAKT_ZUEGE
+
+
 def ist_brainstorm(texte: list[str]) -> bool:
     """Steckt unter den neuen Beitraegen der bei "Discussion done"
     eingespeiste Brainstorm (``aufnahme._BRAINSTORM_EINSPEISUNG_PRAEFIX``)?"""
@@ -449,6 +476,23 @@ def pruefe_zug(conn, tg, klm, e, chat_id: int, texte: list[str],
                 log.warning("Formberater-Brainstorm ueber %ss, Antwort ohne ihn, chat_id=%s",
                             BRAINSTORM_WARTEN_S, chat_id)
             return faden
+    if klm is not None and _takt_faellig(conn, chat_id):
+        jetzt = time.monotonic()
+        vorher = _zuletzt_gestartet.get(chat_id)
+        if vorher is None or jetzt - vorher >= MIN_ABSTAND_S:
+            text = "\n".join(t for t in texte if t)
+            faden = starte(conn, tg, klm, e, chat_id, AUSLOESER_TAKT,
+                           signale=[s for s in treffer_signale(text)][:10])
+            if faden is not None:
+                _zuletzt_gestartet[chat_id] = jetzt
+                treffer = treffer_formen(text)
+                if treffer:
+                    geladen = set(geladene_formen(repo.formberater_zeilen(conn, chat_id)))
+                    neu = [slug for slug in treffer if slug not in geladen]
+                    if neu:
+                        repo.lege_formberater_an(conn, chat_id, AUSLOESER_STICHWORT, phase,
+                                                 neu, [treffer[s] for s in neu])
+                return faden
     text = "\n".join(t for t in texte if t)
     formen = treffer_formen(text)
     signale = treffer_signale(text) if phase == PHASE_LAUFEND else []

@@ -683,11 +683,21 @@ def test_nachunten_laeuft_bei_neu_oder_bei_geaenderter_letzter_blase():
     # gescrollt wird -- und sonst ``warUnten``, ob der Anker oben (gesetzt
     # von einem fruehen Phasenwechsel) ans Ende weiterbeweglich bleibt.
     # Der zweite Zweig (laufendes Transkript) ist davon unberuehrt.
+    #
+    # QUICKFIX Birk, 07.10.2026 (Testgruppe Padua, Phasensprung): der Sprung
+    # gilt nur beim allerersten Sehen dieser Phase auf diesem Geraet
+    # (``ersteOeffnungInPhase``) -- siehe
+    # ``test_web_chat_phasensprung_kein_erzwungener_sprung.py`` fuer die
+    # ausfuehrliche Begruendung.
     assert (
         "if (neu.length) {\n" in nimm
     )
     block = nimm[nimm.index("if (neu.length) {"):nimm.index("} else if ")]
-    assert "if (phasenwechsel) { scrolleZuPhasenanfang(); erzwingeNachUnten = false; }" in block
+    assert (
+        "if (phasenwechsel && ersteOeffnungInPhase(kalSpeicher(), "
+        "kalGruppeAus(location.pathname), phaseNeu)) { "
+        "scrolleZuPhasenanfang(); erzwingeNachUnten = false; }"
+    ) in block
     assert "else if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }" in block
     nach_else_if = nimm[nimm.index("} else if ") + len("} else if "):]
     bedingung = nach_else_if[:nach_else_if.index(") {")]

@@ -836,6 +836,23 @@ def p5_gate(conn, tg, chat_id: int, nummer: int) -> bool:
     return True
 
 
+def _schon_in_phase_gewesen(conn, chat_id: int, nummer: int) -> bool:
+    """True, wenn die Gruppe laut Journal schon einmal entschieden in Phase
+    ``nummer`` war -- unabhaengig vom gerade laufenden Wechsel (QUICKFIX
+    Birk, 07.10.2026, Testgruppe Padua chat_id 7000000000099: zwei Klicks in
+    der Phasenleiste auf schon besuchte Phasen loesten jedesmal die volle
+    Eintrittskarte samt Modellzug erneut aus).
+
+    Ein direkt per ``repo.setze_phase`` gesetzter Stand (Tests, Gruppenanlage)
+    schreibt kein Journal und zaehlt deshalb bewusst NICHT als 'schon
+    besucht' -- sonst bliebe die allererste Karte stumm."""
+    praefix = f"Phase {phasen.bezeichnung(nummer)}"
+    return any(
+        z["art"] == "entschieden" and (z["text"] or "").startswith(praefix)
+        for z in repo.journal(conn, chat_id)
+    )
+
+
 def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
                   quelle: str = "befehl") -> None:
     """Die Phase umschalten -- der EINE Weg fuer Befehl und Klick
@@ -854,12 +871,17 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
     Geantwortet wird immer, auch wenn die Phase schon stimmte; ins Journal
     geht der Eintrag nur bei einer echten Aenderung (``phasen.setze``).
 
+    QUICKFIX Birk, 07.10.2026: ein Sprung in eine schon besuchte Phase
+    (``_schon_in_phase_gewesen``) ist eine WIEDERHERSTELLUNG, keine neue
+    Ankunft -- nur die kurze Meldung, keine Eintrittskarte, kein Modellzug.
+    Der allererste Eintritt in eine Phase bleibt wie bisher.
+
     Abnahme P3-4 A3 (06.10.2026): ein Sprung auf Phase >= 4 beendet zuerst
     ein offenes Interview, falls eines laeuft -- Phase-4-Mechanik
     (Diskussion/Brainstorm) soll nie wieder von einem verwaisten
     Phase-3-Interviewflag abhaengen. In ``try/except``, damit ein
     Fehlschlag dort nie den eigentlichen Phasenwechsel blockiert (derselbe
-    Rahmen wie ``knoepfe.eintritt_in_phase`` zwei Zeilen weiter unten).
+    Rahmen wie ``knoepfe.eintritt_in_phase`` weiter unten).
 
     Phase-5-Gate (Padua, 07.10.2026): zuerst geprueft, vor dem Schliessen
     eines offenen Interviews -- ein blockierter Sprung soll nichts anderes
@@ -867,8 +889,11 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
     if p5_gate(conn, tg, chat_id, nummer):
         return
     schliesse_offenes_interview_vor_phasenwechsel(conn, tg, klm, e, chat_id, nummer)
+    wiederherstellung = _schon_in_phase_gewesen(conn, chat_id, nummer)
     phasen.setze(conn, chat_id, nummer, quelle)
     tg.sende(chat_id, phasen.meldung(nummer))
+    if wiederherstellung:
+        return
     # Derselbe Rahmen wie ueber den Knopf (06.09.2026): Kopfzeile,
     # Einleitung, Checkliste und die Einstiegsknoepfe dieser Phase.
     try:

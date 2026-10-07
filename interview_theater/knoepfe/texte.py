@@ -708,6 +708,7 @@ _TEXT_SZENE_UNBEKANNT = "Diese Szene kenne ich nicht mehr."
 
 #: Unter dem fertigen Szenentext.
 TEXT_NEIN_AENDERN_KNOPF = "Nein, aendern"
+_TEXT_UEBERSICHT_ANDERS_FRAGE = "Was soll anders werden? Schreibt es mir, ich baue es ein."
 TEXT_PASST_KNOPF = "Passt"
 TEXT_NEU_KNOPF = "Neu schreiben"
 TEXT_NAECHSTE_KNOPF = "Naechste Szene"

@@ -456,3 +456,21 @@ def test_stille_uebersicht_fixiert_und_sendet_eine_zeile(monkeypatch):
     assert gesetzt.get("geschichte_uebersicht_fixiert_am")
     assert len(gesendet) == 1 and "Four musicians" in gesendet[0]
     assert not sperre.locked()
+
+
+def test_padua_uebersicht_no_change_fragt_erst_nach_feedback(conn, tg, einst, monkeypatch):
+    """Birk 07.10.2026 ~18:15: nach "No, change" kommt die Frage nach Feedback,
+    KEIN sofortiger neuer Lauf; die naechste Nachricht ist die Notiz.
+    Mutant: Padua-Zweig weg -> starte_uebersicht sofort -> rot."""
+    from interview_theater import workshop
+    from interview_theater.knoepfe import szenen as knoepfe_szenen
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: True)
+    gestartet = []
+    monkeypatch.setattr(entwurf, "starte_uebersicht", lambda *a, **k: gestartet.append(k.get("notiz")))
+    knoepfe.biete_uebersicht(conn, tg, 1, "Logline: old one")
+    assert [b for b, _ in tg.knoepfe[-1][2]] == [knoepfe.T.TEXT_WEITER_KNOPF, knoepfe.T.TEXT_NEIN_AENDERN_KNOPF]
+    daten_anders = tg.knoepfe[-1][2][1][1]
+    assert knoepfe.behandle(conn, tg, object(), einst, _druck(daten_anders)) is True
+    assert gestartet == []
+    assert knoepfe.T._TEXT_UEBERSICHT_ANDERS_FRAGE in str(tg.gesendet[-1])
+    assert knoepfe_szenen.nimm_uebersicht_notiz(1) is True

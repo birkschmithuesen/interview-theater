@@ -1616,6 +1616,20 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     # nach "Etwas aendern" unter der fertigen Geschichte ist diese eine
     # Nachricht die Regie-Notiz -- sie geht als Anweisung in den
     # naechsten Lauf, nicht in den Gespraechszug.
+    # Uebersicht/Logline (Birk 07.10.2026 ~18:15): nach "No, change" ist
+    # die naechste Nachricht das Feedback fuer den neuen Lauf.
+    from interview_theater.knoepfe import szenen as _knoepfe_szenen
+
+    if _knoepfe_szenen.nimm_uebersicht_notiz(chat_id) and (
+        letzte_nachricht["text"] or ""
+    ).strip():
+        from interview_theater import entwurf
+
+        _merke_notiz_verbraucht(chat_id, letzte_nachricht)
+        entwurf.starte_uebersicht(conn, tg, klm, e, chat_id,
+                                  notiz=letzte_nachricht["text"].strip())
+        return True
+
     if knoepfe.nimm_geschichte_notiz(chat_id) and (
         letzte_nachricht["text"] or ""
     ).strip():

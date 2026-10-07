@@ -13,6 +13,7 @@ Pakets am Quelltext prueft statt am Verhalten.
 
 from typing import NamedTuple
 
+from interview_theater import workshop
 from interview_theater import phasen, repo, ruecknahme, sprache
 
 from interview_theater.knoepfe.texte import (
@@ -469,6 +470,15 @@ def _wirkung_uebersicht_anders(conn, d: Druck) -> str:
     sofort an einen eigenen Thread ab, wie jeder andere Vorschlagslauf."""
     from interview_theater import entwurf
 
+    if workshop.prosa_entwurf_aktiv():
+        # Birk 07.10.2026 ~18:15: "Immer wenn No, change gewaehlt wird, soll
+        # als naechstes eine freie Texteingabe als Feedback kommen" -- erst
+        # fragen, die naechste Nachricht geht als Notiz in den neuen Lauf.
+        from interview_theater.knoepfe import szenen as knoepfe_szenen
+
+        knoepfe_szenen.erwarte_uebersicht_notiz(d.chat_id)
+        d.tg.sende(d.chat_id, T._TEXT_UEBERSICHT_ANDERS_FRAGE)
+        return T._TEXT_UEBERSICHT_ANDERS_FRAGE
     entwurf.starte_uebersicht(conn, d.tg, d.klm, d.e, d.chat_id)
     return T._TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT
 

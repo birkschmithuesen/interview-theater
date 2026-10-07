@@ -1320,7 +1320,7 @@ def biete_uebersicht(conn, tg, chat_id: int, anzeige: str) -> int:
     ``ART_SZENE_PASST``/``ART_SZENE_ANDERS`` unter einem Szenentext."""
     leiste = [
         (T.TEXT_WEITER_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_PASST, ""))),
-        (T.TEXT_ANDERS_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_ANDERS, ""))),
+        (T.TEXT_NEIN_AENDERN_KNOPF if workshop.prosa_entwurf_aktiv() else T.TEXT_ANDERS_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_ANDERS, ""))),
     ]
     return _mit_leiste(conn, tg, chat_id, anzeige, leiste)
 
@@ -1860,6 +1860,21 @@ def nimm_geschichte_notiz(chat_id: int) -> bool:
     if chat_id not in _geschichte_notiz_erwartet:
         return False
     _geschichte_notiz_erwartet.discard(chat_id)
+    return True
+
+
+#: Dasselbe fuer die Uebersicht/Logline (Birk 07.10.2026 ~18:15).
+_uebersicht_notiz_erwartet: set[int] = set()
+
+
+def erwarte_uebersicht_notiz(chat_id: int) -> None:
+    _uebersicht_notiz_erwartet.add(chat_id)
+
+
+def nimm_uebersicht_notiz(chat_id: int) -> bool:
+    if chat_id not in _uebersicht_notiz_erwartet:
+        return False
+    _uebersicht_notiz_erwartet.discard(chat_id)
     return True
 
 

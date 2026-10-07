@@ -143,6 +143,56 @@ def test_wiederholte_antwort_wird_nicht_verschickt(conn):
     assert WIEDERHOLTER_TEXT not in [t for _, t in tg.gesendet]
 
 
+def test_wiederholung_nach_hinweiszeile_bleibt_nicht_unbeantwortet(conn, monkeypatch):
+    """Addendum Robo 14:41 (Live-Fund 07.10.2026): hat die Gruppe schon
+    "Einen Moment, ich denke nach" gesehen (der Zug dauerte lang), darf der
+    Wiederholungsfilter nicht mehr ersatzlos schweigen -- sonst bleibt genau
+    diese Hinweiszeile fuer immer die letzte (drei Anlaeufe in Folge stumm,
+    12:23/12:34/12:51 UTC). Eine kurze ehrliche Zeile schliesst den Zug ab."""
+    _lege_vorige_bot_nachricht_an(conn, WIEDERHOLTER_TEXT)
+
+    def _antwort_nach_hinweis(*_a, **kw):
+        kw["tippstand"]["hinweis_gesendet"] = True
+        return WIEDERHOLTER_TEXT
+
+    monkeypatch.setattr(ablauf, "_erfrage_antwort", _antwort_nach_hinweis)
+    tg, klm = _TG(), _KLM(WIEDERHOLTER_TEXT)
+    offen = [dict(n) for n in repo.unbeantwortete(conn, 1)]
+
+    ablauf.antworte(conn, tg, klm, _E(), 1, offen)
+
+    gesendet = [t for _, t in tg.gesendet]
+    assert WIEDERHOLTER_TEXT not in gesendet, "die Wiederholung selbst geht weiterhin nicht raus"
+    assert ablauf.T._TEXT_FEHLER in gesendet, "aber die Gruppe bleibt nicht unbeantwortet"
+    arten = [
+        z["art"] for z in conn.execute("select art from vorfall where chat_id=1")
+    ]
+    assert "wiederholung_verworfen" in arten
+    assert "gespraechszug_fehlgeschlagen" not in arten, (
+        "die Ersatzzeile muss ueber den Wiederholungs-Pfad kommen, nicht "
+        "ueber den allgemeinen Fehlerpfad"
+    )
+
+
+def test_wiederholung_ohne_hinweiszeile_bleibt_stumm(conn, monkeypatch):
+    """Die Gegenprobe: lief der Zug schnell genug, dass die Hinweiszeile nie
+    kam, bleibt das bisherige Verhalten (ersatzloses Schweigen) unveraendert
+    -- E1 fuer den Regelfall."""
+    _lege_vorige_bot_nachricht_an(conn, WIEDERHOLTER_TEXT)
+
+    def _antwort_ohne_hinweis(*_a, **kw):
+        assert kw["tippstand"]["hinweis_gesendet"] is False
+        return WIEDERHOLTER_TEXT
+
+    monkeypatch.setattr(ablauf, "_erfrage_antwort", _antwort_ohne_hinweis)
+    tg, klm = _TG(), _KLM(WIEDERHOLTER_TEXT)
+    offen = [dict(n) for n in repo.unbeantwortete(conn, 1)]
+
+    ablauf.antworte(conn, tg, klm, _E(), 1, offen)
+
+    assert tg.gesendet == []
+
+
 def test_verworfene_wiederholung_wird_als_vorfall_vermerkt(conn):
     """Fuers Dashboard: der Filter arbeitet sichtbar, nicht heimlich."""
     _lege_vorige_bot_nachricht_an(conn, WIEDERHOLTER_TEXT)

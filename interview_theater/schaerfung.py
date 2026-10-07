@@ -84,7 +84,7 @@ PARALLEL_AUFRUFE = 6
 #: nie weniger). Ohne diese Grenze griff ``szene_claude.WARTEZEITEN`` (3
 #: Wiederholungen) mit dem alten 60-s-Vorgabewert und liess einen
 #: gescheiterten Aufruf bis zu 283 s dauern.
-CLAUDE_TIMEOUT_S = 120.0
+CLAUDE_TIMEOUT_S = 180.0  # 07.10.2026: +Festlegungen/Diskussion (~150k Zeichen je Ziel)
 CLAUDE_WARTEZEITEN = (10.0,)
 
 #: Wie viele Woerter eines Zitats in die Materialzeile EINES Ziel-Aufrufs
@@ -270,6 +270,35 @@ def _hintergrund_zeilen(conn, chat_id: int) -> list[str]:
             zeilen.append(T._HINTERGRUND_KERNTHEMA.format(text=stand["kernthema"].strip()))
         if "begriffe" in stand.keys() and (stand["begriffe"] or "").strip():
             zeilen.append(T._HINTERGRUND_BEGRIFFE.format(text=stand["begriffe"].strip()))
+    zeilen.extend(_hintergrund_voll_zeilen(conn, chat_id, stand))
+    return zeilen
+
+
+def _hintergrund_voll_zeilen(conn, chat_id: int, stand) -> list[str]:
+    """Birk 07.10.2026 14:45 ("der Matcher braucht genug Kontext, z. B. die
+    Diskussion"): unter ``workshop.vollmaterial_phase5_aktiv`` (Padua) bekommt
+    jeder Je-Ziel-Aufruf zusaetzlich die Festlegungen, die Geschichts-
+    Uebersicht und den vollen Mitgehoert-Wortlaut (Diskussion Phase 1,
+    Brainstorm Phase 4) -- derselbe Baustein wie der Phase-5-Chat
+    (``kontext._baue_mitgehoert(voll=True)``). Ohne Schalter (Dortmund) leer."""
+    from interview_theater import kontext, workshop
+
+    if not workshop.vollmaterial_phase5_aktiv():
+        return []
+    zeilen: list[str] = []
+    festlegungen = [
+        repo.festlegungszeile(f["bereich"], f["bezug"], f["text"])
+        for f in repo.festlegungen(conn, chat_id)
+    ]
+    if festlegungen:
+        zeilen.append(T._HINTERGRUND_FESTLEGUNGEN.format(text="\n".join(festlegungen)))
+    if stand is not None:
+        for feld in ("geschichte_uebersicht", "figuren_entwurf"):
+            if feld in stand.keys() and (stand[feld] or "").strip():
+                zeilen.append(T._HINTERGRUND_UEBERSICHT.format(text=stand[feld].strip()))
+    mitgehoert = kontext._baue_mitgehoert(conn, chat_id, voll=True)
+    if mitgehoert and mitgehoert.strip():
+        zeilen.append(T._HINTERGRUND_MITGEHOERT.format(text=mitgehoert.strip()))
     return zeilen
 
 
@@ -347,6 +376,9 @@ _ZEILE_EINTRAG = '[{nummer}] {interview} | Thema: {thema} | Zitat: "{zitat}"'
 _HINTERGRUND_DISKUSSION = "\nHintergrund -- Verdichtung der Diskussion aus Phase 1:\n{text}"
 _HINTERGRUND_KERNTHEMA = "\nHintergrund -- Kernthema der Gruppe:\n{text}"
 _HINTERGRUND_BEGRIFFE = "\nHintergrund -- Begriffe aus Phase 1:\n{text}"
+_HINTERGRUND_FESTLEGUNGEN = "\nHintergrund -- Festlegungen der Gruppe:\n{text}"
+_HINTERGRUND_UEBERSICHT = "\nHintergrund -- Uebersicht der Gruppe:\n{text}"
+_HINTERGRUND_MITGEHOERT = "\nHintergrund -- was die Gruppe besprochen hat (Wortlaut, Diskussion und Brainstorm):\n{text}"
 _ZIEL_ZEILE = "Ziel -- ordne NUR fuer dieses eine Ziel zu: {beschreibung}"
 _ZIEL_FIGUR_LABEL = "Figur {name}"
 

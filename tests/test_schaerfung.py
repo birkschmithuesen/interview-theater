@@ -670,3 +670,24 @@ def test_entwurf_startet_nur_mit_aktivem_profilschalter(lage, tg, einst, monkeyp
     )
 
     assert aufgerufen == [True]
+
+
+def test_matcher_hintergrund_voll_nur_mit_profilschalter(monkeypatch):
+    """Birk 07.10.2026 14:45: unter ``vollmaterial_phase5`` bekommt jeder
+    Je-Ziel-Aufruf Festlegungen, Uebersicht und den vollen Mitgehoert-Block;
+    ohne Schalter nichts davon. Mutant: Schalter ignoriert -> zweiter Teil rot."""
+    from interview_theater import kontext, repo, schaerfung, workshop
+    monkeypatch.setattr(repo, "festlegungen", lambda conn, chat_id: [
+        {"bereich": "struktur", "bezug": None, "text": "three parts"}])
+    monkeypatch.setattr(repo, "festlegungszeile", lambda b, z, t: f"[{b}] {t}")
+    monkeypatch.setattr(kontext, "_baue_mitgehoert", lambda conn, chat_id, voll=False: "BRAINSTORM WORTLAUT")
+    stand = _Stand({"geschichte_uebersicht": "Logline: X", "figuren_entwurf": ""})
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: True)
+    text = "\n".join(schaerfung._hintergrund_voll_zeilen(None, 1, stand))
+    assert "three parts" in text and "Logline: X" in text and "BRAINSTORM WORTLAUT" in text
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: False)
+    assert schaerfung._hintergrund_voll_zeilen(None, 1, stand) == []
+
+
+class _Stand(dict):
+    pass

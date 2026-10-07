@@ -173,18 +173,22 @@ def test_chat_abnahme_des_ganzen_nimmt_die_leiste_ab(
     _stueck(conn, 6, gesamt_fix=False, ueberarbeitet=False)
     monkeypatch.setattr(ueberarbeitung, "weiter_6", lambda *a, **k: None)
     message_id = knoepfe.zeige_geprueft_geschichte(conn, tg, einst, 1, None)
-    assert len(_offen(conn, message_id)) == 4
-    kuerzen = _knopf_der_art(conn, tg, knoepfe.ART_GESCHICHTE_KUERZEN)
+    # Padua seit bc19d0a (Birk 07.10.2026 ~17:15): nur "Yes, save" und
+    # "No, change" -- kein "Kuerzer", kein "Erste Fassung zeigen" mehr.
+    assert len(_offen(conn, message_id)) == 2
+    nein = _knopf_der_art(conn, tg, knoepfe.ART_GESCHICHTE_ANDERS)
 
     ueberarbeitung.nimm_ab(conn, tg, None, einst, 1)
 
     assert ueberarbeitung.gesamttext_fixiert(conn, 1)
     assert (1, message_id) in tg.entfernt
     assert _offen(conn, message_id) == []
-    # Ein liegengebliebenes "Kuerzer" unter dem schon fixierten Ganzen
-    # schreibt es nicht mehr um.
-    monkeypatch.setattr(kuerzung, "starte", lambda *a, **k: pytest.fail("kuerzung"))
-    knoepfe.behandle(conn, tg, None, einst, _druck(kuerzen, query_id="alt"))
+    # Ein liegengebliebenes "No, change" unter dem schon fixierten Ganzen
+    # oeffnet es nicht wieder fuer eine Regie-Notiz.
+    from interview_theater.knoepfe import wirkung
+    monkeypatch.setattr(wirkung, "erwarte_geschichte_notiz",
+                        lambda *a, **k: pytest.fail("erwarte_geschichte_notiz"))
+    knoepfe.behandle(conn, tg, None, einst, _druck(nein, query_id="alt"))
     assert tg.beantwortet[-1][1] == knoepfe.T._TEXT_SCHON_BENUTZT
 
 
@@ -240,7 +244,8 @@ def test_chat_abnahme_im_besetzten_lauf_laesst_die_leiste_stehen(
 
     assert antwort == ueberarbeitung.T._TEXT_LAEUFT_NOCH
     assert (1, message_id) not in tg.entfernt
-    assert len(_offen(conn, message_id)) == 4
+    # Padua seit bc19d0a: die Leiste ist "Yes, save" / "No, change".
+    assert len(_offen(conn, message_id)) == 2
 
 
 def test_chat_abnahme_der_uebersicht_in_phase_5_nimmt_die_leiste_ab(

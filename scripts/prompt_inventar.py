@@ -169,8 +169,12 @@ INVENTAR = (
                   "sich art='recherche', der Treiber ruft beide Funktionen "
                   "mit je eigenem System-/Nutzertext (recherche.py:149,264)."),
     # --- Phase 5
+    # Seit dem Umbau auf Je-Ziel-Aufrufe (07.10.2026) ist ``art`` eine lokale
+    # Variable (f"{ART}_{ziel['art']}_{ziel['id']}", schaerfung.py
+    # ``_mappe_ziel``), kein Modul-Literal mehr -- der Scanner liest nur den
+    # Quelltext, also steht hier "art" (die Variable), nicht "ART".
     Eintrag("21-schaerfung", "schaerfung", 5,
-            "interview_theater.schaerfung", "ART"),
+            "interview_theater.schaerfung", "art"),
     Eintrag("22-entwurf-uebersicht", "entwurf_uebersicht", 5,
             "interview_theater.entwurf", "ART_UEBERSICHT"),
     Eintrag("23-sprachprofil", "sprachprofil", 5,

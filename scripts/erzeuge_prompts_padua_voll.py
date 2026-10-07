@@ -669,7 +669,16 @@ def treibe(conn, e, tg, klm, chats, eintrag):
         raise TreiberFehler(f"kein Treiber fuer {eintrag.datei}")
     vorher = len(klm.aufrufe)
     umriss = treiber(conn, e, tg, klm, chats)
-    neu = [a for a in klm.aufrufe[vorher:] if a.art == eintrag.art]
+    # ``startswith(eintrag.art + "_")`` zusaetzlich zur Gleichheit: die
+    # Schaerfung (Umbau 07.10.2026, Je-Ziel-Aufrufe) bucht nicht mehr unter
+    # dem blossen "schaerfung", sondern je Ziel unter
+    # "schaerfung_<art>_<id>" -- derselbe Dump-Zweck, nur mehrere Aufrufe
+    # statt einem; der erste repraesentiert den Dump.
+    praefix = eintrag.art + "_"
+    neu = [
+        a for a in klm.aufrufe[vorher:]
+        if a.art == eintrag.art or a.art.startswith(praefix)
+    ]
     if not neu:
         gesehen = sorted({a.art for a in klm.aufrufe[vorher:]})
         raise TreiberFehler(

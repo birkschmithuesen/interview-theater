@@ -926,18 +926,21 @@ def test_szene_form_unbekanntes_wort_bleibt_roher_text(conn, einst, tg):
     assert szenen[2]["form"] == "Bewegungsszene"
 
 
-def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_19():
+def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_20():
     # Pflichtpunkt 2, Fix 1 von 2 (04.10.2026): "/start" kam als 17. Eintrag
     # dazu -- versteckt wie "/phaseklick", siehe tests/test_start_befehl.py.
     # "/umformulieren" (Testkarte t_266e7485, 06.10.2026) kam als 18. dazu --
     # versteckt wie "/sortiert". "/schaerfen" (Karte t_269062e2, 06.10.2026)
     # kam als 19. dazu -- derselbe versteckte Weg, Stift ✎ in der
-    # CoThinker-Klickliste.
+    # CoThinker-Klickliste. "/schaerfung_fertig" (07.10.2026) kam als 20.
+    # dazu -- "Done" in der Schaerfungs-Sortierliste im CoThinker, derselbe
+    # versteckte Weg wie "/sortiert".
     assert befehle._BEKANNTE_BEFEHLE == {
         "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase",
         "/kernthema", "/stueck", "/figur", "/szene", "/stand", "/wortlaut",
         "/hilfe", "/leitfaden", "/festlegung", "/sprache", "/phaseklick",
         "/start", "/sortiert", "/umformulieren", "/schaerfen",
+        "/schaerfung_fertig",
     }
 
 

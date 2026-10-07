@@ -63,7 +63,9 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from interview_theater import anweisungen, modellwahl, repo, szene_claude, vorschlagssperre, zitat
+from interview_theater import (
+    anweisungen, modellwahl, repo, szene_claude, vorschlagssperre, workshop, zitat,
+)
 
 log = logging.getLogger(__name__)
 
@@ -117,6 +119,14 @@ ZIEL_SCHEMA = {
 MELDUNG = (
     "Ich habe {anzahl} Stellen aus euren Interviews euren Szenen und Figuren "
     "zugeordnet. Ich gehe sie mit euch durch."
+)
+#: Padua (07.10.2026, "Show more" war unsinnig): statt seitenweiser Karten
+#: sortiert die Gruppe im CoThinker -- Yes/No, dann Done
+#: (``knoepfe.szenen.schliesse_schaerfungsliste``). Nur unter
+#: ``workshop.diskussion_aktiv()``, siehe ``_lauf``.
+MELDUNG_COTHINKER = (
+    "Ich habe {anzahl} Stellen aus euren Interviews euren Szenen und Figuren "
+    "zugeordnet. Sortiert sie im CoThinker: Yes/No, dann Done."
 )
 MELDUNG_LEER = (
     "Keine Stelle aus den Interviews passt zu eurer Geschichte - sie bleibt, "
@@ -521,7 +531,12 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
     try:
         try:
             anzahl, _ = mappe(klm, conn, e, chat_id, tg=tg, fortschritt_message_id=fortschritt_id)
-            meldung = T.MELDUNG.format(anzahl=anzahl) if anzahl else T.MELDUNG_LEER
+            if not anzahl:
+                meldung = T.MELDUNG_LEER
+            elif workshop.diskussion_aktiv():
+                meldung = T.MELDUNG_COTHINKER.format(anzahl=anzahl)
+            else:
+                meldung = T.MELDUNG.format(anzahl=anzahl)
         except Exception:
             log.exception("Schaerfung fehlgeschlagen, chat_id=%s", chat_id)
             try:

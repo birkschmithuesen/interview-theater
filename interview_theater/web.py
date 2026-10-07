@@ -1096,6 +1096,15 @@ _TEXT_AUSWAHL_JA = "Behalten"
 _TEXT_AUSWAHL_NEIN = "Weg"
 _TEXT_AUSWAHL_SCHAERFEN = "Umformulieren"
 _TEXT_AUSWAHL_FERTIG = "Fertig sortiert – offene zählen als behalten"
+#: Die Schaerfungs-Sortierliste im CoThinker (Padua Phase 5, 07.10.2026,
+#: "Show more" war unsinnig): Yes/No statt der drei Zustaende der
+#: Fragenliste, darum ein eigener Zaehlertext und eigene Knopfbeschriftungen
+#: (``_schaerfungsliste_html``).
+_TEXT_SCHAERFUNGSLISTE_ZAEHLER = "{ja} dabei · {nein} weg · {offen} offen"
+_TEXT_SCHAERFUNGSLISTE_JA = "Dabei"
+_TEXT_SCHAERFUNGSLISTE_NEIN = "Weg"
+_TEXT_SCHAERFUNGSLISTE_FERTIG = "Fertig – offene bleiben für die nächste Runde"
+_TEXT_SCHAERFUNGSLISTE_SZENE = "Szene {nummer}"
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
@@ -3474,6 +3483,75 @@ def _auswahlliste_html(daten: dict, liste: str) -> str:
     return "".join(teile)
 
 
+def _schaerfungsliste_html(daten: dict) -> str:
+    """Die Schaerfungs-Sortierliste im CoThinker (Padua Phase 5, 07.10.2026,
+    Birk: "der 'Show more'-Knopf ist unsinnig, besser eine Auswahl wie bei
+    den Begriffen -- Yes/No-Knopf, alle als Uebersicht zum Durchscrollen").
+
+    Dieselbe Bauweise wie ``_auswahlliste_html`` (``#buehne-panel
+    data-ansicht="auswahl"``, ``ul.auswahl`` mit ``.auswahl-knopf``/
+    ``.auswahl-fertig``) -- dieselbe Browser-Logik (``web_vereint._AUSWAHL_JS``)
+    bedient beide Listen ueber ``data-liste``. Nur zwei Knoepfe (Yes/No,
+    keine dritte "Umformulieren"-Option wie bei den Fragen) und reichere
+    Zeilen: Zusammenfassung, Interview-Nummer, das volle gepruefte Zitat,
+    die Begruendung -- alles, was bis zu diesem Umbau auf den seitenweisen
+    Chat-Karten stand, jetzt auf einmal zum Durchscrollen."""
+    zaehler = daten.get("zaehler") or {}
+    kopf = T._TEXT_SCHAERFUNGSLISTE_ZAEHLER.format(
+        **{k: int(zaehler.get(k) or 0) for k in ("ja", "nein", "offen")}
+    )
+    knoepfe = (("ja", "✓", T._TEXT_SCHAERFUNGSLISTE_JA), ("nein", "✗", T._TEXT_SCHAERFUNGSLISTE_NEIN))
+    teile = [
+        '<div id="buehne-panel" data-ansicht="auswahl" data-liste="schaerfung">',
+        f'<p class="auswahl-zaehler">{html.escape(kopf)}</p>',
+    ]
+    for gruppe in daten.get("gruppen") or []:
+        if gruppe.get("art") == "szene":
+            titel = T._TEXT_SCHAERFUNGSLISTE_SZENE.format(nummer=gruppe["nummer"])
+            if gruppe.get("titel"):
+                titel += f": {gruppe['titel']}"
+        else:
+            titel = gruppe.get("name") or ""
+        teile.append(f'<h3 class="auswahl-titel">{html.escape(titel)}</h3>')
+        zeilen = []
+        for eintrag in gruppe.get("eintraege") or []:
+            zustand = eintrag.get("zustand") or ""
+            reihe = "".join(
+                f'<button type="button" class="auswahl-knopf" data-wert="{wert}" '
+                f'aria-pressed="{"true" if wert == zustand else "false"}" '
+                f'aria-label="{html.escape(name, quote=True)}">{zeichen}</button>'
+                for wert, zeichen, name in knoepfe
+            )
+            interview = eintrag.get("interview") or ""
+            interview_html = (
+                f' <span class="herkunft">{html.escape(interview)}</span>' if interview else ""
+            )
+            begruendung = (eintrag.get("begruendung") or "").strip()
+            begruendung_html = (
+                f'<p class="schaerfung-begruendung">{html.escape(begruendung)}</p>'
+                if begruendung else ""
+            )
+            zeilen.append(
+                f'<li data-nummer="{int(eintrag["id"])}" '
+                f'data-zustand="{html.escape(zustand or "offen", quote=True)}">'
+                f'<span class="auswahl-text">'
+                f'<strong class="schaerfung-titel">{html.escape(eintrag.get("titel") or "")}</strong>'
+                f'{interview_html}'
+                f'<blockquote class="schaerfung-zitat">'
+                f'„{html.escape(eintrag.get("zitat") or "")}“</blockquote>'
+                f'{begruendung_html}'
+                f'</span>'
+                f'<span class="auswahl-knoepfe">{reihe}</span></li>'
+            )
+        if zeilen:
+            teile.append(f'<ul class="auswahl">{"".join(zeilen)}</ul>')
+    teile.append(
+        f'<button type="button" class="auswahl-fertig">'
+        f'{html.escape(T._TEXT_SCHAERFUNGSLISTE_FERTIG)}</button></div>'
+    )
+    return "".join(teile)
+
+
 #: Die EINE sichere Markdown-Teilmenge einer Buehnenkarte (Birk 06.10.2026,
 #: Live-Test P4: das Modell schreibt ``**fett**``/``*kursiv*``/``- Punkte``,
 #: die Tafel zeigte das bisher roh -- Sternchen sichtbar, keine Absaetze).
@@ -3564,6 +3642,11 @@ def _buehne_html(daten: dict) -> str:
         # Phase 2 unter Padua, sobald eine Auswahl steht: sortieren statt
         # nur ansehen (05.10.2026).
         return _auswahlliste_html(daten["auswahlliste"], liste="fragen")
+    if daten.get("schaerfungsliste"):
+        # Phase 5 unter Padua, sobald das Mapping gelaufen ist (07.10.2026,
+        # "Show more" war unsinnig): Yes/No-Sortierliste statt Seite fuer
+        # Seite im Chat.
+        return _schaerfungsliste_html(daten["schaerfungsliste"])
     if daten.get("fragenuebersicht_zeigen"):
         # Phase 2 (Birk, 05.10.2026): was je Begriff an Fragen steht.
         return _fragenuebersicht_html(daten.get("fragenuebersicht") or [])

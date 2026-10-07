@@ -1759,7 +1759,7 @@ _AUSWAHL_JS = """
 (function () {
   var BASIS = '__BASIS__';
   var BASIS_TEIL = '__BASIS_TEIL__';
-  var ZAEHLER = __AUSWAHL_ZAEHLER__;
+  var ZAEHLER = { fragen: __AUSWAHL_ZAEHLER_FRAGEN__, schaerfung: __AUSWAHL_ZAEHLER_SCHAERFUNG__ };
   var FEHLER_NETZ = __AUSWAHL_FEHLER_NETZ__;
   var FEHLER_UNGUELTIG = __AUSWAHL_FEHLER_UNGUELTIG__;
   var TAKT = window.buehneTakt || { gen: 0, unterwegs: 0, gesehen: function () {} };
@@ -1811,7 +1811,8 @@ _AUSWAHL_JS = """
       var z = li.getAttribute('data-zustand');
       n[n.hasOwnProperty(z) ? z : 'offen'] += 1;
     });
-    feld.textContent = ZAEHLER.replace(/\\{(ja|nein|schaerfen|offen)\\}/g,
+    var vorlage = ZAEHLER[panel.getAttribute('data-liste')] || ZAEHLER.fragen;
+    feld.textContent = vorlage.replace(/\\{(ja|nein|schaerfen|offen)\\}/g,
       function (_g, k) { return String(n[k]); });
   }
   function setze(li, wert) {
@@ -1997,8 +1998,25 @@ _TEXT_AUSWAHL_UNGUELTIG = "Diese Auswahl geht nicht."
 #: 05.10.2026): Listenname -> Name der ``repo``-Funktion
 #: ``(conn, chat_id, nummer, wert) -> bool``. Als Name, nicht als Objekt:
 #: ``repo`` wird hier wie ueberall in diesem Modul erst im Aufruf geladen.
-_AUSWAHL_SCHREIBER = {"fragen": "setze_fragen_entscheidung"}
+#: Listenname -> Name der ``repo``-Schreibfunktion ``(conn, chat_id, nummer,
+#: wert) -> bool``. "schaerfung" (Padua Phase 5, 07.10.2026): dieselbe
+#: Auswahlliste-Mechanik wie "fragen", nur Yes/No statt der drei Zustaende
+#: und ``nummer`` ist hier die ``schaerfung.id``, keine Position.
+_AUSWAHL_SCHREIBER = {
+    "fragen": "setze_fragen_entscheidung",
+    "schaerfung": "setze_schaerfung_entscheidung",
+}
+#: Der versteckte Befehl, den "Fertig"/"Done" je Liste anlegt
+#: (``auswahl_fertig_post``) -- derselbe Weg durch die Naht wie
+#: ``/phaseklick``.
+_AUSWAHL_FERTIG_BEFEHL = {
+    "fragen": "/sortiert",
+    "schaerfung": "/schaerfung_fertig",
+}
 #: Die erlaubten Werte eines Tipps -- ``""`` ist "wieder offen" (Rueckgaengig).
+#: "schaerfen" gilt nur fuer die Liste "fragen"; ``_AUSWAHL_SCHREIBER``s
+#: Funktion fuer "schaerfung" (``repo.setze_schaerfung_entscheidung``) lehnt
+#: ihn selbst ab (400) -- kein zweiter Wertebereich hier noetig.
 _AUSWAHL_WERTE = ("ja", "nein", "schaerfen", "")
 
 
@@ -2047,22 +2065,25 @@ def auswahl_post(handler, db_pfad: str, token: str, chat_id: int,
 
 def auswahl_fertig_post(handler, db_pfad: str, token: str, chat_id: int,
                         schluessel: bytes) -> None:
-    """``POST /g/<token>/chat/auswahl_fertig`` -- "Fertig sortiert". Wie
-    ``phase_post``: der Webserver legt nur den versteckten Befehl
-    ``/sortiert`` als Eingang ab, der Bot schliesst die Sortierung ab
-    (offene zaehlen als behalten, dann ggf. Umformulieren im Chat)."""
+    """``POST /g/<token>/chat/auswahl_fertig`` -- "Fertig sortiert"/"Done".
+    Wie ``phase_post``: der Webserver legt nur den versteckten Befehl je
+    Liste (``_AUSWAHL_FERTIG_BEFEHL``) als Eingang ab -- ``/sortiert`` fuer
+    die Fragenliste (offene zaehlen als behalten, dann ggf. Umformulieren
+    im Chat), ``/schaerfung_fertig`` fuer die Schaerfungsliste (Yes
+    uebernehmen, No verwerfen, offene bleiben stehen)."""
     from interview_theater import repo, web_chat
 
     daten = web_chat._koerper_oder_400(handler, token, schluessel)
     if daten is None:
         return
-    if daten.get("liste") not in _AUSWAHL_SCHREIBER:
+    befehl = _AUSWAHL_FERTIG_BEFEHL.get(daten.get("liste"))
+    if befehl is None:
         handler._fehler(400, T._TEXT_AUSWAHL_UNGUELTIG)
         return
     with web_chat.schreibend(db_pfad) as conn:
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
-            text="/sortiert",
+            text=befehl,
         )
     web_chat._angenommen(handler, {"message_id": message_id})
 
@@ -2490,7 +2511,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             _AUSWAHL_JS
             .replace("__BASIS__", f"{token}/")
             .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
-            .replace("__AUSWAHL_ZAEHLER__", _js_text(web.T._TEXT_AUSWAHL_ZAEHLER))
+            .replace("__AUSWAHL_ZAEHLER_FRAGEN__", _js_text(web.T._TEXT_AUSWAHL_ZAEHLER))
+            .replace("__AUSWAHL_ZAEHLER_SCHAERFUNG__", _js_text(web.T._TEXT_SCHAERFUNGSLISTE_ZAEHLER))
             .replace("__AUSWAHL_FEHLER_NETZ__", _js_text(T._TEXT_PHASE_FEHLER_NETZ))
             .replace("__AUSWAHL_FEHLER_UNGUELTIG__", _js_text(T._TEXT_AUSWAHL_UNGUELTIG))
         )

@@ -858,7 +858,11 @@ CREATE TABLE IF NOT EXISTS schaerfung (
   runde                INTEGER NOT NULL DEFAULT 1,
   uebernommen_am       TEXT,
   erstellt_am          TEXT NOT NULL,
-  entfernt_am          TEXT
+  entfernt_am          TEXT,
+  -- Die Yes/No-Entscheidung aus der CoThinker-Sortierliste (Padua,
+  -- 07.10.2026), VOR dem Knopf "Done": NULL/"" ist offen, "ja"/"nein" ist
+  -- gesetzt. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  entscheidung         TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_schaerfung_chat ON schaerfung(chat_id, id);
 

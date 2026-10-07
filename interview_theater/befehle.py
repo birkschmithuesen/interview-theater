@@ -992,6 +992,15 @@ def _befehl_schaerfen(conn, tg, chat_id: int, rest: str) -> None:
     fragen.starte_handover(conn, tg, chat_id, int(rest))
 
 
+def _befehl_schaerfung_fertig(conn, tg, chat_id: int) -> None:
+    """"Done" in der Schaerfungs-Sortierliste im CoThinker (Padua,
+    07.10.2026). **Versteckt**, wie ``/sortiert`` -- der Weg des Knopfes
+    durch die Naht, kein Modellaufruf (Zusage 2)."""
+    from interview_theater.knoepfe import szenen
+
+    szenen.schliesse_schaerfungsliste(conn, tg, chat_id)
+
+
 def _befehl_umformulieren(conn, tg, chat_id: int) -> None:
     """Startet die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026):
     fragt nach der EINEN Anweisung, die gleich alle behaltenen Fragen
@@ -1422,6 +1431,10 @@ _BEKANNTE_BEFEHLE_DE: frozenset[str] = frozenset({
     # CoThinker-Klickliste -- der Weg des Knopfes durch die Naht, wie
     # ``/sortiert``/``/phaseklick``. Keine EN-Form: er wird nie getippt.
     "/schaerfen",
+    # Versteckt (07.10.2026): "Done" in der Schaerfungs-Sortierliste im
+    # CoThinker -- der Weg des Knopfes durch die Naht, wie ``/sortiert``.
+    # Keine EN-Form: er wird nie getippt.
+    "/schaerfung_fertig",
 })
 
 
@@ -1545,6 +1558,8 @@ def behandle(
         _befehl_umformulieren(conn, tg, chat_id)
     elif befehl == "/schaerfen":
         _befehl_schaerfen(conn, tg, chat_id, rest)
+    elif befehl == "/schaerfung_fertig":
+        _befehl_schaerfung_fertig(conn, tg, chat_id)
     return True
 
 

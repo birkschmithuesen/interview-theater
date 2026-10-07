@@ -1403,6 +1403,15 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
             if stand.get("phase") == 2 and _workshop.diskussion_aktiv()
             else None
         ),
+        # Die Schaerfungs-Sortierliste im CoThinker (Padua Phase 5,
+        # 07.10.2026): sobald das Mapping gelaufen ist, sortiert die Gruppe
+        # dort statt Seite fuer Seite im Chat. Dasselbe Profil-Gate wie die
+        # Fragen-Auswahlliste, nur Phase 5 statt 2.
+        "schaerfungsliste": (
+            schaerfungsliste(conn, chat_id)
+            if stand.get("phase") == 5 and _workshop.diskussion_aktiv()
+            else None
+        ),
         # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
         # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder
         # wartet auf Transkription. Ueber ``_aufnahmen_nach_status`` (schon
@@ -1508,6 +1517,120 @@ def auswahlliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
     if not _auswahl.sortierung_offen(stand):
         return None
     return _auswahl.fragen_liste(stand)
+
+
+def _interviewbezeichnungen(conn: sqlite3.Connection, chat_id: int) -> dict[int, str]:
+    """``{aufnahme_id: "Interview N"}`` in derselben Reihenfolge wie
+    ``kontext.interviewbezeichnung`` (chronologisch nach Beginn) -- fuer die
+    Schaerfungs-Sortierliste (``schaerfungsliste``). Eigene, kleine Abfrage
+    statt eines Umwegs ueber ``repo``/``kontext`` (wie ueberall in diesem
+    Modul): der Webserver liest read-only."""
+    try:
+        zeilen = conn.execute(
+            f"SELECT id, empfangen_am FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+            f"AND teil_von IS NULL AND {_NICHT_ENTFERNT} ORDER BY id ASC",
+            (chat_id,),
+        ).fetchall()
+        mit_teilen = True
+    except sqlite3.OperationalError:
+        zeilen = conn.execute(
+            f"SELECT id, empfangen_am FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+            f"AND {_NICHT_ENTFERNT} ORDER BY id ASC",
+            (chat_id,),
+        ).fetchall()
+        mit_teilen = False
+
+    def _beginn(z):
+        if mit_teilen:
+            erster = conn.execute(
+                f"SELECT min(empfangen_am) AS t FROM aufnahme WHERE teil_von = ? AND {_NICHT_ENTFERNT}",
+                (z["id"],),
+            ).fetchone()
+            if erster and erster["t"]:
+                return erster["t"]
+        return z["empfangen_am"] or ""
+
+    zeilen = sorted(zeilen, key=_beginn)
+    return {z["id"]: f"Interview {n}" for n, z in enumerate(zeilen, start=1)}
+
+
+def schaerfungsliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
+    """Die Sortierliste der Schaerfung im CoThinker (Padua, ab Phase 5,
+    07.10.2026, "Show more" war unsinnig): ALLE offenen Zuordnungen,
+    gruppiert nach Szene (nach Nummer) und danach nach Figur, staerkste
+    zuerst innerhalb der Gruppe -- dasselbe Material wie die Chat-Karten bis
+    zu diesem Umbau (``schaerfung.option``), nur auf einmal statt
+    seitenweise. ``None``, wenn nichts offen ist.
+
+    Eine Zuordnung darf an einer Szene UND an einer Figur haengen
+    (``repo.lege_schaerfung_an``) -- dieselbe Zeile taucht dann in beiden
+    Gruppen auf, wie bei den alten Chat-Karten je Ziel auch.
+
+    Eigene Abfrage statt ``repo.schaerfungen`` (wie ueberall in diesem
+    Modul): der Webserver liest read-only, repo serialisiert ueber den
+    Schreib-Lock des Bots."""
+    try:
+        zeilen = conn.execute(
+            "SELECT s.id, s.szene_id, s.figur_id, s.staerke, s.runde, "
+            "       s.begruendung, s.entscheidung, "
+            "       t.thema AS thema, t.beleg_zitat AS zitat, v.aufnahme_id AS aufnahme_id "
+            "FROM schaerfung s "
+            "JOIN verdichtung_thema t ON t.id = s.verdichtung_thema_id "
+            "JOIN verdichtung v ON v.id = t.verdichtung_id "
+            f"WHERE s.chat_id = ? AND s.{_NICHT_ENTFERNT} AND s.uebernommen_am IS NULL "
+            "  AND v.entfernt_am IS NULL "
+            "ORDER BY COALESCE(s.staerke, 0) DESC, s.runde ASC, s.id ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return None
+    if not zeilen:
+        return None
+
+    bezeichnungen = _interviewbezeichnungen(conn, chat_id)
+    zaehler = {"ja": 0, "nein": 0, "offen": 0}
+    je_szene: dict[int, list] = {}
+    je_figur: dict[int, list] = {}
+    for z in zeilen:
+        zustand = _feld(z, "entscheidung") or ""
+        if zustand not in ("ja", "nein"):
+            zustand = ""
+        zaehler[zustand or "offen"] += 1
+        eintrag = {
+            "id": z["id"],
+            "zustand": zustand,
+            "titel": (z["thema"] or "").strip(),
+            "interview": bezeichnungen.get(z["aufnahme_id"], ""),
+            "zitat": (z["zitat"] or "").strip(),
+            "begruendung": (z["begruendung"] or "").strip(),
+        }
+        if z["szene_id"] is not None:
+            je_szene.setdefault(z["szene_id"], []).append(eintrag)
+        if z["figur_id"] is not None:
+            je_figur.setdefault(z["figur_id"], []).append(eintrag)
+
+    gruppen: list[dict] = []
+    for szene in conn.execute(
+        f"SELECT id, nummer, titel FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+        "ORDER BY nummer IS NULL, nummer ASC, id ASC",
+        (chat_id,),
+    ):
+        eintraege = je_szene.get(szene["id"])
+        if eintraege and szene["nummer"] is not None:
+            gruppen.append({
+                "art": "szene", "nummer": szene["nummer"], "titel": szene["titel"],
+                "eintraege": eintraege,
+            })
+    for figur in conn.execute(
+        f"SELECT id, name FROM figur WHERE chat_id = ? AND {_NICHT_ENTFERNT} ORDER BY id ASC",
+        (chat_id,),
+    ):
+        eintraege = je_figur.get(figur["id"])
+        if eintraege:
+            gruppen.append({"art": "figur", "name": figur["name"], "eintraege": eintraege})
+    if not gruppen:
+        return None
+    return {"gruppen": gruppen, "zaehler": zaehler}
 
 
 def stueckkarte_felder(

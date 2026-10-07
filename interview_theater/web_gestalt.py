@@ -1514,6 +1514,10 @@ ul.auswahl > li[data-zustand="ja"] .auswahl-text { font-weight: 600; }
                   cursor: pointer; background: var(--signal); color: var(--auf-signal);
                   border: 0; border-radius: var(--radius); padding: .5rem 1rem; }
 .auswahl-fertig:disabled { opacity: .6; }
+.schaerfung-titel { display: block; font-family: var(--schrift-skript); font-weight: 700; }
+.schaerfung-zitat { margin: .3rem 0; padding: 0 0 0 .6rem; border-left: 2px solid var(--linie);
+                    font-style: italic; color: var(--text); }
+.schaerfung-begruendung { margin: .2rem 0 0; color: var(--text-leise); font-size: .9em; }
 """
 #: Die read-only Werkbank (Padua, 03.10.2026, Birk: "Anstatt roter und gruener
 #: LEDs passendere Farben im Design. Dezenter, aber trotzdem klar."). Drei

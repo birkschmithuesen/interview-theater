@@ -17,6 +17,7 @@ verschiedene Repo-Funktionen (lesend und schreibend) auf derselben
 Verbindung aufrufen.
 """
 
+import sqlite3
 import threading
 
 import pytest
@@ -30,6 +31,45 @@ def conn(tmp_path):
     db.initialisiere(c)
     repo.sichere_gruppe(c, 1, "gruppe1", "Testgruppe")
     return c
+
+
+def test_setze_uebersetzung_blockiert_keine_zweite_verbindung(conn, tmp_path):
+    """Regression (Nacht-Lockfix, 07.10.2026): ``repo.setze_uebersetzung``
+    schrieb (INSERT ... ON CONFLICT) ohne ``conn.commit()`` -- eine beim
+    Zusammenfuehren der Internet-Recherche (Karte t_c5117c91) verschobene
+    ``conn.commit()``-Zeile landete als totes Statement nach dem ``return``
+    von ``entferne_recherche`` weiter unten in der Datei.
+
+    Die offene Transaktion hielt den sqlite-Schreiblock auf der Datei, bis
+    irgendein anderer Schreibvorgang im selben Prozess zufaellig mitcommittete
+    -- oder, blieb der Prozess eine Weile ruhig, bis zum naechsten Neustart.
+    Eine ZWEITE Verbindung (der Webserver-Prozess: eigene Verbindung je
+    Anfrage, ``web_chat.schreibend``) erreichte in der Zwischenzeit nicht
+    einmal ``BEGIN IMMEDIATE`` -- das Symptom war "database is locked" auf
+    ``POST /g/<token>/chat/phase``.
+
+    Dieser Test spiegelt genau das wider: nach ``setze_uebersetzung`` muss
+    eine zweite, frische Verbindung auf dieselbe Datei sofort schreiben
+    koennen, ohne auf ``busy_timeout`` zu warten."""
+    repo.setze_uebersetzung(
+        conn, 1, "hash1", {"rahmen": "a bridge"}, {"rahmen": "a bridge"},
+    )
+
+    zweite = sqlite3.connect(str(tmp_path / "t.db"), timeout=0.2)
+    try:
+        zweite.execute("BEGIN IMMEDIATE")
+        zweite.execute(
+            "INSERT INTO vorfall (chat_id, bot_name, art, detail, erstellt_am) "
+            "VALUES (1, 'gruppe1', 'test', 'zweite-verbindung', '2026-01-01T00:00:00')"
+        )
+        zweite.commit()
+    except sqlite3.OperationalError as fehler:
+        pytest.fail(
+            f"zweite Verbindung kam nicht ans Schreiben -- "
+            f"setze_uebersetzung liess eine Transaktion offen: {fehler}"
+        )
+    finally:
+        zweite.close()
 
 
 def test_gleichzeitige_repo_aufrufe_verschiedener_funktionen_sind_sicher(conn):

@@ -5335,6 +5335,7 @@ def setze_uebersetzung(
         (chat_id, quelle_hash, json.dumps(quelle, ensure_ascii=False),
          json.dumps(felder, ensure_ascii=False), _jetzt()),
     )
+    conn.commit()
 
 
 # --- Internet-Recherche (Karte t_c5117c91) ----------------------------------
@@ -5406,4 +5407,3 @@ def entferne_recherche(conn: sqlite3.Connection, chat_id: int, recherche_id: int
     )
     conn.commit()
     return cur.rowcount == 1
-    conn.commit()

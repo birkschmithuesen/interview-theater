@@ -1,8 +1,11 @@
 # Die von Hand gepflegte Erwartungsliste des Flow-Audits (Schicht 1, siehe
-# simulation/flow_audit.py). Geltungsbereich dieser Karte: AUSSCHLIESSLICH
-# Phase 1 (Begriffe/Terms) und Phase 2 (Fragen/Questions) -- Padua-Profil
-# (workshop/padua-2026/), Code-Stand 04.10.2026. Keine Zeilen fuer Phase
-# 3-7: eine aeltere Fassung mit Phase 3-7 existiert unter
+# simulation/flow_audit.py). Geltungsbereich dieser Karte: {1, 2, 5} --
+# Phase 1 (Begriffe/Terms), Phase 2 (Fragen/Questions) und Phase 5 (Prose
+# Draft) -- Padua-Profil (workshop/padua-2026/), Code-Stand 07.10.2026. Die
+# Phase-5-Zeilen kamen mit dieser Karte dazu (t_db7c6b2c, 07.10.2026,
+# verengt auf Phase 5 -- Phase 6+7 sind einer spaeteren Karte vorbehalten).
+# Phase 3-4 bleiben out of scope -- dafuer existiert noch keine
+# Planungskarte. Eine aeltere Fassung mit Phase 3-7 existiert unter
 # .flow_audit_ref/flow_erwartungen.toml, beschreibt aber einen Codestand vor
 # dem Phase-1/2-Umbau und ist nicht mehr gueltig.
 #
@@ -181,4 +184,62 @@ Phase 3 (PHASE_INTERVIEWS = 3), aber der Knopf-Handler ART_AUFNAHME selbst
 (knoepfe/wirkung.py) existiert unveraendert und ist ueber /aufnahme, eine aeltere
 Chatnachricht mit dem Knopf, oder -- hier relevant -- ueber den Erkenner-Intent
 interview_starten per Chat auch aus Phase 1/2 auslösbar.
+"""
+
+# ---------------------------------------------------------------------------
+# Padua Flow-Audit Phase 5 (07.10.2026, Kanban t_db7c6b2c): Phase 5 (Prose
+# Draft) -- nach Padua Phasen TEIL 2. Dieselbe Methode wie oben fuer Phase
+# 1+2. Alle drei neuen Erkenner-Arten dieser Phase (uebersicht_aendern,
+# schaerfung_entscheidung, fassung_abnehmen) gelten nur mit
+# workshop.prosa_entwurf_aktiv() -- der Schalter steht in
+# workshop/padua-2026/profil.toml auf true, dem Profil, gegen das dieser
+# Audit faehrt. Phase 6+7 bleiben bewusst aussen vor (eigene, spaetere
+# Karte).
+# ---------------------------------------------------------------------------
+
+[[phase.5]]
+aktion = "Rueckmeldung zur generierten Story-Uebersicht (Stufe A, Prose Draft) per Chat geben, statt 'No, change it again' zu druecken"
+weg = "beides"
+intent = "uebersicht_aendern"
+knopf = "ART_UEBERSICHT_ANDERS"
+beleg = """
+erkenner.ARTEN enthaelt 'uebersicht_aendern', phasengebunden auf Phase 5
+(PHASEN_SPEZIFISCHE_ARTEN['uebersicht_aendern'] = (5,)) und zusaetzlich
+profil- (workshop.prosa_entwurf_aktiv()) und fixierungsgebunden
+(erkenner._starte_entwurf_uebersicht: kein Lauf, solange
+arbeitsstand.geschichte_uebersicht_fixiert_am gesetzt ist). Stoesst
+entwurf.starte_uebersicht() im eigenen Thread an -- denselben Weg wie der
+Knopf ART_UEBERSICHT_ANDERS (knoepfe/wirkung.py::_wirkung_uebersicht_anders).
+"""
+
+[[phase.5]]
+aktion = "Eine Schaerfungsstelle per Chat annehmen ('scene 2'), verwerfen ('none') oder einer Figur zuordnen, statt 'Diese uebernehmen'/'Keine davon' zu druecken"
+weg = "beides"
+intent = "schaerfung_entscheidung"
+knopf = "ART_SCHAERFUNG_SZENE|ART_SCHAERFUNG_FIGUR|ART_SCHAERFUNG_KEINE"
+beleg = """
+erkenner.ARTEN enthaelt 'schaerfung_entscheidung', phasengebunden auf Phase
+5. erkenner._entscheide_schaerfung() liest 'none'/'scene N'/'character X'
+per Regex und ruft denselben Rumpf wie die drei Knoepfe
+(knoepfe.szenen.verwirf_schaerfung / uebernimm_schaerfung_szene /
+uebernimm_schaerfung_figur). NICHT erfasst (engerer Umfang, kein Befund):
+die Annahme EINER einzelnen Stelle aus einem Mehrfach-Menue
+(ART_SCHAERFUNG_STELLE) und 'Noch eine Runde' (ART_SCHAERFUNG_RUNDE) bleiben
+Knopf-only -- beides eine feinere Auswahl aus einer nummerierten Liste, kein
+Totalverzicht/-annahme wie bei den drei erfassten Knoepfen.
+"""
+
+[[phase.5]]
+aktion = "Die Story-Uebersicht per Chat abnehmen ('yes, save'), statt den Knopf 'Yes, save' zu druecken"
+weg = "beides"
+intent = "fassung_abnehmen"
+knopf = "ART_UEBERSICHT_PASST"
+beleg = """
+erkenner.ARTEN enthaelt 'fassung_abnehmen', phasengebunden auf (5, 6, 7).
+erkenner._starte_teil2() ruft bei fehlendem text_ueberarbeiten
+ueberarbeitung.nimm_ab(), das in Phase 5 (PHASE_ENTWURF) zuerst die noch
+nicht fixierte Uebersicht prueft und denselben Rumpf wie der Knopf
+(entwurf.fixiere_uebersicht) aufruft. In Phase 6/7 nimmt derselbe Intent
+andere Materiallagen ab (siehe eine spaetere Karte) -- hier nur die
+Phase-5-Wirkung belegt.
 """

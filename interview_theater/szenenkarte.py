@@ -129,29 +129,14 @@ def _szene_mit_nummer(conn, chat_id: int, nummer: int):
 def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None) -> str:
     """Alles, was die Gruppe bis Phase 5 fuer diese Szene entschieden hat --
     und die nummerierte Liste der uebernommenen Stellen zur Wahl."""
-    from interview_theater import szene as szene_modul, szenenkern
+    from interview_theater import hintergrund, szenenkern
 
-    stand = repo.hole_arbeitsstand(conn, chat_id)
+    # Der Hintergrund kommt aus EINER Funktion (Andockstelle der
+    # Phasen-Summary, Birk 07.10.2026 ~19:40).
     zeilen: list[str] = []
-
-    def feld(name: str) -> str:
-        return ((stand[name] if stand is not None and name in stand.keys() else "") or "").strip()
-
-    for name, kopf in (("rahmen", T._KOPF_SETTING), ("format", T._KOPF_FORMAT),
-                       ("geschichte_uebersicht", T._KOPF_UEBERSICHT),
-                       ("geschichte", T._KOPF_GESCHICHTE)):
-        if feld(name):
-            zeilen.append(f"{kopf}\n{feld(name)}")
-    festlegungen = [repo.festlegungszeile(f["bereich"], f["bezug"], f["text"])
-                    for f in repo.festlegungen(conn, chat_id)]
-    if festlegungen:
-        zeilen.append(T._KOPF_FESTLEGUNGEN + "\n" + "\n".join(festlegungen))
-    verworfen = szene_modul.verworfene_zeilen(conn, chat_id)
-    if verworfen:
-        zeilen.append(T._KOPF_VERWORFEN + "\n" + "\n".join(verworfen))
-    gespraech = szene_modul._p5_gespraech_text(conn, chat_id, ueber_claude=True)
-    if gespraech:
-        zeilen.append(gespraech)
+    hinten = hintergrund.hintergrund_fuer_prompt(conn, chat_id)
+    if hinten:
+        zeilen.append(hinten)
     alle = [f"{s['nummer']}. {s['titel'] or ''}".strip() for s in _szenen(conn, chat_id)]
     zeilen.append(T._KOPF_ALLE_SZENEN + "\n" + "\n".join(alle))
 
@@ -536,12 +521,7 @@ ART_PRUEFUNG = "szenenkarte_pruefung"
 # Texte (W3: Sprache des Profils; Padua ueberschreibt in sprachen/en)
 # ---------------------------------------------------------------------------
 
-_KOPF_SETTING = "Setting:"
 _KOPF_FORMAT = "Format:"
-_KOPF_UEBERSICHT = "Uebersicht der Gruppe (Logline und Szenen):"
-_KOPF_GESCHICHTE = "Geschichte:"
-_KOPF_FESTLEGUNGEN = "Festlegungen der Gruppe:"
-_KOPF_VERWORFEN = "Von der Gruppe verworfen -- kommt nicht vor:"
 _KOPF_ALLE_SZENEN = "Alle Szenen:"
 _KOPF_DIESE = "DIESE Karte: Szene {nummer} -- {titel}"
 _KOPF_BESCHREIBUNG = "Was die Gruppe beschrieben hat:"

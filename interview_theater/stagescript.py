@@ -86,17 +86,19 @@ def braucht_kopf(conn, chat_id: int) -> bool:
 
 def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
                     mit_kopf: bool = False) -> str:
-    from interview_theater import szenenkarte
+    from interview_theater import hintergrund, szenenkarte
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
 
     def feld(name: str) -> str:
         return ((stand[name] if stand is not None and name in stand.keys() else "") or "").strip()
 
+    # Der Hintergrund kommt aus EINER Funktion -- derselben wie bei den
+    # Karten (Andockstelle der Phasen-Summary, Birk 07.10.2026 ~19:40).
     teile = []
-    for name, kopf in (("rahmen", T._KOPF_SETTING), ("format", T._KOPF_FORMAT)):
-        if feld(name):
-            teile.append(f"{kopf}\n{feld(name)}")
+    hinten = hintergrund.hintergrund_fuer_prompt(conn, chat_id)
+    if hinten:
+        teile.append(hinten)
     if feld("stage_kopf") and not mit_kopf:
         teile.append(T._KOPF_STUECKKOPF + "\n" + feld("stage_kopf"))
     alle = []
@@ -273,8 +275,6 @@ def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = Non
 # Texte (W3)
 # ---------------------------------------------------------------------------
 
-_KOPF_SETTING = "Setting:"
-_KOPF_FORMAT = "Format des Stuecks:"
 _KOPF_STUECKKOPF = "Kopf des Skripts (steht schon fest):"
 _KOPF_ANDERE = "Die anderen Szenen (nur zur Orientierung):"
 _KOPF_KARTE = "Die abgenommene Karte DIESER Szene -- sie ist bindend:"

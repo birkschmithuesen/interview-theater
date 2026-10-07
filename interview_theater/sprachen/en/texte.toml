@@ -1438,8 +1438,6 @@ _ZEILE_ABSCHNITTE = "\nWrite exactly {anzahl} sections -- one per planned scene,
 _ZEILE_REGIE = "\nThe group says about it: {regie}"
 
 ["stagescript"]
-_KOPF_SETTING = "Setting:"
-_KOPF_FORMAT = "Format of the piece:"
 _KOPF_STUECKKOPF = "Head of the script (already set):"
 _KOPF_ANDERE = "The other scenes (for orientation only):"
 _KOPF_KARTE = "The saved card of THIS scene -- it is binding:"
@@ -1465,13 +1463,16 @@ spoken = "Spoken text in sections: a heading per section (**...**), then lines \
 instructions = "For this moment: **Theme** (with an interview quote in the original), **Instructions** per person (WHO DOES WHAT), **Opening lines** of those in the know (2-4, in the language that is played), **CAMERA** (position/shot), **ABORT** (when and how)."
 moment = "For this moment: **Place / mode** (🎤 microphone · 👂 1:1 whispered, first person · 👥 collective), **Who** (Voce 1-5), **Wall/sound** in one line ([VIDEO: ...] as a placeholder), the interview quotes in the original as > *Interview quote (N):* \"...\", **Transition** (where the attention moves)."
 
-["szenenkarte"]
+["hintergrund"]
 _KOPF_SETTING = "Setting:"
 _KOPF_FORMAT = "Format:"
 _KOPF_UEBERSICHT = "The group's overview (logline and scenes):"
 _KOPF_GESCHICHTE = "Story:"
 _KOPF_FESTLEGUNGEN = "The group's agreements:"
 _KOPF_VERWORFEN = "Discarded by the group -- does not appear:"
+
+["szenenkarte"]
+_KOPF_FORMAT = "Format:"
 _KOPF_ALLE_SZENEN = "All scenes:"
 _KOPF_DIESE = "THIS card: scene {nummer} -- {titel}"
 _KOPF_BESCHREIBUNG = "What the group described:"

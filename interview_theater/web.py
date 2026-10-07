@@ -1105,6 +1105,9 @@ _TEXT_SCHAERFUNGSLISTE_JA = "Dabei"
 _TEXT_SCHAERFUNGSLISTE_NEIN = "Weg"
 _TEXT_SCHAERFUNGSLISTE_FERTIG = "Fertig – offene bleiben für die nächste Runde"
 _TEXT_SCHAERFUNGSLISTE_SZENE = "Szene {nummer}"
+_TEXT_SCHAERFUNGSLISTE_ERKLAERUNG = ("Die stärksten Interviewstellen je Szene und Figur. "
+    "Dabei = die Idee (→) geht in die Beschreibung ein, das Zitat wird Bezugssatz für den Text.")
+_TEXT_SCHAERFUNGSLISTE_ANZAHL = "{anzahl} Vorschläge"
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
@@ -3519,6 +3522,7 @@ def _schaerfungsliste_html(daten: dict) -> str:
     knoepfe = (("ja", "✓", T._TEXT_SCHAERFUNGSLISTE_JA), ("nein", "✗", T._TEXT_SCHAERFUNGSLISTE_NEIN))
     teile = [
         '<div id="buehne-panel" data-ansicht="auswahl" data-liste="schaerfung">',
+        f'<p class="schaerfung-erklaerung">{html.escape(T._TEXT_SCHAERFUNGSLISTE_ERKLAERUNG)}</p>',
         f'<p class="auswahl-zaehler">{html.escape(kopf)}</p>',
     ]
     for gruppe in daten.get("gruppen") or []:
@@ -3528,7 +3532,11 @@ def _schaerfungsliste_html(daten: dict) -> str:
                 titel += f": {gruppe['titel']}"
         else:
             titel = gruppe.get("name") or ""
-        teile.append(f'<h3 class="auswahl-titel">{html.escape(titel)}</h3>')
+        anzahl = len(gruppe.get("eintraege") or [])
+        teile.append(
+            f'<h3 class="auswahl-titel">{html.escape(titel)}'
+            f' <span class="herkunft">· {html.escape(T._TEXT_SCHAERFUNGSLISTE_ANZAHL.format(anzahl=anzahl))}</span></h3>'
+        )
         zeilen = []
         for eintrag in gruppe.get("eintraege") or []:
             zustand = eintrag.get("zustand") or ""
@@ -3544,18 +3552,17 @@ def _schaerfungsliste_html(daten: dict) -> str:
             )
             begruendung = (eintrag.get("begruendung") or "").strip()
             begruendung_html = (
-                f'<p class="schaerfung-begruendung">{html.escape(begruendung)}</p>'
+                f'<p class="schaerfung-verbindung">→ {html.escape(begruendung)}</p>'
                 if begruendung else ""
             )
             zeilen.append(
                 f'<li data-nummer="{int(eintrag["id"])}" '
                 f'data-zustand="{html.escape(zustand or "offen", quote=True)}">'
                 f'<span class="auswahl-text">'
-                f'<strong class="schaerfung-titel">{html.escape(eintrag.get("titel") or "")}</strong>'
-                f'{interview_html}'
+                f'{begruendung_html}'
                 f'<blockquote class="schaerfung-zitat">'
                 f'„{html.escape(eintrag.get("zitat") or "")}“</blockquote>'
-                f'{begruendung_html}'
+                f'<span class="schaerfung-quelle">{html.escape(eintrag.get("titel") or "")}{interview_html}</span>'
                 f'</span>'
                 f'<span class="auswahl-knoepfe">{reihe}</span></li>'
             )

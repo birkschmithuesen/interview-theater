@@ -3591,7 +3591,15 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Befehl/Klick -- ein "lass uns weitermachen" im freien Chat soll
         # nicht an der Werkbank-Uebersicht vorbeikommen.
         aenderungen = _ohne_phase_5_ohne_p5_check(conn, tg, chat_id, aenderungen)
-        if not aenderungen:
+        # Live-Fund Padua 07.10.2026, G3, web_post 1873: ein ausdruecklicher
+        # Reset-Wunsch ("Cancella tutto il workbench ... rifai delle nuove
+        # entry") muss auch dann wirken, wenn das Modell in DIESEM Lauf
+        # selbst keine Aenderung gemeldet hat -- geprueft am Rohtext des
+        # Lesefensters, nicht an ``aenderungen``, sonst risse der fruehe
+        # Ausstieg unten die Entfernung mit.
+        reset_aenderungen = _reset_wunsch_pseudo_aenderungen(
+            conn, chat_id, fenster_vor_erkennung)
+        if not aenderungen and not reset_aenderungen:
             return
         notiz_verbraucht = False
         if stapel:
@@ -3614,15 +3622,11 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             # Nachricht nur ein zweites Mal und hat sie im Lauf schon einmal
             # geleert ("noise comes off the list" -> entfernen BEGRIFFE).
             freigegeben = [a for a in freigegeben if not _betrifft_begriffe(a)]
-        # Live-Fund Padua 07.10.2026, G3, web_post 1873: ein ausdruecklicher
-        # Reset-Wunsch ("Cancella tutto il workbench ... rifai delle nuove
-        # entry") raeumt alle noch aktiven Festlegungen weg, BEVOR die neuen
-        # Aenderungen derselben Nachricht geschrieben werden -- sonst blieb
-        # die alte Festlegung neben der neuen stehen. Geprueft am Rohtext des
-        # Lesefensters, nicht an den erkannten Aenderungen: deterministisch
-        # und unabhaengig davon, was das Modell daraus macht.
-        freigegeben = _reset_wunsch_pseudo_aenderungen(
-            conn, chat_id, fenster_vor_erkennung) + freigegeben
+        # Siehe oben: dieselben Pseudo-Aenderungen raeumen alle noch aktiven
+        # Festlegungen weg, BEVOR die neuen Aenderungen derselben Nachricht
+        # geschrieben werden -- sonst blieb die alte Festlegung neben der
+        # neuen stehen.
+        freigegeben = reset_aenderungen + freigegeben
         # Der Stand VOR und NACH dem Anwenden, direkt um ``wende_an`` und
         # unter ``repo._LOCK`` -- Grundlage des Undo-Knopfs (Karte U).
         wirkliche, vorher, nachher = _wende_an_mit_schnappschuss(

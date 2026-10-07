@@ -398,3 +398,22 @@ def test_entwurf_letzte_szene_passt_springt_automatisch_nach_phase_6(
     assert (zeile["entwurf_bestaetigt_am"] or "").strip()
     assert phasen.aktuelle(conn, 1) == 6
     assert eingetreten == [6]
+
+
+def test_uebersicht_bekommt_p5_gespraech_und_szenen_unter_padua(monkeypatch):
+    """Birk 07.10.2026 ~16:10: die Logline soll auch ohne CoThinker-Klicks aus
+    dem Interview-Chat entstehen. Mutant: _voll_bloecke liefert [] -> rot."""
+    from interview_theater import entwurf, szene, workshop, repo
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(szene, "_p5_gespraech_text", lambda conn, chat_id, ueber_claude=False: "CHATBLOCK Interview 27")
+    monkeypatch.setattr(repo, "hole_szenen", lambda conn, chat_id: [
+        {"nummer": 2, "titel": "Le voci", "was_passiert": "voices", "kurzbeschreibung": None},
+        {"nummer": 1, "titel": "Tornare a casa", "was_passiert": "", "kurzbeschreibung": "intro"}])
+    monkeypatch.setattr(repo, "festlegungen", lambda conn, chat_id: [])
+    monkeypatch.setattr(repo, "schaerfungen", lambda conn, chat_id: [])
+    bloecke = entwurf._voll_bloecke(None, 1)
+    text = "\n".join(bloecke)
+    assert "CHATBLOCK Interview 27" in text
+    assert text.index("1. Tornare a casa") < text.index("2. Le voci")
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: False)
+    assert entwurf._voll_bloecke(None, 1) == []

@@ -115,6 +115,7 @@ def baue_nutzertext_uebersicht(conn, chat_id: int, notiz: str | None = None) -> 
     anzahl = (stand["szenen_anzahl"] or "").strip() if stand else ""
     if anzahl:
         zeilen.append(f"Number of scenes: {anzahl}")
+    zeilen.extend(_voll_bloecke(conn, chat_id))
     bisherige = (stand["geschichte_uebersicht"] or "").strip() if stand else ""
     if bisherige:
         zeilen.append("Previous overview (for reference, to be replaced):")
@@ -139,6 +140,46 @@ def baue_anzeige(ergebnis: dict) -> str:
     for i, satz in enumerate(ergebnis.get("szenen_was_passiert") or [], start=1):
         zeilen.append(f"{i}. {satz.strip()}")
     return "\n".join(zeilen)
+
+
+def _voll_bloecke(conn, chat_id: int) -> list[str]:
+    """Padua (Birk 07.10.2026 ~16:10): die Uebersicht/Logline soll auch dann
+    sinnvoll werden, wenn die Gruppe im CoThinker NICHT alles durchklickt,
+    sondern im Chat ueber die Interviews redet -- "der Chat ist das Wertvolle
+    fuer die Logline". Zusaetzlich: Szenen mit Titel und was passiert, die
+    Festlegungen, die uebernommenen Interviewstellen und das ganze
+    Phase-5-Gespraech (``szene._p5_gespraech_text``, Claude-Grenze). Nur unter
+    ``workshop.vollmaterial_phase5_aktiv`` (Padua); sonst leer, Dortmund
+    byte-gleich."""
+    from interview_theater import kontext, szene, workshop
+
+    if not workshop.vollmaterial_phase5_aktiv():
+        return []
+    bloecke: list[str] = []
+    szenen = sorted(repo.hole_szenen(conn, chat_id), key=lambda z: z["nummer"] or 0)
+    if szenen:
+        teile = ["Scenes the group has laid out (keep their number, titles and order):"]
+        for z in szenen:
+            was = (z["was_passiert"] or z["kurzbeschreibung"] or "").strip()
+            teile.append(f"{z['nummer']}. {z['titel'] or ''}" + (f" -- {was}" if was else ""))
+        bloecke.append("\n".join(teile))
+    fest = [repo.festlegungszeile(f["bereich"], f["bezug"], f["text"])
+            for f in repo.festlegungen(conn, chat_id)]
+    if fest:
+        bloecke.append("Agreed by the group:\n" + "\n".join(f"- {f}" for f in fest))
+    stellen = [z for z in repo.schaerfungen(conn, chat_id) if z["uebernommen_am"]]
+    if stellen:
+        teile = ["Interview passages the group accepted (with interview number):"]
+        for z in stellen[:80]:
+            name = kontext.interviewbezeichnung(conn, chat_id, z["aufnahme_id"])
+            teile.append(f'- {name}: {z["thema"]} -- "{z["zitat"]}"')
+        bloecke.append("\n".join(teile))
+    gespraech = szene._p5_gespraech_text(conn, chat_id, ueber_claude=True)
+    if gespraech:
+        bloecke.append(gespraech + "\n(This conversation is the most valuable source for the "
+                       "logline and the scene lines: what the group said about the interviews, "
+                       "which voices and themes they chose. Condense it -- don't invent.)")
+    return bloecke
 
 
 def generiere_uebersicht(klm, conn, e, chat_id: int, notiz: str | None = None) -> dict:

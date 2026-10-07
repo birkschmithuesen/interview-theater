@@ -6,6 +6,13 @@ they are, what they want), the tension arc (one to two sentences: what it's
 really about, who wants what, what's at stake), and one to two sentences
 per scene (what happens, the turn or key event).
 
+If the text contains the group's scenes, agreements, accepted interview
+passages or their phase-5 conversation about the interviews, build the
+overview FROM THEM: keep the group's scene titles, number and order, and let
+the logline and scene lines carry what they said about the interviews -- the
+voices, themes and quotes they chose. That conversation outweighs any
+previous overview.
+
 If a previous overview and the group's feedback on it are in the text,
 CHANGE it in exactly the direction named -- don't reroll randomly, take the
 concrete criticism on board.

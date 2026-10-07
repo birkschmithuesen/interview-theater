@@ -24,6 +24,16 @@ from interview_theater import (
 from test_erkenner import LLMAttrappe, _nachricht
 from test_knoepfe import TelegramAttrappe
 
+
+@pytest.fixture(autouse=True)
+def _ohne_karten(monkeypatch):
+    """Diese Tests pruefen die Padua-Wege P6 Rewrite / P7 Formlauf -- seit dem
+    Phasenumbau (Birk 07.10.2026 ~18:12) das Verhalten OHNE ``[karten] aktiv``
+    (Kartenweg: tests/test_szenenkarte.py, tests/test_stagescript.py)."""
+    from interview_theater import workshop as _workshop
+
+    monkeypatch.setattr(_workshop, "szenenkarten_aktiv", lambda *a, **k: False)
+
 NEU = ("text_ueberarbeiten", "fassung_abnehmen", "formen_setzen",
        "sprechweise_setzen", "schaerfung_entscheidung")
 

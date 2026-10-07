@@ -55,7 +55,7 @@ def test_padua_phase_4_traegt_alle_regeln(padua):
     assert "Never attribute to the group what you added yourself." in system
     # 4. Phase-4/5-Grenze
     assert "never asks \"Shall I write scene 1 now?\"" in system
-    assert "this is the one exception to \"you do it anyway\" below." in system
+    assert "this is the one exception to" in system
 
 
 def test_deutsche_fassung_traegt_dieselben_regeln():
@@ -67,7 +67,7 @@ def test_deutsche_fassung_traegt_dieselben_regeln():
     assert "Drei eigene Richtungen nur, wenn die Gruppe noch keine eigene Idee hat." in system
     assert "Nichts von dir als ihres." in system
     assert "Soll ich Szene 1 jetzt schreiben?" in system
-    assert "Eine Ausnahme: Szenentexte." in system
+    assert "das ist die eine Ausnahme von" in system
 
 
 def test_ausnahme_steht_direkt_bei_der_regel_die_sie_bricht(padua):
@@ -75,10 +75,12 @@ def test_ausnahme_steht_direkt_bei_der_regel_die_sie_bricht(padua):
     Gruppe ausdruecklich darum, tust du es trotzdem" galt bisher auch fuer
     Szenentexte."""
     for code, satz, ausnahme in (
-        ("en", "If the group explicitly asks for it, you do it anyway", "One exception: scene texts."),
+        ("en", "If the group explicitly asks for it, you do it anyway", "this is the one exception to"),
     ):
+        # main-Wortlaut (07.10.2026): die Ausnahme steht als eigener Punkt
+        # DIREKT VOR dem Satz, den sie bricht, und verweist auf ihn ("below").
         text = _flach(anweisungen.hole("phasen/4"))
-        assert text.index(ausnahme) > text.index(satz)
+        assert 0 <= text.index(satz) - text.index(ausnahme) < 800
 
 
 def test_schreibangebot_wird_erkannt():

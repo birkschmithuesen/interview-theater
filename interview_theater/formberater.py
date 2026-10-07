@@ -791,10 +791,10 @@ def _lauf(conn, tg, klm, e, chat_id: int, ausloeser: str, signale: list[str],
         formen = formen_aus(ergebnis)
         repo.lege_formberater_an(conn, chat_id, ausloeser, phase, formen,
                                  signale, ergebnis, modell)
-        if ausloeser == AUSLOESER_EINSTIEG:
-            text = nachricht(ergebnis)
-            if text:
-                _sende(conn, tg, e, chat_id, text)
+        # Birk 07.10.2026: KEINE Chat-Karte mehr beim Eintritt in Phase 5 --
+        # die Form ist dort schon festgelegt und eben bestaetigt (P5-Check);
+        # die Karte las sich wie ein neuer Vorschlag. Die Einordnung laeuft
+        # weiter und speist ueber ``kontextblock`` nur den Prompt.
     except Exception:
         log.exception("Formberater-Lauf gescheitert, chat_id=%s", chat_id)
     finally:

@@ -267,9 +267,11 @@ def test_fortschrittsmeldung_wird_aktualisiert_und_am_ende_geloescht(lage, tg, e
 
     schaerfung._lauf(lage, tg, klm, einst, 1)
 
-    # Erste Zeile: die Fortschrittsmeldung, 0/?. Danach vier Aktualisierungen
+    # Erste Zeile: die Fortschrittsmeldung, schon mit der echten Zielzahl
+    # (0/4, nie "0/?" -- Birk 07.10.2026). Danach vier Aktualisierungen
     # (eine je Ziel), am Ende geloescht -- nicht mehr im Chat.
     assert tg.gesendet[0][1].startswith("🔍")
+    assert "0/4" in tg.gesendet[0][1] and "?" not in tg.gesendet[0][1]
     assert len(tg.geaendert) == 4
     assert tg.geloescht and tg.geloescht[0][0] == 1
 

@@ -404,25 +404,20 @@ def test_ablauf_prueft_vor_dem_kontextbau(conn, einst, monkeypatch):
 # --- (d) Einstieg in Phase 5, ohne Knopf -----------------------------------------
 
 
-def test_einstieg_einmal_als_angebot_ohne_knopf(conn, tg, einst, padua):
-    """Birk 07.10.2026 ~08:05: der Formberater bekommt keinen Knopf -- der
-    Einstiegs-Angebot ist ein reiner Chatbeitrag (``tg.gesendet``, nie
-    ``tg.knoepfe``)."""
+def test_einstieg_laeuft_still_ohne_chatkarte(conn, tg, einst, padua):
+    """Birk 07.10.2026 (Testgruppe, 10:30): die Form ist beim Eintritt in
+    Phase 5 schon festgelegt und im P5-Check bestaetigt -- die Einordnung
+    laeuft weiter (Zeile + Prompt), aber KEINE Chat-Karte mehr, die sich
+    wie ein neuer Vorschlag liest. Einmal, nie doppelt."""
     _phase(conn, 5)
     klm = KLM()
     formberater.starte_einstieg(conn, tg, klm, einst, 1).join(10)
 
-    (_cid, text) = tg.gesendet[-1]
-    assert text.startswith("🎭 Your form -- something to place it by, not a rule:")
-    assert "• Closest to what you are doing: Fluxus event score -- equal actions" in text
-    assert "• Could carry your idea further: Happening -- actions in everyday space" in text
-    assert "• Counterpoint, to sharpen your own choice: Epic theatre -- " in text
-    assert text.endswith("nothing in your piece changes unless you say so.")
+    assert tg.gesendet == []
     assert tg.knoepfe == []
-    # Als Bot-Zeile gemerkt: der Gespraechs-Bot sieht das Angebot.
-    assert conn.execute(
-        "SELECT COUNT(*) FROM nachricht WHERE ist_bot = 1 AND text LIKE '%Fluxus event score%'"
-    ).fetchone()[0] == 1
+    zeilen = repo.formberater_zeilen(conn, 1)
+    assert [z["ausloeser"] for z in zeilen] == [formberater.AUSLOESER_EINSTIEG]
+    assert "Fluxus event score" in formberater.kontextblock(conn, 1)
 
     # Ein zweiter Eintritt: nichts mehr.
     assert formberater.starte_einstieg(conn, tg, klm, einst, 1) is None

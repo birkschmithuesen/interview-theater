@@ -504,9 +504,16 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
     dazwischen legt, war der gemessene Fehler."""
     anzahl = 0
     fortschritt_id = None
+    # Birk 07.10.2026: der Zaehler stand bei "0/?" -- die Zahl der Ziele
+    # (je Szene und je Figur ein Aufruf) ist vor dem Lauf bekannt.
+    try:
+        gesamt = len(_ziele(conn, chat_id))
+    except Exception:
+        log.exception("Zielzahl der Schaerfung nicht bestimmbar, chat_id=%s", chat_id)
+        gesamt = 0
     try:
         fortschritt_id = tg.sende(
-            chat_id, T._TEXT_SCHAERFUNG_FORTSCHRITT.format(erledigt=0, gesamt="?"),
+            chat_id, T._TEXT_SCHAERFUNG_FORTSCHRITT.format(erledigt=0, gesamt=gesamt or "…"),
         )
     except Exception:
         log.exception("Fortschrittsmeldung der Schaerfung fehlgeschlagen, chat_id=%s", chat_id)

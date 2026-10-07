@@ -128,19 +128,40 @@ _DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
 #: kein Selbstgespraech --, "perfect. that is" und "your turn is" wurden auf
 #: den vollen Denkspur-Wortlaut verengt, so spezifisch wie ihre deutschen
 #: Vorbilder ("perfekt. das ist [ein Angebot]", "dein zug ist [leer]").
+#: Englische Entsprechungen von "der benutzer fragt"/"laut den
+#: instruktionen"/"die instruktionen sagen" (Abnahme P3-4, Befund A1,
+#: 06.10.2026) -- die DE-Liste bekam sie damals, die EN-Liste nicht. Live-
+#: Fund 07.10.2026 (Testgruppe chat_id=7000000000099, web_post.id=1694):
+#: Kimi schrieb "Member 1 asks ..." und "the instructions also say ..." ins
+#: "antwort"-Feld, beides ging an keinem EN-Marker haengen. "under 500
+#: chars" ist die abgekuerzte Form von "under 500 characters" -- dieselbe
+#: Selbstanweisung, nur kuerzer getippt.
 _DENKSPUR_MARKER_EN = (
     "i should:", "the group wants", "what is in the material",
     "possible core themes:", "perfect. that is an offer",
     "the rule says", "the recogniser sets",
-    "under 500 characters", "phrase it as an offer", "your turn is empty",
+    "under 500 characters", "under 500 chars", "phrase it as an offer",
+    "your turn is empty",
     "system line", "system announcement", "the system instruction",
-    "one sentence of encouragement",
+    "one sentence of encouragement", "the instructions say",
+    "the instructions also say", "according to the instructions",
 )
 #: "no markdown" raus seit Karte t_cc147548 (07.10.2026), wie "keine
 #: markdown" oben -- dieselbe Begruendung.
 _DENKSPUR_EINDEUTIG_EN = ("i should:", "what is in the material", "the recogniser sets",
-                          "under 500 characters", "your turn is empty",
-                          "system line", "system announcement", "the system instruction")
+                          "under 500 characters", "under 500 chars", "your turn is empty",
+                          "system line", "system announcement", "the system instruction",
+                          "the instructions say", "the instructions also say",
+                          "according to the instructions")
+
+#: "Member 1 asks"/"wants" usw. -- die englische Entsprechung von "der
+#: benutzer fragt": ein Bot, der zur Gruppe spricht, beschreibt sie nie in
+#: der dritten Person als "Member N", das ist Selbstgespraech ueber die
+#: Nachricht statt eine Antwort an sie (direkte Anrede waere "you asked").
+#: Live-Fund 07.10.2026 (siehe Kommentar oben).
+_DENKSPUR_BENUTZER_EN = re.compile(
+    r"\bmember\s+\d+\s+(asks|asked|wants|wanted|said|wrote)\b", re.IGNORECASE
+)
 
 #: Womit ein geretteter Antwortabsatz anfangen darf -- deutsch und englisch.
 _KERN_ANFAENGE = ("Ihr", "Euer", "Eure", "Ein", "Eine", "Das", "Die", "Der", "Was", "Wie")
@@ -154,6 +175,8 @@ def ist_denkspur(text: str) -> bool:
     Antwort vorkommen."""
     t = text.lower()
     if any(m in t for m in _DENKSPUR_EINDEUTIG + _DENKSPUR_EINDEUTIG_EN):
+        return True
+    if _DENKSPUR_BENUTZER_EN.search(text):
         return True
     return len([m for m in _DENKSPUR_MARKER + _DENKSPUR_MARKER_EN if m in t]) >= 2
 

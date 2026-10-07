@@ -275,6 +275,73 @@ def test_nachhol_schleife_ruft_nachholen_auf_und_endet_mit_dem_event(conn, einst
     assert aufrufe == [1]
 
 
+# ---------------------------------------------------------------------------
+# Nachtlauf 07.10.2026 (Birk): web_post 1808-1811 -- die Gruppe beschrieb drei
+# Szenen und bestaetigte die Zusammenfassung des Bots ("Esattamente giusto"),
+# aber gemma warf zweimal in Folge einen ReadTimeout (aufruf 1842/1844).
+# erkenner.erkenne() laesst das Wasserzeichen bei einem Fehlschlag bewusst
+# stehen (test_erkenner.test_fehlschlag_laesst_wasserzeichen_stehen_und_schreibt_vorfall)
+# -- ein "kostenloser Wiederholungsversuch beim naechsten Lauf". Nur: ohne
+# eine weitere Nachricht der Gruppe gab es diesen naechsten Lauf nie, der Zug
+# war endgueltig verloren. _erkenner_nachholen() ist dieser naechste Lauf,
+# unabhaengig von einer neuen Nachricht.
+# ---------------------------------------------------------------------------
+
+def test_erkenner_nachholen_ruft_laufe_fuer_jede_gruppe_des_bots_auf(conn, einst, monkeypatch):
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Gruppe 1")
+    repo.sichere_gruppe(conn, -200, einst.bot_name, "Gruppe 2")
+    aufrufe = []
+    monkeypatch.setattr(
+        bot.erkenner, "laufe",
+        lambda klm, tg, conn_, e_, chat_id: aufrufe.append(chat_id),
+    )
+
+    bot._erkenner_nachholen(conn, object(), object(), einst)
+
+    assert sorted(aufrufe) == [-200, -100]
+
+
+def test_erkenner_nachholen_fehlschlag_einer_gruppe_stoppt_die_andere_nicht(conn, einst, monkeypatch):
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Gruppe 1")
+    repo.sichere_gruppe(conn, -200, einst.bot_name, "Gruppe 2")
+    aufrufe = []
+
+    def laufe_mit_fehlschlag(klm, tg, conn_, e_, chat_id):
+        aufrufe.append(chat_id)
+        if chat_id == -100:
+            raise RuntimeError("kaputt")
+
+    monkeypatch.setattr(bot.erkenner, "laufe", laufe_mit_fehlschlag)
+
+    bot._erkenner_nachholen(conn, object(), object(), einst)
+
+    assert sorted(aufrufe) == [-200, -100]
+
+
+def test_nachhol_schleife_ruft_auch_erkenner_nachholen_auf(conn, einst, monkeypatch):
+    """Derselbe Takt wie aufnahme.nachholen (NACHHOL_INTERVALL_S) -- sonst
+    bleibt ein gescheiterter Erkennerlauf liegen, bis die Gruppe zufaellig
+    noch eine Nachricht schickt (siehe Modulkommentar oben)."""
+    aufrufe = []
+    stop = threading.Event()
+
+    monkeypatch.setattr(bot.aufnahme, "nachholen", lambda *a, **kw: aufrufe.append("aufnahme"))
+    monkeypatch.setattr(
+        bot, "_erkenner_nachholen",
+        lambda *a, **kw: (aufrufe.append("erkenner"), stop.set()),
+    )
+
+    thread = threading.Thread(
+        target=bot._nachhol_schleife,
+        args=(stop, conn, einst, object(), object(), object()),
+    )
+    thread.start()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive(), "die Schleife muss nach dem gesetzten Event enden"
+    assert aufrufe == ["aufnahme", "erkenner"]
+
+
 def test_uebersetzungs_schleife_ruft_aktualisiere_fuer_bot_auf_und_endet_mit_dem_event(
     conn, einst, monkeypatch,
 ):

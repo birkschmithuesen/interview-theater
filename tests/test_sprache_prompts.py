@@ -260,8 +260,12 @@ def test_d7_zitate_bleiben_im_original(padua, name):
 
 #: Few-Shots (JSON-Ausgabezeilen mit "aenderungen") im englischen Erkenner
 #: seit der Vereinfachung (Birk 30.09.: Chat = nur Befehle/Fragen) -- vorher
-#: 21 wie im Deutschen.
-FEW_SHOTS_ERKENNER_EN = 18
+#: 21 wie im Deutschen. Seit dem Nachtlauf 07.10.2026 (web_post 1808-1811,
+#: drei beschriebene und bestaetigte Szenen nie gespeichert) zwei weitere:
+#: eine direkte "erste Szene ..., zweite ..., dritte ..."-Beschreibung und
+#: die Bestaetigung einer vom Bot im "Titel -- Beschreibung -- Besetzung"-
+#: Format aufgelisteten Szenenfolge.
+FEW_SHOTS_ERKENNER_EN = 20
 
 
 def test_erkenner_behaelt_seine_few_shots(padua):

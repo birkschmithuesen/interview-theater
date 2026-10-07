@@ -465,7 +465,14 @@ def _nachhol_schleife(stop: threading.Event, conn, e: Einstellungen, tg, klm, st
     """Ruft aufnahme.nachholen() beim Start und danach alle
     aufnahme.NACHHOL_INTERVALL_S Sekunden auf (§ 10.3). Laeuft in einem
     eigenen Daemon-Thread; eine Ausnahme darf ihn nie stoppen (global-
-    constraints.md 'Fehlerhaltung')."""
+    constraints.md 'Fehlerhaltung').
+
+    Im selben Takt: ``_erkenner_nachholen`` (Birk, Nachtlauf 07.10.2026,
+    web_post 1808-1811) -- ein gescheiterter Absichtserkenner-Lauf laesst
+    das Wasserzeichen stehen (erkenner.erkenne), aber nur eine NEUE
+    Nachricht stoesst bisher einen weiteren Lauf an. Bleibt die Gruppe nach
+    einem Fehlschlag (z. B. Infomaniak-ReadTimeout) stumm, war der Zug sonst
+    fuer immer verloren."""
     while not stop.is_set():
         try:
             # Aufgabe 10: zug wird durchgereicht, aber aufnahme._kurz_abschliessen
@@ -476,7 +483,35 @@ def _nachhol_schleife(stop: threading.Event, conn, e: Einstellungen, tg, klm, st
             aufnahme.nachholen(conn, tg, klm, e, stt_klient, zug=_zug_und_erkenner)
         except Exception:
             log.exception("Nachholen fehlgeschlagen")
+        try:
+            _erkenner_nachholen(conn, tg, klm, e)
+        except Exception:
+            log.exception("Erkenner-Nachholen fehlgeschlagen")
         stop.wait(aufnahme.NACHHOL_INTERVALL_S)
+
+
+def _erkenner_nachholen(conn, tg, klm, e: Einstellungen) -> None:
+    """Holt einen Absichtserkenner-Lauf nach, der zuvor gescheitert ist und
+    seitdem nie wieder angestossen wurde, weil kein neuer Gespraechszug mehr
+    folgte (Birk, Nachtlauf 07.10.2026: web_post 1808-1811 -- drei im Chat
+    beschriebene und bestaetigte Szenen, nie gespeichert, weil gemma
+    zweimal in Folge einen ReadTimeout warf, und die Gruppe danach
+    verstummte). ``erkenner.laufe`` ruehrt bei leerem ``unextrahierte``
+    nichts an (kein Modellaufruf) -- ein Durchlauf ohne Rueckstand kostet
+    also nichts, nur ein wirklich offener Rueckstand wird erneut versucht.
+
+    Nur die Gruppen dieses Bot-Prozesses (``repo.gruppen_fuer_bot``,
+    dasselbe Muster wie ``aufnahme.nachholen``); eine Ausnahme einer Gruppe
+    darf die anderen nie mitreissen -- ``erkenner.laufe`` faengt zwar schon
+    selbst jede Ausnahme ab, aber dieser Schutz bleibt bestehen, falls sich
+    das je aendert."""
+    for gruppe in repo.gruppen_fuer_bot(conn, e.bot_name):
+        try:
+            erkenner.laufe(klm, tg, conn, e, gruppe["chat_id"])
+        except Exception:
+            log.exception(
+                "Erkenner-Nachholen fehlgeschlagen, chat_id=%s", gruppe["chat_id"],
+            )
 
 
 def _uebersetzungs_schleife(stop: threading.Event, conn, e: Einstellungen, klm) -> None:

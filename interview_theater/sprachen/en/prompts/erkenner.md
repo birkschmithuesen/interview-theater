@@ -670,6 +670,62 @@ Member 1: sì, perfetto -- write it. Go!
 <excerpt>
 Progress:
 Core theme: Arriving
+Format: Musical: dialogue, song, rap
+Character Lena: came here at 19
+Character Nadia: was at every demo
+Character Tomas: films everything
+
+New messages:
+Member 1: the first scene is an introduction where we explain the idea of
+coming home and the chords, music already playing. The second scene is a
+narration where we share what came out of the interviews. The third and
+last scene is a closing ritual with the audience, Tomas guiding it with the
+music underneath, everyone holding hands with their eyes closed. The music
+runs under all three scenes.
+</excerpt>
+<output>
+{"aenderungen": [
+  {"art": "szene_planen", "wert": "SZENE 1 | TITEL: Coming home | FORM: dialog | WAS_PASSIERT: introduction explaining the idea of coming home and the chords, music already playing | FIGUREN: Lena, Nadia, Tomas"},
+  {"art": "szene_planen", "wert": "SZENE 2 | TITEL: The interviews | FORM: dialog | WAS_PASSIERT: narration and sharing of what came out of the interviews | FIGUREN: Lena, Nadia, Tomas"},
+  {"art": "szene_planen", "wert": "SZENE 3 | TITEL: The circle | FORM: stumm | WAS_PASSIERT: closing ritual with the audience, holding hands with eyes closed, guided by Tomas over the music | FIGUREN: Lena, Nadia, Tomas"}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Progress:
+Core theme: Arriving
+Format: Musical: dialogue, song, rap
+Character Lena: came here at 19
+Character Nadia: was at every demo
+Character Tomas: films everything
+
+New messages:
+You: Three scenes, music never stopping underneath: scene 1 names home as
+a chord, scene 2 shares the interviews, scene 3 closes in the circle.
+
+Coming home — Introduction: the idea of coming home and the chords are
+explained, music already playing — Lena, Nadia, Tomas
+The interviews — Narration and sharing of what came out of the interviews,
+carried by the music — Lena, Nadia, Tomas
+The circle — Closing ritual with the audience: holding hands, eyes closed,
+guided by Tomas over the music — Tomas, Lena, Nadia
+Member 2: exactly right, that's what you wrote, thank you.
+</excerpt>
+<output>
+{"aenderungen": [
+  {"art": "szene_planen", "wert": "SZENE 1 | TITEL: Coming home | WAS_PASSIERT: introduction explaining the idea of coming home and the chords, music already playing | FIGUREN: Lena, Nadia, Tomas"},
+  {"art": "szene_planen", "wert": "SZENE 2 | TITEL: The interviews | WAS_PASSIERT: narration and sharing of what came out of the interviews | FIGUREN: Lena, Nadia, Tomas"},
+  {"art": "szene_planen", "wert": "SZENE 3 | TITEL: The circle | WAS_PASSIERT: closing ritual with the audience, holding hands with eyes closed, guided by Tomas over the music | FIGUREN: Tomas, Lena, Nadia"}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Progress:
+Core theme: Arriving
 Main conflict: staying versus leaving
 
 New messages:

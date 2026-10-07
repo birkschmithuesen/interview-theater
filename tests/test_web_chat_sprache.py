@@ -75,9 +75,15 @@ def _zustand(pfad, token):
 #: "Halten zum Sprechen" ist der _TEXT_PTT-Wortlaut der Kanban-Karte
 #: Buehne/PTT vom 04.10.2026 (Halten-Geste mit Sperre/Wegwisch-Abbruch) --
 #: davor stand hier "Tippen und sprechen" (Klick-Umschalter, 03.10.2026).
+#: "Verbindung" (Kanban-Karte InScribe-Warnung, 07.10.2026): die deutliche
+#: Verbindungswarnung (_TEXT_WARTE_NETZ/_TEXT_OFFLINE_AUFNAHME/
+#: _TEXT_WIEDER_VERBUNDEN) muss unter Padua englisch sein wie jeder andere
+#: Nutzertext dieser Seite -- vorher lief "warte_netz" NICHT ueber T und
+#: stand auch im Padua-Chat deutsch da.
 _WOERTER_AKTUELL = (
     "Halten zum Sprechen", "Zur Gruppenseite",
     "Senden", "Rest verwerfen", "Rest als Interview nachreichen",
+    "Verbindung",
 )
 
 #: Regressionswache: FRUEHERE deutsche PTT-Texte -- stehen nirgends mehr im

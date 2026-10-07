@@ -422,6 +422,10 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
                   background: #17181b; left: 0; }
 .uhr { font-variant-numeric: tabular-nums; font-size: 1.3rem; text-align: center; }
 .warteschlange { font-size: .82rem; opacity: .7; text-align: center; }
+/* Kanban-Karte InScribe-Warnung (07.10.2026): ein Verbindungsproblem beim
+   Upload soll auffallen, nicht im gedaempften Standardtext verschwinden --
+   dieselbe Warnfarbe wie .fehler, fett statt kursiv/blass. */
+.warteschlange.warnt { opacity: 1; color: #a8201a; font-weight: 600; }
 .kalibrierung { display: flex; flex-direction: column; gap: .5rem; font-size: .92rem;
                 border: 1px solid #1f6f5c; border-radius: .7rem; padding: .6rem .7rem; }
 .kalibrierung[hidden] { display: none; }
@@ -516,10 +520,33 @@ PTT_CANCEL_PX = 80
 #: sichtbar.
 UPLOAD_WARTEN_MS = (1000, 3000, 8000)
 
+#: Kanban-Karte InScribe-Warnung (07.10.2026): ein Upload, der laenger als
+#: das haengt, gilt als haengend und wird abgebrochen (AbortController) --
+#: er faellt dann in denselben Netzfehler-/Wiederholungsweg wie ein echter
+#: Verbindungsabbruch (postAudio().catch in arbeiteAb()). 20 s, gemessen an
+#: den Nachbarwerten: ein Segment ist in der Vorgabe (VORGABE_SEGMENT_MS)
+#: 45 s lang, komprimiertes Opus/WebM braucht dafuer selbst auf einer
+#: langsamen Mobilverbindung (GPRS/Edge, ~20 kbit/s) deutlich unter 10 s
+#: Uebertragungszeit -- 20 s liegen darueber, aber klar unter der Zeit, die
+#: eine Gruppe mitten im Interview unbemerkt verliert, bevor das naechste
+#: Segment ohnehin fertig wird.
+UPLOAD_TIMEOUT_MS = 20_000
+
 _TEXT_WARTE_EINS = "Ein Stück wird hochgeladen …"
 _TEXT_WARTE_MEHR = "{n} Stücke werden hochgeladen …"
 _TEXT_WARTE_MODUS = "Aufnahme läuft — {n} Stück(e) warten, bis der Bot das Interview angelegt hat."
 _TEXT_WARTE_NETZ = "Keine Verbindung — {n} offen, ich versuche es weiter …"
+#: Kanban-Karte InScribe-Warnung: Verbindung weg, aber noch nichts in der
+#: Warteschlange (ein 90s-Segment nimmt lokal weiter auf, bevor das erste
+#: Stueck ueberhaupt hochladen will) -- navigator.onLine bzw. ein
+#: fehlgeschlagener/haengender Upload melden das trotzdem sofort.
+_TEXT_OFFLINE_AUFNAHME = (
+    "Keine Verbindung — die Aufnahme bleibt erhalten und wird nachgeladen, "
+    "sobald es wieder geht."
+)
+#: Entwarnung, sobald das Verbindungsproblem vorbei ist (netzFehler zurueck
+#: auf 0 UND wieder online).
+_TEXT_WIEDER_VERBUNDEN = "Wieder verbunden — alles hochgeladen."
 _TEXT_FEHLER_NETZ = "Keine Verbindung — das ist nicht angekommen."
 _TEXT_FEHLER_MIKRO = "Ohne Mikrofon geht das nicht — bitte den Zugriff erlauben."
 _TEXT_VERLASSEN = "Es wird noch aufgenommen oder hochgeladen."
@@ -650,6 +677,8 @@ _JS_TEXTE = {
     "warte_mehr": _TEXT_WARTE_MEHR,
     "warte_modus": _TEXT_WARTE_MODUS,
     "warte_netz": _TEXT_WARTE_NETZ,
+    "offline_aufnahme": _TEXT_OFFLINE_AUFNAHME,
+    "wieder_verbunden": _TEXT_WIEDER_VERBUNDEN,
     "fehler_netz": _TEXT_FEHLER_NETZ,
     "fehler_mikro": _TEXT_FEHLER_MIKRO,
     "verlassen": _TEXT_VERLASSEN,
@@ -720,6 +749,7 @@ _CHAT_JS = """
   var PTT_LOCK_PX = __PTT_LOCK_PX__;
   var PTT_CANCEL_PX = __PTT_CANCEL_PX__;
   var UPLOAD_WARTEN_MS = __UPLOAD_WARTEN_MS__;
+  var UPLOAD_TIMEOUT_MS = __UPLOAD_TIMEOUT_MS__;
   var TEXT = __TEXTE__;
   // Padua Brainstorm, 03.10.2026: wie nah am unteren Rand noch als "dort"
   // zaehlt -- ein Pixel exakt waere auf jedem Geraet eine andere Zahl.
@@ -1378,16 +1408,30 @@ _CHAT_JS = """
       weg_ += auftrag.sitzung.ziel === 'brainstorm' ? '&brainstorm=1' : '&diskussion=1';
     }
     if (auftrag.kalibrierung) { weg_ += '&kalibrierung=1'; }
+    // Kanban-Karte InScribe-Warnung (07.10.2026): ein haengender Upload
+    // (gesendet, aber nie eine Antwort -- ein flaues Netz, kein echter
+    // Abbruch) faellt nach UPLOAD_TIMEOUT_MS in denselben Netzfehler-/
+    // Wiederholungsweg wie ein Verbindungsabbruch (das .catch() in
+    // arbeiteAb()). Ohne das wartete dieses Stueck unbegrenzt vorn in der
+    // Schlange, ohne dass die Warnung je anspringt.
+    var zeitabbruch = new AbortController();
+    var zeitueberschritten = setTimeout(function () { zeitabbruch.abort(); },
+                                         UPLOAD_TIMEOUT_MS);
     return fetch(weg(weg_), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': auftrag.blob.type || 'audio/webm',
                  'X-Nonce': nonce() },
-      body: auftrag.blob
+      body: auftrag.blob,
+      signal: zeitabbruch.signal
     }).then(function (r) {
+      clearTimeout(zeitueberschritten);
       if (r.status === 403 && !zweiter) {
         return hole().then(function () { return postAudio(auftrag, true); });
       }
       return r;
+    }, function (fehler) {
+      clearTimeout(zeitueberschritten);
+      throw fehler;
     });
   }
 
@@ -1500,21 +1544,50 @@ _CHAT_JS = """
            auftrag.sitzung && auftrag.sitzung.bestaetigt && !zustand.servermodus;
   }
 
+  // Kanban-Karte InScribe-Warnung (07.10.2026): ein Verbindungsproblem beim
+  // Upload -- Netzfehler (bereits erlebter Fehlschlag/Zeitueberschreitung
+  // eines Versuchs) ODER navigator.onLine sagt nein. navigator.onLine allein
+  // erkennt nur den Netzwerk-ADAPTER (kein WLAN/Mobilfunk), nicht einen toten
+  // Server dahinter -- deshalb bleibt zustand.netzFehler (aus einem
+  // tatsaechlich gescheiterten/abgebrochenen fetch) die zweite, unabhaengige
+  // Bedingung.
+  function netzProblem() {
+    return zustand.netzFehler > 0 || !navigator.onLine;
+  }
+
+  // Nur warnen, wenn gerade etwas an diesem Telefon haengt, fuer das die
+  // Verbindung gebraucht wird (laufende Aufnahme, etwas in der
+  // Warteschlange, etwas angehalten/geparkt) -- blosses Lesen alter
+  // Nachrichten ohne eigene Aufnahme soll nicht beunruhigen.
+  function etwasInArbeit() {
+    return !!zustand.aufnahme || zustand.warteschlange.length > 0 || geparkteZahl() > 0;
+  }
+
   function zeigeWarteschlange() {
     if (!warteFeld) { return; }
     var offen = zustand.warteschlange.length;
     var stuecke = zustand.warteschlange.filter(function (a) {
       return a.art === 'audio';
     }).length;
+    var netzOk = !netzProblem();
+    var problem = !netzOk && etwasInArbeit();
     var satz = '';
-    if (offen && zustand.netzFehler) {
-      satz = TEXT.warte_netz.replace('{n}', offen);
+    if (problem) {
+      satz = offen ? TEXT.warte_netz.replace('{n}', offen) : TEXT.offline_aufnahme;
     } else if (stuecke && !bereit(zustand.warteschlange[0])) {
       satz = TEXT.warte_modus.replace('{n}', stuecke);
     } else if (stuecke) {
       satz = stuecke === 1 ? TEXT.warte_eins
                            : TEXT.warte_mehr.replace('{n}', stuecke);
+    } else if (zustand.zeigteNetzwarnung && netzOk) {
+      // Entwarnung: ausdruecklich sagen, dass es vorbei ist, statt den
+      // Hinweis wortlos verschwinden zu lassen. NUR wenn die Verbindung
+      // tatsaechlich wieder da ist (netzOk) -- sonst zeigte ein Aufnahme-
+      // ende waehrend echter Offline-Zeit faelschlich "wieder verbunden".
+      satz = TEXT.wieder_verbunden;
     }
+    zustand.zeigteNetzwarnung = problem;
+    warteFeld.classList.toggle('warnt', problem);
     warteFeld.textContent = satz;
   }
 
@@ -1535,7 +1608,15 @@ _CHAT_JS = """
     }
     arbeiteAb();
     hole();
+    // Kanban-Karte InScribe-Warnung: arbeiteAb() zeigt die Warteschlange nur
+    // an, wenn ueberhaupt etwas drin steht -- bei leerer Schlange (z. B. ein
+    // 90s-Segment laeuft noch) muss die Entwarnung trotzdem sofort kommen,
+    // nicht erst beim naechsten Warteschlangenereignis.
+    zeigeWarteschlange();
   });
+
+  // Gegenstueck: sofort warnen, nicht erst wenn/falls ein Upload scheitert.
+  window.addEventListener('offline', zeigeWarteschlange);
 
   // Re-Review zu a615327: war ein Segment beim Modusende schon unterwegs,
   // liess halteAn es vorn stehen. Ist es danach nicht angekommen (Netz, 5xx,
@@ -4040,6 +4121,12 @@ def _js() -> str:
         kal_herumreichen_erinnerung=T._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
         mitlauf_hinweis=T._TEXT_MITLAUF_HINWEIS,
         ptt_hinweis=T._TEXT_PTT_HINWEIS,
+        # Kanban-Karte InScribe-Warnung (07.10.2026): die Verbindungswarnung
+        # war die einzige "warte_*"-Zeile, die hier noch deutsch blieb.
+        warte_netz=T._TEXT_WARTE_NETZ,
+        offline_aufnahme=T._TEXT_OFFLINE_AUFNAHME,
+        wieder_verbunden=T._TEXT_WIEDER_VERBUNDEN,
+        fehler_netz=T._TEXT_FEHLER_NETZ,
     )
     texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (
@@ -4051,6 +4138,7 @@ def _js() -> str:
         .replace("__PTT_LOCK_PX__", str(PTT_LOCK_PX))
         .replace("__PTT_CANCEL_PX__", str(PTT_CANCEL_PX))
         .replace("__UPLOAD_WARTEN_MS__", json.dumps(list(UPLOAD_WARTEN_MS)))
+        .replace("__UPLOAD_TIMEOUT_MS__", str(UPLOAD_TIMEOUT_MS))
         .replace("__TEXTE__", texte)
     )
 

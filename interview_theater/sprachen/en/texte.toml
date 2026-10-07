@@ -2053,6 +2053,13 @@ _TEXT_OHNE_JS = "This page needs JavaScript for chat and recording. The group pa
 _TEXT_SENDEN = "Send"
 _TEXT_REST_NACHREICHEN = "Submit the rest as an interview"
 _TEXT_REST_VERWERFEN = "Discard the rest"
+# Kanban-Karte InScribe-Warnung (07.10.2026): die Verbindungswarnung des
+# Web-Recorders -- vorher lief sie nicht ueber T und blieb auch im
+# Padua-Chat deutsch (tests/test_web_chat_sprache.py).
+_TEXT_WARTE_NETZ = "No connection — {n} queued, still trying …"
+_TEXT_OFFLINE_AUFNAHME = "No connection — recording is kept, will upload when back"
+_TEXT_WIEDER_VERBUNDEN = "Back online — everything uploaded."
+_TEXT_FEHLER_NETZ = "No connection — that one didn't arrive."
 # Task 5 (Padua Phase 1+2 Umbau, 03.10.2026): background listening in phase 1
 # -- seit Birk 05.10.2026 22:00 auch phase 4 (kein eigener Brainstorm-Toggle
 # mehr, die eigenen Brainstorm-Textkonstanten entfallen, t_cf87ee0a

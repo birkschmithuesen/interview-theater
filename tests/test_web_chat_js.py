@@ -870,6 +870,101 @@ def test_zustand_liest_die_phase_aus_dem_dataset():
     assert "phase: parseInt(verlauf.dataset.phase, 10) || 0" in zustand_literal
 
 
+# -- InScribe-Warnung (Kanban-Karte "InScribe: Warnung bei Problemen",       --
+# -- 07.10.2026): zeigeWarteschlange() entscheidet jetzt auch ueber die      --
+# -- Verbindungswarnung (navigator.onLine / netzFehler), woertlich aus dem   --
+# -- ausgelieferten Skript, nicht nachgebaut.                                --
+
+def test_zeigewarteschlange_warnt_deutlich_bei_offline_waehrend_der_aufnahme(tmp_path):
+    """Positivkontrolle (Kriterium 5 der Karte): navigator.onLine=false UND
+    eine laufende Aufnahme (noch nichts in der Schlange, z. B. ein 90s-
+    Segment) -> die deutliche Warnung (Klasse 'warnt', eigener Text) muss
+    erscheinen. Vor dieser Aenderung gab es weder 'warnt' noch
+    TEXT.offline_aufnahme -- der Test war rot."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktionen = _extrahiere(js, "function netzProblem", "function planeNachholen")
+
+    quelltext = f"""
+    var navigator = {{ onLine: true }};
+    var TEXT = {{
+      warte_netz: 'No connection - {{n}} queued', offline_aufnahme: 'No connection - kept',
+      warte_modus: 'x', warte_eins: 'x', warte_mehr: 'x', wieder_verbunden: 'Back online'
+    }};
+    var zustand = {{ warteschlange: [], netzFehler: 0, aufnahme: null }};
+    var klassen = {{}};
+    var warteFeld = {{
+      classList: {{ toggle: function (name, an) {{ klassen[name] = !!an; }} }},
+      textContent: ''
+    }};
+    function bereit() {{ return true; }}
+    function geparkteZahl() {{ return 0; }}
+    {funktionen}
+
+    var ergebnisse = {{}};
+
+    // Mitten in einer 90s-Aufnahme, noch kein Segment hochgeladen, dann
+    // faellt die Verbindung weg.
+    zustand.aufnahme = {{ id: 1 }};
+    navigator.onLine = false;
+    zeigeWarteschlange();
+    ergebnisse.offline_waehrend_aufnahme = {{ text: warteFeld.textContent, warnt: !!klassen.warnt }};
+
+    // Ohne laufende Aufnahme und ohne Warteschlange ist nichts "in Arbeit"
+    // -- keine Warnung, obwohl offline (kein Alarm beim blossen Lesen).
+    zustand.aufnahme = null;
+    zeigeWarteschlange();
+    ergebnisse.offline_ohne_aufnahme = {{ text: warteFeld.textContent, warnt: !!klassen.warnt }};
+
+    // Online, aber ein frueherer Upload ist schon gescheitert (netzFehler),
+    // und es liegt noch ein Stueck in der Schlange.
+    navigator.onLine = true;
+    zustand.netzFehler = 2;
+    zustand.warteschlange = [{{ art: 'audio' }}];
+    zeigeWarteschlange();
+    ergebnisse.netzfehler_mit_schlange = {{ text: warteFeld.textContent, warnt: !!klassen.warnt }};
+
+    // Entwarnung: Verbindung wieder da, Schlange leer.
+    zustand.netzFehler = 0;
+    zustand.warteschlange = [];
+    zeigeWarteschlange();
+    ergebnisse.geloest = {{ text: warteFeld.textContent, warnt: !!klassen.warnt }};
+
+    console.log(JSON.stringify(ergebnisse));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnisse = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnisse["offline_waehrend_aufnahme"] == {
+        "text": "No connection - kept", "warnt": True,
+    }
+    assert ergebnisse["offline_ohne_aufnahme"] == {"text": "", "warnt": False}
+    assert ergebnisse["netzfehler_mit_schlange"] == {
+        "text": "No connection - 1 queued", "warnt": True,
+    }
+    assert ergebnisse["geloest"] == {"text": "Back online", "warnt": False}
+
+
+def test_postaudio_bricht_haengende_uploads_nach_upload_timeout_ms_ab():
+    """Kriterium 1 (`>N s haengt`): postAudio() muss den Upload nach
+    UPLOAD_TIMEOUT_MS ueber einen AbortController abbrechen -- sonst wartet
+    ein Segment bei einer haengenden (nicht fehlschlagenden) Verbindung
+    unbegrenzt vorn in der Schlange, ohne dass die Warnung je anspringt."""
+    js = web_chat._js()
+    assert "new AbortController()" in js
+    assert "zeitabbruch.abort();" in js
+    assert f"var UPLOAD_TIMEOUT_MS = {web_chat.UPLOAD_TIMEOUT_MS};" in js
+    assert "signal: zeitabbruch.signal" in js
+
+
+def test_das_js_registriert_einen_eigenen_offline_listener():
+    js = web_chat._CHAT_JS
+    assert "window.addEventListener('offline', zeigeWarteschlange);" in js
+
+
+def test_die_warnklasse_steht_im_eingebetteten_stylesheet():
+    assert ".warteschlange.warnt" in web_chat._CSS_CHAT
+
+
 def _node_oder_skip():
     import shutil
 

@@ -802,13 +802,27 @@ def _baue_p5_uebersicht(conn, chat_id: int) -> str:
         )
     zeilen.append("")
 
-    festlegungen = repo.festlegungen(conn, chat_id)
-    if festlegungen:
-        zeilen.append(T._TEXT_P5_UEBERSICHT_FESTLEGUNGEN)
-        zeilen.extend(
-            repo.festlegungszeile(z["bereich"], z["bezug"], z["text"])
-            for z in festlegungen
-        )
+    # Birk 07.10.2026: keine Sammelueberschrift "Other fixed items" und keine
+    # deutschen Rohbereiche ("struktur", "gruppe") -- jede Festlegung steht
+    # unter ihrer EIGENEN Ueberschrift, gleichrangig mit Setting/Story und
+    # mit derselben Beschriftung wie in der Werkbank
+    # (``web.T.FESTLEGUNG_BEREICH_BESCHRIFTUNG``). Gibt es einen Bezug
+    # ("Performers"), ist er die Ueberschrift; Reihenfolge = erste Nennung.
+    from interview_theater import web as _web
+
+    gruppen: dict[str, list[str]] = {}
+    for z in repo.festlegungen(conn, chat_id):
+        roh = (z["bereich"] or "").strip()
+        bezug = (z["bezug"] or "").strip()
+        if bezug:
+            kopf = bezug
+        else:
+            kopf = _web.T.FESTLEGUNG_BEREICH_BESCHRIFTUNG.get(roh.lower()) or roh
+        kopf = kopf[:1].upper() + kopf[1:]
+        gruppen.setdefault(kopf, []).append((z["text"] or "").strip())
+    for kopf, texte in gruppen.items():
+        zeilen.append(f"**{kopf}**")
+        zeilen.extend(texte if len(texte) == 1 else [f"• {t}" for t in texte])
         zeilen.append("")
 
     zeilen.append(T._TEXT_P5_UEBERSICHT_SCHLUSS)
@@ -1083,12 +1097,21 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     naechste = phasen.naechste_moegliche(conn, chat_id)
     if naechste is None or naechste <= jetzige:
         tg.sende(chat_id, text)
-        return
-    try:
-        knoepfe.biete_phase(conn, tg, chat_id, text, naechste)
-    except Exception:
-        log.exception("Phasenknopf unter /stand fehlgeschlagen, chat_id=%s", chat_id)
-        tg.sende(chat_id, text)
+    else:
+        try:
+            knoepfe.biete_phase(conn, tg, chat_id, text, naechste)
+        except Exception:
+            log.exception("Phasenknopf unter /stand fehlgeschlagen, chat_id=%s", chat_id)
+            tg.sende(chat_id, text)
+    # Karte t_c5117c91: ab Ende Phase 3 (also sobald Phase 4 steht) bietet
+    # /stand den Research-Knopf zusaetzlich an, auf Anfrage -- eine zweite,
+    # eigene Nachricht unter dem Stand, nur mit dem Profilschalter
+    # ``recherche.aktiv``. Ersetzt nichts: der Stand-Text und ein etwaiger
+    # Phasenknopf stehen unveraendert darueber.
+    from interview_theater import workshop
+
+    if workshop.recherche_aktiv() and jetzige >= knoepfe.PHASE_SETTING:
+        knoepfe.biete_recherche(conn, tg, chat_id)
 
 
 def _befehl_wortlaut(conn, tg, chat_id: int, rest: str) -> None:

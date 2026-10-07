@@ -481,6 +481,42 @@ def test_stand_zeigt_den_konflikt_nur_wenn_gesetzt(conn, einst, tg):
     assert "Hauptkonflikt: bleiben gegen gehen" in tg.gesendet[1][1]
 
 
+def test_stand_bietet_recherche_ab_phase_4_mit_profilschalter(conn, einst, tg, padua):
+    """Karte t_c5117c91: ab Ende Phase 3 (also sobald Phase 4 steht) bietet
+    ``/stand`` den Research-Knopf zusaetzlich an -- nur mit
+    ``recherche.aktiv``. Mutant: der Knopf fehlt."""
+    phasen.setze(conn, 1, 4, "befehl")
+
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    from interview_theater import knoepfe
+    assert any(text == knoepfe.T._TEXT_RECHERCHE_ANBIETEN for _, text, _ in tg.knoepfe)
+
+
+def test_stand_bietet_recherche_nicht_vor_phase_4(conn, einst, tg, padua):
+    """Vor dem Ende von Phase 3 (also noch in Phase 1-3) kein Knopf -- die
+    Karte verlangt "ab Phase 4". Mutant: der Knopf erscheint schon in
+    Phase 3."""
+    phasen.setze(conn, 1, 3, "befehl")
+
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    from interview_theater import knoepfe
+    assert not any(text == knoepfe.T._TEXT_RECHERCHE_ANBIETEN for _, text, _ in tg.knoepfe)
+
+
+def test_stand_bietet_recherche_nicht_ohne_profilschalter(conn, einst, tg):
+    """Dortmund (kein Profilschalter): kein Research-Knopf unter /stand,
+    auch nicht ab Phase 4. Mutant: der Knopf erscheint auch ohne
+    ``recherche.aktiv``."""
+    phasen.setze(conn, 1, 4, "befehl")
+
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    from interview_theater import knoepfe
+    assert not any(text == knoepfe.T._TEXT_RECHERCHE_ANBIETEN for _, text, _ in tg.knoepfe)
+
+
 def test_stand_zeigt_das_setting_im_block_seiner_phase(conn, einst, tg):
     """Ein Wert aus einer hoeheren Phase geht nicht verloren: er steht im
     Block dieser Phase, auch wenn die Gruppe noch weiter unten arbeitet."""

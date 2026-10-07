@@ -1065,6 +1065,13 @@ _TEXT_WB_FORM = "Szene {bezug}: Form"
 _TEXT_WB_SPRECHWEISE = "{bezug}: Sprechweise"
 _TEXT_WB_AUCH_VEREINBART = "Auch vereinbart"
 _TEXT_WERKBANK_NUR_LESEN = "Hier wird nur angezeigt – Änderungen bitte im Chat."
+#: Der Recherche-Abschnitt der Werkbank (Karte t_c5117c91) -- ein eigener,
+#: von den sieben Phasen unabhaengiger Abschnitt unter dem Journal: eine
+#: Internet-Recherche gehoert zu keiner Phase und ist klar vom
+#: Interviewmaterial getrennt (derselbe Grundsatz wie kontext.RECHERCHE_KOPF).
+_UEBERSCHRIFT_RECHERCHE = "Recherche aus dem Internet (kein Interviewmaterial)"
+_TEXT_RECHERCHE_LEER = "Noch keine Recherche."
+_TEXT_RECHERCHE_QUELLEN = "Quellen: {quellen}"
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026). Die Tab-Beschriftung
 #: selbst steht seit dem Umzug in Karte Ws Tableiste in
 #: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
@@ -3640,6 +3647,25 @@ def _journal_html(eintraege: list[dict]) -> str:
     ) or f'<p class="leer">{_t(T._TEXT_NICHTS_NOTIERT)}</p>'
 
 
+def _recherche_html(eintraege: list[dict]) -> str:
+    """Die Recherchekarten -- herausgeloest wie ``_journal_html`` (Karte
+    t_c5117c91). Eigener Abschnitt, unabhaengig von den sieben Phasen."""
+    if not eintraege:
+        return f'<p class="leer">{_t(T._TEXT_RECHERCHE_LEER)}</p>'
+    return "".join(
+        '<div class="eintrag"><p class="frage">{frage}</p><p>{text}</p>{quellen}</div>'.format(
+            frage=_t(e["frage"]),
+            text=_t(e["ergebnis_text"]),
+            quellen=(
+                f'<p class="quellen">'
+                f'{_t(T._TEXT_RECHERCHE_QUELLEN.format(quellen=", ".join(e["quellen"])))}'
+                "</p>" if e.get("quellen") else ""
+            ),
+        )
+        for e in eintraege
+    )
+
+
 def _wb_status_text(status: str) -> str:
     from interview_theater import roadmap
 
@@ -3862,12 +3888,17 @@ def werkbank_koerper(daten: dict) -> str:
         f"{_t(T._TEXT_JOURNAL.format(anzahl=len(daten['journal'])))}</summary>"
         f"{_journal_html(daten['journal'])}</details>"
     )
+    recherche = (
+        '<details class="wb-recherche"><summary>'
+        f"{_t(T._UEBERSCHRIFT_RECHERCHE)}</summary>"
+        f"{_recherche_html(werkbank.get('recherche') or [])}</details>"
+    )
     return (
         f"<h1>{_t(titel)}</h1>\n"
         '<div id="stand-inhalt" class="werkbank">\n'
         f'<p class="wb-hinweis">{_t(T._TEXT_WERKBANK_HINWEIS)}</p>\n'
         + "\n".join(bloecke)
-        + f"\n{journal}\n</div>\n"
+        + f"\n{journal}\n{recherche}\n</div>\n"
     )
 
 

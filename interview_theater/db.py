@@ -1358,6 +1358,20 @@ CREATE TABLE IF NOT EXISTS formberater (
   erstellt_am  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_formberater_chat ON formberater(chat_id, id);
+-- Internet-Recherche (Karte t_c5117c91): ein eigener Materialstrang, klar
+-- getrennt vom Interviewmaterial -- siehe kontext.py (eigener Prompt-Block)
+-- und AGENTS.md "Nur anhaengen" (entfernt wird weich, ueber entfernt_am).
+-- `quellen_json` ist eine JSON-Liste `{titel, url, datum?}` je verifizierter
+-- Aussage in `ergebnis_text`.
+CREATE TABLE IF NOT EXISTS recherche (
+  id              INTEGER PRIMARY KEY,
+  chat_id         INTEGER NOT NULL,
+  frage           TEXT NOT NULL,
+  ergebnis_text   TEXT NOT NULL,
+  quellen_json    TEXT NOT NULL,
+  erstellt_am     TEXT NOT NULL,
+  entfernt_am     TEXT
+);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1397,6 +1411,8 @@ TABELLEN_MIT_CHAT_ID = (
     "uebersetzung",
     # Karte t_256ec777 (07.10.2026): was der Formberater nachgeschlagen hat.
     "formberater",
+    # Karte t_c5117c91 (06.10.2026): die Internet-Recherche.
+    "recherche",
 )
 
 

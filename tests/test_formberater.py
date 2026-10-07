@@ -404,25 +404,20 @@ def test_ablauf_prueft_vor_dem_kontextbau(conn, einst, monkeypatch):
 # --- (d) Einstieg in Phase 5, ohne Knopf -----------------------------------------
 
 
-def test_einstieg_einmal_als_angebot_ohne_knopf(conn, tg, einst, padua):
-    """Birk 07.10.2026 ~08:05: der Formberater bekommt keinen Knopf -- der
-    Einstiegs-Angebot ist ein reiner Chatbeitrag (``tg.gesendet``, nie
-    ``tg.knoepfe``)."""
+def test_einstieg_laeuft_still_ohne_chatkarte(conn, tg, einst, padua):
+    """Birk 07.10.2026 (Testgruppe, 10:30): die Form ist beim Eintritt in
+    Phase 5 schon festgelegt und im P5-Check bestaetigt -- die Einordnung
+    laeuft weiter (Zeile + Prompt), aber KEINE Chat-Karte mehr, die sich
+    wie ein neuer Vorschlag liest. Einmal, nie doppelt."""
     _phase(conn, 5)
     klm = KLM()
     formberater.starte_einstieg(conn, tg, klm, einst, 1).join(10)
 
-    (_cid, text) = tg.gesendet[-1]
-    assert text.startswith("🎭 Your form -- something to place it by, not a rule:")
-    assert "• Closest to what you are doing: Fluxus event score -- equal actions" in text
-    assert "• Could carry your idea further: Happening -- actions in everyday space" in text
-    assert "• Counterpoint, to sharpen your own choice: Epic theatre -- " in text
-    assert text.endswith("nothing in your piece changes unless you say so.")
+    assert tg.gesendet == []
     assert tg.knoepfe == []
-    # Als Bot-Zeile gemerkt: der Gespraechs-Bot sieht das Angebot.
-    assert conn.execute(
-        "SELECT COUNT(*) FROM nachricht WHERE ist_bot = 1 AND text LIKE '%Fluxus event score%'"
-    ).fetchone()[0] == 1
+    zeilen = repo.formberater_zeilen(conn, 1)
+    assert [z["ausloeser"] for z in zeilen] == [formberater.AUSLOESER_EINSTIEG]
+    assert "Fluxus event score" in formberater.kontextblock(conn, 1)
 
     # Ein zweiter Eintritt: nichts mehr.
     assert formberater.starte_einstieg(conn, tg, klm, einst, 1) is None
@@ -510,3 +505,29 @@ def test_takt_nicht_vor_phase_4(monkeypatch):
     monkeypatch.setattr(f, "starte", lambda *a, **k: (_ for _ in ()).throw(AssertionError("kein Aufruf")))
     f._zuletzt_gestartet.clear()
     assert f.pruefe_zug(None, None, object(), None, 1, ["random"], phase=3) is None
+
+
+
+def test_neue_form_beim_namen_kuerzt_den_abstand(monkeypatch):
+    """Birk 07.10.2026 (Lecture Performance 32 s nach dem Takt): eine neu
+    genannte Form startet den Modellaufruf schon nach MIN_ABSTAND_NEUE_FORM_S."""
+    from interview_theater import formberater as f
+
+    gestartet = []
+    def _starte(*a, **k):
+        gestartet.append(a[5])
+        return object()
+    monkeypatch.setattr(f, "starte", _starte)
+    monkeypatch.setattr(f, "MIN_ABSTAND_S", 90.0)
+    monkeypatch.setattr(f, "_takt_faellig", lambda c, ch: False)
+    monkeypatch.setattr(f.repo, "formberater_zeilen", lambda c, ch: [])
+    monkeypatch.setattr(f.repo, "lege_formberater_an", lambda *a, **k: None)
+    f._zuletzt_gestartet.clear()
+    f._zuletzt_gestartet[1] = 1000.0
+    monkeypatch.setattr(f.time, "monotonic", lambda: 1000.0 + f.MIN_ABSTAND_NEUE_FORM_S + 1)
+    assert f.pruefe_zug(None, None, object(), None, 1, ["as a lecture performance"], phase=4) is not None
+    assert gestartet == [f.AUSLOESER_LAUFEND]
+    # ohne neue Form (nur Struktur-Stichwort) gilt weiter der lange Abstand
+    gestartet.clear(); f._zuletzt_gestartet[1] = 1000.0
+    assert f.pruefe_zug(None, None, object(), None, 1, ["random order"], phase=4) is None
+    assert gestartet == []

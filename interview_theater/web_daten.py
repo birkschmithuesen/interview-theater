@@ -2302,6 +2302,34 @@ def _spalte_je_id(conn: sqlite3.Connection, tabelle: str, spalte: str,
     return {z["id"]: z[spalte] for z in zeilen}
 
 
+def _recherchen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die nicht entfernten Recherchen einer Gruppe, juengste zuerst --
+    dieselbe Form wie ``repo.hole_recherchen`` (Karte t_c5117c91), hier ueber
+    die read-only Verbindung. ``OperationalError``-Notbremse wie bei jedem
+    Leser hier: der Webserver migriert nichts (die Tabelle kann zwischen
+    Deploy und Bot-Neustart noch fehlen)."""
+    try:
+        zeilen = conn.execute(
+            f"SELECT * FROM recherche WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+            "ORDER BY id DESC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    ergebnis = []
+    for z in zeilen:
+        try:
+            quellen = json.loads(_feld(z, "quellen_json") or "[]") or []
+        except (ValueError, TypeError):
+            quellen = []
+        ergebnis.append({
+            "frage": _feld(z, "frage") or "",
+            "ergebnis_text": _feld(z, "ergebnis_text") or "",
+            "quellen": quellen,
+        })
+    return ergebnis
+
+
 def werkbank(conn: sqlite3.Connection, chat_id: int) -> dict:
     """Die read-only Werkbank (``roadmap.werkbank``) -- dieselbe ``lage`` wie
     ``roadmap``, ergaenzt um das, was nur die Detailzeilen brauchen. Kein
@@ -2322,4 +2350,7 @@ def werkbank(conn: sqlite3.Connection, chat_id: int) -> dict:
         "phasen": modul.werkbank(lage, lage["phase"]),
         "begriffe_detail": modul.begriffe_detail(lage["stand"]),
         "szenen_anzahl": (str(anzahl).strip() or None) if anzahl is not None else None,
+        # Internet-Recherche (Karte t_c5117c91) -- ein eigener Abschnitt,
+        # unabhaengig von den sieben Phasen (siehe roadmap.recherche_abschnitt).
+        "recherche": modul.recherche_abschnitt(_recherchen(conn, chat_id)),
     }

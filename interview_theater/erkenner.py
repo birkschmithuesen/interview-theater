@@ -185,6 +185,17 @@ ARTEN = (
     "sprechweise_setzen",
     # Entscheidung zu einem Schaerfungs-Vorschlag (5), wie die Schaerfungs-Knoepfe.
     "schaerfung_entscheidung",
+    # Karte t_c5117c91 (InScribe, 06.10.2026): "research: ..." / "can you
+    # look up ..." im Chat -- der freie Weg neben dem Research-Knopf. Wie
+    # ``szene_schreiben`` ohne Schreibpfad: sie stoesst den Netz- und
+    # Modellaufruf in ``recherche.starte`` an, den ``laufe()`` in einem
+    # eigenen Thread auswertet (``_starte_recherche``). Nur mit dem
+    # Profilschalter ``recherche`` (``PROFILSCHALTER_DER_ARTEN``) und erst ab
+    # Phase 4 (``AB_PHASE_ARTEN``) -- dieselbe Untergrenze wie
+    # ``szene_schreiben``: davor gibt es noch keine Themen, aus denen eine
+    # Forschungsfrage entstehen koennte.
+    # wert: die Forschungsfrage, woertlich wie die Gruppe sie getippt hat.
+    "recherche_starten",
 )
 
 #: Die einzigen Arten, die aus dem Transkript einer Sprachnachricht im
@@ -242,6 +253,9 @@ PHASEN_SPEZIFISCHE_ARTEN: dict[str, tuple[int, ...]] = {
 AB_PHASE_ARTEN: dict[str, int] = {
     "szene_schreiben": 4,
     "szene_kuerzen": 4,
+    # Karte t_c5117c91: dieselbe Untergrenze wie beim Research-Knopf
+    # (ab Phase 4 == "ab Ende Phase 3", knoepfe/befehle.py).
+    "recherche_starten": 4,
 }
 
 #: Welcher Profilschalter eine ART ueberhaupt erst freischaltet -- dieselbe
@@ -260,6 +274,9 @@ PROFILSCHALTER_DER_ARTEN: dict[str, str] = {
     # wird gestellt, Dortmund/Vorgabe unveraendert). Padua schaltet sie AUS:
     # ohne Einwilligungsfrage gibt es auch nichts mehr zu beantworten.
     "szene_usa": "einwilligung",
+    # Karte t_c5117c91: ohne den Schalter steht die art nicht einmal im
+    # Schema (``arten_fuer_schema``) -- Dortmund sieht sie nie.
+    "recherche_starten": "recherche",
 }
 
 
@@ -275,9 +292,16 @@ def _einwilligung_an() -> bool:
     return workshop.modellwahl_einwilligung_aktiv()
 
 
+def _recherche_an() -> bool:
+    from interview_theater import workshop
+
+    return workshop.recherche_aktiv()
+
+
 _SCHALTER = {
     "ueberarbeitung": _ueberarbeitung_an,
     "einwilligung": _einwilligung_an,
+    "recherche": _recherche_an,
 }
 
 
@@ -1744,6 +1768,11 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         # Weg an, den laufe() auswertet (``_starte_teil2``) -- derselbe, den
         # der passende Knopf nimmt.
         return None
+    if art == "recherche_starten":
+        # Kein Schreibpfad, wie szene_schreiben: eine Recherche ist kein
+        # Arbeitsstandfeld, sondern ein minutenlanger Netz- und
+        # Modellaufruf. Den stoesst laufe() an (dort gibt es tg und klm).
+        return None
     # Unbekannte art sollte erkenne() bereits herausgefiltert haben; bei
     # direktem Aufruf von wende_an() (z. B. in Tests) einfach ignorieren
     # statt zu krachen.
@@ -2709,6 +2738,26 @@ def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict], wirkl
     szene.starte(conn, tg, klm, e, chat_id, auftrag)
 
 
+def _starte_recherche(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> None:
+    """Stoesst die Internet-Recherche an, wenn der Erkenner eine frei
+    getippte Forschungsfrage gefunden hat (art ``recherche_starten``,
+    interview_theater/recherche.py) -- derselbe Weg wie beim Research-Knopf
+    (``knoepfe.szenen.starte_recherche_lauf``).
+
+    Nicht in ``wende_an``, aus demselben Grund wie ``_starte_szene``: hier
+    faellt eine Nachricht in die Gruppe an und ein minutenlanger Netz- und
+    Modellaufruf, den ``starte_recherche_lauf`` sofort an einen eigenen
+    Thread abgibt."""
+    from interview_theater.knoepfe import szenen  # spaeter Import, haelt den Modulkopf frei
+
+    frage = next(
+        (a.get("wert") for a in aenderungen if a.get("art") == "recherche_starten"), None
+    )
+    if not frage:
+        return
+    szenen.starte_recherche_lauf(conn, tg, klm, e, chat_id, frage)
+
+
 def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
                      aenderungen: list[dict], *,
                      notiz_verbraucht: bool = False) -> bool:
@@ -3453,6 +3502,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
         # ``wirkliche`` deshalb nie auf.
         _starte_szene(klm, tg, conn, e, chat_id, freigegeben, wirkliche)
+        # Karte t_c5117c91: dieselbe Bauart -- aus den erkannten, nicht aus
+        # den wirksamen Aenderungen, weil recherche_starten nichts in den
+        # Arbeitsstand schreibt und in ``wirkliche`` deshalb nie auftaucht.
+        _starte_recherche(klm, tg, conn, e, chat_id, freigegeben)
         # Und dieselbe Bauart fuer die Kuerzung (30.09.2026, C10): aus den
         # erkannten Aenderungen, weil sie wie ``szene_schreiben`` nichts in
         # den Arbeitsstand schreibt und in ``wirkliche`` deshalb nie auftaucht.

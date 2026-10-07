@@ -96,6 +96,8 @@ MAX_JE_AUFRUF = 4
 #: Wort spaeter wieder, zaehlt es dann.
 MAX_LAUFEND = 8
 MIN_ABSTAND_S = 90.0
+#: Kuerzerer Abstand, wenn die Gruppe eine NEUE Form beim Namen nennt.
+MIN_ABSTAND_NEUE_FORM_S = 20.0
 
 #: Birk 07.10.2026: kommt der Brainstorm bei "Discussion done" als EINE
 #: Chatnachricht herein, laeuft der Modellaufruf EINMAL synchron VOR der
@@ -515,7 +517,11 @@ def pruefe_zug(conn, tg, klm, e, chat_id: int, texte: list[str],
         return None
     jetzt = time.monotonic()
     vorher = _zuletzt_gestartet.get(chat_id)
-    if vorher is not None and jetzt - vorher < MIN_ABSTAND_S:
+    # Birk 07.10.2026: eine NEU genannte Form ist ein klarer Richtungswechsel
+    # -- dann reicht der kurze Abstand (MIN_ABSTAND_NEUE_FORM_S), damit
+    # Verwandte und Gegenpol nicht erst nach dem naechsten Takt kommen.
+    abstand = MIN_ABSTAND_NEUE_FORM_S if neue_formen else MIN_ABSTAND_S
+    if vorher is not None and jetzt - vorher < abstand:
         return None
     faden = starte(conn, tg, klm, e, chat_id, AUSLOESER_LAUFEND,
                    signale=neue_signale + [formen[s] for s in neue_formen])
@@ -785,10 +791,10 @@ def _lauf(conn, tg, klm, e, chat_id: int, ausloeser: str, signale: list[str],
         formen = formen_aus(ergebnis)
         repo.lege_formberater_an(conn, chat_id, ausloeser, phase, formen,
                                  signale, ergebnis, modell)
-        if ausloeser == AUSLOESER_EINSTIEG:
-            text = nachricht(ergebnis)
-            if text:
-                _sende(conn, tg, e, chat_id, text)
+        # Birk 07.10.2026: KEINE Chat-Karte mehr beim Eintritt in Phase 5 --
+        # die Form ist dort schon festgelegt und eben bestaetigt (P5-Check);
+        # die Karte las sich wie ein neuer Vorschlag. Die Einordnung laeuft
+        # weiter und speist ueber ``kontextblock`` nur den Prompt.
     except Exception:
         log.exception("Formberater-Lauf gescheitert, chat_id=%s", chat_id)
     finally:

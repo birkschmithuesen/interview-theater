@@ -17,7 +17,7 @@ Phasenwechsel unveraendert -- ``test_dortmund_ohne_schalter_bleibt_unveraendert`
 
 import pytest
 
-from interview_theater import befehle, erkenner, knoepfe, kontext, phasen, repo, workshop
+from interview_theater import web, befehle, erkenner, knoepfe, kontext, phasen, repo, workshop
 from interview_theater.knoepfe import stationen, texte
 
 from tests.test_erkenner import LLMAttrappe, TelegramAttrappe as ErkennerTg, _nachricht
@@ -67,6 +67,23 @@ def test_uebersicht_zeigt_rahmen_figuren_geschichte_szenen_und_festlegungen(conn
     assert "1. Arrival" in text
     assert "The market stalls face east" in text
     assert text.strip().endswith(befehle.T._TEXT_P5_UEBERSICHT_SCHLUSS)
+
+
+def test_festlegungen_stehen_unter_eigener_ueberschrift_wie_in_der_werkbank(conn):
+    """Birk 07.10.2026: keine Sammelueberschrift, keine deutschen Rohbereiche
+    ("struktur", "gruppe") -- je Bereich/Bezug eine eigene, gleichrangige
+    Ueberschrift mit der Werkbank-Beschriftung."""
+    _bereit(conn)
+    repo.schreibe_festlegung(conn, CHAT, "struktur", "Random order", quelle="befehl")
+    repo.schreibe_festlegung(conn, CHAT, "gruppe", "3 performers", bezug="Performers", quelle="befehl")
+
+    text = befehle._baue_p5_uebersicht(conn, CHAT)
+
+    assert "Weitere Festlegungen" not in text and "Other fixed items" not in text
+    assert "[struktur]" not in text and "[gruppe" not in text
+    kopf = web.T.FESTLEGUNG_BEREICH_BESCHRIFTUNG["struktur"]
+    assert f"**{kopf[:1].upper() + kopf[1:]}**\nRandom order" in text
+    assert "**Performers**\n3 performers" in text
 
 
 def test_uebersicht_zeigt_leerstellen_statt_zu_schweigen(conn):

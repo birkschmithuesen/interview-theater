@@ -40,7 +40,8 @@ from interview_theater.knoepfe.texte import (
     ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
     ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_P5_CHECK_AENDERN, ART_P5_CHECK_OK,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
-    ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_REDO, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
+    ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_RECHERCHE, ART_RECHERCHE_FRAGE,
+    ART_REDO, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
     ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR, ART_SCHAERFUNG_RUNDE,
     ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SCHLAG_VOR, ART_SPEICHERN,
     ART_STAND,
@@ -84,6 +85,7 @@ from interview_theater.knoepfe.szenen import (
     biete_szenenstil, erwarte_geschichte_notiz, starte_schaerfung,
     starte_stueckpruefung, uebernimm_schaerfung_stellen,
     verwirf_schaerfung, zeige_schaerfung_seite, zeige_szenentext,
+    starte_fragenvorschlag, starte_recherche_lauf,
 )
 from interview_theater.knoepfe.interviews import (
     _werte_alle_aus, biete_interview_ohne_knopf_weiter,
@@ -1527,6 +1529,20 @@ def _wirkung_szenenstil(conn, d: Druck) -> str:
     )
 
 
+def _wirkung_recherche(conn, d: Druck) -> str:
+    """Startet den Fragenvorschlag im Thread (kein Modellaufruf hier,
+    Zusage 2) -- Karte t_c5117c91."""
+    starte_fragenvorschlag(conn, d.tg, d.klm, d.e, d.chat_id)
+    return T._ANTWORT_RECHERCHE_GESTARTET
+
+
+def _wirkung_recherche_frage(conn, d: Druck) -> str:
+    """Die gewaehlte Forschungsfrage -- der Recherchelauf selbst haengt im
+    Thread (Zusage 2)."""
+    starte_recherche_lauf(conn, d.tg, d.klm, d.e, d.chat_id, d.wert)
+    return T._ANTWORT_RECHERCHE_GESTARTET
+
+
 def _wirkung_szene_usa(conn, d: Druck) -> str:
     """ACHTUNG, hier ist am 05.09.2026 schon ein Fehler passiert:
     ``repo.setze_szene_usa`` erwartet einen BOOL, nicht den String
@@ -1874,6 +1890,8 @@ _WIRKUNGEN = {
     ART_STT_SPRACHE: _wirkung_stt_sprache,
     ART_UNDO: _wirkung_undo,
     ART_REDO: _wirkung_redo,
+    ART_RECHERCHE: _wirkung_recherche,
+    ART_RECHERCHE_FRAGE: _wirkung_recherche_frage,
 }
 
 

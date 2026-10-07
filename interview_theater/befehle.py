@@ -1022,6 +1022,11 @@ def _befehl_karte(conn, tg, klm, e, chat_id: int, befehl: str, rest: str) -> Non
         return
     if befehl == "/karte_ja":
         szenenkarte.bestaetige(conn, tg, klm, e, chat_id, nummer)
+    elif befehl == "/karte_bauen":
+        # Nur die aktuelle Karte, und nur wenn sie fehlt -- sonst zeigt
+        # ``weiter`` sie einfach (kein zweiter Modellaufruf).
+        if nummer == szenenkarte.aktuelle_nummer(conn, chat_id):
+            szenenkarte.weiter(conn, tg, klm, e, chat_id)
     else:
         szenenkarte.frage_nach_aenderung(conn, tg, e, chat_id, nummer)
 
@@ -1465,6 +1470,9 @@ _BEKANNTE_BEFEHLE_DE: frozenset[str] = frozenset({
     # Knopfes durch die Naht, wie ``/schaerfung_fertig``. Keine EN-Form.
     "/karte_ja",
     "/karte_aendern",
+    # "Build card now" unter einer Karte, die nicht fertig wurde (Neustart
+    # mitten in der Erzeugung, Usertest 07.10.2026).
+    "/karte_bauen",
 })
 
 
@@ -1590,7 +1598,7 @@ def behandle(
         _befehl_schaerfen(conn, tg, chat_id, rest)
     elif befehl == "/schaerfung_fertig":
         _befehl_schaerfung_fertig(conn, tg, klm, e, chat_id)
-    elif befehl in ("/karte_ja", "/karte_aendern"):
+    elif befehl in ("/karte_ja", "/karte_aendern", "/karte_bauen"):
         _befehl_karte(conn, tg, klm, e, chat_id, befehl, rest)
     return True
 

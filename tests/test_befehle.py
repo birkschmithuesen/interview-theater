@@ -942,7 +942,7 @@ def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_20():
         "/kernthema", "/stueck", "/figur", "/szene", "/stand", "/wortlaut",
         "/hilfe", "/leitfaden", "/festlegung", "/sprache", "/phaseklick",
         "/start", "/sortiert", "/umformulieren", "/schaerfen",
-        "/schaerfung_fertig", "/karte_ja", "/karte_aendern",
+        "/schaerfung_fertig", "/karte_ja", "/karte_aendern", "/karte_bauen",
     }
 
 

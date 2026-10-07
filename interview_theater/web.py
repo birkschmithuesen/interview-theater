@@ -4611,7 +4611,7 @@ def _karte_html(karte: dict, bestaetigt: bool) -> str:
     if karte.get("fragen"):
         teile.append(f'<p class="worum-kopf">{_t(st._ZEILE_FRAGEN)}</p>'
                      + _liste_html("worum-liste", karte["fragen"], 400))
-    return f'<div class="karte">{"".join(teile)}</div>'
+    return f'<div class="szenenkarte">{"".join(teile)}</div>'
 
 
 _PARTITUR_MODI = ("microphone", "one_to_one", "collective")
@@ -4648,6 +4648,7 @@ def _partitur_html(szenen: list[dict]) -> str:
 _TEXT_KARTE_ENTSTEHT = "Karte {nummer} entsteht gerade ..."
 _TEXT_KARTEN_ALLE = "Alle Karten sind gespeichert. Im Chat geht es weiter zum Stage Script."
 _TEXT_KARTE_JA = "Yes, save"
+_TEXT_KARTE_BAUEN = "Karte jetzt bauen"
 _TEXT_KARTE_NEIN = "No, change"
 _TEXT_KARTEN_ZAEHLER = "Karte {aktiv} von {gesamt}"
 
@@ -4668,7 +4669,13 @@ def _szenenkarten_html(liste: list[dict]) -> str:
         if k["aktiv"]:
             if k["karte"] is None:
                 koerper = f'<p class="karte-entsteht">{_t(T._TEXT_KARTE_ENTSTEHT.format(nummer=k["nummer"]))}</p>'
-                knoepfe = ""
+                # Rettungsweg, falls die Erzeugung nie fertig wurde (Neustart
+                # mitten im Lauf): laeuft sie noch, sagt der Bot das nur.
+                knoepfe = (
+                    '<div class="karte-aktionen">'
+                    f'<button type="button" class="karte-knopf karte-bauen" data-aktion="bauen" '
+                    f'data-nummer="{int(k["nummer"])}">{_t(T._TEXT_KARTE_BAUEN)}</button></div>'
+                )
             else:
                 koerper = _karte_html(k["karte"], False)
                 knoepfe = (
@@ -4698,9 +4705,9 @@ _CSS_KARTEN_BUEHNE = """
 .karte-zeile.fertig { color: var(--text-leise, #6b6b6b); }
 .karte-aktiv { margin: .4rem 0 1rem; padding: .9rem 1rem 1rem; border: 1px solid var(--linie, #ddd8cc); border-radius: .8rem; background: var(--grund-2, transparent); }
 .karte-titel { margin: 0 0 .35rem; font-size: 1.15rem; line-height: 1.25; }
-.karte-aktiv .karte { margin: 0; max-width: none; }
+.karte-aktiv .szenenkarte { margin: 0; max-width: none; }
 .karte-entsteht { margin: .3rem 0; font-style: italic; color: var(--text-leise, #6b6b6b); }
-.karte-aktionen { display: flex; gap: .6rem; margin: 1rem 0 0; }
+.karte-aktionen { display: flex; gap: .6rem; margin: 1rem -1rem -1rem; padding: .7rem 1rem calc(1.7rem + env(safe-area-inset-bottom, 0px)); position: sticky; bottom: -1rem; background: var(--grund-2, #1d2026); border-top: 1px solid var(--linie, #ddd8cc); border-radius: 0 0 .8rem .8rem; }
 .karte-knopf { flex: 1; min-height: 2.9rem; font: inherit; font-size: 1rem; border-radius: 1.5rem; border: 1px solid var(--rand, #cfc8b6); background: var(--grund, #fff); color: var(--text, #1b1b1b); cursor: pointer; }
 .karte-ja { background: var(--signal, #2f4858); border-color: var(--signal, #2f4858); color: var(--auf-signal, #fff); font-weight: 700; }
 .karte-knopf:disabled { opacity: .5; }
@@ -4720,7 +4727,7 @@ def css_karten_buehne() -> str:
 #: Die Kartenfelder (``_karte_html``) im CoThinker brauchen dieselben Regeln
 #: wie im Script-Tab -- dort stehen sie in ``_CSS_TEXTBUCH_LESBAR``.
 _CSS_TEXTBUCH_LESBAR_KARTE = """
-.karte { line-height: 1.5; }
+.szenenkarte { line-height: 1.5; }
 .karte-typ { margin: 0 0 .3rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
 .karte-worum { margin: 0 0 .7rem; font-size: 1.05rem; }
 .karte-angaben { margin: 0 0 .7rem; font-size: .9rem; }
@@ -4824,7 +4831,7 @@ _CSS_TEXTBUCH_LESBAR = """
 .worum-liste, .kernzeilen { margin: 0 0 .5rem; padding-left: 1.1rem; }
 .worum-liste li, .kernzeilen li { margin: .22rem 0; }
 .kernzeilen li { font-style: italic; }
-.karte { max-width: 65ch; margin: 1rem 0 0; line-height: 1.55; }
+.szenenkarte { max-width: 65ch; margin: 1rem 0 0; line-height: 1.55; }
 .karte-typ { margin: 0 0 .3rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
 .karte-worum { margin: 0 0 .7rem; font-size: 1.08rem; }
 .karte-angaben { margin: 0 0 .7rem; font-size: .9rem; }

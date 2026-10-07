@@ -2142,7 +2142,7 @@ def auswahl_fertig_post(handler, db_pfad: str, token: str, chat_id: int,
 #: Die zwei Knoepfe der aktiven Szenenkarte -> versteckter Befehl (Padua,
 #: Birk 07.10.2026 ~19:25). Wie ``auswahl_fertig_post``: der Webserver legt
 #: nur den Befehl ab, der Bot fuehrt ihn aus (``befehle._befehl_karte``).
-_KARTE_BEFEHL = {"ja": "/karte_ja", "aendern": "/karte_aendern"}
+_KARTE_BEFEHL = {"ja": "/karte_ja", "aendern": "/karte_aendern", "bauen": "/karte_bauen"}
 
 
 def _karte_ja_text() -> str:

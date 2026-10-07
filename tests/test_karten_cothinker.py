@@ -42,7 +42,9 @@ def test_panel_aktive_karte_gross_andere_eine_zeile(padua):
 def test_panel_karte_entsteht_noch(padua):
     html = web._szenenkarten_html([{"nummer": 1, "titel": "A", "karte": None,
                                     "bestaetigt": False, "aktiv": True}])
-    assert "Card 1 is being built" in html and "karte-knopf" not in html
+    assert "Card 1 is being built" in html
+    assert 'data-aktion="bauen" data-nummer="1">Build card now</button>' in html
+    assert 'data-aktion="ja"' not in html
 
 
 def test_web_daten_nur_in_phase_6_mit_schalter(conn, padua, monkeypatch):
@@ -158,3 +160,37 @@ def test_cothinker_tab_in_phase_6_nur_mit_karten(monkeypatch):
     monkeypatch.setattr(workshop, "szenenkarten_aktiv", lambda *a, **k: False)
     assert web_vereint._karten_im_cothinker() is False
     assert "__KARTEN_PHASE__" in web_vereint._VEREINT_JS
+
+
+def test_chat_karte_ohne_zitatzeichen_und_panel_ohne_klassenkollision(padua):
+    """Handy-Screens 07.10.2026: der Web-Chat kennt keine Zitatbloecke ("> "
+    stand roh da), und ``.karte`` ist im CoThinker schon die Buehnenkarte
+    (doppelter Rahmen) -- der Kartenkoerper heisst deshalb ``szenenkarte``."""
+    text = szenenkarte.karte_text(KARTE, {"nummer": 2, "titel": "Le voci"})
+    assert not any(z.startswith(">") for z in text.splitlines())
+    assert '- *“Casa non sono le mura”* (Interview 19)' in text
+    html = web._szenenkarten_html([{"nummer": 1, "titel": "A", "karte": KARTE,
+                                    "bestaetigt": False, "aktiv": True}])
+    assert 'class="szenenkarte"' in html and 'class="karte"' not in html
+
+
+def test_karte_bauen_rettet_eine_haengende_karte(conn, einst, padua, monkeypatch):
+    """Usertest 07.10.2026: Neustart mitten in der Erzeugung -> "being built"
+    fuer immer. "/karte_bauen N" stoesst die aktuelle Karte neu an; fuer eine
+    andere Nummer passiert nichts."""
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    _web(conn)
+    ids = _lage(conn)
+    from interview_theater import schaerfung
+    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
+    phasen.setze(conn, 1, 6, "befehl")
+    tg, klm = TG(), LLM()
+    befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_bauen", "2")
+    assert klm.aufrufe == []
+    befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_bauen", "1")
+    import time
+    for _ in range(100):
+        if repo.hole_szene(conn, ids[0])["karte"]:
+            break
+        time.sleep(0.05)
+    assert szenenkarte.karte_von(repo.hole_szene(conn, ids[0])) is not None

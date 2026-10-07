@@ -875,19 +875,16 @@ _VEREINT_JS = """
         // naechsten Takt wieder offen zurueck.
         var roadmap = document.getElementById('roadmap');
         if (roadmap) roadmap.open = false;
-        // Birk 07.10.2026: die Antwort auf einen Phasenklick (Rueckfrage,
-        // Werkbank-Uebersicht vor Phase 5, Wiederherstellungs-Zeile) steht im
-        // CHAT -- also den Chat-Tab nach vorn holen, sonst wird sie aus der
-        // Werkbank heraus uebersehen.
-        if (document.querySelector('.tabs button[data-tab="chat"]')) {
-          location.hash = '#chat';
-        }
         // Ein sofortiger Versuch -- er zeigt die neue Phase aber NICHT
         // zuverlaessig: der POST legt hier nur den Eingang ab, der Bot
         // verarbeitet ihn erst danach (eigener Prozess, eigener Takt).
         // Massgeblich bleibt der naechste periodische Takt unten
         // (hoechstens __NACHLADEN_MS__ ms), der dieselbe Funktion ruft.
         ladeRoadmap();
+        // Birk 07.10.2026: die Antwort auf einen Phasenklick (Rueckfrage,
+        // Werkbank-Uebersicht vor Phase 5, Wiederherstellungs-Zeile) steht im
+        // CHAT -- also den Chat-Tab nach vorn holen, sonst wird sie aus der
+        // Werkbank heraus uebersehen.
         setze('chat');   // die Eintrittsnachricht kommt im Chat an
         return;
       }

@@ -268,6 +268,15 @@ INVENTAR = (
     # sich bewusst auf seine fuenf bestehenden Dumps beschraenkt.
     Eintrag("42-uebersetzung", "uebersetzung", 4,
             "interview_theater.uebersetzung", "ART"),
+    # --- Optionaler Zusatz nach "Ja, speichern" (Karte t_c5d68218): ein
+    # Verbesserungsvorschlag oder eine kritische Rueckfrage zu einem gerade
+    # gespeicherten Feld (Setting/Figuren/Geschichte, Phase 4), ausgeloest
+    # aus knoepfe/basis.py und knoepfe/szenen.py, nie im Knopf-Handler
+    # selbst (nachspeichern.starte laeuft im eigenen Thread). Zwei
+    # Aufrufstellen (szene_claude.prosa bei Claude-Einwilligung, sonst
+    # klm.prosa) teilen sich denselben Prompt, wie 17-buehnenkarte.
+    Eintrag("43-nachspeichern", "nachspeichern", 4,
+            "interview_theater.nachspeichern", "'nachspeichern'"),
 )
 
 #: Aufrufstellen, die in Padua NICHT live sind -- mit Grund, nicht nur mit

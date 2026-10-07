@@ -62,6 +62,11 @@ BLEIBT_DEUTSCH = {
     "dramaturgie.schleife.GRUENDE": "Betreiberausgabe (--schleife)",
     "dramaturgie.schleife.MELDUNG_OHNE_GESCHICHTENWEG": "Betreiberausgabe (--schleife)",
     "szenenfolge.DETAIL_RICHTUNG_UNVOLLSTAENDIG": "Vorfall-Detail, Dashboard des Teams",
+    "szenenfolge._FLACHE_STRUKTUR_SIGNALE": (
+        "Stichwortmenge zum Abgleich gegen die Beitraege der Gruppe "
+        "(wie formberater.SIGNALE), kein Nutzertext -- Deutsch und "
+        "Englisch gelten hier immer beide, unabhaengig vom Profil"
+    ),
     "stile._NACH_SLUG": (
         "Aufgabe 15: nur Mitgliedschaftspruefung der Slugs (Protokoll); die "
         "Anzeige liest stile._eintrag zur Aufrufzeit aus T.STILE"

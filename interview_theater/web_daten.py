@@ -681,6 +681,56 @@ def _fruehere_fassungen(conn: sqlite3.Connection, szene_id: int) -> list[dict]:
     ]
 
 
+def _uebernommene_stellen(conn: sqlite3.Connection, chat_id: int) -> dict[int, list[dict]]:
+    """Je Szene die von der Gruppe uebernommenen Interviewstellen (Padua,
+    ``[skript] verdichtet``): Begruendung und Zitat zum Bereinigen von
+    Altbestand, das Zitat nur mit ``zitat_geprueft = 1`` (Datenschutz-
+    Invariante der Weboberflaeche), sonst ``None``."""
+    ergebnis: dict[int, list[dict]] = {}
+    try:
+        zeilen = conn.execute(
+            "SELECT s.szene_id, s.begruendung, t.thema, t.beleg_zitat, "
+            "       t.zitat_geprueft, v.aufnahme_id "
+            "FROM schaerfung s JOIN verdichtung_thema t ON t.id = s.verdichtung_thema_id "
+            "JOIN verdichtung v ON v.id = t.verdichtung_id "
+            "WHERE s.chat_id = ? AND s.entfernt_am IS NULL AND v.entfernt_am IS NULL "
+            "AND s.uebernommen_am IS NOT NULL AND s.szene_id IS NOT NULL "
+            "ORDER BY s.runde ASC, s.id ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return ergebnis
+    namen = _interviewbezeichnungen(conn, chat_id) if zeilen else {}
+    for z in zeilen:
+        ergebnis.setdefault(z["szene_id"], []).append({
+            "begruendung": (z["begruendung"] or z["thema"] or "").strip(),
+            "zitat_roh": z["beleg_zitat"] or "",
+            "zitat": z["beleg_zitat"] if z["zitat_geprueft"] == 1 else None,
+            "interview": namen.get(z["aufnahme_id"], ""),
+        })
+    return ergebnis
+
+
+def _verdichtet(z, stellen: list[dict]) -> dict:
+    """Die Kurzform-Felder einer Szene (Padua, ``[skript] verdichtet``,
+    ``szenenkern.py``) -- nur unter dem Schalter, sonst gar nicht: ohne ihn
+    bleibt das Szenen-Dict, wie es war."""
+    from interview_theater import szenenkern
+
+    return {
+        "kern": szenenkern.zeilen(_feld(z, "kern")),
+        "kernsaetze_kurz": szenenkern.zeilen(_feld(z, "kernsaetze_kurz")),
+        "beschreibung": szenenkern.bereinige_beschreibung(
+            _feld(z, "was_passiert"), [s["begruendung"] for s in stellen]),
+        "kernsaetze_eigen": szenenkern.bereinige_kernsaetze(
+            _feld(z, "kernsaetze"), [s["zitat_roh"] for s in stellen]),
+        "zitate": [
+            {"zitat": s["zitat"], "interview": s["interview"]}
+            for s in stellen if s["zitat"]
+        ],
+    }
+
+
 def _szenen(
     conn: sqlite3.Connection, chat_id: int, geschaerft: dict | None = None
 ) -> list[dict]:
@@ -696,6 +746,10 @@ def _szenen(
     Zeilen ohne Nummer landen hinten statt vorn (NULL sortiert in SQLite
     sonst zuerst)."""
     je_szene = (geschaerft or schaerfungen(conn, chat_id))["szene"]
+    from interview_theater import workshop
+
+    verdichtet = workshop.skript_verdichtet_aktiv()
+    stellen = _uebernommene_stellen(conn, chat_id) if verdichtet else {}
     szenen = []
     for z in conn.execute(
         f"SELECT * FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
@@ -736,6 +790,8 @@ def _szenen(
         }
         for feld, _ in SZENENFELDER:
             eintrag[feld] = _feld(z, feld)
+        if verdichtet:
+            eintrag["verdichtet"] = _verdichtet(z, stellen.get(z["id"], []))
         szenen.append(eintrag)
     return szenen
 

@@ -3952,7 +3952,12 @@ def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
                 for f in daten["figuren"]
             )
             zeilen.append(f'<dt>{_t(dt["figuren"])}</dt><dd><ul class="figuren">{figuren}</ul></dd>')
-        if daten["szenen"]:
+        if daten["szenen"] and daten["szenen"][0].get("verdichtet") is not None:
+            zeilen.append(
+                f"<dt>{_t(T._UEBERSCHRIFT_SZENEN)}</dt>"
+                f"<dd>{_wb_szenen_verdichtet_html(daten['szenen'])}</dd>"
+            )
+        elif daten["szenen"]:
             # Birk 07.10.2026 15:00: je Szene auch, was darin passiert --
             # nur Titel sagte der Gruppe nicht, ob ihre Beschreibung
             # gespeichert ist. Leere Beschreibung -> nur der Titel wie bisher.
@@ -4458,6 +4463,8 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
     mit ihrer Planung da (dieselbe Entscheidung wie in
     ``szenenfolge.textbuch``: ein Textbuch, in dem Szene 4 fehlt, sieht aus
     wie ein Fehler)."""
+    if s.get("verdichtet") is not None:
+        return _probe_szene_verdichtet_html(s, bekannte)
     kopf = _t(
         T._TEXT_SZENE_NR.format(nummer=s["nummer"])
         if s.get("nummer") is not None else T._TEXT_SZENE
@@ -4532,6 +4539,170 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
     if bloecke:
         zeilen.append(bloecke)
     return f'<section class="probe-szene">{"".join(zeilen)}</section>', sprecher
+
+
+#: Script-Tab unter ``[skript] verdichtet`` (Birk 07.10.2026 ~17:45, "Fokus
+#: halten. Gut lesbar."): was die Gruppe liest und probt -- der Text. Die
+#: Kurzform steht nur, solange es noch keinen Text gibt.
+_TEXT_WORUM = "Worum es geht"
+_TEXT_STAERKSTE = "Stärkste Zitate"
+_TEXT_FASSUNG_EN = "English"
+_TEXT_FASSUNG_IT = "Italiano"
+_TEXT_ALLE_ZITATE = "Alle übernommenen Zitate ({anzahl})"
+ORT_ZEICHEN = 140
+
+
+def _liste_html(klasse: str, punkte: list[str], zeichen: int) -> str:
+    if not punkte:
+        return ""
+    return f'<ul class="{klasse}">' + "".join(
+        f"<li>{_t(_kappe(p, zeichen))}</li>" for p in punkte) + "</ul>"
+
+
+def _kurzform_punkte(v: dict) -> list[str]:
+    """Die Kurzform, sonst die bereinigte Beschreibung der Gruppe in Saetzen
+    (Rueckfall, wenn ``szenenkern.verdichte`` noch nicht lief oder scheiterte)."""
+    if v.get("kern"):
+        return v["kern"][:PLANUNG_PUNKTE_MAX]
+    return _planung_punkte("was_passiert", v.get("beschreibung") or "")[:PLANUNG_PUNKTE_MAX]
+
+
+def _staerkste_zitate(v: dict) -> list[str]:
+    if v.get("kernsaetze_kurz"):
+        return v["kernsaetze_kurz"][:KERNSAETZE_MAX]
+    return [f"“{k}”" for k in (v.get("kernsaetze_eigen") or [])[:KERNSAETZE_MAX]]
+
+
+def _probe_szene_verdichtet_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
+    """Eine Szene im Script-Tab, auf das Wesentliche reduziert: Kopf, Ort und
+    Besetzung, der Text (EN und IT als eigene Bloecke). "Worum es geht" und
+    die staerksten Zitate nur, solange kein Text da ist -- danach stehen die
+    Zitate im Text, eine Liste darunter waere Doppelung."""
+    v = s.get("verdichtet") or {}
+    kopf = _t(
+        T._TEXT_SZENE_NR.format(nummer=s["nummer"])
+        if s.get("nummer") is not None else T._TEXT_SZENE
+    )
+    if s.get("titel"):
+        kopf += f" — {_t(s['titel'])}"
+    angaben = " · ".join(
+        _t(_kappe(_form_anzeige(s[feld]) if feld == "form" else str(s[feld]), ORT_ZEICHEN))
+        for feld, _ in T._PROBE_ANGABEN
+        if s.get(feld) and feld != "form"
+    )
+    zeilen = [f'<h2 class="szenenkopf">{kopf}</h2>']
+    if angaben:
+        zeilen.append(f'<p class="angaben">{angaben}</p>')
+    if s.get("figuren"):
+        zeilen.append(
+            f'<p class="besetzung">'
+            f'{_t(T._TEXT_BESETZUNG.format(figuren=", ".join(s["figuren"])))}</p>'
+        )
+    volltext = (s.get("volltext") or "").strip()
+    prosa = (s.get("prosa") or "").strip()
+    prosa_it = (s.get("prosa_it") or "").strip()
+    sprecher: list[str] = []
+    if volltext:
+        koerper, sprecher = szenentext_html(volltext, bekannte)
+        zeilen.append(f'<div class="text">{koerper}</div>')
+    elif prosa:
+        if prosa_it:
+            zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_EN)}</p>')
+        zeilen.append(f'<div class="text" lang="en">{_prosa_absaetze_html(prosa)}</div>')
+        if prosa_it:
+            zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_IT)}</p>')
+            zeilen.append(f'<div class="text" lang="it">{_prosa_absaetze_html(prosa_it)}</div>')
+    else:
+        zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
+        worum = _liste_html("worum-liste", _kurzform_punkte(v), PLANUNG_PUNKT_ZEICHEN)
+        zitate = _liste_html("kernzeilen", _staerkste_zitate(v), KERNSATZ_ZEICHEN)
+        if worum or zitate:
+            teile = [f'<p class="worum-kopf">{_t(T._TEXT_WORUM)}</p>', worum]
+            if zitate:
+                teile.append(f'<p class="worum-kopf">{_t(T._TEXT_STAERKSTE)}</p>{zitate}')
+            zeilen.append(f'<div class="worum">{"".join(teile)}</div>')
+    bloecke = _fassungen_bloecke_html(s, volltext or prosa)
+    if bloecke:
+        zeilen.append(bloecke)
+    return f'<section class="probe-szene">{"".join(zeilen)}</section>', sprecher
+
+
+#: Lesetypografie fuer Script-Tab und Probenansicht unter ``[skript]
+#: verdichtet``: ~65 Zeichen Zeilenlaenge, ruhige Zeilenhoehe, Luft
+#: zwischen den Absaetzen, Sprecher fett, Regie kursiv und grau. Ohne
+#: Kommentar vor einer Regel (``scope_css``).
+_CSS_TEXTBUCH_LESBAR = """
+.probe-szene { margin: 0 0 3.2rem; }
+.szenenkopf { margin: 2.4rem 0 .5rem; line-height: 1.25; }
+.angaben, .besetzung { max-width: 65ch; line-height: 1.45; }
+.probe-szene .text { max-width: 65ch; margin-top: 1.1rem; }
+.probe-szene .text p { margin: 0 0 1.05em; line-height: 1.68; hyphens: auto; }
+.probe-szene .text .sprecher { font-weight: 700; }
+.probe-szene .text .regie, .probe-szene .text .regie-zeile { font-style: italic; color: var(--text-leise, #6b6b6b); }
+.sprache-kopf { margin: 1.8rem 0 .2rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
+.worum { max-width: 65ch; margin: .9rem 0 0; padding: .55rem 0 .55rem .9rem; border-left: 2px solid var(--linie, #ddd8cc); font-size: .9rem; line-height: 1.5; color: var(--text-leise, #555); }
+.worum-kopf { margin: .2rem 0 .25rem; font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; }
+.worum-liste, .kernzeilen { margin: 0 0 .5rem; padding-left: 1.1rem; }
+.worum-liste li, .kernzeilen li { margin: .22rem 0; }
+.kernzeilen li { font-style: italic; }
+"""
+
+
+def css_textbuch_lesbar() -> str:
+    """Leer ohne ``[skript] verdichtet`` -- dann bleibt jede Seite byte-gleich."""
+    from interview_theater import workshop
+
+    return _CSS_TEXTBUCH_LESBAR if workshop.skript_verdichtet_aktiv() else ""
+
+
+_CSS_WERKBANK_KURZ = """
+.wb-szenen { list-style: none; padding: 0; margin: 0; }
+.wb-szene { margin: 0 0 1.1rem; padding: 0 0 .9rem; border-bottom: 1px solid var(--linie, #ddd8cc); }
+.wb-szene:last-child { border-bottom: 0; }
+.wb-kern { margin: .3rem 0 .4rem; padding-left: 1.1rem; line-height: 1.45; }
+.wb-kern li { margin: .15rem 0; }
+.wb-zitate { margin: .3rem 0 .3rem; padding-left: 1.1rem; font-style: italic; font-size: .92em; line-height: 1.45; }
+.wb-zitate li { margin: .2rem 0; }
+.wb-alle summary { cursor: pointer; font-size: .85em; color: var(--text-leise, #6b6b6b); }
+.wb-alle ul { padding-left: 1.1rem; font-size: .88em; line-height: 1.45; }
+.wb-alle li { margin: .2rem 0; }
+"""
+
+
+def css_werkbank_kurz() -> str:
+    from interview_theater import workshop
+
+    return _CSS_WERKBANK_KURZ if workshop.skript_verdichtet_aktiv() else ""
+
+
+def _wb_szenen_verdichtet_html(szenen: list[dict]) -> str:
+    """Workbench unter ``[skript] verdichtet``: je Szene Titel, Kurzform, die
+    staerksten Zitate und aufklappbar ALLE uebernommenen (nur gepruefte)."""
+    stuecke = []
+    for s in szenen:
+        v = s.get("verdichtet") or {}
+        kopf = "<b>{nr}. {titel}</b>".format(
+            nr=_t("—" if s["nummer"] is None else str(s["nummer"])),
+            titel=_t(s.get("titel"), T._TEXT_OHNE_TITEL),
+        )
+        teile = [kopf, _liste_html("wb-kern", _kurzform_punkte(v), PLANUNG_PUNKT_ZEICHEN),
+                 _liste_html("wb-zitate", _staerkste_zitate(v), KERNSATZ_ZEICHEN)]
+        alle = v.get("zitate") or []
+        if alle:
+            punkte = "".join(
+                "<li>{z}{q}</li>".format(
+                    z=_t("“" + " ".join(str(z["zitat"]).split()) + "”"),
+                    q=_t(f" ({z['interview']})") if z.get("interview") else "",
+                )
+                for z in alle
+            )
+            teile.append(
+                f'<details class="wb-alle"><summary>'
+                f'{_t(T._TEXT_ALLE_ZITATE.format(anzahl=len(alle)))}</summary>'
+                f"<ul>{punkte}</ul></details>"
+            )
+        stuecke.append(f'<li class="wb-szene">{"".join(teile)}</li>')
+    return f'<ul class="wb-szenen">{"".join(stuecke)}</ul>'
 
 
 def _rollenleiste_html(sprecher: list[str], figuren: list[dict]) -> str:
@@ -4812,7 +4983,8 @@ def textbuch_html(
         kopfzeile,
         # Gestaltung zuletzt (Karte UX). Die Probenansicht ist eine eigene
         # Seite, also ungescopt -- es gibt hier kein Panel.
-        _CSS_TEXTBUCH + _CSS_TEXTBUCH_FASSUNGEN + web_gestalt.css_rahmen() + web_gestalt.css_textbuch(),
+        _CSS_TEXTBUCH + _CSS_TEXTBUCH_FASSUNGEN + web_gestalt.css_rahmen() + web_gestalt.css_textbuch()
+        + css_textbuch_lesbar(),
         textbuch_koerper(daten, token, praefix),
         nachladen=False,
         skript=_TEXTBUCH_JS,

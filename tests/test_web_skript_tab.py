@@ -106,12 +106,12 @@ def test_prosa_it_zeigt_en_und_it_block_getrennt(tmp_path, padua):
 
     assert "Maria stands at the station." in html
     assert "Maria sta alla stazione." in html
-    assert "Non sono mai tornata" in html
-    assert "As a story (English):" in html
-    assert "As a story (Italiano):" in html
-    assert "Key lines (Italiano, original):" in html
-    # Die Kernsaetze stehen nicht mehr ein zweites Mal in der Planungsliste.
-    assert html.count("Non sono mai tornata") == 1
+    # Seit [skript] verdichtet (Birk 07.10.2026 ~17:45): zwei Bloecke mit
+    # schlichter Sprachmarke, keine Key-lines-Liste unter vorhandenem Text --
+    # die Zitate stehen im Text.
+    assert '<p class="sprache-kopf">English</p>' in html
+    assert '<p class="sprache-kopf">Italiano</p>' in html
+    assert "Non sono mai tornata" not in html
     assert "Not written yet." not in html
     assert ' style="' not in html
     assert "onclick=" not in html
@@ -137,11 +137,11 @@ def test_ohne_prosa_it_bleibt_einsprachig(tmp_path, padua):
 
     html = web.textbuch_html(_daten(pfad, token), token)
 
-    assert "As a story:" in html
-    assert "As a story (English):" not in html
-    assert "As a story (Italiano):" not in html
-    assert "Key lines (Italiano, original):" not in html
-    assert "Non sono mai tornata" in html  # weiter in der normalen Planungsliste
+    # Seit [skript] verdichtet (Birk 07.10.2026 ~17:45): ein Textblock ohne
+    # Sprachmarke, keine Planungsliste unter vorhandenem Text.
+    assert html.count('<div class="text" lang="en">') == 1
+    assert 'class="sprache-kopf"' not in html
+    assert "Non sono mai tornata" not in html
 
 
 def test_erstentwuerfe_nur_wenn_gesetzt_und_verschieden(tmp_path):

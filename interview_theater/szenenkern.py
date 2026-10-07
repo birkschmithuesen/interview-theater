@@ -97,16 +97,18 @@ def _begruendungen(conn, chat_id: int, szene_id: int) -> list[str]:
     return texte
 
 
-def gruppenbeschreibung(conn, chat_id: int, szene) -> str:
-    """``was_passiert`` ohne die angehaengte Begruendungskette.
+def bereinige_beschreibung(text: str | None, begruendungen: list[str]) -> str:
+    """``was_passiert`` ohne die angehaengte Begruendungskette -- rein, ohne
+    Datenbank (die Weboberflaeche liest read-only und ruft das direkt).
 
-    Deterministisch: jede Begruendung einer uebernommenen Stelle fliegt samt
-    ihrem ``"; "``-Trenner heraus, die laengsten zuerst (eine kurze koennte
-    Teil einer langen sein). Was bleibt, ist der Satz der Gruppe."""
-    text = (szene["was_passiert"] or "").strip()
+    Jede Begruendung fliegt samt ihrem ``"; "``-Trenner heraus, die
+    laengsten zuerst (eine kurze koennte Teil einer langen sein). Was
+    bleibt, ist der Satz der Gruppe."""
+    text = (text or "").strip()
     if not text:
         return ""
-    for b in sorted(_begruendungen(conn, chat_id, szene["id"]), key=len, reverse=True):
+    for b in sorted({b.strip() for b in begruendungen if b and b.strip()},
+                    key=len, reverse=True):
         for muster in ("; " + b, b + "; ", " " + b, b):
             if muster in text:
                 text = text.replace(muster, "", 1)
@@ -114,34 +116,42 @@ def gruppenbeschreibung(conn, chat_id: int, szene) -> str:
     return " ".join(text.split()).strip(" ;")
 
 
-def gruppen_kernsaetze(conn, chat_id: int, szene) -> list[str]:
+def bereinige_kernsaetze(text: str | None, zitate: list[str]) -> list[str]:
     """Die eigenen Kernsaetze der Gruppe -- ohne die Zitate, die
-    ``_ergaenze_szene`` frueher mit ``" | "`` angehaengt hat (die stehen an
-    den ``schaerfung``-Zeilen und gehen als Kernpaket woertlich mit)."""
-    zitate = {
-        " ".join(str(z["zitat"] or "").split())
-        for z in repo.schaerfungen(conn, chat_id, szene_id=szene["id"])
-    }
+    ``_ergaenze_szene`` frueher mit ``" | "`` angehaengt hat."""
+    weg = {" ".join(str(z or "").split()) for z in zitate}
     return [
-        t.strip() for t in (szene["kernsaetze"] or "").split("|")
-        if t.strip() and " ".join(t.split()) not in zitate
+        t.strip() for t in (text or "").split("|")
+        if t.strip() and " ".join(t.split()) not in weg
     ]
 
 
-def kern_punkte(szene) -> list[str]:
-    try:
-        roh = szene["kern"]
-    except (IndexError, KeyError):
-        return []
+def gruppenbeschreibung(conn, chat_id: int, szene) -> str:
+    return bereinige_beschreibung(
+        szene["was_passiert"], _begruendungen(conn, chat_id, szene["id"]),
+    )
+
+
+def gruppen_kernsaetze(conn, chat_id: int, szene) -> list[str]:
+    """Die Zitate stehen an den ``schaerfung``-Zeilen und gehen als
+    Kernpaket woertlich mit -- hier bleibt nur, was die Gruppe selbst
+    gesetzt hat."""
+    return bereinige_kernsaetze(
+        szene["kernsaetze"],
+        [z["zitat"] for z in repo.schaerfungen(conn, chat_id, szene_id=szene["id"])],
+    )
+
+
+def zeilen(roh: str | None) -> list[str]:
     return [z.strip() for z in (roh or "").splitlines() if z.strip()]
+
+
+def kern_punkte(szene) -> list[str]:
+    return zeilen(szene["kern"])
 
 
 def kernsaetze_kurz(szene) -> list[str]:
-    try:
-        roh = szene["kernsaetze_kurz"]
-    except (IndexError, KeyError):
-        return []
-    return [z.strip() for z in (roh or "").splitlines() if z.strip()]
+    return zeilen(szene["kernsaetze_kurz"])
 
 
 def _kandidaten(conn, chat_id: int, szene) -> list[tuple[str, str]]:

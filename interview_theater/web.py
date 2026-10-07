@@ -4439,6 +4439,10 @@ def _prosa_absaetze_html(text: str) -> str:
     # quote (N):* ...") werden ein eigener Zitatblock.
     stuecke: list[str] = []
     for a in [a.strip() for a in _re.split(r"\n\s*\n", (text or "").strip()) if a.strip()]:
+        if _re.fullmatch(r"-{3,}|\*{3,}|_{3,}", a):
+            # Ein Absatz nur aus "---" ist eine Trennlinie (Stage Script G3).
+            stuecke.append('<hr class="trenner">')
+            continue
         normal: list[str] = []
         for z in a.splitlines():
             if z.lstrip().startswith(">"):
@@ -4875,6 +4879,7 @@ _CSS_TEXTBUCH_LESBAR = """
 .worum-liste, .kernzeilen { margin: 0 0 .5rem; padding-left: 1.1rem; }
 .worum-liste li, .kernzeilen li { margin: .22rem 0; }
 .kernzeilen li { font-style: italic; }
+.wege .pdf-knopf { display: inline-block; padding: .3rem .95rem; border: 1px solid var(--signal, #6b5a2b); border-radius: 1rem; font-weight: 700; text-decoration: none; }
 .szenenkarte { max-width: 65ch; margin: 1rem 0 0; line-height: 1.55; }
 .karte-typ { margin: 0 0 .3rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
 .karte-worum { margin: 0 0 .7rem; font-size: 1.08rem; }
@@ -5185,7 +5190,9 @@ def textbuch_koerper(
             f"{_t(T._TEXT_TEXTBUCH_MD)}</a>"
             f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.txt">'
             f"{_t(T._TEXT_TEXTBUCH_TXT)}</a>"
-            "</p>"
+            + (f'<a class="pdf-knopf" href="{_t(praefix, "")}/g/{_t(token)}/textbuch.pdf" '
+               f'target="_blank" rel="noopener">{_t(T._TEXT_PDF)}</a>' if _pdf_aktiv() else "")
+            + "</p>"
         )
     leisten = _rollenleiste_html(sprecher, daten["figuren"]) + (
         f'<div class="leiste"><span class="marke">{_t(T._TEXT_SCHRIFT)}</span>'
@@ -5501,6 +5508,17 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
     if unterpfad in ("textbuch.md", "textbuch.txt"):
         _sende_textbuch_datei(handler, db_pfad, token, unterpfad)
         return
+    if unterpfad == "textbuch.pdf" and _pdf_aktiv():
+        # Padua (Birk 07.10.2026 ~19:35): das Stage Script als PDF, gedruckt
+        # aus derselben Probenansicht (``web_pdf``).
+        from interview_theater import web_pdf
+
+        daten = handler._gruppe(token)
+        if daten is None:
+            handler._antworte(404, nicht_gefunden_html())
+        else:
+            web_pdf.sende(handler, daten, token, praefix)
+        return
     if unterpfad == leitfaden_modul.WEB_PFAD:
         daten = _leitfaden_daten(db_pfad, token)
         if daten is None:
@@ -5569,6 +5587,17 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
             handler._antworte(200, textbuch_html(daten, token, praefix))
         return
     web_vereint.beantworte_seite(handler, db_pfad, token, praefix, schluessel, query)
+
+
+def _pdf_aktiv() -> bool:
+    """Das PDF des Stage Scripts gibt es nur unter ``[karten] aktiv``."""
+    from interview_theater import workshop
+
+    return workshop.szenenkarten_aktiv()
+
+
+_TEXT_PDF = "PDF"
+_TEXT_PDF_FEHLER = "Das PDF liess sich gerade nicht erzeugen. Bitte gleich noch einmal versuchen."
 
 
 def _sende_textbuch_datei(handler, db_pfad: str, token: str, name: str) -> None:

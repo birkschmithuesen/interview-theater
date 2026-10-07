@@ -1970,3 +1970,88 @@ def test_kalibrierung_segment_schreibt_keine_nachrichtenzeile_bei_abschluss(conn
     row = _kalibrierung_zeile(conn, 1, 704, "Noch ein Testsatz.")
     aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
     assert repo.hole_nachricht(conn, 1, 704) is None
+
+
+# ---------------------------------------------------------------------------
+# Upload-Stau (Kanban-Karte "InScribe: Warnung bei Problemen"): Interviewmodus
+# an, aber seit UPLOAD_STAU_MIN Minuten kein neues Audio dieses Interviews --
+# Hinweis im Gruppenchat genau einmal, plus Vorfall-Zeile fuers Dashboard.
+# ---------------------------------------------------------------------------
+
+def _backdatiere_letztes_audio(conn, kopf_id: int, minuten: float) -> None:
+    """Setzt ``empfangen_am`` des Kopfes UND aller seiner Teile auf
+    ``minuten`` in der Vergangenheit -- so, als waere seitdem nichts mehr
+    angekommen."""
+    alt = (datetime.now(timezone.utc) - timedelta(minutes=minuten)).isoformat(timespec="seconds")
+    conn.execute(
+        "UPDATE aufnahme SET empfangen_am = ? WHERE id = ? OR teil_von = ?",
+        (alt, kopf_id, kopf_id),
+    )
+    conn.commit()
+
+
+def test_upload_stau_wird_gemeldet_und_als_vorfall_vermerkt(conn, einst, tg):
+    kopf_id = interview_an(conn, tg, einst)
+    _backdatiere_letztes_audio(conn, kopf_id, aufnahme.UPLOAD_STAU_MIN + 1)
+    aufnahme.pruefe_upload_stau(conn, tg, einst)
+    meldungen = [t for _, t in tg.gesendet if "Audio" in t]
+    assert len(meldungen) == 1
+    vorfaelle = conn.execute(
+        "SELECT art, chat_id FROM vorfall WHERE art = 'upload_stau'"
+    ).fetchall()
+    assert len(vorfaelle) == 1
+    assert vorfaelle[0]["chat_id"] == 1
+
+
+def test_upload_stau_meldet_nicht_vor_der_schwelle(conn, einst, tg):
+    kopf_id = interview_an(conn, tg, einst)
+    _backdatiere_letztes_audio(conn, kopf_id, aufnahme.UPLOAD_STAU_MIN - 1)
+    aufnahme.pruefe_upload_stau(conn, tg, einst)
+    assert tg.gesendet == []
+    assert conn.execute(
+        "SELECT COUNT(*) FROM vorfall WHERE art='upload_stau'"
+    ).fetchone()[0] == 0
+
+
+def test_upload_stau_meldet_nicht_doppelt(conn, einst, tg):
+    kopf_id = interview_an(conn, tg, einst)
+    _backdatiere_letztes_audio(conn, kopf_id, aufnahme.UPLOAD_STAU_MIN + 1)
+    aufnahme.pruefe_upload_stau(conn, tg, einst)
+    aufnahme.pruefe_upload_stau(conn, tg, einst)
+    meldungen = [t for _, t in tg.gesendet if "Audio" in t]
+    assert len(meldungen) == 1
+
+
+def test_upload_stau_meldet_erneut_nach_neuem_audio_und_erneuter_stockung(conn, einst, tg):
+    kopf_id = interview_an(conn, tg, einst)
+    _backdatiere_letztes_audio(conn, kopf_id, aufnahme.UPLOAD_STAU_MIN + 1)
+    aufnahme.pruefe_upload_stau(conn, tg, einst)
+    assert len(tg.gesendet) == 1
+
+    aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=5, message_id=50))
+    assert repo.hole_gruppe(conn, 1)["interview_stau_gemeldet_am"] is None
+
+    _backdatiere_letztes_audio(conn, kopf_id, aufnahme.UPLOAD_STAU_MIN + 1)
+    aufnahme.pruefe_upload_stau(conn, tg, einst)
+    meldungen = [t for _, t in tg.gesendet if "Audio" in t]
+    assert len(meldungen) == 2
+
+
+def test_upload_stau_ohne_laufendes_interview_bleibt_still(conn, einst, tg):
+    aufnahme.pruefe_upload_stau(conn, tg, einst)
+    assert tg.gesendet == []
+    assert conn.execute(
+        "SELECT COUNT(*) FROM vorfall WHERE art='upload_stau'"
+    ).fetchone()[0] == 0
+
+
+def test_upload_stau_vor_dem_ersten_segment_nutzt_den_modusbeginn(conn, einst, tg):
+    """Interviewmodus an, aber noch kein Kopf angelegt (die Gruppe hat
+    /interview gedrueckt, aber noch nichts gesagt): die Stockung zaehlt ab
+    dem Moduswechsel, nicht erst ab einem Kopf, den es noch nicht gibt."""
+    alt = (datetime.now(timezone.utc)
+           - timedelta(minutes=aufnahme.UPLOAD_STAU_MIN + 1)).isoformat(timespec="seconds")
+    repo.setze_interviewmodus(conn, 1, alt)
+    aufnahme.pruefe_upload_stau(conn, tg, einst)
+    meldungen = [t for _, t in tg.gesendet if "Audio" in t]
+    assert len(meldungen) == 1

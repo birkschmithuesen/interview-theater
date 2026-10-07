@@ -202,6 +202,12 @@ NACKT_ERLAUBT = {
 #: (repo.merke_vorfall, Dashboard des Teams). Schluessel: Modul und die
 #: ersten 40 Zeichen des Literals, wie ``_inline_texte`` sie liefert.
 INLINE_ERLAUBT: dict[tuple[str, str], str] = {
+    # Kanban-Karte InScribe-Warnung: Vorfall-Detail upload_stau
+    # (aufnahme.pruefe_upload_stau -> repo.merke_vorfall).
+    ("aufnahme", "kein neues Audio seit {} min"):
+        "Vorfall-Detail upload_stau (repo.merke_vorfall)",
+    ("aufnahme", ", kein Kopf angelegt"):
+        "Vorfall-Detail upload_stau (repo.merke_vorfall)",
     ("knoepfe.basis", "'{}' steht bereits und wurde durch einen"):
         "Vorfall-Detail ueberschreiben_verhindert (repo.merke_vorfall)",
     ("knoepfe.szenen", "Eine Formwahl sollte als Geschichte gesp"):

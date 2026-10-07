@@ -1816,6 +1816,62 @@ def leere_whisper_stumm_seit_falls_gesetzt(conn: sqlite3.Connection, chat_id: in
     return cur.rowcount == 1
 
 
+@_gesperrt
+def laufende_interviews_fuer_bot(conn: sqlite3.Connection, bot_name: str) -> list[sqlite3.Row]:
+    """Gruppen dieses Bot-Prozesses, deren Interviewmodus an ist
+    (``gruppe.interviewmodus_seit``) -- Grundlage des Upload-Stau-Checks
+    (Kanban-Karte InScribe-Warnung), derselbe bot_name-Filter wie
+    ``offene_aufnahmen_fuer_bot`` (ein Prozess je Gruppe, dieselbe
+    SQLite-Datei)."""
+    return conn.execute(
+        "SELECT * FROM gruppe WHERE bot_name = ? AND interviewmodus_seit IS NOT NULL",
+        (bot_name,),
+    ).fetchall()
+
+
+@_gesperrt
+def letztes_audio_am(conn: sqlite3.Connection, chat_id: int, kopf_id: int) -> str | None:
+    """MAX(empfangen_am) ueber den Interview-Kopf UND seine Teile -- 'seit
+    wann kam kein neues Audio mehr' fuer dieses Interview (Kanban-Karte
+    InScribe-Warnung). Weich geloeschte Zeilen zaehlen nicht."""
+    row = conn.execute(
+        "SELECT MAX(empfangen_am) FROM aufnahme "
+        "WHERE chat_id = ? AND entfernt_am IS NULL AND (id = ? OR teil_von = ?)",
+        (chat_id, kopf_id, kopf_id),
+    ).fetchone()
+    return row[0] if row else None
+
+
+@_gesperrt
+def setze_interview_stau_gemeldet_falls_leer(conn: sqlite3.Connection, chat_id: int, wert: str) -> bool:
+    """Wie setze_whisper_stumm_seit_falls_leer, fuer den Upload-Stau-Hinweis
+    (Kanban-Karte InScribe-Warnung): atomar gesetzt, aber nur wenn noch leer.
+    Liefert True nur fuer den Aufruf, der tatsaechlich gesetzt hat -- die
+    Grundlage der 'genau einmal, nicht spammen'-Zusage."""
+    cur = conn.execute(
+        "UPDATE gruppe SET interview_stau_gemeldet_am = ? "
+        "WHERE chat_id = ? AND interview_stau_gemeldet_am IS NULL",
+        (wert, chat_id),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+@_gesperrt
+def leere_interview_stau_gemeldet_falls_gesetzt(conn: sqlite3.Connection, chat_id: int) -> bool:
+    """Spiegelbild zu setze_interview_stau_gemeldet_falls_leer: leert das
+    Feld atomar, aber nur wenn es gesetzt war -- sobald wieder Audio dieses
+    Interviews ankommt (``aufnahme.empfange``), damit eine spaetere, neue
+    Stockung wieder gemeldet werden darf."""
+    cur = conn.execute(
+        "UPDATE gruppe SET interview_stau_gemeldet_am = NULL "
+        "WHERE chat_id = ? AND interview_stau_gemeldet_am IS NOT NULL",
+        (chat_id,),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
 #: Die einzigen Felder, die ein Korrekturbefehl (SPEC § 8: /kernthema,
 #: /konflikt, /begriffe) oder der Extraktor im Arbeitsstand setzen duerfen.
 #: ``fragen`` ist seit dem 04.09.2026 abends dabei (die Frageliste aus Phase 2,

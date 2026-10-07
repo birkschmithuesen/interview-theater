@@ -58,6 +58,15 @@ CREATE TABLE IF NOT EXISTS gruppe (
   gruendlich_naechster_zug        INTEGER NOT NULL DEFAULT 0,  -- Modus B einmalig (§ 4.5)
   whisper_stumm_seit              TEXT,     -- gesetzt = Ausfall gemeldet (§ 10.4)
   interviewmodus_seit             TEXT,     -- gesetzt = Interviewmodus an (teil-b.md Aufgabe 5, § 10.1)
+  -- Gesetzt = der Upload-Stau-Hinweis ("Interviewmodus an, aber lange kein
+  -- neues Audio", Kanban-Karte InScribe-Warnung) ist fuer die laufende
+  -- Stockung schon einmal gesendet -- dasselbe Muster wie whisper_stumm_seit:
+  -- atomar gesetzt (repo.setze_interview_stau_gemeldet_falls_leer), atomar
+  -- geleert, sobald wieder Audio ankommt (repo.
+  -- leere_interview_stau_gemeldet_falls_gesetzt, aufnahme.empfange). NULL =
+  -- kein offener Hinweis. Additiv nachgeruestet ueber
+  -- _migriere_fehlende_spalten.
+  interview_stau_gemeldet_am      TEXT,
   -- Zufallstoken fuer die Gruppenseite /g/<token> der Weboberflaeche
   -- (NACHTRAG-weboberflaeche-und-sprache.md N1-B): kein Login, wer die URL
   -- hat, sieht die Gruppe. Erzeugt der Bot (repo.stelle_web_token_sicher),

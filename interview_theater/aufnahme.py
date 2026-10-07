@@ -112,6 +112,20 @@ MINDEST_WOERTER = 40
 #: eigene Nachricht und keine Rueckfrage.
 HINWEIS_AB_S = 60
 
+#: Interviewmodus an, aber seit so vielen Minuten kein neues Audio dieses
+#: Interviews angekommen (Kanban-Karte InScribe-Warnung: Upload haengt/
+#: Handy offline, die Gruppe merkt es heute nicht) -> ein einmaliger Hinweis
+#: im Gruppenchat plus eine ``vorfall``-Zeile. Begruendung der Zahl: der
+#: Nachhol-Takt prueft alle NACHHOL_INTERVALL_S = 60 s, ein Segment ist in
+#: der Vorgabe VORGABE_SEGMENT_MS = 45 s lang, und selbst ein wiederholt
+#: scheiternder Upload probiert es laut UPLOAD_WARTEN_MS (web_chat.py) mit
+#: hoechstens 8 s Abstand erneut -- 5 Minuten sind ueber 6x ein Segment und
+#: liegen weit ueber jeder einzelnen Verzoegerung durch Retry/Nonce-Poll,
+#: melden eine echte Verbindungsstoerung aber noch waehrend des laufenden
+#: Interviews, wo die Gruppe sie beheben kann (anders als der Ticker, der
+#: als Betreiberanzeige grosszuegiger bei 15 min liegt).
+UPLOAD_STAU_MIN = 5
+
 #: Endung des Zielpfads einer heruntergeladenen Aufnahme, wenn die Quelle
 #: keine nennt. Telegram nennt keine -- der Web-Kanal nennt sie, weil
 #: ``stt.mime_typ()`` den MIME-Typ aus der Endung ableitet (Falle 3).
@@ -129,6 +143,17 @@ _TEXT_AUSFALL = (
     "Aufnahmen und hole sie nach."
 )
 _TEXT_RUECKKEHR = "Ich kann wieder hoeren."
+
+#: Kanban-Karte InScribe-Warnung: Interviewmodus an, aber seit
+#: UPLOAD_STAU_MIN Minuten kein neues Audio -- typischer Fall ist eine
+#: verlorene Internetverbindung des aufnehmenden Handys (die Aufnahme laeuft
+#: lokal weiter, der Server bekommt nichts). {min} ist UPLOAD_STAU_MIN.
+_TEXT_UPLOAD_STAU = (
+    "Seit {min} Minuten ist kein neues Audio angekommen, obwohl das "
+    "Interview noch laeuft. Prueft bitte die Internetverbindung des "
+    "aufnehmenden Handys -- die Aufnahme geht nicht verloren, sie wird "
+    "nachgeladen, sobald die Verbindung wieder da ist."
+)
 
 #: Historisch (bis 06.09.2026): der beilaeufige Hinweis, der an einer
 #: Gespraechsantwort hing, wenn eine lange Sprachnachricht ausserhalb des
@@ -570,7 +595,7 @@ def empfange(conn, tg, e, n: dict) -> int | None:
         _web_sprachblase(conn, chat_id, message_id, None)
         return None
 
-    return repo.lege_aufnahme_an(
+    aufnahme_id = repo.lege_aufnahme_an(
         conn, chat_id, message_id, klasse, "sprache",
         audio_pfad=str(ziel), dauer=n.get("dauer"), teil_von=teil_von,
         schnittgrund=n.get("schnittgrund"), brainstorm=bool(n.get("brainstorm")),
@@ -578,6 +603,12 @@ def empfange(conn, tg, e, n: dict) -> int | None:
         rede_ms=n.get("rede_ms"), kalibrierung=kalibrierung,
         weich_ms=n.get("weich_ms"),
     )
+    if teil_von is not None:
+        # Kanban-Karte InScribe-Warnung: ein neuer Interview-Teil ist
+        # angekommen -- ein offener Upload-Stau-Hinweis darf wieder gemeldet
+        # werden, wenn die Verbindung spaeter noch einmal ausfaellt.
+        repo.leere_interview_stau_gemeldet_falls_gesetzt(conn, chat_id)
+    return aufnahme_id
 
 
 # Schuetzt gegen doppelte Bearbeitung derselben Aufnahme INNERHALB eines
@@ -2513,6 +2544,45 @@ def melde_rueckkehr(conn, tg, e, chat_id) -> None:
         log.exception("Rueckkehr-Hinweis fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def pruefe_upload_stau(conn, tg, e) -> None:
+    """Interviewmodus an, aber seit UPLOAD_STAU_MIN Minuten kein neues Audio
+    dieses Interviews (Kanban-Karte InScribe-Warnung) -> genau einmal pro
+    Stockung ein Hinweis im Gruppenchat PLUS eine ``vorfall``-Zeile fuers
+    Dashboard (``repo.merke_vorfall`` traegt dort selbst keine Dedup-Logik --
+    das atomare ``repo.setze_interview_stau_gemeldet_falls_leer`` davor ist
+    die einzige Stelle, die 'nicht spammen' zusagt, genau wie bei
+    ``melde_ausfall``).
+
+    Nur die Gruppen dieses Bot-Prozesses (``repo.laufende_interviews_fuer_bot``,
+    bot_name-Filter wie ``nachholen`` selbst) -- sonst wuerden mehrere
+    Prozesse auf derselben SQLite-Datei denselben Vorfall mehrfach pruefen.
+
+    Noch kein Interview-Kopf (die Gruppe hat den Modus gerade erst
+    eingeschaltet, aber noch nichts gesagt): die Stockung zaehlt ab dem
+    Moduswechsel (``gruppe.interviewmodus_seit``), nicht ab einem Kopf, den
+    es noch nicht gibt."""
+    grenze = (datetime.now(timezone.utc)
+              - timedelta(minutes=UPLOAD_STAU_MIN)).isoformat(timespec="seconds")
+    for gruppe in repo.laufende_interviews_fuer_bot(conn, e.bot_name):
+        chat_id = gruppe["chat_id"]
+        kopf = repo.laufendes_interview(conn, chat_id)
+        letzte = (repo.letztes_audio_am(conn, chat_id, kopf["id"]) if kopf else None) \
+            or gruppe["interviewmodus_seit"]
+        if letzte is None or letzte >= grenze:
+            continue
+        if not repo.setze_interview_stau_gemeldet_falls_leer(conn, chat_id, repo._jetzt()):
+            continue
+        try:
+            tg.sende(chat_id, T._TEXT_UPLOAD_STAU.format(min=UPLOAD_STAU_MIN))
+        except Exception:
+            log.exception("Upload-Stau-Hinweis fehlgeschlagen, chat_id=%s", chat_id)
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "upload_stau",
+            f"kein neues Audio seit {UPLOAD_STAU_MIN} min"
+            + (f", Interview {kopf['id']}" if kopf else ", kein Kopf angelegt"),
+        )
+
+
 def nachholen(conn, tg, klm, e, klient, *, zug=_kein_zug) -> None:
     """Greift beim Start und danach alle NACHHOL_INTERVALL_S Sekunden alles
     auf, was nicht in einem Endzustand steht (§ 10.3) -- derselbe Weg, der
@@ -2551,6 +2621,11 @@ def nachholen(conn, tg, klm, e, klient, *, zug=_kein_zug) -> None:
             schliesse_ab(conn, tg, klm, e, kopf["id"])
         except Exception:
             log.exception("Nachholen eines Interviewabschlusses fehlgeschlagen, id=%s", kopf["id"])
+
+    try:
+        pruefe_upload_stau(conn, tg, e)
+    except Exception:
+        log.exception("Upload-Stau-Pruefung fehlgeschlagen, bot_name=%s", e.bot_name)
 
 
 def importiere_text(conn, e, chat_id: int, message_id: int, text: str, name: str | None = None) -> int:

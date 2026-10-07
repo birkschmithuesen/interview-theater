@@ -185,6 +185,10 @@ _TEXT_DRAMATURGIE_UEBERHOLT = """\
 As soon as the scene has been rewritten, this finding is out of date. If \
 you like, I'll check again afterwards."""
 TEXT_SCHAERFUNG_RUNDE_KNOPF = "One more round"
+TEXT_SCHAERFUNG_SORTIEREN_KNOPF = "🗂 Sort the interview passages"
+TEXT_SCHAERFUNG_CHAT_KNOPF = "💬 Talk about the interviews first"
+_TEXT_SCHAERFUNG_CHAT_NOTIERT = "Good, I'll summarise the interviews briefly."
+_TEXT_SCHAERFUNG_SORTIEREN_NOTIERT = "Good, keep sorting in the CoThinker tab."
 _TEXT_SCHAERFUNG_ALLE_KNOPF = "Take these"
 _TEXT_SCHAERFUNG_KEINE_KNOPF = "None of them"
 _TEXT_SCHAERFUNG_MEHR_KNOPF = "Show more"
@@ -1414,6 +1418,7 @@ _ZEILE_REGIE = "\nThe group says about it: {regie}"
 
 ["schaerfung"]
 MELDUNG = "I've assigned {anzahl} passages from your interviews to your scenes and characters. I'll go through them with you."
+MELDUNG_COTHINKER = "I've matched {anzahl} passages from your interviews to your scenes and characters. Sort them in the CoThinker tab: Yes / No, then Done."
 MELDUNG_LEER = "No passage from the interviews fits your story - it stays the way you invented it."
 MELDUNG_OHNE_MATERIAL = "There are no analysed interviews yet that I could sharpen against."
 TEXT_GEMERKT = "I'm still thinking about something else. As soon as I'm done with that, I'll lay your material next to your story."
@@ -1772,6 +1777,11 @@ _TEXT_AUSWAHL_JA = "Keep"
 _TEXT_AUSWAHL_NEIN = "Drop"
 _TEXT_AUSWAHL_SCHAERFEN = "Rephrase"
 _TEXT_AUSWAHL_FERTIG = "Done sorting – open ones count as keep"
+_TEXT_SCHAERFUNGSLISTE_ZAEHLER = "{ja} in · {nein} out · {offen} open"
+_TEXT_SCHAERFUNGSLISTE_JA = "In"
+_TEXT_SCHAERFUNGSLISTE_NEIN = "Out"
+_TEXT_SCHAERFUNGSLISTE_FERTIG = "Done – open ones stay for the next round"
+_TEXT_SCHAERFUNGSLISTE_SZENE = "Scene {nummer}"
 _TEXT_BUEHNE_HOERT_ZU = "Listening … nothing to add yet."
 _TEXT_BUEHNE_AUFNAHME_LAEUFT = "A recording is in progress."
 _TEXT_BUEHNE_ZURUECK = " — back to current"
@@ -2109,6 +2119,7 @@ _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG = "Remember: pass the phone to whoeve
 # Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): exact card wording,
 # shown once per session after the first segment finishes.
 _TEXT_MITLAUF_HINWEIS = "Check the transcript in the chat — if words are missing, move the phone closer."
+_TEXT_ZIEL_BUEHNE_KNOPF = "🗂 Sort the interview passages"
 
 ["web_kanal"]
 # UX-Knoepfe-Karte, Abschnitt 1: der einmalige Hinweis, dass Knoepfe

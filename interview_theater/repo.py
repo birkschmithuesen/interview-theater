@@ -1267,6 +1267,48 @@ def entferne_schaerfung(conn: sqlite3.Connection, schaerfung_id: int) -> None:
     conn.commit()
 
 
+@_gesperrt
+def setze_schaerfung_entscheidung(
+    conn: sqlite3.Connection, chat_id: int, schaerfung_id: int, wert: str
+) -> bool:
+    """Setzt die Yes/No-Entscheidung EINER offenen Schaerfung aus der
+    CoThinker-Sortierliste (Padua, 07.10.2026) -- vor dem Knopf "Done"
+    (``knoepfe.szenen.schliesse_schaerfungsliste``). Dasselbe Muster wie
+    ``setze_fragen_entscheidung``, nur je Zeile statt je Feld.
+
+    ``False`` ohne Schreiben bei unbekanntem Wert, bei einer id, die nicht
+    zu dieser Gruppe gehoert, oder die schon uebernommen/entfernt ist --
+    dann gibt es nichts mehr zu entscheiden. ``wert == ""`` ist "wieder
+    offen" (Rueckgaengig).
+
+    Webserver und Bot sind zwei Prozesse und teilen ``_LOCK`` nicht --
+    Lesen und Schreiben deshalb in EINER ``BEGIN IMMEDIATE``-Transaktion,
+    ausser der Aufrufer steht schon in einer (wie bei
+    ``setze_fragen_entscheidung``)."""
+    if wert not in ("ja", "nein", ""):
+        return False
+    eigene = not conn.in_transaction
+    if eigene:
+        conn.execute("BEGIN IMMEDIATE")
+    try:
+        zeile = conn.execute(
+            "SELECT id FROM schaerfung WHERE id = ? AND chat_id = ? "
+            "AND uebernommen_am IS NULL AND entfernt_am IS NULL",
+            (schaerfung_id, chat_id),
+        ).fetchone()
+        if zeile is None:
+            return False
+        conn.execute(
+            "UPDATE schaerfung SET entscheidung = ? WHERE id = ?",
+            (wert or None, schaerfung_id),
+        )
+        conn.commit()
+        return True
+    finally:
+        if eigene and conn.in_transaction:
+            conn.rollback()
+
+
 # --- Stueckpruefung (Phase 7, 06.09.2026) ---------------------------------
 
 

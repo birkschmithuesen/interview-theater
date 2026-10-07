@@ -735,7 +735,9 @@ _VEREINT_JS = """
     var rm = document.getElementById('roadmap');
     if (!rm) { return false; }
     var p = rm.dataset.aktivePhase;
-    return p === '4' || ((p === '1' || p === '2') && rm.dataset.begriffsboard === '1');
+    // Birk 07.10.2026: auch Phase 5 -- dort steht die Sortierliste der
+    // Interview-Zuordnung (Yes/No) im CoThinker-Tab.
+    return p === '4' || p === '5' || ((p === '1' || p === '2') && rm.dataset.begriffsboard === '1');
   }
   var lies = function () {
     var teile = location.hash.replace(/^#/, '').split('&');
@@ -1059,19 +1061,25 @@ _VEREINT_JS = """
       .catch(function () {})
       .finally(function () { roadmapLaeuft = false; });
   }
-  setInterval(function () {
-    // Im selben Takt wie das Stand-Panel (Review-Befund 2), aber ohne
-    // dessen Gate: die Roadmap ist immer sichtbar, gleich welcher Tab vorn
-    // ist.
-    ladeRoadmap();
-    // CoThinker-Root-Cause-Fix (Birk 02.10.2026): Tab-Knopf UND Panel
-    // folgen der frisch geladenen Phase -- unabhaengig davon, wie die
-    // Gruppe in Phase 4 (oder Phase 1 mit Begriffsboard) eingetreten ist
-    // (Chat, Phasenleiste-Klick, "Ja speichern"). KEIN automatischer
-    // Tab-Wechsel beim Erscheinen (Birk: "no surprise jumps") -- nur beim
-    // VERLASSEN der CoThinker-Phase, waehrend der Buehne-Tab gerade vorn
-    // ist, faellt die Seite auf VORGABE zurueck, weil ihr Panel sonst leer
-    // verborgen vorn staende.
+  // CoThinker-Root-Cause-Fix (Birk 02.10.2026): Tab-Knopf UND Panel folgen
+  // der frisch geladenen Phase -- unabhaengig davon, wie die Gruppe in
+  // Phase 4/5 (oder Phase 1/2 mit Begriffsboard) eingetreten ist (Chat,
+  // Phasenleiste-Klick, "Ja speichern"). KEIN automatischer Tab-Wechsel beim
+  // Erscheinen (Birk: "no surprise jumps") -- nur beim VERLASSEN der
+  // CoThinker-Phase, waehrend der Buehne-Tab gerade vorn ist, faellt die
+  // Seite auf VORGABE zurueck, weil ihr Panel sonst leer verborgen vorn
+  // staende.
+  //
+  // Eigene Funktion, auf ``window`` (Birk Live-Test 07.10.2026, "Tab
+  // verschwindet nach der Schaerfung"): ``_STEPPER_JS``s ``ladeStepper()``
+  // (Padua-Stepper) tauscht ``#roadmap`` auf einem EIGENEN Weg -- bis dahin
+  // sah nur dieser Takt hier (alle ``__NACHLADEN_MS__``, 10 s) nach, ob die
+  // Phase noch zu Tab-Knopf und Panel passt. Jeder andere Tausch von
+  // ``#roadmap`` rief diese Pruefung nicht mit auf, und bis zum naechsten
+  // Takt konnte der Tab bis zu 10 s falsch stehen. ``_STEPPER_JS`` laeuft
+  // als eigene IIFE NACH dieser hier (Reihenfolge in ``seite()``) und ruft
+  // ``window.buehneSyncTab()`` deshalb sicher auf ein schon gesetztes Feld.
+  function synchronisiereBuehneTab() {
     var buehnePanel = document.getElementById('tab-buehne');
     var buehneKnopf = document.querySelector('.tabs button[data-tab="buehne"]');
     if (buehnePanel && buehneKnopf) {
@@ -1083,6 +1091,14 @@ _VEREINT_JS = """
         if (document.body.dataset.tab === 'buehne') { setze(VORGABE); }
       }
     }
+  }
+  window.buehneSyncTab = synchronisiereBuehneTab;
+  setInterval(function () {
+    // Im selben Takt wie das Stand-Panel (Review-Befund 2), aber ohne
+    // dessen Gate: die Roadmap ist immer sichtbar, gleich welcher Tab vorn
+    // ist.
+    ladeRoadmap();
+    synchronisiereBuehneTab();
     var panel = document.getElementById('tab-stand');
     if (!panel) { return; }
     if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
@@ -1666,6 +1682,11 @@ _STEPPER_JS = """
         var frisch = doc.body ? doc.body.firstElementChild : null;
         var ziel = document.getElementById('roadmap');
         if (frisch && ziel) { ziel.outerHTML = frisch.outerHTML; }
+        // Bugfix (Birk Live-Test 07.10.2026, "CoThinker-Tab verschwindet
+        // nach der Schaerfung"): dieser Tausch aenderte ``#roadmap`` ohne
+        // Tab-Knopf/Panel nachzuziehen -- bis zu 10 s falsch, siehe
+        // ``_VEREINT_JS``s ``synchronisiereBuehneTab``.
+        if (window.buehneSyncTab) { window.buehneSyncTab(); }
       })
       .catch(function () {});
   }
@@ -1759,7 +1780,7 @@ _AUSWAHL_JS = """
 (function () {
   var BASIS = '__BASIS__';
   var BASIS_TEIL = '__BASIS_TEIL__';
-  var ZAEHLER = __AUSWAHL_ZAEHLER__;
+  var ZAEHLER = { fragen: __AUSWAHL_ZAEHLER_FRAGEN__, schaerfung: __AUSWAHL_ZAEHLER_SCHAERFUNG__ };
   var FEHLER_NETZ = __AUSWAHL_FEHLER_NETZ__;
   var FEHLER_UNGUELTIG = __AUSWAHL_FEHLER_UNGUELTIG__;
   var TAKT = window.buehneTakt || { gen: 0, unterwegs: 0, gesehen: function () {} };
@@ -1811,7 +1832,8 @@ _AUSWAHL_JS = """
       var z = li.getAttribute('data-zustand');
       n[n.hasOwnProperty(z) ? z : 'offen'] += 1;
     });
-    feld.textContent = ZAEHLER.replace(/\\{(ja|nein|schaerfen|offen)\\}/g,
+    var vorlage = ZAEHLER[panel.getAttribute('data-liste')] || ZAEHLER.fragen;
+    feld.textContent = vorlage.replace(/\\{(ja|nein|schaerfen|offen)\\}/g,
       function (_g, k) { return String(n[k]); });
   }
   function setze(li, wert) {
@@ -1997,8 +2019,25 @@ _TEXT_AUSWAHL_UNGUELTIG = "Diese Auswahl geht nicht."
 #: 05.10.2026): Listenname -> Name der ``repo``-Funktion
 #: ``(conn, chat_id, nummer, wert) -> bool``. Als Name, nicht als Objekt:
 #: ``repo`` wird hier wie ueberall in diesem Modul erst im Aufruf geladen.
-_AUSWAHL_SCHREIBER = {"fragen": "setze_fragen_entscheidung"}
+#: Listenname -> Name der ``repo``-Schreibfunktion ``(conn, chat_id, nummer,
+#: wert) -> bool``. "schaerfung" (Padua Phase 5, 07.10.2026): dieselbe
+#: Auswahlliste-Mechanik wie "fragen", nur Yes/No statt der drei Zustaende
+#: und ``nummer`` ist hier die ``schaerfung.id``, keine Position.
+_AUSWAHL_SCHREIBER = {
+    "fragen": "setze_fragen_entscheidung",
+    "schaerfung": "setze_schaerfung_entscheidung",
+}
+#: Der versteckte Befehl, den "Fertig"/"Done" je Liste anlegt
+#: (``auswahl_fertig_post``) -- derselbe Weg durch die Naht wie
+#: ``/phaseklick``.
+_AUSWAHL_FERTIG_BEFEHL = {
+    "fragen": "/sortiert",
+    "schaerfung": "/schaerfung_fertig",
+}
 #: Die erlaubten Werte eines Tipps -- ``""`` ist "wieder offen" (Rueckgaengig).
+#: "schaerfen" gilt nur fuer die Liste "fragen"; ``_AUSWAHL_SCHREIBER``s
+#: Funktion fuer "schaerfung" (``repo.setze_schaerfung_entscheidung``) lehnt
+#: ihn selbst ab (400) -- kein zweiter Wertebereich hier noetig.
 _AUSWAHL_WERTE = ("ja", "nein", "schaerfen", "")
 
 
@@ -2047,22 +2086,25 @@ def auswahl_post(handler, db_pfad: str, token: str, chat_id: int,
 
 def auswahl_fertig_post(handler, db_pfad: str, token: str, chat_id: int,
                         schluessel: bytes) -> None:
-    """``POST /g/<token>/chat/auswahl_fertig`` -- "Fertig sortiert". Wie
-    ``phase_post``: der Webserver legt nur den versteckten Befehl
-    ``/sortiert`` als Eingang ab, der Bot schliesst die Sortierung ab
-    (offene zaehlen als behalten, dann ggf. Umformulieren im Chat)."""
+    """``POST /g/<token>/chat/auswahl_fertig`` -- "Fertig sortiert"/"Done".
+    Wie ``phase_post``: der Webserver legt nur den versteckten Befehl je
+    Liste (``_AUSWAHL_FERTIG_BEFEHL``) als Eingang ab -- ``/sortiert`` fuer
+    die Fragenliste (offene zaehlen als behalten, dann ggf. Umformulieren
+    im Chat), ``/schaerfung_fertig`` fuer die Schaerfungsliste (Yes
+    uebernehmen, No verwerfen, offene bleiben stehen)."""
     from interview_theater import repo, web_chat
 
     daten = web_chat._koerper_oder_400(handler, token, schluessel)
     if daten is None:
         return
-    if daten.get("liste") not in _AUSWAHL_SCHREIBER:
+    befehl = _AUSWAHL_FERTIG_BEFEHL.get(daten.get("liste"))
+    if befehl is None:
         handler._fehler(400, T._TEXT_AUSWAHL_UNGUELTIG)
         return
     with web_chat.schreibend(db_pfad) as conn:
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
-            text="/sortiert",
+            text=befehl,
         )
     web_chat._angenommen(handler, {"message_id": message_id})
 
@@ -2361,7 +2403,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     # Profil das Begriffsboard faehrt (Karte t_4517d4ad). Derselbe Zustand,
     # den ``istCoThinkerPhase()`` im Browser bei jedem Takt neu herstellt.
     # Seit 05.10.2026 (Birk) auch Phase 2: die Fragenuebersicht je Begriff.
-    phase4 = phase == 4 or (phase in (1, 2) and workshop.diskussion_aktiv())
+    phase4 = phase in (4, 5) or (phase in (1, 2) and workshop.diskussion_aktiv())
     vorgabe = VORGABE_TAB if chat_vorhanden else "stand"
     panels = {
         "stand": web.gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
@@ -2490,7 +2532,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             _AUSWAHL_JS
             .replace("__BASIS__", f"{token}/")
             .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
-            .replace("__AUSWAHL_ZAEHLER__", _js_text(web.T._TEXT_AUSWAHL_ZAEHLER))
+            .replace("__AUSWAHL_ZAEHLER_FRAGEN__", _js_text(web.T._TEXT_AUSWAHL_ZAEHLER))
+            .replace("__AUSWAHL_ZAEHLER_SCHAERFUNG__", _js_text(web.T._TEXT_SCHAERFUNGSLISTE_ZAEHLER))
             .replace("__AUSWAHL_FEHLER_NETZ__", _js_text(T._TEXT_PHASE_FEHLER_NETZ))
             .replace("__AUSWAHL_FEHLER_UNGUELTIG__", _js_text(T._TEXT_AUSWAHL_UNGUELTIG))
         )

@@ -620,6 +620,11 @@ _TEXT_KALIBRIERUNG_BALKEN_LABEL = "Deine Stimme im Vergleich zum Raum"
 _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG = (
     "Denkt daran: Gebt das Handy an die Person weiter, die spricht."
 )
+#: Padua Entry-Umbau (07.10.2026, "Entry zu voll"): derselbe Wortlaut wie
+#: ``knoepfe.texte.TEXT_SCHAERFUNG_SORTIEREN_KNOPF`` -- bewusst eine eigene
+#: Konstante statt eines Imports aus ``knoepfe`` (``test_kein_neuer_knopf_
+#: handler_im_web``: ``web_chat`` importiert das Knopf-Paket nicht).
+_TEXT_ZIEL_BUEHNE_KNOPF = "\U0001f5c2 Stellen sortieren"
 
 #: Die Texte, die das JavaScript selbst setzt. Sie stehen als Konstanten in
 #: diesem Modul (dieselben, die der Server fuer seine Seite benutzt) und
@@ -684,6 +689,7 @@ _JS_TEXTE = {
     "kal_skip_knopf": _TEXT_KALIBRIERUNG_SKIP_KNOPF,
     "kal_balken_label": _TEXT_KALIBRIERUNG_BALKEN_LABEL,
     "kal_herumreichen_erinnerung": _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
+    "ziel_buehne_knopf": _TEXT_ZIEL_BUEHNE_KNOPF,
 }
 
 
@@ -1427,13 +1433,24 @@ _CHAT_JS = """
     // idempotent nicht mehr, aber ein Knopf, der weiter klickbar
     // dasteht, laedt dazu ein.
     var leiste = knopf.closest('.leiste') || knopf.parentNode;
+    // Padua Entry-Umbau (07.10.2026): der Knopf "Sortieren" unter der
+    // automatischen Zuordnung beim Eintritt in Phase 5 springt NACH dem
+    // angenommenen Knopfdruck direkt in den CoThinker-Tab -- erkannt am
+    // Knopftext (derselbe Weg wie die ``#chat``-Spruenge in
+    // ``web_vereint.py``s ``_AUSWAHL_JS``, nur auf ``#buehne`` gemuenzt).
+    var springeZurBuehne = knopf.textContent === TEXT.ziel_buehne_knopf
+      && document.querySelector('.tabs button[data-tab="buehne"]');
     schalteLeiste(leiste, true);
     erzwingeNachUnten = true;
     postJson(`chat/knopf`, {
       message_id: parseInt(knopf.dataset.message, 10),
       data: knopf.dataset.daten
     }).then(function (r) {
-      if (r.ok) { hole(); return; }
+      if (r.ok) {
+        if (springeZurBuehne) { location.hash = '#buehne'; }
+        hole();
+        return;
+      }
       schalteLeiste(leiste, false);
       erzwingeNachUnten = false;
       hole();
@@ -4040,6 +4057,7 @@ def _js() -> str:
         kal_herumreichen_erinnerung=T._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
         mitlauf_hinweis=T._TEXT_MITLAUF_HINWEIS,
         ptt_hinweis=T._TEXT_PTT_HINWEIS,
+        ziel_buehne_knopf=T._TEXT_ZIEL_BUEHNE_KNOPF,
     )
     texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (

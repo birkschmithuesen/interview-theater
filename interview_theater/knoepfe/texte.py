@@ -316,6 +316,16 @@ ART_SCHAERFUNG_KEINE = "schaerfung_keine"
 #: dieselbe Szene/Figur eine Seite weiter, ohne erneut zu modellieren (alles
 #: steht schon in der Datenbank, kein Modellaufruf im Knopf-Handler).
 ART_SCHAERFUNG_MEHR = "schaerfung_mehr"
+#: Die zwei Wege nach der automatischen Zuordnung beim Eintritt in Phase 5
+#: (Padua, 07.10.2026, "Entry zu voll"): "Sortieren" springt im Browser
+#: direkt in den CoThinker-Tab (``_TEXT_SCHAERFUNG_SORTIEREN_KNOPF``, erkannt
+#: in ``web_chat.py``s Knopf-Klick ueber den Beschriftungstext, derselbe Weg
+#: wie ``aufnahme._TEXT_BUEHNE_NEUE_KARTE``), "Erst reden" stoesst eine kurze
+#: Interviewzusammenfassung an (``schaerfung.starte_zusammenfassung``, Opus,
+#: eigener Thread -- Zusage 2) und laesst danach freies Gespraech offen.
+#: Kein ``wert`` noetig, beide Knoepfe wirken ohne Parameter.
+ART_SCHAERFUNG_SORTIEREN = "schaerfung_sortieren"
+ART_SCHAERFUNG_CHAT = "schaerfung_chat"
 #: Phase 7 · Schaerfung des Stuecks (06.09.2026): je Befund "Szene N
 #: ueberarbeiten" (``wert`` ist die ``stueckpruefung.id``) und "Lassen",
 #: darunter "Noch eine Pruefrunde".
@@ -786,6 +796,14 @@ _TEXT_DRAMATURGIE_UEBERHOLT = (
 )
 
 TEXT_SCHAERFUNG_RUNDE_KNOPF = "Noch eine Runde"
+#: Die zwei Knoepfe unter der automatischen Zuordnung beim Eintritt in Phase
+#: 5 (``ART_SCHAERFUNG_SORTIEREN``/``ART_SCHAERFUNG_CHAT``). Deutsch ist hier
+#: nur die Vorgabe (Dortmund hat ``diskussion_aktiv`` nie an, siehe oben) --
+#: Padua spricht Englisch, siehe ``sprachen/en/texte.toml``.
+TEXT_SCHAERFUNG_SORTIEREN_KNOPF = "\U0001f5c2 Stellen sortieren"
+TEXT_SCHAERFUNG_CHAT_KNOPF = "\U0001f4ac Erst ueber die Interviews reden"
+_TEXT_SCHAERFUNG_CHAT_NOTIERT = "Gut, ich fasse die Interviews kurz zusammen."
+_TEXT_SCHAERFUNG_SORTIEREN_NOTIERT = "Gut, sortiert im CoThinker weiter."
 #: Die beiden Sammelknoepfe unter dem Schaerfungs-Menue (06.09.2026).
 _TEXT_SCHAERFUNG_ALLE_KNOPF = "Diese uebernehmen"
 _TEXT_SCHAERFUNG_KEINE_KNOPF = "Keine davon"

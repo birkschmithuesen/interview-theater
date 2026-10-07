@@ -476,8 +476,16 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         # ``[prosa_entwurf] aktiv`` startet nach dem Mapping zusaetzlich die
         # Stufe-A-Uebersicht -- Dortmund (und jedes Profil ohne die Zeile)
         # bleibt beim bisherigen Weg, ``danach`` bleibt dort ``None``.
+        #
+        # Umbau 07.10.2026 ("Entry zu voll", Birk Live-Test): unter dem
+        # CoThinker (``diskussion_aktiv``) laeuft die Uebersicht NICHT mehr
+        # automatisch hier -- die Gruppe saehe sonst Eintrittskarte, den
+        # CoThinker-Hinweis UND die Logline-Uebersicht mit Yes/No in einem
+        # Rutsch. Sie kommt jetzt erst nach "Done" in der Sortierliste
+        # (``knoepfe.szenen.schliesse_schaerfungsliste``). Ohne CoThinker
+        # (heute: kein Profil) bleibt der alte automatische Weg stehen.
         danach = None
-        if workshop.prosa_entwurf_aktiv():
+        if workshop.prosa_entwurf_aktiv() and not workshop.diskussion_aktiv():
             def danach():
                 entwurf.starte_uebersicht(conn, tg, klm, e, chat_id)
         starte_schaerfung(conn, tg, klm, e, chat_id, danach=danach)

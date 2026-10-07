@@ -42,7 +42,8 @@ from interview_theater.knoepfe.texte import (
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
     ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_RECHERCHE, ART_RECHERCHE_FRAGE,
     ART_REDO, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
-    ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR, ART_SCHAERFUNG_RUNDE,
+    ART_SCHAERFUNG_CHAT, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR, ART_SCHAERFUNG_RUNDE,
+    ART_SCHAERFUNG_SORTIEREN,
     ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SCHLAG_VOR, ART_SPEICHERN,
     ART_STAND,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
@@ -244,6 +245,26 @@ def _wirkung_schaerfung_runde(conn, d: Druck) -> str:
     haengt im Thread, hier wird nur angestossen."""
     starte_schaerfung(conn, d.tg, d.klm, d.e, d.chat_id)
     return T._ANTWORT_NOCH_EINE_RUNDE
+
+
+def _wirkung_schaerfung_sortieren(conn, d: Druck) -> str:
+    """"Sortieren" unter der automatischen Zuordnung beim Eintritt in Phase 5
+    (Padua, "Entry zu voll"): reine Bestaetigung, kein Modellaufruf, keine
+    Datenbankaenderung. Der Sprung in den CoThinker-Tab laeuft client-seitig
+    ueber den Knopftext (``web_chat.py``), derselbe Weg wie
+    ``aufnahme._TEXT_BUEHNE_NEUE_KARTE``."""
+    return T._TEXT_SCHAERFUNG_SORTIEREN_NOTIERT
+
+
+def _wirkung_schaerfung_chat(conn, d: Druck) -> str:
+    """"Erst ueber die Interviews reden" unter derselben Zuordnung: stoesst
+    die kurze Interviewzusammenfassung an (Opus, eigener Thread -- Zusage 2);
+    danach ist freies Gespraech ueber die Interviews offen, der normale
+    Gespraechszug uebernimmt."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    schaerfung_modul.starte_zusammenfassung(conn, d.tg, d.klm, d.e, d.chat_id)
+    return T._TEXT_SCHAERFUNG_CHAT_NOTIERT
 
 
 def _wirkung_szenenfolge_anzahl(conn, d: Druck) -> str:
@@ -1794,6 +1815,8 @@ _WIRKUNGEN = {
     ART_SCHAERFUNG_STELLE: _wirkung_schaerfung_stelle,
     ART_SCHAERFUNG_KEINE: _wirkung_schaerfung_keine,
     ART_SCHAERFUNG_RUNDE: _wirkung_schaerfung_runde,
+    ART_SCHAERFUNG_SORTIEREN: _wirkung_schaerfung_sortieren,
+    ART_SCHAERFUNG_CHAT: _wirkung_schaerfung_chat,
     ART_SCHAERFUNG_MEHR: _wirkung_schaerfung_mehr,
     ART_SZENENFOLGE_ANZAHL: _wirkung_szenenfolge_anzahl,
     ART_SZENENFOLGE_ANZAHL_WERT: _wirkung_szenenfolge_anzahl_wert,

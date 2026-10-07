@@ -16,7 +16,7 @@ Kein Modellaufruf steht hier: was eines braucht, geht ueber
 optionale Zusatz nach "Ja, speichern") in einen eigenen Thread.
 """
 
-from interview_theater import nachspeichern, repo
+from interview_theater import nachspeichern, repo, workshop
 
 from interview_theater.knoepfe.texte import (
     ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN, ART_DRAMATURGIE_SZENE,
@@ -26,8 +26,9 @@ from interview_theater.knoepfe.texte import (
     ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE,
     ART_RECHERCHE, ART_RECHERCHE_FRAGE,
-    ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR,
-    ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE,
+    ART_SCHAERFUNG_CHAT, ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR,
+    ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_SORTIEREN,
+    ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE,
     ART_SPRECHANTEILE,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
     ART_SZENENFOLGE_REIHENFOLGE, ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM,
@@ -317,12 +318,56 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
     wenn die Materiallage sie hergibt, der Weg zu den Szentexten."""
     ziel = _naechstes_schaerfungsziel(conn, chat_id)
     if ziel is not None:
+        if workshop.diskussion_aktiv():
+            # Padua (07.10.2026, "Show more" war unsinnig): die Gruppe
+            # sortiert im CoThinker (Yes/No, Done,
+            # ``schliesse_schaerfungsliste``) statt Seite fuer Seite im
+            # Chat -- die kurze Ankuendigung kommt schon aus
+            # ``schaerfung._lauf`` (``MELDUNG_COTHINKER``).
+            return True
         sammelart, sammelwert, ueberschrift, stellen, gesamt, versatz = ziel
         _sende_schaerfungsmenue(
             conn, tg, chat_id, ueberschrift, stellen, sammelart, sammelwert,
             gesamt, versatz,
         )
         return True
+    _sende_schaerfung_durch(conn, tg, chat_id)
+    return False
+
+
+def biete_schaerfung_wahl(conn, tg, chat_id: int, text: str) -> int:
+    """Die EINE Nachricht nach der automatischen Zuordnung beim Eintritt in
+    Phase 5 (Padua, Birk-Feedback 07.10.2026 "Entry zu voll"): ``text`` (die
+    bisherige ``MELDUNG_COTHINKER``) mit zwei Knoepfen statt nur Text --
+    "Stellen sortieren" springt im Browser direkt in den CoThinker-Tab
+    (client-seitig ueber den Knopftext, ``web_chat.py``), "Erst ueber die
+    Interviews reden" stoesst die kurze Zusammenfassung an
+    (``schaerfung.starte_zusammenfassung``). Ersetzt an dieser Stelle sowohl
+    die bisherige unbewaffnete Textzeile als auch den bisherigen
+    automatischen Sprung in die Geschichts-Uebersicht (Stufe A, Phase 5
+    Prose Draft) -- die kommt jetzt erst nach "Done" in der Sortierliste
+    (``schliesse_schaerfungsliste``)."""
+    leiste = [
+        (
+            T.TEXT_SCHAERFUNG_SORTIEREN_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHAERFUNG_SORTIEREN, None)),
+        ),
+        (
+            T.TEXT_SCHAERFUNG_CHAT_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHAERFUNG_CHAT, None)),
+        ),
+    ]
+    return _mit_leiste(conn, tg, chat_id, text, leiste)
+
+
+def _sende_schaerfung_durch(conn, tg, chat_id: int) -> None:
+    """Nichts mehr offen: die Abschlussfrage mit "Noch eine Runde" und,
+    wenn die Materiallage es hergibt, dem Phasenknopf -- der Schluss der
+    alten Kartenfolge (``biete_schaerfung``) UND das Ziel des Knopfes
+    "Done" in der CoThinker-Sortierliste (Padua,
+    ``schliesse_schaerfungsliste``): "die Gruppe sortiert fertig" soll
+    gleich ankommen, unabhaengig davon, ob die letzte Seite im Chat zu Ende
+    ging oder im CoThinker auf Done getippt wurde."""
     leiste = [
         (
             T.TEXT_SCHAERFUNG_RUNDE_KNOPF,
@@ -333,7 +378,6 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
     if phasenknopf is not None:
         leiste.append(phasenknopf)
     _mit_leiste(conn, tg, chat_id, T._TEXT_SCHAERFUNG_DURCH, leiste)
-    return False
 
 
 def _naechstes_schaerfungsziel(conn, chat_id: int):
@@ -425,6 +469,45 @@ def uebernimm_schaerfung_stellen(conn, tg, chat_id: int, ids: list[int]) -> str:
     else:
         tg.sende(chat_id, T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl))
     biete_schaerfung(conn, tg, chat_id)
+    return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
+
+
+def schliesse_schaerfungsliste(conn, tg, klm, e, chat_id: int) -> str:
+    """"Done" in der CoThinker-Sortierliste der Schaerfung (Padua,
+    07.10.2026, versteckter Befehl ``/schaerfung_fertig``): nimmt ALLE mit
+    Yes markierten offenen Stellen auf (dieselbe Ablage wie "Diese
+    uebernehmen", ``schaerfung.uebernimm_stellen``), verwirft ALLE mit No
+    markierten (``schaerfung.verwirf_stellen``) und laesst noch offene
+    (weder Yes noch No getippte) unberuehrt stehen -- eine weitere Runde
+    kann sie wieder vorlegen. Schliesst danach ab wie am Ende der alten
+    Kartenfolge (``_sende_schaerfung_durch``), unabhaengig davon, ob noch
+    offene stehen bleiben: die Gruppe hat "Done" getippt, kein Modellaufruf
+    hier (Zusage 2).
+
+    **Stufe A von Phase 5 (Prose Draft, 07.10.2026 Umbau "Entry zu voll"):**
+    unter ``workshop.prosa_entwurf_aktiv()`` stoesst "Done" jetzt die
+    Geschichts-Uebersicht an (``entwurf.starte_uebersicht``, eigener
+    Thread) -- vorher lief das automatisch gleich nach dem Mapping beim
+    Phaseneintritt. Nur, solange die Uebersicht noch nicht fixiert ist
+    (``geschichte_uebersicht_fixiert_am``): ein spaeteres "Done" (nach
+    "Noch eine Runde") darf eine schon abgenommene Uebersicht -- und damit
+    eine laufende Stufe B -- nicht ueberschreiben."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    eintraege = schaerfung_modul.offene_stellen(conn, chat_id)
+    ja_ids = [z["id"] for z in eintraege if z["entscheidung"] == "ja"]
+    nein_ids = [z["id"] for z in eintraege if z["entscheidung"] == "nein"]
+    anzahl = schaerfung_modul.uebernimm_stellen(conn, chat_id, ja_ids) if ja_ids else 0
+    if nein_ids:
+        schaerfung_modul.verwirf_stellen(conn, nein_ids)
+    _sende_schaerfung_durch(conn, tg, chat_id)
+    if workshop.prosa_entwurf_aktiv():
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        schon_fixiert = bool(stand and (stand["geschichte_uebersicht_fixiert_am"] or "").strip())
+        if not schon_fixiert:
+            from interview_theater import entwurf
+
+            entwurf.starte_uebersicht(conn, tg, klm, e, chat_id)
     return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
 
 

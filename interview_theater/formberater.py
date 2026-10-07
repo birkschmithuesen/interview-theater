@@ -123,6 +123,10 @@ BEITRAEGE_ZEICHEN = 6_000
 TIMEOUT_S = 90.0
 
 ORDNER = pathlib.Path(__file__).resolve().parent / "formen"
+#: Musikalische Strukturen (Birk 07.10.2026, G1 Padua): zweite Wissensquelle
+#: im selben Format (Wiki ``performative-formen/musikalische-strukturen``),
+#: NUR fuer Gruppen, die das Profil freischaltet (``workshop.musik_chats``).
+ORDNER_MUSIK = pathlib.Path(__file__).resolve().parent / "formen_musik"
 
 
 class Form(NamedTuple):
@@ -217,6 +221,30 @@ def katalog(ordner: pathlib.Path = ORDNER) -> dict[str, Form]:
     return {f.slug: f for f in (lies_form(p) for p in sorted(ordner.glob("*.md")))}
 
 
+def _alle() -> dict[str, Form]:
+    """Formen + musikalische Strukturen -- fuer Nachschlagen/Kontextblock.
+    Wer was VORGESCHLAGEN bekommt, regelt ``_gesperrt_fuer``."""
+    gesamt = dict(katalog())
+    if ORDNER_MUSIK.is_dir():
+        gesamt.update(katalog(ORDNER_MUSIK))
+    return gesamt
+
+
+def musik_slugs() -> frozenset[str]:
+    return frozenset(katalog(ORDNER_MUSIK)) if ORDNER_MUSIK.is_dir() else frozenset()
+
+
+def _gesperrt_fuer(chat_id: int | None) -> frozenset[str]:
+    """Die Musik-Eintraege sind fuer jede Gruppe gesperrt, die das Profil
+    nicht freischaltet (Birk: "die anderen Gruppen haben vermutlich keinen
+    Bedarf an Musiktheorie -- da soll nix injected werden")."""
+    from interview_theater import workshop
+
+    if chat_id is not None and chat_id in workshop.musik_chats():
+        return frozenset()
+    return musik_slugs()
+
+
 #: Name-Ueberschreibung je Slug, NUR fuer den englischen Kurzindex (der
 #: Katalog-Name selbst, ``Form.name_en``, bleibt unveraendert -- u. a.
 #: ``test_deutsche_nachricht_nennt_den_deutschen_titel`` haengt daran).
@@ -227,7 +255,7 @@ def katalog(ordner: pathlib.Path = ORDNER) -> dict[str, Form]:
 _NAME_FUER_KURZINDEX_EN = {"stand-up-comedy": "Standup comedy"}
 
 
-def kurzindex(ohne: frozenset[str] | set[str] = frozenset()) -> str:
+def kurzindex(ohne: frozenset[str] | set[str] | None = None) -> str:
     """Eine Zeile je Form: ``slug | Name | Suchbegriffe | kurz`` -- die
     schlanke Auswahlgrundlage fuer den Modellaufruf (~10.000 Zeichen statt
     ~37.000 fuer alle Bot-Bloecke). Unter Deutsch (Vorgabe, auch Dortmund)
@@ -239,9 +267,12 @@ def kurzindex(ohne: frozenset[str] | set[str] = frozenset()) -> str:
     normalisiert beides gleich zurueck) -- sonst liest der Sprachpruefer
     einen Bestandteil wie "der" aus "theater-der-unterdrueckten" als
     eigenes Wort (Padua-Invariante "kein Deutsch im Prompt")."""
+    if ohne is None:
+        # Ohne Gruppe: nur die Formen (Musik nur mit Freischaltung).
+        ohne = musik_slugs()
     deutsch = sprache.code() == sprache.DEUTSCH
     zeilen = []
-    for form in katalog().values():
+    for form in _alle().values():
         if form.slug in ohne:
             continue
         if deutsch:
@@ -279,6 +310,10 @@ def normalisiere(text: str) -> str:
 MEHRDEUTIG = frozenset({
     "happening", "happenings", "musical", "maske", "to", "stand up",
     "live art", "action art", "text",
+    # Musik-Eintraege: italienischer/englischer Alltag ("fare la coda",
+    # "in fuga", "il canone", "texture")
+    "coda", "fuga", "canon", "canone", "texture", "tonic",
+    "crescendo", "ostinato",  # it.: "wachsend", "stur"
 })
 
 #: Unter dieser Laenge (normalisiert) kein Suchbegriff -- "TO", "Oper" als
@@ -303,7 +338,7 @@ def _suchbegriffe(ordner: pathlib.Path = ORDNER) -> tuple[tuple[str, str], ...]:
     """``(begriff, slug)``, laengste Begriffe zuerst."""
     paare = {
         (begriff, form.slug)
-        for form in katalog(ordner).values()
+        for form in (_alle() if ordner == ORDNER else katalog(ordner)).values()
         for begriff in _begriffe_der_form(form)
     }
     return tuple(sorted(paare, key=lambda p: (-len(p[0]), p[0], p[1])))
@@ -314,14 +349,17 @@ def _kommt_vor(begriff: str, heu: str, *, praefix: bool = False) -> bool:
     return re.search(r"(?<![a-z0-9])" + re.escape(begriff) + ende, heu) is not None
 
 
-def treffer_formen(text: str) -> dict[str, str]:
+def treffer_formen(text: str, chat_id: int | None = None) -> dict[str, str]:
     """Welche Formen ``text`` beim Namen nennt: ``{slug: begriff}``, ganze
     Woerter ("durational" trifft, "durationally" nicht), Mehrzahl-s erlaubt."""
     heu = normalisiere(text)
     if not heu:
         return {}
     gefunden: dict[str, str] = {}
+    gesperrt = _gesperrt_fuer(chat_id)
     for begriff, slug in _suchbegriffe():
+        if slug in gesperrt:
+            continue
         if slug not in gefunden and _kommt_vor(begriff, heu):
             gefunden[slug] = begriff
     return gefunden
@@ -383,7 +421,7 @@ def treffer_signale(text: str) -> list[str]:
 def geladene_formen(zeilen: list[dict]) -> list[str]:
     """Die nachgeschlagenen Slugs, ZULETZT nachgeschlagene zuerst, ohne
     Doppelte -- nur solche, die es im Katalog (noch) gibt."""
-    bekannt = katalog()
+    bekannt = _alle()
     ergebnis: list[str] = []
     for zeile in reversed(zeilen):
         for slug in zeile["formen"]:
@@ -410,7 +448,7 @@ def kontextblock(conn, chat_id: int, phase: int | None = None) -> str:
     slugs = geladene_formen(repo.formberater_zeilen(conn, chat_id))[:MAX_IM_KONTEXT]
     if not slugs:
         return ""
-    bekannt = katalog()
+    bekannt = _alle()
     zeilen = [T.KONTEXT_KOPF]
     for slug in slugs:
         zeilen.append(f"- {bekannt[slug].bot}")
@@ -487,7 +525,7 @@ def pruefe_zug(conn, tg, klm, e, chat_id: int, texte: list[str],
                            signale=[s for s in treffer_signale(text)][:10])
             if faden is not None:
                 _zuletzt_gestartet[chat_id] = jetzt
-                treffer = treffer_formen(text)
+                treffer = treffer_formen(text, chat_id)
                 if treffer:
                     geladen = set(geladene_formen(repo.formberater_zeilen(conn, chat_id)))
                     neu = [slug for slug in treffer if slug not in geladen]
@@ -496,7 +534,7 @@ def pruefe_zug(conn, tg, klm, e, chat_id: int, texte: list[str],
                                                  neu, [treffer[s] for s in neu])
                 return faden
     text = "\n".join(t for t in texte if t)
-    formen = treffer_formen(text)
+    formen = treffer_formen(text, chat_id)
     signale = treffer_signale(text) if phase == PHASE_LAUFEND else []
     if not formen and not signale:
         return None
@@ -632,7 +670,7 @@ def baue_nutzertext(conn, chat_id: int, schon: list[str], ausloeser: str,
                     signale: list[str] = ()) -> str:
     from interview_theater import buehnenkarte
 
-    teile = [f"{T._KOPF_KATALOG}\n{kurzindex()}"]
+    teile = [f"{T._KOPF_KATALOG}\n{kurzindex(_gesperrt_fuer(chat_id))}"]
     stueck = buehnenkarte._stueckkarte_text(conn, chat_id)
     if stueck:
         teile.append(f"{T._KOPF_STUECK}\n{stueck}")
@@ -649,7 +687,7 @@ def baue_nutzertext(conn, chat_id: int, schon: list[str], ausloeser: str,
 def _slug_fuer(wert: str) -> str | None:
     """Kennung oder (zur Not) Titel/englischer Name -> Slug; None fuer alles,
     was nicht im Katalog steht (keine erfundenen Formen)."""
-    bekannt = katalog()
+    bekannt = _alle()
     roh = (wert or "").strip()
     if roh in bekannt:
         return roh
@@ -724,7 +762,7 @@ _ZEILEN = {"passt": "_ZEILE_PASST", "vorschlag": "_ZEILE_VORSCHLAG",
 
 def nachricht(ergebnis: dict[str, list[dict]]) -> str | None:
     """Der Chattext zu einem Ergebnis, oder None, wenn nichts zu sagen ist."""
-    bekannt = katalog()
+    bekannt = _alle()
     zeilen = []
     for feld, schluessel in _ZEILEN.items():
         for eintrag in ergebnis.get(feld, []):
@@ -788,7 +826,8 @@ def _lauf(conn, tg, klm, e, chat_id: int, ausloeser: str, signale: list[str],
             repo.lege_formberater_an(conn, chat_id, ausloeser, phase, [],
                                      signale, None, modell)
             return
-        formen = formen_aus(ergebnis)
+        gesperrt = _gesperrt_fuer(chat_id)
+        formen = [f for f in formen_aus(ergebnis) if f not in gesperrt]
         repo.lege_formberater_an(conn, chat_id, ausloeser, phase, formen,
                                  signale, ergebnis, modell)
         # Birk 07.10.2026: KEINE Chat-Karte mehr beim Eintritt in Phase 5 --

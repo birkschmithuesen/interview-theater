@@ -531,3 +531,32 @@ def test_neue_form_beim_namen_kuerzt_den_abstand(monkeypatch):
     gestartet.clear(); f._zuletzt_gestartet[1] = 1000.0
     assert f.pruefe_zug(None, None, object(), None, 1, ["random order"], phase=4) is None
     assert gestartet == []
+
+
+
+# --- Musikalische Strukturen nur fuer freigeschaltete Gruppen (Birk 07.10.2026) ---
+
+def test_musik_nur_fuer_freigeschaltete_gruppe(monkeypatch):
+    from interview_theater import formberater as f, workshop
+    monkeypatch.setattr(workshop, "musik_chats", lambda profil=None: frozenset({7}))
+    satz = "and then the cadence brings everyone home, like a rondo"
+    assert {"kadenz-tonika", "rondo-ritornello"} <= set(f.treffer_formen(satz, 7))
+    assert not ({"kadenz-tonika", "rondo-ritornello"} & set(f.treffer_formen(satz, 8)))
+    def hat(index):
+        return "kadenz_tonika" in index or "kadenz-tonika |" in index
+    assert hat(f.kurzindex(f._gesperrt_fuer(7)))
+    assert not hat(f.kurzindex(f._gesperrt_fuer(8)))
+    assert not hat(f.kurzindex())
+
+
+def test_italienischer_alltag_loest_keine_musik_aus(monkeypatch):
+    from interview_theater import formberater as f, workshop
+    monkeypatch.setattr(workshop, "musik_chats", lambda profil=None: frozenset({7}))
+    alltag = "sono d'accordo, sto crescendo, è ostinato, facciamo la coda, il canone d'affitto"
+    assert not (set(f.treffer_formen(alltag, 7)) & f.musik_slugs())
+
+
+def test_musik_katalog_vollstaendig():
+    from interview_theater import formberater as f
+    assert len(f.musik_slugs()) == 14
+    assert len(f.katalog()) == 67

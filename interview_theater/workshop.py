@@ -1062,6 +1062,14 @@ def prueflauf_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("prueflauf.aktiv", False))
 
 
+def musik_chats(profil: Profil | None = None) -> frozenset[int]:
+    """Gruppen (chat_id), fuer die der Formberater auch die musikalischen
+    Strukturen nachschlagen darf (Birk 07.10.2026, G1 Padua). Vorgabe leer:
+    niemand bekommt Musiktheorie, Dortmund bleibt unberuehrt."""
+    profil = profil or aktiv()
+    return frozenset(int(c) for c in (profil.wert("formberater.musik_chats", []) or []))
+
+
 def recherche_aktiv(profil: Profil | None = None) -> bool:
     """Internet-Recherche als eigener Materialstrang (Karte t_c5117c91):
     Research-Knopf, Erkenner-art ``recherche_starten``, Prompt-Block und

@@ -271,3 +271,8 @@ autosave_phase1_2 = true
 # eingebaute Profil bleiben ohne diese Zeile byte-gleich.
 [recherche]
 aktiv = true
+
+[formberater]
+# Musikalische Strukturen (Wiki musikalische-strukturen) nur fuer diese Gruppen
+# (Birk 07.10.2026: G1 arbeitet mit Musiktheorie; Testbot zum Testen).
+musik_chats = [7000000000000, 7000000000099]

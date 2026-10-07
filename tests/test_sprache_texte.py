@@ -255,6 +255,10 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail ankuendigung_ohne_inhalt (repo.merke_vorfall, Padua-Befund 02.10.2026)",
     ("ablauf", "Auch der zweite Anlauf endete auf einer "):
         "Vorfall-Detail ankuendigung_wiederholt (repo.merke_vorfall, Padua-Befund 02.10.2026)",
+    ("ablauf", "Antwort in Phase 4 legte eine Szene aus "):
+        "Vorfall-Detail schreibangebot_phase_4 (repo.merke_vorfall, Karte t_b19d37ac)",
+    ("ablauf", "Auch der zweite Anlauf in Phase 4 legte "):
+        "Vorfall-Detail schreibangebot_wiederholt (repo.merke_vorfall, Karte t_b19d37ac)",
     ("bot", "Nachricht begann mit @robo/@dev -- als E"):
         "Vorfall-Detail entwickler_notiz (repo.merke_vorfall, Padua-Befund 02.10.2026)",
     ("aufnahme", "Aufnahme {} ({}) wartet auf Ja/Nein"):

@@ -275,7 +275,13 @@ def _szenen(conn, chat_id: int) -> str:
 
 
 def _zuordnungen(conn, chat_id: int) -> str:
-    anzahl = len(repo.schaerfungen(conn, chat_id))
+    if workshop.diskussion_aktiv():
+        # Birk 07.10.2026 ~19:25: nur die feste, sichtbare Auswahl zaehlt.
+        from interview_theater import web_daten
+
+        anzahl = web_daten.auswahl_anzahl(conn, chat_id)
+    else:
+        anzahl = len(repo.schaerfungen(conn, chat_id))
     if not anzahl:
         return ""
     runde = repo.letzte_schaerfungsrunde(conn, chat_id)

@@ -566,9 +566,20 @@ def mappe(klm, conn, e, chat_id: int, *, tg=None, fortschritt_message_id=None) -
 
     anzahl = repo.lege_schaerfung_an(conn, chat_id, alle_zuordnungen, runde=runde)
     if anzahl:
+        from interview_theater import workshop
+
+        gezeigt = anzahl
+        if workshop.diskussion_aktiv():
+            # Birk 07.10.2026 ~19:25: die Zahl im Journal (Ticker, Reviews)
+            # ist die der sichtbaren Liste, nicht die aller Zuordnungen.
+            from interview_theater import web_daten
+
+            liste = web_daten.schaerfungsliste(conn, chat_id) or {}
+            gezeigt = len({e["id"] for g in liste.get("gruppen", [])
+                           for e in g.get("eintraege", [])})
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
-            T._JOURNAL_RUNDE.format(runde=runde, anzahl=anzahl),
+            T._JOURNAL_RUNDE.format(runde=runde, anzahl=gezeigt),
             quelle="schaerfung",
         )
     return anzahl, runde

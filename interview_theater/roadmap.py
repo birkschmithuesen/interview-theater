@@ -594,7 +594,7 @@ def register(conn, chat_id: int) -> list[dict]:
         ],
         "hat_verdichtung": bool(verdichtungen),
         "offene_interviews": bool(aufnahme.unausgewertete_interviews(conn, chat_id)),
-        "zuordnungen": len(repo.schaerfungen(conn, chat_id)),
+        "zuordnungen": _zuordnungen_anzahl(conn, chat_id),
         "pruefrunde": repo.letzte_pruefrunde(conn, chat_id),
         "phase": phasen.aktuelle(conn, chat_id),
         "interviewmodus": repo.ist_interviewmodus_an(conn, chat_id),
@@ -602,3 +602,14 @@ def register(conn, chat_id: int) -> list[dict]:
         "strom": next(
             (z["art"] for z in repo.laufende_stroeme(conn, chat_id)), None),
     })
+
+
+def _zuordnungen_anzahl(conn, chat_id: int) -> int:
+    """Mit CoThinker-Liste (Padua, ``diskussion_aktiv``) die feste, sichtbare
+    Auswahl (Birk 07.10.2026 ~19:25, ``web_daten.auswahl_anzahl``), sonst wie
+    bisher alle Zuordnungen."""
+    from interview_theater import repo, web_daten, workshop
+
+    if workshop.diskussion_aktiv():
+        return web_daten.auswahl_anzahl(conn, chat_id)
+    return len(repo.schaerfungen(conn, chat_id))

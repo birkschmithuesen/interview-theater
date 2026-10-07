@@ -1773,6 +1773,29 @@ def schaerfungsliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
     return {"gruppen": gruppen, "zaehler": zaehler}
 
 
+def _workshop_diskussion() -> bool:
+    from interview_theater import workshop
+
+    return workshop.diskussion_aktiv()
+
+
+def auswahl_anzahl(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die Zaehlbasis jeder Zahl zur Interviewliste (Birk 07.10.2026 ~19:25,
+    verbindlich): die FESTE Auswahl -- was schon uebernommen ist plus was die
+    CoThinker-Liste gerade sichtbar zeigt (``schaerfungsliste``), nie alle
+    Zuordnungen in der Datenbank."""
+    try:
+        uebernommen = conn.execute(
+            f"SELECT COUNT(*) FROM schaerfung WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+            "AND uebernommen_am IS NOT NULL", (chat_id,),
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        uebernommen = 0
+    liste = schaerfungsliste(conn, chat_id) or {}
+    sichtbar = {e["id"] for g in liste.get("gruppen", []) for e in g.get("eintraege", [])}
+    return int(uebernommen) + len(sichtbar)
+
+
 def stueckkarte_felder(
     conn: sqlite3.Connection, chat_id: int,
     figuren: list[dict] | None = None, arbeitsstand: dict | None = None,
@@ -2553,9 +2576,10 @@ def _roadmap_lage(conn: sqlite3.Connection, chat_id: int) -> dict:
         # Bot-Weg -- auch unverdichtete Interviews (UX-Knoepfe Abschnitt 4).
         "hat_verdichtung": any(e["zusammenfassung"] for e in interviews),
         "offene_interviews": bool(_offene_interviews(conn, chat_id)),
-        "zuordnungen": sum(
-            len(v) for teil in schaerfungen(conn, chat_id).values()
-            for v in teil.values()
+        "zuordnungen": (
+            auswahl_anzahl(conn, chat_id) if _workshop_diskussion()
+            else sum(len(v) for teil in schaerfungen(conn, chat_id).values()
+                     for v in teil.values())
         ),
         "pruefrunde": (stueckpruefung(conn, chat_id) or {}).get("runde"),
         "phase": stand.get("phase") or phasen.ERSTE,

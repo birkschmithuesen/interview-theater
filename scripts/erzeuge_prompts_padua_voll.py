@@ -2,7 +2,7 @@
 
 **Scopes p12, p34 und p57**: dieses Skript hat Treiber fuer die fuenf Dumps
 aus Phase 1+2 (Karte t_bf16f3a7, 05.10.2026, ``SCOPE_P1_P2``), die zehn Dumps
-aus Phase 3+4 (Task 3, ``SCOPE_P3_P4``) und die 25 Dumps aus Phase 5-7 (Task 5,
+aus Phase 3+4 (Task 3, ``SCOPE_P3_P4``) und die 27 Dumps aus Phase 5-7 (Task 5,
 Karte t_db7c6b2c, ``SCOPE_P5_P7``) von ``prompt_inventar.INVENTAR``. Die
 restlichen Eintraege sind Sache einer spaeteren Karte -- ein Lauf ueber sie
 wuerde mit ``TreiberFehler`` abbrechen, weil ``TREIBER`` sie nicht kennt.
@@ -93,7 +93,7 @@ SCOPE_P3_P4 = (
     "17-buehnenkarte", "18-szenenfolge", "19-geschichte", "20-szenenfelder",
 )
 
-#: Die 25 Dumps aus Phase 5-7 (Task 5, Karte t_db7c6b2c): der Gespraechszug,
+#: Die 27 Dumps aus Phase 5-7 (Task 5, Karte t_db7c6b2c): der Gespraechszug,
 #: die Hintergrundwege von Phase 5 (Schaerfung, Uebersicht, Sprachprofil,
 #: Kernzitate), Szene/Kurzgeschichte in Phase 6, die sieben Richterfragen des
 #: Prueflaufs, Sprechweise und die fuenf Formen in Phase 7, die
@@ -115,6 +115,7 @@ SCOPE_P3_P4 = (
 SCOPE_P5_P7 = (
     "08-gespraech-phase5", "21-schaerfung", "22-entwurf-uebersicht",
     "23-sprachprofil", "24-kernzitate",
+    "40-recherche-fragen", "41-recherche-karte",
     "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
     "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
     "38-dramaturgie-a9", "40-dramaturgie-a11", "43-prueflauf-ueberarbeitung",
@@ -435,6 +436,34 @@ def _kernzitate(conn, e, tg, klm, chats):
     return None
 
 
+def _recherche_fragen(conn, e, tg, klm, chats):
+    from interview_theater import recherche
+    recherche.schlage_fragen_vor(klm, conn, e, chats[5])
+    return None
+
+
+def _recherche_karte(conn, e, tg, klm, chats):
+    """``41-recherche-karte``: ``recherche.starte`` mit Attrappen statt
+    echtem Netz (``suche_fn``/``hole_fn``, genau der Einhaengepunkt, den
+    ``recherche.py`` fuer Tests vorsieht) -- derselbe Dump-Lauf darf nicht
+    gegen ``IT_SUCHE_URL``/den Fetch-Broker gehen."""
+    from interview_theater import recherche
+    frage = "What do people say about waiting at the station?"
+    treffer = {"url": "https://example.org/waiting-rooms",
+               "title": "On waiting rooms"}
+    seite = {**treffer,
+              "content": "Studies describe long waits at stations as a "
+                          "shared, largely silent experience.",
+              "raw_content": "Studies describe long waits at stations as a "
+                              "shared, largely silent experience."}
+    recherche.starte(
+        klm, conn, e, chats[5], frage,
+        suche_fn=lambda q, n: [treffer],
+        hole_fn=lambda u: seite,
+    )
+    return None
+
+
 def _szene_prosa_phase6(conn, e, tg, klm, chats):
     """``04-szene-prosa-phase6``: derselbe Aufruf wie ``entwurf.
     fixiere_uebersicht``/``bestaetige_szene`` ihn ausloesen -- die Phase (6)
@@ -635,6 +664,8 @@ TREIBER = {
     "22-entwurf-uebersicht": _entwurf_uebersicht,
     "23-sprachprofil": _sprachprofil,
     "24-kernzitate": _kernzitate,
+    "40-recherche-fragen": _recherche_fragen,
+    "41-recherche-karte": _recherche_karte,
     "04-szene-prosa-phase6": _szene_prosa_phase6,
     "02-gespraech-phase6": _gespraech(6),
     "25-kurzgeschichte": _kurzgeschichte,
@@ -757,7 +788,7 @@ def main() -> None:
         "--scope", choices=sorted(SCOPES), default="p12",
         help="Welche Dumps ohne --nur laufen (Vorgabe: p12 -- die fuenf "
              "Dumps aus Phase 1+2; p34 die zehn Dumps aus Phase 3+4; p57 die "
-             "25 Dumps aus Phase 5-7)")
+             "27 Dumps aus Phase 5-7)")
     zerleger.add_argument(
         "--nur", default=None,
         help="Kommaliste von Dumpnamen (Vorgabe: die Dumps aus --scope -- "

@@ -102,6 +102,102 @@ def test_dieselbe_festlegung_zweimal_meldet_nur_einmal(conn):
     assert len(repo.festlegungen(conn, 1)) == 1
 
 
+# --- Fast-Dubletten ersetzen statt anzuhaengen (Live-Fund Padua 07.10.2026,
+# G2, chat 7000000000001): dieselbe Struktur-Idee dreimal fast gleich
+# formuliert haeufte sich an, statt die aeltere Fassung zu ersetzen. ------
+
+
+def test_fast_dublette_ersetzt_die_aeltere_statt_anzuhaengen(conn):
+    """Die drei Original-Formulierungen aus dem Live-Fund: nach der dritten
+    bleibt nur noch sie selbst stehen, die beiden aelteren Fassungen sind
+    weich entfernt."""
+    _wende(conn, "struktur: same place, five different moments of one day")
+    _wende(conn, "struktur: one position per moment of the day")
+    dritte = _wende(conn, "struktur: five moments of one day, one position per moment")
+
+    aktiv = [z["text"] for z in repo.festlegungen(conn, 1)]
+    assert aktiv == ["five moments of one day, one position per moment"]
+    assert dritte == [
+        {
+            "art": "festlegung_setzen",
+            "wert": "[struktur] five moments of one day, one position per moment",
+            "bereich": "struktur",
+            "bezug": None,
+            "text": "five moments of one day, one position per moment",
+        }
+    ]
+    journal = [
+        z["text"] for z in conn.execute(
+            "SELECT text FROM journal WHERE chat_id = 1 AND art = 'entschieden'"
+        )
+    ]
+    assert any("Ersetzt (fast gleich)" in z for z in journal)
+
+
+def test_fast_dublette_nur_innerhalb_desselben_bereichs_und_bezugs(conn):
+    """Derselbe Wortlaut bei zwei verschiedenen Figuren ist keine Dublette --
+    der Bezug trennt (``figur/Name``)."""
+    _wende(conn, "figur/Mira: is a recruiter who brings strangers to the table")
+    _wende(conn, "figur/Pola: is a recruiter who brings strangers to the table")
+
+    aktiv = {(z["bezug"], z["text"]) for z in repo.festlegungen(conn, 1)}
+    assert aktiv == {
+        ("Mira", "is a recruiter who brings strangers to the table"),
+        ("Pola", "is a recruiter who brings strangers to the table"),
+    }
+
+
+def test_eine_wirklich_andere_festlegung_im_selben_bereich_bleibt_daneben_stehen(conn):
+    """Gegenprobe: zwei Struktur-Ideen ohne nennenswerten Wortueberlapp sind
+    keine Dubletten und bleiben beide stehen."""
+    _wende(conn, "struktur: same place, five different moments of one day")
+    _wende(
+        conn,
+        "struktur: one actor works as a recruiter, bringing other actors "
+        "to the table one by one as if they were strangers",
+    )
+    assert len(repo.festlegungen(conn, 1)) == 2
+
+
+# --- Ein zu langer/erzaehlender Rahmen landet als Festlegung, nicht im Nichts
+# (Live-Fund Padua 07.10.2026, G3, chat 7000000000002, web_post 1873). ----
+
+
+_LANGER_RAHMEN_TEXT = (
+    "In the theatre the audience enters; on stage there is only an "
+    "unlabelled button. Someone has to step up and press it of their own "
+    "accord. From that moment a video projection of events, news, real "
+    "footage and AI-generated images -- true and false -- runs on the back "
+    "wall for the whole piece, with sounds and a recording of the "
+    "questions we asked in the interviews, which start one by one and "
+    "melt into a sound carpet."
+)
+
+
+def test_zu_langer_rahmen_landet_als_festlegung_statt_zu_verschwinden(conn):
+    assert len(_LANGER_RAHMEN_TEXT) > erkenner.RAHMEN_HOECHSTLAENGE
+
+    wirklich = erkenner.wende_an(
+        conn, Umgebung(), 1, [{"art": "rahmen_setzen", "wert": _LANGER_RAHMEN_TEXT}],
+    )
+
+    assert wirklich == [
+        {
+            "art": "festlegung_setzen",
+            "wert": f"[rahmen] {_LANGER_RAHMEN_TEXT}",
+            "bereich": "rahmen",
+            "bezug": None,
+            "text": _LANGER_RAHMEN_TEXT,
+        }
+    ]
+    stand = repo.hole_arbeitsstand(conn, 1)
+    assert not (stand and (stand["rahmen"] or "").strip())
+    zeile = repo.festlegungen(conn, 1)[0]
+    assert (zeile["bereich"], zeile["text"]) == ("rahmen", _LANGER_RAHMEN_TEXT)
+    arten = [z["art"] for z in conn.execute("SELECT art FROM vorfall WHERE chat_id = 1")]
+    assert "rahmen_war_geschichte" in arten
+
+
 def test_was_schon_im_arbeitsstand_steht_wird_verworfen(conn):
     """Risiko 2 der Analyse (\"Doppelte Wahrheit\"): steht das Setting
     sowohl in ``arbeitsstand.rahmen`` als auch als Festlegung, widersprechen

@@ -992,6 +992,7 @@ _VORLAUF_KOPF = "Lead-up (the last bot message before this -- already processed,
 _AUFNAHME_KOPF = "A voice message from an ongoing interview, just transcribed:"
 _JOURNAL_ENTFERNT = "Removed: {was}"
 _JOURNAL_ZURUECK = "Withdrawn: {text}"
+_JOURNAL_FESTLEGUNG_ERSETZT = "Replaced (near-duplicate): {alt} -> {neu}"
 _BEZEICHNUNG_JOURNAL = "Journal: {text}"
 _BEZEICHNUNG_FESTLEGUNG = "Agreement: {text}"
 _BEZEICHNUNG_FIGUR = "Character {name}"

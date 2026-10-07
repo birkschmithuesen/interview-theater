@@ -702,12 +702,24 @@ def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | No
         # ganze Handlung erweitert). Abgefangen wird das hier in der
         # Auswertung und nicht im Prompt -- ``erkenner.md`` ist ohne
         # Korpuslauf nicht anzufassen.
-        log.info("rahmen_setzen sah nach Handlung aus, verworfen: %r", wert[:80])
+        #
+        # **Still verschwinden darf der Text trotzdem nicht** (Live-Fund
+        # Padua 07.10.2026, G3, web_post 1873: ein langer Rahmen-Text ueber
+        # Knopf/Videoprojektion/Sprachrohre fiel hier raus, und das Setting
+        # blieb danach leer -- die Gruppe hatte den Eindruck, nichts sei
+        # angekommen). Er landet stattdessen vollstaendig in der
+        # Festlegungs-Auffangtabelle unter dem Bereich ``rahmen`` (siehe
+        # ``_FESTLEGUNG_BEREICH_BESCHRIFTUNG``, dort schon als Zielbereich
+        # vorgesehen) -- mit demselben Fast-Dubletten-Schutz wie jede andere
+        # Festlegung.
+        log.info("rahmen_setzen sah nach Handlung aus, als Festlegung abgelegt: %r", wert[:80])
         repo.merke_vorfall(
             conn, chat_id, None, "rahmen_war_geschichte",
             "Ein Geschichte-Text sollte in den Rahmen geschrieben werden",
         )
-        return None
+        return _schreibe_festlegung_mit_dublettenschutz(
+            conn, chat_id, "rahmen", None, wert, quelle="erkenner",
+        )
     stand = repo.hole_arbeitsstand(conn, chat_id)
     aktuell = stand[feld] if stand else None
     if aktuell == wert:
@@ -1176,6 +1188,89 @@ def _ohne_eigenen_inhalt(text: str, bezug: str | None) -> bool:
     return bool(woerter) and not rest
 
 
+#: Anteil der (nach Fuellwoertern) gemeinsamen Woerter am KUERZEREN der
+#: beiden Woertersets, ab dem zwei Festlegungen im selben Bereich/Bezug als
+#: dieselbe Sache gelten statt als zwei (Live-Fund Padua 07.10.2026, G2:
+#: Struktur dreifach fast gleich formuliert -- "same place, five different
+#: moments of one day" / "one position per moment of the day" / "five
+#: moments of one day, one position per moment"). Gemessen am kuerzeren Set,
+#: damit eine knappe, praezisere Nachfassung nicht an der Laenge einer
+#: ausfuehrlicheren Fassung vorbeirutscht.
+_FESTLEGUNG_DUBLETTE_SCHWELLE = 0.4
+
+
+def _festlegung_woerter(text: str) -> set[str]:
+    """Dieselbe Tokenisierung wie ``_ohne_eigenen_inhalt``: Woerter ohne
+    Fuellwoerter, klein geschrieben."""
+    woerter = re.findall(r"[^\W\d]+", (text or "").lower(), re.UNICODE)
+    return {w for w in woerter if w not in _FESTLEGUNG_FUELLWOERTER}
+
+
+def _ist_fast_dublette_festlegung(neu: str, alt: str) -> bool:
+    """Sagen ``neu`` und ``alt`` (derselbe Bereich, derselbe Bezug) im Kern
+    dasselbe? Deterministisch ueber den Wortueberlapp, kein Modellaufruf --
+    ``erkenner.md`` ist ohne Korpuslauf nicht anzufassen, und das hier ist
+    reine Auswertung, kein Prompt."""
+    a, b = _festlegung_woerter(neu), _festlegung_woerter(alt)
+    if not a or not b:
+        return False
+    kleinste = min(len(a), len(b))
+    return (len(a & b) / kleinste) >= _FESTLEGUNG_DUBLETTE_SCHWELLE
+
+
+def _ersetze_fast_dubletten_festlegung(
+    conn, chat_id: int, bereich: str, bezug: str | None, text: str, quelle: str,
+) -> None:
+    """Raeumt jede noch aktive Festlegung desselben Bereichs/Bezugs weg, die
+    ``_ist_fast_dublette_festlegung`` fuer dieselbe Sache haelt wie ``text`` --
+    weich, mit Journalzeile, vor dem Einfuegen der neuen Zeile (sonst haeuften
+    sich Dubletten an, bis die Kappung im Prompt die aelteste, oft
+    wichtigere Zeile verdraengt, SPEC § 4.4 Risiko 1).
+
+    Eine WORTGLEICHE Zeile wird NICHT ersetzt: das ist keine Fast-Dublette,
+    sondern die exakte Wiederholung, die ``repo.schreibe_festlegung`` schon
+    abfaengt (dort still, ohne neue Zeile). Wuerde sie hier erst entfernt,
+    saehe die Dublettenpruefung dort keine aktive Zeile mehr und liesse die
+    Wiederholung als "neue" Festlegung durch -- genau die zweite Meldung,
+    die Aufgabe 3 verhindern soll."""
+    for zeile in repo.festlegungen(conn, chat_id):
+        if zeile["bereich"] != bereich or (zeile["bezug"] or None) != (bezug or None):
+            continue
+        if zeile["text"] == text:
+            continue
+        if not _ist_fast_dublette_festlegung(text, zeile["text"]):
+            continue
+        repo.entferne_festlegung_nach_id(conn, chat_id, zeile["id"])
+        repo.schreibe_journal(
+            conn, chat_id, "entschieden",
+            T._JOURNAL_FESTLEGUNG_ERSETZT.format(alt=zeile["text"], neu=text),
+            quelle=quelle,
+        )
+
+
+def _schreibe_festlegung_mit_dublettenschutz(
+    conn, chat_id: int, bereich: str, bezug: str | None, text: str,
+    quelle: str = "erkenner",
+) -> dict | None:
+    """Dasselbe Einfuegen wie ``repo.schreibe_festlegung``, nur mit dem
+    Fast-Dubletten-Schutz davor -- die eine Stelle, die sowohl
+    ``_wende_festlegung_an`` als auch der Rahmen-Rettungsweg weiter oben
+    (``_wende_arbeitsstand_an``) nutzen."""
+    bereich = repo.normiere_bereich(bereich)
+    _ersetze_fast_dubletten_festlegung(conn, chat_id, bereich, bezug, text, quelle)
+    if repo.schreibe_festlegung(
+        conn, chat_id, bereich, text, bezug=bezug, quelle=quelle,
+    ) is None:
+        return None
+    return {
+        "art": "festlegung_setzen",
+        "wert": repo.festlegungszeile(bereich, bezug, text),
+        "bereich": bereich,
+        "bezug": bezug,
+        "text": text,
+    }
+
+
 def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
     """Legt eine Festlegung in der Auffangtabelle ab (art
     ``festlegung_setzen``, 06.09.2026).
@@ -1187,7 +1282,10 @@ def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
     eine Handlung aus dem Setting-Feld herausgehalten, hier ein Setting aus
     der Auffangtabelle. Alle drei Pruefungen stehen in der Auswertung und
     nicht im Prompt, weil ``erkenner.md`` ohne Korpuslauf nicht anzufassen
-    ist -- und weil ein Prompt bittet, wo Code durchsetzt."""
+    ist -- und weil ein Prompt bittet, wo Code durchsetzt.
+
+    Eine Fast-Dublette im selben Bereich/Bezug (``_ersetze_fast_dubletten_
+    festlegung``) wird dabei ersetzt statt angehaengt."""
     bereich, bezug, text = _zerlege_festlegung(wert)
     text = " ".join((text or "").split())
     if not text:
@@ -1206,15 +1304,9 @@ def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
             "Eine Festlegung wiederholte nur die Zugehoerigkeit, ohne eigenen Fakt",
         )
         return None
-    if repo.schreibe_festlegung(conn, chat_id, bereich, text, bezug=bezug) is None:
-        return None
-    return {
-        "art": "festlegung_setzen",
-        "wert": repo.festlegungszeile(bereich, bezug, text),
-        "bereich": bereich,
-        "bezug": bezug,
-        "text": text,
-    }
+    return _schreibe_festlegung_mit_dublettenschutz(
+        conn, chat_id, bereich, bezug, text, quelle="erkenner",
+    )
 
 
 #: Zahlwoerter, die die Gruppe statt einer Ziffer sagt. Bis zwoelf, weil der
@@ -1485,6 +1577,10 @@ _USA_EN = {"yes": "ja", "no": "nein"}
 #: bleiben, auch wenn das Entfernte es nicht mehr ist.
 _JOURNAL_ENTFERNT = "Entfernt: {was}"
 _JOURNAL_ZURUECK = "Zurueckgenommen: {text}"
+#: Fast-Dubletten-Ersatz einer Festlegung (Live-Fund Padua 07.10.2026, G2:
+#: Struktur dreifach fast gleich formuliert) -- siehe
+#: ``_ersetze_fast_dubletten_festlegung``.
+_JOURNAL_FESTLEGUNG_ERSETZT = "Ersetzt (fast gleich): {alt} -> {neu}"
 #: Wie ein Entferntes in Meldung und Journal heisst ("Entfernt: Figur Peter").
 _BEZEICHNUNG_JOURNAL = "Journal: {text}"
 _BEZEICHNUNG_FESTLEGUNG = "Festlegung: {text}"
@@ -1675,6 +1771,59 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
         T._JOURNAL_ENTFERNT.format(was=bezeichnung), quelle=quelle,
     )
     return {"art": "entfernen", "wert": bezeichnung}
+
+
+#: Ein ausdruecklicher Wunsch, alles Bisherige wegzuwerfen und neu
+#: anzufangen -- Italienisch und Englisch, die beiden Sprachen der
+#: Padua-Gruppen (Live-Fund 07.10.2026, G3, web_post 1873: "Cancella tutto
+#: il workbench. Abbiamo deciso ... e rifai delle nuove entry"). Erkannt
+#: wird das hier deterministisch am Rohtext der Nachricht, nicht vom
+#: Erkenner-Modell: eine neue ``art`` kostet einen Korpuslauf mit FP = 0,
+#: und der Satz liegt schon vor -- ``erkenner.md`` ist ohne Korpuslauf
+#: nicht anzufassen.
+_RESET_WUNSCH = re.compile(
+    r"\bcancell\w*\s+tutto\b"
+    r"|\bricominci\w*\s+(?:da\s+capo|da\s+zero)\b"
+    r"|\brifacci\w*\s+tutto\b"
+    r"|\bbutt\w*\s+via\s+tutto\b"
+    r"|\bstart(?:ing)?\s+over\b"
+    r"|\b(?:clear|wipe)\s+(?:the\s+)?(?:whole\s+)?workbench\b"
+    r"|\bdelete\s+everything\b"
+    r"|\bcancel\s+everything\b",
+    re.IGNORECASE,
+)
+
+
+def _ist_reset_wunsch(text: str) -> bool:
+    """Sieht ``text`` nach einem ausdruecklichen Reset-/Ersetzen-Wunsch aus?"""
+    return _RESET_WUNSCH.search(text or "") is not None
+
+
+def _reset_wunsch_pseudo_aenderungen(conn, chat_id: int, nachrichten) -> list[dict]:
+    """Ein erkannter Reset-Wunsch (``_ist_reset_wunsch``) erzeugt eine
+    ``entfernen``-Pseudo-Aenderung je noch aktiver Festlegung -- dieselbe
+    Form, die auch ein getippter "entfernen Festlegung: ..."-Befehl liefert.
+    Die eigentliche Entfernung passiert erst, wenn diese Liste den normalen
+    Weg geht (``wende_an`` -> ``_wende_eine_an`` -> ``entferne``) -- genau
+    einmal, unter demselben Schnappschuss wie die neuen Aenderungen
+    derselben Nachricht (Undo-Knopf, Karte U).
+
+    Nur die Festlegungstabelle, nicht Kernthema/Begriffe/Fragen: die Gruppe
+    meint ihre eigenen Setting-Entscheidungen (Rahmen, Struktur, Orte, Form,
+    Stil), nicht das gesammelte Interviewmaterial. Live-Fund Padua
+    07.10.2026, G3: "Cancella tutto il workbench ... rifai delle nuove
+    entry" liess die alte Struktur-Festlegung ("zapping") unberuehrt stehen,
+    waehrend die Gruppe im selben Zug schon eine neue beschrieb.
+
+    ``nachrichten`` ist das Lesefenster dieses Erkennerlaufs
+    (``repo.unextrahierte``) -- derselbe Rohtext, den auch das Modell sieht,
+    geprueft BEVOR das Modell etwas daraus macht."""
+    if not any(_ist_reset_wunsch(n["text"]) for n in nachrichten if n["text"]):
+        return []
+    return [
+        {"art": "entfernen", "wert": f"Festlegung: {zeile['text']}"}
+        for zeile in repo.festlegungen(conn, chat_id)
+    ]
 
 
 def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
@@ -3465,6 +3614,15 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             # Nachricht nur ein zweites Mal und hat sie im Lauf schon einmal
             # geleert ("noise comes off the list" -> entfernen BEGRIFFE).
             freigegeben = [a for a in freigegeben if not _betrifft_begriffe(a)]
+        # Live-Fund Padua 07.10.2026, G3, web_post 1873: ein ausdruecklicher
+        # Reset-Wunsch ("Cancella tutto il workbench ... rifai delle nuove
+        # entry") raeumt alle noch aktiven Festlegungen weg, BEVOR die neuen
+        # Aenderungen derselben Nachricht geschrieben werden -- sonst blieb
+        # die alte Festlegung neben der neuen stehen. Geprueft am Rohtext des
+        # Lesefensters, nicht an den erkannten Aenderungen: deterministisch
+        # und unabhaengig davon, was das Modell daraus macht.
+        freigegeben = _reset_wunsch_pseudo_aenderungen(
+            conn, chat_id, fenster_vor_erkennung) + freigegeben
         # Der Stand VOR und NACH dem Anwenden, direkt um ``wende_an`` und
         # unter ``repo._LOCK`` -- Grundlage des Undo-Knopfs (Karte U).
         wirkliche, vorher, nachher = _wende_an_mit_schnappschuss(

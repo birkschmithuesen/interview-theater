@@ -999,6 +999,56 @@ def _material(conn, chat_id: int) -> str:
     return "\n\n".join(b for b in bloecke if b)
 
 
+#: Eskalationssprache, die eine vom Bot erfundene Zuspitzung anzeigt. Steht
+#: sie in der gespeicherten Geschichte, obwohl die Gruppe seit Phase 4
+#: ausdruecklich eine flache Struktur genannt hat, stammt sie aus einem
+#: erfundenen Bot-Vorschlag, nicht aus den Worten der Gruppe (Nachtrag
+#: Birk, 06.10.2026 21:14, Karte t_144ea719: Knopf "Press the Button" --
+#: "scores escalate from light to heavy" -- "this gives the escalation you
+#: described", obwohl die Gruppe nie eine Eskalation beschrieben hatte).
+_ESKALATIONS_WOERTER = (
+    "escalat", "climax", "countdown", "rising action", "build up", "build-up",
+    "steigerung", "eskalation", "hoehepunkt", "finale",
+)
+
+#: Teilmenge von ``formberater.SIGNALE``, die eine flache, gleichwertige
+#: Struktur OHNE Eskalation anzeigt -- nur diese widersprechen einer
+#: erfundenen Eskalation (andere Signale wie "documentary" oder "passers
+#: by" tun das nicht, und wuerden sonst jede Geschichte mit Spannungsbogen
+#: als Fehler melden).
+_FLACHE_STRUKTUR_SIGNALE = frozenset({
+    "random", "lottery", "by chance", "chance operation", "roll the dice",
+    "shuffle", "equal weight", "equally weighted", "all equal", "of equal",
+    "same weight", "zufall", "zufallig", "wurfel", "auslosen", "gleichwertig",
+    "gleich gewichtet", "gleichrangig",
+    "no climax", "no escalation", "without escalation", "no dramaturgy",
+    "no arc", "keine steigerung", "keine eskalation", "kein hohepunkt",
+    "keine dramaturgie", "kein bogen",
+})
+
+
+def _eskalation_ohne_gruppenbeleg(conn, chat_id: int, geschichte: str) -> bool:
+    """True, wenn ``geschichte`` Eskalationssprache enthaelt, die Gruppe
+    aber seit dem Eintritt in Phase 4 ausdruecklich eine flache, gleich-
+    gewichtete Struktur genannt hat -- der Live-Fall der G3-Testgruppe
+    (Karte t_144ea719): die Gruppe nannte "random, all of equal weight, no
+    dramaturgy", die per Knopf gewaehlte Richtung trug trotzdem eine vom
+    Bot erfundene Eskalation weiter."""
+    from interview_theater import formberater
+
+    heu = formberater.normalisiere(geschichte)
+    if not any(wort in heu for wort in _ESKALATIONS_WOERTER):
+        return False
+    seit = repo.phase_eintritt_am(conn, chat_id, formberater.PHASE_LAUFEND)
+    if not seit:
+        return False
+    gruppentext = " ".join(
+        repo.gruppentexte_seit(conn, chat_id, seit, formberater.BEITRAEGE)
+    )
+    signale = formberater.treffer_signale(gruppentext)
+    return any(s in _FLACHE_STRUKTUR_SIGNALE for s in signale)
+
+
 def _erfundenes(conn, chat_id: int) -> str:
     """Was in Phase 4 (Geschichte) im Prompt stehen darf: Begriffe, Fragen,
     Setting, Figuren -- und die bestehende Folge.
@@ -1019,7 +1069,10 @@ def _erfundenes(conn, chat_id: int) -> str:
         if (stand["rahmen"] or "").strip():
             zeilen.append(T._ZEILE_SETTING.format(rahmen=stand["rahmen"].strip()))
         if "geschichte" in stand.keys() and (stand["geschichte"] or "").strip():
-            zeilen.append(T._GESCHICHTE_KOPF + stand["geschichte"].strip())
+            geschichte = stand["geschichte"].strip()
+            zeilen.append(T._GESCHICHTE_KOPF + geschichte)
+            if _eskalation_ohne_gruppenbeleg(conn, chat_id, geschichte):
+                zeilen.append(T._WARNUNG_ESKALATION_OHNE_BELEG)
     figuren = repo.figuren(conn, chat_id)
     if figuren:
         block = [T._FIGUREN_KOPF]
@@ -1050,6 +1103,12 @@ _ZEILE_SETTING = "Setting: {rahmen}"
 _GESCHICHTE_KOPF = "Bisherige Geschichte:\n"
 _FIGUREN_KOPF = "Figuren:"
 _SZENENFOLGE_KOPF = "Bisherige Szenenfolge:"
+_WARNUNG_ESKALATION_OHNE_BELEG = (
+    "Achtung: die Gruppe hat eine gleichwertige, zufaellige Struktur ohne "
+    "Eskalation genannt. Fuege der Szenenfolge keine Steigerung, keinen "
+    "Spannungsbogen und kein Finale hinzu, das nicht aus ihren eigenen "
+    "Worten stammt -- auch nicht, wenn die Geschichte oben eines enthaelt."
+)
 
 
 def systemanweisung(anzahl: int) -> str:

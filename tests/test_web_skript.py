@@ -255,3 +255,16 @@ def test_druck_klappt_die_rollen_auf():
     html = web_pdf.mit_druck_css('<html><head></head><body><details class="rolle-mehr"><summary>x'
                                  "</summary>y</details></body></html>")
     assert '<details class="rolle-mehr" open>' in html
+
+
+def test_maskierter_stern_bleibt_ein_stern(padua):
+    """Vollskript G3 (Birk 08.10.2026): das Modell markiert erfundene
+    Zeilen mit einem maskierten Stern (``\\*``, Beschluss der Gruppe). Der
+    Script-Tab zeigte "(\\)" und machte den Rest der Zeile kursiv.
+    Mutant: Maskierung nicht beachtet -> rot."""
+    html = web_skript.text_html("*An asterisk (\\*) marks invented lines. For us only.*")
+    assert "(*)" in html and "\\" not in html
+    assert html.count("<em>") == 1
+    replik = web_skript.text_html("VOCE 2: \\* Well, the green, for the green pass.")
+    assert "<strong>VOCE 2:</strong> * Well, the green" in replik
+    assert "<em>" not in replik

@@ -50,14 +50,20 @@ def _e(wert) -> str:
 def _inline(zeile: str) -> str:
     """Maskiert eine Zeile und setzt **fett**, *kursiv* und ``NAME:`` am
     Anfang fett; in einer Replik werden Klammern zur Regie (grau-kursiv)."""
-    z = _e(zeile)
+    # Ein maskierter Stern (``\*``) ist ein woertlicher Stern -- so markiert
+    # das Modell erfundene Zeilen (G3-Beschluss); er setzt nie Kursiv.
+    z = _e(zeile).replace("\\*", _STERN)
     z = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", z)
     z = re.sub(r"(?<![*\w])\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"<em>\1</em>", z)
-    sprecher = re.match(r"([A-ZÀ-Ý][A-ZÀ-Ý' .()/-]{1,30}):\s", z)
+    # Ziffern gehoeren dazu: G3 spricht als "VOCE 2:".
+    sprecher = re.match(r"([A-ZÀ-Ý][A-ZÀ-Ý0-9' .()/-]{1,30}):\s", z)
     if sprecher and re.search(r"[A-ZÀ-Ý]{2}", sprecher.group(1)):
         rest = re.sub(r"\(([^()]*)\)", r'<span class="regie">(\1)</span>', z[sprecher.end():])
         z = f"<strong>{sprecher.group(1)}:</strong> {rest}"
-    return z
+    return z.replace(_STERN, "*")
+
+
+_STERN = "\x00"
 
 
 _NUMMER_KOPF = re.compile(r"^\*[^*]*?\((\d+)\):?\*:?\s*")

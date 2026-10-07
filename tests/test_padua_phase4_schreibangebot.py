@@ -39,12 +39,18 @@ def _flach(text: str) -> str:
 
 def test_uebergangsangebot_verspricht_keine_szenenvorschau(padua):
     """Das EINMALIGE Uebergangsangebot (Setting/Figuren/Geschichte/Szenen
-    vollstaendig) darf kein Szenenformat und keine Schreibfrage ankuendigen
-    -- genau das, was in Nachricht 1512 stand."""
+    vollstaendig) muss ausdruecklich sagen, dass es kein Szenenformat und
+    keine Schreibfrage ankuendigt -- genau das, was in Nachricht 1512 stand.
+    Die Formulierungen selbst duerfen als Verbotsbeispiel genannt sein (ein
+    Verbot braucht einen Namen), aber nur als Teil dieser Abwehr."""
     phase = _flach(anweisungen.hole("phasen/4"))
-    for verbotenes in ("Place:", "Who:", "What happens:", "write scene", "Shall I write"):
-        assert verbotenes not in phase, verbotenes
-    assert "no preview of a scene" in phase or "never previews the scene" in phase
+    assert "never previews the scene" in phase
+    assert "Shall I write scene 1 now" in phase
+    assert "`Place:`/`Who:`/`What happens:`" in phase
+    # ausserhalb der Abwehrzeile selbst darf das Szenenformat nicht auftauchen
+    abwehr_index = phase.index("never previews the scene")
+    rest = phase[:abwehr_index] + phase[abwehr_index + 400:]
+    assert "Shall I write scene" not in rest
 
 
 def test_schreibwunsch_in_phase_4_verweist_auf_phase_5(padua):
@@ -64,10 +70,9 @@ def test_phase4_de_hat_dieselbe_abwehrregel():
     dieselbe Haertung wie die EN-Fassung, nur auf Deutsch."""
     text = DATEI_DE.read_text(encoding="utf-8")
     flach = _flach(text)
-    for verbotenes in ("Place:", "Who:", "What happens:", "Shall I write"):
-        assert verbotenes not in flach
+    assert "nimmt nie die Szene vorweg" in flach
     assert "Ausnahme" in flach
-    assert "Schärfung" in flach or "Textentwurf" in flach
+    assert "Schärfung" in flach
 
 
 def test_phase4_en_rohdatei_hat_dieselbe_abwehrregel():

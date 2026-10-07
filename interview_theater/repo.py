@@ -1162,10 +1162,10 @@ def lege_schaerfung_an(
 ) -> int:
     """Schreibt die Zuordnungen EINER Runde und liefert ihre Anzahl.
 
-    Jedes Element braucht ``verdichtung_thema_id``; ``szene_id``, ``figur_id``
-    und ``begruendung`` sind optional -- eine Zuordnung darf an einer Szene,
-    an einer Figur oder an beiden haengen. Eine ohne beides waere eine
-    Markierung ohne Ort und wird uebersprungen."""
+    Jedes Element braucht ``verdichtung_thema_id``; ``szene_id``, ``figur_id``,
+    ``begruendung`` und ``staerke`` sind optional -- eine Zuordnung darf an
+    einer Szene, an einer Figur oder an beiden haengen. Eine ohne beides
+    waere eine Markierung ohne Ort und wird uebersprungen."""
     angelegt = 0
     for eintrag in zuordnungen:
         if eintrag.get("szene_id") is None and eintrag.get("figur_id") is None:
@@ -1174,8 +1174,8 @@ def lege_schaerfung_an(
             """
             INSERT INTO schaerfung
                 (chat_id, verdichtung_thema_id, szene_id, figur_id, begruendung,
-                 runde, erstellt_am)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                 staerke, runde, erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chat_id,
@@ -1183,6 +1183,7 @@ def lege_schaerfung_an(
                 eintrag.get("szene_id"),
                 eintrag.get("figur_id"),
                 eintrag.get("begruendung"),
+                eintrag.get("staerke"),
                 runde,
                 _jetzt(),
             ),

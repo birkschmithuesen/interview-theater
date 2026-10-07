@@ -25,8 +25,9 @@ from interview_theater.knoepfe.texte import (
     ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU, ART_GESCHICHTE_PASST,
     ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE,
-    ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE,
-    ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SPRECHANTEILE,
+    ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR,
+    ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE,
+    ART_SPRECHANTEILE,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
     ART_SZENENFOLGE_REIHENFOLGE, ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM,
     ART_SZENENSTIL, ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN,
@@ -315,9 +316,10 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
     wenn die Materiallage sie hergibt, der Weg zu den Szentexten."""
     ziel = _naechstes_schaerfungsziel(conn, chat_id)
     if ziel is not None:
-        sammelart, sammelwert, ueberschrift, stellen = ziel
+        sammelart, sammelwert, ueberschrift, stellen, gesamt, versatz = ziel
         _sende_schaerfungsmenue(
             conn, tg, chat_id, ueberschrift, stellen, sammelart, sammelwert,
+            gesamt, versatz,
         )
         return True
     leiste = [
@@ -335,36 +337,103 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
 
 def _naechstes_schaerfungsziel(conn, chat_id: int):
     """Das Menue, das ``biete_schaerfung`` als naechstes zeigt -- erst Szene
-    fuer Szene, dann Figur fuer Figur: ``(sammelart, sammelwert,
-    ueberschrift, stellen)`` oder ``None``. Deterministisch aus der
-    Datenbank; dieselbe Quelle fuer das Menue und fuer "keine davon" aus
-    dem Chat (``verwirf_schaerfung``), damit beide dieselben Stellen meinen."""
+    fuer Szene, dann Figur fuer Figur, immer die ERSTE Seite (staerkste
+    zuerst): ``(sammelart, sammelwert, ueberschrift, stellen, gesamt,
+    versatz)`` oder ``None``. Deterministisch aus der Datenbank; dieselbe
+    Quelle fuer das Menue und fuer "keine davon" aus dem Chat
+    (``verwirf_schaerfung``), damit beide dieselben Stellen meinen.
+
+    ``gesamt``/``versatz`` (07.10.2026, ``MAX_STELLEN`` als Gesamtgrenze
+    aufgehoben) tragen die Seiteninformation fuer den "Mehr zeigen"-Knopf --
+    das WEITERBLAETTERN derselben Seite laeuft ueber ``zeige_schaerfung_seite``,
+    nicht ueber diese Funktion (die sucht immer das naechste Ziel ab Seite 1)."""
     from interview_theater import schaerfung as schaerfung_modul
 
     for szene in repo.hole_szenen(conn, chat_id):
-        stellen = schaerfung_modul.offene_stellen(
+        stellen, gesamt = schaerfung_modul.offene_stellen_seite(
             conn, chat_id, szene_id=szene["id"]
         )
         if stellen:
             return (ART_SCHAERFUNG_SZENE, str(szene["nummer"]),
                     schaerfung_modul.szenenueberschrift(conn, chat_id, szene),
-                    stellen)
+                    stellen, gesamt, 0)
     for figur in repo.figuren(conn, chat_id):
-        stellen = schaerfung_modul.offene_stellen(
+        stellen, gesamt = schaerfung_modul.offene_stellen_seite(
             conn, chat_id, figur_id=figur["id"]
         )
         if stellen:
             return (ART_SCHAERFUNG_FIGUR, figur["name"],
-                    schaerfung_modul.figurueberschrift(figur), stellen)
+                    schaerfung_modul.figurueberschrift(figur), stellen, gesamt, 0)
     return None
+
+
+def zeige_schaerfung_seite(conn, tg, chat_id: int, sammelart: str, sammelwert: str,
+                           versatz: int) -> None:
+    """"Mehr zeigen" (07.10.2026): dieselbe Szene/Figur eine Seite weiter --
+    kein neues Ziel, kein Modellaufruf, alles steht schon in ``schaerfung``.
+
+    Ist das Ziel inzwischen weg (Szene geloescht) oder die Seite leer (ein
+    "Keine davon" dazwischen), faellt es auf ``biete_schaerfung`` zurueck --
+    dieselbe Herleitung, die auch sonst das naechste Ziel findet."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    if sammelart == ART_SCHAERFUNG_SZENE:
+        try:
+            ziel = _szene_mit_nummer(conn, chat_id, int(sammelwert))
+        except (TypeError, ValueError):
+            ziel = None
+        if ziel is None:
+            biete_schaerfung(conn, tg, chat_id)
+            return
+        stellen, gesamt = schaerfung_modul.offene_stellen_seite(
+            conn, chat_id, szene_id=ziel["id"], versatz=versatz,
+        )
+        ueberschrift = schaerfung_modul.szenenueberschrift(conn, chat_id, ziel)
+    else:
+        figur = repo.hole_figur(conn, chat_id, sammelwert)
+        if figur is None:
+            biete_schaerfung(conn, tg, chat_id)
+            return
+        stellen, gesamt = schaerfung_modul.offene_stellen_seite(
+            conn, chat_id, figur_id=figur["id"], versatz=versatz,
+        )
+        ueberschrift = schaerfung_modul.figurueberschrift(figur)
+    if not stellen:
+        biete_schaerfung(conn, tg, chat_id)
+        return
+    _sende_schaerfungsmenue(
+        conn, tg, chat_id, ueberschrift, stellen, sammelart, sammelwert,
+        gesamt, versatz,
+    )
+
+
+def uebernimm_schaerfung_stellen(conn, tg, chat_id: int, ids: list[int]) -> str:
+    """"Diese uebernehmen", seitengebunden (07.10.2026): der Knopf-Handler
+    fuer ``ART_SCHAERFUNG_SZENE``/``ART_SCHAERFUNG_FIGUR``. Uebernimmt GENAU
+    die gezeigten Stellen (``schaerfung.uebernimm_stellen``), nicht alles,
+    was fuer dieses Ziel je zugeordnet wurde -- der gemessene Fehler von
+    vorher (Analyse Abschnitt 4: 13 zugeordnete, unsichtbare Stellen wurden
+    heimlich mit uebernommen). Der Erkenner-Weg
+    (``uebernimm_schaerfung_szene``/``_figur``, "alles fuer dieses Ziel")
+    bleibt unberuehrt."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    anzahl = schaerfung_modul.uebernimm_stellen(conn, chat_id, ids)
+    if not anzahl:
+        tg.sende(chat_id, T._TEXT_SCHAERFUNG_NICHTS)
+    else:
+        tg.sende(chat_id, T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl))
+    biete_schaerfung(conn, tg, chat_id)
+    return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
 
 
 def uebernimm_schaerfung_szene(conn, tg, chat_id: int, nummer: int,
                                anders: bool = False) -> str:
-    """Alle offenen Schaerfungen einer Szene uebernehmen -- der EINE Rumpf
-    fuer den Knopf "Diese uebernehmen" und den Erkenner
-    (``schaerfung_entscheidung``, Padua Phasen TEIL 2). Deterministisch,
-    kein Modellaufruf (Zusage 2); danach der naechste Vorschlag."""
+    """Alle offenen Schaerfungen einer Szene uebernehmen -- der Rumpf fuer den
+    Erkenner (``schaerfung_entscheidung``, Padua Phasen TEIL 2); der Knopf
+    "Diese uebernehmen" laeuft seit 07.10.2026 seitengebunden ueber
+    ``uebernimm_schaerfung_stellen``. Deterministisch, kein Modellaufruf
+    (Zusage 2); danach der naechste Vorschlag."""
     from interview_theater import schaerfung as schaerfung_modul
 
     ziel = _szene_mit_nummer(conn, chat_id, nummer)
@@ -423,15 +492,26 @@ def verwirf_schaerfung(conn, tg, chat_id: int, ids: list[int] | None = None) -> 
 
 def _sende_schaerfungsmenue(
     conn, tg, chat_id: int, ueberschrift: str, stellen: list,
-    sammelart: str, sammelwert: str,
+    sammelart: str, sammelwert: str, gesamt: int, versatz: int,
 ) -> int:
-    """Ein Schaerfungs-Menue: je Stelle ein Knopf, darunter die zwei
+    """Ein Schaerfungs-Menue: je Stelle ein Knopf, darunter "Mehr zeigen"
+    (nur wenn es ueber die Seite hinaus noch welche gibt), dann die zwei
     Sammelknoepfe.
 
     Die Reihenfolge der Knoepfe ist die Reihenfolge der Punkte -- ``stellen``
-    wird genau einmal durchlaufen und speist beides."""
+    wird genau einmal durchlaufen und speist beides.
+
+    ``gesamt``/``versatz`` (07.10.2026, ``MAX_STELLEN`` als Gesamtgrenze
+    aufgehoben): die Ueberschrift nennt die Seite, sobald es mehr Stellen
+    gibt als eine Seite zeigt; "Diese uebernehmen" und "Keine davon" tragen
+    BEIDE nur die ``id``s der gezeigten Seite (``stellen``) -- nie die der
+    unsichtbaren restlichen Seiten (der gemessene Fehler von vorher)."""
     from interview_theater import schaerfung as schaerfung_modul, vorschlag
 
+    if gesamt > len(stellen):
+        ueberschrift = ueberschrift + T._TEXT_SCHAERFUNG_SEITE.format(
+            von=versatz + 1, bis=versatz + len(stellen), gesamt=gesamt,
+        )
     zeilen: list[str] = []
     leiste: list[tuple[str, str]] = []
     for nummer, eintrag in enumerate(stellen, start=1):
@@ -447,12 +527,26 @@ def _sende_schaerfungsmenue(
                 ),
             )
         )
+    naechster_versatz = versatz + len(stellen)
+    if gesamt > naechster_versatz:
+        leiste.append(
+            (
+                T._TEXT_SCHAERFUNG_MEHR_KNOPF,
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_SCHAERFUNG_MEHR,
+                        f"{sammelart}{TRENNER}{sammelwert}{TRENNER}{naechster_versatz}",
+                    )
+                ),
+            )
+        )
     leiste.append(
         (
             T._TEXT_SCHAERFUNG_ALLE_KNOPF,
             _daten(
                 repo.lege_knopf_an(
-                    conn, chat_id, sammelart, f"weiter{TRENNER}{sammelwert}"
+                    conn, chat_id, sammelart,
+                    TRENNER.join(str(z["id"]) for z in stellen),
                 )
             ),
         )

@@ -41,8 +41,9 @@ from interview_theater.knoepfe.texte import (
     ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_P5_CHECK_AENDERN, ART_P5_CHECK_OK,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
     ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_REDO, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
-    ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_STELLE,
-    ART_SCHAERFUNG_SZENE, ART_SCHLAG_VOR, ART_SPEICHERN, ART_STAND,
+    ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR, ART_SCHAERFUNG_RUNDE,
+    ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SCHLAG_VOR, ART_SPEICHERN,
+    ART_STAND,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
     ART_SZENENFOLGE_ANZAHL_WERT, ART_SZENENFOLGE_REIHENFOLGE,
     ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM, ART_SZENENSTIL,
@@ -81,8 +82,8 @@ from interview_theater.knoepfe.szenen import (
     biete_kurzgeschichte, biete_schaerfung, biete_szene, biete_szenenform,
     _zeige_fassungen, skript_verweis, starte_dramaturgie,
     biete_szenenstil, erwarte_geschichte_notiz, starte_schaerfung,
-    starte_stueckpruefung, uebernimm_schaerfung_figur,
-    uebernimm_schaerfung_szene, verwirf_schaerfung, zeige_szenentext,
+    starte_stueckpruefung, uebernimm_schaerfung_stellen,
+    verwirf_schaerfung, zeige_schaerfung_seite, zeige_szenentext,
 )
 from interview_theater.knoepfe.interviews import (
     _werte_alle_aus, biete_interview_ohne_knopf_weiter,
@@ -186,21 +187,30 @@ def _wirkung_geschichte_speichern(conn, d: Druck) -> str:
     return _speichere_geschichte(conn, d.tg, d.klm, d.e, d.chat_id, d.wert)
 
 
-def _wirkung_schaerfung_szene(conn, d: Druck) -> str:
-    """Die Uebernahme ist deterministisch (Felder ergaenzen), der naechste
-    Vorschlag kommt aus der Datenbank -- kein Modellaufruf (Zusage 2). Der
-    Rumpf steht in ``szenen.uebernimm_schaerfung_szene`` -- derselbe fuer
-    den Erkenner (``schaerfung_entscheidung``, Padua Phasen TEIL 2)."""
-    modus, _, nummer_roh = d.wert.partition(TRENNER)
-    return uebernimm_schaerfung_szene(
-        conn, d.tg, d.chat_id, int(nummer_roh or d.wert),
-        anders=modus.strip() == "anders")
+def _wirkung_schaerfung_uebernehmen(conn, d: Druck) -> str:
+    """"Diese uebernehmen", seitengebunden (07.10.2026): ``d.wert`` traegt
+    die ``schaerfung.id`` der gezeigten Seite, durch ``TRENNER`` getrennt --
+    wie ``ART_SCHAERFUNG_KEINE``, NICHT mehr "alle fuer diese Szene/Figur".
+    Der Rumpf steht in ``szenen.uebernimm_schaerfung_stellen``; der
+    Erkenner-Weg (``uebernimm_schaerfung_szene``/``_figur``, "alles fuer
+    dieses Ziel") bleibt unberuehrt und wird direkt aufgerufen, nicht ueber
+    diese Dispatch-Tabelle."""
+    ids = [int(t) for t in d.wert.split(TRENNER) if t.strip().isdigit()]
+    return uebernimm_schaerfung_stellen(conn, d.tg, d.chat_id, ids)
 
 
-def _wirkung_schaerfung_figur(conn, d: Druck) -> str:
-    modus, _, name = d.wert.partition(TRENNER)
-    return uebernimm_schaerfung_figur(
-        conn, d.tg, d.chat_id, name or d.wert, anders=modus.strip() == "anders")
+def _wirkung_schaerfung_mehr(conn, d: Druck) -> str:
+    """"Mehr zeigen" (07.10.2026): dieselbe Szene/Figur eine Seite weiter.
+    Deterministisch, kein Modellaufruf -- alles steht schon in
+    ``schaerfung``."""
+    sammelart, _, rest = d.wert.partition(TRENNER)
+    sammelwert, _, versatz_roh = rest.partition(TRENNER)
+    try:
+        versatz = int(versatz_roh)
+    except (TypeError, ValueError):
+        versatz = 0
+    zeige_schaerfung_seite(conn, d.tg, d.chat_id, sammelart, sammelwert, versatz)
+    return T._TEXT_SCHAERFUNG_MEHR_KNOPF
 
 
 def _wirkung_schaerfung_stelle(conn, d: Druck) -> str:
@@ -1762,11 +1772,12 @@ _WIRKUNGEN = {
     ART_GESCHICHTE_KUERZEN: _wirkung_geschichte_kuerzen,
     ART_GESCHICHTE_NEU: _wirkung_geschichte_neu,
     ART_GESCHICHTE_SPEICHERN: _wirkung_geschichte_speichern,
-    ART_SCHAERFUNG_SZENE: _wirkung_schaerfung_szene,
-    ART_SCHAERFUNG_FIGUR: _wirkung_schaerfung_figur,
+    ART_SCHAERFUNG_SZENE: _wirkung_schaerfung_uebernehmen,
+    ART_SCHAERFUNG_FIGUR: _wirkung_schaerfung_uebernehmen,
     ART_SCHAERFUNG_STELLE: _wirkung_schaerfung_stelle,
     ART_SCHAERFUNG_KEINE: _wirkung_schaerfung_keine,
     ART_SCHAERFUNG_RUNDE: _wirkung_schaerfung_runde,
+    ART_SCHAERFUNG_MEHR: _wirkung_schaerfung_mehr,
     ART_SZENENFOLGE_ANZAHL: _wirkung_szenenfolge_anzahl,
     ART_SZENENFOLGE_ANZAHL_WERT: _wirkung_szenenfolge_anzahl_wert,
     ART_SZENENFOLGE_REIHENFOLGE: _wirkung_szenenfolge_reihenfolge,

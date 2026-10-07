@@ -145,6 +145,7 @@ def test_phase_4_startet_und_beendet_als_brainstorm_in_node(tmp_path):
       diskussion: null, wechsel: null, ptt: null, mithoerenZiel: 'brainstorm'
     }};
     var aufgerufeneWege = [];
+    var UPLOAD_TIMEOUT_MS = {web_chat.UPLOAD_TIMEOUT_MS};
     function modusAn() {{ return false; }}
     function verwirfPtt() {{}}
     function zeigeDiskussionModus() {{}}

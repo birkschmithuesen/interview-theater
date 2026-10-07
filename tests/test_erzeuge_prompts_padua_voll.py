@@ -135,7 +135,12 @@ def test_phase4_gespraech_laeuft_ueber_claude(tmp_path):
 #: Birk/Karte t_d57c4ddb: kein neuer P34-Treiber, stattdessen diese
 #: benannte Ausnahme (er laeuft live, gehoert also nicht in
 #: NICHT_LIVE_IN_PADUA).
-OHNE_P34_TREIBER = ("42-uebersetzung",)
+#:
+#: 43-formberater (Karte t_256ec777): laeuft live ab Phase 4, aber nur bei
+#: neuem Stichwort-Treffer/Phasenuebergang/Knopf (interview_theater/
+#: formberater.py), kein eigener Chatbeitrag -- derselbe Grund wie bei
+#: 42-uebersetzung, kein eigener P3/4-Treiber hier.
+OHNE_P34_TREIBER = ("42-uebersetzung", "43-formberater")
 
 
 def test_die_phase_3_4_eintraege_haben_einen_treiber():

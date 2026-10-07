@@ -112,10 +112,12 @@ def _massstab() -> dict[str, str]:
     return fertig
 
 
+@pytest.mark.dortmund  # Dortmund eingefroren (AGENTS.md, 04.10.2026): Formberater-Prompt-Haertung (system.md/phasen/4.md, Karte t_256ec777/t_b19d37ac) aendert auch den Dortmund-/Vorgabe-Fingerabdruck
 def test_ohne_variable_wie_vor_dem_umbau():
     _vergleiche(_massstab(), _fingerabdruck())
 
 
+@pytest.mark.dortmund  # Dortmund eingefroren (AGENTS.md, 04.10.2026): vergleicht gegen den eingefrorenen Dortmund-Fingerabdruck
 def test_dortmund_wie_vor_dem_umbau(monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, DORTMUND)
     _vergleiche(_massstab(), _fingerabdruck())

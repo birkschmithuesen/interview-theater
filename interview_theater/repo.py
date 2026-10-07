@@ -2559,6 +2559,87 @@ def lege_buehnenkarte_an(
 
 
 @_gesperrt
+def lege_formberater_an(
+    conn: sqlite3.Connection, chat_id: int, ausloeser: str, phase: int | None,
+    formen: list[str], signale: list[str], ergebnis: dict | None = None,
+    modell: str | None = None,
+) -> int:
+    """Haengt ein Nachschlagen des Formberaters an (nur anhaengen, siehe
+    Tabellenkommentar ``formberater`` in db.py)."""
+    cur = conn.execute(
+        "INSERT INTO formberater (chat_id, ausloeser, phase, formen, signale, "
+        "ergebnis, modell, erstellt_am) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            chat_id, ausloeser, phase,
+            json.dumps(list(formen), ensure_ascii=False),
+            json.dumps(list(signale), ensure_ascii=False),
+            json.dumps(ergebnis, ensure_ascii=False) if ergebnis is not None else None,
+            modell, _jetzt(),
+        ),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+@_gesperrt
+def phase_eintritt_am(conn: sqlite3.Connection, chat_id: int, nummer: int) -> str | None:
+    """Wann die Gruppe zuletzt in Phase ``nummer`` gewechselt ist -- aus dem
+    Journal (``phasen.setze`` schreibt "Phase N · Name"), oder None."""
+    zeile = conn.execute(
+        "SELECT erstellt_am FROM journal WHERE chat_id = ? AND art = 'entschieden' "
+        "AND entfernt_am IS NULL AND (text = ? OR text LIKE ? OR text LIKE ?) "
+        "ORDER BY id DESC LIMIT 1",
+        (chat_id, f"Phase {nummer}", f"Phase {nummer} ·%", f"Phase {nummer} (%"),
+    ).fetchone()
+    return zeile["erstellt_am"] if zeile else None
+
+
+@_gesperrt
+def gruppentexte_seit(
+    conn: sqlite3.Connection, chat_id: int, seit: str, anzahl: int = 30,
+) -> list[str]:
+    """Die getippten (oder gesprochenen) Beitraege der GRUPPE seit ``seit``
+    (ISO, UTC), aelteste zuerst, hoechstens ``anzahl`` -- ohne Bot-Zeilen,
+    ohne Transkript-Echos, ohne Entwicklernotizen (nur ``typ = 'text'``)."""
+    zeilen = conn.execute(
+        "SELECT text FROM nachricht WHERE chat_id = ? AND ist_bot = 0 "
+        "AND typ = 'text' AND text IS NOT NULL AND gesendet_am >= ? "
+        "ORDER BY gesendet_am DESC, message_id DESC LIMIT ?",
+        (chat_id, seit, anzahl),
+    ).fetchall()
+    return [z["text"] for z in reversed(zeilen) if (z["text"] or "").strip()]
+
+
+@_gesperrt
+def formberater_zeilen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Alle Nachschlage-Zeilen der Gruppe, AELTESTE ZUERST, mit
+    ausgepackten JSON-Feldern (``formen``/``signale`` als Listen,
+    ``ergebnis`` als dict oder None)."""
+    zeilen = conn.execute(
+        "SELECT * FROM formberater WHERE chat_id = ? ORDER BY id ASC", (chat_id,),
+    ).fetchall()
+    ergebnis = []
+    for z in zeilen:
+        def _liste(roh):
+            try:
+                wert = json.loads(roh or "[]")
+            except ValueError:
+                return []
+            return [str(x) for x in wert] if isinstance(wert, list) else []
+        try:
+            befund = json.loads(z["ergebnis"]) if z["ergebnis"] else None
+        except ValueError:
+            befund = None
+        ergebnis.append({
+            "id": z["id"], "ausloeser": z["ausloeser"], "phase": z["phase"],
+            "formen": _liste(z["formen"]), "signale": _liste(z["signale"]),
+            "ergebnis": befund if isinstance(befund, dict) else None,
+            "modell": z["modell"], "erstellt_am": z["erstellt_am"],
+        })
+    return ergebnis
+
+
+@_gesperrt
 def buehnenkarten(
     conn: sqlite3.Connection, chat_id: int, hoechstens: int = 20,
 ) -> list[sqlite3.Row]:

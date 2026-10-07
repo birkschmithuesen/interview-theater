@@ -1317,6 +1317,36 @@ CREATE TABLE IF NOT EXISTS uebersetzung (
   felder        TEXT NOT NULL,
   aktualisiert_am TEXT NOT NULL
 );
+
+-- Der Formberater (Karte t_256ec777, 07.10.2026, ``formberater.py``): welche
+-- performativen Formen aus ``interview_theater/formen/`` fuer diese Gruppe
+-- nachgeschlagen wurden und deshalb im Gespraechs-Prompt stehen
+-- (``kontext._baue_formen``). Nur anhaengen, nie aendern (wie
+-- buehnenkarte): eine Zeile ist ein Nachschlagen zu einem Zeitpunkt, keine
+-- Entscheidung der Gruppe.
+--
+-- ausloeser: 'stichwort' (deterministischer Treffer, kein Modellaufruf),
+-- 'laufend' (Modellaufruf in Phase 4 nach einem neuen Treffer), 'einstieg'
+-- (einmalig beim Eintritt in Phase 5), 'knopf' ("Weitere Formen").
+-- formen: JSON-Liste von Slugs (Dateinamen ohne .md), leer, wenn der
+-- Aufruf scheiterte. signale: JSON-Liste der Stichwoerter, die diesen
+-- Aufruf ausgeloest haben -- die Delta-Logik liest sie, damit dasselbe
+-- Wort nicht jeden Zug einen neuen Aufruf ausloest. ergebnis: JSON
+-- {passt, vorschlag, gegenpol} oder NULL (Stichwort, gescheitert).
+-- KEIN Gruppentext steht hier, nur Slugs, Stichwoerter und die
+-- Begruendungen des Modells.
+CREATE TABLE IF NOT EXISTS formberater (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  ausloeser    TEXT NOT NULL,
+  phase        INTEGER,
+  formen       TEXT NOT NULL DEFAULT '[]',
+  signale      TEXT NOT NULL DEFAULT '[]',
+  ergebnis     TEXT,
+  modell       TEXT,
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_formberater_chat ON formberater(chat_id, id);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1354,6 +1384,8 @@ TABELLEN_MIT_CHAT_ID = (
     "prueflauf",
     # Karte t_f7770dc4 (05.10.2026): der Uebersetzungscache des Dashboards.
     "uebersetzung",
+    # Karte t_256ec777 (07.10.2026): was der Formberater nachgeschlagen hat.
+    "formberater",
 )
 
 

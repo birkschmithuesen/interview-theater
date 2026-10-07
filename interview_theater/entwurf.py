@@ -174,7 +174,7 @@ def _voll_bloecke(conn, chat_id: int) -> list[str]:
             name = kontext.interviewbezeichnung(conn, chat_id, z["aufnahme_id"])
             teile.append(f'- {name}: {z["thema"]} -- "{z["zitat"]}"')
         bloecke.append("\n".join(teile))
-    gespraech = szene._p5_gespraech_text(conn, chat_id, ueber_claude=True)
+    gespraech = szene.p5_gespraech_block(conn, chat_id, ueber_claude=True)
     if gespraech:
         bloecke.append(gespraech + "\n(This conversation is the most valuable source for the "
                        "logline and the scene lines: what the group said about the interviews, "
@@ -383,7 +383,11 @@ def bestaetige_szene(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if naechste is not None:
         szene.starte(conn, tg, klm, e, chat_id, _AUFTRAG_PROSA.format(nummer=naechste))
         return knoepfe.T._TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN
-    phasen.setze(conn, chat_id, 6, "entwurf", notiz="alle Szenen entworfen")
+    verlassene_phase = phasen.aktuelle(conn, chat_id)
+    if phasen.setze(conn, chat_id, 6, "entwurf", notiz="alle Szenen entworfen"):
+        from interview_theater import phasen_summary
+
+        phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, verlassene_phase)
     knoepfe.eintritt_in_phase(conn, tg, klm, e, chat_id, 6)
     return knoepfe.T._TEXT_ALLE_SZENEN_ENTWORFEN
 

@@ -980,13 +980,44 @@ def _baue_board(conn, chat_id: int) -> str:
     return T.BOARD_KOPF + "\n" + "\n".join(zeilen)
 
 
+#: Welche Phase ein mitgehoertes Segment abschliesst -- Diskussion gehoert
+#: zu Phase 1, Brainstorm zu Phase 4 (``repo.mitgehoerte_transkripte``).
+_MITGEHOERT_PHASE = {True: 1, False: 4}
+
+
+def _mitgehoert_segment_zeilen(conn, chat_id: int, diskussion: bool) -> list[str]:
+    """Eine der zwei Gruppen aus ``mitgehoerte_transkripte`` (Diskussion oder
+    Brainstorm) -- der volle Wortlaut, oder, sobald ihre Phase ABGESCHLOSSEN
+    ist und ein Phasen-Summary vorliegt (Karte t_1bc96848, Padua), die eine
+    Zeile mit dem Summary statt des Wortlauts. Ohne gespeichertes Summary
+    (noch nicht erzeugt, Profilschalter aus) bleibt es beim Wortlaut --
+    dieselbe Verteidigungslinie wie ``szene.p5_gespraech_block``."""
+    from interview_theater import phasen, phasen_summary
+
+    marke = T._MITGEHOERT_DISKUSSION if diskussion else T._MITGEHOERT_BRAINSTORM
+    phase = _MITGEHOERT_PHASE[diskussion]
+    if workshop.phasen_summary_aktiv() and phasen.aktuelle(conn, chat_id) > phase:
+        text = phasen_summary.hole_text(conn, chat_id, phase)
+        if text:
+            return [f"{marke} {text}"]
+    return [
+        f"{marke} {row['transkript'].strip()}"
+        for row in repo.mitgehoerte_transkripte(conn, chat_id)
+        if bool(row["diskussion"]) == diskussion
+    ]
+
+
 def _baue_mitgehoert(conn, chat_id: int, voll: bool = False) -> str:
     """Der Wortlaut alles Mitgehoerten (Diskussion Phase 1, Brainstorm
-    Phase 4), chronologisch -- bei Platznot faellt das AELTESTE vorn weg
+    Phase 4) -- bei Platznot faellt das AELTESTE vorn weg
     (``MITGEHOERT_ZEICHEN``). Bis 05.10.2026 stand ein Segment im Verlauf
     nur als "(sprache)" ohne Text (``nachricht.text`` bleibt dort NULL,
     ``unterdrueckt`` betrifft nur die Chatanzeige), und der Bot sagte live,
     er bekomme nur den Marker einer Sprachaufnahme. Datengetrieben.
+
+    Eine abgeschlossene Phase traegt hier seit Karte t_1bc96848 ihr
+    Phasen-Summary statt ihres Wortlauts (``_mitgehoert_segment_zeilen``) --
+    die laufende Phase bleibt unangetastet.
 
     ``voll`` (Testbot-Karte 07.10.2026, ``workshop.vollmaterial_phase5_aktiv``
     + ``ueber_claude``): laesst ``MITGEHOERT_ZEICHEN`` aus -- der Opus-Pfad
@@ -994,10 +1025,10 @@ def _baue_mitgehoert(conn, chat_id: int, voll: bool = False) -> str:
     und die Kuerzungsleiter (``_zu_lang``) greift ohnehin noch, falls der
     restliche Prompt trotzdem nicht passt. Der Kimi-Pfad bekommt ``voll``
     nie uebergeben und bleibt also bei seinem bisherigen Budget."""
-    zeilen = []
-    for row in repo.mitgehoerte_transkripte(conn, chat_id):
-        marke = T._MITGEHOERT_DISKUSSION if row["diskussion"] else T._MITGEHOERT_BRAINSTORM
-        zeilen.append(f"{marke} {row['transkript'].strip()}")
+    zeilen = (
+        _mitgehoert_segment_zeilen(conn, chat_id, diskussion=True)
+        + _mitgehoert_segment_zeilen(conn, chat_id, diskussion=False)
+    )
     grenze = None if voll else mitgehoert_zeichen()
     behalten, laenge = [], 0
     for zeile in reversed(zeilen):

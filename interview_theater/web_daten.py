@@ -1521,11 +1521,29 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Birk 07.10.2026 ~16:30: die vom Formberater zuletzt passend
         # gefundenen Formen (Name in der Gruppensprache), fuer die Workbench.
         "formen_nah": _formen_nah(conn, chat_id),
+        # Die Phasen-Summaries (Karte t_1bc96848, Teil 3) -- reine Anzeige
+        # des bereits gespeicherten Texts fuer die Werkbank, kein neuer
+        # Modellaufruf. Leere Liste heisst: der Abschnitt bleibt weg.
+        "phasen_summaries": _phasen_summaries(conn, chat_id),
         # Die CoThinker-Statuszeile (Phase 4, nur Web, 03.10.2026) -- ``None``
         # ausserhalb Phase 4 und wenn es gerade nichts zu melden gibt, dann
         # bleibt die Zeile im Browser weg.
         "cothinker_status": cothinker_status(conn, chat_id, stand.get("phase")),
     }
+
+
+def _phasen_summaries(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Je Phase das juengste Phasen-Summary, nach Phase aufsteigend -- fuer
+    die Werkbank (Karte t_1bc96848, Teil 3). Wiederverwendet
+    ``repo.phasen_summaries`` statt eigenem SQL (wie ``_formen_nah`` unten
+    mit ``repo.formberater_zeilen``): dieselbe Leseabfrage speist bereits die
+    Prompt-Injektion."""
+    from interview_theater import repo
+
+    return [
+        {"phase": z["phase"], "text": z["text"]}
+        for z in repo.phasen_summaries(conn, chat_id)
+    ]
 
 
 def _formen_nah(conn, chat_id: int) -> str:

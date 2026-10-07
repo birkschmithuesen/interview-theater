@@ -1074,6 +1074,11 @@ _TEXT_WERKBANK_NUR_LESEN = "Hier wird nur angezeigt – Änderungen bitte im Cha
 _UEBERSCHRIFT_RECHERCHE = "Recherche aus dem Internet (kein Interviewmaterial)"
 _TEXT_RECHERCHE_LEER = "Noch keine Recherche."
 _TEXT_RECHERCHE_QUELLEN = "Quellen: {quellen}"
+#: Die Phasen-Summaries in der Werkbank (Karte t_1bc96848, Teil 3) -- reine
+#: Anzeige des je Phase gespeicherten, bereits beschlossenen Stands; fehlt
+#: eine Phase ganz, bleibt ihre Zeile weg (leere Liste -> kein Abschnitt).
+_UEBERSCHRIFT_PHASEN_SUMMARY = "Zusammenfassung je Phase"
+_TEXT_PHASEN_SUMMARY_PHASE = "Phase {nummer}: {bezeichnung}"
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026). Die Tab-Beschriftung
 #: selbst steht seit dem Umzug in Karte Ws Tableiste in
 #: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
@@ -3784,6 +3789,28 @@ def _recherche_html(eintraege: list[dict]) -> str:
     )
 
 
+def _phasen_summary_html(eintraege: list[dict]) -> str:
+    """Der Werkbank-Abschnitt mit den Phasen-Summaries (Karte t_1bc96848,
+    Teil 3) -- "" ohne Eintraege, dann bleibt der ganze Abschnitt weg wie
+    Sprechanteile und Dramaturgie. Reine Anzeige, kein Modellaufruf hier."""
+    if not eintraege:
+        return ""
+    from interview_theater import phasen
+
+    zeilen = "".join(
+        '<div class="eintrag"><p class="phase">{titel}</p><p>{text}</p></div>'.format(
+            titel=_t(T._TEXT_PHASEN_SUMMARY_PHASE.format(
+                nummer=e["phase"], bezeichnung=phasen.bezeichnung(e["phase"]))),
+            text=_t(e["text"]),
+        )
+        for e in eintraege
+    )
+    return (
+        '<details class="wb-phasen-summary"><summary>'
+        f"{_t(T._UEBERSCHRIFT_PHASEN_SUMMARY)}</summary>{zeilen}</details>"
+    )
+
+
 def _wb_status_text(status: str) -> str:
     from interview_theater import roadmap
 
@@ -4029,12 +4056,14 @@ def werkbank_koerper(daten: dict) -> str:
         f"{_t(T._UEBERSCHRIFT_RECHERCHE)}</summary>"
         f"{_recherche_html(werkbank.get('recherche') or [])}</details>"
     )
+    phasen_summary = _phasen_summary_html(daten.get("phasen_summaries") or [])
+    phasen_summary = f"\n{phasen_summary}" if phasen_summary else ""
     return (
         f"<h1>{_t(titel)}</h1>\n"
         '<div id="stand-inhalt" class="werkbank">\n'
         f'<p class="wb-hinweis">{_t(T._TEXT_WERKBANK_HINWEIS)}</p>\n'
         + "\n".join(bloecke)
-        + f"\n{journal}\n{recherche}\n</div>\n"
+        + f"\n{journal}\n{recherche}{phasen_summary}\n</div>\n"
     )
 
 

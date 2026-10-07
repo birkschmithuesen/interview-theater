@@ -318,7 +318,7 @@ def _hintergrund_voll_zeilen(conn, chat_id: int, stand) -> list[str]:
     # ausdruecklicher Vorrang der Workbench.
     from interview_theater import szene as szene_modul
 
-    gespraech = szene_modul._p5_gespraech_text(conn, chat_id, ueber_claude=True)
+    gespraech = szene_modul.p5_gespraech_block(conn, chat_id, ueber_claude=True)
     if gespraech and gespraech.strip():
         zeilen.append(gespraech.strip())
     zeilen.append(T._HINTERGRUND_VORRANG)

@@ -3889,6 +3889,74 @@ def entferne_festlegung_nach_id(
     return zeile["text"]
 
 
+# --- Phasen-Summary (Karte t_1bc96848) --------------------------------------
+#
+# Je Phase ein knappes, automatisiert erzeugtes Summary nur des
+# Beschlossenen -- ersetzt in den Prompts der Folgephasen die Rohdumps aus
+# Chat/Journal/Workbench einer ABGESCHLOSSENEN Phase
+# (interview_theater/phasen_summary.py). Nur-anhaengend wie Journal und
+# Festlegung.
+
+
+@_gesperrt
+def phase_eintritt_zeitpunkt(
+    conn: sqlite3.Connection, chat_id: int, praefix: str
+) -> str | None:
+    """Der Zeitpunkt (ISO) des neuesten Journal-Eintrags 'entschieden',
+    dessen Text mit ``praefix`` beginnt -- Grundlage fuer "seit dem Eintritt
+    in Phase N" (dieselbe Abfrage wie ``szene._p5_gespraech_text``, hier
+    einmal allgemein fuer jede Phase statt nur Phase 5)."""
+    zeile = conn.execute(
+        "SELECT erstellt_am FROM journal WHERE chat_id = ? AND entfernt_am IS NULL "
+        "AND art = 'entschieden' AND text LIKE ? ORDER BY id DESC LIMIT 1",
+        (chat_id, f"{praefix}%"),
+    ).fetchone()
+    return zeile["erstellt_am"] if zeile else None
+
+
+@_gesperrt
+def speichere_phasen_summary(
+    conn: sqlite3.Connection, chat_id: int, phase: int, text: str,
+    quelle: str = "modell",
+) -> int:
+    """Haengt ein Phasen-Summary an. Wird nie aktualisiert -- ein erneuter
+    Lauf (Ruecksprung, Nachtrag) legt eine neue Zeile an; gelesen wird immer
+    die juengste (``hole_phasen_summary``)."""
+    cur = conn.execute(
+        """
+        INSERT INTO phasen_summary (chat_id, phase, text, quelle, erstellt_am)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (chat_id, phase, text, quelle, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def hole_phasen_summary(
+    conn: sqlite3.Connection, chat_id: int, phase: int
+) -> sqlite3.Row | None:
+    """Das juengste Phasen-Summary zu genau dieser Phase, oder ``None``."""
+    return conn.execute(
+        "SELECT * FROM phasen_summary WHERE chat_id = ? AND phase = ? "
+        "ORDER BY id DESC LIMIT 1",
+        (chat_id, phase),
+    ).fetchone()
+
+
+@_gesperrt
+def phasen_summaries(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Je Phase das juengste Summary, nach Phase aufsteigend -- die
+    Injektionsgrundlage (``phasen_summary.bloecke_bis``)."""
+    neueste: dict[int, sqlite3.Row] = {}
+    for zeile in conn.execute(
+        "SELECT * FROM phasen_summary WHERE chat_id = ? ORDER BY id ASC", (chat_id,),
+    ):
+        neueste[zeile["phase"]] = zeile
+    return [neueste[phase] for phase in sorted(neueste)]
+
+
 @_gesperrt
 def merke_aufruf(
     conn: sqlite3.Connection,

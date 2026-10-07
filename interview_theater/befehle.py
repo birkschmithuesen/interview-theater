@@ -907,7 +907,11 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
     # Eintritt (Onboarding + Zuordnung), auch wenn die Gruppe schon einmal in
     # Phase 5 war -- sonst sieht es aus, als sei die Phase nur freigeschaltet.
     wiederherstellung = (not voller_eintritt) and _schon_in_phase_gewesen(conn, chat_id, nummer)
-    phasen.setze(conn, chat_id, nummer, quelle)
+    verlassene_phase = phasen.aktuelle(conn, chat_id)
+    if phasen.setze(conn, chat_id, nummer, quelle):
+        from interview_theater import phasen_summary
+
+        phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, verlassene_phase)
     tg.sende(chat_id, phasen.meldung(nummer))
     if wiederherstellung:
         return

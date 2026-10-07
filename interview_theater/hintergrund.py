@@ -24,12 +24,13 @@ def _feld(stand, name: str) -> str:
 
 
 def gespraech_block(conn, chat_id: int) -> str:
-    """Der Gespraechsanteil des Hintergrunds -- heute der Wortlaut aus Phase 5
-    (``szene._p5_gespraech_text``). Andockstelle der Phasen-Summary: liefert
-    sie etwas, ersetzt sie diesen Block."""
+    """Der Gespraechsanteil des Hintergrunds -- der Phase-5-Wortlaut
+    (``szene._p5_gespraech_text``), oder -- sobald Phase 5 abgeschlossen ist
+    und ein Phasen-Summary vorliegt (Karte t_1bc96848, Padua) -- das
+    Summary an seiner Stelle (``szene.p5_gespraech_block``)."""
     from interview_theater import szene
 
-    return szene._p5_gespraech_text(conn, chat_id, ueber_claude=True) or ""
+    return szene.p5_gespraech_block(conn, chat_id, ueber_claude=True) or ""
 
 
 def hintergrund_fuer_prompt(conn, chat_id: int) -> str:

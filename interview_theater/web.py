@@ -5194,7 +5194,10 @@ def textbuch_koerper(
                f'target="_blank" rel="noopener">{_t(T._TEXT_PDF)}</a>' if _pdf_aktiv() else "")
             + "</p>"
         )
-    leisten = _rollenleiste_html(sprecher, daten["figuren"]) + (
+    # Padua (Birk 07.10.2026 ~23:55): Schriftgroesse und "Hide stage
+    # directions" kosten am Handy nur Platz -- unter skript.verdichtet weg.
+    # Ohne Schalter (Dortmund) byte-gleich.
+    leisten = _rollenleiste_html(sprecher, daten["figuren"]) + ("" if _leseleiste_aus() else
         f'<div class="leiste"><span class="marke">{_t(T._TEXT_SCHRIFT)}</span>'
         '<button type="button" class="schrift" data-schrift="klein" '
         f'aria-pressed="false">{_t(T._TEXT_SCHRIFT_KLEIN)}</button>'
@@ -6079,3 +6082,10 @@ if __name__ == "__main__":
     # Damit ``sprache.text`` das Modul unter seinem Paketnamen findet.
     sys.modules.setdefault("interview_theater.web", sys.modules[__name__])
     main()
+
+
+def _leseleiste_aus() -> bool:
+    """Padua (Birk 07.10.2026): keine Schriftgroessen-/Regie-Knoepfe im Script-Tab."""
+    from interview_theater import workshop
+
+    return workshop.skript_verdichtet_aktiv()

@@ -868,7 +868,7 @@ def _schon_in_phase_gewesen(conn, chat_id: int, nummer: int) -> bool:
 
 
 def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
-                  quelle: str = "befehl") -> None:
+                  quelle: str = "befehl", voller_eintritt: bool = False) -> None:
     """Die Phase umschalten -- der EINE Weg fuer Befehl und Klick
     (30.09.2026, Karte W).
 
@@ -903,7 +903,10 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
     if p5_gate(conn, tg, chat_id, nummer):
         return
     schliesse_offenes_interview_vor_phasenwechsel(conn, tg, klm, e, chat_id, nummer)
-    wiederherstellung = _schon_in_phase_gewesen(conn, chat_id, nummer)
+    # Birk 07.10.2026: "All correct - start Prose Draft" ist IMMER ein echter
+    # Eintritt (Onboarding + Zuordnung), auch wenn die Gruppe schon einmal in
+    # Phase 5 war -- sonst sieht es aus, als sei die Phase nur freigeschaltet.
+    wiederherstellung = (not voller_eintritt) and _schon_in_phase_gewesen(conn, chat_id, nummer)
     phasen.setze(conn, chat_id, nummer, quelle)
     tg.sende(chat_id, phasen.meldung(nummer))
     if wiederherstellung:

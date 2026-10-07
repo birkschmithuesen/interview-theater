@@ -164,6 +164,9 @@ def test_done_in_der_sortierliste_stoesst_die_kurzform_an(conn, einst, padua, mo
         def sende(self, *a, **k):
             return 1
 
+        def sende_mit_knoepfen(self, *a, **k):
+            return 1
+
     knoepfe_szenen.schliesse_schaerfungsliste(conn, TG(), None, einst, 1)
     assert gesehen == [1]
     assert len(szenenkern.uebernommene(conn, 1, szene_id)) == 2

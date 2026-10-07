@@ -14,7 +14,7 @@ hat).
 - "zitate": die Nummern von hoechstens 5 Interviewstellen aus der Liste, die
   diese Szene tragen. Nur Nummern aus der Liste -- der Wortlaut bleibt im
   Original.
-- "fragen": 0 bis 3 offene Fragen, die die Gruppe noch entscheiden muss.
+- "questions": 0 bis 3 offene Fragen, die die Gruppe noch entscheiden muss.
 
 Halte dich an das, was die Gruppe beschrieben, festgelegt und im Gespraech
 gesagt hat; Verworfenes kommt nicht vor. Steht eine Aenderungsnotiz da, gilt

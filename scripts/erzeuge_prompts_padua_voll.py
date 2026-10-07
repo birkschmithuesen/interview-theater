@@ -462,9 +462,15 @@ def _szene_prosa_phase6(conn, e, tg, klm, chats):
     fixiere_uebersicht``/``bestaetige_szene`` ihn ausloesen -- die Phase (6)
     entscheidet in ``szene.schreibe`` allein, ob Prosa oder Buehnentext
     entsteht (``schreibt_prosa``), der Auftragstext ist zeichengleich."""
-    from interview_theater import entwurf, szene
-    _joine(szene.starte(conn, tg, klm, e, chats[6],
-                        entwurf._AUFTRAG_PROSA.format(nummer=1)))
+    from unittest import mock
+
+    from interview_theater import entwurf, szene, workshop
+    # Seit dem Padua-Phasenumbau ([karten] aktiv, 07.10.2026 ~18:12) baut
+    # Phase 6 Karten (47) statt Prosa -- dieser Dump haelt den Prosaweg fest,
+    # der ohne den Schalter gilt.
+    with mock.patch.object(workshop, "szenenkarten_aktiv", lambda *a, **k: False):
+        _joine(szene.starte(conn, tg, klm, e, chats[6],
+                            entwurf._AUFTRAG_PROSA.format(nummer=1)))
     return None
 
 

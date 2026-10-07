@@ -47,7 +47,7 @@ class LLM:
         if art == szenenkarte.ART:
             return {"typ": "spoken", "worum": "The voices are shared.", "ort": "semicircle",
                     "wer": "Emma, Giada", "punkte": ["Emma opens", "Giada answers"],
-                    "zitate": [2, 99, 1], "fragen": ["Who sings?"]}
+                    "zitate": [2, 99, 1], "questions": ["Who sings?"]}
         return {"kern": ["a"], "zitate": []}
 
 

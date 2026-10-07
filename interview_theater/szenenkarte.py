@@ -64,10 +64,10 @@ SCHEMA = {
         "zitate": {"type": "array", "items": {"type": "integer"},
                    "description": "Numbers of at most 5 interview passages from the "
                                   "list that this scene uses, strongest first."},
-        "fragen": {"type": "array", "items": {"type": "string"},
+        "questions": {"type": "array", "items": {"type": "string"},
                    "description": "0 to 3 open questions the group still has to decide."},
     },
-    "required": ["typ", "worum", "ort", "wer", "punkte", "zitate", "fragen"],
+    "required": ["typ", "worum", "ort", "wer", "punkte", "zitate", "questions"],
     "additionalProperties": False,
 }
 
@@ -224,7 +224,7 @@ def erzeuge(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -
                 {"zitat": kandidaten[n - 1][0], "interview": kandidaten[n - 1][1]}
                 for n in gewaehlt[:ZITATE_MAX]
             ],
-            "fragen": [_kappe(f) for f in (ergebnis.get("fragen") or [])
+            "fragen": [_kappe(f) for f in (ergebnis.get("questions") or [])
                        if str(f).strip()][:FRAGEN_MAX],
         }
     except Exception:

@@ -14,7 +14,7 @@ conflict or characters the group does not have).
 - "zitate": the numbers of at most 5 interview passages from the list that
   carry this scene. Only numbers from the list -- the wording stays in the
   original language.
-- "fragen": 0 to 3 open questions the group still has to decide.
+- "questions": 0 to 3 open questions the group still has to decide.
 
 Stick to what the group described, agreed and said in the conversation;
 discarded ideas do not appear. If there is a change note, it comes before

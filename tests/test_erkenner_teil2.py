@@ -321,6 +321,11 @@ def test_sprechweise_setzen_unbekannte_figur_schreibt_nichts(conn, padua):
 
 def test_fassung_abnehmen_fixiert_das_ganze_in_phase_6(
         conn, einst, padua, tg, monkeypatch):
+    # Prosaweg (P6 Rewrite) -- seit dem Phasenumbau das Verhalten ohne
+    # [karten] aktiv (Kartenweg: tests/test_szenenkarte.py).
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "szenenkarten_aktiv", lambda *a, **k: False)
     _stueck(conn, 6, gesamt_fix=False)
     monkeypatch.setattr(ueberarbeitung, "weiter_6", lambda *a, **k: None)
     _nachricht(conn, 1, 1, "yes, save it")

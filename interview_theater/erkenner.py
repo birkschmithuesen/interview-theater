@@ -3555,6 +3555,13 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         _starte_teil2(klm, tg, conn, e, chat_id, freigegeben, wirkliche,
                       notiz_verbraucht=notiz_verbraucht,
                       besetzt_gemeldet=bool(besetzt_gemeldet))
+        # Padua (Birk 07.10.2026 ~17:45): eine Szene im Chat geaendert ->
+        # ihre Kurzform neu, im Thread (szenenkern, Fingerabdruck verhindert
+        # Doppellaeufe). Ohne Schalter tut ``starte`` nichts.
+        if any(a.get("art") == "szene_planen" for a in wirkliche):
+            from interview_theater import szenenkern
+
+            szenenkern.starte(conn, klm, e, chat_id)
         # Hat die Gruppe im selben Zug die Phase gewechselt, kommt direkt
         # hinter der Meldung der Phasenrahmen (06.09.2026): derselbe Eintritt
         # wie ueber den Knopf und ueber ``/phase``.

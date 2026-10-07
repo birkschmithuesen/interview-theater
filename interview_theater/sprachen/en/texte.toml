@@ -1424,6 +1424,13 @@ _AUFTRAG = "Your task:\nWrite the story in one go."
 _ZEILE_ABSCHNITTE = "\nWrite exactly {anzahl} sections -- one per planned scene, in their order."
 _ZEILE_REGIE = "\nThe group says about it: {regie}"
 
+["szenenkern"]
+_KOPF_SETTING = "Setting:"
+_KOPF_FORMAT = "Format:"
+_KOPF_SZENE = "Scene {nummer}: {titel}"
+_KOPF_BESCHREIBUNG = "What the group described:"
+_KOPF_LISTE = "Quotes to choose from (by number):"
+
 ["schaerfung"]
 MELDUNG = "I've assigned {anzahl} passages from your interviews to your scenes and characters. I'll go through them with you."
 MELDUNG_COTHINKER = "I've matched {anzahl} passages from your interviews to your scenes and characters. Sort them in the CoThinker tab: Yes / No, then Done."

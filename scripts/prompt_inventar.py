@@ -236,6 +236,11 @@ INVENTAR = (
     # danach und nicht weiter vorn in diesem Abschnitt.
     Eintrag("45-skript-spiegel", "skript_spiegel", 6,
             "interview_theater.skript_uebersetzung", "ART"),
+    # --- Kurzform je Szene (Birk 07.10.2026 ~17:45, Padua-Profilschalter
+    # [skript] verdichtet): nach "Done" in der Sortierliste (Phase 5) und
+    # nach einer Szenenaenderung im Chat.
+    Eintrag("46-szenenkern", "szenenkern", 5,
+            "interview_theater.szenenkern", "ART"),
     # --- Phase 7: Formen, Sprechweise, Stueckpruefung, Richterfragen (a10/c1).
     # Dieselbe Reihenfolge-Regel wie Phase 6 oben: a10/c1/Stueckpruefung lesen
     # die Szenen, 28-32 und der Nachpass (44) schreiben wirklich und stehen

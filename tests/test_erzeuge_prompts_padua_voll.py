@@ -187,7 +187,7 @@ def test_begriffsboard_dump_nennt_keine_blosse_erwaehnung(tmp_path):
 TEIL_P5_P7 = (
     "08-gespraech-phase5", "21-schaerfung", "22-entwurf-uebersicht",
     "23-sprachprofil", "24-kernzitate", "04-szene-prosa-phase6",
-    "45-skript-spiegel",
+    "45-skript-spiegel", "46-szenenkern",
     "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
     "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
     "38-dramaturgie-a9", "39-dramaturgie-a10", "40-dramaturgie-a11",

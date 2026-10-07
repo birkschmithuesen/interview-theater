@@ -293,6 +293,12 @@ aktiv = true
 # deswegen fehl. Ohne diese Zeile (Dortmund, Vorgabeprofil): unveraendert.
 [skript]
 zweisprachig = true
+# Reduktion auf das Wesentliche (Birk 07.10.2026 ~17:45): Kurzform je Szene
+# (szene.kern/kernsaetze_kurz, szenenkern.py), keine Begruendungskette mehr in
+# "What happens"/"Key lines", Script = nur der Text, Workbench = Material,
+# schlanker Prosa-Prompt (Format drin, Chat-Dublette raus), Verworfenes im
+# Matcher. Ohne diese Zeile: unveraendert.
+verdichtet = true
 
 [formberater]
 # Musikalische Strukturen (Wiki musikalische-strukturen) nur fuer diese Gruppen

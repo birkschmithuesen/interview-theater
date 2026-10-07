@@ -706,6 +706,16 @@ CREATE TABLE IF NOT EXISTS szene (
   -- Prompt und jede Pruefung weiterlaeuft -- diese Spalte ist reine
   -- Anzeige/Export. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
   prosa_it          TEXT,
+  -- Die Kurzform einer Szene (Birk, Live-Workshop 07.10.2026 ~17:45,
+  -- Padua-Profilschalter ``[skript] verdichtet``, ``szenenkern.py``): 3-6
+  -- Punkte "worum es in der Szene geht", je Zeile einer; die 5 staerksten
+  -- uebernommenen Zitate (Wortlaut aus der DB, je Zeile ``"..." (Interview
+  -- N)``); der Fingerabdruck der Eingabe, aus der beides entstand (gleiche
+  -- Eingabe = kein zweiter Modellaufruf). Anzeige und Prompt-Kurzform; die
+  -- Felder der Gruppe bleiben unberuehrt. Additiv nachgeruestet.
+  kern              TEXT,
+  kernsaetze_kurz   TEXT,
+  kern_quelle       TEXT,
   -- Gesetzt = die Gruppe hat den Text mit "Passt" abgenommen (Phase 6,
   -- knoepfe.ART_SZENE_PASST). Ein Volltext allein heisst nur "geschrieben":
   -- unter jedem frischen Szenentext haengen vier Knoepfe, und erst einer

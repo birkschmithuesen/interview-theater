@@ -980,7 +980,18 @@ def figurvorschlag(conn, chat_id: int, figur) -> str | None:
 
 def _ergaenze_szene(conn, szene, eintraege) -> None:
     """Die Schreibwirkung einer Szenen-Schaerfung -- geteilt von
-    ``uebernimm_szene`` (alle offenen) und ``uebernimm_stelle`` (eine)."""
+    ``uebernimm_szene`` (alle offenen) und ``uebernimm_stelle`` (eine).
+
+    Unter ``workshop.skript_verdichtet_aktiv`` (Padua, Birk 07.10.2026
+    ~17:45) keine: ``was_passiert`` bleibt die Beschreibung der Gruppe, die
+    Begruendung bleibt an der ``schaerfung``-Zeile, das Zitat geht ueber das
+    Kernpaket woertlich in den Prompt -- die Kurzform je Szene macht
+    ``szenenkern.verdichte`` (G1 Szene 2 war so auf 3.849/7.332 Zeichen
+    angewachsen)."""
+    from interview_theater import workshop
+
+    if workshop.skript_verdichtet_aktiv():
+        return
     frisch = repo.hole_szene(conn, szene["id"])
     ergaenzung = "; ".join(
         (z["begruendung"] or z["thema"] or "").strip() for z in eintraege

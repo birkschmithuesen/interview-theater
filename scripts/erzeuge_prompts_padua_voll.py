@@ -114,7 +114,7 @@ SCOPE_P3_P4 = (
 #: etwas gespeichert ist), ist also unabhaengig von der Stelle.
 SCOPE_P5_P7 = (
     "08-gespraech-phase5", "21-schaerfung", "22-entwurf-uebersicht",
-    "23-sprachprofil", "24-kernzitate",
+    "23-sprachprofil", "24-kernzitate", "46-szenenkern",
     "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
     "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
     "38-dramaturgie-a9", "40-dramaturgie-a11", "43-prueflauf-ueberarbeitung",
@@ -435,6 +435,14 @@ def _kernzitate(conn, e, tg, klm, chats):
     return None
 
 
+def _szenenkern(conn, e, tg, klm, chats):
+    """``46-szenenkern``: die Kurzform je Szene, wie "Done" in der
+    Sortierliste sie ausloest (``szenenkern.starte``)."""
+    from interview_theater import szenenkern
+    _joine(szenenkern.starte(conn, klm, e, chats[5]))
+    return None
+
+
 def _szene_prosa_phase6(conn, e, tg, klm, chats):
     """``04-szene-prosa-phase6``: derselbe Aufruf wie ``entwurf.
     fixiere_uebersicht``/``bestaetige_szene`` ihn ausloesen -- die Phase (6)
@@ -635,6 +643,7 @@ TREIBER = {
     "22-entwurf-uebersicht": _entwurf_uebersicht,
     "23-sprachprofil": _sprachprofil,
     "24-kernzitate": _kernzitate,
+    "46-szenenkern": _szenenkern,
     "04-szene-prosa-phase6": _szene_prosa_phase6,
     # Derselbe Treiber wie 04: der EN/IT-Spiegelpass (Birk, Live-Workshop
     # 07.10.2026 ~17:20) haengt sich in szene.schreibe an denselben Lauf an

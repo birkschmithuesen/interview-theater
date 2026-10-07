@@ -3093,6 +3093,22 @@ def setze_szene_uebersetzung(
     conn.commit()
 
 
+@_gesperrt
+def setze_szenenkern(
+    conn: sqlite3.Connection, szene_id: int, kern: str, kernsaetze_kurz: str,
+    kern_quelle: str,
+) -> None:
+    """Speichert die Kurzform einer Szene (``szenenkern.verdichte``, Padua-
+    Profilschalter ``[skript] verdichtet``). Kein ``geaendert_am``: die
+    Kurzform ist abgeleitet, keine Bearbeitung durch die Gruppe -- sonst
+    verschoebe sie das Chatfenster des Szenenlaufs (``_chat_nachrichten``)."""
+    conn.execute(
+        "UPDATE szene SET kern = ?, kernsaetze_kurz = ?, kern_quelle = ? WHERE id = ?",
+        (kern, kernsaetze_kurz, kern_quelle, szene_id),
+    )
+    conn.commit()
+
+
 #: Die Szenenfelder, die einzeln gesetzt werden duerfen (Erkenner-art
 #: ``szene_planen``, Befehl ``/szene <n> <feld> <wert>``). ``figuren`` steht
 #: hier NICHT: die Besetzung ist eine Verknuepfung, keine Spalte

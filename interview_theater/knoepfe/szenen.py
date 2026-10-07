@@ -526,6 +526,11 @@ def schliesse_schaerfungsliste(conn, tg, klm, e, chat_id: int) -> str:
     anzahl = schaerfung_modul.uebernimm_stellen(conn, chat_id, ja_ids) if ja_ids else 0
     if nein_ids:
         schaerfung_modul.verwirf_stellen(conn, nein_ids)
+    # Padua (Birk 07.10.2026 ~17:45): nach "Done" die Kurzform je Szene neu
+    # -- im Thread, nur wo sich die Eingabe geaendert hat (szenenkern).
+    from interview_theater import szenenkern
+
+    szenenkern.starte(conn, klm, e, chat_id)
     if not workshop.prosa_entwurf_aktiv():
         _sende_schaerfung_durch(conn, tg, chat_id)
         return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)

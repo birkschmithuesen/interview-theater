@@ -1053,6 +1053,18 @@ def skript_zweisprachig_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("skript.zweisprachig", False))
 
 
+def skript_verdichtet_aktiv(profil: Profil | None = None) -> bool:
+    """Reduktion auf das Wesentliche (Birk, Live-Workshop 07.10.2026
+    ~17:45): Kurzform je Szene (``szenenkern.py``), keine Begruendungskette
+    mehr in ``was_passiert``/``kernsaetze``, Script-Tab nur der Text,
+    Workbench das Material, schlanker Prosa-Prompt, Verworfenes im
+    Matcher (``docs/superpowers/specs/2026-10-07-script-vs-workbench.md``).
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("skript.verdichtet", False))
+
+
 def workbench_bearbeitbar(profil: Profil | None = None) -> bool:
     """Ob der Arbeitsstand-Tab ("Workbench") Formulare traegt und der
     Werkbank-POST schreibt (Padua, 03.10.2026, Karte t_49e7354c).

@@ -532,6 +532,16 @@ def schema(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
             log.info("Claude-Schema: JSON erst nach %s Zeichen Vortext gefunden (art=%s)",
                      text.find("{"), art)
             return ergebnis
+        # Live-Fund 07.10.2026 15:39 (G1, Phase 5): Opus antwortete auf eine
+        # lange Materialbitte direkt mit 5.587 Zeichen Markdown OHNE JSON-
+        # Huelle -> "unverwertbar" -> Kimi-Rueckfall (schlechter, langsamer).
+        # Verlangt das Schema nur ``antwort``, IST der Klartext die Antwort.
+        pflicht = set((schema_ or {}).get("required") or [])
+        roh = (text or "").strip()
+        if pflicht == {"antwort"} and roh and not roh.startswith("{"):
+            log.info("Claude-Schema: Klartext ohne JSON als 'antwort' uebernommen "
+                     "(art=%s, %s Zeichen)", art, len(roh))
+            return {"antwort": roh}
         log.warning("Claude-Schema unlesbar (art=%s, %s Zeichen), Anfang: %r",
                     art, len(text or ""), (text or "")[:300])
         raise

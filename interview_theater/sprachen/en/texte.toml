@@ -2204,6 +2204,7 @@ _TEXT_NOTIZ_WARTET = "A revision is still running — I'll make this change righ
 _TEXT_6_SCHON_FERTIG = "All scenes of the Rewrite are saved. Tell me what to change, or move on to the Stage Version."
 _TEXT_KEIN_ZIEL = "I couldn't tell which text to change — tap \"No, change it again\" under the text you mean."
 _ANTWORT_SCHON_GESPEICHERT = "Already saved"
+_TEXT_NEUE_FASSUNG_BEREIT = "While you were reading, a new version became ready — check it out, then tap \"Yes, save\" again."
 # Padua Phasen TEIL 2, Task 9: phase 7 (Stage Version) -- forms by chat,
 # voices, scene by scene, play check at the end.
 _TEXT_FORMWAHL_KOPF = "Here are your scenes:"

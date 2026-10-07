@@ -1143,6 +1143,13 @@ def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int
     if phasen.aktuelle(conn, chat_id) == 5:
         leiste = _leiste_nach_szenentext(conn, chat_id, nummer)
     else:
+        # Fingerabdruck dieser Anzeige merken (Birk-Entscheidung 07.10.2026):
+        # ``ueberarbeitung.bestaetige_szene_6`` bestaetigt nur GENAU diesen
+        # Stand, nicht stillschweigend eine inzwischen neu geschriebene
+        # Fassung.
+        from interview_theater import ueberarbeitung
+
+        ueberarbeitung.merke_angezeigten_stand(conn, chat_id, nummer)
         leiste = [
             _knopf(conn, chat_id, T.TEXT_WEITER_KNOPF, ART_SZENE_PASST, str(nummer)),
             _knopf(conn, chat_id, T.TEXT_ANDERS_KNOPF, ART_SZENE_ANDERS, str(nummer)),
@@ -1205,6 +1212,11 @@ def zeige_geprueft_geschichte(conn, tg, e, chat_id: int, bericht) -> int:
     teile.append(skript_verweis(conn, e, chat_id))
     text = "\n\n".join(teile)
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_GESCHICHTE_PASST)
+    # Fingerabdruck dieser Anzeige merken (Birk-Entscheidung 07.10.2026):
+    # ``ueberarbeitung.bestaetige_gesamt`` bestaetigt nur GENAU diesen Stand.
+    from interview_theater import ueberarbeitung
+
+    ueberarbeitung.merke_angezeigten_stand(conn, chat_id, None)
     leiste = [
         _knopf(conn, chat_id, T.TEXT_WEITER_KNOPF, ART_GESCHICHTE_PASST, None),
         _knopf(conn, chat_id, T.TEXT_ANDERS_KNOPF, ART_GESCHICHTE_ANDERS, None),

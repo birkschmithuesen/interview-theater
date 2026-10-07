@@ -465,4 +465,57 @@ def test_veraltetes_gesamt_ja_nach_dem_fixieren_wirkt_nicht(
     assert tg.gesendet == []
     assert tg.beantwortet[-1][1] == ueberarbeitung.T._ANTWORT_SCHON_GESPEICHERT
     assert repo.hole_arbeitsstand(conn, 1)["gesamttext_fixiert_am"] == fixiert
+
+
+def test_gesamt_ja_nach_fertigem_rewrite_ohne_neue_anzeige_speichert_nichts(
+        conn, padua, tg, einst):
+    """Befund simulation/berichte/p57-2026-10-07.md (Lauf 6):
+    ``gesamttext_fixiert_am`` blieb NULL. ``laeuft()`` faengt nur "ein
+    Rewrite haelt GERADE JETZT" -- ist er zwischen Anzeige und Klick schon
+    fertig geworden (ein Chat-"Yes, save" rennt gegen das Lauf-Ende), ist
+    ``laeuft()`` beim Klick schon wieder False. Ohne den Fingerabdruck-Check
+    (``_stand_hat_sich_geaendert``) naehme ``bestaetige_gesamt`` dann
+    stillschweigend die NIE gezeigte neue Fassung ab."""
+    _stueck(conn)
+    klm = Schreiber()
+    _eintritt(conn, tg, klm, einst)
+    gesendet_vorher = len(tg.gesendet)
+    # Ein Rewrite hat die Szene inzwischen fertig neu geschrieben -- OHNE
+    # dass seine eigene Anzeige (``zeige_geprueft_geschichte``) schon lief;
+    # genau das Fenster zwischen Schreiben und Anzeige.
+    ziel = next(s for s in repo.hole_szenen(conn, 1) if s["nummer"] == 1)
+    repo.aktualisiere_szene(
+        conn, ziel["id"], ziel["titel"], ziel["kurzbeschreibung"], None,
+        zusammenfassung=ziel["zusammenfassung"],
+        prosa="Eine ganz neue Fassung von Szene 1.",
+    )
+
+    antwort = ueberarbeitung.bestaetige_gesamt(conn, tg, klm, einst, 1)
+
+    assert antwort == ueberarbeitung.T._TEXT_NEUE_FASSUNG_BEREIT
+    assert [t for _, t in tg.gesendet][gesendet_vorher:] == [antwort]
+    assert not (repo.hole_arbeitsstand(conn, 1)["gesamttext_fixiert_am"] or "").strip()
+
+
+def test_szene_ja_nach_fertigem_rewrite_ohne_neue_anzeige_speichert_nichts(
+        conn, padua, tg, einst):
+    """Dieselbe Wache wie oben, fuer die Szenenabnahme (``_szene_6``)."""
+    _stueck(conn)
+    repo.setze_arbeitsstand(conn, 1, "gesamttext_fixiert_am", repo._jetzt())
+    klm = Schreiber()
+    # Die Anzeige, die ``bestaetige_szene_6`` normalerweise voranginge
+    # (``zeige_geprueft_szene``), merkt den Fingerabdruck VOR dem Rewrite.
+    ziel = next(s for s in repo.hole_szenen(conn, 1) if s["nummer"] == 1)
+    knoepfe.zeige_geprueft_szene(conn, tg, einst, 1, 1, None)
+    repo.aktualisiere_szene(
+        conn, ziel["id"], ziel["titel"], ziel["kurzbeschreibung"], None,
+        zusammenfassung=ziel["zusammenfassung"],
+        prosa="Eine ganz neue Fassung von Szene 1.",
+    )
+
+    antwort = ueberarbeitung.bestaetige_szene_6(conn, tg, klm, einst, 1, 1)
+
+    assert antwort == ueberarbeitung.T._TEXT_NEUE_FASSUNG_BEREIT
+    assert all(not (s["ueberarbeitung_bestaetigt_am"] or "").strip()
+               for s in repo.hole_szenen(conn, 1))
     assert _laeufe(conn) == []

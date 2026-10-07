@@ -85,6 +85,17 @@ _TEXT_KEIN_ZIEL = (
 )
 #: Toast fuer ein veraltetes "Yes, save" auf dem schon fixierten Ganzen.
 _ANTWORT_SCHON_GESPEICHERT = "Schon gespeichert"
+#: "Yes, save" (Knopf oder Chat), aber der Stand hat sich seit der Anzeige
+#: geaendert -- ein Rewrite ist dazwischen fertig geworden (Birk-Entscheidung
+#: 07.10.2026, simulation/berichte/p57-2026-10-07.md: `gesamttext_fixiert_am`
+#: blieb NULL, weil die Gruppe nie wieder zum laengst veralteten Hinweis
+#: zurueckfand). Die Bestaetigung gilt nur dem Text, den die Gruppe beim
+#: Druck gesehen hat -- nie stillschweigend der neuen Fassung. Nichts wird
+#: gespeichert.
+_TEXT_NEUE_FASSUNG_BEREIT = (
+    "Waehrend ihr das gelesen habt, ist eine neue Fassung fertig geworden -- "
+    "schaut sie euch an und tippt dann noch einmal \"Yes, save\"."
+)
 #: "Yes, save" fuer eine Szene, die gerade nicht dran ist -- ein veralteter
 #: Knopf (Abschlussreview, Fix 1). Nichts wird gespeichert.
 _TEXT_NICHT_DRAN = (
@@ -210,6 +221,61 @@ def laeuft(chat_id: int) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Der angezeigte Stand (Birk-Entscheidung 07.10.2026, siehe
+# _TEXT_NEUE_FASSUNG_BEREIT oben): ``laeuft()`` faengt nur den Fall "ein
+# Rewrite haelt genau jetzt". Ist er zwischen Anzeige und Klick schon FERTIG
+# geworden (Chat-"Yes, save" rennt gegen das Ende eines Laufs), waere
+# ``laeuft()`` beim Klick schon wieder False -- und die Bestaetigung naehme
+# stillschweigend die neue, nie gezeigte Fassung ab. Deshalb merkt jede
+# Anzeige (``knoepfe.zeige_geprueft_geschichte``/``zeige_geprueft_szene``)
+# einen Fingerabdruck (``szene.geaendert_am``, von ``aktualisiere_szene`` bei
+# jeder neuen Fassung neu gesetzt), und jede Bestaetigung vergleicht ihn
+# gegen den aktuellen Stand. In-memory wie ``_gemerkt``: ein Prozessneustart
+# verliert nur die Momentaufnahme (dann wird nicht blockiert, siehe
+# ``_stand_hat_sich_geaendert``), nie Inhalt.
+# ---------------------------------------------------------------------------
+
+#: Fingerabdruck des zuletzt angezeigten Stands je (chat_id, Ziel) -- Ziel wie
+#: bei ``_gemerkt``: die Szenennummer, oder ``None`` fuer die ganze Geschichte.
+_angezeigter_stand: dict[int, dict[int | None, str]] = {}
+
+
+def _stempel_gesamt(conn, chat_id: int) -> str:
+    return "|".join(f"{s['nummer']}:{s['geaendert_am'] or ''}"
+                    for s in _szenen(conn, chat_id))
+
+
+def _stempel_szene(conn, chat_id: int, nummer: int) -> str:
+    zeile = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
+    return (zeile["geaendert_am"] or "") if zeile is not None else ""
+
+
+def _stempel(conn, chat_id: int, nummer: int | None) -> str:
+    return (_stempel_gesamt(conn, chat_id) if nummer is None
+            else _stempel_szene(conn, chat_id, nummer))
+
+
+def merke_angezeigten_stand(conn, chat_id: int, nummer: int | None) -> None:
+    """Merkt den Stand, der GERADE gezeigt wird -- nur eine Bestaetigung auf
+    GENAU diesem Stand (oder ein neuerer, erneut gemerkter) wirkt."""
+    stempel = _stempel(conn, chat_id, nummer)
+    with _schutz:
+        _angezeigter_stand.setdefault(chat_id, {})[nummer] = stempel
+
+
+def _stand_hat_sich_geaendert(conn, chat_id: int, nummer: int | None) -> bool:
+    """True: der Stand hat sich seit der letzten Anzeige dieses Ziels
+    geaendert -- eine Bestaetigung darauf waere stillschweigend eine andere
+    Fassung. Nichts gemerkt (z. B. nach einem Prozessneustart): nicht
+    blockieren -- dieselbe Fail-open-Haltung wie ``vorgemerkte_notizen``."""
+    with _schutz:
+        alter_stempel = _angezeigter_stand.get(chat_id, {}).get(nummer)
+    if alter_stempel is None:
+        return False
+    return _stempel(conn, chat_id, nummer) != alter_stempel
+
+
+# ---------------------------------------------------------------------------
 # Der Merkplatz einer Revisionsnotiz waehrend eines laufenden Laufs (B3,
 # 07.10.2026). Dasselbe Prinzip wie ``vorschlagssperre`` (Merkplatz statt
 # Verwerfen, hoechstens eine Notiz je Ziel, newest wins), aber ein eigenes
@@ -286,9 +352,12 @@ def nach_lauf_frei(conn, tg, klm, e, chat_id: int) -> None:
 
 
 def vergiss(chat_id: int) -> None:
-    """Raeumt den Merkplatz dieser Gruppe ab -- fuer Tests."""
+    """Raeumt den Merkplatz UND den angezeigten Stand dieser Gruppe ab --
+    fuer Tests (beides Prozessspeicher je ``chat_id``, siehe
+    ``_angezeigter_stand``)."""
     with _schutz:
         _gemerkt.pop(chat_id, None)
+        _angezeigter_stand.pop(chat_id, None)
 
 
 def weiter_6(conn, tg, klm, e, chat_id: int, *,
@@ -378,10 +447,16 @@ def bestaetige_gesamt(conn, tg, klm, e, chat_id: int) -> str:
     """"Yes, save" auf dem Ganzen: fixieren, ansagen, erste Szene pruefen.
 
     Laeuft noch ein Lauf (z. B. die Ueberarbeitung des Ganzen), wird NICHTS
-    gespeichert -- sonst naehme ein veralteter Knopf eine alte Fassung ab."""
+    gespeichert -- sonst naehme ein veralteter Knopf eine alte Fassung ab.
+    Ist der Lauf schon FERTIG, aber die Fassung hat sich seit der letzten
+    Anzeige geaendert (``_stand_hat_sich_geaendert``), ebenfalls nicht --
+    die Bestaetigung gilt nur dem gezeigten Stand."""
     if laeuft(chat_id):
         _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
         return T._TEXT_LAEUFT_NOCH
+    if _stand_hat_sich_geaendert(conn, chat_id, None):
+        _sende(conn, tg, e, chat_id, T._TEXT_NEUE_FASSUNG_BEREIT)
+        return T._TEXT_NEUE_FASSUNG_BEREIT
     repo.setze_arbeitsstand(conn, chat_id, "gesamttext_fixiert_am", repo._jetzt())
     text = T._TEXT_GESAMT_GESPEICHERT.format(
         gesamt=len(szenennummern(conn, chat_id)))
@@ -391,7 +466,11 @@ def bestaetige_gesamt(conn, tg, klm, e, chat_id: int) -> str:
 
 
 def bestaetige_szene_6(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
-    """"Yes, save" auf einer Szene in Phase 6: abnehmen, weiter."""
+    """"Yes, save" auf einer Szene in Phase 6: abnehmen, weiter.
+
+    Dieselbe Wache wie ``bestaetige_gesamt``: ein zwischenzeitlich fertig
+    gewordener Rewrite dieser Szene (seit der letzten Anzeige) blockiert die
+    Abnahme, statt sie still auf die neue Fassung zu uebertragen."""
     from interview_theater import knoepfe
 
     if laeuft(chat_id):
@@ -403,6 +482,9 @@ def bestaetige_szene_6(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if ziel is None:
         tg.sende(chat_id, knoepfe.T._TEXT_SZENE_UNBEKANNT)
         return knoepfe.T._TEXT_SZENE_UNBEKANNT
+    if _stand_hat_sich_geaendert(conn, chat_id, nummer):
+        _sende(conn, tg, e, chat_id, T._TEXT_NEUE_FASSUNG_BEREIT)
+        return T._TEXT_NEUE_FASSUNG_BEREIT
     repo.setze_szene_ueberarbeitung_bestaetigt(conn, ziel["id"])
     weiter_6(conn, tg, klm, e, chat_id)
     return knoepfe.T._ANTWORT_SZENE_STEHT.format(nummer=nummer)

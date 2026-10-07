@@ -2388,3 +2388,23 @@ _ZEILE_VORSCHLAG = "• Could carry your idea further: {name} -- {warum}"
 _ZEILE_GEGENPOL = "• Counterpoint, to sharpen your own choice: {name} -- {warum}"
 _TEXT_FUSS = "Take whatever helps -- nothing in your piece changes unless you say so."
 KONTEXT_KOPF = "Performance forms (reference, looked up for this group -- your own expertise, NOT statements by the group: name a form only if it helps the group place what they are doing, offer it rather than prescribe it, and never attribute to the group what is written here):"
+
+["web_skript"]
+_TEXT_ZITAT_KOPF = "Interview quote · {nummer}"
+_TEXT_KOPF = "Setup & roles"
+_TEXT_WER = "Who"
+_TEXT_ROLLE = "Role"
+_TEXT_CHARAKTER = "Character"
+_TEXT_ROLLE_MEHR = "{name} — what, never, when"
+_TEXT_UEBERSICHT = "Overview"
+_TEXT_PARTITUR = "Score at a glance"
+_TEXT_NR = "#"
+_TEXT_MOMENT = "Moment"
+_TEXT_THEMA = "Theme"
+_TEXT_SKRIPT = "Script"
+_TEXT_WO = "Where"
+
+["web_skript".MODUS]
+microphone = "🎤 Mic"
+one_to_one = "👂 1:1"
+collective = "👥 All"

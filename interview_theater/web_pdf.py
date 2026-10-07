@@ -32,31 +32,41 @@ CHROME_RUECKFALL = "/home/birk/.cache/ms-playwright/chromium-1228/chrome-linux64
 ZEITLIMIT_S = 60
 _SPERRE = threading.Lock()
 
-#: Die Druckregeln obendrauf. Steht als letztes ``<style>`` im Kopf und
-#: gewinnt deshalb gegen Seiten- und Gestaltungs-CSS (dunkles Thema) --
-#: gedruckt wird schwarz auf weiss.
+#: Die Druckregeln obendrauf -- das abgenommene Design (Birk 08.10.2026
+#: ~00:05, ``web_skript``): hell, A4, Raender 18/18/20 mm, jede Szene auf
+#: eine neue Seite, Ueberschriften nie allein am Seitenende, Zitate,
+#: Tabellen und Listenpunkte nicht zerrissen. Die Uebersicht vorn steht
+#: nicht allein auf einer fast leeren Seite: die erste Szene schliesst an.
+#: Steht als letztes ``<style>`` im Kopf und gewinnt deshalb gegen Seiten-
+#: und Gestaltungs-CSS (dunkles Thema).
 DRUCK_CSS = """
-@page { size: A4; margin: 18mm 17mm 20mm; }
+@page { size: A4; margin: 18mm 18mm 20mm; }
 @media print {
   html, body { background: #fff !important; }
-  body, body * { color: #111 !important; background: transparent !important;
+  body, body * { color: #1b1b1b !important; background: transparent !important;
                  box-shadow: none !important; text-shadow: none !important; }
-  body { font-family: Georgia, "Times New Roman", serif; font-size: 11.5pt; line-height: 1.5; }
-  h1 { font-size: 18pt; margin: 0 0 10pt; }
-  .szenenkopf { font-size: 15pt; border-bottom: .6pt solid #888 !important; margin: 0 0 6pt; }
-  .angaben, .besetzung, .sprache-kopf, .karte-typ, .worum-kopf { font-size: 8.5pt; color: #444 !important; }
-  .sprache-kopf { margin-top: 14pt; letter-spacing: .12em; text-transform: uppercase; }
-  .text { max-width: none; }
-  .text p { margin: 0 0 7pt; orphans: 3; widows: 3; }
-  blockquote.interviewzitat, .karte-zitat {
-      margin: 7pt 0 9pt; padding: 2pt 0 2pt 10pt; border-left: 2pt solid #777 !important;
-      font-style: italic; break-inside: avoid; page-break-inside: avoid; }
-  .stage-kopf, .probe-szene.partitur { break-after: page; page-break-after: always; }
-  table.partitur { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
-  table.partitur th { border-bottom: .8pt solid #555 !important; text-align: left; }
-  table.partitur td { border-bottom: .4pt solid #bbb !important; vertical-align: top; padding: 4pt; }
-  table.partitur td.an { background: #eee !important; }
-  .wege, .leiste, .rollen, details, .hinweis-druck { display: none !important; }
+  body { font-family: 'DejaVu Serif', Georgia, serif; font-size: 11pt; line-height: 1.5; }
+  h1 { font: 600 22pt/1.2 'DejaVu Sans', sans-serif; color: #9a5f12 !important; margin: 0 0 10pt; }
+  .stueck { --sk-text: #1b1b1b; --sk-leise: #6b665c; --sk-akzent: #9a5f12; --sk-linie: #ddd6c8; --sk-zitat: #f6f1e7; font-size: 11pt; }
+  .stueck .probe-szene, .stueck .probe-szene .text { max-width: none; }
+  .stueck .probe-szene .text p, .stueck .probe-szene p, .stueck .probe-szene li { font-size: 11pt; line-height: 1.5; orphans: 3; widows: 3; }
+  .stueck > .probe-szene { break-before: page; break-after: auto; page-break-after: auto; }
+  .stueck > .probe-szene:first-child, .stueck > .uebersicht + .probe-szene { break-before: auto; }
+  .stueck .probe-szene .szenenkopf { font-size: 15pt; border-top: none !important; padding-top: 0; margin-top: 0; }
+  .stueck > .uebersicht + .probe-szene .szenenkopf { margin-top: 18pt; }
+  h2, h3, h4, .zitat-kopf, .person, .meta, summary { break-after: avoid; page-break-after: avoid; }
+  blockquote, table, tr, li, details { break-inside: avoid; page-break-inside: avoid; }
+  .stueck h3, .stueck .zitat-kopf, .stueck details.rolle-mehr summary { color: #9a5f12 !important; }
+  .stueck h4, .stueck .meta, .stueck .angaben, .stueck .besetzung, .stueck .sprache-kopf,
+  .stueck .regie, .stueck .skript-tabelle th { color: #6b665c !important; }
+  .stueck blockquote.interviewzitat { background: #f6f1e7 !important; border-left: 3px solid #9a5f12 !important; }
+  .stueck .skript-tabelle th { border-bottom: 1px solid #9a5f12 !important; }
+  .stueck .skript-tabelle td { border-bottom: 1px solid #ddd6c8 !important; }
+  .stueck .skript-tabelle { font-size: 9.5pt; }
+  .stueck .badge { background: #9a5f12 !important; color: #fff !important; }
+  .stueck details.rolle-mehr summary { list-style: none; }
+  .stueck details.rolle-mehr p { font-size: 10pt; }
+  .wege, .leiste, .rollen, .hinweis-druck, details.fruehere, details.erstentwurf { display: none !important; }
 }
 """
 
@@ -71,6 +81,8 @@ def mit_druck_css(html: str) -> str:
     """Haengt die A4-Druckregeln als letztes Stylesheet in den Kopf."""
     marke = "</head>"
     stil = f"<style>{DRUCK_CSS}</style>"
+    # "what, never, when" je Person: am Handy zugeklappt, im PDF offen.
+    html = html.replace('<details class="rolle-mehr">', '<details class="rolle-mehr" open>')
     return html.replace(marke, stil + marke, 1) if marke in html else stil + html
 
 

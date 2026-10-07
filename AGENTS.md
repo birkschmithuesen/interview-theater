@@ -52,7 +52,7 @@ Versehen).
 | **Ablage** | `db.py` · `repo.py` · `web_daten.py` |
 | **Dienste** | `llm.py` · `strom.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` · `kosten.py` · `web_grenze.py` |
 | **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `begriffsboard.py` · `begriffsboard_analyse.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` · `formberater.py` |
-| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` · `web_gestalt.py` |
+| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` · `web_gestalt.py` · `web_skript.py` · `web_pdf.py` |
 
 **SQL nur in `repo.py` und `db.py`.** Einzige Ausnahme: `web_daten.py`, die
 read-only (`file:…?mode=ro`) geöffnete Leseseite der Weboberfläche — sie
@@ -117,6 +117,7 @@ Je Modul ein Satz (Volltext mit Begründungen: `docs/agents/aufbau.md`):
 - `web_chat.py` — Chatansicht im Browser: HTML-Filter, Knopfprüfung, Audio-Upload.
 - `web_vereint.py` — die vereinte Gruppenseite (Tabs, Phasenleiste, SSE `/chat/strom`, `scope_css`).
 - `web_gestalt.py` — Design-Tokens, Komponenten-CSS, Effekt-JS (`IT_UX_ENTWURF`).
+- `web_skript.py` — Padua: das abgenommene Stage-Script-Design (Script-Tab + PDF über `web_pdf.py`), liest das Markdown des Stage Scripts; nur unter `[skript] verdichtet`.
 - `web_grenze.py` — Rate-Limit der Weboberfläche je `chat_id`; kein Projektimport.
 - `prompts/` — Prompt-Texte als `.md` (`phasen/`, `formen/`, `dramaturgie/`, `stile/`).
 

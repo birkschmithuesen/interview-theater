@@ -128,10 +128,14 @@ def test_system_en_ist_keine_amateurgruppe():
 def test_system_en_stationen_5_6_nicht_doppelt_prosa():
     """Befund P1-L4: Stationen 5 und 6 behaupteten wortgleich, eine Szene
     werde 'als Prosa' geschrieben -- Station 6 ist aber die Ueberarbeitung
-    der in Station 5 geschriebenen Prosa, kein zweiter Schreiblauf."""
+    der in Station 5 geschriebenen Prosa, kein zweiter Schreiblauf.
+
+    Seit der Padua-Umbenennung (Birk 08.10.2026) schreibt keine der beiden
+    Stationen Prosa: 5 waehlt Interviewstellen, 6 baut Szenenkarten."""
     text = (EN / "system.md").read_text(encoding="utf-8")
     assert "Rewrite -- tell each scene as prose" not in text
-    assert "go through the prose scenes again" in text
+    assert "5. Interview Selection -- pick and edit the interview passages" in text
+    assert "6. Scene Cards -- turn each scene into a concept card" in text
 
 
 def test_system_en_play_ohne_toten_format_satz():

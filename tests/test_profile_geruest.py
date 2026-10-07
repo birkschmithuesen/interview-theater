@@ -130,7 +130,7 @@ def test_padua_phasen_und_formen_englisch():
     profil = workshop.lade("padua-2026")
     assert [n for _, n, _ in workshop.phasenliste(profil)] == [
         "Terms", "Questions", "Interviews", "Frame",
-        "Prose Draft", "Rewrite", "Stage Version"]
+        "Interview Selection", "Scene Cards", "Stage Script"]
     assert workshop.form_anzeige(profil) == ("Dialogue", "Monologue", "Chorus", "Song", "Rap")
     assert workshop.formen(profil) == ("dialog", "monolog", "chor", "lied", "rap")
 
@@ -171,6 +171,22 @@ def test_padua_phasen_und_formen_englisch():
     # anderen Phasen-Stichwoerter) belegt, dass Phase 5 ueber ihr eigenes
     # Stichwort weiterhin erreichbar bleibt.
     ("story overview", 4), ("overview", 5),
+    # Umbenennung Birk 08.10.2026: P5 "Interview Selection", P6 "Scene
+    # Cards", P7 "Stage Script". "interview selection" enthaelt das
+    # "interview" der Phase 3 und traf frueher Phase 3 -- jetzt ueber
+    # ``vorrang`` (workshop.phasen_vorrang) Phase 5, auch im Satz.
+    ("Interview Selection", 5), ("interview selection", 5),
+    ("let's go to the interview selection", 5), ("selection", 5),
+    ("the selection of interviews", 5),
+    ("Scene Cards", 6), ("cards", 6), ("card", 6),
+    ("Stage Script", 7), ("script", 7),
+    # "scene" (Phase 6) steckt in "stage script for scene 3" -- ``vorrang``
+    # der Phase 7 haelt es bei 7; umgekehrt bleibt die Karte bei 6.
+    ("the stage script for scene 3", 7), ("the scene card for scene 2", 6),
+    # Phase 3 bleibt Phase 3, Phase 2 Phase 2:
+    ("interview", 3), ("back to the interviews", 3), ("questions", 2),
+    # Alte Namen treffen weiter (die Gruppen kennen sie):
+    ("draft", 5), ("stage version", 7), ("scenes", 6),
 ])
 def test_padua_stichwoerter_finden_die_phase(wort, nummer, monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")

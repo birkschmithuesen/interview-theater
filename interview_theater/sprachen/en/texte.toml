@@ -591,7 +591,7 @@ _TEXT_UMFORMULIEREN_UNVERAENDERT = "The model didn't change any question."
 _TEXT_UMFORMULIEREN_UEBERNOMMEN = "Updated, your questions:"
 _TEXT_UMFORMULIEREN_ANBIETEN = "Do you want to change how the questions are worded?"
 _TEXT_UMFORMULIEREN_ANBIETEN_KNOPF = "Rephrase questions"
-_TEXT_P5_CHECK_OK_KNOPF = "✅ All correct - start Prose Draft"
+_TEXT_P5_CHECK_OK_KNOPF = "✅ All correct - start Interview Selection"
 _TEXT_P5_CHECK_AENDERN_KNOPF = "✏️ Change something"
 _TEXT_P5_CHECK_AENDERN_FRAGE = "What should I change? Just tell me."
 _JOURNAL_P5_CHECK_BESTAETIGT = "Workbench confirmed before Phase 5"
@@ -688,7 +688,7 @@ New: /agreement <figur|gruppe|ort|struktur|form|stil|sonstiges>: <text> - \
 back: /agreement remove <search word>."""
 _TEXT_FESTLEGUNG_SCHON_DA = "That's already there."
 _TEXT_FESTLEGUNG_UNBEKANNT = "I haven't agreed anything on that."
-_TEXT_P5_CHECK_HINWEIS = "Before we start the Prose Draft: one last check of what is fixed."
+_TEXT_P5_CHECK_HINWEIS = "Before we start the Interview Selection: one last check of what is fixed."
 _TEXT_P5_UEBERSICHT_SETTING = "**Setting**"
 _TEXT_P5_UEBERSICHT_FIGUREN = "**Characters**"
 _TEXT_P5_UEBERSICHT_FIGURENZEILE = "• {name} - {beschreibung}"
@@ -992,7 +992,7 @@ _TEXT_FEHLER = "Something is stuck on my end - ask again."
 _TEXT_DENKSPUR_ERMAHNUNG = "Your last answer was you talking to yourself, not the message to the group. Write ONLY the message: what you say to the group, in their words, under 500 characters."
 _TEXT_ECHO_ERMAHNUNG = "Your last answer was a quote from the group. Don't quote - answer with an impulse of your own: an assessment, a suggestion or a follow-up question."
 _TEXT_ANKUENDIGUNG_ERMAHNUNG = "Your last answer announced something but didn't deliver it -- it ended on a colon without the promised content after it. Rewrite the message and deliver the content NOW, in this one message."
-_TEXT_SCHREIBANGEBOT_ERMAHNUNG = "Your last answer laid out a scene (form, place, who, what happens) or offered to write a scene. In this station only the frame is set; writing comes in the next one (Prose Draft). Rewrite the message without a scene format and without an offer to write: if the frame is in place, one short line on what is in place and the question whether to move on; if the group wanted a scene written, say that this comes in the next station."
+_TEXT_SCHREIBANGEBOT_ERMAHNUNG = "Your last answer laid out a scene (form, place, who, what happens) or offered to write a scene. In this station only the frame is set; writing comes later (Stage Script). Rewrite the message without a scene format and without an offer to write: if the frame is in place, one short line on what is in place and the question whether to move on; if the group wanted a scene written, say that this comes later."
 _AUFTRAG_KOPF = "Your task in exactly this turn:"
 
 ["erkenner"]
@@ -1119,7 +1119,7 @@ ERSTKONTAKT_LINK = "; and that the group can follow everything that has been rec
 ERSTKONTAKT_DISKUSSION = "{anlass} First respond briefly to what was just said. Then explain, short and friendly, in at most six short lines -- no list, no headings -- in this order: who you are (the theatre bot for this workshop); that the group uses two phones, called \"Phone A\" and \"Phone B\" (use exactly these names, they are on the picture of the phones): Phone A lies in the middle of the table and listens -- that is this chat; Phone B opens the same group link and shows the \"CoThinker\" tab, where the terms they mention appear live; that first you briefly check the room: a few seconds of quiet, then one of them says a sentence; that after that they discuss which terms matter for their play - everyday words about it, not technical theatre vocabulary - and give every term one sentence on why they chose it (that also helps you hear the terms right), and you only listen and say nothing until they tap \"Discussion done\". **Don't mention buttons under your message, a URL or web address, or any slash command**{link}. End with exactly this sentence as the last line: Now press \"Start listening\" for mic calibration."
 ERSTKONTAKT_DISKUSSION_ANLASS_ERSTE = "This is the very first message in this group -- your answer is also the welcome."
 ERSTKONTAKT_DISKUSSION_ANLASS_RUECKKEHR = "The group is (re-)entering the Terms phase right now -- your answer is the entry into this phase, exactly as in the welcome."
-EINSTIEG_SETTING = "The group is entering phase 4 (Frame) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (Prose Draft) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Workbench\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
+EINSTIEG_SETTING = "The group is entering phase 4 (Frame) right now -- whether for the first time or coming back from another phase, write the same entry. Your answer is a normal, self-contained chat message -- no heading, no bullet-point list, no system text. Cover the following, in flowing sentences and in your own words:\n\n- What is happening now: the group invents its own play from here -- setting, characters and story.\n- WHY the interviews are deliberately not used here: invent it themselves first, the material sharpens it only in the next phase (Interview Selection) -- and invented characters protect the people who were interviewed, at the same time.\n- The topic areas as ONE flowing paragraph, NOT a list of questions: where and when it takes place and what brings the people together, who appears and what they want, what the conflict is about, how it ends, and how many scenes there should be.\n- That everything that gets decided is saved automatically and is visible in the second tab \"Workbench\".\n- End with an invitation: they can start wherever they like -- there is no fixed order.\n\nNo checklist, no numbering in your answer itself -- one coherent, inviting text."
 
 ["kontext".JOURNALART_BESCHRIFTUNG]
 vorgeschlagen = "suggested"
@@ -1330,7 +1330,7 @@ Title — one sentence about what happens — Character, Character
 
 Only use characters listed below. **No form** -- whether a scene becomes a
 dialogue, a monologue, a chorus, a song or a rap is decided by the group
-later, in Stage Version, not here.
+later, in Stage Script, not here.
 
 Then one sentence and an open question to the group, two lines at most.
 Write in English."""

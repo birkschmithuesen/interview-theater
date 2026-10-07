@@ -56,6 +56,14 @@ PLATZHALTER_AUSNAHMEN: dict[str, set[str]] = {
     "formen/rap": {"ort_beispiel_4"},
 }
 
+#: Das Spiegelbild: Platzhalter, die NUR die englische Fassung setzt. Der
+#: englische Erkenner nennt die Phasen seit der Padua-Umbenennung (Birk
+#: 08.10.2026) aus ``phasen.toml`` (``{{phasen_kurz}}``); der deutsche
+#: behaelt seine feste Liste -- Dortmund bleibt bitgleich.
+NUR_ENGLISCH: dict[str, set[str]] = {
+    "erkenner": {"phasen_kurz"},
+}
+
 
 def _struktur(text: str) -> tuple[int, int, int]:
     """Ueberschriften, Code-Zaeune, JSON-Beispielzeilen -- was eine
@@ -97,7 +105,7 @@ def test_gleiche_platzhalter_und_struktur(name):
         pytest.skip("noch nicht uebersetzt")
     deutsch = (REPO / f"{name}.md").read_text(encoding="utf-8")
     englisch = en.read_text(encoding="utf-8")
-    assert set(_PLATZ.findall(englisch)) == (
+    assert set(_PLATZ.findall(englisch)) - NUR_ENGLISCH.get(name, set()) == (
         set(_PLATZ.findall(deutsch)) - PLATZHALTER_AUSNAHMEN.get(name, set())
     )
     if name in STRUKTUR_AUSNAHMEN:
@@ -119,6 +127,14 @@ def test_platzhalter_ausnahmen_sind_ehrlich():
         englisch = set(_PLATZ.findall((EN / f"{name}.md").read_text(encoding="utf-8")))
         assert platzhalter <= deutsch, (name, "nicht mehr im deutschen Prompt")
         assert not (platzhalter & englisch), (name, "steht doch im englischen")
+
+
+def test_nur_englisch_ist_ehrlich():
+    for name, platzhalter in NUR_ENGLISCH.items():
+        deutsch = set(_PLATZ.findall((REPO / f"{name}.md").read_text(encoding="utf-8")))
+        englisch = set(_PLATZ.findall((EN / f"{name}.md").read_text(encoding="utf-8")))
+        assert platzhalter <= englisch, (name, "nicht mehr im englischen Prompt")
+        assert not (platzhalter & deutsch), (name, "steht doch im deutschen")
 
 
 def test_kein_englischer_prompt_nennt_einen_beispielort():

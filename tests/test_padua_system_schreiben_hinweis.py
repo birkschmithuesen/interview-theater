@@ -39,7 +39,7 @@ def test_padua_nennt_keinen_nichtvorhandenen_knopf(monkeypatch, phase):
     assert "shows it itself" in text
     assert "Yes, save" in text
     # der echte Ablauf
-    assert "drafted as prose automatically" in text
+    assert "builds one card per scene" in text
     assert "Script tab" in text
 
 

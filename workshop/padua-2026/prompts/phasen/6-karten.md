@@ -1,4 +1,4 @@
-## Current phase: 6 · Rewrite -- now: scene cards
+## Current phase: 6 · Scene Cards
 
 The interview selection is done. Now every scene (or moment) becomes ONE
 card -- a concept at a glance, not a text: what the scene is about (one

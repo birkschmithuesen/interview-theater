@@ -802,13 +802,27 @@ def _baue_p5_uebersicht(conn, chat_id: int) -> str:
         )
     zeilen.append("")
 
-    festlegungen = repo.festlegungen(conn, chat_id)
-    if festlegungen:
-        zeilen.append(T._TEXT_P5_UEBERSICHT_FESTLEGUNGEN)
-        zeilen.extend(
-            repo.festlegungszeile(z["bereich"], z["bezug"], z["text"])
-            for z in festlegungen
-        )
+    # Birk 07.10.2026: keine Sammelueberschrift "Other fixed items" und keine
+    # deutschen Rohbereiche ("struktur", "gruppe") -- jede Festlegung steht
+    # unter ihrer EIGENEN Ueberschrift, gleichrangig mit Setting/Story und
+    # mit derselben Beschriftung wie in der Werkbank
+    # (``web.T.FESTLEGUNG_BEREICH_BESCHRIFTUNG``). Gibt es einen Bezug
+    # ("Performers"), ist er die Ueberschrift; Reihenfolge = erste Nennung.
+    from interview_theater import web as _web
+
+    gruppen: dict[str, list[str]] = {}
+    for z in repo.festlegungen(conn, chat_id):
+        roh = (z["bereich"] or "").strip()
+        bezug = (z["bezug"] or "").strip()
+        if bezug:
+            kopf = bezug
+        else:
+            kopf = _web.T.FESTLEGUNG_BEREICH_BESCHRIFTUNG.get(roh.lower()) or roh
+        kopf = kopf[:1].upper() + kopf[1:]
+        gruppen.setdefault(kopf, []).append((z["text"] or "").strip())
+    for kopf, texte in gruppen.items():
+        zeilen.append(f"**{kopf}**")
+        zeilen.extend(texte if len(texte) == 1 else [f"• {t}" for t in texte])
         zeilen.append("")
 
     zeilen.append(T._TEXT_P5_UEBERSICHT_SCHLUSS)

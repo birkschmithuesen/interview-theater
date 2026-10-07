@@ -63,6 +63,15 @@ _TEXT_LAEUFT_NOCH = (
     "Eine Ueberarbeitung laeuft noch -- ich zeige euch das Ergebnis, "
     "dann koennt ihr es speichern."
 )
+#: Eine Revisionsnotiz, waehrend ein Szenen-/Geschichtenlauf schon haelt (B3,
+#: 07.10.2026, simulation/berichte/p57-2026-10-07.md): anders als
+#: ``_TEXT_LAEUFT_NOCH`` eine ehrliche Zusage -- die Notiz ist vorgemerkt
+#: (``merke_notiz_wenn_besetzt``) und laeuft automatisch, sobald die Sperre
+#: frei wird (``nach_lauf_frei``), statt stillschweigend zu verfallen.
+_TEXT_NOTIZ_WARTET = (
+    "Eine Ueberarbeitung laeuft noch -- ich mache diese Aenderung direkt "
+    "danach. Wenn ich mich nicht melde, schreibt es noch einmal."
+)
 #: Wiedereintritt in Phase 6, wenn schon alles abgenommen ist: kein
 #: automatischer Sprung, nur das Angebot (Fix-Runde 1).
 _TEXT_6_SCHON_FERTIG = (
@@ -198,6 +207,88 @@ def laeuft(chat_id: int) -> bool:
 
     return (szene._sperre_fuer(chat_id).locked()
             or kurzgeschichte._sperre_fuer(chat_id).locked())
+
+
+# ---------------------------------------------------------------------------
+# Der Merkplatz einer Revisionsnotiz waehrend eines laufenden Laufs (B3,
+# 07.10.2026). Dasselbe Prinzip wie ``vorschlagssperre`` (Merkplatz statt
+# Verwerfen, hoechstens eine Notiz je Ziel, newest wins), aber ein eigenes
+# Register: ``vorschlagssperre`` koppelt bewusst NUR Schaerfung und
+# Szenenfolge, nicht den Szenen-/Prosalauf (siehe dort, "Was diese Sperre
+# NICHT ist").
+# ---------------------------------------------------------------------------
+
+#: Schuetzt ``_gemerkt`` UND serialisiert gegen ``nach_lauf_frei`` -- siehe
+#: ``merke_notiz_wenn_besetzt``.
+_schutz = threading.Lock()
+
+#: Ein Merkplatz je (chat_id, Ziel) -- Ziel ist die Szenennummer oder
+#: ``None`` fuer "die ganze Geschichte bzw. die aktuelle Szene", genau wie
+#: ``ueberarbeite`` selbst es versteht. Eine zweite Notiz zum selben Ziel
+#: ersetzt die erste (newest wins): was die Gruppe gerade zuletzt gesagt
+#: hat, ist aktueller als der erste Zwischenruf.
+_gemerkt: dict[int, dict[int | None, str]] = {}
+
+
+def merke_notiz_wenn_besetzt(chat_id: int, nummer: int | None, notiz: str) -> bool:
+    """Prueft erneut (unter ``_schutz``), ob ``laeuft`` noch gilt, und merkt
+    die Notiz ATOMAR mit derselben Pruefung vor -- sonst koennte die Notiz
+    genau zwischen "laeuft noch" und "merken" verloren gehen, waehrend
+    ``nach_lauf_frei`` (das denselben ``_schutz`` nimmt) in diesem Fenster
+    schon leert (derselbe Race-Fund wie bei ``vorschlagssperre.
+    nimm_oder_merke``, 30.09.2026).
+
+    True: vorgemerkt, ``nach_lauf_frei`` holt sie nach. False: die Sperre war
+    beim erneuten Pruefen schon frei -- der Aufrufer soll die Notiz SELBST
+    sofort ausfuehren (``ueberarbeite``), statt sie fuer immer liegen zu
+    lassen."""
+    from interview_theater import kurzgeschichte, szene
+
+    with _schutz:
+        if not (szene._sperre_fuer(chat_id).locked()
+                or kurzgeschichte._sperre_fuer(chat_id).locked()):
+            return False
+        _gemerkt.setdefault(chat_id, {})[nummer] = notiz
+        return True
+
+
+def vorgemerkte_notizen(chat_id: int) -> dict[int | None, str]:
+    """Was gerade vorgemerkt ist -- fuer Tests und das Log."""
+    with _schutz:
+        return dict(_gemerkt.get(chat_id, {}))
+
+
+def nach_lauf_frei(conn, tg, klm, e, chat_id: int) -> None:
+    """Nach der Freigabe von ``szene``/``kurzgeschichte`` (ihr ``finally``,
+    NACH ``sperre.release()``): holt hoechstens EINE vorgemerkte Notiz nach.
+    Steht noch eine zweite auf dem Merkplatz, holt der Lauf, den diese Notiz
+    ihrerseits anstoesst, sie am Ende seinerseits nach -- derselbe Weg
+    (``szene.starte``/``kurzgeschichte.starte`` ruft diese Funktion wieder).
+
+    Kein Modellaufruf hier selbst; ``ueberarbeite`` geht ueber die
+    bestehenden Threads. Ein Fehler reisst die Freigabe des Aufrufers nicht
+    mit -- er steht schon hinter deren ``finally``."""
+    with _schutz:
+        d = _gemerkt.get(chat_id)
+        if not d:
+            return
+        nummer = next(iter(d))
+        notiz = d.pop(nummer)
+        if not d:
+            _gemerkt.pop(chat_id, None)
+    log.info("Vorgemerkte Ueberarbeitungsnotiz nachgeholt, chat_id=%s, nummer=%s",
+             chat_id, nummer)
+    try:
+        ueberarbeite(conn, tg, klm, e, chat_id, notiz, nummer)
+    except Exception:
+        log.exception(
+            "Nachgeholte Ueberarbeitungsnotiz fehlgeschlagen, chat_id=%s", chat_id)
+
+
+def vergiss(chat_id: int) -> None:
+    """Raeumt den Merkplatz dieser Gruppe ab -- fuer Tests."""
+    with _schutz:
+        _gemerkt.pop(chat_id, None)
 
 
 def weiter_6(conn, tg, klm, e, chat_id: int, *,

@@ -201,8 +201,13 @@ def test_text_ueberarbeiten_in_phase_5_wirkt_nicht(conn, einst, padua, tg, szene
     assert szene_spion == []
 
 
-def test_text_ueberarbeiten_schweigt_waehrend_ein_lauf_geht(
+def test_text_ueberarbeiten_wird_vorgemerkt_waehrend_ein_lauf_geht(
         conn, einst, padua, tg, szene_spion):
+    """B3 (07.10.2026, simulation/berichte/p57-2026-10-07.md): eine Notiz,
+    die ankommt, waehrend ein Szenen-/Geschichtenlauf schon haelt, wird nicht
+    mehr verworfen. Sie wird vorgemerkt (``ueberarbeitung.vorgemerkte_notizen``)
+    und ehrlich quittiert -- "ich mache das direkt danach", nicht "laeuft
+    noch" ohne weitere Folge."""
     _stueck(conn, 7, formen=("chor", "dialog"), sprechweisen_fix=True)
     _nachricht(conn, 1, 1, "make the mother angrier")
     klm = LLMAttrappe(antwort={"aenderungen": [
@@ -211,20 +216,23 @@ def test_text_ueberarbeiten_schweigt_waehrend_ein_lauf_geht(
     sperre.acquire()
     try:
         erkenner.laufe(klm, tg, conn, einst, 1)
+        assert ueberarbeitung.vorgemerkte_notizen(1) == {
+            None: "make the mother angrier"}
     finally:
         sperre.release()
+        ueberarbeitung.vergiss(1)
 
-    # Fix-Runde 1: nicht still -- genau eine "laeuft noch"-Zeile, wie beim Knopf.
     assert szene_spion == []
-    assert _texte(tg) == [ueberarbeitung.T._TEXT_LAEUFT_NOCH]
+    assert _texte(tg) == [ueberarbeitung.T._TEXT_NOTIZ_WARTET]
 
 
 def test_rueckmeldung_und_abnahme_im_besetzten_lauf_melden_genau_einmal(
         conn, einst, padua, tg, szene_spion):
-    """Fix-Runde 1 (Review Task 10): text_ueberarbeiten + fassung_abnehmen +
-    festlegung_setzen im selben Lauf, waehrend ein Szenenlauf die Sperre
-    haelt -> genau EINE "laeuft noch"-Zeile, keine Ueberarbeitung, keine
-    Festlegung (B2-Filter)."""
+    """Fix-Runde 1 (Review Task 10) + B3 (07.10.2026): text_ueberarbeiten +
+    fassung_abnehmen + festlegung_setzen im selben Lauf, waehrend ein
+    Szenenlauf die Sperre haelt -> genau EINE Zeile (jetzt die ehrliche
+    Vormerk-Quittung statt "laeuft noch"), keine sofortige Ueberarbeitung,
+    keine Festlegung (B2-Filter)."""
     _stueck(conn, 7, formen=("chor", "dialog"), sprechweisen_fix=True)
     _nachricht(conn, 1, 1, "make the mother angrier, then save it")
     klm = LLMAttrappe(antwort={"aenderungen": [
@@ -235,14 +243,35 @@ def test_rueckmeldung_und_abnahme_im_besetzten_lauf_melden_genau_einmal(
     sperre.acquire()
     try:
         erkenner.laufe(klm, tg, conn, einst, 1)
+        assert ueberarbeitung.vorgemerkte_notizen(1) == {
+            None: "make the mother angrier"}
     finally:
         sperre.release()
+        ueberarbeitung.vergiss(1)
 
-    assert _texte(tg).count(ueberarbeitung.T._TEXT_LAEUFT_NOCH) == 1
+    assert _texte(tg).count(ueberarbeitung.T._TEXT_NOTIZ_WARTET) == 1
     assert len(_texte(tg)) == 1
     assert szene_spion == []
     assert repo.festlegungen(conn, 1) == []
     assert not any(s["fertig_am"] for s in repo.hole_szenen(conn, 1))
+
+
+def test_text_ueberarbeiten_laeuft_direkt_wenn_die_sperre_schon_frei_ist(
+        conn, einst, padua, tg, szene_spion):
+    """Verliert der Vormerk-Versuch das Rennen (die Sperre ist schon frei,
+    bevor gemerkt wird), merkt ``merke_notiz_wenn_besetzt`` nichts vor --
+    der Aufrufer fuehrt die Notiz dann direkt aus statt sie fuer immer auf
+    dem Merkplatz liegen zu lassen."""
+    _stueck(conn, 7, formen=("chor", "dialog"), sprechweisen_fix=True)
+    _nachricht(conn, 1, 1, "make the mother angrier")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "text_ueberarbeiten", "wert": "make the mother angrier"}]})
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert ueberarbeitung.vorgemerkte_notizen(1) == {}
+    assert len(szene_spion) == 1
+    assert "angrier" in szene_spion[0]
 
 
 # --- formen_setzen --------------------------------------------------------

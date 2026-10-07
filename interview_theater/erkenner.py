@@ -3029,6 +3029,21 @@ def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
             elif _laeuft_ein_lauf(chat_id) and besetzt_gemeldet:
                 log.info("Ueberarbeitung/Abnahme aus dem Chat zurueckgestellt, "
                          "Zeile schon gesendet, chat_id=%s", chat_id)
+            elif ueberarbeiten is not None and ueberarbeitung.laeuft(chat_id):
+                # B3 (07.10.2026): eine Notiz waehrend eines laufenden
+                # Szenen-/Geschichtenlaufs wird nicht mehr verworfen, sondern
+                # vorgemerkt -- ``nach_lauf_frei`` holt sie automatisch nach,
+                # sobald die Sperre frei wird. Verliert das Vormerken das
+                # Rennen (die Sperre ist beim erneuten Pruefen schon frei),
+                # wird die Notiz stattdessen direkt ausgefuehrt.
+                notiz, nummer = _notiz_und_nummer(ueberarbeiten.get("wert"))
+                if ueberarbeitung.merke_notiz_wenn_besetzt(chat_id, nummer, notiz):
+                    log.info("Ueberarbeitungsnotiz vorgemerkt, wird nach "
+                             "Lauf-Ende nachgeholt, chat_id=%s", chat_id)
+                    ueberarbeitung._sende(conn, tg, e, chat_id,
+                                          ueberarbeitung.T._TEXT_NOTIZ_WARTET)
+                else:
+                    ueberarbeitung.ueberarbeite(conn, tg, klm, e, chat_id, notiz, nummer)
             elif _laeuft_ein_lauf(chat_id):
                 # Fix-Runde 1 (Review Task 10): nicht still -- dieselbe Zeile
                 # wie der Knopf in derselben Lage, genau einmal je Lauf.

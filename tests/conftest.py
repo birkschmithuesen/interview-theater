@@ -80,6 +80,18 @@ def _begriffe_im_zug_leer():
     ablauf.vergiss_vergleich_im_zug()
 
 
+@pytest.fixture(autouse=True)
+def _ueberarbeitung_merkplatz_leer():
+    """Derselbe Grund wie oben: der Merkplatz vorgemerkter Revisionsnotizen
+    (B3, 07.10.2026, ``ueberarbeitung._gemerkt``) ist Prozessspeicher je
+    chat_id, und fast alle Tests teilen chat_id 1."""
+    from interview_theater import ueberarbeitung
+
+    ueberarbeitung.vergiss(1)
+    yield
+    ueberarbeitung.vergiss(1)
+
+
 @pytest.fixture
 def einst(tmp_path):
     return einstellungen.Einstellungen(

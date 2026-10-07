@@ -356,7 +356,9 @@ def test_notiz_nach_anders_bekommt_keine_laeuft_noch_zeile(
 def test_ein_fremder_lauf_meldet_weiter_laeuft_noch(
         conn, padua, tg, einst, szene_spion):
     """Gegenprobe zu Task 10: die Sperre haelt ein anderer Lauf, und die
-    verbrauchte Notiz war eine FRUEHERE Nachricht -- die Zeile kommt."""
+    verbrauchte Notiz war eine FRUEHERE Nachricht -- die Zeile kommt. Seit
+    B3 (07.10.2026) ist das die ehrliche Vormerk-Quittung, und die Notiz
+    selbst ist vorgemerkt statt verworfen."""
     _stueck(conn, 7, formen=("chor", "dialog", "rap"), sprechweisen_fix=True)
     ablauf._notiz_verbraucht[1] = 7  # eine aeltere, schon gelesene Nachricht
     _nachricht(conn, 1, 42, "make the mother angrier")
@@ -366,11 +368,14 @@ def test_ein_fremder_lauf_meldet_weiter_laeuft_noch(
     sperre.acquire()
     try:
         erkenner.laufe(klm, tg, conn, einst, 1)
+        assert ueberarbeitung.vorgemerkte_notizen(1) == {
+            None: "make the mother angrier"}
     finally:
         sperre.release()
         ablauf._notiz_verbraucht.pop(1, None)
+        ueberarbeitung.vergiss(1)
 
-    assert _texte(tg) == [ueberarbeitung.T._TEXT_LAEUFT_NOCH]
+    assert _texte(tg) == [ueberarbeitung.T._TEXT_NOTIZ_WARTET]
     assert szene_spion == []
 
 

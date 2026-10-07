@@ -749,6 +749,7 @@ def _szenen(
     from interview_theater import workshop
 
     verdichtet = workshop.skript_verdichtet_aktiv()
+    karten = workshop.szenenkarten_aktiv()
     stellen = _uebernommene_stellen(conn, chat_id) if verdichtet else {}
     szenen = []
     for z in conn.execute(
@@ -792,6 +793,14 @@ def _szenen(
             eintrag[feld] = _feld(z, feld)
         if verdichtet:
             eintrag["verdichtet"] = _verdichtet(z, stellen.get(z["id"], []))
+        if karten:
+            # Padua-Phasenumbau: die Szenenkarte (Phase 6), Zitate im
+            # Original -- sie stammen aus gepruefter Verdichtung (Wortlaut
+            # aus der DB, ``szenenkarte.erzeuge``).
+            from interview_theater import szenenkarte
+
+            eintrag["karte"] = szenenkarte.karte_von(z)
+            eintrag["karte_bestaetigt"] = bool((_feld(z, "karte_bestaetigt_am") or "").strip())
         szenen.append(eintrag)
     return szenen
 

@@ -1933,7 +1933,7 @@ _ARBEITSSTAND_FELDER = (
     # Padua Phasen TEIL 2 (03.10.2026): Phase 6.1 (Gesamttext) und 7.2
     # (Sprechweisen) abgenommen -- derselbe eine Schreibweg wie alles andere
     # im Arbeitsstand.
-    "gesamttext_fixiert_am", "sprechweisen_fixiert_am",
+    "gesamttext_fixiert_am", "sprechweisen_fixiert_am", "karten_geprueft_am",
     # Das Begriffsboard je gespeichertem Begriff (Karte t_4517d4ad):
     # derselbe eine Schreibweg, gesetzt allein von
     # ``begriffsboard.schreibe_detail``.
@@ -3105,6 +3105,27 @@ def setze_szenenkern(
     conn.execute(
         "UPDATE szene SET kern = ?, kernsaetze_kurz = ?, kern_quelle = ? WHERE id = ?",
         (kern, kernsaetze_kurz, kern_quelle, szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_szenenkarte(conn: sqlite3.Connection, szene_id: int, karte: str | None) -> None:
+    """Speichert die Szenenkarte (JSON, ``szenenkarte.py``) und nimmt eine
+    fruehere Abnahme zurueck -- eine neue Karte will neu abgenommen werden.
+    Kein ``geaendert_am`` (abgeleitet, keine Bearbeitung der Gruppe)."""
+    conn.execute(
+        "UPDATE szene SET karte = ?, karte_bestaetigt_am = NULL WHERE id = ?",
+        (karte, szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_szenenkarte_bestaetigt(conn: sqlite3.Connection, szene_id: int) -> None:
+    conn.execute(
+        "UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?",
+        (_jetzt_genau(), szene_id),
     )
     conn.commit()
 

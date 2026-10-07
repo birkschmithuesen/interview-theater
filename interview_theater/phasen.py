@@ -428,7 +428,15 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
         and not aufnahme.unausgewertete_interviews(conn, chat_id),
         5: setting and fixiert and bool(repo.figuren(conn, chat_id))
         and geschichte and szenen,
-        6: geschichte and szenen,
+        # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): Phase 6 baut die
+        # Szenenkarten aus den Szenen und der Interviewauswahl -- eine
+        # Geschichte als Feld braucht es dafuer nicht (G1/G2 haben keine).
+        # Mit Karten: Szenen und mindestens eine uebernommene Stelle (die
+        # Auswahl aus Phase 5) -- sonst boete der Prompt Phase 6 schon an,
+        # bevor die Gruppe ein einziges Interview sortiert hat.
+        6: ((bool(szenen_alle) and any(
+                z["uebernommen_am"] for z in repo.schaerfungen(conn, chat_id)))
+            if workshop.szenenkarten_aktiv() else geschichte and szenen),
         # **Phase 7 (Feinschliff) verlangt seit dem 06.09.2026, 10:30 alle
         # Szenen als GESCHICHTE** (``szene.prosa``) und nicht mehr als
         # Theatertext: den schreibt erst der Feinschliff selbst, aus der
@@ -436,9 +444,20 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
         # zurueck -- eine Gruppe, die ihre Szenentexte schon hat, soll nicht
         # zurueckgeworfen werden.
         7: bool(szenen_alle) and all(
-            _prosa_oder_volltext(s) for s in szenen_alle
+            _karte_abgenommen(s) if workshop.szenenkarten_aktiv()
+            else _prosa_oder_volltext(s)
+            for s in szenen_alle
         ),
     }
+
+
+def _karte_abgenommen(szene) -> bool:
+    """Padua-Phasenumbau: Phase 7 baut das Stage Script aus den Karten --
+    also muss jede Szene eine abgenommene Karte haben."""
+    try:
+        return bool((szene["karte_bestaetigt_am"] or "").strip())
+    except (IndexError, KeyError):
+        return False
 
 
 def _prosa_oder_volltext(szene) -> bool:

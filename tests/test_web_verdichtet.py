@@ -95,3 +95,15 @@ def test_web_daten_bereinigt_und_zeigt_nur_gepruefte_zitate(conn, padua):
     v = web_daten._szenen(conn, 1)[0]["verdichtet"]
     assert v["beschreibung"] == "Mira naeht allein."
     assert [z["zitat"] for z in v["zitate"]] == [ZITAT_A]
+
+
+def test_script_zeigt_die_karte_und_prosa_nur_als_material(padua):
+    karte = {"typ": "spoken", "worum": "Die Stimmen werden geteilt.", "ort": "Halbkreis",
+             "wer": "Emma", "punkte": ["Emma beginnt"], "zitate": [
+                 {"zitat": "Casa non sono le mura", "interview": "Interview 19"}],
+             "fragen": ["Wer singt?"]}
+    html, _ = web._probe_szene_html(_szene(karte=karte, karte_bestaetigt=False,
+                                           prosa="Alte Prosa."), set())
+    assert "Die Stimmen werden geteilt." in html and "Casa non sono le mura" in html
+    assert '<details class="fruehere">' in html and "Alte Prosa." in html
+    assert 'class="worum"' not in html

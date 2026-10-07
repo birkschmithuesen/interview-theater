@@ -531,6 +531,14 @@ def schliesse_schaerfungsliste(conn, tg, klm, e, chat_id: int) -> str:
     from interview_theater import szenenkern
 
     szenenkern.starte(conn, klm, e, chat_id)
+    if workshop.szenenkarten_aktiv():
+        # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): Phase 5 = nur Interviews
+        # auswaehlen. "Done" schliesst die Auswahl ab und bietet Phase 6 an
+        # (Szenenkarten) -- keine Uebersicht, kein Prosalauf mehr.
+        from interview_theater.knoepfe.basis import biete_phase
+
+        biete_phase(conn, tg, chat_id, T._TEXT_DONE_KARTEN.format(anzahl=anzahl), 6)
+        return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
     if not workshop.prosa_entwurf_aktiv():
         _sende_schaerfung_durch(conn, tg, chat_id)
         return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)

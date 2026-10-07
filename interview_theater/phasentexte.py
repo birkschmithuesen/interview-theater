@@ -96,6 +96,10 @@ def __getattr__(name: str):
 def _einleitung(conn, chat_id: int, phase: int) -> str:
     """Die Einleitung einer Phase -- fuer Phase 7 abhaengig davon, ob
     wirklich jede Szene einen Text hat."""
+    if workshop.szenenkarten_aktiv() and phase in (5, 6):
+        # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): 5 = Interviewauswahl,
+        # 6 = Szenenkarten -- die Profil-Einleitung spricht noch von Prosa.
+        return T._EINLEITUNG_KARTEN_5 if phase == 5 else T._EINLEITUNG_KARTEN_6
     einleitungen = {
         nummer: anweisungen.fuelle(text)
         for nummer, text in workshop.phasentexte_einleitungen().items()
@@ -477,9 +481,31 @@ def eintritt(conn, chat_id: int, phase: int) -> str:
         zeilen.append(T.ZEILE_ANGEBOT)
         zeilen.append(einleitung)
     liste = checkliste(conn, chat_id, phase)
+    if workshop.szenenkarten_aktiv() and phase == 6:
+        szenen = [s for s in repo.hole_szenen(conn, chat_id) if s["nummer"] is not None]
+        fertig = sum(1 for s in szenen if (s["karte_bestaetigt_am"] or "").strip())
+        liste = "{mark} {text}".format(
+            mark=_ERLEDIGT if szenen and fertig == len(szenen) else _OFFEN,
+            text=T._PARAMETER_KARTEN.format(fertig=fertig, gesamt=len(szenen)))
     if liste:
         zeilen.append(T._ZEILE_CHECKLISTE.format(liste=liste))
     return "\n\n".join(zeilen)
+
+
+_EINLEITUNG_KARTEN_5 = (
+    "Jetzt kommen die Interviews zurueck: neben jede Szene lege ich die "
+    "passenden Stellen mit ihrem woertlichen Zitat, und ihr sortiert sie -- "
+    "behalten oder weg. Mehr passiert in dieser Phase nicht. Wenn ihr fertig "
+    "seid, tippt Done; danach baut ihr aus eurer Auswahl Szene fuer Szene "
+    "eine Karte."
+)
+_EINLEITUNG_KARTEN_6 = (
+    "Jetzt wird jede Szene zu einer Karte: worum es geht, wo, wer, was "
+    "passiert, und die Interviewstellen, die sie tragen -- im Original. Eine "
+    "Karte nach der anderen; ihr speichert sie oder sagt, was anders sein "
+    "soll. Am Ende schaue ich einmal aufs Ganze, dann kommt das Stage Script."
+)
+_PARAMETER_KARTEN = "Szenenkarten ({fertig} von {gesamt})"
 
 
 def abschluss(conn, chat_id: int, phase: int) -> str:

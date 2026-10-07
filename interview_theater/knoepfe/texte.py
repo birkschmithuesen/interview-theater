@@ -820,6 +820,7 @@ _TEXT_SCHAERFUNG_LAEUFT = (
     "Ich lege eure Geschichte neben die Interviews und suche, was dazu passt."
 )
 _TEXT_SCHAERFUNG_UEBERNOMMEN = "Uebernommen: {anzahl} Stellen."
+_TEXT_DONE_KARTEN = "Uebernommen: {anzahl} Stellen. Eure Auswahl steht -- als Naechstes baut ihr daraus Szene fuer Szene eine Karte."
 _TEXT_DONE_UEBERSICHT = "Uebernommen: {anzahl} Stellen. Jetzt fasse ich eure Geschichte als Uebersicht zusammen -- danach geht es Szene fuer Szene."
 _TEXT_DONE_SZENE_DA = "Uebernommen: {anzahl} Stellen. Szene {nummer} steht schon im Skript-Tab -- lest sie und sagt, ob sie passt."
 _TEXT_DONE_SZENE_NEU = "Uebernommen: {anzahl} Stellen. Ich schreibe jetzt Szene {nummer}."

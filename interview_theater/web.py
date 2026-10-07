@@ -4573,6 +4573,44 @@ def _staerkste_zitate(v: dict) -> list[str]:
     return [f"“{k}”" for k in (v.get("kernsaetze_eigen") or [])[:KERNSAETZE_MAX]]
 
 
+_TEXT_PROSA_MATERIAL = "Frueherer Prosaentwurf (Material)"
+_TEXT_KARTE_GESPEICHERT = "gespeichert"
+_TEXT_KARTE_OFFEN = "noch nicht gespeichert"
+
+
+def _karte_html(karte: dict, bestaetigt: bool) -> str:
+    """Die Szenenkarte im Script-Tab: Typ, worum, wo/wer, Punkte, Zitate im
+    Original, offene Fragen -- dieselben Felder wie im Chat."""
+    from interview_theater import szenenkarte
+
+    st = szenenkarte.T
+    typ = st.TYP_BESCHRIFTUNG.get(karte.get("typ"), karte.get("typ") or "")
+    status = T._TEXT_KARTE_GESPEICHERT if bestaetigt else T._TEXT_KARTE_OFFEN
+    teile = [f'<p class="karte-typ">{_t(typ)} · {_t(status)}</p>']
+    if karte.get("worum"):
+        teile.append(f'<p class="karte-worum">{_t(karte["worum"])}</p>')
+    angaben = [f"<b>{_t(st._ZEILE_ORT)}</b> {_t(karte['ort'])}" if karte.get("ort") else "",
+               f"<b>{_t(st._ZEILE_WER)}</b> {_t(karte['wer'])}" if karte.get("wer") else ""]
+    angaben = [a for a in angaben if a]
+    if angaben:
+        teile.append(f'<p class="karte-angaben">{"<br>".join(angaben)}</p>')
+    if karte.get("punkte"):
+        teile.append(f'<p class="worum-kopf">{_t(st._ZEILE_PUNKTE)}</p>'
+                     + _liste_html("worum-liste", karte["punkte"], 400))
+    if karte.get("zitate"):
+        zitate = "".join(
+            f'<blockquote class="karte-zitat" lang="it">“{_t(z.get("zitat"))}”'
+            + (f' <span class="quelle">({_t(z["interview"])})</span>' if z.get("interview") else "")
+            + "</blockquote>"
+            for z in karte["zitate"]
+        )
+        teile.append(f'<p class="worum-kopf">{_t(st._ZEILE_ZITATE)}</p>{zitate}')
+    if karte.get("fragen"):
+        teile.append(f'<p class="worum-kopf">{_t(st._ZEILE_FRAGEN)}</p>'
+                     + _liste_html("worum-liste", karte["fragen"], 400))
+    return f'<div class="karte">{"".join(teile)}</div>'
+
+
 def _probe_szene_verdichtet_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
     """Eine Szene im Script-Tab, auf das Wesentliche reduziert: Kopf, Ort und
     Besetzung, der Text (EN und IT als eigene Bloecke). "Worum es geht" und
@@ -4605,6 +4643,15 @@ def _probe_szene_verdichtet_html(s: dict, bekannte: set[str]) -> tuple[str, list
     if volltext:
         koerper, sprecher = szenentext_html(volltext, bekannte)
         zeilen.append(f'<div class="text">{koerper}</div>')
+    elif s.get("karte"):
+        # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): bis zum Stage Script
+        # steht die Szenenkarte hier; eine fruehere Prosa ist nur Material.
+        zeilen.append(_karte_html(s["karte"], s.get("karte_bestaetigt")))
+        if prosa:
+            zeilen.append(
+                f'<details class="fruehere"><summary>{_t(T._TEXT_PROSA_MATERIAL)}</summary>'
+                f'<div class="text" lang="en">{_prosa_absaetze_html(prosa)}</div></details>'
+            )
     elif prosa:
         if prosa_it:
             zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_EN)}</p>')
@@ -4645,6 +4692,12 @@ _CSS_TEXTBUCH_LESBAR = """
 .worum-liste, .kernzeilen { margin: 0 0 .5rem; padding-left: 1.1rem; }
 .worum-liste li, .kernzeilen li { margin: .22rem 0; }
 .kernzeilen li { font-style: italic; }
+.karte { max-width: 65ch; margin: 1rem 0 0; line-height: 1.55; }
+.karte-typ { margin: 0 0 .3rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
+.karte-worum { margin: 0 0 .7rem; font-size: 1.08rem; }
+.karte-angaben { margin: 0 0 .7rem; font-size: .9rem; }
+.karte-zitat { margin: .35rem 0 .55rem; padding: .1rem 0 .1rem .8rem; border-left: 2px solid var(--linie, #ddd8cc); font-style: italic; }
+.karte-zitat .quelle { font-style: normal; font-size: .82em; color: var(--text-leise, #6b6b6b); }
 """
 
 

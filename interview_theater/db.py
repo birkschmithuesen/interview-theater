@@ -523,6 +523,8 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Padua Phasen TEIL 2: Phase 6.1 (Gesamttext) und 7.2 (Sprechweisen) abgenommen.
   gesamttext_fixiert_am TEXT,
   sprechweisen_fixiert_am TEXT,
+  -- Padua Phase 6 (Szenenkarten): die Gesamtpruefung ueber alle Karten lief.
+  karten_geprueft_am TEXT,
   -- Merkposten fuer den Knopf "Interviews fertig" im Web-Kanal (Phase 3,
   -- 02.10.2026): gesetzt (ISO-Zeitstempel), solange die Gruppe "Interviews
   -- fertig" gedrueckt hat, aber noch mindestens ein beendetes Interview ohne
@@ -716,6 +718,12 @@ CREATE TABLE IF NOT EXISTS szene (
   kern              TEXT,
   kernsaetze_kurz   TEXT,
   kern_quelle       TEXT,
+  -- Die Szenenkarte (Padua Phase 6, Birk 07.10.2026 ~18:12, Profilschalter
+  -- ``[phasen] karten``, ``szenenkarte.py``): JSON mit typ, worum, ort, wer,
+  -- punkte, zitate (Wortlaut aus der DB, Originalsprache), fragen. Abnahme
+  -- je Karte ("Yes, save"). Additiv nachgeruestet.
+  karte             TEXT,
+  karte_bestaetigt_am TEXT,
   -- Gesetzt = die Gruppe hat den Text mit "Passt" abgenommen (Phase 6,
   -- knoepfe.ART_SZENE_PASST). Ein Volltext allein heisst nur "geschrieben":
   -- unter jedem frischen Szenentext haengen vier Knoepfe, und erst einer

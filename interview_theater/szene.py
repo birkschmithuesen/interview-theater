@@ -109,6 +109,10 @@ _TEXT_BESETZT = "Ich schreibe gerade noch an einer Szene, gleich."
 #: Die Chronologie-Sperre in einer Zeile (05.09.2026, Testgruppe 22:05: Szene
 #: 3 wurde vor Szene 1 und 2 geschrieben). Kein Sperrtext, keine Rueckfrage --
 #: der Bot sagt, was er stattdessen tut, und tut es.
+_TEXT_ERST_KARTEN = (
+    "Szenentexte kommen spaeter: als Naechstes baut ihr aus eurer Auswahl "
+    "Szene fuer Szene eine Karte (Phase 6). Jetzt geht es um die Interviews."
+)
 _TEXT_ERST_FRUEHERE = (
     "Szene {nummer} kommt nach Szene {vorher} - die schreibe ich zuerst."
 )
@@ -2774,6 +2778,20 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str,
     auftrag = (auftrag or "").strip()
     if not auftrag:
         return None
+
+    # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): in Phase 5 und 6 entsteht
+    # kein Szenentext mehr -- 5 waehlt Interviews aus, 6 baut Karten.
+    if workshop.szenenkarten_aktiv():
+        from interview_theater import phasen as phasen_modul
+
+        phase = phasen_modul.aktuelle(conn, chat_id)
+        if phase == 5:
+            _sende_und_merke(conn, tg, e, chat_id, T._TEXT_ERST_KARTEN)
+            return None
+        if phase == 6:
+            from interview_theater import szenenkarte
+
+            return szenenkarte.weiter(conn, tg, klm, e, chat_id)
 
     # Chronologie-Sperre (05.09.2026): geschrieben wird immer nur die
     # kleinste Szene ohne Volltext. Nennt der Auftrag eine spaetere, sagt der

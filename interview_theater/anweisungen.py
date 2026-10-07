@@ -362,7 +362,14 @@ def system(bot_name: str | None = None, phase: int | None = None) -> str:
     """
     teile = [hole("system")]
     if phase is not None:
-        phasentext = hole_optional(f"phasen/{int(phase)}")
+        phasentext = None
+        if workshop.szenenkarten_aktiv() and int(phase) in (5, 6, 7):
+            # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): eigene Phasentexte
+            # fuer Interviewauswahl / Szenenkarten / Stage Script -- nur mit
+            # dem Schalter, ohne ihn bleibt die Datei, die sie war.
+            phasentext = hole_optional(f"phasen/{int(phase)}-karten")
+        if not phasentext:
+            phasentext = hole_optional(f"phasen/{int(phase)}")
         if phasentext and phasentext.strip():
             teile.append(PHASEN_UEBERSCHRIFT + phasentext.strip())
     profiltext = hole_optional(PROFIL_ANWEISUNG)

@@ -114,7 +114,7 @@ SCOPE_P3_P4 = (
 #: etwas gespeichert ist), ist also unabhaengig von der Stelle.
 SCOPE_P5_P7 = (
     "08-gespraech-phase5", "21-schaerfung", "22-entwurf-uebersicht",
-    "23-sprachprofil", "24-kernzitate", "46-szenenkern",
+    "23-sprachprofil", "24-kernzitate", "46-szenenkern", "47-szenenkarte", "48-szenenkarte-pruefung",
     "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
     "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
     "38-dramaturgie-a9", "40-dramaturgie-a11", "43-prueflauf-ueberarbeitung",
@@ -443,6 +443,20 @@ def _szenenkern(conn, e, tg, klm, chats):
     return None
 
 
+def _szenenkarte(conn, e, tg, klm, chats):
+    """``47-szenenkarte``: die erste Karte von Phase 6 (``szenenkarte.starte``)."""
+    from interview_theater import szenenkarte
+    _joine(szenenkarte.starte(conn, tg, klm, e, chats[6], 1))
+    return None
+
+
+def _szenenkarte_pruefung(conn, e, tg, klm, chats):
+    """``48-szenenkarte-pruefung``: der Blick uebers Ganze nach der letzten Karte."""
+    from interview_theater import szenenkarte
+    szenenkarte.pruefe_karten(conn, klm, e, chats[6])
+    return None
+
+
 def _szene_prosa_phase6(conn, e, tg, klm, chats):
     """``04-szene-prosa-phase6``: derselbe Aufruf wie ``entwurf.
     fixiere_uebersicht``/``bestaetige_szene`` ihn ausloesen -- die Phase (6)
@@ -644,6 +658,8 @@ TREIBER = {
     "23-sprachprofil": _sprachprofil,
     "24-kernzitate": _kernzitate,
     "46-szenenkern": _szenenkern,
+    "47-szenenkarte": _szenenkarte,
+    "48-szenenkarte-pruefung": _szenenkarte_pruefung,
     "04-szene-prosa-phase6": _szene_prosa_phase6,
     # Derselbe Treiber wie 04: der EN/IT-Spiegelpass (Birk, Live-Workshop
     # 07.10.2026 ~17:20) haengt sich in szene.schreibe an denselben Lauf an

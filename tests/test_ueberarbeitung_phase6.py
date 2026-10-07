@@ -24,6 +24,17 @@ from test_dramaturgie_schleife import Rundenrichter
 from test_knoepfe import TelegramAttrappe, _druck
 
 
+@pytest.fixture(autouse=True)
+def _ohne_karten(monkeypatch):
+    """Diese Tests pruefen den Padua-Prosaweg (P5 Prosa, P6 Rewrite) -- seit
+    dem Phasenumbau (Birk 07.10.2026 ~18:12) das Verhalten OHNE
+    ``[karten] aktiv``; der Kartenweg steht in ``tests/test_szenenkarte.py``."""
+    from interview_theater import workshop as _workshop
+
+    monkeypatch.setattr(_workshop, "szenenkarten_aktiv", lambda *a, **k: False)
+
+
+
 class Schreiber:
     """Szenen- und Geschichtenlauf ohne Netz; merkt jeden Prosa-Aufruf."""
 

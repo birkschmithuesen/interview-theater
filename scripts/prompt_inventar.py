@@ -241,6 +241,12 @@ INVENTAR = (
     # nach einer Szenenaenderung im Chat.
     Eintrag("46-szenenkern", "szenenkern", 5,
             "interview_theater.szenenkern", "ART"),
+    # --- Szenenkarten (Birk 07.10.2026 ~18:12, Padua [karten] aktiv):
+    # Phase 6 baut je Szene eine Karte, danach EIN Blick uebers Ganze.
+    Eintrag("47-szenenkarte", "szenenkarte", 6,
+            "interview_theater.szenenkarte", "ART"),
+    Eintrag("48-szenenkarte-pruefung", "szenenkarte_pruefung", 6,
+            "interview_theater.szenenkarte", "ART_PRUEFUNG"),
     # --- Phase 7: Formen, Sprechweise, Stueckpruefung, Richterfragen (a10/c1).
     # Dieselbe Reihenfolge-Regel wie Phase 6 oben: a10/c1/Stueckpruefung lesen
     # die Szenen, 28-32 und der Nachpass (44) schreiben wirklich und stehen

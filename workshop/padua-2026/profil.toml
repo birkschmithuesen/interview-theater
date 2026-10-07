@@ -309,3 +309,10 @@ musik_chats = [7000000000000, 7000000000099]
 # G1 spielt sich selbst ("channels for the interviews"), G3 (Sprachrohre der Interviews, keine Figuren): Figuren-Zuordnung ergibt keinen Sinn. G2 NICHT: jede:r Performer:in traegt eine Position/ein Schild aus den Interviews -> Figuren-Zuordnung sinnvoll (Birk 15:20).
 [schaerfung]
 ohne_figuren_chats = [7000000000000, 7000000000002]
+
+# Phasen-Umbau (Birk 07.10.2026 ~18:12): Phase 5 = nur Interviews auswaehlen
+# (Done -> Angebot Phase 6, keine Prosa mehr), Phase 6 = Szenenkarten je
+# Szene/Moment (szenenkarte.py, Yes, save / No, change), Phase 7 = Stage
+# Script aus den Karten. Ohne diese Zeile: der bisherige Prosa-Weg.
+[karten]
+aktiv = true

@@ -1065,6 +1065,16 @@ def skript_verdichtet_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("skript.verdichtet", False))
 
 
+def szenenkarten_aktiv(profil: Profil | None = None) -> bool:
+    """Padua-Phasenumbau (Birk, Live-Workshop 07.10.2026 ~18:12): Phase 5 =
+    nur Interviews auswaehlen, Phase 6 = Szenenkarten (``szenenkarte.py``)
+    statt Prosa-Rewrite, Phase 7 = Stage Script aus den Karten.
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("karten.aktiv", False))
+
+
 def workbench_bearbeitbar(profil: Profil | None = None) -> bool:
     """Ob der Arbeitsstand-Tab ("Workbench") Formulare traegt und der
     Werkbank-POST schreibt (Padua, 03.10.2026, Karte t_49e7354c).

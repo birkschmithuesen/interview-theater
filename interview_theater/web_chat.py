@@ -105,6 +105,18 @@ _EVENT_ATTR = re.compile(
 #: vor der Maskierung, damit das Schema selbst nicht als Text sichtbar bleibt.
 _DANGEROUS_SCHEME = re.compile(r"\b(javascript|data|vbscript):", re.IGNORECASE)
 
+#: Leichtes Markdown freier Modellantworten (Karte t_cc147548, 07.10.2026):
+#: dieselbe sichere Teilmenge wie ``web._buehne_markdown``/
+#: ``telegram.leichtes_markdown`` -- bewusst hier noch einmal definiert statt
+#: importiert, web_chat.py ist bewusst ein eigenes Modul ohne web.py-Importe
+#: (Moduldocstring oben). Angewendet auf die schon mit ``html.escape``
+#: maskierte Zeile in ``sichere_html``, Fett vor Kursiv wie dort. Keine
+#: Listen-Tags: ``<ul>``/``<li>`` stehen nicht in ``ERLAUBTE_TAGS`` (wie
+#: Telegrams HTML-Modus auch keine Listen kennt) -- eine Aufzaehlungszeile
+#: ("- "/"• ") bleibt Klartext, der Zeilenumbruch danach reicht.
+_LEICHT_FETT = re.compile(r"\*\*([^*]+)\*\*")
+_LEICHT_KURSIV = re.compile(r"\*([^*]+)\*")
+
 
 def sichere_html(text) -> str:
     """Telegram-HTML als sicheres HTML fuer die Chatansicht.
@@ -122,11 +134,18 @@ def sichere_html(text) -> str:
     es im Text kein einziges ``<`` mehr, und Schritt 2 kann nur das
     erzeugen, was er ausdruecklich erlaubt. Ein Filter, der stattdessen
     ``<script>`` entfernt, ist eine Liste von Dingen, an die jemand gedacht
-    hat."""
+    hat.
+
+    (1b) direkt danach: leichtes Markdown (``**fett**``/``*kursiv*``) einer
+    freien Modellantwort wird zu ``<b>``/``<i>`` -- auf der schon maskierten
+    Zeile, deshalb sicher (ein woertliches ``**<script>**`` im Modelltext
+    bleibt escaped, nur die Sternchen werden zu Tags)."""
     roh = html.unescape(text or "")
     roh = _EVENT_ATTR.sub("", roh)
     roh = _DANGEROUS_SCHEME.sub("", roh)
     maskiert = html.escape(roh, quote=True)
+    maskiert = _LEICHT_FETT.sub(r"<b>\1</b>", maskiert)
+    maskiert = _LEICHT_KURSIV.sub(r"<i>\1</i>", maskiert)
     mit_tags = _TAGS.sub(lambda t: f"<{t.group(1)}{t.group(2).lower()}>", maskiert)
     mit_links = _LINK.sub(
         lambda t: (

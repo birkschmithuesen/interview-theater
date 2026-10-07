@@ -701,6 +701,20 @@ def test_echte_antwort_ist_keine_denkspur():
         assert not ablauf.ist_denkspur(text), text
 
 
+def test_legitimes_markdown_in_der_antwort_ist_keine_denkspur():
+    """Karte t_cc147548 (07.10.2026): die Systemanweisung erlaubt jetzt
+    leichtes Markdown -- "keine markdown"/"no markdown" sind deshalb keine
+    Denkspur-Marker mehr. Eine Antwort, die **fett** oder "no markdown"
+    im normalen Sinn erwaehnt (nicht als Selbstgespraech), darf nicht
+    verworfen werden."""
+    for text in (
+        "**Setting:** die Werkstatt. **Figuren:** Mira, Jo.",
+        "Klar, ich kann das in Fettschrift schreiben, keine Markdown-Scheu.",
+        "No markdown issue here -- here is the summary you asked for.",
+    ):
+        assert not ablauf.ist_denkspur(text), text
+
+
 def test_gespraechszug_ueberlebt_eine_string_antwort(conn, einst, tg):
     """05.09.2026, live in Gruppe 1: das Modell lieferte statt
     {"antwort": "..."} einen blanken String. ``ergebnis["antwort"]`` warf

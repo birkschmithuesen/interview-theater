@@ -71,10 +71,15 @@ def test_system_en_beschreibt_die_web_app_statt_telegram():
     tatsaechlich benutzt, und beschrieb ihre Bedienelemente (Start
     listening, Discussion done, Mikro-Knopf, Tabs) gar nicht. Die Gruppe
     kann auch ueber den Web-Kanal laufen, ohne Telegram -- deshalb
-    kanalneutral ('the chat'), kein Produktname."""
+    kanalneutral ('the chat'), kein Produktname.
+
+    Seit Karte t_cc147548 (07.10.2026) rendert die App leichtes Markdown
+    statt es roh zu zeigen -- die urspruengliche Zusicherung ('the chat
+    shows them raw') ist durch 'The chat renders this' ersetzt, die
+    eigentliche Pruefung (kanalneutral, kein Telegram) bleibt dieselbe."""
     text = (EN / "system.md").read_text(encoding="utf-8")
     assert "Telegram" not in text
-    assert "The chat shows them raw" in text
+    assert "The chat renders this" in text
     assert "Start listening" in text
     assert "Discussion done" in text
     assert "Workbench" in text

@@ -1990,6 +1990,8 @@ def _regienotizen(conn, chat_id: int, nummer: int | None) -> list[str]:
 #: deckt einen ganzen Workshop-Nachmittag; Kimi-Pfad bleibt bei 30.000.
 P5_GESPRAECH_ZEICHEN = 30_000
 P5_GESPRAECH_ZEICHEN_CLAUDE = 150_000
+#: So lang darf eine eigene (Bot-)Zeile im Phase-5-Block hoechstens sein.
+P5_EIGENE_ZEICHEN = 600
 
 
 def _p5_gespraech_text(conn, chat_id: int, ueber_claude: bool = False) -> str:
@@ -2009,12 +2011,25 @@ def _p5_gespraech_text(conn, chat_id: int, ueber_claude: bool = False) -> str:
     if zeile is None:
         return ""
     seit = (zeile[0] or "")[:19]
+    # Der Block endet beim Eintritt in die naechste Phase (Nachtrag Birk
+    # 08.10.2026): sonst stehen in Phase 7 alte Kartenfassungen darin.
+    ende = conn.execute(
+        "SELECT erstellt_am FROM journal WHERE chat_id = ? AND entfernt_am IS NULL "
+        "AND text LIKE 'Phase %' AND text NOT LIKE 'Phase 5%' AND substr(erstellt_am, 1, 19) > ? "
+        "ORDER BY erstellt_am LIMIT 1", (chat_id, seit),
+    ).fetchone()
+    bis = (ende[0] or "")[:19] if ende is not None else None
     du, gruppe = T._SPRECHER_DU, T._SPRECHER_GRUPPE
     zeilen = []
     for n in repo.letzte_nachrichten(conn, chat_id, anzahl=kontext._FENSTER_POOL):
-        if kontext._ist_systemzeile(n) or (n["gesendet_am"] or "")[:19] < seit:
+        gesendet = (n["gesendet_am"] or "")[:19]
+        if kontext._ist_systemzeile(n) or gesendet < seit or (bis and gesendet >= bis):
             continue
         text = (n["text"] or "").strip()
+        if text and n["ist_bot"] and len(text) > P5_EIGENE_ZEICHEN:
+            # Eigene Zeilen sind Vorschlaege, keine Beschluesse -- gekuerzt,
+            # damit die Gruppe im Block nicht untergeht (G1: 90 % Bot-Text).
+            text = text[:P5_EIGENE_ZEICHEN].rsplit(" ", 1)[0] + " …"
         if text:
             zeilen.append(f"{du if n['ist_bot'] else gruppe}: {text}")
     grenze = P5_GESPRAECH_ZEICHEN_CLAUDE if ueber_claude else P5_GESPRAECH_ZEICHEN

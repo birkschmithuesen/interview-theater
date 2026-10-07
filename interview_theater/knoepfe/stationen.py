@@ -52,6 +52,11 @@ def uebergang_nach_speichern(conn, tg, klm, e, chat_id: int) -> bool:
     # oben waere ein Zyklus (derselbe Grund wie in ``wirkung._wirkung_aufnahme``).
     from interview_theater import befehle
 
+    # Phase-5-Gate (Padua, 07.10.2026): derselbe Waechter wie beim Knopf
+    # "Weiter zu Phase N" -- "Ja, speichern" kann genauso gut die naechste
+    # moegliche Phase 5 treffen.
+    if befehle.p5_gate(conn, tg, chat_id, nummer):
+        return True
     befehle.schliesse_offenes_interview_vor_phasenwechsel(
         conn, tg, klm, e, chat_id, nummer)
     phasen.merke_angebot(conn, chat_id, nummer)

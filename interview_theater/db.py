@@ -382,6 +382,11 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- damit fixiert wurde (Ebene 2). Voraussetzung fuer Phase 5 -- auch bei
   -- nur einer Figur.
   figuren_fixiert_am     TEXT,
+  -- Padua, Phase-5-Gate (07.10.2026): Zeitpunkt, zu dem die Gruppe die
+  -- Werkbank-Uebersicht vor Phase 5 bestaetigt hat ("Alles richtig"). NULL
+  -- heisst: der Check steht noch aus oder ist durch einen Ruecksprung unter
+  -- Phase 5 wieder zurueckgesetzt (``phasen.setze``).
+  p5_check_bestaetigt_am TEXT,
   -- Die Figur, die in Ebene 2 gerade vorgestellt wird. Merkposten fuer die
   -- Knopfwege, die ueber einen Modellaufruf laufen (Duktus-Vorschlaege).
   figur_aktuell          TEXT,

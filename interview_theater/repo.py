@@ -1898,6 +1898,11 @@ _ARBEITSSTAND_FELDER = (
     # Der zuletzt vom Board selbst gespeicherte Wert (05.10.2026), gesetzt
     # allein von ``begriffsboard.speichere_automatisch``.
     "begriffe_board_wert",
+    # Padua, Phase-5-Gate (07.10.2026): derselbe eine Schreibweg wie alles
+    # andere im Arbeitsstand, gesetzt vom Knopf "Alles richtig" und
+    # zurueckgesetzt (auf ``None``), sobald die Phase wieder unter 5 faellt
+    # (``phasen.setze``).
+    "p5_check_bestaetigt_am",
 )
 
 

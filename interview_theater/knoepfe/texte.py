@@ -39,6 +39,12 @@ ART_PHASE = "phase"
 #: eigener Knopf und nicht "einfach nicht druecken", damit die Gruppe das
 #: Angebot vom Tisch nehmen kann, statt es stehen zu lassen.
 ART_NOCH_NICHT = "noch_nicht"
+#: Die zwei Knoepfe des Phase-5-Gates (Padua, 07.10.2026,
+#: ``workshop.p5_check_aktiv``, ``befehle.p5_gate``): die Werkbank-
+#: Uebersicht ist richtig, dann startet Phase 5 -- oder sie ist es nicht,
+#: dann bleibt die Gruppe in Phase 4 und sagt, was zu aendern ist.
+ART_P5_CHECK_OK = "p5_check_ok"
+ART_P5_CHECK_AENDERN = "p5_check_aendern"
 #: Form je Szene (Phase 6) -- dasselbe Ziel wie ``/szene <n> form <wert>``.
 #: Der Wert der Knopfzeile traegt beides, durch ':' getrennt: "3:dialog".
 ART_SZENENFORM = "szenenform"
@@ -1377,6 +1383,14 @@ _TEXT_WEITER_ZU_KNOPF = "Weiter zu Phase {phase}"
 #: Rueckfall fuer ``_ERLEDIGT_FUER`` -- im Aufruf, nicht in einer Signatur (K1).
 _TEXT_ALLES_NOETIGE = "Alles Noetige"
 
+#: Die Knopfbeschriftungen des Phase-5-Gates (Padua, 07.10.2026,
+#: ``basis.biete_p5_check``).
+_TEXT_P5_CHECK_OK_KNOPF = "✅ Passt alles - Textentwurf starten"
+_TEXT_P5_CHECK_AENDERN_KNOPF = "✏️ Etwas aendern"
+#: Die Rueckfrage nach "Etwas aendern" -- die Gruppe bleibt in Phase 4.
+_TEXT_P5_CHECK_AENDERN_FRAGE = "Was soll ich aendern? Sagt es mir einfach."
+_JOURNAL_P5_CHECK_BESTAETIGT = "Werkbank vor Phase 5 bestaetigt"
+
 #: Die frueheren Inline-Literale aus ``figuren.py`` (Aufgabe 12, A1):
 #: Knopf-Quittungen (answerCallbackQuery), Journalzeilen, Chatzeilen.
 _TEXT_NAME_GEAENDERT_QUITTUNG = "Name geaendert"
@@ -1472,6 +1486,11 @@ _ANTWORT_HILFE = "Hilfe"
 _ANTWORT_SZENE_STIL = "Szene {nummer}: Stil {stil}"
 _ANTWORT_USA_JA = "US-Modell: ja"
 _ANTWORT_USA_NEIN = "Bleibt in der Schweiz"
+_ANTWORT_P5_CHECK_OK = "Bestaetigt"
+_ANTWORT_P5_CHECK_AENDERN = "Sagt mir, was zu aendern ist"
+#: Toast, wenn ein anderer Phasenknopf ("Weiter zu Phase N", "Ja,
+#: speichern") durch das Phase-5-Gate abgefangen wird (``befehle.p5_gate``).
+_ANTWORT_P5_CHECK_NOETIG = "Erst die Werkbank pruefen"
 
 #: Die uebrigen frueheren Inline-Literale aus ``wirkung.py`` (Aufgabe 13):
 #: Journalzeilen (gehen ueber ``kontext._baue_journal`` in den Prompt),

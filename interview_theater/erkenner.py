@@ -2105,6 +2105,43 @@ def _ohne_phasensprung_vor_fixierten_figuren(
     return [a for a in aenderungen if not _zielt_auf_gesperrte_phase(a)]
 
 
+#: Padua, Phase-5-Gate (07.10.2026): dieselbe Zielphase wie
+#: ``befehle.P5_CHECK_ZIEL``. Hier als eigene Konstante, weil ``erkenner``
+#: unter ``befehle`` in der Modulkarte liegt und den Wert nur lokal
+#: importiert braucht, nicht das ganze Modul auf Vorrat.
+PHASE_P5_CHECK_ZIEL = 5
+
+
+def _ohne_phase_5_ohne_p5_check(conn, tg, chat_id: int,
+                                aenderungen: list[dict]) -> list[dict]:
+    """Ein ``phase_setzen`` Richtung Phase 5 faellt weg, solange die
+    Werkbank-Uebersicht nicht bestaetigt ist (Padua, Phase-5-Gate,
+    07.10.2026) -- derselbe Grund wie
+    ``_ohne_phasensprung_vor_fixierten_figuren``: der Erkenner kann die
+    Bestaetigung nie selbst herbeifuehren, nur ein Knopfdruck
+    (``knoepfe.wirkung._wirkung_p5_check_ok``) tut das. Anders als dort
+    bleibt die Gruppe im freien Chat nicht vor einer stillen Ablehnung
+    stehen: ``befehle.p5_gate`` zeigt an ihrer Stelle dieselbe Uebersicht
+    wie beim Befehl/Klick."""
+    jetzige = phasen.aktuelle(conn, chat_id)
+
+    def _zielt_auf_5(a: dict) -> bool:
+        if a.get("art") != "phase_setzen":
+            return False
+        try:
+            return phasen.nummer_fuer(a.get("wert"), jetzige=jetzige) == PHASE_P5_CHECK_ZIEL
+        except Exception:
+            return False
+
+    if not any(_zielt_auf_5(a) for a in aenderungen):
+        return aenderungen
+    from interview_theater import befehle
+
+    if not befehle.p5_gate(conn, tg, chat_id, PHASE_P5_CHECK_ZIEL):
+        return aenderungen
+    return [a for a in aenderungen if not _zielt_auf_5(a)]
+
+
 def baue_meldung(
     wirkliche_aenderungen: list[dict], conn=None, chat_id: int | None = None,
 ) -> str | None:
@@ -3350,6 +3387,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # nicht fixiert ist -- der Erkenner kann diese Voraussetzung nie
         # selbst herbeifuehren (siehe Docstring der Funktion).
         aenderungen = _ohne_phasensprung_vor_fixierten_figuren(conn, chat_id, aenderungen)
+        # Phase-5-Gate (Padua, 07.10.2026): derselbe Waechter wie beim
+        # Befehl/Klick -- ein "lass uns weitermachen" im freien Chat soll
+        # nicht an der Werkbank-Uebersicht vorbeikommen.
+        aenderungen = _ohne_phase_5_ohne_p5_check(conn, tg, chat_id, aenderungen)
         if not aenderungen:
             return
         notiz_verbraucht = False

@@ -279,7 +279,12 @@ GEAENDERT: dict[str, str] = {
     "prompt phasen/6": (
         "Folgt aus dem Phase-4-Umbau (02.10.2026): Phase 4 entscheidet keine "
         "Form je Szene mehr, also behauptet Phase 6 nicht mehr \"die Form je "
-        "Szene steht schon\" -- sie wird erst im Feinschliff entschieden."
+        "Szene steht schon\" -- sie wird erst im Feinschliff entschieden. "
+        "Nachtrag 07.10.2026 (Birk): dieselbe kurze Identitaetszeile wie "
+        "Phase 7 ('Hier arbeitest du wie ein erfahrener Dramaturg am Text'), "
+        "samt einer Zeile zur konkreten Bedeutung in dieser Phase -- "
+        "Uebergaenge, Tempo, Wiederholung, verlorene Interviewstimme als "
+        "Beobachtung mit einem Vorschlag (tests/test_phase57_dramaturg_regeln.py)."
     ),
     "prompt phasen/7": (
         "Karte t_6177d71f (07.10.2026): eine Zeile vor den sechs bereits "

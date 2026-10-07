@@ -1,4 +1,4 @@
-"""Phasen 5 und 7: dramaturgische Rolle konsistent zu Phase 4 (07.10.2026, Birk).
+"""Phasen 5, 6 und 7: dramaturgische Rolle konsistent zu Phase 4 (07.10.2026, Birk).
 
 Karte t_6177d71f: Phase 5 durfte bisher keine fachliche Beobachtung zu einem
 Widerspruch zwischen Zitat und Figur aeussern (nur "Material ist ein Angebot,
@@ -7,9 +7,15 @@ das Material abzuwerten. Das "Erst fragen, dann vorschlagen"-Boilerplate
 griff in Phase 5 kaum (die Zuordnung laeuft automatisch) und wurde durch
 eine phasenspezifische Fassung ersetzt. Phase 7 bekommt eine kurze
 Identitaetszeile vor den sechs schon bewaehrten Feinschliff-Regeln, deren
-Wortlaut unveraendert bleibt (Phase 6 unveraendert: die globale
-system.md-Ergaenzung aus Phase 4 deckt den einzigen gepruefte Fall -- einen
-strukturell schwachen Szenenuebergang -- bereits ab).
+Wortlaut unveraendert bleibt.
+
+Nachtrag 07.10.2026 (Birk, Freigabe "Phase 6 fertig machen"): Phase 6
+(Rewrite in Padua) bekommt dieselbe kurze Identitaetszeile wie Phase 7,
+samt einer Zeile, was sie hier konkret bedeutet (strukturelle Schwaechen --
+Uebergaenge, Tempo, Wiederholung, verlorene Interviewstimme -- als
+Beobachtung mit einem Vorschlag, Entscheidung bei der Gruppe). Die zuvor
+gueltige Begruendung "Phase 6 unveraendert" (system.md-Ergaenzung aus Phase 4
+deckt den Fall ab) gilt damit nicht mehr als bindend.
 
 ``padua`` (IT_WORKSHOP=padua-2026, sprache.code="en") liefert die englische
 Fassung; ohne diese Fixture bleibt ``sprache.code()`` auf der deutschen
@@ -69,3 +75,21 @@ def test_deutsche_phase_7_traegt_die_dramaturgenzeile():
     system = _flach(kontext.system("gruppe4", 7))
     assert "Hier arbeitest du wie ein erfahrener Dramaturg am Text." in system
     assert "Gib nach JEDER Aenderung den vollstaendigen Text neu aus." in system
+
+
+def test_englische_phase_6_traegt_die_dramaturgenzeile(padua):
+    system = _flach(kontext.system("gruppe1", 6))
+    assert "This is the work of an experienced dramaturge on the text." in system
+    assert ("a transition that doesn't land, the pacing, a repetition, a place "
+            "where an interview voice gets lost") in system
+    # Die bestehende Regel bleibt woertlich unveraendert.
+    assert "The existing scene sequence is binding" in system
+
+
+def test_deutsche_phase_6_traegt_die_dramaturgenzeile():
+    system = _flach(kontext.system("gruppe4", 6))
+    assert "Hier arbeitest du wie ein erfahrener Dramaturg am Text." in system
+    assert ("einen Uebergang, der nicht traegt, das Tempo, eine Wiederholung, "
+            "eine Stelle, an der eine Interviewstimme verloren geht") in system
+    # Die bestehende Regel bleibt woertlich unveraendert.
+    assert "Der Uebergang ist eine Entscheidung, keine Selbstverstaendlichkeit." in system

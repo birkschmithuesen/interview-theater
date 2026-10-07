@@ -518,7 +518,51 @@ def schema(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
     innere = _TeilSenke(bei_teil, teil_feld) if bei_teil is not None else None
     text = prosa(conn, e, klient, chat_id, system_mit_schema, nutzer, art,
                 timeout, bei_teil=innere, wartezeiten=wartezeiten, modell=modell)
-    return llm_modul.lies_json(text)
+    try:
+        return llm_modul.lies_json(text)
+    except llm_modul.LLMFehler:
+        # Live-Fund 07.10.2026 (Testgruppe, aufruf 163/167/170/175): Opus
+        # lieferte erfolgreich 950-1470 Token, ``lies_json`` fand trotzdem
+        # kein JSON -> "Claude-Antwort unverwertbar" -> Kimi-Rueckfall. Opus
+        # schreibt bei langen Antworten gelegentlich Text VOR dem Objekt
+        # (laenger als ``LIES_JSON_SUCHFENSTER``). Zweiter Versuch: ab dem
+        # LETZTEN Vorkommen eines Objekts mit einem Schema-Schluessel.
+        ergebnis = _json_nach_schluessel(text, schema_)
+        if ergebnis is not None:
+            log.info("Claude-Schema: JSON erst nach %s Zeichen Vortext gefunden (art=%s)",
+                     text.find("{"), art)
+            return ergebnis
+        log.warning("Claude-Schema unlesbar (art=%s, %s Zeichen), Anfang: %r",
+                    art, len(text or ""), (text or "")[:300])
+        raise
+
+
+def _json_nach_schluessel(text: str, schema_: dict) -> dict | None:
+    """Sucht ein JSON-Objekt, das mit einem der Schema-Schluessel beginnt --
+    vom letzten Vorkommen rueckwaerts (das Modell bessert gelegentlich nach)."""
+    if not text:
+        return None
+    dekoder = json.JSONDecoder()
+    schluessel = list((schema_ or {}).get("properties", {}).keys())
+    kandidaten = []
+    for name in schluessel:
+        start = 0
+        while True:
+            i = text.find('"' + name + '"', start)
+            if i < 0:
+                break
+            j = text.rfind("{", 0, i)
+            if j >= 0:
+                kandidaten.append(j)
+            start = i + 1
+    for j in sorted(set(kandidaten), reverse=True):
+        try:
+            wert, _ = dekoder.raw_decode(text, j)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(wert, dict) and any(k in wert for k in schluessel):
+            return wert
+    return None
 
 
 def _buche(conn, chat_id, e, art, modell, nutzung, finish, dauer_s, erfolg):

@@ -94,3 +94,19 @@ def test_kopf_nur_bei_ueberwiegend_anweisungen(conn, padua):
     repo.setze_szenenkarte(conn, ids[0], json.dumps({"typ": "description", "worum": "x",
                                                      "punkte": ["y"]}))
     assert stagescript.braucht_kopf(conn, 1) is False
+
+
+def test_anschluss_an_das_ende_der_vorigen_szene(conn, padua):
+    """Nachtrag Birk 08.10.2026 (Vollskript G3): Szene 5 endete mit der
+    projizierten Schlussfrage, Szene 6 liess sie noch einmal erscheinen. Der
+    Prompt einer Szene bekommt deshalb das geschriebene Ende der vorigen.
+    Mutant: Block weg -> rot; ganzer Text statt Ende -> rot."""
+    ids = _karten(conn)
+    anfang = "ANFANG-DER-SZENE-1 " + "x " * 800
+    repo.setze_stagescript(conn, ids[0], anfang + "ENDE: die Frage erscheint auf der Wand.", None)
+    text = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[1]))
+    assert stagescript.T._KOPF_VORHER in text
+    assert "ENDE: die Frage erscheint auf der Wand." in text
+    assert "ANFANG-DER-SZENE-1" not in text
+    erste = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
+    assert stagescript.T._KOPF_VORHER not in erste

@@ -32,6 +32,8 @@ log = logging.getLogger(__name__)
 
 ART = "stagescript"
 PHASE = 7
+#: So viel vom Ende der vorigen Szene geht in den Prompt.
+VORHER_ZEICHEN = 900
 
 SCHEMA = {
     "type": "object",
@@ -109,6 +111,14 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
         alle.append(f"{s['nummer']}. {s['titel'] or ''} -- {karte.get('worum', '')}")
     if alle:
         teile.append(T._KOPF_ANDERE + "\n" + "\n".join(alle))
+    vorige = next((s for s in _szenen(conn, chat_id) if s["nummer"] == szene["nummer"] - 1), None)
+    vorher = ((vorige["volltext"] if vorige is not None else "") or "").strip()
+    if vorher:
+        # Das geschriebene Ende der vorigen Szene (Nachtrag Birk 08.10.2026,
+        # G3: Szene 5 und 6 projizierten beide die Schlussfrage).
+        if len(vorher) > VORHER_ZEICHEN:
+            vorher = "… " + vorher[-VORHER_ZEICHEN:].split(" ", 1)[-1]
+        teile.append(T._KOPF_VORHER + "\n" + vorher)
     karte = szenenkarte.karte_von(szene) or {}
     teile.append(T._KOPF_KARTE + "\n" + szenenkarte.karte_text(karte, szene))
     typ = karte.get("typ") or "description"
@@ -277,6 +287,7 @@ def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = Non
 
 _KOPF_STUECKKOPF = "Kopf des Skripts (steht schon fest):"
 _KOPF_ANDERE = "Die anderen Szenen (nur zur Orientierung):"
+_KOPF_VORHER = "So endet die vorige Szene (steht schon -- hier anschliessen, nichts davon wiederholen):"
 _KOPF_KARTE = "Die abgenommene Karte DIESER Szene -- sie ist bindend:"
 _KOPF_FORMAT_TYP = "So sieht das Skript dieser Szene aus:"
 _KOPF_BISHER = "Bisheriges Skript dieser Szene, es soll ueberarbeitet werden:"
@@ -284,8 +295,9 @@ _KOPF_NOTIZ = "Was die Gruppe geaendert haben will (gilt vor allem anderen):"
 _AUFTRAG_KOPF = (
     "Schreib zusaetzlich in \"kopf\" EINMAL den Kopf des ganzen Skripts: die "
     "Versuchsanordnung (Ziel, Ort, Regeln, Abbruch) und je beteiligter Person "
-    "ihre Rolle mit Charakter (z. B. schuechtern, Besserwisser, Anwerber) -- "
-    "was sie tut, was nie, wann sie eingreift."
+    "ihre Rolle -- was sie tut, was nie, wann sie eingreift. Rollen und "
+    "Eigenschaften NUR aus Uebersicht und Festlegungen der Gruppe; wo die "
+    "Gruppe keine genannt hat, keine."
 )
 _AUFTRAG = "Schreib jetzt das Stage Script von Szene {nummer}."
 FORMAT_JE_TYP = {

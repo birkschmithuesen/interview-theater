@@ -1440,6 +1440,7 @@ _ZEILE_REGIE = "\nThe group says about it: {regie}"
 ["stagescript"]
 _KOPF_STUECKKOPF = "Head of the script (already set):"
 _KOPF_ANDERE = "The other scenes (for orientation only):"
+_KOPF_VORHER = "This is how the previous scene ends (already written -- continue from here, repeat nothing of it):"
 _KOPF_KARTE = "The saved card of THIS scene -- it is binding:"
 _KOPF_FORMAT_TYP = "This is what the script of this scene looks like:"
 _KOPF_BISHER = "Previous script of this scene, to be revised:"

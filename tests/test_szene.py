@@ -1717,3 +1717,22 @@ def test_waehrend_des_szenenlaufs_zeigt_der_bot_dass_er_arbeitet():
     assert tg.tipps >= 2
     assert tg.geaendert, "die Zeile wechselt"
     assert tg.geloescht, "die letzte Zeile ist wieder weg"
+
+
+def test_p5_gespraech_nur_mit_schalter_und_seit_phase5(monkeypatch):
+    """Birk 07.10.2026 15:10: der Prosa-Prompt bekommt das Gespraech seit dem
+    Eintritt in Phase 5 (Padua-Schalter). Mutant: Schalter/Zeitfilter weg -> rot."""
+    import sqlite3
+    from interview_theater import kontext, repo, szene, workshop
+    c = sqlite3.connect(":memory:"); c.row_factory = sqlite3.Row
+    c.execute("create table journal(id integer primary key, chat_id, text, erstellt_am, entfernt_am)")
+    c.execute("insert into journal(chat_id,text,erstellt_am) values(1,'Phase 5 · Prose Draft','2026-10-07T12:00:00+00:00')")
+    alt = {"text": "VORHER", "ist_bot": 0, "gesendet_am": "2026-10-07T11:00:00+00:00", "typ": "text"}
+    neu = {"text": "Interview 3 for scene 2", "ist_bot": 0, "gesendet_am": "2026-10-07T12:05:00+00:00", "typ": "text"}
+    monkeypatch.setattr(repo, "letzte_nachrichten", lambda conn, chat_id, anzahl=0: [alt, neu])
+    monkeypatch.setattr(kontext, "_ist_systemzeile", lambda n: False)
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: True)
+    text = szene._p5_gespraech_text(c, 1)
+    assert "Interview 3 for scene 2" in text and "VORHER" not in text
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: False)
+    assert szene._p5_gespraech_text(c, 1) == ""

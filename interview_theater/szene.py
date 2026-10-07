@@ -1813,6 +1813,8 @@ _SPRECHER_GRUPPE = "Gruppe"
 
 #: Der Kopf ueber dem Auftrag, ganz am Ende des Nutzertexts.
 _AUFTRAG_KOPF = "Euer Auftrag:\n"
+_P5_GESPRAECH_KOPF = ("Was die Gruppe in Phase 5 ueber die Interviews besprochen hat (Wortlaut). "
+                      "Nutze es: welche Stimmen, Zitate und Themen sie wollen:")
 
 #: Wie viele Chatnachrichten hoechstens mitgehen -- dieselbe Zahl wie im
 #: Gespraechsfenster (``kontext.FENSTER_NACHRICHTEN``), aber eigenstaendig:
@@ -1902,6 +1904,43 @@ def _regienotizen(conn, chat_id: int, nummer: int | None) -> list[str]:
     ]
 
 
+#: Hoechstzahl Zeichen fuer den Phase-5-Gespraechsblock (Birk 07.10.2026
+#: 15:10); bei mehr faellt das AELTESTE vorn weg.
+P5_GESPRAECH_ZEICHEN = 30_000
+
+
+def _p5_gespraech_text(conn, chat_id: int) -> str:
+    """Block: das GANZE Gespraech seit dem (letzten) Eintritt in Phase 5 --
+    dort redet die Gruppe ueber die Interviews (Birk 07.10.2026 15:10: "der
+    Prosa-Erzeuger soll die Diskussion mit den Interviews einbeziehen").
+    Nur unter ``workshop.vollmaterial_phase5_aktiv`` (Padua); ohne Phase-5-
+    Journalzeile leer. Ohne Klarnamen wie ``_chat_text``."""
+    from interview_theater import kontext
+
+    if not workshop.vollmaterial_phase5_aktiv():
+        return ""
+    zeile = conn.execute(
+        "SELECT erstellt_am FROM journal WHERE chat_id = ? AND entfernt_am IS NULL "
+        "AND text LIKE 'Phase 5%' ORDER BY id DESC LIMIT 1", (chat_id,),
+    ).fetchone()
+    if zeile is None:
+        return ""
+    seit = (zeile[0] or "")[:19]
+    du, gruppe = T._SPRECHER_DU, T._SPRECHER_GRUPPE
+    zeilen = []
+    for n in repo.letzte_nachrichten(conn, chat_id, anzahl=kontext._FENSTER_POOL):
+        if kontext._ist_systemzeile(n) or (n["gesendet_am"] or "")[:19] < seit:
+            continue
+        text = (n["text"] or "").strip()
+        if text:
+            zeilen.append(f"{du if n['ist_bot'] else gruppe}: {text}")
+    while zeilen and sum(len(z) + 1 for z in zeilen) > P5_GESPRAECH_ZEICHEN:
+        zeilen.pop(0)
+    if not zeilen:
+        return ""
+    return T._P5_GESPRAECH_KOPF + "\n" + "\n".join(zeilen)
+
+
 def _chat_text(conn, chat_id: int, ziel, nummer: int | None,
                anzahl: int = CHAT_NACHRICHTEN) -> str:
     """Block: der frische Chat plus die Regie-Notizen zu dieser Szene.
@@ -1958,7 +1997,7 @@ _REIHENFOLGE = (
     # Teil (30.09.2026, Karte R): eine Laengenvorgabe, die die
     # Kuerzungsleiter wegwerfen darf, ist keine.
     "format_rahmen", "aufgabe", "laenge", "thema", "kernpaket", "figuren",
-    "continuity", "verworfen", "chat", "diese_szene", "auftrag",
+    "p5_gespraech", "continuity", "verworfen", "chat", "diese_szene", "auftrag",
 )
 
 
@@ -2052,6 +2091,8 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
             "continuity": _continuity_text(conn, chat_id, nummer, voll),
             "verworfen": _verworfen_text(conn, chat_id),
             "chat": _chat_text(conn, chat_id, ziel, nummer, chat_anzahl),
+            # Birk 07.10.2026 15:10: die Interview-Diskussion aus Phase 5.
+            "p5_gespraech": _p5_gespraech_text(conn, chat_id),
             "aufgabe": _aufgabe_text(conn, chat_id, ziel),
             "laenge": _laenge_text(conn, chat_id, ziel),
             "diese_szene": _diese_szene_text(

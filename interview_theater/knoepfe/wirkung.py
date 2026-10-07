@@ -1374,7 +1374,8 @@ def _wirkung_p5_check_ok(conn, d: Druck) -> str:
         conn, d.chat_id, "entschieden", T._JOURNAL_P5_CHECK_BESTAETIGT,
         quelle="knopf",
     )
-    befehle.wechsle_phase(conn, d.tg, d.klm, d.e, d.chat_id, 5, quelle="knopf")
+    befehle.wechsle_phase(conn, d.tg, d.klm, d.e, d.chat_id, 5, quelle="knopf",
+                          voller_eintritt=True)
     return T._ANTWORT_P5_CHECK_OK
 
 

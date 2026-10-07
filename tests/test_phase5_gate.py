@@ -287,3 +287,22 @@ def test_dortmund_kontext_hinweis_bleibt_leer(conn, monkeypatch):
     _bereit(conn)
 
     assert kontext._baue_phasenhinweis(conn, CHAT) != kontext.T._P5_CHECK_GESPRAECHSHINWEIS
+
+
+def test_knopf_ok_ist_voller_eintritt_auch_wenn_phase_5_schon_besucht(conn, einst, monkeypatch):
+    """Birk 07.10.2026: "All correct - start Prose Draft" springt direkt in
+    Phase 5 MIT Onboarding/Zuordnung -- auch wenn die Gruppe schon einmal in
+    Phase 5 war (sonst greift die Wiederherstellung und es kommt nur
+    "We're now at 5")."""
+    tg = TelegramAttrappe()
+    phasen.setze(conn, CHAT, 5, "befehl")
+    phasen.setze(conn, CHAT, 4, "befehl")
+    eintritte = []
+    monkeypatch.setattr(knoepfe, "eintritt_in_phase",
+                        lambda c, t, k, e, ch, n: eintritte.append(n))
+    knopf_id = repo.lege_knopf_an(conn, CHAT, texte.ART_P5_CHECK_OK, None)
+
+    knoepfe.behandle(conn, tg, None, einst, _druck(f"k:{knopf_id}", chat_id=CHAT))
+
+    assert phasen.aktuelle(conn, CHAT) == 5
+    assert eintritte == [5]

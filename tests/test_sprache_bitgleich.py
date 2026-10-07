@@ -258,10 +258,25 @@ GEAENDERT: dict[str, str] = {
     "szenenfolge.systemanweisung_geschichte(6)": (
         "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
     ),
+    "prompt phasen/5": (
+        "Karte t_6177d71f (07.10.2026): dramaturgische Rolle in Phase 5 -- "
+        "ein erkennbarer Widerspruch zwischen Zitat und Figurenhaltung darf "
+        "als Beobachtung benannt werden (nie als Abwertung), und das "
+        "'Erst fragen, dann vorschlagen'-Boilerplate ist durch eine "
+        "phasenspezifische Fassung ersetzt, weil die Zuordnung automatisch "
+        "laeuft und es in Phase 5 kaum freie Vorschlaege gibt "
+        "(tests/test_phase57_dramaturg_regeln.py)."
+    ),
     "prompt phasen/6": (
         "Folgt aus dem Phase-4-Umbau (02.10.2026): Phase 4 entscheidet keine "
         "Form je Szene mehr, also behauptet Phase 6 nicht mehr \"die Form je "
         "Szene steht schon\" -- sie wird erst im Feinschliff entschieden."
+    ),
+    "prompt phasen/7": (
+        "Karte t_6177d71f (07.10.2026): eine Zeile vor den sechs bereits "
+        "bewaehrten Feinschliff-Regeln ('Hier arbeitest du wie ein "
+        "erfahrener Dramaturg am Text') gibt ihnen eine Identitaet, ohne "
+        "ihren Wortlaut zu aendern (tests/test_phase57_dramaturg_regeln.py)."
     ),
     "anweisungen.system(phase=6)": (
         "Folgt aus phasen/6.md (siehe oben). Zusaetzlich Karte P2-Fix "

@@ -176,7 +176,10 @@ object with "art" and "wert":
     it, how you recognise them, what they can do), **ORT** (a sub-location
     below the setting), **STRUKTUR** (the play as a whole -- series, number
     of episodes, whether the ending stays open; **not** the number of
-    scenes, that is point 24), **FORM**, **STIL** (length and style
+    scenes, that is point 24 -- except when the group names parts or
+    sections of the play itself, e.g. "three parts: an opening, a middle
+    part and the end": that names the number of scenes directly, one per
+    part -- write it as szenenanzahl_setzen (point 24), not STRUKTUR), **FORM**, **STIL** (length and style
     requirements for the texts). **If none fits, use a short word of your
     own as the area** (one to three words, e.g. "COSTUMES", "MUSIC",
     "PROPS") instead of filing everything under **SONSTIGES** -- the area
@@ -196,10 +199,19 @@ object with "art" and "wert":
 
 24. szenenanzahl_setzen    -- wert: the number of scenes as a numeral
     ("5"). The group names how many scenes there should be -- whether in
-    passing ("i think we need five scenes for this") or as an answer to
-    your question about it. Write only the number, no words around it.
+    passing ("i think we need five scenes for this"), as an answer to your
+    question about it, or by naming that many parts/sections/movements of
+    the play ("three parts: an opening, a middle part and the end" -> "3").
+    Write only the number, no words around it.
 
         {"art": "szenenanzahl_setzen", "wert": "5"}
+
+    **"One continuous performance", "no real cuts/scenes" is staging, not a
+    count.** It never lowers an already-named number of parts/scenes to 1
+    -- that only describes how the already-named parts are performed, not
+    that there's suddenly just one. Without a number or parts named
+    anywhere in the conversation, such a sentence alone is not
+    szenenanzahl_setzen -- no entry, rather than guessing "1".
 
 25. szene_kuerzen          -- wert: the scene number as a numeral ("3"), or
     empty ("") if none is named. The group asks YOU to make an already

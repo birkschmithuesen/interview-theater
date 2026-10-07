@@ -510,3 +510,29 @@ def test_takt_nicht_vor_phase_4(monkeypatch):
     monkeypatch.setattr(f, "starte", lambda *a, **k: (_ for _ in ()).throw(AssertionError("kein Aufruf")))
     f._zuletzt_gestartet.clear()
     assert f.pruefe_zug(None, None, object(), None, 1, ["random"], phase=3) is None
+
+
+
+def test_neue_form_beim_namen_kuerzt_den_abstand(monkeypatch):
+    """Birk 07.10.2026 (Lecture Performance 32 s nach dem Takt): eine neu
+    genannte Form startet den Modellaufruf schon nach MIN_ABSTAND_NEUE_FORM_S."""
+    from interview_theater import formberater as f
+
+    gestartet = []
+    def _starte(*a, **k):
+        gestartet.append(a[5])
+        return object()
+    monkeypatch.setattr(f, "starte", _starte)
+    monkeypatch.setattr(f, "MIN_ABSTAND_S", 90.0)
+    monkeypatch.setattr(f, "_takt_faellig", lambda c, ch: False)
+    monkeypatch.setattr(f.repo, "formberater_zeilen", lambda c, ch: [])
+    monkeypatch.setattr(f.repo, "lege_formberater_an", lambda *a, **k: None)
+    f._zuletzt_gestartet.clear()
+    f._zuletzt_gestartet[1] = 1000.0
+    monkeypatch.setattr(f.time, "monotonic", lambda: 1000.0 + f.MIN_ABSTAND_NEUE_FORM_S + 1)
+    assert f.pruefe_zug(None, None, object(), None, 1, ["as a lecture performance"], phase=4) is not None
+    assert gestartet == [f.AUSLOESER_LAUFEND]
+    # ohne neue Form (nur Struktur-Stichwort) gilt weiter der lange Abstand
+    gestartet.clear(); f._zuletzt_gestartet[1] = 1000.0
+    assert f.pruefe_zug(None, None, object(), None, 1, ["random order"], phase=4) is None
+    assert gestartet == []

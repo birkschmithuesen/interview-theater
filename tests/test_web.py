@@ -615,3 +615,13 @@ def test_script_planung_ohne_schalter_unveraendert(monkeypatch):
     from interview_theater import web, workshop
     monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: False)
     assert web._planung_wert_html("was_passiert", "a; b") == web._t("a; b")
+
+
+def test_script_prosa_mit_absaetzen():
+    """Birk 07.10.2026 ~17:40: Prosa im Script-Tab mit Absaetzen statt einem
+    Block. Mutant: ein <p> fuer alles -> rot."""
+    from interview_theater import web
+    h = web._prosa_absaetze_html("**What is home?**\n\nEMMA: We asked.\nSAMUELE: No.\n\nEnd.")
+    assert h.count('<p class="prosa">') == 3
+    assert "<strong>What is home?</strong>" in h
+    assert "<strong>EMMA:</strong> We asked.<br><strong>SAMUELE:</strong> No." in h

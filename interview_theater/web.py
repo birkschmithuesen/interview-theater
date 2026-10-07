@@ -4406,6 +4406,26 @@ def _planung_wert_html(feld: str, wert: str) -> str:
     return f'<ul class="planung-liste">{items}{mehr}</ul>'
 
 
+def _prosa_absaetze_html(text: str) -> str:
+    """Script-Tab (Birk 07.10.2026 ~17:40: "keinerlei Zeilenumbrueche oder
+    Paragraphs"): Leerzeile = neuer Absatz, einfacher Umbruch = <br>,
+    ``**fett**`` und ``*kursiv*`` wie im Chat, ``NAME:`` am Zeilenanfang fett."""
+    import re as _re
+
+    def zeile(z: str) -> str:
+        z = _t(z, "")
+        z = _re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", z)
+        z = _re.sub(r"(?<![*\w])\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"<em>\1</em>", z)
+        z = _re.sub(r"^([A-ZÀ-Ý][A-ZÀ-Ý' .-]{1,30}):", r"<strong>\1:</strong>", z)
+        return z
+
+    absaetze = [a.strip() for a in _re.split(r"\n\s*\n", (text or "").strip()) if a.strip()]
+    return "".join(
+        f'<p class="prosa">{"<br>".join(zeile(z) for z in a.splitlines())}</p>'
+        for a in absaetze
+    )
+
+
 def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
     """Eine Szene in der Probenansicht: Kopf, Angaben, Besetzung, Text.
 
@@ -4461,7 +4481,7 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
             # sagt dazu, dass sie noch keine Szene ist.
             zeilen.append(
                 f'<p class="angaben">{_t(T._TEXT_ALS_GESCHICHTE_DOPPELPUNKT)}</p><div class="text">'
-                f'<p class="prosa">{_t(prosa)}</p></div>'
+                f'{_prosa_absaetze_html(prosa)}</div>'
             )
         if planung:
             zeilen.append(f'<dl class="planung">{planung}</dl>')

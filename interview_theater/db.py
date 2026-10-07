@@ -1401,6 +1401,23 @@ CREATE TABLE IF NOT EXISTS recherche (
   erstellt_am     TEXT NOT NULL,
   entfernt_am     TEXT
 );
+
+-- Phasen-Summary (Karte t_1bc96848, Padua): je Phase ein knappes,
+-- automatisiert erzeugtes Summary nur des Beschlossenen -- ersetzt in den
+-- Prompts der Folgephasen die Rohdumps aus Chat/Journal/Workbench einer
+-- ABGESCHLOSSENEN Phase (interview_theater/phasen_summary.py). Nur-anhaengend
+-- wie Journal/Festlegung: ein neues Summary fuer dieselbe Phase (Ruecksprung,
+-- Nachtrag) legt eine neue Zeile an, die alte bleibt stehen -- gelesen wird
+-- immer die juengste (repo.hole_phasen_summary).
+CREATE TABLE IF NOT EXISTS phasen_summary (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  phase        INTEGER NOT NULL,
+  text         TEXT NOT NULL,
+  quelle       TEXT NOT NULL,            -- modell|nachtrag
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_phasen_summary_chat ON phasen_summary(chat_id, phase, id);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1442,6 +1459,8 @@ TABELLEN_MIT_CHAT_ID = (
     "formberater",
     # Karte t_c5117c91 (06.10.2026): die Internet-Recherche.
     "recherche",
+    # Karte t_1bc96848 (07.10.2026): die Phasen-Summaries.
+    "phasen_summary",
 )
 
 

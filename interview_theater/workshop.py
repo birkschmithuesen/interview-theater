@@ -1201,6 +1201,18 @@ def vollmaterial_phase5_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("modellwahl.vollmaterial_phase5", False))
 
 
+def phasen_summary_aktiv(profil: Profil | None = None) -> bool:
+    """Ob beim Phasenwechsel ein automatisiertes Summary der verlassenen
+    Phase entsteht (``interview_theater/phasen_summary.py``) und dieses
+    Summary in den Prompts der Folgephasen den Rohdump derselben Phase
+    ersetzt (Karte t_1bc96848, Birk: "Nicht den kompletten Verlauf
+    reindumpen, das verwirrt").
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("phasen_summary.aktiv", False))
+
+
 def autosave_phase1_2_aktiv(profil: Profil | None = None) -> bool:
     """Ob Phase 1 (Begriffe) und Phase 2 (Eroeffnung) einen Vorschlag sofort
     speichern statt der Ja/Nein-Rueckfrage "Ja, speichern" / "Nein, nochmal

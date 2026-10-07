@@ -316,3 +316,10 @@ ohne_figuren_chats = [7000000000000, 7000000000002]
 # Script aus den Karten. Ohne diese Zeile: der bisherige Prosa-Weg.
 [karten]
 aktiv = true
+
+# Phasen-Summary (Karte t_1bc96848, Birk): beim Phasenwechsel entsteht ein
+# knappes Summary nur des Beschlossenen der verlassenen Phase; es ersetzt in
+# den Folgephasen-Prompts (Szene, Entwurf, Szenenkarten, Matcher, Mitgehoert)
+# den bisherigen Rohdump derselben Phase. Ohne diese Zeile: unveraendert.
+[phasen_summary]
+aktiv = true

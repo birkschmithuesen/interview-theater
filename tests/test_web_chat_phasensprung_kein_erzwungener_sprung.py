@@ -9,12 +9,19 @@ Gegenstuecke) sprang der Anker bei JEDEM Poll erneut, zuletzt direkt vor die
 letzten zwei Zeilen -- fuer Birk sah das aus wie ein geloeschter Chatverlauf,
 obwohl alle Nachrichten in der DB standen.
 
-Regel jetzt: der Live-Sprung zum Phasenanfang (``nimmZustand``, Zweig
-``phasenwechsel``) gilt nur, wenn dieses GERAET diese Phase zum ersten Mal
-sieht (``ersteOeffnungInPhase``, dieselbe Pruefung wie beim Oeffnen der
-Seite, ``scrolleBeimOeffnen``). Eine WIEDERHOLTE Phase verhaelt sich wie ein
-gewoehnlicher neuer Zug: nur scrollen, wenn die Gruppe ohnehin schon unten
-war."""
+Regel jetzt: der Live-Sprung zum Phasenanfang gilt nur, wenn dieses GERAET
+diese Phase zum ersten Mal sieht (``ersteOeffnungInPhase``, dieselbe Pruefung
+wie beim Oeffnen der Seite, ``scrolleBeimOeffnen``). Eine WIEDERHOLTE Phase
+verhaelt sich wie ein gewoehnlicher neuer Zug: nur scrollen, wenn die Gruppe
+ohnehin schon unten war.
+
+**Umgebaut durch Kanban-Karte t_60d72fd6** (07.10.2026, "Verlauf nur der
+aktuellen Phase"): ``nimmZustand`` scrollt bei einem Phasenwechsel nicht mehr
+selbst -- sie baut ``#verlauf`` komplett neu auf (``ladePhaseNeu()``, Option
+c: kein ``location.reload()``, das risse eine laufende Aufnahme mit). Die
+``ersteOeffnungInPhase``-Entscheidung dieser Karte lebt jetzt dort, ueber
+dieselbe ``scrolleBeimOeffnen()``, die auch beim Oeffnen der Seite
+entscheidet -- derselbe Schutz, nur an einer anderen Stelle."""
 
 from interview_theater import web_chat
 
@@ -25,18 +32,20 @@ def _nimm_zustand_rumpf() -> str:
 
 
 def test_der_live_sprung_gilt_nur_beim_allerersten_sehen_dieser_phase():
-    nimm = _nimm_zustand_rumpf()
-    block = nimm[nimm.index("if (neu.length) {"):nimm.index("} else if ")]
+    js = web_chat._CHAT_JS
+    assert "if (phasenwechsel) { ladePhaseNeu(); return; }" in _nimm_zustand_rumpf()
+    funktion = js[js.index("function ladePhaseNeu"):js.index("function nimmZustand")]
+    assert "scrolleBeimOeffnen();" in funktion
+    oeffnen = js[js.index("function scrolleBeimOeffnen"):js.index("function ladePhaseNeu")]
     assert (
-        "if (phasenwechsel && ersteOeffnungInPhase(kalSpeicher(), "
-        "kalGruppeAus(location.pathname), phaseNeu)) { "
-        "scrolleZuPhasenanfang(); erzwingeNachUnten = false; }"
-    ) in block
+        "phasenkopfzeile() && ersteOeffnungInPhase(kalSpeicher(), "
+        "kalGruppeAus(location.pathname), zustand.phase)"
+    ) in oeffnen
 
 
 def test_eine_wiederholte_phase_erzwingt_keinen_sprung():
     """Gegenprobe zum Namen: der alte, unbedingte Sprung-Aufruf darf nicht
-    mehr vorkommen -- sonst waere die Bedingung oben nur Deko."""
-    nimm = _nimm_zustand_rumpf()
-    block = nimm[nimm.index("if (neu.length) {"):nimm.index("} else if ")]
-    assert "if (phasenwechsel) { scrolleZuPhasenanfang();" not in block
+    mehr direkt in ``nimmZustand`` vorkommen -- ``scrolleBeimOeffnen()``
+    prueft ``ersteOeffnungInPhase`` selbst, bevor sie ueberhaupt
+    ``scrolleZuPhasenanfang()`` ruft."""
+    assert "scrolleZuPhasenanfang()" not in _nimm_zustand_rumpf()

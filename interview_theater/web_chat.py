@@ -1212,6 +1212,35 @@ _CHAT_JS = """
   // Nachrichten bringt (die eigene braucht manchmal einen Takt laenger).
   var erzwingeNachUnten = false;
 
+  // Kanban-Karte t_60d72fd6 (Birk 07.10.2026, Option c): der Server
+  // (``web_daten.web_chatverlauf``) liefert ab jetzt nur noch den Verlauf
+  // der AKTUELLEN Phase -- Blasen einer verlassenen Phase stehen aber schon
+  // im DOM (sie waren sichtbar, solange die Phase noch aktuell war) und
+  // muessen weg. Bewusst KEIN Reload der ganzen Seite: das risse Recorder,
+  // Timer und Upload-Warteschlange einer laufenden Aufnahme mit (siehe
+  // ``web_chat.chat_html``, ``nachladen=False``). Stattdessen wird nur
+  // ``#verlauf`` geleert und die Historie der neuen Phase gezielt per Fetch
+  // nachgeladen -- ``nach=0`` wie beim Seitenaufbau, damit auch FRUEHERE
+  // Besuche DERSELBEN Phase wieder auftauchen. Die Scrollentscheidung
+  // danach ist dieselbe wie beim Oeffnen der Seite (``scrolleBeimOeffnen``,
+  // mit ihrer ``ersteOeffnungInPhase``-Pruefung) -- kein zweiter, eigener
+  // Entscheid hier.
+  function ladePhaseNeu() {
+    verlauf.innerHTML = '';
+    zustand.letzte = 0;
+    verlauf.dataset.letzte = 0;
+    return fetch(weg(`chat/zustand?nach=0&seit=${zustand.aenderung}`), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) { return; }
+        (d.nachrichten || []).forEach(blase);
+        zustand.letzte = d.letzte;
+        verlauf.dataset.letzte = d.letzte;
+        scrolleBeimOeffnen();
+      })
+      .catch(function () { /* Netz weg: der naechste Takt versucht es wieder */ });
+  }
+
   function nimmZustand(daten) {
     var warUnten = amUnterenRand();
     // Review-Befund 2: die Seite laedt nie neu, ein Nonce gilt hoechstens
@@ -1220,6 +1249,18 @@ _CHAT_JS = """
       var feld = document.getElementById('nonce');
       if (feld) { feld.value = daten.nonce; }
     }
+    // Phasenscroll-Karte (04.10.2026): ein Wechsel zaehlt nur, wenn vorher
+    // schon eine Phase bekannt war (sonst waere der allererste Poll immer
+    // ein "Wechsel") und die neue sich von ihr unterscheidet.
+    var phaseAlt = zustand.phase;
+    var phaseNeu = (typeof daten.phase === 'number') ? daten.phase : null;
+    var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;
+    if (phaseNeu !== null) { zustand.phase = phaseNeu; }
+    // Kanban-Karte t_60d72fd6: bei einem Phasenwechsel baut ``ladePhaseNeu``
+    // den Verlauf komplett neu auf -- kein inkrementelles Anhaengen von
+    // ``daten.nachrichten``/``daten.geaendert`` in diesem Poll, die beziehen
+    // sich noch auf den alten Anzeigestand.
+    if (phasenwechsel) { ladePhaseNeu(); return; }
     var neu = daten.nachrichten || [];
     neu.forEach(blase);
     if (neu.length) {
@@ -1232,29 +1273,8 @@ _CHAT_JS = """
       zustand.aenderung = daten.aenderung;
       verlauf.dataset.aenderung = daten.aenderung;
     }
-    // Phasenscroll-Karte (04.10.2026): ein Wechsel zaehlt nur, wenn vorher
-    // schon eine Phase bekannt war (sonst waere der allererste Poll immer
-    // ein "Wechsel") und die neue sich von ihr unterscheidet.
-    var phaseAlt = zustand.phase;
-    var phaseNeu = (typeof daten.phase === 'number') ? daten.phase : null;
-    var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;
-    if (phaseNeu !== null) { zustand.phase = phaseNeu; }
     if (neu.length) {
-      // Phasenscroll-Karte, Nachtrag (05.10.2026): ein Phasenwechsel ankert
-      // oben am Phasenanfang -- weitere Nachrichten (selber oder spaeterer
-      // Poll) duerfen diesen Anker nicht wieder nach unten reissen, solange
-      // niemand selbst runtergescrollt ist. ``warUnten`` ist VOR dieser
-      // DOM-Aenderung gelesen, genau wie im ``geaendert``-Zweig unten.
-      //
-      // QUICKFIX Birk, 07.10.2026 (Testgruppe Padua, Phasensprung): der
-      // Sprung gilt nur, wenn dieses Geraet die neue Phase zum ERSTEN Mal
-      // sieht (``ersteOeffnungInPhase``, dieselbe Pruefung wie beim
-      // Oeffnen der Seite) -- sonst riss ein Ruecksprung in eine schon
-      // besuchte Phase (oder ein Ping-Pong aus schnellen Klicks) den Anker
-      // bei JEDEM Poll erneut weg vom laufenden Verlauf, und die Gruppe sah
-      // nur noch die letzten zwei Zeilen, als waere der Rest geloescht.
-      if (phasenwechsel && ersteOeffnungInPhase(kalSpeicher(), kalGruppeAus(location.pathname), phaseNeu)) { scrolleZuPhasenanfang(); erzwingeNachUnten = false; }
-      else if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }
+      if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }
     } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
       nachUnten();
     }

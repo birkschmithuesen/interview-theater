@@ -678,32 +678,51 @@ def test_amunterenrand_wird_vor_jeder_dom_aenderung_gelesen():
 def test_nachunten_laeuft_bei_neu_oder_bei_geaenderter_letzter_blase():
     js = web_chat._CHAT_JS
     nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
-    # Phasenscroll-Karte (04.10.2026, Nachtrag 05.10.2026): bei neuen
-    # Nachrichten entscheidet ``phasenwechsel``, ob zum Phasenanfang
-    # gescrollt wird -- und sonst ``warUnten``, ob der Anker oben (gesetzt
-    # von einem fruehen Phasenwechsel) ans Ende weiterbeweglich bleibt.
-    # Der zweite Zweig (laufendes Transkript) ist davon unberuehrt.
-    #
-    # QUICKFIX Birk, 07.10.2026 (Testgruppe Padua, Phasensprung): der Sprung
-    # gilt nur beim allerersten Sehen dieser Phase auf diesem Geraet
-    # (``ersteOeffnungInPhase``) -- siehe
-    # ``test_web_chat_phasensprung_kein_erzwungener_sprung.py`` fuer die
-    # ausfuehrliche Begruendung.
+    # Phasenscroll-Karte (04.10.2026, Nachtrag 05.10.2026), seit Kanban-
+    # Karte t_60d72fd6 (07.10.2026) ohne den ``phasenwechsel``-Zweig hier
+    # drin: ein Phasenwechsel kehrt VOR diesem Block um (``ladePhaseNeu()``,
+    # siehe test_ein_phasenwechsel_baut_den_verlauf_neu_statt_eines_reloads)
+    # -- ``warUnten`` bleibt der einzige Grund, bei neuen Nachrichten ans
+    # Ende zu scrollen. Der zweite Zweig (laufendes Transkript) ist davon
+    # unberuehrt.
     assert (
         "if (neu.length) {\n" in nimm
     )
     block = nimm[nimm.index("if (neu.length) {"):nimm.index("} else if ")]
-    assert (
-        "if (phasenwechsel && ersteOeffnungInPhase(kalSpeicher(), "
-        "kalGruppeAus(location.pathname), phaseNeu)) { "
-        "scrolleZuPhasenanfang(); erzwingeNachUnten = false; }"
-    ) in block
-    assert "else if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }" in block
+    assert "phasenwechsel" not in block
+    assert "if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }" in block
     nach_else_if = nimm[nimm.index("} else if ") + len("} else if "):]
     bedingung = nach_else_if[:nach_else_if.index(") {")]
     assert "warUnten" in bedingung
     assert "geaendert.length" in bedingung
     assert "letzteBlaseWurdeGeaendert(geaendert)" in bedingung
+
+
+def test_ein_phasenwechsel_baut_den_verlauf_neu_statt_eines_reloads():
+    """Kanban-Karte t_60d72fd6 (Birk 07.10.2026, Option c): der Server
+    (``web_daten.web_chatverlauf``) zeigt nur noch die aktuelle Phase --
+    Blasen einer verlassenen Phase stehen aber schon im DOM und muessen weg.
+    Bewusst KEIN ``location.reload()`` (das risse Recorder, Timer und
+    Upload-Warteschlange einer laufenden Aufnahme mit, siehe
+    ``test_das_js_laedt_ohne_nachladen_der_ganzen_seite``): stattdessen wird
+    nur ``#verlauf`` geleert und die Historie der neuen Phase per Fetch
+    frisch geladen. Mutant: die Zeile ``verlauf.innerHTML = '';`` entfernen
+    (oder den fruehen ``return``) macht diesen Test rot."""
+    js = web_chat._CHAT_JS
+    assert "location.reload" not in js
+    nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
+    vor_dem_wechsel = nimm[:nimm.index("if (phasenwechsel) { ladePhaseNeu(); return; }")]
+    # Die Entscheidung steht VOR jedem ``blase()``/``ersetze()`` -- sonst
+    # rendert der Client die alte Phase noch kurz an, bevor er sie leert.
+    assert "neu.forEach(blase)" not in vor_dem_wechsel
+    assert "geaendert.forEach(ersetze)" not in vor_dem_wechsel
+    assert "var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;" in nimm
+    assert (nimm.index("var phasenwechsel")
+            < nimm.index("if (phasenwechsel) { ladePhaseNeu(); return; }"))
+    funktion = js[js.index("function ladePhaseNeu"):js.index("function nimmZustand")]
+    assert "verlauf.innerHTML = '';" in funktion
+    assert "chat/zustand?nach=0" in funktion
+    assert "scrolleBeimOeffnen();" in funktion
 
 
 # -- Phasenscroll-Karte (04.10.2026): Anfang der neuen Phase statt Ende ----

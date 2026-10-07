@@ -5329,4 +5329,75 @@ def setze_uebersetzung(
         (chat_id, quelle_hash, json.dumps(quelle, ensure_ascii=False),
          json.dumps(felder, ensure_ascii=False), _jetzt()),
     )
+
+
+# --- Internet-Recherche (Karte t_c5117c91) ----------------------------------
+
+
+@_gesperrt
+def speichere_recherche(
+    conn: sqlite3.Connection, chat_id: int, frage: str, ergebnis_text: str,
+    quellen: list[dict],
+) -> int:
+    """Legt eine Rechercheergebnis-Zeile an und liefert ihre id.
+
+    Nur anhaengend wie Journal/Verdichtungen (AGENTS.md): eine Recherche wird
+    nie geaendert, nur weich entfernt (``entferne_recherche``)."""
+    cur = conn.execute(
+        "INSERT INTO recherche (chat_id, frage, ergebnis_text, quellen_json, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (chat_id, frage, ergebnis_text, json.dumps(quellen, ensure_ascii=False), _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def hole_recherchen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Alle nicht entfernten Recherchen einer Gruppe, juengste zuerst --
+    ``quellen`` schon aus JSON gelesen."""
+    zeilen = conn.execute(
+        f"SELECT * FROM recherche WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+        "ORDER BY id DESC",
+        (chat_id,),
+    ).fetchall()
+    ergebnis = []
+    for zeile in zeilen:
+        eintrag = dict(zeile)
+        try:
+            eintrag["quellen"] = json.loads(zeile["quellen_json"]) or []
+        except (ValueError, TypeError):
+            eintrag["quellen"] = []
+        ergebnis.append(eintrag)
+    return ergebnis
+
+
+@_gesperrt
+def hole_recherche(conn: sqlite3.Connection, chat_id: int, recherche_id: int) -> dict | None:
+    """Eine einzelne Recherche dieser Gruppe, oder None."""
+    zeile = conn.execute(
+        f"SELECT * FROM recherche WHERE id = ? AND chat_id = ? AND {_NICHT_ENTFERNT}",
+        (recherche_id, chat_id),
+    ).fetchone()
+    if zeile is None:
+        return None
+    eintrag = dict(zeile)
+    try:
+        eintrag["quellen"] = json.loads(zeile["quellen_json"]) or []
+    except (ValueError, TypeError):
+        eintrag["quellen"] = []
+    return eintrag
+
+
+@_gesperrt
+def entferne_recherche(conn: sqlite3.Connection, chat_id: int, recherche_id: int) -> bool:
+    """Entfernt eine Recherche weich (AGENTS.md "Nur anhaengen") -- True,
+    wenn es sie (noch) gab."""
+    cur = conn.execute(
+        f"UPDATE recherche SET entfernt_am = ? "
+        f"WHERE id = ? AND chat_id = ? AND {_NICHT_ENTFERNT}",
+        (_jetzt(), recherche_id, chat_id),
+    )
+    conn.commit()
+    return cur.rowcount == 1
     conn.commit()

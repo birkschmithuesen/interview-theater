@@ -258,3 +258,10 @@ chat_einspeisen = true
 # Phase 4. Ohne diese Zeile bleibt die Ja/Nein-Rueckfrage bestehen.
 [speichern]
 autosave_phase1_2 = true
+
+# Internet-Recherche (Karte t_c5117c91, InScribe): Research-Knopf am Anfang
+# von Phase 5 und auf Anfrage ab Phase 4, Erkenner-art "recherche_starten",
+# Prompt-Block und Werkbank-Abschnitt. Vorgabe false -- Dortmund und das
+# eingebaute Profil bleiben ohne diese Zeile byte-gleich.
+[recherche]
+aktiv = true

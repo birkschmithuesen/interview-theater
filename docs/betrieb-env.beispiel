@@ -121,6 +121,12 @@ IT_KANAL=telegram
 # will, setzt ihn in der Env der Web-Unit. Nur im Test verkuerzt (tests/e2e).
 # IT_WEB_SEGMENT_MS=45000
 #
+# --- Internet-Recherche (06.10.2026, Karte InScribe) -----------------------
+# Loopback-Such-Broker (eigener Prozess, siehe deploy/search-broker/ im
+# Profil-Repo). Nur aktiv, wenn das Workshop-Profil recherche.aktiv=true
+# setzt (padua-2026). Vorgabe passt zum Broker-Port 8789, meist nicht setzen.
+# IT_SUCHE_URL=http://127.0.0.1:8789/search
+
 # Der Webserver legt Uploads unter IT_AUDIO/<chat_id>/web-eingang/ ab, der
 # Web-Bot holt sie dort ab und verweigert jeden Pfad ausserhalb SEINES
 # IT_AUDIO. Web-Unit und Web-Bots muessen deshalb auf dasselbe Verzeichnis

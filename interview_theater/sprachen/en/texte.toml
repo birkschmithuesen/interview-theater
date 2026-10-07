@@ -591,6 +591,14 @@ the opening, then a line that starts with 'CLOSING:'. Language like a \
 young person's, no official-sounding sentences. The text stands ONLY in the \
 block - don't also write it before it in the running text; before it, at \
 most one sentence and one question."""
+_TEXT_RECHERCHE_KNOPF = "Research"
+_TEXT_RECHERCHE_ANBIETEN = "Should I look this up online?"
+_TEXT_RECHERCHE_FRAGEN_LAEUFT = "Thinking of three research questions ..."
+_TEXT_RECHERCHE_FRAGEN_TEXT = "Which question should we clear up? Or write your own, e.g. \"Research: ...\""
+_TEXT_RECHERCHE_KEINE_FRAGEN = "I can't think of a question for that right now."
+_TEXT_RECHERCHE_LAEUFT = "Looking this up online (30-60 seconds) ..."
+_TEXT_RECHERCHE_NICHTS_GEFUNDEN = "I couldn't find anything verifiable on that."
+_ANTWORT_RECHERCHE_GESTARTET = "Looking it up."
 
 ["befehle"]
 _TEXT_INTERVIEW_AN = "Ready - send your voice messages. After each one you get the typed-out text."
@@ -1060,6 +1068,8 @@ BOARD_KOPF = "The CoThinker board -- the terms the group sees live on the second
 _BOARD_ZEILE = "{nr}. {begriff}{favorit}{grund}"
 _BOARD_FAVORIT = " (favourite)"
 _BOARD_GRUND = " -- {begruendung}"
+RECHERCHE_KOPF = "Research from the internet (NOT interview material -- public sources for context, never read as a statement by an interviewee):"
+_RECHERCHE_ZEILE = "- {frage}: {ergebnis_text}"
 MITGEHOERT_KOPF = "What the group said while you listened in (discussion/brainstorm, oldest first, very old parts may be missing):"
 _MITGEHOERT_DISKUSSION = "[discussion]"
 _MITGEHOERT_BRAINSTORM = "[brainstorm]"
@@ -1681,6 +1691,9 @@ _TEXT_WB_FORM = "Scene {bezug}: form"
 _TEXT_WB_SPRECHWEISE = "{bezug}: way of speaking"
 _TEXT_WB_AUCH_VEREINBART = "Also agreed"
 _TEXT_WERKBANK_NUR_LESEN = "The workbench only shows things — please make changes in the chat."
+_UEBERSCHRIFT_RECHERCHE = "Research - from the internet (not interview material)"
+_TEXT_RECHERCHE_LEER = "No research yet."
+_TEXT_RECHERCHE_QUELLEN = "Sources: {quellen}"
 _JS_SICHER = "Really remove?"
 _JS_SPEICHERT = "saving …"
 _JS_GESPEICHERT = "saved"

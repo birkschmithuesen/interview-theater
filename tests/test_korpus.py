@@ -236,7 +236,8 @@ OHNE_KORPUSFAELLE = {"geschichte_setzen"}
 #: bitgleich. Belegt sind sie im englischen Korpus
 #: (``test_en_traegt_die_padua_arten``).
 NUR_ENGLISCH = {"text_ueberarbeiten", "fassung_abnehmen", "formen_setzen",
-                "sprechweise_setzen", "schaerfung_entscheidung"}
+                "sprechweise_setzen", "schaerfung_entscheidung",
+                "recherche_starten"}
 
 
 def test_erkenner_jede_art_mindestens_zweimal(erkenner_faelle):

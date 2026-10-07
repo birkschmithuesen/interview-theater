@@ -158,6 +158,16 @@ INVENTAR = (
             weg="gebaut",
             grund="Ebenfalls dieselbe Aufrufstelle; System- und Nutzertext "
                   "baut starte_feldvorschlag inline (szenenfolge.py:1374)."),
+    # --- Phase 4/5/Extra: Internet-Recherche (06.10.2026, Karte InScribe)
+    Eintrag("40-recherche-fragen", "recherche", 5,
+            "interview_theater.recherche", "'recherche'"),
+    Eintrag("41-recherche-karte", "recherche", 5,
+            "interview_theater.recherche", "'recherche'",
+            weg="gebaut",
+            grund="Dieselbe Aufrufstelle wie 40 -- Fragenvorschlag "
+                  "(schlage_fragen_vor) und Kartenbau (baue_karte) teilen "
+                  "sich art='recherche', der Treiber ruft beide Funktionen "
+                  "mit je eigenem System-/Nutzertext (recherche.py:149,264)."),
     # --- Phase 5
     Eintrag("21-schaerfung", "schaerfung", 5,
             "interview_theater.schaerfung", "ART"),

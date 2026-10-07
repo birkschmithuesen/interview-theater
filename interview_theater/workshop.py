@@ -1051,6 +1051,17 @@ def prueflauf_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("prueflauf.aktiv", False))
 
 
+def recherche_aktiv(profil: Profil | None = None) -> bool:
+    """Internet-Recherche als eigener Materialstrang (Karte t_c5117c91):
+    Research-Knopf, Erkenner-art ``recherche_starten``, Prompt-Block und
+    Werkbank-Abschnitt gibt es nur mit diesem Schalter.
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich.
+    Padua setzt true (``workshop/padua-2026/profil.toml``)."""
+    profil = profil or aktiv()
+    return bool(profil.wert("recherche.aktiv", False))
+
+
 def ueberarbeitung_aktiv(profil: Profil | None = None) -> bool:
     """Die Padua-Fassung der Phasen 6 (Rewrite) und 7 (Stage Version):
     erst das Ganze, dann Szene fuer Szene; Formwahl und Sprechweisen per

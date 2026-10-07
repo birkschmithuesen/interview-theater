@@ -131,6 +131,28 @@ def test_begriffe_detail_mit_spalte(tmp_path, profil):
     ]
 
 
+def test_werkbank_traegt_die_recherche_leer_ohne_recherche(tmp_path, profil):
+    profil("padua-2026")
+    pfad, _ = _db(tmp_path)
+    assert _werkbank(pfad)["recherche"] == []
+
+
+def test_werkbank_traegt_die_recherche_mit_quelle(tmp_path, profil):
+    profil("padua-2026")
+    pfad, conn = _db(tmp_path)
+    repo.speichere_recherche(
+        conn, CHAT, "When was the bridge built?",
+        "The bridge was built in 1900 (Example, https://x.test).",
+        [{"titel": "Example", "url": "https://x.test"}],
+    )
+    conn.commit()
+    assert _werkbank(pfad)["recherche"] == [{
+        "frage": "When was the bridge built?",
+        "ergebnis_text": "The bridge was built in 1900 (Example, https://x.test).",
+        "quellen": ["Example"],
+    }]
+
+
 def test_gruppe_nach_token_traegt_die_werkbank_nur_ohne_bearbeitung(tmp_path, profil):
     pfad, conn = _db(tmp_path)
     token = repo.stelle_web_token_sicher(conn, CHAT)

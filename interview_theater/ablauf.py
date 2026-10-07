@@ -363,6 +363,20 @@ WIEDERHOLUNG_ANTEIL = 0.6
 #: Gruppe nichts, auch wenn sie sich aehnelt.
 WIEDERHOLUNG_MINDEST_WOERTER = 12
 
+#: Eine "vorige" Bot-Nachricht, die laenger ist als jede legitime einzelne
+#: Antwort sein kann (Hausregel im Systemprompt: "unter 500 Zeichen"/"under
+#: 500 characters" -- hier grosszuegig verdreifacht, nicht an der Hausregel
+#: selbst gemessen), ist selbst ein Fehlerfall (z. B. eine durchgerutschte
+#: Denkspur) und kein Massstab: jede inhaltlich verwandte, EHRLICHE neue
+#: Antwort teilt zwangslaeufig einen grossen Teil ihrer Wortmenge mit einem
+#: so langen Text ueber dasselbe Thema. Live-Fund 07.10.2026, Addendum Robo
+#: 14:41 (Testgruppe chat_id=7000000000099): nachdem die 6107 Zeichen lange
+#: Denkspur aus web_post.id=1694 als Bot-Nachricht gespeichert war, verwarf
+#: der Wiederholungsfilter DREI weitere Anlaeufe in Folge (12:23, 12:34,
+#: 12:51 UTC) -- die Gruppe sah nur noch "One moment, I'm thinking.", ohne
+#: jede weitere Antwort.
+_VORIGE_LAENGE_MAX_FUER_WIEDERHOLUNG = 1500
+
 
 def _wortmenge(text: str | None) -> set[str]:
     """Die inhaltstragenden Woerter eines Textes -- kleingeschrieben, ab vier
@@ -1260,6 +1274,8 @@ def _wiederholt_die_vorige(conn, e, chat_id: int, text: str,
 
     vorige = repo.letzte_bot_nachricht_vor(conn, chat_id, letzte_message_id + 1)
     if vorige is None or _vorschlag.enthaelt_block(text):
+        return False
+    if len(vorige["text"] or "") > _VORIGE_LAENGE_MAX_FUER_WIEDERHOLUNG:
         return False
     if not ist_wiederholung(text, vorige["text"]):
         return False

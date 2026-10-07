@@ -176,6 +176,71 @@ def test_neue_antwort_geht_ganz_normal_raus(conn):
 # --- Die Notiert-Zeile -----------------------------------------------------
 
 
+#: Live-Fund 07.10.2026, Addendum Robo 14:41 (Testgruppe chat_id=7000000000099):
+#: nachdem web_post.id=1694 (6107 Zeichen, eine durchgerutschte Denkspur) als
+#: Bot-Nachricht gespeichert war, schlugen DREI weitere Anlaeufe in Folge
+#: (12:23, 12:34, 12:51 UTC) fehl -- jede ehrliche, neue Zusammenfassung teilt
+#: zwangslaeufig viel Wortmenge mit einem 6107 Zeichen langen Text ueber
+#: dasselbe Thema, der Wiederholungsfilter verwarf sie ersatzlos, und die
+#: Gruppe sah nur noch "One moment, I'm thinking." -- ohne jede weitere
+#: Antwort, auf Dauer. Text (gekuerzt auf das fuer den Filter Relevante)
+#: verbatim aus der Testdatenbank.
+POISON_VORIGE = (
+    "Member 1 asks for a summary of all interviews that fit right now. "
+    "But: the assignment has already run, and the group has been sorting "
+    "them. I should not retell the full summaries -- they're in the chat "
+    "history above, and the group has already worked with them. What I "
+    "can do: answer in one sentence that the summaries are all above, and "
+    "point to where things stand. Actually, the instructions also say: "
+    "\"Summaries are never changed afterwards\" and \"Never ask the group "
+    "to retype it, and never claim you can't see it.\" I DO see all "
+    "summaries -- they're right there in the context. All interview "
+    "summaries are right above in this chat -- from Interview 1 through "
+    "Interview 42. The matched passages for your three characters, the "
+    "Clown, the Unterhalter and the Deprimierter, are in the core package "
+    "I shared earlier. Interview 2, Interview 10, Interview 20, Interview "
+    "37, Interview 38, Interview 29, Interview 39, Interview 21, Interview "
+    "36, Interview 42, Interview 4, Interview 5, Interview 15, Interview "
+    "17, Interview 8, Interview 1, Interview 35, Interview 3, Interview 24, "
+    "Interview 6, Interview 7, Interview 13, Interview 19, Interview 11, "
+    "Interview 25, Interview 12, Interview 14, Interview 16, Interview 30, "
+    "Interview 26, Interview 27, Interview 22, Interview 33, Interview 34, "
+    "Interview 41, Interview 23, Interview 28, Interview 9, Interview 18, "
+    "Interview 32, Interview 40, Interview 31 are the ones already assigned "
+    "to a scene or a character in this phase of the workshop, each with its "
+    "own word-for-word quote that was checked against the transcript. Done. "
+    "Check: no markdown beyond bold, italics and bullets. Under 500 chars. "
+    "No hash headings. Keep it short, the group reads on a phone."
+)
+
+assert len(POISON_VORIGE) > ablauf._VORIGE_LAENGE_MAX_FUER_WIEDERHOLUNG
+
+
+def test_lange_vorige_denkspur_blockiert_keine_neue_zusammenfassung(conn):
+    """Eine abnorm lange "vorige" Bot-Nachricht (eine durchgerutschte
+    Denkspur, kein legitimer einzelner Zug) darf nicht als Massstab fuer den
+    Wiederholungsfilter dienen -- sonst bleibt die Gruppe stumm, weil jede
+    ehrliche neue Antwort zum selben Thema zwangslaeufig viel Wortmenge mit
+    ihr teilt."""
+    _lege_vorige_bot_nachricht_an(conn, POISON_VORIGE)
+    neu = (
+        "Your matched passages for the Clown and the Unterhalter: Interview "
+        "2, Interview 10, Interview 20 -- each quote already checked "
+        "against the transcript, assigned to a scene and character, right "
+        "there in the core package."
+    )
+    tg, klm = _TG(), _KLM(neu)
+    offen = [dict(n) for n in repo.unbeantwortete(conn, 1)]
+
+    ablauf.antworte(conn, tg, klm, _E(), 1, offen)
+
+    assert neu in [t for _, t in tg.gesendet]
+    arten = [
+        z["art"] for z in conn.execute("select art from vorfall where chat_id=1")
+    ]
+    assert "wiederholung_verworfen" not in arten
+
+
 def test_gleiche_notiert_meldung_kommt_nicht_zweimal(conn):
     """Der Live-Fall 21:50/21:52: derselbe Szenenfolge-Block wortgleich
     zweimal im Chat (``erkenner._steht_schon_da``)."""

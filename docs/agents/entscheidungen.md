@@ -934,3 +934,47 @@
   anderen Phase-4-Weichen) für Phase 1 passieren lässt. Nur funktionales
   Markup (`data-*`, `<details>` für Begründung/Doppelbedeutung), keine
   Gestaltung — wie beim Rest des Boards.
+
+- **Der Formberater ordnet ein, er schreibt nicht vor** (07.10.2026, Karten
+  t_256ec777 / t_65d0cc43 / t_54d499bd, Birk 06.10. ~23:50; Modul
+  `formberater.py`). Ausgangsfall: die G3-Testgruppe beschrieb gleichwertige,
+  zufällige Performer-Aktionen ohne Dramaturgie; der Bot hatte dafür kein
+  Vokabular, erfand drei eigene Richtungen (eine mit Eskalation) und schrieb
+  die Eskalation später der Gruppe zu. Seitdem: **nur ab Phase 4**. Die
+  Wissensquelle ist eine Kopie im Repo (`interview_theater/formen/`, neu mit
+  `python -m scripts.formen_uebernehmen`), nie ein Pfad ins Wiki. Alle 67
+  Bot-Blöcke (~37.000 Zeichen) passen nicht ins Kimi-Budget — deshalb wählt
+  der Modellaufruf aus einem Kurzindex, und nur die gewählten Blöcke (2–4,
+  im Prompt höchstens 5, jüngste zuerst) stehen im Block `formen`, der bei
+  Platznot vor dem Fenster fällt. **Drei Auslöser, bindend:** (A) jeder
+  Gesprächszug in Phase 4 macht einen deterministischen Abgleich
+  (`treffer_formen`: Formnamen/Aliase als ganze Wörter, mehrdeutige wie
+  „happening" ausgenommen; `treffer_signale`: Struktur-Stichwörter wie
+  „random", „gleichwertig", „no climax"); eine genannte Form ist sofort im
+  Prompt, der Modellaufruf läuft nur bei einem **neuen** Treffer, im Thread,
+  höchstens `MAX_LAUFEND` je Gruppe und mit `MIN_ABSTAND_S` Abstand, und
+  wirkt ab dem nächsten Zug — ein Stichwort gilt danach als verbraucht, auch
+  wenn der Aufruf scheiterte. (B) Einmal je Gruppe beim Eintritt in Phase 5
+  eine Einordnung im Chat (passt / Vorschlag / Gegenpol), klar als Angebot.
+  (C) Danach nur auf Bedarf: Knopf „Weitere Formen & Gegenpol"
+  (`ART_FORMBERATER`) und der Abgleich für ausdrücklich genannte Formen,
+  ohne Modellaufruf. Modell wie die Bühnenkarte (Claude bei
+  `szene_claude.ist_aktiv`, sonst Kimi; Proxy-Fehler → Kimi für diesen
+  Aufruf). **Datenschutz:** in den Aufruf gehen nur Kurzindex, Stückkarte
+  und die Beiträge der Gruppe seit dem Eintritt in Phase 4 (Journal
+  „Phase 4 · …"), nie Transkript, Verdichtung oder Zitat. Tabelle
+  `formberater` nur anhängend. Tests: `tests/test_formberater.py`.
+
+- **Phase 4 setzt den Rahmen, sie schreibt keine Szene** (07.10.2026, Karte
+  t_b19d37ac, Birk: „Keine Szenen ausformulieren in Phase 4. Nur Rahmen
+  setzen."). Prompt (`phasen/4.md` DE/EN): das Übergangsangebot ist nur
+  Status + Frage, und Szenentexte sind die markierte Ausnahme von „Bittet die
+  Gruppe ausdrücklich darum, tust du es trotzdem". Code: in Padua-Phase 4
+  (`workshop.prosa_entwurf_aktiv`) bekommt eine Antwort mit Schreibangebot
+  oder Szenenformat (`ablauf.ist_schreibangebot`) genau einen zweiten Anlauf
+  mit Ermahnung (Vorfall `schreibangebot_phase_4`), und der Szenenfolge-Knopf
+  stellt keine Szene zum Schreiben vor (`knoepfe.szenen._nur_rahmen`). Dazu
+  in `system.md`/`phasen/4.md`: das konkrete Beispiel der Gruppe geht vor
+  (drei eigene Richtungen nur ohne eigene Idee), ihre Struktur ist die
+  Gestalt der Geschichte, und nichts vom Bot wird der Gruppe zugeschrieben.
+  Test: `tests/test_phase4_haertung.py` mit dem Live-Fall als Fixture.

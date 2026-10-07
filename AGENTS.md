@@ -51,7 +51,7 @@ Versehen).
 |---|---|
 | **Ablage** | `db.py` · `repo.py` · `web_daten.py` |
 | **Dienste** | `llm.py` · `strom.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` · `kosten.py` · `web_grenze.py` |
-| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `begriffsboard.py` · `begriffsboard_analyse.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `begriffsboard.py` · `begriffsboard_analyse.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` · `formberater.py` |
 | **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` · `web_gestalt.py` |
 
 **SQL nur in `repo.py` und `db.py`.** Einzige Ausnahme: `web_daten.py`, die
@@ -89,6 +89,7 @@ Je Modul ein Satz (Volltext mit Begründungen: `docs/agents/aufbau.md`):
 - `sprachprofil.py` — Sprachprofil je Figur aus dem zugeordneten Interview, Zitate geprüft.
 - `sprachstil.py` · `stile.py` — gewählter Sprachstil je Figur bzw. Stilvorlage je Szene.
 - `sprechweise.py` — Sprechweise je Figur vor der Bühnenfassung, nur für Figuren ohne `figur.sprachstil`.
+- `formberater.py` — ab Phase 4: schlägt aus `interview_theater/formen/` (67 performative Formen) die passenden nach — Stichwort-Abgleich je Zug, Modellaufruf nur bei neuem Treffer, Einordnung einmal beim Eintritt in Phase 5, Knopf „Weitere Formen“; Block „Performative Formen“ im Prompt (`docs/agents/entscheidungen.md`).
 - `kosten.py` — Preistabelle, Kosten je Aufruf, Tagesdeckel je Gruppe; kein SQL.
 - `ruecknahme.py` — Undo eines Erkennerlaufs per Schnappschuss-Diff; reine Funktionen.
 - `laengen.py` — Längen-Rhythmus und Budget je Szene aus dem Profil; kein Modellaufruf.

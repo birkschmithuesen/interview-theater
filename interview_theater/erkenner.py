@@ -1834,6 +1834,46 @@ def waechter_filter(aenderungen: list[dict]) -> list[dict]:
     return ergebnis
 
 
+def _ohne_phase_setzen_nach_frischerem_klick(
+        conn, chat_id: int, aenderungen: list[dict], fenster_ende: str | None,
+) -> list[dict]:
+    """Verwirft ``phase_setzen`` aus diesem Erkennerlauf, wenn NACH dem
+    Ende seines eigenen Lesefensters (``fenster_ende``, die juengste der
+    gerade verarbeiteten Nachrichten) schon ein MANUELLER Phasenwechsel
+    (Klick 'web' oder Befehl 'befehl') im Journal steht.
+
+    QUICKFIX Birk, 07.10.2026 (Testgruppe Padua, chat_id 7000000000099,
+    07:16 UTC): zwei Klicks in der Phasenleiste 2 Sekunden auseinander
+    (``/phaseklick 3`` dann ``/phaseklick 4``) laufen als zwei asynchrone
+    Erkennerlaeufe (``bot.py``, ein ``ThreadPoolExecutor``-Task je Zug). Der
+    Lauf fuer den ERSTEN Klick kam erst NACH dem zweiten zum Abschluss und
+    las dabei nur die eigene Bestaetigungszeile des ersten Klicks
+    ("We're now at 3 ...") als ``phase_setzen`` "3" -- und warf die
+    inzwischen manuell auf 4 gesetzte Phase zurueck. journal belegt das
+    Ping-Pong: quelle='web' Phase 3/4, danach quelle='erkenner' Phase 3/4,
+    alle vier binnen 6 Sekunden.
+
+    Der Vergleich laeuft ueber den Nachrichten-ZEITPUNKT des Laufs, nicht
+    ueber 'jetzt': ein voellig legitimer Erkennerlauf, dessen Nachricht
+    NACH einem manuellen Klick geschrieben wurde (z. B. "lets move on"
+    direkt im Anschluss), bleibt wirksam -- nur ein Lauf, dessen Fenster
+    VOR dem manuellen Wechsel endet, ist zwangslaeufig auf veraltetem
+    Stand."""
+    if fenster_ende is None or not any(a.get("art") == "phase_setzen" for a in aenderungen):
+        return aenderungen
+    manuelle = [
+        z for z in repo.journal(conn, chat_id)
+        if z["art"] == "entschieden" and z["quelle"] in ("web", "befehl")
+    ]
+    if not manuelle or manuelle[-1]["erstellt_am"] <= fenster_ende:
+        return aenderungen
+    log.info(
+        "phase_setzen aus veraltetem Erkennerfenster verworfen (manueller "
+        "Wechsel danach), chat_id=%s", chat_id,
+    )
+    return [a for a in aenderungen if a.get("art") != "phase_setzen"]
+
+
 def wende_an(conn, e, chat_id: int, aenderungen: list[dict]) -> list[dict]:
     """Schreibt erkannte Aenderungen in Arbeitsstand, Figuren, Journal und
     Schalter (SPEC § 4.3, teil-b.md Aufgabe 3).
@@ -3310,7 +3350,16 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # mit dem Schalter; Dortmund liest hier nichts zusaetzlich.
         from interview_theater import ueberarbeitung
 
-        stapel = ([n["message_id"] for n in repo.unextrahierte(conn, chat_id)]
+        # QUICKFIX Birk, 07.10.2026 (Rennlauf-Guard, siehe
+        # ``_ohne_phase_setzen_nach_frischerem_klick``): das Ende dieses
+        # Lesefensters MUSS vor ``erkenne()`` stehen -- die Funktion
+        # schiebt das Wasserzeichen weiter, danach liefert ``unextrahierte``
+        # nichts mehr aus diesem Lauf.
+        fenster_vor_erkennung = repo.unextrahierte(conn, chat_id)
+        fenster_ende = max(
+            (n["gesendet_am"] for n in fenster_vor_erkennung), default=None,
+        )
+        stapel = ([n["message_id"] for n in fenster_vor_erkennung]
                   if ueberarbeitung.aktiv() else [])
         # Feedbackloop P1-2, Befund S5: hat der Gespraechszug zu dieser
         # Nachricht die Begriffe schon gespeichert und quittiert ("Updated –
@@ -3328,6 +3377,8 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
 
         vergleich_im_zug = _ablauf.nimm_vergleich_im_zug(conn, chat_id)
         aenderungen = erkenne(klm, conn, e, chat_id)
+        aenderungen = _ohne_phase_setzen_nach_frischerem_klick(
+            conn, chat_id, aenderungen, fenster_ende)
         if vergleich_im_zug and aenderungen:
             if any(a.get("art") == "phase_setzen" for a in aenderungen):
                 log.info("phase_setzen aus der Nachricht, die den Vergleich "

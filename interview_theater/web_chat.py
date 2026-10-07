@@ -1239,7 +1239,15 @@ _CHAT_JS = """
       // Poll) duerfen diesen Anker nicht wieder nach unten reissen, solange
       // niemand selbst runtergescrollt ist. ``warUnten`` ist VOR dieser
       // DOM-Aenderung gelesen, genau wie im ``geaendert``-Zweig unten.
-      if (phasenwechsel) { scrolleZuPhasenanfang(); erzwingeNachUnten = false; }
+      //
+      // QUICKFIX Birk, 07.10.2026 (Testgruppe Padua, Phasensprung): der
+      // Sprung gilt nur, wenn dieses Geraet die neue Phase zum ERSTEN Mal
+      // sieht (``ersteOeffnungInPhase``, dieselbe Pruefung wie beim
+      // Oeffnen der Seite) -- sonst riss ein Ruecksprung in eine schon
+      // besuchte Phase (oder ein Ping-Pong aus schnellen Klicks) den Anker
+      // bei JEDEM Poll erneut weg vom laufenden Verlauf, und die Gruppe sah
+      // nur noch die letzten zwei Zeilen, als waere der Rest geloescht.
+      if (phasenwechsel && ersteOeffnungInPhase(kalSpeicher(), kalGruppeAus(location.pathname), phaseNeu)) { scrolleZuPhasenanfang(); erzwingeNachUnten = false; }
       else if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }
     } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
       nachUnten();

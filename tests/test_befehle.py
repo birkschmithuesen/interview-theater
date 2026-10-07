@@ -429,12 +429,18 @@ def test_phase_journalisiert_nur_die_echte_aenderung(conn, einst, tg):
     eintraege = repo.journal(conn, 1)
     assert len(eintraege) == 1
     assert eintraege[0]["quelle"] == "befehl"
-    # Je Aufruf mindestens zwei Nachrichten: die Meldung (auf einen getippten
-    # Befehl wird immer geantwortet, auch ohne Aenderung) und der
-    # Phasenrahmen. Seit dem 06.09.2026 ist Phase 5 die Schaerfung, und die
-    # stoesst beim Eintritt ihr Mapping an -- das schickt weitere Zeilen.
+    # Je Aufruf mindestens die Meldung (auf einen getippten Befehl wird
+    # immer geantwortet, auch ohne Aenderung). Seit dem 06.09.2026 ist
+    # Phase 5 die Schaerfung, und die stoesst beim ERSTEN Eintritt ihr
+    # Mapping an -- das schickt weitere Zeilen.
+    #
+    # QUICKFIX Birk, 07.10.2026 (Testgruppe Padua, Phasensprung-Wieder-
+    # herstellung): der ZWEITE ``/phase 5`` ist ein Sprung in eine schon
+    # besuchte Phase (die Gruppe steht ja schon dort) -- eine
+    # Wiederherstellung, keine neue Ankunft. Nur die Meldung, keine zweite
+    # Eintrittskarte, kein Modellzug.
     kopfzeilen = [t.startswith("▶️ Phase 5") for _, t in tg.gesendet]
-    assert kopfzeilen.count(True) == 2, [t for _, t in tg.gesendet]
+    assert kopfzeilen.count(True) == 1, [t for _, t in tg.gesendet]
     assert kopfzeilen[0] is False, "zuerst die Meldung"
 
 

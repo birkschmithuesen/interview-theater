@@ -4303,6 +4303,7 @@ _PROBE_ANGABEN = (("form", "Form"), ("ort", "Ort"), ("zeit", "Zeit"),
 
 #: Die uebrigen Planungsfelder -- sie stehen nur unter einer Szene, die noch
 #: keinen Text hat. Dort sind sie das, was die Gruppe stattdessen lesen kann.
+_TEXT_PLANUNG_MEHR = "+ {anzahl} weitere in der Werkbank"
 _PROBE_PLANUNG = (("was_passiert", "Was passiert"), ("was_anders", "Was anders ist"),
                   ("kernsaetze", "Kernsätze"), ("ton", "Ton"))
 
@@ -4343,6 +4344,66 @@ def _fassungen_bloecke_html(s: dict, aktuell: str) -> str:
             f'<div class="text"><p class="prosa">{_t(erst)}</p></div></details>'
         )
     return "".join(teile)
+
+
+#: Script-Tab (Birk 07.10.2026 ~17:30, G1: "Wall of Text ohne Umbrueche"):
+#: "What happens" und "Key lines" knapp und als Liste. Obergrenzen gelten
+#: nur fuer die ANZEIGE -- die Felder bleiben vollstaendig (Prompts).
+PLANUNG_PUNKTE_MAX = 6
+PLANUNG_PUNKT_ZEICHEN = 160
+KERNSAETZE_MAX = 5
+KERNSATZ_ZEICHEN = 200
+
+
+def _kappe(text: str, grenze: int) -> str:
+    text = " ".join(text.split())
+    if len(text) <= grenze:
+        return text
+    return text[:grenze].rsplit(" ", 1)[0].rstrip(" ,;:-") + " …"
+
+
+def _planung_punkte(feld: str, wert: str) -> list[str]:
+    """Zerlegt ein Planungsfeld in Listenpunkte: Kernsaetze an ``|``,
+    "What happens" an Saetzen und an den ``;``-Anhaengen der uebernommenen
+    Interviewstellen (``schaerfung._ergaenze_szene``)."""
+    import re as _re
+
+    if feld == "kernsaetze":
+        return [t.strip() for t in wert.split("|") if t.strip()]
+    # Saetze der Beschreibung bleiben ganz; nur die angehaengte Kette der
+    # Interview-Begruendungen (klein beginnend, mit "; " verbunden) wird zu
+    # Einzelpunkten -- ein "e.g. a; b; c" im Beschreibungssatz bleibt heil.
+    punkte: list[str] = []
+    for satz in _re.split(r"(?<!e\.g\.)(?<!i\.e\.)(?<!etc\.)(?<=[.!?])\s+", wert.strip()):
+        satz = satz.strip()
+        if not satz:
+            continue
+        if satz[0].islower() and "; " in satz:
+            punkte.extend(t.strip() for t in satz.split("; ") if t.strip())
+        else:
+            punkte.append(satz)
+    return punkte
+
+
+def _planung_wert_html(feld: str, wert: str) -> str:
+    """Padua (``prosa_entwurf_aktiv``): Liste mit Obergrenze; sonst wie bisher."""
+    from interview_theater import workshop
+
+    if not workshop.prosa_entwurf_aktiv() or feld not in ("was_passiert", "kernsaetze"):
+        return _t(wert)
+    punkte = _planung_punkte(feld, str(wert))
+    if feld == "kernsaetze":
+        grenze, zeichen = KERNSAETZE_MAX, KERNSATZ_ZEICHEN
+    else:
+        grenze, zeichen = PLANUNG_PUNKTE_MAX, PLANUNG_PUNKT_ZEICHEN
+    sichtbar = punkte[:grenze]
+    items = "".join(
+        f"<li>{_t(('“' + _kappe(p, zeichen) + '”') if feld == 'kernsaetze' else _kappe(p, zeichen))}</li>"
+        for p in sichtbar
+    )
+    rest = len(punkte) - len(sichtbar)
+    mehr = f'<li class="mehr">{_t(T._TEXT_PLANUNG_MEHR.format(anzahl=rest))}</li>' if rest > 0 else ""
+    return f'<ul class="planung-liste">{items}{mehr}</ul>'
 
 
 def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
@@ -4386,7 +4447,7 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
         zeilen.append(f'<div class="text">{koerper}</div>')
     else:
         planung = "".join(
-            f"<dt>{_t(label)}</dt><dd>{_t(s[feld])}</dd>"
+            f"<dt>{_t(label)}</dt><dd>{_planung_wert_html(feld, s[feld])}</dd>"
             for feld, label in T._PROBE_PLANUNG
             if s.get(feld)
         )
@@ -4464,6 +4525,9 @@ h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
 .angaben, .besetzung { font-size: .85rem; opacity: .7; margin: .1rem 0; }
 .offen { font-style: italic; opacity: .6; margin: .6rem 0 .2rem; }
 .planung dt { font-size: .74rem; }
+.planung-liste { margin: .2rem 0 .6rem 1.1rem; padding: 0; }
+.planung-liste li { margin: .15rem 0; }
+.planung-liste li.mehr { list-style: none; opacity: .65; font-size: .85em; }
 .text { margin-top: .7rem; }
 .text p { margin: 0 0 .55rem; }
 .sprecher { letter-spacing: .03em; }

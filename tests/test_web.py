@@ -594,3 +594,24 @@ def test_dashboard_verlinkt_jede_gruppe_auf_ihre_gruppenseite(tmp_path):
     html_ = web.dashboard_html(web_daten.dashboard(lesend), praefix="/theatersoap")
     assert f'<a href="/theatersoap/g/{token}">Gruppe A</a>' in html_
 
+
+
+def test_script_planung_knapp_als_liste_padua(monkeypatch):
+    """Birk 07.10.2026 ~17:30: "What happens"/"Key lines" im Script-Tab als
+    knappe Liste mit Obergrenze statt Wall of Text. Mutant: _t(wert) -> rot."""
+    from interview_theater import web, workshop
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: True)
+    lang = "Opening, e.g. a; b; c. " + "; ".join(f"point {i} about home" for i in range(12))
+    html = web._planung_wert_html("was_passiert", lang)
+    assert html.startswith('<ul class="planung-liste">')
+    assert html.count("<li>") == web.PLANUNG_PUNKTE_MAX
+    assert "<li>Opening, e.g. a; b; c.</li>" in html  # Beschreibungssatz bleibt ganz
+    assert "more in the Workbench" in html or "weitere in der Werkbank" in html
+    ks = web._planung_wert_html("kernsaetze", " | ".join("z" * 400 for _ in range(9)))
+    assert ks.count("<li>") == web.KERNSAETZE_MAX and "…" in ks
+
+
+def test_script_planung_ohne_schalter_unveraendert(monkeypatch):
+    from interview_theater import web, workshop
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: False)
+    assert web._planung_wert_html("was_passiert", "a; b") == web._t("a; b")

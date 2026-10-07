@@ -1770,6 +1770,7 @@ _TEXT_ZU_LANG = "The text is too long."
 TEXT_LEITFADEN_LINK = "Large and printable"
 TEXT_FASSUNGEN = "Earlier versions"
 _PROBE_ANGABEN = [["form", "Form"], ["ort", "Place"], ["zeit", "Time"], ["anlass", "Occasion"]]
+_TEXT_PLANUNG_MEHR = "+ {anzahl} more in the Workbench"
 _PROBE_PLANUNG = [["was_passiert", "What happens"], ["was_anders", "What's different"], ["kernsaetze", "Key lines"], ["ton", "Tone"]]
 TEXT_UNGESCHRIEBEN = "Not written yet."
 _TEXT_FRUEHERE = "Earlier versions ({anzahl})"

@@ -1,17 +1,27 @@
 # Format-Skripte für die drei Padua-Gruppen — Design
 
-Stand: 07.10.2026, ~16:50 · Autor: cc-formatspec (nach `brainstorming-to-spec`,
-Fragen nicht direkt gestellt, sondern unten gesammelt) · Basis: Branch
-`spec-format-skripte` auf `90e1d52` · Live-DB `betrieb/padua.db` nur `?mode=ro`
-gelesen (Stand 16:17).
+Stand: 07.10.2026, ~17:15 (Fassung 2, mit Birks Nachtrag ~17:00) · Autor:
+cc-formatspec (nach `brainstorming-to-spec`; Fragen nicht direkt gestellt,
+sondern in Abschnitt 7 gesammelt) · Basis: Branch `spec-format-skripte` auf
+`90e1d52` · Live-DB `betrieb/padua.db` nur `?mode=ro` gelesen (G1/G2 Stand
+~16:17, G3-Format nach Robos Schärfung 16:45 neu gelesen).
 
 **Ziel (Birk 07.10.2026 ~16:50):** Für G1, G2, G3 entsteht in Phase 7 ein
-Szenenskript **im Format, das die Gruppe gewählt hat** — nicht ein
-Sprechtheater-Dialog. Nur diese drei Formate, kein Generalumbau, heute Abend
-in ≤ 4 h baubar.
+Skript **im Format, das die Gruppe gewählt hat**, kein Sprechtheater-Dialog.
+Nur diese drei Gruppen, kein Generalumbau, heute Abend in ≤ 4 h baubar.
 
-**Status:** Entwurf, wartet auf Birks Antworten (Abschnitt 7). Phase 2
-(`writing-plans`) erst nach Freigabe.
+**Birks Nachtrag (~17:00), eingearbeitet:**
+- **G1** braucht NUR einen Sprechtext für Szene 2 *Le voci*: nach
+  Themen-Abschnitten (die „Silos" der Gruppe), Zitate wörtlich mit
+  Interviewnummer, Übergänge Erzählung → Zeugnis, Englisch. Szene 1 und 3
+  sind musikalisch/rituell und bekommen **kein Skript**. Kein Setlist- oder
+  Partitur-Artefakt.
+- **G2** Versuchsanordnung + Rollenanweisungen + Positionskarten + Drehplan:
+  vermutlich richtig → in 2.2 bestätigt und präzisiert.
+- **G3** Spurenpartitur nur „vielleicht“ → drei Varianten als **Frage F1**.
+
+**Status:** Entwurf, wartet auf Birks Antworten. Phase 2 (`writing-plans`)
+erst nach Freigabe.
 
 ---
 
@@ -19,248 +29,240 @@ in ≤ 4 h baubar.
 
 ### 1.1 Schreibweg
 
-- Phase 5 (Prosa-Entwurf, `entwurf.py`) und Phase 6 (Rewrite,
-  `ueberarbeitung.weiter_6`) schreiben **Prosa** nach `szene.prosa`
-  (`szene.schreibt_prosa` = Phase ≤ 6, `szene.py:258`; Systemanweisung dann
-  nur `formen/prosa` + `theater-tells`, `szene.py:358`).
-- Phase 7 (`ueberarbeitung.weiter_7`, `ueberarbeitung.py:429`): Formwahl je
-  Szene in EINER Antwort (`sende_formwahl` :379, Erkenner `formen_setzen` →
-  `_wende_formen_an` :724) → Sprechweisen → je Szene
-  `szene.starte(_AUFTRAG_BUEHNE)` → `szene.volltext`. Systemanweisung:
-  `szene.md` (Sprechtheater-Regeln: Repliken, „Figuren müssen hörbar
-  verschieden klingen") + `formen/<form>.md` + Stil + `theater-tells`
-  (`szene.systemanweisung`, `szene.py:326-381`). Die Prosa geht als bindende
-  Vorlage mit („Translate it into the form …", `VORLAGE_KOPF`).
+- **Phase 5** (Prosa-Entwurf, `entwurf.py`): je Szene `szene.starte(_AUFTRAG_PROSA)`
+  → `szene.prosa`. Weiter geht es mit `entwurf.erste_offene_szene`, also mit
+  der ersten Szene ohne `entwurf_bestaetigt_am` (`entwurf.py:333`).
+- **Phase 6** (Rewrite, `ueberarbeitung.weiter_6`): erst das Ganze
+  (`kurzgeschichte.starte(vorlage=True)`, bestätigt über `gesamttext_fixiert_am`),
+  dann je Szene. „Aktuell“ ist die erste Szene ohne
+  `ueberarbeitung_bestaetigt_am` (`ueberarbeitung.aktuelle_szene`, :160-188).
+- **Phase 7** (`weiter_7`, :429): erst die Formwahl je Szene in EINER Antwort
+  (`sende_formwahl` :379; Erkenner `formen_setzen` → `_wende_formen_an` :724),
+  dann die Sprechweisen. Danach wird je Szene ohne `fertig_am`
+  `szene.starte(_AUFTRAG_BUEHNE)` aufgerufen und schreibt nach `szene.volltext`.
+  Die Prosa geht dabei als bindende Vorlage mit (`VORLAGE_KOPF`, „Translate it
+  into the form …“).
+- **Systemanweisung** im Theatertext (`szene.systemanweisung`, `szene.py:326-381`):
+  - `szene.md` mit den Sprechtheater-Regeln (Repliken, „characters have to
+    sound audibly different“);
+  - `formen/<form>.md`;
+  - Stil;
+  - `theater-tells`.
+
+  Im Prosalauf (Phase ≤ 6, `szene.schreibt_prosa`) gelten nur
+  `formen/prosa` + `theater-tells`.
 - **Die Formliste kommt aus dem Profil:** `workshop/padua-2026/formen.toml`
-  (dialog, monolog, chor, lied, rap), Regelblöcke über
-  `anweisungen.hole_optional` mit Suchreihenfolge
-  `workshop/<p>/prompts/` → `sprachen/en/prompts/` → `prompts/`.
-  Unbekannte Form → stiller Rückfall auf `dialog` (`szene.formdatei`).
-- `arbeitsstand.format` (Freitext) wird **im Schreibweg nicht gelesen**
-  (`szene._format_rahmen_text` hat es bewusst entfernt, `szene.py:909`); nur
-  Vorspann/Textbuch, Workbench, Richter A11.
-- Formberater (Tabelle `formberater`, 67 Formen in `interview_theater/formen/`,
-  für `musik_chats` auch `formen_musik/`) wirkt nur im Chat-Prompt und auf der
-  Workbench, nie auf `szene.form`.
-- Textbuch: `szenenfolge.textbuch` (`szenenfolge.py:911`) = Titel + Vorspann
-  (Besetzung, Setting, Format) + je Szene Kopf, Feldblock, `volltext`.
-- Prüflauf (`prueflauf.py:50-55`): Geschichte a2/a6/a9/a11, Prosaszene b1/a10,
-  Bühnenszene a10 (Materialtreue) + c1 (Stimme: Zeilen ohne Namen den Figuren
-  zuordnen). `dramaturgie/mechanik.py:670` `_NICHT_DIALOG` kennt nur die
-  fünf Formen.
+  (dialog, monolog, chor, lied, rap).
+  - Die Regelblöcke lädt `anweisungen.hole_optional` in dieser Reihenfolge:
+    `workshop/<p>/prompts/` → `sprachen/en/prompts/` → `prompts/`.
+  - Eine unbekannte Form fällt still auf `dialog` zurück (`szene.formdatei`).
+- `phasen.voraussetzungen[7]`: alle Szenen haben Prosa oder Volltext
+  (`phasen.py:438`).
+- `arbeitsstand.format` liest der Schreibweg **nicht** (`szene.py:909`). Es
+  erscheint nur im Vorspann und Textbuch, auf der Workbench und bei Richter A11.
+- Der Formberater wirkt nur im Chat-Prompt und auf der Workbench.
+- **Textbuch** (`szenenfolge.textbuch`, :911): Vorspann, dann je Szene Kopf,
+  Feldblock und `volltext`.
+- **Prüflauf** (`prueflauf.py:50-55`):
+  - Geschichte: a2/a6/a9/a11;
+  - Prosaszene: b1/a10;
+  - Bühnenszene: a10 (Materialtreue) + c1 (Stimme: Zeilen ohne Namen den
+    Figuren zuordnen).
 
 ### 1.2 Hart kodierte Formlisten (müssen bei neuer Form mit)
 
-1. `workshop/padua-2026/formen.toml` (+ `anzahl_wort = "five"`)
-2. Regelblock-Datei; `scripts/pruefe_profil.py:170-176` verlangt sie
-3. `sprachen/en/prompts/system.md:64` nennt die fünf Formen wörtlich
-4. `szenenfolge.py:414` `_FORMEN`, `_FORM_AUS_EN` :432 (Test
-   `tests/test_formabfolge.py:42` verlangt Gleichheit mit `szene.FORMEN`)
-5. `web.py:910-920` `FORM_BESCHRIFTUNG` / `texte.toml:1881`, `:2016`
-   (Test `tests/test_web_sprache.py:130`, Padua)
-6. `vorspann.py:244-250` `FORM_BESCHRIFTUNG` (`texte.toml:918`)
-7. `dramaturgie/mechanik.py:670` `_NICHT_DIALOG`, :673 `_ERSTE_VERBOTEN`,
-   :1118 `_FORM_BESCHRIFTUNG` (`texte.toml:1595`)
-8. `stile.py:83-96` `VORSCHLAG` (kein Eintrag = kein Stilvorschlag — gewollt)
-9. `profil.toml [laengen.rahmen]` (ohne Eintrag: `vorgabe_min/max`)
+1. `workshop/padua-2026/formen.toml` (+ `anzahl_wort`)
+2. die Regelblock-Datei (`scripts/pruefe_profil.py:170-176` verlangt sie)
+3. `sprachen/en/prompts/system.md:64` (die fünf Formen stehen wörtlich darin)
+4. `szenenfolge.py:414` `_FORMEN`, `_FORM_AUS_EN` :432; der Test
+   `tests/test_formabfolge.py:42` verlangt Gleichheit mit `szene.FORMEN`
+5. `web.py:910-920` `FORM_BESCHRIFTUNG`, `texte.toml:1881`, `:2016`
+   (Test `tests/test_web_sprache.py:130`)
+6. `vorspann.py:244-250` (`texte.toml:918`)
+7. `dramaturgie/mechanik.py:670` `_NICHT_DIALOG`, :1118 `_FORM_BESCHRIFTUNG`
+   (`texte.toml:1595`)
+8. `stile.py:83-96`: kein Eintrag heißt kein Stilvorschlag, das ist gewollt
+9. `profil.toml [laengen.rahmen]`
 
-### 1.3 Die drei Gruppen (Live-DB, alle in Phase 5, noch keine Prosa, kein Volltext)
+### 1.3 Die drei Gruppen (Live-DB; alle in Phase 5, noch ohne Prosa und ohne Volltext)
 
-**G1 (`7000000000000`)** — `format`: „Concert performance with documentary
-material: one through-composed set where the music never stops; four
-performer-musicians as themselves, post-dramatic …, built on the home chord
-(tonic) and ending in a shared ritual". Übersicht/Logline **fixiert**
-(14:11). 3 Szenen: *Tornare a casa* / *Le voci* / *Il rituale*;
-`kernsaetze` je Szene voll mit italienischen Interviewzitaten (Szene 2 in
-thematischen „Silos": was ist Zuhause, Gerüche/Klänge/Farben, was tust du,
-was würde dein Zuhause sagen, Weggehen). Festlegungen: ein durchgehendes
-Stück ohne Schnitte, Übergänge gehören zum Werk; Musik als fil rouge (Tonika
-= Heimkehr); postdramatisch, keine vierte Wand; Kostüm Hauskleidung,
-Dresscode Publikum Pyjama/Hausschuhe; sensorische Elemente (Kaffee, Brot,
-Weihrauch). Figuren = die vier Performer:innen selbst (Gitarre, Klavier =
-Ritualleiter, zwei Gesang/Instrument). Formberater: passt
-dokumentartheater, postdramatisches-theater; Vorschlag konzertperformance,
-kadenz-tonika (aus `formen_musik/`). **Gruppe 13:30:** Szene 1 und 3
-brauchen keine Interviews, nur „Le voci". **13:47/13:49:** wollen einen
-„sensorischen, nicht beschreibenden" Text mit den Interviews, nach Themen,
-**„in italiano … per la performance"**.
+**G1 (`7000000000000`)**
+- **Format:** Konzertperformance mit Dokumentarmaterial, durchkomponiert. Vier
+  Performer:innen spielen sich selbst, postdramatisch, „built on the home
+  chord (tonic)“, Ritual am Schluss.
+- **Übersicht/Logline:** fixiert um 14:11.
+- **Szenen:** 3, nämlich *Tornare a casa* / *Le voci* / *Il rituale*.
+  `kernsaetze` von Szene 2 ist voll mit italienischen Interviewzitaten, nach
+  Silos geordnet: was ist Zuhause; Gerüche, Klänge, Farben; was tust du, um
+  dich zuhause zu fühlen; was würde dein Zuhause sagen; Weggehen.
+- **Gruppe 13:30:** „Szene 1 und 3 brauchen keine Interviews, nur die Mitte.“
+- **Gruppe 13:47/13:49:** wünscht einen „sensorischen, nicht beschreibenden“
+  Text mit den Interviews nach Themen, „in italiano … per la performance“.
+  Dagegen steht Birks Nachtrag: Englisch (→ F2).
 
-**G2 (`…001`)** — `format`: „Short documentary film / social experiment";
-Titel „JAMM'IA". `rahmen`: Bartisch nahe der Uni; Moderatorin sitzt, ein
-Rekrutierer (Arlecchino) holt erst die Mitspielenden „als wären sie Fremde",
-dann eine echte Passantin/einen echten Passanten („du wärst der/die
-Letzte"); Themen-Topf mit Themen aus den Interviews; die Runde vertritt eine
-gemeinsame Meinung, der Film beobachtet, ob die fremde Person bei ihrer
-bleibt. 5 Szenen: *inizio / reclutamento / l'ultimo posto / discussione /
-rivelazione*. Figuren: Moderatorin, Arlecchino, Influencer 1–3. **14:40:**
-„kein Schild mehr, nur Arlecchino zieht Leute an". Lücke: der Rahmen sagt
-„eine:r von euch filmt als Passant:in", aber alle fünf sind besetzt — die
-Kamera ist unbesetzt (Frage an die Gruppe, nicht an Birk). Keine Übersicht.
-Formberater: passt soziales-experiment-als-kunst, unsichtbares-theater;
-Vorschlag commedia-dell-arte, happening. Spielort draußen → nach Birk-Regel
-Italienisch erlaubt.
+**G2 (`…001`)**
+- **Format:** „Short documentary film / social experiment“, Titel „JAMM'IA“.
+- **Rahmen:**
+  - Bartisch nahe der Uni; die Moderatorin sitzt.
+  - Arlecchino rekrutiert: zuerst die Mitspielenden „als wären sie Fremde“,
+    dann eine echte Person („du wärst der/die Letzte“).
+  - Ein Themen-Topf enthält Themen aus den Interviews.
+  - Die Runde vertritt eine gemeinsame Meinung; beobachtet wird, ob die
+    fremde Person bei ihrer eigenen bleibt.
+- **14:40:** Das Schild fällt weg, nur Arlecchino zieht Leute an.
+- **Szenen:** 5, nämlich *inizio / reclutamento / l'ultimo posto /
+  discussione / rivelazione*, jeweils nur mit einzeiligem `was_passiert`.
+- **Figuren:** Moderatorin, Arlecchino, Influencer 1–3.
+- **Kamera:** Der Rahmen sagt „eine:r filmt als Passant:in“, aber alle fünf
+  sind besetzt. Wer filmt, muss die Gruppe beantworten, nicht Birk.
+- **Spielort** draußen, deshalb ist nach Birks Regel Italienisch erlaubt.
 
-**G3 (`…002`)** — `format`: „Immersive performance installation (promenade,
-audience standing) with video projection and sound carpet;
-documentary/verbatim testimonies … very short scenes, monologues and stories
-— first person, third person, small dialogues". `geschichte` „From Outside
-In" (Welle: langsamer Start, schneller Anstieg, Senke, zweiter Anstieg).
-6 Szenen: *The First Press / Slow Start / Fast Rise / The Dip / Second Rise
-/ The Last Question*. Festlegungen: Knopf startet, Ablauf dann autonom
-(kein Zapping); Ende = projizierte Frage, zweiter Knopfdruck, alles aus,
-Dunkel; sehr kurze, sich überlappende Szenen, unterbrochen von tieferen
-Zeugnissen und Musikmomenten; **drei Modi fließend gemischt:**
-One-to-One-Flüstern, Mikrofon-Ruhepunkt (Projektion friert ein),
-Kleinst-Happenings zu zweit/dritt. Figuren: Voce 1–5 als Funktionen.
-Formberater: passt verbatim-theatre, performance-installation; Vorschlag
-partizipative-performance, multimedia-performance.
+**G3 (`…002`)**
+- **Format** (geschärft 16:45): „Live immersive performance among a standing
+  audience, inside a video-and-sound environment: five performers … carry
+  documentary/verbatim testimonies … as very short scenes, monologues and
+  stories (whispered one-to-one, microphone moments, small happenings) while
+  the projection and the sound carpet of questions run on the back wall“.
+- **Szenen:** 6, als Welle: *The First Press / Slow Start / Fast Rise / The
+  Dip / Second Rise / The Last Question*.
+- **Festlegungen:**
+  - Der Knopf startet, danach läuft alles autonom.
+  - Ende: projizierte Frage im Wortlaut, zweiter Knopfdruck, alles aus,
+    Dunkel.
+  - Kurze Szenen überlappen; tiefere Zeugnisse unterbrechen sie.
+  - Drei Modi, fließend gemischt.
+- **Figuren:** Voce 1–5 als Funktionen.
 
 ---
 
-## 2. Das richtige Endprodukt je Gruppe
+## 2. Das Endprodukt je Gruppe
 
-Gemeinsam für alle drei: Die Performer:innen spielen **keine erfundenen
-Figuren** (G1/G3 ausdrücklich, G2 als „semi personaggi"). Ein
-Sprechtheater-Textbuch mit Repliken und „hörbar verschiedenen Figuren"
-(`szene.md`, Richter c1) ist deshalb für alle drei das falsche Artefakt.
-Das Skript ist jeweils eine **Partitur bzw. Spielanweisung**, deren
-Textteile wörtlich aus den Interviews kommen.
+Gemeinsam ist allen drei: Niemand spielt eine erfundene Figur. `szene.md`
+(Repliken, hörbar verschiedene Figuren) und Richter c1 passen deshalb auf
+keine der drei Gruppen. Die Textteile kommen wörtlich aus den Interviews.
 
-### G1 — Setlist/Partitur (`setlist`)
+### 2.1 G1 — Sprechtext *Le voci* (Form `zeugnistext`, „Testimony text“)
 
-Begründung aus dem Katalog: *konzertperformance* — „musicians perform as
-themselves, as a song sequence, not a plot"; *dokumentartheater* — „no
-invention, only re-arrangement" von Quellmaterial;
-*postdramatisches-theater*; *kadenz-tonika* (Musik-Katalog) trägt die
-Dramaturgie der Gruppe (weg von der Tonika, zurück im Ritual).
+**Nur Szene 2.** Begründung aus dem Katalog:
+- *dokumentartheater*: „no invention, only re-arrangement“;
+- *verbatim-theatre*: „exact recorded words“;
+- *konzertperformance*: Musiker:innen „perform as themselves … not a plot“.
 
-Je Szene eine Folge von **Nummern** (die Musik hört nie auf, also sind auch
-Übergänge Nummern):
+Die Musik schreibt die Gruppe selbst, also ist der einzige Text, den der Bot
+liefern muss, das Gesprochene.
+
+Aufbau:
 
 ```
-NUMMER 2.3 — "Gli odori" (Silo: Gerüche/Klänge)
-MUSIK:    Klavier hält die Dominante, Gitarre Arpeggio; keine Auflösung.
-WER:      Performer 3 spricht, Performer 4 summt.
-AKTION:   Performer 1 geht mit Kaffeebohnen durch den Halbkreis.
-TEXT:     «…» [Int. N]   (Beispielaufbau, Nummern nicht echt)
-          «…» [Int. M] …
-ÜBERGANG: Gitarre moduliert → Nummer 2.4 setzt auf dem Nachhall ein.
+ABSCHNITT 1 — What home is
+[Performer 3, erzählend, eigene Worte, 1–3 Sätze, Englisch:
+ Hinführung, warum diese Frage]
+«<Zitat, wörtlich>» — Interview N
+«<Zitat, wörtlich>» — Interview M
+[Übergang: ein Satz Erzählung, der ins nächste Zeugnis führt]
+...
+ABSCHNITT 2 — Smells and sounds
+(Hier geht der Kaffee durch den Halbkreis.)   ← nur Aktionen aus Festlegungen
+...
 ```
 
-Felder je Nummer: Musik-Cue (Harmonik in Worten der Gruppe: Tonika /
-weg von der Tonika / Rückkehr), Wer (Performer-Funktion, nicht Rolle),
-Aktion/Sinneselement, Text (Zitate wörtlich mit Interviewnummer, gesprochen
-oder gesungen markiert), Übergang. Szene 1 und 3 enthalten eigene
-Performer-Texte (keine Interviews nötig, Gruppe 13:30); Szene 3 ist die
-Ritualanweisung (Kreis, Hände, Augen zu, Track „Home", Bilder, die der
-Ritualleiter beschreibt — diese Bilder aus `kernsaetze` Szene 3).
+Regeln für den Formblock:
+- Die Abschnitte sind die Silos der Gruppe; die Reihenfolge folgt `was_passiert`.
+- Jedes Zeugnis steht mit Interviewnummer da, nie mit einem Namen.
+- Zwischen den Zeugnissen stehen kurze Erzählbrücken der Performer:innen in
+  eigenen Worten, als Performer-Funktion und nicht als Figur.
+- Keine Musikangaben außer einer Zeile „(music continues)“, wo die Gruppe es
+  festgelegt hat.
+- Nichts erfinden.
+- Sprache Englisch; zur Form der Zitate → F2.
 
-### G2 — Versuchsanordnung + Drehplan (`versuchsanordnung`)
+**Der bestehende Weg kann das fast:** Prosa (Phase 5/6) → Bühnentext einer
+Szene (Phase 7). Es fehlen drei Dinge:
+1. eine Form mit passendem Regelblock, ohne die Dialogregeln aus `szene.md`
+   (5.2);
+2. Szene 1 und 3 als „kein Text nötig“ markieren, damit Phase 5, 6 und 7
+   nicht an ihnen hängen (5.3);
+3. c1 abschalten.
 
-Begründung: *unsichtbares-theater* — „scripted but disguised as reality",
-Publikum = unwissende Beteiligte; *soziales-experiment-als-kunst* — „no
-script, only a rule-set", offener Ausgang. Ein ausgeschriebener Dialog wäre
-falsch: die fremde Person spricht frei, die Eingeweihten improvisieren
-entlang von Positionen. Das Skript ist eine **Regelwerk-Partitur je
-Moment**:
+Die Prosa von Szene 2 ist als Ablaufbeschreibung der Silos brauchbar und
+dient A10 als Vorlage.
 
-```
-MOMENT 4 — discussione
-ZIEL:        Die Runde vertritt geschlossen Position X; beobachtet wird,
-             ob die fremde Person bei ihrer bleibt.
-REGELN:      Influencer 1 eröffnet; niemand widerspricht der Runde;
-             Arlecchino bricht ab, wenn die Person sich unwohl zeigt.
-POSITIONEN:  Influencer 1 — «…» [Int. 4] / Influencer 2 — «…» [Int. 9] …
-             (Karten zum Mitnehmen, je Person eine)
-THEMA AUS DEM TOPF: <Thema> (aus Int. N)
-KAMERA:      halbnah über die Schulter der Moderatorin, Ton vom Tisch;
-             Schnittmarke, wenn die Person zum ersten Mal widerspricht.
-ABBRUCH:     wenn … → sofort Moment 5 (Auflösung).
-```
+### 2.2 G2 — Versuchsanordnung (Form `versuchsanordnung`, „Experiment setup“)
 
-Moment 5 *rivelazione* enthält die **Auflösungs- und
-Einwilligungsansprache** (wer wir sind, warum gefilmt, dass das Material
-ohne Zustimmung gelöscht wird) als ausformulierten Text — siehe Frage 4.
-Positionskarten aus den Interviews sind das Herz: jede Meinung am Tisch ist
-belegt.
+**Bestätigt**, mit einer Präzisierung: Es braucht keinen eigenen
+Gesamtlauf, das Artefakt verteilt sich auf die fünf Momente. Begründung aus
+dem Katalog:
+- *unsichtbares-theater*: „scripted but disguised as reality“;
+- *soziales-experiment-als-kunst*: „no script, only a rule-set“, offener
+  Ausgang.
 
-### G3 — Spurenpartitur (`spurenpartitur`)
+Ein ausgeschriebener Dialog wäre falsch, denn die fremde Person spricht frei.
 
-Begründung: *performance-installation* — Publikum geht/steht in einer
-Umgebung, „no fixed seating or fourth wall"; *verbatim-theatre* — „exact
-recorded words of interviewees"; *multimedia-performance* — Video/Klang
-„as structural elements … can behave like characters";
-*one-to-one-performance* für den Flüstermodus. Ein linearer Text kann
-gleichzeitige Spuren nicht abbilden. Das Skript ist eine **Partitur über
-Zeit mit Spuren**:
+| Teil | Wo | Inhalt |
+|---|---|---|
+| Versuchsanordnung | Kopf von Moment 1 *inizio* | Ziel (Gruppenmeinung gegen Einzelmeinung), Ort, Ablauf in 5 Momenten, Abbruchregel (die Person zeigt Unwohlsein → sofort Auflösung) |
+| Rollenanweisungen | Kopf von Moment 1, je Person 2–4 Zeilen | Moderatorin, Arlecchino (rekrutiert, seit 14:40 ohne Schild), Influencer 1–3: was sie tun, was nie, wann sie eingreifen |
+| Positionskarten | Moment 4 *discussione* | je Influencer eine Karte: die Position + 1–2 Zitate «…» mit Interviewnummer, aus den Schärfungsstellen je Figur (G2 hat die Zuordnung zu Figuren, `profil.toml:291`); dazu die Zettel im Themen-Topf, jeder mit Interviewnummer |
+| Drehplan | je Moment eine Zeile KAMERA | Position, Einstellung, Ton, Schnittmarke; die Kamera-Person als Platzhalter `[KAMERA: wer?]`, bis die Gruppe sie benennt |
+| Auflösung + Einwilligung | Moment 5 *rivelazione* | ausformulierte Ansprache (wer wir sind, warum gefilmt, Material wird ohne Zustimmung gelöscht) → F4 |
 
-```
-ABSCHNITT 3 — Fast Rise (ca. 0:06–0:10)
-WAND (Video):  Schnittfolge beschleunigt; [VIDEO: von der Gruppe gewähltes
-               Ereignis] — nichts erfunden, nur Platzhalter.
-KLANG:         Interviewfragen-Aufnahmen stapeln sich zum Teppich.
-STIMMEN:
-  V1 · FLÜSTERN 1:1  «…» [Int. 3]  (zu einer Person, nah)
-  V2+V4 · HAPPENING  stummes Spiel: …, dann «…» [Int. 11]
-  V5 · MIKROFON      — (erst in Abschnitt 4: Wand friert ein)
-PUBLIKUM/KNOPF: —
-DICHTE: 3 Fragmente überlappen.
-```
+Je Moment gilt die Blockform ZIEL / WER TUT WAS / SÄTZE (nur Einstiegssätze
+der Eingeweihten, Italienisch erlaubt) / KAMERA / ABBRUCH.
 
-Fragmente je Modus mit Interviewnummer, erste/dritte Person markiert;
-Abschnitt 1 und 6 enthalten die Knopf-Mechanik (Start, projizierte
-Schlussfrage im Wortlaut der Festlegung, Abbruch, Dunkel).
+### 2.3 G3 — drei Varianten (→ F1)
+
+| Variante | Was die Performer:innen in der Hand haben | Pro | Contra | Bauaufwand heute |
+|---|---|---|---|---|
+| **A Spurenpartitur über Zeit** (`spurenpartitur`) | je Abschnitt Spuren WAND / KLANG / STIMMEN (Voce + Modus + Fragment) / PUBLIKUM, mit Zeitschätzung | bildet die Gleichzeitigkeit ab (Video läuft, während geflüstert wird); taugt direkt als Probenplan und für die Technik | das Modell muss Video und Klang erfinden oder Platzhalter setzen; Zeitangaben sind geraten; am schwersten gut zu prompten | eigener Formblock, ~45 min |
+| **B Fragment-Sammlung je Modus** (`fragmente`) | je Szene die Fragmente nach Modus gruppiert (FLÜSTERN 1:1 / MIKROFON / HAPPENING), je Fragment Voce, erste/dritte Person, Interviewnummer, dazu EINE Zeile Wand/Klang | genau das, was die Performer:innen lernen und verteilen; Material ist der Kern (verbatim); robust zu prompten; die Abfolge im Raum entsteht in der Probe, wie es zur Installation passt | Gleichzeitigkeit und Timing stehen nicht drin; die Gruppe baut die Zeitachse selbst | eigener Formblock, ~35 min |
+| **C Sprechtext je Szene wie G1** (`zeugnistext`) | je Szene Zeugnisse in Reihenfolge mit Erzählbrücken | null Zusatzbau (dieselbe Form wie G1); einheitlich | verliert die drei Modi, die die Gruppe ausdrücklich festgelegt hat (Festlegung 14:38); liest sich linear, die Installation ist es nicht | 0 min |
+
+**Empfehlung: B.** Begründung:
+- Die Festlegungen der Gruppe drehen sich um Modi und Zeugnisse; die
+  Wand/Klang-Ebene stellt die Gruppe selbst zusammen (echte Bilder, „true
+  and false“), und der Bot soll sie nicht erfinden.
+- *performance-installation* sagt „improvised within a curated framework“:
+  Das Fragment-Set ist dieses Framework.
+- A ist der nächste Schritt, falls die Gruppe in der Probe eine Zeitachse
+  vermisst.
 
 ---
 
 ## 3. Felder: was da ist, was fehlt
 
-| Gruppe | Schon da | Fehlt | Entscheidung für heute |
+| Gruppe | Da | Fehlt | Heute |
 |---|---|---|---|
-| G1 | `format`, `rahmen`, Übersicht, 3 Szenen mit `was_passiert` + `kernsaetze`, Festlegungen (struktur/stil/COSTUMES), Figuren als Funktionen | Musik-Cue je Nummer, Instrumentierung, Sinneselemente je Silo | **kein neues Feld**: Cues/Aktionen entstehen im Skript aus `was_passiert`, Festlegungen und Figurenbeschreibung (Instrument steht in `figur.beschreibung`) |
-| G2 | `format`, `rahmen`, 5 Szenen (nur `was_passiert`, einzeilig), Festlegungen (struktur/ort/PROPS/figur) | Positionen je Influencer, Themen im Topf, Kamera-Besetzung, Einwilligungstext | **kein neues Feld**: Positionen kommen aus der Schärfung (Interviewstellen je Figur — G2 ist ausdrücklich NICHT in der Szenen-only-Zuordnung, `profil.toml:291`); Kamera ist eine Frage an die Gruppe im Chat |
-| G3 | `format`, `rahmen`, `geschichte`, 6 Szenen, Festlegungen (Modi, Knopf, Rhythmus), Voce 1–5 | Video-Inhalte, Dauer je Abschnitt | **kein neues Feld**: Video als Platzhalter `[VIDEO: …]`, Dauer als Schätzung aus der Wellenform |
+| G1 | `format`, `rahmen`, Übersicht, Szene 2 mit `was_passiert` (Silos) und `kernsaetze`, Festlegungen (Aktionen, Sinneselemente) | Markierung „Szene 1/3 ohne Text“ | **kein neues Feld**, Markierung über vorhandene Zeitstempel (5.3) |
+| G2 | `format`, `rahmen`, 5 Momente, Festlegungen, Figuren mit Rollenwort | Positionen je Influencer, Topf-Themen, Kamera-Person | **kein neues Feld**: Positionen und Topf aus den Schärfungsstellen; Kamera als Platzhalter + Frage an die Gruppe |
+| G3 | `format`, `rahmen`, `geschichte`, 6 Szenen, Festlegungen (Modi, Knopf, Rhythmus), Voce 1–5 | Video-Inhalte, Dauer | **kein neues Feld**: Wand/Klang als eine Zeile bzw. Platzhalter `[VIDEO: …]` |
 
-Das einzige neue Datum ist der Formwert in `szene.form` (bestehende Spalte)
-und ein **Profil-Flag** an der Form (Abschnitt 5). Keine Migration.
+Neu sind nur Formwerte in der bestehenden Spalte `szene.form` und ein
+Profil-Flag an der Form. Es gibt keine Migration.
 
 ---
 
 ## 4. Durchlauf Phase 5 → 6 → 7
 
-- **Phase 5/6 bleiben unverändert** (Prosa-Entwurf, Rewrite). Gründe: (a)
-  der laufende Lauf cc-p6test baut gerade Phase 6 um (Worktree
-  `/tmp/nacht/wt-formberater`, Branch `testbot-voll`) — jeder Eingriff hier
-  kollidiert; (b) die Prosa ist als „was in diesem Abschnitt passiert"
-  auch für eine Partitur brauchbar und ist die Vorlage, gegen die A10
-  Materialtreue prüft. Ob die Prosa für diese Formate gekürzt/übersprungen
-  werden soll: Frage 3.
-- **Phase 7:** Die Formwahl bietet zusätzlich drei Formen an —
-  `setlist` („Setlist / score"), `versuchsanordnung` („Experiment setup"),
-  `spurenpartitur` („Track score"). Die Gruppe wählt wie bisher je Szene in
-  einer Antwort („all scenes setlist"). Ob der Bot die zum `format` passende
-  Form vorschlägt: Frage 1.
-- **Neue Formen statt Format-Overlay** (empfohlen, siehe 5.1): sie laufen
-  durch denselben Weg (`szene.form` → `systemanweisung` → `volltext` →
-  Textbuch), kosten keine neue Spalte und keinen neuen Zustand.
-- **Systemanweisung für diese drei:** NUR der Formblock + `theater-tells`,
-  **ohne `szene.md`** und ohne Stilblock — `szene.md` verlangt Repliken und
-  hörbar verschiedene Figuren und widerspricht allen drei Formaten direkt.
-- **Richter:** Bühnenszene in diesen Formen prüft nur **a10
-  (Materialtreue)**; **c1 (Stimme) entfällt** — Zeilen ohne Namen
-  Figuren zuordnen ist bei Funktionen/Performer:innen als sie selbst sinnlos
-  und würde falsche Überarbeitungsaufträge erzeugen (Frage 5). Geschichte
-  (a2/a6/a9/a11) bleibt. `mechanik._NICHT_DIALOG` bekommt die drei Namen.
-- **Was fehlt (nicht heute):** eine deterministische Strukturprüfung
-  („jede Nummer hat MUSIK/WER/TEXT", „jedes «…» hat [Int. N] und besteht
-  `zitat.pruefe`"). Ohne Modellaufruf, aber ein eigener Baustein → Abschnitt 8.
-- **Sprache:** Interviewfragmente stehen immer **wörtlich im Original
-  (Italienisch) mit Interviewnummer** — das ist Verbatim-/Dokumentar-Logik,
-  kein Sprachwechsel. Der übrige Skripttext (Cues, Regeln, Anweisungen)
-  folgt der Birk-Regel (Englisch; G2 draußen → Italienisch erlaubt). Für G1
-  liegt ein ausdrücklicher Wunsch nach Italienisch vor → Frage 2. Umsetzung
-  ohne Code: der Formblock sagt „Sprache der Rahmentexte: wie in den
-  Festlegungen (bereich `stil`/`sonstiges`, ‚language: …'), sonst Englisch".
+- **Prosa bleibt** (selbst entschieden): Der Phase-6-Umbau von cc-p6test
+  (Worktree `/tmp/nacht/wt-formberater`, Branch `testbot-voll`) wird nicht
+  angefasst. Die Prosa beschreibt bei G2/G3 den Ablauf und bei G1 die Silos,
+  und A10 prüft gegen sie. Birk hat im Nachtrag selbst den Weg „Prosa →
+  Bühnentext“ genannt.
+- **Szenen ohne Text** (G1 Szene 1 und 3) überspringen Phase 5, 6 und 7
+  vollständig (5.3).
+- **Phase 7:** Die Formwahl bietet zusätzlich `zeugnistext` und
+  `versuchsanordnung` an, dazu je nach F1 die G3-Form. Die Gruppe antwortet
+  wie bisher („2 testimony text“). Ob der Bot die passende Form vorschlägt,
+  klärt F3.
+- **Sprechweisen-Schritt** (`sprechweise.starte` in `weiter_7`): Für
+  Funktionen ist er überflüssig, bleibt heute aber stehen, weil
+  `ueberarbeitung.py` gerade bei cc-p6test liegt. Die Gruppe bestätigt ihn
+  mit einem Klick.
+- **Richter für die neuen Formen:** nur a10 (Materialtreue), c1 entfällt (F5).
+  Die Prüfung der ganzen Geschichte (a2/a6/a9/a11) bleibt.
+- **Sprache:** Rahmentexte Englisch (G1 laut Nachtrag; G3 nach Regel); G2
+  darf Italienisch, weil draußen gespielt wird. Wie Zitate in einem
+  englischen Text stehen, klärt F2.
 
 ---
 
@@ -268,164 +270,241 @@ und ein **Profil-Flag** an der Form (Abschnitt 5). Keine Migration.
 
 ### 5.1 Ansätze
 
-1. **Drei neue Szenenformen, nur im Padua-Profil, mit Flag
-   `eigenstaendig = true`** — *empfohlen*. Nutzt den vorhandenen Weg,
-   Dortmund/Vorgabe haben das Flag nicht und bleiben byte-gleich. Kosten:
-   die neun Kopien aus 1.2 nachziehen.
-2. **Format-Overlay je Gruppe** (neue Spalte `arbeitsstand.skriptformat`,
-   überschreibt in Phase 7 jede Szenenform). Sauberer für „ein Format fürs
-   ganze Stück", aber neue Spalte, neuer Zustand, `PFLICHTFELDER` (form)
-   müsste umgangen werden, Formwahl-Schritt in `weiter_7` umbauen — zu viel
-   für heute, und es kollidiert eher mit cc-p6test (`ueberarbeitung.py`).
-3. **Eigener Generator außerhalb der Szenen** (ein Lauf, ganzes Skript als
-   Datei). Passt zur „Partitur über das ganze Stück", verliert aber
-   Prüflauf, Kürzen, Fassungen, Abnahme je Szene — nein.
+1. **Neue Szenenformen nur im Padua-Profil, mit Flag `eigenstaendig = true`.**
+   *Empfohlen.*
+   - Läuft über den vorhandenen Weg `szene.form` → `systemanweisung` →
+     `volltext` → Textbuch.
+   - Dortmund und Vorgabe bleiben byte-gleich.
+   - Kosten: die Kopien aus 1.2.
+   - Je nach F1 sind es 2 neue Formen (Variante C) oder 3 (A oder B).
+2. **Format-Overlay je Gruppe** (neue Spalte, überschreibt jede Szenenform).
+   Das braucht eine neue Spalte, einen Umbau von `weiter_7` und
+   `PFLICHTFELDER`, und es kollidiert mit cc-p6test.
+   Seit G1 nur noch eine Szene braucht, passt das Overlay-Konzept („ein
+   Format fürs ganze Stück“) ohnehin nicht mehr.
+3. **Eigener Generator außerhalb der Szenen.** Damit fallen Prüflauf,
+   Kürzen, Fassungen und Abnahme je Szene weg; abgelehnt.
 
-### 5.2 Bausteine (Ansatz 1)
+### 5.2 Bausteine
 
-- **`workshop.py`**: `[[form]]` darf optional `eigenstaendig = true` tragen;
-  Accessor `workshop.form_eigenstaendig(name) -> bool` (Vorgabe: False).
-  `_pruefe_formen` akzeptiert den Schlüssel.
-- **`workshop/padua-2026/formen.toml`**: drei Einträge mit `anzeige` und
-  Stichwörtern (`setlist`: setlist, score, partitura, concert, set;
-  `versuchsanordnung`: experiment, social experiment, invisible theatre,
-  film, shot list; `spurenpartitur`: track score, installation, immersive,
-  tracks, projection). Achtung Stichwort-Kollision: „score" nicht doppelt;
-  „music"/„song" bleiben bei `lied`. `anzahl_wort = "eight"`.
-- **Regelblöcke** unter `workshop/padua-2026/prompts/formen/`
-  (`setlist.md`, `versuchsanordnung.md`, `spurenpartitur.md`) — im
-  Profilordner, nicht in `sprachen/en/`, damit kein anderes englisches
-  Profil sie je sieht. Inhalt je Datei: Zweck in 3 Sätzen, Ausgabeform
-  (Blöcke wie in Abschnitt 2, Großbuchstaben-Labels), Regeln (Zitat nur
-  wörtlich mit `[Int. N]` aus den mitgegebenen Stellen, nichts erfinden,
-  Platzhalter statt erfundener Fakten, Performer als Funktion, Sprache
-  s. o.), Länge (eine Szene = eine Seite Partitur).
-- **`szene.systemanweisung`**: wenn `workshop.form_eigenstaendig(formdatei(form))`
-  → `[formblock, theater-tells]`.
-- **`prueflauf`**: Fragenwahl für Bühnenszene → `("a10",)`, wenn die Form
+- **`workshop.py`:**
+  - `[[form]]` darf optional `eigenstaendig = true` tragen;
+  - neuer Accessor `workshop.form_eigenstaendig(name) -> bool`, Vorgabe False;
+  - `_pruefe_formen` akzeptiert den Schlüssel.
+- **`workshop/padua-2026/formen.toml`:** neue Einträge mit `anzeige` und
+  Stichwörtern.
+  - `zeugnistext`: testimony, testimony text, verbatim, spoken text,
+    documentary text.
+  - `versuchsanordnung`: experiment, social experiment, invisible theatre,
+    film, shot list.
+  - G3-Form nach F1. Für B (`fragmente`): fragments, whisper, one-to-one,
+    installation, modes.
+  - Nicht verwenden: „music“ und „song“ (bleiben bei `lied`) sowie „scene“.
+  - `anzahl_wort` anpassen.
+- **Regelblöcke** unter `workshop/padua-2026/prompts/formen/<name>.md`, im
+  Profilordner, damit kein anderes Profil sie sieht. Inhalt jeweils:
+  - Zweck in 3 Sätzen;
+  - die Ausgabeform aus Abschnitt 2 mit Labels in Großbuchstaben;
+  - Zitat nur wörtlich aus den mitgegebenen Stellen, mit Interviewnummer;
+  - nichts erfinden, Platzhalter statt erfundener Fakten;
+  - Performer als Funktion;
+  - Sprache;
+  - Länge.
+- **`szene.systemanweisung`:** Ist `workshop.form_eigenstaendig(formdatei(form))`
+  wahr, besteht die Anweisung nur aus `[formblock, theater-tells]`.
+- **`prueflauf`:** Fragen für die Bühnenszene → `("a10",)`, wenn die Form
   eigenständig ist.
-- **Kopien aus 1.2**: `system.md` (en) ergänzt „… or, for documentary/
-  installation formats, a score form"; `szenenfolge._FORMEN`/`_FORM_AUS_EN`
-  aus dem Profil lesen statt Literal (oder um die drei erweitern — der
-  Test verlangt Gleichheit mit `szene.FORMEN` des aktiven Profils);
-  Beschriftungen in `sprachen/en/texte.toml` (web, vorspann, mechanik) um
-  drei Schlüssel ergänzen — **die deutschen Python-Konstanten bleiben
-  unverändert**; `mechanik._NICHT_DIALOG` um die drei Namen erweitern
-  (Namen, die in Dortmund nie vorkommen → keine Verhaltensänderung);
-  `profil.toml [laengen.rahmen]` je Form ein Bereich (Partitur ≈ eine
-  Seite, z. B. 250–450 Wörter).
+- **Kopien aus 1.2:**
+  - `system.md` (en) bekommt einen Halbsatz zu den Formaten;
+  - `szenenfolge._FORMEN`/`_FORM_AUS_EN` aus dem Profil lesen;
+  - die EN-Beschriftungen in `sprachen/en/texte.toml` ergänzen; die deutschen
+    Python-Konstanten bleiben unverändert;
+  - `mechanik._NICHT_DIALOG` um die neuen Namen erweitern;
+  - `[laengen.rahmen]` je Form: `zeugnistext` 400–900 Wörter (eine ganze
+    Mittelszene), die anderen 250–500.
 
-### 5.3 Byte-Gleichheit
+### 5.3 „Kein Text nötig“ ohne neue Spalte
 
-Dortmund und Vorgabe: kein Eintrag `eigenstaendig`, keine neuen Formen,
-deutsche Texte unverändert → `tests/test_profil_bitgleich.py` und
-`tests/test_sprache_bitgleich.py` müssen ohne Fixture-Neuerzeugung grün
-bleiben (laut AGENTS.md kein Abnahmekriterium mehr, aber hier gratis).
+Alle Schleifen in Phase 5, 6 und 7 fragen nur nach Zeitstempeln:
+- `entwurf_bestaetigt_am`;
+- `ueberarbeitung_bestaetigt_am`;
+- `fertig_am`;
+- `phasen.voraussetzungen[7]`: Prosa oder Volltext vorhanden.
+
+Eine Funktion `repo.markiere_szene_ohne_text(conn, chat_id, nummer, grund)`
+setzt in einem Schritt:
+- alle drei Stempel;
+- `form` = Profil-Vorgabe;
+- `prosa` und `volltext` = eine feste Zeile `T._SZENE_OHNE_TEXT`, z. B. „(No
+  script: musical/ritual section — staged by the group. <grund>)“.
+
+Damit überspringt jede vorhandene Schleife die Szene, und das Textbuch zeigt
+die Zeile statt einer Lücke. Gesetzt wird das heute Abend über ein kleines
+Skript `scripts/szene_ohne_text.py <db> <chat_id> <nummer>` (Muster
+`g3-korrektur.py`, mit Backup), das Robo auf der Live-DB ausführt; ein
+Knopf kommt später.
+
+Offen für Phase 2:
+- Schreibt der Gesamt-Rewrite in Phase 6 (`kurzgeschichte.starte(vorlage=True)`)
+  `prosa` aller Szenen neu und überschreibt damit die Zeile? Falls ja,
+  schadet das nicht, weil `volltext` und die Stempel bleiben; trotzdem prüfen.
+- Lesen `_szenen_zusammenfassung` und Kontext die Zeile sinnvoll?
+
+### 5.4 Byte-Gleichheit
+
+Dortmund und Vorgabe haben keine neuen Formen und kein Flag, und ihre
+deutschen Texte bleiben unverändert. Ohne neu erzeugte Fixtures bleiben
+deshalb grün:
+- `tests/test_profil_bitgleich.py`;
+- `tests/test_sprache_bitgleich.py`.
 
 ---
 
-## 6. Implementierungsplan heute Abend (≤ 4 h)
+## 6. Plan für heute Abend (≤ 4 h)
 
 | # | Schritt | Dateien | Zeit |
 |---|---|---|---|
 | 1 | Flag `eigenstaendig` + Accessor + Validierung, Test zuerst | `workshop.py`, `tests/test_formen_katalog.py` | 25 min |
-| 2 | Drei Formen in Padua `formen.toml`, Längenrahmen | `workshop/padua-2026/formen.toml`, `profil.toml` | 15 min |
-| 3 | Drei Regelblöcke schreiben (Abschnitt 2 als Ausgabeform) | `workshop/padua-2026/prompts/formen/*.md` | 60 min |
-| 4 | `systemanweisung` ohne `szene.md` bei eigenständiger Form; Prüflauf nur a10 | `szene.py`, `prueflauf.py`, Tests `test_ueberarbeitung_phase7.py`, `test_prueflauf.py` | 30 min |
-| 5 | Kopien nachziehen (system.md en, szenenfolge, texte.toml en, mechanik) | s. 1.2 | 40 min |
-| 6 | `pruefe_profil padua-2026`, gezielte Tests, dann einmal volle Suite `-m "not dortmund"` | — | 25 min |
-| 7 | Testbot-Abnahme (Frage 6): `scripts/test_uebernehmen.py` → `betrieb/padua-test.db` je Gruppe, auf der **Kopie** Phase 7 setzen, Form setzen, je Gruppe EINE Szene schreiben (G1 *Le voci*, G2 *discussione*, G3 *Fast Rise*), Textbuch lesen | — | 30 min |
+| 2 | Neue Formen in Padua `formen.toml`, Längenrahmen | `workshop/padua-2026/formen.toml`, `profil.toml` | 15 min |
+| 3 | Regelblöcke `zeugnistext.md`, `versuchsanordnung.md` (+ G3-Form nach F1) | `workshop/padua-2026/prompts/formen/` | 60–75 min |
+| 4 | `systemanweisung` ohne `szene.md` bei eigenständiger Form; Prüflauf nur a10 | `szene.py`, `prueflauf.py`, Tests in `test_ueberarbeitung_phase7.py`, `test_prueflauf.py` | 30 min |
+| 5 | „Kein Text nötig“: Repo-Funktion, Text-Konstante, Skript, Test (alle drei Schleifen überspringen, Voraussetzung 7 erfüllt) | `repo.py`, `sprache`/`texte.toml`, `scripts/szene_ohne_text.py`, neuer Test | 30 min |
+| 6 | Kopien aus 1.2 nachziehen | s. 1.2 | 30 min |
+| 7 | `pruefe_profil padua-2026`, gezielte Tests, dann einmal die volle Suite `-m "not dortmund"` | | 25 min |
+| 8 | Testbot-Abnahme (F6) mit Ablauf 8a–8d unten | | 30 min |
 
-Abnahmekriterien: (a) Suite grün, `pruefe_profil padua-2026` grün; (b) je
-Gruppe enthält die Testszene die Blöcke ihres Formats, keine
-Replik-Dialogform, jedes Zitat mit `[Int. N]` und wörtlich in den
-mitgegebenen Stellen auffindbar (Stichprobe von Hand); (c) Formwahl in
-Phase 7 zeigt die drei neuen Formen; (d) Dortmund-Prompt-Snapshot
-unverändert. Kein Deploy, kein Neustart der Live-Dienste (TOML-Profil wirkt
-erst nach Neustart — den macht Birk).
+Summe: etwa 4 h, mit Variante C für G3 etwa 3 h 45 min.
+
+Ablauf von Schritt 8:
+- **8a:** `scripts/test_uebernehmen.py` → `betrieb/padua-test.db` je Gruppe.
+- **8b:** Auf der Kopie G1 Szene 1/3 „ohne Text“ setzen, Phase 7 setzen,
+  Formen setzen.
+- **8c:** Je Gruppe eine Szene schreiben: G1 *Le voci*, G2 *discussione*,
+  G3 *Fast Rise*.
+- **8d:** Das Textbuch lesen.
+
+Abnahmekriterien:
+- (a) Suite grün, `pruefe_profil padua-2026` grün.
+- (b) Jede Testszene hat die Blöcke ihrer Form, keine Repliken im
+  Dialogstil, jedes Zitat mit Interviewnummer und wörtlich in den
+  mitgegebenen Stellen auffindbar (Stichprobe von Hand).
+- (c) G1 Szene 1/3 erscheinen nicht als offene Szene in Phase 5, 6 oder 7,
+  und das Textbuch zeigt sie mit der Zeile.
+- (d) Die Formwahl zeigt die neuen Formen.
+- (e) Der Dortmund-Snapshot ist unverändert.
+
+Kein Deploy und kein Neustart der Live-Dienste: Die TOML-Profile wirken erst
+nach einem Neustart, und den macht Birk.
 
 ---
 
 ## 7. Fragen an Birk (nach Wichtigkeit)
 
-**F1 — Darf der Bot in Phase 7 die passende Format-Form vorschlagen?**
-Der Phase-7-Prompt sagt „You never suggest forms on your own".
-*Empfehlung:* (a) Wenn `arbeitsstand.format` per Stichwort zu einer der drei
-Formen passt, zeigt die Formwahl EINEN Knopf „Alle Szenen als <Form>"
-zusätzlich zur freien Antwort; die Gruppe entscheidet per Klick.
-Optionen: (a) Knopf-Vorschlag · (b) nur in der Liste, Gruppe muss selbst
-draufkommen (Risiko: wählt „dialogue" aus Gewohnheit) · (c) fest je
-`chat_id` im Profil wie `musik_chats` (schnell, aber gegen „die Gruppe
-entscheidet"). *Hängt ab:* Schritt 5 (+20 min für (a)), Prompt 7.md-Satz.
+**F1 — G3: Welches Skript?** (Varianten in 2.3)
+- *Empfehlung:* **B, Fragment-Sammlung je Modus.** Begründung: Die Modi sind
+  die Festlegung der Gruppe; die Wand/Klang-Ebene bauen die
+  Teilnehmer:innen selbst, und der Bot erfindet sie nicht.
+- Optionen:
+  - A: Spurenpartitur über Zeit (zeigt Gleichzeitigkeit, aber Video und
+    Timing wären geraten, +10 min);
+  - B: Fragmente je Modus;
+  - C: Sprechtext je Szene wie G1 (null Zusatzbau, verliert die Modi).
+- *Hängt ab:* Schritt 3, Anzahl neuer Formen, Abnahme 8c.
 
-**F2 — Sprache des G1-Skripts.** G1 schrieb 13:49 „ci serve in italiano per
-la performance"; Birk-Regel: Englisch, Italienisch nur draußen.
-*Empfehlung:* (a) Zitate immer im italienischen Original mit `[Int. N]`
-(Verbatim — damit ist *Le voci* ohnehin überwiegend Italienisch),
-Cues/Anweisungen und eigene Performer-Texte Englisch. Optionen: (a) ·
-(b) G1 ganz Italienisch (Ausnahme von der Regel) · (c) eigene Texte
-zweisprachig. *Hängt ab:* Sprachsatz im Formblock `setlist.md`, ggf. eine
-Festlegung „language: …" in G1.
+**F2 — G1 (und alle): Zitate in einem englischen Text — in welcher Sprache?**
+Die Interviews sind italienisch, der Text soll Englisch sein und die Zitate
+„wörtlich“.
+- *Empfehlung:* (a) Gesprochen wird eine **nahe englische Übersetzung**,
+  darunter steht klein das **italienische Original mit Interviewnummer**.
+  Begründung: Wer probt, sieht die Quelle, und A10/`zitat.pruefe` können gegen
+  das Original prüfen.
+- Optionen:
+  - (a) Übersetzung + Original;
+  - (b) Zitate im italienischen Original sprechen, nur die Brücken Englisch;
+  - (c) nur Übersetzung (Quelle nicht mehr prüfbar).
+- *Hängt ab:* Sprachsatz in `zeugnistext.md`, ggf. auch in G3.
 
-**F3 — Prosa-Entwurf (Phase 5/6) für diese drei Formate behalten?**
-*Empfehlung:* (a) Ja, unverändert — keine Kollision mit cc-p6test, die
-Prosa ist Ablaufbeschreibung und Prüfgrundlage für A10. Optionen: (a) ·
-(b) Prosa nur als knappe Ablaufbeschreibung (Padua-Overlay auf
-`prosa.md` für eigenständige Formen; +30 min, berührt Phase 5) ·
-(c) für diese Gruppen Phase 5/6 überspringen und direkt die Partitur
-schreiben (bricht das Phasenmodell, morgen schneller). *Hängt ab:* ob
-morgen Zeit für zwei Durchgänge (Prosa, dann Partitur) da ist.
+**F3 — Darf der Bot in Phase 7 die passende Form vorschlagen?**
+Der Phase-7-Prompt sagt „You never suggest forms on your own“.
+- *Empfehlung:* (a) Passt `arbeitsstand.format` per Stichwort zu einer neuen
+  Form, zeigt die Formwahl EINEN Knopf „Alle offenen Szenen als <Form>“;
+  die Gruppe klickt.
+- Optionen:
+  - (a) Knopf-Vorschlag (+20 min);
+  - (b) nur in der Liste (Risiko: aus Gewohnheit „dialogue“);
+  - (c) fest je `chat_id` im Profil wie `musik_chats` (schnell, aber gegen
+    „die Gruppe entscheidet“).
+- *Hängt ab:* Schritt 6, ein Satz in `7.md`.
 
-**F4 — G2: Einwilligung und Filmen von Fremden im Skript.** 15–18-Jährige
-filmen eine ahnungslose Person. *Empfehlung:* (a) Das Skript enthält die
-Auflösungs-/Einwilligungsansprache in *rivelazione* als Entwurf; das
-eigentliche Einwilligungsformular kommt von Birk/der Schule, der Bot
-schreibt keines. Optionen: (a) · (b) Bot schreibt auch ein
-Formular-Muster · (c) Einwilligung ganz aus dem Skript, regelt die
-Leitung. *Hängt ab:* Inhalt `versuchsanordnung.md`, Abbruchregel.
+**F4 — G2: Einwilligung beim Filmen von Fremden.** 15- bis 18-Jährige filmen
+eine ahnungslose Person.
+- *Empfehlung:* (a) *rivelazione* enthält die Auflösungs- und
+  Einwilligungsansprache als Entwurf plus Abbruchregel; das Formular kommt
+  von Birk bzw. der Schule, der Bot schreibt keins.
+- Optionen:
+  - (a);
+  - (b) der Bot schreibt auch ein Formular-Muster;
+  - (c) Einwilligung ganz aus dem Skript, das regelt die Leitung.
+- *Hängt ab:* Inhalt von `versuchsanordnung.md`.
 
-**F5 — Richter für Partitur-Formen: c1 (Stimme) abschalten?**
-*Empfehlung:* (a) c1 aus, a10 (Materialtreue) an, für alle drei. Optionen:
-(a) · (b) c1 für G2 behalten (Influencer tragen Positionen) — misst aber
-Improvisation, die nicht geschrieben wird · (c) zusätzlich heute die
-deterministische Zitat-/Strukturprüfung bauen (+60 min, sprengt 4 h).
-*Hängt ab:* Schritt 4, Umfang Abschnitt 8.
+**F5 — Richter c1 (Stimme) für die neuen Formen abschalten?**
+- *Empfehlung:* (a) c1 aus, a10 an.
+- Optionen:
+  - (a);
+  - (b) c1 für G2 behalten (misst aber Improvisation, die nicht geschrieben
+    wird);
+  - (c) zusätzlich heute die deterministische Zitatprüfung (Interviewnummer +
+    `zitat.pruefe`) bauen (+60 min, sprengt 4 h).
+- *Hängt ab:* Schritt 4.
 
-**F6 — Testbot-Abnahme mit echten Modellaufrufen heute Abend?**
-Skripte, die Geld kosten, laufen nie automatisch. *Empfehlung:* (a) ja,
-drei Szenenläufe auf `padua-test.db` (je Gruppe eine Szene, geschätzt
-deutlich unter 1 CHF). Optionen: (a) · (b) nur Prompt-Dump ansehen, kein
-Modellaufruf · (c) Abnahme morgen früh mit Birk. *Hängt ab:* Schritt 7 und
-ob Birk morgen ein geprüftes Ergebnis sieht.
+**F6 — Testbot-Abnahme mit echten Modellaufrufen heute Abend?** Skripte,
+die Geld kosten, laufen nie automatisch.
+- *Empfehlung:* (a) ja, drei Szenenläufe auf `padua-test.db`, geschätzt
+  deutlich unter 1 CHF.
+- Optionen:
+  - (a);
+  - (b) nur Prompt-Dump ansehen;
+  - (c) morgen früh mit Birk.
+- *Hängt ab:* Schritt 8.
+
+**Selbst entschieden (mit Grund, zur Kenntnis):**
+- **Prosa in Phase 5/6 bleibt.** Grund: keine Kollision mit cc-p6test,
+  Vorlage für A10, Birk nannte den Weg „Prosa → Bühnentext“ selbst.
+- **„Kein Text nötig“ über Stempel statt neuer Spalte.** Grund: Alle
+  Schleifen lesen nur Stempel; null Änderung in `ueberarbeitung.py`/`entwurf.py`.
+- **G2 ohne eigenen Gesamtlauf.** Grund: Anordnung und Rollen stehen im Kopf
+  von Moment 1, Positionskarten in Moment 4, der Drehplan als Zeile je
+  Moment; das spart einen Lauf und bleibt im Prüf-/Abnahmeweg.
+- **Neue Formen nur im Padua-Profilordner.** Grund: Byte-Gleichheit,
+  kein anderes englisches Profil sieht sie.
+
+**An die Gruppe G2 (nicht an Birk):** Wer filmt?
 
 ---
 
 ## 8. Bewusst nicht heute (mit Grund)
 
-- **Format-Overlay je Gruppe** (Ansatz 2) — sauberer, aber neue Spalte und
-  Umbau von `weiter_7`, kollidiert mit cc-p6test.
-- **Deterministische Partitur-Prüfung** (Blockstruktur, `[Int. N]` +
-  `zitat.pruefe` gegen das Transkript) — richtig und modellfrei, aber
-  eigener Baustein; erster Kandidat für morgen.
-- **Ganzes-Stück-Artefakte** (G1 Gesamt-Setlist mit Tonarten, G2 Drehplan
-  über alle Momente, G3 Cue-Liste für die Technik) — heute steht der
-  Gesamtblick im Textbuch durch die Aneinanderreihung der Szenen; ein
-  zusammenfassender Kopf wäre ein zusätzlicher Lauf.
-- **Formberater im Schreibweg** — er bleibt Gesprächshilfe; die Wahl
-  trifft die Gruppe über `szene.form`.
-- **Weitere Formate/Gruppen, Dortmund** — eingefroren bzw. nicht gefragt.
-- **Neue Felder für Musik-Cues, Video-Inhalte, Positionen** — die Partitur
-  leitet sie aus vorhandenen Feldern ab oder setzt Platzhalter; Felder erst,
-  wenn die Gruppen sie auf der Workbench pflegen wollen.
+- **Setlist/Partitur für G1:** Birk ~17:00, die Musik macht die Gruppe
+  selbst.
+- **Format-Overlay je Gruppe:** neue Spalte, Umbau von `weiter_7`, Kollision
+  mit cc-p6test, und seit G1 nur eine Szene braucht, ohne Nutzen.
+- **Deterministische Zitat-/Strukturprüfung:** modellfrei und richtig, aber
+  ein eigener Baustein; erster Kandidat für morgen (F5c).
+- **Sprechweisen-Schritt für Funktionen überspringen:** liegt in
+  `ueberarbeitung.py`, das gerade bei cc-p6test ist.
+- **Knopf „kein Text nötig“:** heute nur per Skript.
+- **Ganzes-Stück-Artefakte** (G3-Cue-Liste für die Technik, G2-Gesamtdrehplan
+  über einen eigenen Lauf).
+- **Formberater im Schreibweg:** Er bleibt Gesprächshilfe.
+- **Neue Felder** (Musik-Cues, Video-Inhalte, Positionen): erst, wenn die
+  Gruppen sie auf der Workbench pflegen wollen.
 
 ## 9. Offene Punkte für Phase 2 (`writing-plans`)
 
-- Prüfen, ob `_AUFTRAG_BUEHNE`/`VORLAGE_KOPF` („Translate it into the form")
-  für Partituren passt oder je eigenständiger Form einen Zusatzsatz braucht.
-- Prüfen, ob die Schärfungsstellen je Szene (G1/G3 nur Szenen-Zuordnung,
-  `profil.toml:291`) mit Interviewnummer im Nutzertext ankommen — die
-  Formblöcke setzen das voraus.
-- `sprechweise.starte` in `weiter_7` ist für Funktionen/Performer als sie
-  selbst überflüssig: überspringen, wenn alle Szenen eine eigenständige Form
-  haben? (klein, in `ueberarbeitung.py` → mit cc-p6test abstimmen).
-- An die Gruppe G2 (nicht Birk): wer filmt?
+- Kommen die Schärfungsstellen mit Interviewnummer im Nutzertext an
+  (`baue_nutzertext`)? Bei G1/G3 werden sie nur Szenen zugeordnet,
+  `profil.toml:291`. Die Formblöcke setzen das voraus.
+- Passt `_AUFTRAG_BUEHNE`/`VORLAGE_KOPF` („Translate it into the form“) zu den
+  neuen Formen, oder braucht jede eigenständige Form einen Zusatzsatz?
+- 5.3: das Verhalten des Gesamt-Rewrites in Phase 6 gegenüber
+  Ohne-Text-Szenen (mit cc-p6test abstimmen).

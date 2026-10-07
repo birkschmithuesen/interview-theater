@@ -1840,12 +1840,19 @@ def _verworfen_text(conn, chat_id: int) -> str:
     """Die ``verworfen``-Zeilen des Journals -- damit Verworfenes nicht durch
     die Hintertuer im Szenentext wiederkommt. Das Journal ist der einzige Ort,
     an dem eine Ablehnung samt Grund ueberhaupt festgehalten ist (SPEC § 2)."""
-    zeilen = [
-        f"- {e['text']}" for e in repo.journal(conn, chat_id) if e["art"] == "verworfen"
-    ]
+    zeilen = verworfene_zeilen(conn, chat_id)
     if not zeilen:
         return ""
     return T._VERWORFEN_KOPF + "\n".join(zeilen)
+
+
+def verworfene_zeilen(conn, chat_id: int) -> list[str]:
+    """Der eine Datenweg fuer Verworfenes: die ``verworfen``-Zeilen des
+    Journals als Spiegelstriche -- geteilt mit dem Matcher-Hintergrund
+    (``schaerfung._hintergrund_zeilen``)."""
+    return [
+        f"- {e['text']}" for e in repo.journal(conn, chat_id) if e["art"] == "verworfen"
+    ]
 
 
 _VERWORFEN_KOPF = "Das hat die Gruppe verworfen, es kommt nicht wieder vor:\n"

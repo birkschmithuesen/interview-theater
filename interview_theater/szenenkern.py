@@ -138,7 +138,7 @@ def gruppen_kernsaetze(conn, chat_id: int, szene) -> list[str]:
     gesetzt hat."""
     return bereinige_kernsaetze(
         szene["kernsaetze"],
-        [z["zitat"] for z in repo.schaerfungen(conn, chat_id, szene_id=szene["id"])],
+        [z["zitat"] for z in uebernommene(conn, chat_id, szene["id"])],
     )
 
 

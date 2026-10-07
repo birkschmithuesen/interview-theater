@@ -271,7 +271,23 @@ def _hintergrund_zeilen(conn, chat_id: int) -> list[str]:
         if "begriffe" in stand.keys() and (stand["begriffe"] or "").strip():
             zeilen.append(T._HINTERGRUND_BEGRIFFE.format(text=stand["begriffe"].strip()))
     zeilen.extend(_hintergrund_voll_zeilen(conn, chat_id, stand))
+    zeilen.extend(_verworfen_zeilen(conn, chat_id))
     return zeilen
+
+
+def _verworfen_zeilen(conn, chat_id: int) -> list[str]:
+    """Padua [skript] verdichtet (Birk 07.10.2026 ~17:45, G2: das Schild war
+    verworfen, die Zuordnung hing trotzdem daran): was die Gruppe verworfen
+    hat, ausdruecklich als Nicht-Ziel -- derselbe Datenweg wie der
+    ``verworfen``-Block des Szenen-Prompts (``szene.verworfene_zeilen``)."""
+    from interview_theater import szene as szene_modul, workshop
+
+    if not workshop.skript_verdichtet_aktiv():
+        return []
+    verworfen = szene_modul.verworfene_zeilen(conn, chat_id)
+    if not verworfen:
+        return []
+    return [T._HINTERGRUND_VERWORFEN.format(text="\n".join(verworfen))]
 
 
 def _hintergrund_voll_zeilen(conn, chat_id: int, stand) -> list[str]:
@@ -335,12 +351,20 @@ def _ziele(conn, chat_id: int) -> list[dict]:
     """Je eine Zeile pro Szene und pro Figur -- das sind die Ziele, fuer die
     ``mappe`` je einen eigenen, engen Aufruf macht (Umbau 07.10.2026)."""
     ziele: list[dict] = []
+    from interview_theater import szenenkern, workshop
+
+    verdichtet = workshop.skript_verdichtet_aktiv()
     for szene in repo.hole_szenen(conn, chat_id):
         if szene["nummer"] is None:
             continue
+        # Padua [skript] verdichtet: die Beschreibung der Gruppe ohne die
+        # angehaengten Begruendungen frueherer Runden -- die zogen alte
+        # Inhalte (G2: das Schild) in die naechste Zuordnung.
+        was = (szenenkern.gruppenbeschreibung(conn, chat_id, szene) if verdichtet
+               else szene["was_passiert"])
         ziele.append({
             "art": "szene", "id": szene["id"], "nummer": szene["nummer"],
-            "titel": szene["titel"] or "", "was_passiert": szene["was_passiert"] or "",
+            "titel": szene["titel"] or "", "was_passiert": was or "",
             "form": szene["form"] or "",
         })
     # Birk 07.10.2026 15:10 (G1): spielen die Performer sich selbst (keine
@@ -393,6 +417,8 @@ _HINTERGRUND_BEGRIFFE = "\nHintergrund -- Begriffe aus Phase 1:\n{text}"
 _HINTERGRUND_FESTLEGUNGEN = "\nHintergrund -- Festlegungen der Gruppe:\n{text}"
 _HINTERGRUND_UEBERSICHT = "\nHintergrund -- Uebersicht der Gruppe:\n{text}"
 _HINTERGRUND_VORRANG = ("Wenn frueheres Material und die Workbench (Setting, Szenen, Festlegungen) sich widersprechen, gilt die Workbench: ordne nur zu, was zum AKTUELLEN Stand passt. Verworfene Ideen sind keine Ziele.")
+_HINTERGRUND_VERWORFEN = ("\nVon der Gruppe verworfen -- das ist KEIN Ziel und wird nie "
+                          "zugeordnet, auch wenn frueheres Material davon spricht:\n{text}")
 _HINTERGRUND_MITGEHOERT = "\nHintergrund -- was die Gruppe besprochen hat (Wortlaut, Diskussion und Brainstorm):\n{text}"
 _ZIEL_ZEILE = "Ziel -- ordne NUR fuer dieses eine Ziel zu: {beschreibung}"
 _ZIEL_FIGUR_LABEL = "Figur {name}"

@@ -1,6 +1,6 @@
 # Format-Skripte für die drei Padua-Gruppen — Design
 
-Stand: 07.10.2026, ~17:30 · Autor: cc-formatspec (nach `brainstorming-to-spec`,
+Stand: 07.10.2026, ~16:50 · Autor: cc-formatspec (nach `brainstorming-to-spec`,
 Fragen nicht direkt gestellt, sondern unten gesammelt) · Basis: Branch
 `spec-format-skripte` auf `90e1d52` · Live-DB `betrieb/padua.db` nur `?mode=ro`
 gelesen (Stand 16:17).

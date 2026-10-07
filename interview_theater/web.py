@@ -6078,14 +6078,14 @@ from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus
 T = sprache.Texte(__spec__.name if __spec__ else __name__)
 
 
-if __name__ == "__main__":
-    # Damit ``sprache.text`` das Modul unter seinem Paketnamen findet.
-    sys.modules.setdefault("interview_theater.web", sys.modules[__name__])
-    main()
-
-
 def _leseleiste_aus() -> bool:
     """Padua (Birk 07.10.2026): keine Schriftgroessen-/Regie-Knoepfe im Script-Tab."""
     from interview_theater import workshop
 
     return workshop.skript_verdichtet_aktiv()
+
+
+if __name__ == "__main__":
+    # Damit ``sprache.text`` das Modul unter seinem Paketnamen findet.
+    sys.modules.setdefault("interview_theater.web", sys.modules[__name__])
+    main()

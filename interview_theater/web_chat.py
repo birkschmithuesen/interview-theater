@@ -1306,9 +1306,13 @@ _CHAT_JS = """
       var ziel = bezug[id] != null ? leisteZu(bezug[id]) || blaseZu(bezug[id]) : null;
       if (ziel && ziel.parentNode === verlauf) {
         verlauf.insertBefore(zeile, ziel.nextSibling);
-      } else {
+      } else if (bezug[id] == null) {
         verlauf.appendChild(zeile);
       }
+      // Birk 07.10.2026: hat die Quittung einen Bezug, der NICHT (mehr) im
+      // geladenen Verlauf steht (alte Frage aus Phase 2), wird sie gar nicht
+      // gezeigt -- sonst landete "✗ Discarded"/"Phase 2" unter der neuesten
+      // Antwort.
     });
   }
 

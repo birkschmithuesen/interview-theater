@@ -681,10 +681,15 @@ def test_matcher_hintergrund_voll_nur_mit_profilschalter(monkeypatch):
         {"bereich": "struktur", "bezug": None, "text": "three parts"}])
     monkeypatch.setattr(repo, "festlegungszeile", lambda b, z, t: f"[{b}] {t}")
     monkeypatch.setattr(kontext, "_baue_mitgehoert", lambda conn, chat_id, voll=False: "BRAINSTORM WORTLAUT")
+    from interview_theater import szene as szene_modul
+    monkeypatch.setattr(szene_modul, "_p5_gespraech_text", lambda conn, chat_id, ueber_claude=False: "P5 GESPRAECH")
     stand = _Stand({"geschichte_uebersicht": "Logline: X", "figuren_entwurf": ""})
     monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: True)
     text = "\n".join(schaerfung._hintergrund_voll_zeilen(None, 1, stand))
-    assert "three parts" in text and "Logline: X" in text and "BRAINSTORM WORTLAUT" in text
+    assert "three parts" in text and "Logline: X" in text and "P5 GESPRAECH" in text
+    # Birk 07.10.2026 ~16:55 (G2): der alte Brainstorm-Wortlaut zog die
+    # Zuordnung auf verworfene Ideen (das Schild) -> nicht mehr im Matcher.
+    assert "BRAINSTORM WORTLAUT" not in text
     monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: False)
     assert schaerfung._hintergrund_voll_zeilen(None, 1, stand) == []
 

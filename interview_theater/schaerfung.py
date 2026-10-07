@@ -296,9 +296,16 @@ def _hintergrund_voll_zeilen(conn, chat_id: int, stand) -> list[str]:
         for feld in ("geschichte_uebersicht", "figuren_entwurf"):
             if feld in stand.keys() and (stand[feld] or "").strip():
                 zeilen.append(T._HINTERGRUND_UEBERSICHT.format(text=stand[feld].strip()))
-    mitgehoert = kontext._baue_mitgehoert(conn, chat_id, voll=True)
-    if mitgehoert and mitgehoert.strip():
-        zeilen.append(T._HINTERGRUND_MITGEHOERT.format(text=mitgehoert.strip()))
+    # Birk 07.10.2026 ~16:55 (G2): der volle Brainstorm-Wortlaut aus Phase 4
+    # (ueberholte Ideen, z. B. das Schild) zog die Zuordnung auf alte
+    # Inhalte. Statt dessen: das Phase-5-Gespraech (aktueller Stand) und ein
+    # ausdruecklicher Vorrang der Workbench.
+    from interview_theater import szene as szene_modul
+
+    gespraech = szene_modul._p5_gespraech_text(conn, chat_id, ueber_claude=True)
+    if gespraech and gespraech.strip():
+        zeilen.append(gespraech.strip())
+    zeilen.append(T._HINTERGRUND_VORRANG)
     return zeilen
 
 
@@ -385,6 +392,7 @@ _HINTERGRUND_KERNTHEMA = "\nHintergrund -- Kernthema der Gruppe:\n{text}"
 _HINTERGRUND_BEGRIFFE = "\nHintergrund -- Begriffe aus Phase 1:\n{text}"
 _HINTERGRUND_FESTLEGUNGEN = "\nHintergrund -- Festlegungen der Gruppe:\n{text}"
 _HINTERGRUND_UEBERSICHT = "\nHintergrund -- Uebersicht der Gruppe:\n{text}"
+_HINTERGRUND_VORRANG = ("Wenn frueheres Material und die Workbench (Setting, Szenen, Festlegungen) sich widersprechen, gilt die Workbench: ordne nur zu, was zum AKTUELLEN Stand passt. Verworfene Ideen sind keine Ziele.")
 _HINTERGRUND_MITGEHOERT = "\nHintergrund -- was die Gruppe besprochen hat (Wortlaut, Diskussion und Brainstorm):\n{text}"
 _ZIEL_ZEILE = "Ziel -- ordne NUR fuer dieses eine Ziel zu: {beschreibung}"
 _ZIEL_FIGUR_LABEL = "Figur {name}"

@@ -110,6 +110,11 @@ ERLAUBT = frozenset({
     "dialog", "monolog", "chor", "lied", "rap", "prosa",
     "herkules", "schlagabtausch", "litanei",
     "fermata", "piazza", "bar", "stazione",
+    # Formberater (Karte t_256ec777): die drei Schema-Felder des
+    # Modellaufrufs (interview_theater/formberater.py, SCHEMA) heissen
+    # bewusst wie Birks Brief, nicht uebersetzt -- Protokoll wie
+    # "dialog"/"chor" oben, keine Prosa.
+    "passt", "vorschlag", "gegenpol",
 })
 
 #: Die deutschen ANZEIGE-Namen der Formen, gross geschrieben -- anders als

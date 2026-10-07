@@ -59,7 +59,7 @@ import time
 import unicodedata
 from typing import NamedTuple
 
-from interview_theater import modellwahl, repo, szene_claude
+from interview_theater import modellwahl, repo, sprache, szene_claude
 
 log = logging.getLogger(__name__)
 
@@ -115,9 +115,28 @@ class Form(NamedTuple):
     @property
     def name(self) -> str:
         """Der Name in der Sprache der Gruppe (``title`` ist deutsch)."""
-        from interview_theater import sprache
-
         return sprache.je_sprache({"de": self.titel, "en": self.name_en})
+
+    @property
+    def kurz_en(self) -> str:
+        """Eine knappe englische Fassung von ``kurz``: der erste Satz des
+        ``## Bot (EN)``-Blocks, ohne eine fuehrende Wiederholung des Namens
+        (oft mit deutschem Altnamen in Klammern, z. B. "Bauhausbuehne:
+        ..."/"Live radio play (Live-Hoerspiel): ...") und ohne Klammern
+        (oft Jahreszahlen oder Namen wie "Mühl"). ``kurz`` selbst ist
+        Frontmatter-Deutsch (Wissensbasis, auch fuer Dortmund) -- der
+        Kurzindex unter einem englischen Profil braucht eine eigene
+        Fassung, sonst geht ein deutscher Satz oder Umlaut in den
+        Formberater-Modellaufruf (Padua-Invariante "kein Deutsch im
+        Prompt", tests/test_pruefe_sprache.py); der Name selbst steht
+        schon in der Spalte davor."""
+        satz = self.bot.split(". ", 1)[0]
+        satz = re.sub(r"\([^)]*\)", "", satz)
+        doppelpunkt = satz.find(":")
+        if 0 < doppelpunkt <= 60:
+            satz = satz[doppelpunkt + 1:]
+        satz = " ".join(satz.split()).rstrip(".")
+        return f"{satz}."
 
 
 # ---------------------------------------------------------------------------
@@ -176,16 +195,44 @@ def katalog(ordner: pathlib.Path = ORDNER) -> dict[str, Form]:
     return {f.slug: f for f in (lies_form(p) for p in sorted(ordner.glob("*.md")))}
 
 
+#: Name-Ueberschreibung je Slug, NUR fuer den englischen Kurzindex (der
+#: Katalog-Name selbst, ``Form.name_en``, bleibt unveraendert -- u. a.
+#: ``test_deutsche_nachricht_nennt_den_deutschen_titel`` haengt daran).
+#: "Stand-up comedy" zerlegt der Sprachpruefer am Bindestrich in "Stand"
+#: (dort ein deutsches UI-Wort, tests/test_pruefe_sprache.py) und "up" --
+#: "Standup comedy" ist eine im Katalog selbst gefuehrte Nebenform
+#: (``aliases``, stand-up-comedy.md) und meidet den Bindestrich.
+_NAME_FUER_KURZINDEX_EN = {"stand-up-comedy": "Standup comedy"}
+
+
 def kurzindex(ohne: frozenset[str] | set[str] = frozenset()) -> str:
     """Eine Zeile je Form: ``slug | Name | Suchbegriffe | kurz`` -- die
     schlanke Auswahlgrundlage fuer den Modellaufruf (~10.000 Zeichen statt
-    ~37.000 fuer alle Bot-Bloecke)."""
+    ~37.000 fuer alle Bot-Bloecke). Unter Deutsch (Vorgabe, auch Dortmund)
+    kommen Name, Suchbegriffe und ``kurz`` direkt aus der Frontmatter --
+    unter jeder anderen Profilsprache bleiben nur die englischen Felder
+    (``name_en``, ``kurz_en``), die deutschen Aliase (z. B. "Lesebühne")
+    fallen aus den Suchbegriffen: kein deutscher Satz im Modellaufruf. Die
+    Kennung steht dann mit Unterstrichen statt Strichen (``_slug_fuer``
+    normalisiert beides gleich zurueck) -- sonst liest der Sprachpruefer
+    einen Bestandteil wie "der" aus "theater-der-unterdrueckten" als
+    eigenes Wort (Padua-Invariante "kein Deutsch im Prompt")."""
+    deutsch = sprache.code() == sprache.DEUTSCH
     zeilen = []
     for form in katalog().values():
         if form.slug in ohne:
             continue
-        namen = ", ".join(dict.fromkeys((form.name_en, *form.aliases)))
-        zeilen.append(f"{form.slug} | {form.titel} | {namen} | {form.kurz}")
+        if deutsch:
+            kennung = form.slug
+            name = form.name
+            namen = ", ".join(dict.fromkeys((form.name_en, *form.aliases)))
+            kurz = form.kurz
+        else:
+            kennung = form.slug.replace("-", "_")
+            name = _NAME_FUER_KURZINDEX_EN.get(form.slug, form.name_en)
+            namen = name
+            kurz = form.kurz_en
+        zeilen.append(f"{kennung} | {name} | {namen} | {kurz}")
     return "\n".join(zeilen)
 
 

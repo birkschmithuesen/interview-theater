@@ -268,6 +268,19 @@ INVENTAR = (
     # sich bewusst auf seine fuenf bestehenden Dumps beschraenkt.
     Eintrag("42-uebersetzung", "uebersetzung", 4,
             "interview_theater.uebersetzung", "ART"),
+    # Formberater (Karte t_256ec777): der teure Schema-Aufruf
+    # (formberater.berate) laeuft nur bei einem neuen Stichwort-Treffer
+    # (Ausloeser A, interview_theater/ablauf.py::_pruefe_formen) oder beim
+    # Eintritt in Phase 5 (Ausloeser B) bzw. per Knopf (Ausloeser C) --
+    # kein eigener Chatbeitrag, reiner Kontext-Zusatz fuer den naechsten
+    # Gespraechszug. Wie 42-uebersetzung ein normaler Eintrag (laeuft live
+    # in Padua ab Phase 4), aber kein eigener P3/4-Dump in
+    # scripts/erzeuge_prompts_padua_voll.py: 07-gespraech-phase4 zeigt den
+    # Block ``formen`` bereits, wenn die Fixture eine geladene Form
+    # mitbringt -- ein zweiter Treiber waere derselbe Prompt-Baustein noch
+    # einmal (siehe die Begruendung bei "art" oben).
+    Eintrag("43-formberater", "formberater", 4,
+            "interview_theater.formberater", "ART"),
 )
 
 #: Aufrufstellen, die in Padua NICHT live sind -- mit Grund, nicht nur mit

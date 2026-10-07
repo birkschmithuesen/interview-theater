@@ -1071,6 +1071,20 @@ def _leiste_nach_szenentext(conn, chat_id: int, nummer: int) -> list[tuple[str, 
     zeigen"."""
     from interview_theater import kuerzung as kuerzung_modul
 
+    if workshop.prosa_entwurf_aktiv():
+        # Birk 07.10.2026 ~17:15 (G1: "unklare Shortcut-Knoepfe"): in Padua
+        # nur Ja / Nein-aendern; nach "Nein" kommt die Textnachricht der
+        # Gruppe (``_wirkung_szene_anders`` fragt danach).
+        return [
+            (
+                T.TEXT_WEITER_KNOPF,
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_PASST, str(nummer))),
+            ),
+            (
+                T.TEXT_NEIN_AENDERN_KNOPF,
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_ANDERS, str(nummer))),
+            ),
+        ]
     return [
         (
             T.TEXT_PASST_KNOPF,
@@ -1176,7 +1190,7 @@ def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int
     from interview_theater import phasen
 
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_PASST)
-    if phasen.aktuelle(conn, chat_id) == 5:
+    if phasen.aktuelle(conn, chat_id) == 5 or workshop.prosa_entwurf_aktiv():
         leiste = _leiste_nach_szenentext(conn, chat_id, nummer)
     else:
         leiste = [
@@ -1186,8 +1200,9 @@ def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int
                    T.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
                    ART_SZENE_KUERZEN, str(nummer)),
         ]
-    leiste.append(_knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF,
-                         ART_ERSTENTWURF, str(nummer)))
+    if not workshop.prosa_entwurf_aktiv():
+        leiste.append(_knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF,
+                             ART_ERSTENTWURF, str(nummer)))
     # Der naechste Schritt nennt den ersten Knopf der Leiste woertlich
     # (Padua Lauf 4: wer im Script-Tab gelesen hat, wusste nicht, dass er
     # hier zurueck und einen Knopf druecken soll).
@@ -1243,12 +1258,16 @@ def zeige_geprueft_geschichte(conn, tg, e, chat_id: int, bericht) -> int:
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_GESCHICHTE_PASST)
     leiste = [
         _knopf(conn, chat_id, T.TEXT_WEITER_KNOPF, ART_GESCHICHTE_PASST, None),
-        _knopf(conn, chat_id, T.TEXT_ANDERS_KNOPF, ART_GESCHICHTE_ANDERS, None),
-        _knopf(conn, chat_id,
-               T.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
-               ART_GESCHICHTE_KUERZEN, None),
-        _knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF, ART_ERSTENTWURF, ""),
+        _knopf(conn, chat_id, T.TEXT_NEIN_AENDERN_KNOPF if workshop.prosa_entwurf_aktiv()
+               else T.TEXT_ANDERS_KNOPF, ART_GESCHICHTE_ANDERS, None),
     ]
+    if not workshop.prosa_entwurf_aktiv():
+        leiste += [
+            _knopf(conn, chat_id,
+                   T.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
+                   ART_GESCHICHTE_KUERZEN, None),
+            _knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF, ART_ERSTENTWURF, ""),
+        ]
     message_id = _mit_leiste(conn, tg, chat_id, text, leiste)
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     return message_id

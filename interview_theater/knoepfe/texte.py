@@ -707,6 +707,7 @@ _TEXT_SZENE_UEBERSPRUNGEN = "Szene {nummer} ist raus."
 _TEXT_SZENE_UNBEKANNT = "Diese Szene kenne ich nicht mehr."
 
 #: Unter dem fertigen Szenentext.
+TEXT_NEIN_AENDERN_KNOPF = "Nein, aendern"
 TEXT_PASST_KNOPF = "Passt"
 TEXT_NEU_KNOPF = "Neu schreiben"
 TEXT_NAECHSTE_KNOPF = "Naechste Szene"

@@ -107,3 +107,15 @@ def test_script_zeigt_die_karte_und_prosa_nur_als_material(padua):
     assert "Die Stimmen werden geteilt." in html and "Casa non sono le mura" in html
     assert '<details class="fruehere">' in html and "Alte Prosa." in html
     assert 'class="worum"' not in html
+
+
+def test_partitur_nur_bei_ueberwiegend_momenten(padua):
+    def s(n, typ, modus):
+        return {"nummer": n, "titel": f"M{n}", "karte": {"typ": typ, "modus": modus,
+                                                         "worum": f"Worum {n}"}}
+    momente = [s(1, "moment", "none"), s(2, "moment", "microphone"), s(3, "moment", "collective")]
+    html = web._partitur_html(momente)
+    assert "🎤 Microphone" in html and 'colspan="3"' in html
+    zeile2 = html.split("<tr>")[3]
+    assert zeile2.index('class="an"') < zeile2.index("<td></td>")
+    assert web._partitur_html([s(1, "description", "none"), s(2, "moment", "microphone")]) == ""

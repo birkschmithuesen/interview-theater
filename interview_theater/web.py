@@ -4611,6 +4611,37 @@ def _karte_html(karte: dict, bestaetigt: bool) -> str:
     return f'<div class="karte">{"".join(teile)}</div>'
 
 
+_PARTITUR_MODI = ("microphone", "one_to_one", "collective")
+PARTITUR_SPALTEN = {"microphone": "🎤 Mikrofon", "one_to_one": "👂 1:1",
+                    "collective": "👥 Kollektiv"}
+
+
+def _partitur_html(szenen: list[dict]) -> str:
+    """G3 (Padua-Phasenumbau, Entwurf Robo 18:10): ein Stueck aus Momenten
+    steht oben als Orts-Partitur -- drei Spalten (Mikrofon, 1:1, Kollektiv),
+    die Zeit von oben nach unten; ein Moment ohne Modus geht ueber alle drei.
+    Nur, wenn die Karten ueberwiegend Momente sind; sonst nichts."""
+    karten = [(s, s.get("karte") or {}) for s in szenen]
+    momente = [k for _, k in karten if k.get("typ") == "moment"]
+    if not momente or len(momente) * 2 <= len(karten):
+        return ""
+    kopf = "".join(f"<th>{_t(T.PARTITUR_SPALTEN[m])}</th>" for m in _PARTITUR_MODI)
+    zeilen = []
+    for s, k in karten:
+        titel = f"{s.get('nummer')}. {s.get('titel') or ''}".strip()
+        zelle = f"<b>{_t(titel)}</b>" + (f"<br>{_t(_kappe(k.get('worum') or '', 120))}"
+                                          if k.get("worum") else "")
+        modus = k.get("modus") if k.get("typ") == "moment" else None
+        if modus in _PARTITUR_MODI:
+            zellen = "".join(f'<td class="an">{zelle}</td>' if m == modus else "<td></td>"
+                             for m in _PARTITUR_MODI)
+        else:
+            zellen = f'<td colspan="3" class="ganz">{zelle}</td>'
+        zeilen.append(f"<tr>{zellen}</tr>")
+    return (f'<section class="probe-szene partitur"><table class="partitur">'
+            f"<thead><tr>{kopf}</tr></thead><tbody>{''.join(zeilen)}</tbody></table></section>")
+
+
 def _probe_szene_verdichtet_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
     """Eine Szene im Script-Tab, auf das Wesentliche reduziert: Kopf, Ort und
     Besetzung, der Text (EN und IT als eigene Bloecke). "Worum es geht" und
@@ -4708,6 +4739,11 @@ _CSS_TEXTBUCH_LESBAR = """
 .karte-worum { margin: 0 0 .7rem; font-size: 1.08rem; }
 .karte-angaben { margin: 0 0 .7rem; font-size: .9rem; }
 .karte-zitat { margin: .35rem 0 .55rem; padding: .1rem 0 .1rem .8rem; border-left: 2px solid var(--linie, #ddd8cc); font-style: italic; }
+.partitur { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .88rem; line-height: 1.4; }
+.partitur th { text-align: left; padding: .3rem .4rem; border-bottom: 1px solid var(--linie, #ddd8cc); font-weight: 600; }
+.partitur td { vertical-align: top; padding: .45rem .4rem; border-bottom: 1px dotted var(--linie, #ddd8cc); }
+.partitur td.an { background: rgba(127, 127, 127, .12); border-radius: .3rem; }
+.partitur td.ganz { text-align: center; color: var(--text-leise, #6b6b6b); }
 .karte-zitat .quelle { font-style: normal; font-size: .82em; color: var(--text-leise, #6b6b6b); }
 """
 
@@ -4991,6 +5027,9 @@ def textbuch_koerper(
             if name not in sprecher:
                 sprecher.append(name)
     stueck = "".join(abschnitte) or f'<p class="leer">{_t(T._TEXT_STUECK_LEER)}</p>'
+    partitur = _partitur_html(daten["szenen"])
+    if partitur:
+        stueck = partitur + stueck
     if (daten.get("stage_kopf") or "").strip():
         stueck = (f'<section class="probe-szene stage-kopf">'
                   f'<div class="text">{_prosa_absaetze_html(daten["stage_kopf"])}</div>'

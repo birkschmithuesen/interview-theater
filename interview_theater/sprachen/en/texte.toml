@@ -1960,6 +1960,11 @@ _TEXT_TICKER_TECHNIK_VERDACHT = "● Tech: suspicion ({anzahl})"
 _TEXT_FRAGEN_DASHBOARD_FORTSCHRITT = "Sorting in progress · {kept} kept so far"
 _TEXT_FRAGEN_DASHBOARD_VORHER = "Sorting in progress · nothing kept yet – above: the previous list"
 
+["web".PARTITUR_SPALTEN]
+microphone = "🎤 Microphone"
+one_to_one = "👂 1:1"
+collective = "👥 Collective"
+
 ["web".ARBEITSSTAND_BESCHRIFTUNG]
 phase = "Phase"
 format = "Format"

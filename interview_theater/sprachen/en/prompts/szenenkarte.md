@@ -4,11 +4,18 @@ scene is about and what happens in it -- fitting the group's format (a
 concert, a film, an installation is not a drama; do not invent exposition,
 conflict or characters the group does not have).
 
-- "typ": description (the course of action is described), spoken (spoken
-  text will be written here -- whenever the group talks about the voices,
-  the testimonies or lines being spoken or sung in this scene), instructions (instructions for the people
-  involved, e.g. social experiment / film), moment (a moment at one place in
-  the room).
+- "typ" -- decided by the group's FORMAT first, then by the scene:
+  - moment: the format is immersive / an installation where things happen
+    at places in the room among the audience. Then EVERY scene is a moment,
+    even if voices speak in it.
+  - instructions: people act in real situations following instructions
+    (social experiment, film with passers-by).
+  - spoken: on a stage-like setting, the scene is mainly a written-out
+    sequence of spoken or sung texts / testimonies.
+  - description: otherwise -- the course of action is described (music,
+    ritual, movement).
+- "modus": only for a moment -- microphone, one_to_one (whispered 1:1)
+  or collective (everyone together); otherwise none.
 - "worum": one sentence.
 - "ort", "wer": short.
 - "punkte": 3 to 6 short points, what happens, in order.

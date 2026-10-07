@@ -41,6 +41,8 @@ log = logging.getLogger(__name__)
 ART = "szenenkarte"
 PHASE = 6
 TYPEN = ("description", "spoken", "instructions", "moment")
+#: Der Modus eines Moments (G3: Orts-Partitur im Script-Tab).
+MODI = ("microphone", "one_to_one", "collective", "none")
 PUNKTE_MAX = 6
 ZITATE_MAX = 5
 FRAGEN_MAX = 3
@@ -56,6 +58,10 @@ SCHEMA = {
                                "spoken = a spoken text will be written; instructions = "
                                "instructions for the performers (social experiment, "
                                "film); moment = a moment in the room (immersive)."},
+        "modus": {"type": "string", "enum": list(MODI),
+                  "description": "Only for typ moment: where the attention is -- "
+                                 "microphone, one_to_one (whispered 1:1) or collective "
+                                 "(everyone together); otherwise none."},
         "worum": {"type": "string", "description": "One sentence: what this scene is about."},
         "ort": {"type": "string", "description": "Where it happens (place / spot in the room), short."},
         "wer": {"type": "string", "description": "Who is in it, short."},
@@ -67,7 +73,7 @@ SCHEMA = {
         "questions": {"type": "array", "items": {"type": "string"},
                    "description": "0 to 3 open questions the group still has to decide."},
     },
-    "required": ["typ", "worum", "ort", "wer", "punkte", "zitate", "questions"],
+    "required": ["typ", "modus", "worum", "ort", "wer", "punkte", "zitate", "questions"],
     "additionalProperties": False,
 }
 
@@ -214,8 +220,10 @@ def erzeuge(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -
             if 1 <= n <= len(kandidaten) and n not in gewaehlt:
                 gewaehlt.append(n)
         typ = str(ergebnis.get("typ") or "").strip().lower()
+        modus = str(ergebnis.get("modus") or "").strip().lower()
         karte = {
             "typ": typ if typ in TYPEN else "description",
+            "modus": modus if modus in MODI and typ == "moment" else "none",
             "worum": _kappe(ergebnis.get("worum")),
             "ort": _kappe(ergebnis.get("ort"), 160),
             "wer": _kappe(ergebnis.get("wer"), 160),

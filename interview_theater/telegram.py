@@ -9,6 +9,7 @@ Tests einen httpx.MockTransport einsetzen koennen und nie ins Netz gehen.
 """
 
 import logging
+import re
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,6 +46,49 @@ def escape_html(text: str) -> str:
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
+
+
+#: Die sichere Markdown-Teilmenge freier Modellantworten (Karte t_cc147548,
+#: 07.10.2026): dieselbe Teilmenge wie ``web._buehne_markdown``/
+#: ``web_chat.sichere_html``, aber ohne Block-Tags -- Telegrams HTML-Modus
+#: kennt kein ``<ul>``/``<li>`` (Bot-API, "HTML style"). Aufzaehlungszeilen
+#: ("- "/"• ") bleiben deshalb Klartext stehen, Telegram zeigt den
+#: Bindestrich, das reicht.
+_LEICHT_FETT = re.compile(r"\*\*([^*]+)\*\*")
+_LEICHT_KURSIV = re.compile(r"\*([^*]+)\*")
+
+
+def leichtes_markdown(text: str) -> str:
+    """``**fett**``/``*kursiv*`` aus einer freien Modellantwort als
+    Telegram-HTML. Escapen ZUERST (``escape_html``), danach Fett vor
+    Kursiv ersetzen -- nie umgekehrt, sonst waere ein woertliches
+    ``<script>`` im Modelltext ein Weg zu eigenem HTML, und die
+    Kursiv-Regel fraesse die Sternpaare der Fett-Regel an (dieselbe
+    Reihenfolge wie ``web._buehne_markdown``)."""
+    maskiert = escape_html(text or "")
+    maskiert = _LEICHT_FETT.sub(r"<b>\1</b>", maskiert)
+    return _LEICHT_KURSIV.sub(r"<i>\1</i>", maskiert)
+
+
+def _bereite_formatierung(
+    text: str, klartext: str | None, parse_mode: str | None,
+) -> tuple[list[str], list[str], str | None]:
+    """Liefert ``(stuecke, roh, parse_mode)`` fuer ``sende``/
+    ``sende_mit_knoepfen``.
+
+    Kommt kein ``parse_mode`` vom Aufrufer (die freie, vom Modell erzeugte
+    Antwort -- kein vorgebautes Menue wie ``vorschlag.menuetext``, das
+    beides schon mitbringt), wird ``text`` als leichtes Markdown gelesen
+    und zu Telegram-HTML gerendert (``leichtes_markdown``); Klartext ist
+    dann der unveraenderte Originaltext, der Rueckfall bei HTTP 400.
+    Gesplittet wird VOR dem Rendern, auf dem Originaltext -- sonst
+    zerschnitte ``teile_text`` mitten in einem erzeugten ``<b>``-Tag."""
+    if parse_mode is None and klartext is None:
+        roh = teile_text(text)
+        return [leichtes_markdown(stueck) for stueck in roh], roh, "HTML"
+    stuecke = teile_text(text)
+    roh = teile_text(klartext) if klartext is not None else stuecke
+    return stuecke, roh, parse_mode
 
 
 def _ist_400(fehler: Exception) -> bool:
@@ -177,8 +221,13 @@ class Telegram:
 
         ``parse_mode`` (``"HTML"``) und ``klartext`` gehoeren zusammen: der
         erste formatiert, der zweite ist dieselbe Nachricht ohne Auszeichnung
-        fuer den Rueckfall bei HTTP 400 (``_post_nachricht``). Ohne
-        ``parse_mode`` bleibt alles wie vorher -- reiner Text.
+        fuer den Rueckfall bei HTTP 400 (``_post_nachricht``). Bringt der
+        Aufrufer **keins von beiden mit** (die freie Modellantwort), liest
+        ``_bereite_formatierung`` ``text`` als leichtes Markdown und rendert
+        es selbst zu Telegram-HTML (Karte t_cc147548, 07.10.2026) -- der
+        Klartext-Rueckfall ist dann automatisch der unveraenderte
+        Originaltext. Wer ausdruecklich reinen Text ohne jede Auszeichnung
+        will, uebergibt ``klartext=text`` selbst.
 
         ``system`` ist ein No-Op (UX-Knoepfe-Karte, Abschnitt 3): Telegram
         kennt keine eigene Darstellung fuer eine Speicherquittung, nur die
@@ -191,8 +240,7 @@ class Telegram:
         Chatansicht des Web-Kanals kennt die EINE kursive Transkriptblase
         eines Interviews (``web_kanal.WebKanal.sende``). Telegram bekommt sie
         nie -- dort bleibt das Echo je Teil (``aufnahme.fliesstext_aktiv``)."""
-        stuecke = teile_text(text)
-        roh = teile_text(klartext) if klartext is not None else stuecke
+        stuecke, roh, parse_mode = _bereite_formatierung(text, klartext, parse_mode)
         letzte = 0
         for i, stueck in enumerate(stuecke):
             nutzlast = {"chat_id": chat_id, "text": stueck}
@@ -224,8 +272,7 @@ class Telegram:
             if len(daten.encode("utf-8")) > CALLBACK_DATA_GRENZE:
                 raise ValueError(f"callback_data zu lang: {len(daten)} Zeichen")
         tastatur = [[{"text": t, "callback_data": d}] for t, d in knoepfe]
-        stuecke = teile_text(text)
-        roh = teile_text(klartext) if klartext is not None else stuecke
+        stuecke, roh, parse_mode = _bereite_formatierung(text, klartext, parse_mode)
         # Alle Stuecke bis auf das letzte ohne Tastatur -- die Knoepfe gehoeren
         # unter das Ende des Textes, nicht in seine Mitte.
         for i, stueck in enumerate(stuecke[:-1]):

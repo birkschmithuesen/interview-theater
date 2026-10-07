@@ -73,7 +73,7 @@ _DENKSPUR_MARKER = (
     "ich soll:", "ich soll ", "die gruppe will", "was ist im material",
     "moegliche kernthemen:", "mögliche kernthemen:", "ich schlage ein ",
     "perfekt. das ist", "die regel sagt", "der erkenner setzt",
-    "keine markdown", "unter 500 zeichen", "als angebot formulieren",
+    "unter 500 zeichen", "als angebot formulieren",
     # 06.09.2026 11:55 (Testgruppe): Kimi schrieb sich SELBST eine Anweisung
     # in die Antwort -- "Du sollst die Szene schreiben, nicht Birk. ... Dein
     # Zug ist leer oder ein Satz Zuspruch. Keine Frage, keine Wiederholung,
@@ -95,8 +95,14 @@ _DENKSPUR_MARKER = (
     "die instruktionen sagen",
 )
 #: Diese Marker sind allein schon Beweis -- so redet niemand mit einer Gruppe.
+#: "keine markdown" stand hier bis Karte t_cc147548 (07.10.2026): die alte
+#: Systemanweisung verbot Markdown, und ihr woertliches Zitat war ein
+#: Denkspur-Beweis. Seit die Regel erlaubt, was sie vorher verbot, waere der
+#: Marker ein False Positive, sobald das Modell legitim ueber Formatierung
+#: spricht -- ersatzlos entfernt, nicht durch die neue Regel ersetzt (die hat
+#: keinen eindeutigen Wortlaut, den niemand sonst verwenden wuerde).
 _DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
-                       "keine markdown", "unter 500 zeichen",
+                       "unter 500 zeichen",
                        "dein zug ist", "systemzeile", "system-ankuendigung",
                        "system-ankündigung", "die systemanweisung",
                        "der benutzer fragt", "laut den instruktionen",
@@ -125,13 +131,15 @@ _DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
 _DENKSPUR_MARKER_EN = (
     "i should:", "the group wants", "what is in the material",
     "possible core themes:", "perfect. that is an offer",
-    "the rule says", "the recogniser sets", "no markdown",
+    "the rule says", "the recogniser sets",
     "under 500 characters", "phrase it as an offer", "your turn is empty",
     "system line", "system announcement", "the system instruction",
     "one sentence of encouragement",
 )
+#: "no markdown" raus seit Karte t_cc147548 (07.10.2026), wie "keine
+#: markdown" oben -- dieselbe Begruendung.
 _DENKSPUR_EINDEUTIG_EN = ("i should:", "what is in the material", "the recogniser sets",
-                          "no markdown", "under 500 characters", "your turn is empty",
+                          "under 500 characters", "your turn is empty",
                           "system line", "system announcement", "the system instruction")
 
 #: Womit ein geretteter Antwortabsatz anfangen darf -- deutsch und englisch.

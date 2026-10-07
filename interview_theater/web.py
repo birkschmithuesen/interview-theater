@@ -4426,11 +4426,25 @@ def _prosa_absaetze_html(text: str) -> str:
         z = _re.sub(r"^([A-ZÀ-Ý][A-ZÀ-Ý' .-]{1,30}):", r"<strong>\1:</strong>", z)
         return z
 
-    absaetze = [a.strip() for a in _re.split(r"\n\s*\n", (text or "").strip()) if a.strip()]
-    return "".join(
-        f'<p class="prosa">{"<br>".join(zeile(z) for z in a.splitlines())}</p>'
-        for a in absaetze
-    )
+    # Birk 07.10.2026 ~18:05: Interviewzitate sichtbar als solche --
+    # Zeilen "> ..." (Prompt formen/prosa im Padua-Profil: "> *Interview
+    # quote (N):* ...") werden ein eigener Zitatblock.
+    stuecke: list[str] = []
+    for a in [a.strip() for a in _re.split(r"\n\s*\n", (text or "").strip()) if a.strip()]:
+        normal: list[str] = []
+        for z in a.splitlines():
+            if z.lstrip().startswith(">"):
+                if normal:
+                    stuecke.append(f'<p class="prosa">{"<br>".join(normal)}</p>')
+                    normal = []
+                stuecke.append(
+                    f'<blockquote class="interviewzitat">{zeile(z.lstrip()[1:].strip())}</blockquote>'
+                )
+            else:
+                normal.append(zeile(z))
+        if normal:
+            stuecke.append(f'<p class="prosa">{"<br>".join(normal)}</p>')
+    return "".join(stuecke)
 
 
 def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
@@ -4579,6 +4593,8 @@ h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
 .planung-liste li.mehr { list-style: none; opacity: .65; font-size: .85em; }
 .text { margin-top: .7rem; }
 .text p { margin: 0 0 .55rem; }
+.interviewzitat { margin: .3rem 0 .7rem; padding: .35rem .8rem; border-left: 3px solid #b8863b; background: rgba(184,134,59,.08); font-style: normal; }
+.interviewzitat em:first-child { font-size: .78em; letter-spacing: .03em; text-transform: uppercase; opacity: .75; font-style: normal; display: block; }
 .sprecher { letter-spacing: .03em; }
 .regie { opacity: .65; font-style: italic; }
 /* Der Rollenfilter daempft, er loescht nicht: die Stichworte muss man

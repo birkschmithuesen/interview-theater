@@ -625,3 +625,12 @@ def test_script_prosa_mit_absaetzen():
     assert h.count('<p class="prosa">') == 3
     assert "<strong>What is home?</strong>" in h
     assert "<strong>EMMA:</strong> We asked.<br><strong>SAMUELE:</strong> No." in h
+
+
+def test_script_interviewzitat_als_block():
+    """Birk 07.10.2026 ~18:05: Interviewzitate als solche gekennzeichnet.
+    Mutant: '>'-Zweig weg -> kein blockquote -> rot."""
+    from interview_theater import web
+    h = web._prosa_absaetze_html('They wait.\n> *Interview quote (12):* "I looked for the arcades."\nThen silence.')
+    assert '<blockquote class="interviewzitat"><em>Interview quote (12):</em>' in h
+    assert h.count('<p class="prosa">') == 2

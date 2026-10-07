@@ -5223,7 +5223,10 @@ def textbuch_koerper(
                f'target="_blank" rel="noopener">{_t(T._TEXT_PDF)}</a>' if _pdf_aktiv() else "")
             + "</p>"
         )
-    leisten = _rollenleiste_html(sprecher, daten["figuren"]) + (
+    # Padua (Birk 07.10.2026 ~23:55): Schriftgroesse und "Hide stage
+    # directions" kosten am Handy nur Platz -- unter skript.verdichtet weg.
+    # Ohne Schalter (Dortmund) byte-gleich.
+    leisten = _rollenleiste_html(sprecher, daten["figuren"]) + ("" if _leseleiste_aus() else
         f'<div class="leiste"><span class="marke">{_t(T._TEXT_SCHRIFT)}</span>'
         '<button type="button" class="schrift" data-schrift="klein" '
         f'aria-pressed="false">{_t(T._TEXT_SCHRIFT_KLEIN)}</button>'
@@ -6102,6 +6105,13 @@ from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus
 # und unter diesem Namen faende die Texttabelle nichts (``["web"]``), die
 # Seiten blieben in Padua still deutsch.
 T = sprache.Texte(__spec__.name if __spec__ else __name__)
+
+
+def _leseleiste_aus() -> bool:
+    """Padua (Birk 07.10.2026): keine Schriftgroessen-/Regie-Knoepfe im Script-Tab."""
+    from interview_theater import workshop
+
+    return workshop.skript_verdichtet_aktiv()
 
 
 if __name__ == "__main__":

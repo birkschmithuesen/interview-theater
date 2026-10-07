@@ -175,6 +175,10 @@ INVENTAR = (
     # Quelltext, also steht hier "art" (die Variable), nicht "ART".
     Eintrag("21-schaerfung", "schaerfung", 5,
             "interview_theater.schaerfung", "art"),
+    # Knopf "Erst ueber die Interviews reden" (ART_SCHAERFUNG_CHAT, Umbau
+    # "Entry zu voll", 07.10.2026): kurze Interviewzusammenfassung im Thread.
+    Eintrag("50-schaerfung-zusammenfassung", "schaerfung_zusammenfassung", 5,
+            "interview_theater.schaerfung", "ART_ZUSAMMENFASSUNG"),
     Eintrag("22-entwurf-uebersicht", "entwurf_uebersicht", 5,
             "interview_theater.entwurf", "ART_UEBERSICHT"),
     Eintrag("23-sprachprofil", "sprachprofil", 5,

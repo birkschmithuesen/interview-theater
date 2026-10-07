@@ -383,7 +383,11 @@ def bestaetige_szene(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if naechste is not None:
         szene.starte(conn, tg, klm, e, chat_id, _AUFTRAG_PROSA.format(nummer=naechste))
         return knoepfe.T._TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN
-    phasen.setze(conn, chat_id, 6, "entwurf", notiz="alle Szenen entworfen")
+    verlassene_phase = phasen.aktuelle(conn, chat_id)
+    if phasen.setze(conn, chat_id, 6, "entwurf", notiz="alle Szenen entworfen"):
+        from interview_theater import phasen_summary
+
+        phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, verlassene_phase)
     knoepfe.eintritt_in_phase(conn, tg, klm, e, chat_id, 6)
     return knoepfe.T._TEXT_ALLE_SZENEN_ENTWORFEN
 

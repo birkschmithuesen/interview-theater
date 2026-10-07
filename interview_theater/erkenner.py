@@ -3465,6 +3465,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             # Nachricht nur ein zweites Mal und hat sie im Lauf schon einmal
             # geleert ("noise comes off the list" -> entfernen BEGRIFFE).
             freigegeben = [a for a in freigegeben if not _betrifft_begriffe(a)]
+        # Phasen-Summary (Karte t_1bc96848): die Phase VOR diesem Lauf --
+        # ``wende_an`` kann sie weiter unten per ``phasen.setze`` aendern,
+        # und danach ist der alte Wert aus der Datenbank nicht mehr zu lesen.
+        phase_vor_dem_lauf = phasen.aktuelle(conn, chat_id)
         # Der Stand VOR und NACH dem Anwenden, direkt um ``wende_an`` und
         # unter ``repo._LOCK`` -- Grundlage des Undo-Knopfs (Karte U).
         wirkliche, vorher, nachher = _wende_an_mit_schnappschuss(
@@ -3485,6 +3489,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Ausnahme Phase 1 unter Padua (``_weiter_aus_phase_1``): dort ist
         # die Bitte schon das Weiter.
         wirkliche = wirkliche + _weiter_aus_phase_1(conn, chat_id, aenderungen)
+        if any(a.get("art") == "phase_setzen" for a in wirkliche):
+            from interview_theater import phasen_summary
+
+            phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, phase_vor_dem_lauf)
         # Abnahme P3-4 A3 Nachtrag (06.10.2026): ein Phasenwechsel per Chat
         # beendet ein offenes Interview genauso wie Befehl/Klick.
         _schliesse_interview_vor_phasenwechsel(klm, tg, conn, e, chat_id, wirkliche)

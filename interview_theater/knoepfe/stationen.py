@@ -60,7 +60,11 @@ def uebergang_nach_speichern(conn, tg, klm, e, chat_id: int) -> bool:
     befehle.schliesse_offenes_interview_vor_phasenwechsel(
         conn, tg, klm, e, chat_id, nummer)
     phasen.merke_angebot(conn, chat_id, nummer)
+    verlassene_phase = phasen.aktuelle(conn, chat_id)
     if phasen.setze(conn, chat_id, nummer, "knopf"):
+        from interview_theater import phasen_summary
+
+        phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, verlassene_phase)
         tg.sende(chat_id, phasen.meldung(nummer))
     eintritt_in_phase(conn, tg, klm, e, chat_id, nummer)
     return True

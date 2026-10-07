@@ -338,8 +338,12 @@ def schliesse_6_ab(conn, tg, klm, e, chat_id: int) -> None:
 
     _sende(conn, tg, e, chat_id, T._TEXT_6_FERTIG.format(
         gesamt=len(szenennummern(conn, chat_id))))
-    phasen.setze(conn, chat_id, PHASE_BUEHNE, "ueberarbeitung",
-                 notiz="alle Szenen ueberarbeitet")
+    verlassene_phase = phasen.aktuelle(conn, chat_id)
+    if phasen.setze(conn, chat_id, PHASE_BUEHNE, "ueberarbeitung",
+                    notiz="alle Szenen ueberarbeitet"):
+        from interview_theater import phasen_summary
+
+        phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, verlassene_phase)
     knoepfe.eintritt_in_phase(conn, tg, klm, e, chat_id, PHASE_BUEHNE)
 
 

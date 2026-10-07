@@ -1,4 +1,4 @@
-## Current phase: 7 · Stage Version -- now: the stage script from the cards
+## Current phase: 7 · Stage Script
 
 Every scene has a saved card. Now each card becomes the stage script, in the
 format of the group, one scene at a time: a description of what happens, a

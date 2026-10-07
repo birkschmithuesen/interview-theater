@@ -728,6 +728,22 @@ def phasen_stichwoerter(profil: Profil | None = None) -> dict[int, tuple[str, ..
     }
 
 
+def phasen_vorrang(profil: Profil | None = None) -> dict[int, tuple[str, ...]]:
+    """Wendungen, die **vor allen** Stichwoertern geprueft werden
+    (``vorrang`` je ``[[phase]]``), nur Richtung "steht im Gesagten".
+
+    Noetig, sobald ein spaeterer Phasenname das Stichwort einer frueheren
+    enthaelt: Padua Phase 5 "Interview Selection" (Birk 08.10.2026) enthaelt
+    das "interview" der Phase 3 -- im Stichwort-Durchgang gewaenne die
+    fruehere. Ein Profil ohne ``vorrang`` (Dortmund, Vorgabe) bleibt, wie es
+    war."""
+    profil = profil or aktiv()
+    return {
+        e["nummer"]: tuple(e.get("vorrang", ()))
+        for e in profil.phasen.get("phase", ())
+    }
+
+
 def phasen_mehrdeutig(profil: Profil | None = None) -> dict[int, int]:
     """Stichwoerter, die zwei Phasen meinen koennen, mit der spaeteren.
 
@@ -951,6 +967,11 @@ def platzhalter(profil: Profil | None = None) -> dict[str, str]:
     for nummer, ort in enumerate(beispiele, start=1):
         werte[f"ort_beispiel_{nummer}"] = str(ort)
     werte["orte_beispiele"] = _liste(beispiele)
+    # "1 Terms, 2 Questions, ..." aus phasen.toml -- der englische
+    # Erkenner-Prompt nennt die Phasen damit so, wie die Leiste sie zeigt
+    # (Padua-Umbenennung Birk 08.10.2026), statt sie fest zu verdrahten.
+    werte["phasen_kurz"] = ", ".join(
+        f"{nummer} {name}" for nummer, name, _ in phasenliste(profil))
     anzeige = form_anzeige(profil)
     werte.update({
         # "genau fuenf" -- ausgeschrieben, weil es im Fliesstext steht.

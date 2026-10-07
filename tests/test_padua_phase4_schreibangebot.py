@@ -55,12 +55,14 @@ def test_uebergangsangebot_verspricht_keine_szenenvorschau(padua):
 
 def test_schreibwunsch_in_phase_4_verweist_auf_phase_5(padua):
     """Fragt die Gruppe ausdruecklich danach, eine Szene auszuformulieren,
-    liefert der Bot NICHT den Text, sondern verweist auf Prose Draft -- eine
+    liefert der Bot NICHT den Text, sondern verweist auf spaeter (seit der
+    Umbenennung 08.10.2026: Stage Script, Phase 7; vorher Prose Draft) -- eine
     ausdrueckliche Ausnahme von der sonstigen Regel 'ausdruecklich gefragt,
     dann trotzdem' (Zeile "If the group explicitly asks for it, you do it
     anyway")."""
     phase = _flach(anweisungen.hole("phasen/4"))
-    assert "Prose Draft" in phase
+    assert "comes later, in the Stage Script" in phase
+    assert "Prose Draft" not in phase
     assert "exception" in phase
     assert "write out" in phase or "draft a scene" in phase
 
@@ -79,4 +81,4 @@ def test_phase4_en_rohdatei_hat_dieselbe_abwehrregel():
     text = DATEI_EN.read_text(encoding="utf-8")
     flach = _flach(text)
     assert "exception" in flach
-    assert "Prose Draft" in flach
+    assert "Stage Script" in flach

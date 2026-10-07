@@ -4,7 +4,9 @@
 # stichwoerter sind Wortstaemme; verglichen wird in beide Richtungen
 # (phasen.nummer_fuer), die erste Phase in Nummernfolge gewinnt. Phase 4
 # traegt auch die Woerter der alten Phasenliste ("core theme", "format"),
-# weil der englische Erkenner-Prompt sie noch nennt.
+# weil der englische Erkenner-Prompt sie noch nennt. ``vorrang`` (je Phase,
+# optional): Wendungen, die vor allen Stichwoertern geprueft werden, nur in
+# Richtung "steht im Gesagten" (workshop.phasen_vorrang).
 erste = 1
 meldung = "We're now at {bezeichnung}. If that's not right, tell me."
 
@@ -37,24 +39,35 @@ stichwoerter = ["setting", "characters", "character", "frame", "core theme",
 
 [[phase]]
 nummer = 5
-name = "Prose Draft"
-satz = "Sharpen the invented story against the interview material, then write it scene by scene."
-# "sharpening"/"sharpen"/"clustering"/"summaries" bleiben als Alt-Stichwoerter
-# stehen: der englische Erkenner-Prompt (Punkt 19) nennt die Phase noch so,
-# und eine Gruppe, die den alten Namen kennt, soll weiter treffen.
-stichwoerter = ["prose draft", "prose", "draft", "overview",
+name = "Interview Selection"
+satz = "Pick and edit the interview passages for each scene."
+# Umbenannt Birk 08.10.2026: "Interviews" (Birks Wunsch) traegt schon
+# Phase 3, daher "Interview Selection". Die alten Stichwoerter bleiben --
+# die Gruppen kennen "Prose Draft" noch. "interview selection" steht in
+# ``vorrang``: das "interview" der Phase 3 steckt darin, und im Stichwort-
+# Durchgang gewinnt die fruehere Phase (phasen.nummer_fuer).
+vorrang = ["interview selection", "selection of interview",
+           "selecting interview"]
+stichwoerter = ["interview selection", "selection",
+                "prose draft", "prose", "draft", "overview",
                 "sharpening", "sharpen", "clustering", "summaries"]
 
 [[phase]]
 nummer = 6
-name = "Rewrite"
-satz = "Tell each scene as prose -- what happens, still without a form."
-stichwoerter = ["rewrite", "rewriting", "revise", "revision",
+name = "Scene Cards"
+satz = "Turn each scene into a concept card -- one at a time."
+# "scene cards" auch in ``vorrang``: sonst traefe "stage script for scene 3"
+# das "scene" hier statt Phase 7 -- umgekehrt dasselbe fuer "stage script".
+vorrang = ["scene cards", "scene card"]
+stichwoerter = ["scene cards", "cards", "card",
+                "rewrite", "rewriting", "revise", "revision",
                 "scene texts", "scene text", "scenes", "scene"]
 
 [[phase]]
 nummer = 7
-name = "Stage Version"
-satz = "Choose the form of each scene, translate the story into it, check the play."
-stichwoerter = ["stage version", "staging", "final version",
+name = "Stage Script"
+satz = "Write the stage script in your group's format, scene by scene."
+vorrang = ["stage script"]
+stichwoerter = ["stage script", "script",
+                "stage version", "staging", "final version",
                 "run-through", "polish", "play check", "review round"]

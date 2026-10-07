@@ -4833,8 +4833,17 @@ def _probe_szene_verdichtet_html(s: dict, bekannte: set[str]) -> tuple[str, list
         for feld, _ in T._PROBE_ANGABEN
         if s.get(feld) and feld != "form"
     )
+    # Das abgenommene Stage-Script-Design (Birk 08.10.2026 ~00:05,
+    # web_skript.py): Badge des Orts im Kopf, Typ/Ort aus der Karte darunter.
+    design = _skript_design() and bool(s.get("karte"))
+    if design:
+        from interview_theater import web_skript
+
+        kopf += web_skript.badge_html(s["karte"])
     zeilen = [f'<h2 class="szenenkopf">{kopf}</h2>']
-    if angaben:
+    if design and web_skript.meta_html(s["karte"]):
+        zeilen.append(web_skript.meta_html(s["karte"]))
+    elif angaben:
         zeilen.append(f'<p class="angaben">{angaben}</p>')
     if s.get("figuren"):
         zeilen.append(
@@ -4850,12 +4859,13 @@ def _probe_szene_verdichtet_html(s: dict, bekannte: set[str]) -> tuple[str, list
         # Padua-Phasenumbau: das Stage Script ist kein Dialog im alten Sinn
         # (Ablauf, Anweisungen, Momente) -- dieselbe Lesedarstellung wie die
         # Prosa: Absaetze, **fett**, NAME: fett, Zitatbloecke; EN/IT getrennt.
+        lesen = web_skript.text_html if design else _prosa_absaetze_html
         if volltext_it:
             zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_EN)}</p>')
-        zeilen.append(f'<div class="text" lang="en">{_prosa_absaetze_html(volltext)}</div>')
+        zeilen.append(f'<div class="text" lang="en">{lesen(volltext)}</div>')
         if volltext_it:
             zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_IT)}</p>')
-            zeilen.append(f'<div class="text" lang="it">{_prosa_absaetze_html(volltext_it)}</div>')
+            zeilen.append(f'<div class="text" lang="it">{lesen(volltext_it)}</div>')
     elif volltext:
         koerper, sprecher = szenentext_html(volltext, bekannte)
         zeilen.append(f'<div class="text">{koerper}</div>')
@@ -4927,7 +4937,11 @@ def css_textbuch_lesbar() -> str:
     """Leer ohne ``[skript] verdichtet`` -- dann bleibt jede Seite byte-gleich."""
     from interview_theater import workshop
 
-    return _CSS_TEXTBUCH_LESBAR if workshop.skript_verdichtet_aktiv() else ""
+    if not workshop.skript_verdichtet_aktiv():
+        return ""
+    from interview_theater import web_skript
+
+    return _CSS_TEXTBUCH_LESBAR + web_skript.CSS
 
 
 _CSS_WERKBANK_KURZ = """
@@ -5202,11 +5216,16 @@ def textbuch_koerper(
             if name not in sprecher:
                 sprecher.append(name)
     stueck = "".join(abschnitte) or f'<p class="leer">{_t(T._TEXT_STUECK_LEER)}</p>'
-    partitur = _partitur_html(daten["szenen"])
+    design = _skript_design()
+    if design:
+        from interview_theater import web_skript
+    partitur = (web_skript.uebersicht_html(daten["szenen"]) if design
+                else _partitur_html(daten["szenen"]))
     if partitur:
         stueck = partitur + stueck
     if (daten.get("stage_kopf") or "").strip():
-        stueck = (f'<section class="probe-szene stage-kopf">'
+        stueck = (web_skript.kopf_html(daten["stage_kopf"]) if design else
+                  f'<section class="probe-szene stage-kopf">'
                   f'<div class="text">{_prosa_absaetze_html(daten["stage_kopf"])}</div>'
                   f"</section>") + stueck
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
@@ -5215,10 +5234,12 @@ def textbuch_koerper(
         wege = (
             f'<p class="wege"><a href="{_t(praefix, "")}/g/{_t(token)}">'
             f"{_t(T._TEXT_ZUM_ARBEITSSTAND)}</a>"
-            f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.md">'
-            f"{_t(T._TEXT_TEXTBUCH_MD)}</a>"
-            f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.txt">'
-            f"{_t(T._TEXT_TEXTBUCH_TXT)}</a>"
+            # Padua (Merkmal 8): fuer die Gruppe nur der PDF-Knopf.
+            + ("" if design else
+               f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.md">'
+               f"{_t(T._TEXT_TEXTBUCH_MD)}</a>"
+               f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.txt">'
+               f"{_t(T._TEXT_TEXTBUCH_TXT)}</a>")
             + (f'<a class="pdf-knopf" href="{_t(praefix, "")}/g/{_t(token)}/textbuch.pdf" '
                f'target="_blank" rel="noopener">{_t(T._TEXT_PDF)}</a>' if _pdf_aktiv() else "")
             + "</p>"
@@ -6105,6 +6126,13 @@ from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus
 # und unter diesem Namen faende die Texttabelle nichts (``["web"]``), die
 # Seiten blieben in Padua still deutsch.
 T = sprache.Texte(__spec__.name if __spec__ else __name__)
+
+
+def _skript_design() -> bool:
+    """Das abgenommene Stage-Script-Design (``web_skript``) -- nur Padua."""
+    from interview_theater import workshop
+
+    return workshop.skript_verdichtet_aktiv()
 
 
 def _leseleiste_aus() -> bool:

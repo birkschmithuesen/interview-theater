@@ -30,12 +30,11 @@ orientation when the group asks where it could look next:
 3. Interviews -- carry out interviews, summarise the material
 4. Frame -- freely invent WHERE it is set (place, time, occasion), WHO
    appears and WHAT happens: the arc, the ending and the scene sequence
-5. Prose Draft -- sharpen the invented story against the interview
-   material, then write it scene by scene as prose
-6. Rewrite -- go through the prose scenes again with the group's feedback,
-   still without a form
-7. Stage Version -- choose the form for each scene, translate the story,
-   check the play
+5. Interview Selection -- pick and edit the interview passages for each
+   scene
+6. Scene Cards -- turn each scene into a concept card, one at a time
+7. Stage Script -- write the stage script in the group's format, scene by
+   scene
 
 {{rahmen}}
 

@@ -223,7 +223,9 @@ def liste() -> str:
 def nummer_fuer(wert: str | int | None, jetzige: int | None = None) -> int | None:
     """Uebersetzt, was die Gruppe gesagt hat, in eine Phasennummer.
 
-    Tolerant, in vier Durchgaengen: eine Zahl 1-8; ein Kurzname genau; ein
+    Tolerant, in vier Durchgaengen: eine Zahl 1-8; ein Kurzname genau
+    (danach, vor allen Stichwoertern, eine ``vorrang``-Wendung des Profils, die im Gesagten
+    steht -- ``workshop.phasen_vorrang``); ein
     Stichwort aus ``STICHWOERTER`` (in beide Richtungen -- "figuren" trifft,
     "wir sind bei den Figuren" ebenso); erst danach ein Teiltreffer im
     erklaerenden Satz. Passt nichts, ist das None -- und der Aufrufer aendert
@@ -260,6 +262,11 @@ def nummer_fuer(wert: str | int | None, jetzige: int | None = None) -> int | Non
     for nummer, name, _ in liste:
         if text == name.lower():
             return _aufgeloest(nummer, jetzige)
+    vorrang = workshop.phasen_vorrang()
+    for nummer, _, _ in liste:
+        for wendung in vorrang.get(nummer, ()):
+            if wendung in text:
+                return _aufgeloest(nummer, jetzige)
     stichwoerter = workshop.phasen_stichwoerter()
     for nummer, _, _ in liste:
         for stichwort in stichwoerter.get(nummer, ()):

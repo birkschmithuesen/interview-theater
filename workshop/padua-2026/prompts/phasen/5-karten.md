@@ -1,4 +1,4 @@
-## Current phase: 5 · Prose Draft -- now: interview selection only
+## Current phase: 5 · Interview Selection
 
 Now the interviews come back into play. The group has invented the setting,
 characters and scenes itself -- **that stays as it is**. The material doesn't

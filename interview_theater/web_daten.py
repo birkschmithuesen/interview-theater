@@ -1428,11 +1428,36 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         "werkbank": (
             werkbank(conn, chat_id) if not _workshop.workbench_bearbeitbar() else None
         ),
+        # Birk 07.10.2026 ~16:30: die vom Formberater zuletzt passend
+        # gefundenen Formen (Name in der Gruppensprache), fuer die Workbench.
+        "formen_nah": _formen_nah(conn, chat_id),
         # Die CoThinker-Statuszeile (Phase 4, nur Web, 03.10.2026) -- ``None``
         # ausserhalb Phase 4 und wenn es gerade nichts zu melden gibt, dann
         # bleibt die Zeile im Browser weg.
         "cothinker_status": cothinker_status(conn, chat_id, stand.get("phase")),
     }
+
+
+def _formen_nah(conn, chat_id: int) -> str:
+    """Die Formen aus dem letzten Formberater-Ergebnis (``passt``), als
+    Namen in der Gruppensprache, kommagetrennt -- oder "". Ein Lesefehler
+    laesst nur diese Zeile weg."""
+    import logging
+
+    from interview_theater import formberater, repo
+
+    try:
+        zeilen = repo.formberater_zeilen(conn, chat_id)
+        katalog = formberater._alle()
+        for z in reversed(zeilen):
+            ergebnis = z.get("ergebnis") or {}
+            slugs = [p.get("form") for p in (ergebnis.get("passt") or []) if p.get("form") in katalog]
+            if slugs:
+                return ", ".join(katalog[s].name for s in slugs)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Formen fuer die Werkbank nicht gelesen, chat_id=%s", chat_id)
+    return ""
 
 
 def buehnenkarten(

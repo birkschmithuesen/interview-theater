@@ -876,6 +876,8 @@ ARBEITSSTAND_BESCHRIFTUNG = {
     "geschichte": "Geschichte",
     "hauptkonflikt": "Hauptkonflikt",
     "figuren": "Figuren",
+    "format": "Format",
+    "formen_nah": "Nahe Formen",
 }
 
 #: Die Beschriftungen aus ``web_daten.SZENENFELDER`` (K4: deutsch auf sich
@@ -3924,9 +3926,14 @@ def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
     elif nummer == 4:
         zeilen = [
             f"<dt>{_t(dt[feld])}</dt><dd>{_t(stand[feld])}</dd>"
-            for feld in ("rahmen", "geschichte")
+            for feld in ("rahmen", "format", "geschichte")
             if (stand.get(feld) or "").strip()
         ]
+        # Birk 07.10.2026 ~16:30: das Format und die Formen, die der
+        # Formberater fuer die Gruppe nachgeschlagen hat, standen nirgends
+        # auf der Workbench.
+        if daten.get("formen_nah"):
+            zeilen.append(f"<dt>{_t(dt['formen_nah'])}</dt><dd>{_t(daten['formen_nah'])}</dd>")
         zeilen.append(_altbestand_html(stand))
         if daten["figuren"]:
             figuren = "".join(

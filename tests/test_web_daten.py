@@ -460,3 +460,19 @@ def test_interviews_chronologisch_nach_beginn_mit_zeitpunkt(conn):
     assert liste[0]["beginn"].startswith("2026-09-06T11:41:53")
     assert liste[1]["beginn"].startswith("2026-09-06T11:44:48")
     assert [i["id"] for i in web_daten.interview_liste(conn, 1)] == [b, a] if hasattr(web_daten, "interview_liste") else True
+
+
+def test_formen_nah_aus_letztem_formberater_passt(monkeypatch):
+    """Birk 07.10.2026 ~16:30: Workbench zeigt die nahen Formen. Mutant:
+    reversed() weg (aelteste statt neueste) -> rot."""
+    from interview_theater import formberater, repo, web_daten
+
+    class F:
+        def __init__(self, n): self.name = n
+    monkeypatch.setattr(formberater, "_alle", lambda: {"a": F("Alpha"), "b": F("Beta")})
+    monkeypatch.setattr(repo, "formberater_zeilen", lambda conn, chat_id: [
+        {"ergebnis": {"passt": [{"form": "a"}]}},
+        {"ergebnis": {"passt": [{"form": "b"}, {"form": "x"}]}}])
+    assert web_daten._formen_nah(None, 1) == "Beta"
+    monkeypatch.setattr(repo, "formberater_zeilen", lambda conn, chat_id: [])
+    assert web_daten._formen_nah(None, 1) == ""

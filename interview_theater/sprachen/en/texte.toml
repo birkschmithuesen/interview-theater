@@ -1852,6 +1852,8 @@ _TEXT_FRAGEN_DASHBOARD_VORHER = "Sorting in progress · nothing kept yet – abo
 
 ["web".ARBEITSSTAND_BESCHRIFTUNG]
 phase = "Phase"
+format = "Format"
+formen_nah = "Close performance forms"
 begriffe = "Terms"
 fragen = "Questions"
 leitfaden = "Interview guide"

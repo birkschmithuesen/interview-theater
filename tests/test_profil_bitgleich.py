@@ -112,10 +112,17 @@ def _massstab() -> dict[str, str]:
     return fertig
 
 
+@pytest.mark.dortmund
 def test_ohne_variable_wie_vor_dem_umbau():
+    """Ohne ``IT_WORKSHOP`` entspricht dem eingefrorenen Dortmund-Verhalten
+    (``test_dortmund_und_keine_variable_sind_identisch``) -- eine Padua-only
+    Prompt-Haertung (``prompts/phasen/4.md``, Karte Phase 4->5
+    Szenentext-Abgrenzung) macht diesen Massstab bewusst rot, siehe
+    AGENTS.md "Dortmund eingefroren"."""
     _vergleiche(_massstab(), _fingerabdruck())
 
 
+@pytest.mark.dortmund
 def test_dortmund_wie_vor_dem_umbau(monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, DORTMUND)
     _vergleiche(_massstab(), _fingerabdruck())

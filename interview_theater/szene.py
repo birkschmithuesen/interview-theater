@@ -2646,6 +2646,13 @@ def _lauf(conn, tg, klm, e, chat_id: int, auftrag: str,
     finally:
         zeilen.stoppe()
         sperre.release()
+        # B3 (07.10.2026): eine Revisionsnotiz, die waehrend dieses Laufs
+        # vorgemerkt wurde (``ueberarbeitung.merke_notiz_wenn_besetzt``),
+        # NACH der Freigabe nachholen -- siehe ``ueberarbeitung.nach_lauf_frei``.
+        from interview_theater import ueberarbeitung
+
+        if ueberarbeitung.aktiv():
+            ueberarbeitung.nach_lauf_frei(conn, tg, klm, e, chat_id)
 
 
 def starte(conn, tg, klm, e, chat_id: int, auftrag: str,

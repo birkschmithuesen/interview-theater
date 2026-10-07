@@ -606,6 +606,12 @@ def starte(
         finally:
             zeilen.stoppe()
             sperre.release()
+            # B3 (07.10.2026): siehe szene._lauf -- dieselbe Nachholung einer
+            # vorgemerkten Revisionsnotiz nach der Freigabe.
+            from interview_theater import ueberarbeitung
+
+            if ueberarbeitung.aktiv():
+                ueberarbeitung.nach_lauf_frei(conn, tg, klm, e, chat_id)
 
     thread = threading.Thread(target=_lauf, daemon=True)
     try:

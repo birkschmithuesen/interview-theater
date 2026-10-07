@@ -218,6 +218,43 @@ def test_ueberarbeite_nach_dem_fixieren_trifft_die_aktuelle_szene(
     assert re.search(r"\b1\b", auftrag)
 
 
+def test_vorgemerkte_notiz_laeuft_automatisch_nach_dem_lauf_ende(
+        conn, padua, tg, einst, monkeypatch):
+    """B3 (07.10.2026, simulation/berichte/p57-2026-10-07.md): eine Notiz,
+    die vorgemerkt wurde, WAEHREND der Szenenlauf schon hielt, laeuft
+    automatisch, sobald ``szene._lauf`` die Sperre freigibt
+    (``ueberarbeitung.nach_lauf_frei``) -- ohne dass die Gruppe noch einmal
+    schreiben muss."""
+    _stueck(conn)
+    repo.setze_arbeitsstand(conn, 1, "gesamttext_fixiert_am", repo._jetzt())
+    klm = Schreiber()
+    auftraege = []
+    echt = szene.starte
+
+    def spion(*a, **k):
+        auftraege.append(a[5])
+        return echt(*a, **k)
+
+    monkeypatch.setattr(szene, "starte", spion)
+
+    sperre = szene._sperre_fuer(1)
+    sperre.acquire()
+    try:
+        assert ueberarbeitung.merke_notiz_wenn_besetzt(
+            1, 1, "scene 1: make it angrier") is True
+    finally:
+        sperre.release()
+
+    faden = szene.starte(
+        conn, tg, klm, einst, 1, szene.T.TEXT_AUFTRAG_SCHREIBEN.format(nummer=1))
+    assert faden is not None
+    faden.join(20)
+
+    _warte_auf(lambda: len(auftraege) == 2)
+    assert "angrier" in auftraege[1]
+    assert ueberarbeitung.vorgemerkte_notizen(1) == {}
+
+
 def test_drei_mal_ja_springt_nach_phase_7(conn, padua, tg, einst):
     _stueck(conn)
     klm = Schreiber()

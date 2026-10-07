@@ -2581,13 +2581,29 @@ _TICKER_STEHT_MINUTEN = 15
 _TICKER_TAKT_MINUTEN = 10
 
 
-def _ticker_status_html(eintraege: list[dict]) -> str:
+def _ticker_letzter_lauf_iso(ticker_datei: str) -> str | None:
+    """Wann der Ticker zuletzt GELAUFEN ist -- die mtime seiner
+    ``state.json`` neben ``IT_WEB_TICKER_DATEI`` (er schreibt sie bei jedem
+    Lauf, auch wenn es nichts Neues gibt und deshalb KEIN Eintrag entsteht).
+    Birk 07.10.2026: "Ticker stuck for 18 min" stand da, obwohl der Ticker
+    alle 10 min lief und nur nichts Neues zu melden hatte."""
+    try:
+        zeit = os.path.getmtime(os.path.join(os.path.dirname(ticker_datei), "state.json"))
+    except OSError:
+        return None
+    return datetime.fromtimestamp(zeit, timezone.utc).isoformat()
+
+
+def _ticker_status_html(eintraege: list[dict], letzter_lauf_iso: str | None = None) -> str:
     """Statuszeile ueber der Liste: letztes Update, naechstes erwartet, und
     eine Warnung, wenn der neueste Eintrag laenger stillsteht als ein
     Cron-Takt plus Toleranz -- das sagt der Regie "Cron pausiert/kaputt",
     bevor sie es am leeren Bildschirm selbst herausfinden muss."""
     zeit_iso = eintraege[0].get("zeit")
     alter_min = _ticker_alter_minuten(zeit_iso)
+    # "steht" misst den letzten LAUF, nicht den letzten Eintrag (ein Lauf
+    # ohne neue Daten schreibt keinen Eintrag).
+    lauf_min = _ticker_alter_minuten(letzter_lauf_iso) if letzter_lauf_iso else alter_min
     gelesen = web_daten.lies_zeitstempel(zeit_iso)
     naechste = (
         (gelesen + timedelta(minutes=_TICKER_TAKT_MINUTEN)).astimezone().strftime("%H:%M")
@@ -2597,9 +2613,9 @@ def _ticker_status_html(eintraege: list[dict]) -> str:
         f"<span>{_t(T._TEXT_TICKER_STATUS_LETZTES.format(uhrzeit=_ticker_uhrzeit(zeit_iso), alter=_ticker_alter_text(alter_min)))}</span>",
         f"<span>{_t(T._TEXT_TICKER_STATUS_NAECHSTES.format(naechste=naechste))}</span>",
     ]
-    if alter_min is not None and alter_min > _TICKER_STEHT_MINUTEN:
+    if lauf_min is not None and lauf_min > _TICKER_STEHT_MINUTEN:
         teile.append(
-            f'<span class="ticker-stale">{_t(T._TEXT_TICKER_STATUS_STEHT.format(minuten=alter_min))}</span>')
+            f'<span class="ticker-stale">{_t(T._TEXT_TICKER_STATUS_STEHT.format(minuten=lauf_min))}</span>')
     return f'<div class="ticker-status">{"".join(teile)}</div>'
 
 
@@ -2695,7 +2711,7 @@ def ticker_html() -> str:
     else:
         eintraege = _ticker_eintraege(ticker_datei)
         if eintraege:
-            status = _ticker_status_html(eintraege)
+            status = _ticker_status_html(eintraege, _ticker_letzter_lauf_iso(ticker_datei))
             liste = "".join(
                 _ticker_eintrag_html(e, neu=(i == 0)) for i, e in enumerate(eintraege))
             koerper = (

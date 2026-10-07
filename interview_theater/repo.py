@@ -1197,7 +1197,8 @@ def lege_schaerfung_an(
 #: selbst plus Thema, Zusammenfassung, geprueftes Zitat und Interview-Nummer.
 _SCHAERFUNG_SELECT = f"""
 SELECT s.*, t.thema AS thema, v.zusammenfassung AS zusammenfassung,
-       t.beleg_zitat AS zitat, v.aufnahme_id AS aufnahme_id
+       t.beleg_zitat AS zitat, v.aufnahme_id AS aufnahme_id,
+       t.zitat_geprueft AS zitat_geprueft
 FROM schaerfung s
 JOIN verdichtung_thema t ON t.id = s.verdichtung_thema_id
 JOIN verdichtung v ON v.id = t.verdichtung_id
@@ -1934,6 +1935,7 @@ _ARBEITSSTAND_FELDER = (
     # (Sprechweisen) abgenommen -- derselbe eine Schreibweg wie alles andere
     # im Arbeitsstand.
     "gesamttext_fixiert_am", "sprechweisen_fixiert_am", "karten_geprueft_am",
+    "stage_kopf",
     # Das Begriffsboard je gespeichertem Begriff (Karte t_4517d4ad):
     # derselbe eine Schreibweg, gesetzt allein von
     # ``begriffsboard.schreibe_detail``.
@@ -3126,6 +3128,21 @@ def setze_szenenkarte_bestaetigt(conn: sqlite3.Connection, szene_id: int) -> Non
     conn.execute(
         "UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?",
         (_jetzt_genau(), szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_stagescript(conn: sqlite3.Connection, szene_id: int, text: str,
+                      text_it: str | None) -> None:
+    """Das Stage Script einer Szene (Padua Phase 7, ``stagescript.py``) nach
+    ``volltext``, die IT-Spiegelung nach ``volltext_it``; eine fruehere
+    Abnahme (``fertig_am``) faellt zurueck -- ein neuer Text will neu
+    abgenommen werden. ``geaendert_am`` rueckt mit (ein Szenenlauf)."""
+    conn.execute(
+        "UPDATE szene SET volltext = ?, volltext_it = ?, fertig_am = NULL, "
+        "geaendert_am = ? WHERE id = ?",
+        (text, text_it, _jetzt_genau(), szene_id),
     )
     conn.commit()
 

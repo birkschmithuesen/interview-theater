@@ -96,10 +96,12 @@ def __getattr__(name: str):
 def _einleitung(conn, chat_id: int, phase: int) -> str:
     """Die Einleitung einer Phase -- fuer Phase 7 abhaengig davon, ob
     wirklich jede Szene einen Text hat."""
-    if workshop.szenenkarten_aktiv() and phase in (5, 6):
+    if workshop.szenenkarten_aktiv() and phase in (5, 6, 7):
         # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): 5 = Interviewauswahl,
-        # 6 = Szenenkarten -- die Profil-Einleitung spricht noch von Prosa.
-        return T._EINLEITUNG_KARTEN_5 if phase == 5 else T._EINLEITUNG_KARTEN_6
+        # 6 = Szenenkarten, 7 = Stage Script -- die Profil-Einleitung spricht
+        # noch von Prosa und Formwahl.
+        return {5: T._EINLEITUNG_KARTEN_5, 6: T._EINLEITUNG_KARTEN_6,
+                7: T._EINLEITUNG_KARTEN_7}[phase]
     einleitungen = {
         nummer: anweisungen.fuelle(text)
         for nummer, text in workshop.phasentexte_einleitungen().items()
@@ -481,12 +483,14 @@ def eintritt(conn, chat_id: int, phase: int) -> str:
         zeilen.append(T.ZEILE_ANGEBOT)
         zeilen.append(einleitung)
     liste = checkliste(conn, chat_id, phase)
-    if workshop.szenenkarten_aktiv() and phase == 6:
+    if workshop.szenenkarten_aktiv() and phase in (6, 7):
         szenen = [s for s in repo.hole_szenen(conn, chat_id) if s["nummer"] is not None]
-        fertig = sum(1 for s in szenen if (s["karte_bestaetigt_am"] or "").strip())
+        spalte, text = (("karte_bestaetigt_am", T._PARAMETER_KARTEN) if phase == 6
+                        else ("fertig_am", T._PARAMETER_STAGESCRIPT))
+        fertig = sum(1 for s in szenen if (s[spalte] or "").strip())
         liste = "{mark} {text}".format(
             mark=_ERLEDIGT if szenen and fertig == len(szenen) else _OFFEN,
-            text=T._PARAMETER_KARTEN.format(fertig=fertig, gesamt=len(szenen)))
+            text=text.format(fertig=fertig, gesamt=len(szenen)))
     if liste:
         zeilen.append(T._ZEILE_CHECKLISTE.format(liste=liste))
     return "\n\n".join(zeilen)
@@ -506,6 +510,12 @@ _EINLEITUNG_KARTEN_6 = (
     "soll. Am Ende schaue ich einmal aufs Ganze, dann kommt das Stage Script."
 )
 _PARAMETER_KARTEN = "Szenenkarten ({fertig} von {gesamt})"
+_PARAMETER_STAGESCRIPT = "Stage Script ({fertig} von {gesamt})"
+_EINLEITUNG_KARTEN_7 = (
+    "Jetzt wird aus jeder Karte das Stage Script, in eurem Format -- Szene "
+    "fuer Szene. Ihr lest sie im Script-Tab und speichert sie oder sagt, "
+    "was anders sein soll."
+)
 
 
 def abschluss(conn, chat_id: int, phase: int) -> str:

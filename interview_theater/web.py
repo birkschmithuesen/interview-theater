@@ -4640,7 +4640,18 @@ def _probe_szene_verdichtet_html(s: dict, bekannte: set[str]) -> tuple[str, list
     prosa = (s.get("prosa") or "").strip()
     prosa_it = (s.get("prosa_it") or "").strip()
     sprecher: list[str] = []
-    if volltext:
+    volltext_it = (s.get("volltext_it") or "").strip()
+    if volltext and "karte" in s:
+        # Padua-Phasenumbau: das Stage Script ist kein Dialog im alten Sinn
+        # (Ablauf, Anweisungen, Momente) -- dieselbe Lesedarstellung wie die
+        # Prosa: Absaetze, **fett**, NAME: fett, Zitatbloecke; EN/IT getrennt.
+        if volltext_it:
+            zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_EN)}</p>')
+        zeilen.append(f'<div class="text" lang="en">{_prosa_absaetze_html(volltext)}</div>')
+        if volltext_it:
+            zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_IT)}</p>')
+            zeilen.append(f'<div class="text" lang="it">{_prosa_absaetze_html(volltext_it)}</div>')
+    elif volltext:
         koerper, sprecher = szenentext_html(volltext, bekannte)
         zeilen.append(f'<div class="text">{koerper}</div>')
     elif s.get("karte"):
@@ -4980,6 +4991,10 @@ def textbuch_koerper(
             if name not in sprecher:
                 sprecher.append(name)
     stueck = "".join(abschnitte) or f'<p class="leer">{_t(T._TEXT_STUECK_LEER)}</p>'
+    if (daten.get("stage_kopf") or "").strip():
+        stueck = (f'<section class="probe-szene stage-kopf">'
+                  f'<div class="text">{_prosa_absaetze_html(daten["stage_kopf"])}</div>'
+                  f"</section>") + stueck
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     wege = ""
     if token:

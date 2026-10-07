@@ -525,6 +525,9 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   sprechweisen_fixiert_am TEXT,
   -- Padua Phase 6 (Szenenkarten): die Gesamtpruefung ueber alle Karten lief.
   karten_geprueft_am TEXT,
+  -- Padua Phase 7 (Stage Script): der Kopf des Skripts, einmal je Stueck
+  -- (Versuchsanordnung + Rollen, G2), stagescript.py.
+  stage_kopf TEXT,
   -- Merkposten fuer den Knopf "Interviews fertig" im Web-Kanal (Phase 3,
   -- 02.10.2026): gesetzt (ISO-Zeitstempel), solange die Gruppe "Interviews
   -- fertig" gedrueckt hat, aber noch mindestens ein beendetes Interview ohne
@@ -724,6 +727,9 @@ CREATE TABLE IF NOT EXISTS szene (
   -- je Karte ("Yes, save"). Additiv nachgeruestet.
   karte             TEXT,
   karte_bestaetigt_am TEXT,
+  -- Die italienische Spiegelung des Stage Scripts (``volltext``) unter
+  -- ``[karten] aktiv`` + ``[skript] zweisprachig`` (stagescript.py). Additiv.
+  volltext_it       TEXT,
   -- Gesetzt = die Gruppe hat den Text mit "Passt" abgenommen (Phase 6,
   -- knoepfe.ART_SZENE_PASST). Ein Volltext allein heisst nur "geschrieben":
   -- unter jedem frischen Szenentext haengen vier Knoepfe, und erst einer

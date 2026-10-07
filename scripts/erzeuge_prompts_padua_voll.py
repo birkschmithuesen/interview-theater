@@ -114,7 +114,7 @@ SCOPE_P3_P4 = (
 #: etwas gespeichert ist), ist also unabhaengig von der Stelle.
 SCOPE_P5_P7 = (
     "08-gespraech-phase5", "21-schaerfung", "22-entwurf-uebersicht",
-    "23-sprachprofil", "24-kernzitate", "46-szenenkern", "47-szenenkarte", "48-szenenkarte-pruefung",
+    "23-sprachprofil", "24-kernzitate", "46-szenenkern", "47-szenenkarte", "48-szenenkarte-pruefung", "49-stagescript",
     "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
     "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
     "38-dramaturgie-a9", "40-dramaturgie-a11", "43-prueflauf-ueberarbeitung",
@@ -457,6 +457,13 @@ def _szenenkarte_pruefung(conn, e, tg, klm, chats):
     return None
 
 
+def _stagescript(conn, e, tg, klm, chats):
+    """``49-stagescript``: Phase 7 aus den Karten (``stagescript.schreibe``)."""
+    from interview_theater import stagescript
+    stagescript.schreibe(conn, klm, e, chats[7], 1)
+    return None
+
+
 def _szene_prosa_phase6(conn, e, tg, klm, chats):
     """``04-szene-prosa-phase6``: derselbe Aufruf wie ``entwurf.
     fixiere_uebersicht``/``bestaetige_szene`` ihn ausloesen -- die Phase (6)
@@ -598,7 +605,13 @@ def _szene_form(form: str):
         repo_modul.setze_szenenfeld(conn, ziel["id"], "form", form)
         auftrag = szene.T.TEXT_AUFTRAG_NEU.format(
             nummer=1, notiz=f"Make it a {form}.")
-        _joine(szene.starte(conn, tg, klm, e, chat_id, auftrag))
+        from unittest import mock
+
+        from interview_theater import workshop
+        # Wie 04: mit [karten] aktiv schreibt Phase 7 das Stage Script (49);
+        # diese Dumps halten den Formweg fest, der ohne den Schalter gilt.
+        with mock.patch.object(workshop, "szenenkarten_aktiv", lambda *a, **k: False):
+            _joine(szene.starte(conn, tg, klm, e, chat_id, auftrag))
         return None
     return treiber
 
@@ -666,6 +679,7 @@ TREIBER = {
     "46-szenenkern": _szenenkern,
     "47-szenenkarte": _szenenkarte,
     "48-szenenkarte-pruefung": _szenenkarte_pruefung,
+    "49-stagescript": _stagescript,
     "04-szene-prosa-phase6": _szene_prosa_phase6,
     # Derselbe Treiber wie 04: der EN/IT-Spiegelpass (Birk, Live-Workshop
     # 07.10.2026 ~17:20) haengt sich in szene.schreibe an denselben Lauf an

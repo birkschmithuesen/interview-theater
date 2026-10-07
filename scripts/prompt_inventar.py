@@ -247,6 +247,8 @@ INVENTAR = (
             "interview_theater.szenenkarte", "ART"),
     Eintrag("48-szenenkarte-pruefung", "szenenkarte_pruefung", 6,
             "interview_theater.szenenkarte", "ART_PRUEFUNG"),
+    Eintrag("49-stagescript", "stagescript", 7,
+            "interview_theater.stagescript", "ART"),
     # --- Phase 7: Formen, Sprechweise, Stueckpruefung, Richterfragen (a10/c1).
     # Dieselbe Reihenfolge-Regel wie Phase 6 oben: a10/c1/Stueckpruefung lesen
     # die Szenen, 28-32 und der Nachpass (44) schreiben wirklich und stehen

@@ -172,6 +172,10 @@ def aktuelle_szene(conn, chat_id: int) -> int | None:
         from interview_theater import szenenkarte
 
         return szenenkarte.aktuelle_nummer(conn, chat_id)
+    if phase == PHASE_BUEHNE and workshop.szenenkarten_aktiv():
+        from interview_theater import stagescript
+
+        return stagescript.aktuelle_nummer(conn, chat_id)
     if phase == PHASE_UEBERARBEITUNG:
         if not gesamttext_fixiert(conn, chat_id):
             return None
@@ -198,11 +202,12 @@ def _hat_prosa(conn, chat_id: int) -> bool:
 def laeuft(chat_id: int) -> bool:
     """Laeuft fuer diese Gruppe gerade ein Szenen- oder Geschichtenlauf
     (samt Prueflauf, der unter denselben Sperren laeuft)? Nur gelesen."""
-    from interview_theater import kurzgeschichte, szene, szenenkarte
+    from interview_theater import kurzgeschichte, stagescript, szene, szenenkarte
 
     return (szene._sperre_fuer(chat_id).locked()
             or kurzgeschichte._sperre_fuer(chat_id).locked()
-            or szenenkarte.laeuft(chat_id))
+            or szenenkarte.laeuft(chat_id)
+            or stagescript.laeuft(chat_id))
 
 
 def weiter_6(conn, tg, klm, e, chat_id: int, *,
@@ -359,6 +364,11 @@ def ueberarbeite(conn, tg, klm, e, chat_id: int, notiz: str,
         from interview_theater import szenenkarte
 
         return szenenkarte.aendere(conn, tg, klm, e, chat_id, notiz, nummer)
+    if (phasen.aktuelle(conn, chat_id) == PHASE_BUEHNE
+            and workshop.szenenkarten_aktiv()):
+        from interview_theater import stagescript
+
+        return stagescript.aendere(conn, tg, klm, e, chat_id, notiz, nummer)
     if (phasen.aktuelle(conn, chat_id) == PHASE_UEBERARBEITUNG
             and not gesamttext_fixiert(conn, chat_id) and nummer is None):
         return kurzgeschichte.starte(conn, tg, klm, e, chat_id, notiz, vorlage=True)
@@ -462,6 +472,12 @@ def weiter_7(conn, tg, klm, e, chat_id: int, *,
     nachgeholt."""
     from interview_theater import knoepfe, prueflauf, sprechweise, szene
 
+    if workshop.szenenkarten_aktiv():
+        # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): Stage Script aus den
+        # Karten, Szene fuer Szene -- keine Formwahl, keine Sprechweisen.
+        from interview_theater import stagescript
+
+        return stagescript.weiter(conn, tg, klm, e, chat_id, aus_eintritt=aus_eintritt)
     if formen_offen(conn, chat_id):
         sende_formwahl(conn, tg, e, chat_id)
         return None
@@ -523,6 +539,10 @@ def bestaetige_szene_7(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     weiter -- zur naechsten Szene oder, nach der letzten, zum Schluss."""
     from interview_theater import knoepfe
 
+    if workshop.szenenkarten_aktiv():
+        from interview_theater import stagescript
+
+        return stagescript.bestaetige(conn, tg, klm, e, chat_id, nummer)
     if laeuft(chat_id):
         _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT_NOCH)
         return T._TEXT_LAEUFT_NOCH
@@ -652,6 +672,16 @@ def nimm_ab(conn, tg, klm, e, chat_id: int) -> str | None:
             return _mit_leiste_ab(
                 conn, tg, chat_id, knoepfe.ART_SZENE_PASST,
                 lambda: szenenkarte.bestaetige(conn, tg, klm, e, chat_id, nummer))
+        return None
+    if workshop.szenenkarten_aktiv() and phase == PHASE_BUEHNE:
+        from interview_theater import stagescript
+
+        nummer = stagescript.aktuelle_nummer(conn, chat_id)
+        zeile = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
+        if zeile is not None and _gesetzt(zeile["volltext"]):
+            return _mit_leiste_ab(
+                conn, tg, chat_id, knoepfe.ART_SZENE_PASST,
+                lambda: stagescript.bestaetige(conn, tg, klm, e, chat_id, nummer))
         return None
     if phase == PHASE_ENTWURF:
         if (_stand(conn, chat_id, "geschichte_uebersicht")

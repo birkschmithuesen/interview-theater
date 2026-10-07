@@ -2792,6 +2792,10 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str,
             from interview_theater import szenenkarte
 
             return szenenkarte.weiter(conn, tg, klm, e, chat_id)
+        if phase == 7:
+            from interview_theater import stagescript
+
+            return stagescript.weiter(conn, tg, klm, e, chat_id)
 
     # Chronologie-Sperre (05.09.2026): geschrieben wird immer nur die
     # kleinste Szene ohne Volltext. Nennt der Auftrag eine spaetere, sagt der

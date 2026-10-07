@@ -6,7 +6,8 @@ erfinde keine Exposition, keinen Konflikt, keine Figuren, die die Gruppe nicht
 hat).
 
 - "typ": description (der Ablauf wird beschrieben), spoken (hier entsteht
-  Sprechtext), instructions (Handlungsanweisungen fuer die Beteiligten, z. B.
+  Sprechtext -- immer, wenn die Gruppe davon spricht, dass in dieser Szene
+  die Stimmen/Zeugnisse gesprochen oder gesungen werden), instructions (Handlungsanweisungen fuer die Beteiligten, z. B.
   Sozialexperiment/Film), moment (ein Moment an einem Ort im Raum).
 - "worum": ein Satz.
 - "ort", "wer": kurz.

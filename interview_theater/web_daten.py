@@ -681,6 +681,12 @@ def _fruehere_fassungen(conn: sqlite3.Connection, szene_id: int) -> list[dict]:
     ]
 
 
+def _stage_kopf(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    zeile = conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)).fetchone()
+    return _feld(zeile, "stage_kopf") if zeile is not None else None
+
+
 def _uebernommene_stellen(conn: sqlite3.Connection, chat_id: int) -> dict[int, list[dict]]:
     """Je Szene die von der Gruppe uebernommenen Interviewstellen (Padua,
     ``[skript] verdichtet``): Begruendung und Zitat zum Bereinigen von
@@ -782,6 +788,8 @@ def _szenen(
             # gesetzt, wenn der Spiegelpass gelaufen ist -- read-only wie
             # ``prosa``.
             "prosa_it": _feld(z, "prosa_it"),
+            # Stage Script IT (Padua-Phasenumbau, [karten] aktiv).
+            "volltext_it": _feld(z, "volltext_it"),
             "geaendert_am": z["geaendert_am"],
             "figuren": _szene_figuren(conn, z["id"]),
             "figur_ids": _szene_figur_ids(conn, z["id"]),
@@ -1416,6 +1424,9 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Die Erstfassung vor der Pruefung je Szene (Padua Phasen TEIL 2) --
         # nur, wo sie vom aktuellen Text abweicht. Leeres Dict: kein Block.
         "erstentwuerfe": erstentwuerfe(conn, chat_id),
+        # Der Kopf des Stage Scripts (Padua-Phasenumbau, G2: Versuchsanordnung
+        # und Rollen) -- read-only, nur wenn gesetzt.
+        "stage_kopf": _stage_kopf(conn, chat_id),
         "interviews": _interviews(conn, chat_id),
         "journal": _journal(conn, chat_id),
         "bearbeitbares": bearbeitbares(conn, chat_id),

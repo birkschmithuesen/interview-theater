@@ -5,7 +5,8 @@ concert, a film, an installation is not a drama; do not invent exposition,
 conflict or characters the group does not have).
 
 - "typ": description (the course of action is described), spoken (spoken
-  text will be written here), instructions (instructions for the people
+  text will be written here -- whenever the group talks about the voices,
+  the testimonies or lines being spoken or sung in this scene), instructions (instructions for the people
   involved, e.g. social experiment / film), moment (a moment at one place in
   the room).
 - "worum": one sentence.

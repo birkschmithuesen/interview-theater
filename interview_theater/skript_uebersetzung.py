@@ -63,6 +63,28 @@ SCHEMA = {
 }
 
 
+def spiegle_text(conn, klm, e, chat_id: int, text: str, *,
+                 ueber_claude: bool) -> tuple[str, str] | None:
+    """Derselbe Spiegelpass fuer einen beliebigen Szenentext (Stage Script,
+    Padua-Phasenumbau 07.10.2026 ~18:12): ``(en, it)`` oder ``None`` bei
+    jedem Fehler (geloggt). Speichert nichts -- das tut der Aufrufer."""
+    if not (text or "").strip():
+        return None
+    try:
+        ergebnis = modellwahl.aufruf_schema(
+            conn, klm, e, chat_id, system=anweisungen.hole(ART), nutzer=text,
+            schema=SCHEMA, art=ART, ueber_claude=ueber_claude,
+        )
+        en = (ergebnis.get("prosa_en") or "").strip()
+        it = (ergebnis.get("prosa_it") or "").strip()
+        if not en or not it:
+            raise ValueError("Spiegelpass ohne beide Fassungen zurueckgekommen")
+        return en, it
+    except Exception:
+        log.exception("Skript-Spiegelpass (Text) fehlgeschlagen, chat_id=%s", chat_id)
+        return None
+
+
 def spiegel(conn, klm, e, chat_id: int, szene_id: int, prosa_roh: str,
            *, ueber_claude: bool) -> bool:
     """Der eine Modellaufruf: ``prosa_roh`` (die gerade geschriebene Prosa,

@@ -163,6 +163,10 @@ def _kandidaten(conn, chat_id: int, szene) -> list[tuple[str, str]]:
     gesehen: set[str] = set()
     for z in uebernommene(conn, chat_id, szene["id"]):
         zitat = " ".join(str(z["zitat"] or "").split())
+        # Nur gepruefte Belegzitate (Datenschutz-Invariante der
+        # Weboberflaeche): was hier gewaehlt wird, steht spaeter im Script-Tab.
+        if z["zitat_geprueft"] != 1:
+            continue
         if zitat and zitat not in gesehen:
             gesehen.add(zitat)
             liste.append((zitat, kontext.interviewbezeichnung(conn, chat_id, z["aufnahme_id"])))

@@ -705,10 +705,19 @@ def arbeitet_sichtbar(tg, chat_id: int, text: str | None = None,
 
 
 @contextmanager
-def _tippanzeige(tg, chat_id: int):
+def _tippanzeige(tg, chat_id: int, stand: dict | None = None):
     """Haelt die Tippanzeige waehrend eines laufenden Sprachmodell-Aufrufs am
     Leben (SPEC § 1.3): alle TIPP_INTERVALL Sekunden erneut ``tg.tippt``,
     nach HINWEIS_NACH Sekunden zusaetzlich eine kurze Zeile.
+
+    ``stand`` (Addendum Robo 14:41, Live-Fund 07.10.2026): ein von aussen
+    uebergebenes Dict, in das ``hinweis_gesendet`` geschrieben wird, sobald
+    die Hinweiszeile wirklich raus ist -- ``antworte`` liest es danach, um
+    zu wissen, ob die Gruppe schon "Einen Moment, ich denke nach" gesehen
+    hat, und darf dann nicht mehr ersatzlos schweigen (siehe
+    ``_wiederholt_die_vorige``-Aufruf unten). Ohne ``stand`` (der zweite,
+    unveraenderte Aufrufer ``arbeitet_sichtbar``) wird ein eigenes Dict
+    angelegt, das niemand ausliest -- Verhalten dort zeichengleich (E1).
 
     Laeuft in einem Daemon-Thread, der beim Verlassen des with-Blocks sauber
     beendet wird: ``stop.set()`` laesst das laufende ``stop.wait()`` sofort
@@ -716,19 +725,20 @@ def _tippanzeige(tg, chat_id: int):
     mitbekommen hat. Ein Fehlschlag der Tippanzeige selbst (Telegram down,
     was auch immer) darf den eigentlichen Zug nie stoeren -- deshalb wird
     hier alles abgefangen und nur geloggt."""
+    if stand is None:
+        stand = {"hinweis_gesendet": False}
     stop = threading.Event()
 
     def _lauf() -> None:
         vergangen = 0.0
-        hinweis_gesendet = False
         while not stop.wait(TIPP_INTERVALL):
             vergangen += TIPP_INTERVALL
             try:
                 tg.tippt(chat_id)
             except Exception:
                 log.exception("Tippanzeige fehlgeschlagen, chat_id=%s", chat_id)
-            if not hinweis_gesendet and vergangen >= HINWEIS_NACH:
-                hinweis_gesendet = True
+            if not stand["hinweis_gesendet"] and vergangen >= HINWEIS_NACH:
+                stand["hinweis_gesendet"] = True
                 try:
                     tg.sende(chat_id, T._TEXT_HINWEIS)
                 except Exception:
@@ -737,7 +747,7 @@ def _tippanzeige(tg, chat_id: int):
     thread = threading.Thread(target=_lauf, daemon=True)
     thread.start()
     try:
-        yield
+        yield stand
     finally:
         stop.set()
         thread.join(timeout=TIPP_INTERVALL + 1.0)
@@ -1138,6 +1148,12 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
     # die richtige Antwort UND direkt darunter eine verwirrende Fehlermeldung
     # zu genau derselben Antwort gesehen.
     versand_erfolgreich = False
+    # Addendum Robo 14:41 (Live-Fund 07.10.2026): haelt fest, ob die Gruppe
+    # in diesem Zug schon "Einen Moment, ich denke nach" gesehen hat
+    # (_tippanzeige schreibt hinein) -- dann darf ``_wiederholt_die_vorige``
+    # unten nicht mehr ersatzlos schweigen, sonst bleibt genau diese Zeile
+    # auf Dauer die letzte.
+    tippstand = {"hinweis_gesendet": False}
     # Befund H2: der Stand VOR dem Zug -- ob er den Vergleich anstoesst,
     # liest ``_merke_vergleich_im_zug`` im ``finally`` ab.
     try:
@@ -1159,7 +1175,8 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             return
 
         _pruefe_formen(conn, tg, klm, e, chat_id, offen)
-        text = _erfrage_antwort(conn, klm, e, chat_id, offen, tg, hinweis)
+        text = _erfrage_antwort(conn, klm, e, chat_id, offen, tg, hinweis,
+                                tippstand=tippstand)
 
         if _erfundene_systemzeile(conn, e, chat_id, text):
             strom.verwirf(tg, chat_id)          # die vorlaeufige Blase verschwindet
@@ -1179,6 +1196,20 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         if _wiederholt_die_vorige(conn, e, chat_id, text, letzte_message_id):
             strom.verwirf(tg, chat_id)
             versand_erfolgreich = True
+            if tippstand["hinweis_gesendet"]:
+                # Addendum Robo 14:41: die Gruppe sieht bereits "Einen
+                # Moment, ich denke nach" -- ersatzloses Schweigen wuerde
+                # das auf Dauer zur letzten Zeile machen (Live-Fund
+                # 07.10.2026, drei Anlaeufe in Folge). Eine kurze ehrliche
+                # Zeile schliesst den Zug ab statt die Gruppe warten zu
+                # lassen.
+                try:
+                    tg.sende(chat_id, T._TEXT_FEHLER)
+                except Exception:
+                    log.exception(
+                        "Ersatzzeile nach Wiederholung fehlgeschlagen, chat_id=%s",
+                        chat_id,
+                    )
             knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
             return
 
@@ -1640,15 +1671,18 @@ def _war_die_erwartete_antwort(conn, tg, klm, e, chat_id: int,
 
 
 def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
-                     hinweis: str | None) -> str:
+                     hinweis: str | None, tippstand: dict | None = None) -> str:
     """Der eigentliche Gespraechszug: Kontext bauen, Modell fragen, Antwort
     saeubern. Liefert den fertigen Text, wirft bei einer unbrauchbaren
     Modellantwort ``LLMFehler``.
 
     Die Tippanzeige laeuft ueber den ganzen Aufruf -- auch ueber die
     Nachfassaufrufe in ``_ohne_denkspur`` und ``_ohne_echo``, die aus Sicht der
-    Gruppe zur selben Wartezeit gehoeren."""
-    with _tippanzeige(tg, chat_id):
+    Gruppe zur selben Wartezeit gehoeren.
+
+    ``tippstand`` (Addendum Robo 14:41): wird unveraendert an
+    ``_tippanzeige`` durchgereicht, siehe dort."""
+    with _tippanzeige(tg, chat_id, tippstand):
         # Die Phase geht in die Systemanweisung (worauf der Bot gerade den
         # Fokus legt, prompts/phasen/N.md), nicht in den Koerper -- die
         # datengetriebenen Bloecke bleiben unveraendert (phasen.py).

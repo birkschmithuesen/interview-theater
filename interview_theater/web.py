@@ -4649,47 +4649,83 @@ _TEXT_KARTE_ENTSTEHT = "Karte {nummer} entsteht gerade ..."
 _TEXT_KARTEN_ALLE = "Alle Karten sind gespeichert. Im Chat geht es weiter zum Stage Script."
 _TEXT_KARTE_JA = "Yes, save"
 _TEXT_KARTE_BAUEN = "Karte jetzt bauen"
+_TEXT_KARTE_VORHERIGE = "Vorherige Karte"
+_TEXT_KARTE_NAECHSTE = "Naechste Karte"
+_TEXT_KARTE_NOCH_NICHT = "Diese Karte gibt es noch nicht -- sie entsteht, wenn sie dran ist."
+_TEXT_KARTE_ZUR_AKTUELLEN = "Zur aktuellen Karte"
 _TEXT_KARTE_NEIN = "No, change"
 _TEXT_KARTEN_ZAEHLER = "Karte {aktiv} von {gesamt}"
 
 
 def _szenenkarten_html(liste: list[dict]) -> str:
-    """Die Szenenkarten im CoThinker (Padua Phase 6, Birk 07.10.2026 ~19:25,
-    verbindlich): Handy-first, schlank. Die AKTIVE Karte gross mit "Yes,
-    save" / "No, change"; jede andere genau EINE Zeile -- Nummer, Titel,
-    Haken (gespeichert) oder ausgegraut (spaeter). Kein Platzfresser."""
+    """Die Szenenkarten im CoThinker (Padua Phase 6, Birk 07.10.2026 ~19:25
+    und ~19:35, verbindlich): Handy-first, schlank.
+
+    Oben die Leiste ``‹ Card k of n ›`` (Pfeile NUR oben -- niemand soll
+    scrollen muessen), darunter die GEZEIGTE Karte: zuerst die aktive, gross,
+    mit "Yes, save" / "No, change"; jede andere ist nur Ansicht (Status, ein
+    Weg zurueck zur aktiven), abgenommen wird allein die aktive. Darunter
+    jede Karte als EINE Zeile -- ein Klick zeigt sie. Welche Karte gezeigt
+    wird, haelt das Browser-Skript (``web_vereint._AUSWAHL_JS``) ueber das
+    Nachladen hinweg fest; ohne Skript bleibt die aktive gezeigt."""
     gesamt = len(liste)
     aktive = next((k for k in liste if k["aktiv"]), None)
-    teile = ['<div id="buehne-panel" data-ansicht="karten">']
-    if aktive is not None:
-        teile.append(f'<p class="karten-zaehler">{_t(T._TEXT_KARTEN_ZAEHLER.format(aktiv=aktive["nummer"], gesamt=gesamt))}</p>')
+    vorlage = T._TEXT_KARTEN_ZAEHLER.replace("{gesamt}", str(gesamt))
+    zaehler = vorlage.replace("{aktiv}", str(aktive["nummer"])) if aktive else ""
+    teile = [
+        f'<div id="buehne-panel" data-ansicht="karten" '
+        f'data-aktiv="{int(aktive["nummer"]) if aktive else ""}">',
+        '<div class="karten-nav">'
+        f'<button type="button" class="karten-pfeil" data-richtung="-1" '
+        f'aria-label="{_t(T._TEXT_KARTE_VORHERIGE)}">‹</button>'
+        f'<span class="karten-zaehler" data-vorlage="{_t(vorlage)}">{_t(zaehler)}</span>'
+        f'<button type="button" class="karten-pfeil" data-richtung="1" '
+        f'aria-label="{_t(T._TEXT_KARTE_NAECHSTE)}">›</button></div>',
+    ]
     zeilen = []
     for k in liste:
+        nummer = int(k["nummer"])
         titel = _t(f'{k["nummer"]}. {k["titel"]}'.strip())
         if k["aktiv"]:
-            if k["karte"] is None:
-                koerper = f'<p class="karte-entsteht">{_t(T._TEXT_KARTE_ENTSTEHT.format(nummer=k["nummer"]))}</p>'
-                # Rettungsweg, falls die Erzeugung nie fertig wurde (Neustart
-                # mitten im Lauf): laeuft sie noch, sagt der Bot das nur.
-                knoepfe = (
-                    '<div class="karte-aktionen">'
-                    f'<button type="button" class="karte-knopf karte-bauen" data-aktion="bauen" '
-                    f'data-nummer="{int(k["nummer"])}">{_t(T._TEXT_KARTE_BAUEN)}</button></div>'
-                )
-            else:
-                koerper = _karte_html(k["karte"], False)
-                knoepfe = (
-                    '<div class="karte-aktionen">'
-                    f'<button type="button" class="karte-knopf karte-ja" data-aktion="ja" '
-                    f'data-nummer="{int(k["nummer"])}">{_t(T._TEXT_KARTE_JA)}</button>'
-                    f'<button type="button" class="karte-knopf karte-nein" data-aktion="aendern" '
-                    f'data-nummer="{int(k["nummer"])}">{_t(T._TEXT_KARTE_NEIN)}</button></div>'
-                )
-            zeilen.append(f'<li class="karte-aktiv"><h3 class="karte-titel">{titel}</h3>{koerper}{knoepfe}</li>')
+            zustand = "aktiv"
+        elif k["bestaetigt"]:
+            zustand = "fertig"
         else:
-            klasse = "karte-zeile fertig" if k["bestaetigt"] else "karte-zeile spaeter"
-            haken = "✓ " if k["bestaetigt"] else ""
-            zeilen.append(f'<li class="{klasse}">{haken}{titel}</li>')
+            zustand = "spaeter"
+        if k["aktiv"] and k["karte"] is None:
+            inhalt = f'<p class="karte-entsteht">{_t(T._TEXT_KARTE_ENTSTEHT.format(nummer=nummer))}</p>'
+            # Rettungsweg, falls die Erzeugung nie fertig wurde (Neustart
+            # mitten im Lauf): laeuft sie noch, sagt der Bot das nur.
+            knoepfe = (
+                '<div class="karte-aktionen">'
+                f'<button type="button" class="karte-knopf karte-bauen" data-aktion="bauen" '
+                f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_BAUEN)}</button></div>'
+            )
+        elif k["aktiv"]:
+            inhalt = _karte_html(k["karte"], False)
+            knoepfe = (
+                '<div class="karte-aktionen">'
+                f'<button type="button" class="karte-knopf karte-ja" data-aktion="ja" '
+                f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_JA)}</button>'
+                f'<button type="button" class="karte-knopf karte-nein" data-aktion="aendern" '
+                f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_NEIN)}</button></div>'
+            )
+        else:
+            inhalt = (_karte_html(k["karte"], k["bestaetigt"]) if k["karte"] is not None
+                      else f'<p class="karte-entsteht">{_t(T._TEXT_KARTE_NOCH_NICHT)}</p>')
+            knoepfe = (
+                f'<p class="karte-nur-ansicht"><button type="button" class="karte-zurueck">'
+                f'{_t(T._TEXT_KARTE_ZUR_AKTUELLEN)}</button></p>' if aktive is not None else ""
+            )
+        haken = "✓ " if k["bestaetigt"] else ""
+        gezeigt = " gezeigt" if k["aktiv"] else ""
+        aktiv_klasse = " karte-aktiv" if k["aktiv"] else ""
+        zeilen.append(
+            f'<li class="karte-eintrag {zustand}{aktiv_klasse}{gezeigt}" data-nummer="{nummer}">'
+            f'<button type="button" class="karte-zeile">{haken}{titel}</button>'
+            f'<div class="karte-koerper"><h3 class="karte-titel">{titel}</h3>{inhalt}{knoepfe}</div>'
+            "</li>"
+        )
     teile.append(f'<ul class="karten">{"".join(zeilen)}</ul>')
     if aktive is None and liste:
         teile.append(f'<p class="karten-fertig">{_t(T._TEXT_KARTEN_ALLE)}</p>')
@@ -4700,12 +4736,20 @@ def _szenenkarten_html(liste: list[dict]) -> str:
 _CSS_KARTEN_BUEHNE = """
 .karten { list-style: none; margin: 0; padding: 0; }
 .karten-zaehler { margin: .2rem 0 .6rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
-.karte-zeile { padding: .55rem .2rem; border-bottom: 1px solid var(--linie, #ddd8cc); font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.karte-zeile.spaeter { opacity: .45; }
-.karte-zeile.fertig { color: var(--text-leise, #6b6b6b); }
-.karte-aktiv { margin: .4rem 0 1rem; padding: .9rem 1rem 1rem; border: 1px solid var(--linie, #ddd8cc); border-radius: .8rem; background: var(--grund-2, transparent); }
+.karten-nav { display: flex; align-items: center; gap: .5rem; margin: .1rem 0 .5rem; }
+.karten-nav .karten-zaehler { flex: 1; text-align: center; margin: 0; }
+.karten-pfeil { min-width: 2.9rem; min-height: 2.6rem; font: inherit; font-size: 1.4rem; line-height: 1; border-radius: 1.4rem; border: 1px solid var(--rand, #cfc8b6); background: var(--grund-2, transparent); color: var(--text, #1b1b1b); cursor: pointer; }
+.karten-pfeil:disabled { opacity: .3; }
+.karte-zeile { display: block; width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid var(--linie, #ddd8cc); cursor: pointer; padding: .55rem .2rem; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.karte-eintrag.spaeter .karte-zeile { opacity: .45; }
+.karte-eintrag.fertig .karte-zeile { color: var(--text-leise, #6b6b6b); }
+.karte-koerper { display: none; }
+.karte-eintrag.gezeigt .karte-zeile { display: none; }
+.karte-eintrag.gezeigt .karte-koerper { display: block; margin: .4rem 0 1rem; padding: .9rem 1rem 1rem; border: 1px solid var(--linie, #ddd8cc); border-radius: .8rem; background: var(--grund-2, transparent); }
+.karte-nur-ansicht { margin: 1rem 0 0; }
+.karte-zurueck { font: inherit; font-size: .9rem; background: none; border: 0; padding: 0; color: var(--signal, #2f4858); text-decoration: underline; cursor: pointer; }
 .karte-titel { margin: 0 0 .35rem; font-size: 1.15rem; line-height: 1.25; }
-.karte-aktiv .szenenkarte { margin: 0; max-width: none; }
+.karte-koerper .szenenkarte { margin: 0; max-width: none; }
 .karte-entsteht { margin: .3rem 0; font-style: italic; color: var(--text-leise, #6b6b6b); }
 .karte-aktionen { display: flex; gap: .6rem; margin: 1rem -1rem -1rem; padding: .7rem 1rem calc(1.7rem + env(safe-area-inset-bottom, 0px)); position: sticky; bottom: -1rem; background: var(--grund-2, #1d2026); border-top: 1px solid var(--linie, #ddd8cc); border-radius: 0 0 .8rem .8rem; }
 .karte-knopf { flex: 1; min-height: 2.9rem; font: inherit; font-size: 1rem; border-radius: 1.5rem; border: 1px solid var(--rand, #cfc8b6); background: var(--grund, #fff); color: var(--text, #1b1b1b); cursor: pointer; }

@@ -30,10 +30,17 @@ def test_panel_aktive_karte_gross_andere_eine_zeile(padua):
         {"nummer": 3, "titel": "Il rituale", "karte": None, "bestaetigt": False, "aktiv": False},
     ]
     html = web._szenenkarten_html(liste)
-    assert html.startswith('<div id="buehne-panel" data-ansicht="karten">')
-    assert '<li class="karte-zeile fertig">✓ 1. Tornare</li>' in html
-    assert '<li class="karte-zeile spaeter">3. Il rituale</li>' in html
-    assert html.count('class="karte-aktiv"') == 1 and "Die Stimmen werden geteilt." in html
+    assert html.startswith('<div id="buehne-panel" data-ansicht="karten" data-aktiv="2">')
+    assert '<li class="karte-eintrag fertig" data-nummer="1"><button type="button" class="karte-zeile">✓ 1. Tornare</button>' in html
+    assert '<li class="karte-eintrag spaeter" data-nummer="3"><button type="button" class="karte-zeile">3. Il rituale</button>' in html
+    assert html.count(" gezeigt\"") == 1 and 'class="karte-eintrag aktiv karte-aktiv gezeigt" data-nummer="2"' in html
+    assert "Die Stimmen werden geteilt." in html
+    # Navigation oben, nur die aktive Karte traegt Abnahmeknoepfe, die anderen
+    # sind Ansicht mit Weg zurueck.
+    assert html.index('class="karten-nav"') < html.index('<ul class="karten">')
+    assert html.count('data-aktion="ja"') == 1
+    assert html.count('class="karte-zurueck"') == 2
+    assert 'data-vorlage="Card {aktiv} of 3"' in html
     assert 'data-aktion="ja" data-nummer="2">Yes, save</button>' in html
     assert 'data-aktion="aendern" data-nummer="2">No, change</button>' in html
     assert "Card 2 of 3" in html
@@ -172,6 +179,12 @@ def test_chat_karte_ohne_zitatzeichen_und_panel_ohne_klassenkollision(padua):
     html = web._szenenkarten_html([{"nummer": 1, "titel": "A", "karte": KARTE,
                                     "bestaetigt": False, "aktiv": True}])
     assert 'class="szenenkarte"' in html and 'class="karte"' not in html
+
+
+def test_navigation_im_skript():
+    js = web_vereint._AUSWAHL_JS
+    assert ".karte-zeile" in js and ".karten-pfeil" in js and ".karte-zurueck" in js
+    assert "kartenWahl" in js
 
 
 def test_karte_bauen_rettet_eine_haengende_karte(conn, einst, padua, monkeypatch):

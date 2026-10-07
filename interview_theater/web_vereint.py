@@ -1871,12 +1871,49 @@ _AUSWAHL_JS = """
       })
       .catch(function () {});
   }
+  // Scene-card navigation: which card is shown survives the panel reload.
+  // null = the active card (the server's default).
+  var kartenWahl = null;
+  function zeigeKarte(nummer) {
+    var panel = document.querySelector('#buehne-panel[data-ansicht="karten"]');
+    if (!panel) { return; }
+    var eintraege = Array.prototype.slice.call(panel.querySelectorAll('li.karte-eintrag'));
+    if (!eintraege.length) { return; }
+    var ziel = nummer === null ? panel.getAttribute('data-aktiv') : String(nummer);
+    var index = -1;
+    eintraege.forEach(function (li, i) {
+      var an = li.getAttribute('data-nummer') === ziel;
+      li.classList.toggle('gezeigt', an);
+      if (an) { index = i; }
+    });
+    var zaehler = panel.querySelector('.karten-zaehler');
+    if (zaehler && index >= 0) {
+      zaehler.textContent = (zaehler.getAttribute('data-vorlage') || '').replace('{aktiv}', ziel);
+    }
+    var pfeile = panel.querySelectorAll('.karten-pfeil');
+    pfeile.forEach(function (b) {
+      var r = parseInt(b.getAttribute('data-richtung'), 10);
+      b.disabled = index < 0 ? false : (r < 0 ? index === 0 : index === eintraege.length - 1);
+    });
+  }
+  function blaettere(richtung) {
+    var panel = document.querySelector('#buehne-panel[data-ansicht="karten"]');
+    if (!panel) { return; }
+    var eintraege = Array.prototype.slice.call(panel.querySelectorAll('li.karte-eintrag'));
+    var pos = eintraege.findIndex(function (li) { return li.classList.contains('gezeigt'); });
+    var neu = pos < 0 ? (richtung > 0 ? 0 : eintraege.length - 1) : pos + richtung;
+    if (neu < 0 || neu >= eintraege.length) { return; }
+    kartenWahl = parseInt(eintraege[neu].getAttribute('data-nummer'), 10);
+    zeigeKarte(kartenWahl);
+  }
   var tab = document.getElementById('tab-buehne');
   if (tab && window.MutationObserver) {
     new MutationObserver(function () {
       if (anzahlUnterwegs > 0) { wendeUnterwegsAn(); }
+      zeigeKarte(kartenWahl);
     }).observe(tab, { childList: true });
   }
+  zeigeKarte(kartenWahl);
   document.addEventListener('click', function (ev) {
     var ziel = ev.target && ev.target.closest ? ev.target : null;
     if (!ziel) { return; }
@@ -1913,9 +1950,31 @@ _AUSWAHL_JS = """
     }
     // Scene cards in the CoThinker: "Yes, save" saves and reloads the panel
     // (next card); "No, change" jumps to the chat for the feedback question.
+    var kartenZeile = ziel.closest('#buehne-panel[data-ansicht="karten"] .karte-zeile');
+    if (kartenZeile) {
+      ev.preventDefault();
+      kartenWahl = parseInt(kartenZeile.closest('li.karte-eintrag').getAttribute('data-nummer'), 10);
+      zeigeKarte(kartenWahl);
+      if (tab) { tab.scrollTop = 0; }
+      return;
+    }
+    var kartenPfeil = ziel.closest('#buehne-panel[data-ansicht="karten"] .karten-pfeil');
+    if (kartenPfeil) {
+      ev.preventDefault();
+      blaettere(parseInt(kartenPfeil.getAttribute('data-richtung'), 10));
+      return;
+    }
+    if (ziel.closest('#buehne-panel[data-ansicht="karten"] .karte-zurueck')) {
+      ev.preventDefault();
+      kartenWahl = null;
+      zeigeKarte(null);
+      if (tab) { tab.scrollTop = 0; }
+      return;
+    }
     var kartenKnopf = ziel.closest('#buehne-panel[data-ansicht="karten"] .karte-knopf');
     if (kartenKnopf) {
       ev.preventDefault();
+      kartenWahl = null;
       if (kartenKnopf.disabled) { return; }
       var aktion = kartenKnopf.getAttribute('data-aktion');
       var kartenNummer = parseInt(kartenKnopf.getAttribute('data-nummer'), 10);

@@ -1404,7 +1404,9 @@ dropped.
 
 The rules for the text itself are below (prose rule block). No comment
 before or after, no moral at the end, no intermediate titles apart from the
-section headings."""
+section headings.
+
+Write in English."""
 _TEXT_LAEUFT = "I'm writing your story in one go now. That takes a few minutes."
 _TEXT_BESETZT = "I'm already writing, one moment."
 _TEXT_FEHLER = "The story didn't work out. Say it again and I'll try once more."
@@ -2198,6 +2200,7 @@ c1 = "Voice"
 _TEXT_GESAMT_GESPEICHERT = "Saved. Now we go scene by scene: scene 1 of {gesamt}."
 _TEXT_6_FERTIG = "Rewrite done: all {gesamt} scenes are saved. On to the Stage Version."
 _TEXT_LAEUFT_NOCH = "A revision is still running — I'll show you the result, then you can save it."
+_TEXT_NOTIZ_WARTET = "A revision is still running — I'll make this change right after it's done. If I don't get back to you, send it again."
 _TEXT_6_SCHON_FERTIG = "All scenes of the Rewrite are saved. Tell me what to change, or move on to the Stage Version."
 _TEXT_KEIN_ZIEL = "I couldn't tell which text to change — tap \"No, change it again\" under the text you mean."
 _ANTWORT_SCHON_GESPEICHERT = "Already saved"

@@ -10,7 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from interview_theater import anweisungen, sprache, sprachstil, szenenfolge, workshop
+from interview_theater import (
+    anweisungen, kurzgeschichte, sprache, sprachstil, szenenfolge, workshop,
+)
 
 REPO = anweisungen._VERZEICHNIS
 EN = sprache.VERZEICHNIS / "en" / "prompts"
@@ -730,6 +732,12 @@ _ISOLIERTE_LAEUFE_2 = [
     (szenenfolge, "ANWEISUNG_GESCHICHTE_SZENEN"),
     (szenenfolge, "ANWEISUNG_FELDER"),
     (sprachstil, "ANWEISUNG"),
+    # B4 (07.10.2026, simulation/berichte/p57-2026-10-07.md): die
+    # Padua-Phase-6-Gesamtkuerzung schreibt ueber ``kurzgeschichte.starte``
+    # (``ueberarbeitung.ueberarbeite``, Weg "Das Ganze") -- derselbe isolierte
+    # Lauf wie die vier oben, nur hier gefehlt und deshalb einmal komplett
+    # auf Deutsch zurueckgefallen.
+    (kurzgeschichte, "ANWEISUNG"),
 ]
 
 

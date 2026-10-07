@@ -1445,7 +1445,7 @@ _KOPF_KARTE = "The saved card of THIS scene -- it is binding:"
 _KOPF_FORMAT_TYP = "This is what the script of this scene looks like:"
 _KOPF_BISHER = "Previous script of this scene, to be revised:"
 _KOPF_NOTIZ = "What the group wants changed (this comes before everything else):"
-_AUFTRAG_KOPF = "Also write ONCE, in \"kopf\", the head of the whole script: the setup (goal, place, rules, abort) and for every person involved their role with a character (e.g. shy, know-it-all, recruiter) -- what they do, what never, when they step in."
+_AUFTRAG_KOPF = "Also write ONCE, in \"kopf\", the head of the whole script: the setup (goal, place, rules, abort) and for every person involved their role -- what they do, what never, when they step in. Take roles and traits ONLY from the group's overview and agreements; where the group gave none, give none."
 _AUFTRAG = "Now write the stage script of scene {nummer}."
 _TEXT_SCHREIBE = "I'm writing the stage script for scene {nummer}."
 _TEXT_AENDERE = "I'm rewriting the stage script for scene {nummer}."
@@ -1459,9 +1459,9 @@ _ANTWORT_GESPEICHERT = "Scene {nummer} saved"
 _JOURNAL_GESPEICHERT = "Stage script scene {nummer} saved: {titel}"
 
 ["stagescript".FORMAT_JE_TYP]
-description = "The course of action in 5 to 8 short lines: positions, music/sound, what is said or shown, the transition to the next scene. No spoken text except at most 2-3 key sentences."
-spoken = "Spoken text in sections: a heading per section (**...**), then lines \"NAME: ...\". Interview passages word for word in the original as their own line: > *Interview quote (N):* \"...\". Short bridges by the performers between the voices, music cues in [square brackets]."
-instructions = "For this moment: **Theme** (with an interview quote in the original), **Instructions** per person (WHO DOES WHAT), **Opening lines** of those in the know (2-4, in the language that is played), **CAMERA** (position/shot), **ABORT** (when and how)."
+description = "The course of action in 5 to 8 numbered lines, ONE or two short sentences each: who is where, music/sound, what is said or shown, the transition to the next scene. No spoken text except at most 2-3 key sentences."
+spoken = "A text to speak and sing, not a description: sections with a heading (**...**), then MOSTLY lines \"NAME: ...\" -- what the performer actually says, in the language of the performance -- and the interview passages word for word in the original as their own line: > *Interview quote (N):* \"...\". Short bridges by the performers between the voices; music cues and actions only in [square brackets], one line each."
+instructions = "For this moment: **Theme** (with the card's interview quote in the original, if it has one), **Instructions** per person (WHO DOES WHAT), **Opening lines** of those in the know (2-4, in the language that is played), **CAMERA** (position/shot -- only if the format is filmed), **ABORT** (when and how -- only where real people are involved who do not know the game)."
 moment = "For this moment: **Place / mode** (🎤 microphone · 👂 1:1 whispered, first person · 👥 collective), **Who** (Voce 1-5), **Wall/sound** in one line ([VIDEO: ...] as a placeholder), the interview quotes in the original as > *Interview quote (N):* \"...\", **Transition** (where the attention moves)."
 
 ["hintergrund"]

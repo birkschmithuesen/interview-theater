@@ -699,6 +699,13 @@ CREATE TABLE IF NOT EXISTS szene (
   -- stehen: die Prosa ist die Vorlage, gegen die der Theatertext geprueft
   -- werden kann. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
   prosa             TEXT,
+  -- Die italienische Spiegelung von ``prosa`` (Birk, Live-Workshop
+  -- 07.10.2026 ~17:20, Padua-Profilschalter ``[skript] zweisprachig``):
+  -- ``skript_uebersetzung.spiegel`` schreibt hierher, wenn ein Szenentext
+  -- fertig ist. ``prosa`` bleibt die englische Fassung, auf der jeder
+  -- Prompt und jede Pruefung weiterlaeuft -- diese Spalte ist reine
+  -- Anzeige/Export. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  prosa_it          TEXT,
   -- Gesetzt = die Gruppe hat den Text mit "Passt" abgenommen (Phase 6,
   -- knoepfe.ART_SZENE_PASST). Ein Volltext allein heisst nur "geschrieben":
   -- unter jedem frischen Szenentext haengen vier Knoepfe, und erst einer

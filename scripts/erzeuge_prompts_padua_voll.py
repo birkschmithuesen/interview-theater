@@ -118,7 +118,7 @@ SCOPE_P5_P7 = (
     "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
     "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
     "38-dramaturgie-a9", "40-dramaturgie-a11", "43-prueflauf-ueberarbeitung",
-    "04-szene-prosa-phase6",
+    "04-szene-prosa-phase6", "45-skript-spiegel",
     "09-gespraech-phase7", "27-sprechweise", "39-dramaturgie-a10",
     "41-dramaturgie-c1", "34-stueckpruefung",
     "28-szene-dialog", "29-szene-monolog", "30-szene-chor", "31-szene-lied",
@@ -636,6 +636,11 @@ TREIBER = {
     "23-sprachprofil": _sprachprofil,
     "24-kernzitate": _kernzitate,
     "04-szene-prosa-phase6": _szene_prosa_phase6,
+    # Derselbe Treiber wie 04: der EN/IT-Spiegelpass (Birk, Live-Workshop
+    # 07.10.2026 ~17:20) haengt sich in szene.schreibe an denselben Lauf an
+    # und wird dort automatisch mitaufgezeichnet (Padua-Profilschalter
+    # [skript] zweisprachig steht in workshop/padua-2026/profil.toml).
+    "45-skript-spiegel": _szene_prosa_phase6,
     "02-gespraech-phase6": _gespraech(6),
     "25-kurzgeschichte": _kurzgeschichte,
     "03-kurzgeschichte-phase6": _kurzgeschichte_kuerzung,

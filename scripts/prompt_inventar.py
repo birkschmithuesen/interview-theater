@@ -230,6 +230,12 @@ INVENTAR = (
             grund="szene._lauf baut system=systemanweisung(form, stil) und "
                   "nutzer=baue_nutzertext(...) und uebergibt sie unveraendert "
                   "-- der gebaute Prompt ist zeichengleich (szene.py:2361)."),
+    # --- EN/IT-Spiegelpass (Birk, Live-Workshop 07.10.2026 ~17:20, Padua-
+    # Profilschalter [skript] zweisprachig): laeuft direkt nach 04, auf dem
+    # Text, den 04 gerade wirklich geschrieben hat -- deshalb unmittelbar
+    # danach und nicht weiter vorn in diesem Abschnitt.
+    Eintrag("45-skript-spiegel", "skript_spiegel", 6,
+            "interview_theater.skript_uebersetzung", "ART"),
     # --- Phase 7: Formen, Sprechweise, Stueckpruefung, Richterfragen (a10/c1).
     # Dieselbe Reihenfolge-Regel wie Phase 6 oben: a10/c1/Stueckpruefung lesen
     # die Szenen, 28-32 und der Nachpass (44) schreiben wirklich und stehen

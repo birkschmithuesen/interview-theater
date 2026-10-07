@@ -77,6 +77,73 @@ def _panel_textbuch(text):
     return text[anfang: ende if ende != -1 else len(text)]
 
 
+def test_prosa_it_zeigt_en_und_it_block_getrennt(tmp_path, padua):
+    """Birk, Live-Workshop 07.10.2026 ~17:20: Script-Tab zweisprachig statt
+    gemischt. Mit ``prosa_it`` gesetzt (Spiegelpass gelaufen) stehen EN- und
+    IT-Fassung als zwei eigene, beschriftete Bloecke -- die Kernsaetze
+    (italienisches Zitat) wandern aus der sonst englischen Planungsliste
+    in den IT-Block."""
+    pfad = str(tmp_path / "t.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "gruppe1", "Die Ankommenden")
+    repo.setze_gruppe_kanal(conn, CHAT, "web")
+    szene_id = repo.lege_szene_an(conn, CHAT, 1, "Al binario", None, None)
+    repo.setze_szenenfeld(conn, szene_id, "was_passiert", "Maria arrives")
+    repo.setze_szenenfeld(conn, szene_id, "kernsaetze", "Non sono mai tornata")
+    repo.aktualisiere_szene(
+        conn, szene_id, "Al binario", None, None,
+        prosa="Maria stands at the station.",
+    )
+    repo.setze_szene_uebersetzung(
+        conn, szene_id, "Maria stands at the station.", "Maria sta alla stazione.",
+    )
+    token = repo.stelle_web_token_sicher(conn, CHAT)
+    conn.commit()
+    conn.close()
+
+    html = web.textbuch_html(_daten(pfad, token), token)
+
+    assert "Maria stands at the station." in html
+    assert "Maria sta alla stazione." in html
+    assert "Non sono mai tornata" in html
+    assert "As a story (English):" in html
+    assert "As a story (Italiano):" in html
+    assert "Key lines (Italiano, original):" in html
+    # Die Kernsaetze stehen nicht mehr ein zweites Mal in der Planungsliste.
+    assert html.count("Non sono mai tornata") == 1
+    assert "Not written yet." not in html
+    assert ' style="' not in html
+    assert "onclick=" not in html
+
+
+def test_ohne_prosa_it_bleibt_einsprachig(tmp_path, padua):
+    """Ohne Spiegelpass (``prosa_it`` leer) bleibt die Ansicht wie bisher --
+    eine Fassung, die alte Beschriftung."""
+    pfad = str(tmp_path / "t.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "gruppe1", "Die Ankommenden")
+    repo.setze_gruppe_kanal(conn, CHAT, "web")
+    szene_id = repo.lege_szene_an(conn, CHAT, 1, "Al binario", None, None)
+    repo.setze_szenenfeld(conn, szene_id, "kernsaetze", "Non sono mai tornata")
+    repo.aktualisiere_szene(
+        conn, szene_id, "Al binario", None, None,
+        prosa="Maria stands at the station.",
+    )
+    token = repo.stelle_web_token_sicher(conn, CHAT)
+    conn.commit()
+    conn.close()
+
+    html = web.textbuch_html(_daten(pfad, token), token)
+
+    assert "As a story:" in html
+    assert "As a story (English):" not in html
+    assert "As a story (Italiano):" not in html
+    assert "Key lines (Italiano, original):" not in html
+    assert "Non sono mai tornata" in html  # weiter in der normalen Planungsliste
+
+
 def test_erstentwuerfe_nur_wenn_gesetzt_und_verschieden(tmp_path):
     pfad, token, szene_id = _baue(tmp_path)
     lesend = web_daten.oeffne_lesend(pfad)

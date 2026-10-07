@@ -283,6 +283,17 @@ autosave_phase1_2 = true
 [recherche]
 aktiv = true
 
+# Zweisprachiges Textbuch EN/IT (Birk 07.10.2026 ~17:20, Live-Workshop): die
+# Szenenprosa (Phase 5) ist englisch, enthaelt aber woertliche italienische
+# Interviewzitate -- ein Mischtext. Mit dieser Zeile haengt sich nach jedem
+# fertigen Szenentext ein Spiegelpass an (skript_uebersetzung.spiegel): er
+# ersetzt ``szene.prosa`` durch eine saubere EN-Fassung (Zitate uebersetzt)
+# und speichert eine saubere IT-Fassung in ``szene.prosa_it``. Scheitert der
+# Spiegelpass, bleibt es bei EN allein -- der Szenenlauf selbst schlaegt nie
+# deswegen fehl. Ohne diese Zeile (Dortmund, Vorgabeprofil): unveraendert.
+[skript]
+zweisprachig = true
+
 [formberater]
 # Musikalische Strukturen (Wiki musikalische-strukturen) nur fuer diese Gruppen
 # (Birk 07.10.2026: G1 arbeitet mit Musiktheorie; Testbot zum Testen).

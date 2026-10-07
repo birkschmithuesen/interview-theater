@@ -721,6 +721,11 @@ def _szenen(
             # Gruppenseite -- sie ist die Vorlage, die der Feinschliff in
             # eine Form uebersetzt, und wird nicht von Hand gepflegt.
             "prosa": _feld(z, "prosa"),
+            # Die italienische Spiegelung (Birk, Live-Workshop 07.10.2026
+            # ~17:20, Padua-Profilschalter [skript] zweisprachig): nur
+            # gesetzt, wenn der Spiegelpass gelaufen ist -- read-only wie
+            # ``prosa``.
+            "prosa_it": _feld(z, "prosa_it"),
             "geaendert_am": z["geaendert_am"],
             "figuren": _szene_figuren(conn, z["id"]),
             "figur_ids": _szene_figur_ids(conn, z["id"]),

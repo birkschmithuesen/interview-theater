@@ -1042,6 +1042,17 @@ def fragen_eigene_min(profil: Profil | None = None) -> int:
     return int(profil.wert("fragen.eigene_min", 0))
 
 
+def skript_zweisprachig_aktiv(profil: Profil | None = None) -> bool:
+    """Ob nach einem fertigen Szenentext ein EN/IT-Spiegelpass laeuft
+    (Birk, Live-Workshop 07.10.2026 ~17:20, ``skript_uebersetzung.py``).
+
+    Vorgabe false -- wie ``[p5_check] aktiv``: ohne diese Zeile im Profil
+    bleibt ein Szenenlauf genau das, was er vorher war. Dortmund setzt die
+    Zeile nicht und bleibt unberuehrt."""
+    profil = profil or aktiv()
+    return bool(profil.wert("skript.zweisprachig", False))
+
+
 def workbench_bearbeitbar(profil: Profil | None = None) -> bool:
     """Ob der Arbeitsstand-Tab ("Workbench") Formulare traegt und der
     Werkbank-POST schreibt (Padua, 03.10.2026, Karte t_49e7354c).

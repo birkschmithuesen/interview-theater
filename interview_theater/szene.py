@@ -68,7 +68,7 @@ import threading
 
 import httpx
 
-from interview_theater import anweisungen, repo, strom, szene_claude, workshop
+from interview_theater import anweisungen, repo, skript_uebersetzung, strom, szene_claude, workshop
 
 log = logging.getLogger(__name__)
 
@@ -2465,6 +2465,19 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
         None if prosa_lauf else volltext, fassung,
         prosa=volltext if prosa_lauf else None,
     )
+    # Der EN/IT-Spiegelpass (Birk, Live-Workshop 07.10.2026 ~17:20, Padua-
+    # Profilschalter [skript] zweisprachig): nur nach einem Prosa-Lauf, nie
+    # bei Phase 7 (Theatertext). Ein Fehler hier darf die Szene nie kaputt
+    # machen -- sie bleibt dann bei ihrer englischen Rohfassung stehen
+    # (skript_uebersetzung.spiegel faengt selbst alles ab, dieses try/except
+    # ist die zweite Sicherung).
+    if prosa_lauf and workshop.skript_zweisprachig_aktiv():
+        try:
+            skript_uebersetzung.spiegel(
+                conn, klm, e, chat_id, ziel["id"], volltext, ueber_claude=ueber_claude,
+            )
+        except Exception:
+            log.exception("Skript-Spiegelpass nicht ausgefuehrt, chat_id=%s", chat_id)
     # Und zusaetzlich als Fassung ans Ende von ``szenenfassung`` (06.09.2026):
     # "Neu schreiben" ersetzte bis dahin den Volltext, und die Gruppe konnte
     # nicht zurueck. Reines Anhaengen, nie Aendern -- ``szene.volltext``

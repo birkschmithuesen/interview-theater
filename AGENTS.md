@@ -123,7 +123,10 @@ Je Modul ein Satz (Volltext mit Begründungen: `docs/agents/aufbau.md`):
 Ohne eigene Zeile hier (siehe Docstring): `arbeitszeilen.py`,
 `begriffe.py`, `begriffsboard_analyse.py`, `brainstorm.py`,
 `buehnenkarte.py`, `cothinker_status.py`, `diskussion.py`, `entwurf.py`,
-`fragen_auswertung.py`, `fragen_ki.py`, `handykarten.py`, `modellwahl.py`.
+`fragen_auswertung.py`, `fragen_ki.py`, `handykarten.py`, `modellwahl.py`,
+`skript_uebersetzung.py` (EN/IT-Spiegelpass der Szenenprosa, Padua-
+Profilschalter `[skript] zweisprachig`, neue Spalte `szene.prosa_it`,
+Birk 07.10.2026 ~17:20).
 
 **Wo man anfängt** (vollständige Tabelle: `docs/agents/aufbau.md`):
 

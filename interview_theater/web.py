@@ -1166,6 +1166,13 @@ _TEXT_ROLLE = "Rolle"
 _TEXT_ALLE = "alle"
 _TEXT_BESETZUNG = "Besetzung: {figuren}"
 _TEXT_ALS_GESCHICHTE_DOPPELPUNKT = "Als Geschichte:"
+# Zweisprachiges Textbuch (Birk, Live-Workshop 07.10.2026 ~17:20,
+# Padua-Profilschalter [skript] zweisprachig): nur sichtbar, wenn eine
+# Szene ``prosa_it`` traegt -- sonst bleibt es bei der einsprachigen
+# Zeile oben.
+_TEXT_ALS_GESCHICHTE_EN = "Als Geschichte (Englisch):"
+_TEXT_ALS_GESCHICHTE_IT = "Als Geschichte (Italienisch):"
+_TEXT_KERNSAETZE_IT = "Kernsätze (italienisches Original):"
 # Leitfaden-Seite
 _TITEL_LEITFADEN = "Leitfaden — {titel}"
 _TEXT_VORHER_SAGEN = "Vorher sagen: {text}"
@@ -4461,17 +4468,27 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
         )
     volltext = (s.get("volltext") or "").strip()
     prosa = (s.get("prosa") or "").strip()
+    # Die italienische Spiegelung (Birk, Live-Workshop 07.10.2026 ~17:20,
+    # Padua-Profilschalter [skript] zweisprachig): nur gesetzt, wenn der
+    # Spiegelpass gelaufen ist. Ohne sie bleibt diese ganze Ansicht
+    # byte-gleich -- der Zweig unten greift rein datengetrieben.
+    prosa_it = (s.get("prosa_it") or "").strip()
     sprecher: list[str] = []
     if volltext:
         koerper, sprecher = szenentext_html(volltext, bekannte)
         zeilen.append(f'<div class="text">{koerper}</div>')
     else:
+        planungsfelder = T._PROBE_PLANUNG
+        if prosa_it:
+            # Kernsaetze sind das italienische Originalzitat -- sie gehoeren
+            # zum IT-Block unten, nicht in die sonst englische Planungsliste.
+            planungsfelder = [f for f in planungsfelder if f[0] != "kernsaetze"]
         planung = "".join(
             f"<dt>{_t(label)}</dt><dd>{_planung_wert_html(feld, s[feld])}</dd>"
-            for feld, label in T._PROBE_PLANUNG
+            for feld, label in planungsfelder
             if s.get(feld)
         )
-        if not prosa:
+        if not prosa and not prosa_it:
             # P57 Lauf 2 B2: "Noch nicht geschrieben" nur ohne Prosa -- mit
             # Prosa stand es ueber dem vorhandenen Szenentext (Padua 5/6).
             zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
@@ -4479,10 +4496,22 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
             # Die Prosafassung aus Phase 6 ist der eigene Text der Gruppe und
             # kein Material -- sie steht hier, wo sonst nichts stuende, und
             # sagt dazu, dass sie noch keine Szene ist.
+            etikett = T._TEXT_ALS_GESCHICHTE_EN if prosa_it else T._TEXT_ALS_GESCHICHTE_DOPPELPUNKT
             zeilen.append(
-                f'<p class="angaben">{_t(T._TEXT_ALS_GESCHICHTE_DOPPELPUNKT)}</p><div class="text">'
+                f'<p class="angaben">{_t(etikett)}</p><div class="text">'
                 f'{_prosa_absaetze_html(prosa)}</div>'
             )
+        if prosa_it:
+            zeilen.append(
+                f'<p class="angaben">{_t(T._TEXT_ALS_GESCHICHTE_IT)}</p><div class="text">'
+                f'{_prosa_absaetze_html(prosa_it)}</div>'
+            )
+            kernsaetze_roh = (s.get("kernsaetze") or "").strip()
+            if kernsaetze_roh:
+                zeilen.append(
+                    f'<p class="angaben">{_t(T._TEXT_KERNSAETZE_IT)}</p>'
+                    f'{_prosa_absaetze_html(kernsaetze_roh)}'
+                )
         if planung:
             zeilen.append(f'<dl class="planung">{planung}</dl>')
     bloecke = _fassungen_bloecke_html(s, volltext or prosa)

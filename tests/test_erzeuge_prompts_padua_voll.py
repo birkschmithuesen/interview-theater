@@ -183,10 +183,11 @@ def test_begriffsboard_dump_nennt_keine_blosse_erwaehnung(tmp_path):
 # --- Scope p57 (Task 5, Karte t_db7c6b2c): Phase 5-7, offline -------------
 
 
-#: Die 25 Dumps, fuer die dieser Scope Treiber hat.
+#: Die 26 Dumps, fuer die dieser Scope Treiber hat.
 TEIL_P5_P7 = (
     "08-gespraech-phase5", "21-schaerfung", "22-entwurf-uebersicht",
     "23-sprachprofil", "24-kernzitate", "04-szene-prosa-phase6",
+    "45-skript-spiegel",
     "02-gespraech-phase6", "25-kurzgeschichte", "03-kurzgeschichte-phase6",
     "35-dramaturgie-b1", "36-dramaturgie-a2", "37-dramaturgie-a6",
     "38-dramaturgie-a9", "39-dramaturgie-a10", "40-dramaturgie-a11",

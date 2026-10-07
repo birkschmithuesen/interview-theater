@@ -3074,6 +3074,25 @@ def aktualisiere_szene(
     conn.commit()
 
 
+@_gesperrt
+def setze_szene_uebersetzung(
+    conn: sqlite3.Connection, szene_id: int, prosa_en: str, prosa_it: str
+) -> None:
+    """Ueberschreibt die Prosa einer Szene mit ihrer EN/IT-Spiegelung
+    (``skript_uebersetzung.spiegel``, Padua-Profilschalter
+    ``[skript] zweisprachig``).
+
+    ``prosa`` bekommt die zitat-saubere EN-Fassung (ersetzt den Rohtext aus
+    dem Szenenlauf), ``prosa_it`` die italienische Spiegelung. Kein eigenes
+    ``geaendert_am``: der Szenenlauf, der diese Prosa erst geschrieben hat,
+    hat es gerade gesetzt."""
+    conn.execute(
+        "UPDATE szene SET prosa = ?, prosa_it = ? WHERE id = ?",
+        (prosa_en, prosa_it, szene_id),
+    )
+    conn.commit()
+
+
 #: Die Szenenfelder, die einzeln gesetzt werden duerfen (Erkenner-art
 #: ``szene_planen``, Befehl ``/szene <n> <feld> <wert>``). ``figuren`` steht
 #: hier NICHT: die Besetzung ist eine Verknuepfung, keine Spalte

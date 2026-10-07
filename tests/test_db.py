@@ -250,6 +250,33 @@ def test_migration_ergaenzt_phase_und_entfernt_am_ohne_datenverlust(tmp_path):
     assert len(repo.journal(c, 1)) == 1
 
 
+def test_migration_ergaenzt_szene_prosa_it_ohne_datenverlust(tmp_path):
+    """Der EN/IT-Spiegelpass (Birk, Live-Workshop 07.10.2026, Padua-
+    Profilschalter ``[skript] zweisprachig``) braucht ``szene.prosa_it`` --
+    eine Datenbank von vorher kennt sie nicht und darf ihren Volltext
+    trotzdem nicht verlieren."""
+    c = db.verbinde(str(tmp_path / "alt.db"))
+    c.executescript(_ALTE_TABELLEN)
+    c.execute(
+        "INSERT INTO szene (chat_id, nummer, titel, volltext, geaendert_am) "
+        "VALUES (1, 1, 'Am Bahnhof', 'MARIA: Hier.', '2026-09-04T10:00:00+00:00')"
+    )
+    c.commit()
+    vorhanden = [r[1] for r in c.execute("PRAGMA table_info(szene)")]
+    assert "prosa_it" not in vorhanden, "Testannahme: die Spalte fehlt wirklich"
+
+    db.initialisiere(c)
+
+    zeile = c.execute("SELECT * FROM szene WHERE chat_id = 1").fetchone()
+    assert zeile["titel"] == "Am Bahnhof", "Migration darf keine Daten verlieren"
+    assert zeile["prosa_it"] is None
+    c.execute("UPDATE szene SET prosa_it = ? WHERE chat_id = 1", ("Testo italiano.",))
+    c.commit()
+    assert c.execute(
+        "SELECT prosa_it FROM szene WHERE chat_id = 1"
+    ).fetchone()[0] == "Testo italiano."
+
+
 # ---------------------------------------------------------------------------
 # Phasennummern-Migration (db._migriere_phasennummern), drei Stufen
 # ---------------------------------------------------------------------------

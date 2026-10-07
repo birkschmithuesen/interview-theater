@@ -463,15 +463,10 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         from interview_theater import entwurf, workshop
 
         tg.sende(chat_id, kopf)
-        # Karte t_c5117c91 ("the frame stands"): der Research-Knopf steht
-        # ab hier direkt unter der Eintrittsnachricht, nur mit dem
-        # Profilschalter ``recherche.aktiv`` -- Dortmund (Schalter aus)
-        # bleibt unberuehrt. Eigene Nachricht, kein Modellaufruf hier
-        # (``szenen.biete_recherche`` legt nur einen Knopf an).
-        if workshop.recherche_aktiv():
-            from interview_theater.knoepfe.szenen import biete_recherche
-
-            biete_recherche(conn, tg, chat_id)
+        # Birk 07.10.2026 14:15: KEIN Research-Knopf mehr beim Eintritt in
+        # Phase 5 (Karte t_c5117c91 hatte ihn hier gesetzt) -- der Eintritt
+        # soll schlank bleiben (2 Knoepfe nach der Zuordnung). Recherche
+        # bleibt auf Anfrage im Chat moeglich (Erkenner ``recherche_starten``).
         # Padua Phasen TEIL 1 (03.10.2026): nur unter dem Profilschalter
         # ``[prosa_entwurf] aktiv`` startet nach dem Mapping zusaetzlich die
         # Stufe-A-Uebersicht -- Dortmund (und jedes Profil ohne die Zeile)

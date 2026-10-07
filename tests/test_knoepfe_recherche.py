@@ -131,17 +131,17 @@ def test_starte_recherche_lauf_ohne_treffer_sagt_das(conn, monkeypatch):
 # --- Wo der Knopf erscheint (Karte t_c5117c91) ------------------------------
 
 
-def test_phase_5_eintritt_bietet_recherche_mit_aktivem_profilschalter(conn, padua, monkeypatch):
-    """Start von Phase 5 ("frame stands"): der Research-Knopf steht unter
-    der Eintrittsnachricht, direkt neben dem automatischen Schaerfungslauf.
-    Mutant: der Knopf fehlt beim Eintritt."""
+def test_phase_5_eintritt_ohne_recherche_knopf_auch_mit_profilschalter(conn, padua, monkeypatch):
+    """Birk 07.10.2026 14:15: beim Eintritt in Phase 5 steht KEIN
+    Research-Knopf mehr, auch nicht mit ``recherche.aktiv`` (Padua).
+    Mutant: der Knopf erscheint wieder beim Eintritt."""
     monkeypatch.setattr(schaerfung, "starte", lambda *a, **k: None)
     tg = TelegramAttrappe()
 
     knoepfe.eintritt_in_phase(conn, tg, object(), None, CHAT, knoepfe.PHASE_SCHAERFUNG)
 
     knoepfe_texte = [text for _, text, _ in tg.mit_knoepfen]
-    assert any(knoepfe.T._TEXT_RECHERCHE_ANBIETEN == t for t in knoepfe_texte)
+    assert knoepfe.T._TEXT_RECHERCHE_ANBIETEN not in knoepfe_texte
 
 
 def test_phase_5_eintritt_ohne_profilschalter_bietet_nichts(conn, ohne_profil, monkeypatch):

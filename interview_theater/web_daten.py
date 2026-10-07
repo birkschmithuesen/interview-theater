@@ -1554,6 +1554,11 @@ def _interviewbezeichnungen(conn: sqlite3.Connection, chat_id: int) -> dict[int,
     return {z["id"]: f"Interview {n}" for n, z in enumerate(zeilen, start=1)}
 
 
+#: Hoechstzahl offener Vorschlaege je Szene/Figur in der Sortierliste
+#: (Birk 07.10.2026 14:30).
+SCHAERFUNGSLISTE_JE_ZIEL = 5
+
+
 def schaerfungsliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
     """Die Sortierliste der Schaerfung im CoThinker (Padua, ab Phase 5,
     07.10.2026, "Show more" war unsinnig): ALLE offenen Zuordnungen,
@@ -1572,7 +1577,7 @@ def schaerfungsliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
     try:
         zeilen = conn.execute(
             "SELECT s.id, s.szene_id, s.figur_id, s.staerke, s.runde, "
-            "       s.begruendung, s.entscheidung, "
+            "       s.begruendung, s.entscheidung, s.verdichtung_thema_id AS thema_id, "
             "       t.thema AS thema, t.beleg_zitat AS zitat, v.aufnahme_id AS aufnahme_id "
             "FROM schaerfung s "
             "JOIN verdichtung_thema t ON t.id = s.verdichtung_thema_id "
@@ -1591,10 +1596,27 @@ def schaerfungsliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
     zaehler = {"ja": 0, "nein": 0, "offen": 0}
     je_szene: dict[int, list] = {}
     je_figur: dict[int, list] = {}
+    # Birk 07.10.2026 14:30 ("266 viel zu viel, schwer zu folgen"): je
+    # Interviewstelle nur EIN Ziel (das staerkste, Zeilen kommen nach Staerke
+    # sortiert) und je Szene/Figur hoechstens SCHAERFUNGSLISTE_JE_ZIEL offene
+    # Vorschlaege. Bereits entschiedene (Yes/No) bleiben immer sichtbar. Was
+    # ausgeblendet ist, bleibt offen in der DB -- "Done" laesst es stehen.
+    gesehen_themen: set = set()
+    offen_je_ziel: dict = {}
     for z in zeilen:
         zustand = _feld(z, "entscheidung") or ""
         if zustand not in ("ja", "nein"):
             zustand = ""
+        ziel = ("s", z["szene_id"]) if z["szene_id"] is not None else ("f", z["figur_id"])
+        if not zustand:
+            thema_id = _feld(z, "thema_id")
+            if thema_id is not None and thema_id in gesehen_themen:
+                continue
+            if offen_je_ziel.get(ziel, 0) >= SCHAERFUNGSLISTE_JE_ZIEL:
+                continue
+            offen_je_ziel[ziel] = offen_je_ziel.get(ziel, 0) + 1
+            if thema_id is not None:
+                gesehen_themen.add(thema_id)
         zaehler[zustand or "offen"] += 1
         eintrag = {
             "id": z["id"],

@@ -412,7 +412,7 @@ def test_schaerfungsliste_html_rendert_gruppen_und_knoepfe():
     assert seite.startswith(
         '<div id="buehne-panel" data-ansicht="auswahl" data-liste="schaerfung">'
     )
-    assert "Im Treppenhaus" in seite and ">Mira<" in seite
+    assert "Im Treppenhaus" in seite and ">Mira <" in seite
     assert '<li data-nummer="11" data-zustand="ja">' in seite
     assert '<li data-nummer="12" data-zustand="offen">' in seite
     assert ZITAT_A in seite and ZITAT_B in seite
@@ -527,3 +527,44 @@ def test_auswahl_skript_traegt_beide_zaehlervorlagen(web_db, monkeypatch):
     assert "ZAEHLER = { fragen:" in seite and "schaerfung:" in seite
     assert "__AUSWAHL_ZAEHLER_FRAGEN__" not in seite
     assert "__AUSWAHL_ZAEHLER_SCHAERFUNG__" not in seite
+
+
+def test_schaerfungsliste_html_erklaert_und_zeigt_verbindung_zuerst():
+    """Birk 07.10.2026 14:30: Erklaerzeile oben, je Gruppe die Anzahl, und
+    die Verbindung (→ Begruendung) steht VOR dem Zitat."""
+    seite = web._schaerfungsliste_html(LISTE)
+    assert 'class="schaerfung-erklaerung"' in seite
+    assert "→ Mira kommt daher" in seite
+    assert seite.index("→ Mira kommt daher") < seite.index(ZITAT_A)
+
+
+def test_schaerfungsliste_begrenzt_je_ziel_und_zeigt_jede_stelle_nur_einmal(monkeypatch):
+    """Birk 07.10.2026 14:30 ("266 viel zu viel"): hoechstens N offene je
+    Ziel, eine Interviewstelle nur beim staerksten Ziel. Mutant: Grenze
+    entfernt -> 8 offene statt 3."""
+    import sqlite3
+    from interview_theater import web_daten
+    monkeypatch.setattr(web_daten, "SCHAERFUNGSLISTE_JE_ZIEL", 3)
+    c = sqlite3.connect(":memory:"); c.row_factory = sqlite3.Row
+    c.executescript("""
+    create table schaerfung(id integer primary key, chat_id, verdichtung_thema_id, szene_id, figur_id,
+      begruendung, runde, uebernommen_am, erstellt_am, entfernt_am, staerke, entscheidung);
+    create table verdichtung_thema(id integer primary key, verdichtung_id, thema, beleg_zitat);
+    create table verdichtung(id integer primary key, aufnahme_id, entfernt_am);
+    create table szene(id integer primary key, chat_id, nummer, titel, entfernt_am);
+    create table figur(id integer primary key, chat_id, name, entfernt_am);
+    insert into verdichtung values(1, 1, null);
+    insert into figur values(1, 1, 'A', null); insert into figur values(2, 1, 'B', null);
+    """)
+    for t in range(1, 7):
+        c.execute("insert into verdichtung_thema values(?,1,?,?)", (t, f"T{t}", f"Z{t}"))
+        c.execute("insert into schaerfung(chat_id,verdichtung_thema_id,figur_id,begruendung,runde,staerke)"
+                  " values(1,?,1,'b',1,3)", (t,))
+        c.execute("insert into schaerfung(chat_id,verdichtung_thema_id,figur_id,begruendung,runde,staerke)"
+                  " values(1,?,2,'b',1,2)", (t,))
+    monkeypatch.setattr(web_daten, "_interviewbezeichnungen", lambda conn, chat_id: {})
+    daten = web_daten.schaerfungsliste(c, 1)
+    je = {g["name"]: [e["titel"] for e in g["eintraege"]] for g in daten["gruppen"]}
+    assert je["A"] == ["T1", "T2", "T3"]
+    assert je["B"] == ["T4", "T5", "T6"]
+    assert daten["zaehler"]["offen"] == 6

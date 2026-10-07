@@ -1517,6 +1517,9 @@ ul.auswahl > li[data-zustand="ja"] .auswahl-text { font-weight: 600; }
 .schaerfung-titel { display: block; font-family: var(--schrift-skript); font-weight: 700; }
 .schaerfung-zitat { margin: .3rem 0; padding: 0 0 0 .6rem; border-left: 2px solid var(--linie);
                     font-style: italic; color: var(--text); }
+.schaerfung-erklaerung { margin: 0 0 .5rem; color: var(--text-leise); font-size: .9em; }
+.schaerfung-verbindung { margin: 0 0 .2rem; font-weight: 700; }
+.schaerfung-quelle { display: block; color: var(--text-leise); font-size: .8em; }
 .schaerfung-begruendung { margin: .2rem 0 0; color: var(--text-leise); font-size: .9em; }
 """
 #: Die read-only Werkbank (Padua, 03.10.2026, Birk: "Anstatt roter und gruener

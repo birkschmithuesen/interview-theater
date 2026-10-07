@@ -1,15 +1,18 @@
 """Flow-Audit Schicht 1 (statisch, kein Modellaufruf, SPEC siehe
 ``simulation/flow_audit.py``).
 
-Geltungsbereich dieser Karte: AUSSCHLIESSLICH Phase 1 (Begriffe/Terms) und
-Phase 2 (Fragen/Questions), Padua-Profil, Code-Stand 04.10.2026. Phase 3-7
-sind absichtlich nicht Teil dieser Liste -- eine aeltere Fassung mit
-Phase 3-7 existiert als Referenz unter ``.flow_audit_ref/`` (vor dem
-Phase-1/2-Umbau geschrieben) und ist nicht mehr gueltig.
+Geltungsbereich dieser Karte: {1, 2, 5} -- Phase 1 (Begriffe/Terms), Phase 2
+(Fragen/Questions) und Phase 5 (Prose Draft), Padua-Profil, Code-Stand
+07.10.2026 (t_db7c6b2c). Phase 5 kam bewusst verengt dazu -- Phase 6+7
+bleiben einer spaeteren Karte vorbehalten. Phase 3-4 sind weiterhin
+absichtlich nicht Teil dieser Liste -- eine aeltere Fassung mit Phase 3-7
+existiert als Referenz unter ``.flow_audit_ref/`` (vor dem Phase-1/2-Umbau
+geschrieben) und ist nicht mehr gueltig.
 
 Diese Suite haelt fuenf Dinge fest:
 
-1. Die Erwartungsliste deckt genau {1, 2} ab, nicht mehr und nicht weniger.
+1. Die Erwartungsliste deckt genau {1, 2, 5} ab, nicht mehr und nicht
+   weniger.
 2. Keine ``geist``-Befunde: jeder in der Liste genannte Intent/Knopf
    existiert im heutigen Code.
 3. Die zwei ehemals bekannten "roten" Befunde sind seit dem ``code_pfad``-
@@ -37,14 +40,14 @@ from __future__ import annotations
 from simulation import flow_audit
 
 
-def test_erwartungsliste_deckt_phase_1_und_2_ab():
-    """Diese Karte grenzt den Umfang bewusst auf Phase 1+2 ein -- eine
-    Zeile fuer Phase 3-7 waere hier falsch (das ist nicht ``range(1, 8)``
-    wie in der alten, vor-refactor Referenzfassung unter
-    ``.flow_audit_ref/``)."""
+def test_erwartungsliste_deckt_phase_1_2_5_ab():
+    """Diese Karte grenzt den Umfang bewusst auf {1, 2, 5} ein -- eine
+    Zeile fuer Phase 3, 4, 6 oder 7 waere hier falsch (das ist nicht
+    ``range(1, 8)`` wie in der alten, vor-refactor Referenzfassung unter
+    ``.flow_audit_ref/``; Phase 6+7 sind einer spaeteren Karte vorbehalten)."""
     handlungen = flow_audit.lade_erwartungen()
     phasen_mit_eintrag = {h.phase for h in handlungen}
-    assert phasen_mit_eintrag == {1, 2}
+    assert phasen_mit_eintrag == {1, 2, 5}
 
 
 def test_keine_veraltete_erwartung_im_heutigen_code():
@@ -245,6 +248,46 @@ def test_mutationsprobe_entfernter_intent_wird_als_toter_weg_gemeldet(monkeypatc
     nachher = flow_audit.pruefe()
     assert not any(
         b.aktion.startswith("Begriffe per Chat nennen") for b in nachher
+    )
+    assert nachher == vorher
+
+
+def test_mutationsprobe_schaerfung_entscheidung_wird_als_toter_weg_gemeldet(monkeypatch):
+    """Dieselbe Mutationsprobe wie oben, diesmal fuer einen Phase-5-Intent:
+    nimmt ``schaerfung_entscheidung`` **im echten Erkenner-Modul** per
+    Monkeypatch heraus. Die TOML-Zeile dazu traegt zusaetzlich einen echten
+    Knopf (ART_SCHAERFUNG_SZENE|ART_SCHAERFUNG_FIGUR|ART_SCHAERFUNG_KEINE),
+    wird also ``toter_gespraechsweg`` und nicht ``sackgasse``."""
+    vorher = flow_audit.pruefe()
+    assert not any(
+        "Schaerfungsstelle per Chat annehmen" in b.aktion for b in vorher
+    )
+
+    from interview_theater import erkenner
+
+    monkeypatch.setattr(
+        erkenner, "ARTEN",
+        tuple(a for a in erkenner.ARTEN if a != "schaerfung_entscheidung"),
+    )
+
+    waehrend_mutation = flow_audit.pruefe()
+    treffer = [
+        b for b in waehrend_mutation
+        if "Schaerfungsstelle per Chat annehmen" in b.aktion
+        and b.schwere == "toter_gespraechsweg"
+    ]
+    assert len(treffer) == 1
+
+    geister = [
+        b for b in waehrend_mutation
+        if b.schwere == "geist" and "schaerfung_entscheidung" in b.was_fehlt
+    ]
+    assert len(geister) == 1
+
+    monkeypatch.undo()
+    nachher = flow_audit.pruefe()
+    assert not any(
+        "Schaerfungsstelle per Chat annehmen" in b.aktion for b in nachher
     )
     assert nachher == vorher
 

@@ -691,3 +691,19 @@ def test_matcher_hintergrund_voll_nur_mit_profilschalter(monkeypatch):
 
 class _Stand(dict):
     pass
+
+
+def test_ziele_ohne_figuren_fuer_selbstspielende_gruppe(monkeypatch):
+    """Birk 07.10.2026 15:10: Gruppen im Profilschalter bekommen nur Szenen
+    als Ziele; ohne Szenen bleiben die Figuren (sonst gaebe es gar kein Ziel).
+    Mutant: Schalter ignoriert -> Figur taucht auf."""
+    from interview_theater import repo, schaerfung, workshop
+    szene = {"id": 1, "nummer": 1, "titel": "A", "was_passiert": "x", "form": None}
+    figur = {"id": 9, "name": "F", "beschreibung": "y"}
+    monkeypatch.setattr(repo, "figuren", lambda conn, chat_id: [figur])
+    monkeypatch.setattr(workshop, "schaerfung_ohne_figuren_chats", lambda *a, **k: frozenset({5}))
+    monkeypatch.setattr(repo, "hole_szenen", lambda conn, chat_id: [szene])
+    assert [z["art"] for z in schaerfung._ziele(None, 5)] == ["szene"]
+    assert [z["art"] for z in schaerfung._ziele(None, 6)] == ["szene", "figur"]
+    monkeypatch.setattr(repo, "hole_szenen", lambda conn, chat_id: [])
+    assert [z["art"] for z in schaerfung._ziele(None, 5)] == ["figur"]

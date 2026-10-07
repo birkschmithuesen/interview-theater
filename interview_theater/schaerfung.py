@@ -336,7 +336,14 @@ def _ziele(conn, chat_id: int) -> list[dict]:
             "titel": szene["titel"] or "", "was_passiert": szene["was_passiert"] or "",
             "form": szene["form"] or "",
         })
-    for figur in repo.figuren(conn, chat_id):
+    # Birk 07.10.2026 15:10 (G1): spielen die Performer sich selbst (keine
+    # erfundenen Figuren), ergibt eine Zuordnung Interview -> Figur keinen
+    # Sinn -- dann nur Szenen als Ziele. Profilschalter je Gruppe
+    # (``schaerfung.ohne_figuren_chats``); nur wirksam, wenn es Szenen gibt.
+    from interview_theater import workshop
+
+    nur_szenen = bool(ziele) and chat_id in workshop.schaerfung_ohne_figuren_chats()
+    for figur in ([] if nur_szenen else repo.figuren(conn, chat_id)):
         ziele.append({
             "art": "figur", "id": figur["id"], "name": figur["name"],
             "beschreibung": (figur["beschreibung"] or "").strip(),

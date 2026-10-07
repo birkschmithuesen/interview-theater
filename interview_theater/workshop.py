@@ -1062,6 +1062,14 @@ def prueflauf_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("prueflauf.aktiv", False))
 
 
+def schaerfung_ohne_figuren_chats(profil: Profil | None = None) -> frozenset[int]:
+    """Gruppen, deren Interview-Zuordnung (Phase 5) nur auf Szenen laeuft,
+    nicht auf Figuren -- weil die Performer sich selbst spielen (Birk
+    07.10.2026, G1). Vorgabe leer."""
+    profil = profil or aktiv()
+    return frozenset(int(c) for c in (profil.wert("schaerfung.ohne_figuren_chats", []) or []))
+
+
 def musik_chats(profil: Profil | None = None) -> frozenset[int]:
     """Gruppen (chat_id), fuer die der Formberater auch die musikalischen
     Strukturen nachschlagen darf (Birk 07.10.2026, G1 Padua). Vorgabe leer:

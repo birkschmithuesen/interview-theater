@@ -287,3 +287,8 @@ aktiv = true
 # Musikalische Strukturen (Wiki musikalische-strukturen) nur fuer diese Gruppen
 # (Birk 07.10.2026: G1 arbeitet mit Musiktheorie; Testbot zum Testen).
 musik_chats = [7000000000000, 7000000000099]
+
+# Interview-Zuordnung nur auf Szenen, nicht auf Figuren (Birk 07.10.2026 15:10):
+# G1 spielt sich selbst ("channels for the interviews"), Figuren-Zuordnung ergibt keinen Sinn.
+[schaerfung]
+ohne_figuren_chats = [7000000000000]

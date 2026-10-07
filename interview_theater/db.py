@@ -1327,7 +1327,8 @@ CREATE TABLE IF NOT EXISTS uebersetzung (
 --
 -- ausloeser: 'stichwort' (deterministischer Treffer, kein Modellaufruf),
 -- 'laufend' (Modellaufruf in Phase 4 nach einem neuen Treffer), 'einstieg'
--- (einmalig beim Eintritt in Phase 5), 'knopf' ("Weitere Formen").
+-- (einmalig beim Eintritt in Phase 5), 'brainstorm' (einmal synchron vor
+-- der Antwort auf den bei "Discussion done" eingespeisten Brainstorm).
 -- formen: JSON-Liste von Slugs (Dateinamen ohne .md), leer, wenn der
 -- Aufruf scheiterte. signale: JSON-Liste der Stichwoerter, die diesen
 -- Aufruf ausgeloest haben -- die Delta-Logik liest sie, damit dasselbe

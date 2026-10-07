@@ -97,6 +97,14 @@ MAX_JE_AUFRUF = 4
 MAX_LAUFEND = 8
 MIN_ABSTAND_S = 90.0
 
+#: Birk 07.10.2026: kommt der Brainstorm bei "Discussion done" als EINE
+#: Chatnachricht herein, laeuft der Modellaufruf EINMAL synchron VOR der
+#: Antwort (sonst wirkte er erst ab dem naechsten Zug) -- mit hartem
+#: Zeitlimit, danach weiter wie bisher im Hintergrund.
+AUSLOESER_BRAINSTORM = "brainstorm"
+BRAINSTORM_ZEICHEN = 30_000
+BRAINSTORM_WARTEN_S = 45.0
+
 #: Wie viele Beitraege der Gruppe hoechstens in den Aufruf gehen, und wie
 #: viele Zeichen davon (das Juengste gewinnt).
 BEITRAEGE = 30
@@ -407,6 +415,15 @@ def kontextblock(conn, chat_id: int, phase: int | None = None) -> str:
 _zuletzt_gestartet: dict[int, float] = {}
 
 
+def ist_brainstorm(texte: list[str]) -> bool:
+    """Steckt unter den neuen Beitraegen der bei "Discussion done"
+    eingespeiste Brainstorm (``aufnahme._BRAINSTORM_EINSPEISUNG_PRAEFIX``)?"""
+    from interview_theater import aufnahme
+
+    praefix = aufnahme._BRAINSTORM_EINSPEISUNG_PRAEFIX.strip()
+    return any((t or "").lstrip().startswith(praefix) for t in texte)
+
+
 def pruefe_zug(conn, tg, klm, e, chat_id: int, texte: list[str],
                phase: int | None = None) -> threading.Thread | None:
     """Stufe 1 fuer einen Gespraechszug: ``texte`` sind die neuen Beitraege
@@ -422,6 +439,16 @@ def pruefe_zug(conn, tg, klm, e, chat_id: int, texte: list[str],
         phase = phasen.aktuelle(conn, chat_id)
     if phase < PHASE_AB:
         return None
+    if klm is not None and ist_brainstorm(texte):
+        faden = starte(conn, tg, klm, e, chat_id, AUSLOESER_BRAINSTORM,
+                       signale=treffer_signale("\n".join(texte))[:20])
+        if faden is not None:
+            _zuletzt_gestartet[chat_id] = time.monotonic()
+            faden.join(BRAINSTORM_WARTEN_S)
+            if faden.is_alive():
+                log.warning("Formberater-Brainstorm ueber %ss, Antwort ohne ihn, chat_id=%s",
+                            BRAINSTORM_WARTEN_S, chat_id)
+            return faden
     text = "\n".join(t for t in texte if t)
     formen = treffer_formen(text)
     signale = treffer_signale(text) if phase == PHASE_LAUFEND else []
@@ -529,11 +556,26 @@ def _beitraege(conn, chat_id: int) -> list[str]:
     summe = 0
     for text in reversed(texte):
         text = " ".join(text.split())
+        if not behalten and len(text) > BEITRAEGE_ZEICHEN:
+            # Birk 07.10.2026: der bei "Discussion done" eingespeiste
+            # Brainstorm ist EINE Nachricht mit 25k+ Zeichen -- frueher fiel
+            # sie hier komplett weg. Jetzt: Kopf + Schluss behalten.
+            text = _kuerze(text, BRAINSTORM_ZEICHEN)
+            behalten.append(text)
+            summe += len(text)
+            continue
         if summe + len(text) > BEITRAEGE_ZEICHEN:
             break
         behalten.append(text)
         summe += len(text)
     return list(reversed(behalten))
+
+
+def _kuerze(text: str, grenze: int) -> str:
+    if len(text) <= grenze:
+        return text
+    haelfte = grenze // 2
+    return text[:haelfte] + " [...] " + text[-haelfte:]
 
 
 def baue_nutzertext(conn, chat_id: int, schon: list[str], ausloeser: str,

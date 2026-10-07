@@ -46,7 +46,7 @@ def test_uebergangsangebot_verspricht_keine_szenenvorschau(padua):
     phase = _flach(anweisungen.hole("phasen/4"))
     assert "never previews the scene" in phase
     assert "Shall I write scene 1 now" in phase
-    assert "`Place:`/`Who:`/`What happens:`" in phase
+    assert "`Place:`, `Who:` and `What happens:`" in phase
     # ausserhalb der Abwehrzeile selbst darf das Szenenformat nicht auftauchen
     abwehr_index = phase.index("never previews the scene")
     rest = phase[:abwehr_index] + phase[abwehr_index + 400:]

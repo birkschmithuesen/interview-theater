@@ -1904,12 +1904,15 @@ def _regienotizen(conn, chat_id: int, nummer: int | None) -> list[str]:
     ]
 
 
-#: Hoechstzahl Zeichen fuer den Phase-5-Gespraechsblock (Birk 07.10.2026
-#: 15:10); bei mehr faellt das AELTESTE vorn weg.
+#: Hoechstzahl Zeichen fuer den Phase-5-Gespraechsblock; bei mehr faellt das
+#: AELTESTE vorn weg. Birk 07.10.2026 15:15: "das KOMPLETTE Gespraech" --
+#: auf dem Claude-Pfad 150.000 Zeichen (~79k Token von 126k Budget), das
+#: deckt einen ganzen Workshop-Nachmittag; Kimi-Pfad bleibt bei 30.000.
 P5_GESPRAECH_ZEICHEN = 30_000
+P5_GESPRAECH_ZEICHEN_CLAUDE = 150_000
 
 
-def _p5_gespraech_text(conn, chat_id: int) -> str:
+def _p5_gespraech_text(conn, chat_id: int, ueber_claude: bool = False) -> str:
     """Block: das GANZE Gespraech seit dem (letzten) Eintritt in Phase 5 --
     dort redet die Gruppe ueber die Interviews (Birk 07.10.2026 15:10: "der
     Prosa-Erzeuger soll die Diskussion mit den Interviews einbeziehen").
@@ -1934,7 +1937,8 @@ def _p5_gespraech_text(conn, chat_id: int) -> str:
         text = (n["text"] or "").strip()
         if text:
             zeilen.append(f"{du if n['ist_bot'] else gruppe}: {text}")
-    while zeilen and sum(len(z) + 1 for z in zeilen) > P5_GESPRAECH_ZEICHEN:
+    grenze = P5_GESPRAECH_ZEICHEN_CLAUDE if ueber_claude else P5_GESPRAECH_ZEICHEN
+    while zeilen and sum(len(z) + 1 for z in zeilen) > grenze:
         zeilen.pop(0)
     if not zeilen:
         return ""
@@ -2092,7 +2096,7 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
             "verworfen": _verworfen_text(conn, chat_id),
             "chat": _chat_text(conn, chat_id, ziel, nummer, chat_anzahl),
             # Birk 07.10.2026 15:10: die Interview-Diskussion aus Phase 5.
-            "p5_gespraech": _p5_gespraech_text(conn, chat_id),
+            "p5_gespraech": _p5_gespraech_text(conn, chat_id, ueber_claude),
             "aufgabe": _aufgabe_text(conn, chat_id, ziel),
             "laenge": _laenge_text(conn, chat_id, ziel),
             "diese_szene": _diese_szene_text(

@@ -476,3 +476,41 @@ def test_formen_nah_aus_letztem_formberater_passt(monkeypatch):
     assert web_daten._formen_nah(None, 1) == "Beta"
     monkeypatch.setattr(repo, "formberater_zeilen", lambda conn, chat_id: [])
     assert web_daten._formen_nah(None, 1) == ""
+
+
+def test_schaerfungsliste_ist_fest_kein_nachruecker_nach_yes(tmp_path):
+    """G1 07.10.2026 ~17:10: nach Yes/No rueckten neue Vorschlaege nach (endlos).
+    Mutant: entschiedene zaehlen nicht zur Obergrenze -> rot."""
+    import sqlite3
+    from interview_theater import web_daten
+    c = sqlite3.connect(":memory:"); c.row_factory = sqlite3.Row
+    c.executescript("""
+    create table szene(id integer primary key, chat_id, nummer, titel, entfernt_am);
+    create table figur(id integer primary key, chat_id, name, entfernt_am);
+    insert into szene values (1, 1, 1, 'A', null);
+    """)
+    zeilen = []
+    for i in range(1, 9):
+        zeilen.append({"id": i, "szene_id": 1, "figur_id": None, "staerke": 9 - i, "runde": 1,
+                       "begruendung": f"b{i}", "entscheidung": None, "thema_id": i,
+                       "thema": f"t{i}", "zitat": f"z{i}", "aufnahme_id": 1})
+    import interview_theater.web_daten as wd
+    orig = wd._interviewbezeichnungen
+    wd._interviewbezeichnungen = lambda conn, chat_id: {1: "Interview 1"}
+
+    class C:
+        def __init__(self, z): self.z = z
+        def execute(self, sql, args=()):
+            if "FROM schaerfung" in sql:
+                class R:
+                    def __init__(s, z): s.z = z
+                    def fetchall(s): return s.z
+                return R(self.z)
+            return c.execute(sql, args)
+    try:
+        vorher = [e["id"] for e in wd.schaerfungsliste(C(zeilen), 1)["gruppen"][0]["eintraege"]]
+        zeilen[0]["entscheidung"] = "ja"
+        nachher = [e["id"] for e in wd.schaerfungsliste(C(zeilen), 1)["gruppen"][0]["eintraege"]]
+    finally:
+        wd._interviewbezeichnungen = orig
+    assert vorher == nachher == [1, 2, 3, 4, 5]

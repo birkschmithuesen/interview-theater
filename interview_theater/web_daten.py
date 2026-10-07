@@ -1626,8 +1626,19 @@ def schaerfungsliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
     # sortiert) und je Szene/Figur hoechstens SCHAERFUNGSLISTE_JE_ZIEL offene
     # Vorschlaege. Bereits entschiedene (Yes/No) bleiben immer sichtbar. Was
     # ausgeblendet ist, bleibt offen in der DB -- "Done" laesst es stehen.
+    # Birk 07.10.2026 ~17:10 (G1: "nach Yes/No kamen immer neue Vorschlaege,
+    # endlose Schleife, nur Woerter getauscht"): die Liste ist FEST. Ein
+    # entschiedener Eintrag belegt seinen Platz weiter (zaehlt zur Obergrenze
+    # je Ziel), und sein Thema sperrt Dubletten -- ein Yes/No laesst also
+    # keinen Nachruecker und keine Umformulierung desselben Zitats auftauchen.
     gesehen_themen: set = set()
     offen_je_ziel: dict = {}
+    for z in zeilen:
+        if (_feld(z, "entscheidung") or "") in ("ja", "nein"):
+            ziel_e = ("s", z["szene_id"]) if z["szene_id"] is not None else ("f", z["figur_id"])
+            offen_je_ziel[ziel_e] = offen_je_ziel.get(ziel_e, 0) + 1
+            if _feld(z, "thema_id") is not None:
+                gesehen_themen.add(_feld(z, "thema_id"))
     for z in zeilen:
         zustand = _feld(z, "entscheidung") or ""
         if zustand not in ("ja", "nein"):

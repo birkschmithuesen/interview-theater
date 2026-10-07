@@ -33,6 +33,15 @@ IT_MODELL_ERKENNER=google/gemma-4-31B-it
 IT_STT_BASIS=https://api.infomaniak.com
 IT_STT_PRODUKT=PRODUKT-ID
 
+# ElevenLabs als zweiter STT-Weg (Nacht 07.10.2026, Padua-Ausfall
+# Infomaniak Whisper): nur aktiv, wenn IT_STT_ERSATZ_KEY gesetzt ist, sonst
+# bitgleicher Weg wie bisher. Infomaniak bekommt dann hoechstens
+# IT_STT_PRIMAER_S Sekunden fuer einen Anlauf, danach ElevenLabs mit dem
+# verbleibenden Budget. IT_STT_NUR_ERSATZ=1 ueberspringt Infomaniak ganz.
+# IT_STT_ERSATZ_KEY=
+# IT_STT_PRIMAER_S=25
+# IT_STT_NUR_ERSATZ=0
+
 # --- Weboberflaeche -------------------------------------------------------
 # Oeffentliche Basis-URL der Leseansicht. Der Bot nennt daraus den Link
 # /g/<token> in der Begruessung und in /stand. Leer lassen = kein Link.

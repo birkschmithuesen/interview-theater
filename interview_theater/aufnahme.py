@@ -721,10 +721,17 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
 
     start = time.monotonic()
     erfolg = 0
+    anbieter = "infomaniak"
+    # Zuruecksetzen vor jedem Aufruf: stt._zuletzt ist thread-lokal und
+    # ueberlebt sonst einen Testlauf, der stt.transkribiere komplett durch
+    # einen Attrappen-Lambda ersetzt (dann liefe die echte Funktion -- und
+    # damit ihr eigener Reset am Anfang -- gar nicht).
+    stt._zuletzt.wert = "infomaniak"
     try:
         text = stt.transkribiere(e, klient, pfad, budget,
                                  sprache=whisper_sprache(conn, chat_id))
         erfolg = 1
+        anbieter = stt.letzter_anbieter()
         return text
     except Exception as fehler:
         _melde_transkriptionsfehler(conn, tg, e, row, fehler)
@@ -732,7 +739,7 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
     finally:
         timer_tipp.cancel()
         timer_meldung.cancel()
-        _buche_stt(conn, e, row, time.monotonic() - start, erfolg)
+        _buche_stt(conn, e, row, time.monotonic() - start, erfolg, anbieter)
 
 
 #: Was in ``aufruf.modell`` steht, wenn Whisper lief. Ein fester Name und
@@ -741,7 +748,7 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
 STT_MODELL = "whisper-v3"
 
 
-def _buche_stt(conn, e, row, dauer_s: float, erfolg: int) -> None:
+def _buche_stt(conn, e, row, dauer_s: float, erfolg: int, anbieter: str = "infomaniak") -> None:
     """Der Whisper-Aufruf in ``aufruf`` -- seit dem 30.09.2026 (Karte Padua S).
 
     **Warum hier und nicht in ``stt.py``:** ``stt.transkribiere`` bekommt
@@ -757,15 +764,27 @@ def _buche_stt(conn, e, row, dauer_s: float, erfolg: int) -> None:
 
     **Gebucht wird auch bei Misserfolg**: ein Auftrag, der ins Zeitbudget
     laeuft, wurde abgesendet und ist bezahlt (dieselbe Regel wie das
-    ``finally`` in ``llm._anfrage``)."""
+    ``finally`` in ``llm._anfrage``).
+
+    **``anbieter``** kommt aus ``stt.letzter_anbieter()`` (Nacht 07.10.2026,
+    ElevenLabs-Ersatzweg): nur im Erfolgsfall aussagekraeftig, bei Misserfolg
+    bleibt es beim Vorgabewert ``"infomaniak"``."""
     from interview_theater import kosten
 
     try:
+        modell = STT_MODELL
+        kosten_chf = kosten.stt_kosten_chf(row["dauer_sekunden"])
+        if anbieter == "elevenlabs":
+            modell = "elevenlabs-scribe_v2"
+            # TODO: ElevenLabs-Preis noch nicht in kosten.PREISE_CHF_JE_MIO_TOKEN
+            # bzw. einer eigenen Minutenkonstante hinterlegt -- bis dahin 0 CHF
+            # gebucht, damit der Tagesdeckel nicht faelschlich etwas sieht.
+            kosten_chf = 0.0
         repo.merke_aufruf(
             conn, row["chat_id"], "stt", modus=None,
             dauer_ms=int(dauer_s * 1000), erfolg=erfolg,
-            modell=STT_MODELL,
-            kosten_chf=kosten.stt_kosten_chf(row["dauer_sekunden"]),
+            modell=modell,
+            kosten_chf=kosten_chf,
         )
     except Exception:  # noqa: BLE001 -- die Buchung darf die Aufnahme nie mitreissen
         log.exception("Aufruf-Buchung (Whisper) fehlgeschlagen, aufnahme=%s", row["id"])

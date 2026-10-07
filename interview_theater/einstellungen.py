@@ -30,6 +30,14 @@ _VORGABEWERTE = {
     "IT_MODELL_ERKENNER": "google/gemma-4-31B-it",
     "IT_STT_BASIS": "https://api.infomaniak.com",
     "IT_STT_PRODUKT": None,
+    # ElevenLabs als zweiter STT-Weg (Nacht 07.10.2026, Padua-Ausfall
+    # Infomaniak Whisper). Leer = aus, bitgleicher Weg wie bisher.
+    "IT_STT_ERSATZ_KEY": "",
+    # Hoechstens so viele Sekunden fuer Infomaniak (Absenden+Abholen), wenn
+    # IT_STT_ERSATZ_KEY gesetzt ist -- erst dann uebernimmt ElevenLabs.
+    "IT_STT_PRIMAER_S": "25",
+    # "1" ueberspringt Infomaniak ganz (Schalter fuer einen Totalausfall).
+    "IT_STT_NUR_ERSATZ": "0",
     # Oeffentliche Basis-URL der Weboberflaeche; leer = kein Link im Chat.
     "IT_WEB_URL": "https://lab.artesmobiles.art/theatersoap",
     # Szenen-Aufruf (05.09.2026, Birk): "infomaniak" (Vorgabe, Kimi mit
@@ -97,6 +105,10 @@ class Einstellungen:
     kosten_deckel_chf: float = 5.0
     zeitzone: str = "Europe/Rome"
     suche_url: str = "http://127.0.0.1:8789/search"
+    # ElevenLabs-Ersatzweg fuer die Spracherkennung (stt.py). Leer = aus.
+    stt_ersatz_schluessel: str = ""
+    stt_infomaniak_budget_s: float = 25.0
+    stt_nur_ersatz: bool = False
 
 
 #: Variablen, die nur der Telegram-Kanal braucht. Im Web-Kanal gibt es keinen
@@ -176,6 +188,9 @@ def laden() -> Einstellungen:
         kosten_deckel_chf=_zahl(werte["IT_KOSTEN_DECKEL_CHF"], 5.0),
         zeitzone=(werte["IT_ZEITZONE"] or "").strip() or "Europe/Rome",
         suche_url=(werte["IT_SUCHE_URL"] or "").strip() or "http://127.0.0.1:8789/search",
+        stt_ersatz_schluessel=(werte["IT_STT_ERSATZ_KEY"] or "").strip(),
+        stt_infomaniak_budget_s=_zahl(werte["IT_STT_PRIMAER_S"], 25.0),
+        stt_nur_ersatz=(werte["IT_STT_NUR_ERSATZ"] or "").strip() == "1",
     )
 
 

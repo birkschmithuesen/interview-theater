@@ -31,12 +31,29 @@ from __future__ import annotations
 import json
 import logging
 import mimetypes
+import threading
 import time
 from pathlib import Path
 
 import httpx
 
 log = logging.getLogger(__name__)
+
+#: ElevenLabs als zweiter STT-Weg (Nacht 07.10.2026, Padua-Ausfall Infomaniak
+#: Whisper ab 10:48). Nur aktiv, wenn ``e.stt_ersatz_schluessel`` gesetzt ist
+#: -- ohne Schluessel bleibt ``transkribiere`` bitgleich zum bisherigen Weg.
+ELEVENLABS_URL = "https://api.elevenlabs.io/v1/speech-to-text"
+
+#: Welcher Anbieter das letzte ``transkribiere()``-Ergebnis in diesem Thread
+#: lieferte -- ``aufnahme._buche_stt`` liest das fuer die Modellbuchung.
+#: Thread-lokal statt ein Rueckgabewert zweiter Ordnung: der einzige Aufrufer
+#: (``aufnahme._transkribiere_mit_meldung``) braucht es nur im Erfolgsfall,
+#: und eine neue Signatur fuer alle bestehenden Aufrufer waere invasiver.
+_zuletzt = threading.local()
+
+
+def letzter_anbieter() -> str:
+    return getattr(_zuletzt, "wert", "infomaniak")
 
 #: Whisper erkennt die Sprache selbst (Karte A1, Birk E5): das Feld
 #: ``language`` wird dann gar nicht gesendet.
@@ -255,8 +272,8 @@ def abholen(e, klient: httpx.Client, batch_id: str, budget_s: float) -> str:
     return str(ergebnis.get("text") or "").strip()
 
 
-def transkribiere(e, klient: httpx.Client, pfad: Path, budget_s: float,
-                   *, sprache: str | None = "de") -> str:
+def _transkribiere_infomaniak(e, klient: httpx.Client, pfad: Path, budget_s: float,
+                               *, sprache: str | None = "de") -> str:
     """Absenden und Abholen verbunden, mit hartem Gesamtbudget ueber beides.
 
     Genau ein sofortiger Wiederholungsversuch mit neuem Upload, wenn der
@@ -291,3 +308,96 @@ def transkribiere(e, klient: httpx.Client, pfad: Path, budget_s: float,
             continue
 
     raise letzter_fehler
+
+
+def _infomaniak_einmal(e, klient: httpx.Client, pfad: Path, budget_s: float,
+                        *, sprache: str | None) -> str:
+    """Wie ``_transkribiere_infomaniak``, aber genau EIN Anlauf (kein zweiter
+    Upload bei Fehlschlag) -- wenn ein Ersatzweg bereitsteht, soll die Zeit
+    fuer dessen Versuch reichen statt im zweiten Infomaniak-Upload zu verbrennen."""
+    frist = time.monotonic() + budget_s
+    batch_id = absenden(e, klient, pfad, budget_s, sprache=sprache)
+    rest = frist - time.monotonic()
+    if rest <= 0:
+        raise STTFehler("kein Zeitbudget mehr fuer das Abholen")
+    text = abholen(e, klient, batch_id, rest)
+    if not text:
+        raise LeeresTranskript("leeres Transkript -- Stille ist kein gueltiges Ergebnis")
+    return text
+
+
+def transkribiere_elevenlabs(klient: httpx.Client, pfad: Path, budget_s: float,
+                              *, sprache: str | None, schluessel: str) -> str:
+    """ElevenLabs Scribe v2 als zweiter STT-Weg, synchron (keine batch_id,
+    keine Zwischenabfrage -- anders als Infomaniak liefert die Antwort den
+    Text direkt). ``sprache`` nur gesendet, wenn bekannt (sonst erkennt
+    ElevenLabs selbst, wie Whisper bei ``AUTO``)."""
+    headers = {"xi-api-key": schluessel}
+    daten = {"model_id": "scribe_v2", "tag_audio_events": "false"}
+    if sprache and sprache != AUTO:
+        daten["language_code"] = sprache
+
+    frist_s = max(1.0, budget_s)
+    try:
+        with open(pfad, "rb") as datei:
+            antwort = klient.post(
+                ELEVENLABS_URL,
+                headers=headers,
+                files={"file": (pfad.name, datei, mime_typ(pfad))},
+                data=daten,
+                timeout=frist_s,
+            )
+        antwort.raise_for_status()
+    except httpx.HTTPStatusError as fehler:
+        raise STTFehler(
+            f"ElevenLabs lehnte den Upload ab: HTTP {fehler.response.status_code}"
+        ) from fehler
+    except httpx.TransportError as fehler:
+        raise STTFehler(
+            f"ElevenLabs nicht erreichbar ({type(fehler).__name__}), "
+            f"Zeitbudget von {budget_s}s ausgeschoepft"
+        ) from fehler
+
+    koerper = antwort.json() or {}
+    text = str(koerper.get("text") or "").strip()
+    if not text:
+        raise LeeresTranskript("ElevenLabs: leeres Transkript -- Stille ist kein gueltiges Ergebnis")
+    return text
+
+
+def transkribiere(e, klient: httpx.Client, pfad: Path, budget_s: float,
+                   *, sprache: str | None = "de") -> str:
+    """Infomaniak bleibt der Hauptweg. Nur wenn ``e.stt_ersatz_schluessel``
+    gesetzt ist (Nacht 07.10.2026, Padua-Ausfall), bekommt Infomaniak
+    hoechstens ``min(budget_s, e.stt_infomaniak_budget_s)`` fuer GENAU EINEN
+    Anlauf (kein zweiter Upload); jeder STTFehler ausser einem echten leeren
+    Transkript (Stille ist kein Dienstausfall) loest danach ElevenLabs mit
+    dem verbleibenden Budget aus. Ohne Schluessel: bitgleich zum bisherigen
+    Weg. ``IT_STT_NUR_ERSATZ`` ueberspringt Infomaniak ganz (Schalter fuer
+    einen Totalausfall)."""
+    ersatz_schluessel = getattr(e, "stt_ersatz_schluessel", "") or ""
+    _zuletzt.wert = "infomaniak"
+
+    if not ersatz_schluessel:
+        return _transkribiere_infomaniak(e, klient, pfad, budget_s, sprache=sprache)
+
+    frist = time.monotonic() + budget_s
+    nur_ersatz = bool(getattr(e, "stt_nur_ersatz", False))
+
+    if not nur_ersatz:
+        primaer_budget_s = min(budget_s, getattr(e, "stt_infomaniak_budget_s", 25.0) or 25.0)
+        try:
+            text = _infomaniak_einmal(e, klient, pfad, primaer_budget_s, sprache=sprache)
+            log.info("STT via infomaniak")
+            return text
+        except LeeresTranskript:
+            raise
+        except STTFehler:
+            pass  # echter Fehlschlag (nicht Stille) -- weiter zu ElevenLabs
+
+    rest_s = frist - time.monotonic()
+    text = transkribiere_elevenlabs(
+        klient, pfad, max(1.0, rest_s), sprache=sprache, schluessel=ersatz_schluessel)
+    _zuletzt.wert = "elevenlabs"
+    log.info("STT via elevenlabs")
+    return text

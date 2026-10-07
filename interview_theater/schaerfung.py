@@ -565,8 +565,20 @@ def _lauf(conn, tg, klm, e, chat_id: int, nachbereitung=None) -> None:
                     )
         if meldung:
             try:
-                message_id = tg.sende(chat_id, meldung)
-                repo.merke_bot_zeile(conn, chat_id, message_id, e, meldung)
+                # Padua Entry-Umbau (07.10.2026, "Entry zu voll"): statt der
+                # blossen Textzeile bekommt die Gruppe hier die EINE Wahl
+                # zwischen Sortieren und erst Reden -- die bisher separate,
+                # automatische Geschichts-Uebersicht (Stufe A, Phase 5 Prose
+                # Draft) kommt jetzt erst nach "Done" in der Sortierliste
+                # (``knoepfe.szenen.schliesse_schaerfungsliste``), nicht mehr
+                # hier beim Phaseneintritt.
+                if anzahl and workshop.diskussion_aktiv():
+                    from interview_theater import knoepfe
+
+                    knoepfe.biete_schaerfung_wahl(conn, tg, chat_id, meldung)
+                else:
+                    message_id = tg.sende(chat_id, meldung)
+                    repo.merke_bot_zeile(conn, chat_id, message_id, e, meldung)
             except Exception:
                 log.exception(
                     "Schaerfungs-Meldung fehlgeschlagen, chat_id=%s", chat_id
@@ -619,6 +631,88 @@ def starte(conn, tg, klm, e, chat_id: int, nachbereitung=None):
     except BaseException:
         vorschlagssperre.gib_frei(chat_id)
         raise
+    return thread
+
+
+# ---------------------------------------------------------------------------
+# "Erst ueber die Interviews reden" (Padua, 07.10.2026, Umbau "Entry zu
+# voll"): die kurze Zusammenfassung unter dem Knopf ART_SCHAERFUNG_CHAT.
+# ---------------------------------------------------------------------------
+
+#: Dieselbe Eingabe wie ``mappe`` (geprueft, keine Transkripte) -- die
+#: Zusammenfassung soll die Gruppe orientieren, nicht neu auswerten.
+ART_ZUSAMMENFASSUNG = "schaerfung_zusammenfassung"
+
+#: Flach wie ueberall (global-constraints.md 'Schema'): ein einziges
+#: Freitextfeld, maximal 200 Woerter (die Grenze steht im Prompt, nicht im
+#: Schema -- ein Schema zwingt keine Wortzahl).
+ZUSAMMENFASSUNG_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["zusammenfassung"],
+    "properties": {"zusammenfassung": {"type": "string"}},
+}
+
+
+def zusammenfassung_prompt() -> str:
+    """Heiss nachgeladen (interview_theater.anweisungen)."""
+    return anweisungen.hole("schaerfung_zusammenfassung")
+
+
+def _baue_nutzertext_zusammenfassung(conn, chat_id: int) -> str:
+    """Interviewanzahl und je geprueftem Thema eine Zeile -- dieselbe
+    Materialliste wie ``mappe`` (``_eintraege``), nur gruppiert nach
+    Interview statt nummeriert: hier zeigt niemand auf eine Nummer."""
+    eintraege = _eintraege(conn, chat_id)
+    interviews = sorted({e["interview"] for e in eintraege})
+    zeilen = [f"Interviews ({len(interviews)}):"]
+    zeilen.extend(f"- {name}" for name in interviews)
+    zeilen.append("")
+    zeilen.append("Themes (interview | theme: summary):")
+    for eintrag in eintraege:
+        zeilen.append(
+            f"- {eintrag['interview']} | {eintrag['thema']}: {eintrag['zusammenfassung']}"
+        )
+    return "\n".join(zeilen)
+
+
+def _lauf_zusammenfassung(conn, tg, klm, e, chat_id: int) -> None:
+    try:
+        if not _eintraege(conn, chat_id):
+            tg.sende(chat_id, T.MELDUNG_OHNE_MATERIAL)
+            return
+        nutzer = _baue_nutzertext_zusammenfassung(conn, chat_id)
+        ergebnis = modellwahl.aufruf_schema(
+            conn, klm, e, chat_id, zusammenfassung_prompt(), nutzer,
+            ZUSAMMENFASSUNG_SCHEMA, ART_ZUSAMMENFASSUNG,
+            ueber_claude=szene_claude.ist_aktiv(e, conn, chat_id),
+            modell=e.erkenner_modell,
+            claude_modell=getattr(e, "schaerfung_modell", None) or szene_claude.MODELL_VORGABE,
+        )
+        text = str(ergebnis.get("zusammenfassung") or "").strip()
+        if not text:
+            return
+        message_id = tg.sende(chat_id, text)
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+    except Exception:
+        log.exception("Interviewzusammenfassung fehlgeschlagen, chat_id=%s", chat_id)
+        from interview_theater import kosten
+
+        kosten.melde_pause_wenn_deckel(conn, tg, e, chat_id)
+
+
+def starte_zusammenfassung(conn, tg, klm, e, chat_id: int):
+    """Gibt die Interviewzusammenfassung an einen eigenen Thread ab --
+    dasselbe Muster wie ``starte``/``entwurf.starte_uebersicht`` (Zusage 2).
+    Kein eigenes Sperren-Register: der Knopf, der hierher fuehrt, ist ueber
+    ``repo.beanspruche_knopf`` schon idempotent (Drei Zusagen, oben)."""
+    if klm is None:
+        log.error("Interviewzusammenfassung ohne Sprachmodell, chat_id=%s", chat_id)
+        return None
+    thread = threading.Thread(
+        target=_lauf_zusammenfassung, args=(conn, tg, klm, e, chat_id), daemon=True,
+    )
+    thread.start()
     return thread
 
 

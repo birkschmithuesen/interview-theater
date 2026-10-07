@@ -1061,19 +1061,25 @@ _VEREINT_JS = """
       .catch(function () {})
       .finally(function () { roadmapLaeuft = false; });
   }
-  setInterval(function () {
-    // Im selben Takt wie das Stand-Panel (Review-Befund 2), aber ohne
-    // dessen Gate: die Roadmap ist immer sichtbar, gleich welcher Tab vorn
-    // ist.
-    ladeRoadmap();
-    // CoThinker-Root-Cause-Fix (Birk 02.10.2026): Tab-Knopf UND Panel
-    // folgen der frisch geladenen Phase -- unabhaengig davon, wie die
-    // Gruppe in Phase 4 (oder Phase 1 mit Begriffsboard) eingetreten ist
-    // (Chat, Phasenleiste-Klick, "Ja speichern"). KEIN automatischer
-    // Tab-Wechsel beim Erscheinen (Birk: "no surprise jumps") -- nur beim
-    // VERLASSEN der CoThinker-Phase, waehrend der Buehne-Tab gerade vorn
-    // ist, faellt die Seite auf VORGABE zurueck, weil ihr Panel sonst leer
-    // verborgen vorn staende.
+  // CoThinker-Root-Cause-Fix (Birk 02.10.2026): Tab-Knopf UND Panel folgen
+  // der frisch geladenen Phase -- unabhaengig davon, wie die Gruppe in
+  // Phase 4/5 (oder Phase 1/2 mit Begriffsboard) eingetreten ist (Chat,
+  // Phasenleiste-Klick, "Ja speichern"). KEIN automatischer Tab-Wechsel beim
+  // Erscheinen (Birk: "no surprise jumps") -- nur beim VERLASSEN der
+  // CoThinker-Phase, waehrend der Buehne-Tab gerade vorn ist, faellt die
+  // Seite auf VORGABE zurueck, weil ihr Panel sonst leer verborgen vorn
+  // staende.
+  //
+  // Eigene Funktion, auf ``window`` (Birk Live-Test 07.10.2026, "Tab
+  // verschwindet nach der Schaerfung"): ``_STEPPER_JS``s ``ladeStepper()``
+  // (Padua-Stepper) tauscht ``#roadmap`` auf einem EIGENEN Weg -- bis dahin
+  // sah nur dieser Takt hier (alle ``__NACHLADEN_MS__``, 10 s) nach, ob die
+  // Phase noch zu Tab-Knopf und Panel passt. Jeder andere Tausch von
+  // ``#roadmap`` rief diese Pruefung nicht mit auf, und bis zum naechsten
+  // Takt konnte der Tab bis zu 10 s falsch stehen. ``_STEPPER_JS`` laeuft
+  // als eigene IIFE NACH dieser hier (Reihenfolge in ``seite()``) und ruft
+  // ``window.buehneSyncTab()`` deshalb sicher auf ein schon gesetztes Feld.
+  function synchronisiereBuehneTab() {
     var buehnePanel = document.getElementById('tab-buehne');
     var buehneKnopf = document.querySelector('.tabs button[data-tab="buehne"]');
     if (buehnePanel && buehneKnopf) {
@@ -1085,6 +1091,14 @@ _VEREINT_JS = """
         if (document.body.dataset.tab === 'buehne') { setze(VORGABE); }
       }
     }
+  }
+  window.buehneSyncTab = synchronisiereBuehneTab;
+  setInterval(function () {
+    // Im selben Takt wie das Stand-Panel (Review-Befund 2), aber ohne
+    // dessen Gate: die Roadmap ist immer sichtbar, gleich welcher Tab vorn
+    // ist.
+    ladeRoadmap();
+    synchronisiereBuehneTab();
     var panel = document.getElementById('tab-stand');
     if (!panel) { return; }
     if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
@@ -1668,6 +1682,11 @@ _STEPPER_JS = """
         var frisch = doc.body ? doc.body.firstElementChild : null;
         var ziel = document.getElementById('roadmap');
         if (frisch && ziel) { ziel.outerHTML = frisch.outerHTML; }
+        // Bugfix (Birk Live-Test 07.10.2026, "CoThinker-Tab verschwindet
+        // nach der Schaerfung"): dieser Tausch aenderte ``#roadmap`` ohne
+        // Tab-Knopf/Panel nachzuziehen -- bis zu 10 s falsch, siehe
+        // ``_VEREINT_JS``s ``synchronisiereBuehneTab``.
+        if (window.buehneSyncTab) { window.buehneSyncTab(); }
       })
       .catch(function () {});
   }

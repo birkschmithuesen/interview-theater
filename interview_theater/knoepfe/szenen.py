@@ -26,8 +26,9 @@ from interview_theater.knoepfe.texte import (
     ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE,
     ART_RECHERCHE, ART_RECHERCHE_FRAGE,
-    ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR,
-    ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE,
+    ART_SCHAERFUNG_CHAT, ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR,
+    ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_SORTIEREN,
+    ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE,
     ART_SPRECHANTEILE,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
     ART_SZENENFOLGE_REIHENFOLGE, ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM,
@@ -334,6 +335,31 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
     return False
 
 
+def biete_schaerfung_wahl(conn, tg, chat_id: int, text: str) -> int:
+    """Die EINE Nachricht nach der automatischen Zuordnung beim Eintritt in
+    Phase 5 (Padua, Birk-Feedback 07.10.2026 "Entry zu voll"): ``text`` (die
+    bisherige ``MELDUNG_COTHINKER``) mit zwei Knoepfen statt nur Text --
+    "Stellen sortieren" springt im Browser direkt in den CoThinker-Tab
+    (client-seitig ueber den Knopftext, ``web_chat.py``), "Erst ueber die
+    Interviews reden" stoesst die kurze Zusammenfassung an
+    (``schaerfung.starte_zusammenfassung``). Ersetzt an dieser Stelle sowohl
+    die bisherige unbewaffnete Textzeile als auch den bisherigen
+    automatischen Sprung in die Geschichts-Uebersicht (Stufe A, Phase 5
+    Prose Draft) -- die kommt jetzt erst nach "Done" in der Sortierliste
+    (``schliesse_schaerfungsliste``)."""
+    leiste = [
+        (
+            T.TEXT_SCHAERFUNG_SORTIEREN_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHAERFUNG_SORTIEREN, None)),
+        ),
+        (
+            T.TEXT_SCHAERFUNG_CHAT_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHAERFUNG_CHAT, None)),
+        ),
+    ]
+    return _mit_leiste(conn, tg, chat_id, text, leiste)
+
+
 def _sende_schaerfung_durch(conn, tg, chat_id: int) -> None:
     """Nichts mehr offen: die Abschlussfrage mit "Noch eine Runde" und,
     wenn die Materiallage es hergibt, dem Phasenknopf -- der Schluss der
@@ -446,7 +472,7 @@ def uebernimm_schaerfung_stellen(conn, tg, chat_id: int, ids: list[int]) -> str:
     return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
 
 
-def schliesse_schaerfungsliste(conn, tg, chat_id: int) -> str:
+def schliesse_schaerfungsliste(conn, tg, klm, e, chat_id: int) -> str:
     """"Done" in der CoThinker-Sortierliste der Schaerfung (Padua,
     07.10.2026, versteckter Befehl ``/schaerfung_fertig``): nimmt ALLE mit
     Yes markierten offenen Stellen auf (dieselbe Ablage wie "Diese
@@ -456,7 +482,16 @@ def schliesse_schaerfungsliste(conn, tg, chat_id: int) -> str:
     kann sie wieder vorlegen. Schliesst danach ab wie am Ende der alten
     Kartenfolge (``_sende_schaerfung_durch``), unabhaengig davon, ob noch
     offene stehen bleiben: die Gruppe hat "Done" getippt, kein Modellaufruf
-    hier (Zusage 2)."""
+    hier (Zusage 2).
+
+    **Stufe A von Phase 5 (Prose Draft, 07.10.2026 Umbau "Entry zu voll"):**
+    unter ``workshop.prosa_entwurf_aktiv()`` stoesst "Done" jetzt die
+    Geschichts-Uebersicht an (``entwurf.starte_uebersicht``, eigener
+    Thread) -- vorher lief das automatisch gleich nach dem Mapping beim
+    Phaseneintritt. Nur, solange die Uebersicht noch nicht fixiert ist
+    (``geschichte_uebersicht_fixiert_am``): ein spaeteres "Done" (nach
+    "Noch eine Runde") darf eine schon abgenommene Uebersicht -- und damit
+    eine laufende Stufe B -- nicht ueberschreiben."""
     from interview_theater import schaerfung as schaerfung_modul
 
     eintraege = schaerfung_modul.offene_stellen(conn, chat_id)
@@ -466,6 +501,13 @@ def schliesse_schaerfungsliste(conn, tg, chat_id: int) -> str:
     if nein_ids:
         schaerfung_modul.verwirf_stellen(conn, nein_ids)
     _sende_schaerfung_durch(conn, tg, chat_id)
+    if workshop.prosa_entwurf_aktiv():
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        schon_fixiert = bool(stand and (stand["geschichte_uebersicht_fixiert_am"] or "").strip())
+        if not schon_fixiert:
+            from interview_theater import entwurf
+
+            entwurf.starte_uebersicht(conn, tg, klm, e, chat_id)
     return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
 
 

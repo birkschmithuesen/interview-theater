@@ -995,13 +995,15 @@ def _befehl_schaerfen(conn, tg, chat_id: int, rest: str) -> None:
     fragen.starte_handover(conn, tg, chat_id, int(rest))
 
 
-def _befehl_schaerfung_fertig(conn, tg, chat_id: int) -> None:
+def _befehl_schaerfung_fertig(conn, tg, klm, e, chat_id: int) -> None:
     """"Done" in der Schaerfungs-Sortierliste im CoThinker (Padua,
     07.10.2026). **Versteckt**, wie ``/sortiert`` -- der Weg des Knopfes
-    durch die Naht, kein Modellaufruf (Zusage 2)."""
+    durch die Naht, kein Modellaufruf hier (Zusage 2): ``klm``/``e`` gehen
+    nur durch, bis zu ``entwurf.starte_uebersicht``, das selbst in einen
+    Thread abgibt."""
     from interview_theater.knoepfe import szenen
 
-    szenen.schliesse_schaerfungsliste(conn, tg, chat_id)
+    szenen.schliesse_schaerfungsliste(conn, tg, klm, e, chat_id)
 
 
 def _befehl_umformulieren(conn, tg, chat_id: int) -> None:
@@ -1562,7 +1564,7 @@ def behandle(
     elif befehl == "/schaerfen":
         _befehl_schaerfen(conn, tg, chat_id, rest)
     elif befehl == "/schaerfung_fertig":
-        _befehl_schaerfung_fertig(conn, tg, chat_id)
+        _befehl_schaerfung_fertig(conn, tg, klm, e, chat_id)
     return True
 
 

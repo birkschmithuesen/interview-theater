@@ -44,6 +44,9 @@ _VORGABEWERTE = {
     # Opus laufen. Eigene Variable statt eines Sonderfalls in szene_claude,
     # damit ein Betreiber beides unabhaengig stellen kann.
     "IT_SCHAERFUNG_MODELL": "claude-opus-5",
+    # Eigenes Modell fuer die CoThinker-/Buehnenkarte (Birk 07.10.2026,
+    # Quota): leer = wie das Gespraech (IT_SZENE_MODELL).
+    "IT_BUEHNE_MODELL": "",
     "IT_KANAL": KANAL_TELEGRAM,
     # Die eine Gruppe, die ein Web-Bot-Prozess bedient. Pflicht, sobald
     # IT_KANAL=web -- geprueft in laden().
@@ -88,6 +91,7 @@ class Einstellungen:
     szene_url: str | None = None
     szene_modell: str | None = None
     schaerfung_modell: str | None = None
+    buehne_modell: str | None = None
     kanal: str = KANAL_TELEGRAM
     web_chat_id: int | None = None
     web_segment_ms: int = VORGABE_SEGMENT_MS
@@ -170,6 +174,7 @@ def laden() -> Einstellungen:
         szene_url=werte["IT_SZENE_URL"],
         szene_modell=werte["IT_SZENE_MODELL"],
         schaerfung_modell=werte["IT_SCHAERFUNG_MODELL"],
+        buehne_modell=werte["IT_BUEHNE_MODELL"] or None,
         kanal=kanal,
         web_chat_id=web_chat_id,
         web_segment_ms=segment_ms,

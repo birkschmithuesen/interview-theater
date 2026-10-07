@@ -52,6 +52,8 @@ IT_SZENE_ANBIETER=claude
 # auf claude-sonnet-5 stellen kann) -- die Schaerfung soll immer auf Opus
 # laufen.
 # IT_SCHAERFUNG_MODELL=claude-opus-5
+# CoThinker-Karte eigenes Modell (leer = IT_SZENE_MODELL):
+# IT_BUEHNE_MODELL=claude-sonnet-5
 
 # --- Deckel, die ohne Neustart wirken sollen ------------------------------
 # Beide sind Notschrauben fuer den Workshoptag und haben brauchbare

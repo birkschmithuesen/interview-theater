@@ -911,6 +911,40 @@ def test_denkspur_mit_benutzer_instruktionen_wortlaut_wird_erkannt():
     assert ablauf.ist_denkspur(HANDY_PRIYA_DENKSPUR)
 
 
+#: Live-Fund 07.10.2026, Testgruppe chat_id=7000000000099 (betrieb/padua-test.db,
+#: web_post.id=1694, aufruf.id=164, Kimi-K2.6, 12857 Ausgabe-Token): auf "gib mir
+#: eine zusammenfassung aller interviews die gerade passen" schrieb das Modell
+#: sein komplettes englisches Selbstgespraech ins "antwort"-Feld, und es ging
+#: unveraendert in den Chat. Die EN-Markerliste war seit Karte A1 nie um die
+#: Englisch-Entsprechungen der am 06.10.2026 (Abnahme P3-4, Befund A1)
+#: hinzugefuegten deutschen Marker "der benutzer fragt"/"laut den
+#: instruktionen"/"die instruktionen sagen" ergaenzt worden -- nur die
+#: deutsche Liste bekam sie. Text verbatim aus der Testdatenbank (keine
+#: personenbezogenen Daten: Absender ist das Rollenwort "Member 1").
+PADUA_SUMMARY_DENKSPUR = (
+    "Member 1 asks for a summary of all interviews that fit right now. But: "
+    "the assignment has already run (62 passages, then 71), and the group "
+    "has been sorting them. I should not retell the full summaries -- "
+    "they're in the chat history above, and the group has already worked "
+    "with them.\n\n"
+    "Actually, the instructions also say: \"Summaries are never changed "
+    "afterwards\" and \"Never ask the group to retype it, and never claim "
+    "you can't see it.\" I DO see all summaries -- they're right there in "
+    "the context.\n\n"
+    "All interview summaries are right above in this chat -- from "
+    "Interview 1 through Interview 42. The matched passages for your three "
+    "characters are in the core package I shared earlier.\n\n"
+    "Done. Check: no markdown beyond bold/italics/bullets. Under 500 "
+    "chars. No hash headings."
+)
+
+
+def test_denkspur_englisches_selbstgespraech_ueber_zusammenfassung_wird_erkannt():
+    """Live-Fund 07.10.2026 (siehe Kommentar oben): muss als Denkspur
+    erkannt werden -- die EN-Marker hinkten der DE-Liste hinterher."""
+    assert ablauf.ist_denkspur(PADUA_SUMMARY_DENKSPUR)
+
+
 def test_ueberarbeiteter_vorschlagsblock_ist_keine_wiederholung():
     """06.09.2026 12:30 (Gruppe 1, live): "Kannst du die zweite Formulierung
     umaendern" -> der ueberarbeitete Block teilt >60 % der Woerter mit dem

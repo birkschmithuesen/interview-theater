@@ -198,6 +198,9 @@ _TEXT_SCHAERFUNG_STELLE_UEBERNOMMEN = "Taken on: {ziel}."
 _TEXT_SCHAERFUNG_VERWORFEN = "Good, I'll leave that out."
 _TEXT_SCHAERFUNG_LAEUFT = "I'm putting your story next to the interviews and looking for what fits."
 _TEXT_SCHAERFUNG_UEBERNOMMEN = "Taken on: {anzahl} passages."
+_TEXT_DONE_UEBERSICHT = "Taken on: {anzahl} passages. Now I'm putting your story together as an overview -- then we go scene by scene."
+_TEXT_DONE_SZENE_DA = "Taken on: {anzahl} passages. Scene {nummer} is already in the Script tab -- read it and tell me if it fits."
+_TEXT_DONE_SZENE_NEU = "Taken on: {anzahl} passages. I'm writing scene {nummer} now."
 _TEXT_SCHAERFUNG_NICHTS = "There's nothing open on that right now."
 _TEXT_SCHAERFUNG_DURCH = """\
 That was everything I could match. Do you want another round, or shall \

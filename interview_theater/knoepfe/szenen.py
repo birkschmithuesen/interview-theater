@@ -16,6 +16,8 @@ Kein Modellaufruf steht hier: was eines braucht, geht ueber
 optionale Zusatz nach "Ja, speichern") in einen eigenen Thread.
 """
 
+import time
+
 from interview_theater import nachspeichern, repo, workshop
 
 from interview_theater.knoepfe.texte import (
@@ -494,21 +496,55 @@ def schliesse_schaerfungsliste(conn, tg, klm, e, chat_id: int) -> str:
     eine laufende Stufe B -- nicht ueberschreiben."""
     from interview_theater import schaerfung as schaerfung_modul
 
+    # Birk 07.10.2026 ~16:35 (G1 tippte Done dreimal -> dreimal dieselbe
+    # Frage): ein zweites Done innerhalb von DONE_SPERRE_S wirkt nicht.
+    jetzt = time.monotonic()
+    if jetzt - _letztes_done.get(chat_id, -1e9) < DONE_SPERRE_S:
+        return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=0)
+    _letztes_done[chat_id] = jetzt
+
     eintraege = schaerfung_modul.offene_stellen(conn, chat_id)
     ja_ids = [z["id"] for z in eintraege if z["entscheidung"] == "ja"]
     nein_ids = [z["id"] for z in eintraege if z["entscheidung"] == "nein"]
     anzahl = schaerfung_modul.uebernimm_stellen(conn, chat_id, ja_ids) if ja_ids else 0
     if nein_ids:
         schaerfung_modul.verwirf_stellen(conn, nein_ids)
-    _sende_schaerfung_durch(conn, tg, chat_id)
-    if workshop.prosa_entwurf_aktiv():
-        stand = repo.hole_arbeitsstand(conn, chat_id)
-        schon_fixiert = bool(stand and (stand["geschichte_uebersicht_fixiert_am"] or "").strip())
-        if not schon_fixiert:
-            from interview_theater import entwurf
+    if not workshop.prosa_entwurf_aktiv():
+        _sende_schaerfung_durch(conn, tg, chat_id)
+        return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
+    # Phase 5 Prosa-Entwurf (Birk 07.10.2026 ~16:35): Done fuehrt GERADE
+    # weiter -- keine Frage "noch eine Runde oder Szenentexte?" mehr.
+    #   * Uebersicht noch nicht abgenommen -> sie entsteht jetzt (Logline,
+    #     danach "Yes, save" -> Szene 1).
+    #   * schon abgenommen (oder still erzeugt) -> die offene Szene: hat sie
+    #     schon Text, ihre Leiste erneut anbieten (nichts doppelt schreiben);
+    #     sonst jetzt schreiben.
+    from interview_theater import entwurf
 
-            entwurf.starte_uebersicht(conn, tg, klm, e, chat_id)
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    schon_fixiert = bool(stand and (stand["geschichte_uebersicht_fixiert_am"] or "").strip())
+    if not schon_fixiert:
+        tg.sende(chat_id, T._TEXT_DONE_UEBERSICHT.format(anzahl=anzahl))
+        entwurf.starte_uebersicht(conn, tg, klm, e, chat_id)
+        return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
+    nummer = entwurf.erste_offene_szene(conn, chat_id)
+    zeile = _szene_mit_nummer(conn, chat_id, nummer) if nummer is not None else None
+    if zeile is not None and (zeile["prosa"] or "").strip():
+        biete_nach_szenentext(conn, tg, chat_id, nummer,
+                              T._TEXT_DONE_SZENE_DA.format(anzahl=anzahl, nummer=nummer))
+    elif nummer is not None:
+        tg.sende(chat_id, T._TEXT_DONE_SZENE_NEU.format(anzahl=anzahl, nummer=nummer))
+        from interview_theater import szene as szene_modul
+
+        szene_modul.starte(conn, tg, klm, e, chat_id, entwurf._AUFTRAG_PROSA.format(nummer=nummer))
+    else:
+        _sende_schaerfung_durch(conn, tg, chat_id)
     return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
+
+
+#: Sperre gegen mehrfaches "Done" (Sekunden).
+DONE_SPERRE_S = 20.0
+_letztes_done: dict[int, float] = {}
 
 
 def uebernimm_schaerfung_szene(conn, tg, chat_id: int, nummer: int,

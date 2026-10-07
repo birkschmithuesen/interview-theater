@@ -568,3 +568,60 @@ def test_schaerfungsliste_begrenzt_je_ziel_und_zeigt_jede_stelle_nur_einmal(monk
     assert je["A"] == ["T1", "T2", "T3"]
     assert je["B"] == ["T4", "T5", "T6"]
     assert daten["zaehler"]["offen"] == 6
+
+
+@pytest.fixture(autouse=True)
+def _done_sperre_frei():
+    knoepfe_szenen._letztes_done.clear()
+    yield
+    knoepfe_szenen._letztes_done.clear()
+
+
+def _p5_done_lage(lage, einst, monkeypatch):
+    from interview_theater import entwurf, szene as szene_modul
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: True)
+    aufrufe = {"uebersicht": 0, "szene": []}
+    monkeypatch.setattr(entwurf, "starte_uebersicht",
+                        lambda *a, **k: aufrufe.__setitem__("uebersicht", aufrufe["uebersicht"] + 1))
+    monkeypatch.setattr(szene_modul, "starte", lambda conn, tg, klm, e, chat_id, auftrag, *a, **k: aufrufe["szene"].append(auftrag))
+    klm = KLMAttrappe({"Szene 1": _antwort(eintrag_nummern=[1], staerke=[3], begruendungen=["x"])})
+    schaerfung.mappe(klm, lage, einst, 1)
+    return aufrufe
+
+
+def test_done_p5_ohne_uebersicht_startet_uebersicht_ohne_rundenfrage(lage, tg, einst, monkeypatch):
+    """Birk 07.10.2026 ~16:35: Done fuehrt in Phase 5 gerade weiter, keine
+    Frage 'noch eine Runde?'."""
+    aufrufe = _p5_done_lage(lage, einst, monkeypatch)
+    knoepfe_szenen.schliesse_schaerfungsliste(lage, tg, None, None, 1)
+    assert aufrufe["uebersicht"] == 1 and aufrufe["szene"] == []
+    texte = " ".join(str(n) for n in tg.gesendet)
+    assert "another round" not in texte and "noch eine Runde" not in texte.lower()
+
+
+def test_done_p5_szene_schon_geschrieben_wird_nicht_doppelt_geschrieben(lage, tg, einst, monkeypatch):
+    """G1-Fall: Uebersicht (still) fixiert, Szene 1 hat schon Text -> Done
+    bietet Szene 1 zur Abnahme an, schreibt sie nicht neu. Mutant: Prosa-
+    Pruefung weg -> szene.starte wird gerufen -> rot."""
+    aufrufe = _p5_done_lage(lage, einst, monkeypatch)
+    repo.setze_arbeitsstand(lage, 1, "geschichte_uebersicht_fixiert_am", repo._jetzt())
+    sid = repo.stelle_szene_sicher(lage, 1, 1)
+    lage.execute("UPDATE szene SET prosa = 'Text' WHERE id = ?", (sid,)); lage.commit()
+    knoepfe_szenen.schliesse_schaerfungsliste(lage, tg, None, None, 1)
+    assert aufrufe["szene"] == [] and aufrufe["uebersicht"] == 0
+
+
+def test_done_p5_szene_ohne_text_wird_geschrieben(lage, tg, einst, monkeypatch):
+    aufrufe = _p5_done_lage(lage, einst, monkeypatch)
+    repo.setze_arbeitsstand(lage, 1, "geschichte_uebersicht_fixiert_am", repo._jetzt())
+    knoepfe_szenen.schliesse_schaerfungsliste(lage, tg, None, None, 1)
+    assert len(aufrufe["szene"]) == 1 and "SZENE 1" in aufrufe["szene"][0]
+
+
+def test_done_doppelklick_wirkt_einmal(lage, tg, einst, monkeypatch):
+    """G1 tippte Done dreimal in 4 s. Mutant: Sperre weg -> 3 Uebersichten."""
+    aufrufe = _p5_done_lage(lage, einst, monkeypatch)
+    for _ in range(3):
+        knoepfe_szenen.schliesse_schaerfungsliste(lage, tg, None, None, 1)
+    assert aufrufe["uebersicht"] == 1

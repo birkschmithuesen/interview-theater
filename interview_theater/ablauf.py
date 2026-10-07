@@ -45,7 +45,8 @@ import threading
 from contextlib import contextmanager
 
 from interview_theater import (
-    befehle, knoepfe, kontext, kosten, modellwahl, phasen, repo, strom, vorschlag,
+    befehle, formberater, knoepfe, kontext, kosten, modellwahl, phasen, repo,
+    strom, vorschlag,
 )
 from interview_theater.llm import LLMFehler
 
@@ -236,6 +237,20 @@ _TEXT_ANKUENDIGUNG_ERMAHNUNG = (
     "Deine letzte Antwort hat etwas angekuendigt, aber nicht geliefert -- sie "
     "endete auf einem Doppelpunkt ohne das Versprochene danach. Schreib die "
     "Nachricht neu und liefere den Inhalt JETZT, in dieser einen Nachricht."
+)
+
+#: Phase 4 (Karte t_b19d37ac, Birk 06.10.2026): "Keine Szenen ausformulieren
+#: in Phase 4. Nur Rahmen setzen." -- die Ermahnung fuer den zweiten Anlauf,
+#: wenn die Antwort trotzdem eine Szene auslegt oder anbietet, sie zu
+#: schreiben (``ist_schreibangebot``).
+_TEXT_SCHREIBANGEBOT_ERMAHNUNG = (
+    "Deine letzte Antwort hat eine Szene ausgelegt (Form, Ort, Wer, Was "
+    "passiert) oder angeboten, eine Szene zu schreiben. In dieser Station "
+    "wird nur der Rahmen gesetzt, geschrieben wird erst in der naechsten. "
+    "Schreib die Nachricht neu, ohne Szenenformat und ohne Schreibangebot: "
+    "steht der Rahmen, eine kurze Zeile, was steht, und die Frage, ob es "
+    "weitergehen soll; wollte die Gruppe eine Szene geschrieben haben, sag, "
+    "dass das in der naechsten Station kommt."
 )
 
 #: Ab welchem Anteil einer Ausloeser-Nachricht, den die Antwort woertlich
@@ -876,6 +891,98 @@ def _ohne_ankuendigung(conn, klm, e, chat_id: int, system: str, koerper: str,
     return zweite
 
 
+#: Das Schreibangebot einer Szene (Live-Fall 06.10.2026, G3, Phase 4:
+#: "Shall I write scene 1 now?"), englisch und deutsch.
+_SCHREIBANGEBOT_MUSTER = re.compile(
+    r"\b(?:shall|should|can|may)\s+i\s+(?:now\s+|go\s+ahead\s+and\s+)?"
+    r"(?:write|draft|formulate)(?:\s+out)?\s+(?:up\s+)?(?:the\s+)?(?:first\s+)?"
+    r"(?:scene|scenes)\b"
+    r"|\bwant\s+me\s+to\s+(?:write|draft)(?:\s+out)?\s+(?:the\s+)?(?:first\s+)?scene"
+    r"|\bsoll\s+ich\s+(?:jetzt\s+|nun\s+)?(?:die\s+)?(?:erste\s+)?szene"
+    r"(?:\s+\d+)?\s+(?:jetzt\s+)?(?:schreiben|ausformulieren|ausschreiben)",
+    re.IGNORECASE,
+)
+
+#: Eine Zeile eines Szenenformats ("Form: still open", "**Place:** ...").
+_SZENENFORMAT_ZEILE = re.compile(
+    r"^\s*(?:[-*•]\s*)?\**(?:form|place|who|what happens|ort|wer|"
+    r"was passiert)\**\s*:", re.IGNORECASE | re.MULTILINE,
+)
+
+
+def ist_schreibangebot(text: str | None) -> bool:
+    """Legt diese Antwort eine Szene aus oder bietet an, eine zu schreiben?
+
+    Karte t_b19d37ac (Live-Test 06.10.2026, G3): noch in Phase 4 kam "Scene
+    1: The Pitch / Form: still open / Place: ... / Who: still open / What
+    happens: ... Shall I write scene 1 now?" -- Phase-5-Gebiet. Zwei
+    Signale, reiner Musterabgleich: die Frage nach dem Schreiben
+    (``_SCHREIBANGEBOT_MUSTER``) oder mindestens drei Zeilen eines
+    Szenenformats (Form/Ort/Wer/Was passiert)."""
+    roh = text or ""
+    if _SCHREIBANGEBOT_MUSTER.search(roh):
+        return True
+    return len(_SZENENFORMAT_ZEILE.findall(roh)) >= 3
+
+
+def _ohne_schreibangebot(conn, klm, e, chat_id: int, system: str, koerper: str,
+                         text: str, phase: int, bei_teil=None,
+                         ueber_claude: bool = False) -> str:
+    """Phase 4 mit Prosa-Entwurf in Phase 5 (Padua, ``workshop.
+    prosa_entwurf_aktiv``): eine Antwort mit Schreibangebot oder
+    Szenenformat bekommt GENAU EINEN zweiten Anlauf mit Ermahnung
+    (``_TEXT_SCHREIBANGEBOT_ERMAHNUNG``) -- dasselbe Muster wie
+    ``_ohne_ankuendigung``. Ist auch der zweite eins, geht er trotzdem raus
+    (Vorfall ``schreibangebot_wiederholt``)."""
+    from interview_theater import workshop
+    from interview_theater.knoepfe.texte import PHASE_SETTING
+
+    if phase != PHASE_SETTING or not workshop.prosa_entwurf_aktiv():
+        return text
+    if not ist_schreibangebot(text):
+        return text
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None), "schreibangebot_phase_4",
+        f"Antwort in Phase 4 legte eine Szene aus oder bot an, sie zu "
+        f"schreiben ({len(text)} Zeichen), zweiter Anlauf mit Ermahnung",
+    )
+    if bei_teil is not None:
+        neu = getattr(bei_teil, "neu", None)
+        if callable(neu):
+            neu()
+    try:
+        zweite = _antworttext(modellwahl.aufruf_schema(
+            conn, klm, e, chat_id, system,
+            f"{koerper}\n\n{T._TEXT_SCHREIBANGEBOT_ERMAHNUNG}",
+            SCHEMA, "gespraech", ueber_claude=ueber_claude, bei_teil=bei_teil,
+            teil_feld="antwort",
+        ))
+    except Exception:
+        log.exception("Zweiter Anlauf nach Schreibangebot fehlgeschlagen, "
+                      "chat_id=%s", chat_id)
+        zweite = ""
+    if not zweite.strip():
+        # Der erste Anlauf gilt -- eine schwache Antwort ist besser als
+        # keine (wie in _ohne_ankuendigung).
+        if bei_teil is not None:
+            neu = getattr(bei_teil, "neu", None)
+            if callable(neu):
+                neu()
+            try:
+                bei_teil(text)
+            except Exception:  # noqa: BLE001 -- wie in _ohne_echo
+                log.exception("bei_teil-Nachtrag nach Schreibangebot "
+                              "fehlgeschlagen, chat_id=%s", chat_id)
+        return text
+    if ist_schreibangebot(zweite):
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "schreibangebot_wiederholt",
+            "Auch der zweite Anlauf in Phase 4 legte eine Szene aus -- "
+            "trotzdem gesendet",
+        )
+    return zweite
+
+
 def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
                offen: list, antwort: str, bei_teil=None,
                ueber_claude: bool = False) -> str:
@@ -1006,6 +1113,7 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         if _zug_faellt_aus(conn, tg, klm, e, chat_id, letzte_nachricht):
             return
 
+        _pruefe_formen(conn, tg, klm, e, chat_id, offen)
         text = _erfrage_antwort(conn, klm, e, chat_id, offen, tg, hinweis)
 
         if _erfundene_systemzeile(conn, e, chat_id, text):
@@ -1052,6 +1160,23 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
     finally:
         _merke_vergleich_im_zug(conn, chat_id, vergleich_vorher, letzte_message_id)
         repo.setze_beantwortet_bis(conn, chat_id, letzte_message_id)
+
+
+def _pruefe_formen(conn, tg, klm, e, chat_id: int, offen: list) -> None:
+    """Ausloeser A des Formberaters (Karte t_256ec777): ab Phase 4 ein
+    deterministischer Abgleich der neuen Gruppenbeitraege gegen den
+    Formen-Katalog, VOR dem Kontextbau -- eine genannte Form steht damit
+    schon in diesem Zug im Prompt; der Modellaufruf (nur bei einem neuen
+    Treffer) laeuft im eigenen Thread und wirkt ab dem naechsten Zug. Ein
+    Fehler hier kostet den Zug nie."""
+    try:
+        texte = [
+            n["text"] or "" for n in offen
+            if not ("ist_bot" in n.keys() and n["ist_bot"])
+        ]
+        formberater.pruefe_zug(conn, tg, klm, e, chat_id, texte)
+    except Exception:
+        log.exception("Formberater-Abgleich gescheitert, chat_id=%s", chat_id)
 
 
 def _nach_dem_senden(conn, tg, e, chat_id: int, message_id: int, text: str) -> None:
@@ -1515,6 +1640,9 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
                           bei_teil=senke, ueber_claude=ueber_claude)
         text = _ohne_ankuendigung(conn, klm, e, chat_id, system, koerper, text,
                                   bei_teil=senke, ueber_claude=ueber_claude)
+        text = _ohne_schreibangebot(conn, klm, e, chat_id, system, koerper,
+                                    text, phase, bei_teil=senke,
+                                    ueber_claude=ueber_claude)
         if hinweis:
             text = f"{text}\n\n{hinweis}"
     return text

@@ -52,6 +52,7 @@ from interview_theater.knoepfe.texte import (
     ART_SPRECHWEISEN_ANDERS, ART_SPRECHWEISEN_PASST,
     ART_STT_SPRACHE, STT_KNOEPFE, T, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
     ART_TEIL_WEITER, ART_TEXTBUCH, ART_TRANSKRIPT, ART_UNDO, ART_WIR_ZUERST,
+    ART_FORMBERATER,
     ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_STUECKPRUEFUNG, PHASE_SZENEN, TRENNER, _KETTE, log,
 )
 from interview_theater.knoepfe.basis import (
@@ -613,6 +614,17 @@ def _wirkung_textbuch(conn, d: Druck) -> str:
         d.tg.sende(d.chat_id, T._TEXT_TEXTBUCH_FEHLER)
         return T._TEXT_TEXTBUCH_FEHLER
     return T._ANTWORT_TEXTBUCH
+
+
+def _wirkung_formberater(conn, d: Druck) -> str:
+    """"Weitere Formen & Gegenpol" (Karte t_256ec777): der Formberater
+    schlaegt im eigenen Thread nach und schreibt selbst in den Chat --
+    Zusage 2, hier faellt kein Modellaufruf an."""
+    from interview_theater import formberater
+
+    formberater.starte(conn, d.tg, d.klm, d.e, d.chat_id,
+                       formberater.AUSLOESER_KNOPF)
+    return T._ANTWORT_FORMBERATER
 
 
 def _wirkung_sprechanteile(conn, d: Druck) -> str:
@@ -1766,6 +1778,7 @@ _WIRKUNGEN = {
     ART_DRAMATURGIE_SZENE: _wirkung_dramaturgie_szene,
     ART_DRAMATURGIE_LASSEN: _wirkung_dramaturgie_lassen,
     ART_TEXTBUCH: _wirkung_textbuch,
+    ART_FORMBERATER: _wirkung_formberater,
     ART_SPRECHANTEILE: _wirkung_sprechanteile,
     ART_FASSUNGEN: _wirkung_fassungen,
     ART_SPEICHERN: _wirkung_speichern,

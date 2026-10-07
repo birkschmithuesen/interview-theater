@@ -33,7 +33,7 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_SCHREIBEN, ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN,
     ART_SZENE_USA, ART_TEXTBUCH, ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
     ART_SPRECHWEISEN_ANDERS, ART_SPRECHWEISEN_PASST,
-    MAX_AUSWAHL, MENUE_KNOPF_LAENGE, T,
+    MAX_AUSWAHL, MENUE_KNOPF_LAENGE, PHASE_SETTING, T,
     TRENNER, log,
 )
 from interview_theater.knoepfe.basis import (
@@ -1263,6 +1263,20 @@ def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
         ),
         quelle="knopf",
     )
+    if _nur_rahmen(conn, chat_id):
+        # Padua, Phase 4 (Karte t_b19d37ac, Birk 06.10.2026: "Keine Szenen
+        # ausformulieren in Phase 4. Nur Rahmen setzen."): nach der
+        # gespeicherten Szenenfolge keine Szenenvorstellung mit "Soll ich
+        # Szene 1 jetzt schreiben?" -- geschrieben wird erst in Phase 5
+        # (Prose Draft). Stattdessen das eine Phasenangebot, sofern faellig.
+        tg.sende(chat_id, T._TEXT_FOLGE_GESPEICHERT_RAHMEN.format(anzahl=len(nummern)))
+        if modus.strip() == "anders":
+            tg.sende(chat_id, T._TEXT_ANDERS)
+            return T._TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG
+        from interview_theater.knoepfe import stationen
+
+        stationen.biete_phase_proaktiv(conn, tg, chat_id)
+        return T._TEXT_SZENEN_UEBERNOMMEN_QUITTUNG.format(anzahl=len(nummern))
     tg.sende(chat_id, T._TEXT_FOLGE_GESPEICHERT.format(anzahl=len(nummern)))
     if modus.strip() == "anders":
         tg.sende(chat_id, T._TEXT_ANDERS)
@@ -1271,6 +1285,15 @@ def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     if erste is not None:
         biete_szene(conn, tg, chat_id, erste)
     return T._TEXT_SZENEN_UEBERNOMMEN_QUITTUNG.format(anzahl=len(nummern))
+
+
+def _nur_rahmen(conn, chat_id: int) -> bool:
+    """Phase 4 eines Profils mit Prosa-Entwurf in Phase 5 (Padua): hier wird
+    nur der Rahmen gesetzt, keine Szene zum Schreiben vorgestellt."""
+    from interview_theater import phasen, workshop
+
+    return (workshop.prosa_entwurf_aktiv()
+            and phasen.aktuelle(conn, chat_id) == PHASE_SETTING)
 
 
 def _uebernimm_formwahl(conn, tg, chat_id: int, wert: str, formen: dict) -> str:

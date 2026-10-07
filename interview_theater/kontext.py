@@ -107,6 +107,11 @@ BUDGETS = {
     # klein; beide fallen in der Kuerzungsleiter vor den Verdichtungen.
     "board": 500,
     "mitgehoert": 2000,
+    # Karte t_256ec777 (07.10.2026): die Bot-Bloecke der Formen, die der
+    # Formberater fuer diese Gruppe nachgeschlagen hat -- durch
+    # ``formberater.MAX_IM_KONTEXT`` (5 x 300-600 Zeichen) gedeckelt, bei
+    # Platznot im Ganzen weg (vor dem Fenster).
+    "formen": 1000,
     "phasenhinweis": 50,
     "figurenhinweis": 100,
     "szene": 2000,
@@ -243,7 +248,8 @@ PAUSE_AB_MINUTEN = 60
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
     "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "festlegungen",
-    "diskussion", "begriffe_detail", "board", "mitgehoert", "phasenhinweis",
+    "diskussion", "begriffe_detail", "board", "mitgehoert", "formen",
+    "phasenhinweis",
     "figurenhinweis", "szene",
     "journal", "fenster", "ausloeser", "erstkontakt",
 )
@@ -862,6 +868,20 @@ def _baue_diskussion_block(conn, chat_id: int) -> str:
     if not text:
         return ""
     return f"{T.DISKUSSION_KOPF}\n\n{text}"
+
+
+def _baue_formen(conn, chat_id: int) -> str:
+    """Die Bot-Bloecke der Formen, die der Formberater fuer diese Gruppe
+    nachgeschlagen hat (``formberater.kontextblock``) -- ab Phase 4,
+    datengetrieben. Scheitert das Lesen (Katalog fehlt), fehlt nur dieser
+    Block, nicht der Zug."""
+    from interview_theater import formberater
+
+    try:
+        return formberater.kontextblock(conn, chat_id)
+    except Exception:
+        log.exception("Formen-Block nicht gebaut, chat_id=%s", chat_id)
+        return ""
 
 
 #: Die Kopfzeile des Begriffs-Blocks (Karte t_4517d4ad, 04.10.2026).
@@ -1900,6 +1920,9 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         # Fakt, eine Stelle; R-1: ein verworfener, aber gespeicherter
         # Begriff fehlt dort und braucht diesen Block, in jeder Phase).
         "begriffe_detail": _baue_begriffe_detail(conn, chat_id),
+        # Ab Phase 4: was der Formberater nachgeschlagen hat (leer, solange
+        # nichts nachgeschlagen ist).
+        "formen": _baue_formen(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
@@ -1990,6 +2013,10 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
     bloecke["transkripte"] = ""
     if _zu_lang() and bloecke["szene"]:
         bloecke["szene"] = _baue_szene(conn, chat_id, SZENE_ZEICHEN_NOTFALL)
+    # Das Nachschlagewerk vor dem Gespraech: es ist Hintergrund, das Fenster
+    # ist das, worauf der Bot antwortet (Karte t_256ec777).
+    if _zu_lang() and bloecke.get("formen"):
+        bloecke["formen"] = ""
     while _zu_lang() and fenster_eintraege:
         fenster_eintraege = fenster_eintraege[1:]
         bloecke["fenster"] = "\n".join(fenster_eintraege)

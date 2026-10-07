@@ -467,6 +467,14 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
             def danach():
                 entwurf.starte_uebersicht(conn, tg, klm, e, chat_id)
         starte_schaerfung(conn, tg, klm, e, chat_id, danach=danach)
+        # Formberater, Ausloeser B (Karte t_256ec777, Birk 06.10.2026):
+        # EINMAL je Gruppe ordnet er Story und Framing aus Phase 4 ein --
+        # passt / Vorschlag / Gegenpol, als Angebot im Chat. Im eigenen
+        # Thread (Zusage 2); ohne Modell (Tests, Skripte) nichts.
+        if klm is not None:
+            from interview_theater import formberater
+
+            formberater.starte_einstieg(conn, tg, klm, e, chat_id)
     else:
         # Beim Eintritt in eine Phase fragt der Bot zuerst die Gruppe,
         # statt sofort vorzuschlagen (Zusage: proaktiv, aber nicht

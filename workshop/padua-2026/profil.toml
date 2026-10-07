@@ -255,7 +255,7 @@ zitate_an_claude = true
 # aufnahme._fuettere_gespraechszug_aus_brainstorm. Ohne diese Zeile (Vorgabe
 # False, Dortmund): unveraendert.
 [brainstorm]
-chat_einspeisen = true
+chat_einspeisen = false  # Birk 07.10. ~10:10: Quickfix aus, Brainstorm manuell
 
 # Phase 1 (Begriffe) und Phase 2 (Eroeffnung): ein Vorschlag wird sofort
 # gespeichert statt der Ja/Nein-Rueckfrage (Abnahme-Befund t_0b702d1d: beide

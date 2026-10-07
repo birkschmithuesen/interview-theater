@@ -1781,22 +1781,36 @@ def entferne(conn, chat_id: int, wert: str, quelle: str = "erkenner") -> dict | 
 #: Erkenner-Modell: eine neue ``art`` kostet einen Korpuslauf mit FP = 0,
 #: und der Satz liegt schon vor -- ``erkenner.md`` ist ohne Korpuslauf
 #: nicht anzufassen.
-_RESET_WUNSCH = re.compile(
-    r"\bcancell\w*\s+tutto\b"
-    r"|\bricominci\w*\s+(?:da\s+capo|da\s+zero)\b"
-    r"|\brifacci\w*\s+tutto\b"
-    r"|\bbutt\w*\s+via\s+tutto\b"
-    r"|\bstart(?:ing)?\s+over\b"
-    r"|\b(?:clear|wipe)\s+(?:the\s+)?(?:whole\s+)?workbench\b"
-    r"|\bdelete\s+everything\b"
-    r"|\bcancel\s+everything\b",
+#: Ein Verb, das etwas verwirft/neu macht -- allein noch kein Reset-Wunsch
+#: (siehe ``_RESET_TOTALITAET``): "let's start over with this one question"
+#: meint nur eine einzelne Sache neu, nicht die ganze Werkbank.
+_RESET_VERB = re.compile(
+    r"\bcancell\w*\b|\bricominci\w*\b|\brifacci\w*\b|\bbutt\w*\s+via\b"
+    r"|\bclear\b|\bwipe\b|\bdelete\b|\bcancel\b|\bredo\b|\bstart(?:ing)?\s+over\b",
+    re.IGNORECASE,
+)
+#: Ein Wort, das "alles" meint -- nur zusammen mit einem Reset-Verb
+#: (``_ist_reset_wunsch``) ist das der ausdrueckliche Wunsch aus dem
+#: Live-Fund ("Cancella TUTTO il WORKBENCH").
+_RESET_TOTALITAET = re.compile(
+    r"\btutto\b|\beverything\b|\bworkbench\b"
+    r"|\bda\s+capo\b|\bda\s+zero\b|\bfrom\s+scratch\b",
     re.IGNORECASE,
 )
 
 
 def _ist_reset_wunsch(text: str) -> bool:
-    """Sieht ``text`` nach einem ausdruecklichen Reset-/Ersetzen-Wunsch aus?"""
-    return _RESET_WUNSCH.search(text or "") is not None
+    """Sieht ``text`` nach einem ausdruecklichen Reset-/Ersetzen-Wunsch aus?
+
+    Verb UND Totalitaetswort muessen beide vorkommen (nicht zwingend
+    nebeneinander) -- ein Reset-Verb allein ("start over", "clear") ist zu
+    generisch und kaeme in ganz anderen Saetzen vor ("let's start over with
+    this one question")."""
+    text = text or ""
+    return (
+        _RESET_VERB.search(text) is not None
+        and _RESET_TOTALITAET.search(text) is not None
+    )
 
 
 def _reset_wunsch_pseudo_aenderungen(conn, chat_id: int, nachrichten) -> list[dict]:

@@ -42,6 +42,15 @@ def test_ist_reset_wunsch_nicht_bei_normalem_text():
     assert not erkenner._ist_reset_wunsch("a bar table near the university")
 
 
+def test_ist_reset_wunsch_nicht_bei_reset_verb_ohne_totalitaet():
+    """Ein Reset-Verb allein ist zu generisch: "start over" kann auch nur
+    eine einzelne Sache meinen, nicht die ganze Werkbank."""
+    assert not erkenner._ist_reset_wunsch(
+        "let's start over with this one question, I didn't phrase it well"
+    )
+    assert not erkenner._ist_reset_wunsch("can we delete that last sentence?")
+
+
 def test_reset_wunsch_raeumt_unverwandte_alte_festlegung_weg(conn, einst):
     """Reproduktion des Live-Funds: der Lauf auf die Reset-Nachricht traegt
     selbst nur Aenderungen in ANDEREN Bereichen (Format, Stil). Die alte

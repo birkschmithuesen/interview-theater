@@ -625,3 +625,17 @@ def test_done_doppelklick_wirkt_einmal(lage, tg, einst, monkeypatch):
     for _ in range(3):
         knoepfe_szenen.schliesse_schaerfungsliste(lage, tg, None, None, 1)
     assert aufrufe["uebersicht"] == 1
+
+
+def test_done_p5_schliesst_liste_keine_nachruecker(lage, tg, einst, monkeypatch):
+    """Birk 07.10.2026 ~18:00 (G2): nach Done kamen neue Interviewstellen in
+    die Liste. Done: sichtbare offene = Keep, ausgeblendete fallen heraus,
+    die Liste ist danach leer. Mutant: Block weg -> offene bleiben -> rot."""
+    from interview_theater import web_daten
+    _p5_done_lage(lage, einst, monkeypatch)
+    monkeypatch.setattr(web_daten, "_interviewbezeichnungen", lambda conn, chat_id: {})
+    monkeypatch.setattr(web_daten, "SCHAERFUNGSLISTE_JE_ZIEL", 0)
+    assert schaerfung.offene_stellen(lage, 1)
+    knoepfe_szenen.schliesse_schaerfungsliste(lage, tg, None, None, 1)
+    assert schaerfung.offene_stellen(lage, 1) == []
+    assert web_daten.schaerfungsliste(lage, 1) is None

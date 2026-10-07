@@ -506,6 +506,23 @@ def schliesse_schaerfungsliste(conn, tg, klm, e, chat_id: int) -> str:
     eintraege = schaerfung_modul.offene_stellen(conn, chat_id)
     ja_ids = [z["id"] for z in eintraege if z["entscheidung"] == "ja"]
     nein_ids = [z["id"] for z in eintraege if z["entscheidung"] == "nein"]
+    if workshop.prosa_entwurf_aktiv():
+        # Birk 07.10.2026 ~18:00 (G1/G2: nach "Done" tauchten neue
+        # Interviewstellen in der Liste auf): "Done" schliesst die Liste.
+        # Was SICHTBAR und unentschieden war, zaehlt wie beschriftet als
+        # Keep ("open ones count as keep"); was die Obergrenze ausgeblendet
+        # hatte, faellt weich heraus -- sonst rueckt es als "neue" Liste nach.
+        from interview_theater import web_daten
+
+        liste = web_daten.schaerfungsliste(conn, chat_id) or {}
+        sichtbar = {
+            e["id"] for g in liste.get("gruppen", []) for e in g.get("eintraege", [])
+        }
+        entschieden = set(ja_ids) | set(nein_ids)
+        ja_ids += [z["id"] for z in eintraege
+                   if z["id"] in sichtbar and z["id"] not in entschieden]
+        nein_ids += [z["id"] for z in eintraege
+                     if z["id"] not in sichtbar and z["id"] not in entschieden]
     anzahl = schaerfung_modul.uebernimm_stellen(conn, chat_id, ja_ids) if ja_ids else 0
     if nein_ids:
         schaerfung_modul.verwirf_stellen(conn, nein_ids)

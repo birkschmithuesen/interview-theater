@@ -2752,6 +2752,15 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str,
         # dann bliebe die Sperre bis zum Prozessende liegen.
         sperre.release()
         raise
+    # Birk 07.10.2026 ~16:20: springt eine Gruppe in Phase 5 ohne
+    # abgenommene Uebersicht gleich in die Szenen, entsteht die Uebersicht
+    # (Logline) still nebenbei -- aus Chat und Szenen, als gesetzt markiert.
+    try:
+        from interview_theater import entwurf
+
+        entwurf.starte_stille_uebersicht(conn, tg, klm, e, chat_id)
+    except Exception:
+        log.exception("Stille Uebersicht nicht angestossen, chat_id=%s", chat_id)
     return thread
 
 

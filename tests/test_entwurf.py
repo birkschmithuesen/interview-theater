@@ -417,3 +417,42 @@ def test_uebersicht_bekommt_p5_gespraech_und_szenen_unter_padua(monkeypatch):
     assert text.index("1. Tornare a casa") < text.index("2. Le voci")
     monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: False)
     assert entwurf._voll_bloecke(None, 1) == []
+
+
+def test_stille_uebersicht_nur_p5_padua_ohne_fixierung(monkeypatch):
+    """Birk 07.10.2026 ~16:20: ohne abgenommene Uebersicht entsteht sie still
+    neben dem Szenenlauf. Mutant: Fixierungs-Pruefung weg -> rot."""
+    from interview_theater import entwurf, phasen, workshop, repo
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(phasen, "aktuelle", lambda conn, chat_id: 5)
+    monkeypatch.setattr(repo, "hole_arbeitsstand", lambda conn, chat_id: {"geschichte_uebersicht_fixiert_am": None})
+    assert entwurf.braucht_stille_uebersicht(None, 1) is True
+    monkeypatch.setattr(repo, "hole_arbeitsstand", lambda conn, chat_id: {"geschichte_uebersicht_fixiert_am": "2026-10-07T14:00"})
+    assert entwurf.braucht_stille_uebersicht(None, 1) is False
+    monkeypatch.setattr(repo, "hole_arbeitsstand", lambda conn, chat_id: {"geschichte_uebersicht_fixiert_am": None})
+    monkeypatch.setattr(phasen, "aktuelle", lambda conn, chat_id: 6)
+    assert entwurf.braucht_stille_uebersicht(None, 1) is False
+    monkeypatch.setattr(phasen, "aktuelle", lambda conn, chat_id: 5)
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: False)
+    assert entwurf.braucht_stille_uebersicht(None, 1) is False
+
+
+def test_stille_uebersicht_fixiert_und_sendet_eine_zeile(monkeypatch):
+    import threading
+    from interview_theater import entwurf, repo
+    gesetzt, gesendet = {}, []
+    monkeypatch.setattr(entwurf, "generiere_uebersicht", lambda *a, **k: {
+        "logline": "Four musicians bring the town's voices home.", "setting": "s",
+        "figuren_zeilen": [], "spannungsbogen": "b", "szenen_was_passiert": ["a", "b"]})
+    monkeypatch.setattr(repo, "setze_arbeitsstand", lambda conn, chat_id, feld, wert: gesetzt.__setitem__(feld, wert))
+    monkeypatch.setattr(repo, "schreibe_journal", lambda *a, **k: None)
+
+    class Tg:
+        def sende(self, chat_id, text, **k):
+            gesendet.append(text)
+    sperre = threading.Lock(); sperre.acquire()
+    entwurf._lauf_still(None, Tg(), object(), object(), 1, sperre)
+    assert gesetzt.get("geschichte_uebersicht_fixiert_am")
+    assert len(gesendet) == 1 and "Four musicians" in gesendet[0]
+    assert not sperre.locked()

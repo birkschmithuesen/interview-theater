@@ -1156,6 +1156,9 @@ _ART_LANG = "long recording"
 _ART_KURZ = "short recording"
 _JOURNAL_PHASE_DURCH_AUFNAHME = "by starting a recording"
 
+["entwurf"]
+_TEXT_LOGLINE_STILL = "I've noted your logline: {logline}\nIf it should be different, just tell me."
+
 ["szene"]
 _TEXT_ANGEKUENDIGT = "I'm writing out the scene, that takes a minute."
 _TEXT_BESETZT = "I'm still writing a scene, one moment."

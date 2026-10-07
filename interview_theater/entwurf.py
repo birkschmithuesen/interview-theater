@@ -233,6 +233,68 @@ def _lauf(conn, tg, klm, e, chat_id: int, notiz: str | None,
         sperre.release()
 
 
+#: Die eine Infozeile der stillen Uebersicht (Birk 07.10.2026 ~16:20).
+_TEXT_LOGLINE_STILL = ("Ich habe eure Logline notiert: {logline}\n"
+                       "Wenn sie anders sein soll, sagt es mir einfach.")
+
+
+def braucht_stille_uebersicht(conn, chat_id: int) -> bool:
+    """Phase 5 (Padua), Uebersicht nicht abgenommen, und die Gruppe laesst
+    schon Szenen schreiben -- dann fehlt die Logline sonst ganz."""
+    from interview_theater import phasen, workshop
+
+    if not (workshop.prosa_entwurf_aktiv() and workshop.vollmaterial_phase5_aktiv()):
+        return False
+    if phasen.aktuelle(conn, chat_id) != 5:
+        return False
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    return not (stand is not None and (stand["geschichte_uebersicht_fixiert_am"] or "").strip())
+
+
+def _lauf_still(conn, tg, klm, e, chat_id: int, sperre: threading.Lock) -> None:
+    """Wie ``_lauf``, aber ohne Arbeitszeilen und ohne Knoepfe: Uebersicht
+    erzeugen, als abgenommen markieren, EINE Infozeile mit der Logline.
+    Szenenfelder werden NICHT ueberschrieben (die Gruppe arbeitet schon an
+    den Szenen)."""
+    try:
+        ergebnis = generiere_uebersicht(klm, conn, e, chat_id)
+        anzeige = baue_anzeige(ergebnis)
+        repo.setze_arbeitsstand(conn, chat_id, "geschichte_uebersicht", anzeige)
+        repo.setze_arbeitsstand(conn, chat_id, "geschichte_uebersicht_szenen",
+                                "\n".join(ergebnis.get("szenen_was_passiert") or []))
+        repo.setze_arbeitsstand(conn, chat_id, "geschichte_uebersicht_fixiert_am", repo._jetzt())
+        repo.schreibe_journal(conn, chat_id, "entschieden",
+                              f"Story overview noted in the background ({len(anzeige)} chars)",
+                              quelle="entwurf")
+        logline = (ergebnis.get("logline") or "").strip()
+        if logline:
+            tg.sende(chat_id, T._TEXT_LOGLINE_STILL.format(logline=logline), system=True)
+    except Exception:
+        log.exception("Stille Uebersicht fehlgeschlagen, chat_id=%s", chat_id)
+        repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                           "entwurf_uebersicht_fehlgeschlagen", "Stille Uebersicht fehlgeschlagen")
+    finally:
+        sperre.release()
+
+
+def starte_stille_uebersicht(conn, tg, klm, e, chat_id: int):
+    """Stoesst ``_lauf_still`` im Thread an, wenn ``braucht_stille_uebersicht``.
+    Teilt die Sperre mit ``starte_uebersicht`` -- nie zwei Uebersichtslaeufe."""
+    if klm is None or not braucht_stille_uebersicht(conn, chat_id):
+        return None
+    sperre = _sperre_fuer(chat_id)
+    if not sperre.acquire(blocking=False):
+        return None
+    try:
+        thread = threading.Thread(target=_lauf_still, args=(conn, tg, klm, e, chat_id, sperre),
+                                  daemon=True)
+        thread.start()
+    except Exception:
+        sperre.release()
+        raise
+    return thread
+
+
 def uebernimm_szenenfelder(conn, chat_id: int) -> None:
     """Stufe A -> B: jede Szene bekommt ihre Pflichtfelder aus der
     Uebersicht, sofern sie noch leer sind. ``form`` bleibt aussen vor -- das
@@ -345,3 +407,7 @@ def starte_uebersicht(conn, tg, klm, e, chat_id: int, notiz: str | None = None):
         sperre.release()
         raise
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

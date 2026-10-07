@@ -277,9 +277,38 @@ def karte_text(karte: dict, szene) -> str:
     return "\n".join(zeilen)
 
 
-def zeige(conn, tg, e, chat_id: int, nummer: int) -> int | None:
+def im_cothinker(conn, chat_id: int) -> bool:
+    """Leben die Karten im CoThinker-Tab (Birk 07.10.2026 ~19:25)? Nur fuer
+    Web-Gruppen mit CoThinker (``diskussion_aktiv``); Telegram behaelt die
+    Karte im Chat."""
+    gruppe = repo.hole_gruppe(conn, chat_id)
+    kanal = (gruppe["kanal"] if gruppe is not None and "kanal" in gruppe.keys() else None)
+    return kanal == "web" and workshop.diskussion_aktiv()
+
+
+def frage_nach_aenderung(conn, tg, e, chat_id: int, nummer: int) -> None:
+    """"No, change" auf der Karte im CoThinker: die naechste Nachricht im
+    Chat ist das Feedback (``szenenfolge.erwarte_regienotiz`` -- derselbe
+    Weg wie "No, change" unter einem Text, ``ablauf`` gibt sie an
+    ``ueberarbeitung.ueberarbeite`` -> ``aendere``)."""
+    from interview_theater import szenenfolge
+
+    if nummer != aktuelle_nummer(conn, chat_id):
+        _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
+        return
+    szenenfolge.erwarte_regienotiz(chat_id, nummer)
+    _sende(conn, tg, e, chat_id, T._TEXT_FEEDBACK_FRAGE.format(nummer=nummer))
+
+
+def zeige(conn, tg, e, chat_id: int, nummer: int, *, im_chat: bool = False) -> int | None:
     """Die Karte mit "Yes, save" / "No, change" -- dieselben Knopfarten wie
-    unter einem Szenentext, damit Knopf- und Chatweg gleich wirken."""
+    unter einem Szenentext, damit Knopf- und Chatweg gleich wirken.
+
+    Im CoThinker-Modus (``im_cothinker``) steht die Karte selbst im
+    CoThinker-Tab; der Chat bekommt nur eine Zeile -- AUSSER die Karte ist
+    das Ergebnis einer Klaerung im Chat (``im_chat``): dann steht sie dort
+    ganz, zur Bestaetigung mit "Yes, save card" / "No, change again" (Birk:
+    was im Chat geklaert wurde, wird bestaetigt, nie still gespeichert)."""
     from interview_theater import knoepfe
     from interview_theater.knoepfe import basis, szenen as ks
 
@@ -289,20 +318,27 @@ def zeige(conn, tg, e, chat_id: int, nummer: int) -> int | None:
         return None
     basis._nimm_alte_leiste_ab(conn, tg, chat_id, ks.ART_SZENE_PASST)
     gesamt = len(_szenen(conn, chat_id))
+    cothinker = im_cothinker(conn, chat_id)
+    if cothinker and not im_chat:
+        return _sende(conn, tg, e, chat_id, T._TEXT_IM_COTHINKER.format(
+            nummer=nummer, gesamt=gesamt))
     text = karte_text(karte, szene) + "\n\n" + T._TEXT_FRAGE.format(
         nummer=nummer, gesamt=gesamt)
+    ja = T._TEXT_KARTE_JA_KNOPF if cothinker else knoepfe.T.TEXT_WEITER_KNOPF
+    nein = T._TEXT_KARTE_NOCHMAL_KNOPF if cothinker else knoepfe.T.TEXT_NEIN_AENDERN_KNOPF
     leiste = [
-        ks._knopf(conn, chat_id, knoepfe.T.TEXT_WEITER_KNOPF, ks.ART_SZENE_PASST, str(nummer)),
-        ks._knopf(conn, chat_id, knoepfe.T.TEXT_NEIN_AENDERN_KNOPF, ks.ART_SZENE_ANDERS, str(nummer)),
+        ks._knopf(conn, chat_id, ja, ks.ART_SZENE_PASST, str(nummer)),
+        ks._knopf(conn, chat_id, nein, ks.ART_SZENE_ANDERS, str(nummer)),
     ]
     message_id = basis._mit_leiste(conn, tg, chat_id, text, leiste)
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     return message_id
 
 
-def _sende(conn, tg, e, chat_id: int, text: str) -> None:
+def _sende(conn, tg, e, chat_id: int, text: str):
     message_id = tg.sende(chat_id, text)
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+    return message_id
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +379,7 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int,
         if karte is None:
             _sende(conn, tg, e, chat_id, T._TEXT_FEHLER.format(nummer=nummer))
             return
-        zeige(conn, tg, e, chat_id, nummer)
+        zeige(conn, tg, e, chat_id, nummer, im_chat=bool(notiz))
 
     faden = threading.Thread(target=_lauf, daemon=True)
     try:
@@ -538,6 +574,10 @@ _TEXT_GESAMT_LAEUFT = "Alle Karten stehen. Ich schaue einmal uebers Ganze."
 _TEXT_GESAMT_KOPF = "Blick aufs Ganze:"
 _TEXT_GESAMT_OHNE = "- Nichts Auffaelliges."
 _ANTWORT_GESPEICHERT = "Karte {nummer} gespeichert"
+_TEXT_IM_COTHINKER = "Karte {nummer} von {gesamt} steht im CoThinker-Tab."
+_TEXT_FEEDBACK_FRAGE = "Was soll an Karte {nummer} anders werden?"
+_TEXT_KARTE_JA_KNOPF = "Yes, save card"
+_TEXT_KARTE_NOCHMAL_KNOPF = "No, change again"
 _JOURNAL_GESPEICHERT = "Szenenkarte {nummer} gespeichert: {titel}"
 
 

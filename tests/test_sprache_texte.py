@@ -88,6 +88,7 @@ BLEIBT_DEUTSCH = {
     "web._CSS_DASHBOARD": "CSS, nur Kommentare deutsch",
     "web._CSS_GRUPPE": "CSS, nur Kommentare deutsch",
     "web._CSS_BUEHNE": "CSS, nur Kommentare deutsch",
+    "web._CSS_KARTEN_BUEHNE": "CSS, Token-Name --auf-signal",
     "web._TABS_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     "web._CSS_LEITFADEN": "CSS, nur Kommentare deutsch",
     "web._CSS_TEXTBUCH": "CSS, nur Kommentare deutsch",

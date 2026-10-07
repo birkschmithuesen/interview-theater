@@ -737,7 +737,7 @@ _VEREINT_JS = """
     var p = rm.dataset.aktivePhase;
     // Birk 07.10.2026: auch Phase 5 -- dort steht die Sortierliste der
     // Interview-Zuordnung (Yes/No) im CoThinker-Tab.
-    return p === '4' || p === '5' || ((p === '1' || p === '2') && rm.dataset.begriffsboard === '1');
+    return p === '4' || p === '5' || __KARTEN_PHASE__((p === '1' || p === '2') && rm.dataset.begriffsboard === '1');
   }
   var lies = function () {
     var teile = location.hash.replace(/^#/, '').split('&');
@@ -1783,6 +1783,7 @@ _AUSWAHL_JS = """
   var ZAEHLER = { fragen: __AUSWAHL_ZAEHLER_FRAGEN__, schaerfung: __AUSWAHL_ZAEHLER_SCHAERFUNG__ };
   var FEHLER_NETZ = __AUSWAHL_FEHLER_NETZ__;
   var FEHLER_UNGUELTIG = __AUSWAHL_FEHLER_UNGUELTIG__;
+  var KARTE_JA = __KARTE_JA__;
   var TAKT = window.buehneTakt || { gen: 0, unterwegs: 0, gesehen: function () {} };
   var unterwegs = {};
   var anzahlUnterwegs = 0;
@@ -1908,6 +1909,35 @@ _AUSWAHL_JS = """
           if (unterwegs[nummer] === wert) { delete unterwegs[nummer]; }
           if (anzahlUnterwegs === 0) { holePanel(); }
         });
+      return;
+    }
+    // Scene cards in the CoThinker: "Yes, save" saves and reloads the panel
+    // (next card); "No, change" jumps to the chat for the feedback question.
+    var kartenKnopf = ziel.closest('#buehne-panel[data-ansicht="karten"] .karte-knopf');
+    if (kartenKnopf) {
+      ev.preventDefault();
+      if (kartenKnopf.disabled) { return; }
+      var aktion = kartenKnopf.getAttribute('data-aktion');
+      var kartenNummer = parseInt(kartenKnopf.getAttribute('data-nummer'), 10);
+      kartenKnopf.closest('.karte-aktionen').querySelectorAll('button')
+        .forEach(function (b) { b.disabled = true; });
+      sende('chat/karte', { aktion: aktion, nummer: kartenNummer })
+        .then(function (r) {
+          if (!r.ok) { zeigeFehler(); return; }
+          if (aktion === 'aendern' && document.querySelector('.tabs button[data-tab="chat"]')) {
+            location.hash = '#chat';
+          }
+        })
+        .catch(function () { zeigeFehler(); })
+        .then(function () { setTimeout(holePanel, 1500); });
+      return;
+    }
+    // A changed card confirmed in the chat ("Yes, save card"): the click
+    // itself goes through the chat button path; here only the jump back.
+    var chatKnopf = ziel.closest('.leiste button');
+    if (chatKnopf && KARTE_JA && chatKnopf.textContent === KARTE_JA
+        && document.querySelector('.tabs button[data-tab="buehne"]')) {
+      setTimeout(function () { location.hash = '#buehne'; holePanel(); }, 700);
       return;
     }
     var fertig = ziel.closest('#buehne-panel[data-ansicht="auswahl"] .auswahl-fertig');
@@ -2109,6 +2139,43 @@ def auswahl_fertig_post(handler, db_pfad: str, token: str, chat_id: int,
     web_chat._angenommen(handler, {"message_id": message_id})
 
 
+#: Die zwei Knoepfe der aktiven Szenenkarte -> versteckter Befehl (Padua,
+#: Birk 07.10.2026 ~19:25). Wie ``auswahl_fertig_post``: der Webserver legt
+#: nur den Befehl ab, der Bot fuehrt ihn aus (``befehle._befehl_karte``).
+_KARTE_BEFEHL = {"ja": "/karte_ja", "aendern": "/karte_aendern"}
+
+
+def _karte_ja_text() -> str:
+    """Der Knopftext, nach dem der Chat zurueck in den CoThinker springt --
+    leer ohne ``[karten] aktiv`` (dann springt nichts)."""
+    from interview_theater import szenenkarte, workshop
+
+    return szenenkarte.T._TEXT_KARTE_JA_KNOPF if workshop.szenenkarten_aktiv() else ""
+
+
+def karte_post(handler, db_pfad: str, token: str, chat_id: int,
+               schluessel: bytes) -> None:
+    """``POST /g/<token>/chat/karte`` -- ``{aktion: ja|aendern, nummer}``.
+    Nonce zuerst (403), dann Werte (400), dann der versteckte Befehl."""
+    from interview_theater import repo, web_chat
+
+    daten = web_chat._koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    befehl = _KARTE_BEFEHL.get(daten.get("aktion"))
+    nummer = daten.get("nummer")
+    if (befehl is None or not isinstance(nummer, int) or isinstance(nummer, bool)
+            or nummer < 1):
+        handler._fehler(400, T._TEXT_AUSWAHL_UNGUELTIG)
+        return
+    with web_chat.schreibend(db_pfad) as conn:
+        message_id = repo.lege_web_post_an(
+            conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
+            text=f"{befehl} {nummer}",
+        )
+    web_chat._angenommen(handler, {"message_id": message_id})
+
+
 def start_post(handler, db_pfad: str, token: str, chat_id: int,
                schluessel: bytes) -> None:
     """``POST /g/<token>/chat/start`` -- der erste Seitenaufruf einer
@@ -2128,6 +2195,15 @@ def start_post(handler, db_pfad: str, token: str, chat_id: int,
                 text="/start",
             )
     web_chat._angenommen(handler, {"message_id": message_id})
+
+
+def _karten_im_cothinker() -> bool:
+    """Phase 6 zeigt die Szenenkarten im CoThinker (Padua, ``[karten] aktiv``
+    mit CoThinker). Das ``data-begriffsboard``-Merkmal steht in genau diesem
+    Profil schon am ``#roadmap`` -- daran erkennt das Skript die Gruppe."""
+    from interview_theater import workshop
+
+    return workshop.szenenkarten_aktiv() and workshop.diskussion_aktiv()
 
 
 def _board_merkmal() -> str:
@@ -2403,7 +2479,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     # Profil das Begriffsboard faehrt (Karte t_4517d4ad). Derselbe Zustand,
     # den ``istCoThinkerPhase()`` im Browser bei jedem Takt neu herstellt.
     # Seit 05.10.2026 (Birk) auch Phase 2: die Fragenuebersicht je Begriff.
-    phase4 = phase in (4, 5) or (phase in (1, 2) and workshop.diskussion_aktiv())
+    phase4 = (phase in (4, 5) or (phase in (1, 2) and workshop.diskussion_aktiv())
+              or (phase == 6 and _karten_im_cothinker()))
     vorgabe = VORGABE_TAB if chat_vorhanden else "stand"
     panels = {
         "stand": web.gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
@@ -2471,6 +2548,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     if not werkbank_bearbeitbar:
         css += scope_css(web_gestalt.css_werkbank(), ".panel-stand")
     css += scope_css(web_gestalt.css_buehne(), ".panel-buehne")
+    css += scope_css(web.css_karten_buehne(), ".panel-buehne")
     css += scope_css(web_gestalt.css_textbuch(), ".panel-textbuch")
     # Padua [skript] verdichtet (Birk 07.10.2026 ~17:45): Lesetypografie und
     # Workbench-Kurzform -- ohne Schalter leer, die Seite bleibt byte-gleich.
@@ -2496,6 +2574,10 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         # Karte beheben soll.
         _VH_JS
         + _VEREINT_JS.replace("__TABS__", json.dumps(list(tabs)))
+        # Padua [karten] aktiv (Birk 07.10.2026 ~19:25): der CoThinker traegt
+        # in Phase 6 die Szenenkarten. Ohne Schalter: leer -> byte-gleich.
+        .replace("__KARTEN_PHASE__", "(p === '6' && rm.dataset.begriffsboard === '1') || "
+                 if _karten_im_cothinker() else "")
         .replace("__VORGABE__", vorgabe)
         .replace("__BASIS__", f"{token}/")
         .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
@@ -2540,6 +2622,7 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             .replace("__AUSWAHL_ZAEHLER_SCHAERFUNG__", _js_text(web.T._TEXT_SCHAERFUNGSLISTE_ZAEHLER))
             .replace("__AUSWAHL_FEHLER_NETZ__", _js_text(T._TEXT_PHASE_FEHLER_NETZ))
             .replace("__AUSWAHL_FEHLER_UNGUELTIG__", _js_text(T._TEXT_AUSWAHL_UNGUELTIG))
+            .replace("__KARTE_JA__", _js_text(_karte_ja_text()))
         )
     # ``chat_vorhanden`` durchreichen (UX-Fix an Aufgabe 8): Baustein 3
     # (``_JS_AUFNAHME``) nennt Elemente, die nur im Chat-Panel existieren

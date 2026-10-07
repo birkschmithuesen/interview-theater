@@ -3679,6 +3679,9 @@ def _buehne_html(daten: dict) -> str:
         # "Show more" war unsinnig): Yes/No-Sortierliste statt Seite fuer
         # Seite im Chat.
         return _schaerfungsliste_html(daten["schaerfungsliste"])
+    if daten.get("szenenkarten") is not None:
+        # Phase 6 unter Padua mit Karten (Birk 07.10.2026 ~19:25).
+        return _szenenkarten_html(daten["szenenkarten"])
     if daten.get("fragenuebersicht_zeigen"):
         # Phase 2 (Birk, 05.10.2026): was je Begriff an Fragen steht.
         return _fragenuebersicht_html(daten.get("fragenuebersicht") or [])
@@ -4640,6 +4643,93 @@ def _partitur_html(szenen: list[dict]) -> str:
         zeilen.append(f"<tr>{zellen}</tr>")
     return (f'<section class="probe-szene partitur"><table class="partitur">'
             f"<thead><tr>{kopf}</tr></thead><tbody>{''.join(zeilen)}</tbody></table></section>")
+
+
+_TEXT_KARTE_ENTSTEHT = "Karte {nummer} entsteht gerade ..."
+_TEXT_KARTEN_ALLE = "Alle Karten sind gespeichert. Im Chat geht es weiter zum Stage Script."
+_TEXT_KARTE_JA = "Yes, save"
+_TEXT_KARTE_NEIN = "No, change"
+_TEXT_KARTEN_ZAEHLER = "Karte {aktiv} von {gesamt}"
+
+
+def _szenenkarten_html(liste: list[dict]) -> str:
+    """Die Szenenkarten im CoThinker (Padua Phase 6, Birk 07.10.2026 ~19:25,
+    verbindlich): Handy-first, schlank. Die AKTIVE Karte gross mit "Yes,
+    save" / "No, change"; jede andere genau EINE Zeile -- Nummer, Titel,
+    Haken (gespeichert) oder ausgegraut (spaeter). Kein Platzfresser."""
+    gesamt = len(liste)
+    aktive = next((k for k in liste if k["aktiv"]), None)
+    teile = ['<div id="buehne-panel" data-ansicht="karten">']
+    if aktive is not None:
+        teile.append(f'<p class="karten-zaehler">{_t(T._TEXT_KARTEN_ZAEHLER.format(aktiv=aktive["nummer"], gesamt=gesamt))}</p>')
+    zeilen = []
+    for k in liste:
+        titel = _t(f'{k["nummer"]}. {k["titel"]}'.strip())
+        if k["aktiv"]:
+            if k["karte"] is None:
+                koerper = f'<p class="karte-entsteht">{_t(T._TEXT_KARTE_ENTSTEHT.format(nummer=k["nummer"]))}</p>'
+                knoepfe = ""
+            else:
+                koerper = _karte_html(k["karte"], False)
+                knoepfe = (
+                    '<div class="karte-aktionen">'
+                    f'<button type="button" class="karte-knopf karte-ja" data-aktion="ja" '
+                    f'data-nummer="{int(k["nummer"])}">{_t(T._TEXT_KARTE_JA)}</button>'
+                    f'<button type="button" class="karte-knopf karte-nein" data-aktion="aendern" '
+                    f'data-nummer="{int(k["nummer"])}">{_t(T._TEXT_KARTE_NEIN)}</button></div>'
+                )
+            zeilen.append(f'<li class="karte-aktiv"><h3 class="karte-titel">{titel}</h3>{koerper}{knoepfe}</li>')
+        else:
+            klasse = "karte-zeile fertig" if k["bestaetigt"] else "karte-zeile spaeter"
+            haken = "✓ " if k["bestaetigt"] else ""
+            zeilen.append(f'<li class="{klasse}">{haken}{titel}</li>')
+    teile.append(f'<ul class="karten">{"".join(zeilen)}</ul>')
+    if aktive is None and liste:
+        teile.append(f'<p class="karten-fertig">{_t(T._TEXT_KARTEN_ALLE)}</p>')
+    teile.append("</div>")
+    return "".join(teile)
+
+
+_CSS_KARTEN_BUEHNE = """
+.karten { list-style: none; margin: 0; padding: 0; }
+.karten-zaehler { margin: .2rem 0 .6rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
+.karte-zeile { padding: .55rem .2rem; border-bottom: 1px solid var(--linie, #ddd8cc); font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.karte-zeile.spaeter { opacity: .45; }
+.karte-zeile.fertig { color: var(--text-leise, #6b6b6b); }
+.karte-aktiv { margin: .4rem 0 1rem; padding: .9rem 1rem 1rem; border: 1px solid var(--linie, #ddd8cc); border-radius: .8rem; background: var(--grund-2, transparent); }
+.karte-titel { margin: 0 0 .35rem; font-size: 1.15rem; line-height: 1.25; }
+.karte-aktiv .karte { margin: 0; max-width: none; }
+.karte-entsteht { margin: .3rem 0; font-style: italic; color: var(--text-leise, #6b6b6b); }
+.karte-aktionen { display: flex; gap: .6rem; margin: 1rem 0 0; }
+.karte-knopf { flex: 1; min-height: 2.9rem; font: inherit; font-size: 1rem; border-radius: 1.5rem; border: 1px solid var(--rand, #cfc8b6); background: var(--grund, #fff); color: var(--text, #1b1b1b); cursor: pointer; }
+.karte-ja { background: var(--signal, #2f4858); border-color: var(--signal, #2f4858); color: var(--auf-signal, #fff); font-weight: 700; }
+.karte-knopf:disabled { opacity: .5; }
+.karten-fertig { margin: 1rem 0; font-style: italic; }
+"""
+
+
+def css_karten_buehne() -> str:
+    """Leer ohne ``[karten] aktiv`` -- dann bleibt die Seite byte-gleich."""
+    from interview_theater import workshop
+
+    if not workshop.szenenkarten_aktiv():
+        return ""
+    return _CSS_KARTEN_BUEHNE + _CSS_TEXTBUCH_LESBAR_KARTE
+
+
+#: Die Kartenfelder (``_karte_html``) im CoThinker brauchen dieselben Regeln
+#: wie im Script-Tab -- dort stehen sie in ``_CSS_TEXTBUCH_LESBAR``.
+_CSS_TEXTBUCH_LESBAR_KARTE = """
+.karte { line-height: 1.5; }
+.karte-typ { margin: 0 0 .3rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
+.karte-worum { margin: 0 0 .7rem; font-size: 1.05rem; }
+.karte-angaben { margin: 0 0 .7rem; font-size: .9rem; }
+.worum-kopf { margin: .5rem 0 .25rem; font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
+.worum-liste { margin: 0 0 .5rem; padding-left: 1.1rem; }
+.worum-liste li { margin: .22rem 0; }
+.karte-zitat { margin: .35rem 0 .55rem; padding: .1rem 0 .1rem .8rem; border-left: 2px solid var(--linie, #ddd8cc); font-style: italic; }
+.karte-zitat .quelle { font-style: normal; font-size: .82em; color: var(--text-leise, #6b6b6b); }
+"""
 
 
 def _probe_szene_verdichtet_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:

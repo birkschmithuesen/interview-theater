@@ -934,13 +934,15 @@ def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_20():
     # kam als 19. dazu -- derselbe versteckte Weg, Stift ✎ in der
     # CoThinker-Klickliste. "/schaerfung_fertig" (07.10.2026) kam als 20.
     # dazu -- "Done" in der Schaerfungs-Sortierliste im CoThinker, derselbe
-    # versteckte Weg wie "/sortiert".
+    # versteckte Weg wie "/sortiert". "/karte_ja"/"/karte_aendern"
+    # (07.10.2026 ~19:25) kamen als 21./22. dazu -- die Knoepfe der
+    # Szenenkarte im CoThinker, derselbe versteckte Weg.
     assert befehle._BEKANNTE_BEFEHLE == {
         "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase",
         "/kernthema", "/stueck", "/figur", "/szene", "/stand", "/wortlaut",
         "/hilfe", "/leitfaden", "/festlegung", "/sprache", "/phaseklick",
         "/start", "/sortiert", "/umformulieren", "/schaerfen",
-        "/schaerfung_fertig",
+        "/schaerfung_fertig", "/karte_ja", "/karte_aendern",
     }
 
 

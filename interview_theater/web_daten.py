@@ -1494,6 +1494,14 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
             if stand.get("phase") == 5 and _workshop.diskussion_aktiv()
             else None
         ),
+        # Die Szenenkarten im CoThinker (Padua Phase 6, Birk 07.10.2026
+        # ~19:25): aktive Karte gross, die anderen je eine Zeile.
+        "szenenkarten": (
+            szenenkarten(conn, chat_id)
+            if stand.get("phase") == 6 and _workshop.diskussion_aktiv()
+            and _workshop.szenenkarten_aktiv()
+            else None
+        ),
         # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
         # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder
         # wartet auf Transkription. Ueber ``_aufnahmen_nach_status`` (schon
@@ -1771,6 +1779,28 @@ def schaerfungsliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
     if not gruppen:
         return None
     return {"gruppen": gruppen, "zaehler": zaehler}
+
+
+def szenenkarten(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Je Szene: Nummer, Titel, Karte (oder ``None``, solange sie entsteht),
+    abgenommen ja/nein, aktiv ja/nein (die erste nicht abgenommene).
+    Read-only; die Zitate der Karte stammen aus geprueften Stellen
+    (``szenenkern._kandidaten``)."""
+    from interview_theater import szenenkarte
+
+    zeilen = conn.execute(
+        f"SELECT * FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT} AND nummer IS NOT NULL "
+        "ORDER BY nummer ASC, id ASC", (chat_id,),
+    ).fetchall()
+    liste, aktiv_gesetzt = [], False
+    for z in zeilen:
+        bestaetigt = bool((_feld(z, "karte_bestaetigt_am") or "").strip())
+        aktiv = not bestaetigt and not aktiv_gesetzt
+        aktiv_gesetzt = aktiv_gesetzt or aktiv
+        liste.append({"nummer": z["nummer"], "titel": (z["titel"] or "").strip(),
+                      "karte": szenenkarte.karte_von(z), "bestaetigt": bestaetigt,
+                      "aktiv": aktiv})
+    return liste
 
 
 def _workshop_diskussion() -> bool:

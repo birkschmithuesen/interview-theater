@@ -1006,6 +1006,26 @@ def _befehl_schaerfung_fertig(conn, tg, klm, e, chat_id: int) -> None:
     szenen.schliesse_schaerfungsliste(conn, tg, klm, e, chat_id)
 
 
+def _befehl_karte(conn, tg, klm, e, chat_id: int, befehl: str, rest: str) -> None:
+    """Die Knoepfe der aktiven Szenenkarte im CoThinker (Padua, Birk
+    07.10.2026 ~19:25). **Versteckt** -- kein Modellaufruf hier (Zusage 2):
+    "Yes" nimmt ab und stoesst die naechste Karte im Thread an, "No" fragt
+    im Chat nach dem Feedback. Ausserhalb von Phase 6 oder ohne Schalter
+    wirkungslos (ein veralteter Klick)."""
+    from interview_theater import phasen, szenenkarte, workshop
+
+    try:
+        nummer = int((rest or "").strip())
+    except ValueError:
+        return
+    if not workshop.szenenkarten_aktiv() or phasen.aktuelle(conn, chat_id) != szenenkarte.PHASE:
+        return
+    if befehl == "/karte_ja":
+        szenenkarte.bestaetige(conn, tg, klm, e, chat_id, nummer)
+    else:
+        szenenkarte.frage_nach_aenderung(conn, tg, e, chat_id, nummer)
+
+
 def _befehl_umformulieren(conn, tg, chat_id: int) -> None:
     """Startet die Umformulier-Runde (Testkarte t_266e7485, 06.10.2026):
     fragt nach der EINEN Anweisung, die gleich alle behaltenen Fragen
@@ -1440,6 +1460,11 @@ _BEKANNTE_BEFEHLE_DE: frozenset[str] = frozenset({
     # CoThinker -- der Weg des Knopfes durch die Naht, wie ``/sortiert``.
     # Keine EN-Form: er wird nie getippt.
     "/schaerfung_fertig",
+    # Versteckt (Birk 07.10.2026 ~19:25, Padua [karten] aktiv): "Yes, save" /
+    # "No, change" auf der aktiven Szenenkarte im CoThinker -- der Weg des
+    # Knopfes durch die Naht, wie ``/schaerfung_fertig``. Keine EN-Form.
+    "/karte_ja",
+    "/karte_aendern",
 })
 
 
@@ -1565,6 +1590,8 @@ def behandle(
         _befehl_schaerfen(conn, tg, chat_id, rest)
     elif befehl == "/schaerfung_fertig":
         _befehl_schaerfung_fertig(conn, tg, klm, e, chat_id)
+    elif befehl in ("/karte_ja", "/karte_aendern"):
+        _befehl_karte(conn, tg, klm, e, chat_id, befehl, rest)
     return True
 
 

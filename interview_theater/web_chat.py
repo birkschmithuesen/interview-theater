@@ -4553,6 +4553,7 @@ _TOEPFE = {
     "start": web_grenze.TOPF_START,
     "auswahl": web_grenze.TOPF_AUSWAHL,
     "auswahl_fertig": web_grenze.TOPF_NACHRICHT,
+    "karte": web_grenze.TOPF_NACHRICHT,
 }
 
 
@@ -5041,6 +5042,15 @@ def _auswahl_fertig(handler, db_pfad: str, token: str, chat_id: int,
     web_vereint.auswahl_fertig_post(handler, db_pfad, token, chat_id, schluessel)
 
 
+def _karte(handler, db_pfad: str, token: str, chat_id: int,
+           schluessel: bytes) -> None:
+    """"Yes, save" / "No, change" auf der Szenenkarte im CoThinker (Padua,
+    07.10.2026 ~19:25). Nur die Weiche."""
+    from interview_theater import web_vereint
+
+    web_vereint.karte_post(handler, db_pfad, token, chat_id, schluessel)
+
+
 def _zahl_oder_none(wert):
     """``wert`` als ``float``, wenn es eine echte Zahl ist (kein ``bool`` --
     das ist in Python auch ein ``int``) -- sonst ``None``, defensiv wie
@@ -5100,6 +5110,7 @@ _POSTWEGE = {
     "start": _start,
     "auswahl": _auswahl,
     "auswahl_fertig": _auswahl_fertig,
+    "karte": _karte,
 }
 
 

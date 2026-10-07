@@ -27,6 +27,7 @@ _TEXT_PLATZHALTER = {
     "__AUSWAHL_ZAEHLER_SCHAERFUNG__": "{ja} / {nein} / {offen}",
     "__AUSWAHL_FEHLER_NETZ__": "Netzfehler",
     "__AUSWAHL_FEHLER_UNGUELTIG__": "Ungueltig",
+    "__KARTE_JA__": '"Yes, save card"',
 }
 
 

@@ -267,7 +267,7 @@ def test_beschreibung_traegt_typ_und_ort_als_meta(padua):
     s = _szene(karte={"typ": "description", "ort": "Rehearsal room"})
     html, _ = web._probe_szene_html(s, set())
     assert '<p class="meta">description · Rehearsal room</p>' in html
-    assert "badge" not in html
+    assert 'class="badge"' not in html  # Modus-Badge nur bei Momenten; Status-Badge (08.10.) ist erlaubt
 
 
 def test_textbuch_ohne_md_und_txt_aber_mit_pdf(padua):

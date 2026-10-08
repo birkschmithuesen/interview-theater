@@ -10,6 +10,8 @@
 # prueft nur die englische Tabelle, nicht diese hier.
 
 [web]
+_TEXT_STATUS_KONZEPT = "concetto"
+_TEXT_STATUS_FERTIG = "scritta"
 _TITEL_PROBENANSICHT = "{titel} — copione"
 _TEXT_GRUPPE = "Gruppo {chat_id}"
 _TEXT_SZENE_NR = "Scena {nummer}"

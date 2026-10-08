@@ -15,3 +15,12 @@ def test_karte_ohne_zitate():
     karte = {"typ": "description", "worum": "w", "zitate": [{"zitat": "ZITAT-X", "interview": "Interview 3"}]}
     assert "ZITAT-X" in web._karte_html(karte, True)
     assert "ZITAT-X" not in web._karte_html(karte, True, ohne_zitate=True)
+
+
+def test_script_tab_status_und_sprachwahl():
+    """Birk 08.10.2026 ~11:50: Status je Szene (Konzept rot / ausformuliert) und
+    nur EINE Sprache mit Umschalter. Mutanten: Badge weg -> rot; CSS-Regel weg -> rot."""
+    import inspect
+    quelle = inspect.getsource(web)
+    assert "status-badge konzept" in quelle and "status-badge fertig" in quelle
+    assert "body.nur-en .stueck [lang=it]" in quelle and 'class="sprachwahl"' in quelle

@@ -4624,6 +4624,8 @@ def _probe_szene_html(
 #: Kurzform steht nur, solange es noch keinen Text gibt.
 _TEXT_WORUM = "Worum es geht"
 _TEXT_STAERKSTE = "Stärkste Zitate"
+_TEXT_STATUS_KONZEPT = "Konzept"
+_TEXT_STATUS_FERTIG = "ausformuliert"
 _TEXT_FASSUNG_EN = "English"
 _TEXT_FASSUNG_IT = "Italiano"
 _TEXT_ALLE_ZITATE = "Alle übernommenen Zitate ({anzahl})"
@@ -4905,6 +4907,13 @@ def _probe_szene_verdichtet_html(
         from interview_theater import web_skript
 
         kopf += web_skript.badge_html(s["karte"])
+    # Birk 08.10.2026 ~11:50: Status je Szene klar sichtbar -- Konzept (rot,
+    # nur Karte) oder ausformuliert (gruen, Stage Script da).
+    if design and lang is None:
+        if (s.get("volltext") or "").strip():
+            kopf += f' <span class="status-badge fertig">{_t(T_IT._TEXT_STATUS_FERTIG)}</span>'
+        else:
+            kopf += f' <span class="status-badge konzept">{_t(T_IT._TEXT_STATUS_KONZEPT)}</span>'
     zeilen = [f'<h2 class="szenenkopf">{kopf}</h2>']
     if design and web_skript.meta_html(s["karte"]):
         zeilen.append(web_skript.meta_html(s["karte"]))
@@ -5330,6 +5339,33 @@ def textbuch_koerper(
                f'target="_blank" rel="noopener">{_t(T._TEXT_PDF_IT)}</a>' if _pdf_aktiv() else "")
             + "</p>"
         )
+        if design and lang is None:
+            # Birk 08.10.2026 ~11:50: nur EINE Sprache zeigen, Umschalter EN/IT.
+            # Vorgabe: IT fuer die italienischen Gruppen, sonst EN; Wahl bleibt
+            # im Browser (localStorage). Reines CSS/JS, kein Serverzustand.
+            from interview_theater import workshop as _ws
+            vorgabe = "it" if _ws.p67_italienisch_aktiv() else "en"
+            wege += (
+                f'<p class="sprachwahl" data-vorgabe="{vorgabe}">'
+                '<button type="button" data-sprache="en">English</button>'
+                '<button type="button" data-sprache="it">Italiano</button></p>'
+                "<style>"
+                ".sprachwahl{display:flex;gap:.4rem;margin:.6rem 0}"
+                ".sprachwahl button{padding:.3rem .9rem;border:1px solid #9a5f12;border-radius:1rem;background:transparent;color:inherit;font-weight:600}"
+                ".sprachwahl button[aria-pressed=true]{background:#9a5f12;color:#fff}"
+                "body.nur-en .stueck [lang=it]:not(.karte-zitat),body.nur-it .stueck [lang=en]:not(.karte-zitat){display:none}"
+                "body.nur-en .stueck .sprache-kopf,body.nur-it .stueck .sprache-kopf{display:none}"
+                ".status-badge{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:9px;vertical-align:middle;margin-left:6px;color:#fff}"
+                ".status-badge.konzept{background:#c0392b}.status-badge.fertig{background:#2e7d32}"
+                "</style>"
+                "<script>(function(){var w=document.querySelector('.sprachwahl');if(!w)return;"
+                "function setze(l){document.body.classList.remove('nur-en','nur-it');document.body.classList.add('nur-'+l);"
+                "w.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.sprache===l?'true':'false')});"
+                "try{localStorage.setItem('skript-sprache',l)}catch(e){}}"
+                "var l=null;try{l=localStorage.getItem('skript-sprache')}catch(e){}"
+                "setze(l||w.dataset.vorgabe);"
+                "w.addEventListener('click',function(ev){var b=ev.target.closest('button');if(b)setze(b.dataset.sprache)})})();</script>"
+            )
     # Padua (Birk 07.10.2026 ~23:55): Schriftgroesse und "Hide stage
     # directions" kosten am Handy nur Platz -- unter skript.verdichtet weg.
     # Ohne Schalter (Dortmund) byte-gleich.

@@ -38,6 +38,7 @@ import contextlib
 import os
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -837,10 +838,20 @@ def _lauf_innen(ziel: Path, nur: list[str] | None) -> list[dict]:
         e = umgebung()
         tg = TelegramAttrappe()
         klm = ms.Mitschnitt(e)
+        vorher = set(threading.enumerate())
         with ms.fange_alles(klm):
             for eintrag in eintraege:
                 aufruf, umriss = treibe(conn, e, tg, klm, chats, eintrag)
                 zeilen.append(schreibe_dump(ziel, eintrag, aufruf, umriss))
+        # stagescript.schreibe() startet bei [skript] zweisprachig einen
+        # daemon-Thread fuer die IT-Spiegelung (Birk 08.10. "max Tempo");
+        # ohne diesen Join schliesst conn.close() unten die Verbindung,
+        # waehrend der Thread noch unter repo._LOCK darauf zugreift --
+        # Segfault statt Exception, weil db.verbinde check_same_thread=False
+        # setzt (gemessen: test_jeder_p57_dump_entsteht[49-stagescript]).
+        for t in threading.enumerate():
+            if t not in vorher:
+                t.join(timeout=10)
         conn.close()
     _schreibe_tsv(ziel, zeilen)
     return zeilen

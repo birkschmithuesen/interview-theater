@@ -159,6 +159,32 @@ def _notiz_mit_gespeicherten(conn, szene_id: int, notiz: str | None) -> str | No
     return "\n".join(teile) if teile else None
 
 
+_OPEN_ZEILE = re.compile(r"^\s*[\[(]\s*(?:OPEN|APERTO|OFFEN)\b[^\])]*[\])]\s*$", re.I)
+_OPEN_INLINE = re.compile(r"\s*[\[(]\s*(?:OPEN|APERTO|OFFEN)\b[^\])]*[\])]", re.I)
+_ZITAT_LABEL = re.compile(r"^\s*>\s*(?:\*?\s*(?:Interview quote|Citazione(?: dall'intervista)?|Interviewzitat)\s*\(?\s*\d*\s*\)?\s*:?\s*\*?\s*)?", re.I)
+_INTERVIEW_NR = re.compile(r"\s*\((?:Interview|Intervista)\s*\d+\)", re.I)
+
+
+def endfassung(text: str | None) -> str | None:
+    """Birk 08.10.2026 ~12:15: das Stage Script ist die ENDFASSUNG fuer die
+    Spielenden -- keine [OPEN]-Fragen, keine Zitat-Kaesten/Interviewnummern.
+    Deterministische Nachreinigung nach dem Modell (Netz unter dem Prompt):
+    [OPEN ...]-Zeilen fallen weg, Zitatzeilen ("> *Interview quote (N):* ...")
+    werden normaler Text."""
+    if not text:
+        return text
+    zeilen = []
+    for z in text.split("\n"):
+        if _OPEN_ZEILE.match(z):
+            continue
+        z = _OPEN_INLINE.sub("", z)
+        if z.lstrip().startswith(">"):
+            z = _ZITAT_LABEL.sub("", z, count=1)
+        z = _INTERVIEW_NR.sub("", z)
+        zeilen.append(z)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(zeilen)).strip()
+
+
 def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -> bool:
     """Der Modellaufruf (plus ggf. der Spiegelpass). ``True`` bei Erfolg."""
     from interview_theater import skript_uebersetzung
@@ -178,6 +204,8 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
             schema=SCHEMA, art=ART, ueber_claude=ueber_claude, timeout=240.0,
         )
         text = (ergebnis.get("text") or "").strip()
+        if workshop.szenenkarten_aktiv():
+            text = endfassung(text) or ""
         if not text:
             raise ValueError("Stage Script ohne Text")
         kopf = (ergebnis.get("kopf") or "").strip()
@@ -213,6 +241,7 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
                 if gespiegelt is None:
                     return
                 en, it = gespiegelt
+                it = endfassung(it)
                 aktuell = repo.hole_szene(conn, szene_id)
                 # Nur nachtragen, wenn der Text inzwischen nicht neu geschrieben wurde.
                 if aktuell is not None and (aktuell["volltext"] or "").strip() == text.strip():

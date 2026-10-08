@@ -281,3 +281,14 @@ def test_bot_setzt_stagescript_nach_neustart_fort(conn, padua, monkeypatch):
     gestartet.clear()
     bot._setze_stagescript_fort(conn, object(), object(), None)
     assert gestartet == []
+
+
+def test_endfassung_ohne_open_und_ohne_zitatkaesten():
+    """Birk 08.10.2026 ~12:15: Endfassung -- keine Fragen, keine Zitat-Kaesten."""
+    from interview_theater import stagescript as st
+    roh = ('1. Emma enters.\n[OPEN: who brings the coffee?]\n'
+           '> *Interview quote (4):* "No, non ero ancora nato."\n'
+           'GIADA: Home. (Interview 12)\n[APERTO: luce?]\nSAMUELE plays. [OPEN: how long?]')
+    t = st.endfassung(roh)
+    assert "OPEN" not in t and "APERTO" not in t and "Interview" not in t and ">" not in t
+    assert '"No, non ero ancora nato."' in t and "GIADA: Home." in t and "SAMUELE plays." in t

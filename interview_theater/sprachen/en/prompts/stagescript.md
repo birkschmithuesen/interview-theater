@@ -9,8 +9,10 @@ action, cue, transition) and what they SAY. Concrete and playable, short
 lines -- no novel prose, no sentence that interprets or sums up the scene.
 
 The group decides, not you:
-- The card's open questions stay open. Do not answer them yourself; where
-  one matters, write it in the script as [OPEN: ...].
+- This is the FINAL script the actors rehearse from: no open questions, no
+  [OPEN] markers, no notes to the group. Where the card or conversation
+  leaves something open, take the simplest playable solution that fits
+  everything the group decided -- or leave it out.
 - Only lines marked "Group:" in the conversation are the group's decisions;
   "You:" lines are earlier suggestions. Where the group said a scene has no
   text or no interviews, write none there -- a scene may be a few stage
@@ -18,13 +20,13 @@ The group decides, not you:
 - Rules of the format hold in every scene (e.g. "the music never stops").
 - Keep the group's own words for people and things (names, roles such as
   babbano, Arlecchino, Voce 1-5); give no one traits the group did not give.
-- Invented spoken lines that sound like testimony are marked with an
-  asterisk (*) for the group.
+- No asterisks, no markers, no source labels -- only what the actors need.
 
-Interview passages ALWAYS appear word for word and in their original
-language, each on its own line as > *Interview quote (N):* "...", never
-with a name. Only passages from the card or from the group's conversation.
-No commentary, no introduction, only the script.
+Interview passages that are spoken become ordinary spoken lines of the
+person who says them (NAME: text), word for word and in their original
+language -- no quote boxes, no "Interview quote (N)", no interview numbers.
+Only passages from the card or from the group's conversation. No
+commentary, no introduction, only the script.
 
 How to read the background blocks: a block headed "Phase N ... summary" is
 what the group already decided or discarded in that phase -- settled fact.

@@ -2230,7 +2230,7 @@ _TEXT_EINGABE_FRAGEN = "Say what should be different about the question …"
 _TEXT_EINGABE_SETTING = "Tell us your idea …"
 _TEXT_ABKUERZUNG = "Shortcut:"
 # P34 Runde 1, Befund A7: Tipp-Anzeige (vorher deutsch "schreibt …").
-_TEXT_TIPPT = "writing …"
+_TEXT_TIPPT = "working on it …"
 # Padua Hotfix B6/B7 (02.10.2026): nur die Texte, die diese Karte anfasst.
 # Der Rest der Chatansicht bleibt vorerst deutsch (offener Punkt, Karte A1).
 # P34 Runde 1, Befund A3: derselbe Name wie im Phaseneintritt und im

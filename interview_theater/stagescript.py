@@ -275,9 +275,27 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None
 
     def _lauf() -> None:
         ok = False
+        # Birk 08.10.2026 ~11:50: waehrend des Schreibens (30-90 s) die
+        # Tippanzeige im Chat am Leben halten -- sonst sieht die Gruppe nur
+        # "Sto scrivendo ..." und nichts bewegt sich.
+        fertig = threading.Event()
+
+        def _puls() -> None:
+            while not fertig.wait(3.0):
+                try:
+                    tg.tippt(chat_id)
+                except Exception:
+                    return
+
+        try:
+            tg.tippt(chat_id)
+        except Exception:
+            pass
+        threading.Thread(target=_puls, daemon=True).start()
         try:
             ok = schreibe(conn, klm, e, chat_id, nummer, notiz)
         finally:
+            fertig.set()
             sperre.release()
         if not ok:
             _sende(conn, tg, e, chat_id, T_IT._TEXT_FEHLER.format(nummer=nummer))

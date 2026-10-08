@@ -351,7 +351,10 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
              color: #8b8f97; text-decoration: underline; cursor: pointer; }
 .undo-mini:disabled { opacity: .45; }
 .quittung { font-size: .82rem; opacity: .7; align-self: flex-start; }
-.tippt { font-size: .85rem; opacity: .6; height: 1.2em; }
+.tippt { font-size: .85rem; opacity: .75; min-height: 1.2em; }
+.tippt:not(:empty)::before { content: ""; display: inline-block; width: .7em; height: .7em; margin-right: .45em; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent; vertical-align: -.1em; animation: tippt-dreh .8s linear infinite; }
+@keyframes tippt-dreh { to { transform: rotate(360deg); } }
 .fuss { position: fixed; left: 0; right: 0; bottom: 0; background: #fbfaf8;
         border-top: 1px solid #e0ddd6; padding: .5rem .7rem .8rem;
         display: flex; flex-direction: column; gap: .5rem; }

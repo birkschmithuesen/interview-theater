@@ -234,3 +234,27 @@ def test_alte_sperre_meldet_weiterhin_laeuft(conn, einst, padua):
         assert stagescript.T_IT._TEXT_LAEUFT in tg.texte
     finally:
         sperre.release()
+
+
+def test_stagescript_lauf_haelt_tippanzeige(conn, padua, monkeypatch):
+    """Birk 08.10.2026 ~11:50: waehrend des Schreibens laeuft die Tippanzeige.
+    Mutante: Puls weg -> rot (tippt nie gerufen)."""
+    import threading as _th
+    from interview_theater import stagescript as st
+    ids = _karten(conn)
+    gerufen = []
+    tor = _th.Event()
+
+    class TG:
+        def tippt(self, chat_id):
+            gerufen.append(chat_id)
+
+    def langsam(*a, **k):
+        tor.wait(4.0)
+        return False
+    monkeypatch.setattr(st, "schreibe", langsam)
+    monkeypatch.setattr(st, "_sende", lambda *a, **k: None)
+    monkeypatch.setattr(st, "zeige", lambda *a, **k: None)
+    faden = st.starte(conn, TG(), object(), None, 1, 1)
+    faden.join(6.0)
+    assert len(gerufen) >= 2

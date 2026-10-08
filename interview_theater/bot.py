@@ -11,6 +11,7 @@ als ``zug`` durch.
 """
 
 import logging
+import os
 import re
 import sqlite3
 import threading
@@ -392,6 +393,32 @@ def sende_wiederkehr_begruessungen(conn, tg, e, jetzt) -> None:
             )
 
 
+def _setze_stagescript_fort(conn, tg, klm, e) -> None:
+    from interview_theater import phasen, stagescript, workshop
+
+    if not workshop.szenenkarten_aktiv():
+        return
+    # Ein Prozess bedient genau eine Gruppe (IT_WEB_CHAT_ID) -- nie die
+    # Nachbargruppen in derselben DB anstossen.
+    roh = (os.environ.get("IT_WEB_CHAT_ID") or "").strip()
+    if not roh:
+        return
+    for chat_id in (int(roh),):
+        try:
+            if phasen.aktuelle(conn, chat_id) != 7 or stagescript.laeuft(chat_id):
+                continue
+            nummer = stagescript.aktuelle_nummer(conn, chat_id)
+            if nummer is None:
+                continue
+            szene = stagescript._szene_mit_nummer(conn, chat_id, nummer)
+            if szene is None or (szene["volltext"] or "").strip() or not szene["karte"]:
+                continue
+            log.info("Stage Script fortgesetzt nach Neustart: chat_id=%s, Szene %s", chat_id, nummer)
+            stagescript.starte(conn, tg, klm, e, chat_id, nummer)
+        except Exception:
+            log.exception("Fortsetzung fuer chat_id=%s fehlgeschlagen", chat_id)
+
+
 def warmlaufen(klm, conn, e) -> None:
     """Setzt einen winzigen Absichtserkenner-Aufruf ins Leere ab (teil-b.md
     Aufgabe 8): google/gemma-4-31B-it hat 28,5 Sekunden Kaltstart, danach
@@ -721,6 +748,15 @@ def main() -> None:
         sende_wiederkehr_begruessungen(conn, tg, e, datetime.now(timezone.utc))
     except Exception:
         log.exception("Wiederkehr-Begruessungen fehlgeschlagen")
+
+    # Birk 08.10.2026 ~11:55: ein Neustart (Deploy) mitten im Stage-Script-
+    # Lauf liess die Gruppe bei "Sto scrivendo ..." haengen -- der Thread war
+    # weg, nichts lief weiter. Beim Start: steht eine Gruppe in Phase 7 und
+    # hat die aktuelle Szene noch keinen Text, wird sie neu angestossen.
+    try:
+        _setze_stagescript_fort(conn, tg, klm, e)
+    except Exception:
+        log.exception("Stage-Script-Fortsetzung beim Start fehlgeschlagen")
 
     pool = ThreadPoolExecutor(max_workers=POOL_GROESSE)
     stop = threading.Event()

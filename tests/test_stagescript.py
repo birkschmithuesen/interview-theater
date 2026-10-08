@@ -258,3 +258,20 @@ def test_stagescript_lauf_haelt_tippanzeige(conn, padua, monkeypatch):
     faden = st.starte(conn, TG(), object(), None, 1, 1)
     faden.join(6.0)
     assert len(gerufen) >= 2
+
+
+def test_bot_setzt_stagescript_nach_neustart_fort(conn, padua, monkeypatch):
+    """Birk 08.10.2026 ~11:55: Deploy mitten im Lauf -> beim Start neu anstossen.
+    Mutante: Fortsetzung weg -> rot."""
+    from interview_theater import bot, phasen, stagescript as st
+    ids = _karten(conn)
+    monkeypatch.setenv("IT_WEB_CHAT_ID", "1")
+    monkeypatch.setattr(phasen, "aktuelle", lambda c, ch: 7)
+    gestartet = []
+    monkeypatch.setattr(st, "starte", lambda c, tg, klm, e, ch, nr, notiz=None: gestartet.append((ch, nr)))
+    bot._setze_stagescript_fort(conn, object(), object(), None)
+    assert gestartet == [(1, 1)]
+    repo.setze_stagescript(conn, ids[0], "TEXT", None)
+    gestartet.clear()
+    bot._setze_stagescript_fort(conn, object(), object(), None)
+    assert gestartet == []

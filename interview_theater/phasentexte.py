@@ -93,14 +93,16 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-#: Phase 6/7 italienisch fuer p67-Chats (Morgen-Auftrag 4, Punkt 1,
-#: 08.10.2026): dieselbe Bedingung an BEIDEN Stellen, die den Phaseneintritt
-#: bauen (``_einleitung``, ``eintritt``) -- ``T_IT`` faellt ohne den
-#: Schalter ohnehin auf die Profilsprache zurueck (``sprache.Texte``), die
-#: Phasen-Eingrenzung hier ist trotzdem noetig: ``workshop.p67_italienisch_aktiv``
-#: kennt keine Phase, dieses Modul laeuft aber in allen sieben.
-def _texte_fuer_phase(phase: int) -> "sprache.Texte":
-    if phase in (6, 7) and workshop.p67_italienisch_aktiv():
+#: Phase 6/7 italienisch fuer gelistete Chats (Morgen-Auftrag 4, Punkt 1,
+#: 08.10.2026, Nachtrag 2: Chat-Liste statt globalem Schalter): dieselbe
+#: Bedingung an BEIDEN Stellen, die den Phaseneintritt bauen (``_einleitung``,
+#: ``eintritt``) -- ``T_IT`` faellt ohne die Liste ohnehin auf die
+#: Profilsprache zurueck (``sprache.Texte``), die Phasen-Eingrenzung hier
+#: ist trotzdem noetig: ``workshop.italienisch_ab_phase6_chats`` kennt keine
+#: Phase, dieses Modul laeuft aber in allen sieben.
+def _texte_fuer_phase(phase: int, chat_id: int | None = None) -> "sprache.Texte":
+    if (phase in (6, 7) and chat_id is not None
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
         return T_IT
     return T
 
@@ -112,7 +114,7 @@ def _einleitung(conn, chat_id: int, phase: int) -> str:
         # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): 5 = Interviewauswahl,
         # 6 = Szenenkarten, 7 = Stage Script -- die Profil-Einleitung spricht
         # noch von Prosa und Formwahl.
-        t = _texte_fuer_phase(phase)
+        t = _texte_fuer_phase(phase, chat_id)
         return {5: T._EINLEITUNG_KARTEN_5, 6: t._EINLEITUNG_KARTEN_6,
                 7: t._EINLEITUNG_KARTEN_7}[phase]
     einleitungen = {
@@ -497,7 +499,7 @@ def eintritt(conn, chat_id: int, phase: int) -> str:
     Ohne Knoepfe -- die haengt der Aufrufer darunter
     (``knoepfe.eintritt_in_phase``): welche Knoepfe zum Einstieg gehoeren,
     weiss ``knoepfe`` und nicht dieses Modul."""
-    t = _texte_fuer_phase(phase)
+    t = _texte_fuer_phase(phase, chat_id)
     kopf = t._KOPF_EINTRITT.format(
         nummer=phase, gesamt=workshop.phase_letzte(),
         name=phasen.kurzname(phase),
@@ -588,4 +590,4 @@ def abschluss(conn, chat_id: int, phase: int) -> str:
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 T = sprache.Texte(__name__)
-T_IT = sprache.Texte(__name__, ab_phase67_italienisch=True)
+T_IT = sprache.Texte(__name__, sprachcode="it")

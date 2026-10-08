@@ -14,8 +14,9 @@
 [phasentexte]
 # Phaseneintritt 6/7 italienisch (Morgen-Auftrag 4, Punkt 1, 08.10.2026):
 # ``phasentexte._texte_fuer_phase`` waehlt diese Tabelle statt der
-# englischen, solange ``workshop.p67_italienisch_aktiv()`` an ist. Der
-# Phasenname selbst ({name}) bleibt englisch (Birks Vorgabe).
+# englischen, solange chat_id in
+# ``workshop.italienisch_ab_phase6_chats()`` steht. Der Phasenname selbst
+# ({name}) bleibt englisch (Birks Vorgabe).
 _EINLEITUNG_KARTEN_6 = "Ora ogni scena diventa una scheda: di cosa parla, dove, chi, cosa succede, e le citazioni dall'intervista che la sostengono -- nell'originale. Una scheda alla volta; la salvate o mi dite cosa cambiare. Alla fine do un'occhiata d'insieme, poi arriva lo Stage Script."
 _PARAMETER_KARTEN = "Schede scena ({fertig} di {gesamt})"
 _PARAMETER_STAGESCRIPT = "Stage script ({fertig} di {gesamt})"

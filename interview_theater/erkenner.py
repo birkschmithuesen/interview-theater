@@ -2272,7 +2272,7 @@ def baue_meldung(
         phasen.aktuelle(conn, chat_id)
         if conn is not None and chat_id is not None else None
     )
-    zeilen = _meldungszeilen(_sammle_meldbares(wirkliche_aenderungen), phase=phase)
+    zeilen = _meldungszeilen(_sammle_meldbares(wirkliche_aenderungen), phase=phase, chat_id=chat_id)
     if not zeilen:
         return None
     # Birk live 05.10.2026: die Speichermeldung nahm zu viel Raum ein. Eine
@@ -2282,7 +2282,7 @@ def baue_meldung(
 
     if _ws.autosave_phase1_2_aktiv() and all(z.startswith("📌") for z in zeilen):
         return "\n".join(zeilen)
-    return _texte_fuer_phase(phase)._NOTIERT_KOPF + "\n".join(zeilen)
+    return _texte_fuer_phase(phase, chat_id)._NOTIERT_KOPF + "\n".join(zeilen)
 
 
 def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
@@ -2452,23 +2452,25 @@ def _bereich_titel(bereich: str | None) -> str:
     return beschriftung if beschriftung is not None else bereich.capitalize()
 
 
-def _texte_fuer_phase(phase: int | None):
+def _texte_fuer_phase(phase: int | None, chat_id: int | None = None):
     """``T_IT`` fuer die Rahmenwoerter der Meldung ("Notiert:"/"Festgehalten:"
     /"Wir sind jetzt bei"), solange die Gruppe in Phase 6/7 steht UND
-    ``workshop.p67_italienisch_aktiv()`` an ist (Morgen-Auftrag 4, Punkte 1
-    und 3, 08.10.2026) -- sonst die gewohnte Tabelle. Nur die Rahmenwoerter,
+    chat_id in ``workshop.italienisch_ab_phase6_chats()`` steht (Morgen-
+    Auftrag 4, Punkte 1 und 3, 08.10.2026, Nachtrag 2: Chat-Liste statt
+    globalem Schalter) -- sonst die gewohnte Tabelle. Nur die Rahmenwoerter,
     der Inhalt der Zeilen (``g[...]``-Werte) wird nicht neu uebersetzt."""
     from interview_theater import workshop
 
-    if phase in (6, 7) and workshop.p67_italienisch_aktiv():
+    if (phase in (6, 7) and chat_id is not None
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
         return T_IT
     return T
 
 
-def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
+def _meldungszeilen(g: dict, phase: int | None = None, chat_id: int | None = None) -> list[str]:
     """Aus dem Vorgeordneten die Zeilen der Meldung, in fester Reihenfolge."""
     zeilen = []
-    t = _texte_fuer_phase(phase)
+    t = _texte_fuer_phase(phase, chat_id)
     beschriftung = T._FELD_BESCHRIFTUNG
     in_phase4 = phase == PHASE_SETTING
     autosave_1_2 = False
@@ -3743,4 +3745,4 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 
 T = sprache.Texte(__name__)
-T_IT = sprache.Texte(__name__, ab_phase67_italienisch=True)
+T_IT = sprache.Texte(__name__, sprachcode="it")

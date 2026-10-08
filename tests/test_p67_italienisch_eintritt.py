@@ -4,20 +4,22 @@ Gruppen (G1-G3) alles Englisch -- Phasenrahmen, die Telefon-Organisations-
 karte mit dem (fuer Padua sinnlosen) Rollenlink-Satz, und das "Noted:/
 Agreed:"-Echo des Erkenners.
 
-Drei Punkte, ein Mechanismus (``workshop.p67_italienisch_aktiv`` plus
-``sprache.Texte(..., ab_phase67_italienisch=True)``, wie schon in
-``szenenkarte.py``/``stagescript.py``):
+Drei Punkte, ein Mechanismus (``workshop.italienisch_ab_phase6_chats()``
+plus ``sprache.Texte(..., sprachcode="it")``, wie schon in
+``szenenkarte.py``/``stagescript.py`` -- eine Chat-Liste, kein globaler
+Schalter, Nachtrag 2):
 
 1. Phaseneintritt 6/7 (Kopfzeile, Angebotszeile, Einleitung, Checkliste)
-   italienisch fuer p67-Chats, Phasenname bleibt englisch.
+   italienisch fuer gelistete Chats, Phasenname bleibt englisch.
 2. Die Telefon-Organisationskarte faellt in Padua-Phase 6/7 ganz weg --
    sie zeigt noch das alte Rollenlink-Layout, das es im Karten-/Stage-
    Script-Ablauf nicht mehr gibt.
 3. "Noted:"/"Agreed:" im Erkenner-Echo werden zu "Annotato:"/"Deciso:" --
    nur die Rahmenwoerter, der Inhalt bleibt unuebersetzt.
 
-Der Tester-Chat (7000000000099, ``sprache.p67_italienisch_chats``) bleibt
-englisch; Dortmund (kein ``[karten] aktiv``) ist unberuehrt."""
+Der Tester-Chat (7000000000099, nicht in
+``workshop.italienisch_ab_phase6_chats()``) bleibt englisch; Dortmund
+(kein ``[karten] aktiv``) ist unberuehrt."""
 
 import pytest
 
@@ -29,7 +31,10 @@ from tests.test_knoepfe import TelegramAttrappe
 @pytest.fixture
 def padua(monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
-    monkeypatch.delenv("IT_WEB_CHAT_ID", raising=False)
+    # Morgen-Auftrag 4, Nachtrag 2: eine Chat-Liste statt eines globalen
+    # Schalters -- dieser Testfall prueft ausdruecklich das italienische
+    # Verhalten, chat_id 1 steht deshalb hier (nur hier) auf der Liste.
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
     workshop.vergiss()
     yield
     monkeypatch.delenv(workshop.VARIABLE, raising=False)
@@ -72,7 +77,9 @@ def test_eintritt_phase_7_italienisch_mit_willkommenssatz(conn, padua):
 
 
 def test_eintritt_tester_chat_bleibt_englisch(conn, padua, monkeypatch):
-    monkeypatch.setenv("IT_WEB_CHAT_ID", "7000000000099")
+    # Der Tester-Chat steht NICHT in italienisch_ab_phase6_chats() (anders
+    # als chat_id 1, das der ``padua``-Fixture oben extra dafuer eintraegt).
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset())
 
     text = phasentexte.eintritt(conn, 1, 7)
 
@@ -155,7 +162,9 @@ def test_festgehalten_zeile_italienisch_in_phase_6(conn, einst, padua):
 
 
 def test_erkenner_meldung_tester_chat_bleibt_englisch(conn, einst, padua, monkeypatch):
-    monkeypatch.setenv("IT_WEB_CHAT_ID", "7000000000099")
+    # Der Tester-Chat steht NICHT in italienisch_ab_phase6_chats() (anders
+    # als chat_id 1, das der ``padua``-Fixture oben extra dafuer eintraegt).
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset())
     phasen.setze(conn, 1, 6, "test")
 
     wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": "7"}])
@@ -167,8 +176,8 @@ def test_erkenner_meldung_tester_chat_bleibt_englisch(conn, einst, padua, monkey
 
 def test_erkenner_meldung_phase_ausserhalb_6_7_bleibt_englisch(conn, einst, padua):
     """Ausserhalb von Phase 6/7 entscheidet allein die Profilsprache --
-    ``p67_italienisch_aktiv`` kennt keine Phase, die Eingrenzung sitzt in
-    ``erkenner._texte_fuer_phase``."""
+    ``workshop.italienisch_ab_phase6_chats`` kennt keine Phase, die
+    Eingrenzung sitzt in ``erkenner._texte_fuer_phase``."""
     wirkliche = erkenner.wende_an(conn, einst, 1, [{"art": "phase_setzen", "wert": "3"}])
     meldung = erkenner.baue_meldung(wirkliche, conn, 1)
 

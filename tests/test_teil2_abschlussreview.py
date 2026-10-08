@@ -416,8 +416,8 @@ def test_teilweise_formwahl_nennt_die_fehlenden_nummern(
     erkenner.laufe(klm, tg, conn, einst, 1)
 
     texte = _texte(tg)
-    # Phase 7 italienisch fuer p67-Chats (Morgen-Auftrag 4, Punkt 3).
-    assert texte[0].startswith("Annotato")
+    # chat_id 1 steht in keiner italienisch_ab_phase6_chats-Liste -- englisch.
+    assert texte[0].startswith("Noted:")
     assert texte[-1] == ueberarbeitung.T._TEXT_FORMEN_FEHLEN.format(nummern="2, 3")
     assert "Still without a form: scene 2, 3" in texte[-1]
 
@@ -454,8 +454,8 @@ def test_neue_form_fuer_eine_uebertragene_szene_nimmt_den_text_zurueck(
     assert zwei["prosa"]  # die Vorlage bleibt
     assert _szene(conn, 1)["volltext"] and _szene(conn, 1)["fertig_am"]
     meldung = _texte(tg)[0]
-    # Phase 7 italienisch fuer p67-Chats (Morgen-Auftrag 4, Punkt 3).
-    assert meldung.startswith("Annotato")
+    # chat_id 1 steht in keiner italienisch_ab_phase6_chats-Liste -- englisch.
+    assert meldung.startswith("Noted:")
     assert "transferred again" in meldung
     # Szene 2 ist wieder dran und wird neu uebertragen (Thread-Weg).
     assert ueberarbeitung.aktuelle_szene(conn, 1) == 2

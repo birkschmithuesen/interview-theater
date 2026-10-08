@@ -24,12 +24,24 @@ bleiben, wie sie waren.
 Neue Figuren bekommen hier KEINE eigene Rolle/Rollenlink -- nur das
 Kartenfeld ``wer``; die Werkbank-Besetzung (``szene_figur``) uebernimmt aus
 ``wer`` nur Namen, die schon eine Figur haben (``erkenner._figuren_aus_namen``,
-derselbe Namensabgleich wie bei einer Planung im Chat)."""
+derselbe Namensabgleich wie bei einer Planung im Chat).
+
+**Figuren aus dem Text, zusaetzlich zum Modell** (Nachtrag Birk 08.10.2026,
+Live-Befund G2: ``wer`` nannte nur einen Teil der sprechenden Figuren, obwohl
+weitere als Abschnittskopf -- "ANNA (Arlecchino)", "PIETRO, FRANCESCO,
+SILVIO" -- oder als Sprecherzeile "NAME: ..." im Skript standen; die
+Werkbank blieb unvollstaendig). ``_figuren_aus_text`` liest deterministisch
+per Regex gegen die ``figur``-Tabelle nach -- Sprecherzeilen wie
+``sprecher.sprecher_der_zeile``, Abschnittskoepfe als eigene Pruefung
+(eine Zeile aus Grossbuchstaben-Namen, Komma-Liste, optionaler
+Klammerzusatz). Die Treffer werden mit dem Modellergebnis VEREINT, nicht
+ersetzt."""
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 
 from interview_theater import anweisungen, erkenner, modellwahl, repo, szenenkarte, workshop
 
@@ -64,6 +76,50 @@ _NOTIZ = "Phase 7: place/people taken over from the newly written script."
 
 def _normalisiert(wert) -> str:
     return " ".join(str(wert or "").split()).strip().lower()
+
+
+#: Ein Abschnittskopf ohne Doppelpunkt: eine oder mehrere Grossbuchstaben-
+#: Namen, mit Komma getrennt, optional ein Klammerzusatz ("ANNA
+#: (Arlecchino)", "PIETRO, FRANCESCO, SILVIO"). Gleiche Fehlerrichtung wie
+#: ``sprecher.sprecher_der_zeile``: lieber eine Kopfzeile nicht erkennen als
+#: einen normalen Satz dafuer halten -- jedes Zeichen der Zeile muss in den
+#: erlaubten Satz passen (volle Zeile, kein Teiltreffer).
+_KLAMMERZUSATZ = re.compile(r"\s*\([^)]*\)\s*$")
+_KOPFZEILE = re.compile(
+    r"^[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ0-9 .'’-]{0,40}"
+    r"(?:,\s*[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ0-9 .'’-]{0,40})*$"
+)
+
+
+def _figuren_aus_text(conn, chat_id: int, text: str) -> list[int]:
+    """Figur-ids, die im Skripttext als Sprecherzeile ("NAME: ...") oder
+    Abschnittskopf ("ANNA (Arlecchino)", "PIETRO, FRANCESCO, SILVIO")
+    stehen -- deterministisch per Regex gegen die ``figur``-Tabelle, **nur**
+    schon vorhandene Figuren (wie ``erkenner._figuren_aus_namen``). Ergaenzt
+    das Modellergebnis in ``ziehe_nach``, ersetzt es nicht."""
+    from interview_theater import sprecher
+
+    schreibweise = {f["name"].strip().lower(): f["id"] for f in repo.figuren(conn, chat_id)}
+    if not schreibweise:
+        return []
+    namen = set(schreibweise)
+    gefunden: set[int] = set()
+    for zeile in (text or "").splitlines():
+        kopf = zeile.strip()
+        sprecher_name = sprecher.sprecher_der_zeile(zeile, namen)
+        if sprecher_name is not None:
+            figur_id = schreibweise.get(sprecher_name.strip().lower())
+            if figur_id is not None:
+                gefunden.add(figur_id)
+            continue
+        ohne_klammer = _KLAMMERZUSATZ.sub("", kopf)
+        if not ohne_klammer or _KOPFZEILE.match(ohne_klammer) is None:
+            continue
+        for teil in ohne_klammer.split(","):
+            figur_id = schreibweise.get(teil.strip().lower())
+            if figur_id is not None:
+                gefunden.add(figur_id)
+    return sorted(gefunden)
 
 
 def _system_fuer(chat_id: int) -> str:
@@ -117,7 +173,10 @@ def ziehe_nach(conn, klm, e, chat_id: int, szene_id: int, text: str, *,
         neue_karte = dict(karte)
         neue_karte.update(aenderungen)
         karte_json = json.dumps(neue_karte, ensure_ascii=False)
-        figur_ids = erkenner._figuren_aus_namen(conn, chat_id, neue_karte.get("wer") or "")
+        figur_ids = sorted(
+            set(erkenner._figuren_aus_namen(conn, chat_id, neue_karte.get("wer") or ""))
+            | set(_figuren_aus_text(conn, chat_id, text))
+        )
         repo.aktualisiere_karte_und_werkbank(
             conn, chat_id, szene_id, karte_json, neue_karte.get("ort"), figur_ids,
             szenenkarte.AUSLOESER_AENDERUNG, _NOTIZ,

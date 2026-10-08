@@ -183,6 +183,51 @@ def test_fehlerhafter_modellaufruf_laesst_karte_unveraendert(conn, einst):
     assert karte["ort"] == "Bar"
 
 
+def test_abschnittskoepfe_und_sprecherzeilen_ergaenzen_die_werkbank(conn, einst):
+    """Live-Befund G2 (Padua 08.10.2026, /tmp/nacht/p7audit.db, chat
+    7000000000001, Szene "reclutamento"): das Modell nannte in ``wer`` nur
+    EINEN Teil der sprechenden Figuren, obwohl weitere im Skript als
+    Abschnittskopf ohne Doppelpunkt ("ANNA (Arlecchino)", "BERTA, DARIO")
+    oder als eigene Sprecherzeile ("CLARA: ...") standen -- die Werkbank
+    blieb unvollstaendig. Jetzt werden beide Muster deterministisch per
+    Regex nachgezogen, zusaetzlich zum Modellergebnis."""
+    for name in ("Anna", "Berta", "Clara", "Dario"):
+        repo.setze_figur(conn, 1, name, "")
+    sid = _karte(conn, wer="Anna")
+    klm = LLM({"ort": "Bar", "wer": "Clara", "modus": "none"})
+    text = (
+        "INSTRUCTIONS\n\n"
+        "CLARA (moderator)\n"
+        "Arrives first and waits.\n\n"
+        "BERTA, DARIO\n"
+        "Off-camera, waiting apart from each other.\n\n"
+        "OPENING LINES\n"
+        "CLARA: Nothing for now, thanks.\n"
+        "ANNA: I have to tell you something.\n"
+    )
+
+    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, text, ueber_claude=False)
+
+    namen = {f["name"] for f in repo.szene_figuren(conn, sid)}
+    assert namen == {"Anna", "Berta", "Clara", "Dario"}
+
+
+def test_kopfzeile_erkennt_keine_unbekannten_namen(conn, einst):
+    """Mutationsprobe fuer den Abschnittskopf-Regex: ein Kopf, der keine der
+    bekannten Figuren nennt ("THE CAMERA", "EVERYONE"), darf keine Zeile in
+    ``szene_figur`` erzeugen -- sonst waeren Stichwortkoepfe staendig falsche
+    Treffer."""
+    repo.setze_figur(conn, 1, "Clara", "")
+    sid = _karte(conn, wer="Clara and friends")
+    klm = LLM({"ort": "Bar", "wer": "Clara", "modus": "none"})
+    text = "THE CAMERA (one of us, dressed as a passer-by)\nStays a few metres away.\n\nEVERYONE\nNods.\n"
+
+    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, text, ueber_claude=False)
+
+    namen = {f["name"] for f in repo.szene_figuren(conn, sid)}
+    assert namen == {"Clara"}
+
+
 def test_ohne_karte_tut_nichts(conn, einst):
     sid = repo.stelle_szene_sicher(conn, 1, 1)
     klm = LLM({"ort": "Piazza", "wer": "Anna", "modus": "none"})

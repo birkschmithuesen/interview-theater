@@ -185,6 +185,29 @@ def endfassung(text: str | None) -> str | None:
     return re.sub(r"\n{3,}", "\n\n", "\n".join(zeilen)).strip()
 
 
+_KOPF_IT = re.compile(r"^[*_\s]*SCENA\s+\d+\b", re.I | re.M)
+_KOPF_EN = re.compile(r"^[*_\s]*SCENE\s+\d+\b", re.I | re.M)
+
+
+def trenne_sprachen(text: str | None) -> tuple[str | None, str | None]:
+    """Birk 08.10.2026 ~12:30: das Modell schreibt oft BEIDE Fassungen in
+    eine Ausgabe (Block "SCENA N -- ..." + Block "SCENE N -- ..."). Dann
+    deterministisch am Kopf trennen -> (en, it). Sonst (text, None)."""
+    if not text:
+        return text, None
+    mi, me = _KOPF_IT.search(text), _KOPF_EN.search(text)
+    if not mi or not me:
+        return text, None
+    if mi.start() < me.start():
+        it, en = text[:me.start()], text[me.start():]
+    else:
+        en, it = text[:mi.start()], text[mi.start():]
+    en, it = en.strip(), it.strip()
+    if len(en) < 80 or len(it) < 80:
+        return text, None
+    return en, it
+
+
 def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -> bool:
     """Der Modellaufruf (plus ggf. der Spiegelpass). ``True`` bei Erfolg."""
     from interview_theater import skript_uebersetzung
@@ -229,9 +252,14 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
     # Birk 08.10.2026 ~12:00 ("max Tempo"): die Szene ist SOFORT da (EN),
     # die italienische Spiegelung laeuft danach im Hintergrund und wird
     # nachgetragen -- vorher wartete die Gruppe ~30 s extra auf die IT-Fassung.
-    repo.setze_stagescript(conn, szene["id"], text, None)
+    getrennt_en, getrennt_it = trenne_sprachen(text) if workshop.skript_zweisprachig_aktiv() else (text, None)
+    if getrennt_it:
+        # Modell lieferte beide Fassungen: sofort sauber getrennt, kein Spiegelpass.
+        repo.setze_stagescript(conn, szene["id"], getrennt_en, getrennt_it)
+    else:
+        repo.setze_stagescript(conn, szene["id"], text, None)
     repo.markiere_stagescript_notizen_verwendet(conn, szene["id"])
-    if workshop.skript_zweisprachig_aktiv():
+    if workshop.skript_zweisprachig_aktiv() and not getrennt_it:
         szene_id = szene["id"]
 
         def _spiegel() -> None:

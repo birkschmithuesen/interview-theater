@@ -306,3 +306,13 @@ def test_endfassung_ohne_open_und_ohne_zitatkaesten():
     t = st.endfassung(roh)
     assert "OPEN" not in t and "APERTO" not in t and "Interview" not in t and ">" not in t
     assert '"No, non ero ancora nato."' in t and "GIADA: Home." in t and "SAMUELE plays." in t
+
+
+def test_trenne_sprachen_zweisprachige_ausgabe():
+    from interview_theater import stagescript as st
+    it = "**SCENA 1 — IL PRIMO TOCCO** · *momento*\n" + "Il pubblico entra in silenzio. " * 5
+    en = "**SCENE 1 — THE FIRST PRESS** · *moment*\n" + "The audience enters in silence. " * 5
+    e, i = st.trenne_sprachen(it + "\n\n" + en)
+    assert e.startswith("**SCENE 1") and "SCENA" not in e
+    assert i.startswith("**SCENA 1") and "SCENE 1" not in i
+    assert st.trenne_sprachen(en) == (en, None)

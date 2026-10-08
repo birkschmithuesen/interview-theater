@@ -27,4 +27,7 @@ hat).
 
 Halte dich an das, was die Gruppe beschrieben, festgelegt und im Gespraech
 gesagt hat; Verworfenes kommt nicht vor. Steht eine Aenderungsnotiz da, gilt
-sie vor allem anderen.
+sie vor allem anderen. Steht eine bisherige Karte mit offenen Fragen da,
+uebernimm jede davon wieder in "questions" -- nur die, die die Notiz
+tatsaechlich beantwortet, fallen weg; keine Frage, die die Notiz nicht
+betrifft, darf verschwinden.

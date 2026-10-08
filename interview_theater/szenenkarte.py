@@ -487,12 +487,43 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
 
 def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = None):
     """"No, change" + Textnachricht, oder Rueckmeldung im Chat: die Karte
-    (genannte oder aktuelle) neu, mit der Notiz und der alten Karte."""
+    (genannte oder aktuelle) neu, mit der Notiz und der alten Karte.
+
+    **Eine Aenderung darf offene Fragen nie still loeschen** (Birk
+    08.10.2026 ~09:20, Punkt 3): spricht die Notiz erkennbar von den FRAGEN
+    selbst (``notiz_betrifft_fragen`` -- "the questions", "let's discuss the
+    questions", "domande"), springt sie direkt in den Klaerweg
+    (``starte_fragenklaerung``) statt blind neu zu bauen -- genau der Fall
+    vom Workshop: "No, change" + "The questions clearing" baute die Karte
+    neu und loeschte die Fragen klammheimlich. Sonst (eine Notiz, die nichts
+    mit den Fragen zu tun hat) bewahrt die Nachbereitung jede Frage der
+    alten Karte, die im Neubau nicht wieder auftaucht -- eine unverwandte
+    Notiz kann sie nicht beantwortet haben."""
     n = nummer if nummer is not None else aktuelle_nummer(conn, chat_id)
     if n is None:
         _sende(conn, tg, e, chat_id, T_IT._TEXT_KEIN_ZIEL)
         return None
-    return starte(conn, tg, klm, e, chat_id, n, notiz)
+    szene = _szene_mit_nummer(conn, chat_id, n)
+    alte_karte = karte_von(szene) if szene is not None else None
+    alte_fragen = (alte_karte or {}).get("fragen") or []
+    if alte_fragen and notiz_betrifft_fragen(notiz):
+        starte_fragenklaerung(conn, tg, e, chat_id, n)
+        return None
+    nachbereitung = None
+    if alte_fragen:
+        def nachbereitung(neue_karte: dict) -> None:
+            vorhandene = list(neue_karte.get("fragen") or [])
+            fehlende = [f for f in alte_fragen if f not in vorhandene]
+            if not fehlende:
+                return
+            ziel = _szene_mit_nummer(conn, chat_id, n)
+            if ziel is None:
+                return
+            aktualisiert = dict(neue_karte)
+            aktualisiert["fragen"] = (vorhandene + fehlende)[:FRAGEN_MAX]
+            repo.setze_szenenkarte(conn, ziel["id"], json.dumps(
+                aktualisiert, ensure_ascii=False))
+    return starte(conn, tg, klm, e, chat_id, n, notiz, nachbereitung=nachbereitung)
 
 
 # ---------------------------------------------------------------------------

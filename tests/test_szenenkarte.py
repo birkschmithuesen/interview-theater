@@ -475,6 +475,53 @@ def test_ablauf_leitet_antwort_an_offene_frage_um(conn, einst, padua):
     assert tg.texte[-1] == "Domanda 2 di 2: Where does it end?"
 
 
+@pytest.mark.parametrize("notiz", [
+    "The questions clearing",
+    "let's discuss the questions",
+    "Parliamo delle domande",
+])
+def test_aendere_mit_fragenwort_springt_direkt_in_klaerweg(conn, einst, padua, notiz):
+    """Birk 08.10.2026 ~09:20, Punkt 3: der genaue Vorfall vom Workshop --
+    "No, change" + eine Notiz ZU den Fragen baute die Karte neu und loeschte
+    sie klammheimlich. Jetzt springt so eine Notiz direkt in den Klaerweg,
+    kein Modellaufruf."""
+    _karte1(conn, einst, LLMMitFragen())
+    tg = TG()
+    klm = LLM()
+    ergebnis = szenenkarte.aendere(conn, tg, klm, einst, 1, notiz, nummer=1)
+    assert ergebnis is None
+    assert klm.aufrufe == []
+    assert tg.texte[-1] == "Domanda 1 di 1: Who sings?"
+
+
+def test_aendere_mit_unverwandter_notiz_bewahrt_alte_fragen(conn, einst, padua):
+    """Eine Notiz, die nichts mit den Fragen zu tun hat, kann sie nicht
+    beantwortet haben -- faellt der Neubau (hier: ``LLM`` ohne Fragen) sie
+    weg, holt die Nachbereitung sie zurueck."""
+    ids = _karte1(conn, einst, LLMMitFragen())
+    tg = TG()
+    klm = LLM()
+    szenenkarte.aendere(conn, tg, klm, einst, 1, "Emma sings first", nummer=1)
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+    assert "Emma sings first" in klm.aufrufe[-1]["nutzer"]
+    karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    assert karte["fragen"] == ["Who sings?"]
+
+
+def test_aendere_mit_unverwandter_notiz_dupliziert_nicht(conn, einst, padua):
+    """Behaelt der Neubau die Frage selbst (hier: ``LLMMitFragen`` liefert
+    sie wieder), steht sie trotzdem nur einmal auf der Karte."""
+    ids = _karte1(conn, einst, LLMMitFragen())
+    tg = TG()
+    klm = LLMMitFragen()
+    szenenkarte.aendere(conn, tg, klm, einst, 1, "Emma sings first", nummer=1)
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+    karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    assert karte["fragen"] == ["Who sings?"]
+
+
 def test_zwei_antworten_in_einer_nachricht_blockiert_den_weg_nicht(conn, einst, padua):
     """Eine Gruppe, die beide Antworten in eine Nachricht packt: kein
     Absturz, die ganze Nachricht gilt als Antwort auf die GERADE gestellte

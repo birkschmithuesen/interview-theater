@@ -39,6 +39,8 @@ Stick to what the group described, agreed and said in the conversation
 discarded ideas do not appear. The rules of the format hold in every point
 (e.g. "the music never stops"). What the group has not decided yet goes
 into "questions", not into the points. If there is a change note, it comes before
-everything else.
+everything else. If a previous card is shown with open questions, carry
+every one of them into "questions" again -- drop only the ones the change
+note actually answers; never drop a question the note does not address.
 
 {{ausgabesprache_p67}}

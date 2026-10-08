@@ -140,6 +140,16 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
         teile.append(T._AUFTRAG_OHNE_ZITATE)
     if mit_kopf:
         teile.append(T._AUFTRAG_KOPF)
+    staendig = repo.stagescript_notizen_verwendet(conn, szene["id"])
+    if staendig:
+        # Padua Dauernotiz-Fix (08.10.2026, Punkt 1, Live-Befund G3): eine
+        # einmal angewandte Notiz gilt fuer JEDEN weiteren Schreiblauf
+        # dieser Szene weiter -- sonst verschwand z. B. "nur Sprechtext,
+        # keine Didascalie" beim naechsten Wunsch wieder, weil nur
+        # unverwendete Notizen (``repo.stagescript_notizen``) in den
+        # Auftrag gingen.
+        teile.append(T._KOPF_NOTIZ_DAUERHAFT + "\n"
+                     + "\n".join(f"- {n}" for n in staendig))
     alt = (szene["volltext"] or "").strip()
     if notiz and alt:
         teile.append(T._KOPF_BISHER + "\n" + alt)
@@ -801,6 +811,13 @@ _KOPF_VERFEINERUNGEN = "Wie die Gruppe diese Karte in Phase 6 verfeinert hat:"
 _KOPF_FORMAT_TYP = "So sieht das Skript dieser Szene aus:"
 _KOPF_BISHER = "Bisheriges Skript dieser Szene, es soll ueberarbeitet werden:"
 _KOPF_NOTIZ = "Was die Gruppe geaendert haben will (gilt vor allem anderen):"
+#: Padua Dauernotiz-Fix (08.10.2026, Punkt 1): staendige Wuensche, die die
+#: Gruppe schon einmal zu dieser Szene geaeussert und die das Skript schon
+#: einmal umgesetzt hat -- gelten fuer JEDEN weiteren Schreiblauf weiter,
+#: nicht nur fuer den naechsten.
+_KOPF_NOTIZ_DAUERHAFT = ("Staendige Wuensche der Gruppe zu dieser Szene (gelten "
+                        "immer, chronologisch; ein spaeterer Wunsch, der einem "
+                        "frueheren widerspricht, gewinnt):")
 _AUFTRAG_KOPF = (
     "Schreib zusaetzlich in \"kopf\" EINMAL den Kopf des ganzen Skripts: die "
     "Versuchsanordnung (Ziel, Ort, Regeln, Abbruch) und je beteiligter Person "

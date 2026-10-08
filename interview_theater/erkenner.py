@@ -2975,9 +2975,58 @@ def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
     entwurf.starte_uebersicht(conn, tg, klm, e, chat_id, treffer.get("wert") or None)
 
 
+#: Padua Dauernotiz-Fix (08.10.2026, Punkt 2): nennt dieselbe Nachricht
+#: mehrere Szenen, gilt die Notiz fuer jede genannte -- Zahlenliste nach
+#: scene/scena/szene ("scene 3, 4, 5, 6"), "dalla N in poi"/"from N on"/
+#: "ab N" (ab N einschliesslich), oder "tutte"/"all scenes"/"alle Szenen"
+#: (optional ohne "tranne/except/ausser N"). Deterministisch per Regex auf
+#: den rohen Nachrichtentext, kein Modellaufruf.
+_SZENEN_LISTE = re.compile(
+    r"\b(?:scene|scena|scenes|szene|szenen)\b[^\d]{0,15}"
+    r"((?:\d{1,2}\s*(?:,|/|&|\+|\be\b|\band\b|\bund\b)\s*)+\d{1,2})",
+    re.I,
+)
+_SZENEN_TRENNER = re.compile(r"[,/&+]|\be\b|\band\b|\bund\b", re.I)
+_AB_SZENE = re.compile(
+    r"\bdalla\s+(?:scena\s+)?(\d{1,2})\s+in\s+poi\b"
+    r"|\bfrom\s+(?:scene\s+)?(\d{1,2})\s+on(?:wards)?\b"
+    r"|\bab\s+(?:szene\s+)?(\d{1,2})\b",
+    re.I,
+)
+_ALLE_SZENEN = re.compile(
+    r"\btutte(?:\s+le\s+scene)?\b|\ball\s+scenes?\b|\balle\s+szenen\b", re.I)
+_SZENEN_AUSGENOMMEN = re.compile(
+    r"\b(?:tranne|except(?:\s+for)?|ausser|außer)\b\D{0,15}?(\d{1,2})", re.I)
+
+
+def _weitere_szenen_aus_text(text: str, alle_nummern: list[int]) -> set[int]:
+    """Welche Szenennummern aus ``alle_nummern`` die Nachricht sonst noch
+    nennt -- Grundlage fuer Punkt 2 (``_starte_stagescript_notiz`` legt eine
+    Notiz fuer jede zurueckgegebene Nummer zusaetzlich an). Leer, wenn die
+    Nachricht kein Muster trifft (der Normalfall: eine Notiz, eine Szene)."""
+    text = text or ""
+    treffer: set[int] = set()
+    gefunden = _SZENEN_LISTE.search(text)
+    if gefunden:
+        for stueck in _SZENEN_TRENNER.split(gefunden.group(1)):
+            stueck = stueck.strip()
+            if stueck.isdigit():
+                treffer.add(int(stueck))
+    gefunden = _AB_SZENE.search(text)
+    if gefunden:
+        start = int(next(g for g in gefunden.groups() if g))
+        treffer.update(n for n in alle_nummern if n >= start)
+    if _ALLE_SZENEN.search(text):
+        treffer.update(alle_nummern)
+        for ausnahme in _SZENEN_AUSGENOMMEN.finditer(text):
+            treffer.discard(int(ausnahme.group(1)))
+    return {n for n in treffer if n in alle_nummern}
+
+
 def _starte_stagescript_notiz(klm, tg, conn, e, chat_id: int,
                               aenderungen: list[dict], *,
-                              notiz_verbraucht: bool = False) -> None:
+                              notiz_verbraucht: bool = False,
+                              nachrichtentext: str = "") -> None:
     """Padua Quickfix (08.10.2026, Punkt 1): legt einen Wunsch zu einer
     Stage-Script-Szene ab, die noch nicht geschrieben ist oder gerade
     laeuft (art ``stagescript_notiz``), und bestaetigt kurz.
@@ -3000,7 +3049,12 @@ def _starte_stagescript_notiz(klm, tg, conn, e, chat_id: int,
     neu schreiben, mit der Notiz. Laeuft einer, oder ist die Szene noch
     ohne Volltext, bleibt die Notiz liegen; der naechste
     ``stagescript.schreibe``-Aufruf dieser Szene holt sie sich selbst
-    (``stagescript._notiz_mit_gespeicherten``)."""
+    (``stagescript._notiz_mit_gespeicherten``).
+
+    **Punkt 2 (08.10.2026):** nennt ``nachrichtentext`` (der rohe Text des
+    gelesenen Fensters, von ``laufe`` durchgereicht) noch weitere Szenen
+    (``_weitere_szenen_aus_text``), bekommt jede davon dieselbe Notiz
+    zusaetzlich -- ausser der Zielszene selbst, die hat sie schon."""
     from interview_theater import stagescript, workshop
 
     if not workshop.szenenkarten_aktiv():
@@ -3036,6 +3090,19 @@ def _starte_stagescript_notiz(klm, tg, conn, e, chat_id: int,
         log.exception("Stage-Script-Notiz nicht gespeichert, chat_id=%s, nummer=%s",
                       chat_id, nummer)
         return
+    if nachrichtentext:
+        alle_nummern = [s["nummer"] for s in stagescript._szenen(conn, chat_id)]
+        for weitere_nummer in sorted(
+                _weitere_szenen_aus_text(nachrichtentext, alle_nummern) - {nummer}):
+            weitere_szene = stagescript._szene_mit_nummer(conn, chat_id, weitere_nummer)
+            if weitere_szene is None or notiz in repo.stagescript_notizen(
+                    conn, weitere_szene["id"]):
+                continue
+            try:
+                repo.merke_stagescript_notiz(conn, chat_id, weitere_szene["id"], notiz)
+            except Exception:
+                log.exception("Stage-Script-Notiz (weitere Szene) nicht gespeichert, "
+                              "chat_id=%s, nummer=%s", chat_id, weitere_nummer)
     try:
         stagescript._sende(conn, tg, e, chat_id, stagescript._T(chat_id)._TEXT_NOTIZ_NOTIERT.format(
             nummer=nummer, notiz=notiz))
@@ -3686,8 +3753,11 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # _starte_kuerzung aus den erkannten (phasengefilterten) Aenderungen,
         # weil stagescript_notiz nichts in den Arbeitsstand schreibt und in
         # ``wirkliche`` deshalb nie auftaucht.
-        _starte_stagescript_notiz(klm, tg, conn, e, chat_id, freigegeben,
-                                  notiz_verbraucht=notiz_verbraucht)
+        _starte_stagescript_notiz(
+            klm, tg, conn, e, chat_id, freigegeben,
+            notiz_verbraucht=notiz_verbraucht,
+            nachrichtentext="\n".join(
+                n["text"] for n in fenster_vor_erkennung if n["text"]))
         text = baue_meldung(wirkliche, conn, chat_id)
         if text is not None and begriffe_im_zug and _haenge_an_zugquittung(
                 conn, chat_id, zug_lauf, vorher, nachher, wirkliche):

@@ -5746,6 +5746,21 @@ def stagescript_notizen(conn: sqlite3.Connection, szene_id: int) -> list[str]:
 
 
 @_gesperrt
+def stagescript_notizen_verwendet(conn: sqlite3.Connection, szene_id: int) -> list[str]:
+    """Die schon einmal angewandten Notizen dieser Szene, aeltest zuerst --
+    Grundlage der staendigen Wuensche (Padua Dauernotiz-Fix 08.10.2026,
+    Punkt 1): einmal angewandt, soll eine Form-/Stilvorgabe nicht beim
+    naechsten Schreiblauf wieder verschwinden, nur weil sie nicht mehr
+    unter den unverwendeten steht (``stagescript_notizen``)."""
+    zeilen = conn.execute(
+        "SELECT text FROM stagescript_notiz "
+        "WHERE szene_id = ? AND verwendet_am IS NOT NULL ORDER BY id",
+        (szene_id,),
+    ).fetchall()
+    return [z["text"] for z in zeilen]
+
+
+@_gesperrt
 def markiere_stagescript_notizen_verwendet(conn: sqlite3.Connection, szene_id: int) -> None:
     """Markiert alle noch unverwendeten Notizen dieser Szene als verwendet --
     sie sind in den naechsten ``stagescript.schreibe``-Auftrag eingegangen.

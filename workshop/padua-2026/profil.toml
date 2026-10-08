@@ -305,6 +305,9 @@ aktiv = true
 # deswegen fehl. Ohne diese Zeile (Dortmund, Vorgabeprofil): unveraendert.
 [skript]
 zweisprachig = true
+# EN-Fassung: unter jedem fremdsprachigen Zitat die englische Uebersetzung
+# (Birk 08.10.2026 ~14:25, G3 S2 war in EN fast nur italienisch).
+zitat_uebersetzung_en = true
 # Reduktion auf das Wesentliche (Birk 07.10.2026 ~17:45): Kurzform je Szene
 # (szene.kern/kernsaetze_kurz, szenenkern.py), keine Begruendungskette mehr in
 # "What happens"/"Key lines", Script = nur der Text, Workbench = Material,

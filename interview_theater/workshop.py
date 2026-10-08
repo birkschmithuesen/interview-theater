@@ -1063,6 +1063,13 @@ def fragen_eigene_min(profil: Profil | None = None) -> int:
     return int(profil.wert("fragen.eigene_min", 0))
 
 
+def zitat_uebersetzung_en_aktiv(profil: Profil | None = None) -> bool:
+    """EN-Fassung des Skripts zeigt unter jedem fremdsprachigen Zitat die
+    englische Uebersetzung (Birk 08.10.2026 ~14:25). Vorgabe false."""
+    profil = profil or aktiv()
+    return bool(profil.wert("skript.zitat_uebersetzung_en", False))
+
+
 def skript_zweisprachig_aktiv(profil: Profil | None = None) -> bool:
     """Ob nach einem fertigen Szenentext ein EN/IT-Spiegelpass laeuft
     (Birk, Live-Workshop 07.10.2026 ~17:20, ``skript_uebersetzung.py``).

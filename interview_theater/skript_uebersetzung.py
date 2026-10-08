@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 
-from interview_theater import anweisungen, modellwahl, repo
+from interview_theater import anweisungen, modellwahl, repo, workshop
 
 log = logging.getLogger(__name__)
 
@@ -70,11 +70,31 @@ SCHEMA = {
 LAENGE_MIN, LAENGE_MAX = 0.6, 1.7
 
 
-def plausibel(quelle: str, uebertragung: str) -> bool:
+#: Mit Zitat-Uebersetzung (unten) kann die EN-Fassung bis gut doppelt so
+#: lang werden -- eine Szene, die fast nur aus Zitaten besteht (G3 S2).
+LAENGE_MAX_MIT_UEBERSETZUNG = 2.6
+
+#: Birk 08.10.2026 ~14:25 (G3 S2: in der EN-Ansicht blieb fast alles
+#: italienisch, weil die Szene nur aus Interviewzitaten besteht): in der
+#: EN-Fassung steht unter jedem Zitat in anderer Sprache die englische
+#: Uebersetzung. Gespielt wird das Original; die IT-Fassung bleibt ohne.
+ZUSATZ_ZITAT_UEBERSETZUNG = (
+    "\n\nAdditionally, ONLY in prosa_en: directly below every line or passage that is "
+    "not in English (interview quotes in their original wording), add one line with "
+    "its English translation, in italics and in parentheses, like this:\n"
+    "VOCE 4: Mi pare che fossi sul divano dopo pranzo.\n"
+    "*(I think I was on the sofa after lunch.)*\n"
+    "The original line stays exactly as it is and is what is performed. Do not add "
+    "translations to prosa_it."
+)
+
+
+def plausibel(quelle: str, uebertragung: str, max_faktor: float | None = None) -> bool:
     q = len((quelle or "").strip())
     if q < 200:
         return True
-    return LAENGE_MIN * q <= len((uebertragung or "").strip()) <= LAENGE_MAX * q
+    hoch = LAENGE_MAX if max_faktor is None else max_faktor
+    return LAENGE_MIN * q <= len((uebertragung or "").strip()) <= hoch * q
 
 
 def spiegle_text(conn, klm, e, chat_id: int, text: str, *,
@@ -85,15 +105,18 @@ def spiegle_text(conn, klm, e, chat_id: int, text: str, *,
     if not (text or "").strip():
         return None
     try:
+        mit_uebersetzung = workshop.zitat_uebersetzung_en_aktiv()
+        system = anweisungen.hole(ART) + (ZUSATZ_ZITAT_UEBERSETZUNG if mit_uebersetzung else "")
         ergebnis = modellwahl.aufruf_schema(
-            conn, klm, e, chat_id, system=anweisungen.hole(ART), nutzer=text,
+            conn, klm, e, chat_id, system=system, nutzer=text,
             schema=SCHEMA, art=ART, ueber_claude=ueber_claude,
         )
         en = (ergebnis.get("prosa_en") or "").strip()
         it = (ergebnis.get("prosa_it") or "").strip()
         if not en or not it:
             raise ValueError("Spiegelpass ohne beide Fassungen zurueckgekommen")
-        if not plausibel(text, en) or not plausibel(text, it):
+        en_ok = plausibel(text, en, max_faktor=LAENGE_MAX_MIT_UEBERSETZUNG if mit_uebersetzung else LAENGE_MAX)
+        if not en_ok or not plausibel(text, it):
             raise ValueError(
                 f"Spiegelpass unplausibel (Quelle {len(text)}, EN {len(en)}, IT {len(it)} Zeichen)")
         return en, it

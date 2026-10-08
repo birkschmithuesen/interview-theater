@@ -167,3 +167,30 @@ def test_spiegle_text_nimmt_gleich_lange_uebertragung(conn, einst):
     klm = LLMMitSchema("", {"prosa_en": quelle, "prosa_it": "VOCE 1: E ora aspettiamo. " * 200})
     en, it = skript_uebersetzung.spiegle_text(conn, klm, einst, 1, quelle, ueber_claude=False)
     assert en == quelle.strip() and it.startswith("VOCE 1: E ora")
+
+
+def test_zitat_uebersetzung_en_im_systemprompt_und_laengere_en_fassung(conn, einst, monkeypatch):
+    """Birk 08.10.2026 ~14:25 (G3 S2): mit ``[skript] zitat_uebersetzung_en``
+    verlangt der Spiegelpass in der EN-Fassung unter jedem Zitat die
+    Uebersetzung -- und eine dadurch doppelt so lange EN-Fassung wird nicht
+    als unplausibel verworfen."""
+    from interview_theater import workshop
+    quelle = "VOCE 4: Mi pare che fossi sul divano dopo pranzo. " * 40
+    en = ("VOCE 4: Mi pare che fossi sul divano dopo pranzo.\n"
+          "*(I think I was on the sofa after lunch.)*\n") * 40
+    klm = LLMMitSchema("", {"prosa_en": en, "prosa_it": quelle})
+    monkeypatch.setattr(workshop, "zitat_uebersetzung_en_aktiv", lambda profil=None: True)
+    ergebnis = skript_uebersetzung.spiegle_text(conn, klm, einst, 1, quelle, ueber_claude=False)
+    assert ergebnis is not None and "*(I think" in ergebnis[0]
+    assert "English translation" in klm.schema_gesehen["system"]
+
+
+def test_ohne_schalter_kein_zitat_zusatz_und_alte_laengengrenze(conn, einst, monkeypatch):
+    from interview_theater import workshop
+    quelle = "VOCE 4: Mi pare che fossi sul divano dopo pranzo. " * 40
+    en = ("VOCE 4: Mi pare che fossi sul divano dopo pranzo.\n"
+          "*(I think I was on the sofa after lunch.)*\n") * 40
+    klm = LLMMitSchema("", {"prosa_en": en, "prosa_it": quelle})
+    monkeypatch.setattr(workshop, "zitat_uebersetzung_en_aktiv", lambda profil=None: False)
+    assert skript_uebersetzung.spiegle_text(conn, klm, einst, 1, quelle, ueber_claude=False) is None
+    assert "English translation" not in klm.schema_gesehen["system"]

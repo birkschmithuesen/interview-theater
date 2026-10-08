@@ -174,20 +174,42 @@ def _ersten_aufnahme_id(conn) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Datenschutz/Modellwahl: Verdichtungen sind abgeleitetes Interviewmaterial
-# und gehen nicht ueber Claude -- die Einwilligung nennt sie nicht (siehe
+# Datenschutz/Modellwahl: Verdichtungen sind abgeleitetes Interviewmaterial.
+#
+# Ohne eine pauschale Einwilligung nennt die Warnung sie nicht (siehe
 # ``docs/entscheidung-modellwahl-2026-10-02.md``, Warntext in
 # ``_TEXT_ANGEBOT_MODELLWAHL``: "your recordings and interviews stay that
-# way -- no exceptions", nur woertliche Zitate sind ab Phase 5 genannt).
+# way -- no exceptions", nur woertliche Zitate sind ab Phase 5 genannt) --
+# dort bleibt der Block dem Kimi-Weg vorbehalten (Dortmund/Vorgabe,
+# ``modellwahl_einwilligung_aktiv`` true, Einwilligung gilt je Gruppe).
+#
+# **Nachtrag Birk 08.10.2026 ~09:25** ("kein Problem mit US, ich gebe die
+# Einwilligung pauschal frei"): Padua setzt ``[modellwahl] einwilligung =
+# false`` bereits -- die Frage entfaellt komplett, jede Gruppe laeuft ohne
+# Rueckfrage auf Claude, sobald der Betreiber es erlaubt
+# (``workshop.modellwahl_einwilligung_aktiv``, Doc: "Padua setzt false:
+# sobald der Betreiber Claude erlaubt, laeuft jede Phase ausser Interviews
+# ohne Ruckfrage auf Claude"). Dieselbe pauschale Freigabe deckt dann auch
+# die Verdichtungen -- derselbe Schalter, kein neuer (AGENTS.md: "keine
+# neuen Schalter" fuer eine Dortmund/Padua-Trennung).
 # ---------------------------------------------------------------------------
 
 
-def test_hintergrund_fuer_prompt_traegt_verdichtungen_nur_ohne_claude(conn, padua):
-    ids = _lage(conn)
+def _uebernimm_alles(conn, chat_id: int = 1):
     from interview_theater import schaerfung
 
-    alle = repo.schaerfungen(conn, 1)
-    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in alle])
+    alle = repo.schaerfungen(conn, chat_id)
+    schaerfung.uebernimm_stellen(conn, chat_id, [z["id"] for z in alle])
+
+
+def test_hintergrund_fuer_prompt_traegt_verdichtungen_nur_ohne_claude_wenn_einwilligung_noetig(
+    conn,
+):
+    """Vorgabeprofil/Dortmund (``modellwahl_einwilligung_aktiv`` true, die
+    Vorgabe): die Einwilligung gilt je Gruppe und nennt Verdichtungen
+    nicht -- der Block bleibt dem Kimi-Weg vorbehalten."""
+    _lage(conn)
+    _uebernimm_alles(conn)
 
     ohne_claude = hintergrund.hintergrund_fuer_prompt(conn, 1, ueber_claude=False)
     mit_claude = hintergrund.hintergrund_fuer_prompt(conn, 1, ueber_claude=True)
@@ -196,14 +218,26 @@ def test_hintergrund_fuer_prompt_traegt_verdichtungen_nur_ohne_claude(conn, padu
     assert "Interviews behind your chosen passages" not in mit_claude
 
 
+def test_hintergrund_fuer_prompt_traegt_verdichtungen_mit_claude_bei_pauschaler_einwilligung(
+    conn, padua,
+):
+    """Padua (``[modellwahl] einwilligung = false``, Birk: pauschal
+    freigegeben): auch auf dem Claude-Weg geht der Verdichtungen-Block mit
+    -- dieselbe Freigabe, die auch Zitate ab Phase 5 ohne Rueckfrage
+    erlaubt."""
+    _lage(conn)
+    _uebernimm_alles(conn)
+
+    mit_claude = hintergrund.hintergrund_fuer_prompt(conn, 1, ueber_claude=True)
+
+    assert "Interviews behind your chosen passages" in mit_claude
+
+
 def test_hintergrund_fuer_prompt_ueber_claude_ist_vorgabe_false(conn, padua):
     """Ohne Angabe verhaelt es sich wie bisher (Kimi-Weg) -- kein Aufrufer,
     der den Parameter noch nicht kennt, verliert das Material."""
-    ids = _lage(conn)
-    from interview_theater import schaerfung
-
-    alle = repo.schaerfungen(conn, 1)
-    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in alle])
+    _lage(conn)
+    _uebernimm_alles(conn)
 
     text = hintergrund.hintergrund_fuer_prompt(conn, 1)
     assert "Interviews behind your chosen passages" in text

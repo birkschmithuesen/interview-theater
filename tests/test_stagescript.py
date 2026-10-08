@@ -127,9 +127,13 @@ def test_anschluss_an_das_ende_der_vorigen_szene(conn, padua):
     assert stagescript.T._KOPF_VORHER not in erste
 
 
-def test_baue_nutzertext_nimmt_ueber_claude_parameter_entgegen(conn, padua):
+def test_baue_nutzertext_nimmt_ueber_claude_parameter_entgegen(conn, padua, monkeypatch):
     """Derselbe Datenschutz-Schalter wie bei den Karten (``hintergrund.py``):
-    die Interview-Verdichtungen gehen nur auf dem Kimi-Weg mit."""
+    mit Einwilligung je Gruppe (Vorgabe, hier isoliert von Paduas pauschaler
+    Freigabe) gehen die Interview-Verdichtungen nur auf dem Kimi-Weg mit."""
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "modellwahl_einwilligung_aktiv", lambda *a, **k: True)
     ids = _karten(conn)
     schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
     szene_zeile = repo.hole_szene(conn, ids[0])

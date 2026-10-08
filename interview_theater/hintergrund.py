@@ -17,20 +17,27 @@ dann zwei weitere Bloecke -- Nachtrag Birk 08.10.2026 ~09:15:
 * ``interview_verdichtungen_block`` -- die Verdichtungen GENAU der
   Interviews, aus denen die Gruppe Stellen uebernommen hat: Hintergrund und
   Ton, keine Quelle fuer Zitate (die stehen woertlich in der nummerierten
-  Liste, die ``szenenkarte``/``schaerfung`` je Szene bauen). **Nur auf dem
-  Kimi-Weg** (``ueber_claude=False``): die US-Einwilligung
-  (``_TEXT_ANGEBOT_MODELLWAHL``) nennt "your recordings and interviews stay
-  that way -- no exceptions" und erst ab Phase 5 woertliche Zitate als
-  Ausnahme -- Verdichtungen (abgeleitetes Interviewmaterial, aber nicht
-  dasselbe wie ein genanntes Zitat) stehen dort nicht. Offene Entscheidung
-  fuer Birk (Bericht): die Warnung um einen Satz zu erweitern, dann koennte
-  der Block auch mit ``ueber_claude=True`` mitgehen.
+  Liste, die ``szenenkarte``/``schaerfung`` je Szene bauen).
+
+  **Datenschutz/Modellwahl (``ueber_claude``):** wo die Einwilligung JE
+  GRUPPE gilt (Dortmund/Vorgabe, ``workshop.modellwahl_einwilligung_aktiv``
+  true), nennt die Warnung (``_TEXT_ANGEBOT_MODELLWAHL``) nur "your
+  recordings and interviews stay that way -- no exceptions" und ab Phase 5
+  woertliche Zitate als Ausnahme -- Verdichtungen stehen dort nicht, der
+  Block bleibt also dem Kimi-Weg vorbehalten. **Padua setzt die
+  Einwilligung pauschal** (``modellwahl_einwilligung_aktiv`` false, Birk
+  08.10.2026 ~09:25: "kein Problem mit US, ich gebe die Einwilligung
+  pauschal frei") -- dieselbe Freigabe, die dort schon jede Phase ausser
+  Interviews ohne Rueckfrage auf Claude laufen laesst, deckt dann auch die
+  Verdichtungen; der Block geht unter diesem Schalter auch mit
+  ``ueber_claude=True`` mit. Derselbe Schalter wie ueberall sonst, der
+  Dortmund/Padua trennt -- kein neuer (AGENTS.md: "keine neuen Schalter").
 
 Kein Modellaufruf, kein SQL (alles ueber ``repo``)."""
 
 from __future__ import annotations
 
-from interview_theater import repo
+from interview_theater import repo, workshop
 
 
 def _feld(stand, name: str) -> str:
@@ -95,12 +102,20 @@ def interview_verdichtungen_block(conn, chat_id: int) -> str:
     return _KOPF_INTERVIEWS + "\n\n" + "\n\n".join(zeilen)
 
 
+def _verdichtungen_erlaubt(ueber_claude: bool) -> bool:
+    """Darf der Verdichtungen-Block mitgehen? Immer auf dem Kimi-Weg; auf
+    dem Claude-Weg nur, wo die Einwilligung PAUSCHAL gilt (Padua,
+    ``modellwahl_einwilligung_aktiv`` false) statt je Gruppe erfragt zu
+    werden -- siehe Moduldocstring."""
+    return not ueber_claude or not workshop.modellwahl_einwilligung_aktiv()
+
+
 def hintergrund_fuer_prompt(conn, chat_id: int, *, ueber_claude: bool = False) -> str:
     """Der Hintergrund als Text-Bloecke (durch Leerzeilen getrennt), leere
-    Bloecke fallen weg. ``ueber_claude`` entscheidet, ob der Verdichtungen-
-    Block mitgeht (siehe Moduldocstring, Datenschutz) -- Vorgabe ``False``
-    (Kimi-Weg), damit kein Aufrufer, der den Parameter noch nicht angibt,
-    Material verliert."""
+    Bloecke fallen weg. ``ueber_claude`` entscheidet zusammen mit dem
+    Einwilligungs-Schalter, ob der Verdichtungen-Block mitgeht (siehe
+    Moduldocstring, Datenschutz) -- Vorgabe ``False`` (Kimi-Weg), damit kein
+    Aufrufer, der den Parameter noch nicht angibt, Material verliert."""
     from interview_theater import szene
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
@@ -120,7 +135,7 @@ def hintergrund_fuer_prompt(conn, chat_id: int, *, ueber_claude: bool = False) -
     summary = phasen_summary_block(conn, chat_id)
     if summary:
         bloecke.append(summary)
-    if not ueber_claude:
+    if _verdichtungen_erlaubt(ueber_claude):
         verdichtungen = interview_verdichtungen_block(conn, chat_id)
         if verdichtungen:
             bloecke.append(verdichtungen)

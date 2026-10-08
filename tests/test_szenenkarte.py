@@ -146,7 +146,15 @@ def test_baue_nutzertext_zeigt_zitate_zur_wahl_ungekuerzt(conn, padua):
     assert lang in text
 
 
-def test_baue_nutzertext_nimmt_ueber_claude_parameter_entgegen(conn, padua):
+def test_baue_nutzertext_nimmt_ueber_claude_parameter_entgegen(conn, padua, monkeypatch):
+    """Padua selbst gibt die Einwilligung pauschal (Birk 08.10.2026), die
+    Verdichtungen gingen also auch mit ``ueber_claude=True`` mit (siehe
+    ``tests/test_hintergrund.py``) -- hier wird nur die Weiterleitung des
+    Parameters geprueft, deshalb mit der Vorgabe (Einwilligung je Gruppe
+    noetig) isoliert."""
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "modellwahl_einwilligung_aktiv", lambda *a, **k: True)
     ids = _lage(conn)
     schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
     szene_zeile = repo.hole_szene(conn, ids[0])
@@ -161,6 +169,9 @@ def test_baue_nutzertext_nimmt_ueber_claude_parameter_entgegen(conn, padua):
 def test_erzeuge_gibt_denselben_ueber_claude_wert_an_hintergrund_und_aufruf(
     conn, einst, padua, monkeypatch,
 ):
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "modellwahl_einwilligung_aktiv", lambda *a, **k: True)
     ids = _lage(conn)
     schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
     monkeypatch.setattr(szenenkarte.szene_claude, "ist_aktiv", lambda e, c, cid: True)

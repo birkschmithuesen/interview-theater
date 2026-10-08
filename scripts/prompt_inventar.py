@@ -338,6 +338,16 @@ NICHT_LIVE_IN_PADUA = {
         "scripts/rauchtest_begriffsboard_resonanz.py, festgehalten in "
         "tests/test_begriffsboard_analyse.py::test_kein_live_aufrufer. Ob ein "
         "zweiter Live-Aufruf kommt, entscheidet Birk.",
+    ("interview_theater.erkenner", "art"):
+        "Weiche erkenner._schema_aufruf (Birk 08.10.2026, Erkenner ueber "
+        "Opus): reicht nur den art-Parameter weiter; die echten Aufrufe "
+        "stehen als 10-erkenner-verlauf/11-erkenner-aufnahme im Inventar "
+        "(art 'erkenner'). Gleicher Prompt, kein eigener Dump.",
+    ("interview_theater.phasen_summary", "ART"):
+        "Phasen-Summary (art phasen_summary): Hintergrundlauf beim "
+        "Phasenwechsel, Ergebnis landet als Block im Karten-/Stage-Script-"
+        "Prompt und wird dort mitgeprueft. Eigener Dump folgt nach dem "
+        "Workshop.",
     ("interview_theater.bot", "'erkenner'"):
         "Warmlauf beim Prozessstart (bot.warmlaufen) mit dem festen Text "
         "'Testaufruf.' -- kein Prompt der Gruppe, nichts zu pruefen.",

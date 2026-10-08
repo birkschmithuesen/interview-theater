@@ -23,4 +23,4 @@ def test_script_tab_status_und_sprachwahl():
     import inspect
     quelle = inspect.getsource(web)
     assert "status-badge konzept" in quelle and "status-badge fertig" in quelle
-    assert "body.nur-en .stueck [lang=it]" in quelle and 'class="sprachwahl"' in quelle
+    assert "body:has(#sp-en:checked) .stueck [lang=it]" in quelle and 'class="sprachwahl"' in quelle

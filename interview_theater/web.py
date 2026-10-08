@@ -5348,25 +5348,21 @@ def textbuch_koerper(
             from interview_theater import workshop as _ws
             vorgabe = "it" if _ws.p67_italienisch_aktiv() else "en"
             wege += (
-                f'<p class="sprachwahl" data-vorgabe="{vorgabe}">'
-                '<button type="button" data-sprache="en">English</button>'
-                '<button type="button" data-sprache="it">Italiano</button></p>'
+                # Reines CSS (:has), kein <script> -- die vereinte Seite
+                # sammelt Skripte und vertraegt kein Inline-Script im Koerper.
+                '<p class="sprachwahl">'
+                f'<label><input type="radio" name="skript-sprache" id="sp-en"{" checked" if vorgabe == "en" else ""}> English</label>'
+                f'<label><input type="radio" name="skript-sprache" id="sp-it"{" checked" if vorgabe == "it" else ""}> Italiano</label></p>'
                 "<style>"
                 ".sprachwahl{display:flex;gap:.4rem;margin:.6rem 0}"
-                ".sprachwahl button{padding:.3rem .9rem;border:1px solid #9a5f12;border-radius:1rem;background:transparent;color:inherit;font-weight:600}"
-                ".sprachwahl button[aria-pressed=true]{background:#9a5f12;color:#fff}"
-                "body.nur-en .stueck [lang=it]:not(.karte-zitat),body.nur-it .stueck [lang=en]:not(.karte-zitat){display:none}"
-                "body.nur-en .stueck .sprache-kopf,body.nur-it .stueck .sprache-kopf{display:none}"
+                ".sprachwahl label{padding:.3rem .9rem;border:1px solid #9a5f12;border-radius:1rem;font-weight:600;cursor:pointer}"
+                ".sprachwahl input{position:absolute;opacity:0;pointer-events:none}"
+                ".sprachwahl label:has(input:checked){background:#9a5f12;color:#fff}"
+                "body:has(#sp-en:checked) .stueck [lang=it]:not(.karte-zitat),body:has(#sp-it:checked) .stueck [lang=en]:not(.karte-zitat){display:none}"
+                "body:has(.sprachwahl input:checked) .stueck .sprache-kopf{display:none}"
                 ".status-badge{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:9px;vertical-align:middle;margin-left:6px;color:#fff}"
                 ".status-badge.konzept{background:#c0392b}.status-badge.fertig{background:#2e7d32}"
                 "</style>"
-                "<script>(function(){var w=document.querySelector('.sprachwahl');if(!w)return;"
-                "function setze(l){document.body.classList.remove('nur-en','nur-it');document.body.classList.add('nur-'+l);"
-                "w.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.sprache===l?'true':'false')});"
-                "try{localStorage.setItem('skript-sprache',l)}catch(e){}}"
-                "var l=null;try{l=localStorage.getItem('skript-sprache')}catch(e){}"
-                "setze(l||w.dataset.vorgabe);"
-                "w.addEventListener('click',function(ev){var b=ev.target.closest('button');if(b)setze(b.dataset.sprache)})})();</script>"
             )
     # Padua (Birk 07.10.2026 ~23:55): Schriftgroesse und "Hide stage
     # directions" kosten am Handy nur Platz -- unter skript.verdichtet weg.

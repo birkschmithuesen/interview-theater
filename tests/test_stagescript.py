@@ -420,3 +420,14 @@ def test_chatfassung_ohne_vorrede_und_schlussfrage(conn, einst, padua, monkeypat
     nummer, fassung = stagescript.chatfassung(conn, 1, text)
     assert nummer == 1 and fassung.startswith("1. Il pubblico entra.")
     assert "Ho cambiato" not in fassung and "Va bene così" not in fassung
+
+
+def test_chatfassung_kopf_ohne_gesamtzahl_mit_szenenkopf(conn, einst, padua, monkeypatch):
+    """Tester 08.10. 13:40: "Scene 5: Second Rise" + vollstaendige Szene mit eigenem Kopf."""
+    _p7_mit_s1(conn, monkeypatch)
+    text = ("Scene 1: Tornare a casa\n\n**SCENE 1 — HOME** · *moment*\n\n"
+            "Place / mode: the room.\n\nVOCE 1: First line.\nVOCE 2: Second line.\n"
+            "VOCE 1: And now we wait.")
+    nummer, fassung = stagescript.chatfassung(conn, 1, text)
+    assert nummer == 1 and fassung.startswith("**SCENE 1")
+    assert "And now we wait." in fassung

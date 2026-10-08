@@ -305,7 +305,7 @@ def _speichere_text(conn, klm, e, chat_id: int, szene, text: str, ueber_claude: 
 
 #: Kopfzeile einer Szenenfassung des Gespraechsbots ("Scena 1 di 3: ...",
 #: "Scene 2 of 5 ...", "Szene 1 von 3 ...").
-_CHATFASSUNG_KOPF = re.compile(r"^\W*(?:Scena|Scene|Szene)\s+(\d+)\s+(?:di|of|von)\s+\d+\b", re.I)
+_CHATFASSUNG_KOPF = re.compile(r"^\W*(?:Scena|Scene|Szene)\s+(\d+)\b(?:\s+(?:di|of|von)\s+\d+\b)?", re.I)
 _CHATFASSUNG_STRUKTUR = re.compile(r"^\s*(?:\d+\.\s|[A-ZÀ-Ý][A-ZÀ-Ý0-9 ]{1,30}:\s)", re.M)
 
 
@@ -329,7 +329,9 @@ def chatfassung(conn, chat_id: int, text: str | None) -> tuple[int, str] | None:
         return None
     # Nur die Szene: Erklaerung vor dem ersten Punkt/der ersten Sprechzeile
     # und eine Schlussfrage an die Gruppe ("Va bene cosi?") fallen weg.
-    rumpf = rumpf[_CHATFASSUNG_STRUKTUR.search(rumpf).start():].strip()
+    kopf_im_rumpf = _KOPF_EN.search(rumpf) or _KOPF_IT.search(rumpf)
+    start = kopf_im_rumpf.start() if kopf_im_rumpf else _CHATFASSUNG_STRUKTUR.search(rumpf).start()
+    rumpf = rumpf[start:].strip()
     absaetze = rumpf.split("\n\n")
     while len(absaetze) > 1 and absaetze[-1].strip().endswith("?") \
             and not _CHATFASSUNG_STRUKTUR.match(absaetze[-1]):

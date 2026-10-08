@@ -249,6 +249,7 @@ PAUSE_AB_MINUTEN = 60
 _REIHENFOLGE = (
     "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "festlegungen",
     "diskussion", "begriffe_detail", "board", "mitgehoert", "formen",
+    "stagescript_stand",
     "phasenhinweis",
     "figurenhinweis", "recherche", "szene",
     "journal", "fenster", "ausloeser", "erstkontakt",
@@ -321,6 +322,15 @@ _ZEILE_FIGUR = "Figur {name}{beschreibung}"
 _ARBEITSSTAND_KOPF = "Arbeitsstand:\n"
 _TEXT_AKTUELLE_SZENE = "Aktuelle Szene ({szene}):\n{volltext}"
 _JOURNAL_KOPF = "Journal:\n"
+
+#: Padua Quickfix (08.10.2026, Punkt 2): der Stage-Script-Stand je Szene.
+_STAGESCRIPT_KOPF = "Stand des Stage Scripts:\n"
+_STAGESCRIPT_ZEILE = "Szene {nummer} ({titel}): {stand}"
+_STAGESCRIPT_GESPEICHERT = "gespeichert"
+_STAGESCRIPT_GESCHRIEBEN = "geschrieben, noch nicht gespeichert"
+_STAGESCRIPT_IN_ARBEIT = "wird gerade geschrieben"
+_STAGESCRIPT_OFFEN = "noch nicht angefangen"
+_STAGESCRIPT_NOTIZ_ZUSATZ = "(notiert: {notizen})"
 
 #: Wie die Art eines Journaleintrags (``journal.art``, ein Datenbankwert) in
 #: einer Journalzeile des Nutzertexts steht. Deutsch: der Wert selbst
@@ -898,6 +908,47 @@ def _baue_formen(conn, chat_id: int) -> str:
     except Exception:
         log.exception("Formen-Block nicht gebaut, chat_id=%s", chat_id)
         return ""
+
+
+def _baue_stagescript_stand(conn, chat_id: int) -> str:
+    """Block: der Stand des Stage Scripts je Szene (Phase 7, Kartenprofil) --
+    Padua Quickfix 08.10.2026, Punkt 2.
+
+    Ohne diesen Block wusste das Gespraechsmodell nicht, ob eine Szene schon
+    geschrieben, gerade in Arbeit, gespeichert oder noch offen ist, und riet
+    ("still being written") statt den Stand zu lesen -- Befund Tester
+    08.10.2026, web_post 2207-2209: eine Frage traf auf eine Szene, die drei
+    Sekunden zuvor als fertig gemeldet worden war, und bekam trotzdem "Not
+    yet ... still being written".
+
+    Datengetrieben wie jeder Block: ohne Szenenkarten (``stagescript.aktiv``)
+    oder ausserhalb Phase 7 keine Zeile."""
+    from interview_theater import stagescript
+
+    if not stagescript.aktiv() or phasen.aktuelle(conn, chat_id) != stagescript.PHASE:
+        return ""
+    szenen = repo.hole_szenen(conn, chat_id)
+    if not szenen:
+        return ""
+    laeuft = stagescript.laeuft(chat_id)
+    aktuelle = stagescript.aktuelle_nummer(conn, chat_id)
+    zeilen = []
+    for s in szenen:
+        if s["fertig_am"]:
+            stand = T._STAGESCRIPT_GESPEICHERT
+        elif (s["volltext"] or "").strip():
+            stand = T._STAGESCRIPT_GESCHRIEBEN
+        elif laeuft and s["nummer"] == aktuelle:
+            stand = T._STAGESCRIPT_IN_ARBEIT
+        else:
+            stand = T._STAGESCRIPT_OFFEN
+        zeile = T._STAGESCRIPT_ZEILE.format(
+            nummer=s["nummer"], titel=(s["titel"] or "").strip(), stand=stand)
+        notizen = repo.stagescript_notizen(conn, s["id"])
+        if notizen:
+            zeile += " " + T._STAGESCRIPT_NOTIZ_ZUSATZ.format(notizen="; ".join(notizen))
+        zeilen.append(zeile)
+    return T._STAGESCRIPT_KOPF + "\n".join(zeilen)
 
 
 #: Die Kopfzeile des Begriffs-Blocks (Karte t_4517d4ad, 04.10.2026).
@@ -2051,6 +2102,9 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         # Ab Phase 4: was der Formberater nachgeschlagen hat (leer, solange
         # nichts nachgeschlagen ist).
         "formen": _baue_formen(conn, chat_id),
+        # Padua Quickfix (08.10.2026, Punkt 2): der Stand des Stage Scripts
+        # je Szene, nur Phase 7 mit Szenenkarten.
+        "stagescript_stand": _baue_stagescript_stand(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
         # Internet-Recherche (Karte t_c5117c91) -- eigener Block, siehe

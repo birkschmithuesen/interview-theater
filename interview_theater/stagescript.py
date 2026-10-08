@@ -198,14 +198,29 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
                 kopf, kopf_it = gespiegelt_kopf
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf", kopf)
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf_it", kopf_it)
-    text_it = None
-    if workshop.skript_zweisprachig_aktiv():
-        gespiegelt = skript_uebersetzung.spiegle_text(
-            conn, klm, e, chat_id, text, ueber_claude=ueber_claude)
-        if gespiegelt is not None:
-            text, text_it = gespiegelt
-    repo.setze_stagescript(conn, szene["id"], text, text_it)
+    # Birk 08.10.2026 ~12:00 ("max Tempo"): die Szene ist SOFORT da (EN),
+    # die italienische Spiegelung laeuft danach im Hintergrund und wird
+    # nachgetragen -- vorher wartete die Gruppe ~30 s extra auf die IT-Fassung.
+    repo.setze_stagescript(conn, szene["id"], text, None)
     repo.markiere_stagescript_notizen_verwendet(conn, szene["id"])
+    if workshop.skript_zweisprachig_aktiv():
+        szene_id = szene["id"]
+
+        def _spiegel() -> None:
+            try:
+                gespiegelt = skript_uebersetzung.spiegle_text(
+                    conn, klm, e, chat_id, text, ueber_claude=ueber_claude)
+                if gespiegelt is None:
+                    return
+                en, it = gespiegelt
+                aktuell = repo.hole_szene(conn, szene_id)
+                # Nur nachtragen, wenn der Text inzwischen nicht neu geschrieben wurde.
+                if aktuell is not None and (aktuell["volltext"] or "").strip() == text.strip():
+                    repo.setze_stagescript_it(conn, szene_id, it)
+            except Exception:
+                log.exception("IT-Spiegelung im Hintergrund gescheitert, chat_id=%s", chat_id)
+
+        threading.Thread(target=_spiegel, daemon=True).start()
     return True
 
 

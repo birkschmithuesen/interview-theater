@@ -3174,6 +3174,13 @@ def setze_stagescript(conn: sqlite3.Connection, szene_id: int, text: str,
     conn.commit()
 
 
+def setze_stagescript_it(conn: sqlite3.Connection, szene_id: int, text_it: str | None) -> None:
+    """Nur die IT-Fassung nachtragen (Hintergrund-Spiegelung, Padua 08.10.2026)
+    -- Abnahme und ``geaendert_am`` bleiben unberuehrt."""
+    conn.execute("UPDATE szene SET volltext_it = ? WHERE id = ?", (text_it, szene_id))
+    conn.commit()
+
+
 #: Die Szenenfelder, die einzeln gesetzt werden duerfen (Erkenner-art
 #: ``szene_planen``, Befehl ``/szene <n> <feld> <wert>``). ``figuren`` steht
 #: hier NICHT: die Besetzung ist eine Verknuepfung, keine Spalte

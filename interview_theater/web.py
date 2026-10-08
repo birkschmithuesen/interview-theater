@@ -4477,7 +4477,9 @@ def _sprachfassungen(
         return [(None, None, it or en)]
     if it:
         return [(T._TEXT_FASSUNG_EN, "en", en), (T._TEXT_FASSUNG_IT, "it", it)]
-    return [(None, "en", en)]
+    # Noch keine IT-Fassung (Spiegelung laeuft im Hintergrund): ohne lang-
+    # Attribut, damit der Sprachumschalter die Szene nicht ausblendet.
+    return [(None, None, en)]
 
 
 def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:

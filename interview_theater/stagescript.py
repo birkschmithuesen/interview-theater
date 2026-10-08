@@ -88,6 +88,26 @@ def braucht_kopf(conn, chat_id: int) -> bool:
     return bool(typen) and sum(t == "instructions" for t in typen) * 2 > len(typen)
 
 
+#: Will die Notiz eine grammatische/sprachliche Korrektur -- rein ueber das
+#: Vokabular der Notiz, bewusst OHNE Namensliste (Live-Fehlerklasse 7, Padua
+#: 08.10.2026: Whisper verhoert gelegentlich Eigennamen in den Interviews;
+#: nur wenn die Gruppe ausdruecklich um Grammatik/Sprache bittet, darf der
+#: Schreiber offensichtliche Transkriptfehler bei Namen mitkorrigieren).
+_KORREKTUR_WUNSCH = re.compile(
+    r"\b(grammar|grammatical(?:ly)?|grammatica(?:le|lmente)?|correct(?:ion|ed)?|"
+    r"correggi|correzione|spelling|ortografia|transcription error|"
+    r"errore di trascrizione|mishear(?:d)?|sentito male|capito male|"
+    r"wrong name|nome sbagliato|nomi sbagliati)\b",
+    re.IGNORECASE,
+)
+
+
+def ist_korrektur_wunsch(notiz: str | None) -> bool:
+    """Bittet ``notiz`` erkennbar um eine grammatische/sprachliche
+    Korrektur? Siehe ``_KORREKTUR_WUNSCH``."""
+    return bool(_KORREKTUR_WUNSCH.search(notiz or ""))
+
+
 def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
                     mit_kopf: bool = False, ueber_claude: bool = False) -> str:
     from interview_theater import hintergrund, szenenkarte
@@ -155,6 +175,8 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
         teile.append(T._KOPF_BISHER + "\n" + alt)
     if notiz:
         teile.append(T._KOPF_NOTIZ + "\n" + notiz.strip())
+        if ist_korrektur_wunsch(notiz):
+            teile.append(T._AUFTRAG_NAMEN_KORRIGIEREN)
     teile.append(T._AUFTRAG.format(nummer=szene["nummer"]))
     return "\n\n".join(teile)
 
@@ -661,8 +683,12 @@ def _ist_echo_des_laufstarts(chat_id: int) -> bool:
 #: wartet (``_speichere_text._spiegel``, ~30-40 s), bevor die Aenderungs-
 #: nachricht in Phase 7 doch auf Englisch geht (Robo-Entscheidung
 #: 08.10.2026 ~14:00). Danach faellt die Diff-Nachricht auf EN zurueck,
-#: statt die Gruppe unbegrenzt warten zu lassen.
-_IT_DIFF_WARTE_TIMEOUT_S = 90.0
+#: statt die Gruppe unbegrenzt warten zu lassen. Auf 30 s gesenkt
+#: (Live-Fehlerklasse 6, Padua 08.10.2026): mit 90 s kamen die Yes/No-
+#: Knoepfe der Gruppe spuerbar zu spaet, selbst wenn der Spiegelpass (jetzt
+#: mit Nachholversuch, ``skript_uebersetzung.spiegle_text``) laengst
+#: gescheitert war.
+_IT_DIFF_WARTE_TIMEOUT_S = 30.0
 _IT_DIFF_WARTE_INTERVALL_S = 0.5
 
 
@@ -765,8 +791,25 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
             _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_LAEUFT)
         return _T(chat_id)._TEXT_LAEUFT
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    if (nummer != aktuelle_nummer(conn, chat_id) or szene is None
-            or not _gesetzt(szene["volltext"])):
+    aktuell = aktuelle_nummer(conn, chat_id)
+    if nummer != aktuell or szene is None or not _gesetzt(szene["volltext"]):
+        # Live-Befund G2 08.10.2026 ~14:44 (chat 7000000000001, Knopf k:831):
+        # die Gruppe hatte per Chat-Notiz schon an Szene 2 weitergeschrieben,
+        # waehrend Szene 1 (die eigentliche ``aktuelle_nummer``) nie "Yes,
+        # save" bekam -- das "Yes, save" auf Szene 2 landete im Nichts
+        # ("non e quella attuale") statt zu sagen, was zuerst drankommt. Hat
+        # die wirklich offene Szene schon einen Text UND liegt sie VOR der
+        # angeklickten (``nummer`` zu neu, nicht ein veralteter Klick auf
+        # eine laengst abgenommene fruehere Szene), bekommt die Gruppe genau
+        # deren Hinweis samt Yes/No-Leiste (``zeige``) statt stummer
+        # Ablehnung.
+        vorherige = _szene_mit_nummer(conn, chat_id, aktuell) if aktuell is not None else None
+        if (vorherige is not None and _gesetzt(vorherige["volltext"])
+                and aktuell < nummer):
+            text = _T(chat_id)._TEXT_ERST_VORHERIGE.format(nummer=aktuell)
+            _sende(conn, tg, e, chat_id, text)
+            zeige(conn, tg, e, chat_id, aktuell)
+            return text
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
     repo.setze_szene_fertig(conn, szene["id"], True)
@@ -876,6 +919,12 @@ _AUFTRAG_OHNE_ZITATE = (
     "gesprochen werden, gehoeren als normaler Text in die Sprechzeilen -- "
     "keine Zitatbloecke, keine Interview-Nummern."
 )
+_AUFTRAG_NAMEN_KORRIGIEREN = (
+    "Die Notiz bittet um eine grammatische/sprachliche Korrektur: offensichtliche "
+    "Transkriptfehler bei Eigennamen (vom Spracherkenner falsch verstandene Namen) "
+    "duerft ihr dabei mitkorrigieren -- keine neuen Namen erfinden, nur erkennbare "
+    "Hoerfehler richtigstellen."
+)
 _AUFTRAG = "Schreib jetzt das Stage Script von Szene {nummer}."
 FORMAT_JE_TYP = {
     "description": (
@@ -912,6 +961,10 @@ _TEXT_FERTIG = (
     "passt sie so? Sonst sagt mir, was anders sein soll."
 )
 _TEXT_NICHT_DRAN = "Diese Szene ist gerade nicht dran -- gespeichert habe ich nichts."
+#: Statt der stummen Ablehnung (Live-Befund G2, siehe ``bestaetige``): die
+#: wirklich offene (fruehere) Szene steht schon mit Text da und bekommt hier
+#: ihre eigene Zeile samt Yes/No-Leiste (``zeige``).
+_TEXT_ERST_VORHERIGE = "Zuerst Szene {nummer} speichern -- die steht noch offen."
 _TEXT_KEIN_ZIEL = "Alle Szenen sind gespeichert. Welche wollt ihr aendern?"
 #: Bestaetigung einer Notiz zu einer noch nicht geschriebenen oder gerade
 #: laufenden Szene (Padua Quickfix 08.10.2026, Punkt 1) -- ``erkenner.

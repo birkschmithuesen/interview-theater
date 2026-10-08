@@ -108,31 +108,53 @@ def plausibel(quelle: str, uebertragung: str, max_faktor: float | None = None) -
     return LAENGE_MIN * q <= len((uebertragung or "").strip()) <= hoch * q
 
 
+def _versuch_spiegeln(conn, klm, e, chat_id: int, text: str, system: str,
+                      mit_uebersetzung: bool, *, ueber_claude: bool) -> tuple[str, str]:
+    """EIN Spiegel-Aufruf plus Laengenpruefung -- wirft bei jedem Fehler
+    (Modell, fehlende Fassung, unplausible Laenge)."""
+    ergebnis = modellwahl.aufruf_schema(
+        conn, klm, e, chat_id, system=system, nutzer=text,
+        schema=SCHEMA, art=ART, ueber_claude=ueber_claude,
+    )
+    en = (ergebnis.get("prosa_en") or "").strip()
+    it = (ergebnis.get("prosa_it") or "").strip()
+    if not en or not it:
+        raise ValueError("Spiegelpass ohne beide Fassungen zurueckgekommen")
+    en_ok = plausibel(text, en, max_faktor=LAENGE_MAX_MIT_UEBERSETZUNG if mit_uebersetzung else LAENGE_MAX)
+    if not en_ok or not plausibel(text, it):
+        raise ValueError(
+            f"Spiegelpass unplausibel (Quelle {len(text)}, EN {len(en)}, IT {len(it)} Zeichen)")
+    return en, it
+
+
 def spiegle_text(conn, klm, e, chat_id: int, text: str, *,
                  ueber_claude: bool) -> tuple[str, str] | None:
     """Derselbe Spiegelpass fuer einen beliebigen Szenentext (Stage Script,
     Padua-Phasenumbau 07.10.2026 ~18:12): ``(en, it)`` oder ``None`` bei
-    jedem Fehler (geloggt). Speichert nichts -- das tut der Aufrufer."""
+    jedem Fehler (geloggt). Speichert nichts -- das tut der Aufrufer.
+
+    **Ein Nachholversuch bei Kimi** (Live-Fehlerklasse 6, Padua 08.10.2026):
+    ohne ihn blieb die IT-Fassung bei jedem Laengen-Ausreisser fuer immer
+    leer -- die Gruppe wartete die vollen 90 Sekunden auf nichts. Der
+    Nachholversuch laeuft unbedingt bei Kimi (unabhaengig vom ersten
+    ``ueber_claude``) und traegt DIESELBE Laengenpruefung: ein zweiter
+    unplausibler Text (809b629b) wird genauso verworfen wie der erste."""
     if not (text or "").strip():
         return None
+    mit_uebersetzung = workshop.zitat_uebersetzung_en_aktiv()
+    system = anweisungen.hole(ART) + (ZUSATZ_ZITAT_UEBERSETZUNG if mit_uebersetzung else "")
     try:
-        mit_uebersetzung = workshop.zitat_uebersetzung_en_aktiv()
-        system = anweisungen.hole(ART) + (ZUSATZ_ZITAT_UEBERSETZUNG if mit_uebersetzung else "")
-        ergebnis = modellwahl.aufruf_schema(
-            conn, klm, e, chat_id, system=system, nutzer=text,
-            schema=SCHEMA, art=ART, ueber_claude=ueber_claude,
-        )
-        en = (ergebnis.get("prosa_en") or "").strip()
-        it = (ergebnis.get("prosa_it") or "").strip()
-        if not en or not it:
-            raise ValueError("Spiegelpass ohne beide Fassungen zurueckgekommen")
-        en_ok = plausibel(text, en, max_faktor=LAENGE_MAX_MIT_UEBERSETZUNG if mit_uebersetzung else LAENGE_MAX)
-        if not en_ok or not plausibel(text, it):
-            raise ValueError(
-                f"Spiegelpass unplausibel (Quelle {len(text)}, EN {len(en)}, IT {len(it)} Zeichen)")
-        return en, it
+        return _versuch_spiegeln(conn, klm, e, chat_id, text, system,
+                                 mit_uebersetzung, ueber_claude=ueber_claude)
     except Exception:
-        log.exception("Skript-Spiegelpass (Text) fehlgeschlagen, chat_id=%s", chat_id)
+        log.exception("Skript-Spiegelpass (Text) fehlgeschlagen, chat_id=%s -- "
+                      "ein Nachholversuch bei Kimi", chat_id)
+    try:
+        return _versuch_spiegeln(conn, klm, e, chat_id, text, system,
+                                 mit_uebersetzung, ueber_claude=False)
+    except Exception:
+        log.exception("Skript-Spiegelpass (Text) auch im Nachholversuch "
+                      "fehlgeschlagen, chat_id=%s", chat_id)
         return None
 
 

@@ -1463,6 +1463,7 @@ _KOPF_NOTIZ = "What the group wants changed (this comes before everything else):
 _KOPF_NOTIZ_DAUERHAFT = "Standing wishes of the group for this scene (always apply, in order; a later wish that contradicts an earlier one wins):"
 _AUFTRAG_KOPF = "Also write ONCE, in \"kopf\", the head of the whole script: the setup (goal, place, rules, abort) and for every person involved their role -- what they do, what never, when they step in. Take roles and traits ONLY from the group's overview and agreements; where the group gave none, give none."
 _AUFTRAG_OHNE_ZITATE = "Interview words that are spoken on stage go into the spoken lines as plain text; no quote blocks, no interview numbers."
+_AUFTRAG_NAMEN_KORRIGIEREN = "The note asks for a grammatical/language correction: you may also correct obvious transcription errors in proper names (names the speech recognizer misheard) along the way -- do not invent new names, only fix recognizable mishearings."
 _AUFTRAG = "Now write the stage script of scene {nummer}."
 _TEXT_SCHREIBE = "I'm writing scene {nummer} now -- about a minute. It appears in the Script tab, then you get Yes, save / No, change here."
 _TEXT_AENDERE = "I'm rewriting scene {nummer} with your change -- about a minute. Then you get Yes, save / No, change here again."

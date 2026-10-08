@@ -261,7 +261,7 @@ def karte_text(karte: dict, szene) -> str:
     """Die Karte als Chatnachricht (Markdown wie im Web-Chat)."""
     titel = (szene["titel"] or "").strip()
     kopf = T_IT._KARTE_KOPF.format(nummer=szene["nummer"], titel=titel).rstrip(" —")
-    zeilen = [f"**{kopf}** · *{T.TYP_BESCHRIFTUNG.get(karte.get('typ'), karte.get('typ') or '')}*"]
+    zeilen = [f"**{kopf}** · *{T_IT.TYP_BESCHRIFTUNG.get(karte.get('typ'), karte.get('typ') or '')}*"]
     if karte.get("worum"):
         zeilen.append(karte["worum"])
     if karte.get("ort"):

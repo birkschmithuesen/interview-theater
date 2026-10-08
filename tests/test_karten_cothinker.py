@@ -49,7 +49,9 @@ def test_panel_aktive_karte_gross_andere_eine_zeile(padua):
 def test_panel_karte_entsteht_noch(padua):
     html = web._szenenkarten_html([{"nummer": 1, "titel": "A", "karte": None,
                                     "bestaetigt": False, "aktiv": True}])
-    assert "Card 1 is being built" in html
+    # Morgen-Auftrag 4: Kartenrahmen-Status ab Phase 6 italienisch, der
+    # Knopf "Build card now" bleibt englisch.
+    assert "La scheda 1 è in costruzione" in html
     assert 'data-aktion="bauen" data-nummer="1">Build card now</button>' in html
     assert 'data-aktion="ja"' not in html
 

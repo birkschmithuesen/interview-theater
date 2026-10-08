@@ -3,10 +3,17 @@
 # ab Phase 6/7 italienisch fuer alle Padua-Gruppen, Knoepfe bleiben
 # englisch). Anders als ``sprachen/en/texte.toml`` ist diese Tabelle NICHT
 # vollstaendig fuer jedes Modul -- nur die Module, die den Schalter
-# tatsaechlich nutzen (``szenenkarte.py``, ``stagescript.py``), und darin
-# nur die Konstanten, die ueber ``T_IT`` statt ``T`` gelesen werden (die
-# beiden Knopf-Beschriftungen bleiben aussen vor). ``tests/test_sprache_texte.py``
+# tatsaechlich nutzen (``szenenkarte.py``, ``stagescript.py``, ein paar
+# CoThinker-Kartenrahmen-Texte in ``web.py``), und darin nur die
+# Konstanten, die ueber ``T_IT`` statt ``T`` gelesen werden (Knopf-
+# Beschriftungen bleiben aussen vor). ``tests/test_sprache_texte.py``
 # prueft nur die englische Tabelle, nicht diese hier.
+
+[web]
+_TEXT_KARTE_GESPEICHERT = "salvata"
+_TEXT_KARTE_OFFEN = "non ancora salvata"
+_TEXT_KARTE_ENTSTEHT = "La scheda {nummer} è in costruzione ..."
+_TEXT_KARTE_NOCH_NICHT = "Questa scheda non esiste ancora -- si crea quando è il suo turno."
 
 [szenenkarte]
 _KARTE_KOPF = "Scheda scena {nummer} — {titel}"
@@ -41,6 +48,12 @@ _ANTWORT_FRAGEN_KLAEREN = "Chiarimento delle domande in corso"
 _ANTWORT_FRAGEN_UEBERSPRUNGEN = "Domande della scheda {nummer} saltate"
 _JOURNAL_FRAGE_BEANTWORTET = "Scheda {nummer}, domanda chiarita: {frage} -> {antwort}"
 _JOURNAL_FRAGE_OFFEN_GELASSEN = "Scheda {nummer}: domanda lasciata volutamente aperta: {frage}"
+
+[szenenkarte.TYP_BESCHRIFTUNG]
+description = "descrizione"
+spoken = "testo parlato"
+instructions = "istruzioni"
+moment = "momento"
 
 [stagescript]
 _TEXT_FERTIG = "La scena {nummer} di {gesamt} ({titel}) è nella scheda Script. Leggetela lì -- va bene così? Altrimenti dimmi cosa deve cambiare."

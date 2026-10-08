@@ -4661,9 +4661,11 @@ def _karte_html(karte: dict, bestaetigt: bool) -> str:
     Original, offene Fragen -- dieselben Felder wie im Chat."""
     from interview_theater import szenenkarte
 
-    st = szenenkarte.T
+    # Morgen-Auftrag 4: dieselben Kartentexte wie im Chat (szenenkarte.T_IT)
+    # -- ab Phase 6 italienisch, wenn workshop.p67_italienisch_aktiv() an ist.
+    st = szenenkarte.T_IT
     typ = st.TYP_BESCHRIFTUNG.get(karte.get("typ"), karte.get("typ") or "")
-    status = T._TEXT_KARTE_GESPEICHERT if bestaetigt else T._TEXT_KARTE_OFFEN
+    status = T_IT._TEXT_KARTE_GESPEICHERT if bestaetigt else T_IT._TEXT_KARTE_OFFEN
     teile = [f'<p class="karte-typ">{_t(typ)} · {_t(status)}</p>']
     if karte.get("worum"):
         teile.append(f'<p class="karte-worum">{_t(karte["worum"])}</p>')
@@ -4768,7 +4770,7 @@ def _szenenkarten_html(liste: list[dict]) -> str:
         else:
             zustand = "spaeter"
         if k["aktiv"] and k["karte"] is None:
-            inhalt = f'<p class="karte-entsteht">{_t(T._TEXT_KARTE_ENTSTEHT.format(nummer=nummer))}</p>'
+            inhalt = f'<p class="karte-entsteht">{_t(T_IT._TEXT_KARTE_ENTSTEHT.format(nummer=nummer))}</p>'
             # Rettungsweg, falls die Erzeugung nie fertig wurde (Neustart
             # mitten im Lauf): laeuft sie noch, sagt der Bot das nur.
             knoepfe = (
@@ -4804,7 +4806,7 @@ def _szenenkarten_html(liste: list[dict]) -> str:
                 )
         else:
             inhalt = (_karte_html(k["karte"], k["bestaetigt"]) if k["karte"] is not None
-                      else f'<p class="karte-entsteht">{_t(T._TEXT_KARTE_NOCH_NICHT)}</p>')
+                      else f'<p class="karte-entsteht">{_t(T_IT._TEXT_KARTE_NOCH_NICHT)}</p>')
             knoepfe = (
                 f'<p class="karte-nur-ansicht"><button type="button" class="karte-zurueck">'
                 f'{_t(T._TEXT_KARTE_ZUR_AKTUELLEN)}</button></p>' if aktive is not None else ""
@@ -6219,6 +6221,10 @@ from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus
 # und unter diesem Namen faende die Texttabelle nichts (``["web"]``), die
 # Seiten blieben in Padua still deutsch.
 T = sprache.Texte(__spec__.name if __spec__ else __name__)
+#: Morgen-Auftrag 4 (08.10.2026): die paar CoThinker-Kartenrahmen-Texte
+#: (Status "saved"/"not saved yet" etc.) ab Phase 6 italienisch -- NIE die
+#: Knopf-Beschriftungen im selben Modul, die bleiben auf ``T``.
+T_IT = sprache.Texte(__spec__.name if __spec__ else __name__, ab_phase67_italienisch=True)
 
 
 def _skript_design() -> bool:

@@ -65,7 +65,9 @@ NUR_ENGLISCH: dict[str, set[str]] = {
     # Morgen-Auftrag 4 (08.10.2026): ab Phase 6/7 italienisch, nur im
     # Profil-Platzhalter steuerbar -- die deutsche Fassung (Dortmund) kennt
     # keine Phase-6/7-Umstellung und bleibt bitgleich ohne diese Zeile.
-    "stagescript": {"ausgabesprache_p67"},
+    # NICHT stagescript.md: das Stage Script selbst bleibt zweisprachig
+    # (EN zuerst, dann der bestehende Spiegelpass) -- Birks Auftrag 4 gilt
+    # den Bot-Antworten und Kartentexten, nicht dem Skripttext selbst.
     "szenenkarte": {"ausgabesprache_p67"},
     "szenenkarte_pruefung": {"ausgabesprache_p67"},
 }

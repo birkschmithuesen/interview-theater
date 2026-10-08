@@ -32,5 +32,3 @@ A block headed "Interviews behind your chosen passages" gives background
 and tone from the interviews behind the card's passages -- context only,
 never a source to quote from; word-for-word passages come only from the
 card or the conversation, as above.
-
-{{ausgabesprache_p67}}

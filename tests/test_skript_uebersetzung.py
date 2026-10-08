@@ -194,3 +194,13 @@ def test_ohne_schalter_kein_zitat_zusatz_und_alte_laengengrenze(conn, einst, mon
     monkeypatch.setattr(workshop, "zitat_uebersetzung_en_aktiv", lambda profil=None: False)
     assert skript_uebersetzung.spiegle_text(conn, klm, einst, 1, quelle, ueber_claude=False) is None
     assert "English translation" not in klm.schema_gesehen["system"]
+
+
+def test_plausibel_ignoriert_kursive_uebersetzungszeilen():
+    """G3 08.10.2026 14:40: Quelle hat unter jeder IT-Zeile eine EN-Hilfszeile
+    *(...)*, die IT-Spiegelung nicht -- darf nicht als 'zu kurz' gelten."""
+    zeile_it = "VOCE 4: Mi pare che fossi sul divano dopo pranzo, al TG."
+    quelle = "\n".join([zeile_it, "*(I think I was on the sofa after lunch, on the news.)*", ""] * 20)
+    it = "\n".join([zeile_it, ""] * 20)
+    assert skript_uebersetzung.plausibel(quelle, it)
+    assert not skript_uebersetzung.plausibel(quelle, it[: len(it) // 3])

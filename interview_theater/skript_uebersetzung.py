@@ -27,6 +27,7 @@ das vergessen."""
 from __future__ import annotations
 
 import logging
+import re
 
 from interview_theater import anweisungen, modellwahl, repo, workshop
 
@@ -89,8 +90,18 @@ ZUSATZ_ZITAT_UEBERSETZUNG = (
 )
 
 
+_UEBERSETZUNGSZEILE = re.compile(r"^\s*\*\(.*\)\*\s*$", re.M)
+
+
+def ohne_uebersetzungszeilen(text: str) -> str:
+    """Die kursiven EN-Hilfszeilen ``*(...)*`` unter Zitaten zaehlen nicht zur
+    Laenge der Szene (G3 08.10. 14:40: Quelle mit Hilfszeilen 1954, IT ohne
+    1096 -> faelschlich verworfen, IT blieb leer)."""
+    return _UEBERSETZUNGSZEILE.sub("", text or "")
+
+
 def plausibel(quelle: str, uebertragung: str, max_faktor: float | None = None) -> bool:
-    q = len((quelle or "").strip())
+    q = len(ohne_uebersetzungszeilen(quelle).strip())
     if q < 200:
         return True
     hoch = LAENGE_MAX if max_faktor is None else max_faktor

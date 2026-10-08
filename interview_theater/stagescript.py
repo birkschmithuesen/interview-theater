@@ -127,6 +127,10 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
         teile.append(T._KOPF_GESCHRIEBEN + "\n\n" + "\n\n".join(geschrieben))
     karte = szenenkarte.karte_von(szene) or {}
     teile.append(T._KOPF_KARTE + "\n" + szenenkarte.karte_text(karte, szene))
+    verfeinerungen = szenenkarte.verfeinerungs_zeilen(conn, chat_id, szene)
+    if verfeinerungen:
+        teile.append(T._KOPF_VERFEINERUNGEN + "\n"
+                     + "\n".join(f"- {zeile}" for zeile in verfeinerungen))
     typ = karte.get("typ") or "description"
     teile.append(T._KOPF_FORMAT_TYP + "\n" + T.FORMAT_JE_TYP.get(typ, T.FORMAT_JE_TYP["description"]))
     if chat_id in workshop.skript_ohne_zitate_chats():
@@ -305,6 +309,11 @@ _KOPF_ANDERE = "Die anderen Szenen (nur zur Orientierung):"
 _KOPF_VORHER = "So endet die vorige Szene (steht schon -- hier anschliessen, nichts davon wiederholen):"
 _KOPF_GESCHRIEBEN = "Die bisher geschriebenen Szenen im vollen Wortlaut (stehen schon -- an die vorige anschliessen, nichts davon wiederholen, Figuren/Motive/Ton konsistent halten):"
 _KOPF_KARTE = "Die abgenommene Karte DIESER Szene -- sie ist bindend:"
+#: Phase-6-Verfeinerungen dieser Szene (Birk 08.10.2026 ~10:35): Notiz/Antwort
+#: der Gruppe plus deterministischer Feld-Diff, aus ``szenenkarte.
+#: verfeinerungs_zeilen``. Nur gesetzt, wenn die Karte ueberhaupt
+#: ueberarbeitet wurde -- sonst bleibt der Block ganz weg.
+_KOPF_VERFEINERUNGEN = "Wie die Gruppe diese Karte in Phase 6 verfeinert hat:"
 _KOPF_FORMAT_TYP = "So sieht das Skript dieser Szene aus:"
 _KOPF_BISHER = "Bisheriges Skript dieser Szene, es soll ueberarbeitet werden:"
 _KOPF_NOTIZ = "Was die Gruppe geaendert haben will (gilt vor allem anderen):"

@@ -7,9 +7,13 @@ import json
 
 import pytest
 
-from interview_theater import phasen, repo, schaerfung, stagescript, ueberarbeitung, workshop
+from interview_theater import (
+    phasen, repo, schaerfung, stagescript, szenenkarte, ueberarbeitung, workshop,
+)
 
-from test_szenenkarte import TG, _lage, padua  # noqa: F401
+from test_szenenkarte import LLM as KartenLLM  # noqa: F401
+from test_szenenkarte import LLMMitFragen as KartenLLMMitFragen  # noqa: F401
+from test_szenenkarte import TG, _karte1, _lage, padua  # noqa: F401
 
 
 class LLM:
@@ -146,3 +150,47 @@ def test_baue_nutzertext_nimmt_ueber_claude_parameter_entgegen(conn, padua, monk
 
     assert "Interviews behind your chosen passages" in ohne_claude
     assert "Interviews behind your chosen passages" not in mit_claude
+
+
+# ---------------------------------------------------------------------------
+# Verfeinerungen aus Phase 6 (Birk 08.10.2026 ~10:35): was die Gruppe an der
+# Karte geaendert hat, geht als eigener Block in den P7-Prompt.
+# ---------------------------------------------------------------------------
+
+
+def test_baue_nutzertext_zeigt_verfeinerungen_aus_phase_6(conn, einst, padua):
+    """Szenario aus dem Auftrag: Karte -> No change "piano with pedal" ->
+    neue Karte -> der P7-Prompt dieser Szene traegt Notiz UND Diff.
+    Mutant: Block weg -> rot; Notiz oder Diff fehlt -> rot."""
+    ids = _karte1(conn, einst, KartenLLM())
+
+    class AndereKarte(KartenLLM):
+        def schema(self, chat_id, system, nutzer, schema, art):
+            if art == szenenkarte.ART:
+                return {"typ": "spoken", "worum": "The voices are shared.", "ort": "semicircle",
+                        "wer": "Emma, Giada",
+                        "punkte": ["Emma opens with pedal down", "Giada answers"],
+                        "zitate": [2, 99, 1], "questions": []}
+            return super().schema(chat_id, system, nutzer, schema, art)
+
+    szenenkarte.aendere(conn, TG(), AndereKarte(), einst, 1, "piano with pedal", nummer=1)
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+
+    text = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
+    assert stagescript.T._KOPF_VERFEINERUNGEN in text
+    assert "piano with pedal" in text
+    assert "punkte" in text
+
+
+def test_baue_nutzertext_ohne_phase_6_aenderung_kein_verfeinerungs_block(conn, einst, padua):
+    ids = _karte1(conn, einst, KartenLLM())
+    text = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
+    assert stagescript.T._KOPF_VERFEINERUNGEN not in text
+
+
+def test_baue_nutzertext_zeigt_uebersprungene_fragen_als_verfeinerung(conn, einst, padua):
+    ids = _karte1(conn, einst, KartenLLMMitFragen())
+    szenenkarte.ueberspringe_fragen(conn, TG(), einst, 1, 1)
+    text = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
+    assert "questions skipped as not fitting" in text

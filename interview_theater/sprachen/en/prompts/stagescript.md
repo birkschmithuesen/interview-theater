@@ -31,4 +31,7 @@ what the group already decided or discarded in that phase -- settled fact.
 A block headed "Interviews behind your chosen passages" gives background
 and tone from the interviews behind the card's passages -- context only,
 never a source to quote from; word-for-word passages come only from the
-card or the conversation, as above.
+card or the conversation, as above. A block headed "How the group refined
+this card in phase 6" lists what the group asked for and how the card
+changed because of it -- these refinements are the group's latest
+decisions; honour them over anything older.

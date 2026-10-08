@@ -459,6 +459,16 @@ offen, jeweils mit Grund:
   automatisch, kostet Geld**; Kartendeckel über die Rohdatei
   `korpus/berichte/begriffsboard_resonanz_roh.jsonl` (gitignored).
 
+- **`scripts/test_uebernehmen.py` kopiert keine Bedarf-Downloads.**
+  `bedarf_punkt.datei` (Nachtrag 1, 08.10.2026 ~13:50) steht zwar in
+  `PFADSPALTEN` (Canary-Test `test_pfadspalten_sind_vollstaendig`), die
+  physische Datei unter `web.BEDARF_DATEIEN_VERZ/<chat_id>/<datei>` wird
+  beim Übernehmen auf die Testinstanz aber NICHT mitkopiert (anders als
+  Audiodateien) — die Gruppe landet dort, der Download-Link zeigt auf eine
+  fehlende Datei. Wer die Testinstanz mit einer Gruppe mit Bedarf-Downloads
+  füllt, muss die Datei von Hand nach `betrieb/bedarf/7000000000099/`
+  kopieren.
+
 Die **Weboberflächen sind gebaut** (`web.py`/`web_daten.py`, siehe
 „Weboberfläche" unten) — und **Szenen werden geschrieben** (`szene.py`, seit
 04.09.2026 abends): der Volltext liegt in `szene` und auf der Gruppenseite.

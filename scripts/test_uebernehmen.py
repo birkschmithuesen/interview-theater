@@ -67,7 +67,16 @@ NEUE_IDS = ("vorfall",)
 #: Die Spalten, die auf Dateien zeigen (Schema-grep: db.py:139, db.py:1124;
 #: web_post.dateiname ist nur ein Anzeigename, web_post.bild ein Name unter
 #: interview_theater/static/handys/). Ein Test haelt die Liste am Schema fest.
-PFADSPALTEN = (("aufnahme", "audio_pfad"), ("web_post", "datei"))
+#:
+#: ``bedarf_punkt.datei`` (Nachtrag 1, 08.10.2026 ~13:50) ist dabei, aber
+#: ANDERS als die beiden anderen: sie traegt nur den blossen Dateinamen
+#: (kein Pfad unter ``audio_quelle``) -- die Datei liegt unter
+#: ``web.BEDARF_DATEIEN_VERZ/<chat_id>/<datei>``. ``setze_pfad_um`` passt
+#: hier nicht (sie ist fuer Audiopfade gebaut); die Zeile unten in
+#: ``_bereite_kopie_vor`` ueberspringt diese Spalte deshalb bewusst --
+#: die physische Datei auf die Testinstanz mitzukopieren ist noch nicht
+#: gebaut (siehe docs/agents/was-bewusst-fehlt.md).
+PFADSPALTEN = (("aufnahme", "audio_pfad"), ("web_post", "datei"), ("bedarf_punkt", "datei"))
 
 TITEL_LEER = "Testgruppe"
 TITEL_KOPIE = "Testgruppe (Kopie von {bot_name})"
@@ -336,6 +345,8 @@ def _bereite_kopie_vor(kopie: Path, quell_chat_id: int, token: str, *,
                 continue
             k.execute(f"DELETE FROM {t} WHERE chat_id IS NOT ?", (quell_chat_id,))
         for tabelle, spalte in PFADSPALTEN:
+            if (tabelle, spalte) == ("bedarf_punkt", "datei"):
+                continue  # bewusst nicht behandelt, siehe PFADSPALTEN-Kommentar
             for zeile in k.execute(
                 f"SELECT rowid AS r, {spalte} AS p FROM {tabelle} "
                 f"WHERE {spalte} IS NOT NULL"

@@ -5794,14 +5794,35 @@ def setze_bedarf_erledigt(conn: sqlite3.Connection, chat_id: int, punkt_id: int,
 
 
 @_gesperrt
+def bedarf_datei_vorhanden(conn: sqlite3.Connection, chat_id: int, datei: str) -> bool:
+    """True, wenn diese Gruppe einen (nicht entfernten) Bedarfspunkt mit genau
+    diesem Dateinamen hat (Birk 08.10.2026 ~13:50, Nachtrag 1) -- die eine
+    Pruefung, die ``web._sende_bedarf_datei`` vor dem Lesen von der Platte
+    macht. Scoped auf ``chat_id`` wie ``setze_bedarf_erledigt``: eine fremde
+    Gruppe (oder ein weich entfernter Punkt derselben Gruppe) liefert False,
+    auch wenn die Datei auf der Platte noch liegt."""
+    zeile = conn.execute(
+        f"SELECT 1 FROM bedarf_punkt WHERE chat_id = ? AND datei = ? AND {_NICHT_ENTFERNT}",
+        (chat_id, datei),
+    ).fetchone()
+    return zeile is not None
+
+
+@_gesperrt
 def ersetze_unerledigte_bedarf_punkte(
-    conn: sqlite3.Connection, chat_id: int, sektionen: list[tuple[str, list[str]]],
+    conn: sqlite3.Connection, chat_id: int,
+    sektionen: list[tuple[str, list[str | tuple[str, str]]]],
 ) -> int:
     """``scripts/bedarf_seed.py``: entfernt weich jeden noch UNERLEDIGTEN
     Bedarfspunkt dieser Gruppe und legt die Punkte aus ``sektionen`` (eine
-    Liste aus ``(sektion, [text, ...])``, in der Reihenfolge der Seed-Datei)
+    Liste aus ``(sektion, [punkt, ...])``, in der Reihenfolge der Seed-Datei)
     frisch an. Erledigte Punkte bleiben unberuehrt -- ein erneuter Lauf darf
     den Haken der Gruppe nicht wegnehmen.
+
+    Jeder ``punkt`` ist entweder ein blosser Text oder ``(text, datei)``
+    (Nachtrag 1, Downloads) -- die JSON-Form (String oder ``{"text":...,
+    "datei":...}``) entscheidet ``scripts/bedarf_seed.py``, hier steht nur
+    noch die Tupelform.
 
     ``reihenfolge`` zaehlt EINMAL durch, ueber alle Sektionen hinweg (siehe
     ``bedarf``), damit die Anzeige die Sektionen in Seed-Reihenfolge zeigt.
@@ -5815,12 +5836,13 @@ def ersetze_unerledigte_bedarf_punkte(
     reihenfolge = 0
     angelegt = 0
     for sektion, punkte in sektionen:
-        for text in punkte:
+        for punkt in punkte:
+            text, datei = punkt if isinstance(punkt, tuple) else (punkt, None)
             reihenfolge += 1
             conn.execute(
-                "INSERT INTO bedarf_punkt (chat_id, sektion, text, reihenfolge, erstellt_am) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (chat_id, sektion, text, reihenfolge, jetzt),
+                "INSERT INTO bedarf_punkt (chat_id, sektion, text, reihenfolge, "
+                "erstellt_am, datei) VALUES (?, ?, ?, ?, ?, ?)",
+                (chat_id, sektion, text, reihenfolge, jetzt, datei),
             )
             angelegt += 1
     conn.commit()

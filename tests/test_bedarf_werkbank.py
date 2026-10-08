@@ -6,9 +6,9 @@ Seed-Datei (``scripts/bedarf_seed.py``)."""
 from interview_theater import web
 
 
-def _minimal_daten(bedarf=None):
+def _minimal_daten(bedarf=None, web_token="tok123"):
     return {
-        "titel": "Test group", "chat_id": 1, "web_token": None, "kanal": "web",
+        "titel": "Test group", "chat_id": 1, "web_token": web_token, "kanal": "web",
         "arbeitsstand": {}, "journal": [], "interviews": [],
         "figuren": [], "szenen": [], "festlegungen": [], "fragen_auswertung": None,
         "sprechanteile": None, "dramaturgie": None,
@@ -59,6 +59,41 @@ def test_bedarfsinhalt_wird_html_entschaerft_nicht_uebersetzt():
     ) or "&lt;script&gt;" in seite
     assert "&lt;script&gt;" in seite
     assert "&lt;x&gt;" in seite
+
+
+# -- Nachtrag Birk 08.10.2026 ~13:50: Downloads an einem Bedarfspunkt. --
+
+
+def test_punkt_mit_datei_zeigt_download_link():
+    punkte = [
+        {"id": 1, "sektion": "Props", "text": "Floor plan", "erledigt": False,
+         "datei": "floor-plan.pdf"},
+    ]
+    seite = web.werkbank_koerper(_minimal_daten(punkte, web_token="abTOK"))
+    assert "⬇ PDF" in seite
+    assert 'href="abTOK/bedarf/floor-plan.pdf"' in seite
+
+
+def test_punkt_ohne_datei_zeigt_keinen_link():
+    punkte = [{"id": 1, "sektion": "Props", "text": "Chair", "erledigt": False,
+               "datei": None}]
+    seite = web.werkbank_koerper(_minimal_daten(punkte))
+    assert "⬇ PDF" not in seite
+
+
+def test_punkt_ohne_datei_schluessel_stuerzt_nicht():
+    """Aeltere Aufrufer (vor Nachtrag 1) kennen den Schluessel ``datei`` noch
+    nicht -- wie bei ``phasen_summaries`` darf das nicht abstuerzen."""
+    punkte = [{"id": 1, "sektion": "Props", "text": "Chair", "erledigt": False}]
+    seite = web.werkbank_koerper(_minimal_daten(punkte))
+    assert "⬇ PDF" not in seite
+
+
+def test_dateiname_im_link_wird_html_entschaerft():
+    punkte = [{"id": 1, "sektion": "Props", "text": "Chair", "erledigt": False,
+               "datei": 'a"b.pdf'}]
+    seite = web.werkbank_koerper(_minimal_daten(punkte, web_token="abTOK"))
+    assert '"' not in seite.split('href="abTOK/bedarf/', 1)[1].split('"', 1)[0]
 
 
 def test_abschnitt_steht_vor_der_ersten_phase():

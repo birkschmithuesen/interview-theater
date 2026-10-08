@@ -113,3 +113,53 @@ def test_setze_bedarf_erledigt_fremde_gruppe_liefert_false(conn):
     punkt_id = cur.lastrowid
 
     assert repo.setze_bedarf_erledigt(conn, CHAT, punkt_id, True) is False
+
+
+# -- Nachtrag Birk 08.10.2026 ~13:50: Downloads an einem Bedarfspunkt. --
+
+
+def test_ersetze_unerledigte_bedarf_punkte_akzeptiert_plain_text(conn):
+    repo.ersetze_unerledigte_bedarf_punkte(conn, CHAT, [("Props", ["Chair"])])
+    punkte = repo.bedarf(conn, CHAT)
+    assert punkte[0]["text"] == "Chair"
+    assert punkte[0]["datei"] is None
+
+
+def test_ersetze_unerledigte_bedarf_punkte_akzeptiert_text_und_datei(conn):
+    repo.ersetze_unerledigte_bedarf_punkte(
+        conn, CHAT, [("Props", [("Floor plan", "floor-plan.pdf")])]
+    )
+    punkte = repo.bedarf(conn, CHAT)
+    assert punkte[0]["text"] == "Floor plan"
+    assert punkte[0]["datei"] == "floor-plan.pdf"
+
+
+def test_bedarf_datei_vorhanden_true_fuer_eigene_datei(conn):
+    repo.ersetze_unerledigte_bedarf_punkte(
+        conn, CHAT, [("Props", [("Floor plan", "floor-plan.pdf")])]
+    )
+    assert repo.bedarf_datei_vorhanden(conn, CHAT, "floor-plan.pdf") is True
+
+
+def test_bedarf_datei_vorhanden_false_fuer_unbekannte_datei(conn):
+    repo.ersetze_unerledigte_bedarf_punkte(
+        conn, CHAT, [("Props", [("Floor plan", "floor-plan.pdf")])]
+    )
+    assert repo.bedarf_datei_vorhanden(conn, CHAT, "andere.pdf") is False
+
+
+def test_bedarf_datei_vorhanden_false_fuer_fremde_gruppe(conn):
+    repo.sichere_gruppe(conn, 2, "gruppe2", "Andere Gruppe")
+    repo.ersetze_unerledigte_bedarf_punkte(
+        conn, 2, [("Props", [("Floor plan", "floor-plan.pdf")])]
+    )
+    assert repo.bedarf_datei_vorhanden(conn, CHAT, "floor-plan.pdf") is False
+
+
+def test_bedarf_datei_vorhanden_false_fuer_entfernten_punkt(conn):
+    repo.ersetze_unerledigte_bedarf_punkte(
+        conn, CHAT, [("Props", [("Floor plan", "floor-plan.pdf")])]
+    )
+    # Ein erneuter Lauf ohne diesen Punkt entfernt ihn weich (unerledigt).
+    repo.ersetze_unerledigte_bedarf_punkte(conn, CHAT, [("Props", ["Chair"])])
+    assert repo.bedarf_datei_vorhanden(conn, CHAT, "floor-plan.pdf") is False

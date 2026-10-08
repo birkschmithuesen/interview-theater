@@ -161,6 +161,11 @@ BLEIBT_DEUTSCH = {
     "web._TEXT_BEDARF_ZAHL": (
         "Birk 08.10.2026: derselbe Grund wie web._TEXT_BEDARF_TITEL"
     ),
+    # Nachtrag 1 (Downloads an Bedarfspunkten, 08.10.2026 ~13:50): derselbe
+    # Grund wie web._TEXT_BEDARF_TITEL.
+    "web._TEXT_BEDARF_DOWNLOAD": (
+        "Birk 08.10.2026: derselbe Grund wie web._TEXT_BEDARF_TITEL"
+    ),
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit

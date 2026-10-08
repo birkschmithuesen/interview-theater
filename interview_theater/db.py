@@ -1495,7 +1495,12 @@ CREATE TABLE IF NOT EXISTS bedarf_punkt (
   reihenfolge  INTEGER NOT NULL,
   erstellt_am  TEXT NOT NULL,
   erledigt_am  TEXT,
-  entfernt_am  TEXT
+  entfernt_am  TEXT,
+  -- Der Dateiname eines Downloads zu diesem Punkt (Birk 08.10.2026 ~13:50,
+  -- Nachtrag 1): nur [A-Za-z0-9._-], die Datei selbst liegt unter
+  -- betrieb/bedarf/<chat_id>/<datei> (nicht in git). NULL = kein Download.
+  -- Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  datei        TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_bedarf_punkt_gruppe ON bedarf_punkt(chat_id, sektion, reihenfolge);
 """

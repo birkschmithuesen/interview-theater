@@ -4039,23 +4039,40 @@ _TEXT_BEDARF_TITEL = "Needs list — set, props, tech"
 _TEXT_BEDARF_ZAHL = "{erledigt} of {gesamt} done"
 
 
-def _bedarf_punkt_html(p: dict) -> str:
+#: Beschriftung des Download-Links (Nachtrag 1, Downloads an Bedarfspunkten)
+#: -- derselbe Grund wie ``_TEXT_BEDARF_TITEL``: Englisch, unuebersetzt.
+_TEXT_BEDARF_DOWNLOAD = "⬇ PDF"
+
+
+def _bedarf_punkt_html(p: dict, token: str | None) -> str:
     erledigt = p["erledigt"]
     haken = " checked" if erledigt else ""
     klasse = " wb-bedarf-erledigt" if erledigt else ""
+    datei = p.get("datei")
+    link = (
+        f' <a class="wb-bedarf-datei" href="{_t(token)}/bedarf/{_t(datei)}">'
+        f"{html.escape(_TEXT_BEDARF_DOWNLOAD)}</a>"
+        if datei and token else ""
+    )
     return (
         f'<li class="wb-bedarf-punkt{klasse}"><label>'
         f'<input type="checkbox" class="wb-bedarf-check" '
-        f'data-bedarf-id="{int(p["id"])}"{haken}> {_t(p["text"])}</label></li>'
+        f'data-bedarf-id="{int(p["id"])}"{haken}> {_t(p["text"])}</label>{link}</li>'
     )
 
 
-def _bedarf_html(punkte: list[dict]) -> str:
+def _bedarf_html(punkte: list[dict], token: str | None) -> str:
     """Die Bedarfsliste als Abhakliste -- Sektionen als Zwischenueber-
     schriften, in der Reihenfolge, in der sie in ``punkte`` stehen
     (``repo.bedarf`` sortiert global nach ``reihenfolge``, NICHT
     alphabetisch nach Sektion -- siehe dort). "" ohne Punkte: der Abschnitt
-    bleibt dann ganz weg, wie Sprechanteile und Phasen-Summaries."""
+    bleibt dann ganz weg, wie Sprechanteile und Phasen-Summaries.
+
+    ``token`` fuer den Download-Link eines Punktes mit ``datei`` (Nachtrag
+    1): RELATIV als ``<token>/bedarf/<datei>``, derselbe Trick wie
+    ``web_vereint``s ``BASIS`` -- die Seite steht unter ``/g/<token>`` ohne
+    Schraegstrich, ein Link ohne das Token davor wuerde sonst ein Verzeichnis
+    zu hoch aufgeloest."""
     if not punkte:
         return ""
     erledigt = sum(1 for p in punkte if p["erledigt"])
@@ -4069,7 +4086,7 @@ def _bedarf_html(punkte: list[dict]) -> str:
     bloecke = "".join(
         f'<div class="wb-bedarf-sektion"><h3>{_t(sektion)}</h3>'
         f'<ul class="wb-bedarf-liste">'
-        + "".join(_bedarf_punkt_html(p) for p in liste)
+        + "".join(_bedarf_punkt_html(p, token) for p in liste)
         + "</ul></div>"
         for sektion, liste in sektionen
     )
@@ -4128,7 +4145,7 @@ def werkbank_koerper(daten: dict) -> str:
         f"<h1>{_t(titel)}</h1>\n"
         '<div id="stand-inhalt" class="werkbank">\n'
         f'<p class="wb-hinweis">{_t(T._TEXT_WERKBANK_HINWEIS)}</p>\n'
-        f"{_bedarf_html(daten.get('bedarf') or [])}"
+        f"{_bedarf_html(daten.get('bedarf') or [], daten.get('web_token'))}"
         + "\n".join(bloecke)
         + f"\n{journal}\n{recherche}{phasen_summary}\n</div>\n"
     )
@@ -5729,6 +5746,56 @@ STATIC_HANDYS_PRAEFIX = "static/handys/"
 _STATIC_NAME = re.compile(r"^[a-z0-9-]+\.png$")
 
 
+#: Nachtrag 1 (Downloads an Bedarfspunkten, Birk 08.10.2026 ~13:50): die
+#: Dateien liegen ausserhalb von git, ein Verzeichnis je ``chat_id`` --
+#: relativ wie ``IT_DB``/``IT_AUDIO``, aufgeloest gegen das
+#: Arbeitsverzeichnis des Webserver-Prozesses.
+BEDARF_DATEIEN_VERZ = "betrieb/bedarf"
+
+#: Positivliste fuer den Dateinamen in der URL -- kein Schraegstrich, kein
+#: Pfad-Traversal. Die eigentliche Entscheidung faellt trotzdem erst danach:
+#: ``repo.bedarf_datei_vorhanden`` laesst nur Dateien durch, die ein
+#: Bedarfspunkt GENAU DIESER Gruppe traegt, nie einen blossen
+#: Dateisystemzugriff auf alles, was im Verzeichnis liegt.
+_BEDARF_DATEI_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def _sende_bedarf_datei(handler, db_pfad: str, token: str, name: str) -> None:
+    """``/g/<token>/bedarf/<datei>`` -- der Download an einem Bedarfspunkt
+    (Nachtrag 1, 08.10.2026 ~13:50). Nur eine Datei, die ein (nicht
+    entfernter) Bedarfspunkt GENAU DIESER Gruppe traegt, kommt an; alles
+    andere ist 404, nie ein Dateisystemfehler (wie ``_sende_static_bild``).
+
+    ``name in (".", "..")`` zusaetzlich zur Regex ausgeschlossen: beide
+    Zeichenfolgen bestehen nur aus erlaubten Zeichen (Punkte), waeren aber
+    als Pfadsegment das Verzeichnis selbst bzw. sein Elternverzeichnis --
+    ``repo.bedarf_datei_vorhanden`` liesse sie ohnehin nie durch (kein
+    Bedarfspunkt traegt diesen Dateinamen), aber die Absicht soll schon an
+    der Regex scheitern, nicht erst an der Datenbank."""
+    from pathlib import Path
+
+    from interview_theater import repo
+
+    if not _BEDARF_DATEI_NAME.fullmatch(name) or name in (".", ".."):
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    conn = web_daten.oeffne_lesend(db_pfad)
+    try:
+        chat_id = web_daten.chat_id_nach_token(conn, token)
+        if chat_id is None or not repo.bedarf_datei_vorhanden(conn, chat_id, name):
+            handler._antworte(404, nicht_gefunden_html())
+            return
+    finally:
+        conn.close()
+    pfad_auf_platte = Path(BEDARF_DATEIEN_VERZ) / str(chat_id) / name
+    try:
+        inhalt = pfad_auf_platte.read_bytes()
+    except OSError:
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    handler._antworte_binaer(200, inhalt, "application/pdf", dateiname=name)
+
+
 def _sende_static_bild(handler, unterpfad: str) -> None:
     """Eine Telefon-Organisationskarte unter ``interview_theater/static/handys/``.
 
@@ -5767,6 +5834,9 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
     token, _, unterpfad = rest.partition("/")
     if unterpfad.startswith(STATIC_HANDYS_PRAEFIX):
         _sende_static_bild(handler, unterpfad)
+        return
+    if unterpfad.startswith("bedarf/"):
+        _sende_bedarf_datei(handler, db_pfad, token, unterpfad[len("bedarf/"):])
         return
     if unterpfad in ("textbuch.md", "textbuch.txt"):
         _sende_textbuch_datei(handler, db_pfad, token, unterpfad)
@@ -6091,18 +6161,31 @@ class _Basishandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(roh)
 
-    def _antworte_binaer(self, status: int, inhalt: bytes, typ: str) -> None:
+    def _antworte_binaer(
+        self, status: int, inhalt: bytes, typ: str, dateiname: str | None = None,
+    ) -> None:
         """Wie ``_antworte``, nur fuer Bytes statt Text -- die
         Telefon-Organisationskarten (UX-Knoepfe-Karte, Abschnitt 5).
         ``inhalt.encode("utf-8")`` in ``_antworte`` wuerde ein PNG
-        zerstoeren."""
+        zerstoeren.
+
+        ``dateiname`` (Nachtrag 1, Downloads an Bedarfspunkten, 08.10.2026
+        ~13:50): ``Content-Disposition: attachment`` wie bei ``_antworte``,
+        und ``Cache-Control: no-store`` statt des langen Kartencache -- die
+        Datei ist gruppenspezifisch, kein oeffentliches Standardbild."""
         self.send_response(status)
         self.send_header("Content-Type", typ)
         self.send_header("Content-Length", str(len(inhalt)))
-        # Eine Karte aendert sich nur, wenn der Betreiber den Generator neu
-        # laufen laesst -- anders als beim Dashboard darf der Browser sie
-        # lange behalten.
-        self.send_header("Cache-Control", "public, max-age=86400")
+        if dateiname:
+            self.send_header(
+                "Content-Disposition", f'attachment; filename="{dateiname}"'
+            )
+            self.send_header("Cache-Control", "no-store")
+        else:
+            # Eine Karte aendert sich nur, wenn der Betreiber den Generator
+            # neu laufen laesst -- anders als beim Dashboard darf der
+            # Browser sie lange behalten.
+            self.send_header("Cache-Control", "public, max-age=86400")
         self.end_headers()
         self.wfile.write(inhalt)
 

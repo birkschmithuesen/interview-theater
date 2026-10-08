@@ -1553,6 +1553,9 @@ def _bedarf(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         {
             "id": z["id"], "sektion": z["sektion"], "text": z["text"],
             "erledigt": z["erledigt_am"] is not None,
+            # Nachtrag Birk 08.10.2026 ~13:50 (Downloads): der Dateiname oder
+            # None -- der Link daraus baut sich erst in web._bedarf_punkt_html.
+            "datei": z["datei"],
         }
         for z in repo.bedarf(conn, chat_id)
     ]

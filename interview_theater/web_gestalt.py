@@ -1565,6 +1565,7 @@ ul.wb-bedarf-liste { list-style: none; padding-left: 0; margin: 0 0 .3rem; }
 .wb-bedarf-punkt { padding: .15rem 0; }
 .wb-bedarf-punkt label { display: flex; align-items: baseline; gap: .5rem; cursor: pointer; }
 .wb-bedarf-erledigt label { color: var(--text-leise); text-decoration: line-through; }
+.wb-bedarf-datei { margin-left: .4rem; color: var(--signal); text-decoration: none; }
 """
 #: Der Padua-Stepper (BINDING ADDITION, Birk 03.10.2026 23:10): sieben
 #: nummerierte Segmente, Pfeile links/rechts der aktiven Phase, ein

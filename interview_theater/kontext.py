@@ -691,6 +691,11 @@ PHASEN_ERFINDEN = (4,)
 #: Ab dieser Phase arbeitet der Bot aus dem Kernpaket (mit den Schaerfungen).
 PHASE_KERNPAKET = 5
 
+#: Padua-Stage-Script (``workshop.szenenkarten_aktiv``), dieselbe Nummer wie
+#: ``ueberarbeitung.PHASE_BUEHNE`` -- hier wird nur noch geschrieben, nicht
+#: mehr zugeordnet.
+PHASE_STAGE_SCRIPT = 7
+
 
 def material_erlaubt(conn, chat_id: int) -> bool:
     """Duerfen Verdichtungen und Transkripte in den Prompt?
@@ -1215,11 +1220,19 @@ def _baue_figurenhinweis(conn, chat_id: int) -> str:
 
     Nur, wenn es ueberhaupt ein Interview gibt: ohne Material ist die Frage
     unbeantwortbar, und der Bot soll nicht nach etwas fragen, das die Gruppe
-    noch gar nicht aufgenommen hat."""
+    noch gar nicht aufgenommen hat.
+
+    Quickfix 08.10.2026 (Birk, Live-Befund Phase 7): im Padua-Stage-Script
+    (``[karten] aktiv``, Phase 7) ist die Zuordnung Vergangenheit -- die
+    Frage kam im Chat an, ohne dass sie je jemand aufgriff. Dortmund kennt
+    ``szenenkarten_aktiv`` nicht und bleibt unberuehrt."""
     # Und erst ab der Schaerfung (Phase 6): in 4 und 5 wird erfunden, die
     # Frage nach dem Interview einer Figur waere dort genau die Ruecklenkung
     # aufs Material, die der Umbau vermeiden soll.
     if not kernpaket_erlaubt(conn, chat_id):
+        return ""
+    if (workshop.szenenkarten_aktiv()
+            and phasen.aktuelle(conn, chat_id) >= PHASE_STAGE_SCRIPT):
         return ""
     ohne = [f["name"] for f in repo.figuren(conn, chat_id) if f["quelle_aufnahme_id"] is None]
     if not ohne:

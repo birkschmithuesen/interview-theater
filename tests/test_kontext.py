@@ -507,6 +507,35 @@ def test_ohne_interview_wird_nicht_nach_der_quelle_gefragt(conn, einst):
     assert "fehlt noch das Interview" not in kontext.baue(conn, 1, ausloeser, einst)
 
 
+def test_figurenfrage_fehlt_im_padua_stage_script(conn, einst, englisch):
+    """Quickfix 08.10.2026 (Birk, Befund Phase 7 im Tester): die
+    Interview-Zuordnung einer Figur ("Giona could speak like Interview 7 --
+    does that fit?") ist bis zur Schaerfung geklaert. Im Stage Script
+    (Padua, Phase 7, ``[karten] aktiv``) fragt der Bot nicht mehr danach --
+    die Frage kam im Live-Test an, ohne dass sie je jemand aufgriff."""
+    _interview(conn)
+    repo.setze_figur(conn, 1, "Giona", "war auf jeder Demo")
+    phasen.setze(conn, 1, 7, "befehl")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "missing the interview they speak from" not in prompt
+
+
+def test_figurenfrage_bleibt_in_padua_phase_6(conn, einst, englisch):
+    """Gegenprobe: der Quickfix gilt nur fuer das Stage Script (Phase 7) --
+    in Phase 6 (Szenenkarten) soll die Zuordnung weiter erfragt werden."""
+    _interview(conn)
+    repo.setze_figur(conn, 1, "Giona", "war auf jeder Demo")
+    phasen.setze(conn, 1, 6, "befehl")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "missing the interview they speak from" in prompt
+
+
 def test_setting_figuren_und_geschichte_fuehren_zur_schaerfung(conn, einst):
     """Stehen Setting, Figurenliste und Geschichte samt einer Szene, ist die
     naechste Station die Schaerfung (5) -- die Geschichte selbst liegt seit

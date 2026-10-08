@@ -109,13 +109,20 @@ def pdf_aus_html(html: str, chrome: str | None = None) -> bytes:
         return ziel.read_bytes()
 
 
-def sende(handler, daten: dict, token: str, praefix: str) -> None:
-    """Die Antwort auf ``GET /g/<token>/textbuch.pdf``: das PDF zum Ansehen
-    im Browser (inline), nie zwischengespeichert -- das Skript aendert sich."""
+def sende(handler, daten: dict, token: str, praefix: str, lang: str = "en") -> None:
+    """Die Antwort auf ``GET /g/<token>/textbuch.pdf?lang=en|it``: das PDF
+    zum Ansehen im Browser (inline), nie zwischengespeichert -- das Skript
+    aendert sich.
+
+    Zwei getrennte PDFs statt einem gemischten (Morgen-Auftrag 3, 08.10.2026):
+    ``lang`` waehlt EN oder IT, alles andere/Fehlendes faellt auf EN zurueck
+    -- ``textbuch_html`` zeigt dann genau eine Fassung je Szene statt beider
+    gestapelt."""
     from interview_theater import web
 
+    lang = lang if lang in ("en", "it") else "en"
     try:
-        roh = pdf_aus_html(web.textbuch_html(daten, token, praefix))
+        roh = pdf_aus_html(web.textbuch_html(daten, token, praefix, lang))
     except Exception:
         handler._antworte(503, web.T._TEXT_PDF_FEHLER, "text/plain; charset=utf-8")
         return
@@ -124,7 +131,8 @@ def sende(handler, daten: dict, token: str, praefix: str) -> None:
     handler.send_response(200)
     handler.send_header("Content-Type", "application/pdf")
     handler.send_header("Content-Length", str(len(roh)))
-    handler.send_header("Content-Disposition", f'inline; filename="{datei}-stage-script.pdf"')
+    handler.send_header("Content-Disposition",
+                        f'inline; filename="{datei}-stage-script-{lang}.pdf"')
     handler.send_header("Cache-Control", "no-store")
     handler.end_headers()
     handler.wfile.write(roh)

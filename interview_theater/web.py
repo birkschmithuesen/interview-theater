@@ -4450,6 +4450,24 @@ def _planung_wert_html(feld: str, wert: str) -> str:
     return f'<ul class="planung-liste">{items}{mehr}</ul>'
 
 
+def _sprachfassungen(
+    lang: str | None, en: str, it: str
+) -> list[tuple[str | None, str | None, str]]:
+    """Welche Sprachfassung(en) eines Textblocks gezeigt werden (Morgen-
+    Auftrag 3): ``lang=None`` -- der Script-Tab, beide Fassungen gestapelt,
+    EN mit Label nur wenn es auch eine IT-Fassung gibt (unveraendertes
+    Verhalten). ``lang="en"``/``"it"`` -- genau ein PDF, eine Sprache, kein
+    Label, kein ``lang``-Attribut (es gibt dort nur einen Block). IT ohne
+    eigene Fassung faellt auf EN zurueck -- nie eine leere Szene im PDF."""
+    if lang == "en":
+        return [(None, None, en)]
+    if lang == "it":
+        return [(None, None, it or en)]
+    if it:
+        return [(T._TEXT_FASSUNG_EN, "en", en), (T._TEXT_FASSUNG_IT, "it", it)]
+    return [(None, None, en)]
+
+
 def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:
     """Script-Tab (Birk 07.10.2026 ~17:40: "keinerlei Zeilenumbrueche oder
     Paragraphs"): Leerzeile = neuer Absatz, einfacher Umbruch = <br>,
@@ -4494,7 +4512,7 @@ def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:
 
 
 def _probe_szene_html(
-    s: dict, bekannte: set[str], ohne_zitate: bool = False
+    s: dict, bekannte: set[str], ohne_zitate: bool = False, lang: str | None = None
 ) -> tuple[str, list[str]]:
     """Eine Szene in der Probenansicht: Kopf, Angaben, Besetzung, Text.
 
@@ -4508,9 +4526,11 @@ def _probe_szene_html(
     wie ein Fehler).
 
     ``ohne_zitate`` (Morgen-Auftrag 1, G1): die Interviewzitat-Bloecke fallen
-    in der Darstellung weg -- ``workshop.skript_ohne_zitate_chats``."""
+    in der Darstellung weg -- ``workshop.skript_ohne_zitate_chats``.
+    ``lang`` (Morgen-Auftrag 3): ``None`` zeigt beide Fassungen (Script-Tab),
+    ``"en"``/``"it"`` nur eine (je ein eigenes PDF) -- ``_sprachfassungen``."""
     if s.get("verdichtet") is not None:
-        return _probe_szene_verdichtet_html(s, bekannte, ohne_zitate)
+        return _probe_szene_verdichtet_html(s, bekannte, ohne_zitate, lang)
     kopf = _t(
         T._TEXT_SZENE_NR.format(nummer=s["nummer"])
         if s.get("nummer") is not None else T._TEXT_SZENE
@@ -4827,7 +4847,7 @@ _CSS_TEXTBUCH_LESBAR_KARTE = """
 
 
 def _probe_szene_verdichtet_html(
-    s: dict, bekannte: set[str], ohne_zitate: bool = False
+    s: dict, bekannte: set[str], ohne_zitate: bool = False, lang: str | None = None
 ) -> tuple[str, list[str]]:
     """Eine Szene im Script-Tab, auf das Wesentliche reduziert: Kopf, Ort und
     Besetzung, der Text (EN und IT als eigene Bloecke). "Worum es geht" und
@@ -4873,12 +4893,11 @@ def _probe_szene_verdichtet_html(
         # Prosa: Absaetze, **fett**, NAME: fett, Zitatbloecke; EN/IT getrennt.
         lesen = ((lambda t: web_skript.text_html(t, ohne_zitate)) if design else
                  (lambda t: _prosa_absaetze_html(t, ohne_zitate)))
-        if volltext_it:
-            zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_EN)}</p>')
-        zeilen.append(f'<div class="text" lang="en">{lesen(volltext)}</div>')
-        if volltext_it:
-            zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_IT)}</p>')
-            zeilen.append(f'<div class="text" lang="it">{lesen(volltext_it)}</div>')
+        for label, lang_attr, fassung in _sprachfassungen(lang, volltext, volltext_it):
+            if label:
+                zeilen.append(f'<p class="sprache-kopf">{_t(label)}</p>')
+            attr = f' lang="{lang_attr}"' if lang_attr else ""
+            zeilen.append(f'<div class="text"{attr}>{lesen(fassung)}</div>')
     elif volltext:
         koerper, sprecher = szenentext_html(volltext, bekannte)
         zeilen.append(f'<div class="text">{koerper}</div>')
@@ -4892,12 +4911,11 @@ def _probe_szene_verdichtet_html(
                 f'<div class="text" lang="en">{_prosa_absaetze_html(prosa)}</div></details>'
             )
     elif prosa:
-        if prosa_it:
-            zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_EN)}</p>')
-        zeilen.append(f'<div class="text" lang="en">{_prosa_absaetze_html(prosa)}</div>')
-        if prosa_it:
-            zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_IT)}</p>')
-            zeilen.append(f'<div class="text" lang="it">{_prosa_absaetze_html(prosa_it)}</div>')
+        for label, lang_attr, fassung in _sprachfassungen(lang, prosa, prosa_it):
+            if label:
+                zeilen.append(f'<p class="sprache-kopf">{_t(label)}</p>')
+            attr = f' lang="{lang_attr}"' if lang_attr else ""
+            zeilen.append(f'<div class="text"{attr}>{_prosa_absaetze_html(fassung)}</div>')
     else:
         zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
         worum = _liste_html("worum-liste", _kurzform_punkte(v), PLANUNG_PUNKT_ZEICHEN)
@@ -5202,7 +5220,8 @@ _TEXTBUCH_JS = """
 
 
 def textbuch_koerper(
-    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
+    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX,
+    lang: str | None = None,
 ) -> str:
     """Der Rumpf der Probenansicht -- ohne die Klammer aus ``_seite``.
 
@@ -5211,7 +5230,11 @@ def textbuch_koerper(
     Szenenplanung. Kein Interview, kein Journal, kein Belegzitat, keine
     Verdichtung, kein Nachrichtentext -- die Grenze aus docs/agents/weboberflaeche.md
     gilt hier strenger als auf der Gruppenseite, weil
-    dieser Link im Probenraum herumgereicht wird."""
+    dieser Link im Probenraum herumgereicht wird.
+
+    ``lang`` (Morgen-Auftrag 3, zwei getrennte PDFs statt einem gemischten):
+    ``None`` fuer den Script-Tab (beide Fassungen gestapelt), ``"en"``/
+    ``"it"`` fuer je ein eigenes PDF -- ``_sprachfassungen``."""
     from interview_theater import workshop
 
     bekannte = {(f["name"] or "").upper() for f in daten["figuren"] if f.get("name")}
@@ -5226,7 +5249,7 @@ def textbuch_koerper(
             "_fassungen": fassungen.get(s.get("id")) or [],
             "_erstentwurf": erstentwuerfe.get(s.get("id")),
         }
-        html_stueck, gefunden = _probe_szene_html(s, bekannte, ohne_zitate)
+        html_stueck, gefunden = _probe_szene_html(s, bekannte, ohne_zitate, lang)
         abschnitte.append(html_stueck)
         for name in gefunden:
             if name not in sprecher:
@@ -5240,20 +5263,21 @@ def textbuch_koerper(
     if partitur:
         stueck = partitur + stueck
     if (daten.get("stage_kopf") or "").strip():
-        kopf_it = (daten.get("stage_kopf_it") or "").strip()
+        kopf_fassungen = _sprachfassungen(
+            lang, daten["stage_kopf"], (daten.get("stage_kopf_it") or "").strip())
         if design:
-            kopf_abschnitt = web_skript.kopf_html(daten["stage_kopf"], "en" if kopf_it else None)
-            if kopf_it:
-                kopf_abschnitt += web_skript.kopf_html(kopf_it, "it")
+            kopf_abschnitt = "".join(
+                web_skript.kopf_html(text, lang_attr) for _, lang_attr, text in kopf_fassungen
+            )
         else:
-            lang_en = ' lang="en"' if kopf_it else ""
-            kopf_abschnitt = (f'<section class="probe-szene stage-kopf">'
-                              f'<div class="text"{lang_en}>{_prosa_absaetze_html(daten["stage_kopf"])}</div>'
-                              f"</section>")
-            if kopf_it:
-                kopf_abschnitt += (f'<section class="probe-szene stage-kopf">'
-                                   f'<div class="text" lang="it">{_prosa_absaetze_html(kopf_it)}</div>'
-                                   f"</section>")
+            def _kopf_section(lang_attr: str | None, text: str) -> str:
+                attr = f' lang="{lang_attr}"' if lang_attr else ""
+                return (f'<section class="probe-szene stage-kopf">'
+                        f'<div class="text"{attr}>{_prosa_absaetze_html(text)}</div></section>')
+
+            kopf_abschnitt = "".join(
+                _kopf_section(lang_attr, text) for _, lang_attr, text in kopf_fassungen
+            )
         stueck = kopf_abschnitt + stueck
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     wege = ""
@@ -5267,8 +5291,10 @@ def textbuch_koerper(
                f"{_t(T._TEXT_TEXTBUCH_MD)}</a>"
                f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.txt">'
                f"{_t(T._TEXT_TEXTBUCH_TXT)}</a>")
-            + (f'<a class="pdf-knopf" href="{_t(praefix, "")}/g/{_t(token)}/textbuch.pdf" '
-               f'target="_blank" rel="noopener">{_t(T._TEXT_PDF)}</a>' if _pdf_aktiv() else "")
+            + (f'<a class="pdf-knopf" href="{_t(praefix, "")}/g/{_t(token)}/textbuch.pdf?lang=en" '
+               f'target="_blank" rel="noopener">{_t(T._TEXT_PDF_EN)}</a>'
+               f'<a class="pdf-knopf" href="{_t(praefix, "")}/g/{_t(token)}/textbuch.pdf?lang=it" '
+               f'target="_blank" rel="noopener">{_t(T._TEXT_PDF_IT)}</a>' if _pdf_aktiv() else "")
             + "</p>"
         )
     # Padua (Birk 07.10.2026 ~23:55): Schriftgroesse und "Hide stage
@@ -5301,7 +5327,8 @@ def textbuch_koerper(
 
 
 def textbuch_html(
-    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
+    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX,
+    lang: str | None = None,
 ) -> str:
     """Die Probenansicht aus ``web_daten.gruppe_nach_token()``.
 
@@ -5309,7 +5336,10 @@ def textbuch_html(
     Interview, kein Journal, kein Belegzitat, keine Verdichtung, kein
     Nachrichtentext -- die Grenze aus docs/agents/weboberflaeche.md gilt hier
     strenger als auf der Gruppenseite, weil dieser Link im Probenraum
-    herumgereicht wird."""
+    herumgereicht wird.
+
+    ``lang``: siehe ``textbuch_koerper`` -- nur fuer das PDF gesetzt
+    (``web_pdf.sende``), der Script-Tab selbst ruft ohne ``lang``."""
     from interview_theater import web_gestalt
 
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
@@ -5320,7 +5350,7 @@ def textbuch_html(
         # Seite, also ungescopt -- es gibt hier kein Panel.
         _CSS_TEXTBUCH + _CSS_TEXTBUCH_FASSUNGEN + web_gestalt.css_rahmen() + web_gestalt.css_textbuch()
         + css_textbuch_lesbar(),
-        textbuch_koerper(daten, token, praefix),
+        textbuch_koerper(daten, token, praefix, lang),
         nachladen=False,
         skript=_TEXTBUCH_JS,
         koerper_attribute=' data-textbuch=""',
@@ -5590,14 +5620,17 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
         return
     if unterpfad == "textbuch.pdf" and _pdf_aktiv():
         # Padua (Birk 07.10.2026 ~19:35): das Stage Script als PDF, gedruckt
-        # aus derselben Probenansicht (``web_pdf``).
+        # aus derselben Probenansicht (``web_pdf``). ``?lang=en|it`` seit
+        # Morgen-Auftrag 3: zwei getrennte PDFs, kein gemischtes mehr --
+        # ohne/mit unbekanntem Wert faellt ``web_pdf.sende`` auf EN zurueck.
         from interview_theater import web_pdf
 
         daten = handler._gruppe(token)
         if daten is None:
             handler._antworte(404, nicht_gefunden_html())
         else:
-            web_pdf.sende(handler, daten, token, praefix)
+            lang = urllib.parse.parse_qs(query).get("lang", ["en"])[0]
+            web_pdf.sende(handler, daten, token, praefix, lang)
         return
     if unterpfad == leitfaden_modul.WEB_PFAD:
         daten = _leitfaden_daten(db_pfad, token)
@@ -5676,7 +5709,11 @@ def _pdf_aktiv() -> bool:
     return workshop.szenenkarten_aktiv()
 
 
-_TEXT_PDF = "PDF"
+#: Zwei Knoepfe statt einem (Morgen-Auftrag 3): kein gemischtes PDF mehr,
+#: EN und IT bleiben eigene Dateien -- "PDF" bleibt daher nicht die eine
+#: Beschriftung. Beide Sprachen gleich benannt, nicht uebersetzt.
+_TEXT_PDF_EN = "PDF EN"
+_TEXT_PDF_IT = "PDF IT"
 _TEXT_PDF_FEHLER = "Das PDF liess sich gerade nicht erzeugen. Bitte gleich noch einmal versuchen."
 
 

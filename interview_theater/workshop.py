@@ -1104,6 +1104,18 @@ def p7_chat_als_script_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("karten.p7_chat_als_script", False))
 
 
+def p7_aenderung_im_chat_aktiv(profil: Profil | None = None) -> bool:
+    """Phase 7: jede Aenderung einer Szene (ueber "No, change" oder eine
+    vollstaendige Chat-Fassung, ``stagescript.zeige_aenderung``) kommt als
+    EINE Diff-Nachricht in den Chat -- nicht der volle Szenentext, nur was
+    sich geaendert hat, danach wieder Yes/No (Birk 08.10.2026 ~14:00: "man
+    muss nicht in den Script-Tab zurueck, der Prozess ist fuer alle gleich").
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("karten.p7_aenderung_im_chat", False))
+
+
 def p7_meta_nachziehen_aktiv(profil: Profil | None = None) -> bool:
     """Phase 7 kann Ort/Figuren der Szene aendern ("No, change" -> neue
     Personen/Ort im Skript) -- der Szenenkopf (Script-Tab, PDF, Partitur,

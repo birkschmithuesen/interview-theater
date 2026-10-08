@@ -108,6 +108,11 @@ _TEXT_ABBRUCH = "Ok, non cambio la scena {nummer}."
 _TEXT_STAND_FERTIG = "Sì, la scena {nummer} è già nella scheda Script."
 _TEXT_STAND_OFFEN = "Non ancora -- la scena {nummer} non è stata scritta."
 _TEXT_WAS_AENDERN = "Cosa deve cambiare nella scena {nummer}? Scrivilo in un messaggio."
+_TEXT_DIFF_KOPF = "Scena {nummer} di {gesamt} -- modifica: {zusammenfassung}"
+_TEXT_DIFF_REST = "Il resto della scena resta uguale."
+_TEXT_DIFF_ENTFERNT = "Tolto: {auszug}"
+_TEXT_DIFF_NEUSCHRIEBEN = "Scena {nummer} riscritta quasi del tutto -- leggetela nella scheda Script."
+_TEXT_DIFF_ZUSAMMENFASSUNG_ZAHLEN = "{geaendert} paragrafi cambiati, {neu} nuovi, {geloescht} tolti"
 
 ["web_skript"]
 _TEXT_ZITAT_KOPF = "Citazione dall'intervista · {nummer}"

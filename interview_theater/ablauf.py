@@ -1213,6 +1213,18 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
             return
 
+        # Padua Phase 7 (Birk 08.10.2026 ~13:20, erweitert ~14:00): eine
+        # vollstaendige Szenenfassung im Chat wird die Script-Fassung --
+        # VOR dem Versand geprueft, damit die Gruppe nie den vollen
+        # Szenentext sieht, nur die Diff-Nachricht, die
+        # ``uebernimm_chatfassung`` selbst schickt (mit Yes/No).
+        uebernommen_message_id = _uebernimm_stagescript_vor_dem_senden(
+            conn, tg, klm, e, chat_id, text, letzte_nachricht)
+        if uebernommen_message_id is not None:
+            versand_erfolgreich = True
+            strom.schliesse(tg, chat_id, uebernommen_message_id)
+            return
+
         message_id, text = _sende_mit_leiste(conn, tg, chat_id, text, klm=klm, e=e)
         # Ab hier steht die Antwort in der Gruppe: markiert, BEVOR der Strom
         # schliesst (Fix-Runde Abschluss, Befund 2) -- ``strom.schliesse``
@@ -1224,14 +1236,6 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         versand_erfolgreich = True
         strom.schliesse(tg, chat_id, message_id)
         _nach_dem_senden(conn, tg, e, chat_id, message_id, text)
-        # Padua Phase 7 (Birk 08.10.2026 ~13:20): eine vollstaendige
-        # Szenenfassung im Chat wird die Script-Fassung, dann wieder Yes/No.
-        try:
-            from interview_theater import stagescript
-
-            stagescript.uebernimm_chatfassung(conn, tg, klm, e, chat_id, text)
-        except Exception:
-            log.exception("Chat-Fassung nicht ins Script uebernommen, chat_id=%s", chat_id)
         # Bis 05.10.2026 folgte hier in Phase 1 der Einstiegssatz des
         # Begriffsboards (``begriffsboard.sende_einstieg``). Seit Birks
         # Live-Test erklaert die Begruessung die zwei Handys selbst
@@ -1462,6 +1466,34 @@ def _merke_notiz_verbraucht(chat_id: int, letzte_nachricht) -> None:
         return
     with _notiz_verbraucht_schutz:
         _notiz_verbraucht[chat_id] = message_id
+
+
+def _uebernimm_stagescript_vor_dem_senden(conn, tg, klm, e, chat_id: int, text: str,
+                                          letzte_nachricht) -> int | None:
+    """Padua Phase 7 (Birk 08.10.2026 ~14:00): ist diese Antwort des
+    Gespraechsbots eine vollstaendige Szenenfassung, wird sie VOR dem Versand
+    ins Script uebernommen -- ``stagescript.uebernimm_chatfassung`` schickt
+    dann selbst die Diff-Nachricht mit Yes/No, die Gruppe sieht den
+    Volltext nie. Liefert die ``message_id`` dieser Nachricht, oder ``None``
+    (kein Treffer -- der normale Versand des Gespraechstexts folgt).
+
+    Markiert die ausloesende Nachricht als Regie-Notiz verbraucht
+    (``_merke_notiz_verbraucht``), damit der Erkenner-Nachlauf
+    (``erkenner._starte_stagescript_notiz``) dieselbe Nachricht nicht noch
+    einmal als Neuschreibauftrag liest -- Live-Befund G1 (08.10.2026,
+    web_post 10:57-11:07): sonst liefen Gespraechsbot UND Neuschreiblauf auf
+    dieselbe Nachricht, zwei verschiedene Fassungen entstanden."""
+    try:
+        from interview_theater import stagescript
+
+        message_id = stagescript.uebernimm_chatfassung(conn, tg, klm, e, chat_id, text)
+    except Exception:
+        log.exception("Chat-Fassung nicht ins Script uebernommen, chat_id=%s", chat_id)
+        return None
+    if not message_id:
+        return None
+    _merke_notiz_verbraucht(chat_id, letzte_nachricht)
+    return message_id
 
 
 def nimm_notiz_verbraucht(chat_id: int, message_ids) -> bool:
@@ -1755,7 +1787,18 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
         # Zeichen fuer Zeichen, wie er war (E1). Abgeschlossen wird sie NICHT
         # hier, sondern in ``antworte``: erst dort steht fest, ob die Antwort
         # wirklich verschickt wurde.
-        senke = strom.senke(tg, chat_id, "gespraech")
+        #
+        # Phase 7 mit ``[karten] p7_aenderung_im_chat`` (Robo-Entscheidung
+        # 08.10.2026 ~14:00): eine vollstaendige Szenenfassung wird NIE als
+        # Volltext verschickt, nur als Diff -- ohne Streaming bleibt die
+        # Wall of Text erst recht nicht einmal kurz als laufende Blase
+        # stehen (notfalls Streaming abschalten, siehe Auftrag).
+        from interview_theater import workshop as _workshop
+
+        if phase == 7 and _workshop.p7_aenderung_im_chat_aktiv():
+            senke = None
+        else:
+            senke = strom.senke(tg, chat_id, "gespraech")
         ergebnis = modellwahl.aufruf_schema(
             conn, klm, e, chat_id, system, koerper, SCHEMA, "gespraech",
             ueber_claude=ueber_claude, bei_teil=senke, teil_feld="antwort",

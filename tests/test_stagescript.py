@@ -382,12 +382,12 @@ def _p7_mit_s1(conn, monkeypatch):
 def test_chatfassung_wird_scriptfassung_mit_knoepfen(conn, einst, padua, monkeypatch):
     ids = _p7_mit_s1(conn, monkeypatch)
     tg = TG()
-    assert stagescript.uebernimm_chatfassung(conn, tg, LLM(), einst, 1, _CHAT_S1) is True
+    assert stagescript.uebernimm_chatfassung(conn, tg, LLM(), einst, 1, _CHAT_S1) is not None
     zeile = repo.hole_szene(conn, ids[0])
     assert "Prepariamo la nostra casa." in zeile["volltext"]
     assert zeile["fertig_am"] is None
     assert "Scena 1 di 3" not in zeile["volltext"]
-    assert any("1" in t for t in tg.texte)  # zeige(): Hinweis + Yes/No
+    assert any("1" in t for t in tg.texte)  # zeige()/zeige_aenderung(): Hinweis + Yes/No
 
 
 def test_kurze_antwort_ist_keine_fassung(conn, einst, padua, monkeypatch):
@@ -395,21 +395,21 @@ def test_kurze_antwort_ist_keine_fassung(conn, einst, padua, monkeypatch):
     for t in ("Scena 1 di 3: il testo non cambia.",
               "Scene 1 of 3: the text stays as it is.\n\nFor Scene 3 this changes one thing.",
               "Bene, la scena 1 di 3 resta così."):
-        assert stagescript.uebernimm_chatfassung(conn, TG(), LLM(), einst, 1, t) is False
+        assert stagescript.uebernimm_chatfassung(conn, TG(), LLM(), einst, 1, t) is None
     assert repo.hole_szene(conn, ids[0])["volltext"] == "1. Old.\n2. Old too."
 
 
 def test_schalter_aus_uebernimmt_nichts(conn, einst, padua, monkeypatch):
     ids = _p7_mit_s1(conn, monkeypatch)
     monkeypatch.setattr(workshop, "p7_chat_als_script_aktiv", lambda *a, **k: False)
-    assert stagescript.uebernimm_chatfassung(conn, TG(), LLM(), einst, 1, _CHAT_S1) is False
+    assert stagescript.uebernimm_chatfassung(conn, TG(), LLM(), einst, 1, _CHAT_S1) is None
     assert repo.hole_szene(conn, ids[0])["volltext"] == "1. Old.\n2. Old too."
 
 
 def test_ausserhalb_phase_7_nichts(conn, einst, padua, monkeypatch):
     ids = _p7_mit_s1(conn, monkeypatch)
     phasen.setze(conn, 1, 6, "befehl")
-    assert stagescript.uebernimm_chatfassung(conn, TG(), LLM(), einst, 1, _CHAT_S1) is False
+    assert stagescript.uebernimm_chatfassung(conn, TG(), LLM(), einst, 1, _CHAT_S1) is None
 
 
 def test_chatfassung_ohne_vorrede_und_schlussfrage(conn, einst, padua, monkeypatch):
@@ -431,3 +431,169 @@ def test_chatfassung_kopf_ohne_gesamtzahl_mit_szenenkopf(conn, einst, padua, mon
     nummer, fassung = stagescript.chatfassung(conn, 1, text)
     assert nummer == 1 and fassung.startswith("**SCENE 1")
     assert "And now we wait." in fassung
+
+
+# ---------------------------------------------------------------------------
+# Aenderung im Chat als Diff statt Wall of Text (Robo-Entscheidung
+# 08.10.2026 ~14:00): die EINE Nachricht nach jeder gespeicherten
+# Szenenaenderung -- egal ob "No, change" oder eine Chat-Fassung.
+# ---------------------------------------------------------------------------
+
+
+def test_diff_nachricht_ein_absatz_geaendert(padua):
+    alt = "1. Emma enters the room.\n\n2. Giada waits by the door."
+    neu = "1. Emma enters the room, carrying a lamp.\n\n2. Giada waits by the door."
+    msg = stagescript.diff_nachricht(1, 1, 3, alt, neu)
+    assert "Emma enters the room, carrying a lamp." in msg
+    assert "Giada waits by the door." not in msg  # unveraenderter Absatz fehlt
+    assert "change:" in msg  # Zusammenfassung (Zahlen-Fallback ohne Notiz)
+    assert msg.rstrip().endswith("The rest of the scene stays the same.")
+
+
+def test_diff_nachricht_absatz_neu(padua):
+    alt = "1. Emma enters."
+    neu = "1. Emma enters.\n\n2. Giada arrives a moment later."
+    msg = stagescript.diff_nachricht(1, 1, 3, alt, neu)
+    assert "Giada arrives a moment later." in msg
+    assert "1 new" in msg or "new" in msg
+
+
+def test_diff_nachricht_absatz_geloescht(padua):
+    alt = "1. Emma enters.\n\n2. A long aside that gets cut entirely from the scene."
+    neu = "1. Emma enters."
+    msg = stagescript.diff_nachricht(1, 1, 3, alt, neu)
+    assert "Removed:" in msg
+    assert "A long aside that gets cut entirely" in msg
+
+
+def test_diff_nachricht_ueber_siebzig_prozent_kurzsatz(padua):
+    alt = "1. Emma enters.\n\n2. Giada waits."
+    neu = ("1. A completely different ritual begins in the dark, voices overlapping "
+           "as the whole ensemble moves through unfamiliar choreography that shares "
+           "almost nothing with what came before, scene after scene rebuilt from "
+           "scratch with new characters, new place, new everything entirely rewritten.")
+    msg = stagescript.diff_nachricht(1, 1, 3, alt, neu)
+    assert msg == "Scene 1 almost entirely rewritten -- read it in the Script tab."
+
+
+def test_diff_nachricht_identisch_ist_none(padua):
+    text = "1. Emma enters.\n\n2. Giada waits."
+    assert stagescript.diff_nachricht(1, 1, 3, text, text) is None
+
+
+def test_diff_nachricht_ohne_alten_text_ist_none(padua):
+    assert stagescript.diff_nachricht(1, 1, 3, None, "1. Emma enters.") is None
+    assert stagescript.diff_nachricht(1, 1, 3, "", "1. Emma enters.") is None
+
+
+def test_diff_nachricht_mit_notiz_als_zusammenfassung(padua):
+    alt = "1. Emma enters the room.\n\n2. Giada waits by the door."
+    neu = "1. Emma enters the room, carrying a lamp.\n\n2. Giada waits by the door."
+    msg = stagescript.diff_nachricht(1, 1, 3, alt, neu, notiz="Give Emma a lamp.")
+    assert "Give Emma a lamp." in msg
+    assert "paragraphs changed" not in msg
+
+
+def test_diff_nachricht_italienisch(padua, monkeypatch):
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    alt = "1. Emma entra nella stanza.\n\n2. Giada aspetta."
+    neu = "1. Emma entra nella stanza con una lampada.\n\n2. Giada aspetta."
+    msg = stagescript.diff_nachricht(1, 1, 3, alt, neu)
+    assert "modifica:" in msg
+    assert msg.rstrip().endswith("Il resto della scena resta uguale.")
+
+
+def test_schalter_an_no_change_sendet_diff_statt_volltext(conn, einst, padua, monkeypatch):
+    """"No, change" -> die Gruppe sieht die Diff-Nachricht, nicht den vollen
+    neuen Szenentext."""
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "1. Old opening line.\n\n2. Old closing line.", None)
+
+    class LLMNeu(LLM):
+        def schema(self, chat_id, system, nutzer, schema, art):
+            self.aufrufe.append({"art": art, "nutzer": nutzer})
+            if art == stagescript.ART:
+                return {"text": "1. New opening line.\n\n2. Old closing line.", "kopf": ""}
+            return {}
+
+    tg, klm = TG(), LLMNeu()
+    faden = stagescript.aendere(conn, tg, klm, einst, 1, "Change the opening.", nummer=1)
+    faden.join(5)
+    assert any("New opening line." in t for t in tg.texte)
+    assert not any("Old closing line." in t for t in tg.texte)
+
+
+def test_schalter_aus_no_change_bleibt_beim_script_tab_hinweis(conn, einst, padua, monkeypatch):
+    monkeypatch.setattr(workshop, "p7_aenderung_im_chat_aktiv", lambda *a, **k: False)
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "1. Old opening line.\n\n2. Old closing line.", None)
+
+    class LLMNeu(LLM):
+        def schema(self, chat_id, system, nutzer, schema, art):
+            self.aufrufe.append({"art": art, "nutzer": nutzer})
+            if art == stagescript.ART:
+                return {"text": "1. New opening line.\n\n2. Old closing line.", "kopf": ""}
+            return {}
+
+    tg, klm = TG(), LLMNeu()
+    faden = stagescript.aendere(conn, tg, klm, einst, 1, "Change the opening.", nummer=1)
+    faden.join(5)
+    assert any("Script tab" in t for t in tg.texte)
+    assert not any("New opening line." in t for t in tg.texte)
+
+
+def test_chatfassung_sendet_diff_statt_vollen_text(conn, einst, padua, monkeypatch):
+    ids = _p7_mit_s1(conn, monkeypatch)
+    tg = TG()
+    chat = ("Scena 1 di 3: resta quasi tutto uguale, cambia solo la prima riga.\n\n"
+            "1. Old.\n\n2. Old too, but now with a little more detail added here.")
+    assert stagescript.uebernimm_chatfassung(conn, tg, LLM(), einst, 1, chat) is not None
+    # Kein Volltext-Wall: die Nachricht ist der Diff, nicht der ganze neue Text.
+    letzte = tg.texte[-1]
+    assert "Old too, but now with a little more detail added here." in letzte
+
+
+def test_chatfassung_markiert_nachricht_als_notiz_verbraucht_ueber_ablauf(
+        conn, einst, padua, monkeypatch):
+    """Live-Befund G1 (08.10.2026, web_post 10:57-11:07): auf EINE
+    Gruppennachricht lief sowohl der Gespraechsbot (Chat-Fassung) als auch
+    der Stage-Script-Neuschreiblauf -- zwei verschiedene Fassungen entstanden.
+    ``ablauf.antworte`` prueft die Chat-Fassung jetzt VOR dem Senden und
+    markiert die Nachricht als Regie-Notiz verbraucht, wenn sie uebernommen
+    wurde -- der Erkenner-Nachlauf (``_starte_stagescript_notiz``) darf
+    dieselbe Nachricht dann nicht nochmal als Neuschreibauftrag lesen."""
+    from interview_theater import ablauf
+
+    ids = _p7_mit_s1(conn, monkeypatch)
+    monkeypatch.setattr(ueberarbeitung, "aktiv", lambda: True)
+    tg = TG()
+    letzte_nachricht = {"message_id": 555, "text": _CHAT_S1, "absender": "Member 1",
+                        "ist_bot": False}
+    message_id = ablauf._uebernimm_stagescript_vor_dem_senden(
+        conn, tg, LLM(), einst, 1, _CHAT_S1, letzte_nachricht)
+    assert message_id is not None
+    assert ablauf.nimm_notiz_verbraucht(1, [555]) is True
+
+
+def test_erkenner_stagescript_notiz_entfaellt_wenn_notiz_verbraucht(conn, einst, padua):
+    """Direkter Test der Sperre in ``erkenner._starte_stagescript_notiz``:
+    mit ``notiz_verbraucht=True`` (die Nachricht war schon die Chat-Fassung)
+    schreibt sie weder eine Notiz noch startet sie einen Neuschreiblauf."""
+    from interview_theater import erkenner
+
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "1. Old.", None)
+    tg, klm = TG(), LLM()
+    aenderungen = [{"art": "stagescript_notiz", "wert": "Change the opening."}]
+
+    erkenner._starte_stagescript_notiz(klm, tg, conn, einst, 1, aenderungen,
+                                       notiz_verbraucht=True)
+    assert repo.stagescript_notizen(conn, ids[0]) == []
+    assert klm.aufrufe == []
+
+    erkenner._starte_stagescript_notiz(klm, tg, conn, einst, 1, aenderungen,
+                                       notiz_verbraucht=False)
+    stagescript._sperre_fuer(1).acquire(timeout=5)
+    stagescript._sperre_fuer(1).release()
+    assert any(a["art"] == stagescript.ART for a in klm.aufrufe)
+    assert repo.stagescript_notizen(conn, ids[0]) == []  # verbraucht (schreibe lief schon)

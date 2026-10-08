@@ -2976,7 +2976,8 @@ def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
 
 
 def _starte_stagescript_notiz(klm, tg, conn, e, chat_id: int,
-                              aenderungen: list[dict]) -> None:
+                              aenderungen: list[dict], *,
+                              notiz_verbraucht: bool = False) -> None:
     """Padua Quickfix (08.10.2026, Punkt 1): legt einen Wunsch zu einer
     Stage-Script-Szene ab, die noch nicht geschrieben ist oder gerade
     laeuft (art ``stagescript_notiz``), und bestaetigt kurz.
@@ -3008,6 +3009,16 @@ def _starte_stagescript_notiz(klm, tg, conn, e, chat_id: int,
         (a for a in aenderungen if a.get("art") == "stagescript_notiz"), None
     )
     if treffer is None:
+        return
+    if notiz_verbraucht:
+        # Live-Befund G1 (08.10.2026, web_post 10:57-11:07, Robo-Fix 14:00):
+        # dieselbe Nachricht war schon eine vollstaendige Chat-Fassung
+        # (``ablauf`` hat sie ueber ``stagescript.uebernimm_chatfassung``
+        # bereits ins Script uebernommen) -- ein zweiter Neuschreiblauf
+        # ueber dieselbe Nachricht gaebe eine zweite, widersprechende
+        # Fassung.
+        log.info("Stage-Script-Notiz aus dem Chat entfaellt, die Nachricht "
+                 "war schon die Chat-Fassung, chat_id=%s", chat_id)
         return
     notiz, nummer = _notiz_und_nummer(treffer.get("wert"))
     if not notiz:
@@ -3675,7 +3686,8 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # _starte_kuerzung aus den erkannten (phasengefilterten) Aenderungen,
         # weil stagescript_notiz nichts in den Arbeitsstand schreibt und in
         # ``wirkliche`` deshalb nie auftaucht.
-        _starte_stagescript_notiz(klm, tg, conn, e, chat_id, freigegeben)
+        _starte_stagescript_notiz(klm, tg, conn, e, chat_id, freigegeben,
+                                  notiz_verbraucht=notiz_verbraucht)
         text = baue_meldung(wirkliche, conn, chat_id)
         if text is not None and begriffe_im_zug and _haenge_an_zugquittung(
                 conn, chat_id, zug_lauf, vorher, nachher, wirkliche):

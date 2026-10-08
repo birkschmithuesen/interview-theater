@@ -23,6 +23,7 @@ hierher); "Yes, save" setzt ``fertig_am``."""
 
 from __future__ import annotations
 
+import difflib
 import logging
 import re
 import threading
@@ -350,24 +351,34 @@ def chatfassung(conn, chat_id: int, text: str | None) -> tuple[int, str] | None:
     return nummer, fassung
 
 
-def uebernimm_chatfassung(conn, tg, klm, e, chat_id: int, text: str | None) -> bool:
+def uebernimm_chatfassung(conn, tg, klm, e, chat_id: int, text: str | None) -> int | None:
     """Phase 7: eine vollstaendige Szenenfassung, die der Gespraechsbot in den
     Chat geschrieben hat, wird automatisch die Script-Fassung (Birk
     08.10.2026 ~13:20: "Jede Fassung, die der Gespraechsbot in den Chat
-    schreibt, automatisch zur Skriptfassung"). Danach wieder Yes/No.
+    schreibt, automatisch zur Skriptfassung"). Danach wieder Yes/No -- mit
+    ``[karten] p7_aenderung_im_chat`` als Diff statt Volltext
+    (``zeige_aenderung``, Birk 08.10.2026 ~14:00): die Bot-Fassung ist schon
+    in Gruppensprache und liegt sofort in beiden Sprachfeldern, deshalb wird
+    direkt gegen das Feld der Gruppensprache gediffed, ohne auf den
+    Spiegelpass zu warten.
+
     Nur mit ``[karten] p7_chat_als_script``; laeuft ein Stage-Script-Lauf,
-    nichts (der schreibt gleich selbst)."""
+    nichts (der schreibt gleich selbst). Liefert die ``message_id`` der
+    gesendeten Nachricht, oder ``None``."""
     from interview_theater import phasen
 
     if not (workshop.szenenkarten_aktiv() and workshop.p7_chat_als_script_aktiv()):
-        return False
+        return None
     if phasen.aktuelle(conn, chat_id) != 7 or laeuft(chat_id):
-        return False
+        return None
     treffer = chatfassung(conn, chat_id, text)
     if treffer is None:
-        return False
+        return None
     nummer, fassung = treffer
     szene = _szene_mit_nummer(conn, chat_id, nummer)
+    ist_it = (workshop.skript_zweisprachig_aktiv()
+              and chat_id in workshop.italienisch_ab_phase6_chats())
+    alt = ((szene["volltext_it"] if ist_it else szene["volltext"]) or "").strip()
     ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
     en, it = trenne_sprachen(fassung) if workshop.skript_zweisprachig_aktiv() else (fassung, None)
     if it:
@@ -377,8 +388,9 @@ def uebernimm_chatfassung(conn, tg, klm, e, chat_id: int, text: str | None) -> b
         _speichere_text(conn, klm, e, chat_id, szene, fassung, ueber_claude,
                         text_it_sofort=fassung if workshop.skript_zweisprachig_aktiv() else None)
     log.info("Chat-Fassung von Szene %s ins Script uebernommen, chat_id=%s", nummer, chat_id)
-    zeige(conn, tg, e, chat_id, nummer)
-    return True
+    neue_szene = _szene_mit_nummer(conn, chat_id, nummer)
+    neu = ((neue_szene["volltext_it"] if ist_it else neue_szene["volltext"]) or "").strip()
+    return zeige_aenderung(conn, tg, e, chat_id, nummer, alt, neu)
 
 
 def spiegle_fehlende(conn, klm, e, chat_id: int) -> None:
@@ -421,13 +433,20 @@ def _sende(conn, tg, e, chat_id: int, text: str) -> int:
 
 def zeige(conn, tg, e, chat_id: int, nummer: int) -> int:
     """Kein Volltext im Chat: der Hinweis aufs Script, "Yes, save" / "No, change"."""
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    text = _T(chat_id)._TEXT_FERTIG.format(nummer=nummer, titel=(szene["titel"] or "").strip(),
+                                 gesamt=len(_szenen(conn, chat_id)))
+    return _sende_leiste_7(conn, tg, e, chat_id, nummer, text)
+
+
+def _sende_leiste_7(conn, tg, e, chat_id: int, nummer: int, text: str) -> int:
+    """Eine Nachricht mit der Yes/No-Leiste von Phase 7 -- der gemeinsame
+    Versandweg fuer ``zeige`` und ``zeige_aenderung`` (Birk 08.10.2026
+    ~14:00: "der Prozess ist fuer alle gleich")."""
     from interview_theater import knoepfe
     from interview_theater.knoepfe import basis, szenen as ks
 
     basis._nimm_alte_leiste_ab(conn, tg, chat_id, ks.ART_SZENE_PASST)
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
-    text = _T(chat_id)._TEXT_FERTIG.format(nummer=nummer, titel=(szene["titel"] or "").strip(),
-                                 gesamt=len(_szenen(conn, chat_id)))
     leiste = [
         ks._knopf(conn, chat_id, knoepfe.T.TEXT_WEITER_KNOPF, ks.ART_SZENE_PASST, str(nummer)),
         ks._knopf(conn, chat_id, knoepfe.T.TEXT_NEIN_AENDERN_KNOPF, ks.ART_SZENE_ANDERS, str(nummer)),
@@ -435,6 +454,113 @@ def zeige(conn, tg, e, chat_id: int, nummer: int) -> int:
     message_id = basis._mit_leiste(conn, tg, chat_id, text, leiste)
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     return message_id
+
+
+#: Ab diesem Anteil veraenderter Zeichen (1 - difflib-Aehnlichkeit) gilt eine
+#: Szene als neu geschrieben statt geaendert -- der Diff waere dann selbst
+#: eine Wall of Text (Birk 08.10.2026 ~14:00).
+DIFF_NEUSCHRIEBEN_SCHWELLE = 0.7
+
+
+def _kurz(text: str, laenge: int = 80) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= laenge else text[: laenge].rstrip() + "…"
+
+
+def _notiz_kurz(notiz: str | None) -> str | None:
+    """Der eine Satz 'was sich geaendert hat' -- deterministisch aus der
+    Aenderungsnotiz der Gruppe, kein Modellaufruf: der erste Satz, sonst die
+    ganze Notiz gekuerzt."""
+    text = (notiz or "").strip()
+    if not text:
+        return None
+    erster = re.split(r"(?<=[.!?])\s", text, maxsplit=1)[0].strip()
+    return _kurz(erster, 140)
+
+
+def _absaetze_diff(text: str | None) -> list[str]:
+    return [a.strip() for a in re.split(r"\n\s*\n", (text or "").strip()) if a.strip()]
+
+
+def _diff_absaetze(alt: str, neu: str, t) -> tuple[list[str], int, int, int] | None:
+    """(Zeilen fuer die Nachricht, Anzahl geaendert, Anzahl neu, Anzahl
+    entfernt) -- ``None``, wenn ``alt`` und ``neu`` absatzgleich sind.
+
+    Geaenderte und neue Absaetze stehen VOLL im neuen Wortlaut; entfernte
+    als ``"Tolto: <Anfang>…"`` (bzw. die Fassung der Gruppensprache)."""
+    a, b = _absaetze_diff(alt), _absaetze_diff(neu)
+    if a == b:
+        return None
+    sm = difflib.SequenceMatcher(None, a, b)
+    zeilen: list[str] = []
+    geaendert = neu_anzahl = geloescht = 0
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            continue
+        if tag == "delete":
+            for p in a[i1:i2]:
+                zeilen.append(t._TEXT_DIFF_ENTFERNT.format(auszug=_kurz(p)))
+            geloescht += i2 - i1
+        elif tag == "insert":
+            zeilen.extend(b[j1:j2])
+            neu_anzahl += j2 - j1
+        elif tag == "replace":
+            zeilen.extend(b[j1:j2])
+            geaendert += j2 - j1
+    return zeilen, geaendert, neu_anzahl, geloescht
+
+
+def diff_nachricht(chat_id: int, nummer: int, gesamt: int, alt: str | None,
+                   neu: str | None, notiz: str | None = None) -> str | None:
+    """Die EINE Aenderungsnachricht fuer eine neu gespeicherte Szene (Birk
+    08.10.2026 ~14:00, Robo-Entscheidung): keine Wall of Text, nur was sich
+    geaendert hat -- deterministisch aus dem alten und neuen Skripttext,
+    kein Modellaufruf.
+
+    ``None``, wenn:
+
+    * ``alt`` leer ist (erste Fassung -- der Aufrufer behaelt den
+      bisherigen Script-Tab-Hinweis),
+    * ``alt`` und ``neu`` nach Absaetzen gleich sind (keine Aenderung).
+
+    Ist der Unterschied zu gross (``DIFF_NEUSCHRIEBEN_SCHWELLE``), bleibt es
+    bei einem Kurzsatz plus Verweis aufs Script -- der Diff waere sonst
+    selbst eine Wall of Text."""
+    alt = (alt or "").strip()
+    neu = (neu or "").strip()
+    if not alt or alt == neu:
+        return None
+    t = _T(chat_id)
+    anteil = 1.0 - difflib.SequenceMatcher(None, alt, neu).ratio()
+    if anteil >= DIFF_NEUSCHRIEBEN_SCHWELLE:
+        return t._TEXT_DIFF_NEUSCHRIEBEN.format(nummer=nummer)
+    diff = _diff_absaetze(alt, neu, t)
+    if diff is None:
+        return None
+    zeilen, geaendert, neu_anzahl, geloescht = diff
+    if not zeilen:
+        return None
+    zusammenfassung = _notiz_kurz(notiz) or t._TEXT_DIFF_ZUSAMMENFASSUNG_ZAHLEN.format(
+        geaendert=geaendert, neu=neu_anzahl, geloescht=geloescht)
+    kopf = t._TEXT_DIFF_KOPF.format(nummer=nummer, gesamt=gesamt, zusammenfassung=zusammenfassung)
+    return "\n\n".join([kopf, *zeilen, t._TEXT_DIFF_REST])
+
+
+def zeige_aenderung(conn, tg, e, chat_id: int, nummer: int, alt: str | None,
+                    neu: str | None, notiz: str | None = None) -> int:
+    """Die Aenderungsnachricht nach JEDER gespeicherten Szenenaenderung in
+    Phase 7 -- egal ob aus "No, change" oder einer Chat-Fassung (Birk
+    08.10.2026 ~14:00). Nur mit ``[karten] p7_aenderung_im_chat``; sonst und
+    ohne brauchbaren Diff bleibt es beim bisherigen Script-Tab-Hinweis
+    (``zeige``)."""
+    from interview_theater import workshop
+
+    text = None
+    if workshop.p7_aenderung_im_chat_aktiv():
+        text = diff_nachricht(chat_id, nummer, len(_szenen(conn, chat_id)), alt, neu, notiz)
+    if text is None:
+        return zeige(conn, tg, e, chat_id, nummer)
+    return _sende_leiste_7(conn, tg, e, chat_id, nummer, text)
 
 
 _SPERREN: dict[int, threading.Lock] = {}
@@ -467,6 +593,29 @@ def _ist_echo_des_laufstarts(chat_id: int) -> bool:
         _ECHO_SCHWELLE_SEKUNDEN
 
 
+#: Wie lange ``starte`` auf die IT-Fassung aus dem Hintergrund-Spiegelpass
+#: wartet (``_speichere_text._spiegel``, ~30-40 s), bevor die Aenderungs-
+#: nachricht in Phase 7 doch auf Englisch geht (Robo-Entscheidung
+#: 08.10.2026 ~14:00). Danach faellt die Diff-Nachricht auf EN zurueck,
+#: statt die Gruppe unbegrenzt warten zu lassen.
+_IT_DIFF_WARTE_TIMEOUT_S = 90.0
+_IT_DIFF_WARTE_INTERVALL_S = 0.5
+
+
+def _warte_it_fassung(conn, chat_id: int, nummer: int, alt_it: str) -> str | None:
+    """Wartet bis zu ``_IT_DIFF_WARTE_TIMEOUT_S`` auf eine von ``alt_it``
+    verschiedene ``volltext_it`` -- liefert sie, oder ``None`` beim Timeout."""
+    frist = time.monotonic() + _IT_DIFF_WARTE_TIMEOUT_S
+    while True:
+        szene = _szene_mit_nummer(conn, chat_id, nummer)
+        neu_it = ((szene["volltext_it"] if szene else None) or "").strip()
+        if neu_it and neu_it != alt_it:
+            return neu_it
+        if time.monotonic() >= frist:
+            return None
+        time.sleep(_IT_DIFF_WARTE_INTERVALL_S)
+
+
 def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None):
     sperre = _sperre_fuer(chat_id)
     if klm is None or not sperre.acquire(blocking=False):
@@ -476,6 +625,11 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None
     _GESTARTET[chat_id] = time.monotonic()
     _sende(conn, tg, e, chat_id, (_T(chat_id)._TEXT_AENDERE if notiz else _T(chat_id)._TEXT_SCHREIBE).format(
         nummer=nummer))
+    # Birk 08.10.2026 ~14:00: der ALTE Text VOR dem Ueberschreiben, damit die
+    # Aenderungsnachricht danach dagegen diffen kann (``zeige_aenderung``).
+    vorher = _szene_mit_nummer(conn, chat_id, nummer)
+    alt_en = ((vorher["volltext"] if vorher else None) or "").strip()
+    alt_it = ((vorher["volltext_it"] if vorher else None) or "").strip()
 
     def _lauf() -> None:
         ok = False
@@ -504,7 +658,19 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None
         if not ok:
             _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_FEHLER.format(nummer=nummer))
             return
-        zeige(conn, tg, e, chat_id, nummer)
+        if (workshop.p7_aenderung_im_chat_aktiv() and alt_en
+                and workshop.skript_zweisprachig_aktiv()
+                and chat_id in workshop.italienisch_ab_phase6_chats()):
+            # Spec 08.10.2026 ~14:00: fuer eine italienischsprachige Gruppe
+            # geht der Diff erst raus, wenn die IT-Fassung des Spiegelpasses
+            # da ist -- sonst diffte er die noch unuebersetzte Fassung.
+            neu_it = _warte_it_fassung(conn, chat_id, nummer, alt_it)
+            if neu_it is not None:
+                zeige_aenderung(conn, tg, e, chat_id, nummer, alt_it, neu_it, notiz)
+                return
+        neu_en = _szene_mit_nummer(conn, chat_id, nummer)
+        zeige_aenderung(conn, tg, e, chat_id, nummer, alt_en,
+                        ((neu_en["volltext"] if neu_en else None) or "").strip(), notiz)
 
     faden = threading.Thread(target=_lauf, daemon=True)
     try:
@@ -688,6 +854,13 @@ _TEXT_STAND_OFFEN = "Noch nicht -- Szene {nummer} ist noch nicht geschrieben."
 _TEXT_WAS_AENDERN = "Was soll sich an Szene {nummer} aendern? Schreibt es in einer Nachricht."
 _ANTWORT_GESPEICHERT = "Szene {nummer} gespeichert"
 _JOURNAL_GESPEICHERT = "Stage Script Szene {nummer} gespeichert: {titel}"
+#: Aenderung im Chat statt Wall of Text (Birk 08.10.2026 ~14:00): die
+#: Diff-Nachricht nach jeder gespeicherten Szenenaenderung (``diff_nachricht``).
+_TEXT_DIFF_KOPF = "Szene {nummer} von {gesamt} -- Aenderung: {zusammenfassung}"
+_TEXT_DIFF_REST = "Der Rest der Szene bleibt gleich."
+_TEXT_DIFF_ENTFERNT = "Entfernt: {auszug}"
+_TEXT_DIFF_NEUSCHRIEBEN = "Szene {nummer} fast komplett neu geschrieben -- lest sie im Script-Tab."
+_TEXT_DIFF_ZUSAMMENFASSUNG_ZAHLEN = "{geaendert} Absaetze geaendert, {neu} neu, {geloescht} entfernt"
 
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)

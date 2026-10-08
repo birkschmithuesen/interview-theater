@@ -3124,6 +3124,16 @@ def setze_szenenkarte(conn: sqlite3.Connection, szene_id: int, karte: str | None
 
 
 @_gesperrt
+def aktualisiere_szenenkarte_meta(conn: sqlite3.Connection, szene_id: int, karte: str) -> None:
+    """Schreibt Ort/Figuren-Nachzug (``karten_nachzug.py``, Phase 7) in die
+    schon abgenommene Karte -- anders als ``setze_szenenkarte`` OHNE die
+    Abnahme zurueckzunehmen: die Gruppe hat die Karte in Phase 6 abgenommen,
+    Phase 7 zieht nur Ort/Figuren aus dem neu geschriebenen Skript nach."""
+    conn.execute("UPDATE szene SET karte = ? WHERE id = ?", (karte, szene_id))
+    conn.commit()
+
+
+@_gesperrt
 def setze_szenenkarte_bestaetigt(conn: sqlite3.Connection, szene_id: int) -> None:
     conn.execute(
         "UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?",

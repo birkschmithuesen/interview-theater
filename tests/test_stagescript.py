@@ -98,6 +98,45 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
     assert tg.texte[-1] == stagescript.T._TEXT_ALLES_FERTIG
 
 
+def test_schalter_aus_ruft_karten_nachzug_nicht(conn, einst, padua, monkeypatch):
+    """``[karten] p7_meta_nachziehen`` aus (Vorgabe false ohne das Padua-
+    Profilfeld) -- kein zusaetzlicher Modellaufruf nach dem Skript."""
+    monkeypatch.setattr(workshop, "p7_meta_nachziehen_aktiv", lambda *a, **k: False)
+    ids = _karten(conn)
+    tg, klm = TG(), LLM()
+    ueberarbeitung.weiter_7(conn, tg, klm, einst, 1, aus_eintritt=True).join(5)
+    _warte()
+    assert not any(a["art"] == "karten_nachzug" for a in klm.aufrufe)
+
+
+def test_schalter_an_ruft_karten_nachzug_und_aktualisiert_karte(conn, einst, padua, monkeypatch):
+    from interview_theater import karten_nachzug
+
+    monkeypatch.setattr(workshop, "p7_meta_nachziehen_aktiv", lambda *a, **k: True)
+    ids = _karten(conn)
+
+    class LLMMitNachzug(LLM):
+        def schema(self, chat_id, system, nutzer, schema, art):
+            self.aufrufe.append({"art": art, "nutzer": nutzer})
+            if art == karten_nachzug.ART:
+                return {"ort": "Piazza", "wer": "Anna", "modus": "none"}
+            return super().schema(chat_id, system, nutzer, schema, art)
+
+    tg, klm = TG(), LLMMitNachzug()
+    ueberarbeitung.weiter_7(conn, tg, klm, einst, 1, aus_eintritt=True).join(5)
+    import time as _t
+    karte = None
+    for _ in range(50):
+        karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+        if karte and karte.get("ort") == "Piazza":
+            break
+        _t.sleep(0.1)
+    assert karte["ort"] == "Piazza"
+    assert repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
+    verlauf = repo.karte_verlauf(conn, 1, ids[0])
+    assert verlauf[-1]["ausloeser"] == szenenkarte.AUSLOESER_AENDERUNG
+
+
 def test_format_nach_kartentyp(conn, padua):
     ids = _karten(conn, typ="moment")
     text = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))

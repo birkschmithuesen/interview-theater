@@ -127,7 +127,9 @@ Ohne eigene Zeile hier (siehe Docstring): `arbeitszeilen.py`,
 `fragen_auswertung.py`, `fragen_ki.py`, `handykarten.py`, `modellwahl.py`,
 `skript_uebersetzung.py` (EN/IT-Spiegelpass der Szenenprosa, Padua-
 Profilschalter `[skript] zweisprachig`, neue Spalte `szene.prosa_it`,
-Birk 07.10.2026 ~17:20).
+Birk 07.10.2026 ~17:20), `karten_nachzug.py` (Ort/Figuren aus dem neu
+geschriebenen Phase-7-Skript auf die Karte nachziehen, Padua-Profilschalter
+`[karten] p7_meta_nachziehen`, Birk 08.10.2026 ~12:50).
 
 **Wo man anfängt** (vollständige Tabelle: `docs/agents/aufbau.md`):
 

@@ -253,6 +253,11 @@ INVENTAR = (
             "interview_theater.szenenkarte", "ART_PRUEFUNG"),
     Eintrag("49-stagescript", "stagescript", 7,
             "interview_theater.stagescript", "ART"),
+    # --- Ort/Figuren-Nachzug (Birk 08.10.2026 ~12:50, Padua [karten]
+    # p7_meta_nachziehen): nach jedem gespeicherten Skripttext, nur bei
+    # wirklicher Aenderung.
+    Eintrag("51-karten-nachzug", "karten_nachzug", 7,
+            "interview_theater.karten_nachzug", "ART"),
     # --- Phase 7: Formen, Sprechweise, Stueckpruefung, Richterfragen (a10/c1).
     # Dieselbe Reihenfolge-Regel wie Phase 6 oben: a10/c1/Stueckpruefung lesen
     # die Szenen, 28-32 und der Nachpass (44) schreiben wirklich und stehen

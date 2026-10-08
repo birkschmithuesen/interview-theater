@@ -259,6 +259,17 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
     else:
         repo.setze_stagescript(conn, szene["id"], text, None)
     repo.markiere_stagescript_notizen_verwendet(conn, szene["id"])
+    if workshop.szenenkarten_aktiv() and workshop.p7_meta_nachziehen_aktiv():
+        from interview_theater import karten_nachzug
+
+        szene_id_nachzug = szene["id"]
+        text_nachzug = getrennt_en
+
+        def _nachzug() -> None:
+            karten_nachzug.ziehe_nach(conn, klm, e, chat_id, szene_id_nachzug,
+                                      text_nachzug, ueber_claude=ueber_claude)
+
+        threading.Thread(target=_nachzug, daemon=True).start()
     if workshop.skript_zweisprachig_aktiv() and not getrennt_it:
         szene_id = szene["id"]
 

@@ -340,6 +340,14 @@ ohne_figuren_chats = [7000000000000, 7000000000002]
 # Script aus den Karten. Ohne diese Zeile: der bisherige Prosa-Weg.
 [karten]
 aktiv = true
+# Phase 7 kann per "No, change" Ort/Figuren einer Szene aendern (neue
+# Figuren eingeschlossen) -- das Stage Script wird dann richtig neu
+# geschrieben, der Szenenkopf (Script-Tab/PDF/Partitur) kam bisher aber aus
+# der alten Karte. Nach jedem gespeicherten Skripttext EIN kurzer
+# Modellaufruf (``karten_nachzug.py``), der Ort/Figuren aus dem neuen Text
+# nachzieht -- nur bei wirklicher Aenderung, kein Modellaufruf wenn aus.
+# Birk 08.10.2026 ~12:50.
+p7_meta_nachziehen = true
 
 # Phasen-Summary (Karte t_1bc96848, Birk): beim Phasenwechsel entsteht ein
 # knappes Summary nur des Beschlossenen der verlassenen Phase; es ersetzt in

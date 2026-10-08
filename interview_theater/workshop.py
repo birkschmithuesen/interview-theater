@@ -1096,6 +1096,18 @@ def szenenkarten_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("karten.aktiv", False))
 
 
+def p7_meta_nachziehen_aktiv(profil: Profil | None = None) -> bool:
+    """Phase 7 kann Ort/Figuren der Szene aendern ("No, change" -> neue
+    Personen/Ort im Skript) -- der Szenenkopf (Script-Tab, PDF, Partitur,
+    ``web.py``) kam bis hierhin aus der alten Karte. ``karten_nachzug.py``
+    zieht ``ort``/``wer`` (ggf. ``modus``) nach jedem neu geschriebenen Skript
+    aus dem Text nach (Birk 08.10.2026 ~12:50).
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("karten.p7_meta_nachziehen", False))
+
+
 def workbench_bearbeitbar(profil: Profil | None = None) -> bool:
     """Ob der Arbeitsstand-Tab ("Workbench") Formulare traegt und der
     Werkbank-POST schreibt (Padua, 03.10.2026, Karte t_49e7354c).

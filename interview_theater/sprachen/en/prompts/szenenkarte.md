@@ -42,5 +42,3 @@ into "questions", not into the points. If there is a change note, it comes befor
 everything else. If a previous card is shown with open questions, carry
 every one of them into "questions" again -- drop only the ones the change
 note actually answers; never drop a question the note does not address.
-
-{{ausgabesprache_p67}}

@@ -163,12 +163,16 @@ def test_kopf_rolle_ohne_character_klammer_im_rest_ist_kein_charakter(padua):
 
 
 # --- Morgen-Auftrag 1 (G1): ohne_zitate_chats -------------------------------
+# Nachtrag Birk 08.10.2026 ~08:30: gesprochene Zitate bleiben als normaler
+# Sprechtext stehen (kein Kasten, kein "Interview quote · N"-Kopf, keine
+# Nummer) -- nichts wird mehr geloescht, nur entkleidet.
 
-def test_text_html_ohne_zitate_laesst_zitatzeile_weg(padua):
+def test_text_html_ohne_zitate_entkleidet_zitatzeile(padua):
     text = "GIADA: And someone said no.\n> *Interview quote (3):* \"casa non e le mura\"\nEMMA: Something else."
     html = web_skript.text_html(text, ohne_zitate=True)
     assert "Interview quote" not in html
-    assert "casa non e le mura" not in html
+    assert "casa non e le mura" in html
+    assert '<blockquote' not in html
     assert "And someone said no." in html
     assert "Something else." in html
 
@@ -179,21 +183,23 @@ def test_text_html_mit_zitaten_vorgabe_unveraendert(padua):
     assert "Interview quote · 3" in html and "casa non e le mura" in html
 
 
-def test_text_html_ohne_zitate_entfernt_auch_inline_zitat(padua):
+def test_text_html_ohne_zitate_entkleidet_auch_inline_zitat(padua):
     text = 'She says "a long enough quote to match" (Interview 4) and leaves.'
     html = web_skript.text_html(text, ohne_zitate=True)
     assert "Interview" not in html
+    assert "a long enough quote to match" in html
     assert "She says" in html and "and leaves." in html
 
 
-def test_textbuch_koerper_ohne_zitate_chats_entfernt_zitatbloecke(padua, monkeypatch):
+def test_textbuch_koerper_ohne_zitate_chats_entkleidet_zitatbloecke(padua, monkeypatch):
     monkeypatch.setattr(workshop, "skript_ohne_zitate_chats", lambda *a, **k: frozenset({7000000000000}))
     szene = _szene(volltext='GIADA: And someone said no.\n> *Interview quote (3):* "x"')
     daten = {"titel": "G", "chat_id": 7000000000000, "figuren": [], "szenen": [szene],
              "stage_kopf": None}
     koerper = web.textbuch_koerper(daten, "tok", "/padua")
     assert "Interview quote" not in koerper
-    assert "And someone said no." in koerper
+    assert '<blockquote' not in koerper.split('class="stueck"')[1]
+    assert "And someone said no." in koerper and "“x”" in koerper
 
 
 def test_textbuch_koerper_andere_chat_ids_unveraendert(padua, monkeypatch):

@@ -75,8 +75,9 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
     assert stand["stage_kopf_it"] == "Impostazione: un tavolo al bar."
     nutzer = klm.aufrufe[0]["nutzer"]
     assert "Worum 1" in nutzer and "CAMERA" in nutzer and "\"kopf\"" in nutzer
-    # Morgen-Auftrag 4: Statuszeile ab Phase 7 italienisch.
-    assert any("scheda Script" in t for t in tg.texte)
+    # Morgen-Auftrag 4, Nachtrag 2: chat_id 1 steht in keiner
+    # italienisch_ab_phase6_chats-Liste -- Statuszeile bleibt englisch.
+    assert any("Script tab" in t for t in tg.texte)
 
     # "No, change" -> neu mit Notiz und bisherigem Text, ohne zweiten Kopf.
     ueberarbeitung.ueberarbeite(conn, tg, klm, einst, 1, "Anna speaks Italian", nummer=1).join(5)
@@ -91,9 +92,9 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
     assert repo.hole_szene(conn, ids[1])["volltext"]
     assert ueberarbeitung.aktuelle_szene(conn, 1) == 2
     assert ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 1) == \
-        stagescript.T_IT._TEXT_NICHT_DRAN
+        stagescript.T._TEXT_NICHT_DRAN
     ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 2)
-    assert tg.texte[-1] == stagescript.T_IT._TEXT_ALLES_FERTIG
+    assert tg.texte[-1] == stagescript.T._TEXT_ALLES_FERTIG
 
 
 def test_format_nach_kartentyp(conn, padua):
@@ -106,11 +107,23 @@ def test_format_nach_kartentyp(conn, padua):
 def test_ohne_zitate_chats_traegt_zusaetzlichen_auftrag(conn, padua, monkeypatch):
     ids = _karten(conn)
     text_ohne = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
-    assert "Do not put interview quotes" not in text_ohne
+    assert "Interview words that are spoken on stage" not in text_ohne
 
     monkeypatch.setattr(workshop, "skript_ohne_zitate_chats", lambda *a, **k: frozenset({1}))
     text_mit = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
-    assert "Do not put interview quotes" in text_mit
+    assert "Interview words that are spoken on stage" in text_mit
+
+
+def test_italienisch_ab_phase6_chats_steuert_statuszeilen(conn, einst, padua, monkeypatch):
+    """Morgen-Auftrag 4, Nachtrag 2: eine Chat-Liste, nicht ein globaler
+    Schalter -- chat_id 1 bekommt Italienisch nur, wenn es in der Liste
+    steht; die Testgruppe-Analogie (chat_id NICHT in der Liste) bleibt
+    englisch, siehe test_phase_7_szene_fuer_szene_aus_der_karte."""
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    ids = _karten(conn)
+    tg, klm = TG(), LLM()
+    ueberarbeitung.weiter_7(conn, tg, klm, einst, 1, aus_eintritt=True).join(5)
+    assert any("scheda Script" in t for t in tg.texte)
 
 
 def test_kopf_nur_bei_ueberwiegend_anweisungen(conn, padua):
@@ -220,7 +233,7 @@ def test_zweiter_ausloeser_desselben_laufstarts_bleibt_still(conn, einst, padua)
     try:
         stagescript._GESTARTET[1] = time.monotonic()
         assert stagescript.starte(conn, tg, klm, einst, 1, 1) is None
-        assert stagescript.T_IT._TEXT_LAEUFT not in tg.texte
+        assert stagescript.T._TEXT_LAEUFT not in tg.texte
     finally:
         sperre.release()
         stagescript._GESTARTET.pop(1, None)
@@ -237,7 +250,7 @@ def test_alte_sperre_meldet_weiterhin_laeuft(conn, einst, padua):
     assert sperre.acquire(blocking=False)
     try:
         assert stagescript.starte(conn, tg, klm, einst, 1, 1) is None
-        assert stagescript.T_IT._TEXT_LAEUFT in tg.texte
+        assert stagescript.T._TEXT_LAEUFT in tg.texte
     finally:
         sperre.release()
 

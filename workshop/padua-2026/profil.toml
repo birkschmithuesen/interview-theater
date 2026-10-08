@@ -39,21 +39,18 @@ whisper = "auto"
 # Padua 06.10.2026 (Birk): keine Sprachabfrage beim Eintritt in Phase 3 --
 # Whisper erkennt die Sprache immer selbst. /language bleibt als Notweg.
 whisper_wahl_anbieten = false
-# Ab Phase 6/7 italienisch, fuer alle Gruppen (Birk 08.10.2026 ~07:50,
-# Morgen-Auftrag 4: "es sollte alles auf ital sein fuer diese beiden
-# Phasen, ausser Knoepfe"). Nur Modell-Prompts (Phase-6/7-Gespraech,
-# Szenenkarte, Kartenpruefung, Stage Script) -- Knoepfe und feste
-# UI-Beschriftungen bleiben englisch, siehe T.ab_phase67_italienisch in
-# szenenkarte.py/stagescript.py fuer die deterministischen Statuszeilen.
-ausgabesprache_p67 = "Write all output in Italian. Keep interview quotes exactly as given, in their original language, unchanged."
-# Nur fuer die drei echten Gruppen (Birk 08.10.2026 ~10:30, Quickfix nach dem
-# Tester-Befund 08.10. 10:19-10:24): der Testchat 7000000000099 blieb beim
-# Testen versehentlich italienisch und bekam dieselben Rueckfragen aus der
-# alten Prosa-Mechanik wie G1 -- er soll sich wie G1 verhalten (Englisch,
-# siehe ohne_zitate_chats/ohne_figuren_chats unten), nicht wie eine vierte
-# echte Gruppe. Leer: ``ausgabesprache_p67`` allein entscheidet (alte
-# Vorgabe, byte-gleich).
-p67_italienisch_chats = [7000000000000, 7000000000001, 7000000000002]
+# Ab Phase 6/7 italienisch (Birk 08.10.2026 ~07:50, Morgen-Auftrag 4:
+# "es sollte alles auf ital sein fuer diese beiden Phasen, ausser
+# Knoepfe"; Nachtrag 2 ~09:00: eine Chat-Liste statt "alle Gruppen" --
+# die Testgruppe padua-test, chat 7000000000099, teilt sich dieses Profil
+# mit G1-G3, soll aber englisch bleiben, siehe ohne_zitate_chats/
+# ohne_figuren_chats unten, die sie sonst wie G1 behandeln).
+# Bot-Antworten (Phase-6/7-Gespraech, kontext.system), Szenenkarte/
+# Kartenpruefung (szenenkarte.py) und die deterministischen Statuszeilen
+# (szenenkarte.py/stagescript.py/web.py, sprache.Texte(sprachcode="it"))
+# -- Knoepfe und feste UI-Beschriftungen bleiben englisch. Stage Script
+# selbst (stagescript.py) bleibt zweisprachig, unberuehrt von dieser Liste.
+italienisch_ab_phase6_chats = [7000000000000, 7000000000001, 7000000000002]
 
 [datenschutz]
 # E8: der Bot spricht nie mit Vornamen an; im Prompt stehen "Member 1, 2, ...".
@@ -314,14 +311,14 @@ zweisprachig = true
 # schlanker Prosa-Prompt (Format drin, Chat-Dublette raus), Verworfenes im
 # Matcher. Ohne diese Zeile: unveraendert.
 verdichtet = true
-# Keine Interviewzitat-Bloecke in Script-Tab und PDF fuer diese Gruppen
-# (Birk 08.10.2026 ~07:50, Morgen-Auftrag 1, G1: "lenkt nur ab"). Script-Tab
-# und PDF teilen denselben Renderer (web_skript.text_html), also gilt das
-# fuer beide gleich. Achtung G1 Szene 2 "Le voci": dort tragen zwei Zitate
-# allein den Sprechtext eines Abschnitts -- ohne sie bleiben dort nur
-# Regieanweisungen stehen (Befund im Bericht, nicht automatisch behoben).
-# Testchat NICHT in dieser Liste: er traegt seit 08.10. 11:06 eine Kopie von G2
-# und soll sich wie G2 verhalten (Robo, nach Birks Kopierauftrag).
+# Keine Zitat-Kaesten/-Nummern in Script-Tab und PDF fuer diese Gruppen
+# (Birk 08.10.2026 ~07:50, Morgen-Auftrag 1, G1: "lenkt nur ab"; Nachtrag
+# ~08:30: gesprochene Zitate bleiben als normaler Sprechtext drin, nur ohne
+# Kasten/Kopf/Nummer -- entfernt wird nichts mehr). Script-Tab und PDF
+# teilen denselben Renderer (web_skript.text_html), also gilt das fuer
+# beide gleich. Testchat NICHT in dieser Liste: er traegt seit 08.10.
+# ~11:06 eine Kopie von G2 und soll sich wie G2 verhalten (Robo, nach
+# Birks Kopierauftrag -- loest die fruehere "wie G1"-Annahme ab).
 ohne_zitate_chats = [7000000000000]
 
 [formberater]
@@ -331,9 +328,10 @@ musik_chats = [7000000000000, 7000000000099]
 
 # Interview-Zuordnung nur auf Szenen, nicht auf Figuren (Birk 07.10.2026 15:10):
 # G1 spielt sich selbst ("channels for the interviews"), G3 (Sprachrohre der Interviews, keine Figuren): Figuren-Zuordnung ergibt keinen Sinn. G2 NICHT: jede:r Performer:in traegt eine Position/ein Schild aus den Interviews -> Figuren-Zuordnung sinnvoll (Birk 15:20).
+# Testgruppe (padua-test, 7000000000099) ist seit 08.10. ~11:06 eine Kopie
+# von G2 (Robo, Birks Kopierauftrag) und verhaelt sich deshalb wie G2, NICHT
+# wie G1 -- NICHT in dieser Liste, G2 selbst steht hier auch nicht drin.
 [schaerfung]
-# Testchat NICHT drin: Kopie von G2 seit 08.10. 11:06 (Robo).
-
 ohne_figuren_chats = [7000000000000, 7000000000002]
 
 # Phasen-Umbau (Birk 07.10.2026 ~18:12): Phase 5 = nur Interviews auswaehlen

@@ -1085,6 +1085,27 @@ def test_erstkontakt_mit_diskussion_nutzt_die_neuen_texte(conn, einst, monkeypat
     assert "bitte sie, dir diese Liste zu schicken" not in text
 
 
+# --- Morgen-Auftrag 4, Nachtrag 2 (08.10.2026 ~09:00): italienisch_ab_phase6_chats
+
+def test_system_ohne_chat_id_unveraendert(monkeypatch):
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    text_ohne_chat_id = kontext.system("gruppe1", 6)
+    assert "Schreib alles auf Italienisch" not in text_ohne_chat_id
+    assert text_ohne_chat_id == kontext.system("gruppe1", 6, chat_id=42)
+
+
+def test_system_haengt_italienisch_nur_fuer_gelistete_chats_und_phase_6_7_an(monkeypatch):
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    basis = kontext.system("gruppe1", 6, chat_id=1)
+    assert basis.startswith(kontext.system("gruppe1", 6, chat_id=None))
+    assert "Schreib alles auf Italienisch" in basis
+    # Nur chat_id 1 ist gelistet.
+    assert "Schreib alles auf Italienisch" not in kontext.system("gruppe1", 6, chat_id=2)
+    # Nur Phase 6/7, nicht z. B. Phase 5.
+    assert "Schreib alles auf Italienisch" not in kontext.system("gruppe1", 5, chat_id=1)
+    assert "Schreib alles auf Italienisch" in kontext.system("gruppe1", 7, chat_id=1)
+
+
 def test_einstieg_begriffe_mit_diskussion_nutzt_die_neuen_texte(conn, einst, monkeypatch):
     monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
 

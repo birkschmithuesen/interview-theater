@@ -93,6 +93,26 @@ def _zitatzeile_html(zeile: str) -> str:
     return _zitat_html(inhalt, nummer)
 
 
+def _zitatzeile_als_text(zeile: str) -> str:
+    """Wie ``_zitatzeile_html``, aber als normaler Absatz statt Zitat-
+    Kasten -- fuer ``ohne_zitate``-Chats (Morgen-Auftrag 1, Nachtrag Birk
+    08.10.2026 ~08:30): Interviewworte, die auf der Buehne gesprochen
+    werden, bleiben Text -- ohne Kasten, ohne "Interview quote · N"-Kopf,
+    ohne Nummer. Nur reine Belegzitate (Kartenanzeige, nicht diese Funktion
+    hier) fallen weiterhin weg."""
+    inhalt = zeile.lstrip()[1:].strip()
+    kopf = _NUMMER_KOPF.match(inhalt)
+    if kopf:
+        inhalt = inhalt[kopf.end():]
+    fuss = _NUMMER_FUSS.search(inhalt)
+    if fuss:
+        inhalt = inhalt[:fuss.start()]
+    inhalt = inhalt.strip()
+    if len(inhalt) >= 2 and inhalt[0] == '"' and inhalt[-1] == '"':
+        inhalt = f"“{inhalt[1:-1]}”"
+    return f"<p>{_inline(inhalt)}</p>"
+
+
 def _ist_label(zeile: str) -> bool:
     """``THEME``, ``INSTRUCTIONS (WHO DOES WHAT)``, ``OPENING LINES (Italian,
     as played)``: Versalien vor der ersten Klammer, kein Doppelpunkt."""
@@ -152,8 +172,7 @@ def _block_html(block: str, ohne_zitate: bool = False) -> str:
         blank = zeile.strip()
         if blank.startswith(">"):
             leere()
-            if not ohne_zitate:
-                stuecke.append(_zitatzeile_html(blank))
+            stuecke.append(_zitatzeile_als_text(blank) if ohne_zitate else _zitatzeile_html(blank))
         elif _ist_listenpunkt(blank):
             if normal:
                 stuecke.append(_absatz_html(normal))
@@ -190,7 +209,11 @@ def _block_html(block: str, ohne_zitate: bool = False) -> str:
                 if ohne_zitate:
                     if vorher:
                         normal.append(vorher)
-                    rest = rest[treffer.end():].lstrip()
+                    # Gesprochenes Zitat bleibt als Satz im Absatz stehen,
+                    # nur die "(Interview N)"-Fussnote faellt weg (Morgen-
+                    # Auftrag 1, Nachtrag Birk 08.10.2026 ~08:30).
+                    normal.append(f"“{treffer.group(1)}”")
+                    rest = rest[treffer.end():]
                     continue
                 if vorher:
                     normal.append(vorher)

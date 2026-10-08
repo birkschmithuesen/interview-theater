@@ -1,13 +1,15 @@
-# Italienische Texttabelle -- NUR fuer Module, die eine ``Texte``-Instanz
-# mit ``ab_phase67_italienisch=True`` tragen (Morgen-Auftrag 4, 08.10.2026:
-# ab Phase 6/7 italienisch fuer alle Padua-Gruppen, Knoepfe bleiben
-# englisch). Anders als ``sprachen/en/texte.toml`` ist diese Tabelle NICHT
-# vollstaendig fuer jedes Modul -- nur die Module, die den Schalter
-# tatsaechlich nutzen (``szenenkarte.py``, ``stagescript.py``, ein paar
-# CoThinker-Kartenrahmen-Texte in ``web.py``), und darin nur die
-# Konstanten, die ueber ``T_IT`` statt ``T`` gelesen werden (Knopf-
-# Beschriftungen bleiben aussen vor). ``tests/test_sprache_texte.py``
-# prueft nur die englische Tabelle, nicht diese hier.
+# Italienische Texttabelle -- NUR fuer Module, die eine zweite
+# ``Texte``-Instanz mit ``sprachcode="it"`` tragen (Morgen-Auftrag 4,
+# 08.10.2026, Nachtrag 2 ~09:00: italienisch ab Phase 6/7, aber nur fuer
+# Chats aus ``workshop.italienisch_ab_phase6_chats()`` -- eine Chat-Liste,
+# kein globaler Schalter, Knoepfe bleiben englisch). Anders als
+# ``sprachen/en/texte.toml`` ist diese Tabelle NICHT vollstaendig fuer
+# jedes Modul -- nur die Module, die den Schalter tatsaechlich nutzen
+# (``szenenkarte.py``, ``stagescript.py``, ein paar CoThinker-
+# Kartenrahmen-Texte in ``web.py``), und darin nur die Konstanten, die
+# ueber ``_T(chat_id)`` statt ``T`` gelesen werden (Knopf-Beschriftungen
+# bleiben aussen vor). ``tests/test_sprache_texte.py`` prueft nur die
+# englische Tabelle, nicht diese hier.
 
 [phasentexte]
 # Phaseneintritt 6/7 italienisch (Morgen-Auftrag 4, Punkt 1, 08.10.2026):

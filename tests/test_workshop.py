@@ -233,61 +233,32 @@ def test_interview_fliesstext_liest_den_baum():
     assert workshop.interview_fliesstext(profil) is True
 
 
-def test_p67_italienisch_aktiv_ohne_profilzeile_ist_aus():
-    """Ohne ``sprache.ausgabesprache_p67`` entscheidet keine Chatliste --
-    Dortmund und das Vorgabeprofil bleiben byte-gleich aus."""
-    profil = workshop.Profil("test", None, {})
-    assert workshop.p67_italienisch_aktiv(profil) is False
+# --- Morgen-Auftrag 4, Nachtrag 2 (08.10.2026 ~09:00): G1-G3 italienisch,
+# Testgruppe (7000000000099) bleibt englisch ------------------------------
+
+_G1, _G2, _G3, _TESTGRUPPE = 7000000000000, 7000000000001, 7000000000002, 7000000000099
 
 
-def test_p67_italienisch_aktiv_ohne_chatliste_gilt_fuer_alle(monkeypatch):
-    """Ohne ``sprache.p67_italienisch_chats`` (alte Zeile allein, vor dem
-    Quickfix 08.10.2026 ~10:30): wie vorher an, egal welche chat_id."""
-    monkeypatch.delenv("IT_WEB_CHAT_ID", raising=False)
-    profil = workshop.Profil("test", None, {"sprache": {"ausgabesprache_p67": "it"}})
-    assert workshop.p67_italienisch_aktiv(profil) is True
+def test_italienisch_ab_phase6_chats_vorgabe_leer():
+    assert workshop.italienisch_ab_phase6_chats(None) == frozenset()
+    assert workshop.italienisch_ab_phase6_chats(workshop.lade("dortmund-2026")) == frozenset()
 
 
-def test_p67_italienisch_aktiv_mit_chatliste_nur_fuer_die_gelisteten(monkeypatch):
-    """Quickfix 08.10.2026 ~10:30 (Tester-Befund): mit Chatliste gilt nur
-    noch, wer drin steht -- der Testchat (nicht gelistet) bleibt aus."""
-    profil = workshop.Profil("test", None, {
-        "sprache": {
-            "ausgabesprache_p67": "it",
-            "p67_italienisch_chats": [7000000000000, 7000000000001],
-        },
-    })
-    monkeypatch.setenv("IT_WEB_CHAT_ID", "7000000000000")
-    assert workshop.p67_italienisch_aktiv(profil) is True
-    monkeypatch.setenv("IT_WEB_CHAT_ID", "7000000000099")
-    assert workshop.p67_italienisch_aktiv(profil) is False
-    # Ohne IT_WEB_CHAT_ID (kein Web-Kanal, z.B. Tests ohne diese Variable):
-    # unbekannte chat_id -- wie vor dem Quickfix, die Profilzeile allein
-    # entscheidet (sonst waeren alle bisherigen Tests mit der Padua-Zeile
-    # neu rot, ohne dass sich an ihrem eigentlichen Pruefziel etwas aendert).
-    monkeypatch.delenv("IT_WEB_CHAT_ID", raising=False)
-    assert workshop.p67_italienisch_aktiv(profil) is True
-
-
-def test_p67_italienisch_aktiv_padua_profil_testchat_bleibt_englisch(monkeypatch):
-    """Das echte Padua-Profil: die drei Gruppen italienisch, der Testchat
-    7000000000099 (Befund 08.10. 10:19-10:24, Phase 7 im Tester) nicht."""
+def test_padua_italienisch_ab_phase6_chats_nur_g1_g2_g3():
+    """Eine Chat-Liste statt eines globalen Schalters: die Testgruppe teilt
+    sich das Profil mit G1-G3, soll aber englisch bleiben."""
     profil = workshop.lade("padua-2026")
-    monkeypatch.setenv("IT_WEB_CHAT_ID", "7000000000000")
-    assert workshop.p67_italienisch_aktiv(profil) is True
-    monkeypatch.setenv("IT_WEB_CHAT_ID", "7000000000099")
-    assert workshop.p67_italienisch_aktiv(profil) is False
+    chats = workshop.italienisch_ab_phase6_chats(profil)
+    assert chats == frozenset({_G1, _G2, _G3})
+    assert _TESTGRUPPE not in chats
 
 
-def test_platzhalter_ausgabesprache_p67_folgt_der_chatliste(monkeypatch):
-    """``{{ausgabesprache_p67}}`` (Modell-Prompt Phase 6/7) muss derselben
-    Chatliste folgen wie die Statuszeilen -- sonst spraeche der Bot im
-    Tester italienisch, obwohl szenenkarte.py/stagescript.py englisch
-    melden (genau der Zustand aus dem Befund)."""
-    monkeypatch.setenv("IT_WEB_CHAT_ID", "7000000000000")
+def test_padua_testgruppe_verhaelt_sich_wie_g2_nicht_wie_g1():
+    """Seit 08.10.2026 ~11:06 (Robo, Birks Kopierauftrag) ist die
+    Testgruppe eine Kopie von G2, nicht mehr von G1 -- G2 steht in keiner
+    der beiden Listen, die Testgruppe deshalb auch nicht."""
     profil = workshop.lade("padua-2026")
-    assert workshop.platzhalter(profil)["ausgabesprache_p67"] != ""
-    workshop.vergiss()
-    monkeypatch.setenv("IT_WEB_CHAT_ID", "7000000000099")
-    profil = workshop.lade("padua-2026")
-    assert workshop.platzhalter(profil)["ausgabesprache_p67"] == ""
+    assert _TESTGRUPPE not in workshop.skript_ohne_zitate_chats(profil)
+    assert _TESTGRUPPE not in workshop.schaerfung_ohne_figuren_chats(profil)
+    assert _G2 not in workshop.skript_ohne_zitate_chats(profil)
+    assert _G2 not in workshop.schaerfung_ohne_figuren_chats(profil)

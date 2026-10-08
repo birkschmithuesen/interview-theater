@@ -37,14 +37,26 @@ log = logging.getLogger(__name__)
 from interview_theater import anweisungen
 
 
-def system(bot_name: str | None = None, phase: int | None = None) -> str:
+def system(bot_name: str | None = None, phase: int | None = None,
+          chat_id: int | None = None) -> str:
     """Systemanweisung, heiss nachgeladen (siehe interview_theater.anweisungen).
 
     ``phase`` haengt die Anweisung fuer die aktuelle Arbeitsphase an
     (``prompts/phasen/N.md``). Sie steuert den Fokus, nicht den
     Informationszugang: die datengetriebenen Bloecke unten bleiben davon
-    unberuehrt."""
-    return anweisungen.system(bot_name, phase)
+    unberuehrt.
+
+    ``chat_id`` (Morgen-Auftrag 4, Nachtrag 2, 08.10.2026 ~09:00): in
+    Phase 6/7, fuer Chats aus ``workshop.italienisch_ab_phase6_chats()``,
+    haengt ein Zusatzsatz "Schreib alles auf Italienisch" an -- eine
+    chat-bezogene Entscheidung, die der profilweite Platzhaltermechanismus
+    (``anweisungen.platzhalter()``) nicht treffen kann: die Testgruppe
+    teilt sich das Profil mit G1-G3, soll aber englisch bleiben."""
+    text = anweisungen.system(bot_name, phase)
+    if (phase in (6, 7) and chat_id is not None
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
+        text += "\n\n" + T._AUFTRAG_AUSGABE_ITALIENISCH
+    return text
 
 #: Kein Tokenizer -- zwei Tage vor dem Workshop keine Abhaengigkeit, die sich
 #: fuer Kimi nicht sauber verifizieren laesst. Zeichen ÷ 3 ueberschaetzt bei
@@ -2367,3 +2379,10 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 
 T = sprache.Texte(__name__)
+#: Morgen-Auftrag 4, Nachtrag 2 (08.10.2026 ~09:00): Zusatzsatz an die
+#: Systemanweisung der Phasen 6/7, nur fuer Chats aus
+#: ``workshop.italienisch_ab_phase6_chats()`` -- siehe ``system()`` oben.
+_AUFTRAG_AUSGABE_ITALIENISCH = (
+    "Schreib alles auf Italienisch. Zitate bleiben genau wie gegeben, in "
+    "der Originalsprache, unveraendert."
+)

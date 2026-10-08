@@ -3685,8 +3685,13 @@ def _buehne_html(daten: dict) -> str:
         # Seite im Chat.
         return _schaerfungsliste_html(daten["schaerfungsliste"])
     if daten.get("szenenkarten") is not None:
-        # Phase 6 unter Padua mit Karten (Birk 07.10.2026 ~19:25).
-        return _szenenkarten_html(daten["szenenkarten"])
+        # Phase 6 unter Padua mit Karten (Birk 07.10.2026 ~19:25). Keine
+        # Zitate auf den Karten fuer G1 (Birk 08.10.2026 ~11:00): auch im
+        # CoThinker-Panel, nicht nur im Script-Tab.
+        from interview_theater import workshop
+
+        ohne_zitate = daten.get("chat_id") in workshop.skript_ohne_zitate_chats()
+        return _szenenkarten_html(daten["szenenkarten"], daten.get("chat_id"), ohne_zitate)
     if daten.get("fragenuebersicht_zeigen"):
         # Phase 2 (Birk, 05.10.2026): was je Begriff an Fragen steht.
         return _fragenuebersicht_html(daten.get("fragenuebersicht") or [])
@@ -4488,8 +4493,9 @@ def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:
     Paragraphs"): Leerzeile = neuer Absatz, einfacher Umbruch = <br>,
     ``**fett**`` und ``*kursiv*`` wie im Chat, ``NAME:`` am Zeilenanfang fett.
 
-    ``ohne_zitate`` (Morgen-Auftrag 1, G1): Interviewzitat-Zeilen (``> ...``)
-    fallen weg, der Rest des Absatzes bleibt stehen."""
+    ``ohne_zitate`` (Morgen-Auftrag 1, G1, Nachtrag Birk 08.10.2026 ~08:30):
+    Interviewzitat-Zeilen (``> ...``) bleiben als normaler Sprechtext stehen
+    -- ohne Kasten, ohne Nummer, der Rest des Absatzes bleibt unveraendert."""
     import re as _re
 
     def zeile(z: str) -> str:
@@ -4498,6 +4504,15 @@ def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:
         z = _re.sub(r"(?<![*\w])\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"<em>\1</em>", z)
         z = _re.sub(r"^([A-ZÀ-Ý][A-ZÀ-Ý' .-]{1,30}):", r"<strong>\1:</strong>", z)
         return z
+
+    def entzitat(z: str) -> str:
+        """Wie ``zeile()``, aber ohne den ``*Interview quote (N):*``-Kopf
+        und ohne eine ``(Interview N)``-Fussnote -- der Wortlaut bleibt."""
+        inhalt = z.lstrip()[1:].strip()
+        inhalt = _re.sub(r"^\*[^*]*?\(\d+\):?\*:?\s*", "", inhalt)
+        inhalt = _re.sub(r"\s*\((?:Interview|Intervista|Interviewzitat)\s+\d+\)\s*[.,;:]?\s*$",
+                         "", inhalt)
+        return zeile(inhalt)
 
     # Birk 07.10.2026 ~18:05: Interviewzitate sichtbar als solche --
     # Zeilen "> ..." (Prompt formen/prosa im Padua-Profil: "> *Interview
@@ -4512,6 +4527,7 @@ def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:
         for z in a.splitlines():
             if z.lstrip().startswith(">"):
                 if ohne_zitate:
+                    normal.append(entzitat(z))
                     continue
                 if normal:
                     stuecke.append(f'<p class="prosa">{"<br>".join(normal)}</p>')
@@ -4527,7 +4543,8 @@ def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:
 
 
 def _probe_szene_html(
-    s: dict, bekannte: set[str], ohne_zitate: bool = False, lang: str | None = None
+    s: dict, bekannte: set[str], ohne_zitate: bool = False, lang: str | None = None,
+    chat_id: int | None = None,
 ) -> tuple[str, list[str]]:
     """Eine Szene in der Probenansicht: Kopf, Angaben, Besetzung, Text.
 
@@ -4545,7 +4562,7 @@ def _probe_szene_html(
     ``lang`` (Morgen-Auftrag 3): ``None`` zeigt beide Fassungen (Script-Tab),
     ``"en"``/``"it"`` nur eine (je ein eigenes PDF) -- ``_sprachfassungen``."""
     if s.get("verdichtet") is not None:
-        return _probe_szene_verdichtet_html(s, bekannte, ohne_zitate, lang)
+        return _probe_szene_verdichtet_html(s, bekannte, ohne_zitate, lang, chat_id)
     kopf = _t(
         T._TEXT_SZENE_NR.format(nummer=s["nummer"])
         if s.get("nummer") is not None else T._TEXT_SZENE
@@ -4661,16 +4678,19 @@ _TEXT_KARTE_GESPEICHERT = "gespeichert"
 _TEXT_KARTE_OFFEN = "noch nicht gespeichert"
 
 
-def _karte_html(karte: dict, bestaetigt: bool, ohne_zitate: bool = False) -> str:
+def _karte_html(karte: dict, bestaetigt: bool, ohne_zitate: bool = False,
+                chat_id: int | None = None) -> str:
     """Die Szenenkarte im Script-Tab: Typ, worum, wo/wer, Punkte, Zitate im
     Original, offene Fragen -- dieselben Felder wie im Chat."""
     from interview_theater import szenenkarte
 
-    # Morgen-Auftrag 4: dieselben Kartentexte wie im Chat (szenenkarte.T_IT)
-    # -- ab Phase 6 italienisch, wenn workshop.p67_italienisch_aktiv() an ist.
-    st = szenenkarte.T_IT
+    # Morgen-Auftrag 4, Nachtrag 2: dieselben Kartentexte wie im Chat
+    # (szenenkarte._T), nur fuer Chats aus
+    # workshop.italienisch_ab_phase6_chats().
+    st = szenenkarte._T(chat_id)
     typ = st.TYP_BESCHRIFTUNG.get(karte.get("typ"), karte.get("typ") or "")
-    status = T_IT._TEXT_KARTE_GESPEICHERT if bestaetigt else T_IT._TEXT_KARTE_OFFEN
+    tk = _T(chat_id)
+    status = tk._TEXT_KARTE_GESPEICHERT if bestaetigt else tk._TEXT_KARTE_OFFEN
     teile = [f'<p class="karte-typ">{_t(typ)} · {_t(status)}</p>']
     if karte.get("worum"):
         teile.append(f'<p class="karte-worum">{_t(karte["worum"])}</p>')
@@ -4741,7 +4761,8 @@ _TEXT_KARTE_NEIN = "No, change"
 _TEXT_KARTEN_ZAEHLER = "Karte {aktiv} von {gesamt}"
 
 
-def _szenenkarten_html(liste: list[dict]) -> str:
+def _szenenkarten_html(liste: list[dict], chat_id: int | None = None,
+                       ohne_zitate: bool = False) -> str:
     """Die Szenenkarten im CoThinker (Padua Phase 6, Birk 07.10.2026 ~19:25
     und ~19:35, verbindlich): Handy-first, schlank.
 
@@ -4777,7 +4798,7 @@ def _szenenkarten_html(liste: list[dict]) -> str:
         else:
             zustand = "spaeter"
         if k["aktiv"] and k["karte"] is None:
-            inhalt = f'<p class="karte-entsteht">{_t(T_IT._TEXT_KARTE_ENTSTEHT.format(nummer=nummer))}</p>'
+            inhalt = f'<p class="karte-entsteht">{_t(_T(chat_id)._TEXT_KARTE_ENTSTEHT.format(nummer=nummer))}</p>'
             # Rettungsweg, falls die Erzeugung nie fertig wurde (Neustart
             # mitten im Lauf): laeuft sie noch, sagt der Bot das nur.
             knoepfe = (
@@ -4786,7 +4807,7 @@ def _szenenkarten_html(liste: list[dict]) -> str:
                 f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_BAUEN)}</button></div>'
             )
         elif k["aktiv"]:
-            inhalt = _karte_html(k["karte"], False)
+            inhalt = _karte_html(k["karte"], False, ohne_zitate, chat_id)
             if k["karte"].get("fragen"):
                 # Offene Fragen: "Yes, save" waere ohnehin serverseitig
                 # abgelehnt (``szenenkarte.bestaetige``) -- statt dessen nur
@@ -4812,8 +4833,9 @@ def _szenenkarten_html(liste: list[dict]) -> str:
                     f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_NEIN)}</button></div>'
                 )
         else:
-            inhalt = (_karte_html(k["karte"], k["bestaetigt"]) if k["karte"] is not None
-                      else f'<p class="karte-entsteht">{_t(T_IT._TEXT_KARTE_NOCH_NICHT)}</p>')
+            inhalt = (_karte_html(k["karte"], k["bestaetigt"], ohne_zitate, chat_id)
+                      if k["karte"] is not None
+                      else f'<p class="karte-entsteht">{_t(_T(chat_id)._TEXT_KARTE_NOCH_NICHT)}</p>')
             knoepfe = (
                 f'<p class="karte-nur-ansicht"><button type="button" class="karte-zurueck">'
                 f'{_t(T._TEXT_KARTE_ZUR_AKTUELLEN)}</button></p>' if aktive is not None else ""
@@ -4885,7 +4907,8 @@ _CSS_TEXTBUCH_LESBAR_KARTE = """
 
 
 def _probe_szene_verdichtet_html(
-    s: dict, bekannte: set[str], ohne_zitate: bool = False, lang: str | None = None
+    s: dict, bekannte: set[str], ohne_zitate: bool = False, lang: str | None = None,
+    chat_id: int | None = None,
 ) -> tuple[str, list[str]]:
     """Eine Szene im Script-Tab, auf das Wesentliche reduziert: Kopf, Ort und
     Besetzung, der Text (EN und IT als eigene Bloecke). "Worum es geht" und
@@ -4957,7 +4980,7 @@ def _probe_szene_verdichtet_html(
     elif s.get("karte"):
         # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): bis zum Stage Script
         # steht die Szenenkarte hier; eine fruehere Prosa ist nur Material.
-        zeilen.append(_karte_html(s["karte"], s.get("karte_bestaetigt"), ohne_zitate))
+        zeilen.append(_karte_html(s["karte"], s.get("karte_bestaetigt"), ohne_zitate, chat_id))
         if prosa:
             zeilen.append(
                 f'<details class="fruehere"><summary>{_t(T._TEXT_PROSA_MATERIAL)}</summary>'
@@ -5302,7 +5325,8 @@ def textbuch_koerper(
             "_fassungen": fassungen.get(s.get("id")) or [],
             "_erstentwurf": erstentwuerfe.get(s.get("id")),
         }
-        html_stueck, gefunden = _probe_szene_html(s, bekannte, ohne_zitate, lang)
+        html_stueck, gefunden = _probe_szene_html(
+            s, bekannte, ohne_zitate, lang, daten.get("chat_id"))
         abschnitte.append(html_stueck)
         for name in gefunden:
             if name not in sprecher:
@@ -6266,10 +6290,17 @@ from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus
 # und unter diesem Namen faende die Texttabelle nichts (``["web"]``), die
 # Seiten blieben in Padua still deutsch.
 T = sprache.Texte(__spec__.name if __spec__ else __name__)
-#: Morgen-Auftrag 4 (08.10.2026): die paar CoThinker-Kartenrahmen-Texte
-#: (Status "saved"/"not saved yet" etc.) ab Phase 6 italienisch -- NIE die
+#: Morgen-Auftrag 4, Nachtrag 2 (08.10.2026): die paar CoThinker-
+#: Kartenrahmen-Texte (Status "saved"/"not saved yet" etc.) italienisch,
+#: nur fuer Chats aus ``workshop.italienisch_ab_phase6_chats()`` -- NIE die
 #: Knopf-Beschriftungen im selben Modul, die bleiben auf ``T``.
-T_IT = sprache.Texte(__spec__.name if __spec__ else __name__, ab_phase67_italienisch=True)
+_T_IT = sprache.Texte(__spec__.name if __spec__ else __name__, sprachcode="it")
+
+
+def _T(chat_id: int | None) -> sprache.Texte:
+    from interview_theater import workshop
+
+    return _T_IT if chat_id in workshop.italienisch_ab_phase6_chats() else T
 
 
 def _skript_design() -> bool:

@@ -116,9 +116,9 @@ def angleichen(deutsch: Any, eintrag: Any) -> Any:
 
 
 def text(modul: str, name: str, sprachcode: str | None = None) -> Any:
-    """Der Text ``name`` aus ``modul`` in der aktiven Sprache, oder in
-    ``sprachcode``, wenn die Konstante (per ``Texte(..., ab_phase67_italienisch=True)``)
-    eine erzwungene Sprache tragen darf (Morgen-Auftrag 4)."""
+    """Der Text ``name`` aus ``modul`` in der aktiven Sprache, oder
+    erzwungen in ``sprachcode`` (``Texte(..., sprachcode=...)``,
+    Morgen-Auftrag 4)."""
     deutsch = getattr(sys.modules[modul], name)
     sprachcode = sprachcode or code()
     if sprachcode == DEUTSCH:
@@ -158,26 +158,25 @@ class Texte:
     """Die Texte eines Moduls, zur Aufrufzeit in der aktiven Sprache:
     ``T = sprache.Texte(__name__)``, dann ``T._TEXT_X``.
 
-    ``ab_phase67_italienisch`` (Morgen-Auftrag 4, 08.10.2026): fuer Module,
-    die nur in Phase 6/7 laufen (``szenenkarte.py``, ``stagescript.py``) --
-    solange ``workshop.p67_italienisch_aktiv()`` an ist, lesen ihre ``T``-
-    Zugriffe aus der italienischen Tabelle statt der Profilsprache. Gilt
-    je Instanz, nicht global: Knopf-Beschriftungen bleiben auf einer
-    zweiten, gewoehnlichen ``Texte``-Instanz im selben Modul unberuehrt."""
+    ``sprachcode`` (Morgen-Auftrag 4, 08.10.2026, Nachtrag 2): erzwingt eine
+    Sprache statt der Profilsprache -- fuer eine zweite, chat-abhaengige
+    ``Texte``-Instanz je Modul (``szenenkarte.py``/``stagescript.py``/
+    ``web.py``: ``_T_IT = Texte(__name__, sprachcode="it")``, vom Aufrufer
+    nur fuer Chats aus ``workshop.italienisch_ab_phase6_chats()`` gewaehlt --
+    die Wahl *welcher* Chat ist bewusst NICHT hier drin, ``Texte`` kennt
+    keinen chat_id). Knopf-Beschriftungen bleiben auf der gewoehnlichen,
+    ungezwungenen Instanz im selben Modul."""
 
-    __slots__ = ("_modul", "_ab_phase67_italienisch")
+    __slots__ = ("_modul", "_sprachcode")
 
-    def __init__(self, modul: str, *, ab_phase67_italienisch: bool = False) -> None:
+    def __init__(self, modul: str, *, sprachcode: str | None = None) -> None:
         object.__setattr__(self, "_modul", modul)
-        object.__setattr__(self, "_ab_phase67_italienisch", ab_phase67_italienisch)
+        object.__setattr__(self, "_sprachcode", sprachcode)
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("__"):
             raise AttributeError(name)
-        sprachcode = "it" if (
-            self._ab_phase67_italienisch and workshop.p67_italienisch_aktiv()
-        ) else None
-        sprachcode = _ERZWUNGEN.get() or sprachcode
+        sprachcode = _ERZWUNGEN.get() or self._sprachcode
         return text(self._modul, name, sprachcode)
 
     def __setattr__(self, name: str, wert: Any) -> None:

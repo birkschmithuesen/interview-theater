@@ -49,11 +49,20 @@ def test_panel_aktive_karte_gross_andere_eine_zeile(padua):
 def test_panel_karte_entsteht_noch(padua):
     html = web._szenenkarten_html([{"nummer": 1, "titel": "A", "karte": None,
                                     "bestaetigt": False, "aktiv": True}])
-    # Morgen-Auftrag 4: Kartenrahmen-Status ab Phase 6 italienisch, der
-    # Knopf "Build card now" bleibt englisch.
-    assert "La scheda 1 è in costruzione" in html
+    # Ohne chat_id (None) steht in keiner italienisch_ab_phase6_chats-Liste.
+    assert "Card 1 is being built" in html
     assert 'data-aktion="bauen" data-nummer="1">Build card now</button>' in html
     assert 'data-aktion="ja"' not in html
+
+
+def test_panel_karte_entsteht_noch_italienisch_mit_chat_id(padua, monkeypatch):
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    html = web._szenenkarten_html([{"nummer": 1, "titel": "A", "karte": None,
+                                    "bestaetigt": False, "aktiv": True}], 1)
+    # Morgen-Auftrag 4: Kartenrahmen-Status ab Phase 6 italienisch fuer
+    # Chats aus der Liste, der Knopf "Build card now" bleibt englisch.
+    assert "La scheda 1 è in costruzione" in html
+    assert 'data-aktion="bauen" data-nummer="1">Build card now</button>' in html
 
 
 def test_web_daten_nur_in_phase_6_mit_schalter(conn, padua, monkeypatch):
@@ -118,13 +127,13 @@ def test_befehle_und_ablauf_im_cothinker(conn, einst, padua, monkeypatch):
     # Karte 1 entsteht: im Chat nur der Hinweis, keine Knoepfe, kein Kartentext.
     # Morgen-Auftrag 4: Statuszeile ab Phase 6 italienisch.
     ueberarbeitung.weiter_6(conn, tg, klm, einst, 1).join(5)
-    assert tg.texte[-1] == "La scheda 1 di 2 è pronta nella scheda CoThinker."
+    assert tg.texte[-1] == "Card 1 of 2 is ready in the CoThinker tab."
     assert not tg.leisten
 
     # "No, change" im CoThinker (Birk 08.10.2026 ~09:35, Nachtrag): startet
     # den Dialog, KEIN Wartezustand mehr, der die naechste Nachricht abfaengt.
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_aendern", "1")
-    assert tg.texte[-1] == "Parliamo della scheda 1. Cosa cambiereste?"
+    assert tg.texte[-1] == "Let's talk about card 1. What would you change?"
     assert szenenfolge.nimm_regienotiz(1) is None
     assert szenenkarte.dialog_aktive_nummer(conn, 1) == 1
 
@@ -147,7 +156,7 @@ def test_befehle_und_ablauf_im_cothinker(conn, einst, padua, monkeypatch):
     szenenkarte.aktualisiere_mit_dialog(conn, tg, klm, einst, 1, 1, "Emma sings first.")
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
-    assert "Scheda scena 1" in tg.texte[-1]
+    assert "Scene card 1" in tg.texte[-1]
     assert [b for b, _ in tg.leisten[-1]] == ["Yes, save card", "No, change again"]
     assert not repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
     assert szenenkarte.dialog_aktive_nummer(conn, 1) is None
@@ -156,15 +165,15 @@ def test_befehle_und_ablauf_im_cothinker(conn, einst, padua, monkeypatch):
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "1")
     import time
     for _ in range(100):
-        if tg.texte[-1] == "La scheda 2 di 2 è pronta nella scheda CoThinker.":
+        if tg.texte[-1] == "Card 2 of 2 is ready in the CoThinker tab.":
             break
         time.sleep(0.05)
     assert repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
-    assert tg.texte[-1] == "La scheda 2 di 2 è pronta nella scheda CoThinker."
+    assert tg.texte[-1] == "Card 2 of 2 is ready in the CoThinker tab."
 
     # Veraltet / falsche Phase: wirkungslos.
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "1")
-    assert tg.texte[-1] == szenenkarte.T_IT._TEXT_NICHT_DRAN
+    assert tg.texte[-1] == szenenkarte.T._TEXT_NICHT_DRAN
     phasen.setze(conn, 1, 5, "befehl")
     vorher = len(tg.texte)
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "2")
@@ -179,8 +188,7 @@ def test_telegram_behaelt_die_karte_im_chat(conn, einst, padua, monkeypatch):
     phasen.setze(conn, 1, 6, "befehl")
     tg = TG()
     ueberarbeitung.weiter_6(conn, tg, LLM(), einst, 1).join(5)
-    # Morgen-Auftrag 4: Kartentext italienisch, Knoepfe bleiben englisch.
-    assert "Scheda scena 1" in tg.texte[-1]
+    assert "Scene card 1" in tg.texte[-1]
     assert [b for b, _ in tg.leisten[-1]] == ["Yes, save", "No, change"]
 
 
@@ -197,7 +205,7 @@ def test_chat_karte_ohne_zitatzeichen_und_panel_ohne_klassenkollision(padua):
     """Handy-Screens 07.10.2026: der Web-Chat kennt keine Zitatbloecke ("> "
     stand roh da), und ``.karte`` ist im CoThinker schon die Buehnenkarte
     (doppelter Rahmen) -- der Kartenkoerper heisst deshalb ``szenenkarte``."""
-    text = szenenkarte.karte_text(KARTE, {"nummer": 2, "titel": "Le voci"})
+    text = szenenkarte.karte_text(KARTE, {"nummer": 2, "titel": "Le voci"}, 1)
     assert not any(z.startswith(">") for z in text.splitlines())
     assert '- *“Casa non sono le mura”* (Interview 19)' in text
     html = web._szenenkarten_html([{"nummer": 1, "titel": "A", "karte": KARTE,

@@ -1741,7 +1741,7 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
         erstkontakt = not repo.hat_bot_nachricht(conn, chat_id)
         koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt,
                                ueber_claude=ueber_claude)
-        system = kontext.system(e.bot_name, phase)
+        system = kontext.system(e.bot_name, phase, chat_id)
         # Der laufende Text (30.09.2026, Karte W): ``senke`` ist ``None``,
         # solange der Kanal keinen Strom kann -- der Telegram-Weg bleibt damit
         # Zeichen fuer Zeichen, wie er war (E1). Abgeschlossen wird sie NICHT
@@ -1918,7 +1918,7 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
             ueber_claude = modellwahl.konversation_ueber_claude(e, conn, chat_id)
             koerper = kontext.baue(conn, chat_id, [], e, ueber_claude=ueber_claude)
             koerper = f"{koerper}\n\n{T._AUFTRAG_KOPF}\n{anweisung}"
-            system = kontext.system(e.bot_name, phase)
+            system = kontext.system(e.bot_name, phase, chat_id)
             senke = strom.senke(tg, chat_id, "gespraech")
             ergebnis = modellwahl.aufruf_schema(
                 conn, klm, e, chat_id, system, koerper, SCHEMA, "gespraech",

@@ -35,5 +35,3 @@ What you focus on:
   don't explain the buttons.
 - What the group said about earlier cards (taste, tone, what they
   rejected) carries over to the card you are on.
-
-{{ausgabesprache_p67}}

@@ -121,7 +121,8 @@ def test_befehle_und_ablauf_im_cothinker(conn, einst, padua, monkeypatch):
 
     # "No, change" im CoThinker -> Feedbackfrage, naechste Nachricht = Notiz.
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_aendern", "1")
-    assert tg.texte[-1] == "Cosa deve cambiare nella scheda 1?"
+    assert tg.texte[-1].startswith("Cosa deve cambiare nella scheda 1?")
+    assert "UN solo messaggio" in tg.texte[-1]  # Birk 08.10.: Ablauf erklaeren (eine Nachricht -> sofortiger Neubau)
     assert szenenfolge.nimm_regienotiz(1) == 1
 
     # Die geaenderte Karte kommt im Chat zur Bestaetigung, nicht still.

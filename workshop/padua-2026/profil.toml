@@ -330,3 +330,8 @@ aktiv = true
 # den bisherigen Rohdump derselben Phase. Ohne diese Zeile: unveraendert.
 [phasen_summary]
 aktiv = true
+
+# Keine "I'm back"-Zeile mit Einstiegsknoepfen nach einem Neustart (Birk
+# 08.10.2026: in Phase 5-7 falsch, nach jedem Autodeploy doppelt im Chat).
+[bot]
+wiederkehr = false

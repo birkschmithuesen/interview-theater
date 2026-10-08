@@ -790,3 +790,26 @@ def test_neue_knopfarten_laufen_durch_die_update_schleife(conn, einst):
     assert repo_modul.hole_szene(conn, szene_id)["form"] == "lied"
     # Der bool-Fall: "nein" ist False, nicht ein wahrer String.
     assert repo_modul.szene_usa_stand(conn, chat_id) == "nein"
+
+
+def test_sende_wiederkehr_begruessungen_padua_schweigt(conn, einst, monkeypatch):
+    """Birk 08.10.2026: in Padua keine "I'm back"-Zeile mit Einstiegsknoepfen
+    nach Neustart (in Phase 5-7 falsch, nach jedem Autodeploy doppelt)."""
+    from interview_theater import workshop
+    monkeypatch.setattr(workshop, "wiederkehr_aktiv", lambda profil=None: False)
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Alte Gruppe")
+    repo.merke_nachricht(
+        conn, -100, 1, "Ada", 0, "text", "gestern",
+        (JETZT - timedelta(hours=5)).isoformat(),
+    )
+    tg = TelegramAttrappe()
+
+    bot.sende_wiederkehr_begruessungen(conn, tg, einst, JETZT)
+
+    assert tg.gesendet == []
+
+
+def test_padua_profil_schaltet_wiederkehr_ab():
+    from interview_theater import workshop
+    assert workshop.wiederkehr_aktiv(workshop.lade("padua-2026")) is False
+    assert workshop.wiederkehr_aktiv(workshop.lade("dortmund-2026")) is True

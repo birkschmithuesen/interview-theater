@@ -1258,3 +1258,12 @@ def autosave_phase1_2_aktiv(profil: Profil | None = None) -> bool:
     nicht und bleibt unberuehrt."""
     profil = profil or aktiv()
     return bool(profil.wert("speichern.autosave_phase1_2", False))
+
+
+def wiederkehr_aktiv(profil: Profil | None = None) -> bool:
+    """Ob der Bot nach einem Neustart jeder ruhenden Gruppe die
+    Wiederkehr-Zeile mit Einstiegsknoepfen schickt (``bot.sende_wiederkehr_
+    begruessungen``). Vorgabe true -- Dortmund unveraendert. Padua false
+    (Birk 08.10.2026: Knoepfe in Phase 5 falsch, nach jedem Deploy doppelt)."""
+    profil = profil or aktiv()
+    return bool(profil.wert("bot.wiederkehr", True))

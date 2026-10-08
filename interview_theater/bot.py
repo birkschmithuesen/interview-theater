@@ -365,7 +365,14 @@ def sende_wiederkehr_begruessungen(conn, tg, e, jetzt) -> None:
     zurueck in die Arbeit ist ein Druck, nicht ein Befehl, den sich jemand
     ueber Nacht merken musste."""
     from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
+    from interview_theater import workshop
 
+    # Padua (Birk 08.10.2026): jeder Neustart (Autodeploy!) haengte eine
+    # "I'm back"-Zeile mit Einstiegsknoepfen ("Record another interview",
+    # "Where we are", ...) in den Chat -- in Phase 5-7 falsch, und nach zwei
+    # Deploys stand alles doppelt da. Profilschalter, Vorgabe an.
+    if not workshop.wiederkehr_aktiv():
+        return
     for gruppe in repo.gruppen_fuer_bot(conn, e.bot_name):
         try:
             letzte = repo.letzte_nachricht_zeit(conn, gruppe["chat_id"])

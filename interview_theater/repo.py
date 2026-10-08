@@ -3124,12 +3124,45 @@ def setze_szenenkarte(conn: sqlite3.Connection, szene_id: int, karte: str | None
 
 
 @_gesperrt
-def aktualisiere_szenenkarte_meta(conn: sqlite3.Connection, szene_id: int, karte: str) -> None:
-    """Schreibt Ort/Figuren-Nachzug (``karten_nachzug.py``, Phase 7) in die
-    schon abgenommene Karte -- anders als ``setze_szenenkarte`` OHNE die
-    Abnahme zurueckzunehmen: die Gruppe hat die Karte in Phase 6 abgenommen,
-    Phase 7 zieht nur Ort/Figuren aus dem neu geschriebenen Skript nach."""
-    conn.execute("UPDATE szene SET karte = ? WHERE id = ?", (karte, szene_id))
+def aktualisiere_karte_und_werkbank(
+    conn: sqlite3.Connection, chat_id: int, szene_id: int, karte_json: str,
+    ort: str | None, figur_ids: list[int], ausloeser: str,
+    notiz_text: str | None = None,
+) -> None:
+    """Ort/Figuren-Nachzug (``karten_nachzug.py``, Phase 7) in EINER
+    Transaktion: Karte, Werkbank-Ort (``szene.ort``) und -Besetzung
+    (``szene_figur``), plus die neue Fassung in ``karte_verlauf`` --
+    Nachtrag Birk 08.10.2026 ~13:00 (Live-Befund G1 S1: ``szene.ort`` zeigte
+    weiter die alte Planung, waehrend ``karte.ort`` schon die neue Karte
+    trug -- zwei Staende auf derselben Werkbank).
+
+    Anders als ``setze_szenenkarte``/``setze_szenenfeld``/
+    ``setze_szene_figuren`` OHNE die Phase-6-Abnahme zurueckzunehmen und OHNE
+    ``geaendert_am`` zu ruehren -- das ist ein Nachzug aus dem Skript, keine
+    Bearbeitung der Gruppe. ``figur_ids`` sind nur schon vorhandene Figuren
+    (``erkenner._figuren_aus_namen``); eine neue Figur aus ``wer`` legt hier
+    keine ``figur``-Zeile an, sie bleibt Kartentext."""
+    conn.execute("UPDATE szene SET karte = ?, ort = ? WHERE id = ?",
+                 (karte_json, ort, szene_id))
+    conn.execute("DELETE FROM szene_figur WHERE szene_id = ?", (szene_id,))
+    for figur_id in dict.fromkeys(figur_ids):
+        conn.execute(
+            "INSERT OR IGNORE INTO szene_figur (chat_id, szene_id, figur_id) "
+            "VALUES (?, ?, ?)",
+            (chat_id, szene_id, figur_id),
+        )
+    naechste = conn.execute(
+        "SELECT COALESCE(MAX(fassung_nr), 0) + 1 FROM karte_verlauf WHERE szene_id = ?",
+        (szene_id,),
+    ).fetchone()[0]
+    conn.execute(
+        """
+        INSERT INTO karte_verlauf
+            (chat_id, szene_id, fassung_nr, karte_json, ausloeser, notiz_text, erstellt_am)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (chat_id, szene_id, naechste, karte_json, ausloeser, notiz_text, _jetzt()),
+    )
     conn.commit()
 
 

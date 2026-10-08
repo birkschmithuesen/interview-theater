@@ -13,19 +13,25 @@ alte Karte weiter als "bindend" in den Prompt.
 Gruppe nicht): EIN kurzer Modellaufruf liest aus dem neuen EN-Text, wie Ort/
 Figuren (ggf. Modus) jetzt sind. Nur wenn sich das normalisiert wirklich von
 der Karte unterscheidet, wird die Karte aktualisiert (nur diese Felder, die
-Abnahme bleibt stehen -- ``repo.aktualisiere_szenenkarte_meta``) und eine neue
-Fassung an ``karte_verlauf`` gehaengt. Keine Aenderung -> nichts geschrieben.
-Ein Fehler bleibt lokal (``log.exception``); die Karte bleibt, wie sie war.
+Abnahme bleibt stehen) und zugleich die Werkbank nachgezogen (``szene.ort``,
+``szene_figur`` -- Nachtrag Birk 08.10.2026 ~13:00, Live-Befund G1 S1: die
+Werkbank zeigte weiter die alte Planung, waehrend die Karte schon die neue
+trug), alles in einer Transaktion mit der neuen ``karte_verlauf``-Fassung
+(``repo.aktualisiere_karte_und_werkbank``). Keine Aenderung -> nichts
+geschrieben. Ein Fehler bleibt lokal (``log.exception``); Karte und Werkbank
+bleiben, wie sie waren.
 
 Neue Figuren bekommen hier KEINE eigene Rolle/Rollenlink -- nur das
-Kartenfeld ``wer``."""
+Kartenfeld ``wer``; die Werkbank-Besetzung (``szene_figur``) uebernimmt aus
+``wer`` nur Namen, die schon eine Figur haben (``erkenner._figuren_aus_namen``,
+derselbe Namensabgleich wie bei einer Planung im Chat)."""
 
 from __future__ import annotations
 
 import json
 import logging
 
-from interview_theater import anweisungen, modellwahl, repo, szenenkarte, workshop
+from interview_theater import anweisungen, erkenner, modellwahl, repo, szenenkarte, workshop
 
 log = logging.getLogger(__name__)
 
@@ -111,9 +117,11 @@ def ziehe_nach(conn, klm, e, chat_id: int, szene_id: int, text: str, *,
         neue_karte = dict(karte)
         neue_karte.update(aenderungen)
         karte_json = json.dumps(neue_karte, ensure_ascii=False)
-        repo.aktualisiere_szenenkarte_meta(conn, szene_id, karte_json)
-        repo.merke_karte_verlauf(conn, chat_id, szene_id, karte_json,
-                                 szenenkarte.AUSLOESER_AENDERUNG, _NOTIZ)
+        figur_ids = erkenner._figuren_aus_namen(conn, chat_id, neue_karte.get("wer") or "")
+        repo.aktualisiere_karte_und_werkbank(
+            conn, chat_id, szene_id, karte_json, neue_karte.get("ort"), figur_ids,
+            szenenkarte.AUSLOESER_AENDERUNG, _NOTIZ,
+        )
     except Exception:
         log.exception("P7-Meta-Nachzug fehlgeschlagen, chat_id=%s, szene_id=%s",
                       chat_id, szene_id)

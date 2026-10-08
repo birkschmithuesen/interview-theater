@@ -1,5 +1,6 @@
 """Phase 7: Ort/Figuren aus dem neu geschriebenen Stage Script auf die
-Szenenkarte nachziehen (Padua, Birk 08.10.2026 ~12:50, Profilschalter
+Szenenkarte UND die Werkbank (``szene.ort``/``szene_figur``) nachziehen
+(Padua, Birk 08.10.2026 ~12:50 + Nachtrag ~13:00, Profilschalter
 ``[karten] p7_meta_nachziehen``). Deterministischer Vergleich -- der
 Modellaufruf selbst ist ein Testdouble."""
 
@@ -7,7 +8,7 @@ import json
 
 import pytest
 
-from interview_theater import karten_nachzug, repo, szenenkarte
+from interview_theater import karten_nachzug, repo, szenenkarte, web
 
 
 class LLM:
@@ -42,6 +43,68 @@ def test_neuer_ort_aktualisiert_karte_und_haengt_verlauf_an(conn, einst):
     verlauf = repo.karte_verlauf(conn, 1, sid)
     assert verlauf[-1]["ausloeser"] == szenenkarte.AUSLOESER_AENDERUNG
     assert json.loads(verlauf[-1]["karte_json"])["ort"] == "Piazza"
+
+
+def test_neuer_ort_zieht_auch_die_werkbank_nach(conn, einst):
+    """Live-Befund G1 S1 (Nachtrag Birk 08.10.2026 ~13:00): die Werkbank
+    (web._szene_html) liest ``szene.ort``, nicht die Karte -- ohne Nachzug
+    blieb sie bei der alten Planung stehen, waehrend die Karte schon den
+    neuen Ort trug."""
+    sid = _karte(conn)
+    repo.setze_szenenfeld(conn, sid, "ort", "Bar")
+    klm = LLM({"ort": "Piazza", "wer": "Anna", "modus": "none"})
+
+    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
+
+    assert repo.hole_szene(conn, sid)["ort"] == "Piazza"
+
+
+def test_neue_figur_zieht_nur_vorhandene_in_die_werkbank(conn, einst):
+    """Eine neue Figur ("an audience member") bekommt KEINE eigene
+    ``figur``-Zeile -- nur das Kartenfeld ``wer``; die Werkbank-Besetzung
+    uebernimmt nur Namen, die schon eine Figur haben."""
+    repo.setze_figur(conn, 1, "Anna", "")
+    vorher = len(repo.figuren(conn, 1))
+    sid = _karte(conn)
+    klm = LLM({"ort": "Bar", "wer": "Anna, an audience member", "modus": "none"})
+
+    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
+
+    assert len(repo.figuren(conn, 1)) == vorher
+    namen = {f["name"] for f in repo.szene_figuren(conn, sid)}
+    assert namen == {"Anna"}
+
+
+def test_werkbank_html_zeigt_den_neuen_ort(conn, einst):
+    """Die Werkbank (``web._szene_html``, read-only wie in Padua) liest
+    ``szene.ort`` -- nach dem Nachzug steht dort der neue Ort, nicht mehr
+    die alte Planung."""
+    sid = _karte(conn)
+    repo.setze_szenenfeld(conn, sid, "ort", "Bar")
+    klm = LLM({"ort": "Piazza", "wer": "Anna", "modus": "none"})
+
+    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
+
+    szene = repo.hole_szene(conn, sid)
+    s = {"nummer": szene["nummer"], "id": szene["id"], "ort": szene["ort"],
+         "figuren": [f["name"] for f in repo.szene_figuren(conn, sid)]}
+    html = web._szene_html(s)
+    assert "Piazza" in html
+    assert "Bar" not in html
+
+
+def test_ohne_aenderung_bleibt_die_werkbank_unberuehrt(conn, einst):
+    repo.setze_figur(conn, 1, "Anna", "")
+    [anna] = repo.figuren(conn, 1)
+    sid = _karte(conn)
+    repo.setze_szenenfeld(conn, sid, "ort", "Bar")
+    repo.setze_szene_figuren(conn, 1, sid, [anna["id"]])
+    klm = LLM({"ort": "Bar", "wer": "Anna", "modus": "none"})
+
+    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
+
+    assert repo.hole_szene(conn, sid)["ort"] == "Bar"
+    assert [f["name"] for f in repo.szene_figuren(conn, sid)] == ["Anna"]
 
 
 def test_neuer_ort_laesst_abnahme_stehen(conn, einst):

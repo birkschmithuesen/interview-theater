@@ -66,6 +66,38 @@ def test_interview_schaltet_modus_an_und_legt_ein_interview_an(conn, einst, tg):
     assert repo.zaehle_interviews(conn, 1) == 1
 
 
+@pytest.mark.parametrize("phase", [6, 7])
+def test_interview_in_ueberarbeitung_phase_6_7_wird_abgefangen(conn, einst, tg, monkeypatch, phase):
+    """Karte t_a20f16b5, Live-Fall G1 08.10.2026 10:41: ein getippter
+    ``/interview`` schaltete mitten im Padua-Script-Review (Phase 6/7,
+    ``workshop.ueberarbeitung_aktiv``) den Interviewmodus ein, ohne dass die
+    Gruppe das wollte. ``/interview`` ist der EINZIGE Weg zu
+    ``befehle._befehl_interview`` (kein Knopf fuehrt dorthin) -- in diesen
+    beiden Phasen bleibt der Interviewmodus deshalb aus."""
+    monkeypatch.setattr(workshop, "ueberarbeitung_aktiv", lambda profil=None: True)
+    phasen.setze(conn, 1, phase, "befehl")
+    tg.gesendet.clear()
+
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/interview", "Ada")
+
+    assert behandelt is True
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
+    assert repo.zaehle_interviews(conn, 1) == 0
+    assert tg.gesendet, "ein abgefangener Befehl bleibt nicht stumm"
+
+
+def test_interview_ausserhalb_ueberarbeitung_bleibt_phasenunabhaengig(conn, einst, tg, monkeypatch):
+    """Gegenprobe: ohne den Schalter (Dortmund, oder Padua ausserhalb 6/7)
+    bleibt ``/interview`` wie vorher jederzeit moeglich."""
+    monkeypatch.setattr(workshop, "ueberarbeitung_aktiv", lambda profil=None: True)
+    phasen.setze(conn, 1, 5, "befehl")
+
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/interview", "Ada")
+
+    assert behandelt is True
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
+
+
 def test_fertig_schaltet_modus_aus_und_bestaetigt(conn, einst, tg):
     repo.setze_interviewmodus(conn, 1, repo._jetzt())
 

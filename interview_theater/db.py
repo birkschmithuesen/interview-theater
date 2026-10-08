@@ -740,6 +740,13 @@ CREATE TABLE IF NOT EXISTS szene (
   -- ``szenenfolge._regienotiz_erwartet``: ein Neustart mitten in der
   -- Klaerung darf die Frage nicht verschlucken. Additiv nachgeruestet.
   karte_klaerung    TEXT,
+  -- Der "No, change"-Dialog einer Karte (Birk 08.10.2026 ~09:35, Nachtrag):
+  -- gesetzt (Zeitstempel) = die Gruppe bespricht gerade eine Aenderung mit
+  -- dem Gespraechsbot, die Karte steht dafuer im Kontext
+  -- (``szenenkarte.dialog_kontextblock``), KEIN automatischer Neubau.
+  -- Geleert durch "Update the card" (nach dem Neubau) oder "Keep the card".
+  -- Additiv nachgeruestet.
+  karte_dialog_am   TEXT,
   -- Die italienische Spiegelung des Stage Scripts (``volltext``) unter
   -- ``[karten] aktiv`` + ``[skript] zweisprachig`` (stagescript.py). Additiv.
   volltext_it       TEXT,

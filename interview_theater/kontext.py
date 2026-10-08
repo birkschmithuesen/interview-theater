@@ -251,7 +251,7 @@ _REIHENFOLGE = (
     "diskussion", "begriffe_detail", "board", "mitgehoert", "formen",
     "stagescript_stand",
     "phasenhinweis",
-    "figurenhinweis", "recherche", "szene",
+    "figurenhinweis", "recherche", "szene", "karte_dialog",
     "journal", "fenster", "ausloeser", "erstkontakt",
 )
 
@@ -1402,6 +1402,21 @@ def _baue_szene(conn, chat_id: int, grenze: int | None = None) -> str:
     return T._TEXT_AKTUELLE_SZENE.format(szene=szenenzeile(szene), volltext=volltext)
 
 
+def _baue_karte_dialog(conn, chat_id: int) -> str:
+    """Der "No, change"-Dialog einer Szenenkarte (Birk 08.10.2026 ~09:35,
+    Nachtrag, nur Padua ``[karten]``): solange eine Karte im Dialog ist,
+    bekommt JEDER Gespraechszug sie samt Anweisung
+    (``szenenkarte.dialog_kontextblock``) -- datengetrieben wie jeder
+    andere Block: leer, solange keine Karte im Dialog ist."""
+    from interview_theater import szenenkarte
+
+    try:
+        return szenenkarte.dialog_kontextblock(conn, chat_id)
+    except Exception:
+        log.exception("Karten-Dialog-Block nicht gebaut, chat_id=%s", chat_id)
+        return ""
+
+
 #: Wie viele Journaleintraege in den Prompt gehen -- die letzten N nach
 #: Dedupe (Audit-Befund G3, 06.09.2026). Das Journal ist nur-anhaengend und
 #: waechst ueber zwei Workshoptage auf Dutzende Zeilen; gemessen standen am
@@ -2111,6 +2126,7 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         # RECHERCHE_KOPF fuer die Abgrenzung vom Interviewmaterial.
         "recherche": _baue_recherche(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
+        "karte_dialog": _baue_karte_dialog(conn, chat_id),
         "journal": _baue_journal(conn, chat_id),
         "fenster": "\n".join(fenster_eintraege),
         "ausloeser": _baue_ausloeser(ausloeser, namen),

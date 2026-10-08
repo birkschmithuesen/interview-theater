@@ -1551,6 +1551,22 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
             _merke_notiz_verbraucht(chat_id, letzte_nachricht)
             return True
 
+        # Der "No, change"-Dialog (Birk 08.10.2026 ~09:35, Nachtrag, Punkt
+        # 4): spricht die Gruppe MITTEN IM DIALOG erkennbar von den
+        # Fragen selbst, bietet der Bot den Klaerweg an statt selbst zu
+        # antworten -- kein Modellaufruf, derselbe Gedanke wie oben.
+        dialog_nummer = szenenkarte.dialog_aktive_nummer(conn, chat_id)
+        if dialog_nummer is not None and szenenkarte.notiz_betrifft_fragen(text):
+            szene_dialog = szenenkarte._szene_mit_nummer(conn, chat_id, dialog_nummer)
+            karte_dialog = szenenkarte.karte_von(szene_dialog) if szene_dialog else None
+            if karte_dialog is not None and karte_dialog.get("fragen"):
+                szenenkarte.biete_klaerweg_im_dialog(conn, tg, e, chat_id, dialog_nummer)
+                log.info(
+                    "Gespraechszug unterdrueckt, Klaerweg im Dialog angeboten, "
+                    "chat_id=%s", chat_id)
+                _merke_notiz_verbraucht(chat_id, letzte_nachricht)
+                return True
+
     # Ein laufender Szenenauftrag ist eine vollstaendige Antwort
     # (05.09.2026, Testgruppe 22:05): waehrend der Szenenlauf seine
     # Systemzeilen schickt ("Start frei", "Ich schreibe die Szene aus",

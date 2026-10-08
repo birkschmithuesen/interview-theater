@@ -196,10 +196,8 @@ def _kappe(text, grenze: int = ZEICHEN) -> str:
 
 
 #: ``ausloeser`` von ``karte_verlauf`` (Birk 08.10.2026 ~10:35) -- "dialog"
-#: ist die Andockstelle fuer den No-change-Dialog im CoThinker (noch nicht
-#: gebaut): wer ihn baut, braucht nur ``notiz`` an ``aendere``/``starte`` zu
-#: geben und kann optional ``ausloeser=AUSLOESER_DIALOG`` statt des
-#: generischen ``AUSLOESER_AENDERUNG`` durchreichen.
+#: ist der Neubau nach dem "No, change"-Dialog (Nachtrag ~09:35,
+#: ``aktualisiere_mit_dialog`` -> ``starte(..., ausloeser=AUSLOESER_DIALOG)``).
 AUSLOESER_ERSTENTWURF = "erstentwurf"
 AUSLOESER_AENDERUNG = "aenderung"
 AUSLOESER_FRAGEN_GEKLAERT = "fragen_geklaert"
@@ -320,17 +318,168 @@ def im_cothinker(conn, chat_id: int) -> bool:
 
 
 def frage_nach_aenderung(conn, tg, e, chat_id: int, nummer: int) -> None:
-    """"No, change" auf der Karte im CoThinker: die naechste Nachricht im
-    Chat ist das Feedback (``szenenfolge.erwarte_regienotiz`` -- derselbe
-    Weg wie "No, change" unter einem Text, ``ablauf`` gibt sie an
-    ``ueberarbeitung.ueberarbeite`` -> ``aendere``)."""
-    from interview_theater import szenenfolge
+    """"No, change" auf der Karte im CoThinker -- startet den Dialog
+    (``starte_dialog``, Nachtrag Birk 08.10.2026 ~09:35: KEIN
+    Wartezustand mehr, der die naechste Nachricht abfaengt)."""
+    starte_dialog(conn, tg, e, chat_id, nummer)
 
+
+# ---------------------------------------------------------------------------
+# Der "No, change"-Dialog (Birk 08.10.2026 ~09:35, Nachtrag, Vorrang)
+# ---------------------------------------------------------------------------
+#
+# Ersetzt den alten Weg "No, change" -> erwarte_regienotiz -> naechste
+# Nachricht ist automatisch die Aenderungsnotiz -> aendere() baut sofort neu
+# (kein Dialog, keine Rueckfrage -- Birk: "wirklich komisch"). Jetzt: "No,
+# change" markiert die Karte als im Dialog (``karte_dialog_am``, DB); der
+# Chat bleibt ab da ein GEWOEHNLICHES Gespraech mit dem Gespraechsbot, der
+# die Karte im Kontext sieht (``dialog_kontextblock``, eingehaengt in
+# ``kontext._bloecke``) und angewiesen ist zu diskutieren statt selbst neu
+# zu bauen. Erkennt das Gespraechsmodell eine klare Aenderung, fasst es sie
+# in einem VORSCHLAG-KARTE-AENDERUNG-Block zusammen (``vorschlag.py`` --
+# derselbe Marker-Mechanismus wie ueberall sonst im Projekt, kein zweiter
+# Modellaufruf); ``knoepfe.basis.sende_mit_speicherleiste`` haengt dafuer
+# "Update the card" / "Keep the card" an -- IMMER an die neueste
+# Zusammenfassung, eine aeltere Leiste verfaellt (``_nimm_alte_leiste_ab``,
+# dieselbe Regel wie ueberall).
+
+
+def dialog_aktive_nummer(conn, chat_id: int) -> int | None:
+    """Die Szenennummer, deren Karte gerade im "No, change"-Dialog ist --
+    oder ``None``. DB-gestuetzt (``szene.karte_dialog_am``), ueberlebt also
+    einen Neustart."""
+    for s in _szenen(conn, chat_id):
+        if _gesetzt(s["karte_dialog_am"]):
+            return s["nummer"]
+    return None
+
+
+def starte_dialog(conn, tg, e, chat_id: int, nummer: int) -> str:
+    """"No, change" auf einer Karte: markiert sie als im Dialog, EIN Satz im
+    Chat, danach laeuft das Gespraech normal weiter (``ablauf.antworte``)."""
     if nummer != aktuelle_nummer(conn, chat_id):
         _sende(conn, tg, e, chat_id, T_IT._TEXT_NICHT_DRAN)
-        return
-    szenenfolge.erwarte_regienotiz(chat_id, nummer)
-    _sende(conn, tg, e, chat_id, T_IT._TEXT_FEEDBACK_FRAGE.format(nummer=nummer))
+        return T_IT._TEXT_NICHT_DRAN
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    if szene is None:
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_NICHT_DRAN)
+        return T_IT._TEXT_NICHT_DRAN
+    repo.setze_szenenkarte_dialog(conn, szene["id"], repo._jetzt())
+    _sende(conn, tg, e, chat_id, T_IT._TEXT_DIALOG_START.format(nummer=nummer))
+    return T_IT._ANTWORT_DIALOG_GESTARTET
+
+
+def dialog_kontextblock(conn, chat_id: int) -> str:
+    """Block fuer ``kontext._bloecke``: solange eine Karte im Dialog ist,
+    bekommt JEDER Gespraechszug sie samt Anweisung, zu diskutieren statt
+    selbst neu zu bauen -- die Markerzeile ist Technik, die Gruppe sieht
+    sie nie (``vorschlag.ohne_marker``)."""
+    nummer = dialog_aktive_nummer(conn, chat_id)
+    if nummer is None:
+        return ""
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    karte = karte_von(szene) if szene is not None else None
+    if karte is None:
+        return ""
+    return T._KOPF_DIALOG.format(nummer=nummer, karte=karte_text(karte, szene))
+
+
+def biete_update_knopf(conn, tg, e, chat_id: int, text: str, aenderung: str) -> int:
+    """Haengt "Update the card" / "Keep the card" an eine Gespraechsantwort,
+    die ``VORSCHLAG KARTE AENDERUNG:`` trug (``sende_mit_speicherleiste``).
+    Ohne aktiven Dialog (veralteter Block, Dialog schon beendet) geht der
+    Text ohne Knoepfe raus -- kein Raten."""
+    from interview_theater import vorschlag
+    from interview_theater.knoepfe import basis, szenen as ks
+
+    sauber = vorschlag.ohne_marker(text) or text
+    nummer = dialog_aktive_nummer(conn, chat_id)
+    if nummer is None:
+        return tg.sende(chat_id, sauber)
+    basis._nimm_alte_leiste_ab(conn, tg, chat_id, ks.ART_KARTE_UPDATE)
+    leiste = [
+        ks._knopf(conn, chat_id, T._TEXT_UPDATE_KNOPF, ks.ART_KARTE_UPDATE,
+                 f"{nummer}{ks.TRENNER}{aenderung}"),
+        ks._knopf(conn, chat_id, T._TEXT_KEEP_KNOPF, ks.ART_KARTE_KEEP, str(nummer)),
+    ]
+    message_id = basis._mit_leiste(conn, tg, chat_id, sauber, leiste)
+    repo.merke_bot_zeile(conn, chat_id, message_id, e, sauber)
+    return message_id
+
+
+def _bewahre_fragen(conn, chat_id: int, nummer: int, alte_fragen: list[str]):
+    """Nachbereitung fuer ``starte``: Fragen der alten Karte, die im Neubau
+    nicht wieder auftauchen, zurueckholen -- eine Aenderung (egal ob aus
+    dem alten Einzel-Notiz-Weg oder dem Dialog) kann eine Frage nur dann
+    beantwortet haben, wenn sie wirklich darueber ging (Punkt 3)."""
+    if not alte_fragen:
+        return None
+
+    def _nach(neue_karte: dict) -> None:
+        vorhandene = list(neue_karte.get("fragen") or [])
+        fehlende = [f for f in alte_fragen if f not in vorhandene]
+        if not fehlende:
+            return
+        ziel = _szene_mit_nummer(conn, chat_id, nummer)
+        if ziel is None:
+            return
+        aktualisiert = dict(neue_karte)
+        aktualisiert["fragen"] = (vorhandene + fehlende)[:FRAGEN_MAX]
+        repo.setze_szenenkarte(conn, ziel["id"], json.dumps(
+            aktualisiert, ensure_ascii=False))
+
+    return _nach
+
+
+def aktualisiere_mit_dialog(conn, tg, klm, e, chat_id: int, nummer: int,
+                            aenderung: str) -> str:
+    """"Update the card": Neubau mit der im Dialog zusammengefassten
+    Aenderung als Notiz. Beendet den Dialog; offene Fragen der alten Karte
+    bleiben, ausser das Gespraech hat sie beantwortet (``_bewahre_fragen``,
+    dieselbe Zusage wie beim alten Einzel-Notiz-Weg, Punkt 3)."""
+    if nummer != aktuelle_nummer(conn, chat_id):
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_NICHT_DRAN)
+        return T_IT._TEXT_NICHT_DRAN
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    if szene is None:
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_NICHT_DRAN)
+        return T_IT._TEXT_NICHT_DRAN
+    repo.setze_szenenkarte_dialog(conn, szene["id"], None)
+    alte_karte = karte_von(szene)
+    alte_fragen = (alte_karte or {}).get("fragen") or []
+    starte(conn, tg, klm, e, chat_id, nummer, aenderung.strip(),
+          nachbereitung=_bewahre_fragen(conn, chat_id, nummer, alte_fragen),
+          ausloeser=AUSLOESER_DIALOG)
+    return T_IT._ANTWORT_KARTE_WIRD_AKTUALISIERT.format(nummer=nummer)
+
+
+def behalte_karte(conn, tg, e, chat_id: int, nummer: int) -> str:
+    """"Keep the card": Dialog beenden, dieselbe Karte wieder zur
+    Bestaetigung zeigen -- kein Neubau."""
+    if nummer != aktuelle_nummer(conn, chat_id):
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_NICHT_DRAN)
+        return T_IT._TEXT_NICHT_DRAN
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    if szene is None:
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_NICHT_DRAN)
+        return T_IT._TEXT_NICHT_DRAN
+    repo.setze_szenenkarte_dialog(conn, szene["id"], None)
+    zeige(conn, tg, e, chat_id, nummer)
+    return T_IT._ANTWORT_KARTE_BEHALTEN.format(nummer=nummer)
+
+
+def biete_klaerweg_im_dialog(conn, tg, e, chat_id: int, nummer: int) -> None:
+    """Spricht die Gruppe im Dialog von den FRAGEN selbst (Punkt 4,
+    ``notiz_betrifft_fragen``), bietet der Bot den Klaerweg an statt selbst
+    zu antworten -- kein Modellaufruf. Der Dialog bleibt stehen (eine
+    Gruppe, die stattdessen doch weiterdiskutieren will, kann das)."""
+    from interview_theater.knoepfe import basis, szenen as ks
+
+    text = T_IT._TEXT_KLAERWEG_ANGEBOT.format(nummer=nummer)
+    leiste = [ks._knopf(conn, chat_id, T._TEXT_KLAEREN_KNOPF,
+                        ks.ART_KARTE_FRAGEN_KLAEREN, str(nummer))]
+    message_id = basis._mit_leiste(conn, tg, chat_id, text, leiste)
+    repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
 
 
 def zeige(conn, tg, e, chat_id: int, nummer: int, *, im_chat: bool = False) -> int | None:
@@ -538,21 +687,8 @@ def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = Non
     if alte_fragen and notiz_betrifft_fragen(notiz):
         starte_fragenklaerung(conn, tg, e, chat_id, n)
         return None
-    nachbereitung = None
-    if alte_fragen:
-        def nachbereitung(neue_karte: dict) -> None:
-            vorhandene = list(neue_karte.get("fragen") or [])
-            fehlende = [f for f in alte_fragen if f not in vorhandene]
-            if not fehlende:
-                return
-            ziel = _szene_mit_nummer(conn, chat_id, n)
-            if ziel is None:
-                return
-            aktualisiert = dict(neue_karte)
-            aktualisiert["fragen"] = (vorhandene + fehlende)[:FRAGEN_MAX]
-            repo.setze_szenenkarte(conn, ziel["id"], json.dumps(
-                aktualisiert, ensure_ascii=False))
-    return starte(conn, tg, klm, e, chat_id, n, notiz, nachbereitung=nachbereitung)
+    return starte(conn, tg, klm, e, chat_id, n, notiz,
+                 nachbereitung=_bewahre_fragen(conn, chat_id, n, alte_fragen))
 
 
 # ---------------------------------------------------------------------------
@@ -635,6 +771,9 @@ def starte_fragenklaerung(conn, tg, e, chat_id: int, nummer: int, *, runde: int 
     if not fragen:
         zeige(conn, tg, e, chat_id, nummer)
         return T_IT._ANTWORT_GESPEICHERT.format(nummer=nummer)
+    # Der "No, change"-Dialog (Nachtrag Punkt 4) ist damit erledigt --
+    # Klaeren und Diskutieren schliessen sich fuer dieselbe Karte aus.
+    repo.setze_szenenkarte_dialog(conn, szene["id"], None)
     klaerung = {"index": 0, "antworten": [], "runde": runde}
     repo.setze_szenenkarte_klaerung(conn, szene["id"], json.dumps(klaerung))
     _sende(conn, tg, e, chat_id, T_IT._TEXT_FRAGE_N_VON_M.format(
@@ -948,7 +1087,6 @@ _TEXT_GESAMT_KOPF = "Blick aufs Ganze:"
 _TEXT_GESAMT_OHNE = "- Nichts Auffaelliges."
 _ANTWORT_GESPEICHERT = "Karte {nummer} gespeichert"
 _TEXT_IM_COTHINKER = "Karte {nummer} von {gesamt} steht im CoThinker-Tab."
-_TEXT_FEEDBACK_FRAGE = "Was soll an Karte {nummer} anders werden?"
 _TEXT_KARTE_JA_KNOPF = "Yes, save card"
 _TEXT_KARTE_NOCHMAL_KNOPF = "No, change again"
 _JOURNAL_GESPEICHERT = "Szenenkarte {nummer} gespeichert: {titel}"
@@ -972,6 +1110,28 @@ _KOPF_KLAERUNG = "Antworten der Gruppe auf die bisher offenen Fragen (gilt vor a
 _ZEILE_KLAERUNG_BEANTWORTET = "- {frage} -> {antwort}"
 _ZEILE_KLAERUNG_OFFEN = "- {frage} -> (die Gruppe laesst das bewusst offen)"
 _PUNKT_OFFEN = "[OPEN] {frage}"
+
+#: Der "No, change"-Dialog (Birk 08.10.2026 ~09:35, Nachtrag).
+_TEXT_DIALOG_START = "Lasst uns ueber Karte {nummer} reden. Was wuerdet ihr aendern?"
+_ANTWORT_DIALOG_GESTARTET = "Dialog gestartet"
+#: Prompt-Scaffolding (geht nur ans Modell, bleibt auf ``T`` -- Morgen-
+#: Auftrag 4): die Karte samt Anweisung, zu diskutieren statt neu zu bauen.
+_KOPF_DIALOG = (
+    "Die Gruppe bespricht gerade Aenderungen an dieser Karte:\n{karte}\n\n"
+    "Diskutiere, mache Vorschlaege, frage nach -- baue die Karte NICHT "
+    "selbst neu. Zeichnet sich eine klare Aenderung ab, fasse sie am Ende "
+    "deiner Antwort so zusammen:\n\nVORSCHLAG KARTE AENDERUNG:\n"
+    "<die Aenderung in 1-3 Saetzen>"
+)
+#: Knopf-Beschriftungen bleiben IMMER auf ``T`` (Englisch), wie "Yes, save"
+#: und "Clear the questions".
+_TEXT_UPDATE_KNOPF = "Update the card"
+_TEXT_KEEP_KNOPF = "Keep the card"
+_ANTWORT_KARTE_WIRD_AKTUALISIERT = "Karte {nummer} wird aktualisiert"
+_ANTWORT_KARTE_BEHALTEN = "Karte {nummer} bleibt, wie sie ist"
+_TEXT_KLAERWEG_ANGEBOT = (
+    "Soll ich die offenen Fragen von Karte {nummer} klaeren?"
+)
 
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)

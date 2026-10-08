@@ -121,17 +121,36 @@ def test_befehle_und_ablauf_im_cothinker(conn, einst, padua, monkeypatch):
     assert tg.texte[-1] == "La scheda 1 di 2 è pronta nella scheda CoThinker."
     assert not tg.leisten
 
-    # "No, change" im CoThinker -> Feedbackfrage, naechste Nachricht = Notiz.
+    # "No, change" im CoThinker (Birk 08.10.2026 ~09:35, Nachtrag): startet
+    # den Dialog, KEIN Wartezustand mehr, der die naechste Nachricht abfaengt.
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_aendern", "1")
-    assert tg.texte[-1].startswith("Cosa deve cambiare nella scheda 1?")
-    assert "UN solo messaggio" in tg.texte[-1]  # Birk 08.10.: Ablauf erklaeren (eine Nachricht -> sofortiger Neubau)
-    assert szenenfolge.nimm_regienotiz(1) == 1
+    assert tg.texte[-1] == "Parliamo della scheda 1. Cosa cambiereste?"
+    assert szenenfolge.nimm_regienotiz(1) is None
+    assert szenenkarte.dialog_aktive_nummer(conn, 1) == 1
 
-    # Die geaenderte Karte kommt im Chat zur Bestaetigung, nicht still.
-    ueberarbeitung.ueberarbeite(conn, tg, klm, einst, 1, "Emma sings first", nummer=1).join(5)
+    # Das Gespraechsmodell fasst eine Aenderung zusammen (VORSCHLAG KARTE
+    # AENDERUNG:, derselbe Marker-Mechanismus wie ueberall sonst) --
+    # "Update the card" / "Keep the card" kommen automatisch dazu.
+    from interview_theater import knoepfe
+
+    _message_id, hat_leiste = knoepfe.sende_mit_speicherleiste(
+        conn, tg, 1,
+        "Sure, let's open with Emma.\n\nVORSCHLAG KARTE AENDERUNG:\n"
+        "Emma sings first.",
+        klm=klm, e=einst,
+    )
+    assert hat_leiste is True
+    assert [b for b, _ in tg.leisten[-1]] == ["Update the card", "Keep the card"]
+
+    # "Update the card" -> Neubau; die geaenderte Karte kommt im Chat zur
+    # Bestaetigung, nicht still.
+    szenenkarte.aktualisiere_mit_dialog(conn, tg, klm, einst, 1, 1, "Emma sings first.")
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
     assert "Scheda scena 1" in tg.texte[-1]
     assert [b for b, _ in tg.leisten[-1]] == ["Yes, save card", "No, change again"]
     assert not repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
+    assert szenenkarte.dialog_aktive_nummer(conn, 1) is None
 
     # "Yes" (Befehl aus dem CoThinker) speichert und baut die naechste Karte.
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "1")

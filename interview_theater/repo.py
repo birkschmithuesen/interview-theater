@@ -3147,6 +3147,19 @@ def setze_szenenkarte_klaerung(
 
 
 @_gesperrt
+def setze_szenenkarte_dialog(
+    conn: sqlite3.Connection, szene_id: int, wert: str | None
+) -> None:
+    """Setzt (Zeitstempel) oder loescht (``None``) den "No, change"-Dialog
+    einer Karte (``szenenkarte.py``, Birk 08.10.2026 ~09:35 Nachtrag)."""
+    conn.execute(
+        "UPDATE szene SET karte_dialog_am = ? WHERE id = ?",
+        (wert, szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def setze_stagescript(conn: sqlite3.Connection, szene_id: int, text: str,
                       text_it: str | None) -> None:
     """Das Stage Script einer Szene (Padua Phase 7, ``stagescript.py``) nach

@@ -36,6 +36,7 @@ from interview_theater.knoepfe.texte import (
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
     ART_FRAGE_WAHL,
     ART_KARTE_FRAGEN_KLAEREN, ART_KARTE_FRAGEN_UEBERSPRINGEN,
+    ART_KARTE_UPDATE, ART_KARTE_KEEP,
     ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_HILFE, ART_INTERVIEWS_FERTIG, ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT,
@@ -417,7 +418,16 @@ def _wirkung_entwurf_szene_passt(conn, d: Druck, nummer: int) -> str:
 def _wirkung_szene_anders(conn, d: Druck) -> str:
     """Der Regie-Vermerk kommt als naechste Nachricht; ``ablauf.antworte``
     greift ihn auf (``szenenfolge.nimm_regienotiz``) und schreibt die Szene
-    damit neu. Kein Modellaufruf hier."""
+    damit neu. Kein Modellaufruf hier.
+
+    Szenenkarte in Phase 6 (Birk 08.10.2026 ~09:35, Nachtrag): KEIN
+    Wartezustand mehr -- statt dessen startet "No, change" den Dialog
+    (``szenenkarte.starte_dialog``), der Chat bleibt ein gewoehnliches
+    Gespraech."""
+    if workshop.szenenkarten_aktiv() and phasen.aktuelle(conn, d.chat_id) == PHASE_SZENEN:
+        from interview_theater import szenenkarte
+
+        return szenenkarte.starte_dialog(conn, d.tg, d.e, d.chat_id, int(d.wert))
     from interview_theater import szenenfolge
 
     nummer = int(d.wert)
@@ -443,6 +453,24 @@ def _wirkung_karte_fragen_ueberspringen(conn, d: Druck) -> str:
     from interview_theater import szenenkarte
 
     return szenenkarte.ueberspringe_fragen(conn, d.tg, d.e, d.chat_id, int(d.wert))
+
+
+def _wirkung_karte_update(conn, d: Druck) -> str:
+    """"Update the card" unter einer im Dialog zusammengefassten Aenderung
+    (Birk 08.10.2026 ~09:35, Nachtrag): Neubau im Thread, kein
+    Modellaufruf hier -- der Rumpf steht in ``szenenkarte.py``."""
+    from interview_theater import szenenkarte
+
+    nummer_s, _, aenderung = d.wert.partition(TRENNER)
+    return szenenkarte.aktualisiere_mit_dialog(
+        conn, d.tg, d.klm, d.e, d.chat_id, int(nummer_s), aenderung)
+
+
+def _wirkung_karte_keep(conn, d: Druck) -> str:
+    """"Keep the card": Dialog beenden, dieselbe Karte wieder zeigen."""
+    from interview_theater import szenenkarte
+
+    return szenenkarte.behalte_karte(conn, d.tg, d.e, d.chat_id, int(d.wert))
 
 
 def _wirkung_uebersicht_passt(conn, d: Druck) -> str:
@@ -1864,6 +1892,8 @@ _WIRKUNGEN = {
     ART_SZENE_ANDERS: _wirkung_szene_anders,
     ART_KARTE_FRAGEN_KLAEREN: _wirkung_karte_fragen_klaeren,
     ART_KARTE_FRAGEN_UEBERSPRINGEN: _wirkung_karte_fragen_ueberspringen,
+    ART_KARTE_UPDATE: _wirkung_karte_update,
+    ART_KARTE_KEEP: _wirkung_karte_keep,
     ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,
     ART_UEBERSICHT_PASST: _wirkung_uebersicht_passt,
     ART_SPRECHWEISEN_PASST: _wirkung_sprechweisen_passt,

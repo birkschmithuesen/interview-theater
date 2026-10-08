@@ -200,6 +200,10 @@ GEAENDERT: dict[str, str] = {
         " Karte t_4517d4ad (04.10.2026): \"begriffe_detail\" steht direkt "
         "hinter \"diskussion\" -- fuer Dortmund ebenfalls leer (keine Spalte "
         "begriffe_detail ohne Begriffsboard) und ersatzlos weg."
+        " Birk 08.10.2026 ~09:35 (Nachtrag, \"No, change\"-Dialog): "
+        "\"karte_dialog\" steht direkt hinter \"szene\" -- fuer Dortmund "
+        "leer (kein ``[karten] aktiv``, ``szenenkarte.dialog_kontextblock`` "
+        "liefert ohne den Schalter nichts) und ersatzlos weg."
     ),
     # Padua-Brainstorming-Umbau, Phase 4 (02.10.2026, .phase4-brainstorm-brief.md):
     # die neue Erkenner-Art ``szenenanzahl_setzen`` (Anzahl Szenen ist ein

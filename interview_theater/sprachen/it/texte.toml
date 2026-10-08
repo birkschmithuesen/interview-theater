@@ -28,7 +28,6 @@ _ZEILE_PUNKTE = "Cosa succede:"
 _ZEILE_ZITATE = "Citazioni dall'intervista:"
 _ZEILE_FRAGEN = "Domande aperte:"
 _TEXT_NICHT_DRAN = "Questa scheda non è quella attuale -- non ho salvato nulla."
-_TEXT_FEEDBACK_FRAGE = "Cosa deve cambiare nella scheda {nummer}? Scrivilo in UN solo messaggio -- ricostruisco subito la scheda e te la mostro qui."
 _TEXT_IM_COTHINKER = "La scheda {nummer} di {gesamt} è pronta nella scheda CoThinker."
 _TEXT_FRAGE = "Scheda {nummer} di {gesamt}, aggiornata. Va bene adesso? Yes, save -- oppure No, change per cambiarla ancora."
 _TEXT_LAEUFT = "Sto ancora costruendo una scheda -- un momento."
@@ -53,6 +52,13 @@ _ANTWORT_FRAGEN_KLAEREN = "Chiarimento delle domande in corso"
 _ANTWORT_FRAGEN_UEBERSPRUNGEN = "Domande della scheda {nummer} saltate"
 _JOURNAL_FRAGE_BEANTWORTET = "Scheda {nummer}, domanda chiarita: {frage} -> {antwort}"
 _JOURNAL_FRAGE_OFFEN_GELASSEN = "Scheda {nummer}: domanda lasciata volutamente aperta: {frage}"
+# Il dialogo "No, change" (Birk 08.10.2026 ~09:35, Nachtrag): "Update the
+# card" / "Keep the card" restano inglesi (i pulsanti), come sopra.
+_TEXT_DIALOG_START = "Parliamo della scheda {nummer}. Cosa cambiereste?"
+_ANTWORT_DIALOG_GESTARTET = "Dialogo avviato"
+_ANTWORT_KARTE_WIRD_AKTUALISIERT = "La scheda {nummer} viene aggiornata"
+_ANTWORT_KARTE_BEHALTEN = "La scheda {nummer} resta cosi'"
+_TEXT_KLAERWEG_ANGEBOT = "Devo chiarire le domande aperte della scheda {nummer}?"
 
 [szenenkarte.TYP_BESCHRIFTUNG]
 description = "descrizione"

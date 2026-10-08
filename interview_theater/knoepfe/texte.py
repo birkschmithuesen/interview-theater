@@ -279,6 +279,12 @@ ART_SZENE_ANDERS = "szene_anders"
 #: (``starte_fragenklaerung``/``ueberspringe_fragen``), kein Modellaufruf.
 ART_KARTE_FRAGEN_KLAEREN = "karte_fragen_klaeren"
 ART_KARTE_FRAGEN_UEBERSPRINGEN = "karte_fragen_ueberspringen"
+#: "Update the card" / "Keep the card" unter der Zusammenfassung einer
+#: Aenderung im "No, change"-Dialog (Birk 08.10.2026 ~09:35, Nachtrag).
+#: ``wert`` von ART_KARTE_UPDATE ist "<nummer>|<Aenderung>" (TRENNER);
+#: Wirkungen in ``szenenkarte.py``, kein Modellaufruf.
+ART_KARTE_UPDATE = "karte_update"
+ART_KARTE_KEEP = "karte_keep"
 ART_SZENE_NEU = "szene_neu"
 ART_SZENE_NAECHSTE = "szene_naechste"
 #: "So lassen" -- die Antwort auf einen Pruef-Vermerk (eine fruehere Szene

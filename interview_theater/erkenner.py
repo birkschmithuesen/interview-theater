@@ -3130,7 +3130,7 @@ def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
     Ueberarbeitung und keine "laeuft noch"-Zeile ueber den Lauf, den die
     Gruppe gerade selbst angestossen hat. ``besetzt_gemeldet``: die Zeile
     kam in diesem Lauf schon (``_starte_kuerzung``) -- nicht zweimal."""
-    from interview_theater import ueberarbeitung
+    from interview_theater import ueberarbeitung, workshop
 
     if not ueberarbeitung.aktiv():
         return
@@ -3159,7 +3159,17 @@ def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
                                       ueberarbeitung.T._TEXT_LAEUFT_NOCH)
             elif ueberarbeiten is not None:
                 notiz, nummer = _notiz_und_nummer(ueberarbeiten.get("wert"))
-                ueberarbeitung.ueberarbeite(conn, tg, klm, e, chat_id, notiz, nummer)
+                if workshop.szenenkarten_aktiv() and phasen.aktuelle(conn, chat_id) == 6:
+                    # Nachtrag Birk 08.10.2026 ~09:35: Karten-Aenderungen
+                    # laufen nur noch ueber den "No, change"-Dialog ("Update
+                    # the card"), nie automatisch aus dem Erkenner -- sonst
+                    # baute eine freie Rueckmeldung die Karte heimlich neu,
+                    # am Dialog und seinen Knoepfen vorbei.
+                    log.info(
+                        "text_ueberarbeiten fuer Szenenkarte verworfen "
+                        "(Dialog statt Automatik), chat_id=%s", chat_id)
+                else:
+                    ueberarbeitung.ueberarbeite(conn, tg, klm, e, chat_id, notiz, nummer)
             else:
                 ueberarbeitung.nimm_ab(conn, tg, klm, e, chat_id)
     except Exception:

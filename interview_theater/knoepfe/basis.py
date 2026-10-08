@@ -604,6 +604,18 @@ def sende_mit_speicherleiste(
     text, bloecke = _ein_feld_je_nachricht(conn, chat_id, text)
     sauber = vorschlag.ohne_marker(text) or text
 
+    # Der "No, change"-Dialog einer Szenenkarte (Birk 08.10.2026 ~09:35,
+    # Nachtrag): ``VORSCHLAG KARTE AENDERUNG:`` ist keine Leiste wie jede
+    # andere, sondern "Update the card" / "Keep the card" -- der Rumpf
+    # steht in ``szenenkarte.py`` (dialog-spezifisch: ohne aktiven Dialog
+    # geht der Text ohne Knoepfe raus, kein Raten).
+    if "karte_aenderung" in bloecke:
+        from interview_theater import szenenkarte
+
+        return szenenkarte.biete_update_knopf(
+            conn, tg, e, chat_id, text, bloecke["karte_aenderung"],
+        ), True
+
     # Der Fragenvorschlag der Phase 2 (02.10.2026) ist keine Leiste, sondern
     # ein eigener Ueberblick mit Richtungsfrage -- er kommt VOR allem
     # anderen, weil er den Text mitbringt und nichts direkt speichert. Die

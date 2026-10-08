@@ -410,6 +410,7 @@ def _setze_stagescript_fort(conn, tg, klm, e) -> None:
             nummer = stagescript.aktuelle_nummer(conn, chat_id)
             if nummer is None:
                 continue
+            stagescript.spiegle_fehlende(conn, klm, e, chat_id)
             szene = stagescript._szene_mit_nummer(conn, chat_id, nummer)
             if szene is None or (szene["volltext"] or "").strip() or not szene["karte"]:
                 continue

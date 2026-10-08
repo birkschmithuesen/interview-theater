@@ -253,6 +253,37 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
     return True
 
 
+def spiegle_fehlende(conn, klm, e, chat_id: int) -> None:
+    """Birk 08.10.2026 ~12:20: eine IT-Spiegelung, die ein Neustart (Deploy)
+    abgebrochen hat, fehlt sonst fuer immer -- im Script-Tab stand dann im
+    Italienisch-Modus trotzdem Englisch. Beim Start nachholen, im Hintergrund."""
+    from interview_theater import skript_uebersetzung
+
+    if not workshop.skript_zweisprachig_aktiv():
+        return
+    fehlend = [s for s in _szenen(conn, chat_id)
+               if (s["volltext"] or "").strip() and not (s["volltext_it"] or "").strip()]
+    if not fehlend:
+        return
+    ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
+
+    def _lauf() -> None:
+        for s in fehlend:
+            try:
+                text = s["volltext"]
+                gespiegelt = skript_uebersetzung.spiegle_text(
+                    conn, klm, e, chat_id, text, ueber_claude=ueber_claude)
+                if gespiegelt is None:
+                    continue
+                aktuell = repo.hole_szene(conn, s["id"])
+                if aktuell is not None and (aktuell["volltext"] or "").strip() == text.strip():
+                    repo.setze_stagescript_it(conn, s["id"], endfassung(gespiegelt[1]))
+            except Exception:
+                log.exception("IT-Nachspiegelung gescheitert, chat_id=%s", chat_id)
+
+    threading.Thread(target=_lauf, daemon=True).start()
+
+
 def _sende(conn, tg, e, chat_id: int, text: str) -> int:
     message_id = tg.sende(chat_id, text)
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)

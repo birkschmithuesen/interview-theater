@@ -4477,9 +4477,10 @@ def _sprachfassungen(
         return [(None, None, it or en)]
     if it:
         return [(T._TEXT_FASSUNG_EN, "en", en), (T._TEXT_FASSUNG_IT, "it", it)]
-    # Noch keine IT-Fassung (Spiegelung laeuft im Hintergrund): ohne lang-
-    # Attribut, damit der Sprachumschalter die Szene nicht ausblendet.
-    return [(None, None, en)]
+    # Noch keine IT-Fassung (Spiegelung laeuft im Hintergrund): EN mit
+    # lang="en"; im Italienisch-Modus steht stattdessen der Hinweis
+    # "traduzione in arrivo" (Klasse it-fehlt, nur dann sichtbar).
+    return [(None, "en", en)]
 
 
 def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:
@@ -4937,7 +4938,15 @@ def _probe_szene_verdichtet_html(
         # Prosa: Absaetze, **fett**, NAME: fett, Zitatbloecke; EN/IT getrennt.
         lesen = ((lambda t: web_skript.text_html(t, ohne_zitate)) if design else
                  (lambda t: _prosa_absaetze_html(t, ohne_zitate)))
-        for label, lang_attr, fassung in _sprachfassungen(lang, volltext, volltext_it):
+        fassungen = _sprachfassungen(lang, volltext, volltext_it)
+        if lang is None and not volltext_it:
+            fassungen = fassungen + [("__it_fehlt__", "it", "")]
+        for label, lang_attr, fassung in fassungen:
+            if label == "__it_fehlt__":
+                zeilen.append('<div class="text it-fehlt" lang="it"><p><em>'
+                              'Traduzione italiana in arrivo -- tra un minuto ricaricate la pagina.'
+                              '</em></p></div>')
+                continue
             if label:
                 zeilen.append(f'<p class="sprache-kopf">{_t(label)}</p>')
             attr = f' lang="{lang_attr}"' if lang_attr else ""

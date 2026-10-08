@@ -268,3 +268,17 @@ def test_eintritt_phase_6_spricht_von_karten(conn, padua):
     text = phasentexte.eintritt(conn, 1, 6)
     assert "Scene cards (0 of 2)" in text
     assert "read the whole story" not in text
+
+
+def test_baue_nutzertext_ohne_alte_prosa(conn, einst, padua):
+    """Birk/Robo 08.10.2026, Punkt 4: die Prosa-Aera ist vorbei -- ein
+    frueherer Prosatext darf nicht mehr ungeprueft als Material in den
+    Karten-Prompt rutschen."""
+    ids = _lage(conn)
+    conn.execute("UPDATE szene SET prosa = ? WHERE id = ?",
+                ("Es war einmal ein Chor am Meer.", ids[0]))
+    conn.commit()
+    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
+    szene = next(s for s in repo.hole_szenen(conn, 1) if s["nummer"] == 1)
+    text = szenenkarte.baue_nutzertext(conn, 1, szene)
+    assert "Es war einmal ein Chor am Meer." not in text

@@ -597,3 +597,28 @@ def test_erkenner_stagescript_notiz_entfaellt_wenn_notiz_verbraucht(conn, einst,
     stagescript._sperre_fuer(1).release()
     assert any(a["art"] == stagescript.ART for a in klm.aufrufe)
     assert repo.stagescript_notizen(conn, ids[0]) == []  # verbraucht (schreibe lief schon)
+
+
+def test_diff_nachricht_zu_lang_wird_kurzsatz(padua):
+    """Live G3 08.10.2026 14:33: Neuschreiben mit zurueckgekehrten Regiezeilen
+    blieb unter der 70-%-Schwelle, der Diff war fast die ganze Szene."""
+    alt = "\n\n".join(f"VOCE {i % 5 + 1}: Battuta numero {i} della scena, abbastanza lunga da contare." for i in range(30))
+    righe = alt.split("\n\n")
+    neu = "\n\n".join(r if i % 2 else f"Voce {i % 5 + 1} attraversa la sala tra il pubblico.\n{r} Con una aggiunta." for i, r in enumerate(righe))
+    text = stagescript.diff_nachricht(1, 3, 6, alt, neu)
+    assert text is not None and len(text) < 200
+
+
+def test_szenenfassung_waehrend_neuschreiben_wird_verworfen(conn, einst, padua, monkeypatch):
+    """Live G3 08.10.2026 14:32: waehrend "Riscrivo la scena 3" lief, schickte
+    der Gespraechsbot die ganze Szene als zweite Fassung."""
+    from interview_theater import ablauf
+    _p7_mit_s1(conn, monkeypatch)
+    sperre = stagescript._sperre_fuer(1)
+    sperre.acquire()
+    try:
+        assert ablauf._szenenfassung_waehrend_neuschreiben(conn, 1, _CHAT_S1) is True
+        assert ablauf._szenenfassung_waehrend_neuschreiben(conn, 1, "Va bene, ci penso.") is False
+    finally:
+        sperre.release()
+    assert ablauf._szenenfassung_waehrend_neuschreiben(conn, 1, _CHAT_S1) is False

@@ -460,6 +460,10 @@ def _sende_leiste_7(conn, tg, e, chat_id: int, nummer: int, text: str) -> int:
 #: Szene als neu geschrieben statt geaendert -- der Diff waere dann selbst
 #: eine Wall of Text (Birk 08.10.2026 ~14:00).
 DIFF_NEUSCHRIEBEN_SCHWELLE = 0.7
+#: Obergrenze fuer den Diff-Text selbst: mehr als ~1 200 Zeichen oder mehr als
+#: 40 % der neuen Szene ist keine "Aenderung" mehr, sondern eine Wall of Text.
+DIFF_MAX_ZEICHEN = 1200
+DIFF_MAX_ANTEIL = 0.4
 
 
 def _kurz(text: str, laenge: int = 80) -> str:
@@ -540,6 +544,11 @@ def diff_nachricht(chat_id: int, nummer: int, gesamt: int, alt: str | None,
     zeilen, geaendert, neu_anzahl, geloescht = diff
     if not zeilen:
         return None
+    # Live G3 08.10.2026 14:33: ein Neuschreiben mit zurueckgekehrten
+    # Regiezeilen lag unter der 70-%-Schwelle, der "Diff" war trotzdem fast
+    # die ganze Szene. Nach Laenge deckeln, nicht nur nach Aehnlichkeit.
+    if sum(len(z) for z in zeilen) > max(DIFF_MAX_ZEICHEN, DIFF_MAX_ANTEIL * len(neu)):
+        return t._TEXT_DIFF_NEUSCHRIEBEN.format(nummer=nummer)
     zusammenfassung = _notiz_kurz(notiz) or t._TEXT_DIFF_ZUSAMMENFASSUNG_ZAHLEN.format(
         geaendert=geaendert, neu=neu_anzahl, geloescht=geloescht)
     kopf = t._TEXT_DIFF_KOPF.format(nummer=nummer, gesamt=gesamt, zusammenfassung=zusammenfassung)

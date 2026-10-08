@@ -1224,6 +1224,17 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
             versand_erfolgreich = True
             strom.schliesse(tg, chat_id, uebernommen_message_id)
             return
+        if _szenenfassung_waehrend_neuschreiben(conn, chat_id, text):
+            # Live G3 08.10.2026 14:32: der Neuschreiblauf lief schon
+            # ("Riscrivo la scena 3"), der Gespraechsbot schickte trotzdem
+            # die ganze Szene als zweite, konkurrierende Fassung (dazu auf
+            # Englisch). Der Lauf schickt gleich selbst die Aenderung mit
+            # Yes/No -- diese Fassung faellt weg.
+            log.info("Szenenfassung des Gespraechsbots verworfen (Neuschreiben laeuft), chat_id=%s",
+                     chat_id)
+            strom.verwirf(tg, chat_id)
+            versand_erfolgreich = True
+            return
 
         message_id, text = _sende_mit_leiste(conn, tg, chat_id, text, klm=klm, e=e)
         # Ab hier steht die Antwort in der Gruppe: markiert, BEVOR der Strom
@@ -1494,6 +1505,23 @@ def _uebernimm_stagescript_vor_dem_senden(conn, tg, klm, e, chat_id: int, text: 
         return None
     _merke_notiz_verbraucht(chat_id, letzte_nachricht)
     return message_id
+
+
+def _szenenfassung_waehrend_neuschreiben(conn, chat_id: int, text: str) -> bool:
+    """Phase 7 mit ``[karten] p7_aenderung_im_chat``: ist ``text`` eine
+    vollstaendige Szenenfassung, waehrend ein Stage-Script-Lauf fuer diese
+    Gruppe laeuft? Dann ist sie eine zweite Fassung neben der des Laufs."""
+    try:
+        from interview_theater import phasen, stagescript, workshop as _workshop
+
+        if not _workshop.p7_aenderung_im_chat_aktiv():
+            return False
+        if phasen.aktuelle(conn, chat_id) != 7 or not stagescript.laeuft(chat_id):
+            return False
+        return stagescript.chatfassung(conn, chat_id, text) is not None
+    except Exception:
+        log.exception("Pruefung Szenenfassung/Neuschreiben fehlgeschlagen, chat_id=%s", chat_id)
+        return False
 
 
 def nimm_notiz_verbraucht(chat_id: int, message_ids) -> bool:

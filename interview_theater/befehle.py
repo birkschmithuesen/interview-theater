@@ -145,6 +145,12 @@ _TEXT_INTERVIEW_AN_WEB = (
     "Die Aufnahme läuft. Wenn das Interview vorbei ist, tippt auf „{stopp}“."
 )
 _TEXT_INTERVIEW_AUS = "Aufnahme beendet."
+#: Karte t_a20f16b5: Sperre fuer den rohen Befehlstext in den beiden
+#: Ueberarbeitungs-Phasen (``_interview_in_ueberarbeitung_gesperrt``).
+_TEXT_INTERVIEW_GESPERRT_UEBERARBEITUNG = (
+    "Ich kann jetzt kein Interview mehr starten -- wir sind in der "
+    "Ueberarbeitung."
+)
 #: Abnahme P3-4 A3 (06.10.2026): ein verwaistes Interview (Handy weg, Gruppe
 #: wechselt trotzdem die Phase) hielt ``interviewmodus_seit`` sonst fuer
 #: immer gesetzt und sperrte damit #diskussion dauerhaft und
@@ -375,9 +381,30 @@ def _befehl_leitfaden(conn, tg, chat_id: int, e=None) -> None:
     leitfaden.sende(conn, tg, chat_id, e=e)
 
 
+def _interview_in_ueberarbeitung_gesperrt(conn, chat_id: int) -> bool:
+    """``/interview`` ist der EINZIGE Weg zu ``_befehl_interview`` -- kein
+    Knopf fuehrt dorthin (anders als ``/aufnahme``, das auch den Umschalter
+    ``knoepfe.wirkung.ART_AUFNAHME`` bedient und laut
+    ``knoepfe.interviews._aufnahme_anbieten`` ausdruecklich
+    phasenunabhaengig bleibt, "Fokus, kein Kaefig",
+    docs/agents/entscheidungen.md). In den beiden Ueberarbeitungs-Phasen
+    (Padua, ``ueberarbeitung.py``) ist der rohe Befehlstext deshalb eine
+    Falle: Live-Fall G1, 08.10.2026 10:41 -- ein versehentliches
+    ``/interview`` mitten im Script-Review schaltete den Interviewmodus ein,
+    ohne dass die Gruppe das wollte."""
+    from interview_theater import workshop
+
+    if not workshop.ueberarbeitung_aktiv():
+        return False
+    return phasen.aktuelle(conn, chat_id) in (6, 7)
+
+
 def _befehl_interview(conn, tg, chat_id: int) -> None:
     """Modus an -- und damit entsteht EIN Interview (§ 10.6), zu dem alle
     folgenden Sprachnachrichten als Teile gehoeren."""
+    if _interview_in_ueberarbeitung_gesperrt(conn, chat_id):
+        tg.sende(chat_id, T._TEXT_INTERVIEW_GESPERRT_UEBERARBEITUNG)
+        return
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
     aufnahme.stelle_interview_sicher(conn, chat_id)
     aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl")

@@ -1293,19 +1293,3 @@ def erkenner_ueber_claude_aktiv(profil: Profil | None = None) -> bool:
     (``erkenner.erkenne_in_aufnahme``), Phase 3 ebenso."""
     profil = profil or aktiv()
     return bool(profil.wert("erkenner.ueber_claude", False))
-
-
-def p67_italienisch_aktiv(profil: Profil | None = None) -> bool:
-    """Italienisch ab Phase 6/7 fuer DIESEN Bot-Prozess (Kompatibilitaet,
-    Robo 08.10.2026 12:30 -- ein Umbau hatte die Funktion entfernt, erkenner/
-    phasentexte rufen sie noch). Quelle ist jetzt
-    ``sprache.italienisch_ab_phase6_chats``: leer -> aus; ein Prozess bedient
-    genau eine Gruppe, seine chat_id kommt aus ``IT_WEB_CHAT_ID``; fehlt sie
-    (Tests ohne Web-Kanal), zaehlt der Prozess als echte Gruppe."""
-    chats = italienisch_ab_phase6_chats(profil)
-    if not chats:
-        return False
-    roh = (os.environ.get("IT_WEB_CHAT_ID") or "").strip()
-    if not roh:
-        return True
-    return roh.isdigit() and int(roh) in chats

@@ -301,15 +301,15 @@ def test_schema_punkte_beschreibung_nennt_120_zeichen():
 
 
 def test_eintritt_phase_6_spricht_von_karten(conn, padua):
-    """Phase 6 italienisch fuer p67-Chats (Morgen-Auftrag 4, Punkt 1,
-    08.10.2026): die ``padua``-Fixture setzt kein ``IT_WEB_CHAT_ID``, zaehlt
-    also als echte Gruppe -- siehe tests/test_p67_italienisch_eintritt.py
-    fuer den Tester-Chat und Dortmund."""
+    """chat_id 1 steht nicht in ``workshop.italienisch_ab_phase6_chats()``
+    (Nachtrag 2: eine Chat-Liste, kein globaler Schalter) -- die Einleitung
+    bleibt englisch; siehe tests/test_p67_italienisch_eintritt.py fuer den
+    italienischen Fall."""
     from interview_theater import phasentexte
 
     _lage(conn)
     text = phasentexte.eintritt(conn, 1, 6)
-    assert "Schede scena (0 di 2)" in text
+    assert "Scene cards (0 of 2)" in text
     assert "read the whole story" not in text
 
 

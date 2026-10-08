@@ -167,24 +167,16 @@ class Texte:
     keinen chat_id). Knopf-Beschriftungen bleiben auf der gewoehnlichen,
     ungezwungenen Instanz im selben Modul."""
 
-    __slots__ = ("_modul", "_sprachcode", "_p67")
+    __slots__ = ("_modul", "_sprachcode")
 
-    def __init__(self, modul: str, *, sprachcode: str | None = None,
-                 ab_phase67_italienisch: bool = False) -> None:
+    def __init__(self, modul: str, *, sprachcode: str | None = None) -> None:
         object.__setattr__(self, "_modul", modul)
         object.__setattr__(self, "_sprachcode", sprachcode)
-        # Kompatibilitaet (Robo 08.10.2026 12:25): zwei Aufrufer (erkenner,
-        # phasentexte) nutzen noch die alte Form; sie gilt chat-genau ueber
-        # IT_WEB_CHAT_ID (ein Bot-Prozess = eine Gruppe).
-        object.__setattr__(self, "_p67", ab_phase67_italienisch)
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("__"):
             raise AttributeError(name)
         sprachcode = _ERZWUNGEN.get() or self._sprachcode
-        if sprachcode is None and self._p67:
-            if workshop.p67_italienisch_aktiv():
-                sprachcode = "it"
         return text(self._modul, name, sprachcode)
 
     def __setattr__(self, name: str, wert: Any) -> None:

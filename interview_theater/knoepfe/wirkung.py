@@ -35,6 +35,7 @@ from interview_theater.knoepfe.texte import (
     ART_FRAGEN_WEICH_LASSEN, ART_FRAGEN_WEICH_UEBERNEHMEN,
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
     ART_FRAGE_WAHL,
+    ART_KARTE_FRAGEN_KLAEREN, ART_KARTE_FRAGEN_UEBERSPRINGEN,
     ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_HILFE, ART_INTERVIEWS_FERTIG, ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT,
@@ -424,6 +425,24 @@ def _wirkung_szene_anders(conn, d: Druck) -> str:
     d.tg.sende(d.chat_id, T._TEXT_SZENE_ANDERS_FRAGE)
     _melde_spaetere(conn, d.tg, d.chat_id, nummer)
     return T._ANTWORT_WAS_ANDERS_WERDEN
+
+
+def _wirkung_karte_fragen_klaeren(conn, d: Druck) -> str:
+    """"Clear the questions" unter einer Szenenkarte (Birk 08.10.2026
+    ~09:20): stellt die offenen Fragen nacheinander im Chat. Kein
+    Modellaufruf hier -- der Rumpf steht in ``szenenkarte.py``."""
+    from interview_theater import szenenkarte
+
+    return szenenkarte.starte_fragenklaerung(conn, d.tg, d.e, d.chat_id, int(d.wert))
+
+
+def _wirkung_karte_fragen_ueberspringen(conn, d: Druck) -> str:
+    """"Skip questions" unter einer Szenenkarte: alle offenen Fragen auf
+    einmal verwerfen -- waren unpassend, nicht ungeklaert. Kein
+    Modellaufruf."""
+    from interview_theater import szenenkarte
+
+    return szenenkarte.ueberspringe_fragen(conn, d.tg, d.e, d.chat_id, int(d.wert))
 
 
 def _wirkung_uebersicht_passt(conn, d: Druck) -> str:
@@ -1843,6 +1862,8 @@ _WIRKUNGEN = {
     ART_SZENENFELDER_SPEICHERN: _wirkung_szenenfelder_speichern,
     ART_SZENE_PASST: _wirkung_szene_passt,
     ART_SZENE_ANDERS: _wirkung_szene_anders,
+    ART_KARTE_FRAGEN_KLAEREN: _wirkung_karte_fragen_klaeren,
+    ART_KARTE_FRAGEN_UEBERSPRINGEN: _wirkung_karte_fragen_ueberspringen,
     ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,
     ART_UEBERSICHT_PASST: _wirkung_uebersicht_passt,
     ART_SPRECHWEISEN_PASST: _wirkung_sprechweisen_passt,

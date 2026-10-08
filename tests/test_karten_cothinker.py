@@ -187,6 +187,53 @@ def test_navigation_im_skript():
     assert "kartenWahl" in js
 
 
+KARTE_MIT_FRAGEN = dict(KARTE, fragen=["Who sings?"])
+
+
+def test_panel_clear_skip_statt_yes_no_bei_offenen_fragen(padua):
+    """Birk 08.10.2026 ~09:20/09:30: solange die aktive Karte offene Fragen
+    hat, ersetzen "Clear the questions" / "Skip questions" die Knoepfe "Yes,
+    save" / "No, change" -- "Yes, save" waere ohnehin abgelehnt."""
+    liste = [{"nummer": 1, "titel": "Le voci", "karte": KARTE_MIT_FRAGEN,
+             "bestaetigt": False, "aktiv": True}]
+    html = web._szenenkarten_html(liste)
+    assert 'data-aktion="ja"' not in html
+    assert 'data-aktion="aendern"' not in html
+    assert 'data-aktion="klaeren" data-nummer="1">Clear the questions</button>' in html
+    assert 'data-aktion="ueberspringen" data-nummer="1">Skip questions</button>' in html
+
+
+def test_karte_post_erlaubt_klaeren_und_ueberspringen(server):
+    basis, token, _pfad = server
+    for aktion in ("klaeren", "ueberspringen"):
+        status, _ = _post(f"{basis}/g/{token}/chat/karte",
+                          {"nonce": web.nonce(SCHLUESSEL, token), "aktion": aktion,
+                           "nummer": 1})
+        assert status in (200, 202)
+    conn = db.verbinde(_pfad)
+    try:
+        texte = [z["text"] for z in repo.web_eingang(conn, 41, 0)]
+    finally:
+        conn.close()
+    assert texte == ["/karte_klaeren 1", "/karte_ueberspringen 1"]
+
+
+def test_befehl_karte_klaeren_und_ueberspringen_rufen_szenenkarte(
+    conn, einst, padua, monkeypatch,
+):
+    aufgerufen = []
+    monkeypatch.setattr(szenenkarte, "starte_fragenklaerung",
+                        lambda *a, **k: aufgerufen.append(("klaeren", a)))
+    monkeypatch.setattr(szenenkarte, "ueberspringe_fragen",
+                        lambda *a, **k: aufgerufen.append(("ueberspringen", a)))
+    _lage(conn)
+    phasen.setze(conn, 1, 6, "befehl")
+    tg = TG()
+    befehle._befehl_karte(conn, tg, LLM(), einst, 1, "/karte_klaeren", "1")
+    befehle._befehl_karte(conn, tg, LLM(), einst, 1, "/karte_ueberspringen", "1")
+    assert [a for a, _ in aufgerufen] == ["klaeren", "ueberspringen"]
+
+
 def test_karte_bauen_rettet_eine_haengende_karte(conn, einst, padua, monkeypatch):
     """Usertest 07.10.2026: Neustart mitten in der Erzeugung -> "being built"
     fuer immer. "/karte_bauen N" stoesst die aktuelle Karte neu an; fuer eine

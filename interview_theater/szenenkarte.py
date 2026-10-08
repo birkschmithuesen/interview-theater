@@ -19,11 +19,24 @@ Textnachricht schreibt sie mit der Notiz neu. Nach der letzten Karte laeuft
 die Gesamtpruefung einmal ueber alle Karten (``gesamtpruefung``), danach das
 Angebot "Weiter zu Phase 7".
 
+**Solange eine Karte offene Fragen hat** (``karte.fragen``), ersetzen
+"Clear the questions" / "Skip questions" die Knoepfe "Yes, save" / "No,
+change" (``zeige``) -- eine Karte mit offenen Fragen laesst sich serverseitig
+nicht speichern (``bestaetige``, Birk 08.10.2026 ~09:20: eine Gruppe druecke
+"No, change" mit einer Notiz zu den Fragen, und der Neubau loeschte sie
+klammheimlich). "Skip questions" verwirft alle offenen Fragen der Karte auf
+einmal (``ueberspringe_fragen`` -- waren unpassend, nicht ungeklaert, kein
+Modellaufruf). "Clear the questions" stellt sie nacheinander im Chat
+(``starte_fragenklaerung``/``beantworte_frage``) -- EIN Modellaufruf nach der
+letzten Antwort baut die Karte mit allen Antworten neu; der Klaerungsstand
+liegt in ``szene.karte_klaerung`` (DB, ueberlebt einen Neustart -- anders als
+``szenenfolge._regienotiz_erwartet``).
+
 Die Knopf- und Chatwege bleiben die von ``ueberarbeitung`` (``weiter_6``,
 ``bestaetige_szene_6``, ``ueberarbeite``, ``nimm_ab``) -- sie verzweigen
 unter dem Schalter hierher. Material aus Phase 5 geht vollstaendig ein und
 wird nie geloescht: uebernommene Stellen, Kurzform (``szenenkern``),
-Phase-5-Gespraech, Logline/Uebersicht, eine schon geschriebene Prosa.
+Phase-5-Gespraech, Logline/Uebersicht.
 
 Kein Modellaufruf im Aufrufer-Thread (Zusage 2): ``starte`` gibt an einen
 eigenen Thread ab."""
@@ -32,6 +45,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 
 from interview_theater import anweisungen, modellwahl, repo, szene_claude, workshop
@@ -286,6 +300,11 @@ def zeige(conn, tg, e, chat_id: int, nummer: int, *, im_chat: bool = False) -> i
     """Die Karte mit "Yes, save" / "No, change" -- dieselben Knopfarten wie
     unter einem Szenentext, damit Knopf- und Chatweg gleich wirken.
 
+    **Solange die Karte offene Fragen hat** (``karte.fragen``), stehen statt
+    dessen NUR "Clear the questions" / "Skip questions" darunter -- "Yes,
+    save" waere ohnehin abgelehnt (``bestaetige``), und "No, change" braucht
+    es neben "Clear the questions" nicht (Birk 08.10.2026 ~09:25/09:30).
+
     Im CoThinker-Modus (``im_cothinker``) steht die Karte selbst im
     CoThinker-Tab; der Chat bekommt nur eine Zeile -- AUSSER die Karte ist
     das Ergebnis einer Klaerung im Chat (``im_chat``): dann steht sie dort
@@ -299,19 +318,31 @@ def zeige(conn, tg, e, chat_id: int, nummer: int, *, im_chat: bool = False) -> i
     if karte is None:
         return None
     basis._nimm_alte_leiste_ab(conn, tg, chat_id, ks.ART_SZENE_PASST)
+    basis._nimm_alte_leiste_ab(conn, tg, chat_id, ks.ART_KARTE_FRAGEN_KLAEREN)
     gesamt = len(_szenen(conn, chat_id))
     cothinker = im_cothinker(conn, chat_id)
     if cothinker and not im_chat:
         return _sende(conn, tg, e, chat_id, T._TEXT_IM_COTHINKER.format(
             nummer=nummer, gesamt=gesamt))
-    text = karte_text(karte, szene) + "\n\n" + T._TEXT_FRAGE.format(
-        nummer=nummer, gesamt=gesamt)
-    ja = T._TEXT_KARTE_JA_KNOPF if cothinker else knoepfe.T.TEXT_WEITER_KNOPF
-    nein = T._TEXT_KARTE_NOCHMAL_KNOPF if cothinker else knoepfe.T.TEXT_NEIN_AENDERN_KNOPF
-    leiste = [
-        ks._knopf(conn, chat_id, ja, ks.ART_SZENE_PASST, str(nummer)),
-        ks._knopf(conn, chat_id, nein, ks.ART_SZENE_ANDERS, str(nummer)),
-    ]
+    offene_fragen = karte.get("fragen") or []
+    if offene_fragen:
+        text = karte_text(karte, szene) + "\n\n" + T._TEXT_FRAGEN_OFFEN.format(
+            nummer=nummer, gesamt=gesamt)
+        leiste = [
+            ks._knopf(conn, chat_id, T._TEXT_KLAEREN_KNOPF,
+                     ks.ART_KARTE_FRAGEN_KLAEREN, str(nummer)),
+            ks._knopf(conn, chat_id, T._TEXT_UEBERSPRINGEN_KNOPF,
+                     ks.ART_KARTE_FRAGEN_UEBERSPRINGEN, str(nummer)),
+        ]
+    else:
+        text = karte_text(karte, szene) + "\n\n" + T._TEXT_FRAGE.format(
+            nummer=nummer, gesamt=gesamt)
+        ja = T._TEXT_KARTE_JA_KNOPF if cothinker else knoepfe.T.TEXT_WEITER_KNOPF
+        nein = T._TEXT_KARTE_NOCHMAL_KNOPF if cothinker else knoepfe.T.TEXT_NEIN_AENDERN_KNOPF
+        leiste = [
+            ks._knopf(conn, chat_id, ja, ks.ART_SZENE_PASST, str(nummer)),
+            ks._knopf(conn, chat_id, nein, ks.ART_SZENE_ANDERS, str(nummer)),
+        ]
     message_id = basis._mit_leiste(conn, tg, chat_id, text, leiste)
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     return message_id
@@ -341,10 +372,18 @@ def laeuft(chat_id: int) -> bool:
 
 
 def starte(conn, tg, klm, e, chat_id: int, nummer: int,
-           notiz: str | None = None) -> threading.Thread | None:
+           notiz: str | None = None, *, nachbereitung=None) -> threading.Thread | None:
     """Erzeugt (oder ueberarbeitet mit ``notiz``) die Karte ``nummer`` im
     eigenen Thread und zeigt sie danach. ``None``, wenn schon eine Karte
-    dieser Gruppe entsteht (dann eine Zeile statt Stille)."""
+    dieser Gruppe entsteht (dann eine Zeile statt Stille).
+
+    ``nachbereitung`` (optional, ``dict -> bool | None``) laeuft im selben
+    Thread NACH dem Modellaufruf und VOR der Anzeige -- fuer Schreibzugriffe,
+    die vom frischen Modellergebnis abhaengen (Fragenklaerung: erzwungene
+    "[OPEN] ..."-Punkte, Rueckbau einer anderen Aenderung: Fragen der alten
+    Karte bewahren). Liefert sie ``False``, faellt die Anzeige aus -- die
+    Nachbereitung hat selbst schon etwas geschickt (z. B. die naechste
+    Klaerungsrunde)."""
     sperre = _sperre_fuer(chat_id)
     if klm is None or not sperre.acquire(blocking=False):
         _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT)
@@ -353,15 +392,22 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int,
         nummer=nummer))
 
     def _lauf() -> None:
-        karte = None
         try:
             karte = erzeuge(conn, klm, e, chat_id, nummer, notiz)
+            if karte is None:
+                _sende(conn, tg, e, chat_id, T._TEXT_FEHLER.format(nummer=nummer))
+                return
+            if nachbereitung is not None and nachbereitung(karte) is False:
+                return
+            zeige(conn, tg, e, chat_id, nummer, im_chat=bool(notiz))
         finally:
+            # Die Sperre gilt fuer den GANZEN Lauf, nicht nur den
+            # Modellaufruf (anders bis 08.10.2026): die Nachbereitung einer
+            # Fragenklaerung kann selbst eine neue Runde anstossen
+            # (``starte_fragenklaerung``) -- bis die Karte angezeigt ist,
+            # soll ein zweiter Druck "laeuft noch" sehen, nicht eine Karte
+            # mittendrin.
             sperre.release()
-        if karte is None:
-            _sende(conn, tg, e, chat_id, T._TEXT_FEHLER.format(nummer=nummer))
-            return
-        zeige(conn, tg, e, chat_id, nummer, im_chat=bool(notiz))
 
     faden = threading.Thread(target=_lauf, daemon=True)
     try:
@@ -397,7 +443,13 @@ def weiter(conn, tg, klm, e, chat_id: int, *, aus_eintritt: bool = False):
 
 
 def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
-    """"Yes, save" auf einer Karte (Knopf oder Chat)."""
+    """"Yes, save" auf einer Karte (Knopf oder Chat).
+
+    Serverseitig abgelehnt, solange die Karte offene Fragen hat (Birk
+    08.10.2026 ~09:20) -- nicht nur die Anzeige bietet dann andere Knoepfe
+    an (``zeige``): ein veralteter Knopf, ein Befehl (``/karte_ja``) oder der
+    Erkenner duerfen eine Karte mit offenen Fragen ebenfalls nicht
+    speichern."""
     if laeuft(chat_id):
         _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT)
         return T._TEXT_LAEUFT
@@ -405,9 +457,13 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
         _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
         return T._TEXT_NICHT_DRAN
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    if szene is None or karte_von(szene) is None:
+    karte = karte_von(szene) if szene is not None else None
+    if karte is None:
         _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
         return T._TEXT_NICHT_DRAN
+    if karte.get("fragen"):
+        zeige(conn, tg, e, chat_id, nummer)
+        return T._TEXT_FRAGEN_OFFEN_ABGELEHNT
     repo.setze_szenenkarte_bestaetigt(conn, szene["id"])
     repo.schreibe_journal(conn, chat_id, "entschieden",
                           T._JOURNAL_GESPEICHERT.format(nummer=nummer,
@@ -426,6 +482,199 @@ def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = Non
         _sende(conn, tg, e, chat_id, T._TEXT_KEIN_ZIEL)
         return None
     return starte(conn, tg, klm, e, chat_id, n, notiz)
+
+
+# ---------------------------------------------------------------------------
+# Offene Fragen klaeren ("Clear the questions" / "Skip questions")
+# ---------------------------------------------------------------------------
+
+#: Wortmuster, mit denen eine Gruppe erkennbar die FRAGEN meint, nicht den
+#: Inhalt der Karte ("The questions clearing", "let's discuss the
+#: questions", italienisch "domande") -- Birk 08.10.2026 ~09:20, Punkt 3: so
+#: eine Notiz darf nie einen stillen Neubau ohne die Fragen ausloesen,
+#: sondern springt direkt in den Klaerweg.
+_FRAGEN_NOTIZ_MUSTER = re.compile(r"\bquestions?\b|\bdomande?\b", re.IGNORECASE)
+
+#: Eine Antwort, die die Frage bewusst offen laesst (Birk 08.10.2026 ~09:30:
+#: "speichern erst, wenn keine [Frage] offen ist" -- also muss "skip" die
+#: Frage KLAEREN, nicht blockieren). Nur ganze Antworten, kein Teilsatz --
+#: "I don't know yet, but maybe" ist ein Inhalt, keine Ueberspringung.
+_SKIP_MUSTER = re.compile(
+    r"^\s*(skip|i\s*don'?t\s*know|dont'?\s*know|no\s*idea|idk|keine\s*ahnung|"
+    r"non\s*lo\s*so|non\s*saprei)\s*[.!]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def notiz_betrifft_fragen(notiz: str | None) -> bool:
+    """Spricht die Notiz erkennbar von den offenen Fragen der Karte?"""
+    return bool(_FRAGEN_NOTIZ_MUSTER.search(notiz or ""))
+
+
+def ist_skip(text: str | None) -> bool:
+    """Will die Gruppe diese EINE Frage bewusst offen lassen?"""
+    return bool(_SKIP_MUSTER.match((text or "").strip()))
+
+
+def _klaerung_von(szene) -> dict | None:
+    """Der laufende Klaerungsstand (``szene.karte_klaerung``, JSON) -- oder
+    ``None``, wenn gerade keine Frage-fuer-Frage-Runde laeuft."""
+    try:
+        roh = szene["karte_klaerung"]
+    except (IndexError, KeyError):
+        return None
+    if not _gesetzt(roh):
+        return None
+    try:
+        klaerung = json.loads(roh)
+    except ValueError:
+        return None
+    return klaerung if isinstance(klaerung, dict) else None
+
+
+def aktive_klaerung(conn, chat_id: int) -> tuple[int, dict] | None:
+    """(Szenennummer, Klaerungsstand) der Karte, die gerade eine Antwort auf
+    eine offene Frage erwartet -- oder ``None``. DB-gestuetzt
+    (``szene.karte_klaerung``): ein Neustart mitten in der Runde verliert sie
+    nicht, anders als ``szenenfolge._regienotiz_erwartet``."""
+    nummer = aktuelle_nummer(conn, chat_id)
+    if nummer is None:
+        return None
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    if szene is None:
+        return None
+    klaerung = _klaerung_von(szene)
+    if klaerung is None:
+        return None
+    return nummer, klaerung
+
+
+def starte_fragenklaerung(conn, tg, e, chat_id: int, nummer: int, *, runde: int = 1) -> str:
+    """"Clear the questions": stellt die offenen Fragen der Karte
+    nacheinander im Chat, eine pro Nachricht. Kein Modellaufruf."""
+    if nummer != aktuelle_nummer(conn, chat_id):
+        _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
+        return T._TEXT_NICHT_DRAN
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    karte = karte_von(szene) if szene is not None else None
+    fragen = (karte or {}).get("fragen") or []
+    if not fragen:
+        zeige(conn, tg, e, chat_id, nummer)
+        return T._ANTWORT_GESPEICHERT.format(nummer=nummer)
+    klaerung = {"index": 0, "antworten": [], "runde": runde}
+    repo.setze_szenenkarte_klaerung(conn, szene["id"], json.dumps(klaerung))
+    _sende(conn, tg, e, chat_id, T._TEXT_FRAGE_N_VON_M.format(
+        n=1, gesamt=len(fragen), frage=fragen[0]))
+    return T._ANTWORT_FRAGEN_KLAEREN
+
+
+def ueberspringe_fragen(conn, tg, e, chat_id: int, nummer: int) -> str:
+    """"Skip questions": alle offenen Fragen dieser Karte auf einmal
+    verwerfen -- waren unpassend, nicht ungeklaert (Birk 08.10.2026 ~09:30).
+    Punkte und Zitate bleiben unberuehrt, kein Modellaufruf."""
+    if nummer != aktuelle_nummer(conn, chat_id):
+        _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
+        return T._TEXT_NICHT_DRAN
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    karte = karte_von(szene) if szene is not None else None
+    if karte is None or not karte.get("fragen"):
+        _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
+        return T._TEXT_NICHT_DRAN
+    neue_karte = dict(karte)
+    neue_karte["fragen"] = []
+    repo.setze_szenenkarte(conn, szene["id"], json.dumps(neue_karte, ensure_ascii=False))
+    repo.setze_szenenkarte_klaerung(conn, szene["id"], None)
+    repo.schreibe_journal(conn, chat_id, "entschieden",
+                          T._JOURNAL_FRAGEN_UEBERSPRUNGEN.format(nummer=nummer).strip(),
+                          quelle="web")
+    zeige(conn, tg, e, chat_id, nummer)
+    return T._ANTWORT_FRAGEN_UEBERSPRUNGEN.format(nummer=nummer)
+
+
+def _klaerungsnotiz(fragen: list[str], antworten: list[str | None]) -> str:
+    """Die Notiz fuer den EINEN Neubau nach der letzten Antwort: alle Fragen
+    mit ihrer Antwort, oder dem Vermerk, dass die Gruppe sie offen laesst."""
+    zeilen = [T._KOPF_KLAERUNG]
+    for frage, antwort in zip(fragen, antworten):
+        if antwort is None:
+            zeilen.append(T._ZEILE_KLAERUNG_OFFEN.format(frage=frage))
+        else:
+            zeilen.append(T._ZEILE_KLAERUNG_BEANTWORTET.format(frage=frage, antwort=antwort))
+    return "\n".join(zeilen)
+
+
+def beantworte_frage(conn, tg, klm, e, chat_id: int, text: str) -> bool:
+    """Verarbeitet eine Gruppennachricht als Antwort auf die Frage, die
+    ``starte_fragenklaerung``/die vorige Antwort gerade gestellt hat.
+    Liefert ``True``, wenn diese Nachricht dadurch beantwortet ist (der
+    Gespraechszug faellt dann aus -- dieselbe Bauart wie
+    ``szenenfolge.nimm_regienotiz``, nur DB-gestuetzt).
+
+    "skip"/"I don't know" (``ist_skip``) laesst die Frage bewusst offen: sie
+    wird nicht blockierend neu gefragt, sondern spaeter als "[OPEN] ..."-Punkt
+    in die Karte uebernommen (Birk: "speichern erst, wenn keine [Frage] mehr
+    offen ist" -- die Karte muss also IMMER fertig werden koennen)."""
+    gefunden = aktive_klaerung(conn, chat_id)
+    if gefunden is None:
+        return False
+    nummer, klaerung = gefunden
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    karte = karte_von(szene) if szene is not None else None
+    fragen = (karte or {}).get("fragen") or []
+    index = int(klaerung.get("index") or 0)
+    if index >= len(fragen):
+        repo.setze_szenenkarte_klaerung(conn, szene["id"], None)
+        return False
+    antworten = list(klaerung.get("antworten") or [])
+    antworten.append(None if ist_skip(text) else text.strip())
+    index += 1
+    if index < len(fragen):
+        repo.setze_szenenkarte_klaerung(conn, szene["id"], json.dumps(
+            {"index": index, "antworten": antworten, "runde": klaerung.get("runde", 1)}))
+        _sende(conn, tg, e, chat_id, T._TEXT_FRAGE_N_VON_M.format(
+            n=index + 1, gesamt=len(fragen), frage=fragen[index]))
+        return True
+    # Letzte Frage beantwortet: Journal je Frage, dann EIN Neubau mit allen
+    # Antworten (weniger Wartezeit/Kosten als je Antwort neu zu bauen, und
+    # die Karte springt der Gruppe nicht dreimal unter der Hand weg).
+    runde = int(klaerung.get("runde") or 1)
+    for frage, antwort in zip(fragen, antworten):
+        if antwort is None:
+            repo.schreibe_journal(conn, chat_id, "entschieden",
+                                  T._JOURNAL_FRAGE_OFFEN_GELASSEN.format(
+                                      nummer=nummer, frage=frage).strip(),
+                                  quelle="chat")
+        else:
+            repo.schreibe_journal(conn, chat_id, "entschieden",
+                                  T._JOURNAL_FRAGE_BEANTWORTET.format(
+                                      nummer=nummer, frage=frage, antwort=antwort).strip(),
+                                  quelle="chat")
+    repo.setze_szenenkarte_klaerung(conn, szene["id"], None)
+
+    def _nachbereitung(neue_karte: dict) -> bool | None:
+        """Erzwingt die "[OPEN] ..."-Punkte fuer uebersprungene Fragen
+        (deterministisch -- kein Modell soll diese Entscheidung treffen
+        oder wieder vergessen), und laesst -- hoechstens EINMAL -- eine neue
+        Klaerungsrunde anlaufen, wenn der Neubau selbst wieder Fragen
+        anlegt (Birk: "hoechstens EINE solche Runde automatisch, sonst
+        Fragen als Hinweis zeigen")."""
+        offene_punkte = [T._PUNKT_OFFEN.format(frage=f)
+                         for f, a in zip(fragen, antworten) if a is None]
+        if offene_punkte:
+            ziel = _szene_mit_nummer(conn, chat_id, nummer)
+            if ziel is not None:
+                aktualisiert = dict(neue_karte)
+                aktualisiert["punkte"] = list(neue_karte.get("punkte") or []) + offene_punkte
+                repo.setze_szenenkarte(conn, ziel["id"], json.dumps(
+                    aktualisiert, ensure_ascii=False))
+        if (neue_karte.get("fragen") or []) and runde == 1:
+            starte_fragenklaerung(conn, tg, e, chat_id, nummer, runde=2)
+            return False
+        return None
+
+    starte(conn, tg, klm, e, chat_id, nummer, _klaerungsnotiz(fragen, antworten),
+          nachbereitung=_nachbereitung)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -555,6 +804,26 @@ _TEXT_FEEDBACK_FRAGE = "Was soll an Karte {nummer} anders werden?"
 _TEXT_KARTE_JA_KNOPF = "Yes, save card"
 _TEXT_KARTE_NOCHMAL_KNOPF = "No, change again"
 _JOURNAL_GESPEICHERT = "Szenenkarte {nummer} gespeichert: {titel}"
+
+#: Offene Fragen klaeren ("Clear the questions" / "Skip questions", Birk
+#: 08.10.2026 ~09:20-09:30).
+_TEXT_FRAGEN_OFFEN = (
+    "Karte {nummer} von {gesamt} hat noch offene Fragen. Klaert sie, oder "
+    "lasst sie fallen, wenn sie nicht passen."
+)
+_TEXT_KLAEREN_KNOPF = "Fragen klaeren"
+_TEXT_UEBERSPRINGEN_KNOPF = "Fragen ueberspringen"
+_TEXT_FRAGEN_OFFEN_ABGELEHNT = "Erst die offenen Fragen klaeren -- gespeichert habe ich nichts"
+_TEXT_FRAGE_N_VON_M = "Frage {n} von {gesamt}: {frage}"
+_ANTWORT_FRAGEN_KLAEREN = "Fragen werden geklaert"
+_ANTWORT_FRAGEN_UEBERSPRUNGEN = "Fragen von Karte {nummer} uebersprungen"
+_JOURNAL_FRAGEN_UEBERSPRUNGEN = "Karte {nummer}: Fragen als unpassend uebersprungen"
+_JOURNAL_FRAGE_BEANTWORTET = "Karte {nummer}, Frage geklaert: {frage} -> {antwort}"
+_JOURNAL_FRAGE_OFFEN_GELASSEN = "Karte {nummer}: Frage bewusst offen gelassen: {frage}"
+_KOPF_KLAERUNG = "Antworten der Gruppe auf die bisher offenen Fragen (gilt vor allem anderen):"
+_ZEILE_KLAERUNG_BEANTWORTET = "- {frage} -> {antwort}"
+_ZEILE_KLAERUNG_OFFEN = "- {frage} -> (die Gruppe laesst das bewusst offen)"
+_PUNKT_OFFEN = "[OPEN] {frage}"
 
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)

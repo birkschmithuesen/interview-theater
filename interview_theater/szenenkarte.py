@@ -709,23 +709,32 @@ def diff_karten(alt: dict, neu: dict) -> list[str]:
 def verfeinerungs_zeilen(conn, chat_id: int, szene) -> list[str]:
     """Eine Zeile je Verfeinerung dieser Karte in Phase 6: was die Gruppe
     wollte (Notiz/Antwort) und was sich dadurch an der Karte geaendert hat
-    (``diff_karten``). Leer, wenn die Karte nie ueberarbeitet wurde."""
+    (``diff_karten``). Leer, wenn die Karte nie ueberarbeitet wurde.
+
+    Die erste Fassung ist nur dann die Grundlage ohne eigene Zeile, wenn sie
+    wirklich ``erstentwurf`` ist. Ein Nachtrag aus dem Chat (``scripts.
+    karten_verlauf_nachtrag``) kennt den echten Erstentwurf oft nicht -- die
+    frueheste bekannte Fassung ist dann schon eine Aenderung und bekommt
+    trotzdem eine Zeile (nur ohne Diff, weil keine Vorgaenger-Fassung da
+    ist). Sonst verschwaende genau der haeufigste Fall (eine Karte, eine
+    nachgetragene Korrektur) spurlos."""
     reihen = repo.karte_verlauf(conn, chat_id, szene["id"])
-    if len(reihen) <= 1:
-        return []
     zeilen = []
-    vorherige_karte = json.loads(reihen[0]["karte_json"])
-    for reihe in reihen[1:]:
+    vorherige_karte = None
+    for reihe in reihen:
         neue_karte = json.loads(reihe["karte_json"])
-        teile = []
-        notiz = reihe["notiz_text"]
-        if notiz:
-            teile.append(f'wanted: "{notiz}"')
-        unterschiede = diff_karten(vorherige_karte, neue_karte)
-        if unterschiede:
-            teile.append("changed: " + "; ".join(unterschiede))
-        if teile:
-            zeilen.append(" -- ".join(teile))
+        ist_verfeinerung = vorherige_karte is not None or reihe["ausloeser"] != AUSLOESER_ERSTENTWURF
+        if ist_verfeinerung:
+            teile = []
+            notiz = reihe["notiz_text"]
+            if notiz:
+                teile.append(f'wanted: "{notiz}"')
+            if vorherige_karte is not None:
+                unterschiede = diff_karten(vorherige_karte, neue_karte)
+                if unterschiede:
+                    teile.append("changed: " + "; ".join(unterschiede))
+            if teile:
+                zeilen.append(" -- ".join(teile))
         vorherige_karte = neue_karte
     return zeilen
 

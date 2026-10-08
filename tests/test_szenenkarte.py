@@ -642,3 +642,25 @@ def test_verfeinerungs_zeilen_fragen_uebersprungen_wortlaut(conn, einst, padua):
     szene = repo.hole_szene(conn, ids[0])
     zeilen = szenenkarte.verfeinerungs_zeilen(conn, 1, szene)
     assert any("questions skipped as not fitting" in z for z in zeilen)
+
+
+def test_verfeinerungs_zeilen_ohne_erstentwurf_zeigt_notiz_trotzdem(conn, einst, padua):
+    """Nachtrag (Birk 08.10.2026 ~10:48): der Verlauf laesst sich aus dem
+    Chat oft nur AB der ersten Aenderung rekonstruieren, der Erstentwurf
+    selbst steht nirgends (CoThinker zeigt ihn nie im Chat). Eine einzige
+    nachgetragene Fassung ohne vorige ``erstentwurf``-Zeile muss trotzdem
+    eine Verfeinerungs-Zeile ergeben -- sonst verschwindet genau die
+    haeufigste rekonstruierte Aenderung (eine Karte, eine Korrektur)."""
+    ids = _lage(conn)
+    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
+    szene_id = ids[0]
+    # Nur EINE nachgetragene Fassung, kein "erstentwurf" davor -- genau der
+    # Luecken-Fall aus dem Chat-Nachtrag.
+    repo.merke_karte_verlauf(
+        conn, 1, szene_id, json.dumps({"typ": "spoken", "worum": "X"}),
+        "aenderung", "Il barattolo è truccato",
+    )
+    szene = repo.hole_szene(conn, szene_id)
+    zeilen = szenenkarte.verfeinerungs_zeilen(conn, 1, szene)
+    assert len(zeilen) == 1
+    assert "truccato" in zeilen[0]

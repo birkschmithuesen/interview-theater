@@ -129,6 +129,10 @@ def test_verweise_kommen_aus_dem_schema():
         ("schaerfung", "szene_id", "szene"),
         ("schaerfung", "figur_id", "figur"),
         ("szenenfassung", "szene_id", "szene"),
+        # Kartenverlauf (b3ddefa, Birk 08.10.2026): reine Historie je Szene,
+        # wird mit der Szene weich entfernt mitgefuehrt, keine Waisen-Gefahr
+        # fuer die Ruecknahme (nur lesend im P7-Prompt).
+        ("karte_verlauf", "szene_id", "szene"),
     }
 
 

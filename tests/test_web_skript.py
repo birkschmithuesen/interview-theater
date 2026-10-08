@@ -279,8 +279,12 @@ def test_textbuch_ohne_md_und_txt_aber_mit_pdf(padua):
     assert "<th>Who</th>" in koerper and "Score at a glance" in koerper
     assert koerper.index("Setup &amp; roles") < koerper.index("Score at a glance") \
         < koerper.index("Interview quote · 4")
+    # Kein IT-Kopf hier: lang="en" bleibt dran (wie bei den Szenentexten),
+    # aber kein zweiter Abschnitt und kein Fassungs-Label.
     stueck = koerper.split('class="stueck"')[1]
-    assert "lang=" not in stueck.split("Score at a glance")[0]
+    kopf_teil = stueck.split("Score at a glance")[0]
+    assert kopf_teil.count("probe-szene stage-kopf") == 1
+    assert "sprache-kopf" not in kopf_teil
 
 
 def test_textbuch_kopf_it_zeigt_beide_fassungen(padua):

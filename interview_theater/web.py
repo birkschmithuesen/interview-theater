@@ -4455,17 +4455,18 @@ def _sprachfassungen(
 ) -> list[tuple[str | None, str | None, str]]:
     """Welche Sprachfassung(en) eines Textblocks gezeigt werden (Morgen-
     Auftrag 3): ``lang=None`` -- der Script-Tab, beide Fassungen gestapelt,
-    EN mit Label nur wenn es auch eine IT-Fassung gibt (unveraendertes
-    Verhalten). ``lang="en"``/``"it"`` -- genau ein PDF, eine Sprache, kein
-    Label, kein ``lang``-Attribut (es gibt dort nur einen Block). IT ohne
-    eigene Fassung faellt auf EN zurueck -- nie eine leere Szene im PDF."""
+    EN immer mit ``lang="en"`` (unveraendertes Verhalten), das Label nur
+    wenn es auch eine IT-Fassung gibt. ``lang="en"``/``"it"`` -- genau ein
+    PDF, eine Sprache, kein Label, kein ``lang``-Attribut (es gibt dort nur
+    einen Block). IT ohne eigene Fassung faellt auf EN zurueck -- nie eine
+    leere Szene im PDF."""
     if lang == "en":
         return [(None, None, en)]
     if lang == "it":
         return [(None, None, it or en)]
     if it:
         return [(T._TEXT_FASSUNG_EN, "en", en), (T._TEXT_FASSUNG_IT, "it", it)]
-    return [(None, None, en)]
+    return [(None, "en", en)]
 
 
 def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:

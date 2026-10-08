@@ -914,6 +914,18 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
         phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, verlassene_phase)
     tg.sende(chat_id, phasen.meldung(nummer))
     if wiederherstellung:
+        # Birk 08.10.2026 ~12:15: zurueck in Phase 7 (z. B. 7 -> 6 -> 7) ohne
+        # geschriebene aktuelle Szene blieb stumm -- nichts wurde geschrieben.
+        # Padua: das Stage Script geht dort weiter, wo es steht.
+        from interview_theater import workshop as _ws
+
+        if nummer == 7 and _ws.szenenkarten_aktiv():
+            try:
+                from interview_theater import stagescript
+
+                stagescript.weiter(conn, tg, klm, e, chat_id)
+            except Exception:
+                log.exception("Stage Script nach Rueckkehr in Phase 7 gescheitert, chat_id=%s", chat_id)
         return
     # Derselbe Rahmen wie ueber den Knopf (06.09.2026): Kopfzeile,
     # Einleitung, Checkliste und die Einstiegsknoepfe dieser Phase.

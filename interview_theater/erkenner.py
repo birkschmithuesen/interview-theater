@@ -2282,7 +2282,7 @@ def baue_meldung(
 
     if _ws.autosave_phase1_2_aktiv() and all(z.startswith("📌") for z in zeilen):
         return "\n".join(zeilen)
-    return T._NOTIERT_KOPF + "\n".join(zeilen)
+    return _texte_fuer_phase(phase)._NOTIERT_KOPF + "\n".join(zeilen)
 
 
 def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
@@ -2452,9 +2452,23 @@ def _bereich_titel(bereich: str | None) -> str:
     return beschriftung if beschriftung is not None else bereich.capitalize()
 
 
+def _texte_fuer_phase(phase: int | None):
+    """``T_IT`` fuer die Rahmenwoerter der Meldung ("Notiert:"/"Festgehalten:"
+    /"Wir sind jetzt bei"), solange die Gruppe in Phase 6/7 steht UND
+    ``workshop.p67_italienisch_aktiv()`` an ist (Morgen-Auftrag 4, Punkte 1
+    und 3, 08.10.2026) -- sonst die gewohnte Tabelle. Nur die Rahmenwoerter,
+    der Inhalt der Zeilen (``g[...]``-Werte) wird nicht neu uebersetzt."""
+    from interview_theater import workshop
+
+    if phase in (6, 7) and workshop.p67_italienisch_aktiv():
+        return T_IT
+    return T
+
+
 def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
     """Aus dem Vorgeordneten die Zeilen der Meldung, in fester Reihenfolge."""
     zeilen = []
+    t = _texte_fuer_phase(phase)
     beschriftung = T._FELD_BESCHRIFTUNG
     in_phase4 = phase == PHASE_SETTING
     autosave_1_2 = False
@@ -2500,7 +2514,7 @@ def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
             zeilen.append(T._ZEILE_FESTGELEGT.format(titel=titel, text=text))
         else:
             marke = f" ({bezug})" if bezug else ""
-            zeilen.append(T._ZEILE_FESTGEHALTEN.format(marke=marke, text=text))
+            zeilen.append(t._ZEILE_FESTGEHALTEN.format(marke=marke, text=text))
     # Eine Transkriptkorrektur bekommt ihr eigenes Verb (N5): "Korrigiert:
     # gepoekt -> gepogt". Sie ist der Beleg dafuer, dass wirklich etwas
     # passiert ist -- im Probelauf sagte der Bot dreimal "korrigiere ich",
@@ -2512,7 +2526,7 @@ def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
     # dazugekommen.
     zeilen.extend(T._ZEILE_ENTFERNT.format(was=was) for was in g["entfernt"])
     if g["phase"] is not None:
-        zeilen.append(T._ZEILE_PHASE.format(phase=phasen.bezeichnung(g["phase"])))
+        zeilen.append(t._ZEILE_PHASE.format(phase=phasen.bezeichnung(g["phase"])))
     if g["usa"] == "ja":
         zeilen.append(T._ZEILE_USA_JA)
     elif g["usa"] == "nein":
@@ -3729,3 +3743,4 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 
 T = sprache.Texte(__name__)
+T_IT = sprache.Texte(__name__, ab_phase67_italienisch=True)

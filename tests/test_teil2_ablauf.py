@@ -402,7 +402,8 @@ def test_padua_teil2_phase_5_bis_7(conn, einst, padua, monkeypatch):
     # Zwei neue Leisten: die Notiert-Meldung der Formwahl (nur ihr Undo-Knopf,
     # Karte U) und GENAU EINE Sprechweisen-Nachricht -- je Figur eine Zeile.
     neue = tg.knoepfe[vorher_leisten:]
-    assert [t.splitlines()[0] for _c, t, _l in neue][0].startswith("Noted")
+    # Phase 7 italienisch fuer p67-Chats (Morgen-Auftrag 4, Punkt 3).
+    assert [t.splitlines()[0] for _c, t, _l in neue][0].startswith("Annotato")
     assert len(neue) == 2, [t for _c, t, _l in neue]
     sprechweisen = tg.knoepfe[-1][1]
     assert len(sprechweisen.splitlines()) == 1 + 2
@@ -465,14 +466,15 @@ def test_padua_teil2_phase_5_bis_7(conn, einst, padua, monkeypatch):
         assert "KOERPER-" not in text, text
     for _c, text, _l in tg.knoepfe:
         assert "KOERPER-" not in text, text
-    # "Noted" nur in dem Schritt, in dem der Erkenner wirklich geschrieben hat:
-    # der Formwahl (Schritt 7).
+    # "Annotato" (Phase 7 italienisch, Morgen-Auftrag 4 Punkt 3) nur in dem
+    # Schritt, in dem der Erkenner wirklich geschrieben hat: der Formwahl
+    # (Schritt 7).
     for i, (_c, text) in enumerate(tg.gesendet):
-        if text.lstrip().lower().startswith("noted"):
+        if text.lstrip().lower().startswith("annotato"):
             schritt = next(n for n, (a, b) in schritte.items() if a <= i < b)
             assert schritt == 7, (schritt, text)
     anfang7, ende7 = schritte[7]
-    assert any(t.lstrip().startswith("Noted") for _c, t in tg.gesendet[anfang7:ende7])
+    assert any(t.lstrip().startswith("Annotato") for _c, t in tg.gesendet[anfang7:ende7])
     for zeile in _laeufe(conn):
         assert zeile["ueberarbeitungen"] <= 2, dict(zeile)
         assert zeile["runden"] <= 2, dict(zeile)

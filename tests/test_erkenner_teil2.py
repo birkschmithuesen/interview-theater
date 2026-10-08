@@ -271,7 +271,10 @@ def test_formen_setzen_schreibt_die_interne_form(conn, einst, padua, tg, monkeyp
 
     formen = {s["nummer"]: s["form"] for s in repo.hole_szenen(conn, 1)}
     assert formen == {1: "chor", 2: "dialog"}
-    assert _texte(tg)[0].startswith("Noted")
+    # Phase 7 italienisch fuer p67-Chats (Morgen-Auftrag 4, Punkt 3) -- der
+    # Rahmenkopf wird "Annotato:", nicht mehr "Noted:" (byte-gleich nur mit
+    # IT_WEB_CHAT_ID des Testerchats oder ohne Padua-Profil).
+    assert _texte(tg)[0].startswith("Annotato")
     # Alle Formen stehen, Sprechweisen sind nicht fixiert -> naechster Schritt.
     assert weiter == [True]
 
@@ -314,7 +317,8 @@ def test_sprechweise_setzen_schreibt_den_stil(conn, einst, padua, tg, monkeypatc
     erkenner.laufe(klm, tg, conn, einst, 1)
 
     assert repo.hole_figur(conn, 1, "Mira")["sprachstil"] == "short sentences"
-    assert _texte(tg)[0].startswith("Noted")
+    # Phase 7 italienisch fuer p67-Chats (Morgen-Auftrag 4, Punkt 3).
+    assert _texte(tg)[0].startswith("Annotato")
     assert angeboten == [True]
 
 

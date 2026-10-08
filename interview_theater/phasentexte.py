@@ -93,6 +93,18 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
+#: Phase 6/7 italienisch fuer p67-Chats (Morgen-Auftrag 4, Punkt 1,
+#: 08.10.2026): dieselbe Bedingung an BEIDEN Stellen, die den Phaseneintritt
+#: bauen (``_einleitung``, ``eintritt``) -- ``T_IT`` faellt ohne den
+#: Schalter ohnehin auf die Profilsprache zurueck (``sprache.Texte``), die
+#: Phasen-Eingrenzung hier ist trotzdem noetig: ``workshop.p67_italienisch_aktiv``
+#: kennt keine Phase, dieses Modul laeuft aber in allen sieben.
+def _texte_fuer_phase(phase: int) -> "sprache.Texte":
+    if phase in (6, 7) and workshop.p67_italienisch_aktiv():
+        return T_IT
+    return T
+
+
 def _einleitung(conn, chat_id: int, phase: int) -> str:
     """Die Einleitung einer Phase -- fuer Phase 7 abhaengig davon, ob
     wirklich jede Szene einen Text hat."""
@@ -100,8 +112,9 @@ def _einleitung(conn, chat_id: int, phase: int) -> str:
         # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): 5 = Interviewauswahl,
         # 6 = Szenenkarten, 7 = Stage Script -- die Profil-Einleitung spricht
         # noch von Prosa und Formwahl.
-        return {5: T._EINLEITUNG_KARTEN_5, 6: T._EINLEITUNG_KARTEN_6,
-                7: T._EINLEITUNG_KARTEN_7}[phase]
+        t = _texte_fuer_phase(phase)
+        return {5: T._EINLEITUNG_KARTEN_5, 6: t._EINLEITUNG_KARTEN_6,
+                7: t._EINLEITUNG_KARTEN_7}[phase]
     einleitungen = {
         nummer: anweisungen.fuelle(text)
         for nummer, text in workshop.phasentexte_einleitungen().items()
@@ -484,26 +497,27 @@ def eintritt(conn, chat_id: int, phase: int) -> str:
     Ohne Knoepfe -- die haengt der Aufrufer darunter
     (``knoepfe.eintritt_in_phase``): welche Knoepfe zum Einstieg gehoeren,
     weiss ``knoepfe`` und nicht dieses Modul."""
-    kopf = T._KOPF_EINTRITT.format(
+    t = _texte_fuer_phase(phase)
+    kopf = t._KOPF_EINTRITT.format(
         nummer=phase, gesamt=workshop.phase_letzte(),
         name=phasen.kurzname(phase),
     )
     zeilen = [kopf]
     einleitung = _einleitung(conn, chat_id, phase)
     if einleitung:
-        zeilen.append(T.ZEILE_ANGEBOT)
+        zeilen.append(t.ZEILE_ANGEBOT)
         zeilen.append(einleitung)
     liste = checkliste(conn, chat_id, phase)
     if workshop.szenenkarten_aktiv() and phase in (6, 7):
         szenen = [s for s in repo.hole_szenen(conn, chat_id) if s["nummer"] is not None]
-        spalte, text = (("karte_bestaetigt_am", T._PARAMETER_KARTEN) if phase == 6
-                        else ("fertig_am", T._PARAMETER_STAGESCRIPT))
+        spalte, text = (("karte_bestaetigt_am", t._PARAMETER_KARTEN) if phase == 6
+                        else ("fertig_am", t._PARAMETER_STAGESCRIPT))
         fertig = sum(1 for s in szenen if (s[spalte] or "").strip())
         liste = "{mark} {text}".format(
             mark=_ERLEDIGT if szenen and fertig == len(szenen) else _OFFEN,
             text=text.format(fertig=fertig, gesamt=len(szenen)))
     if liste:
-        zeilen.append(T._ZEILE_CHECKLISTE.format(liste=liste))
+        zeilen.append(t._ZEILE_CHECKLISTE.format(liste=liste))
     return "\n\n".join(zeilen)
 
 
@@ -574,3 +588,4 @@ def abschluss(conn, chat_id: int, phase: int) -> str:
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 T = sprache.Texte(__name__)
+T_IT = sprache.Texte(__name__, ab_phase67_italienisch=True)

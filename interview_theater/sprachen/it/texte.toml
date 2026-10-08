@@ -9,6 +9,27 @@
 # Beschriftungen bleiben aussen vor). ``tests/test_sprache_texte.py``
 # prueft nur die englische Tabelle, nicht diese hier.
 
+[phasentexte]
+# Phaseneintritt 6/7 italienisch (Morgen-Auftrag 4, Punkt 1, 08.10.2026):
+# ``phasentexte._texte_fuer_phase`` waehlt diese Tabelle statt der
+# englischen, solange ``workshop.p67_italienisch_aktiv()`` an ist. Der
+# Phasenname selbst ({name}) bleibt englisch (Birks Vorgabe).
+_EINLEITUNG_KARTEN_6 = "Ora ogni scena diventa una scheda: di cosa parla, dove, chi, cosa succede, e le citazioni dall'intervista che la sostengono -- nell'originale. Una scheda alla volta; la salvate o mi dite cosa cambiare. Alla fine do un'occhiata d'insieme, poi arriva lo Stage Script."
+_PARAMETER_KARTEN = "Schede scena ({fertig} di {gesamt})"
+_PARAMETER_STAGESCRIPT = "Stage script ({fertig} di {gesamt})"
+_EINLEITUNG_KARTEN_7 = "Benvenuti nello Stage Script: ora ogni scheda diventa testo, una scena alla volta. Leggete ogni scena nella scheda Script e salvatela, oppure ditemi cosa cambiare. Comincio subito con la scena 1."
+_KOPF_EINTRITT = "▶️ Fase {nummer} di {gesamt} · {name}"
+_ZEILE_CHECKLISTE = "Serve: {liste}"
+ZEILE_ANGEBOT = "La mia proposta per questa fase - ditemi se la volete diversa:"
+
+[erkenner]
+# Die Rahmenwoerter der Erkenner-Meldung in Phase 6/7 (Morgen-Auftrag 4,
+# Punkte 1+3, 08.10.2026) -- NUR diese drei, nicht die ganze Tabelle: der
+# Inhalt der Zeilen (Feldwerte, Zitate, Namen) wird nicht neu uebersetzt.
+_NOTIERT_KOPF = "Annotato:\n"
+_ZEILE_FESTGEHALTEN = "Deciso{marke}: {text}"
+_ZEILE_PHASE = "Siamo ora a {phase}."
+
 [web]
 _TEXT_STATUS_KONZEPT = "concetto"
 _TEXT_STATUS_FERTIG = "scritta"

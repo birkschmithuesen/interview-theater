@@ -308,9 +308,16 @@ def _sende_karte(tg, chat_id: int, nummer: int) -> None:
     und bei einem Kanal ohne ``sende_bild`` -- die Telegram-Attrappen in
     Tests und Simulation (``simulation/attrappe.py``, ``tests/test_ablauf.py``)
     bilden sie nicht nach, und ein zweiter Mechanismus nur fuer sie lohnt
-    nicht (dieselbe Abwaegung wie bei ``sende_datei`` dort)."""
-    from interview_theater import handykarten
+    nicht (dieselbe Abwaegung wie bei ``sende_datei`` dort).
 
+    Still auch unter ``workshop.szenenkarten_aktiv()`` in Phase 6/7 (Padua
+    Quickfix Morgen-Auftrag 4, Punkt 2, 08.10.2026): die Karte zeigt noch
+    das alte Rollenlink-Layout ("Everyone opens their own part via the role
+    link") -- im Karten-/Stage-Script-Ablauf gibt es keine Rollenlinks."""
+    from interview_theater import handykarten, workshop
+
+    if workshop.szenenkarten_aktiv() and nummer in (6, 7):
+        return
     datei = handykarten.pfad(nummer)
     satz = handykarten.satz(nummer)
     if datei is None or satz is None or not hasattr(tg, "sende_bild"):

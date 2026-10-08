@@ -9,9 +9,22 @@ Knopfbeschriftungen bleiben englisch."""
 
 import pytest
 
-from interview_theater import phasen, workshop
+from interview_theater import phasen, szenenfolge, workshop
 from interview_theater.knoepfe import wirkung
 from interview_theater.knoepfe.wirkung import Druck
+
+
+@pytest.fixture(autouse=True)
+def _ohne_regienotiz_leck():
+    """``_wirkung_szene_anders`` merkt ueber ``szenenfolge.erwarte_regienotiz``
+    eine erwartete Regie-Notiz fuer ``chat_id`` im Prozess vor (bewusst, siehe
+    ``szenenfolge._regienotiz_erwartet``) -- dieselbe ``chat_id`` wie in
+    ``tests/test_kostendeckel.py`` (``CHAT = 1``). Ohne diese Fixture
+    ueberlebt der Merkposten das Testende und liess einen spaeteren Test mit
+    derselben chat_id faelschlich ``ablauf._szene_hat_vorfahrt`` ausloesen
+    statt die Kostendeckel-Pause zu greifen."""
+    yield
+    szenenfolge._regienotiz_erwartet.clear()
 
 
 class TelegramAttrappe:

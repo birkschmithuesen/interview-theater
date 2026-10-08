@@ -472,6 +472,18 @@ def _stagescript(conn, e, tg, klm, chats):
     return None
 
 
+def _karten_nachzug(conn, e, tg, klm, chats):
+    """``51-karten-nachzug``: Ort/Figuren aus einem neu geschriebenen Stage
+    Script auf die Karte (Phase 7, ``karten_nachzug.ziehe_nach``)."""
+    from interview_theater import karten_nachzug, repo as repo_modul
+    chat_id = chats[7]
+    szene = next(s for s in repo_modul.hole_szenen(conn, chat_id) if s["nummer"] == 1)
+    karten_nachzug.ziehe_nach(conn, klm, e, chat_id, szene["id"],
+                              "1. The audience enters a kitchen. ANNA and a SPECTATOR sit at the table.",
+                              ueber_claude=False)
+    return None
+
+
 def _szene_prosa_phase6(conn, e, tg, klm, chats):
     """``04-szene-prosa-phase6``: derselbe Aufruf wie ``entwurf.
     fixiere_uebersicht``/``bestaetige_szene`` ihn ausloesen -- die Phase (6)
@@ -724,6 +736,7 @@ TREIBER = {
     "47-szenenkarte": _szenenkarte,
     "48-szenenkarte-pruefung": _szenenkarte_pruefung,
     "49-stagescript": _stagescript,
+    "51-karten-nachzug": _karten_nachzug,
     "40-recherche-fragen": _recherche_fragen,
     "41-recherche-karte": _recherche_karte,
     "04-szene-prosa-phase6": _szene_prosa_phase6,

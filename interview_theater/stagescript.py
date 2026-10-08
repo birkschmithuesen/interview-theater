@@ -24,6 +24,7 @@ hierher); "Yes, save" setzt ``fertig_am``."""
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 
@@ -326,10 +327,61 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     return antwort
 
 
+#: Nach "No, change" ist die naechste Nachricht nicht automatisch die neue
+#: Aenderungsnotiz (Padua Quickfix 08.10.2026, Befund G1 web_post 2390-2394:
+#: "did you create szene 1 already sfinakl script?" wurde blind als Notiz
+#: genommen und Szene 1 damit neu geschrieben). Rein textuell, kein
+#: Erkenner-/Modellaufruf -- ein Fragezeichen, ein Frage-/Stand-Wort am Satz-
+#: anfang oder eine der italienischen Stand-Wendungen.
+_FRAGE_MUSTER = re.compile(
+    r"\?\s*$"
+    r"|^\s*(did|do|does|have|has|is|are|was|were|can|could|would|should|"
+    r"what|where|when|why|how)\b"
+    r"|\b(hai\s+gi[aà]|[eè]\s+gi[aà]|gi[aà]\s+pronta|gi[aà]\s+pronto|dove|quando)\b",
+    re.IGNORECASE,
+)
+
+#: "No, change" wird zurueckgenommen, ohne neu zu schreiben (Punkt 4).
+_ABBRUCH_MUSTER = re.compile(r"^\s*(skip|cancel|annulla|niente)\s*[.!]?\s*$", re.IGNORECASE)
+
+
+def ist_frage_oder_unklar(notiz: str | None) -> bool:
+    """Ist ``notiz`` erkennbar eine Frage/Meta-Nachricht statt einer
+    Aenderungsnotiz -- oder leer/unklar?"""
+    text = (notiz or "").strip()
+    if not text:
+        return True
+    return bool(_FRAGE_MUSTER.search(text))
+
+
+def ist_abbruch(notiz: str | None) -> bool:
+    """Beendet den Aenderungsmodus, ohne neu zu schreiben."""
+    return bool(_ABBRUCH_MUSTER.match((notiz or "").strip()))
+
+
+def _klaerung(conn, chat_id: int, nummer: int) -> str:
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    stand = (T_IT._TEXT_STAND_FERTIG if szene and _gesetzt(szene["volltext"])
+             else T_IT._TEXT_STAND_OFFEN)
+    return stand.format(nummer=nummer) + " " + T_IT._TEXT_WAS_AENDERN.format(nummer=nummer)
+
+
 def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = None):
+    from interview_theater import szenenfolge
+
     n = nummer if nummer is not None else aktuelle_nummer(conn, chat_id)
     if n is None:
         _sende(conn, tg, e, chat_id, T_IT._TEXT_KEIN_ZIEL)
+        return None
+    if ist_abbruch(notiz):
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_ABBRUCH.format(nummer=n))
+        return None
+    if ist_frage_oder_unklar(notiz):
+        # Aenderungsmodus bleibt offen -- dieselbe Nachricht, die soeben
+        # verbraucht wurde (``szenenfolge.nimm_regienotiz`` in
+        # ``ablauf._szene_hat_vorfahrt``), wird erneut erwartet.
+        szenenfolge.erwarte_regienotiz(chat_id, n)
+        _sende(conn, tg, e, chat_id, _klaerung(conn, chat_id, n))
         return None
     return starte(conn, tg, klm, e, chat_id, n, notiz)
 
@@ -405,6 +457,11 @@ _TEXT_KEIN_ZIEL = "Alle Szenen sind gespeichert. Welche wollt ihr aendern?"
 #: _starte_stagescript_notiz``.
 _TEXT_NOTIZ_NOTIERT = "Notiert fuer Szene {nummer}: {notiz}"
 _TEXT_ALLES_FERTIG = "Das Stage Script ist fertig. Lest es im Script-Tab."
+#: Klaerung statt Neuschreiben (Padua Quickfix 08.10.2026, ``ist_frage_oder_unklar``).
+_TEXT_ABBRUCH = "Ok, ich aendere Szene {nummer} nicht."
+_TEXT_STAND_FERTIG = "Ja, Szene {nummer} steht schon im Script-Tab."
+_TEXT_STAND_OFFEN = "Noch nicht -- Szene {nummer} ist noch nicht geschrieben."
+_TEXT_WAS_AENDERN = "Was soll sich an Szene {nummer} aendern? Schreibt es in einer Nachricht."
 _ANTWORT_GESPEICHERT = "Szene {nummer} gespeichert"
 _JOURNAL_GESPEICHERT = "Stage Script Szene {nummer} gespeichert: {titel}"
 

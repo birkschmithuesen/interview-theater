@@ -78,6 +78,10 @@ _JOURNAL_GESPEICHERT = "Stage script scena {nummer} salvato: {titel}"
 _ANTWORT_GESPEICHERT = "Scena {nummer} salvata"
 _TEXT_KEIN_ZIEL = "Tutte le scene sono salvate. Quale volete cambiare?"
 _TEXT_NOTIZ_NOTIERT = "Annotato per la scena {nummer}: {notiz}"
+_TEXT_ABBRUCH = "Ok, non cambio la scena {nummer}."
+_TEXT_STAND_FERTIG = "Sì, la scena {nummer} è già nella scheda Script."
+_TEXT_STAND_OFFEN = "Non ancora -- la scena {nummer} non è stata scritta."
+_TEXT_WAS_AENDERN = "Cosa deve cambiare nella scena {nummer}? Scrivilo in un messaggio."
 
 ["web_skript"]
 _TEXT_ZITAT_KOPF = "Citazione dall'intervista · {nummer}"

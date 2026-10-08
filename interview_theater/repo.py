@@ -3971,6 +3971,46 @@ def phasen_summaries(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row
     return [neueste[phase] for phase in sorted(neueste)]
 
 
+# --- Karten-Verlauf (Birk 08.10.2026 ~10:35) --------------------------------
+#
+# Jede Fassung einer Szenenkarte (interview_theater/szenenkarte.py) bleibt
+# erhalten -- Grundlage des Verfeinerungs-Blocks in Phase 7 und des
+# Phase-6-Summary. Nur-anhaengend wie Phasen-Summary/Journal/Festlegung.
+
+
+@_gesperrt
+def merke_karte_verlauf(
+    conn: sqlite3.Connection, chat_id: int, szene_id: int, karte_json: str,
+    ausloeser: str, notiz_text: str | None = None,
+) -> int:
+    """Haengt eine neue Fassung dieser Szenenkarte an -- ``fassung_nr``
+    zaehlt je ``szene_id`` ab 1 hoch. Wird nie aktualisiert."""
+    naechste = conn.execute(
+        "SELECT COALESCE(MAX(fassung_nr), 0) + 1 FROM karte_verlauf WHERE szene_id = ?",
+        (szene_id,),
+    ).fetchone()[0]
+    cur = conn.execute(
+        """
+        INSERT INTO karte_verlauf
+            (chat_id, szene_id, fassung_nr, karte_json, ausloeser, notiz_text, erstellt_am)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (chat_id, szene_id, naechste, karte_json, ausloeser, notiz_text, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def karte_verlauf(conn: sqlite3.Connection, chat_id: int, szene_id: int) -> list[sqlite3.Row]:
+    """Alle Fassungen dieser Karte, aufsteigend nach ``fassung_nr``."""
+    return conn.execute(
+        "SELECT * FROM karte_verlauf WHERE chat_id = ? AND szene_id = ? "
+        "ORDER BY fassung_nr ASC",
+        (chat_id, szene_id),
+    ).fetchall()
+
+
 @_gesperrt
 def merke_aufruf(
     conn: sqlite3.Connection,

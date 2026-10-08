@@ -1437,6 +1437,28 @@ CREATE TABLE IF NOT EXISTS phasen_summary (
   erstellt_am  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_phasen_summary_chat ON phasen_summary(chat_id, phase, id);
+
+-- Karten-Verlauf (Birk 08.10.2026 ~10:35, "Nimmt P7 eine Zusammenfassung mit,
+-- was an den Karten geaendert wurde aus P6?"): JEDE Fassung einer
+-- Szenenkarte (``szenenkarte.py``), nicht nur die juengste -- der
+-- Stage-Script-Prompt (Phase 7) und das Phase-6-Summary sollen zeigen, was
+-- die Gruppe seit dem ersten Entwurf verfeinert hat, nicht nur das Ergebnis.
+-- Nur-anhaengend wie Journal/Festlegung/Phasen-Summary: eine neue Fassung
+-- legt eine neue Zeile an, keine wird geaendert oder geloescht.
+-- ausloeser: erstentwurf|aenderung|fragen_geklaert|fragen_uebersprungen|dialog
+-- ("dialog" ist die Andockstelle fuer den No-change-Dialog im CoThinker --
+-- noch nicht gebaut, siehe Moduldocstring ``szenenkarte.py``).
+CREATE TABLE IF NOT EXISTS karte_verlauf (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  szene_id     INTEGER NOT NULL,
+  fassung_nr   INTEGER NOT NULL,
+  karte_json   TEXT NOT NULL,
+  ausloeser    TEXT NOT NULL,
+  notiz_text   TEXT,
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_karte_verlauf_szene ON karte_verlauf(szene_id, fassung_nr);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1480,6 +1502,8 @@ TABELLEN_MIT_CHAT_ID = (
     "recherche",
     # Karte t_1bc96848 (07.10.2026): die Phasen-Summaries.
     "phasen_summary",
+    # Birk 08.10.2026 ~10:35: der Karten-Verlauf (jede Fassung einer Szenenkarte).
+    "karte_verlauf",
 )
 
 

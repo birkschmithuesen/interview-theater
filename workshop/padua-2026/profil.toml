@@ -299,6 +299,13 @@ zweisprachig = true
 # schlanker Prosa-Prompt (Format drin, Chat-Dublette raus), Verworfenes im
 # Matcher. Ohne diese Zeile: unveraendert.
 verdichtet = true
+# Keine Interviewzitat-Bloecke in Script-Tab und PDF fuer diese Gruppen
+# (Birk 08.10.2026 ~07:50, Morgen-Auftrag 1, G1: "lenkt nur ab"). Script-Tab
+# und PDF teilen denselben Renderer (web_skript.text_html), also gilt das
+# fuer beide gleich. Achtung G1 Szene 2 "Le voci": dort tragen zwei Zitate
+# allein den Sprechtext eines Abschnitts -- ohne sie bleiben dort nur
+# Regieanweisungen stehen (Befund im Bericht, nicht automatisch behoben).
+ohne_zitate_chats = [7000000000000]
 
 [formberater]
 # Musikalische Strukturen (Wiki musikalische-strukturen) nur fuer diese Gruppen

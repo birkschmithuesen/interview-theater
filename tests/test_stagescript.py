@@ -92,6 +92,16 @@ def test_format_nach_kartentyp(conn, padua):
     assert stagescript.braucht_kopf(conn, 1) is False
 
 
+def test_ohne_zitate_chats_traegt_zusaetzlichen_auftrag(conn, padua, monkeypatch):
+    ids = _karten(conn)
+    text_ohne = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
+    assert "Do not put interview quotes" not in text_ohne
+
+    monkeypatch.setattr(workshop, "skript_ohne_zitate_chats", lambda *a, **k: frozenset({1}))
+    text_mit = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
+    assert "Do not put interview quotes" in text_mit
+
+
 def test_kopf_nur_bei_ueberwiegend_anweisungen(conn, padua):
     ids = _karten(conn, typ="instructions")
     assert stagescript.braucht_kopf(conn, 1) is True

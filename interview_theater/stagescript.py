@@ -123,6 +123,8 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
     teile.append(T._KOPF_KARTE + "\n" + szenenkarte.karte_text(karte, szene))
     typ = karte.get("typ") or "description"
     teile.append(T._KOPF_FORMAT_TYP + "\n" + T.FORMAT_JE_TYP.get(typ, T.FORMAT_JE_TYP["description"]))
+    if chat_id in workshop.skript_ohne_zitate_chats():
+        teile.append(T._AUFTRAG_OHNE_ZITATE)
     if mit_kopf:
         teile.append(T._AUFTRAG_KOPF)
     alt = (szene["volltext"] or "").strip()
@@ -305,6 +307,11 @@ _AUFTRAG_KOPF = (
     "ihre Rolle -- was sie tut, was nie, wann sie eingreift. Rollen und "
     "Eigenschaften NUR aus Uebersicht und Festlegungen der Gruppe; wo die "
     "Gruppe keine genannt hat, keine."
+)
+_AUFTRAG_OHNE_ZITATE = (
+    "Diese Gruppe will KEINE Interviewzitate im Skript (Morgen-Auftrag 1): "
+    "keine Zeile \"> *Interview quote (N):* ...\" und kein Zitat mitten im "
+    "Absatz -- trag den Inhalt in eigenen Worten."
 )
 _AUFTRAG = "Schreib jetzt das Stage Script von Szene {nummer}."
 FORMAT_JE_TYP = {

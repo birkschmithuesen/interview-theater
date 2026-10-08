@@ -4450,10 +4450,13 @@ def _planung_wert_html(feld: str, wert: str) -> str:
     return f'<ul class="planung-liste">{items}{mehr}</ul>'
 
 
-def _prosa_absaetze_html(text: str) -> str:
+def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:
     """Script-Tab (Birk 07.10.2026 ~17:40: "keinerlei Zeilenumbrueche oder
     Paragraphs"): Leerzeile = neuer Absatz, einfacher Umbruch = <br>,
-    ``**fett**`` und ``*kursiv*`` wie im Chat, ``NAME:`` am Zeilenanfang fett."""
+    ``**fett**`` und ``*kursiv*`` wie im Chat, ``NAME:`` am Zeilenanfang fett.
+
+    ``ohne_zitate`` (Morgen-Auftrag 1, G1): Interviewzitat-Zeilen (``> ...``)
+    fallen weg, der Rest des Absatzes bleibt stehen."""
     import re as _re
 
     def zeile(z: str) -> str:
@@ -4475,6 +4478,8 @@ def _prosa_absaetze_html(text: str) -> str:
         normal: list[str] = []
         for z in a.splitlines():
             if z.lstrip().startswith(">"):
+                if ohne_zitate:
+                    continue
                 if normal:
                     stuecke.append(f'<p class="prosa">{"<br>".join(normal)}</p>')
                     normal = []
@@ -4488,7 +4493,9 @@ def _prosa_absaetze_html(text: str) -> str:
     return "".join(stuecke)
 
 
-def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
+def _probe_szene_html(
+    s: dict, bekannte: set[str], ohne_zitate: bool = False
+) -> tuple[str, list[str]]:
     """Eine Szene in der Probenansicht: Kopf, Angaben, Besetzung, Text.
 
     Nicht aufklappbar (anders als auf der Gruppenseite): hier wird das Stueck
@@ -4498,9 +4505,12 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
     Eine Szene ohne Volltext faellt nicht weg, sondern steht als Platzhalter
     mit ihrer Planung da (dieselbe Entscheidung wie in
     ``szenenfolge.textbuch``: ein Textbuch, in dem Szene 4 fehlt, sieht aus
-    wie ein Fehler)."""
+    wie ein Fehler).
+
+    ``ohne_zitate`` (Morgen-Auftrag 1, G1): die Interviewzitat-Bloecke fallen
+    in der Darstellung weg -- ``workshop.skript_ohne_zitate_chats``."""
     if s.get("verdichtet") is not None:
-        return _probe_szene_verdichtet_html(s, bekannte)
+        return _probe_szene_verdichtet_html(s, bekannte, ohne_zitate)
     kopf = _t(
         T._TEXT_SZENE_NR.format(nummer=s["nummer"])
         if s.get("nummer") is not None else T._TEXT_SZENE
@@ -4816,7 +4826,9 @@ _CSS_TEXTBUCH_LESBAR_KARTE = """
 """
 
 
-def _probe_szene_verdichtet_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
+def _probe_szene_verdichtet_html(
+    s: dict, bekannte: set[str], ohne_zitate: bool = False
+) -> tuple[str, list[str]]:
     """Eine Szene im Script-Tab, auf das Wesentliche reduziert: Kopf, Ort und
     Besetzung, der Text (EN und IT als eigene Bloecke). "Worum es geht" und
     die staerksten Zitate nur, solange kein Text da ist -- danach stehen die
@@ -4859,7 +4871,8 @@ def _probe_szene_verdichtet_html(s: dict, bekannte: set[str]) -> tuple[str, list
         # Padua-Phasenumbau: das Stage Script ist kein Dialog im alten Sinn
         # (Ablauf, Anweisungen, Momente) -- dieselbe Lesedarstellung wie die
         # Prosa: Absaetze, **fett**, NAME: fett, Zitatbloecke; EN/IT getrennt.
-        lesen = web_skript.text_html if design else _prosa_absaetze_html
+        lesen = ((lambda t: web_skript.text_html(t, ohne_zitate)) if design else
+                 (lambda t: _prosa_absaetze_html(t, ohne_zitate)))
         if volltext_it:
             zeilen.append(f'<p class="sprache-kopf">{_t(T._TEXT_FASSUNG_EN)}</p>')
         zeilen.append(f'<div class="text" lang="en">{lesen(volltext)}</div>')
@@ -5199,7 +5212,10 @@ def textbuch_koerper(
     Verdichtung, kein Nachrichtentext -- die Grenze aus docs/agents/weboberflaeche.md
     gilt hier strenger als auf der Gruppenseite, weil
     dieser Link im Probenraum herumgereicht wird."""
+    from interview_theater import workshop
+
     bekannte = {(f["name"] or "").upper() for f in daten["figuren"] if f.get("name")}
+    ohne_zitate = daten.get("chat_id") in workshop.skript_ohne_zitate_chats()
     abschnitte = []
     sprecher: list[str] = []
     fassungen = daten.get("fassungen") or {}
@@ -5210,7 +5226,7 @@ def textbuch_koerper(
             "_fassungen": fassungen.get(s.get("id")) or [],
             "_erstentwurf": erstentwuerfe.get(s.get("id")),
         }
-        html_stueck, gefunden = _probe_szene_html(s, bekannte)
+        html_stueck, gefunden = _probe_szene_html(s, bekannte, ohne_zitate)
         abschnitte.append(html_stueck)
         for name in gefunden:
             if name not in sprecher:

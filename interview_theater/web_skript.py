@@ -130,7 +130,7 @@ def _ist_tabelle(zeilen: list[str]) -> bool:
             and bool(re.fullmatch(r"\|?(\s*:?-{3,}:?\s*\|)+\s*:?-*:?\s*\|?", zeilen[1].strip())))
 
 
-def _block_html(block: str) -> str:
+def _block_html(block: str, ohne_zitate: bool = False) -> str:
     zeilen = [z.rstrip() for z in block.splitlines() if z.strip()]
     if re.fullmatch(r"-{3,}|\*{3,}|_{3,}", block.strip()):
         return '<hr class="trenner">'
@@ -152,7 +152,8 @@ def _block_html(block: str) -> str:
         blank = zeile.strip()
         if blank.startswith(">"):
             leere()
-            stuecke.append(_zitatzeile_html(blank))
+            if not ohne_zitate:
+                stuecke.append(_zitatzeile_html(blank))
         elif _ist_listenpunkt(blank):
             if normal:
                 stuecke.append(_absatz_html(normal))
@@ -186,6 +187,11 @@ def _block_html(block: str) -> str:
                 if not treffer:
                     break
                 vorher = rest[:treffer.start()].rstrip()
+                if ohne_zitate:
+                    if vorher:
+                        normal.append(vorher)
+                    rest = rest[treffer.end():].lstrip()
+                    continue
                 if vorher:
                     normal.append(vorher)
                 leere()
@@ -197,13 +203,19 @@ def _block_html(block: str) -> str:
     return "".join(stuecke)
 
 
-def text_html(text: str) -> str:
+def text_html(text: str, ohne_zitate: bool = False) -> str:
     """Ein Stage-Script-Text (EN oder IT) als HTML. Die erste Zeile
-    ``SCENE 1 — ...`` faellt weg: sie steht schon als Szenenkopf darueber."""
+    ``SCENE 1 — ...`` faellt weg: sie steht schon als Szenenkopf darueber.
+
+    ``ohne_zitate`` (Morgen-Auftrag 1, G1, ``workshop.skript_ohne_zitate_chats``):
+    die Interviewzitat-Bloecke (eigene Zeile UND mitten im Absatz) fallen
+    weg -- der Rest des Textes bleibt stehen, auch wenn dadurch an einer
+    Stelle eine reine Regieanweisung ohne Sprechzeile uebrigbleibt (siehe
+    Bericht, G1 Szene 2 "Le voci")."""
     text = (text or "").strip()
     text = re.sub(r"\A(?:SCENE|SCENA|SZENE)\s+\d+\b[^\n]*\n?", "", text).strip()
     bloecke = [b for b in re.split(r"\n\s*\n", text) if b.strip()]
-    return "".join(_block_html(b) for b in bloecke)
+    return "".join(_block_html(b, ohne_zitate) for b in bloecke)
 
 
 # --- Setup & roles (G2, ``arbeitsstand.stage_kopf``) ------------------------

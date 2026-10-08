@@ -1124,6 +1124,14 @@ def schaerfung_ohne_figuren_chats(profil: Profil | None = None) -> frozenset[int
     return frozenset(int(c) for c in (profil.wert("schaerfung.ohne_figuren_chats", []) or []))
 
 
+def skript_ohne_zitate_chats(profil: Profil | None = None) -> frozenset[int]:
+    """Gruppen (chat_id), fuer die das Stage Script OHNE Interviewzitat-
+    Bloecke gezeigt wird -- Script-Tab und PDF (Birk 08.10.2026 ~07:50,
+    Morgen-Auftrag 1, G1: "lenkt nur ab"). Vorgabe leer."""
+    profil = profil or aktiv()
+    return frozenset(int(c) for c in (profil.wert("skript.ohne_zitate_chats", []) or []))
+
+
 def musik_chats(profil: Profil | None = None) -> frozenset[int]:
     """Gruppen (chat_id), fuer die der Formberater auch die musikalischen
     Strukturen nachschlagen darf (Birk 07.10.2026, G1 Padua). Vorgabe leer:

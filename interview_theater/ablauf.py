@@ -656,7 +656,7 @@ def ist_ausloeser(n: dict, bot_name: str | None) -> bool:
 
 @contextmanager
 def arbeitet_sichtbar(tg, chat_id: int, text: str | None = None,
-                      art: str | None = None):
+                      art: str | None = None, conn=None):
     """Tippanzeige plus wechselnde Arbeitszeile waehrend eines laufenden
     Modellaufrufs (06.09.2026, 10:10/11:15, Birk).
 
@@ -692,7 +692,7 @@ def arbeitet_sichtbar(tg, chat_id: int, text: str | None = None,
             # Der Lauf haelt die Tippanzeige selbst am Leben.
             yield
         else:
-            with _tippanzeige(tg, chat_id):
+            with _tippanzeige(tg, chat_id, conn=conn):
                 yield
     finally:
         if lauf is not None:
@@ -705,10 +705,14 @@ def arbeitet_sichtbar(tg, chat_id: int, text: str | None = None,
 
 
 @contextmanager
-def _tippanzeige(tg, chat_id: int, stand: dict | None = None):
+def _tippanzeige(tg, chat_id: int, stand: dict | None = None, conn=None):
     """Haelt die Tippanzeige waehrend eines laufenden Sprachmodell-Aufrufs am
     Leben (SPEC § 1.3): alle TIPP_INTERVALL Sekunden erneut ``tg.tippt``,
     nach HINWEIS_NACH Sekunden zusaetzlich eine kurze Zeile.
+
+    ``conn`` (Nachtauftrag cc-p67texte, 08.10.2026): nur fuer
+    ``_texte_fuer_phase`` -- welche Sprache die Hinweiszeile traegt. Ohne
+    ``conn`` (alter Testaufruf) bleibt es bei ``T``.
 
     ``stand`` (Addendum Robo 14:41, Live-Fund 07.10.2026): ein von aussen
     uebergebenes Dict, in das ``hinweis_gesendet`` geschrieben wird, sobald
@@ -740,7 +744,7 @@ def _tippanzeige(tg, chat_id: int, stand: dict | None = None):
             if not stand["hinweis_gesendet"] and vergangen >= HINWEIS_NACH:
                 stand["hinweis_gesendet"] = True
                 try:
-                    tg.sende(chat_id, T._TEXT_HINWEIS)
+                    tg.sende(chat_id, _texte_fuer_phase(conn, chat_id)._TEXT_HINWEIS)
                 except Exception:
                     log.exception("Hinweis-Zeile fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -1793,7 +1797,7 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
 
     ``tippstand`` (Addendum Robo 14:41): wird unveraendert an
     ``_tippanzeige`` durchgereicht, siehe dort."""
-    with _tippanzeige(tg, chat_id, tippstand):
+    with _tippanzeige(tg, chat_id, tippstand, conn=conn):
         # Die Phase geht in die Systemanweisung (worauf der Bot gerade den
         # Fokus legt, prompts/phasen/N.md), nicht in den Koerper -- die
         # datengetriebenen Bloecke bleiben unveraendert (phasen.py).
@@ -1992,7 +1996,7 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         # der Bot arbeitet, und beim Ende wieder verschwindet (06.09.2026,
         # 10:10). Ohne sie schwieg der Bot zwischen "Notiert: Fragen ..." und
         # der Sensibilitaetspruefung minutenlang.
-        with arbeitet_sichtbar(tg, chat_id, arbeitszeile, arbeitsart):
+        with arbeitet_sichtbar(tg, chat_id, arbeitszeile, arbeitsart, conn=conn):
             phase = phasen.aktuelle(conn, chat_id)
             ueber_claude = modellwahl.konversation_ueber_claude(e, conn, chat_id)
             koerper = kontext.baue(conn, chat_id, [], e, ueber_claude=ueber_claude)
@@ -2089,3 +2093,23 @@ def starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 
 T = sprache.Texte(__name__)
+#: Nachtauftrag cc-p67texte (08.10.2026): die Hinweiszeile ("One moment,
+#: I'm thinking.") italienisch in Phase 6/7 -- Auswahl in
+#: ``_texte_fuer_phase``, derselbe Mechanismus wie ``erkenner.py``/
+#: ``stagescript.py``.
+_T_IT = sprache.Texte(__name__, sprachcode="it")
+
+
+def _texte_fuer_phase(conn, chat_id: int) -> sprache.Texte:
+    """``_T_IT`` nur wenn ``conn`` da ist, die Gruppe in Phase 6/7 steht UND
+    chat_id in ``workshop.italienisch_ab_phase6_chats()`` steht -- sonst
+    ``T``. ``conn`` fehlt beim alten, direkten Test-Aufruf von
+    ``_tippanzeige`` ohne Datenbank."""
+    if conn is None:
+        return T
+    from interview_theater import workshop
+
+    if (phasen.aktuelle(conn, chat_id) in (6, 7)
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
+        return _T_IT
+    return T

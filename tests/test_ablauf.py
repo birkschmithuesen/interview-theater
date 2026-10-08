@@ -1067,3 +1067,86 @@ def test_auch_die_zweite_ankuendigung_wird_gesendet(conn, einst, tg):
     assert len(klm.gesehen) == 2
     assert tg.gesendet == [(1, "Here they are, numbered:")]
     assert _vorfallarten(conn) == ["ankuendigung_ohne_inhalt", "ankuendigung_wiederholt"]
+
+
+# ---------------------------------------------------------------------------
+# Nachtauftrag cc-p67texte (08.10.2026, Befund G1-G3 live): die Hinweiszeile
+# ("One moment, I'm thinking.") italienisch in Phase 6/7, fuer Chats aus
+# ``workshop.italienisch_ab_phase6_chats()`` -- derselbe Mechanismus wie
+# ``szenenkarte.py``/``stagescript.py``/``erkenner.py`` (``_T_IT`` +
+# ``_texte_fuer_phase``).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    from interview_theater import workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    workshop.vergiss()
+    yield
+    monkeypatch.delenv(workshop.VARIABLE, raising=False)
+    workshop.vergiss()
+
+
+def test_texte_fuer_phase_italienisch_in_phase_6(conn, padua):
+    from interview_theater import phasen
+
+    phasen.setze(conn, 1, 6, "test")
+    assert ablauf._texte_fuer_phase(conn, 1) is ablauf._T_IT
+
+
+def test_texte_fuer_phase_italienisch_in_phase_7(conn, padua):
+    from interview_theater import phasen
+
+    phasen.setze(conn, 1, 7, "test")
+    assert ablauf._texte_fuer_phase(conn, 1) is ablauf._T_IT
+
+
+def test_texte_fuer_phase_bleibt_englisch_ausserhalb_6_7(conn, padua):
+    from interview_theater import phasen
+
+    phasen.setze(conn, 1, 3, "test")
+    assert ablauf._texte_fuer_phase(conn, 1) is ablauf.T
+
+
+def test_texte_fuer_phase_tester_chat_bleibt_englisch(conn, padua, monkeypatch):
+    from interview_theater import phasen, workshop
+
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset())
+    phasen.setze(conn, 1, 6, "test")
+    assert ablauf._texte_fuer_phase(conn, 1) is ablauf.T
+
+
+def test_texte_fuer_phase_ohne_conn_bleibt_englisch():
+    """Der alte Aufruf ohne ``conn`` (siehe Test oben) darf nicht brechen."""
+    assert ablauf._texte_fuer_phase(None, 1) is ablauf.T
+
+
+def test_tippanzeige_sendet_italienische_hinweiszeile(conn, padua, monkeypatch):
+    from interview_theater import phasen
+
+    phasen.setze(conn, 1, 6, "test")
+    monkeypatch.setattr(ablauf, "TIPP_INTERVALL", 0.02)
+    monkeypatch.setattr(ablauf, "HINWEIS_NACH", 0.05)
+    tg = TelegramAttrappe()
+
+    with ablauf._tippanzeige(tg, chat_id=1, conn=conn):
+        time.sleep(0.2)
+
+    assert any("Un momento, ci penso." in t for _, t in tg.gesendet)
+    assert not any("One moment" in t for _, t in tg.gesendet)
+
+
+def test_tippanzeige_dortmund_bytegleich_mit_conn(conn, monkeypatch):
+    """Ohne Padua-Profil bleibt die deutsche Zeile stehen, auch wenn ``conn``
+    jetzt mitgegeben wird."""
+    monkeypatch.setattr(ablauf, "TIPP_INTERVALL", 0.02)
+    monkeypatch.setattr(ablauf, "HINWEIS_NACH", 0.05)
+    tg = TelegramAttrappe()
+
+    with ablauf._tippanzeige(tg, chat_id=1, conn=conn):
+        time.sleep(0.2)
+
+    assert any("Einen Moment, ich denke nach." in t for _, t in tg.gesendet)

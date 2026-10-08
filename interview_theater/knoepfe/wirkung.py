@@ -57,7 +57,7 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
     ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
     ART_SPRECHWEISEN_ANDERS, ART_SPRECHWEISEN_PASST,
-    ART_STT_SPRACHE, STT_KNOEPFE, T, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
+    ART_STT_SPRACHE, STT_KNOEPFE, T, _T_IT, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
     ART_TEIL_WEITER, ART_TEXTBUCH, ART_TRANSKRIPT, ART_UNDO, ART_WIR_ZUERST,
     ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_STUECKPRUEFUNG, PHASE_SZENEN, TRENNER, _KETTE, log,
 )
@@ -415,6 +415,17 @@ def _wirkung_entwurf_szene_passt(conn, d: Druck, nummer: int) -> str:
     return entwurf.bestaetige_szene(conn, d.tg, d.klm, d.e, d.chat_id, nummer)
 
 
+def _texte_fuer_phase(conn, chat_id: int) -> sprache.Texte:
+    """``_T_IT`` fuer die "No, change"-Rueckfrage, solange die Gruppe in
+    Phase 6/7 steht UND chat_id in ``workshop.italienisch_ab_phase6_chats()``
+    steht (Nachtauftrag cc-p67texte, 08.10.2026) -- sonst ``T``. Derselbe
+    Mechanismus wie ``erkenner._texte_fuer_phase``/``stagescript._T``."""
+    if (conn is not None and phasen.aktuelle(conn, chat_id) in (6, 7)
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
+        return _T_IT
+    return T
+
+
 def _wirkung_szene_anders(conn, d: Druck) -> str:
     """Der Regie-Vermerk kommt als naechste Nachricht; ``ablauf.antworte``
     greift ihn auf (``szenenfolge.nimm_regienotiz``) und schreibt die Szene
@@ -432,9 +443,10 @@ def _wirkung_szene_anders(conn, d: Druck) -> str:
 
     nummer = int(d.wert)
     szenenfolge.erwarte_regienotiz(d.chat_id, nummer)
-    d.tg.sende(d.chat_id, T._TEXT_SZENE_ANDERS_FRAGE)
+    t = _texte_fuer_phase(conn, d.chat_id)
+    d.tg.sende(d.chat_id, t._TEXT_SZENE_ANDERS_FRAGE)
     _melde_spaetere(conn, d.tg, d.chat_id, nummer)
-    return T._ANTWORT_WAS_ANDERS_WERDEN
+    return t._ANTWORT_WAS_ANDERS_WERDEN
 
 
 def _wirkung_karte_fragen_klaeren(conn, d: Druck) -> str:

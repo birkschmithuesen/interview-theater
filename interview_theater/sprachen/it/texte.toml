@@ -11,6 +11,22 @@
 # bleiben aussen vor). ``tests/test_sprache_texte.py`` prueft nur die
 # englische Tabelle, nicht diese hier.
 
+["ablauf"]
+# Nachtauftrag cc-p67texte (08.10.2026): die Tippanzeige-Hinweiszeile.
+_TEXT_HINWEIS = "Un momento, ci penso."
+
+["aufnahme"]
+# Nachtauftrag cc-p67texte (08.10.2026): die Zwischenmeldung bei langsamer
+# Transkription.
+_TEXT_ZWISCHENMELDUNG = "Sto ancora trascrivendo il vocale, un momento."
+
+["knoepfe.texte"]
+# Nachtauftrag cc-p67texte (08.10.2026): die "No, change"-Rueckfrage des
+# generischen Wegs (kein Kartenprofil-Dialog) -- der Knopf selbst ("No,
+# change") bleibt englisch.
+_TEXT_SZENE_ANDERS_FRAGE = "Cosa deve cambiare? Ditemelo e la riscrivo."
+_ANTWORT_WAS_ANDERS_WERDEN = "Cosa deve cambiare?"
+
 [phasentexte]
 # Phaseneintritt 6/7 italienisch (Morgen-Auftrag 4, Punkt 1, 08.10.2026):
 # ``phasentexte._texte_fuer_phase`` waehlt diese Tabelle statt der

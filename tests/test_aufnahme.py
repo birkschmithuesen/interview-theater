@@ -1969,4 +1969,88 @@ def test_kalibrierung_segment_schreibt_keine_nachrichtenzeile_bei_abschluss(conn
     haelt fest, dass auch keine entsteht."""
     row = _kalibrierung_zeile(conn, 1, 704, "Noch ein Testsatz.")
     aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+
+
+# ---------------------------------------------------------------------------
+# Nachtauftrag cc-p67texte (08.10.2026, Befund G1-G3 live): die
+# Zwischenmeldung ("I'm still typing up the voice message, one moment.")
+# italienisch in Phase 6/7, fuer Chats aus
+# ``workshop.italienisch_ab_phase6_chats()`` -- derselbe Mechanismus wie
+# ``szenenkarte.py``/``stagescript.py``/``erkenner.py``.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    from interview_theater import workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    workshop.vergiss()
+    yield
+    monkeypatch.delenv(workshop.VARIABLE, raising=False)
+    workshop.vergiss()
+
+
+def test_aufnahme_texte_fuer_phase_italienisch_in_phase_7(conn, padua):
+    phasen.setze(conn, 1, 7, "test")
+    assert aufnahme._texte_fuer_phase(conn, 1) is aufnahme._T_IT
+
+
+def test_aufnahme_texte_fuer_phase_bleibt_englisch_ausserhalb_6_7(conn, padua):
+    phasen.setze(conn, 1, 3, "test")
+    assert aufnahme._texte_fuer_phase(conn, 1) is aufnahme.T
+
+
+def test_aufnahme_texte_fuer_phase_ohne_conn_bleibt_englisch():
+    assert aufnahme._texte_fuer_phase(None, 1) is aufnahme.T
+
+
+def test_zwischenmeldung_italienisch_in_phase_6(conn, einst, tg, klm, padua, monkeypatch):
+    """Dieselbe langsame Transkription wie
+    ``test_zwischenmeldung_auch_bei_einem_interviewteil``, aber in Phase 6
+    fuer eine Gruppe aus ``workshop.italienisch_ab_phase6_chats()`` --
+    die Zwischenmeldung muss italienisch ankommen."""
+    phasen.setze(conn, 1, 6, "test")
+    interview_an(conn, tg, einst)
+    monkeypatch.setattr(aufnahme, "MELDUNG_AB_S", 0.01)
+    monkeypatch.setattr(aufnahme, "TIPPANZEIGE_AB_S", 100)
+
+    def handler_langsam(request):
+        time.sleep(0.1)
+        if "audio/transcriptions" in request.url.path:
+            return httpx.Response(200, json={"batch_id": "B1"})
+        return httpx.Response(200, json={"status": "success", "data": json.dumps({"text": "ok"})})
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler_langsam))
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=93))
+    tg.gesendet.clear()
+
+    aufnahme.verarbeite(conn, tg, klm, einst, klient, aid)
+
+    assert any("Sto ancora trascrivendo il vocale, un momento." in t for _, t in tg.gesendet)
+    assert not any("still typing up" in t for _, t in tg.gesendet)
+
+
+def test_zwischenmeldung_dortmund_bytegleich_in_phase_6(conn, einst, tg, klm, monkeypatch):
+    """Ohne Padua-Profil bleibt die deutsche Zeile stehen -- auch in
+    Phase 6, auch mit derselben chat_id wie im italienischen Test oben."""
+    phasen.setze(conn, 1, 6, "test")
+    interview_an(conn, tg, einst)
+    monkeypatch.setattr(aufnahme, "MELDUNG_AB_S", 0.01)
+    monkeypatch.setattr(aufnahme, "TIPPANZEIGE_AB_S", 100)
+
+    def handler_langsam(request):
+        time.sleep(0.1)
+        if "audio/transcriptions" in request.url.path:
+            return httpx.Response(200, json={"batch_id": "B1"})
+        return httpx.Response(200, json={"status": "success", "data": json.dumps({"text": "ok"})})
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler_langsam))
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=94))
+    tg.gesendet.clear()
+
+    aufnahme.verarbeite(conn, tg, klm, einst, klient, aid)
+
+    assert any("tippe die Sprachnachricht noch ab" in t for _, t in tg.gesendet)
     assert repo.hole_nachricht(conn, 1, 704) is None

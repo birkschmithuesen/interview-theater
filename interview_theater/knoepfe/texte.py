@@ -1751,3 +1751,9 @@ ANWEISUNG_EROEFFNUNG = (
 from interview_theater import sprache  # noqa: E402  (unten: kein Zyklus beim Import)
 
 T = sprache.Texte(__name__)
+#: Nachtauftrag cc-p67texte (08.10.2026): die "No, change"-Rueckfrage des
+#: generischen Wegs (``knoepfe.wirkung._wirkung_szene_anders``) italienisch
+#: in Phase 6/7 -- Auswahl sitzt dort (``_texte_fuer_phase``), dieses Modul
+#: traegt nur die zweite ``Texte``-Instanz, wie ``szenenkarte.py``/
+#: ``stagescript.py``.
+_T_IT = sprache.Texte(__name__, sprachcode="it")

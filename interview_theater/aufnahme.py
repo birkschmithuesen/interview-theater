@@ -707,7 +707,7 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
 
     def _zwischenmeldung():
         try:
-            tg.sende(chat_id, T._TEXT_ZWISCHENMELDUNG)
+            tg.sende(chat_id, _texte_fuer_phase(conn, chat_id)._TEXT_ZWISCHENMELDUNG)
         except Exception:
             log.exception("Zwischenmeldung fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -2587,3 +2587,20 @@ def importiere_text(conn, e, chat_id: int, message_id: int, text: str, name: str
 
 
 T = sprache.Texte(__name__)
+#: Nachtauftrag cc-p67texte (08.10.2026): die Zwischenmeldung ("I'm still
+#: typing up the voice message, one moment.") italienisch in Phase 6/7 --
+#: Auswahl in ``_texte_fuer_phase``, derselbe Mechanismus wie ``erkenner.py``/
+#: ``stagescript.py``.
+_T_IT = sprache.Texte(__name__, sprachcode="it")
+
+
+def _texte_fuer_phase(conn, chat_id: int) -> sprache.Texte:
+    """``_T_IT`` nur wenn ``conn`` da ist, die Gruppe in Phase 6/7 steht UND
+    chat_id in ``workshop.italienisch_ab_phase6_chats()`` steht -- sonst
+    ``T``."""
+    if conn is None:
+        return T
+    if (phasen.aktuelle(conn, chat_id) in (6, 7)
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
+        return _T_IT
+    return T

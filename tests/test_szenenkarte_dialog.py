@@ -23,8 +23,8 @@ def test_starte_dialog_setzt_flag_statt_regienotiz(conn, einst, padua):
     _karte1(conn, einst, LLM())
     tg = TG()
     antwort = szenenkarte.starte_dialog(conn, tg, einst, 1, 1)
-    assert antwort == "Dialogo avviato"
-    assert tg.texte[-1] == "Parliamo della scheda 1. Cosa cambiereste?"
+    assert antwort == "Dialog started"
+    assert tg.texte[-1] == "Let's talk about card 1. What would you change?"
     assert szenenkarte.dialog_aktive_nummer(conn, 1) == 1
     assert szenenfolge.nimm_regienotiz(1) is None
 
@@ -33,7 +33,7 @@ def test_starte_dialog_veraltete_karte_wirkungslos(conn, einst, padua):
     _karte1(conn, einst, LLM())
     tg = TG()
     antwort = szenenkarte.starte_dialog(conn, tg, einst, 1, 99)
-    assert antwort == szenenkarte.T_IT._TEXT_NICHT_DRAN
+    assert antwort == szenenkarte.T._TEXT_NICHT_DRAN
     assert szenenkarte.dialog_aktive_nummer(conn, 1) is None
 
 
@@ -49,7 +49,7 @@ def test_dialog_kontextblock_zeigt_karte_und_anweisung(conn, einst, padua):
     block = szenenkarte.dialog_kontextblock(conn, 1)
     assert "VORSCHLAG KARTE AENDERUNG" in block
     assert "do NOT rebuild the card yourself" in block
-    assert "Scheda scena 1" in block  # die eingebettete Karte bleibt T_IT
+    assert "Scene card 1" in block  # die eingebettete Karte geht ueber dieselbe _T(chat_id)-Weiche
 
 
 def test_kontext_baue_bindet_dialogblock_ein(conn, einst, padua):
@@ -185,7 +185,7 @@ def test_aktualisiere_mit_dialog_baut_neu_bewahrt_fragen_beendet_dialog(conn, ei
     klm = LLM()  # liefert keine Fragen -> alte muss bewahrt werden
     antwort = szenenkarte.aktualisiere_mit_dialog(
         conn, tg, klm, einst, 1, 1, "Emma sings first.")
-    assert antwort == "La scheda 1 viene aggiornata"
+    assert antwort == "Card 1 is being updated"
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
     assert "Emma sings first." in klm.aufrufe[-1]["nutzer"]
@@ -201,7 +201,7 @@ def test_behalte_karte_beendet_dialog_ohne_neubau(conn, einst, padua):
     tg = TG()
     szenenkarte.starte_dialog(conn, tg, einst, 1, 1)
     antwort = szenenkarte.behalte_karte(conn, tg, einst, 1, 1)
-    assert antwort == "La scheda 1 resta cosi'"
+    assert antwort == "Card 1 stays as it is"
     assert szenenkarte.dialog_aktive_nummer(conn, 1) is None
     assert [c for c, _ in tg.leisten[-1]] == ["Yes, save", "No, change"]
 
@@ -211,7 +211,7 @@ def test_behalte_karte_veraltete_nummer_wirkungslos(conn, einst, padua):
     tg = TG()
     szenenkarte.starte_dialog(conn, tg, einst, 1, 1)
     antwort = szenenkarte.behalte_karte(conn, tg, einst, 1, 99)
-    assert antwort == szenenkarte.T_IT._TEXT_NICHT_DRAN
+    assert antwort == szenenkarte.T._TEXT_NICHT_DRAN
     assert szenenkarte.dialog_aktive_nummer(conn, 1) == 1
 
 

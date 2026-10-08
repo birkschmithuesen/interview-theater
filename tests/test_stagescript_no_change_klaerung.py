@@ -67,10 +67,9 @@ def test_frage_wird_nicht_neu_geschrieben(conn, einst, padua, tg):
     assert ergebnis is None
     assert klm.aufrufe == []
     assert repo.hole_szene(conn, ids[0])["volltext"] == "EMMA: Home alone."
-    # Stand (ja/nein) + Rueckfrage, was sich aendern soll -- Italienisch wie
-    # jede andere Statuszeile aus ``stagescript.py`` (Morgen-Auftrag 4).
-    assert any("scena 1" in t and "già" in t for t in tg.texte)
-    assert any("Cosa deve cambiare" in t for t in tg.texte)
+    # Stand (ja/nein) + Rueckfrage, was sich aendern soll.
+    assert any("scene 1" in t and "already" in t for t in tg.texte)
+    assert any("What should change" in t for t in tg.texte)
 
 
 def test_italienische_frage_wird_nicht_neu_geschrieben(conn, einst, padua, tg):
@@ -112,7 +111,7 @@ def test_annulla_beendet_ohne_neu_zu_schreiben(conn, einst, padua, tg):
     assert ergebnis is None
     assert klm.aufrufe == []
     assert repo.hole_szene(conn, ids[0])["volltext"] == "EMMA: Home alone."
-    assert any("non cambio la scena 1" in t for t in tg.texte)
+    assert any("won't change scene 1" in t for t in tg.texte)
 
 
 @pytest.mark.parametrize("notiz", ["skip", "cancel", "Skip.", "CANCEL!"])

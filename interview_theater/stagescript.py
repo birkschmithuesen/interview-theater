@@ -454,9 +454,10 @@ def ist_abbruch(notiz: str | None) -> bool:
 
 def _klaerung(conn, chat_id: int, nummer: int) -> str:
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    stand = (T_IT._TEXT_STAND_FERTIG if szene and _gesetzt(szene["volltext"])
-             else T_IT._TEXT_STAND_OFFEN)
-    return stand.format(nummer=nummer) + " " + T_IT._TEXT_WAS_AENDERN.format(nummer=nummer)
+    t = _T(chat_id)
+    stand = (t._TEXT_STAND_FERTIG if szene and _gesetzt(szene["volltext"])
+             else t._TEXT_STAND_OFFEN)
+    return stand.format(nummer=nummer) + " " + t._TEXT_WAS_AENDERN.format(nummer=nummer)
 
 
 def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = None):
@@ -467,7 +468,7 @@ def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = Non
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_KEIN_ZIEL)
         return None
     if ist_abbruch(notiz):
-        _sende(conn, tg, e, chat_id, T_IT._TEXT_ABBRUCH.format(nummer=n))
+        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_ABBRUCH.format(nummer=n))
         return None
     if ist_frage_oder_unklar(notiz):
         # Aenderungsmodus bleibt offen -- dieselbe Nachricht, die soeben

@@ -4937,9 +4937,9 @@ def _probe_szene_verdichtet_html(
     # nur Karte) oder ausformuliert (gruen, Stage Script da).
     if design and lang is None:
         if (s.get("volltext") or "").strip():
-            kopf += f' <span class="status-badge fertig">{_t(T_IT._TEXT_STATUS_FERTIG)}</span>'
+            kopf += f' <span class="status-badge fertig">{_t(_T(chat_id)._TEXT_STATUS_FERTIG)}</span>'
         else:
-            kopf += f' <span class="status-badge konzept">{_t(T_IT._TEXT_STATUS_KONZEPT)}</span>'
+            kopf += f' <span class="status-badge konzept">{_t(_T(chat_id)._TEXT_STATUS_KONZEPT)}</span>'
     zeilen = [f'<h2 class="szenenkopf">{kopf}</h2>']
     if design and web_skript.meta_html(s["karte"]):
         zeilen.append(web_skript.meta_html(s["karte"]))
@@ -5379,7 +5379,7 @@ def textbuch_koerper(
             # Vorgabe: IT fuer die italienischen Gruppen, sonst EN; Wahl bleibt
             # im Browser (localStorage). Reines CSS/JS, kein Serverzustand.
             from interview_theater import workshop as _ws
-            vorgabe = "it" if _ws.p67_italienisch_aktiv() else "en"
+            vorgabe = "it" if daten.get("chat_id") in _ws.italienisch_ab_phase6_chats() else "en"
             wege += (
                 # Reines CSS (:has), kein <script> -- die vereinte Seite
                 # sammelt Skripte und vertraegt kein Inline-Script im Koerper.

@@ -394,7 +394,7 @@ def dialog_kontextblock(conn, chat_id: int) -> str:
     karte = karte_von(szene) if szene is not None else None
     if karte is None:
         return ""
-    return T._KOPF_DIALOG.format(nummer=nummer, karte=karte_text(karte, szene))
+    return T._KOPF_DIALOG.format(nummer=nummer, karte=karte_text(karte, szene, chat_id))
 
 
 def biete_update_knopf(conn, tg, e, chat_id: int, text: str, aenderung: str) -> int:

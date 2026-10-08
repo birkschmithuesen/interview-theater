@@ -116,6 +116,7 @@ _TEXT_SCHREIBE = "Scrivo la scena {nummer} -- circa un minuto. Compare nella sch
 _TEXT_FEHLER = "Lo stage script per la scena {nummer} non ha funzionato. Fatemelo sapere di nuovo."
 _TEXT_ALLES_FERTIG = "Lo stage script è completo. Leggetelo nella scheda Script."
 _TEXT_NICHT_DRAN = "Questa scena non è quella attuale -- non ho salvato nulla."
+_TEXT_ERST_VORHERIGE = "Prima salvate la scena {nummer} -- è ancora aperta."
 _JOURNAL_GESPEICHERT = "Stage script scena {nummer} salvato: {titel}"
 _ANTWORT_GESPEICHERT = "Scena {nummer} salvata"
 _TEXT_KEIN_ZIEL = "Tutte le scene sono salvate. Quale volete cambiare?"

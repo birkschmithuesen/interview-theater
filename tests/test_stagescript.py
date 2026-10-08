@@ -622,3 +622,40 @@ def test_szenenfassung_waehrend_neuschreiben_wird_verworfen(conn, einst, padua, 
     finally:
         sperre.release()
     assert ablauf._szenenfassung_waehrend_neuschreiben(conn, 1, _CHAT_S1) is False
+
+
+def test_abnahme_vorherige_szene_offen_bekommt_eigene_leiste(conn, einst, padua):
+    """Live-Befund G2 08.10.2026 ~14:44 (chat 7000000000001, Knopf k:831,
+    web_post 2560f): Szene 1 stand noch offen (Volltext da, nie "Yes, save"),
+    die Gruppe hatte per Chat-Notiz trotzdem schon an Szene 2 weitergeschrieben
+    und drueckte deren "Yes, save" -- der Bot lehnte mit "non e quella
+    attuale" ab und sagte nicht, dass zuerst Szene 1 drankommt (von Hand
+    nachgetragen: "il vostro Yes, save sulla scena 2 ... non era passato").
+    Jetzt: eine klare Zeile UND die Yes/No-Leiste der wirklich offenen Szene,
+    statt stummer Ablehnung."""
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "Scene 1 text.", None)
+    repo.setze_stagescript(conn, ids[1], "Scene 2 text.", None)
+    tg, klm = TG(), LLM()
+
+    antwort = stagescript.bestaetige(conn, tg, klm, einst, 1, 2)
+
+    assert antwort == stagescript.T._TEXT_ERST_VORHERIGE.format(nummer=1)
+    assert antwort in tg.texte
+    assert tg.leisten  # Yes/No-Leiste der Szene 1 kam mit, nicht nur Text
+    assert repo.hole_szene(conn, ids[0])["fertig_am"] is None
+    assert repo.hole_szene(conn, ids[1])["fertig_am"] is None
+
+
+def test_abnahme_ohne_offene_vorherige_bleibt_nicht_dran(conn, einst, padua):
+    """Ist die frueher nummerierte Szene noch gar nicht geschrieben (kein
+    Volltext), gibt es nichts zum Mitspeichern oder Anzeigen -- die alte
+    Ablehnung bleibt (keine Leiste fuer eine ungeschriebene Szene)."""
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[1], "Scene 2 text.", None)
+    tg, klm = TG(), LLM()
+
+    antwort = stagescript.bestaetige(conn, tg, klm, einst, 1, 2)
+
+    assert antwort == stagescript.T._TEXT_NICHT_DRAN
+    assert not tg.leisten

@@ -720,8 +720,25 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
             _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_LAEUFT)
         return _T(chat_id)._TEXT_LAEUFT
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    if (nummer != aktuelle_nummer(conn, chat_id) or szene is None
-            or not _gesetzt(szene["volltext"])):
+    aktuell = aktuelle_nummer(conn, chat_id)
+    if nummer != aktuell or szene is None or not _gesetzt(szene["volltext"]):
+        # Live-Befund G2 08.10.2026 ~14:44 (chat 7000000000001, Knopf k:831):
+        # die Gruppe hatte per Chat-Notiz schon an Szene 2 weitergeschrieben,
+        # waehrend Szene 1 (die eigentliche ``aktuelle_nummer``) nie "Yes,
+        # save" bekam -- das "Yes, save" auf Szene 2 landete im Nichts
+        # ("non e quella attuale") statt zu sagen, was zuerst drankommt. Hat
+        # die wirklich offene Szene schon einen Text UND liegt sie VOR der
+        # angeklickten (``nummer`` zu neu, nicht ein veralteter Klick auf
+        # eine laengst abgenommene fruehere Szene), bekommt die Gruppe genau
+        # deren Hinweis samt Yes/No-Leiste (``zeige``) statt stummer
+        # Ablehnung.
+        vorherige = _szene_mit_nummer(conn, chat_id, aktuell) if aktuell is not None else None
+        if (vorherige is not None and _gesetzt(vorherige["volltext"])
+                and aktuell < nummer):
+            text = _T(chat_id)._TEXT_ERST_VORHERIGE.format(nummer=aktuell)
+            _sende(conn, tg, e, chat_id, text)
+            zeige(conn, tg, e, chat_id, aktuell)
+            return text
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
     repo.setze_szene_fertig(conn, szene["id"], True)
@@ -867,6 +884,10 @@ _TEXT_FERTIG = (
     "passt sie so? Sonst sagt mir, was anders sein soll."
 )
 _TEXT_NICHT_DRAN = "Diese Szene ist gerade nicht dran -- gespeichert habe ich nichts."
+#: Statt der stummen Ablehnung (Live-Befund G2, siehe ``bestaetige``): die
+#: wirklich offene (fruehere) Szene steht schon mit Text da und bekommt hier
+#: ihre eigene Zeile samt Yes/No-Leiste (``zeige``).
+_TEXT_ERST_VORHERIGE = "Zuerst Szene {nummer} speichern -- die steht noch offen."
 _TEXT_KEIN_ZIEL = "Alle Szenen sind gespeichert. Welche wollt ihr aendern?"
 #: Bestaetigung einer Notiz zu einer noch nicht geschriebenen oder gerade
 #: laufenden Szene (Padua Quickfix 08.10.2026, Punkt 1) -- ``erkenner.

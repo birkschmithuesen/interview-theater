@@ -1980,7 +1980,11 @@ _AUSWAHL_JS = """
       sende('chat/karte', { aktion: aktion, nummer: kartenNummer })
         .then(function (r) {
           if (!r.ok) { zeigeFehler(); return; }
-          if (aktion === 'aendern' && document.querySelector('.tabs button[data-tab="chat"]')) {
+          // "No, change" and "Clear the questions" both continue in the
+          // chat (feedback note, or the questions one by one); "Skip
+          // questions" and "Yes, save" stay on the card panel.
+          if ((aktion === 'aendern' || aktion === 'klaeren')
+              && document.querySelector('.tabs button[data-tab="chat"]')) {
             location.hash = '#chat';
           }
         })
@@ -2195,10 +2199,14 @@ def auswahl_fertig_post(handler, db_pfad: str, token: str, chat_id: int,
     web_chat._angenommen(handler, {"message_id": message_id})
 
 
-#: Die zwei Knoepfe der aktiven Szenenkarte -> versteckter Befehl (Padua,
-#: Birk 07.10.2026 ~19:25). Wie ``auswahl_fertig_post``: der Webserver legt
-#: nur den Befehl ab, der Bot fuehrt ihn aus (``befehle._befehl_karte``).
-_KARTE_BEFEHL = {"ja": "/karte_ja", "aendern": "/karte_aendern", "bauen": "/karte_bauen"}
+#: Die Knoepfe der aktiven Szenenkarte -> versteckter Befehl (Padua, Birk
+#: 07.10.2026 ~19:25, Fragenklaerung ~09:20 am 08.10.2026). Wie
+#: ``auswahl_fertig_post``: der Webserver legt nur den Befehl ab, der Bot
+#: fuehrt ihn aus (``befehle._befehl_karte``).
+_KARTE_BEFEHL = {
+    "ja": "/karte_ja", "aendern": "/karte_aendern", "bauen": "/karte_bauen",
+    "klaeren": "/karte_klaeren", "ueberspringen": "/karte_ueberspringen",
+}
 
 
 def _karte_ja_text() -> str:

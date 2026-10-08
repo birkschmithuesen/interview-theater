@@ -731,6 +731,15 @@ CREATE TABLE IF NOT EXISTS szene (
   -- je Karte ("Yes, save"). Additiv nachgeruestet.
   karte             TEXT,
   karte_bestaetigt_am TEXT,
+  -- Die laufende Fragenklaerung einer Karte (Birk 08.10.2026 ~09:20,
+  -- "Clear the questions"): JSON mit index (welche offene Frage als
+  -- naechste gestellt wird), antworten (je Frage Text oder null = ueber-
+  -- sprungen) und runde (fuer die eine automatische Zusatzrunde, wenn der
+  -- Neubau selbst wieder Fragen anlegt). NULL = keine Klaerung im Gang.
+  -- Bewusst in der Datenbank statt im Prozessspeicher wie
+  -- ``szenenfolge._regienotiz_erwartet``: ein Neustart mitten in der
+  -- Klaerung darf die Frage nicht verschlucken. Additiv nachgeruestet.
+  karte_klaerung    TEXT,
   -- Die italienische Spiegelung des Stage Scripts (``volltext``) unter
   -- ``[karten] aktiv`` + ``[skript] zweisprachig`` (stagescript.py). Additiv.
   volltext_it       TEXT,

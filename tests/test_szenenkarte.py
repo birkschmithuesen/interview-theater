@@ -37,6 +37,11 @@ class TG:
 
 
 class LLM:
+    #: Keine offenen Fragen in der Grundausstattung (08.10.2026, Punkt 1/2):
+    #: dieser Mock dient dem Ablauf "eine Karte nach der anderen", nicht der
+    #: Fragenklaerung -- die hat ihre eigenen Tests mit ``LLMMitFragen``.
+    FRAGEN: list[str] = []
+
     def __init__(self):
         self.aufrufe = []
 
@@ -47,8 +52,18 @@ class LLM:
         if art == szenenkarte.ART:
             return {"typ": "spoken", "worum": "The voices are shared.", "ort": "semicircle",
                     "wer": "Emma, Giada", "punkte": ["Emma opens", "Giada answers"],
-                    "zitate": [2, 99, 1], "questions": ["Who sings?"]}
+                    "zitate": [2, 99, 1], "questions": list(self.FRAGEN)}
         return {"kern": ["a"], "zitate": []}
+
+
+class LLMMitFragen(LLM):
+    """Jede gebaute Karte hat eine offene Frage (Fragenklaerung, Punkt 1/2)."""
+
+    FRAGEN = ["Who sings?"]
+
+
+class LLMMitZweiFragen(LLM):
+    FRAGEN = ["Who sings?", "Where does it end?"]
 
 
 @pytest.fixture
@@ -282,3 +297,192 @@ def test_baue_nutzertext_ohne_alte_prosa(conn, einst, padua):
     szene = next(s for s in repo.hole_szenen(conn, 1) if s["nummer"] == 1)
     text = szenenkarte.baue_nutzertext(conn, 1, szene)
     assert "Es war einmal ein Chor am Meer." not in text
+
+
+# ---------------------------------------------------------------------------
+# Offene Fragen klaeren (Birk 08.10.2026 ~09:20, Punkte 1 und 2)
+# ---------------------------------------------------------------------------
+
+
+def _karte1(conn, einst, llm) -> list[int]:
+    ids = _lage(conn)
+    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
+    szenenkarte.erzeuge(conn, llm, einst, 1, 1)
+    return ids
+
+
+def test_zeige_clear_skip_statt_yes_no_bei_offenen_fragen(conn, einst, padua):
+    _karte1(conn, einst, LLMMitFragen())
+    tg = TG()
+    szenenkarte.zeige(conn, tg, einst, 1, 1)
+    assert [c for c, _ in tg.leisten[-1]] == ["Clear the questions", "Skip questions"]
+
+
+def test_zeige_yes_no_ohne_offene_fragen(conn, einst, padua):
+    _karte1(conn, einst, LLM())
+    tg = TG()
+    szenenkarte.zeige(conn, tg, einst, 1, 1)
+    assert [c for c, _ in tg.leisten[-1]] == ["Yes, save", "No, change"]
+
+
+def test_bestaetige_lehnt_karte_mit_offenen_fragen_ab(conn, einst, padua):
+    """Serverseitig: "Yes, save" (Knopf, Befehl oder Chat) speichert nie eine
+    Karte mit offenen Fragen -- nicht nur die Anzeige bietet andere
+    Knoepfe an."""
+    ids = _karte1(conn, einst, LLMMitFragen())
+    tg = TG()
+    antwort = szenenkarte.bestaetige(conn, tg, LLM(), einst, 1, 1)
+    assert antwort == szenenkarte.T_IT._TEXT_FRAGEN_OFFEN_ABGELEHNT
+    assert repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"] is None
+
+
+def test_ueberspringe_fragen_leert_fragen_laesst_punkte_zitate(conn, einst, padua):
+    ids = _karte1(conn, einst, LLMMitFragen())
+    vorher = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    tg = TG()
+    antwort = szenenkarte.ueberspringe_fragen(conn, tg, einst, 1, 1)
+    nachher = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    assert nachher["fragen"] == []
+    assert nachher["punkte"] == vorher["punkte"]
+    assert nachher["zitate"] == vorher["zitate"]
+    assert antwort == "Domande della scheda 1 saltate"
+    eintrag = next(j for j in repo.journal(conn, 1) if j["art"] == "entschieden"
+                   and "skipped as not fitting" in j["text"])
+    assert eintrag["quelle"] == "web"
+    assert eintrag["text"] == "Card 1: questions skipped as not fitting"
+    # Danach wieder Yes/No -- die Fragen sind weg.
+    assert [c for c, _ in tg.leisten[-1]] == ["Yes, save", "No, change"]
+
+
+def test_ueberspringe_fragen_ohne_offene_fragen_tut_nichts(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    vorher = len(repo.journal(conn, 1))
+    tg = TG()
+    antwort = szenenkarte.ueberspringe_fragen(conn, tg, einst, 1, 1)
+    assert antwort == szenenkarte.T_IT._TEXT_NICHT_DRAN
+    assert len(repo.journal(conn, 1)) == vorher
+
+
+def test_starte_fragenklaerung_stellt_erste_frage(conn, einst, padua):
+    _karte1(conn, einst, LLMMitZweiFragen())
+    tg = TG()
+    antwort = szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
+    assert antwort == "Chiarimento delle domande in corso"
+    assert tg.texte[-1] == "Domanda 1 di 2: Who sings?"
+    assert szenenkarte.aktive_klaerung(conn, 1) == (1, {"index": 0, "antworten": [], "runde": 1})
+
+
+def test_beantworte_frage_ohne_aktive_klaerung_liefert_false(conn, einst, padua):
+    _karte1(conn, einst, LLM())
+    tg = TG()
+    assert szenenkarte.beantworte_frage(conn, tg, LLM(), einst, 1, "Emma sings first") is False
+
+
+def test_beantworte_frage_stellt_naechste_frage(conn, einst, padua):
+    _karte1(conn, einst, LLMMitZweiFragen())
+    tg = TG()
+    szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
+    treffer = szenenkarte.beantworte_frage(conn, tg, LLM(), einst, 1, "Emma, molto chiaro")
+    assert treffer is True
+    assert tg.texte[-1] == "Domanda 2 di 2: Where does it end?"
+    _, klaerung = szenenkarte.aktive_klaerung(conn, 1)
+    assert klaerung == {"index": 1, "antworten": ["Emma, molto chiaro"], "runde": 1}
+
+
+def test_beantworte_letzte_frage_baut_karte_mit_allen_antworten_neu(conn, einst, padua):
+    ids = _karte1(conn, einst, LLMMitZweiFragen())
+    tg = TG()
+    szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
+    szenenkarte.beantworte_frage(conn, tg, LLM(), einst, 1, "Emma sings first")
+    klm = LLM()
+    szenenkarte.beantworte_frage(conn, tg, klm, einst, 1, "Al tramonto, sulla spiaggia")
+    # Der Rueckgabewert ist ein bool (beantwortet oder nicht), nicht der
+    # Thread -- warten ueber die Sperre wie beim Knopfweg.
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+    letzter = klm.aufrufe[-1]["nutzer"]
+    assert "Who sings? -> Emma sings first" in letzter
+    assert "Where does it end? -> Al tramonto, sulla spiaggia" in letzter
+    journal = [j for j in repo.journal(conn, 1) if j["quelle"] == "chat"]
+    assert any("Emma sings first" in j["text"] for j in journal)
+    assert szenenkarte.aktive_klaerung(conn, 1) is None
+    assert repo.hole_szene(conn, ids[0])["karte_klaerung"] is None
+
+
+def test_beantworte_frage_skip_wird_als_open_punkt_uebernommen(conn, einst, padua):
+    """Birk 08.10.2026 ~09:30: "skip" darf den Weg nie blockieren -- die
+    Frage wird als "[OPEN] ..."-Punkt uebernommen und gilt als geklaert."""
+    ids = _karte1(conn, einst, LLMMitFragen())
+    tg = TG()
+    szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
+    szenenkarte.beantworte_frage(conn, tg, LLM(), einst, 1, "skip")
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+    karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    assert "[OPEN] Who sings?" in karte["punkte"]
+    offen = [j for j in repo.journal(conn, 1) if "lasciata volutamente aperta" in j["text"]]
+    assert offen and offen[0]["quelle"] == "chat"
+
+
+@pytest.mark.parametrize("text", ["skip", "I don't know", "no idea", "IDK", "non lo so"])
+def test_ist_skip_erkennt_gaengige_formen(text):
+    assert szenenkarte.ist_skip(text) is True
+
+
+def test_ist_skip_erkennt_keinen_inhalt_als_skip():
+    assert szenenkarte.ist_skip("I don't know yet, but maybe Emma") is False
+
+
+def test_zweite_automatische_runde_dann_hinweis_ohne_dritte(conn, einst, padua):
+    """"Hoechstens EINE solche Runde automatisch" (Birk): legt der Neubau
+    nach der ersten Klaerungsrunde wieder eine Frage an, laeuft die
+    Klaerung automatisch ein zweites Mal -- aber nicht ein drittes Mal."""
+    ids = _karte1(conn, einst, LLMMitFragen())
+    tg = TG()
+    klm = LLMMitFragen()
+    szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
+    fragen_vorher = sum(1 for t in tg.texte if t.startswith("Domanda 1 di 1"))
+    assert fragen_vorher == 1
+    # Runde 1 beantworten -> Neubau legt wieder eine Frage an -> Runde 2
+    # startet automatisch.
+    szenenkarte.beantworte_frage(conn, tg, klm, einst, 1, "Emma sings first")
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+    assert sum(1 for t in tg.texte if t.startswith("Domanda 1 di 1")) == 2
+    assert szenenkarte.aktive_klaerung(conn, 1) == (1, {"index": 0, "antworten": [], "runde": 2})
+    # Runde 2 beantworten -> Neubau legt WIEDER eine Frage an -> keine
+    # dritte automatische Runde, die Karte wird stattdessen gezeigt.
+    szenenkarte.beantworte_frage(conn, tg, klm, einst, 1, "Giada answers")
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+    assert sum(1 for t in tg.texte if t.startswith("Domanda 1 di 1")) == 2
+    assert szenenkarte.aktive_klaerung(conn, 1) is None
+    assert [c for c, _ in tg.leisten[-1]] == ["Clear the questions", "Skip questions"]
+
+
+def test_ablauf_leitet_antwort_an_offene_frage_um(conn, einst, padua):
+    """Die Chat-Antwort auf eine gestellte Frage faellt aus dem normalen
+    Gespraechszug heraus -- derselbe Gedanke wie die Regie-Notiz
+    (``szenenfolge.erwarte_regienotiz``), hier DB-gestuetzt."""
+    from interview_theater import ablauf
+
+    _karte1(conn, einst, LLMMitZweiFragen())
+    tg = TG()
+    szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
+    nachricht = {"text": "Emma sings first", "message_id": 4242}
+    ausgefallen = ablauf._szene_hat_vorfahrt(conn, tg, LLM(), einst, 1, nachricht)
+    assert ausgefallen is True
+    assert tg.texte[-1] == "Domanda 2 di 2: Where does it end?"
+
+
+def test_zwei_antworten_in_einer_nachricht_blockiert_den_weg_nicht(conn, einst, padua):
+    """Eine Gruppe, die beide Antworten in eine Nachricht packt: kein
+    Absturz, die ganze Nachricht gilt als Antwort auf die GERADE gestellte
+    Frage, die naechste Frage kommt danach wie immer."""
+    _karte1(conn, einst, LLMMitZweiFragen())
+    tg = TG()
+    szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
+    treffer = szenenkarte.beantworte_frage(
+        conn, tg, LLM(), einst, 1, "Emma sings first, and it ends at sunset on the beach")
+    assert treffer is True
+    assert tg.texte[-1] == "Domanda 2 di 2: Where does it end?"

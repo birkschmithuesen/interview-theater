@@ -4778,13 +4778,30 @@ def _szenenkarten_html(liste: list[dict]) -> str:
             )
         elif k["aktiv"]:
             inhalt = _karte_html(k["karte"], False)
-            knoepfe = (
-                '<div class="karte-aktionen">'
-                f'<button type="button" class="karte-knopf karte-ja" data-aktion="ja" '
-                f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_JA)}</button>'
-                f'<button type="button" class="karte-knopf karte-nein" data-aktion="aendern" '
-                f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_NEIN)}</button></div>'
-            )
+            if k["karte"].get("fragen"):
+                # Offene Fragen: "Yes, save" waere ohnehin serverseitig
+                # abgelehnt (``szenenkarte.bestaetige``) -- statt dessen nur
+                # "Clear the questions" / "Skip questions" (Birk 08.10.2026
+                # ~09:20/~09:30).
+                from interview_theater import szenenkarte
+
+                knoepfe = (
+                    '<div class="karte-aktionen">'
+                    f'<button type="button" class="karte-knopf karte-klaeren" '
+                    f'data-aktion="klaeren" data-nummer="{nummer}">'
+                    f'{_t(szenenkarte.T._TEXT_KLAEREN_KNOPF)}</button>'
+                    f'<button type="button" class="karte-knopf karte-ueberspringen" '
+                    f'data-aktion="ueberspringen" data-nummer="{nummer}">'
+                    f'{_t(szenenkarte.T._TEXT_UEBERSPRINGEN_KNOPF)}</button></div>'
+                )
+            else:
+                knoepfe = (
+                    '<div class="karte-aktionen">'
+                    f'<button type="button" class="karte-knopf karte-ja" data-aktion="ja" '
+                    f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_JA)}</button>'
+                    f'<button type="button" class="karte-knopf karte-nein" data-aktion="aendern" '
+                    f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_NEIN)}</button></div>'
+                )
         else:
             inhalt = (_karte_html(k["karte"], k["bestaetigt"]) if k["karte"] is not None
                       else f'<p class="karte-entsteht">{_t(T._TEXT_KARTE_NOCH_NICHT)}</p>')
@@ -4828,7 +4845,7 @@ _CSS_KARTEN_BUEHNE = """
 .karte-entsteht { margin: .3rem 0; font-style: italic; color: var(--text-leise, #6b6b6b); }
 .karte-aktionen { display: flex; gap: .6rem; margin: 1rem -1rem -1rem; padding: .7rem 1rem calc(1.7rem + env(safe-area-inset-bottom, 0px)); position: sticky; bottom: -1rem; background: var(--grund-2, #1d2026); border-top: 1px solid var(--linie, #ddd8cc); border-radius: 0 0 .8rem .8rem; }
 .karte-knopf { flex: 1; min-height: 2.9rem; font: inherit; font-size: 1rem; border-radius: 1.5rem; border: 1px solid var(--rand, #cfc8b6); background: var(--grund, #fff); color: var(--text, #1b1b1b); cursor: pointer; }
-.karte-ja { background: var(--signal, #2f4858); border-color: var(--signal, #2f4858); color: var(--auf-signal, #fff); font-weight: 700; }
+.karte-ja, .karte-klaeren { background: var(--signal, #2f4858); border-color: var(--signal, #2f4858); color: var(--auf-signal, #fff); font-weight: 700; }
 .karte-knopf:disabled { opacity: .5; }
 .karten-fertig { margin: 1rem 0; font-style: italic; }
 """

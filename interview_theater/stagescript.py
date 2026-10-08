@@ -715,7 +715,7 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None
             pass
         threading.Thread(target=_puls, daemon=True).start()
         try:
-            ok = schreibe(conn, klm, e, chat_id, nummer, notiz)
+            ok = schreibe(conn, klm, e, chat_id, nummer, notiz, chat_fassung=alt_en)
         finally:
             fertig.set()
             sperre.release()

@@ -1,0 +1,17 @@
+# 27-sprechweise
+# art=sprechweise phase=7 weg=claude modell=claude-opus-5 quelle=abgefangen
+# sprechweise
+=== SYSTEM (592 Zeichen, ~197 Token) ===
+You are preparing the stage version of a play. Give every character marked below as "needs a way of speaking" exactly ONE line on how they speak: sentence length, pace, word choice, quirks -- concrete enough for an actor to play it. Base it on the speech profile and the quotes if there are any, otherwise on the description. Characters that already have a way of speaking are listed only for contrast: every character should sound different from the others. Answer as a list of lines of the form "Name: way of speaking", one for each character that needs one, with the name exactly as below.
+
+=== NUTZER (424 Zeichen, ~141 Token) ===
+Characters:
+- Samir
+  Description: just arrived, wants to arrive without asking anyone
+  needs a way of speaking
+- Elena
+  Description: runs the station cafe, sees everyone and says little
+  Way of speaking (already set): Dry, practical, questions instead of statements.
+- Tommaso
+  Description: the cousin, late, embarrassed, overly cheerful
+  Way of speaking (already set): Talks fast, apologises twice, jokes to cover it.

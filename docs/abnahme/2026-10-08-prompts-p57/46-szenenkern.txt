@@ -1,0 +1,25 @@
+# 46-szenenkern
+# art=szenenkern phase=5 weg=claude modell=claude-opus-5 quelle=abgefangen
+# szenenkern
+=== SYSTEM (628 Zeichen, ~209 Token) ===
+You receive one scene of a theatre project: setting, format, title, the
+group's description and a numbered list of quotes the group has taken on
+for this scene.
+
+Condense it to the essentials:
+- "kern": 3 to 6 short bullet points on what the scene is about and what
+  happens in it -- from the group's point of view, concrete, without
+  interview numbers and without reasons why a quote fits. Each point under
+  160 characters.
+- "zitate": the numbers of at most 5 quotes from the list that carry this
+  scene most strongly, strongest first. Only numbers from the list.
+
+Invent nothing that contradicts the group's description.
+
+
+=== NUTZER (269 Zeichen, ~89 Token) ===
+Setting: A railway station in a northern Italian city, one wet November evening. A young man has just arrived and waits for a cousin who does not come.
+Scene 1: The bench
+What the group described: Samir waits and rehearses his order.
+
+Quotes to choose from (by number):

@@ -46,7 +46,7 @@ MODI = ("microphone", "one_to_one", "collective", "none")
 PUNKTE_MAX = 6
 ZITATE_MAX = 5
 FRAGEN_MAX = 3
-ZEICHEN = 240
+ZEICHEN = 120
 #: So viel Prosa (G1 Szene 1) geht hoechstens als Material mit.
 PROSA_ZEICHEN = 6000
 
@@ -66,7 +66,8 @@ SCHEMA = {
         "ort": {"type": "string", "description": "Where it happens (place / spot in the room), short."},
         "wer": {"type": "string", "description": "Who is in it, short."},
         "punkte": {"type": "array", "items": {"type": "string"},
-                   "description": "3 to 6 short points: what happens, in order."},
+                   "description": "3 to 6 short points: what happens, in order. "
+                                  "Each point about one line, at most 120 characters."},
         "zitate": {"type": "array", "items": {"type": "integer"},
                    "description": "Numbers of at most 5 interview passages from the "
                                   "list that this scene uses, strongest first."},
@@ -173,7 +174,8 @@ def _kappe(text, grenze: int = ZEICHEN) -> str:
     text = " ".join(str(text or "").split())
     if len(text) <= grenze:
         return text
-    return text[:grenze].rsplit(" ", 1)[0].rstrip(" ,;:-") + " …"
+    anhang = " …"
+    return text[:grenze - len(anhang)].rsplit(" ", 1)[0].rstrip(" ,;:-") + anhang
 
 
 def erzeuge(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -> dict | None:

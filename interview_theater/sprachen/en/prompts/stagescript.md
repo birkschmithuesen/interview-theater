@@ -25,3 +25,5 @@ Interview passages ALWAYS appear word for word and in their original
 language, each on its own line as > *Interview quote (N):* "...", never
 with a name. Only passages from the card or from the group's conversation.
 No commentary, no introduction, only the script.
+
+{{ausgabesprache_p67}}

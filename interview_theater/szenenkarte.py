@@ -242,24 +242,24 @@ def erzeuge(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -
 def karte_text(karte: dict, szene) -> str:
     """Die Karte als Chatnachricht (Markdown wie im Web-Chat)."""
     titel = (szene["titel"] or "").strip()
-    kopf = T._KARTE_KOPF.format(nummer=szene["nummer"], titel=titel).rstrip(" —")
+    kopf = T_IT._KARTE_KOPF.format(nummer=szene["nummer"], titel=titel).rstrip(" —")
     zeilen = [f"**{kopf}** · *{T.TYP_BESCHRIFTUNG.get(karte.get('typ'), karte.get('typ') or '')}*"]
     if karte.get("worum"):
         zeilen.append(karte["worum"])
     if karte.get("ort"):
-        zeilen.append(f"**{T._ZEILE_ORT}** {karte['ort']}")
+        zeilen.append(f"**{T_IT._ZEILE_ORT}** {karte['ort']}")
     if karte.get("wer"):
-        zeilen.append(f"**{T._ZEILE_WER}** {karte['wer']}")
+        zeilen.append(f"**{T_IT._ZEILE_WER}** {karte['wer']}")
     if karte.get("punkte"):
-        zeilen.append(f"**{T._ZEILE_PUNKTE}**")
+        zeilen.append(f"**{T_IT._ZEILE_PUNKTE}**")
         zeilen += [f"- {p}" for p in karte["punkte"]]
     if karte.get("zitate"):
-        zeilen.append(f"**{T._ZEILE_ZITATE}**")
+        zeilen.append(f"**{T_IT._ZEILE_ZITATE}**")
         for z in karte["zitate"]:
             quelle = f" ({z['interview']})" if z.get("interview") else ""
             zeilen.append(f"- *“{z['zitat']}”*{quelle}")
     if karte.get("fragen"):
-        zeilen.append(f"**{T._ZEILE_FRAGEN}**")
+        zeilen.append(f"**{T_IT._ZEILE_FRAGEN}**")
         zeilen += [f"- {f}" for f in karte["fragen"]]
     return "\n".join(zeilen)
 
@@ -281,10 +281,10 @@ def frage_nach_aenderung(conn, tg, e, chat_id: int, nummer: int) -> None:
     from interview_theater import szenenfolge
 
     if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_NICHT_DRAN)
         return
     szenenfolge.erwarte_regienotiz(chat_id, nummer)
-    _sende(conn, tg, e, chat_id, T._TEXT_FEEDBACK_FRAGE.format(nummer=nummer))
+    _sende(conn, tg, e, chat_id, T_IT._TEXT_FEEDBACK_FRAGE.format(nummer=nummer))
 
 
 def zeige(conn, tg, e, chat_id: int, nummer: int, *, im_chat: bool = False) -> int | None:
@@ -307,10 +307,12 @@ def zeige(conn, tg, e, chat_id: int, nummer: int, *, im_chat: bool = False) -> i
     gesamt = len(_szenen(conn, chat_id))
     cothinker = im_cothinker(conn, chat_id)
     if cothinker and not im_chat:
-        return _sende(conn, tg, e, chat_id, T._TEXT_IM_COTHINKER.format(
+        return _sende(conn, tg, e, chat_id, T_IT._TEXT_IM_COTHINKER.format(
             nummer=nummer, gesamt=gesamt))
-    text = karte_text(karte, szene) + "\n\n" + T._TEXT_FRAGE.format(
+    text = karte_text(karte, szene) + "\n\n" + T_IT._TEXT_FRAGE.format(
         nummer=nummer, gesamt=gesamt)
+    # Knopf-Beschriftungen bleiben IMMER auf der gewoehnlichen ``T``, nicht
+    # ``T_IT`` (Morgen-Auftrag 4: "Knoepfe bleiben EN").
     ja = T._TEXT_KARTE_JA_KNOPF if cothinker else knoepfe.T.TEXT_WEITER_KNOPF
     nein = T._TEXT_KARTE_NOCHMAL_KNOPF if cothinker else knoepfe.T.TEXT_NEIN_AENDERN_KNOPF
     leiste = [
@@ -352,9 +354,9 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int,
     dieser Gruppe entsteht (dann eine Zeile statt Stille)."""
     sperre = _sperre_fuer(chat_id)
     if klm is None or not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT)
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_LAEUFT)
         return None
-    _sende(conn, tg, e, chat_id, (T._TEXT_AENDERE if notiz else T._TEXT_SCHREIBE).format(
+    _sende(conn, tg, e, chat_id, (T_IT._TEXT_AENDERE if notiz else T_IT._TEXT_SCHREIBE).format(
         nummer=nummer))
 
     def _lauf() -> None:
@@ -364,7 +366,7 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int,
         finally:
             sperre.release()
         if karte is None:
-            _sende(conn, tg, e, chat_id, T._TEXT_FEHLER.format(nummer=nummer))
+            _sende(conn, tg, e, chat_id, T_IT._TEXT_FEHLER.format(nummer=nummer))
             return
         zeige(conn, tg, e, chat_id, nummer, im_chat=bool(notiz))
 
@@ -391,12 +393,12 @@ def weiter(conn, tg, klm, e, chat_id: int, *, aus_eintritt: bool = False):
             return None
         return starte(conn, tg, klm, e, chat_id, nummer)
     if not _szenen(conn, chat_id):
-        _sende(conn, tg, e, chat_id, T._TEXT_KEINE_SZENEN)
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_KEINE_SZENEN)
         return None
     stand = repo.hole_arbeitsstand(conn, chat_id)
     geprueft = bool(stand is not None and _gesetzt(stand["karten_geprueft_am"]))
     if geprueft:
-        knoepfe.biete_phase(conn, tg, chat_id, T._TEXT_ALLE_GESPEICHERT, 7)
+        knoepfe.biete_phase(conn, tg, chat_id, T_IT._TEXT_ALLE_GESPEICHERT, 7)
         return None
     return starte_gesamtpruefung(conn, tg, klm, e, chat_id)
 
@@ -404,21 +406,21 @@ def weiter(conn, tg, klm, e, chat_id: int, *, aus_eintritt: bool = False):
 def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     """"Yes, save" auf einer Karte (Knopf oder Chat)."""
     if laeuft(chat_id):
-        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT)
-        return T._TEXT_LAEUFT
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_LAEUFT)
+        return T_IT._TEXT_LAEUFT
     if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
-        return T._TEXT_NICHT_DRAN
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_NICHT_DRAN)
+        return T_IT._TEXT_NICHT_DRAN
     szene = _szene_mit_nummer(conn, chat_id, nummer)
     if szene is None or karte_von(szene) is None:
-        _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
-        return T._TEXT_NICHT_DRAN
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_NICHT_DRAN)
+        return T_IT._TEXT_NICHT_DRAN
     repo.setze_szenenkarte_bestaetigt(conn, szene["id"])
     repo.schreibe_journal(conn, chat_id, "entschieden",
-                          T._JOURNAL_GESPEICHERT.format(nummer=nummer,
+                          T_IT._JOURNAL_GESPEICHERT.format(nummer=nummer,
                                                         titel=szene["titel"] or "").strip(),
                           quelle="knopf")
-    antwort = T._ANTWORT_GESPEICHERT.format(nummer=nummer)
+    antwort = T_IT._ANTWORT_GESPEICHERT.format(nummer=nummer)
     weiter(conn, tg, klm, e, chat_id)
     return antwort
 
@@ -428,7 +430,7 @@ def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = Non
     (genannte oder aktuelle) neu, mit der Notiz und der alten Karte."""
     n = nummer if nummer is not None else aktuelle_nummer(conn, chat_id)
     if n is None:
-        _sende(conn, tg, e, chat_id, T._TEXT_KEIN_ZIEL)
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_KEIN_ZIEL)
         return None
     return starte(conn, tg, klm, e, chat_id, n, notiz)
 
@@ -458,13 +460,13 @@ def _gesamt(conn, tg, klm, e, chat_id: int, sperre: threading.Lock) -> None:
     finally:
         repo.setze_arbeitsstand(conn, chat_id, "karten_geprueft_am", repo._jetzt())
         sperre.release()
-    text = T._TEXT_GESAMT_KOPF
+    text = T_IT._TEXT_GESAMT_KOPF
     if zeilen:
         text += "\n" + "\n".join(f"- {z}" for z in zeilen)
     else:
-        text += "\n" + T._TEXT_GESAMT_OHNE
+        text += "\n" + T_IT._TEXT_GESAMT_OHNE
     _sende(conn, tg, e, chat_id, text)
-    knoepfe.biete_phase(conn, tg, chat_id, T._TEXT_ALLE_GESPEICHERT, 7)
+    knoepfe.biete_phase(conn, tg, chat_id, T_IT._TEXT_ALLE_GESPEICHERT, 7)
 
 
 def starte_gesamtpruefung(conn, tg, klm, e, chat_id: int):
@@ -473,9 +475,9 @@ def starte_gesamtpruefung(conn, tg, klm, e, chat_id: int):
         if klm is None:
             from interview_theater import knoepfe
 
-            knoepfe.biete_phase(conn, tg, chat_id, T._TEXT_ALLE_GESPEICHERT, 7)
+            knoepfe.biete_phase(conn, tg, chat_id, T_IT._TEXT_ALLE_GESPEICHERT, 7)
         return None
-    _sende(conn, tg, e, chat_id, T._TEXT_GESAMT_LAEUFT)
+    _sende(conn, tg, e, chat_id, T_IT._TEXT_GESAMT_LAEUFT)
     faden = threading.Thread(target=_gesamt, args=(conn, tg, klm, e, chat_id, sperre),
                              daemon=True)
     try:
@@ -565,3 +567,7 @@ _JOURNAL_GESPEICHERT = "Szenenkarte {nummer} gespeichert: {titel}"
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 T = sprache.Texte(__name__)
+#: Morgen-Auftrag 4 (08.10.2026): Kartentexte und Statuszeilen ab Phase 6
+#: italienisch (``workshop.p67_italienisch_aktiv``), NIE die beiden
+#: Knopf-Beschriftungen oben -- die bleiben auf ``T``.
+T_IT = sprache.Texte(__name__, ab_phase67_italienisch=True)

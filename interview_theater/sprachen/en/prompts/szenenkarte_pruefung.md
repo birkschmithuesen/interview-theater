@@ -6,3 +6,5 @@ them ONCE as a whole, with only these four questions:
 4. Format: does every card fit the group's format?
 Give at most 5 short findings, one sentence each with the scene number --
 only what the group should really still decide. Rewrite nothing, no praise.
+
+{{ausgabesprache_p67}}

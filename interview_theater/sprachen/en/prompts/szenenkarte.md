@@ -33,3 +33,5 @@ discarded ideas do not appear. The rules of the format hold in every point
 (e.g. "the music never stops"). What the group has not decided yet goes
 into "questions", not into the points. If there is a change note, it comes before
 everything else.
+
+{{ausgabesprache_p67}}

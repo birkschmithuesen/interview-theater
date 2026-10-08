@@ -62,6 +62,12 @@ PLATZHALTER_AUSNAHMEN: dict[str, set[str]] = {
 #: behaelt seine feste Liste -- Dortmund bleibt bitgleich.
 NUR_ENGLISCH: dict[str, set[str]] = {
     "erkenner": {"phasen_kurz"},
+    # Morgen-Auftrag 4 (08.10.2026): ab Phase 6/7 italienisch, nur im
+    # Profil-Platzhalter steuerbar -- die deutsche Fassung (Dortmund) kennt
+    # keine Phase-6/7-Umstellung und bleibt bitgleich ohne diese Zeile.
+    "stagescript": {"ausgabesprache_p67"},
+    "szenenkarte": {"ausgabesprache_p67"},
+    "szenenkarte_pruefung": {"ausgabesprache_p67"},
 }
 
 

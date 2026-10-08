@@ -114,18 +114,19 @@ def test_befehle_und_ablauf_im_cothinker(conn, einst, padua, monkeypatch):
     tg, klm = TG(), LLM()
 
     # Karte 1 entsteht: im Chat nur der Hinweis, keine Knoepfe, kein Kartentext.
+    # Morgen-Auftrag 4: Statuszeile ab Phase 6 italienisch.
     ueberarbeitung.weiter_6(conn, tg, klm, einst, 1).join(5)
-    assert tg.texte[-1] == "Card 1 of 2 is ready in the CoThinker tab."
+    assert tg.texte[-1] == "La scheda 1 di 2 è pronta nella scheda CoThinker."
     assert not tg.leisten
 
     # "No, change" im CoThinker -> Feedbackfrage, naechste Nachricht = Notiz.
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_aendern", "1")
-    assert tg.texte[-1] == "What should change on card 1?"
+    assert tg.texte[-1] == "Cosa deve cambiare nella scheda 1?"
     assert szenenfolge.nimm_regienotiz(1) == 1
 
     # Die geaenderte Karte kommt im Chat zur Bestaetigung, nicht still.
     ueberarbeitung.ueberarbeite(conn, tg, klm, einst, 1, "Emma sings first", nummer=1).join(5)
-    assert "Scene card 1" in tg.texte[-1]
+    assert "Scheda scena 1" in tg.texte[-1]
     assert [b for b, _ in tg.leisten[-1]] == ["Yes, save card", "No, change again"]
     assert not repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
 
@@ -133,15 +134,15 @@ def test_befehle_und_ablauf_im_cothinker(conn, einst, padua, monkeypatch):
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "1")
     import time
     for _ in range(100):
-        if tg.texte[-1] == "Card 2 of 2 is ready in the CoThinker tab.":
+        if tg.texte[-1] == "La scheda 2 di 2 è pronta nella scheda CoThinker.":
             break
         time.sleep(0.05)
     assert repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
-    assert tg.texte[-1] == "Card 2 of 2 is ready in the CoThinker tab."
+    assert tg.texte[-1] == "La scheda 2 di 2 è pronta nella scheda CoThinker."
 
     # Veraltet / falsche Phase: wirkungslos.
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "1")
-    assert tg.texte[-1] == szenenkarte.T._TEXT_NICHT_DRAN
+    assert tg.texte[-1] == szenenkarte.T_IT._TEXT_NICHT_DRAN
     phasen.setze(conn, 1, 5, "befehl")
     vorher = len(tg.texte)
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "2")
@@ -156,7 +157,8 @@ def test_telegram_behaelt_die_karte_im_chat(conn, einst, padua, monkeypatch):
     phasen.setze(conn, 1, 6, "befehl")
     tg = TG()
     ueberarbeitung.weiter_6(conn, tg, LLM(), einst, 1).join(5)
-    assert "Scene card 1" in tg.texte[-1]
+    # Morgen-Auftrag 4: Kartentext italienisch, Knoepfe bleiben englisch.
+    assert "Scheda scena 1" in tg.texte[-1]
     assert [b for b, _ in tg.leisten[-1]] == ["Yes, save", "No, change"]
 
 

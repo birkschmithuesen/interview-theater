@@ -39,6 +39,13 @@ whisper = "auto"
 # Padua 06.10.2026 (Birk): keine Sprachabfrage beim Eintritt in Phase 3 --
 # Whisper erkennt die Sprache immer selbst. /language bleibt als Notweg.
 whisper_wahl_anbieten = false
+# Ab Phase 6/7 italienisch, fuer alle Gruppen (Birk 08.10.2026 ~07:50,
+# Morgen-Auftrag 4: "es sollte alles auf ital sein fuer diese beiden
+# Phasen, ausser Knoepfe"). Nur Modell-Prompts (Phase-6/7-Gespraech,
+# Szenenkarte, Kartenpruefung, Stage Script) -- Knoepfe und feste
+# UI-Beschriftungen bleiben englisch, siehe T.ab_phase67_italienisch in
+# szenenkarte.py/stagescript.py fuer die deterministischen Statuszeilen.
+ausgabesprache_p67 = "Write all output in Italian. Keep interview quotes exactly as given, in their original language, unchanged."
 
 [datenschutz]
 # E8: der Bot spricht nie mit Vornamen an; im Prompt stehen "Member 1, 2, ...".

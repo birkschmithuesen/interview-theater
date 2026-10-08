@@ -113,10 +113,12 @@ def angleichen(deutsch: Any, eintrag: Any) -> Any:
     return eintrag
 
 
-def text(modul: str, name: str) -> Any:
-    """Der Text ``name`` aus ``modul`` in der aktiven Sprache."""
+def text(modul: str, name: str, sprachcode: str | None = None) -> Any:
+    """Der Text ``name`` aus ``modul`` in der aktiven Sprache, oder in
+    ``sprachcode``, wenn die Konstante (per ``Texte(..., ab_phase67_italienisch=True)``)
+    eine erzwungene Sprache tragen darf (Morgen-Auftrag 4)."""
     deutsch = getattr(sys.modules[modul], name)
-    sprachcode = code()
+    sprachcode = sprachcode or code()
     if sprachcode == DEUTSCH:
         return deutsch
     eintrag = tabelle(sprachcode).get(modulschluessel(modul), {}).get(name)
@@ -132,17 +134,28 @@ def text(modul: str, name: str) -> Any:
 
 class Texte:
     """Die Texte eines Moduls, zur Aufrufzeit in der aktiven Sprache:
-    ``T = sprache.Texte(__name__)``, dann ``T._TEXT_X``."""
+    ``T = sprache.Texte(__name__)``, dann ``T._TEXT_X``.
 
-    __slots__ = ("_modul",)
+    ``ab_phase67_italienisch`` (Morgen-Auftrag 4, 08.10.2026): fuer Module,
+    die nur in Phase 6/7 laufen (``szenenkarte.py``, ``stagescript.py``) --
+    solange ``workshop.p67_italienisch_aktiv()`` an ist, lesen ihre ``T``-
+    Zugriffe aus der italienischen Tabelle statt der Profilsprache. Gilt
+    je Instanz, nicht global: Knopf-Beschriftungen bleiben auf einer
+    zweiten, gewoehnlichen ``Texte``-Instanz im selben Modul unberuehrt."""
 
-    def __init__(self, modul: str) -> None:
+    __slots__ = ("_modul", "_ab_phase67_italienisch")
+
+    def __init__(self, modul: str, *, ab_phase67_italienisch: bool = False) -> None:
         object.__setattr__(self, "_modul", modul)
+        object.__setattr__(self, "_ab_phase67_italienisch", ab_phase67_italienisch)
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("__"):
             raise AttributeError(name)
-        return text(self._modul, name)
+        sprachcode = "it" if (
+            self._ab_phase67_italienisch and workshop.p67_italienisch_aktiv()
+        ) else None
+        return text(self._modul, name, sprachcode)
 
     def __setattr__(self, name: str, wert: Any) -> None:
         raise AttributeError("Texte sind nur lesbar")

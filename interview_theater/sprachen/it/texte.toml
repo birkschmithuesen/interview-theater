@@ -1,0 +1,45 @@
+# Italienische Texttabelle -- NUR fuer Module, die eine ``Texte``-Instanz
+# mit ``ab_phase67_italienisch=True`` tragen (Morgen-Auftrag 4, 08.10.2026:
+# ab Phase 6/7 italienisch fuer alle Padua-Gruppen, Knoepfe bleiben
+# englisch). Anders als ``sprachen/en/texte.toml`` ist diese Tabelle NICHT
+# vollstaendig fuer jedes Modul -- nur die Module, die den Schalter
+# tatsaechlich nutzen (``szenenkarte.py``, ``stagescript.py``), und darin
+# nur die Konstanten, die ueber ``T_IT`` statt ``T`` gelesen werden (die
+# beiden Knopf-Beschriftungen bleiben aussen vor). ``tests/test_sprache_texte.py``
+# prueft nur die englische Tabelle, nicht diese hier.
+
+[szenenkarte]
+_KARTE_KOPF = "Scheda scena {nummer} — {titel}"
+_ZEILE_ORT = "Dove:"
+_ZEILE_WER = "Chi:"
+_ZEILE_PUNKTE = "Cosa succede:"
+_ZEILE_ZITATE = "Citazioni dall'intervista:"
+_ZEILE_FRAGEN = "Domande aperte:"
+_TEXT_NICHT_DRAN = "Questa scheda non è quella attuale -- non ho salvato nulla."
+_TEXT_FEEDBACK_FRAGE = "Cosa deve cambiare nella scheda {nummer}?"
+_TEXT_IM_COTHINKER = "La scheda {nummer} di {gesamt} è pronta nella scheda CoThinker."
+_TEXT_FRAGE = "Scheda {nummer} di {gesamt}. Va bene così? Altrimenti dimmi cosa deve cambiare."
+_TEXT_LAEUFT = "Sto ancora costruendo una scheda -- un momento."
+_TEXT_AENDERE = "Sto ricostruendo la scheda per la scena {nummer}."
+_TEXT_SCHREIBE = "Sto costruendo la scheda per la scena {nummer}."
+_TEXT_FEHLER = "La scheda per la scena {nummer} non ha funzionato. Fatemelo sapere di nuovo."
+_TEXT_KEINE_SZENEN = "Non ci sono ancora scene -- stabilitele prima nella Workbench."
+_TEXT_ALLE_GESPEICHERT = "Tutte le schede sono salvate. Si passa allo Stage Script?"
+_JOURNAL_GESPEICHERT = "Scheda scena {nummer} salvata: {titel}"
+_ANTWORT_GESPEICHERT = "Scheda {nummer} salvata"
+_TEXT_KEIN_ZIEL = "Tutte le schede sono salvate. Quale scena volete cambiare?"
+_TEXT_GESAMT_KOPF = "Uno sguardo d'insieme:"
+_TEXT_GESAMT_OHNE = "- Niente da segnalare."
+_TEXT_GESAMT_LAEUFT = "Tutte le schede sono pronte. Do un'occhiata d'insieme."
+
+[stagescript]
+_TEXT_FERTIG = "La scena {nummer} di {gesamt} ({titel}) è nella scheda Script. Leggetela lì -- va bene così? Altrimenti dimmi cosa deve cambiare."
+_TEXT_LAEUFT = "Sto ancora scrivendo -- un momento."
+_TEXT_AENDERE = "Sto riscrivendo lo stage script per la scena {nummer}."
+_TEXT_SCHREIBE = "Sto scrivendo lo stage script per la scena {nummer}."
+_TEXT_FEHLER = "Lo stage script per la scena {nummer} non ha funzionato. Fatemelo sapere di nuovo."
+_TEXT_ALLES_FERTIG = "Lo stage script è completo. Leggetelo nella scheda Script."
+_TEXT_NICHT_DRAN = "Questa scena non è quella attuale -- non ho salvato nulla."
+_JOURNAL_GESPEICHERT = "Stage script scena {nummer} salvato: {titel}"
+_ANTWORT_GESPEICHERT = "Scena {nummer} salvata"
+_TEXT_KEIN_ZIEL = "Tutte le scene sono salvate. Quale volete cambiare?"

@@ -65,7 +65,8 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
     assert stand["stage_kopf_it"] == "Impostazione: un tavolo al bar."
     nutzer = klm.aufrufe[0]["nutzer"]
     assert "Worum 1" in nutzer and "CAMERA" in nutzer and "\"kopf\"" in nutzer
-    assert any("Script tab" in t for t in tg.texte)
+    # Morgen-Auftrag 4: Statuszeile ab Phase 7 italienisch.
+    assert any("scheda Script" in t for t in tg.texte)
 
     # "No, change" -> neu mit Notiz und bisherigem Text, ohne zweiten Kopf.
     ueberarbeitung.ueberarbeite(conn, tg, klm, einst, 1, "Anna speaks Italian", nummer=1).join(5)
@@ -80,9 +81,9 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
     assert repo.hole_szene(conn, ids[1])["volltext"]
     assert ueberarbeitung.aktuelle_szene(conn, 1) == 2
     assert ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 1) == \
-        stagescript.T._TEXT_NICHT_DRAN
+        stagescript.T_IT._TEXT_NICHT_DRAN
     ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 2)
-    assert tg.texte[-1] == stagescript.T._TEXT_ALLES_FERTIG
+    assert tg.texte[-1] == stagescript.T_IT._TEXT_ALLES_FERTIG
 
 
 def test_format_nach_kartentyp(conn, padua):

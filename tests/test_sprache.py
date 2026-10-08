@@ -133,3 +133,32 @@ def test_platzhalter(text, erwartet):
 def test_die_echte_tabelle_ist_gueltiges_toml():
     sprache.vergiss()
     assert isinstance(sprache.tabelle("en"), dict)
+
+
+# --- Morgen-Auftrag 4: ab_phase67_italienisch -------------------------------
+
+def test_ab_phase67_italienisch_ohne_schalter_bleibt_profilsprache(testmodul, monkeypatch):
+    _englisch(monkeypatch)
+    monkeypatch.setattr(workshop, "p67_italienisch_aktiv", lambda *a, **k: False)
+    t = sprache.Texte(testmodul.__name__, ab_phase67_italienisch=True)
+    assert t._TEXT_GRUSS == "Hello {name}, good to have you here."
+
+
+def test_ab_phase67_italienisch_mit_schalter_liest_it(testmodul, monkeypatch):
+    _englisch(monkeypatch)
+    monkeypatch.setitem(sprache._TABELLEN, "it", {"_sprachtest": {
+        "_TEXT_GRUSS": "Ciao {name}, bello avervi qui.",
+    }})
+    monkeypatch.setattr(workshop, "p67_italienisch_aktiv", lambda *a, **k: True)
+    t = sprache.Texte(testmodul.__name__, ab_phase67_italienisch=True)
+    assert t._TEXT_GRUSS == "Ciao {name}, bello avervi qui."
+
+
+def test_ab_phase67_italienisch_gilt_nicht_fuer_normale_texte(testmodul, monkeypatch):
+    _englisch(monkeypatch)
+    monkeypatch.setitem(sprache._TABELLEN, "it", {"_sprachtest": {
+        "_TEXT_GRUSS": "Ciao {name}, bello avervi qui.",
+    }})
+    monkeypatch.setattr(workshop, "p67_italienisch_aktiv", lambda *a, **k: True)
+    t = sprache.Texte(testmodul.__name__)
+    assert t._TEXT_GRUSS == "Hello {name}, good to have you here."

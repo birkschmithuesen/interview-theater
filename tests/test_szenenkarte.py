@@ -137,7 +137,8 @@ def test_phase_6_eine_karte_nach_der_anderen(conn, einst, padua):
     tg, klm = TG(), LLM()
 
     ueberarbeitung.weiter_6(conn, tg, klm, einst, 1, aus_eintritt=True).join(5)
-    assert any("Scene card 1" in t for t in tg.texte)
+    # Morgen-Auftrag 4: Kartentext ab Phase 6 italienisch.
+    assert any("Scheda scena 1" in t for t in tg.texte)
     assert any(ZITAT_A in t for t in tg.texte)
     assert ueberarbeitung.aktuelle_szene(conn, 1) == 1
 
@@ -154,9 +155,10 @@ def test_phase_6_eine_karte_nach_der_anderen(conn, einst, padua):
     assert ueberarbeitung.aktuelle_szene(conn, 1) == 2
     assert phasen.voraussetzungen(conn, 1)[7] is False
 
-    # Veralteter Knopf fuer Karte 1: nichts passiert.
+    # Veralteter Knopf fuer Karte 1: nichts passiert. Italienisch ab Phase 6
+    # (Morgen-Auftrag 4): T_IT, nicht T.
     assert ueberarbeitung.bestaetige_szene_6(conn, tg, klm, einst, 1, 1) == \
-        szenenkarte.T._TEXT_NICHT_DRAN
+        szenenkarte.T_IT._TEXT_NICHT_DRAN
 
     faden = szenenkarte.bestaetige(conn, tg, klm, einst, 1, 2)
     for _ in range(50):
@@ -167,7 +169,7 @@ def test_phase_6_eine_karte_nach_der_anderen(conn, einst, padua):
         time.sleep(0.05)
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
-    assert faden == "Card 2 saved"
+    assert faden == "Scheda 2 salvata"
     assert any("Scene 2 needs a clearer ending." in t for t in tg.texte)
     assert phasen.voraussetzungen(conn, 1)[7] is True
     # Prosa-Rewrite lief nie.

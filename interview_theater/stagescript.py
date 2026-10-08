@@ -197,7 +197,7 @@ def zeige(conn, tg, e, chat_id: int, nummer: int) -> int:
 
     basis._nimm_alte_leiste_ab(conn, tg, chat_id, ks.ART_SZENE_PASST)
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    text = T._TEXT_FERTIG.format(nummer=nummer, titel=(szene["titel"] or "").strip(),
+    text = T_IT._TEXT_FERTIG.format(nummer=nummer, titel=(szene["titel"] or "").strip(),
                                  gesamt=len(_szenen(conn, chat_id)))
     leiste = [
         ks._knopf(conn, chat_id, knoepfe.T.TEXT_WEITER_KNOPF, ks.ART_SZENE_PASST, str(nummer)),
@@ -224,9 +224,9 @@ def laeuft(chat_id: int) -> bool:
 def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None):
     sperre = _sperre_fuer(chat_id)
     if klm is None or not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT)
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_LAEUFT)
         return None
-    _sende(conn, tg, e, chat_id, (T._TEXT_AENDERE if notiz else T._TEXT_SCHREIBE).format(
+    _sende(conn, tg, e, chat_id, (T_IT._TEXT_AENDERE if notiz else T_IT._TEXT_SCHREIBE).format(
         nummer=nummer))
 
     def _lauf() -> None:
@@ -236,7 +236,7 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None
         finally:
             sperre.release()
         if not ok:
-            _sende(conn, tg, e, chat_id, T._TEXT_FEHLER.format(nummer=nummer))
+            _sende(conn, tg, e, chat_id, T_IT._TEXT_FEHLER.format(nummer=nummer))
             return
         zeige(conn, tg, e, chat_id, nummer)
 
@@ -254,7 +254,7 @@ def weiter(conn, tg, klm, e, chat_id: int, *, aus_eintritt: bool = False):
     abgenommen -> die Fertig-Zeile."""
     nummer = aktuelle_nummer(conn, chat_id)
     if nummer is None:
-        _sende(conn, tg, e, chat_id, T._TEXT_ALLES_FERTIG)
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_ALLES_FERTIG)
         return None
     szene = _szene_mit_nummer(conn, chat_id, nummer)
     if _gesetzt(szene["volltext"]):
@@ -265,19 +265,19 @@ def weiter(conn, tg, klm, e, chat_id: int, *, aus_eintritt: bool = False):
 
 def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if laeuft(chat_id):
-        _sende(conn, tg, e, chat_id, T._TEXT_LAEUFT)
-        return T._TEXT_LAEUFT
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_LAEUFT)
+        return T_IT._TEXT_LAEUFT
     szene = _szene_mit_nummer(conn, chat_id, nummer)
     if (nummer != aktuelle_nummer(conn, chat_id) or szene is None
             or not _gesetzt(szene["volltext"])):
-        _sende(conn, tg, e, chat_id, T._TEXT_NICHT_DRAN)
-        return T._TEXT_NICHT_DRAN
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_NICHT_DRAN)
+        return T_IT._TEXT_NICHT_DRAN
     repo.setze_szene_fertig(conn, szene["id"], True)
     repo.schreibe_journal(conn, chat_id, "entschieden",
-                          T._JOURNAL_GESPEICHERT.format(nummer=nummer,
+                          T_IT._JOURNAL_GESPEICHERT.format(nummer=nummer,
                                                         titel=szene["titel"] or "").strip(),
                           quelle="knopf")
-    antwort = T._ANTWORT_GESPEICHERT.format(nummer=nummer)
+    antwort = T_IT._ANTWORT_GESPEICHERT.format(nummer=nummer)
     weiter(conn, tg, klm, e, chat_id)
     return antwort
 
@@ -285,7 +285,7 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
 def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = None):
     n = nummer if nummer is not None else aktuelle_nummer(conn, chat_id)
     if n is None:
-        _sende(conn, tg, e, chat_id, T._TEXT_KEIN_ZIEL)
+        _sende(conn, tg, e, chat_id, T_IT._TEXT_KEIN_ZIEL)
         return None
     return starte(conn, tg, klm, e, chat_id, n, notiz)
 
@@ -357,3 +357,8 @@ _JOURNAL_GESPEICHERT = "Stage Script Szene {nummer} gespeichert: {titel}"
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 T = sprache.Texte(__name__)
+#: Morgen-Auftrag 4 (08.10.2026): die an die Gruppe gesendeten Statuszeilen
+#: ab Phase 7 italienisch (``workshop.p67_italienisch_aktiv``) -- der
+#: Prompt-Aufbau (``baue_nutzertext``, oben) bleibt auf ``T``: er geht ans
+#: Modell, nicht an die Gruppe, und braucht die Umstellung nicht.
+T_IT = sprache.Texte(__name__, ab_phase67_italienisch=True)

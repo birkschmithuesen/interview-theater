@@ -58,3 +58,5 @@ A style template you put **on a finished version**, not on a blank page:
 first the content is in place, then it is built in the way the template is
 built. What is taken over is the construction, never the content of the
 template.
+
+{{ausgabesprache_p67}}

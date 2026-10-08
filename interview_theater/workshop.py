@@ -946,6 +946,12 @@ def platzhalter(profil: Profil | None = None) -> dict[str, str]:
         "konflikt_erlaubt": _liste(profil.wert("konflikt.erlaubt", "")),
         "konflikt_ausgeschlossen": _liste(profil.wert("konflikt.ausgeschlossen", "")),
         "projekt_kurz": _liste(profil.wert("projekt.kurzbeschreibung", "")),
+        # Ab Phase 6/7 eine andere Ausgabesprache als sonst im Profil
+        # (Birk 08.10.2026 ~07:50, Morgen-Auftrag 4: Padua italienisch ab
+        # Phase 6, Knoepfe/feste UI-Texte bleiben aussen vor -- die betreffen
+        # diesen Platzhalter nicht, er steht nur in Modell-Prompts). Leer
+        # (Vorgabe): kein Satz haengt im Prompt in der Luft.
+        "ausgabesprache_p67": _liste(profil.wert("sprache.ausgabesprache_p67", "")),
     }
     # Der Konfliktrahmen in seinen zwei Satzformen (01.10.2026, Karte P-Fix,
     # Birks Punkt 5). Ein Profil darf ``konflikt.erlaubt`` leer lassen; dann
@@ -1122,6 +1128,17 @@ def schaerfung_ohne_figuren_chats(profil: Profil | None = None) -> frozenset[int
     07.10.2026, G1). Vorgabe leer."""
     profil = profil or aktiv()
     return frozenset(int(c) for c in (profil.wert("schaerfung.ohne_figuren_chats", []) or []))
+
+
+def p67_italienisch_aktiv(profil: Profil | None = None) -> bool:
+    """Ab Phase 6/7 italienisch statt der sonstigen Profilsprache (Birk
+    08.10.2026 ~07:50, Morgen-Auftrag 4) -- dieselbe Profilzeile wie der
+    Prompt-Platzhalter ``{{ausgabesprache_p67}}``: gesetzt heisst an,
+    sowohl fuer die Modell-Prompts als auch fuer die deterministischen
+    Statuszeilen aus ``szenenkarte.py``/``stagescript.py``
+    (``sprache.Texte(..., ab_phase67_italienisch=True)``)."""
+    profil = profil or aktiv()
+    return bool(profil.wert("sprache.ausgabesprache_p67", ""))
 
 
 def skript_ohne_zitate_chats(profil: Profil | None = None) -> frozenset[int]:

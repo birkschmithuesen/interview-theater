@@ -2669,6 +2669,10 @@ def roadmap(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
 #: (``begriffe_detail`` kommt erst mit Karte t_4517d4ad).
 _WERKBANK_STANDFELDER = (
     "gesamttext_fixiert_am", "sprechweisen_fixiert_am", "szenen_anzahl", "begriffe_detail",
+    # Padua-Phasenumbau (Workbench-Checkliste P6/P7, Birk 08.10.2026): der
+    # Skriptkopf-Punkt in Phase 7 (``roadmap._stagescript_zeilen``) braucht
+    # ``stand["stage_kopf"]``, das ``_arbeitsstand`` nicht mitbringt.
+    "stage_kopf",
 )
 
 

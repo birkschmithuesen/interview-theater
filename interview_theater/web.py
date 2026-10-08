@@ -4008,9 +4008,20 @@ def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
         teile.append(_auch_vereinbart_html(
             daten, None if daten["szenen"] else werkbank.get("szenen_anzahl")))
     elif nummer == 6:
-        teile.append(_dramaturgie_html(daten.get("dramaturgie")))
+        from interview_theater import workshop
+
+        # Padua-Phasenumbau (Workbench-Checkliste P6/P7, Birk 08.10.2026):
+        # unter ``[karten] aktiv`` steht am Ende von Phase 6 noch keine
+        # Szene als Text -- die Dramaturgie-Pruefung liest das ganze
+        # Textbuch und gehoert deshalb zu Phase 7 (Stage Script).
+        if not workshop.szenenkarten_aktiv():
+            teile.append(_dramaturgie_html(daten.get("dramaturgie")))
     elif nummer == 7:
+        from interview_theater import workshop
+
         teile.append(_sprechanteile_html(daten.get("sprechanteile")))
+        if workshop.szenenkarten_aktiv():
+            teile.append(_dramaturgie_html(daten.get("dramaturgie")))
     inhalt = "".join(t for t in teile if t)
     return f'<div class="wb-inhalt">{inhalt}</div>' if inhalt else ""
 

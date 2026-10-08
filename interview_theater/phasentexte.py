@@ -415,6 +415,11 @@ PARAMETER_BESCHRIFTUNG = {
     # Phase ist, sondern der zweite Teil ihrer Voraussetzung
     # (``phasen.voraussetzungen[4]``, "keine offene Auswertung mehr").
     "Offene Auswertungen": "Offene Auswertungen",
+    # Padua-Phasenumbau (Birk 08.10.2026, Workbench-Checkliste P6/P7):
+    # ``roadmap._gate_fuer`` ersetzt unter ``[karten] aktiv`` die
+    # Voraussetzung von Phase 7 -- alle Karten gespeichert statt aller
+    # Szenentexte geschrieben.
+    "Szenenkarten": "Szenenkarten",
 }
 
 
@@ -522,6 +527,35 @@ _EINLEITUNG_KARTEN_7 = (
     "fuer Szene. Ihr lest sie im Script-Tab und speichert sie oder sagt, "
     "was anders sein soll."
 )
+
+#: Die Workbench-Checkliste von Phase 6/7 unter ``[karten] aktiv``: EIN
+#: Punkt je Szene statt der Prosa-Aufgaben ``AUFGABEN[6]``/``AUFGABEN[7]``
+#: (Birk 08.10.2026, Workbench-Checkliste P6/P7 passt nicht zum neuen
+#: Ablauf). Nur die Nummer steht im Platzhalter -- der Titel kommt ueber
+#: ``TRENNER``, wie bei jeder anderen Aufzaehlung in diesem Modul, und
+#: bleibt weg, wo die Szene noch keinen hat.
+_AUFGABE_KARTE = "Karte {nummer}"
+_AUFGABE_SKRIPT = "Skript {nummer}"
+_AUFGABE_SKRIPTKOPF = "Skriptkopf"
+
+
+def karte_aufgabe_text(nummer: int, titel: str) -> str:
+    """``roadmap.werkbank``/``roadmap.aus_daten``, Phase 6 unter ``[karten]
+    aktiv``: der Text EINER Szenenkarte in der Checkliste."""
+    basis = T._AUFGABE_KARTE.format(nummer=nummer)
+    return f"{basis}{TRENNER}{titel}" if titel else basis
+
+
+def stagescript_aufgabe_text(nummer: int, titel: str) -> str:
+    """Dasselbe fuer Phase 7 (``stagescript.py``)."""
+    basis = T._AUFGABE_SKRIPT.format(nummer=nummer)
+    return f"{basis}{TRENNER}{titel}" if titel else basis
+
+
+def stagekopf_aufgabe_text() -> str:
+    """Der zusaetzliche Punkt in Phase 7, nur wenn das Skript einen Kopf
+    braucht (``stagescript.braucht_kopf``, G2: Versuchsanordnung + Rollen)."""
+    return T._AUFGABE_SKRIPTKOPF
 
 
 def abschluss(conn, chat_id: int, phase: int) -> str:

@@ -172,6 +172,122 @@ def test_phase_7_form_und_sprechweise():
     assert _zeile(liste, 7, "sprechweise", "Tomas")["status"] == roadmap.OFFEN
 
 
+# -- Padua-Phasenumbau: Szenenkarten / Stage Script (Birk 08.10.2026) -------
+#
+# Workbench-Checkliste P6/P7 passt nicht zum neuen Ablauf: unter
+# ``[karten] aktiv`` (``workshop.szenenkarten_aktiv``) zeigt Phase 6
+# ("Scene Cards") einen Punkt je Szenenkarte statt der alten Prosa-Aufgaben,
+# Phase 7 ("Stage Script") einen Punkt je Skript.
+
+
+def test_phase_6_zeigt_eine_karte_je_szene_unter_karten(monkeypatch):
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "szenenkarten_aktiv", lambda *a, **k: True)
+    lage = _lage(phase=6, szenen=[
+        {"nummer": 1, "titel": "Arrival", "karte_bestaetigt_am": "2026-10-08T10:00:00+00:00"},
+        {"nummer": 2, "titel": "Farewell", "karte": "{}"},
+        {"nummer": 3, "titel": "Silence"},
+    ])
+    liste = roadmap.werkbank(lage, 6)
+    phase6 = _phase(liste, 6)
+    assert [z["kennung"] for z in phase6["zeilen"]] == ["karte_1", "karte_2", "karte_3"]
+    assert all(z["art"] == "aufgabe" for z in phase6["zeilen"])
+    assert [z["text"] for z in phase6["zeilen"]] == [
+        "Karte 1 · Arrival", "Karte 2 · Farewell", "Karte 3 · Silence",
+    ]
+    eins = _zeile(liste, 6, "karte_1")
+    assert (eins["status"], eins["laeuft"]) == (roadmap.ERLEDIGT, False)
+    zwei = _zeile(liste, 6, "karte_2")
+    assert (zwei["status"], zwei["laeuft"]) == (roadmap.OFFEN, True)
+    drei = _zeile(liste, 6, "karte_3")
+    assert (drei["status"], drei["laeuft"]) == (roadmap.OFFEN, False)
+    assert (phase6["erledigt"], phase6["gesamt"]) == (1, 3)
+
+
+def test_phase_6_keine_alten_prosa_punkte_unter_karten(monkeypatch):
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "szenenkarten_aktiv", lambda *a, **k: True)
+    lage = _lage(phase=6, stand={"gesamttext_fixiert_am": "2026-10-03T10:00:00+00:00"},
+                 szenen=[{"nummer": 1, "ueberarbeitung_bestaetigt_am": "x"}])
+    kennungen = [z["kennung"] for z in _phase(roadmap.werkbank(lage, 6), 6)["zeilen"]]
+    assert "szenentexte" not in kennungen
+    assert "gesamttext" not in kennungen
+    assert "ueberarbeitet" not in kennungen
+
+
+def test_phase_7_zeigt_ein_script_je_szene_unter_karten(monkeypatch):
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "szenenkarten_aktiv", lambda *a, **k: True)
+    lage = _lage(phase=7, szenen=[
+        {"nummer": 1, "titel": "Arrival", "volltext": "Text"},
+        {"nummer": 2, "titel": "Farewell"},
+    ])
+    liste = roadmap.werkbank(lage, 7)
+    phase7 = _phase(liste, 7)
+    assert [z["kennung"] for z in phase7["zeilen"]] == ["script_1", "script_2"]
+    assert [z["text"] for z in phase7["zeilen"]] == ["Skript 1 · Arrival", "Skript 2 · Farewell"]
+    assert _zeile(liste, 7, "script_1")["status"] == roadmap.ERLEDIGT
+    assert _zeile(liste, 7, "script_2")["status"] == roadmap.OFFEN
+    assert (phase7["erledigt"], phase7["gesamt"]) == (1, 2)
+
+
+def test_phase_7_keine_alten_form_sprechweise_punkte_unter_karten(monkeypatch):
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "szenenkarten_aktiv", lambda *a, **k: True)
+    lage = _lage(phase=7, szenen=[{"nummer": 1, "form": "dialog"}],
+                 figuren=[{"name": "Nadia", "sprachstil": "x"}])
+    kennungen = [z["kennung"] for z in _phase(roadmap.werkbank(lage, 7), 7)["zeilen"]]
+    assert kennungen == ["script_1"]
+
+
+def test_phase_7_skriptkopf_punkt_wenn_gebraucht(monkeypatch):
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "szenenkarten_aktiv", lambda *a, **k: True)
+    karte_instructions = '{"typ": "instructions"}'
+    lage = _lage(phase=7, szenen=[
+        {"nummer": 1, "titel": "A", "karte": karte_instructions},
+        {"nummer": 2, "titel": "B", "karte": karte_instructions},
+    ])
+    kennungen = [z["kennung"] for z in _phase(roadmap.werkbank(lage, 7), 7)["zeilen"]]
+    assert kennungen == ["script_1", "script_2", "skriptkopf"]
+    assert _zeile(roadmap.werkbank(lage, 7), 7, "skriptkopf")["status"] == roadmap.OFFEN
+
+    lage["stand"]["stage_kopf"] = "Versuchsanordnung ..."
+    assert _zeile(roadmap.werkbank(lage, 7), 7, "skriptkopf")["status"] == roadmap.ERLEDIGT
+
+
+def test_phase_7_kein_skriptkopf_punkt_ohne_mehrheit_anweisungen(monkeypatch):
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "szenenkarten_aktiv", lambda *a, **k: True)
+    lage = _lage(phase=7, szenen=[
+        {"nummer": 1, "titel": "A", "karte": '{"typ": "description"}'},
+    ])
+    kennungen = [z["kennung"] for z in _phase(roadmap.werkbank(lage, 7), 7)["zeilen"]]
+    assert kennungen == ["script_1"]
+
+
+def test_ohne_karten_schalter_bleiben_phase_6_und_7_wie_vorher():
+    """Dortmund-Gegenprobe: ohne ``[karten] aktiv`` bleiben die alten
+    Punkte stehen -- unveraendert gegenueber
+    ``test_phase_6_gesamttext_und_ueberarbeitung``/
+    ``test_phase_7_form_und_sprechweise``."""
+    lage_6 = _lage(phase=6, stand={"gesamttext_fixiert_am": "x"},
+                   szenen=[{"nummer": 1, "ueberarbeitung_bestaetigt_am": "x"}])
+    kennungen_6 = [z["kennung"] for z in _phase(roadmap.werkbank(lage_6, 6), 6)["zeilen"]]
+    assert kennungen_6 == ["szenentexte", "gesamttext", "ueberarbeitet"]
+
+    lage_7 = _lage(phase=7, szenen=[{"nummer": 1, "form": "dialog"}],
+                   figuren=[{"name": "Nadia"}])
+    kennungen_7 = [z["kennung"] for z in _phase(roadmap.werkbank(lage_7, 7), 7)["zeilen"]]
+    assert kennungen_7 == ["stueckpruefung", "form", "sprechweise"]
+
+
 # -- der Haken fuer begriffe_detail (Karte t_4517d4ad) ------------------------
 
 

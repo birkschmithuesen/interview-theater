@@ -88,8 +88,31 @@ def test_diskussion_ist_in_keinem_profil_eine_werkbankzeile(tmp_path, profil):
                for z in _werkbank(pfad)["phasen"][0]["zeilen"])
 
 
-def test_ueberarbeitung_gesamttext_form_und_sprechweise(tmp_path, profil):
+def test_szenenkarten_und_stage_script_je_szene_unter_karten(tmp_path, profil):
+    """Padua-Phasenumbau (Workbench-Checkliste P6/P7, Birk 08.10.2026):
+    unter ``[karten] aktiv`` zeigt Phase 6 die Szenenkarten, Phase 7 das
+    Stage Script -- nicht mehr die Prosa-Aufgaben eines frueheren Laufs
+    (``gesamttext``/``ueberarbeitet``/``form``/``sprechweise``)."""
     profil("padua-2026")
+    pfad, conn = _db(tmp_path)
+    repo.setze_phase(conn, CHAT, 7)
+    eins = repo.lege_szene_an(conn, CHAT, 1, "Ankunft", None, None)
+    repo.lege_szene_an(conn, CHAT, 2, "Abschied", None, None)
+    repo.setze_szenenkarte(conn, eins, json.dumps({"typ": "description"}))
+    repo.setze_szenenkarte_bestaetigt(conn, eins)
+    repo.setze_stagescript(conn, eins, "A: Hallo.", None)
+    conn.commit()
+    w = _werkbank(pfad)
+    assert _zeile(w, 6, "karte_1")["status"] == "erledigt"
+    assert _zeile(w, 6, "karte_2")["status"] == "offen"
+    assert _zeile(w, 7, "script_1")["status"] == "erledigt"
+    assert _zeile(w, 7, "script_2")["status"] == "offen"
+
+
+def test_ueberarbeitung_gesamttext_form_und_sprechweise_ohne_karten(tmp_path, profil):
+    """Dortmund-Gegenprobe: ohne ``[karten] aktiv`` bleiben die alten
+    Prosa-Aufgaben unveraendert stehen."""
+    profil(None)
     pfad, conn = _db(tmp_path)
     repo.setze_phase(conn, CHAT, 7)
     eins = repo.lege_szene_an(conn, CHAT, 1, "Ankunft", None, "A: Hallo.")

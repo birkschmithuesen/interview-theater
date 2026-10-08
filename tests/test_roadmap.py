@@ -401,6 +401,34 @@ def test_phase_fuenf_braucht_abgenommene_figurenliste():
     assert roadmap.fehlt(5, lage) == []
 
 
+def test_phase_sieben_braucht_unter_karten_alle_gespeicherten_karten(monkeypatch):
+    """Padua-Phasenumbau (Workbench-Checkliste P6/P7, Birk 08.10.2026):
+    unter ``[karten] aktiv`` verlangt die Voraussetzung von Phase 7
+    dieselbe Schwelle wie ``phasen.voraussetzungen[7]`` -- jede Szene mit
+    einer GESPEICHERTEN Karte, nicht mit geschriebenem Text."""
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "szenenkarten_aktiv", lambda *a, **k: True)
+    lage = _lage(szenen=[
+        {"nummer": 1, "karte_bestaetigt_am": "2026-10-08T10:00:00+00:00"},
+        {"nummer": 2, "volltext": "Text ohne gespeicherte Karte"},
+    ])
+    assert roadmap.bereit(7, lage) is False
+    assert roadmap.fehlt(7, lage) == ["Szenenkarten"]
+
+    lage["szenen"][1]["karte_bestaetigt_am"] = "2026-10-08T10:05:00+00:00"
+    assert roadmap.bereit(7, lage) is True
+    assert roadmap.fehlt(7, lage) == []
+
+
+def test_phase_sieben_bleibt_ohne_karten_bei_szenentexten():
+    """Dortmund-Gegenprobe: ohne den Schalter zaehlt weiterhin, ob jede
+    Szene ihren Text hat -- unveraendert."""
+    lage = _lage(szenen=[{"nummer": 1, "volltext": "Text"}, {"nummer": 2, "volltext": ""}])
+    assert roadmap.bereit(7, lage) is False
+    assert roadmap.fehlt(7, lage) == ["Szenentexte"]
+
+
 def test_aus_daten_traegt_bereit_und_fehlt_je_phase():
     ergebnis = roadmap.aus_daten(_lage())
     for phase in ergebnis:

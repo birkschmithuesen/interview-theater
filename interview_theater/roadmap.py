@@ -96,6 +96,126 @@ def _alle_szenen_stehen(lage: dict) -> bool:
     return bool(szenen) and all(_szene_steht(s) for s in szenen)
 
 
+# --- Padua-Phasenumbau: Szenenkarten (Phase 6) und Stage Script (Phase 7) --
+#
+# Workbench-Checkliste P6/P7 passt nicht zum neuen Ablauf (Birk 08.10.2026):
+# unter ``workshop.szenenkarten_aktiv`` baut Phase 6 keine Prosa mehr,
+# sondern EINE Karte je Szene (``szenenkarte.py``), Phase 7 das Stage
+# Script aus den Karten (``stagescript.py``) -- die alten Punkte
+# ("Szenentexte", "Feedback on the whole text", "Scene N: revised",
+# "Dramaturgy check" in Phase 6; Formen/Sprechweisen in Phase 7) gehoeren
+# zum frueheren Prosa-Weg und passen nicht mehr. Die folgenden Pruefer sind
+# reine Funktionen ueber ``lage`` wie der Rest der Datei; Dortmund (ohne den
+# Schalter) bleibt bei ``AUFGABEN``/``_details`` unveraendert.
+
+
+def _karten_relevante_szenen(lage: dict) -> list:
+    """Dieselbe Filterung wie ``szenenkarte._szenen``, rein ueber ``lage``:
+    ``repo.hole_szenen`` liefert schon ohne ``entfernt_am``, nur die
+    Nummer-Pruefung bleibt (eine Szene ohne Nummer ist kein Schritt der
+    Gruppe)."""
+    return [s for s in lage["szenen"] if _roh(s, "nummer") is not None]
+
+
+def _karte_dict(szene) -> dict | None:
+    """Die Karte als Dict, gleich ob ``lage['szenen']`` vom Bot kommt
+    (``repo.hole_szenen``, rohes JSON in ``szene.karte``) oder vom Webserver
+    (``web_daten._szenen`` parst ``karte`` fuer ``[karten] aktiv`` schon zu
+    einem Dict). Wie ``szenenkarte.karte_von``, nur ohne ``repo``."""
+    try:
+        karte = szene["karte"]
+    except (IndexError, KeyError, TypeError):
+        return None
+    if isinstance(karte, dict):
+        return karte
+    if not isinstance(karte, str) or not karte.strip():
+        return None
+    try:
+        geparst = json.loads(karte)
+    except ValueError:
+        return None
+    return geparst if isinstance(geparst, dict) else None
+
+
+def _karte_erledigt(szene) -> bool:
+    """``szene['karte_bestaetigt']`` (``web_daten._szenen``, schon ein
+    ``bool``) oder, vom Bot, der rohe Zeitstempel ``karte_bestaetigt_am``
+    (``szenenkarte.bestaetige``)."""
+    try:
+        return bool(szene["karte_bestaetigt"])
+    except (IndexError, KeyError, TypeError):
+        return bool(_text(szene, "karte_bestaetigt_am"))
+
+
+def _karte_zustand(szene) -> str:
+    """'erledigt', sobald die Karte gespeichert ist, 'laeuft', sobald sie
+    gebaut, aber noch nicht gespeichert ist, sonst 'offen'."""
+    if _karte_erledigt(szene):
+        return "erledigt"
+    if _karte_dict(szene) is not None:
+        return "laeuft"
+    return "offen"
+
+
+def _script_zustand(szene) -> str:
+    """'erledigt', sobald das Stage Script dieser Szene steht
+    (``szene.volltext``, ``stagescript.schreibe``), sonst 'offen'."""
+    return "erledigt" if _text(szene, "volltext") else "offen"
+
+
+def _braucht_skriptkopf(szenen: list) -> bool:
+    """Dieselbe Formel wie ``stagescript.braucht_kopf``, rein ueber die
+    schon geladenen Karten: ueberwiegend Handlungsanweisungen (G2)."""
+    typen = [(_karte_dict(s) or {}).get("typ") for s in szenen]
+    return bool(typen) and sum(t == "instructions" for t in typen) * 2 > len(typen)
+
+
+def _karten_zeilen(lage: dict) -> list[dict]:
+    """Phase 6 unter ``[karten] aktiv``: EIN Punkt je Szenenkarte statt der
+    Prosa-Aufgabe ``AUFGABEN[6]``."""
+    return [
+        {
+            "kennung": f"karte_{s['nummer']}",
+            "text": phasentexte.karte_aufgabe_text(s["nummer"], _text(s, "titel")),
+            "zustand": _karte_zustand(s),
+            "ziel": {"tab": "stand", "feld": None},
+        }
+        for s in _karten_relevante_szenen(lage)
+    ]
+
+
+def _stagescript_zeilen(lage: dict) -> list[dict]:
+    """Phase 7 unter ``[karten] aktiv``: EIN Punkt je Stage Script statt
+    der Prosa-Aufgabe ``AUFGABEN[7]``, dazu der Skriptkopf (G2), nur wenn
+    das Skript einen braucht."""
+    szenen = _karten_relevante_szenen(lage)
+    zeilen = [
+        {
+            "kennung": f"script_{s['nummer']}",
+            "text": phasentexte.stagescript_aufgabe_text(s["nummer"], _text(s, "titel")),
+            "zustand": _script_zustand(s),
+            "ziel": {"tab": "stand", "feld": None},
+        }
+        for s in szenen
+    ]
+    if _braucht_skriptkopf(szenen):
+        zeilen.append({
+            "kennung": "skriptkopf",
+            "text": phasentexte.stagekopf_aufgabe_text(),
+            "zustand": "erledigt" if _text(lage["stand"], "stage_kopf") else "offen",
+            "ziel": {"tab": "stand", "feld": None},
+        })
+    return zeilen
+
+
+def _alle_karten_bestaetigt(lage: dict) -> bool:
+    """Dieselbe Schwelle wie ``phasen.voraussetzungen[7]``
+    (``phasen._karte_abgenommen``) unter ``[karten] aktiv``: jede Szene mit
+    einer GESPEICHERTEN Karte, nicht nur geschriebenem Text."""
+    szenen = _karten_relevante_szenen(lage)
+    return bool(szenen) and all(_karte_erledigt(s) for s in szenen)
+
+
 #: Je Phase, in der Reihenfolge der Arbeit: was sie setzt.
 #: ``parameter`` **muss** wortgleich und in derselben Reihenfolge in
 #: ``phasentexte.PARAMETER`` stehen (Test).
@@ -244,12 +364,25 @@ _GATE: dict[int, tuple[tuple[str, Callable[[dict], bool]], ...]] = {
 }
 
 
+def _gate_fuer(nummer: int) -> tuple[tuple[str, Callable[[dict], bool]], ...]:
+    """``_GATE[nummer]``, ausser Phase 7 unter ``[karten] aktiv``: dort
+    verlangt der Eintritt alle GESPEICHERTEN Karten statt aller
+    geschriebenen Szenentexte -- dieselbe Schwelle wie
+    ``phasen.voraussetzungen[7]`` (Workbench-Checkliste P6/P7, Birk
+    08.10.2026)."""
+    from interview_theater import workshop
+
+    if nummer == 7 and workshop.szenenkarten_aktiv():
+        return (("Szenenkarten", _alle_karten_bestaetigt),)
+    return _GATE.get(nummer, ())
+
+
 def bereit(nummer: int, lage: dict) -> bool:
     """Darf die Gruppe ohne Hinweis nach Phase ``nummer`` springen?
 
     Reine Pruefung ueber ``lage`` wie ``AUFGABEN`` -- Phase 1 hat keine
     Voraussetzung, dorthin kommt man immer zurueck."""
-    return all(check(lage) for _, check in _GATE.get(nummer, ()))
+    return all(check(lage) for _, check in _gate_fuer(nummer))
 
 
 def fehlt(nummer: int, lage: dict) -> list[str]:
@@ -259,9 +392,27 @@ def fehlt(nummer: int, lage: dict) -> list[str]:
     Feld lernen muss."""
     return [
         phasentexte.beschriftung(label)
-        for label, check in _GATE.get(nummer, ())
+        for label, check in _gate_fuer(nummer)
         if not check(lage)
     ]
+
+
+def _karten_aufgaben_fuer(nummer: int, lage: dict) -> list[dict] | None:
+    """Die Checkliste von Phase 6/7 unter ``[karten] aktiv`` -- ``None``,
+    wenn die Phase oder das Profil nicht betroffen ist (dann gelten
+    ``AUFGABEN``/``_aufgaben_fuer`` wie bisher, Dortmund unveraendert).
+    Dieselbe Form wie eine ``AUFGABEN``-Zeile (``kennung``, ``text``,
+    ``zustand``, ``ziel``) -- ``aus_daten`` und ``werkbank`` lesen sie
+    gleich."""
+    from interview_theater import workshop
+
+    if not workshop.szenenkarten_aktiv():
+        return None
+    if nummer == 6:
+        return _karten_zeilen(lage)
+    if nummer == 7:
+        return _stagescript_zeilen(lage)
+    return None
 
 
 def aus_daten(lage: dict) -> list[dict]:
@@ -280,15 +431,19 @@ def aus_daten(lage: dict) -> list[dict]:
     jetzige = lage["phase"]
     ergebnis = []
     for nummer, name, satz in phasen.PHASEN:
-        aufgaben = []
-        for aufgabe in _aufgaben_fuer(nummer):
-            zustand = _zustand(aufgabe, lage)
-            aufgaben.append({
-                "kennung": aufgabe.kennung,
-                "text": phasentexte.beschriftung(aufgabe.parameter),
-                "zustand": zustand,
-                "ziel": dict(aufgabe.ziel),
-            })
+        karten_zeilen = _karten_aufgaben_fuer(nummer, lage)
+        if karten_zeilen is not None:
+            aufgaben = karten_zeilen
+        else:
+            aufgaben = []
+            for aufgabe in _aufgaben_fuer(nummer):
+                zustand = _zustand(aufgabe, lage)
+                aufgaben.append({
+                    "kennung": aufgabe.kennung,
+                    "text": phasentexte.beschriftung(aufgabe.parameter),
+                    "zustand": zustand,
+                    "ziel": dict(aufgabe.ziel),
+                })
         ergebnis.append({
             "nummer": nummer,
             "name": name,
@@ -385,20 +540,31 @@ def werkbank(lage: dict, aktuelle_phase: int) -> list[dict]:
     ergebnis = []
     for nummer, name, _satz in phasen.PHASEN:
         zeilen = []
-        for aufgabe in _aufgaben_fuer(nummer):
-            stand = status(aufgabe.erledigt(lage), nummer, aktuelle_phase)
-            zeilen.append({
-                "kennung": aufgabe.kennung, "art": "aufgabe",
-                "text": phasentexte.beschriftung(aufgabe.parameter),
-                "bezug": None, "titel": None, "status": stand,
-                "laeuft": stand != ERLEDIGT and _zustand(aufgabe, lage) == "laeuft",
-            })
-        for kennung, erledigt, bezug, titel in _details(nummer, lage):
-            zeilen.append({
-                "kennung": kennung, "art": "detail", "text": None,
-                "bezug": bezug, "titel": titel,
-                "status": status(erledigt, nummer, aktuelle_phase), "laeuft": False,
-            })
+        karten_zeilen = _karten_aufgaben_fuer(nummer, lage)
+        if karten_zeilen is not None:
+            for a in karten_zeilen:
+                stand = status(a["zustand"] == "erledigt", nummer, aktuelle_phase)
+                zeilen.append({
+                    "kennung": a["kennung"], "art": "aufgabe",
+                    "text": a["text"], "bezug": None, "titel": None,
+                    "status": stand,
+                    "laeuft": stand != ERLEDIGT and a["zustand"] == "laeuft",
+                })
+        else:
+            for aufgabe in _aufgaben_fuer(nummer):
+                stand = status(aufgabe.erledigt(lage), nummer, aktuelle_phase)
+                zeilen.append({
+                    "kennung": aufgabe.kennung, "art": "aufgabe",
+                    "text": phasentexte.beschriftung(aufgabe.parameter),
+                    "bezug": None, "titel": None, "status": stand,
+                    "laeuft": stand != ERLEDIGT and _zustand(aufgabe, lage) == "laeuft",
+                })
+            for kennung, erledigt, bezug, titel in _details(nummer, lage):
+                zeilen.append({
+                    "kennung": kennung, "art": "detail", "text": None,
+                    "bezug": bezug, "titel": titel,
+                    "status": status(erledigt, nummer, aktuelle_phase), "laeuft": False,
+                })
         erledigt = sum(1 for z in zeilen if z["status"] == ERLEDIGT)
         ergebnis.append({
             "nummer": nummer,

@@ -778,6 +778,9 @@ _EINLEITUNG_KARTEN_6 = "Now every scene becomes one card: what it is about, wher
 _PARAMETER_KARTEN = "Scene cards ({fertig} of {gesamt})"
 _PARAMETER_STAGESCRIPT = "Stage script ({fertig} of {gesamt})"
 _EINLEITUNG_KARTEN_7 = "Now every card becomes the stage script, in your format -- scene by scene. You read each one in the Script tab and save it or tell me what should change."
+_AUFGABE_KARTE = "Card {nummer}"
+_AUFGABE_SKRIPT = "Script {nummer}"
+_AUFGABE_SKRIPTKOPF = "Script head"
 _KOPF_EINTRITT = "▶️ Phase {nummer} of {gesamt} · {name}"
 _ZEILE_CHECKLISTE = "What it takes: {liste}"
 ZEILE_ANGEBOT = "My suggestion for this phase - tell me if you want it differently:"
@@ -809,6 +812,7 @@ _TEXT_RUNDE_SCHNITT = "Round {runde}, average {schnitt:.1f} of 5"
 "Szenentexte" = "Scene texts"
 "Stueckpruefung" = "Play review"
 "Offene Auswertungen" = "Open analyses"
+"Szenenkarten" = "Scene cards"
 
 ["fehlstellen"]
 UEBERSCHRIFT = "What's still missing"

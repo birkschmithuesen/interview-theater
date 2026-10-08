@@ -28,6 +28,8 @@ Modul aus importierbar.
 """
 
 import logging
+import contextlib
+import contextvars
 import re
 import sys
 import tomllib
@@ -122,6 +124,11 @@ def text(modul: str, name: str, sprachcode: str | None = None) -> Any:
     if sprachcode == DEUTSCH:
         return deutsch
     eintrag = tabelle(sprachcode).get(modulschluessel(modul), {}).get(name)
+    if eintrag is None and _ERZWUNGEN.get() == sprachcode and code() not in (sprachcode, DEUTSCH):
+        # erzwungen ohne IT-Eintrag -> aktive Sprache (EN), nicht Deutsch
+        eintrag = tabelle(code()).get(modulschluessel(modul), {}).get(name)
+        if eintrag is not None:
+            return angleichen(deutsch, eintrag)
     if eintrag is None:
         schluessel = (sprachcode, modul, name)
         if schluessel not in _GEMELDET:
@@ -130,6 +137,21 @@ def text(modul: str, name: str, sprachcode: str | None = None) -> Any:
                         sprachcode, modulschluessel(modul), name)
         return deutsch
     return angleichen(deutsch, eintrag)
+
+
+#: PDF IT (Birk 08.10.2026 ~11:00, Quickfix): waehrend ``erzwinge("it")``
+#: liefern ALLE ``Texte``-Instanzen Italienisch (Ueberschriften der IT-PDF);
+#: fehlt ein IT-Eintrag, gilt die aktive Sprache (nicht Deutsch).
+_ERZWUNGEN: "contextvars.ContextVar[str | None]" = contextvars.ContextVar("sprache_erzwungen", default=None)
+
+
+@contextlib.contextmanager
+def erzwinge(sprachcode: str | None):
+    marke = _ERZWUNGEN.set(sprachcode)
+    try:
+        yield
+    finally:
+        _ERZWUNGEN.reset(marke)
 
 
 class Texte:
@@ -155,6 +177,7 @@ class Texte:
         sprachcode = "it" if (
             self._ab_phase67_italienisch and workshop.p67_italienisch_aktiv()
         ) else None
+        sprachcode = _ERZWUNGEN.get() or sprachcode
         return text(self._modul, name, sprachcode)
 
     def __setattr__(self, name: str, wert: Any) -> None:

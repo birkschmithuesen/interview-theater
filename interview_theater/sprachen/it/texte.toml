@@ -10,6 +10,11 @@
 # prueft nur die englische Tabelle, nicht diese hier.
 
 [web]
+_TITEL_PROBENANSICHT = "{titel} — copione"
+_TEXT_GRUPPE = "Gruppo {chat_id}"
+_TEXT_SZENE_NR = "Scena {nummer}"
+_TEXT_SZENE = "Scena"
+_TEXT_BESETZUNG = "In scena: {figuren}"
 _TEXT_KARTE_GESPEICHERT = "salvata"
 _TEXT_KARTE_OFFEN = "non ancora salvata"
 _TEXT_KARTE_ENTSTEHT = "La scheda {nummer} è in costruzione ..."
@@ -66,3 +71,23 @@ _TEXT_NICHT_DRAN = "Questa scena non è quella attuale -- non ho salvato nulla."
 _JOURNAL_GESPEICHERT = "Stage script scena {nummer} salvato: {titel}"
 _ANTWORT_GESPEICHERT = "Scena {nummer} salvata"
 _TEXT_KEIN_ZIEL = "Tutte le scene sono salvate. Quale volete cambiare?"
+
+["web_skript"]
+_TEXT_ZITAT_KOPF = "Citazione dall'intervista · {nummer}"
+_TEXT_KOPF = "Impianto e ruoli"
+_TEXT_WER = "Chi"
+_TEXT_ROLLE = "Ruolo"
+_TEXT_CHARAKTER = "Personaggio"
+_TEXT_ROLLE_MEHR = "{name} — cosa, mai, quando"
+_TEXT_UEBERSICHT = "Panoramica"
+_TEXT_PARTITUR = "Partitura a colpo d'occhio"
+_TEXT_NR = "#"
+_TEXT_MOMENT = "Momento"
+_TEXT_THEMA = "Tema"
+_TEXT_SKRIPT = "Copione"
+_TEXT_WO = "Dove"
+
+["web_skript".MODUS]
+microphone = "🎤 Microfono"
+one_to_one = "👂 1:1"
+collective = "👥 Tutti"

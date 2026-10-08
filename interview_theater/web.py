@@ -4656,7 +4656,7 @@ _TEXT_KARTE_GESPEICHERT = "gespeichert"
 _TEXT_KARTE_OFFEN = "noch nicht gespeichert"
 
 
-def _karte_html(karte: dict, bestaetigt: bool) -> str:
+def _karte_html(karte: dict, bestaetigt: bool, ohne_zitate: bool = False) -> str:
     """Die Szenenkarte im Script-Tab: Typ, worum, wo/wer, Punkte, Zitate im
     Original, offene Fragen -- dieselben Felder wie im Chat."""
     from interview_theater import szenenkarte
@@ -4677,7 +4677,9 @@ def _karte_html(karte: dict, bestaetigt: bool) -> str:
     if karte.get("punkte"):
         teile.append(f'<p class="worum-kopf">{_t(st._ZEILE_PUNKTE)}</p>'
                      + _liste_html("worum-liste", karte["punkte"], 400))
-    if karte.get("zitate"):
+    # G1 (Birk 08.10.2026 ~11:00): keine Zitate im Script/PDF -- auch nicht
+    # auf den Karten, die dort stehen, solange es kein Stage Script gibt.
+    if karte.get("zitate") and not ohne_zitate:
         zitate = "".join(
             f'<blockquote class="karte-zitat" lang="it">“{_t(z.get("zitat"))}”'
             + (f' <span class="quelle">({_t(z["interview"])})</span>' if z.get("interview") else "")
@@ -4935,7 +4937,7 @@ def _probe_szene_verdichtet_html(
     elif s.get("karte"):
         # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): bis zum Stage Script
         # steht die Szenenkarte hier; eine fruehere Prosa ist nur Material.
-        zeilen.append(_karte_html(s["karte"], s.get("karte_bestaetigt")))
+        zeilen.append(_karte_html(s["karte"], s.get("karte_bestaetigt"), ohne_zitate))
         if prosa:
             zeilen.append(
                 f'<details class="fruehere"><summary>{_t(T._TEXT_PROSA_MATERIAL)}</summary>'

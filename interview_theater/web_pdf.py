@@ -122,7 +122,11 @@ def sende(handler, daten: dict, token: str, praefix: str, lang: str = "en") -> N
 
     lang = lang if lang in ("en", "it") else "en"
     try:
-        roh = pdf_aus_html(web.textbuch_html(daten, token, praefix, lang))
+        # IT-PDF: auch die Ueberschriften italienisch (Birk 08.10.2026 ~11:00).
+        from interview_theater import sprache
+
+        with sprache.erzwinge("it" if lang == "it" else None):
+            roh = pdf_aus_html(web.textbuch_html(daten, token, praefix, lang))
     except Exception:
         handler._antworte(503, web.T._TEXT_PDF_FEHLER, "text/plain; charset=utf-8")
         return

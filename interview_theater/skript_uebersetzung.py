@@ -63,6 +63,20 @@ SCHEMA = {
 }
 
 
+#: Eine Uebertragung ist ungefaehr so lang wie die Quelle. Tester 08.10.2026
+#: 12:12: Opus brach zweimal ab, der Kimi-Fallback lieferte einen fremden
+#: 1 100-Zeichen-Text statt der 5 500-Zeichen-Szene -- und der Nachholpass
+#: ueberschrieb damit EN UND IT. Ausserhalb dieses Bandes wird verworfen.
+LAENGE_MIN, LAENGE_MAX = 0.6, 1.7
+
+
+def plausibel(quelle: str, uebertragung: str) -> bool:
+    q = len((quelle or "").strip())
+    if q < 200:
+        return True
+    return LAENGE_MIN * q <= len((uebertragung or "").strip()) <= LAENGE_MAX * q
+
+
 def spiegle_text(conn, klm, e, chat_id: int, text: str, *,
                  ueber_claude: bool) -> tuple[str, str] | None:
     """Derselbe Spiegelpass fuer einen beliebigen Szenentext (Stage Script,
@@ -79,6 +93,9 @@ def spiegle_text(conn, klm, e, chat_id: int, text: str, *,
         it = (ergebnis.get("prosa_it") or "").strip()
         if not en or not it:
             raise ValueError("Spiegelpass ohne beide Fassungen zurueckgekommen")
+        if not plausibel(text, en) or not plausibel(text, it):
+            raise ValueError(
+                f"Spiegelpass unplausibel (Quelle {len(text)}, EN {len(en)}, IT {len(it)} Zeichen)")
         return en, it
     except Exception:
         log.exception("Skript-Spiegelpass (Text) fehlgeschlagen, chat_id=%s", chat_id)

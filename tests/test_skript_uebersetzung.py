@@ -151,3 +151,19 @@ def test_spiegel_direkt_ohne_beide_fassungen_meldet_vorfall(conn, einst):
     assert zeile["prosa_it"] is None
     vorfaelle = [v["art"] for v in repo.vorfaelle(conn, 1)] if hasattr(repo, "vorfaelle") else None
     assert vorfaelle is None or "skript_spiegel_fehler" in vorfaelle
+
+
+def test_spiegle_text_verwirft_fremden_kurzen_text(conn, einst):
+    """Tester 08.10.2026 12:12: der Fallback lieferte statt der 5 500-Zeichen-
+    Szene einen fremden 1 100-Zeichen-Text; der Nachholpass ueberschrieb damit
+    EN und IT. Eine unplausibel kurze Spiegelung muss ``None`` liefern."""
+    quelle = "VOCE 1: And now we wait. " * 200
+    klm = LLMMitSchema("", {"prosa_en": "Pellaro spoke. " * 20, "prosa_it": "Pellaro parlava. " * 20})
+    assert skript_uebersetzung.spiegle_text(conn, klm, einst, 1, quelle, ueber_claude=False) is None
+
+
+def test_spiegle_text_nimmt_gleich_lange_uebertragung(conn, einst):
+    quelle = "VOCE 1: And now we wait. " * 200
+    klm = LLMMitSchema("", {"prosa_en": quelle, "prosa_it": "VOCE 1: E ora aspettiamo. " * 200})
+    en, it = skript_uebersetzung.spiegle_text(conn, klm, einst, 1, quelle, ueber_claude=False)
+    assert en == quelle.strip() and it.startswith("VOCE 1: E ora")

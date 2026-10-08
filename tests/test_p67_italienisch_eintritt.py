@@ -193,3 +193,15 @@ def test_erkenner_meldung_phase_6_7_dortmund_bytegleich(conn, einst):
 
     assert "Wir sind jetzt bei 7 ·" in meldung
     assert meldung.startswith("Notiert:")
+
+
+def test_gespraechs_system_verlangt_jede_antwort_italienisch(padua):
+    """Live 08.10.2026 14:35-14:40: G1 (2505/2555) und G2 (2541) bekamen Listen
+    und Optionen auf Englisch, obwohl die Gruppe italienisch schrieb -- der
+    alte Zusatz 'Write all output in Italian' war zu schwach gegen englische
+    Vorlaeufe im Verlauf."""
+    from interview_theater import kontext
+    text = kontext.system(None, 7, 1)
+    assert "Every reply to the group is in Italian" in text
+    assert "even when earlier replies" in text
+    assert "Every reply to the group is in Italian" not in kontext.system(None, 7, 2)

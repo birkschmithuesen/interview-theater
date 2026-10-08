@@ -1063,7 +1063,7 @@ sonstiges = "Other"
 rahmen = "Frame"
 
 ["kontext"]
-_AUFTRAG_AUSGABE_ITALIENISCH = "Write all output in Italian. Keep interview quotes exactly as given, in their original language, unchanged."
+_AUFTRAG_AUSGABE_ITALIENISCH = "Write all output in Italian. Every reply to the group is in Italian -- every sentence, including explanations, lists, options and recommendations -- even when earlier replies in the conversation or the material are in English. Keep interview quotes exactly as given, in their original language, unchanged."
 _SPRECHER_BOT = "You"
 _PSEUDONYM = "Member {nummer}"
 _PSEUDONYM_UNBEKANNT = "Member"

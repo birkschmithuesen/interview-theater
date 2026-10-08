@@ -1,14 +1,23 @@
 """Injektion der Phasen-Summary in die Prompt-Bausteine, die bisher den
 Rohdump des Phase-5-Gesprachs trugen (Karte t_1bc96848): ``szene.py``
 (``p5_gespraech_block``, der zentrale Umschalter), ``entwurf.py``
-(Uebersicht/Logline), ``schaerfung.py`` (Matcher-Hintergrund) und
-``szenenkarte.py`` (Konzeptkarten-Erzeugung) rufen alle dieselbe Funktion.
+(Uebersicht/Logline) und ``schaerfung.py`` (Matcher-Hintergrund) rufen alle
+dieselbe Funktion.
 
 Geprueft wird: solange Phase 5 die AKTUELLE Phase ist (oder kein Summary
 vorliegt, oder der Profilschalter aus ist), bleibt es beim vollen Wortlaut
 -- ist Phase 5 ABGESCHLOSSEN und ein Summary gespeichert, tritt es an die
 Stelle des Wortlauts. Dortmund (Profilschalter aus) ist in keinem Fall
 betroffen.
+
+**Ausnahme seit Birk 08.10.2026 (Nachtrag "keine Chat-Rohtexte mehr"):**
+``szenenkarte.py`` und ``stagescript.py`` haengen NICHT mehr an diesem
+Umschalter -- ihr Hintergrund (``hintergrund.hintergrund_fuer_prompt``) holt
+Phase 1-5 ausschliesslich aus den gespeicherten Summaries
+(``hintergrund.phasen_summary_block``) und faellt bei einer fehlenden Phase
+nie auf den Rohdump zurueck (siehe ``tests/test_hintergrund.py``) -- anders
+als die drei Aufrufer hier, fuer die der Rohdump weiterhin die
+Verteidigungslinie gegen ein fehlendes Summary ist.
 """
 
 import pytest
@@ -114,7 +123,10 @@ def test_schaerfung_hintergrund_nutzt_p5_gespraech_block(conn, monkeypatch):
     assert any("STUB-SUMMARY" in z for z in zeilen)
 
 
-def test_szenenkarte_baue_nutzertext_nutzt_p5_gespraech_block(conn, monkeypatch):
+def test_szenenkarte_baue_nutzertext_ignoriert_p5_gespraech_block(conn, monkeypatch):
+    """Ausnahme (siehe Modulnachtrag): ``szenenkarte`` haengt NICHT mehr an
+    ``szene.p5_gespraech_block`` -- sein Rohdump-Rueckfall darf hier nie
+    einsickern, auch nicht als Attrappe."""
     monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: True)
     monkeypatch.setattr(szene, "p5_gespraech_block",
                         lambda conn_, chat_id, ueber_claude=False: "STUB-SUMMARY")
@@ -123,7 +135,7 @@ def test_szenenkarte_baue_nutzertext_nutzt_p5_gespraech_block(conn, monkeypatch)
 
     text = szenenkarte.baue_nutzertext(conn, 1, zeile)
 
-    assert "STUB-SUMMARY" in text
+    assert "STUB-SUMMARY" not in text
 
 
 # ---------------------------------------------------------------------------

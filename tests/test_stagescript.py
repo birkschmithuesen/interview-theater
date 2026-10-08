@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from interview_theater import phasen, repo, stagescript, ueberarbeitung, workshop
+from interview_theater import phasen, repo, schaerfung, stagescript, ueberarbeitung, workshop
 
 from test_szenenkarte import TG, _lage, padua  # noqa: F401
 
@@ -125,3 +125,17 @@ def test_anschluss_an_das_ende_der_vorigen_szene(conn, padua):
     assert "ANFANG-DER-SZENE-1" not in text
     erste = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
     assert stagescript.T._KOPF_VORHER not in erste
+
+
+def test_baue_nutzertext_nimmt_ueber_claude_parameter_entgegen(conn, padua):
+    """Derselbe Datenschutz-Schalter wie bei den Karten (``hintergrund.py``):
+    die Interview-Verdichtungen gehen nur auf dem Kimi-Weg mit."""
+    ids = _karten(conn)
+    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
+    szene_zeile = repo.hole_szene(conn, ids[0])
+
+    ohne_claude = stagescript.baue_nutzertext(conn, 1, szene_zeile)
+    mit_claude = stagescript.baue_nutzertext(conn, 1, szene_zeile, ueber_claude=True)
+
+    assert "Interviews behind your chosen passages" in ohne_claude
+    assert "Interviews behind your chosen passages" not in mit_claude

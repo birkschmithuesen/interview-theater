@@ -102,6 +102,12 @@ _SPRECHER_GRUPPE = "Gruppe"
 _PHASENZEILE_PRAEFIX = "Phase "
 
 
+def _feld(stand, name: str) -> str:
+    if stand is None or name not in stand.keys():
+        return ""
+    return (stand[name] or "").strip()
+
+
 def _chat_zeilen(conn, chat_id: int, seit: str) -> list[str]:
     """Der Chat-Wortlaut seit ``seit`` -- Systemzeilen und Echo faellt heraus
     (``repo.letzte_nachrichten``/``kontext._ist_systemzeile``), wie beim
@@ -164,23 +170,105 @@ def _workbench_zeilen(conn, chat_id: int) -> list[str]:
     return zeilen
 
 
+#: Phasen 1-3 haben anderes Material als der Rest (Birk 08.10.2026: "das
+#: Material der P1-3 ist anders -- Begriffe, Fragen/Leitfaden, Interviews").
+#: Statt Chat+Werkbank (die fuer diese Phasen vor allem Rohchat waeren, bis
+#: zu 142.000 Zeichen gemessen an den Live-Gruppen) liefert jede ein eigenes,
+#: schon kuratiertes Material -- das Journal bleibt in jeder Phase gleich.
+_PHASE_BEGRIFFE = 1
+_PHASE_FRAGEN = 2
+_PHASE_INTERVIEWS = 3
+
+_KOPF_BEGRIFFE_FINAL = "Terms the group settled on:"
+_KOPF_BEGRIFFE_DETAIL = "Reasoning behind individual terms:"
+_KOPF_FRAGEN = "Interview questions the group chose:"
+_KOPF_INTERVIEWS_ANZAHL = "Interviews conducted: {n}"
+_KOPF_INTERVIEWS_THEMEN = "Themes across the interviews (no names, no quotes):"
+
+
+def _begriffe_zeilen(conn, chat_id: int) -> list[str]:
+    """Phase 1: die entschiedenen Begriffe plus ihre Begruendung aus dem
+    Begriffsboard -- nie das Zitat dahinter (dieselbe Regel wie
+    ``roadmap.begriffe_detail``)."""
+    from interview_theater import begriffsboard
+    from interview_theater import begriffe as begriffe_modul
+
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    begriffe_text = _feld(stand, "begriffe")
+    teile: list[str] = []
+    begriffe = begriffe_modul.zerlege(begriffe_text)
+    if begriffe:
+        teile.append(_KOPF_BEGRIFFE_FINAL + " " + ", ".join(begriffe))
+    roh = stand["begriffe_detail"] if stand is not None and "begriffe_detail" in stand.keys() else None
+    detail = begriffsboard.lies(roh)
+    zeilen = begriffsboard.detail_zeilen(detail)
+    if zeilen:
+        teile.append(_KOPF_BEGRIFFE_DETAIL + "\n" + "\n".join(zeilen))
+    return teile
+
+
+def _fragen_zeilen(conn, chat_id: int) -> list[str]:
+    """Phase 2: die Fragen, auf die sich die Gruppe festgelegt hat --
+    dieselbe Zerlegung wie der Leitfaden (``leitfaden.fragen``)."""
+    from interview_theater import leitfaden
+
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    fragen = leitfaden.fragen(_feld(stand, "fragen"))
+    if not fragen:
+        return []
+    return [_KOPF_FRAGEN + "\n" + "\n".join(f"- {f}" for f in fragen)]
+
+
+def _interviews_zeilen(conn, chat_id: int) -> list[str]:
+    """Phase 3: wie viele Interviews gefuehrt wurden und welche Themen sie
+    insgesamt trugen -- nie Namen, nie ein Zitat, nie das Transkript."""
+    anzahl = repo.zaehle_interviews(conn, chat_id)
+    if not anzahl:
+        return []
+    zeilen = [_KOPF_INTERVIEWS_ANZAHL.format(n=anzahl)]
+    themen: list[str] = []
+    gesehen: set[str] = set()
+    for v in repo.verdichtungen(conn, chat_id):
+        for thema in repo.themen_zu(conn, v["id"]):
+            text = (thema["thema"] or "").strip()
+            if text and text not in gesehen:
+                gesehen.add(text)
+                themen.append(text)
+    if themen:
+        zeilen.append(_KOPF_INTERVIEWS_THEMEN + "\n" + "\n".join(f"- {t}" for t in themen))
+    return zeilen
+
+
+_KURATOR_JE_PHASE = {
+    _PHASE_BEGRIFFE: _begriffe_zeilen,
+    _PHASE_FRAGEN: _fragen_zeilen,
+    _PHASE_INTERVIEWS: _interviews_zeilen,
+}
+
+
 def baue_nutzertext(conn, chat_id: int, phase: int) -> str:
-    """Der Nutzertext des Summary-Aufrufs: Chat, Journal und Werkbank der
-    Phase ``phase``, seit dem letzten Eintritt in sie."""
+    """Der Nutzertext des Summary-Aufrufs der Phase ``phase``: in den
+    Phasen 1-3 ihr eigenes kuratiertes Material (``_KURATOR_JE_PHASE``),
+    sonst Chat und Werkbank seit dem letzten Eintritt -- das Journal
+    (Entscheidungen/Verworfenes) traegt jede Phase gleich."""
     praefix = f"{_PHASENZEILE_PRAEFIX}{phasen.bezeichnung(phase)}"
     seit = repo.phase_eintritt_zeitpunkt(conn, chat_id, praefix) or ""
     teile = [f"Phase: {praefix}"]
-    chat = _chat_zeilen(conn, chat_id, seit)
-    if chat:
-        teile.append("Conversation during this phase:\n" + "\n".join(chat))
+    kurator = _KURATOR_JE_PHASE.get(phase)
+    if kurator is not None:
+        teile.extend(kurator(conn, chat_id))
+    else:
+        chat = _chat_zeilen(conn, chat_id, seit)
+        if chat:
+            teile.append("Conversation during this phase:\n" + "\n".join(chat))
+        workbench = _workbench_zeilen(conn, chat_id)
+        if workbench:
+            teile.append("Current state of the workbench:\n\n" + "\n\n".join(workbench))
     journal = _journal_zeilen(conn, chat_id, seit)
     if journal:
         teile.append(
             "Decisions and discards logged during this phase:\n" + "\n".join(journal)
         )
-    workbench = _workbench_zeilen(conn, chat_id)
-    if workbench:
-        teile.append("Current state of the workbench:\n\n" + "\n\n".join(workbench))
     return "\n\n".join(teile)
 
 

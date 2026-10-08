@@ -27,6 +27,13 @@ conflict or characters the group does not have).
   "zitate" is empty.
 - "questions": 0 to 3 open questions the group still has to decide.
 
+How to read the background blocks: a block headed "Phase N ... summary" is
+what the group already decided or discarded in that phase -- settled fact,
+not a suggestion. A block headed "Interviews behind your chosen passages"
+gives background and tone from the interviews the group drew on -- it is
+context, never a source to quote from; "zitate" must only be numbers from
+the numbered list below.
+
 Stick to what the group described, agreed and said in the conversation
 (only "Group:" lines are decisions; "You:" lines are earlier suggestions);
 discarded ideas do not appear. The rules of the format hold in every point

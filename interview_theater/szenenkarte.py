@@ -127,15 +127,20 @@ def _szene_mit_nummer(conn, chat_id: int, nummer: int):
 # ---------------------------------------------------------------------------
 
 
-def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None) -> str:
+def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
+                    ueber_claude: bool = False) -> str:
     """Alles, was die Gruppe bis Phase 5 fuer diese Szene entschieden hat --
-    und die nummerierte Liste der uebernommenen Stellen zur Wahl."""
+    und die nummerierte Liste der uebernommenen Stellen zur Wahl.
+    ``ueber_claude`` geht unveraendert an ``hintergrund_fuer_prompt`` durch
+    (Datenschutz: der Verdichtungen-Block bleibt dort dem Kimi-Weg
+    vorbehalten) -- ``erzeuge`` ruft hier mit demselben Wert, den es auch
+    an den Modellaufruf gibt."""
     from interview_theater import hintergrund, szenenkern
 
     # Der Hintergrund kommt aus EINER Funktion (Andockstelle der
     # Phasen-Summary, Birk 07.10.2026 ~19:40).
     zeilen: list[str] = []
-    hinten = hintergrund.hintergrund_fuer_prompt(conn, chat_id)
+    hinten = hintergrund.hintergrund_fuer_prompt(conn, chat_id, ueber_claude=ueber_claude)
     if hinten:
         zeilen.append(hinten)
     alle = [f"{s['nummer']}. {s['titel'] or ''}".strip() for s in _szenen(conn, chat_id)]
@@ -161,9 +166,12 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None) -> str:
         zeilen.append(T._KOPF_ALTE_KARTE + "\n" + karte_text(alte, szene))
     if notiz:
         zeilen.append(T._KOPF_NOTIZ + "\n" + notiz.strip())
+    # Ungekuerzt (Nachtrag Birk 08.10.2026, Vorrang vor Punkt 2): "das
+    # wertvollste Material" wird hier nicht auf ZITAT_ZEICHEN_PROMPT gekappt
+    # -- anders als der generische Auswahl-Prompt in ``szenenkern.py``.
     liste = [T._KOPF_LISTE]
     for n, (zitat, interview) in enumerate(szenenkern._kandidaten(conn, chat_id, szene), start=1):
-        liste.append(f"[{n}] {szenenkern.zitatzeile(zitat[:szenenkern.ZITAT_ZEICHEN_PROMPT], interview)}")
+        liste.append(f"[{n}] {szenenkern.zitatzeile(zitat, interview)}")
     if len(liste) == 1:
         liste.append(T._KEINE_STELLEN)
     zeilen.append("\n".join(liste))
@@ -187,13 +195,14 @@ def erzeuge(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -
     if szene is None:
         return None
     kandidaten = szenenkern._kandidaten(conn, chat_id, szene)
+    ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
     try:
         ergebnis = modellwahl.aufruf_schema(
             conn, klm, e, chat_id,
             system=anweisungen.hole(ART),
-            nutzer=baue_nutzertext(conn, chat_id, szene, notiz),
+            nutzer=baue_nutzertext(conn, chat_id, szene, notiz, ueber_claude=ueber_claude),
             schema=SCHEMA, art=ART,
-            ueber_claude=szene_claude.ist_aktiv(e, conn, chat_id),
+            ueber_claude=ueber_claude,
         )
         punkte = [_kappe(p) for p in (ergebnis.get("punkte") or []) if str(p).strip()]
         if not punkte or not str(ergebnis.get("worum") or "").strip():

@@ -139,6 +139,85 @@ def test_baue_nutzertext_ist_knapp_ohne_jedes_material(conn):
 
 
 # ---------------------------------------------------------------------------
+# Phasen 1-3: kuratiertes Material statt Rohchat (Birk 08.10.2026: "das
+# Material der P1-3 ist anders -- Begriffe, Fragen/Leitfaden, Interviews").
+# ---------------------------------------------------------------------------
+
+
+def test_phase1_enthaelt_begriffe_nicht_den_rohchat(conn):
+    _setze_phase_journal(conn, 1, 1)
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Heimat, Liebe")
+    seit = repo.phase_eintritt_zeitpunkt(conn, 1, "Phase 1") or ""
+    repo.merke_nachricht(conn, 1, 101, "Gruppe", 0, "text",
+                         "A huge raw brainstorm transcript line.", seit)
+
+    text = phasen_summary.baue_nutzertext(conn, 1, 1)
+
+    assert "Heimat" in text and "Liebe" in text
+    assert "A huge raw brainstorm transcript line." not in text
+
+
+def test_phase1_enthaelt_begruendung_aus_begriffsboard_detail(conn):
+    import json
+
+    _setze_phase_journal(conn, 1, 1)
+    repo.setze_arbeitsstand(conn, 1, "begriffe", "Heimat")
+    repo.setze_arbeitsstand(conn, 1, "begriffe_detail", json.dumps(
+        [{"begriff": "Heimat", "begruendung": "came up in every round",
+          "zitat": "...", "doppelbedeutung": ""}]))
+
+    text = phasen_summary.baue_nutzertext(conn, 1, 1)
+
+    assert "came up in every round" in text
+    assert "..." not in text  # das Zitat selbst geht nie mit (D-Invariante)
+
+
+def test_phase2_enthaelt_gewaehlte_fragen_nicht_den_rohchat(conn):
+    _setze_phase_journal(conn, 1, 2)
+    repo.setze_arbeitsstand(conn, 1, "fragen", "What is home to you?\nWho do you miss?")
+    seit = repo.phase_eintritt_zeitpunkt(conn, 1, "Phase 2") or ""
+    repo.merke_nachricht(conn, 1, 102, "Gruppe", 0, "text",
+                         "A huge raw discussion about wording.", seit)
+
+    text = phasen_summary.baue_nutzertext(conn, 1, 2)
+
+    assert "What is home to you?" in text
+    assert "Who do you miss?" in text
+    assert "A huge raw discussion about wording." not in text
+
+
+def test_phase3_enthaelt_anzahl_und_themen_keine_rohtranskripte(conn):
+    _setze_phase_journal(conn, 1, 3)
+    kopf_id = repo.lege_aufnahme_an(conn, 1, 201, "lang", "telegram")
+    repo.setze_transkript(conn, kopf_id, "A very long verbatim transcript text.")
+    repo.speichere_verdichtung(conn, 1, kopf_id, "Summary of the interview.", [
+        {"thema": "Growing up abroad", "beleg_zitat": "quote", "zitat_geprueft": 1},
+    ])
+
+    text = phasen_summary.baue_nutzertext(conn, 1, 3)
+
+    assert "Interviews conducted: 1" in text
+    assert "Growing up abroad" in text
+    assert "A very long verbatim transcript text." not in text
+    assert '"quote"' not in text  # keine Zitate, keine Namen -- nur Themen
+
+
+def test_phase3_ohne_interviews_bleibt_knapp(conn):
+    _setze_phase_journal(conn, 1, 3)
+    text = phasen_summary.baue_nutzertext(conn, 1, 3)
+    assert "Phase: Phase 3" in text
+
+
+def test_phase1_bis_3_tragen_weiterhin_das_journal(conn):
+    _setze_phase_journal(conn, 1, 1)
+    repo.schreibe_journal(conn, 1, "verworfen", "A sign reading CLOSED", quelle="erkenner")
+
+    text = phasen_summary.baue_nutzertext(conn, 1, 1)
+
+    assert "A sign reading CLOSED" in text
+
+
+# ---------------------------------------------------------------------------
 # Textzusammenbau und Laengendeckel
 # ---------------------------------------------------------------------------
 

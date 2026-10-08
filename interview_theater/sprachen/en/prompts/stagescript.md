@@ -26,4 +26,11 @@ language, each on its own line as > *Interview quote (N):* "...", never
 with a name. Only passages from the card or from the group's conversation.
 No commentary, no introduction, only the script.
 
+How to read the background blocks: a block headed "Phase N ... summary" is
+what the group already decided or discarded in that phase -- settled fact.
+A block headed "Interviews behind your chosen passages" gives background
+and tone from the interviews behind the card's passages -- context only,
+never a source to quote from; word-for-word passages come only from the
+card or the conversation, as above.
+
 {{ausgabesprache_p67}}

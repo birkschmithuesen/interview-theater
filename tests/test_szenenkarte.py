@@ -8,7 +8,7 @@ import json
 import pytest
 
 from interview_theater import (
-    phasen, repo, schaerfung, szene, szenenkarte, ueberarbeitung, workshop,
+    phasen, repo, schaerfung, szene, szenenkarte, szenenkern, ueberarbeitung, workshop,
 )
 
 ZITAT_A = "Casa non sono le mura, sono le voci."
@@ -128,6 +128,56 @@ def test_karte_nimmt_zitate_im_original_aus_der_db(conn, einst, padua):
     assert [z["zitat"] for z in karte["zitate"]] == [ZITAT_B, ZITAT_A]
     gespeichert = json.loads(repo.hole_szene(conn, ids[0])["karte"])
     assert gespeichert == karte
+
+
+def test_baue_nutzertext_zeigt_zitate_zur_wahl_ungekuerzt(conn, padua):
+    """Nachtrag Birk 08.10.2026 (Vorrang vor Punkt 2): die Zitate zur Wahl
+    gehen voll in den Prompt -- "das wertvollste Material" wird nicht auf
+    ``szenenkern.ZITAT_ZEICHEN_PROMPT`` (400 Zeichen) gekappt."""
+    ids = _lage(conn)
+    lang = ("Casa " * 120).strip()  # deutlich ueber 400 Zeichen
+    assert len(lang) > szenenkern.ZITAT_ZEICHEN_PROMPT
+    conn.execute("UPDATE verdichtung_thema SET beleg_zitat = ? WHERE thema = 'Casa'", (lang,))
+    conn.commit()
+    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
+
+    text = szenenkarte.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
+
+    assert lang in text
+
+
+def test_baue_nutzertext_nimmt_ueber_claude_parameter_entgegen(conn, padua):
+    ids = _lage(conn)
+    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
+    szene_zeile = repo.hole_szene(conn, ids[0])
+
+    ohne_claude = szenenkarte.baue_nutzertext(conn, 1, szene_zeile)
+    mit_claude = szenenkarte.baue_nutzertext(conn, 1, szene_zeile, ueber_claude=True)
+
+    assert "Interviews behind your chosen passages" in ohne_claude
+    assert "Interviews behind your chosen passages" not in mit_claude
+
+
+def test_erzeuge_gibt_denselben_ueber_claude_wert_an_hintergrund_und_aufruf(
+    conn, einst, padua, monkeypatch,
+):
+    ids = _lage(conn)
+    schaerfung.uebernimm_stellen(conn, 1, [z["id"] for z in repo.schaerfungen(conn, 1)])
+    monkeypatch.setattr(szenenkarte.szene_claude, "ist_aktiv", lambda e, c, cid: True)
+    gesehen = {}
+
+    def fake_aufruf_schema(conn, klm, e, chat_id, *, system, nutzer, schema, art,
+                           ueber_claude, **kw):
+        gesehen["ueber_claude"] = ueber_claude
+        gesehen["nutzer"] = nutzer
+        return {"typ": "spoken", "worum": "W", "ort": "o", "wer": "w",
+                "punkte": ["P"], "zitate": [], "questions": []}
+
+    monkeypatch.setattr(szenenkarte.modellwahl, "aufruf_schema", fake_aufruf_schema)
+    szenenkarte.erzeuge(conn, LLM(), einst, 1, 1)
+
+    assert gesehen["ueber_claude"] is True
+    assert "Interviews behind your chosen passages" not in gesehen["nutzer"]
 
 
 def test_phase_6_eine_karte_nach_der_anderen(conn, einst, padua):

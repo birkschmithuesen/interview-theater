@@ -87,7 +87,7 @@ def braucht_kopf(conn, chat_id: int) -> bool:
 
 
 def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
-                    mit_kopf: bool = False) -> str:
+                    mit_kopf: bool = False, ueber_claude: bool = False) -> str:
     from interview_theater import hintergrund, szenenkarte
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
@@ -97,8 +97,10 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
 
     # Der Hintergrund kommt aus EINER Funktion -- derselben wie bei den
     # Karten (Andockstelle der Phasen-Summary, Birk 07.10.2026 ~19:40).
+    # ``ueber_claude`` geht unveraendert durch (Datenschutz: der
+    # Verdichtungen-Block bleibt dem Kimi-Weg vorbehalten, ``hintergrund.py``).
     teile = []
-    hinten = hintergrund.hintergrund_fuer_prompt(conn, chat_id)
+    hinten = hintergrund.hintergrund_fuer_prompt(conn, chat_id, ueber_claude=ueber_claude)
     if hinten:
         teile.append(hinten)
     if feld("stage_kopf") and not mit_kopf:
@@ -150,7 +152,7 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
     try:
         ergebnis = modellwahl.aufruf_schema(
             conn, klm, e, chat_id, system=anweisungen.hole(ART),
-            nutzer=baue_nutzertext(conn, chat_id, szene, notiz, mit_kopf),
+            nutzer=baue_nutzertext(conn, chat_id, szene, notiz, mit_kopf, ueber_claude),
             schema=SCHEMA, art=ART, ueber_claude=ueber_claude, timeout=240.0,
         )
         text = (ergebnis.get("text") or "").strip()

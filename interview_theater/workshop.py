@@ -950,8 +950,14 @@ def platzhalter(profil: Profil | None = None) -> dict[str, str]:
         # (Birk 08.10.2026 ~07:50, Morgen-Auftrag 4: Padua italienisch ab
         # Phase 6, Knoepfe/feste UI-Texte bleiben aussen vor -- die betreffen
         # diesen Platzhalter nicht, er steht nur in Modell-Prompts). Leer
-        # (Vorgabe): kein Satz haengt im Prompt in der Luft.
-        "ausgabesprache_p67": _liste(profil.wert("sprache.ausgabesprache_p67", "")),
+        # (Vorgabe): kein Satz haengt im Prompt in der Luft. Ueber
+        # ``p67_italienisch_aktiv`` statt direkt ``profil.wert(...)``, damit
+        # ``sprache.p67_italienisch_chats`` (Testchat-Ausnahme) auch hier
+        # gilt und nicht nur bei den Statuszeilen.
+        "ausgabesprache_p67": (
+            _liste(profil.wert("sprache.ausgabesprache_p67", ""))
+            if p67_italienisch_aktiv(profil) else ""
+        ),
     }
     # Der Konfliktrahmen in seinen zwei Satzformen (01.10.2026, Karte P-Fix,
     # Birks Punkt 5). Ein Profil darf ``konflikt.erlaubt`` leer lassen; dann
@@ -1136,9 +1142,34 @@ def p67_italienisch_aktiv(profil: Profil | None = None) -> bool:
     Prompt-Platzhalter ``{{ausgabesprache_p67}}``: gesetzt heisst an,
     sowohl fuer die Modell-Prompts als auch fuer die deterministischen
     Statuszeilen aus ``szenenkarte.py``/``stagescript.py``
-    (``sprache.Texte(..., ab_phase67_italienisch=True)``)."""
+    (``sprache.Texte(..., ab_phase67_italienisch=True)``).
+
+    ``sprache.p67_italienisch_chats`` schraenkt das auf eine Chatliste ein
+    (Birk 08.10.2026 ~10:30, Quickfix Testgruppe): Testchat 7000000000099
+    soll Englisch bleiben und sich wie G1 verhalten, waehrend die drei
+    echten Gruppen weiter italienisch laufen. Leere Liste (Vorgabe): wie
+    vorher, die Profilzeile allein entscheidet -- byte-gleich. Ein
+    Prozess bedient genau eine Gruppe (AGENTS.md), die chat_id kommt
+    deshalb direkt aus ``IT_WEB_CHAT_ID`` und nicht als Parameter --
+    ``sprache.Texte`` kennt beim Attributzugriff keinen Aufrufkontext. Im
+    Web-Kanal ist ``IT_WEB_CHAT_ID`` Pflicht (``einstellungen.laden``),
+    jeder echte Padua-Prozess kennt seine chat_id also immer; fehlt die
+    Variable (Tests ohne Web-Kanal, Telegram-Kanal), bleibt es wie vor
+    dem Quickfix -- die Profilzeile allein entscheidet."""
     profil = profil or aktiv()
-    return bool(profil.wert("sprache.ausgabesprache_p67", ""))
+    if not profil.wert("sprache.ausgabesprache_p67", ""):
+        return False
+    chats = frozenset(int(c) for c in (profil.wert("sprache.p67_italienisch_chats", []) or []))
+    if not chats:
+        return True
+    roh = (os.environ.get("IT_WEB_CHAT_ID") or "").strip()
+    if not roh:
+        return True
+    try:
+        chat_id = int(roh)
+    except ValueError:
+        return True
+    return chat_id in chats
 
 
 def skript_ohne_zitate_chats(profil: Profil | None = None) -> frozenset[int]:

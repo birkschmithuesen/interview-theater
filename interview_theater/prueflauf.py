@@ -65,6 +65,11 @@ VERWORFEN_VERSCHLECHTERUNG = "verschlechterung"
 
 VORFALL_OHNE_RICHTER = "prueflauf_ohne_richter"
 VORFALL_FEHLGESCHLAGEN = "prueflauf_fehlgeschlagen"
+#: Klasse 8b/9 der P7-Audit-Karte (``kartentreue.py``): ein Hakenpunkt der
+#: Karte wurde woertlich widersprochen, bzw. ein OBBLIGATORIO-Stichwort fehlt
+#: auch nach dem einen automatischen Nachschrieb.
+VORFALL_KARTE_WIDERSPROCHEN = "karte_widersprochen"
+VORFALL_OBBLIGATORIO_FEHLT = "obbligatorio_fehlt"
 
 #: Hoechstens so viele Zeilen gehen an die Gruppe (Birk).
 ZEILEN_MAX = 3
@@ -366,6 +371,54 @@ def _schreibe_geschichte(conn, tg, klm, e, chat_id: int, auftraege) -> list[int]
                   if s["nummer"] is not None and (s["prosa"] or "").strip())
 
 
+def _kartentreue(conn, tg, klm, e, chat_id: int, nummer: int, feld: str) -> list[str]:
+    """Klassen 8b/9 (P7-Audit-Karte, Birk 08.10.2026): nach dem Nachpass die
+    fertige Szene gegen ihre Karte -- nur fuer den Buehnentext (``feld ==
+    "volltext"``) und nur, wenn ueberhaupt eine Karte existiert (sonst reines
+    No-Op, z. B. Dortmund oder ohne das Profil ``[karten] aktiv``).
+
+    Ein woertlich widersprochener Hakenpunkt geht nur als Vorfall ins Log
+    (Klasse 8b -- kein automatischer Eingriff, das ist Sache des Richters).
+    Ein fehlendes OBBLIGATORIO-Stichwort bekommt GENAU EINEN automatischen
+    Nachschrieb mit der Luecke als Notiz (Klasse 9); fehlt es danach immer
+    noch, bleibt ein Vorfall."""
+    if feld != "volltext":
+        return []
+    from interview_theater import kartentreue, szene, szenenkarte
+
+    zeile = _zeile_der_szene(conn, chat_id, nummer)
+    karte = szenenkarte.karte_von(zeile) if zeile is not None else None
+    if karte is None:
+        return []
+    text = _text(zeile, feld)
+    widersprueche = kartentreue.widersprueche(karte, text)
+    if widersprueche:
+        _vorfall(conn, chat_id, e, VORFALL_KARTE_WIDERSPROCHEN,
+                 f"Szene {nummer}: " + " | ".join(widersprueche))
+
+    fehlend = kartentreue.fehlende_stichworte(karte, text)
+    if not fehlend:
+        return []
+    try:
+        auftrag = szene.ueberarbeitungsauftrag(
+            conn, chat_id, nummer,
+            "Missing mandatory point(s) from the scene card -- the script "
+            "must literally include: " + "; ".join(fehlend) + ".",
+        )
+        ziel = szene.ziel_fuer(conn, chat_id, auftrag)
+        if szene.sperrtext(conn, ziel) is None:
+            szene.schreibe(conn, tg, klm, e, chat_id, auftrag,
+                           art=ART_UEBERARBEITUNG, zeigen=False)
+    except Exception:
+        _fehler(conn, chat_id, e, "Kartentreue-Nachschrieb")
+    neuer_text = _text(_zeile_der_szene(conn, chat_id, nummer), feld)
+    fehlend_danach = kartentreue.fehlende_stichworte(karte, neuer_text)
+    if fehlend_danach:
+        _vorfall(conn, chat_id, e, VORFALL_OBBLIGATORIO_FEHLT,
+                 f"Szene {nummer}: " + "; ".join(fehlend_danach))
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Die beiden Prueflaeufe
 # ---------------------------------------------------------------------------
@@ -442,6 +495,11 @@ def pruefe_szene(conn, tg, klm, e, chat_id: int, nummer: int) -> Bericht:
             zeilen.append(T._ZEILE_SPRACHPASS)
     except Exception:
         _fehler(conn, chat_id, e, "Nachpass")
+
+    try:
+        _kartentreue(conn, tg, klm, e, chat_id, nummer, feld)
+    except Exception:
+        _fehler(conn, chat_id, e, "Kartentreue")
 
     try:
         zeilen.extend(_auftragszeilen(erg, verworfen))

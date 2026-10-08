@@ -42,6 +42,7 @@ grosses Fenster den Erkenner dauerhaft lahmlegen) und ein ``vorfall``
 ``fenster_verworfen`` geschrieben.
 """
 
+import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -1259,6 +1260,14 @@ def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
         return None
     if repo.schreibe_festlegung(conn, chat_id, bereich, text, bezug=bezug) is None:
         return None
+    if bezug:
+        try:
+            _ziehe_figur_festlegung_nach(conn, chat_id, bezug, text)
+        except Exception:
+            log.exception(
+                "Figur-Nachzug einer Festlegung fehlgeschlagen, chat_id=%s, bezug=%r",
+                chat_id, bezug,
+            )
     return {
         "art": "festlegung_setzen",
         "wert": repo.festlegungszeile(bereich, bezug, text),
@@ -1266,6 +1275,73 @@ def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
         "bezug": bezug,
         "text": text,
     }
+
+
+#: Phase, in der eine Festlegung ueber eine Figur zusaetzlich auf
+#: ``figur.beschreibung`` und die Karten der noch offenen Folgeszenen wirkt
+#: (P7-Audit-Karte, Klasse 3, Birk 08.10.2026: Rollen/Tarngeschichten, die
+#: eine Gruppe im P7-Chat festlegt -- Beispiel "Chicca = Kommunikations-
+#: Diplomandin" --, blieben bisher nur im Script der gerade besprochenen
+#: Szene stehen, nicht in ``rahmen``/``figur.beschreibung``/den Karten der
+#: Folgeszenen).
+_PHASE_FIGUR_NACHZUG = 7
+
+
+def _ersetze_oder_haenge_an(punkte: list[str], praefix: str, neuer_punkt: str) -> list[str]:
+    """Ein frueherer Hakenpunkt DERSELBEN Figur (gleicher "Deciso
+    (<Figur>):"-Vorspann) wird ersetzt -- eine neue Festlegung ist die
+    aktuelle Fassung derselben Sache, kein zweiter Fakt neben dem alten.
+    Ohne Treffer wird angehaengt."""
+    neue = [p for p in punkte if not p.startswith(praefix)]
+    neue.append(neuer_punkt)
+    return neue
+
+
+def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> None:
+    """Klasse 3 (P7-Audit-Karte): eine Festlegung ueber eine Figur in Phase 7
+    haengt sich an ``figur.beschreibung`` an und geht als Hakenpunkt auf die
+    Karte jeder noch nicht gespeicherten Szene, in der die Figur vorkommt --
+    ein frueherer Hakenpunkt derselben Figur auf derselben Karte wird ersetzt
+    (``karte_verlauf``, Ausloeser ``aenderung``).
+
+    Nur in Phase 7 (``_PHASE_FIGUR_NACHZUG``) und nur bei einem eindeutigen
+    Figurennamen -- ein unbekannter oder mehrdeutiger ``bezug`` bleibt
+    unangetastet, wie ``_figuren_aus_namen`` es sonst auch haelt."""
+    from interview_theater import szenenkarte
+
+    if phasen.aktuelle(conn, chat_id) != _PHASE_FIGUR_NACHZUG:
+        return
+    ids = _figuren_aus_namen(conn, chat_id, bezug)
+    if len(ids) != 1:
+        return
+    figur_id = ids[0]
+    figur = next((f for f in repo.figuren(conn, chat_id) if f["id"] == figur_id), None)
+    if figur is None:
+        return
+    alte_beschreibung = (figur["beschreibung"] or "").strip()
+    neue_beschreibung = f"{alte_beschreibung}\n{text}".strip() if alte_beschreibung else text
+    repo.setze_figur(conn, chat_id, figur["name"], neue_beschreibung)
+
+    praefix = T_IT._ZEILE_FESTGEHALTEN.format(marke=f" ({figur['name']})", text="")
+    hakenpunkt = praefix + text
+    notiz = f"Phase 7: {hakenpunkt}"
+    for szene in repo.hole_szenen(conn, chat_id):
+        if szene["entfernt_am"] or szene["fertig_am"]:
+            continue
+        karte = szenenkarte.karte_von(szene)
+        if karte is None:
+            continue
+        if figur_id not in {f["id"] for f in repo.szene_figuren(conn, szene["id"])}:
+            continue
+        neue_karte = dict(karte)
+        neue_karte["punkte"] = _ersetze_oder_haenge_an(
+            list(karte.get("punkte") or []), praefix, hakenpunkt)
+        karte_json = json.dumps(neue_karte, ensure_ascii=False)
+        repo.setze_szenenkarte(conn, szene["id"], karte_json)
+        repo.merke_karte_verlauf(
+            conn, chat_id, szene["id"], karte_json,
+            szenenkarte.AUSLOESER_AENDERUNG, notiz,
+        )
 
 
 #: Zahlwoerter, die die Gruppe statt einer Ziffer sagt. Bis zwoelf, weil der

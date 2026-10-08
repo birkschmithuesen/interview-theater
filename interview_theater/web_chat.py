@@ -4557,6 +4557,7 @@ _TOEPFE = {
     "auswahl": web_grenze.TOPF_AUSWAHL,
     "auswahl_fertig": web_grenze.TOPF_NACHRICHT,
     "karte": web_grenze.TOPF_NACHRICHT,
+    "bedarf": web_grenze.TOPF_NACHRICHT,
 }
 
 
@@ -5100,6 +5101,37 @@ def _kalibrierung(handler, db_pfad: str, token: str, chat_id: int,
     )
 
 
+def _bedarf(handler, db_pfad: str, token: str, chat_id: int,
+           schluessel: bytes) -> None:
+    """Ein Haken in der Bedarfsliste der Werkbank (Birk 08.10.2026 ~13:45,
+    Padua) -- gesetzt oder zurueckgenommen.
+
+    Der eine Grund fuer einen EIGENEN Weg statt des Metadatum-Schreibwegs der
+    Gruppenseite (``web_schreiben.py``): der laeuft unter ``[web]
+    workbench_bearbeitbar = false`` (Padua) immer auf 403 -- genau das Profil,
+    unter dem die Werkbank (und damit die Bedarfsliste) ueberhaupt gezeigt
+    wird. Dieser Weg liegt unter ``/chat/*`` und prueft nur Herkunft, Token
+    und Nonce wie jeder andere Chat-POST, nicht ``workbench_bearbeitbar``."""
+    daten = _koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    punkt_id = daten.get("punkt_id")
+    erledigt = daten.get("erledigt")
+    if not isinstance(punkt_id, int) or isinstance(punkt_id, bool) or not isinstance(erledigt, bool):
+        handler._fehler(400, _TEXT_FEHLER_ANFRAGE)
+        return
+    with schreibend(db_pfad) as conn:
+        getroffen = repo.setze_bedarf_erledigt(conn, chat_id, punkt_id, erledigt)
+    if not getroffen:
+        from interview_theater import web
+
+        handler._antworte(404, web.nicht_gefunden_html())
+        return
+    handler._antworte(
+        200, json.dumps({"ok": True}), "application/json; charset=utf-8",
+    )
+
+
 #: Die Tabelle der POST-Wege. Eine Tabelle statt einer if-Kette: ein neuer Weg
 #: ist eine Zeile, und ``beantworte_post`` prueft Pfad, Token und Nonce fuer
 #: alle gleich.
@@ -5114,6 +5146,7 @@ _POSTWEGE = {
     "auswahl": _auswahl,
     "auswahl_fertig": _auswahl_fertig,
     "karte": _karte,
+    "bedarf": _bedarf,
 }
 
 

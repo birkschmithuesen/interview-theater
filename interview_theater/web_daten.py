@@ -1532,11 +1532,30 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # des bereits gespeicherten Texts fuer die Werkbank, kein neuer
         # Modellaufruf. Leere Liste heisst: der Abschnitt bleibt weg.
         "phasen_summaries": _phasen_summaries(conn, chat_id),
+        # Die Bedarfsliste (Birk 08.10.2026 ~13:45, Padua): eine Abhakliste
+        # in der read-only Werkbank. Leer -> der Abschnitt bleibt ganz weg
+        # (Dortmund byte-gleich, dort gibt es nie Punkte).
+        "bedarf": _bedarf(conn, chat_id),
         # Die CoThinker-Statuszeile (Phase 4, nur Web, 03.10.2026) -- ``None``
         # ausserhalb Phase 4 und wenn es gerade nichts zu melden gibt, dann
         # bleibt die Zeile im Browser weg.
         "cothinker_status": cothinker_status(conn, chat_id, stand.get("phase")),
     }
+
+
+def _bedarf(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die Bedarfsliste fuer die Werkbank -- reine Anzeige, ``id`` nur fuers
+    Abhaken (``web_chat._bedarf``), ``erledigt`` schon als ``bool`` statt
+    eines Zeitstempels: das HTML braucht keinen."""
+    from interview_theater import repo
+
+    return [
+        {
+            "id": z["id"], "sektion": z["sektion"], "text": z["text"],
+            "erledigt": z["erledigt_am"] is not None,
+        }
+        for z in repo.bedarf(conn, chat_id)
+    ]
 
 
 def _phasen_summaries(conn: sqlite3.Connection, chat_id: int) -> list[dict]:

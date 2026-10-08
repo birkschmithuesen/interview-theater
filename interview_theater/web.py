@@ -4031,6 +4031,56 @@ def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
     return f'<div class="wb-inhalt">{inhalt}</div>' if inhalt else ""
 
 
+#: Chrome-Text der Bedarfsliste (Birk 08.10.2026 ~13:45, Padua) -- bewusst
+#: NICHT ueber ``sprache.T``: Birk wollte die Liste Englisch und
+#: unuebersetzt, wie der Inhalt, der fertig aus der Seed-Datei kommt
+#: (``scripts/bedarf_seed.py``).
+_TEXT_BEDARF_TITEL = "Needs list — set, props, tech"
+_TEXT_BEDARF_ZAHL = "{erledigt} of {gesamt} done"
+
+
+def _bedarf_punkt_html(p: dict) -> str:
+    erledigt = p["erledigt"]
+    haken = " checked" if erledigt else ""
+    klasse = " wb-bedarf-erledigt" if erledigt else ""
+    return (
+        f'<li class="wb-bedarf-punkt{klasse}"><label>'
+        f'<input type="checkbox" class="wb-bedarf-check" '
+        f'data-bedarf-id="{int(p["id"])}"{haken}> {_t(p["text"])}</label></li>'
+    )
+
+
+def _bedarf_html(punkte: list[dict]) -> str:
+    """Die Bedarfsliste als Abhakliste -- Sektionen als Zwischenueber-
+    schriften, in der Reihenfolge, in der sie in ``punkte`` stehen
+    (``repo.bedarf`` sortiert global nach ``reihenfolge``, NICHT
+    alphabetisch nach Sektion -- siehe dort). "" ohne Punkte: der Abschnitt
+    bleibt dann ganz weg, wie Sprechanteile und Phasen-Summaries."""
+    if not punkte:
+        return ""
+    erledigt = sum(1 for p in punkte if p["erledigt"])
+    zahl = html.escape(_TEXT_BEDARF_ZAHL.format(erledigt=erledigt, gesamt=len(punkte)))
+    sektionen: list[tuple[str, list[dict]]] = []
+    for p in punkte:
+        if sektionen and sektionen[-1][0] == p["sektion"]:
+            sektionen[-1][1].append(p)
+        else:
+            sektionen.append((p["sektion"], [p]))
+    bloecke = "".join(
+        f'<div class="wb-bedarf-sektion"><h3>{_t(sektion)}</h3>'
+        f'<ul class="wb-bedarf-liste">'
+        + "".join(_bedarf_punkt_html(p) for p in liste)
+        + "</ul></div>"
+        for sektion, liste in sektionen
+    )
+    return (
+        '<details class="wb-bedarf" open><summary>'
+        f'{html.escape(_TEXT_BEDARF_TITEL)}'
+        f'<span class="wb-bedarf-zahl">{zahl}</span></summary>'
+        f"{bloecke}</details>"
+    )
+
+
 def werkbank_koerper(daten: dict) -> str:
     """Der Arbeitsstand als reine Statusansicht (Padua, 03.10.2026, Karte
     t_49e7354c) -- statt ``gruppe_koerper``, wenn das Profil
@@ -4078,6 +4128,7 @@ def werkbank_koerper(daten: dict) -> str:
         f"<h1>{_t(titel)}</h1>\n"
         '<div id="stand-inhalt" class="werkbank">\n'
         f'<p class="wb-hinweis">{_t(T._TEXT_WERKBANK_HINWEIS)}</p>\n'
+        f"{_bedarf_html(daten.get('bedarf') or [])}"
         + "\n".join(bloecke)
         + f"\n{journal}\n{recherche}{phasen_summary}\n</div>\n"
     )

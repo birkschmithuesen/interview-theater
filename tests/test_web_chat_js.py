@@ -480,6 +480,12 @@ def test_das_js_nennt_jeden_postweg(seite):
             # 07.10.2026 ~19:25) steht im selben Skript.
             assert f"'chat/{weg}'" in web_vereint._AUSWAHL_JS, weg
             continue
+        if weg == "bedarf":
+            # Die Bedarfsliste (Birk 08.10.2026 ~13:45): nur in der
+            # read-only Werkbank der vereinten Seite, Aufrufer deshalb in
+            # ``web_vereint._BEDARF_JS``, nicht im Chat-Alleingang.
+            assert f"'chat/{weg}'" in web_vereint._BEDARF_JS, weg
+            continue
         assert f"chat/{weg}" in web_chat._CHAT_JS, weg
 
 

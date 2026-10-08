@@ -2497,6 +2497,65 @@ def _stepper_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
     )
 
 
+#: Die Bedarfsliste in der read-only Werkbank (Birk 08.10.2026 ~13:45,
+#: Padua): ein Haken schickt sofort ``chat/bedarf`` -- optimistisch (die
+#: Checkbox steht schon um), bei einem Fehler wird sie zurueckgesetzt. Eine
+#: EIGENE, nur unter ``not werkbank_bearbeitbar`` angehaengte IIFE wie
+#: ``_AUSWAHL_JS``/``_STEPPER_JS``, damit Dortmunds Skript Zeichen fuer
+#: Zeichen bleibt -- dort gibt es die Bedarfsliste nie (``[web]
+#: workbench_bearbeitbar = true``), ihr Code stuende sonst trotzdem im
+#: ausgelieferten ``<script>``.
+_BEDARF_JS = """
+(function () {
+  if (!document.querySelector('.wb-bedarf')) { return; }
+  var BASIS = '__BASIS__';
+  var BASIS_TEIL = '__BASIS_TEIL__';
+
+  function friskeNonce() {
+    return fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return null; }
+        var quelle = new DOMParser().parseFromString(text, 'text/html')
+          .getElementById('nonce');
+        if (!quelle) { return null; }
+        var feld = document.getElementById('nonce');
+        if (feld) { feld.value = quelle.value; }
+        return quelle.value;
+      })
+      .catch(function () { return null; });
+  }
+  function sende(punktId, erledigt, zweiter) {
+    return fetch(BASIS + 'chat/bedarf', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nonce: (document.getElementById('nonce') || {}).value || '',
+        punkt_id: punktId, erledigt: erledigt
+      })
+    }).then(function (r) {
+      if (r.status === 403 && !zweiter) {
+        return friskeNonce().then(function () { return sende(punktId, erledigt, true); });
+      }
+      return r;
+    });
+  }
+  document.addEventListener('change', function (ev) {
+    var feld = ev.target && ev.target.closest
+      ? ev.target.closest('.wb-bedarf-check') : null;
+    if (!feld) { return; }
+    var punktId = parseInt(feld.getAttribute('data-bedarf-id'), 10);
+    var erledigt = feld.checked;
+    feld.disabled = true;
+    sende(punktId, erledigt).then(function (r) {
+      feld.disabled = false;
+      if (!r.ok) { feld.checked = !erledigt; }
+    }).catch(function () { feld.disabled = false; feld.checked = !erledigt; });
+  });
+})();
+"""
+
+
 def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
           segment_ms, fassungswahl=None, chat_vorhanden=True) -> str:
     """Die vereinte Gruppenseite: Chat, Arbeitsstand und Textbuch als drei
@@ -2687,6 +2746,15 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             .replace("__AUSWAHL_FEHLER_NETZ__", _js_text(T._TEXT_PHASE_FEHLER_NETZ))
             .replace("__AUSWAHL_FEHLER_UNGUELTIG__", _js_text(T._TEXT_AUSWAHL_UNGUELTIG))
             .replace("__KARTE_JA__", _js_text(_karte_ja_text()))
+        )
+    # Die Bedarfsliste: nur mit Chat (der Weg liegt unter ``/chat/*``) und
+    # nur ohne editierbare Werkbank -- Dortmunds Skript bleibt unberuehrt,
+    # wie beim Stepper und der Auswahlliste.
+    if chat_vorhanden and not werkbank_bearbeitbar:
+        skript += (
+            _BEDARF_JS
+            .replace("__BASIS__", f"{token}/")
+            .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
         )
     # ``chat_vorhanden`` durchreichen (UX-Fix an Aufgabe 8): Baustein 3
     # (``_JS_AUFNAHME``) nennt Elemente, die nur im Chat-Panel existieren

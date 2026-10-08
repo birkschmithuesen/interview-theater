@@ -5756,3 +5756,72 @@ def markiere_stagescript_notizen_verwendet(conn: sqlite3.Connection, szene_id: i
         (_jetzt(), szene_id),
     )
     conn.commit()
+
+
+@_gesperrt
+def bedarf(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle nicht entfernten Bedarfspunkte einer Gruppe (Birk 08.10.2026
+    ~13:45, Padua: Abhakliste in der read-only Werkbank).
+
+    Sortiert allein nach ``reihenfolge`` -- EINE globale Zaehlung ueber alle
+    Sektionen (nicht ``sektion, reihenfolge``): ``scripts/bedarf_seed.py``
+    vergibt sie in der Reihenfolge der Seed-Datei, Sektion fuer Sektion. Eine
+    alphabetische Sortierung nach ``sektion`` wuerde die Reihenfolge der
+    Seed-Datei (z. B. Raum, Requisiten, Technik, Kostuem) durcheinander
+    wuerfeln -- die Anzeige gruppiert deshalb ueber aufeinanderfolgende
+    gleiche ``sektion``-Werte, statt selbst neu zu sortieren."""
+    return conn.execute(
+        f"SELECT * FROM bedarf_punkt WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+        "ORDER BY reihenfolge, id",
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def setze_bedarf_erledigt(conn: sqlite3.Connection, chat_id: int, punkt_id: int,
+                          erledigt: bool) -> bool:
+    """Setzt oder loescht ``erledigt_am`` eines Bedarfspunktes -- scoped auf
+    ``chat_id``: eine fremde Gruppe trifft keine Zeile (Grundlage der
+    404-Antwort im Web-Chat-Weg, ``web_chat._bedarf``). True, wenn es den
+    Punkt (noch, und bei dieser Gruppe) gab."""
+    cur = conn.execute(
+        f"UPDATE bedarf_punkt SET erledigt_am = ? "
+        f"WHERE id = ? AND chat_id = ? AND {_NICHT_ENTFERNT}",
+        (_jetzt() if erledigt else None, punkt_id, chat_id),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+@_gesperrt
+def ersetze_unerledigte_bedarf_punkte(
+    conn: sqlite3.Connection, chat_id: int, sektionen: list[tuple[str, list[str]]],
+) -> int:
+    """``scripts/bedarf_seed.py``: entfernt weich jeden noch UNERLEDIGTEN
+    Bedarfspunkt dieser Gruppe und legt die Punkte aus ``sektionen`` (eine
+    Liste aus ``(sektion, [text, ...])``, in der Reihenfolge der Seed-Datei)
+    frisch an. Erledigte Punkte bleiben unberuehrt -- ein erneuter Lauf darf
+    den Haken der Gruppe nicht wegnehmen.
+
+    ``reihenfolge`` zaehlt EINMAL durch, ueber alle Sektionen hinweg (siehe
+    ``bedarf``), damit die Anzeige die Sektionen in Seed-Reihenfolge zeigt.
+    Liefert die Zahl der neu angelegten Punkte."""
+    conn.execute(
+        f"UPDATE bedarf_punkt SET entfernt_am = ? "
+        f"WHERE chat_id = ? AND erledigt_am IS NULL AND {_NICHT_ENTFERNT}",
+        (_jetzt(), chat_id),
+    )
+    jetzt = _jetzt()
+    reihenfolge = 0
+    angelegt = 0
+    for sektion, punkte in sektionen:
+        for text in punkte:
+            reihenfolge += 1
+            conn.execute(
+                "INSERT INTO bedarf_punkt (chat_id, sektion, text, reihenfolge, erstellt_am) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (chat_id, sektion, text, reihenfolge, jetzt),
+            )
+            angelegt += 1
+    conn.commit()
+    return angelegt

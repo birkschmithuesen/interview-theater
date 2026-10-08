@@ -151,6 +151,16 @@ BLEIBT_DEUTSCH = {
         "befehle._hilfetext_en() -- berechnet aus Phase, Phasenliste und "
         "Befehlsliste, kein Tabelleneintrag"
     ),
+    # Birk 08.10.2026 ~13:45: die Bedarfsliste der Werkbank bleibt Englisch
+    # und unuebersetzt, wie ihr Inhalt -- der kommt fertig aus der Seed-Datei
+    # (scripts/bedarf_seed.py), nicht aus einer Gruppe und nicht aus T.
+    "web._TEXT_BEDARF_TITEL": (
+        "Birk 08.10.2026: Bedarfsliste bleibt Englisch/unuebersetzt wie ihr "
+        "Seed-Inhalt (scripts/bedarf_seed.py)"
+    ),
+    "web._TEXT_BEDARF_ZAHL": (
+        "Birk 08.10.2026: derselbe Grund wie web._TEXT_BEDARF_TITEL"
+    ),
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit

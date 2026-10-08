@@ -1481,6 +1481,23 @@ CREATE TABLE IF NOT EXISTS stagescript_notiz (
   verwendet_am TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_stagescript_notiz_szene ON stagescript_notiz(szene_id, id);
+
+-- Die Bedarfsliste (Birk 08.10.2026 ~13:45, Padua): Raum/Requisiten/Technik/
+-- Kostuem/zu organisieren als Abhakliste in der read-only Werkbank. Weich
+-- entfernbar (``entfernt_am``) und NICHT nur-anhaengend wie Journal/
+-- Verdichtung: ``scripts/bedarf_seed.py`` ersetzt bei einem erneuten Lauf
+-- jeden noch unerledigten Punkt einer Gruppe, erledigte bleiben stehen.
+CREATE TABLE IF NOT EXISTS bedarf_punkt (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  sektion      TEXT NOT NULL,
+  text         TEXT NOT NULL,
+  reihenfolge  INTEGER NOT NULL,
+  erstellt_am  TEXT NOT NULL,
+  erledigt_am  TEXT,
+  entfernt_am  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_bedarf_punkt_gruppe ON bedarf_punkt(chat_id, sektion, reihenfolge);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1528,6 +1545,8 @@ TABELLEN_MIT_CHAT_ID = (
     "karte_verlauf",
     # Padua Quickfix (08.10.2026, Punkt 1): Notizen zu Stage-Script-Szenen.
     "stagescript_notiz",
+    # Birk 08.10.2026 ~13:45: die Bedarfsliste (Raum/Requisiten/Technik/Kostuem).
+    "bedarf_punkt",
 )
 
 

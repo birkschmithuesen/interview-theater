@@ -183,10 +183,7 @@ class Texte:
             raise AttributeError(name)
         sprachcode = _ERZWUNGEN.get() or self._sprachcode
         if sprachcode is None and self._p67:
-            import os
-
-            roh = (os.environ.get("IT_WEB_CHAT_ID") or "").strip()
-            if roh.isdigit() and int(roh) in workshop.italienisch_ab_phase6_chats():
+            if workshop.p67_italienisch_aktiv():
                 sprachcode = "it"
         return text(self._modul, name, sprachcode)
 

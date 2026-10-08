@@ -687,6 +687,12 @@ def _stage_kopf(conn: sqlite3.Connection, chat_id: int) -> str | None:
     return _feld(zeile, "stage_kopf") if zeile is not None else None
 
 
+def _stage_kopf_it(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    zeile = conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)).fetchone()
+    return _feld(zeile, "stage_kopf_it") if zeile is not None else None
+
+
 def _uebernommene_stellen(conn: sqlite3.Connection, chat_id: int) -> dict[int, list[dict]]:
     """Je Szene die von der Gruppe uebernommenen Interviewstellen (Padua,
     ``[skript] verdichtet``): Begruendung und Zitat zum Bereinigen von
@@ -1427,6 +1433,7 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Der Kopf des Stage Scripts (Padua-Phasenumbau, G2: Versuchsanordnung
         # und Rollen) -- read-only, nur wenn gesetzt.
         "stage_kopf": _stage_kopf(conn, chat_id),
+        "stage_kopf_it": _stage_kopf_it(conn, chat_id),
         "interviews": _interviews(conn, chat_id),
         "journal": _journal(conn, chat_id),
         "bearbeitbares": bearbeitbares(conn, chat_id),

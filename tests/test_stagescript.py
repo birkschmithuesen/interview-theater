@@ -21,6 +21,9 @@ class LLM:
         if art == stagescript.ART:
             return {"text": "**Theme**\nEMMA: Casa.", "kopf": "Setup: a bar table."}
         if art == "skript_spiegel":
+            if nutzer == "Setup: a bar table.":
+                return {"prosa_en": "Setup: a bar table.",
+                        "prosa_it": "Impostazione: un tavolo al bar."}
             return {"prosa_en": "**Theme**\nEMMA: Home.", "prosa_it": "**Tema**\nEMMA: Casa."}
         return {}
 
@@ -59,6 +62,7 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
     assert zeile["volltext_it"] == "**Tema**\nEMMA: Casa."
     stand = repo.hole_arbeitsstand(conn, 1)
     assert stand["stage_kopf"] == "Setup: a bar table."
+    assert stand["stage_kopf_it"] == "Impostazione: un tavolo al bar."
     nutzer = klm.aufrufe[0]["nutzer"]
     assert "Worum 1" in nutzer and "CAMERA" in nutzer and "\"kopf\"" in nutzer
     assert any("Script tab" in t for t in tg.texte)

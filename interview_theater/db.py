@@ -528,6 +528,10 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Padua Phase 7 (Stage Script): der Kopf des Skripts, einmal je Stueck
   -- (Versuchsanordnung + Rollen, G2), stagescript.py.
   stage_kopf TEXT,
+  -- Die italienische Fassung von stage_kopf (G2-Nachtrag, Birk 08.10.2026
+  -- ~07:50, Auftrag 2): derselbe EN/IT-Spiegelpass wie szene.volltext_it,
+  -- additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  stage_kopf_it TEXT,
   -- Merkposten fuer den Knopf "Interviews fertig" im Web-Kanal (Phase 3,
   -- 02.10.2026): gesetzt (ISO-Zeitstempel), solange die Gruppe "Interviews
   -- fertig" gedrueckt hat, aber noch mindestens ein beendetes Interview ohne

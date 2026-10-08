@@ -1935,7 +1935,7 @@ _ARBEITSSTAND_FELDER = (
     # (Sprechweisen) abgenommen -- derselbe eine Schreibweg wie alles andere
     # im Arbeitsstand.
     "gesamttext_fixiert_am", "sprechweisen_fixiert_am", "karten_geprueft_am",
-    "stage_kopf",
+    "stage_kopf", "stage_kopf_it",
     # Das Begriffsboard je gespeichertem Begriff (Karte t_4517d4ad):
     # derselbe eine Schreibweg, gesetzt allein von
     # ``begriffsboard.schreibe_detail``.

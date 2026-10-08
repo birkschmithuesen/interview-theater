@@ -164,7 +164,14 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
             log.exception("Vorfall stagescript_fehler nicht geschrieben")
         return False
     if mit_kopf and kopf:
+        kopf_it = None
+        if workshop.skript_zweisprachig_aktiv():
+            gespiegelt_kopf = skript_uebersetzung.spiegle_text(
+                conn, klm, e, chat_id, kopf, ueber_claude=ueber_claude)
+            if gespiegelt_kopf is not None:
+                kopf, kopf_it = gespiegelt_kopf
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf", kopf)
+        repo.setze_arbeitsstand(conn, chat_id, "stage_kopf_it", kopf_it)
     text_it = None
     if workshop.skript_zweisprachig_aktiv():
         gespiegelt = skript_uebersetzung.spiegle_text(

@@ -103,6 +103,17 @@ KOPF_G2 = (
 )
 
 
+def test_kopf_html_ohne_sprache_hat_kein_lang_attribut(padua):
+    html = web_skript.kopf_html(KOPF_G2)
+    assert "<section class=\"probe-szene stage-kopf\">" in html
+    assert "lang=" not in html
+
+
+def test_kopf_html_mit_sprache_traegt_lang_attribut(padua):
+    html = web_skript.kopf_html(KOPF_G2, "it")
+    assert '<section class="probe-szene stage-kopf" lang="it">' in html
+
+
 def test_kopf_setup_als_label_und_text(padua):
     html = web_skript.kopf_html(KOPF_G2)
     assert '<h2 class="szenenkopf">Setup &amp; roles</h2>' in html
@@ -225,6 +236,18 @@ def test_textbuch_ohne_md_und_txt_aber_mit_pdf(padua):
     assert "<th>Who</th>" in koerper and "Score at a glance" in koerper
     assert koerper.index("Setup &amp; roles") < koerper.index("Score at a glance") \
         < koerper.index("Interview quote · 4")
+    assert "lang=" not in koerper.split("Score at a glance")[0]
+
+
+def test_textbuch_kopf_it_zeigt_beide_fassungen(padua):
+    daten = {"titel": "G", "chat_id": 1, "figuren": [], "szenen": [_szene()],
+             "stage_kopf": KOPF_G2, "stage_kopf_it": "IMPOSTAZIONE\nObiettivo: un film."}
+    koerper = web.textbuch_koerper(daten, "tok", "/padua")
+    assert koerper.count("Setup &amp; roles") == 2
+    assert '<section class="probe-szene stage-kopf" lang="en">' in koerper
+    assert '<section class="probe-szene stage-kopf" lang="it">' in koerper
+    assert "IMPOSTAZIONE" in koerper and "un film." in koerper
+    assert koerper.index('lang="en"') < koerper.index('lang="it"') < koerper.index("Score at a glance")
 
 
 def test_css_design_nur_mit_schalter(padua):

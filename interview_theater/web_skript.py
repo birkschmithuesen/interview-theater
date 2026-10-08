@@ -239,10 +239,16 @@ def _rolle_mehr_html(wer: str, rest: str) -> str:
             f"</summary>{''.join(absaetze)}</details>")
 
 
-def kopf_html(text: str) -> str:
+def kopf_html(text: str, sprache: str | None = None) -> str:
     """Setup & roles: Abschnittstitel, ``Label: Text`` als Label ueber dem
     Text, Rollen als Tabelle Who | Role | Character (hoechstens drei
-    Stichworte), "what, never, when" je Person aufklappbar darunter."""
+    Stichworte), "what, never, when" je Person aufklappbar darunter.
+
+    ``sprache`` (G2-Nachtrag, 08.10.2026): gesetzt, wenn der Kopf zweisprachig
+    gezeigt wird (EN und IT nacheinander, Aufrufer traegt die Fassungs-
+    Label) -- nur das ``lang``-Attribut auf der Section, damit zwei
+    Abschnitte entstehen statt einem gemischten."""
+    lang_attr = f' lang="{sprache}"' if sprache else ""
     stuecke: list[str] = [f'<h2 class="szenenkopf">{_e(T._TEXT_KOPF)}</h2>']
     rollen: list[tuple[str, str, str, str]] = []
     liste: list[str] = []
@@ -292,7 +298,7 @@ def kopf_html(text: str) -> str:
         stuecke.append(f"<p>{_inline(blank)}</p>")
     leere_liste()
     leere_rollen()
-    return f'<section class="probe-szene stage-kopf">{"".join(stuecke)}</section>'
+    return f'<section class="probe-szene stage-kopf"{lang_attr}>{"".join(stuecke)}</section>'
 
 
 # --- Uebersicht vorn (G2 Anweisungen, G3 Momente) ---------------------------

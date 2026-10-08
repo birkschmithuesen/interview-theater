@@ -5224,10 +5224,21 @@ def textbuch_koerper(
     if partitur:
         stueck = partitur + stueck
     if (daten.get("stage_kopf") or "").strip():
-        stueck = (web_skript.kopf_html(daten["stage_kopf"]) if design else
-                  f'<section class="probe-szene stage-kopf">'
-                  f'<div class="text">{_prosa_absaetze_html(daten["stage_kopf"])}</div>'
-                  f"</section>") + stueck
+        kopf_it = (daten.get("stage_kopf_it") or "").strip()
+        if design:
+            kopf_abschnitt = web_skript.kopf_html(daten["stage_kopf"], "en" if kopf_it else None)
+            if kopf_it:
+                kopf_abschnitt += web_skript.kopf_html(kopf_it, "it")
+        else:
+            lang_en = ' lang="en"' if kopf_it else ""
+            kopf_abschnitt = (f'<section class="probe-szene stage-kopf">'
+                              f'<div class="text"{lang_en}>{_prosa_absaetze_html(daten["stage_kopf"])}</div>'
+                              f"</section>")
+            if kopf_it:
+                kopf_abschnitt += (f'<section class="probe-szene stage-kopf">'
+                                   f'<div class="text" lang="it">{_prosa_absaetze_html(kopf_it)}</div>'
+                                   f"</section>")
+        stueck = kopf_abschnitt + stueck
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     wege = ""
     if token:

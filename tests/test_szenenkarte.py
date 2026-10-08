@@ -533,3 +533,112 @@ def test_zwei_antworten_in_einer_nachricht_blockiert_den_weg_nicht(conn, einst, 
         conn, tg, LLM(), einst, 1, "Emma sings first, and it ends at sunset on the beach")
     assert treffer is True
     assert tg.texte[-1] == "Domanda 2 di 2: Where does it end?"
+
+
+# ---------------------------------------------------------------------------
+# Karten-Verlauf (Birk 08.10.2026 ~10:35): jede Fassung bleibt erhalten --
+# Grundlage des Verfeinerungs-Blocks in Phase 7 (``stagescript.py``) und des
+# Phase-6-Summary (``phasen_summary.py``).
+# ---------------------------------------------------------------------------
+
+
+def test_erzeuge_erstentwurf_legt_erste_verlauf_fassung_an(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    reihen = repo.karte_verlauf(conn, 1, ids[0])
+    assert len(reihen) == 1
+    assert reihen[0]["ausloeser"] == "erstentwurf"
+    assert reihen[0]["notiz_text"] is None
+    assert json.loads(reihen[0]["karte_json"])["worum"] == "The voices are shared."
+
+
+def test_aendere_legt_verlauf_fassung_mit_notiz_an(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    szenenkarte.aendere(conn, TG(), LLM(), einst, 1, "piano with pedal", nummer=1)
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+    reihen = repo.karte_verlauf(conn, 1, ids[0])
+    assert len(reihen) == 2
+    assert reihen[1]["ausloeser"] == "aenderung"
+    assert reihen[1]["notiz_text"] == "piano with pedal"
+
+
+def test_beantworte_letzte_frage_legt_verlauf_fassung_fragen_geklaert_an(conn, einst, padua):
+    ids = _karte1(conn, einst, LLMMitFragen())
+    tg = TG()
+    szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
+    szenenkarte.beantworte_frage(conn, tg, LLM(), einst, 1, "Emma sings first")
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+    reihen = repo.karte_verlauf(conn, 1, ids[0])
+    assert reihen[-1]["ausloeser"] == "fragen_geklaert"
+    assert "Who sings? -> Emma sings first" in reihen[-1]["notiz_text"]
+
+
+def test_ueberspringe_fragen_legt_verlauf_fassung_an(conn, einst, padua):
+    ids = _karte1(conn, einst, LLMMitFragen())
+    szenenkarte.ueberspringe_fragen(conn, TG(), einst, 1, 1)
+    reihen = repo.karte_verlauf(conn, 1, ids[0])
+    assert reihen[-1]["ausloeser"] == "fragen_uebersprungen"
+    assert reihen[-1]["notiz_text"] == "questions skipped as not fitting"
+
+
+def test_diff_karten_meldet_geaenderte_felder():
+    alt = {"typ": "spoken", "modus": "none", "worum": "A", "ort": "beach", "wer": "Emma",
+           "punkte": ["a", "b"], "zitate": [{"zitat": "x", "interview": "1"}]}
+    neu = dict(alt, worum="B", punkte=["a", "c"])
+
+    unterschiede = szenenkarte.diff_karten(alt, neu)
+
+    text = "; ".join(unterschiede)
+    assert "worum" in text
+    assert "punkte" in text
+    assert "ort" not in text
+    assert "zitate" not in text
+
+
+def test_diff_karten_ignoriert_fragen_feld():
+    alt = {"typ": "spoken", "modus": "none", "worum": "A", "ort": "o", "wer": "w",
+           "punkte": ["a"], "zitate": [], "fragen": ["Q1"]}
+    neu = dict(alt, fragen=[])
+
+    assert szenenkarte.diff_karten(alt, neu) == []
+
+
+def test_verfeinerungs_zeilen_zeigt_notiz_und_diff(conn, einst, padua):
+    """Szenario aus dem Auftrag: Karte -> No change "piano with pedal" ->
+    neue Karte -> die Verfeinerungs-Zeilen tragen Notiz UND Diff."""
+    ids = _karte1(conn, einst, LLM())
+
+    class AndereKarte(LLM):
+        def schema(self, chat_id, system, nutzer, schema, art):
+            if art == szenenkarte.ART:
+                return {"typ": "spoken", "worum": "The voices are shared.", "ort": "semicircle",
+                        "wer": "Emma, Giada",
+                        "punkte": ["Emma opens with pedal down", "Giada answers"],
+                        "zitate": [2, 99, 1], "questions": []}
+            return super().schema(chat_id, system, nutzer, schema, art)
+
+    szenenkarte.aendere(conn, TG(), AndereKarte(), einst, 1, "piano with pedal", nummer=1)
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+
+    szene = repo.hole_szene(conn, ids[0])
+    zeilen = szenenkarte.verfeinerungs_zeilen(conn, 1, szene)
+
+    assert len(zeilen) == 1
+    assert "piano with pedal" in zeilen[0]
+    assert "punkte" in zeilen[0]
+
+
+def test_verfeinerungs_zeilen_leer_ohne_aenderung(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    szene = repo.hole_szene(conn, ids[0])
+    assert szenenkarte.verfeinerungs_zeilen(conn, 1, szene) == []
+
+
+def test_verfeinerungs_zeilen_fragen_uebersprungen_wortlaut(conn, einst, padua):
+    ids = _karte1(conn, einst, LLMMitFragen())
+    szenenkarte.ueberspringe_fragen(conn, TG(), einst, 1, 1)
+    szene = repo.hole_szene(conn, ids[0])
+    zeilen = szenenkarte.verfeinerungs_zeilen(conn, 1, szene)
+    assert any("questions skipped as not fitting" in z for z in zeilen)

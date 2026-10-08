@@ -195,9 +195,33 @@ def _kappe(text, grenze: int = ZEICHEN) -> str:
     return text[:grenze - len(anhang)].rsplit(" ", 1)[0].rstrip(" ,;:-") + anhang
 
 
-def erzeuge(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -> dict | None:
+#: ``ausloeser`` von ``karte_verlauf`` (Birk 08.10.2026 ~10:35) -- "dialog"
+#: ist die Andockstelle fuer den No-change-Dialog im CoThinker (noch nicht
+#: gebaut): wer ihn baut, braucht nur ``notiz`` an ``aendere``/``starte`` zu
+#: geben und kann optional ``ausloeser=AUSLOESER_DIALOG`` statt des
+#: generischen ``AUSLOESER_AENDERUNG`` durchreichen.
+AUSLOESER_ERSTENTWURF = "erstentwurf"
+AUSLOESER_AENDERUNG = "aenderung"
+AUSLOESER_FRAGEN_GEKLAERT = "fragen_geklaert"
+AUSLOESER_FRAGEN_UEBERSPRUNGEN = "fragen_uebersprungen"
+AUSLOESER_DIALOG = "dialog"
+
+#: Wortlaut bewusst Englisch (geht in den Prompt, nicht an die Gruppe) --
+#: deckungsgleich mit dem Journal-Wortlaut (``T._JOURNAL_FRAGEN_UEBERSPRUNGEN``).
+_NOTIZ_FRAGEN_UEBERSPRUNGEN = "questions skipped as not fitting"
+
+
+def erzeuge(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
+           ausloeser: str | None = None) -> dict | None:
     """Der EINE Schema-Aufruf je Karte. Speichert und liefert die Karte,
-    oder ``None`` bei jedem Fehler (Vorfall ``szenenkarte_fehler``)."""
+    oder ``None`` bei jedem Fehler (Vorfall ``szenenkarte_fehler``).
+
+    Haengt zugleich eine neue Fassung an den Karten-Verlauf
+    (``repo.merke_karte_verlauf``) -- ``ausloeser`` wird, wo der Aufrufer ihn
+    nicht kennt (kein Fragen-Spezialfall), aus ``notiz`` abgeleitet:
+    keine Notiz -> ``erstentwurf`` (der einzige Aufrufer ohne Notiz ist
+    ``weiter``, und der baut nur die allererste Fassung), sonst
+    ``aenderung``."""
     from interview_theater import szenenkern
 
     szene = _szene_mit_nummer(conn, chat_id, nummer)
@@ -249,6 +273,10 @@ def erzeuge(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -
             log.exception("Vorfall szenenkarte_fehler nicht geschrieben")
         return None
     repo.setze_szenenkarte(conn, szene["id"], json.dumps(karte, ensure_ascii=False))
+    repo.merke_karte_verlauf(
+        conn, chat_id, szene["id"], json.dumps(karte, ensure_ascii=False),
+        ausloeser or (AUSLOESER_AENDERUNG if notiz else AUSLOESER_ERSTENTWURF), notiz,
+    )
     return karte
 
 
@@ -383,7 +411,8 @@ def laeuft(chat_id: int) -> bool:
 
 
 def starte(conn, tg, klm, e, chat_id: int, nummer: int,
-           notiz: str | None = None, *, nachbereitung=None) -> threading.Thread | None:
+           notiz: str | None = None, *, nachbereitung=None,
+           ausloeser: str | None = None) -> threading.Thread | None:
     """Erzeugt (oder ueberarbeitet mit ``notiz``) die Karte ``nummer`` im
     eigenen Thread und zeigt sie danach. ``None``, wenn schon eine Karte
     dieser Gruppe entsteht (dann eine Zeile statt Stille).
@@ -404,7 +433,7 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int,
 
     def _lauf() -> None:
         try:
-            karte = erzeuge(conn, klm, e, chat_id, nummer, notiz)
+            karte = erzeuge(conn, klm, e, chat_id, nummer, notiz, ausloeser=ausloeser)
             if karte is None:
                 _sende(conn, tg, e, chat_id, T_IT._TEXT_FEHLER.format(nummer=nummer))
                 return
@@ -633,11 +662,72 @@ def ueberspringe_fragen(conn, tg, e, chat_id: int, nummer: int) -> str:
     neue_karte["fragen"] = []
     repo.setze_szenenkarte(conn, szene["id"], json.dumps(neue_karte, ensure_ascii=False))
     repo.setze_szenenkarte_klaerung(conn, szene["id"], None)
+    repo.merke_karte_verlauf(
+        conn, chat_id, szene["id"], json.dumps(neue_karte, ensure_ascii=False),
+        AUSLOESER_FRAGEN_UEBERSPRUNGEN, _NOTIZ_FRAGEN_UEBERSPRUNGEN,
+    )
     repo.schreibe_journal(conn, chat_id, "entschieden",
                           T._JOURNAL_FRAGEN_UEBERSPRUNGEN.format(nummer=nummer).strip(),
                           quelle="web")
     zeige(conn, tg, e, chat_id, nummer)
     return T_IT._ANTWORT_FRAGEN_UEBERSPRUNGEN.format(nummer=nummer)
+
+
+# ---------------------------------------------------------------------------
+# Verfeinerungs-Zeilen fuer Phase 7 (Birk 08.10.2026 ~10:35): was die Gruppe
+# an dieser Karte in Phase 6 geaendert hat -- Notiz/Antwort und der
+# deterministische Feld-Diff, aus ``karte_verlauf``. Kein Modellaufruf, kein
+# Spracheinhaengepunkt: der Wortlaut geht in den Prompt, nicht an die Gruppe.
+# ---------------------------------------------------------------------------
+
+#: Felder, die ein Diff zwischen zwei Kartenfassungen vergleicht --
+#: ``fragen`` bewusst nicht (die veraendert sich bei "Skip questions" ohne
+#: inhaltliche Verfeinerung der Karte).
+_DIFF_FELDER = ("typ", "modus", "worum", "ort", "wer", "punkte", "zitate")
+
+
+def _diff_wert(wert) -> str:
+    if wert is None:
+        return "(none)"
+    if isinstance(wert, list):
+        return "(empty)" if not wert else "; ".join(str(e) for e in wert)
+    return str(wert)
+
+
+def diff_karten(alt: dict, neu: dict) -> list[str]:
+    """Welche ``_DIFF_FELDER`` sich zwischen zwei Kartenfassungen
+    unterscheiden, als lesbare Zeilen -- deterministisch, kein Modellaufruf."""
+    unterschiede = []
+    for feld in _DIFF_FELDER:
+        alter_wert, neuer_wert = alt.get(feld), neu.get(feld)
+        if alter_wert != neuer_wert:
+            unterschiede.append(
+                f"{feld}: {_diff_wert(alter_wert)} -> {_diff_wert(neuer_wert)}")
+    return unterschiede
+
+
+def verfeinerungs_zeilen(conn, chat_id: int, szene) -> list[str]:
+    """Eine Zeile je Verfeinerung dieser Karte in Phase 6: was die Gruppe
+    wollte (Notiz/Antwort) und was sich dadurch an der Karte geaendert hat
+    (``diff_karten``). Leer, wenn die Karte nie ueberarbeitet wurde."""
+    reihen = repo.karte_verlauf(conn, chat_id, szene["id"])
+    if len(reihen) <= 1:
+        return []
+    zeilen = []
+    vorherige_karte = json.loads(reihen[0]["karte_json"])
+    for reihe in reihen[1:]:
+        neue_karte = json.loads(reihe["karte_json"])
+        teile = []
+        notiz = reihe["notiz_text"]
+        if notiz:
+            teile.append(f'wanted: "{notiz}"')
+        unterschiede = diff_karten(vorherige_karte, neue_karte)
+        if unterschiede:
+            teile.append("changed: " + "; ".join(unterschiede))
+        if teile:
+            zeilen.append(" -- ".join(teile))
+        vorherige_karte = neue_karte
+    return zeilen
 
 
 def _klaerungsnotiz(fragen: list[str], antworten: list[str | None]) -> str:
@@ -722,7 +812,7 @@ def beantworte_frage(conn, tg, klm, e, chat_id: int, text: str) -> bool:
         return None
 
     starte(conn, tg, klm, e, chat_id, nummer, _klaerungsnotiz(fragen, antworten),
-          nachbereitung=_nachbereitung)
+          nachbereitung=_nachbereitung, ausloeser=AUSLOESER_FRAGEN_GEKLAERT)
     return True
 
 

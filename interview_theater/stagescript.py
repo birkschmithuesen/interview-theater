@@ -33,7 +33,6 @@ log = logging.getLogger(__name__)
 ART = "stagescript"
 PHASE = 7
 #: So viel vom Ende der vorigen Szene geht in den Prompt.
-VORHER_ZEICHEN = 900
 
 SCHEMA = {
     "type": "object",
@@ -113,14 +112,19 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
         alle.append(f"{s['nummer']}. {s['titel'] or ''} -- {karte.get('worum', '')}")
     if alle:
         teile.append(T._KOPF_ANDERE + "\n" + "\n".join(alle))
-    vorige = next((s for s in _szenen(conn, chat_id) if s["nummer"] == szene["nummer"] - 1), None)
-    vorher = ((vorige["volltext"] if vorige is not None else "") or "").strip()
-    if vorher:
-        # Das geschriebene Ende der vorigen Szene (Nachtrag Birk 08.10.2026,
-        # G3: Szene 5 und 6 projizierten beide die Schlussfrage).
-        if len(vorher) > VORHER_ZEICHEN:
-            vorher = "… " + vorher[-VORHER_ZEICHEN:].split(" ", 1)[-1]
-        teile.append(T._KOPF_VORHER + "\n" + vorher)
+    # ALLE bisher geschriebenen Szenen im VOLLEN Wortlaut, ohne Kuerzung und
+    # ohne Zeichengrenze (Birk 08.10.2026 ~10:55: "in Phase 7 sollen immer
+    # die vollen bisherigen Szenentexte mitgegeben werden, nicht nur ein Teil
+    # und auch keine Zeichenbegrenzung"). Ersetzt das 900-Zeichen-Ende der
+    # vorigen Szene. Reihenfolge = Szenennummer; die aktuelle Szene steht
+    # nur beim Neuschreiben (``_KOPF_BISHER``) drin.
+    geschrieben = [
+        f"### {s['nummer']}. {s['titel'] or ''}\n{(s['volltext'] or '').strip()}"
+        for s in _szenen(conn, chat_id)
+        if s["nummer"] != szene["nummer"] and (s["volltext"] or "").strip()
+    ]
+    if geschrieben:
+        teile.append(T._KOPF_GESCHRIEBEN + "\n\n" + "\n\n".join(geschrieben))
     karte = szenenkarte.karte_von(szene) or {}
     teile.append(T._KOPF_KARTE + "\n" + szenenkarte.karte_text(karte, szene))
     typ = karte.get("typ") or "description"
@@ -299,6 +303,7 @@ def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = Non
 _KOPF_STUECKKOPF = "Kopf des Skripts (steht schon fest):"
 _KOPF_ANDERE = "Die anderen Szenen (nur zur Orientierung):"
 _KOPF_VORHER = "So endet die vorige Szene (steht schon -- hier anschliessen, nichts davon wiederholen):"
+_KOPF_GESCHRIEBEN = "Die bisher geschriebenen Szenen im vollen Wortlaut (stehen schon -- an die vorige anschliessen, nichts davon wiederholen, Figuren/Motive/Ton konsistent halten):"
 _KOPF_KARTE = "Die abgenommene Karte DIESER Szene -- sie ist bindend:"
 _KOPF_FORMAT_TYP = "So sieht das Skript dieser Szene aus:"
 _KOPF_BISHER = "Bisheriges Skript dieser Szene, es soll ueberarbeitet werden:"

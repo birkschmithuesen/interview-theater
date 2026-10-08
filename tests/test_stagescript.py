@@ -111,20 +111,23 @@ def test_kopf_nur_bei_ueberwiegend_anweisungen(conn, padua):
     assert stagescript.braucht_kopf(conn, 1) is False
 
 
-def test_anschluss_an_das_ende_der_vorigen_szene(conn, padua):
-    """Nachtrag Birk 08.10.2026 (Vollskript G3): Szene 5 endete mit der
-    projizierten Schlussfrage, Szene 6 liess sie noch einmal erscheinen. Der
-    Prompt einer Szene bekommt deshalb das geschriebene Ende der vorigen.
-    Mutant: Block weg -> rot; ganzer Text statt Ende -> rot."""
+def test_alle_bisherigen_szenen_voll_ohne_zeichengrenze(conn, padua):
+    """Birk 08.10.2026 ~10:55: in Phase 7 gehen IMMER die vollen bisherigen
+    Szenentexte mit -- nicht nur ein Teil, keine Zeichengrenze. Mutanten:
+    Kuerzung auf ein Ende -> rot (ANFANG fehlt); nur vorige Szene -> rot
+    (Szene 1 fehlt bei Szene 3); Block weg -> rot."""
     ids = _karten(conn)
-    anfang = "ANFANG-DER-SZENE-1 " + "x " * 800
-    repo.setze_stagescript(conn, ids[0], anfang + "ENDE: die Frage erscheint auf der Wand.", None)
+    lang = "ANFANG-DER-SZENE-1 " + "x " * 20000 + "ENDE-SZENE-1"
+    repo.setze_stagescript(conn, ids[0], lang, None)
+    repo.setze_stagescript(conn, ids[1], "ANFANG-SZENE-2 dialog ENDE-SZENE-2", None)
+    # Szene 2 neu schreiben: Szene 1 VOLL drin (40.000 Zeichen, keine Kuerzung)
     text = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[1]))
-    assert stagescript.T._KOPF_VORHER in text
-    assert "ENDE: die Frage erscheint auf der Wand." in text
-    assert "ANFANG-DER-SZENE-1" not in text
+    assert stagescript.T._KOPF_GESCHRIEBEN in text
+    assert lang in text
+    # Szene 1 sieht Szene 2 (alle bisher geschriebenen, nicht nur die vorige)
     erste = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
-    assert stagescript.T._KOPF_VORHER not in erste
+    assert "ANFANG-SZENE-2 dialog ENDE-SZENE-2" in erste
+    assert lang not in erste.split(stagescript.T._KOPF_KARTE)[0]
 
 
 def test_baue_nutzertext_nimmt_ueber_claude_parameter_entgegen(conn, padua, monkeypatch):

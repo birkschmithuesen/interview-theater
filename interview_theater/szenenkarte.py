@@ -47,8 +47,6 @@ PUNKTE_MAX = 6
 ZITATE_MAX = 5
 FRAGEN_MAX = 3
 ZEICHEN = 120
-#: So viel Prosa (G1 Szene 1) geht hoechstens als Material mit.
-PROSA_ZEICHEN = 6000
 
 SCHEMA = {
     "type": "object",
@@ -153,9 +151,6 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None) -> str:
     for p in szenenkern.kern_punkte(szene):
         teile.append(f"- {p}")
     zeilen.append("\n".join(teile))
-    prosa = (szene["prosa"] or "").strip()
-    if prosa:
-        zeilen.append(T._KOPF_PROSA + "\n" + prosa[:PROSA_ZEICHEN])
     alte = karte_von(szene)
     if alte and notiz:
         zeilen.append(T._KOPF_ALTE_KARTE + "\n" + karte_text(alte, szene))
@@ -529,7 +524,6 @@ _KOPF_DIESE = "DIESE Karte: Szene {nummer} -- {titel}"
 _KOPF_BESCHREIBUNG = "Was die Gruppe beschrieben hat:"
 _KOPF_ORT = "Ort:"
 _KOPF_WER = "Wer:"
-_KOPF_PROSA = "Schon geschriebener Text dieser Szene (nur Material, kein Massstab):"
 _KOPF_ALTE_KARTE = "Bisherige Karte:"
 _KOPF_NOTIZ = "Was die Gruppe an der Karte geaendert haben will (gilt vor allem anderen):"
 _KOPF_LISTE = "Von der Gruppe uebernommene Interviewstellen (nach Nummer waehlen):"

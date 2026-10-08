@@ -1735,3 +1735,22 @@ def test_vorlauf_ueberspringt_notiert_zeilen(conn, einst):
     repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", "Vorschlag: Mira.", "2026-09-05T04:00:00+00:00")
     repo.merke_nachricht(conn, 1, 11, "Bot", 1, "text", "Notiert:\nPhase 4", "2026-09-05T04:00:01+00:00")
     assert repo.letzte_bot_nachricht_vor(conn, 1, 12)["message_id"] == 10
+
+
+def test_erkenner_ueber_claude_nur_mit_schalter_und_nicht_in_phase3(monkeypatch):
+    """Birk 08.10.2026: Padua-Erkenner auf Opus; Phase 3 bleibt gemma."""
+    from interview_theater import erkenner, modellwahl, workshop
+    monkeypatch.setattr(workshop, "erkenner_ueber_claude_aktiv", lambda profil=None: True)
+    monkeypatch.setattr(modellwahl, "konversation_ueber_claude", lambda e, c, ch: True)
+    assert erkenner.ueber_claude(object(), object(), 1) is True
+    monkeypatch.setattr(modellwahl, "konversation_ueber_claude", lambda e, c, ch: False)
+    assert erkenner.ueber_claude(object(), object(), 1) is False
+    monkeypatch.setattr(workshop, "erkenner_ueber_claude_aktiv", lambda profil=None: False)
+    monkeypatch.setattr(modellwahl, "konversation_ueber_claude", lambda e, c, ch: True)
+    assert erkenner.ueber_claude(object(), object(), 1) is False
+
+
+def test_padua_profil_erkenner_ueber_claude():
+    from interview_theater import workshop
+    assert workshop.erkenner_ueber_claude_aktiv(workshop.lade("padua-2026")) is True
+    assert workshop.erkenner_ueber_claude_aktiv(workshop.lade("dortmund-2026")) is False

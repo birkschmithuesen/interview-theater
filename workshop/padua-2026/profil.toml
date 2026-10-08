@@ -342,3 +342,9 @@ aktiv = true
 # 08.10.2026: in Phase 5-7 falsch, nach jedem Autodeploy doppelt im Chat).
 [bot]
 wiederkehr = false
+
+# Absichtserkenner auf Opus (Birk 08.10.2026 ~10:45: "Opus ist viel besser als
+# gemma"). Ohne Korpuslauf auf Birks Ansage. Phase 3 und Transkripte bleiben
+# auf gemma (Infomaniak). Fehler -> dieser eine Zug faellt auf gemma zurueck.
+[erkenner]
+ueber_claude = true

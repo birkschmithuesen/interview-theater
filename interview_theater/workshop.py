@@ -1284,3 +1284,11 @@ def wiederkehr_aktiv(profil: Profil | None = None) -> bool:
     (Birk 08.10.2026: Knoepfe in Phase 5 falsch, nach jedem Deploy doppelt)."""
     profil = profil or aktiv()
     return bool(profil.wert("bot.wiederkehr", True))
+
+
+def erkenner_ueber_claude_aktiv(profil: Profil | None = None) -> bool:
+    """Absichtserkenner ueber Claude/Opus statt gemma (Padua, Birk 08.10.2026).
+    Vorgabe false -- Dortmund unveraendert. Transkripte bleiben ausgenommen
+    (``erkenner.erkenne_in_aufnahme``), Phase 3 ebenso."""
+    profil = profil or aktiv()
+    return bool(profil.wert("erkenner.ueber_claude", False))

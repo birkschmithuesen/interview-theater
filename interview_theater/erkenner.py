@@ -509,10 +509,7 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
         return []
 
     try:
-        ergebnis = klm.schema(
-            chat_id, prompt(), nutzer, schema(), "erkenner",
-            modell=e.erkenner_modell, temperature=TEMPERATURE,
-        )
+        ergebnis = _schema_aufruf(klm, conn, e, chat_id, prompt(), nutzer, schema(), "erkenner")
     except Exception:
         # Fehlschlag: das Wasserzeichen bleibt STEHEN -- ein kostenloser
         # Wiederholungsversuch beim naechsten Lauf, ohne eigene
@@ -554,6 +551,39 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
 _AUFNAHME_KOPF = (
     "Eine Sprachnachricht aus einem laufenden Interview, gerade transkribiert:"
 )
+
+
+def ueber_claude(e, conn, chat_id) -> bool:
+    """Padua (Birk 08.10.2026 ~10:45: "Erkenner sofort auf Opus, Opus ist viel
+    besser als gemma"): Profilschalter ``[erkenner] ueber_claude`` UND der
+    Betreiber erlaubt Claude (``IT_SZENE_ANBIETER=claude``) UND die Gruppe ist
+    NICHT in Phase 3 (Interviews -- harte Grenze der Modellwahl). Transkripte
+    (``erkenne_in_aufnahme``) bleiben IMMER auf dem Infomaniak-Erkenner."""
+    from interview_theater import modellwahl, workshop
+
+    if not workshop.erkenner_ueber_claude_aktiv() or conn is None or chat_id is None:
+        return False
+    try:
+        return modellwahl.konversation_ueber_claude(e, conn, chat_id)
+    except Exception:
+        return False
+
+
+def _schema_aufruf(klm, conn, e, chat_id, system, nutzer, schema_, art):
+    """Ein Erkenner-Schema-Aufruf: Opus ueber den Abo-Proxy, wenn
+    ``ueber_claude``; bei Fehler faellt ``modellwahl.aufruf_schema`` fuer
+    diesen EINEN Zug auf das Infomaniak-Modell zurueck (Vorfall wird
+    gemeldet). Sonst unveraendert ``klm.schema`` mit ``e.erkenner_modell``."""
+    if ueber_claude(e, conn, chat_id):
+        from interview_theater import modellwahl
+
+        return modellwahl.aufruf_schema(
+            conn, klm, e, chat_id, system, nutzer, schema_, art,
+            ueber_claude=True, modell=e.erkenner_modell, timeout=60.0,
+            claude_modell=getattr(e, "szene_modell", None) or "claude-opus-5-5",
+        )
+    return klm.schema(chat_id, system, nutzer, schema_, art,
+                      modell=e.erkenner_modell, temperature=TEMPERATURE)
 
 
 def baue_aufnahme_nutzertext(transkript: str) -> str:

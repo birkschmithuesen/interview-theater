@@ -616,8 +616,12 @@ def _ist_echo_des_laufstarts(chat_id: int) -> bool:
 #: wartet (``_speichere_text._spiegel``, ~30-40 s), bevor die Aenderungs-
 #: nachricht in Phase 7 doch auf Englisch geht (Robo-Entscheidung
 #: 08.10.2026 ~14:00). Danach faellt die Diff-Nachricht auf EN zurueck,
-#: statt die Gruppe unbegrenzt warten zu lassen.
-_IT_DIFF_WARTE_TIMEOUT_S = 90.0
+#: statt die Gruppe unbegrenzt warten zu lassen. Auf 30 s gesenkt
+#: (Live-Fehlerklasse 6, Padua 08.10.2026): mit 90 s kamen die Yes/No-
+#: Knoepfe der Gruppe spuerbar zu spaet, selbst wenn der Spiegelpass (jetzt
+#: mit Nachholversuch, ``skript_uebersetzung.spiegle_text``) laengst
+#: gescheitert war.
+_IT_DIFF_WARTE_TIMEOUT_S = 30.0
 _IT_DIFF_WARTE_INTERVALL_S = 0.5
 
 

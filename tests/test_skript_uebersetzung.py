@@ -169,6 +169,54 @@ def test_spiegle_text_nimmt_gleich_lange_uebertragung(conn, einst):
     assert en == quelle.strip() and it.startswith("VOCE 1: E ora")
 
 
+class LLMSequenz:
+    """Wie ``LLMMitSchema.schema``, aber je Aufruf die naechste Antwort aus
+    einer Liste -- fuer den Nachholversuch (Fehlerklasse 6): der erste Ruf
+    liefert eine unplausible Spiegelung, der zweite (Kimi-Nachholversuch)
+    eine plausible."""
+
+    def __init__(self, *antworten):
+        self._antworten = list(antworten)
+        self.aufrufe = 0
+
+    def schema(self, chat_id, system, nutzer, schema, art):
+        antwort = self._antworten[min(self.aufrufe, len(self._antworten) - 1)]
+        self.aufrufe += 1
+        return antwort
+
+
+def test_spiegle_text_wird_einmal_bei_kimi_nachgeholt(conn, einst):
+    """Live-Fehlerklasse 6 (Padua 08.10.2026): scheiterte der Spiegelpass an
+    der Laengenpruefung, blieb die IT-Fassung bisher fuer immer leer -- kein
+    Nachholversuch, die Gruppe wartete 90 s auf nichts. Jetzt: EIN
+    Nachholversuch bei Kimi liefert die plausible Fassung."""
+    quelle = "VOCE 1: And now we wait. " * 200
+    kurz = {"prosa_en": "Pellaro spoke. " * 20, "prosa_it": "Pellaro parlava. " * 20}
+    plausibel = {"prosa_en": quelle, "prosa_it": "VOCE 1: E ora aspettiamo. " * 200}
+    klm = LLMSequenz(kurz, plausibel)
+
+    ergebnis = skript_uebersetzung.spiegle_text(conn, klm, einst, 1, quelle, ueber_claude=False)
+
+    assert klm.aufrufe == 2
+    assert ergebnis is not None
+    en, it = ergebnis
+    assert en == quelle.strip()
+
+
+def test_spiegle_text_gibt_nach_zwei_unplausiblen_versuchen_auf(conn, einst):
+    """Mutationsprobe zum Nachholversuch: bleibt auch der zweite (Kimi-)
+    Versuch unplausibel, gilt die Laengenpruefung weiterhin (809b629b) --
+    kein drittes Mal, kein blindes Akzeptieren."""
+    quelle = "VOCE 1: And now we wait. " * 200
+    kurz = {"prosa_en": "Pellaro spoke. " * 20, "prosa_it": "Pellaro parlava. " * 20}
+    klm = LLMSequenz(kurz, kurz)
+
+    ergebnis = skript_uebersetzung.spiegle_text(conn, klm, einst, 1, quelle, ueber_claude=False)
+
+    assert ergebnis is None
+    assert klm.aufrufe == 2
+
+
 def test_zitat_uebersetzung_en_im_systemprompt_und_laengere_en_fassung(conn, einst, monkeypatch):
     """Birk 08.10.2026 ~14:25 (G3 S2): mit ``[skript] zitat_uebersetzung_en``
     verlangt der Spiegelpass in der EN-Fassung unter jedem Zitat die

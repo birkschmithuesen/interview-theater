@@ -8,12 +8,13 @@ Ueberarbeitungen, die bessere Fassung bei einem gefallenen Score, die
 Zitatwache, die Erstfassung, hoechstens drei Zeilen und die Protokollzeile.
 """
 
+import json
 import re
 
 import pytest
 
 import test_dramaturgie_schleife as schleifentest
-from interview_theater import phasen, prueflauf, repo, szene, workshop
+from interview_theater import phasen, prueflauf, repo, szene, szenenkarte, workshop
 from interview_theater.dramaturgie import fanout, schleife
 from test_dramaturgie_schleife import Rundenrichter
 from test_knoepfe import TelegramAttrappe
@@ -106,10 +107,143 @@ def szene6(conn, padua):
     return conn
 
 
+#: Die Karte des echten Live-Falls (G2/G3, P7-Audit-Karte): ein Hakenpunkt,
+#: der ausdruecklich etwas verneint, und ein OBBLIGATORIO-Punkt.
+KARTE_8B_9 = {
+    "typ": "description", "modus": "none", "worum": "Il reclutamento.",
+    "ort": "sala riunioni", "wer": "Anna", "zitate": [], "fragen": [],
+    "punkte": [
+        "✔ No: Arlecchino gli dice solo di sedersi, senza dire che posto "
+        "occupa nell'ordine di reclutamento.",
+        "OBBLIGATORIO (richiesta del gruppo): entrano anche le citazioni "
+        "qui sotto su lockdown, Millennium Bug e fine del mondo 12-12-12.",
+    ],
+}
+
+
+@pytest.fixture
+def szene7_karte(conn, padua):
+    """Phase 7, Szene 1 mit einer abgenommenen Szenenkarte, fuer die
+    Kartentreue-Pruefung (Klassen 8b/9 der P7-Audit-Karte)."""
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Una sala riunioni, oggi")
+    repo.setze_figur(conn, 1, "Anna", "")
+    figur_id = repo.hole_figur(conn, 1, "Anna")["id"]
+    repo.setze_sprachprofil(conn, figur_id, "frasi brevi", [])
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.setze_szene_figuren(conn, 1, szene_id, [figur_id])
+    for feld, wert in (("form", "Dialog"), ("ort", "sala riunioni"),
+                       ("was_passiert", "Anna recluta un nuovo arrivato.")):
+        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+    repo.setze_szenenkarte(conn, szene_id, json.dumps(KARTE_8B_9, ensure_ascii=False))
+    repo.aktualisiere_szene(
+        conn, szene_id, "Il reclutamento", "kurz",
+        "ANNA: Ti va di sederti con noi? Sono circa quindici minuti.\n"
+        "ANNA: Ero disorientata durante il lockdown e pensavo alla fine "
+        "del mondo 12-12-12.\n",
+        "Anna recluta.",
+    )
+    phasen.setze(conn, 1, 7, "test")
+    return conn
+
+
+def _vorfaelle_der_art(conn, art: str) -> list:
+    return conn.execute(
+        "SELECT detail FROM vorfall WHERE chat_id = 1 AND art = ?", (art,)
+    ).fetchall()
+
+
 def _richter(monkeypatch, plan):
     richter = Rundenrichter(plan)
     monkeypatch.setattr(fanout, "waehle_richter", lambda *a, **k: richter)
     return richter
+
+
+# --- Kartentreue (Klassen 8b/9 der P7-Audit-Karte) -------------------------
+
+
+def test_kartentreue_schreibt_fehlendes_obbligatorio_stichwort_nach(
+        szene7_karte, tg, einst, monkeypatch):
+    _richter(monkeypatch, {("a10", 1): [2], ("c1", 1): [2]})
+    klm = Schreiber(_antwort(
+        "ANNA: Ti va di sederti con noi? Sono circa quindici minuti.\n"
+        "ANNA: Ero disorientata durante il lockdown, pensavo al Millennium "
+        "Bug e alla fine del mondo 12-12-12.\n"
+    ))
+
+    prueflauf.pruefe_szene(szene7_karte, tg, klm, einst, 1, 1)
+
+    assert klm.ueberarbeitungen() == 1
+    volltext = repo.hole_szenen(szene7_karte, 1)[0]["volltext"]
+    assert "Millennium Bug" in volltext
+    assert _vorfaelle_der_art(szene7_karte, prueflauf.VORFALL_OBBLIGATORIO_FEHLT) == []
+
+
+def test_kartentreue_meldet_vorfall_wenn_nachschrieb_nicht_hilft(
+        szene7_karte, tg, einst, monkeypatch):
+    _richter(monkeypatch, {("a10", 1): [2], ("c1", 1): [2]})
+    klm = Schreiber(_antwort(
+        "ANNA: Ti va di sederti con noi? Sono circa quindici minuti.\n"
+        "ANNA: Ero disorientata durante il lockdown.\n"
+    ))
+
+    prueflauf.pruefe_szene(szene7_karte, tg, klm, einst, 1, 1)
+
+    assert klm.ueberarbeitungen() == 1
+    vorfaelle = _vorfaelle_der_art(szene7_karte, prueflauf.VORFALL_OBBLIGATORIO_FEHLT)
+    assert vorfaelle and "Millennium Bug" in vorfaelle[0]["detail"]
+
+
+def test_kartentreue_widerspruch_geht_als_vorfall_ohne_schreiblauf(
+        szene7_karte, tg, einst, monkeypatch):
+    """Live-Befund G2: 'senza dire che posto occupa nell'ordine di
+    reclutamento' auf der Karte, aber das gespeicherte Script verrat es
+    trotzdem -- das geht nur ins Log, kein automatischer Eingriff (der ist
+    Sache des Richters, nicht dieser Pruefung)."""
+    _richter(monkeypatch, {("a10", 1): [2], ("c1", 1): [2]})
+    szene_id = repo.hole_szenen(szene7_karte, 1)[0]["id"]
+    repo.aktualisiere_szene(
+        szene7_karte, szene_id, "Il reclutamento", "kurz",
+        "ANNA: Ti dico che posto occupa nell'ordine di reclutamento: sei "
+        "l'ultimo.\n"
+        "ANNA: Lockdown, Millennium Bug, fine del mondo 12-12-12.\n",
+        "Anna recluta.",
+    )
+    klm = Schreiber(MIT_ZITAT)
+
+    prueflauf.pruefe_szene(szene7_karte, tg, klm, einst, 1, 1)
+
+    assert klm.ueberarbeitungen() == 0
+    vorfaelle = _vorfaelle_der_art(szene7_karte, prueflauf.VORFALL_KARTE_WIDERSPROCHEN)
+    assert vorfaelle and "ordine di reclutamento" in vorfaelle[0]["detail"]
+
+
+def test_kartentreue_no_op_ohne_karte(szene7_karte, tg, einst, monkeypatch):
+    """Ohne Szenenkarte (Dortmund, oder das Profil ``[karten] aktiv`` aus)
+    passiert nichts -- weder ein Nachschrieb noch ein Vorfall, obwohl der
+    Text ein OBBLIGATORIO-Stichwort verfehlen wuerde."""
+    _richter(monkeypatch, {("a10", 1): [2], ("c1", 1): [2]})
+    szene_id = repo.hole_szenen(szene7_karte, 1)[0]["id"]
+    repo.setze_szenenkarte(szene7_karte, szene_id, None)
+    klm = Schreiber(MIT_ZITAT)
+
+    prueflauf.pruefe_szene(szene7_karte, tg, klm, einst, 1, 1)
+
+    assert klm.ueberarbeitungen() == 0
+    assert _vorfaelle_der_art(szene7_karte, prueflauf.VORFALL_KARTE_WIDERSPROCHEN) == []
+    assert _vorfaelle_der_art(szene7_karte, prueflauf.VORFALL_OBBLIGATORIO_FEHLT) == []
+
+
+def test_kartentreue_no_op_fuer_prosa_phase6(szene6, tg, einst, monkeypatch):
+    """Phase 6 schreibt eine Geschichte (``feld == "prosa"``), nicht den
+    Buehnentext -- die Kartentreue-Pruefung gilt erst ab dem Feinschliff."""
+    _richter(monkeypatch, {("b1", 1): [2]})
+    klm = Schreiber(MIT_ZITAT)
+
+    prueflauf.pruefe_szene(szene6, tg, klm, einst, 1, 1)
+
+    assert klm.ueberarbeitungen() == 0
+    assert _vorfaelle_der_art(szene6, prueflauf.VORFALL_KARTE_WIDERSPROCHEN) == []
+    assert _vorfaelle_der_art(szene6, prueflauf.VORFALL_OBBLIGATORIO_FEHLT) == []
 
 
 def _prosa(conn) -> str:

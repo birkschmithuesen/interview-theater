@@ -879,9 +879,20 @@ def _baue_formen(conn, chat_id: int) -> str:
     """Die Bot-Bloecke der Formen, die der Formberater fuer diese Gruppe
     nachgeschlagen hat (``formberater.kontextblock``) -- ab Phase 4,
     datengetrieben. Scheitert das Lesen (Katalog fehlt), fehlt nur dieser
-    Block, nicht der Zug."""
-    from interview_theater import formberater
+    Block, nicht der Zug.
 
+    **Nicht mehr in Phase 7 mit Szenenkarten** (Padua Quickfix 08.10.2026,
+    Punkt 1): die Form steht dort schon durch den Kartentyp fest
+    (``stagescript.py``), und der Block aus Phase 4/5/6 fuehrte das
+    Gespraechsmodell zur alten Formwahl-Antwort ("Scene N as Dialogue. The
+    card stays as it is.") statt die Stage-Script-Notiz greifen zu lassen
+    (Befund Tester 08.10.2026, web_post 2198-2199). Im alten Prosa-/
+    Formwahl-Pfad (ohne Szenenkarten) bleibt der Block in Phase 7 wie
+    gewohnt, dort entscheidet ``formen_setzen`` noch ueber die Form."""
+    from interview_theater import formberater, phasen, stagescript, workshop
+
+    if phasen.aktuelle(conn, chat_id) == stagescript.PHASE and workshop.szenenkarten_aktiv():
+        return ""
     try:
         return formberater.kontextblock(conn, chat_id)
     except Exception:

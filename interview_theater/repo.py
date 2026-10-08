@@ -5644,3 +5644,43 @@ def entferne_recherche(conn: sqlite3.Connection, chat_id: int, recherche_id: int
     )
     conn.commit()
     return cur.rowcount == 1
+
+
+@_gesperrt
+def merke_stagescript_notiz(conn: sqlite3.Connection, chat_id: int, szene_id: int,
+                            text: str) -> int:
+    """Haengt einen Wunsch der Gruppe zu einer Stage-Script-Szene an (Padua
+    Quickfix 08.10.2026, Punkt 1) -- nur anhaengen (AGENTS.md), mehrere
+    Notizen derselben Szene sammeln sich in der Reihenfolge, in der sie
+    kamen."""
+    cur = conn.execute(
+        "INSERT INTO stagescript_notiz (chat_id, szene_id, text, erstellt_am) "
+        "VALUES (?, ?, ?, ?)",
+        (chat_id, szene_id, text, _jetzt()),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+@_gesperrt
+def stagescript_notizen(conn: sqlite3.Connection, szene_id: int) -> list[str]:
+    """Die noch unverwendeten Notizen dieser Szene, aeltest zuerst."""
+    zeilen = conn.execute(
+        "SELECT text FROM stagescript_notiz "
+        "WHERE szene_id = ? AND verwendet_am IS NULL ORDER BY id",
+        (szene_id,),
+    ).fetchall()
+    return [z["text"] for z in zeilen]
+
+
+@_gesperrt
+def markiere_stagescript_notizen_verwendet(conn: sqlite3.Connection, szene_id: int) -> None:
+    """Markiert alle noch unverwendeten Notizen dieser Szene als verwendet --
+    sie sind in den naechsten ``stagescript.schreibe``-Auftrag eingegangen.
+    Weich (AGENTS.md "Nur anhaengen"): die Zeilen selbst bleiben stehen."""
+    conn.execute(
+        "UPDATE stagescript_notiz SET verwendet_am = ? "
+        "WHERE szene_id = ? AND verwendet_am IS NULL",
+        (_jetzt(), szene_id),
+    )
+    conn.commit()

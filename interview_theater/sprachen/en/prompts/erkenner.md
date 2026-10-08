@@ -39,7 +39,7 @@ everything again. Three exceptions, and only these three:
 something away). They need a clear request to you, not a question; when in
 doubt, no entry.
 
-You recognise exactly thirty-two kinds of changes. Each change is an
+You recognise exactly thirty-three kinds of changes. Each change is an
 object with "art" and "wert":
 
 1.  interview_starten     -- wert: empty (""). The group starts a recording
@@ -313,6 +313,21 @@ object with "art" and "wert":
       to the bot that names something to look up is.
 
         {"art": "recherche_starten", "wert": "When was the bridge built?"}
+
+33. stagescript_notiz      -- wert: the wish in the group's words; if the
+    group names a scene, start with "scene N: " ("scene 2: give them a
+    back-and-forth instead of everyone speaking alone"). Applies in phase 7
+    (Stage Script) when the group raises a wish for a scene that is NOT the
+    one just shown with "Yes, save" / "No, change it again" under it -- a
+    scene not yet written, or one currently being written ("I'm writing the
+    stage script for scene 2" with no approval buttons yet).
+    * **A wish for the scene that WAS just shown stays text_ueberarbeiten
+      (point 27), never both** -- the two never fire for the same message.
+    * A question about a scene's form or content ("what form is scene 3?")
+      is not a wish -- no entry.
+
+        {"art": "stagescript_notiz", "wert": "scene 2: give them a back-and-forth instead of everyone speaking alone"}
+        {"art": "stagescript_notiz", "wert": "no interview quotes in this one"}
 
 **First the field, then the catch-all.** If a detail fits one of the fields
 above -- terms, questions, core theme, format, setting, main conflict, a
@@ -792,6 +807,39 @@ Member 2: and delete Interview 2, that was too private
 <output>
 {"aenderungen": [
   {"art": "entfernen", "wert": "FIGUR Tomas"}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Progress:
+Scene 1 - Coming home
+Scene 2 - The voices
+Scene 3 - Going on
+
+New messages:
+You: I'm writing the stage script for scene 1.
+Member 2: scene 2 needs a real back-and-forth, not everyone speaking alone
+</excerpt>
+<output>
+{"aenderungen": [
+  {"art": "stagescript_notiz", "wert": "scene 2: needs a real back-and-forth, not everyone speaking alone"}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Progress:
+Scene 1 - Coming home (in the Script tab, "Yes, save" / "No, change it again" below)
+
+New messages:
+Member 1: make the ending angrier
+</excerpt>
+<output>
+{"aenderungen": [
+  {"art": "text_ueberarbeiten", "wert": "make the ending angrier"}
 ]}
 </output>
 </example>

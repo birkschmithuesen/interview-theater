@@ -196,6 +196,18 @@ ARTEN = (
     # Forschungsfrage entstehen koennte.
     # wert: die Forschungsfrage, woertlich wie die Gruppe sie getippt hat.
     "recherche_starten",
+    # Padua Quickfix (08.10.2026, Punkt 1): ein Wunsch der Gruppe zu einer
+    # Szene des Stage Scripts (Phase 7, Kartenprofil), deren Text noch nicht
+    # steht oder gerade geschrieben wird -- vorher verschwand das im
+    # Formwahl-Rauschen des Gespraechsmodells (Befund Tester 08.10.2026,
+    # web_post 2198-2199: "scene 2 needs a dialog" -> "Scene 2 of 3 as
+    # Dialogue. The card stays as it is.", nichts gespeichert). Wie
+    # ``text_ueberarbeiten``, aber fuer eine Szene, die NICHT gerade mit
+    # "Yes, save" / "No, change it again" gezeigt wird -- die beiden Arten
+    # schliessen sich gegenseitig aus (siehe Punkt 33 im englischen Prompt).
+    # wert: "scene N: wunsch" oder nur "wunsch" (dieselbe Form wie
+    # text_ueberarbeiten, dieselbe Zerlegung in ``_notiz_und_nummer``).
+    "stagescript_notiz",
 )
 
 #: Die einzigen Arten, die aus dem Transkript einer Sprachnachricht im
@@ -239,6 +251,8 @@ PHASEN_SPEZIFISCHE_ARTEN: dict[str, tuple[int, ...]] = {
     "formen_setzen": (7,),
     "sprechweise_setzen": (7,),
     "schaerfung_entscheidung": (5,),
+    # Padua Quickfix (08.10.2026, Punkt 1): nur in Phase 7 (Stage Script).
+    "stagescript_notiz": (7,),
 }
 
 #: Dieselbe Wache als Untergrenze: eine ART, die erst AB einer Phase wirkt
@@ -277,6 +291,13 @@ PROFILSCHALTER_DER_ARTEN: dict[str, str] = {
     # Karte t_c5117c91: ohne den Schalter steht die art nicht einmal im
     # Schema (``arten_fuer_schema``) -- Dortmund sieht sie nie.
     "recherche_starten": "recherche",
+    # Padua Quickfix (08.10.2026, Punkt 1): derselbe Schalter wie die
+    # anderen Padua-Phasen-TEIL-2-Arten -- kein neuer (AGENTS.md "keine
+    # neuen Schalter"). Die feinere Bedingung (nur mit Szenenkarten, nicht
+    # im alten Prosa-/Formwahl-Pfad) prueft ``erkenner._starte_
+    # stagescript_notiz`` selbst, wie ``_starte_entwurf_uebersicht`` es fuer
+    # seine eigene Zusatzbedingung tut.
+    "stagescript_notiz": "ueberarbeitung",
 }
 
 
@@ -1778,6 +1799,12 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         # Kein Schreibpfad, wie szene_schreiben: diese art stoesst eine
         # Neugenerierung an (entwurf.py), die laufe() auswertet.
         return None
+    if art == "stagescript_notiz":
+        # Kein Schreibpfad, wie szene_schreiben: die Notiz geht in eine
+        # eigene Tabelle (repo.merke_stagescript_notiz), nicht in den
+        # Arbeitsstand -- ``laufe()`` wertet sie ueber ``_starte_
+        # stagescript_notiz`` aus (Padua Quickfix 08.10.2026, Punkt 1).
+        return None
     if art == "formen_setzen":
         # Padua Phasen TEIL 2: schreibt ``szene.form`` -- die WAHL der Gruppe,
         # nicht ``form_vorschlag``. docs/agents/was-bewusst-fehlt.md, "Eine Menuezeile ist keine
@@ -2932,6 +2959,70 @@ def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
     entwurf.starte_uebersicht(conn, tg, klm, e, chat_id, treffer.get("wert") or None)
 
 
+def _starte_stagescript_notiz(klm, tg, conn, e, chat_id: int,
+                              aenderungen: list[dict]) -> None:
+    """Padua Quickfix (08.10.2026, Punkt 1): legt einen Wunsch zu einer
+    Stage-Script-Szene ab, die noch nicht geschrieben ist oder gerade
+    laeuft (art ``stagescript_notiz``), und bestaetigt kurz.
+
+    Nicht in ``wende_an``, aus demselben Grund wie ``_starte_szene``: hier
+    faellt eine Nachricht in die Gruppe an -- und manchmal, siehe unten, ein
+    sofortiger Schreib-Lauf. Die Notiz selbst ist nur ein Datenbankschreiben
+    (``repo.merke_stagescript_notiz``), **kein** Modellaufruf hier.
+
+    **Nur mit Szenenkarten** (``workshop.szenenkarten_aktiv()``): ohne sie
+    gibt es kein Stage Script, sondern den alten Prosa-/Formwahl-Pfad --
+    dort gilt weiter ``text_ueberarbeiten``/``formen_setzen``.
+
+    **Zielszene**: die genannte Nummer, sonst die aktuelle bzw. naechste
+    noch nicht abgenommene (``stagescript.aktuelle_nummer``) -- dieselbe
+    Regel wie bei jedem anderen Szenenbezug in diesem Modul.
+
+    **Traegt die Szene schon einen Volltext, ist aber noch nicht
+    abgenommen, und laeuft gerade kein Lauf:** wie "No, change" -- sofort
+    neu schreiben, mit der Notiz. Laeuft einer, oder ist die Szene noch
+    ohne Volltext, bleibt die Notiz liegen; der naechste
+    ``stagescript.schreibe``-Aufruf dieser Szene holt sie sich selbst
+    (``stagescript._notiz_mit_gespeicherten``)."""
+    from interview_theater import stagescript, workshop
+
+    if not workshop.szenenkarten_aktiv():
+        return
+    treffer = next(
+        (a for a in aenderungen if a.get("art") == "stagescript_notiz"), None
+    )
+    if treffer is None:
+        return
+    notiz, nummer = _notiz_und_nummer(treffer.get("wert"))
+    if not notiz:
+        return
+    if nummer is None:
+        nummer = stagescript.aktuelle_nummer(conn, chat_id)
+    if nummer is None:
+        return
+    szene = stagescript._szene_mit_nummer(conn, chat_id, nummer)
+    if szene is None:
+        return
+    try:
+        repo.merke_stagescript_notiz(conn, chat_id, szene["id"], notiz)
+    except Exception:
+        log.exception("Stage-Script-Notiz nicht gespeichert, chat_id=%s, nummer=%s",
+                      chat_id, nummer)
+        return
+    try:
+        stagescript._sende(conn, tg, e, chat_id, stagescript.T_IT._TEXT_NOTIZ_NOTIERT.format(
+            nummer=nummer, notiz=notiz))
+    except Exception:
+        log.exception("Notiz-Bestaetigung nicht zustellbar, chat_id=%s", chat_id)
+    if ((szene["volltext"] or "").strip() and not szene["fertig_am"]
+            and not stagescript.laeuft(chat_id)):
+        try:
+            stagescript.starte(conn, tg, klm, e, chat_id, nummer, notiz)
+        except Exception:
+            log.exception("Stage-Script-Neuschreiben nach Notiz gescheitert, "
+                          "chat_id=%s, nummer=%s", chat_id, nummer)
+
+
 #: Arten, die neben einer ``text_ueberarbeiten`` im SELBEN Lauf wegfallen
 #: (Padua Phasen TEIL 2, Flow-Audit B2): "mach die Mutter wuetender" ist
 #: Rueckmeldung zum gezeigten Text -- keine Festlegung ("Noted:" ohne
@@ -3554,6 +3645,11 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Geschichts-Uebersicht (Stufe A von Phase 5) -- derselbe Grund wie
         # bei _starte_szene/_starte_kuerzung, kein Schreibpfad in wende_an.
         _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id, freigegeben)
+        # Padua Quickfix (08.10.2026, Punkt 1): wie bei _starte_szene/
+        # _starte_kuerzung aus den erkannten (phasengefilterten) Aenderungen,
+        # weil stagescript_notiz nichts in den Arbeitsstand schreibt und in
+        # ``wirkliche`` deshalb nie auftaucht.
+        _starte_stagescript_notiz(klm, tg, conn, e, chat_id, freigegeben)
         text = baue_meldung(wirkliche, conn, chat_id)
         if text is not None and begriffe_im_zug and _haenge_an_zugquittung(
                 conn, chat_id, zug_lauf, vorher, nachher, wirkliche):

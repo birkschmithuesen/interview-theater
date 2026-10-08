@@ -71,6 +71,7 @@ _TEXT_NICHT_DRAN = "Questa scena non è quella attuale -- non ho salvato nulla."
 _JOURNAL_GESPEICHERT = "Stage script scena {nummer} salvato: {titel}"
 _ANTWORT_GESPEICHERT = "Scena {nummer} salvata"
 _TEXT_KEIN_ZIEL = "Tutte le scene sono salvate. Quale volete cambiare?"
+_TEXT_NOTIZ_NOTIERT = "Annotato per la scena {nummer}: {notiz}"
 
 ["web_skript"]
 _TEXT_ZITAT_KOPF = "Citazione dall'intervista · {nummer}"

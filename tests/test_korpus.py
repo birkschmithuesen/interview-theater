@@ -237,7 +237,7 @@ OHNE_KORPUSFAELLE = {"geschichte_setzen"}
 #: (``test_en_traegt_die_padua_arten``).
 NUR_ENGLISCH = {"text_ueberarbeiten", "fassung_abnehmen", "formen_setzen",
                 "sprechweise_setzen", "schaerfung_entscheidung",
-                "recherche_starten"}
+                "recherche_starten", "stagescript_notiz"}
 
 
 def test_erkenner_jede_art_mindestens_zweimal(erkenner_faelle):

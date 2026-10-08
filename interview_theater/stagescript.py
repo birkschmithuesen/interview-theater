@@ -147,6 +147,17 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
     return "\n\n".join(teile)
 
 
+def _notiz_mit_gespeicherten(conn, szene_id: int, notiz: str | None) -> str | None:
+    """Fuegt die noch unverwendeten Notizen dieser Szene
+    (``repo.stagescript_notizen``, Padua Quickfix 08.10.2026) vor eine
+    uebergebene Notiz -- eine Dublette (dieselbe Notiz schon gespeichert UND
+    als Parameter da) wird nicht zweimal aufgefuehrt."""
+    aktuelle = (notiz or "").strip()
+    gespeicherte = [g for g in repo.stagescript_notizen(conn, szene_id) if g != aktuelle]
+    teile = gespeicherte + ([aktuelle] if aktuelle else [])
+    return "\n".join(teile) if teile else None
+
+
 def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -> bool:
     """Der Modellaufruf (plus ggf. der Spiegelpass). ``True`` bei Erfolg."""
     from interview_theater import skript_uebersetzung
@@ -154,6 +165,7 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
     szene = _szene_mit_nummer(conn, chat_id, nummer)
     if szene is None:
         return False
+    notiz = _notiz_mit_gespeicherten(conn, szene["id"], notiz)
     stand = repo.hole_arbeitsstand(conn, chat_id)
     mit_kopf = (braucht_kopf(conn, chat_id)
                 and not _gesetzt(stand["stage_kopf"] if stand is not None else None))
@@ -192,6 +204,7 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
         if gespiegelt is not None:
             text, text_it = gespiegelt
     repo.setze_stagescript(conn, szene["id"], text, text_it)
+    repo.markiere_stagescript_notizen_verwendet(conn, szene["id"])
     return True
 
 
@@ -387,6 +400,10 @@ _TEXT_FERTIG = (
 )
 _TEXT_NICHT_DRAN = "Diese Szene ist gerade nicht dran -- gespeichert habe ich nichts."
 _TEXT_KEIN_ZIEL = "Alle Szenen sind gespeichert. Welche wollt ihr aendern?"
+#: Bestaetigung einer Notiz zu einer noch nicht geschriebenen oder gerade
+#: laufenden Szene (Padua Quickfix 08.10.2026, Punkt 1) -- ``erkenner.
+#: _starte_stagescript_notiz``.
+_TEXT_NOTIZ_NOTIERT = "Notiert fuer Szene {nummer}: {notiz}"
 _TEXT_ALLES_FERTIG = "Das Stage Script ist fertig. Lest es im Script-Tab."
 _ANTWORT_GESPEICHERT = "Szene {nummer} gespeichert"
 _JOURNAL_GESPEICHERT = "Stage Script Szene {nummer} gespeichert: {titel}"

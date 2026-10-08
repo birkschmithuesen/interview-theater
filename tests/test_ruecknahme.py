@@ -133,6 +133,8 @@ def test_verweise_kommen_aus_dem_schema():
         # wird mit der Szene weich entfernt mitgefuehrt, keine Waisen-Gefahr
         # fuer die Ruecknahme (nur lesend im P7-Prompt).
         ("karte_verlauf", "szene_id", "szene"),
+        # Padua Quickfix (08.10.2026, Punkt 1): Notizen zu Stage-Script-Szenen.
+        ("stagescript_notiz", "szene_id", "szene"),
     }
 
 

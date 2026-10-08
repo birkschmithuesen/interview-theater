@@ -207,6 +207,10 @@ def test_arten_enthaelt_alle_werte():
         # Karte t_c5117c91 (InScribe, 06.10.2026): profilgebunden ("recherche"),
         # der freie Weg neben dem Research-Knopf.
         "recherche_starten",
+        # Padua Quickfix (08.10.2026, Punkt 1): ein Wunsch zu einer
+        # Stage-Script-Szene (Phase 7, Kartenprofil), die nicht gerade mit
+        # "Yes, save" / "No, change it again" gezeigt wird.
+        "stagescript_notiz",
     }
     assert set(erkenner.ARTEN) == erwartet
 

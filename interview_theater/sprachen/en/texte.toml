@@ -1464,6 +1464,7 @@ _TEXT_KEIN_ZIEL = "All scenes are saved. Which one do you want to change?"
 _TEXT_ALLES_FERTIG = "The stage script is complete. Read it in the Script tab."
 _ANTWORT_GESPEICHERT = "Scene {nummer} saved"
 _JOURNAL_GESPEICHERT = "Stage script scene {nummer} saved: {titel}"
+_TEXT_NOTIZ_NOTIERT = "Noted for scene {nummer}: {notiz}"
 
 ["stagescript".FORMAT_JE_TYP]
 description = "The course of action in 5 to 8 numbered lines, ONE or two short sentences each: who is where, music/sound, what is said or shown, the transition to the next scene. No spoken text except at most 2-3 key sentences."

@@ -1459,6 +1459,21 @@ CREATE TABLE IF NOT EXISTS karte_verlauf (
   erstellt_am  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_karte_verlauf_szene ON karte_verlauf(szene_id, fassung_nr);
+
+-- Padua Quickfix (Birk 08.10.2026, Punkt 1): ein Wunsch der Gruppe zu einer
+-- Szene des Stage Scripts (Phase 7), deren Text noch nicht steht oder
+-- gerade geschrieben wird -- gesammelt bis zum naechsten
+-- ``stagescript.schreibe``-Lauf dieser Szene (``verwendet_am``), nie
+-- geaendert (AGENTS.md "Nur anhaengen").
+CREATE TABLE IF NOT EXISTS stagescript_notiz (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  szene_id     INTEGER NOT NULL,
+  text         TEXT NOT NULL,
+  erstellt_am  TEXT NOT NULL,
+  verwendet_am TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_stagescript_notiz_szene ON stagescript_notiz(szene_id, id);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1504,6 +1519,8 @@ TABELLEN_MIT_CHAT_ID = (
     "phasen_summary",
     # Birk 08.10.2026 ~10:35: der Karten-Verlauf (jede Fassung einer Szenenkarte).
     "karte_verlauf",
+    # Padua Quickfix (08.10.2026, Punkt 1): Notizen zu Stage-Script-Szenen.
+    "stagescript_notiz",
 )
 
 

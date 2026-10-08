@@ -355,3 +355,68 @@ def test_trenne_sprachen_zweisprachige_ausgabe():
     assert e.startswith("**SCENE 1") and "SCENA" not in e
     assert i.startswith("**SCENA 1") and "SCENE 1" not in i
     assert st.trenne_sprachen(en) == (en, None)
+
+
+# --- Chat-Fassung wird Script-Fassung (Birk 08.10.2026 ~13:20, G1 live) ---
+
+_CHAT_S1 = ("Scena 1 di 3: resta l'ultima versione, con una sola differenza.\n\n"
+            "1. Il pubblico prende posto attorno al grande tavolo circolare.\n\n"
+            "2. Emma e Giada accolgono le persone.\n"
+            "EMMA: Benvenuti e benvenute.\n"
+            "GIADA: Prepariamo la nostra casa.\n\n"
+            "3. Samuele e Giona suonano la tonica.")
+
+
+def _p7_mit_s1(conn, monkeypatch):
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "1. Old.\n2. Old too.", None)
+    monkeypatch.setattr(workshop, "p7_chat_als_script_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(workshop, "p7_meta_nachziehen_aktiv", lambda *a, **k: False)
+    # Spiegelpass im Hintergrund still (sonst ueberschreibt der Fake-Spiegel
+    # nebenlaeufig mit "EMMA: Home." -- im Betrieb gewollt, im Test ein Rennen).
+    from interview_theater import skript_uebersetzung
+    monkeypatch.setattr(skript_uebersetzung, "spiegle_text", lambda *a, **k: None)
+    return ids
+
+
+def test_chatfassung_wird_scriptfassung_mit_knoepfen(conn, einst, padua, monkeypatch):
+    ids = _p7_mit_s1(conn, monkeypatch)
+    tg = TG()
+    assert stagescript.uebernimm_chatfassung(conn, tg, LLM(), einst, 1, _CHAT_S1) is True
+    zeile = repo.hole_szene(conn, ids[0])
+    assert "Prepariamo la nostra casa." in zeile["volltext"]
+    assert zeile["fertig_am"] is None
+    assert "Scena 1 di 3" not in zeile["volltext"]
+    assert any("1" in t for t in tg.texte)  # zeige(): Hinweis + Yes/No
+
+
+def test_kurze_antwort_ist_keine_fassung(conn, einst, padua, monkeypatch):
+    ids = _p7_mit_s1(conn, monkeypatch)
+    for t in ("Scena 1 di 3: il testo non cambia.",
+              "Scene 1 of 3: the text stays as it is.\n\nFor Scene 3 this changes one thing.",
+              "Bene, la scena 1 di 3 resta così."):
+        assert stagescript.uebernimm_chatfassung(conn, TG(), LLM(), einst, 1, t) is False
+    assert repo.hole_szene(conn, ids[0])["volltext"] == "1. Old.\n2. Old too."
+
+
+def test_schalter_aus_uebernimmt_nichts(conn, einst, padua, monkeypatch):
+    ids = _p7_mit_s1(conn, monkeypatch)
+    monkeypatch.setattr(workshop, "p7_chat_als_script_aktiv", lambda *a, **k: False)
+    assert stagescript.uebernimm_chatfassung(conn, TG(), LLM(), einst, 1, _CHAT_S1) is False
+    assert repo.hole_szene(conn, ids[0])["volltext"] == "1. Old.\n2. Old too."
+
+
+def test_ausserhalb_phase_7_nichts(conn, einst, padua, monkeypatch):
+    ids = _p7_mit_s1(conn, monkeypatch)
+    phasen.setze(conn, 1, 6, "befehl")
+    assert stagescript.uebernimm_chatfassung(conn, TG(), LLM(), einst, 1, _CHAT_S1) is False
+
+
+def test_chatfassung_ohne_vorrede_und_schlussfrage(conn, einst, padua, monkeypatch):
+    _p7_mit_s1(conn, monkeypatch)
+    text = ("Scena 1 di 3: ecco la nuova versione.\nHo cambiato solo il punto 2.\n\n"
+            "1. Il pubblico entra.\n\n2. Emma accoglie.\nEMMA: Benvenuti.\n\n"
+            "Va bene così o cambio ancora qualcosa?")
+    nummer, fassung = stagescript.chatfassung(conn, 1, text)
+    assert nummer == 1 and fassung.startswith("1. Il pubblico entra.")
+    assert "Ho cambiato" not in fassung and "Va bene così" not in fassung

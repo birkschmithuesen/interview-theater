@@ -249,6 +249,16 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
                 kopf, kopf_it = gespiegelt_kopf
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf", kopf)
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf_it", kopf_it)
+    _speichere_text(conn, klm, e, chat_id, szene, text, ueber_claude)
+    return True
+
+
+def _speichere_text(conn, klm, e, chat_id: int, szene, text: str, ueber_claude: bool,
+                    text_it_sofort: str | None = None) -> None:
+    """Speichern + Hintergrund (Nachzug Karte/Werkbank, IT-Spiegelung) -- ein
+    Weg fuer ``schreibe`` und ``uebernimm_chatfassung``."""
+    from interview_theater import skript_uebersetzung
+
     # Birk 08.10.2026 ~12:00 ("max Tempo"): die Szene ist SOFORT da (EN),
     # die italienische Spiegelung laeuft danach im Hintergrund und wird
     # nachgetragen -- vorher wartete die Gruppe ~30 s extra auf die IT-Fassung.
@@ -257,7 +267,7 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
         # Modell lieferte beide Fassungen: sofort sauber getrennt, kein Spiegelpass.
         repo.setze_stagescript(conn, szene["id"], getrennt_en, getrennt_it)
     else:
-        repo.setze_stagescript(conn, szene["id"], text, None)
+        repo.setze_stagescript(conn, szene["id"], text, text_it_sofort)
     repo.markiere_stagescript_notizen_verwendet(conn, szene["id"])
     if workshop.szenenkarten_aktiv() and workshop.p7_meta_nachziehen_aktiv():
         from interview_theater import karten_nachzug
@@ -291,6 +301,81 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
                 log.exception("IT-Spiegelung im Hintergrund gescheitert, chat_id=%s", chat_id)
 
         threading.Thread(target=_spiegel, daemon=True).start()
+
+
+#: Kopfzeile einer Szenenfassung des Gespraechsbots ("Scena 1 di 3: ...",
+#: "Scene 2 of 5 ...", "Szene 1 von 3 ...").
+_CHATFASSUNG_KOPF = re.compile(r"^\W*(?:Scena|Scene|Szene)\s+(\d+)\s+(?:di|of|von)\s+\d+\b", re.I)
+_CHATFASSUNG_STRUKTUR = re.compile(r"^\s*(?:\d+\.\s|[A-ZÀ-Ý][A-ZÀ-Ý0-9 ]{1,30}:\s)", re.M)
+
+
+def chatfassung(conn, chat_id: int, text: str | None) -> tuple[int, str] | None:
+    """Ist ``text`` (eine Antwort des Gespraechsbots in Phase 7) eine
+    vollstaendige Fassung einer Szene? -> ``(nummer, fassung)``, sonst None.
+
+    Birk 08.10.2026 ~13:20 (G1 live): der Bot schrieb sechs Fassungen von
+    Szene 1 in den Chat, das Script blieb alt -- gespeichert wurde die falsche.
+    Erkennung deterministisch: Kopfzeile "Scena N di M", danach ein Rumpf mit
+    nummerierten Punkten oder Sprechzeilen, mindestens halb so lang wie das
+    aktuelle Script der Szene. Kurze Antworten ("il testo non cambia") nie."""
+    if not text:
+        return None
+    erste, _, rumpf = text.strip().partition("\n")
+    m = _CHATFASSUNG_KOPF.match(erste)
+    if not m:
+        return None
+    rumpf = rumpf.strip()
+    if len(_CHATFASSUNG_STRUKTUR.findall(rumpf)) < 2:
+        return None
+    # Nur die Szene: Erklaerung vor dem ersten Punkt/der ersten Sprechzeile
+    # und eine Schlussfrage an die Gruppe ("Va bene cosi?") fallen weg.
+    rumpf = rumpf[_CHATFASSUNG_STRUKTUR.search(rumpf).start():].strip()
+    absaetze = rumpf.split("\n\n")
+    while len(absaetze) > 1 and absaetze[-1].strip().endswith("?") \
+            and not _CHATFASSUNG_STRUKTUR.match(absaetze[-1]):
+        absaetze.pop()
+    rumpf = "\n\n".join(absaetze).strip()
+    nummer = int(m.group(1))
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    if szene is None:
+        return None
+    alt = (szene["volltext"] or "").strip()
+    if alt and len(rumpf) < 0.5 * len(alt):
+        return None
+    fassung = endfassung(rumpf) or ""
+    if not fassung or fassung in (alt, (szene["volltext_it"] or "").strip()):
+        return None
+    return nummer, fassung
+
+
+def uebernimm_chatfassung(conn, tg, klm, e, chat_id: int, text: str | None) -> bool:
+    """Phase 7: eine vollstaendige Szenenfassung, die der Gespraechsbot in den
+    Chat geschrieben hat, wird automatisch die Script-Fassung (Birk
+    08.10.2026 ~13:20: "Jede Fassung, die der Gespraechsbot in den Chat
+    schreibt, automatisch zur Skriptfassung"). Danach wieder Yes/No.
+    Nur mit ``[karten] p7_chat_als_script``; laeuft ein Stage-Script-Lauf,
+    nichts (der schreibt gleich selbst)."""
+    from interview_theater import phasen
+
+    if not (workshop.szenenkarten_aktiv() and workshop.p7_chat_als_script_aktiv()):
+        return False
+    if phasen.aktuelle(conn, chat_id) != 7 or laeuft(chat_id):
+        return False
+    treffer = chatfassung(conn, chat_id, text)
+    if treffer is None:
+        return False
+    nummer, fassung = treffer
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
+    en, it = trenne_sprachen(fassung) if workshop.skript_zweisprachig_aktiv() else (fassung, None)
+    if it:
+        _speichere_text(conn, klm, e, chat_id, szene, en + "\n\n" + it, ueber_claude)
+    else:
+        # Bis die Spiegelung da ist, zeigen beide Sprachansichten die Chat-Fassung.
+        _speichere_text(conn, klm, e, chat_id, szene, fassung, ueber_claude,
+                        text_it_sofort=fassung if workshop.skript_zweisprachig_aktiv() else None)
+    log.info("Chat-Fassung von Szene %s ins Script uebernommen, chat_id=%s", nummer, chat_id)
+    zeige(conn, tg, e, chat_id, nummer)
     return True
 
 

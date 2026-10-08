@@ -1224,6 +1224,14 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         versand_erfolgreich = True
         strom.schliesse(tg, chat_id, message_id)
         _nach_dem_senden(conn, tg, e, chat_id, message_id, text)
+        # Padua Phase 7 (Birk 08.10.2026 ~13:20): eine vollstaendige
+        # Szenenfassung im Chat wird die Script-Fassung, dann wieder Yes/No.
+        try:
+            from interview_theater import stagescript
+
+            stagescript.uebernimm_chatfassung(conn, tg, klm, e, chat_id, text)
+        except Exception:
+            log.exception("Chat-Fassung nicht ins Script uebernommen, chat_id=%s", chat_id)
         # Bis 05.10.2026 folgte hier in Phase 1 der Einstiegssatz des
         # Begriffsboards (``begriffsboard.sende_einstieg``). Seit Birks
         # Live-Test erklaert die Begruessung die zwei Handys selbst

@@ -348,6 +348,9 @@ aktiv = true
 # nachzieht -- nur bei wirklicher Aenderung, kein Modellaufruf wenn aus.
 # Birk 08.10.2026 ~12:50.
 p7_meta_nachziehen = true
+# Phase 7: vollstaendige Szenenfassung des Gespraechsbots im Chat wird
+# automatisch die Script-Fassung (Birk 08.10.2026 ~13:20, G1 live).
+p7_chat_als_script = true
 
 # Phasen-Summary (Karte t_1bc96848, Birk): beim Phasenwechsel entsteht ein
 # knappes Summary nur des Beschlossenen der verlassenen Phase; es ersetzt in

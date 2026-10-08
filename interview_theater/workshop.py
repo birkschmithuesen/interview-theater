@@ -1096,6 +1096,14 @@ def szenenkarten_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("karten.aktiv", False))
 
 
+def p7_chat_als_script_aktiv(profil: Profil | None = None) -> bool:
+    """Phase 7: eine vollstaendige Szenenfassung des Gespraechsbots im Chat
+    wird automatisch die Script-Fassung (``stagescript.uebernimm_chatfassung``,
+    Birk 08.10.2026 ~13:20). Vorgabe false -- Dortmund byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("karten.p7_chat_als_script", False))
+
+
 def p7_meta_nachziehen_aktiv(profil: Profil | None = None) -> bool:
     """Phase 7 kann Ort/Figuren der Szene aendern ("No, change" -> neue
     Personen/Ort im Skript) -- der Szenenkopf (Script-Tab, PDF, Partitur,

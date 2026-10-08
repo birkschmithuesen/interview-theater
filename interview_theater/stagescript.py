@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 
 from interview_theater import anweisungen, modellwahl, repo, szene_claude, workshop
 
@@ -231,11 +232,30 @@ def laeuft(chat_id: int) -> bool:
     return _sperre_fuer(chat_id).locked()
 
 
+#: Zeitpunkt (``time.monotonic()``) des letzten erfolgreichen Laufstarts je
+#: ``chat_id`` -- Live-Fund 08.10.2026 (Tester-Chat 7000000000099,
+#: web_post 2202/2203): ein zweiter Ausloeser desselben Starts traf noch auf
+#: die frische Sperre und schickte "Sto ancora scrivendo" direkt nach "Sto
+#: scrivendo" in derselben Sekunde -- fuer die Gruppe sahen das wie zwei
+#: Laeufe aus. Innerhalb von ``_ECHO_SCHWELLE_SEKUNDEN`` gilt die Busy-Zeile
+#: als Echo des eigenen Starts und bleibt aus; eine Sperre, die schon LAENGER
+#: steht, meldet weiterhin ganz normal "noch am Schreiben".
+_GESTARTET: dict[int, float] = {}
+_ECHO_SCHWELLE_SEKUNDEN = 3.0
+
+
+def _ist_echo_des_laufstarts(chat_id: int) -> bool:
+    return time.monotonic() - _GESTARTET.get(chat_id, -_ECHO_SCHWELLE_SEKUNDEN) < \
+        _ECHO_SCHWELLE_SEKUNDEN
+
+
 def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None):
     sperre = _sperre_fuer(chat_id)
     if klm is None or not sperre.acquire(blocking=False):
-        _sende(conn, tg, e, chat_id, T_IT._TEXT_LAEUFT)
+        if not _ist_echo_des_laufstarts(chat_id):
+            _sende(conn, tg, e, chat_id, T_IT._TEXT_LAEUFT)
         return None
+    _GESTARTET[chat_id] = time.monotonic()
     _sende(conn, tg, e, chat_id, (T_IT._TEXT_AENDERE if notiz else T_IT._TEXT_SCHREIBE).format(
         nummer=nummer))
 
@@ -275,7 +295,8 @@ def weiter(conn, tg, klm, e, chat_id: int, *, aus_eintritt: bool = False):
 
 def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if laeuft(chat_id):
-        _sende(conn, tg, e, chat_id, T_IT._TEXT_LAEUFT)
+        if not _ist_echo_des_laufstarts(chat_id):
+            _sende(conn, tg, e, chat_id, T_IT._TEXT_LAEUFT)
         return T_IT._TEXT_LAEUFT
     szene = _szene_mit_nummer(conn, chat_id, nummer)
     if (nummer != aktuelle_nummer(conn, chat_id) or szene is None

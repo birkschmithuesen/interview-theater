@@ -194,3 +194,43 @@ def test_baue_nutzertext_zeigt_uebersprungene_fragen_als_verfeinerung(conn, eins
     szenenkarte.ueberspringe_fragen(conn, TG(), einst, 1, 1)
     text = stagescript.baue_nutzertext(conn, 1, repo.hole_szene(conn, ids[0]))
     assert "questions skipped as not fitting" in text
+
+
+import time
+
+
+def test_zweiter_ausloeser_desselben_laufstarts_bleibt_still(conn, einst, padua):
+    """Live-Fund 08.10.2026 (Tester-Chat 7000000000099, web_post 2202/2203):
+    ein zweiter Ausloeser, der denselben eben erst gestarteten Lauf trifft,
+    schickte "Sto ancora scrivendo" direkt nach "Sto scrivendo" in derselben
+    Sekunde -- fuer die Gruppe sieht das nach zwei Laeufen aus. Innerhalb der
+    Echo-Schwelle bleibt die zweite Meldung aus; die Sperre selbst bleibt
+    unberuehrt (``starte`` liefert weiterhin ``None``).
+    Mutant: Schwelle auf 0.0 -> rot."""
+    ids = _karten(conn)
+    tg, klm = TG(), LLM()
+    sperre = stagescript._sperre_fuer(1)
+    assert sperre.acquire(blocking=False)
+    try:
+        stagescript._GESTARTET[1] = time.monotonic()
+        assert stagescript.starte(conn, tg, klm, einst, 1, 1) is None
+        assert stagescript.T_IT._TEXT_LAEUFT not in tg.texte
+    finally:
+        sperre.release()
+        stagescript._GESTARTET.pop(1, None)
+
+
+def test_alte_sperre_meldet_weiterhin_laeuft(conn, einst, padua):
+    """Gegenstueck zum Test oben: eine Sperre, die NICHT eben erst durch
+    einen eigenen Lauf-Start gesetzt wurde (``_GESTARTET`` kennt ``chat_id``
+    nicht), meldet weiterhin "Sto ancora scrivendo" -- die Echo-Unterdrueckung
+    darf echte Wartemeldungen nicht verschlucken."""
+    ids = _karten(conn)
+    tg, klm = TG(), LLM()
+    sperre = stagescript._sperre_fuer(1)
+    assert sperre.acquire(blocking=False)
+    try:
+        assert stagescript.starte(conn, tg, klm, einst, 1, 1) is None
+        assert stagescript.T_IT._TEXT_LAEUFT in tg.texte
+    finally:
+        sperre.release()

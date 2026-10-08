@@ -219,8 +219,43 @@ def trenne_sprachen(text: str | None) -> tuple[str | None, str | None]:
     return en, it
 
 
-def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) -> bool:
-    """Der Modellaufruf (plus ggf. der Spiegelpass). ``True`` bei Erfolg."""
+#: Ab dieser difflib-Aehnlichkeit gilt die Modellausgabe als (fast)
+#: wortgleich mit einer woertlich bestaetigten Chat-Fassung -- dann wird
+#: NICHT die Modellausgabe gespeichert, sondern die Chat-Fassung selbst,
+#: woertlich (Live-Fall G1 Szene 2, 08.10.2026: die Gruppe lieferte den
+#: Text dreimal woertlich, "esattamente, senza cambiare niente / non
+#: dividere tra Giada e Emma", bestaetigte im Chat -- gespeichert wurde
+#: trotzdem eine vom Modell neu geschriebene Fassung mit Rollenaufteilung).
+#: ``autojunk=False``: der Vorgabewert behandelt bei laengeren Texten
+#: haeufige Zeichen (z. B. Leerzeichen) als "Muell" und uebersieht dadurch
+#: Uebereinstimmungen -- gemessen an genau dieser Art Fliesstext.
+AEHNLICHKEIT_WOERTLICH_SCHWELLE = 0.95
+
+
+def _woertlich_statt_modell(chat_fassung: str | None, modell_text: str) -> str | None:
+    """``None``, wenn die Modellausgabe stehen bleiben soll -- sonst die
+    Chat-Fassung selbst als Ersatz. Rein deterministisch (``difflib``), kein
+    Modellaufruf: nur wenn ``chat_fassung`` und ``modell_text`` schon (fast)
+    wortgleich sind, gilt die Chat-Fassung als die woertlich bestaetigte und
+    ersetzt die Modellausgabe; eine echte Ueberarbeitung (deutlich andere
+    Modellausgabe) bleibt unberuehrt."""
+    kandidat = (chat_fassung or "").strip()
+    if not kandidat:
+        return None
+    aehnlichkeit = difflib.SequenceMatcher(None, kandidat, modell_text, autojunk=False).ratio()
+    if aehnlichkeit >= AEHNLICHKEIT_WOERTLICH_SCHWELLE:
+        return kandidat
+    return None
+
+
+def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
+            chat_fassung: str | None = None) -> bool:
+    """Der Modellaufruf (plus ggf. der Spiegelpass). ``True`` bei Erfolg.
+
+    ``chat_fassung``: eine bereits im Chat woertlich bestaetigte Fassung
+    dieser Szene, falls vorhanden -- weicht die Modellausgabe davon nur noch
+    kosmetisch ab (``_woertlich_statt_modell``), wird die Chat-Fassung
+    gespeichert, nicht die Modellausgabe."""
     from interview_theater import skript_uebersetzung
 
     szene = _szene_mit_nummer(conn, chat_id, nummer)
@@ -242,6 +277,16 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
             text = endfassung(text) or ""
         if not text:
             raise ValueError("Stage Script ohne Text")
+        woertlich = _woertlich_statt_modell(chat_fassung, text)
+        if woertlich is not None:
+            text = woertlich
+            try:
+                repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                                   "stagescript_woertlich_umgeschrieben",
+                                   f"Szene {nummer}: Modellausgabe wich von der woertlich "
+                                   "bestaetigten Chat-Fassung ab, Chat-Fassung uebernommen")
+            except Exception:
+                log.exception("Vorfall stagescript_woertlich_umgeschrieben nicht geschrieben")
         kopf = (ergebnis.get("kopf") or "").strip()
     except Exception:
         log.exception("Stage Script fehlgeschlagen, chat_id=%s, nummer=%s", chat_id, nummer)

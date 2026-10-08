@@ -66,6 +66,18 @@ def test_anteil_englisch_rein_italienisch_ist_null():
     assert sprachmessung.anteil_englisch(ECHTE_ITALIENISCHE_POSTS) == 0.0
 
 
+def test_ist_englisch_grenzfall_genau_mindesttreffer():
+    """Genau ``_MINDESTTREFFER`` (3) englische Treffer, kein italienisches
+    Gegengewicht -- der Grenzfall, den die Mutationsprobe (``>=`` zu ``>``)
+    unbemerkt kippen konnte: eine kurze Systemzeile mit drei
+    Stoppwoertern aus ``_ENGLISCHE_WOERTER`` und keinem italienischen Wort."""
+    text = "Tap and send."
+    woerter = [w.lower() for w in sprachmessung._WORT_MUSTER.findall(text)]
+    assert sum(1 for w in woerter if w in sprachmessung._ENGLISCHE_WOERTER) == 3
+    assert sum(1 for w in woerter if w in sprachmessung._ITALIENISCHE_WOERTER) == 0
+    assert sprachmessung.ist_englisch(text)
+
+
 # --- der aktuelle Stand: dieselben drei Systemzeilen heute -----------------
 
 

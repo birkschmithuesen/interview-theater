@@ -68,7 +68,8 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
         if zeile["volltext_it"]:
             break
         _t.sleep(0.1)
-    assert zeile["volltext"] == "**Theme**\nEMMA: Casa."
+    # EN aus dem Spiegelpass (trennt eine zweisprachige Rohfassung sauber)
+    assert zeile["volltext"] == "**Theme**\nEMMA: Home."
     assert zeile["volltext_it"] == "**Tema**\nEMMA: Casa."
     stand = repo.hole_arbeitsstand(conn, 1)
     assert stand["stage_kopf"] == "Setup: a bar table."
@@ -82,7 +83,7 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
     # "No, change" -> neu mit Notiz und bisherigem Text, ohne zweiten Kopf.
     ueberarbeitung.ueberarbeite(conn, tg, klm, einst, 1, "Anna speaks Italian", nummer=1).join(5)
     nutzer = [a for a in klm.aufrufe if a["art"] == stagescript.ART][-1]["nutzer"]
-    assert "Anna speaks Italian" in nutzer and "EMMA: Casa." in nutzer
+    assert "Anna speaks Italian" in nutzer and "EMMA: Home." in nutzer
     assert "\"kopf\"" not in nutzer
 
     # "Yes, save" -> fertig_am, naechste Szene.

@@ -241,11 +241,13 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None) 
                 if gespiegelt is None:
                     return
                 en, it = gespiegelt
-                it = endfassung(it)
                 aktuell = repo.hole_szene(conn, szene_id)
-                # Nur nachtragen, wenn der Text inzwischen nicht neu geschrieben wurde.
+                # Nur nachtragen, wenn der Text inzwischen nicht neu geschrieben
+                # wurde. BEIDE Felder setzen: die Rohfassung des Modells kann
+                # zweisprachig sein (IT-Block + EN-Block, Tester 08.10. 12:25) --
+                # erst der Spiegelpass trennt sauber in EN und IT.
                 if aktuell is not None and (aktuell["volltext"] or "").strip() == text.strip():
-                    repo.setze_stagescript_it(conn, szene_id, it)
+                    repo.setze_stagescript_beide(conn, szene_id, endfassung(en), endfassung(it))
             except Exception:
                 log.exception("IT-Spiegelung im Hintergrund gescheitert, chat_id=%s", chat_id)
 
@@ -277,7 +279,8 @@ def spiegle_fehlende(conn, klm, e, chat_id: int) -> None:
                     continue
                 aktuell = repo.hole_szene(conn, s["id"])
                 if aktuell is not None and (aktuell["volltext"] or "").strip() == text.strip():
-                    repo.setze_stagescript_it(conn, s["id"], endfassung(gespiegelt[1]))
+                    repo.setze_stagescript_beide(conn, s["id"], endfassung(gespiegelt[0]),
+                                                 endfassung(gespiegelt[1]))
             except Exception:
                 log.exception("IT-Nachspiegelung gescheitert, chat_id=%s", chat_id)
 

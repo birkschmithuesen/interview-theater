@@ -3174,6 +3174,15 @@ def setze_stagescript(conn: sqlite3.Connection, szene_id: int, text: str,
     conn.commit()
 
 
+def setze_stagescript_beide(conn: sqlite3.Connection, szene_id: int, text_en: str | None,
+                            text_it: str | None) -> None:
+    """EN und IT aus dem Spiegelpass nachtragen (Padua 08.10.2026) -- Abnahme
+    (``fertig_am``) und ``geaendert_am`` bleiben unberuehrt."""
+    conn.execute("UPDATE szene SET volltext = ?, volltext_it = ? WHERE id = ?",
+                 (text_en, text_it, szene_id))
+    conn.commit()
+
+
 def setze_stagescript_it(conn: sqlite3.Connection, szene_id: int, text_it: str | None) -> None:
     """Nur die IT-Fassung nachtragen (Hintergrund-Spiegelung, Padua 08.10.2026)
     -- Abnahme und ``geaendert_am`` bleiben unberuehrt."""

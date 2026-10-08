@@ -5380,19 +5380,21 @@ def textbuch_koerper(
             # im Browser (localStorage). Reines CSS/JS, kein Serverzustand.
             from interview_theater import workshop as _ws
             vorgabe = "it" if daten.get("chat_id") in _ws.italienisch_ab_phase6_chats() else "en"
-            wege += (
-                # Reines CSS (:has), kein <script> -- die vereinte Seite
-                # sammelt Skripte und vertraegt kein Inline-Script im Koerper.
-                '<p class="sprachwahl">'
-                f'<label><input type="radio" name="skript-sprache" id="sp-en"{" checked" if vorgabe == "en" else ""}> English</label>'
-                f'<label><input type="radio" name="skript-sprache" id="sp-it"{" checked" if vorgabe == "it" else ""}> Italiano</label></p>'
+            # Birk 08.10.2026 ~12:25: ohne :has() (aeltere Handy-Browser) --
+            # die Radios stehen als GESCHWISTER vor .stueck, Labels zeigen per for=.
+            wege = (
+                f'<input type="radio" class="sp-radio" name="skript-sprache" id="sp-en"{" checked" if vorgabe == "en" else ""}>'
+                f'<input type="radio" class="sp-radio" name="skript-sprache" id="sp-it"{" checked" if vorgabe == "it" else ""}>'
+                + wege
+                + '<p class="sprachwahl"><label for="sp-en" class="sp-en">English</label>'
+                '<label for="sp-it" class="sp-it">Italiano</label></p>'
                 "<style>"
+                ".sp-radio{position:absolute;opacity:0;pointer-events:none;width:0;height:0}"
                 ".sprachwahl{display:flex;gap:.4rem;margin:.6rem 0}"
                 ".sprachwahl label{padding:.3rem .9rem;border:1px solid #9a5f12;border-radius:1rem;font-weight:600;cursor:pointer}"
-                ".sprachwahl input{position:absolute;opacity:0;pointer-events:none}"
-                ".sprachwahl label:has(input:checked){background:#9a5f12;color:#fff}"
-                "body:has(#sp-en:checked) .stueck [lang=it]:not(.karte-zitat),body:has(#sp-it:checked) .stueck [lang=en]:not(.karte-zitat){display:none}"
-                "body:has(.sprachwahl input:checked) .stueck .sprache-kopf{display:none}"
+                "#sp-en:checked~.sprachwahl .sp-en,#sp-it:checked~.sprachwahl .sp-it{background:#9a5f12;color:#fff}"
+                "#sp-en:checked~.stueck [lang=it]:not(.karte-zitat),#sp-it:checked~.stueck [lang=en]:not(.karte-zitat){display:none!important}"
+                "#sp-en:checked~.stueck .sprache-kopf,#sp-it:checked~.stueck .sprache-kopf{display:none!important}"
                 ".status-badge{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:9px;vertical-align:middle;margin-left:6px;color:#fff}"
                 ".status-badge.konzept{background:#c0392b}.status-badge.fertig{background:#2e7d32}"
                 "</style>"

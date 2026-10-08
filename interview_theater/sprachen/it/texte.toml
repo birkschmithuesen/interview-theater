@@ -31,6 +31,16 @@ _TEXT_KEIN_ZIEL = "Tutte le schede sono salvate. Quale scena volete cambiare?"
 _TEXT_GESAMT_KOPF = "Uno sguardo d'insieme:"
 _TEXT_GESAMT_OHNE = "- Niente da segnalare."
 _TEXT_GESAMT_LAEUFT = "Tutte le schede sono pronte. Do un'occhiata d'insieme."
+# "Clear the questions" / "Skip questions" (Birk 08.10.2026 ~09:20-09:30,
+# kfragen): Statuszeilen italienisch, die Knoepfe selbst bleiben englisch
+# -- deshalb werden sie hier woertlich genannt, wie bei _TEXT_FRAGE oben.
+_TEXT_FRAGEN_OFFEN = "Scheda {nummer} di {gesamt}: ci sono ancora domande aperte. Clear the questions per chiarirle, oppure Skip questions se non calzano."
+_TEXT_FRAGEN_OFFEN_ABGELEHNT = "Prima chiarite le domande aperte -- non ho salvato nulla"
+_TEXT_FRAGE_N_VON_M = "Domanda {n} di {gesamt}: {frage}"
+_ANTWORT_FRAGEN_KLAEREN = "Chiarimento delle domande in corso"
+_ANTWORT_FRAGEN_UEBERSPRUNGEN = "Domande della scheda {nummer} saltate"
+_JOURNAL_FRAGE_BEANTWORTET = "Scheda {nummer}, domanda chiarita: {frage} -> {antwort}"
+_JOURNAL_FRAGE_OFFEN_GELASSEN = "Scheda {nummer}: domanda lasciata volutamente aperta: {frage}"
 
 [stagescript]
 _TEXT_FERTIG = "La scena {nummer} di {gesamt} ({titel}) è nella scheda Script. Leggetela lì -- va bene così? Altrimenti dimmi cosa deve cambiare."

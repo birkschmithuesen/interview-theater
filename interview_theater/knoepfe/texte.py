@@ -273,6 +273,12 @@ ART_SZENENFELDER_SPEICHERN = "szenenfelder_speichern"
 #: Die vier Knoepfe unter einem fertigen Szenentext.
 ART_SZENE_PASST = "szene_passt"
 ART_SZENE_ANDERS = "szene_anders"
+#: "Clear the questions" / "Skip questions" unter einer Szenenkarte mit
+#: offenen Fragen (Birk 08.10.2026 ~09:20) -- ersetzen dort ART_SZENE_PASST/
+#: ART_SZENE_ANDERS (``szenenkarte.zeige``); Wirkungen in ``szenenkarte.py``
+#: (``starte_fragenklaerung``/``ueberspringe_fragen``), kein Modellaufruf.
+ART_KARTE_FRAGEN_KLAEREN = "karte_fragen_klaeren"
+ART_KARTE_FRAGEN_UEBERSPRINGEN = "karte_fragen_ueberspringen"
 ART_SZENE_NEU = "szene_neu"
 ART_SZENE_NAECHSTE = "szene_naechste"
 #: "So lassen" -- die Antwort auf einen Pruef-Vermerk (eine fruehere Szene

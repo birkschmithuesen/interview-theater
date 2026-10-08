@@ -3133,6 +3133,20 @@ def setze_szenenkarte_bestaetigt(conn: sqlite3.Connection, szene_id: int) -> Non
 
 
 @_gesperrt
+def setze_szenenkarte_klaerung(
+    conn: sqlite3.Connection, szene_id: int, klaerung: str | None
+) -> None:
+    """Speichert (oder loescht, ``None``) den Klaerungsstand ``Clear the
+    questions`` (JSON, ``szenenkarte.py``) -- DB-gestuetzt, damit ein
+    Neustart mitten in der Frage-fuer-Frage-Runde sie nicht verliert."""
+    conn.execute(
+        "UPDATE szene SET karte_klaerung = ? WHERE id = ?",
+        (klaerung, szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def setze_stagescript(conn: sqlite3.Connection, szene_id: int, text: str,
                       text_it: str | None) -> None:
     """Das Stage Script einer Szene (Padua Phase 7, ``stagescript.py``) nach

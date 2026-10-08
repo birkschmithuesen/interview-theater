@@ -1012,10 +1012,11 @@ def _befehl_schaerfung_fertig(conn, tg, klm, e, chat_id: int) -> None:
 
 def _befehl_karte(conn, tg, klm, e, chat_id: int, befehl: str, rest: str) -> None:
     """Die Knoepfe der aktiven Szenenkarte im CoThinker (Padua, Birk
-    07.10.2026 ~19:25). **Versteckt** -- kein Modellaufruf hier (Zusage 2):
-    "Yes" nimmt ab und stoesst die naechste Karte im Thread an, "No" fragt
-    im Chat nach dem Feedback. Ausserhalb von Phase 6 oder ohne Schalter
-    wirkungslos (ein veralteter Klick)."""
+    07.10.2026 ~19:25, Fragenklaerung ~09:20 am 08.10.2026). **Versteckt** --
+    kein Modellaufruf hier (Zusage 2): "Yes" nimmt ab und stoesst die
+    naechste Karte im Thread an, "No" fragt im Chat nach dem Feedback,
+    "Clear"/"Skip" klaeren bzw. verwerfen die offenen Fragen. Ausserhalb von
+    Phase 6 oder ohne Schalter wirkungslos (ein veralteter Klick)."""
     from interview_theater import phasen, szenenkarte, workshop
 
     try:
@@ -1031,6 +1032,10 @@ def _befehl_karte(conn, tg, klm, e, chat_id: int, befehl: str, rest: str) -> Non
         # ``weiter`` sie einfach (kein zweiter Modellaufruf).
         if nummer == szenenkarte.aktuelle_nummer(conn, chat_id):
             szenenkarte.weiter(conn, tg, klm, e, chat_id)
+    elif befehl == "/karte_klaeren":
+        szenenkarte.starte_fragenklaerung(conn, tg, e, chat_id, nummer)
+    elif befehl == "/karte_ueberspringen":
+        szenenkarte.ueberspringe_fragen(conn, tg, e, chat_id, nummer)
     else:
         szenenkarte.frage_nach_aenderung(conn, tg, e, chat_id, nummer)
 
@@ -1477,6 +1482,11 @@ _BEKANNTE_BEFEHLE_DE: frozenset[str] = frozenset({
     # "Build card now" unter einer Karte, die nicht fertig wurde (Neustart
     # mitten in der Erzeugung, Usertest 07.10.2026).
     "/karte_bauen",
+    # Versteckt (Birk 08.10.2026 ~09:20): "Clear the questions" / "Skip
+    # questions" auf einer Szenenkarte mit offenen Fragen im CoThinker --
+    # derselbe Weg wie "/karte_ja"/"/karte_aendern". Keine EN-Form.
+    "/karte_klaeren",
+    "/karte_ueberspringen",
 })
 
 
@@ -1602,7 +1612,8 @@ def behandle(
         _befehl_schaerfen(conn, tg, chat_id, rest)
     elif befehl == "/schaerfung_fertig":
         _befehl_schaerfung_fertig(conn, tg, klm, e, chat_id)
-    elif befehl in ("/karte_ja", "/karte_aendern", "/karte_bauen"):
+    elif befehl in ("/karte_ja", "/karte_aendern", "/karte_bauen",
+                    "/karte_klaeren", "/karte_ueberspringen"):
         _befehl_karte(conn, tg, klm, e, chat_id, befehl, rest)
     return True
 

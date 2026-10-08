@@ -1536,7 +1536,20 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     # Spaete Importe, wie ueberall hier: ``szene`` und ``szenenfolge``
     # greifen ihrerseits auf ``knoepfe`` zu -- ein Modulimport oben waere
     # ein Zyklus.
-    from interview_theater import szene, szenenfolge
+    from interview_theater import szene, szenenfolge, szenenkarte, workshop
+
+    # "Clear the questions" auf einer Szenenkarte (Birk 08.10.2026 ~09:20):
+    # die naechste Nachricht ist die Antwort auf GENAU die gestellte Frage,
+    # nicht ein Gespraechsbeitrag -- derselbe Gedanke wie die Regie-Notiz
+    # unten, nur DB-gestuetzt (``szene.karte_klaerung`` ueberlebt einen
+    # Neustart, anders als ``szenenfolge._regienotiz_erwartet``).
+    text = (letzte_nachricht["text"] or "").strip()
+    if workshop.szenenkarten_aktiv() and text:
+        if szenenkarte.beantworte_frage(conn, tg, klm, e, chat_id, text):
+            log.info(
+                "Gespraechszug unterdrueckt, Antwort auf Kartenfrage, chat_id=%s", chat_id)
+            _merke_notiz_verbraucht(chat_id, letzte_nachricht)
+            return True
 
     # Ein laufender Szenenauftrag ist eine vollstaendige Antwort
     # (05.09.2026, Testgruppe 22:05): waehrend der Szenenlauf seine

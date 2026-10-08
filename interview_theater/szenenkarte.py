@@ -528,7 +528,7 @@ def zeige(conn, tg, e, chat_id: int, nummer: int, *, im_chat: bool = False) -> i
         text = karte_text(karte, szene, chat_id) + "\n\n" + _T(chat_id)._TEXT_FRAGEN_OFFEN.format(
             nummer=nummer, gesamt=gesamt)
         # Knopf-Beschriftungen bleiben IMMER auf der gewoehnlichen ``T``, nicht
-        # ``T_IT`` (Morgen-Auftrag 4: "Knoepfe bleiben EN").
+        # ``_T_IT`` (Morgen-Auftrag 4: "Knoepfe bleiben EN").
         leiste = [
             ks._knopf(conn, chat_id, T._TEXT_KLAEREN_KNOPF,
                      ks.ART_KARTE_FRAGEN_KLAEREN, str(nummer)),
@@ -802,7 +802,7 @@ def ueberspringe_fragen(conn, tg, e, chat_id: int, nummer: int) -> str:
 
     Der Journal-Wortlaut bleibt ausdruecklich auf ``T`` (Englisch) --
     Birk gibt ihn woertlich vor ("Card N: questions skipped as not
-    fitting"), anders als die uebrigen Statuszeilen auf ``T_IT``."""
+    fitting"), anders als die uebrigen Statuszeilen ueber ``_T(chat_id)``."""
     if nummer != aktuelle_nummer(conn, chat_id):
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN

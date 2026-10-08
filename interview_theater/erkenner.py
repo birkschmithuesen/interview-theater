@@ -3024,7 +3024,7 @@ def _starte_stagescript_notiz(klm, tg, conn, e, chat_id: int,
                       chat_id, nummer)
         return
     try:
-        stagescript._sende(conn, tg, e, chat_id, stagescript.T_IT._TEXT_NOTIZ_NOTIERT.format(
+        stagescript._sende(conn, tg, e, chat_id, stagescript._T(chat_id)._TEXT_NOTIZ_NOTIERT.format(
             nummer=nummer, notiz=notiz))
     except Exception:
         log.exception("Notiz-Bestaetigung nicht zustellbar, chat_id=%s", chat_id)

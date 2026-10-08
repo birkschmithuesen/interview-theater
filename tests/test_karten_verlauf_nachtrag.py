@@ -35,7 +35,7 @@ def _karte_anzeigen(conn, sid: int, karte: dict, *, status="") -> str:
     """Erzeugt denselben Text, den ``szenenkarte.zeige`` tatsaechlich in den
     Chat schreibt -- ueber die echte Rendering-Funktion, kein Hand-Fixture."""
     szene = repo.hole_szene(conn, sid)
-    text = szenenkarte.karte_text(karte, szene)
+    text = szenenkarte.karte_text(karte, szene, CHAT_ID)
     if status:
         text += "\n\n" + status
     repo.lege_web_post_an(conn, CHAT_ID, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT, text=text)
@@ -55,7 +55,7 @@ def test_parse_karte_text_liest_die_echte_anzeige_zurueck(conn, padua):
               "fragen": ["Quanto dura l'attesa?"]}
     sid = _szene_mit_karte(conn, 1, karte)
     szene = repo.hole_szene(conn, sid)
-    text = szenenkarte.karte_text(karte, szene)
+    text = szenenkarte.karte_text(karte, szene, CHAT_ID)
 
     geparst = skript._parse_karte_text(text)
 
@@ -77,10 +77,9 @@ def test_parse_karte_text_englisch(conn, monkeypatch):
     szene = repo.hole_szene(conn, sid)
 
     # EN-Fassung der Anzeige -- echte Funktion, nur mit erzwungener Sprache
-    # (keine Italienisch-Pflicht fuer Phase 6/7 in diesem Test).
+    # (chat_id 1 steht ohnehin in keiner italienisch_ab_phase6_chats-Liste).
     monkeypatch.setattr(sprache, "code", lambda: "en")
-    monkeypatch.setattr(szenenkarte.workshop, "p67_italienisch_aktiv", lambda: False)
-    text = szenenkarte.karte_text(karte, szene)
+    text = szenenkarte.karte_text(karte, szene, 1)
 
     geparst = skript._parse_karte_text(text)
     assert geparst["ort"] == "the square"

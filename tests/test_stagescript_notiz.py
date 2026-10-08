@@ -137,9 +137,8 @@ def test_notiz_fuer_noch_nicht_geschriebene_szene_wird_nur_gespeichert(
 
     assert repo.stagescript_notizen(conn, ids[1]) == ["needs a dialog"]
     assert repo.hole_szene(conn, ids[1])["volltext"] is None
-    # Statuszeilen ab Phase 7 italienisch (Morgen-Auftrag 4) -- wie
-    # ``stagescript.T_IT`` ueberall sonst.
-    assert any("scena 2" in t and "needs a dialog" in t for t in _texte(tg))
+    # chat_id 1 steht in keiner italienisch_ab_phase6_chats-Liste -- englisch.
+    assert any("scene 2" in t and "needs a dialog" in t for t in _texte(tg))
 
 
 def test_notiz_ohne_szenennummer_trifft_die_naechste_offene(conn, einst, padua, tg):
@@ -153,7 +152,7 @@ def test_notiz_ohne_szenennummer_trifft_die_naechste_offene(conn, einst, padua, 
     erkenner.laufe(klm, tg, conn, einst, 1)
 
     assert repo.stagescript_notizen(conn, ids[1]) == ["no quotes please"]
-    assert any("scena 2" in t for t in _texte(tg))
+    assert any("scene 2" in t for t in _texte(tg))
 
 
 @pytest.fixture
@@ -181,7 +180,7 @@ def test_notiz_fuer_geschriebene_nicht_gespeicherte_szene_schreibt_sofort_neu(
     erkenner.laufe(klm, tg, conn, einst, 1)
 
     assert stagescript_spion == [(1, "give them a back-and-forth")]
-    assert any("scena 1" in t for t in _texte(tg))
+    assert any("scene 1" in t for t in _texte(tg))
     # Das Markieren als verwendet passiert im echten ``schreibe()``-Lauf
     # (hier gestubbt) -- siehe test_schreibe_nimmt_gespeicherte_notiz_mit_
     # und_markiert_sie_verwendet.
@@ -202,7 +201,7 @@ def test_notiz_fuer_laufende_szene_wird_nicht_sofort_neu_geschrieben(
         sperre.release()
 
     assert stagescript_spion == []
-    assert any("scena 1" in t for t in _texte(tg))
+    assert any("scene 1" in t for t in _texte(tg))
     # Die Notiz bleibt unverwendet liegen -- der naechste Lauf holt sie sich.
     assert repo.stagescript_notizen(conn, ids[0]) == ["give them a back-and-forth"]
 

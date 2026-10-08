@@ -3964,6 +3964,10 @@ def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
         if leitfaden:
             teile.append(f"<dl>{leitfaden}</dl>")
     elif nummer == 3:
+        # Birk 08.10.2026 ~15:15: Volltranskripte je Interview-Untergruppe als
+        # PDF, ganz oben unter "Interviews" (erzeugt per Regie-Skript nach
+        # betrieb/transkripte/<chat_id>/; ohne Dateien kein Abschnitt).
+        teile.append(_transkript_downloads_html(daten.get("chat_id"), daten.get("web_token")))
         teile.append("".join(_interview_html(v) for v in daten["interviews"]))
     elif nummer == 4:
         zeilen = [
@@ -5760,6 +5764,62 @@ BEDARF_DATEIEN_VERZ = "betrieb/bedarf"
 _BEDARF_DATEI_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
+TRANSKRIPTE_VERZ = "betrieb/transkripte"
+#: Wie ``_TEXT_BEDARF_TITEL`` bewusst nicht ueber ``sprache.T``: die PDFs
+#: selbst sind italienisch beschriftet, der Kopf zweisprachig.
+_TEXT_TRANSKRIPTE_KOPF = "Full transcripts · trascrizioni complete (PDF)"
+
+
+def _transkript_dateien(chat_id) -> list[str]:
+    from pathlib import Path
+
+    if chat_id is None:
+        return []
+    verz = Path(TRANSKRIPTE_VERZ) / str(int(chat_id))
+    try:
+        return sorted(p.name for p in verz.glob("*.pdf")
+                      if _BEDARF_DATEI_NAME.fullmatch(p.name))
+    except OSError:
+        return []
+
+
+def _transkript_downloads_html(chat_id, token: str | None) -> str:
+    """Download-Liste der Volltranskript-PDFs dieser Gruppe (Birk 08.10.2026
+    ~15:15). Relativ wie die Bedarfs-Downloads (``<token>/transkripte/...``)."""
+    dateien = _transkript_dateien(chat_id)
+    if not dateien or not token:
+        return ""
+    links = "".join(
+        f'<li><a class="wb-bedarf-datei" href="{_t(token)}/transkripte/{_t(d)}">'
+        f'⬇ {_t(d[:-4])}</a></li>' for d in dateien)
+    return (f'<div class="wb-transkripte"><h3>{_t(_TEXT_TRANSKRIPTE_KOPF)}</h3>'
+            f'<ul class="wb-bedarf-liste">{links}</ul></div>')
+
+
+def _sende_transkript_datei(handler, db_pfad: str, token: str, name: str) -> None:
+    """``/g/<token>/transkripte/<datei>`` -- nur ein PDF aus dem Verzeichnis
+    GENAU DIESER Gruppe, Name gegen Positivliste; sonst 404."""
+    from pathlib import Path
+
+    if not _BEDARF_DATEI_NAME.fullmatch(name) or name in (".", "..") or not name.endswith(".pdf"):
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    conn = web_daten.oeffne_lesend(db_pfad)
+    try:
+        chat_id = web_daten.chat_id_nach_token(conn, token)
+    finally:
+        conn.close()
+    if chat_id is None or name not in _transkript_dateien(chat_id):
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    try:
+        inhalt = (Path(TRANSKRIPTE_VERZ) / str(int(chat_id)) / name).read_bytes()
+    except OSError:
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    handler._antworte_binaer(200, inhalt, "application/pdf", dateiname=name)
+
+
 def _sende_bedarf_datei(handler, db_pfad: str, token: str, name: str) -> None:
     """``/g/<token>/bedarf/<datei>`` -- der Download an einem Bedarfspunkt
     (Nachtrag 1, 08.10.2026 ~13:50). Nur eine Datei, die ein (nicht
@@ -5837,6 +5897,9 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
         return
     if unterpfad.startswith("bedarf/"):
         _sende_bedarf_datei(handler, db_pfad, token, unterpfad[len("bedarf/"):])
+        return
+    if unterpfad.startswith("transkripte/"):
+        _sende_transkript_datei(handler, db_pfad, token, unterpfad[len("transkripte/"):])
         return
     if unterpfad in ("textbuch.md", "textbuch.txt"):
         _sende_textbuch_datei(handler, db_pfad, token, unterpfad)

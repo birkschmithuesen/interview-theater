@@ -88,6 +88,26 @@ def braucht_kopf(conn, chat_id: int) -> bool:
     return bool(typen) and sum(t == "instructions" for t in typen) * 2 > len(typen)
 
 
+#: Will die Notiz eine grammatische/sprachliche Korrektur -- rein ueber das
+#: Vokabular der Notiz, bewusst OHNE Namensliste (Live-Fehlerklasse 7, Padua
+#: 08.10.2026: Whisper verhoert gelegentlich Eigennamen in den Interviews;
+#: nur wenn die Gruppe ausdruecklich um Grammatik/Sprache bittet, darf der
+#: Schreiber offensichtliche Transkriptfehler bei Namen mitkorrigieren).
+_KORREKTUR_WUNSCH = re.compile(
+    r"\b(grammar|grammatical(?:ly)?|grammatica(?:le|lmente)?|correct(?:ion|ed)?|"
+    r"correggi|correzione|spelling|ortografia|transcription error|"
+    r"errore di trascrizione|mishear(?:d)?|sentito male|capito male|"
+    r"wrong name|nome sbagliato|nomi sbagliati)\b",
+    re.IGNORECASE,
+)
+
+
+def ist_korrektur_wunsch(notiz: str | None) -> bool:
+    """Bittet ``notiz`` erkennbar um eine grammatische/sprachliche
+    Korrektur? Siehe ``_KORREKTUR_WUNSCH``."""
+    return bool(_KORREKTUR_WUNSCH.search(notiz or ""))
+
+
 def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
                     mit_kopf: bool = False, ueber_claude: bool = False) -> str:
     from interview_theater import hintergrund, szenenkarte
@@ -155,6 +175,8 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
         teile.append(T._KOPF_BISHER + "\n" + alt)
     if notiz:
         teile.append(T._KOPF_NOTIZ + "\n" + notiz.strip())
+        if ist_korrektur_wunsch(notiz):
+            teile.append(T._AUFTRAG_NAMEN_KORRIGIEREN)
     teile.append(T._AUFTRAG.format(nummer=szene["nummer"]))
     return "\n\n".join(teile)
 
@@ -851,6 +873,12 @@ _AUFTRAG_OHNE_ZITATE = (
     "Nachtrag Birk 08.10.2026 ~08:30): Interviewworte, die auf der Buehne "
     "gesprochen werden, gehoeren als normaler Text in die Sprechzeilen -- "
     "keine Zitatbloecke, keine Interview-Nummern."
+)
+_AUFTRAG_NAMEN_KORRIGIEREN = (
+    "Die Notiz bittet um eine grammatische/sprachliche Korrektur: offensichtliche "
+    "Transkriptfehler bei Eigennamen (vom Spracherkenner falsch verstandene Namen) "
+    "duerft ihr dabei mitkorrigieren -- keine neuen Namen erfinden, nur erkennbare "
+    "Hoerfehler richtigstellen."
 )
 _AUFTRAG = "Schreib jetzt das Stage Script von Szene {nummer}."
 FORMAT_JE_TYP = {

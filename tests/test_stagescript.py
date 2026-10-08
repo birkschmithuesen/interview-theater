@@ -154,6 +154,34 @@ def test_ohne_zitate_chats_traegt_zusaetzlichen_auftrag(conn, padua, monkeypatch
     assert "Interview words that are spoken on stage" in text_mit
 
 
+def test_korrektur_wunsch_namen_erlaubt_nur_bei_sprachlicher_notiz(conn, padua):
+    """Live-Fehlerklasse 7 (Padua 08.10.2026): Whisper verhoert gelegentlich
+    Eigennamen in den Interviews. Bittet die Gruppe ausdruecklich um eine
+    grammatische/sprachliche Korrektur, darf der Schreiber offensichtliche
+    Transkriptfehler bei Namen mitkorrigieren -- KEINE Namensliste im Code,
+    die Erkennung laeuft rein ueber das Vokabular der Notiz. Ohne Notiz oder
+    bei einer inhaltlichen Notiz (z. B. "Anna soll mehr lachen") darf der
+    Satz nicht erscheinen."""
+    ids = _karten(conn)
+    szene = repo.hole_szene(conn, ids[0])
+
+    ohne_notiz = stagescript.baue_nutzertext(conn, 1, szene)
+    assert stagescript.T._AUFTRAG_NAMEN_KORRIGIEREN not in ohne_notiz
+
+    inhaltliche_notiz = stagescript.baue_nutzertext(
+        conn, 1, szene, notiz="Anna soll mehr lachen und froehlicher wirken.")
+    assert stagescript.T._AUFTRAG_NAMEN_KORRIGIEREN not in inhaltliche_notiz
+    assert stagescript.ist_korrektur_wunsch("Anna soll mehr lachen.") is False
+
+    sprachliche_notiz = stagescript.baue_nutzertext(
+        conn, 1, szene, notiz="Please correct the grammar, some names were misheard.")
+    assert stagescript.T._AUFTRAG_NAMEN_KORRIGIEREN in sprachliche_notiz
+    assert stagescript.ist_korrektur_wunsch("Please correct the grammar.") is True
+
+    notiz_italienisch = "Correggi la grammatica, alcuni nomi sono sbagliati."
+    assert stagescript.ist_korrektur_wunsch(notiz_italienisch) is True
+
+
 def test_italienisch_ab_phase6_chats_steuert_statuszeilen(conn, einst, padua, monkeypatch):
     """Morgen-Auftrag 4, Nachtrag 2: eine Chat-Liste, nicht ein globaler
     Schalter -- chat_id 1 bekommt Italienisch nur, wenn es in der Liste

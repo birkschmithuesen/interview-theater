@@ -166,6 +166,12 @@ BLEIBT_DEUTSCH = {
     "web._TEXT_BEDARF_DOWNLOAD": (
         "Birk 08.10.2026: derselbe Grund wie web._TEXT_BEDARF_TITEL"
     ),
+    # a61b43a (Transkript-PDFs, 08.10.2026 ~15:15): Kopfzeile ist absichtlich
+    # schon zweisprachig ("Full transcripts · trascrizioni complete").
+    "web._TEXT_TRANSKRIPTE_KOPF": (
+        "Birk 08.10.2026: Kopfzeile der Transkript-Downloads ist bereits "
+        "zweisprachig EN/IT im Quelltext"
+    ),
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit

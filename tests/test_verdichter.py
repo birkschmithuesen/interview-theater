@@ -208,6 +208,68 @@ def test_verdichte_ruft_schema_mit_transkript_als_nutzertext_auf(conn, einst, ai
     assert gesehen["schema"] == verdichter.SCHEMA
 
 
+def test_zu_kurzes_zitat_loest_einen_zweiten_anlauf_aus(conn, einst, aid):
+    """Padua-Feedback 09.10.2026, Abschnitt 05: die Auswahl lieferte
+    wiederholt bedeutungslose Fragmente ("worst sentence ... had no
+    meaning"). Ein woertlich korrektes, aber auf 2-3 Woerter verkuerztes
+    Zitat ("Meine Mutter") steht ausserhalb seiner Interviewfrage fuer sich
+    allein nicht mehr -- das muss denselben zweiten Anlauf wie ein
+    durchgefallenes Zitat auslösen, und das laengere Ergebnis des zweiten
+    Anlaufs gewinnt."""
+    klm = LLMAttrappe({
+        "zusammenfassung": "z",
+        "kernthemen": [{"thema": "Mutter", "beleg_zitat": "Meine Mutter"}],
+    })
+    vid = verdichter.verdichte(klm, conn, einst, aid)
+
+    assert klm.aufrufe == 2, "ein zu kurzes Zitat loest denselben zweiten Anlauf aus"
+    assert repo.themen_zu(conn, vid)[0]["beleg_zitat"] == "Meine Mutter", (
+        "liefert der zweite Anlauf nichts Besseres, bleibt der erste Treffer"
+    )
+
+
+def test_der_laengere_treffer_des_zweiten_anlaufs_gewinnt(conn, einst, aid):
+    klm = LLMAttrappe({
+        "zusammenfassung": "z",
+        "kernthemen": [{"thema": "Mutter", "beleg_zitat": "Meine Mutter"}],
+    })
+
+    class ZweiterAnlaufBesser(LLMAttrappe):
+        def schema(self, chat_id, system, nutzer, schema, art):
+            self.aufrufe += 1
+            if self.aufrufe == 1:
+                return self._antwort
+            return {
+                "zusammenfassung": "z",
+                "kernthemen": [{
+                    "thema": "Mutter",
+                    "beleg_zitat": (
+                        "Meine Mutter hat nie verstanden, warum ich so viel "
+                        "Zeit dort verbracht habe"
+                    ),
+                }],
+            }
+
+    vid = verdichter.verdichte(ZweiterAnlaufBesser(klm._antwort), conn, einst, aid)
+
+    assert repo.themen_zu(conn, vid)[0]["beleg_zitat"] == (
+        "Meine Mutter hat nie verstanden, warum ich so viel Zeit dort "
+        "verbracht habe"
+    )
+
+
+def test_ausreichend_langes_zitat_loest_keinen_zweiten_anlauf_aus(conn, einst, aid):
+    klm = LLMAttrappe({
+        "zusammenfassung": "z",
+        "kernthemen": [
+            {"thema": "Ankommen", "beleg_zitat": "Ich bin 1998 in diese Stadt gezogen"},
+        ],
+    })
+    verdichter.verdichte(klm, conn, einst, aid)
+
+    assert klm.aufrufe == 1, "ein Zitat ab vier Woertern ist kein Fragment"
+
+
 def test_schema_hat_additional_properties_false_und_vollstaendiges_required():
     def pruefe_objekt(node):
         if isinstance(node, dict):

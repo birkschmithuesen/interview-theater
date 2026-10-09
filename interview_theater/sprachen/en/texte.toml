@@ -939,6 +939,7 @@ rap = "rap"
 _FRAGEN_KOPF = "The group's interview questions:"
 _TRANSKRIPT_KOPF = "The transcript:"
 _NACHTRAG_WOERTLICH = "\n\nIMPORTANT, second attempt: In the first attempt, supporting quotes did not match the transcript word for word. Copy every quote CHARACTER BY CHARACTER from the transcript -- no smoothing, no moved comma, no filler words removed, no spelling corrected. Better a shorter quote that matches exactly than a longer one you touched up."
+_NACHTRAG_SELBSTAENDIG = "\n\nIMPORTANT, second attempt: at least one supporting quote in the first attempt was too short to be understood outside its interview question (one or two words, like a bare yes/no answer). Where the transcript allows it, choose a longer, continuous passage that makes sense even without the question next to it -- still word for word and without omissions."
 
 ["fragen_ki"]
 _BEGRIFFE_KOPF = "The group's terms:"

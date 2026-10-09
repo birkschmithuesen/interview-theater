@@ -220,6 +220,52 @@ def test_eine_staerke_unter_der_schwelle_faellt_weg(lage, einst):
     assert anzahl == 0
 
 
+# --- "Zeig mir andere Interviewstellen" (Padua-Feedback 09.10.2026) --------
+
+
+def test_unbenutztes_material_ist_vor_jedem_lauf_alles(lage, einst):
+    """Vor dem ersten Mapping-Lauf hat die Gruppe noch GAR KEIN Zitat aus
+    der Schaerfung gesehen -- beide geprueften Themen sind unbenutzt."""
+    unbenutzt = schaerfung.unbenutztes_material(lage, 1)
+
+    assert sorted(e["zitat"] for e in unbenutzt) == sorted([ZITAT_A, ZITAT_B])
+
+
+def test_unbenutztes_material_schliesst_zugeordnete_themen_aus(lage, einst):
+    """Padua-Feedback 09.10.2026, Abschnitt 05: "show us other parts of
+    interviews" -- das Material, das die Gruppe noch nicht ueber die
+    Schaerfung zu sehen bekommen hat, ist das, was KEINER Szene/Figur
+    zugeordnet wurde (zu schwach oder nie getroffen), nicht irgendeine
+    zufaellige Auswahl."""
+    klm = KLMAttrappe({
+        "Szene 1": _antwort(eintrag_nummern=[1], staerke=[3], begruendungen=["passt"]),
+    })
+    schaerfung.mappe(klm, lage, einst, 1)
+
+    unbenutzt = schaerfung.unbenutztes_material(lage, 1)
+
+    assert [e["zitat"] for e in unbenutzt] == [ZITAT_B]
+
+
+def test_weitere_stellen_text_zeigt_interview_thema_und_volles_zitat(lage, einst):
+    text = schaerfung.weitere_stellen_text(lage, 1)
+
+    assert ZITAT_A in text and ZITAT_B in text
+    assert "Arbeit ohne Anerkennung" in text
+    assert "Leere Stadt am Wochenende" in text
+
+
+def test_weitere_stellen_text_ohne_unbenutztes_material_ist_none(lage, einst):
+    klm = KLMAttrappe({
+        "Szene 1": _antwort(eintrag_nummern=[1], staerke=[3], begruendungen=["x"]),
+        "Szene 2": _antwort(eintrag_nummern=[2], staerke=[3], begruendungen=["y"]),
+    })
+    schaerfung.mappe(klm, lage, einst, 1)
+
+    assert schaerfung.unbenutztes_material(lage, 1) == []
+    assert schaerfung.weitere_stellen_text(lage, 1) is None
+
+
 def test_ohne_material_gibt_es_keinen_aufruf(conn, einst):
     klm = KLMAttrappe()
 

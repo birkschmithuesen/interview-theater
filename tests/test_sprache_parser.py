@@ -63,6 +63,30 @@ def test_szenentext_englisch(englisch, text, soll):
     assert ablauf.szenentext_gewuenscht(text) == soll
 
 
+# --- "zeig mir andere Interviewstellen" (Padua-Feedback 09.10.2026) -------
+
+@pytest.mark.parametrize("text, soll", [
+    ("zeig mir andere Interviewstellen", True),
+    ("habt ihr noch andere Zitate aus den Interviews?", True),
+    ("gibt es mehr Material aus dem Transkript?", True),
+    ("zeig uns Szene 2", False),
+    ("passt das Zitat zur Figur?", False),
+])
+def test_interviewstellen_deutsch(text, soll):
+    assert ablauf.interviewstellen_gewuenscht(text) is soll
+
+
+@pytest.mark.parametrize("text, soll", [
+    ("show us other interview quotes", True),
+    ("can we see another passage from the interviews?", True),
+    ("is there more material from the transcript?", True),
+    ("show us scene 2", False),
+    ("does the quote fit the character?", False),
+])
+def test_interviewstellen_englisch(englisch, text, soll):
+    assert ablauf.interviewstellen_gewuenscht(text) is soll
+
+
 @pytest.mark.parametrize("text, soll", [("drei", 3), ("fuenf Figuren", 5), ("three", None), ("4", 4)])
 def test_figurenzahl_deutsch_wie_vorher(text, soll):
     assert figuren._zahl_aus(text) == soll

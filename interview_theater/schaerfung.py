@@ -136,6 +136,14 @@ MELDUNG_OHNE_MATERIAL = (
     "Es gibt noch keine ausgewerteten Interviews, an denen ich schaerfen "
     "koennte."
 )
+#: Antwort auf "zeig mir andere Interviewstellen" (Padua-Feedback
+#: 09.10.2026, Abschnitt 05), Kopf vor der Liste (``weitere_stellen_text``).
+WEITERE_STELLEN_KOPF = "Weitere Stellen aus euren Interviews, die noch keiner Szene oder Figur zugeordnet sind:"
+#: Dieselbe Antwort, wenn es nichts Unbenutztes mehr gibt.
+WEITERE_STELLEN_LEER = (
+    "Ich habe euch schon alles aus den Interviews gezeigt, was zu eurer "
+    "Geschichte passt - mehr Material gibt es gerade nicht."
+)
 
 #: Was ``starte`` liefert, wenn ein anderer Vorschlagslauf die gemeinsame
 #: Sperre haelt (30.09.2026, C7). Bewusst NICHT ``None``: ``None`` heisst
@@ -874,6 +882,44 @@ def offene_stellen_seite(
     zugeordneten Stellen muessen sichtbar werden, ohne Wall of Text)."""
     alle = offene_stellen(conn, chat_id, szene_id=szene_id, figur_id=figur_id)
     return alle[versatz:versatz + MAX_STELLEN], len(alle)
+
+
+#: Hoechstens so viele Stellen in EINER Antwort auf "zeig mir andere
+#: Interviewstellen" (Padua-Feedback 09.10.2026, Abschnitt 05) -- derselbe
+#: Massstab wie ``MAX_STELLEN``, keine zusaetzliche Wall of Text.
+WEITERE_STELLEN_HOECHSTENS = MAX_STELLEN
+
+
+def unbenutztes_material(conn, chat_id: int, hoechstens: int = WEITERE_STELLEN_HOECHSTENS) -> list[dict]:
+    """Geprueft Themen, denen ``mappe`` KEINE Szene und KEINE Figur
+    zugeordnet hat -- zu schwach (unter ``STAERKE_MIN``) oder nie getroffen.
+
+    Genau das ist das Material, das die Gruppe in der Schaerfung noch nicht
+    zu sehen bekommen hat: alles andere steckt schon in einer Vorschlags-
+    karte (``option``) oder im Kernpaket (``kernzitate``). Padua-Feedback
+    09.10.2026, Abschnitt 05 ("show us other parts of interviews") --
+    deterministisch aus der Datenbank, kein Modellaufruf."""
+    verwendet = {
+        z["verdichtung_thema_id"] for z in repo.schaerfungen(conn, chat_id)
+        if z["verdichtung_thema_id"] is not None
+    }
+    eintraege = [e for e in _eintraege(conn, chat_id) if e["thema_id"] not in verwendet]
+    return eintraege[:hoechstens]
+
+
+def weitere_stellen_text(conn, chat_id: int) -> str | None:
+    """Eine Chat-Antwort auf "zeig mir andere/mehr Interviewstellen" --
+    Thema und VOLLES Zitat, nicht die auf ``ZITAT_WOERTER`` gekuerzte
+    Menue-Fassung. ``None``, wenn es nichts Unbenutztes mehr gibt (der
+    Aufrufer faellt dann auf eine eigene Leermeldung zurueck)."""
+    eintraege = unbenutztes_material(conn, chat_id)
+    if not eintraege:
+        return None
+    zeilen = [T.WEITERE_STELLEN_KOPF]
+    zeilen.extend(
+        f'- {e["interview"]} "{e["thema"]}": "{e["zitat"]}"' for e in eintraege
+    )
+    return "\n".join(zeilen)
 
 
 def option(conn, chat_id: int, eintrag) -> tuple[str, str]:

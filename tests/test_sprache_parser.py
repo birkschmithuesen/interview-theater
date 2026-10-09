@@ -87,6 +87,39 @@ def test_interviewstellen_englisch(englisch, text, soll):
     assert ablauf.interviewstellen_gewuenscht(text) is soll
 
 
+#: Nachbesserung (Review, 09.10.2026): ein Treffer auf jedes Muster
+#: IRGENDWO im Text reichte nicht -- dieser echte Diskussionsbeitrag der
+#: Phase-3-Fixture (``docs/prompt-audit/.../06-gespraech-phase3.txt``,
+#: ``scripts/fixture_padua_voll.py``) enthaelt "more" (in "more generic
+#: play") und "interviews" (in "three interviews we half remember") weit
+#: voneinander entfernt und ganz ohne Bezug zueinander -- das trieb
+#: ``test_jeder_p34_dump_entsteht`` und ``test_kostendeckel`` in den
+#: Fehlschlag, weil der normale Gespraechszug abgefangen wurde.
+_LANGER_DISKUSSIONSBEITRAG_EN = (
+    "good, and once that clean version exists, can we also agree nobody "
+    "adds a line to his mouth that is not already in it, no matter how "
+    "good it sounds in the room tomorrow, because the whole reason any of "
+    "this afternoon mattered is that it was his, specifically, not a "
+    "type, not a composite of three interviews we half remember, and the "
+    "moment we let one invented line slip in because it scans better "
+    "than what he actually said, we have quietly started writing a "
+    "different, easier, more generic play instead of the harder, "
+    "stranger, more specific one he actually handed us this afternoon"
+)
+
+
+def test_interviewstellen_trifft_nicht_auf_zwei_entfernte_woerter_im_satz(englisch):
+    assert ablauf.interviewstellen_gewuenscht(_LANGER_DISKUSSIONSBEITRAG_EN) is False
+
+
+def test_interviewstellen_deutsch_blosses_noch_ist_kein_treffer():
+    """"Wir brauchen noch ein Zitat" ist eine normale Produktionsnotiz, keine
+    Bitte um ANDERES Material -- bares "noch" allein darf nicht reichen."""
+    assert ablauf.interviewstellen_gewuenscht(
+        "Wir brauchen noch ein Zitat fuer die Szene."
+    ) is False
+
+
 @pytest.mark.parametrize("text, soll", [("drei", 3), ("fuenf Figuren", 5), ("three", None), ("4", 4)])
 def test_figurenzahl_deutsch_wie_vorher(text, soll):
     assert figuren._zahl_aus(text) == soll

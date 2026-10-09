@@ -550,20 +550,53 @@ _NICHT_SZENENTEXT = {
 #: "Zeig mir ANDERE Interviewstellen" (Padua-Feedback 09.10.2026, Abschnitt
 #: 05: "we had to ask a lot of time ... show us other parts of
 #: interviews"): die beiden Woerter zusammen -- der eine zeigt auf
-#: Interviewmaterial (dieselbe Liste wie oben in ``_NICHT_SZENENTEXT``), der
-#: andere auf "mehr/anders" statt auf das, was schon gezeigt wurde. Ohne
-#: Letzteres traefe jede Frage nach EINEM Zitat ("passt das Zitat zur
-#: Figur?") mit.
+#: Interviewmaterial (dieselbe Liste wie oben in ``_NICHT_SZENENTEXT``, plus
+#: "Material" -- "mehr Material aus dem Transkript" ist derselbe Wunsch),
+#: der andere auf "mehr/anders" statt auf das, was schon gezeigt wurde.
+#:
+#: **Nachbesserung (Review, tests/test_erzeuge_prompts_padua_voll.py und
+#: test_kostendeckel.py liefen rot):** "irgendwo im Satz" reichte nicht --
+#: ein langer Diskussionsbeitrag ("... not a composite of three interviews
+#: we half remember, ... more generic play ...", Phase-3-Fixture
+#: ``scripts/fixture_padua_voll.py``) traf beide Muster, Woerter weit
+#: auseinander und ohne jeden Zusammenhang. ``interviewstellen_gewuenscht``
+#: verlangt deshalb jetzt NAHE Treffer (``_in_der_naehe``), kein beliebiges
+#: Vorkommen im ganzen Text. Bare "noch" (DE) ist bewusst keine eigene
+#: Bedingung mehr: "wir brauchen noch ein Zitat fuer die Szene" ist keine
+#: Bitte um ANDERES Material, und "noch andere/noch mehr" trifft ohnehin
+#: schon ueber "andere"/"mehr".
 _INTERVIEWSTELLEN_MATERIAL = {
     "de": re.compile(
-        r"interview|passage|zitat|zitate|stelle\b|stellen\b|transkript", re.I,
+        r"interview|passage|zitat|zitate|stelle\b|stellen\b|transkript|material",
+        re.I,
     ),
-    "en": re.compile(r"interview|passage|quote|excerpt|transcript", re.I),
+    "en": re.compile(r"interview|passage|quote|excerpt|transcript|material", re.I),
 }
 _INTERVIEWSTELLEN_MEHR = {
-    "de": re.compile(r"\bander[a-z]*\b|\bweiter[a-z]*\b|\bmehr\b|\bnoch\b", re.I),
+    "de": re.compile(r"\bander[a-z]*\b|\bweiter[a-z]*\b|\bmehr\b", re.I),
     "en": re.compile(r"\bother[a-z]*\b|\banother\b|\bmore\b|\belse\b", re.I),
 }
+
+#: Hoechstens so viele Zeichen Luecke zwischen einem Treffer aus
+#: ``_INTERVIEWSTELLEN_MEHR`` und einem aus ``_INTERVIEWSTELLEN_MATERIAL``,
+#: damit sie als EINE Bitte gelten -- "andere Zitate" (Luecke 1, das
+#: Leerzeichen) ja, "more generic play ... interviews" irgendwo zwanzig
+#: Zeichen weiter weg (gemessen an der Fixture oben) nein.
+_INTERVIEWSTELLEN_HOECHSTABSTAND = 3
+
+
+def _in_der_naehe(erstes: re.Pattern, zweites: re.Pattern, text: str, hoechstabstand: int) -> bool:
+    """Treffen beide Muster nicht nur irgendwo im Text, sondern mit
+    hoechstens ``hoechstabstand`` Zeichen Luecke zueinander?"""
+    treffer_zweites = list(zweites.finditer(text))
+    if not treffer_zweites:
+        return False
+    for a in erstes.finditer(text):
+        for b in treffer_zweites:
+            luecke = max(a.start(), b.start()) - min(a.end(), b.end())
+            if luecke <= hoechstabstand:
+                return True
+    return False
 
 
 def szenentext_gewuenscht(text: str | None) -> int | None:
@@ -613,16 +646,18 @@ def interviewstellen_gewuenscht(text: str | None) -> bool:
     dieselben wenigen Zitate, die schon gezeigt wurden, kein Volltranskript
     (``kontext.kernpaket_erlaubt``). Ein Modell, das trotzdem gefragt wird,
     kann nichts Neues zeigen und wiederholt sich oder erfindet. Reiner
-    Musterabgleich, kein Modellaufruf (Zusage 2) -- beide Bedingungen
-    muessen stehen, sonst traefe jede Frage nach EINEM Zitat mit
-    ("passt das Zitat zur Figur?")."""
+    Musterabgleich, kein Modellaufruf (Zusage 2) -- beide Woerter muessen
+    NAH beieinander stehen (``_in_der_naehe``), sonst traefe jede Frage
+    nach EINEM Zitat mit ("passt das Zitat zur Figur?") oder sogar ein
+    langer Diskussionsbeitrag, der die beiden Woerter nur zufaellig beide
+    enthaelt."""
     roh = (text or "").strip()
     if not roh:
         return False
     sp = "en" if sprache.je_sprache({"de": False, "en": True}) else "de"
-    return bool(
-        _INTERVIEWSTELLEN_MEHR[sp].search(roh)
-        and _INTERVIEWSTELLEN_MATERIAL[sp].search(roh)
+    return _in_der_naehe(
+        _INTERVIEWSTELLEN_MEHR[sp], _INTERVIEWSTELLEN_MATERIAL[sp], roh,
+        _INTERVIEWSTELLEN_HOECHSTABSTAND,
     )
 
 

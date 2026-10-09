@@ -83,6 +83,18 @@ BUDGET_KURZ_S = BUDGET_LANG_S
 NACHHOL_INTERVALL_S = 60
 MAX_VERSUCHE = 5
 
+#: Wie alt ein ``web_post`` (Sprachzeile) mindestens sein muss, bevor
+#: ``nachholen()`` ihn als strukturelle Luecke meldet, wenn er bis dahin
+#: keine ``aufnahme``-Zeile bekommen hat (Karte Padua "Interviewaufnahme
+#: ganz am Anfang teils nicht erfasst", 09.10.2026, Audit-Fall web_post
+#: id=2656: angenommen, nie weiterverarbeitet). ``web_kanal.ANKUNFT_FRIST_S``
+#: (60 s) ist das Warte-Gate fuer SPAETERE Posts im selben Poll und prueft
+#: nie einen Post, dem nichts mehr folgt -- hier geht es um den periodischen
+#: Nachhol-Lauf (NACHHOL_INTERVALL_S, ebenfalls 60 s): doppelt so lang, mit
+#: Luft fuer einen langsamen Download, statt bei jedem Lauf knapp daneben zu
+#: melden.
+WEB_POST_OHNE_AUFNAHME_FRIST_S = 120
+
 #: Ein Ende-Segment (Diskussion/Brainstorm, ``schnittgrund='ende'``) unter
 #: dieser Dateigroesse geht gar nicht erst an Whisper, sondern wird sofort
 #: verworfen und der Abschluss laeuft (Robo, Simulationslauf 05.10.2026
@@ -2551,6 +2563,37 @@ def nachholen(conn, tg, klm, e, klient, *, zug=_kein_zug) -> None:
             schliesse_ab(conn, tg, klm, e, kopf["id"])
         except Exception:
             log.exception("Nachholen eines Interviewabschlusses fehlgeschlagen, id=%s", kopf["id"])
+
+    _melde_web_posts_ohne_aufnahme(conn, tg, e)
+
+
+def _melde_web_posts_ohne_aufnahme(conn, tg, e) -> None:
+    """Dritter Durchgang von ``nachholen()`` (Karte Padua, 09.10.2026): ein
+    ``web_post`` (Sprachzeile), fuer den ``aufnahme.empfange`` nie liefen
+    (keine ``aufnahme``-Zeile, kein Download-Vorfall), bleibt sonst stumm --
+    ``offene_aufnahmen_fuer_bot`` liest ausschliesslich aus ``aufnahme`` und
+    sieht ihn nie. Macht den Ausfall sichtbar, genauso wie ``empfange()`` es
+    fuer einen gescheiterten Download schon tut: ein Vorfall plus derselbe
+    Chat-Hinweis (``T._TEXT_DOWNLOAD_FEHLER``) -- kein neuer Text, es ist aus
+    Gruppensicht derselbe Fall ("die Aufnahme ist nicht angekommen").
+
+    Nicht zu verwechseln mit dem bewusst stillen Pfad fuer leere Transkripte
+    (``_verwirf_ende_segment``, Stille ist kein Dienstausfall): hier gibt es
+    gar kein Transkript, weil die Zeile den Bot nie erreicht hat."""
+    vor = (datetime.now(timezone.utc)
+           - timedelta(seconds=WEB_POST_OHNE_AUFNAHME_FRIST_S)).isoformat(timespec="seconds")
+    for post in repo.web_posts_ohne_aufnahme_fuer_bot(conn, e.bot_name, vor):
+        repo.merke_vorfall(
+            conn, post["chat_id"], getattr(e, "bot_name", None),
+            "web_post_ohne_aufnahme",
+            f"Web-Post {post['id']}: seit {post['erstellt_am']} ohne aufnahme-Zeile",
+        )
+        try:
+            tg.sende(post["chat_id"], T._TEXT_DOWNLOAD_FEHLER)
+        except Exception:
+            log.exception(
+                "Web-Post-ohne-Aufnahme-Hinweis fehlgeschlagen, chat_id=%s", post["chat_id"],
+            )
 
 
 def importiere_text(conn, e, chat_id: int, message_id: int, text: str, name: str | None = None) -> int:

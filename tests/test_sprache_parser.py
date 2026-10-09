@@ -112,6 +112,32 @@ def test_interviewstellen_trifft_nicht_auf_zwei_entfernte_woerter_im_satz(englis
     assert ablauf.interviewstellen_gewuenscht(_LANGER_DISKUSSIONSBEITRAG_EN) is False
 
 
+def test_interviewstellen_deutsch_grenzfall_luecke_genau_hoechstabstand():
+    """Grenzfall der Mutationsprobe (``_INTERVIEWSTELLEN_HOECHSTABSTAND`` 3
+    zu 4, sogar bis ~170, liess die ganze Suite gruen): eine Luecke von
+    GENAU 3 Zeichen zwischen "andere" und "Zitate" muss noch als EINE Bitte
+    gelten -- die vorhandenen Faelle lagen entweder bei Luecke 1 (echte
+    Beispiele) oder weit darueber (langer Diskussionsbeitrag)."""
+    text = "zeig mir andere A Zitate"
+    mehr = ablauf._INTERVIEWSTELLEN_MEHR["de"].search(text)
+    material = ablauf._INTERVIEWSTELLEN_MATERIAL["de"].search(text)
+    luecke = material.start() - mehr.end()
+    assert luecke == ablauf._INTERVIEWSTELLEN_HOECHSTABSTAND
+    assert ablauf.interviewstellen_gewuenscht(text) is True
+
+
+def test_interviewstellen_deutsch_grenzfall_luecke_knapp_darueber():
+    """Gegenstueck: eine Luecke von 4 Zeichen (einen mehr als
+    ``_INTERVIEWSTELLEN_HOECHSTABSTAND``) darf nicht mehr als EINE Bitte
+    gelten."""
+    text = "zeig mir andere AB Zitate"
+    mehr = ablauf._INTERVIEWSTELLEN_MEHR["de"].search(text)
+    material = ablauf._INTERVIEWSTELLEN_MATERIAL["de"].search(text)
+    luecke = material.start() - mehr.end()
+    assert luecke == ablauf._INTERVIEWSTELLEN_HOECHSTABSTAND + 1
+    assert ablauf.interviewstellen_gewuenscht(text) is False
+
+
 def test_interviewstellen_deutsch_blosses_noch_ist_kein_treffer():
     """"Wir brauchen noch ein Zitat" ist eine normale Produktionsnotiz, keine
     Bitte um ANDERES Material -- bares "noch" allein darf nicht reichen."""

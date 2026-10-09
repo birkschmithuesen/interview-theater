@@ -547,6 +547,24 @@ _NICHT_SZENENTEXT = {
     "en": re.compile(r"interview|passage|quote|excerpt|\bcitation", re.I),
 }
 
+#: "Zeig mir ANDERE Interviewstellen" (Padua-Feedback 09.10.2026, Abschnitt
+#: 05: "we had to ask a lot of time ... show us other parts of
+#: interviews"): die beiden Woerter zusammen -- der eine zeigt auf
+#: Interviewmaterial (dieselbe Liste wie oben in ``_NICHT_SZENENTEXT``), der
+#: andere auf "mehr/anders" statt auf das, was schon gezeigt wurde. Ohne
+#: Letzteres traefe jede Frage nach EINEM Zitat ("passt das Zitat zur
+#: Figur?") mit.
+_INTERVIEWSTELLEN_MATERIAL = {
+    "de": re.compile(
+        r"interview|passage|zitat|zitate|stelle\b|stellen\b|transkript", re.I,
+    ),
+    "en": re.compile(r"interview|passage|quote|excerpt|transcript", re.I),
+}
+_INTERVIEWSTELLEN_MEHR = {
+    "de": re.compile(r"\bander[a-z]*\b|\bweiter[a-z]*\b|\bmehr\b|\bnoch\b", re.I),
+    "en": re.compile(r"\bother[a-z]*\b|\banother\b|\bmore\b|\belse\b", re.I),
+}
+
 
 def szenentext_gewuenscht(text: str | None) -> int | None:
     """Die Szenennummer, deren TEXT die Gruppe sehen will -- oder None.
@@ -583,6 +601,29 @@ def szenentext_gewuenscht(text: str | None) -> int | None:
                 kuerzester = kandidat
         return kuerzester
     return int(min(nummern, key=abstand).group(1))
+
+
+def interviewstellen_gewuenscht(text: str | None) -> bool:
+    """Will die Gruppe ANDERE/MEHR Interviewstellen sehen, statt dass der
+    Gespraechs-Bot es aus seinem schmalen Kontext versucht (Padua-Feedback
+    09.10.2026, Abschnitt 05: "we had to ask a lot of time ... show us
+    other parts of interviews")?
+
+    Ab der Schaerfung (Phase 5) traegt der Prompt nur noch das Kernpaket --
+    dieselben wenigen Zitate, die schon gezeigt wurden, kein Volltranskript
+    (``kontext.kernpaket_erlaubt``). Ein Modell, das trotzdem gefragt wird,
+    kann nichts Neues zeigen und wiederholt sich oder erfindet. Reiner
+    Musterabgleich, kein Modellaufruf (Zusage 2) -- beide Bedingungen
+    muessen stehen, sonst traefe jede Frage nach EINEM Zitat mit
+    ("passt das Zitat zur Figur?")."""
+    roh = (text or "").strip()
+    if not roh:
+        return False
+    sp = "en" if sprache.je_sprache({"de": False, "en": True}) else "de"
+    return bool(
+        _INTERVIEWSTELLEN_MEHR[sp].search(roh)
+        and _INTERVIEWSTELLEN_MATERIAL[sp].search(roh)
+    )
 
 
 def ist_auftrag(text: str | None) -> bool:
@@ -1680,6 +1721,24 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
             gewuenscht, chat_id,
         )
         knoepfe.zeige_szenentext(conn, tg, chat_id, gewuenscht)
+        return True
+
+    # "Zeig mir andere Interviewstellen" (Padua-Feedback 09.10.2026,
+    # Abschnitt 05): ab der Schaerfung traegt der Prompt nur noch das
+    # Kernpaket -- dieselben wenigen Zitate, die die Gruppe schon gesehen
+    # hat. Ein Modell, das trotzdem gefragt wird, kann nichts Neues zeigen.
+    # Hier geht stattdessen die echte Liste des noch unbenutzten Materials
+    # aus der Datenbank raus. Reiner Musterabgleich, kein Modellaufruf.
+    if interviewstellen_gewuenscht(letzte_nachricht["text"]):
+        log.info(
+            "Gespraechszug unterdrueckt, andere Interviewstellen gewuenscht, chat_id=%s",
+            chat_id,
+        )
+        from interview_theater import schaerfung
+
+        meldung = schaerfung.weitere_stellen_text(conn, chat_id) or schaerfung.T.WEITERE_STELLEN_LEER
+        message_id = tg.sende(chat_id, meldung)
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, meldung)
         return True
 
     # Die Regie-Notiz nach "Passt, aber anders" unter einem Szenentext

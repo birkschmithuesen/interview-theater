@@ -5280,6 +5280,47 @@ def web_segmente_unterwegs(conn, chat_id: int, vor_id: int, seit: str) -> list:
     ).fetchall()
 
 
+#: Der Vorfall, mit dem ``aufnahme.nachholen`` einen Web-Post festhaelt, der
+#: auch nach ``aufnahme.WEB_POST_OHNE_AUFNAHME_FRIST_S`` noch keine
+#: ``aufnahme``-Zeile hat (Karte Padua "Interviewaufnahme ganz am Anfang
+#: teils nicht erfasst", 09.10.2026, Audit-Fall web_post id=2656): anders als
+#: ``web_segmente_unterwegs`` oben, das dieselbe Luecke nur als Warte-Gate
+#: fuer SPAETERE Posts prueft (``web_kanal._segmente_angekommen``) und einen
+#: Post ohne jeden Nachfolger nie anfasst. Der Wortlaut steht in
+#: ``aufnahme.nachholen``.
+_VORFALL_WEB_POST_OHNE_AUFNAHME = "web_post_ohne_aufnahme"
+_VORFALL_WEB_POST_OHNE_AUFNAHME_DETAIL = "Web-Post "
+
+
+@_gesperrt
+def web_posts_ohne_aufnahme_fuer_bot(conn, bot_name: str, vor: str) -> list[sqlite3.Row]:
+    """Sprache-Posts der Gruppen dieses Bot-Prozesses, aelter als ``vor``,
+    die weder eine ``aufnahme``-Zeile noch einen Download-Vorfall
+    (``_VORFALL_DOWNLOAD``) noch den eigenen Vorfall
+    (``_VORFALL_WEB_POST_OHNE_AUFNAHME``) haben -- wie
+    ``offene_aufnahmen_fuer_bot``/``beendete_offene_interviews`` auf
+    ``gruppe.bot_name`` eingeschraenkt, damit nicht zwei Bot-Prozesse
+    denselben Post gleichzeitig melden."""
+    return conn.execute(
+        "SELECT p.* FROM web_post p "
+        "JOIN gruppe g ON g.chat_id = p.chat_id "
+        "WHERE g.bot_name = ? AND p.richtung = ? AND p.typ = ? "
+        "AND p.geloescht_am IS NULL AND p.erstellt_am < ? "
+        "AND NOT EXISTS (SELECT 1 FROM aufnahme a "
+        "  WHERE a.chat_id = p.chat_id AND a.message_id = p.id) "
+        "AND NOT EXISTS (SELECT 1 FROM vorfall v "
+        "  WHERE v.chat_id = p.chat_id AND v.art = ? "
+        "  AND v.detail LIKE ? || p.id || ':%') "
+        "AND NOT EXISTS (SELECT 1 FROM vorfall v "
+        "  WHERE v.chat_id = p.chat_id AND v.art = ? "
+        "  AND v.detail LIKE ? || p.id || ':%') "
+        "ORDER BY p.id ASC",
+        (bot_name, RICHTUNG_EIN, WEB_TYP_SPRACHE, vor,
+         _VORFALL_DOWNLOAD, _VORFALL_DOWNLOAD_DETAIL,
+         _VORFALL_WEB_POST_OHNE_AUFNAHME, _VORFALL_WEB_POST_OHNE_AUFNAHME_DETAIL),
+    ).fetchall()
+
+
 @_gesperrt
 def hoechste_web_post_id(conn) -> int:
     """Die hoechste je vergebene ``web_post.id`` (Abschlussreview I2), 0 bei

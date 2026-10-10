@@ -161,7 +161,7 @@ Je eine Zeile; Begründung und Geschichte stehen in der genannten Datei.
 - **Erkenner-Prompt-Änderung gilt nur mit FP = 0** im Korpuslauf; der Lauf kostet Geld und läuft nie automatisch. → `korpus-und-simulation.md`
 - **Kein CSS-Kommentar direkt vor einer Regel** in `_BUEHNE` (`web_gestalt.css_buehne`): `web_vereint.scope_css` reißt sonst das Scope-Präfix ab. → `aufbau.md`
 - **CSP:** kein `style="…"`-Attribut, kein `on…=`-Handler, kein Webfont; dynamische Werte über CSSOM. → `weboberflaeche.md`
-- **Live-Dienste** (`interview-theater*`) **nie starten, stoppen oder neu starten aus einem Arbeitsauftrag.**
+- **Live-Dienste** (`interview-theater*`) **nie starten, stoppen oder neu starten aus einem Arbeitsauftrag.** Ausnahme (Birk-Entscheid 10.10.2026, generalisiert, nicht auf Padua beschraenkt): ein deterministisches Abnahme-/Gate-Skript darf eine **Test-Instanz** (Namensmuster `*@*-test[N]`, z. B. `interview-theater@padua-test`) selbststaendig neu starten, wenn das fuer die Pruefung noetig ist — niemals eine Live-Instanz; jeder Neustart wird geloggt (Zeitstempel, Einheit, Grund). → `scripts/abnahme-pflicht.py` im Profil-Repo.
 
 ## Starten und testen
 

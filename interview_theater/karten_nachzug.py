@@ -12,19 +12,15 @@ alte Karte weiter als "bindend" in den Prompt.
 (``stagescript.schreibe``, eigener Hintergrund-Thread, bremst das Tempo der
 Gruppe nicht): EIN kurzer Modellaufruf liest aus dem neuen EN-Text, wie Ort/
 Figuren (ggf. Modus) jetzt sind. Nur wenn sich das normalisiert wirklich von
-der Karte unterscheidet, wird die Karte aktualisiert (nur diese Felder, die
-Abnahme bleibt stehen) und zugleich die Werkbank nachgezogen (``szene.ort``,
-``szene_figur`` -- Nachtrag Birk 08.10.2026 ~13:00, Live-Befund G1 S1: die
-Werkbank zeigte weiter die alte Planung, waehrend die Karte schon die neue
-trug), alles in einer Transaktion mit der neuen ``karte_verlauf``-Fassung
-(``repo.aktualisiere_karte_und_werkbank``). Keine Aenderung -> nichts
-geschrieben. Ein Fehler bleibt lokal (``log.exception``); Karte und Werkbank
-bleiben, wie sie waren.
+der Karte unterscheidet, schreibt der Nachzug -- und zwar ausschliesslich ueber
+die Mutations-Schnittstelle ``stueck`` (Quelle ``script``). Seit dem
+Stueckmodell (Karte t_fd88600b) schreibt dieses Modul nichts selbst; es gibt
+keine zweite Fassung von Ort/Besetzung mehr, die nachzuziehen waere. Ein
+Fehler bleibt lokal (``log.exception``).
 
-Neue Figuren bekommen hier KEINE eigene Rolle/Rollenlink -- nur das
-Kartenfeld ``wer``; die Werkbank-Besetzung (``szene_figur``) uebernimmt aus
-``wer`` nur Namen, die schon eine Figur haben (``erkenner._figuren_aus_namen``,
-derselbe Namensabgleich wie bei einer Planung im Chat).
+Unbekannte Namen werden NICHT zur Figur (``stueck.figur_hinzu`` legt hier nur
+eine schon bekannte Figur in die Besetzung; Namensabgleich ueber
+``stueck_sicht.ordne_besetzung``).
 
 **Figuren aus dem Text, zusaetzlich zum Modell** (Nachtrag Birk 08.10.2026,
 Live-Befund G2: ``wer`` nannte nur einen Teil der sprechenden Figuren, obwohl
@@ -39,11 +35,12 @@ ersetzt."""
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 
-from interview_theater import anweisungen, erkenner, modellwahl, repo, stueck, szenenkarte, workshop
+from interview_theater import (
+    anweisungen, modellwahl, repo, stueck, stueck_sicht, szenenkarte, workshop,
+)
 
 log = logging.getLogger(__name__)
 
@@ -69,14 +66,6 @@ SCHEMA = {
     "required": ["ort", "wer", "modus"],
     "additionalProperties": False,
 }
-
-#: Notiz fuer ``karte_verlauf`` -- Prompt-Wortlaut (englisch), kein Chattext.
-_NOTIZ = "Phase 7: place/people taken over from the newly written script."
-
-
-def _normalisiert(wert) -> str:
-    return " ".join(str(wert or "").split()).strip().lower()
-
 
 #: Ein Abschnittskopf ohne Doppelpunkt: eine oder mehrere Grossbuchstaben-
 #: Namen, mit Komma getrennt, optional ein Klammerzusatz ("ANNA
@@ -143,11 +132,15 @@ def baue_nutzertext(karte: dict, text: str) -> str:
 
 def ziehe_nach(conn, klm, e, chat_id: int, szene_id: int, text: str, *,
                ueber_claude: bool) -> None:
-    """Der eine Modellaufruf plus deterministischer Vergleich. Nie wirft sie
+    """EIN Modellaufruf liest Ort/Figuren/Modus aus dem neuen Skripttext;
+    geschrieben wird NUR ueber die Mutations-Schnittstelle (``stueck``,
+    Quelle ``script``: der Text ist hier die Quelle, die eigene Szene wird
+    nicht als veraltet markiert). Ein aelterer Text als der gespeicherte
+    schreibt nichts (gleiche Regel wie die IT-Spiegelung). Nie wirft sie
     einen Fehler nach aussen -- der Aufrufer laeuft im Hintergrund-Thread."""
     try:
         szene = repo.hole_szene(conn, szene_id)
-        if szene is None:
+        if szene is None or (szene["volltext"] or "").strip() != (text or "").strip():
             return
         karte = stueck.karte(conn, szene)
         if karte is None or not (text or "").strip():
@@ -157,30 +150,24 @@ def ziehe_nach(conn, klm, e, chat_id: int, szene_id: int, text: str, *,
             nutzer=baue_nutzertext(karte, text), schema=SCHEMA, art=ART,
             ueber_claude=ueber_claude, claude_modell=CLAUDE_MODELL, timeout=60.0,
         )
+        nummer = szene["nummer"]
+        q = stueck.QUELLE_SCRIPT
         neuer_ort = str(ergebnis.get("ort") or "").strip()
-        neuer_wer = str(ergebnis.get("wer") or "").strip()
+        if neuer_ort:
+            stueck.setze_ort(conn, chat_id, szene=nummer, ort=neuer_ort, quelle=q)
+        figuren = repo.figuren(conn, chat_id)
+        index = {stueck_sicht.normalisiert(f["name"]): f["id"] for f in figuren}
+        namen = {f["id"]: f["name"] for f in figuren}
+        aus_modell, _unbekannt = stueck_sicht.ordne_besetzung(
+            str(ergebnis.get("wer") or ""), index)
+        ids = [f for f, _rolle in aus_modell]
+        ids += [f for f in _figuren_aus_text(conn, chat_id, text) if f not in ids]
+        for figur_id in ids:
+            stueck.figur_hinzu(conn, chat_id, name=namen[figur_id], szene=nummer, quelle=q)
         neuer_modus = str(ergebnis.get("modus") or "").strip().lower()
-        aenderungen: dict = {}
-        if neuer_ort and _normalisiert(neuer_ort) != _normalisiert(karte.get("ort")):
-            aenderungen["ort"] = neuer_ort
-        if neuer_wer and _normalisiert(neuer_wer) != _normalisiert(karte.get("wer")):
-            aenderungen["wer"] = neuer_wer
         if (karte.get("typ") == "moment" and neuer_modus in szenenkarte.MODI
-                and neuer_modus != "none" and neuer_modus != karte.get("modus")):
-            aenderungen["modus"] = neuer_modus
-        if not aenderungen:
-            return
-        neue_karte = dict(karte)
-        neue_karte.update(aenderungen)
-        karte_json = json.dumps(neue_karte, ensure_ascii=False)
-        figur_ids = sorted(
-            set(erkenner._figuren_aus_namen(conn, chat_id, neue_karte.get("wer") or ""))
-            | set(_figuren_aus_text(conn, chat_id, text))
-        )
-        repo.aktualisiere_karte_und_werkbank(
-            conn, chat_id, szene_id, karte_json, neue_karte.get("ort"), figur_ids,
-            szenenkarte.AUSLOESER_AENDERUNG, _NOTIZ,
-        )
+                and neuer_modus not in ("none", karte.get("modus"))):
+            stueck.karte_aendern(conn, chat_id, szene=nummer, modus=neuer_modus, quelle=q)
     except Exception:
         log.exception("P7-Meta-Nachzug fehlgeschlagen, chat_id=%s, szene_id=%s",
                       chat_id, szene_id)

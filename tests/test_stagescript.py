@@ -134,8 +134,9 @@ def test_schalter_an_ruft_karten_nachzug_und_aktualisiert_karte(conn, einst, pad
         _t.sleep(0.1)
     assert karte["ort"] == "Piazza"
     assert repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
-    verlauf = repo.karte_verlauf(conn, 1, ids[0])
-    assert verlauf[-1]["ausloeser"] == szenenkarte.AUSLOESER_AENDERUNG
+    # Stueckmodell: kein karte_verlauf-Zweitschreiber mehr, der Nachzug steht
+    # im Aenderungsprotokoll (Quelle script).
+    assert [a["art"] for a in repo.stueck_aenderungen(conn, 1, stueck.QUELLE_SCRIPT)] == ["setze_ort"]
 
 
 def test_format_nach_kartentyp(conn, padua):

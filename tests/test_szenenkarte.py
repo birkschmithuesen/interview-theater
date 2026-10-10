@@ -745,6 +745,18 @@ def test_zweites_speichern_einer_gespeicherten_karte_tut_nichts(conn, einst, pad
     assert not tg.leisten
 
 
+def test_gespeicherte_karte_mit_neuer_offener_frage_wird_abgelehnt(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    conn.execute("UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?", (_ALTER_STEMPEL, ids[0]))
+    conn.commit()
+    repo.lege_offene_frage_an(conn, 1, ids[0], "Wer oeffnet die Tuer?", "test")
+    tg = TG()
+
+    antwort = szenenkarte.bestaetige(conn, tg, LLM(), einst, 1, 1)
+
+    assert antwort == szenenkarte.T._TEXT_FRAGEN_OFFEN_ABGELEHNT
+
+
 def test_geaenderte_karte_laesst_sich_wieder_speichern(conn, einst, padua):
     ids = _karte1(conn, einst, LLM())
     conn.execute("UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?", (_ALTER_STEMPEL, ids[0]))

@@ -269,8 +269,10 @@ def test_phase_6_eine_karte_nach_der_anderen(conn, einst, padua):
 
     # Veralteter Knopf fuer Karte 1: nichts passiert. chat_id 1 steht in
     # keiner italienisch_ab_phase6_chats-Liste -- englisch (T, nicht T_IT).
-    assert ueberarbeitung.bestaetige_szene_6(conn, tg, klm, einst, 1, 1) == \
-        szenenkarte.T._TEXT_NICHT_DRAN
+    # Stueckmodell (t_fd88600b): eine nicht aktuelle Karte ist kein Verbot
+    # mehr (Warnzeile); abgelehnt wird nur eine Szene, die es nicht gibt.
+    assert ueberarbeitung.bestaetige_szene_6(conn, tg, klm, einst, 1, 99) == \
+        szenenkarte.T._TEXT_UNBEKANNTE_KARTE.format(nummer=99)
 
     faden = szenenkarte.bestaetige(conn, tg, klm, einst, 1, 2)
     for _ in range(50):

@@ -33,7 +33,7 @@ def test_starte_dialog_veraltete_karte_wirkungslos(conn, einst, padua):
     _karte1(conn, einst, LLM())
     tg = TG()
     antwort = szenenkarte.starte_dialog(conn, tg, einst, 1, 99)
-    assert antwort == szenenkarte.T._TEXT_NICHT_DRAN
+    assert antwort == szenenkarte.T._TEXT_UNBEKANNTE_KARTE.format(nummer=99)
     assert szenenkarte.dialog_aktive_nummer(conn, 1) is None
 
 
@@ -211,7 +211,7 @@ def test_behalte_karte_veraltete_nummer_wirkungslos(conn, einst, padua):
     tg = TG()
     szenenkarte.starte_dialog(conn, tg, einst, 1, 1)
     antwort = szenenkarte.behalte_karte(conn, tg, einst, 1, 99)
-    assert antwort == szenenkarte.T._TEXT_NICHT_DRAN
+    assert antwort == szenenkarte.T._TEXT_UNBEKANNTE_KARTE.format(nummer=99)
     assert szenenkarte.dialog_aktive_nummer(conn, 1) == 1
 
 

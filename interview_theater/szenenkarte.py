@@ -375,16 +375,27 @@ def dialog_aktive_nummer(conn, chat_id: int) -> int | None:
     return None
 
 
+def _ziel_mit_warnung(conn, tg, e, chat_id: int, nummer: int):
+    """Stueckmodell (t_fd88600b, Problem 2): jede Karte ist in jeder Phase
+    aenderbar. Statt "nicht dran" eine Warnzeile, wenn eine andere Karte die
+    aktuelle ist. ``None`` nur, wenn es die Szene nicht gibt."""
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    if szene is None:
+        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer))
+        return None
+    aktuell = aktuelle_nummer(conn, chat_id)
+    if aktuell is not None and aktuell != nummer:
+        _sende(conn, tg, e, chat_id, _T(chat_id)._WARNUNG_ANDERE_KARTE.format(
+            nummer=nummer, aktuell=aktuell))
+    return szene
+
+
 def starte_dialog(conn, tg, e, chat_id: int, nummer: int) -> str:
     """"No, change" auf einer Karte: markiert sie als im Dialog, EIN Satz im
     Chat, danach laeuft das Gespraech normal weiter (``ablauf.antworte``)."""
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
     if szene is None:
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
     repo.setze_szenenkarte_dialog(conn, szene["id"], repo._jetzt())
     _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_DIALOG_START.format(nummer=nummer))
     return _T(chat_id)._ANTWORT_DIALOG_GESTARTET
@@ -433,13 +444,9 @@ def aktualisiere_mit_dialog(conn, tg, klm, e, chat_id: int, nummer: int,
     """"Update the card": Neubau mit der im Dialog zusammengefassten
     Aenderung als Notiz. Beendet den Dialog; offene Fragen der alten Karte
     bleiben (sie stehen in ``offene_frage``, der Neubau beruehrt sie nicht)."""
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
     if szene is None:
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
     repo.setze_szenenkarte_dialog(conn, szene["id"], None)
     starte(conn, tg, klm, e, chat_id, nummer, aenderung.strip(),
           ausloeser=AUSLOESER_DIALOG)
@@ -449,13 +456,9 @@ def aktualisiere_mit_dialog(conn, tg, klm, e, chat_id: int, nummer: int,
 def behalte_karte(conn, tg, e, chat_id: int, nummer: int) -> str:
     """"Keep the card": Dialog beenden, dieselbe Karte wieder zur
     Bestaetigung zeigen -- kein Neubau."""
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
     if szene is None:
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
     repo.setze_szenenkarte_dialog(conn, szene["id"], None)
     zeige(conn, tg, e, chat_id, nummer)
     return _T(chat_id)._ANTWORT_KARTE_BEHALTEN.format(nummer=nummer)
@@ -635,11 +638,10 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if laeuft(chat_id):
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_LAEUFT)
         return _T(chat_id)._TEXT_LAEUFT
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = _karte(conn, szene) if szene is not None else None
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
+    if szene is None:
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
+    karte = _karte(conn, szene)
     if karte is None:
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
@@ -750,11 +752,10 @@ def starte_fragenklaerung(conn, tg, e, chat_id: int, nummer: int, *, runde: int 
     Statuszeilen ueber ``_T(chat_id)`` (Morgen-Auftrag 4): deterministische
     Zeilen ab Phase 6 italienisch fuer gelistete Chats, wie der Rest des
     Moduls."""
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
-    offen = repo.offene_fragen(conn, chat_id, szene["id"], status=("offen",)) if szene else []
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
+    if szene is None:
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
+    offen = repo.offene_fragen(conn, chat_id, szene["id"], status=("offen",))
     if not offen:
         zeige(conn, tg, e, chat_id, nummer)
         return _T(chat_id)._ANTWORT_GESPEICHERT.format(nummer=nummer)
@@ -776,11 +777,10 @@ def ueberspringe_fragen(conn, tg, e, chat_id: int, nummer: int) -> str:
     Der Journal-Wortlaut bleibt ausdruecklich auf ``T`` (Englisch) --
     Birk gibt ihn woertlich vor ("Card N: questions skipped as not
     fitting"), anders als die uebrigen Statuszeilen ueber ``_T(chat_id)``."""
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = _karte(conn, szene) if szene is not None else None
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
+    if szene is None:
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
+    karte = _karte(conn, szene)
     if karte is None or not karte.get("fragen"):
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
@@ -1096,6 +1096,8 @@ _TEXT_AENDERE = "Ich baue die Karte fuer Szene {nummer} neu."
 _TEXT_LAEUFT = "Ich baue gerade noch an einer Karte -- gleich."
 _TEXT_FEHLER = "Die Karte fuer Szene {nummer} hat nicht geklappt. Sagt einfach nochmal Bescheid."
 _TEXT_NICHT_DRAN = "Diese Karte ist gerade nicht dran -- gespeichert habe ich nichts."
+_WARNUNG_ANDERE_KARTE = "Karte {nummer} wird geaendert; Karte {aktuell} ist noch nicht gespeichert."
+_TEXT_UNBEKANNTE_KARTE = "Eine Szene {nummer} gibt es nicht."
 _TEXT_KEIN_ZIEL = "Alle Karten sind gespeichert. Welche Szene wollt ihr aendern?"
 _TEXT_KEINE_SZENEN = "Es gibt noch keine Szenen -- legt sie zuerst in der Workbench fest."
 _TEXT_ALLE_GESPEICHERT = "Alle Karten sind gespeichert. Weiter zum Stage Script?"

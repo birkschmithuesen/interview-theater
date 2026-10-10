@@ -93,7 +93,8 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
     assert repo.hole_szene(conn, ids[0])["fertig_am"]
     assert repo.hole_szene(conn, ids[1])["volltext"]
     assert ueberarbeitung.aktuelle_szene(conn, 1) == 2
-    assert ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 1) == \
+    # Stueckmodell (t_fd88600b): nur noch "nichts zu speichern" lehnt ab.
+    assert ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 99) == \
         stagescript.T._TEXT_NICHT_DRAN
     ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 2)
     assert tg.texte[-1] == stagescript.T._TEXT_ALLES_FERTIG
@@ -670,19 +671,20 @@ def test_abnahme_vorherige_szene_offen_bekommt_eigene_leiste(conn, einst, padua)
 
     antwort = stagescript.bestaetige(conn, tg, klm, einst, 1, 2)
 
-    assert antwort == stagescript.T._TEXT_ERST_VORHERIGE.format(nummer=1)
-    assert antwort in tg.texte
+    # Stueckmodell (t_fd88600b, Vorfall 6): speichern IMMER, die offene
+    # fruehere Szene ist eine Warnzeile, kein Verbot.
+    assert antwort == stagescript.T._ANTWORT_GESPEICHERT.format(nummer=2)
+    assert stagescript.T._WARNUNG_VORHERIGE_OFFEN.format(nummer=2, offen=1) in tg.texte
     assert tg.leisten  # Yes/No-Leiste der Szene 1 kam mit, nicht nur Text
     assert repo.hole_szene(conn, ids[0])["fertig_am"] is None
-    assert repo.hole_szene(conn, ids[1])["fertig_am"] is None
+    assert repo.hole_szene(conn, ids[1])["fertig_am"]
 
 
-def test_abnahme_ohne_offene_vorherige_bleibt_nicht_dran(conn, einst, padua):
-    """Ist die frueher nummerierte Szene noch gar nicht geschrieben (kein
-    Volltext), gibt es nichts zum Mitspeichern oder Anzeigen -- die alte
-    Ablehnung bleibt (keine Leiste fuer eine ungeschriebene Szene)."""
+def test_abnahme_ohne_text_bleibt_nicht_dran(conn, einst, padua):
+    """Eine Szene ohne Text hat nichts zu speichern -- das ist kein Verbot,
+    die Meldung bleibt (keine Leiste fuer eine ungeschriebene Szene)."""
     ids = _karten(conn)
-    repo.setze_stagescript(conn, ids[1], "Scene 2 text.", None)
+    repo.setze_stagescript(conn, ids[0], "Scene 1 text.", None)
     tg, klm = TG(), LLM()
 
     antwort = stagescript.bestaetige(conn, tg, klm, einst, 1, 2)

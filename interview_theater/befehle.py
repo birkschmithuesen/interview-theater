@@ -940,6 +940,10 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
 
         phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, verlassene_phase)
     tg.sende(chat_id, phasen.meldung(nummer))
+    fehlt = phasen.warnungen(conn, chat_id, nummer)
+    if fehlt:
+        tg.sende(chat_id, phasen.T._WARNUNG_PHASE_KOPF.format(phase=nummer) + "\n"
+                 + "\n".join(f"- {s}" for s in fehlt))
     if wiederherstellung:
         # Birk 08.10.2026 ~12:15: zurueck in Phase 7 (z. B. 7 -> 6 -> 7) ohne
         # geschriebene aktuelle Szene blieb stumm -- nichts wurde geschrieben.

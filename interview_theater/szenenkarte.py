@@ -122,6 +122,10 @@ def karte_von(szene) -> dict | None:
     return karte if isinstance(karte, dict) else None
 
 
+#: Uebergang (Stueckmodell): Task 9 benennt ``karte_von`` um.
+roh_karte_von = karte_von
+
+
 def aktuelle_nummer(conn, chat_id: int) -> int | None:
     """Die erste Szene ohne abgenommene Karte."""
     for s in _szenen(conn, chat_id):

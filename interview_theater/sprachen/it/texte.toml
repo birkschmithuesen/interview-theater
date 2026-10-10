@@ -150,3 +150,12 @@ _TEXT_WO = "Dove"
 microphone = "🎤 Microfono"
 one_to_one = "👂 1:1"
 collective = "👥 Tutti"
+
+["stueck"]
+_WARNUNG_BESCHAEFTIGT = "Sto ancora scrivendo -- riprovate tra un attimo."
+_WARNUNG_UNBEKANNTE_FIGUR = "{name} non è ancora un personaggio dello spettacolo."
+_GRUND_RAHMEN = "nuova cornice"
+_GRUND_ORT = "nuovo luogo ({neu})"
+_GRUND_BESETZUNG = "nuovo cast ({wer})"
+_GRUND_FIGUR_NEU = "nuovo personaggio {name}"
+_GRUND_FIGUR_WEG = "{name} non è più in scena"

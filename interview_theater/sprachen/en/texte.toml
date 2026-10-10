@@ -2463,3 +2463,12 @@ _TEXT_WO = "Where"
 microphone = "🎤 Mic"
 one_to_one = "👂 1:1"
 collective = "👥 All"
+
+["stueck"]
+_WARNUNG_BESCHAEFTIGT = "Still writing -- try again in a moment."
+_WARNUNG_UNBEKANNTE_FIGUR = "{name} is not a character of the piece yet."
+_GRUND_RAHMEN = "new setting"
+_GRUND_ORT = "new place ({neu})"
+_GRUND_BESETZUNG = "new cast ({wer})"
+_GRUND_FIGUR_NEU = "new character {name}"
+_GRUND_FIGUR_WEG = "{name} is no longer in it"

@@ -315,6 +315,7 @@ def lege_an(
     ``form_vorschlag`` samt Begruendung in der Szene, ``form`` bleibt leer,
     bis die Gruppe sie Szene fuer Szene per Knopf bestaetigt. Anlass: in einer
     fertigen Szene stand "Monolog", ohne dass es je jemand gewaehlt hatte."""
+    from interview_theater import stueck
     from interview_theater import szene as szene_modul
 
     nach_name = {f["name"].strip().lower(): f["id"] for f in repo.figuren(conn, chat_id)}
@@ -344,9 +345,11 @@ def lege_an(
         # Felder.
         szene_modul.uebernimm_rahmen(conn, chat_id, szene_id)
         figuren = zeile[2]
-        ids = [nach_name[n.lower()] for n in figuren if n.lower() in nach_name]
-        if ids:
-            repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+        namen = [n for n in figuren if n.lower() in nach_name]
+        if namen:
+            stueck.setze_besetzung(conn, chat_id, szene=nummer, namen=namen,
+                                   zusatz=repo.hole_szene(conn, szene_id)["wer_zusatz"],
+                                   quelle=stueck.QUELLE_PLANUNG)
     return list(bericht["nummern"])
 
 

@@ -307,6 +307,8 @@ def test_verfolgt_deckt_jede_geschriebene_spalte(
             continue
         if tabelle == "journal":
             continue  # nur-anhaengend, wird nie zurueckgenommen (AGENTS.md)
+        if tabelle == "stueck_aenderung":
+            continue  # Protokoll der Stueck-Schnittstelle, nur anhaengend (stueck.py)
         if tabelle == "vorfall":
             continue  # Dashboard des Teams, kein Inhalt der Gruppe
         if tabelle in verfolgt and (
@@ -388,7 +390,7 @@ def test_rundreise_der_padua_arten(spaet, einst, monkeypatch, name, aenderungen)
 
         verfolgt = ruecknahme.plan(a["art"] for a in aenderungen)
         for tabelle, spalte in _unterschiede(vorher_alles, _alles(spaet, tabellen)):
-            if tabelle in ("journal", "vorfall") or f"{tabelle}.{spalte}" in AUSSEN_VOR:
+            if tabelle in ("journal", "vorfall", "stueck_aenderung") or f"{tabelle}.{spalte}" in AUSSEN_VOR:
                 continue
             assert tabelle in verfolgt and spalte in verfolgt[tabelle][1], (
                 f"{name}: {tabelle}.{spalte} geschrieben, aber nicht verfolgt")

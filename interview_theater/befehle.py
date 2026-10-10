@@ -1356,15 +1356,27 @@ def _setze_szenenfeld(conn, tg, chat_id: int, rest: str) -> bool:
         kanonisch = ueberarbeitung.form_aus_text(wert)
         if kanonisch is not None:
             wert = kanonisch
+    from interview_theater import stueck
+
     szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
     if feld == "figuren":
         ids = erkenner._figuren_aus_namen(conn, chat_id, wert)
         if not ids:
             tg.sende(chat_id, T._TEXT_SZENE_FIGUR_UNBEKANNT.format(namen=wert))
             return True
-        repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+        namen = {f["id"]: f["name"] for f in repo.figuren(conn, chat_id)}
+        ergebnis = stueck.setze_besetzung(
+            conn, chat_id, szene=nummer, namen=[namen[i] for i in ids],
+            zusatz=repo.hole_szene(conn, szene_id)["wer_zusatz"])
+    elif feld in repo.NUR_UEBER_STUECK:
+        ergebnis = stueck.setze_ort(conn, chat_id, szene=nummer, ort=wert)
     else:
         repo.setze_szenenfeld(conn, szene_id, feld, wert)
+        ergebnis = None
+    if ergebnis is not None and not ergebnis.ok:
+        # Z. B. "gerade wird geschrieben": sichtbar sagen, nicht so tun als ob.
+        tg.sende(chat_id, "; ".join(ergebnis.warnungen) or str(ergebnis.fehler))
+        return True
     tg.sende(chat_id, szene.planungszeile(conn, repo.hole_szene(conn, szene_id)))
     return True
 

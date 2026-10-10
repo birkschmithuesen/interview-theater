@@ -36,3 +36,12 @@ def lege_karte_an(conn, chat_id=1, nummer=1, *, ort=None, wer=None, fragen=(),
     if bestaetigt:
         repo.setze_szenenkarte_bestaetigt(conn, sid)
     return sid
+
+
+def setze_feld(conn, szene_id, feld, wert) -> None:
+    """Testvorbereitung: ein Szenenfeld setzen -- der Ort geht am Modell
+    vorbei direkt in die Spalte (``repo.setze_szenenfeld`` weist ihn ab)."""
+    if feld in repo.NUR_UEBER_STUECK:
+        repo.setze_szenenort(conn, szene_id, wert)
+    else:
+        repo.setze_szenenfeld(conn, szene_id, feld, wert)

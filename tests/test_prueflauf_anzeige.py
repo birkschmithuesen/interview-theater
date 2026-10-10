@@ -19,6 +19,7 @@ import test_dramaturgie_schleife as schleifentest
 from interview_theater import (
     knoepfe, kurzgeschichte, phasen, prueflauf, repo, szene, workshop,
 )
+from tests.stueck_hilfe import setze_feld
 from interview_theater.dramaturgie import fanout
 from test_dramaturgie_schleife import Rundenrichter
 from test_knoepfe import TelegramAttrappe, _druck
@@ -108,7 +109,7 @@ def _stueck(conn, phase: int, szenen=(1,)):
     for nummer in szenen:
         szene_id = repo.stelle_szene_sicher(conn, 1, nummer)
         for feld, wert in (("ort", "Steg"), ("was_passiert", "Sie treffen sich.")):
-            repo.setze_szenenfeld(conn, szene_id, feld, wert)
+            setze_feld(conn, szene_id, feld, wert)
         repo.setze_szene_figuren(conn, 1, szene_id, ids)
     phasen.setze(conn, 1, phase, "test")
     return conn

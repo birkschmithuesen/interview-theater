@@ -309,6 +309,8 @@ def uebernimm_szenenfelder(conn, chat_id: int) -> None:
     Padua Phasen TEIL 1 -- das Schema liefert keine Besetzung je Szene, um
     flach zu bleiben). Alle drei sind ueber die Gruppenseite danach
     aenderbar."""
+    from interview_theater import stueck
+
     stand = repo.hole_arbeitsstand(conn, chat_id)
     if stand is None:
         return
@@ -316,7 +318,7 @@ def uebernimm_szenenfelder(conn, chat_id: int) -> None:
     anzahl_text = (stand["szenen_anzahl"] or "").strip()
     anzahl = int(anzahl_text) if anzahl_text.isdigit() else 0
     was_passiert_zeilen = (stand["geschichte_uebersicht_szenen"] or "").splitlines()
-    figuren_ids = [f["id"] for f in repo.figuren(conn, chat_id)]
+    figuren_namen = [f["name"] for f in repo.figuren(conn, chat_id)]
     for nummer in range(1, anzahl + 1):
         szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
         zeile = repo.hole_szene(conn, szene_id)
@@ -325,9 +327,12 @@ def uebernimm_szenenfelder(conn, chat_id: int) -> None:
             if satz:
                 repo.setze_szenenfeld(conn, szene_id, "was_passiert", satz)
         if not (zeile["ort"] or "").strip() and rahmen:
-            repo.setze_szenenfeld(conn, szene_id, "ort", rahmen)
-        if not repo.szene_figuren(conn, szene_id) and figuren_ids:
-            repo.setze_szene_figuren(conn, chat_id, szene_id, figuren_ids)
+            stueck.setze_ort(conn, chat_id, szene=nummer, ort=rahmen,
+                             quelle=stueck.QUELLE_PLANUNG)
+        if not repo.szene_figuren(conn, szene_id) and figuren_namen:
+            stueck.setze_besetzung(conn, chat_id, szene=nummer, namen=figuren_namen,
+                                   zusatz=repo.hole_szene(conn, szene_id)["wer_zusatz"],
+                                   quelle=stueck.QUELLE_PLANUNG)
 
 
 def erste_offene_szene(conn, chat_id: int) -> int | None:

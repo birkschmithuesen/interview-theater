@@ -16,6 +16,7 @@ import threading
 import pytest
 
 from interview_theater import anweisungen, phasen, repo, szene
+from tests.stueck_hilfe import setze_feld
 
 ANTWORT = (
     "TITEL: Am Bahnhof\n"
@@ -114,7 +115,7 @@ def _bereit_machen(conn, chat_id=1, nummer=1):
     repo.setze_arbeitsstand(conn, chat_id, "rahmen", "Ein Bahnhof, ein Abend")
     szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
     repo.setze_szenenfeld(conn, szene_id, "form", "Dialog")
-    repo.setze_szenenfeld(conn, szene_id, "ort", "Bahnhof")
+    repo.setze_szenenort(conn, szene_id, "Bahnhof")
     repo.setze_szenenfeld(conn, szene_id, "was_passiert", "Maria kommt an")
     repo.setze_szene_figuren(conn, chat_id, szene_id, [figur_id])
     return szene_id
@@ -143,7 +144,7 @@ def _geplante_szene(conn, nummer, **felder):
     figuren = felder.pop("figuren", None)
     szene_id = repo.stelle_szene_sicher(conn, 1, nummer)
     for feld, wert in felder.items():
-        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+        setze_feld(conn, szene_id, feld, wert)
     if figuren:
         repo.setze_szene_figuren(conn, 1, szene_id, figuren)
     return repo.hole_szene(conn, szene_id)
@@ -412,7 +413,7 @@ def test_planungszeile_nennt_nummer_form_ort_und_besetzung(conn):
     repo.setze_figur(conn, 1, "Pola", "war auf jeder Demo")
     szene_id = repo.stelle_szene_sicher(conn, 1, 1)
     repo.setze_szenenfeld(conn, szene_id, "form", "Dialog")
-    repo.setze_szenenfeld(conn, szene_id, "ort", "Polizeikessel")
+    repo.setze_szenenort(conn, szene_id, "Polizeikessel")
     repo.setze_szene_figuren(
         conn, 1, szene_id, [f["id"] for f in repo.figuren(conn, 1)]
     )

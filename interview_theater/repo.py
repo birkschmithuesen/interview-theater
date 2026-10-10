@@ -3235,6 +3235,12 @@ def stelle_szene_sicher(conn: sqlite3.Connection, chat_id: int, nummer: int) -> 
     return cur.lastrowid
 
 
+#: Felder, die NUR ``stueck.py`` schreibt (Karte t_fd88600b): ``setze_szenenfeld``
+#: und ``gleiche_szenenfolge_ab`` weisen sie ab; der Aufrufer geht ueber
+#: ``stueck.setze_ort``.
+NUR_UEBER_STUECK = ("ort",)
+
+
 @_gesperrt
 def setze_szenenfeld(
     conn: sqlite3.Connection, szene_id: int, feld: str, wert: str | None
@@ -3251,6 +3257,8 @@ def setze_szenenfeld(
     den Gespraechs-Prompt wandert."""
     if feld not in SZENENFELDER:
         raise ValueError(f"unbekanntes Szenenfeld: {feld!r}")
+    if feld in NUR_UEBER_STUECK:
+        raise ValueError(f"Szenenfeld {feld!r} schreibt nur stueck.py")
     conn.execute(
         f"UPDATE szene SET {feld} = ?, geaendert_am = ? WHERE id = ?",
         (wert, _jetzt_genau(), szene_id),
@@ -3584,7 +3592,7 @@ GESCHUETZTE_SZENENFELDER = (
 #: ``SZENENFELDER`` ist eine unbekannte Angabe ein Programmierfehler: nur
 #: nach dieser Pruefung landet ein Name im SQL-Text.
 ABGLEICHBARE_SZENENFELDER = (
-    *SZENENFELDER,
+    *(f for f in SZENENFELDER if f not in NUR_UEBER_STUECK),
     "zusammenfassung",
     "volltext",
     "prosa",

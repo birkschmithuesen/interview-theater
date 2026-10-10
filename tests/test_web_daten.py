@@ -303,7 +303,7 @@ def test_figuren_tragen_sprachprofil_zitate_und_quelle(gefuellt):
 def test_szenen_tragen_ihre_planung(gefuellt):
     szene_id = repo.hole_szenen(gefuellt, 1)[0]["id"]
     repo.setze_szenenfeld(gefuellt, szene_id, "form", "Lied")
-    repo.setze_szenenfeld(gefuellt, szene_id, "ort", "Treppenhaus")
+    repo.setze_szenenort(gefuellt, szene_id, "Treppenhaus")
     repo.setze_szene_figuren(
         gefuellt, 1, szene_id, [repo.hole_figur(gefuellt, 1, "Maria")["id"]]
     )

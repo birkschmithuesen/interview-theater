@@ -262,7 +262,14 @@ def _parameterkorrektur(conn, chat_id: int, runde, nummer: int, sid: int) -> lis
         # setzt sie nicht. Text-Spalten sind ohnehin keine Planung.
         if feld not in repo.SZENENFELDER or feld in repo.GESCHUETZTE_SZENENFELDER:
             continue
-        repo.setze_szenenfeld(conn, sid, feld, wert)
+        if feld in repo.NUR_UEBER_STUECK:
+            from interview_theater import stueck
+
+            if not stueck.setze_ort(conn, chat_id, szene=nummer, ort=wert,
+                                    quelle=stueck.QUELLE_PLANUNG).ok:
+                continue
+        else:
+            repo.setze_szenenfeld(conn, sid, feld, wert)
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
             T._JOURNAL_PARAMETER.format(nummer=nummer, feld=feld, wert=wert),

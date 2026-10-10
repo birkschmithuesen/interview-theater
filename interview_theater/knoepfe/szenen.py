@@ -1771,6 +1771,7 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
     dieselben Aliase wie beim Befehl und beim Erkenner, kein zweites
     Vokabular. Was der Code nicht kennt, wird uebergangen und geloggt: ein
     unbekanntes Feld ist kein Grund, die uebrigen wegzuwerfen."""
+    from interview_theater import stueck
     from interview_theater import szene as szene_modul
 
     roh_nummer, _, wert = roh.partition(TRENNER)
@@ -1781,6 +1782,7 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
         return T._TEXT_UNBEKANNT
     szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
     gesetzt = []
+    abgewiesen = []
     for zeile in wert.splitlines():
         kopf, trenner, rest = zeile.partition(":")
         feld = szene_modul.feldname(kopf)
@@ -1796,11 +1798,28 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
                 if n.strip().lower() in nach_name
             ]
             if ids:
-                repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+                namen = {f["id"]: f["name"] for f in repo.figuren(conn, chat_id)}
+                ergebnis = stueck.setze_besetzung(
+                    conn, chat_id, szene=nummer, namen=[namen[i] for i in ids],
+                    zusatz=repo.hole_szene(conn, szene_id)["wer_zusatz"])
+                if not ergebnis.ok:
+                    abgewiesen.append(ergebnis)
+                    continue
                 gesetzt.append(feld)
             continue
-        repo.setze_szenenfeld(conn, szene_id, feld, rest.strip())
+        if feld in repo.NUR_UEBER_STUECK:
+            ergebnis = stueck.setze_ort(conn, chat_id, szene=nummer, ort=rest.strip())
+            if not ergebnis.ok:
+                abgewiesen.append(ergebnis)
+                continue
+        else:
+            repo.setze_szenenfeld(conn, szene_id, feld, rest.strip())
         gesetzt.append(feld)
+    if abgewiesen:
+        # Z. B. "gerade wird geschrieben": die Gruppe erfaehrt es, statt dass
+        # still etwas fehlt.
+        tg.sende(chat_id, "; ".join(
+            dict.fromkeys(w for e in abgewiesen for w in (e.warnungen or (str(e.fehler),)))))
     if not gesetzt:
         log.error("Feldvorschlag ohne verwertbares Feld, chat_id=%s", chat_id)
         return T._TEXT_UNBEKANNT

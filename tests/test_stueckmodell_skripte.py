@@ -45,12 +45,9 @@ def test_kopie_ueberschreibt_nie(tmp_path):
 
 
 def test_fakten_lesen_ort_aus_allen_ansichten(conn, padua):
-    sid = repo.stelle_szene_sicher(conn, 1, 1)
-    repo.setze_szenenfeld(conn, sid, "ort", "Bar")
-    repo.setze_szenenkarte(conn, sid, json.dumps({
-        "typ": "spoken", "modus": "none", "worum": "w", "ort": "Bar",
-        "wer": "", "punkte": ["p"], "zitate": [], "fragen": []}))
+    from tests.stueck_hilfe import lege_karte_an
 
+    lege_karte_an(conn, ort="Bar")
     f = stueckmodell_ansichten.fakten(conn, 1)
 
     assert f["1"]["werkbank_ort"] == "Bar"

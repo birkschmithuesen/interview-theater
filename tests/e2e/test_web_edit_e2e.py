@@ -143,7 +143,7 @@ def _baue_datenbank(pfad: str) -> str:
     # Kleingeschrieben wie der Knopf im Chat (knoepfe.biete_szenenform).
     repo.setze_szenenfeld(conn, szene_id, "form", "dialog")
     repo.setze_szenenfeld(conn, szene_id, "form_vorschlag", "monolog")
-    repo.setze_szenenfeld(conn, szene_id, "ort", "Treppenhaus")
+    repo.setze_szenenort(conn, szene_id, "Treppenhaus")
 
     # Eine Schaerfung, wie sie Phase 6 anlegt -- hier von Hand, weil
     # schaerfung.mappe ein Modell braucht.

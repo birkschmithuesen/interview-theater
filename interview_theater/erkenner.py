@@ -1089,7 +1089,7 @@ def _wende_szene_planen_an(conn, chat_id: int, wert: str) -> dict | None:
 
     Liefert None, wenn nichts Verwertbares dastand -- dann wurde nichts
     geschrieben und nichts gemeldet."""
-    from interview_theater import szene  # spaeter Import, haelt den Modulkopf frei
+    from interview_theater import stueck, szene  # spaeter Import, haelt den Modulkopf frei
 
     nummer, felder = szene.zerlege_planung(wert)
     if not felder and nummer is None:
@@ -1126,12 +1126,28 @@ def _wende_szene_planen_an(conn, chat_id: int, wert: str) -> dict | None:
             vorher = [f["id"] for f in repo.szene_figuren(conn, szene_id)]
             if vorher == ids:
                 continue
-            repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+            namen = {f["id"]: f["name"] for f in repo.figuren(conn, chat_id)}
+            ergebnis = stueck.setze_besetzung(
+                conn, chat_id, szene=nummer, namen=[namen[i] for i in ids],
+                zusatz=repo.hole_szene(conn, szene_id)["wer_zusatz"],
+                quelle=stueck.QUELLE_PLANUNG)
+            if not ergebnis.ok:
+                log.warning("Besetzung nicht gesetzt, chat_id=%s, Szene %s: %s",
+                            chat_id, nummer, ergebnis.fehler)
+                continue
             geaendert.append("figuren")
             continue
         if (repo.hole_szene(conn, szene_id)[feld] or "") == neuer_wert:
             continue
-        repo.setze_szenenfeld(conn, szene_id, feld, neuer_wert)
+        if feld in repo.NUR_UEBER_STUECK:
+            ergebnis = stueck.setze_ort(conn, chat_id, szene=nummer, ort=neuer_wert,
+                                        quelle=stueck.QUELLE_PLANUNG)
+            if not ergebnis.ok:
+                log.warning("Ort nicht gesetzt, chat_id=%s, Szene %s: %s",
+                            chat_id, nummer, ergebnis.fehler)
+                continue
+        else:
+            repo.setze_szenenfeld(conn, szene_id, feld, neuer_wert)
         geaendert.append(feld)
 
     if not geaendert:
@@ -1307,7 +1323,7 @@ def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> N
     Nur in Phase 7 (``_PHASE_FIGUR_NACHZUG``) und nur bei einem eindeutigen
     Figurennamen -- ein unbekannter oder mehrdeutiger ``bezug`` bleibt
     unangetastet, wie ``_figuren_aus_namen`` es sonst auch haelt."""
-    from interview_theater import stueck, szenenkarte
+    from interview_theater import stueck, stueck_sicht
 
     if phasen.aktuelle(conn, chat_id) != _PHASE_FIGUR_NACHZUG:
         return
@@ -1324,7 +1340,6 @@ def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> N
 
     praefix = T_IT._ZEILE_FESTGEHALTEN.format(marke=f" ({figur['name']})", text="")
     hakenpunkt = praefix + text
-    notiz = f"Phase 7: {hakenpunkt}"
     for szene in repo.hole_szenen(conn, chat_id):
         if szene["entfernt_am"] or szene["fertig_am"]:
             continue
@@ -1333,15 +1348,15 @@ def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> N
             continue
         if figur_id not in {f["id"] for f in repo.szene_figuren(conn, szene["id"])}:
             continue
-        neue_karte = dict(karte)
-        neue_karte["punkte"] = _ersetze_oder_haenge_an(
-            list(karte.get("punkte") or []), praefix, hakenpunkt)
-        karte_json = json.dumps(neue_karte, ensure_ascii=False)
-        repo.setze_szenenkarte(conn, szene["id"], karte_json)
-        repo.merke_karte_verlauf(
-            conn, chat_id, szene["id"], karte_json,
-            szenenkarte.AUSLOESER_AENDERUNG, notiz,
-        )
+        roh_punkte = [p for p in karte.get("punkte") or []
+                      if not stueck_sicht.OFFEN_PUNKT.match(p)]
+        ergebnis = stueck.karte_aendern(
+            conn, chat_id, szene=szene["nummer"],
+            punkte=_ersetze_oder_haenge_an(roh_punkte, praefix, hakenpunkt),
+            quelle="erkenner")
+        if not ergebnis.ok:
+            log.warning("Figur-Festlegung nicht auf Karte Szene %s gezogen, chat_id=%s: %s",
+                        szene["nummer"], chat_id, ergebnis.fehler)
 
 
 #: Zahlwoerter, die die Gruppe statt einer Ziffer sagt. Bis zwoelf, weil der

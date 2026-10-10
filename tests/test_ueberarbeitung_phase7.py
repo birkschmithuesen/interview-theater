@@ -21,6 +21,7 @@ from interview_theater import (
     knoepfe, phasen, prueflauf, repo, sprechweise, stueckpruefung, szene,
     ueberarbeitung, workshop,
 )
+from tests.stueck_hilfe import setze_feld
 from interview_theater.dramaturgie import fanout
 from test_dramaturgie_schleife import Rundenrichter
 from test_knoepfe import TelegramAttrappe, _druck
@@ -117,7 +118,7 @@ def _stueck(conn, szenen=(1, 2, 3)):
     for nummer in szenen:
         sid = repo.stelle_szene_sicher(conn, 1, nummer)
         for feld, wert in (("ort", "Steg"), ("was_passiert", "Sie treffen sich.")):
-            repo.setze_szenenfeld(conn, sid, feld, wert)
+            setze_feld(conn, sid, feld, wert)
         repo.setze_szene_figuren(conn, 1, sid, ids)
         repo.aktualisiere_szene(
             conn, sid, f"Teil {nummer}", None, None,

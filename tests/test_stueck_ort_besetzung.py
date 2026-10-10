@@ -1,7 +1,5 @@
 import json
 
-import pytest
-
 from interview_theater import repo, stueck
 
 
@@ -102,6 +100,12 @@ def test_setze_rahmen_markiert_kopf(conn):
     stueck.setze_rahmen(conn, 1, rahmen="Sala prove")
     stueck.setze_rahmen(conn, 1, rahmen="Sala riunioni")
     assert [v["ansicht"] for v in repo.offene_veraltet(conn, 1)] == ["kopf"]
+
+
+def test_erster_rahmen_markiert_kopf_nicht(conn):
+    repo.setze_arbeitsstand(conn, 1, "stage_kopf", "SETUP: irgendwas")
+    assert stueck.setze_rahmen(conn, 1, rahmen="Sala prove").ok
+    assert repo.offene_veraltet(conn, 1) == []
 
 
 def test_ergebnis_ist_json_tauglich(conn):

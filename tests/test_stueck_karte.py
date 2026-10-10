@@ -55,6 +55,29 @@ def test_zitat_nur_aus_bestand(conn):
     assert stueck.karte_aendern(conn, 1, szene=1, zitate=[99]).fehler == "ungueltig"
 
 
+def test_zitat_aus_geprueftem_bestand(conn, monkeypatch):
+    from interview_theater import szenenkern
+
+    sid = _szene(conn)
+    monkeypatch.setattr(szenenkern, "_kandidaten", lambda c, chat, z: [
+        ("Wir stehen im Loch.", "Interview 1"), ("Zweiter Satz.", "")])
+    e = stueck.karte_aendern(conn, 1, szene=1, zitate=[2, 1])
+    assert e.ok
+    roh = json.loads(repo.hole_szene(conn, sid)["karte"])
+    assert roh["zitate"] == [{"zitat": "Zweiter Satz.", "interview": ""},
+                             {"zitat": "Wir stehen im Loch.", "interview": "Interview 1"}]
+
+
+def test_nicht_zahl_ist_ungueltig(conn, monkeypatch):
+    from interview_theater import szenenkern
+
+    _szene(conn)
+    monkeypatch.setattr(szenenkern, "_kandidaten", lambda c, chat, z: [("a", "")])
+    assert stueck.karte_aendern(conn, 1, szene=1, zitate=["x"]).fehler == "ungueltig"
+    assert stueck.reihenfolge_aendern(conn, 1, folge=["a"]).fehler == "ungueltig"
+    assert stueck.reihenfolge_aendern(conn, 1, folge=[1, None]).fehler == "ungueltig"
+
+
 def test_keine_karte(conn):
     repo.stelle_szene_sicher(conn, 1, 1)
     assert stueck.karte_aendern(conn, 1, szene=1, worum="x").fehler == "keine_karte"

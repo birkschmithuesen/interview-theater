@@ -37,6 +37,46 @@ def test_verwerfen(conn):
     assert stueck.karte(conn, repo.hole_szene(conn, sid))["punkte"] == ["p"]
 
 
+def test_beantwortete_frage_wird_nicht_zurueckgestellt_oder_verworfen(conn):
+    sid = lege_karte_an(conn, fragen=["Wo steht Giona?"])
+    [f] = repo.offene_fragen(conn, 1, sid)
+    stueck.frage_beantworten(conn, 1, frage_id=f["id"], antwort="im Loch")
+    n = len(repo.stueck_aenderungen(conn, 1))
+    for werkzeug in (stueck.frage_zurueckstellen, stueck.frage_verwerfen):
+        e = werkzeug(conn, 1, frage_id=f["id"])
+        assert e.ok and e.aenderung_id is None
+    zeile = repo.hole_offene_frage(conn, f["id"])
+    assert (zeile["status"], zeile["antwort"]) == ("beantwortet", "im Loch")
+    assert len(repo.stueck_aenderungen(conn, 1)) == n
+
+
+def test_busy_gate_fragen_und_pruefung(conn, monkeypatch):
+    from interview_theater import ueberarbeitung
+
+    sid = lege_karte_an(conn, fragen=["Wo steht Giona?"])
+    [f] = repo.offene_fragen(conn, 1, sid)
+    repo.setze_stagescript(conn, sid, "ANNA: x.", None)
+    monkeypatch.setattr(ueberarbeitung, "laeuft", lambda chat_id: True)
+    for e in (stueck.frage_stellen(conn, 1, szene=1, frage="Neu?"),
+              stueck.frage_beantworten(conn, 1, frage_id=f["id"], antwort="a"),
+              stueck.frage_zurueckstellen(conn, 1, frage_id=f["id"]),
+              stueck.frage_verwerfen(conn, 1, frage_id=f["id"]),
+              stueck.pruefe_szene(conn, 1, szene=1)):
+        assert not e.ok and e.fehler == "beschaeftigt"
+    assert repo.hole_offene_frage(conn, f["id"])["status"] == "offen"
+    assert len(repo.offene_fragen(conn, 1, sid)) == 1
+    assert stueck.frage_stellen(conn, 1, szene=1, frage="Neu?", quelle=stueck.QUELLE_SCRIPT).ok
+    assert stueck.pruefe_szene(conn, 1, szene=1, quelle=stueck.QUELLE_SCRIPT).ok
+
+
+def test_karte_aus_modell_ohne_unbekannte_namen_behaelt_zusatz(conn):
+    repo.setze_figur(conn, 1, "Anna", "")
+    sid = lege_karte_an(conn, wer="Anna, il pubblico")
+    assert repo.hole_szene(conn, sid)["wer_zusatz"] == "il pubblico"
+    lege_karte_an(conn, wer="Anna")
+    assert repo.hole_szene(conn, sid)["wer_zusatz"] == "il pubblico"
+
+
 def test_fremde_frage(conn):
     assert stueck.frage_beantworten(conn, 1, frage_id=999, antwort="x").fehler == "unbekannte_frage"
 

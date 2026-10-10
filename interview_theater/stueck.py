@@ -147,7 +147,7 @@ def setze_rahmen(conn, chat_id: int, *, rahmen: str, quelle: str = QUELLE_GRUPPE
         return Ergebnis(ok=True)
     repo.setze_arbeitsstand(conn, chat_id, "rahmen", neu or None)
     aid = _protokoll(conn, chat_id, "setze_rahmen", {}, alt, neu, quelle)
-    v = _markiere_kopf(conn, chat_id, T._GRUND_RAHMEN, aid)
+    v = _markiere_kopf(conn, chat_id, T._GRUND_RAHMEN, aid) if alt.strip() else None
     return _ergebnis(aid, [f"rahmen: {alt or '(none)'} -> {neu or '(none)'}"], [v])
 
 
@@ -334,10 +334,14 @@ def karte_aendern(conn, chat_id: int, *, szene: int, worum: str | None = None,
     neu["punkte"] = sauber[:szenenkarte.PUNKTE_MAX]
     if zitate is not None:
         kandidaten = szenenkern._kandidaten(conn, chat_id, zeile)
-        if any(not (1 <= int(n) <= len(kandidaten)) for n in zitate):
+        try:
+            wahl = [int(n) for n in zitate]
+        except (TypeError, ValueError):
             return _nein("ungueltig")
-        neu["zitate"] = [{"zitat": kandidaten[int(n) - 1][0], "interview": kandidaten[int(n) - 1][1]}
-                         for n in zitate][:szenenkarte.ZITATE_MAX]
+        if any(not (1 <= n <= len(kandidaten)) for n in wahl):
+            return _nein("ungueltig")
+        neu["zitate"] = [{"zitat": kandidaten[n - 1][0], "interview": kandidaten[n - 1][1]}
+                         for n in wahl][:szenenkarte.ZITATE_MAX]
     alt_ansicht = karte(conn, zeile)
     karte_neu = neu != stueck_sicht.roh_ohne_struktur(roh)
     fragen_neu = [t for t in fragen_neu if not _frage_bekannt(conn, chat_id, zeile["id"], t)]
@@ -395,7 +399,8 @@ def reihenfolge_aendern(conn, chat_id: int, *, folge: list[int],
                      if s["nummer"] is not None and not s["entfernt_am"]),
                     key=lambda s: s["nummer"])
     je_nummer = {s["nummer"]: s for s in szenen}
-    if sorted(folge) != sorted(je_nummer) or len(set(folge)) != len(folge):
+    if (not all(isinstance(n, int) and not isinstance(n, bool) for n in folge)
+            or sorted(folge) != sorted(je_nummer) or len(set(folge)) != len(folge)):
         return _nein("ungueltig")
     if list(folge) == [s["nummer"] for s in szenen]:
         return Ergebnis(ok=True)
@@ -421,6 +426,8 @@ def _szene_nach_id(conn, szene_id: int | None):
 
 def frage_stellen(conn, chat_id: int, *, frage: str, szene: int | None = None,
                   quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+    if _beschaeftigt(chat_id, quelle):
+        return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
     text = " ".join((frage or "").split())
     if not text:
         return _nein("ungueltig")
@@ -442,9 +449,13 @@ def frage_stellen(conn, chat_id: int, *, frage: str, szene: int | None = None,
 
 def _schliesse(conn, chat_id: int, frage_id: int, status: str, antwort: str | None,
                art: str, quelle: str) -> Ergebnis:
+    if _beschaeftigt(chat_id, quelle):
+        return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
     f = _frage_der_gruppe(conn, chat_id, frage_id)
     if f is None:
         return _nein("unbekannte_frage")
+    if f["status"] == "beantwortet" and status != "beantwortet":
+        return Ergebnis(ok=True, frage_id=frage_id)   # beantwortet bleibt beantwortet
     if f["status"] == status and (antwort is None or f["antwort"] == antwort):
         return Ergebnis(ok=True, frage_id=frage_id)
     repo.setze_frage_status(conn, frage_id, status, antwort)
@@ -475,6 +486,8 @@ def frage_verwerfen(conn, chat_id: int, *, frage_id: int,
 def pruefe_szene(conn, chat_id: int, *, szene: int, quelle: str = QUELLE_GRUPPE) -> Ergebnis:
     from interview_theater import kartentreue
 
+    if _beschaeftigt(chat_id, quelle):
+        return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
     zeile = _szene(conn, chat_id, szene)
     if zeile is None:
         return _nein("unbekannte_szene")
@@ -509,7 +522,8 @@ def karte_aus_modell(conn, chat_id: int, *, szene: int, karte: dict, ausloeser: 
         rollen = dict(eintraege)
         zusammen = [(f, rollen.get(f) or r) for f, r in bisher] + [
             (f, r) for f, r in eintraege if f not in dict(bisher)]
-        _schreibe_besetzung(conn, chat_id, zeile, zusammen, ", ".join(rest) or None,
+        _schreibe_besetzung(conn, chat_id, zeile, zusammen,
+                            ", ".join(rest) or zeile["wer_zusatz"],
                             "karte_aus_modell", {"szene": szene}, q,
                             T._GRUND_BESETZUNG.format(wer=karte["wer"]))
     zeile = _szene(conn, chat_id, szene)

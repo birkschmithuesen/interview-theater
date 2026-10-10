@@ -56,3 +56,14 @@ def test_fakten_lesen_ort_aus_allen_ansichten(conn, padua):
     assert f["1"]["werkbank_ort"] == "Bar"
     assert f["1"]["karte_wo"] == "Bar"
     assert "Bar" in f["1"]["pdf_meta"]
+
+
+def test_bericht_liest_nur_migrationszeilen(conn):
+    from scripts import stueckmodell_migration as m
+
+    repo.merke_stueck_aenderung(conn, 1, "konflikt_ort", {"szene": 1}, "a", "b", "migration")
+    repo.merke_stueck_aenderung(conn, 1, "setze_ort", {"szene": 1}, "b", "c", "gruppe")
+    b = m.bericht(conn)
+    assert b["zaehler"] == {"konflikt_ort": 1}
+    assert b["konflikte"][0]["szene"] == 1
+    assert "konflikt_ort" in m.als_markdown(b)

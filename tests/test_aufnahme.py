@@ -524,6 +524,111 @@ def test_textimport_dann_nachholen_verdichtet_nur_einmal(conn, einst, tg, klm):
     assert len(repo.verdichtungen(conn, 1)) == 1
 
 
+def _web_post_sprache_vor(conn, chat_id: int, alter_s: int) -> int:
+    """Legt einen ``web_post``-Sprachzeile an und datiert sie ``alter_s``
+    Sekunden in die Vergangenheit -- das Audit-Bild des verschluckten
+    Web-Posts (Padua, id=2656, 08.10.2026): die Zeile landet in ``web_post``,
+    aber ``aufnahme.empfange`` wird nie dafuer aufgerufen (kein Prozess-Crash
+    im Test nachstellbar, deshalb direkt die Luecke selbst erzeugt)."""
+    post_id = repo.lege_web_post_an(
+        conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+        dauer=1, datei="web-eingang/1/9999.webm", mime="audio/webm",
+    )
+    alt = (datetime.now(timezone.utc) - timedelta(seconds=alter_s)).isoformat(timespec="seconds")
+    conn.execute("UPDATE web_post SET erstellt_am = ? WHERE id = ?", (alt, post_id))
+    conn.commit()
+    return post_id
+
+
+def test_web_post_ohne_aufnahme_bleibt_nach_frist_nicht_stumm(conn, einst, tg, klm):
+    """Karte Padua 'Interviewaufnahme ganz am Anfang teils nicht erfasst'
+    (09.10.2026): eine web_post-Sprachzeile, die nie eine aufnahme-Zeile
+    bekommen hat, muss ``nachholen()`` nach der Frist sichtbar machen --
+    Vorfall UND Chat-Hinweis, genau wie beim gescheiterten Download in
+    ``empfange()``, nicht stumm wie der bewusst leise Pfad fuer leere
+    Transkripte (``_verwirf_ende_segment``)."""
+    post_id = _web_post_sprache_vor(
+        conn, 1, aufnahme.WEB_POST_OHNE_AUFNAHME_FRIST_S + 1,
+    )
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'web_post_ohne_aufnahme'"
+    ).fetchall()
+    assert len(vorfaelle) == 1
+    assert str(post_id) in vorfaelle[0]["detail"]
+    assert any("nochmal" in t for _, t in tg.gesendet)
+
+
+def test_web_post_ohne_aufnahme_innerhalb_der_frist_bleibt_still(conn, einst, tg, klm):
+    """Frisch eingetroffene Web-Posts sind normal -- die Verarbeitung dauert
+    im Normalbetrieb nur Sekunden (Falle: ``web_kanal.ANKUNFT_FRIST_S``).
+    Kein Vorfall, solange die Frist nicht abgelaufen ist."""
+    _web_post_sprache_vor(conn, 1, 1)
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'web_post_ohne_aufnahme'"
+    ).fetchall()
+    assert vorfaelle == []
+
+
+def test_web_post_ohne_aufnahme_wird_nur_einmal_gemeldet(conn, einst, tg, klm):
+    """Wie ``test_whisper_ausfall_wird_genau_einmal_gemeldet``: ein zweiter
+    Nachhol-Lauf meldet denselben Web-Post nicht nochmal (idempotent)."""
+    _web_post_sprache_vor(conn, 1, aufnahme.WEB_POST_OHNE_AUFNAHME_FRIST_S + 1)
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'web_post_ohne_aufnahme'"
+    ).fetchall()
+    assert len(vorfaelle) == 1
+
+
+def test_web_post_mit_aufnahme_bleibt_ohne_vorfall(conn, einst, tg, klm):
+    """Der Normalfall (1367 von 1368 Aufnahmen im Audit): eine web_post-Zeile
+    MIT zugehoeriger aufnahme-Zeile loest nie einen Vorfall aus, selbst wenn
+    sie laengst aelter als die Frist ist."""
+    post_id = _web_post_sprache_vor(
+        conn, 1, aufnahme.WEB_POST_OHNE_AUFNAHME_FRIST_S + 1,
+    )
+    repo.lege_aufnahme_an(conn, 1, post_id, "kurz", "sprache", audio_pfad="x.webm")
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'web_post_ohne_aufnahme'"
+    ).fetchall()
+    assert vorfaelle == []
+
+
+def test_web_post_ohne_aufnahme_nach_gescheitertem_download_bleibt_ohne_vorfall(
+    conn, einst, tg, klm,
+):
+    """Ein schon gemeldeter Download-Fehlschlag (``empfange()``,
+    ``_VORFALL_DOWNLOAD`` = 'download_fehlgeschlagen') ist kein zweiter,
+    eigener Ausfall -- die Gruppe hat die Bitte, es nochmal zu schicken,
+    schon bekommen."""
+    post_id = _web_post_sprache_vor(
+        conn, 1, aufnahme.WEB_POST_OHNE_AUFNAHME_FRIST_S + 1,
+    )
+    repo.merke_vorfall(
+        conn, 1, "gruppe1", "download_fehlgeschlagen",
+        f"Sprachnachricht message_id={post_id}: RuntimeError",
+    )
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'web_post_ohne_aufnahme'"
+    ).fetchall()
+    assert vorfaelle == []
+
+
 # ---------------------------------------------------------------------------
 # Ein Interview ist eine Einheit (§ 10.6, Nachtrag 05.09.2026)
 # ---------------------------------------------------------------------------

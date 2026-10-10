@@ -173,3 +173,4 @@ _TEXT_KOPF_VERALTET = "L'intestazione del copione non corrisponde più a: {grund
 _TEXT_VERALTET_GELASSEN = "Ok, la scena {nummer} resta com'è."
 _TEXT_VERALTET_NEU = "Riscrivo la scena {nummer}."
 _TEXT_VERALTET_ERLEDIGT = "È già deciso."
+_TEXT_VERALTET_SPAETER = "La riscrittura non è potuta partire adesso. Te lo richiedo tra poco."

@@ -3482,6 +3482,14 @@ def markiere_veraltet_angeboten(conn: sqlite3.Connection, veraltet_id: int) -> N
 
 
 @_gesperrt
+def setze_veraltet_unangeboten(conn: sqlite3.Connection, veraltet_id: int) -> None:
+    """Das Angebot gilt wieder als nicht gemacht (Ja-Druck ohne Start)."""
+    conn.execute("UPDATE veraltet SET angeboten_am = NULL WHERE id = ? AND erledigt_am IS NULL",
+                 (veraltet_id,))
+    conn.commit()
+
+
+@_gesperrt
 def erledige_veraltet(conn: sqlite3.Connection, veraltet_id: int, entscheidung: str) -> None:
     conn.execute("UPDATE veraltet SET erledigt_am = ?, entscheidung = ? WHERE id = ?",
                  (_jetzt_genau(), entscheidung, veraltet_id))

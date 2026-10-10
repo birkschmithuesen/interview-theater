@@ -594,6 +594,7 @@ _TEXT_KOPF_VERALTET = "Der Kopf des Skripts passt nicht mehr zu: {grund}. Neu sc
 _TEXT_VERALTET_GELASSEN = "Ok, Szene {nummer} bleibt, wie sie ist."
 _TEXT_VERALTET_NEU = "Ich schreibe Szene {nummer} neu."
 _TEXT_VERALTET_ERLEDIGT = "Das ist schon entschieden."
+_TEXT_VERALTET_SPAETER = "Das Neuschreiben konnte jetzt nicht starten. Ich frage gleich noch einmal."
 _TEXT_JA_NEU_KNOPF = "Ja, neu schreiben"
 _TEXT_NEIN_LASSEN_KNOPF = "Nein, so lassen"
 

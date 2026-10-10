@@ -503,20 +503,25 @@ def _wirkung_veraltet_neu(conn, d: Druck) -> str:
                      if s["nummer"] is not None and not s["entfernt_am"]), default=None)
         if erste is None:
             return t._TEXT_VERALTET_ERLEDIGT
-        repo.erledige_veraltet(conn, v["id"], "neu")
-        # Der Kopf ist Prosa, keine Tatsache: leer setzen, ``schreibe`` baut
-        # ihn mit der ersten Szene neu (``mit_kopf``).
-        repo.setze_arbeitsstand(conn, d.chat_id, "stage_kopf", None)
-        repo.setze_arbeitsstand(conn, d.chat_id, "stage_kopf_it", None)
+        # Der Kopf ist Prosa: ``schreibe`` baut ihn mit der ersten Szene neu
+        # (``kopf_neu``) und ersetzt ihn erst beim Speichern; Vermerk und
+        # alter Kopf bleiben, bis das Schreiben wirklich gelingt.
         nummer = erste
+        kopf_neu = True
     else:
         szene = repo.hole_szene(conn, v["szene_id"])
         if szene is None or szene["entfernt_am"]:
             repo.erledige_veraltet(conn, v["id"], "lassen")
             return t._TEXT_VERALTET_ERLEDIGT
-        repo.erledige_veraltet(conn, v["id"], "neu")
         nummer = szene["nummer"]
-    stagescript.starte(conn, d.tg, d.klm, d.e, d.chat_id, nummer, notiz=v["grund"])
+        kopf_neu = False
+    # Der Vermerk wird vom Schreiber erledigt (``_speichere_text``/``schreibe``),
+    # nicht hier: startet nichts (Sperre belegt, kein Modell), bleibt er offen
+    # und wird beim naechsten Anlass neu angeboten.
+    if stagescript.starte(conn, d.tg, d.klm, d.e, d.chat_id, nummer, notiz=v["grund"],
+                          kopf_neu=kopf_neu) is None:
+        repo.setze_veraltet_unangeboten(conn, v["id"])
+        return t._TEXT_VERALTET_SPAETER
     return t._TEXT_VERALTET_NEU.format(nummer=nummer)
 
 

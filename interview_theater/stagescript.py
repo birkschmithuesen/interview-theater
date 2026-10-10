@@ -271,7 +271,7 @@ def _woertlich_statt_modell(chat_fassung: str | None, modell_text: str) -> str |
 
 
 def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
-            chat_fassung: str | None = None) -> bool:
+            chat_fassung: str | None = None, kopf_neu: bool = False) -> bool:
     """Der Modellaufruf (plus ggf. der Spiegelpass). ``True`` bei Erfolg.
 
     ``chat_fassung``: eine bereits im Chat woertlich bestaetigte Fassung
@@ -286,7 +286,7 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
     notiz = _notiz_mit_gespeicherten(conn, szene["id"], notiz)
     stand = repo.hole_arbeitsstand(conn, chat_id)
     mit_kopf = (braucht_kopf(conn, chat_id)
-                and not _gesetzt(stand["stage_kopf"] if stand is not None else None))
+                and (kopf_neu or not _gesetzt(stand["stage_kopf"] if stand is not None else None)))
     ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
     try:
         ergebnis = modellwahl.aufruf_schema(
@@ -713,7 +713,8 @@ def _warte_it_fassung(conn, chat_id: int, nummer: int, alt_it: str) -> str | Non
         time.sleep(_IT_DIFF_WARTE_INTERVALL_S)
 
 
-def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None):
+def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
+           kopf_neu: bool = False):
     sperre = _sperre_fuer(chat_id)
     if klm is None or not sperre.acquire(blocking=False):
         if not _ist_echo_des_laufstarts(chat_id):
@@ -748,7 +749,8 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None
             pass
         threading.Thread(target=_puls, daemon=True).start()
         try:
-            ok = schreibe(conn, klm, e, chat_id, nummer, notiz, chat_fassung=alt_en)
+            ok = schreibe(conn, klm, e, chat_id, nummer, notiz, chat_fassung=alt_en,
+                          kopf_neu=kopf_neu)
         finally:
             fertig.set()
             sperre.release()

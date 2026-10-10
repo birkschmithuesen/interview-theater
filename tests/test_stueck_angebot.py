@@ -37,22 +37,20 @@ def test_nein_laesst_text_stehen(conn):
 def test_ja_startet_den_schreiblauf(conn, monkeypatch):
     _veraltet(conn)
     aufrufe = []
-    monkeypatch.setattr(stagescript, "starte", lambda *a, **k: aufrufe.append((a[5], k.get("notiz"))))
+    monkeypatch.setattr(stagescript, "starte", lambda *a, **k: aufrufe.append((a[5], k.get("notiz"))) or object())
     [v] = repo.offene_veraltet(conn, 1)
     wirkung._wirkung_veraltet_neu(conn, _druck(TG(), object(), str(v["id"])))
     assert aufrufe and aufrufe[0][0] == 1 and "Piazza" in aufrufe[0][1]
-    assert repo.offene_veraltet(conn, 1) == []
 
 
-def test_ja_beim_kopf_leert_den_kopf(conn, monkeypatch):
+def test_ja_beim_kopf_startet_mit_erster_szene(conn, monkeypatch):
     _veraltet(conn)
     repo.setze_arbeitsstand(conn, 1, "stage_kopf", "Kopf")
     vid = repo.merke_veraltet(conn, 1, None, "kopf", "neuer Rahmen", None)
     aufrufe = []
-    monkeypatch.setattr(stagescript, "starte", lambda *a, **k: aufrufe.append(a[5]))
+    monkeypatch.setattr(stagescript, "starte", lambda *a, **k: aufrufe.append(a[5]) or object())
     wirkung._wirkung_veraltet_neu(conn, _druck(TG(), object(), str(vid)))
     assert aufrufe == [1]
-    assert not repo.hole_arbeitsstand(conn, 1)["stage_kopf"]
 
 
 def test_neu_geschriebener_text_erledigt_den_vermerk(conn, einst):
@@ -65,3 +63,26 @@ def test_neu_geschriebener_text_erledigt_den_vermerk(conn, einst):
 def test_knopfarten_registriert():
     assert knoepfe.ART_VERALTET_NEU in knoepfe._WIRKUNGEN
     assert knoepfe.ART_VERALTET_LASSEN in knoepfe._WIRKUNGEN
+
+
+def test_ja_ohne_start_laesst_vermerk_und_kopf_stehen(conn, monkeypatch):
+    _veraltet(conn)
+    repo.setze_arbeitsstand(conn, 1, "stage_kopf", "Kopf")
+    monkeypatch.setattr(stagescript, "starte", lambda *a, **k: None)
+    [v] = repo.offene_veraltet(conn, 1)
+    repo.markiere_veraltet_angeboten(conn, v["id"])
+    antwort = wirkung._wirkung_veraltet_neu(conn, _druck(TG(), object(), str(v["id"])))
+    assert "Ich schreibe" not in antwort
+    assert [x["id"] for x in repo.offene_veraltet(conn, 1)] == [v["id"]]
+    assert [x["id"] for x in repo.offene_veraltet(conn, 1, nur_unangeboten=True)] == [v["id"]]
+    assert repo.hole_arbeitsstand(conn, 1)["stage_kopf"] == "Kopf"
+
+
+def test_ja_beim_kopf_ohne_start_laesst_kopf_stehen(conn, monkeypatch):
+    _veraltet(conn)
+    repo.setze_arbeitsstand(conn, 1, "stage_kopf", "Kopf")
+    vid = repo.merke_veraltet(conn, 1, None, "kopf", "neuer Rahmen", None)
+    monkeypatch.setattr(stagescript, "starte", lambda *a, **k: None)
+    wirkung._wirkung_veraltet_neu(conn, _druck(TG(), object(), str(vid)))
+    assert repo.hole_arbeitsstand(conn, 1)["stage_kopf"] == "Kopf"
+    assert any(x["id"] == vid for x in repo.offene_veraltet(conn, 1))

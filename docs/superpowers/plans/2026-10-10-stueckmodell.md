@@ -121,7 +121,7 @@ Ohne diesen Stand ist „dieselben Inhalte wie vorher" nicht nachweisbar. Er mus
   - `scripts.stueckmodell_ansichten.fakten(conn, chat_id: int) -> dict[str, dict]`. Je Szenennummer (als String) die Schlüssel `pdf_meta`, `pdf_besetzung`, `karte_wo`, `karte_wer`, `werkbank_ort`, `werkbank_figuren`, `prompt_wo`, `prompt_wer`, `fragen`, `punkte_offen`.
   - CLI: `python -m scripts.stueckmodell_ansichten --db <pfad> --aus <json>`.
 
-- [ ] **Step 1: Failing test schreiben**
+- [x] **Step 1: Failing test schreiben**
 
 ```python
 # tests/test_stueckmodell_skripte.py
@@ -187,12 +187,12 @@ def test_fakten_lesen_ort_aus_allen_ansichten(conn, padua):
 
 (Der dritte Test schreibt absichtlich noch auf dem **alten** Weg. Nach Task 13 ist `setze_szenenfeld(..., "ort", …)` gesperrt, und in Task 13 Step 6 wird dieser Test auf `tests.stueck_hilfe.lege_karte_an` umgestellt.)
 
-- [ ] **Step 2: Test laufen lassen**
+- [x] **Step 2: Test laufen lassen**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueckmodell_skripte.py`
 Expected: FAIL mit `ModuleNotFoundError: No module named 'scripts.stueckmodell_ansichten'`.
 
-- [ ] **Step 3: Skripte schreiben**
+- [x] **Step 3: Skripte schreiben**
 
 ```python
 # scripts/stueckmodell_kopie.py
@@ -344,12 +344,12 @@ Hinweise für die Umsetzung:
 - `_ZEILE_ORT`/`_ZEILE_WER` existieren in `szenenkarte` (`szenenkarte.py:306-309`).
 - Weicht ein Label im Prompt von `karte_text` ab, ist das gemessene Label maßgeblich. Dann den Test aus Step 1 auf das tatsächliche Label anpassen, nicht raten.
 
-- [ ] **Step 4: Tests grün**
+- [x] **Step 4: Tests grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueckmodell_skripte.py`
 Expected: `3 passed`
 
-- [ ] **Step 5: Messbasis gegen die Live-Kopie erzeugen (alter Code!)**
+- [x] **Step 5: Messbasis gegen die Live-Kopie erzeugen (alter Code!)**
 
 Run: `uv run --extra dev python -m scripts.stueckmodell_kopie betrieb/padua.db var/stueckmodell/padua-kopie.db`
 Expected: `Kopie: var/stueckmodell/padua-kopie.db`
@@ -360,7 +360,7 @@ Expected: `14 Szenen aus 3 Gruppen -> var/stueckmodell/ansichten-vorher.json` (S
 Run: `IT_WORKSHOP=padua-2026 uv run --extra dev python -m scripts.prompt_schnappschuss var/stueckmodell/schnappschuss-vorher.txt`
 Expected: `… Zeichen nach var/stueckmodell/schnappschuss-vorher.txt (Profil: padua-2026)`
 
-- [ ] **Step 6: Commit** (nur die Skripte und den Test; `var/` ist nicht eingecheckt)
+- [x] **Step 6: Commit** (nur die Skripte und den Test; `var/` ist nicht eingecheckt)
 
 ```bash
 git add scripts/stueckmodell_kopie.py scripts/stueckmodell_ansichten.py tests/test_stueckmodell_skripte.py
@@ -385,7 +385,7 @@ veraltet(id, chat_id, szene_id, ansicht, grund, aenderung_id, erstellt_am, angeb
 stueck_aenderung(id, chat_id, art, ziel, vorher, nachher, quelle, erstellt_am)
 ```
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 # tests/test_stueck_schema.py
@@ -420,12 +420,12 @@ def test_alte_datenbank_bekommt_die_spalten_additiv(tmp_path):
     assert c.execute("SELECT rolle, position FROM szene_figur").fetchone() == (None, None)
 ```
 
-- [ ] **Step 2: Rot prüfen**
+- [x] **Step 2: Rot prüfen**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_schema.py`
 Expected: FAIL (`no such table: offene_frage` bzw. AssertionError)
 
-- [ ] **Step 3: Schema ergänzen**
+- [x] **Step 3: Schema ergänzen**
 
 In `szene` nach `volltext_it TEXT,` (db.py:752):
 
@@ -524,12 +524,12 @@ In `tests/test_ruecknahme.py` die erwartete Menge um zwei Einträge ergänzen (S
         ("veraltet", "szene_id", "szene"),
 ```
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_schema.py tests/test_db.py tests/test_ruecknahme.py`
 Expected: alle passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater/db.py tests/test_stueck_schema.py tests/test_ruecknahme.py
@@ -575,7 +575,7 @@ def merke_stueck_aenderung(conn, chat_id: int, art: str, ziel: dict,
 def stueck_aenderungen(conn, chat_id: int, quelle: str | None = None) -> list[sqlite3.Row]
 ```
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 # tests/test_stueck_repo.py
@@ -645,12 +645,12 @@ def test_stueck_aenderung_nur_anhaengend(conn):
     assert z["id"] == i and json.loads(z["nachher"]) == "Piazza"
 ```
 
-- [ ] **Step 2: Rot**
+- [x] **Step 2: Rot**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_repo.py`
 Expected: FAIL `AttributeError: module 'interview_theater.repo' has no attribute 'setze_besetzung'`
 
-- [ ] **Step 3: Implementieren** (in `repo.py` nach `szene_figuren`; das `ORDER BY` in `szene_figuren` wird `ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC`, für Altbestand ohne `position` byte-gleich)
+- [x] **Step 3: Implementieren** (in `repo.py` nach `szene_figuren`; das `ORDER BY` in `szene_figuren` wird `ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC`, für Altbestand ohne `position` byte-gleich)
 
 ```python
 # --- Stueckmodell (Karte t_fd88600b, 10.10.2026) ---------------------------
@@ -867,12 +867,12 @@ def stueck_aenderungen(conn: sqlite3.Connection, chat_id: int,
 
 (`json` ist in `repo.py` schon importiert; falls nicht, oben ergänzen.)
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_repo.py tests/test_repo.py tests/test_ruecknahme_rundreise.py`
 Expected: alle passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater/repo.py tests/test_stueck_repo.py
@@ -904,7 +904,7 @@ def karte_ansicht(roh: dict | None, *, ort: str | None,
                   punkt_offen: str = "[OPEN] {frage}") -> dict | None
 ```
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 # tests/test_stueck_sicht.py
@@ -948,12 +948,12 @@ def test_offen_punkt():
     assert sicht.OFFEN_PUNKT.match("Kein [OPEN] hier") is None
 ```
 
-- [ ] **Step 2: Rot**
+- [x] **Step 2: Rot**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_sicht.py`
 Expected: FAIL `ModuleNotFoundError: interview_theater.stueck_sicht`
 
-- [ ] **Step 3: Implementieren**
+- [x] **Step 3: Implementieren**
 
 ```python
 # interview_theater/stueck_sicht.py
@@ -1042,12 +1042,12 @@ def karte_ansicht(roh: dict | None, *, ort: str | None,
 
 Hinweis: `ordne_besetzung` schneidet die Rolle aus dem Originaltext (`stueck.strip()[len(treffer):]`). Der normalisierte Name hat dieselbe Länge wie der getrimmte Originalname, solange darin keine Mehrfach-Leerzeichen stehen. Für Namen mit inneren Mehrfach-Leerzeichen gilt die Rolle als `None` (ein Testfall genügt nicht, hier nicht weiter ausbauen).
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_sicht.py`
 Expected: `5 passed`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater/stueck_sicht.py tests/test_stueck_sicht.py
@@ -1110,7 +1110,7 @@ Regeln, die die Tests festnageln:
 - Unbekannte Szenennummer → `fehler="unbekannte_szene"`.
 - `setze_besetzung`: Namen, zu denen keine Figur existiert, ergeben `fehler="unbekannte_figur"`. Anlegen geht nur über `figur_hinzu`, Birks Regel aus `erkenner._figuren_aus_namen`.
 
-- [ ] **Step 1: Testhilfe und failing tests**
+- [x] **Step 1: Testhilfe und failing tests**
 
 ```python
 # tests/stueck_hilfe.py
@@ -1269,12 +1269,12 @@ def test_ergebnis_ist_json_tauglich(conn):
     json.dumps(stueck.setze_ort(conn, 1, szene=1, ort="x").als_dict())
 ```
 
-- [ ] **Step 2: Rot**
+- [x] **Step 2: Rot**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_ort_besetzung.py`
 Expected: FAIL `ModuleNotFoundError: interview_theater.stueck`
 
-- [ ] **Step 3: Implementieren** (`interview_theater/stueck.py`, Teil A; Teil B/C folgen in Task 5/6 im selben Modul)
+- [x] **Step 3: Implementieren** (`interview_theater/stueck.py`, Teil A; Teil B/C folgen in Task 5/6 im selben Modul)
 
 ```python
 """Das Stueckmodell: die EINE Mutations-Schnittstelle (Karte t_fd88600b,
@@ -1607,12 +1607,12 @@ _GRUND_FIGUR_WEG = "{name} non è più in scena"
 
 **Achtung Sprache:** `T` ist hier die profilweite Sprache. Für die `_GRUND_*`-Texte, die die Gruppe im Angebot sieht, nimmt Task 14 `_T(chat_id)` (IT ab Phase 6 für gelistete Chats), nach demselben Muster wie `szenenkarte._T`. In Task 4 reicht `T`.
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_ort_besetzung.py tests/test_sprache_texte.py`
 Expected: alle passed (`test_keine_unuebersetzte_konstante[stueck]` grün dank der TOML-Einträge)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater/stueck.py interview_theater/szenenkarte.py interview_theater/sprachen tests/stueck_hilfe.py tests/test_stueck_ort_besetzung.py
@@ -1652,7 +1652,7 @@ Validierung (Problem 5):
 - `reihenfolge_aendern`: `folge` muss eine Permutation der aktuellen Nummern sein, sonst `fehler="ungueltig"`. Jede Szene mit `volltext`, deren Nummer sich ändert, wird veraltet (der Kopf „SCENE N" stimmt nicht mehr).
 - `szene_wieder_oeffnen("karte")` setzt `karte_bestaetigt_am` auf NULL, `("script")` setzt `fertig_am` auf NULL (`repo.setze_szene_fertig(..., False)`). Beides läuft in jeder Phase und ohne Veraltet-Vermerk.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 # tests/test_stueck_karte.py
@@ -1736,12 +1736,12 @@ def test_reihenfolge(conn):
     assert stueck.reihenfolge_aendern(conn, 1, folge=[1, 1, 2]).fehler == "ungueltig"
 ```
 
-- [ ] **Step 2: Rot**
+- [x] **Step 2: Rot**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_karte.py`
 Expected: FAIL `AttributeError: module 'interview_theater.stueck' has no attribute 'karte_aendern'`
 
-- [ ] **Step 3: Implementieren** (in `stueck.py` vor dem Textblock)
+- [x] **Step 3: Implementieren** (in `stueck.py` vor dem Textblock)
 
 ```python
 def _ansicht_von(conn, chat_id: int, nummer: int) -> dict | None:
@@ -1899,12 +1899,12 @@ _BEFUND_FEHLT = "punto obbligatorio assente nel testo: {stichwort}"
 
 Der Kartentreue-Test erwartet, dass `kartentreue.widersprueche` die Negation „senza dire" erkennt (`kartentreue.py:47` `_VERNEINUNG_MARKER`) und den Text in Anführungszeichen als ausgeschlossene Wendung liest. Erkennt die heutige Funktion diese Schreibweise nicht, wird der **Testtext** an ein Muster angepasst, das `tests/test_kartentreue.py` schon nachweist; die Kartentreue selbst bleibt unverändert.
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_karte.py tests/test_stueck_ort_besetzung.py tests/test_sprache_texte.py`
 Expected: alle passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater/stueck.py interview_theater/sprachen tests/test_stueck_karte.py
@@ -1947,7 +1947,7 @@ Regeln:
   - Das JSON wird ohne Struktur geschrieben: `repo.setze_szenenkarte` (nimmt die Abnahme zurück, wie heute) + `repo.merke_karte_verlauf` mit der **abgeleiteten** Ansicht als Schnappschuss. So bleibt `verfeinerungs_zeilen` (Diff über ort/wer) lesbar.
 - **`pruefe_szene`** prüft Kartentreue gegen den gespeicherten Text und vermerkt einen Befund als veraltet. Das ist die Validierung ohne Faktenänderung, für den WIDERSPRUCH-Fall aus `p7audit.json`.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 # tests/test_stueck_fragen.py
@@ -2060,12 +2060,12 @@ def test_werkzeuge_sind_schlank():
         assert sig.return_annotation is stueck.Ergebnis, name
 ```
 
-- [ ] **Step 2: Rot**
+- [x] **Step 2: Rot**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_fragen.py tests/test_stueck_schnittstelle.py`
 Expected: FAIL (`karte_aus_modell` bzw. `frage_stellen` fehlen)
 
-- [ ] **Step 3: Implementieren** (in `stueck.py`)
+- [x] **Step 3: Implementieren** (in `stueck.py`)
 
 ```python
 def _frage_der_gruppe(conn, chat_id: int, frage_id: int):
@@ -2215,12 +2215,12 @@ _GRUND_FRAGE = "domanda chiarita ({frage})"
 
 Die Funktion `karte_ansicht_von_id` steht nicht in `WERKZEUGE`. Sie ist ein Lesehelfer, kein Werkzeug.
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_fragen.py tests/test_stueck_schnittstelle.py tests/test_stueck_karte.py tests/test_stueck_ort_besetzung.py tests/test_sprache_texte.py`
 Expected: alle passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater/stueck.py interview_theater/sprachen tests/test_stueck_fragen.py tests/test_stueck_schnittstelle.py
@@ -2241,7 +2241,7 @@ Der Bericht entsteht aus `stueck_aenderung` (Quelle `migration`). Dieser Task le
 - `scripts.stueckmodell_migration.bericht(conn) -> dict`, Form: `{"konflikte": [{"chat_id", "szene", "art", "vorher", "nachher"}], "zaehler": {art: anzahl}}`
 - `scripts.stueckmodell_migration.als_markdown(b: dict) -> str`
 
-- [ ] **Step 1: Failing test** (in `tests/test_stueckmodell_skripte.py` anhängen)
+- [x] **Step 1: Failing test** (in `tests/test_stueckmodell_skripte.py` anhängen)
 
 ```python
 def test_bericht_liest_nur_migrationszeilen(conn):
@@ -2256,9 +2256,9 @@ def test_bericht_liest_nur_migrationszeilen(conn):
     assert "konflikt_ort" in m.als_markdown(b)
 ```
 
-- [ ] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueckmodell_skripte.py::test_bericht_liest_nur_migrationszeilen` — Expected: FAIL (ModuleNotFoundError)
+- [x] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueckmodell_skripte.py::test_bericht_liest_nur_migrationszeilen` — Expected: FAIL (ModuleNotFoundError)
 
-- [ ] **Step 3: Implementieren**
+- [x] **Step 3: Implementieren**
 
 ```python
 # scripts/stueckmodell_migration.py
@@ -2318,9 +2318,9 @@ if __name__ == "__main__":
 
 (Die SQL-Abfrage steht im Skript, nicht im Paket, wie in `scripts/fuelle_pruef_db.py`. Das Skript öffnet nur die Kopie.)
 
-- [ ] **Step 4: Grün** — gleiches Kommando wie Step 2 — Expected: `1 passed`
+- [x] **Step 4: Grün** — gleiches Kommando wie Step 2 — Expected: `1 passed`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/stueckmodell_migration.py tests/test_stueckmodell_skripte.py
@@ -2353,7 +2353,7 @@ Regeln (je nicht entfernte Szene mit `karte`, deren JSON einen der Schlüssel `o
 - Das JSON wird ohne `ort`/`wer`/`fragen` und ohne `[OPEN]`-Punkte zurückgeschrieben (`karte_bestaetigt_am` bleibt). `karte_verlauf` bleibt unberührt, es ist Historie.
 - Alles läuft in **einer** Transaktion `BEGIN IMMEDIATE`. Drei Bot-Prozesse starten parallel; der zweite wartet (`busy_timeout`) und findet nichts mehr zu tun.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 # tests/test_stueck_migration.py
@@ -2436,9 +2436,9 @@ def test_initialisiere_ruft_die_migration(tmp_path):
     assert repo.hole_szene(c, sid)["ort"] == "Bar"
 ```
 
-- [ ] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_migration.py` — Expected: FAIL `AttributeError: … _migriere_stueckmodell`
+- [x] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_migration.py` — Expected: FAIL `AttributeError: … _migriere_stueckmodell`
 
-- [ ] **Step 3: Implementieren**
+- [x] **Step 3: Implementieren**
 
 ```python
 def _migriere_stueckmodell(conn: sqlite3.Connection) -> dict[str, int]:
@@ -2536,12 +2536,12 @@ In `initialisiere` als letzte Zeile: `_migriere_stueckmodell(conn)`; den Docstri
 
 `test_konsistent_bleibt_gleich` erwartet **keine** Berichtszeile, wenn Karte und Werkbank übereinstimmen. `ort_uebernommen`/`frage_uebernommen` gelten als Überführung, nicht als Konflikt. In diesem Test gibt es keine, weil `fragen=[]` ist und beide Orte gleich sind.
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_migration.py tests/test_db.py`
 Expected: alle passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater/db.py tests/test_stueck_migration.py
@@ -2564,7 +2564,7 @@ git commit -m "stueckmodell: idempotente Datenmigration (Karte gewinnt beim Ort,
 
 Ersetzungsregel je Fundstelle: `szenenkarte.karte_von(X)` bzw. innerhalb von `szenenkarte.py` `karte_von(X)` wird `stueck.karte(conn, X)`, mit lokalem Import `from interview_theater import stueck` in der Funktion (Zyklen-Bauart des Repos). Wo nur der Typ gebraucht wird (`stagescript.py:87`, `ueberarbeitung.py:675`), genügt `roh_karte_von`, denn `typ` ist kein Strukturfeld.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 # tests/test_stueck_einzige_lesestelle.py
@@ -2599,9 +2599,9 @@ def test_typ_leser_nutzen_kein_strukturfeld():
                 assert not re.search(r"\b(ort|wer|fragen)\b", zeile), zeile
 ```
 
-- [ ] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_einzige_lesestelle.py` — Expected: FAIL mit Liste aller `karte_von`-Fundstellen
+- [x] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_einzige_lesestelle.py` — Expected: FAIL mit Liste aller `karte_von`-Fundstellen
 
-- [ ] **Step 3: Umstellen** (je Fundstelle; Beispiele)
+- [x] **Step 3: Umstellen** (je Fundstelle; Beispiele)
 
 `szenenkarte.py:110`:
 
@@ -2625,14 +2625,14 @@ def roh_karte_von(szene) -> dict | None:
 
 In `szenenkarte.py` ersetzt jede `karte_von(szene)`-Stelle `stueck.karte(conn, szene)`. Die Funktionen haben alle `conn` im Scope; Ausnahme ist `karte_von` selbst.
 
-- [ ] **Step 4: Grün — gezielte Tests der berührten Module**
+- [x] **Step 4: Grün — gezielte Tests der berührten Module**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_einzige_lesestelle.py tests/test_szenenkarte.py tests/test_szenenkarte_dialog.py tests/test_stagescript.py tests/test_prueflauf.py tests/test_karten_cothinker.py tests/test_kontext_stagescript_stand.py tests/test_figur_festlegung_nachzug.py`
 Expected: alle passed.
 
 Rot ist hier zulässig, wenn ein Test Ort, Wer oder Fragen **nur** ins Karten-JSON schreibt (`repo.setze_szenenkarte(..., json.dumps({... "ort": ...}))`) und danach eine Ansicht prüft. Solche Tests auf `tests.stueck_hilfe.lege_karte_an(...)` umstellen; die Zusicherungen bleiben unverändert. Weiter geht es erst, wenn alle grün sind. `tests/test_karten_nachzug.py` wird in Task 12 neu gefasst und bleibt bis dahin außen vor.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater tests
@@ -2653,7 +2653,7 @@ git commit -m "stueckmodell: alle Bot-Leser auf die abgeleitete Karte (stueck.ka
 - Consumes: `stueck_sicht.karte_ansicht`, `szenenkarte.roh_karte_von`, `szenenkarte._T(chat_id)._PUNKT_OFFEN`
 - Produces: `web_daten._karte_sicht(conn, zeile) -> dict | None` (dieselbe Ableitung wie `stueck.karte`, über eigenes read-only-SQL); `eintrag["karte"]` und `szenenkarten()[i]["karte"]` sind abgeleitet.
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 # tests/test_stueck_web.py
@@ -2693,9 +2693,9 @@ def test_padua_werkbank_zeigt_wo_und_wer(conn, padua):
     assert "Sala riunioni" in html and "Anna" in html
 ```
 
-- [ ] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_web.py` — Expected: FAIL (Karte im Web ohne `ort`; Werkbank ohne „Sala riunioni")
+- [x] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_web.py` — Expected: FAIL (Karte im Web ohne `ort`; Werkbank ohne „Sala riunioni")
 
-- [ ] **Step 3: Implementieren**
+- [x] **Step 3: Implementieren**
 
 `web_daten.py` (neue Helfer bei `_szene_figur_ids`):
 
@@ -2755,11 +2755,11 @@ Text: `_TEXT_WB_WO_WER = "Wo · Wer: {wert}"` (Konstante in `web.py`), en `"Wher
 
 **Bewusste Abweichung von „keine neue UI":** Diese eine Zeile in der Werkbank ist nötig, weil die Abnahme von Problem 1 wörtlich „Werkbank … zeigt den neuen Ort" verlangt und die Padua-Werkbank bisher keinen Szenenort zeigt (`web.py:3936-4035`). Sie steht in der Übergabe.
 
-- [ ] **Step 4: Grün** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_web.py tests/test_web_skript.py tests/test_web_skript_tab.py tests/test_werkbank_web.py tests/test_werkbank_bitgleich.py tests/test_web_daten.py tests/test_karten_cothinker.py tests/test_sprache_texte.py`
+- [x] **Step 4: Grün** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_web.py tests/test_web_skript.py tests/test_web_skript_tab.py tests/test_werkbank_web.py tests/test_werkbank_bitgleich.py tests/test_web_daten.py tests/test_karten_cothinker.py tests/test_sprache_texte.py`
 
 Expected: alle passed. Wird `tests/test_werkbank_bitgleich.py` nur wegen der neuen Zeile „Wo · Wer" in einem **Padua**-Szenario rot, wird die Erwartung bewusst nachgezogen und im Commit genannt. Ein Dortmund-Szenario bekommt `@pytest.mark.dortmund`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater/web_daten.py interview_theater/web.py interview_theater/sprachen tests/test_stueck_web.py tests
@@ -2787,7 +2787,7 @@ Verhalten:
 3. **`ueberspringe_fragen`**: `frage_verwerfen` je offene Frage; das JSON bleibt unberührt. Der Verlauf bekommt die abgeleitete Ansicht.
 4. **`aktive_klaerung`**: sucht über **alle** Szenen nach `karte_klaerung`, nicht nur über die aktuelle (Vorbereitung für Task 15).
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 # tests/test_stueck_klaerweg.py
@@ -2842,9 +2842,9 @@ def test_erzeuge_schreibt_struktur_an_ihre_stelle(conn, monkeypatch):
     assert k["fragen"] == ["Licht?"]
 ```
 
-- [ ] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_klaerweg.py` — Expected: FAIL (Antwort schließt nicht sofort; `erzeuge` schreibt `ort` ins JSON)
+- [x] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_klaerweg.py` — Expected: FAIL (Antwort schließt nicht sofort; `erzeuge` schreibt `ort` ins JSON)
 
-- [ ] **Step 3: Implementieren** (Kernstellen)
+- [x] **Step 3: Implementieren** (Kernstellen)
 
 `starte_fragenklaerung` (statt Zeilen 783-794):
 
@@ -2947,12 +2947,12 @@ Klärungen, die beim Deploy mitten in einer Runde stehen, haben noch das alte Fo
     return None
 ```
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_klaerweg.py tests/test_szenenkarte.py tests/test_szenenkarte_dialog.py tests/test_karten_cothinker.py tests/test_karte_verlauf.py`
 Expected: alle passed. Prüft ein bestehender Test die alte Mechanik wörtlich (z. B. dass `_bewahre_fragen` Fragen ins JSON zurückschreibt oder dass `[OPEN]` als Kartenpunkt **im JSON** steht), wird die Zusicherung auf die Ansicht `stueck.karte(...)` umgestellt. Die beobachtbare Zusage bleibt: Fragen gehen nie still verloren, `[OPEN]` steht auf der Karte.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater/szenenkarte.py tests
@@ -2981,7 +2981,7 @@ Neues Verhalten:
 - Modus über `stueck.karte_aendern(modus=…, quelle=QUELLE_SCRIPT)`.
 - Es gibt **keinen** direkten `repo`-Schreibaufruf mehr.
 
-- [ ] **Step 1: Tests neu fassen** (`tests/test_karten_nachzug.py`, die bisherigen Zusagen bleiben, jetzt über das Stückmodell)
+- [x] **Step 1: Tests neu fassen** (`tests/test_karten_nachzug.py`, die bisherigen Zusagen bleiben, jetzt über das Stückmodell)
 
 ```python
 """Phase 7: Ort/Figuren aus dem neu geschriebenen Stage Script ins
@@ -3080,9 +3080,9 @@ def test_kein_zweitschreiber_mehr():
 
 (`test_kopfzeile_erkennt_keine_unbekannten_namen` und `test_ohne_karte_tut_nichts` aus der alten Datei bleiben inhaltlich erhalten; die Szene wird wie oben über `_mit_text` angelegt.)
 
-- [ ] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_karten_nachzug.py` — Expected: FAIL (`test_veralteter_text_schreibt_nichts`, `test_kein_zweitschreiber_mehr`)
+- [x] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_karten_nachzug.py` — Expected: FAIL (`test_veralteter_text_schreibt_nichts`, `test_kein_zweitschreiber_mehr`)
 
-- [ ] **Step 3: Implementieren** (`ziehe_nach` neu; `_figuren_aus_text`, `SCHEMA`, `baue_nutzertext` bleiben)
+- [x] **Step 3: Implementieren** (`ziehe_nach` neu; `_figuren_aus_text`, `SCHEMA`, `baue_nutzertext` bleiben)
 
 ```python
 def ziehe_nach(conn, klm, e, chat_id: int, szene_id: int, text: str, *,
@@ -3131,12 +3131,12 @@ def ziehe_nach(conn, klm, e, chat_id: int, szene_id: int, text: str, *,
 
 `repo.aktualisiere_karte_und_werkbank` (repo.py:3126-3166) löschen.
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_karten_nachzug.py tests/test_stagescript.py tests/test_erzeuge_prompts_padua_voll.py tests/test_modellaufrufe_inventar.py`
 Expected: alle passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater/karten_nachzug.py interview_theater/repo.py tests/test_karten_nachzug.py
@@ -3168,7 +3168,7 @@ git commit -m "stueckmodell: karten_nachzug schreibt nur noch ueber stueck; Zwei
 - Consumes: `stueck.setze_ort`, `stueck.setze_besetzung`, `stueck.karte_aendern`
 - Produces: `repo.NUR_UEBER_STUECK: tuple[str, ...]`
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```python
 # tests/test_stueck_einzige_schreibstelle.py
@@ -3211,9 +3211,9 @@ def test_ort_ist_ueber_setze_szenenfeld_gesperrt(conn):
         repo.setze_szenenfeld(conn, sid, "ort", "Bar")
 ```
 
-- [ ] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_einzige_schreibstelle.py` — Expected: FAIL mit der Fundliste (erkenner, befehle, knoepfe/szenen, web_schreiben, …)
+- [x] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_einzige_schreibstelle.py` — Expected: FAIL mit der Fundliste (erkenner, befehle, knoepfe/szenen, web_schreiben, …)
 
-- [ ] **Step 3: Umstellen** (Beispiele; jede Fundstelle aus der Testausgabe nach demselben Muster)
+- [x] **Step 3: Umstellen** (Beispiele; jede Fundstelle aus der Testausgabe nach demselben Muster)
 
 `erkenner._wende_szene_planen_an` (Zeilen 1119-1135):
 
@@ -3276,13 +3276,13 @@ def test_fakten_lesen_ort_aus_allen_ansichten(conn, padua):
     assert "Bar" in f["1"]["pdf_meta"]
 ```
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_einzige_schreibstelle.py tests/test_stueckmodell_skripte.py tests/test_erkenner.py tests/test_figur_festlegung_nachzug.py tests/test_befehle.py tests/test_web_edit.py tests/test_entwurf.py tests/test_szene.py tests/test_szenenfolge.py tests/test_prueflauf.py tests/test_szenenabgleich.py tests/test_kurzgeschichte.py`
 
 Expected: alle passed. Setzt ein Test in seiner Vorbereitung `repo.setze_szenenfeld(conn, sid, "ort", …)`, wird er auf `stueck.setze_ort(conn, 1, szene=<nr>, ort=…)` umgestellt. Ist der Test nur noch wegen Dortmund-Verhalten rot, bekommt er `@pytest.mark.dortmund`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater tests
@@ -3322,7 +3322,7 @@ Verhalten:
 - **Nein** (`_wirkung_veraltet_lassen`): `erledige_veraltet(id, "lassen")` und `_T(chat_id)._TEXT_VERALTET_GELASSEN`.
 - Knopf-Zusagen: `callback_data` über `_daten(repo.lege_knopf_an(...))`, idempotent über `beanspruche_knopf` (macht `behandle`).
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 # tests/test_stueck_angebot.py
@@ -3383,9 +3383,9 @@ def test_knopfarten_registriert():
 
 (Die Feldnamen von `wirkung.Druck` vor dem Schreiben in `knoepfe/wirkung.py:102` nachsehen; weichen sie ab, wird der Testaufbau angepasst, nicht der Druck.)
 
-- [ ] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_angebot.py tests/test_knoepfe_struktur.py` — Expected: FAIL (`biete_veraltete` fehlt)
+- [x] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_angebot.py tests/test_knoepfe_struktur.py` — Expected: FAIL (`biete_veraltete` fehlt)
 
-- [ ] **Step 3: Implementieren**
+- [x] **Step 3: Implementieren**
 
 `knoepfe/szenen.py`:
 
@@ -3502,12 +3502,12 @@ _TEXT_VERALTET_NEU = "Riscrivo la scena {nummer}."
 _TEXT_VERALTET_ERLEDIGT = "È già deciso."
 ```
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_angebot.py tests/test_knoepfe_struktur.py tests/test_stagescript.py tests/test_sprache_texte.py tests/test_ablauf.py`
 Expected: alle passed
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater tests/test_stueck_angebot.py
@@ -3540,7 +3540,7 @@ Regeln:
   - Ohne Text bleibt es bei `_TEXT_NICHT_DRAN`: es gibt nichts zu speichern, das ist kein Verbot.
 - **Phasensprung:** `wechsle_phase` schaltet wie bisher. Liefert `phasen.warnungen(conn, chat_id, nummer)` etwas, folgt eine Nachricht `_WARNUNG_PHASE_KOPF` plus Zeilen. `p5_gate` bleibt vorgeschaltet (siehe Gate-Abschnitt oben).
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```python
 # tests/test_stueck_warnungen.py
@@ -3594,9 +3594,9 @@ def test_keine_warnung_wenn_voraussetzung_erfuellt(conn, monkeypatch):
     assert phasen.warnungen(conn, 1, 5) == []
 ```
 
-- [ ] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_warnungen.py` — Expected: FAIL (`_TEXT_NICHT_DRAN` statt Dialog; `phasen.warnungen` fehlt)
+- [x] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_warnungen.py` — Expected: FAIL (`_TEXT_NICHT_DRAN` statt Dialog; `phasen.warnungen` fehlt)
 
-- [ ] **Step 3: Implementieren**
+- [x] **Step 3: Implementieren**
 
 `szenenkarte.py`:
 
@@ -3689,13 +3689,13 @@ Texte (deutsch als Konstante, plus en/it):
 
 `_TEXT_ERST_VORHERIGE` wird aus `stagescript.py` und beiden TOML-Dateien entfernt (es ist kein Aufrufer mehr übrig).
 
-- [ ] **Step 4: Grün**
+- [x] **Step 4: Grün**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueck_warnungen.py tests/test_szenenkarte.py tests/test_szenenkarte_dialog.py tests/test_stagescript.py tests/test_ueberarbeitung_phase6.py tests/test_ueberarbeitung_phase7.py tests/test_phasen.py tests/test_befehle.py tests/test_befehle_phasenwechsel_interview.py tests/test_sprache_texte.py tests/test_knoepfe_karte.py`
 
 Expected: alle passed. Ein bestehender Test, der „nicht dran → abgelehnt" festschreibt, wird auf die neue Zusage umgestellt („andere Karte → Warnung + Wirkung"). Er wird nicht gelöscht, und der Commit nennt ihn.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add interview_theater tests
@@ -3711,7 +3711,7 @@ Diese Tests sind die Abnahme der Karte. Jeder legt einen **Giftwert** in die fr�
 **Files:**
 - Test: `tests/test_stueckmodell_abnahme.py`
 
-- [ ] **Step 1: Tests schreiben**
+- [x] **Step 1: Tests schreiben**
 
 ```python
 # tests/test_stueckmodell_abnahme.py
@@ -3854,12 +3854,12 @@ Hinweis zu `test_problem_4`: Das Gift steht in `punkte` des **JSON**. `karte_ans
 
 Falls Task 3 schon committet ist, zieht dieser Task die Zeile dort nach, samt einem Fall in `tests/test_stueck_sicht.py::test_karte_ansicht_ignoriert_struktur_aus_dem_json` (`"punkte": ["p", "[OPEN] GIFT"]` → `["p", "[OPEN] Wann?"]`).
 
-- [ ] **Step 2: Laufen lassen**
+- [x] **Step 2: Laufen lassen**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueckmodell_abnahme.py tests/test_stueck_sicht.py`
 Expected: alle passed
 
-- [ ] **Step 3: Gegenprobe „rot bei zweiter Spalte" (Nachweis, wird nicht committet)**
+- [x] **Step 3: Gegenprobe „rot bei zweiter Spalte" (Nachweis, wird nicht committet)**
 
 Kurz in `interview_theater/stueck_sicht.py` in `karte_ansicht` die Zeile `karte["ort"] = (ort or "").strip()` ersetzen durch `karte["ort"] = (roh.get("ort") or ort or "").strip()`.
 
@@ -3871,7 +3871,7 @@ Danach Step 2 erneut ausführen. Expected: grün.
 
 Dieselbe Gegenprobe für `wer` (`karte["wer"] = roh.get("wer") or …`) und `fragen` (`karte["fragen"] = list(roh.get("fragen") or fragen_offen)`): jeweils FAIL, dann zurücksetzen. Die drei FAIL-Ausgaben kommen in die Übergabe (Task 18).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/test_stueckmodell_abnahme.py interview_theater/stueck_sicht.py tests/test_stueck_sicht.py
@@ -3946,7 +3946,7 @@ Die 13 Struktur-Einträge (gemessen 10.10.2026, `p7audit.json`) und ihr Werkzeug
 - `vorher_automatisch` = DRIN ohne „Robo" im `beleg`. Gemessen: 2 (#2, #3).
 - `nachher_korrekt` = Einträge, deren `erwartet` vollständig erfüllt ist. Ziel: 12 von 12.
 
-- [ ] **Step 1: Failing tests** (anhängen an `tests/test_stueckmodell_skripte.py`)
+- [x] **Step 1: Failing tests** (anhängen an `tests/test_stueckmodell_skripte.py`)
 
 ```python
 def test_struktur_regel_und_zaehlung():
@@ -3975,9 +3975,9 @@ def test_vergleich_konsistent_und_vereinheitlicht():
     assert (r["konsistent_gleich"], r["vereinheitlicht"], r["fehler"]) == (1, 1, [])
 ```
 
-- [ ] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueckmodell_skripte.py` — Expected: FAIL (Module fehlen)
+- [x] **Step 2: Rot** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueckmodell_skripte.py` — Expected: FAIL (Module fehlen)
 
-- [ ] **Step 3: Skripte schreiben**
+- [x] **Step 3: Skripte schreiben**
 
 ```python
 # scripts/stueckmodell_vergleich.py
@@ -4153,9 +4153,9 @@ if __name__ == "__main__":
 
 (Die SQL-Zeile in `_chat_id` steht im Skript, wie in Task 7.)
 
-- [ ] **Step 4: Grün** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueckmodell_skripte.py` — Expected: alle passed
+- [x] **Step 4: Grün** — Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_stueckmodell_skripte.py` — Expected: alle passed
 
-- [ ] **Step 5: Gegen die Kopie laufen lassen (Nachweis-Kommandos)**
+- [x] **Step 5: Gegen die Kopie laufen lassen (Nachweis-Kommandos)**
 
 Run: `uv run --extra dev python -m scripts.stueckmodell_migration var/stueckmodell/padua-kopie.db var/stueckmodell/padua-migriert.db`
 Expected: eine JSON-Zeile mit Zählern. Nach den Live-Zahlen vom 10.10. heißt das mindestens `"konflikt_ort": 2` (G1 S1, G2 S1: EN gegen IT) und `konflikt_wer` > 0 (9 von 14 Karten weichen heuristisch ab). Die genauen Zahlen gehen in die Übergabe.
@@ -4173,7 +4173,7 @@ Run: `uv run --extra dev python -m scripts.stueckmodell_kopie var/stueckmodell/p
 Run: `uv run --extra dev python -m scripts.stueckmodell_wiedergabe --db var/stueckmodell/padua-wiedergabe.db --audit /mnt/HC_Volume_106183673/hermes/profiles/birk/var/padua-nacht/p7audit.json --plan var/stueckmodell/wiedergabe.json`
 Expected: `"struktur": 13`, `"nicht_anwendbar": [2314]`, `"vorher_drin": 5`, `"vorher_automatisch": 2`, `"nachher_korrekt": 12`, `"fehler": []`. Jede Abweichung wird in der Übergabe mit dem Eintrag genannt, nicht weggerechnet.
 
-- [ ] **Step 6: Commit** (nur Skripte und Tests)
+- [x] **Step 6: Commit** (nur Skripte und Tests)
 
 ```bash
 git add scripts/stueckmodell_vergleich.py scripts/stueckmodell_wiedergabe.py tests/test_stueckmodell_skripte.py
@@ -4200,31 +4200,31 @@ Die Übergabe enthält die Zahlen aus Task 0/17, die drei Gegenproben aus Task 1
 - die Werkbank-Zeile „Wo · Wer";
 - die Ja-Antwort auf einen veralteten Kopf schreibt Szene 1 mit neu.
 
-- [ ] **Step 1: Doku schreiben** (Inhalte wie oben; keine Übergabeprosa in AGENTS.md, Regel „Folgearbeit")
+- [x] **Step 1: Doku schreiben** (Inhalte wie oben; keine Übergabeprosa in AGENTS.md, Regel „Folgearbeit")
 
-- [ ] **Step 2: Doku-Tests**
+- [x] **Step 2: Doku-Tests**
 
 Run: `uv run --extra dev python -m pytest -q -p no:cacheprovider tests/test_agents_md_groesse.py tests/test_doku_laengen.py tests/test_pruefe_agents_umzug.py tests/test_web_betrieb_doku.py`
 Expected: alle passed
 
-- [ ] **Step 3: Prompt-Schnappschuss nachher**
+- [x] **Step 3: Prompt-Schnappschuss nachher**
 
 Run: `IT_WORKSHOP=padua-2026 uv run --extra dev python -m scripts.prompt_schnappschuss var/stueckmodell/schnappschuss-nachher.txt`
 
 Run: `diff var/stueckmodell/schnappschuss-vorher.txt var/stueckmodell/schnappschuss-nachher.txt`
 Expected: keine Ausgabe (der SYSTEM-Teil bleibt unverändert, denn dieser Plan ändert keine Prompt-Datei). Jede Zeile Diff wird in der Übergabe begründet oder ist ein Fehler.
 
-- [ ] **Step 4: Profilprüfung Padua**
+- [x] **Step 4: Profilprüfung Padua**
 
 Run: `uv run --extra dev python -m scripts.pruefe_profil padua-2026`
 Expected: Exit 0
 
-- [ ] **Step 5: Volle Suite (einmal)**
+- [x] **Step 5: Volle Suite (einmal)**
 
 Run: `uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p no:cacheprovider`
 Expected: `… passed …, 0 failed`. Die Zahl der Tests liegt um die neuen Tests über dem Ausgangsstand (10.032 am 10.10.2026 laut Review). Rote Tests werden einzeln behandelt: echter Fehler → beheben; nur Dortmund → `@pytest.mark.dortmund`. Hartcodierte Altmechanik, die dieser Plan bewusst ändert, wird umgestellt und im Commit genannt.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add AGENTS.md docs/agents docs/handoffs tests

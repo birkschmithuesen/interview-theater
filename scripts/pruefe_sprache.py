@@ -481,7 +481,10 @@ def _durchlauf() -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
             erste = next(s for s in repo.hole_szenen(conn, 1) if s["nummer"] == 1)
             for feld, wert in (("form", "dialog"), ("ort", "the bus stop"),
                                ("was_passiert", "Nadia says she is leaving.")):
-                repo.setze_szenenfeld(conn, erste["id"], feld, wert)
+                if feld in repo.NUR_UEBER_STUECK:
+                    repo.setze_szenenort(conn, erste["id"], wert)
+                else:
+                    repo.setze_szenenfeld(conn, erste["id"], feld, wert)
             repo.setze_szene_figuren(conn, 1, erste["id"], [f["id"] for f in figuren])
             from unittest import mock
 

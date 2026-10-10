@@ -84,7 +84,7 @@ def braucht_kopf(conn, chat_id: int) -> bool:
     Eine einzelne Anweisungsszene (G1: das Ritual) braucht keinen."""
     from interview_theater import szenenkarte
 
-    typen = [(szenenkarte.karte_von(s) or {}).get("typ") for s in _szenen(conn, chat_id)]
+    typen = [(szenenkarte.roh_karte_von(s) or {}).get("typ") for s in _szenen(conn, chat_id)]
     return bool(typen) and sum(t == "instructions" for t in typen) * 2 > len(typen)
 
 
@@ -110,7 +110,7 @@ def ist_korrektur_wunsch(notiz: str | None) -> bool:
 
 def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
                     mit_kopf: bool = False, ueber_claude: bool = False) -> str:
-    from interview_theater import hintergrund, szenenkarte
+    from interview_theater import hintergrund, stueck, szenenkarte
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
 
@@ -129,7 +129,7 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
         teile.append(T._KOPF_STUECKKOPF + "\n" + feld("stage_kopf"))
     alle = []
     for s in _szenen(conn, chat_id):
-        karte = szenenkarte.karte_von(s)
+        karte = stueck.karte(conn, s)
         if karte is None or s["nummer"] == szene["nummer"]:
             continue
         alle.append(f"{s['nummer']}. {s['titel'] or ''} -- {karte.get('worum', '')}")
@@ -148,7 +148,7 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
     ]
     if geschrieben:
         teile.append(T._KOPF_GESCHRIEBEN + "\n\n" + "\n\n".join(geschrieben))
-    karte = szenenkarte.karte_von(szene) or {}
+    karte = stueck.karte(conn, szene) or {}
     teile.append(T._KOPF_KARTE + "\n" + szenenkarte.karte_text(karte, szene, chat_id))
     verfeinerungen = szenenkarte.verfeinerungs_zeilen(conn, chat_id, szene)
     if verfeinerungen:
@@ -271,7 +271,7 @@ def _woertlich_statt_modell(chat_fassung: str | None, modell_text: str) -> str |
 
 
 def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
-            chat_fassung: str | None = None) -> bool:
+            chat_fassung: str | None = None, kopf_neu: bool = False) -> bool:
     """Der Modellaufruf (plus ggf. der Spiegelpass). ``True`` bei Erfolg.
 
     ``chat_fassung``: eine bereits im Chat woertlich bestaetigte Fassung
@@ -283,10 +283,13 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
     szene = _szene_mit_nummer(conn, chat_id, nummer)
     if szene is None:
         return False
+    # Was das Stueck bis hierher kannte; spaetere Aenderungen (Gruppe, Erkenner,
+    # Gruppenseite im anderen Prozess) stehen nicht im neuen Text (Abschlussreview I1).
+    seit = repo.hoechste_stueck_aenderung_id(conn, chat_id)
     notiz = _notiz_mit_gespeicherten(conn, szene["id"], notiz)
     stand = repo.hole_arbeitsstand(conn, chat_id)
     mit_kopf = (braucht_kopf(conn, chat_id)
-                and not _gesetzt(stand["stage_kopf"] if stand is not None else None))
+                and (kopf_neu or not _gesetzt(stand["stage_kopf"] if stand is not None else None)))
     ueber_claude = szene_claude.ist_aktiv(e, conn, chat_id)
     try:
         ergebnis = modellwahl.aufruf_schema(
@@ -327,16 +330,26 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
                 kopf, kopf_it = gespiegelt_kopf
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf", kopf)
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf_it", kopf_it)
-    _speichere_text(conn, klm, e, chat_id, szene, text, ueber_claude)
+        repo.erledige_veraltet_fuer(conn, chat_id, None, "kopf", "neu_geschrieben",
+                                    bis_aenderung_id=seit)
+    _speichere_text(conn, klm, e, chat_id, szene, text, ueber_claude, seit_aenderung=seit)
     return True
 
 
 def _speichere_text(conn, klm, e, chat_id: int, szene, text: str, ueber_claude: bool,
-                    text_it_sofort: str | None = None) -> None:
+                    text_it_sofort: str | None = None,
+                    seit_aenderung: int | None = None) -> None:
     """Speichern + Hintergrund (Nachzug Karte/Werkbank, IT-Spiegelung) -- ein
-    Weg fuer ``schreibe`` und ``uebernimm_chatfassung``."""
+    Weg fuer ``schreibe`` und ``uebernimm_chatfassung``.
+
+    ``seit_aenderung``: hoechste ``stueck_aenderung.id`` beim Start des
+    Schreibens (ohne Angabe: jetzt). Nur Vermerke bis dahin werden erledigt,
+    und der Nachzug laesst Ort/Besetzung/Modus stehen, die die Gruppe danach
+    geaendert hat."""
     from interview_theater import skript_uebersetzung
 
+    if seit_aenderung is None:
+        seit_aenderung = repo.hoechste_stueck_aenderung_id(conn, chat_id)
     # Birk 08.10.2026 ~12:00 ("max Tempo"): die Szene ist SOFORT da (EN),
     # die italienische Spiegelung laeuft danach im Hintergrund und wird
     # nachgetragen -- vorher wartete die Gruppe ~30 s extra auf die IT-Fassung.
@@ -347,6 +360,9 @@ def _speichere_text(conn, klm, e, chat_id: int, szene, text: str, ueber_claude: 
     else:
         repo.setze_stagescript(conn, szene["id"], text, text_it_sofort)
     repo.markiere_stagescript_notizen_verwendet(conn, szene["id"])
+    # Stueckmodell: der Text ist neu geschrieben, der Vermerk "passt nicht mehr" erledigt.
+    repo.erledige_veraltet_fuer(conn, chat_id, szene["id"], "script", "neu_geschrieben",
+                                bis_aenderung_id=seit_aenderung)
     if workshop.szenenkarten_aktiv() and workshop.p7_meta_nachziehen_aktiv():
         from interview_theater import karten_nachzug
 
@@ -355,7 +371,8 @@ def _speichere_text(conn, klm, e, chat_id: int, szene, text: str, ueber_claude: 
 
         def _nachzug() -> None:
             karten_nachzug.ziehe_nach(conn, klm, e, chat_id, szene_id_nachzug,
-                                      text_nachzug, ueber_claude=ueber_claude)
+                                      text_nachzug, ueber_claude=ueber_claude,
+                                      seit_aenderung=seit_aenderung)
 
         threading.Thread(target=_nachzug, daemon=True).start()
     if workshop.skript_zweisprachig_aktiv() and not getrennt_it:
@@ -640,13 +657,17 @@ def zeige_aenderung(conn, tg, e, chat_id: int, nummer: int, alt: str | None,
     ohne brauchbaren Diff bleibt es beim bisherigen Script-Tab-Hinweis
     (``zeige``)."""
     from interview_theater import workshop
+    from interview_theater.knoepfe import szenen as knoepfe_szenen
 
     text = None
     if workshop.p7_aenderung_im_chat_aktiv():
         text = diff_nachricht(chat_id, nummer, len(_szenen(conn, chat_id)), alt, neu, notiz)
     if text is None:
-        return zeige(conn, tg, e, chat_id, nummer)
-    return _sende_leiste_7(conn, tg, e, chat_id, nummer, text)
+        message_id = zeige(conn, tg, e, chat_id, nummer)
+    else:
+        message_id = _sende_leiste_7(conn, tg, e, chat_id, nummer, text)
+    knoepfe_szenen.biete_veraltete(conn, tg, e, chat_id)
+    return message_id
 
 
 _SPERREN: dict[int, threading.Lock] = {}
@@ -706,7 +727,8 @@ def _warte_it_fassung(conn, chat_id: int, nummer: int, alt_it: str) -> str | Non
         time.sleep(_IT_DIFF_WARTE_INTERVALL_S)
 
 
-def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None):
+def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
+           kopf_neu: bool = False):
     sperre = _sperre_fuer(chat_id)
     if klm is None or not sperre.acquire(blocking=False):
         if not _ist_echo_des_laufstarts(chat_id):
@@ -741,7 +763,8 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None
             pass
         threading.Thread(target=_puls, daemon=True).start()
         try:
-            ok = schreibe(conn, klm, e, chat_id, nummer, notiz, chat_fassung=alt_en)
+            ok = schreibe(conn, klm, e, chat_id, nummer, notiz, chat_fassung=alt_en,
+                          kopf_neu=kopf_neu)
         finally:
             fertig.set()
             sperre.release()
@@ -774,6 +797,9 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None
 def weiter(conn, tg, klm, e, chat_id: int, *, aus_eintritt: bool = False):
     """Die aktuelle Szene: Text da -> zeigen, sonst schreiben; alle
     abgenommen -> die Fertig-Zeile."""
+    from interview_theater.knoepfe import szenen as knoepfe_szenen
+
+    knoepfe_szenen.biete_veraltete(conn, tg, e, chat_id)
     nummer = aktuelle_nummer(conn, chat_id)
     if nummer is None:
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_ALLES_FERTIG)
@@ -791,33 +817,28 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
             _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_LAEUFT)
         return _T(chat_id)._TEXT_LAEUFT
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    aktuell = aktuelle_nummer(conn, chat_id)
-    if nummer != aktuell or szene is None or not _gesetzt(szene["volltext"]):
-        # Live-Befund G2 08.10.2026 ~14:44 (chat 7000000000001, Knopf k:831):
-        # die Gruppe hatte per Chat-Notiz schon an Szene 2 weitergeschrieben,
-        # waehrend Szene 1 (die eigentliche ``aktuelle_nummer``) nie "Yes,
-        # save" bekam -- das "Yes, save" auf Szene 2 landete im Nichts
-        # ("non e quella attuale") statt zu sagen, was zuerst drankommt. Hat
-        # die wirklich offene Szene schon einen Text UND liegt sie VOR der
-        # angeklickten (``nummer`` zu neu, nicht ein veralteter Klick auf
-        # eine laengst abgenommene fruehere Szene), bekommt die Gruppe genau
-        # deren Hinweis samt Yes/No-Leiste (``zeige``) statt stummer
-        # Ablehnung.
-        vorherige = _szene_mit_nummer(conn, chat_id, aktuell) if aktuell is not None else None
-        if (vorherige is not None and _gesetzt(vorherige["volltext"])
-                and aktuell < nummer):
-            text = _T(chat_id)._TEXT_ERST_VORHERIGE.format(nummer=aktuell)
-            _sende(conn, tg, e, chat_id, text)
-            zeige(conn, tg, e, chat_id, aktuell)
-            return text
+    if szene is None or not _gesetzt(szene["volltext"]):
+        # Nichts zu speichern -- das ist kein Verbot, nur ein Hinweis.
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
+    if _gesetzt(szene["fertig_am"]):
+        # Schon abgenommen und seither unveraendert (ein neuer Text leert
+        # ``fertig_am``): nur bestaetigen, nichts erneut schreiben.
+        antwort = _T(chat_id)._ANTWORT_GESPEICHERT.format(nummer=nummer)
+        _sende(conn, tg, e, chat_id, antwort)
+        return antwort
+    aktuell = aktuelle_nummer(conn, chat_id)
     repo.setze_szene_fertig(conn, szene["id"], True)
     repo.schreibe_journal(conn, chat_id, "entschieden",
                           _T(chat_id)._JOURNAL_GESPEICHERT.format(nummer=nummer,
                                                         titel=szene["titel"] or "").strip(),
                           quelle="knopf")
     antwort = _T(chat_id)._ANTWORT_GESPEICHERT.format(nummer=nummer)
+    if aktuell is not None and aktuell < nummer:
+        # Stueckmodell (t_fd88600b, Vorfall 6 "Speicher-Sperre"): speichern
+        # IMMER, die offene fruehere Szene ist eine Warnung, kein Verbot.
+        _sende(conn, tg, e, chat_id, _T(chat_id)._WARNUNG_VORHERIGE_OFFEN.format(
+            nummer=nummer, offen=aktuell))
     weiter(conn, tg, klm, e, chat_id)
     return antwort
 
@@ -964,7 +985,7 @@ _TEXT_NICHT_DRAN = "Diese Szene ist gerade nicht dran -- gespeichert habe ich ni
 #: Statt der stummen Ablehnung (Live-Befund G2, siehe ``bestaetige``): die
 #: wirklich offene (fruehere) Szene steht schon mit Text da und bekommt hier
 #: ihre eigene Zeile samt Yes/No-Leiste (``zeige``).
-_TEXT_ERST_VORHERIGE = "Zuerst Szene {nummer} speichern -- die steht noch offen."
+_WARNUNG_VORHERIGE_OFFEN = "Szene {nummer} ist gespeichert. Szene {offen} ist noch nicht gespeichert."
 _TEXT_KEIN_ZIEL = "Alle Szenen sind gespeichert. Welche wollt ihr aendern?"
 #: Bestaetigung einer Notiz zu einer noch nicht geschriebenen oder gerade
 #: laufenden Szene (Padua Quickfix 08.10.2026, Punkt 1) -- ``erkenner.

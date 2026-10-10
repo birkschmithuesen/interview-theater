@@ -32,7 +32,7 @@ from interview_theater.knoepfe.texte import (
     ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_SORTIEREN,
     ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE,
     ART_KARTE_FRAGEN_KLAEREN, ART_KARTE_FRAGEN_UEBERSPRINGEN,
-    ART_KARTE_UPDATE, ART_KARTE_KEEP,
+    ART_KARTE_UPDATE, ART_KARTE_KEEP, ART_VERALTET_NEU, ART_VERALTET_LASSEN,
     ART_SPRECHANTEILE,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
     ART_SZENENFOLGE_REIHENFOLGE, ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM,
@@ -1183,6 +1183,37 @@ def _knopf(conn, chat_id: int, beschriftung: str, art: str, wert) -> tuple[str, 
     return (beschriftung, _daten(repo.lege_knopf_an(conn, chat_id, art, wert)))
 
 
+def biete_veraltete(conn, tg, e, chat_id: int) -> int:
+    """Stueckmodell (t_fd88600b): je Prosa, die nach einer Aenderung nicht
+    mehr passt, EIN Angebot "Szene N passt nicht mehr zu ... -- neu
+    schreiben?" mit Ja/Nein. Prosa wird nie still umgeschrieben. Kein
+    Modellaufruf; ein Angebot je Vermerk (``angeboten_am``). Knopfbeschriftungen
+    bleiben immer auf der gewoehnlichen ``stueck.T`` (EN)."""
+    from interview_theater import stueck
+
+    gesendet = 0
+    for v in repo.offene_veraltet(conn, chat_id, nur_unangeboten=True):
+        if v["ansicht"] == "kopf":
+            text = stueck._T(chat_id)._TEXT_KOPF_VERALTET.format(grund=v["grund"])
+        else:
+            szene = repo.hole_szene(conn, v["szene_id"])
+            if szene is None or szene["entfernt_am"]:
+                repo.erledige_veraltet(conn, v["id"], "lassen")
+                continue
+            text = stueck._T(chat_id)._TEXT_VERALTET.format(
+                nummer=szene["nummer"], grund=v["grund"])
+        leiste = [
+            _knopf(conn, chat_id, stueck.T._TEXT_JA_NEU_KNOPF, ART_VERALTET_NEU, str(v["id"])),
+            _knopf(conn, chat_id, stueck.T._TEXT_NEIN_LASSEN_KNOPF, ART_VERALTET_LASSEN,
+                   str(v["id"])),
+        ]
+        message_id = _mit_leiste(conn, tg, chat_id, text, leiste)
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+        repo.markiere_veraltet_angeboten(conn, v["id"])
+        gesendet += 1
+    return gesendet
+
+
 def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int:
     """Zeigt eine Szene nach ihrem Prueflauf (``prueflauf.pruefe_szene``).
 
@@ -1771,6 +1802,7 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
     dieselben Aliase wie beim Befehl und beim Erkenner, kein zweites
     Vokabular. Was der Code nicht kennt, wird uebergangen und geloggt: ein
     unbekanntes Feld ist kein Grund, die uebrigen wegzuwerfen."""
+    from interview_theater import stueck
     from interview_theater import szene as szene_modul
 
     roh_nummer, _, wert = roh.partition(TRENNER)
@@ -1781,6 +1813,7 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
         return T._TEXT_UNBEKANNT
     szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
     gesetzt = []
+    abgewiesen = []
     for zeile in wert.splitlines():
         kopf, trenner, rest = zeile.partition(":")
         feld = szene_modul.feldname(kopf)
@@ -1796,11 +1829,28 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
                 if n.strip().lower() in nach_name
             ]
             if ids:
-                repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+                namen = {f["id"]: f["name"] for f in repo.figuren(conn, chat_id)}
+                ergebnis = stueck.setze_besetzung(
+                    conn, chat_id, szene=nummer, namen=[namen[i] for i in ids],
+                    zusatz=repo.hole_szene(conn, szene_id)["wer_zusatz"])
+                if not ergebnis.ok:
+                    abgewiesen.append(ergebnis)
+                    continue
                 gesetzt.append(feld)
             continue
-        repo.setze_szenenfeld(conn, szene_id, feld, rest.strip())
+        if feld in repo.NUR_UEBER_STUECK:
+            ergebnis = stueck.setze_ort(conn, chat_id, szene=nummer, ort=rest.strip())
+            if not ergebnis.ok:
+                abgewiesen.append(ergebnis)
+                continue
+        else:
+            repo.setze_szenenfeld(conn, szene_id, feld, rest.strip())
         gesetzt.append(feld)
+    if abgewiesen:
+        # Z. B. "gerade wird geschrieben": die Gruppe erfaehrt es, statt dass
+        # still etwas fehlt.
+        tg.sende(chat_id, "; ".join(
+            dict.fromkeys(w for e in abgewiesen for w in (e.warnungen or (str(e.fehler),)))))
     if not gesetzt:
         log.error("Feldvorschlag ohne verwertbares Feld, chat_id=%s", chat_id)
         return T._TEXT_UNBEKANNT

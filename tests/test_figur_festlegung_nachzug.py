@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from interview_theater import db, erkenner, phasen, repo, szenenkarte
+from interview_theater import db, erkenner, phasen, repo, stueck, szenenkarte
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def _lege_szene_mit_karte_an(conn, nummer: int, figur_ids: list[int],
 
 def _karte(conn, szene_id: int) -> dict:
     zeile = repo.hole_szene(conn, szene_id)
-    return szenenkarte.karte_von(zeile)
+    return stueck.karte(conn, zeile)
 
 
 def test_haengt_an_figur_beschreibung_an(conn):
@@ -146,3 +146,33 @@ def test_nur_in_phase_7(conn):
 
     assert _karte(conn, szene_id)["punkte"] == []
     assert repo.hole_figur(conn, 1, "Chicca")["beschreibung"] == ""
+
+
+def test_beschaeftigt_wird_in_der_notiert_meldung_genannt(conn, monkeypatch):
+    """Review 13: laeuft gerade ein Schreiber, nimmt stueck die Karte nicht an.
+    Die Gruppe darf dann nicht nur "Festgehalten" lesen -- die Meldung sagt,
+    dass die Karte der Szene noch nicht nachgezogen ist."""
+    from interview_theater import ueberarbeitung
+
+    repo.setze_figur(conn, 1, "Chicca", "")
+    chicca_id = repo.hole_figur(conn, 1, "Chicca")["id"]
+    szene_id = _lege_szene_mit_karte_an(conn, 3, [chicca_id])
+    monkeypatch.setattr(ueberarbeitung, "laeuft", lambda chat_id: True)
+
+    wirkliche = _wende(conn, "figur/Chicca: diplomanda in scienze della comunicazione")
+
+    assert _karte(conn, szene_id)["punkte"] == []
+    meldung = erkenner.baue_meldung(wirkliche, conn, 1)
+    assert "Chicca" in meldung
+    assert "Szene 3" in meldung
+    assert "nicht" in meldung
+
+
+def test_ohne_beschaeftigt_keine_warnzeile(conn):
+    repo.setze_figur(conn, 1, "Chicca", "")
+    chicca_id = repo.hole_figur(conn, 1, "Chicca")["id"]
+    _lege_szene_mit_karte_an(conn, 3, [chicca_id])
+
+    wirkliche = _wende(conn, "figur/Chicca: diplomanda in scienze della comunicazione")
+
+    assert "Szene 3" not in erkenner.baue_meldung(wirkliche, conn, 1)

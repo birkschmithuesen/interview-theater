@@ -1,5 +1,6 @@
 """Datenbankschema und Verbindungsaufbau (SPEC-kontext-architektur.md § 3.1)."""
 
+import json
 import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -750,6 +751,11 @@ CREATE TABLE IF NOT EXISTS szene (
   -- Die italienische Spiegelung des Stage Scripts (``volltext``) unter
   -- ``[karten] aktiv`` + ``[skript] zweisprachig`` (stagescript.py). Additiv.
   volltext_it       TEXT,
+  -- Stueckmodell (Karte t_fd88600b, 10.10.2026): wer in der Szene ist,
+  -- ohne eine Figur zu sein ("tutto il pubblico", "uno di noi alla camera").
+  -- Zusammen mit szene_figur die EINE Stelle fuer "wer" -- karte.wer
+  -- entfaellt. Additiv ueber _migriere_fehlende_spalten.
+  wer_zusatz        TEXT,
   -- Gesetzt = die Gruppe hat den Text mit "Passt" abgenommen (Phase 6,
   -- knoepfe.ART_SZENE_PASST). Ein Volltext allein heisst nur "geschrieben":
   -- unter jedem frischen Szenentext haengen vier Knoepfe, und erst einer
@@ -1051,6 +1057,11 @@ CREATE TABLE IF NOT EXISTS szene_figur (
   chat_id    INTEGER NOT NULL,
   szene_id   INTEGER NOT NULL,
   figur_id   INTEGER NOT NULL,
+  -- Stueckmodell (t_fd88600b): die Rolle der Figur in DIESER Szene
+  -- ("(Arlecchino)", "fuori campo") und ihre Reihenfolge in der Besetzung.
+  -- NULL = keine Rolle / Reihenfolge nach figur.id wie bisher.
+  rolle      TEXT,
+  position   INTEGER,
   PRIMARY KEY (szene_id, figur_id)
 );
 
@@ -1503,6 +1514,56 @@ CREATE TABLE IF NOT EXISTS bedarf_punkt (
   datei        TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_bedarf_punkt_gruppe ON bedarf_punkt(chat_id, sektion, reihenfolge);
+
+-- Stueckmodell (Karte t_fd88600b, Birk 10.10.2026): die EINE Stelle fuer
+-- offene Fragen -- karte.fragen und "[OPEN] ..."-Punkte entfallen. status:
+-- offen (blockiert "Yes, save" der Karte) | vertagt ("I don't know", steht
+-- als [OPEN]-Punkt auf der Karte) | beantwortet | uebersprungen.
+CREATE TABLE IF NOT EXISTS offene_frage (
+  id              INTEGER PRIMARY KEY,
+  chat_id         INTEGER NOT NULL,
+  szene_id        INTEGER,
+  text            TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'offen',
+  antwort         TEXT,
+  quelle          TEXT NOT NULL,
+  erstellt_am     TEXT NOT NULL,
+  geschlossen_am  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_offene_frage_szene ON offene_frage(chat_id, szene_id, status);
+
+-- Stueckmodell: Prosa, die nach einer Aenderung nicht mehr passt. Prosa wird
+-- nie still umgeschrieben -- die Gruppe bekommt "Szene N passt nicht mehr zu
+-- ... -- neu schreiben?" (angeboten_am) und entscheidet (entscheidung:
+-- neu | lassen | neu_geschrieben). ansicht: script | kopf.
+CREATE TABLE IF NOT EXISTS veraltet (
+  id            INTEGER PRIMARY KEY,
+  chat_id       INTEGER NOT NULL,
+  szene_id      INTEGER,
+  ansicht       TEXT NOT NULL,
+  grund         TEXT NOT NULL,
+  aenderung_id  INTEGER,
+  erstellt_am   TEXT NOT NULL,
+  angeboten_am  TEXT,
+  erledigt_am   TEXT,
+  entscheidung  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_veraltet_offen ON veraltet(chat_id, erledigt_am);
+
+-- Stueckmodell: jede Mutation (stueck.py) und jede Migrationsentscheidung,
+-- nur anhaengend. art = Funktionsname oder konflikt_* (Migration); ziel,
+-- vorher, nachher = JSON.
+CREATE TABLE IF NOT EXISTS stueck_aenderung (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  art          TEXT NOT NULL,
+  ziel         TEXT NOT NULL,
+  vorher       TEXT,
+  nachher      TEXT,
+  quelle       TEXT NOT NULL,
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_stueck_aenderung_gruppe ON stueck_aenderung(chat_id, id);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1552,6 +1613,10 @@ TABELLEN_MIT_CHAT_ID = (
     "stagescript_notiz",
     # Birk 08.10.2026 ~13:45: die Bedarfsliste (Raum/Requisiten/Technik/Kostuem).
     "bedarf_punkt",
+    # Stueckmodell (Karte t_fd88600b, 10.10.2026).
+    "offene_frage",
+    "veraltet",
+    "stueck_aenderung",
 )
 
 
@@ -1730,12 +1795,133 @@ def _migriere_erste_szenenfassung(conn: sqlite3.Connection) -> int:
     return cur.rowcount
 
 
+def _migriere_stueckmodell(conn: sqlite3.Connection) -> dict[str, int]:
+    """Stueckmodell (Karte t_fd88600b, 10.10.2026): Ort, Wer und offene
+    Fragen aus ``szene.karte`` an ihre EINE Stelle (``szene.ort``,
+    ``szene_figur``/``szene.wer_zusatz``, ``offene_frage``). Liefert die
+    Zaehler je Art; jede Entscheidung steht als ``stueck_aenderung``
+    (quelle ``migration``) -- das IST der Konfliktbericht.
+
+    Idempotent ueber die Datenlage (wie ``_migriere_erste_szenenfassung``):
+    eine Karte ohne die drei Schluessel und ohne [OPEN]-Punkt ist fertig.
+    ``BEGIN IMMEDIATE``: die Bots starten parallel auf derselben Datei; der
+    zweite wartet (``busy_timeout``) und findet nichts mehr zu tun.
+
+    Widerspruch -> EIN Wert: beim Ort gewinnt die Karte (juenger, P6,
+    abgenommen); bei der Besetzung die Vereinigung (keine Figur geht
+    verloren); ein Name ohne Figur wird berichtet, nie angelegt (Birk
+    05.09.2026, ``erkenner._figuren_aus_namen``). ``karte_verlauf`` ist
+    Historie und bleibt unberuehrt."""
+    from interview_theater import stueck_sicht as sicht
+
+    zaehler: dict[str, int] = {}
+    jetzt = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    def merke(chat_id, art, szene, vorher, nachher):
+        zaehler[art] = zaehler.get(art, 0) + 1
+        conn.execute(
+            "INSERT INTO stueck_aenderung (chat_id, art, ziel, vorher, nachher, quelle, erstellt_am) "
+            "VALUES (?, ?, ?, ?, ?, 'migration', ?)",
+            (chat_id, art, json.dumps({"szene": szene}), json.dumps(vorher, ensure_ascii=False),
+             json.dumps(nachher, ensure_ascii=False), jetzt))
+
+    if conn.in_transaction:
+        conn.commit()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        zeilen = conn.execute(
+            "SELECT * FROM szene WHERE entfernt_am IS NULL AND karte IS NOT NULL AND ("
+            "karte LIKE '%\"ort\"%' OR karte LIKE '%\"wer\"%' OR karte LIKE '%\"fragen\"%' "
+            "OR karte LIKE '%[OPEN%' OR karte LIKE '%(OPEN%' OR karte LIKE '%[APERTO%' "
+            "OR karte LIKE '%(APERTO%' OR karte LIKE '%[OFFEN%' OR karte LIKE '%(OFFEN%')"
+        ).fetchall()
+        for s in zeilen:
+            try:
+                karte = json.loads(s["karte"])
+            except ValueError:
+                continue
+            if not isinstance(karte, dict):
+                continue
+            punkte = karte.get("punkte")
+            punkte = punkte if isinstance(punkte, list) else []
+            offene_punkte = [p for p in punkte if isinstance(p, str) and sicht.OFFEN_PUNKT.match(p)]
+            if not (set(sicht.STRUKTUR_SCHLUESSEL) & set(karte)) and not offene_punkte:
+                continue
+            chat_id, nr = s["chat_id"], s["nummer"]
+            k_ort = " ".join(str(karte.get("ort") or "").split())
+            s_ort = (s["ort"] or "").strip()
+            if k_ort and not s_ort:
+                conn.execute("UPDATE szene SET ort = ? WHERE id = ?", (k_ort, s["id"]))
+                merke(chat_id, "ort_uebernommen", nr, None, k_ort)
+            elif k_ort and sicht.normalisiert(k_ort) != sicht.normalisiert(s_ort):
+                conn.execute("UPDATE szene SET ort = ? WHERE id = ?", (k_ort, s["id"]))
+                merke(chat_id, "konflikt_ort", nr, s_ort, k_ort)
+            wer = str(karte.get("wer") or "").strip()
+            if wer:
+                figuren = {sicht.normalisiert(f["name"]): f["id"] for f in conn.execute(
+                    "SELECT id, name FROM figur WHERE chat_id = ? AND entfernt_am IS NULL", (chat_id,))}
+                aus_karte, rest = sicht.ordne_besetzung(wer, figuren)
+                alt = conn.execute(
+                    "SELECT figur_id, rolle FROM szene_figur WHERE szene_id = ? "
+                    "ORDER BY position IS NULL, position, figur_id", (s["id"],)).fetchall()
+                bisher = [z["figur_id"] for z in alt]
+                kartenfiguren = {f for f, _ in aus_karte}
+                neu = list(aus_karte) + [(z["figur_id"], z["rolle"]) for z in alt
+                                         if z["figur_id"] not in kartenfiguren]
+                if kartenfiguren != set(bisher):
+                    namen = {f["id"]: f["name"] for f in conn.execute(
+                        "SELECT id, name FROM figur WHERE chat_id = ?", (chat_id,))}
+                    merke(chat_id, "konflikt_wer", nr,
+                          sorted(namen.get(i, str(i)) for i in bisher),
+                          sorted(namen.get(i, str(i)) for i, _ in neu))
+                for r in rest:
+                    if len(r.split()) == 1 and r[:1].isupper():
+                        merke(chat_id, "name_ohne_figur", nr, None, r)
+                conn.execute("DELETE FROM szene_figur WHERE szene_id = ?", (s["id"],))
+                for pos, (fid, rolle) in enumerate(neu, start=1):
+                    conn.execute("INSERT OR IGNORE INTO szene_figur "
+                                 "(chat_id, szene_id, figur_id, rolle, position) VALUES (?,?,?,?,?)",
+                                 (chat_id, s["id"], fid, rolle, pos))
+                if rest:
+                    conn.execute("UPDATE szene SET wer_zusatz = ? WHERE id = ?",
+                                 (", ".join(rest), s["id"]))
+            fragen = karte.get("fragen")
+            fragen = [str(f).strip() for f in fragen] if isinstance(fragen, list) else []
+            # Eine Frage, deren normalisierter Text fuer diese Szene schon in
+            # ``offene_frage`` steht (jeder Status), wird nicht noch einmal
+            # angelegt: schreibt ein alter Prozess ``karte.fragen`` zurueck,
+            # darf eine beantwortete Frage nicht als offen wiederkommen.
+            bekannt = {sicht.normalisiert(z["text"]) for z in conn.execute(
+                "SELECT text FROM offene_frage WHERE chat_id = ? AND szene_id = ?",
+                (chat_id, s["id"]))}
+            for text, status in ([(f, "offen") for f in fragen if f]
+                                 + [(sicht.OFFEN_PUNKT.match(p).group(1), "vertagt") for p in offene_punkte]):
+                if sicht.normalisiert(text) in bekannt:
+                    continue
+                bekannt.add(sicht.normalisiert(text))
+                conn.execute("INSERT INTO offene_frage (chat_id, szene_id, text, status, quelle, erstellt_am) "
+                             "VALUES (?, ?, ?, ?, 'migration', ?)", (chat_id, s["id"], text, status, jetzt))
+                merke(chat_id, "frage_uebernommen", nr, None, {"text": text, "status": status})
+            roh = sicht.roh_ohne_struktur(karte)
+            if "punkte" in karte:
+                roh["punkte"] = [p for p in punkte if p not in offene_punkte]
+            conn.execute("UPDATE szene SET karte = ? WHERE id = ?",
+                         (json.dumps(roh, ensure_ascii=False), s["id"]))
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    return zaehler
+
+
 def initialisiere(conn: sqlite3.Connection) -> None:
     """Legt das Schema an, falls noch nicht vorhanden, ergaenzt in einer schon
     vorhandenen Datenbank fehlende Spalten (siehe _migriere_fehlende_spalten)
     rechnet einmalig die Phasennummern um (_migriere_phasennummern) und legt
     fuer bestehende Szenentexte die erste Fassung an
-    (_migriere_erste_szenenfassung).
+    (_migriere_erste_szenenfassung). Als Letztes zieht
+    ``_migriere_stueckmodell`` Ort, Besetzung und offene Fragen aus der Karte
+    an ihre eine Stelle.
 
     Reihenfolge: erst die Spalten, dann ihr Inhalt -- ``phase_angeboten``
     koennte in einer sehr alten Datenbank noch gar nicht existieren, und
@@ -1745,6 +1931,7 @@ def initialisiere(conn: sqlite3.Connection) -> None:
     _migriere_fehlende_spalten(conn)
     _migriere_phasennummern(conn)
     _migriere_erste_szenenfassung(conn)
+    _migriere_stueckmodell(conn)
 
 
 def loesche_gruppe(conn: sqlite3.Connection, chat_id: int) -> None:

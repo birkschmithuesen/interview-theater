@@ -68,7 +68,7 @@ def db_pfad(tmp_path):
     eins = repo.stelle_szene_sicher(conn, 1, 1)
     repo.setze_szenenfeld(conn, eins, "titel", "Im Treppenhaus")
     repo.setze_szenenfeld(conn, eins, "form", "dialog")
-    repo.setze_szenenfeld(conn, eins, "ort", "Treppenhaus")
+    repo.setze_szenenort(conn, eins, "Treppenhaus")
     repo.setze_szenenfeld(conn, eins, "zeit", "kurz nach Mitternacht")
     repo.setze_szenenfeld(conn, eins, "anlass", "Pola will packen")
     repo.aktualisiere_szene(conn, eins, "Im Treppenhaus", None, SZENENTEXT)
@@ -80,7 +80,7 @@ def db_pfad(tmp_path):
     zwei = repo.stelle_szene_sicher(conn, 1, 2)
     repo.setze_szenenfeld(conn, zwei, "titel", "Am Bahnhof")
     repo.setze_szenenfeld(conn, zwei, "form", "lied")
-    repo.setze_szenenfeld(conn, zwei, "ort", "Bahnhof")
+    repo.setze_szenenort(conn, zwei, "Bahnhof")
     repo.setze_szenenfeld(conn, zwei, "was_passiert", "Mira faehrt nicht mit")
     conn.commit()
     return pfad

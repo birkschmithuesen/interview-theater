@@ -8,6 +8,7 @@ import json
 import pytest
 
 from interview_theater import (
+    stueck,
     phasen, repo, schaerfung, szene, szenenkarte, szenenkern, ueberarbeitung, workshop,
 )
 
@@ -60,6 +61,17 @@ class LLMMitFragen(LLM):
     """Jede gebaute Karte hat eine offene Frage (Fragenklaerung, Punkt 1/2)."""
 
     FRAGEN = ["Who sings?"]
+
+
+class LLMMitNeuerFrage(LLM):
+    """Jeder Neubau stellt eine ANDERE Frage (eine beantwortete Frage bleibt
+    beantwortet und kommt nicht als neue offene wieder -- Stueckmodell)."""
+
+    def schema(self, chat_id, system, nutzer, schema, art):
+        antwort = super().schema(chat_id, system, nutzer, schema, art)
+        if art == szenenkarte.ART:
+            antwort["questions"] = [f"Who sings in round {len(self.aufrufe)}?"]
+        return antwort
 
 
 class LLMMitZweiFragen(LLM):
@@ -142,7 +154,7 @@ def test_karte_nimmt_zitate_im_original_aus_der_db(conn, einst, padua):
     assert karte["typ"] == "spoken"
     assert [z["zitat"] for z in karte["zitate"]] == [ZITAT_B, ZITAT_A]
     gespeichert = json.loads(repo.hole_szene(conn, ids[0])["karte"])
-    assert gespeichert == karte
+    assert gespeichert == {k: v for k, v in karte.items() if k not in ("ort", "wer", "fragen")}
 
 
 def test_baue_nutzertext_zeigt_zitate_zur_wahl_ungekuerzt(conn, padua):
@@ -257,8 +269,10 @@ def test_phase_6_eine_karte_nach_der_anderen(conn, einst, padua):
 
     # Veralteter Knopf fuer Karte 1: nichts passiert. chat_id 1 steht in
     # keiner italienisch_ab_phase6_chats-Liste -- englisch (T, nicht T_IT).
-    assert ueberarbeitung.bestaetige_szene_6(conn, tg, klm, einst, 1, 1) == \
-        szenenkarte.T._TEXT_NICHT_DRAN
+    # Stueckmodell (t_fd88600b): eine nicht aktuelle Karte ist kein Verbot
+    # mehr (Warnzeile); abgelehnt wird nur eine Szene, die es nicht gibt.
+    assert ueberarbeitung.bestaetige_szene_6(conn, tg, klm, einst, 1, 99) == \
+        szenenkarte.T._TEXT_UNBEKANNTE_KARTE.format(nummer=99)
 
     faden = szenenkarte.bestaetige(conn, tg, klm, einst, 1, 2)
     for _ in range(50):
@@ -366,10 +380,10 @@ def test_bestaetige_lehnt_karte_mit_offenen_fragen_ab(conn, einst, padua):
 
 def test_ueberspringe_fragen_leert_fragen_laesst_punkte_zitate(conn, einst, padua):
     ids = _karte1(conn, einst, LLMMitFragen())
-    vorher = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    vorher = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     tg = TG()
     antwort = szenenkarte.ueberspringe_fragen(conn, tg, einst, 1, 1)
-    nachher = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    nachher = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     assert nachher["fragen"] == []
     assert nachher["punkte"] == vorher["punkte"]
     assert nachher["zitate"] == vorher["zitate"]
@@ -397,7 +411,9 @@ def test_starte_fragenklaerung_stellt_erste_frage(conn, einst, padua):
     antwort = szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
     assert antwort == "Clearing the questions"
     assert tg.texte[-1] == "Question 1 of 2: Who sings?"
-    assert szenenkarte.aktive_klaerung(conn, 1) == (1, {"index": 0, "antworten": [], "runde": 1})
+    nummer, klaerung = szenenkarte.aktive_klaerung(conn, 1)
+    assert nummer == 1 and len(klaerung["ids"]) == 2
+    assert (klaerung["index"], klaerung["antworten"], klaerung["runde"]) == (0, [], 1)
 
 
 def test_beantworte_frage_ohne_aktive_klaerung_liefert_false(conn, einst, padua):
@@ -414,7 +430,8 @@ def test_beantworte_frage_stellt_naechste_frage(conn, einst, padua):
     assert treffer is True
     assert tg.texte[-1] == "Question 2 of 2: Where does it end?"
     _, klaerung = szenenkarte.aktive_klaerung(conn, 1)
-    assert klaerung == {"index": 1, "antworten": ["Emma, molto chiaro"], "runde": 1}
+    assert (klaerung["index"], klaerung["antworten"], klaerung["runde"]) == (
+        1, ["Emma, molto chiaro"], 1)
 
 
 def test_beantworte_letzte_frage_baut_karte_mit_allen_antworten_neu(conn, einst, padua):
@@ -446,7 +463,7 @@ def test_beantworte_frage_skip_wird_als_open_punkt_uebernommen(conn, einst, padu
     szenenkarte.beantworte_frage(conn, tg, LLM(), einst, 1, "skip")
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    karte = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     assert "[OPEN] Who sings?" in karte["punkte"]
     offen = [j for j in repo.journal(conn, 1) if "left open on purpose" in j["text"]]
     assert offen and offen[0]["quelle"] == "chat"
@@ -467,7 +484,7 @@ def test_zweite_automatische_runde_dann_hinweis_ohne_dritte(conn, einst, padua):
     Klaerung automatisch ein zweites Mal -- aber nicht ein drittes Mal."""
     ids = _karte1(conn, einst, LLMMitFragen())
     tg = TG()
-    klm = LLMMitFragen()
+    klm = LLMMitNeuerFrage()
     szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
     fragen_vorher = sum(1 for t in tg.texte if t.startswith("Question 1 of 1"))
     assert fragen_vorher == 1
@@ -477,7 +494,8 @@ def test_zweite_automatische_runde_dann_hinweis_ohne_dritte(conn, einst, padua):
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
     assert sum(1 for t in tg.texte if t.startswith("Question 1 of 1")) == 2
-    assert szenenkarte.aktive_klaerung(conn, 1) == (1, {"index": 0, "antworten": [], "runde": 2})
+    _, klaerung = szenenkarte.aktive_klaerung(conn, 1)
+    assert (klaerung["index"], klaerung["antworten"], klaerung["runde"]) == (0, [], 2)
     # Runde 2 beantworten -> Neubau legt WIEDER eine Frage an -> keine
     # dritte automatische Runde, die Karte wird stattdessen gezeigt.
     szenenkarte.beantworte_frage(conn, tg, klm, einst, 1, "Giada answers")
@@ -533,7 +551,7 @@ def test_aendere_mit_unverwandter_notiz_bewahrt_alte_fragen(conn, einst, padua):
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
     assert "Emma sings first" in klm.aufrufe[-1]["nutzer"]
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    karte = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     assert karte["fragen"] == ["Who sings?"]
 
 
@@ -546,7 +564,7 @@ def test_aendere_mit_unverwandter_notiz_dupliziert_nicht(conn, einst, padua):
     szenenkarte.aendere(conn, tg, klm, einst, 1, "Emma sings first", nummer=1)
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    karte = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     assert karte["fragen"] == ["Who sings?"]
 
 
@@ -692,3 +710,80 @@ def test_verfeinerungs_zeilen_ohne_erstentwurf_zeigt_notiz_trotzdem(conn, einst,
     zeilen = szenenkarte.verfeinerungs_zeilen(conn, 1, szene)
     assert len(zeilen) == 1
     assert "truccato" in zeilen[0]
+
+
+# ---------------------------------------------------------------------------
+# Stueckmodell Task 15: Speichern ist idempotent (Review 15)
+# ---------------------------------------------------------------------------
+
+_ALTER_STEMPEL = "2020-01-01T00:00:00"
+
+
+def _journal_entschieden(conn):
+    return [z for z in repo.journal(conn, 1) if z["art"] == "entschieden"]
+
+
+def test_zweites_speichern_einer_gespeicherten_karte_tut_nichts(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    conn.execute("UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?", (_ALTER_STEMPEL, ids[0]))
+    conn.commit()
+    tg, klm = TG(), LLM()
+    vorher_journal = len(_journal_entschieden(conn))
+    geaendert = repo.hole_szene(conn, ids[0])["geaendert_am"]
+
+    antwort = szenenkarte.bestaetige(conn, tg, klm, einst, 1, 1)
+
+    assert antwort == szenenkarte.T._ANTWORT_GESPEICHERT.format(nummer=1)
+    assert repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"] == _ALTER_STEMPEL
+    assert repo.hole_szene(conn, ids[0])["geaendert_am"] == geaendert
+    assert len(_journal_entschieden(conn)) == vorher_journal
+    assert klm.aufrufe == []
+    # Karte 1 ist nicht die aktuelle: erst die Warnzeile, dann die kurze
+    # Bestaetigung -- keine Kartenanzeige, keine Leiste.
+    assert tg.texte[-1] == antwort
+    assert len(tg.texte) == 2
+    assert not tg.leisten
+
+
+def test_gespeicherte_karte_mit_neuer_offener_frage_wird_abgelehnt(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    conn.execute("UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?", (_ALTER_STEMPEL, ids[0]))
+    conn.commit()
+    repo.lege_offene_frage_an(conn, 1, ids[0], "Wer oeffnet die Tuer?", "test")
+    tg = TG()
+
+    antwort = szenenkarte.bestaetige(conn, tg, LLM(), einst, 1, 1)
+
+    assert antwort == szenenkarte.T._TEXT_FRAGEN_OFFEN_ABGELEHNT
+
+
+def test_geaenderte_karte_laesst_sich_wieder_speichern(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    conn.execute("UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?", (_ALTER_STEMPEL, ids[0]))
+    conn.commit()
+    karte = json.loads(repo.hole_szene(conn, ids[0])["karte"])
+    karte["worum"] = "Neu."
+    repo.setze_szenenkarte(conn, ids[0], json.dumps(karte))
+    assert not repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
+    vorher = len(_journal_entschieden(conn))
+
+    szenenkarte.bestaetige(conn, TG(), LLM(), einst, 1, 1)
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+
+    stempel = repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
+    assert stempel and stempel != _ALTER_STEMPEL
+    assert len(_journal_entschieden(conn)) == vorher + 1
+
+
+def test_speichern_einer_nicht_aktuellen_karte_laesst_die_aktuelle(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    repo.setze_szenenkarte(conn, ids[1], repo.hole_szene(conn, ids[0])["karte"])
+    assert szenenkarte.aktuelle_nummer(conn, 1) == 1
+    tg = TG()
+
+    szenenkarte.bestaetige(conn, tg, LLM(), einst, 1, 2)
+
+    assert repo.hole_szene(conn, ids[1])["karte_bestaetigt_am"]
+    assert not repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
+    assert szenenkarte.aktuelle_nummer(conn, 1) == 1

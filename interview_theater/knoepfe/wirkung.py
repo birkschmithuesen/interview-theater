@@ -36,7 +36,7 @@ from interview_theater.knoepfe.texte import (
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
     ART_FRAGE_WAHL,
     ART_KARTE_FRAGEN_KLAEREN, ART_KARTE_FRAGEN_UEBERSPRINGEN,
-    ART_KARTE_UPDATE, ART_KARTE_KEEP,
+    ART_KARTE_UPDATE, ART_KARTE_KEEP, ART_VERALTET_NEU, ART_VERALTET_LASSEN,
     ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_HILFE, ART_INTERVIEWS_FERTIG, ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT,
@@ -85,6 +85,7 @@ from interview_theater.knoepfe.szenen import (
     _naechste_offene, _pruefbefund, _schreibe_szene, _speichere_geschichte,
     _speichere_szenenfelder, _speichere_szenenfolge, _szene_mit_nummer,
     biete_kurzgeschichte, biete_schaerfung, biete_szene, biete_szenenform,
+    biete_veraltete,
     _zeige_fassungen, skript_verweis, starte_dramaturgie,
     biete_szenenstil, erwarte_geschichte_notiz, starte_schaerfung,
     starte_stueckpruefung, uebernimm_schaerfung_stellen,
@@ -474,8 +475,11 @@ def _wirkung_karte_update(conn, d: Druck) -> str:
     from interview_theater import szenenkarte
 
     nummer_s, _, aenderung = d.wert.partition(TRENNER)
-    return szenenkarte.aktualisiere_mit_dialog(
+    meldung = szenenkarte.aktualisiere_mit_dialog(
         conn, d.tg, d.klm, d.e, d.chat_id, int(nummer_s), aenderung)
+    # Stueckmodell: hat die Karte Prosa veralten lassen, jetzt fragen.
+    biete_veraltete(conn, d.tg, d.e, d.chat_id)
+    return meldung
 
 
 def _wirkung_karte_keep(conn, d: Druck) -> str:
@@ -483,6 +487,60 @@ def _wirkung_karte_keep(conn, d: Druck) -> str:
     from interview_theater import szenenkarte
 
     return szenenkarte.behalte_karte(conn, d.tg, d.e, d.chat_id, int(d.wert))
+
+
+def _wirkung_veraltet_neu(conn, d: Druck) -> str:
+    """"Ja, neu schreiben": kein Modellaufruf hier -- ``stagescript.starte``
+    gibt an einen eigenen Thread ab (Knopf-Zusage 2)."""
+    from interview_theater import stagescript, stueck
+
+    t = stueck._T(d.chat_id)
+    v = repo.hole_veraltet(conn, int(d.wert))
+    if v is None or v["chat_id"] != d.chat_id or v["erledigt_am"]:
+        return t._TEXT_VERALTET_ERLEDIGT
+    if v["ansicht"] == "kopf":
+        erste = min((s["nummer"] for s in repo.hole_szenen(conn, d.chat_id)
+                     if s["nummer"] is not None and not s["entfernt_am"]), default=None)
+        if erste is None:
+            return t._TEXT_VERALTET_ERLEDIGT
+        # Der Kopf ist Prosa: ``schreibe`` baut ihn mit der ersten Szene neu
+        # (``kopf_neu``) und ersetzt ihn erst beim Speichern; Vermerk und
+        # alter Kopf bleiben, bis das Schreiben wirklich gelingt.
+        nummer = erste
+        kopf_neu = True
+    else:
+        szene = repo.hole_szene(conn, v["szene_id"])
+        if szene is None or szene["entfernt_am"]:
+            repo.erledige_veraltet(conn, v["id"], "lassen")
+            return t._TEXT_VERALTET_ERLEDIGT
+        nummer = szene["nummer"]
+        kopf_neu = False
+    # Der Vermerk wird vom Schreiber erledigt (``_speichere_text``/``schreibe``),
+    # nicht hier: startet nichts (Sperre belegt, kein Modell), bleibt er offen
+    # und wird beim naechsten Anlass neu angeboten.
+    if stagescript.starte(conn, d.tg, d.klm, d.e, d.chat_id, nummer, notiz=v["grund"],
+                          kopf_neu=kopf_neu) is None:
+        repo.setze_veraltet_unangeboten(conn, v["id"])
+        return t._TEXT_VERALTET_SPAETER
+    return t._TEXT_VERALTET_NEU.format(nummer=nummer)
+
+
+def _wirkung_veraltet_lassen(conn, d: Druck) -> str:
+    """"Nein, so lassen": der Text bleibt, der Vermerk ist erledigt."""
+    from interview_theater import stueck
+
+    t = stueck._T(d.chat_id)
+    v = repo.hole_veraltet(conn, int(d.wert))
+    if v is None or v["chat_id"] != d.chat_id or v["erledigt_am"]:
+        return t._TEXT_VERALTET_ERLEDIGT
+    repo.erledige_veraltet(conn, v["id"], "lassen")
+    nummer = 0
+    if v["szene_id"]:
+        szene = repo.hole_szene(conn, v["szene_id"])
+        nummer = szene["nummer"] if szene is not None else 0
+    text = t._TEXT_VERALTET_GELASSEN.format(nummer=nummer)
+    d.tg.sende(d.chat_id, text)
+    return text
 
 
 def _wirkung_uebersicht_passt(conn, d: Druck) -> str:
@@ -1906,6 +1964,8 @@ _WIRKUNGEN = {
     ART_KARTE_FRAGEN_UEBERSPRINGEN: _wirkung_karte_fragen_ueberspringen,
     ART_KARTE_UPDATE: _wirkung_karte_update,
     ART_KARTE_KEEP: _wirkung_karte_keep,
+    ART_VERALTET_NEU: _wirkung_veraltet_neu,
+    ART_VERALTET_LASSEN: _wirkung_veraltet_lassen,
     ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,
     ART_UEBERSICHT_PASST: _wirkung_uebersicht_passt,
     ART_SPRECHWEISEN_PASST: _wirkung_sprechweisen_passt,

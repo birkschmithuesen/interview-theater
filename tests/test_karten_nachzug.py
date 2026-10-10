@@ -1,14 +1,10 @@
-"""Phase 7: Ort/Figuren aus dem neu geschriebenen Stage Script auf die
-Szenenkarte UND die Werkbank (``szene.ort``/``szene_figur``) nachziehen
-(Padua, Birk 08.10.2026 ~12:50 + Nachtrag ~13:00, Profilschalter
-``[karten] p7_meta_nachziehen``). Deterministischer Vergleich -- der
-Modellaufruf selbst ist ein Testdouble."""
+"""Phase 7: Ort/Figuren aus dem neu geschriebenen Stage Script ins
+Stueckmodell (Karte t_fd88600b ersetzt den Zweit-Schreiber
+``repo.aktualisiere_karte_und_werkbank``). Der Modellaufruf ist ein
+Testdouble; geschrieben wird NUR ueber ``stueck``."""
 
-import json
-
-import pytest
-
-from interview_theater import karten_nachzug, repo, szenenkarte, web
+from interview_theater import karten_nachzug, repo, stueck
+from tests.stueck_hilfe import lege_karte_an
 
 
 class LLM:
@@ -17,221 +13,102 @@ class LLM:
         self.aufrufe = []
 
     def schema(self, chat_id, system, nutzer, schema, art):
-        self.aufrufe.append({"art": art, "system": system, "nutzer": nutzer})
+        self.aufrufe.append(art)
         return self.antwort
 
 
-def _karte(conn, chat_id=1, **felder):
-    sid = repo.stelle_szene_sicher(conn, chat_id, 1)
-    karte = {"typ": "spoken", "modus": "none", "worum": "x", "ort": "Bar",
-             "wer": "Anna", "punkte": ["p"], "zitate": [], "fragen": []}
-    karte.update(felder)
-    repo.setze_szenenkarte(conn, sid, json.dumps(karte))
-    repo.setze_szenenkarte_bestaetigt(conn, sid)
+def _mit_text(conn, text="TEXT", **karte):
+    sid = lege_karte_an(conn, bestaetigt=True, **karte)
+    repo.setze_stagescript(conn, sid, text, None)
     return sid
 
 
-def test_neuer_ort_aktualisiert_karte_und_haengt_verlauf_an(conn, einst):
-    sid = _karte(conn)
-    klm = LLM({"ort": "Piazza", "wer": "Anna", "modus": "none"})
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "EMMA: ... in piazza ...",
-                              ueber_claude=False)
-
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, sid))
-    assert karte["ort"] == "Piazza"
-    verlauf = repo.karte_verlauf(conn, 1, sid)
-    assert verlauf[-1]["ausloeser"] == szenenkarte.AUSLOESER_AENDERUNG
-    assert json.loads(verlauf[-1]["karte_json"])["ort"] == "Piazza"
+def _k(conn, sid):
+    return stueck.karte(conn, repo.hole_szene(conn, sid))
 
 
-def test_neuer_ort_zieht_auch_die_werkbank_nach(conn, einst):
-    """Live-Befund G1 S1 (Nachtrag Birk 08.10.2026 ~13:00): die Werkbank
-    (web._szene_html) liest ``szene.ort``, nicht die Karte -- ohne Nachzug
-    blieb sie bei der alten Planung stehen, waehrend die Karte schon den
-    neuen Ort trug."""
-    sid = _karte(conn)
-    repo.setze_szenenfeld(conn, sid, "ort", "Bar")
-    klm = LLM({"ort": "Piazza", "wer": "Anna", "modus": "none"})
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
-    assert repo.hole_szene(conn, sid)["ort"] == "Piazza"
+def test_neuer_ort_eine_stelle_alle_ansichten(conn, einst):
+    sid = _mit_text(conn, ort="Bar")
+    karten_nachzug.ziehe_nach(conn, LLM({"ort": "Piazza", "wer": "", "modus": "none"}),
+                              einst, 1, sid, "TEXT", ueber_claude=False)
+    assert repo.hole_szene(conn, sid)["ort"] == "Piazza" and _k(conn, sid)["ort"] == "Piazza"
 
 
-def test_neue_figur_zieht_nur_vorhandene_in_die_werkbank(conn, einst):
-    """Eine neue Figur ("an audience member") bekommt KEINE eigene
-    ``figur``-Zeile -- nur das Kartenfeld ``wer``; die Werkbank-Besetzung
-    uebernimmt nur Namen, die schon eine Figur haben."""
+def test_veralteter_text_schreibt_nichts(conn, einst):
+    sid = _mit_text(conn, text="NEU", ort="Bar")
+    karten_nachzug.ziehe_nach(conn, LLM({"ort": "Piazza", "wer": "", "modus": "none"}),
+                              einst, 1, sid, "ALT", ueber_claude=False)
+    assert repo.hole_szene(conn, sid)["ort"] == "Bar"
+
+
+def test_neue_figur_nur_wenn_figur_existiert(conn, einst):
     repo.setze_figur(conn, 1, "Anna", "")
     vorher = len(repo.figuren(conn, 1))
-    sid = _karte(conn)
-    klm = LLM({"ort": "Bar", "wer": "Anna, an audience member", "modus": "none"})
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
+    sid = _mit_text(conn)
+    karten_nachzug.ziehe_nach(conn, LLM({"ort": "", "wer": "Anna, an audience member", "modus": "none"}),
+                              einst, 1, sid, "TEXT", ueber_claude=False)
     assert len(repo.figuren(conn, 1)) == vorher
-    namen = {f["name"] for f in repo.szene_figuren(conn, sid)}
-    assert namen == {"Anna"}
+    assert [b["name"] for b in repo.besetzung(conn, sid)] == ["Anna"]
 
 
-def test_werkbank_html_zeigt_den_neuen_ort(conn, einst):
-    """Die Werkbank (``web._szene_html``, read-only wie in Padua) liest
-    ``szene.ort`` -- nach dem Nachzug steht dort der neue Ort, nicht mehr
-    die alte Planung."""
-    sid = _karte(conn)
-    repo.setze_szenenfeld(conn, sid, "ort", "Bar")
-    klm = LLM({"ort": "Piazza", "wer": "Anna", "modus": "none"})
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
-    szene = repo.hole_szene(conn, sid)
-    s = {"nummer": szene["nummer"], "id": szene["id"], "ort": szene["ort"],
-         "figuren": [f["name"] for f in repo.szene_figuren(conn, sid)]}
-    html = web._szene_html(s)
-    assert "Piazza" in html
-    assert "Bar" not in html
-
-
-def test_ohne_aenderung_bleibt_die_werkbank_unberuehrt(conn, einst):
-    repo.setze_figur(conn, 1, "Anna", "")
-    [anna] = repo.figuren(conn, 1)
-    sid = _karte(conn)
-    repo.setze_szenenfeld(conn, sid, "ort", "Bar")
-    repo.setze_szene_figuren(conn, 1, sid, [anna["id"]])
-    klm = LLM({"ort": "Bar", "wer": "Anna", "modus": "none"})
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
-    assert repo.hole_szene(conn, sid)["ort"] == "Bar"
-    assert [f["name"] for f in repo.szene_figuren(conn, sid)] == ["Anna"]
-
-
-def test_neuer_ort_laesst_abnahme_stehen(conn, einst):
-    """Anders als ``repo.setze_szenenkarte``: die Phase-6-Abnahme der Karte
-    bleibt stehen -- Phase 7 zieht nur nach, nimmt nicht neu ab."""
-    sid = _karte(conn)
-    klm = LLM({"ort": "Piazza", "wer": "Anna", "modus": "none"})
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
+def test_abnahme_bleibt_und_eigene_szene_nicht_veraltet(conn, einst):
+    sid = _mit_text(conn, ort="Bar")
+    karten_nachzug.ziehe_nach(conn, LLM({"ort": "Piazza", "wer": "", "modus": "none"}),
+                              einst, 1, sid, "TEXT", ueber_claude=False)
     assert repo.hole_szene(conn, sid)["karte_bestaetigt_am"]
+    assert repo.offene_veraltet(conn, 1) == []
 
 
-def test_neue_figur_aktualisiert_wer(conn, einst):
-    sid = _karte(conn)
-    klm = LLM({"ort": "Bar", "wer": "Anna, an audience member", "modus": "none"})
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, sid))
-    assert karte["wer"] == "Anna, an audience member"
-
-
-def test_gleicher_ort_schreibt_nichts(conn, einst):
-    sid = _karte(conn)
-    klm = LLM({"ort": "Bar", "wer": "Anna", "modus": "none"})
-    vorher = len(repo.karte_verlauf(conn, 1, sid))
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
-    assert len(repo.karte_verlauf(conn, 1, sid)) == vorher
-    assert szenenkarte.karte_von(repo.hole_szene(conn, sid))["ort"] == "Bar"
+def test_abschnittskoepfe_und_sprecherzeilen(conn, einst):
+    for n in ("Anna", "Berta", "Clara", "Dario"):
+        repo.setze_figur(conn, 1, n, "")
+    text = "CLARA (moderator)\nArrives.\n\nBERTA, DARIO\nWait.\n\nANNA: Hi.\n"
+    sid = _mit_text(conn, text=text, wer="Anna")
+    karten_nachzug.ziehe_nach(conn, LLM({"ort": "", "wer": "Clara", "modus": "none"}),
+                              einst, 1, sid, text, ueber_claude=False)
+    assert {b["name"] for b in repo.besetzung(conn, sid)} == {"Anna", "Berta", "Clara", "Dario"}
 
 
-def test_vergleich_ist_normalisiert_gross_klein_leerzeichen(conn, einst):
-    """Mutationsprobe: ein bloss andersgroesser/-geleerzeichter Ort ist
-    KEINE Aenderung -- ohne Normalisierung waere das ein falscher Treffer."""
-    sid = _karte(conn)
-    klm = LLM({"ort": "  bar  ", "wer": "anna", "modus": "none"})
-    vorher = len(repo.karte_verlauf(conn, 1, sid))
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
-    assert len(repo.karte_verlauf(conn, 1, sid)) == vorher
+def test_kopfzeile_erkennt_keine_unbekannten_namen(conn, einst):
+    repo.setze_figur(conn, 1, "Clara", "")
+    text = "THE CAMERA (one of us, dressed as a passer-by)\nStays away.\n\nEVERYONE\nNods.\n"
+    sid = _mit_text(conn, text=text, wer="Clara and friends")
+    karten_nachzug.ziehe_nach(conn, LLM({"ort": "", "wer": "Clara", "modus": "none"}),
+                              einst, 1, sid, text, ueber_claude=False)
+    assert {b["name"] for b in repo.besetzung(conn, sid)} == {"Clara"}
 
 
-def test_modus_aendert_sich_nur_bei_typ_moment(conn, einst):
-    sid = _karte(conn, typ="spoken", modus="none")
-    klm = LLM({"ort": "Bar", "wer": "Anna", "modus": "collective"})
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, sid))
-    assert karte["modus"] == "none"
+def test_modus_nur_bei_moment(conn, einst):
+    sid = _mit_text(conn, typ="moment", modus="microphone")
+    karten_nachzug.ziehe_nach(conn, LLM({"ort": "", "wer": "", "modus": "collective"}),
+                              einst, 1, sid, "TEXT", ueber_claude=False)
+    assert _k(conn, sid)["modus"] == "collective"
 
 
-def test_modus_aendert_sich_bei_typ_moment(conn, einst):
-    sid = _karte(conn, typ="moment", modus="microphone")
-    klm = LLM({"ort": "Bar", "wer": "Anna", "modus": "collective"})
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, sid))
-    assert karte["modus"] == "collective"
+def test_modus_bleibt_bei_anderem_typ(conn, einst):
+    sid = _mit_text(conn, typ="spoken", modus="none")
+    karten_nachzug.ziehe_nach(conn, LLM({"ort": "", "wer": "", "modus": "collective"}),
+                              einst, 1, sid, "TEXT", ueber_claude=False)
+    assert _k(conn, sid)["modus"] == "none"
 
 
-def test_fehlerhafter_modellaufruf_laesst_karte_unveraendert(conn, einst):
+def test_fehler_laesst_alles_stehen(conn, einst):
     class Kaputt:
         def schema(self, *a, **k):
             raise RuntimeError("boom")
 
-    sid = _karte(conn)
-    karten_nachzug.ziehe_nach(conn, Kaputt(), einst, 1, sid, "text", ueber_claude=False)
-
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, sid))
-    assert karte["ort"] == "Bar"
-
-
-def test_abschnittskoepfe_und_sprecherzeilen_ergaenzen_die_werkbank(conn, einst):
-    """Live-Befund G2 (Padua 08.10.2026, /tmp/nacht/p7audit.db, chat
-    7000000000001, Szene "reclutamento"): das Modell nannte in ``wer`` nur
-    EINEN Teil der sprechenden Figuren, obwohl weitere im Skript als
-    Abschnittskopf ohne Doppelpunkt ("ANNA (Arlecchino)", "BERTA, DARIO")
-    oder als eigene Sprecherzeile ("CLARA: ...") standen -- die Werkbank
-    blieb unvollstaendig. Jetzt werden beide Muster deterministisch per
-    Regex nachgezogen, zusaetzlich zum Modellergebnis."""
-    for name in ("Anna", "Berta", "Clara", "Dario"):
-        repo.setze_figur(conn, 1, name, "")
-    sid = _karte(conn, wer="Anna")
-    klm = LLM({"ort": "Bar", "wer": "Clara", "modus": "none"})
-    text = (
-        "INSTRUCTIONS\n\n"
-        "CLARA (moderator)\n"
-        "Arrives first and waits.\n\n"
-        "BERTA, DARIO\n"
-        "Off-camera, waiting apart from each other.\n\n"
-        "OPENING LINES\n"
-        "CLARA: Nothing for now, thanks.\n"
-        "ANNA: I have to tell you something.\n"
-    )
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, text, ueber_claude=False)
-
-    namen = {f["name"] for f in repo.szene_figuren(conn, sid)}
-    assert namen == {"Anna", "Berta", "Clara", "Dario"}
-
-
-def test_kopfzeile_erkennt_keine_unbekannten_namen(conn, einst):
-    """Mutationsprobe fuer den Abschnittskopf-Regex: ein Kopf, der keine der
-    bekannten Figuren nennt ("THE CAMERA", "EVERYONE"), darf keine Zeile in
-    ``szene_figur`` erzeugen -- sonst waeren Stichwortkoepfe staendig falsche
-    Treffer."""
-    repo.setze_figur(conn, 1, "Clara", "")
-    sid = _karte(conn, wer="Clara and friends")
-    klm = LLM({"ort": "Bar", "wer": "Clara", "modus": "none"})
-    text = "THE CAMERA (one of us, dressed as a passer-by)\nStays a few metres away.\n\nEVERYONE\nNods.\n"
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, text, ueber_claude=False)
-
-    namen = {f["name"] for f in repo.szene_figuren(conn, sid)}
-    assert namen == {"Clara"}
+    sid = _mit_text(conn, ort="Bar")
+    karten_nachzug.ziehe_nach(conn, Kaputt(), einst, 1, sid, "TEXT", ueber_claude=False)
+    assert repo.hole_szene(conn, sid)["ort"] == "Bar"
 
 
 def test_ohne_karte_tut_nichts(conn, einst):
     sid = repo.stelle_szene_sicher(conn, 1, 1)
-    klm = LLM({"ort": "Piazza", "wer": "Anna", "modus": "none"})
-
-    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
-
+    repo.setze_stagescript(conn, sid, "TEXT", None)
+    klm = LLM({"ort": "Piazza", "wer": "", "modus": "none"})
+    karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "TEXT", ueber_claude=False)
     assert klm.aufrufe == []
+
+
+def test_kein_zweitschreiber_mehr():
+    assert not hasattr(repo, "aktualisiere_karte_und_werkbank")

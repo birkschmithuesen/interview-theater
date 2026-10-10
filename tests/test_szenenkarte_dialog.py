@@ -11,7 +11,7 @@ Mechanismus wie ueberall sonst (``vorschlag.py``) -- "Update the card" /
 
 import pytest
 
-from interview_theater import phasen, repo, szenenkarte, workshop
+from interview_theater import phasen, repo, stueck, szenenkarte, workshop
 from interview_theater.knoepfe.texte import ART_KARTE_UPDATE
 
 from test_szenenkarte import LLM, LLMMitFragen, TG, _karte1, padua  # noqa: F401
@@ -33,7 +33,7 @@ def test_starte_dialog_veraltete_karte_wirkungslos(conn, einst, padua):
     _karte1(conn, einst, LLM())
     tg = TG()
     antwort = szenenkarte.starte_dialog(conn, tg, einst, 1, 99)
-    assert antwort == szenenkarte.T._TEXT_NICHT_DRAN
+    assert antwort == szenenkarte.T._TEXT_UNBEKANNTE_KARTE.format(nummer=99)
     assert szenenkarte.dialog_aktive_nummer(conn, 1) is None
 
 
@@ -190,7 +190,7 @@ def test_aktualisiere_mit_dialog_baut_neu_bewahrt_fragen_beendet_dialog(conn, ei
     szenenkarte._sperre_fuer(1).release()
     assert "Emma sings first." in klm.aufrufe[-1]["nutzer"]
     assert szenenkarte.dialog_aktive_nummer(conn, 1) is None
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    karte = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     assert karte["fragen"] == ["Who sings?"]
     # Die bewahrte Frage ist noch offen -- also Clear/Skip, nicht Yes/No.
     assert [c for c, _ in tg.leisten[-1]] == ["Clear the questions", "Skip questions"]
@@ -211,7 +211,7 @@ def test_behalte_karte_veraltete_nummer_wirkungslos(conn, einst, padua):
     tg = TG()
     szenenkarte.starte_dialog(conn, tg, einst, 1, 1)
     antwort = szenenkarte.behalte_karte(conn, tg, einst, 1, 99)
-    assert antwort == szenenkarte.T._TEXT_NICHT_DRAN
+    assert antwort == szenenkarte.T._TEXT_UNBEKANNTE_KARTE.format(nummer=99)
     assert szenenkarte.dialog_aktive_nummer(conn, 1) == 1
 
 

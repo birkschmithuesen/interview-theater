@@ -1383,6 +1383,12 @@ def _nach_dem_senden(conn, tg, e, chat_id: int, message_id: int, text: str) -> N
         knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
     except Exception:
         log.exception("Phasenangebot fehlgeschlagen, chat_id=%s", chat_id)
+    # Stueckmodell: Aenderungen, die im Gespraech oder im Web gemacht wurden,
+    # koennen Prosa veralten lassen -- genau ein Ja/Nein-Angebot je Vermerk.
+    try:
+        knoepfe.biete_veraltete(conn, tg, e, chat_id)
+    except Exception:
+        log.exception("Veraltet-Angebot fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def _wiederholt_die_vorige(conn, e, chat_id: int, text: str,
@@ -1684,7 +1690,7 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     # Spaete Importe, wie ueberall hier: ``szene`` und ``szenenfolge``
     # greifen ihrerseits auf ``knoepfe`` zu -- ein Modulimport oben waere
     # ein Zyklus.
-    from interview_theater import szene, szenenfolge, szenenkarte, workshop
+    from interview_theater import szene, stueck, szenenfolge, szenenkarte, workshop
 
     # "Clear the questions" auf einer Szenenkarte (Birk 08.10.2026 ~09:20):
     # die naechste Nachricht ist die Antwort auf GENAU die gestellte Frage,
@@ -1706,7 +1712,7 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
         dialog_nummer = szenenkarte.dialog_aktive_nummer(conn, chat_id)
         if dialog_nummer is not None and szenenkarte.notiz_betrifft_fragen(text):
             szene_dialog = szenenkarte._szene_mit_nummer(conn, chat_id, dialog_nummer)
-            karte_dialog = szenenkarte.karte_von(szene_dialog) if szene_dialog else None
+            karte_dialog = stueck.karte(conn, szene_dialog) if szene_dialog else None
             if karte_dialog is not None and karte_dialog.get("fragen"):
                 szenenkarte.biete_klaerweg_im_dialog(conn, tg, e, chat_id, dialog_nummer)
                 log.info(

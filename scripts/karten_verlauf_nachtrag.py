@@ -219,7 +219,7 @@ def plane(conn, chat_id: int) -> list[dict]:
         notiz = _notiz_vor(rows, idx)
         karte = _karte_nach(rows, idx, nummer, naechste_grenze)
         if karte is None:
-            aktuell = szenenkarte.karte_von(szene)
+            aktuell = szenenkarte.roh_karte_von(szene)
             if aktuell is None:
                 continue
             karte = aktuell

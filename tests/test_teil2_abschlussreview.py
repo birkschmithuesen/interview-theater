@@ -80,7 +80,7 @@ def _stueck(conn, phase, *, szenen=(1, 2, 3), formen=None, volltext=True,
     repo.setze_figur(conn, 1, "Jo", "schweigt lieber")
     for nummer in szenen:
         sid = repo.stelle_szene_sicher(conn, 1, nummer)
-        repo.setze_szenenfeld(conn, sid, "ort", "Steg")
+        repo.setze_szenenort(conn, sid, "Steg")
         repo.setze_szenenfeld(conn, sid, "was_passiert", "Sie treffen sich.")
         repo.aktualisiere_szene(
             conn, sid, f"Teil {nummer}", None,

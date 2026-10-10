@@ -107,8 +107,8 @@ def _szenen(conn, chat_id: int) -> list:
     )
 
 
-def karte_von(szene) -> dict | None:
-    """Die gespeicherte Karte als Dict, oder ``None``."""
+def roh_karte_von(szene) -> dict | None:
+    """Das gespeicherte Karten-JSON OHNE Ableitung (nur stueck.karte/web_daten); Ansichten lesen ``stueck.karte(conn, szene)``."""
     try:
         roh = szene["karte"]
     except (IndexError, KeyError):
@@ -120,6 +120,13 @@ def karte_von(szene) -> dict | None:
     except ValueError:
         return None
     return karte if isinstance(karte, dict) else None
+
+
+def _karte(conn, szene) -> dict | None:
+    """Die abgeleitete Karte (``stueck.karte``) -- der Weg fuer jeden Leser."""
+    from interview_theater import stueck
+
+    return stueck.karte(conn, szene)
 
 
 def aktuelle_nummer(conn, chat_id: int) -> int | None:
@@ -170,7 +177,7 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
     for p in szenenkern.kern_punkte(szene):
         teile.append(f"- {p}")
     zeilen.append("\n".join(teile))
-    alte = karte_von(szene)
+    alte = _karte(conn, szene)
     if alte and notiz:
         zeilen.append(T._KOPF_ALTE_KARTE + "\n" + karte_text(alte, szene, chat_id))
     if notiz:
@@ -282,12 +289,13 @@ def erzeuge(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
         except Exception:
             log.exception("Vorfall szenenkarte_fehler nicht geschrieben")
         return None
-    repo.setze_szenenkarte(conn, szene["id"], json.dumps(karte, ensure_ascii=False))
-    repo.merke_karte_verlauf(
-        conn, chat_id, szene["id"], json.dumps(karte, ensure_ascii=False),
-        ausloeser or (AUSLOESER_AENDERUNG if notiz else AUSLOESER_ERSTENTWURF), notiz,
-    )
-    return karte
+    from interview_theater import stueck
+
+    stueck.karte_aus_modell(
+        conn, chat_id, szene=nummer, karte=karte,
+        ausloeser=ausloeser or (AUSLOESER_AENDERUNG if notiz else AUSLOESER_ERSTENTWURF),
+        notiz=notiz)
+    return stueck.karte(conn, repo.hole_szene(conn, szene["id"]))
 
 
 # ---------------------------------------------------------------------------
@@ -367,16 +375,27 @@ def dialog_aktive_nummer(conn, chat_id: int) -> int | None:
     return None
 
 
+def _ziel_mit_warnung(conn, tg, e, chat_id: int, nummer: int):
+    """Stueckmodell (t_fd88600b, Problem 2): jede Karte ist in jeder Phase
+    aenderbar. Statt "nicht dran" eine Warnzeile, wenn eine andere Karte die
+    aktuelle ist. ``None`` nur, wenn es die Szene nicht gibt."""
+    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    if szene is None:
+        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer))
+        return None
+    aktuell = aktuelle_nummer(conn, chat_id)
+    if aktuell is not None and aktuell != nummer:
+        _sende(conn, tg, e, chat_id, _T(chat_id)._WARNUNG_ANDERE_KARTE.format(
+            nummer=nummer, aktuell=aktuell))
+    return szene
+
+
 def starte_dialog(conn, tg, e, chat_id: int, nummer: int) -> str:
     """"No, change" auf einer Karte: markiert sie als im Dialog, EIN Satz im
     Chat, danach laeuft das Gespraech normal weiter (``ablauf.antworte``)."""
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
     if szene is None:
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
     repo.setze_szenenkarte_dialog(conn, szene["id"], repo._jetzt())
     _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_DIALOG_START.format(nummer=nummer))
     return _T(chat_id)._ANTWORT_DIALOG_GESTARTET
@@ -391,7 +410,7 @@ def dialog_kontextblock(conn, chat_id: int) -> str:
     if nummer is None:
         return ""
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
+    karte = _karte(conn, szene) if szene is not None else None
     if karte is None:
         return ""
     return T._KOPF_DIALOG.format(nummer=nummer, karte=karte_text(karte, szene, chat_id))
@@ -420,48 +439,16 @@ def biete_update_knopf(conn, tg, e, chat_id: int, text: str, aenderung: str) -> 
     return message_id
 
 
-def _bewahre_fragen(conn, chat_id: int, nummer: int, alte_fragen: list[str]):
-    """Nachbereitung fuer ``starte``: Fragen der alten Karte, die im Neubau
-    nicht wieder auftauchen, zurueckholen -- eine Aenderung (egal ob aus
-    dem alten Einzel-Notiz-Weg oder dem Dialog) kann eine Frage nur dann
-    beantwortet haben, wenn sie wirklich darueber ging (Punkt 3)."""
-    if not alte_fragen:
-        return None
-
-    def _nach(neue_karte: dict) -> None:
-        vorhandene = list(neue_karte.get("fragen") or [])
-        fehlende = [f for f in alte_fragen if f not in vorhandene]
-        if not fehlende:
-            return
-        ziel = _szene_mit_nummer(conn, chat_id, nummer)
-        if ziel is None:
-            return
-        aktualisiert = dict(neue_karte)
-        aktualisiert["fragen"] = (vorhandene + fehlende)[:FRAGEN_MAX]
-        repo.setze_szenenkarte(conn, ziel["id"], json.dumps(
-            aktualisiert, ensure_ascii=False))
-
-    return _nach
-
-
 def aktualisiere_mit_dialog(conn, tg, klm, e, chat_id: int, nummer: int,
                             aenderung: str) -> str:
     """"Update the card": Neubau mit der im Dialog zusammengefassten
     Aenderung als Notiz. Beendet den Dialog; offene Fragen der alten Karte
-    bleiben, ausser das Gespraech hat sie beantwortet (``_bewahre_fragen``,
-    dieselbe Zusage wie beim alten Einzel-Notiz-Weg, Punkt 3)."""
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    bleiben (sie stehen in ``offene_frage``, der Neubau beruehrt sie nicht)."""
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
     if szene is None:
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
     repo.setze_szenenkarte_dialog(conn, szene["id"], None)
-    alte_karte = karte_von(szene)
-    alte_fragen = (alte_karte or {}).get("fragen") or []
     starte(conn, tg, klm, e, chat_id, nummer, aenderung.strip(),
-          nachbereitung=_bewahre_fragen(conn, chat_id, nummer, alte_fragen),
           ausloeser=AUSLOESER_DIALOG)
     return _T(chat_id)._ANTWORT_KARTE_WIRD_AKTUALISIERT.format(nummer=nummer)
 
@@ -469,13 +456,9 @@ def aktualisiere_mit_dialog(conn, tg, klm, e, chat_id: int, nummer: int,
 def behalte_karte(conn, tg, e, chat_id: int, nummer: int) -> str:
     """"Keep the card": Dialog beenden, dieselbe Karte wieder zur
     Bestaetigung zeigen -- kein Neubau."""
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
     if szene is None:
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
     repo.setze_szenenkarte_dialog(conn, szene["id"], None)
     zeige(conn, tg, e, chat_id, nummer)
     return _T(chat_id)._ANTWORT_KARTE_BEHALTEN.format(nummer=nummer)
@@ -513,7 +496,7 @@ def zeige(conn, tg, e, chat_id: int, nummer: int, *, im_chat: bool = False) -> i
     from interview_theater.knoepfe import basis, szenen as ks
 
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
+    karte = _karte(conn, szene) if szene is not None else None
     if karte is None:
         return None
     basis._nimm_alte_leiste_ab(conn, tg, chat_id, ks.ART_SZENE_PASST)
@@ -629,7 +612,7 @@ def weiter(conn, tg, klm, e, chat_id: int, *, aus_eintritt: bool = False):
     nummer = aktuelle_nummer(conn, chat_id)
     if nummer is not None:
         szene = _szene_mit_nummer(conn, chat_id, nummer)
-        if karte_von(szene) is not None:
+        if _karte(conn, szene) is not None:
             zeige(conn, tg, e, chat_id, nummer)
             return None
         return starte(conn, tg, klm, e, chat_id, nummer)
@@ -655,17 +638,24 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if laeuft(chat_id):
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_LAEUFT)
         return _T(chat_id)._TEXT_LAEUFT
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
+    if szene is None:
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
+    karte = _karte(conn, szene)
     if karte is None:
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
     if karte.get("fragen"):
         zeige(conn, tg, e, chat_id, nummer)
         return _T(chat_id)._TEXT_FRAGEN_OFFEN_ABGELEHNT
+    if _gesetzt(szene["karte_bestaetigt_am"]):
+        # Schon gespeichert und seither unveraendert (jede Aenderung der Karte
+        # leert den Stempel): nur bestaetigen, nichts erneut schreiben. Eine
+        # nachtraeglich angelegte offene Frage leert den Stempel nicht -- sie
+        # wird oben abgelehnt, bevor dieser Fruehausstieg greift.
+        antwort = _T(chat_id)._ANTWORT_GESPEICHERT.format(nummer=nummer)
+        _sende(conn, tg, e, chat_id, antwort)
+        return antwort
     repo.setze_szenenkarte_bestaetigt(conn, szene["id"])
     repo.schreibe_journal(conn, chat_id, "entschieden",
                           _T(chat_id)._JOURNAL_GESPEICHERT.format(nummer=nummer,
@@ -695,13 +685,12 @@ def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = Non
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_KEIN_ZIEL)
         return None
     szene = _szene_mit_nummer(conn, chat_id, n)
-    alte_karte = karte_von(szene) if szene is not None else None
+    alte_karte = _karte(conn, szene) if szene is not None else None
     alte_fragen = (alte_karte or {}).get("fragen") or []
     if alte_fragen and notiz_betrifft_fragen(notiz):
         starte_fragenklaerung(conn, tg, e, chat_id, n)
         return None
-    return starte(conn, tg, klm, e, chat_id, n, notiz,
-                 nachbereitung=_bewahre_fragen(conn, chat_id, n, alte_fragen))
+    return starte(conn, tg, klm, e, chat_id, n, notiz)
 
 
 # ---------------------------------------------------------------------------
@@ -757,16 +746,11 @@ def aktive_klaerung(conn, chat_id: int) -> tuple[int, dict] | None:
     eine offene Frage erwartet -- oder ``None``. DB-gestuetzt
     (``szene.karte_klaerung``): ein Neustart mitten in der Runde verliert sie
     nicht, anders als ``szenenfolge._regienotiz_erwartet``."""
-    nummer = aktuelle_nummer(conn, chat_id)
-    if nummer is None:
-        return None
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
-    if szene is None:
-        return None
-    klaerung = _klaerung_von(szene)
-    if klaerung is None:
-        return None
-    return nummer, klaerung
+    for s in _szenen(conn, chat_id):
+        klaerung = _klaerung_von(s)
+        if klaerung is not None:
+            return s["nummer"], klaerung
+    return None
 
 
 def starte_fragenklaerung(conn, tg, e, chat_id: int, nummer: int, *, runde: int = 1) -> str:
@@ -776,22 +760,20 @@ def starte_fragenklaerung(conn, tg, e, chat_id: int, nummer: int, *, runde: int 
     Statuszeilen ueber ``_T(chat_id)`` (Morgen-Auftrag 4): deterministische
     Zeilen ab Phase 6 italienisch fuer gelistete Chats, wie der Rest des
     Moduls."""
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
-    fragen = (karte or {}).get("fragen") or []
-    if not fragen:
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
+    if szene is None:
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
+    offen = repo.offene_fragen(conn, chat_id, szene["id"], status=("offen",))
+    if not offen:
         zeige(conn, tg, e, chat_id, nummer)
         return _T(chat_id)._ANTWORT_GESPEICHERT.format(nummer=nummer)
     # Der "No, change"-Dialog (Nachtrag Punkt 4) ist damit erledigt --
     # Klaeren und Diskutieren schliessen sich fuer dieselbe Karte aus.
     repo.setze_szenenkarte_dialog(conn, szene["id"], None)
-    klaerung = {"index": 0, "antworten": [], "runde": runde}
+    klaerung = {"ids": [f["id"] for f in offen], "index": 0, "antworten": [], "runde": runde}
     repo.setze_szenenkarte_klaerung(conn, szene["id"], json.dumps(klaerung))
     _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_FRAGE_N_VON_M.format(
-        n=1, gesamt=len(fragen), frage=fragen[0]))
+        n=1, gesamt=len(offen), frage=offen[0]["text"]))
     return _T(chat_id)._ANTWORT_FRAGEN_KLAEREN
 
 
@@ -803,20 +785,25 @@ def ueberspringe_fragen(conn, tg, e, chat_id: int, nummer: int) -> str:
     Der Journal-Wortlaut bleibt ausdruecklich auf ``T`` (Englisch) --
     Birk gibt ihn woertlich vor ("Card N: questions skipped as not
     fitting"), anders als die uebrigen Statuszeilen ueber ``_T(chat_id)``."""
-    if nummer != aktuelle_nummer(conn, chat_id):
-        _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
-        return _T(chat_id)._TEXT_NICHT_DRAN
-    szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
+    szene = _ziel_mit_warnung(conn, tg, e, chat_id, nummer)
+    if szene is None:
+        return _T(chat_id)._TEXT_UNBEKANNTE_KARTE.format(nummer=nummer)
+    karte = _karte(conn, szene)
     if karte is None or not karte.get("fragen"):
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
-    neue_karte = dict(karte)
-    neue_karte["fragen"] = []
-    repo.setze_szenenkarte(conn, szene["id"], json.dumps(neue_karte, ensure_ascii=False))
+    from interview_theater import stueck
+
+    for f in repo.offene_fragen(conn, chat_id, szene["id"], status=("offen",)):
+        ergebnis = stueck.frage_verwerfen(conn, chat_id, frage_id=f["id"], quelle="web")
+        if not ergebnis.ok:
+            text = _meldung_von(ergebnis, chat_id)
+            _sende(conn, tg, e, chat_id, text)
+            return text
     repo.setze_szenenkarte_klaerung(conn, szene["id"], None)
     repo.merke_karte_verlauf(
-        conn, chat_id, szene["id"], json.dumps(neue_karte, ensure_ascii=False),
+        conn, chat_id, szene["id"],
+        json.dumps(stueck.karte(conn, repo.hole_szene(conn, szene["id"])), ensure_ascii=False),
         AUSLOESER_FRAGEN_UEBERSPRUNGEN, _NOTIZ_FRAGEN_UEBERSPRUNGEN,
     )
     repo.schreibe_journal(conn, chat_id, "entschieden",
@@ -904,6 +891,21 @@ def _klaerungsnotiz(fragen: list[str], antworten: list[str | None]) -> str:
     return "\n".join(zeilen)
 
 
+def _ist_offen(conn, frage_id: int) -> bool:
+    f = repo.hole_offene_frage(conn, frage_id)
+    return f is not None and f["status"] == "offen"
+
+
+def _meldung_von(ergebnis, chat_id: int) -> str:
+    """Der Hinweistext eines abgelehnten ``stueck.Ergebnis`` (z. B. "gerade
+    wird geschrieben"); ohne eigenen Text der allgemeine Busy-Hinweis."""
+    if ergebnis.warnungen:
+        return ergebnis.warnungen[0]
+    from interview_theater import stueck
+
+    return stueck.T._WARNUNG_BESCHAEFTIGT
+
+
 def beantworte_frage(conn, tg, klm, e, chat_id: int, text: str) -> bool:
     """Verarbeitet eine Gruppennachricht als Antwort auf die Frage, die
     ``starte_fragenklaerung``/die vorige Antwort gerade gestellt hat.
@@ -918,26 +920,46 @@ def beantworte_frage(conn, tg, klm, e, chat_id: int, text: str) -> bool:
     gefunden = aktive_klaerung(conn, chat_id)
     if gefunden is None:
         return False
+    from interview_theater import stueck
+
     nummer, klaerung = gefunden
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
-    fragen = (karte or {}).get("fragen") or []
+    ids = list(klaerung.get("ids") or [])
     index = int(klaerung.get("index") or 0)
-    if index >= len(fragen):
-        repo.setze_szenenkarte_klaerung(conn, szene["id"], None)
+    if szene is None or index >= len(ids):
+        if szene is not None:
+            repo.setze_szenenkarte_klaerung(conn, szene["id"], None)
         return False
-    antworten = list(klaerung.get("antworten") or [])
-    antworten.append(None if ist_skip(text) else text.strip())
+    if ist_skip(text):
+        ergebnis = stueck.frage_zurueckstellen(conn, chat_id, frage_id=ids[index],
+                                               quelle="chat")
+        antwort = None
+    else:
+        antwort = text.strip()
+        ergebnis = stueck.frage_beantworten(conn, chat_id, frage_id=ids[index],
+                                            antwort=antwort, quelle="chat")
+    if not ergebnis.ok:
+        # Frage blieb offen (z. B. waehrend eines Schreiblaufs): Cursor, Journal
+        # und Klaerungsstand unveraendert, die Gruppe erfaehrt den Grund.
+        _sende(conn, tg, e, chat_id, _meldung_von(ergebnis, chat_id))
+        return True
+    antworten = list(klaerung.get("antworten") or []) + [antwort]
     index += 1
-    if index < len(fragen):
+    # Zwischenzeitlich (z. B. im Web) geschlossene Fragen werden weder
+    # gefragt noch ueberschrieben: raus aus der Liste.
+    ids = ids[:index] + [i for i in ids[index:] if _ist_offen(conn, i)]
+    if index < len(ids):
         repo.setze_szenenkarte_klaerung(conn, szene["id"], json.dumps(
-            {"index": index, "antworten": antworten, "runde": klaerung.get("runde", 1)}))
+            {"ids": ids, "index": index, "antworten": antworten,
+             "runde": klaerung.get("runde", 1)}))
+        naechste = repo.hole_offene_frage(conn, ids[index])
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_FRAGE_N_VON_M.format(
-            n=index + 1, gesamt=len(fragen), frage=fragen[index]))
+            n=index + 1, gesamt=len(ids), frage=naechste["text"]))
         return True
     # Letzte Frage beantwortet: Journal je Frage, dann EIN Neubau mit allen
     # Antworten (weniger Wartezeit/Kosten als je Antwort neu zu bauen, und
     # die Karte springt der Gruppe nicht dreimal unter der Hand weg).
+    fragen = [repo.hole_offene_frage(conn, i)["text"] for i in ids]
     runde = int(klaerung.get("runde") or 1)
     for frage, antwort in zip(fragen, antworten):
         if antwort is None:
@@ -953,21 +975,10 @@ def beantworte_frage(conn, tg, klm, e, chat_id: int, text: str) -> bool:
     repo.setze_szenenkarte_klaerung(conn, szene["id"], None)
 
     def _nachbereitung(neue_karte: dict) -> bool | None:
-        """Erzwingt die "[OPEN] ..."-Punkte fuer uebersprungene Fragen
-        (deterministisch -- kein Modell soll diese Entscheidung treffen
-        oder wieder vergessen), und laesst -- hoechstens EINMAL -- eine neue
-        Klaerungsrunde anlaufen, wenn der Neubau selbst wieder Fragen
-        anlegt (Birk: "hoechstens EINE solche Runde automatisch, sonst
-        Fragen als Hinweis zeigen")."""
-        offene_punkte = [T._PUNKT_OFFEN.format(frage=f)
-                         for f, a in zip(fragen, antworten) if a is None]
-        if offene_punkte:
-            ziel = _szene_mit_nummer(conn, chat_id, nummer)
-            if ziel is not None:
-                aktualisiert = dict(neue_karte)
-                aktualisiert["punkte"] = list(neue_karte.get("punkte") or []) + offene_punkte
-                repo.setze_szenenkarte(conn, ziel["id"], json.dumps(
-                    aktualisiert, ensure_ascii=False))
+        """Laesst -- hoechstens EINMAL -- eine neue Klaerungsrunde anlaufen,
+        wenn der Neubau wirklich NEUE offene Fragen hat (Birk: "hoechstens
+        EINE solche Runde automatisch, sonst Fragen als Hinweis zeigen").
+        Vertagte Fragen zeigt die Ansicht selbst (``[OPEN]``)."""
         if (neue_karte.get("fragen") or []) and runde == 1:
             starte_fragenklaerung(conn, tg, e, chat_id, nummer, runde=2)
             return False
@@ -986,7 +997,7 @@ def beantworte_frage(conn, tg, klm, e, chat_id: int, text: str) -> bool:
 def karten_am_stueck(conn, chat_id: int) -> str:
     teile = []
     for s in _szenen(conn, chat_id):
-        karte = karte_von(s)
+        karte = _karte(conn, s)
         if karte is not None:
             teile.append(karte_text(karte, s, chat_id))
     return "\n\n".join(teile)
@@ -1093,6 +1104,8 @@ _TEXT_AENDERE = "Ich baue die Karte fuer Szene {nummer} neu."
 _TEXT_LAEUFT = "Ich baue gerade noch an einer Karte -- gleich."
 _TEXT_FEHLER = "Die Karte fuer Szene {nummer} hat nicht geklappt. Sagt einfach nochmal Bescheid."
 _TEXT_NICHT_DRAN = "Diese Karte ist gerade nicht dran -- gespeichert habe ich nichts."
+_WARNUNG_ANDERE_KARTE = "Karte {nummer} wird geaendert; Karte {aktuell} ist noch nicht gespeichert."
+_TEXT_UNBEKANNTE_KARTE = "Eine Szene {nummer} gibt es nicht."
 _TEXT_KEIN_ZIEL = "Alle Karten sind gespeichert. Welche Szene wollt ihr aendern?"
 _TEXT_KEINE_SZENEN = "Es gibt noch keine Szenen -- legt sie zuerst in der Workbench fest."
 _TEXT_ALLE_GESPEICHERT = "Alle Karten sind gespeichert. Weiter zum Stage Script?"

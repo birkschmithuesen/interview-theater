@@ -441,7 +441,9 @@ def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
     )
     # Danach derselbe Phasenrahmen wie ueber den Knopf (06.09.2026):
     # Kopfzeile, Einleitung, Checkliste.
-    assert tg.gesendet[1][1].startswith("▶️ Phase 5 von 7 · Schaerfung")
+    # gesendet[1] ist die Stueckmodell-Warnung (t_fd88600b), kein Verbot.
+    assert tg.gesendet[1][1].startswith("Phase 5 ist offen")
+    assert tg.gesendet[2][1].startswith("▶️ Phase 5 von 7 · Schaerfung")
 
 
 def test_phase_mit_namen_schaltet_auch_zurueck(conn, einst, tg):

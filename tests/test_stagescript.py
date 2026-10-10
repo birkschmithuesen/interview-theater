@@ -4,10 +4,12 @@ Format nach dem Kartentyp, einmal ein Kopf bei Handlungsanweisungen, EN/IT-
 Spiegel, Abnahme ueber die vorhandenen Wege."""
 
 import json
+import threading
 
 import pytest
 
 from interview_theater import (
+    stueck,
     phasen, repo, schaerfung, stagescript, szenenkarte, ueberarbeitung, workshop,
 )
 
@@ -43,9 +45,29 @@ def _karten(conn, typ="instructions"):
     return ids
 
 
+_BASIS: set = set()
+
+
+@pytest.fixture(autouse=True)
+def _hintergrundfaeden():
+    """Schreibweg, Karten-Nachzug, IT-Spiegel und Tippanzeige laufen in
+    Daemon-Threads. Die Sperre allein reicht als Warte-Signal nicht: der
+    Schreib-Thread gibt sie VOR dem Senden der Anzeigenachricht frei (Flake:
+    die Nachricht kam nach ``_TEXT_ALLES_FERTIG``). Deshalb wird jeder im Test
+    gestartete Thread gejoint -- auch am Ende, damit keiner in den naechsten
+    Test hineinlaeuft."""
+    _BASIS.clear()
+    _BASIS.update(threading.enumerate())
+    yield
+    _warte()
+
+
 def _warte():
     stagescript._sperre_fuer(1).acquire(timeout=5)
     stagescript._sperre_fuer(1).release()
+    for faden in threading.enumerate():
+        if faden not in _BASIS and faden is not threading.current_thread():
+            faden.join(10)
 
 
 def test_ohne_schalter_bleibt_phase_7_die_formwahl(conn, einst, monkeypatch):
@@ -92,9 +114,11 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
     assert repo.hole_szene(conn, ids[0])["fertig_am"]
     assert repo.hole_szene(conn, ids[1])["volltext"]
     assert ueberarbeitung.aktuelle_szene(conn, 1) == 2
-    assert ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 1) == \
+    # Stueckmodell (t_fd88600b): nur noch "nichts zu speichern" lehnt ab.
+    assert ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 99) == \
         stagescript.T._TEXT_NICHT_DRAN
     ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 2)
+    _warte()
     assert tg.texte[-1] == stagescript.T._TEXT_ALLES_FERTIG
 
 
@@ -127,14 +151,15 @@ def test_schalter_an_ruft_karten_nachzug_und_aktualisiert_karte(conn, einst, pad
     import time as _t
     karte = None
     for _ in range(50):
-        karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+        karte = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
         if karte and karte.get("ort") == "Piazza":
             break
         _t.sleep(0.1)
     assert karte["ort"] == "Piazza"
     assert repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
-    verlauf = repo.karte_verlauf(conn, 1, ids[0])
-    assert verlauf[-1]["ausloeser"] == szenenkarte.AUSLOESER_AENDERUNG
+    # Stueckmodell: kein karte_verlauf-Zweitschreiber mehr, der Nachzug steht
+    # im Aenderungsprotokoll (Quelle script).
+    assert [a["art"] for a in repo.stueck_aenderungen(conn, 1, stueck.QUELLE_SCRIPT)] == ["setze_ort"]
 
 
 def test_format_nach_kartentyp(conn, padua):
@@ -668,22 +693,78 @@ def test_abnahme_vorherige_szene_offen_bekommt_eigene_leiste(conn, einst, padua)
 
     antwort = stagescript.bestaetige(conn, tg, klm, einst, 1, 2)
 
-    assert antwort == stagescript.T._TEXT_ERST_VORHERIGE.format(nummer=1)
-    assert antwort in tg.texte
+    # Stueckmodell (t_fd88600b, Vorfall 6): speichern IMMER, die offene
+    # fruehere Szene ist eine Warnzeile, kein Verbot.
+    assert antwort == stagescript.T._ANTWORT_GESPEICHERT.format(nummer=2)
+    assert stagescript.T._WARNUNG_VORHERIGE_OFFEN.format(nummer=2, offen=1) in tg.texte
     assert tg.leisten  # Yes/No-Leiste der Szene 1 kam mit, nicht nur Text
     assert repo.hole_szene(conn, ids[0])["fertig_am"] is None
-    assert repo.hole_szene(conn, ids[1])["fertig_am"] is None
+    assert repo.hole_szene(conn, ids[1])["fertig_am"]
 
 
-def test_abnahme_ohne_offene_vorherige_bleibt_nicht_dran(conn, einst, padua):
-    """Ist die frueher nummerierte Szene noch gar nicht geschrieben (kein
-    Volltext), gibt es nichts zum Mitspeichern oder Anzeigen -- die alte
-    Ablehnung bleibt (keine Leiste fuer eine ungeschriebene Szene)."""
+def test_abnahme_ohne_text_bleibt_nicht_dran(conn, einst, padua):
+    """Eine Szene ohne Text hat nichts zu speichern -- das ist kein Verbot,
+    die Meldung bleibt (keine Leiste fuer eine ungeschriebene Szene)."""
     ids = _karten(conn)
-    repo.setze_stagescript(conn, ids[1], "Scene 2 text.", None)
+    repo.setze_stagescript(conn, ids[0], "Scene 1 text.", None)
     tg, klm = TG(), LLM()
 
     antwort = stagescript.bestaetige(conn, tg, klm, einst, 1, 2)
 
     assert antwort == stagescript.T._TEXT_NICHT_DRAN
     assert not tg.leisten
+
+
+def _journal_entschieden(conn):
+    return [z for z in repo.journal(conn, 1) if z["art"] == "entschieden"]
+
+
+def test_zweites_speichern_einer_abgenommenen_szene_tut_nichts(conn, einst, padua):
+    """Review 15: ein zweites "Yes, save" (Chat/Befehl/Erkenner) schrieb
+    Stempel, Journal und geaendert_am erneut und zeigte die Szene nochmal."""
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "Scene 1 text.", None)
+    conn.execute("UPDATE szene SET fertig_am = '2020-01-01T00:00:00', "
+                 "geaendert_am = '2020-01-01T00:00:00' WHERE id = ?", (ids[0],))
+    conn.commit()
+    tg, klm = TG(), LLM()
+    vorher = len(_journal_entschieden(conn))
+
+    antwort = stagescript.bestaetige(conn, tg, klm, einst, 1, 1)
+
+    assert antwort == stagescript.T._ANTWORT_GESPEICHERT.format(nummer=1)
+    szene = repo.hole_szene(conn, ids[0])
+    assert szene["fertig_am"] == "2020-01-01T00:00:00"
+    assert szene["geaendert_am"] == "2020-01-01T00:00:00"
+    assert len(_journal_entschieden(conn)) == vorher
+    assert tg.texte == [antwort]
+    assert not tg.leisten
+
+
+def test_geaenderte_szene_laesst_sich_wieder_speichern(conn, einst, padua):
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "Scene 1 text.", None)
+    conn.execute("UPDATE szene SET fertig_am = '2020-01-01T00:00:00' WHERE id = ?", (ids[0],))
+    conn.commit()
+    repo.setze_stagescript(conn, ids[0], "Scene 1 changed.", None)
+    assert not repo.hole_szene(conn, ids[0])["fertig_am"]
+    vorher = len(_journal_entschieden(conn))
+
+    stagescript.bestaetige(conn, TG(), LLM(), einst, 1, 1)
+    _warte()
+
+    fertig = repo.hole_szene(conn, ids[0])["fertig_am"]
+    assert fertig and fertig != "2020-01-01T00:00:00"
+    assert len(_journal_entschieden(conn)) == vorher + 1
+
+
+def test_speichern_einer_nicht_aktuellen_szene_laesst_die_aktuelle(conn, einst, padua):
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "Scene 1 text.", None)
+    repo.setze_stagescript(conn, ids[1], "Scene 2 text.", None)
+    assert stagescript.aktuelle_nummer(conn, 1) == 1
+
+    stagescript.bestaetige(conn, TG(), LLM(), einst, 1, 2)
+
+    assert repo.hole_szene(conn, ids[1])["fertig_am"]
+    assert stagescript.aktuelle_nummer(conn, 1) == 1

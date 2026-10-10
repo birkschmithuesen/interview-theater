@@ -189,6 +189,7 @@ from interview_theater.knoepfe.texte import (  # noqa: F401
     _TEXT_SZENE_NAECHSTER_SCHRITT,
     # Padua Phasen TEIL 2, Task 9: die Sprechweisen in Phase 7
     ART_SPRECHWEISEN_ANDERS, ART_SPRECHWEISEN_PASST,
+    ART_VERALTET_LASSEN, ART_VERALTET_NEU,
     _TEXT_SPRECHWEISE_OFFEN, _TEXT_SPRECHWEISEN_AENDERN,
     _TEXT_SPRECHWEISEN_KOPF, _ZEILE_SPRECHWEISE,
 )
@@ -240,7 +241,7 @@ from interview_theater.knoepfe.szenen import (  # noqa: F401
     _naechste_offene, _pruefbefund, _schreibe_szene, _sende_schaerfungsmenue,
     _speichere_geschichte, _speichere_szenenfelder, _speichere_szenenfolge,
     _szene_mit_nummer, _uebernimm_formwahl, _zeige_fassungen,
-    biete_durchlauf,
+    biete_durchlauf, biete_veraltete,
     biete_kurzgeschichte,
     biete_nach_pruefung, biete_nach_szenentext, biete_schaerfung,
     biete_schaerfung_wahl, biete_szene,

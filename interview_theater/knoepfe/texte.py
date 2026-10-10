@@ -285,6 +285,11 @@ ART_KARTE_FRAGEN_UEBERSPRINGEN = "karte_fragen_ueberspringen"
 #: Wirkungen in ``szenenkarte.py``, kein Modellaufruf.
 ART_KARTE_UPDATE = "karte_update"
 ART_KARTE_KEEP = "karte_keep"
+#: Stueckmodell (t_fd88600b): "Szene N passt nicht mehr zu ... -- neu
+#: schreiben?" Ja/Nein; ``wert`` ist ``str(veraltet.id)``. Kein Modellaufruf
+#: im Handler (``stagescript.starte`` gibt an einen Thread ab).
+ART_VERALTET_NEU = "veraltet_neu"
+ART_VERALTET_LASSEN = "veraltet_lassen"
 ART_SZENE_NEU = "szene_neu"
 ART_SZENE_NAECHSTE = "szene_naechste"
 #: "So lassen" -- die Antwort auf einen Pruef-Vermerk (eine fruehere Szene

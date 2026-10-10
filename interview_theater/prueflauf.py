@@ -262,7 +262,14 @@ def _parameterkorrektur(conn, chat_id: int, runde, nummer: int, sid: int) -> lis
         # setzt sie nicht. Text-Spalten sind ohnehin keine Planung.
         if feld not in repo.SZENENFELDER or feld in repo.GESCHUETZTE_SZENENFELDER:
             continue
-        repo.setze_szenenfeld(conn, sid, feld, wert)
+        if feld in repo.NUR_UEBER_STUECK:
+            from interview_theater import stueck
+
+            if not stueck.setze_ort(conn, chat_id, szene=nummer, ort=wert,
+                                    quelle=stueck.QUELLE_PLANUNG).ok:
+                continue
+        else:
+            repo.setze_szenenfeld(conn, sid, feld, wert)
         repo.schreibe_journal(
             conn, chat_id, "entschieden",
             T._JOURNAL_PARAMETER.format(nummer=nummer, feld=feld, wert=wert),
@@ -384,10 +391,10 @@ def _kartentreue(conn, tg, klm, e, chat_id: int, nummer: int, feld: str) -> list
     noch, bleibt ein Vorfall."""
     if feld != "volltext":
         return []
-    from interview_theater import kartentreue, szene, szenenkarte
+    from interview_theater import kartentreue, stueck, szene, szenenkarte
 
     zeile = _zeile_der_szene(conn, chat_id, nummer)
-    karte = szenenkarte.karte_von(zeile) if zeile is not None else None
+    karte = stueck.karte(conn, zeile) if zeile is not None else None
     if karte is None:
         return []
     text = _text(zeile, feld)

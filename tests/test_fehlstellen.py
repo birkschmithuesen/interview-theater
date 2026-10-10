@@ -14,6 +14,7 @@ import pytest
 from interview_theater import (
     befehle, fehlstellen, phasen, repo, szene, web, web_daten,
 )
+from tests.stueck_hilfe import setze_feld
 
 from test_knoepfe import TelegramAttrappe
 
@@ -65,7 +66,7 @@ def _voll(conn, chat_id=1):
         ("form", "Dialog"), ("ort", "Schulhof"),
         ("was_passiert", "Sie warten."), ("titel", "Warten"),
     ):
-        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+        setze_feld(conn, szene_id, feld, wert)
     repo.setze_szene_figuren(conn, chat_id, szene_id, [figur_id])
     repo.aktualisiere_szene(
         conn, szene_id, "Warten", "Sie warten.", "LEYLA:Gelesen.",
@@ -262,7 +263,7 @@ def test_fehlende_pflichtfelder_heissen_wie_im_chat(conn):
     """Dieselben Namen wie in der Sperrmeldung (``szene.FELDNAMEN``)."""
     _voll(conn)
     szene_id = repo.stelle_szene_sicher(conn, 1, 1)
-    repo.setze_szenenfeld(conn, szene_id, "ort", None)
+    repo.setze_szenenort(conn, szene_id, None)
     repo.setze_phase(conn, 1, 7)
 
     texte = [e["text"] for e in fehlstellen.register(conn, 1)]

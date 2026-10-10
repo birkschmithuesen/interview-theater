@@ -668,9 +668,15 @@ def uebernimm_rahmen(conn, chat_id: int, szene_id: int) -> None:
     zeile = repo.hole_szene(conn, szene_id)
     if zeile is None:
         return
+    from interview_theater import stueck
+
     for feld, wert in felder.items():
         if feld in ("ort", "zeit", "anlass") and not (zeile[feld] or "").strip():
-            repo.setze_szenenfeld(conn, szene_id, feld, wert)
+            if feld in repo.NUR_UEBER_STUECK:
+                stueck.setze_ort(conn, chat_id, szene=zeile["nummer"], ort=wert,
+                                 quelle=stueck.QUELLE_PLANUNG)
+            else:
+                repo.setze_szenenfeld(conn, szene_id, feld, wert)
 
 
 def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:

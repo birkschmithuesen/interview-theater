@@ -3124,49 +3124,6 @@ def setze_szenenkarte(conn: sqlite3.Connection, szene_id: int, karte: str | None
 
 
 @_gesperrt
-def aktualisiere_karte_und_werkbank(
-    conn: sqlite3.Connection, chat_id: int, szene_id: int, karte_json: str,
-    ort: str | None, figur_ids: list[int], ausloeser: str,
-    notiz_text: str | None = None,
-) -> None:
-    """Ort/Figuren-Nachzug (``karten_nachzug.py``, Phase 7) in EINER
-    Transaktion: Karte, Werkbank-Ort (``szene.ort``) und -Besetzung
-    (``szene_figur``), plus die neue Fassung in ``karte_verlauf`` --
-    Nachtrag Birk 08.10.2026 ~13:00 (Live-Befund G1 S1: ``szene.ort`` zeigte
-    weiter die alte Planung, waehrend ``karte.ort`` schon die neue Karte
-    trug -- zwei Staende auf derselben Werkbank).
-
-    Anders als ``setze_szenenkarte``/``setze_szenenfeld``/
-    ``setze_szene_figuren`` OHNE die Phase-6-Abnahme zurueckzunehmen und OHNE
-    ``geaendert_am`` zu ruehren -- das ist ein Nachzug aus dem Skript, keine
-    Bearbeitung der Gruppe. ``figur_ids`` sind nur schon vorhandene Figuren
-    (``erkenner._figuren_aus_namen``); eine neue Figur aus ``wer`` legt hier
-    keine ``figur``-Zeile an, sie bleibt Kartentext."""
-    conn.execute("UPDATE szene SET karte = ?, ort = ? WHERE id = ?",
-                 (karte_json, ort, szene_id))
-    conn.execute("DELETE FROM szene_figur WHERE szene_id = ?", (szene_id,))
-    for figur_id in dict.fromkeys(figur_ids):
-        conn.execute(
-            "INSERT OR IGNORE INTO szene_figur (chat_id, szene_id, figur_id) "
-            "VALUES (?, ?, ?)",
-            (chat_id, szene_id, figur_id),
-        )
-    naechste = conn.execute(
-        "SELECT COALESCE(MAX(fassung_nr), 0) + 1 FROM karte_verlauf WHERE szene_id = ?",
-        (szene_id,),
-    ).fetchone()[0]
-    conn.execute(
-        """
-        INSERT INTO karte_verlauf
-            (chat_id, szene_id, fassung_nr, karte_json, ausloeser, notiz_text, erstellt_am)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        (chat_id, szene_id, naechste, karte_json, ausloeser, notiz_text, _jetzt()),
-    )
-    conn.commit()
-
-
-@_gesperrt
 def setze_szenenkarte_bestaetigt(conn: sqlite3.Connection, szene_id: int) -> None:
     conn.execute(
         "UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?",
@@ -3217,6 +3174,7 @@ def setze_stagescript(conn: sqlite3.Connection, szene_id: int, text: str,
     conn.commit()
 
 
+@_gesperrt
 def setze_stagescript_beide(conn: sqlite3.Connection, szene_id: int, text_en: str | None,
                             text_it: str | None) -> None:
     """EN und IT aus dem Spiegelpass nachtragen (Padua 08.10.2026) -- Abnahme
@@ -3226,6 +3184,7 @@ def setze_stagescript_beide(conn: sqlite3.Connection, szene_id: int, text_en: st
     conn.commit()
 
 
+@_gesperrt
 def setze_stagescript_it(conn: sqlite3.Connection, szene_id: int, text_it: str | None) -> None:
     """Nur die IT-Fassung nachtragen (Hintergrund-Spiegelung, Padua 08.10.2026)
     -- Abnahme und ``geaendert_am`` bleiben unberuehrt."""
@@ -3278,6 +3237,12 @@ def stelle_szene_sicher(conn: sqlite3.Connection, chat_id: int, nummer: int) -> 
     return cur.lastrowid
 
 
+#: Felder, die NUR ``stueck.py`` schreibt (Karte t_fd88600b): ``setze_szenenfeld``
+#: und ``gleiche_szenenfolge_ab`` weisen sie ab; der Aufrufer geht ueber
+#: ``stueck.setze_ort``.
+NUR_UEBER_STUECK = ("ort",)
+
+
 @_gesperrt
 def setze_szenenfeld(
     conn: sqlite3.Connection, szene_id: int, feld: str, wert: str | None
@@ -3294,6 +3259,8 @@ def setze_szenenfeld(
     den Gespraechs-Prompt wandert."""
     if feld not in SZENENFELDER:
         raise ValueError(f"unbekanntes Szenenfeld: {feld!r}")
+    if feld in NUR_UEBER_STUECK:
+        raise ValueError(f"Szenenfeld {feld!r} schreibt nur stueck.py")
     conn.execute(
         f"UPDATE szene SET {feld} = ?, geaendert_am = ? WHERE id = ?",
         (wert, _jetzt_genau(), szene_id),
@@ -3342,9 +3309,250 @@ def szene_figuren(conn: sqlite3.Connection, szene_id: int) -> list[sqlite3.Row]:
     in keiner Szene mehr, ohne dass irgendwo aufgeraeumt werden muesste."""
     return conn.execute(
         "SELECT f.* FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
-        "WHERE sf.szene_id = ? AND f.entfernt_am IS NULL ORDER BY f.id ASC",
+        "WHERE sf.szene_id = ? AND f.entfernt_am IS NULL "
+        "ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC",
         (szene_id,),
     ).fetchall()
+
+
+# --- Stueckmodell (Karte t_fd88600b, 10.10.2026) ---------------------------
+# Die Schreibfunktionen hier ruft NUR stueck.py (tests/test_stueck_einzige_
+# schreibstelle.py) -- sonst gaebe es wieder einen zweiten Weg zu derselben
+# Tatsache.
+
+
+@_gesperrt
+def setze_szenenort(conn: sqlite3.Connection, szene_id: int, ort: str | None) -> None:
+    conn.execute("UPDATE szene SET ort = ?, geaendert_am = ? WHERE id = ?",
+                 (ort, _jetzt_genau(), szene_id))
+    conn.commit()
+
+
+@_gesperrt
+def besetzung(conn: sqlite3.Connection, szene_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT f.id AS figur_id, f.name AS name, sf.rolle AS rolle, sf.position AS position "
+        "FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
+        "WHERE sf.szene_id = ? AND f.entfernt_am IS NULL "
+        "ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC",
+        (szene_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def setze_besetzung(conn: sqlite3.Connection, chat_id: int, szene_id: int,
+                    eintraege: list[tuple[int, str | None]], zusatz: str | None) -> None:
+    conn.execute("DELETE FROM szene_figur WHERE szene_id = ?", (szene_id,))
+    for position, (figur_id, rolle) in enumerate(eintraege, start=1):
+        conn.execute(
+            "INSERT OR IGNORE INTO szene_figur (chat_id, szene_id, figur_id, rolle, position) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (chat_id, szene_id, figur_id, rolle, position),
+        )
+    conn.execute("UPDATE szene SET wer_zusatz = ?, geaendert_am = ? WHERE id = ?",
+                 (zusatz, _jetzt_genau(), szene_id))
+    conn.commit()
+
+
+@_gesperrt
+def aktualisiere_szenenkarte(conn: sqlite3.Connection, chat_id: int, szene_id: int,
+                             karte_json: str, ausloeser: str,
+                             notiz_text: str | None = None,
+                             verlauf_json: str | None = None) -> None:
+    """Karte + neue ``karte_verlauf``-Fassung in EINER Transaktion, OHNE die
+    Abnahme zurueckzunehmen -- eine ausdrueckliche Aenderung der Gruppe
+    (``stueck.karte_aendern``) ist keine neue Karte. ``verlauf_json``: die
+    Fassung fuer ``karte_verlauf`` (die volle Ansicht, wie alle anderen
+    Wege sie dort ablegen); ohne Angabe ``karte_json``."""
+    conn.execute("UPDATE szene SET karte = ? WHERE id = ?", (karte_json, szene_id))
+    verlauf = karte_json if verlauf_json is None else verlauf_json
+    naechste = conn.execute(
+        "SELECT COALESCE(MAX(fassung_nr), 0) + 1 FROM karte_verlauf WHERE szene_id = ?",
+        (szene_id,),
+    ).fetchone()[0]
+    conn.execute(
+        "INSERT INTO karte_verlauf (chat_id, szene_id, fassung_nr, karte_json, ausloeser, "
+        "notiz_text, erstellt_am) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (chat_id, szene_id, naechste, verlauf, ausloeser, notiz_text, _jetzt()),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_szenenkarte_offen(conn: sqlite3.Connection, szene_id: int) -> None:
+    conn.execute("UPDATE szene SET karte_bestaetigt_am = NULL WHERE id = ?", (szene_id,))
+    conn.commit()
+
+
+@_gesperrt
+def nummeriere_szenen(conn: sqlite3.Connection, chat_id: int, szene_ids: list[int]) -> None:
+    for nummer, szene_id in enumerate(szene_ids, start=1):
+        conn.execute("UPDATE szene SET nummer = ? WHERE id = ? AND chat_id = ?",
+                     (nummer, szene_id, chat_id))
+    conn.commit()
+
+
+@_gesperrt
+def lege_offene_frage_an(conn: sqlite3.Connection, chat_id: int, szene_id: int | None,
+                         text: str, quelle: str, status: str = "offen") -> int:
+    cur = conn.execute(
+        "INSERT INTO offene_frage (chat_id, szene_id, text, status, quelle, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (chat_id, szene_id, text, status, quelle, _jetzt_genau()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def offene_fragen(conn: sqlite3.Connection, chat_id: int, szene_id: int | None,
+                  status: tuple[str, ...] = ("offen", "vertagt")) -> list[sqlite3.Row]:
+    platz = ",".join("?" * len(status))
+    return conn.execute(
+        f"SELECT * FROM offene_frage WHERE chat_id = ? AND szene_id IS ? "
+        f"AND status IN ({platz}) ORDER BY id ASC",
+        (chat_id, szene_id, *status),
+    ).fetchall()
+
+
+@_gesperrt
+def fragen_der_szene(conn: sqlite3.Connection, chat_id: int,
+                     szene_id: int | None) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM offene_frage WHERE chat_id = ? AND szene_id IS ? ORDER BY id ASC",
+        (chat_id, szene_id),
+    ).fetchall()
+
+
+@_gesperrt
+def hole_offene_frage(conn: sqlite3.Connection, frage_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM offene_frage WHERE id = ?", (frage_id,)).fetchone()
+
+
+@_gesperrt
+def setze_frage_status(conn: sqlite3.Connection, frage_id: int, status: str,
+                       antwort: str | None = None) -> None:
+    geschlossen = _jetzt_genau() if status in ("beantwortet", "uebersprungen") else None
+    conn.execute(
+        "UPDATE offene_frage SET status = ?, antwort = COALESCE(?, antwort), "
+        "geschlossen_am = ? WHERE id = ?",
+        (status, antwort, geschlossen, frage_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def merke_veraltet(conn: sqlite3.Connection, chat_id: int, szene_id: int | None,
+                   ansicht: str, grund: str, aenderung_id: int | None) -> int:
+    """EINE offene Zeile je (Szene, Ansicht): ein weiterer Grund wird
+    angehaengt und die Zeile neu angeboten (``angeboten_am`` = NULL)."""
+    offen = conn.execute(
+        "SELECT id, grund FROM veraltet WHERE chat_id = ? AND szene_id IS ? AND ansicht = ? "
+        "AND erledigt_am IS NULL",
+        (chat_id, szene_id, ansicht),
+    ).fetchone()
+    if offen is not None:
+        if grund not in offen["grund"].split("; "):
+            # aenderung_id = die JUENGSTE Ursache: ``erledige_veraltet_fuer(bis_aenderung_id=)``
+            # erledigt nur Vermerke, deren letzter Grund vor dem Schreibstart lag.
+            conn.execute("UPDATE veraltet SET grund = ?, angeboten_am = NULL, "
+                         "aenderung_id = COALESCE(?, aenderung_id) WHERE id = ?",
+                         (f"{offen['grund']}; {grund}", aenderung_id, offen["id"]))
+            conn.commit()
+        return offen["id"]
+    cur = conn.execute(
+        "INSERT INTO veraltet (chat_id, szene_id, ansicht, grund, aenderung_id, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (chat_id, szene_id, ansicht, grund, aenderung_id, _jetzt_genau()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def offene_veraltet(conn: sqlite3.Connection, chat_id: int,
+                    nur_unangeboten: bool = False) -> list[sqlite3.Row]:
+    zusatz = " AND angeboten_am IS NULL" if nur_unangeboten else ""
+    return conn.execute(
+        "SELECT * FROM veraltet WHERE chat_id = ? AND erledigt_am IS NULL" + zusatz
+        + " ORDER BY id ASC", (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def hole_veraltet(conn: sqlite3.Connection, veraltet_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM veraltet WHERE id = ?", (veraltet_id,)).fetchone()
+
+
+@_gesperrt
+def markiere_veraltet_angeboten(conn: sqlite3.Connection, veraltet_id: int) -> None:
+    conn.execute("UPDATE veraltet SET angeboten_am = ? WHERE id = ?", (_jetzt_genau(), veraltet_id))
+    conn.commit()
+
+
+@_gesperrt
+def setze_veraltet_unangeboten(conn: sqlite3.Connection, veraltet_id: int) -> None:
+    """Das Angebot gilt wieder als nicht gemacht (Ja-Druck ohne Start)."""
+    conn.execute("UPDATE veraltet SET angeboten_am = NULL WHERE id = ? AND erledigt_am IS NULL",
+                 (veraltet_id,))
+    conn.commit()
+
+
+@_gesperrt
+def erledige_veraltet(conn: sqlite3.Connection, veraltet_id: int, entscheidung: str) -> None:
+    conn.execute("UPDATE veraltet SET erledigt_am = ?, entscheidung = ? WHERE id = ?",
+                 (_jetzt_genau(), entscheidung, veraltet_id))
+    conn.commit()
+
+
+@_gesperrt
+def erledige_veraltet_fuer(conn: sqlite3.Connection, chat_id: int, szene_id: int | None,
+                           ansicht: str, entscheidung: str,
+                           bis_aenderung_id: int | None = None) -> int:
+    """Erledigt die offenen Vermerke. ``bis_aenderung_id``: nur die, deren
+    juengste Ursache nicht neuer ist (Schreiber: was erst WAEHREND des
+    Schreibens kam, ist im neuen Text nicht enthalten und bleibt offen)."""
+    grenze = "" if bis_aenderung_id is None else " AND (aenderung_id IS NULL OR aenderung_id <= ?)"
+    cur = conn.execute(
+        "UPDATE veraltet SET erledigt_am = ?, entscheidung = ? WHERE chat_id = ? "
+        "AND szene_id IS ? AND ansicht = ? AND erledigt_am IS NULL" + grenze,
+        (_jetzt_genau(), entscheidung, chat_id, szene_id, ansicht)
+        + (() if bis_aenderung_id is None else (bis_aenderung_id,)),
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+@_gesperrt
+def hoechste_stueck_aenderung_id(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Marke "bis hierher kannte der Schreiber das Stueck" (0 = noch nichts)."""
+    return conn.execute("SELECT COALESCE(MAX(id), 0) FROM stueck_aenderung WHERE chat_id = ?",
+                        (chat_id,)).fetchone()[0]
+
+
+@_gesperrt
+def merke_stueck_aenderung(conn: sqlite3.Connection, chat_id: int, art: str, ziel: dict,
+                           vorher, nachher, quelle: str) -> int:
+    cur = conn.execute(
+        "INSERT INTO stueck_aenderung (chat_id, art, ziel, vorher, nachher, quelle, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (chat_id, art, json.dumps(ziel, ensure_ascii=False),
+         json.dumps(vorher, ensure_ascii=False), json.dumps(nachher, ensure_ascii=False),
+         quelle, _jetzt_genau()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def stueck_aenderungen(conn: sqlite3.Connection, chat_id: int,
+                       quelle: str | None = None) -> list[sqlite3.Row]:
+    if quelle is None:
+        return conn.execute("SELECT * FROM stueck_aenderung WHERE chat_id = ? ORDER BY id",
+                            (chat_id,)).fetchall()
+    return conn.execute(
+        "SELECT * FROM stueck_aenderung WHERE chat_id = ? AND quelle = ? ORDER BY id",
+        (chat_id, quelle)).fetchall()
 
 
 @_gesperrt
@@ -3414,7 +3622,7 @@ GESCHUETZTE_SZENENFELDER = (
 #: ``SZENENFELDER`` ist eine unbekannte Angabe ein Programmierfehler: nur
 #: nach dieser Pruefung landet ein Name im SQL-Text.
 ABGLEICHBARE_SZENENFELDER = (
-    *SZENENFELDER,
+    *(f for f in SZENENFELDER if f not in NUR_UEBER_STUECK),
     "zusammenfassung",
     "volltext",
     "prosa",

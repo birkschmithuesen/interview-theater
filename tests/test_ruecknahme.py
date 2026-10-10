@@ -15,6 +15,7 @@ from interview_theater import ruecknahme
 def test_verfolgt_traegt_die_inhaltstabellen_und_nicht_die_gruppe():
     assert set(ruecknahme.VERFOLGT) == {
         "arbeitsstand", "figur", "szene", "szene_figur", "festlegung",
+        "veraltet",  # Review 13: Marken aus stueck.setze_ort/-besetzung gehen mit zurueck
     }
     assert "gruppe" not in ruecknahme.VERFOLGT, "USA-Einwilligung: eigene Knoepfe"
     assert "journal" not in ruecknahme.VERFOLGT, "nur-anhaengend (AGENTS.md)"
@@ -135,6 +136,9 @@ def test_verweise_kommen_aus_dem_schema():
         ("karte_verlauf", "szene_id", "szene"),
         # Padua Quickfix (08.10.2026, Punkt 1): Notizen zu Stage-Script-Szenen.
         ("stagescript_notiz", "szene_id", "szene"),
+        # Stueckmodell (t_fd88600b): offene Fragen und Veraltet-Vermerke je Szene.
+        ("offene_frage", "szene_id", "szene"),
+        ("veraltet", "szene_id", "szene"),
     }
 
 

@@ -10,6 +10,7 @@ import threading
 import pytest
 
 from interview_theater import (
+    stueck,
     befehle, db, phasen, repo, szenenfolge, szenenkarte, ueberarbeitung, web,
     web_daten, web_vereint, workshop,
 )
@@ -171,9 +172,10 @@ def test_befehle_und_ablauf_im_cothinker(conn, einst, padua, monkeypatch):
     assert repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
     assert tg.texte[-1] == "Card 2 of 2 is ready in the CoThinker tab."
 
-    # Veraltet / falsche Phase: wirkungslos.
+    # Task 15: eine schon gespeicherte, unveraenderte Karte nochmal speichern
+    # ist eine idempotente Kurzbestaetigung (kein "nicht dran", kein Neuschreiben).
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "1")
-    assert tg.texte[-1] == szenenkarte.T._TEXT_NICHT_DRAN
+    assert tg.texte[-1] == "Card 1 saved"
     phasen.setze(conn, 1, 5, "befehl")
     vorher = len(tg.texte)
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "2")
@@ -285,4 +287,4 @@ def test_karte_bauen_rettet_eine_haengende_karte(conn, einst, padua, monkeypatch
         if repo.hole_szene(conn, ids[0])["karte"]:
             break
         time.sleep(0.05)
-    assert szenenkarte.karte_von(repo.hole_szene(conn, ids[0])) is not None
+    assert stueck.karte(conn, repo.hole_szene(conn, ids[0])) is not None

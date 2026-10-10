@@ -507,6 +507,19 @@ def naechste_moegliche(conn, chat_id: int) -> int | None:
     return min(moegliche) if moegliche else None
 
 
+def warnungen(conn, chat_id: int, ziel: int) -> list[str]:
+    """Was fuer Phase ``ziel`` laut Materiallage noch fehlt -- als Saetze,
+    NIE als Sperre (Stueckmodell, t_fd88600b, Problem 2). ``voraussetzungen``
+    bleibt, was es ist: Fokus und Vorschlag. Leer, wenn die Lage reicht."""
+    from interview_theater import fehlstellen
+
+    if voraussetzungen(conn, chat_id).get(ziel, True):
+        return []
+    saetze = [e["text"] for e in fehlstellen.register(conn, chat_id, hoechstens=50)
+              if e["phase"] < ziel][:3]
+    return saetze or [T._WARNUNG_PHASE_ALLGEMEIN.format(phase=ziel)]
+
+
 def offenes_angebot(conn, chat_id: int) -> int | None:
     """Die Stufe, die gerade angeboten werden darf -- oder None, weil keine
     moeglich ist oder sie schon angeboten wurde.
@@ -595,3 +608,10 @@ def erneuere_nach_aenderung(conn, chat_id: int) -> bool:
         return False
     vergiss_angebot(conn, chat_id)
     return True
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)
+
+_WARNUNG_PHASE_KOPF = "Phase {phase} ist offen -- laut Plan fehlt noch:"
+_WARNUNG_PHASE_ALLGEMEIN = "Fuer Phase {phase} fehlt laut Plan noch etwas."

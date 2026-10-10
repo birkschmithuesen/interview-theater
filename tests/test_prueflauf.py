@@ -15,6 +15,7 @@ import pytest
 
 import test_dramaturgie_schleife as schleifentest
 from interview_theater import phasen, prueflauf, repo, szene, szenenkarte, workshop
+from tests.stueck_hilfe import setze_feld
 from interview_theater.dramaturgie import fanout, schleife
 from test_dramaturgie_schleife import Rundenrichter
 from test_knoepfe import TelegramAttrappe
@@ -99,7 +100,7 @@ def szene6(conn, padua):
     repo.setze_sprachprofil(conn, ids[1], "wenige Worte", [])
     szene_id = repo.stelle_szene_sicher(conn, 1, 1)
     for feld, wert in (("ort", "Steg"), ("was_passiert", "Sie treffen sich.")):
-        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+        setze_feld(conn, szene_id, feld, wert)
     repo.setze_szene_figuren(conn, 1, szene_id, ids)
     repo.aktualisiere_szene(conn, szene_id, "Am Steg", "kurz", None,
                             "Mira und Jonas treffen sich.", prosa=VORHER.strip())
@@ -133,7 +134,7 @@ def szene7_karte(conn, padua):
     repo.setze_szene_figuren(conn, 1, szene_id, [figur_id])
     for feld, wert in (("form", "Dialog"), ("ort", "sala riunioni"),
                        ("was_passiert", "Anna recluta un nuovo arrivato.")):
-        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+        setze_feld(conn, szene_id, feld, wert)
     repo.setze_szenenkarte(conn, szene_id, json.dumps(KARTE_8B_9, ensure_ascii=False))
     repo.aktualisiere_szene(
         conn, szene_id, "Il reclutamento", "kurz",

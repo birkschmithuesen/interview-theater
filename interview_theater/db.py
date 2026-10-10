@@ -1887,8 +1887,18 @@ def _migriere_stueckmodell(conn: sqlite3.Connection) -> dict[str, int]:
                                  (", ".join(rest), s["id"]))
             fragen = karte.get("fragen")
             fragen = [str(f).strip() for f in fragen] if isinstance(fragen, list) else []
+            # Eine Frage, deren normalisierter Text fuer diese Szene schon in
+            # ``offene_frage`` steht (jeder Status), wird nicht noch einmal
+            # angelegt: schreibt ein alter Prozess ``karte.fragen`` zurueck,
+            # darf eine beantwortete Frage nicht als offen wiederkommen.
+            bekannt = {sicht.normalisiert(z["text"]) for z in conn.execute(
+                "SELECT text FROM offene_frage WHERE chat_id = ? AND szene_id = ?",
+                (chat_id, s["id"]))}
             for text, status in ([(f, "offen") for f in fragen if f]
                                  + [(sicht.OFFEN_PUNKT.match(p).group(1), "vertagt") for p in offene_punkte]):
+                if sicht.normalisiert(text) in bekannt:
+                    continue
+                bekannt.add(sicht.normalisiert(text))
                 conn.execute("INSERT INTO offene_frage (chat_id, szene_id, text, status, quelle, erstellt_am) "
                              "VALUES (?, ?, ?, ?, 'migration', ?)", (chat_id, s["id"], text, status, jetzt))
                 merke(chat_id, "frage_uebernommen", nr, None, {"text": text, "status": status})

@@ -104,11 +104,25 @@ Arbeitsbericht; die volle Suite läuft einmal extern nach diesem Lauf.
 
 - Die Migration läuft beim nächsten Botstart (`db.initialisiere`),
   idempotent, Bericht in `stueck_aenderung` (Quelle `migration`).
-- **Alle drei Padua-Bots gemeinsam neu starten.** Schreibt ein noch laufender
-  Prozess mit altem Code weiter `karte.ort`, setzt die Migration des
-  nächsten Starts `szene.ort` auf diesen alten Wert zurück („Karte gewinnt").
-  Den Neustart macht Birk, nicht ein Agent.
+- **Alle Prozesse mit demselben Code gemeinsam neu starten:** die drei
+  Padua-Bots, den Web-Dienst `interview-theater-web` UND `padua-test` erst
+  alle stoppen, dann zusammen starten, **Bots zuerst** (die Migration läuft
+  beim ersten Start), danach den Web-Dienst. Ein alter Prozess nach der
+  Migration (a) zeigt Karten ohne Ort/Wer/Fragen (liest das rohe JSON),
+  (b) schreibt `szene.ort` direkt ohne Protokoll und Vermerk, (c) löscht mit
+  dem alten `repo.setze_szene_figuren` `rolle`/`position` jeder Figur der
+  Szene (stiller Datenverlust), und (d) schreibt er `karte.fragen` wieder,
+  legt der nächste Start die Fragen nicht doppelt an (Abgleich über den
+  normalisierten Text, jeder Status – eine beantwortete Frage bleibt
+  beantwortet), setzt aber `szene.ort` auf den alten Kartenwert zurück („Karte
+  gewinnt"). Den Neustart macht Birk; Agenten starten oder stoppen nie einen
+  Live-Dienst.
 - Einmalig vorher eine `VACUUM INTO`-Kopie ziehen (Rückfall).
+- **Rückfall = die `VACUUM INTO`-Kopie zurückspielen**; alles seit dem
+  Rollout geht verloren. Die Migration ist an Ort und Stelle nicht umkehrbar
+  (der alte Code liest Ort/Wer/Fragen nicht mehr aus ihren neuen Stellen).
+- Eine von altem Code gestartete Klärrunde (`szene.karte_klaerung` ohne `ids`)
+  verwirft `beantworte_frage`; die Antwort geht dann in den normalen Chat.
 - `wer_zusatz` wird in der Migration überschrieben, ohne dass das im
   Konfliktbericht auftaucht (`db.py` rund Zeile 1886).
 

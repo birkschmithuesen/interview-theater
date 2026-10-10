@@ -101,3 +101,22 @@ def test_entfernte_szene_bleibt_unberuehrt(conn):
     conn.commit()
     assert db._migriere_stueckmodell(conn) == {}
     assert "ort" in json.loads(repo.hole_szene(conn, sid)["karte"])
+
+
+def test_beantwortete_frage_bleibt_beantwortet_beim_zweiten_lauf(conn):
+    """Abschlussreview I3: schreibt ein alter Prozess ``karte.fragen`` wieder
+    ins JSON, darf die Migration eine schon bekannte (auch beantwortete)
+    Frage nicht erneut als offen anlegen."""
+    sid = _alt(conn, 1, dict(K, punkte=["p", "[OPEN] Licht?"], fragen=["Wann?"]))
+    db._migriere_stueckmodell(conn)
+    frage = next(f for f in repo.offene_fragen(conn, 1, sid) if f["text"] == "Wann?")
+    assert stueck.frage_beantworten(conn, 1, frage_id=frage["id"], antwort="Abends").ok
+    conn.execute("UPDATE szene SET karte = ? WHERE id = ?", (
+        json.dumps(dict(K, punkte=["p", "[OPEN]  licht?"], fragen=["wann?"])), sid))
+    conn.commit()
+    z = db._migriere_stueckmodell(conn)
+    alle = repo.fragen_der_szene(conn, 1, sid)
+    assert len(alle) == 2
+    assert next(f for f in alle if f["text"] == "Wann?")["status"] == "beantwortet"
+    assert not z.get("frage_uebernommen")
+    assert "fragen" not in json.loads(repo.hole_szene(conn, sid)["karte"])

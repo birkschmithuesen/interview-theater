@@ -3,7 +3,7 @@
     uv run --extra dev python -m scripts.stueckmodell_migration var/stueckmodell/padua-kopie.db var/stueckmodell/padua-migriert.db
 
 Kopiert die Quelle (``VACUUM INTO``, Quelle read-only), migriert NUR die
-Kopie (``db.initialisiere``; die Datenmigration folgt in Task 8) und
+Kopie (``db.initialisiere`` ruft ``_migriere_stueckmodell``) und
 schreibt den Konfliktbericht nach ``<ziel>.konflikte.md`` / ``.json``."""
 
 import collections

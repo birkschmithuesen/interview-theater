@@ -63,6 +63,17 @@ class LLMMitFragen(LLM):
     FRAGEN = ["Who sings?"]
 
 
+class LLMMitNeuerFrage(LLM):
+    """Jeder Neubau stellt eine ANDERE Frage (eine beantwortete Frage bleibt
+    beantwortet und kommt nicht als neue offene wieder -- Stueckmodell)."""
+
+    def schema(self, chat_id, system, nutzer, schema, art):
+        antwort = super().schema(chat_id, system, nutzer, schema, art)
+        if art == szenenkarte.ART:
+            antwort["questions"] = [f"Who sings in round {len(self.aufrufe)}?"]
+        return antwort
+
+
 class LLMMitZweiFragen(LLM):
     FRAGEN = ["Who sings?", "Where does it end?"]
 
@@ -143,7 +154,7 @@ def test_karte_nimmt_zitate_im_original_aus_der_db(conn, einst, padua):
     assert karte["typ"] == "spoken"
     assert [z["zitat"] for z in karte["zitate"]] == [ZITAT_B, ZITAT_A]
     gespeichert = json.loads(repo.hole_szene(conn, ids[0])["karte"])
-    assert gespeichert == karte
+    assert gespeichert == {k: v for k, v in karte.items() if k not in ("ort", "wer", "fragen")}
 
 
 def test_baue_nutzertext_zeigt_zitate_zur_wahl_ungekuerzt(conn, padua):
@@ -398,7 +409,9 @@ def test_starte_fragenklaerung_stellt_erste_frage(conn, einst, padua):
     antwort = szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
     assert antwort == "Clearing the questions"
     assert tg.texte[-1] == "Question 1 of 2: Who sings?"
-    assert szenenkarte.aktive_klaerung(conn, 1) == (1, {"index": 0, "antworten": [], "runde": 1})
+    nummer, klaerung = szenenkarte.aktive_klaerung(conn, 1)
+    assert nummer == 1 and len(klaerung["ids"]) == 2
+    assert (klaerung["index"], klaerung["antworten"], klaerung["runde"]) == (0, [], 1)
 
 
 def test_beantworte_frage_ohne_aktive_klaerung_liefert_false(conn, einst, padua):
@@ -415,7 +428,8 @@ def test_beantworte_frage_stellt_naechste_frage(conn, einst, padua):
     assert treffer is True
     assert tg.texte[-1] == "Question 2 of 2: Where does it end?"
     _, klaerung = szenenkarte.aktive_klaerung(conn, 1)
-    assert klaerung == {"index": 1, "antworten": ["Emma, molto chiaro"], "runde": 1}
+    assert (klaerung["index"], klaerung["antworten"], klaerung["runde"]) == (
+        1, ["Emma, molto chiaro"], 1)
 
 
 def test_beantworte_letzte_frage_baut_karte_mit_allen_antworten_neu(conn, einst, padua):
@@ -468,7 +482,7 @@ def test_zweite_automatische_runde_dann_hinweis_ohne_dritte(conn, einst, padua):
     Klaerung automatisch ein zweites Mal -- aber nicht ein drittes Mal."""
     ids = _karte1(conn, einst, LLMMitFragen())
     tg = TG()
-    klm = LLMMitFragen()
+    klm = LLMMitNeuerFrage()
     szenenkarte.starte_fragenklaerung(conn, tg, einst, 1, 1)
     fragen_vorher = sum(1 for t in tg.texte if t.startswith("Question 1 of 1"))
     assert fragen_vorher == 1
@@ -478,7 +492,8 @@ def test_zweite_automatische_runde_dann_hinweis_ohne_dritte(conn, einst, padua):
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
     assert sum(1 for t in tg.texte if t.startswith("Question 1 of 1")) == 2
-    assert szenenkarte.aktive_klaerung(conn, 1) == (1, {"index": 0, "antworten": [], "runde": 2})
+    _, klaerung = szenenkarte.aktive_klaerung(conn, 1)
+    assert (klaerung["index"], klaerung["antworten"], klaerung["runde"]) == (0, [], 2)
     # Runde 2 beantworten -> Neubau legt WIEDER eine Frage an -> keine
     # dritte automatische Runde, die Karte wird stattdessen gezeigt.
     szenenkarte.beantworte_frage(conn, tg, klm, einst, 1, "Giada answers")

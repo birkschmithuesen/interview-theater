@@ -203,7 +203,8 @@ def _figuren_index(conn, chat_id: int) -> dict[str, int]:
 
 def _schreibe_besetzung(conn, chat_id: int, zeile, eintraege, zusatz, art: str,
                         ziel: dict, quelle: str, grund: str,
-                        kopf_auch: bool = False) -> Ergebnis:
+                        kopf_auch: bool = False,
+                        kopf_wenn_erwaehnt: str | None = None) -> Ergebnis:
     alt = [(b["figur_id"], b["rolle"]) for b in repo.besetzung(conn, zeile["id"])]
     alt_zusatz = zeile["wer_zusatz"]
     if alt == list(eintraege) and (alt_zusatz or None) == (zusatz or None):
@@ -219,6 +220,8 @@ def _schreibe_besetzung(conn, chat_id: int, zeile, eintraege, zusatz, art: str,
         veraltet.append(_markiere_script(conn, chat_id, zeile, grund, aid))
     if kopf_auch:
         veraltet.append(_markiere_kopf(conn, chat_id, grund, aid))
+    elif kopf_wenn_erwaehnt:
+        veraltet.append(_markiere_kopf(conn, chat_id, grund, aid, nur_wenn_erwaehnt=kopf_wenn_erwaehnt))
     return _ergebnis(aid, [f"wer: {alt_text or '(none)'} -> {neu_text or '(none)'}"], veraltet)
 
 
@@ -280,7 +283,9 @@ def figur_hinzu(conn, chat_id: int, *, name: str, szene: int | None = None,
         eintraege.append((figur["id"], rolle))
     return _schreibe_besetzung(conn, chat_id, zeile, eintraege, zeile["wer_zusatz"],
                                "figur_hinzu", {"name": name, "szene": szene}, quelle, grund,
-                               kopf_auch=neu_angelegt)
+                               kopf_auch=neu_angelegt,
+                               # eine gesetzte Rolle steht oft im Kopf (Coverrolle)
+                               kopf_wenn_erwaehnt=figur["name"] if rolle else None)
 
 
 def figur_aus_szene(conn, chat_id: int, *, name: str, szene: int,
@@ -349,8 +354,11 @@ def karte_aendern(conn, chat_id: int, *, szene: int, worum: str | None = None,
         if treffer:
             fragen_neu.append(treffer.group(1))
         elif str(p).strip():
-            sauber.append(szenenkarte._kappe(p))
-    neu["punkte"] = sauber[:szenenkarte.PUNKTE_MAX]
+            # Weder kappen noch auf PUNKTE_MAX kuerzen: Live-Karten tragen >6
+            # Punkte (Haken-Antworten) und lange Punkte; die Kappung gehoert
+            # zum Modellbau (``szenenkarte.erzeuge``), nicht zum Werkzeug.
+            sauber.append(" ".join(str(p).split()))
+    neu["punkte"] = sauber
     if zitate is not None:
         kandidaten = szenenkern._kandidaten(conn, chat_id, zeile)
         try:

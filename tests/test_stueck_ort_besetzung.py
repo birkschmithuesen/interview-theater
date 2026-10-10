@@ -147,3 +147,25 @@ def test_szene_id_einer_fremden_gruppe_wird_abgelehnt(conn):
     fremd = repo.stelle_szene_sicher(conn, 2, 1)
     e = stueck.setze_ort(conn, 1, szene_id=fremd, ort="X")
     assert not e.ok and e.fehler == "unbekannte_szene"
+
+
+def test_rolle_einer_bekannten_figur_markiert_kopf_der_sie_nennt(conn):
+    """Anlass: Wiedergabe p7audit 2534 (Task 17) -- die Coverrolle von Anna/Francesca
+    steht im Script-Kopf; ``figur_hinzu`` mit Rolle fuer eine bekannte Figur
+    liess den Kopf unvermerkt."""
+    _szene(conn)
+    stueck.figur_hinzu(conn, 1, name="Anna")
+    repo.setze_arbeitsstand(conn, 1, "stage_kopf", "RULES: Anna (Arlecchino) ist der Koeder.")
+    stueck.figur_hinzu(conn, 1, name="Anna", szene=1)
+    assert repo.offene_veraltet(conn, 1) == []           # ohne Rolle nichts neues
+    stueck.figur_hinzu(conn, 1, name="Anna", szene=1, rolle="(Arlecchino)")
+    assert [v["ansicht"] for v in repo.offene_veraltet(conn, 1)] == ["kopf"]
+
+
+def test_rolle_einer_figur_die_der_kopf_nicht_nennt_laesst_ihn_stehen(conn):
+    _szene(conn)
+    stueck.figur_hinzu(conn, 1, name="Anna")
+    repo.setze_arbeitsstand(conn, 1, "stage_kopf", "RULES: nur ein Koeder.")
+    stueck.figur_hinzu(conn, 1, name="Anna", szene=1)
+    stueck.figur_hinzu(conn, 1, name="Anna", szene=1, rolle="(Arlecchino)")
+    assert repo.offene_veraltet(conn, 1) == []

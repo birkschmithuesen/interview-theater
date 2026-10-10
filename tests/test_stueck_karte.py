@@ -100,3 +100,16 @@ def test_reihenfolge(conn):
     assert [repo.hole_szene(conn, i)["nummer"] for i in (a, b, c)] == [2, 3, 1]
     assert {v["szene_id"] for v in repo.offene_veraltet(conn, 1)} == {a, b, c}
     assert stueck.reihenfolge_aendern(conn, 1, folge=[1, 1, 2]).fehler == "ungueltig"
+
+
+def test_karte_aendern_beschneidet_vorhandene_punkte_nicht(conn):
+    """Anlass: Wiedergabe p7audit (Task 17) -- eine Live-Karte tragt >6 Punkte
+    (beantwortete Fragen als Haken) und Punkte >120 Zeichen; ``karte_aendern``
+    schnitt sie auf 6 / 120 Zeichen und verlor den neuen Punkt."""
+    lang = "Quando tutti sono al tavolo, prima di pescare il tema, Anna spiega che esiste una safe word, «paperella», per interrompere l'esperimento in caso di qualsiasi disagio."
+    vorhanden = [f"Punkt {i}" for i in range(8)] + [lang]
+    sid = _szene(conn, punkte=vorhanden)
+    neu = "Ordine di arrivo: Pietro, Silvio, il babbano, Francesco; questo Punkt ist absichtlich laenger als hundertzwanzig Zeichen, damit die Kappung greifen wuerde."
+    e = stueck.karte_aendern(conn, 1, szene=1, punkte_hinzu=[neu])
+    assert e.ok
+    assert stueck.karte(conn, repo.hole_szene(conn, sid))["punkte"] == vorhanden + [neu]

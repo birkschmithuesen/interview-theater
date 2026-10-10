@@ -75,7 +75,8 @@ def karte_ansicht(roh: dict | None, *, ort: str | None,
     karte = roh_ohne_struktur(roh)
     karte["ort"] = (ort or "").strip()
     karte["wer"] = wer_text(besetzung, zusatz)
-    karte["punkte"] = list(karte.get("punkte") or []) + [
+    karte["punkte"] = [p for p in (karte.get("punkte") or [])
+                       if not OFFEN_PUNKT.match(str(p))] + [
         punkt_offen.format(frage=f) for f in fragen_vertagt]
     karte["fragen"] = list(fragen_offen)
     return karte

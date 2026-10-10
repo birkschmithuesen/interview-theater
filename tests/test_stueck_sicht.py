@@ -3,7 +3,7 @@ from interview_theater import stueck_sicht as sicht
 
 def test_karte_ansicht_ignoriert_struktur_aus_dem_json():
     roh = {"typ": "spoken", "worum": "w", "ort": "GIFT", "wer": "GIFT", "fragen": ["GIFT?"],
-           "punkte": ["p"], "zitate": []}
+           "punkte": ["p", "[OPEN] GIFT"], "zitate": []}
     k = sicht.karte_ansicht(roh, ort="Piazza", besetzung=[("Anna", "(Arlecchino)")],
                             zusatz="tutto il pubblico", fragen_offen=["Wo?"],
                             fragen_vertagt=["Wann?"])

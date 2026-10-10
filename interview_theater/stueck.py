@@ -410,6 +410,136 @@ def reihenfolge_aendern(conn, chat_id: int, *, folge: list[int],
     return _ergebnis(aid, [f"reihenfolge: {[s['nummer'] for s in szenen]} -> {list(folge)}"], veraltet)
 
 
+def _frage_der_gruppe(conn, chat_id: int, frage_id: int):
+    f = repo.hole_offene_frage(conn, frage_id)
+    return f if f is not None and f["chat_id"] == chat_id else None
+
+
+def _szene_nach_id(conn, szene_id: int | None):
+    return repo.hole_szene(conn, szene_id) if szene_id is not None else None
+
+
+def frage_stellen(conn, chat_id: int, *, frage: str, szene: int | None = None,
+                  quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+    text = " ".join((frage or "").split())
+    if not text:
+        return _nein("ungueltig")
+    szene_id = None
+    if szene is not None:
+        zeile = _szene(conn, chat_id, szene)
+        if zeile is None:
+            return _nein("unbekannte_szene")
+        szene_id = zeile["id"]
+    bekannt = _frage_bekannt(conn, chat_id, szene_id, text)
+    if bekannt is not None:
+        f = repo.hole_offene_frage(conn, bekannt)
+        warn = (T._WARNUNG_SCHON_BEANTWORTET,) if f["status"] in ("beantwortet", "uebersprungen") else ()
+        return Ergebnis(ok=True, frage_id=bekannt, warnungen=warn)
+    fid = repo.lege_offene_frage_an(conn, chat_id, szene_id, text, quelle)
+    aid = _protokoll(conn, chat_id, "frage_stellen", {"szene": szene}, None, text, quelle)
+    return _ergebnis(aid, [f"fragen: + {text}"], frage_id=fid)
+
+
+def _schliesse(conn, chat_id: int, frage_id: int, status: str, antwort: str | None,
+               art: str, quelle: str) -> Ergebnis:
+    f = _frage_der_gruppe(conn, chat_id, frage_id)
+    if f is None:
+        return _nein("unbekannte_frage")
+    if f["status"] == status and (antwort is None or f["antwort"] == antwort):
+        return Ergebnis(ok=True, frage_id=frage_id)
+    repo.setze_frage_status(conn, frage_id, status, antwort)
+    aid = _protokoll(conn, chat_id, art, {"frage_id": frage_id}, f["status"], status, quelle)
+    v = None
+    if status == "beantwortet" and f["status"] in ("offen", "vertagt"):
+        v = _markiere_script(conn, chat_id, _szene_nach_id(conn, f["szene_id"]),
+                             T._GRUND_FRAGE.format(frage=f["text"]), aid)
+    return _ergebnis(aid, [f"frage: {f['text']} -> {status}"], [v], frage_id=frage_id)
+
+
+def frage_beantworten(conn, chat_id: int, *, frage_id: int, antwort: str,
+                      quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+    return _schliesse(conn, chat_id, frage_id, "beantwortet", (antwort or "").strip() or None,
+                      "frage_beantworten", quelle)
+
+
+def frage_zurueckstellen(conn, chat_id: int, *, frage_id: int,
+                         quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+    return _schliesse(conn, chat_id, frage_id, "vertagt", None, "frage_zurueckstellen", quelle)
+
+
+def frage_verwerfen(conn, chat_id: int, *, frage_id: int,
+                    quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+    return _schliesse(conn, chat_id, frage_id, "uebersprungen", None, "frage_verwerfen", quelle)
+
+
+def pruefe_szene(conn, chat_id: int, *, szene: int, quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+    from interview_theater import kartentreue
+
+    zeile = _szene(conn, chat_id, szene)
+    if zeile is None:
+        return _nein("unbekannte_szene")
+    k = karte(conn, zeile)
+    if k is None or not _gesetzt(zeile["volltext"]):
+        return Ergebnis(ok=True)
+    befunde = (kartentreue.widersprueche(k, zeile["volltext"])
+               + [T._BEFUND_FEHLT.format(stichwort=s)
+                  for s in kartentreue.fehlende_stichworte(k, zeile["volltext"])])
+    if not befunde:
+        return Ergebnis(ok=True)
+    aid = _protokoll(conn, chat_id, "pruefe_szene", {"szene": szene}, None, befunde, quelle)
+    v = repo.merke_veraltet(conn, chat_id, zeile["id"], "script", "; ".join(befunde), aid)
+    return _ergebnis(aid, veraltet=[v], warnungen=befunde)
+
+
+def karte_aus_modell(conn, chat_id: int, *, szene: int, karte: dict, ausloeser: str,
+                     notiz: str | None = None) -> Ergebnis:
+    """Der EINE Weg, auf dem eine vom Modell gebaute Karte (``szenenkarte.
+    erzeuge``) ins Stueckmodell kommt: Struktur an ihre Stellen, nur der Rest
+    ins JSON. Das Modell darf Figuren hinzufuegen, nie still entfernen."""
+    zeile = _szene(conn, chat_id, szene)
+    if zeile is None:
+        return _nein("unbekannte_szene")
+    q = QUELLE_KARTE_MODELL
+    if str(karte.get("ort") or "").strip():
+        setze_ort(conn, chat_id, szene=szene, ort=karte["ort"], quelle=q)
+    if str(karte.get("wer") or "").strip():
+        eintraege, rest = stueck_sicht.ordne_besetzung(karte["wer"], _figuren_index(conn, chat_id))
+        zeile = _szene(conn, chat_id, szene)
+        bisher = [(b["figur_id"], b["rolle"]) for b in repo.besetzung(conn, zeile["id"])]
+        rollen = dict(eintraege)
+        zusammen = [(f, rollen.get(f) or r) for f, r in bisher] + [
+            (f, r) for f, r in eintraege if f not in dict(bisher)]
+        _schreibe_besetzung(conn, chat_id, zeile, zusammen, ", ".join(rest) or None,
+                            "karte_aus_modell", {"szene": szene}, q,
+                            T._GRUND_BESETZUNG.format(wer=karte["wer"]))
+    zeile = _szene(conn, chat_id, szene)
+    roh = stueck_sicht.roh_ohne_struktur(karte)
+    punkte = []
+    for p in roh.get("punkte") or []:
+        treffer = stueck_sicht.OFFEN_PUNKT.match(p or "")
+        if treffer:
+            if not _frage_bekannt(conn, chat_id, zeile["id"], treffer.group(1)):
+                repo.lege_offene_frage_an(conn, chat_id, zeile["id"], treffer.group(1), q,
+                                          status="vertagt")
+        else:
+            punkte.append(p)
+    roh["punkte"] = punkte
+    for frage in karte.get("fragen") or []:
+        frage_stellen(conn, chat_id, szene=szene, frage=frage, quelle=q)
+    repo.setze_szenenkarte(conn, zeile["id"], json.dumps(roh, ensure_ascii=False))
+    ansicht = karte_ansicht_von_id(conn, zeile["id"])
+    repo.merke_karte_verlauf(conn, chat_id, zeile["id"],
+                             json.dumps(ansicht, ensure_ascii=False), ausloeser, notiz)
+    aid = _protokoll(conn, chat_id, "karte_aus_modell", {"szene": szene}, None, ansicht, q)
+    return _ergebnis(aid)
+
+
+def karte_ansicht_von_id(conn, szene_id: int) -> dict | None:
+    """Lesehelfer, kein Werkzeug (nicht in ``WERKZEUGE``)."""
+    zeile = repo.hole_szene(conn, szene_id)
+    return karte(conn, zeile) if zeile is not None else None
+
+
 # --- Texte -----------------------------------------------------------------
 
 _WARNUNG_BESCHAEFTIGT = "Gerade wird noch geschrieben -- gleich nochmal."
@@ -422,6 +552,8 @@ _GRUND_FIGUR_WEG = "{name} spielt nicht mehr mit"
 _GRUND_KARTE = "geänderte Karte ({felder})"
 _GRUND_REIHENFOLGE = "neue Reihenfolge (jetzt Szene {nummer})"
 _BEFUND_FEHLT = "Pflichtpunkt fehlt im Text: {stichwort}"
+_WARNUNG_SCHON_BEANTWORTET = "Diese Frage ist schon geklärt."
+_GRUND_FRAGE = "beantwortete Frage ({frage})"
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 

@@ -32,7 +32,7 @@ from interview_theater.knoepfe.texte import (
     ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_SORTIEREN,
     ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE,
     ART_KARTE_FRAGEN_KLAEREN, ART_KARTE_FRAGEN_UEBERSPRINGEN,
-    ART_KARTE_UPDATE, ART_KARTE_KEEP,
+    ART_KARTE_UPDATE, ART_KARTE_KEEP, ART_VERALTET_NEU, ART_VERALTET_LASSEN,
     ART_SPRECHANTEILE,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
     ART_SZENENFOLGE_REIHENFOLGE, ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM,
@@ -1181,6 +1181,37 @@ def _sende_zeilen(conn, tg, e, chat_id: int, bericht) -> None:
 
 def _knopf(conn, chat_id: int, beschriftung: str, art: str, wert) -> tuple[str, str]:
     return (beschriftung, _daten(repo.lege_knopf_an(conn, chat_id, art, wert)))
+
+
+def biete_veraltete(conn, tg, e, chat_id: int) -> int:
+    """Stueckmodell (t_fd88600b): je Prosa, die nach einer Aenderung nicht
+    mehr passt, EIN Angebot "Szene N passt nicht mehr zu ... -- neu
+    schreiben?" mit Ja/Nein. Prosa wird nie still umgeschrieben. Kein
+    Modellaufruf; ein Angebot je Vermerk (``angeboten_am``). Knopfbeschriftungen
+    bleiben immer auf der gewoehnlichen ``stueck.T`` (EN)."""
+    from interview_theater import stueck
+
+    gesendet = 0
+    for v in repo.offene_veraltet(conn, chat_id, nur_unangeboten=True):
+        if v["ansicht"] == "kopf":
+            text = stueck._T(chat_id)._TEXT_KOPF_VERALTET.format(grund=v["grund"])
+        else:
+            szene = repo.hole_szene(conn, v["szene_id"])
+            if szene is None or szene["entfernt_am"]:
+                repo.erledige_veraltet(conn, v["id"], "lassen")
+                continue
+            text = stueck._T(chat_id)._TEXT_VERALTET.format(
+                nummer=szene["nummer"], grund=v["grund"])
+        leiste = [
+            _knopf(conn, chat_id, stueck.T._TEXT_JA_NEU_KNOPF, ART_VERALTET_NEU, str(v["id"])),
+            _knopf(conn, chat_id, stueck.T._TEXT_NEIN_LASSEN_KNOPF, ART_VERALTET_LASSEN,
+                   str(v["id"])),
+        ]
+        message_id = _mit_leiste(conn, tg, chat_id, text, leiste)
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+        repo.markiere_veraltet_angeboten(conn, v["id"])
+        gesendet += 1
+    return gesendet
 
 
 def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int:

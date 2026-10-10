@@ -164,7 +164,7 @@ def setze_rahmen(conn, chat_id: int, *, rahmen: str, quelle: str = QUELLE_GRUPPE
         return Ergebnis(ok=True)
     repo.setze_arbeitsstand(conn, chat_id, "rahmen", neu or None)
     aid = _protokoll(conn, chat_id, "setze_rahmen", {}, alt, neu, quelle)
-    v = _markiere_kopf(conn, chat_id, T._GRUND_RAHMEN, aid) if alt.strip() else None
+    v = _markiere_kopf(conn, chat_id, _T(chat_id)._GRUND_RAHMEN, aid) if alt.strip() else None
     return _ergebnis(aid, [f"rahmen: {alt or '(none)'} -> {neu or '(none)'}"], [v])
 
 
@@ -182,7 +182,7 @@ def setze_ort(conn, chat_id: int, *, szene: int | None = None, ort: str | None =
     repo.setze_szenenort(conn, zeile["id"], neu or None)
     aid = _protokoll(conn, chat_id, "setze_ort", {"szene": zeile["nummer"], "szene_id": zeile["id"]},
                      alt, neu, quelle)
-    grund = T._GRUND_ORT.format(neu=neu or "—")
+    grund = _T(chat_id)._GRUND_ORT.format(neu=neu or "—")
     veraltet = []
     for s in repo.hole_szenen(conn, chat_id):
         if s["entfernt_am"] or s["nummer"] is None:
@@ -241,7 +241,7 @@ def setze_besetzung(conn, chat_id: int, *, szene: int | None = None,
             eintraege.append((figur_id, rollen.get(figur_id)))
     return _schreibe_besetzung(conn, chat_id, zeile, eintraege, zusatz, "setze_besetzung",
                                {"szene": zeile["nummer"], "szene_id": zeile["id"]}, quelle,
-                               T._GRUND_BESETZUNG.format(wer=", ".join(namen or [])))
+                               _T(chat_id)._GRUND_BESETZUNG.format(wer=", ".join(namen or [])))
 
 
 def figur_hinzu(conn, chat_id: int, *, name: str, szene: int | None = None,
@@ -264,7 +264,7 @@ def figur_hinzu(conn, chat_id: int, *, name: str, szene: int | None = None,
         figur = repo.hole_figur(conn, chat_id, name)
     elif beschreibung and not _gesetzt(figur["beschreibung"]):
         repo.setze_figur_feld(conn, figur["id"], "beschreibung", beschreibung)
-    grund = T._GRUND_FIGUR_NEU.format(name=figur["name"])
+    grund = _T(chat_id)._GRUND_FIGUR_NEU.format(name=figur["name"])
     if zeile is None:
         if not neu_angelegt:
             return Ergebnis(ok=True)
@@ -299,7 +299,7 @@ def figur_aus_szene(conn, chat_id: int, *, name: str, szene: int,
     eintraege = [(f, r) for f, r in eintraege if f != figur["id"]]
     return _schreibe_besetzung(conn, chat_id, zeile, eintraege, zeile["wer_zusatz"],
                                "figur_aus_szene", {"name": name, "szene": szene}, quelle,
-                               T._GRUND_FIGUR_WEG.format(name=figur["name"]))
+                               _T(chat_id)._GRUND_FIGUR_WEG.format(name=figur["name"]))
 
 
 def _frage_bekannt(conn, chat_id: int, szene_id: int | None, text: str) -> int | None:
@@ -381,7 +381,7 @@ def karte_aendern(conn, chat_id: int, *, szene: int, worum: str | None = None,
         befunde = (kartentreue.widersprueche(neu_ansicht, zeile["volltext"])
                    + [T._BEFUND_FEHLT.format(stichwort=s)
                       for s in kartentreue.fehlende_stichworte(neu_ansicht, zeile["volltext"])])
-    grund = T._GRUND_KARTE.format(felder=", ".join(d.split(":")[0] for d in diff) or "punkte")
+    grund = _T(chat_id)._GRUND_KARTE.format(felder=", ".join(d.split(":")[0] for d in diff) or "punkte")
     if befunde:
         grund += " -- " + "; ".join(befunde)
     v = _markiere_script(conn, chat_id, zeile, grund, aid) if quelle != QUELLE_SCRIPT else None
@@ -430,7 +430,7 @@ def reihenfolge_aendern(conn, chat_id: int, *, folge: list[int],
     for neue_nummer, alte_nummer in enumerate(folge, start=1):
         if neue_nummer != alte_nummer:
             veraltet.append(_markiere_script(conn, chat_id, je_nummer[alte_nummer],
-                                             T._GRUND_REIHENFOLGE.format(nummer=neue_nummer), aid))
+                                             _T(chat_id)._GRUND_REIHENFOLGE.format(nummer=neue_nummer), aid))
     return _ergebnis(aid, [f"reihenfolge: {[s['nummer'] for s in szenen]} -> {list(folge)}"], veraltet)
 
 
@@ -482,7 +482,7 @@ def _schliesse(conn, chat_id: int, frage_id: int, status: str, antwort: str | No
     v = None
     if status == "beantwortet" and f["status"] in ("offen", "vertagt"):
         v = _markiere_script(conn, chat_id, _szene_nach_id(conn, f["szene_id"]),
-                             T._GRUND_FRAGE.format(frage=f["text"]), aid)
+                             _T(chat_id)._GRUND_FRAGE.format(frage=f["text"]), aid)
     return _ergebnis(aid, [f"frage: {f['text']} -> {status}"], [v], frage_id=frage_id)
 
 
@@ -544,7 +544,7 @@ def karte_aus_modell(conn, chat_id: int, *, szene: int, karte: dict, ausloeser: 
         _schreibe_besetzung(conn, chat_id, zeile, zusammen,
                             ", ".join(rest) or zeile["wer_zusatz"],
                             "karte_aus_modell", {"szene": szene}, q,
-                            T._GRUND_BESETZUNG.format(wer=karte["wer"]))
+                            _T(chat_id)._GRUND_BESETZUNG.format(wer=karte["wer"]))
     zeile = _szene(conn, chat_id, szene)
     roh = stueck_sicht.roh_ohne_struktur(karte)
     punkte = []
@@ -589,7 +589,23 @@ _GRUND_REIHENFOLGE = "neue Reihenfolge (jetzt Szene {nummer})"
 _BEFUND_FEHLT = "Pflichtpunkt fehlt im Text: {stichwort}"
 _WARNUNG_SCHON_BEANTWORTET = "Diese Frage ist schon geklärt."
 _GRUND_FRAGE = "beantwortete Frage ({frage})"
+_TEXT_VERALTET = "Szene {nummer} passt nicht mehr zu: {grund}. Neu schreiben?"
+_TEXT_KOPF_VERALTET = "Der Kopf des Skripts passt nicht mehr zu: {grund}. Neu schreiben?"
+_TEXT_VERALTET_GELASSEN = "Ok, Szene {nummer} bleibt, wie sie ist."
+_TEXT_VERALTET_NEU = "Ich schreibe Szene {nummer} neu."
+_TEXT_VERALTET_ERLEDIGT = "Das ist schon entschieden."
+_TEXT_JA_NEU_KNOPF = "Ja, neu schreiben"
+_TEXT_NEIN_LASSEN_KNOPF = "Nein, so lassen"
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 
 T = sprache.Texte(__name__)
+_T_IT = sprache.Texte(__name__, sprachcode="it")
+
+
+def _T(chat_id: int) -> sprache.Texte:
+    """Texte in der Sprache der Gruppe (gleiches Muster wie ``szenenkarte._T``).
+    Knopfbeschriftungen bleiben immer auf ``T`` (EN)."""
+    from interview_theater import workshop
+
+    return _T_IT if chat_id in workshop.italienisch_ab_phase6_chats() else T

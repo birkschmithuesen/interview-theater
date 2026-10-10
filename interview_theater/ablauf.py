@@ -1307,6 +1307,12 @@ def _nach_dem_senden(conn, tg, e, chat_id: int, message_id: int, text: str) -> N
         knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
     except Exception:
         log.exception("Phasenangebot fehlgeschlagen, chat_id=%s", chat_id)
+    # Stueckmodell: Aenderungen, die im Gespraech oder im Web gemacht wurden,
+    # koennen Prosa veralten lassen -- genau ein Ja/Nein-Angebot je Vermerk.
+    try:
+        knoepfe.biete_veraltete(conn, tg, e, chat_id)
+    except Exception:
+        log.exception("Veraltet-Angebot fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def _wiederholt_die_vorige(conn, e, chat_id: int, text: str,

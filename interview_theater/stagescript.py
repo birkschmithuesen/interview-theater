@@ -327,6 +327,7 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
                 kopf, kopf_it = gespiegelt_kopf
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf", kopf)
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf_it", kopf_it)
+        repo.erledige_veraltet_fuer(conn, chat_id, None, "kopf", "neu_geschrieben")
     _speichere_text(conn, klm, e, chat_id, szene, text, ueber_claude)
     return True
 
@@ -347,6 +348,8 @@ def _speichere_text(conn, klm, e, chat_id: int, szene, text: str, ueber_claude: 
     else:
         repo.setze_stagescript(conn, szene["id"], text, text_it_sofort)
     repo.markiere_stagescript_notizen_verwendet(conn, szene["id"])
+    # Stueckmodell: der Text ist neu geschrieben, der Vermerk "passt nicht mehr" erledigt.
+    repo.erledige_veraltet_fuer(conn, chat_id, szene["id"], "script", "neu_geschrieben")
     if workshop.szenenkarten_aktiv() and workshop.p7_meta_nachziehen_aktiv():
         from interview_theater import karten_nachzug
 
@@ -640,13 +643,17 @@ def zeige_aenderung(conn, tg, e, chat_id: int, nummer: int, alt: str | None,
     ohne brauchbaren Diff bleibt es beim bisherigen Script-Tab-Hinweis
     (``zeige``)."""
     from interview_theater import workshop
+    from interview_theater.knoepfe import szenen as knoepfe_szenen
 
     text = None
     if workshop.p7_aenderung_im_chat_aktiv():
         text = diff_nachricht(chat_id, nummer, len(_szenen(conn, chat_id)), alt, neu, notiz)
     if text is None:
-        return zeige(conn, tg, e, chat_id, nummer)
-    return _sende_leiste_7(conn, tg, e, chat_id, nummer, text)
+        message_id = zeige(conn, tg, e, chat_id, nummer)
+    else:
+        message_id = _sende_leiste_7(conn, tg, e, chat_id, nummer, text)
+    knoepfe_szenen.biete_veraltete(conn, tg, e, chat_id)
+    return message_id
 
 
 _SPERREN: dict[int, threading.Lock] = {}
@@ -774,6 +781,9 @@ def starte(conn, tg, klm, e, chat_id: int, nummer: int, notiz: str | None = None
 def weiter(conn, tg, klm, e, chat_id: int, *, aus_eintritt: bool = False):
     """Die aktuelle Szene: Text da -> zeigen, sonst schreiben; alle
     abgenommen -> die Fertig-Zeile."""
+    from interview_theater.knoepfe import szenen as knoepfe_szenen
+
+    knoepfe_szenen.biete_veraltete(conn, tg, e, chat_id)
     nummer = aktuelle_nummer(conn, chat_id)
     if nummer is None:
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_ALLES_FERTIG)

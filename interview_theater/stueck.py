@@ -108,12 +108,14 @@ def _punkt_offen(chat_id: int) -> str:
     return szenenkarte._T(chat_id)._PUNKT_OFFEN
 
 
-def karte(conn, szene) -> dict | None:
+def karte(conn, szene, roh: dict | None = None) -> dict | None:
     """Die Karte, wie JEDE Ansicht sie zeigt -- aus den einen Stellen
-    abgeleitet. ``szene`` ist eine ``szene``-Zeile."""
+    abgeleitet. ``szene`` ist eine ``szene``-Zeile; ``roh`` (nur intern):
+    das Karten-JSON, das noch nicht gespeichert ist."""
     from interview_theater import szenenkarte
 
-    roh = szenenkarte.roh_karte_von(szene)
+    if roh is None:
+        roh = szenenkarte.roh_karte_von(szene)
     if roh is None:
         return None
     fragen = repo.offene_fragen(conn, szene["chat_id"], szene["id"])
@@ -374,13 +376,17 @@ def karte_aendern(conn, chat_id: int, *, szene: int, worum: str | None = None,
     fragen_neu = [t for t in fragen_neu if not _frage_bekannt(conn, chat_id, zeile["id"], t)]
     if not karte_neu and not fragen_neu:
         return Ergebnis(ok=True)
-    if karte_neu:
-        repo.aktualisiere_szenenkarte(conn, chat_id, zeile["id"],
-                                      json.dumps(neu, ensure_ascii=False),
-                                      szenenkarte.AUSLOESER_AENDERUNG, None)
     for text in fragen_neu:
         repo.lege_offene_frage_an(conn, chat_id, zeile["id"], text, quelle, status="vertagt")
-    neu_ansicht = karte(conn, repo.hole_szene(conn, zeile["id"]))
+    neu_ansicht = karte(conn, repo.hole_szene(conn, zeile["id"]), roh=neu)
+    if karte_neu:
+        # ``szene.karte`` bekommt das rohe JSON, ``karte_verlauf`` die volle
+        # Ansicht wie bei allen anderen Wegen (sonst zeigt der Diff der
+        # Prompt-Verfeinerung Ort/Wer als entfernt).
+        repo.aktualisiere_szenenkarte(conn, chat_id, zeile["id"],
+                                      json.dumps(neu, ensure_ascii=False),
+                                      szenenkarte.AUSLOESER_AENDERUNG, None,
+                                      verlauf_json=json.dumps(neu_ansicht, ensure_ascii=False))
     diff = szenenkarte.diff_karten(alt_ansicht or {}, neu_ansicht or {})
     aid = _protokoll(conn, chat_id, "karte_aendern", {"szene": szene},
                      alt_ansicht, neu_ansicht, quelle)

@@ -113,3 +113,23 @@ def test_karte_aendern_beschneidet_vorhandene_punkte_nicht(conn):
     e = stueck.karte_aendern(conn, 1, szene=1, punkte_hinzu=[neu])
     assert e.ok
     assert stueck.karte(conn, repo.hole_szene(conn, sid))["punkte"] == vorhanden + [neu]
+
+
+def test_karte_aendern_verlauf_im_selben_format_ohne_scheinentfernung(conn):
+    """Abschlussreview I2: ``karte_verlauf`` haelt die volle Ansicht; ein
+    ``karte_aendern`` darf Ort/Wer im Diff der Prompt-Verfeinerung nicht als
+    entfernt zeigen."""
+    from interview_theater import szenenkarte
+
+    sid = _szene(conn)
+    stueck.setze_ort(conn, 1, szene=1, ort="Sala prove")
+    stueck.karte_aus_modell(conn, 1, szene=1, karte={
+        "typ": "spoken", "modus": "none", "worum": "w", "punkte": ["p"], "zitate": [],
+        "ort": "Sala prove", "wer": ""}, ausloeser=szenenkarte.AUSLOESER_ERSTENTWURF)
+    stueck.karte_aendern(conn, 1, szene=1, punkte_hinzu=["neu"])
+    zeilen = szenenkarte.verfeinerungs_zeilen(conn, 1, repo.hole_szene(conn, sid))
+    text = " ".join(zeilen)
+    assert "(none)" not in text
+    assert "ort:" not in text
+    letzte = json.loads(repo.karte_verlauf(conn, 1, sid)[-1]["karte_json"])
+    assert letzte["ort"] == "Sala prove"

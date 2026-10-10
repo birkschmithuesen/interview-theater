@@ -3357,11 +3357,15 @@ def setze_besetzung(conn: sqlite3.Connection, chat_id: int, szene_id: int,
 @_gesperrt
 def aktualisiere_szenenkarte(conn: sqlite3.Connection, chat_id: int, szene_id: int,
                              karte_json: str, ausloeser: str,
-                             notiz_text: str | None = None) -> None:
+                             notiz_text: str | None = None,
+                             verlauf_json: str | None = None) -> None:
     """Karte + neue ``karte_verlauf``-Fassung in EINER Transaktion, OHNE die
     Abnahme zurueckzunehmen -- eine ausdrueckliche Aenderung der Gruppe
-    (``stueck.karte_aendern``) ist keine neue Karte."""
+    (``stueck.karte_aendern``) ist keine neue Karte. ``verlauf_json``: die
+    Fassung fuer ``karte_verlauf`` (die volle Ansicht, wie alle anderen
+    Wege sie dort ablegen); ohne Angabe ``karte_json``."""
     conn.execute("UPDATE szene SET karte = ? WHERE id = ?", (karte_json, szene_id))
+    verlauf = karte_json if verlauf_json is None else verlauf_json
     naechste = conn.execute(
         "SELECT COALESCE(MAX(fassung_nr), 0) + 1 FROM karte_verlauf WHERE szene_id = ?",
         (szene_id,),
@@ -3369,7 +3373,7 @@ def aktualisiere_szenenkarte(conn: sqlite3.Connection, chat_id: int, szene_id: i
     conn.execute(
         "INSERT INTO karte_verlauf (chat_id, szene_id, fassung_nr, karte_json, ausloeser, "
         "notiz_text, erstellt_am) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (chat_id, szene_id, naechste, karte_json, ausloeser, notiz_text, _jetzt()),
+        (chat_id, szene_id, naechste, verlauf, ausloeser, notiz_text, _jetzt()),
     )
     conn.commit()
 

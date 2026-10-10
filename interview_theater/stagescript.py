@@ -283,6 +283,9 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
     szene = _szene_mit_nummer(conn, chat_id, nummer)
     if szene is None:
         return False
+    # Was das Stueck bis hierher kannte; spaetere Aenderungen (Gruppe, Erkenner,
+    # Gruppenseite im anderen Prozess) stehen nicht im neuen Text (Abschlussreview I1).
+    seit = repo.hoechste_stueck_aenderung_id(conn, chat_id)
     notiz = _notiz_mit_gespeicherten(conn, szene["id"], notiz)
     stand = repo.hole_arbeitsstand(conn, chat_id)
     mit_kopf = (braucht_kopf(conn, chat_id)
@@ -327,17 +330,26 @@ def schreibe(conn, klm, e, chat_id: int, nummer: int, notiz: str | None = None,
                 kopf, kopf_it = gespiegelt_kopf
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf", kopf)
         repo.setze_arbeitsstand(conn, chat_id, "stage_kopf_it", kopf_it)
-        repo.erledige_veraltet_fuer(conn, chat_id, None, "kopf", "neu_geschrieben")
-    _speichere_text(conn, klm, e, chat_id, szene, text, ueber_claude)
+        repo.erledige_veraltet_fuer(conn, chat_id, None, "kopf", "neu_geschrieben",
+                                    bis_aenderung_id=seit)
+    _speichere_text(conn, klm, e, chat_id, szene, text, ueber_claude, seit_aenderung=seit)
     return True
 
 
 def _speichere_text(conn, klm, e, chat_id: int, szene, text: str, ueber_claude: bool,
-                    text_it_sofort: str | None = None) -> None:
+                    text_it_sofort: str | None = None,
+                    seit_aenderung: int | None = None) -> None:
     """Speichern + Hintergrund (Nachzug Karte/Werkbank, IT-Spiegelung) -- ein
-    Weg fuer ``schreibe`` und ``uebernimm_chatfassung``."""
+    Weg fuer ``schreibe`` und ``uebernimm_chatfassung``.
+
+    ``seit_aenderung``: hoechste ``stueck_aenderung.id`` beim Start des
+    Schreibens (ohne Angabe: jetzt). Nur Vermerke bis dahin werden erledigt,
+    und der Nachzug laesst Ort/Besetzung/Modus stehen, die die Gruppe danach
+    geaendert hat."""
     from interview_theater import skript_uebersetzung
 
+    if seit_aenderung is None:
+        seit_aenderung = repo.hoechste_stueck_aenderung_id(conn, chat_id)
     # Birk 08.10.2026 ~12:00 ("max Tempo"): die Szene ist SOFORT da (EN),
     # die italienische Spiegelung laeuft danach im Hintergrund und wird
     # nachgetragen -- vorher wartete die Gruppe ~30 s extra auf die IT-Fassung.
@@ -349,7 +361,8 @@ def _speichere_text(conn, klm, e, chat_id: int, szene, text: str, ueber_claude: 
         repo.setze_stagescript(conn, szene["id"], text, text_it_sofort)
     repo.markiere_stagescript_notizen_verwendet(conn, szene["id"])
     # Stueckmodell: der Text ist neu geschrieben, der Vermerk "passt nicht mehr" erledigt.
-    repo.erledige_veraltet_fuer(conn, chat_id, szene["id"], "script", "neu_geschrieben")
+    repo.erledige_veraltet_fuer(conn, chat_id, szene["id"], "script", "neu_geschrieben",
+                                bis_aenderung_id=seit_aenderung)
     if workshop.szenenkarten_aktiv() and workshop.p7_meta_nachziehen_aktiv():
         from interview_theater import karten_nachzug
 
@@ -358,7 +371,8 @@ def _speichere_text(conn, klm, e, chat_id: int, szene, text: str, ueber_claude: 
 
         def _nachzug() -> None:
             karten_nachzug.ziehe_nach(conn, klm, e, chat_id, szene_id_nachzug,
-                                      text_nachzug, ueber_claude=ueber_claude)
+                                      text_nachzug, ueber_claude=ueber_claude,
+                                      seit_aenderung=seit_aenderung)
 
         threading.Thread(target=_nachzug, daemon=True).start()
     if workshop.skript_zweisprachig_aktiv() and not getrennt_it:

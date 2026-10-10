@@ -70,6 +70,15 @@ def meldung(ergebnis: Ergebnis) -> str:
 
 
 def _beschaeftigt(chat_id: int, quelle: str) -> bool:
+    """Die Sperre waehrend eines Schreibvorgangs ist eine Hoeflichkeit, kein
+    Schutz: ``ueberarbeitung.laeuft`` sieht nur Sperren des EIGENEN Prozesses
+    (die Weboberflaeche laeuft im anderen Prozess und wird nie gesperrt), und
+    ``QUELLE_PLANUNG`` (Erkenner ``szene_planen``) ist ausgenommen. Verloren
+    geht dadurch trotzdem nichts still (Abschlussreview I1): der Schreiber
+    erledigt nur Vermerke bis zu seiner Startmarke
+    (``repo.erledige_veraltet_fuer(bis_aenderung_id=)``), und der Nachzug
+    (``karten_nachzug.ziehe_nach(seit_aenderung=)``) ueberschreibt nichts,
+    was die Gruppe seitdem geaendert hat; die Gruppe bekommt das Ja/Nein-Angebot."""
     if quelle in INTERNE_QUELLEN:
         return False
     from interview_theater import ueberarbeitung

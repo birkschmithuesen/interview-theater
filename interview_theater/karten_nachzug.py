@@ -35,6 +35,7 @@ ersetzt."""
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 
@@ -130,14 +131,40 @@ def baue_nutzertext(karte: dict, text: str) -> str:
     )
 
 
+_ORT_ARTEN = frozenset({"setze_ort", "karte_aus_modell"})
+_BESETZUNG_ARTEN = frozenset({"setze_besetzung", "figur_hinzu", "figur_aus_szene",
+                              "karte_aus_modell"})
+_MODUS_ARTEN = frozenset({"karte_aendern", "karte_aus_modell"})
+
+
+def _geaendert_seit(conn, chat_id: int, nummer: int, seit: int | None,
+                    arten: frozenset[str]) -> bool:
+    """Hat jemand AUSSER dem Skript diese Szene seit ``seit`` (hoechste
+    ``stueck_aenderung.id`` beim Schreibstart) auf diesem Gebiet geaendert?
+    Dann gilt der neuere Wille der Gruppe, nicht der alte Text."""
+    if seit is None:
+        return False
+    for z in repo.stueck_aenderungen(conn, chat_id):
+        if z["id"] <= seit or z["quelle"] == stueck.QUELLE_SCRIPT or z["art"] not in arten:
+            continue
+        if json.loads(z["ziel"] or "{}").get("szene") == nummer:
+            return True
+    return False
+
+
 def ziehe_nach(conn, klm, e, chat_id: int, szene_id: int, text: str, *,
-               ueber_claude: bool) -> None:
+               ueber_claude: bool, seit_aenderung: int | None = None) -> None:
     """EIN Modellaufruf liest Ort/Figuren/Modus aus dem neuen Skripttext;
     geschrieben wird NUR ueber die Mutations-Schnittstelle (``stueck``,
     Quelle ``script``: der Text ist hier die Quelle, die eigene Szene wird
     nicht als veraltet markiert). Ein aelterer Text als der gespeicherte
     schreibt nichts (gleiche Regel wie die IT-Spiegelung). Nie wirft sie
-    einen Fehler nach aussen -- der Aufrufer laeuft im Hintergrund-Thread."""
+    einen Fehler nach aussen -- der Aufrufer laeuft im Hintergrund-Thread.
+
+    ``seit_aenderung``: hoechste ``stueck_aenderung.id`` beim Start des
+    Schreibens. Ort, Besetzung und Modus, die die Gruppe seitdem geaendert
+    hat, bleiben stehen (Abschlussreview I1): der Text kennt die Aenderung
+    nicht."""
     try:
         szene = repo.hole_szene(conn, szene_id)
         if szene is None or (szene["volltext"] or "").strip() != (text or "").strip():
@@ -153,7 +180,7 @@ def ziehe_nach(conn, klm, e, chat_id: int, szene_id: int, text: str, *,
         nummer = szene["nummer"]
         q = stueck.QUELLE_SCRIPT
         neuer_ort = str(ergebnis.get("ort") or "").strip()
-        if neuer_ort:
+        if neuer_ort and not _geaendert_seit(conn, chat_id, nummer, seit_aenderung, _ORT_ARTEN):
             stueck.setze_ort(conn, chat_id, szene=nummer, ort=neuer_ort, quelle=q)
         figuren = repo.figuren(conn, chat_id)
         index = {stueck_sicht.normalisiert(f["name"]): f["id"] for f in figuren}
@@ -162,10 +189,13 @@ def ziehe_nach(conn, klm, e, chat_id: int, szene_id: int, text: str, *,
             str(ergebnis.get("wer") or ""), index)
         ids = [f for f, _rolle in aus_modell]
         ids += [f for f in _figuren_aus_text(conn, chat_id, text) if f not in ids]
+        if _geaendert_seit(conn, chat_id, nummer, seit_aenderung, _BESETZUNG_ARTEN):
+            ids = []
         for figur_id in ids:
             stueck.figur_hinzu(conn, chat_id, name=namen[figur_id], szene=nummer, quelle=q)
         neuer_modus = str(ergebnis.get("modus") or "").strip().lower()
         if (karte.get("typ") == "moment" and neuer_modus in szenenkarte.MODI
+                and not _geaendert_seit(conn, chat_id, nummer, seit_aenderung, _MODUS_ARTEN)
                 and neuer_modus not in ("none", karte.get("modus"))):
             stueck.karte_aendern(conn, chat_id, szene=nummer, modus=neuer_modus, quelle=q)
     except Exception:

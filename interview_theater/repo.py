@@ -3453,8 +3453,11 @@ def merke_veraltet(conn: sqlite3.Connection, chat_id: int, szene_id: int | None,
     ).fetchone()
     if offen is not None:
         if grund not in offen["grund"].split("; "):
-            conn.execute("UPDATE veraltet SET grund = ?, angeboten_am = NULL WHERE id = ?",
-                         (f"{offen['grund']}; {grund}", offen["id"]))
+            # aenderung_id = die JUENGSTE Ursache: ``erledige_veraltet_fuer(bis_aenderung_id=)``
+            # erledigt nur Vermerke, deren letzter Grund vor dem Schreibstart lag.
+            conn.execute("UPDATE veraltet SET grund = ?, angeboten_am = NULL, "
+                         "aenderung_id = COALESCE(?, aenderung_id) WHERE id = ?",
+                         (f"{offen['grund']}; {grund}", aenderung_id, offen["id"]))
             conn.commit()
         return offen["id"]
     cur = conn.execute(
@@ -3504,14 +3507,27 @@ def erledige_veraltet(conn: sqlite3.Connection, veraltet_id: int, entscheidung: 
 
 @_gesperrt
 def erledige_veraltet_fuer(conn: sqlite3.Connection, chat_id: int, szene_id: int | None,
-                           ansicht: str, entscheidung: str) -> int:
+                           ansicht: str, entscheidung: str,
+                           bis_aenderung_id: int | None = None) -> int:
+    """Erledigt die offenen Vermerke. ``bis_aenderung_id``: nur die, deren
+    juengste Ursache nicht neuer ist (Schreiber: was erst WAEHREND des
+    Schreibens kam, ist im neuen Text nicht enthalten und bleibt offen)."""
+    grenze = "" if bis_aenderung_id is None else " AND (aenderung_id IS NULL OR aenderung_id <= ?)"
     cur = conn.execute(
         "UPDATE veraltet SET erledigt_am = ?, entscheidung = ? WHERE chat_id = ? "
-        "AND szene_id IS ? AND ansicht = ? AND erledigt_am IS NULL",
-        (_jetzt_genau(), entscheidung, chat_id, szene_id, ansicht),
+        "AND szene_id IS ? AND ansicht = ? AND erledigt_am IS NULL" + grenze,
+        (_jetzt_genau(), entscheidung, chat_id, szene_id, ansicht)
+        + (() if bis_aenderung_id is None else (bis_aenderung_id,)),
     )
     conn.commit()
     return cur.rowcount
+
+
+@_gesperrt
+def hoechste_stueck_aenderung_id(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Marke "bis hierher kannte der Schreiber das Stueck" (0 = noch nichts)."""
+    return conn.execute("SELECT COALESCE(MAX(id), 0) FROM stueck_aenderung WHERE chat_id = ?",
+                        (chat_id,)).fetchone()[0]
 
 
 @_gesperrt

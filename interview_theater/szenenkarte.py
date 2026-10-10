@@ -787,7 +787,11 @@ def ueberspringe_fragen(conn, tg, e, chat_id: int, nummer: int) -> str:
     from interview_theater import stueck
 
     for f in repo.offene_fragen(conn, chat_id, szene["id"], status=("offen",)):
-        stueck.frage_verwerfen(conn, chat_id, frage_id=f["id"], quelle="web")
+        ergebnis = stueck.frage_verwerfen(conn, chat_id, frage_id=f["id"], quelle="web")
+        if not ergebnis.ok:
+            text = _meldung_von(ergebnis, chat_id)
+            _sende(conn, tg, e, chat_id, text)
+            return text
     repo.setze_szenenkarte_klaerung(conn, szene["id"], None)
     repo.merke_karte_verlauf(
         conn, chat_id, szene["id"],
@@ -879,6 +883,21 @@ def _klaerungsnotiz(fragen: list[str], antworten: list[str | None]) -> str:
     return "\n".join(zeilen)
 
 
+def _ist_offen(conn, frage_id: int) -> bool:
+    f = repo.hole_offene_frage(conn, frage_id)
+    return f is not None and f["status"] == "offen"
+
+
+def _meldung_von(ergebnis, chat_id: int) -> str:
+    """Der Hinweistext eines abgelehnten ``stueck.Ergebnis`` (z. B. "gerade
+    wird geschrieben"); ohne eigenen Text der allgemeine Busy-Hinweis."""
+    if ergebnis.warnungen:
+        return ergebnis.warnungen[0]
+    from interview_theater import stueck
+
+    return stueck.T._WARNUNG_BESCHAEFTIGT
+
+
 def beantworte_frage(conn, tg, klm, e, chat_id: int, text: str) -> bool:
     """Verarbeitet eine Gruppennachricht als Antwort auf die Frage, die
     ``starte_fragenklaerung``/die vorige Antwort gerade gestellt hat.
@@ -904,14 +923,23 @@ def beantworte_frage(conn, tg, klm, e, chat_id: int, text: str) -> bool:
             repo.setze_szenenkarte_klaerung(conn, szene["id"], None)
         return False
     if ist_skip(text):
-        stueck.frage_zurueckstellen(conn, chat_id, frage_id=ids[index], quelle="chat")
+        ergebnis = stueck.frage_zurueckstellen(conn, chat_id, frage_id=ids[index],
+                                               quelle="chat")
         antwort = None
     else:
         antwort = text.strip()
-        stueck.frage_beantworten(conn, chat_id, frage_id=ids[index], antwort=antwort,
-                                 quelle="chat")
+        ergebnis = stueck.frage_beantworten(conn, chat_id, frage_id=ids[index],
+                                            antwort=antwort, quelle="chat")
+    if not ergebnis.ok:
+        # Frage blieb offen (z. B. waehrend eines Schreiblaufs): Cursor, Journal
+        # und Klaerungsstand unveraendert, die Gruppe erfaehrt den Grund.
+        _sende(conn, tg, e, chat_id, _meldung_von(ergebnis, chat_id))
+        return True
     antworten = list(klaerung.get("antworten") or []) + [antwort]
     index += 1
+    # Zwischenzeitlich (z. B. im Web) geschlossene Fragen werden weder
+    # gefragt noch ueberschrieben: raus aus der Liste.
+    ids = ids[:index] + [i for i in ids[index:] if _ist_offen(conn, i)]
     if index < len(ids):
         repo.setze_szenenkarte_klaerung(conn, szene["id"], json.dumps(
             {"ids": ids, "index": index, "antworten": antworten,

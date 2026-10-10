@@ -111,3 +111,39 @@ def test_erster_rahmen_markiert_kopf_nicht(conn):
 def test_ergebnis_ist_json_tauglich(conn):
     _szene(conn)
     json.dumps(stueck.setze_ort(conn, 1, szene=1, ort="x").als_dict())
+
+
+def test_unbekannte_szene_hat_einen_satz_nicht_nur_den_code(conn):
+    e = stueck.setze_ort(conn, 1, szene=99, ort="X")
+    assert not e.ok
+    assert e.warnungen and "unbekannte_szene" not in stueck.meldung(e)
+    assert stueck.meldung(e) == e.warnungen[0]
+
+
+def test_meldung_ohne_warnung_zeigt_nie_den_rohen_code(conn):
+    e = stueck.Ergebnis(ok=False, fehler="ungueltig")
+    assert "ungueltig" not in stueck.meldung(e)
+
+
+def test_szene_ohne_nummer_ueber_szene_id(conn):
+    """Review 13: die Weboberflaeche adressiert Szenen per id -- auch solche
+    ohne Nummer (noch nicht eingereiht)."""
+    from interview_theater import web_schreiben
+
+    repo.setze_figur(conn, 1, "Mira", "")
+    sid = repo.lege_szene_an(conn, 1, None, "Ohne Nummer", None, None)
+    assert repo.hole_szene(conn, sid)["nummer"] is None
+
+    web_schreiben.wende_an(conn, 1, "szene_ort", "Hinterhof", sid)
+    assert repo.hole_szene(conn, sid)["ort"] == "Hinterhof"
+
+    figur_id = repo.hole_figur(conn, 1, "Mira")["id"]
+    web_schreiben.wende_an(conn, 1, "szene_figuren", [str(figur_id)], sid)
+    assert [f["name"] for f in repo.szene_figuren(conn, sid)] == ["Mira"]
+
+
+def test_szene_id_einer_fremden_gruppe_wird_abgelehnt(conn):
+    repo.sichere_gruppe(conn, 2, "gruppe2", "Zwei")
+    fremd = repo.stelle_szene_sicher(conn, 2, 1)
+    e = stueck.setze_ort(conn, 1, szene_id=fremd, ort="X")
+    assert not e.ok and e.fehler == "unbekannte_szene"

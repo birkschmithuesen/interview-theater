@@ -1276,9 +1276,10 @@ def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
         return None
     if repo.schreibe_festlegung(conn, chat_id, bereich, text, bezug=bezug) is None:
         return None
+    offen: list[int] = []
     if bezug:
         try:
-            _ziehe_figur_festlegung_nach(conn, chat_id, bezug, text)
+            offen = _ziehe_figur_festlegung_nach(conn, chat_id, bezug, text)
         except Exception:
             log.exception(
                 "Figur-Nachzug einer Festlegung fehlgeschlagen, chat_id=%s, bezug=%r",
@@ -1290,6 +1291,9 @@ def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
         "bereich": bereich,
         "bezug": bezug,
         "text": text,
+        # Szenen, deren Karte stueck nicht annahm (z. B. beschaeftigt): die
+        # Meldung sagt es, statt Erfolg zu behaupten (Review 13).
+        "karte_nicht_gezogen": offen,
     }
 
 
@@ -1313,7 +1317,7 @@ def _ersetze_oder_haenge_an(punkte: list[str], praefix: str, neuer_punkt: str) -
     return neue
 
 
-def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> None:
+def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> list[int]:
     """Klasse 3 (P7-Audit-Karte): eine Festlegung ueber eine Figur in Phase 7
     haengt sich an ``figur.beschreibung`` an und geht als Hakenpunkt auf die
     Karte jeder noch nicht gespeicherten Szene, in der die Figur vorkommt --
@@ -1322,18 +1326,22 @@ def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> N
 
     Nur in Phase 7 (``_PHASE_FIGUR_NACHZUG``) und nur bei einem eindeutigen
     Figurennamen -- ein unbekannter oder mehrdeutiger ``bezug`` bleibt
-    unangetastet, wie ``_figuren_aus_namen`` es sonst auch haelt."""
+    unangetastet, wie ``_figuren_aus_namen`` es sonst auch haelt.
+
+    Gibt die Nummern der Szenen zurueck, deren Karte ``stueck`` nicht annahm
+    (Busy-Gate): die Meldung nennt sie, die Absicht geht nicht still verloren."""
     from interview_theater import stueck, stueck_sicht
 
+    nicht_gezogen: list[int] = []
     if phasen.aktuelle(conn, chat_id) != _PHASE_FIGUR_NACHZUG:
-        return
+        return nicht_gezogen
     ids = _figuren_aus_namen(conn, chat_id, bezug)
     if len(ids) != 1:
-        return
+        return nicht_gezogen
     figur_id = ids[0]
     figur = next((f for f in repo.figuren(conn, chat_id) if f["id"] == figur_id), None)
     if figur is None:
-        return
+        return nicht_gezogen
     alte_beschreibung = (figur["beschreibung"] or "").strip()
     neue_beschreibung = f"{alte_beschreibung}\n{text}".strip() if alte_beschreibung else text
     repo.setze_figur(conn, chat_id, figur["name"], neue_beschreibung)
@@ -1357,6 +1365,8 @@ def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> N
         if not ergebnis.ok:
             log.warning("Figur-Festlegung nicht auf Karte Szene %s gezogen, chat_id=%s: %s",
                         szene["nummer"], chat_id, ergebnis.fehler)
+            nicht_gezogen.append(szene["nummer"])
+    return nicht_gezogen
 
 
 #: Zahlwoerter, die die Gruppe statt einer Ziffer sagt. Bis zwoelf, weil der
@@ -2392,7 +2402,7 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
         "phase": None, "usa": None, "figuren_anzahl": None,
         "szenen_anzahl": None,
         "figuren": [], "geplant": [], "festgehalten": [],
-        "korrigiert": [], "entfernt": [],
+        "korrigiert": [], "entfernt": [], "karte_offen": [],
         # Padua Phasen TEIL 2: fertige Zeilen aus formen_setzen/
         # sprechweise_setzen (die Module bauen sie selbst, je Szene/Figur).
         "teil2": [],
@@ -2426,6 +2436,7 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
                 aenderung.get("bereich"), aenderung.get("bezug"),
                 aenderung.get("text", wert),
             ))
+            gesammelt["karte_offen"].extend(aenderung.get("karte_nicht_gezogen") or [])
         elif art == "phase_setzen":
             gesammelt["phase"] = phasen.nummer_fuer(wert)
         elif art in ("formen_setzen", "sprechweise_setzen"):
@@ -2479,6 +2490,10 @@ _ZEILE_FESTGEHALTEN = "Festgehalten{marke}: {text}"
 #: Grundleiste darunter).
 _ZEILE_FESTGELEGT = "📌 Festgelegt: {titel} — {text}"
 _ZEILE_KORRIGIERT = "Korrigiert: {zeile}"
+_ZEILE_KARTE_NICHT_GEZOGEN = (
+    "Karte Szene {nummern} noch nicht aktualisiert (es wird gerade geschrieben) "
+    "-- bitte gleich nochmal sagen."
+)
 _ZEILE_ENTFERNT = "Entfernt: {was}"
 _ZEILE_PHASE = "Wir sind jetzt bei {phase}."
 _ZEILE_USA_JA = (
@@ -2618,6 +2633,9 @@ def _meldungszeilen(g: dict, phase: int | None = None, chat_id: int | None = Non
     # eigenes Verb, damit niemand "Notiert:" liest und denkt, es sei etwas
     # dazugekommen.
     zeilen.extend(T._ZEILE_ENTFERNT.format(was=was) for was in g["entfernt"])
+    if g["karte_offen"]:
+        zeilen.append(T._ZEILE_KARTE_NICHT_GEZOGEN.format(
+            nummern=", ".join(str(n) for n in g["karte_offen"])))
     if g["phase"] is not None:
         zeilen.append(t._ZEILE_PHASE.format(phase=phasen.bezeichnung(g["phase"])))
     if g["usa"] == "ja":
@@ -2646,7 +2664,9 @@ def undo_zeilen(wirkliche_aenderungen: list[dict]) -> list[str]:
         a for a in wirkliche_aenderungen
         if a.get("art") not in ruecknahme.ZEILEN_OHNE_UNDO
     ]
-    return _meldungszeilen(_sammle_meldbares(behalten))
+    gesammelt = _sammle_meldbares(behalten)
+    gesammelt["karte_offen"] = []   # eine Warnung wird nicht "zurueckgenommen"
+    return _meldungszeilen(gesammelt)
 
 
 def _merke_undo_vorfall(conn, e, chat_id: int, text: str) -> None:

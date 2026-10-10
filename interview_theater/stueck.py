@@ -63,6 +63,12 @@ def _nein(fehler: str, *warnungen: str) -> Ergebnis:
     return Ergebnis(ok=False, fehler=fehler, warnungen=tuple(warnungen))
 
 
+def meldung(ergebnis: Ergebnis) -> str:
+    """Der Satz fuer die Gruppe zu einem abgelehnten ``Ergebnis`` -- nie der
+    rohe Fehlercode ("unbekannte_szene"). Kein Werkzeug."""
+    return "; ".join(ergebnis.warnungen) or T._WARNUNG_UNGUELTIG
+
+
 def _beschaeftigt(chat_id: int, quelle: str) -> bool:
     if quelle in INTERNE_QUELLEN:
         return False
@@ -74,6 +80,17 @@ def _beschaeftigt(chat_id: int, quelle: str) -> bool:
 def _szene(conn, chat_id: int, nummer: int):
     return next((s for s in repo.hole_szenen(conn, chat_id)
                  if s["nummer"] == nummer and not s["entfernt_am"]), None)
+
+
+def _ziel_szene(conn, chat_id: int, nummer: int | None, szene_id: int | None):
+    """Die Szene, die gemeint ist: nach ``szene_id`` (Weboberflaeche -- dort
+    gibt es auch Szenen ohne Nummer), sonst nach ``nummer``."""
+    if szene_id is None:
+        return None if nummer is None else _szene(conn, chat_id, nummer)
+    zeile = repo.hole_szene(conn, szene_id)
+    if zeile is None or zeile["chat_id"] != chat_id or zeile["entfernt_am"]:
+        return None
+    return zeile
 
 
 def _gesetzt(wert) -> bool:
@@ -151,19 +168,20 @@ def setze_rahmen(conn, chat_id: int, *, rahmen: str, quelle: str = QUELLE_GRUPPE
     return _ergebnis(aid, [f"rahmen: {alt or '(none)'} -> {neu or '(none)'}"], [v])
 
 
-def setze_ort(conn, chat_id: int, *, szene: int, ort: str | None,
-              quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+def setze_ort(conn, chat_id: int, *, szene: int | None = None, ort: str | None = None,
+              quelle: str = QUELLE_GRUPPE, szene_id: int | None = None) -> Ergebnis:
     if _beschaeftigt(chat_id, quelle):
         return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
-    zeile = _szene(conn, chat_id, szene)
+    zeile = _ziel_szene(conn, chat_id, szene, szene_id)
     if zeile is None:
-        return _nein("unbekannte_szene")
+        return _nein("unbekannte_szene", T._WARNUNG_UNBEKANNTE_SZENE)
     alt = zeile["ort"] or ""
     neu = " ".join((ort or "").split())
     if stueck_sicht.normalisiert(alt) == stueck_sicht.normalisiert(neu):
         return Ergebnis(ok=True)
     repo.setze_szenenort(conn, zeile["id"], neu or None)
-    aid = _protokoll(conn, chat_id, "setze_ort", {"szene": szene}, alt, neu, quelle)
+    aid = _protokoll(conn, chat_id, "setze_ort", {"szene": zeile["nummer"], "szene_id": zeile["id"]},
+                     alt, neu, quelle)
     grund = T._GRUND_ORT.format(neu=neu or "—")
     veraltet = []
     for s in repo.hole_szenen(conn, chat_id):
@@ -204,25 +222,26 @@ def _schreibe_besetzung(conn, chat_id: int, zeile, eintraege, zusatz, art: str,
     return _ergebnis(aid, [f"wer: {alt_text or '(none)'} -> {neu_text or '(none)'}"], veraltet)
 
 
-def setze_besetzung(conn, chat_id: int, *, szene: int, namen: list[str],
-                    zusatz: str | None = None, quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+def setze_besetzung(conn, chat_id: int, *, szene: int | None = None,
+                    namen: list[str] | None = None, zusatz: str | None = None,
+                    quelle: str = QUELLE_GRUPPE, szene_id: int | None = None) -> Ergebnis:
     if _beschaeftigt(chat_id, quelle):
         return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
-    zeile = _szene(conn, chat_id, szene)
+    zeile = _ziel_szene(conn, chat_id, szene, szene_id)
     if zeile is None:
-        return _nein("unbekannte_szene")
+        return _nein("unbekannte_szene", T._WARNUNG_UNBEKANNTE_SZENE)
     index = _figuren_index(conn, chat_id)
     rollen = {b["figur_id"]: b["rolle"] for b in repo.besetzung(conn, zeile["id"])}
     eintraege = []
-    for name in namen:
+    for name in namen or []:
         figur_id = index.get(stueck_sicht.normalisiert(name))
         if figur_id is None:
             return _nein("unbekannte_figur", T._WARNUNG_UNBEKANNTE_FIGUR.format(name=name))
         if figur_id not in dict(eintraege):
             eintraege.append((figur_id, rollen.get(figur_id)))
     return _schreibe_besetzung(conn, chat_id, zeile, eintraege, zusatz, "setze_besetzung",
-                               {"szene": szene}, quelle,
-                               T._GRUND_BESETZUNG.format(wer=", ".join(namen)))
+                               {"szene": zeile["nummer"], "szene_id": zeile["id"]}, quelle,
+                               T._GRUND_BESETZUNG.format(wer=", ".join(namen or [])))
 
 
 def figur_hinzu(conn, chat_id: int, *, name: str, szene: int | None = None,
@@ -237,7 +256,7 @@ def figur_hinzu(conn, chat_id: int, *, name: str, szene: int | None = None,
     if szene is not None:
         zeile = _szene(conn, chat_id, szene)
         if zeile is None:
-            return _nein("unbekannte_szene")
+            return _nein("unbekannte_szene", T._WARNUNG_UNBEKANNTE_SZENE)
     figur = repo.hole_figur(conn, chat_id, name)
     neu_angelegt = figur is None
     if neu_angelegt:
@@ -270,7 +289,7 @@ def figur_aus_szene(conn, chat_id: int, *, name: str, szene: int,
         return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
     zeile = _szene(conn, chat_id, szene)
     if zeile is None:
-        return _nein("unbekannte_szene")
+        return _nein("unbekannte_szene", T._WARNUNG_UNBEKANNTE_SZENE)
     figur = repo.hole_figur(conn, chat_id, name)
     if figur is None:
         return _nein("unbekannte_figur", T._WARNUNG_UNBEKANNTE_FIGUR.format(name=name))
@@ -303,7 +322,7 @@ def karte_aendern(conn, chat_id: int, *, szene: int, worum: str | None = None,
         return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
     zeile = _szene(conn, chat_id, szene)
     if zeile is None:
-        return _nein("unbekannte_szene")
+        return _nein("unbekannte_szene", T._WARNUNG_UNBEKANNTE_SZENE)
     roh = szenenkarte.roh_karte_von(zeile)
     if roh is None:
         return _nein("keine_karte")
@@ -377,7 +396,7 @@ def szene_wieder_oeffnen(conn, chat_id: int, *, szene: int, ebene: str = "karte"
         return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
     zeile = _szene(conn, chat_id, szene)
     if zeile is None:
-        return _nein("unbekannte_szene")
+        return _nein("unbekannte_szene", T._WARNUNG_UNBEKANNTE_SZENE)
     if ebene == "karte":
         if not _gesetzt(zeile["karte_bestaetigt_am"]):
             return Ergebnis(ok=True)
@@ -435,7 +454,7 @@ def frage_stellen(conn, chat_id: int, *, frage: str, szene: int | None = None,
     if szene is not None:
         zeile = _szene(conn, chat_id, szene)
         if zeile is None:
-            return _nein("unbekannte_szene")
+            return _nein("unbekannte_szene", T._WARNUNG_UNBEKANNTE_SZENE)
         szene_id = zeile["id"]
     bekannt = _frage_bekannt(conn, chat_id, szene_id, text)
     if bekannt is not None:
@@ -490,7 +509,7 @@ def pruefe_szene(conn, chat_id: int, *, szene: int, quelle: str = QUELLE_GRUPPE)
         return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
     zeile = _szene(conn, chat_id, szene)
     if zeile is None:
-        return _nein("unbekannte_szene")
+        return _nein("unbekannte_szene", T._WARNUNG_UNBEKANNTE_SZENE)
     k = karte(conn, zeile)
     if k is None or not _gesetzt(zeile["volltext"]):
         return Ergebnis(ok=True)
@@ -511,7 +530,7 @@ def karte_aus_modell(conn, chat_id: int, *, szene: int, karte: dict, ausloeser: 
     ins JSON. Das Modell darf Figuren hinzufuegen, nie still entfernen."""
     zeile = _szene(conn, chat_id, szene)
     if zeile is None:
-        return _nein("unbekannte_szene")
+        return _nein("unbekannte_szene", T._WARNUNG_UNBEKANNTE_SZENE)
     q = QUELLE_KARTE_MODELL
     if str(karte.get("ort") or "").strip():
         setze_ort(conn, chat_id, szene=szene, ort=karte["ort"], quelle=q)
@@ -558,6 +577,8 @@ def karte_ansicht_von_id(conn, szene_id: int) -> dict | None:
 
 _WARNUNG_BESCHAEFTIGT = "Gerade wird noch geschrieben -- gleich nochmal."
 _WARNUNG_UNBEKANNTE_FIGUR = "{name} ist noch keine Figur des Stücks."
+_WARNUNG_UNBEKANNTE_SZENE = "Diese Szene gibt es nicht (mehr)."
+_WARNUNG_UNGUELTIG = "Das konnte ich so nicht übernehmen."
 _GRUND_RAHMEN = "neuer Rahmen"
 _GRUND_ORT = "neuer Ort ({neu})"
 _GRUND_BESETZUNG = "neue Besetzung ({wer})"

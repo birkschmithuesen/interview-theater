@@ -480,10 +480,10 @@ def _setze_szenenfeld(feld: str, label: str):
         if feld in repo.NUR_UEBER_STUECK:
             from interview_theater import stueck
 
-            ergebnis = stueck.setze_ort(conn, chat_id, szene=zeile["nummer"],
+            ergebnis = stueck.setze_ort(conn, chat_id, szene_id=zeile["id"],
                                         ort=_leer_zu_none(neu), quelle="web")
             if not ergebnis.ok:
-                raise Fehler("; ".join(ergebnis.warnungen) or str(ergebnis.fehler))
+                raise Fehler(stueck.meldung(ergebnis))
         else:
             repo.setze_szenenfeld(conn, zeile["id"], feld, _leer_zu_none(neu))
         beschriftung = T.SZENENFELDER.get(feld, label)
@@ -511,10 +511,10 @@ def _setze_szene_figuren(conn, chat_id: int, wert, ziel) -> str:
 
     namen = {f["id"]: f["name"] for f in repo.figuren(conn, chat_id)}
     ergebnis = stueck.setze_besetzung(
-        conn, chat_id, szene=zeile["nummer"], namen=[namen[i] for i in ids],
+        conn, chat_id, szene_id=zeile["id"], namen=[namen[i] for i in ids],
         zusatz=zeile["wer_zusatz"], quelle="web")
     if not ergebnis.ok:
-        raise Fehler("; ".join(ergebnis.warnungen) or str(ergebnis.fehler))
+        raise Fehler(stueck.meldung(ergebnis))
     neu = ", ".join(f["name"] for f in repo.szene_figuren(conn, zeile["id"]))
     _notiere(conn, chat_id, f"{_szenenname(zeile)} · {T._LABEL_BESETZUNG}", alt, neu)
     return neu

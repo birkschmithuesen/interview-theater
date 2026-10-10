@@ -48,6 +48,7 @@ ZEILE_ANGEBOT = "La mia proposta per questa fase - ditemi se la volete diversa:"
 _NOTIERT_KOPF = "Annotato:\n"
 _ZEILE_FESTGEHALTEN = "Deciso{marke}: {text}"
 _ZEILE_PHASE = "Siamo ora a {phase}."
+_ZEILE_KARTE_NICHT_GEZOGEN = "Scheda della scena {nummern} non ancora aggiornata (sto ancora scrivendo) -- ditelo di nuovo tra un attimo."
 
 [web]
 _TEXT_STATUS_KONZEPT = "concetto"
@@ -155,6 +156,8 @@ collective = "👥 Tutti"
 ["stueck"]
 _WARNUNG_BESCHAEFTIGT = "Sto ancora scrivendo -- riprovate tra un attimo."
 _WARNUNG_UNBEKANNTE_FIGUR = "{name} non è ancora un personaggio dello spettacolo."
+_WARNUNG_UNBEKANNTE_SZENE = "Questa scena non esiste (più)."
+_WARNUNG_UNGUELTIG = "Non sono riuscito a recepirlo così."
 _GRUND_RAHMEN = "nuova cornice"
 _GRUND_ORT = "nuovo luogo ({neu})"
 _GRUND_BESETZUNG = "nuovo cast ({wer})"

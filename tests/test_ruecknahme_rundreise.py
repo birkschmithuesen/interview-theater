@@ -102,6 +102,19 @@ FAELLE = [
         [{"art": "szene_planen", "wert": "Szene 2 | figuren: Leyla, Cemre"}],
     ),
     (
+        # Review 13: mit Volltext legt stueck.setze_ort/-besetzung eine
+        # ``veraltet``-Marke an ("Szene passt nicht mehr -- neu schreiben?").
+        # Das Undo muss sie mitnehmen, sonst bleibt ein falsches Angebot.
+        "szene_planen-ort-mit-volltext",
+        lambda conn: _volltext(conn, 2),
+        [{"art": "szene_planen", "wert": "Szene 2 | ort: Kiosk am Nordmarkt"}],
+    ),
+    (
+        "szene_planen-besetzung-mit-volltext",
+        lambda conn: _volltext(conn, 2),
+        [{"art": "szene_planen", "wert": "Szene 2 | figuren: Leyla, Cemre"}],
+    ),
+    (
         "festlegung_setzen",
         lambda conn: None,
         [{"art": "festlegung_setzen",
@@ -139,6 +152,14 @@ FAELLE = [
          {"art": "figur_setzen", "wert": "Nuran: zaehlt jeden Cent"}],
     ),
 ]
+
+
+def _volltext(conn, nummer):
+    """Die Szene hat schon Text -- dann markiert stueck sie bei Ort-/
+    Besetzungswechsel als ``veraltet``."""
+    conn.execute("UPDATE szene SET volltext = ? WHERE chat_id = 1 AND nummer = ?",
+                 ("LEYLA: Ein Satz im Kiosk.", nummer))
+    conn.commit()
 
 
 def _platzhalter(conn):
@@ -419,3 +440,22 @@ def test_die_faelle_decken_jede_undo_faehige_art_ab():
         "format_setzen", "geschichte_setzen", "hauptkonflikt_setzen",
         "fragen_setzen",
     }, f"ohne Fall: {sorted(fehlend)}"
+
+
+@pytest.mark.parametrize("nummer", ["ort", "besetzung"])
+def test_undo_nimmt_die_veraltet_marke_mit_und_redo_bringt_sie_zurueck(spaet, einst, nummer):
+    """Review 13, harte Fassung: die Marke ist nach dem Lauf da, nach dem Undo
+    weg (kein falsches "neu schreiben?"), nach dem Redo wieder da."""
+    _volltext(spaet, 2)
+    wert = ("Szene 2 | ort: Kiosk am Nordmarkt" if nummer == "ort"
+            else "Szene 2 | figuren: Leyla, Cemre")
+    lauf_id, _ = _lauf(spaet, [{"art": "szene_planen", "wert": wert}], einst)
+    assert repo.offene_veraltet(spaet, 1), "Voraussetzung: der Lauf markiert veraltet"
+
+    assert _nimm_zurueck(spaet, lauf_id) == repo.ZURUECK_OK
+    assert repo.offene_veraltet(spaet, 1) == []
+
+    assert repo.stelle_erkenner_lauf_wieder_her(
+        spaet, lauf_id, ruecknahme.verweise(),
+        ruecknahme.WEICH, ruecknahme.HART, ruecknahme.GELEERT) == repo.ZURUECK_OK
+    assert repo.offene_veraltet(spaet, 1)

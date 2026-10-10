@@ -1375,7 +1375,7 @@ def _setze_szenenfeld(conn, tg, chat_id: int, rest: str) -> bool:
         ergebnis = None
     if ergebnis is not None and not ergebnis.ok:
         # Z. B. "gerade wird geschrieben": sichtbar sagen, nicht so tun als ob.
-        tg.sende(chat_id, "; ".join(ergebnis.warnungen) or str(ergebnis.fehler))
+        tg.sende(chat_id, stueck.meldung(ergebnis))
         return True
     tg.sende(chat_id, szene.planungszeile(conn, repo.hole_szene(conn, szene_id)))
     return True

@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from interview_theater import db, erkenner, phasen, repo, szenenkarte
+from interview_theater import db, erkenner, phasen, repo, stueck, szenenkarte
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def _lege_szene_mit_karte_an(conn, nummer: int, figur_ids: list[int],
 
 def _karte(conn, szene_id: int) -> dict:
     zeile = repo.hole_szene(conn, szene_id)
-    return szenenkarte.karte_von(zeile)
+    return stueck.karte(conn, zeile)
 
 
 def test_haengt_an_figur_beschreibung_an(conn):

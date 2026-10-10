@@ -107,8 +107,8 @@ def _szenen(conn, chat_id: int) -> list:
     )
 
 
-def karte_von(szene) -> dict | None:
-    """Die gespeicherte Karte als Dict, oder ``None``."""
+def roh_karte_von(szene) -> dict | None:
+    """Das gespeicherte Karten-JSON OHNE Ableitung (nur stueck.karte/web_daten); Ansichten lesen ``stueck.karte(conn, szene)``."""
     try:
         roh = szene["karte"]
     except (IndexError, KeyError):
@@ -122,8 +122,11 @@ def karte_von(szene) -> dict | None:
     return karte if isinstance(karte, dict) else None
 
 
-#: Uebergang (Stueckmodell): Task 9 benennt ``karte_von`` um.
-roh_karte_von = karte_von
+def _karte(conn, szene) -> dict | None:
+    """Die abgeleitete Karte (``stueck.karte``) -- der Weg fuer jeden Leser."""
+    from interview_theater import stueck
+
+    return stueck.karte(conn, szene)
 
 
 def aktuelle_nummer(conn, chat_id: int) -> int | None:
@@ -174,7 +177,7 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
     for p in szenenkern.kern_punkte(szene):
         teile.append(f"- {p}")
     zeilen.append("\n".join(teile))
-    alte = karte_von(szene)
+    alte = _karte(conn, szene)
     if alte and notiz:
         zeilen.append(T._KOPF_ALTE_KARTE + "\n" + karte_text(alte, szene, chat_id))
     if notiz:
@@ -395,7 +398,7 @@ def dialog_kontextblock(conn, chat_id: int) -> str:
     if nummer is None:
         return ""
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
+    karte = _karte(conn, szene) if szene is not None else None
     if karte is None:
         return ""
     return T._KOPF_DIALOG.format(nummer=nummer, karte=karte_text(karte, szene, chat_id))
@@ -462,7 +465,7 @@ def aktualisiere_mit_dialog(conn, tg, klm, e, chat_id: int, nummer: int,
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
     repo.setze_szenenkarte_dialog(conn, szene["id"], None)
-    alte_karte = karte_von(szene)
+    alte_karte = _karte(conn, szene)
     alte_fragen = (alte_karte or {}).get("fragen") or []
     starte(conn, tg, klm, e, chat_id, nummer, aenderung.strip(),
           nachbereitung=_bewahre_fragen(conn, chat_id, nummer, alte_fragen),
@@ -517,7 +520,7 @@ def zeige(conn, tg, e, chat_id: int, nummer: int, *, im_chat: bool = False) -> i
     from interview_theater.knoepfe import basis, szenen as ks
 
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
+    karte = _karte(conn, szene) if szene is not None else None
     if karte is None:
         return None
     basis._nimm_alte_leiste_ab(conn, tg, chat_id, ks.ART_SZENE_PASST)
@@ -633,7 +636,7 @@ def weiter(conn, tg, klm, e, chat_id: int, *, aus_eintritt: bool = False):
     nummer = aktuelle_nummer(conn, chat_id)
     if nummer is not None:
         szene = _szene_mit_nummer(conn, chat_id, nummer)
-        if karte_von(szene) is not None:
+        if _karte(conn, szene) is not None:
             zeige(conn, tg, e, chat_id, nummer)
             return None
         return starte(conn, tg, klm, e, chat_id, nummer)
@@ -663,7 +666,7 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
+    karte = _karte(conn, szene) if szene is not None else None
     if karte is None:
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
@@ -699,7 +702,7 @@ def aendere(conn, tg, klm, e, chat_id: int, notiz: str, nummer: int | None = Non
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_KEIN_ZIEL)
         return None
     szene = _szene_mit_nummer(conn, chat_id, n)
-    alte_karte = karte_von(szene) if szene is not None else None
+    alte_karte = _karte(conn, szene) if szene is not None else None
     alte_fragen = (alte_karte or {}).get("fragen") or []
     if alte_fragen and notiz_betrifft_fragen(notiz):
         starte_fragenklaerung(conn, tg, e, chat_id, n)
@@ -784,7 +787,7 @@ def starte_fragenklaerung(conn, tg, e, chat_id: int, nummer: int, *, runde: int 
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
+    karte = _karte(conn, szene) if szene is not None else None
     fragen = (karte or {}).get("fragen") or []
     if not fragen:
         zeige(conn, tg, e, chat_id, nummer)
@@ -811,7 +814,7 @@ def ueberspringe_fragen(conn, tg, e, chat_id: int, nummer: int) -> str:
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
+    karte = _karte(conn, szene) if szene is not None else None
     if karte is None or not karte.get("fragen"):
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
@@ -924,7 +927,7 @@ def beantworte_frage(conn, tg, klm, e, chat_id: int, text: str) -> bool:
         return False
     nummer, klaerung = gefunden
     szene = _szene_mit_nummer(conn, chat_id, nummer)
-    karte = karte_von(szene) if szene is not None else None
+    karte = _karte(conn, szene) if szene is not None else None
     fragen = (karte or {}).get("fragen") or []
     index = int(klaerung.get("index") or 0)
     if index >= len(fragen):
@@ -990,7 +993,7 @@ def beantworte_frage(conn, tg, klm, e, chat_id: int, text: str) -> bool:
 def karten_am_stueck(conn, chat_id: int) -> str:
     teile = []
     for s in _szenen(conn, chat_id):
-        karte = karte_von(s)
+        karte = _karte(conn, s)
         if karte is not None:
             teile.append(karte_text(karte, s, chat_id))
     return "\n\n".join(teile)

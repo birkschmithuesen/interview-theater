@@ -384,10 +384,10 @@ def _kartentreue(conn, tg, klm, e, chat_id: int, nummer: int, feld: str) -> list
     noch, bleibt ein Vorfall."""
     if feld != "volltext":
         return []
-    from interview_theater import kartentreue, szene, szenenkarte
+    from interview_theater import kartentreue, stueck, szene, szenenkarte
 
     zeile = _zeile_der_szene(conn, chat_id, nummer)
-    karte = szenenkarte.karte_von(zeile) if zeile is not None else None
+    karte = stueck.karte(conn, zeile) if zeile is not None else None
     if karte is None:
         return []
     text = _text(zeile, feld)

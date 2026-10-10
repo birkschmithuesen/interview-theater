@@ -8,6 +8,7 @@ import json
 import pytest
 
 from interview_theater import (
+    stueck,
     phasen, repo, schaerfung, stagescript, szenenkarte, ueberarbeitung, workshop,
 )
 
@@ -127,7 +128,7 @@ def test_schalter_an_ruft_karten_nachzug_und_aktualisiert_karte(conn, einst, pad
     import time as _t
     karte = None
     for _ in range(50):
-        karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+        karte = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
         if karte and karte.get("ort") == "Piazza":
             break
         _t.sleep(0.1)

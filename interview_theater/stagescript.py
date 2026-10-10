@@ -84,7 +84,7 @@ def braucht_kopf(conn, chat_id: int) -> bool:
     Eine einzelne Anweisungsszene (G1: das Ritual) braucht keinen."""
     from interview_theater import szenenkarte
 
-    typen = [(szenenkarte.karte_von(s) or {}).get("typ") for s in _szenen(conn, chat_id)]
+    typen = [(szenenkarte.roh_karte_von(s) or {}).get("typ") for s in _szenen(conn, chat_id)]
     return bool(typen) and sum(t == "instructions" for t in typen) * 2 > len(typen)
 
 
@@ -110,7 +110,7 @@ def ist_korrektur_wunsch(notiz: str | None) -> bool:
 
 def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
                     mit_kopf: bool = False, ueber_claude: bool = False) -> str:
-    from interview_theater import hintergrund, szenenkarte
+    from interview_theater import hintergrund, stueck, szenenkarte
 
     stand = repo.hole_arbeitsstand(conn, chat_id)
 
@@ -129,7 +129,7 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
         teile.append(T._KOPF_STUECKKOPF + "\n" + feld("stage_kopf"))
     alle = []
     for s in _szenen(conn, chat_id):
-        karte = szenenkarte.karte_von(s)
+        karte = stueck.karte(conn, s)
         if karte is None or s["nummer"] == szene["nummer"]:
             continue
         alle.append(f"{s['nummer']}. {s['titel'] or ''} -- {karte.get('worum', '')}")
@@ -148,7 +148,7 @@ def baue_nutzertext(conn, chat_id: int, szene, notiz: str | None = None,
     ]
     if geschrieben:
         teile.append(T._KOPF_GESCHRIEBEN + "\n\n" + "\n\n".join(geschrieben))
-    karte = szenenkarte.karte_von(szene) or {}
+    karte = stueck.karte(conn, szene) or {}
     teile.append(T._KOPF_KARTE + "\n" + szenenkarte.karte_text(karte, szene, chat_id))
     verfeinerungen = szenenkarte.verfeinerungs_zeilen(conn, chat_id, szene)
     if verfeinerungen:

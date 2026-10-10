@@ -10,6 +10,7 @@ import threading
 import pytest
 
 from interview_theater import (
+    stueck,
     befehle, db, phasen, repo, szenenfolge, szenenkarte, ueberarbeitung, web,
     web_daten, web_vereint, workshop,
 )
@@ -285,4 +286,4 @@ def test_karte_bauen_rettet_eine_haengende_karte(conn, einst, padua, monkeypatch
         if repo.hole_szene(conn, ids[0])["karte"]:
             break
         time.sleep(0.05)
-    assert szenenkarte.karte_von(repo.hole_szene(conn, ids[0])) is not None
+    assert stueck.karte(conn, repo.hole_szene(conn, ids[0])) is not None

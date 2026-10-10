@@ -672,7 +672,7 @@ def nimm_ab(conn, tg, klm, e, chat_id: int) -> str | None:
 
         nummer = szenenkarte.aktuelle_nummer(conn, chat_id)
         zeile = next((s for s in _szenen(conn, chat_id) if s["nummer"] == nummer), None)
-        if zeile is not None and szenenkarte.karte_von(zeile) is not None:
+        if zeile is not None and szenenkarte.roh_karte_von(zeile) is not None:
             return _mit_leiste_ab(
                 conn, tg, chat_id, knoepfe.ART_SZENE_PASST,
                 lambda: szenenkarte.bestaetige(conn, tg, klm, e, chat_id, nummer))

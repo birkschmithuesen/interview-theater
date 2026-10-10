@@ -43,7 +43,7 @@ import json
 import logging
 import re
 
-from interview_theater import anweisungen, erkenner, modellwahl, repo, szenenkarte, workshop
+from interview_theater import anweisungen, erkenner, modellwahl, repo, stueck, szenenkarte, workshop
 
 log = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ def ziehe_nach(conn, klm, e, chat_id: int, szene_id: int, text: str, *,
         szene = repo.hole_szene(conn, szene_id)
         if szene is None:
             return
-        karte = szenenkarte.karte_von(szene)
+        karte = stueck.karte(conn, szene)
         if karte is None or not (text or "").strip():
             return
         ergebnis = modellwahl.aufruf_schema(

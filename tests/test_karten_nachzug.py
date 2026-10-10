@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-from interview_theater import karten_nachzug, repo, szenenkarte, web
+from interview_theater import karten_nachzug, repo, stueck, szenenkarte, web
 
 
 class LLM:
@@ -38,7 +38,7 @@ def test_neuer_ort_aktualisiert_karte_und_haengt_verlauf_an(conn, einst):
     karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "EMMA: ... in piazza ...",
                               ueber_claude=False)
 
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, sid))
+    karte = stueck.karte(conn, repo.hole_szene(conn, sid))
     assert karte["ort"] == "Piazza"
     verlauf = repo.karte_verlauf(conn, 1, sid)
     assert verlauf[-1]["ausloeser"] == szenenkarte.AUSLOESER_AENDERUNG
@@ -124,7 +124,7 @@ def test_neue_figur_aktualisiert_wer(conn, einst):
 
     karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
 
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, sid))
+    karte = stueck.karte(conn, repo.hole_szene(conn, sid))
     assert karte["wer"] == "Anna, an audience member"
 
 
@@ -136,7 +136,7 @@ def test_gleicher_ort_schreibt_nichts(conn, einst):
     karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
 
     assert len(repo.karte_verlauf(conn, 1, sid)) == vorher
-    assert szenenkarte.karte_von(repo.hole_szene(conn, sid))["ort"] == "Bar"
+    assert stueck.karte(conn, repo.hole_szene(conn, sid))["ort"] == "Bar"
 
 
 def test_vergleich_ist_normalisiert_gross_klein_leerzeichen(conn, einst):
@@ -157,7 +157,7 @@ def test_modus_aendert_sich_nur_bei_typ_moment(conn, einst):
 
     karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
 
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, sid))
+    karte = stueck.karte(conn, repo.hole_szene(conn, sid))
     assert karte["modus"] == "none"
 
 
@@ -167,7 +167,7 @@ def test_modus_aendert_sich_bei_typ_moment(conn, einst):
 
     karten_nachzug.ziehe_nach(conn, klm, einst, 1, sid, "text", ueber_claude=False)
 
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, sid))
+    karte = stueck.karte(conn, repo.hole_szene(conn, sid))
     assert karte["modus"] == "collective"
 
 
@@ -179,7 +179,7 @@ def test_fehlerhafter_modellaufruf_laesst_karte_unveraendert(conn, einst):
     sid = _karte(conn)
     karten_nachzug.ziehe_nach(conn, Kaputt(), einst, 1, sid, "text", ueber_claude=False)
 
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, sid))
+    karte = stueck.karte(conn, repo.hole_szene(conn, sid))
     assert karte["ort"] == "Bar"
 
 

@@ -813,7 +813,7 @@ def _szenen(
             # aus der DB, ``szenenkarte.erzeuge``).
             from interview_theater import szenenkarte
 
-            eintrag["karte"] = szenenkarte.karte_von(z)
+            eintrag["karte"] = szenenkarte.roh_karte_von(z)
             eintrag["karte_bestaetigt"] = bool((_feld(z, "karte_bestaetigt_am") or "").strip())
         szenen.append(eintrag)
     return szenen
@@ -1845,7 +1845,7 @@ def szenenkarten(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         aktiv = not bestaetigt and not aktiv_gesetzt
         aktiv_gesetzt = aktiv_gesetzt or aktiv
         liste.append({"nummer": z["nummer"], "titel": (z["titel"] or "").strip(),
-                      "karte": szenenkarte.karte_von(z), "bestaetigt": bestaetigt,
+                      "karte": szenenkarte.roh_karte_von(z), "bestaetigt": bestaetigt,
                       "aktiv": aktiv})
     return liste
 

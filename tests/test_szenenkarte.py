@@ -8,6 +8,7 @@ import json
 import pytest
 
 from interview_theater import (
+    stueck,
     phasen, repo, schaerfung, szene, szenenkarte, szenenkern, ueberarbeitung, workshop,
 )
 
@@ -366,10 +367,10 @@ def test_bestaetige_lehnt_karte_mit_offenen_fragen_ab(conn, einst, padua):
 
 def test_ueberspringe_fragen_leert_fragen_laesst_punkte_zitate(conn, einst, padua):
     ids = _karte1(conn, einst, LLMMitFragen())
-    vorher = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    vorher = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     tg = TG()
     antwort = szenenkarte.ueberspringe_fragen(conn, tg, einst, 1, 1)
-    nachher = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    nachher = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     assert nachher["fragen"] == []
     assert nachher["punkte"] == vorher["punkte"]
     assert nachher["zitate"] == vorher["zitate"]
@@ -446,7 +447,7 @@ def test_beantworte_frage_skip_wird_als_open_punkt_uebernommen(conn, einst, padu
     szenenkarte.beantworte_frage(conn, tg, LLM(), einst, 1, "skip")
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    karte = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     assert "[OPEN] Who sings?" in karte["punkte"]
     offen = [j for j in repo.journal(conn, 1) if "left open on purpose" in j["text"]]
     assert offen and offen[0]["quelle"] == "chat"
@@ -533,7 +534,7 @@ def test_aendere_mit_unverwandter_notiz_bewahrt_alte_fragen(conn, einst, padua):
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
     assert "Emma sings first" in klm.aufrufe[-1]["nutzer"]
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    karte = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     assert karte["fragen"] == ["Who sings?"]
 
 
@@ -546,7 +547,7 @@ def test_aendere_mit_unverwandter_notiz_dupliziert_nicht(conn, einst, padua):
     szenenkarte.aendere(conn, tg, klm, einst, 1, "Emma sings first", nummer=1)
     szenenkarte._sperre_fuer(1).acquire(timeout=5)
     szenenkarte._sperre_fuer(1).release()
-    karte = szenenkarte.karte_von(repo.hole_szene(conn, ids[0]))
+    karte = stueck.karte(conn, repo.hole_szene(conn, ids[0]))
     assert karte["fragen"] == ["Who sings?"]
 
 

@@ -1307,7 +1307,7 @@ def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> N
     Nur in Phase 7 (``_PHASE_FIGUR_NACHZUG``) und nur bei einem eindeutigen
     Figurennamen -- ein unbekannter oder mehrdeutiger ``bezug`` bleibt
     unangetastet, wie ``_figuren_aus_namen`` es sonst auch haelt."""
-    from interview_theater import szenenkarte
+    from interview_theater import stueck, szenenkarte
 
     if phasen.aktuelle(conn, chat_id) != _PHASE_FIGUR_NACHZUG:
         return
@@ -1328,7 +1328,7 @@ def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> N
     for szene in repo.hole_szenen(conn, chat_id):
         if szene["entfernt_am"] or szene["fertig_am"]:
             continue
-        karte = szenenkarte.karte_von(szene)
+        karte = stueck.karte(conn, szene)
         if karte is None:
             continue
         if figur_id not in {f["id"] for f in repo.szene_figuren(conn, szene["id"])}:

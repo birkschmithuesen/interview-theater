@@ -982,3 +982,45 @@
   (drei eigene Richtungen nur ohne eigene Idee), ihre Struktur ist die
   Gestalt der Geschichte, und nichts vom Bot wird der Gruppe zugeschrieben.
   Test: `tests/test_phase4_haertung.py` mit dem Live-Fall als Fixture.
+
+## Stückmodell (Karte t_fd88600b, Birk 10.10.2026)
+
+Leitsatz: Jede Tatsache über das Stück steht an genau einer Stelle;
+Werkbank, Karte, Script-Kopf und PDF lesen von dort ab und tragen nichts
+Eigenes. Übergabe mit Zahlen: `docs/handoffs/2026-10-10-stueckmodell.md`.
+
+**Zielbild.**
+
+| Tatsache | Eine Stelle | Ansichten |
+|---|---|---|
+| Ort der Szene | `szene.ort` | Karte, Werkbank „Wo", Script-Kopf, PDF |
+| Besetzung | `szene_figur` (`rolle`, `position`) plus `szene.wer_zusatz` (Nicht-Figuren) | Karte „Wer", Werkbank „Wer", Besetzungszeile |
+| Offene Fragen | Tabelle `offene_frage` (schließt im Modell) | Karte, Klärweg, Dialog, Knöpfe |
+| Karte (Punkte) | `szene.karte` JSON, nur `punkte` u. ä.; kein `ort`/`wer`/`fragen` mehr | Kartentext |
+| Prosa (Stage Script, Kopf) | `szene.volltext`, `arbeitsstand.stage_kopf` | wird nie still geändert, nur `veraltet` (Tabelle `veraltet`) |
+| Änderungsprotokoll | `stueck_aenderung` (auch Migration) | Bericht |
+
+**Gate-Semantik vorher/nachher.** Vorher sperrten `szenenkarte.py`
+(`_TEXT_NICHT_DRAN`) und `stagescript.py` (`_TEXT_ERST_VORHERIGE`) Karte und
+Script nach Phase/Reihenfolge; `phasen.voraussetzungen` & Co. sperrten nie.
+Nachher sind die Szenen-Verbote Warnungen (`phasen.warnungen` beim
+Phasensprung, `Ergebnis.warnungen`); Phasen bestimmen Fokus und Vorschlag.
+Bewusst Sperre geblieben: `p5_gate` (Bestätigungsschritt) und
+`erkenner._ohne_phasensprung_vor_fixierten_figuren` (Schutz vor Fehllesen).
+Busy-Gate (laufender Schreibvorgang) bleibt eine echte Sperre.
+
+**Migrationsregeln** (`db._migriere_stueckmodell`, idempotent, Bericht in
+`stueck_aenderung`, Quelle `migration`): Beim Ort gewinnt die Karte
+(`karte.ort`); bei der Besetzung gilt die Vereinigung aus `szene_figur` und
+`karte.wer`; ein Name ohne Figur wird nur berichtet (`wer_zusatz`), nie als
+Figur angelegt.
+
+**Werkzeug-Zuschnitt.** `(conn, chat_id, *, JSON-Werte) -> Ergebnis`, ohne
+`tg`/`klm`, ohne Modellaufruf (`tests/test_stueck_schnittstelle.py`), damit
+1:1 als Agenten-Werkzeug aufrufbar. Ob B oder C bleibt offen. Prosa-Folge:
+Ja auf „Szene N passt nicht mehr zu … neu schreiben?" nutzt den
+unveränderten Schreibweg (EN/IT-Trennung, `stagescript.endfassung`).
+
+**Bewusste Abweichungen.** Werkbank-Zeile „Wo · Wer" je Szene (neu in
+Padua); die Ja-Antwort auf einen veralteten Kopf schreibt Szene 1 mit neu,
+weil der Kopf nur in diesem Lauf entsteht.

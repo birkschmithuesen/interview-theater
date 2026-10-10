@@ -51,7 +51,7 @@ Versehen).
 |---|---|
 | **Ablage** | `db.py` · `repo.py` · `web_daten.py` |
 | **Dienste** | `llm.py` · `strom.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` · `kosten.py` · `web_grenze.py` |
-| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `begriffsboard.py` · `begriffsboard_analyse.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` · `formberater.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `begriffsboard.py` · `begriffsboard_analyse.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` · `formberater.py` · `stueck.py` · `stueck_sicht.py` |
 | **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` · `web_gestalt.py` · `web_skript.py` · `web_pdf.py` |
 
 **SQL nur in `repo.py` und `db.py`.** Einzige Ausnahme: `web_daten.py`, die
@@ -99,6 +99,8 @@ Je Modul ein Satz (Volltext mit Begründungen: `docs/agents/aufbau.md`):
 - `ueberarbeitung.py` — Padua: Phasen 6/7 als Zustandsmaschine (`weiter_6`/`weiter_7`); kein SQL, kein Modellaufruf.
 - `leitfaden.py` — baut den Gesprächsleitfaden deterministisch.
 - `vorschlag.py` — die `VORSCHLAG …:`-Markerzeilen im Antworttext lesen und entfernen.
+- `stueck.py` — das Stückmodell: die eine Mutations-Schnittstelle (`WERKZEUGE`) für Ort, Besetzung, Karte, offene Fragen; Prosa wird nur `veraltet` vermerkt; kein Modellaufruf.
+- `stueck_sicht.py` — die eine Ableitung der Karte (`karte_ansicht`: Ort/Wer/Fragen) für Werkbank, Karte, Script-Kopf, PDF, Prompt.
 - `vorschlagssperre.py` — die eine Sperre, die Schärfung und Szenenfolge trennt, mit Merkplatz; kein Projektimport.
 - `vorspann.py` — der Vorspann vor dem Text (Wo/Wann, Figuren); deterministisch.
 - `verdichter.py` — verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten.
@@ -129,7 +131,8 @@ Ohne eigene Zeile hier (siehe Docstring): `arbeitszeilen.py`,
 Profilschalter `[skript] zweisprachig`, neue Spalte `szene.prosa_it`,
 Birk 07.10.2026 ~17:20), `karten_nachzug.py` (Ort/Figuren aus dem neu
 geschriebenen Phase-7-Skript auf die Karte nachziehen, Padua-Profilschalter
-`[karten] p7_meta_nachziehen`, Birk 08.10.2026 ~12:50).
+`[karten] p7_meta_nachziehen`, Birk 08.10.2026 ~12:50; schreibt seit
+t_fd88600b nur über `stueck`).
 
 **Wo man anfängt** (vollständige Tabelle: `docs/agents/aufbau.md`):
 
@@ -141,6 +144,7 @@ geschriebenen Phase-7-Skript auf die Karte nachziehen, Padua-Profilschalter
 | Was schreibt der Erkenner? | `erkenner.laufe` → `wende_an` → `baue_meldung` |
 | Wie entsteht ein Szenentext? | `szene.starte` → `baue_nutzertext` → `schreibe` |
 | Wann darf die Gruppe weiter? | `phasen.voraussetzungen` |
+| Wo steht eine Tatsache, wer darf sie ändern? | `stueck.WERKZEUGE` → `stueck_sicht.karte_ansicht` |
 | Warum sieht der Browser nichts? | `web_kanal.hole_updates` → `repo.web_eingang` → `bot.schleife` |
 | Warum antwortet der Bot heute gar nicht mehr? | `kosten.deckel_erreicht` → `repo.kostensumme_seit` |
 
@@ -156,6 +160,7 @@ Je eine Zeile; Begründung und Geschichte stehen in der genannten Datei.
 - **Nur anhängen:** Journal, Verdichtungen, `szenenfassung`, `begriffsboard` werden nie geändert; entfernt wird **weich** (`entfernt_am`); Material (Aufnahmen, Transkripte, Verdichtungen) hat keinen Entfernungspfad außer `scripts/loeschen.py`. → `entscheidungen.md`
 - **Jede Tabelle außer `bot_zustand` hat `chat_id`** (`db.TABELLEN_MIT_CHAT_ID`, Löschzusage). → `entscheidungen.md`
 - **Schema nur additiv migrieren** (`db._migriere_fehlende_spalten`); tote Spalten bleiben stehen. → `spec-abweichungen.md`
+- **Stückmodell:** Ort/Besetzung/Karte/offene Fragen schreibt nur `stueck.py`; Prosa nie still umschreiben (`veraltet`). → `entscheidungen.md`
 - **Die Phase setzt allein die Gruppe** (Chat, `/phase`, Klick über `befehle.wechsle_phase`); kein automatischer Sprung — Datenstand ist nicht Absicht. → `entscheidungen.md`
 - **`repo.setze_szene_usa` nimmt einen bool**, nie `"ja"`/`"nein"` (ein „nein" wäre wahr). → `entscheidungen.md`
 - **Erkenner-Prompt-Änderung gilt nur mit FP = 0** im Korpuslauf; der Lauf kostet Geld und läuft nie automatisch. → `korpus-und-simulation.md`

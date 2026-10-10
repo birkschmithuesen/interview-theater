@@ -283,6 +283,133 @@ def figur_aus_szene(conn, chat_id: int, *, name: str, szene: int,
                                T._GRUND_FIGUR_WEG.format(name=figur["name"]))
 
 
+def _frage_bekannt(conn, chat_id: int, szene_id: int | None, text: str) -> int | None:
+    """id einer Frage derselben Szene mit demselben (normalisierten) Text --
+    egal welcher Status: eine beantwortete Frage wird nie wieder geoeffnet
+    (Beleg 6, Kernkarte: 21 im Chat beantwortete Fragen blieben [OPEN])."""
+    ziel = stueck_sicht.normalisiert(text)
+    return next((f["id"] for f in repo.fragen_der_szene(conn, chat_id, szene_id)
+                 if stueck_sicht.normalisiert(f["text"]) == ziel), None)
+
+
+def karte_aendern(conn, chat_id: int, *, szene: int, worum: str | None = None,
+                  typ: str | None = None, modus: str | None = None,
+                  punkte: list[str] | None = None, punkte_hinzu: list[str] | None = None,
+                  punkte_weg: list[str] | None = None, zitate: list[int] | None = None,
+                  quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+    from interview_theater import kartentreue, szenenkarte, szenenkern
+
+    if _beschaeftigt(chat_id, quelle):
+        return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
+    zeile = _szene(conn, chat_id, szene)
+    if zeile is None:
+        return _nein("unbekannte_szene")
+    roh = szenenkarte.roh_karte_von(zeile)
+    if roh is None:
+        return _nein("keine_karte")
+    neu = stueck_sicht.roh_ohne_struktur(roh)
+    if typ is not None:
+        if typ not in szenenkarte.TYPEN:
+            return _nein("ungueltig")
+        neu["typ"] = typ
+    if modus is not None:
+        if modus not in szenenkarte.MODI:
+            return _nein("ungueltig")
+        neu["modus"] = modus
+    if neu.get("typ") != "moment":
+        neu["modus"] = "none"
+    if worum is not None:
+        neu["worum"] = szenenkarte._kappe(worum)
+    weg = set(punkte_weg or [])
+    liste = list(neu.get("punkte") or []) if punkte is None else list(punkte)
+    liste = [p for p in liste if p not in weg] + list(punkte_hinzu or [])
+    fragen_neu: list[str] = []
+    sauber: list[str] = []
+    for p in liste:
+        treffer = stueck_sicht.OFFEN_PUNKT.match(p or "")
+        if treffer:
+            fragen_neu.append(treffer.group(1))
+        elif str(p).strip():
+            sauber.append(szenenkarte._kappe(p))
+    neu["punkte"] = sauber[:szenenkarte.PUNKTE_MAX]
+    if zitate is not None:
+        kandidaten = szenenkern._kandidaten(conn, chat_id, zeile)
+        if any(not (1 <= int(n) <= len(kandidaten)) for n in zitate):
+            return _nein("ungueltig")
+        neu["zitate"] = [{"zitat": kandidaten[int(n) - 1][0], "interview": kandidaten[int(n) - 1][1]}
+                         for n in zitate][:szenenkarte.ZITATE_MAX]
+    alt_ansicht = karte(conn, zeile)
+    karte_neu = neu != stueck_sicht.roh_ohne_struktur(roh)
+    fragen_neu = [t for t in fragen_neu if not _frage_bekannt(conn, chat_id, zeile["id"], t)]
+    if not karte_neu and not fragen_neu:
+        return Ergebnis(ok=True)
+    if karte_neu:
+        repo.aktualisiere_szenenkarte(conn, chat_id, zeile["id"],
+                                      json.dumps(neu, ensure_ascii=False),
+                                      szenenkarte.AUSLOESER_AENDERUNG, None)
+    for text in fragen_neu:
+        repo.lege_offene_frage_an(conn, chat_id, zeile["id"], text, quelle, status="vertagt")
+    neu_ansicht = karte(conn, repo.hole_szene(conn, zeile["id"]))
+    diff = szenenkarte.diff_karten(alt_ansicht or {}, neu_ansicht or {})
+    aid = _protokoll(conn, chat_id, "karte_aendern", {"szene": szene},
+                     alt_ansicht, neu_ansicht, quelle)
+    befunde: list[str] = []
+    if _gesetzt(zeile["volltext"]):
+        befunde = (kartentreue.widersprueche(neu_ansicht, zeile["volltext"])
+                   + [T._BEFUND_FEHLT.format(stichwort=s)
+                      for s in kartentreue.fehlende_stichworte(neu_ansicht, zeile["volltext"])])
+    grund = T._GRUND_KARTE.format(felder=", ".join(d.split(":")[0] for d in diff) or "punkte")
+    if befunde:
+        grund += " -- " + "; ".join(befunde)
+    v = _markiere_script(conn, chat_id, zeile, grund, aid) if quelle != QUELLE_SCRIPT else None
+    return _ergebnis(aid, diff, [v], warnungen=befunde)
+
+
+def szene_wieder_oeffnen(conn, chat_id: int, *, szene: int, ebene: str = "karte",
+                         quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+    if ebene not in ("karte", "script"):
+        return _nein("ungueltig")
+    if _beschaeftigt(chat_id, quelle):
+        return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
+    zeile = _szene(conn, chat_id, szene)
+    if zeile is None:
+        return _nein("unbekannte_szene")
+    if ebene == "karte":
+        if not _gesetzt(zeile["karte_bestaetigt_am"]):
+            return Ergebnis(ok=True)
+        repo.setze_szenenkarte_offen(conn, zeile["id"])
+    else:
+        if not _gesetzt(zeile["fertig_am"]):
+            return Ergebnis(ok=True)
+        repo.setze_szene_fertig(conn, zeile["id"], False)
+    aid = _protokoll(conn, chat_id, "szene_wieder_oeffnen", {"szene": szene, "ebene": ebene},
+                     "abgenommen", "offen", quelle)
+    return _ergebnis(aid, [f"{ebene}: abgenommen -> offen"])
+
+
+def reihenfolge_aendern(conn, chat_id: int, *, folge: list[int],
+                        quelle: str = QUELLE_GRUPPE) -> Ergebnis:
+    if _beschaeftigt(chat_id, quelle):
+        return _nein("beschaeftigt", T._WARNUNG_BESCHAEFTIGT)
+    szenen = sorted((s for s in repo.hole_szenen(conn, chat_id)
+                     if s["nummer"] is not None and not s["entfernt_am"]),
+                    key=lambda s: s["nummer"])
+    je_nummer = {s["nummer"]: s for s in szenen}
+    if sorted(folge) != sorted(je_nummer) or len(set(folge)) != len(folge):
+        return _nein("ungueltig")
+    if list(folge) == [s["nummer"] for s in szenen]:
+        return Ergebnis(ok=True)
+    repo.nummeriere_szenen(conn, chat_id, [je_nummer[n]["id"] for n in folge])
+    aid = _protokoll(conn, chat_id, "reihenfolge_aendern", {"folge": list(folge)},
+                     [s["nummer"] for s in szenen], list(folge), quelle)
+    veraltet = []
+    for neue_nummer, alte_nummer in enumerate(folge, start=1):
+        if neue_nummer != alte_nummer:
+            veraltet.append(_markiere_script(conn, chat_id, je_nummer[alte_nummer],
+                                             T._GRUND_REIHENFOLGE.format(nummer=neue_nummer), aid))
+    return _ergebnis(aid, [f"reihenfolge: {[s['nummer'] for s in szenen]} -> {list(folge)}"], veraltet)
+
+
 # --- Texte -----------------------------------------------------------------
 
 _WARNUNG_BESCHAEFTIGT = "Gerade wird noch geschrieben -- gleich nochmal."
@@ -292,6 +419,9 @@ _GRUND_ORT = "neuer Ort ({neu})"
 _GRUND_BESETZUNG = "neue Besetzung ({wer})"
 _GRUND_FIGUR_NEU = "neue Figur {name}"
 _GRUND_FIGUR_WEG = "{name} spielt nicht mehr mit"
+_GRUND_KARTE = "geänderte Karte ({felder})"
+_GRUND_REIHENFOLGE = "neue Reihenfolge (jetzt Szene {nummer})"
+_BEFUND_FEHLT = "Pflichtpunkt fehlt im Text: {stichwort}"
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 

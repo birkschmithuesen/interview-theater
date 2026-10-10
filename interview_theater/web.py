@@ -4721,6 +4721,7 @@ _TEXT_STATUS_FERTIG = "ausformuliert"
 _TEXT_FASSUNG_EN = "English"
 _TEXT_FASSUNG_IT = "Italiano"
 _TEXT_ALLE_ZITATE = "Alle übernommenen Zitate ({anzahl})"
+_TEXT_WB_WO_WER = "Wo · Wer: {wert}"
 ORT_ZEICHEN = 140
 
 
@@ -5153,8 +5154,14 @@ def _wb_szenen_verdichtet_html(szenen: list[dict]) -> str:
             nr=_t("—" if s["nummer"] is None else str(s["nummer"])),
             titel=_t(s.get("titel"), T._TEXT_OHNE_TITEL),
         )
-        teile = [kopf, _liste_html("wb-kern", _kurzform_punkte(v), PLANUNG_PUNKT_ZEICHEN),
-                 _liste_html("wb-zitate", _staerkste_zitate(v), KERNSATZ_ZEICHEN)]
+        karte = s.get("karte") or {}
+        wo_wer = " · ".join(t for t in ((karte.get("ort") or s.get("ort") or "").strip(),
+                                       (karte.get("wer") or ", ".join(s.get("figuren") or [])).strip()) if t)
+        teile = [kopf]
+        if wo_wer:
+            teile.append(f'<p class="wb-wo-wer">{_t(T._TEXT_WB_WO_WER.format(wert=wo_wer))}</p>')
+        teile += [_liste_html("wb-kern", _kurzform_punkte(v), PLANUNG_PUNKT_ZEICHEN),
+                  _liste_html("wb-zitate", _staerkste_zitate(v), KERNSATZ_ZEICHEN)]
         alle = v.get("zitate") or []
         if alle:
             punkte = "".join(

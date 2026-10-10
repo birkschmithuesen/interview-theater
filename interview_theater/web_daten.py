@@ -586,7 +586,8 @@ def _szene_figuren(conn: sqlite3.Connection, szene_id: int) -> list[str]:
             z["name"]
             for z in conn.execute(
                 "SELECT f.name FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
-                f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} ORDER BY f.id ASC",
+                f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} "
+                "ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC",
                 (szene_id,),
             )
         ]
@@ -603,12 +604,47 @@ def _szene_figur_ids(conn: sqlite3.Connection, szene_id: int) -> list[int]:
             z["figur_id"]
             for z in conn.execute(
                 "SELECT sf.figur_id FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
-                f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} ORDER BY f.id ASC",
+                f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} "
+                "ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC",
                 (szene_id,),
             )
         ]
     except sqlite3.OperationalError:
         return []
+
+
+def _besetzung(conn: sqlite3.Connection, szene_id: int) -> list[tuple[str, str | None]]:
+    try:
+        return [(z["name"], _feld(z, "rolle")) for z in conn.execute(
+            "SELECT f.name AS name, sf.rolle AS rolle FROM szene_figur sf "
+            "JOIN figur f ON f.id = sf.figur_id "
+            f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} "
+            "ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC", (szene_id,))]
+    except sqlite3.OperationalError:
+        return [(n, None) for n in _szene_figuren(conn, szene_id)]
+
+
+def _fragen(conn: sqlite3.Connection, chat_id: int, szene_id: int) -> tuple[list[str], list[str]]:
+    try:
+        zeilen = conn.execute(
+            "SELECT text, status FROM offene_frage WHERE chat_id = ? AND szene_id = ? "
+            "AND status IN ('offen', 'vertagt') ORDER BY id", (chat_id, szene_id)).fetchall()
+    except sqlite3.OperationalError:
+        return [], []
+    return ([z["text"] for z in zeilen if z["status"] == "offen"],
+            [z["text"] for z in zeilen if z["status"] == "vertagt"])
+
+
+def _karte_sicht(conn: sqlite3.Connection, z) -> dict | None:
+    """Dieselbe Ableitung wie ``stueck.karte`` (``stueck_sicht.karte_ansicht``),
+    nur ueber das read-only-SQL dieses Moduls -- keine zweite Formatierung."""
+    from interview_theater import stueck_sicht, szenenkarte
+
+    offen, vertagt = _fragen(conn, z["chat_id"], z["id"])
+    return stueck_sicht.karte_ansicht(
+        szenenkarte.roh_karte_von(z), ort=_feld(z, "ort"), besetzung=_besetzung(conn, z["id"]),
+        zusatz=_feld(z, "wer_zusatz"), fragen_offen=offen, fragen_vertagt=vertagt,
+        punkt_offen=szenenkarte._T(z["chat_id"])._PUNKT_OFFEN)
 
 
 def schaerfungen(conn: sqlite3.Connection, chat_id: int) -> dict:
@@ -813,7 +849,7 @@ def _szenen(
             # aus der DB, ``szenenkarte.erzeuge``).
             from interview_theater import szenenkarte
 
-            eintrag["karte"] = szenenkarte.roh_karte_von(z)
+            eintrag["karte"] = _karte_sicht(conn, z)
             eintrag["karte_bestaetigt"] = bool((_feld(z, "karte_bestaetigt_am") or "").strip())
         szenen.append(eintrag)
     return szenen
@@ -1845,7 +1881,7 @@ def szenenkarten(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
         aktiv = not bestaetigt and not aktiv_gesetzt
         aktiv_gesetzt = aktiv_gesetzt or aktiv
         liste.append({"nummer": z["nummer"], "titel": (z["titel"] or "").strip(),
-                      "karte": szenenkarte.roh_karte_von(z), "bestaetigt": bestaetigt,
+                      "karte": _karte_sicht(conn, z), "bestaetigt": bestaetigt,
                       "aktiv": aktiv})
     return liste
 

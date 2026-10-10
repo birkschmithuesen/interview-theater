@@ -172,9 +172,10 @@ def test_befehle_und_ablauf_im_cothinker(conn, einst, padua, monkeypatch):
     assert repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
     assert tg.texte[-1] == "Card 2 of 2 is ready in the CoThinker tab."
 
-    # Veraltet / falsche Phase: wirkungslos.
+    # Task 15: eine schon gespeicherte, unveraenderte Karte nochmal speichern
+    # ist eine idempotente Kurzbestaetigung (kein "nicht dran", kein Neuschreiben).
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "1")
-    assert tg.texte[-1] == szenenkarte.T._TEXT_NICHT_DRAN
+    assert tg.texte[-1] == "Card 1 saved"
     phasen.setze(conn, 1, 5, "befehl")
     vorher = len(tg.texte)
     befehle._befehl_karte(conn, tg, klm, einst, 1, "/karte_ja", "2")

@@ -164,7 +164,7 @@ def baue_phase6(conn) -> int:
     ):
         szene_id = repo.lege_szene_an(conn, chat_id, nummer, titel, kurz, None)
         repo.aktualisiere_szene(conn, szene_id, titel, kurz, None, prosa=prosa)
-        repo.setze_szenenfeld(conn, szene_id, "ort", "the railway station")
+        repo.setze_szenenort(conn, szene_id, "the railway station")
         repo.setze_szenenfeld(conn, szene_id, "was_passiert", kurz)
         repo.setze_szene_figuren(
             conn, chat_id, szene_id, [figuren[n] for n in besetzung])

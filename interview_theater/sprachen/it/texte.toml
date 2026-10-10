@@ -100,6 +100,7 @@ _JOURNAL_FRAGE_BEANTWORTET = "Scheda {nummer}, domanda chiarita: {frage} -> {ant
 _JOURNAL_FRAGE_OFFEN_GELASSEN = "Scheda {nummer}: domanda lasciata volutamente aperta: {frage}"
 # Il dialogo "No, change" (Birk 08.10.2026 ~09:35, Nachtrag): "Update the
 # card" / "Keep the card" restano inglesi (i pulsanti), come sopra.
+_PUNKT_OFFEN = "[APERTO] {frage}"
 _TEXT_DIALOG_START = "Parliamo della scheda {nummer}. Cosa cambiereste?"
 _ANTWORT_DIALOG_GESTARTET = "Dialogo avviato"
 _ANTWORT_KARTE_WIRD_AKTUALISIERT = "La scheda {nummer} viene aggiornata"

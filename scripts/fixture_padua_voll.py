@@ -803,7 +803,7 @@ def baue(conn, phase: int) -> int:
                     prosa=prosa,
                 )
                 repo.setze_szenenfeld(conn, szene_id, "form", "dialog")
-            repo.setze_szenenfeld(conn, szene_id, "ort", "the railway station")
+            repo.setze_szenenort(conn, szene_id, "the railway station")
             repo.setze_szenenfeld(conn, szene_id, "zeit", "a wet November evening")
             repo.setze_szenenfeld(conn, szene_id, "anlass", "an arrival nobody meets")
             repo.setze_szenenfeld(conn, szene_id, "was_passiert", kurz)

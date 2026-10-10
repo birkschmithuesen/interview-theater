@@ -132,7 +132,10 @@ def _probe(formen: list[str], faktor: float) -> list[dict]:
         szene_id = repo.stelle_szene_sicher(conn, 1, nummer)
         for feld, wert in (("form", form), ("ort", "pier"),
                            ("was_passiert", "They meet.")):
-            repo.setze_szenenfeld(conn, szene_id, feld, wert)
+            if feld in repo.NUR_UEBER_STUECK:
+                repo.setze_szenenort(conn, szene_id, wert)
+            else:
+                repo.setze_szenenfeld(conn, szene_id, feld, wert)
         repo.setze_szene_figuren(conn, 1, szene_id, [figur_id])
     phasen.setze(conn, 1, 7, "probe")
 

@@ -4,6 +4,7 @@ Format nach dem Kartentyp, einmal ein Kopf bei Handlungsanweisungen, EN/IT-
 Spiegel, Abnahme ueber die vorhandenen Wege."""
 
 import json
+import threading
 
 import pytest
 
@@ -44,9 +45,29 @@ def _karten(conn, typ="instructions"):
     return ids
 
 
+_BASIS: set = set()
+
+
+@pytest.fixture(autouse=True)
+def _hintergrundfaeden():
+    """Schreibweg, Karten-Nachzug, IT-Spiegel und Tippanzeige laufen in
+    Daemon-Threads. Die Sperre allein reicht als Warte-Signal nicht: der
+    Schreib-Thread gibt sie VOR dem Senden der Anzeigenachricht frei (Flake:
+    die Nachricht kam nach ``_TEXT_ALLES_FERTIG``). Deshalb wird jeder im Test
+    gestartete Thread gejoint -- auch am Ende, damit keiner in den naechsten
+    Test hineinlaeuft."""
+    _BASIS.clear()
+    _BASIS.update(threading.enumerate())
+    yield
+    _warte()
+
+
 def _warte():
     stagescript._sperre_fuer(1).acquire(timeout=5)
     stagescript._sperre_fuer(1).release()
+    for faden in threading.enumerate():
+        if faden not in _BASIS and faden is not threading.current_thread():
+            faden.join(10)
 
 
 def test_ohne_schalter_bleibt_phase_7_die_formwahl(conn, einst, monkeypatch):
@@ -97,6 +118,7 @@ def test_phase_7_szene_fuer_szene_aus_der_karte(conn, einst, padua):
     assert ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 99) == \
         stagescript.T._TEXT_NICHT_DRAN
     ueberarbeitung.bestaetige_szene_7(conn, tg, klm, einst, 1, 2)
+    _warte()
     assert tg.texte[-1] == stagescript.T._TEXT_ALLES_FERTIG
 
 

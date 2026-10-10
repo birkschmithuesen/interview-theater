@@ -110,6 +110,47 @@ _NACHTRAG_WOERTLICH = (
     "nachgebessert hast."
 )
 
+#: Unterhalb dieser Wortzahl ist ein Zitat ausserhalb seiner Interviewfrage
+#: nicht mehr zu verstehen -- gemessen an einer Stichprobe aus
+#: ``betrieb/padua.db`` (3 Gruppen, 09.10.2026): ALLE Zitate mit 2-3 Woertern
+#: waren blosse Fragmente ("In Romania.", "Il sale", "I femminicidi"), ab 4
+#: Woertern ueberwog das Gegenteil ("io avevo tre mesi", "Il profumo del
+#: sugo."). Anlass: Padua-Abschlussfeedback 09.10.2026 Abschnitt 05, "worst
+#: sentence of the interviews that had no meaning".
+MIN_ZITAT_WOERTER = 4
+
+#: Zusaetzlich an den Prompt gehaengt, wenn ein woertlich korrektes Zitat zu
+#: kurz ist, um fuer sich zu stehen.
+_NACHTRAG_SELBSTAENDIG = (
+    "\n\nWICHTIG, zweiter Anlauf: Mindestens ein Belegzitat im ersten Anlauf "
+    "war zu kurz, um ausserhalb seiner Interviewfrage verstanden zu werden "
+    "(ein, zwei Woerter wie eine blosse Ja/Nein-Antwort). Waehle, wo das "
+    "Transkript es zulaesst, eine laengere, zusammenhaengende Passage, die "
+    "auch ohne die Frage nebenan verstaendlich ist -- weiterhin woertlich "
+    "und ohne Auslassungen."
+)
+
+
+def _ist_fragment(zitat_text: str) -> bool:
+    """Weniger als ``MIN_ZITAT_WOERTER`` Woerter: ein Fragment, das nur mit
+    der (hier nicht gespeicherten) Interviewfrage daneben einen Sinn ergibt."""
+    return len((zitat_text or "").split()) < MIN_ZITAT_WOERTER
+
+
+def _bewertung(ergebnis: dict, transkript: str) -> tuple[int, int]:
+    """``(Anzahl belegter Themen, davon Anzahl zu kurzer Fragmente)`` -- die
+    Kennzahl, an der ``verdichte`` den ersten gegen den zweiten Anlauf
+    misst."""
+    bestanden = 0
+    fragmente = 0
+    for v in ergebnis.get("kernthemen", []):
+        z = v.get("beleg_zitat")
+        if z and zitat.pruefe(z, transkript):
+            bestanden += 1
+            if _ist_fragment(z):
+                fragmente += 1
+    return bestanden, fragmente
+
 
 def verdichte(klm, conn, e, aufnahme_id: int) -> int:
     """Verdichtet die Aufnahme ``aufnahme_id`` und speichert das Ergebnis.
@@ -129,19 +170,23 @@ def verdichte(klm, conn, e, aufnahme_id: int) -> int:
     )
     # Ein zweiter Versuch, wenn Zitate durchfallen (05.09., Simulation
     # birk-6: 2 von 3 Ergebnissen 'ohne belegtes Zitat verworfen', im
-    # Direkttest 6/6 bestanden -- das Modell glaettet gelegentlich). Nicht
-    # mehr als einer: Kosten und Zeit, und ein Modell, das zweimal daneben
-    # liegt, liegt auch beim dritten Mal daneben.
-    if any(not (v.get("beleg_zitat") and zitat.pruefe(v["beleg_zitat"], transkript))
-           for v in ergebnis.get("kernthemen", [])):
+    # Direkttest 6/6 bestanden -- das Modell glaettet gelegentlich) ODER
+    # wenn ein woertlich korrektes Zitat ein blosses Fragment ist
+    # (``_ist_fragment``, Padua-Feedback "worst sentence ... had no
+    # meaning"). Nicht mehr als einer: Kosten und Zeit, und ein Modell, das
+    # zweimal daneben liegt, liegt auch beim dritten Mal daneben.
+    gesamt = len(ergebnis.get("kernthemen", []))
+    bestanden, fragmente = _bewertung(ergebnis, transkript)
+    if bestanden < gesamt or fragmente:
+        zusatz = T._NACHTRAG_WOERTLICH if bestanden < gesamt else ""
+        if fragmente:
+            zusatz += T._NACHTRAG_SELBSTAENDIG
         zweiter = klm.schema(
-            chat_id, prompt() + T._NACHTRAG_WOERTLICH,
+            chat_id, prompt() + zusatz,
             baue_nutzertext(transkript, fragen), SCHEMA, "verdichter",
         )
-        def _bestanden(r):
-            return sum(1 for v in r.get("kernthemen", [])
-                       if v.get("beleg_zitat") and zitat.pruefe(v["beleg_zitat"], transkript))
-        if _bestanden(zweiter) > _bestanden(ergebnis):
+        bestanden2, fragmente2 = _bewertung(zweiter, transkript)
+        if (bestanden2, -fragmente2) > (bestanden, -fragmente):
             ergebnis = zweiter
 
     themen = []

@@ -126,3 +126,36 @@ def test_eine_inhaltliche_nachricht_wird_normal_beantwortet(conn):
 
     assert klm.aufrufe == 1
     assert tg.gesendet != []
+
+
+# --- "Zeig mir andere Interviewstellen" (Padua-Feedback 09.10.2026) --------
+
+
+def test_andere_interviewstellen_bekommen_die_echte_liste_statt_ein_modell(conn):
+    """Padua-Feedback 09.10.2026, Abschnitt 05: "we had to ask a lot of
+    time ... show us other parts of interviews". Ab der Schaerfung traegt
+    der Prompt nur noch das Kernpaket -- ein Modell, das trotzdem gefragt
+    wird, kann nichts Neues zeigen. Statt eines Modellaufrufs geht die
+    echte Liste des unbenutzten Materials aus der Datenbank raus."""
+    repo.sichere_gruppe(conn, 1, "testbot", "Testgruppe")
+    kopf_id = repo.lege_interview_an(conn, 1)
+    repo.setze_aufnahme_name(conn, kopf_id, "Interview")
+    repo.setze_transkript(conn, kopf_id, "Ich habe zwanzig Jahre genaeht.")
+    repo.setze_status(conn, kopf_id, "fertig")
+    repo.setze_interview_beendet(conn, kopf_id)
+    repo.speichere_verdichtung(conn, 1, kopf_id, "Zusammenfassung.", [
+        {"thema": "Arbeit ohne Anerkennung",
+         "beleg_zitat": "Ich habe zwanzig Jahre genaeht.", "zitat_geprueft": 1},
+    ])
+    repo.merke_nachricht(
+        conn, 1, 30, "Birk", 0, "text",
+        "Habt ihr noch andere Zitate aus den Interviews?", repo._jetzt(),
+    )
+    tg, klm = _TG(), _KLM()
+    offen = [dict(n) for n in repo.unbeantwortete(conn, 1)]
+
+    ablauf.antworte(conn, tg, klm, _E(), 1, offen)
+
+    assert klm.aufrufe == 0, "kein Sprachmodell-Aufruf fuer die Materialliste"
+    assert len(tg.gesendet) == 1
+    assert "Ich habe zwanzig Jahre genaeht." in tg.gesendet[0][1]

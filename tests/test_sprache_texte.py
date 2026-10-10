@@ -166,6 +166,13 @@ BLEIBT_DEUTSCH = {
     "web._TEXT_BEDARF_DOWNLOAD": (
         "Birk 08.10.2026: derselbe Grund wie web._TEXT_BEDARF_TITEL"
     ),
+    # Volltranskript-PDFs (08.10.2026 ~15:15, Commit a61b43a): der Kopf ist
+    # bewusst zweisprachig (DE/IT), nicht ueber T -- siehe Kommentar an
+    # web._TEXT_TRANSKRIPTE_KOPF.
+    "web._TEXT_TRANSKRIPTE_KOPF": (
+        "Birk 08.10.2026: zweisprachiger Kopf (DE/IT) wie die PDFs selbst, "
+        "bewusst nicht ueber sprache.T"
+    ),
 }
 
 #: Wortlisten fuer Parser (D5) -- keine Texttabelle, sondern Code mit

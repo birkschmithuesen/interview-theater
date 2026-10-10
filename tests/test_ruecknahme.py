@@ -135,6 +135,9 @@ def test_verweise_kommen_aus_dem_schema():
         ("karte_verlauf", "szene_id", "szene"),
         # Padua Quickfix (08.10.2026, Punkt 1): Notizen zu Stage-Script-Szenen.
         ("stagescript_notiz", "szene_id", "szene"),
+        # Stueckmodell (t_fd88600b): offene Fragen und Veraltet-Vermerke je Szene.
+        ("offene_frage", "szene_id", "szene"),
+        ("veraltet", "szene_id", "szene"),
     }
 
 

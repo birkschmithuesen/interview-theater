@@ -750,6 +750,11 @@ CREATE TABLE IF NOT EXISTS szene (
   -- Die italienische Spiegelung des Stage Scripts (``volltext``) unter
   -- ``[karten] aktiv`` + ``[skript] zweisprachig`` (stagescript.py). Additiv.
   volltext_it       TEXT,
+  -- Stueckmodell (Karte t_fd88600b, 10.10.2026): wer in der Szene ist,
+  -- ohne eine Figur zu sein ("tutto il pubblico", "uno di noi alla camera").
+  -- Zusammen mit szene_figur die EINE Stelle fuer "wer" -- karte.wer
+  -- entfaellt. Additiv ueber _migriere_fehlende_spalten.
+  wer_zusatz        TEXT,
   -- Gesetzt = die Gruppe hat den Text mit "Passt" abgenommen (Phase 6,
   -- knoepfe.ART_SZENE_PASST). Ein Volltext allein heisst nur "geschrieben":
   -- unter jedem frischen Szenentext haengen vier Knoepfe, und erst einer
@@ -1051,6 +1056,11 @@ CREATE TABLE IF NOT EXISTS szene_figur (
   chat_id    INTEGER NOT NULL,
   szene_id   INTEGER NOT NULL,
   figur_id   INTEGER NOT NULL,
+  -- Stueckmodell (t_fd88600b): die Rolle der Figur in DIESER Szene
+  -- ("(Arlecchino)", "fuori campo") und ihre Reihenfolge in der Besetzung.
+  -- NULL = keine Rolle / Reihenfolge nach figur.id wie bisher.
+  rolle      TEXT,
+  position   INTEGER,
   PRIMARY KEY (szene_id, figur_id)
 );
 
@@ -1503,6 +1513,56 @@ CREATE TABLE IF NOT EXISTS bedarf_punkt (
   datei        TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_bedarf_punkt_gruppe ON bedarf_punkt(chat_id, sektion, reihenfolge);
+
+-- Stueckmodell (Karte t_fd88600b, Birk 10.10.2026): die EINE Stelle fuer
+-- offene Fragen -- karte.fragen und "[OPEN] ..."-Punkte entfallen. status:
+-- offen (blockiert "Yes, save" der Karte) | vertagt ("I don't know", steht
+-- als [OPEN]-Punkt auf der Karte) | beantwortet | uebersprungen.
+CREATE TABLE IF NOT EXISTS offene_frage (
+  id              INTEGER PRIMARY KEY,
+  chat_id         INTEGER NOT NULL,
+  szene_id        INTEGER,
+  text            TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'offen',
+  antwort         TEXT,
+  quelle          TEXT NOT NULL,
+  erstellt_am     TEXT NOT NULL,
+  geschlossen_am  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_offene_frage_szene ON offene_frage(chat_id, szene_id, status);
+
+-- Stueckmodell: Prosa, die nach einer Aenderung nicht mehr passt. Prosa wird
+-- nie still umgeschrieben -- die Gruppe bekommt "Szene N passt nicht mehr zu
+-- ... -- neu schreiben?" (angeboten_am) und entscheidet (entscheidung:
+-- neu | lassen | neu_geschrieben). ansicht: script | kopf.
+CREATE TABLE IF NOT EXISTS veraltet (
+  id            INTEGER PRIMARY KEY,
+  chat_id       INTEGER NOT NULL,
+  szene_id      INTEGER,
+  ansicht       TEXT NOT NULL,
+  grund         TEXT NOT NULL,
+  aenderung_id  INTEGER,
+  erstellt_am   TEXT NOT NULL,
+  angeboten_am  TEXT,
+  erledigt_am   TEXT,
+  entscheidung  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_veraltet_offen ON veraltet(chat_id, erledigt_am);
+
+-- Stueckmodell: jede Mutation (stueck.py) und jede Migrationsentscheidung,
+-- nur anhaengend. art = Funktionsname oder konflikt_* (Migration); ziel,
+-- vorher, nachher = JSON.
+CREATE TABLE IF NOT EXISTS stueck_aenderung (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  art          TEXT NOT NULL,
+  ziel         TEXT NOT NULL,
+  vorher       TEXT,
+  nachher      TEXT,
+  quelle       TEXT NOT NULL,
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_stueck_aenderung_gruppe ON stueck_aenderung(chat_id, id);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1552,6 +1612,10 @@ TABELLEN_MIT_CHAT_ID = (
     "stagescript_notiz",
     # Birk 08.10.2026 ~13:45: die Bedarfsliste (Raum/Requisiten/Technik/Kostuem).
     "bedarf_punkt",
+    # Stueckmodell (Karte t_fd88600b, 10.10.2026).
+    "offene_frage",
+    "veraltet",
+    "stueck_aenderung",
 )
 
 

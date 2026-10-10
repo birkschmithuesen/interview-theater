@@ -710,3 +710,68 @@ def test_verfeinerungs_zeilen_ohne_erstentwurf_zeigt_notiz_trotzdem(conn, einst,
     zeilen = szenenkarte.verfeinerungs_zeilen(conn, 1, szene)
     assert len(zeilen) == 1
     assert "truccato" in zeilen[0]
+
+
+# ---------------------------------------------------------------------------
+# Stueckmodell Task 15: Speichern ist idempotent (Review 15)
+# ---------------------------------------------------------------------------
+
+_ALTER_STEMPEL = "2020-01-01T00:00:00"
+
+
+def _journal_entschieden(conn):
+    return [z for z in repo.journal(conn, 1) if z["art"] == "entschieden"]
+
+
+def test_zweites_speichern_einer_gespeicherten_karte_tut_nichts(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    conn.execute("UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?", (_ALTER_STEMPEL, ids[0]))
+    conn.commit()
+    tg, klm = TG(), LLM()
+    vorher_journal = len(_journal_entschieden(conn))
+    geaendert = repo.hole_szene(conn, ids[0])["geaendert_am"]
+
+    antwort = szenenkarte.bestaetige(conn, tg, klm, einst, 1, 1)
+
+    assert antwort == szenenkarte.T._ANTWORT_GESPEICHERT.format(nummer=1)
+    assert repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"] == _ALTER_STEMPEL
+    assert repo.hole_szene(conn, ids[0])["geaendert_am"] == geaendert
+    assert len(_journal_entschieden(conn)) == vorher_journal
+    assert klm.aufrufe == []
+    # Karte 1 ist nicht die aktuelle: erst die Warnzeile, dann die kurze
+    # Bestaetigung -- keine Kartenanzeige, keine Leiste.
+    assert tg.texte[-1] == antwort
+    assert len(tg.texte) == 2
+    assert not tg.leisten
+
+
+def test_geaenderte_karte_laesst_sich_wieder_speichern(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    conn.execute("UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?", (_ALTER_STEMPEL, ids[0]))
+    conn.commit()
+    karte = json.loads(repo.hole_szene(conn, ids[0])["karte"])
+    karte["worum"] = "Neu."
+    repo.setze_szenenkarte(conn, ids[0], json.dumps(karte))
+    assert not repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
+    vorher = len(_journal_entschieden(conn))
+
+    szenenkarte.bestaetige(conn, TG(), LLM(), einst, 1, 1)
+    szenenkarte._sperre_fuer(1).acquire(timeout=5)
+    szenenkarte._sperre_fuer(1).release()
+
+    stempel = repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
+    assert stempel and stempel != _ALTER_STEMPEL
+    assert len(_journal_entschieden(conn)) == vorher + 1
+
+
+def test_speichern_einer_nicht_aktuellen_karte_laesst_die_aktuelle(conn, einst, padua):
+    ids = _karte1(conn, einst, LLM())
+    repo.setze_szenenkarte(conn, ids[1], repo.hole_szene(conn, ids[0])["karte"])
+    assert szenenkarte.aktuelle_nummer(conn, 1) == 1
+    tg = TG()
+
+    szenenkarte.bestaetige(conn, tg, LLM(), einst, 1, 2)
+
+    assert repo.hole_szene(conn, ids[1])["karte_bestaetigt_am"]
+    assert not repo.hole_szene(conn, ids[0])["karte_bestaetigt_am"]
+    assert szenenkarte.aktuelle_nummer(conn, 1) == 1

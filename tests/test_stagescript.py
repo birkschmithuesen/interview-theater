@@ -691,3 +691,58 @@ def test_abnahme_ohne_text_bleibt_nicht_dran(conn, einst, padua):
 
     assert antwort == stagescript.T._TEXT_NICHT_DRAN
     assert not tg.leisten
+
+
+def _journal_entschieden(conn):
+    return [z for z in repo.journal(conn, 1) if z["art"] == "entschieden"]
+
+
+def test_zweites_speichern_einer_abgenommenen_szene_tut_nichts(conn, einst, padua):
+    """Review 15: ein zweites "Yes, save" (Chat/Befehl/Erkenner) schrieb
+    Stempel, Journal und geaendert_am erneut und zeigte die Szene nochmal."""
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "Scene 1 text.", None)
+    conn.execute("UPDATE szene SET fertig_am = '2020-01-01T00:00:00', "
+                 "geaendert_am = '2020-01-01T00:00:00' WHERE id = ?", (ids[0],))
+    conn.commit()
+    tg, klm = TG(), LLM()
+    vorher = len(_journal_entschieden(conn))
+
+    antwort = stagescript.bestaetige(conn, tg, klm, einst, 1, 1)
+
+    assert antwort == stagescript.T._ANTWORT_GESPEICHERT.format(nummer=1)
+    szene = repo.hole_szene(conn, ids[0])
+    assert szene["fertig_am"] == "2020-01-01T00:00:00"
+    assert szene["geaendert_am"] == "2020-01-01T00:00:00"
+    assert len(_journal_entschieden(conn)) == vorher
+    assert tg.texte == [antwort]
+    assert not tg.leisten
+
+
+def test_geaenderte_szene_laesst_sich_wieder_speichern(conn, einst, padua):
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "Scene 1 text.", None)
+    conn.execute("UPDATE szene SET fertig_am = '2020-01-01T00:00:00' WHERE id = ?", (ids[0],))
+    conn.commit()
+    repo.setze_stagescript(conn, ids[0], "Scene 1 changed.", None)
+    assert not repo.hole_szene(conn, ids[0])["fertig_am"]
+    vorher = len(_journal_entschieden(conn))
+
+    stagescript.bestaetige(conn, TG(), LLM(), einst, 1, 1)
+    _warte()
+
+    fertig = repo.hole_szene(conn, ids[0])["fertig_am"]
+    assert fertig and fertig != "2020-01-01T00:00:00"
+    assert len(_journal_entschieden(conn)) == vorher + 1
+
+
+def test_speichern_einer_nicht_aktuellen_szene_laesst_die_aktuelle(conn, einst, padua):
+    ids = _karten(conn)
+    repo.setze_stagescript(conn, ids[0], "Scene 1 text.", None)
+    repo.setze_stagescript(conn, ids[1], "Scene 2 text.", None)
+    assert stagescript.aktuelle_nummer(conn, 1) == 1
+
+    stagescript.bestaetige(conn, TG(), LLM(), einst, 1, 2)
+
+    assert repo.hole_szene(conn, ids[1])["fertig_am"]
+    assert stagescript.aktuelle_nummer(conn, 1) == 1

@@ -807,6 +807,12 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
         # Nichts zu speichern -- das ist kein Verbot, nur ein Hinweis.
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
+    if _gesetzt(szene["fertig_am"]):
+        # Schon abgenommen und seither unveraendert (ein neuer Text leert
+        # ``fertig_am``): nur bestaetigen, nichts erneut schreiben.
+        antwort = _T(chat_id)._ANTWORT_GESPEICHERT.format(nummer=nummer)
+        _sende(conn, tg, e, chat_id, antwort)
+        return antwort
     aktuell = aktuelle_nummer(conn, chat_id)
     repo.setze_szene_fertig(conn, szene["id"], True)
     repo.schreibe_journal(conn, chat_id, "entschieden",

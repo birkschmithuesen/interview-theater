@@ -64,7 +64,13 @@ def test_ein_erneuter_klick_auf_eine_besuchte_phase_zeigt_keine_karte(tmp_path, 
     # Zurueck auf 3 -- eine schon besuchte Phase: NUR die kurze Zeile.
     befehle.wechsle_phase(conn, tg, None, Einstellungen(), CHAT, 3, quelle="web")
     assert aufrufe == []
-    assert tg.gesendet[0] == phasen.meldung(3)  # danach evtl. die Warnung (nie eine Sperre)
+    # Genau die kurze Zeile, danach (nie eine Sperre) die Phasenwarnung.
+    fehlt = phasen.warnungen(conn, CHAT, 3)
+    erwartet = [phasen.meldung(3)]
+    if fehlt:
+        erwartet.append(phasen.T._WARNUNG_PHASE_KOPF.format(phase=3) + "\n"
+                        + "\n".join(f"- {s}" for s in fehlt))
+    assert tg.gesendet == erwartet
 
 
 def test_der_allererste_eintritt_bleibt_voll(tmp_path, monkeypatch):

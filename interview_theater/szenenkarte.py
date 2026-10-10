@@ -645,6 +645,12 @@ def bestaetige(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if karte is None:
         _sende(conn, tg, e, chat_id, _T(chat_id)._TEXT_NICHT_DRAN)
         return _T(chat_id)._TEXT_NICHT_DRAN
+    if _gesetzt(szene["karte_bestaetigt_am"]):
+        # Schon gespeichert und seither unveraendert (jede Aenderung der Karte
+        # leert den Stempel): nur bestaetigen, nichts erneut schreiben.
+        antwort = _T(chat_id)._ANTWORT_GESPEICHERT.format(nummer=nummer)
+        _sende(conn, tg, e, chat_id, antwort)
+        return antwort
     if karte.get("fragen"):
         zeige(conn, tg, e, chat_id, nummer)
         return _T(chat_id)._TEXT_FRAGEN_OFFEN_ABGELEHNT

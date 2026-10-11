@@ -42,6 +42,29 @@ def test_tools_uebersetzt_und_trennt_still_und_laut(conn, einst, monkeypatch):
     assert z["modellaufrufe"] == 2
 
 
+def test_abgelehnter_aufruf_zaehlt_als_absicht(conn, einst, monkeypatch):
+    fall = {"id": "x2", "arbeitsstand": {}, "nachrichten": [
+        {"absender": "Sara", "text": "der Ort ist ein Bahnhof"}],
+        "erwartet": [{"art": "szene_planen", "wert": "9 Bahnhof"}]}
+    ausf = [ew.Ausfuehrung("setze_ort", {"szene": 9, "ort": "Bahnhof"}, False,
+                           {"ok": False}, "keine_szene", None)]
+    lauf = Schleifenergebnis((), 1, None, 10, 5, 100, "")
+    monkeypatch.setattr(erkenner, "_werkzeuglauf",
+                        lambda c, e, ch, n: ([], [], lauf, ausf))
+    z = ab.laufe_tools(conn, einst, 1, fall)
+    assert (z["treffer"], z["fn"]) == (0, 1)
+    assert (z["absicht_treffer"], z["absicht_fp"], z["absicht_fn"]) == (1, 0, 0)
+    assert z["abgelehnt_gruende"] == {"keine_szene": 1}
+
+
+def test_json_absicht_gleich_hauptzaehlung(conn, einst, monkeypatch):
+    monkeypatch.setattr(szene_claude, "schema", lambda *a, **k: {"aenderungen": [
+        {"art": "interview_starten", "wert": ""}, {"art": "verworfen", "wert": "x"}]})
+    z = ab.laufe_json(conn, einst, None, 1, FALL)
+    assert (z["absicht_treffer"], z["absicht_fp"], z["absicht_fn"]) == (
+        z["treffer"], z["fp"], z["fn"])
+
+
 def test_zeile_ist_jsonl_tauglich(conn, einst, monkeypatch):
     monkeypatch.setattr(szene_claude, "schema", lambda *a, **k: {"aenderungen": []})
     json.dumps(ab.laufe_json(conn, einst, None, 1, FALL))

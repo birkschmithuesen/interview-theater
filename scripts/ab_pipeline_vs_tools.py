@@ -58,13 +58,16 @@ def _leer(modus: str, fall: dict) -> dict:
             "aufnahme": bool(fall.get("aufnahme")), "modellaufrufe": 0, "still_fp": 0, "ohne_korpusart": 0,
             "abgelehnt": 0, "abbruch": None, "runden": 0, "eingabe_token": 0,
             "ausgabe_token": 0, "dauer_ms": 0, "fehler": None, "geliefert": [],
-            "aufrufe": []}
+            "aufrufe": [], "absicht_treffer": 0, "absicht_fp": 0,
+            "absicht_fn": len(fall.get("erwartet", [])), "abgelehnt_gruende": {}}
 
 
 def _zaehle(zeile: dict, fall: dict, geliefert: list[dict]) -> dict:
     bewertung = pp.vergleiche_erkenner(fall["erwartet"], geliefert)
     zeile.update(treffer=len(bewertung["treffer"]), fp=len(bewertung["ueberzaehlig"]),
                  fn=len(bewertung["fehlend"]), geliefert=geliefert)
+    zeile.update(absicht_treffer=zeile["treffer"], absicht_fp=zeile["fp"],
+                 absicht_fn=zeile["fn"])
     return zeile
 
 
@@ -99,6 +102,17 @@ def laufe_tools(conn, e, chat_id: int, fall: dict) -> dict:
         uebersetzt = [x for x in (erkenner_werkzeuge.als_aenderung(a) for a in ausfuehrungen)
                       if x is not None]
         _zaehle(zeile, fall, _filter(fall, uebersetzt))
+        # Nebenzaehlung: erkannte Absicht, auch wenn das Stueck den Aufruf ablehnte
+        absichten = [x for x in (erkenner_werkzeuge.als_absicht(a) for a in ausfuehrungen)
+                     if x is not None]
+        bew = pp.vergleiche_erkenner(fall["erwartet"], _filter(fall, absichten))
+        zeile.update(absicht_treffer=len(bew["treffer"]), absicht_fp=len(bew["ueberzaehlig"]),
+                     absicht_fn=len(bew["fehlend"]))
+        gruende: dict[str, int] = {}
+        for a in ausfuehrungen:
+            if not a.ok:
+                gruende[a.fehler or "unbekannt"] = gruende.get(a.fehler or "unbekannt", 0) + 1
+        zeile["abgelehnt_gruende"] = gruende
         ohne = sum(1 for a in ausfuehrungen if a.generisch is None and a.ok
                    and a.name not in erkenner_werkzeuge.ART_FUER_WERKZEUG)
         zeile.update(

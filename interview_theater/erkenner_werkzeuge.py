@@ -137,7 +137,17 @@ def als_aenderung(a: Ausfuehrung) -> dict | None:
     oder Werkzeug ohne Korpus-Art)."""
     if a.generisch is not None:
         return dict(a.generisch)
-    if not a.ok or a.name not in ART_FUER_WERKZEUG:
+    if not a.ok:
+        return None
+    return als_absicht(a)
+
+
+def als_absicht(a: Ausfuehrung) -> dict | None:
+    """Wie ``als_aenderung``, aber auch fuer abgelehnte Aufrufe: die erkannte
+    Absicht, unabhaengig davon, ob das Stueck sie angenommen hat."""
+    if a.generisch is not None:
+        return dict(a.generisch)
+    if a.name not in ART_FUER_WERKZEUG:
         return None
     werte = [v for k, v in a.eingabe.items() if k not in _AUSGEBLENDET]
     teile = [str(v) for v in werte

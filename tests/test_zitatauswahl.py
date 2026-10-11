@@ -534,3 +534,133 @@ def test_bericht_traegt_abschnitte_zahlen_und_kommandos(tmp_path):
     assert "python -m scripts.zitatauswahl historisch" in text
     assert "korpus/zitatauswahl_gold.jsonl" in text
     assert "I-a: nicht gemessen" in text
+
+
+# --- Abschlussreview t_2f905d2c -------------------------------------------------
+
+
+def _gold_mit_negativ(lage):
+    t, s = _themen(lage), _szenen(lage)
+    repo.lege_schaerfung_an(lage, 1, [
+        {"verdichtung_thema_id": t["Nachbarn"], "szene_id": s[1], "staerke": 3}])
+    sid = repo.schaerfungen_historie(lage, 1)[0]["id"]
+    assert repo.setze_schaerfung_entscheidung(lage, 1, sid, "nein")
+    return za.baue_gold(lage, QUELLE, {"G1": 1}), t, s
+
+
+def test_mutation_umgehaengtes_thema_ist_rot(lage):
+    """Review: thema_ids 114 -> 3 (ein anderes, existierendes Thema) blieb gueltig."""
+    t = _themen(lage)
+    gold = za.baue_gold(lage, QUELLE, {"G1": 1})
+    assert za.pruefe_gold(lage, gold) == []
+    gold[0]["thema_ids"] = [t["Stadt"]]
+    gold[0]["verdichtung_thema_id"] = t["Stadt"]
+    fehler = za.pruefe_gold(lage, gold)
+    assert any(f.startswith("G1-1:") and "gehoert nicht zu dieser Stelle" in f for f in fehler)
+
+
+def test_mutation_negativ_mit_fremder_schaerfung_id_ist_rot(lage):
+    gold, t, s = _gold_mit_negativ(lage)
+    assert za.pruefe_gold(lage, gold) == []
+    negativ = next(g for g in gold if g["polaritaet"] == "negativ")
+    negativ["schaerfung_ids"] = [99999]
+    assert any("gibt es in dieser Gruppe nicht" in f for f in za.pruefe_gold(lage, gold))
+
+
+def test_mutation_negativ_mit_positivem_thema_ist_rot(lage):
+    gold, t, s = _gold_mit_negativ(lage)
+    negativ = next(g for g in gold if g["polaritaet"] == "negativ")
+    fremde = repo.schaerfungen_historie(lage, 1)[0]["id"]
+    negativ["verdichtung_thema_id"] = t["Arbeit"]  # ein positives Thema, aber fremde nein-Zeile
+    negativ["thema_ids"] = [t["Arbeit"]]
+    negativ["schaerfung_ids"] = [fremde]
+    fehler = za.pruefe_gold(lage, gold)
+    assert any("positiv" in f for f in fehler)
+    assert any("anderen Thema oder Ziel" in f for f in fehler)
+
+
+def test_negativ_mit_ja_am_paar_ist_rot(lage):
+    gold, t, s = _gold_mit_negativ(lage)
+    repo.lege_schaerfung_an(lage, 1, [
+        {"verdichtung_thema_id": t["Nachbarn"], "szene_id": s[1], "staerke": 2}])
+    neu = repo.schaerfungen_historie(lage, 1)[-1]["id"]
+    assert repo.setze_schaerfung_entscheidung(lage, 1, neu, "ja")
+    assert any("steht ein ja" in f for f in za.pruefe_gold(lage, gold))
+
+
+@pytest.mark.parametrize("pfad", [
+    "/srv/haupt/betrieb/padua.db", "betrieb/padua.db", "/irgendwo/padua.db",
+    "/srv/haupt/betrieb/kopie.db", "var/padua-test.db"])
+def test_verbinde_lehnt_live_und_testdb_auch_absolut_ab(pfad):
+    with pytest.raises(SystemExit):
+        za._verbinde(pfad)
+
+
+def test_lade_roh_bricht_bei_zwei_erfolgen_je_ziel_ab(tmp_path):
+    zeile = {"variante": "B1", "lauf": 1, "gruppe": "G1", "ranglisten": {"G1:szene:2": [1]},
+             "maskiert": {}, "fehler": {}, "dauer_ms": {}}
+    za.haenge_an(zeile, tmp_path / "B1.jsonl")
+    za.haenge_an(dict(zeile, ranglisten={"G1:szene:2": [2]}), tmp_path / "B1.jsonl")
+    with pytest.raises(ValueError, match="zwei erfolgreiche"):
+        za.lade_roh(tmp_path)
+
+
+def test_eingecheckte_rohdaten_haben_keine_doppelten_erfolge():
+    assert za.lade_roh(za.ROH)
+
+
+def test_bericht_mit_db_prueft_zuerst_den_gold_korpus(lage, tmp_path, monkeypatch, capsys):
+    gold = za.baue_gold(lage, QUELLE, {"G1": 1})
+    gold[0]["thema_ids"] = [999]
+    pfad = tmp_path / "gold.jsonl"
+    za.schreibe_gold(gold, pfad)
+    monkeypatch.setattr(za, "_verbinde", lambda p: lage)
+    aus = tmp_path / "b.md"
+    assert za.main(["bericht", "--db", "x.db", "--gold", str(pfad), "--roh", str(tmp_path),
+                    "--aus", str(aus)]) == 1
+    assert not aus.exists() and "999" in capsys.readouterr().err
+
+
+def test_bericht_zaehlt_fehler_berechnet_und_nennt_versuche(tmp_path):
+    gold = [_g("G1-1", "G1", 2, [3])]
+    pfad = tmp_path / "I-a.jsonl"
+    fehl = {"variante": "I-a", "lauf": 3, "gruppe": "G1", "ranglisten": {"G1:szene:2": None},
+            "maskiert": {}, "fehler": {"G1:szene:2": "ClaudeFehler: x"}, "dauer_ms": {"G1:szene:2": 370000}}
+    for _ in range(7):
+        za.haenge_an(fehl, pfad)
+    za.haenge_an(dict(fehl, lauf=1, ranglisten={"G1:szene:2": [3] * 150}, fehler={},
+                      dauer_ms={"G1:szene:2": 178000}), pfad)
+    za.haenge_an({"variante": "B1", "lauf": 1, "gruppe": "G1", "ranglisten": {"G1:szene:2": [3] * 187},
+                  "maskiert": {}, "fehler": {}, "dauer_ms": {"G1:szene:2": 157000}}, tmp_path / "B1.jsonl")
+
+    text = za.schreibe_bericht(gold, za.lade_roh(tmp_path), tmp_path / "b.md",
+                               roh=list(za._rohzeilen(tmp_path)))
+
+    assert "| gesamt | I-a | 1/1 | 1,0 | 0,0 | 1 | 0 | 7 | 1 |" in text
+    assert "aus 1 von 8 Versuchen" in text
+    assert "sechsmal" not in text
+
+
+# --- Datenschutz der eingecheckten Dateien (Spec § 5/§ 7) ----------------------------
+
+ROH_SCHLUESSEL = {"variante", "lauf", "gruppe", "ranglisten", "maskiert", "fehler", "dauer_ms"}
+
+
+def test_eingecheckter_gold_korpus_negative_ohne_interviewtext():
+    negative = [g for g in za.lade_gold(za.GOLD) if g["polaritaet"] == "negativ"]
+    assert negative
+    for g in negative:
+        assert not {"wortlaut", "fragmente", "frage"} & set(g)
+
+
+def test_eingecheckte_rohzeilen_tragen_nur_kennungen_und_zahlen():
+    zeilen = list(za._rohzeilen(za.ROH))
+    assert zeilen
+    for z in zeilen:
+        assert set(z) <= ROH_SCHLUESSEL
+        for s, r in z["ranglisten"].items():
+            assert r is None or all(isinstance(t, int) for t in r)
+        assert all(isinstance(n, int) for n in z["maskiert"].values())
+        assert all(isinstance(n, int) for n in z["dauer_ms"].values())
+        assert all(isinstance(f, str) and f.startswith(("ClaudeFehler", "Ziel fehlt"))
+                   for f in z["fehler"].values()), z["fehler"]

@@ -11,7 +11,7 @@ Kommandos (Reihenfolge; Bericht: docs/messung/2026-10-zitatauswahl.md):
     uv run --extra dev python -m scripts.zitatauswahl pruefe --db var/zitatauswahl/padua-kopie.db
     uv run --extra dev python -m scripts.zitatauswahl historisch --db var/zitatauswahl/padua-kopie.db
     uv run --extra dev python -m scripts.zitatauswahl neu --db var/zitatauswahl/padua-kopie.db --variante B1 --lauf 1 --gruppe G1
-    uv run --extra dev python -m scripts.zitatauswahl bericht
+    uv run --extra dev python -m scripts.zitatauswahl bericht --db var/zitatauswahl/padua-kopie.db
 
 Quelle der Live-DB nur read-only (``stueckmodell_kopie.kopiere``, VACUUM INTO).
 Neu-Laeufe nur ueber den Claude-Proxy (0 CHF), nie ueber Kimi/gemma.
@@ -179,8 +179,16 @@ def baue_gold(conn, quelle: list[dict], gruppen: dict[str, int]) -> list[dict]:
 
 
 def pruefe_gold(conn, gold: list[dict]) -> list[str]:
-    """Jeder Fehler eine Zeile ``<id>: <grund>``; leer = gueltig (Spec § 6)."""
+    """Jeder Fehler eine Zeile ``<id>: <grund>``; leer = gueltig (Spec § 6).
+
+    Prueft auch die ZUGEHOERIGKEIT: ein Thema einer positiven Stelle steht im
+    Interview der Stelle und traegt deren Wortlaut; ein Negativ besteht aus
+    echten ``nein``-Zeilen desselben Themas und Ziels, ohne ``ja`` am Paar,
+    und sein Thema ist nirgends positiv."""
     fehler = []
+    positive_themen: dict[int, set[int]] = {}
+    for g in _positive(gold):
+        positive_themen.setdefault(g["chat_id"], set()).update(g["thema_ids"])
     for g in gold:
         chat_id = g["chat_id"]
         themen = {t["id"]: t for t in repo.themen_mit_aufnahme(conn, chat_id)}
@@ -193,6 +201,11 @@ def pruefe_gold(conn, gold: list[dict]) -> list[str]:
             for f in g["fragmente"]:
                 if not zitat.pruefe(f, text):
                     fehler.append(f"{g['id']}: Fragment nicht im Transkript: {f[:40]!r}")
+            for t in g["thema_ids"]:
+                if t in themen and (themen[t]["aufnahme_id"] != g["aufnahme_id"]
+                                    or anteil(g["fragmente"], themen[t]["beleg_zitat"] or "") < LOSE_SCHWELLE):
+                    fehler.append(f"{g['id']}: Thema {t} gehoert nicht zu dieser Stelle "
+                                  f"(anderes Interview oder Belegzitat ohne den Wortlaut)")
         for t in g["thema_ids"]:
             if t not in themen:
                 fehler.append(f"{g['id']}: Thema {t} gibt es in dieser Gruppe nicht")
@@ -204,6 +217,36 @@ def pruefe_gold(conn, gold: list[dict]) -> list[str]:
             szene = next((s for s in repo.hole_szenen(conn, chat_id) if s["id"] == g["ziel"]["id"]), None)
             if szene is None or szene["nummer"] != g["ziel"]["nummer"]:
                 fehler.append(f"{g['id']}: Szene {g['ziel']['nummer']} (id {g['ziel']['id']}) passt nicht")
+        elif not any(f["id"] == g["ziel"]["id"] for f in repo.figuren(conn, chat_id)):
+            fehler.append(f"{g['id']}: Figur {g['ziel']['id']} gibt es in dieser Gruppe nicht")
+        if g["polaritaet"] == "negativ":
+            fehler += _pruefe_negativ(conn, g, positive_themen.get(chat_id, set()))
+    return fehler
+
+
+def _pruefe_negativ(conn, g: dict, positiv_themen: set[int]) -> list[str]:
+    fehler = []
+    thema_id = g["verdichtung_thema_id"]
+    if g["thema_ids"] != [thema_id]:
+        fehler.append(f"{g['id']}: thema_ids muss genau das eine Thema {thema_id} sein")
+    if thema_id in positiv_themen:
+        fehler.append(f"{g['id']}: Thema {thema_id} ist an anderer Stelle positiv")
+    if not g.get("schaerfung_ids"):
+        fehler.append(f"{g['id']}: keine schaerfung_ids")
+    historie = {z["id"]: z for z in repo.schaerfungen_historie(conn, g["chat_id"])}
+    spalte = "szene_id" if g["ziel"]["art"] == "szene" else "figur_id"
+    for sid in g.get("schaerfung_ids") or []:
+        z = historie.get(sid)
+        if z is None:
+            fehler.append(f"{g['id']}: schaerfung {sid} gibt es in dieser Gruppe nicht")
+        elif z["entscheidung"] != "nein":
+            fehler.append(f"{g['id']}: schaerfung {sid} ist kein nein")
+        elif z["verdichtung_thema_id"] != thema_id or z[spalte] != g["ziel"]["id"]:
+            fehler.append(f"{g['id']}: schaerfung {sid} gehoert zu einem anderen Thema oder Ziel")
+    for z in historie.values():
+        if (z["entscheidung"] == "ja" and z["verdichtung_thema_id"] == thema_id
+                and z[spalte] == g["ziel"]["id"]):
+            fehler.append(f"{g['id']}: am Paar (Thema {thema_id}, Ziel) steht ein ja (schaerfung {z['id']})")
     return fehler
 
 
@@ -321,28 +364,62 @@ def haenge_an(zeile: dict, pfad) -> None:
         f.write(json.dumps(zeile, ensure_ascii=False, sort_keys=True) + "\n")
 
 
-def lade_roh(verz=ROH) -> list[dict]:
-    """Alle Rohzeilen; Zeilen desselben (variante, lauf, gruppe) -- etwa ein
-    Neu-Lauf in mehreren Aufrufen je Ziel -- werden zusammengefuehrt."""
-    zusammen: dict[tuple, dict] = {}
+def _rohzeilen(verz=ROH):
     for pfad in sorted(Path(verz).glob("*.jsonl")):
         with open(pfad, encoding="utf-8") as f:
             for roh in f:
-                if not roh.strip():
-                    continue
-                z = json.loads(roh)
-                schluessel = (z["variante"], z["lauf"], z["gruppe"])
-                ziel = zusammen.setdefault(schluessel, {
-                    "variante": z["variante"], "lauf": z["lauf"], "gruppe": z["gruppe"],
-                    "ranglisten": {}, "maskiert": {}, "fehler": {}, "dauer_ms": {}})
-                for feld in ("ranglisten", "maskiert", "fehler", "dauer_ms"):
-                    ziel[feld].update(z.get(feld) or {})
-                # Eine spaetere erfolgreiche Wiederholung (``--nur``) hebt den
-                # Fehler desselben Ziels in diesem Lauf auf.
-                for s, r in (z.get("ranglisten") or {}).items():
-                    if r is not None and s not in (z.get("fehler") or {}):
-                        ziel["fehler"].pop(s, None)
+                if roh.strip():
+                    yield json.loads(roh)
+
+
+def lade_roh(verz=ROH) -> list[dict]:
+    """Alle Rohzeilen; Zeilen desselben (variante, lauf, gruppe) -- etwa ein
+    Neu-Lauf in mehreren Aufrufen je Ziel -- werden zusammengefuehrt. Zwei
+    ERFOLGREICHE Ergebnisse fuer dasselbe (Variante, Lauf, Ziel) sind ein
+    Fehler (``ValueError``): sonst koennte man das bessere behalten."""
+    zusammen: dict[tuple, dict] = {}
+    erfolge: set[tuple] = set()
+    for z in _rohzeilen(verz):
+        schluessel = (z["variante"], z["lauf"], z["gruppe"])
+        ziel = zusammen.setdefault(schluessel, {
+            "variante": z["variante"], "lauf": z["lauf"], "gruppe": z["gruppe"],
+            "ranglisten": {}, "maskiert": {}, "fehler": {}, "dauer_ms": {}})
+        for s, r in (z.get("ranglisten") or {}).items():
+            if r is None:
+                continue
+            if (*schluessel, s) in erfolge:
+                raise ValueError(f"zwei erfolgreiche Ergebnisse fuer {z['variante']} Lauf "
+                                 f"{z['lauf']} {s} -- Rohdaten pruefen, nichts ueberschreiben")
+            erfolge.add((*schluessel, s))
+        for feld in ("ranglisten", "maskiert", "fehler", "dauer_ms"):
+            ziel[feld].update(z.get(feld) or {})
+        # Eine spaetere erfolgreiche Wiederholung (``--nur``) hebt den
+        # Fehler desselben Ziels in diesem Lauf auf.
+        for s, r in (z.get("ranglisten") or {}).items():
+            if r is not None and s not in (z.get("fehler") or {}):
+                ziel["fehler"].pop(s, None)
     return list(zusammen.values())
+
+
+def statistik(rohzeilen) -> dict:
+    """Aus den ROHzeilen gezaehlt (nicht aus den zusammengefuehrten): je
+    (Variante, Gruppe) die fehlgeschlagenen Ziel-Versuche; je (Variante, Ziel)
+    Versuche, Erfolge, Dauern und Listenlaengen der Erfolge."""
+    st = {"fehler": {}, "ziel": {}}
+    for z in rohzeilen:
+        for s, r in (z.get("ranglisten") or {}).items():
+            e = st["ziel"].setdefault((z["variante"], s), {"versuche": 0, "erfolge": 0,
+                                                           "dauer_s": [], "laengen": []})
+            e["versuche"] += 1
+            if r is None:
+                k = (z["variante"], z["gruppe"])
+                st["fehler"][k] = st["fehler"].get(k, 0) + 1
+            else:
+                e["erfolge"] += 1
+                e["laengen"].append(len(r))
+                if s in (z.get("dauer_ms") or {}):
+                    e["dauer_s"].append(round(z["dauer_ms"][s] / 1000))
+    return st
 
 
 def laeufe(zeilen: list[dict], gold: list[dict], variante: str, k: int = K) -> dict[int, dict]:
@@ -499,6 +576,14 @@ Datei: `korpus/zitatauswahl_gold.jsonl` -- eine JSON-Zeile je Stelle, UTF-8,
 sortiert nach `id`. Leser: `scripts.zitatauswahl.lade_gold(pfad)`.
 Treffer-Regel: `scripts.zitatauswahl.trifft(kandidat, gold)`.
 
+Fuer Messung 2: Ranglisten sind `dict[str, list[int]]`, Schluessel
+`<gruppe>:<art>:<ziel.id>` (`ziel_schluessel(zeile)`, z. B. `G1:szene:2`), Wert
+die Thema-Kennungen in Rangfolge, jedes Thema einmal. Aufruf:
+`recall_at_k(ranglisten: dict, gold: list[dict], k: int = 10) -> dict[str, dict]`
+(je Gruppe und `gesamt`: `{"treffer", "n", "fehlt"}`) und
+`negativ_at_k(ranglisten: dict, gold: list[dict], k: int = 10) -> dict[str, int]`
+(verworfene Paare in den Top-k, je Gruppe und `gesamt`).
+
 | Feld | Bedeutung |
 |---|---|
 | `id` | `G1-1` (positiv, Gruppe-Karte) bzw. `G1-n-0286` (negativ, kleinste `schaerfung.id`) |
@@ -547,18 +632,20 @@ Volle Begruendung: `docs/superpowers/specs/2026-10-11-zitatauswahl-gold-recall-d
 """
 
 KOMMANDOS = """\
-Alle Kommandos im Haupt-Checkout ausfuehren (dort liegt `betrieb/padua.db`;
-im Worktree gibt es kein `betrieb/`, dort `kopie --quelle <haupt-checkout>/betrieb/padua.db`).
+Die Kommandos laufen im Repo-Checkout (Worktree oder Haupt-Checkout). Die
+Live-DB liegt im Haupt-Checkout unter `betrieb/padua.db` und wird nur mit
+`kopie --quelle <pfad-zur-padua.db>` (read-only, VACUUM INTO) kopiert; alles
+andere arbeitet auf `var/zitatauswahl/padua-kopie.db`. `_verbinde` lehnt jede
+Datei `padua.db`, jeden Pfad mit Verzeichnis `betrieb` und `padua-test` ab.
 
 ```
-uv run --extra dev python -m scripts.zitatauswahl kopie
-uv run --extra dev python -m scripts.zitatauswahl kopie --quelle <haupt-checkout>/betrieb/padua.db
+uv run --extra dev python -m scripts.zitatauswahl kopie --quelle <pfad-zur-padua.db>
 uv run --extra dev python -m scripts.zitatauswahl gold --db var/zitatauswahl/padua-kopie.db
 uv run --extra dev python -m scripts.zitatauswahl pruefe --db var/zitatauswahl/padua-kopie.db
 uv run --extra dev python -m scripts.zitatauswahl historisch --db var/zitatauswahl/padua-kopie.db
 uv run --extra dev python -m scripts.zitatauswahl neu --db var/zitatauswahl/padua-kopie.db --variante B1 --lauf 1 --gruppe G1
 uv run --extra dev python -m scripts.zitatauswahl neu --db var/zitatauswahl/padua-kopie.db --variante I-a --lauf 1 --gruppe G1 --prompt docs/messung/zitatauswahl/prompt-I-a.md
-uv run --extra dev python -m scripts.zitatauswahl bericht
+uv run --extra dev python -m scripts.zitatauswahl bericht --db var/zitatauswahl/padua-kopie.db
 uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p no:cacheprovider -n 2 tests/test_zitatauswahl.py
 ```
 
@@ -567,7 +654,7 @@ uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p n
 `docs/messung/zitatauswahl/*.jsonl`. Kopie und Proxy: Spec E5.)
 """
 
-GRENZEN = """\
+GRENZEN_VORN = """\
 - n = 15 Stellen im Pool (G3-3 "Mara Venier" liegt ausserhalb, Hypothese c);
   eine Stelle sind 6,7 Prozentpunkte. Deshalb die Schwelle E7 (mindestens zwei
   Stellen, keine Ueberlappung der Laeufe, keine Gruppe schlechter).
@@ -578,14 +665,14 @@ GRENZEN = """\
   "maskiert", Spec E6).
 - Der Pool selbst (ein Beleg je Thema, `verdichter.py`) ist nicht Gegenstand
   dieser Karte.
-- Proxy-Timeout: G1:szene:2 (182 Themen) braucht etwa 180-350 s; in B1 Lauf 2
-  liefen drei Versuche in den Timeout, der vierte gelang. `lade_roh` hebt die
-  Fehlerzeilen durch die erfolgreiche Wiederholung auf.
-- I-a Lauf 3 ist ungueltig: G1:szene:2 (Szene mit ~182 Themen) endete dort
-  sechsmal im Proxy-Timeout (je ~370 s = 2 Versuche a CLAUDE_TIMEOUT_S 180 s);
-  der Betriebs-Timeout von 180 s je Versuch reicht bei dieser Szene oft nicht.
-  Es gibt daher nur 2 gueltige I-a-Laeufe (B1: 3). Die Spanne 9–9 stuetzt sich
-  auf zwei Laeufe und ist schwaecher belegt als die B1-Spanne.
+- Fehler: Die Spalte "Fehler" der Ergebnistabelle zaehlt die fehlgeschlagenen
+  Ziel-Versuche in den Rohzeilen (auch spaeter wiederholte), "verworfen" die
+  Laeufe, die deshalb nicht in E7 eingehen. Beides ist aus den Rohdaten
+  berechnet; `lade_roh` hebt einen Fehler nur durch eine erfolgreiche
+  Wiederholung desselben Ziels im selben Lauf auf.
+"""
+
+GRENZEN_HINTEN = """\
 - E7-Entscheidung I-a gegen B1, die drei Bedingungen mit Zahlen: (1) Gewinn
   mindestens zwei Stellen: erfuellt, 6,0 -> 9,0 von 15 (+3,0); (2) keine
   Ueberlappung der Laeufe: erfuellt, B1 5–7 gegen I-a 9–9, I-a-Minimum 9
@@ -593,18 +680,55 @@ GRENZEN = """\
   G3 sinkt von 1,67 auf 1,50 (G1 0,3 -> 3,0; G2 4,0 -> 4,5). I-a wird
   deshalb nicht uebernommen; die Betriebs-Prompts (EN und DE) bleiben
   unveraendert.
-- Die Live-DB liegt im Haupt-Checkout unter `betrieb/padua.db`; im Worktree
-  wurde die Kopie mit `python -m scripts.stueckmodell_kopie
-  <haupt-checkout>/betrieb/padua.db var/zitatauswahl/padua-kopie.db` erzeugt.
+- Die Live-DB liegt im Haupt-Checkout unter `betrieb/padua.db`; die Kopie
+  entsteht mit `kopie --quelle <pfad-zur-padua.db>` (Kommandos oben).
 - I-b: nicht gemessen (Datenschutz-Gate nicht freigegeben).
 """
+
+HAUPTZIEL = "G1:szene:2"
+
+
+def _bereich(w: list[int]) -> str:
+    return f"{min(w)}–{max(w)}" if w else "–"
+
+
+def grenzen(st: dict, l10: dict) -> str:
+    """Der Grenzen-Abschnitt; Zahlen zu Versuchen, Dauern und Laengen aus den
+    Rohdaten (``statistik``), nie von Hand."""
+    z = [GRENZEN_VORN.rstrip("\n")]
+    b1, ia = (st["ziel"].get((v, HAUPTZIEL)) for v in ("B1", "I-a"))
+    if b1 and ia:
+        from interview_theater import schaerfung
+
+        def g1(v):
+            t = [x["recall"]["G1"]["treffer"] for x in l10[v].values()]
+            return _zahl(sum(t) / len(t)) if t else "–"
+        z.append(
+            f"- Timeout bei {HAUPTZIEL} (rund 180 Themen): gueltige "
+            f"Ergebnisse kamen bei B1 aus {b1['erfolge']} von {b1['versuche']} Versuchen, "
+            f"bei I-a aus {ia['erfolge']} von {ia['versuche']} Versuchen. Die erfolgreichen "
+            f"I-a-Versuche dauerten {_bereich(ia['dauer_s'])} s, also knapp unter dem "
+            f"Betriebs-Timeout von {schaerfung.CLAUDE_TIMEOUT_S:.0f} s je Versuch; "
+            f"die Fehlschlaege endeten nach rund 370 s (Versuch plus Wiederholung)."
+            f" Gerade dort liegt der Grossteil des I-a-Gewinns (G1 {g1('B1')} -> {g1('I-a')}).")
+        z.append(
+            f"- Die I-a-Listen sind kuerzer ({HAUPTZIEL}: {_bereich(ia['laengen'])} "
+            f"Eintraege, B1 {_bereich(b1['laengen'])}), u. a. weil der Kandidat-Prompt den "
+            "Halbsatz \"name all of them, not just the three strongest\" streicht "
+            "(vom Plan vorgegeben) und Staerke 3 auf fuenf Stellen begrenzt. "
+            "Folgerung: Der G1-Gewinn von I-a ist durch die Auswahl rechtzeitig "
+            "fertiger Laeufe verzerrt, und I-a liefe im Betrieb an dieser Szene "
+            "haeufig in den Timeout. Die Entscheidung \"nicht uebernommen\" bleibt.")
+    z.append(GRENZEN_HINTEN.rstrip("\n"))
+    return "\n".join(z) + "\n"
 
 
 def _zahl(x: float) -> str:
     return f"{x:.1f}".replace(".", ",")
 
 
-def _zeile_variante(gruppe: str, variante: str, l: dict, l5: dict, gold: list[dict]) -> str | None:
+def _zeile_variante(gruppe: str, variante: str, l: dict, l5: dict, gold: list[dict],
+                    st: dict, verworfen: dict) -> str | None:
     if not l:
         return None
     t = [x["recall"][gruppe]["treffer"] for x in l.values()]
@@ -616,7 +740,9 @@ def _zeile_variante(gruppe: str, variante: str, l: dict, l5: dict, gold: list[di
     zehn = f"{t[0]}/{n}" if len(t) == 1 else f"{_zahl(mittel)}/{n} ({spanne})"
     fuenf = _zahl(sum(t5) / len(t5)) if t5 else "–"
     return (f"| {gruppe} | {variante} | {zehn} | {fuenf} | {_zahl(sum(neg) / len(neg))} "
-            f"| {len(l)} | {sum(x['maskiert'] for x in l.values())} |")
+            f"| {len(l)} | {sum(x['maskiert'] for x in l.values())} "
+            f"| {sum(n for (v, g), n in st['fehler'].items() if v == variante and gruppe in (g, 'gesamt'))} "
+            f"| {verworfen[variante] if gruppe == 'gesamt' else '–'} |")
 
 
 def _rang(liste: list[int] | None, themen: list[int]) -> str:
@@ -628,10 +754,15 @@ def _rang(liste: list[int] | None, themen: list[int]) -> str:
     return "–"
 
 
-def schreibe_bericht(gold: list[dict], zeilen: list[dict], pfad=BERICHT) -> str:
+def schreibe_bericht(gold: list[dict], zeilen: list[dict], pfad=BERICHT, roh=None) -> str:
+    """``roh`` = die Rohzeilen (``_rohzeilen``) fuer die Fehlerzaehlung; ohne
+    sie wird aus den zusammengefuehrten Zeilen gezaehlt."""
     gruppen = sorted({g["gruppe"] for g in gold})
     l10 = {v: laeufe(zeilen, gold, v) for v in VARIANTEN}
     l5 = {v: laeufe(zeilen, gold, v, k=5) for v in VARIANTEN}
+    st = statistik(zeilen if roh is None else roh)
+    verworfen = {v: len({z["lauf"] for z in zeilen if z["variante"] == v} - set(l10[v]))
+                 for v in VARIANTEN}
     ia_ok, ia_gruende = entscheide(l10["B1"], l10["I-a"])
     ib_basis = "I-a" if ia_ok else "B1"
     ib_ok, ib_gruende = entscheide(l10[ib_basis], l10["I-b"])
@@ -655,7 +786,7 @@ def schreibe_bericht(gold: list[dict], zeilen: list[dict], pfad=BERICHT) -> str:
     pool = pool_recall(gold)
     z = ["# Messung Zitatauswahl InScribe (Padua, Oktober 2026)", "",
          "Karte `t_2349e9a8` / Umsetzung `t_2f905d2c`. Erzeugt mit "
-         "`python -m scripts.zitatauswahl bericht`; Spec: "
+         "`python -m scripts.zitatauswahl bericht --db var/zitatauswahl/padua-kopie.db`; Spec: "
          "`docs/superpowers/specs/2026-10-11-zitatauswahl-gold-recall-design.md`.", "",
          "## Kurzfassung", ""]
 
@@ -677,12 +808,14 @@ def schreibe_bericht(gold: list[dict], zeilen: list[dict], pfad=BERICHT) -> str:
           "", "### Format", "", FORMAT_DOKU, "### Herkunft und Diskrepanzen", "", DISKREPANZEN,
           "## Ergebnisse je Gruppe", "",
           "Recall@10: Mittel/n (min–max ueber Laeufe); Recall@5 = sichtbare Liste; "
-          "Negativ@10 = verworfene Paare in den Top-10 (Mittel).", "",
-          "| Gruppe | Variante | Recall@10 | Recall@5 | Negativ@10 | Laeufe | maskiert |",
-          "|---|---|---|---|---|---|---|"]
+          "Negativ@10 = verworfene Paare in den Top-10 (Mittel). Fehler = fehlgeschlagene "
+          "Ziel-Versuche in den Rohzeilen, verworfen = Laeufe mit offenem Fehler (zaehlen "
+          "nicht fuer E7).", "",
+          "| Gruppe | Variante | Recall@10 | Recall@5 | Negativ@10 | Laeufe | maskiert | Fehler | verworfen |",
+          "|---|---|---|---|---|---|---|---|---|"]
     for gr in gruppen + ["gesamt"]:
         for v in VARIANTEN:
-            zeile = _zeile_variante(gr, v, l10[v], l5[v], gold)
+            zeile = _zeile_variante(gr, v, l10[v], l5[v], gold, st, verworfen)
             if zeile:
                 z.append(zeile)
     z += ["", "Pool-Recall (Obergrenze, Hypothese c): "
@@ -700,7 +833,7 @@ def schreibe_bericht(gold: list[dict], zeilen: list[dict], pfad=BERICHT) -> str:
         im = "" if g["im_pool"] else " (nicht im Pool)"
         z.append(f"| {g['id']}{im} | Szene {g['ziel']['nummer']} | " + " | ".join(zellen) + " |")
     z += ["", "## Entscheidungen (E7)", "", *entscheidungen, "",
-          "## Kommandos zum Nachrechnen", "", KOMMANDOS, "## Grenzen", "", GRENZEN]
+          "## Kommandos zum Nachrechnen", "", KOMMANDOS, "## Grenzen", "", grenzen(st, l10)]
     text = "\n".join(z)
     Path(pfad).parent.mkdir(parents=True, exist_ok=True)
     Path(pfad).write_text(text, encoding="utf-8")
@@ -710,7 +843,9 @@ def schreibe_bericht(gold: list[dict], zeilen: list[dict], pfad=BERICHT) -> str:
 def _verbinde(pfad: str):
     from interview_theater import db
 
-    if Path(pfad).resolve() == LIVE_DB.resolve() or "padua-test" in Path(pfad).name:
+    p = Path(pfad).resolve()
+    if (p == LIVE_DB.resolve() or p.name == "padua.db" or "betrieb" in p.parts
+            or "padua-test" in p.name):
         raise SystemExit(f"Messung nur auf einer Kopie, nicht auf {pfad}")
     return db.verbinde(pfad)
 
@@ -741,6 +876,7 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("--aus", default=None)
     b = sub.add_parser("bericht")
     b.add_argument("--gold", default=str(GOLD))
+    b.add_argument("--db", default=None, help="Kopie: dann erst Gold-Pruefung (Spec § 6)")
     b.add_argument("--roh", default=str(ROH))
     b.add_argument("--aus", default=str(BERICHT))
     a = p.parse_args(argv)
@@ -755,7 +891,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if a.befehl == "bericht":
-        schreibe_bericht(lade_gold(a.gold), lade_roh(a.roh), a.aus)
+        gold = lade_gold(a.gold)
+        if a.db:
+            fehler = pruefe_gold(_verbinde(a.db), gold)
+            if fehler:
+                print("\n".join(fehler), file=sys.stderr)
+                return 1
+        schreibe_bericht(gold, lade_roh(a.roh), a.aus, roh=list(_rohzeilen(a.roh)))
         print(f"Bericht: {a.aus}")
         return 0
 

@@ -2,7 +2,7 @@
 
 Stand: 2026-10-11 · Modell Achse A/B/C-Opus: `claude-opus-5-5` über den Abo-Proxy · Spec und Vorbedingungen: `docs/messung/2026-10-ab-vorbedingungen.md`.
 
-Korpusgrößen: Achse A (de): 157 Fälle; Achse A (en): 103 Fälle; Achse B (en): 37 Fälle.
+Korpusgrößen: Achse A (de): 157 Fälle; Achse A (en): 103 Fälle; Achse A2 (de): 32 Fälle; Achse A2 (en): 32 Fälle; Achse B (en): 37 Fälle.
 
 Dieser Bericht ist aus den Rohzeilen (`korpus/berichte/ab/*.jsonl`) erzeugt, nicht von Hand geschrieben. Er enthält nur Kennungen und Zahlen.
 
@@ -11,6 +11,7 @@ Dieser Bericht ist aus den Rohzeilen (`korpus/berichte/ab/*.jsonl`) erzeugt, nic
 | Schlüssel | Wert |
 |---|---|
 | ACHSE_A | ja |
+| ACHSE_A2 | ja |
 | ACHSE_B | ja |
 | ACHSE_C | nein |
 
@@ -121,9 +122,82 @@ Live laufen Aufnahmen über Infomaniak, hier über Opus; die Zahlen stehen desha
 | Modellaufrufe (Summe) | 37 | 63 |
 | Fehler (Anzahl) | 0 | 0 |
 
+## Achse A2: Stückwerkzeuge im Arbeitsstand
+
+Synthetischer Szenenstand (3 Szenen, 3 Figuren, Besetzung, offene Fragen) je Fall, im Nutzertext beider Modi gleich; der Live-Erkenner sieht Szenen nicht im Nutzertext (bewusste Abweichung der Messung).
+
+### Achse A2, Sprache de: Gesprächsfälle
+
+| Kennzahl | json | tools |
+|---|---|---|
+| Fälle | 32 | 32 |
+| Treffer (Summe / erwartet gesamt) | 12 / 14 | 14 / 14 |
+| FN | 2 | 0 |
+| FP | 16 | 1 |
+| Absicht erkannt, Nebenzählung (Treffer / FP / FN) | 12 / 16 / 2 | 14 / 2 / 0 |
+| stille Fehler (still_fp) | 16 (davon ohne Korpus-Art: 0) | 1 (davon ohne Korpus-Art: 0) |
+| abgelehnt (laut) | 0 | 1 |
+| Abbrüche | 0 | 0 |
+| Runden (Median) | 1 | 2 |
+| Latenz Median / p90 (ms) | 2482 / 4668 | 3782 / 5852 |
+| Token ein / aus (Summe) | 12984 / 5358 | 35549 / 6831 |
+| Kosten | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 |
+| Modellaufrufe (Summe) | 32 | 62 |
+| Fehler (Anzahl) | 0 | 0 |
+
+### Achse A2, Sprache en: Gesprächsfälle
+
+| Kennzahl | json | tools |
+|---|---|---|
+| Fälle | 32 | 32 |
+| Treffer (Summe / erwartet gesamt) | 11 / 14 | 14 / 14 |
+| FN | 3 | 0 |
+| FP | 18 | 1 |
+| Absicht erkannt, Nebenzählung (Treffer / FP / FN) | 11 / 18 / 3 | 14 / 2 / 0 |
+| stille Fehler (still_fp) | 18 (davon ohne Korpus-Art: 0) | 1 (davon ohne Korpus-Art: 0) |
+| abgelehnt (laut) | 0 | 1 |
+| Abbrüche | 0 | 0 |
+| Runden (Median) | 1 | 2 |
+| Latenz Median / p90 (ms) | 2454 / 4461 | 3280 / 4088 |
+| Token ein / aus (Summe) | 10147 / 5164 | 29740 / 5517 |
+| Kosten | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 |
+| Modellaufrufe (Summe) | 32 | 62 |
+| Fehler (Anzahl) | 0 | 0 |
+
+### Achse A2: Werkzeugverteilung und erwartete Werkzeugaufrufe
+
+Erwartete Stückwerkzeug-Aufrufe getroffen (tools-Modus, Treffer / erwartet): 56 / 56. Der json-Modus hat keine Werkzeuge.
+
+Die A2-Fälle fallen in drei Gruppen. Sieben Stückwerkzeuge (frage_stellen, frage_beantworten, frage_zurueckstellen, frage_verwerfen, szene_wieder_oeffnen, reihenfolge_aendern, pruefe_szene) haben keine Korpus-Art: der json-Modus kann diese Absichten schemabedingt nicht ausdrücken, `erwartet` ist dort leer. Eine json-Zahl 0 / 0 bei diesen Fällen heißt deshalb nicht „nichts verfehlt“ und wird nicht berichtet. `werkzeug_treffer` zählt nur ausgeführte (ok) Aufrufe; das richtige Werkzeug mit falschen Argumenten zählt als verfehlt.
+
+| Gruppe | Fälle | json | tools |
+|---|---|---|---|
+| json-ausdrückbar | 28 | Treffer 23 / FP 7 / FN 5 | Treffer 28 / FP 0 / FN 0 |
+| nur tools | 28 | n/a — json kann diese Absicht nicht ausdrücken | Werkzeug-Treffer 28 / 28 |
+| Negativ (Fehlalarm) | 8 | FP 3 / still_fp 3 bei 8 Fällen | FP 2 / still_fp 2 bei 8 Fällen |
+
+| Achse | Werkzeug | Aufrufe | davon abgelehnt |
+|---|---|---|---|
+| Achse A2 | aenderung_melden | 2 | 0 |
+| Achse A2 | figur_aus_szene | 4 | 0 |
+| Achse A2 | figur_hinzu | 4 | 0 |
+| Achse A2 | frage_beantworten | 4 | 0 |
+| Achse A2 | frage_stellen | 4 | 0 |
+| Achse A2 | frage_verwerfen | 4 | 0 |
+| Achse A2 | frage_zurueckstellen | 4 | 0 |
+| Achse A2 | karte_aendern | 6 | 2 |
+| Achse A2 | pruefe_szene | 4 | 0 |
+| Achse A2 | reihenfolge_aendern | 4 | 0 |
+| Achse A2 | setze_besetzung | 6 | 0 |
+| Achse A2 | setze_ort | 6 | 0 |
+| Achse A2 | setze_rahmen | 4 | 0 |
+| Achse A2 | szene_wieder_oeffnen | 4 | 0 |
+
+Stückwerkzeuge ohne einen Aufruf in A2: keine.
+
 ## Achse C: Zitatsuche
 
-Achse C: 0 — nicht freigegeben (Kosten, Schätzung ~0,5–1 CHF Kimi)
+Achse C: 0 — 0 — nicht freigegeben (Kosten, Schätzung ~0,5–1 CHF Kimi)
 
 ## Werkzeugnutzung
 
@@ -134,6 +208,20 @@ Achse C: 0 — nicht freigegeben (Kosten, Schätzung ~0,5–1 CHF Kimi)
 | Achse A | aenderung_melden | 167 | 0 |
 | Achse A | figur_hinzu | 24 | 0 |
 | Achse A | setze_rahmen | 6 | 0 |
+| Achse A2 | aenderung_melden | 2 | 0 |
+| Achse A2 | figur_aus_szene | 4 | 0 |
+| Achse A2 | figur_hinzu | 4 | 0 |
+| Achse A2 | frage_beantworten | 4 | 0 |
+| Achse A2 | frage_stellen | 4 | 0 |
+| Achse A2 | frage_verwerfen | 4 | 0 |
+| Achse A2 | frage_zurueckstellen | 4 | 0 |
+| Achse A2 | karte_aendern | 6 | 2 |
+| Achse A2 | pruefe_szene | 4 | 0 |
+| Achse A2 | reihenfolge_aendern | 4 | 0 |
+| Achse A2 | setze_besetzung | 6 | 0 |
+| Achse A2 | setze_ort | 6 | 0 |
+| Achse A2 | setze_rahmen | 4 | 0 |
+| Achse A2 | szene_wieder_oeffnen | 4 | 0 |
 | Achse B | aenderung_melden | 24 | 0 |
 | Achse B | figur_hinzu | 2 | 0 |
 | Achse B | setze_rahmen | 2 | 0 |
@@ -160,10 +248,12 @@ Abbildung Werkzeug auf Korpus-Art (`erkenner_werkzeuge.ART_FUER_WERKZEUG`), übe
 ```
 uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache de --modus beide
 uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache en --modus beide
+uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache de --modus beide --szenen --faelle korpus/ab_a2_de.jsonl
+uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache en --modus beide --szenen --faelle korpus/ab_a2_en.jsonl
 uv run --extra dev python -m scripts.ab_padua --modus beide
 uv run --extra dev python -m scripts.ab_zitate --ohne-modell
 uv run --extra dev python -m scripts.ab_zitate --gruppe G1 G2 G3 --kosten-ok
-uv run --extra dev python -m scripts.ab_pipeline_vs_tools bericht --roh korpus/berichte/ab/A-de-20261011.jsonl korpus/berichte/ab/A-en-20261011.jsonl korpus/berichte/ab/B-20261011.jsonl --aus docs/messung/2026-10-ab-pipeline-vs-tools.md --achse-c-grund "nicht freigegeben (Kosten, Schätzung ~0,5–1 CHF Kimi)"
+uv run --extra dev python -m scripts.ab_pipeline_vs_tools bericht --roh korpus/berichte/ab/A-de-20261011.jsonl korpus/berichte/ab/A-en-20261011.jsonl korpus/berichte/ab/A2-de-20261011.jsonl korpus/berichte/ab/A2-en-20261011.jsonl korpus/berichte/ab/B-20261011.jsonl --aus docs/messung/2026-10-ab-pipeline-vs-tools.md --achse-c-grund "0 — nicht freigegeben (Kosten, Schätzung ~0,5–1 CHF Kimi)"
 ```
 
 ## Was die Messung NICHT zeigt

@@ -758,3 +758,44 @@ def test_ueber_claude_laesst_aufnahmefaelle_bei_kimi(monkeypatch, tmp_path):
     ])
     assert code == 0
     assert gesehen == ["erkenner"]
+
+
+# --- --korpus-datei (InScribe Messung 1, Padua-Testsatz) -------------------
+#
+# Macht den Padua-Testsatz (korpus/padua_testsatz.jsonl) ueber denselben
+# Lauf fahrbar wie korpus/erkenner.jsonl -- derselbe Runner, nur eine andere
+# Datei. Ohne diesen Schalter bräuchte ein zweiter Testsatz einen zweiten
+# Skriptpfad.
+
+def test_korpus_datei_nicht_mit_alle():
+    with pytest.raises(SystemExit):
+        pp.main(["alle", "--korpus-datei", "padua_testsatz"])
+
+
+def test_korpus_datei_laedt_den_padua_testsatz():
+    faelle = pp.lade_korpus("padua_testsatz")
+    assert len(faelle) >= 30
+    assert any(f["id"] == "p02-g1-rahmen-sala-riunioni" for f in faelle)
+
+
+def test_korpus_datei_lauft_ueber_den_erkenner_runner(attrappe):
+    attrappe["antwort"] = lambda art, nutzer: {
+        "aenderungen": [{"art": "rahmen_setzen", "wert": "sala riunioni"}]
+    }
+    code = pp.main([
+        "erkenner", "--korpus-datei", "padua_testsatz",
+        "--nur", "p02-g1-rahmen-sala-riunioni",
+    ])
+    assert code == 0
+    assert attrappe["gesehen"][0]["art"] == "erkenner"
+
+
+def test_korpus_datei_bericht_traegt_den_dateinamen(attrappe, tmp_path):
+    attrappe["antwort"] = lambda art, nutzer: {"aenderungen": []}
+    bericht = tmp_path / "eigener.md"
+    pp.main([
+        "erkenner", "--korpus-datei", "padua_testsatz",
+        "--nur", "n01-g1-negativ-abgerissene-sprachnachricht",
+        "--bericht", str(bericht),
+    ])
+    assert "n01-g1-negativ-abgerissene-sprachnachricht" in bericht.read_text(encoding="utf-8")

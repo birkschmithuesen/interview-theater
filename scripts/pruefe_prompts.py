@@ -957,6 +957,13 @@ def baue_argumente(argv=None) -> argparse.Namespace:
                         "bzw. --workshop ein")
     p.add_argument("--workshop", help="Profilname statt padua-2026 fuer --sprache en")
     p.add_argument(
+        "--korpus-datei",
+        help="Datei unter korpus/ statt des Promptnamens laden (z.B. "
+             "padua_testsatz fuer korpus/padua_testsatz.jsonl) -- derselbe "
+             "Runner faehrt damit einen anderen Testsatz. Nur mit einem "
+             "einzelnen Prompt, nicht mit 'alle'.",
+    )
+    p.add_argument(
         "--ueber-claude", action="store_true",
         help="nur fuer 'erkenner': GENAU den Live-Pfad messen "
              "(erkenner._schema_aufruf / modellwahl.aufruf_schema / "
@@ -979,6 +986,13 @@ def main(argv=None) -> int:
         raise SystemExit(
             "--ueber-claude gibt es nur fuer 'erkenner' -- Journal, "
             "Verdichter und Sprachprofil haben keinen Live-Opus-Pfad."
+        )
+
+    if args.korpus_datei and args.prompt == "alle":
+        raise SystemExit(
+            "--korpus-datei gibt es nur mit einem einzelnen Prompt, nicht "
+            "mit 'alle' -- eine Datei kann nicht gleichzeitig Erkenner-, "
+            "Journal- und Verdichter-Faelle liefern."
         )
 
     if args.sprache == "en":
@@ -1047,7 +1061,10 @@ def main(argv=None) -> int:
         conn = db.verbinde(db_pfad)
         db.initialisiere(conn)
 
-        korpora = {p: lade_korpus(p, nur, sprache=args.sprache) for p in prompts}
+        korpora = {
+            p: lade_korpus(args.korpus_datei or p, nur, sprache=args.sprache)
+            for p in prompts
+        }
         if nur:
             gefunden = {f["id"] for faelle in korpora.values() for f in faelle}
             unbekannt = set(nur) - gefunden

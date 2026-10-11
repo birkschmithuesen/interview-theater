@@ -547,13 +547,31 @@ def erkenne_mit_werkzeugschritten(klm, conn, e, chat_id: int) -> tuple[list[dict
     schritte: list[dict] = []
     ergebnis = None
     if werkzeug_modus(e, conn, chat_id):
+        ausgefuehrt: list = []
         try:
-            generisch, schritte, _, _ = _werkzeuglauf(conn, e, chat_id, nutzer)
+            generisch, schritte, _, _ = _werkzeuglauf(conn, e, chat_id, nutzer, ausgefuehrt)
             ergebnis = {"aenderungen": generisch}
         except Exception as fehler:  # ClaudeFehler der ersten Runde, Kostendeckel u. a.
-            log.warning("Werkzeugschleife, erste Runde gescheitert -- JSON-Weg: %s", fehler)
-            repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
-                               "erkenner_werkzeug_fallback", str(fehler)[:200])
+            if not ausgefuehrt:
+                # Noch nichts geschrieben: der JSON-Weg ist sicher.
+                log.warning("Werkzeugschleife, erste Runde gescheitert -- JSON-Weg: %s", fehler)
+                repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                                   "erkenner_werkzeug_fallback", str(fehler)[:200])
+            else:
+                # Schon ausgefuehrte Werkzeuge haben das Stueck geschrieben:
+                # KEIN JSON-Lauf (er schriebe dieselbe Absicht doppelt),
+                # weiter mit dem bis dahin Gesammelten.
+                log.exception("Werkzeugschleife nach %d Ausfuehrungen gescheitert, "
+                              "chat_id=%s", len(ausgefuehrt), chat_id)
+                try:
+                    repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                                       "erkenner_werkzeug_abbruch",
+                                       f"ausnahme nach {len(ausgefuehrt)} Ausfuehrungen: "
+                                       f"{str(fehler)[:150]}")
+                except Exception:
+                    log.exception("Vorfall nicht gemerkt, chat_id=%s", chat_id)
+                generisch, schritte = _sammle_ausfuehrungen(ausgefuehrt)
+                ergebnis = {"aenderungen": generisch}
     try:
         if ergebnis is None:
             ergebnis = _schema_aufruf(klm, conn, e, chat_id, prompt(), nutzer, schema(), "erkenner")
@@ -599,15 +617,27 @@ def werkzeug_modus(e, conn, chat_id) -> bool:
     return ueber_claude(e, conn, chat_id)
 
 
-def _werkzeuglauf(conn, e, chat_id, nutzer):
+def _sammle_ausfuehrungen(ausfuehrungen) -> tuple[list, list]:
+    """``(generische, stueck_schritte)`` aus den Ausfuehrungen."""
+    from interview_theater import erkenner_werkzeuge
+
+    generisch = [a.generisch for a in ausfuehrungen if a.generisch is not None]
+    schritte = [x for x in (erkenner_werkzeuge.als_aenderung(a) for a in ausfuehrungen
+                            if a.generisch is None) if x is not None]
+    return generisch, schritte
+
+
+def _werkzeuglauf(conn, e, chat_id, nutzer, ausfuehrungen=None):
     """Eine Werkzeugschleife ueber den Claude-Proxy. Liefert
     ``(generische, stueck_schritte, schleifenergebnis, ausfuehrungen)``.
-    ``ClaudeFehler`` (erste Runde) geht an den Aufrufer."""
+    Jede Ausnahme geht an den Aufrufer; ``ausfuehrungen`` (Sammelliste von
+    aussen) zeigt ihm, ob schon ein Werkzeug lief."""
     import httpx
 
     from interview_theater import anweisungen, erkenner_werkzeuge, szene_claude
 
-    ausfuehrungen: list = []
+    if ausfuehrungen is None:
+        ausfuehrungen = []
 
     def ausfuehren(name, eingabe):
         # ``werkzeug_schleife`` faengt keine Ausnahme aus diesem Callable:
@@ -634,9 +664,7 @@ def _werkzeuglauf(conn, e, chat_id, nutzer):
                            "erkenner_werkzeug_abbruch",
                            f"abbruch={lauf.abbruch}, runden={lauf.runden}, "
                            f"aufrufe={len(lauf.aufrufe)}")
-    generisch = [a.generisch for a in ausfuehrungen if a.generisch is not None]
-    schritte = [x for x in (erkenner_werkzeuge.als_aenderung(a) for a in ausfuehrungen
-                            if a.generisch is None) if x is not None]
+    generisch, schritte = _sammle_ausfuehrungen(ausfuehrungen)
     return generisch, schritte, lauf, ausfuehrungen
 
 
@@ -3946,8 +3974,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
                 n["text"] for n in fenster_vor_erkennung if n["text"]))
         # Tools-Modus: die schon ueber ``stueck`` geschriebenen Schritte stehen
         # NUR in der Meldung (nach allen ``_starte_*``, damit kein Startweg sie
-        # als neuen Auftrag liest). Undo deckt sie nicht ab (Spec § 3.4) -- sie
-        # stehen im ``stueck``-Aenderungsprotokoll.
+        # als neuen Auftrag liest). Undo/Ruecknahme deckt im Tools-Modus nur den
+        # generischen Teil ab (``wirkliche``); die Stueck-Schritte nicht (Spec
+        # § 3.4) -- sie stehen im ``stueck``-Aenderungsprotokoll. Der Szenenkern
+        # wird fuer Stueck-Schritte nicht neu angestossen.
         text = baue_meldung(wirkliche + werkzeugschritte, conn, chat_id)
         if text is not None and begriffe_im_zug and _haenge_an_zugquittung(
                 conn, chat_id, zug_lauf, vorher, nachher, wirkliche):

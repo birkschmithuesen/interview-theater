@@ -107,6 +107,25 @@ def test_erste_runde_scheitert_faellt_auf_json_zurueck(conn, tools_e, ueber_clau
     assert "erkenner_werkzeug_fallback" in _vorfaelle(conn)
 
 
+def test_ausnahme_nach_ausgefuehrtem_werkzeug_kein_json_lauf(
+        conn, tools_e, ueber_claude_an, monkeypatch):
+    _nachricht(conn, "der Rahmen ist ein Bahnhof bei Nacht")
+
+    def schleife(conn_, e, klient, chat_id, system, nutzer, werkzeuge, ausfuehren, **kw):
+        ausfuehren("setze_rahmen", {"rahmen": "Bahnhof bei Nacht"})
+        raise KeyError("id")
+
+    monkeypatch.setattr(szene_claude, "werkzeug_schleife", schleife)
+    aenderungen, schritte = erkenner.erkenne_mit_werkzeugschritten(
+        KlmVerboten(), conn, tools_e, CHAT)
+    assert aenderungen == []
+    assert schritte == [{"art": "rahmen_setzen", "wert": "Bahnhof bei Nacht"}]
+    assert repo.hole_arbeitsstand(conn, CHAT)["rahmen"] == "Bahnhof bei Nacht"
+    assert "erkenner_werkzeug_fallback" not in _vorfaelle(conn)
+    assert "erkenner_werkzeug_abbruch" in _vorfaelle(conn)
+    assert repo.unextrahierte(conn, CHAT) == []
+
+
 def test_abbruch_wird_als_vorfall_gemeldet(conn, tools_e, ueber_claude_an, monkeypatch):
     _nachricht(conn, "x")
 

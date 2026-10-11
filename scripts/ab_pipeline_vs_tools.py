@@ -27,7 +27,8 @@ from pathlib import Path
 import httpx
 
 from interview_theater import (
-    db, einstellungen, erkenner, erkenner_werkzeuge, repo, sprache, szene_claude, workshop,
+    db, einstellungen, erkenner, erkenner_werkzeuge, repo, sprache, stueck, szene_claude,
+    workshop,
 )
 from scripts import pruefe_prompts as pp
 
@@ -35,8 +36,93 @@ ROH_VERZ = Path("korpus/berichte/ab")
 OPUS = "claude-opus-5-5"
 
 
-def nutzertext_fuer(conn, chat_id: int, fall: dict) -> str:
-    """Derselbe Nutzertext wie ``pruefe_prompts._laufe_erkenner``."""
+#: Synthetischer Stueckstand der Achse A2 (erfundene, neutrale Namen; keine
+#: echten Daten). Je Sprache dieselbe Struktur: 3 Szenen, 3 Figuren, Besetzung,
+#: Rahmen, Karte je Szene, eine offene Frage in Szene 2 und eine allgemeine.
+SZENENSTAND = {
+    "de": {
+        "rahmen": "Ein Abend am Hafen",
+        "szenen": [
+            ("Ankunft", "Hafenmole", ("Anna", "Bruno"), "Anna wartet auf ein Schiff."),
+            ("Warten", "Wartehalle", ("Bruno", "Clara"), "Bruno und Clara teilen sich eine Bank."),
+            ("Abschied", "Dachterrasse", ("Anna", "Clara"), "Clara verabschiedet Anna."),
+        ],
+        "fragen": [(2, "Wer hat den Brief geschrieben?"), (None, "Wie lang darf das Stück sein?")],
+        "kopf": "Szenenstand",
+        "zeile": "Szene {n} «{titel}» | Ort: {ort} | Wer: {wer} | Worum: {worum}",
+        "fragen_kopf": "Offene Fragen",
+        "frage": "Frage {id}{szene}: {text} ({status})",
+        "bei": " (Szene {n})",
+        "rahmen_zeile": "Rahmen: {rahmen}",
+    },
+    "en": {
+        "rahmen": "An evening at the harbour",
+        "szenen": [
+            ("Arrival", "Harbour pier", ("Anna", "Bruno"), "Anna waits for a ship."),
+            ("Waiting", "Waiting hall", ("Bruno", "Clara"), "Bruno and Clara share a bench."),
+            ("Farewell", "Roof terrace", ("Anna", "Clara"), "Clara says goodbye to Anna."),
+        ],
+        "fragen": [(2, "Who wrote the letter?"), (None, "How long may the play be?")],
+        "kopf": "Scene state",
+        "zeile": "Scene {n} \"{titel}\" | Place: {ort} | Who: {wer} | About: {worum}",
+        "fragen_kopf": "Open questions",
+        "frage": "Question {id}{szene}: {text} ({status})",
+        "bei": " (scene {n})",
+        "rahmen_zeile": "Frame: {rahmen}",
+    },
+}
+
+
+def lege_szenenstand(conn, chat_id: int, sprache_: str) -> None:
+    """Spielt den synthetischen Stand in eine frische ``chat_id`` -- nur ueber
+    die vorhandenen Schreibwege (``stueck``-Werkzeuge, ``repo``-Funktionen),
+    deterministisch, ohne SQL."""
+    d = SZENENSTAND[sprache_]
+    stueck.setze_rahmen(conn, chat_id, rahmen=d["rahmen"])
+    for nummer, (titel, ort, wer, worum) in enumerate(d["szenen"], start=1):
+        szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
+        repo.aktualisiere_szene(conn, szene_id, titel, None, None)
+        repo.setze_szenenkarte(conn, szene_id, json.dumps(
+            {"worum": worum, "typ": "description", "modus": "none", "punkte": []},
+            ensure_ascii=False))
+        stueck.setze_ort(conn, chat_id, szene=nummer, ort=ort)
+        for name in wer:
+            stueck.figur_hinzu(conn, chat_id, name=name, szene=nummer)
+    for szene, frage in d["fragen"]:
+        stueck.frage_stellen(conn, chat_id, frage=frage, szene=szene)
+
+
+def szenenstand_text(conn, chat_id: int, sprache_: str) -> str:
+    """Der Stand als Textblock fuer den Nutzertext -- aus der Datenbank
+    gelesen (nicht aus der Konstante), damit beide Modi dieselben ``frage_id``
+    sehen, die ``frage_beantworten`` braucht."""
+    d = SZENENSTAND[sprache_]
+    zeilen = [d["rahmen_zeile"].format(rahmen=(repo.hole_arbeitsstand(conn, chat_id) or {})["rahmen"] or "")]
+    nummer_von = {}
+    for s in repo.hole_szenen(conn, chat_id):
+        nummer_von[s["id"]] = s["nummer"]
+        wer = ", ".join(b["name"] for b in repo.besetzung(conn, s["id"]))
+        worum = (json.loads(s["karte"]).get("worum") if s["karte"] else "") or ""
+        zeilen.append(d["zeile"].format(n=s["nummer"], titel=s["titel"], ort=s["ort"],
+                                        wer=wer, worum=worum))
+    fragen = list(repo.offene_fragen(conn, chat_id, None))
+    for s in repo.hole_szenen(conn, chat_id):
+        fragen += repo.offene_fragen(conn, chat_id, s["id"])
+    kopf = [f"{d['kopf']}:"]
+    if fragen:
+        zeilen.append(f"{d['fragen_kopf']}:")
+    for f in sorted(fragen, key=lambda f: f["id"]):
+        szene = d["bei"].format(n=nummer_von[f["szene_id"]]) if f["szene_id"] in nummer_von else ""
+        zeilen.append("- " + d["frage"].format(id=f["id"], szene=szene, text=f["text"],
+                                               status=f["status"]))
+    return "\n".join(kopf + zeilen)
+
+
+def nutzertext_fuer(conn, chat_id: int, fall: dict, szenen: str | None = None) -> str:
+    """Derselbe Nutzertext wie ``pruefe_prompts._laufe_erkenner``. Mit
+    ``szenen`` (Sprache, Achse A2) haengt der Szenenstand dahinter -- fuer
+    beide Modi derselbe Text. Der Live-Erkenner sieht Szenen nicht im
+    Nutzertext; das ist eine bewusste Abweichung der Messung."""
     if fall.get("aufnahme"):
         return erkenner.baue_aufnahme_nutzertext(fall["aufnahme"])
     pp._fuelle_arbeitsstand(conn, chat_id, fall.get("arbeitsstand"))
@@ -46,7 +132,10 @@ def nutzertext_fuer(conn, chat_id: int, fall: dict) -> str:
         vorlauf = pp._nachrichtenzeilen([{"absender": "Bot", "text": fall["vorlauf"]}])[0]
     elif len(zeilen) > 1 and zeilen[0]["ist_bot"]:
         vorlauf, zeilen = zeilen[0], zeilen[1:]
-    return erkenner._baue_nutzertext(conn, chat_id, zeilen, vorlauf)
+    text = erkenner._baue_nutzertext(conn, chat_id, zeilen, vorlauf)
+    if szenen:
+        text = szenenstand_text(conn, chat_id, szenen) + "\n\n" + text
+    return text
 
 
 def _filter(fall: dict, geliefert: list[dict]) -> list[dict]:
@@ -56,14 +145,16 @@ def _filter(fall: dict, geliefert: list[dict]) -> list[dict]:
     return erkenner.waechter_filter(geliefert)
 
 
-def _leer(modus: str, fall: dict) -> dict:
-    return {"achse": "A", "modus": modus, "id": fall["id"], "treffer": 0, "fp": 0,
+def _leer(modus: str, fall: dict, achse: str = "A") -> dict:
+    return {"achse": achse, "modus": modus, "id": fall["id"], "treffer": 0, "fp": 0,
             "fn": len(fall.get("erwartet", [])),
             "aufnahme": bool(fall.get("aufnahme")), "modellaufrufe": 0, "still_fp": 0, "ohne_korpusart": 0,
             "abgelehnt": 0, "abbruch": None, "runden": 0, "eingabe_token": 0,
             "ausgabe_token": 0, "dauer_ms": 0, "fehler": None, "geliefert": [],
             "aufrufe": [], "absicht_treffer": 0, "absicht_fp": 0,
-            "absicht_fn": len(fall.get("erwartet", [])), "abgelehnt_gruende": {}}
+            "absicht_fn": len(fall.get("erwartet", [])), "abgelehnt_gruende": {},
+            "werkzeug_erwartet": len(fall.get("erwartet_werkzeuge", [])),
+            "werkzeug_treffer": 0}
 
 
 def _zaehle(zeile: dict, fall: dict, geliefert: list[dict]) -> dict:
@@ -75,11 +166,11 @@ def _zaehle(zeile: dict, fall: dict, geliefert: list[dict]) -> dict:
     return zeile
 
 
-def laufe_json(conn, e, klient, chat_id: int, fall: dict) -> dict:
-    zeile = _leer("json", fall)
+def laufe_json(conn, e, klient, chat_id: int, fall: dict, szenen: str | None = None) -> dict:
+    zeile = _leer("json", fall, "A2" if szenen else "A")
     vorher = pp._hoechste_aufruf_id(conn)
     try:
-        nutzer = nutzertext_fuer(conn, chat_id, fall)
+        nutzer = nutzertext_fuer(conn, chat_id, fall, szenen)
         start = time.monotonic()
         try:
             roh = szene_claude.schema(conn, e, klient, chat_id, erkenner.prompt(), nutzer,
@@ -93,11 +184,11 @@ def laufe_json(conn, e, klient, chat_id: int, fall: dict) -> dict:
     return zeile
 
 
-def laufe_tools(conn, e, chat_id: int, fall: dict) -> dict:
-    zeile = _leer("tools", fall)
+def laufe_tools(conn, e, chat_id: int, fall: dict, szenen: str | None = None) -> dict:
+    zeile = _leer("tools", fall, "A2" if szenen else "A")
     vorher = pp._hoechste_aufruf_id(conn)
     try:
-        nutzer = nutzertext_fuer(conn, chat_id, fall)
+        nutzer = nutzertext_fuer(conn, chat_id, fall, szenen)
         start = time.monotonic()
         try:
             generisch, _, lauf, ausfuehrungen = erkenner._werkzeuglauf(conn, e, chat_id, nutzer)
@@ -118,8 +209,15 @@ def laufe_tools(conn, e, chat_id: int, fall: dict) -> dict:
             if not a.ok:
                 gruende[a.fehler or "unbekannt"] = gruende.get(a.fehler or "unbekannt", 0) + 1
         zeile["abgelehnt_gruende"] = gruende
+        erwartet_w = list(fall.get("erwartet_werkzeuge", []))
         ohne = sum(1 for a in ausfuehrungen if a.generisch is None and a.ok
-                   and a.name not in erkenner_werkzeuge.ART_FUER_WERKZEUG)
+                   and a.name not in erkenner_werkzeuge.ART_FUER_WERKZEUG
+                   and a.name not in erwartet_w)
+        gerufen = [a.name for a in ausfuehrungen if a.ok]
+        for name in erwartet_w:           # je erwartetem Namen hoechstens ein Treffer
+            if name in gerufen:
+                gerufen.remove(name)
+                zeile["werkzeug_treffer"] += 1
         zeile.update(
             ohne_korpusart=ohne,
             abgelehnt=sum(1 for a in ausfuehrungen if not a.ok),
@@ -163,22 +261,33 @@ def sichere_sprache(code: str, *, profil_setzen: bool = False, workshop_name: st
             "passt nicht zur Promptsprache.")
 
 
+def lade_faelle(pfad: str, nur: list[str] | None = None) -> list[dict]:
+    """Eigene Fallliste im Korpusformat (z. B. ``korpus/ab_a2_de.jsonl``)."""
+    faelle = [json.loads(z) for z in Path(pfad).read_text(encoding="utf-8").splitlines()
+              if z.strip()]
+    return [f for f in faelle if not nur or f["id"] in nur]
+
+
 def _erkenner(args) -> int:
     e = dataclasses.replace(einstellungen.laden(), szene_anbieter="claude",
                             erkenner_modus="tools", szene_modell=OPUS)
     conn = _messkopie_db(args.db)
-    faelle = pp.lade_korpus("erkenner", args.nur, sprache=args.sprache)
+    faelle = (lade_faelle(args.faelle, args.nur) if args.faelle
+              else pp.lade_korpus("erkenner", args.nur, sprache=args.sprache))
+    szenen = args.sprache if args.szenen else None
     modi = ("json", "tools") if args.modus == "beide" else (args.modus,)
     ROH_VERZ.mkdir(parents=True, exist_ok=True)
-    aus = Path(args.aus or ROH_VERZ / f"A-{args.sprache}-{time.strftime('%Y%m%d-%H%M')}.jsonl")
+    aus = Path(args.aus or ROH_VERZ / f"{'A2' if szenen else 'A'}-{args.sprache}-{time.strftime('%Y%m%d-%H%M')}.jsonl")
     klient = httpx.Client(timeout=120.0)
     with aus.open("a", encoding="utf-8") as datei:
         for nummer, fall in enumerate(faelle, start=1):
             for modus in modi:
                 chat_id = nummer * 10 + (1 if modus == "json" else 2)
                 repo.sichere_gruppe(conn, chat_id, "ab", fall["id"])
-                zeile = (laufe_json(conn, e, klient, chat_id, fall) if modus == "json"
-                         else laufe_tools(conn, e, chat_id, fall))
+                if szenen:
+                    lege_szenenstand(conn, chat_id, szenen)
+                zeile = (laufe_json(conn, e, klient, chat_id, fall, szenen) if modus == "json"
+                         else laufe_tools(conn, e, chat_id, fall, szenen))
                 zeile["sprache"] = args.sprache
                 datei.write(json.dumps(zeile, ensure_ascii=False) + "\n")
                 datei.flush()
@@ -194,7 +303,7 @@ def _erkenner(args) -> int:
 # ---------------------------------------------------------------------------
 
 BERICHT_AUS = Path("docs/messung/2026-10-ab-pipeline-vs-tools.md")
-STANDARD_GRUND = {"A": "Korpus-Rohdaten fehlten", "B": "Padua-Testsatz fehlte",
+STANDARD_GRUND = {"A": "Korpus-Rohdaten fehlten", "A2": "Achse A2 (Stückwerkzeuge im Arbeitsstand) nicht gefahren", "B": "Padua-Testsatz fehlte",
                   "C": "Gold-Korpus fehlte"}
 C_VARIANTEN = ("pipeline_opus", "pipeline_kimi", "agent_kimi")
 
@@ -220,7 +329,7 @@ def _aufrufe_je_werkzeug(zeilen: list[dict]) -> dict[str, dict[str, list[int]]]:
     """Achse -> Werkzeugname -> [Aufrufe, abgelehnt], nur tools-Modus, nur Namen."""
     aus: dict[str, dict[str, list[int]]] = {}
     for z in zeilen:
-        if z.get("modus") != "tools" or z.get("achse") not in ("A", "B"):
+        if z.get("modus") != "tools" or z.get("achse") not in ("A", "A2", "B"):
             continue
         for a in z.get("aufrufe") or []:
             eintrag = aus.setdefault(z["achse"], {}).setdefault(a["name"], [0, 0])
@@ -242,7 +351,7 @@ def _werkzeug_tabelle(zeilen: list[dict]) -> list[str]:
 
 
 def _nicht_geprueft(zeilen: list[dict]) -> str | None:
-    je = _aufrufe_je_werkzeug(zeilen)
+    je = _aufrufe_je_werkzeug([z for z in zeilen if z.get("achse") != "A2"])
     if not je:
         return None
     gerufen: dict[str, int] = {}
@@ -290,6 +399,23 @@ def _modus_spalte(zeilen: list[dict]) -> dict[str, str]:
         "Modellaufrufe (Summe)": str(s("modellaufrufe")),
         "Fehler (Anzahl)": str(sum(1 for z in zeilen if z.get("fehler"))),
     }
+
+
+def _a2_werkzeuge(zeilen: list[dict]) -> list[str]:
+    """Werkzeugverteilung und Treffer auf erwartete Werkzeugaufrufe (nur A2)."""
+    tools = [z for z in zeilen if z.get("modus") == "tools"]
+    erwartet = sum(z.get("werkzeug_erwartet") or 0 for z in tools)
+    treffer = sum(z.get("werkzeug_treffer") or 0 for z in tools)
+    aus = ["### Achse A2: Werkzeugverteilung und erwartete Werkzeugaufrufe", "",
+           f"Erwartete Stückwerkzeug-Aufrufe getroffen (tools-Modus, Treffer / erwartet): "
+           f"{treffer} / {erwartet}. Der json-Modus hat keine Werkzeuge.", ""]
+    aus += _werkzeug_tabelle(zeilen)[2:]
+    je = _aufrufe_je_werkzeug(zeilen).get("A2", {})
+    nie = [d["name"] for d in erkenner_werkzeuge.definitionen(())
+           if d["name"] != erkenner_werkzeuge.GENERISCH and d["name"] not in je]
+    if tools:
+        aus += [f"Stückwerkzeuge ohne einen Aufruf in A2: {', '.join(nie) if nie else 'keine'}.", ""]
+    return aus
 
 
 def _tabelle_ab(zeilen: list[dict]) -> list[str]:
@@ -381,9 +507,9 @@ def baue_bericht(zeilen: list[dict], vorbedingungen: dict, kommandos: list[str],
     keine Rohzeilen da sind. ``b0``: Gruppe -> (Recall-Mittel, n). Nur
     Kennungen und Zahlen, nie Wortlaut aus den Rohzeilen."""
     gruende = {**STANDARD_GRUND, **(gruende or {})}
-    je_achse = {a: [z for z in zeilen if z.get("achse") == a] for a in "ABC"}
+    je_achse = {a: [z for z in zeilen if z.get("achse") == a] for a in ("A", "A2", "B", "C")}
     korpus = []
-    for a in "AB":
+    for a in ("A", "A2", "B"):
         for sprache in sorted({z.get("sprache") or "?" for z in je_achse[a]}):
             ids = {z["id"] for z in je_achse[a] if (z.get("sprache") or "?") == sprache}
             korpus.append(f"Achse {a} ({sprache}): {len(ids)} Fälle")
@@ -412,6 +538,14 @@ def baue_bericht(zeilen: list[dict], vorbedingungen: dict, kommandos: list[str],
             aus += _abschnitt_ab(a, je_achse[a])
         else:
             aus += [f"Achse {a}: 0 — {gruende[a]}", ""]
+    aus += ["## Achse A2: Stückwerkzeuge im Arbeitsstand", ""]
+    if je_achse["A2"]:
+        aus += ["Synthetischer Szenenstand (3 Szenen, 3 Figuren, Besetzung, offene Fragen) "
+                "je Fall, im Nutzertext beider Modi gleich; der Live-Erkenner sieht Szenen "
+                "nicht im Nutzertext (bewusste Abweichung der Messung).", ""]
+        aus += _abschnitt_ab("A2", je_achse["A2"]) + _a2_werkzeuge(je_achse["A2"])
+    else:
+        aus += [f"Achse A2: 0 — {gruende['A2']}", ""]
     aus += ["## Achse C: Zitatsuche", ""]
     if je_achse["C"]:
         aus += _abschnitt_c(je_achse["C"], b0)
@@ -491,11 +625,12 @@ def lade_rohzeilen(pfade) -> list[dict]:
 
 def _bericht(args) -> int:
     zeilen = lade_rohzeilen(args.roh)
-    gruende = {a: g for a, g in (("A", args.achse_a_grund), ("B", args.achse_b_grund),
-                                 ("C", args.achse_c_grund)) if g}
+    gruende = {a: g for a, g in (("A", args.achse_a_grund), ("A2", args.achse_a2_grund),
+                                 ("B", args.achse_b_grund), ("C", args.achse_c_grund)) if g}
     vor = {"ACHSE_A": "ja" if any(z.get("achse") == "A" for z in zeilen) else "nein",
            "ACHSE_B": "ja" if any(z.get("achse") == "B" for z in zeilen) else "nein",
            "ACHSE_C": "ja" if any(z.get("achse") == "C" for z in zeilen) else "nein"}
+    vor["ACHSE_A2"] = "ja" if any(z.get("achse") == "A2" for z in zeilen) else "nein"
     for eintrag in args.vorbedingung:
         k, _, v = eintrag.partition("=")
         vor[k] = v
@@ -507,6 +642,10 @@ def _bericht(args) -> int:
     kommandos = [
         "uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache de --modus beide",
         "uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache en --modus beide",
+        "uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache de --modus beide "
+        "--szenen --faelle korpus/ab_a2_de.jsonl",
+        "uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache en --modus beide "
+        "--szenen --faelle korpus/ab_a2_en.jsonl",
         "uv run --extra dev python -m scripts.ab_padua --modus beide",
         "uv run --extra dev python -m scripts.ab_zitate --ohne-modell",
         "uv run --extra dev python -m scripts.ab_zitate --gruppe G1 G2 G3 --kosten-ok",
@@ -525,7 +664,7 @@ def baue_argumente(argv=None) -> argparse.Namespace:
     b = unter.add_parser("bericht", help="Markdown-Bericht aus den Rohzeilen (kein Modellaufruf)")
     b.add_argument("--roh", nargs="+", required=True)
     b.add_argument("--aus", default=str(BERICHT_AUS))
-    for achse in "abc":
+    for achse in ("a", "a2", "b", "c"):
         b.add_argument(f"--achse-{achse}-grund", help=f"Grund, falls Achse {achse.upper()} fehlt")
     b.add_argument("--vorbedingung", action="append", default=[], metavar="SCHLUESSEL=WERT")
     b.add_argument("--gold", default="korpus/zitatauswahl_gold.jsonl")
@@ -534,6 +673,9 @@ def baue_argumente(argv=None) -> argparse.Namespace:
     a.add_argument("--sprache", choices=("de", "en"), default="de")
     a.add_argument("--modus", choices=("json", "tools", "beide"), default="beide")
     a.add_argument("--nur", nargs="*")
+    a.add_argument("--szenen", action="store_true",
+                   help="Achse A2: synthetischer Szenenstand je Fall, Zeilen mit achse=A2")
+    a.add_argument("--faelle", help="eigene Fallliste (Korpusformat) statt korpus/erkenner.jsonl")
     a.add_argument("--db")
     a.add_argument("--aus")
     return p.parse_args(argv)

@@ -209,6 +209,57 @@ def _p90(werte: list) -> str:
     return f"{statistics.quantiles(werte, n=10)[-1]:.0f}"
 
 
+def _kosten_zelle(summe: float) -> str:
+    """Aus den Rohzeilen summiert; der Abo-Proxy bucht 0 (kein erfundener Wert)."""
+    if not summe:
+        return "0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000"
+    return f"{summe:.4f} CHF (Summe der Rohzeilen-Felder kosten_chf)"
+
+
+def _aufrufe_je_werkzeug(zeilen: list[dict]) -> dict[str, dict[str, list[int]]]:
+    """Achse -> Werkzeugname -> [Aufrufe, abgelehnt], nur tools-Modus, nur Namen."""
+    aus: dict[str, dict[str, list[int]]] = {}
+    for z in zeilen:
+        if z.get("modus") != "tools" or z.get("achse") not in ("A", "B"):
+            continue
+        for a in z.get("aufrufe") or []:
+            eintrag = aus.setdefault(z["achse"], {}).setdefault(a["name"], [0, 0])
+            eintrag[0] += 1
+            eintrag[1] += 0 if a.get("ok") else 1
+    return aus
+
+
+def _werkzeug_tabelle(zeilen: list[dict]) -> list[str]:
+    je = _aufrufe_je_werkzeug(zeilen)
+    aus = ["### Aufrufe je Werkzeug (tools-Modus)", ""]
+    if not je:
+        return aus + ["Keine Werkzeugaufrufe in den Rohzeilen.", ""]
+    aus += ["| Achse | Werkzeug | Aufrufe | davon abgelehnt |", "|---|---|---|---|"]
+    for achse in sorted(je):
+        for name, (n, abgelehnt) in sorted(je[achse].items()):
+            aus.append(f"| Achse {achse} | {name} | {n} | {abgelehnt} |")
+    return aus + [""]
+
+
+def _nicht_geprueft(zeilen: list[dict]) -> str | None:
+    je = _aufrufe_je_werkzeug(zeilen)
+    if not je:
+        return None
+    gerufen: dict[str, int] = {}
+    for werkzeuge in je.values():
+        for name, (n, _) in werkzeuge.items():
+            gerufen[name] = gerufen.get(name, 0) + n
+    alle = [d["name"] for d in erkenner_werkzeuge.definitionen(())]
+    nie = [n for n in alle if not gerufen.get(n)]
+    gesamt = sum(gerufen.values())
+    generisch = gerufen.get(erkenner_werkzeuge.GENERISCH, 0)
+    return (f"- Werkzeuge ohne einen einzigen Aufruf, nicht geprüft: "
+            f"{', '.join(nie) if nie else 'keine'}. Die Mess-DB ist leer (keine Szenen), "
+            f"und der tools-Modus lief überwiegend über das generische "
+            f"`{erkenner_werkzeuge.GENERISCH}` ({generisch} von {gesamt} Aufrufen, "
+            f"{100 * generisch / gesamt:.0f} %).")
+
+
 def _modus_spalte(zeilen: list[dict]) -> dict[str, str]:
     """Kennzahlen EINES Modus (Zeilen schon gefiltert) als Zellen."""
     if not zeilen:
@@ -235,7 +286,7 @@ def _modus_spalte(zeilen: list[dict]) -> dict[str, str]:
         "Runden (Median)": _median([z["runden"] for z in zeilen if z.get("runden")]),
         "Latenz Median / p90 (ms)": f"{_median(dauer)} / {_p90(dauer)}",
         "Token ein / aus (Summe)": f"{s('eingabe_token')} / {s('ausgabe_token')}",
-        "Kosten": "0 CHF (Abo)",
+        "Kosten": _kosten_zelle(sum(z.get("kosten_chf") or 0.0 for z in zeilen)),
         "Modellaufrufe (Summe)": str(s("modellaufrufe")),
         "Fehler (Anzahl)": str(sum(1 for z in zeilen if z.get("fehler"))),
     }
@@ -366,12 +417,15 @@ def baue_bericht(zeilen: list[dict], vorbedingungen: dict, kommandos: list[str],
         aus += _abschnitt_c(je_achse["C"], b0)
     else:
         aus += [f"Achse C: 0 — {gruende['C']}", ""]
+    aus += ["## Werkzeugnutzung", "", *_werkzeug_tabelle(zeilen)]
     aus += [
         "## Messgrenzen", "",
         "Abbildung Werkzeug auf Korpus-Art (`erkenner_werkzeuge.ART_FUER_WERKZEUG`), über die "
         "die Tools-Seite in die Korpus-Sprache zurückübersetzt wird:", "",
         "| Werkzeug | Korpus-Art |", "|---|---|",
         *[f"| {w} | {art} |" for w, art in erkenner_werkzeuge.ART_FUER_WERKZEUG.items()], "",
+        "- Zeitgrenzen asymmetrisch wie live: json-Modus Timeout 60 s je Aufruf, tools-Modus "
+        f"Gesamtbudget {szene_claude.GESAMT_TIMEOUT_S:.0f} s je Fall (`szene_claude.GESAMT_TIMEOUT_S`).",
         "- Undo: im tools-Modus gibt es keinen Erkenner-Undo-Schnappschuss für Stück-Schritte "
         "(Spec § 3.4); der Vergleich der Rücknehmbarkeit ist deshalb nicht Teil der Zahlen.",
         "- Achse C hat einen Modell-Störfaktor: Pipeline und Agent laufen auf Kimi, die "
@@ -388,7 +442,8 @@ def baue_bericht(zeilen: list[dict], vorbedingungen: dict, kommandos: list[str],
         "- Der Szenenkern wird im tools-Modus nicht neu angestoßen.",
         "- Der Padua-Testsatz ist laut Messung 1 (3/27) kein scharfes Gate.",
         "- Aufnahme-Fälle laufen live über Infomaniak, in der Messung über Opus; ihre "
-        "Zahlen sind deshalb nur getrennt und mit Vorsicht zu lesen.", "",
+        "Zahlen sind deshalb nur getrennt und mit Vorsicht zu lesen.",
+        *([_np] if (_np := _nicht_geprueft(zeilen)) else []), "",
         "Keine Empfehlung. Die Entscheidung trifft Birk (Kriterium 1: bei Gleichstand "
         "zählen Vision/Pflege, das heißt Agent).", "",
     ]

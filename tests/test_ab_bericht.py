@@ -113,3 +113,52 @@ def test_cli_bericht_schreibt_datei_und_ueberlebt_fehlende_rohdatei(tmp_path):
     assert "Achse C: 0 — nicht freigegeben (Kosten)" in text
     assert "Achse B: 0 — Padua-Testsatz fehlte" in text
     assert "bericht --roh" in text
+
+
+def _aufrufe(*namen, abgelehnt=()):
+    return [{"name": n, "eingabe": {}, "ok": n not in abgelehnt, "fehler": None}
+            for n in namen]
+
+
+def test_werkzeugtabelle_zaehlt_aufrufe_und_abgelehnte_je_achse():
+    zeilen = [
+        _z("tools", aufrufe=_aufrufe("aenderung_melden", "aenderung_melden", "setze_ort",
+                                     abgelehnt=("setze_ort",))),
+        _z("tools", achse="B", aufrufe=_aufrufe("aenderung_melden")),
+        _z("json"),
+    ]
+    text = ab.baue_bericht(zeilen, VOR, [])
+    assert "Aufrufe je Werkzeug" in text
+    assert "| Achse A | aenderung_melden | 2 | 0 |" in text
+    assert "| Achse A | setze_ort | 1 | 1 |" in text
+    assert "| Achse B | aenderung_melden | 1 | 0 |" in text
+
+
+def test_ungerufene_werkzeuge_stehen_als_nicht_geprueft_mit_anteil():
+    from interview_theater import erkenner_werkzeuge, stueck
+
+    zeilen = [_z("tools", aufrufe=_aufrufe("aenderung_melden", "aenderung_melden",
+                                           "aenderung_melden", "setze_ort"))]
+    text = ab.baue_bericht(zeilen, VOR, [])
+    abschnitt = text[text.index("## Was die Messung NICHT zeigt"):]
+    assert "nicht geprüft" in abschnitt
+    assert "75 %" in abschnitt and "Mess-DB" in abschnitt
+    for name in stueck.WERKZEUGE:
+        if name != "setze_ort":
+            assert name in abschnitt
+    assert "setze_ort" not in abschnitt.split("nicht geprüft")[1].split("\n")[0]
+    assert erkenner_werkzeuge.GENERISCH in abschnitt
+
+
+def test_kosten_aus_rohzeilen_abgeleitet():
+    text = ab.baue_bericht([_z("json", kosten_chf=0.0), _z("tools", kosten_chf=0.5)], VOR, [])
+    assert "0.5000 CHF" in text
+    assert "kosten_chf" in text
+
+
+def test_messgrenzen_nennen_asymmetrische_timeouts():
+    from interview_theater import szene_claude
+
+    text = ab.baue_bericht([_z("json")], VOR, [])
+    assert "60 s" in text
+    assert f"{szene_claude.GESAMT_TIMEOUT_S:.0f} s" in text

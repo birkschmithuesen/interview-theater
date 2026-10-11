@@ -35,7 +35,7 @@ Hinweis zur Nebenzählung: Die Hauptzählung (Treffer/FP/FN) zählt, was das St�
 | Runden (Median) | 1 | 2 |
 | Latenz Median / p90 (ms) | 1923 / 3659 | 3418 / 6704 |
 | Token ein / aus (Summe) | 16355 / 12248 | 70417 / 31826 |
-| Kosten | 0 CHF (Abo) | 0 CHF (Abo) |
+| Kosten | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 |
 | Modellaufrufe (Summe) | 146 | 243 |
 | Fehler (Anzahl) | 0 | 0 |
 
@@ -56,7 +56,7 @@ Live laufen Aufnahmen über Infomaniak, hier über Opus; die Zahlen stehen desha
 | Runden (Median) | 1 | 2 |
 | Latenz Median / p90 (ms) | 1805 / 2291 | 3446 / 9362 |
 | Token ein / aus (Summe) | 946 / 384 | 3607 / 1503 |
-| Kosten | 0 CHF (Abo) | 0 CHF (Abo) |
+| Kosten | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 |
 | Modellaufrufe (Summe) | 11 | 17 |
 | Fehler (Anzahl) | 0 | 0 |
 
@@ -75,7 +75,7 @@ Live laufen Aufnahmen über Infomaniak, hier über Opus; die Zahlen stehen desha
 | Runden (Median) | 1 | 2 |
 | Latenz Median / p90 (ms) | 1900 / 2749 | 2958 / 4827 |
 | Token ein / aus (Summe) | 7385 / 5462 | 33659 / 12914 |
-| Kosten | 0 CHF (Abo) | 0 CHF (Abo) |
+| Kosten | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 |
 | Modellaufrufe (Summe) | 96 | 156 |
 | Fehler (Anzahl) | 0 | 0 |
 
@@ -96,7 +96,7 @@ Live laufen Aufnahmen über Infomaniak, hier über Opus; die Zahlen stehen desha
 | Runden (Median) | 1 | 2 |
 | Latenz Median / p90 (ms) | 1644 / 2288 | 2897 / 3965 |
 | Token ein / aus (Summe) | 370 / 207 | 1743 / 646 |
-| Kosten | 0 CHF (Abo) | 0 CHF (Abo) |
+| Kosten | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 |
 | Modellaufrufe (Summe) | 7 | 11 |
 | Fehler (Anzahl) | 0 | 0 |
 
@@ -117,13 +117,26 @@ Live laufen Aufnahmen über Infomaniak, hier über Opus; die Zahlen stehen desha
 | Runden (Median) | 1 | 2 |
 | Latenz Median / p90 (ms) | 3549 / 6163 | 4709 / 7828 |
 | Token ein / aus (Summe) | 5897 / 9851 | 24437 / 12184 |
-| Kosten | 0 CHF (Abo) | 0 CHF (Abo) |
+| Kosten | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 | 0 CHF (Abo) — Opus über Abo-Proxy; Rohzeilen buchen kosten_chf=0.0000 |
 | Modellaufrufe (Summe) | 37 | 63 |
 | Fehler (Anzahl) | 0 | 0 |
 
 ## Achse C: Zitatsuche
 
 Achse C: 0 — nicht freigegeben (Kosten, Schätzung ~0,5–1 CHF Kimi)
+
+## Werkzeugnutzung
+
+### Aufrufe je Werkzeug (tools-Modus)
+
+| Achse | Werkzeug | Aufrufe | davon abgelehnt |
+|---|---|---|---|
+| Achse A | aenderung_melden | 167 | 0 |
+| Achse A | figur_hinzu | 24 | 0 |
+| Achse A | setze_rahmen | 6 | 0 |
+| Achse B | aenderung_melden | 24 | 0 |
+| Achse B | figur_hinzu | 2 | 0 |
+| Achse B | setze_rahmen | 2 | 0 |
 
 ## Messgrenzen
 
@@ -138,6 +151,7 @@ Abbildung Werkzeug auf Korpus-Art (`erkenner_werkzeuge.ART_FUER_WERKZEUG`), übe
 | karte_aendern | szene_planen |
 | figur_hinzu | figur_setzen |
 
+- Zeitgrenzen asymmetrisch wie live: json-Modus Timeout 60 s je Aufruf, tools-Modus Gesamtbudget 120 s je Fall (`szene_claude.GESAMT_TIMEOUT_S`).
 - Undo: im tools-Modus gibt es keinen Erkenner-Undo-Schnappschuss für Stück-Schritte (Spec § 3.4); der Vergleich der Rücknehmbarkeit ist deshalb nicht Teil der Zahlen.
 - Achse C hat einen Modell-Störfaktor: Pipeline und Agent laufen auf Kimi, die Opus-Pipeline auf Opus; ein Unterschied kann am Modell oder am Verfahren liegen. Opus-Zeilen mit Rückfall auf Kimi sind markiert und nicht gemittelt.
 
@@ -162,5 +176,6 @@ uv run --extra dev python -m scripts.ab_pipeline_vs_tools bericht --roh korpus/b
 - Der Szenenkern wird im tools-Modus nicht neu angestoßen.
 - Der Padua-Testsatz ist laut Messung 1 (3/27) kein scharfes Gate.
 - Aufnahme-Fälle laufen live über Infomaniak, in der Messung über Opus; ihre Zahlen sind deshalb nur getrennt und mit Vorsicht zu lesen.
+- Werkzeuge ohne einen einzigen Aufruf, nicht geprüft: setze_ort, setze_besetzung, figur_aus_szene, karte_aendern, szene_wieder_oeffnen, reihenfolge_aendern, frage_stellen, frage_beantworten, frage_zurueckstellen, frage_verwerfen, pruefe_szene. Die Mess-DB ist leer (keine Szenen), und der tools-Modus lief überwiegend über das generische `aenderung_melden` (191 von 225 Aufrufen, 85 %).
 
 Keine Empfehlung. Die Entscheidung trifft Birk (Kriterium 1: bei Gleichstand zählen Vision/Pflege, das heißt Agent).

@@ -179,10 +179,10 @@ Test-DB und brauchen die private Datei gar nicht.
 
 A/B des Erkenners (Task t_9b2b33cb). Bericht:
 `docs/messung/2026-10-ab-pipeline-vs-tools.md`. Alle Läufe starten von
-Hand und nie automatisch; Achsen A/B rufen Opus über den Proxy auf und
-kosten Geld, der Kimi-Teil von Achse C (`ab_zitate` mit `--kosten-ok`)
-ebenfalls. Achse C hängt vom Gold-Korpus (`korpus/zitatauswahl_gold.jsonl`)
-ab; der Testsatz-Format ist eine Annahme aus Messung 1.
+Hand und nie automatisch; Achsen A/B rufen Opus über den Abo-Proxy auf
+(0 CHF), nur der Kimi-Teil von Achse C (`ab_zitate` mit `--kosten-ok`)
+kostet CHF. Achse C hängt vom Gold-Korpus (`korpus/zitatauswahl_gold.jsonl`)
+ab; das Testsatz-Format ist eine Annahme aus Messung 1.
 
 ```
 uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache de --modus beide

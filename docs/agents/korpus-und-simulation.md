@@ -69,6 +69,70 @@ Berichte landen in `korpus/berichte/` und sind **gitignored**: sie enthalten
 vollständige Modellantworten. Der Korpus selbst ist frei erfunden und gehört
 ins Repository.
 
+### Den Live-Opus-Pfad messen (`--ueber-claude`) und ein zweiter Testsatz
+
+Seit dem 08.10.2026 läuft der Erkenner unter Padua (`[erkenner] ueber_claude
+= true`, `workshop/padua-2026/profil.toml`) über `claude-opus-5-5`
+(`erkenner.ueber_claude` → `modellwahl.konversation_ueber_claude` →
+`szene_claude.schema`), nicht mehr über `google/gemma-4-31B-it`.
+`scripts/pruefe_prompts.py` ruft diesen Pfad mit dem Schalter
+`--ueber-claude` (nur für `erkenner`) — er ruft **dieselbe** Funktion wie
+der Betrieb (`erkenner._schema_aufruf`), kein Nachbau, und bricht laut ab,
+wenn Profil/Einstellungen den Live-Pfad gar nicht freischalten (sonst wäre
+ein stiller Kimi-Rückfall nicht von einem echten Opus-Lauf zu
+unterscheiden). Aufnahmefälle (Transkripte) bleiben unbedingt bei Kimi, wie
+`erkenner.erkenne_in_aufnahme` es im Betrieb auch tut.
+
+**Padua läuft auf Englisch** — `--ueber-claude` braucht daher
+`IT_WORKSHOP=padua-2026` in der geladenen Env (z. B.
+`betrieb/padua-gruppe1.env`, **nicht** die generische `betrieb/gruppe1.env`,
+der `IT_WORKSHOP` und `IT_SZENE_MODELL=claude-opus-5-5` fehlen) und
+zusätzlich `--sprache en`, sonst lehnt `main()` den Sprachmismatch ab (D8).
+Der deutsche Hauptkorpus (`korpus/erkenner.jsonl`) ist deshalb gegen den
+Live-Opus-Pfad **nicht** fahrbar — nur `korpus/en/erkenner.jsonl`.
+
+`--korpus-datei <name>` lädt `korpus/<name>.jsonl` (bzw. `korpus/en/<name>.jsonl`
+mit `--sprache en`) statt der Datei, die zum Promptnamen gehört — damit
+fährt derselbe Runner auch einen zweiten Testsatz, ohne einen zweiten
+Skriptpfad zu brauchen. **Ausnahme `padua_testsatz`:** diese Datei enthält
+echte Chat-Zitate aus den drei Padua-Gruppen (vor der Anonymisierung Teil
+davon Klarnamen) und darf deshalb nicht im öffentlichen Repo liegen (E8) --
+`scripts/pruefe_prompts.lade_korpus` liest sie für diesen einen Namen
+(`PRIVATE_KORPUS_DATEIEN`) statt aus `korpus/` von `IT_PRIVAT_KORPUS`
+(Vorgabe: `betrieb/korpus/`, bereits per `.gitignore` ausgeschlossen) --
+also `betrieb/korpus/en/padua_testsatz.jsonl`. Fehlt die Datei dort, meldet
+`lade_korpus` das mit `FileNotFoundError`, die betroffenen Tests
+(`tests/test_padua_testsatz.py`, die `--korpus-datei`-Tests in
+`tests/test_pruefe_prompts.py`) überspringen sich selbst. `padua_testsatz`
+(InScribe Messung 1, t_dd94e894) ist so ein zweiter Testsatz: 37 Fälle aus
+echten Padua-Chats der drei Gruppen, gegen eine unabhängige menschliche
+Prüfung (`p7audit.json`, 69 geprüfte Posts, außerhalb des Repos) gespiegelt
+und anonymisiert (E8: Figuren- statt Klarnamen, `g1`/`g2`/`g3` statt echter
+`chat_id`). Aufruf:
+
+```
+set -a; . ./betrieb/padua-gruppe1.env; set +a
+python -m scripts.pruefe_prompts erkenner --ueber-claude --sprache en --bericht
+python -m scripts.pruefe_prompts erkenner --ueber-claude --sprache en \
+    --korpus-datei padua_testsatz --bericht
+```
+
+Baseline-Bericht: `docs/messung/2026-10-erkenner-baseline.md`.
+
+**Gate: ein Modellwechsel des Erkenners verlangt einen Korpuslauf.** Wer
+`e.erkenner_modell`, `IT_SZENE_MODELL` für den Erkenner-Pfad oder den
+Profilschalter `[erkenner] ueber_claude` ändert, fährt vorher
+`scripts/pruefe_prompts.py erkenner` (und, falls der Live-Opus-Pfad
+betroffen ist, zusätzlich `--ueber-claude --sprache en`) gegen **beide**
+Korpora (`korpus/erkenner.jsonl` bzw. `korpus/en/erkenner.jsonl` **und**
+`betrieb/korpus/en/padua_testsatz.jsonl`, falls lokal vorhanden) und trägt
+das Ergebnis in den Auftrag/die Karte ein — **außer Birk sagt explizit
+„ohne Korpus"**. Das ist eine
+Prozessregel für Agenten und Menschen, kein technisches Gate: kein Skript
+blockiert den Bot-Start oder einen Deploy deswegen, es ist allein die
+Abnahmevoraussetzung für die Änderung selbst (wie die FP=0-Regel oben, nur
+auf den Modellwechsel bezogen statt auf den Prompttext).
+
 **Die Zahlen des Laengen-Rhythmus und des Sprachpasses sind kein Prompt.**
 Sie stehen in `workshop/padua-2026/profil.toml` (`[laengen]`,
 `[laengen.rahmen]`, `[sprachpass]`). Eine Aenderung dort braucht **keinen**

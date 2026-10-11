@@ -175,6 +175,29 @@ Aufrufe) und darf wie jedes geldkostende Skript nie automatisch laufen
 synthetischen, frei erfundenen deutschen Testsaetzen gegen eine frische
 Test-DB und brauchen die private Datei gar nicht.
 
+### Messung 2: Pipeline gegen Agent (`IT_ERKENNER_MODUS` json gegen tools)
+
+A/B des Erkenners (Task t_9b2b33cb). Bericht:
+`docs/messung/2026-10-ab-pipeline-vs-tools.md`. Alle Läufe starten von
+Hand und nie automatisch; Achsen A/B rufen Opus über den Proxy auf und
+kosten Geld, der Kimi-Teil von Achse C (`ab_zitate` mit `--kosten-ok`)
+ebenfalls. Achse C hängt vom Gold-Korpus (`korpus/zitatauswahl_gold.jsonl`)
+ab; der Testsatz-Format ist eine Annahme aus Messung 1.
+
+```
+uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache de --modus beide
+uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache en --modus beide
+uv run --extra dev python -m scripts.ab_padua --modus beide
+uv run --extra dev python -m scripts.ab_zitate --ohne-modell          # 0 CHF
+uv run --extra dev python -m scripts.ab_zitate --gruppe G1 G2 G3 --kosten-ok   # kostet CHF (Kimi)
+uv run --extra dev python -m scripts.ab_pipeline_vs_tools bericht --roh <Rohdateien>
+```
+
+Bekannte Grenzen des tools-Modus (nicht Teil der Messung): Undo deckt
+Stück-Schritte nicht ab (Spec § 3.4); der Szenenkern wird für Stück-Schritte
+nicht neu angestoßen. Der Bericht enthält keine Empfehlung „umstellen“ ohne
+Zahlen.
+
 ### Simulation: ein ganzer Workshop gegen die echten Modelle
 
 Der Korpus misst einzelne Prompts an einzelnen Fällen. Was er **nicht** misst,

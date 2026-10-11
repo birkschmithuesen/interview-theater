@@ -122,6 +122,24 @@ Live laufen Aufnahmen über Infomaniak, hier über Opus; die Zahlen stehen desha
 | Modellaufrufe (Summe) | 37 | 63 |
 | Fehler (Anzahl) | 0 | 0 |
 
+### Achse B: Handlung ausgelöst (Art-Familie), zusätzlich zur strikten Zählung
+
+Mehrere Werkzeug-Arten lösen dieselbe dramaturgische Handlung aus; diese Zählung setzt sie gleich, zusätzlich zur strikten Zählung oben (exakte Art). Mapping:
+
+| Art | Art-Familie |
+|---|---|
+| festlegung_setzen | festlegung_setzen |
+| rahmen_setzen | festlegung_setzen |
+| stagescript_notiz | text_ueberarbeiten |
+| szene_planen | festlegung_setzen |
+| text_ueberarbeiten | text_ueberarbeiten |
+
+| Kennzahl | json | tools |
+|---|---|---|
+| Treffer (Art-Familie, Summe / erwartet gesamt) | 4 / 27 | 4 / 27 |
+| FN (Art-Familie) | 23 | 23 |
+| FP (Art-Familie) | 27 | 24 |
+
 ## Achse A2: Stückwerkzeuge im Arbeitsstand
 
 Synthetischer Szenenstand (3 Szenen, 3 Figuren, Besetzung, offene Fragen) je Fall, im Nutzertext beider Modi gleich; der Live-Erkenner sieht Szenen nicht im Nutzertext (bewusste Abweichung der Messung).

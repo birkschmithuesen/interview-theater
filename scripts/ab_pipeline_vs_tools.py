@@ -35,6 +35,33 @@ from scripts import pruefe_prompts as pp
 ROH_VERZ = Path("korpus/berichte/ab")
 OPUS = "claude-opus-5-5"
 
+#: Art-Familie fuer Achse B (Birks Zusage, Kommentar 2026-10-11 17:24:51):
+#: mehrere Werkzeug-Arten druecken dieselbe dramaturgische Handlung aus --
+#: zusaetzlich zur strikten Zaehlung (exakte Art) wird deshalb eine lockere
+#: Zaehlung "Handlung ausgeloest" berichtet, die diese Arten gleichsetzt.
+ART_FAMILIE = {
+    "stagescript_notiz": "text_ueberarbeiten",
+    "text_ueberarbeiten": "text_ueberarbeiten",
+    "rahmen_setzen": "festlegung_setzen",
+    "festlegung_setzen": "festlegung_setzen",
+    "szene_planen": "festlegung_setzen",
+}
+
+
+def _familie(art: str | None) -> str | None:
+    """Art-Familie nach ``ART_FAMILIE``, sonst die Art selbst (jede sonstige
+    Art bleibt ihre eigene Familie -- wie die strikte Zaehlung)."""
+    return ART_FAMILIE.get(art, art) if art is not None else art
+
+
+def vergleiche_art_familie(erwartet: list[dict], geliefert: list[dict]) -> dict:
+    """Wie ``pruefe_prompts.vergleiche_erkenner``, aber ``art`` wird vorher ueber
+    ``ART_FAMILIE`` normalisiert -- mehrere Werkzeug-Arten gelten als dieselbe
+    ausgeloeste Handlung (Birks Zusage, Kommentar 2026-10-11 17:24:51)."""
+    erwartet_f = [{"art": _familie(e.get("art")), "wert": e.get("wert", "")} for e in erwartet]
+    geliefert_f = [{"art": _familie(g.get("art")), "wert": g.get("wert", "")} for g in geliefert]
+    return pp.vergleiche_erkenner(erwartet_f, geliefert_f)
+
 
 #: Synthetischer Stueckstand der Achse A2 (erfundene, neutrale Namen; keine
 #: echten Daten). Je Sprache dieselbe Struktur: 3 Szenen, 3 Figuren, Besetzung,
@@ -161,6 +188,7 @@ def _leer(modus: str, fall: dict, achse: str = "A") -> dict:
             "aufnahme": bool(fall.get("aufnahme")), "modellaufrufe": 0, "still_fp": 0, "ohne_korpusart": 0,
             "abgelehnt": 0, "abbruch": None, "runden": 0, "eingabe_token": 0,
             "ausgabe_token": 0, "dauer_ms": 0, "fehler": None, "geliefert": [],
+            "erwartet": fall.get("erwartet", []),
             "aufrufe": [], "absicht_treffer": 0, "absicht_fp": 0,
             "absicht_fn": len(fall.get("erwartet", [])), "abgelehnt_gruende": {},
             "werkzeug_erwartet": len(fall.get("erwartet_werkzeuge", [])),
@@ -170,7 +198,7 @@ def _leer(modus: str, fall: dict, achse: str = "A") -> dict:
 def _zaehle(zeile: dict, fall: dict, geliefert: list[dict]) -> dict:
     bewertung = pp.vergleiche_erkenner(fall["erwartet"], geliefert)
     zeile.update(treffer=len(bewertung["treffer"]), fp=len(bewertung["ueberzaehlig"]),
-                 fn=len(bewertung["fehlend"]), geliefert=geliefert)
+                 fn=len(bewertung["fehlend"]), geliefert=geliefert, erwartet=fall["erwartet"])
     zeile.update(absicht_treffer=zeile["treffer"], absicht_fp=zeile["fp"],
                  absicht_fn=zeile["fn"])
     return zeile
@@ -499,6 +527,40 @@ def _tabelle_ab(zeilen: list[dict]) -> list[str]:
     return aus
 
 
+def _art_familie_tabelle(zeilen: list[dict]) -> list[str]:
+    """Zusatzspalte fuer Achse B (Birks Zusage, Kommentar 2026-10-11 17:24:51):
+    neben der strikten Zaehlung (exakte Art) zaehlt diese Tabelle „Handlung
+    ausgeloest“ -- Arten derselben Familie (``ART_FAMILIE``) gelten als
+    Treffer. Nebeneinander mit der strikten Zaehlung, nicht an ihrer Stelle."""
+    je_modus: dict[str, list[dict]] = {}
+    for z in zeilen:
+        if z.get("modus") in ("json", "tools"):
+            je_modus.setdefault(z["modus"], []).append(z)
+    if not je_modus:
+        return []
+    aus = ["### Achse B: Handlung ausgelöst (Art-Familie), zusätzlich zur strikten Zählung",
+           "",
+           "Mehrere Werkzeug-Arten lösen dieselbe dramaturgische Handlung aus; diese "
+           "Zählung setzt sie gleich, zusätzlich zur strikten Zählung oben (exakte Art). "
+           "Mapping:", "",
+           "| Art | Art-Familie |", "|---|---|",
+           *[f"| {a} | {f} |" for a, f in sorted(ART_FAMILIE.items())], "",
+           "| Kennzahl | json | tools |", "|---|---|---|"]
+    zellen: dict[str, dict[str, str]] = {}
+    for modus, zs in je_modus.items():
+        treffer = fp = fn = 0
+        for z in zs:
+            bewertung = vergleiche_art_familie(z.get("erwartet") or [], z.get("geliefert") or [])
+            treffer += len(bewertung["treffer"])
+            fp += len(bewertung["ueberzaehlig"])
+            fn += len(bewertung["fehlend"])
+        zellen[modus] = {"Treffer (Art-Familie, Summe / erwartet gesamt)": f"{treffer} / {treffer + fn}",
+                         "FN (Art-Familie)": str(fn), "FP (Art-Familie)": str(fp)}
+    for k in ("Treffer (Art-Familie, Summe / erwartet gesamt)", "FN (Art-Familie)", "FP (Art-Familie)"):
+        aus.append(f"| {k} | {zellen.get('json', {}).get(k, '-')} | {zellen.get('tools', {}).get(k, '-')} |")
+    return aus + [""]
+
+
 def _abschnitt_ab(achse: str, zeilen: list[dict]) -> list[str]:
     aus = []
     for sprache in sorted({z.get("sprache") or "?" for z in zeilen}):
@@ -615,6 +677,8 @@ def baue_bericht(zeilen: list[dict], vorbedingungen: dict, kommandos: list[str],
         aus += [f"## {titel}", ""]
         if je_achse[a]:
             aus += _abschnitt_ab(a, je_achse[a])
+            if a == "B":
+                aus += _art_familie_tabelle(je_achse[a])
         else:
             aus += [f"Achse {a}: 0 — {gruende[a]}", ""]
     aus += ["## Achse A2: Stückwerkzeuge im Arbeitsstand", ""]
@@ -702,8 +766,28 @@ def lade_rohzeilen(pfade) -> list[dict]:
     return zeilen
 
 
+def _ergaenze_erwartet_achse_b(zeilen: list[dict]) -> None:
+    """Rohzeilen aus vor dieser Nachbesserung tragen kein ``erwartet`` (nur
+    die gezählten Werte) -- für die Art-Familie-Zusatzzählung wird es hier aus
+    dem Testsatz nachgetragen, über ``id`` gejoint. Fehlt der Testsatz (E8,
+    privat), bleiben die Zeilen unverändert und die Zusatztabelle einfach
+    leer für diese Zeilen."""
+    fehlend = [z for z in zeilen if z.get("achse") == "B" and "erwartet" not in z]
+    if not fehlend:
+        return
+    try:
+        from scripts import ab_padua
+        testsatz = {f["id"]: f.get("erwartet", []) for f in ab_padua.lade_testsatz()}
+    except (FileNotFoundError, ImportError):
+        return
+    for z in fehlend:
+        if z["id"] in testsatz:
+            z["erwartet"] = testsatz[z["id"]]
+
+
 def _bericht(args) -> int:
     zeilen = lade_rohzeilen(args.roh)
+    _ergaenze_erwartet_achse_b(zeilen)
     gruende = {a: g for a, g in (("A", args.achse_a_grund), ("A2", args.achse_a2_grund),
                                  ("B", args.achse_b_grund), ("C", args.achse_c_grund)) if g}
     vor = {"ACHSE_A": "ja" if any(z.get("achse") == "A" for z in zeilen) else "nein",

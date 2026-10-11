@@ -203,6 +203,42 @@ def test_achse_grund_ohne_doppelte_null():
     assert "0 — 0" not in text and "0 — 0 -" not in text
 
 
+def test_art_familie_spalte_fuer_achse_b():
+    """Birks Zusage (Kommentar 2026-10-11 17:24:51): Achse B bekommt zusaetzlich
+    zur strikten Zaehlung eine Art-Familie-Spalte, Mapping offengelegt."""
+    zeilen = [
+        _z("json", achse="B", id="b1", erwartet=[{"art": "stagescript_notiz", "wert": "x"}],
+           geliefert=[{"art": "text_ueberarbeiten", "wert": "x"}], treffer=0, fp=1, fn=1),
+        _z("tools", achse="B", id="b1", erwartet=[{"art": "stagescript_notiz", "wert": "x"}],
+           geliefert=[{"art": "stagescript_notiz", "wert": "x"}], treffer=1, fp=0, fn=0),
+    ]
+    text = ab.baue_bericht(zeilen, VOR, [])
+    assert "Handlung ausgelöst (Art-Familie)" in text
+    assert "| stagescript_notiz | text_ueberarbeiten |" in text
+    assert "| rahmen_setzen | festlegung_setzen |" in text
+    assert "| szene_planen | festlegung_setzen |" in text
+    # json liefert eine andere Art derselben Familie -> Art-Familie-Treffer trotz strikt FP/FN
+    abschnitt = text[text.index("Handlung ausgelöst (Art-Familie)"):]
+    assert "| Treffer (Art-Familie, Summe / erwartet gesamt) | 1 / 1 | 1 / 1 |" in abschnitt
+
+
+def test_art_familie_spalte_nicht_bei_achse_a():
+    """Die Zusatzspalte ist Achse-B-spezifisch (Birks Zusage galt nur fuer B)."""
+    zeilen = [_z("json", achse="A", erwartet=[{"art": "rahmen_setzen", "wert": "x"}]),
+              _z("tools", achse="A", erwartet=[{"art": "rahmen_setzen", "wert": "x"}])]
+    text = ab.baue_bericht(zeilen, VOR, [])
+    assert "Handlung ausgelöst (Art-Familie)" not in text
+
+
+def test_vergleiche_art_familie_setzt_arten_gleich():
+    from scripts import ab_pipeline_vs_tools as ab2
+
+    bewertung = ab2.vergleiche_art_familie(
+        [{"art": "rahmen_setzen", "wert": "x"}], [{"art": "szene_planen", "wert": "x"}])
+    assert len(bewertung["treffer"]) == 1
+    assert bewertung["fehlend"] == [] and bewertung["ueberzaehlig"] == []
+
+
 def test_a2_gruppentabelle_je_sprache():
     zeilen = []
     for sprache in ("de", "en"):

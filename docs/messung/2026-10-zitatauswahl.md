@@ -4,7 +4,7 @@ Karte `t_2349e9a8` / Umsetzung `t_2f905d2c`. Erzeugt mit `python -m scripts.zita
 
 ## Kurzfassung
 
-Recall@10 gesamt: B0 7,0/15 · B1 6,0/15 · I-a nicht gemessen · I-b nicht gemessen.
+Recall@10 gesamt: B0 7,0/15 · B1 6,0/15 · I-a 9,0/15 · I-b nicht gemessen.
 
 Fix: **keiner** -- keine Intervention erfuellt die Schwelle E7.
 
@@ -72,12 +72,16 @@ Recall@10: Mittel/n (min–max ueber Laeufe); Recall@5 = sichtbare Liste; Negati
 |---|---|---|---|---|---|---|
 | G1 | B0 | 1/5 | 0,0 | 2,0 | 1 | 0 |
 | G1 | B1 | 0,3/5 (0–1) | 0,0 | 2,0 | 3 | 24 |
+| G1 | I-a | 3,0/5 (3–3) | 1,5 | 1,0 | 2 | 16 |
 | G2 | B0 | 4/5 | 4,0 | 6,0 | 1 | 0 |
 | G2 | B1 | 4,0/5 (3–5) | 4,0 | 2,7 | 3 | 24 |
+| G2 | I-a | 4,5/5 (4–5) | 4,5 | 3,0 | 2 | 16 |
 | G3 | B0 | 2/5 | 2,0 | 4,0 | 1 | 0 |
 | G3 | B1 | 1,7/5 (1–2) | 1,7 | 2,0 | 3 | 24 |
+| G3 | I-a | 1,5/5 (1–2) | 1,0 | 1,0 | 2 | 16 |
 | gesamt | B0 | 7/15 | 6,0 | 12,0 | 1 | 0 |
 | gesamt | B1 | 6,0/15 (5–7) | 5,7 | 6,7 | 3 | 24 |
+| gesamt | I-a | 9,0/15 (9–9) | 7,0 | 5,0 | 2 | 16 |
 
 Pool-Recall (Obergrenze, Hypothese c): G1 5/5 · G2 5/5 · G3 5/6 · gesamt 15/16.
 
@@ -87,26 +91,26 @@ Rang des ersten Gold-Themas in der Rangliste des Ziels, je Lauf (`–` = nicht i
 
 | Stelle | Ziel | B0 | B1 | I-a | I-b |
 |---|---|---|---|---|---|
-| G1-1 | Szene 2 | 25 | 33/33/30 |  |  |
-| G1-2 | Szene 2 | 31 | 40/40/33 |  |  |
-| G1-3 | Szene 2 | 8 | 11/11/10 |  |  |
-| G1-4 | Szene 2 | 109 | 27/27/24 |  |  |
-| G1-5 | Szene 2 | 61 | 74/166/66 |  |  |
-| G2-1 | Szene 1 | 1 | –/1/– |  |  |
-| G2-2 | Szene 2 | 3 | –/2/3 |  |  |
-| G2-3 | Szene 2 | 1 | 1/4/1 |  |  |
-| G2-4 | Szene 3 | 2 | 5/1/1 |  |  |
-| G2-5 | Szene 4 | 38 | 1/1/1 |  |  |
-| G3-1 | Szene 2 | 5 | 4/16/4 |  |  |
-| G3-2 | Szene 2 | 19 | 15/18/16 |  |  |
-| G3-3 (nicht im Pool) | Szene 3 | – | –/–/– |  |  |
-| G3-4 | Szene 3 | 36 | 29/24/35 |  |  |
-| G3-5 | Szene 3 | 51 | 42/41/56 |  |  |
-| G3-6 | Szene 5 | 4 | 4/4/4 |  |  |
+| G1-1 | Szene 2 | 25 | 33/33/30 | 3/2 |  |
+| G1-2 | Szene 2 | 31 | 40/40/33 | 4/6 |  |
+| G1-3 | Szene 2 | 8 | 11/11/10 | 26/60 |  |
+| G1-4 | Szene 2 | 109 | 27/27/24 | 36/65 |  |
+| G1-5 | Szene 2 | 61 | 74/166/66 | 9/10 |  |
+| G2-1 | Szene 1 | 1 | –/1/– | –/1 |  |
+| G2-2 | Szene 2 | 3 | –/2/3 | 3/1 |  |
+| G2-3 | Szene 2 | 1 | 1/4/1 | 1/2 |  |
+| G2-4 | Szene 3 | 2 | 5/1/1 | 1/1 |  |
+| G2-5 | Szene 4 | 38 | 1/1/1 | 1/1 |  |
+| G3-1 | Szene 2 | 5 | 4/16/4 | 15/22 |  |
+| G3-2 | Szene 2 | 19 | 15/18/16 | 9/20 |  |
+| G3-3 (nicht im Pool) | Szene 3 | – | –/–/– | –/– |  |
+| G3-4 | Szene 3 | 36 | 29/24/35 | 14/23 |  |
+| G3-5 | Szene 3 | 51 | 42/41/56 | 24/15 |  |
+| G3-6 | Szene 5 | 4 | 4/4/4 | 2/1 |  |
 
 ## Entscheidungen (E7)
 
-- I-a: nicht gemessen (keine vollstaendigen Laeufe).
+- I-a gegen B1: **nicht uebernommen** -- G3 sinkt (1.67 -> 1.50).
 - I-b: nicht gemessen (Datenschutz-Gate nicht freigegeben). Die Sperre `eintraege_mit_frage` bleibt stehen.
 
 ## Kommandos zum Nachrechnen

@@ -1,6 +1,6 @@
 # Messung Zitatauswahl InScribe (Padua, Oktober 2026)
 
-Karte `t_2349e9a8` / Umsetzung `t_2f905d2c`. Erzeugt mit `python -m scripts.zitatauswahl bericht`; Spec: `docs/superpowers/specs/2026-10-11-zitatauswahl-gold-recall-design.md`.
+Karte `t_2349e9a8` / Umsetzung `t_2f905d2c`. Erzeugt mit `python -m scripts.zitatauswahl bericht --db var/zitatauswahl/padua-kopie.db`; Spec: `docs/superpowers/specs/2026-10-11-zitatauswahl-gold-recall-design.md`.
 
 ## Kurzfassung
 
@@ -17,6 +17,14 @@ Positiv 16 (im Pool 15), negativ 69. G1: positiv 5, im Pool 5, negativ 27 · G2:
 Datei: `korpus/zitatauswahl_gold.jsonl` -- eine JSON-Zeile je Stelle, UTF-8,
 sortiert nach `id`. Leser: `scripts.zitatauswahl.lade_gold(pfad)`.
 Treffer-Regel: `scripts.zitatauswahl.trifft(kandidat, gold)`.
+
+Fuer Messung 2: Ranglisten sind `dict[str, list[int]]`, Schluessel
+`<gruppe>:<art>:<ziel.id>` (`ziel_schluessel(zeile)`, z. B. `G1:szene:2`), Wert
+die Thema-Kennungen in Rangfolge, jedes Thema einmal. Aufruf:
+`recall_at_k(ranglisten: dict, gold: list[dict], k: int = 10) -> dict[str, dict]`
+(je Gruppe und `gesamt`: `{"treffer", "n", "fehlt"}`) und
+`negativ_at_k(ranglisten: dict, gold: list[dict], k: int = 10) -> dict[str, int]`
+(verworfene Paare in den Top-k, je Gruppe und `gesamt`).
 
 | Feld | Bedeutung |
 |---|---|
@@ -66,22 +74,22 @@ Volle Begruendung: `docs/superpowers/specs/2026-10-11-zitatauswahl-gold-recall-d
 
 ## Ergebnisse je Gruppe
 
-Recall@10: Mittel/n (min–max ueber Laeufe); Recall@5 = sichtbare Liste; Negativ@10 = verworfene Paare in den Top-10 (Mittel).
+Recall@10: Mittel/n (min–max ueber Laeufe); Recall@5 = sichtbare Liste; Negativ@10 = verworfene Paare in den Top-10 (Mittel). Fehler = fehlgeschlagene Ziel-Versuche in den Rohzeilen, verworfen = Laeufe mit offenem Fehler (zaehlen nicht fuer E7).
 
-| Gruppe | Variante | Recall@10 | Recall@5 | Negativ@10 | Laeufe | maskiert |
-|---|---|---|---|---|---|---|
-| G1 | B0 | 1/5 | 0,0 | 2,0 | 1 | 0 |
-| G1 | B1 | 0,3/5 (0–1) | 0,0 | 2,0 | 3 | 24 |
-| G1 | I-a | 3,0/5 (3–3) | 1,5 | 1,0 | 2 | 16 |
-| G2 | B0 | 4/5 | 4,0 | 6,0 | 1 | 0 |
-| G2 | B1 | 4,0/5 (3–5) | 4,0 | 2,7 | 3 | 24 |
-| G2 | I-a | 4,5/5 (4–5) | 4,5 | 3,0 | 2 | 16 |
-| G3 | B0 | 2/5 | 2,0 | 4,0 | 1 | 0 |
-| G3 | B1 | 1,7/5 (1–2) | 1,7 | 2,0 | 3 | 24 |
-| G3 | I-a | 1,5/5 (1–2) | 1,0 | 1,0 | 2 | 16 |
-| gesamt | B0 | 7/15 | 6,0 | 12,0 | 1 | 0 |
-| gesamt | B1 | 6,0/15 (5–7) | 5,7 | 6,7 | 3 | 24 |
-| gesamt | I-a | 9,0/15 (9–9) | 7,0 | 5,0 | 2 | 16 |
+| Gruppe | Variante | Recall@10 | Recall@5 | Negativ@10 | Laeufe | maskiert | Fehler | verworfen |
+|---|---|---|---|---|---|---|---|---|
+| G1 | B0 | 1/5 | 0,0 | 2,0 | 1 | 0 | 0 | – |
+| G1 | B1 | 0,3/5 (0–1) | 0,0 | 2,0 | 3 | 24 | 3 | – |
+| G1 | I-a | 3,0/5 (3–3) | 1,5 | 1,0 | 2 | 16 | 11 | – |
+| G2 | B0 | 4/5 | 4,0 | 6,0 | 1 | 0 | 0 | – |
+| G2 | B1 | 4,0/5 (3–5) | 4,0 | 2,7 | 3 | 24 | 0 | – |
+| G2 | I-a | 4,5/5 (4–5) | 4,5 | 3,0 | 2 | 16 | 0 | – |
+| G3 | B0 | 2/5 | 2,0 | 4,0 | 1 | 0 | 0 | – |
+| G3 | B1 | 1,7/5 (1–2) | 1,7 | 2,0 | 3 | 24 | 0 | – |
+| G3 | I-a | 1,5/5 (1–2) | 1,0 | 1,0 | 2 | 16 | 0 | – |
+| gesamt | B0 | 7/15 | 6,0 | 12,0 | 1 | 0 | 0 | 0 |
+| gesamt | B1 | 6,0/15 (5–7) | 5,7 | 6,7 | 3 | 24 | 3 | 0 |
+| gesamt | I-a | 9,0/15 (9–9) | 7,0 | 5,0 | 2 | 16 | 11 | 1 |
 
 Pool-Recall (Obergrenze, Hypothese c): G1 5/5 · G2 5/5 · G3 5/6 · gesamt 15/16.
 
@@ -115,18 +123,20 @@ Rang des ersten Gold-Themas in der Rangliste des Ziels, je Lauf (`–` = nicht i
 
 ## Kommandos zum Nachrechnen
 
-Alle Kommandos im Haupt-Checkout ausfuehren (dort liegt `betrieb/padua.db`;
-im Worktree gibt es kein `betrieb/`, dort `kopie --quelle <haupt-checkout>/betrieb/padua.db`).
+Die Kommandos laufen im Repo-Checkout (Worktree oder Haupt-Checkout). Die
+Live-DB liegt im Haupt-Checkout unter `betrieb/padua.db` und wird nur mit
+`kopie --quelle <pfad-zur-padua.db>` (read-only, VACUUM INTO) kopiert; alles
+andere arbeitet auf `var/zitatauswahl/padua-kopie.db`. `_verbinde` lehnt jede
+Datei `padua.db`, jeden Pfad mit Verzeichnis `betrieb` und `padua-test` ab.
 
 ```
-uv run --extra dev python -m scripts.zitatauswahl kopie
-uv run --extra dev python -m scripts.zitatauswahl kopie --quelle <haupt-checkout>/betrieb/padua.db
+uv run --extra dev python -m scripts.zitatauswahl kopie --quelle <pfad-zur-padua.db>
 uv run --extra dev python -m scripts.zitatauswahl gold --db var/zitatauswahl/padua-kopie.db
 uv run --extra dev python -m scripts.zitatauswahl pruefe --db var/zitatauswahl/padua-kopie.db
 uv run --extra dev python -m scripts.zitatauswahl historisch --db var/zitatauswahl/padua-kopie.db
 uv run --extra dev python -m scripts.zitatauswahl neu --db var/zitatauswahl/padua-kopie.db --variante B1 --lauf 1 --gruppe G1
 uv run --extra dev python -m scripts.zitatauswahl neu --db var/zitatauswahl/padua-kopie.db --variante I-a --lauf 1 --gruppe G1 --prompt docs/messung/zitatauswahl/prompt-I-a.md
-uv run --extra dev python -m scripts.zitatauswahl bericht
+uv run --extra dev python -m scripts.zitatauswahl bericht --db var/zitatauswahl/padua-kopie.db
 uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p no:cacheprovider -n 2 tests/test_zitatauswahl.py
 ```
 
@@ -146,14 +156,13 @@ uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p n
   "maskiert", Spec E6).
 - Der Pool selbst (ein Beleg je Thema, `verdichter.py`) ist nicht Gegenstand
   dieser Karte.
-- Proxy-Timeout: G1:szene:2 (182 Themen) braucht etwa 180-350 s; in B1 Lauf 2
-  liefen drei Versuche in den Timeout, der vierte gelang. `lade_roh` hebt die
-  Fehlerzeilen durch die erfolgreiche Wiederholung auf.
-- I-a Lauf 3 ist ungueltig: G1:szene:2 (Szene mit ~182 Themen) endete dort
-  sechsmal im Proxy-Timeout (je ~370 s = 2 Versuche a CLAUDE_TIMEOUT_S 180 s);
-  der Betriebs-Timeout von 180 s je Versuch reicht bei dieser Szene oft nicht.
-  Es gibt daher nur 2 gueltige I-a-Laeufe (B1: 3). Die Spanne 9–9 stuetzt sich
-  auf zwei Laeufe und ist schwaecher belegt als die B1-Spanne.
+- Fehler: Die Spalte "Fehler" der Ergebnistabelle zaehlt die fehlgeschlagenen
+  Ziel-Versuche in den Rohzeilen (auch spaeter wiederholte), "verworfen" die
+  Laeufe, die deshalb nicht in E7 eingehen. Beides ist aus den Rohdaten
+  berechnet; `lade_roh` hebt einen Fehler nur durch eine erfolgreiche
+  Wiederholung desselben Ziels im selben Lauf auf.
+- Timeout bei G1:szene:2 (rund 180 Themen): gueltige Ergebnisse kamen bei B1 aus 3 von 6 Versuchen, bei I-a aus 2 von 13 Versuchen. Die erfolgreichen I-a-Versuche dauerten 172–178 s, also knapp unter dem Betriebs-Timeout von 180 s je Versuch; die Fehlschlaege endeten nach rund 370 s (Versuch plus Wiederholung). Gerade dort liegt der Grossteil des I-a-Gewinns (G1 0,3 -> 3,0).
+- Die I-a-Listen sind kuerzer (G1:szene:2: 155–165 Eintraege, B1 187–189), u. a. weil der Kandidat-Prompt den Halbsatz "name all of them, not just the three strongest" streicht (vom Plan vorgegeben) und Staerke 3 auf fuenf Stellen begrenzt. Folgerung: Der G1-Gewinn von I-a ist durch die Auswahl rechtzeitig fertiger Laeufe verzerrt, und I-a liefe im Betrieb an dieser Szene haeufig in den Timeout. Die Entscheidung "nicht uebernommen" bleibt.
 - E7-Entscheidung I-a gegen B1, die drei Bedingungen mit Zahlen: (1) Gewinn
   mindestens zwei Stellen: erfuellt, 6,0 -> 9,0 von 15 (+3,0); (2) keine
   Ueberlappung der Laeufe: erfuellt, B1 5–7 gegen I-a 9–9, I-a-Minimum 9
@@ -161,7 +170,6 @@ uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p n
   G3 sinkt von 1,67 auf 1,50 (G1 0,3 -> 3,0; G2 4,0 -> 4,5). I-a wird
   deshalb nicht uebernommen; die Betriebs-Prompts (EN und DE) bleiben
   unveraendert.
-- Die Live-DB liegt im Haupt-Checkout unter `betrieb/padua.db`; im Worktree
-  wurde die Kopie mit `python -m scripts.stueckmodell_kopie
-  <haupt-checkout>/betrieb/padua.db var/zitatauswahl/padua-kopie.db` erzeugt.
+- Die Live-DB liegt im Haupt-Checkout unter `betrieb/padua.db`; die Kopie
+  entsteht mit `kopie --quelle <pfad-zur-padua.db>` (Kommandos oben).
 - I-b: nicht gemessen (Datenschutz-Gate nicht freigegeben).

@@ -649,3 +649,112 @@ def test_sprache_en_nur_fuer_den_erkenner():
 
 def test_bericht_traegt_die_sprache(tmp_path):
     assert pp.berichtspfad(None, ["erkenner"], sprache="en").name.endswith("-erkenner-en.md")
+
+
+# --- --ueber-claude (InScribe Messung 1, t_dd94e894) -----------------------
+#
+# Misst GENAU den Live-Pfad (erkenner.ueber_claude / modellwahl.aufruf_schema
+# / szene_claude.schema, seit 08.10.2026 live), nicht den Infomaniak/gemma-
+# Pfad -- bisher hatte pruefe_prompts.py keinen Weg dorthin. Die Faelle hier
+# laufen ohne Netz: die Attrappe ersetzt erkenner._schema_aufruf direkt
+# (statt szene_claude.schema/httpx), weil der Claude-Pfad ueber einen
+# Proxy-HTTP-Aufruf laeuft, den diese Suite nie macht.
+
+def _claude_einstellungen(tmp_path):
+    return einstellungen.Einstellungen(
+        bot_token="T", bot_name="korpus", db_pfad=str(tmp_path / "unbenutzt.db"),
+        audio_verz=str(tmp_path / "audio"),
+        llm_url="https://llm.test/v1/chat/completions", llm_key="K",
+        llm_modell="moonshotai/Kimi-K2.6",
+        stt_basis="https://stt.test", stt_produkt="P",
+        erkenner_modell="google/gemma-4-31B-it",
+        szene_anbieter="claude", szene_modell="claude-opus-5-5",
+    )
+
+
+def test_ueber_claude_nur_fuer_den_erkenner():
+    """Journal, Verdichter und Sprachprofil haben keinen Live-Opus-Pfad --
+    nur der Erkenner lief seit 08.10.2026 ueber Claude (erkenner.ueber_claude)."""
+    with pytest.raises(SystemExit):
+        pp.main(["journal", "--ueber-claude"])
+
+
+def test_ueber_claude_verlangt_das_aktive_profil(monkeypatch, tmp_path):
+    """Ohne IT_SZENE_ANBIETER=claude waere ein --ueber-claude-Lauf in
+    Wahrheit ein stiller Rueckfall auf Kimi (``erkenner._schema_aufruf``
+    faellt dann selbst zurueck) -- das darf nicht unbemerkt als 'Opus
+    gemessen' in den Bericht wandern. Die Vorgabe-Attrappe setzt
+    szene_anbieter nicht, also muss main() laut abbrechen, bevor ueberhaupt
+    ein Fall laeuft."""
+    monkeypatch.setattr(
+        pp.einstellungen, "laden",
+        lambda: einstellungen.Einstellungen(
+            bot_token="T", bot_name="korpus", db_pfad=str(tmp_path / "x.db"),
+            audio_verz=str(tmp_path / "audio"),
+            llm_url="https://llm.test/v1/chat/completions", llm_key="K",
+            llm_modell="moonshotai/Kimi-K2.6",
+            stt_basis="https://stt.test", stt_produkt="P",
+            erkenner_modell="google/gemma-4-31B-it",
+        ),
+    )
+    with pytest.raises(SystemExit) as fehler:
+        pp.main(["erkenner", "--ueber-claude", "--nur", "e01-interview-starten-fatma"])
+    assert "claude" in str(fehler.value).lower()
+
+
+def test_ueber_claude_laeuft_ueber_den_live_pfad(monkeypatch, tmp_path):
+    """Der eigentliche Nachweis: unter --ueber-claude ruft das Skript
+    ``erkenner._schema_aufruf`` -- dieselbe Funktion, die ``erkenner.erkenne``
+    im Betrieb aufruft -- statt ``klm.schema`` direkt. Kein eigener
+    HTTP-Nachbau, kein zweiter Pfad."""
+    monkeypatch.setattr(pp.einstellungen, "laden", lambda: _claude_einstellungen(tmp_path))
+    monkeypatch.setattr(pp.workshop, "erkenner_ueber_claude_aktiv", lambda: True)
+
+    gesehen = []
+
+    def falscher_live_pfad(klm, conn, e, chat_id, system, nutzer, schema_, art):
+        gesehen.append({"chat_id": chat_id, "art": art, "nutzer": nutzer})
+        return {"aenderungen": [{"art": "interview_starten", "wert": ""}]}
+
+    monkeypatch.setattr(pp.erkenner, "_schema_aufruf", falscher_live_pfad)
+
+    def kein_kimi_aufruf(self, *a, **k):
+        raise AssertionError("klm.schema direkt aufgerufen statt erkenner._schema_aufruf")
+
+    monkeypatch.setattr(llm.LLM, "schema", kein_kimi_aufruf)
+
+    code = pp.main([
+        "erkenner", "--ueber-claude", "--nur", "e01-interview-starten-fatma",
+    ])
+    assert code == 0
+    assert len(gesehen) == 1
+    assert gesehen[0]["art"] == "erkenner"
+
+
+def test_ueber_claude_laesst_aufnahmefaelle_bei_kimi(monkeypatch, tmp_path):
+    """Transkripte aus einer laufenden Aufnahme bleiben IMMER auf dem
+    Infomaniak-Erkenner (``erkenner.ueber_claude``-Docstring,
+    ``erkenner.erkenne_in_aufnahme`` ruft ``modellwahl`` nie an) -- auch unter
+    --ueber-claude darf ein Aufnahmefall nicht ueber den Live-Opus-Pfad
+    laufen."""
+    monkeypatch.setattr(pp.einstellungen, "laden", lambda: _claude_einstellungen(tmp_path))
+    monkeypatch.setattr(pp.workshop, "erkenner_ueber_claude_aktiv", lambda: True)
+
+    def kein_claude_aufruf(*a, **k):
+        raise AssertionError("ein Aufnahmefall rief erkenner._schema_aufruf (Claude) auf")
+
+    monkeypatch.setattr(pp.erkenner, "_schema_aufruf", kein_claude_aufruf)
+
+    gesehen = []
+
+    def kimi_antwort(self, chat_id, system, nutzer, schema, art, modell=None, temperature=None):
+        gesehen.append(art)
+        return {"aenderungen": [{"art": "interview_beenden", "wert": ""}]}
+
+    monkeypatch.setattr(llm.LLM, "schema", kimi_antwort)
+
+    code = pp.main([
+        "erkenner", "--ueber-claude", "--nur", "a01-aufnahme-fertig-gesagt",
+    ])
+    assert code == 0
+    assert gesehen == ["erkenner"]

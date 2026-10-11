@@ -585,6 +585,13 @@ def main(argv: list[str] | None = None) -> int:
         if fehler:
             print("\n".join(fehler), file=sys.stderr)
             return 1
+        if a.nur:
+            bekannt = {ziel_schluessel(g) for g in _positive(gold) if g["gruppe"] == a.gruppe}
+            unbekannt = sorted(set(a.nur) - bekannt)
+            if unbekannt:
+                print(f"--nur: kein Gold-Ziel in {a.gruppe}: {', '.join(unbekannt)} "
+                      f"(bekannt: {', '.join(sorted(bekannt))})", file=sys.stderr)
+                return 2
         system = Path(a.prompt).read_text(encoding="utf-8") if a.prompt else schaerfung.prompt()
         eintraege = None
         if a.mit_frage:

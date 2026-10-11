@@ -387,6 +387,116 @@ def test_neu_lauf_notiert_fehler_statt_rueckfall(lage, tmp_path, monkeypatch, oh
     assert all("ClaudeFehler" in f for f in zeile["fehler"].values())
 
 
+class _Antwort:
+    def __init__(self, status=200, daten=None):
+        self.status_code, self._daten = status, daten
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            import httpx
+            raise httpx.HTTPStatusError(
+                "x", request=httpx.Request("POST", "http://proxy"), response=self)
+
+    def json(self):
+        return self._daten
+
+
+class _Klient:
+    """Attrappe NUR fuer die HTTP-Ebene: szene_claude.schema/prosa laufen echt."""
+    def __init__(self, antworten):
+        self.antworten, self.posts = list(antworten), []
+
+    def post(self, url, headers=None, json=None, timeout=None):
+        self.posts.append({"url": url, "json": json})
+        a = self.antworten.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return a
+
+
+@pytest.fixture
+def llm_verboten(monkeypatch):
+    """Spec § 6: jede Beruehrung von llm.LLM (Instanz, Methode) macht rot."""
+    def verboten(*a, **k):
+        raise AssertionError("llm.LLM im Neu-Lauf beruehrt")
+
+    class Verboten:
+        def __init__(self, *a, **k):
+            verboten()
+
+        def __getattr__(self, name):
+            verboten()
+
+    monkeypatch.setattr(llm, "LLM", Verboten)
+    monkeypatch.setattr(szene_claude.time, "sleep", lambda s: None)
+
+
+def _messages_antwort(inhalt: dict):
+    return _Antwort(200, {"content": [{"type": "text", "text": json.dumps(inhalt)}],
+                          "usage": {"input_tokens": 10, "output_tokens": 5},
+                          "stop_reason": "end_turn"})
+
+
+def test_neu_lauf_echter_claude_pfad_beruehrt_llm_nie(lage, tmp_path, llm_verboten):
+    t, s = _themen(lage), _szenen(lage)
+    gueltig = {"eintrag_nummern": [2, 1], "staerke": [3, 3], "begruendungen": ["x", "y"]}
+    klient = _Klient([_messages_antwort(gueltig), _messages_antwort(gueltig)])
+    gold = za.baue_gold(lage, QUELLE, {"G1": 1})
+
+    zeile = za.neu_lauf(lage, za.einstellungen_messung(str(tmp_path / "t.db")), klient,
+                        gold, "G1", "SYSTEM")
+
+    assert zeile["fehler"] == {}
+    assert zeile["ranglisten"][f"G1:szene:{s[1]}"] == [t["Stadt"], t["Arbeit"]]
+    assert len(klient.posts) == 2
+    assert {p["json"]["model"] for p in klient.posts} == {"claude-opus-5"}
+    assert all(p["url"].startswith("http://127.0.0.1:28764/") for p in klient.posts)
+
+
+@pytest.mark.parametrize("fehler", [
+    _Antwort(500), _Antwort(400),
+])
+def test_neu_lauf_proxy_fehler_wird_notiert_ohne_kimi(lage, tmp_path, llm_verboten, fehler):
+    klient = _Klient([fehler] * 20)
+    gold = za.baue_gold(lage, QUELLE, {"G1": 1})
+
+    zeile = za.neu_lauf(lage, za.einstellungen_messung(str(tmp_path / "t.db")), klient,
+                        gold, "G1", "SYSTEM")
+
+    assert zeile["ranglisten"] and all(r is None for r in zeile["ranglisten"].values())
+    assert all("ClaudeFehler" in f for f in zeile["fehler"].values())
+    assert klient.posts  # der Proxy wurde versucht, sonst nichts
+
+
+def test_neu_lauf_transportfehler_wird_notiert_ohne_kimi(lage, tmp_path, llm_verboten):
+    import httpx
+    klient = _Klient([httpx.ReadTimeout("t")] * 20)
+    gold = za.baue_gold(lage, QUELLE, {"G1": 1})
+
+    zeile = za.neu_lauf(lage, za.einstellungen_messung(str(tmp_path / "t.db")), klient,
+                        gold, "G1", "SYSTEM")
+
+    assert all(r is None for r in zeile["ranglisten"].values())
+    assert all("ClaudeFehler" in f for f in zeile["fehler"].values())
+
+
+def test_nur_mit_unbekanntem_schluessel_haengt_nichts_an(lage, tmp_path, monkeypatch, capsys):
+    gold = za.baue_gold(lage, QUELLE, {"G1": 1})
+    monkeypatch.setenv("IT_WORKSHOP", "x")  # main() setzt es per setdefault: nach dem Test zurueck
+    monkeypatch.delenv("IT_WORKSHOP")
+    monkeypatch.setattr(za, "_verbinde", lambda pfad: lage)
+    monkeypatch.setattr(za, "lade_gold", lambda pfad: gold)
+    monkeypatch.setattr(za, "pruefe_gold", lambda conn, g: [])
+    aus = tmp_path / "roh.jsonl"
+
+    rc = za.main(["neu", "--db", "x.db", "--variante", "B1", "--lauf", "1", "--gruppe", "G1",
+                  "--nur", "G1:szene:99999", "--aus", str(aus)])
+
+    assert rc == 2
+    assert "G1:szene:99999" in capsys.readouterr().err
+    assert not aus.exists()
+
+
 def test_skript_importiert_keine_interviewstrecke():
     """Interviews bleiben hart auf Kimi (Karte): das Messskript ruft weder
     Verdichter noch Erkenner noch die Aufnahme-Pipeline noch llm direkt."""

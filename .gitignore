@@ -10,6 +10,10 @@ betrieb/*.env
 .env
 *.env
 !*.env.beispiel
+# Echte Testsaetze mit Nutzerdaten (Chat-Zitate, vor der Anonymisierung
+# teils Klarnamen, E8) liegen unter betrieb/korpus/ -- IT_PRIVAT_KORPUS,
+# siehe scripts/pruefe_prompts.PRIVATE_KORPUS_DATEIEN. Diese Zeile deckt
+# den ganzen Ordner mit ab.
 betrieb/
 *.sqlite
 *.sqlite3

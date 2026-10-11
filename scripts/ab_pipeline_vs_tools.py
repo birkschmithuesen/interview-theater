@@ -18,6 +18,7 @@ import argparse
 import dataclasses
 import json
 import os
+import statistics
 import sys
 import tempfile
 import time
@@ -188,9 +189,292 @@ def _erkenner(args) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Bericht (aus den Rohzeilen, ohne Modellaufruf; nur Kennungen und Zahlen)
+# ---------------------------------------------------------------------------
+
+BERICHT_AUS = Path("docs/messung/2026-10-ab-pipeline-vs-tools.md")
+STANDARD_GRUND = {"A": "Korpus-Rohdaten fehlten", "B": "Padua-Testsatz fehlte",
+                  "C": "Gold-Korpus fehlte"}
+C_VARIANTEN = ("pipeline_opus", "pipeline_kimi", "agent_kimi")
+
+
+def _median(werte: list) -> str:
+    return f"{statistics.median(werte):.0f}" if werte else "-"
+
+
+def _p90(werte: list) -> str:
+    if len(werte) < 2:
+        return "-"
+    return f"{statistics.quantiles(werte, n=10)[-1]:.0f}"
+
+
+def _modus_spalte(zeilen: list[dict]) -> dict[str, str]:
+    """Kennzahlen EINES Modus (Zeilen schon gefiltert) als Zellen."""
+    if not zeilen:
+        return {}
+    s = lambda k: sum(z.get(k) or 0 for z in zeilen)  # noqa: E731
+    treffer, fn = s("treffer"), s("fn")
+    abbrueche: dict[str, int] = {}
+    for z in zeilen:
+        if z.get("abbruch"):
+            abbrueche[z["abbruch"]] = abbrueche.get(z["abbruch"], 0) + 1
+    dauer = [z["dauer_ms"] for z in zeilen if z.get("dauer_ms")]
+    return {
+        "Fälle": str(len(zeilen)),
+        "Treffer (Summe / erwartet gesamt)": f"{treffer} / {treffer + fn}",
+        "FN": str(fn),
+        "FP": str(s("fp")),
+        "Absicht erkannt, Nebenzählung (Treffer / FP / FN)":
+            f"{s('absicht_treffer')} / {s('absicht_fp')} / {s('absicht_fn')}",
+        "stille Fehler (still_fp)": f"{s('still_fp')} (davon ohne Korpus-Art: {s('ohne_korpusart')})",
+        "abgelehnt (laut)": str(s("abgelehnt")),
+        "Abbrüche": (f"{sum(abbrueche.values())} ("
+                     + ", ".join(f"{k}: {v}" for k, v in sorted(abbrueche.items())) + ")")
+        if abbrueche else "0",
+        "Runden (Median)": _median([z["runden"] for z in zeilen if z.get("runden")]),
+        "Latenz Median / p90 (ms)": f"{_median(dauer)} / {_p90(dauer)}",
+        "Token ein / aus (Summe)": f"{s('eingabe_token')} / {s('ausgabe_token')}",
+        "Kosten": "0 CHF (Abo)",
+        "Modellaufrufe (Summe)": str(s("modellaufrufe")),
+        "Fehler (Anzahl)": str(sum(1 for z in zeilen if z.get("fehler"))),
+    }
+
+
+def _tabelle_ab(zeilen: list[dict]) -> list[str]:
+    spalten = {m: _modus_spalte([z for z in zeilen if z.get("modus") == m])
+               for m in ("json", "tools")}
+    kennzahlen = list(spalten["json"] or spalten["tools"])
+    aus = ["| Kennzahl | json | tools |", "|---|---|---|"]
+    for k in kennzahlen:
+        aus.append(f"| {k} | {spalten['json'].get(k, '-')} | {spalten['tools'].get(k, '-')} |")
+    return aus
+
+
+def _abschnitt_ab(achse: str, zeilen: list[dict]) -> list[str]:
+    aus = []
+    for sprache in sorted({z.get("sprache") or "?" for z in zeilen}):
+        je = [z for z in zeilen if (z.get("sprache") or "?") == sprache]
+        gespraech = [z for z in je if not z.get("aufnahme")]
+        aufnahme = [z for z in je if z.get("aufnahme")]
+        if gespraech:
+            aus += [f"### Achse {achse}, Sprache {sprache}: Gesprächsfälle", ""]
+            aus += _tabelle_ab(gespraech) + [""]
+        if aufnahme:
+            aus += [f"### Achse {achse}, Sprache {sprache}: Aufnahme-Fälle (getrennt)", "",
+                    "Live laufen Aufnahmen über Infomaniak, hier über Opus; die Zahlen "
+                    "stehen deshalb nicht in der Tabelle der Gesprächsfälle.", ""]
+            aus += _tabelle_ab(aufnahme) + [""]
+    return aus
+
+
+def _mittel(zeilen: list[dict]) -> str:
+    werte = [z["recall_at_10"] for z in zeilen
+             if z.get("recall_at_10") is not None and not z.get("fehler")]
+    return f"{sum(werte) / len(werte):.2f} (n={len(werte)})" if werte else "-"
+
+
+def _abschnitt_c(zeilen: list[dict], b0: dict | None) -> list[str]:
+    varianten = [v for v in C_VARIANTEN if any(z.get("variante") == v for z in zeilen)]
+    varianten += sorted({z.get("variante") for z in zeilen} - set(C_VARIANTEN))
+    gruppen = sorted({z["gruppe"] for z in zeilen})
+    aus = ["Recall@10 nach `scripts/zitatauswahl.py`: Mittel über Ziele (je Ziel Anteil der "
+           "positiven Pool-Stellen in den Top-10). Zeilen mit Fehler (auch `fallback_kimi`: "
+           "Opus-Proxy fiel aus, Kimi sprang ein) werden gezählt, aber nicht gemittelt.", "",
+           "| Gruppe | B0 | " + " | ".join(varianten) + " |",
+           "|---|---|" + "---|" * len(varianten)]
+    for g in gruppen + ["gesamt"]:
+        je = [z for z in zeilen if g == "gesamt" or z["gruppe"] == g]
+        if b0 is None:
+            b0_zelle = "n/a"
+        elif g == "gesamt":
+            n = sum(v[1] for v in b0.values())
+            b0_zelle = (f"{sum(v[0] * v[1] for v in b0.values()) / n:.2f} (n={n})" if n else "-")
+        else:
+            b0_zelle = f"{b0[g][0]:.2f} (n={b0[g][1]})" if g in b0 else "-"
+        aus.append(f"| {g} | {b0_zelle} | "
+                   + " | ".join(_mittel([z for z in je if z.get("variante") == v]) for v in varianten)
+                   + " |")
+    aus += ["", "| Kennzahl | " + " | ".join(varianten) + " |", "|---|" + "---|" * len(varianten)]
+
+    def zeile_(name, f):
+        aus.append(f"| {name} | " + " | ".join(
+            f([z for z in zeilen if z.get("variante") == v], v) for v in varianten) + " |")
+
+    zeile_("Ziele (Zeilen)", lambda je, v: str(len(je)))
+    zeile_("Rückfall auf Kimi (fallback_kimi, nicht gemittelt)",
+           lambda je, v: str(sum(1 for z in je if z.get("fehler") == "fallback_kimi")))
+    zeile_("andere Fehler (nicht gemittelt)",
+           lambda je, v: str(sum(1 for z in je if z.get("fehler") not in (None, "fallback_kimi"))))
+    zeile_("Abbrüche", lambda je, v: str(sum(1 for z in je if z.get("abbruch"))))
+    zeile_("Runden (Median)", lambda je, v: _median([z["runden"] for z in je if z.get("runden")]))
+    zeile_("Latenz Median / p90 (ms)", lambda je, v: (
+        f"{_median([z['dauer_ms'] for z in je if z.get('dauer_ms')])} / "
+        f"{_p90([z['dauer_ms'] for z in je if z.get('dauer_ms')])}"))
+    zeile_("Token ein / aus", lambda je, v: (
+        f"{sum(z.get('eingabe_token') or 0 for z in je)} / {sum(z.get('ausgabe_token') or 0 for z in je)}"))
+
+    def chf(je, v):
+        summe = sum(z.get("kosten_chf") or 0.0 for z in je)
+        return "0 CHF (Abo)" if v == "pipeline_opus" and not summe else f"{summe:.4f} CHF"
+
+    zeile_("Kosten", chf)
+    aus.append("")
+    return aus
+
+
+def baue_bericht(zeilen: list[dict], vorbedingungen: dict, kommandos: list[str], *,
+                 gruende: dict | None = None, b0: dict | None = None,
+                 datum: str | None = None) -> str:
+    """Markdown-Bericht aus den Rohzeilen. ``gruende``: Achse -> Grund, falls
+    keine Rohzeilen da sind. ``b0``: Gruppe -> (Recall-Mittel, n). Nur
+    Kennungen und Zahlen, nie Wortlaut aus den Rohzeilen."""
+    gruende = {**STANDARD_GRUND, **(gruende or {})}
+    je_achse = {a: [z for z in zeilen if z.get("achse") == a] for a in "ABC"}
+    korpus = []
+    for a in "AB":
+        for sprache in sorted({z.get("sprache") or "?" for z in je_achse[a]}):
+            ids = {z["id"] for z in je_achse[a] if (z.get("sprache") or "?") == sprache}
+            korpus.append(f"Achse {a} ({sprache}): {len(ids)} Fälle")
+    ziele = {z["ziel"] for z in je_achse["C"]}
+    if ziele:
+        korpus.append(f"Achse C: {len(ziele)} Ziele")
+    aus = [
+        "# Messung 2: Pipeline gegen Agent (Karte t_9b2b33cb)", "",
+        f"Stand: {datum or time.strftime('%Y-%m-%d')} · Modell Achse A/B/C-Opus: `{OPUS}` "
+        "über den Abo-Proxy · Spec und Vorbedingungen: "
+        "`docs/messung/2026-10-ab-vorbedingungen.md`.", "",
+        "Korpusgrößen: " + ("; ".join(korpus) if korpus else "keine Rohzeilen") + ".", "",
+        "Dieser Bericht ist aus den Rohzeilen (`korpus/berichte/ab/*.jsonl`) erzeugt, "
+        "nicht von Hand geschrieben. Er enthält nur Kennungen und Zahlen.", "",
+        "## Vorbedingungen", "", "| Schlüssel | Wert |", "|---|---|",
+        *[f"| {k} | {v} |" for k, v in sorted(vorbedingungen.items())], "",
+        "## Ergebnisse", "",
+        "Hinweis zur Nebenzählung: Die Hauptzählung (Treffer/FP/FN) zählt, was das Stück "
+        "tatsächlich angenommen hat. Die Nebenzählung „Absicht erkannt“ zählt auch "
+        "abgelehnte Werkzeugaufrufe als erkannte Absicht (die Gruppe hätte ihre Absicht "
+        "geäußert, das Stück lehnte nur ab). Im json-Modus sind beide Zählungen gleich.", "",
+    ]
+    for a, titel in (("A", "Achse A: Erkenner-Korpus"), ("B", "Achse B: Padua-Testsatz")):
+        aus += [f"## {titel}", ""]
+        if je_achse[a]:
+            aus += _abschnitt_ab(a, je_achse[a])
+        else:
+            aus += [f"Achse {a}: 0 — {gruende[a]}", ""]
+    aus += ["## Achse C: Zitatsuche", ""]
+    if je_achse["C"]:
+        aus += _abschnitt_c(je_achse["C"], b0)
+    else:
+        aus += [f"Achse C: 0 — {gruende['C']}", ""]
+    aus += [
+        "## Messgrenzen", "",
+        "Abbildung Werkzeug auf Korpus-Art (`erkenner_werkzeuge.ART_FUER_WERKZEUG`), über die "
+        "die Tools-Seite in die Korpus-Sprache zurückübersetzt wird:", "",
+        "| Werkzeug | Korpus-Art |", "|---|---|",
+        *[f"| {w} | {art} |" for w, art in erkenner_werkzeuge.ART_FUER_WERKZEUG.items()], "",
+        "- Undo: im tools-Modus gibt es keinen Erkenner-Undo-Schnappschuss für Stück-Schritte "
+        "(Spec § 3.4); der Vergleich der Rücknehmbarkeit ist deshalb nicht Teil der Zahlen.",
+        "- Achse C hat einen Modell-Störfaktor: Pipeline und Agent laufen auf Kimi, die "
+        "Opus-Pipeline auf Opus; ein Unterschied kann am Modell oder am Verfahren liegen. "
+        "Opus-Zeilen mit Rückfall auf Kimi sind markiert und nicht gemittelt.", "",
+        "## Kommandos zum Nachrechnen", "", "```", *kommandos, "```", "",
+        "## Was die Messung NICHT zeigt", "",
+        "- Live mit Laien: keine Gruppe hat mit dem tools-Modus gearbeitet.",
+        "- Gruppenerlebnis: Tempo, Vertrauen, ob die Gruppe die „Notiert:“-Meldungen versteht.",
+        "- Gesprächsführung durch einen Agenten: getauscht wurde nur der Erkenner.",
+        "- Langzeitstabilität über einen ganzen Workshoptag.",
+        "- Undo im tools-Modus deckt Stück-Schritte nicht ab (Spec § 3.4); die Wirkung "
+        "fehlender Undo-Knöpfe für Werkzeugschritte ist nicht gemessen.",
+        "- Der Szenenkern wird im tools-Modus nicht neu angestoßen.",
+        "- Der Padua-Testsatz ist laut Messung 1 (3/27) kein scharfes Gate.",
+        "- Aufnahme-Fälle laufen live über Infomaniak, in der Messung über Opus; ihre "
+        "Zahlen sind deshalb nur getrennt und mit Vorsicht zu lesen.", "",
+        "Keine Empfehlung. Die Entscheidung trifft Birk (Kriterium 1: bei Gleichstand "
+        "zählen Vision/Pflege, das heißt Agent).", "",
+    ]
+    return "\n".join(aus)
+
+
+def _b0_aus_dateien(gold_pfad: str, b0_pfad: str, zeilen_c: list[dict]) -> dict | None:
+    """B0-Recall je Gruppe (Mittel über Ziele, nur Ziele der C-Zeilen). ``None``,
+    wenn Gold oder B0 fehlt."""
+    if not (Path(gold_pfad).exists() and Path(b0_pfad).exists()):
+        return None
+    from scripts import ab_zitate, zitatauswahl as za
+
+    gold = za.lade_gold(gold_pfad)
+    ranglisten: dict = {}
+    for z in Path(b0_pfad).read_text(encoding="utf-8").splitlines():
+        if z.strip():
+            ranglisten.update(json.loads(z)["ranglisten"])
+    gewollt = {z["ziel"] for z in zeilen_c}
+    je_ziel: dict[str, list[dict]] = {}
+    for g in za._positiv(gold):
+        if g["im_pool"] and za.ziel_schluessel(g) in ranglisten:
+            je_ziel.setdefault(za.ziel_schluessel(g), []).append(g)
+    summen: dict[str, list[float]] = {}
+    for schluessel, golds in je_ziel.items():
+        if gewollt and schluessel not in gewollt:
+            continue
+        r = ab_zitate.recall_at_10(ranglisten[schluessel], golds)
+        if r is not None:
+            summen.setdefault(golds[0]["gruppe"], []).append(r)
+    return {g: (sum(w) / len(w), len(w)) for g, w in summen.items()}
+
+
+def lade_rohzeilen(pfade) -> list[dict]:
+    zeilen = []
+    for pfad in pfade:
+        p = Path(pfad)
+        if not p.is_file():
+            continue
+        for z in p.read_text(encoding="utf-8").splitlines():
+            if z.strip():
+                zeilen.append(json.loads(z))
+    return zeilen
+
+
+def _bericht(args) -> int:
+    zeilen = lade_rohzeilen(args.roh)
+    gruende = {a: g for a, g in (("A", args.achse_a_grund), ("B", args.achse_b_grund),
+                                 ("C", args.achse_c_grund)) if g}
+    vor = {"ACHSE_A": "ja" if any(z.get("achse") == "A" for z in zeilen) else "nein",
+           "ACHSE_B": "ja" if any(z.get("achse") == "B" for z in zeilen) else "nein",
+           "ACHSE_C": "ja" if any(z.get("achse") == "C" for z in zeilen) else "nein"}
+    for eintrag in args.vorbedingung:
+        k, _, v = eintrag.partition("=")
+        vor[k] = v
+    b0 = _b0_aus_dateien(args.gold, args.b0, [z for z in zeilen if z.get("achse") == "C"])
+    roh = " ".join(args.roh)
+    bericht_cmd = (f"uv run --extra dev python -m scripts.ab_pipeline_vs_tools bericht "
+                   f"--roh {roh} --aus {args.aus}"
+                   + "".join(f' --achse-{a.lower()}-grund "{g}"' for a, g in gruende.items()))
+    kommandos = [
+        "uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache de --modus beide",
+        "uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache en --modus beide",
+        "uv run --extra dev python -m scripts.ab_padua --modus beide",
+        "uv run --extra dev python -m scripts.ab_zitate --ohne-modell",
+        "uv run --extra dev python -m scripts.ab_zitate --gruppe G1 G2 G3 --kosten-ok",
+        bericht_cmd,
+    ]
+    aus = Path(args.aus)
+    aus.parent.mkdir(parents=True, exist_ok=True)
+    aus.write_text(baue_bericht(zeilen, vor, kommandos, gruende=gruende, b0=b0), encoding="utf-8")
+    print(f"Bericht: {aus}")
+    return 0
+
+
 def baue_argumente(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="python -m scripts.ab_pipeline_vs_tools")
     unter = p.add_subparsers(dest="befehl", required=True)
+    b = unter.add_parser("bericht", help="Markdown-Bericht aus den Rohzeilen (kein Modellaufruf)")
+    b.add_argument("--roh", nargs="+", required=True)
+    b.add_argument("--aus", default=str(BERICHT_AUS))
+    for achse in "abc":
+        b.add_argument(f"--achse-{achse}-grund", help=f"Grund, falls Achse {achse.upper()} fehlt")
+    b.add_argument("--vorbedingung", action="append", default=[], metavar="SCHLUESSEL=WERT")
+    b.add_argument("--gold", default="korpus/zitatauswahl_gold.jsonl")
+    b.add_argument("--b0", default="docs/messung/zitatauswahl/B0.jsonl")
     a = unter.add_parser("erkenner", help="Achse A: Korpus, json gegen tools")
     a.add_argument("--sprache", choices=("de", "en"), default="de")
     a.add_argument("--modus", choices=("json", "tools", "beide"), default="beide")
@@ -202,6 +486,8 @@ def baue_argumente(argv=None) -> argparse.Namespace:
 
 def main(argv=None, *, profil_setzen: bool = False) -> int:
     args = baue_argumente(argv)
+    if args.befehl == "bericht":
+        return _bericht(args)
     if args.befehl == "erkenner":
         sichere_sprache(args.sprache, profil_setzen=profil_setzen)
         return _erkenner(args)

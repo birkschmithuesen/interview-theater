@@ -434,7 +434,7 @@ datei = "02_g1.md"
 karte = 1
 szene = 2
 frage = "If your home could talk, what would it say about you?"
-wortlaut = "Mi manchi! Spero che dica questa."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "spoken in scene 2, The voices"
 
 [[karte]]
@@ -444,7 +444,7 @@ datei = "02_g1.md"
 karte = 2
 szene = 2
 frage = "If your home could talk, what would it say about you?"
-wortlaut = "Che sono un gran casino … e che anche il mio silenzio fa estremamente rumore."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "spoken in scene 2, The voices"
 
 [[karte]]
@@ -454,7 +454,7 @@ datei = "02_g1.md"
 karte = 3
 szene = 2
 frage = "What has to happen in a new place before you call it home?"
-wortlaut = "Il famoso filo rosso, diciamo, che connette persone."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "spoken in scene 2, The voices"
 
 [[karte]]
@@ -464,7 +464,7 @@ datei = "02_g1.md"
 karte = 4
 szene = 2
 frage = "What do you do to feel at home when you are far away?"
-wortlaut = "Per me la casa è persone, emozioni e anche fiducia, se vuoi."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "spoken in scene 2, The voices"
 
 [[karte]]
@@ -474,7 +474,7 @@ datei = "02_g1.md"
 karte = 5
 szene = 2
 frage = "Which smells take you back home?"
-wortlaut = "Profumo di pane. Siamo figli di fornai."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "spoken in scene 2, The voices"
 
 [[karte]]
@@ -484,7 +484,7 @@ datei = "03_g2.md"
 karte = 1
 szene = 1
 frage = "Is it hard to start a conversation in a new place where you know no one?"
-wortlaut = "Tendenzialmente sì, meno se è un contesto nuovo con cui vado con amici. Se sono con amici sono un po' meno a disagio, anche se è un contesto nuovo."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 1, Beginning: the theme of the scene, one person alone at an empty table"
 
 [[karte]]
@@ -494,7 +494,7 @@ datei = "03_g2.md"
 karte = 2
 szene = 2
 frage = "And with friends, what actually helps you relate to someone?"
-wortlaut = "Avere il supporto di un'altra persona … non sono più io da sola a dover iniziare un'eventuale conversazione … l'unione fa la forza."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 2, Recruitment: the theme of the scene, the table starts to fill"
 
 [[karte]]
@@ -504,7 +504,7 @@ datei = "03_g2.md"
 karte = 3
 szene = 2
 frage = "Why do you text rather than call?"
-wortlaut = "Un po' mi fa ansia l'idea di dover essere pronta a dirti cosa penso, cioè sono molto più abituata al messaggio."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 2, Recruitment: becomes Pietro's line"
 
 [[karte]]
@@ -514,7 +514,7 @@ datei = "03_g2.md"
 karte = 4
 szene = 3
 frage = "If you could teach a 15-year-old one hour of sex and relationship education, what would you teach?"
-wortlaut = "Ad accettare un rifiuto."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 3, The last seat: every no from a passer-by is accepted at once"
 
 [[karte]]
@@ -524,7 +524,7 @@ datei = "03_g2.md"
 karte = 5
 szene = 4
 frage = "What do you know about HPV? (answered in Spanish)"
-wortlaut = "También con los homosexuales y tal, pues, que se puede reproducir con mayor facilidad y poco más."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 4, Discussion: the prejudice the whole table argues"
 
 [[karte]]
@@ -534,7 +534,7 @@ datei = "04_g3.md"
 karte = 1
 szene = 2
 frage = "Where were you on 11 September 2001, if you were born?"
-wortlaut = "No, non ero ancora nato."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 2, Slow Start, and again in scene 6"
 
 [[karte]]
@@ -544,7 +544,7 @@ datei = "04_g3.md"
 karte = 2
 szene = 2
 frage = "The Millennium Bug: if you had had the choice, would you have pressed the button?"
-wortlaut = "Beh, bella domanda, non lo posso sapere, non ho vissuto quell'esperienza, quindi forse sì, forse no, chi lo sa, magari no, non lo scoprirò mai."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 2, Slow Start"
 
 [[karte]]
@@ -554,7 +554,7 @@ datei = "04_g3.md"
 karte = 3
 szene = 3
 frage = "Mara Venier died this morning. Your reaction? (invented news)"
-wortlaut = "Non l'ho sentita. Ah, poveretta. Mi dispiace, è una persona simpatica."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 3, Fast Rise: true and false pile up"
 
 [[karte]]
@@ -564,7 +564,7 @@ datei = "04_g3.md"
 karte = 4
 szene = 3
 frage = "Which story about the gangster Felice Maniero struck you most?"
-wortlaut = "Tantissimi anni fa lui ha rubato la lingua del santo di Sant'Antonio per essere lasciato in pace dallo Stato."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 3, Fast Rise"
 
 [[karte]]
@@ -574,7 +574,7 @@ datei = "04_g3.md"
 karte = 5
 szene = 3
 frage = "Something that happened where you live?"
-wortlaut = "Un quartiere che ho frequentato per tanto tempo adesso è diventato molto pericoloso, cioè quello che era il quartiere queer."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 3, Fast Rise"
 
 [[karte]]
@@ -584,7 +584,7 @@ datei = "04_g3.md"
 karte = 6
 szene = 5
 frage = "A personal event that made a before and after in your life?"
-wortlaut = "Prima io ero sola con la mia famiglia e dopo io avevo come un piccolo amico tutto il tempo."
+wortlaut = "<entfernt, siehe betrieb/korpus/zitatauswahl_quelle.toml>"
 label = "scene 5, Second Rise, and again in scene 6"
 ```
 
@@ -1818,7 +1818,7 @@ G1 5, G2 5, G3 6.
   Fassung. Das Prozessplakat (`01_prozess.md`, "Nicht doppelt zu den
   Gruppenplakaten") illustriert nur und belegt keine Verwendung im Stueck --
   nicht im Korpus.
-- Kommentar 1402 nennt "L'unione fa la forza" einen generischen
+- Kommentar 1402 nennt ein generisches Zitat (G2-2) einen generischen
   Erstvorschlag; das Plakat G2 Karte 2 verwendet die Stelle. Massgeblich ist
   der Plakatstand; 1402 ist nur Quelle der Hypothesen.
 - `entfernt_am` ist nicht "verworfen" (G1-4 ist positiv und hat nur

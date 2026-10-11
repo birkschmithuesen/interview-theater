@@ -38,7 +38,7 @@ Fundstelle: hermes-dev `kanban.db`, `task_comments.id = 1402` (Karte
 >    Wörter/<4 Wörter/<8 Wörter: G1 303/22/3/22 · G2 132/25,5/2/12 ·
 >    G3 217/19/0/22).
 > 2. Erste Vorschläge waren generisch ("Casa non sono le mura...",
->    "L'unione fa la forza", "Erano cadute le torri"); Auswahlkriterien
+>    <zwei generische Zitate, Wortlaut entfernt>); Auswahlkriterien
 >    "kurz, stark, PII-sicher" bevorzugen Allgemeinplätze.
 > 3. Frage-Kontext fehlt: `verdichtung_thema` hat nur `thema`, `kurz`,
 >    `beleg_zitat`, keine Interviewfrage.
@@ -101,22 +101,22 @@ Gruppenplakate (§ 4.2) gegen `verdichtung_thema.beleg_zitat` und
 
 | Stelle | thema_id(s) | Aufnahme | an Gold-Szene vorgeschlagen | Rang in der Liste der Gold-Szene (letzte Runde) |
 |---|---|---|---|---|
-| G1-1 Mi manchi | 114 | 283 | ja (`ja`, übernommen) | 25 / 182 |
-| G1-2 gran casino | 129 | 300 | ja (`ja`) | 31 / 182 |
-| G1-3 filo rosso | 40 | 177 | ja (`ja`) | 8 / 182 |
-| G1-4 persone, emozioni | 84 | 248 | ja (Stärke 2, nie entschieden) | 109 / 182 |
-| G1-5 profumo di pane | 371 | 323 | ja (`ja`) | 61 / 182 |
-| G2-1 Tendenzialmente sì | 186 | 391 | ja (`ja`) | 1 / 7 |
-| G2-2 l'unione fa la forza | 188 | 391 | ja (`ja`) | 3 / 7 |
-| G2-3 mi fa ansia | 178 | 368 | ja (`ja`) | 1 / 7 |
-| G2-4 accettare un rifiuto | 181 | 384 | ja (`ja`) | 2 / 6 |
-| G2-5 homosexuales (es) | 204 | 419 | ja (Stärke 2, nie entschieden) | 38 / 53 |
-| G3-1 non ero ancora nato | 24, 403 | 139 | ja (`ja`) | 5 / 32 |
-| G3-2 bella domanda | 405 | 139 | ja | 19 / 32 |
-| G3-3 Mara Venier | — | 550 | **nicht im Pool** | — |
-| G3-4 lingua del santo | 586 | 906 | ja (Runde 2) | 36 / 76 |
-| G3-5 quartiere queer | 282, 439 | 578 | ja (Runde 2) | 51 / 76 |
-| G3-6 piccolo amico | 29, 409 | 147 | ja (Szene 13) | 4 / 27 |
+| G1-1 | 114 | 283 | ja (`ja`, übernommen) | 25 / 182 |
+| G1-2 | 129 | 300 | ja (`ja`) | 31 / 182 |
+| G1-3 | 40 | 177 | ja (`ja`) | 8 / 182 |
+| G1-4 | 84 | 248 | ja (Stärke 2, nie entschieden) | 109 / 182 |
+| G1-5 | 371 | 323 | ja (`ja`) | 61 / 182 |
+| G2-1 | 186 | 391 | ja (`ja`) | 1 / 7 |
+| G2-2 | 188 | 391 | ja (`ja`) | 3 / 7 |
+| G2-3 | 178 | 368 | ja (`ja`) | 1 / 7 |
+| G2-4 | 181 | 384 | ja (`ja`) | 2 / 6 |
+| G2-5 | 204 | 419 | ja (Stärke 2, nie entschieden) | 38 / 53 |
+| G3-1 | 24, 403 | 139 | ja (`ja`) | 5 / 32 |
+| G3-2 | 405 | 139 | ja | 19 / 32 |
+| G3-3 | — | 550 | **nicht im Pool** | — |
+| G3-4 | 586 | 906 | ja (Runde 2) | 36 / 76 |
+| G3-5 | 282, 439 | 578 | ja (Runde 2) | 51 / 76 |
+| G3-6 | 29, 409 | 147 | ja (Szene 13) | 4 / 27 |
 
 Rang = Position des ersten Gold-Themas in der Liste der Gold-Szene, sortiert
 `(-staerke, id)`, Themen dedupliziert. Daraus ergibt sich ein historisches
@@ -161,7 +161,7 @@ Sondierung; die verbindlichen Zahlen erzeugt das Skript (§ 6, B0).
    Verwendung im Stück. **Entscheidung:** positiv sind nur die Karten der
    Gruppenplakate (Notiz „Variante A: nur Zitate, die im Stück landen").
    Prozessplakat-IDs gehören nicht in den Korpus.
-2. *Kommentar 1402 nennt „L'unione fa la forza" als generischen ersten
+2. *Kommentar 1402 nennt ein generisches Zitat (G2-2) als generischen ersten
    Vorschlag*, das Plakat G2 Karte 2 verwendet die Stelle (Interview 391,
    thema 188, `ja`, übernommen in Szene 2). **Entscheidung:** Der
    Gold-Korpus richtet sich nach dem Plakatstand (entities `3fa1f46`,
@@ -231,8 +231,8 @@ Zeile **positiv** (Felder fest):
 {"id": "G1-1", "gruppe": "G1", "chat_id": 7000000000000, "polaritaet": "positiv",
  "ziel": {"art": "szene", "nummer": 2, "id": 2, "titel": "Le voci"},
  "frage": "If your home could talk, what would it say about you?",
- "wortlaut": "Mi manchi! Spero che dica questa.",
- "fragmente": ["Mi manchi! Spero che dica questa"],
+ "wortlaut": "<Wortlaut, nur privat>",
+ "fragmente": ["<…>"],
  "aufnahme_id": 283, "verdichtung_thema_id": 114, "thema_ids": [114], "im_pool": true,
  "quelle": {"repo": "hermes-entities", "commit": "3fa1f46",
             "datei": "…/en/content/02_g1.md", "karte": 1}}

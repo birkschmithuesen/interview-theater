@@ -139,6 +139,8 @@ def als_aenderung(a: Ausfuehrung) -> dict | None:
         return dict(a.generisch)
     if not a.ok or a.name not in ART_FUER_WERKZEUG:
         return None
-    teile = [str(v) for v in a.eingabe.values() if isinstance(v, (str, int))]
-    teile += [str(x) for v in a.eingabe.values() if isinstance(v, list) for x in v]
+    werte = [v for k, v in a.eingabe.items() if k not in _AUSGEBLENDET]
+    teile = [str(v) for v in werte
+             if isinstance(v, (str, int)) and not isinstance(v, bool)]
+    teile += [str(x) for v in werte if isinstance(v, list) for x in v]
     return {"art": ART_FUER_WERKZEUG[a.name], "wert": " ".join(teile)}

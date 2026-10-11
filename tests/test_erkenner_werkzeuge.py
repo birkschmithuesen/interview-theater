@@ -96,3 +96,15 @@ def test_als_aenderung_none_bei_ablehnung_und_ohne_korpusart():
     assert ew.als_aenderung(abgelehnt) is None
     frage = ew.Ausfuehrung("frage_stellen", {"frage": "Wer?"}, True, {"ok": True}, None, None)
     assert ew.als_aenderung(frage) is None
+
+
+def test_als_aenderung_ignoriert_ausgeblendete_schluessel_aus_dem_modell():
+    a = ew.Ausfuehrung("setze_rahmen", {"rahmen": "x", "quelle": "script", "szene_id": 7},
+                       True, {"ok": True}, None, None)
+    assert ew.als_aenderung(a)["wert"] == "x"
+
+
+def test_als_aenderung_laesst_bool_nicht_als_text_durch():
+    a = ew.Ausfuehrung("setze_rahmen", {"rahmen": "x", "flag": True},
+                       True, {"ok": True}, None, None)
+    assert ew.als_aenderung(a)["wert"] == "x"

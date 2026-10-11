@@ -176,6 +176,22 @@ Die A2-Fälle fallen in drei Gruppen. Sieben Stückwerkzeuge (frage_stellen, fra
 | nur tools | 28 | n/a — json kann diese Absicht nicht ausdrücken | Werkzeug-Treffer 28 / 28 |
 | Negativ (Fehlalarm) | 8 | FP 3 / still_fp 3 bei 8 Fällen | FP 2 / still_fp 2 bei 8 Fällen |
 
+Gruppen nach Sprache de:
+
+| Gruppe | Fälle | json | tools |
+|---|---|---|---|
+| json-ausdrückbar | 14 | Treffer 12 / FP 3 / FN 2 | Treffer 14 / FP 0 / FN 0 |
+| nur tools | 14 | n/a — json kann diese Absicht nicht ausdrücken | Werkzeug-Treffer 14 / 14 |
+| Negativ (Fehlalarm) | 4 | FP 1 / still_fp 1 bei 4 Fällen | FP 1 / still_fp 1 bei 4 Fällen |
+
+Gruppen nach Sprache en:
+
+| Gruppe | Fälle | json | tools |
+|---|---|---|---|
+| json-ausdrückbar | 14 | Treffer 11 / FP 4 / FN 3 | Treffer 14 / FP 0 / FN 0 |
+| nur tools | 14 | n/a — json kann diese Absicht nicht ausdrücken | Werkzeug-Treffer 14 / 14 |
+| Negativ (Fehlalarm) | 4 | FP 2 / still_fp 2 bei 4 Fällen | FP 1 / still_fp 1 bei 4 Fällen |
+
 | Achse | Werkzeug | Aufrufe | davon abgelehnt |
 |---|---|---|---|
 | Achse A2 | aenderung_melden | 2 | 0 |
@@ -197,7 +213,7 @@ Stückwerkzeuge ohne einen Aufruf in A2: keine.
 
 ## Achse C: Zitatsuche
 
-Achse C: 0 — 0 — nicht freigegeben (Kosten, Schätzung ~0,5–1 CHF Kimi)
+Achse C: 0 — nicht freigegeben (Kosten, Schätzung ~0,5–1 CHF Kimi; Achse C optional laut Birk 11.10.2026)
 
 ## Werkzeugnutzung
 
@@ -253,7 +269,7 @@ uv run --extra dev python -m scripts.ab_pipeline_vs_tools erkenner --sprache en 
 uv run --extra dev python -m scripts.ab_padua --modus beide
 uv run --extra dev python -m scripts.ab_zitate --ohne-modell
 uv run --extra dev python -m scripts.ab_zitate --gruppe G1 G2 G3 --kosten-ok
-uv run --extra dev python -m scripts.ab_pipeline_vs_tools bericht --roh korpus/berichte/ab/A-de-20261011.jsonl korpus/berichte/ab/A-en-20261011.jsonl korpus/berichte/ab/A2-de-20261011.jsonl korpus/berichte/ab/A2-en-20261011.jsonl korpus/berichte/ab/B-20261011.jsonl --aus docs/messung/2026-10-ab-pipeline-vs-tools.md --achse-c-grund "0 — nicht freigegeben (Kosten, Schätzung ~0,5–1 CHF Kimi)"
+uv run --extra dev python -m scripts.ab_pipeline_vs_tools bericht --roh korpus/berichte/ab/A-de-20261011.jsonl korpus/berichte/ab/A-en-20261011.jsonl korpus/berichte/ab/B-20261011.jsonl korpus/berichte/ab/A2-de-20261011.jsonl korpus/berichte/ab/A2-en-20261011.jsonl --aus docs/messung/2026-10-ab-pipeline-vs-tools.md --achse-c-grund "nicht freigegeben (Kosten, Schätzung ~0,5–1 CHF Kimi; Achse C optional laut Birk 11.10.2026)"
 ```
 
 ## Was die Messung NICHT zeigt
@@ -266,6 +282,7 @@ uv run --extra dev python -m scripts.ab_pipeline_vs_tools bericht --roh korpus/b
 - Der Szenenkern wird im tools-Modus nicht neu angestoßen.
 - Der Padua-Testsatz ist laut Messung 1 (3/27) kein scharfes Gate.
 - Aufnahme-Fälle laufen live über Infomaniak, in der Messung über Opus; ihre Zahlen sind deshalb nur getrennt und mit Vorsicht zu lesen.
-- Werkzeuge ohne einen einzigen Aufruf, nicht geprüft: setze_ort, setze_besetzung, figur_aus_szene, karte_aendern, szene_wieder_oeffnen, reihenfolge_aendern, frage_stellen, frage_beantworten, frage_zurueckstellen, frage_verwerfen, pruefe_szene. Die Mess-DB ist leer (keine Szenen), und der tools-Modus lief überwiegend über das generische `aenderung_melden` (191 von 225 Aufrufen, 85 %).
+- Die Stückwerkzeuge sind nur in A2 geprüft (synthetischer Szenenstand, synthetische Fälle); A und B liefen ohne Szenen. Anteil des generischen `aenderung_melden` in A/B: 191 von 225 Aufrufen, 85 %.
+- Grenze: Die A2-Fälle und der A2-Stand sind synthetisch und vom selben Team geschrieben; der Live-Erkenner sieht den Szenenstand heute nicht im Nutzertext, A2 misst einen Agenten mit Sicht auf den Stückstand.
 
 Keine Empfehlung. Die Entscheidung trifft Birk (Kriterium 1: bei Gleichstand zählen Vision/Pflege, das heißt Agent).

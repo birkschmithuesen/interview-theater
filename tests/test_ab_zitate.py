@@ -179,7 +179,7 @@ def test_fehler_im_ziel_bricht_den_lauf_nicht_ab(conn, einst, lage):
 
     gold = _gold([1], ziel_id=lage["szene"])
     zeile = az.laufe_ziel(Kaputt(), conn, einst, gold, "agent_kimi")
-    assert "netz weg" in zeile["fehler"] and zeile["kandidaten"] == []
+    assert zeile["fehler"] == "RuntimeError" and zeile["kandidaten"] == []
 
 
 def test_cli_ohne_kosten_flag_bricht_vor_jedem_aufruf_ab(tmp_path, monkeypatch):
@@ -221,3 +221,76 @@ def test_ohne_modell_prueft_gold_und_zeigt_b0(conn, lage, tmp_path, capsys):
         f"G1:szene:{lage['szene']}": [lage["themen"]["Abschied"]]}}) + "\n", encoding="utf-8")
     az.zeige_b0(gold, b0)
     assert "G1: Recall@10 1/1" in capsys.readouterr().out
+
+
+# --- Review Task 8: Rueckfall, Fairness, Fehlertext ---------------------------
+
+
+def test_opus_rueckfall_auf_kimi_wird_markiert_und_bezahlt_gebucht(conn, einst, lage, monkeypatch):
+    gold = _gold([lage["themen"]["Abschied"]], ziel_id=lage["szene"])
+
+    def faellt_zurueck(klm, conn_, e, chat_id, ziel, *, ueber_claude):
+        # So bucht llm._anfrage den Kimi-Rueckfall (modus A, mit Kosten).
+        repo.merke_aufruf(conn_, chat_id, "schaerfung", "A", 10, 1000, 200, "stop", 5, 1,
+                          "kimi", 0.0123)
+        return [{"aufnahme_id": lage["a"], "verdichtung_thema_id": lage["themen"]["Abschied"],
+                 "staerke": 3, "text": "x"}]
+
+    monkeypatch.setattr(az, "pipeline_top10", faellt_zurueck)
+    zeile = az.laufe_ziel(KlmFolge([]), conn, einst, gold, "pipeline_opus")
+    assert zeile["fehler"] == "fallback_kimi"
+    assert zeile["recall_at_10"] is None
+    assert zeile["kosten_chf"] == pytest.approx(0.0123)
+
+
+def test_opus_ohne_rueckfall_bleibt_gratis_und_gewertet(conn, einst, lage, monkeypatch):
+    gold = _gold([lage["themen"]["Abschied"]], ziel_id=lage["szene"])
+
+    def sauber(klm, conn_, e, chat_id, ziel, *, ueber_claude):
+        repo.merke_aufruf(conn_, chat_id, "schaerfung", "C", 10, 1000, 200, "stop", 5, 1,
+                          "claude", 0.0)
+        return [{"aufnahme_id": lage["a"], "verdichtung_thema_id": lage["themen"]["Abschied"],
+                 "staerke": 3, "text": "x"}]
+
+    monkeypatch.setattr(az, "pipeline_top10", sauber)
+    zeile = az.laufe_ziel(KlmFolge([]), conn, einst, gold, "pipeline_opus")
+    assert zeile["fehler"] is None and zeile["recall_at_10"] == 1.0 and zeile["kosten_chf"] == 0.0
+
+
+def test_agent_sieht_denselben_hintergrund_wie_die_pipeline(conn, einst, lage, monkeypatch):
+    monkeypatch.setattr(az.schaerfung, "_hintergrund_zeilen",
+                        lambda c, chat: ["HINTERGRUND-MARKE Kernthema Abschied"])
+    klm = KlmFolge([{"aktion": "fertig", "anfrage": "", "stellen": []}])
+    az.agent_top10(klm, conn, einst, 1, _ziel(lage))
+    assert "HINTERGRUND-MARKE" in klm.nutzer[0]
+
+
+def test_fehlerzeile_traegt_nur_den_typnamen(conn, einst, lage):
+    class Kaputt:
+        def schema(self, *a, **k):
+            raise RuntimeError("Am Bahnhof hat meine Mutter geweint")
+
+    gold = _gold([1], ziel_id=lage["szene"])
+    zeile = az.laufe_ziel(Kaputt(), conn, einst, gold, "agent_kimi")
+    assert zeile["fehler"] == "RuntimeError"
+
+
+def test_deckel_erkennung_per_typ(conn, einst, lage):
+    from interview_theater import kosten
+
+    class Deckel:
+        def schema(self, *a, **k):
+            raise kosten.KostendeckelErreicht("voll")
+
+    zeile = az.laufe_ziel(Deckel(), conn, einst, _gold([1], ziel_id=lage["szene"]), "agent_kimi")
+    assert az.ist_deckel_fehler(zeile) is True
+    assert az.ist_deckel_fehler({"fehler": "RuntimeError"}) is False
+    assert az.ist_deckel_fehler({"fehler": None}) is False
+
+
+def test_gruppe_ohne_treffer_bricht_ab(tmp_path):
+    pfad = tmp_path / "gold.jsonl"
+    za.schreibe_gold([_gold([1])], pfad)
+    with pytest.raises(SystemExit):
+        az.main(["--gold", str(pfad), "--db", str(tmp_path / "k.db"), "--gruppe", "ZZ",
+                 "--ohne-modell"])

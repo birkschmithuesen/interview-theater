@@ -4423,6 +4423,21 @@ def aufruf_summe_nach(conn: sqlite3.Connection, vorher_id: int) -> dict:
 
 
 @_gesperrt
+def aufruf_fremd_nach(conn: sqlite3.Connection, vorher_id: int, abo_modus: str) -> dict:
+    """Aufrufe mit ``id > vorher_id`` und ``modus`` ungleich ``abo_modus``
+    (Messskripte: lief ein Claude-Lauf doch ueber das bezahlte Modell?):
+    Anzahl und gebuchte Kosten. Rein lesend."""
+    zeile = conn.execute(
+        """
+        SELECT COUNT(*) AS n, COALESCE(SUM(COALESCE(kosten_chf, 0)), 0) AS chf
+        FROM aufruf WHERE id > ? AND COALESCE(modus, '') != ?
+        """,
+        (vorher_id, abo_modus),
+    ).fetchone()
+    return {"aufrufe": int(zeile["n"]), "kosten_chf": float(zeile["chf"] or 0.0)}
+
+
+@_gesperrt
 def setze_interviewmodus(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
     """Setzt oder leert gruppe.interviewmodus_seit (teil-b.md Aufgabe 5, SPEC
     § 10.1): ein Zeitstempel bedeutet 'Modus an', NULL bedeutet 'Modus aus'.

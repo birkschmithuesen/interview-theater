@@ -44,6 +44,7 @@ MAX_RUNDEN = 6
 TOP_K = za.K
 SUCH_TREFFER = 8
 FENSTER_ZEICHEN = 400
+FEHLER_RUECKFALL = "fallback_kimi"
 VARIANTEN = ("pipeline_opus", "pipeline_kimi", "agent_kimi")
 
 AGENT_SCHEMA = {
@@ -147,10 +148,15 @@ def pipeline_top10(klm, conn, e, chat_id: int, ziel: dict, *, ueber_claude: bool
 def agent_top10(klm, conn, e, chat_id: int, ziel: dict) -> tuple[list[dict], dict]:
     """Schema-Schleife auf Kimi (``e.llm_modell``). Jede Stelle wird mit
     ``zitat.pruefe`` gegen das Transkript ihrer Aufnahme geprueft; ungepruefte
-    fallen weg. Zweite Rueckgabe: ``{"runden", "abbruch", "verworfen_zitat"}``."""
+    fallen weg. Der Starttext traegt den Erfundenes-Block UND denselben
+    Hintergrund wie die Pipeline (``schaerfung._hintergrund_zeilen``:
+    Diskussion, Kernthema, Festlegungen, Verworfenes, Mitgehoertes) -- fair
+    verglichen. Nicht dabei ist das Material mit Themen: das ist der
+    Unterschied Pipeline/Agent, der Agent muss suchen. Zweite Rueckgabe: ``{"runden", "abbruch", "verworfen_zitat"}``."""
     texte = _texte(conn, chat_id)
     themen = repo.themen_mit_aufnahme(conn, chat_id)
-    kopf = "\n".join(schaerfung._erfundenes_zeilen(conn, chat_id))
+    kopf = "\n".join(schaerfung._erfundenes_zeilen(conn, chat_id)
+                     + schaerfung._hintergrund_zeilen(conn, chat_id))
     verlauf = [(kopf + "\n\n" if kopf else "") + f"Ziel: {ziel.get('beschreibung_text') or ziel}"]
     info = {"runden": 0, "abbruch": None, "verworfen_zitat": 0}
     while True:
@@ -232,19 +238,33 @@ def laufe_ziel(klm, conn, e, golds, variante: str) -> dict:
                                 "staerke": k["staerke"]} for k in kandidaten]
         zeile["recall_at_10"] = recall_at_10(zeile["rangliste"], golds)
     except Exception as fehler:  # noqa: BLE001 -- ein Ziel bricht den Lauf nie ab
-        zeile["fehler"] = f"{type(fehler).__name__}: {fehler}"
+        zeile["fehler"] = type(fehler).__name__  # nie der Text: kann Modellausgabe/Zitate tragen
     zeile["dauer_ms"] = int((time.monotonic() - start) * 1000)
     zaehlung = repo.aufruf_summe_nach(conn, vorher)
     zeile.update(eingabe_token=zaehlung["eingabe_token"], ausgabe_token=zaehlung["ausgabe_token"])
     if variante != "pipeline_opus":  # Opus laeuft ueber das Abo (CLAUDE_CHF_JE_AUFRUF)
         zeile["kosten_chf"] = kosten.kosten_chf(
             e.llm_modell, zaehlung["eingabe_token"], zaehlung["ausgabe_token"])
+    else:
+        # modellwahl faellt bei ClaudeFehler/LLMFehler still auf Kimi zurueck
+        # (Infomaniak, kostet): jede Nicht-Abo-Zeile seit ``vorher`` ist so ein
+        # Rueckfall. Dann zaehlt die Zeile nicht als Opus und die echten
+        # Kosten werden aus den aufruf-Zeilen gebucht.
+        fremd = repo.aufruf_fremd_nach(conn, vorher, kosten.ABO_MODUS)
+        if fremd["aufrufe"]:
+            zeile.update(fehler=zeile["fehler"] or FEHLER_RUECKFALL, recall_at_10=None,
+                         kosten_chf=fremd["kosten_chf"])
     return zeile
 
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
+
+def ist_deckel_fehler(zeile: dict) -> bool:
+    """Brach das Ziel am Tagesdeckel ab? (Die Zeile traegt nur den Typnamen.)"""
+    return zeile.get("fehler") == kosten.KostendeckelErreicht.__name__
 
 
 def _verbinde(pfad: str):
@@ -295,6 +315,8 @@ def main(argv=None) -> int:
             "ausdruecklicher Freigabe: --kosten-ok. Ohne Modell (0 CHF): --ohne-modell.")
     conn = _verbinde(a.db)
     gold = [g for g in za.lade_gold(a.gold) if g["gruppe"] in a.gruppe]
+    if not gold:
+        raise SystemExit(f"Abbruch: kein Gold-Eintrag fuer --gruppe {' '.join(a.gruppe)}.")
     fehler = za.pruefe_gold(conn, gold)
     if fehler:
         print("\n".join(fehler), file=sys.stderr)
@@ -324,7 +346,7 @@ def main(argv=None) -> int:
                     ranglisten[variante][schluessel] = zeile["rangliste"]
                 print(f"[{nr}/{len(ziele)}] {variante} {schluessel}: recall={zeile['recall_at_10']}"
                       + (f" FEHLER {zeile['fehler']}" if zeile["fehler"] else ""), flush=True)
-                if zeile["fehler"] and "KostendeckelErreicht" in zeile["fehler"]:
+                if ist_deckel_fehler(zeile):
                     print("Tagesdeckel erreicht -- Abbruch.", file=sys.stderr)
                     return 1
     for variante in a.varianten:

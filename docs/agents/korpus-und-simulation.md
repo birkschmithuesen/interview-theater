@@ -234,3 +234,14 @@ Prompt-Abzug aus einem anderen Stand, z. B. cb200e4. Danach vergleicht
 **Symptomregel:** Ein Symptom gilt als App-Fehler, bis das Gegenteil belegt
 ist. Ändert sich ein Befund, muss das an der Prüfung liegen und mit einem Test
 belegt sein. Der Schlüssel wird nie still gestrichen.
+
+## Gold-Korpus Zitatauswahl (Padua, t_2f905d2c)
+
+`korpus/zitatauswahl_gold.jsonl` -- die 16 Stellen der drei Padua-
+Gruppenplakate (positiv) und die mit `nein` verworfenen Zuordnungen der
+Schaerfung (negativ, nur Kennungen). Quelle: `korpus/zitatauswahl_quelle.toml`.
+Format, Recall@10-Definition (je Ziel) und Ergebnisse:
+`docs/messung/2026-10-zitatauswahl.md`. Skript: `python -m scripts.zitatauswahl`
+(`gold`, `pruefe`, `historisch`, `neu`, `bericht`). `neu` ruft Opus ueber den
+Proxy (0 CHF) und laeuft nie automatisch; Messung immer auf einer Kopie
+(`kopie`), nie auf `betrieb/padua.db`.

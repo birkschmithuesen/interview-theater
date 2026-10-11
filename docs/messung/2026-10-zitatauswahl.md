@@ -149,6 +149,18 @@ uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p n
 - Proxy-Timeout: G1:szene:2 (182 Themen) braucht etwa 180-350 s; in B1 Lauf 2
   liefen drei Versuche in den Timeout, der vierte gelang. `lade_roh` hebt die
   Fehlerzeilen durch die erfolgreiche Wiederholung auf.
+- I-a Lauf 3 ist ungueltig: G1:szene:2 (Szene mit ~182 Themen) endete dort
+  sechsmal im Proxy-Timeout (je ~370 s = 2 Versuche a CLAUDE_TIMEOUT_S 180 s);
+  der Betriebs-Timeout von 180 s je Versuch reicht bei dieser Szene oft nicht.
+  Es gibt daher nur 2 gueltige I-a-Laeufe (B1: 3). Die Spanne 9–9 stuetzt sich
+  auf zwei Laeufe und ist schwaecher belegt als die B1-Spanne.
+- E7-Entscheidung I-a gegen B1, die drei Bedingungen mit Zahlen: (1) Gewinn
+  mindestens zwei Stellen: erfuellt, 6,0 -> 9,0 von 15 (+3,0); (2) keine
+  Ueberlappung der Laeufe: erfuellt, B1 5–7 gegen I-a 9–9, I-a-Minimum 9
+  liegt ueber dem B1-Maximum 7; (3) keine Gruppe schlechter: **verletzt**,
+  G3 sinkt von 1,67 auf 1,50 (G1 0,3 -> 3,0; G2 4,0 -> 4,5). I-a wird
+  deshalb nicht uebernommen; die Betriebs-Prompts (EN und DE) bleiben
+  unveraendert.
 - Die Live-DB liegt im Haupt-Checkout unter `betrieb/padua.db`; im Worktree
   wurde die Kopie mit `python -m scripts.stueckmodell_kopie
   <haupt-checkout>/betrieb/padua.db var/zitatauswahl/padua-kopie.db` erzeugt.

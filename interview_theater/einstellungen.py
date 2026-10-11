@@ -1,7 +1,10 @@
 """Konfiguration ausschliesslich ueber Umgebungsvariablen (siehe global-constraints.md)."""
 
+import logging
 import os
 from dataclasses import dataclass
+
+log = logging.getLogger(__name__)
 
 #: Welcher Kanal den Bot bedient (30.09.2026, Karte Padua A2).
 #: ``telegram`` ist die Vorgabe, und ohne die Variable ist alles wie vorher
@@ -20,6 +23,7 @@ VORGABE_SEGMENT_MS = 45_000
 
 # Name der Umgebungsvariable -> Vorgabewert (None = Pflichtvariable)
 _VORGABEWERTE = {
+    "IT_ERKENNER_MODUS": "json",
     "IT_BOT_TOKEN": None,
     "IT_BOT_NAME": None,
     "IT_DB": None,
@@ -101,6 +105,11 @@ class Einstellungen:
     kosten_deckel_chf: float = 5.0
     zeitzone: str = "Europe/Rome"
     suche_url: str = "http://127.0.0.1:8789/search"
+    # Karte t_9b2b33cb (Messung 2): "tools" laesst den Opus-Erkenner die
+    # Stueckwerkzeuge selbst rufen statt das JSON-Schema zu fuellen. Wirkt
+    # nur, wenn der Erkenner ohnehin ueber Claude laeuft
+    # (erkenner.ueber_claude); Vorgabe bleibt "json".
+    erkenner_modus: str = "json"
 
 
 #: Variablen, die nur der Telegram-Kanal braucht. Im Web-Kanal gibt es keinen
@@ -181,6 +190,7 @@ def laden() -> Einstellungen:
         kosten_deckel_chf=_zahl(werte["IT_KOSTEN_DECKEL_CHF"], 5.0),
         zeitzone=(werte["IT_ZEITZONE"] or "").strip() or "Europe/Rome",
         suche_url=(werte["IT_SUCHE_URL"] or "").strip() or "http://127.0.0.1:8789/search",
+        erkenner_modus=_erkenner_modus(werte["IT_ERKENNER_MODUS"]),
     )
 
 
@@ -197,4 +207,17 @@ def _zahl(roh, vorgabe: float) -> float:
     # "nan" und "inf" parst float() klaglos -- beide hiessen "kein Deckel".
     if wert != wert or wert in (float("inf"), float("-inf")):
         return vorgabe
+    return wert
+
+
+ERKENNER_MODI = ("json", "tools")
+
+
+def _erkenner_modus(roh) -> str:
+    """``IT_ERKENNER_MODUS``. Ein Tippfehler faellt auf ``json`` zurueck --
+    der heutige, gemessene Weg -- und wird geloggt."""
+    wert = (roh or "").strip().lower() or "json"
+    if wert not in ERKENNER_MODI:
+        log.warning("IT_ERKENNER_MODUS=%r unbekannt -- es gilt 'json'", roh)
+        return "json"
     return wert

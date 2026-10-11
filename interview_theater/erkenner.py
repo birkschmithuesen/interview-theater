@@ -484,6 +484,12 @@ def _baue_nutzertext(conn, chat_id: int, nachrichten, vorlauf=None) -> str:
     return "\n\n".join(bloecke)
 
 
+def aktive_arten() -> tuple[str, ...]:
+    """Das Arten-Enum des aktiven Profils -- dieselbe Liste fuer den
+    JSON-Weg und fuer ``aenderung_melden`` im Tools-Modus."""
+    return tuple(schema()["properties"]["aenderungen"]["items"]["properties"]["art"]["enum"])
+
+
 def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
     """Erkennt Aenderungsabsichten im Gespraech seit der letzten Erkennung.
 
@@ -495,12 +501,20 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
     ``MAX_AENDERUNGEN`` lang, nur mit bekannten ``art``-Werten. Wendet
     NICHTS auf die Datenbank an -- das ist eine spaetere Aufgabe
     (``wende_an``)."""
+    return erkenne_mit_werkzeugschritten(klm, conn, e, chat_id)[0]
+
+
+def erkenne_mit_werkzeugschritten(klm, conn, e, chat_id: int) -> tuple[list[dict], list[dict]]:
+    """Wie ``erkenne``, zusaetzlich die im Tools-Modus (``IT_ERKENNER_MODUS=
+    tools``) schon ueber ``stueck`` geschriebenen Schritte, rueckuebersetzt
+    (``erkenner_werkzeuge.als_aenderung``) -- fuer die "Notiert:"-Meldung.
+    Im JSON-Modus ist die zweite Liste immer leer."""
     neue = repo.unextrahierte(conn, chat_id)
     if not neue:
         # Kein Aufruf ins Leere: ohne neue Nachrichten gibt es nichts zu
         # erkennen, und ein Aufruf waere reine Latenz- und Kostenlast ohne
         # jeden Nutzen.
-        return []
+        return [], []
 
     letzte_message_id = max(n["message_id"] for n in neue)
     # Vorlauf (05.09. 04:40, dreimal belegt: Live Nachricht 69/90, Simulation
@@ -528,10 +542,39 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
             f"Absichtserkenner-Fenster ueber {FENSTER_DECKEL} geschaetzten Token "
             "verworfen, ohne Sprachmodell-Aufruf",
         )
-        return []
+        return [], []
 
+    schritte: list[dict] = []
+    ergebnis = None
+    if werkzeug_modus(e, conn, chat_id):
+        ausgefuehrt: list = []
+        try:
+            generisch, schritte, _, _ = _werkzeuglauf(conn, e, chat_id, nutzer, ausgefuehrt)
+            ergebnis = {"aenderungen": generisch}
+        except Exception as fehler:  # ClaudeFehler der ersten Runde, Kostendeckel u. a.
+            if not ausgefuehrt:
+                # Noch nichts geschrieben: der JSON-Weg ist sicher.
+                log.warning("Werkzeugschleife, erste Runde gescheitert -- JSON-Weg: %s", fehler)
+                repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                                   "erkenner_werkzeug_fallback", str(fehler)[:200])
+            else:
+                # Schon ausgefuehrte Werkzeuge haben das Stueck geschrieben:
+                # KEIN JSON-Lauf (er schriebe dieselbe Absicht doppelt),
+                # weiter mit dem bis dahin Gesammelten.
+                log.exception("Werkzeugschleife nach %d Ausfuehrungen gescheitert, "
+                              "chat_id=%s", len(ausgefuehrt), chat_id)
+                try:
+                    repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                                       "erkenner_werkzeug_abbruch",
+                                       f"ausnahme nach {len(ausgefuehrt)} Ausfuehrungen: "
+                                       f"{str(fehler)[:150]}")
+                except Exception:
+                    log.exception("Vorfall nicht gemerkt, chat_id=%s", chat_id)
+                generisch, schritte = _sammle_ausfuehrungen(ausgefuehrt)
+                ergebnis = {"aenderungen": generisch}
     try:
-        ergebnis = _schema_aufruf(klm, conn, e, chat_id, prompt(), nutzer, schema(), "erkenner")
+        if ergebnis is None:
+            ergebnis = _schema_aufruf(klm, conn, e, chat_id, prompt(), nutzer, schema(), "erkenner")
     except Exception:
         # Fehlschlag: das Wasserzeichen bleibt STEHEN -- ein kostenloser
         # Wiederholungsversuch beim naechsten Lauf, ohne eigene
@@ -546,7 +589,7 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
             "extraktor_fehler",
             "Absichtserkenner-Aufruf fehlgeschlagen",
         )
-        return []
+        return [], []
 
     aenderungen = []
     for eintrag in ergebnis.get("aenderungen", []):
@@ -562,7 +605,67 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
             break
 
     repo.setze_extrahiert_bis(conn, chat_id, letzte_message_id)
-    return aenderungen
+    return aenderungen, schritte
+
+
+def werkzeug_modus(e, conn, chat_id) -> bool:
+    """Tools-Modus nur mit ``IT_ERKENNER_MODUS=tools`` UND wenn der Erkenner
+    ohnehin ueber Claude laeuft (``ueber_claude``: Profilschalter,
+    Einwilligung, NICHT Phase 3)."""
+    if getattr(e, "erkenner_modus", "json") != "tools":
+        return False
+    return ueber_claude(e, conn, chat_id)
+
+
+def _sammle_ausfuehrungen(ausfuehrungen) -> tuple[list, list]:
+    """``(generische, stueck_schritte)`` aus den Ausfuehrungen."""
+    from interview_theater import erkenner_werkzeuge
+
+    generisch = [a.generisch for a in ausfuehrungen if a.generisch is not None]
+    schritte = [x for x in (erkenner_werkzeuge.als_aenderung(a) for a in ausfuehrungen
+                            if a.generisch is None) if x is not None]
+    return generisch, schritte
+
+
+def _werkzeuglauf(conn, e, chat_id, nutzer, ausfuehrungen=None):
+    """Eine Werkzeugschleife ueber den Claude-Proxy. Liefert
+    ``(generische, stueck_schritte, schleifenergebnis, ausfuehrungen)``.
+    Jede Ausnahme geht an den Aufrufer; ``ausfuehrungen`` (Sammelliste von
+    aussen) zeigt ihm, ob schon ein Werkzeug lief."""
+    import httpx
+
+    from interview_theater import anweisungen, erkenner_werkzeuge, szene_claude
+
+    if ausfuehrungen is None:
+        ausfuehrungen = []
+
+    def ausfuehren(name, eingabe):
+        # ``werkzeug_schleife`` faengt keine Ausnahme aus diesem Callable:
+        # hier nie werfen, das Modell sieht den Fehler im tool_result.
+        try:
+            a = erkenner_werkzeuge.fuehre_aus(conn, chat_id, name, eingabe)
+            ausfuehrungen.append(a)
+            return erkenner_werkzeuge.als_tool_result(a)
+        except Exception as fehler:
+            log.exception("Erkenner-Werkzeug %s fehlgeschlagen, chat_id=%s", name, chat_id)
+            return json.dumps({"ok": False, "fehler": str(fehler)[:200]}, ensure_ascii=False), True
+
+    system = prompt() + "\n\n" + anweisungen.hole("erkenner_werkzeuge")
+    with httpx.Client(timeout=szene_claude.GESAMT_TIMEOUT_S) as klient:
+        lauf = szene_claude.werkzeug_schleife(
+            conn, e, klient, chat_id, system, nutzer,
+            erkenner_werkzeuge.definitionen(aktive_arten()), ausfuehren,
+            art="erkenner",
+            modell=getattr(e, "szene_modell", None) or "claude-opus-5-5",
+            max_aufrufe=MAX_AENDERUNGEN,
+        )
+    if lauf.abbruch is not None:
+        repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                           "erkenner_werkzeug_abbruch",
+                           f"abbruch={lauf.abbruch}, runden={lauf.runden}, "
+                           f"aufrufe={len(lauf.aufrufe)}")
+    generisch, schritte = _sammle_ausfuehrungen(ausfuehrungen)
+    return generisch, schritte, lauf, ausfuehrungen
 
 
 #: Kopfzeile des Nutzertexts, wenn nicht ein Gespraechsabschnitt geprueft
@@ -3761,7 +3864,7 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         from interview_theater import ablauf as _ablauf
 
         vergleich_im_zug = _ablauf.nimm_vergleich_im_zug(conn, chat_id)
-        aenderungen = erkenne(klm, conn, e, chat_id)
+        aenderungen, werkzeugschritte = erkenne_mit_werkzeugschritten(klm, conn, e, chat_id)
         aenderungen = _ohne_phase_setzen_nach_frischerem_klick(
             conn, chat_id, aenderungen, fenster_ende)
         if vergleich_im_zug and aenderungen:
@@ -3778,7 +3881,7 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Befehl/Klick -- ein "lass uns weitermachen" im freien Chat soll
         # nicht an der Werkbank-Uebersicht vorbeikommen.
         aenderungen = _ohne_phase_5_ohne_p5_check(conn, tg, chat_id, aenderungen)
-        if not aenderungen:
+        if not aenderungen and not werkzeugschritte:
             return
         notiz_verbraucht = False
         if stapel:
@@ -3869,7 +3972,13 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             notiz_verbraucht=notiz_verbraucht,
             nachrichtentext="\n".join(
                 n["text"] for n in fenster_vor_erkennung if n["text"]))
-        text = baue_meldung(wirkliche, conn, chat_id)
+        # Tools-Modus: die schon ueber ``stueck`` geschriebenen Schritte stehen
+        # NUR in der Meldung (nach allen ``_starte_*``, damit kein Startweg sie
+        # als neuen Auftrag liest). Undo/Ruecknahme deckt im Tools-Modus nur den
+        # generischen Teil ab (``wirkliche``); die Stueck-Schritte nicht (Spec
+        # § 3.4) -- sie stehen im ``stueck``-Aenderungsprotokoll. Der Szenenkern
+        # wird fuer Stueck-Schritte nicht neu angestossen.
+        text = baue_meldung(wirkliche + werkzeugschritte, conn, chat_id)
         if text is not None and begriffe_im_zug and _haenge_an_zugquittung(
                 conn, chat_id, zug_lauf, vorher, nachher, wirkliche):
             # Befund S5/M7: Transkriptkorrektur und Festlegung stehen jetzt

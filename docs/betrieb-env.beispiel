@@ -85,6 +85,11 @@ IT_SZENE_ANBIETER=claude
 # Deckel". Wird beim Start gelesen (Neustart des Bots).
 # IT_KOSTEN_DECKEL_CHF=5.0
 #
+# Erkenner-Modus (Messung 2): json (Vorgabe) oder tools. tools wirkt nur
+# mit [erkenner] ueber_claude; Undo deckt Stueck-Schritte nicht ab. Nicht
+# in Live-Envs setzen, solange die Messung keine Zahlen liefert.
+# IT_ERKENNER_MODUS=json
+#
 # Wonach sich "heute" richtet (Mitternacht dieser Zone setzt den Deckel
 # zurueck). Padua: Europe/Rome.
 # IT_ZEITZONE=Europe/Rome

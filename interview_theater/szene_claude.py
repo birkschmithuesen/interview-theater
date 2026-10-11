@@ -30,6 +30,8 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import dataclass
+from typing import Callable
 
 import httpx
 
@@ -545,6 +547,106 @@ def schema(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
         log.warning("Claude-Schema unlesbar (art=%s, %s Zeichen), Anfang: %r",
                     art, len(text or ""), (text or "")[:300])
         raise
+
+
+#: Werkzeugschleife (Karte t_9b2b33cb, Messung 2): Deckel, damit ein
+#: Messlauf nie endlos laeuft. Spec § 2.2.
+MAX_RUNDEN = 6
+GESAMT_TIMEOUT_S = 120.0
+WERKZEUG_MAX_TOKENS = 4_000
+_TEXT_GRENZE = '{"ok": false, "fehler": "Grenze der Werkzeugaufrufe erreicht"}'
+
+
+@dataclass(frozen=True)
+class Schleifenergebnis:
+    aufrufe: tuple[dict, ...]
+    runden: int
+    abbruch: str | None
+    eingabe_token: int
+    ausgabe_token: int
+    dauer_ms: int
+    text: str
+
+
+def werkzeug_schleife(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
+                      nutzer: str, werkzeuge: list[dict],
+                      ausfuehren: Callable[[str, dict], tuple[str, bool]], *,
+                      art: str, modell: str | None = None, max_runden: int = MAX_RUNDEN,
+                      max_aufrufe: int = 5, gesamt_timeout: float = GESAMT_TIMEOUT_S,
+                      uhr: Callable[[], float] = time.monotonic) -> Schleifenergebnis:
+    """Der dritte Aufrufmodus neben ``prosa`` und ``schema``: Modell ->
+    ``tool_use`` -> ``ausfuehren`` -> ``tool_result`` -> Modell, bis das
+    Modell fertig ist oder ein Deckel greift. Blockierend, je Runde eine
+    ``aufruf``-Zeile (modus 'C', 0 CHF). Kein Wiederholungsversuch: eine
+    wiederholte Runde koennte Werkzeuge doppelt ausfuehren.
+
+    Wirft ``ClaudeFehler`` nur, wenn die ERSTE Runde scheitert -- dann ist
+    noch nichts ausgefuehrt und der Aufrufer darf auf den JSON-Weg
+    zurueckfallen. Spaeter ist schon geschrieben: ``abbruch="fehler"``."""
+    kosten.pruefe(conn, chat_id, e)
+    url = getattr(e, "szene_url", None) or URL_VORGABE
+    modell = modell or getattr(e, "szene_modell", None) or MODELL_VORGABE
+    headers = {"content-type": "application/json", "anthropic-version": API_VERSION}
+    nachrichten: list[dict] = [{"role": "user", "content": nutzer}]
+    aufrufe: list[dict] = []
+    ein = aus = runden = 0
+    abbruch, text = None, ""
+    start = uhr()
+    while True:
+        if runden >= max_runden:
+            abbruch = "runden"
+            break
+        if uhr() - start > gesamt_timeout:
+            abbruch = "zeit"
+            break
+        koerper = {
+            "model": modell, "max_tokens": WERKZEUG_MAX_TOKENS,
+            "system": [{"type": "text", "text": system,
+                        "cache_control": {"type": "ephemeral"}}],
+            "tools": werkzeuge, "tool_choice": {"type": "auto"},
+            "messages": nachrichten,
+        }
+        runde_start = time.monotonic()
+        try:
+            restzeit = max(1.0, gesamt_timeout - (uhr() - start))
+            daten = _blockierend(klient, url, headers, koerper, restzeit)
+        except (httpx.HTTPError, ValueError) as fehler:
+            _buche(conn, chat_id, e, art, modell, {}, "werkzeug_fehler",
+                   time.monotonic() - runde_start, erfolg=False)
+            if runden == 0:
+                raise ClaudeFehler(f"Werkzeugschleife, erste Runde: {fehler}") from fehler
+            abbruch = "fehler"
+            break
+        runden += 1
+        nutzung = daten.get("usage") or {}
+        ein += int(nutzung.get("input_tokens") or 0)
+        aus += int(nutzung.get("output_tokens") or 0)
+        stop = daten.get("stop_reason")
+        _buche(conn, chat_id, e, art, modell, nutzung, stop,
+               time.monotonic() - runde_start, erfolg=True)
+        inhalt = daten.get("content") or []
+        text = "".join(b.get("text", "") for b in inhalt if b.get("type") == "text")
+        werkzeug_bloecke = [b for b in inhalt if b.get("type") == "tool_use"]
+        if stop != "tool_use" or not werkzeug_bloecke:
+            break
+        nachrichten.append({"role": "assistant", "content": inhalt})
+        ergebnisse = []
+        for block in werkzeug_bloecke:
+            if len(aufrufe) >= max_aufrufe:
+                abbruch = "aufrufe"
+                ergebnisse.append({"type": "tool_result", "tool_use_id": block["id"],
+                                   "content": _TEXT_GRENZE, "is_error": True})
+                continue
+            ergebnis_text, ist_fehler = ausfuehren(block["name"], block.get("input") or {})
+            aufrufe.append({"name": block["name"], "eingabe": block.get("input") or {},
+                            "is_error": ist_fehler})
+            ergebnisse.append({"type": "tool_result", "tool_use_id": block["id"],
+                               "content": ergebnis_text, "is_error": ist_fehler})
+        nachrichten.append({"role": "user", "content": ergebnisse})
+        if abbruch == "aufrufe":
+            break
+    return Schleifenergebnis(tuple(aufrufe), runden, abbruch, ein, aus,
+                             int((uhr() - start) * 1000), text)
 
 
 def _json_nach_schluessel(text: str, schema_: dict) -> dict | None:

@@ -492,6 +492,209 @@ def eintraege_mit_frage(conn, chat_id: int) -> list[dict]:
     raise SystemExit("I-b ist gesperrt: Datenschutz-Gate (Spec E8) nicht freigegeben")
 
 
+VARIANTEN = ("B0", "B1", "I-a", "I-b")
+
+FORMAT_DOKU = """\
+Datei: `korpus/zitatauswahl_gold.jsonl` -- eine JSON-Zeile je Stelle, UTF-8,
+sortiert nach `id`. Leser: `scripts.zitatauswahl.lade_gold(pfad)`.
+Treffer-Regel: `scripts.zitatauswahl.trifft(kandidat, gold)`.
+
+| Feld | Bedeutung |
+|---|---|
+| `id` | `G1-1` (positiv, Gruppe-Karte) bzw. `G1-n-0286` (negativ, kleinste `schaerfung.id`) |
+| `gruppe` | `G1` / `G2` / `G3` |
+| `chat_id` | 7000000000000 / …001 / …002 |
+| `polaritaet` | `positiv` (im Stueck, Plakat) / `negativ` (`nein` an diesem Ziel, nie `ja`, nirgends positiv) |
+| `ziel` | `{"art": "szene"|"figur", "nummer", "id", "titel"}` -- `id` = `szene.id`/`figur.id` in padua.db |
+| `frage` | Interviewfrage laut Plakat (EN, nur positiv) |
+| `wortlaut` | Plakatwortlaut, Auslassungen ` … ` (nur positiv) |
+| `fragmente` | Teile zwischen den Auslassungen im Originalwortlaut des Transkripts; jedes besteht `zitat.pruefe` (nur positiv) |
+| `aufnahme_id` | Interview (Kopf), in dem die Stelle steht |
+| `verdichtung_thema_id` | das Thema im Pool (`repo.gepruefte_themen`), sonst `null` |
+| `thema_ids` | alle Themen derselben Stelle (auch aus entfernten Verdichtungen) |
+| `im_pool` | ob eines davon im Pool der Schaerfung steht |
+| `schaerfung_ids` | nur negativ: die `nein`-Zeilen |
+| `quelle` | positiv: entities-Commit, Datei, Karte, Label; negativ: Tabelle |
+
+**Recall@10** (Spec E1) gilt **je Ziel**: eine positive Stelle im Pool ist
+getroffen, wenn eines ihrer `thema_ids` unter den ersten 10 verschiedenen
+Themen der Rangliste IHRES Ziels steht. Sortiert wird wie im Betrieb:
+`(-staerke, runde, Reihenfolge des Modells)`. Gemittelt wird mikro, je Gruppe
+und gesamt. Fuer Kandidaten ohne Thema-Kennung (Agent) gilt `trifft`: alle
+`fragmente` stehen im Kandidatentext.
+"""
+
+DISKREPANZEN = """\
+Positiv sind nur die Karten der drei Gruppenplakate (hermes-entities `3fa1f46`,
+`### cards: quotes`, "Variante A: nur Zitate, die im Stueck landen"):
+G1 5, G2 5, G3 6.
+
+- Kommentar 1402 (hermes-dev, t_56f8d856) nennt "G2 8 Stellen". Plakat G2 hat
+  5; die Notizzeile "Int. 9, 13, 29, 21, 38" stammt aus einer frueheren
+  Fassung. Das Prozessplakat (`01_prozess.md`, "Nicht doppelt zu den
+  Gruppenplakaten") illustriert nur und belegt keine Verwendung im Stueck --
+  nicht im Korpus.
+- Kommentar 1402 nennt "L'unione fa la forza" einen generischen
+  Erstvorschlag; das Plakat G2 Karte 2 verwendet die Stelle. Massgeblich ist
+  der Plakatstand; 1402 ist nur Quelle der Hypothesen.
+- `entfernt_am` ist nicht "verworfen" (G1-4 ist positiv und hat nur
+  entfernte Zeilen). Negativ ist nur `nein` ohne `ja` (Spec F7.3).
+- Hypothese (d) "nachgeladenes Material nie im Pool" ist fuer den Pool
+  widerlegt (Queer-Viertel, lingua del santo stehen geprueft im Pool); es
+  stand in der Rangliste zu weit hinten.
+
+Volle Begruendung: `docs/superpowers/specs/2026-10-11-zitatauswahl-gold-recall-design.md`.
+"""
+
+KOMMANDOS = """\
+Alle Kommandos im Haupt-Checkout ausfuehren (dort liegt `betrieb/padua.db`;
+im Worktree gibt es kein `betrieb/`, dort `kopie --quelle <haupt-checkout>/betrieb/padua.db`).
+
+```
+uv run --extra dev python -m scripts.zitatauswahl kopie
+uv run --extra dev python -m scripts.zitatauswahl kopie --quelle <haupt-checkout>/betrieb/padua.db
+uv run --extra dev python -m scripts.zitatauswahl gold --db var/zitatauswahl/padua-kopie.db
+uv run --extra dev python -m scripts.zitatauswahl pruefe --db var/zitatauswahl/padua-kopie.db
+uv run --extra dev python -m scripts.zitatauswahl historisch --db var/zitatauswahl/padua-kopie.db
+uv run --extra dev python -m scripts.zitatauswahl neu --db var/zitatauswahl/padua-kopie.db --variante B1 --lauf 1 --gruppe G1
+uv run --extra dev python -m scripts.zitatauswahl neu --db var/zitatauswahl/padua-kopie.db --variante I-a --lauf 1 --gruppe G1 --prompt docs/messung/zitatauswahl/prompt-I-a.md
+uv run --extra dev python -m scripts.zitatauswahl bericht
+uv run --extra dev python -m pytest -q -m "not dortmund" --ignore=tests/e2e -p no:cacheprovider -n 2 tests/test_zitatauswahl.py
+```
+
+(`neu` je Variante fuer `--lauf 1 2 3` und `--gruppe G1 G2 G3`; Mutationstest:
+`test_mutation_*` in `tests/test_zitatauswahl.py`. Rohergebnisse:
+`docs/messung/zitatauswahl/*.jsonl`. Kopie und Proxy: Spec E5.)
+"""
+
+GRENZEN = """\
+- n = 15 Stellen im Pool (G3-3 "Mara Venier" liegt ausserhalb, Hypothese c);
+  eine Stelle sind 6,7 Prozentpunkte. Deshalb die Schwelle E7 (mindestens zwei
+  Stellen, keine Ueberlappung der Laeufe, keine Gruppe schlechter).
+- B0 ist verzerrt: die Gruppen haben aus den sichtbaren Top-5 gewaehlt.
+  Verglichen wird nur Neu-Lauf gegen Neu-Lauf.
+- Die Kopie zeigt den Stand vom 11.10.2026, nicht den zur Zeit der Schaerfung
+  (07./08.10.); Gold-Fragmente im Nicht-Material-Teil sind maskiert (Spalte
+  "maskiert", Spec E6).
+- Der Pool selbst (ein Beleg je Thema, `verdichter.py`) ist nicht Gegenstand
+  dieser Karte.
+- Proxy-Timeout: G1:szene:2 (182 Themen) braucht etwa 180-350 s; in B1 Lauf 2
+  liefen drei Versuche in den Timeout, der vierte gelang. `lade_roh` hebt die
+  Fehlerzeilen durch die erfolgreiche Wiederholung auf.
+- Die Live-DB liegt im Haupt-Checkout unter `betrieb/padua.db`; im Worktree
+  wurde die Kopie mit `python -m scripts.stueckmodell_kopie
+  <haupt-checkout>/betrieb/padua.db var/zitatauswahl/padua-kopie.db` erzeugt.
+- I-b: nicht gemessen (Datenschutz-Gate nicht freigegeben).
+"""
+
+
+def _zahl(x: float) -> str:
+    return f"{x:.1f}".replace(".", ",")
+
+
+def _zeile_variante(gruppe: str, variante: str, l: dict, l5: dict, gold: list[dict]) -> str | None:
+    if not l:
+        return None
+    t = [x["recall"][gruppe]["treffer"] for x in l.values()]
+    n = next(iter(l.values()))["recall"][gruppe]["n"]
+    t5 = [x["recall"][gruppe]["treffer"] for x in l5.values()]
+    neg = [negativ_at_k(x["ranglisten"], gold).get(gruppe, 0) for x in l.values()]
+    mittel = sum(t) / len(t)
+    spanne = f"{min(t)}–{max(t)}" if len(t) > 1 else str(t[0])
+    zehn = f"{t[0]}/{n}" if len(t) == 1 else f"{_zahl(mittel)}/{n} ({spanne})"
+    fuenf = _zahl(sum(t5) / len(t5)) if t5 else "–"
+    return (f"| {gruppe} | {variante} | {zehn} | {fuenf} | {_zahl(sum(neg) / len(neg))} "
+            f"| {len(l)} | {sum(x['maskiert'] for x in l.values())} |")
+
+
+def _rang(liste: list[int] | None, themen: list[int]) -> str:
+    if liste is None:
+        return "?"
+    for i, t in enumerate(liste, start=1):
+        if t in themen:
+            return str(i)
+    return "–"
+
+
+def schreibe_bericht(gold: list[dict], zeilen: list[dict], pfad=BERICHT) -> str:
+    gruppen = sorted({g["gruppe"] for g in gold})
+    l10 = {v: laeufe(zeilen, gold, v) for v in VARIANTEN}
+    l5 = {v: laeufe(zeilen, gold, v, k=5) for v in VARIANTEN}
+    ia_ok, ia_gruende = entscheide(l10["B1"], l10["I-a"])
+    ib_basis = "I-a" if ia_ok else "B1"
+    ib_ok, ib_gruende = entscheide(l10[ib_basis], l10["I-b"])
+
+    def entscheidung(name, basis, ok, gruende):
+        if not l10[name]:
+            return f"- {name}: nicht gemessen (keine vollstaendigen Laeufe)."
+        if ok:
+            return f"- {name} gegen {basis}: **uebernommen** -- alle drei Bedingungen E7 erfuellt."
+        return f"- {name} gegen {basis}: **nicht uebernommen** -- " + "; ".join(gruende) + "."
+
+    entscheidungen = [entscheidung("I-a", "B1", ia_ok, ia_gruende),
+                      entscheidung("I-b", ib_basis, ib_ok, ib_gruende)]
+    if not l10["I-b"]:
+        entscheidungen[1] = ("- I-b: nicht gemessen (Datenschutz-Gate nicht freigegeben). "
+                             "Die Sperre `eintraege_mit_frage` bleibt stehen.")
+    fix = [n for n, ok in (("I-a", ia_ok), ("I-b", ib_ok)) if ok and l10[n]]
+
+    pos = _positive(gold)
+    neg = [g for g in gold if g["polaritaet"] == "negativ"]
+    pool = pool_recall(gold)
+    z = ["# Messung Zitatauswahl InScribe (Padua, Oktober 2026)", "",
+         "Karte `t_2349e9a8` / Umsetzung `t_2f905d2c`. Erzeugt mit "
+         "`python -m scripts.zitatauswahl bericht`; Spec: "
+         "`docs/superpowers/specs/2026-10-11-zitatauswahl-gold-recall-design.md`.", "",
+         "## Kurzfassung", ""]
+
+    def gesamt(v):
+        l = l10[v]
+        if not l:
+            return "nicht gemessen"
+        t = [x["recall"]["gesamt"]["treffer"] for x in l.values()]
+        n = next(iter(l.values()))["recall"]["gesamt"]["n"]
+        return f"{_zahl(sum(t) / len(t))}/{n}"
+    z.append("Recall@10 gesamt: " + " · ".join(f"{v} {gesamt(v)}" for v in VARIANTEN) + ".")
+    z.append("")
+    z.append(f"Fix: **{', '.join(fix)}** uebernommen." if fix
+             else "Fix: **keiner** -- keine Intervention erfuellt die Schwelle E7.")
+    z += ["", "## Gold-Korpus", "",
+          f"Positiv {len(pos)} (im Pool {sum(g['im_pool'] for g in pos)}), negativ {len(neg)}. "
+          + " · ".join(f"{gr}: positiv {pool[gr][1]}, im Pool {pool[gr][0]}, negativ "
+                       f"{sum(1 for g in neg if g['gruppe'] == gr)}" for gr in gruppen) + ".",
+          "", "### Format", "", FORMAT_DOKU, "### Herkunft und Diskrepanzen", "", DISKREPANZEN,
+          "## Ergebnisse je Gruppe", "",
+          "Recall@10: Mittel/n (min–max ueber Laeufe); Recall@5 = sichtbare Liste; "
+          "Negativ@10 = verworfene Paare in den Top-10 (Mittel).", "",
+          "| Gruppe | Variante | Recall@10 | Recall@5 | Negativ@10 | Laeufe | maskiert |",
+          "|---|---|---|---|---|---|---|"]
+    for gr in gruppen + ["gesamt"]:
+        for v in VARIANTEN:
+            zeile = _zeile_variante(gr, v, l10[v], l5[v], gold)
+            if zeile:
+                z.append(zeile)
+    z += ["", "Pool-Recall (Obergrenze, Hypothese c): "
+          + " · ".join(f"{gr} {pool[gr][0]}/{pool[gr][1]}" for gr in gruppen + ["gesamt"]) + ".",
+          "", "## Rang jeder Gold-Stelle", "",
+          "Rang des ersten Gold-Themas in der Rangliste des Ziels, je Lauf (`–` = nicht in der Liste, "
+          "`?` = Fehler).", "",
+          "| Stelle | Ziel | " + " | ".join(VARIANTEN) + " |",
+          "|---|---|" + "---|" * len(VARIANTEN)]
+    for g in pos:
+        zellen = []
+        for v in VARIANTEN:
+            r = [_rang(x["ranglisten"].get(ziel_schluessel(g)), g["thema_ids"]) for x in l10[v].values()]
+            zellen.append("/".join(r) if r else "")
+        im = "" if g["im_pool"] else " (nicht im Pool)"
+        z.append(f"| {g['id']}{im} | Szene {g['ziel']['nummer']} | " + " | ".join(zellen) + " |")
+    z += ["", "## Entscheidungen (E7)", "", *entscheidungen, "",
+          "## Kommandos zum Nachrechnen", "", KOMMANDOS, "## Grenzen", "", GRENZEN]
+    text = "\n".join(z)
+    Path(pfad).parent.mkdir(parents=True, exist_ok=True)
+    Path(pfad).write_text(text, encoding="utf-8")
+    return text
+
+
 def _verbinde(pfad: str):
     from interview_theater import db
 
@@ -524,6 +727,10 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("--prompt", default=None, help="Kandidat-Prompt statt schaerfung.prompt()")
     n.add_argument("--mit-frage", action="store_true", help="nur I-b (Task 8)")
     n.add_argument("--aus", default=None)
+    b = sub.add_parser("bericht")
+    b.add_argument("--gold", default=str(GOLD))
+    b.add_argument("--roh", default=str(ROH))
+    b.add_argument("--aus", default=str(BERICHT))
     a = p.parse_args(argv)
 
     if a.befehl == "kopie":
@@ -533,6 +740,11 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit("Messung nur auf betrieb/padua.db")
         stueckmodell_kopie.kopiere(a.quelle, a.ziel)
         print(f"Kopie: {a.ziel}")
+        return 0
+
+    if a.befehl == "bericht":
+        schreibe_bericht(lade_gold(a.gold), lade_roh(a.roh), a.aus)
+        print(f"Bericht: {a.aus}")
         return 0
 
     conn = _verbinde(a.db)

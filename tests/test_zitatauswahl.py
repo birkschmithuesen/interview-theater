@@ -509,3 +509,28 @@ def test_skript_importiert_keine_interviewstrecke():
             namen |= {a.name for a in knoten.names}
     verboten = {f"interview_theater.{m}" for m in ("verdichter", "erkenner", "aufnahme", "llm")}
     assert not namen & verboten
+
+
+# --- Bericht ------------------------------------------------------------------
+
+
+def test_bericht_traegt_abschnitte_zahlen_und_kommandos(tmp_path):
+    gold = [dict(_g("G1-1", "G1", 2, [3]), wortlaut="x", frage="f?"),
+            dict(_g("G1-2", "G1", 2, [8]), wortlaut="y", frage="g?")]
+    zeilen = [{"variante": "B0", "lauf": 1, "gruppe": "G1", "ranglisten": {"G1:szene:2": [3, 1]},
+               "maskiert": {}, "fehler": {}, "dauer_ms": {}}]
+    zeilen += [{"variante": "B1", "lauf": i, "gruppe": "G1", "ranglisten": {"G1:szene:2": [3]},
+                "maskiert": {"G1:szene:2": 1}, "fehler": {}, "dauer_ms": {}} for i in (1, 2, 3)]
+    pfad = tmp_path / "bericht.md"
+
+    text = za.schreibe_bericht(gold, zeilen, pfad)
+
+    assert pfad.read_text(encoding="utf-8") == text
+    for kopf in ("## Kurzfassung", "## Gold-Korpus", "### Format", "### Herkunft und Diskrepanzen",
+                 "## Ergebnisse je Gruppe", "## Rang jeder Gold-Stelle", "## Entscheidungen (E7)",
+                 "## Kommandos zum Nachrechnen", "## Grenzen"):
+        assert kopf in text
+    assert "| G1 | B0 | 1/2 |" in text
+    assert "python -m scripts.zitatauswahl historisch" in text
+    assert "korpus/zitatauswahl_gold.jsonl" in text
+    assert "I-a: nicht gemessen" in text

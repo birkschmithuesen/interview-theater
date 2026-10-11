@@ -187,3 +187,39 @@ def test_bericht_a2_fehlt_mit_grund():
 def test_bericht_cli_kennt_a2_grund():
     a = ab.baue_argumente(["bericht", "--roh", "x", "--achse-a2-grund", "g"])
     assert a.achse_a2_grund == "g"
+
+
+# --- Review A2: Gruppen im Bericht, abgenommener Stand ----------------------
+
+def _a2_abschnitt(zeilen):
+    md = ab.baue_bericht(zeilen, {}, [])
+    return md.split("## Achse A2: Stückwerkzeuge im Arbeitsstand")[1].split("\n## ")[0]
+
+
+def test_bericht_a2_trennt_json_ausdrueckbar_nur_tools_negativ():
+    zeilen = [
+        _zeile("A2", "json", id="a", treffer=1, fn=1, fp=0),
+        _zeile("A2", "tools", id="a", treffer=2, fn=0, fp=1),
+        _zeile("A2", "json", id="b", treffer=0, fn=0, fp=0, werkzeug_erwartet=1),
+        _zeile("A2", "tools", id="b", treffer=0, fn=0, fp=0, werkzeug_erwartet=1, werkzeug_treffer=1),
+        _zeile("A2", "json", id="c", treffer=0, fn=0, fp=2, still_fp=2),
+        _zeile("A2", "tools", id="c", treffer=0, fn=0, fp=0, still_fp=1),
+    ]
+    a2 = _a2_abschnitt(zeilen)
+    assert "| json-ausdrückbar | 1 | Treffer 1 / FP 0 / FN 1 | Treffer 2 / FP 1 / FN 0 |" in a2
+    assert "| nur tools | 1 | n/a — json kann diese Absicht nicht ausdrücken | Werkzeug-Treffer 1 / 1 |" in a2
+    assert "| Negativ (Fehlalarm) | 1 | FP 2 / still_fp 2 bei 1 Fällen | FP 0 / still_fp 1 bei 1 Fällen |" in a2
+    assert "nur ausgeführte (ok) Aufrufe" in a2
+
+
+def test_stand_hat_abgenommene_karte_und_text_zeigt_sie(conn):
+    for sprache, marke in (("de", "Karte abgenommen"), ("en", "Card approved")):
+        repo.sichere_gruppe(conn, 5 if sprache == "de" else 6, "ab", "z")
+        chat = 5 if sprache == "de" else 6
+        ab.lege_szenenstand(conn, chat, sprache)
+        text = ab.szenenstand_text(conn, chat, sprache)
+        assert text.count(marke) == len(ab.ABGENOMMEN) >= 1
+        szene2 = [x for x in repo.hole_szenen(conn, chat) if x["nummer"] == 2][0]
+        assert szene2["karte_bestaetigt_am"]
+        assert ew.fuehre_aus(conn, chat, "szene_wieder_oeffnen", {"szene": 2}).ok
+        assert not repo.hole_szene(conn, szene2["id"])["karte_bestaetigt_am"]

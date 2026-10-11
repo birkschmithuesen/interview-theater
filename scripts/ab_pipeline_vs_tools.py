@@ -39,6 +39,8 @@ OPUS = "claude-opus-5-5"
 #: Synthetischer Stueckstand der Achse A2 (erfundene, neutrale Namen; keine
 #: echten Daten). Je Sprache dieselbe Struktur: 3 Szenen, 3 Figuren, Besetzung,
 #: Rahmen, Karte je Szene, eine offene Frage in Szene 2 und eine allgemeine.
+#: Die Karten der Szenen 1 und 2 sind abgenommen (``ABGENOMMEN``), damit
+#: ``szene_wieder_oeffnen`` kein No-op ist.
 SZENENSTAND = {
     "de": {
         "rahmen": "Ein Abend am Hafen",
@@ -54,6 +56,7 @@ SZENENSTAND = {
         "frage": "Frage {id}{szene}: {text} ({status})",
         "bei": " (Szene {n})",
         "rahmen_zeile": "Rahmen: {rahmen}",
+        "abgenommen": " | Karte abgenommen",
     },
     "en": {
         "rahmen": "An evening at the harbour",
@@ -69,8 +72,12 @@ SZENENSTAND = {
         "frage": "Question {id}{szene}: {text} ({status})",
         "bei": " (scene {n})",
         "rahmen_zeile": "Frame: {rahmen}",
+        "abgenommen": " | Card approved",
     },
 }
+
+
+ABGENOMMEN = (1, 2)
 
 
 def lege_szenenstand(conn, chat_id: int, sprache_: str) -> None:
@@ -86,6 +93,8 @@ def lege_szenenstand(conn, chat_id: int, sprache_: str) -> None:
             {"worum": worum, "typ": "description", "modus": "none", "punkte": []},
             ensure_ascii=False))
         stueck.setze_ort(conn, chat_id, szene=nummer, ort=ort)
+        if nummer in ABGENOMMEN:
+            repo.setze_szenenkarte_bestaetigt(conn, szene_id)
         for name in wer:
             stueck.figur_hinzu(conn, chat_id, name=name, szene=nummer)
     for szene, frage in d["fragen"]:
@@ -104,7 +113,8 @@ def szenenstand_text(conn, chat_id: int, sprache_: str) -> str:
         wer = ", ".join(b["name"] for b in repo.besetzung(conn, s["id"]))
         worum = (json.loads(s["karte"]).get("worum") if s["karte"] else "") or ""
         zeilen.append(d["zeile"].format(n=s["nummer"], titel=s["titel"], ort=s["ort"],
-                                        wer=wer, worum=worum))
+                                        wer=wer, worum=worum)
+                      + (d["abgenommen"] if s["karte_bestaetigt_am"] else ""))
     fragen = list(repo.offene_fragen(conn, chat_id, None))
     for s in repo.hole_szenen(conn, chat_id):
         fragen += repo.offene_fragen(conn, chat_id, s["id"])
@@ -401,6 +411,46 @@ def _modus_spalte(zeilen: list[dict]) -> dict[str, str]:
     }
 
 
+def _a2_gruppe(z: dict) -> str:
+    """json-ausdrückbar (Korpus-``erwartet`` nicht leer), nur tools (nur
+    ``erwartet_werkzeuge``) oder negativ (beides leer)."""
+    if (z.get("treffer") or 0) + (z.get("fn") or 0) > 0:
+        return "json"
+    return "tools" if (z.get("werkzeug_erwartet") or 0) > 0 else "negativ"
+
+
+def _a2_gruppen(zeilen: list[dict]) -> list[str]:
+    s = lambda zs, k: sum(z.get(k) or 0 for z in zs)  # noqa: E731
+    je = {g: [z for z in zeilen if _a2_gruppe(z) == g] for g in ("json", "tools", "negativ")}
+    aus = ["Die A2-Fälle fallen in drei Gruppen. Sieben Stückwerkzeuge (frage_stellen, "
+           "frage_beantworten, frage_zurueckstellen, frage_verwerfen, szene_wieder_oeffnen, "
+           "reihenfolge_aendern, pruefe_szene) haben keine Korpus-Art: der json-Modus kann diese "
+           "Absichten schemabedingt nicht ausdrücken, `erwartet` ist dort leer. Eine json-Zahl "
+           "0 / 0 bei diesen Fällen heißt deshalb nicht „nichts verfehlt“ und wird nicht berichtet. "
+           "`werkzeug_treffer` zählt nur ausgeführte (ok) Aufrufe; das richtige Werkzeug mit "
+           "falschen Argumenten zählt als verfehlt.", "",
+           "| Gruppe | Fälle | json | tools |", "|---|---|---|---|"]
+    a = je["json"]
+    aj = [z for z in a if z.get("modus") == "json"]
+    at = [z for z in a if z.get("modus") == "tools"]
+    fmt = lambda zs: (f"Treffer {s(zs, 'treffer')} / FP {s(zs, 'fp')} / FN {s(zs, 'fn')}"  # noqa: E731
+                      if zs else "-")
+    aus.append(f"| json-ausdrückbar | {len({z['id'] for z in a})} | {fmt(aj)} | {fmt(at)} |")
+    n = je["tools"]
+    nt = [z for z in n if z.get("modus") == "tools"]
+    wert = (f"Werkzeug-Treffer {s(nt, 'werkzeug_treffer')} / {s(nt, 'werkzeug_erwartet')}"
+            if nt else "-")
+    aus.append(f"| nur tools | {len({z['id'] for z in n})} | n/a — json kann diese Absicht "
+               f"nicht ausdrücken | {wert} |")
+    g = je["negativ"]
+    fp = lambda zs: (f"FP {s(zs, 'fp')} / still_fp {s(zs, 'still_fp')} bei {len(zs)} Fällen"  # noqa: E731
+                     if zs else "-")
+    aus.append(f"| Negativ (Fehlalarm) | {len({z['id'] for z in g})} | "
+               f"{fp([z for z in g if z.get('modus') == 'json'])} | "
+               f"{fp([z for z in g if z.get('modus') == 'tools'])} |")
+    return aus + [""]
+
+
 def _a2_werkzeuge(zeilen: list[dict]) -> list[str]:
     """Werkzeugverteilung und Treffer auf erwartete Werkzeugaufrufe (nur A2)."""
     tools = [z for z in zeilen if z.get("modus") == "tools"]
@@ -409,6 +459,7 @@ def _a2_werkzeuge(zeilen: list[dict]) -> list[str]:
     aus = ["### Achse A2: Werkzeugverteilung und erwartete Werkzeugaufrufe", "",
            f"Erwartete Stückwerkzeug-Aufrufe getroffen (tools-Modus, Treffer / erwartet): "
            f"{treffer} / {erwartet}. Der json-Modus hat keine Werkzeuge.", ""]
+    aus += _a2_gruppen(zeilen)
     aus += _werkzeug_tabelle(zeilen)[2:]
     je = _aufrufe_je_werkzeug(zeilen).get("A2", {})
     nie = [d["name"] for d in erkenner_werkzeuge.definitionen(())

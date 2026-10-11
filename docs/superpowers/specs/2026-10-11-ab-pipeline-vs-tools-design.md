@@ -142,7 +142,8 @@ Szene an.
 
 `werkzeug_schleife(conn, e, klient, chat_id, system, nutzer, werkzeuge,
 ausfuehren, *, art, modell=None, max_runden=MAX_RUNDEN,
-max_aufrufe=MAX_WERKZEUGAUFRUFE, gesamt_timeout=GESAMT_TIMEOUT_S)
+max_aufrufe=5, gesamt_timeout=GESAMT_TIMEOUT_S)` (der Erkenner übergibt
+`max_aufrufe=erkenner.MAX_AENDERUNGEN`
 -> Schleifenergebnis` — neuer, dritter Aufrufmodus neben `prosa` und
 `schema`; `prosa`/`schema` bleiben zeichengleich. Blockierend (kein Strom),
 `kosten.pruefe` vorab, je Runde eine `aufruf`-Zeile (Modus `C`, 0 CHF,

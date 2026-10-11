@@ -361,7 +361,8 @@ def _werkzeug_tabelle(zeilen: list[dict]) -> list[str]:
 
 
 def _nicht_geprueft(zeilen: list[dict]) -> str | None:
-    je = _aufrufe_je_werkzeug([z for z in zeilen if z.get("achse") != "A2"])
+    """Zeile zu den Stückwerkzeugen, abgeleitet aus ALLEN tools-Zeilen (A, A2, B)."""
+    je = _aufrufe_je_werkzeug(zeilen)
     if not je:
         return None
     gerufen: dict[str, int] = {}
@@ -370,13 +371,23 @@ def _nicht_geprueft(zeilen: list[dict]) -> str | None:
             gerufen[name] = gerufen.get(name, 0) + n
     alle = [d["name"] for d in erkenner_werkzeuge.definitionen(())]
     nie = [n for n in alle if not gerufen.get(n)]
-    gesamt = sum(gerufen.values())
-    generisch = gerufen.get(erkenner_werkzeuge.GENERISCH, 0)
-    return (f"- Werkzeuge ohne einen einzigen Aufruf, nicht geprüft: "
-            f"{', '.join(nie) if nie else 'keine'}. Die Mess-DB ist leer (keine Szenen), "
-            f"und der tools-Modus lief überwiegend über das generische "
-            f"`{erkenner_werkzeuge.GENERISCH}` ({generisch} von {gesamt} Aufrufen, "
-            f"{100 * generisch / gesamt:.0f} %).")
+    ab_aufrufe = {}
+    for achse in ("A", "B"):
+        for name, (n, _) in je.get(achse, {}).items():
+            ab_aufrufe[name] = ab_aufrufe.get(name, 0) + n
+    gesamt = sum(ab_aufrufe.values())
+    generisch = ab_aufrufe.get(erkenner_werkzeuge.GENERISCH, 0)
+    anteil = (f"Anteil des generischen `{erkenner_werkzeuge.GENERISCH}` in A/B: "
+              f"{generisch} von {gesamt} Aufrufen, {100 * generisch / gesamt:.0f} %."
+              if gesamt else "")
+    if nie:
+        return (f"- Werkzeuge ohne einen einzigen Aufruf in A, A2 und B, nicht geprüft: "
+                f"{', '.join(nie)}. Die Mess-DB ist leer (keine Szenen). {anteil}").rstrip()
+    return ("- Die Stückwerkzeuge sind nur in A2 geprüft (synthetischer Szenenstand, "
+            "synthetische Fälle); A und B liefen ohne Szenen. " + anteil
+            + "\n- Grenze: Die A2-Fälle und der A2-Stand sind synthetisch und vom selben Team "
+            "geschrieben; der Live-Erkenner sieht den Szenenstand heute nicht im Nutzertext, "
+            "A2 misst einen Agenten mit Sicht auf den Stückstand.").replace("  ", " ")
 
 
 def _modus_spalte(zeilen: list[dict]) -> dict[str, str]:
@@ -420,15 +431,24 @@ def _a2_gruppe(z: dict) -> str:
 
 
 def _a2_gruppen(zeilen: list[dict]) -> list[str]:
+    intro = _a2_gruppentabelle(zeilen, mit_text=True)
+    for sprache in sorted({z.get("sprache") for z in zeilen if z.get("sprache")}):
+        intro += [f"Gruppen nach Sprache {sprache}:", ""]
+        intro += _a2_gruppentabelle([z for z in zeilen if z.get("sprache") == sprache],
+                                    mit_text=False)
+    return intro
+
+
+def _a2_gruppentabelle(zeilen: list[dict], *, mit_text: bool) -> list[str]:
     s = lambda zs, k: sum(z.get(k) or 0 for z in zs)  # noqa: E731
     je = {g: [z for z in zeilen if _a2_gruppe(z) == g] for g in ("json", "tools", "negativ")}
-    aus = ["Die A2-Fälle fallen in drei Gruppen. Sieben Stückwerkzeuge (frage_stellen, "
+    aus = (["Die A2-Fälle fallen in drei Gruppen. Sieben Stückwerkzeuge (frage_stellen, "
            "frage_beantworten, frage_zurueckstellen, frage_verwerfen, szene_wieder_oeffnen, "
            "reihenfolge_aendern, pruefe_szene) haben keine Korpus-Art: der json-Modus kann diese "
            "Absichten schemabedingt nicht ausdrücken, `erwartet` ist dort leer. Eine json-Zahl "
            "0 / 0 bei diesen Fällen heißt deshalb nicht „nichts verfehlt“ und wird nicht berichtet. "
            "`werkzeug_treffer` zählt nur ausgeführte (ok) Aufrufe; das richtige Werkzeug mit "
-           "falschen Argumenten zählt als verfehlt.", "",
+           "falschen Argumenten zählt als verfehlt.", ""] if mit_text else []) + [
            "| Gruppe | Fälle | json | tools |", "|---|---|---|---|"]
     a = je["json"]
     aj = [z for z in a if z.get("modus") == "json"]
@@ -551,13 +571,21 @@ def _abschnitt_c(zeilen: list[dict], b0: dict | None) -> list[str]:
     return aus
 
 
+def _ohne_null(grund: str) -> str:
+    """Führendes „0 —“/„0 -“ abschneiden; der Bericht setzt es selbst davor."""
+    for marke in ("0 —", "0 -"):
+        if grund.startswith(marke):
+            return grund[len(marke):].lstrip()
+    return grund
+
+
 def baue_bericht(zeilen: list[dict], vorbedingungen: dict, kommandos: list[str], *,
                  gruende: dict | None = None, b0: dict | None = None,
                  datum: str | None = None) -> str:
     """Markdown-Bericht aus den Rohzeilen. ``gruende``: Achse -> Grund, falls
     keine Rohzeilen da sind. ``b0``: Gruppe -> (Recall-Mittel, n). Nur
     Kennungen und Zahlen, nie Wortlaut aus den Rohzeilen."""
-    gruende = {**STANDARD_GRUND, **(gruende or {})}
+    gruende = {**STANDARD_GRUND, **{a: _ohne_null(g) for a, g in (gruende or {}).items()}}
     je_achse = {a: [z for z in zeilen if z.get("achse") == a] for a in ("A", "A2", "B", "C")}
     korpus = []
     for a in ("A", "A2", "B"):

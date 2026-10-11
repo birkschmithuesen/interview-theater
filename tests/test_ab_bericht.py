@@ -162,3 +162,51 @@ def test_messgrenzen_nennen_asymmetrische_timeouts():
     text = ab.baue_bericht([_z("json")], VOR, [])
     assert "60 s" in text
     assert f"{szene_claude.GESAMT_TIMEOUT_S:.0f} s" in text
+
+
+def _alle_werkzeuge():
+    from interview_theater import stueck
+
+    return list(stueck.WERKZEUGE)
+
+
+def test_a2_deckt_werkzeuge_ab_keine_nicht_geprueft_aussage():
+    alle = _alle_werkzeuge()
+    zeilen = [_z("tools", aufrufe=_aufrufe("aenderung_melden", "setze_ort")),
+              _z("tools", achse="A2", id="a2-1", aufrufe=_aufrufe(*alle))]
+    text = ab.baue_bericht(zeilen, VOR, [])
+    abschnitt = text[text.index("## Was die Messung NICHT zeigt"):]
+    assert "nicht geprüft" not in abschnitt
+    assert "nur in A2" in abschnitt and "synthetisch" in abschnitt
+    assert "ohne Szenen" in abschnitt
+    assert "vom selben Team" in abschnitt
+    assert "Nutzertext" in abschnitt
+    assert "Anteil" in abschnitt and "aenderung_melden" in abschnitt
+
+
+def test_nie_gerufene_werkzeuge_aus_allen_tools_zeilen_abgeleitet():
+    alle = _alle_werkzeuge()
+    gerufen = [n for n in alle if n != "setze_ort"]
+    zeilen = [_z("tools", aufrufe=_aufrufe("aenderung_melden")),
+              _z("tools", achse="A2", id="a2-1", aufrufe=_aufrufe(*gerufen))]
+    text = ab.baue_bericht(zeilen, VOR, [])
+    abschnitt = text[text.index("## Was die Messung NICHT zeigt"):]
+    zeile = [x for x in abschnitt.split("\n") if "nicht geprüft" in x][0]
+    assert "setze_ort" in zeile and "frage_stellen" not in zeile
+
+
+def test_achse_grund_ohne_doppelte_null():
+    text = ab.baue_bericht([_z("json")], VOR, [],
+                           gruende={"C": "0 — nicht freigegeben (Kosten)", "B": "0 - fehlt"})
+    assert "Achse C: 0 — nicht freigegeben (Kosten)" in text
+    assert "Achse B: 0 — fehlt" in text
+    assert "0 — 0" not in text and "0 — 0 -" not in text
+
+
+def test_a2_gruppentabelle_je_sprache():
+    zeilen = []
+    for sprache in ("de", "en"):
+        for modus in ("json", "tools"):
+            zeilen.append(_z(modus, achse="A2", sprache=sprache, id=f"{sprache}-1"))
+    text = ab.baue_bericht(zeilen, VOR, [])
+    assert "Gruppen nach Sprache de" in text and "Gruppen nach Sprache en" in text

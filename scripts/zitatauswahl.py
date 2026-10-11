@@ -429,7 +429,6 @@ def _verbinde(pfad: str):
 
 
 def main(argv: list[str] | None = None) -> int:
-    os.environ.setdefault("IT_WORKSHOP", "padua-2026")
     p = argparse.ArgumentParser(prog="python -m scripts.zitatauswahl")
     sub = p.add_subparsers(dest="befehl", required=True)
     k_ = sub.add_parser("kopie")
@@ -496,4 +495,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Nur beim echten CLI-Aufruf gesetzt, nicht in main() selbst: main() wird
+    # in tests/test_zitatauswahl.py direkt gerufen, und os.environ ist
+    # Prozessspeicher -- ein setdefault() dort wuerde ueber den Testlauf
+    # hinweg ueber den Prozess hinweg stehen bleiben und andere Tests
+    # verfaelschen, die IT_WORKSHOP unverfaelscht (oder anders) erwarten.
+    os.environ.setdefault("IT_WORKSHOP", "padua-2026")
     sys.exit(main())

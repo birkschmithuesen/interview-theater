@@ -455,6 +455,15 @@ def _mappe_ziel(klm, conn, e, chat_id: int, ziel: dict, eintraege: list[dict],
         timeout=CLAUDE_TIMEOUT_S, wartezeiten=CLAUDE_WARTEZEITEN,
     )
 
+    return werte_aus(ergebnis, ziel, nach_nummer)
+
+
+def werte_aus(ergebnis: dict, ziel: dict, nach_nummer: dict) -> list[dict]:
+    """Die Antwort EINES Ziel-Aufrufs als Zuordnungen, in der Reihenfolge
+    des Modells (die Betriebssortierung ``(-staerke, runde, id)`` nutzt sie
+    als Gleichstandsregel, weil ``lege_schaerfung_an`` in dieser Reihenfolge
+    anlegt). Oeffentlich, damit die Zitat-Messung (``scripts/zitatauswahl.py``,
+    t_4e8a59aa/t_2f905d2c) dieselben Regeln anwendet wie der Betrieb."""
     nummern = _liste(ergebnis, "eintrag_nummern")
     staerken = _liste(ergebnis, "staerke")
     begruendungen = _liste(ergebnis, "begruendungen")

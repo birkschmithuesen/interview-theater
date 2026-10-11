@@ -129,3 +129,32 @@ def test_zeile_traegt_aufnahme_feld(conn, einst, monkeypatch):
     monkeypatch.setattr(szene_claude, "schema", lambda *a, **k: {"aenderungen": []})
     assert ab.laufe_json(conn, einst, None, 1, FALL)["aufnahme"] is False
     assert ab._leer("json", {**FALL, "aufnahme": {"x": 1}})["aufnahme"] is True
+
+
+def test_absicht_dedupliziert_gleiche_abgelehnte_aufrufe(conn, einst, monkeypatch):
+    fall = {"id": "x3", "arbeitsstand": {}, "nachrichten": [
+        {"absender": "Sara", "text": "der Ort ist ein Bahnhof"}],
+        "erwartet": [{"art": "szene_planen", "wert": "9 Bahnhof"}]}
+    ausf = [ew.Ausfuehrung("setze_ort", {"szene": 9, "ort": "Bahnhof"}, False,
+                           {"ok": False}, "keine_szene", None) for _ in range(2)]
+    lauf = Schleifenergebnis((), 1, None, 10, 5, 100, "")
+    monkeypatch.setattr(erkenner, "_werkzeuglauf",
+                        lambda c, e, ch, n: ([], [], lauf, ausf))
+    z = ab.laufe_tools(conn, einst, 1, fall)
+    assert (z["absicht_treffer"], z["absicht_fp"], z["absicht_fn"]) == (1, 0, 0)
+
+
+def test_cli_bricht_bei_falscher_sprache_ab(monkeypatch):
+    from interview_theater import sprache
+    monkeypatch.setattr(sprache, "code", lambda: "de")
+    with pytest.raises(SystemExit) as ex:
+        ab.main(["erkenner", "--sprache", "en"])
+    assert "sprache.code()" in str(ex.value)
+
+
+def test_cli_de_bricht_bei_englischem_profil_ab(monkeypatch):
+    from interview_theater import sprache
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    with pytest.raises(SystemExit) as ex:
+        ab.main(["erkenner", "--sprache", "de"])
+    assert "sprache.code()" in str(ex.value)

@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import sys
 import tempfile
 import time
@@ -24,7 +25,9 @@ from pathlib import Path
 
 import httpx
 
-from interview_theater import db, einstellungen, erkenner, erkenner_werkzeuge, repo, szene_claude
+from interview_theater import (
+    db, einstellungen, erkenner, erkenner_werkzeuge, repo, sprache, szene_claude, workshop,
+)
 from scripts import pruefe_prompts as pp
 
 ROH_VERZ = Path("korpus/berichte/ab")
@@ -105,7 +108,8 @@ def laufe_tools(conn, e, chat_id: int, fall: dict) -> dict:
         # Nebenzaehlung: erkannte Absicht, auch wenn das Stueck den Aufruf ablehnte
         absichten = [x for x in (erkenner_werkzeuge.als_absicht(a) for a in ausfuehrungen)
                      if x is not None]
-        bew = pp.vergleiche_erkenner(fall["erwartet"], _filter(fall, absichten))
+        einmalig = list({(x["art"], x["wert"]): x for x in absichten}.values())
+        bew = pp.vergleiche_erkenner(fall["erwartet"], _filter(fall, einmalig))
         zeile.update(absicht_treffer=len(bew["treffer"]), absicht_fp=len(bew["ueberzaehlig"]),
                      absicht_fn=len(bew["fehlend"]))
         gruende: dict[str, int] = {}
@@ -140,6 +144,22 @@ def _messkopie_db(pfad: str | None):
     conn = db.verbinde(pfad)
     db.initialisiere(conn)
     return conn
+
+
+def sichere_sprache(code: str, *, profil_setzen: bool = False, workshop_name: str | None = None) -> None:
+    """Wie ``pruefe_prompts.main``: die Korpussprache muss zur Promptsprache
+    des aktiven Profils passen, sonst laufen englische Faelle still gegen den
+    deutschen Prompt. ``profil_setzen`` (nur der CLI-Einstieg, nie ``main()``
+    ohne Absicht -- Prozessspeicher, vgl. 4d822ac) setzt fuer ``en`` das
+    Profil selbst."""
+    if profil_setzen and code == "en":
+        os.environ[workshop.VARIABLE] = workshop_name or "padua-2026"
+        workshop.vergiss()
+    if sprache.code() != code:
+        raise SystemExit(
+            f"IT_WORKSHOP={os.environ.get(workshop.VARIABLE)!r} ergibt "
+            f"sprache.code()={sprache.code()!r}, nicht {code!r} -- der Korpus "
+            "passt nicht zur Promptsprache.")
 
 
 def _erkenner(args) -> int:
@@ -180,12 +200,13 @@ def baue_argumente(argv=None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def main(argv=None) -> int:
+def main(argv=None, *, profil_setzen: bool = False) -> int:
     args = baue_argumente(argv)
     if args.befehl == "erkenner":
+        sichere_sprache(args.sprache, profil_setzen=profil_setzen)
         return _erkenner(args)
     return 2
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(profil_setzen=True))

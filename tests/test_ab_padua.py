@@ -72,3 +72,11 @@ def test_lauf_schreibt_zwei_zeilen_je_fall_mit_achse_b(satz, einst, tmp_path, mo
 def test_standardausgabe_liegt_im_gitignorierten_berichtsverzeichnis():
     assert ab_padua.standard_ausgabe().parts[:3] == ("korpus", "berichte", "ab")
     assert ab_padua.standard_ausgabe().name.startswith("B-")
+
+
+def test_main_bricht_bei_falscher_sprache_ab(monkeypatch):
+    from interview_theater import sprache
+    monkeypatch.setattr(sprache, "code", lambda: "de")
+    with pytest.raises(SystemExit) as ex:
+        ab_padua.main([])
+    assert "sprache.code()" in str(ex.value)

@@ -96,8 +96,9 @@ def baue_argumente(argv=None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def main(argv=None) -> int:
+def main(argv=None, *, profil_setzen: bool = False) -> int:
     args = baue_argumente(argv)
+    ab.sichere_sprache(SPRACHE, profil_setzen=profil_setzen)
     gruppen = {}
     for eintrag in args.chat_id:
         schluessel, _, wert = eintrag.partition("=")
@@ -115,4 +116,4 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(profil_setzen=True))

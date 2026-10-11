@@ -54,7 +54,8 @@ def _filter(fall: dict, geliefert: list[dict]) -> list[dict]:
 
 def _leer(modus: str, fall: dict) -> dict:
     return {"achse": "A", "modus": modus, "id": fall["id"], "treffer": 0, "fp": 0,
-            "fn": len(fall.get("erwartet", [])), "still_fp": 0, "ohne_korpusart": 0,
+            "fn": len(fall.get("erwartet", [])),
+            "aufnahme": bool(fall.get("aufnahme")), "modellaufrufe": 0, "still_fp": 0, "ohne_korpusart": 0,
             "abgelehnt": 0, "abbruch": None, "runden": 0, "eingabe_token": 0,
             "ausgabe_token": 0, "dauer_ms": 0, "fehler": None, "geliefert": [],
             "aufrufe": []}
@@ -69,29 +70,32 @@ def _zaehle(zeile: dict, fall: dict, geliefert: list[dict]) -> dict:
 
 def laufe_json(conn, e, klient, chat_id: int, fall: dict) -> dict:
     zeile = _leer("json", fall)
-    start = time.monotonic()
     vorher = pp._hoechste_aufruf_id(conn)
     try:
         nutzer = nutzertext_fuer(conn, chat_id, fall)
-        roh = szene_claude.schema(conn, e, klient, chat_id, erkenner.prompt(), nutzer,
-                                  erkenner.schema(), "erkenner", timeout=60.0, modell=OPUS)
+        start = time.monotonic()
+        try:
+            roh = szene_claude.schema(conn, e, klient, chat_id, erkenner.prompt(), nutzer,
+                                      erkenner.schema(), "erkenner", timeout=60.0, modell=OPUS)
+        finally:
+            zeile["dauer_ms"] = int((time.monotonic() - start) * 1000)
         _zaehle(zeile, fall, _filter(fall, roh.get("aenderungen", [])))
     except Exception as fehler:  # noqa: BLE001 -- ein Fall bricht den Lauf nie ab
         zeile["fehler"] = f"{type(fehler).__name__}: {fehler}"
-    gemessen = pp._aufruf_nach(conn, vorher)
-    zeile.update(still_fp=zeile["fp"], runden=1,
-                 eingabe_token=gemessen["eingabe_token"],
-                 ausgabe_token=gemessen["ausgabe_token"],
-                 dauer_ms=int((time.monotonic() - start) * 1000))
+    zeile.update(still_fp=zeile["fp"], runden=1, **repo.aufruf_summe_nach(conn, vorher))
     return zeile
 
 
 def laufe_tools(conn, e, chat_id: int, fall: dict) -> dict:
     zeile = _leer("tools", fall)
-    start = time.monotonic()
+    vorher = pp._hoechste_aufruf_id(conn)
     try:
         nutzer = nutzertext_fuer(conn, chat_id, fall)
-        generisch, _, lauf, ausfuehrungen = erkenner._werkzeuglauf(conn, e, chat_id, nutzer)
+        start = time.monotonic()
+        try:
+            generisch, _, lauf, ausfuehrungen = erkenner._werkzeuglauf(conn, e, chat_id, nutzer)
+        finally:
+            zeile["dauer_ms"] = int((time.monotonic() - start) * 1000)
         uebersetzt = [x for x in (erkenner_werkzeuge.als_aenderung(a) for a in ausfuehrungen)
                       if x is not None]
         _zaehle(zeile, fall, _filter(fall, uebersetzt))
@@ -101,19 +105,23 @@ def laufe_tools(conn, e, chat_id: int, fall: dict) -> dict:
             ohne_korpusart=ohne,
             abgelehnt=sum(1 for a in ausfuehrungen if not a.ok),
             abbruch=lauf.abbruch, runden=lauf.runden,
-            eingabe_token=lauf.eingabe_token, ausgabe_token=lauf.ausgabe_token,
             aufrufe=[{"name": a.name, "eingabe": a.eingabe, "ok": a.ok, "fehler": a.fehler}
                      for a in ausfuehrungen],
         )
         zeile["still_fp"] = zeile["fp"] + ohne
-        zeile["dauer_ms"] = lauf.dauer_ms
     except Exception as fehler:  # noqa: BLE001
         zeile["fehler"] = f"{type(fehler).__name__}: {fehler}"
-        zeile["dauer_ms"] = int((time.monotonic() - start) * 1000)
+    zeile.update(repo.aufruf_summe_nach(conn, vorher))
     return zeile
 
 
 def _messkopie_db(pfad: str | None):
+    """Frische Datenbank: eine bereits befuellte Datei wird abgelehnt, weil
+    ``chat_id = nummer*10 + 1|2`` sich wiederholt und alter Stueckstand sonst
+    in den naechsten Fall leckt."""
+    if pfad and Path(pfad).exists() and Path(pfad).stat().st_size > 0:
+        raise SystemExit(f"--db {pfad}: Datei existiert und ist nicht leer. Die Messung "
+                         "braucht eine frische Datenbank (ohne --db wird eine angelegt).")
     pfad = pfad or str(Path(tempfile.mkdtemp(prefix="ab_")) / "korpus.db")
     conn = db.verbinde(pfad)
     db.initialisiere(conn)

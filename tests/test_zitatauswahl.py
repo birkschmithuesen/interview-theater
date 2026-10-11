@@ -81,3 +81,26 @@ def test_themen_mit_aufnahme_tragen_aufnahme_und_pruefung(lage):
     assert all(z["zitat_geprueft"] == 1 for z in zeilen)
     assert all(z["verdichtung_entfernt_am"] is None for z in zeilen)
     assert zeilen[0]["aufnahme_id"] != zeilen[1]["aufnahme_id"]
+
+
+# --- schaerfung.werte_aus -----------------------------------------------------
+
+
+def test_werte_aus_haelt_reihenfolge_und_regeln():
+    nach_nummer = {
+        1: {"thema_id": 11, "zitat": "eins zwei drei vier"},
+        2: {"thema_id": 22, "zitat": "fuenf sechs sieben acht"},
+    }
+    ziel = {"art": "szene", "id": 7}
+    ergebnis = {
+        "eintrag_nummern": [2, 99, 1, 1],
+        "staerke": [3, 3, 2, 1],
+        "begruendungen": ["b2", "erfunden", "b1", "zu schwach"],
+        "zitate": ["", "", "eins zwei", ""],
+    }
+
+    zuordnungen = schaerfung.werte_aus(ergebnis, ziel, nach_nummer)
+
+    assert [(z["verdichtung_thema_id"], z["staerke"]) for z in zuordnungen] == [(22, 3), (11, 2)]
+    assert all(z["szene_id"] == 7 for z in zuordnungen)
+    assert zuordnungen[0]["begruendung"] == "b2"

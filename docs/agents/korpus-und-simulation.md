@@ -139,6 +139,42 @@ Sie stehen in `workshop/padua-2026/profil.toml` (`[laengen]`,
 Korpuslauf und **keinen** Neustart des Webdienstes, aber einen Neustart des
 Bots: die TOML wird nur beim Start gelesen (siehe "Workshop-Profil").
 
+### Die Zitatauswahl der Schaerfung messen (`scripts/zitatauswahl.py`)
+
+Misst, ob die Schaerfung (`schaerfung.py`) die Interviewstellen nach vorn
+bringt, die in Padua tatsaechlich im Stueck gelandet sind: Recall@10 je
+Ziel (Szene oder Figur), gegen einen Gold-Korpus aus den 16 Zitaten der drei
+Gruppenplakate (Karte t_2349e9a8). **Dieselbe Ausnahme wie `padua_testsatz`
+oben, nur fuer eine andere Datei:** die Quelle mit dem Original-Wortlaut der
+16 Plakatstellen darf nicht ins oeffentliche Repo (E8, Birk-Entscheidung
+11.10.2026) und liegt deshalb unter `IT_PRIVAT_KORPUS`/`betrieb/korpus/`
+(bereits per `.gitignore` ausgeschlossen) als `zitatauswahl_quelle.toml` --
+`scripts.zitatauswahl.lade_quelle` meldet mit `FileNotFoundError`, wenn sie
+dort fehlt. Die eingecheckte Gold-Datei (`korpus/zitatauswahl_gold.jsonl`,
+falls vorhanden) traegt deshalb **nie** die Felder `wortlaut`/`fragmente`
+im Klartext (`schreibe_gold` entfernt sie vor jedem Schreiben) -- eine
+Pruefung, die den Original-Wortlaut gegen das Transkript verankern muss
+(Mutationstest: ein verfaelschter Gold-Korpus macht den Lauf rot), baut den
+Gold-Korpus aus der privaten Quelle und einer `VACUUM INTO`-Kopie von
+`betrieb/padua.db` neu (`baue_gold`), statt ihn von der Platte zu laden.
+Aufruf (0 CHF, kein Modellaufruf, nur lesend):
+
+```
+uv run --extra dev python -m scripts.zitatauswahl kopie
+uv run --extra dev python -m scripts.zitatauswahl gold --db var/zitatauswahl/padua-kopie.db
+uv run --extra dev python -m scripts.zitatauswahl pruefe --db var/zitatauswahl/padua-kopie.db
+uv run --extra dev python -m scripts.zitatauswahl historisch --db var/zitatauswahl/padua-kopie.db
+```
+
+Ein Neu-Lauf gegen ein Modell (Vergleich B1 gegen Interventionen am Prompt)
+ist bewusst **nicht** Teil dieses Skripts: er kostet Geld (Claude-Proxy-
+Aufrufe) und darf wie jedes geldkostende Skript nie automatisch laufen
+(siehe oben, „Starten und testen" in AGENTS.md). Ohne die private Quelle
+(frischer Checkout) ueberspringen sich die betroffenen Tests in
+`tests/test_zitatauswahl.py` selbst nicht automatisch -- sie laufen mit
+synthetischen, frei erfundenen deutschen Testsaetzen gegen eine frische
+Test-DB und brauchen die private Datei gar nicht.
+
 ### Simulation: ein ganzer Workshop gegen die echten Modelle
 
 Der Korpus misst einzelne Prompts an einzelnen Fällen. Was er **nicht** misst,

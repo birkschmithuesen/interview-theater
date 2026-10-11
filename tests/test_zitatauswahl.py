@@ -201,3 +201,115 @@ def test_mutation_falsche_szene_ist_rot(lage):
     gold = za.baue_gold(lage, QUELLE, {"G1": 1})
     gold[0]["ziel"]["nummer"] = 7
     assert any("Szene" in f for f in za.pruefe_gold(lage, gold))
+
+
+# --- Rangliste, Recall, E7 ----------------------------------------------------
+
+
+def _g(id_, gruppe, ziel_id, themen, polaritaet="positiv", im_pool=True):
+    return {"id": id_, "gruppe": gruppe, "chat_id": 1, "polaritaet": polaritaet,
+            "im_pool": im_pool, "ziel": {"art": "szene", "id": ziel_id, "nummer": 1},
+            "thema_ids": themen,
+            "verdichtung_thema_id": themen[0] if themen else None}
+
+
+def test_rangliste_staerke_dann_reihenfolge_dedupliziert():
+    zu = [{"verdichtung_thema_id": 5, "staerke": 2}, {"verdichtung_thema_id": 7, "staerke": 3},
+          {"verdichtung_thema_id": 5, "staerke": 3}, {"verdichtung_thema_id": 9, "staerke": 3}]
+    assert za.rangliste(zu) == [7, 5, 9]
+
+
+def test_recall_zaehlt_nur_die_ersten_k_und_nur_im_pool():
+    gold = [_g("G1-1", "G1", 2, [1]), _g("G1-2", "G1", 2, [11]),
+            _g("G1-3", "G1", 2, [], im_pool=False), _g("G2-1", "G2", 4, [40, 41])]
+    ranglisten = {"G1:szene:2": list(range(1, 13)), "G2:szene:4": [41]}
+
+    r = za.recall_at_k(ranglisten, gold, k=10)
+
+    assert r["G1"] == {"treffer": 1, "n": 2, "fehlt": 0}
+    assert r["G2"] == {"treffer": 1, "n": 1, "fehlt": 0}
+    assert r["gesamt"] == {"treffer": 2, "n": 3, "fehlt": 0}
+    assert za.recall_at_k({}, gold)["gesamt"]["fehlt"] == 3
+
+
+def test_mutation_verfaelschter_gold_korpus_senkt_recall_sichtbar():
+    """Karte: Gold-Korpus verfaelscht -> Lauf rot. Ohne Pruefung faellt der
+    berichtete Wert sichtbar (deterministisch, ohne Modell)."""
+    gold = [_g("G1-1", "G1", 2, [3]), _g("G1-2", "G1", 2, [8])]
+    ranglisten = {"G1:szene:2": [3, 8, 1]}
+    assert za.recall_at_k(ranglisten, gold)["gesamt"]["treffer"] == 2
+
+    gold[1]["thema_ids"] = [999]
+
+    assert za.recall_at_k(ranglisten, gold)["gesamt"]["treffer"] == 1
+
+
+def test_negativ_at_k_zaehlt_verworfene_in_den_top_k():
+    gold = [_g("G1-1", "G1", 2, [3]), _g("G1-n-0001", "G1", 2, [8], polaritaet="negativ"),
+            _g("G1-n-0002", "G1", 5, [9], polaritaet="negativ")]
+    assert za.negativ_at_k({"G1:szene:2": [3, 8, 9]}, gold) == {"G1": 1, "gesamt": 1}
+
+
+def test_historische_rangliste_nimmt_die_letzte_runde(lage):
+    t, s = _themen(lage), _szenen(lage)
+    repo.lege_schaerfung_an(lage, 1, [
+        {"verdichtung_thema_id": t["Arbeit"], "szene_id": s[1], "staerke": 3}], runde=1)
+    repo.lege_schaerfung_an(lage, 1, [
+        {"verdichtung_thema_id": t["Stadt"], "szene_id": s[1], "staerke": 2},
+        {"verdichtung_thema_id": t["Nachbarn"], "szene_id": s[1], "staerke": 3}], runde=2)
+    gold = [_g("G1-1", "G1", s[1], [t["Arbeit"]])]
+
+    assert za.ranglisten_historisch(lage, gold) == {f"G1:szene:{s[1]}": [t["Nachbarn"], t["Stadt"]]}
+
+
+def _lauf(treffer_je_gruppe):
+    recall = {g: {"treffer": t, "n": 5, "fehlt": 0} for g, t in treffer_je_gruppe.items()}
+    recall["gesamt"] = {"treffer": sum(treffer_je_gruppe.values()), "n": 15, "fehlt": 0}
+    return {"recall": recall, "ranglisten": {}, "maskiert": 0}
+
+
+def test_e7_verlangt_zwei_stellen_keine_ueberlappung_keine_gruppe_schlechter():
+    basis = {1: _lauf({"G1": 1, "G2": 4, "G3": 2}), 2: _lauf({"G1": 2, "G2": 4, "G3": 2})}
+    gut = {1: _lauf({"G1": 3, "G2": 4, "G3": 3}), 2: _lauf({"G1": 4, "G2": 4, "G3": 3})}
+    knapp = {1: _lauf({"G1": 2, "G2": 4, "G3": 3}), 2: _lauf({"G1": 3, "G2": 4, "G3": 2})}
+    gruppe_faellt = {1: _lauf({"G1": 5, "G2": 2, "G3": 3}), 2: _lauf({"G1": 5, "G2": 2, "G3": 3})}
+
+    assert za.entscheide(basis, gut)[0] is True
+    assert za.entscheide(basis, knapp)[0] is False
+    ok, gruende = za.entscheide(basis, gruppe_faellt)
+    assert ok is False and any("G2" in g for g in gruende)
+    assert za.entscheide(basis, {})[0] is False
+
+
+def test_roh_zeilen_werden_je_lauf_und_gruppe_zusammengefuehrt(tmp_path):
+    pfad = tmp_path / "B1.jsonl"
+    za.haenge_an({"variante": "B1", "lauf": 1, "gruppe": "G2", "ranglisten": {"a": [1]},
+                  "maskiert": {"a": 0}, "fehler": {}, "dauer_ms": {"a": 5}}, pfad)
+    za.haenge_an({"variante": "B1", "lauf": 1, "gruppe": "G2", "ranglisten": {"b": [2]},
+                  "maskiert": {"b": 1}, "fehler": {}, "dauer_ms": {"b": 6}}, pfad)
+
+    za.haenge_an({"variante": "B1", "lauf": 1, "gruppe": "G3", "ranglisten": {"c": None},
+                  "maskiert": {}, "fehler": {"c": "ClaudeFehler: aus"}, "dauer_ms": {}}, pfad)
+    za.haenge_an({"variante": "B1", "lauf": 1, "gruppe": "G3", "ranglisten": {"c": [3]},
+                  "maskiert": {"c": 0}, "fehler": {}, "dauer_ms": {"c": 7}}, pfad)
+
+    zeilen = {z["gruppe"]: z for z in za.lade_roh(tmp_path)}
+
+    assert zeilen["G2"]["ranglisten"] == {"a": [1], "b": [2]}
+    assert zeilen["G3"]["ranglisten"] == {"c": [3]} and zeilen["G3"]["fehler"] == {}
+
+
+def test_laeufe_nimmt_nur_vollstaendige_laeufe():
+    gold = [_g("G1-1", "G1", 2, [3]), _g("G2-1", "G2", 4, [8])]
+    zeilen = [
+        {"variante": "B1", "lauf": 1, "gruppe": "G1", "ranglisten": {"G1:szene:2": [3]}, "maskiert": {}, "fehler": {}},
+        {"variante": "B1", "lauf": 1, "gruppe": "G2", "ranglisten": {"G2:szene:4": [1]}, "maskiert": {}, "fehler": {}},
+        {"variante": "B1", "lauf": 2, "gruppe": "G1", "ranglisten": {"G1:szene:2": [3]}, "maskiert": {}, "fehler": {}},
+        {"variante": "B1", "lauf": 3, "gruppe": "G1", "ranglisten": {"G1:szene:2": None}, "maskiert": {}, "fehler": {"G1:szene:2": "x"}},
+        {"variante": "B1", "lauf": 3, "gruppe": "G2", "ranglisten": {"G2:szene:4": [8]}, "maskiert": {}, "fehler": {}},
+    ]
+
+    l = za.laeufe(zeilen, gold, "B1")
+
+    assert list(l) == [1]
+    assert l[1]["recall"]["gesamt"] == {"treffer": 1, "n": 2, "fehlt": 0}

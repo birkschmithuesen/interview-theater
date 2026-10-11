@@ -230,6 +230,169 @@ def trifft(kandidat: dict, gold: dict) -> bool:
     return bool(gold.get("fragmente")) and all(zitat.pruefe(f, text) for f in gold["fragmente"])
 
 
+def rangliste(zuordnungen: list[dict]) -> list[int]:
+    """Wie ``schaerfung.offene_stellen``/``web_daten.schaerfungsliste``:
+    Staerke absteigend, bei Gleichstand die Listenposition (= Reihenfolge
+    des Modells bzw. ``id``); jedes Thema nur einmal (Spec E1)."""
+    geordnet = sorted(enumerate(zuordnungen), key=lambda p: (-(p[1].get("staerke") or 0), p[0]))
+    aus: list[int] = []
+    for _, z in geordnet:
+        if z["verdichtung_thema_id"] not in aus:
+            aus.append(z["verdichtung_thema_id"])
+    return aus
+
+
+def _positive(gold: list[dict]) -> list[dict]:
+    return [g for g in gold if g["polaritaet"] == "positiv"]
+
+
+def ranglisten_historisch(conn, gold: list[dict]) -> dict[str, list[int]]:
+    """B0 (Spec E5): je Gold-Ziel die Zeilen der LETZTEN Runde, in der dieses
+    Ziel Zeilen hat -- entfernte eingeschlossen (sie waren in ihrer Runde
+    sichtbar)."""
+    aus: dict[str, list[int]] = {}
+    historie: dict[int, list] = {}
+    for g in _positive(gold):
+        schluessel = ziel_schluessel(g)
+        if schluessel in aus:
+            continue
+        if g["chat_id"] not in historie:
+            historie[g["chat_id"]] = repo.schaerfungen_historie(conn, g["chat_id"])
+        spalte = "szene_id" if g["ziel"]["art"] == "szene" else "figur_id"
+        zeilen = [dict(z) for z in historie[g["chat_id"]] if z[spalte] == g["ziel"]["id"]]
+        if not zeilen:
+            aus[schluessel] = []
+            continue
+        letzte = max(z["runde"] for z in zeilen)
+        aus[schluessel] = rangliste([z for z in zeilen if z["runde"] == letzte])
+    return aus
+
+
+def recall_at_k(ranglisten: dict, gold: list[dict], k: int = K) -> dict[str, dict]:
+    """Spec E1: je Gruppe und gesamt, nur positive Stellen im Pool. Fehlt die
+    Rangliste eines Ziels (``None``/nicht da), zaehlt die Stelle unter ``fehlt``."""
+    aus = {gr: {"treffer": 0, "n": 0, "fehlt": 0}
+           for gr in sorted({g["gruppe"] for g in gold}) + ["gesamt"]}
+    for g in _positive(gold):
+        if not g["im_pool"]:
+            continue
+        liste = ranglisten.get(ziel_schluessel(g))
+        for gr in (g["gruppe"], "gesamt"):
+            if liste is None:
+                aus[gr]["fehlt"] += 1
+                continue
+            aus[gr]["n"] += 1
+            if set(g["thema_ids"]) & set(liste[:k]):
+                aus[gr]["treffer"] += 1
+    return aus
+
+
+def negativ_at_k(ranglisten: dict, gold: list[dict], k: int = K) -> dict[str, int]:
+    """Verworfene Paare (Spec E3), deren Thema an IHREM Ziel in den Top-k
+    steht -- nur an Zielen mit Rangliste (= Gold-Zielen)."""
+    aus: dict[str, int] = {"gesamt": 0}
+    for g in gold:
+        if g["polaritaet"] != "negativ":
+            continue
+        liste = ranglisten.get(ziel_schluessel(g))
+        if not liste:
+            continue
+        if set(g["thema_ids"]) & set(liste[:k]):
+            aus[g["gruppe"]] = aus.get(g["gruppe"], 0) + 1
+            aus["gesamt"] += 1
+    return aus
+
+
+def pool_recall(gold: list[dict]) -> dict[str, tuple[int, int]]:
+    aus: dict[str, list[int]] = {}
+    for g in _positive(gold):
+        for gr in (g["gruppe"], "gesamt"):
+            aus.setdefault(gr, [0, 0])
+            aus[gr][0] += int(g["im_pool"])
+            aus[gr][1] += 1
+    return {gr: (a, n) for gr, (a, n) in aus.items()}
+
+
+def haenge_an(zeile: dict, pfad) -> None:
+    Path(pfad).parent.mkdir(parents=True, exist_ok=True)
+    with open(pfad, "a", encoding="utf-8") as f:
+        f.write(json.dumps(zeile, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def lade_roh(verz=ROH) -> list[dict]:
+    """Alle Rohzeilen; Zeilen desselben (variante, lauf, gruppe) -- etwa ein
+    Neu-Lauf in mehreren Aufrufen je Ziel -- werden zusammengefuehrt."""
+    zusammen: dict[tuple, dict] = {}
+    for pfad in sorted(Path(verz).glob("*.jsonl")):
+        with open(pfad, encoding="utf-8") as f:
+            for roh in f:
+                if not roh.strip():
+                    continue
+                z = json.loads(roh)
+                schluessel = (z["variante"], z["lauf"], z["gruppe"])
+                ziel = zusammen.setdefault(schluessel, {
+                    "variante": z["variante"], "lauf": z["lauf"], "gruppe": z["gruppe"],
+                    "ranglisten": {}, "maskiert": {}, "fehler": {}, "dauer_ms": {}})
+                for feld in ("ranglisten", "maskiert", "fehler", "dauer_ms"):
+                    ziel[feld].update(z.get(feld) or {})
+                # Eine spaetere erfolgreiche Wiederholung (``--nur``) hebt den
+                # Fehler desselben Ziels in diesem Lauf auf.
+                for s, r in (z.get("ranglisten") or {}).items():
+                    if r is not None and s not in (z.get("fehler") or {}):
+                        ziel["fehler"].pop(s, None)
+    return list(zusammen.values())
+
+
+def laeufe(zeilen: list[dict], gold: list[dict], variante: str, k: int = K) -> dict[int, dict]:
+    """Nur vollstaendige Laeufe: jedes Gold-Ziel hat eine Rangliste, kein
+    Ziel hat einen Fehler (Spec § 6: ein Lauf mit Fehler zaehlt nicht fuer E7)."""
+    noetig = {ziel_schluessel(g) for g in _positive(gold) if g["im_pool"]}
+    je_lauf: dict[int, dict] = {}
+    for z in zeilen:
+        if z["variante"] != variante:
+            continue
+        l = je_lauf.setdefault(z["lauf"], {"ranglisten": {}, "fehler": {}, "maskiert": 0})
+        l["ranglisten"].update(z["ranglisten"])
+        l["fehler"].update(z.get("fehler") or {})
+        l["maskiert"] += sum((z.get("maskiert") or {}).values())
+    aus = {}
+    for lauf, l in sorted(je_lauf.items()):
+        if l["fehler"] or any(l["ranglisten"].get(s) is None for s in noetig):
+            continue
+        aus[lauf] = {"recall": recall_at_k(l["ranglisten"], gold, k),
+                     "ranglisten": l["ranglisten"], "maskiert": l["maskiert"]}
+    return aus
+
+
+#: Spec E7: so viele Gold-Stellen muss eine Variante im Mittel mehr treffen.
+MINDEST_GEWINN = 2
+
+
+def entscheide(basis: dict[int, dict], variante: dict[int, dict]) -> tuple[bool, list[str]]:
+    """Spec E7 -- alle drei Bedingungen, sonst kein Fix."""
+    if not basis or not variante:
+        return False, ["zu wenige vollstaendige Laeufe"]
+
+    def werte(l, gr):
+        return [x["recall"][gr]["treffer"] for x in l.values()]
+
+    def mittel(l, gr):
+        w = werte(l, gr)
+        return sum(w) / len(w)
+
+    gruende = []
+    gewinn = mittel(variante, "gesamt") - mittel(basis, "gesamt")
+    if gewinn < MINDEST_GEWINN:
+        gruende.append(f"Gewinn {gewinn:+.2f} Stellen < {MINDEST_GEWINN}")
+    if min(werte(variante, "gesamt")) < max(werte(basis, "gesamt")):
+        gruende.append("schlechtester Variantenlauf unter bestem Basislauf")
+    gruppen = sorted(g for g in next(iter(basis.values()))["recall"] if g != "gesamt")
+    for gr in gruppen:
+        if mittel(variante, gr) < mittel(basis, gr):
+            gruende.append(f"{gr} sinkt ({mittel(basis, gr):.2f} -> {mittel(variante, gr):.2f})")
+    return not gruende, gruende
+
+
 def _verbinde(pfad: str):
     from interview_theater import db
 
@@ -244,12 +407,14 @@ def main(argv: list[str] | None = None) -> int:
     k = sub.add_parser("kopie")
     k.add_argument("--quelle", default=str(LIVE_DB))
     k.add_argument("--ziel", default=str(KOPIE))
-    for name in ("gold", "pruefe"):
+    for name in ("gold", "pruefe", "historisch"):
         s = sub.add_parser(name)
         s.add_argument("--db", default=str(KOPIE))
         s.add_argument("--gold", default=str(GOLD))
         if name == "gold":
             s.add_argument("--quelle", default=str(QUELLE))
+        if name == "historisch":
+            s.add_argument("--aus", default=str(ROH / "B0.jsonl"))
     a = p.parse_args(argv)
 
     if a.befehl == "kopie":
@@ -281,6 +446,23 @@ def main(argv: list[str] | None = None) -> int:
             print("\n".join(fehler), file=sys.stderr)
             return 1
         print("Gold-Korpus gueltig")
+        return 0
+    if a.befehl == "historisch":
+        gold = lade_gold(a.gold)
+        fehler = pruefe_gold(conn, gold)
+        if fehler:
+            print("\n".join(fehler), file=sys.stderr)
+            return 1
+        ranglisten = ranglisten_historisch(conn, gold)
+        if Path(a.aus).exists():
+            Path(a.aus).unlink()  # B0 ist deterministisch: neu schreiben statt anhaengen
+        for gruppe in sorted({g["gruppe"] for g in gold}):
+            eigene = {s: r for s, r in ranglisten.items() if s.startswith(gruppe + ":")}
+            haenge_an({"variante": "B0", "lauf": 1, "gruppe": gruppe, "ranglisten": eigene,
+                       "maskiert": {}, "fehler": {}, "dauer_ms": {}}, a.aus)
+        r = recall_at_k(ranglisten, gold)
+        for gr, w in r.items():
+            print(f"{gr}: Recall@{K} {w['treffer']}/{w['n']}")
         return 0
     return 2
 

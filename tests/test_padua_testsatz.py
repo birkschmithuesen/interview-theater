@@ -21,7 +21,12 @@ import pytest
 from interview_theater import erkenner
 from scripts import pruefe_prompts as pp
 
-PFAD = Path(__file__).resolve().parent.parent / "korpus" / "padua_testsatz.jsonl"
+#: Unter korpus/en/, nicht an der Wurzel: die Faelle sind Padua-Realitaet
+#: (Englisch-Profil, Gruppennachrichten italienisch/englisch) und muessen
+#: ueber ``--sprache en`` denselben Pfad nehmen wie ``korpus/en/erkenner.jsonl``
+#: -- sonst lehnt ``scripts.pruefe_prompts.main`` den Lauf unter
+#: IT_WORKSHOP=padua-2026 als Sprachmismatch ab (D8-Pruefung).
+PFAD = Path(__file__).resolve().parent.parent / "korpus" / "en" / "padua_testsatz.jsonl"
 
 MIN_FAELLE = 30
 MIN_NEGATIV = 8

@@ -20,7 +20,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts import pruefe_prompts as pp
-from interview_theater import einstellungen, kontext, llm
+from interview_theater import einstellungen, kontext, llm, workshop
 
 
 # --- Normalisierung -------------------------------------------------------
@@ -762,10 +762,21 @@ def test_ueber_claude_laesst_aufnahmefaelle_bei_kimi(monkeypatch, tmp_path):
 
 # --- --korpus-datei (InScribe Messung 1, Padua-Testsatz) -------------------
 #
-# Macht den Padua-Testsatz (korpus/padua_testsatz.jsonl) ueber denselben
-# Lauf fahrbar wie korpus/erkenner.jsonl -- derselbe Runner, nur eine andere
-# Datei. Ohne diesen Schalter bräuchte ein zweiter Testsatz einen zweiten
-# Skriptpfad.
+# Macht den Padua-Testsatz (korpus/en/padua_testsatz.jsonl) ueber denselben
+# Lauf fahrbar wie korpus/en/erkenner.jsonl -- derselbe Runner, nur eine
+# andere Datei. Ohne diesen Schalter bräuchte ein zweiter Testsatz einen
+# zweiten Skriptpfad. Unter korpus/en/ (D8, wie der englische Erkenner-
+# Korpus), weil die Faelle Padua-Realitaet sind (Englisch-Profil) --
+# dasselbe ``padua``-Fixturmuster wie
+# ``tests/test_modellwahl_padua_messung.py::padua``.
+
+@pytest.fixture
+def padua(monkeypatch):
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    yield
+    workshop.vergiss()
+
 
 def test_korpus_datei_nicht_mit_alle():
     with pytest.raises(SystemExit):
@@ -773,28 +784,28 @@ def test_korpus_datei_nicht_mit_alle():
 
 
 def test_korpus_datei_laedt_den_padua_testsatz():
-    faelle = pp.lade_korpus("padua_testsatz")
+    faelle = pp.lade_korpus("padua_testsatz", sprache="en")
     assert len(faelle) >= 30
     assert any(f["id"] == "p02-g1-rahmen-sala-riunioni" for f in faelle)
 
 
-def test_korpus_datei_lauft_ueber_den_erkenner_runner(attrappe):
+def test_korpus_datei_lauft_ueber_den_erkenner_runner(attrappe, padua):
     attrappe["antwort"] = lambda art, nutzer: {
         "aenderungen": [{"art": "rahmen_setzen", "wert": "sala riunioni"}]
     }
     code = pp.main([
-        "erkenner", "--korpus-datei", "padua_testsatz",
+        "erkenner", "--korpus-datei", "padua_testsatz", "--sprache", "en",
         "--nur", "p02-g1-rahmen-sala-riunioni",
     ])
     assert code == 0
     assert attrappe["gesehen"][0]["art"] == "erkenner"
 
 
-def test_korpus_datei_bericht_traegt_den_dateinamen(attrappe, tmp_path):
+def test_korpus_datei_bericht_traegt_den_dateinamen(attrappe, padua, tmp_path):
     attrappe["antwort"] = lambda art, nutzer: {"aenderungen": []}
     bericht = tmp_path / "eigener.md"
     pp.main([
-        "erkenner", "--korpus-datei", "padua_testsatz",
+        "erkenner", "--korpus-datei", "padua_testsatz", "--sprache", "en",
         "--nur", "n01-g1-negativ-abgerissene-sprachnachricht",
         "--bericht", str(bericht),
     ])

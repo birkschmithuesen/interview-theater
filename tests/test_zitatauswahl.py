@@ -313,3 +313,89 @@ def test_laeufe_nimmt_nur_vollstaendige_laeufe():
 
     assert list(l) == [1]
     assert l[1]["recall"]["gesamt"] == {"treffer": 1, "n": 2, "fehlt": 0}
+
+
+# --- Neu-Lauf -----------------------------------------------------------------
+
+
+def test_nutzertext_ohne_maske_ist_bitgleich_zum_betrieb(lage):
+    eintraege = schaerfung._eintraege(lage, 1)
+    for ziel in schaerfung._ziele(lage, 1):
+        assert za.nutzertext_maskiert(lage, 1, eintraege, ziel, []) == (
+            schaerfung._baue_nutzertext_ziel(lage, 1, eintraege, ziel), 0)
+
+
+def test_maske_trifft_nur_kopf_und_ziel_nicht_das_material(lage):
+    s = _szenen(lage)
+    repo.setze_szenenfeld(lage, s[1], "titel", "Ich habe zwanzig Jahre genaeht")
+    eintraege = schaerfung._eintraege(lage, 1)
+    ziel = next(z for z in schaerfung._ziele(lage, 1) if z["id"] == s[1])
+
+    text, n = za.nutzertext_maskiert(lage, 1, eintraege, ziel, ["ich habe zwanzig Jahre genaeht"])
+
+    kopf, material = text.split(schaerfung.T._MATERIAL_KOPF, 1)
+    assert n >= 2  # Szenenliste und Ziel-Zeile
+    assert "zwanzig Jahre" not in kopf and "[…]" in kopf
+    assert "ich habe zwanzig Jahre genaeht" in material
+
+
+class _Proxy:
+    def __init__(self, antwort=None, fehler=None):
+        self.antwort, self.fehler, self.aufrufe = antwort, fehler, []
+
+    def __call__(self, conn, e, klient, chat_id, system, nutzer, schema_, art, timeout,
+                 bei_teil=None, teil_feld=None, wartezeiten=None, modell=None):
+        self.aufrufe.append({"modell": modell, "art": art, "system": system, "nutzer": nutzer})
+        if self.fehler:
+            raise self.fehler
+        return self.antwort
+
+
+@pytest.fixture
+def ohne_kimi(monkeypatch):
+    """Datenschutz/Kosten: der Neu-Lauf darf llm.LLM nie anfassen."""
+    class Verboten:
+        def __init__(self, *a, **k):
+            raise AssertionError("Kimi/gemma im Neu-Lauf")
+    monkeypatch.setattr(llm, "LLM", Verboten)
+
+
+def test_neu_lauf_nur_ueber_den_proxy_mit_opus(lage, tmp_path, monkeypatch, ohne_kimi):
+    t, s = _themen(lage), _szenen(lage)
+    proxy = _Proxy({"eintrag_nummern": [2, 1], "staerke": [3, 3], "begruendungen": ["x", "y"]})
+    monkeypatch.setattr(szene_claude, "schema", proxy)
+    gold = za.baue_gold(lage, QUELLE, {"G1": 1})
+
+    zeile = za.neu_lauf(lage, za.einstellungen_messung(str(tmp_path / "t.db")), None,
+                        gold, "G1", "SYSTEM")
+
+    assert set(zeile["ranglisten"]) == {f"G1:szene:{s[1]}", f"G1:szene:{s[2]}"}
+    assert zeile["ranglisten"][f"G1:szene:{s[1]}"] == [t["Stadt"], t["Arbeit"]]
+    assert zeile["fehler"] == {}
+    assert {a["modell"] for a in proxy.aufrufe} == {"claude-opus-5"}
+    assert all(a["system"] == "SYSTEM" for a in proxy.aufrufe)
+
+
+def test_neu_lauf_notiert_fehler_statt_rueckfall(lage, tmp_path, monkeypatch, ohne_kimi):
+    monkeypatch.setattr(szene_claude, "schema", _Proxy(fehler=szene_claude.ClaudeFehler("aus")))
+    gold = za.baue_gold(lage, QUELLE, {"G1": 1})
+
+    zeile = za.neu_lauf(lage, za.einstellungen_messung(str(tmp_path / "t.db")), None,
+                        gold, "G1", "SYSTEM")
+
+    assert all(r is None for r in zeile["ranglisten"].values())
+    assert all("ClaudeFehler" in f for f in zeile["fehler"].values())
+
+
+def test_skript_importiert_keine_interviewstrecke():
+    """Interviews bleiben hart auf Kimi (Karte): das Messskript ruft weder
+    Verdichter noch Erkenner noch die Aufnahme-Pipeline noch llm direkt."""
+    baum = ast.parse(Path("scripts/zitatauswahl.py").read_text(encoding="utf-8"))
+    namen = set()
+    for knoten in ast.walk(baum):
+        if isinstance(knoten, ast.ImportFrom) and knoten.module:
+            namen |= {f"{knoten.module}.{a.name}" for a in knoten.names}
+        elif isinstance(knoten, ast.Import):
+            namen |= {a.name for a in knoten.names}
+    verboten = {f"interview_theater.{m}" for m in ("verdichter", "erkenner", "aufnahme", "llm")}
+    assert not namen & verboten

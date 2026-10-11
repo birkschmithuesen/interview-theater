@@ -21,8 +21,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
+import time
 import tomllib
 from pathlib import Path
 
@@ -393,6 +395,103 @@ def entscheide(basis: dict[int, dict], variante: dict[int, dict]) -> tuple[bool,
     return not gruende, gruende
 
 
+def maskiere(text: str, fragmente_: list[str]) -> tuple[str, int]:
+    """Spec E6: jedes Gold-Fragment (ab drei Woertern) im Text durch ``[…]``
+    ersetzen, Gross-/Kleinschreibung und Satzzeichen dazwischen egal."""
+    anzahl = 0
+    for f in sorted(set(fragmente_), key=len, reverse=True):
+        worte = _woerter(f)
+        if len(worte) < 3:
+            continue
+        muster = r"(?<!\w)" + r"\W+".join(re.escape(w) for w in worte) + r"(?!\w)"
+        text, n = re.subn(muster, "[…]", text, flags=re.IGNORECASE)
+        anzahl += n
+    return text, anzahl
+
+
+def nutzertext_maskiert(conn, chat_id: int, eintraege: list[dict], ziel: dict,
+                        fragmente_: list[str]) -> tuple[str, int]:
+    """Derselbe Nutzertext wie ``schaerfung._baue_nutzertext_ziel`` (ohne
+    Fragmente bitgleich, Test), aber Gold-Fragmente im Nicht-Material-Teil
+    maskiert -- die Materialliste bleibt unangetastet."""
+    from interview_theater import schaerfung
+
+    kopf = schaerfung._erfundenes_zeilen(conn, chat_id)
+    hintergrund = schaerfung._hintergrund_zeilen(conn, chat_id)
+    if hintergrund:
+        kopf.append("")
+        kopf.extend(hintergrund)
+    kopf.append("")
+    kopf.append(schaerfung.T._ZIEL_ZEILE.format(beschreibung=ziel["beschreibung_text"]))
+    kopf.append("")
+    text_kopf, anzahl = maskiere("\n".join(kopf), fragmente_)
+    material = schaerfung._material_zeilen(eintraege, woerter=schaerfung.PROMPT_ZITAT_WOERTER)
+    return text_kopf + "\n" + "\n".join(material), anzahl
+
+
+def einstellungen_messung(db_pfad: str):
+    """Einstellungen ohne Umgebung: nur der Claude-Pfad ist echt; Kimi-Felder
+    sind Platzhalter, damit ein versehentlicher Kimi-Aufruf scheitert statt
+    zu kosten."""
+    from interview_theater import einstellungen, szene_claude
+
+    return einstellungen.Einstellungen(
+        bot_token="-", bot_name="messung-zitatauswahl", db_pfad=db_pfad,
+        audio_verz="var/zitatauswahl/audio", llm_url="-", llm_key="-", llm_modell="-",
+        stt_basis="-", stt_produkt="-", erkenner_modell="-",
+        szene_anbieter="claude", schaerfung_modell=szene_claude.MODELL_VORGABE,
+    )
+
+
+def neu_lauf(conn, e, klient, gold: list[dict], gruppe: str, system: str, *,
+             nur: list[str] | None = None, eintraege: list[dict] | None = None) -> dict:
+    """B1/I-a/I-b (Spec E5): je Gold-Ziel der Gruppe EIN Schema-Aufruf ueber
+    den Proxy, seriell, ohne Rueckfall. ``eintraege`` erlaubt I-b eine
+    veraenderte Materialliste; sonst ``schaerfung._eintraege``."""
+    from interview_theater import schaerfung, szene_claude
+
+    positiv = [g for g in _positive(gold) if g["gruppe"] == gruppe]
+    if not positiv:
+        raise SystemExit(f"keine Gold-Stellen fuer {gruppe}")
+    chat_id = positiv[0]["chat_id"]
+    if eintraege is None:
+        eintraege = schaerfung._eintraege(conn, chat_id)
+    nach_nummer = {x["nummer"]: x for x in eintraege}
+    alle_fragmente = [f for g in _positive(gold) for f in g["fragmente"]]
+    ziele = {(z["art"], z["id"]): z for z in schaerfung._ziele(conn, chat_id)}
+    zeile = {"gruppe": gruppe, "ranglisten": {}, "maskiert": {}, "fehler": {}, "dauer_ms": {}}
+    for schluessel in sorted({ziel_schluessel(g) for g in positiv}):
+        if nur and schluessel not in nur:
+            continue
+        _, art, zid = schluessel.split(":")
+        ziel = ziele.get((art, int(zid)))
+        if ziel is None:
+            zeile["ranglisten"][schluessel] = None
+            zeile["fehler"][schluessel] = "Ziel fehlt in der Kopie"
+            continue
+        nutzer, anzahl = nutzertext_maskiert(conn, chat_id, eintraege, ziel, alle_fragmente)
+        zeile["maskiert"][schluessel] = anzahl
+        start = time.monotonic()
+        try:
+            ergebnis = szene_claude.schema(
+                conn, e, klient, chat_id, system, nutzer, schaerfung.ZIEL_SCHEMA,
+                f"messung_zitatauswahl_{art}_{zid}", timeout=schaerfung.CLAUDE_TIMEOUT_S,
+                wartezeiten=schaerfung.CLAUDE_WARTEZEITEN, modell=e.schaerfung_modell,
+            )
+            zeile["ranglisten"][schluessel] = rangliste(
+                schaerfung.werte_aus(ergebnis, ziel, nach_nummer))
+        except Exception as fehler:  # Spec § 6: notieren, nicht ersetzen
+            zeile["ranglisten"][schluessel] = None
+            zeile["fehler"][schluessel] = f"{type(fehler).__name__}: {fehler}"[:300]
+        zeile["dauer_ms"][schluessel] = int((time.monotonic() - start) * 1000)
+    return zeile
+
+
+def eintraege_mit_frage(conn, chat_id: int) -> list[dict]:
+    """I-b (Task 8) -- nur nach Birks Freigabe des Datenflusses (Spec E8)."""
+    raise SystemExit("I-b ist gesperrt: Datenschutz-Gate (Spec E8) nicht freigegeben")
+
+
 def _verbinde(pfad: str):
     from interview_theater import db
 
@@ -415,6 +514,16 @@ def main(argv: list[str] | None = None) -> int:
             s.add_argument("--quelle", default=str(QUELLE))
         if name == "historisch":
             s.add_argument("--aus", default=str(ROH / "B0.jsonl"))
+    n = sub.add_parser("neu")
+    n.add_argument("--db", default=str(KOPIE))
+    n.add_argument("--gold", default=str(GOLD))
+    n.add_argument("--variante", required=True, choices=["B1", "I-a", "I-b"])
+    n.add_argument("--lauf", type=int, required=True)
+    n.add_argument("--gruppe", required=True, choices=sorted(GRUPPEN))
+    n.add_argument("--nur", nargs="*", default=None, help="nur diese Ziel-Schluessel, z. B. G2:szene:5")
+    n.add_argument("--prompt", default=None, help="Kandidat-Prompt statt schaerfung.prompt()")
+    n.add_argument("--mit-frage", action="store_true", help="nur I-b (Task 8)")
+    n.add_argument("--aus", default=None)
     a = p.parse_args(argv)
 
     if a.befehl == "kopie":
@@ -463,6 +572,31 @@ def main(argv: list[str] | None = None) -> int:
         r = recall_at_k(ranglisten, gold)
         for gr, w in r.items():
             print(f"{gr}: Recall@{K} {w['treffer']}/{w['n']}")
+        return 0
+    if a.befehl == "neu":
+        import httpx
+
+        from interview_theater import schaerfung
+
+        # Profil nur hier setzen (nicht beim Import): Padua-Prompt und -Texte.
+        os.environ.setdefault("IT_WORKSHOP", "padua-2026")
+        gold = lade_gold(a.gold)
+        fehler = pruefe_gold(conn, gold)
+        if fehler:
+            print("\n".join(fehler), file=sys.stderr)
+            return 1
+        system = Path(a.prompt).read_text(encoding="utf-8") if a.prompt else schaerfung.prompt()
+        eintraege = None
+        if a.mit_frage:
+            eintraege = eintraege_mit_frage(conn, GRUPPEN[a.gruppe])
+        e = einstellungen_messung(a.db)
+        with httpx.Client(timeout=schaerfung.CLAUDE_TIMEOUT_S) as klient:
+            zeile = neu_lauf(conn, e, klient, gold, a.gruppe, system, nur=a.nur, eintraege=eintraege)
+        zeile.update(variante=a.variante, lauf=a.lauf)
+        haenge_an(zeile, a.aus or ROH / f"{a.variante}.jsonl")
+        for s, r in sorted(zeile["ranglisten"].items()):
+            print(s, "FEHLER " + zeile["fehler"][s] if r is None else f"{len(r)} Stellen",
+                  f"maskiert {zeile['maskiert'].get(s, 0)}", f"{zeile['dauer_ms'].get(s, 0)} ms")
         return 0
     return 2
 

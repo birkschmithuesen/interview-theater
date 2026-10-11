@@ -1310,6 +1310,41 @@ def setze_schaerfung_entscheidung(
             conn.rollback()
 
 
+@_gesperrt
+def schaerfungen_historie(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """ALLE Schaerfungen einer Gruppe -- auch entfernte und uebernommene --
+    in der Reihenfolge ihres Entstehens (``id``). Nur fuer Messungen
+    (``scripts/zitatauswahl.py``, Karte t_4e8a59aa/t_2f905d2c): der Betrieb
+    liest ``schaerfungen``, das Entferntes ausblendet."""
+    return conn.execute(
+        """
+        SELECT id, verdichtung_thema_id, szene_id, figur_id, staerke, runde,
+               entscheidung, uebernommen_am, entfernt_am
+        FROM schaerfung WHERE chat_id = ? ORDER BY id ASC
+        """,
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def themen_mit_aufnahme(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle Verdichtungsthemen einer Gruppe mit ``aufnahme_id`` -- auch
+    ungepruefte und solche aus entfernten Verdichtungen (``gepruefte_themen``
+    filtert beides). Nur fuer Messungen (``scripts/zitatauswahl.py``): der
+    Gold-Korpus fuehrt Dubletten einer Stelle aus entfernten Verdichtungen
+    mit, damit eine historische Zuordnung auf die alte id noch trifft."""
+    return conn.execute(
+        """
+        SELECT t.id, t.thema, t.beleg_zitat, t.zitat_geprueft,
+               v.aufnahme_id AS aufnahme_id, v.entfernt_am AS verdichtung_entfernt_am
+        FROM verdichtung_thema t
+        JOIN verdichtung v ON v.id = t.verdichtung_id
+        WHERE t.chat_id = ? ORDER BY t.id ASC
+        """,
+        (chat_id,),
+    ).fetchall()
+
+
 # --- Stueckpruefung (Phase 7, 06.09.2026) ---------------------------------
 
 

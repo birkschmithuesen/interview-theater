@@ -21,6 +21,9 @@ Danach die zwei ausgegebenen Zeilen in die Env-Datei dieser Gruppe
 uebernehmen und ``systemctl --user restart interview-theater@gruppe4``.
 """
 
+from __future__ import annotations
+
+
 import argparse
 import os
 import sys

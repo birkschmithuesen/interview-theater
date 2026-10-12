@@ -41,6 +41,9 @@ Modell: die bestehende Modellkette des Gruppen-Bots (Infomaniak/Kimi via
 ``e.erkenner_modell`` -- Teilnehmerinhalte bleiben beim souveraenen Anbieter,
 keine Claude-Option hier)."""
 
+from __future__ import annotations
+
+
 import hashlib
 import json
 import logging

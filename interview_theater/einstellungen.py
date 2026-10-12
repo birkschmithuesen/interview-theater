@@ -1,5 +1,8 @@
 """Konfiguration ausschliesslich ueber Umgebungsvariablen (siehe global-constraints.md)."""
 
+from __future__ import annotations
+
+
 import logging
 import os
 from dataclasses import dataclass

@@ -14,6 +14,9 @@ genau vier, und sie stehen als lokaler Import in der jeweiligen Funktion:
 sonst waere die Schicht keine.
 """
 
+from __future__ import annotations
+
+
 from interview_theater import erkenner, nachspeichern, phasen, repo
 
 from interview_theater.knoepfe.texte import (

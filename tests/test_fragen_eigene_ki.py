@@ -10,6 +10,9 @@ woertlichen Satz, den das Padua-Profil-Prompt das Modell sagen laesst
 (keine neue, bezahlte Erkenner-Art). Seit 05.10.2026 ohne Mindestzahl je
 Begriff (Birk: die Anzahl entscheidet die Gruppe)."""
 
+from __future__ import annotations
+
+
 import re
 import threading
 import time

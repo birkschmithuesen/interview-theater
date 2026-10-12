@@ -27,6 +27,9 @@ ist die zweite Zeile der Frageliste. Raten waere hier derselbe Fehler wie in
 der falschen Frage.
 """
 
+from __future__ import annotations
+
+
 import re
 
 from interview_theater import repo

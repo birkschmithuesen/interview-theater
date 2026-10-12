@@ -31,6 +31,9 @@ HTTP 200:
    wird deshalb **immer** gesendet, mit Vorgabewert ``"none"``.
 """
 
+from __future__ import annotations
+
+
 import json
 import logging
 import random

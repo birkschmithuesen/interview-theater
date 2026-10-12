@@ -37,6 +37,9 @@ Was geprueft wird:
    nicht blockieren (E.1 Frage 8).
 """
 
+from __future__ import annotations
+
+
 import json
 import os
 import re

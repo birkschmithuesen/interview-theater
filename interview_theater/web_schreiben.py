@@ -41,6 +41,9 @@ erzeugt es beim naechsten Zug im eigenen Thread nach, und ein Journaleintrag
 "Sprachprofil neu noetig" haelt fest, warum.
 """
 
+from __future__ import annotations
+
+
 from interview_theater import repo, workshop
 
 #: Was im Journal als Quelle steht. Neben ``extraktor``, ``befehl`` und

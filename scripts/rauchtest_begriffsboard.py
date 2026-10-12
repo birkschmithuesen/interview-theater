@@ -18,6 +18,9 @@ Aufruf:
     python -m scripts.rauchtest_begriffsboard
 """
 
+from __future__ import annotations
+
+
 import json
 import sys
 from pathlib import Path

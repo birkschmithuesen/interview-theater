@@ -25,6 +25,9 @@ einer interviewten Person darf nie an einen Suchdienst gehen.
 Modell: das Gespraechsmodell (``art="recherche"``, Padua: Opus) -- der Input
 ist oeffentlicher Webtext plus Themen, keine Rohdaten aus dem Interview."""
 
+from __future__ import annotations
+
+
 import logging
 import re
 

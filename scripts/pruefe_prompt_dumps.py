@@ -5,6 +5,9 @@ Aufruf::
     python -m scripts.pruefe_prompt_dumps docs/prompt-audit/2026-09-06
 """
 
+from __future__ import annotations
+
+
 import re
 from collections import Counter
 from pathlib import Path

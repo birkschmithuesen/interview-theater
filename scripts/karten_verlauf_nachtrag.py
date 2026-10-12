@@ -53,6 +53,9 @@ WAL-Modus).
 Journal: ein Eintrag Art ``entschieden``, Quelle ``regie`` je Szene
 (Birks Vorgabe -- ein Operator-Nachtrag, kein Erkenner- oder Befehlslauf)."""
 
+from __future__ import annotations
+
+
 import argparse
 import json
 import re

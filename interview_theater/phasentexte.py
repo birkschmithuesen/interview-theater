@@ -31,6 +31,9 @@ reinen Text. Kein Fettdruck, keine Tabellen -- die Struktur traegt das
 Emoji in der Kopfzeile und die Einrueckung.
 """
 
+from __future__ import annotations
+
+
 from collections.abc import Callable
 
 from interview_theater import anweisungen, phasen, repo, workshop

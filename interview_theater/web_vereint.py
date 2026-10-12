@@ -18,6 +18,9 @@ Kein Modellaufruf, kein ``repo``: read-only ueber ``web_daten``, wie der
 Rest der Leseseite.
 """
 
+from __future__ import annotations
+
+
 import html
 import json
 import re

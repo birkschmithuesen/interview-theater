@@ -32,6 +32,9 @@ Aufruf::
       --json /pfad/zu/bedarf-seed.json --dateien /pfad/zu/dateien --ja
 """
 
+from __future__ import annotations
+
+
 import argparse
 import json
 import shutil

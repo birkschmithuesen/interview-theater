@@ -8,6 +8,9 @@ Der httpx.Client wird von aussen uebergeben (Dependency Injection), damit
 Tests einen httpx.MockTransport einsetzen koennen und nie ins Netz gehen.
 """
 
+from __future__ import annotations
+
+
 import logging
 import re
 from contextlib import contextmanager

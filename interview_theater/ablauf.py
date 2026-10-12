@@ -39,6 +39,9 @@ gestrichen) -- inzwischen loest ohnehin jede Nachricht einen Zug aus, eine
 gesonderte Rueckfrage-Logik waere ueberfluessig.
 """
 
+from __future__ import annotations
+
+
 import logging
 import re
 import threading

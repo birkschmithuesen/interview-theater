@@ -31,6 +31,9 @@ Telegram haengt in Gruppen mit mehreren Bots oft den Benutzernamen an einen
 Befehl an (``/stand@interview_theaterbot``) -- ``_zerlege`` trennt das
 grosszuegig ab, unabhaengig davon, welcher Name genau dahintersteht."""
 
+from __future__ import annotations
+
+
 import logging
 import re
 

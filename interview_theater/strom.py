@@ -23,6 +23,9 @@ Schicht Dienste: nur ``vorschlag`` und Standardbibliothek, keine Datenbank,
 kein ``repo``.
 """
 
+from __future__ import annotations
+
+
 import logging
 import time
 

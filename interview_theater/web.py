@@ -39,6 +39,9 @@ nicht dieser Code -- deshalb nimmt das Routing beide Formen an
 sind relativ.
 """
 
+from __future__ import annotations
+
+
 import hashlib
 import hmac
 import html

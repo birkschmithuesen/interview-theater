@@ -66,6 +66,9 @@ Alte Datenbanken werden umnummeriert (``db.PHASEN_UMNUMMERIERUNG_3``):
 5 -> 4, 6 -> 5, 7 -> 6, 8 -> 7.
 """
 
+from __future__ import annotations
+
+
 from interview_theater import repo, workshop
 
 #: Nummer, Kurzname, ein Satz -- **seit dem 06.09.2026 aus dem

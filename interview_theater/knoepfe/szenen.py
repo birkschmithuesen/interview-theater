@@ -16,6 +16,9 @@ Kein Modellaufruf steht hier: was eines braucht, geht ueber
 optionale Zusatz nach "Ja, speichern") in einen eigenen Thread.
 """
 
+from __future__ import annotations
+
+
 import time
 
 from interview_theater import nachspeichern, repo, workshop

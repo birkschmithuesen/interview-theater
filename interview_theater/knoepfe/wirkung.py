@@ -11,6 +11,9 @@ genau darauf baut ``tests/test_knoepfe_struktur.py``, das die drei Zusagen des
 Pakets am Quelltext prueft statt am Verhalten.
 """
 
+from __future__ import annotations
+
+
 from typing import NamedTuple
 
 from interview_theater import workshop

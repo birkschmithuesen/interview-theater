@@ -25,6 +25,9 @@ Die Gruppe sieht den Text **ohne** Markerzeile (``ohne_marker``); der Marker
 ist Technik, kein Inhalt.
 """
 
+from __future__ import annotations
+
+
 import re
 
 #: Die Arten, die ueber einen Vorschlagsblock deterministisch verarbeitet

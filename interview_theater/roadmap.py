@@ -36,6 +36,9 @@ Strom (Schaerfung, Szenenfolge, Stueckpruefung), steht die Aufgabe hier
 weiter auf 'offen'.
 """
 
+from __future__ import annotations
+
+
 import json
 from collections.abc import Callable
 from typing import NamedTuple

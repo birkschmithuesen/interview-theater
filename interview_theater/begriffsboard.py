@@ -34,6 +34,9 @@ Diese Fassung (Aufgabe 2) traegt nur den reinen Kern: Validierung,
 Sortierung, Top 5, Detail-Abgleich. Keine Datenbank, kein Thread, kein
 Modellaufruf -- das kommt mit den Aufgaben 3-6."""
 
+from __future__ import annotations
+
+
 import json
 import logging
 import os

@@ -25,6 +25,9 @@ Verdichtung mit leerer Themenliste gespeichert -- die Zusammenfassung bleibt,
 und ``aufnahme._verdichtungstext`` sagt der Gruppe, dass nichts belegbar war.
 """
 
+from __future__ import annotations
+
+
 
 from interview_theater import begriffe, repo, zitat
 

@@ -25,6 +25,9 @@ entweder ``None``/leer oder eine Kette aus leeren Eintraegen. Beides zaehlt
 als "der A/B-Vergleich lief fuer diese Frage nicht" -- eine Zeile wird dann
 weder ``eigen`` noch ``ki`` zugerechnet, es gibt keine dritte Kategorie."""
 
+from __future__ import annotations
+
+
 from interview_theater import vorschlag
 
 

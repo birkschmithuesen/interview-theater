@@ -24,6 +24,9 @@ Umgebung: ``IT_DB`` (Pflicht), ``IT_WEB_URL`` (Vorgabe wie
 ``scripts/web_links.py``).
 """
 
+from __future__ import annotations
+
+
 import os
 import sqlite3
 import sys

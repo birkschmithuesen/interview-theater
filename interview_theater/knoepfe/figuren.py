@@ -13,6 +13,9 @@ Zuordnung von Interviews auf Figuren (``ordne_figuren_zufaellig_zu``) als der
 eine Druck statt zwoelf Modellaufrufen.
 """
 
+from __future__ import annotations
+
+
 import random
 import re
 

@@ -21,6 +21,9 @@ Aufruf::
     python -m scripts.text_schnappschuss <datei>    # in eine Datei
 """
 
+from __future__ import annotations
+
+
 import ast
 import importlib
 import pkgutil

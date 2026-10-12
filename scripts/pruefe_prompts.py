@@ -55,6 +55,9 @@ die Formatierungslogik ein zweites Mal nachgebaut waere (und beim naechsten
 Umbau auseinanderliefe).
 """
 
+from __future__ import annotations
+
+
 import argparse
 import json
 import re

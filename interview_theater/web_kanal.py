@@ -21,6 +21,9 @@ braucht: ``hole_updates`` -- sie ruft ``bot.verarbeite_update`` direkt.
 diese Klasse importiert weder ``llm`` noch ``stt``.
 """
 
+from __future__ import annotations
+
+
 import logging
 import threading
 import time

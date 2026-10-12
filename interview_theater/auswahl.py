@@ -15,6 +15,9 @@ Begriffskopf gewinnt, tolerant gegenueber Zierde und Anfuehrungszeichen);
 (AGENTS.md, Modulkarte).
 """
 
+from __future__ import annotations
+
+
 from collections.abc import Mapping
 
 #: Die Werte einer Position in ``fragen_entschieden``; "" heisst offen.

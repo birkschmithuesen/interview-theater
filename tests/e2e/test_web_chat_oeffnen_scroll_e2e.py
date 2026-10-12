@@ -14,6 +14,9 @@ Geprueft auf der vereinten Seite (``/g/<token>``) im Telefonformat; Aufbau
 wie ``test_web_chat_phasenscroll_e2e.py``. Nur erfundenes Material.
 """
 
+from __future__ import annotations
+
+
 import os
 import shutil
 import socket

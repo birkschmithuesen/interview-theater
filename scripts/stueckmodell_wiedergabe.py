@@ -12,6 +12,9 @@ Veraltet-Vermerk), ``aufrufe`` ist der Wunsch (Quelle ``wiedergabe``),
 optionalem ``grund`` und ``anzahl`` (Zeilen der Szene), ``frage_offen`` /
 ``frage_zu``, ``speichern_gesperrt``)."""
 
+from __future__ import annotations
+
+
 import argparse
 import json
 import os

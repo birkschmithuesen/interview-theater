@@ -9,6 +9,9 @@ Siehe ``.superpowers/sdd/task-4-brief.md``. Kein echter Netzaufruf: ein
 die Kimi-Seite (``klm.schema``) darf in keinem der drei Faelle je gerufen
 werden -- das ist die ganze Beweislast dieser Datei."""
 
+from __future__ import annotations
+
+
 import json
 import time
 

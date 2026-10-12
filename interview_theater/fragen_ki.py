@@ -40,6 +40,9 @@ gemeinsame Sperre wuerde die Hintergrund-Diskussion (Phase 1) und die
 KI-Fragen (Phase 2) aneinanderketten, obwohl die beiden nie gleichzeitig
 eine Gruppe betreffen (docs/agents/aufbau.md: "Gleicher Code, verschiedene Sperren")."""
 
+from __future__ import annotations
+
+
 import logging
 import re
 import threading

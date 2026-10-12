@@ -25,6 +25,9 @@ Anfrage in eine Datei, an der vier Bot-Prozesse haengen.
 baut nie einen Zyklus. ``tests/test_web_grenze.py`` haelt das per AST fest.
 """
 
+from __future__ import annotations
+
+
 import threading
 import time
 from collections import deque

@@ -9,6 +9,9 @@ mitten in einem Surrogatpaar.
 Nichts hier fasst eine Datenbank an: reine Funktionen, Tabellentests.
 """
 
+from __future__ import annotations
+
+
 import pytest
 
 from interview_theater import strom

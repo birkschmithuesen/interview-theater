@@ -16,6 +16,9 @@ ist bewusst der langweilige: **alles maskieren, dann eine geschlossene Liste
 wieder zulassen** -- nicht "das Gefaehrliche entfernen".
 """
 
+from __future__ import annotations
+
+
 import html
 import json
 import logging

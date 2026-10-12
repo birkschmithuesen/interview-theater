@@ -6,6 +6,9 @@ Zustaende, erster Treffer gewinnt: denkt > transkribiert > hoert > schweigt
 > kein Status. Siehe Plan docs/superpowers/plans/2026-10-03-cothinker-
 statuszeile.md fuer die Herleitung der Schwellenwerte."""
 
+from __future__ import annotations
+
+
 from datetime import datetime, timezone
 
 DENKT_TIMEOUT_S = 180

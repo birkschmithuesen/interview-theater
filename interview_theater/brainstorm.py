@@ -14,6 +14,9 @@ stammen aus Erwachsenen-Meetings, NICHT aus Schueler-Brainstorms -- deshalb
 bleiben alle Schwellen ueber die Umgebung nachjustierbar.
 """
 
+from __future__ import annotations
+
+
 import os
 import threading
 from datetime import datetime, timezone

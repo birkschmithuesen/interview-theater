@@ -10,6 +10,9 @@ Laeuft VOR (Task 0) und NACH (Task 17) dem Umbau gegen dieselbe Kopie;
     uv run --extra dev python -m scripts.stueckmodell_ansichten --db var/stueckmodell/padua-kopie.db --aus var/stueckmodell/ansichten-vorher.json
 """
 
+from __future__ import annotations
+
+
 import argparse
 import html as htmllib
 import json

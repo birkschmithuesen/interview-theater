@@ -27,6 +27,9 @@ Aufruf::
 Im normalen ``pytest``-Lauf wird die Datei uebersprungen (``importorskip``).
 """
 
+from __future__ import annotations
+
+
 import json
 import os
 import re

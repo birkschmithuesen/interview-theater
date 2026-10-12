@@ -6,6 +6,9 @@ Code VOR der Umstellung erzeugt worden (ohne Profil und mit
 Beweisgrundlage dafuer, dass Dortmund kein Zeichen anders sieht.
 """
 
+from __future__ import annotations
+
+
 import pathlib
 import re
 from html.parser import HTMLParser

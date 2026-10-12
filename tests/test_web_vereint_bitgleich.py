@@ -14,6 +14,9 @@ also ungeeignet fuer einen Bytevergleich), fester Nonce-String (der echte
 CSP-/Formular-Nonce wird nur ueber den HTTP-Handler gesetzt, nicht beim
 direkten Aufruf von ``seite()``)."""
 
+from __future__ import annotations
+
+
 import os
 from pathlib import Path
 

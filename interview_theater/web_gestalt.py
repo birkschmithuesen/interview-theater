@@ -45,6 +45,9 @@ Oberflaechen-Schicht. Importiert **nichts** aus dem Projekt ausser
 ``web_chat``: die Richtung zeigt von dort hierher.
 """
 
+from __future__ import annotations
+
+
 import json
 import os
 import re

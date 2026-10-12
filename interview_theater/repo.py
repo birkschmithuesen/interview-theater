@@ -27,6 +27,9 @@ Threads ``zaehle_aufnahmen`` aufruft -- mit einem einfachen ``Lock`` wuerde
 sich der Thread beim zweiten ``acquire`` selbst blockieren (Selbst-Deadlock).
 """
 
+from __future__ import annotations
+
+
 import json
 import logging
 import re

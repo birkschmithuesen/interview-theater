@@ -30,6 +30,9 @@ SQL nur in ``repo.py``, ``db.py``, ``web_daten.py``). Dieses Modul rechnet
 und entscheidet, es speichert nicht.
 """
 
+from __future__ import annotations
+
+
 import logging
 import os
 from datetime import datetime, timedelta, timezone

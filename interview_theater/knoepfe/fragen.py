@@ -30,6 +30,9 @@ im Padua-Profil-Prompt), die klassische Fuenf-je-Begriff-Vorschlagsrunde
 bleibt dadurch unangetastet.
 """
 
+from __future__ import annotations
+
+
 import re
 import threading
 

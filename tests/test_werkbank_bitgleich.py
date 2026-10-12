@@ -15,6 +15,9 @@ Zeitstempel und Token sind festgenagelt (``_fest``): die Gruppe kommt aus
 stempeln. Nur erfundenes Material.
 """
 
+from __future__ import annotations
+
+
 import os
 import pathlib
 import re

@@ -12,6 +12,9 @@ Fehlt die Datei auf der Platte (Entwicklungsumgebung ohne generierten
 Satz, oder eine Phasennummer ohne Karte), liefert ``pfad`` ``None`` statt
 eines Fehlers -- eine fehlende Karte darf den Phaseneintritt nicht reissen."""
 
+from __future__ import annotations
+
+
 from pathlib import Path
 
 from scripts.handy_karten import OUT, SPRACHEN

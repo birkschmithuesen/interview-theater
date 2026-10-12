@@ -21,6 +21,9 @@ die zuletzt geaenderte Szene im Volltext als eigener Block 5 -- beide
 datengetrieben wie alles andere, also weg, solange es keine Szene gibt.
 """
 
+from __future__ import annotations
+
+
 import logging
 import os
 import re

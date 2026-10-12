@@ -13,6 +13,9 @@ gibt es nichts aufzunehmen. Ausdrueckliches Aufnehmen bleibt in jeder Phase
 moeglich; eingeschraenkt ist nur das Angebot.
 """
 
+from __future__ import annotations
+
+
 from interview_theater import workshop
 from interview_theater import phasen, repo, sprache
 

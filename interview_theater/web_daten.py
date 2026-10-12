@@ -19,6 +19,9 @@ Alle Werte kommen so heraus, wie sie in der Datenbank stehen (Zeitstempel als
 ISO-8601-Text in UTC); Formatierung und Maskierung sind Sache von web.py.
 """
 
+from __future__ import annotations
+
+
 import json
 import re
 import sqlite3

@@ -34,6 +34,9 @@ und sie ruehrt die Verdichtung selbst nicht an (docs/agents/entscheidungen.md: V
 werden nie nachtraeglich geaendert).
 """
 
+from __future__ import annotations
+
+
 import re
 import unicodedata
 

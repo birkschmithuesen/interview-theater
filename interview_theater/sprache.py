@@ -27,6 +27,9 @@ Nur Standardbibliothek plus ``workshop`` -- Dienste-Schicht, von jedem
 Modul aus importierbar.
 """
 
+from __future__ import annotations
+
+
 import logging
 import contextlib
 import contextvars

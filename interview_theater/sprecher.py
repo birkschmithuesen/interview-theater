@@ -33,6 +33,9 @@ eigene Zeile oder mitten in einer Replik (``LEYLA:(dreht das Handy um)Gelesen.``
 -- ist keine gesprochene Sprache und faellt vor dem Zaehlen weg.
 """
 
+from __future__ import annotations
+
+
 import re
 
 #: Ab diesem Anteil gilt eine Figur als "spricht mit". Darunter bekommt sie

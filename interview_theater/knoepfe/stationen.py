@@ -12,6 +12,9 @@ Der Knopf "Weiter zu Phase N" selbst steht eine Schicht tiefer
 unter ihre Nachrichten.
 """
 
+from __future__ import annotations
+
+
 from interview_theater import phasen, repo
 
 from interview_theater.knoepfe.texte import (

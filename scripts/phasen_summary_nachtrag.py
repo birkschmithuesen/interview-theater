@@ -25,6 +25,9 @@ dadurch keine Dubletten. Mit ``--phase``: genau diese eine Phase, auch wenn
 schon ein Summary existiert (ein bewusster Nachtrag/Ersatz).
 """
 
+from __future__ import annotations
+
+
 import argparse
 import sys
 from pathlib import Path

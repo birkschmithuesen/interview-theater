@@ -43,6 +43,9 @@ fuer den laufenden Workshop danebengelegt hat.
 Sekunden und wiederholt denselben Aufruf, wie ``pruefe_prompts``.
 """
 
+from __future__ import annotations
+
+
 import argparse
 import contextlib
 import logging

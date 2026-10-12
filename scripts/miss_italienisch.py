@@ -14,6 +14,9 @@ gebracht haben -- bzw. die Fundstelle, falls nicht. Stoppwortzaehlung
 Gibt nur Zahlen und ``chat_id``/``web_post.id`` eines auffaelligen Posts
 aus, nie den Nachrichtentext (Datenschutz, AGENTS.md E8)."""
 
+from __future__ import annotations
+
+
 import sqlite3
 import sys
 

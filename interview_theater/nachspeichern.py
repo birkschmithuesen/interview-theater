@@ -15,6 +15,9 @@ Vorfall fuers Dashboard. ``starte()`` laeuft im eigenen Thread, nie im
 Knopf-Handler (Zusage 2) -- die Bestaetigung ist zu diesem Zeitpunkt schon
 raus, ein Fehlschlag hier bleibt deshalb fuer die Gruppe folgenlos."""
 
+from __future__ import annotations
+
+
 import logging
 import threading
 

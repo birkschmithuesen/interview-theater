@@ -41,6 +41,9 @@ dieselbe Begruendung): eine blosse Dateikopie saehe nicht, was noch in der
 ``-wal``-Datei steht.
 """
 
+from __future__ import annotations
+
+
 import argparse
 from datetime import datetime, timezone
 from pathlib import Path

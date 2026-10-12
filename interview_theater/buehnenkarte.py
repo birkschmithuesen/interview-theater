@@ -11,6 +11,9 @@ Kein Modellaufruf in einem Knopf-Handler (Zusage 2) -- das gilt hier
 unveraendert: ``erzeuge()`` wird aus ``brainstorm.py``s Trigger-Verdrahtung
 in einem eigenen Thread gerufen, nie inline in einer Anfrage."""
 
+from __future__ import annotations
+
+
 import logging
 import os
 

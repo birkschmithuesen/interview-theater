@@ -9,6 +9,9 @@ Deshalb Origin als zweite, unabhaengige Schicht -- sie haengt nicht an einem
 Geheimnis, sondern daran, wo der Browser steht.
 """
 
+from __future__ import annotations
+
+
 import json
 import threading
 import urllib.error

@@ -27,6 +27,9 @@ darf mit ``test``/``Test`` anfangen -- sonst liefe sie als Test
 (tests/test_testgruppe_uebernehmen.py haelt das fest).
 """
 
+from __future__ import annotations
+
+
 import argparse
 import secrets
 import shutil

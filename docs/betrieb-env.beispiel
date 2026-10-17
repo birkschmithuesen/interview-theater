@@ -82,6 +82,11 @@ IT_SZENE_ANBIETER=claude
 # zurueck). Padua: Europe/Rome.
 # IT_ZEITZONE=Europe/Rome
 
+# Nach so vielen Minuten ohne neue Aufnahme beendet sich ein haengender
+# Interviewmodus von selbst (aufnahme.pruefe_auto_ende), derselbe Weg wie
+# /fertig. Vorgabe 10.
+# IT_INTERVIEW_AUTO_ENDE_MIN=10
+
 # --- Nur fuer den Webdienst, nicht fuer einen Bot-Prozess -----------------
 # Diese beiden liest ausschliesslich `python -m interview_theater.web`; sie
 # gehoeren in die Env der Web-Unit, nicht hierher. Hier stehen sie zur

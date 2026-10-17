@@ -303,8 +303,8 @@ _TEXT_VERDICHTUNG_GESCHEITERT = (
 #: sie beim Live-Vorfall vom 06.10.2026 ueber /fertig bekommen haette, nur
 #: vom Nachhol-Arbeiter statt von aussen ausgeloest (siehe pruefe_auto_ende).
 _TEXT_INTERVIEW_AUTO_ENDE = (
-    "{name} wurde automatisch beendet - seit {minuten} Minuten kam keine "
-    "neue Aufnahme mehr an. Habt ihr noch aufgenommen? Dann einfach wieder "
+    "{name} wurde automatisch beendet, weil seit {minuten} Minuten keine "
+    "neue Aufnahme ankam. Wenn ihr noch aufgenommen habt, einfach wieder "
     "auf \"Interview aufnehmen\" tippen."
 )
 _ARTIKEL_GROSS = "Die"

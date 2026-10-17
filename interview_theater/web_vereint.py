@@ -767,6 +767,14 @@ _VEREINT_JS = """
       // (bis zu NACHLADEN_MS) einen veralteten Stand zeigen.
       if (typeof ladeBuehne === 'function') { ladeBuehne(); }
     }
+    // Dasselbe Muster fuer das Stand-Panel (Birk 06.10.2026, "Neu"-Marker):
+    // ein im Hintergrund gefundener Stand setzt nur den Punkt am Tab-Knopf
+    // (``ladeStand()``), das Oeffnen raeumt ihn weg und holt sofort frisch.
+    if (name === 'stand') {
+      var standKnopf = document.querySelector('.tabs button[data-tab="stand"]');
+      if (standKnopf) { delete standKnopf.dataset.neu; }
+      if (typeof ladeStand === 'function') { ladeStand(); }
+    }
   };
   var setze = function (name) {
     var teile = location.hash.replace(/^#/, '').split('&').filter(function (t) {
@@ -964,10 +972,15 @@ _VEREINT_JS = """
     if (stelle && stelle.scrollIntoView) { stelle.scrollIntoView({block: 'center'}); }
   });
   window.addEventListener('hashchange', function () { zeige(lies()); });
-  // Nachgeladen wird NUR das Stand-Panel, NUR wenn es vorn ist, und nur mit
-  // denselben zwei Sperren wie bisher: Fokus in einem Feld oder eine
-  // ungespeicherte Aenderung halten es an (Brief 05.09. abends). Der <body>
-  // wird nie getauscht -- daran haengen Recorder, Eingabefeld und Strom.
+  // Nachgeladen wird das Stand-Panel IMMER -- auch verborgen (anderer Tab
+  // vorn, Browser-Tab im Hintergrund), nur seltener (Birk 06.10.2026,
+  // Live-Test G3: "Four characters saved" kam im Chat an, die Werkbank
+  // zeigte es nicht, weil niemand den Tab/das Fenster wieder sichtbar
+  // gemacht hatte -- kein Datenverlust, nur verzoegerte Anzeige). Dieselben
+  // zwei Sperren wie bisher gelten unveraendert weiter: Fokus in einem Feld
+  // oder eine ungespeicherte Aenderung halten es an (Brief 05.09. abends).
+  // Der <body> wird nie getauscht -- daran haengen Recorder, Eingabefeld und
+  // Strom.
   var wirdBearbeitet = function () {
     var aktiv = document.activeElement;
     if (aktiv && aktiv.closest && aktiv.closest('.feld')) { return true; }
@@ -983,6 +996,11 @@ _VEREINT_JS = """
   // wird, und der Vergleichswert (``panelLetzter``) kommt beim ersten Blick
   // aus derselben, schon browser-serialisierten Quelle: ``panel.innerHTML``.
   var panelLetzter = null;
+  // Verborgen (Tab nicht vorn ODER Browser-Tab im Hintergrund) poll'en wir
+  // nur jeden ``STAND_HINTERGRUND_FAKTOR``-ten Takt -- Ressourcenschonend
+  // bleiben (Birks Vorgabe), ohne ganz abzuschalten wie bisher.
+  var STAND_HINTERGRUND_FAKTOR = 4;
+  var standLetzterLauf = 0;
   var offene = function (panel) {
     var s = {};
     panel.querySelectorAll('details[open] > summary').forEach(function (el) {
@@ -990,6 +1008,18 @@ _VEREINT_JS = """
     });
     return s;
   };
+  // Reine Entscheidungsfunktionen, ohne Abhaengigkeit zu DOM/Fetch -- wie
+  // ``buehneBlaettern`` & Co. node-testbar herausloesbar
+  // (tests/test_stand_hintergrund_js.py).
+  function standTaktErlaubt(versteckt, letzterLauf, jetzt, taktMs, faktor) {
+    if (!versteckt) { return true; }
+    return (jetzt - letzterLauf) >= taktMs * faktor;
+  }
+  function standEntscheide(neu, alt, versteckt) {
+    if (!neu || neu === alt) { return { aendern: false, markieren: false }; }
+    if (versteckt) { return { aendern: false, markieren: true }; }
+    return { aendern: true, markieren: false };
+  }
   // Die Roadmap sitzt AUSSERHALB jedes Panels (immer sichtbar, unabhaengig
   // vom Tab) -- deshalb ein eigener Ausschnitt statt einer Abhaengigkeit
   // vom Stand-Panel-Gate (Fix-Runde 1, Review-Befund 2). Sie teilt sich den
@@ -1003,6 +1033,58 @@ _VEREINT_JS = """
   // ``ladeRoadmap`` tauschte beim allerersten Takt immer, auch ohne
   // Aenderung (Fix-Runde 2, Review-Befund 1 Teil 2).
   var roadmapLetzter = null;
+  // Benannt (statt anonym im ``setInterval``), damit ``zeige()`` sie beim
+  // Oeffnen des Stand-Tabs sofort aufrufen kann -- wie ``ladeBuehne()`` es
+  // fuer den ``buehne``-Zweig schon tut (s.u.), statt bis zu
+  // ``__NACHLADEN_MS__`` auf den naechsten Takt zu warten.
+  function ladeStand() {
+    var panel = document.getElementById('tab-stand');
+    if (!panel) { return; }
+    if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
+    if (laeuft || wirdBearbeitet()) { return; }
+    var versteckt = panel.hidden || document.hidden;
+    var jetzt = Date.now();
+    if (!standTaktErlaubt(versteckt, standLetzterLauf, jetzt, __NACHLADEN_MS__, STAND_HINTERGRUND_FAKTOR)) {
+      return;
+    }
+    standLetzterLauf = jetzt;
+    laeuft = true;
+    // ``location.search`` reicht die gewaehlte Fassung weiter
+    // (``?szene=<id>&fassung=<n>``, ``web.fassungswahl``) -- sonst spraenge
+    // ein offen gelesener alter Text beim naechsten Takt auf den aktuellen
+    // zurueck.
+    fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (!html) { return; }
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        // Frisch ausgewertet, nicht die ``versteckt`` von oben: zwischen
+        // Anfrage und Antwort kann der Tab sichtbar geworden sein (sofortiger
+        // Abruf aus ``zeige()``).
+        var entscheid = standEntscheide(neu, panelLetzter, panel.hidden || document.hidden);
+        if (entscheid.markieren) {
+          var standKnopf = document.querySelector('.tabs button[data-tab="stand"]');
+          if (standKnopf) { standKnopf.dataset.neu = '1'; }
+          return;
+        }
+        if (!entscheid.aendern) { return; }
+        var zustand = offene(panel);
+        // Mobile-App-Shell (03.10.2026): ``panel`` ist seit dieser Karte
+        // selbst der Scroll-Container (``.panel { overflow-y: auto }``),
+        // nicht mehr das Dokument -- die Fassung wird also an seiner
+        // eigenen ``scrollTop`` gesichert, nicht an ``window.scrollY``.
+        var y = panel.scrollTop;
+        panel.innerHTML = neu;
+        panelLetzter = neu;
+        panel.querySelectorAll('details > summary').forEach(function (el) {
+          if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
+        });
+        panel.scrollTop = y;
+      })
+      .catch(function () {})
+      .finally(function () { laeuft = false; });
+  }
   function ladeRoadmap() {
     var aktuell = document.getElementById('roadmap');
     if (!aktuell) { return; }
@@ -1096,39 +1178,7 @@ _VEREINT_JS = """
     // ist.
     ladeRoadmap();
     synchronisiereBuehneTab();
-    var panel = document.getElementById('tab-stand');
-    if (!panel) { return; }
-    if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
-    if (panel.hidden || laeuft || document.hidden || wirdBearbeitet()) {
-      return;
-    }
-    laeuft = true;
-    // ``location.search`` reicht die gewaehlte Fassung weiter
-    // (``?szene=<id>&fassung=<n>``, ``web.fassungswahl``) -- sonst spraenge
-    // ein offen gelesener alter Text beim naechsten Takt auf den aktuellen
-    // zurueck.
-    fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.text() : null; })
-      .then(function (html) {
-        if (!html) { return; }
-        var doc = new DOMParser().parseFromString(html, 'text/html');
-        var neu = doc.body ? doc.body.innerHTML : null;
-        if (!neu || neu === panelLetzter) { return; }
-        var zustand = offene(panel);
-        // Mobile-App-Shell (03.10.2026): ``panel`` ist seit dieser Karte
-        // selbst der Scroll-Container (``.panel { overflow-y: auto }``),
-        // nicht mehr das Dokument -- die Fassung wird also an seiner
-        // eigenen ``scrollTop`` gesichert, nicht an ``window.scrollY``.
-        var y = panel.scrollTop;
-        panel.innerHTML = neu;
-        panelLetzter = neu;
-        panel.querySelectorAll('details > summary').forEach(function (el) {
-          if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
-        });
-        panel.scrollTop = y;
-      })
-      .catch(function () {})
-      .finally(function () { laeuft = false; });
+    ladeStand();
   }, __NACHLADEN_MS__);
   // -- CoThinker-Panel: Live-Aktualisierung + unaufdringlicher Marker ------
   //

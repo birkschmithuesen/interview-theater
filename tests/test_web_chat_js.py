@@ -1390,6 +1390,25 @@ def test_die_seite_traegt_den_modus_schon_beim_laden(tmp_path, monkeypatch):
     assert f'id="interview-pause">{web_chat._TEXT_INTERVIEW_PAUSE}</button>' in aus
 
 
+def test_der_fremd_hinweis_banner_zeigt_den_endehinweis_nach_reload():
+    """Karte t_d18f2ad6 Teil 2 (angepasst, Birk): nach einem Reload mit
+    verwaister Aufnahme (keine lokale Sitzung, der Server meldet den Modus
+    trotzdem) muss ein klarer Banner-Text mit Handlungsaufforderung stehen,
+    nicht nur die Zwei-Tipp-Sperre an den Knoepfen selbst. Kein neuer
+    String: derselbe Text wie ``diskussion_gesperrt`` ("An interview is
+    still open - tap ... first."), denn er benennt schon genau das, und
+    E6 verbietet neuen Client-Speicher -- der Banner haengt nur am
+    Server-gemeldeten Modus im DOM wie der Rest des fremden-Geraet-Pfads."""
+    hinweis = web_chat._TEXT_DISKUSSION_GESPERRT.format(
+        beenden=web_chat._TEXT_INTERVIEW_ENDEN)
+    daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
+             "interviewmodus": True, "titel": None, "brainstorm_knopf": False}
+    seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
+    assert (f'id="interview-fremd-hinweis" role="status">{hinweis}</p>') in seite
+    aus = web_chat.chat_html(dict(daten, interviewmodus=False), "1.x", "tok", "", 45000)
+    assert f'id="interview-fremd-hinweis" role="status" hidden>{hinweis}</p>' in aus
+
+
 def test_das_js_ist_syntaktisch_gueltig(tmp_path):
     """Wenn ``node`` da ist: ``node --check`` ueber das fertige Skript."""
     import shutil

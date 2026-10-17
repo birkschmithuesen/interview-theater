@@ -244,19 +244,24 @@ def test_onstop_laedt_jedes_segment_mit_bytes_hoch_ohne_redems_gate():
 def test_auftrag_traegt_redems_und_postaudio_haengt_rede_an():
     """``redeMs`` ist seit der Karte 'Mithoeren SICHER' reines
     Diagnose-Metadatum: es haengt am ``auftrag`` und geht als ``&rede=``
-    mit, wird aber nirgends mehr als Upload-Gate gelesen (siehe Test oben)."""
+    mit, wird aber nirgends mehr als Upload-Gate gelesen (siehe Test oben).
+
+    Die Querystring-Logik lebt seit der Karte InScribe (Diskussionsaufnahme
+    laedt still nicht mehr hoch, 2026-10-17) in ``audioWeg`` -- ausgelagert
+    aus ``postAudio``, damit der Pfad einmal beim Einreihen gebaut und mit
+    dem Blob zusammen im Handy-Puffer (IndexedDB) liegen kann."""
     js = web_chat._CHAT_JS
     onstop = js[js.index("r.onstop = function"):js.index("r.start();")]
     assert "redeMs: redeMs" in onstop
 
-    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    ausschnitt = js[js.index("function audioWeg"):js.index("function audioWeg") + 600]
     assert "auftrag.redeMs != null" in ausschnitt
     assert "&rede=" in ausschnitt
 
 
 def test_postaudio_haengt_den_grund_an():
     js = web_chat._CHAT_JS
-    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    ausschnitt = js[js.index("function audioWeg"):js.index("function audioWeg") + 600]
     assert "auftrag.grund" in ausschnitt
 
 
@@ -2494,7 +2499,7 @@ def test_postaudio_haengt_das_richtige_ziel_flag_an():
     Upload geht -- EINE Sitzungsart (``sitzung.art === 'diskussion'``),
     zwei moegliche Ziele, kein eigener 'brainstorm'-Sitzungstyp mehr."""
     js = web_chat._CHAT_JS
-    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 900]
+    ausschnitt = js[js.index("function audioWeg"):js.index("function audioWeg") + 900]
     assert "sitzung.art === 'diskussion'" in ausschnitt
     assert "auftrag.sitzung.ziel === 'brainstorm'" in ausschnitt
     assert "&brainstorm=1" in ausschnitt

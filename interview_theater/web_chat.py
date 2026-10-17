@@ -408,6 +408,13 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
                  border: 1px solid #a8201a; min-width: 2.2rem; }
 .fehler { font-size: .9rem; color: #a8201a; text-align: center; }
 .fehler[hidden] { display: none; }
+/* Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+   2026-10-17): der Upload-Watchdog -- deutlich, aber kein Modal, die
+   naechste erfolgreiche Antwort blendet sie wieder aus (pruefeWatchdog). */
+.upload-warnung { font-size: .92rem; font-weight: 600; color: #a8201a;
+                  text-align: center; border: 1px solid #a8201a;
+                  border-radius: .6rem; padding: .5rem .6rem; }
+.upload-warnung[hidden] { display: none; }
 .angehalten { display: flex; flex-direction: column; gap: .35rem; font-size: .92rem;
               border: 1px solid #a8201a; border-radius: .7rem; padding: .5rem .6rem; }
 .angehalten[hidden], .angehalten button[hidden] { display: none; }
@@ -526,6 +533,16 @@ _TEXT_WARTE_NETZ = "Keine Verbindung — {n} offen, ich versuche es weiter …"
 _TEXT_FEHLER_NETZ = "Keine Verbindung — das ist nicht angekommen."
 _TEXT_FEHLER_MIKRO = "Ohne Mikrofon geht das nicht — bitte den Zugriff erlauben."
 _TEXT_VERLASSEN = "Es wird noch aufgenommen oder hochgeladen."
+#: Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+#: 2026-10-17): der Upload-Watchdog -- laeuft eine Aufnahme (Interview oder
+#: Mithoeren) seit ``IT_WEB_UPLOAD_WATCHDOG_MS`` ohne vom Server
+#: angenommenes Segment, erscheint diese Zeile. Das Audio selbst ist nicht
+#: weg: es liegt gepuffert im Handy (IndexedDB) und wird nachgeliefert,
+#: sobald der Upload wieder durchkommt.
+_TEXT_UPLOAD_WARNUNG = (
+    "Aufnahme erreicht den Server nicht — dein Audio bleibt auf diesem "
+    "Handy, Seite nicht schließen."
+)
 _TEXT_UHR = "● {zeit}"
 #: Re-Review H: der Interviewmodus ist serverseitig zu Ende, waehrend dieses
 #: Telefon noch aufnahm oder Segmente offen hatte. Ohne Modus waere ein
@@ -659,6 +676,7 @@ _JS_TEXTE = {
     "warte_modus": _TEXT_WARTE_MODUS,
     "warte_netz": _TEXT_WARTE_NETZ,
     "fehler_netz": _TEXT_FEHLER_NETZ,
+    "upload_warnung": _TEXT_UPLOAD_WARNUNG,
     "fehler_mikro": _TEXT_FEHLER_MIKRO,
     "verlassen": _TEXT_VERLASSEN,
     "uhr": _TEXT_UHR,
@@ -729,6 +747,14 @@ _CHAT_JS = """
   var PTT_LOCK_PX = __PTT_LOCK_PX__;
   var PTT_CANCEL_PX = __PTT_CANCEL_PX__;
   var UPLOAD_WARTEN_MS = __UPLOAD_WARTEN_MS__;
+  // Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+  // 2026-10-17): UPLOAD_TIMEOUT_MS bricht einen einzelnen haengenden Fetch
+  // ab (AbortController, holeMitZeitlimit), statt die ganze serielle
+  // Warteschlange (arbeiteAb) damit fest zu stellen. WATCHDOG_MS ist die
+  // Schwelle, ab der die Warnzeile erscheint (90 s, das woertliche
+  // Abnahmekriterium der Karte).
+  var UPLOAD_TIMEOUT_MS = __UPLOAD_TIMEOUT_MS__;
+  var WATCHDOG_MS = __WATCHDOG_MS__;
   var TEXT = __TEXTE__;
   // Padua Brainstorm, 03.10.2026: wie nah am unteren Rand noch als "dort"
   // zaehlt -- ein Pixel exakt waere auf jedem Geraet eine andere Zahl.
@@ -762,6 +788,7 @@ _CHAT_JS = """
   var pegelBalken = pegelFeld ? pegelFeld.querySelector('span') : null;
   var pegelSchwelle = pegelFeld ? pegelFeld.querySelector('.pegel-schwelle') : null;
   var warteFeld = document.getElementById('warteschlange');
+  var warnungFeld = document.getElementById('upload-warnung');
   var fehlerFeld = document.getElementById('fehler');
   // Task 4 (Kanban-Karte Mithoeren SICHER): der einmalige "Mitschnitt
   // pruefen"-Hinweis -- eigenstaendig von kalErinnerungFeld unten.
@@ -875,7 +902,17 @@ _CHAT_JS = """
     // kalGruppenwerteAus().
     kalibrierungGruppe: kalGruppenwerteAus(
       fuss.dataset.kalibrierungBoden, fuss.dataset.kalibrierungRede,
-      fuss.dataset.kalibrierungSchwelle)
+      fuss.dataset.kalibrierungSchwelle),
+    // Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+    // 2026-10-17): der Upload-Watchdog. letzterSegmentErfolgAm ist der
+    // Zeitpunkt des letzten vom Server angenommenen Segments -- startInterview/
+    // startDiskussion setzen ihn beim Start neu, damit Leerlauf VOR der
+    // Aufnahme nicht mitzaehlt. watchdogAktiv/pufferGemeldet halten fest,
+    // was dem Server schon gemeldet wurde, damit melderPuffer() nicht bei
+    // jedem Takt denselben Stand erneut schickt.
+    letzterSegmentErfolgAm: Date.now(),
+    watchdogAktiv: false,
+    pufferGemeldet: 0
   };
 
   function nonce() {
@@ -1380,9 +1417,29 @@ _CHAT_JS = """
   // Ein 403 heisst fast immer "Nonce abgelaufen": einmal den Zustand holen
   // (er bringt den aktuellen Nonce mit), dann genau ein zweiter Versuch.
 
+  // Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+  // 2026-10-17): der Verdacht aus dem Fallkontext war ein Fetch ohne
+  // Zeitlimit, der die serielle Warteschlange (arbeiteAb, zustand.laeuft)
+  // auf unbestimmte Zeit blockiert. ``AbortController`` bricht nach
+  // UPLOAD_TIMEOUT_MS ab -- der Abbruch wirft wie jeder Netzfehler und laeuft
+  // damit in denselben Wiederholungsweg (UPLOAD_WARTEN_MS).
+  function holeMitZeitlimit(url, optionen) {
+    if (typeof AbortController === 'undefined') { return fetch(url, optionen); }
+    var controller = new AbortController();
+    var zeitlimit = setTimeout(function () { controller.abort(); }, UPLOAD_TIMEOUT_MS);
+    optionen = Object.assign({}, optionen, { signal: controller.signal });
+    return fetch(url, optionen).then(function (r) {
+      clearTimeout(zeitlimit);
+      return r;
+    }, function (fehler) {
+      clearTimeout(zeitlimit);
+      throw fehler;
+    });
+  }
+
   function postJson(pfad, nutzlast, zweiter) {
     nutzlast.nonce = nonce();
-    return fetch(weg(pfad), {
+    return holeMitZeitlimit(weg(pfad), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(nutzlast)
@@ -1394,7 +1451,12 @@ _CHAT_JS = """
     });
   }
 
-  function postAudio(auftrag, zweiter) {
+  // Aus auftrag.dauer/grund/redeMs/weichMs/sitzung/kalibrierung gebaut,
+  // EINMAL, beim Einreihen (reiheEin) -- nicht bei jedem Sendeversuch neu,
+  // damit auftrag.pfad unveraendert mit dem Blob zusammen im Handy
+  // (IndexedDB) liegt und nach einem Reload ohne die (dann verlorene)
+  // sitzung erneut gesendet werden kann.
+  function audioWeg(auftrag) {
     var weg_ = `chat/audio?dauer=${auftrag.dauer}`;
     if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
     if (auftrag.redeMs != null) { weg_ += `&rede=${Math.round(auftrag.redeMs)}`; }
@@ -1407,7 +1469,12 @@ _CHAT_JS = """
       weg_ += auftrag.sitzung.ziel === 'brainstorm' ? '&brainstorm=1' : '&diskussion=1';
     }
     if (auftrag.kalibrierung) { weg_ += '&kalibrierung=1'; }
-    return fetch(weg(weg_), {
+    return weg_;
+  }
+
+  function postAudio(auftrag, zweiter) {
+    if (!auftrag.pfad) { auftrag.pfad = audioWeg(auftrag); }
+    return holeMitZeitlimit(weg(auftrag.pfad), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': auftrag.blob.type || 'audio/webm',
                  'X-Nonce': nonce() },
@@ -1485,6 +1552,92 @@ _CHAT_JS = """
     });
   });
 
+  // -- Handy-Puffer (IndexedDB) ---------------------------------------------
+  //
+  // Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+  // 2026-10-17): jedes Audiosegment wird HIER, beim Einreihen -- also VOR
+  // dem ersten Sendeversuch --, im Handy abgelegt und erst geloescht, wenn
+  // der Server mit 2xx geantwortet hat (arbeiteAb). Ohne ``indexedDB``
+  // (sehr alter Browser) bleibt die Funktion stumm: kein Puffer, aber auch
+  // kein Fehler -- derselbe Rueckfallgedanke wie ``holeStrom``.
+  var puffer = { db: null, oeffnet: null, naechsteSeq: 0 };
+
+  function puffereOeffnen() {
+    if (typeof indexedDB === 'undefined') { return Promise.resolve(null); }
+    if (puffer.db) { return Promise.resolve(puffer.db); }
+    if (puffer.oeffnet) { return puffer.oeffnet; }
+    puffer.oeffnet = new Promise(function (ja) {
+      var anfrage = indexedDB.open('it_audio_puffer', 1);
+      anfrage.onupgradeneeded = function () {
+        anfrage.result.createObjectStore('segmente', { keyPath: 'schluessel' });
+      };
+      anfrage.onsuccess = function () { puffer.db = anfrage.result; ja(puffer.db); };
+      anfrage.onerror = function () { ja(null); };   // ohne Puffer weiterarbeiten
+    });
+    return puffer.oeffnet;
+  }
+
+  // ``auftrag`` braucht nur ``pfad``, ``blob`` und die Schluesselfelder --
+  // NICHT ``sitzung`` (die ueberlebt einen Reload nicht und wird deshalb
+  // beim Wiederherstellen gar nicht erst gebraucht, siehe bereit()).
+  function puffereSpeichern(auftrag) {
+    puffereOeffnen().then(function (db) {
+      if (!db) { return; }
+      db.transaction('segmente', 'readwrite').objectStore('segmente').put({
+        schluessel: auftrag._puffSchluessel, basis: BASIS, seq: auftrag._puffSeq,
+        pfad: auftrag.pfad, blob: auftrag.blob,
+      });
+    });
+  }
+
+  function puffereLoeschen(schluessel) {
+    if (!schluessel) { return; }
+    puffereOeffnen().then(function (db) {
+      if (!db) { return; }
+      db.transaction('segmente', 'readwrite').objectStore('segmente')["delete"](schluessel);
+    });
+  }
+
+  // Alle noch nicht abgeholten Segmente DIESER Gruppe, nach ``seq``
+  // sortiert -- so kommt ein Reload mitten in einer Aufnahme in derselben
+  // Reihenfolge wieder heraus, in der sie entstanden sind.
+  function puffereAlleLaden() {
+    return puffereOeffnen().then(function (db) {
+      if (!db) { return []; }
+      return new Promise(function (ja) {
+        var anfrage = db.transaction('segmente', 'readonly')
+          .objectStore('segmente').getAll();
+        anfrage.onsuccess = function () {
+          var eintraege = (anfrage.result || []).filter(function (e) {
+            return e.basis === BASIS;
+          });
+          eintraege.sort(function (a, b) { return a.seq - b.seq; });
+          ja(eintraege);
+        };
+        anfrage.onerror = function () { ja([]); };
+      });
+    });
+  }
+
+  // Beim Laden der Seite: was von einer fruehren Sitzung dieses Geraets
+  // noch im Handy liegt (haengender Upload, Reload mitten in einer
+  // Aufnahme), kommt VOR allem Neuen in die Warteschlange -- reiheEin()
+  // erkennt den schon gesetzten _puffSchluessel und speichert nicht
+  // nochmal. ``bereit()`` braucht hier keine Sitzung: ein Segment ohne
+  // ``auftrag.sitzung`` ist immer sendebereit.
+  function wiederherstellenGepuffert() {
+    puffereAlleLaden().then(function (eintraege) {
+      if (!eintraege.length) { return; }
+      puffer.naechsteSeq = eintraege[eintraege.length - 1].seq + 1;
+      eintraege.forEach(function (e) {
+        reiheEin({
+          art: 'audio', pfad: e.pfad, blob: e.blob,
+          _puffSchluessel: e.schluessel, _puffSeq: e.seq,
+        });
+      });
+    });
+  }
+
   // -- Warteschlange -------------------------------------------------------
   //
   // Streng der Reihe nach, ein Auftrag zur Zeit: /interview, die Segmente,
@@ -1492,6 +1645,12 @@ _CHAT_JS = """
   // Server ihn angenommen (2xx) oder endgueltig abgelehnt (4xx) hat.
 
   function reiheEin(auftrag) {
+    if (auftrag.art === 'audio' && !auftrag._puffSchluessel) {
+      auftrag._puffSeq = puffer.naechsteSeq++;
+      auftrag._puffSchluessel = BASIS + '#' + auftrag._puffSeq;
+      if (!auftrag.pfad) { auftrag.pfad = audioWeg(auftrag); }
+      puffereSpeichern(auftrag);
+    }
     zustand.warteschlange.push(auftrag);
     zeigeWarteschlange();
     arbeiteAb();
@@ -1620,6 +1779,12 @@ _CHAT_JS = """
     anfrage.then(function (r) {
       if (r.ok) {
         zustand.netzFehler = 0;
+        // Karte InScribe: erst nach der 2xx-Antwort darf das Segment aus
+        // dem Handy-Puffer -- und der Watchdog zaehlt neu ab.
+        if (auftrag.art === 'audio') {
+          zustand.letzterSegmentErfolgAm = Date.now();
+          puffereLoeschen(auftrag._puffSchluessel);
+        }
         // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
         // der Kalibrierungsablauf braucht die message_id dieses konkreten
         // Uploads zurueck, um spaeter gezielt auf SEIN Transkript zu warten
@@ -1674,6 +1839,43 @@ _CHAT_JS = """
     hole();
     arbeiteAb();
   }
+
+  // -- Upload-Watchdog -------------------------------------------------------
+  //
+  // Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+  // 2026-10-17): laeuft eine Aufnahme (Interview oder Mithoeren) seit
+  // WATCHDOG_MS ohne ein vom Server angenommenes Segment, zeigt die Seite
+  // eine deutliche Warnung -- das Audio selbst ist nicht weg (Handy-Puffer
+  // oben), nur der Upload haengt.
+
+  function aufnahmeLaeuft() { return !!(zustand.aufnahme || zustand.diskussion); }
+
+  // Fire-and-forget: ein Fehler hier darf die Aufnahme nicht stoppen, die
+  // naechste Meldung (naechster Takt oder naechster Erfolg) holt es nach.
+  function melderPuffer(haengt) {
+    var anzahl = zustand.warteschlange.filter(function (a) {
+      return a.art === 'audio' && !!a._puffSchluessel;
+    }).length;
+    if (anzahl === zustand.pufferGemeldet && !haengt) { return; }
+    zustand.pufferGemeldet = anzahl;
+    postJson('chat/puffer', { anzahl: anzahl, haengt: !!haengt }).catch(function () {});
+  }
+
+  function pruefeWatchdog() {
+    if (!warnungFeld) { return; }
+    var seit = Date.now() - zustand.letzterSegmentErfolgAm;
+    var haengt = aufnahmeLaeuft() && seit > WATCHDOG_MS;
+    if (haengt && !zustand.watchdogAktiv) {
+      zustand.watchdogAktiv = true;
+      melderPuffer(true);
+    } else if (!haengt && zustand.watchdogAktiv) {
+      zustand.watchdogAktiv = false;
+      melderPuffer(false);
+    }
+    warnungFeld.hidden = !haengt;
+    if (haengt) { warnungFeld.textContent = TEXT.upload_warnung; }
+  }
+  setInterval(pruefeWatchdog, 5000);
 
   // Nimmt die noch nicht gesendeten Auftraege einer Aufnahme heraus. Der
   // gerade laufende bleibt stehen -- sein Ergebnis raeumt erledigt() ab.
@@ -3245,6 +3447,7 @@ _CHAT_JS = """
       pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true
     };
     zustand.diskussion = sitzung;
+    zustand.letzterSegmentErfolgAm = Date.now();   // Leerlauf VOR der Aufnahme zaehlt nicht
     zeigeDiskussionModus();
     holeStrom().then(function (strom) {
       sitzung.mikroUnterwegs = false;
@@ -3343,6 +3546,7 @@ _CHAT_JS = """
     };
     var wechsel = { ziel: true, gesendet: false };
     zustand.aufnahme = sitzung;
+    zustand.letzterSegmentErfolgAm = Date.now();   // Leerlauf VOR der Aufnahme zaehlt nicht
     zustand.wechsel = wechsel;
     // Nachtfix 05.10.2026: vor der Anzeige gesetzt, damit der Knopf
     // "Mikrofon kommt" sagt statt schon "laeuft".
@@ -3529,6 +3733,7 @@ _CHAT_JS = """
         fortsetzend: false, mikroUnterwegs: false, hinweisGezeigt: false
       };
       zustand.aufnahme = sitzung;   // synchron, wie starteInterview()
+      zustand.letzterSegmentErfolgAm = Date.now();   // Pause zaehlt nicht als Haengen
     }
     // Re-Review F, auch beim Wiederaufnehmen: ein gehaltener PTT-Druck wird
     // verworfen, sonst liefen zwei Recorder.
@@ -4017,6 +4222,10 @@ _CHAT_JS = """
   // Begruessung an. Der Server legt /start nur an, solange der Chat noch
   // leer ist -- ein spaeterer Aufruf (Reload, zweites Geraet) bewirkt nichts.
   postJson(`chat/start`, {}).catch(function () { /* best effort */ });
+  // Karte InScribe: was von einer fruehren Sitzung noch im Handy liegt
+  // (haengender Upload, Reload mitten in einer Aufnahme), geht zuerst --
+  // vor allem, was diese frische Seite selbst neu erzeugt.
+  wiederherstellenGepuffert();
   hole();
 })();
 """
@@ -4092,6 +4301,8 @@ def _js() -> str:
         .replace("__PTT_LOCK_PX__", str(PTT_LOCK_PX))
         .replace("__PTT_CANCEL_PX__", str(PTT_CANCEL_PX))
         .replace("__UPLOAD_WARTEN_MS__", json.dumps(list(UPLOAD_WARTEN_MS)))
+        .replace("__UPLOAD_TIMEOUT_MS__", str(_upload_timeout_ms()))
+        .replace("__WATCHDOG_MS__", str(_upload_watchdog_ms()))
         .replace("__TEXTE__", texte)
     )
 
@@ -4331,6 +4542,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'<span></span><i class="pegel-schwelle"></i></div>\n'
         f"{_kalibrierung_panel_html(vad) if vad.get('kalibrierung', True) else ''}"
         f'  <div class="warteschlange" id="warteschlange"></div>\n'
+        f'  <div class="upload-warnung" id="upload-warnung" role="alert" hidden></div>\n'
         f'  <div class="fehler" id="fehler" role="alert" hidden></div>\n'
         f'  <p class="mitlauf-hinweis" id="mitlauf-hinweis" role="status" hidden></p>\n'
         f'  <div class="angehalten" id="angehalten" role="alert" hidden>\n'
@@ -5311,6 +5523,26 @@ def _segment_ms() -> int:
     (``einstellungen.VORGABE_SEGMENT_MS``)."""
     roh = (os.environ.get("IT_WEB_SEGMENT_MS") or "").strip()
     return int(roh) if roh.isdigit() and int(roh) > 0 else 45_000
+
+
+def _upload_watchdog_ms() -> int:
+    """Ab wann der Client eine Warnung zeigt, wenn ein laufendes Interview
+    oder Mithoeren seit so lange kein Segment mehr beim Server
+    untergebracht hat (Karte InScribe: Diskussionsaufnahme laedt still
+    nicht mehr hoch, 2026-10-17). Vorgabe 90 s -- das woertliche
+    Abnahmekriterium der Karte."""
+    roh = (os.environ.get("IT_WEB_UPLOAD_WATCHDOG_MS") or "").strip()
+    return int(roh) if roh.isdigit() and int(roh) > 0 else 90_000
+
+
+def _upload_timeout_ms() -> int:
+    """Wie lange ein einzelner Segment-/Befehls-Fetch hoechstens auf eine
+    Antwort wartet, bevor ``AbortController`` ihn abbricht (dieselbe Karte):
+    ohne Zeitlimit haengt ein einzelner fest steckender Request die ganze
+    seriell arbeitende Warteschlange (``arbeiteAb``) fest -- genau der
+    Verdacht aus dem Fallkontext der Karte."""
+    roh = (os.environ.get("IT_WEB_UPLOAD_TIMEOUT_MS") or "").strip()
+    return int(roh) if roh.isdigit() and int(roh) > 0 else 20_000
 
 
 def _umgebungszahl(name: str, vorgabe: float, *, ganzzahl: bool) -> float:

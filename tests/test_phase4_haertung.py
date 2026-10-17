@@ -20,7 +20,7 @@ import pathlib
 
 import pytest
 
-from interview_theater import ablauf, anweisungen, kontext, phasen, repo, sprache, workshop
+from interview_theater import ablauf, anweisungen, kontext, phasen, repo, sprache, vorschlag, workshop
 
 FIXTURE = json.loads(
     (pathlib.Path(__file__).parent / "fixtures" / "phase4_heiratsantrag_g3.json")
@@ -104,6 +104,35 @@ def test_szenenfolge_ist_kein_schreibangebot():
         "The Fight -- two strangers argue\nWhere should it take place?"
     )
     assert not ablauf.ist_schreibangebot(FIXTURE["fehler_drei_eigene_richtungen"])
+
+
+def test_fehler_drei_eigene_richtungen_ist_strukturell_von_einer_idee_unterscheidbar():
+    """Rein deterministische/strukturelle Pruefung, KEIN Modellaufruf.
+
+    ``prompts/phasen/4.md`` schreibt vor: hat die Gruppe schon eine
+    konkrete Idee genannt, traegt ein ``VORSCHLAG GESCHICHTE:``-Block
+    "eine Zeile, die sie ausbaut, oder hoechstens zwei bis drei Varianten
+    davon". Die Fixture ``fehler_drei_eigene_richtungen`` (Karte t_144ea719)
+    ist genau der Verstoss dagegen: drei eigenstaendige Titel-Zeilen statt
+    der einen uebernommenen Idee der Gruppe. Der Zeilen-Zaehler von
+    ``vorschlag.zeilen`` unterscheidet beide Faelle syntaktisch -- ob ein
+    echtes Modell sich an die Regel haelt, misst NUR ein Lauf gegen das
+    echte Modell (``scripts.pruefe_prompts``), der hier NICHT ausgefuehrt
+    wird.
+    """
+    wert = vorschlag.lies(FIXTURE["fehler_drei_eigene_richtungen"], "geschichte")
+    assert wert is not None
+    zeilen = vorschlag.zeilen(wert)
+    assert len(zeilen) == 3
+
+    uebernommene_idee = (
+        "VORSCHLAG GESCHICHTE:\n"
+        "A performer proposes to a passer-by on the square; the others "
+        "do similar proposals, in random order, all of equal weight."
+    )
+    wert_uebernommen = vorschlag.lies(uebernommene_idee, "geschichte")
+    assert wert_uebernommen is not None
+    assert len(vorschlag.zeilen(wert_uebernommen)) == 1
 
 
 class _KLM:

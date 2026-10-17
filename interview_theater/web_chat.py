@@ -425,6 +425,10 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .kalibrierung-erinnerung[hidden] { display: none; }
 .mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }
 .mitlauf-hinweis[hidden] { display: none; }
+.interview-fremd-hinweis { font-size: .92rem; font-weight: 600; text-align: center;
+                           color: #17181b; border: 1px solid #1f6f5c;
+                           border-radius: .7rem; padding: .5rem .6rem; }
+.interview-fremd-hinweis[hidden] { display: none; }
 /* Bild-Overlay-Karte: die Telefon-Organisationskarte (``.karte``) gross und
    zoombar. ``inset: 0`` statt ``100vw``/``100vh`` -- ein fixes Element
    braucht dafuer keine viewport-relative Einheit. ``touch-action:
@@ -738,6 +742,7 @@ _CHAT_JS = """
   var interviewAktionenFeld = document.getElementById('interview-aktionen');
   var interviewPauseKnopf = document.getElementById('interview-pause');
   var interviewBeendenKnopf = document.getElementById('interview-beenden');
+  var interviewFremdHinweisFeld = document.getElementById('interview-fremd-hinweis');
   var pttKnopf = document.getElementById('ptt');
   // Die Anzeige-Box ueber dem Mikrofon-Knopf (Kanban-Karte Buehne/PTT,
   // 04.10.2026): Schloss-/Wegwisch-Hinweis, Timer, Pegel, Kurztipp-Hinweis,
@@ -2286,6 +2291,15 @@ _CHAT_JS = """
     if (interviewAktionenFeld && interviewBeendenKnopf) {
       interviewBeendenKnopf.textContent = (fremd && zustand.fremdScharf === 'enden')
         ? TEXT.interview_enden_sicher : TEXT.interview_enden;
+    }
+    // Karte t_d18f2ad6 Teil 2 (angepasst, Birk): klarer Banner-Text neben
+    // dem Zwei-Tipp-Knopf -- sichtbar, solange dieses Geraet den Modus nur
+    // fremd/vom Server gemeldet sieht (frisches Laden einer verwaisten
+    // Aufnahme eingeschlossen, siehe SSR oben). Derselbe Text wie
+    // TEXT.diskussion_gesperrt, kein neuer String.
+    if (interviewFremdHinweisFeld) {
+      interviewFremdHinweisFeld.hidden = !fremd;
+      if (fremd) { interviewFremdHinweisFeld.textContent = TEXT.diskussion_gesperrt; }
     }
     // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ODER sobald
     // die Diskussion/Brainstorm-Sitzung angeboten wird (nicht erst wenn sie
@@ -4281,6 +4295,16 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'    <button type="button" id="interview-beenden">'
             f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'
             f'  </div>\n'
+            # Nachtfix t_d18f2ad6 (Birk, angepasste Teil-2-Variante): klarer
+            # Banner-Text zum fremden/verwaisten Geraet -- ergaenzt den
+            # Zwei-Tipp-Knopf (fremdBestaetigt), ersetzt ihn nicht. Derselbe
+            # Text wie "diskussion_gesperrt", kein neuer String. Ein frisch
+            # geladenes Dokument hat nie eine lokale Sitzung (siehe oben),
+            # also ist ``modus`` hier dieselbe Bedingung wie ``fremd``.
+            f'  <p class="interview-fremd-hinweis" id="interview-fremd-hinweis" '
+            f'role="status"' + ("" if modus else " hidden") + ">"
+            f'{html.escape(T._TEXT_DISKUSSION_GESPERRT.format(beenden=T._TEXT_INTERVIEW_ENDEN))}'
+            f'</p>\n'
         )
         + _ptt_anzeige_html()
         + f'  <div class="zeile">\n'

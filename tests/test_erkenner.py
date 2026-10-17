@@ -400,6 +400,101 @@ def test_fragen_setzen_wirkt_wieder_sobald_die_stufe_vorbei_ist(conn, einst):
     assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "Neue Liste"
 
 
+def _sechzehn_fragen() -> list[str]:
+    return [f"Begriff{n}: Alte Frage {n}" for n in range(1, 17)]
+
+
+def test_fragen_setzen_aendert_nur_die_passende_zeile_bei_schrumpf(conn, einst):
+    """Live-Befund G3, 06.10.2026, Padua: "Aendere Frage 3" liess das Modell
+    nur die eine neue Frage als ``fragen_setzen``-Wert liefern, und das
+    ueberschrieb bisher die GANZE Liste (16 Fragen -> 1). Eine neue Zeile mit
+    demselben Thema wie eine vorhandene ersetzt jetzt nur diese eine Zeile."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    repo.setze_arbeitsstand(conn, 1, "fragen_herkunft_final", ",".join(["ki"] * 16))
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Begriff3: Neue Frage drei"}],
+    )
+
+    erwartet = list(alte)
+    erwartet[2] = "Begriff3: Neue Frage drei"
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(erwartet)
+    assert wirkliche == [{"art": "fragen_setzen", "wert": "Begriff3: Neue Frage drei"}]
+    # Herkunft-Laenge bleibt indexgleich -- kein Schrumpfen, keine Verschiebung.
+    assert repo.hole_arbeitsstand(conn, 1)["fragen_herkunft_final"] == ",".join(["ki"] * 16)
+
+
+def test_fragen_setzen_schrumpf_ohne_zuordnung_wird_verworfen(conn, einst):
+    """Eine einzelne neue Zeile, die zu KEINEM vorhandenen Thema passt, laesst
+    sich nicht einer alten Frage zuordnen -- geraten wird nicht. Verworfen,
+    mit Vorfall, statt die Liste zu kuerzen."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    vor_dem_zug = repo._jetzt()
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Voellig neues Thema ohne Bezug"}],
+    )
+
+    assert wirkliche == []
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
+    assert repo.gab_es_vorfall_seit(
+        conn, 1, "fragen_schrumpf_verworfen", vor_dem_zug,
+    )
+
+
+def test_fragen_setzen_mehrzeiliger_schrumpf_ohne_entfernen_wird_verworfen(conn, einst):
+    """Mehr als eine Zeile UND trotzdem kuerzer als die bisherige Liste ist
+    keine erkennbare Einzelfrage-Aenderung -- auch das wird verworfen, nicht
+    geraten."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Begriff1: X\nBegriff2: Y"}],
+    )
+
+    assert wirkliche == []
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
+
+
+def test_fragen_setzen_entfernen_bleibt_unveraendert_voelliges_leeren(conn, einst):
+    """Der EXPLIZITE Entfernungspfad (``entfernen``-Art, eigener Weg in
+    ``_entferne_arbeitsstandfeld``) ist kein ``fragen_setzen`` und bleibt vom
+    Schrumpf-Schutz unberuehrt: "Fragen entfernen" leert weiterhin das ganze
+    Feld, wie schon vor dieser Karte."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "entfernen", "wert": "Fragen"}],
+    )
+
+    assert wirkliche == [{"art": "entfernen", "wert": "Fragen"}]
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] is None
+
+
+def test_fragen_setzen_waehrend_einzeln_durchgehen_hat_vorrang_vor_schrumpf(conn, einst):
+    """Der aeltere Schutz (``knoepfe.einzeln_aktiv``) greift weiterhin zuerst
+    -- auch wenn die neue Zeile zufaellig zu einem Thema passen wuerde, wird
+    waehrend der Stufe "Fragen einzeln durchgehen" gar nichts geschrieben."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    repo.setze_arbeitsstand(conn, 1, "fragen_aktuell", "3")
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Begriff3: Neue Frage drei"}],
+    )
+
+    assert wirkliche == []
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
+
+
 def test_fragen_stehen_im_erkenner_kontext(conn, einst):
     """Der Erkenner sieht die schon gesetzten Fragen -- ohne sie koennte er
     eine Rueckfrage danach nicht von einer neuen Liste unterscheiden."""

@@ -1855,7 +1855,7 @@ _CHAT_JS = """
     var anzahl = zustand.warteschlange.filter(function (a) {
       return a.art === 'audio' && !!a._puffSchluessel;
     }).length;
-    postJson('chat/puffer', { anzahl: anzahl, haengt: !!haengt }).catch(function () {});
+    postJson(`chat/puffer`, { anzahl: anzahl, haengt: !!haengt }).catch(function () {});
   }
 
   function pruefeWatchdog() {

@@ -50,6 +50,10 @@ _VORGABEWERTE = {
     # Wonach "heute" sich richtet. Padua liegt in Italien; der Workshoptag
     # soll nicht um 02:00 Ortszeit umschlagen, weil UTC es tut.
     "IT_ZEITZONE": "Europe/Rome",
+    # Karte t_d18f2ad6: ein haengender Interviewmodus (Geraet offline, "fertig"
+    # kam nie an) beendet sich nach so vielen Minuten ohne neue Aufnahme von
+    # selbst -- derselbe Weg wie /fertig, nur vom Nachhol-Arbeiter ausgeloest.
+    "IT_INTERVIEW_AUTO_ENDE_MIN": "10",
 }
 
 
@@ -85,6 +89,9 @@ class Einstellungen:
     # kosten.zeitzone.
     kosten_deckel_chf: float = 5.0
     zeitzone: str = "Europe/Rome"
+    # Am Ende mit Vorgabewert, aus demselben Grund wie erkenner_modell.
+    # Gelesen von aufnahme.pruefe_auto_ende.
+    interview_auto_ende_min: int = 10
 
 
 #: Variablen, die nur der Telegram-Kanal braucht. Im Web-Kanal gibt es keinen
@@ -162,6 +169,7 @@ def laden() -> Einstellungen:
         web_segment_ms=segment_ms,
         kosten_deckel_chf=_zahl(werte["IT_KOSTEN_DECKEL_CHF"], 5.0),
         zeitzone=(werte["IT_ZEITZONE"] or "").strip() or "Europe/Rome",
+        interview_auto_ende_min=int(_zahl(werte["IT_INTERVIEW_AUTO_ENDE_MIN"], 10.0)),
     )
 
 

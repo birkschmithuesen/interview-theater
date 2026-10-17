@@ -298,6 +298,15 @@ _TEXT_VERDICHTUNG_GESCHEITERT = (
     "Ich konnte {beschreibung} nicht auswerten. Das Transkript bleibt "
     "gespeichert, nur die Zusammenfassung fehlt."
 )
+#: Karte t_d18f2ad6: ein haengender Interviewmodus (Geraet offline, "fertig"
+#: kam nie an) beendet sich von selbst -- dieselbe Meldung wie eine Gruppe
+#: sie beim Live-Vorfall vom 06.10.2026 ueber /fertig bekommen haette, nur
+#: vom Nachhol-Arbeiter statt von aussen ausgeloest (siehe pruefe_auto_ende).
+_TEXT_INTERVIEW_AUTO_ENDE = (
+    "{name} wurde automatisch beendet - seit {minuten} Minuten kam keine "
+    "neue Aufnahme mehr an. Habt ihr noch aufgenommen? Dann einfach wieder "
+    "auf \"Interview aufnehmen\" tippen."
+)
 _ARTIKEL_GROSS = "Die"
 _ARTIKEL_KLEIN = "die"
 _BESCHREIBUNG_TEIL = "{artikel} Aufnahme von {name}, Teil {nummer}"
@@ -2422,6 +2431,50 @@ def melde_rueckkehr(conn, tg, e, chat_id) -> None:
         log.exception("Rueckkehr-Hinweis fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def pruefe_auto_ende(conn, tg, klm, e) -> None:
+    """Beendet ein haengendes Interview von sich aus, genau wie ``/fertig``
+    (Karte t_d18f2ad6, Live-Vorfall 06.10.2026: ein Geraet ging offline,
+    "fertig" sass in der Browser-Warteschlange und ging mit dem Reload
+    verloren -- der Interviewmodus blieb den Rest des Tages offen und
+    blockierte das Autodeploy-Busy-Gate).
+
+    Zwei Bedingungen, beide noetig, bevor ein Interview als haengend gilt:
+
+    * **kein Teil mehr in Arbeit** (``repo.hat_offene_teile``) -- sonst
+      beendete dieser Check ein Interview mitten im Hochladen oder
+      Abtippen eines Segments.
+    * **seit ``e.interview_auto_ende_min`` Minuten keine neue Aufnahme**
+      (``repo.letzte_aktivitaet_interview``, Kopf oder Teil, je juenger).
+
+    Kein Modellaufruf -- reine Zeit-/Statuslogik, aufgerufen vom
+    Nachhol-Arbeiter (``nachholen()``), also hoechstens alle
+    NACHHOL_INTERVALL_S Sekunden, nie aus einem Knopf- oder Befehls-Pfad."""
+    grenze = datetime.now(timezone.utc) - timedelta(minutes=e.interview_auto_ende_min)
+    for kopf in repo.laufende_interviews_fuer_bot(conn, e.bot_name):
+        if repo.hat_offene_teile(conn, kopf["id"]):
+            continue
+        letzte = repo.letzte_aktivitaet_interview(conn, kopf["id"])
+        if letzte is None or datetime.fromisoformat(letzte) > grenze:
+            continue
+        chat_id = kopf["chat_id"]
+        name = anzeigename(conn, kopf, T._TEXT_DAS_INTERVIEW)
+        kopf_id = beende_interview(conn, chat_id)
+        if kopf_id is None:
+            continue  # zwischen Auswahl und hier schon anders beendet
+        repo.merke_vorfall(
+            conn, chat_id, e.bot_name, "interview_auto_ende",
+            f"aufnahme_id={kopf_id}",
+        )
+        try:
+            tg.sende(chat_id, T._TEXT_INTERVIEW_AUTO_ENDE.format(
+                name=name, minuten=e.interview_auto_ende_min,
+            ))
+        except Exception:
+            log.exception("Auto-Ende-Meldung fehlgeschlagen, chat_id=%s", chat_id)
+        if klm is not None:
+            starte_abschluss(conn, tg, klm, e, kopf_id)
+
+
 def nachholen(conn, tg, klm, e, klient, *, zug=_kein_zug) -> None:
     """Greift beim Start und danach alle NACHHOL_INTERVALL_S Sekunden alles
     auf, was nicht in einem Endzustand steht (§ 10.3) -- derselbe Weg, der
@@ -2460,6 +2513,11 @@ def nachholen(conn, tg, klm, e, klient, *, zug=_kein_zug) -> None:
             schliesse_ab(conn, tg, klm, e, kopf["id"])
         except Exception:
             log.exception("Nachholen eines Interviewabschlusses fehlgeschlagen, id=%s", kopf["id"])
+
+    try:
+        pruefe_auto_ende(conn, tg, klm, e)
+    except Exception:
+        log.exception("Auto-Ende-Pruefung fehlgeschlagen")
 
 
 def importiere_text(conn, e, chat_id: int, message_id: int, text: str, name: str | None = None) -> int:

@@ -1785,6 +1785,42 @@ def beendete_offene_interviews(conn: sqlite3.Connection, bot_name: str) -> list[
 
 
 @_gesperrt
+def laufende_interviews_fuer_bot(conn: sqlite3.Connection, bot_name: str) -> list[sqlite3.Row]:
+    """Interview-Koepfe, die noch Teile einsammeln und noch NICHT fuer
+    beendet erklaert wurden (Karte t_d18f2ad6: Grundlage des serverseitigen
+    Auto-Endes fuer ein haengendes Geraet) -- derselbe Ausschnitt wie
+    ``laufendes_interview`` je Gruppe, hier ueber alle Gruppen dieses
+    Bot-Prozesses hinweg, wie ``offene_aufnahmen_fuer_bot``."""
+    return conn.execute(
+        """
+        SELECT a.* FROM aufnahme a
+        JOIN gruppe g ON g.chat_id = a.chat_id
+        WHERE g.bot_name = ? AND a.klasse = 'lang' AND a.teil_von IS NULL
+          AND a.status = 'laeuft' AND a.beendet_am IS NULL
+          AND a.entfernt_am IS NULL
+        ORDER BY a.id ASC
+        """,
+        (bot_name,),
+    ).fetchall()
+
+
+@_gesperrt
+def letzte_aktivitaet_interview(conn: sqlite3.Connection, kopf_id: int) -> str | None:
+    """Zeitpunkt des juengsten Uploads zu diesem Interview -- der Kopf selbst
+    (angelegt beim ersten Teil) oder einer seiner Teile, je nachdem, was
+    juenger ist (Karte t_d18f2ad6). Grundlage dafuer, wie lange ein Interview
+    schon ohne neue Aufnahme steht."""
+    zeile = conn.execute(
+        """
+        SELECT MAX(empfangen_am) AS letzte FROM aufnahme
+        WHERE id = ? OR teil_von = ?
+        """,
+        (kopf_id, kopf_id),
+    ).fetchone()
+    return zeile["letzte"] if zeile else None
+
+
+@_gesperrt
 def setze_whisper_stumm_seit_falls_leer(conn: sqlite3.Connection, chat_id: int, wert: str) -> bool:
     """Setzt gruppe.whisper_stumm_seit atomar, aber nur wenn es noch leer war
     (Aufgabe 8, Nachbesserung 'Wichtig 1'). Liefert True, wenn DIESER Aufruf

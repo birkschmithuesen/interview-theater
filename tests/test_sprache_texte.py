@@ -298,6 +298,8 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail festlegung_ohne_inhalt (repo.merke_vorfall)",
     ("erkenner", "Aenderung art={} konnte nicht angewendet"):
         "Vorfall-Detail erkenner_anwenden_fehler (repo.merke_vorfall)",
+    ("erkenner", "fragen_setzen haette die Liste von {} au"):
+        "Vorfall-Detail fragen_schrumpf_verworfen (repo.merke_vorfall, Karte t_cdece8e2)",
     ("kontext", "Nutzertext von {} auf {} Zeichen gekuerz"):
         "Vorfall-Detail kontext_gekuerzt (repo.merke_vorfall)",
     ("kontext", "Nutzertext nach vollstaendiger Kuerzung "):

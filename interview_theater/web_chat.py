@@ -4558,6 +4558,7 @@ _TOEPFE = {
     "auswahl_fertig": web_grenze.TOPF_NACHRICHT,
     "karte": web_grenze.TOPF_NACHRICHT,
     "bedarf": web_grenze.TOPF_NACHRICHT,
+    "puffer": web_grenze.TOPF_NACHRICHT,
 }
 
 
@@ -5101,6 +5102,37 @@ def _kalibrierung(handler, db_pfad: str, token: str, chat_id: int,
     )
 
 
+def _puffer_melden(handler, db_pfad: str, token: str, chat_id: int,
+                   schluessel: bytes) -> None:
+    """Watchdog-Meldung des Chat-Clients (Karte InScribe, Diskussionsaufnahme
+    laedt still nicht mehr hoch, 2026-10-17): wie viele Audiosegmente der
+    Browser gerade im Handy (IndexedDB) gepuffert haelt, weil der
+    Segment-Upload laenger als der Watchdog-Schwellwert nicht mehr
+    durchkam. Gespeichert GRUPPENWEIT (``repo.setze_client_puffer``) wie
+    die Kalibrierungswerte -- die CoThinker-Statuszeile liest es darueber
+    zurueck, egal welches Geraet gerade meldet.
+
+    ``haengt`` kommt nur auf der ERSTEN Meldung einer haengenden Phase true
+    (der Client haelt das selbst nach, siehe ``_CHAT_JS``) -- nur dann
+    entsteht ein Vorfall fuer das Dashboard; die laufenden Folgezahlen
+    schreiben nur noch die aktuelle Pufferzahl fort."""
+    daten = _koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    anzahl = _zahl_oder_none(daten.get("anzahl")) or 0
+    anzahl = max(0, int(anzahl))
+    with schreibend(db_pfad) as conn:
+        repo.setze_client_puffer(conn, chat_id, anzahl)
+        if daten.get("haengt") and anzahl:
+            repo.merke_vorfall(
+                conn, chat_id, None, "web_upload_haengt",
+                f"{anzahl} Segment(e) im Handy gepuffert",
+            )
+    handler._antworte(
+        200, json.dumps({"ok": True}), "application/json; charset=utf-8",
+    )
+
+
 def _bedarf(handler, db_pfad: str, token: str, chat_id: int,
            schluessel: bytes) -> None:
     """Ein Haken in der Bedarfsliste der Werkbank (Birk 08.10.2026 ~13:45,
@@ -5147,6 +5179,7 @@ _POSTWEGE = {
     "auswahl_fertig": _auswahl_fertig,
     "karte": _karte,
     "bedarf": _bedarf,
+    "puffer": _puffer_melden,
 }
 
 

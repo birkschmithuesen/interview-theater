@@ -1371,28 +1371,6 @@ _CHAT_JS = """
     });
   }
 
-  // -- Eingabefeld: Autogrow nach oben --------------------------------------
-  //
-  // Karte t_d86971eb: die Obergrenze (``max-height``/``overflow-y``) steht
-  // im CSS (``.zeile textarea``) -- hier wird nur die tatsaechliche
-  // Inhaltshoehe gesetzt, der Browser deckelt und scrollt intern selbst,
-  // sobald ``scrollHeight`` sie ueberschreitet.
-  //
-  // ``--fuss-hoehe`` haelt das Bodenpolster der Chat-Einzelseite (``body``
-  // in ``_CSS_CHAT``) synchron mit der GEMESSENEN Hoehe von ``fuss`` --
-  // ein fester Wert waere entweder zu knapp (die juengste Nachricht
-  // verschwindet hinter dem gewachsenen Feld) oder zu grosszuegig geraten.
-  // Auf der vereinten Seite ist ``.fuss`` seit ``web_vereint._css_schale``
-  // ohnehin ein gewoehnliches Flex-Kind und ignoriert die Variable.
-  function passeFussAn() {
-    eingabe.style.height = 'auto';
-    eingabe.style.height = eingabe.scrollHeight + 'px';
-    document.documentElement.style.setProperty(
-      '--fuss-hoehe', (fuss.offsetHeight + 8) + 'px');
-  }
-  eingabe.addEventListener('input', passeFussAn);
-  passeFussAn();
-
   // -- Senden --------------------------------------------------------------
 
   function sendeText() {
@@ -3968,6 +3946,30 @@ _CHAT_JS = """
     hoehenBeobachter.observe(fuss);
     hoehenBeobachter.observe(verlauf);
   }
+
+  // -- Eingabefeld: Autogrow nach oben --------------------------------------
+  //
+  // Karte t_d86971eb: die Obergrenze (``max-height``/``overflow-y``) steht
+  // im CSS (``.zeile textarea``) -- hier wird nur die tatsaechliche
+  // Inhaltshoehe gesetzt, der Browser deckelt und scrollt intern selbst,
+  // sobald ``scrollHeight`` sie ueberschreitet.
+  //
+  // ``--fuss-hoehe`` haelt das Bodenpolster der Chat-Einzelseite (``body``
+  // in ``_CSS_CHAT``) synchron mit der GEMESSENEN Hoehe von ``fuss`` --
+  // ein fester Wert waere entweder zu knapp (die juengste Nachricht
+  // verschwindet hinter dem gewachsenen Feld) oder zu grosszuegig geraten.
+  // Auf der vereinten Seite ist ``.fuss`` seit ``web_vereint._css_schale``
+  // ohnehin ein gewoehnliches Flex-Kind und ignoriert die Variable. Waechst
+  // ``fuss`` dadurch, greift derselbe ``hoehenBeobachter`` oben wie bei
+  // jeder anderen Fusshoehenaenderung.
+  function passeFussAn() {
+    eingabe.style.height = 'auto';
+    eingabe.style.height = eingabe.scrollHeight + 'px';
+    document.documentElement.style.setProperty(
+      '--fuss-hoehe', (fuss.offsetHeight + 8) + 'px');
+  }
+  eingabe.addEventListener('input', passeFussAn);
+  passeFussAn();
 
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
   scrolleBeimOeffnen();   // Phasenanfang nur beim ersten Oeffnen dieser Phase auf diesem Geraet, sonst ans Ende

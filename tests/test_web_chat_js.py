@@ -3387,3 +3387,128 @@ def test_mitlauf_hinweis_kommt_nicht_nach_dem_ende_der_sitzung_live_in_node(tmp_
         "brainstorm_laeuft": True,
         "diskussion_beendet": True,
     }
+
+
+# -- Autogrow-Eingabefeld (Karte t_d86971eb) --------------------------------
+#
+# Birk, Live-Test 06.10.2026: "Die Schreibblase ... sollte die komplette
+# geschriebene Nachricht sichtbar machen ... nach oben wachsen, wenn es mehr
+# als eine Zeile hat" -- gemeint das Eingabefeld unten, nicht eine
+# Chat-Blase. ``<input type="text">`` kann strukturell nicht mehrzeilig
+# werden, deshalb jetzt ``<textarea rows="1">`` plus ``passeFussAn()``.
+
+
+def test_eingabefeld_hat_eine_css_obergrenze_mit_internem_scrollen():
+    """Die Obergrenze (~5-6 Zeilen) steht im CSS, nicht im JS: ``max-height``
+    deckelt die sichtbare Hoehe, ``overflow-y: auto`` scrollt ab dann intern
+    -- ohne dass das JS selbst eine Pixelgrenze kennen muss."""
+    css = web_chat._CSS_CHAT
+    block = re.search(r"\.zeile textarea \{([^}]*)\}", css)
+    assert block, "keine .zeile textarea-Regel im CSS"
+    koerper = block.group(1)
+    assert "max-height" in koerper
+    assert "overflow-y: auto" in koerper
+    # Kein von Hand gezogener Griff -- der wuerde mit dem Autogrow-Takt
+    # (bei jedem 'input'-Ereignis neu gesetzte Hoehe) kollidieren.
+    assert "resize: none" in koerper
+
+
+def test_passefussan_misst_scrollheight_und_setzt_hoehe_live_in_node(tmp_path):
+    """``passeFussAn()`` WOERTLICH aus dem ausgelieferten Skript: setzt erst
+    auf 'auto' zurueck (sonst schrumpft ein geloeschter Text nie wieder --
+    ``scrollHeight`` bliebe an der vorherigen, groesseren Inline-Hoehe
+    haengen), dann auf die gemessene ``scrollHeight``. ``--fuss-hoehe``
+    folgt der GEMESSENEN ``fuss.offsetHeight`` plus fester Sicherheitsluft,
+    statt einen festen Wert zu raten (Karte t_d86971eb)."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(
+        js, "function passeFussAn",
+        "eingabe.addEventListener('input', passeFussAn);",
+    )
+    quelltext = f"""
+    var hoehenHistorie = [];
+    var eingabe = {{ value: '', scrollHeight: 0, style: {{}} }};
+    Object.defineProperty(eingabe.style, 'height', {{
+      get: function () {{ return this._h; }},
+      set: function (v) {{ this._h = v; hoehenHistorie.push(v); }}
+    }});
+    var fussEigenschaften = {{}};
+    var document = {{ documentElement: {{ style: {{
+      setProperty: function (name, wert) {{ fussEigenschaften[name] = wert; }}
+    }} }} }};
+    var fuss = {{ offsetHeight: 50 }};
+    {funktion}
+
+    hoehenHistorie.length = 0;
+    eingabe.scrollHeight = 46;  // eine Zeile
+    passeFussAn();
+    var einzeilig = {{
+      historie: hoehenHistorie.slice(),
+      fussHoehe: fussEigenschaften['--fuss-hoehe']
+    }};
+
+    hoehenHistorie.length = 0;
+    eingabe.scrollHeight = 140;  // mehrzeilig gewachsen
+    fuss.offsetHeight = 150;     // waechst im echten Layout mit
+    passeFussAn();
+    var mehrzeilig = {{
+      historie: hoehenHistorie.slice(),
+      fussHoehe: fussEigenschaften['--fuss-hoehe']
+    }};
+
+    console.log(JSON.stringify({{ einzeilig: einzeilig, mehrzeilig: mehrzeilig }}));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["einzeilig"] == {
+        "historie": ["auto", "46px"], "fussHoehe": "58px",
+    }
+    assert ergebnis["mehrzeilig"] == {
+        "historie": ["auto", "140px"], "fussHoehe": "158px",
+    }
+
+
+def test_enter_sendet_shift_enter_fuegt_zeilenumbruch_ein_live_in_node(tmp_path):
+    """ANNAHME aus der Karte, hier als Verhalten festgeschrieben: Enter
+    sendet weiterhin (wie beim bisherigen ``<input>``), Shift+Enter laesst
+    den Browser den Zeilenumbruch selbst einfuegen (kein ``preventDefault``,
+    kein eigener Senden-Aufruf) -- derselbe Chat-Standard wie Telegram/
+    Slack."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    registrierung = _extrahiere(
+        js, "eingabe.addEventListener('keydown'", "// -- Knoepfe",
+    )
+    quelltext = f"""
+    var eingabeListener = null;
+    var eingabe = {{
+      addEventListener: function (art, fn) {{
+        if (art === 'keydown') {{ eingabeListener = fn; }}
+      }}
+    }};
+    var sendeAufrufe = 0;
+    function sendeText() {{ sendeAufrufe++; }}
+    {registrierung}
+
+    function druecke(taste, shift) {{
+      var verhindert = false;
+      sendeAufrufe = 0;
+      eingabeListener({{
+        key: taste, shiftKey: !!shift,
+        preventDefault: function () {{ verhindert = true; }}
+      }});
+      return {{ gesendet: sendeAufrufe === 1, verhindert: verhindert }};
+    }}
+
+    console.log(JSON.stringify({{
+      enter_ohne_shift: druecke('Enter', false),
+      enter_mit_shift: druecke('Enter', true),
+      andere_taste: druecke('a', false)
+    }}));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis == {
+        "enter_ohne_shift": {"gesendet": True, "verhindert": True},
+        "enter_mit_shift": {"gesendet": False, "verhindert": False},
+        "andere_taste": {"gesendet": False, "verhindert": False},
+    }

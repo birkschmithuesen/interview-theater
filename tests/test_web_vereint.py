@@ -261,6 +261,10 @@ def test_web_gruppe_hat_weiterhin_das_volle_chat_panel(aufbau):
     assert 'id="interview"' in text
     assert f'id="tab-{web_vereint.VORGABE_TAB}"' in text
     assert web_vereint.VORGABE_TAB == "chat"
+    # Karte t_d86971eb: die vereinte Seite teilt sich dasselbe Markup wie
+    # die Chat-Einzelseite (web_vereint.py, Kommentar ~Zeile 2324) -- die
+    # Autogrow-Textarea muss also auch hier ankommen, nicht nur dort.
+    assert '<textarea id="eingabe" autocomplete="off" rows="1"' in text
 
 
 # -- der Buehne-Tab (UX-Knoepfe-Karte, Abschnitt 5) ----------------------

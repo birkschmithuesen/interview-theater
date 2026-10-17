@@ -467,7 +467,7 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {{
   padding-bottom: calc(.8rem + env(safe-area-inset-bottom));
 }}
 .zeile {{ min-width: 0; }}
-.zeile input {{ font-size: 16px; touch-action: manipulation; min-width: 0; }}
+.zeile textarea {{ font-size: 16px; touch-action: manipulation; min-width: 0; }}
 .zeile button, .tabs button, .leiste button,
 #interview, #ptt, #senden, #diskussion {{ touch-action: manipulation; }}
 """

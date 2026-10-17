@@ -311,7 +311,16 @@ _CSS_CHAT = """
    wird). ``body`` wird auf der vereinten Seite beim Scopen zur Scope-
    Klasse selbst (``web_vereint.scope_css``), die Sperre bleibt also auf
    den Chat beschraenkt. */
-body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
+/* Karte t_d86971eb: ``--fuss-hoehe`` haelt das Bodenpolster synchron mit der
+   GEMESSENEN Hoehe von ``.fuss`` (``_js()``, ``passeFussAn``) -- seit das
+   Eingabefeld mehrzeilig nach oben waechst, waere ein fester Wert entweder
+   zu knapp (eine gewachsene Zeile deckt die juengste Nachricht ab) oder zu
+   grosszuegig geraten. Der Fallback ``9rem`` bleibt fuer den Moment vor dem
+   ersten Skriptlauf und fuer die vereinte Seite stehen, wo ``.fuss`` ueber
+   ``web_vereint._css_schale`` ohnehin ein gewoehnliches Flex-Kind wird und
+   die Variable nie liest. */
+body { background: #fbfaf8; color: #17181b;
+       padding: .6rem .7rem var(--fuss-hoehe, 9rem);
        max-width: 44rem; margin: 0 auto; touch-action: pan-x pan-y; }
 .verlauf { display: flex; flex-direction: column; gap: .55rem; }
 .blase { padding: .55rem .7rem; border-radius: .8rem; max-width: 88%;
@@ -359,8 +368,15 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
         border-top: 1px solid #e0ddd6; padding: .5rem .7rem .8rem;
         display: flex; flex-direction: column; gap: .5rem; }
 .zeile { display: flex; gap: .4rem; align-items: stretch; }
-.zeile input { flex: 1; font: inherit; padding: .6rem .7rem; min-height: 2.9rem;
-               border-radius: .7rem; border: 1px solid #c9c4b8; }
+/* Karte t_d86971eb: ``max-height``/``overflow-y`` sind die Obergrenze --
+   ``_js()`` (``passeFussAn``) setzt nur die tatsaechliche Inhaltshoehe
+   (``scrollHeight``) als Inline-Hoehe, der Browser deckelt sie hier UND
+   blendet ab dann selbst einen internen Scrollbalken ein, ganz ohne eigene
+   JS-Rechnung dafuer. ``resize: none``, weil ein von Hand gezogener Griff
+   mit dem Autogrow-Takt bei jedem Tastendruck kollidieren wuerde. */
+.zeile textarea { flex: 1; font: inherit; padding: .6rem .7rem; min-height: 2.9rem;
+                  max-height: 9rem; line-height: 1.35rem; overflow-y: auto;
+                  resize: none; border-radius: .7rem; border: 1px solid #c9c4b8; }
 .zeile button { font: inherit; min-width: 3.4rem; min-height: 2.9rem;
                 border-radius: .7rem; border: 0; background: #1f6f5c; color: #fff; }
 #interview { font: inherit; font-weight: 600; min-height: 3.2rem; width: 100%;
@@ -472,7 +488,7 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
   body { background: #14161a; color: #e7e9ec; }
   .blase.bot { background: #1d2026; border-color: #2c313a; }
   .fuss { background: #14161a; border-color: #2c313a; }
-  .zeile input { background: #1d2026; color: #e7e9ec; border-color: #2c313a; }
+  .zeile textarea { background: #1d2026; color: #e7e9ec; border-color: #2c313a; }
   .leiste button { background: #1d2026; color: #6fcfb6; border-color: #2c6a58; }
   .leiste-label { color: #7d8290; }
   .interview-aktionen button { background: #1d2026; color: #e7e9ec; }
@@ -1426,9 +1442,13 @@ _CHAT_JS = """
     var text = (eingabe.value || '').trim();
     if (!text) { return; }
     eingabe.value = '';
+    passeFussAn();
     veralteLetzteLeiste();
     erzwingeNachUnten = true;
-    function zurueck() { if (!eingabe.value) { eingabe.value = text; } erzwingeNachUnten = false; }
+    function zurueck() {
+      if (!eingabe.value) { eingabe.value = text; passeFussAn(); }
+      erzwingeNachUnten = false;
+    }
     postJson(`chat/senden`, { text: text }).then(function (r) {
       if (r.ok) { hole(); return; }
       zurueck();
@@ -1437,8 +1457,13 @@ _CHAT_JS = """
   }
 
   document.getElementById('senden').addEventListener('click', sendeText);
+  // ANNAHME (keine Ruecksprache mit Birk in diesem Lauf moeglich): Enter
+  // sendet weiterhin wie beim bisherigen <input>, Shift+Enter fuegt einen
+  // Zeilenumbruch ein -- der verbreitete Chat-Standard (Telegram, Slack),
+  // der das Senden-Verhalten fuer die Mehrheit der Nutzung (Handy, kein
+  // sichtbarer Shift-Taste) unveraendert laesst.
   eingabe.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); sendeText(); }
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); sendeText(); }
   });
 
   // -- Knoepfe -------------------------------------------------------------
@@ -4011,6 +4036,30 @@ _CHAT_JS = """
     hoehenBeobachter.observe(verlauf);
   }
 
+  // -- Eingabefeld: Autogrow nach oben --------------------------------------
+  //
+  // Karte t_d86971eb: die Obergrenze (``max-height``/``overflow-y``) steht
+  // im CSS (``.zeile textarea``) -- hier wird nur die tatsaechliche
+  // Inhaltshoehe gesetzt, der Browser deckelt und scrollt intern selbst,
+  // sobald ``scrollHeight`` sie ueberschreitet.
+  //
+  // ``--fuss-hoehe`` haelt das Bodenpolster der Chat-Einzelseite (``body``
+  // in ``_CSS_CHAT``) synchron mit der GEMESSENEN Hoehe von ``fuss`` --
+  // ein fester Wert waere entweder zu knapp (die juengste Nachricht
+  // verschwindet hinter dem gewachsenen Feld) oder zu grosszuegig geraten.
+  // Auf der vereinten Seite ist ``.fuss`` seit ``web_vereint._css_schale``
+  // ohnehin ein gewoehnliches Flex-Kind und ignoriert die Variable. Waechst
+  // ``fuss`` dadurch, greift derselbe ``hoehenBeobachter`` oben wie bei
+  // jeder anderen Fusshoehenaenderung.
+  function passeFussAn() {
+    eingabe.style.height = 'auto';
+    eingabe.style.height = eingabe.scrollHeight + 'px';
+    document.documentElement.style.setProperty(
+      '--fuss-hoehe', (fuss.offsetHeight + 8) + 'px');
+  }
+  eingabe.addEventListener('input', passeFussAn);
+  passeFussAn();
+
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
   scrolleBeimOeffnen();   // Phasenanfang nur beim ersten Oeffnen dieser Phase auf diesem Geraet, sonst ans Ende
   // Pflichtpunkt 2, Fix 1 von 2: der erste Seitenaufruf stoesst die
@@ -4381,8 +4430,13 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         )
         + _ptt_anzeige_html()
         + f'  <div class="zeile">\n'
-        f'    <input type="text" id="eingabe" autocomplete="off" '
-        f'placeholder="{html.escape(_platzhalter_fuer(daten.get("phase"), daten.get("fragen_aktuell")), quote=True)}">\n'
+        # Karte t_d86971eb: ``<textarea rows="1">`` statt ``<input
+        # type="text">`` -- nur so kann das Feld ueberhaupt mehrzeilig
+        # werden. ``_js()`` misst ``scrollHeight`` und laesst es bis zu
+        # einer CSS-Obergrenze (``.zeile textarea`` in ``_CSS_CHAT``) nach
+        # oben wachsen, danach scrollt es intern.
+        f'    <textarea id="eingabe" autocomplete="off" rows="1" '
+        f'placeholder="{html.escape(_platzhalter_fuer(daten.get("phase"), daten.get("fragen_aktuell")), quote=True)}"></textarea>\n'
         f'    <button type="button" id="ptt"{" hidden" if modus else ""} title="'
         f'{html.escape(T._TEXT_PTT, quote=True)}">🎤</button>\n'
         f'    <button type="button" id="senden">'

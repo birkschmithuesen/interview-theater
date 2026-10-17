@@ -1027,6 +1027,58 @@ _VEREINT_JS = """
   // ``ladeRoadmap`` tauschte beim allerersten Takt immer, auch ohne
   // Aenderung (Fix-Runde 2, Review-Befund 1 Teil 2).
   var roadmapLetzter = null;
+  // Benannt (statt anonym im ``setInterval``), damit ``zeige()`` sie beim
+  // Oeffnen des Stand-Tabs sofort aufrufen kann -- wie ``ladeBuehne()`` es
+  // fuer den ``buehne``-Zweig schon tut (s.u.), statt bis zu
+  // ``__NACHLADEN_MS__`` auf den naechsten Takt zu warten.
+  function ladeStand() {
+    var panel = document.getElementById('tab-stand');
+    if (!panel) { return; }
+    if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
+    if (laeuft || wirdBearbeitet()) { return; }
+    var versteckt = panel.hidden || document.hidden;
+    var jetzt = Date.now();
+    if (!standTaktErlaubt(versteckt, standLetzterLauf, jetzt, __NACHLADEN_MS__, STAND_HINTERGRUND_FAKTOR)) {
+      return;
+    }
+    standLetzterLauf = jetzt;
+    laeuft = true;
+    // ``location.search`` reicht die gewaehlte Fassung weiter
+    // (``?szene=<id>&fassung=<n>``, ``web.fassungswahl``) -- sonst spraenge
+    // ein offen gelesener alter Text beim naechsten Takt auf den aktuellen
+    // zurueck.
+    fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (!html) { return; }
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        // Frisch ausgewertet, nicht die ``versteckt`` von oben: zwischen
+        // Anfrage und Antwort kann der Tab sichtbar geworden sein (sofortiger
+        // Abruf aus ``zeige()``).
+        var entscheid = standEntscheide(neu, panelLetzter, panel.hidden || document.hidden);
+        if (entscheid.markieren) {
+          var standKnopf = document.querySelector('.tabs button[data-tab="stand"]');
+          if (standKnopf) { standKnopf.dataset.neu = '1'; }
+          return;
+        }
+        if (!entscheid.aendern) { return; }
+        var zustand = offene(panel);
+        // Mobile-App-Shell (03.10.2026): ``panel`` ist seit dieser Karte
+        // selbst der Scroll-Container (``.panel { overflow-y: auto }``),
+        // nicht mehr das Dokument -- die Fassung wird also an seiner
+        // eigenen ``scrollTop`` gesichert, nicht an ``window.scrollY``.
+        var y = panel.scrollTop;
+        panel.innerHTML = neu;
+        panelLetzter = neu;
+        panel.querySelectorAll('details > summary').forEach(function (el) {
+          if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
+        });
+        panel.scrollTop = y;
+      })
+      .catch(function () {})
+      .finally(function () { laeuft = false; });
+  }
   function ladeRoadmap() {
     var aktuell = document.getElementById('roadmap');
     if (!aktuell) { return; }
@@ -1081,58 +1133,6 @@ _VEREINT_JS = """
       })
       .catch(function () {})
       .finally(function () { roadmapLaeuft = false; });
-  }
-  // Benannt (statt anonym im ``setInterval``), damit ``zeige()`` sie beim
-  // Oeffnen des Stand-Tabs sofort aufrufen kann -- wie ``ladeBuehne()`` es
-  // fuer den ``buehne``-Zweig schon tut (s.u.), statt bis zu
-  // ``__NACHLADEN_MS__`` auf den naechsten Takt zu warten.
-  function ladeStand() {
-    var panel = document.getElementById('tab-stand');
-    if (!panel) { return; }
-    if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
-    if (laeuft || wirdBearbeitet()) { return; }
-    var versteckt = panel.hidden || document.hidden;
-    var jetzt = Date.now();
-    if (!standTaktErlaubt(versteckt, standLetzterLauf, jetzt, __NACHLADEN_MS__, STAND_HINTERGRUND_FAKTOR)) {
-      return;
-    }
-    standLetzterLauf = jetzt;
-    laeuft = true;
-    // ``location.search`` reicht die gewaehlte Fassung weiter
-    // (``?szene=<id>&fassung=<n>``, ``web.fassungswahl``) -- sonst spraenge
-    // ein offen gelesener alter Text beim naechsten Takt auf den aktuellen
-    // zurueck.
-    fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.text() : null; })
-      .then(function (html) {
-        if (!html) { return; }
-        var doc = new DOMParser().parseFromString(html, 'text/html');
-        var neu = doc.body ? doc.body.innerHTML : null;
-        // Frisch ausgewertet, nicht die ``versteckt`` von oben: zwischen
-        // Anfrage und Antwort kann der Tab sichtbar geworden sein (sofortiger
-        // Abruf aus ``zeige()``).
-        var entscheid = standEntscheide(neu, panelLetzter, panel.hidden || document.hidden);
-        if (entscheid.markieren) {
-          var standKnopf = document.querySelector('.tabs button[data-tab="stand"]');
-          if (standKnopf) { standKnopf.dataset.neu = '1'; }
-          return;
-        }
-        if (!entscheid.aendern) { return; }
-        var zustand = offene(panel);
-        // Mobile-App-Shell (03.10.2026): ``panel`` ist seit dieser Karte
-        // selbst der Scroll-Container (``.panel { overflow-y: auto }``),
-        // nicht mehr das Dokument -- die Fassung wird also an seiner
-        // eigenen ``scrollTop`` gesichert, nicht an ``window.scrollY``.
-        var y = panel.scrollTop;
-        panel.innerHTML = neu;
-        panelLetzter = neu;
-        panel.querySelectorAll('details > summary').forEach(function (el) {
-          if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
-        });
-        panel.scrollTop = y;
-      })
-      .catch(function () {})
-      .finally(function () { laeuft = false; });
   }
   setInterval(function () {
     // Im selben Takt wie das Stand-Panel (Review-Befund 2), aber ohne

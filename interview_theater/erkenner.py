@@ -998,7 +998,10 @@ def _wende_fragen_schrumpf_geschuetzt(conn, chat_id: int, art: str, wert: str):
       ``fragen_herkunft_final``/``fragen_bearbeitet_final`` bleiben dadurch
       automatisch indexgleich, ohne dass diese Funktion sie anfasst);
     - jeder andere Schrumpf (keine eindeutige Zuordnung, oder mehrere Zeilen
-      weniger als vorher) wird verworfen und als Vorfall vermerkt.
+      weniger als vorher) wird verworfen, als Vorfall vermerkt und mit dem
+      Marker ``{"art": "fragen_schrumpf_verworfen"}`` gemeldet (Befund A,
+      Nachbesserung zu t_cdece8e2) -- die Gruppe bekommt dadurch im Chat eine
+      Rueckfrage statt gar keiner Reaktion.
 
     Liefert ``_KEIN_SCHRUMPF``, wenn ``wert`` die Liste nicht kuerzen wuerde
     -- dann gilt der normale Ueberschreib-Weg weiter (auch das Erstschreiben
@@ -1030,7 +1033,13 @@ def _wende_fragen_schrumpf_geschuetzt(conn, chat_id: int, art: str, wert: str):
         f"fragen_setzen haette die Liste von {len(alte)} auf {len(neue)} "
         "Zeilen gekuerzt, ohne erkennbare Einzelfrage-Aenderung",
     )
-    return None
+    # Befund A (Nachbesserung zu t_cdece8e2): nicht ``None`` -- sonst sieht
+    # die Gruppe im Chat NICHTS von der Ablehnung, nur das Dashboard
+    # (``merke_vorfall`` oben). Dieser Marker landet in ``wirkliche`` und
+    # bekommt in ``_sammle_meldbares``/``_meldungszeilen`` seine eigene
+    # Zeile -- kein Arbeitsstandfeld hat sich geaendert, also auch kein
+    # Undo-Eintrag (``ruecknahme.ZEILEN_OHNE_UNDO``).
+    return {"art": "fragen_schrumpf_verworfen"}
 
 
 #: Anzahl Szenen: vernuenftige Grenzen fuer einen Workshop-Abend.
@@ -2587,6 +2596,11 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
         # Padua Phasen TEIL 2: fertige Zeilen aus formen_setzen/
         # sprechweise_setzen (die Module bauen sie selbst, je Szene/Figur).
         "teil2": [],
+        # Befund A (Nachbesserung zu t_cdece8e2): der Schrumpf-Schutz hat
+        # eine Einzelfrage-Aenderung abgelehnt -- ohne diese Zeile sah die
+        # Gruppe im Chat nichts von der Ablehnung, nur ein stiller
+        # ``vorfall`` fuers Dashboard.
+        "fragen_schrumpf_verworfen": False,
     }
     einzeln = {
         "szene_usa": "usa",
@@ -2622,6 +2636,8 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
             gesammelt["phase"] = phasen.nummer_fuer(wert)
         elif art in ("formen_setzen", "sprechweise_setzen"):
             gesammelt["teil2"].extend(aenderung.get("zeilen") or [])
+        elif art == "fragen_schrumpf_verworfen":
+            gesammelt["fragen_schrumpf_verworfen"] = True
         # Ein ``entschieden`` bleibt still -- ausser es hat nebenbei die
         # Figurenanzahl gesetzt (B4). Dann ist es eine Arbeitsstandaenderung
         # wie jede andere und gehoert in die Meldung: sonst stuende die Zahl
@@ -2682,6 +2698,13 @@ _ZEILE_USA_JA = (
     "jeder Szene nochmal."
 )
 _ZEILE_USA_NEIN = "Szenentexte bleiben in der Schweiz. Ich frage nicht wieder."
+#: Befund A (Nachbesserung zu t_cdece8e2): die Rueckfrage, wenn der
+#: Schrumpf-Schutz eine Einzelfrage-Aenderung abgelehnt hat (siehe
+#: ``_wende_fragen_schrumpf_geschuetzt``) -- ohne diese Zeile sah die Gruppe
+#: im Chat nichts von der Ablehnung.
+_ZEILE_FRAGEN_SCHRUMPF_VERWORFEN = (
+    "Konnte die Frage nicht eindeutig zuordnen -- welche Frage meinst du?"
+)
 
 
 #: Dieselbe Phasennummer wie ``knoepfe.texte.PHASE_SETTING`` -- hier als
@@ -2823,6 +2846,8 @@ def _meldungszeilen(g: dict, phase: int | None = None, chat_id: int | None = Non
         zeilen.append(T._ZEILE_USA_JA)
     elif g["usa"] == "nein":
         zeilen.append(T._ZEILE_USA_NEIN)
+    if g["fragen_schrumpf_verworfen"]:
+        zeilen.append(T._ZEILE_FRAGEN_SCHRUMPF_VERWORFEN)
     return zeilen
 
 

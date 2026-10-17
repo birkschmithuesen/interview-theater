@@ -429,7 +429,11 @@ def test_fragen_setzen_aendert_nur_die_passende_zeile_bei_schrumpf(conn, einst):
 def test_fragen_setzen_schrumpf_ohne_zuordnung_wird_verworfen(conn, einst):
     """Eine einzelne neue Zeile, die zu KEINEM vorhandenen Thema passt, laesst
     sich nicht einer alten Frage zuordnen -- geraten wird nicht. Verworfen,
-    mit Vorfall, statt die Liste zu kuerzen."""
+    mit Vorfall, statt die Liste zu kuerzen.
+
+    ``wirkliche`` ist nicht mehr leer (Befund A, Nachbesserung zu t_cdece8e2):
+    die Ablehnung liefert einen eigenen Marker, damit ``erkenner.laufe()``
+    die Gruppe im Chat nachfragen laesst statt stillzuschweigen."""
     alte = _sechzehn_fragen()
     repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
     vor_dem_zug = repo._jetzt()
@@ -439,7 +443,7 @@ def test_fragen_setzen_schrumpf_ohne_zuordnung_wird_verworfen(conn, einst):
         [{"art": "fragen_setzen", "wert": "Voellig neues Thema ohne Bezug"}],
     )
 
-    assert wirkliche == []
+    assert wirkliche == [{"art": "fragen_schrumpf_verworfen"}]
     assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
     assert repo.gab_es_vorfall_seit(
         conn, 1, "fragen_schrumpf_verworfen", vor_dem_zug,
@@ -449,7 +453,7 @@ def test_fragen_setzen_schrumpf_ohne_zuordnung_wird_verworfen(conn, einst):
 def test_fragen_setzen_mehrzeiliger_schrumpf_ohne_entfernen_wird_verworfen(conn, einst):
     """Mehr als eine Zeile UND trotzdem kuerzer als die bisherige Liste ist
     keine erkennbare Einzelfrage-Aenderung -- auch das wird verworfen, nicht
-    geraten."""
+    geraten (Marker wie oben, Befund A)."""
     alte = _sechzehn_fragen()
     repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
 
@@ -458,8 +462,51 @@ def test_fragen_setzen_mehrzeiliger_schrumpf_ohne_entfernen_wird_verworfen(conn,
         [{"art": "fragen_setzen", "wert": "Begriff1: X\nBegriff2: Y"}],
     )
 
-    assert wirkliche == []
+    assert wirkliche == [{"art": "fragen_schrumpf_verworfen"}]
     assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
+
+
+def test_fragen_setzen_gleiche_laenge_komplett_anderer_inhalt_ueberschreibt_normal(conn, einst):
+    """Mutationstest (Befund B, Boundary): GENAU so viele Zeilen wie vorher,
+    aber jede Zeile komplett neu, ist KEIN Schrumpf und muss normal
+    ueberschreiben -- nicht ueber den Ein-Zeilen-Zuordnungspfad laufen.
+    Dieser Test faengt eine Mutation von ``len(neue) >= len(alte)`` zu
+    ``len(neue) > len(alte)`` in ``_wende_fragen_schrumpf_geschuetzt``."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    neue = [f"Thema{n}: Ganz andere Frage {n}" for n in range(1, 17)]
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "\n".join(neue)}],
+    )
+
+    assert wirkliche == [{"art": "fragen_setzen", "wert": "\n".join(neue)}]
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(neue)
+
+
+def test_fragen_setzen_zweideutiges_thema_in_alter_liste_wird_verworfen(conn, einst):
+    """Mutationstest (Befund B, Mehrdeutigkeit): teilen sich ZWEI alte Zeilen
+    dasselbe Thema, ist eine neue Einzelzeile mit demselben Thema mehrdeutig
+    -- verworfen, nicht die erste alte Zeile geraten. Dieser Test faengt eine
+    Mutation von ``len(treffer) == 1`` zu ``len(treffer) >= 1`` in
+    ``_finde_ersetzte_zeile``."""
+    alte = _sechzehn_fragen()
+    alte[2] = "Begriff3: Frage A"
+    alte[5] = "Begriff3: Frage B"
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    vor_dem_zug = repo._jetzt()
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Begriff3: Neue Frage"}],
+    )
+
+    assert wirkliche == [{"art": "fragen_schrumpf_verworfen"}]
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
+    assert repo.gab_es_vorfall_seit(
+        conn, 1, "fragen_schrumpf_verworfen", vor_dem_zug,
+    )
 
 
 def test_fragen_setzen_entfernen_bleibt_unveraendert_voelliges_leeren(conn, einst):
@@ -802,6 +849,27 @@ def test_laufe_sendet_meldung_und_schreibt_sie_als_bot_nachricht(conn, einst):
     ).fetchone()
     assert zeile is not None
     assert zeile["text"] == text
+
+
+def test_chat_bekommt_eine_antwort_wenn_schrumpf_abgelehnt_wird(conn, einst):
+    """Befund A (Nachbesserung zu t_cdece8e2): bisher sah die Gruppe im Chat
+    NICHTS, wenn der Schrumpf-Schutz eine Einzelfrage-Aenderung ablehnte --
+    nur ein ``vorfall`` fuer das Dashboard. Jetzt bekommt sie eine kurze
+    Rueckfrage, direkt als Antwort auf diesen Zug."""
+    alte = [f"Begriff{n}: Alte Frage {n}" for n in range(1, 17)]
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    _nachricht(conn, 1, 1, "Aendere Frage 3 in: Wo warst du beim Lockdown?")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "fragen_setzen", "wert": "Voellig anderes Thema ohne Bezug zu alten Fragen"},
+    ]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert tg.gesendet != []
+    text = tg.gesendet[0][1]
+    assert "eindeutig" in text
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
 
 
 def test_laufe_interview_starten_sendet_bestaetigung_getrennt_von_der_meldung(conn, einst):

@@ -145,6 +145,66 @@ def test_der_geschichte_prompt_enthaelt_kein_material(erfunden, tg, einst):
     assert "Sie erzaehlt vom Ankommen." not in nutzer
 
 
+def test_geschichte_prompt_warnt_vor_unbelegter_eskalation(erfunden, tg, einst):
+    """Karte t_144ea719, Nachtrag Birk 06.10.2026 21:14: die Gruppe nannte
+    "random, all of equal weight, no dramaturgy" -- die per Knopf gewaehlte
+    Richtung trug trotzdem eine vom Bot erfundene Eskalation ("scores
+    escalate from light to heavy"). Der Szenenfolge-Aufruf nach der
+    Richtungswahl darf diese Eskalation nicht unbesehen weiterreichen,
+    sondern muss einen Gegencheck gegen die eigenen Worte der Gruppe
+    anhaengen."""
+    repo.merke_nachricht(
+        erfunden, 1, 1, "Mitglied", 0, "text",
+        "The performances are random, all of equal weight, no dramaturgy.",
+        "2999-01-01T00:00:00+00:00",
+    )
+    repo.setze_arbeitsstand(
+        erfunden, 1, "geschichte",
+        "Press the Button -- scores escalate from light to heavy: first a "
+        "proposal, then a fight, then a fake catastrophe, then the "
+        "Millennium Bug countdown.",
+    )
+
+    nutzer = szenenfolge.baue_nutzertext_geschichte(erfunden, 1)
+
+    assert "escalate" in nutzer  # die gespeicherte Geschichte bleibt stehen
+    assert szenenfolge.T._WARNUNG_ESKALATION_OHNE_BELEG in nutzer
+
+
+def test_geschichte_prompt_warnt_nicht_ohne_eskalationssprache(erfunden, tg, einst):
+    """Dieselbe flache Struktur, aber eine Geschichte ohne Eskalationswort
+    -- kein Alarm ohne Anlass."""
+    repo.merke_nachricht(
+        erfunden, 1, 1, "Mitglied", 0, "text",
+        "The performances are random, all of equal weight, no dramaturgy.",
+        "2999-01-01T00:00:00+00:00",
+    )
+    repo.setze_arbeitsstand(
+        erfunden, 1, "geschichte",
+        "Nobody Was There -- a crowd gathers and disperses, nothing is resolved.",
+    )
+
+    nutzer = szenenfolge.baue_nutzertext_geschichte(erfunden, 1)
+
+    assert szenenfolge.T._WARNUNG_ESKALATION_OHNE_BELEG not in nutzer
+
+
+def test_geschichte_prompt_warnt_nicht_ohne_gruppenbeleg(erfunden, tg, einst):
+    """Eskalationssprache in der Geschichte allein ist kein Fehler -- nur
+    im Widerspruch zu einer von der Gruppe selbst genannten flachen
+    Struktur. Ohne eine solche Aeusserung bleibt der Prompt unveraendert
+    (sonst waere die Pruefung ein blosses Woerterbuch-Grep, das bei JEDER
+    Geschichte mit Spannungsaufbau ausloest)."""
+    repo.setze_arbeitsstand(
+        erfunden, 1, "geschichte",
+        "Press the Button -- scores escalate from light to heavy.",
+    )
+
+    nutzer = szenenfolge.baue_nutzertext_geschichte(erfunden, 1)
+
+    assert szenenfolge.T._WARNUNG_ESKALATION_OHNE_BELEG not in nutzer
+
+
 def test_die_anweisung_verbietet_das_material_ausdruecklich(erfunden):
     system = szenenfolge.systemanweisung_geschichte()
 

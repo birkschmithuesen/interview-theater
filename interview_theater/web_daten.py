@@ -1985,10 +1985,27 @@ def cothinker_status(
         neueste_karte_schweigen=bool(schweigen),
         neueste_karte_seit=erstellt_am,
     )
-    if treffer is None:
-        return None
-    zustand, seit = treffer
-    return {"zustand": zustand, "seit": seit}
+    ergebnis = {}
+    if treffer is not None:
+        zustand, seit = treffer
+        ergebnis = {"zustand": zustand, "seit": seit}
+
+    # Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+    # 2026-10-17): der Watchdog des Chat-Clients meldet gepufferte Segmente
+    # unabhaengig von der obigen Zustandskette -- ein haengender Upload sagt
+    # nichts darueber, ob gerade "gedacht" oder "zugehoert" wird.
+    try:
+        zeile = conn.execute(
+            "SELECT client_puffer_segmente FROM gruppe WHERE chat_id = ?",
+            (chat_id,),
+        ).fetchone()
+        puffer = zeile["client_puffer_segmente"] if zeile else None
+    except sqlite3.OperationalError:
+        puffer = None
+    if puffer:
+        ergebnis["puffer"] = int(puffer)
+
+    return ergebnis or None
 
 
 def sprechanteile(conn: sqlite3.Connection, chat_id: int) -> dict:

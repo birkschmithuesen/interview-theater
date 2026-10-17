@@ -3392,3 +3392,264 @@ def test_mitlauf_hinweis_kommt_nicht_nach_dem_ende_der_sitzung_live_in_node(tmp_
         "brainstorm_laeuft": True,
         "diskussion_beendet": True,
     }
+
+
+# -- Karte InScribe: Diskussionsaufnahme laedt still nicht mehr hoch --------
+# -- (2026-10-17): Upload-Watchdog, Fetch-Zeitlimit, Handy-Puffer. ----------
+
+
+def test_upload_watchdog_und_timeout_haben_vorgaben_ohne_umgebung(monkeypatch):
+    monkeypatch.delenv("IT_WEB_UPLOAD_WATCHDOG_MS", raising=False)
+    monkeypatch.delenv("IT_WEB_UPLOAD_TIMEOUT_MS", raising=False)
+    assert web_chat._upload_watchdog_ms() == 90_000
+    assert web_chat._upload_timeout_ms() == 20_000
+
+
+def test_upload_watchdog_und_timeout_kommen_aus_der_umgebung(monkeypatch):
+    monkeypatch.setenv("IT_WEB_UPLOAD_WATCHDOG_MS", "45000")
+    monkeypatch.setenv("IT_WEB_UPLOAD_TIMEOUT_MS", "5000")
+    assert web_chat._upload_watchdog_ms() == 45_000
+    assert web_chat._upload_timeout_ms() == 5_000
+
+
+def test_eine_leere_oder_ungueltige_watchdog_zahl_faellt_auf_die_vorgabe_zurueck(monkeypatch):
+    monkeypatch.setenv("IT_WEB_UPLOAD_WATCHDOG_MS", "nicht-numerisch")
+    monkeypatch.setenv("IT_WEB_UPLOAD_TIMEOUT_MS", "")
+    assert web_chat._upload_watchdog_ms() == 90_000
+    assert web_chat._upload_timeout_ms() == 20_000
+
+
+def test_die_watchdog_konstanten_stehen_im_fertigen_js():
+    fertig = web_chat._js()
+    assert f"var UPLOAD_TIMEOUT_MS = {web_chat._upload_timeout_ms()};" in fertig
+    assert f"var WATCHDOG_MS = {web_chat._upload_watchdog_ms()};" in fertig
+
+
+def test_upload_warnung_element_steht_im_fuss(seite):
+    assert 'id="upload-warnung"' in seite
+    assert 'hidden' in seite[seite.index('id="upload-warnung"') - 40:
+                              seite.index('id="upload-warnung"') + 80]
+
+
+def test_jeder_fetch_im_js_laeuft_ueber_holemitzeitlimit():
+    """Review-Befund (Karte InScribe): kein Segment-/Befehls-Upload darf den
+    rohen ``fetch()`` mehr direkt rufen -- sonst haengt genau der eine
+    Request, den die Karte als Verdacht nennt, wieder ohne Zeitlimit."""
+    js = web_chat._CHAT_JS
+    # Beide Treffer liegen IN holeMitZeitlimit selbst: der fruehe Ausstieg
+    # ohne AbortController und der normale Weg mit Timer -- ausserhalb davon
+    # darf kein Aufrufer mehr direkt ``fetch()`` rufen.
+    ausserhalb = js.replace(
+        _extrahiere(js, "function holeMitZeitlimit", "function postJson"), ""
+    )
+    assert "fetch(url, optionen)" not in ausserhalb
+    assert js.count("fetch(url, optionen)") == 2
+    assert "holeMitZeitlimit(weg(pfad)" in js
+    assert "holeMitZeitlimit(weg(auftrag.pfad)" in js
+
+
+def test_watchdog_zeigt_warnung_erst_nach_der_schwelle_live_in_node(tmp_path):
+    """``pruefeWatchdog`` woertlich ausgefuehrt: keine Warnung direkt nach
+    dem Start, keine Warnung ohne laufende Aufnahme (auch nach der
+    Schwelle), Warnung sobald eine laufende Aufnahme die Schwelle
+    ueberschreitet -- und sie verschwindet wieder, sobald ein Segment
+    durchkommt (zustand.letzterSegmentErfolgAm wird aktualisiert)."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function aufnahmeLaeuft", "setInterval(pruefeWatchdog")
+    quelltext = f"""
+    var WATCHDOG_MS = 90000;
+    var TEXT = {{ upload_warnung: 'WARNUNG' }};
+    var gemeldet = [];
+    function postJson(pfad, last) {{ gemeldet.push(last); return {{ catch: function () {{}} }}; }}
+    var warnungFeld = {{ hidden: true, textContent: '' }};
+    var zustand = {{
+      aufnahme: null, diskussion: null,
+      letzterSegmentErfolgAm: 0, watchdogAktiv: false, pufferGemeldet: 0,
+      warteschlange: []
+    }};
+    {funktion}
+
+    var ergebnisse = [];
+    function momentaufnahme() {{
+      ergebnisse.push({{ hidden: warnungFeld.hidden, text: warnungFeld.textContent }});
+    }}
+
+    // 1) Keine Aufnahme, lange her -> keine Warnung.
+    zustand.letzterSegmentErfolgAm = Date.now() - 200000;
+    pruefeWatchdog();
+    momentaufnahme();
+
+    // 2) Aufnahme laeuft, aber frisch -> keine Warnung.
+    zustand.aufnahme = {{}};
+    zustand.letzterSegmentErfolgAm = Date.now();
+    pruefeWatchdog();
+    momentaufnahme();
+
+    // 3) Aufnahme laeuft, letzter Erfolg laenger als WATCHDOG_MS her -> Warnung.
+    zustand.letzterSegmentErfolgAm = Date.now() - 95000;
+    pruefeWatchdog();
+    momentaufnahme();
+
+    // 4) Ein Segment kommt durch -> Warnung verschwindet wieder.
+    zustand.letzterSegmentErfolgAm = Date.now();
+    pruefeWatchdog();
+    momentaufnahme();
+
+    console.log(JSON.stringify({{ ergebnisse: ergebnisse, gemeldet: gemeldet }}));
+    """
+    ausgabe = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ausgabe["ergebnisse"][0]["hidden"] is True
+    assert ausgabe["ergebnisse"][1]["hidden"] is True
+    assert ausgabe["ergebnisse"][2] == {"hidden": False, "text": "WARNUNG"}
+    assert ausgabe["ergebnisse"][3]["hidden"] is True
+    # Genau zwei Meldungen an den Server: haengt=true beim Auftreten,
+    # haengt=false sobald es sich wieder loest.
+    assert [g["haengt"] for g in ausgabe["gemeldet"]] == [True, False]
+
+
+def test_reiheein_speichert_audio_vor_dem_senden_und_puffereloeschen_entfernt_es_live_in_node(tmp_path):
+    """``reiheEin``/``puffereSpeichern``/``puffereLoeschen``/
+    ``puffereAlleLaden`` woertlich ausgefuehrt, gegen eine minimale
+    IndexedDB-Attrappe: ein Segment landet im 'Handy', BEVOR arbeiteAb() je
+    aufgerufen wird, und verschwindet erst nach ``puffereLoeschen``."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    puffer_block = _extrahiere(
+        js, "var puffer = { db: null", "function bereit(auftrag)",
+    )
+    quelltext = f"""
+    var BASIS = 'g1/';
+    var zustand = {{ warteschlange: [] }};
+    var warteschlangeGezeigt = 0;
+    var arbeiteAbGerufen = 0;
+    function zeigeWarteschlange() {{ warteschlangeGezeigt++; }}
+    function arbeiteAb() {{ arbeiteAbGerufen++; }}
+    function audioWeg(auftrag) {{ return 'chat/audio?dauer=' + auftrag.dauer; }}
+
+    var SPEICHER = {{}};
+    var indexedDB = {{
+      open: function () {{
+        var anfrage = {{}};
+        setTimeout(function () {{
+          anfrage.result = {{
+            createObjectStore: function () {{}},
+            transaction: function () {{
+              return {{
+                objectStore: function () {{
+                  return {{
+                    put: function (eintrag) {{ SPEICHER[eintrag.schluessel] = eintrag; }},
+                    'delete': function (schluessel) {{ delete SPEICHER[schluessel]; }},
+                    getAll: function () {{
+                      var r = {{}};
+                      setTimeout(function () {{
+                        r.result = Object.keys(SPEICHER).map(function (k) {{ return SPEICHER[k]; }});
+                        if (r.onsuccess) {{ r.onsuccess(); }}
+                      }}, 0);
+                      return r;
+                    }}
+                  }};
+                }}
+              }};
+            }}
+          }};
+          if (anfrage.onsuccess) {{ anfrage.onsuccess(); }}
+        }}, 0);
+        return anfrage;
+      }}
+    }};
+
+    {puffer_block}
+
+    function warte(ms) {{ return new Promise(function (ja) {{ setTimeout(ja, ms); }}); }}
+
+    var auftrag = {{ art: 'audio', dauer: 3, blob: 'BLOB' }};
+    reiheEin(auftrag);
+    var sofortGespeichert = Object.keys(SPEICHER).length;   // 0: IDB ist async
+
+    warte(20).then(function () {{
+      var nachPut = {{
+        anzahl: Object.keys(SPEICHER).length,
+        schluessel_gesetzt: !!auftrag._puffSchluessel,
+        pfad_gesetzt: !!auftrag.pfad,
+        in_schlange: zustand.warteschlange.length,
+      }};
+      puffereLoeschen(auftrag._puffSchluessel);
+      return warte(20).then(function () {{
+        var nachDelete = Object.keys(SPEICHER).length;
+        console.log(JSON.stringify({{
+          sofort: sofortGespeichert, nach_put: nachPut, nach_delete: nachDelete,
+        }}));
+      }});
+    }});
+    """
+    ausgabe = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ausgabe["sofort"] == 0
+    assert ausgabe["nach_put"] == {
+        "anzahl": 1, "schluessel_gesetzt": True, "pfad_gesetzt": True, "in_schlange": 1,
+    }
+    assert ausgabe["nach_delete"] == 0
+
+
+def test_wiederherstellen_laedt_in_erzeugungsreihenfolge_live_in_node(tmp_path):
+    """Zwei liegengebliebene Segmente aus einer fruehren Sitzung kommen beim
+    Reload in der Reihenfolge wieder heraus, in der sie entstanden sind --
+    nicht in Einfuegereihenfolge einer ``getAll()``, die das nicht
+    garantiert."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    puffer_block = _extrahiere(
+        js, "var puffer = { db: null", "function bereit(auftrag)",
+    )
+    quelltext = f"""
+    var BASIS = 'g1/';
+    var zustand = {{ warteschlange: [] }};
+    function zeigeWarteschlange() {{}}
+    function arbeiteAb() {{}}
+    function audioWeg(auftrag) {{ return 'chat/audio?dauer=' + auftrag.dauer; }}
+
+    // Absichtlich in VERTAUSCHTER Reihenfolge im Speicher -- getAll() allein
+    // garantiert keine Reihenfolge, puffereAlleLaden() muss nach ``seq`` sortieren.
+    var SPEICHER = {{
+      'g1/#1': {{ schluessel: 'g1/#1', basis: 'g1/', seq: 1, pfad: 'chat/audio?dauer=2', blob: 'ZWEI' }},
+      'g1/#0': {{ schluessel: 'g1/#0', basis: 'g1/', seq: 0, pfad: 'chat/audio?dauer=1', blob: 'EINS' }},
+      'g2/#0': {{ schluessel: 'g2/#0', basis: 'g2/', seq: 0, pfad: 'chat/audio?dauer=9', blob: 'FREMD' }}
+    }};
+    var indexedDB = {{
+      open: function () {{
+        var anfrage = {{}};
+        setTimeout(function () {{
+          anfrage.result = {{
+            createObjectStore: function () {{}},
+            transaction: function () {{
+              return {{ objectStore: function () {{
+                return {{ getAll: function () {{
+                  var r = {{}};
+                  setTimeout(function () {{
+                    r.result = Object.keys(SPEICHER).map(function (k) {{ return SPEICHER[k]; }});
+                    if (r.onsuccess) {{ r.onsuccess(); }}
+                  }}, 0);
+                  return r;
+                }} }};
+              }} }};
+            }}
+          }};
+          if (anfrage.onsuccess) {{ anfrage.onsuccess(); }}
+        }}, 0);
+        return anfrage;
+      }}
+    }};
+
+    {puffer_block}
+
+    wiederherstellenGepuffert();
+    setTimeout(function () {{
+      console.log(JSON.stringify({{
+        reihenfolge: zustand.warteschlange.map(function (a) {{ return a.blob; }}),
+        naechsteSeq: puffer.naechsteSeq,
+      }}));
+    }}, 40);
+    """
+    ausgabe = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ausgabe["reihenfolge"] == ["EINS", "ZWEI"]
+    assert ausgabe["naechsteSeq"] == 2

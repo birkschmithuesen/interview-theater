@@ -907,12 +907,11 @@ _CHAT_JS = """
     // 2026-10-17): der Upload-Watchdog. letzterSegmentErfolgAm ist der
     // Zeitpunkt des letzten vom Server angenommenen Segments -- startInterview/
     // startDiskussion setzen ihn beim Start neu, damit Leerlauf VOR der
-    // Aufnahme nicht mitzaehlt. watchdogAktiv/pufferGemeldet halten fest,
-    // was dem Server schon gemeldet wurde, damit melderPuffer() nicht bei
-    // jedem Takt denselben Stand erneut schickt.
+    // Aufnahme nicht mitzaehlt. watchdogAktiv haelt fest, ob die Warnung
+    // schon gezeigt wird, damit melderPuffer() nur auf dem UEBERGANG
+    // (haengt an/aus) meldet, nicht auf jedem 5s-Takt erneut.
     letzterSegmentErfolgAm: Date.now(),
-    watchdogAktiv: false,
-    pufferGemeldet: 0
+    watchdogAktiv: false
   };
 
   function nonce() {
@@ -1856,8 +1855,6 @@ _CHAT_JS = """
     var anzahl = zustand.warteschlange.filter(function (a) {
       return a.art === 'audio' && !!a._puffSchluessel;
     }).length;
-    if (anzahl === zustand.pufferGemeldet && !haengt) { return; }
-    zustand.pufferGemeldet = anzahl;
     postJson('chat/puffer', { anzahl: anzahl, haengt: !!haengt }).catch(function () {});
   }
 

@@ -1145,6 +1145,10 @@ _TEXT_COTHINKER_HOERT = "hört zu"
 _TEXT_COTHINKER_TRANSKRIBIERT = "verschriftlicht"
 _TEXT_COTHINKER_DENKT = "denkt nach"
 _TEXT_COTHINKER_SCHWEIGT = "zugehört, gerade nichts hinzuzufügen"
+#: Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+#: 2026-10-17): der Watchdog des Chat-Clients meldet gepufferte Segmente --
+#: eigene Zeile neben der obigen Zustandskette, nicht Teil davon.
+_TEXT_COTHINKER_PUFFER = "{n} Segmente im Handy gepuffert"
 #: Was das Speichern auf der Gruppenseite neben dem Feld meldet. Das
 #: JavaScript liest sie aus ``data-``-Attributen (``_BEARBEITEN_JS``), damit
 #: kein Nutzertext im Skript steht.
@@ -3886,25 +3890,35 @@ def _cothinker_status_html(status: dict | None) -> str:
     bei ``web_gestalt._mikrotexte``)."""
     if not status:
         return ""
-    zustand = status["zustand"]
-    seit = status.get("seit") or ""
-    tickt = zustand in cothinker_status.TICKT
-    texte = {
-        cothinker_status.ZUSTAND_DENKT: T._TEXT_COTHINKER_DENKT,
-        cothinker_status.ZUSTAND_TRANSKRIBIERT: T._TEXT_COTHINKER_TRANSKRIBIERT,
-        cothinker_status.ZUSTAND_HOERT: T._TEXT_COTHINKER_HOERT,
-        cothinker_status.ZUSTAND_SCHWEIGT: T._TEXT_COTHINKER_SCHWEIGT,
-    }
-    text = _t(texte.get(zustand, zustand))
-    tickt_attr = ' data-tickt="1"' if tickt else ""
-    return (
-        f'<div id="cothinker-status" class="co-status co-{html.escape(zustand)}" '
-        f'data-zustand="{html.escape(zustand)}" data-seit="{html.escape(seit)}">'
-        f'<span class="co-icon" aria-hidden="true"></span>'
-        f'<span class="co-text">{text}</span>'
-        f'<span class="co-dauer"{tickt_attr}></span>'
-        f'</div>'
-    )
+    teile = []
+    zustand = status.get("zustand")
+    if zustand:
+        seit = status.get("seit") or ""
+        tickt = zustand in cothinker_status.TICKT
+        texte = {
+            cothinker_status.ZUSTAND_DENKT: T._TEXT_COTHINKER_DENKT,
+            cothinker_status.ZUSTAND_TRANSKRIBIERT: T._TEXT_COTHINKER_TRANSKRIBIERT,
+            cothinker_status.ZUSTAND_HOERT: T._TEXT_COTHINKER_HOERT,
+            cothinker_status.ZUSTAND_SCHWEIGT: T._TEXT_COTHINKER_SCHWEIGT,
+        }
+        text = _t(texte.get(zustand, zustand))
+        tickt_attr = ' data-tickt="1"' if tickt else ""
+        teile.append(
+            f'<div id="cothinker-status" class="co-status co-{html.escape(zustand)}" '
+            f'data-zustand="{html.escape(zustand)}" data-seit="{html.escape(seit)}">'
+            f'<span class="co-icon" aria-hidden="true"></span>'
+            f'<span class="co-text">{text}</span>'
+            f'<span class="co-dauer"{tickt_attr}></span>'
+            f'</div>'
+        )
+    puffer = status.get("puffer")
+    if puffer:
+        text = _t(T._TEXT_COTHINKER_PUFFER.format(n=puffer))
+        teile.append(
+            f'<div id="cothinker-puffer" class="co-puffer" data-anzahl="{int(puffer)}">'
+            f'{text}</div>'
+        )
+    return "".join(teile)
 
 
 def _buehnenkarte_html(karte: dict, erste: bool) -> str:

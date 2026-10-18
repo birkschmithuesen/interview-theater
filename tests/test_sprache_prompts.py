@@ -282,8 +282,10 @@ def test_d7_zitate_bleiben_im_original(padua, name):
 #: die Bestaetigung einer vom Bot im "Titel -- Beschreibung -- Besetzung"-
 #: Format aufgelisteten Szenenfolge. Seit Padua Quickfix 08.10.2026 (Punkt
 #: 1) zwei weitere: stagescript_notiz gegen eine noch nicht gezeigte Szene,
-#: und die Abgrenzung zu text_ueberarbeiten fuer eine schon gezeigte.
-FEW_SHOTS_ERKENNER_EN = 22
+#: und die Abgrenzung zu text_ueberarbeiten fuer eine schon gezeigte. Seit
+#: Karte t_82569faf (18.10.2026) ein weiteres: uebersicht_aendern gegen
+#: eine Uebersicht direkt im Vorlauf, abgegrenzt gegen text_ueberarbeiten.
+FEW_SHOTS_ERKENNER_EN = 23
 
 
 def test_erkenner_behaelt_seine_few_shots(padua):

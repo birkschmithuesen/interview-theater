@@ -130,10 +130,6 @@ object with "art" and "wert":
     planning before it is nothing. The command is the write job and ONLY
     that: the scene details it is built from go into its wert, never also
     into a szene_planen -- even if the planning is in the same excerpt.
-
-    **A "yes"/"Go" answering the USA-model question (point 22) is never
-    szene_schreiben**, even though that question names "the scene text" --
-    it is about WHO may write, not a job to write, and stays szene_usa.
 19. phase_setzen           -- wert: the number of the working phase the
     group is at now, as a numeral ("4"). The seven phases are:
     {{phasen_kurz}}. The group commands a move to a phase ("let's do
@@ -167,12 +163,6 @@ object with "art" and "wert":
     "rather not", "keep it in Switzerland" -> "NEIN". If this question is
     not in the lead-up, this art does NOT exist -- a "yes" without the
     question before it is agreement to something else.
-
-    **Never szene_schreiben here, even though the question names "the
-    scene text":** the group is not commissioning a text, they are
-    allowing or refusing a model. "yes, let's do it" and "Go" answering
-    exactly this question stay szene_usa -- a write job needs its own
-    scene details (point 18), not a protocol word JA/NEIN.
 23. festlegung_setzen      -- wert: "<area>/<reference>: <the agreement>",
     the reference may be missing ("STRUKTUR: The play is one episode of a
     series, only one scene"). The catch-all for a factual agreement of the
@@ -647,21 +637,6 @@ for the first time
 <output>
 {"aenderungen": [
   {"art": "szene_schreiben", "wert": "SZENE 2: Ines arrives at the station and meets Lena for the first time"}
-]}
-</output>
-</example>
-
-<example>
-<excerpt>
-New messages:
-You: For the scene text there is a better model - from Anthropic, in the
-USA. Your scene details would be sent there. Do you want that? Say yes or
-no.
-Member 2: sure, go for it
-</excerpt>
-<output>
-{"aenderungen": [
-  {"art": "szene_usa", "wert": "JA"}
 ]}
 </output>
 </example>

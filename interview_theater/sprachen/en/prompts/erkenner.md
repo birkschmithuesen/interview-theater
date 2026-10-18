@@ -130,6 +130,10 @@ object with "art" and "wert":
     planning before it is nothing. The command is the write job and ONLY
     that: the scene details it is built from go into its wert, never also
     into a szene_planen -- even if the planning is in the same excerpt.
+
+    **A "yes"/"Go" answering the USA-model question (point 22) is never
+    szene_schreiben**, even though that question names "the scene text" --
+    it is about WHO may write, not a job to write, and stays szene_usa.
 19. phase_setzen           -- wert: the number of the working phase the
     group is at now, as a numeral ("4"). The seven phases are:
     {{phasen_kurz}}. The group commands a move to a phase ("let's do
@@ -163,6 +167,12 @@ object with "art" and "wert":
     "rather not", "keep it in Switzerland" -> "NEIN". If this question is
     not in the lead-up, this art does NOT exist -- a "yes" without the
     question before it is agreement to something else.
+
+    **Never szene_schreiben here, even though the question names "the
+    scene text":** the group is not commissioning a text, they are
+    allowing or refusing a model. "yes, let's do it" and "Go" answering
+    exactly this question stay szene_usa -- a write job needs its own
+    scene details (point 18), not a protocol word JA/NEIN.
 23. festlegung_setzen      -- wert: "<area>/<reference>: <the agreement>",
     the reference may be missing ("STRUKTUR: The play is one episode of a
     series, only one scene"). The catch-all for a factual agreement of the
@@ -239,6 +249,15 @@ object with "art" and "wert":
     geschichte_setzen; uebersicht_aendern is only for feedback that fits no
     existing field (tone, pace, the tension arc of the overview itself).
 
+    **The wording alone never decides this -- only what is shown does.**
+    "Make the ending sadder/angrier", "make it hurt more" is
+    uebersicht_aendern when the thing in the lead-up is the structured
+    overview (Logline/Setting/Characters/Tension arc/Scenes), even though
+    text_ueberarbeiten (point 27) shows almost the same words as its own
+    example -- that example is about a written scene or story TEXT, not
+    this overview, and the two never swap because the sentence sounds
+    alike.
+
 27. text_ueberarbeiten     -- wert: the feedback in the group's words; if
     the group names a scene, start with "scene N: " ("scene 2: less
     talking, more silence"). Applies when the bot has just SHOWN a written
@@ -253,6 +272,18 @@ object with "art" and "wert":
     * A question about the text is not feedback: "why is the mother so
       angry?" -> no entry. Neither is "we'll read it later".
     * "shorter" stays szene_kuerzen (point 25).
+    * **Feedback on the structured story overview (Logline, Setting,
+      Characters, Tension arc, Scenes) is uebersicht_aendern (point 26),
+      never here** -- "make the ending sadder" about the OVERVIEW is not
+      text_ueberarbeiten just because it reads like this section's own
+      examples; what decides is whether an overview or a written text is
+      in the lead-up.
+    * **Only while that text still awaits a decision.** Once the bot has
+      confirmed it saved ("Scene 2 saved" -- no "Yes, save" / "No, change
+      it again" pending any more), a later wish is no longer feedback on
+      that text, even phrased as "this one" or "in this scene" -- it means
+      the NEXT scene and is stagescript_notiz (point 33), never
+      text_ueberarbeiten on the already-saved one.
 
         {"art": "text_ueberarbeiten", "wert": "make the mother angrier"}
         {"art": "text_ueberarbeiten", "wert": "scene 2: less talking, more silence"}
@@ -323,6 +354,11 @@ object with "art" and "wert":
     stage script for scene 2" with no approval buttons yet).
     * **A wish for the scene that WAS just shown stays text_ueberarbeiten
       (point 27), never both** -- the two never fire for the same message.
+    * **Once the bot has confirmed a scene saved** ("Scene 1 saved", no
+      "Yes, save" / "No, change it again" pending any more), a new wish --
+      even phrased as "this one" or "in this scene" -- means the NEXT
+      scene, not the one just saved: stagescript_notiz, not
+      text_ueberarbeiten.
     * A question about a scene's form or content ("what form is scene 3?")
       is not a wish -- no entry.
 

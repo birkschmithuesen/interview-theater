@@ -43,6 +43,30 @@ def test_schweigt_traegt_keinen_tickt_marker():
     assert 'data-tickt="1"' not in html
 
 
+def test_puffer_zeile_steht_neben_dem_zustand():
+    """Karte InScribe (2026-10-17): ``puffer`` ist ein zusaetzliches Feld,
+    kein ersetztes -- die bestehende Statuszeile bleibt unangetastet."""
+    html = web._cothinker_status_html(
+        {"zustand": "denkt", "seit": "2026-10-03T12:00:00+00:00", "puffer": 3}
+    )
+    assert 'class="co-status co-denkt"' in html
+    assert 'id="cothinker-puffer"' in html
+    assert 'data-anzahl="3"' in html
+    assert "3" in html
+
+
+def test_puffer_allein_ohne_zustand_zeigt_nur_die_puffer_zeile():
+    html = web._cothinker_status_html({"puffer": 5})
+    assert 'id="cothinker-status"' not in html
+    assert 'id="cothinker-puffer"' in html
+    assert 'data-anzahl="5"' in html
+
+
+def test_ohne_puffer_schluessel_zeigt_keine_puffer_zeile():
+    html = web._cothinker_status_html({"zustand": "hoert", "seit": "x"})
+    assert "cothinker-puffer" not in html
+
+
 def test_die_tickende_zahl_steht_nie_im_html():
     """Die harte Regel der Karte: keine vorgerechnete Sekundenzahl im
     servergerenderten Markup, nur der rohe ISO-Zeitstempel als Attribut --

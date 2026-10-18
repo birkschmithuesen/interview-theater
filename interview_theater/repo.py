@@ -4530,6 +4530,23 @@ def setze_kalibrierung_werte(conn: sqlite3.Connection, chat_id: int,
 
 
 @_gesperrt
+def setze_client_puffer(conn: sqlite3.Connection, chat_id: int, segmente: int) -> None:
+    """Merkt, wie viele Audiosegmente der Chat-Client laut seinem
+    Upload-Watchdog gerade im Handy (IndexedDB) gepuffert haelt (Karte
+    InScribe, Diskussionsaufnahme laedt still nicht mehr hoch, 2026-10-17)
+    -- Grundlage der CoThinker-Statuszeile ("N Segmente im Handy gepuffert",
+    ``web_daten.cothinker_status``). ``segmente = 0`` loescht die Meldung
+    wieder (``client_puffer_seit`` auf NULL), derselbe Vertrag wie
+    ``setze_whisper_stumm_seit``."""
+    conn.execute(
+        "UPDATE gruppe SET client_puffer_segmente = ?, client_puffer_seit = ? "
+        "WHERE chat_id = ?",
+        (segmente, _jetzt() if segmente else None, chat_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
 def ist_interviewmodus_an(conn: sqlite3.Connection, chat_id: int) -> bool:
     """Liefert True, wenn der Interviewmodus dieser Gruppe an ist (teil-b.md
     Aufgabe 5) -- Grundlage von aufnahme.klasse_fuer(). Eine unbekannte

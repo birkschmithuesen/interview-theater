@@ -850,6 +850,9 @@ def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | No
             return None
         if _fragen_sammeln(conn, chat_id):
             return _haenge_fragen_an(conn, chat_id, art, wert)
+        schrumpf = _wende_fragen_schrumpf_geschuetzt(conn, chat_id, art, wert)
+        if schrumpf is not _KEIN_SCHRUMPF:
+            return schrumpf
     if feld == "rahmen" and _ist_geschichte(wert):
         # **Der Rahmen ist das SETTING, nicht die Handlung** (06.09.2026,
         # Birk 11:42, live gemessen: der Erkenner schrieb einen
@@ -953,6 +956,90 @@ def _haenge_fragen_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return None
     repo.setze_arbeitsstand(conn, chat_id, "fragen", "\n".join(bisher + neu))
     return {"art": art, "wert": "\n".join(neu)}
+
+
+#: Sentinel: ``_wende_fragen_schrumpf_geschuetzt`` liefert dieses Objekt,
+#: wenn ``wert`` die Liste NICHT kuerzen wuerde -- der Aufrufer faehrt dann
+#: mit dem normalen Ueberschreiben fort (``_wende_arbeitsstand_an``). Kein
+#: ``None``, weil ``None`` hier schon "Schrumpf erkannt und verworfen"
+#: bedeutet.
+_KEIN_SCHRUMPF = object()
+
+
+def _finde_ersetzte_zeile(alte_zeilen: list[str], neue_zeile: str) -> int | None:
+    """Welche Zeile aus ``alte_zeilen`` ``neue_zeile`` ersetzen soll --
+    erkannt am gemeinsamen Thema (dem Wort vor dem Doppelpunkt, siehe
+    ``_fragen_teile``). Genau EIN Treffer mit demselben Thema und einem
+    anderen Text gilt als eindeutig; kein Treffer oder mehrere liefert
+    ``None`` -- geraten wird nicht, dann greift die Ablehnung in
+    ``_wende_fragen_schrumpf_geschuetzt``."""
+    neu_ganz, neu_thema, _ = _fragen_teile(neue_zeile)
+    if not neu_thema:
+        return None
+    treffer = [
+        i for i, alt in enumerate(alte_zeilen)
+        for alt_ganz, alt_thema, _ in [_fragen_teile(alt)]
+        if alt_thema == neu_thema and alt_ganz != neu_ganz
+    ]
+    return treffer[0] if len(treffer) == 1 else None
+
+
+def _wende_fragen_schrumpf_geschuetzt(conn, chat_id: int, art: str, wert: str):
+    """Schrumpf-Schutz fuer ``fragen_setzen`` (Live-Befund G3, 06.10.2026,
+    Padua: "Aendere Frage 3 in X" liess das Erkenner-Modell nur die eine neue
+    Frage als Wert liefern -- und das Vollueberschreiben in
+    ``_wende_arbeitsstand_an`` kuerzte die Liste dadurch von 16 auf 1).
+
+    Hat ``wert`` WENIGER Zeilen als die aktuell gespeicherte Liste, wird NIE
+    blind ueberschrieben:
+
+    - genau EINE neue Zeile, deren Thema eindeutig zu einer alten Zeile
+      passt, ersetzt NUR diese eine Zeile (Index bleibt erhalten --
+      ``fragen_herkunft_final``/``fragen_bearbeitet_final`` bleiben dadurch
+      automatisch indexgleich, ohne dass diese Funktion sie anfasst);
+    - jeder andere Schrumpf (keine eindeutige Zuordnung, oder mehrere Zeilen
+      weniger als vorher) wird verworfen, als Vorfall vermerkt und mit dem
+      Marker ``{"art": "fragen_schrumpf_verworfen"}`` gemeldet (Befund A,
+      Nachbesserung zu t_cdece8e2) -- die Gruppe bekommt dadurch im Chat eine
+      Rueckfrage statt gar keiner Reaktion.
+
+    Liefert ``_KEIN_SCHRUMPF``, wenn ``wert`` die Liste nicht kuerzen wuerde
+    -- dann gilt der normale Ueberschreib-Weg weiter (auch das Erstschreiben
+    einer leeren Liste: ohne vorhandene Fragen gibt es nichts zu schuetzen).
+
+    Der EXPLIZITE Entfernungspfad ("Fragen entfernen") laeuft nicht hier,
+    sondern ueber die eigene ``entfernen``-Art (``_entferne_arbeitsstandfeld``)
+    -- dieser Schutz sieht nur ``fragen_setzen``."""
+    from interview_theater import vorschlag
+
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    alte = vorschlag.zeilen((stand["fragen"] if stand else None) or "")
+    neue = vorschlag.zeilen(wert)
+    if not alte or len(neue) >= len(alte):
+        return _KEIN_SCHRUMPF
+    if len(neue) == 1:
+        index = _finde_ersetzte_zeile(alte, neue[0])
+        if index is not None:
+            ersetzt = list(alte)
+            ersetzt[index] = neue[0]
+            repo.setze_arbeitsstand(conn, chat_id, "fragen", "\n".join(ersetzt))
+            return {"art": art, "wert": neue[0]}
+    log.info(
+        "fragen_setzen haette die Liste geschrumpft (%s -> %s Zeilen), "
+        "verworfen, chat_id=%s", len(alte), len(neue), chat_id,
+    )
+    repo.merke_vorfall(
+        conn, chat_id, None, "fragen_schrumpf_verworfen",
+        f"fragen_setzen haette die Liste von {len(alte)} auf {len(neue)} "
+        "Zeilen gekuerzt, ohne erkennbare Einzelfrage-Aenderung",
+    )
+    # Befund A (Nachbesserung zu t_cdece8e2): nicht ``None`` -- sonst sieht
+    # die Gruppe im Chat NICHTS von der Ablehnung, nur das Dashboard
+    # (``merke_vorfall`` oben). Dieser Marker landet in ``wirkliche`` und
+    # bekommt in ``_sammle_meldbares``/``_meldungszeilen`` seine eigene
+    # Zeile -- kein Arbeitsstandfeld hat sich geaendert, also auch kein
+    # Undo-Eintrag (``ruecknahme.ZEILEN_OHNE_UNDO``).
+    return {"art": "fragen_schrumpf_verworfen"}
 
 
 #: Anzahl Szenen: vernuenftige Grenzen fuer einen Workshop-Abend.
@@ -2509,6 +2596,11 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
         # Padua Phasen TEIL 2: fertige Zeilen aus formen_setzen/
         # sprechweise_setzen (die Module bauen sie selbst, je Szene/Figur).
         "teil2": [],
+        # Befund A (Nachbesserung zu t_cdece8e2): der Schrumpf-Schutz hat
+        # eine Einzelfrage-Aenderung abgelehnt -- ohne diese Zeile sah die
+        # Gruppe im Chat nichts von der Ablehnung, nur ein stiller
+        # ``vorfall`` fuers Dashboard.
+        "fragen_schrumpf_verworfen": False,
     }
     einzeln = {
         "szene_usa": "usa",
@@ -2544,6 +2636,8 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
             gesammelt["phase"] = phasen.nummer_fuer(wert)
         elif art in ("formen_setzen", "sprechweise_setzen"):
             gesammelt["teil2"].extend(aenderung.get("zeilen") or [])
+        elif art == "fragen_schrumpf_verworfen":
+            gesammelt["fragen_schrumpf_verworfen"] = True
         # Ein ``entschieden`` bleibt still -- ausser es hat nebenbei die
         # Figurenanzahl gesetzt (B4). Dann ist es eine Arbeitsstandaenderung
         # wie jede andere und gehoert in die Meldung: sonst stuende die Zahl
@@ -2604,6 +2698,13 @@ _ZEILE_USA_JA = (
     "jeder Szene nochmal."
 )
 _ZEILE_USA_NEIN = "Szenentexte bleiben in der Schweiz. Ich frage nicht wieder."
+#: Befund A (Nachbesserung zu t_cdece8e2): die Rueckfrage, wenn der
+#: Schrumpf-Schutz eine Einzelfrage-Aenderung abgelehnt hat (siehe
+#: ``_wende_fragen_schrumpf_geschuetzt``) -- ohne diese Zeile sah die Gruppe
+#: im Chat nichts von der Ablehnung.
+_ZEILE_FRAGEN_SCHRUMPF_VERWORFEN = (
+    "Konnte die Frage nicht eindeutig zuordnen -- welche Frage meinst du?"
+)
 
 
 #: Dieselbe Phasennummer wie ``knoepfe.texte.PHASE_SETTING`` -- hier als
@@ -2745,6 +2846,8 @@ def _meldungszeilen(g: dict, phase: int | None = None, chat_id: int | None = Non
         zeilen.append(T._ZEILE_USA_JA)
     elif g["usa"] == "nein":
         zeilen.append(T._ZEILE_USA_NEIN)
+    if g["fragen_schrumpf_verworfen"]:
+        zeilen.append(T._ZEILE_FRAGEN_SCHRUMPF_VERWORFEN)
     return zeilen
 
 

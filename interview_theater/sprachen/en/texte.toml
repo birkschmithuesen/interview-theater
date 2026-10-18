@@ -1029,6 +1029,7 @@ _ZEILE_ENTFERNT = "Removed: {was}"
 _ZEILE_PHASE = "We're now at {phase}."
 _ZEILE_USA_JA = "Scene texts will come from the US model (Anthropic) from now on. I'll mention it again before every scene."
 _ZEILE_USA_NEIN = "Scene texts stay in Switzerland. I won't ask again."
+_ZEILE_FRAGEN_SCHRUMPF_VERWORFEN = "Couldn't clearly match that question -- which one did you mean?"
 
 ["erkenner"._STAND_BESCHRIFTUNG]
 begriffe = "Terms"

@@ -100,7 +100,16 @@ CREATE TABLE IF NOT EXISTS gruppe (
   kalibrierung_boden               REAL,
   kalibrierung_rede                REAL,
   kalibrierung_schwelle            REAL,
-  kalibrierung_gemessen_am         TEXT
+  kalibrierung_gemessen_am         TEXT,
+  -- Watchdog-Meldung des Chat-Clients (Karte InScribe, Diskussionsaufnahme
+  -- laedt still nicht mehr hoch, 2026-10-17): wie viele Audiosegmente der
+  -- Browser gerade im Handy (IndexedDB) gepuffert haelt, weil der Upload
+  -- haengt -- 0/NULL = nichts gepuffert. Gruppenweit wie kalibrierung_*,
+  -- weil der Poll, der es meldet, je Geraet laeuft, aber die
+  -- CoThinker-Statuszeile (web._cothinker_status_html) gruppenweit zeigt.
+  -- Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  client_puffer_segmente           INTEGER,
+  client_puffer_seit               TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (

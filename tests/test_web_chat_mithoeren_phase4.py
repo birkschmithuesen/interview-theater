@@ -72,7 +72,11 @@ def test_nimmzustand_haelt_mithoeren_ziel_ueber_jeden_poll_aktuell():
 
 
 def test_postaudio_nutzt_sitzung_ziel_fuer_das_upload_flag():
-    post = _fn("postAudio", "sendeText")
+    # Die Querystring-Logik lebt seit der Karte InScribe (Diskussionsaufnahme
+    # laedt still nicht mehr hoch, 2026-10-17) in ``audioWeg`` -- ausgelagert
+    # aus ``postAudio``, damit der Pfad einmal beim Einreihen gebaut und mit
+    # dem Blob zusammen im Handy-Puffer (IndexedDB) liegen kann.
+    post = _fn("audioWeg", "postAudio")
     assert "auftrag.sitzung && auftrag.sitzung.art === 'diskussion'" in post
     assert (
         "weg_ += auftrag.sitzung.ziel === 'brainstorm' ? '&brainstorm=1' : "
@@ -138,9 +142,15 @@ def test_phase_4_startet_und_beendet_als_brainstorm_in_node(tmp_path):
     Ende-Segment nach "Discussion done"."""
     node = _node_oder_skip()
     start = _fn("starteDiskussion", "beendeDiskussion")
-    post_audio = _fn("postAudio", "sendeText")
+    # holeMitZeitlimit (Karte InScribe, 2026-10-17): postAudio ruft seither
+    # darueber auf statt direkt fetch(); AbortController bleibt in diesem
+    # Harness absichtlich undefiniert, damit holeMitZeitlimit synchron auf
+    # den (hier gestubbten) fetch() durchreicht, ohne einen echten Timer zu
+    # starten.
+    post_audio = _fn("holeMitZeitlimit", "sendeText")
 
     quelltext = f"""
+    var AbortController;
     var zustand = {{
       diskussion: null, wechsel: null, ptt: null, mithoerenZiel: 'brainstorm'
     }};

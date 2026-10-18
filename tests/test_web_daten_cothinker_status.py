@@ -72,6 +72,30 @@ def test_ergebnis_ist_ein_einfaches_dict_ohne_row(conn):
     assert isinstance(status, dict)
 
 
+def test_puffer_erscheint_zusaetzlich_zu_einem_zustand(conn):
+    """Karte InScribe (2026-10-17): der Client meldet gepufferte Segmente
+    unabhaengig von der sonstigen CoThinker-Zustandskette (denkt/hoert/...)
+    -- beides steht nebeneinander im selben Dict."""
+    repo.markiere_buehnenkarten_lauf(conn, CHAT, _jetzt_iso())
+    repo.setze_client_puffer(conn, CHAT, 3)
+    status = web_daten.cothinker_status(conn, CHAT, 4)
+    assert status == {"zustand": "denkt", "seit": status["seit"], "puffer": 3}
+
+
+def test_puffer_allein_ohne_jeden_anderen_zustand(conn):
+    """Ein haengender Upload ohne frischen Buehnenkarten-Lauf, Segment oder
+    Karte zeigt trotzdem die Pufferzahl -- die Zeile darf nicht auf
+    ``None`` fallen, nur weil sonst nichts zutrifft."""
+    repo.setze_client_puffer(conn, CHAT, 5)
+    status = web_daten.cothinker_status(conn, CHAT, 4)
+    assert status == {"puffer": 5}
+
+
+def test_null_gepufferte_segmente_zeigen_keine_puffer_zeile(conn):
+    repo.setze_client_puffer(conn, CHAT, 0)
+    assert web_daten.cothinker_status(conn, CHAT, 4) is None
+
+
 def test_gruppe_nach_token_traegt_den_schluessel_cothinker_status(conn):
     token = repo.stelle_web_token_sicher(conn, CHAT)
     daten = web_daten.gruppe_nach_token(conn, token)

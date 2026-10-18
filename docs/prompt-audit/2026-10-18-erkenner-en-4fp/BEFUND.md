@@ -40,29 +40,67 @@ Testharness-Artefakt -- die Luecke (keine explizite Gegenprobe gegen
 `szene_schreiben`) bestand unveraendert seit Einfuehrung von `szene_usa` und
 wurde nie gegen das echte Modell nachgewiesen.
 
-## en-e35-overview-ending-sadder: uebersicht_aendern vs. text_ueberarbeiten
+## en-e35-overview-ending-sadder: eigentlich ein Korpus-Konstruktionsfehler, nicht primaer ein Prompt-Problem
 
-Punkt 26 (`uebersicht_aendern`) kalibriert nur ueber eine Negativabgrenzung
-("Ein plain 'yes' ... ist NICHT uebersicht_aendern") und einen vagen
-Nachsatz ("ist nur fuer Feedback, das in kein bestehendes Feld passt").
-Punkt 27 (`text_ueberarbeiten`) nennt als eigenes Beispiel **fast wortgleich**
-dieselbe Formulierung wie der Testfall: "the ending is too soft, make it
-hurt more" (Prompt) gegen "make the ending sadder" (Testfall) -- beide sind
-ein "mach das Ende trauriger/haerter"-Satz. Der Prompt gibt dem Modell also
-selbst ein Beispiel, das dem Fehlerfall oberflaechlich naeher ist als die
-richtige Regel.
+Erster Verdacht war eine schwammige Abgrenzung zwischen Punkt 26
+(`uebersicht_aendern`) und Punkt 27 (`text_ueberarbeiten`): Punkt 27 nennt
+als eigenes Beispiel fast wortgleich dieselbe Formulierung wie der Testfall
+("the ending is too soft, make it hurt more" vs. "make the ending sadder").
+Nachgewiesen (Nachbau von `erkenner._baue_nutzertext` **ohne** Modellaufruf,
+mit genau den Funktionen, die `scripts/pruefe_prompts.py::_laufe_erkenner`
+selbst benutzt) zeigt sich die eigentliche Ursache: der Nutzertext, den das
+Modell fuer diesen Fall bekommt, enthaelt die generierte Uebersicht **gar
+nicht**:
 
-Unabhaengiger Beleg, dass das keine Eigenheit von gemma ist: die
-InScribe-Opus-Messung (`docs/messung/2026-10-erkenner-baseline.md`,
-Befund 1) listet **denselben Fall** `en-e35-overview-ending-sadder` als FP
-gegen `claude-opus-5-5` -- dort lieferte Opus `festlegung_setzen` statt
-`uebersicht_aendern`, mit der woertlichen Einordnung "die Abgrenzung ...
-scheint fuer Opus weniger scharf als fuer gemma". Zwei verschiedene Modelle
-stolpern an derselben Prompt-Stelle, nur in unterschiedliche Nachbar-`art`en
--- das ist das Muster einer schwammigen Prompt-Formulierung, nicht
-Zufallsrauschen eines einzelnen Modells.
+```
+Arbeitsstand:
+Figur Mira
+Figur Nora
 
-**Einordnung: schwammige Prompt-Abgrenzung**, cross-model reproduzierbar.
+Neue Nachrichten:
+Member 1: the confession at the end feels too neat
+Member 1: make the ending sadder, they shouldn't really find each other
+```
+
+Der Korpusfall trug die Uebersicht nur in `arbeitsstand.geschichte_uebersicht`
+-- ein Feld, das `scripts/pruefe_prompts.py::_fuelle_arbeitsstand()` in
+seiner festen Feldliste (`"begriffe", "fragen", "kernthema", "format",
+"rahmen", "hauptkonflikt"`) nicht schreibt, und das `erkenner.py`s
+`_STAND_BESCHRIFTUNG` (die Liste, die `_arbeitsstand_text()` tatsaechlich
+rendert) ebenfalls nicht kennt. Punkt 26 selbst verlangt wortgleich, dass
+die Uebersicht "directly in the lead-up" steht -- das ist in diesem Code
+exakt der `vorlauf`-Mechanismus (`erkenner.laufe()`: `vorlauf =
+repo.letzte_bot_nachricht_vor(...)`, die letzte Bot-Nachricht vor dem
+Fenster), nicht `arbeitsstand`. Der Schwesterfall `en-n34-overview-yes-is-not-aendern`
+bestaetigt das explizit in seiner eigenen `notiz`: dort steht die Uebersicht
+bewusst NUR im Arbeitsstand, "also bleibt es leer" -- der Korpus selbst
+unterscheidet also "nur im Arbeitsstand" (kein Treffer erwartet) von
+"direkt im Vorlauf" (Treffer erwartet). `en-e35` benutzte versehentlich die
+erste Form, obwohl laut eigenem `erwartet`-Feld die zweite gemeint war.
+
+**Konsequenz:** kein Prompt-Wortlaut kann diesen Fall zuverlaessig loesen,
+solange das Modell die Uebersicht nie sieht -- bestaetigt durch den eigenen
+Testlauf dieser Karte (Abschnitt "Nebenbefund" unten): nach der reinen
+Prompt-Schaerfung blieb der Fall FP=0, aber FN (leere Liste statt Treffer),
+weil das Modell mangels Beleg korrekterweise nichts eintrug. **Einordnung:
+Korpus-Fallkonstruktion fehlerhaft** (fehlendes `vorlauf`-Feld), keine
+Modell-Drift, keine schwammige Prompt-Abgrenzung als Hauptursache -- Fix im
+Korpus (`korpus/en/erkenner.jsonl`, `en-e35` bekommt den fehlenden `vorlauf`
+mit der Uebersicht, exakt wie `entwurf.baue_anzeige()` sie in der Produktion
+als Chat-Nachricht zeigen wuerde), nicht nur im Prompt.
+
+Die vermutete Oberflaechenaehnlichkeit zu Punkt 27 bleibt trotzdem real genug,
+um sie im Prompt abzusichern (Negativ-Gegenbeispiel ergaenzt, siehe Diff
+unten) -- falls eine Gruppe wirklich Feedback zur Uebersicht UND kurz davor
+eine geschriebene Szene gezeigt bekommen hat, soll das Modell die beiden
+nicht verwechseln. Das war aber nicht die Ursache dieses konkreten FP.
+
+Die InScribe-Opus-Messung (`docs/messung/2026-10-erkenner-baseline.md`,
+Befund 1) listet denselben Fall ebenfalls als FP (Opus lieferte
+`festlegung_setzen`) -- lief aber ueber **denselben** Korpus und **denselben**
+Testharness-Code (`korpus/en/erkenner.jsonl` + `pruefe_prompts.py`), ist
+also keine unabhaengige Bestaetigung einer Prompt-Schwaeche, sondern
+derselbe Konstruktionsfehler, nur mit einem anderen Modell, das anders rät.
 
 ## en-ssn02-ohne-nummer: stagescript_notiz vs. text_ueberarbeiten
 
@@ -78,26 +116,32 @@ noch ungeschriebene Szene. Ohne eine explizite Regel fuer "schon bestaetigt
 gespeichert, keine Entscheidung mehr offen" faellt das Modell auf die
 oberflaechlich naheliegendere Regel (ein Wunsch zu "diesem" Text) zurueck.
 
-Unabhaengiger Beleg: dieselbe Grenze ist bereits in der Opus-Messung
-(`docs/messung/2026-10-erkenner-baseline.md`, Befund 2, "Muster A") als
-dominanter Fehlerclusters dokumentiert (mind. 19 von 29 FP im
-Padua-Testsatz) -- dort wird explizit festgehalten, dass die
-Review-Rueckfrage des Bots ("passt das so? Sonst sag mir, was sich aendern
-soll.") ohne woertliche Knopftexte als "Szene wird gerade gezeigt" gelesen
-wird, obwohl inhaltlich keine Yes/No-Entscheidung mehr offen ist.
+Verwandter, aber nicht identischer Befund in der Opus-Messung
+(`docs/messung/2026-10-erkenner-baseline.md`, Befund 2, "Muster A",
+`betrieb/korpus/en/padua_testsatz.jsonl`, ein ANDERER Korpus aus echten
+Padua-Chats): dieselbe Art-Grenze dominiert dort die Fehler (mind. 19 von 29
+FP), die Messung selbst haelt aber fest, dass ihr eigener Testsatz den
+echten `prueflauf`/Review-Zustand aus der Datenbank nicht nachbilden konnte
+und die Grenze "aus dem Chatverlauf allein nicht zuverlaessig" rekonstruiert
+werden kann -- also selbst eine Korpus-Unsicherheit, keine saubere zweite
+Bestaetigung. Anders als bei `en-e35` ist der Nutzertext fuer `en-ssn02` in
+`korpus/en/erkenner.jsonl` aber korrekt gebaut (eigener `vorlauf` mit der
+Review-Rueckfrage, bestaetigt per Nachbau wie oben) -- hier ist die
+Prompt-Abgrenzung selbst die Lücke, nicht die Korpuskonstruktion, und der
+Fix unten behebt sie nachweislich (siehe Korpuslauf-Ergebnis).
 
 **Einordnung: schwammige Prompt-Abgrenzung** (fehlender dritter Zustand
-"bereits bestaetigt gespeichert"), ebenfalls cross-model reproduzierbar.
+"bereits bestaetigt gespeichert").
 
 ## Gesamtergebnis der Ursachenklaerung
 
-Alle vier Faelle sind **keine Modell-Drift** und **kein
-Testharness-Artefakt**: fuer zwei der vier (`en-e35`, `en-ssn02`) gibt es
-einen unabhaengigen zweiten Beleg gegen ein komplett anderes Modell
-(`claude-opus-5-5`, InScribe Messung 1, 11.10.2026) an derselben Prompt-
-Stelle; fuer die anderen zwei (`en-e26`/`en-e27`) liegt die Ursache offen in
-der Oberflaechenaehnlichkeit zweier benachbarter Prompt-Regeln, die nie
-gegeneinander abgegrenzt wurden. Konsequenz: Punkt 22 (`szene_usa`), 26
-(`uebersicht_aendern`), 27 (`text_ueberarbeiten`) und 33
-(`stagescript_notiz`) im EN-Erkenner-Prompt bekommen je ein konkretes
-Negativ-Gegenbeispiel (siehe Prompt-Diff, Abschnitt unten).
+Keiner der vier Faelle ist Modell-Drift. Drei (`en-e26`, `en-e27`,
+`en-ssn02`) sind schwammige Prompt-Abgrenzungen gegen eine Oberflaechen-
+aehnliche Nachbarregel (`szene_schreiben` bzw. `text_ueberarbeiten`) -- sie
+bekommen je ein konkretes Negativ-Gegenbeispiel in Punkt 18/22
+(`szene_usa`) bzw. 27/33 (`stagescript_notiz`). Der vierte (`en-e35`) ist
+primaer ein **Korpus-Konstruktionsfehler**: die generierte Uebersicht
+erreichte das Modell wegen eines fehlenden `vorlauf`-Feldes gar nicht --
+behoben direkt im Korpus (`korpus/en/erkenner.jsonl`); die zusaetzliche
+Prompt-Schaerfung in Punkt 26/27 bleibt als Absicherung gegen die echte,
+aber nicht ursaechliche Oberflaechenaehnlichkeit stehen.

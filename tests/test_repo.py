@@ -43,6 +43,27 @@ def test_setze_kalibrierung_werte_erlaubt_fehlende_rede(conn):
     assert gruppe["kalibrierung_schwelle"] == pytest.approx(0.025)
 
 
+def test_setze_client_puffer_schreibt_anzahl_und_zeitstempel(conn):
+    """Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+    2026-10-17): der Watchdog des Chat-Clients meldet seine Pufferzahl
+    gruppenweit wie die Kalibrierungswerte."""
+    assert repo.hole_gruppe(conn, 1)["client_puffer_segmente"] is None
+    repo.setze_client_puffer(conn, 1, 3)
+    gruppe = repo.hole_gruppe(conn, 1)
+    assert gruppe["client_puffer_segmente"] == 3
+    assert gruppe["client_puffer_seit"] is not None
+
+
+def test_setze_client_puffer_null_loescht_den_zeitstempel_wieder(conn):
+    """Null Segmente heisst 'wieder alles angekommen' -- der Zeitstempel
+    verschwindet mit, sonst stuende eine veraltete Uhrzeit neben einer 0."""
+    repo.setze_client_puffer(conn, 1, 2)
+    repo.setze_client_puffer(conn, 1, 0)
+    gruppe = repo.hole_gruppe(conn, 1)
+    assert gruppe["client_puffer_segmente"] == 0
+    assert gruppe["client_puffer_seit"] is None
+
+
 def test_nachricht_wird_nicht_doppelt_eingefuegt(conn):
     assert repo.merke_nachricht(conn, 1, 100, "Ada", 0, "text", "hallo", "2026-09-05T10:00:00")
     assert not repo.merke_nachricht(conn, 1, 100, "Ada", 0, "text", "hallo", "2026-09-05T10:00:00")

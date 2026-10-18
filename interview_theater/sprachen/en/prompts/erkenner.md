@@ -653,6 +653,21 @@ for the first time
 
 <example>
 <excerpt>
+New messages:
+You: For the scene text there is a better model - from Anthropic, in the
+USA. Your scene details would be sent there. Do you want that? Say yes or
+no.
+Member 2: sure, go for it
+</excerpt>
+<output>
+{"aenderungen": [
+  {"art": "szene_usa", "wert": "JA"}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
 Progress:
 Core theme: Arriving
 Character Nadia: was at every demo
@@ -876,6 +891,27 @@ Member 1: make the ending angrier
 <output>
 {"aenderungen": [
   {"art": "text_ueberarbeiten", "wert": "make the ending angrier"}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Lead-up (the last bot message before this -- already processed, only so you
+can see what an agreement refers to):
+You: Logline: A late train strands two strangers overnight. Setting: an
+empty platform, 2am. Characters: Jo, waiting for a call that never comes;
+Priya, missed her connection on purpose. Tension arc: both pretend the
+delay doesn't matter. Scenes: 1. Jo and Priya share a bench. 2. Priya's
+phone rings and she doesn't answer. 3. They talk until the first train.
+
+New messages:
+Member 2: the ending is too neat, make it harder for them to leave things
+unsaid
+</excerpt>
+<output>
+{"aenderungen": [
+  {"art": "uebersicht_aendern", "wert": "harder for them to leave things unsaid"}
 ]}
 </output>
 </example>

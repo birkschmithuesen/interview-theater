@@ -237,7 +237,7 @@ def starte(
     Zitat-Pruefung ueberlebt (lieber keine Karte als eine mit erfundenen
     Belegen, wie bei ``verdichter.verdichte``)."""
     if suche_fn is None:
-        suche_url = getattr(e, "suche_url", None) or "http://127.0.0.1:8789/search"
+        suche_url = getattr(e, "suche_url", None) or "http://127.0.0.1:8790/search"
         suche_fn = lambda q, n: suche(q, n, suche_url)  # noqa: E731
     if hole_fn is None:
         hole_fn = hole_seite

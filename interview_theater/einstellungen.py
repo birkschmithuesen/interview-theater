@@ -66,7 +66,7 @@ _VORGABEWERTE = {
     # Internet-Recherche (Karte t_c5117c91): der Loopback-Such-Broker haelt
     # den Brave-Key, interview_theater ruft nur diese URL (Knowledge/Netzwerk-
     # Trennung, docs/refactoring-guidelines.md Punkt 7 im Profil-Repo).
-    "IT_SUCHE_URL": "http://127.0.0.1:8789/search",
+    "IT_SUCHE_URL": "http://127.0.0.1:8790/search",
     # Karte t_d18f2ad6: ein haengender Interviewmodus (Geraet offline, "fertig"
     # kam nie an) beendet sich nach so vielen Minuten ohne neue Aufnahme von
     # selbst -- derselbe Weg wie /fertig, nur vom Nachhol-Arbeiter ausgeloest.
@@ -108,7 +108,7 @@ class Einstellungen:
     # kosten.zeitzone.
     kosten_deckel_chf: float = 5.0
     zeitzone: str = "Europe/Rome"
-    suche_url: str = "http://127.0.0.1:8789/search"
+    suche_url: str = "http://127.0.0.1:8790/search"
     # Karte t_9b2b33cb (Messung 2): "tools" laesst den Opus-Erkenner die
     # Stueckwerkzeuge selbst rufen statt das JSON-Schema zu fuellen. Wirkt
     # nur, wenn der Erkenner ohnehin ueber Claude laeuft
@@ -196,7 +196,7 @@ def laden() -> Einstellungen:
         web_segment_ms=segment_ms,
         kosten_deckel_chf=_zahl(werte["IT_KOSTEN_DECKEL_CHF"], 5.0),
         zeitzone=(werte["IT_ZEITZONE"] or "").strip() or "Europe/Rome",
-        suche_url=(werte["IT_SUCHE_URL"] or "").strip() or "http://127.0.0.1:8789/search",
+        suche_url=(werte["IT_SUCHE_URL"] or "").strip() or "http://127.0.0.1:8790/search",
         erkenner_modus=_erkenner_modus(werte["IT_ERKENNER_MODUS"]),
         interview_auto_ende_min=int(_zahl(werte["IT_INTERVIEW_AUTO_ENDE_MIN"], 10.0)),
     )

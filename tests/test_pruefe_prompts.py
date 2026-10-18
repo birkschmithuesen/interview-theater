@@ -651,6 +651,33 @@ def test_bericht_traegt_die_sprache(tmp_path):
     assert pp.berichtspfad(None, ["erkenner"], sprache="en").name.endswith("-erkenner-en.md")
 
 
+def test_korpuslauf_szene_usa_heuristik_ueberspringt_das_modell(attrappe, tmp_path, monkeypatch):
+    """en-e26/en-e27 (Karte t_e380c30e, Code-Heuristik statt Prompt-Tuning):
+    die Heuristik muss auch im Korpuslauf greifen, sonst beweist der
+    Bericht nichts ueber das echte Verhalten -- fuer diese beiden Faelle
+    wird das Modell gar nicht erst gerufen, selbst wenn es (wie hier
+    simuliert) weiterhin ``szene_schreiben`` liefern wuerde.
+
+    ``monkeypatch.setenv`` statt eines blossen Aufrufs: ``--sprache en``
+    setzt in ``main()`` roh ``os.environ[workshop.VARIABLE]`` (D8-Pruefung)
+    und raeumt es nie wieder auf -- ohne ``monkeypatch`` bliebe
+    IT_WORKSHOP=padua-2026 fuer den Rest des Testlaufs stehen."""
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    attrappe["antwort"] = lambda art, nutzer: {
+        "aenderungen": [{"art": "szene_schreiben", "wert": ""}]
+    }
+    bericht = tmp_path / "bericht.md"
+    code = pp.main([
+        "erkenner", "--sprache", "en",
+        "--nur", "en-e26-usa-ja,en-e27-usa-nein",
+        "--bericht", str(bericht),
+    ])
+    assert code == 0
+    text = bericht.read_text(encoding="utf-8")
+    assert "Falsch-Positive: **0**" in text
+    assert attrappe.get("gesehen", []) == []
+
+
 # --- --ueber-claude (InScribe Messung 1, t_dd94e894) -----------------------
 #
 # Misst GENAU den Live-Pfad (erkenner.ueber_claude / modellwahl.aufruf_schema

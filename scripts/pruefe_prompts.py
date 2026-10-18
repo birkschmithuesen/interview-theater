@@ -568,6 +568,7 @@ def _laufe_erkenner(klm, conn, chat_id, fall, modell, e=None, ueber_claude=False
     # Betrieb und wird hinterher genauso gefiltert -- was im Workshop nie
     # ankaeme, darf hier weder als Treffer noch als Falsch-Positiv zaehlen.
     aus_aufnahme = bool(fall.get("aufnahme"))
+    usa = None
     if aus_aufnahme:
         nutzer = erkenner.baue_aufnahme_nutzertext(fall["aufnahme"])
     else:
@@ -583,8 +584,15 @@ def _laufe_erkenner(klm, conn, chat_id, fall, modell, e=None, ueber_claude=False
             vorlauf = _nachrichtenzeilen([{"absender": "Bot", "text": fall["vorlauf"]}])[0]
         elif len(zeilen) > 1 and zeilen[0]["ist_bot"]:
             vorlauf, zeilen = zeilen[0], zeilen[1:]
+        # Dieselbe Abfangregel wie ``erkenner.erkenne_mit_werkzeugschritten``
+        # (Karte t_e380c30e) -- sonst misst dieser Lauf etwas, was der
+        # Betrieb gar nicht mehr tut: fuer en-e26/en-e27 wird das Modell nie
+        # gerufen, der Bericht muss das zeigen statt es zu verdecken.
+        usa = erkenner._heuristik_szene_usa(vorlauf, zeilen)
         nutzer = erkenner._baue_nutzertext(conn, chat_id, zeilen, vorlauf)
-    if ueber_claude and not aus_aufnahme:
+    if usa is not None:
+        ergebnis = {"aenderungen": [usa]}
+    elif ueber_claude and not aus_aufnahme:
         # InScribe Messung 1 (t_dd94e894): GENAU der Live-Pfad, den
         # ``erkenner.erkenne`` seit dem 08.10.2026 nimmt -- dieselbe
         # Funktion, kein Nachbau. ``erkenner._schema_aufruf`` prueft selbst

@@ -110,6 +110,17 @@ BLEIBT_DEUTSCH = {
     # sie wird nie angezeigt, nur gegen den Wortlaut der Gruppe geprueft, und
     # ist deshalb wie stile._NACH_SLUG reine Mitgliedschaftspruefung.
     "erkenner._FESTLEGUNG_FUELLWOERTER": "Fuellwortliste, kein Nutzertext (nur Mitgliedschaftspruefung)",
+    # Karte t_e380c30e (szene_usa-Heuristik vor dem Erkenner-Modellaufruf):
+    # drei Abgleich-Marker, kein Nutzertext -- sie werden nie an eine Gruppe
+    # ausgegeben, nur gegen den Vorlauf (die vom Bot schon gesendete
+    # USA-Modellfrage) und die Antwort der Gruppe geprueft. Wie
+    # erkenner._FESTLEGUNG_FUELLWOERTER reine Mitgliedschaftspruefung, und
+    # wie szenenfolge._FLACHE_STRUKTUR_SIGNALE gelten Deutsch und Englisch
+    # hier immer beide zugleich (unabhaengig vom Profil), weil die Heuristik
+    # denselben Lauf fuer den deutschen und den englischen Korpus bedient.
+    "erkenner._USA_FRAGE_MARKER": "Abgleich-Marker gegen den Vorlauf, kein Nutzertext (DE+EN gelten immer beide)",
+    "erkenner._USA_NEIN_WOERTER": "Wortliste zum Abgleich der Antwort, kein Nutzertext (DE+EN gelten immer beide)",
+    "erkenner._USA_JA_WOERTER": "Wortliste zum Abgleich der Antwort, kein Nutzertext (DE+EN gelten immer beide)",
     # Karte Padua UX: CSS und JavaScript, nur Kommentare deutsch. Die
     # Mikrotexte laufen ueber T (siehe web_gestalt._mikrotexte).
     "web_gestalt._BASIS": "CSS, nur Kommentare deutsch",

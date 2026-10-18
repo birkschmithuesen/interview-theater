@@ -1426,6 +1426,25 @@ def test_die_seite_traegt_den_modus_schon_beim_laden(tmp_path, monkeypatch):
     assert f'id="interview-pause">{web_chat._TEXT_INTERVIEW_PAUSE}</button>' in aus
 
 
+def test_der_fremd_hinweis_banner_zeigt_den_endehinweis_nach_reload():
+    """Karte t_d18f2ad6 Teil 2 (angepasst, Birk): nach einem Reload mit
+    verwaister Aufnahme (keine lokale Sitzung, der Server meldet den Modus
+    trotzdem) muss ein klarer Banner-Text mit Handlungsaufforderung stehen,
+    nicht nur die Zwei-Tipp-Sperre an den Knoepfen selbst. Kein neuer
+    String: derselbe Text wie ``diskussion_gesperrt`` ("An interview is
+    still open - tap ... first."), denn er benennt schon genau das, und
+    E6 verbietet neuen Client-Speicher -- der Banner haengt nur am
+    Server-gemeldeten Modus im DOM wie der Rest des fremden-Geraet-Pfads."""
+    hinweis = web_chat._TEXT_DISKUSSION_GESPERRT.format(
+        beenden=web_chat._TEXT_INTERVIEW_ENDEN)
+    daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
+             "interviewmodus": True, "titel": None, "brainstorm_knopf": False}
+    seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
+    assert (f'id="interview-fremd-hinweis" role="status">{hinweis}</p>') in seite
+    aus = web_chat.chat_html(dict(daten, interviewmodus=False), "1.x", "tok", "", 45000)
+    assert f'id="interview-fremd-hinweis" role="status" hidden>{hinweis}</p>' in aus
+
+
 def test_das_js_ist_syntaktisch_gueltig(tmp_path):
     """Wenn ``node`` da ist: ``node --check`` ueber das fertige Skript."""
     import shutil
@@ -1727,7 +1746,7 @@ def _zeigemodus_harness(faelle_js: str) -> str:
                classList: {{ toggle: function () {{}} }} }};
     }}
     var fuss, interviewKnopf, interviewPauseKnopf, interviewBeendenKnopf,
-        interviewAktionenFeld, pttKnopf, zustand;
+        interviewAktionenFeld, interviewFremdHinweisFeld, pttKnopf, zustand;
     function zeigeBrainstormModus() {{}}
     function zeigeDiskussionModus() {{}}
     {minuten}
@@ -1742,9 +1761,11 @@ def _zeigemodus_harness(faelle_js: str) -> str:
       }}, z);
       fuss = attrappe(); interviewKnopf = attrappe();
       interviewPauseKnopf = attrappe(); interviewBeendenKnopf = attrappe();
-      interviewAktionenFeld = attrappe(); pttKnopf = attrappe();
+      interviewAktionenFeld = attrappe(); interviewFremdHinweisFeld = attrappe();
+      pttKnopf = attrappe();
       zeigeModus();
       return {{
+        fremdHinweisVersteckt: interviewFremdHinweisFeld.hidden,
         fremd: interviewKnopf.dataset.fremd,
         pausiert: interviewKnopf.dataset.pausiert,
         startet: interviewKnopf.dataset.startet,
@@ -1781,6 +1802,7 @@ def test_fremdes_geraet_zeigt_nicht_pausiert_live_in_node(tmp_path):
     assert e["fremd"]["text"] == "FREMD"
     assert e["fremd"]["pause"] == "HIER"
     assert e["fremd"]["enden"] == "ENDEN"
+    assert e["fremd"]["fremdHinweisVersteckt"] is False
     assert e["fremd_weiter_scharf"]["pause"] == "HIER_SICHER"
     assert e["fremd_weiter_scharf"]["enden"] == "ENDEN"
     assert e["fremd_enden_scharf"]["enden"] == "ENDEN_SICHER"
@@ -1790,14 +1812,17 @@ def test_fremdes_geraet_zeigt_nicht_pausiert_live_in_node(tmp_path):
     assert e["eigen_pausiert"]["text"] == "PAUSIERT 1:05"
     assert e["eigen_pausiert"]["pause"] == "WEITER"
     assert e["eigen_pausiert"]["scharf"] is None   # eigene Sitzung: nichts scharf
+    assert e["eigen_pausiert"]["fremdHinweisVersteckt"] is True
 
     assert e["eigen_laeuft"]["fremd"] == "0"
     assert e["eigen_laeuft"]["pausiert"] == "0"
     assert e["eigen_laeuft"]["text"].startswith("LAEUFT")
     assert e["eigen_laeuft"]["enden"] == "ENDEN"
+    assert e["eigen_laeuft"]["fremdHinweisVersteckt"] is True
 
     assert e["aus"]["fremd"] == "0"
     assert e["aus"]["text"] == "AN"
+    assert e["aus"]["fremdHinweisVersteckt"] is True
 
 
 def test_fremdbestaetigt_braucht_zwei_tipps_live_in_node(tmp_path):

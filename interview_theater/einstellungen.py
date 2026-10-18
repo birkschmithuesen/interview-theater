@@ -67,6 +67,10 @@ _VORGABEWERTE = {
     # den Brave-Key, interview_theater ruft nur diese URL (Knowledge/Netzwerk-
     # Trennung, docs/refactoring-guidelines.md Punkt 7 im Profil-Repo).
     "IT_SUCHE_URL": "http://127.0.0.1:8789/search",
+    # Karte t_d18f2ad6: ein haengender Interviewmodus (Geraet offline, "fertig"
+    # kam nie an) beendet sich nach so vielen Minuten ohne neue Aufnahme von
+    # selbst -- derselbe Weg wie /fertig, nur vom Nachhol-Arbeiter ausgeloest.
+    "IT_INTERVIEW_AUTO_ENDE_MIN": "10",
 }
 
 
@@ -110,6 +114,9 @@ class Einstellungen:
     # nur, wenn der Erkenner ohnehin ueber Claude laeuft
     # (erkenner.ueber_claude); Vorgabe bleibt "json".
     erkenner_modus: str = "json"
+    # Am Ende mit Vorgabewert, aus demselben Grund wie erkenner_modell.
+    # Gelesen von aufnahme.pruefe_auto_ende.
+    interview_auto_ende_min: int = 10
 
 
 #: Variablen, die nur der Telegram-Kanal braucht. Im Web-Kanal gibt es keinen
@@ -191,6 +198,7 @@ def laden() -> Einstellungen:
         zeitzone=(werte["IT_ZEITZONE"] or "").strip() or "Europe/Rome",
         suche_url=(werte["IT_SUCHE_URL"] or "").strip() or "http://127.0.0.1:8789/search",
         erkenner_modus=_erkenner_modus(werte["IT_ERKENNER_MODUS"]),
+        interview_auto_ende_min=int(_zahl(werte["IT_INTERVIEW_AUTO_ENDE_MIN"], 10.0)),
     )
 
 

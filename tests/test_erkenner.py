@@ -1758,3 +1758,115 @@ def test_padua_profil_erkenner_ueber_claude():
     from interview_theater import workshop
     assert workshop.erkenner_ueber_claude_aktiv(workshop.lade("padua-2026")) is True
     assert workshop.erkenner_ueber_claude_aktiv(workshop.lade("dortmund-2026")) is False
+
+
+# -- szene_usa-Heuristik (t_e380c30e): 10/10 reproduzierbare Falsch-Positive
+# (szene_schreiben statt szene_usa) im EN-Erkenner bei genau dieser Vorlauf-
+# Antwort-Kombination, drei Prompt-Formulierungsversuche erfolglos
+# (docs/prompt-audit/2026-10-18-erkenner-en-4fp/BEFUND.md). Birks
+# Entscheidung: Code-Heuristik statt weiterem Prompt-Tuning -- diese Tests
+# belegen, dass das Modell dafuer gar nicht erst befragt wird.
+
+_USA_FRAGE_EN = (
+    "For the scene text there is a better model - from Anthropic, in the "
+    "USA. Your scene details would be sent there. Do you want that? Say "
+    "yes or no."
+)
+_USA_FRAGE_DE = (
+    "Bevor ich die erste Szene schreibe, eine Entscheidung fuer euch. Bis "
+    "jetzt lief alles in der Schweiz. Fuer den Szenentext gibt es ein "
+    "besseres Modell -- von Anthropic, in den USA. Wenn ihr es nehmt, "
+    "gehen euer Kernthema, die Figuren mit ihren Zitaten und die "
+    "Szenenangaben an einen Server in den USA. Wollt ihr das? Sagt ja "
+    "oder nein."
+)
+
+
+def test_szene_usa_heuristik_en_ja_ohne_modellaufruf(conn, einst):
+    repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", _USA_FRAGE_EN, "2026-10-18T10:00:00+00:00")
+    repo.setze_extrahiert_bis(conn, 1, 10)
+    _nachricht(conn, 1, 11, "yes ok, let's do it", absender="Giulia")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "szene_schreiben", "wert": ""}]})
+
+    ergebnis = erkenner.erkenne(klm, conn, einst, 1)
+
+    assert ergebnis == [{"art": "szene_usa", "wert": "ja"}]
+    assert klm.aufrufe == 0
+    assert repo.hole_gruppe(conn, 1)["letzte_extrahierte_message_id"] == 11
+
+
+def test_szene_usa_heuristik_en_nein_ohne_modellaufruf(conn, einst):
+    repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", _USA_FRAGE_EN, "2026-10-18T10:00:00+00:00")
+    repo.setze_extrahiert_bis(conn, 1, 10)
+    _nachricht(conn, 1, 11, "rather not, keep it in Switzerland", absender="Sam")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "szene_schreiben", "wert": ""}]})
+
+    ergebnis = erkenner.erkenne(klm, conn, einst, 1)
+
+    assert ergebnis == [{"art": "szene_usa", "wert": "nein"}]
+    assert klm.aufrufe == 0
+
+
+def test_szene_usa_heuristik_de_ja_ohne_modellaufruf(conn, einst):
+    repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", _USA_FRAGE_DE, "2026-10-18T10:00:00+00:00")
+    repo.setze_extrahiert_bis(conn, 1, 10)
+    _nachricht(conn, 1, 11, "ja, nehmen wir", absender="Dilan")
+    klm = LLMAttrappe(antwort={"aenderungen": []})
+
+    ergebnis = erkenner.erkenne(klm, conn, einst, 1)
+
+    assert ergebnis == [{"art": "szene_usa", "wert": "ja"}]
+    assert klm.aufrufe == 0
+
+
+def test_szene_usa_heuristik_de_nein_ohne_modellaufruf(conn, einst):
+    repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", _USA_FRAGE_DE, "2026-10-18T10:00:00+00:00")
+    repo.setze_extrahiert_bis(conn, 1, 10)
+    _nachricht(conn, 1, 11, "Nein. Das bleibt in der Schweiz, auch wenn der Text dann einfacher ist.", absender="Halyna")
+    klm = LLMAttrappe(antwort={"aenderungen": []})
+
+    ergebnis = erkenner.erkenne(klm, conn, einst, 1)
+
+    assert ergebnis == [{"art": "szene_usa", "wert": "nein"}]
+    assert klm.aufrufe == 0
+
+
+def test_szene_usa_heuristik_de_beilaeufiges_ok_ist_ja(conn, einst):
+    repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", _USA_FRAGE_DE, "2026-10-18T10:00:00+00:00")
+    repo.setze_extrahiert_bis(conn, 1, 10)
+    _nachricht(conn, 1, 11, "ok mach", absender="Guelten")
+    klm = LLMAttrappe(antwort={"aenderungen": []})
+
+    ergebnis = erkenner.erkenne(klm, conn, einst, 1)
+
+    assert ergebnis == [{"art": "szene_usa", "wert": "ja"}]
+    assert klm.aufrufe == 0
+
+
+def test_szene_usa_heuristik_rueckfrage_faellt_an_das_modell(conn, einst):
+    """Eine Rueckfrage zum Angebot ist weder ja noch nein -- die Heuristik
+    muss durchlassen, nicht raten."""
+    repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", _USA_FRAGE_DE, "2026-10-18T10:00:00+00:00")
+    repo.setze_extrahiert_bis(conn, 1, 10)
+    _nachricht(conn, 1, 11, "was heisst das, gehen dann unsere namen dahin?", absender="Guelten")
+    klm = LLMAttrappe(antwort={"aenderungen": []})
+
+    ergebnis = erkenner.erkenne(klm, conn, einst, 1)
+
+    assert ergebnis == []
+    assert klm.aufrufe == 1
+
+
+def test_szene_usa_heuristik_ohne_passenden_vorlauf_faellt_an_das_modell(conn, einst):
+    """'yes' ohne vorherige USA-Frage ist kein szene_usa -- Gegenstueck zu
+    en-n18 im Korpus: die Heuristik darf nur bei exaktem Vorlauf-Match
+    greifen."""
+    repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", "Welche Figuren kommen vor?", "2026-10-18T10:00:00+00:00")
+    repo.setze_extrahiert_bis(conn, 1, 10)
+    _nachricht(conn, 1, 11, "yes", absender="Ines")
+    klm = LLMAttrappe(antwort={"aenderungen": []})
+
+    ergebnis = erkenner.erkenne(klm, conn, einst, 1)
+
+    assert ergebnis == []
+    assert klm.aufrufe == 1

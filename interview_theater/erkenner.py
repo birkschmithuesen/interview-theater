@@ -490,6 +490,73 @@ def aktive_arten() -> tuple[str, ...]:
     return tuple(schema()["properties"]["aenderungen"]["items"]["properties"]["art"]["enum"])
 
 
+#: Textmarker der USA-Modellfrage (``szene._TEXT_ANGEBOT_USA``, Deutsch und
+#: Englisch via ``sprachen/en/texte.toml``) -- der Schlusssatz ist in
+#: Produktionstext UND Korpus-Faellen wortgleich, anders als der jeweils
+#: paraphrasierte Rest der Nachricht (deshalb kein Vergleich auf den
+#: vollen Text).
+_USA_FRAGE_MARKER = (
+    "Wollt ihr das? Sagt ja oder nein.",
+    "Do you want that? Say yes or no.",
+)
+
+#: Bewusst kleine, woertlich gepruefte Wortlisten (kein Modellaufruf, keine
+#: Fuzzy-Logik) -- alles, was hier nicht eindeutig zutrifft, faellt an den
+#: normalen Erkenner-Lauf.
+_USA_NEIN_WOERTER = ("nein", "no", "rather not", "keep it in switzerland", "lieber nicht")
+_USA_JA_WOERTER = (
+    "ja", "yes", "ok", "okay", "go", "sure",
+    "let's do it", "we'll take it", "nehmen wir", "machen wir",
+)
+
+
+def _enthaelt_wort(text: str, woerter: tuple[str, ...]) -> bool:
+    for w in woerter:
+        if " " in w or "'" in w:
+            if w in text:
+                return True
+        elif re.search(rf"\b{re.escape(w)}\b", text):
+            return True
+    return False
+
+
+def _usa_antwort(text: str) -> str | None:
+    """Leitet 'ja'/'nein' aus einer Kurzantwort ab -- Text-Match, nicht
+    fuzzy: nur ein bekanntes Wort zaehlt, sonst ``None`` (dann befragt
+    ``erkenne_mit_werkzeugschritten`` das Modell wie bisher)."""
+    t = (text or "").strip().lower()
+    if _enthaelt_wort(t, _USA_NEIN_WOERTER):
+        return "nein"
+    if _enthaelt_wort(t, _USA_JA_WOERTER):
+        return "ja"
+    return None
+
+
+def _heuristik_szene_usa(vorlauf, neue) -> dict | None:
+    """Abfangregel vor dem Erkenner-Modellaufruf (Karte t_e380c30e, Birk
+    18.10.2026): 10/10 reproduzierbare Falsch-Positive im EN-Erkenner
+    (``szene_schreiben`` statt ``szene_usa``), wenn der Vorlauf exakt die
+    USA-Modellfrage ist und die Antwort ein zustimmendes/ablehnendes
+    Kurzwort -- jedes solche Kurzwort generalisiert das Modell sonst auch
+    auf 'jetzt schreiben' (Prompt-Punkt 18 liegt inhaltlich direkt daneben).
+    Drei Formulierungsversuche am Prompt haben das nicht behoben
+    (docs/prompt-audit/2026-10-18-erkenner-en-4fp/BEFUND.md) -- Birks
+    Entscheidung: Code-Heuristik statt weiterem Prompt-Tuning.
+
+    Greift nur, wenn GENAU eine neue Nachricht vorliegt: mehrere neue
+    Nachrichten koennten weitere Absichten tragen, die diese Abkuerzung
+    sonst verschluckte."""
+    if vorlauf is None or len(neue) != 1:
+        return None
+    vorlauf_text = vorlauf["text"] or ""
+    if not any(marker in vorlauf_text for marker in _USA_FRAGE_MARKER):
+        return None
+    wert = _usa_antwort(neue[0]["text"])
+    if wert is None:
+        return None
+    return {"art": "szene_usa", "wert": wert}
+
+
 def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
     """Erkennt Aenderungsabsichten im Gespraech seit der letzten Erkennung.
 
@@ -527,6 +594,12 @@ def erkenne_mit_werkzeugschritten(klm, conn, e, chat_id: int) -> tuple[list[dict
     # dem Fenster wird als Vorlauf mitgegeben, mit Markierung -- sie ist
     # Kontext, keine neue Aenderung, und das Wasserzeichen kennt sie schon.
     vorlauf = repo.letzte_bot_nachricht_vor(conn, chat_id, neue[0]["message_id"])
+
+    usa = _heuristik_szene_usa(vorlauf, neue)
+    if usa is not None:
+        repo.setze_extrahiert_bis(conn, chat_id, letzte_message_id)
+        return [usa], []
+
     nutzer = _baue_nutzertext(conn, chat_id, neue, vorlauf)
 
     if kontext.schaetze(nutzer) > FENSTER_DECKEL:

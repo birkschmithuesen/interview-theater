@@ -29,7 +29,7 @@ def _umgebung(monkeypatch, **zusatz):
 def test_ohne_variable_gilt_der_loopback_vorgabewert(monkeypatch):
     _umgebung(monkeypatch)
     e = einstellungen.laden()
-    assert e.suche_url == "http://127.0.0.1:8789/search"
+    assert e.suche_url == "http://127.0.0.1:8790/search"
 
 
 def test_variable_ueberschreibt_den_vorgabewert(monkeypatch):

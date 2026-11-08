@@ -2071,6 +2071,228 @@ _AUSWAHL_JS = """
 """
 
 
+#: Das UX-Ereignis-Logging im Browser (Karte t_10a31406, 06.10.2026): eine
+#: eigene, nur unter ``workshop.ux_ereignisse_aktiv()`` angehaengte IIFE --
+#: Dortmunds Skript bleibt dadurch Zeichen fuer Zeichen unberuehrt, wie bei
+#: ``_AUSWAHL_JS``/``_STEPPER_JS``.
+#:
+#: **Keine Aenderung an ``_VEREINT_JS`` noetig**: der Tab-Wechsel wird ueber
+#: einen ``MutationObserver`` auf ``document.body``s ``data-tab`` gelesen
+#: (von ``zeige()`` in ``_VEREINT_JS`` ohnehin gesetzt), nicht durch einen
+#: Aufruf aus dessen Closure heraus.
+#:
+#: Die ersten sechs Funktionen (``uxZufallsId`` bis ``uxRageZiel``) sind
+#: reine Funktionen ohne DOM-Abhaengigkeit -- ``tests/test_ux_batching_js.py``
+#: fuehrt sie woertlich unter Node aus, wie ``tests/test_buehne_nav_js.py``
+#: es fuer die CoThinker-Navigation tut. ``uxGeraeteId`` nimmt den Speicher
+#: als Parameter (wie ``kalibrierungCacheLesen``) statt direkt
+#: ``localStorage`` zu lesen -- dieselbe Spritze fuer Testbarkeit.
+#:
+#: **Kein Freitext, kein Transkript-/Chatinhalt, keine Tastatureingaben:**
+#: ``uxExtraFiltern`` laesst nur Zahlen unter festen Schluesseln durch, plus
+#: eine laengenbegrenzte Diagnosezeile fuer JS-Fehler (``msg``) -- dieselbe
+#: Schluesselliste wie ``repo.UX_EXTRA_FELDER`` (die Server-Pruefung bleibt
+#: die massgebliche, diese hier haelt nur Nutzlast klein). ``ziel`` kommt nie
+#: aus Nutzertext: es ist entweder ein fest verdrahtetes Schluesselwort
+#: (``tab:<name>``, ``phase:<nummer>``, ``auswahl:<wert>``) oder ein
+#: gesaeuberter Tag-Name fuer einen toten Tipp (``tot:<tag>``).
+_UX_JS = """
+(function () {
+  var BASIS = '__BASIS__';
+  var MAX_EVENTS_JE_BATCH = __MAX_EVENTS__;
+  var MAX_BATCH_BYTES = __MAX_BYTES__;
+  var SENDE_INTERVALL_MS = 10000;
+  var MAX_WARTESCHLANGE = 300;
+  var RAGE_SCHWELLE_MS = 1000;
+
+  function uxZufallsId() {
+    return 'g' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  function uxGeraeteId(speicher, schluessel, zufall) {
+    if (!speicher) { return zufall(); }
+    try {
+      var vorhanden = speicher.getItem(schluessel);
+      if (vorhanden) { return vorhanden; }
+      var neu = zufall();
+      speicher.setItem(schluessel, neu);
+      return neu;
+    } catch (e) { return zufall(); }
+  }
+
+  function uxExtraFiltern(extra) {
+    var ZAHLFELDER = ['von', 'nach', 'n', 'ms', 'zeile', 'code'];
+    var raus = {};
+    if (!extra || typeof extra !== 'object') { return raus; }
+    for (var i = 0; i < ZAHLFELDER.length; i++) {
+      var k = ZAHLFELDER[i];
+      var w = extra[k];
+      if (typeof w === 'number' && isFinite(w)) { raus[k] = w; }
+    }
+    if (typeof extra.msg === 'string') {
+      var bereinigt = extra.msg.replace(/\\s+/g, ' ').trim().slice(0, 160);
+      if (bereinigt) { raus.msg = bereinigt; }
+    }
+    return raus;
+  }
+
+  function uxNeuesEreignis(typ, ziel, phase, jetztMs, dauerMs, extra) {
+    var ereignis = { typ: typ, ziel: ziel, t: jetztMs };
+    if (phase !== null && phase !== undefined) { ereignis.phase = phase; }
+    if (typeof dauerMs === 'number' && isFinite(dauerMs)) { ereignis.dauer_ms = dauerMs; }
+    var gefiltert = uxExtraFiltern(extra);
+    if (Object.keys(gefiltert).length) { ereignis.extra = gefiltert; }
+    return ereignis;
+  }
+
+  function uxWarteschlangeHinzufuegen(warteschlange, maxLaenge, ereignis) {
+    warteschlange.push(ereignis);
+    while (warteschlange.length > maxLaenge) { warteschlange.shift(); }
+    return warteschlange;
+  }
+
+  function uxStapelAbschneiden(ereignisse, maxAnzahl, maxBytes) {
+    var stapel = [];
+    var i = 0;
+    while (i < ereignisse.length && stapel.length < maxAnzahl) {
+      var versuch = stapel.concat([ereignisse[i]]);
+      var bytes = JSON.stringify(versuch).length;
+      if (bytes > maxBytes) {
+        if (stapel.length === 0) { i += 1; continue; }
+        break;
+      }
+      stapel.push(ereignisse[i]);
+      i += 1;
+    }
+    return { stapel: stapel, rest: ereignisse.slice(i) };
+  }
+
+  function uxRageZiel(karte, ziel, jetztMs, schwelleMs) {
+    var letzte = karte[ziel];
+    karte[ziel] = jetztMs;
+    return typeof letzte === 'number' && (jetztMs - letzte) < schwelleMs;
+  }
+
+  // -- ab hier: DOM-Verdrahtung, nicht unter Node geprueft -----------------
+
+  var speicher = null;
+  try { speicher = window.localStorage; } catch (e) { speicher = null; }
+  var GERAET = uxGeraeteId(speicher, 'ux_geraet:' + BASIS, uxZufallsId);
+  var warteschlange = [];
+  var rageKarte = {};
+
+  function aktuellePhase() {
+    var rm = document.getElementById('roadmap');
+    var p = rm && rm.dataset ? parseInt(rm.dataset.aktivePhase, 10) : NaN;
+    return isNaN(p) ? null : p;
+  }
+
+  function melde(typ, ziel, dauerMs, extra) {
+    uxWarteschlangeHinzufuegen(
+      warteschlange, MAX_WARTESCHLANGE,
+      uxNeuesEreignis(typ, ziel, aktuellePhase(), Date.now(), dauerMs, extra)
+    );
+  }
+  // Einhaengepunkt fuer anderen Code (z. B. den Recorder in web_chat.py) --
+  // ein Rezept, keine Pflicht: bleibt er unbenutzt, laeuft das generische
+  // Logging (Tabs, Klicks, Sichtbarkeit, JS-Fehler) trotzdem.
+  window.uxEreignis = melde;
+
+  function sendeStapel(stapel, beacon) {
+    if (!stapel.length) { return; }
+    var koerper = JSON.stringify({
+      nonce: (document.getElementById('nonce') || {}).value || '',
+      geraet: GERAET,
+      ereignisse: stapel
+    });
+    if (beacon && navigator.sendBeacon) {
+      try {
+        navigator.sendBeacon(BASIS + 'chat/ereignis',
+          new Blob([koerper], { type: 'application/json' }));
+        return;
+      } catch (e) { /* faellt auf fetch zurueck */ }
+    }
+    try {
+      fetch(BASIS + 'chat/ereignis', {
+        method: 'POST', cache: 'no-store', keepalive: true,
+        headers: { 'Content-Type': 'application/json' }, body: koerper
+      }).catch(function () {});
+    } catch (e) { /* fire-and-forget: ein Fehler hier darf nie sichtbar werden */ }
+  }
+
+  function leere(beacon) {
+    while (warteschlange.length) {
+      var geteilt = uxStapelAbschneiden(warteschlange, MAX_EVENTS_JE_BATCH, MAX_BATCH_BYTES);
+      if (!geteilt.stapel.length) { break; }
+      warteschlange = geteilt.rest;
+      sendeStapel(geteilt.stapel, beacon);
+    }
+  }
+  setInterval(function () { leere(false); }, SENDE_INTERVALL_MS);
+  window.addEventListener('pagehide', function () { leere(true); });
+
+  // Tab-Wechsel: ueber data-tab am <body> (von _VEREINT_JS.zeige() gesetzt)
+  // -- keine Aenderung an dessen Code noetig. dauer_ms traegt die
+  // Verweildauer auf dem VORIGEN Tab (Grundlage der "tab dwell times" in
+  // scripts/ux_auswertung.py).
+  var letzterTab = document.body.dataset.tab || null;
+  var tabBetreten = Date.now();
+  new MutationObserver(function () {
+    var jetzt = document.body.dataset.tab || null;
+    if (jetzt && jetzt !== letzterTab) {
+      var jetztMs = Date.now();
+      melde('tab_wechsel', 'tab:' + jetzt, jetztMs - tabBetreten);
+      tabBetreten = jetztMs;
+      letzterTab = jetzt;
+    }
+  }).observe(document.body, { attributes: true, attributeFilter: ['data-tab'] });
+
+  // Klicks: ein paar bekannte Muster bekommen ein Schluesselwort, alles
+  // andere auf einem nicht interaktiven Element gilt als toter Tipp.
+  // Derselbe Tipp binnen einer Sekunde zweimal gilt als Rage-Tap.
+  var INTERAKTIV = /^(BUTTON|A|INPUT|TEXTAREA|SELECT|SUMMARY)$/;
+  document.addEventListener('click', function (ev) {
+    var el = ev.target, ziel = null, tief = 0;
+    for (; el && tief < 6; tief++, el = el.parentElement) {
+      if (el.dataset && el.dataset.uxZiel) { ziel = el.dataset.uxZiel; break; }
+      if (el.matches && el.matches('.tabs button[data-tab]')) {
+        ziel = 'tab:' + el.dataset.tab; break;
+      }
+      if (el.matches && el.matches('.phase-knopf[data-phase]')) {
+        ziel = 'phase:' + el.dataset.phase; break;
+      }
+      if (el.matches && el.matches('.auswahl-knopf[data-wert]')) {
+        ziel = 'auswahl:' + (el.dataset.wert || 'leer'); break;
+      }
+      if (el.tagName === 'SUMMARY') { ziel = 'details'; break; }
+    }
+    var typ = 'klick';
+    if (!ziel) {
+      if (INTERAKTIV.test(ev.target.tagName || '')) { return; }
+      ziel = 'tot:' + (ev.target.tagName || 'x').toLowerCase();
+      typ = 'rage_klick';
+    } else if (uxRageZiel(rageKarte, ziel, Date.now(), RAGE_SCHWELLE_MS)) {
+      typ = 'rage_klick';
+    }
+    melde(typ, ziel);
+  }, true);
+
+  document.addEventListener('visibilitychange', function () {
+    melde('sichtbarkeit', document.hidden ? 'hintergrund' : 'vordergrund');
+  });
+
+  window.addEventListener('error', function (ev) {
+    melde('js_fehler', 'fenster', null, { msg: String(ev.message || ''), zeile: ev.lineno || 0 });
+  });
+  window.addEventListener('unhandledrejection', function (ev) {
+    var grund = ev.reason;
+    var msg = (grund && grund.message) ? grund.message : String(grund);
+    melde('js_fehler', 'promise', null, { msg: msg });
+  });
+})();
+"""
+
+
 def _tabs_html(aktiv: str, tabs=TABS, phase4: bool = True) -> str:
     """``phase4=False`` haengt ein ``hidden`` an den CoThinker-Knopf, damit
     die Seite schon beim ersten Rendern (vor jedem Poll-Takt) stimmt --
@@ -2318,6 +2540,54 @@ def _karten_im_cothinker() -> bool:
     from interview_theater import workshop
 
     return workshop.szenenkarten_aktiv() and workshop.diskussion_aktiv()
+
+
+_TEXT_UX_UNGUELTIG = "Diese Ereignisse gehen nicht."
+
+
+def ereignis_post(handler, db_pfad: str, token: str, chat_id: int,
+                  schluessel: bytes) -> None:
+    """``POST /g/<token>/chat/ereignis`` -- eine Charge UX-Ereignisse
+    (Karte t_10a31406, 06.10.2026): Tab-Wechsel, Klicks, Abbrueche,
+    JS-Fehler, Geraete-ID. **Fire-and-forget vom Client**
+    (``navigator.sendBeacon`` bzw. ``fetch`` ohne Wiederholung, alle 10 s
+    und auf ``pagehide``) -- ein Fehler hier darf dem Client nie sichtbar
+    werden, und das Client-JS zeigt diese Antwort nirgends an.
+
+    **Nur mit dem Profilschalter** ``[ux] ereignisse``
+    (``workshop.ux_ereignisse_aktiv``): ohne ihn kennt der Server diesen
+    Weg nicht (404) -- Dortmund bleibt unberuehrt, die Seite haengt den
+    Batching-Code dort gar nicht erst ein (``seite()``).
+
+    **Groesse und Form werden VOR jedem Schreibzugriff geprueft** (<=
+    ``repo.MAX_UX_EVENTS_JE_BATCH`` Ereignisse, <= ``repo.MAX_UX_BATCH_BYTES``
+    Bytes als JSON) -- eine zu grosse Charge wird komplett abgewiesen (400).
+    Was danach durchkommt, prueft ``repo.speichere_ux_ereignisse`` noch
+    einmal JE EREIGNIS: ein unbekannter ``typ`` oder ein Schmuggelversuch
+    von Freitext durch ``extra`` verwirft nur diese eine Zeile, nicht die
+    Antwort -- die Gruppe soll davon so wenig merken wie moeglich."""
+    from interview_theater import repo, web, web_chat, workshop
+
+    if not workshop.ux_ereignisse_aktiv():
+        handler._antworte(404, web.nicht_gefunden_html())
+        return
+    daten = web_chat._koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    geraet = daten.get("geraet")
+    ereignisse = daten.get("ereignisse")
+    if not isinstance(geraet, str) or not isinstance(ereignisse, list):
+        handler._fehler(400, T._TEXT_UX_UNGUELTIG)
+        return
+    if len(ereignisse) > repo.MAX_UX_EVENTS_JE_BATCH:
+        handler._fehler(400, T._TEXT_UX_UNGUELTIG)
+        return
+    if len(json.dumps(ereignisse, ensure_ascii=False).encode("utf-8")) > repo.MAX_UX_BATCH_BYTES:
+        handler._fehler(400, T._TEXT_UX_UNGUELTIG)
+        return
+    with web_chat.schreibend(db_pfad) as conn:
+        repo.speichere_ux_ereignisse(conn, chat_id, geraet, ereignisse)
+    handler._antworte(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
 
 def _board_merkmal() -> str:
@@ -2805,6 +3075,18 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             _BEDARF_JS
             .replace("__BASIS__", f"{token}/")
             .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
+        )
+    # UX-Ereignis-Logging (Karte t_10a31406): nur mit Chat (der Endpunkt
+    # liegt unter ``/chat/*``) und nur unter dem Profil -- Dortmunds Skript
+    # bleibt unberuehrt, wie bei der Auswahlliste.
+    if chat_vorhanden and workshop.ux_ereignisse_aktiv():
+        from interview_theater import repo
+
+        skript += (
+            _UX_JS
+            .replace("__BASIS__", f"{token}/")
+            .replace("__MAX_EVENTS__", str(repo.MAX_UX_EVENTS_JE_BATCH))
+            .replace("__MAX_BYTES__", str(repo.MAX_UX_BATCH_BYTES))
         )
     # ``chat_vorhanden`` durchreichen (UX-Fix an Aufgabe 8): Baustein 3
     # (``_JS_AUFNAHME``) nennt Elemente, die nur im Chat-Panel existieren

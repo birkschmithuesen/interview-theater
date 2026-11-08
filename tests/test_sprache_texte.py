@@ -105,6 +105,9 @@ BLEIBT_DEUTSCH = {
     "web_vereint._STEPPER_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext, "
         "der Nutzertext steht in den __SHEET_*__-Platzhaltern, uebersetzt wie bei "
         "_VEREINT_JS)",
+    # Karte t_10a31406: das UX-Ereignis-Batching -- deutsch sind nur die
+    # Kommentare, der Server zeigt keinen seiner Texte je an (fire-and-forget).
+    "web_vereint._UX_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     # erkenner-fp (02.10.2026): eine Fuellwort-Liste zur Erkennung
     # inhaltsloser Festlegungen (_ohne_eigenen_inhalt), kein Nutzertext --
     # sie wird nie angezeigt, nur gegen den Wortlaut der Gruppe geprueft, und

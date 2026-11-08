@@ -4992,6 +4992,9 @@ _TOEPFE = {
     "karte": web_grenze.TOPF_NACHRICHT,
     "bedarf": web_grenze.TOPF_NACHRICHT,
     "puffer": web_grenze.TOPF_NACHRICHT,
+    # UX-Ereignis-Logging (Karte t_10a31406): eigener Topf, keine Charge
+    # loest einen Bot-Zug oder einen Modellaufruf aus.
+    "ereignis": web_grenze.TOPF_UX,
 }
 
 
@@ -5614,6 +5617,15 @@ def _bedarf(handler, db_pfad: str, token: str, chat_id: int,
 #: Die Tabelle der POST-Wege. Eine Tabelle statt einer if-Kette: ein neuer Weg
 #: ist eine Zeile, und ``beantworte_post`` prueft Pfad, Token und Nonce fuer
 #: alle gleich.
+def _ereignis(handler, db_pfad: str, token: str, chat_id: int,
+             schluessel: bytes) -> None:
+    """Die Charge UX-Ereignisse (Karte t_10a31406). Nur die Weiche steht
+    hier, wie bei ``_phase``."""
+    from interview_theater import web_vereint
+
+    web_vereint.ereignis_post(handler, db_pfad, token, chat_id, schluessel)
+
+
 _POSTWEGE = {
     "senden": _senden,
     "knopf": _knopf,
@@ -5627,6 +5639,7 @@ _POSTWEGE = {
     "karte": _karte,
     "bedarf": _bedarf,
     "puffer": _puffer_melden,
+    "ereignis": _ereignis,
 }
 
 

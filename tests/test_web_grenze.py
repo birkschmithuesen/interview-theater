@@ -60,6 +60,16 @@ def test_zwei_gruppen_stoeren_sich_nicht():
     assert web_grenze.pruefe(web_grenze.TOPF_NACHRICHT, 2, jetzt=1000.0) == 0
 
 
+def test_ux_topf_ist_eigenstaendig_und_sperrt_nicht_das_senden():
+    """UX-Ereignis-Logging (Karte t_10a31406): ein Batch alle 10 s ist kein
+    Gespraechszug und darf das Senden-Limit nicht mitverbrauchen."""
+    for _ in range(web_grenze.GRENZEN[web_grenze.TOPF_UX][0]):
+        assert web_grenze.pruefe(web_grenze.TOPF_UX, 1, jetzt=1000.0) == 0
+    assert web_grenze.pruefe(web_grenze.TOPF_UX, 1, jetzt=1000.0) > 0
+    # unberuehrt: der Nachrichtentopf derselben Gruppe ist noch voll da
+    assert web_grenze.pruefe(web_grenze.TOPF_NACHRICHT, 1, jetzt=1000.0) == 0
+
+
 def test_zwei_toepfe_stoeren_sich_nicht():
     """Uploads kosten Platte und einen Whisper-Aufruf, Nachrichten einen
     Modellaufruf -- zwei Ressourcen, zwei Zaehler."""

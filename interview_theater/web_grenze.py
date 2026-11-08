@@ -72,12 +72,23 @@ TOPF_START = "start"
 #: Senden im Chat. Ein Tipp schreibt nur einen Feldwert, kein Modellaufruf.
 TOPF_AUSWAHL = "auswahl"
 
+#: Die Chargen des UX-Ereignis-Loggings (Karte t_10a31406, 06.10.2026):
+#: eigener Topf, NICHT TOPF_NACHRICHT -- eine Charge loest keinen Bot-Zug
+#: und keinen Modellaufruf aus, sie darf das Senden-Limit nicht
+#: mitverbrauchen. Client sendet alle 10 s (``UX_SENDE_INTERVALL_MS`` im
+#: Client-JS) oder auf ``pagehide`` -- sechs Geraete in einer Gruppe kaemen
+#: auf bis zu 36 Chargen je Minute; 60 haelt dieselbe Grosszuegigkeit wie
+#: die anderen eigenen Toepfe (TOPF_START, TOPF_AUSWAHL).
+UX_CHARGEN_JE_MINUTE = 60
+TOPF_UX = "ux"
+
 GRENZEN = {
     TOPF_NACHRICHT: (NACHRICHTEN_JE_MINUTE, NACHRICHTEN_FENSTER_S),
     TOPF_UPLOAD: (UPLOADS_JE_STUNDE, UPLOADS_FENSTER_S),
     TOPF_VORFALL: (1, NACHRICHTEN_FENSTER_S),
     TOPF_START: (60, NACHRICHTEN_FENSTER_S),
     TOPF_AUSWAHL: (180, NACHRICHTEN_FENSTER_S),
+    TOPF_UX: (UX_CHARGEN_JE_MINUTE, NACHRICHTEN_FENSTER_S),
 }
 
 _SPERRE = threading.Lock()

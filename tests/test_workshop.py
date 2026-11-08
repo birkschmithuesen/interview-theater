@@ -262,3 +262,17 @@ def test_padua_testgruppe_verhaelt_sich_wie_g2_nicht_wie_g1():
     assert _TESTGRUPPE not in workshop.schaerfung_ohne_figuren_chats(profil)
     assert _G2 not in workshop.skript_ohne_zitate_chats(profil)
     assert _G2 not in workshop.schaerfung_ohne_figuren_chats(profil)
+
+
+def test_ux_ereignisse_aktiv_nur_in_padua():
+    """UX-Ereignis-Logging (Karte t_10a31406): aus in der Vorgabe und in
+    Dortmund -- die Seite haengt den Batching-Code dort gar nicht erst ein,
+    Dortmund bleibt byte-gleich; an nur in Padua."""
+    assert workshop.ux_ereignisse_aktiv(None) is False
+    assert workshop.ux_ereignisse_aktiv(workshop.lade("dortmund-2026")) is False
+    assert workshop.ux_ereignisse_aktiv(workshop.lade("padua-2026")) is True
+
+
+def test_ux_ereignisse_aktiv_liest_den_baum():
+    profil = workshop.Profil("test", None, {"ux": {"ereignisse": True}})
+    assert workshop.ux_ereignisse_aktiv(profil) is True

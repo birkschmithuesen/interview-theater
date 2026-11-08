@@ -29,6 +29,7 @@ sich der Thread beim zweiten ``acquire`` selbst blockieren (Selbst-Deadlock).
 
 import json
 import logging
+import math
 import re
 import secrets
 import sqlite3
@@ -6241,3 +6242,210 @@ def ersetze_unerledigte_bedarf_punkte(
             angelegt += 1
     conn.commit()
     return angelegt
+
+
+# -- UX-Ereignis-Logging (Karte t_10a31406, 06.10.2026) ----------------------
+#
+# Rein client-seitige Nutzungssignale der Weboberflaeche -- Tab-Wechsel,
+# Klicks, Abbrueche, JS-Fehler, Geraete-ID -- fuer die spaetere Auswertung
+# (scripts/ux_auswertung.py). Die Zusage der Karte ist woertlich: KEIN
+# Freitext, KEIN Transkript- oder Chatinhalt, KEINE Tastatureingaben. Diese
+# Funktion ist die EINE Stelle, die das erzwingt -- nicht nur der Prompt an
+# den Entwickler des Client-JS, sondern eine Pruefung im Code, die jede
+# Zeile einzeln validiert, bevor sie geschrieben wird.
+
+#: Die festen Ereignisarten. Jede weitere wird verworfen -- eine neue Art
+#: ist eine Codezeile hier, nie ein freies Feld vom Client.
+UX_TYPEN = frozenset({
+    "tab_wechsel",     # Tab-Wechsel (Chat/CoThinker/Workbench/Script)
+    "klick",           # ein Tipp, der nur die Ansicht aendert (Stift, Schriftgroesse, ...)
+    "rage_klick",      # wiederholter Tipp < 1s oder Tipp auf ein nicht interaktives Element
+    "abbruch",         # abgebrochene Aufnahme ("slide to cancel", Modusende)
+    "mic_verweigert",  # Mikrofon-Berechtigung verweigert
+    "sichtbarkeit",    # Seite im Hintergrund/gesperrt waehrend Aufnahme/Hoeren
+    "js_fehler",       # window.onerror / unhandledrejection
+})
+
+#: Welche Schluessel in ``extra`` stehen duerfen, und wie ihr Wert geprueft
+#: wird. "zahl": nur int/float, nie bool (bool ist in Python eine
+#: int-Unterklasse), nie NaN/Infinity. "text": eine kurze Diagnosezeile --
+#: einzige Ausnahme von "kein Freitext", weil eine JS-Fehlermeldung (Karte:
+#: "message + line") vom Laufzeitsystem stammt, nie vom Tippen der Gruppe --
+#: Laenge begrenzt, Kontrollzeichen entfernt. Jeder andere Schluessel (z. B.
+#: "text", "transkript", "zitat", "nachricht") wird STILL aus ``extra``
+#: gestrichen, nicht als ganze Ereigniszeile verworfen.
+UX_EXTRA_FELDER = {
+    "von": "zahl", "nach": "zahl", "n": "zahl", "ms": "zahl",
+    "zeile": "zahl", "code": "zahl",
+    "msg": "text",
+}
+UX_MSG_ZEICHEN_MAX = 160
+
+#: Harte Obergrenzen je Charge -- geprueft vom Endpunkt
+#: (``web_vereint.ereignis_post``, VOR dem Aufruf hier: eine zu grosse
+#: Charge wird dort komplett mit 400 abgewiesen) UND hier noch einmal als
+#: letzte Verteidigungslinie in der Repo-Schicht, falls diese Funktion je
+#: von anderswo gerufen wird.
+MAX_UX_EVENTS_JE_BATCH = 50
+MAX_UX_BATCH_BYTES = 2048
+
+UX_ZIEL_MUSTER = re.compile(r"^[a-z0-9_:\-]{1,40}$")
+UX_GERAET_MUSTER = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
+
+
+def _ux_zahl_gueltig(wert) -> bool:
+    return (
+        isinstance(wert, (int, float))
+        and not isinstance(wert, bool)
+        and math.isfinite(wert)
+    )
+
+
+def _ux_extra_filtern(extra) -> dict:
+    """Behaelt aus ``extra`` nur deklarierte Schluessel mit passendem
+    Werttyp -- alles andere faellt still weg (kein Fehler, kein Abbruch des
+    ganzen Ereignisses)."""
+    if not isinstance(extra, dict):
+        return {}
+    raus = {}
+    for schluessel, art in UX_EXTRA_FELDER.items():
+        if schluessel not in extra:
+            continue
+        wert = extra[schluessel]
+        if art == "zahl":
+            if _ux_zahl_gueltig(wert):
+                raus[schluessel] = wert
+        elif art == "text":
+            if isinstance(wert, str):
+                bereinigt = re.sub(r"\s+", " ", wert).strip()[:UX_MSG_ZEICHEN_MAX]
+                if bereinigt:
+                    raus[schluessel] = bereinigt
+    return raus
+
+
+def _ux_ereignis_gueltig(roh) -> dict | None:
+    """Prueft EIN Ereignis aus der Charge, oder liefert ``None`` -- der
+    Aufrufer (``speichere_ux_ereignisse``) ueberspringt es dann, ohne die
+    Charge abzubrechen."""
+    if not isinstance(roh, dict):
+        return None
+    typ = roh.get("typ")
+    ziel = roh.get("ziel")
+    if typ not in UX_TYPEN:
+        return None
+    if not isinstance(ziel, str) or not UX_ZIEL_MUSTER.match(ziel):
+        return None
+    phase = roh.get("phase")
+    if phase is not None and (isinstance(phase, bool) or not isinstance(phase, int)):
+        return None
+    client_t = roh.get("t")
+    if not _ux_zahl_gueltig(client_t):
+        return None
+    dauer = roh.get("dauer_ms")
+    if dauer is not None and (not _ux_zahl_gueltig(dauer) or dauer < 0):
+        return None
+    return {
+        "typ": typ,
+        "ziel": ziel,
+        "phase": phase,
+        "client_t": int(client_t),
+        "dauer_ms": None if dauer is None else int(dauer),
+        "extra": _ux_extra_filtern(roh.get("extra")),
+    }
+
+
+@_gesperrt
+def speichere_ux_ereignisse(
+    conn: sqlite3.Connection, chat_id: int, geraet: str, ereignisse: list
+) -> int:
+    """Speichert eine Charge UX-Ereignisse, liefert die Zahl tatsaechlich
+    geschriebener Zeilen.
+
+    Jedes Ereignis wird EINZELN geprueft (``_ux_ereignis_gueltig``) -- eine
+    kaputte oder manipulierte Zeile verwirft nur sich selbst, nie die
+    gueltigen Nachbarn in derselben Charge. Eine ungueltige ``geraet``-ID
+    verwirft dagegen die GANZE Charge: ohne sie ist keine Zeile einem
+    Geraet zuordenbar, und ein Teil-Schreiben waere schlimmer als gar
+    keines."""
+    if not isinstance(geraet, str) or not UX_GERAET_MUSTER.match(geraet):
+        return 0
+    jetzt = _jetzt()
+    geschrieben = 0
+    for roh in (ereignisse or [])[:MAX_UX_EVENTS_JE_BATCH]:
+        ereignis = _ux_ereignis_gueltig(roh)
+        if ereignis is None:
+            continue
+        extra_json = (
+            json.dumps(ereignis["extra"], ensure_ascii=False)
+            if ereignis["extra"] else None
+        )
+        conn.execute(
+            """
+            INSERT INTO ux_ereignis
+                (chat_id, geraet, typ, ziel, phase, client_t, server_t,
+                 dauer_ms, extra_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (chat_id, geraet, ereignis["typ"], ereignis["ziel"], ereignis["phase"],
+             ereignis["client_t"], jetzt, ereignis["dauer_ms"], extra_json),
+        )
+        geschrieben += 1
+    conn.commit()
+    return geschrieben
+
+
+@_gesperrt
+def hole_ux_ereignisse(
+    conn: sqlite3.Connection, chat_id: int,
+    seit: str | None = None, bis: str | None = None,
+) -> list[dict]:
+    """Alle UX-Ereignisse einer Gruppe, chronologisch, mit geparstem
+    ``extra`` -- fuer ``scripts/ux_auswertung.py``. ``seit``/``bis``
+    filtern auf ``server_t`` (ISO-Zeitstempel, z. B. '2026-10-06'), beide
+    optional."""
+    bedingungen = ["chat_id = ?"]
+    parameter: list = [chat_id]
+    if seit:
+        bedingungen.append("server_t >= ?")
+        parameter.append(seit)
+    if bis:
+        bedingungen.append("server_t < ?")
+        parameter.append(bis)
+    zeilen = conn.execute(
+        f"SELECT * FROM ux_ereignis WHERE {' AND '.join(bedingungen)} ORDER BY id",
+        parameter,
+    ).fetchall()
+    ergebnis = []
+    for zeile in zeilen:
+        eintrag = dict(zeile)
+        roh = eintrag.pop("extra_json")
+        eintrag["extra"] = json.loads(roh) if roh else {}
+        ergebnis.append(eintrag)
+    return ergebnis
+
+
+@_gesperrt
+def web_post_fuer_auswertung(
+    conn: sqlite3.Connection, chat_id: int,
+    seit: str | None = None, bis: str | None = None,
+) -> list[dict]:
+    """``id``/``richtung``/``typ``/``erstellt_am`` jeder nicht geloeschten
+    ``web_post``-Zeile einer Gruppe, chronologisch -- fuer
+    ``scripts/ux_auswertung.py`` (z. B. die Zeit von einer Bot-Frage zur
+    Antwort der Gruppe). **Kein Nachrichtentext**: die Auswertung zaehlt nur
+    Zeitpunkte und Richtung, nie Inhalt (dieselbe Grenze wie das Dashboard,
+    docs/agents/weboberflaeche.md)."""
+    bedingungen = ["chat_id = ?", "geloescht_am IS NULL"]
+    parameter: list = [chat_id]
+    if seit:
+        bedingungen.append("erstellt_am >= ?")
+        parameter.append(seit)
+    if bis:
+        bedingungen.append("erstellt_am < ?")
+        parameter.append(bis)
+    zeilen = conn.execute(
+        f"SELECT id, richtung, typ, erstellt_am FROM web_post "
+        f"WHERE {' AND '.join(bedingungen)} ORDER BY id",
+        parameter,
+    ).fetchall()
+    return [dict(z) for z in zeilen]

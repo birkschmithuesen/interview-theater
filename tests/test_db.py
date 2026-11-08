@@ -747,3 +747,23 @@ def test_loeschen_raeumt_die_gruppe(conn):
     db.loesche_gruppe(conn, 42)
     assert conn.execute("SELECT count(*) FROM nachricht").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM gruppe").fetchone()[0] == 0
+
+
+def test_ux_ereignis_tabelle_hat_chat_id_und_die_geplanten_spalten(conn):
+    """UX-Ereignis-Logging (Karte t_10a31406): Grundlage der Loeschzusage
+    und der Felder, die repo.speichere_ux_ereignisse befuellt."""
+    spalten = {r[1] for r in conn.execute("PRAGMA table_info(ux_ereignis)")}
+    for feld in ("chat_id", "geraet", "typ", "ziel", "phase", "client_t",
+                 "server_t", "dauer_ms", "extra_json"):
+        assert feld in spalten, f"ux_ereignis.{feld} fehlt"
+
+
+def test_loeschen_raeumt_auch_ux_ereignisse_mit(conn):
+    conn.execute("INSERT INTO gruppe (chat_id, bot_name) VALUES (42, 'g1')")
+    conn.execute(
+        "INSERT INTO ux_ereignis (chat_id, geraet, typ, ziel, server_t) "
+        "VALUES (42, 'g-abc123', 'klick', 'tab:buehne', '2026-10-06T10:00:00+00:00')"
+    )
+    conn.commit()
+    db.loesche_gruppe(conn, 42)
+    assert conn.execute("SELECT count(*) FROM ux_ereignis").fetchone()[0] == 0

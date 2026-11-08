@@ -376,3 +376,10 @@ wiederkehr = false
 # auf gemma (Infomaniak). Fehler -> dieser eine Zug faellt auf gemma zurueck.
 [erkenner]
 ueber_claude = true
+
+# UX-Ereignis-Logging (Karte t_10a31406, 06.10.2026): rein client-seitige
+# Nutzungssignale (Tab-Wechsel, Klicks, Abbrueche, JS-Fehler, Geraete-ID),
+# nie Freitext oder Transkriptinhalt. Ohne diese Zeile (Dortmund,
+# Vorgabeprofil) haengt die Seite den Batching-Code gar nicht erst ein.
+[ux]
+ereignisse = true

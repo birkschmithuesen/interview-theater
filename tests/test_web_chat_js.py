@@ -491,6 +491,13 @@ def test_das_js_nennt_jeden_postweg(seite):
             # ``web_vereint._BEDARF_JS``, nicht im Chat-Alleingang.
             assert f"'chat/{weg}'" in web_vereint._BEDARF_JS, weg
             continue
+        if weg == "ereignis":
+            # Das UX-Ereignis-Logging (Karte t_10a31406, 06.10.2026):
+            # Aufrufer in ``web_vereint._UX_JS``, nur auf der vereinten Seite
+            # unter dem Profilschalter -- wie ``phase`` gibt es den
+            # Chat-Alleingang dafuer nicht.
+            assert f"chat/{weg}" in web_vereint._UX_JS, weg
+            continue
         assert f"chat/{weg}" in web_chat._CHAT_JS, weg
 
 

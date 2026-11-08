@@ -3048,6 +3048,42 @@ def test_a_speech_tick_never_cuts_pause_or_weich_live_in_node(tmp_path):
     assert e["cap_speech"]["critical"] == ["cap"]
 
 
+#: Spec 2026-11-08-padua-vad-preroll-design §2.2: every place that starts a
+#: recorder, by enclosing named function, with its verdict.
+#: Successor-first + UEBERLAPP_MS overlap (no audio lost): schneideSegment
+#: ('pause'/'weich'/'cap'), kalSchneideOhneMarkierung (2 sites, one is the
+#: kalVorStart probe start), kalSchneideAlsKalibrierung, kalStarteEchteSchnitte
+#: (the fixed SEGMENT_MS fallback; its other site is the discussion start).
+#: Start or discard, nothing kept before it: kalSchneideUndVerwerfen,
+#: beginneAufnahme, beendeDiskussion (empty end segment).
+EXPECTED_NEUESSEGMENT_CALLS = {
+    "schneideSegment": 1,
+    "kalSchneideOhneMarkierung": 2,
+    "kalSchneideAlsKalibrierung": 1,
+    "kalSchneideUndVerwerfen": 1,
+    "kalStarteEchteSchnitte": 2,
+    "beginneAufnahme": 1,
+    "beendeDiskussion": 1,
+}
+
+
+def test_every_neuessegment_call_site_is_classified():
+    """A new place that starts a recorder must be classified in the spec's
+    verdict table (and here) -- otherwise a cut could come back that starts
+    the new recorder late or stops the old one first, without any test
+    noticing. Mutant: add ``neuesSegment(sitzung)`` anywhere else."""
+    js = web_chat._CHAT_JS
+    named = [(m.start(), m.group(1))
+             for m in re.finditer(r"\bfunction ([A-Za-z_]\w*)\s*\(", js)]
+    found: dict[str, int] = {}
+    for m in re.finditer(r"neuesSegment\(sitzung\)", js):
+        if js[max(0, m.start() - 9):m.start()] == "function ":
+            continue   # the definition itself
+        enclosing = [name for pos, name in named if pos < m.start()][-1]
+        found[enclosing] = found.get(enclosing, 0) + 1
+    assert found == EXPECTED_NEUESSEGMENT_CALLS
+
+
 def test_herumreichen_erinnerung_zeigt_sich_nur_beim_ersten_mal_live_in_node(tmp_path):
     """Item (f): der Hinweis erscheint genau einmal je JS-Sitzungsobjekt --
     ein zweiter Aufruf derselben Funktion auf DERSELBEN Sitzung (Pause/

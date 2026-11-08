@@ -310,7 +310,9 @@ def _fake_bot(db_path: str, stop: threading.Event) -> None:
         conn.close()
 
 
-@pytest.fixture(scope="module", params=sorted(CONFIGS))
+# Function scope: a fresh server per run also resets web_grenze's rate limit
+# (20 interview toggles per minute per chat), which 12 runs in a row exhaust.
+@pytest.fixture(params=sorted(CONFIGS))
 def server(request):
     name = request.param
     db_path = f"/tmp/it-webchat-einsatz-{name}.db"
@@ -373,11 +375,16 @@ def _wait(page, condition, ms: int, step: int = 100) -> bool:
 @pytest.mark.parametrize("offset_ms", OFFSETS_MS)
 def test_onset_around_a_cut(server, offset_ms, repeat):
     with sync_playwright() as p:
-        browser = p.chromium.launch(args=[
-            "--use-fake-ui-for-media-stream",
-            "--use-fake-device-for-media-stream",
-            "--autoplay-policy=no-user-gesture-required",
-        ])
+        # Optional override: Playwright's Python API does not read this env var
+        # itself; unset keeps the bundled browser.
+        browser = p.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH") or None,
+            args=[
+                "--use-fake-ui-for-media-stream",
+                "--use-fake-device-for-media-stream",
+                "--autoplay-policy=no-user-gesture-required",
+            ],
+        )
         try:
             context = browser.new_context(
                 viewport=PHONE, permissions=["microphone"], base_url=server["base"],
@@ -392,6 +399,10 @@ def test_onset_around_a_cut(server, offset_ms, repeat):
             page.evaluate("window.__t.setzeRms(0)")   # no speech before the run
             page.click("#interview")
             page.wait_for_selector('#interview[data-laeuft="1"]')
+            # the fake microphone may not exist yet when data-laeuft flips
+            # (polled via evaluate: wait_for_function evals a string, the CSP forbids it)
+            assert _wait(page, lambda: page.evaluate(
+                "!!(window.__m.gain && window.__m.ref)"), 5000), "fake microphone never created"
             run = page.evaluate(
                 f"window.__m.run({offset_ms}, {CUT_AFTER_LAST_SPEECH_TICK_MS})")
             assert "error" not in run, run

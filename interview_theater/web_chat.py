@@ -1060,12 +1060,20 @@ _CHAT_JS = """
   // Review-Befund 10: aendere_text, entferne_knoepfe und loesche_nachrichten
   // treffen Zeilen, die schon dastehen -- die Arbeitszeile wechselt, eine
   // ueberholte Leiste verschwindet, eine geloeschte Nachricht auch.
+  //
+  // Kanban-Karte t_9dd91550: fehlt die Blase (diese Seite hat ``n.id`` nie
+  // als ``neu`` bekommen -- ein zweites Geraet jenseits von
+  // ``web_daten.CHAT_GRENZE``, oder jeder andere Grund), gab ``ersetze``
+  // die Aenderung bisher wortlos auf. Der Server-Zaehler (``aenderung``/
+  // ``stand``, ``web_daten.web_chataenderungen``) wandert trotzdem weiter,
+  // also kaeme dieselbe Zeile nie wieder -- die wachsende Transkriptblase
+  // blieb so auf ihrem ersten Stand stehen. ``blase()`` legt sie jetzt an.
   function ersetze(n) {
     var huelle = blaseZu(n.id);
     var altesLabel = labelZu(n.id);
     var alte = leisteZu(n.id);
     if (n.geloescht) { entferne(huelle); entferne(altesLabel); entferne(alte); return; }
-    if (!huelle) { return; }
+    if (!huelle) { blase(n); return; }
     huelle.innerHTML = inhaltVon(n);
     undoInBlase(huelle, n);
     var neue = baueLeiste(n);

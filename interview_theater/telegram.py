@@ -570,6 +570,11 @@ def lies_nachricht(update: dict) -> dict[str, Any] | None:
         # ``rede_ms``, bei einem echten Telegram-Update immer None: nur bei
         # ``schnittgrund='weich'`` gesetzt, und das setzt nur der Web-Kanal.
         "weich_ms": _sprachquelle(nachricht).get("weich_ms"),
+        # hintergrundMs (Karte t_1423ca89, Warnung "Aufnahme im Hintergrund
+        # unterbrochen") -- additiv wie ``rede_ms``, bei einem echten
+        # Telegram-Update immer None: nur der Web-Kanal misst eine
+        # Hintergrundzeit der Seite.
+        "hintergrund_ms": _sprachquelle(nachricht).get("hintergrund_ms"),
     }
 
 

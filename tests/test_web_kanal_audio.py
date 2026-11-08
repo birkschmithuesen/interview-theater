@@ -93,6 +93,10 @@ def test_die_schluesselmenge_waechst_um_genau_einen_eintrag():
         # Segments beim Schnitt, nur bei schnittgrund='weich' -- None bei
         # Telegram.
         "weich_ms",
+        # hintergrundMs (Karte t_1423ca89, Warnung "Aufnahme im Hintergrund
+        # unterbrochen"): von der Seite gemessene Hintergrundzeit -- None bei
+        # Telegram.
+        "hintergrund_ms",
     }
 
 

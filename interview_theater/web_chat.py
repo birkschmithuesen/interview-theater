@@ -478,6 +478,18 @@ body { background: #fbfaf8; color: #17181b;
                            color: #17181b; border: 1px solid #1f6f5c;
                            border-radius: .7rem; padding: .5rem .6rem; }
 .interview-fremd-hinweis[hidden] { display: none; }
+/* Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89):
+   dieselbe Farbe/Rahmung wie .angehalten (ein Alarm, kein Hinweis) --
+   dismissible ueber den eigenen Schliessen-Knopf, nicht automatisch. */
+.hintergrund-warnung { display: flex; align-items: center; gap: .5rem;
+                       font-size: .9rem; border: 1px solid #a8201a;
+                       border-radius: .7rem; padding: .5rem .6rem; }
+.hintergrund-warnung[hidden] { display: none; }
+.hintergrund-warnung p { flex: 1; margin: 0; }
+.hintergrund-warnung button { font: inherit; border: 0; background: transparent;
+                              color: #a8201a; min-width: 2.2rem; min-height: 2.2rem; }
+.hintergrund-tipp { font-size: .8rem; text-align: center; opacity: .7; }
+.hintergrund-tipp[hidden] { display: none; }
 /* Bild-Overlay-Karte: die Telefon-Organisationskarte (``.karte``) gross und
    zoombar. ``inset: 0`` statt ``100vw``/``100vh`` -- ein fixes Element
    braucht dafuer keine viewport-relative Einheit. ``touch-action:
@@ -598,6 +610,24 @@ _TEXT_MITLAUF_HINWEIS = (
     "näher ran."
 )
 
+#: Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89,
+#: Evidence: Clone "G3 Interview 1" #113 -- die Seite war waehrend des
+#: Interviews im Hintergrund, MediaRecorder und Timer dort angehalten).
+#: Erscheint am Telefon, sobald es nach ``HINTERGRUND_MIN_MS`` (3 s)
+#: Verstecktsein wieder sichtbar wird, waehrend eine Aufnahme/
+#: Zuhoersitzung lief. ``{zeit}`` als M:SS wie ``_TEXT_SPRACHE``.
+_TEXT_HINTERGRUND_WARNUNG = (
+    "⚠ Aufnahme {zeit} lang unterbrochen — die Seite war im Hintergrund. "
+    "Bitte diese Seite geöffnet lassen und den Bildschirm an."
+)
+#: Der permanente kleine Tipp unter dem Aufnahme-/Zuhoerknopf, solange
+#: dieses Telefon aufnimmt (an/aus ueber denselben Schalter wie #uhr/
+#: #pegel: ``uhrAn``/``anzeigeAus``).
+_TEXT_HINTERGRUND_TIPP = (
+    "Diese Seite im Vordergrund lassen – Handy nicht sperren oder die App "
+    "wechseln."
+)
+
 # -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/             --
 # -- Kalibrierung, 03.10.2026): Birks Korrektur gilt woertlich -- NICHTS in --
 # -- diesem Ablauf startet von selbst, jeder Schritt wartet auf einen       --
@@ -704,6 +734,8 @@ _JS_TEXTE = {
     "modus_weg_leer": _TEXT_MODUS_WEG_LEER,
     "nachreichen_spaeter": _TEXT_NACHREICHEN_SPAETER,
     "mitlauf_hinweis": _TEXT_MITLAUF_HINWEIS,
+    "hintergrund_warnung": _TEXT_HINTERGRUND_WARNUNG,
+    "hintergrund_tipp": _TEXT_HINTERGRUND_TIPP,
     "ptt_hinweis": _TEXT_PTT_HINWEIS,
     "abkuerzung": _TEXT_ABKUERZUNG,
     "undo": _TEXT_UNDO_ERKENNUNG,
@@ -813,6 +845,11 @@ _CHAT_JS = """
   // Task 4 (Kanban-Karte Mithoeren SICHER): der einmalige "Mitschnitt
   // pruefen"-Hinweis -- eigenstaendig von kalErinnerungFeld unten.
   var mitlaufHinweisFeld = document.getElementById('mitlauf-hinweis');
+  // Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89).
+  var hintergrundWarnungFeld = document.getElementById('hintergrund-warnung');
+  var hintergrundWarnungText = document.getElementById('hintergrund-warnung-text');
+  var hintergrundWarnungSchliessen = document.getElementById('hintergrund-warnung-schliessen');
+  var hintergrundTippFeld = document.getElementById('hintergrund-tipp');
   var tipptFeld = document.getElementById('tippt');
   var interviewKnopf = document.getElementById('interview');
   var interviewAktionenFeld = document.getElementById('interview-aktionen');
@@ -1434,10 +1471,87 @@ _CHAT_JS = """
     var takt = document.hidden ? POLL_MS_HINTERGRUND : POLL_MS;
     pollTakt = setInterval(hole, takt);
   }
+
+  // -- Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89) --
+  //
+  // Evidence: Clone "G3 Interview 1" #113 meldete 178 s, der Mitschnitt hielt
+  // real nur ~26 s Audio -- die Seite war waehrend des Interviews im
+  // Hintergrund (Tab-Wechsel, Sperrbildschirm), MediaRecorder UND Timer
+  // werden dort vom Browser angehalten (Wake Lock, 3a83071, haelt nur den
+  // Bildschirm an, nicht Seitenwechsel/Sperrbildschirm). Diese Pruefung
+  // laeuft rein lokal (document.hidden/visibilitychange) -- die serverseitige
+  // Gegenpruefung (aufnahme.erkenne_hintergrund_unterbrechung) braucht dafuer
+  // keine Mitarbeit des Clients, hier geht es nur um die Warnung AUF DEM
+  // TELEFON selbst, solange noch aufgenommen wird.
+  //
+  // Unter 3 s Versteckt-Dauer gilt es nicht als Vorfall (ein kurzes
+  // Benachrichtigungs-Wisch ist kein Seitenwechsel).
+  var HINTERGRUND_MIN_MS = 3000;
+  var hintergrundVerstecktSeit = null;
+
+  // Ein Recorder, der WIRKLICH gerade schreibt (state 'recording') -- Pause
+  // setzt sitzung.recorder auf null (pausiereInterview), ein beendetes
+  // Segment hat state 'inactive': beides zaehlt nicht als "aktiv", es gibt
+  // dort nichts, das ein Hintergrund-Wechsel unterbrechen koennte.
+  function aufnahmeLaeuftLokal() {
+    var a = zustand.aufnahme, d = zustand.diskussion;
+    return !!((a && a.recorder && a.recorder.state === 'recording') ||
+              (d && d.recorder && d.recorder.state === 'recording'));
+  }
+
+  // Aufgerufen bei 'hidden' (visibilitychange), 'pagehide' und 'freeze' --
+  // dieselbe Behandlung fuer alle drei: nur merken, WENN gerade aufgenommen
+  // wird, nie ueberschreiben (ein zweites 'hidden' ohne Sichtbarwerden
+  // dazwischen soll den urspruenglichen Zeitpunkt nicht verlieren).
+  function hintergrundVersteckt(jetzt) {
+    if (hintergrundVerstecktSeit == null && aufnahmeLaeuftLokal()) {
+      hintergrundVerstecktSeit = jetzt;
+    }
+  }
+
+  function zeigeHintergrundWarnung(luecke_ms) {
+    if (!hintergrundWarnungFeld || !hintergrundWarnungText) { return; }
+    hintergrundWarnungText.textContent =
+      TEXT.hintergrund_warnung.replace('{zeit}', minuten(Math.round(luecke_ms / 1000)));
+    hintergrundWarnungFeld.hidden = false;
+  }
+
+  // Aufgerufen bei 'visible' (visibilitychange -> !document.hidden). Liefert
+  // die gemessene Luecke in ms, oder null ohne Befund -- fuer Tests bequemer
+  // als nur Seiteneffekte zu pruefen.
+  function hintergrundSichtbar(jetzt) {
+    if (hintergrundVerstecktSeit == null) { return null; }
+    var luecke = jetzt - hintergrundVerstecktSeit;
+    hintergrundVerstecktSeit = null;
+    if (luecke < HINTERGRUND_MIN_MS) { return null; }
+    // Die Sitzung traegt die gemessene Luecke bis zum naechsten Upload
+    // (postAudio haengt sie als ?hintergrund= an, neuesSegment()s onstop
+    // liest sie und setzt sie dort auf 0 zurueck) -- "exakt" schlaegt die
+    // serverseitige Schaetzung (Spezifikation Punkt 3).
+    var sitzung = zustand.aufnahme || zustand.diskussion;
+    if (sitzung) { sitzung.hintergrundMs = (sitzung.hintergrundMs || 0) + luecke; }
+    zeigeHintergrundWarnung(luecke);
+    return luecke;
+  }
+
+  if (hintergrundWarnungSchliessen) {
+    hintergrundWarnungSchliessen.addEventListener('click', function () {
+      hintergrundWarnungFeld.hidden = true;
+    });
+  }
+
   document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { hintergrundVersteckt(Date.now()); }
+    else { hintergrundSichtbar(Date.now()); }
     planePoll();
     if (!document.hidden) { hole(); }
   });
+  // pagehide/freeze (Page Lifecycle API): manche Browser liefern beim
+  // App-Wechsel kein zuverlaessiges 'hidden' VOR dem Einfrieren -- dieselbe
+  // Behandlung wie 'hidden', idempotent (hintergrundVersteckt ueberschreibt
+  // einen schon gesetzten Zeitpunkt nie).
+  window.addEventListener('pagehide', function () { hintergrundVersteckt(Date.now()); });
+  document.addEventListener('freeze', function () { hintergrundVersteckt(Date.now()); });
   planePoll();
 
   // -- POST mit Nonce ------------------------------------------------------
@@ -1489,6 +1603,9 @@ _CHAT_JS = """
     if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
     if (auftrag.redeMs != null) { weg_ += `&rede=${Math.round(auftrag.redeMs)}`; }
     if (auftrag.weichMs != null) { weg_ += `&weichms=${Math.round(auftrag.weichMs)}`; }
+    // Karte t_1423ca89: die vom Client gemessene Hintergrundzeit dieses
+    // Segments -- dasselbe reine Diagnose-Metadatum wie rede/weichms.
+    if (auftrag.hintergrundMs) { weg_ += `&hintergrund=${Math.round(auftrag.hintergrundMs)}`; }
     // Birk 05.10.2026 22:00: EINE Sitzungsart ('diskussion'), zwei moegliche
     // Ziele -- sitzung.ziel (bei Start aus zustand.mithoerenZiel gefroren)
     // sagt, ob das Audio als Diskussion (Phase 1) oder als Brainstorm
@@ -1991,8 +2108,13 @@ _CHAT_JS = """
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
           dauer: Math.max(1, Math.round((Date.now() - von) / 1000)),
           grund: grund, redeMs: redeMs, weichMs: weichMs,
-          kalibrierung: !!r._kalibrierung
+          kalibrierung: !!r._kalibrierung,
+          // Karte t_1423ca89: die seit dem letzten Segment gemessene
+          // Hintergrundzeit faehrt EINMAL mit (nicht doppelt gezaehlt --
+          // zurueckgesetzt, sobald sie hier einem Auftrag zugeteilt ist).
+          hintergrundMs: sitzung.hintergrundMs || null
         };
+        sitzung.hintergrundMs = 0;
       }
       // Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): einmal je
       // Sitzung, direkt nachdem das erste Segment fertig ist -- kein
@@ -2519,6 +2641,13 @@ _CHAT_JS = """
     zustand.uhrTakt = setInterval(function () {
       uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung));
     }, 500);
+    // Karte t_1423ca89: derselbe Schalter wie #uhr/#pegel -- der Tipp gilt
+    // fuer Interview UND Diskussion/Brainstorm, dieselbe Funktion bedient
+    // beide (siehe aufnahmeLaeuftLokal()).
+    if (hintergrundTippFeld) {
+      hintergrundTippFeld.textContent = TEXT.hintergrund_tipp;
+      hintergrundTippFeld.hidden = false;
+    }
   }
 
   function anzeigeAus() {
@@ -2531,6 +2660,7 @@ _CHAT_JS = """
     if (pegelFeld) { pegelFeld.classList.remove('ueber-schwelle'); }
     // Task 4: nicht in einen spaeteren Bildschirmzustand hinueberlaufen.
     if (mitlaufHinweisFeld) { mitlaufHinweisFeld.hidden = true; }
+    if (hintergrundTippFeld) { hintergrundTippFeld.hidden = true; }
   }
 
   function modusAn() {
@@ -4356,6 +4486,8 @@ def _js() -> str:
         kal_balken_label=T._TEXT_KALIBRIERUNG_BALKEN_LABEL,
         kal_herumreichen_erinnerung=T._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
         mitlauf_hinweis=T._TEXT_MITLAUF_HINWEIS,
+        hintergrund_warnung=T._TEXT_HINTERGRUND_WARNUNG,
+        hintergrund_tipp=T._TEXT_HINTERGRUND_TIPP,
         ptt_hinweis=T._TEXT_PTT_HINWEIS,
         ziel_buehne_knopf=T._TEXT_ZIEL_BUEHNE_KNOPF,
     )
@@ -4605,6 +4737,11 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'data-kalibrierung-schwelle="{_kal_gruppe_attribut(daten, "schwelle")}"\n'
         f'     data-interview="{1 if modus else 0}" '
         f'data-basis="{html.escape(basis, quote=True)}">\n'
+        f'  <div class="hintergrund-warnung" id="hintergrund-warnung" role="alert" hidden>\n'
+        f'    <p id="hintergrund-warnung-text"></p>\n'
+        f'    <button type="button" id="hintergrund-warnung-schliessen" aria-label="'
+        f'{html.escape(_TEXT_BILD_SCHLIESSEN, quote=True)}">✕</button>\n'
+        f'  </div>\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
         f'  <div class="pegel" id="pegel" hidden>'
         f'<span></span><i class="pegel-schwelle"></i></div>\n'
@@ -4669,6 +4806,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'{html.escape(T._TEXT_DISKUSSION_GESPERRT.format(beenden=T._TEXT_INTERVIEW_ENDEN))}'
             f'</p>\n'
         )
+        + '  <p class="hintergrund-tipp" id="hintergrund-tipp" hidden></p>\n'
         + _ptt_anzeige_html()
         + f'  <div class="zeile">\n'
         # Karte t_d86971eb: ``<textarea rows="1">`` statt ``<input
@@ -5177,6 +5315,19 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     # Sicherheitsmerkmal, ein falscher Wert zaehlt einfach wie keiner.
     kalibrierung = (felder.get("kalibrierung") or [""])[0] == "1"
 
+    # hintergrundMs (Karte t_1423ca89, Warnung "Aufnahme im Hintergrund
+    # unterbrochen"): wie viele ms die Seite waehrend dieses Segments im
+    # Hintergrund war (vom Client ueber visibilitychange/pagehide gemessen)
+    # -- dasselbe reine Diagnose-Metadatum wie rede_ms/weich_ms, derselbe
+    # defensive Ziffernschutz, kein Upload-Gate.
+    roh_hintergrund = (felder.get("hintergrund") or [""])[0]
+    hintergrund_ms = (
+        int(roh_hintergrund)
+        if roh_hintergrund.isascii() and roh_hintergrund.isdigit()
+        and len(roh_hintergrund) <= 10
+        else None
+    )
+
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
         web.schliesse_nach_antwort(handler)
@@ -5196,6 +5347,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
             dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
             schnittgrund=grund, brainstorm=brainstorm, diskussion=diskussion,
             rede_ms=rede_ms, kalibrierung=kalibrierung, weich_ms=weich_ms,
+            hintergrund_ms=hintergrund_ms,
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.

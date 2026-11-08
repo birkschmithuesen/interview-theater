@@ -319,6 +319,17 @@ _TEXT_INTERVIEW_AUTO_ENDE = (
     "neue Aufnahme ankam. Wenn ihr noch aufgenommen habt, einfach wieder "
     "auf \"Interview aufnehmen\" tippen."
 )
+#: Die Chatzeile, wenn ein Interview-Teil waehrend eines Hintergrund-
+#: Wechsels des Telefons (Tab-Wechsel, Sperrbildschirm) nur unvollstaendig
+#: aufgenommen wurde -- MediaRecorder und Timer werden dort angehalten
+#: (Karte t_1423ca89, Evidence: Clone "G3 Interview 1" #113, gemeldet 178 s,
+#: real ~26 s Audio bei den fuer dieses Telefon ueblichen ~16 KB/s).
+#: ``{zeit}`` als M:SS wie ``_TEXT_INTERVIEW_OHNE_KNOPF``.
+_TEXT_HINTERGRUND_VORFALL = (
+    "⚠ Ein Teil von {name} wurde nicht vollstaendig aufgenommen (~{zeit}) - "
+    "das Handy war gesperrt oder die Seite im Hintergrund. Bitte die Seite "
+    "waehrend der Aufnahme offen und den Bildschirm an lassen."
+)
 _ARTIKEL_GROSS = "Die"
 _ARTIKEL_KLEIN = "die"
 _BESCHREIBUNG_TEIL = "{artikel} Aufnahme von {name}, Teil {nummer}"
@@ -511,6 +522,127 @@ def _lade_mit_wiederholung(tg, file_id: str, ziel: Path) -> Exception | None:
     return letzter_fehler
 
 
+# -- Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89) ------
+#
+# Evidence: Clone "G3 Interview 1" (padua-test1.db, Aufnahme #113) meldete
+# 178 s, der Mitschnitt hielt real nur ~26 s Audio (412 KB bei den fuer
+# dieses Telefon ueblichen ~16 KB/s) -- die Seite war waehrend des
+# Interviews im Hintergrund, MediaRecorder und Timer dort angehalten. Ohne
+# Dekodierung des Containers (teuer, formatabhaengig) schaetzt diese
+# Pruefung die tatsaechliche Dauer ueber die Byte-Rate vorheriger Teile
+# DESSELBEN Interviews -- dieselbe Rechnung, mit der die Evidence gefunden
+# wurde (412 000 / 16 000 ≈ 25,75 s).
+
+#: Unter dieser gemeldeten Dauer wird nie geprueft: eine kurze Nachricht
+#: (Wortmeldung, Testdruck) schwankt in der Bytes/Sekunde-Rate zu stark, um
+#: daraus etwas zu schliessen -- gesetzt aus der Aufgabe, nicht gemessen.
+HINTERGRUND_MIN_DAUER_S = 20
+#: Wie viel von der gemeldeten Dauer die geschaetzte tatsaechliche Dauer
+#: mindestens erreichen muss, um NICHT als Vorfall zu gelten.
+HINTERGRUND_ANTEIL = 0.5
+#: Dedupe-Fenster fuer die Chatzeile (nicht fuer den Vorfall-Eintrag selbst,
+#: der steht bei jedem betroffenen Teil): "nicht zweimal binnen 2 Minuten".
+HINTERGRUND_DECKEL_S = 120
+
+
+def _bytes_je_sekunde(row) -> float | None:
+    """Die Byte-Rate eines schon fertigen Teils -- Grundlage fuer die
+    Schaetzung eines spaeteren Teils derselben Sitzung. ``None`` ohne Pfad,
+    ohne gemeldete Dauer oder wenn die Datei fehlt (z. B. laengst
+    geloescht)."""
+    pfad = row["audio_pfad"] if "audio_pfad" in row.keys() else None
+    dauer = row["dauer_sekunden"] if "dauer_sekunden" in row.keys() else None
+    if not pfad or not dauer:
+        return None
+    try:
+        groesse = Path(pfad).stat().st_size
+    except OSError:
+        return None
+    return groesse / dauer if groesse > 0 else None
+
+
+def _median(werte: list[float]) -> float | None:
+    """Der Median einer Liste, ``None`` wenn sie leer ist -- robust gegen
+    einen einzelnen Ausreisser unter den vorherigen Teilen (z. B. selbst
+    schon ein Hintergrund-Vorfall)."""
+    if not werte:
+        return None
+    sortiert = sorted(werte)
+    mitte = len(sortiert) // 2
+    if len(sortiert) % 2:
+        return sortiert[mitte]
+    return (sortiert[mitte - 1] + sortiert[mitte]) / 2
+
+
+def erkenne_hintergrund_unterbrechung(
+    groesse_bytes: int, dauer_s: int, basis_rate: float | None,
+    hintergrund_ms: int | None = None,
+) -> int | None:
+    """Schaetzt, ob ein Teil waehrend eines Hintergrund-Wechsels nur
+    unvollstaendig aufgenommen wurde. Liefert die geschaetzte verlorene
+    Dauer in ganzen Sekunden (mindestens 1), oder ``None`` ohne Befund.
+
+    ``basis_rate`` ist die Bytes/Sekunde-Rate vorheriger Teile derselben
+    Sitzung (``_median`` ueber ``_bytes_je_sekunde``) -- ohne sie (erster
+    Teil eines Interviews) laesst sich nichts schaetzen, und es gibt nie
+    einen Befund. Ist ``hintergrund_ms`` gesetzt (vom Client gemessen),
+    bestimmt es die ausgewiesene verlorene Dauer statt der Schaetzung --
+    exakt schlaegt geschaetzt (Spezifikation Punkt 3) -- die AUSLOeSUNG
+    selbst bleibt aber immer die Bytes/Dauer-Pruefung (Punkt 2), unabhaengig
+    von ``hintergrund_ms``."""
+    if dauer_s < HINTERGRUND_MIN_DAUER_S or not basis_rate or basis_rate <= 0:
+        return None
+    geschaetzte_dauer_s = groesse_bytes / basis_rate
+    if geschaetzte_dauer_s >= dauer_s * HINTERGRUND_ANTEIL:
+        return None
+    verlust_s = hintergrund_ms / 1000 if hintergrund_ms else dauer_s - geschaetzte_dauer_s
+    return max(1, round(verlust_s))
+
+
+def _pruefe_hintergrund_unterbrechung(
+    conn, tg, e, chat_id: int, teil_von: int, aufnahme_id: int,
+    groesse_bytes: int, dauer_s: int, hintergrund_ms: int | None,
+    basis_rate: float | None,
+) -> None:
+    """Vergleicht einen frisch angelegten Interview-Teil mit der Byte-Rate
+    der VORHERIGEN Teile desselben Interviews (``basis_rate``, vom Aufrufer
+    berechnet -- VOR dem eigenen ``lege_aufnahme_an``, sonst ginge die
+    gerade erst angelegte Zeile selbst in die Rate ein und verzerrt sie) und
+    meldet einen Fund (Vorfall IMMER, Chatzeile hoechstens einmal je
+    ``HINTERGRUND_DECKEL_S``).
+
+    Die Deckelung nutzt den bestehenden, chatweiten ``gab_es_vorfall_seit``:
+    strukturell gibt es je Gruppe nie zwei gleichzeitig laufende Interviews
+    (``repo.laufendes_interview`` liefert hoechstens eines), ein chatweiter
+    Deckel ist hier also derselbe wie ein interviewweiter."""
+    verlust_s = erkenne_hintergrund_unterbrechung(
+        groesse_bytes, dauer_s, basis_rate, hintergrund_ms)
+    if verlust_s is None:
+        return
+    deckel_seit = (
+        datetime.now(timezone.utc) - timedelta(seconds=HINTERGRUND_DECKEL_S)
+    ).isoformat(timespec="seconds")
+    schon_gemeldet = repo.gab_es_vorfall_seit(
+        conn, chat_id, "aufnahme_hintergrund", deckel_seit)
+    try:
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "aufnahme_hintergrund",
+            f"aufnahme_id={aufnahme_id} teil_von={teil_von}: gemeldet {dauer_s}s, "
+            f"~{verlust_s}s Hintergrund geschaetzt",
+        )
+    except Exception:
+        log.exception("Vorfall aufnahme_hintergrund fehlgeschlagen, chat_id=%s", chat_id)
+    if schon_gemeldet:
+        return
+    kopf = repo.hole_aufnahme(conn, teil_von)
+    name = (kopf["name"] if kopf and kopf["name"] else None) or T._TEXT_DAS_INTERVIEW
+    text = T._TEXT_HINTERGRUND_VORFALL.format(name=name, zeit=dauer_mmss(verlust_s))
+    try:
+        tg.sende(chat_id, text, system=True)
+    except Exception:
+        log.exception("Hintergrund-Hinweis nicht gesendet, chat_id=%s", chat_id)
+
+
 def empfange(conn, tg, e, n: dict) -> int | None:
     """Laedt die Sprachnachricht herunter und legt die Aufnahme mit
     ``status='empfangen'`` an -- ohne jeden Whisper-Kontakt (§ 10.2, die
@@ -591,14 +723,39 @@ def empfange(conn, tg, e, n: dict) -> int | None:
         _web_sprachblase(conn, chat_id, message_id, None)
         return None
 
-    return repo.lege_aufnahme_an(
+    # Die Basisrate MUSS vor dem eigenen lege_aufnahme_an() berechnet werden
+    # (Karte t_1423ca89): repo.hole_teile(teil_von) laese sonst die gerade
+    # erst angelegte Zeile selbst mit und verzerrte die Byte-Rate.
+    basis_rate = None
+    if klasse == "teil" and teil_von is not None:
+        vorherige = repo.hole_teile(conn, teil_von)
+        raten = [r for r in (_bytes_je_sekunde(v) for v in vorherige) if r]
+        basis_rate = _median(raten)
+
+    aufnahme_id = repo.lege_aufnahme_an(
         conn, chat_id, message_id, klasse, "sprache",
         audio_pfad=str(ziel), dauer=n.get("dauer"), teil_von=teil_von,
         schnittgrund=n.get("schnittgrund"), brainstorm=bool(n.get("brainstorm")),
         diskussion=bool(n.get("diskussion")),
         rede_ms=n.get("rede_ms"), kalibrierung=kalibrierung,
-        weich_ms=n.get("weich_ms"),
+        weich_ms=n.get("weich_ms"), hintergrund_ms=n.get("hintergrund_ms"),
     )
+
+    # Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89): nur
+    # fuer Interview-Teile (mit Vorgaengern derselben Sitzung als Grundlage
+    # der Schaetzung) -- siehe Docstring von _pruefe_hintergrund_unterbrechung.
+    if klasse == "teil" and teil_von is not None and n.get("dauer"):
+        try:
+            _pruefe_hintergrund_unterbrechung(
+                conn, tg, e, chat_id, teil_von, aufnahme_id,
+                ziel.stat().st_size, int(n["dauer"]), n.get("hintergrund_ms"),
+                basis_rate,
+            )
+        except Exception:
+            log.exception(
+                "Hintergrund-Pruefung fehlgeschlagen, aufnahme_id=%s", aufnahme_id)
+
+    return aufnahme_id
 
 
 # Schuetzt gegen doppelte Bearbeitung derselben Aufnahme INNERHALB eines

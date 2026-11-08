@@ -1172,6 +1172,7 @@ _TEXT_DOWNLOAD_FEHLER = "The recording didn't reach me - please send it again."
 _TEXT_BITTE_NOCHMAL = "I couldn't understand {beschreibung} - please send it again."
 _TEXT_VERDICHTUNG_GESCHEITERT = "I couldn't analyse {beschreibung}. The transcript stays saved, only the summary is missing."
 _TEXT_INTERVIEW_AUTO_ENDE = "{name} was automatically ended because no new recording arrived for {minuten} minutes. If you were still recording, just tap \"Start interview\" again."
+_TEXT_HINTERGRUND_VORFALL = "⚠ Part of {name} wasn't recorded fully (~{zeit}) - the phone was locked or the page was in the background. Please keep the page open and the screen on while recording."
 _TEXT_BUEHNE_NEUE_KARTE = "New card in the CoThinker tab"
 _TEXT_DISKUSSION_FERTIG_BEGRIFFE = "The discussion is over. Now send me your five terms - typed or as a voice message."
 _TEXT_DISKUSSION_KEINE_BEGRIFFE = "I couldn't make out any terms from the discussion - tap \"Start listening\" and talk again, or type the terms here."
@@ -2330,6 +2331,10 @@ _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG = "Remember: pass the phone to whoeve
 # shown once per session after the first segment finishes.
 _TEXT_MITLAUF_HINWEIS = "Check the transcript in the chat — if words are missing, move the phone closer."
 _TEXT_ZIEL_BUEHNE_KNOPF = "🗂 Sort the interview passages"
+# Karte t_1423ca89: appears on the phone once it becomes visible again after
+# being hidden for 3s+ while a recording/listening session was running.
+_TEXT_HINTERGRUND_WARNUNG = "⚠ Recording was interrupted for {zeit} — the page was in the background. Keep this page open and the screen on while recording."
+_TEXT_HINTERGRUND_TIPP = "Keep this page in front – don't lock the phone or switch apps."
 
 ["web_kanal"]
 # UX-Knoepfe-Karte, Abschnitt 1: der einmalige Hinweis, dass Knoepfe

@@ -2524,7 +2524,7 @@ def test_postaudio_haengt_das_richtige_ziel_flag_an():
     Upload geht -- EINE Sitzungsart (``sitzung.art === 'diskussion'``),
     zwei moegliche Ziele, kein eigener 'brainstorm'-Sitzungstyp mehr."""
     js = web_chat._CHAT_JS
-    ausschnitt = js[js.index("function audioWeg"):js.index("function audioWeg") + 900]
+    ausschnitt = js[js.index("function audioWeg"):js.index("function audioWeg") + 1100]
     assert "sitzung.art === 'diskussion'" in ausschnitt
     assert "auftrag.sitzung.ziel === 'brainstorm'" in ausschnitt
     assert "&brainstorm=1" in ausschnitt
@@ -3606,7 +3606,7 @@ def test_watchdog_zeigt_warnung_erst_nach_der_schwelle_live_in_node(tmp_path):
     durchkommt (zustand.letzterSegmentErfolgAm wird aktualisiert)."""
     node = _node_oder_skip()
     js = web_chat._CHAT_JS
-    funktion = _extrahiere(js, "function aufnahmeLaeuft", "setInterval(pruefeWatchdog")
+    funktion = _extrahiere(js, "function aufnahmeLaeuft() {", "setInterval(pruefeWatchdog")
     quelltext = f"""
     var WATCHDOG_MS = 90000;
     var TEXT = {{ upload_warnung: 'WARNUNG' }};
@@ -3803,3 +3803,225 @@ def test_wiederherstellen_laedt_in_erzeugungsreihenfolge_live_in_node(tmp_path):
     ausgabe = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
     assert ausgabe["reihenfolge"] == ["EINS", "ZWEI"]
     assert ausgabe["naechsteSeq"] == 2
+
+
+# -- Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89,     --
+# -- node-geprueft: visibilitychange/pagehide/freeze aus _CHAT_JS WOERTLICH --
+# -- extrahiert, nicht nachgebaut) -------------------------------------------
+#
+# Evidence: Clone "G3 Interview 1" #113 meldete 178 s, der Mitschnitt hielt
+# real nur ~26 s Audio -- die Seite war waehrend des Interviews im
+# Hintergrund, MediaRecorder und Timer dort angehalten.
+
+
+def _hintergrund_harness(js: str) -> str:
+    """``minuten()`` (fuer die M:SS-Formatierung) und der ganze Hintergrund-
+    Block (Konstante, Merkvariable, die drei Funktionen) WOERTLICH aus
+    ``_CHAT_JS`` -- bis vor die Knopf-/Listener-Verdrahtung, die dieser Test
+    nicht braucht (er ruft die Handler direkt auf, wie ein echtes
+    ``visibilitychange`` es taete)."""
+    minuten_fn = _extrahiere(js, "function minuten(s) {", "function bildVon(")
+    kern = _extrahiere(
+        js, "var HINTERGRUND_MIN_MS = 3000;", "if (hintergrundWarnungSchliessen)",
+    )
+    return f"""
+    var zustand = {{ aufnahme: null, diskussion: null }};
+    var hintergrundWarnungFeld = {{ hidden: true }};
+    var hintergrundWarnungText = {{ textContent: '' }};
+    var TEXT = {{ hintergrund_warnung: 'Unterbrochen fuer {{zeit}}' }};
+    {minuten_fn}
+    {kern}
+    function setzeRecorder(ziel, zustandsname) {{
+      zustand[ziel] = {{ recorder: {{ state: zustandsname }} }};
+    }}
+    """
+
+
+def test_versteckt_10s_waehrend_aufnahme_zeigt_banner_mit_0_10_live_in_node(tmp_path):
+    """Kernfall der Karte: 10 s verstecktes Telefon waehrend einer laufenden
+    Aufnahme -> der Banner erscheint, mit "0:10" als ausgewiesener Dauer."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(10000);
+    console.log(JSON.stringify({
+      luecke: luecke,
+      hidden: hintergrundWarnungFeld.hidden,
+      text: hintergrundWarnungText.textContent
+    }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] == 10000
+    assert ergebnis["hidden"] is False
+    assert ergebnis["text"] == "Unterbrochen fuer 0:10"
+
+
+def test_versteckt_1s_zeigt_keinen_banner_live_in_node(tmp_path):
+    """Unter HINTERGRUND_MIN_MS (3 s) zaehlt es nicht als Vorfall -- ein
+    kurzes Benachrichtigungs-Wisch ist kein Seitenwechsel."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(1000);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] is None
+    assert ergebnis["hidden"] is True
+
+
+def test_versteckt_genau_3000ms_zeigt_banner_live_in_node(tmp_path):
+    """Grenzwert HINTERGRUND_MIN_MS selbst: die Spezifikation der Karte
+    t_1423ca89 sagt "if hidden for >= 3 s" -- bei exakt 3000 ms MUSS der
+    Banner erscheinen. Der Vergleich im Code ist ``luecke < HINTERGRUND_MIN_MS``,
+    schliesst also genau 3000 ms vom "kein Banner"-Fall aus."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(3000);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] == 3000
+    assert ergebnis["hidden"] is False
+
+
+def test_versteckt_2999ms_zeigt_keinen_banner_live_in_node(tmp_path):
+    """1 ms unter der Schwelle HINTERGRUND_MIN_MS -- zusammen mit dem
+    3000-ms-Test grenzt das die Schwelle von beiden Seiten ein."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(2999);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] is None
+    assert ergebnis["hidden"] is True
+
+
+def test_ohne_laufende_aufnahme_zeigt_sich_nie_ein_banner_live_in_node(tmp_path):
+    """Kein Recorder im Zustand 'recording' (weder Interview noch
+    Diskussion/Brainstorm) -- 10 s "versteckt" bleiben folgenlos, denn
+    hintergrundVersteckt() merkt sich den Zeitpunkt gar nicht erst."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(10000);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] is None
+    assert ergebnis["hidden"] is True
+
+
+def test_eine_pausierte_aufnahme_zaehlt_nicht_als_laufend_live_in_node(tmp_path):
+    """pausiereInterview() setzt sitzung.recorder auf null -- waehrend einer
+    Pause kann ein Hintergrund-Wechsel nichts unterbrechen, das gerade
+    schreibt."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    zustand.aufnahme = { recorder: null };
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(10000);
+    console.log(JSON.stringify({ luecke: luecke }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] is None
+
+
+def test_eine_diskussionssitzung_loest_dieselbe_warnung_aus_live_in_node(tmp_path):
+    """Phase 1/4 (Hintergrund-Mithoeren/Brainstorm) teilt sich denselben
+    Recorder -- aufnahmeLaeuftLokal() prueft zustand.diskussion genauso wie
+    zustand.aufnahme."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('diskussion', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(5000);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] == 5000
+    assert ergebnis["hidden"] is False
+
+
+def test_ein_zweites_hidden_ohne_sichtbar_dazwischen_ueberschreibt_den_zeitpunkt_nicht_live_in_node(tmp_path):
+    """pagehide UND visibilitychange('hidden') koennen fuer denselben
+    Hintergrund-Wechsel feuern -- der zweite Aufruf darf den ersten
+    (frueheren) Zeitpunkt nicht ueberschreiben, sonst waere die gemessene
+    Luecke zu kurz."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);     // z. B. 'visibilitychange' -> hidden
+    hintergrundVersteckt(2000);  // z. B. 'pagehide' kurz danach
+    var luecke = hintergrundSichtbar(10000);
+    console.log(JSON.stringify({ luecke: luecke }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] == 10000, "haette 8000 ergeben, wenn der zweite Zeitpunkt gewonnen haette"
+
+
+def test_sichtbar_setzt_den_merkposten_zurueck_live_in_node(tmp_path):
+    """Nach einer gemessenen Luecke beginnt die naechste Pruefung bei null --
+    sonst zaehlte ein zweites, spaeteres Sichtbarwerden ohne neues 'hidden'
+    dazwischen faelschlich noch einmal dieselbe (oder eine laengere) Luecke."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var erste = hintergrundSichtbar(10000);
+    var zweite = hintergrundSichtbar(99000);   // kein 'hidden' dazwischen
+    console.log(JSON.stringify({ erste: erste, zweite: zweite }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["erste"] == 10000
+    assert ergebnis["zweite"] is None
+
+
+def test_hintergrund_ms_landet_auf_der_laufenden_sitzung_live_in_node(tmp_path):
+    """Die gemessene Luecke faehrt auf ``sitzung.hintergrundMs`` mit --
+    Grundlage fuer ``?hintergrund=`` an postAudio() (Spezifikation Punkt 3:
+    exakt gemessen schlaegt die serverseitige Schaetzung)."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    zustand.aufnahme = { recorder: { state: 'recording' } };
+    hintergrundVersteckt(0);
+    hintergrundSichtbar(7000);
+    console.log(JSON.stringify({ hintergrundMs: zustand.aufnahme.hintergrundMs }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["hintergrundMs"] == 7000
+
+
+def test_postaudio_haengt_hintergrund_nur_an_wenn_gemessen():
+    """Dieselbe reine Textpruefung wie bei redeMs/weichMs (kein Node noetig):
+    ``auftrag.hintergrundMs`` wird nur bei einem echten Wert angehaengt."""
+    js = web_chat._CHAT_JS
+    ausschnitt = js[js.index("function audioWeg"):js.index("function audioWeg") + 1100]
+    assert "if (auftrag.hintergrundMs) { weg_ += `&hintergrund=" in ausschnitt
+
+
+def test_neuessegment_traegt_hintergrundms_und_setzt_sie_zurueck():
+    """Dieselbe reine Textpruefung: der Auftrag bekommt die seit dem letzten
+    Segment gemessene Hintergrundzeit, danach beginnt die Sitzung wieder bei
+    0 -- sonst wuerde dieselbe Luecke mehrfach gemeldet."""
+    js = web_chat._CHAT_JS
+    ausschnitt = _extrahiere(js, "function neuesSegment(sitzung) {", "function pruefeEnde(")
+    assert "hintergrundMs: sitzung.hintergrundMs || null" in ausschnitt
+    assert "sitzung.hintergrundMs = 0;" in ausschnitt

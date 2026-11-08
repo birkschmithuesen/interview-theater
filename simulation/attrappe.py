@@ -143,6 +143,14 @@ class TelegramAttrappe:
     def loesche_nachrichten(self, chat_id: int, message_ids) -> None:
         self.geloescht.append((chat_id, list(message_ids)))
 
+    def aendere_text(self, chat_id: int, message_id: int, text: str) -> None:
+        """Fuer die Fortschrittsmeldung eines laufenden Auftrags
+        (``schaerfung._aktualisiere_fortschritt``, 07.10.2026)."""
+        self.gesendet.append(
+            {"chat_id": chat_id, "text": text, "message_id": message_id,
+             "zeit": self.jetzt()}
+        )
+
     def lade_datei(self, file_id: str, ziel: Path) -> None:
         """No-Op: der Simulator schickt keine Audiodateien. Legt die Datei
         trotzdem an, damit ein Aufrufer, der danach ``Path.exists()`` prueft,

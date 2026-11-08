@@ -51,7 +51,7 @@ import sys
 import time
 import traceback
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import cothinker_status, db, phasen, vorspann, web_daten, web_schreiben  # noqa: F401 -- SZENENFELDER im HTML
@@ -542,6 +542,36 @@ th { opacity: .6; font-weight: 600; }
 ul { margin: .2rem 0; padding-left: 1.1rem; }
 """
 
+#: Nur der Ticker (Padua, 06.10.2026) -- NICHT in ``_CSS_DASHBOARD``: das
+#: Dashboard (``dashboard_html``) teilt sich die Konstante mit dem Ticker,
+#: und die Bitgleich-Tests (``tests/test_web_dashboard_en.py``) gelten fuer
+#: beide Profile, nicht nur Dortmund (selbst gemessen, kein Dortmund-Fall).
+#: Addendum 3 (06.10.2026): ein Eintrag, zwei Bloecke (Inhalt gross+offen,
+#: Technik als Ampel-``<details>``), grosse lesbare Schrift fuers Telefon.
+_CSS_TICKER = """
+.ticker-status { display: flex; flex-wrap: wrap; gap: .25rem 1.2rem;
+                 font-size: .9rem; opacity: .75; margin-bottom: 1rem; }
+.ticker-stale { color: #ffb020; font-weight: 600; opacity: 1; }
+.ticker-liste { font-size: 1.15rem; line-height: 1.5; }
+.ticker-eintrag { display: block; margin-bottom: .9rem; padding: .7rem .9rem;
+                  border: 1px solid #2c313a; border-radius: .6rem; background: #1d2026; }
+.ticker-neu { font-size: 1.08em; border-color: #3a4454; }
+.ticker-alt { opacity: .72; font-size: .9em; }
+.ticker-alt summary { cursor: pointer; }
+.ticker-kopf { font-size: .78em; opacity: .7; margin-bottom: .4rem; }
+.ticker-kopf .zeit { font-weight: 600; opacity: 1; }
+.ticker-inhalt h3 { margin: .6rem 0 .2rem; font-size: .8em; text-transform: uppercase;
+                    letter-spacing: .04em; opacity: .65; }
+.ticker-inhalt h3:first-child { margin-top: 0; }
+.ticker-inhalt ul, .ticker-technik ul { margin: .1rem 0 .4rem; padding-left: 1.2rem; }
+.ticker-technik { margin-top: .5rem; }
+.ticker-technik summary { cursor: pointer; font-weight: 600; list-style: none; }
+.ticker-technik summary::-webkit-details-marker { display: none; }
+.ampel-gruen { color: #7fd99a; }
+.ampel-gelb { color: #ffd166; }
+.ticker-warnung { color: #ff8f8f; }
+"""
+
 _CSS_GRUPPE = """
 body { background: #fbfaf7; color: #1b1b1b; font-size: 1.05rem;
        max-width: 44rem; margin: 0 auto; }
@@ -679,13 +709,20 @@ _CSS_BUEHNE = """
 /* Typografie laut Karte: >= 1.15rem auf Telefonbreite, eine Zeilenlaenge,
    die nicht Kante an Kante laeuft, viel Weissraum, Kontrast aus dem
    Token-Paar (text, grund-2) -- bereits in web_gestalt.KONTRAST gefuehrt. */
-#buehne-tafel { font-size: 1.15rem; line-height: 1.55; white-space: pre-wrap;
+#buehne-tafel { font-size: 1.15rem; line-height: 1.55;
                 max-width: 34rem; margin: 0 auto; width: 100%;
                 box-sizing: border-box; padding: 1.1rem 1.2rem;
                 background: var(--grund-2); border: 1px solid var(--rand);
                 border-radius: var(--radius-gross); color: var(--text); }
 #buehne-tafel .buehne-alter { display: block; margin-top: .7rem;
                                font-size: .8rem; color: var(--text-leise); }
+#buehne-tafel p { margin: 0 0 .7rem; }
+#buehne-tafel p:last-of-type { margin-bottom: 0; }
+#buehne-tafel ul { margin: 0 0 .7rem 1.1rem; padding: 0; }
+#buehne-tafel li { margin: 0 0 .3rem; }
+#buehne-tafel li:last-child { margin-bottom: 0; }
+#buehne-tafel .buehne-ueberschrift { margin-top: .9rem; }
+#buehne-tafel .buehne-ueberschrift:first-child { margin-top: 0; }
 /* Die Navigation: Inhalt kommt IMMER aus JS (male()-Aequivalent), das
    leere Element ist hier nur der Platzhalter. Tippflaechen >= 44px. */
 #buehne-nav { display: flex; align-items: center; justify-content: center;
@@ -839,6 +876,8 @@ ARBEITSSTAND_BESCHRIFTUNG = {
     "geschichte": "Geschichte",
     "hauptkonflikt": "Hauptkonflikt",
     "figuren": "Figuren",
+    "format": "Format",
+    "formen_nah": "Nahe Formen",
 }
 
 #: Die Beschriftungen aus ``web_daten.SZENENFELDER`` (K4: deutsch auf sich
@@ -1028,6 +1067,18 @@ _TEXT_WB_FORM = "Szene {bezug}: Form"
 _TEXT_WB_SPRECHWEISE = "{bezug}: Sprechweise"
 _TEXT_WB_AUCH_VEREINBART = "Auch vereinbart"
 _TEXT_WERKBANK_NUR_LESEN = "Hier wird nur angezeigt – Änderungen bitte im Chat."
+#: Der Recherche-Abschnitt der Werkbank (Karte t_c5117c91) -- ein eigener,
+#: von den sieben Phasen unabhaengiger Abschnitt unter dem Journal: eine
+#: Internet-Recherche gehoert zu keiner Phase und ist klar vom
+#: Interviewmaterial getrennt (derselbe Grundsatz wie kontext.RECHERCHE_KOPF).
+_UEBERSCHRIFT_RECHERCHE = "Recherche aus dem Internet (kein Interviewmaterial)"
+_TEXT_RECHERCHE_LEER = "Noch keine Recherche."
+_TEXT_RECHERCHE_QUELLEN = "Quellen: {quellen}"
+#: Die Phasen-Summaries in der Werkbank (Karte t_1bc96848, Teil 3) -- reine
+#: Anzeige des je Phase gespeicherten, bereits beschlossenen Stands; fehlt
+#: eine Phase ganz, bleibt ihre Zeile weg (leere Liste -> kein Abschnitt).
+_UEBERSCHRIFT_PHASEN_SUMMARY = "Zusammenfassung je Phase"
+_TEXT_PHASEN_SUMMARY_PHASE = "Phase {nummer}: {bezeichnung}"
 #: Der Buehne-Inhalt (Phase 4, nur Web, 02.10.2026). Die Tab-Beschriftung
 #: selbst steht seit dem Umzug in Karte Ws Tableiste in
 #: ``web_vereint._TEXT_TAB["buehne"]``, nicht mehr hier.
@@ -1052,6 +1103,18 @@ _TEXT_AUSWAHL_JA = "Behalten"
 _TEXT_AUSWAHL_NEIN = "Weg"
 _TEXT_AUSWAHL_SCHAERFEN = "Umformulieren"
 _TEXT_AUSWAHL_FERTIG = "Fertig sortiert – offene zählen als behalten"
+#: Die Schaerfungs-Sortierliste im CoThinker (Padua Phase 5, 07.10.2026,
+#: "Show more" war unsinnig): Yes/No statt der drei Zustaende der
+#: Fragenliste, darum ein eigener Zaehlertext und eigene Knopfbeschriftungen
+#: (``_schaerfungsliste_html``).
+_TEXT_SCHAERFUNGSLISTE_ZAEHLER = "{ja} dabei · {nein} weg · {offen} offen"
+_TEXT_SCHAERFUNGSLISTE_JA = "Dabei"
+_TEXT_SCHAERFUNGSLISTE_NEIN = "Weg"
+_TEXT_SCHAERFUNGSLISTE_FERTIG = "Fertig – offene bleiben für die nächste Runde"
+_TEXT_SCHAERFUNGSLISTE_SZENE = "Szene {nummer}"
+_TEXT_SCHAERFUNGSLISTE_ERKLAERUNG = ("Die stärksten Interviewstellen je Szene und Figur. "
+    "Dabei = die Idee (→) geht in die Beschreibung ein, das Zitat wird Bezugssatz für den Text.")
+_TEXT_SCHAERFUNGSLISTE_ANZAHL = "{anzahl} Vorschläge"
 #: Nachtrag Karte Padua Brainstorm (03.10.2026): steht statt/vor der letzten
 #: Karte, wenn der juengste Versuch ein bewusstes Schweigen war
 #: (``buehnenkarte.schweigen = 1``) -- eine leere Flaeche liess nicht
@@ -1082,6 +1145,10 @@ _TEXT_COTHINKER_HOERT = "hört zu"
 _TEXT_COTHINKER_TRANSKRIBIERT = "verschriftlicht"
 _TEXT_COTHINKER_DENKT = "denkt nach"
 _TEXT_COTHINKER_SCHWEIGT = "zugehört, gerade nichts hinzuzufügen"
+#: Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+#: 2026-10-17): der Watchdog des Chat-Clients meldet gepufferte Segmente --
+#: eigene Zeile neben der obigen Zustandskette, nicht Teil davon.
+_TEXT_COTHINKER_PUFFER = "{n} Segmente im Handy gepuffert"
 #: Was das Speichern auf der Gruppenseite neben dem Feld meldet. Das
 #: JavaScript liest sie aus ``data-``-Attributen (``_BEARBEITEN_JS``), damit
 #: kein Nutzertext im Skript steht.
@@ -1108,6 +1175,13 @@ _TEXT_ROLLE = "Rolle"
 _TEXT_ALLE = "alle"
 _TEXT_BESETZUNG = "Besetzung: {figuren}"
 _TEXT_ALS_GESCHICHTE_DOPPELPUNKT = "Als Geschichte:"
+# Zweisprachiges Textbuch (Birk, Live-Workshop 07.10.2026 ~17:20,
+# Padua-Profilschalter [skript] zweisprachig): nur sichtbar, wenn eine
+# Szene ``prosa_it`` traegt -- sonst bleibt es bei der einsprachigen
+# Zeile oben.
+_TEXT_ALS_GESCHICHTE_EN = "Als Geschichte (Englisch):"
+_TEXT_ALS_GESCHICHTE_IT = "Als Geschichte (Italienisch):"
+_TEXT_KERNSAETZE_IT = "Kernsätze (italienisches Original):"
 # Leitfaden-Seite
 _TITEL_LEITFADEN = "Leitfaden — {titel}"
 _TEXT_VORHER_SAGEN = "Vorher sagen: {text}"
@@ -2085,6 +2159,13 @@ _TITEL_TICKER = "interview_theater — Ticker"
 _UEBERSCHRIFT_TICKER = "Regie-Ticker"
 _TEXT_TICKER_AUS = "Ticker aus."
 _TEXT_TICKER_LEER = "Noch keine Einträge."
+_TEXT_TICKER_STATUS_LETZTES = "Letztes Update: {uhrzeit} Uhr ({alter})"
+_TEXT_TICKER_STATUS_NAECHSTES = "Nächstes ~{naechste}"
+_TEXT_TICKER_STATUS_STEHT = "⚠ Ticker steht seit {minuten} min"
+_TEXT_TICKER_ALTER_GERADE = "gerade eben"
+_TEXT_TICKER_ALTER_VOR = "vor {minuten} min"
+_TEXT_TICKER_TECHNIK_OK = "● Technik unauffällig"
+_TEXT_TICKER_TECHNIK_VERDACHT = "● Technik: Verdacht ({anzahl})"
 
 #: Wie ein Aufnahmestatus auf dem Dashboard heisst -- Schluessel ist der
 #: Datenbankwert (``aufnahme.status``, Protokoll), deutsch der Wert selbst
@@ -2495,10 +2576,159 @@ def _ticker_eintraege(pfad: str) -> list[dict]:
     return eintraege
 
 
+#: "G1: ..." / "G2: ..." / "G3: ..." am Zeilenanfang (nach einem fuehrenden
+#: "•") -- der INHALT-Teil gruppiert sich daran (Addendum 3, 06.10.2026).
+_TICKER_GRUPPEN_PRAEFIX = re.compile(r"^(G[123]):\s*(.*)$")
+
+
+def _ticker_uhrzeit(zeit_iso: str | None) -> str:
+    gelesen = web_daten.lies_zeitstempel(zeit_iso)
+    if gelesen is None:
+        return "—"
+    return gelesen.astimezone().strftime("%H:%M")
+
+
+def _ticker_alter_minuten(zeit_iso: str | None) -> int | None:
+    gelesen = web_daten.lies_zeitstempel(zeit_iso)
+    if gelesen is None:
+        return None
+    delta = datetime.now(timezone.utc) - gelesen.astimezone(timezone.utc)
+    return max(0, int(delta.total_seconds() // 60))
+
+
+def _ticker_alter_text(minuten: int | None) -> str:
+    if minuten is None:
+        return ""
+    if minuten < 1:
+        return T._TEXT_TICKER_ALTER_GERADE
+    return T._TEXT_TICKER_ALTER_VOR.format(minuten=minuten)
+
+
+#: Ab diesem Alter des neuesten Eintrags gilt der Ticker als stehend --
+#: Cron-Takt ist 10 min (padua-ticker-brief.md), 15 min ist ein Takt plus
+#: Toleranz, kein Fehlalarm bei einer normal spaeten Minute.
+_TICKER_STEHT_MINUTEN = 15
+_TICKER_TAKT_MINUTEN = 10
+
+
+def _ticker_letzter_lauf_iso(ticker_datei: str) -> str | None:
+    """Wann der Ticker zuletzt GELAUFEN ist -- die mtime seiner
+    ``state.json`` neben ``IT_WEB_TICKER_DATEI`` (er schreibt sie bei jedem
+    Lauf, auch wenn es nichts Neues gibt und deshalb KEIN Eintrag entsteht).
+    Birk 07.10.2026: "Ticker stuck for 18 min" stand da, obwohl der Ticker
+    alle 10 min lief und nur nichts Neues zu melden hatte."""
+    try:
+        zeit = os.path.getmtime(os.path.join(os.path.dirname(ticker_datei), "state.json"))
+    except OSError:
+        return None
+    return datetime.fromtimestamp(zeit, timezone.utc).isoformat()
+
+
+def _ticker_status_html(eintraege: list[dict], letzter_lauf_iso: str | None = None) -> str:
+    """Statuszeile ueber der Liste: letztes Update, naechstes erwartet, und
+    eine Warnung, wenn der neueste Eintrag laenger stillsteht als ein
+    Cron-Takt plus Toleranz -- das sagt der Regie "Cron pausiert/kaputt",
+    bevor sie es am leeren Bildschirm selbst herausfinden muss."""
+    zeit_iso = eintraege[0].get("zeit")
+    alter_min = _ticker_alter_minuten(zeit_iso)
+    # "steht" misst den letzten LAUF, nicht den letzten Eintrag (ein Lauf
+    # ohne neue Daten schreibt keinen Eintrag).
+    lauf_min = _ticker_alter_minuten(letzter_lauf_iso) if letzter_lauf_iso else alter_min
+    gelesen = web_daten.lies_zeitstempel(zeit_iso)
+    naechste = (
+        (gelesen + timedelta(minutes=_TICKER_TAKT_MINUTEN)).astimezone().strftime("%H:%M")
+        if gelesen else "—"
+    )
+    teile = [
+        f"<span>{_t(T._TEXT_TICKER_STATUS_LETZTES.format(uhrzeit=_ticker_uhrzeit(zeit_iso), alter=_ticker_alter_text(alter_min)))}</span>",
+        f"<span>{_t(T._TEXT_TICKER_STATUS_NAECHSTES.format(naechste=naechste))}</span>",
+    ]
+    if lauf_min is not None and lauf_min > _TICKER_STEHT_MINUTEN:
+        teile.append(
+            f'<span class="ticker-stale">{_t(T._TEXT_TICKER_STATUS_STEHT.format(minuten=lauf_min))}</span>')
+    return f'<div class="ticker-status">{"".join(teile)}</div>'
+
+
+def _ticker_inhalt_html(text) -> str:
+    """Der INHALT-Teil als echte Liste, pro Gruppe gruppiert, wenn die
+    Zeilen "G1:"/"G2:"/"G3:"-Praefixe tragen (so liefert sie der Brief);
+    Zeilen ohne Praefix (✨/🎬) bleiben eine eigene, ungruppierte Liste."""
+    punkte = [z.strip().lstrip("•").strip() for z in str(text or "").splitlines() if z.strip()]
+    if not punkte:
+        return '<div class="ticker-inhalt"><p class="leer">–</p></div>'
+    gruppen: dict[str, list[str]] = {}
+    reihenfolge: list[str] = []
+    sonstige: list[str] = []
+    for p in punkte:
+        treffer = _TICKER_GRUPPEN_PRAEFIX.match(p)
+        if treffer:
+            g, rest = treffer.group(1), treffer.group(2)
+            if g not in gruppen:
+                gruppen[g] = []
+                reihenfolge.append(g)
+            gruppen[g].append(rest)
+        else:
+            sonstige.append(p)
+    teile = []
+    for g in reihenfolge:
+        zeilen = "".join(f"<li>{_t(z)}</li>" for z in gruppen[g])
+        teile.append(f"<h3>{_t(g)}</h3><ul>{zeilen}</ul>")
+    if sonstige:
+        zeilen = "".join(f"<li>{_t(z)}</li>" for z in sonstige)
+        teile.append(f"<ul>{zeilen}</ul>")
+    return f'<div class="ticker-inhalt">{"".join(teile)}</div>'
+
+
+def _ticker_technik_html(text) -> str:
+    """Der TECHNIK-Teil als eingeklapptes ``<details>`` (nie ``open``): die
+    Ampel im ``<summary>`` bleibt auch zugeklappt sichtbar -- gruen ohne
+    ⚠-Zeilen, gelb mit Anzahl sonst. ⚠-Zeilen stehen zuerst (so liefert sie
+    bereits ``technik_text_mit_einschaetzung`` im Profil-Repo-Skript)."""
+    punkte = [z.strip() for z in str(text or "").splitlines() if z.strip()]
+    anzahl_warnungen = sum(1 for p in punkte if p.startswith("⚠"))
+    if anzahl_warnungen:
+        klasse = "ampel-gelb"
+        label = T._TEXT_TICKER_TECHNIK_VERDACHT.format(anzahl=anzahl_warnungen)
+    else:
+        klasse = "ampel-gruen"
+        label = T._TEXT_TICKER_TECHNIK_OK
+    zeilen = "".join(
+        f'<li class="ticker-warnung">{_t(p)}</li>' if p.startswith("⚠") else f"<li>{_t(p)}</li>"
+        for p in punkte
+    ) or f"<li>{_t(label)}</li>"
+    return (
+        f'<details class="ticker-technik"><summary class="{klasse}">{_t(label)}</summary>'
+        f"<ul>{zeilen}</ul></details>"
+    )
+
+
+def _ticker_eintrag_html(e: dict, neu: bool) -> str:
+    """Ein Ticker-Eintrag: neues Format (``inhalt``/``technik`` getrennt)
+    oder altes Format (nur ``text``), rueckwaertskompatibel (06.10.2026).
+
+    Der neueste Eintrag (``neu=True``) steht gross und offen als
+    ``<article>``; aeltere stehen gedaempft als ``<details>``, auf die
+    Kopfzeile (Zeit + Alter) eingeklappt."""
+    kopf = (f'<span class="zeit">{_t(_ticker_uhrzeit(e.get("zeit")))}</span> '
+            f'<span class="alter">{_t(_ticker_alter_text(_ticker_alter_minuten(e.get("zeit"))))}</span>')
+    if e.get("inhalt") or e.get("technik"):
+        rumpf = _ticker_inhalt_html(e.get("inhalt")) + _ticker_technik_html(e.get("technik"))
+    else:
+        rumpf = f'<div class="ticker-inhalt"><p>{_t(e.get("text"))}</p></div>'
+    if neu:
+        return f'<article class="ticker-eintrag ticker-neu"><div class="ticker-kopf">{kopf}</div>{rumpf}</article>'
+    return f'<details class="ticker-eintrag ticker-alt"><summary>{kopf}</summary>{rumpf}</details>'
+
+
 def ticker_html() -> str:
-    """Der Regie-Ticker als eigene Seite (Padua, 05.10.2026): Eintraege aus
-    ``IT_WEB_TICKER_DATEI``, neueste zuerst, alle 60 s sanft nachgeladen
-    (dieselbe ``_SCROLL_JS`` wie das Dashboard, nur mit eigenem Intervall).
+    """Der Regie-Ticker als eigene Seite (Padua, 05.10.2026, Addendum 3
+    06.10.2026): Eintraege aus ``IT_WEB_TICKER_DATEI``, neueste zuerst,
+    alle 60 s sanft nachgeladen (voller Neuladebefehl, siehe ``_TICKER_JS``
+    -- die Seite steht ohnehin oben, ein Reload haelt die Scrollposition
+    automatisch dort).
+
+    PRIMAER ist der Inhalt: er steht gross, offen und als erstes; TECHNIK
+    ist je Eintrag ein eingeklapptes Detail mit einer Ampel im Titel.
 
     Ohne die Variable wird keine Datei angefasst -- die Seite antwortet mit
     einem freundlichen Hinweis statt mit einem Dateizugriff ins Leere."""
@@ -2511,22 +2741,21 @@ def ticker_html() -> str:
     else:
         eintraege = _ticker_eintraege(ticker_datei)
         if eintraege:
-            zeilen = "".join(
-                '<li><span class="zeit">{zeit}</span> {text}</li>'.format(
-                    zeit=_t(e.get("zeit"), ""), text=_t(e.get("text"), ""))
-                for e in eintraege
-            )
+            status = _ticker_status_html(eintraege, _ticker_letzter_lauf_iso(ticker_datei))
+            liste = "".join(
+                _ticker_eintrag_html(e, neu=(i == 0)) for i, e in enumerate(eintraege))
             koerper = (
                 f"<h1>{_t(T._UEBERSCHRIFT_TICKER)}</h1>"
-                f'<ul class="ticker">{zeilen}</ul>'
+                f"{status}"
+                f'<div class="ticker-liste">{liste}</div>'
             )
         else:
             koerper = (
                 f"<h1>{_t(T._UEBERSCHRIFT_TICKER)}</h1>"
                 f'<p class="leer">{_t(T._TEXT_TICKER_LEER)}</p>'
             )
-    return _seite(T._TITEL_TICKER, _CSS_DASHBOARD, koerper, nachladen=False,
-                  skript=_TICKER_JS)
+    return _seite(T._TITEL_TICKER, _CSS_DASHBOARD + _CSS_TICKER, koerper,
+                  nachladen=False, skript=_TICKER_JS)
 
 
 #: Eigenes Nachlade-Intervall (60 s statt der zehn des Dashboards, Aufgabe
@@ -3291,6 +3520,137 @@ def _auswahlliste_html(daten: dict, liste: str) -> str:
     return "".join(teile)
 
 
+def _schaerfungsliste_html(daten: dict) -> str:
+    """Die Schaerfungs-Sortierliste im CoThinker (Padua Phase 5, 07.10.2026,
+    Birk: "der 'Show more'-Knopf ist unsinnig, besser eine Auswahl wie bei
+    den Begriffen -- Yes/No-Knopf, alle als Uebersicht zum Durchscrollen").
+
+    Dieselbe Bauweise wie ``_auswahlliste_html`` (``#buehne-panel
+    data-ansicht="auswahl"``, ``ul.auswahl`` mit ``.auswahl-knopf``/
+    ``.auswahl-fertig``) -- dieselbe Browser-Logik (``web_vereint._AUSWAHL_JS``)
+    bedient beide Listen ueber ``data-liste``. Nur zwei Knoepfe (Yes/No,
+    keine dritte "Umformulieren"-Option wie bei den Fragen) und reichere
+    Zeilen: Zusammenfassung, Interview-Nummer, das volle gepruefte Zitat,
+    die Begruendung -- alles, was bis zu diesem Umbau auf den seitenweisen
+    Chat-Karten stand, jetzt auf einmal zum Durchscrollen."""
+    zaehler = daten.get("zaehler") or {}
+    kopf = T._TEXT_SCHAERFUNGSLISTE_ZAEHLER.format(
+        **{k: int(zaehler.get(k) or 0) for k in ("ja", "nein", "offen")}
+    )
+    knoepfe = (("ja", "✓", T._TEXT_SCHAERFUNGSLISTE_JA), ("nein", "✗", T._TEXT_SCHAERFUNGSLISTE_NEIN))
+    teile = [
+        '<div id="buehne-panel" data-ansicht="auswahl" data-liste="schaerfung">',
+        f'<p class="schaerfung-erklaerung">{html.escape(T._TEXT_SCHAERFUNGSLISTE_ERKLAERUNG)}</p>',
+        f'<p class="auswahl-zaehler">{html.escape(kopf)}</p>',
+    ]
+    for gruppe in daten.get("gruppen") or []:
+        if gruppe.get("art") == "szene":
+            titel = T._TEXT_SCHAERFUNGSLISTE_SZENE.format(nummer=gruppe["nummer"])
+            if gruppe.get("titel"):
+                titel += f": {gruppe['titel']}"
+        else:
+            titel = gruppe.get("name") or ""
+        anzahl = len(gruppe.get("eintraege") or [])
+        teile.append(
+            f'<h3 class="auswahl-titel">{html.escape(titel)}'
+            f' <span class="herkunft">· {html.escape(T._TEXT_SCHAERFUNGSLISTE_ANZAHL.format(anzahl=anzahl))}</span></h3>'
+        )
+        zeilen = []
+        for eintrag in gruppe.get("eintraege") or []:
+            zustand = eintrag.get("zustand") or ""
+            reihe = "".join(
+                f'<button type="button" class="auswahl-knopf" data-wert="{wert}" '
+                f'aria-pressed="{"true" if wert == zustand else "false"}" '
+                f'aria-label="{html.escape(name, quote=True)}">{zeichen}</button>'
+                for wert, zeichen, name in knoepfe
+            )
+            interview = eintrag.get("interview") or ""
+            interview_html = (
+                f' <span class="herkunft">{html.escape(interview)}</span>' if interview else ""
+            )
+            begruendung = (eintrag.get("begruendung") or "").strip()
+            begruendung_html = (
+                f'<p class="schaerfung-verbindung">→ {html.escape(begruendung)}</p>'
+                if begruendung else ""
+            )
+            zeilen.append(
+                f'<li data-nummer="{int(eintrag["id"])}" '
+                f'data-zustand="{html.escape(zustand or "offen", quote=True)}">'
+                f'<span class="auswahl-text">'
+                f'{begruendung_html}'
+                f'<blockquote class="schaerfung-zitat">'
+                f'„{html.escape(eintrag.get("zitat") or "")}“</blockquote>'
+                f'<span class="schaerfung-quelle">{html.escape(eintrag.get("titel") or "")}{interview_html}</span>'
+                f'</span>'
+                f'<span class="auswahl-knoepfe">{reihe}</span></li>'
+            )
+        if zeilen:
+            teile.append(f'<ul class="auswahl">{"".join(zeilen)}</ul>')
+    teile.append(
+        f'<button type="button" class="auswahl-fertig">'
+        f'{html.escape(T._TEXT_SCHAERFUNGSLISTE_FERTIG)}</button></div>'
+    )
+    return "".join(teile)
+
+
+#: Die EINE sichere Markdown-Teilmenge einer Buehnenkarte (Birk 06.10.2026,
+#: Live-Test P4: das Modell schreibt ``**fett**``/``*kursiv*``/``- Punkte``,
+#: die Tafel zeigte das bisher roh -- Sternchen sichtbar, keine Absaetze).
+#: Maskiert IMMER zuerst (``html.escape``), wendet DANACH nur diese zwei
+#: Ersetzungen auf eine bereits maskierte Zeile an -- nie umgekehrt, sonst
+#: waere ein woertliches ``<script>`` im Kartentext ein XSS-Weg. Fett vor
+#: kursiv: sonst fraesse die Kursiv-Regel die Sternpaare der Fett-Regel an.
+#: Dieselbe Teilmenge, dieselbe Reihenfolge wie ``buehneMarkdown`` in
+#: ``web_vereint._VEREINT_JS`` (Browser-Verlauf, bisher ``textContent``).
+_BUEHNE_FETT = re.compile(r"\*\*([^*]+)\*\*")
+_BUEHNE_KURSIV = re.compile(r"\*([^*]+)\*")
+#: Eine Zeile, die GENAU EIN Fett-Paar ist und nichts sonst -- das wird eine
+#: Blockueberschrift, keine Flieszeile (Brief: "a line that is only a bold
+#: label"). ``[^*]+`` im Inneren verhindert einen Treffer bei zwei Fett-
+#: Spannen auf derselben Zeile.
+_BUEHNE_UEBERSCHRIFT = re.compile(r"^\*\*([^*]+)\*\*$")
+
+
+def _buehne_inline(zeile: str) -> str:
+    """Fett/kursiv auf einer bereits HTML-maskierten Zeile."""
+    zeile = _BUEHNE_FETT.sub(r"<strong>\1</strong>", zeile)
+    return _BUEHNE_KURSIV.sub(r"<em>\1</em>", zeile)
+
+
+def _buehne_markdown(text: str) -> str:
+    """Rendert eine Buehnenkarte als kleine HTML-Teilmenge statt als
+    Rohtext mit ``white-space: pre-wrap`` (siehe ``_CSS_BUEHNE``, die Regel
+    ist mit diesem Umbau raus). Leerzeilen trennen Absaetze, ``- ``/``• ``
+    leitet eine Aufzaehlung ein (fortlaufende Treffer werden zu EINER
+    ``<ul>``), eine Zeile aus genau einem ``**Label**`` wird eine
+    Blockueberschrift -- alles andere ein ``<p>``."""
+    bloecke: list[str] = []
+    liste: list[str] = []
+
+    def schliesse_liste() -> None:
+        if liste:
+            bloecke.append("<ul>" + "".join(f"<li>{z}</li>" for z in liste) + "</ul>")
+            liste.clear()
+
+    for rohzeile in html.escape(text or "").split("\n"):
+        zeile = rohzeile.strip()
+        if not zeile:
+            schliesse_liste()
+            continue
+        aufzaehlung = re.match(r"^(?:-|•)\s+(.+)$", zeile)
+        if aufzaehlung:
+            liste.append(_buehne_inline(aufzaehlung.group(1)))
+            continue
+        schliesse_liste()
+        ueberschrift = _BUEHNE_UEBERSCHRIFT.match(zeile)
+        if ueberschrift:
+            bloecke.append(f'<p class="buehne-ueberschrift"><strong>{ueberschrift.group(1)}</strong></p>')
+            continue
+        bloecke.append(f"<p>{_buehne_inline(zeile)}</p>")
+    schliesse_liste()
+    return "".join(bloecke)
+
+
 def _buehne_html(daten: dict) -> str:
     """Die CoThinker-Tafel: GENAU EINE Karte auf einmal, mit Browser-
     seitiger Verlaufsnavigation (Task 1, Padua CoThinker-Tab clean,
@@ -3323,6 +3683,19 @@ def _buehne_html(daten: dict) -> str:
         # Phase 2 unter Padua, sobald eine Auswahl steht: sortieren statt
         # nur ansehen (05.10.2026).
         return _auswahlliste_html(daten["auswahlliste"], liste="fragen")
+    if daten.get("schaerfungsliste"):
+        # Phase 5 unter Padua, sobald das Mapping gelaufen ist (07.10.2026,
+        # "Show more" war unsinnig): Yes/No-Sortierliste statt Seite fuer
+        # Seite im Chat.
+        return _schaerfungsliste_html(daten["schaerfungsliste"])
+    if daten.get("szenenkarten") is not None:
+        # Phase 6 unter Padua mit Karten (Birk 07.10.2026 ~19:25). Keine
+        # Zitate auf den Karten fuer G1 (Birk 08.10.2026 ~11:00): auch im
+        # CoThinker-Panel, nicht nur im Script-Tab.
+        from interview_theater import workshop
+
+        ohne_zitate = daten.get("chat_id") in workshop.skript_ohne_zitate_chats()
+        return _szenenkarten_html(daten["szenenkarten"], daten.get("chat_id"), ohne_zitate)
     if daten.get("fragenuebersicht_zeigen"):
         # Phase 2 (Birk, 05.10.2026): was je Begriff an Fragen steht.
         return _fragenuebersicht_html(daten.get("fragenuebersicht") or [])
@@ -3339,12 +3712,11 @@ def _buehne_html(daten: dict) -> str:
 
     if echte_neueste_zuerst:
         neueste = echte_neueste_zuerst[0]
-        # Plain Text + ``white-space: pre-wrap`` (CSS) statt
-        # ``.replace("\\n", "<br>")``: dieselbe Zeile, die die JS beim
-        # Zurueckblaettern per ``textContent`` setzt (siehe Report,
-        # "textContent vs. innerHTML") -- SSR und Client-Rendering sehen
-        # damit optisch gleich aus, ein Zeilenumbruch ist kein zweiter Weg.
-        text = html.escape(neueste["text"] or "")
+        # Die kleine Markdown-Teilmenge (``_buehne_markdown``, Birk
+        # 06.10.2026) statt rohem Text -- dieselbe Funktion, die die JS beim
+        # Zurueckblaettern per ``buehneMarkdown`` aufruft (siehe dort): SSR
+        # und Client-Rendering sehen damit gleich aus.
+        text = _buehne_markdown(neueste["text"] or "")
         alter = _buehne_alterszeile(neueste["erstellt_am"])
         teile.append(f'<div id="buehne-tafel">{text}{alter}</div>')
 
@@ -3405,6 +3777,47 @@ def _journal_html(eintraege: list[dict]) -> str:
         )
         for e in eintraege
     ) or f'<p class="leer">{_t(T._TEXT_NICHTS_NOTIERT)}</p>'
+
+
+def _recherche_html(eintraege: list[dict]) -> str:
+    """Die Recherchekarten -- herausgeloest wie ``_journal_html`` (Karte
+    t_c5117c91). Eigener Abschnitt, unabhaengig von den sieben Phasen."""
+    if not eintraege:
+        return f'<p class="leer">{_t(T._TEXT_RECHERCHE_LEER)}</p>'
+    return "".join(
+        '<div class="eintrag"><p class="frage">{frage}</p><p>{text}</p>{quellen}</div>'.format(
+            frage=_t(e["frage"]),
+            text=_t(e["ergebnis_text"]),
+            quellen=(
+                f'<p class="quellen">'
+                f'{_t(T._TEXT_RECHERCHE_QUELLEN.format(quellen=", ".join(e["quellen"])))}'
+                "</p>" if e.get("quellen") else ""
+            ),
+        )
+        for e in eintraege
+    )
+
+
+def _phasen_summary_html(eintraege: list[dict]) -> str:
+    """Der Werkbank-Abschnitt mit den Phasen-Summaries (Karte t_1bc96848,
+    Teil 3) -- "" ohne Eintraege, dann bleibt der ganze Abschnitt weg wie
+    Sprechanteile und Dramaturgie. Reine Anzeige, kein Modellaufruf hier."""
+    if not eintraege:
+        return ""
+    from interview_theater import phasen
+
+    zeilen = "".join(
+        '<div class="eintrag"><p class="phase">{titel}</p><p>{text}</p></div>'.format(
+            titel=_t(T._TEXT_PHASEN_SUMMARY_PHASE.format(
+                nummer=e["phase"], bezeichnung=phasen.bezeichnung(e["phase"]))),
+            text=_t(e["text"]),
+        )
+        for e in eintraege
+    )
+    return (
+        '<details class="wb-phasen-summary"><summary>'
+        f"{_t(T._UEBERSCHRIFT_PHASEN_SUMMARY)}</summary>{zeilen}</details>"
+    )
 
 
 def _wb_status_text(status: str) -> str:
@@ -3477,25 +3890,35 @@ def _cothinker_status_html(status: dict | None) -> str:
     bei ``web_gestalt._mikrotexte``)."""
     if not status:
         return ""
-    zustand = status["zustand"]
-    seit = status.get("seit") or ""
-    tickt = zustand in cothinker_status.TICKT
-    texte = {
-        cothinker_status.ZUSTAND_DENKT: T._TEXT_COTHINKER_DENKT,
-        cothinker_status.ZUSTAND_TRANSKRIBIERT: T._TEXT_COTHINKER_TRANSKRIBIERT,
-        cothinker_status.ZUSTAND_HOERT: T._TEXT_COTHINKER_HOERT,
-        cothinker_status.ZUSTAND_SCHWEIGT: T._TEXT_COTHINKER_SCHWEIGT,
-    }
-    text = _t(texte.get(zustand, zustand))
-    tickt_attr = ' data-tickt="1"' if tickt else ""
-    return (
-        f'<div id="cothinker-status" class="co-status co-{html.escape(zustand)}" '
-        f'data-zustand="{html.escape(zustand)}" data-seit="{html.escape(seit)}">'
-        f'<span class="co-icon" aria-hidden="true"></span>'
-        f'<span class="co-text">{text}</span>'
-        f'<span class="co-dauer"{tickt_attr}></span>'
-        f'</div>'
-    )
+    teile = []
+    zustand = status.get("zustand")
+    if zustand:
+        seit = status.get("seit") or ""
+        tickt = zustand in cothinker_status.TICKT
+        texte = {
+            cothinker_status.ZUSTAND_DENKT: T._TEXT_COTHINKER_DENKT,
+            cothinker_status.ZUSTAND_TRANSKRIBIERT: T._TEXT_COTHINKER_TRANSKRIBIERT,
+            cothinker_status.ZUSTAND_HOERT: T._TEXT_COTHINKER_HOERT,
+            cothinker_status.ZUSTAND_SCHWEIGT: T._TEXT_COTHINKER_SCHWEIGT,
+        }
+        text = _t(texte.get(zustand, zustand))
+        tickt_attr = ' data-tickt="1"' if tickt else ""
+        teile.append(
+            f'<div id="cothinker-status" class="co-status co-{html.escape(zustand)}" '
+            f'data-zustand="{html.escape(zustand)}" data-seit="{html.escape(seit)}">'
+            f'<span class="co-icon" aria-hidden="true"></span>'
+            f'<span class="co-text">{text}</span>'
+            f'<span class="co-dauer"{tickt_attr}></span>'
+            f'</div>'
+        )
+    puffer = status.get("puffer")
+    if puffer:
+        text = _t(T._TEXT_COTHINKER_PUFFER.format(n=puffer))
+        teile.append(
+            f'<div id="cothinker-puffer" class="co-puffer" data-anzahl="{int(puffer)}">'
+            f'{text}</div>'
+        )
+    return "".join(teile)
 
 
 def _buehnenkarte_html(karte: dict, erste: bool) -> str:
@@ -3508,9 +3931,10 @@ def _buehnenkarte_html(karte: dict, erste: bool) -> str:
 
 
 def _auch_vereinbart_html(daten: dict, szenen_anzahl: str | None) -> str:
-    """Stueckkarte und Festlegungen als EINE read-only Liste (Werkbank).
-    Setting, Figuren und Geschichte der Stueckkarte stehen schon darueber --
-    hier bleibt von ihr nur die Szenenzahl. Ohne Loeschknopf (kein Nonce)."""
+    """Freie Festlegungen und die Szenenzahl -- read-only, OHNE eigene
+    Ueberschrift (Birk 06.10.2026: 'Also agreed' war ueberfluessig, die
+    Sektion soll direkt unter den anderen Kategorien von Phase 4 stehen,
+    als Teil derselben Liste statt eines eigenen Blocks)."""
     zeilen = []
     if szenen_anzahl:
         zeilen.append(
@@ -3520,9 +3944,7 @@ def _auch_vereinbart_html(daten: dict, szenen_anzahl: str | None) -> str:
         )
     if daten.get("festlegungen"):
         zeilen.append(_festlegungen_html(daten, None))
-    if not zeilen:
-        return ""
-    return f"<h3>{_t(T._TEXT_WB_AUCH_VEREINBART)}</h3>" + "".join(zeilen)
+    return "".join(zeilen)
 
 
 def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
@@ -3556,13 +3978,22 @@ def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
         if leitfaden:
             teile.append(f"<dl>{leitfaden}</dl>")
     elif nummer == 3:
+        # Birk 08.10.2026 ~15:15: Volltranskripte je Interview-Untergruppe als
+        # PDF, ganz oben unter "Interviews" (erzeugt per Regie-Skript nach
+        # betrieb/transkripte/<chat_id>/; ohne Dateien kein Abschnitt).
+        teile.append(_transkript_downloads_html(daten.get("chat_id"), daten.get("web_token")))
         teile.append("".join(_interview_html(v) for v in daten["interviews"]))
     elif nummer == 4:
         zeilen = [
             f"<dt>{_t(dt[feld])}</dt><dd>{_t(stand[feld])}</dd>"
-            for feld in ("rahmen", "geschichte")
+            for feld in ("rahmen", "format", "geschichte")
             if (stand.get(feld) or "").strip()
         ]
+        # Birk 07.10.2026 ~16:30: das Format und die Formen, die der
+        # Formberater fuer die Gruppe nachgeschlagen hat, standen nirgends
+        # auf der Workbench.
+        if daten.get("formen_nah"):
+            zeilen.append(f"<dt>{_t(dt['formen_nah'])}</dt><dd>{_t(daten['formen_nah'])}</dd>")
         zeilen.append(_altbestand_html(stand))
         if daten["figuren"]:
             figuren = "".join(
@@ -3574,24 +4005,115 @@ def _wb_inhalt_html(nummer: int, daten: dict, werkbank: dict) -> str:
                 for f in daten["figuren"]
             )
             zeilen.append(f'<dt>{_t(dt["figuren"])}</dt><dd><ul class="figuren">{figuren}</ul></dd>')
-        if daten["szenen"]:
+        if daten["szenen"] and daten["szenen"][0].get("verdichtet") is not None:
+            zeilen.append(
+                f"<dt>{_t(T._UEBERSCHRIFT_SZENEN)}</dt>"
+                f"<dd>{_wb_szenen_verdichtet_html(daten['szenen'])}</dd>"
+            )
+        elif daten["szenen"]:
+            # Birk 07.10.2026 15:00: je Szene auch, was darin passiert --
+            # nur Titel sagte der Gruppe nicht, ob ihre Beschreibung
+            # gespeichert ist. Leere Beschreibung -> nur der Titel wie bisher.
             szenen = "".join(
-                "<li>{nr}. {titel}</li>".format(
+                "<li><b>{nr}. {titel}</b>{rest}</li>".format(
                     nr=_t("—" if s["nummer"] is None else str(s["nummer"])),
                     titel=_t(s.get("titel"), T._TEXT_OHNE_TITEL),
+                    rest=(f" — {_t((s.get('was_passiert') or s.get('kurzbeschreibung') or '').strip())}"
+                          if (s.get("was_passiert") or s.get("kurzbeschreibung") or "").strip() else ""),
                 )
                 for s in daten["szenen"]
             )
             zeilen.append(f"<dt>{_t(T._UEBERSCHRIFT_SZENEN)}</dt><dd><ul>{szenen}</ul></dd>")
         if any(zeilen):
             teile.append(f"<dl>{''.join(zeilen)}</dl>")
-        teile.append(_auch_vereinbart_html(daten, werkbank.get("szenen_anzahl")))
+        # Die Szenenzahl nur, solange es noch keine Szenen gibt -- sonst
+        # steht dieselbe Information doppelt (Birk 07.10.2026 15:00).
+        teile.append(_auch_vereinbart_html(
+            daten, None if daten["szenen"] else werkbank.get("szenen_anzahl")))
     elif nummer == 6:
-        teile.append(_dramaturgie_html(daten.get("dramaturgie")))
+        from interview_theater import workshop
+
+        # Padua-Phasenumbau (Workbench-Checkliste P6/P7, Birk 08.10.2026):
+        # unter ``[karten] aktiv`` steht am Ende von Phase 6 noch keine
+        # Szene als Text -- die Dramaturgie-Pruefung liest das ganze
+        # Textbuch und gehoert deshalb zu Phase 7 (Stage Script).
+        if not workshop.szenenkarten_aktiv():
+            teile.append(_dramaturgie_html(daten.get("dramaturgie")))
     elif nummer == 7:
+        from interview_theater import workshop
+
         teile.append(_sprechanteile_html(daten.get("sprechanteile")))
+        if workshop.szenenkarten_aktiv():
+            teile.append(_dramaturgie_html(daten.get("dramaturgie")))
     inhalt = "".join(t for t in teile if t)
     return f'<div class="wb-inhalt">{inhalt}</div>' if inhalt else ""
+
+
+#: Chrome-Text der Bedarfsliste (Birk 08.10.2026 ~13:45, Padua) -- bewusst
+#: NICHT ueber ``sprache.T``: Birk wollte die Liste Englisch und
+#: unuebersetzt, wie der Inhalt, der fertig aus der Seed-Datei kommt
+#: (``scripts/bedarf_seed.py``).
+_TEXT_BEDARF_TITEL = "Needs list — set, props, tech"
+_TEXT_BEDARF_ZAHL = "{erledigt} of {gesamt} done"
+
+
+#: Beschriftung des Download-Links (Nachtrag 1, Downloads an Bedarfspunkten)
+#: -- derselbe Grund wie ``_TEXT_BEDARF_TITEL``: Englisch, unuebersetzt.
+_TEXT_BEDARF_DOWNLOAD = "⬇ PDF"
+
+
+def _bedarf_punkt_html(p: dict, token: str | None) -> str:
+    erledigt = p["erledigt"]
+    haken = " checked" if erledigt else ""
+    klasse = " wb-bedarf-erledigt" if erledigt else ""
+    datei = p.get("datei")
+    link = (
+        f' <a class="wb-bedarf-datei" href="{_t(token)}/bedarf/{_t(datei)}">'
+        f"{html.escape(_TEXT_BEDARF_DOWNLOAD)}</a>"
+        if datei and token else ""
+    )
+    return (
+        f'<li class="wb-bedarf-punkt{klasse}"><label>'
+        f'<input type="checkbox" class="wb-bedarf-check" '
+        f'data-bedarf-id="{int(p["id"])}"{haken}> {_t(p["text"])}</label>{link}</li>'
+    )
+
+
+def _bedarf_html(punkte: list[dict], token: str | None) -> str:
+    """Die Bedarfsliste als Abhakliste -- Sektionen als Zwischenueber-
+    schriften, in der Reihenfolge, in der sie in ``punkte`` stehen
+    (``repo.bedarf`` sortiert global nach ``reihenfolge``, NICHT
+    alphabetisch nach Sektion -- siehe dort). "" ohne Punkte: der Abschnitt
+    bleibt dann ganz weg, wie Sprechanteile und Phasen-Summaries.
+
+    ``token`` fuer den Download-Link eines Punktes mit ``datei`` (Nachtrag
+    1): RELATIV als ``<token>/bedarf/<datei>``, derselbe Trick wie
+    ``web_vereint``s ``BASIS`` -- die Seite steht unter ``/g/<token>`` ohne
+    Schraegstrich, ein Link ohne das Token davor wuerde sonst ein Verzeichnis
+    zu hoch aufgeloest."""
+    if not punkte:
+        return ""
+    erledigt = sum(1 for p in punkte if p["erledigt"])
+    zahl = html.escape(_TEXT_BEDARF_ZAHL.format(erledigt=erledigt, gesamt=len(punkte)))
+    sektionen: list[tuple[str, list[dict]]] = []
+    for p in punkte:
+        if sektionen and sektionen[-1][0] == p["sektion"]:
+            sektionen[-1][1].append(p)
+        else:
+            sektionen.append((p["sektion"], [p]))
+    bloecke = "".join(
+        f'<div class="wb-bedarf-sektion"><h3>{_t(sektion)}</h3>'
+        f'<ul class="wb-bedarf-liste">'
+        + "".join(_bedarf_punkt_html(p, token) for p in liste)
+        + "</ul></div>"
+        for sektion, liste in sektionen
+    )
+    return (
+        '<details class="wb-bedarf" open><summary>'
+        f'{html.escape(_TEXT_BEDARF_TITEL)}'
+        f'<span class="wb-bedarf-zahl">{zahl}</span></summary>'
+        f"{bloecke}</details>"
+    )
 
 
 def werkbank_koerper(daten: dict) -> str:
@@ -3630,12 +4152,20 @@ def werkbank_koerper(daten: dict) -> str:
         f"{_t(T._TEXT_JOURNAL.format(anzahl=len(daten['journal'])))}</summary>"
         f"{_journal_html(daten['journal'])}</details>"
     )
+    recherche = (
+        '<details class="wb-recherche"><summary>'
+        f"{_t(T._UEBERSCHRIFT_RECHERCHE)}</summary>"
+        f"{_recherche_html(werkbank.get('recherche') or [])}</details>"
+    )
+    phasen_summary = _phasen_summary_html(daten.get("phasen_summaries") or [])
+    phasen_summary = f"\n{phasen_summary}" if phasen_summary else ""
     return (
         f"<h1>{_t(titel)}</h1>\n"
         '<div id="stand-inhalt" class="werkbank">\n'
         f'<p class="wb-hinweis">{_t(T._TEXT_WERKBANK_HINWEIS)}</p>\n'
+        f"{_bedarf_html(daten.get('bedarf') or [], daten.get('web_token'))}"
         + "\n".join(bloecke)
-        + f"\n{journal}\n</div>\n"
+        + f"\n{journal}\n{recherche}{phasen_summary}\n</div>\n"
     )
 
 
@@ -3919,6 +4449,7 @@ _PROBE_ANGABEN = (("form", "Form"), ("ort", "Ort"), ("zeit", "Zeit"),
 
 #: Die uebrigen Planungsfelder -- sie stehen nur unter einer Szene, die noch
 #: keinen Text hat. Dort sind sie das, was die Gruppe stattdessen lesen kann.
+_TEXT_PLANUNG_MEHR = "+ {anzahl} weitere in der Werkbank"
 _PROBE_PLANUNG = (("was_passiert", "Was passiert"), ("was_anders", "Was anders ist"),
                   ("kernsaetze", "Kernsätze"), ("ton", "Ton"))
 
@@ -3961,7 +4492,146 @@ def _fassungen_bloecke_html(s: dict, aktuell: str) -> str:
     return "".join(teile)
 
 
-def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
+#: Script-Tab (Birk 07.10.2026 ~17:30, G1: "Wall of Text ohne Umbrueche"):
+#: "What happens" und "Key lines" knapp und als Liste. Obergrenzen gelten
+#: nur fuer die ANZEIGE -- die Felder bleiben vollstaendig (Prompts).
+PLANUNG_PUNKTE_MAX = 6
+PLANUNG_PUNKT_ZEICHEN = 160
+KERNSAETZE_MAX = 5
+KERNSATZ_ZEICHEN = 200
+
+
+def _kappe(text: str, grenze: int) -> str:
+    text = " ".join(text.split())
+    if len(text) <= grenze:
+        return text
+    return text[:grenze].rsplit(" ", 1)[0].rstrip(" ,;:-") + " …"
+
+
+def _planung_punkte(feld: str, wert: str) -> list[str]:
+    """Zerlegt ein Planungsfeld in Listenpunkte: Kernsaetze an ``|``,
+    "What happens" an Saetzen und an den ``;``-Anhaengen der uebernommenen
+    Interviewstellen (``schaerfung._ergaenze_szene``)."""
+    import re as _re
+
+    if feld == "kernsaetze":
+        return [t.strip() for t in wert.split("|") if t.strip()]
+    # Saetze der Beschreibung bleiben ganz; nur die angehaengte Kette der
+    # Interview-Begruendungen (klein beginnend, mit "; " verbunden) wird zu
+    # Einzelpunkten -- ein "e.g. a; b; c" im Beschreibungssatz bleibt heil.
+    punkte: list[str] = []
+    for satz in _re.split(r"(?<!e\.g\.)(?<!i\.e\.)(?<!etc\.)(?<=[.!?])\s+", wert.strip()):
+        satz = satz.strip()
+        if not satz:
+            continue
+        if satz[0].islower() and "; " in satz:
+            punkte.extend(t.strip() for t in satz.split("; ") if t.strip())
+        else:
+            punkte.append(satz)
+    return punkte
+
+
+def _planung_wert_html(feld: str, wert: str) -> str:
+    """Padua (``prosa_entwurf_aktiv``): Liste mit Obergrenze; sonst wie bisher."""
+    from interview_theater import workshop
+
+    if not workshop.prosa_entwurf_aktiv() or feld not in ("was_passiert", "kernsaetze"):
+        return _t(wert)
+    punkte = _planung_punkte(feld, str(wert))
+    if feld == "kernsaetze":
+        grenze, zeichen = KERNSAETZE_MAX, KERNSATZ_ZEICHEN
+    else:
+        grenze, zeichen = PLANUNG_PUNKTE_MAX, PLANUNG_PUNKT_ZEICHEN
+    sichtbar = punkte[:grenze]
+    items = "".join(
+        f"<li>{_t(('“' + _kappe(p, zeichen) + '”') if feld == 'kernsaetze' else _kappe(p, zeichen))}</li>"
+        for p in sichtbar
+    )
+    rest = len(punkte) - len(sichtbar)
+    mehr = f'<li class="mehr">{_t(T._TEXT_PLANUNG_MEHR.format(anzahl=rest))}</li>' if rest > 0 else ""
+    return f'<ul class="planung-liste">{items}{mehr}</ul>'
+
+
+def _sprachfassungen(
+    lang: str | None, en: str, it: str
+) -> list[tuple[str | None, str | None, str]]:
+    """Welche Sprachfassung(en) eines Textblocks gezeigt werden (Morgen-
+    Auftrag 3): ``lang=None`` -- der Script-Tab, beide Fassungen gestapelt,
+    EN immer mit ``lang="en"`` (unveraendertes Verhalten), das Label nur
+    wenn es auch eine IT-Fassung gibt. ``lang="en"``/``"it"`` -- genau ein
+    PDF, eine Sprache, kein Label, kein ``lang``-Attribut (es gibt dort nur
+    einen Block). IT ohne eigene Fassung faellt auf EN zurueck -- nie eine
+    leere Szene im PDF."""
+    if lang == "en":
+        return [(None, None, en)]
+    if lang == "it":
+        return [(None, None, it or en)]
+    if it:
+        return [(T._TEXT_FASSUNG_EN, "en", en), (T._TEXT_FASSUNG_IT, "it", it)]
+    # Noch keine IT-Fassung (Spiegelung laeuft im Hintergrund): EN mit
+    # lang="en"; im Italienisch-Modus steht stattdessen der Hinweis
+    # "traduzione in arrivo" (Klasse it-fehlt, nur dann sichtbar).
+    return [(None, "en", en)]
+
+
+def _prosa_absaetze_html(text: str, ohne_zitate: bool = False) -> str:
+    """Script-Tab (Birk 07.10.2026 ~17:40: "keinerlei Zeilenumbrueche oder
+    Paragraphs"): Leerzeile = neuer Absatz, einfacher Umbruch = <br>,
+    ``**fett**`` und ``*kursiv*`` wie im Chat, ``NAME:`` am Zeilenanfang fett.
+
+    ``ohne_zitate`` (Morgen-Auftrag 1, G1, Nachtrag Birk 08.10.2026 ~08:30):
+    Interviewzitat-Zeilen (``> ...``) bleiben als normaler Sprechtext stehen
+    -- ohne Kasten, ohne Nummer, der Rest des Absatzes bleibt unveraendert."""
+    import re as _re
+
+    def zeile(z: str) -> str:
+        z = _t(z, "")
+        z = _re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", z)
+        z = _re.sub(r"(?<![*\w])\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"<em>\1</em>", z)
+        z = _re.sub(r"^([A-ZÀ-Ý][A-ZÀ-Ý' .-]{1,30}):", r"<strong>\1:</strong>", z)
+        return z
+
+    def entzitat(z: str) -> str:
+        """Wie ``zeile()``, aber ohne den ``*Interview quote (N):*``-Kopf
+        und ohne eine ``(Interview N)``-Fussnote -- der Wortlaut bleibt."""
+        inhalt = z.lstrip()[1:].strip()
+        inhalt = _re.sub(r"^\*[^*]*?\(\d+\):?\*:?\s*", "", inhalt)
+        inhalt = _re.sub(r"\s*\((?:Interview|Intervista|Interviewzitat)\s+\d+\)\s*[.,;:]?\s*$",
+                         "", inhalt)
+        return zeile(inhalt)
+
+    # Birk 07.10.2026 ~18:05: Interviewzitate sichtbar als solche --
+    # Zeilen "> ..." (Prompt formen/prosa im Padua-Profil: "> *Interview
+    # quote (N):* ...") werden ein eigener Zitatblock.
+    stuecke: list[str] = []
+    for a in [a.strip() for a in _re.split(r"\n\s*\n", (text or "").strip()) if a.strip()]:
+        if _re.fullmatch(r"-{3,}|\*{3,}|_{3,}", a):
+            # Ein Absatz nur aus "---" ist eine Trennlinie (Stage Script G3).
+            stuecke.append('<hr class="trenner">')
+            continue
+        normal: list[str] = []
+        for z in a.splitlines():
+            if z.lstrip().startswith(">"):
+                if ohne_zitate:
+                    normal.append(entzitat(z))
+                    continue
+                if normal:
+                    stuecke.append(f'<p class="prosa">{"<br>".join(normal)}</p>')
+                    normal = []
+                stuecke.append(
+                    f'<blockquote class="interviewzitat">{zeile(z.lstrip()[1:].strip())}</blockquote>'
+                )
+            else:
+                normal.append(zeile(z))
+        if normal:
+            stuecke.append(f'<p class="prosa">{"<br>".join(normal)}</p>')
+    return "".join(stuecke)
+
+
+def _probe_szene_html(
+    s: dict, bekannte: set[str], ohne_zitate: bool = False, lang: str | None = None,
+    chat_id: int | None = None,
+) -> tuple[str, list[str]]:
     """Eine Szene in der Probenansicht: Kopf, Angaben, Besetzung, Text.
 
     Nicht aufklappbar (anders als auf der Gruppenseite): hier wird das Stueck
@@ -3971,7 +4641,14 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
     Eine Szene ohne Volltext faellt nicht weg, sondern steht als Platzhalter
     mit ihrer Planung da (dieselbe Entscheidung wie in
     ``szenenfolge.textbuch``: ein Textbuch, in dem Szene 4 fehlt, sieht aus
-    wie ein Fehler)."""
+    wie ein Fehler).
+
+    ``ohne_zitate`` (Morgen-Auftrag 1, G1): die Interviewzitat-Bloecke fallen
+    in der Darstellung weg -- ``workshop.skript_ohne_zitate_chats``.
+    ``lang`` (Morgen-Auftrag 3): ``None`` zeigt beide Fassungen (Script-Tab),
+    ``"en"``/``"it"`` nur eine (je ein eigenes PDF) -- ``_sprachfassungen``."""
+    if s.get("verdichtet") is not None:
+        return _probe_szene_verdichtet_html(s, bekannte, ohne_zitate, lang, chat_id)
     kopf = _t(
         T._TEXT_SZENE_NR.format(nummer=s["nummer"])
         if s.get("nummer") is not None else T._TEXT_SZENE
@@ -3996,31 +4673,525 @@ def _probe_szene_html(s: dict, bekannte: set[str]) -> tuple[str, list[str]]:
         )
     volltext = (s.get("volltext") or "").strip()
     prosa = (s.get("prosa") or "").strip()
+    # Die italienische Spiegelung (Birk, Live-Workshop 07.10.2026 ~17:20,
+    # Padua-Profilschalter [skript] zweisprachig): nur gesetzt, wenn der
+    # Spiegelpass gelaufen ist. Ohne sie bleibt diese ganze Ansicht
+    # byte-gleich -- der Zweig unten greift rein datengetrieben.
+    prosa_it = (s.get("prosa_it") or "").strip()
     sprecher: list[str] = []
     if volltext:
         koerper, sprecher = szenentext_html(volltext, bekannte)
         zeilen.append(f'<div class="text">{koerper}</div>')
     else:
+        planungsfelder = T._PROBE_PLANUNG
+        if prosa_it:
+            # Kernsaetze sind das italienische Originalzitat -- sie gehoeren
+            # zum IT-Block unten, nicht in die sonst englische Planungsliste.
+            planungsfelder = [f for f in planungsfelder if f[0] != "kernsaetze"]
         planung = "".join(
-            f"<dt>{_t(label)}</dt><dd>{_t(s[feld])}</dd>"
-            for feld, label in T._PROBE_PLANUNG
+            f"<dt>{_t(label)}</dt><dd>{_planung_wert_html(feld, s[feld])}</dd>"
+            for feld, label in planungsfelder
             if s.get(feld)
         )
-        zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
+        if not prosa and not prosa_it:
+            # P57 Lauf 2 B2: "Noch nicht geschrieben" nur ohne Prosa -- mit
+            # Prosa stand es ueber dem vorhandenen Szenentext (Padua 5/6).
+            zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
         if prosa:
             # Die Prosafassung aus Phase 6 ist der eigene Text der Gruppe und
             # kein Material -- sie steht hier, wo sonst nichts stuende, und
             # sagt dazu, dass sie noch keine Szene ist.
+            etikett = T._TEXT_ALS_GESCHICHTE_EN if prosa_it else T._TEXT_ALS_GESCHICHTE_DOPPELPUNKT
             zeilen.append(
-                f'<p class="angaben">{_t(T._TEXT_ALS_GESCHICHTE_DOPPELPUNKT)}</p><div class="text">'
-                f'<p class="prosa">{_t(prosa)}</p></div>'
+                f'<p class="angaben">{_t(etikett)}</p><div class="text">'
+                f'{_prosa_absaetze_html(prosa)}</div>'
             )
+        if prosa_it:
+            zeilen.append(
+                f'<p class="angaben">{_t(T._TEXT_ALS_GESCHICHTE_IT)}</p><div class="text">'
+                f'{_prosa_absaetze_html(prosa_it)}</div>'
+            )
+            kernsaetze_roh = (s.get("kernsaetze") or "").strip()
+            if kernsaetze_roh:
+                zeilen.append(
+                    f'<p class="angaben">{_t(T._TEXT_KERNSAETZE_IT)}</p>'
+                    f'{_prosa_absaetze_html(kernsaetze_roh)}'
+                )
         if planung:
             zeilen.append(f'<dl class="planung">{planung}</dl>')
     bloecke = _fassungen_bloecke_html(s, volltext or prosa)
     if bloecke:
         zeilen.append(bloecke)
     return f'<section class="probe-szene">{"".join(zeilen)}</section>', sprecher
+
+
+#: Script-Tab unter ``[skript] verdichtet`` (Birk 07.10.2026 ~17:45, "Fokus
+#: halten. Gut lesbar."): was die Gruppe liest und probt -- der Text. Die
+#: Kurzform steht nur, solange es noch keinen Text gibt.
+_TEXT_WORUM = "Worum es geht"
+_TEXT_STAERKSTE = "Stärkste Zitate"
+_TEXT_STATUS_KONZEPT = "Konzept"
+_TEXT_STATUS_FERTIG = "ausformuliert"
+_TEXT_FASSUNG_EN = "English"
+_TEXT_FASSUNG_IT = "Italiano"
+_TEXT_ALLE_ZITATE = "Alle übernommenen Zitate ({anzahl})"
+_TEXT_WB_WO_WER = "Wo · Wer: {wert}"
+ORT_ZEICHEN = 140
+
+
+def _liste_html(klasse: str, punkte: list[str], zeichen: int) -> str:
+    if not punkte:
+        return ""
+    return f'<ul class="{klasse}">' + "".join(
+        f"<li>{_t(_kappe(p, zeichen))}</li>" for p in punkte) + "</ul>"
+
+
+def _kurzform_punkte(v: dict) -> list[str]:
+    """Die Kurzform, sonst die bereinigte Beschreibung der Gruppe in Saetzen
+    (Rueckfall, wenn ``szenenkern.verdichte`` noch nicht lief oder scheiterte)."""
+    if v.get("kern"):
+        return v["kern"][:PLANUNG_PUNKTE_MAX]
+    return _planung_punkte("was_passiert", v.get("beschreibung") or "")[:PLANUNG_PUNKTE_MAX]
+
+
+def _staerkste_zitate(v: dict) -> list[str]:
+    if v.get("kernsaetze_kurz"):
+        return v["kernsaetze_kurz"][:KERNSAETZE_MAX]
+    return [f"“{k}”" for k in (v.get("kernsaetze_eigen") or [])[:KERNSAETZE_MAX]]
+
+
+_TEXT_PROSA_MATERIAL = "Frueherer Prosaentwurf (Material)"
+_TEXT_KARTE_GESPEICHERT = "gespeichert"
+_TEXT_KARTE_OFFEN = "noch nicht gespeichert"
+
+
+def _karte_html(karte: dict, bestaetigt: bool, ohne_zitate: bool = False,
+                chat_id: int | None = None) -> str:
+    """Die Szenenkarte im Script-Tab: Typ, worum, wo/wer, Punkte, Zitate im
+    Original, offene Fragen -- dieselben Felder wie im Chat."""
+    from interview_theater import szenenkarte
+
+    # Morgen-Auftrag 4, Nachtrag 2: dieselben Kartentexte wie im Chat
+    # (szenenkarte._T), nur fuer Chats aus
+    # workshop.italienisch_ab_phase6_chats().
+    st = szenenkarte._T(chat_id)
+    typ = st.TYP_BESCHRIFTUNG.get(karte.get("typ"), karte.get("typ") or "")
+    tk = _T(chat_id)
+    status = tk._TEXT_KARTE_GESPEICHERT if bestaetigt else tk._TEXT_KARTE_OFFEN
+    teile = [f'<p class="karte-typ">{_t(typ)} · {_t(status)}</p>']
+    if karte.get("worum"):
+        teile.append(f'<p class="karte-worum">{_t(karte["worum"])}</p>')
+    angaben = [f"<b>{_t(st._ZEILE_ORT)}</b> {_t(karte['ort'])}" if karte.get("ort") else "",
+               f"<b>{_t(st._ZEILE_WER)}</b> {_t(karte['wer'])}" if karte.get("wer") else ""]
+    angaben = [a for a in angaben if a]
+    if angaben:
+        teile.append(f'<p class="karte-angaben">{"<br>".join(angaben)}</p>')
+    if karte.get("punkte"):
+        teile.append(f'<p class="worum-kopf">{_t(st._ZEILE_PUNKTE)}</p>'
+                     + _liste_html("worum-liste", karte["punkte"], 400))
+    # G1 (Birk 08.10.2026 ~11:00): keine Zitate im Script/PDF -- auch nicht
+    # auf den Karten, die dort stehen, solange es kein Stage Script gibt.
+    if karte.get("zitate") and not ohne_zitate:
+        zitate = "".join(
+            f'<blockquote class="karte-zitat" lang="it">“{_t(z.get("zitat"))}”'
+            + (f' <span class="quelle">({_t(z["interview"])})</span>' if z.get("interview") else "")
+            + "</blockquote>"
+            for z in karte["zitate"]
+        )
+        teile.append(f'<p class="worum-kopf">{_t(st._ZEILE_ZITATE)}</p>{zitate}')
+    if karte.get("fragen"):
+        teile.append(f'<p class="worum-kopf">{_t(st._ZEILE_FRAGEN)}</p>'
+                     + _liste_html("worum-liste", karte["fragen"], 400))
+    return f'<div class="szenenkarte">{"".join(teile)}</div>'
+
+
+_PARTITUR_MODI = ("microphone", "one_to_one", "collective")
+PARTITUR_SPALTEN = {"microphone": "🎤 Mikrofon", "one_to_one": "👂 1:1",
+                    "collective": "👥 Kollektiv"}
+
+
+def _partitur_html(szenen: list[dict]) -> str:
+    """G3 (Padua-Phasenumbau, Entwurf Robo 18:10): ein Stueck aus Momenten
+    steht oben als Orts-Partitur -- drei Spalten (Mikrofon, 1:1, Kollektiv),
+    die Zeit von oben nach unten; ein Moment ohne Modus geht ueber alle drei.
+    Nur, wenn die Karten ueberwiegend Momente sind; sonst nichts."""
+    karten = [(s, s.get("karte") or {}) for s in szenen]
+    momente = [k for _, k in karten if k.get("typ") == "moment"]
+    if not momente or len(momente) * 2 <= len(karten):
+        return ""
+    kopf = "".join(f"<th>{_t(T.PARTITUR_SPALTEN[m])}</th>" for m in _PARTITUR_MODI)
+    zeilen = []
+    for s, k in karten:
+        titel = f"{s.get('nummer')}. {s.get('titel') or ''}".strip()
+        zelle = f"<b>{_t(titel)}</b>" + (f"<br>{_t(_kappe(k.get('worum') or '', 120))}"
+                                          if k.get("worum") else "")
+        modus = k.get("modus") if k.get("typ") == "moment" else None
+        if modus in _PARTITUR_MODI:
+            zellen = "".join(f'<td class="an">{zelle}</td>' if m == modus else "<td></td>"
+                             for m in _PARTITUR_MODI)
+        else:
+            zellen = f'<td colspan="3" class="ganz">{zelle}</td>'
+        zeilen.append(f"<tr>{zellen}</tr>")
+    return (f'<section class="probe-szene partitur"><table class="partitur">'
+            f"<thead><tr>{kopf}</tr></thead><tbody>{''.join(zeilen)}</tbody></table></section>")
+
+
+_TEXT_KARTE_ENTSTEHT = "Karte {nummer} entsteht gerade ..."
+_TEXT_KARTEN_ALLE = "Alle Karten sind gespeichert. Im Chat geht es weiter zum Stage Script."
+_TEXT_KARTE_JA = "Yes, save"
+_TEXT_KARTE_BAUEN = "Karte jetzt bauen"
+_TEXT_KARTE_VORHERIGE = "Vorherige Karte"
+_TEXT_KARTE_NAECHSTE = "Naechste Karte"
+_TEXT_KARTE_NOCH_NICHT = "Diese Karte gibt es noch nicht -- sie entsteht, wenn sie dran ist."
+_TEXT_KARTE_ZUR_AKTUELLEN = "Zur aktuellen Karte"
+_TEXT_KARTE_NEIN = "No, change"
+_TEXT_KARTEN_ZAEHLER = "Karte {aktiv} von {gesamt}"
+
+
+def _szenenkarten_html(liste: list[dict], chat_id: int | None = None,
+                       ohne_zitate: bool = False) -> str:
+    """Die Szenenkarten im CoThinker (Padua Phase 6, Birk 07.10.2026 ~19:25
+    und ~19:35, verbindlich): Handy-first, schlank.
+
+    Oben die Leiste ``‹ Card k of n ›`` (Pfeile NUR oben -- niemand soll
+    scrollen muessen), darunter die GEZEIGTE Karte: zuerst die aktive, gross,
+    mit "Yes, save" / "No, change"; jede andere ist nur Ansicht (Status, ein
+    Weg zurueck zur aktiven), abgenommen wird allein die aktive. Darunter
+    jede Karte als EINE Zeile -- ein Klick zeigt sie. Welche Karte gezeigt
+    wird, haelt das Browser-Skript (``web_vereint._AUSWAHL_JS``) ueber das
+    Nachladen hinweg fest; ohne Skript bleibt die aktive gezeigt."""
+    gesamt = len(liste)
+    aktive = next((k for k in liste if k["aktiv"]), None)
+    vorlage = T._TEXT_KARTEN_ZAEHLER.replace("{gesamt}", str(gesamt))
+    zaehler = vorlage.replace("{aktiv}", str(aktive["nummer"])) if aktive else ""
+    teile = [
+        f'<div id="buehne-panel" data-ansicht="karten" '
+        f'data-aktiv="{int(aktive["nummer"]) if aktive else ""}">',
+        '<div class="karten-nav">'
+        f'<button type="button" class="karten-pfeil" data-richtung="-1" '
+        f'aria-label="{_t(T._TEXT_KARTE_VORHERIGE)}">‹</button>'
+        f'<span class="karten-zaehler" data-vorlage="{_t(vorlage)}">{_t(zaehler)}</span>'
+        f'<button type="button" class="karten-pfeil" data-richtung="1" '
+        f'aria-label="{_t(T._TEXT_KARTE_NAECHSTE)}">›</button></div>',
+    ]
+    zeilen = []
+    for k in liste:
+        nummer = int(k["nummer"])
+        titel = _t(f'{k["nummer"]}. {k["titel"]}'.strip())
+        if k["aktiv"]:
+            zustand = "aktiv"
+        elif k["bestaetigt"]:
+            zustand = "fertig"
+        else:
+            zustand = "spaeter"
+        if k["aktiv"] and k["karte"] is None:
+            inhalt = f'<p class="karte-entsteht">{_t(_T(chat_id)._TEXT_KARTE_ENTSTEHT.format(nummer=nummer))}</p>'
+            # Rettungsweg, falls die Erzeugung nie fertig wurde (Neustart
+            # mitten im Lauf): laeuft sie noch, sagt der Bot das nur.
+            knoepfe = (
+                '<div class="karte-aktionen">'
+                f'<button type="button" class="karte-knopf karte-bauen" data-aktion="bauen" '
+                f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_BAUEN)}</button></div>'
+            )
+        elif k["aktiv"]:
+            inhalt = _karte_html(k["karte"], False, ohne_zitate, chat_id)
+            if k["karte"].get("fragen"):
+                # Offene Fragen: "Yes, save" waere ohnehin serverseitig
+                # abgelehnt (``szenenkarte.bestaetige``) -- statt dessen nur
+                # "Clear the questions" / "Skip questions" (Birk 08.10.2026
+                # ~09:20/~09:30).
+                from interview_theater import szenenkarte
+
+                knoepfe = (
+                    '<div class="karte-aktionen">'
+                    f'<button type="button" class="karte-knopf karte-klaeren" '
+                    f'data-aktion="klaeren" data-nummer="{nummer}">'
+                    f'{_t(szenenkarte.T._TEXT_KLAEREN_KNOPF)}</button>'
+                    f'<button type="button" class="karte-knopf karte-ueberspringen" '
+                    f'data-aktion="ueberspringen" data-nummer="{nummer}">'
+                    f'{_t(szenenkarte.T._TEXT_UEBERSPRINGEN_KNOPF)}</button></div>'
+                )
+            else:
+                knoepfe = (
+                    '<div class="karte-aktionen">'
+                    f'<button type="button" class="karte-knopf karte-ja" data-aktion="ja" '
+                    f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_JA)}</button>'
+                    f'<button type="button" class="karte-knopf karte-nein" data-aktion="aendern" '
+                    f'data-nummer="{nummer}">{_t(T._TEXT_KARTE_NEIN)}</button></div>'
+                )
+        else:
+            inhalt = (_karte_html(k["karte"], k["bestaetigt"], ohne_zitate, chat_id)
+                      if k["karte"] is not None
+                      else f'<p class="karte-entsteht">{_t(_T(chat_id)._TEXT_KARTE_NOCH_NICHT)}</p>')
+            knoepfe = (
+                f'<p class="karte-nur-ansicht"><button type="button" class="karte-zurueck">'
+                f'{_t(T._TEXT_KARTE_ZUR_AKTUELLEN)}</button></p>' if aktive is not None else ""
+            )
+        haken = "✓ " if k["bestaetigt"] else ""
+        gezeigt = " gezeigt" if k["aktiv"] else ""
+        aktiv_klasse = " karte-aktiv" if k["aktiv"] else ""
+        zeilen.append(
+            f'<li class="karte-eintrag {zustand}{aktiv_klasse}{gezeigt}" data-nummer="{nummer}">'
+            f'<button type="button" class="karte-zeile">{haken}{titel}</button>'
+            f'<div class="karte-koerper"><h3 class="karte-titel">{titel}</h3>{inhalt}{knoepfe}</div>'
+            "</li>"
+        )
+    teile.append(f'<ul class="karten">{"".join(zeilen)}</ul>')
+    if aktive is None and liste:
+        teile.append(f'<p class="karten-fertig">{_t(T._TEXT_KARTEN_ALLE)}</p>')
+    teile.append("</div>")
+    return "".join(teile)
+
+
+_CSS_KARTEN_BUEHNE = """
+.karten { list-style: none; margin: 0; padding: 0; }
+.karten-zaehler { margin: .2rem 0 .6rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
+.karten-nav { display: flex; align-items: center; gap: .5rem; margin: .1rem 0 .5rem; }
+.karten-nav .karten-zaehler { flex: 1; text-align: center; margin: 0; }
+.karten-pfeil { min-width: 2.9rem; min-height: 2.6rem; font: inherit; font-size: 1.4rem; line-height: 1; border-radius: 1.4rem; border: 1px solid var(--rand, #cfc8b6); background: var(--grund-2, transparent); color: var(--text, #1b1b1b); cursor: pointer; }
+.karten-pfeil:disabled { opacity: .3; }
+.karte-zeile { display: block; width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid var(--linie, #ddd8cc); cursor: pointer; padding: .55rem .2rem; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.karte-eintrag.spaeter .karte-zeile { opacity: .45; }
+.karte-eintrag.fertig .karte-zeile { color: var(--text-leise, #6b6b6b); }
+.karte-koerper { display: none; }
+.karte-eintrag.gezeigt .karte-zeile { display: none; }
+.karte-eintrag.gezeigt .karte-koerper { display: block; margin: .4rem 0 1rem; padding: .9rem 1rem 1rem; border: 1px solid var(--linie, #ddd8cc); border-radius: .8rem; background: var(--grund-2, transparent); }
+.karte-nur-ansicht { margin: 1rem 0 0; }
+.karte-zurueck { font: inherit; font-size: .9rem; background: none; border: 0; padding: 0; color: var(--signal, #2f4858); text-decoration: underline; cursor: pointer; }
+.karte-titel { margin: 0 0 .35rem; font-size: 1.15rem; line-height: 1.25; }
+.karte-koerper .szenenkarte { margin: 0; max-width: none; }
+.karte-entsteht { margin: .3rem 0; font-style: italic; color: var(--text-leise, #6b6b6b); }
+.karte-aktionen { display: flex; gap: .6rem; margin: 1rem -1rem -1rem; padding: .7rem 1rem calc(1.7rem + env(safe-area-inset-bottom, 0px)); position: sticky; bottom: -1rem; background: var(--grund-2, #1d2026); border-top: 1px solid var(--linie, #ddd8cc); border-radius: 0 0 .8rem .8rem; }
+.karte-knopf { flex: 1; min-height: 2.9rem; font: inherit; font-size: 1rem; border-radius: 1.5rem; border: 1px solid var(--rand, #cfc8b6); background: var(--grund, #fff); color: var(--text, #1b1b1b); cursor: pointer; }
+.karte-ja, .karte-klaeren { background: var(--signal, #2f4858); border-color: var(--signal, #2f4858); color: var(--auf-signal, #fff); font-weight: 700; }
+.karte-knopf:disabled { opacity: .5; }
+.karten-fertig { margin: 1rem 0; font-style: italic; }
+"""
+
+
+def css_karten_buehne() -> str:
+    """Leer ohne ``[karten] aktiv`` -- dann bleibt die Seite byte-gleich."""
+    from interview_theater import workshop
+
+    if not workshop.szenenkarten_aktiv():
+        return ""
+    return _CSS_KARTEN_BUEHNE + _CSS_TEXTBUCH_LESBAR_KARTE
+
+
+#: Die Kartenfelder (``_karte_html``) im CoThinker brauchen dieselben Regeln
+#: wie im Script-Tab -- dort stehen sie in ``_CSS_TEXTBUCH_LESBAR``.
+_CSS_TEXTBUCH_LESBAR_KARTE = """
+.szenenkarte { line-height: 1.5; }
+.karte-typ { margin: 0 0 .3rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
+.karte-worum { margin: 0 0 .7rem; font-size: 1.05rem; }
+.karte-angaben { margin: 0 0 .7rem; font-size: .9rem; }
+.worum-kopf { margin: .5rem 0 .25rem; font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
+.worum-liste { margin: 0 0 .5rem; padding-left: 1.1rem; }
+.worum-liste li { margin: .22rem 0; }
+.karte-zitat { margin: .35rem 0 .55rem; padding: .1rem 0 .1rem .8rem; border-left: 2px solid var(--linie, #ddd8cc); font-style: italic; }
+.karte-zitat .quelle { font-style: normal; font-size: .82em; color: var(--text-leise, #6b6b6b); }
+"""
+
+
+def _probe_szene_verdichtet_html(
+    s: dict, bekannte: set[str], ohne_zitate: bool = False, lang: str | None = None,
+    chat_id: int | None = None,
+) -> tuple[str, list[str]]:
+    """Eine Szene im Script-Tab, auf das Wesentliche reduziert: Kopf, Ort und
+    Besetzung, der Text (EN und IT als eigene Bloecke). "Worum es geht" und
+    die staerksten Zitate nur, solange kein Text da ist -- danach stehen die
+    Zitate im Text, eine Liste darunter waere Doppelung."""
+    v = s.get("verdichtet") or {}
+    kopf = _t(
+        T._TEXT_SZENE_NR.format(nummer=s["nummer"])
+        if s.get("nummer") is not None else T._TEXT_SZENE
+    )
+    if s.get("titel"):
+        kopf += f" — {_t(s['titel'])}"
+    angaben = " · ".join(
+        _t(_kappe(_form_anzeige(s[feld]) if feld == "form" else str(s[feld]), ORT_ZEICHEN))
+        for feld, _ in T._PROBE_ANGABEN
+        if s.get(feld) and feld != "form"
+    )
+    # Das abgenommene Stage-Script-Design (Birk 08.10.2026 ~00:05,
+    # web_skript.py): Badge des Orts im Kopf, Typ/Ort aus der Karte darunter.
+    design = _skript_design() and bool(s.get("karte"))
+    if design:
+        from interview_theater import web_skript
+
+        kopf += web_skript.badge_html(s["karte"])
+    # Birk 08.10.2026 ~11:50: Status je Szene klar sichtbar -- Konzept (rot,
+    # nur Karte) oder ausformuliert (gruen, Stage Script da).
+    if design and lang is None:
+        if (s.get("volltext") or "").strip():
+            kopf += f' <span class="status-badge fertig">{_t(_T(chat_id)._TEXT_STATUS_FERTIG)}</span>'
+        else:
+            kopf += f' <span class="status-badge konzept">{_t(_T(chat_id)._TEXT_STATUS_KONZEPT)}</span>'
+    zeilen = [f'<h2 class="szenenkopf">{kopf}</h2>']
+    if design and web_skript.meta_html(s["karte"]):
+        zeilen.append(web_skript.meta_html(s["karte"]))
+    elif angaben:
+        zeilen.append(f'<p class="angaben">{angaben}</p>')
+    if s.get("figuren"):
+        zeilen.append(
+            f'<p class="besetzung">'
+            f'{_t(T._TEXT_BESETZUNG.format(figuren=", ".join(s["figuren"])))}</p>'
+        )
+    volltext = (s.get("volltext") or "").strip()
+    prosa = (s.get("prosa") or "").strip()
+    prosa_it = (s.get("prosa_it") or "").strip()
+    sprecher: list[str] = []
+    volltext_it = (s.get("volltext_it") or "").strip()
+    if volltext and "karte" in s:
+        # Padua-Phasenumbau: das Stage Script ist kein Dialog im alten Sinn
+        # (Ablauf, Anweisungen, Momente) -- dieselbe Lesedarstellung wie die
+        # Prosa: Absaetze, **fett**, NAME: fett, Zitatbloecke; EN/IT getrennt.
+        lesen = ((lambda t: web_skript.text_html(t, ohne_zitate)) if design else
+                 (lambda t: _prosa_absaetze_html(t, ohne_zitate)))
+        fassungen = _sprachfassungen(lang, volltext, volltext_it)
+        if lang is None and not volltext_it:
+            fassungen = fassungen + [("__it_fehlt__", "it", "")]
+        for label, lang_attr, fassung in fassungen:
+            if label == "__it_fehlt__":
+                zeilen.append('<div class="text it-fehlt" lang="it"><p><em>'
+                              'Traduzione italiana in arrivo -- tra un minuto ricaricate la pagina.'
+                              '</em></p></div>')
+                continue
+            if label:
+                zeilen.append(f'<p class="sprache-kopf">{_t(label)}</p>')
+            attr = f' lang="{lang_attr}"' if lang_attr else ""
+            zeilen.append(f'<div class="text"{attr}>{lesen(fassung)}</div>')
+    elif volltext:
+        koerper, sprecher = szenentext_html(volltext, bekannte)
+        zeilen.append(f'<div class="text">{koerper}</div>')
+    elif s.get("karte"):
+        # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): bis zum Stage Script
+        # steht die Szenenkarte hier; eine fruehere Prosa ist nur Material.
+        zeilen.append(_karte_html(s["karte"], s.get("karte_bestaetigt"), ohne_zitate, chat_id))
+        if prosa:
+            zeilen.append(
+                f'<details class="fruehere"><summary>{_t(T._TEXT_PROSA_MATERIAL)}</summary>'
+                f'<div class="text" lang="en">{_prosa_absaetze_html(prosa)}</div></details>'
+            )
+    elif prosa:
+        for label, lang_attr, fassung in _sprachfassungen(lang, prosa, prosa_it):
+            if label:
+                zeilen.append(f'<p class="sprache-kopf">{_t(label)}</p>')
+            attr = f' lang="{lang_attr}"' if lang_attr else ""
+            zeilen.append(f'<div class="text"{attr}>{_prosa_absaetze_html(fassung)}</div>')
+    else:
+        zeilen.append(f'<p class="offen">{_t(T.TEXT_UNGESCHRIEBEN)}</p>')
+        worum = _liste_html("worum-liste", _kurzform_punkte(v), PLANUNG_PUNKT_ZEICHEN)
+        zitate = _liste_html("kernzeilen", _staerkste_zitate(v), KERNSATZ_ZEICHEN)
+        if worum or zitate:
+            teile = [f'<p class="worum-kopf">{_t(T._TEXT_WORUM)}</p>', worum]
+            if zitate:
+                teile.append(f'<p class="worum-kopf">{_t(T._TEXT_STAERKSTE)}</p>{zitate}')
+            zeilen.append(f'<div class="worum">{"".join(teile)}</div>')
+    bloecke = _fassungen_bloecke_html(s, volltext or prosa)
+    if bloecke:
+        zeilen.append(bloecke)
+    return f'<section class="probe-szene">{"".join(zeilen)}</section>', sprecher
+
+
+#: Lesetypografie fuer Script-Tab und Probenansicht unter ``[skript]
+#: verdichtet``: ~65 Zeichen Zeilenlaenge, ruhige Zeilenhoehe, Luft
+#: zwischen den Absaetzen, Sprecher fett, Regie kursiv und grau. Ohne
+#: Kommentar vor einer Regel (``scope_css``).
+_CSS_TEXTBUCH_LESBAR = """
+.probe-szene { margin: 0 0 3.2rem; }
+.szenenkopf { margin: 2.4rem 0 .5rem; line-height: 1.25; }
+.angaben, .besetzung { max-width: 65ch; line-height: 1.45; }
+.probe-szene .text { max-width: 65ch; margin-top: 1.1rem; }
+.probe-szene .text p { margin: 0 0 1.05em; line-height: 1.68; hyphens: auto; }
+.probe-szene .text .sprecher { font-weight: 700; }
+.probe-szene .text .regie, .probe-szene .text .regie-zeile { font-style: italic; color: var(--text-leise, #6b6b6b); }
+.sprache-kopf { margin: 1.8rem 0 .2rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
+.worum { max-width: 65ch; margin: .9rem 0 0; padding: .55rem 0 .55rem .9rem; border-left: 2px solid var(--linie, #ddd8cc); font-size: .9rem; line-height: 1.5; color: var(--text-leise, #555); }
+.worum-kopf { margin: .2rem 0 .25rem; font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; }
+.worum-liste, .kernzeilen { margin: 0 0 .5rem; padding-left: 1.1rem; }
+.worum-liste li, .kernzeilen li { margin: .22rem 0; }
+.kernzeilen li { font-style: italic; }
+.wege .pdf-knopf { display: inline-block; padding: .3rem .95rem; border: 1px solid var(--signal, #6b5a2b); border-radius: 1rem; font-weight: 700; text-decoration: none; }
+.szenenkarte { max-width: 65ch; margin: 1rem 0 0; line-height: 1.55; }
+.karte-typ { margin: 0 0 .3rem; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-leise, #6b6b6b); }
+.karte-worum { margin: 0 0 .7rem; font-size: 1.08rem; }
+.karte-angaben { margin: 0 0 .7rem; font-size: .9rem; }
+.karte-zitat { margin: .35rem 0 .55rem; padding: .1rem 0 .1rem .8rem; border-left: 2px solid var(--linie, #ddd8cc); font-style: italic; }
+.partitur { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .88rem; line-height: 1.4; }
+.partitur th { text-align: left; padding: .3rem .4rem; border-bottom: 1px solid var(--linie, #ddd8cc); font-weight: 600; }
+.partitur td { vertical-align: top; padding: .45rem .4rem; border-bottom: 1px dotted var(--linie, #ddd8cc); }
+.partitur td.an { background: rgba(127, 127, 127, .12); border-radius: .3rem; }
+.partitur td.ganz { text-align: center; color: var(--text-leise, #6b6b6b); }
+.karte-zitat .quelle { font-style: normal; font-size: .82em; color: var(--text-leise, #6b6b6b); }
+"""
+
+
+def css_textbuch_lesbar() -> str:
+    """Leer ohne ``[skript] verdichtet`` -- dann bleibt jede Seite byte-gleich."""
+    from interview_theater import workshop
+
+    if not workshop.skript_verdichtet_aktiv():
+        return ""
+    from interview_theater import web_skript
+
+    return _CSS_TEXTBUCH_LESBAR + web_skript.CSS
+
+
+_CSS_WERKBANK_KURZ = """
+.wb-szenen { list-style: none; padding: 0; margin: 0; }
+.wb-szene { margin: 0 0 1.1rem; padding: 0 0 .9rem; border-bottom: 1px solid var(--linie, #ddd8cc); }
+.wb-szene:last-child { border-bottom: 0; }
+.wb-kern { margin: .3rem 0 .4rem; padding-left: 1.1rem; line-height: 1.45; }
+.wb-kern li { margin: .15rem 0; }
+.wb-zitate { margin: .3rem 0 .3rem; padding-left: 1.1rem; font-style: italic; font-size: .92em; line-height: 1.45; }
+.wb-zitate li { margin: .2rem 0; }
+.wb-alle summary { cursor: pointer; font-size: .85em; color: var(--text-leise, #6b6b6b); }
+.wb-alle ul { padding-left: 1.1rem; font-size: .88em; line-height: 1.45; }
+.wb-alle li { margin: .2rem 0; }
+"""
+
+
+def css_werkbank_kurz() -> str:
+    from interview_theater import workshop
+
+    return _CSS_WERKBANK_KURZ if workshop.skript_verdichtet_aktiv() else ""
+
+
+def _wb_szenen_verdichtet_html(szenen: list[dict]) -> str:
+    """Workbench unter ``[skript] verdichtet``: je Szene Titel, Kurzform, die
+    staerksten Zitate und aufklappbar ALLE uebernommenen (nur gepruefte)."""
+    stuecke = []
+    for s in szenen:
+        v = s.get("verdichtet") or {}
+        kopf = "<b>{nr}. {titel}</b>".format(
+            nr=_t("—" if s["nummer"] is None else str(s["nummer"])),
+            titel=_t(s.get("titel"), T._TEXT_OHNE_TITEL),
+        )
+        karte = s.get("karte") or {}
+        wo_wer = " · ".join(t for t in ((karte.get("ort") or s.get("ort") or "").strip(),
+                                       (karte.get("wer") or ", ".join(s.get("figuren") or [])).strip()) if t)
+        teile = [kopf]
+        if wo_wer:
+            teile.append(f'<p class="wb-wo-wer">{_t(T._TEXT_WB_WO_WER.format(wert=wo_wer))}</p>')
+        teile += [_liste_html("wb-kern", _kurzform_punkte(v), PLANUNG_PUNKT_ZEICHEN),
+                  _liste_html("wb-zitate", _staerkste_zitate(v), KERNSATZ_ZEICHEN)]
+        alle = v.get("zitate") or []
+        if alle:
+            punkte = "".join(
+                "<li>{z}{q}</li>".format(
+                    z=_t("“" + " ".join(str(z["zitat"]).split()) + "”"),
+                    q=_t(f" ({z['interview']})") if z.get("interview") else "",
+                )
+                for z in alle
+            )
+            teile.append(
+                f'<details class="wb-alle"><summary>'
+                f'{_t(T._TEXT_ALLE_ZITATE.format(anzahl=len(alle)))}</summary>'
+                f"<ul>{punkte}</ul></details>"
+            )
+        stuecke.append(f'<li class="wb-szene">{"".join(teile)}</li>')
+    return f'<ul class="wb-szenen">{"".join(stuecke)}</ul>'
 
 
 def _rollenleiste_html(sprecher: list[str], figuren: list[dict]) -> str:
@@ -4077,8 +5248,13 @@ h1 { font-size: 1.35rem; margin: 0 0 .2rem; }
 .angaben, .besetzung { font-size: .85rem; opacity: .7; margin: .1rem 0; }
 .offen { font-style: italic; opacity: .6; margin: .6rem 0 .2rem; }
 .planung dt { font-size: .74rem; }
+.planung-liste { margin: .2rem 0 .6rem 1.1rem; padding: 0; }
+.planung-liste li { margin: .15rem 0; }
+.planung-liste li.mehr { list-style: none; opacity: .65; font-size: .85em; }
 .text { margin-top: .7rem; }
 .text p { margin: 0 0 .55rem; }
+.interviewzitat { margin: .3rem 0 .7rem; padding: .35rem .8rem; border-left: 3px solid #b8863b; background: rgba(184,134,59,.08); font-style: normal; }
+.interviewzitat em:first-child { font-size: .78em; letter-spacing: .03em; text-transform: uppercase; opacity: .75; font-style: normal; display: block; }
 .sprecher { letter-spacing: .03em; }
 .regie { opacity: .65; font-style: italic; }
 /* Der Rollenfilter daempft, er loescht nicht: die Stichworte muss man
@@ -4213,7 +5389,8 @@ _TEXTBUCH_JS = """
 
 
 def textbuch_koerper(
-    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
+    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX,
+    lang: str | None = None,
 ) -> str:
     """Der Rumpf der Probenansicht -- ohne die Klammer aus ``_seite``.
 
@@ -4222,8 +5399,15 @@ def textbuch_koerper(
     Szenenplanung. Kein Interview, kein Journal, kein Belegzitat, keine
     Verdichtung, kein Nachrichtentext -- die Grenze aus docs/agents/weboberflaeche.md
     gilt hier strenger als auf der Gruppenseite, weil
-    dieser Link im Probenraum herumgereicht wird."""
+    dieser Link im Probenraum herumgereicht wird.
+
+    ``lang`` (Morgen-Auftrag 3, zwei getrennte PDFs statt einem gemischten):
+    ``None`` fuer den Script-Tab (beide Fassungen gestapelt), ``"en"``/
+    ``"it"`` fuer je ein eigenes PDF -- ``_sprachfassungen``."""
+    from interview_theater import workshop
+
     bekannte = {(f["name"] or "").upper() for f in daten["figuren"] if f.get("name")}
+    ohne_zitate = daten.get("chat_id") in workshop.skript_ohne_zitate_chats()
     abschnitte = []
     sprecher: list[str] = []
     fassungen = daten.get("fassungen") or {}
@@ -4234,25 +5418,84 @@ def textbuch_koerper(
             "_fassungen": fassungen.get(s.get("id")) or [],
             "_erstentwurf": erstentwuerfe.get(s.get("id")),
         }
-        html_stueck, gefunden = _probe_szene_html(s, bekannte)
+        html_stueck, gefunden = _probe_szene_html(
+            s, bekannte, ohne_zitate, lang, daten.get("chat_id"))
         abschnitte.append(html_stueck)
         for name in gefunden:
             if name not in sprecher:
                 sprecher.append(name)
     stueck = "".join(abschnitte) or f'<p class="leer">{_t(T._TEXT_STUECK_LEER)}</p>'
+    design = _skript_design()
+    if design:
+        from interview_theater import web_skript
+    partitur = (web_skript.uebersicht_html(daten["szenen"]) if design
+                else _partitur_html(daten["szenen"]))
+    if partitur:
+        stueck = partitur + stueck
+    if (daten.get("stage_kopf") or "").strip():
+        kopf_fassungen = _sprachfassungen(
+            lang, daten["stage_kopf"], (daten.get("stage_kopf_it") or "").strip())
+        if design:
+            kopf_abschnitt = "".join(
+                web_skript.kopf_html(text, lang_attr) for _, lang_attr, text in kopf_fassungen
+            )
+        else:
+            def _kopf_section(lang_attr: str | None, text: str) -> str:
+                attr = f' lang="{lang_attr}"' if lang_attr else ""
+                return (f'<section class="probe-szene stage-kopf">'
+                        f'<div class="text"{attr}>{_prosa_absaetze_html(text)}</div></section>')
+
+            kopf_abschnitt = "".join(
+                _kopf_section(lang_attr, text) for _, lang_attr, text in kopf_fassungen
+            )
+        stueck = kopf_abschnitt + stueck
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
     wege = ""
     if token:
         wege = (
             f'<p class="wege"><a href="{_t(praefix, "")}/g/{_t(token)}">'
             f"{_t(T._TEXT_ZUM_ARBEITSSTAND)}</a>"
-            f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.md">'
-            f"{_t(T._TEXT_TEXTBUCH_MD)}</a>"
-            f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.txt">'
-            f"{_t(T._TEXT_TEXTBUCH_TXT)}</a>"
-            "</p>"
+            # Padua (Merkmal 8): fuer die Gruppe nur der PDF-Knopf.
+            + ("" if design else
+               f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.md">'
+               f"{_t(T._TEXT_TEXTBUCH_MD)}</a>"
+               f'<a href="{_t(praefix, "")}/g/{_t(token)}/textbuch.txt">'
+               f"{_t(T._TEXT_TEXTBUCH_TXT)}</a>")
+            + (f'<a class="pdf-knopf" href="{_t(praefix, "")}/g/{_t(token)}/textbuch.pdf?lang=en" '
+               f'target="_blank" rel="noopener">{_t(T._TEXT_PDF_EN)}</a>'
+               f'<a class="pdf-knopf" href="{_t(praefix, "")}/g/{_t(token)}/textbuch.pdf?lang=it" '
+               f'target="_blank" rel="noopener">{_t(T._TEXT_PDF_IT)}</a>' if _pdf_aktiv() else "")
+            + "</p>"
         )
-    leisten = _rollenleiste_html(sprecher, daten["figuren"]) + (
+        if design and lang is None:
+            # Birk 08.10.2026 ~11:50: nur EINE Sprache zeigen, Umschalter EN/IT.
+            # Vorgabe: IT fuer die italienischen Gruppen, sonst EN; Wahl bleibt
+            # im Browser (localStorage). Reines CSS/JS, kein Serverzustand.
+            from interview_theater import workshop as _ws
+            vorgabe = "it" if daten.get("chat_id") in _ws.italienisch_ab_phase6_chats() else "en"
+            # Birk 08.10.2026 ~12:25: ohne :has() (aeltere Handy-Browser) --
+            # die Radios stehen als GESCHWISTER vor .stueck, Labels zeigen per for=.
+            wege = (
+                f'<input type="radio" class="sp-radio" name="skript-sprache" id="sp-en"{" checked" if vorgabe == "en" else ""}>'
+                f'<input type="radio" class="sp-radio" name="skript-sprache" id="sp-it"{" checked" if vorgabe == "it" else ""}>'
+                + wege
+                + '<p class="sprachwahl"><label for="sp-en" class="sp-en">English</label>'
+                '<label for="sp-it" class="sp-it">Italiano</label></p>'
+                "<style>"
+                ".sp-radio{position:absolute;opacity:0;pointer-events:none;width:0;height:0}"
+                ".sprachwahl{display:flex;gap:.4rem;margin:.6rem 0}"
+                ".sprachwahl label{padding:.3rem .9rem;border:1px solid #9a5f12;border-radius:1rem;font-weight:600;cursor:pointer}"
+                "#sp-en:checked~.sprachwahl .sp-en,#sp-it:checked~.sprachwahl .sp-it{background:#9a5f12;color:#fff}"
+                "#sp-en:checked~.stueck [lang=it]:not(.karte-zitat),#sp-it:checked~.stueck [lang=en]:not(.karte-zitat){display:none!important}"
+                "#sp-en:checked~.stueck .sprache-kopf,#sp-it:checked~.stueck .sprache-kopf{display:none!important}"
+                ".status-badge{font:600 11px/1 system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:9px;vertical-align:middle;margin-left:6px;color:#fff}"
+                ".status-badge.konzept{background:#c0392b}.status-badge.fertig{background:#2e7d32}"
+                "</style>"
+            )
+    # Padua (Birk 07.10.2026 ~23:55): Schriftgroesse und "Hide stage
+    # directions" kosten am Handy nur Platz -- unter skript.verdichtet weg.
+    # Ohne Schalter (Dortmund) byte-gleich.
+    leisten = _rollenleiste_html(sprecher, daten["figuren"]) + ("" if _leseleiste_aus() else
         f'<div class="leiste"><span class="marke">{_t(T._TEXT_SCHRIFT)}</span>'
         '<button type="button" class="schrift" data-schrift="klein" '
         f'aria-pressed="false">{_t(T._TEXT_SCHRIFT_KLEIN)}</button>'
@@ -4264,16 +5507,23 @@ def textbuch_koerper(
         f"{_t(T._TEXT_REGIE_AUS)}</button></div>"
     )
     kopfzeile = T._TITEL_PROBENANSICHT.format(titel=titel)
-    return (
+    rumpf = (
         f"<h1>{_t(kopfzeile)}</h1>\n"
         f"{wege}{leisten}\n"
         f'<article class="stueck">{stueck}</article>\n'
         f'<p class="hinweis-druck leer">{_t(T._TEXT_DRUCKEN)}</p>'
     )
+    # Stempel fuer das Nachladen im Browser (P57 Lauf 3, A1): der Client
+    # vergleicht ihn mit dem des Panels und tauscht nur bei Unterschied.
+    import hashlib
+
+    stempel = hashlib.sha1(rumpf.encode("utf-8")).hexdigest()[:16]
+    return f'<span hidden data-stempel="{stempel}"></span>{rumpf}'
 
 
 def textbuch_html(
-    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX
+    daten: dict, token: str | None = None, praefix: str = VORGABE_PRAEFIX,
+    lang: str | None = None,
 ) -> str:
     """Die Probenansicht aus ``web_daten.gruppe_nach_token()``.
 
@@ -4281,7 +5531,10 @@ def textbuch_html(
     Interview, kein Journal, kein Belegzitat, keine Verdichtung, kein
     Nachrichtentext -- die Grenze aus docs/agents/weboberflaeche.md gilt hier
     strenger als auf der Gruppenseite, weil dieser Link im Probenraum
-    herumgereicht wird."""
+    herumgereicht wird.
+
+    ``lang``: siehe ``textbuch_koerper`` -- nur fuer das PDF gesetzt
+    (``web_pdf.sende``), der Script-Tab selbst ruft ohne ``lang``."""
     from interview_theater import web_gestalt
 
     titel = daten["titel"] or T._TEXT_GRUPPE.format(chat_id=daten["chat_id"])
@@ -4290,8 +5543,9 @@ def textbuch_html(
         kopfzeile,
         # Gestaltung zuletzt (Karte UX). Die Probenansicht ist eine eigene
         # Seite, also ungescopt -- es gibt hier kein Panel.
-        _CSS_TEXTBUCH + _CSS_TEXTBUCH_FASSUNGEN + web_gestalt.css_rahmen() + web_gestalt.css_textbuch(),
-        textbuch_koerper(daten, token, praefix),
+        _CSS_TEXTBUCH + _CSS_TEXTBUCH_FASSUNGEN + web_gestalt.css_rahmen() + web_gestalt.css_textbuch()
+        + css_textbuch_lesbar(),
+        textbuch_koerper(daten, token, praefix, lang),
         nachladen=False,
         skript=_TEXTBUCH_JS,
         koerper_attribute=' data-textbuch=""',
@@ -4517,6 +5771,112 @@ STATIC_HANDYS_PRAEFIX = "static/handys/"
 _STATIC_NAME = re.compile(r"^[a-z0-9-]+\.png$")
 
 
+#: Nachtrag 1 (Downloads an Bedarfspunkten, Birk 08.10.2026 ~13:50): die
+#: Dateien liegen ausserhalb von git, ein Verzeichnis je ``chat_id`` --
+#: relativ wie ``IT_DB``/``IT_AUDIO``, aufgeloest gegen das
+#: Arbeitsverzeichnis des Webserver-Prozesses.
+BEDARF_DATEIEN_VERZ = "betrieb/bedarf"
+
+#: Positivliste fuer den Dateinamen in der URL -- kein Schraegstrich, kein
+#: Pfad-Traversal. Die eigentliche Entscheidung faellt trotzdem erst danach:
+#: ``repo.bedarf_datei_vorhanden`` laesst nur Dateien durch, die ein
+#: Bedarfspunkt GENAU DIESER Gruppe traegt, nie einen blossen
+#: Dateisystemzugriff auf alles, was im Verzeichnis liegt.
+_BEDARF_DATEI_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+TRANSKRIPTE_VERZ = "betrieb/transkripte"
+#: Wie ``_TEXT_BEDARF_TITEL`` bewusst nicht ueber ``sprache.T``: die PDFs
+#: selbst sind italienisch beschriftet, der Kopf zweisprachig.
+_TEXT_TRANSKRIPTE_KOPF = "Full transcripts · trascrizioni complete (PDF)"
+
+
+def _transkript_dateien(chat_id) -> list[str]:
+    from pathlib import Path
+
+    if chat_id is None:
+        return []
+    verz = Path(TRANSKRIPTE_VERZ) / str(int(chat_id))
+    try:
+        return sorted(p.name for p in verz.glob("*.pdf")
+                      if _BEDARF_DATEI_NAME.fullmatch(p.name))
+    except OSError:
+        return []
+
+
+def _transkript_downloads_html(chat_id, token: str | None) -> str:
+    """Download-Liste der Volltranskript-PDFs dieser Gruppe (Birk 08.10.2026
+    ~15:15). Relativ wie die Bedarfs-Downloads (``<token>/transkripte/...``)."""
+    dateien = _transkript_dateien(chat_id)
+    if not dateien or not token:
+        return ""
+    links = "".join(
+        f'<li><a class="wb-bedarf-datei" href="{_t(token)}/transkripte/{_t(d)}">'
+        f'⬇ {_t(d[:-4])}</a></li>' for d in dateien)
+    return (f'<div class="wb-transkripte"><h3>{_t(_TEXT_TRANSKRIPTE_KOPF)}</h3>'
+            f'<ul class="wb-bedarf-liste">{links}</ul></div>')
+
+
+def _sende_transkript_datei(handler, db_pfad: str, token: str, name: str) -> None:
+    """``/g/<token>/transkripte/<datei>`` -- nur ein PDF aus dem Verzeichnis
+    GENAU DIESER Gruppe, Name gegen Positivliste; sonst 404."""
+    from pathlib import Path
+
+    if not _BEDARF_DATEI_NAME.fullmatch(name) or name in (".", "..") or not name.endswith(".pdf"):
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    conn = web_daten.oeffne_lesend(db_pfad)
+    try:
+        chat_id = web_daten.chat_id_nach_token(conn, token)
+    finally:
+        conn.close()
+    if chat_id is None or name not in _transkript_dateien(chat_id):
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    try:
+        inhalt = (Path(TRANSKRIPTE_VERZ) / str(int(chat_id)) / name).read_bytes()
+    except OSError:
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    handler._antworte_binaer(200, inhalt, "application/pdf", dateiname=name)
+
+
+def _sende_bedarf_datei(handler, db_pfad: str, token: str, name: str) -> None:
+    """``/g/<token>/bedarf/<datei>`` -- der Download an einem Bedarfspunkt
+    (Nachtrag 1, 08.10.2026 ~13:50). Nur eine Datei, die ein (nicht
+    entfernter) Bedarfspunkt GENAU DIESER Gruppe traegt, kommt an; alles
+    andere ist 404, nie ein Dateisystemfehler (wie ``_sende_static_bild``).
+
+    ``name in (".", "..")`` zusaetzlich zur Regex ausgeschlossen: beide
+    Zeichenfolgen bestehen nur aus erlaubten Zeichen (Punkte), waeren aber
+    als Pfadsegment das Verzeichnis selbst bzw. sein Elternverzeichnis --
+    ``repo.bedarf_datei_vorhanden`` liesse sie ohnehin nie durch (kein
+    Bedarfspunkt traegt diesen Dateinamen), aber die Absicht soll schon an
+    der Regex scheitern, nicht erst an der Datenbank."""
+    from pathlib import Path
+
+    from interview_theater import repo
+
+    if not _BEDARF_DATEI_NAME.fullmatch(name) or name in (".", ".."):
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    conn = web_daten.oeffne_lesend(db_pfad)
+    try:
+        chat_id = web_daten.chat_id_nach_token(conn, token)
+        if chat_id is None or not repo.bedarf_datei_vorhanden(conn, chat_id, name):
+            handler._antworte(404, nicht_gefunden_html())
+            return
+    finally:
+        conn.close()
+    pfad_auf_platte = Path(BEDARF_DATEIEN_VERZ) / str(chat_id) / name
+    try:
+        inhalt = pfad_auf_platte.read_bytes()
+    except OSError:
+        handler._antworte(404, nicht_gefunden_html())
+        return
+    handler._antworte_binaer(200, inhalt, "application/pdf", dateiname=name)
+
+
 def _sende_static_bild(handler, unterpfad: str) -> None:
     """Eine Telefon-Organisationskarte unter ``interview_theater/static/handys/``.
 
@@ -4556,8 +5916,28 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
     if unterpfad.startswith(STATIC_HANDYS_PRAEFIX):
         _sende_static_bild(handler, unterpfad)
         return
+    if unterpfad.startswith("bedarf/"):
+        _sende_bedarf_datei(handler, db_pfad, token, unterpfad[len("bedarf/"):])
+        return
+    if unterpfad.startswith("transkripte/"):
+        _sende_transkript_datei(handler, db_pfad, token, unterpfad[len("transkripte/"):])
+        return
     if unterpfad in ("textbuch.md", "textbuch.txt"):
         _sende_textbuch_datei(handler, db_pfad, token, unterpfad)
+        return
+    if unterpfad == "textbuch.pdf" and _pdf_aktiv():
+        # Padua (Birk 07.10.2026 ~19:35): das Stage Script als PDF, gedruckt
+        # aus derselben Probenansicht (``web_pdf``). ``?lang=en|it`` seit
+        # Morgen-Auftrag 3: zwei getrennte PDFs, kein gemischtes mehr --
+        # ohne/mit unbekanntem Wert faellt ``web_pdf.sende`` auf EN zurueck.
+        from interview_theater import web_pdf
+
+        daten = handler._gruppe(token)
+        if daten is None:
+            handler._antworte(404, nicht_gefunden_html())
+        else:
+            lang = urllib.parse.parse_qs(query).get("lang", ["en"])[0]
+            web_pdf.sende(handler, daten, token, praefix, lang)
         return
     if unterpfad == leitfaden_modul.WEB_PFAD:
         daten = _leitfaden_daten(db_pfad, token)
@@ -4627,6 +6007,21 @@ def _beantworte_gruppenseite(handler, db_pfad: str, pfad: str,
             handler._antworte(200, textbuch_html(daten, token, praefix))
         return
     web_vereint.beantworte_seite(handler, db_pfad, token, praefix, schluessel, query)
+
+
+def _pdf_aktiv() -> bool:
+    """Das PDF des Stage Scripts gibt es nur unter ``[karten] aktiv``."""
+    from interview_theater import workshop
+
+    return workshop.szenenkarten_aktiv()
+
+
+#: Zwei Knoepfe statt einem (Morgen-Auftrag 3): kein gemischtes PDF mehr,
+#: EN und IT bleiben eigene Dateien -- "PDF" bleibt daher nicht die eine
+#: Beschriftung. Beide Sprachen gleich benannt, nicht uebersetzt.
+_TEXT_PDF_EN = "PDF EN"
+_TEXT_PDF_IT = "PDF IT"
+_TEXT_PDF_FEHLER = "Das PDF liess sich gerade nicht erzeugen. Bitte gleich noch einmal versuchen."
 
 
 def _sende_textbuch_datei(handler, db_pfad: str, token: str, name: str) -> None:
@@ -4850,18 +6245,31 @@ class _Basishandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(roh)
 
-    def _antworte_binaer(self, status: int, inhalt: bytes, typ: str) -> None:
+    def _antworte_binaer(
+        self, status: int, inhalt: bytes, typ: str, dateiname: str | None = None,
+    ) -> None:
         """Wie ``_antworte``, nur fuer Bytes statt Text -- die
         Telefon-Organisationskarten (UX-Knoepfe-Karte, Abschnitt 5).
         ``inhalt.encode("utf-8")`` in ``_antworte`` wuerde ein PNG
-        zerstoeren."""
+        zerstoeren.
+
+        ``dateiname`` (Nachtrag 1, Downloads an Bedarfspunkten, 08.10.2026
+        ~13:50): ``Content-Disposition: attachment`` wie bei ``_antworte``,
+        und ``Cache-Control: no-store`` statt des langen Kartencache -- die
+        Datei ist gruppenspezifisch, kein oeffentliches Standardbild."""
         self.send_response(status)
         self.send_header("Content-Type", typ)
         self.send_header("Content-Length", str(len(inhalt)))
-        # Eine Karte aendert sich nur, wenn der Betreiber den Generator neu
-        # laufen laesst -- anders als beim Dashboard darf der Browser sie
-        # lange behalten.
-        self.send_header("Cache-Control", "public, max-age=86400")
+        if dateiname:
+            self.send_header(
+                "Content-Disposition", f'attachment; filename="{dateiname}"'
+            )
+            self.send_header("Cache-Control", "no-store")
+        else:
+            # Eine Karte aendert sich nur, wenn der Betreiber den Generator
+            # neu laufen laesst -- anders als beim Dashboard darf der
+            # Browser sie lange behalten.
+            self.send_header("Cache-Control", "public, max-age=86400")
         self.end_headers()
         self.wfile.write(inhalt)
 
@@ -5102,6 +6510,31 @@ from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus
 # und unter diesem Namen faende die Texttabelle nichts (``["web"]``), die
 # Seiten blieben in Padua still deutsch.
 T = sprache.Texte(__spec__.name if __spec__ else __name__)
+#: Morgen-Auftrag 4, Nachtrag 2 (08.10.2026): die paar CoThinker-
+#: Kartenrahmen-Texte (Status "saved"/"not saved yet" etc.) italienisch,
+#: nur fuer Chats aus ``workshop.italienisch_ab_phase6_chats()`` -- NIE die
+#: Knopf-Beschriftungen im selben Modul, die bleiben auf ``T``.
+_T_IT = sprache.Texte(__spec__.name if __spec__ else __name__, sprachcode="it")
+
+
+def _T(chat_id: int | None) -> sprache.Texte:
+    from interview_theater import workshop
+
+    return _T_IT if chat_id in workshop.italienisch_ab_phase6_chats() else T
+
+
+def _skript_design() -> bool:
+    """Das abgenommene Stage-Script-Design (``web_skript``) -- nur Padua."""
+    from interview_theater import workshop
+
+    return workshop.skript_verdichtet_aktiv()
+
+
+def _leseleiste_aus() -> bool:
+    """Padua (Birk 07.10.2026): keine Schriftgroessen-/Regie-Knoepfe im Script-Tab."""
+    from interview_theater import workshop
+
+    return workshop.skript_verdichtet_aktiv()
 
 
 if __name__ == "__main__":

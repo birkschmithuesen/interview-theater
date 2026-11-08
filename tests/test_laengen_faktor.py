@@ -111,8 +111,8 @@ def test_kuerzen_der_ganzen_geschichte_setzt_den_faktor(prosa6, tg, einst):
     assert gestartet is True
     assert kurzgeschichte._sperre_fuer(1).acquire(timeout=20)
     kurzgeschichte._sperre_fuer(1).release()
-    assert laengen.faktor_aus_stand(repo.hole_arbeitsstand(prosa6, 1)) == \
-        laengen.kurz_faktor()
+    # P57 Lauf 3: "25 % kuerzer" heisst Faktor 0,75, nicht 0,25.
+    assert laengen.faktor_aus_stand(repo.hole_arbeitsstand(prosa6, 1)) == 0.75
 
 
 def test_kuerzen_EINER_szene_setzt_den_faktor_nicht(prosa6, tg, einst):

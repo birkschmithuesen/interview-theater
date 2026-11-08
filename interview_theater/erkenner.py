@@ -42,6 +42,7 @@ grosses Fenster den Erkenner dauerhaft lahmlegen) und ein ``vorfall``
 ``fenster_verworfen`` geschrieben.
 """
 
+import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -185,6 +186,29 @@ ARTEN = (
     "sprechweise_setzen",
     # Entscheidung zu einem Schaerfungs-Vorschlag (5), wie die Schaerfungs-Knoepfe.
     "schaerfung_entscheidung",
+    # Karte t_c5117c91 (InScribe, 06.10.2026): "research: ..." / "can you
+    # look up ..." im Chat -- der freie Weg neben dem Research-Knopf. Wie
+    # ``szene_schreiben`` ohne Schreibpfad: sie stoesst den Netz- und
+    # Modellaufruf in ``recherche.starte`` an, den ``laufe()`` in einem
+    # eigenen Thread auswertet (``_starte_recherche``). Nur mit dem
+    # Profilschalter ``recherche`` (``PROFILSCHALTER_DER_ARTEN``) und erst ab
+    # Phase 4 (``AB_PHASE_ARTEN``) -- dieselbe Untergrenze wie
+    # ``szene_schreiben``: davor gibt es noch keine Themen, aus denen eine
+    # Forschungsfrage entstehen koennte.
+    # wert: die Forschungsfrage, woertlich wie die Gruppe sie getippt hat.
+    "recherche_starten",
+    # Padua Quickfix (08.10.2026, Punkt 1): ein Wunsch der Gruppe zu einer
+    # Szene des Stage Scripts (Phase 7, Kartenprofil), deren Text noch nicht
+    # steht oder gerade geschrieben wird -- vorher verschwand das im
+    # Formwahl-Rauschen des Gespraechsmodells (Befund Tester 08.10.2026,
+    # web_post 2198-2199: "scene 2 needs a dialog" -> "Scene 2 of 3 as
+    # Dialogue. The card stays as it is.", nichts gespeichert). Wie
+    # ``text_ueberarbeiten``, aber fuer eine Szene, die NICHT gerade mit
+    # "Yes, save" / "No, change it again" gezeigt wird -- die beiden Arten
+    # schliessen sich gegenseitig aus (siehe Punkt 33 im englischen Prompt).
+    # wert: "scene N: wunsch" oder nur "wunsch" (dieselbe Form wie
+    # text_ueberarbeiten, dieselbe Zerlegung in ``_notiz_und_nummer``).
+    "stagescript_notiz",
 )
 
 #: Die einzigen Arten, die aus dem Transkript einer Sprachnachricht im
@@ -228,6 +252,8 @@ PHASEN_SPEZIFISCHE_ARTEN: dict[str, tuple[int, ...]] = {
     "formen_setzen": (7,),
     "sprechweise_setzen": (7,),
     "schaerfung_entscheidung": (5,),
+    # Padua Quickfix (08.10.2026, Punkt 1): nur in Phase 7 (Stage Script).
+    "stagescript_notiz": (7,),
 }
 
 #: Dieselbe Wache als Untergrenze: eine ART, die erst AB einer Phase wirkt
@@ -242,6 +268,9 @@ PHASEN_SPEZIFISCHE_ARTEN: dict[str, tuple[int, ...]] = {
 AB_PHASE_ARTEN: dict[str, int] = {
     "szene_schreiben": 4,
     "szene_kuerzen": 4,
+    # Karte t_c5117c91: dieselbe Untergrenze wie beim Research-Knopf
+    # (ab Phase 4 == "ab Ende Phase 3", knoepfe/befehle.py).
+    "recherche_starten": 4,
 }
 
 #: Welcher Profilschalter eine ART ueberhaupt erst freischaltet -- dieselbe
@@ -260,6 +289,16 @@ PROFILSCHALTER_DER_ARTEN: dict[str, str] = {
     # wird gestellt, Dortmund/Vorgabe unveraendert). Padua schaltet sie AUS:
     # ohne Einwilligungsfrage gibt es auch nichts mehr zu beantworten.
     "szene_usa": "einwilligung",
+    # Karte t_c5117c91: ohne den Schalter steht die art nicht einmal im
+    # Schema (``arten_fuer_schema``) -- Dortmund sieht sie nie.
+    "recherche_starten": "recherche",
+    # Padua Quickfix (08.10.2026, Punkt 1): derselbe Schalter wie die
+    # anderen Padua-Phasen-TEIL-2-Arten -- kein neuer (AGENTS.md "keine
+    # neuen Schalter"). Die feinere Bedingung (nur mit Szenenkarten, nicht
+    # im alten Prosa-/Formwahl-Pfad) prueft ``erkenner._starte_
+    # stagescript_notiz`` selbst, wie ``_starte_entwurf_uebersicht`` es fuer
+    # seine eigene Zusatzbedingung tut.
+    "stagescript_notiz": "ueberarbeitung",
 }
 
 
@@ -275,9 +314,16 @@ def _einwilligung_an() -> bool:
     return workshop.modellwahl_einwilligung_aktiv()
 
 
+def _recherche_an() -> bool:
+    from interview_theater import workshop
+
+    return workshop.recherche_aktiv()
+
+
 _SCHALTER = {
     "ueberarbeitung": _ueberarbeitung_an,
     "einwilligung": _einwilligung_an,
+    "recherche": _recherche_an,
 }
 
 
@@ -438,6 +484,12 @@ def _baue_nutzertext(conn, chat_id: int, nachrichten, vorlauf=None) -> str:
     return "\n\n".join(bloecke)
 
 
+def aktive_arten() -> tuple[str, ...]:
+    """Das Arten-Enum des aktiven Profils -- dieselbe Liste fuer den
+    JSON-Weg und fuer ``aenderung_melden`` im Tools-Modus."""
+    return tuple(schema()["properties"]["aenderungen"]["items"]["properties"]["art"]["enum"])
+
+
 def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
     """Erkennt Aenderungsabsichten im Gespraech seit der letzten Erkennung.
 
@@ -449,12 +501,20 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
     ``MAX_AENDERUNGEN`` lang, nur mit bekannten ``art``-Werten. Wendet
     NICHTS auf die Datenbank an -- das ist eine spaetere Aufgabe
     (``wende_an``)."""
+    return erkenne_mit_werkzeugschritten(klm, conn, e, chat_id)[0]
+
+
+def erkenne_mit_werkzeugschritten(klm, conn, e, chat_id: int) -> tuple[list[dict], list[dict]]:
+    """Wie ``erkenne``, zusaetzlich die im Tools-Modus (``IT_ERKENNER_MODUS=
+    tools``) schon ueber ``stueck`` geschriebenen Schritte, rueckuebersetzt
+    (``erkenner_werkzeuge.als_aenderung``) -- fuer die "Notiert:"-Meldung.
+    Im JSON-Modus ist die zweite Liste immer leer."""
     neue = repo.unextrahierte(conn, chat_id)
     if not neue:
         # Kein Aufruf ins Leere: ohne neue Nachrichten gibt es nichts zu
         # erkennen, und ein Aufruf waere reine Latenz- und Kostenlast ohne
         # jeden Nutzen.
-        return []
+        return [], []
 
     letzte_message_id = max(n["message_id"] for n in neue)
     # Vorlauf (05.09. 04:40, dreimal belegt: Live Nachricht 69/90, Simulation
@@ -482,13 +542,39 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
             f"Absichtserkenner-Fenster ueber {FENSTER_DECKEL} geschaetzten Token "
             "verworfen, ohne Sprachmodell-Aufruf",
         )
-        return []
+        return [], []
 
+    schritte: list[dict] = []
+    ergebnis = None
+    if werkzeug_modus(e, conn, chat_id):
+        ausgefuehrt: list = []
+        try:
+            generisch, schritte, _, _ = _werkzeuglauf(conn, e, chat_id, nutzer, ausgefuehrt)
+            ergebnis = {"aenderungen": generisch}
+        except Exception as fehler:  # ClaudeFehler der ersten Runde, Kostendeckel u. a.
+            if not ausgefuehrt:
+                # Noch nichts geschrieben: der JSON-Weg ist sicher.
+                log.warning("Werkzeugschleife, erste Runde gescheitert -- JSON-Weg: %s", fehler)
+                repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                                   "erkenner_werkzeug_fallback", str(fehler)[:200])
+            else:
+                # Schon ausgefuehrte Werkzeuge haben das Stueck geschrieben:
+                # KEIN JSON-Lauf (er schriebe dieselbe Absicht doppelt),
+                # weiter mit dem bis dahin Gesammelten.
+                log.exception("Werkzeugschleife nach %d Ausfuehrungen gescheitert, "
+                              "chat_id=%s", len(ausgefuehrt), chat_id)
+                try:
+                    repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                                       "erkenner_werkzeug_abbruch",
+                                       f"ausnahme nach {len(ausgefuehrt)} Ausfuehrungen: "
+                                       f"{str(fehler)[:150]}")
+                except Exception:
+                    log.exception("Vorfall nicht gemerkt, chat_id=%s", chat_id)
+                generisch, schritte = _sammle_ausfuehrungen(ausgefuehrt)
+                ergebnis = {"aenderungen": generisch}
     try:
-        ergebnis = klm.schema(
-            chat_id, prompt(), nutzer, schema(), "erkenner",
-            modell=e.erkenner_modell, temperature=TEMPERATURE,
-        )
+        if ergebnis is None:
+            ergebnis = _schema_aufruf(klm, conn, e, chat_id, prompt(), nutzer, schema(), "erkenner")
     except Exception:
         # Fehlschlag: das Wasserzeichen bleibt STEHEN -- ein kostenloser
         # Wiederholungsversuch beim naechsten Lauf, ohne eigene
@@ -503,7 +589,7 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
             "extraktor_fehler",
             "Absichtserkenner-Aufruf fehlgeschlagen",
         )
-        return []
+        return [], []
 
     aenderungen = []
     for eintrag in ergebnis.get("aenderungen", []):
@@ -519,7 +605,67 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
             break
 
     repo.setze_extrahiert_bis(conn, chat_id, letzte_message_id)
-    return aenderungen
+    return aenderungen, schritte
+
+
+def werkzeug_modus(e, conn, chat_id) -> bool:
+    """Tools-Modus nur mit ``IT_ERKENNER_MODUS=tools`` UND wenn der Erkenner
+    ohnehin ueber Claude laeuft (``ueber_claude``: Profilschalter,
+    Einwilligung, NICHT Phase 3)."""
+    if getattr(e, "erkenner_modus", "json") != "tools":
+        return False
+    return ueber_claude(e, conn, chat_id)
+
+
+def _sammle_ausfuehrungen(ausfuehrungen) -> tuple[list, list]:
+    """``(generische, stueck_schritte)`` aus den Ausfuehrungen."""
+    from interview_theater import erkenner_werkzeuge
+
+    generisch = [a.generisch for a in ausfuehrungen if a.generisch is not None]
+    schritte = [x for x in (erkenner_werkzeuge.als_aenderung(a) for a in ausfuehrungen
+                            if a.generisch is None) if x is not None]
+    return generisch, schritte
+
+
+def _werkzeuglauf(conn, e, chat_id, nutzer, ausfuehrungen=None):
+    """Eine Werkzeugschleife ueber den Claude-Proxy. Liefert
+    ``(generische, stueck_schritte, schleifenergebnis, ausfuehrungen)``.
+    Jede Ausnahme geht an den Aufrufer; ``ausfuehrungen`` (Sammelliste von
+    aussen) zeigt ihm, ob schon ein Werkzeug lief."""
+    import httpx
+
+    from interview_theater import anweisungen, erkenner_werkzeuge, szene_claude
+
+    if ausfuehrungen is None:
+        ausfuehrungen = []
+
+    def ausfuehren(name, eingabe):
+        # ``werkzeug_schleife`` faengt keine Ausnahme aus diesem Callable:
+        # hier nie werfen, das Modell sieht den Fehler im tool_result.
+        try:
+            a = erkenner_werkzeuge.fuehre_aus(conn, chat_id, name, eingabe)
+            ausfuehrungen.append(a)
+            return erkenner_werkzeuge.als_tool_result(a)
+        except Exception as fehler:
+            log.exception("Erkenner-Werkzeug %s fehlgeschlagen, chat_id=%s", name, chat_id)
+            return json.dumps({"ok": False, "fehler": str(fehler)[:200]}, ensure_ascii=False), True
+
+    system = prompt() + "\n\n" + anweisungen.hole("erkenner_werkzeuge")
+    with httpx.Client(timeout=szene_claude.GESAMT_TIMEOUT_S) as klient:
+        lauf = szene_claude.werkzeug_schleife(
+            conn, e, klient, chat_id, system, nutzer,
+            erkenner_werkzeuge.definitionen(aktive_arten()), ausfuehren,
+            art="erkenner",
+            modell=getattr(e, "szene_modell", None) or "claude-opus-5-5",
+            max_aufrufe=MAX_AENDERUNGEN,
+        )
+    if lauf.abbruch is not None:
+        repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                           "erkenner_werkzeug_abbruch",
+                           f"abbruch={lauf.abbruch}, runden={lauf.runden}, "
+                           f"aufrufe={len(lauf.aufrufe)}")
+    generisch, schritte = _sammle_ausfuehrungen(ausfuehrungen)
+    return generisch, schritte, lauf, ausfuehrungen
 
 
 #: Kopfzeile des Nutzertexts, wenn nicht ein Gespraechsabschnitt geprueft
@@ -530,6 +676,39 @@ def erkenne(klm, conn, e, chat_id: int) -> list[dict]:
 _AUFNAHME_KOPF = (
     "Eine Sprachnachricht aus einem laufenden Interview, gerade transkribiert:"
 )
+
+
+def ueber_claude(e, conn, chat_id) -> bool:
+    """Padua (Birk 08.10.2026 ~10:45: "Erkenner sofort auf Opus, Opus ist viel
+    besser als gemma"): Profilschalter ``[erkenner] ueber_claude`` UND der
+    Betreiber erlaubt Claude (``IT_SZENE_ANBIETER=claude``) UND die Gruppe ist
+    NICHT in Phase 3 (Interviews -- harte Grenze der Modellwahl). Transkripte
+    (``erkenne_in_aufnahme``) bleiben IMMER auf dem Infomaniak-Erkenner."""
+    from interview_theater import modellwahl, workshop
+
+    if not workshop.erkenner_ueber_claude_aktiv() or conn is None or chat_id is None:
+        return False
+    try:
+        return modellwahl.konversation_ueber_claude(e, conn, chat_id)
+    except Exception:
+        return False
+
+
+def _schema_aufruf(klm, conn, e, chat_id, system, nutzer, schema_, art):
+    """Ein Erkenner-Schema-Aufruf: Opus ueber den Abo-Proxy, wenn
+    ``ueber_claude``; bei Fehler faellt ``modellwahl.aufruf_schema`` fuer
+    diesen EINEN Zug auf das Infomaniak-Modell zurueck (Vorfall wird
+    gemeldet). Sonst unveraendert ``klm.schema`` mit ``e.erkenner_modell``."""
+    if ueber_claude(e, conn, chat_id):
+        from interview_theater import modellwahl
+
+        return modellwahl.aufruf_schema(
+            conn, klm, e, chat_id, system, nutzer, schema_, art,
+            ueber_claude=True, modell=e.erkenner_modell, timeout=60.0,
+            claude_modell=getattr(e, "szene_modell", None) or "claude-opus-5-5",
+        )
+    return klm.schema(chat_id, system, nutzer, schema_, art,
+                      modell=e.erkenner_modell, temperature=TEMPERATURE)
 
 
 def baue_aufnahme_nutzertext(transkript: str) -> str:
@@ -671,6 +850,9 @@ def _wende_arbeitsstand_an(conn, chat_id: int, art: str, wert: str) -> dict | No
             return None
         if _fragen_sammeln(conn, chat_id):
             return _haenge_fragen_an(conn, chat_id, art, wert)
+        schrumpf = _wende_fragen_schrumpf_geschuetzt(conn, chat_id, art, wert)
+        if schrumpf is not _KEIN_SCHRUMPF:
+            return schrumpf
     if feld == "rahmen" and _ist_geschichte(wert):
         # **Der Rahmen ist das SETTING, nicht die Handlung** (06.09.2026,
         # Birk 11:42, live gemessen: der Erkenner schrieb einen
@@ -774,6 +956,90 @@ def _haenge_fragen_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         return None
     repo.setze_arbeitsstand(conn, chat_id, "fragen", "\n".join(bisher + neu))
     return {"art": art, "wert": "\n".join(neu)}
+
+
+#: Sentinel: ``_wende_fragen_schrumpf_geschuetzt`` liefert dieses Objekt,
+#: wenn ``wert`` die Liste NICHT kuerzen wuerde -- der Aufrufer faehrt dann
+#: mit dem normalen Ueberschreiben fort (``_wende_arbeitsstand_an``). Kein
+#: ``None``, weil ``None`` hier schon "Schrumpf erkannt und verworfen"
+#: bedeutet.
+_KEIN_SCHRUMPF = object()
+
+
+def _finde_ersetzte_zeile(alte_zeilen: list[str], neue_zeile: str) -> int | None:
+    """Welche Zeile aus ``alte_zeilen`` ``neue_zeile`` ersetzen soll --
+    erkannt am gemeinsamen Thema (dem Wort vor dem Doppelpunkt, siehe
+    ``_fragen_teile``). Genau EIN Treffer mit demselben Thema und einem
+    anderen Text gilt als eindeutig; kein Treffer oder mehrere liefert
+    ``None`` -- geraten wird nicht, dann greift die Ablehnung in
+    ``_wende_fragen_schrumpf_geschuetzt``."""
+    neu_ganz, neu_thema, _ = _fragen_teile(neue_zeile)
+    if not neu_thema:
+        return None
+    treffer = [
+        i for i, alt in enumerate(alte_zeilen)
+        for alt_ganz, alt_thema, _ in [_fragen_teile(alt)]
+        if alt_thema == neu_thema and alt_ganz != neu_ganz
+    ]
+    return treffer[0] if len(treffer) == 1 else None
+
+
+def _wende_fragen_schrumpf_geschuetzt(conn, chat_id: int, art: str, wert: str):
+    """Schrumpf-Schutz fuer ``fragen_setzen`` (Live-Befund G3, 06.10.2026,
+    Padua: "Aendere Frage 3 in X" liess das Erkenner-Modell nur die eine neue
+    Frage als Wert liefern -- und das Vollueberschreiben in
+    ``_wende_arbeitsstand_an`` kuerzte die Liste dadurch von 16 auf 1).
+
+    Hat ``wert`` WENIGER Zeilen als die aktuell gespeicherte Liste, wird NIE
+    blind ueberschrieben:
+
+    - genau EINE neue Zeile, deren Thema eindeutig zu einer alten Zeile
+      passt, ersetzt NUR diese eine Zeile (Index bleibt erhalten --
+      ``fragen_herkunft_final``/``fragen_bearbeitet_final`` bleiben dadurch
+      automatisch indexgleich, ohne dass diese Funktion sie anfasst);
+    - jeder andere Schrumpf (keine eindeutige Zuordnung, oder mehrere Zeilen
+      weniger als vorher) wird verworfen, als Vorfall vermerkt und mit dem
+      Marker ``{"art": "fragen_schrumpf_verworfen"}`` gemeldet (Befund A,
+      Nachbesserung zu t_cdece8e2) -- die Gruppe bekommt dadurch im Chat eine
+      Rueckfrage statt gar keiner Reaktion.
+
+    Liefert ``_KEIN_SCHRUMPF``, wenn ``wert`` die Liste nicht kuerzen wuerde
+    -- dann gilt der normale Ueberschreib-Weg weiter (auch das Erstschreiben
+    einer leeren Liste: ohne vorhandene Fragen gibt es nichts zu schuetzen).
+
+    Der EXPLIZITE Entfernungspfad ("Fragen entfernen") laeuft nicht hier,
+    sondern ueber die eigene ``entfernen``-Art (``_entferne_arbeitsstandfeld``)
+    -- dieser Schutz sieht nur ``fragen_setzen``."""
+    from interview_theater import vorschlag
+
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    alte = vorschlag.zeilen((stand["fragen"] if stand else None) or "")
+    neue = vorschlag.zeilen(wert)
+    if not alte or len(neue) >= len(alte):
+        return _KEIN_SCHRUMPF
+    if len(neue) == 1:
+        index = _finde_ersetzte_zeile(alte, neue[0])
+        if index is not None:
+            ersetzt = list(alte)
+            ersetzt[index] = neue[0]
+            repo.setze_arbeitsstand(conn, chat_id, "fragen", "\n".join(ersetzt))
+            return {"art": art, "wert": neue[0]}
+    log.info(
+        "fragen_setzen haette die Liste geschrumpft (%s -> %s Zeilen), "
+        "verworfen, chat_id=%s", len(alte), len(neue), chat_id,
+    )
+    repo.merke_vorfall(
+        conn, chat_id, None, "fragen_schrumpf_verworfen",
+        f"fragen_setzen haette die Liste von {len(alte)} auf {len(neue)} "
+        "Zeilen gekuerzt, ohne erkennbare Einzelfrage-Aenderung",
+    )
+    # Befund A (Nachbesserung zu t_cdece8e2): nicht ``None`` -- sonst sieht
+    # die Gruppe im Chat NICHTS von der Ablehnung, nur das Dashboard
+    # (``merke_vorfall`` oben). Dieser Marker landet in ``wirkliche`` und
+    # bekommt in ``_sammle_meldbares``/``_meldungszeilen`` seine eigene
+    # Zeile -- kein Arbeitsstandfeld hat sich geaendert, also auch kein
+    # Undo-Eintrag (``ruecknahme.ZEILEN_OHNE_UNDO``).
+    return {"art": "fragen_schrumpf_verworfen"}
 
 
 #: Anzahl Szenen: vernuenftige Grenzen fuer einen Workshop-Abend.
@@ -1013,7 +1279,7 @@ def _wende_szene_planen_an(conn, chat_id: int, wert: str) -> dict | None:
 
     Liefert None, wenn nichts Verwertbares dastand -- dann wurde nichts
     geschrieben und nichts gemeldet."""
-    from interview_theater import szene  # spaeter Import, haelt den Modulkopf frei
+    from interview_theater import stueck, szene  # spaeter Import, haelt den Modulkopf frei
 
     nummer, felder = szene.zerlege_planung(wert)
     if not felder and nummer is None:
@@ -1050,12 +1316,28 @@ def _wende_szene_planen_an(conn, chat_id: int, wert: str) -> dict | None:
             vorher = [f["id"] for f in repo.szene_figuren(conn, szene_id)]
             if vorher == ids:
                 continue
-            repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+            namen = {f["id"]: f["name"] for f in repo.figuren(conn, chat_id)}
+            ergebnis = stueck.setze_besetzung(
+                conn, chat_id, szene=nummer, namen=[namen[i] for i in ids],
+                zusatz=repo.hole_szene(conn, szene_id)["wer_zusatz"],
+                quelle=stueck.QUELLE_PLANUNG)
+            if not ergebnis.ok:
+                log.warning("Besetzung nicht gesetzt, chat_id=%s, Szene %s: %s",
+                            chat_id, nummer, ergebnis.fehler)
+                continue
             geaendert.append("figuren")
             continue
         if (repo.hole_szene(conn, szene_id)[feld] or "") == neuer_wert:
             continue
-        repo.setze_szenenfeld(conn, szene_id, feld, neuer_wert)
+        if feld in repo.NUR_UEBER_STUECK:
+            ergebnis = stueck.setze_ort(conn, chat_id, szene=nummer, ort=neuer_wert,
+                                        quelle=stueck.QUELLE_PLANUNG)
+            if not ergebnis.ok:
+                log.warning("Ort nicht gesetzt, chat_id=%s, Szene %s: %s",
+                            chat_id, nummer, ergebnis.fehler)
+                continue
+        else:
+            repo.setze_szenenfeld(conn, szene_id, feld, neuer_wert)
         geaendert.append(feld)
 
     if not geaendert:
@@ -1184,13 +1466,97 @@ def _wende_festlegung_an(conn, chat_id: int, wert: str) -> dict | None:
         return None
     if repo.schreibe_festlegung(conn, chat_id, bereich, text, bezug=bezug) is None:
         return None
+    offen: list[int] = []
+    if bezug:
+        try:
+            offen = _ziehe_figur_festlegung_nach(conn, chat_id, bezug, text)
+        except Exception:
+            log.exception(
+                "Figur-Nachzug einer Festlegung fehlgeschlagen, chat_id=%s, bezug=%r",
+                chat_id, bezug,
+            )
     return {
         "art": "festlegung_setzen",
         "wert": repo.festlegungszeile(bereich, bezug, text),
         "bereich": bereich,
         "bezug": bezug,
         "text": text,
+        # Szenen, deren Karte stueck nicht annahm (z. B. beschaeftigt): die
+        # Meldung sagt es, statt Erfolg zu behaupten (Review 13).
+        "karte_nicht_gezogen": offen,
     }
+
+
+#: Phase, in der eine Festlegung ueber eine Figur zusaetzlich auf
+#: ``figur.beschreibung`` und die Karten der noch offenen Folgeszenen wirkt
+#: (P7-Audit-Karte, Klasse 3, Birk 08.10.2026: Rollen/Tarngeschichten, die
+#: eine Gruppe im P7-Chat festlegt -- Beispiel "Chicca = Kommunikations-
+#: Diplomandin" --, blieben bisher nur im Script der gerade besprochenen
+#: Szene stehen, nicht in ``rahmen``/``figur.beschreibung``/den Karten der
+#: Folgeszenen).
+_PHASE_FIGUR_NACHZUG = 7
+
+
+def _ersetze_oder_haenge_an(punkte: list[str], praefix: str, neuer_punkt: str) -> list[str]:
+    """Ein frueherer Hakenpunkt DERSELBEN Figur (gleicher "Deciso
+    (<Figur>):"-Vorspann) wird ersetzt -- eine neue Festlegung ist die
+    aktuelle Fassung derselben Sache, kein zweiter Fakt neben dem alten.
+    Ohne Treffer wird angehaengt."""
+    neue = [p for p in punkte if not p.startswith(praefix)]
+    neue.append(neuer_punkt)
+    return neue
+
+
+def _ziehe_figur_festlegung_nach(conn, chat_id: int, bezug: str, text: str) -> list[int]:
+    """Klasse 3 (P7-Audit-Karte): eine Festlegung ueber eine Figur in Phase 7
+    haengt sich an ``figur.beschreibung`` an und geht als Hakenpunkt auf die
+    Karte jeder noch nicht gespeicherten Szene, in der die Figur vorkommt --
+    ein frueherer Hakenpunkt derselben Figur auf derselben Karte wird ersetzt
+    (``karte_verlauf``, Ausloeser ``aenderung``).
+
+    Nur in Phase 7 (``_PHASE_FIGUR_NACHZUG``) und nur bei einem eindeutigen
+    Figurennamen -- ein unbekannter oder mehrdeutiger ``bezug`` bleibt
+    unangetastet, wie ``_figuren_aus_namen`` es sonst auch haelt.
+
+    Gibt die Nummern der Szenen zurueck, deren Karte ``stueck`` nicht annahm
+    (Busy-Gate): die Meldung nennt sie, die Absicht geht nicht still verloren."""
+    from interview_theater import stueck, stueck_sicht
+
+    nicht_gezogen: list[int] = []
+    if phasen.aktuelle(conn, chat_id) != _PHASE_FIGUR_NACHZUG:
+        return nicht_gezogen
+    ids = _figuren_aus_namen(conn, chat_id, bezug)
+    if len(ids) != 1:
+        return nicht_gezogen
+    figur_id = ids[0]
+    figur = next((f for f in repo.figuren(conn, chat_id) if f["id"] == figur_id), None)
+    if figur is None:
+        return nicht_gezogen
+    alte_beschreibung = (figur["beschreibung"] or "").strip()
+    neue_beschreibung = f"{alte_beschreibung}\n{text}".strip() if alte_beschreibung else text
+    repo.setze_figur(conn, chat_id, figur["name"], neue_beschreibung)
+
+    praefix = T_IT._ZEILE_FESTGEHALTEN.format(marke=f" ({figur['name']})", text="")
+    hakenpunkt = praefix + text
+    for szene in repo.hole_szenen(conn, chat_id):
+        if szene["entfernt_am"] or szene["fertig_am"]:
+            continue
+        karte = stueck.karte(conn, szene)
+        if karte is None:
+            continue
+        if figur_id not in {f["id"] for f in repo.szene_figuren(conn, szene["id"])}:
+            continue
+        roh_punkte = [p for p in karte.get("punkte") or []
+                      if not stueck_sicht.OFFEN_PUNKT.match(p)]
+        ergebnis = stueck.karte_aendern(
+            conn, chat_id, szene=szene["nummer"],
+            punkte=_ersetze_oder_haenge_an(roh_punkte, praefix, hakenpunkt),
+            quelle="erkenner")
+        if not ergebnis.ok:
+            log.warning("Figur-Festlegung nicht auf Karte Szene %s gezogen, chat_id=%s: %s",
+                        szene["nummer"], chat_id, ergebnis.fehler)
+            nicht_gezogen.append(szene["nummer"])
+    return nicht_gezogen
 
 
 #: Zahlwoerter, die die Gruppe statt einer Ziffer sagt. Bis zwoelf, weil der
@@ -1724,6 +2090,12 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         # Kein Schreibpfad, wie szene_schreiben: diese art stoesst eine
         # Neugenerierung an (entwurf.py), die laufe() auswertet.
         return None
+    if art == "stagescript_notiz":
+        # Kein Schreibpfad, wie szene_schreiben: die Notiz geht in eine
+        # eigene Tabelle (repo.merke_stagescript_notiz), nicht in den
+        # Arbeitsstand -- ``laufe()`` wertet sie ueber ``_starte_
+        # stagescript_notiz`` aus (Padua Quickfix 08.10.2026, Punkt 1).
+        return None
     if art == "formen_setzen":
         # Padua Phasen TEIL 2: schreibt ``szene.form`` -- die WAHL der Gruppe,
         # nicht ``form_vorschlag``. docs/agents/was-bewusst-fehlt.md, "Eine Menuezeile ist keine
@@ -1743,6 +2115,11 @@ def _wende_eine_an(conn, chat_id: int, art: str, wert: str) -> dict | None:
         # Kein Schreibpfad, wie szene_schreiben: diese Arten stossen einen
         # Weg an, den laufe() auswertet (``_starte_teil2``) -- derselbe, den
         # der passende Knopf nimmt.
+        return None
+    if art == "recherche_starten":
+        # Kein Schreibpfad, wie szene_schreiben: eine Recherche ist kein
+        # Arbeitsstandfeld, sondern ein minutenlanger Netz- und
+        # Modellaufruf. Den stoesst laufe() an (dort gibt es tg und klm).
         return None
     # Unbekannte art sollte erkenne() bereits herausgefiltert haben; bei
     # direktem Aufruf von wende_an() (z. B. in Tests) einfach ignorieren
@@ -1832,6 +2209,46 @@ def waechter_filter(aenderungen: list[dict]) -> list[dict]:
                 continue
         ergebnis.append(a)
     return ergebnis
+
+
+def _ohne_phase_setzen_nach_frischerem_klick(
+        conn, chat_id: int, aenderungen: list[dict], fenster_ende: str | None,
+) -> list[dict]:
+    """Verwirft ``phase_setzen`` aus diesem Erkennerlauf, wenn NACH dem
+    Ende seines eigenen Lesefensters (``fenster_ende``, die juengste der
+    gerade verarbeiteten Nachrichten) schon ein MANUELLER Phasenwechsel
+    (Klick 'web' oder Befehl 'befehl') im Journal steht.
+
+    QUICKFIX Birk, 07.10.2026 (Testgruppe Padua, chat_id 7000000000099,
+    07:16 UTC): zwei Klicks in der Phasenleiste 2 Sekunden auseinander
+    (``/phaseklick 3`` dann ``/phaseklick 4``) laufen als zwei asynchrone
+    Erkennerlaeufe (``bot.py``, ein ``ThreadPoolExecutor``-Task je Zug). Der
+    Lauf fuer den ERSTEN Klick kam erst NACH dem zweiten zum Abschluss und
+    las dabei nur die eigene Bestaetigungszeile des ersten Klicks
+    ("We're now at 3 ...") als ``phase_setzen`` "3" -- und warf die
+    inzwischen manuell auf 4 gesetzte Phase zurueck. journal belegt das
+    Ping-Pong: quelle='web' Phase 3/4, danach quelle='erkenner' Phase 3/4,
+    alle vier binnen 6 Sekunden.
+
+    Der Vergleich laeuft ueber den Nachrichten-ZEITPUNKT des Laufs, nicht
+    ueber 'jetzt': ein voellig legitimer Erkennerlauf, dessen Nachricht
+    NACH einem manuellen Klick geschrieben wurde (z. B. "lets move on"
+    direkt im Anschluss), bleibt wirksam -- nur ein Lauf, dessen Fenster
+    VOR dem manuellen Wechsel endet, ist zwangslaeufig auf veraltetem
+    Stand."""
+    if fenster_ende is None or not any(a.get("art") == "phase_setzen" for a in aenderungen):
+        return aenderungen
+    manuelle = [
+        z for z in repo.journal(conn, chat_id)
+        if z["art"] == "entschieden" and z["quelle"] in ("web", "befehl")
+    ]
+    if not manuelle or manuelle[-1]["erstellt_am"] <= fenster_ende:
+        return aenderungen
+    log.info(
+        "phase_setzen aus veraltetem Erkennerfenster verworfen (manueller "
+        "Wechsel danach), chat_id=%s", chat_id,
+    )
+    return [a for a in aenderungen if a.get("art") != "phase_setzen"]
 
 
 def wende_an(conn, e, chat_id: int, aenderungen: list[dict]) -> list[dict]:
@@ -2020,6 +2437,99 @@ def _weiter_aus_phase_1(conn, chat_id: int, aenderungen: list[dict]) -> list[dic
     return [{"art": "phase_setzen", "wert": "2"}]
 
 
+#: Die einzige Phase, deren Voraussetzung eine FIXIERTE Figurenliste
+#: verlangt (``phasen.voraussetzungen``, Schluessel 5 -- der Faktor
+#: ``fixiert``). ``figuren_fixiert_am`` setzt ausschliesslich der Knopf
+#: "Figuren fixieren" (``knoepfe/figuren.py``, Zeile mit ``repo._jetzt()``)
+#: -- der Erkenner hat dafuer keine eigene ``art``.
+PHASE_BRAUCHT_FIXIERTE_FIGUREN = 5
+
+
+def _ohne_phasensprung_vor_fixierten_figuren(
+    conn, chat_id: int, aenderungen: list[dict],
+) -> list[dict]:
+    """Ein ``phase_setzen`` Richtung ``PHASE_BRAUCHT_FIXIERTE_FIGUREN`` faellt
+    weg, solange ``figuren_fixiert_am`` nicht steht (Karte t_18ae9ea2,
+    G3-Testgruppe 06.10.2026: "Ok, no, then lets move on" -- gesagt, nachdem
+    die Gruppe klargestellt hatte, sich auf eine fruehere Aussage bezogen zu
+    haben, also in Phase 4 an den eigenen offenen Aufgaben weiterarbeiten zu
+    wollen -- schickte den Bot automatisch nach Phase 5 (Prose Draft) und
+    stiess sogar den Prosa-Lauf an, obwohl weder Figuren fixiert noch Rahmen,
+    Geschichte oder Szenenzahl standen, ``phasen.voraussetzungen()[5]`` also
+    False war).
+
+    Weil der Erkenner ``figuren_fixiert_am`` nie selbst setzen kann (keine
+    eigene ``art``, nur der Knopf tut das), ist ein per Chat gelesenes
+    ``phase_setzen`` dorthin IMMER verfrueht, solange die Figurenliste nicht
+    fixiert ist -- unabhaengig davon, wie ausdruecklich die Aeusserung war.
+    Abgefangen wird das deshalb hier in der Auswertung und nicht im Prompt
+    (derselbe Grund wie bei ``_ist_geschichte``: ``erkenner.md`` ist ohne
+    Korpuslauf nicht anzufassen). Der KNOPF-Weg (``_wirkung_phase``) bleibt
+    unberuehrt: ein Klick auf "Weiter zu Phase 5" wechselt wie bisher, auch
+    ohne fixierte Figuren -- diese Waeche gilt nur fuer den freien Chat."""
+    jetzige = phasen.aktuelle(conn, chat_id)
+    if jetzige >= PHASE_BRAUCHT_FIXIERTE_FIGUREN:
+        return aenderungen
+
+    def _zielt_auf_gesperrte_phase(a: dict) -> bool:
+        if a.get("art") != "phase_setzen":
+            return False
+        try:
+            return phasen.nummer_fuer(
+                a.get("wert"), jetzige=jetzige,
+            ) == PHASE_BRAUCHT_FIXIERTE_FIGUREN
+        except Exception:
+            return False
+
+    if not any(_zielt_auf_gesperrte_phase(a) for a in aenderungen):
+        return aenderungen
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    if bool(stand and (stand["figuren_fixiert_am"] or "").strip()):
+        return aenderungen
+    log.info(
+        "phase_setzen Richtung %s ohne fixierte Figuren verworfen, chat_id=%s",
+        PHASE_BRAUCHT_FIXIERTE_FIGUREN, chat_id,
+    )
+    return [a for a in aenderungen if not _zielt_auf_gesperrte_phase(a)]
+
+
+#: Padua, Phase-5-Gate (07.10.2026): dieselbe Zielphase wie
+#: ``befehle.P5_CHECK_ZIEL``. Hier als eigene Konstante, weil ``erkenner``
+#: unter ``befehle`` in der Modulkarte liegt und den Wert nur lokal
+#: importiert braucht, nicht das ganze Modul auf Vorrat.
+PHASE_P5_CHECK_ZIEL = 5
+
+
+def _ohne_phase_5_ohne_p5_check(conn, tg, chat_id: int,
+                                aenderungen: list[dict]) -> list[dict]:
+    """Ein ``phase_setzen`` Richtung Phase 5 faellt weg, solange die
+    Werkbank-Uebersicht nicht bestaetigt ist (Padua, Phase-5-Gate,
+    07.10.2026) -- derselbe Grund wie
+    ``_ohne_phasensprung_vor_fixierten_figuren``: der Erkenner kann die
+    Bestaetigung nie selbst herbeifuehren, nur ein Knopfdruck
+    (``knoepfe.wirkung._wirkung_p5_check_ok``) tut das. Anders als dort
+    bleibt die Gruppe im freien Chat nicht vor einer stillen Ablehnung
+    stehen: ``befehle.p5_gate`` zeigt an ihrer Stelle dieselbe Uebersicht
+    wie beim Befehl/Klick."""
+    jetzige = phasen.aktuelle(conn, chat_id)
+
+    def _zielt_auf_5(a: dict) -> bool:
+        if a.get("art") != "phase_setzen":
+            return False
+        try:
+            return phasen.nummer_fuer(a.get("wert"), jetzige=jetzige) == PHASE_P5_CHECK_ZIEL
+        except Exception:
+            return False
+
+    if not any(_zielt_auf_5(a) for a in aenderungen):
+        return aenderungen
+    from interview_theater import befehle
+
+    if not befehle.p5_gate(conn, tg, chat_id, PHASE_P5_CHECK_ZIEL):
+        return aenderungen
+    return [a for a in aenderungen if not _zielt_auf_5(a)]
+
+
 def baue_meldung(
     wirkliche_aenderungen: list[dict], conn=None, chat_id: int | None = None,
 ) -> str | None:
@@ -2053,7 +2563,7 @@ def baue_meldung(
         phasen.aktuelle(conn, chat_id)
         if conn is not None and chat_id is not None else None
     )
-    zeilen = _meldungszeilen(_sammle_meldbares(wirkliche_aenderungen), phase=phase)
+    zeilen = _meldungszeilen(_sammle_meldbares(wirkliche_aenderungen), phase=phase, chat_id=chat_id)
     if not zeilen:
         return None
     # Birk live 05.10.2026: die Speichermeldung nahm zu viel Raum ein. Eine
@@ -2063,7 +2573,7 @@ def baue_meldung(
 
     if _ws.autosave_phase1_2_aktiv() and all(z.startswith("📌") for z in zeilen):
         return "\n".join(zeilen)
-    return T._NOTIERT_KOPF + "\n".join(zeilen)
+    return _texte_fuer_phase(phase, chat_id)._NOTIERT_KOPF + "\n".join(zeilen)
 
 
 def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
@@ -2082,10 +2592,15 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
         "phase": None, "usa": None, "figuren_anzahl": None,
         "szenen_anzahl": None,
         "figuren": [], "geplant": [], "festgehalten": [],
-        "korrigiert": [], "entfernt": [],
+        "korrigiert": [], "entfernt": [], "karte_offen": [],
         # Padua Phasen TEIL 2: fertige Zeilen aus formen_setzen/
         # sprechweise_setzen (die Module bauen sie selbst, je Szene/Figur).
         "teil2": [],
+        # Befund A (Nachbesserung zu t_cdece8e2): der Schrumpf-Schutz hat
+        # eine Einzelfrage-Aenderung abgelehnt -- ohne diese Zeile sah die
+        # Gruppe im Chat nichts von der Ablehnung, nur ein stiller
+        # ``vorfall`` fuers Dashboard.
+        "fragen_schrumpf_verworfen": False,
     }
     einzeln = {
         "szene_usa": "usa",
@@ -2116,10 +2631,13 @@ def _sammle_meldbares(wirkliche_aenderungen: list[dict]) -> dict:
                 aenderung.get("bereich"), aenderung.get("bezug"),
                 aenderung.get("text", wert),
             ))
+            gesammelt["karte_offen"].extend(aenderung.get("karte_nicht_gezogen") or [])
         elif art == "phase_setzen":
             gesammelt["phase"] = phasen.nummer_fuer(wert)
         elif art in ("formen_setzen", "sprechweise_setzen"):
             gesammelt["teil2"].extend(aenderung.get("zeilen") or [])
+        elif art == "fragen_schrumpf_verworfen":
+            gesammelt["fragen_schrumpf_verworfen"] = True
         # Ein ``entschieden`` bleibt still -- ausser es hat nebenbei die
         # Figurenanzahl gesetzt (B4). Dann ist es eine Arbeitsstandaenderung
         # wie jede andere und gehoert in die Meldung: sonst stuende die Zahl
@@ -2169,6 +2687,10 @@ _ZEILE_FESTGEHALTEN = "Festgehalten{marke}: {text}"
 #: Grundleiste darunter).
 _ZEILE_FESTGELEGT = "📌 Festgelegt: {titel} — {text}"
 _ZEILE_KORRIGIERT = "Korrigiert: {zeile}"
+_ZEILE_KARTE_NICHT_GEZOGEN = (
+    "Karte Szene {nummern} noch nicht aktualisiert (es wird gerade geschrieben) "
+    "-- bitte gleich nochmal sagen."
+)
 _ZEILE_ENTFERNT = "Entfernt: {was}"
 _ZEILE_PHASE = "Wir sind jetzt bei {phase}."
 _ZEILE_USA_JA = (
@@ -2176,6 +2698,13 @@ _ZEILE_USA_JA = (
     "jeder Szene nochmal."
 )
 _ZEILE_USA_NEIN = "Szenentexte bleiben in der Schweiz. Ich frage nicht wieder."
+#: Befund A (Nachbesserung zu t_cdece8e2): die Rueckfrage, wenn der
+#: Schrumpf-Schutz eine Einzelfrage-Aenderung abgelehnt hat (siehe
+#: ``_wende_fragen_schrumpf_geschuetzt``) -- ohne diese Zeile sah die Gruppe
+#: im Chat nichts von der Ablehnung.
+_ZEILE_FRAGEN_SCHRUMPF_VERWORFEN = (
+    "Konnte die Frage nicht eindeutig zuordnen -- welche Frage meinst du?"
+)
 
 
 #: Dieselbe Phasennummer wie ``knoepfe.texte.PHASE_SETTING`` -- hier als
@@ -2233,9 +2762,25 @@ def _bereich_titel(bereich: str | None) -> str:
     return beschriftung if beschriftung is not None else bereich.capitalize()
 
 
-def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
+def _texte_fuer_phase(phase: int | None, chat_id: int | None = None):
+    """``T_IT`` fuer die Rahmenwoerter der Meldung ("Notiert:"/"Festgehalten:"
+    /"Wir sind jetzt bei"), solange die Gruppe in Phase 6/7 steht UND
+    chat_id in ``workshop.italienisch_ab_phase6_chats()`` steht (Morgen-
+    Auftrag 4, Punkte 1 und 3, 08.10.2026, Nachtrag 2: Chat-Liste statt
+    globalem Schalter) -- sonst die gewohnte Tabelle. Nur die Rahmenwoerter,
+    der Inhalt der Zeilen (``g[...]``-Werte) wird nicht neu uebersetzt."""
+    from interview_theater import workshop
+
+    if (phase in (6, 7) and chat_id is not None
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
+        return T_IT
+    return T
+
+
+def _meldungszeilen(g: dict, phase: int | None = None, chat_id: int | None = None) -> list[str]:
     """Aus dem Vorgeordneten die Zeilen der Meldung, in fester Reihenfolge."""
     zeilen = []
+    t = _texte_fuer_phase(phase, chat_id)
     beschriftung = T._FELD_BESCHRIFTUNG
     in_phase4 = phase == PHASE_SETTING
     autosave_1_2 = False
@@ -2281,7 +2826,7 @@ def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
             zeilen.append(T._ZEILE_FESTGELEGT.format(titel=titel, text=text))
         else:
             marke = f" ({bezug})" if bezug else ""
-            zeilen.append(T._ZEILE_FESTGEHALTEN.format(marke=marke, text=text))
+            zeilen.append(t._ZEILE_FESTGEHALTEN.format(marke=marke, text=text))
     # Eine Transkriptkorrektur bekommt ihr eigenes Verb (N5): "Korrigiert:
     # gepoekt -> gepogt". Sie ist der Beleg dafuer, dass wirklich etwas
     # passiert ist -- im Probelauf sagte der Bot dreimal "korrigiere ich",
@@ -2292,12 +2837,17 @@ def _meldungszeilen(g: dict, phase: int | None = None) -> list[str]:
     # eigenes Verb, damit niemand "Notiert:" liest und denkt, es sei etwas
     # dazugekommen.
     zeilen.extend(T._ZEILE_ENTFERNT.format(was=was) for was in g["entfernt"])
+    if g["karte_offen"]:
+        zeilen.append(T._ZEILE_KARTE_NICHT_GEZOGEN.format(
+            nummern=", ".join(str(n) for n in g["karte_offen"])))
     if g["phase"] is not None:
-        zeilen.append(T._ZEILE_PHASE.format(phase=phasen.bezeichnung(g["phase"])))
+        zeilen.append(t._ZEILE_PHASE.format(phase=phasen.bezeichnung(g["phase"])))
     if g["usa"] == "ja":
         zeilen.append(T._ZEILE_USA_JA)
     elif g["usa"] == "nein":
         zeilen.append(T._ZEILE_USA_NEIN)
+    if g["fragen_schrumpf_verworfen"]:
+        zeilen.append(T._ZEILE_FRAGEN_SCHRUMPF_VERWORFEN)
     return zeilen
 
 
@@ -2320,7 +2870,9 @@ def undo_zeilen(wirkliche_aenderungen: list[dict]) -> list[str]:
         a for a in wirkliche_aenderungen
         if a.get("art") not in ruecknahme.ZEILEN_OHNE_UNDO
     ]
-    return _meldungszeilen(_sammle_meldbares(behalten))
+    gesammelt = _sammle_meldbares(behalten)
+    gesammelt["karte_offen"] = []   # eine Warnung wird nicht "zurueckgenommen"
+    return _meldungszeilen(gesammelt)
 
 
 def _merke_undo_vorfall(conn, e, chat_id: int, text: str) -> None:
@@ -2576,6 +3128,26 @@ def _starte_szene(klm, tg, conn, e, chat_id: int, aenderungen: list[dict], wirkl
     szene.starte(conn, tg, klm, e, chat_id, auftrag)
 
 
+def _starte_recherche(klm, tg, conn, e, chat_id: int, aenderungen: list[dict]) -> None:
+    """Stoesst die Internet-Recherche an, wenn der Erkenner eine frei
+    getippte Forschungsfrage gefunden hat (art ``recherche_starten``,
+    interview_theater/recherche.py) -- derselbe Weg wie beim Research-Knopf
+    (``knoepfe.szenen.starte_recherche_lauf``).
+
+    Nicht in ``wende_an``, aus demselben Grund wie ``_starte_szene``: hier
+    faellt eine Nachricht in die Gruppe an und ein minutenlanger Netz- und
+    Modellaufruf, den ``starte_recherche_lauf`` sofort an einen eigenen
+    Thread abgibt."""
+    from interview_theater.knoepfe import szenen  # spaeter Import, haelt den Modulkopf frei
+
+    frage = next(
+        (a.get("wert") for a in aenderungen if a.get("art") == "recherche_starten"), None
+    )
+    if not frage:
+        return
+    szenen.starte_recherche_lauf(conn, tg, klm, e, chat_id, frage)
+
+
 def _starte_kuerzung(klm, tg, conn, e, chat_id: int,
                      aenderungen: list[dict], *,
                      notiz_verbraucht: bool = False) -> bool:
@@ -2720,6 +3292,148 @@ def _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id: int,
     entwurf.starte_uebersicht(conn, tg, klm, e, chat_id, treffer.get("wert") or None)
 
 
+#: Padua Dauernotiz-Fix (08.10.2026, Punkt 2): nennt dieselbe Nachricht
+#: mehrere Szenen, gilt die Notiz fuer jede genannte -- Zahlenliste nach
+#: scene/scena/szene ("scene 3, 4, 5, 6"), "dalla N in poi"/"from N on"/
+#: "ab N" (ab N einschliesslich), oder "tutte"/"all scenes"/"alle Szenen"
+#: (optional ohne "tranne/except/ausser N"). Deterministisch per Regex auf
+#: den rohen Nachrichtentext, kein Modellaufruf.
+_SZENEN_LISTE = re.compile(
+    r"\b(?:scene|scena|scenes|szene|szenen)\b[^\d]{0,15}"
+    r"((?:\d{1,2}\s*(?:,|/|&|\+|\be\b|\band\b|\bund\b)\s*)+\d{1,2})",
+    re.I,
+)
+_SZENEN_TRENNER = re.compile(r"[,/&+]|\be\b|\band\b|\bund\b", re.I)
+_AB_SZENE = re.compile(
+    r"\bdalla\s+(?:scena\s+)?(\d{1,2})\s+in\s+poi\b"
+    r"|\bfrom\s+(?:scene\s+)?(\d{1,2})\s+on(?:wards)?\b"
+    r"|\bab\s+(?:szene\s+)?(\d{1,2})\b",
+    re.I,
+)
+_ALLE_SZENEN = re.compile(
+    r"\btutte(?:\s+le\s+scene)?\b|\ball\s+scenes?\b|\balle\s+szenen\b", re.I)
+_SZENEN_AUSGENOMMEN = re.compile(
+    r"\b(?:tranne|except(?:\s+for)?|ausser|außer)\b\D{0,15}?(\d{1,2})", re.I)
+
+
+def _weitere_szenen_aus_text(text: str, alle_nummern: list[int]) -> set[int]:
+    """Welche Szenennummern aus ``alle_nummern`` die Nachricht sonst noch
+    nennt -- Grundlage fuer Punkt 2 (``_starte_stagescript_notiz`` legt eine
+    Notiz fuer jede zurueckgegebene Nummer zusaetzlich an). Leer, wenn die
+    Nachricht kein Muster trifft (der Normalfall: eine Notiz, eine Szene)."""
+    text = text or ""
+    treffer: set[int] = set()
+    gefunden = _SZENEN_LISTE.search(text)
+    if gefunden:
+        for stueck in _SZENEN_TRENNER.split(gefunden.group(1)):
+            stueck = stueck.strip()
+            if stueck.isdigit():
+                treffer.add(int(stueck))
+    gefunden = _AB_SZENE.search(text)
+    if gefunden:
+        start = int(next(g for g in gefunden.groups() if g))
+        treffer.update(n for n in alle_nummern if n >= start)
+    if _ALLE_SZENEN.search(text):
+        treffer.update(alle_nummern)
+        for ausnahme in _SZENEN_AUSGENOMMEN.finditer(text):
+            treffer.discard(int(ausnahme.group(1)))
+    return {n for n in treffer if n in alle_nummern}
+
+
+def _starte_stagescript_notiz(klm, tg, conn, e, chat_id: int,
+                              aenderungen: list[dict], *,
+                              notiz_verbraucht: bool = False,
+                              nachrichtentext: str = "") -> None:
+    """Padua Quickfix (08.10.2026, Punkt 1): legt einen Wunsch zu einer
+    Stage-Script-Szene ab, die noch nicht geschrieben ist oder gerade
+    laeuft (art ``stagescript_notiz``), und bestaetigt kurz.
+
+    Nicht in ``wende_an``, aus demselben Grund wie ``_starte_szene``: hier
+    faellt eine Nachricht in die Gruppe an -- und manchmal, siehe unten, ein
+    sofortiger Schreib-Lauf. Die Notiz selbst ist nur ein Datenbankschreiben
+    (``repo.merke_stagescript_notiz``), **kein** Modellaufruf hier.
+
+    **Nur mit Szenenkarten** (``workshop.szenenkarten_aktiv()``): ohne sie
+    gibt es kein Stage Script, sondern den alten Prosa-/Formwahl-Pfad --
+    dort gilt weiter ``text_ueberarbeiten``/``formen_setzen``.
+
+    **Zielszene**: die genannte Nummer, sonst die aktuelle bzw. naechste
+    noch nicht abgenommene (``stagescript.aktuelle_nummer``) -- dieselbe
+    Regel wie bei jedem anderen Szenenbezug in diesem Modul.
+
+    **Traegt die Szene schon einen Volltext, ist aber noch nicht
+    abgenommen, und laeuft gerade kein Lauf:** wie "No, change" -- sofort
+    neu schreiben, mit der Notiz. Laeuft einer, oder ist die Szene noch
+    ohne Volltext, bleibt die Notiz liegen; der naechste
+    ``stagescript.schreibe``-Aufruf dieser Szene holt sie sich selbst
+    (``stagescript._notiz_mit_gespeicherten``).
+
+    **Punkt 2 (08.10.2026):** nennt ``nachrichtentext`` (der rohe Text des
+    gelesenen Fensters, von ``laufe`` durchgereicht) noch weitere Szenen
+    (``_weitere_szenen_aus_text``), bekommt jede davon dieselbe Notiz
+    zusaetzlich -- ausser der Zielszene selbst, die hat sie schon."""
+    from interview_theater import stagescript, workshop
+
+    if not workshop.szenenkarten_aktiv():
+        return
+    treffer = next(
+        (a for a in aenderungen if a.get("art") == "stagescript_notiz"), None
+    )
+    if treffer is None:
+        return
+    if notiz_verbraucht:
+        # Live-Befund G1 (08.10.2026, web_post 10:57-11:07, Robo-Fix 14:00):
+        # dieselbe Nachricht war schon eine vollstaendige Chat-Fassung
+        # (``ablauf`` hat sie ueber ``stagescript.uebernimm_chatfassung``
+        # bereits ins Script uebernommen) -- ein zweiter Neuschreiblauf
+        # ueber dieselbe Nachricht gaebe eine zweite, widersprechende
+        # Fassung.
+        log.info("Stage-Script-Notiz aus dem Chat entfaellt, die Nachricht "
+                 "war schon die Chat-Fassung, chat_id=%s", chat_id)
+        return
+    notiz, nummer = _notiz_und_nummer(treffer.get("wert"))
+    if not notiz:
+        return
+    if nummer is None:
+        nummer = stagescript.aktuelle_nummer(conn, chat_id)
+    if nummer is None:
+        return
+    szene = stagescript._szene_mit_nummer(conn, chat_id, nummer)
+    if szene is None:
+        return
+    try:
+        repo.merke_stagescript_notiz(conn, chat_id, szene["id"], notiz)
+    except Exception:
+        log.exception("Stage-Script-Notiz nicht gespeichert, chat_id=%s, nummer=%s",
+                      chat_id, nummer)
+        return
+    if nachrichtentext:
+        alle_nummern = [s["nummer"] for s in stagescript._szenen(conn, chat_id)]
+        for weitere_nummer in sorted(
+                _weitere_szenen_aus_text(nachrichtentext, alle_nummern) - {nummer}):
+            weitere_szene = stagescript._szene_mit_nummer(conn, chat_id, weitere_nummer)
+            if weitere_szene is None or notiz in repo.stagescript_notizen(
+                    conn, weitere_szene["id"]):
+                continue
+            try:
+                repo.merke_stagescript_notiz(conn, chat_id, weitere_szene["id"], notiz)
+            except Exception:
+                log.exception("Stage-Script-Notiz (weitere Szene) nicht gespeichert, "
+                              "chat_id=%s, nummer=%s", chat_id, weitere_nummer)
+    try:
+        stagescript._sende(conn, tg, e, chat_id, stagescript._T(chat_id)._TEXT_NOTIZ_NOTIERT.format(
+            nummer=nummer, notiz=notiz))
+    except Exception:
+        log.exception("Notiz-Bestaetigung nicht zustellbar, chat_id=%s", chat_id)
+    if ((szene["volltext"] or "").strip() and not szene["fertig_am"]
+            and not stagescript.laeuft(chat_id)):
+        try:
+            stagescript.starte(conn, tg, klm, e, chat_id, nummer, notiz)
+        except Exception:
+            log.exception("Stage-Script-Neuschreiben nach Notiz gescheitert, "
+                          "chat_id=%s, nummer=%s", chat_id, nummer)
+
+
 #: Arten, die neben einer ``text_ueberarbeiten`` im SELBEN Lauf wegfallen
 #: (Padua Phasen TEIL 2, Flow-Audit B2): "mach die Mutter wuetender" ist
 #: Rueckmeldung zum gezeigten Text -- keine Festlegung ("Noted:" ohne
@@ -2827,7 +3541,7 @@ def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
     Ueberarbeitung und keine "laeuft noch"-Zeile ueber den Lauf, den die
     Gruppe gerade selbst angestossen hat. ``besetzt_gemeldet``: die Zeile
     kam in diesem Lauf schon (``_starte_kuerzung``) -- nicht zweimal."""
-    from interview_theater import ueberarbeitung
+    from interview_theater import ueberarbeitung, workshop
 
     if not ueberarbeitung.aktiv():
         return
@@ -2856,7 +3570,17 @@ def _starte_teil2(klm, tg, conn, e, chat_id: int, freigegeben: list[dict],
                                       ueberarbeitung.T._TEXT_LAEUFT_NOCH)
             elif ueberarbeiten is not None:
                 notiz, nummer = _notiz_und_nummer(ueberarbeiten.get("wert"))
-                ueberarbeitung.ueberarbeite(conn, tg, klm, e, chat_id, notiz, nummer)
+                if workshop.szenenkarten_aktiv() and phasen.aktuelle(conn, chat_id) == 6:
+                    # Nachtrag Birk 08.10.2026 ~09:35: Karten-Aenderungen
+                    # laufen nur noch ueber den "No, change"-Dialog ("Update
+                    # the card"), nie automatisch aus dem Erkenner -- sonst
+                    # baute eine freie Rueckmeldung die Karte heimlich neu,
+                    # am Dialog und seinen Knoepfen vorbei.
+                    log.info(
+                        "text_ueberarbeiten fuer Szenenkarte verworfen "
+                        "(Dialog statt Automatik), chat_id=%s", chat_id)
+                else:
+                    ueberarbeitung.ueberarbeite(conn, tg, klm, e, chat_id, notiz, nummer)
             else:
                 ueberarbeitung.nimm_ab(conn, tg, klm, e, chat_id)
     except Exception:
@@ -3217,7 +3941,16 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # mit dem Schalter; Dortmund liest hier nichts zusaetzlich.
         from interview_theater import ueberarbeitung
 
-        stapel = ([n["message_id"] for n in repo.unextrahierte(conn, chat_id)]
+        # QUICKFIX Birk, 07.10.2026 (Rennlauf-Guard, siehe
+        # ``_ohne_phase_setzen_nach_frischerem_klick``): das Ende dieses
+        # Lesefensters MUSS vor ``erkenne()`` stehen -- die Funktion
+        # schiebt das Wasserzeichen weiter, danach liefert ``unextrahierte``
+        # nichts mehr aus diesem Lauf.
+        fenster_vor_erkennung = repo.unextrahierte(conn, chat_id)
+        fenster_ende = max(
+            (n["gesendet_am"] for n in fenster_vor_erkennung), default=None,
+        )
+        stapel = ([n["message_id"] for n in fenster_vor_erkennung]
                   if ueberarbeitung.aktiv() else [])
         # Feedbackloop P1-2, Befund S5: hat der Gespraechszug zu dieser
         # Nachricht die Begriffe schon gespeichert und quittiert ("Updated –
@@ -3234,13 +3967,24 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         from interview_theater import ablauf as _ablauf
 
         vergleich_im_zug = _ablauf.nimm_vergleich_im_zug(conn, chat_id)
-        aenderungen = erkenne(klm, conn, e, chat_id)
+        aenderungen, werkzeugschritte = erkenne_mit_werkzeugschritten(klm, conn, e, chat_id)
+        aenderungen = _ohne_phase_setzen_nach_frischerem_klick(
+            conn, chat_id, aenderungen, fenster_ende)
         if vergleich_im_zug and aenderungen:
             if any(a.get("art") == "phase_setzen" for a in aenderungen):
                 log.info("phase_setzen aus der Nachricht, die den Vergleich "
                          "gestartet hat, verworfen, chat_id=%s", chat_id)
             aenderungen = [a for a in aenderungen if a.get("art") != "phase_setzen"]
-        if not aenderungen:
+        # Karte t_18ae9ea2: ein "lets move on" im freien Chat darf nicht
+        # nach Phase 5 (Prose Draft) springen, solange die Figurenliste
+        # nicht fixiert ist -- der Erkenner kann diese Voraussetzung nie
+        # selbst herbeifuehren (siehe Docstring der Funktion).
+        aenderungen = _ohne_phasensprung_vor_fixierten_figuren(conn, chat_id, aenderungen)
+        # Phase-5-Gate (Padua, 07.10.2026): derselbe Waechter wie beim
+        # Befehl/Klick -- ein "lass uns weitermachen" im freien Chat soll
+        # nicht an der Werkbank-Uebersicht vorbeikommen.
+        aenderungen = _ohne_phase_5_ohne_p5_check(conn, tg, chat_id, aenderungen)
+        if not aenderungen and not werkzeugschritte:
             return
         notiz_verbraucht = False
         if stapel:
@@ -3263,6 +4007,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
             # Nachricht nur ein zweites Mal und hat sie im Lauf schon einmal
             # geleert ("noise comes off the list" -> entfernen BEGRIFFE).
             freigegeben = [a for a in freigegeben if not _betrifft_begriffe(a)]
+        # Phasen-Summary (Karte t_1bc96848): die Phase VOR diesem Lauf --
+        # ``wende_an`` kann sie weiter unten per ``phasen.setze`` aendern,
+        # und danach ist der alte Wert aus der Datenbank nicht mehr zu lesen.
+        phase_vor_dem_lauf = phasen.aktuelle(conn, chat_id)
         # Der Stand VOR und NACH dem Anwenden, direkt um ``wende_an`` und
         # unter ``repo._LOCK`` -- Grundlage des Undo-Knopfs (Karte U).
         wirkliche, vorher, nachher = _wende_an_mit_schnappschuss(
@@ -3283,6 +4031,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Ausnahme Phase 1 unter Padua (``_weiter_aus_phase_1``): dort ist
         # die Bitte schon das Weiter.
         wirkliche = wirkliche + _weiter_aus_phase_1(conn, chat_id, aenderungen)
+        if any(a.get("art") == "phase_setzen" for a in wirkliche):
+            from interview_theater import phasen_summary
+
+            phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, phase_vor_dem_lauf)
         # Abnahme P3-4 A3 Nachtrag (06.10.2026): ein Phasenwechsel per Chat
         # beendet ein offenes Interview genauso wie Befehl/Klick.
         _schliesse_interview_vor_phasenwechsel(klm, tg, conn, e, chat_id, wirkliche)
@@ -3300,6 +4052,10 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Szenenauftrag schreibt nichts in den Arbeitsstand und taucht in
         # ``wirkliche`` deshalb nie auf.
         _starte_szene(klm, tg, conn, e, chat_id, freigegeben, wirkliche)
+        # Karte t_c5117c91: dieselbe Bauart -- aus den erkannten, nicht aus
+        # den wirksamen Aenderungen, weil recherche_starten nichts in den
+        # Arbeitsstand schreibt und in ``wirkliche`` deshalb nie auftaucht.
+        _starte_recherche(klm, tg, conn, e, chat_id, freigegeben)
         # Und dieselbe Bauart fuer die Kuerzung (30.09.2026, C10): aus den
         # erkannten Aenderungen, weil sie wie ``szene_schreiben`` nichts in
         # den Arbeitsstand schreibt und in ``wirkliche`` deshalb nie auftaucht.
@@ -3310,7 +4066,22 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         # Geschichts-Uebersicht (Stufe A von Phase 5) -- derselbe Grund wie
         # bei _starte_szene/_starte_kuerzung, kein Schreibpfad in wende_an.
         _starte_entwurf_uebersicht(klm, tg, conn, e, chat_id, freigegeben)
-        text = baue_meldung(wirkliche, conn, chat_id)
+        # Padua Quickfix (08.10.2026, Punkt 1): wie bei _starte_szene/
+        # _starte_kuerzung aus den erkannten (phasengefilterten) Aenderungen,
+        # weil stagescript_notiz nichts in den Arbeitsstand schreibt und in
+        # ``wirkliche`` deshalb nie auftaucht.
+        _starte_stagescript_notiz(
+            klm, tg, conn, e, chat_id, freigegeben,
+            notiz_verbraucht=notiz_verbraucht,
+            nachrichtentext="\n".join(
+                n["text"] for n in fenster_vor_erkennung if n["text"]))
+        # Tools-Modus: die schon ueber ``stueck`` geschriebenen Schritte stehen
+        # NUR in der Meldung (nach allen ``_starte_*``, damit kein Startweg sie
+        # als neuen Auftrag liest). Undo/Ruecknahme deckt im Tools-Modus nur den
+        # generischen Teil ab (``wirkliche``); die Stueck-Schritte nicht (Spec
+        # § 3.4) -- sie stehen im ``stueck``-Aenderungsprotokoll. Der Szenenkern
+        # wird fuer Stueck-Schritte nicht neu angestossen.
+        text = baue_meldung(wirkliche + werkzeugschritte, conn, chat_id)
         if text is not None and begriffe_im_zug and _haenge_an_zugquittung(
                 conn, chat_id, zug_lauf, vorher, nachher, wirkliche):
             # Befund S5/M7: Transkriptkorrektur und Festlegung stehen jetzt
@@ -3349,6 +4120,13 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
         _starte_teil2(klm, tg, conn, e, chat_id, freigegeben, wirkliche,
                       notiz_verbraucht=notiz_verbraucht,
                       besetzt_gemeldet=bool(besetzt_gemeldet))
+        # Padua (Birk 07.10.2026 ~17:45): eine Szene im Chat geaendert ->
+        # ihre Kurzform neu, im Thread (szenenkern, Fingerabdruck verhindert
+        # Doppellaeufe). Ohne Schalter tut ``starte`` nichts.
+        if any(a.get("art") == "szene_planen" for a in wirkliche):
+            from interview_theater import szenenkern
+
+            szenenkern.starte(conn, klm, e, chat_id)
         # Hat die Gruppe im selben Zug die Phase gewechselt, kommt direkt
         # hinter der Meldung der Phasenrahmen (06.09.2026): derselbe Eintritt
         # wie ueber den Knopf und ueber ``/phase``.
@@ -3372,3 +4150,4 @@ def laufe(klm, tg, conn, e, chat_id: int) -> None:
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 
 T = sprache.Texte(__name__)
+T_IT = sprache.Texte(__name__, sprachcode="it")

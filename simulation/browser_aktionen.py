@@ -25,6 +25,66 @@ class UnbekannteAktion(Exception):
     pass
 
 
+class PhasenwechselFehlt(Exception):
+    """Das Produkt bietet fuer diesen Phasenwechsel kein Element an (weder
+    Stepper-Segment noch Roadmap-Knopf) -- ein Befund, kein Harness-Fehler."""
+
+
+class PhasenwechselAbgelehnt(Exception):
+    """Der Phasenwechsel wurde ausgeloest, das Produkt hat ihn aber abgelehnt
+    (Fehlerzeile ``#fehler`` statt Phasenwechsel)."""
+
+
+def _phase_wechseln(page, nummer) -> dict:
+    """Phasenwechsel ueber das ECHTE Element der Seite.
+
+    Padua (``web.phasennav_stepper = true``): ``li.stepper-segment[data-phase]``
+    (auch erledigte Phasen sind Segmente) oeffnet das Bottom-Sheet
+    ``#phasensheet``; erst ``#phasensheet-los`` ("Go to ...") sendet den
+    Wechsel (``web_vereint._STEPPER_JS``). Dortmund-/Rueckfall-Markup:
+    ``.phase-knopf[data-phase]`` in der (geschlossenen) Roadmap."""
+    segment = f'.stepper-segment[data-phase="{nummer}"]'
+    if page.locator(segment).count():
+        page.click(segment, timeout=5000)
+        page.wait_for_selector("#phasensheet:not([hidden])", timeout=5000)
+        page.click("#phasensheet-los", timeout=5000)
+        # Erfolg: das Blatt schliesst sich; Ablehnung: das Blatt bleibt und
+        # ``#fehler`` zeigt den Satz des Servers.
+        for _ in range(20):
+            page.wait_for_timeout(250)
+            if page.locator("#phasensheet[hidden]").count():
+                return {"art": "phase", "ziel": nummer, "weg": "stepper"}
+            fehler = page.locator("#fehler:not([hidden])")
+            if fehler.count():
+                text = (fehler.first.inner_text() or "").strip()
+                schliesse = page.locator("#phasensheet-bleib:visible")
+                if schliesse.count():
+                    schliesse.first.click()
+                raise PhasenwechselAbgelehnt(
+                    f"Produkt lehnt Wechsel nach Phase {nummer} ab: {text or '(ohne Text)'}")
+        raise PhasenwechselAbgelehnt(
+            f"Phasenblatt blieb nach 'Go to' offen (Phase {nummer}), keine Antwort")
+    selektor = f'.phase-knopf[data-phase="{nummer}"]'
+    if not page.locator(selektor).count():
+        raise PhasenwechselFehlt(
+            f"Produkt bietet kein Element fuer Phase {nummer} "
+            f"(weder {segment} noch {selektor})")
+    # Die Roadmap ist auf der echten Seite per Vorgabe geschlossen
+    # (``<details class="roadmap">`` ohne ``open``); ein Phasenwechsel ist eine
+    # bewusste Handlung -- sie oeffnet die Roadmap selbst.
+    page.eval_on_selector(
+        selektor, "el => { var d = el.closest('details'); "
+        "if (d) { d.open = true; } }"
+    )
+    page.click(selektor)
+    page.wait_for_timeout(300)
+    # Nach vorn mit fehlender Voraussetzung bewaffnet der erste Klick nur die
+    # Rueckfrage (data-sicher=1) -- ein zweiter Klick bestaetigt.
+    if page.locator(selektor).get_attribute("data-sicher") == "1":
+        page.click(selektor)
+    return {"art": "phase", "ziel": nummer, "weg": "roadmap"}
+
+
 def fuehre_aus(page, aktion: dict) -> dict:
     """Fuehrt genau eine Aktion aus. Liefert ein Protokoll-Dict."""
     art = aktion.get("type")
@@ -44,26 +104,7 @@ def fuehre_aus(page, aktion: dict) -> dict:
         page.click(f'.tabs button[data-tab="{wert}"]')
         return {"art": "tab", "ziel": wert}
     if art == "phase":
-        selektor = f'.phase-knopf[data-phase="{aktion["nummer"]}"]'
-        # Die Roadmap ist auf der echten Seite per Vorgabe geschlossen
-        # (``<details class="roadmap">`` ohne ``open`` --
-        # ``web_vereint._leiste_html``); ihr Inhalt ist dann nicht sichtbar
-        # und ein Klick darauf liefe in einen Timeout. Ein Phasenwechsel ist
-        # eine eigene, bewusste Handlung -- sie oeffnet die Roadmap selbst,
-        # statt vorher auf einen Klick auf ``summary`` zu warten.
-        page.eval_on_selector(
-            selektor, "el => { var d = el.closest('details'); "
-            "if (d) { d.open = true; } }"
-        )
-        page.click(selektor)
-        page.wait_for_timeout(300)
-        # Nach vorn mit fehlender Voraussetzung bewaffnet der erste Klick
-        # nur die Rueckfrage (data-sicher=1) -- ein zweiter Klick bestaetigt,
-        # genau wie bei einer echten Gruppe (web_vereint._VEREINT_JS,
-        # "bewaffne"/"springe").
-        if page.locator(selektor).get_attribute("data-sicher") == "1":
-            page.click(selektor)
-        return {"art": "phase", "ziel": aktion["nummer"]}
+        return _phase_wechseln(page, aktion["nummer"])
     if art == "ptt":
         # Ton ist in dieser Kartenversion ausgespart (siehe Bericht,
         # "Real-Test Birk") -- die Aktion wird protokolliert, aber nicht

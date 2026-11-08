@@ -360,3 +360,17 @@ def test_phase_4_ohne_modell_bleibt_der_deterministische_rahmen(conn, einst, tg)
 
     assert tg.gesendet
     assert tg.gesendet[0][1].startswith("▶️ Phase 4 von 7")
+
+
+def test_szenentexte_zeile_zaehlt_prosa_der_phase_5_und_6(conn):
+    """P57 Lauf 5 A1: Padua schreibt in den Phasen <= 6 ``szene.prosa``,
+    ``volltext`` bleibt leer -- die Zeile "Szenentexte" darf deshalb nicht
+    "noch keine" sagen."""
+    szene_id = repo.stelle_szene_sicher(conn, 1, 1)
+    repo.aktualisiere_szene(
+        conn, szene_id, "Vor der Tuer", None, None, prosa="Sie wartet vor der Tuer."
+    )
+
+    zeilen = dict(phasentexte.parameterzeilen(conn, 1, 6))
+
+    assert zeilen["Szenentexte"] == "1 · Vor der Tuer"

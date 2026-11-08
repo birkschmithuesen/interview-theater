@@ -77,12 +77,20 @@ def konversation_ueber_claude(e, conn, chat_id: int) -> bool:
 def aufruf_schema(conn, klm, e, chat_id: int | None, system: str, nutzer: str,
                   schema: dict, art: str, *, ueber_claude: bool,
                   bei_teil=None, teil_feld: str | None = None,
-                  modell: str | None = None, timeout: float | None = None) -> dict:
+                  modell: str | None = None, timeout: float | None = None,
+                  claude_modell: str | None = None,
+                  wartezeiten: tuple[float, ...] | None = None) -> dict:
     """Ein Schema-Aufruf (Modus A), der -- wenn ``ueber_claude`` -- zuerst den
     Claude-Proxy versucht und bei einem Fehler auf Kimi zurueckfaellt (dieser
     EINE Zug, kein Dauerschalter). Ohne ``ueber_claude`` unveraendert
     ``klm.schema`` (E1: kein Verhalten aendert sich, wenn die Bedingungen
     oben nicht zutreffen).
+
+    ``claude_modell``/``wartezeiten`` gelten nur fuer den Claude-Pfad und
+    gehen unveraendert an ``szene_claude.schema`` durch (Birk/Robo
+    07.10.2026): ohne Angabe unveraendertes Verhalten, mit Angabe kann ein
+    Aufrufer ein eigenes Modell (unabhaengig von ``e.szene_modell``) und
+    eigene, kuerzere Wiederholungen erzwingen.
 
     ``teil_feld`` gilt nur fuer den Claude-Pfad (``szene_claude.schema``
     entpackt das Feld aus dem wachsenden JSON beim Streamen); der Kimi-Pfad
@@ -94,10 +102,17 @@ def aufruf_schema(conn, klm, e, chat_id: int | None, system: str, nutzer: str,
 
         klient = getattr(klm, "_klient", None) or httpx.Client(timeout=timeout or 60.0)
         try:
-            return szene_claude.schema(
+            ergebnis = szene_claude.schema(
                 conn, e, klient, chat_id, system, nutzer, schema, art,
                 timeout=timeout or 60.0, bei_teil=bei_teil, teil_feld=teil_feld,
+                wartezeiten=wartezeiten, modell=claude_modell,
             )
+            if not _verwertbar(ergebnis, teil_feld):
+                raise LLMFehler(
+                    "Claude-Antwort unverwertbar "
+                    f"(Typ {type(ergebnis).__name__})"
+                )
+            return ergebnis
         except (szene_claude.ClaudeFehler, LLMFehler) as fehler:
             _melde_fallback(conn, chat_id, e, art, fehler)
             if bei_teil is not None:
@@ -115,6 +130,20 @@ def aufruf_schema(conn, klm, e, chat_id: int | None, system: str, nutzer: str,
     if bei_teil is not None:
         zusatz["bei_teil"] = bei_teil
     return klm.schema(chat_id, system, nutzer, schema, art, **zusatz)
+
+
+def _verwertbar(ergebnis, teil_feld: str | None) -> bool:
+    """Ist die Claude-Antwort etwas, womit der Aufrufer arbeiten kann?
+    Mit ``teil_feld`` muss dort ein nichtleerer Text stehen (oder die Antwort
+    ein nichtleerer blanker String); ohne nur ein Objekt oder eine Liste."""
+    if teil_feld:
+        if isinstance(ergebnis, str):
+            return bool(ergebnis.strip())
+        if isinstance(ergebnis, dict):
+            wert = ergebnis.get(teil_feld)
+            return isinstance(wert, str) and bool(wert.strip())
+        return False
+    return isinstance(ergebnis, (dict, list))
 
 
 def _melde_fallback(conn, chat_id, e, art: str, fehler: Exception) -> None:

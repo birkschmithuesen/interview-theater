@@ -56,8 +56,9 @@ def test_mit_einwilligung_laeuft_es_ueber_claude(conn, monkeypatch):
     monkeypatch.setattr(szene_claude, "ist_aktiv", lambda *a, **k: True)
     aufgerufen = {}
 
-    def fake_prosa(conn_, e, klient, chat_id, system, nutzer, art, timeout):
+    def fake_prosa(conn_, e, klient, chat_id, system, nutzer, art, timeout, modell=None):
         aufgerufen["lief"] = True
+        aufgerufen["modell"] = modell
         aufgerufen["art"] = art
         return "Thema gerade: Testkarte."
 
@@ -189,3 +190,20 @@ def test_ohne_profil_bleibt_der_nutzertext_deutsch(conn, monkeypatch):
     assert "Stueckkarte:" in nutzer
     assert "Figuren: (noch offen)" in nutzer
     assert "Mitschnitt des Brainstormings bisher:" in nutzer
+
+
+
+def test_eigenes_buehnenmodell_geht_an_claude(conn, monkeypatch):
+    """Birk 07.10.2026 (Quota): CoThinker-Karte auf Sonnet, Chat bleibt Opus --
+    ``e.buehne_modell`` geht als ``modell`` an ``szene_claude.prosa``."""
+    from types import SimpleNamespace
+    monkeypatch.setattr(szene_claude, "ist_aktiv", lambda *a, **k: True)
+    gesehen = {}
+
+    def fake_prosa(*a, modell=None, **k):
+        gesehen["modell"] = modell
+        return "Karte."
+
+    monkeypatch.setattr(szene_claude, "prosa", fake_prosa)
+    buehnenkarte.erzeuge(conn, SimpleNamespace(buehne_modell="claude-sonnet-5"), _FakeKlm("x"), CHAT)
+    assert gesehen["modell"] == "claude-sonnet-5"

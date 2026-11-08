@@ -145,6 +145,12 @@ _TEXT_INTERVIEW_AN_WEB = (
     "Die Aufnahme läuft. Wenn das Interview vorbei ist, tippt auf „{stopp}“."
 )
 _TEXT_INTERVIEW_AUS = "Aufnahme beendet."
+#: Karte t_a20f16b5: Sperre fuer den rohen Befehlstext in den beiden
+#: Ueberarbeitungs-Phasen (``_interview_in_ueberarbeitung_gesperrt``).
+_TEXT_INTERVIEW_GESPERRT_UEBERARBEITUNG = (
+    "Ich kann jetzt kein Interview mehr starten -- wir sind in der "
+    "Ueberarbeitung."
+)
 #: Abnahme P3-4 A3 (06.10.2026): ein verwaistes Interview (Handy weg, Gruppe
 #: wechselt trotzdem die Phase) hielt ``interviewmodus_seit`` sonst fuer
 #: immer gesetzt und sperrte damit #diskussion dauerhaft und
@@ -375,9 +381,30 @@ def _befehl_leitfaden(conn, tg, chat_id: int, e=None) -> None:
     leitfaden.sende(conn, tg, chat_id, e=e)
 
 
+def _interview_in_ueberarbeitung_gesperrt(conn, chat_id: int) -> bool:
+    """``/interview`` ist der EINZIGE Weg zu ``_befehl_interview`` -- kein
+    Knopf fuehrt dorthin (anders als ``/aufnahme``, das auch den Umschalter
+    ``knoepfe.wirkung.ART_AUFNAHME`` bedient und laut
+    ``knoepfe.interviews._aufnahme_anbieten`` ausdruecklich
+    phasenunabhaengig bleibt, "Fokus, kein Kaefig",
+    docs/agents/entscheidungen.md). In den beiden Ueberarbeitungs-Phasen
+    (Padua, ``ueberarbeitung.py``) ist der rohe Befehlstext deshalb eine
+    Falle: Live-Fall G1, 08.10.2026 10:41 -- ein versehentliches
+    ``/interview`` mitten im Script-Review schaltete den Interviewmodus ein,
+    ohne dass die Gruppe das wollte."""
+    from interview_theater import workshop
+
+    if not workshop.ueberarbeitung_aktiv():
+        return False
+    return phasen.aktuelle(conn, chat_id) in (6, 7)
+
+
 def _befehl_interview(conn, tg, chat_id: int) -> None:
     """Modus an -- und damit entsteht EIN Interview (§ 10.6), zu dem alle
     folgenden Sprachnachrichten als Teile gehoeren."""
+    if _interview_in_ueberarbeitung_gesperrt(conn, chat_id):
+        tg.sende(chat_id, T._TEXT_INTERVIEW_GESPERRT_UEBERARBEITUNG)
+        return
     repo.setze_interviewmodus(conn, chat_id, repo._jetzt())
     aufnahme.stelle_interview_sicher(conn, chat_id)
     aufnahme.stelle_phase_interviews_sicher(conn, tg, chat_id, quelle="befehl")
@@ -703,8 +730,172 @@ def schliesse_offenes_interview_vor_phasenwechsel(
         )
 
 
+#: Padua, Phase-5-Gate (07.10.2026): Hinweiszeile vor der Werkbank-
+#: Uebersicht, danach die Knoepfe "Alles richtig" - "Etwas aendern".
+_TEXT_P5_CHECK_HINWEIS = (
+    "Bevor wir mit dem Textentwurf starten: ein letzter Check, was feststeht."
+)
+#: Fett statt GROSSSCHRIFT als Kopfzeile (Karte t_cc147548, 07.10.2026: seit
+#: ``telegram.leichtes_markdown``/``web_chat.sichere_html`` rendern beide
+#: Kanaele ``**fett**`` echt, roh angezeigte Sternchen sind seitdem kein
+#: Grund mehr fuer die GROSSSCHRIFT-Behelfsloesung).
+_TEXT_P5_UEBERSICHT_SETTING = "**Rahmen**"
+_TEXT_P5_UEBERSICHT_FIGUREN = "**Figuren**"
+_TEXT_P5_UEBERSICHT_FIGURENZEILE = "• {name} - {beschreibung}"
+_TEXT_P5_UEBERSICHT_GESCHICHTE = "**Geschichte**"
+_TEXT_P5_UEBERSICHT_SZENEN = "**Szenen**"
+_TEXT_P5_UEBERSICHT_SZENENANZAHL = "{anzahl} Szenen geplant."
+_TEXT_P5_UEBERSICHT_FESTLEGUNGEN = "**Weitere Festlegungen**"
+_TEXT_P5_UEBERSICHT_LEER = "noch nichts festgelegt"
+_TEXT_P5_UEBERSICHT_SCHLUSS = (
+    "Ist das endgueltig? Wenn etwas falsch oder unvollstaendig ist, sagt es "
+    "mir jetzt, ich aendere es."
+)
+
+#: Padua, Phase-5-Gate (07.10.2026): die Phase, vor deren Betreten die
+#: Werkbank-Uebersicht einmal bestaetigt werden muss (``workshop.p5_check_aktiv``).
+P5_CHECK_ZIEL = 5
+
+
+def _p5_check_bestaetigt(conn, chat_id: int) -> bool:
+    """Steht die Bestaetigung der Werkbank-Uebersicht schon?"""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    return bool(stand and (stand["p5_check_bestaetigt_am"] or "").strip())
+
+
+def p5_check_noetig(conn, chat_id: int, nummer: int) -> bool:
+    """True, wenn ein Sprung auf Phase ``nummer`` zuerst die Werkbank-
+    Uebersicht zeigen muss, statt die Phase sofort zu setzen (Padua,
+    Phase-5-Gate, 07.10.2026): die Gruppe hat in Phase 4 Setting, Figuren,
+    Geschichte und Szenenfolge festgelegt, und falsche Eintraege praegen
+    alles, was danach kommt (Prosa, Dramaturgie, Textbuch).
+
+    Nur fuer Phase 5 selbst -- ein Ruecksprung oder ein Sprung auf eine
+    andere Phase ist nie betroffen -- und nur mit dem Profilschalter: ohne
+    ihn (Dortmund) bleibt jeder Phasenwechsel unveraendert."""
+    if nummer != P5_CHECK_ZIEL:
+        return False
+    from interview_theater import workshop
+
+    if not workshop.p5_check_aktiv():
+        return False
+    return not _p5_check_bestaetigt(conn, chat_id)
+
+
+def _baue_p5_uebersicht(conn, chat_id: int) -> str:
+    """Die Werkbank-Uebersicht vor Phase 5, deterministisch aus der
+    Datenbank (kein Modellaufruf): Setting, Figuren, Geschichte, Szenen und
+    weitere Festlegungen -- dieselben Daten, aus denen auch ``/stand`` und
+    ``phasen.voraussetzungen`` lesen."""
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    zeilen = [T._TEXT_P5_UEBERSICHT_SETTING]
+    rahmen = ((stand["rahmen"] if stand else None) or "").strip()
+    zeilen.append(rahmen or T._TEXT_P5_UEBERSICHT_LEER)
+    zeilen.append("")
+
+    zeilen.append(T._TEXT_P5_UEBERSICHT_FIGUREN)
+    figuren = repo.figuren(conn, chat_id)
+    if figuren:
+        for figur in figuren:
+            beschreibung = (figur["beschreibung"] or "").strip()
+            zeilen.append(
+                T._TEXT_P5_UEBERSICHT_FIGURENZEILE.format(
+                    name=figur["name"], beschreibung=beschreibung,
+                ) if beschreibung else f"• {figur['name']}"
+            )
+    else:
+        zeilen.append(T._TEXT_P5_UEBERSICHT_LEER)
+    zeilen.append("")
+
+    zeilen.append(T._TEXT_P5_UEBERSICHT_GESCHICHTE)
+    geschichte = ((stand["geschichte"] if stand else None) or "").strip()
+    zeilen.append(geschichte or T._TEXT_P5_UEBERSICHT_LEER)
+    zeilen.append("")
+
+    zeilen.append(T._TEXT_P5_UEBERSICHT_SZENEN)
+    szenen = repo.hole_szenen(conn, chat_id)
+    if szenen:
+        for eine_szene in szenen:
+            titel = (eine_szene["titel"] or "").strip()
+            zeilen.append(
+                f"{eine_szene['nummer']}. {titel}" if titel
+                else str(eine_szene["nummer"])
+            )
+    else:
+        anzahl = ((stand["szenen_anzahl"] if stand else None) or "").strip()
+        zeilen.append(
+            T._TEXT_P5_UEBERSICHT_SZENENANZAHL.format(anzahl=anzahl)
+            if anzahl else T._TEXT_P5_UEBERSICHT_LEER
+        )
+    zeilen.append("")
+
+    # Birk 07.10.2026: keine Sammelueberschrift "Other fixed items" und keine
+    # deutschen Rohbereiche ("struktur", "gruppe") -- jede Festlegung steht
+    # unter ihrer EIGENEN Ueberschrift, gleichrangig mit Setting/Story und
+    # mit derselben Beschriftung wie in der Werkbank
+    # (``web.T.FESTLEGUNG_BEREICH_BESCHRIFTUNG``). Gibt es einen Bezug
+    # ("Performers"), ist er die Ueberschrift; Reihenfolge = erste Nennung.
+    from interview_theater import web as _web
+
+    gruppen: dict[str, list[str]] = {}
+    for z in repo.festlegungen(conn, chat_id):
+        roh = (z["bereich"] or "").strip()
+        bezug = (z["bezug"] or "").strip()
+        if bezug:
+            kopf = bezug
+        else:
+            kopf = _web.T.FESTLEGUNG_BEREICH_BESCHRIFTUNG.get(roh.lower()) or roh
+        kopf = kopf[:1].upper() + kopf[1:]
+        gruppen.setdefault(kopf, []).append((z["text"] or "").strip())
+    for kopf, texte in gruppen.items():
+        zeilen.append(f"**{kopf}**")
+        zeilen.extend(texte if len(texte) == 1 else [f"• {t}" for t in texte])
+        zeilen.append("")
+
+    zeilen.append(T._TEXT_P5_UEBERSICHT_SCHLUSS)
+    return "\n".join(zeilen)
+
+
+def zeige_p5_check(conn, tg, chat_id: int) -> None:
+    """Schickt den Hinweis, die Werkbank-Uebersicht und die zwei Knoepfe des
+    Phase-5-Gates (Padua)."""
+    tg.sende(chat_id, T._TEXT_P5_CHECK_HINWEIS)
+    knoepfe.biete_p5_check(conn, tg, chat_id, _baue_p5_uebersicht(conn, chat_id))
+
+
+def p5_gate(conn, tg, chat_id: int, nummer: int) -> bool:
+    """Der EINE Phase-5-Check (Padua, Phase-5-Gate): blockiert einen Sprung
+    auf Phase 5, solange die Werkbank nicht bestaetigt ist, und zeigt dann
+    die Uebersicht. Liefert True, wenn blockiert wurde -- jeder der vier
+    Wege, auf denen die Phase gesetzt wird (``wechsle_phase``,
+    ``erkenner._wende_phase_an``, der Knopf "Weiter zu Phase N" und "Ja,
+    speichern"), ruft diese Funktion zuerst und darf dann NICHT weiter
+    umschalten."""
+    if not p5_check_noetig(conn, chat_id, nummer):
+        return False
+    zeige_p5_check(conn, tg, chat_id)
+    return True
+
+
+def _schon_in_phase_gewesen(conn, chat_id: int, nummer: int) -> bool:
+    """True, wenn die Gruppe laut Journal schon einmal entschieden in Phase
+    ``nummer`` war -- unabhaengig vom gerade laufenden Wechsel (QUICKFIX
+    Birk, 07.10.2026, Testgruppe Padua chat_id 7000000000099: zwei Klicks in
+    der Phasenleiste auf schon besuchte Phasen loesten jedesmal die volle
+    Eintrittskarte samt Modellzug erneut aus).
+
+    Ein direkt per ``repo.setze_phase`` gesetzter Stand (Tests, Gruppenanlage)
+    schreibt kein Journal und zaehlt deshalb bewusst NICHT als 'schon
+    besucht' -- sonst bliebe die allererste Karte stumm."""
+    praefix = f"Phase {phasen.bezeichnung(nummer)}"
+    return any(
+        z["art"] == "entschieden" and (z["text"] or "").startswith(praefix)
+        for z in repo.journal(conn, chat_id)
+    )
+
+
 def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
-                  quelle: str = "befehl") -> None:
+                  quelle: str = "befehl", voller_eintritt: bool = False) -> None:
     """Die Phase umschalten -- der EINE Weg fuer Befehl und Klick
     (30.09.2026, Karte W).
 
@@ -721,15 +912,52 @@ def wechsle_phase(conn, tg, klm, e, chat_id: int, nummer: int,
     Geantwortet wird immer, auch wenn die Phase schon stimmte; ins Journal
     geht der Eintrag nur bei einer echten Aenderung (``phasen.setze``).
 
+    QUICKFIX Birk, 07.10.2026: ein Sprung in eine schon besuchte Phase
+    (``_schon_in_phase_gewesen``) ist eine WIEDERHERSTELLUNG, keine neue
+    Ankunft -- nur die kurze Meldung, keine Eintrittskarte, kein Modellzug.
+    Der allererste Eintritt in eine Phase bleibt wie bisher.
+
     Abnahme P3-4 A3 (06.10.2026): ein Sprung auf Phase >= 4 beendet zuerst
     ein offenes Interview, falls eines laeuft -- Phase-4-Mechanik
     (Diskussion/Brainstorm) soll nie wieder von einem verwaisten
     Phase-3-Interviewflag abhaengen. In ``try/except``, damit ein
     Fehlschlag dort nie den eigentlichen Phasenwechsel blockiert (derselbe
-    Rahmen wie ``knoepfe.eintritt_in_phase`` zwei Zeilen weiter unten)."""
+    Rahmen wie ``knoepfe.eintritt_in_phase`` weiter unten).
+
+    Phase-5-Gate (Padua, 07.10.2026): zuerst geprueft, vor dem Schliessen
+    eines offenen Interviews -- ein blockierter Sprung soll nichts anderes
+    auf dem Weg mit sich ziehen."""
+    if p5_gate(conn, tg, chat_id, nummer):
+        return
     schliesse_offenes_interview_vor_phasenwechsel(conn, tg, klm, e, chat_id, nummer)
-    phasen.setze(conn, chat_id, nummer, quelle)
+    # Birk 07.10.2026: "All correct - start Prose Draft" ist IMMER ein echter
+    # Eintritt (Onboarding + Zuordnung), auch wenn die Gruppe schon einmal in
+    # Phase 5 war -- sonst sieht es aus, als sei die Phase nur freigeschaltet.
+    wiederherstellung = (not voller_eintritt) and _schon_in_phase_gewesen(conn, chat_id, nummer)
+    verlassene_phase = phasen.aktuelle(conn, chat_id)
+    if phasen.setze(conn, chat_id, nummer, quelle):
+        from interview_theater import phasen_summary
+
+        phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, verlassene_phase)
     tg.sende(chat_id, phasen.meldung(nummer))
+    fehlt = phasen.warnungen(conn, chat_id, nummer)
+    if fehlt:
+        tg.sende(chat_id, phasen.T._WARNUNG_PHASE_KOPF.format(phase=nummer) + "\n"
+                 + "\n".join(f"- {s}" for s in fehlt))
+    if wiederherstellung:
+        # Birk 08.10.2026 ~12:15: zurueck in Phase 7 (z. B. 7 -> 6 -> 7) ohne
+        # geschriebene aktuelle Szene blieb stumm -- nichts wurde geschrieben.
+        # Padua: das Stage Script geht dort weiter, wo es steht.
+        from interview_theater import workshop as _ws
+
+        if nummer == 7 and _ws.szenenkarten_aktiv():
+            try:
+                from interview_theater import stagescript
+
+                stagescript.weiter(conn, tg, klm, e, chat_id)
+            except Exception:
+                log.exception("Stage Script nach Rueckkehr in Phase 7 gescheitert, chat_id=%s", chat_id)
+        return
     # Derselbe Rahmen wie ueber den Knopf (06.09.2026): Kopfzeile,
     # Einleitung, Checkliste und die Einstiegsknoepfe dieser Phase.
     try:
@@ -812,6 +1040,47 @@ def _befehl_schaerfen(conn, tg, chat_id: int, rest: str) -> None:
     if not rest.strip().isdigit():
         return
     fragen.starte_handover(conn, tg, chat_id, int(rest))
+
+
+def _befehl_schaerfung_fertig(conn, tg, klm, e, chat_id: int) -> None:
+    """"Done" in der Schaerfungs-Sortierliste im CoThinker (Padua,
+    07.10.2026). **Versteckt**, wie ``/sortiert`` -- der Weg des Knopfes
+    durch die Naht, kein Modellaufruf hier (Zusage 2): ``klm``/``e`` gehen
+    nur durch, bis zu ``entwurf.starte_uebersicht``, das selbst in einen
+    Thread abgibt."""
+    from interview_theater.knoepfe import szenen
+
+    szenen.schliesse_schaerfungsliste(conn, tg, klm, e, chat_id)
+
+
+def _befehl_karte(conn, tg, klm, e, chat_id: int, befehl: str, rest: str) -> None:
+    """Die Knoepfe der aktiven Szenenkarte im CoThinker (Padua, Birk
+    07.10.2026 ~19:25, Fragenklaerung ~09:20 am 08.10.2026). **Versteckt** --
+    kein Modellaufruf hier (Zusage 2): "Yes" nimmt ab und stoesst die
+    naechste Karte im Thread an, "No" fragt im Chat nach dem Feedback,
+    "Clear"/"Skip" klaeren bzw. verwerfen die offenen Fragen. Ausserhalb von
+    Phase 6 oder ohne Schalter wirkungslos (ein veralteter Klick)."""
+    from interview_theater import phasen, szenenkarte, workshop
+
+    try:
+        nummer = int((rest or "").strip())
+    except ValueError:
+        return
+    if not workshop.szenenkarten_aktiv() or phasen.aktuelle(conn, chat_id) != szenenkarte.PHASE:
+        return
+    if befehl == "/karte_ja":
+        szenenkarte.bestaetige(conn, tg, klm, e, chat_id, nummer)
+    elif befehl == "/karte_bauen":
+        # Nur die aktuelle Karte, und nur wenn sie fehlt -- sonst zeigt
+        # ``weiter`` sie einfach (kein zweiter Modellaufruf).
+        if nummer == szenenkarte.aktuelle_nummer(conn, chat_id):
+            szenenkarte.weiter(conn, tg, klm, e, chat_id)
+    elif befehl == "/karte_klaeren":
+        szenenkarte.starte_fragenklaerung(conn, tg, e, chat_id, nummer)
+    elif befehl == "/karte_ueberspringen":
+        szenenkarte.ueberspringe_fragen(conn, tg, e, chat_id, nummer)
+    else:
+        szenenkarte.frage_nach_aenderung(conn, tg, e, chat_id, nummer)
 
 
 def _befehl_umformulieren(conn, tg, chat_id: int) -> None:
@@ -919,12 +1188,21 @@ def _befehl_stand(conn, tg, chat_id: int, e=None) -> None:
     naechste = phasen.naechste_moegliche(conn, chat_id)
     if naechste is None or naechste <= jetzige:
         tg.sende(chat_id, text)
-        return
-    try:
-        knoepfe.biete_phase(conn, tg, chat_id, text, naechste)
-    except Exception:
-        log.exception("Phasenknopf unter /stand fehlgeschlagen, chat_id=%s", chat_id)
-        tg.sende(chat_id, text)
+    else:
+        try:
+            knoepfe.biete_phase(conn, tg, chat_id, text, naechste)
+        except Exception:
+            log.exception("Phasenknopf unter /stand fehlgeschlagen, chat_id=%s", chat_id)
+            tg.sende(chat_id, text)
+    # Karte t_c5117c91: ab Ende Phase 3 (also sobald Phase 4 steht) bietet
+    # /stand den Research-Knopf zusaetzlich an, auf Anfrage -- eine zweite,
+    # eigene Nachricht unter dem Stand, nur mit dem Profilschalter
+    # ``recherche.aktiv``. Ersetzt nichts: der Stand-Text und ein etwaiger
+    # Phasenknopf stehen unveraendert darueber.
+    from interview_theater import workshop
+
+    if workshop.recherche_aktiv() and jetzige >= knoepfe.PHASE_SETTING:
+        knoepfe.biete_recherche(conn, tg, chat_id)
 
 
 def _befehl_wortlaut(conn, tg, chat_id: int, rest: str) -> None:
@@ -1082,15 +1360,27 @@ def _setze_szenenfeld(conn, tg, chat_id: int, rest: str) -> bool:
         kanonisch = ueberarbeitung.form_aus_text(wert)
         if kanonisch is not None:
             wert = kanonisch
+    from interview_theater import stueck
+
     szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
     if feld == "figuren":
         ids = erkenner._figuren_aus_namen(conn, chat_id, wert)
         if not ids:
             tg.sende(chat_id, T._TEXT_SZENE_FIGUR_UNBEKANNT.format(namen=wert))
             return True
-        repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+        namen = {f["id"]: f["name"] for f in repo.figuren(conn, chat_id)}
+        ergebnis = stueck.setze_besetzung(
+            conn, chat_id, szene=nummer, namen=[namen[i] for i in ids],
+            zusatz=repo.hole_szene(conn, szene_id)["wer_zusatz"])
+    elif feld in repo.NUR_UEBER_STUECK:
+        ergebnis = stueck.setze_ort(conn, chat_id, szene=nummer, ort=wert)
     else:
         repo.setze_szenenfeld(conn, szene_id, feld, wert)
+        ergebnis = None
+    if ergebnis is not None and not ergebnis.ok:
+        # Z. B. "gerade wird geschrieben": sichtbar sagen, nicht so tun als ob.
+        tg.sende(chat_id, stueck.meldung(ergebnis))
+        return True
     tg.sende(chat_id, szene.planungszeile(conn, repo.hole_szene(conn, szene_id)))
     return True
 
@@ -1235,6 +1525,23 @@ _BEKANNTE_BEFEHLE_DE: frozenset[str] = frozenset({
     # CoThinker-Klickliste -- der Weg des Knopfes durch die Naht, wie
     # ``/sortiert``/``/phaseklick``. Keine EN-Form: er wird nie getippt.
     "/schaerfen",
+    # Versteckt (07.10.2026): "Done" in der Schaerfungs-Sortierliste im
+    # CoThinker -- der Weg des Knopfes durch die Naht, wie ``/sortiert``.
+    # Keine EN-Form: er wird nie getippt.
+    "/schaerfung_fertig",
+    # Versteckt (Birk 07.10.2026 ~19:25, Padua [karten] aktiv): "Yes, save" /
+    # "No, change" auf der aktiven Szenenkarte im CoThinker -- der Weg des
+    # Knopfes durch die Naht, wie ``/schaerfung_fertig``. Keine EN-Form.
+    "/karte_ja",
+    "/karte_aendern",
+    # "Build card now" unter einer Karte, die nicht fertig wurde (Neustart
+    # mitten in der Erzeugung, Usertest 07.10.2026).
+    "/karte_bauen",
+    # Versteckt (Birk 08.10.2026 ~09:20): "Clear the questions" / "Skip
+    # questions" auf einer Szenenkarte mit offenen Fragen im CoThinker --
+    # derselbe Weg wie "/karte_ja"/"/karte_aendern". Keine EN-Form.
+    "/karte_klaeren",
+    "/karte_ueberspringen",
 })
 
 
@@ -1358,6 +1665,11 @@ def behandle(
         _befehl_umformulieren(conn, tg, chat_id)
     elif befehl == "/schaerfen":
         _befehl_schaerfen(conn, tg, chat_id, rest)
+    elif befehl == "/schaerfung_fertig":
+        _befehl_schaerfung_fertig(conn, tg, klm, e, chat_id)
+    elif befehl in ("/karte_ja", "/karte_aendern", "/karte_bauen",
+                    "/karte_klaeren", "/karte_ueberspringen"):
+        _befehl_karte(conn, tg, klm, e, chat_id, befehl, rest)
     return True
 
 

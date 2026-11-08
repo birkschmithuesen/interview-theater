@@ -110,6 +110,11 @@ ERLAUBT = frozenset({
     "dialog", "monolog", "chor", "lied", "rap", "prosa",
     "herkules", "schlagabtausch", "litanei",
     "fermata", "piazza", "bar", "stazione",
+    # Formberater (Karte t_256ec777): die drei Schema-Felder des
+    # Modellaufrufs (interview_theater/formberater.py, SCHEMA) heissen
+    # bewusst wie Birks Brief, nicht uebersetzt -- Protokoll wie
+    # "dialog"/"chor" oben, keine Prosa.
+    "passt", "vorschlag", "gegenpol",
 })
 
 #: Die deutschen ANZEIGE-Namen der Formen, gross geschrieben -- anders als
@@ -476,10 +481,24 @@ def _durchlauf() -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
             erste = next(s for s in repo.hole_szenen(conn, 1) if s["nummer"] == 1)
             for feld, wert in (("form", "dialog"), ("ort", "the bus stop"),
                                ("was_passiert", "Nadia says she is leaving.")):
-                repo.setze_szenenfeld(conn, erste["id"], feld, wert)
+                if feld in repo.NUR_UEBER_STUECK:
+                    repo.setze_szenenort(conn, erste["id"], wert)
+                else:
+                    repo.setze_szenenfeld(conn, erste["id"], feld, wert)
             repo.setze_szene_figuren(conn, 1, erste["id"], [f["id"] for f in figuren])
-            szene.starte(conn, tg, klm, e, 1, "Write scene 1.")
-            _warte_auf_threads(vorher)
+            from unittest import mock
+
+            from interview_theater import stagescript, szenenkarte, workshop
+            # Der Szenenweg ohne [karten] aktiv (Padua-Phasenumbau 07.10.2026
+            # ~18:12) -- und die beiden neuen Prompts (Karte, Stage Script),
+            # damit auch sie auf Deutschreste geprueft werden.
+            with mock.patch.object(workshop, "szenenkarten_aktiv", lambda *a, **k: False):
+                szene.starte(conn, tg, klm, e, 1, "Write scene 1.")
+                _warte_auf_threads(vorher)
+            with contextlib.suppress(Exception):
+                szenenkarte.erzeuge(conn, klm, e, 1, 1)
+            with contextlib.suppress(Exception):
+                stagescript.schreibe(conn, klm, e, 1, 1)
             gedrueckt: set[str] = set()
             je_beschriftung: dict[str, int] = {}
             for _ in range(200):

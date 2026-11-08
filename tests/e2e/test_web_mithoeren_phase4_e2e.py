@@ -257,8 +257,12 @@ def _anzahl_buehnenkarten(pfad: str, chat_id: int) -> int:
 def test_phase4_hat_dieselbe_bedienung_wie_phase1(lauf, seite):
     """Birk 05.10.2026 22:00: kein eigener Brainstorm-Knopf -- Phase 4
     benutzt ``#diskussion``/``#diskussion-beenden`` wie Phase 1, mit
-    ``data-mithoeren-ziel="brainstorm"``."""
-    text_an = web_chat.T._TEXT_DISKUSSION_AN
+    ``data-mithoeren-ziel="brainstorm"``. Seit Kanban t_d22af9b2
+    (06.10.2026) zeigt der Knopftext selbst aber NICHT mehr denselben Text
+    wie Phase 1 -- Phase 4 nennt das CoThinker-Mithoeren ausdruecklich
+    (``_TEXT_DISKUSSION_AN_COTHINKER``), der Rest der Bedienung (Klick
+    startet/beendet, ein Knopf, dieselben Attribute) bleibt identisch."""
+    text_an = web_chat.T._TEXT_DISKUSSION_AN_COTHINKER
 
     assert seite.locator("#brainstorm").count() == 0, "kein eigener Brainstorm-Knopf mehr"
     knopf = seite.locator("#diskussion")

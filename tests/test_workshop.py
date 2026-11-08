@@ -231,3 +231,34 @@ def test_interview_fliesstext_nur_in_padua():
 def test_interview_fliesstext_liest_den_baum():
     profil = workshop.Profil("test", None, {"interview": {"fliesstext": True}})
     assert workshop.interview_fliesstext(profil) is True
+
+
+# --- Morgen-Auftrag 4, Nachtrag 2 (08.10.2026 ~09:00): G1-G3 italienisch,
+# Testgruppe (7000000000099) bleibt englisch ------------------------------
+
+_G1, _G2, _G3, _TESTGRUPPE = 7000000000000, 7000000000001, 7000000000002, 7000000000099
+
+
+def test_italienisch_ab_phase6_chats_vorgabe_leer():
+    assert workshop.italienisch_ab_phase6_chats(None) == frozenset()
+    assert workshop.italienisch_ab_phase6_chats(workshop.lade("dortmund-2026")) == frozenset()
+
+
+def test_padua_italienisch_ab_phase6_chats_nur_g1_g2_g3():
+    """Eine Chat-Liste statt eines globalen Schalters: die Testgruppe teilt
+    sich das Profil mit G1-G3, soll aber englisch bleiben."""
+    profil = workshop.lade("padua-2026")
+    chats = workshop.italienisch_ab_phase6_chats(profil)
+    assert chats == frozenset({_G1, _G2, _G3})
+    assert _TESTGRUPPE not in chats
+
+
+def test_padua_testgruppe_verhaelt_sich_wie_g2_nicht_wie_g1():
+    """Seit 08.10.2026 ~11:06 (Robo, Birks Kopierauftrag) ist die
+    Testgruppe eine Kopie von G2, nicht mehr von G1 -- G2 steht in keiner
+    der beiden Listen, die Testgruppe deshalb auch nicht."""
+    profil = workshop.lade("padua-2026")
+    assert _TESTGRUPPE not in workshop.skript_ohne_zitate_chats(profil)
+    assert _TESTGRUPPE not in workshop.schaerfung_ohne_figuren_chats(profil)
+    assert _G2 not in workshop.skript_ohne_zitate_chats(profil)
+    assert _G2 not in workshop.schaerfung_ohne_figuren_chats(profil)

@@ -47,6 +47,36 @@ def test_bot_skript_sourcet_die_env_datei_und_ueberschreibt_danach():
     assert skript.strip().endswith("-m interview_theater.bot")
 
 
+def test_bot_skript_szene_modell_export_nach_source():
+    skript = u.bau_bot_skript("/geheim/x.env", "/tmp/sim.db", "/tmp/audio", 1,
+                              py="/usr/bin/python3", szene_modell="claude-sonnet-5")
+    zeilen = skript.splitlines()
+    quelle = next(i for i, z in enumerate(zeilen) if "source" in z)
+    export = next(i for i, z in enumerate(zeilen) if "IT_SZENE_MODELL" in z)
+    assert zeilen[export] == 'export IT_SZENE_MODELL="claude-sonnet-5"'
+    assert quelle < export
+
+
+def test_bot_skript_ohne_szene_modell_kein_export():
+    skript = u.bau_bot_skript("/geheim/x.env", "/tmp/sim.db", "/tmp/audio", 1)
+    assert "IT_SZENE_MODELL" not in skript
+
+
+@pytest.mark.parametrize("name", ['a"; rm -rf /; "', "a b", "$(x)", "", "a\nb", "x`y`"])
+def test_bot_skript_unsicherer_szene_modell_name_abgelehnt(name):
+    with pytest.raises(ValueError):
+        u.bau_bot_skript("/x.env", "/tmp/sim.db", "/tmp/audio", 1, szene_modell=name) \
+            if name else u.pruefe_szene_modell(name)
+
+
+def test_starte_stack_reicht_szene_modell_an_den_bot(tmp_path, monkeypatch):
+    gesehen = {}
+    monkeypatch.setattr(u, "starte_web", lambda *a, **k: (None, None, "http://x"))
+    monkeypatch.setattr(u, "starte_bot", lambda *a, **k: gesehen.update(k) or (None, None))
+    u.starte_stack("/x.env", tmp_path, szene_modell="claude-sonnet-5")
+    assert gesehen["szene_modell"] == "claude-sonnet-5"
+
+
 def test_starte_web_antwortet_gesund(tmp_path):
     """Kein Geheimnis noetig: der Webserver braucht keine Modell-Zugangsdaten."""
     db_pfad = str(tmp_path / "sim.db")
@@ -107,7 +137,8 @@ def test_starte_stack_gibt_absolute_pfade_an_web_und_bot(tmp_path, monkeypatch):
         gesehen["web"] = (db_pfad, audio_verz)
         return None, None, "http://x"
 
-    def starte_bot(env_datei, db_pfad, audio_verz, chat_id, log_pfad, *, app_wurzel):
+    def starte_bot(env_datei, db_pfad, audio_verz, chat_id, log_pfad, *, app_wurzel,
+                   szene_modell=None):
         gesehen["bot"] = (db_pfad, audio_verz)
         return None, None
 
@@ -152,6 +183,73 @@ def test_bereite_vor_tut_bei_startphase_1_nichts(tmp_path):
         assert stand is None or not stand["begriffe"]
     finally:
         conn.close()
+
+
+def test_bereite_vor_startphase_5_erfuellt_voraussetzung_5_und_bleibt_in_phase_4(tmp_path):
+    """Task 1 (BRIEF p57): startphase=5 soll die Materiallage fuer Phase 5
+    herstellen (Setting, fixierte Figuren, Geschichte, Szenenzahl, ein
+    ausgewertetes Interview), den Wechsel selbst aber ``browser_lauf.main``
+    ueber den echten Endpunkt ueberlassen (die Gruppe bleibt in Phase 4)."""
+    from interview_theater import aufnahme, db, phasen, repo
+    from simulation import browser_umgebung as u
+
+    pfad = str(tmp_path / "sim.db")
+    chat_id, _token = u.baue_gruppe(pfad, "padua-browser-sim")
+    u.bereite_vor(pfad, chat_id, startphase=5)
+    conn = db.verbinde(pfad)
+    try:
+        assert phasen.voraussetzungen(conn, chat_id)[5] is True
+        assert phasen.aktuelle(conn, chat_id) == 4
+        assert aufnahme.unausgewertete_interviews(conn, chat_id) == []
+
+        kopf = aufnahme.interviews(conn, chat_id)[0]
+        transkript = repo.hole_aufnahme(conn, kopf["id"])["transkript"]
+        verdichtung = repo.verdichtungen(conn, chat_id)[0]
+        themen = repo.themen_zu(conn, verdichtung["id"])
+        assert themen  # mindestens ein Thema
+        for thema in themen:
+            assert thema["zitat_geprueft"] == 1
+            assert thema["beleg_zitat"] in transkript
+
+        for szene in repo.hole_szenen(conn, chat_id):
+            assert not (szene["prosa"] or "").strip()
+            assert (szene["titel"] or "").strip()
+            assert (szene["was_passiert"] or "").strip()
+
+        for figur in repo.figuren(conn, chat_id):
+            assert not (figur["sprachstil"] or "").strip()
+    finally:
+        conn.close()
+
+
+def test_bereite_vor_startphase_3_bleibt_zeichengleich(tmp_path):
+    """Die neue Fallunterscheidung in ``bereite_vor`` darf den bestehenden
+    ``startphase=3``-Weg nicht veraendern -- derselbe Befund wie der aeltere
+    Test ``test_bereite_vor_fuellt_phase_1_und_2_und_bleibt_in_phase_2``,
+    hier nach der Erweiterung erneut geprueft."""
+    from interview_theater import db, phasen, repo
+    from simulation import browser_umgebung as u
+
+    pfad = str(tmp_path / "sim.db")
+    chat_id, _token = u.baue_gruppe(pfad, "padua-browser-sim")
+    u.bereite_vor(pfad, chat_id, startphase=3)
+    conn = db.verbinde(pfad)
+    try:
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        assert stand["begriffe"] and stand["fragen"]
+        assert stand["interview_eroeffnung"] and stand["interview_abschluss"]
+        assert phasen.aktuelle(conn, chat_id) == 2
+    finally:
+        conn.close()
+
+
+def test_bereite_vor_startphase_6_wirft_valueerror(tmp_path):
+    from simulation import browser_umgebung as u
+
+    pfad = str(tmp_path / "sim.db")
+    chat_id, _token = u.baue_gruppe(pfad, "padua-browser-sim")
+    with pytest.raises(ValueError):
+        u.bereite_vor(pfad, chat_id, startphase=6)
 
 
 def test_lauf_verzeichnis_ist_je_lauf_eindeutig(tmp_path):

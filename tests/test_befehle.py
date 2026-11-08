@@ -66,6 +66,38 @@ def test_interview_schaltet_modus_an_und_legt_ein_interview_an(conn, einst, tg):
     assert repo.zaehle_interviews(conn, 1) == 1
 
 
+@pytest.mark.parametrize("phase", [6, 7])
+def test_interview_in_ueberarbeitung_phase_6_7_wird_abgefangen(conn, einst, tg, monkeypatch, phase):
+    """Karte t_a20f16b5, Live-Fall G1 08.10.2026 10:41: ein getippter
+    ``/interview`` schaltete mitten im Padua-Script-Review (Phase 6/7,
+    ``workshop.ueberarbeitung_aktiv``) den Interviewmodus ein, ohne dass die
+    Gruppe das wollte. ``/interview`` ist der EINZIGE Weg zu
+    ``befehle._befehl_interview`` (kein Knopf fuehrt dorthin) -- in diesen
+    beiden Phasen bleibt der Interviewmodus deshalb aus."""
+    monkeypatch.setattr(workshop, "ueberarbeitung_aktiv", lambda profil=None: True)
+    phasen.setze(conn, 1, phase, "befehl")
+    tg.gesendet.clear()
+
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/interview", "Ada")
+
+    assert behandelt is True
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is None
+    assert repo.zaehle_interviews(conn, 1) == 0
+    assert tg.gesendet, "ein abgefangener Befehl bleibt nicht stumm"
+
+
+def test_interview_ausserhalb_ueberarbeitung_bleibt_phasenunabhaengig(conn, einst, tg, monkeypatch):
+    """Gegenprobe: ohne den Schalter (Dortmund, oder Padua ausserhalb 6/7)
+    bleibt ``/interview`` wie vorher jederzeit moeglich."""
+    monkeypatch.setattr(workshop, "ueberarbeitung_aktiv", lambda profil=None: True)
+    phasen.setze(conn, 1, 5, "befehl")
+
+    behandelt = befehle.behandle(conn, tg, einst, 1, "/interview", "Ada")
+
+    assert behandelt is True
+    assert repo.hole_gruppe(conn, 1)["interviewmodus_seit"] is not None
+
+
 def test_fertig_schaltet_modus_aus_und_bestaetigt(conn, einst, tg):
     repo.setze_interviewmodus(conn, 1, repo._jetzt())
 
@@ -409,7 +441,9 @@ def test_phase_mit_nummer_schaltet_um_und_meldet(conn, einst, tg):
     )
     # Danach derselbe Phasenrahmen wie ueber den Knopf (06.09.2026):
     # Kopfzeile, Einleitung, Checkliste.
-    assert tg.gesendet[1][1].startswith("▶️ Phase 5 von 7 · Schaerfung")
+    # gesendet[1] ist die Stueckmodell-Warnung (t_fd88600b), kein Verbot.
+    assert tg.gesendet[1][1].startswith("Phase 5 ist offen")
+    assert tg.gesendet[2][1].startswith("▶️ Phase 5 von 7 · Schaerfung")
 
 
 def test_phase_mit_namen_schaltet_auch_zurueck(conn, einst, tg):
@@ -429,12 +463,18 @@ def test_phase_journalisiert_nur_die_echte_aenderung(conn, einst, tg):
     eintraege = repo.journal(conn, 1)
     assert len(eintraege) == 1
     assert eintraege[0]["quelle"] == "befehl"
-    # Je Aufruf mindestens zwei Nachrichten: die Meldung (auf einen getippten
-    # Befehl wird immer geantwortet, auch ohne Aenderung) und der
-    # Phasenrahmen. Seit dem 06.09.2026 ist Phase 5 die Schaerfung, und die
-    # stoesst beim Eintritt ihr Mapping an -- das schickt weitere Zeilen.
+    # Je Aufruf mindestens die Meldung (auf einen getippten Befehl wird
+    # immer geantwortet, auch ohne Aenderung). Seit dem 06.09.2026 ist
+    # Phase 5 die Schaerfung, und die stoesst beim ERSTEN Eintritt ihr
+    # Mapping an -- das schickt weitere Zeilen.
+    #
+    # QUICKFIX Birk, 07.10.2026 (Testgruppe Padua, Phasensprung-Wieder-
+    # herstellung): der ZWEITE ``/phase 5`` ist ein Sprung in eine schon
+    # besuchte Phase (die Gruppe steht ja schon dort) -- eine
+    # Wiederherstellung, keine neue Ankunft. Nur die Meldung, keine zweite
+    # Eintrittskarte, kein Modellzug.
     kopfzeilen = [t.startswith("▶️ Phase 5") for _, t in tg.gesendet]
-    assert kopfzeilen.count(True) == 2, [t for _, t in tg.gesendet]
+    assert kopfzeilen.count(True) == 1, [t for _, t in tg.gesendet]
     assert kopfzeilen[0] is False, "zuerst die Meldung"
 
 
@@ -473,6 +513,42 @@ def test_stand_zeigt_den_konflikt_nur_wenn_gesetzt(conn, einst, tg):
     befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
 
     assert "Hauptkonflikt: bleiben gegen gehen" in tg.gesendet[1][1]
+
+
+def test_stand_bietet_recherche_ab_phase_4_mit_profilschalter(conn, einst, tg, padua):
+    """Karte t_c5117c91: ab Ende Phase 3 (also sobald Phase 4 steht) bietet
+    ``/stand`` den Research-Knopf zusaetzlich an -- nur mit
+    ``recherche.aktiv``. Mutant: der Knopf fehlt."""
+    phasen.setze(conn, 1, 4, "befehl")
+
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    from interview_theater import knoepfe
+    assert any(text == knoepfe.T._TEXT_RECHERCHE_ANBIETEN for _, text, _ in tg.knoepfe)
+
+
+def test_stand_bietet_recherche_nicht_vor_phase_4(conn, einst, tg, padua):
+    """Vor dem Ende von Phase 3 (also noch in Phase 1-3) kein Knopf -- die
+    Karte verlangt "ab Phase 4". Mutant: der Knopf erscheint schon in
+    Phase 3."""
+    phasen.setze(conn, 1, 3, "befehl")
+
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    from interview_theater import knoepfe
+    assert not any(text == knoepfe.T._TEXT_RECHERCHE_ANBIETEN for _, text, _ in tg.knoepfe)
+
+
+def test_stand_bietet_recherche_nicht_ohne_profilschalter(conn, einst, tg):
+    """Dortmund (kein Profilschalter): kein Research-Knopf unter /stand,
+    auch nicht ab Phase 4. Mutant: der Knopf erscheint auch ohne
+    ``recherche.aktiv``."""
+    phasen.setze(conn, 1, 4, "befehl")
+
+    befehle.behandle(conn, tg, einst, 1, "/stand", "Ada")
+
+    from interview_theater import knoepfe
+    assert not any(text == knoepfe.T._TEXT_RECHERCHE_ANBIETEN for _, text, _ in tg.knoepfe)
 
 
 def test_stand_zeigt_das_setting_im_block_seiner_phase(conn, einst, tg):
@@ -884,18 +960,27 @@ def test_szene_form_unbekanntes_wort_bleibt_roher_text(conn, einst, tg):
     assert szenen[2]["form"] == "Bewegungsszene"
 
 
-def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_19():
+def test_bekannte_befehle_liefert_ohne_profil_weiterhin_die_alten_20():
     # Pflichtpunkt 2, Fix 1 von 2 (04.10.2026): "/start" kam als 17. Eintrag
     # dazu -- versteckt wie "/phaseklick", siehe tests/test_start_befehl.py.
     # "/umformulieren" (Testkarte t_266e7485, 06.10.2026) kam als 18. dazu --
     # versteckt wie "/sortiert". "/schaerfen" (Karte t_269062e2, 06.10.2026)
     # kam als 19. dazu -- derselbe versteckte Weg, Stift ✎ in der
-    # CoThinker-Klickliste.
+    # CoThinker-Klickliste. "/schaerfung_fertig" (07.10.2026) kam als 20.
+    # dazu -- "Done" in der Schaerfungs-Sortierliste im CoThinker, derselbe
+    # versteckte Weg wie "/sortiert". "/karte_ja"/"/karte_aendern"
+    # (07.10.2026 ~19:25) kamen als 21./22. dazu -- die Knoepfe der
+    # Szenenkarte im CoThinker, derselbe versteckte Weg. "/karte_klaeren"/
+    # "/karte_ueberspringen" (08.10.2026 ~09:20) kamen als 24./25. dazu --
+    # "Clear the questions"/"Skip questions" auf einer Karte mit offenen
+    # Fragen, derselbe versteckte Weg.
     assert befehle._BEKANNTE_BEFEHLE == {
         "/aufnahme", "/interview", "/fertig", "/auswerten", "/phase",
         "/kernthema", "/stueck", "/figur", "/szene", "/stand", "/wortlaut",
         "/hilfe", "/leitfaden", "/festlegung", "/sprache", "/phaseklick",
         "/start", "/sortiert", "/umformulieren", "/schaerfen",
+        "/schaerfung_fertig", "/karte_ja", "/karte_aendern", "/karte_bauen",
+        "/karte_klaeren", "/karte_ueberspringen",
     }
 
 

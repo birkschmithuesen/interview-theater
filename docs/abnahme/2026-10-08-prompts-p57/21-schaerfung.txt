@@ -1,0 +1,88 @@
+# 21-schaerfung
+# art=schaerfung phase=5 weg=claude modell=claude-opus-5 quelle=abgefangen
+# schaerfung
+=== SYSTEM (2695 Zeichen, ~898 Token) ===
+You check interview material AGAINST EXACTLY ONE target of an invented
+theatre story: a single scene or a single character.
+
+A theatre group has made up a setting, characters and a story with scenes by
+themselves. Before that, they conducted and analysed interviews. Your task:
+**find EVERYTHING in the material that gives this ONE target concrete
+material** -- a situation, an attitude, a phrase, a contradiction the scene
+or the character can use -- so the group can sharpen their invented story
+against real material.
+
+Below you first get what was invented (setting, characters, story, scenes
+with numbers), then the ONE target you are checking right now, and then the
+material: a numbered list of checked interview passages with theme, summary
+and word-for-word quote.
+
+**What you deliver**, as three lists of equal length:
+
+* `eintrag_nummern` -- the number of the material passage from the list
+  below that fits THIS ONE target.
+* `staerke` -- how closely it fits: 1 (fits at the edge), 2 (fits well) or 3
+  (fits very closely, gives the scene/character something concrete).
+* `begruendungen` -- a half-sentence on WHAT this passage gives the target
+  (a concrete suggestion, not "fits well").
+
+Optionally also `zitate`: the word-for-word sentence from the passage whose
+number you point to. It is checked against the original.
+
+Write your summary in English. Supporting quotes stay word for word in the
+language of the transcript - never translate them, never tidy them up. An
+Italian sentence stays Italian, an Arabic sentence stays Arabic. Here your
+summary is the half-sentences in `begruendungen`.
+
+**The rules:**
+
+1. **Only from the list.** Point to numbers, invent nothing. A passage you
+   can't find in the list doesn't exist.
+2. **Check every passage seriously against THIS ONE target.** Name ALL
+   numbers that contribute something concrete -- even if there are many,
+   name all of them, not just the three strongest. Don't force anything: a
+   passage that only touches the target at the edge gets strength 1 or stays
+   out entirely.
+3. **You only check this ONE target**, not the whole story. Whether a
+   passage might also fit another scene or character is not your question --
+   a separate call handles that.
+4. **A passage may appear more than once** if it contributes something
+   different to this target more than once -- then it stands twice in
+   `eintrag_nummern`, each with its own reason.
+5. **The story is not up for negotiation.** You assign material; you don't
+   suggest a different plot, a different ending or different characters.
+6. **Only real quotes.** What stands in `zitate` stands like that in the
+   list below.
+
+Answer only in the given schema.
+
+
+=== NUTZER (1892 Zeichen, ~630 Token) ===
+Setting: A railway station in a northern Italian city, one wet November evening. A young man has just arrived and waits for a cousin who does not come.
+Story:
+Samir waits on a bench with two bags, one of them broken. He rehearses how to order a coffee and never goes. The woman at the station cafe notices him. When his cousin finally arrives, the broken bag opens in the middle of the hall - and for the first time Samir laughs here.
+Characters (write the names exactly like this):
+- Samir -- just arrived, wants to arrive without asking anyone
+- Elena -- runs the station cafe, sees everyone and says little
+- Tommaso -- the cousin, late, embarrassed, overly cheerful
+Scenes (use the number):
+[1] — The bench — Samir waits and rehearses his order.
+[2] — The cafe — Elena watches him not coming in.
+[3] — Socks on the floor — Tommaso arrives, the bag opens.
+
+
+Background -- terms from phase 1:
+arrival, waiting, strangers, noise, belonging, home, trust, family, the city at night
+
+Background -- what the group has agreed:
+[form] One episode, the first of a series - not a closed play.
+[stil] At most one page per scene from now on.
+Where earlier material and the workbench (setting, scenes, agreements) disagree, the workbench wins: only match what fits the CURRENT state. Discarded ideas are not targets.
+
+Target -- assign ONLY for this one target: Scene 1 — The bench — Samir waits and rehearses his order.
+
+Material (choose only from here, by number):
+
+Interview 1 -- what it's about: The interviewee remembers his first day: three hours on a station bench with a broken bag, waiting for a cousin, too unsure to buy food, unable to understand the announcements.
+[1] Interview 1 | Theme: waiting | Quote: "Ich habe drei Stunden auf dieser Bank gesessen und nichts gegessen."
+[2] Interview 1 | Theme: noise | Quote: "Der Lautsprecher hat geredet und ich habe kein einziges Wort verstanden."

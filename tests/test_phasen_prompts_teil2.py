@@ -71,10 +71,15 @@ def test_system_en_beschreibt_die_web_app_statt_telegram():
     tatsaechlich benutzt, und beschrieb ihre Bedienelemente (Start
     listening, Discussion done, Mikro-Knopf, Tabs) gar nicht. Die Gruppe
     kann auch ueber den Web-Kanal laufen, ohne Telegram -- deshalb
-    kanalneutral ('the chat'), kein Produktname."""
+    kanalneutral ('the chat'), kein Produktname.
+
+    Seit Karte t_cc147548 (07.10.2026) rendert die App leichtes Markdown
+    statt es roh zu zeigen -- die urspruengliche Zusicherung ('the chat
+    shows them raw') ist durch 'The chat renders this' ersetzt, die
+    eigentliche Pruefung (kanalneutral, kein Telegram) bleibt dieselbe."""
     text = (EN / "system.md").read_text(encoding="utf-8")
     assert "Telegram" not in text
-    assert "The chat shows them raw" in text
+    assert "The chat renders this" in text
     assert "Start listening" in text
     assert "Discussion done" in text
     assert "Workbench" in text
@@ -123,10 +128,14 @@ def test_system_en_ist_keine_amateurgruppe():
 def test_system_en_stationen_5_6_nicht_doppelt_prosa():
     """Befund P1-L4: Stationen 5 und 6 behaupteten wortgleich, eine Szene
     werde 'als Prosa' geschrieben -- Station 6 ist aber die Ueberarbeitung
-    der in Station 5 geschriebenen Prosa, kein zweiter Schreiblauf."""
+    der in Station 5 geschriebenen Prosa, kein zweiter Schreiblauf.
+
+    Seit der Padua-Umbenennung (Birk 08.10.2026) schreibt keine der beiden
+    Stationen Prosa: 5 waehlt Interviewstellen, 6 baut Szenenkarten."""
     text = (EN / "system.md").read_text(encoding="utf-8")
     assert "Rewrite -- tell each scene as prose" not in text
-    assert "go through the prose scenes again" in text
+    assert "5. Interview Selection -- pick and edit the interview passages" in text
+    assert "6. Scene Cards -- turn each scene into a concept card" in text
 
 
 def test_system_en_play_ohne_toten_format_satz():

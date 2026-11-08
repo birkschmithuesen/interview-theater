@@ -37,14 +37,26 @@ log = logging.getLogger(__name__)
 from interview_theater import anweisungen
 
 
-def system(bot_name: str | None = None, phase: int | None = None) -> str:
+def system(bot_name: str | None = None, phase: int | None = None,
+          chat_id: int | None = None) -> str:
     """Systemanweisung, heiss nachgeladen (siehe interview_theater.anweisungen).
 
     ``phase`` haengt die Anweisung fuer die aktuelle Arbeitsphase an
     (``prompts/phasen/N.md``). Sie steuert den Fokus, nicht den
     Informationszugang: die datengetriebenen Bloecke unten bleiben davon
-    unberuehrt."""
-    return anweisungen.system(bot_name, phase)
+    unberuehrt.
+
+    ``chat_id`` (Morgen-Auftrag 4, Nachtrag 2, 08.10.2026 ~09:00): in
+    Phase 6/7, fuer Chats aus ``workshop.italienisch_ab_phase6_chats()``,
+    haengt ein Zusatzsatz "Schreib alles auf Italienisch" an -- eine
+    chat-bezogene Entscheidung, die der profilweite Platzhaltermechanismus
+    (``anweisungen.platzhalter()``) nicht treffen kann: die Testgruppe
+    teilt sich das Profil mit G1-G3, soll aber englisch bleiben."""
+    text = anweisungen.system(bot_name, phase)
+    if (phase in (6, 7) and chat_id is not None
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
+        text += "\n\n" + T._AUFTRAG_AUSGABE_ITALIENISCH
+    return text
 
 #: Kein Tokenizer -- zwei Tage vor dem Workshop keine Abhaengigkeit, die sich
 #: fuer Kimi nicht sauber verifizieren laesst. Zeichen ÷ 3 ueberschaetzt bei
@@ -107,6 +119,11 @@ BUDGETS = {
     # klein; beide fallen in der Kuerzungsleiter vor den Verdichtungen.
     "board": 500,
     "mitgehoert": 2000,
+    # Karte t_256ec777 (07.10.2026): die Bot-Bloecke der Formen, die der
+    # Formberater fuer diese Gruppe nachgeschlagen hat -- durch
+    # ``formberater.MAX_IM_KONTEXT`` (5 x 300-600 Zeichen) gedeckelt, bei
+    # Platznot im Ganzen weg (vor dem Fenster).
+    "formen": 1000,
     "phasenhinweis": 50,
     "figurenhinweis": 100,
     "szene": 2000,
@@ -243,8 +260,10 @@ PAUSE_AB_MINUTEN = 60
 #: wird): stabil nach vorn, fluechtig nach hinten.
 _REIHENFOLGE = (
     "verdichtungen", "transkripte", "kernpaket", "arbeitsstand", "festlegungen",
-    "diskussion", "begriffe_detail", "board", "mitgehoert", "phasenhinweis",
-    "figurenhinweis", "szene",
+    "diskussion", "begriffe_detail", "board", "mitgehoert", "formen",
+    "stagescript_stand",
+    "phasenhinweis",
+    "figurenhinweis", "recherche", "szene", "karte_dialog",
     "journal", "fenster", "ausloeser", "erstkontakt",
 )
 
@@ -315,6 +334,15 @@ _ZEILE_FIGUR = "Figur {name}{beschreibung}"
 _ARBEITSSTAND_KOPF = "Arbeitsstand:\n"
 _TEXT_AKTUELLE_SZENE = "Aktuelle Szene ({szene}):\n{volltext}"
 _JOURNAL_KOPF = "Journal:\n"
+
+#: Padua Quickfix (08.10.2026, Punkt 2): der Stage-Script-Stand je Szene.
+_STAGESCRIPT_KOPF = "Stand des Stage Scripts:\n"
+_STAGESCRIPT_ZEILE = "Szene {nummer} ({titel}): {stand}"
+_STAGESCRIPT_GESPEICHERT = "gespeichert"
+_STAGESCRIPT_GESCHRIEBEN = "geschrieben, noch nicht gespeichert"
+_STAGESCRIPT_IN_ARBEIT = "wird gerade geschrieben"
+_STAGESCRIPT_OFFEN = "noch nicht angefangen"
+_STAGESCRIPT_NOTIZ_ZUSATZ = "(notiert: {notizen})"
 
 #: Wie die Art eines Journaleintrags (``journal.art``, ein Datenbankwert) in
 #: einer Journalzeile des Nutzertexts steht. Deutsch: der Wert selbst
@@ -685,6 +713,11 @@ PHASEN_ERFINDEN = (4,)
 #: Ab dieser Phase arbeitet der Bot aus dem Kernpaket (mit den Schaerfungen).
 PHASE_KERNPAKET = 5
 
+#: Padua-Stage-Script (``workshop.szenenkarten_aktiv``), dieselbe Nummer wie
+#: ``ueberarbeitung.PHASE_BUEHNE`` -- hier wird nur noch geschrieben, nicht
+#: mehr zugeordnet.
+PHASE_STAGE_SCRIPT = 7
+
 
 def material_erlaubt(conn, chat_id: int) -> bool:
     """Duerfen Verdichtungen und Transkripte in den Prompt?
@@ -864,8 +897,101 @@ def _baue_diskussion_block(conn, chat_id: int) -> str:
     return f"{T.DISKUSSION_KOPF}\n\n{text}"
 
 
+def _baue_formen(conn, chat_id: int) -> str:
+    """Die Bot-Bloecke der Formen, die der Formberater fuer diese Gruppe
+    nachgeschlagen hat (``formberater.kontextblock``) -- ab Phase 4,
+    datengetrieben. Scheitert das Lesen (Katalog fehlt), fehlt nur dieser
+    Block, nicht der Zug.
+
+    **Nicht mehr in Phase 7 mit Szenenkarten** (Padua Quickfix 08.10.2026,
+    Punkt 1): die Form steht dort schon durch den Kartentyp fest
+    (``stagescript.py``), und der Block aus Phase 4/5/6 fuehrte das
+    Gespraechsmodell zur alten Formwahl-Antwort ("Scene N as Dialogue. The
+    card stays as it is.") statt die Stage-Script-Notiz greifen zu lassen
+    (Befund Tester 08.10.2026, web_post 2198-2199). Im alten Prosa-/
+    Formwahl-Pfad (ohne Szenenkarten) bleibt der Block in Phase 7 wie
+    gewohnt, dort entscheidet ``formen_setzen`` noch ueber die Form."""
+    from interview_theater import formberater, phasen, stagescript, workshop
+
+    if phasen.aktuelle(conn, chat_id) == stagescript.PHASE and workshop.szenenkarten_aktiv():
+        return ""
+    try:
+        return formberater.kontextblock(conn, chat_id)
+    except Exception:
+        log.exception("Formen-Block nicht gebaut, chat_id=%s", chat_id)
+        return ""
+
+
+def _baue_stagescript_stand(conn, chat_id: int) -> str:
+    """Block: der Stand des Stage Scripts je Szene (Phase 7, Kartenprofil) --
+    Padua Quickfix 08.10.2026, Punkt 2.
+
+    Ohne diesen Block wusste das Gespraechsmodell nicht, ob eine Szene schon
+    geschrieben, gerade in Arbeit, gespeichert oder noch offen ist, und riet
+    ("still being written") statt den Stand zu lesen -- Befund Tester
+    08.10.2026, web_post 2207-2209: eine Frage traf auf eine Szene, die drei
+    Sekunden zuvor als fertig gemeldet worden war, und bekam trotzdem "Not
+    yet ... still being written".
+
+    Datengetrieben wie jeder Block: ohne Szenenkarten (``stagescript.aktiv``)
+    oder ausserhalb Phase 7 keine Zeile."""
+    from interview_theater import stagescript
+
+    if not stagescript.aktiv() or phasen.aktuelle(conn, chat_id) != stagescript.PHASE:
+        return ""
+    szenen = repo.hole_szenen(conn, chat_id)
+    if not szenen:
+        return ""
+    laeuft = stagescript.laeuft(chat_id)
+    aktuelle = stagescript.aktuelle_nummer(conn, chat_id)
+    zeilen = []
+    for s in szenen:
+        if s["fertig_am"]:
+            stand = T._STAGESCRIPT_GESPEICHERT
+        elif (s["volltext"] or "").strip():
+            stand = T._STAGESCRIPT_GESCHRIEBEN
+        elif laeuft and s["nummer"] == aktuelle:
+            stand = T._STAGESCRIPT_IN_ARBEIT
+        else:
+            stand = T._STAGESCRIPT_OFFEN
+        zeile = T._STAGESCRIPT_ZEILE.format(
+            nummer=s["nummer"], titel=(s["titel"] or "").strip(), stand=stand)
+        notizen = repo.stagescript_notizen(conn, s["id"])
+        if notizen:
+            zeile += " " + T._STAGESCRIPT_NOTIZ_ZUSATZ.format(notizen="; ".join(notizen))
+        zeilen.append(zeile)
+    return T._STAGESCRIPT_KOPF + "\n".join(zeilen)
+
+
 #: Die Kopfzeile des Begriffs-Blocks (Karte t_4517d4ad, 04.10.2026).
 BEGRIFFE_DETAIL_KOPF = "Warum ihr diese Begriffe gewaehlt habt:"
+
+#: Die Kopfzeile des Recherche-Blocks (Karte t_c5117c91) -- bewusst klar vom
+#: Interviewmaterial getrennt: eine Internet-Recherche ist eine oeffentliche
+#: Quelle zur Einordnung, nie die Stimme einer interviewten Person. Steht
+#: deshalb in einem eigenen Block statt im Verdichtungs- oder
+#: Transkriptblock (``_baue_recherche``).
+RECHERCHE_KOPF = (
+    "Recherche aus dem Internet (KEIN Interviewmaterial -- oeffentliche "
+    "Quellen zur Einordnung, nie als Aussage einer interviewten Person "
+    "lesen):"
+)
+_RECHERCHE_ZEILE = "- {frage}: {ergebnis_text}"
+
+
+def _baue_recherche(conn, chat_id: int) -> str:
+    """Verifizierte Internet-Recherchen (``repo.hole_recherchen``) als
+    eigener Block -- datengetrieben: ohne Recherche kein Block. Siehe
+    RECHERCHE_KOPF fuer die Abgrenzung vom Interviewmaterial."""
+    recherchen = repo.hole_recherchen(conn, chat_id)
+    if not recherchen:
+        return ""
+    zeilen = [T.RECHERCHE_KOPF]
+    zeilen.extend(
+        T._RECHERCHE_ZEILE.format(frage=r["frage"], ergebnis_text=r["ergebnis_text"])
+        for r in recherchen
+    )
+    return "\n".join(zeilen)
 
 
 #: Die Koepfe der zwei Bloecke vom 05.10.2026 (Birk, Nachtrag 5): das Board,
@@ -933,21 +1059,59 @@ def _baue_board(conn, chat_id: int) -> str:
     return T.BOARD_KOPF + "\n" + "\n".join(zeilen)
 
 
-def _baue_mitgehoert(conn, chat_id: int) -> str:
+#: Welche Phase ein mitgehoertes Segment abschliesst -- Diskussion gehoert
+#: zu Phase 1, Brainstorm zu Phase 4 (``repo.mitgehoerte_transkripte``).
+_MITGEHOERT_PHASE = {True: 1, False: 4}
+
+
+def _mitgehoert_segment_zeilen(conn, chat_id: int, diskussion: bool) -> list[str]:
+    """Eine der zwei Gruppen aus ``mitgehoerte_transkripte`` (Diskussion oder
+    Brainstorm) -- der volle Wortlaut, oder, sobald ihre Phase ABGESCHLOSSEN
+    ist und ein Phasen-Summary vorliegt (Karte t_1bc96848, Padua), die eine
+    Zeile mit dem Summary statt des Wortlauts. Ohne gespeichertes Summary
+    (noch nicht erzeugt, Profilschalter aus) bleibt es beim Wortlaut --
+    dieselbe Verteidigungslinie wie ``szene.p5_gespraech_block``."""
+    from interview_theater import phasen, phasen_summary
+
+    marke = T._MITGEHOERT_DISKUSSION if diskussion else T._MITGEHOERT_BRAINSTORM
+    phase = _MITGEHOERT_PHASE[diskussion]
+    if workshop.phasen_summary_aktiv() and phasen.aktuelle(conn, chat_id) > phase:
+        text = phasen_summary.hole_text(conn, chat_id, phase)
+        if text:
+            return [f"{marke} {text}"]
+    return [
+        f"{marke} {row['transkript'].strip()}"
+        for row in repo.mitgehoerte_transkripte(conn, chat_id)
+        if bool(row["diskussion"]) == diskussion
+    ]
+
+
+def _baue_mitgehoert(conn, chat_id: int, voll: bool = False) -> str:
     """Der Wortlaut alles Mitgehoerten (Diskussion Phase 1, Brainstorm
-    Phase 4), chronologisch -- bei Platznot faellt das AELTESTE vorn weg
+    Phase 4) -- bei Platznot faellt das AELTESTE vorn weg
     (``MITGEHOERT_ZEICHEN``). Bis 05.10.2026 stand ein Segment im Verlauf
     nur als "(sprache)" ohne Text (``nachricht.text`` bleibt dort NULL,
     ``unterdrueckt`` betrifft nur die Chatanzeige), und der Bot sagte live,
-    er bekomme nur den Marker einer Sprachaufnahme. Datengetrieben."""
-    zeilen = []
-    for row in repo.mitgehoerte_transkripte(conn, chat_id):
-        marke = T._MITGEHOERT_DISKUSSION if row["diskussion"] else T._MITGEHOERT_BRAINSTORM
-        zeilen.append(f"{marke} {row['transkript'].strip()}")
-    grenze = mitgehoert_zeichen()
+    er bekomme nur den Marker einer Sprachaufnahme. Datengetrieben.
+
+    Eine abgeschlossene Phase traegt hier seit Karte t_1bc96848 ihr
+    Phasen-Summary statt ihres Wortlauts (``_mitgehoert_segment_zeilen``) --
+    die laufende Phase bleibt unangetastet.
+
+    ``voll`` (Testbot-Karte 07.10.2026, ``workshop.vollmaterial_phase5_aktiv``
+    + ``ueber_claude``): laesst ``MITGEHOERT_ZEICHEN`` aus -- der Opus-Pfad
+    hat mit 400.000 Zeichen genug Platz fuer das komplette Rohtranskript,
+    und die Kuerzungsleiter (``_zu_lang``) greift ohnehin noch, falls der
+    restliche Prompt trotzdem nicht passt. Der Kimi-Pfad bekommt ``voll``
+    nie uebergeben und bleibt also bei seinem bisherigen Budget."""
+    zeilen = (
+        _mitgehoert_segment_zeilen(conn, chat_id, diskussion=True)
+        + _mitgehoert_segment_zeilen(conn, chat_id, diskussion=False)
+    )
+    grenze = None if voll else mitgehoert_zeichen()
     behalten, laenge = [], 0
     for zeile in reversed(zeilen):
-        if behalten and laenge + len(zeile) + 1 > grenze:
+        if grenze is not None and behalten and laenge + len(zeile) + 1 > grenze:
             break
         behalten.insert(0, zeile)
         laenge += len(zeile) + 1
@@ -1031,6 +1195,18 @@ _PHASENHINWEIS = (
     "nicht selbst um; das tut die Antwort der Gruppe."
 )
 
+#: Padua, Phase-5-Gate (07.10.2026): tritt an die Stelle von
+#: ``_PHASENHINWEIS``, solange die Werkbank-Uebersicht vor Phase 5 noch
+#: nicht bestaetigt ist (``befehle.p5_check_noetig``) -- die Gruppe soll in
+#: genau diesem Moment Korrekturen machen koennen, statt erneut gefragt zu
+#: werden, ob sie weiter will.
+_P5_CHECK_GESPRAECHSHINWEIS = (
+    "Die Gruppe prueft gerade zum letzten Mal die Werkbank vor dem "
+    "Uebergang zu Phase 5. Hilf ihr, falsche oder fehlende Eintraege zu "
+    "korrigieren; zeig nach einer Aenderung den korrigierten Eintrag und "
+    "frag, ob jetzt alles passt."
+)
+
 
 def _baue_phasenhinweis(conn, chat_id: int) -> str:
     """Der Hinweis auf eine moegliche naechste Phase -- hoechstens einmal je
@@ -1052,8 +1228,22 @@ def _baue_phasenhinweis(conn, chat_id: int) -> str:
     Kein Merkposten wird hier gesetzt: ``offenes_angebot`` bleibt
     unverbraucht, falls ein anderer Kanal (``knoepfe.biete_phase_proaktiv``)
     das Angebot ausspricht."""
-    if phasen.aktuelle(conn, chat_id) == 1:
+    jetzige = phasen.aktuelle(conn, chat_id)
+    if jetzige == 1:
         return ""
+    # Phase-5-Gate (Padua, 07.10.2026): solange die Werkbank-Uebersicht vor
+    # Phase 5 ansteht, bekommt das Gespraech den Korrektur-Hinweis statt der
+    # gewoehnlichen Phasenfrage -- sonst fragte der Bot "wollt ihr weiter?",
+    # waehrend der Knopfdruck dafuer laengst gesperrt ist. Import erst hier:
+    # ``befehle`` liegt in der Oberflaeche ueber ``kontext`` (Fachlogik),
+    # derselbe Rahmen wie ``from interview_theater import befehle`` in
+    # ``erkenner.py``.
+    if jetzige < 5:
+        from interview_theater import befehle
+
+        if (befehle.p5_check_noetig(conn, chat_id, 5)
+                and phasen.voraussetzungen(conn, chat_id).get(5)):
+            return T._P5_CHECK_GESPRAECHSHINWEIS
     stufe = phasen.offenes_angebot(conn, chat_id)
     if stufe is None:
         return ""
@@ -1104,11 +1294,19 @@ def _baue_figurenhinweis(conn, chat_id: int) -> str:
 
     Nur, wenn es ueberhaupt ein Interview gibt: ohne Material ist die Frage
     unbeantwortbar, und der Bot soll nicht nach etwas fragen, das die Gruppe
-    noch gar nicht aufgenommen hat."""
+    noch gar nicht aufgenommen hat.
+
+    Quickfix 08.10.2026 (Birk, Live-Befund Phase 7): im Padua-Stage-Script
+    (``[karten] aktiv``, Phase 7) ist die Zuordnung Vergangenheit -- die
+    Frage kam im Chat an, ohne dass sie je jemand aufgriff. Dortmund kennt
+    ``szenenkarten_aktiv`` nicht und bleibt unberuehrt."""
     # Und erst ab der Schaerfung (Phase 6): in 4 und 5 wird erfunden, die
     # Frage nach dem Interview einer Figur waere dort genau die Ruecklenkung
     # aufs Material, die der Umbau vermeiden soll.
     if not kernpaket_erlaubt(conn, chat_id):
+        return ""
+    if (workshop.szenenkarten_aktiv()
+            and phasen.aktuelle(conn, chat_id) >= PHASE_STAGE_SCRIPT):
         return ""
     ohne = [f["name"] for f in repo.figuren(conn, chat_id) if f["quelle_aufnahme_id"] is None]
     if not ohne:
@@ -1214,6 +1412,21 @@ def _baue_szene(conn, chat_id: int, grenze: int | None = None) -> str:
     grenze = SZENE_ZEICHEN_MAX if grenze is None else grenze
     volltext = _gekuerzte_szene(szene["volltext"], grenze)
     return T._TEXT_AKTUELLE_SZENE.format(szene=szenenzeile(szene), volltext=volltext)
+
+
+def _baue_karte_dialog(conn, chat_id: int) -> str:
+    """Der "No, change"-Dialog einer Szenenkarte (Birk 08.10.2026 ~09:35,
+    Nachtrag, nur Padua ``[karten]``): solange eine Karte im Dialog ist,
+    bekommt JEDER Gespraechszug sie samt Anweisung
+    (``szenenkarte.dialog_kontextblock``) -- datengetrieben wie jeder
+    andere Block: leer, solange keine Karte im Dialog ist."""
+    from interview_theater import szenenkarte
+
+    try:
+        return szenenkarte.dialog_kontextblock(conn, chat_id)
+    except Exception:
+        log.exception("Karten-Dialog-Block nicht gebaut, chat_id=%s", chat_id)
+        return ""
 
 
 #: Wie viele Journaleintraege in den Prompt gehen -- die letzten N nach
@@ -1855,7 +2068,8 @@ def _systemgroesse(conn, chat_id: int, e) -> int:
 
 
 def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
-             fenster_eintraege: list, namen: dict[str, str] | None = None) -> dict:
+             fenster_eintraege: list, namen: dict[str, str] | None = None,
+             ueber_claude: bool = False) -> dict:
     """Die Bloecke des Nutzertexts, in ihrer Reihenfolge -- datengetrieben:
     jeder Block bleibt leer, solange seine Daten leer sind (SPEC § 6.1)."""
     # Der Kontext-Filter je Phase (05.09.2026 abends): bis zur Kernfrage
@@ -1864,8 +2078,20 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
     # alles andere -- es gibt keinen gespeicherten Zustand, nur zwei Felder,
     # die die Lage beschreiben.
     material = material_erlaubt(conn, chat_id)
+    # Testbot-Karte 07.10.2026: ab der Schaerfung trug das Kernpaket oft fast
+    # nichts vom Interviewmaterial (0 Kernthemen, 0 Kernzitate), waehrend die
+    # Werkbank alles zeigte. Mit Zustimmung (Opus-Pfad) und Profilschalter
+    # bekommt der Chat ab Phase 5 zusaetzlich ALLE Verdichtungen und das volle
+    # (nicht gekappte) Mitgehoert-Transkript -- der Kimi-Pfad und Dortmund
+    # bleiben unberuehrt (beide Bedingungen muessen stehen).
+    vollmaterial_p5 = (
+        not material
+        and kernpaket_erlaubt(conn, chat_id)
+        and ueber_claude
+        and workshop.vollmaterial_phase5_aktiv()
+    )
     board = _baue_board(conn, chat_id)
-    mitgehoert = _baue_mitgehoert(conn, chat_id)
+    mitgehoert = _baue_mitgehoert(conn, chat_id, voll=vollmaterial_p5)
     if mitgehoert:
         _fasse_marker_zusammen(fenster_eintraege)
     kernpaket = (
@@ -1873,7 +2099,7 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
     )
     return {
         "erstkontakt": _baue_erstkontakt(conn, chat_id, e) if erstkontakt else "",
-        "verdichtungen": _baue_verdichtungen(conn, chat_id) if material else "",
+        "verdichtungen": _baue_verdichtungen(conn, chat_id) if (material or vollmaterial_p5) else "",
         "transkripte": _baue_transkripte(conn, chat_id) if material else "",
         # In 4 und 5 gibt es WEDER Material NOCH Kernpaket: dort wird
         # erfunden (``PHASEN_ERFINDEN``).
@@ -1900,9 +2126,19 @@ def _bloecke(conn, chat_id: int, ausloeser, e, erstkontakt: bool,
         # Fakt, eine Stelle; R-1: ein verworfener, aber gespeicherter
         # Begriff fehlt dort und braucht diesen Block, in jeder Phase).
         "begriffe_detail": _baue_begriffe_detail(conn, chat_id),
+        # Ab Phase 4: was der Formberater nachgeschlagen hat (leer, solange
+        # nichts nachgeschlagen ist).
+        "formen": _baue_formen(conn, chat_id),
+        # Padua Quickfix (08.10.2026, Punkt 2): der Stand des Stage Scripts
+        # je Szene, nur Phase 7 mit Szenenkarten.
+        "stagescript_stand": _baue_stagescript_stand(conn, chat_id),
         "phasenhinweis": _baue_phasenhinweis(conn, chat_id),
         "figurenhinweis": _baue_figurenhinweis(conn, chat_id),
+        # Internet-Recherche (Karte t_c5117c91) -- eigener Block, siehe
+        # RECHERCHE_KOPF fuer die Abgrenzung vom Interviewmaterial.
+        "recherche": _baue_recherche(conn, chat_id),
         "szene": _baue_szene(conn, chat_id),
+        "karte_dialog": _baue_karte_dialog(conn, chat_id),
         "journal": _baue_journal(conn, chat_id),
         "fenster": "\n".join(fenster_eintraege),
         "ausloeser": _baue_ausloeser(ausloeser, namen),
@@ -1990,6 +2226,10 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
     bloecke["transkripte"] = ""
     if _zu_lang() and bloecke["szene"]:
         bloecke["szene"] = _baue_szene(conn, chat_id, SZENE_ZEICHEN_NOTFALL)
+    # Das Nachschlagewerk vor dem Gespraech: es ist Hintergrund, das Fenster
+    # ist das, worauf der Bot antwortet (Karte t_256ec777).
+    if _zu_lang() and bloecke.get("formen"):
+        bloecke["formen"] = ""
     while _zu_lang() and fenster_eintraege:
         fenster_eintraege = fenster_eintraege[1:]
         bloecke["fenster"] = "\n".join(fenster_eintraege)
@@ -2027,6 +2267,8 @@ def _kuerze_auf_budget(conn, chat_id: int, e, bloecke: dict,
         bloecke["board"] = ""
     if _zu_lang() and bloecke["begriffe_detail"]:
         bloecke["begriffe_detail"] = ""
+    if _zu_lang() and bloecke["recherche"]:
+        bloecke["recherche"] = ""
     if _zu_lang():
         bloecke["verdichtungen"] = ""
     if _zu_lang() and bloecke["szene"]:
@@ -2105,7 +2347,8 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
     # E8: die Pseudonyme einmal je Prompt, fuer Fenster UND Ausloeser.
     namen = pseudonyme(conn, chat_id, ausloeser)
     fenster_eintraege = _baue_fenster_eintraege(conn, chat_id, ausloeser, namen)
-    bloecke = _bloecke(conn, chat_id, ausloeser, e, erstkontakt, fenster_eintraege, namen)
+    bloecke = _bloecke(conn, chat_id, ausloeser, e, erstkontakt, fenster_eintraege, namen,
+                        ueber_claude=ueber_claude)
     # Einmal gemessen, zweimal gebraucht: in der Kuerzung (Gesamtgrenze) und
     # im Umriss (Auftrag 4, Befund C.1).
     system_zeichen = _systemgroesse(conn, chat_id, e)
@@ -2136,3 +2379,10 @@ def baue(conn, chat_id: int, ausloeser, e, erstkontakt: bool = False,
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 
 T = sprache.Texte(__name__)
+#: Morgen-Auftrag 4, Nachtrag 2 (08.10.2026 ~09:00): Zusatzsatz an die
+#: Systemanweisung der Phasen 6/7, nur fuer Chats aus
+#: ``workshop.italienisch_ab_phase6_chats()`` -- siehe ``system()`` oben.
+_AUFTRAG_AUSGABE_ITALIENISCH = (
+    "Schreib alles auf Italienisch. Zitate bleiben genau wie gegeben, in "
+    "der Originalsprache, unveraendert."
+)

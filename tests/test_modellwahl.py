@@ -206,6 +206,25 @@ def test_fallback_bei_claude_fehler_nutzt_kimi_und_vermerkt_vorfall(
     assert vorfall is not None
 
 
+@pytest.mark.parametrize("unbrauchbar", [1, "", {"antwort": ""}, None, {"x": 1}])
+def test_fallback_bei_unbrauchbarer_claude_antwort_nutzt_kimi(
+    conn, opus_e, monkeypatch, unbrauchbar,
+):
+    """P57 Lauf 3 A5: liefert Claude keine verwertbare Antwort (z. B. die
+    Zahl 1), faellt der Zug auf Kimi zurueck -- wie bei einer Proxy-Ausnahme."""
+    monkeypatch.setattr(szene_claude, "schema", lambda *a, **kw: unbrauchbar)
+    klm = _KLM()
+    ergebnis = modellwahl.aufruf_schema(
+        conn, klm, opus_e, CHAT, "sys", "nutz", {"type": "object"}, "gespraech",
+        ueber_claude=True, teil_feld="antwort",
+    )
+    assert ergebnis == {"antwort": "von Kimi"}
+    assert klm.gesehen == ["gespraech"]
+    assert conn.execute(
+        "SELECT 1 FROM vorfall WHERE art = ?", (modellwahl.VORFALL_OPUS_FALLBACK,)
+    ).fetchone() is not None
+
+
 class _LLMAttrappe:
     def __init__(self):
         self.aufrufe = 0

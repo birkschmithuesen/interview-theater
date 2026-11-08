@@ -594,3 +594,43 @@ def test_dashboard_verlinkt_jede_gruppe_auf_ihre_gruppenseite(tmp_path):
     html_ = web.dashboard_html(web_daten.dashboard(lesend), praefix="/theatersoap")
     assert f'<a href="/theatersoap/g/{token}">Gruppe A</a>' in html_
 
+
+
+def test_script_planung_knapp_als_liste_padua(monkeypatch):
+    """Birk 07.10.2026 ~17:30: "What happens"/"Key lines" im Script-Tab als
+    knappe Liste mit Obergrenze statt Wall of Text. Mutant: _t(wert) -> rot."""
+    from interview_theater import web, workshop
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: True)
+    lang = "Opening, e.g. a; b; c. " + "; ".join(f"point {i} about home" for i in range(12))
+    html = web._planung_wert_html("was_passiert", lang)
+    assert html.startswith('<ul class="planung-liste">')
+    assert html.count("<li>") == web.PLANUNG_PUNKTE_MAX
+    assert "<li>Opening, e.g. a; b; c.</li>" in html  # Beschreibungssatz bleibt ganz
+    assert "more in the Workbench" in html or "weitere in der Werkbank" in html
+    ks = web._planung_wert_html("kernsaetze", " | ".join("z" * 400 for _ in range(9)))
+    assert ks.count("<li>") == web.KERNSAETZE_MAX and "…" in ks
+
+
+def test_script_planung_ohne_schalter_unveraendert(monkeypatch):
+    from interview_theater import web, workshop
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: False)
+    assert web._planung_wert_html("was_passiert", "a; b") == web._t("a; b")
+
+
+def test_script_prosa_mit_absaetzen():
+    """Birk 07.10.2026 ~17:40: Prosa im Script-Tab mit Absaetzen statt einem
+    Block. Mutant: ein <p> fuer alles -> rot."""
+    from interview_theater import web
+    h = web._prosa_absaetze_html("**What is home?**\n\nEMMA: We asked.\nSAMUELE: No.\n\nEnd.")
+    assert h.count('<p class="prosa">') == 3
+    assert "<strong>What is home?</strong>" in h
+    assert "<strong>EMMA:</strong> We asked.<br><strong>SAMUELE:</strong> No." in h
+
+
+def test_script_interviewzitat_als_block():
+    """Birk 07.10.2026 ~18:05: Interviewzitate als solche gekennzeichnet.
+    Mutant: '>'-Zweig weg -> kein blockquote -> rot."""
+    from interview_theater import web
+    h = web._prosa_absaetze_html('They wait.\n> *Interview quote (12):* "I looked for the arcades."\nThen silence.')
+    assert '<blockquote class="interviewzitat"><em>Interview quote (12):</em>' in h
+    assert h.count('<p class="prosa">') == 2

@@ -244,19 +244,24 @@ def test_onstop_laedt_jedes_segment_mit_bytes_hoch_ohne_redems_gate():
 def test_auftrag_traegt_redems_und_postaudio_haengt_rede_an():
     """``redeMs`` ist seit der Karte 'Mithoeren SICHER' reines
     Diagnose-Metadatum: es haengt am ``auftrag`` und geht als ``&rede=``
-    mit, wird aber nirgends mehr als Upload-Gate gelesen (siehe Test oben)."""
+    mit, wird aber nirgends mehr als Upload-Gate gelesen (siehe Test oben).
+
+    Die Querystring-Logik lebt seit der Karte InScribe (Diskussionsaufnahme
+    laedt still nicht mehr hoch, 2026-10-17) in ``audioWeg`` -- ausgelagert
+    aus ``postAudio``, damit der Pfad einmal beim Einreihen gebaut und mit
+    dem Blob zusammen im Handy-Puffer (IndexedDB) liegen kann."""
     js = web_chat._CHAT_JS
     onstop = js[js.index("r.onstop = function"):js.index("r.start();")]
     assert "redeMs: redeMs" in onstop
 
-    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    ausschnitt = js[js.index("function audioWeg"):js.index("function audioWeg") + 600]
     assert "auftrag.redeMs != null" in ausschnitt
     assert "&rede=" in ausschnitt
 
 
 def test_postaudio_haengt_den_grund_an():
     js = web_chat._CHAT_JS
-    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 600]
+    ausschnitt = js[js.index("function audioWeg"):js.index("function audioWeg") + 600]
     assert "auftrag.grund" in ausschnitt
 
 
@@ -473,11 +478,18 @@ def test_das_js_nennt_jeden_postweg(seite):
         if weg == "phase":
             assert f"chat/{weg}" in web_vereint._VEREINT_JS, weg
             continue
-        if weg in ("auswahl", "auswahl_fertig"):
+        if weg in ("auswahl", "auswahl_fertig", "karte"):
             # Die Auswahlliste im CoThinker (Padua Phase 2, 05.10.2026):
             # Aufrufer in ``web_vereint._AUSWAHL_JS``, nur auf der vereinten
-            # Seite unter dem Profil.
+            # Seite unter dem Profil. "karte" (Szenenkarten im CoThinker,
+            # 07.10.2026 ~19:25) steht im selben Skript.
             assert f"'chat/{weg}'" in web_vereint._AUSWAHL_JS, weg
+            continue
+        if weg == "bedarf":
+            # Die Bedarfsliste (Birk 08.10.2026 ~13:45): nur in der
+            # read-only Werkbank der vereinten Seite, Aufrufer deshalb in
+            # ``web_vereint._BEDARF_JS``, nicht im Chat-Alleingang.
+            assert f"'chat/{weg}'" in web_vereint._BEDARF_JS, weg
             continue
         assert f"chat/{weg}" in web_chat._CHAT_JS, weg
 
@@ -678,22 +690,51 @@ def test_amunterenrand_wird_vor_jeder_dom_aenderung_gelesen():
 def test_nachunten_laeuft_bei_neu_oder_bei_geaenderter_letzter_blase():
     js = web_chat._CHAT_JS
     nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
-    # Phasenscroll-Karte (04.10.2026, Nachtrag 05.10.2026): bei neuen
-    # Nachrichten entscheidet ``phasenwechsel``, ob zum Phasenanfang
-    # gescrollt wird -- und sonst ``warUnten``, ob der Anker oben (gesetzt
-    # von einem fruehen Phasenwechsel) ans Ende weiterbeweglich bleibt.
-    # Der zweite Zweig (laufendes Transkript) ist davon unberuehrt.
+    # Phasenscroll-Karte (04.10.2026, Nachtrag 05.10.2026), seit Kanban-
+    # Karte t_60d72fd6 (07.10.2026) ohne den ``phasenwechsel``-Zweig hier
+    # drin: ein Phasenwechsel kehrt VOR diesem Block um (``ladePhaseNeu()``,
+    # siehe test_ein_phasenwechsel_baut_den_verlauf_neu_statt_eines_reloads)
+    # -- ``warUnten`` bleibt der einzige Grund, bei neuen Nachrichten ans
+    # Ende zu scrollen. Der zweite Zweig (laufendes Transkript) ist davon
+    # unberuehrt.
     assert (
         "if (neu.length) {\n" in nimm
     )
     block = nimm[nimm.index("if (neu.length) {"):nimm.index("} else if ")]
-    assert "if (phasenwechsel) { scrolleZuPhasenanfang(); erzwingeNachUnten = false; }" in block
-    assert "else if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }" in block
+    assert "phasenwechsel" not in block
+    assert "if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }" in block
     nach_else_if = nimm[nimm.index("} else if ") + len("} else if "):]
     bedingung = nach_else_if[:nach_else_if.index(") {")]
     assert "warUnten" in bedingung
     assert "geaendert.length" in bedingung
     assert "letzteBlaseWurdeGeaendert(geaendert)" in bedingung
+
+
+def test_ein_phasenwechsel_baut_den_verlauf_neu_statt_eines_reloads():
+    """Kanban-Karte t_60d72fd6 (Birk 07.10.2026, Option c): der Server
+    (``web_daten.web_chatverlauf``) zeigt nur noch die aktuelle Phase --
+    Blasen einer verlassenen Phase stehen aber schon im DOM und muessen weg.
+    Bewusst KEIN ``location.reload()`` (das risse Recorder, Timer und
+    Upload-Warteschlange einer laufenden Aufnahme mit, siehe
+    ``test_das_js_laedt_ohne_nachladen_der_ganzen_seite``): stattdessen wird
+    nur ``#verlauf`` geleert und die Historie der neuen Phase per Fetch
+    frisch geladen. Mutant: die Zeile ``verlauf.innerHTML = '';`` entfernen
+    (oder den fruehen ``return``) macht diesen Test rot."""
+    js = web_chat._CHAT_JS
+    assert "location.reload" not in js
+    nimm = js[js.index("function nimmZustand"):js.index("function zeigeAntworten")]
+    vor_dem_wechsel = nimm[:nimm.index("if (phasenwechsel) { ladePhaseNeu(); return; }")]
+    # Die Entscheidung steht VOR jedem ``blase()``/``ersetze()`` -- sonst
+    # rendert der Client die alte Phase noch kurz an, bevor er sie leert.
+    assert "neu.forEach(blase)" not in vor_dem_wechsel
+    assert "geaendert.forEach(ersetze)" not in vor_dem_wechsel
+    assert "var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;" in nimm
+    assert (nimm.index("var phasenwechsel")
+            < nimm.index("if (phasenwechsel) { ladePhaseNeu(); return; }"))
+    funktion = js[js.index("function ladePhaseNeu"):js.index("function nimmZustand")]
+    assert "verlauf.innerHTML = '';" in funktion
+    assert "chat/zustand?nach=0" in funktion
+    assert "scrolleBeimOeffnen();" in funktion
 
 
 # -- Phasenscroll-Karte (04.10.2026): Anfang der neuen Phase statt Ende ----
@@ -1390,6 +1431,25 @@ def test_die_seite_traegt_den_modus_schon_beim_laden(tmp_path, monkeypatch):
     assert f'id="interview-pause">{web_chat._TEXT_INTERVIEW_PAUSE}</button>' in aus
 
 
+def test_der_fremd_hinweis_banner_zeigt_den_endehinweis_nach_reload():
+    """Karte t_d18f2ad6 Teil 2 (angepasst, Birk): nach einem Reload mit
+    verwaister Aufnahme (keine lokale Sitzung, der Server meldet den Modus
+    trotzdem) muss ein klarer Banner-Text mit Handlungsaufforderung stehen,
+    nicht nur die Zwei-Tipp-Sperre an den Knoepfen selbst. Kein neuer
+    String: derselbe Text wie ``diskussion_gesperrt`` ("An interview is
+    still open - tap ... first."), denn er benennt schon genau das, und
+    E6 verbietet neuen Client-Speicher -- der Banner haengt nur am
+    Server-gemeldeten Modus im DOM wie der Rest des fremden-Geraet-Pfads."""
+    hinweis = web_chat._TEXT_DISKUSSION_GESPERRT.format(
+        beenden=web_chat._TEXT_INTERVIEW_ENDEN)
+    daten = {"nachrichten": [], "letzte": 0, "aenderung": 0,
+             "interviewmodus": True, "titel": None, "brainstorm_knopf": False}
+    seite = web_chat.chat_html(daten, "1.x", "tok", "", 45000)
+    assert (f'id="interview-fremd-hinweis" role="status">{hinweis}</p>') in seite
+    aus = web_chat.chat_html(dict(daten, interviewmodus=False), "1.x", "tok", "", 45000)
+    assert f'id="interview-fremd-hinweis" role="status" hidden>{hinweis}</p>' in aus
+
+
 def test_das_js_ist_syntaktisch_gueltig(tmp_path):
     """Wenn ``node`` da ist: ``node --check`` ueber das fertige Skript."""
     import shutil
@@ -1691,7 +1751,7 @@ def _zeigemodus_harness(faelle_js: str) -> str:
                classList: {{ toggle: function () {{}} }} }};
     }}
     var fuss, interviewKnopf, interviewPauseKnopf, interviewBeendenKnopf,
-        interviewAktionenFeld, pttKnopf, zustand;
+        interviewAktionenFeld, interviewFremdHinweisFeld, pttKnopf, zustand;
     function zeigeBrainstormModus() {{}}
     function zeigeDiskussionModus() {{}}
     {minuten}
@@ -1701,20 +1761,24 @@ def _zeigemodus_harness(faelle_js: str) -> str:
       zustand = Object.assign({{
         wechsel: null, aufnahme: null, servermodus: false, warteschlange: [],
         knopfErlaubt: true, brainstorm: null, diskussion: null,
+        diskussionErlaubt: false, mithoerenZiel: 'diskussion',
         fremdScharf: null, fremdScharfSeit: 0
       }}, z);
       fuss = attrappe(); interviewKnopf = attrappe();
       interviewPauseKnopf = attrappe(); interviewBeendenKnopf = attrappe();
-      interviewAktionenFeld = attrappe(); pttKnopf = attrappe();
+      interviewAktionenFeld = attrappe(); interviewFremdHinweisFeld = attrappe();
+      pttKnopf = attrappe();
       zeigeModus();
       return {{
+        fremdHinweisVersteckt: interviewFremdHinweisFeld.hidden,
         fremd: interviewKnopf.dataset.fremd,
         pausiert: interviewKnopf.dataset.pausiert,
         startet: interviewKnopf.dataset.startet,
         text: interviewKnopf.textContent,
         pause: interviewPauseKnopf.textContent,
         enden: interviewBeendenKnopf.textContent,
-        scharf: zustand.fremdScharf
+        scharf: zustand.fremdScharf,
+        pttHidden: pttKnopf.hidden
       }};
     }}
     {faelle_js}
@@ -1743,6 +1807,7 @@ def test_fremdes_geraet_zeigt_nicht_pausiert_live_in_node(tmp_path):
     assert e["fremd"]["text"] == "FREMD"
     assert e["fremd"]["pause"] == "HIER"
     assert e["fremd"]["enden"] == "ENDEN"
+    assert e["fremd"]["fremdHinweisVersteckt"] is False
     assert e["fremd_weiter_scharf"]["pause"] == "HIER_SICHER"
     assert e["fremd_weiter_scharf"]["enden"] == "ENDEN"
     assert e["fremd_enden_scharf"]["enden"] == "ENDEN_SICHER"
@@ -1752,14 +1817,17 @@ def test_fremdes_geraet_zeigt_nicht_pausiert_live_in_node(tmp_path):
     assert e["eigen_pausiert"]["text"] == "PAUSIERT 1:05"
     assert e["eigen_pausiert"]["pause"] == "WEITER"
     assert e["eigen_pausiert"]["scharf"] is None   # eigene Sitzung: nichts scharf
+    assert e["eigen_pausiert"]["fremdHinweisVersteckt"] is True
 
     assert e["eigen_laeuft"]["fremd"] == "0"
     assert e["eigen_laeuft"]["pausiert"] == "0"
     assert e["eigen_laeuft"]["text"].startswith("LAEUFT")
     assert e["eigen_laeuft"]["enden"] == "ENDEN"
+    assert e["eigen_laeuft"]["fremdHinweisVersteckt"] is True
 
     assert e["aus"]["fremd"] == "0"
     assert e["aus"]["text"] == "AN"
+    assert e["aus"]["fremdHinweisVersteckt"] is True
 
 
 def test_fremdbestaetigt_braucht_zwei_tipps_live_in_node(tmp_path):
@@ -2112,10 +2180,14 @@ def test_das_js_setzt_kein_cookie_und_nichts_in_den_speicher():
 
 
 def test_starteinterview_und_pttpointerdown_lehnen_waehrend_diskussion_ab():
-    """``starteInterview()`` und ``pttPointerDown()`` lehnen beide ab,
-    solange eine Mithoeren-Sitzung (``zustand.diskussion``, seit 3a5e8c6
-    gemeinsam fuer Phase 1 und Phase 4) laeuft -- sonst liefen zwei bzw. drei
-    Recorder auf demselben Mikrofon."""
+    """``starteInterview()`` lehnt weiterhin ab, solange eine
+    Mithoeren-Sitzung (``zustand.diskussion``, seit 3a5e8c6 gemeinsam fuer
+    Phase 1 und Phase 4) laeuft -- sonst liefen zwei Recorder auf demselben
+    Mikrofon. ``pttPointerDown()`` lehnt das seit Kanban t_d22af9b2
+    (06.10.2026) NUR noch fuer Phase 1 (``sitzung.ziel !== 'brainstorm'``)
+    ab -- in Phase 4 bleibt PTT ein eigener Befehlskanal neben dem
+    laufenden CoThinker-Mithoeren, siehe
+    ``test_pttpointerdown_erlaubt_waehrend_brainstorm_aber_nicht_waehrend_diskussion_in_node``."""
     js = web_chat._CHAT_JS
     start_iv = js[js.index("function starteInterview"):
                   js.index("function brichAb")]
@@ -2123,7 +2195,11 @@ def test_starteinterview_und_pttpointerdown_lehnen_waehrend_diskussion_ab():
 
     start_ptt = js[js.index("function pttPointerDown"):
                    js.index("function pttPointerMove")]
-    assert ("if (modusAn() || zustand.wechsel || zustand.diskussion ||\n"
+    assert (
+        "var diskussionBlockiert = zustand.diskussion && "
+        "zustand.diskussion.ziel !== 'brainstorm';"
+    ) in start_ptt
+    assert ("if (modusAn() || zustand.wechsel || diskussionBlockiert ||\n"
             "        zustand.ptt) { return; }") in start_ptt
 
 
@@ -2204,6 +2280,144 @@ def test_starteinterview_und_pttpointerdown_lehnen_waehrend_diskussion_tatsaechl
     assert ergebnisse["ohneDiskussion"] == {
         "interviewGestartet": True, "pttGestartet": True,
     }
+
+
+# -- PTT bleibt neben Phase 4 (CoThinker-Mithoeren) ein eigener
+#    Befehlskanal (Kanban t_d22af9b2, 06.10.2026) -----------------------------
+#
+# Birk, Live-Test 06.10.2026: die alte entweder/oder-Regel (04.10.2026, s.o.)
+# galt bisher fuer Phase 1 UND Phase 4 gleich -- jetzt nur noch fuer Phase 1
+# (``sitzung.ziel === 'diskussion'``). Phase 4 (``'brainstorm'``) soll der
+# Gruppe erlauben, dem Bot waehrend des laufenden Mithoerens eine kurze
+# Anweisung per PTT zu geben, ohne das Mithoeren zu beenden.
+
+
+def test_pttpointerdown_erlaubt_waehrend_brainstorm_aber_nicht_waehrend_diskussion_in_node(
+    tmp_path,
+):
+    """Verhaltensnachweis in Node: mit laufender Mithoeren-Sitzung
+    (``zustand.diskussion``) startet ``pttPointerDown()`` einen eigenen
+    PTT-Druck GENAU DANN, wenn ``sitzung.ziel === 'brainstorm'`` ist --
+    bei ``'diskussion'`` (Phase 1) bleibt die alte Sperre bestehen."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    modus_an = _extrahiere(js, "function modusAn", "function zeigeModus")
+    start_ptt = _extrahiere(js, "function pttPointerDown", "function pttPointerMove")
+
+    quelltext = f"""
+    var zustand, pttKnopf, navigator;
+    var PTT_MAX_MS = {web_chat.PTT_MAX_MS};
+    navigator = {{}};
+
+    {modus_an}
+
+    function pttZeigeAnzeige() {{}}
+    function holeStrom() {{ return new Promise(function () {{}}); }}
+    function setTimeout() {{ return {{}}; }}
+    function clearTimeout() {{}}
+    function setInterval() {{ return {{}}; }}
+    function clearInterval() {{}}
+
+    {start_ptt}
+
+    function lauf(ziel) {{
+      zustand = {{
+        aufnahme: null, wechsel: null, servermodus: false, ptt: null,
+        diskussion: {{ pausiert: false, ziel: ziel }}
+      }};
+      pttKnopf = {{ dataset: {{}}, setPointerCapture: function () {{}} }};
+      var ev = {{ clientX: 0, clientY: 0, pointerId: 1, preventDefault: function () {{}} }};
+      pttPointerDown(ev);
+      return !!zustand.ptt;
+    }}
+
+    console.log(JSON.stringify({{
+      brainstorm: lauf('brainstorm'),
+      diskussion: lauf('diskussion')
+    }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnis = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnis["brainstorm"] is True
+    assert ergebnis["diskussion"] is False
+
+
+def test_pttknopf_bleibt_sichtbar_in_phase_4_waehrend_diskussion_erlaubt_oder_laeuft_in_node(
+    tmp_path,
+):
+    """``zeigeModus()`` blendet PTT bei angebotener/laufender
+    Mithoeren-Sitzung nur noch in Phase 1 (``mithoerenZiel ===
+    'diskussion'``) aus -- in Phase 4 (``'brainstorm'``) bleibt der Knopf
+    sichtbar, egal ob die Sitzung nur angeboten wird oder schon laeuft."""
+    node = _node_oder_skip()
+    quelltext = _zeigemodus_harness("""
+    console.log(JSON.stringify({
+      brainstorm_angeboten: lauf({ diskussionErlaubt: true, mithoerenZiel: 'brainstorm' }),
+      brainstorm_laeuft: lauf({ diskussion: { pausiert: false, ziel: 'brainstorm' },
+                                 mithoerenZiel: 'brainstorm' }),
+      diskussion_angeboten: lauf({ diskussionErlaubt: true, mithoerenZiel: 'diskussion' }),
+      diskussion_laeuft: lauf({ diskussion: { pausiert: false, ziel: 'diskussion' },
+                                 mithoerenZiel: 'diskussion' }),
+      ohne_angebot: lauf({ mithoerenZiel: 'brainstorm' })
+    }));
+    """)
+    e = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert e["brainstorm_angeboten"]["pttHidden"] is False
+    assert e["brainstorm_laeuft"]["pttHidden"] is False
+    assert e["diskussion_angeboten"]["pttHidden"] is True
+    assert e["diskussion_laeuft"]["pttHidden"] is True
+    assert e["ohne_angebot"]["pttHidden"] is False
+
+
+def test_zeigediskussionmodus_zeigt_den_cothinker_text_nur_fuer_brainstorm_in_node(tmp_path):
+    """``zeigeDiskussionModus()`` zeigt ``TEXT.diskussion_an_cothinker``
+    statt ``TEXT.diskussion_an``, solange keine Sitzung laeuft UND
+    ``zustand.mithoerenZiel === 'brainstorm'`` ist (Phase 4) -- Phase 1
+    (``'diskussion'``) behaelt den alten Text."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    zeige_ds = _extrahiere(js, "function zeigeDiskussionModus", "function starteDiskussion")
+    modus_an = _extrahiere(js, "function modusAn", "function zeigeModus")
+
+    quelltext = f"""
+    var TEXT = {{ diskussion_an: 'AN', diskussion_an_cothinker: 'AN_COTHINKER',
+                  diskussion_laeuft: 'LAEUFT {{zeit}}' }};
+    function attrappe() {{
+      return {{ dataset: {{}}, textContent: '', hidden: false,
+                setAttribute: function () {{}}, removeAttribute: function () {{}} }};
+    }}
+    function formatiereUhr() {{ return '0:00'; }}
+    var zustand, diskussionKnopf, diskussionAktionenFeld;
+    {modus_an}
+    {zeige_ds}
+    function lauf(ziel) {{
+      diskussionKnopf = attrappe();
+      diskussionAktionenFeld = attrappe();
+      zustand = {{ diskussion: null, wechsel: null, mithoerenZiel: ziel }};
+      zeigeDiskussionModus();
+      return diskussionKnopf.textContent;
+    }}
+    console.log(JSON.stringify({{
+      brainstorm: lauf('brainstorm'),
+      diskussion: lauf('diskussion')
+    }}));
+    """
+    ausgabe = _fuehre_js_aus(node, quelltext, tmp_path)
+    ergebnis = json.loads(ausgabe.strip().splitlines()[-1])
+    assert ergebnis["brainstorm"] == "AN_COTHINKER"
+    assert ergebnis["diskussion"] == "AN"
+
+
+def test_diskussion_an_cothinker_text_kommt_englisch_ueber_t(monkeypatch):
+    """Wie ``test_diskussion_gesperrt_text_kommt_englisch_ueber_t``: der
+    neue Knopftext geht ueber ``T``, nicht als Literal im JS."""
+    from interview_theater import sprache
+
+    assert "diskussion_an_cothinker" in web_chat._JS_TEXTE
+    monkeypatch.setattr(sprache, "code", lambda: "en")
+    texte = json.loads(re.search(r"var TEXT = (\{.*?\});\n", web_chat._js()).group(1))
+    assert texte["diskussion_an_cothinker"] == "Start Listening for CoThinker"
+    assert texte["diskussion_an"] == "Start listening"
 
 
 # -- UX-Knoepfe-Karte, Abschnitt 1: Knoepfe als Abkuerzungen ---------------
@@ -2310,7 +2524,11 @@ def test_postaudio_haengt_das_richtige_ziel_flag_an():
     Upload geht -- EINE Sitzungsart (``sitzung.art === 'diskussion'``),
     zwei moegliche Ziele, kein eigener 'brainstorm'-Sitzungstyp mehr."""
     js = web_chat._CHAT_JS
-    ausschnitt = js[js.index("function postAudio"):js.index("function postAudio") + 900]
+    # Karte t_1423ca89 (hintergrund-Metadatum) hat die Funktion um ein paar
+    # Zeilen verlaengert -- das Fenster bleibt grosszuegig ueber ihrer Laenge.
+    # Seit der InScribe-Aufspaltung (Watchdog/Puffer) baut audioWeg() die URL,
+    # postAudio() nur noch den Fetch -- die Flags stehen deshalb in audioWeg.
+    ausschnitt = js[js.index("function audioWeg"):js.index("function audioWeg") + 1100]
     assert "sitzung.art === 'diskussion'" in ausschnitt
     assert "auftrag.sitzung.ziel === 'brainstorm'" in ausschnitt
     assert "&brainstorm=1" in ausschnitt
@@ -3203,3 +3421,613 @@ def test_mitlauf_hinweis_kommt_nicht_nach_dem_ende_der_sitzung_live_in_node(tmp_
         "brainstorm_laeuft": True,
         "diskussion_beendet": True,
     }
+
+
+# -- Autogrow-Eingabefeld (Karte t_d86971eb) --------------------------------
+#
+# Birk, Live-Test 06.10.2026: "Die Schreibblase ... sollte die komplette
+# geschriebene Nachricht sichtbar machen ... nach oben wachsen, wenn es mehr
+# als eine Zeile hat" -- gemeint das Eingabefeld unten, nicht eine
+# Chat-Blase. ``<input type="text">`` kann strukturell nicht mehrzeilig
+# werden, deshalb jetzt ``<textarea rows="1">`` plus ``passeFussAn()``.
+
+
+def test_eingabefeld_hat_eine_css_obergrenze_mit_internem_scrollen():
+    """Die Obergrenze (~5-6 Zeilen) steht im CSS, nicht im JS: ``max-height``
+    deckelt die sichtbare Hoehe, ``overflow-y: auto`` scrollt ab dann intern
+    -- ohne dass das JS selbst eine Pixelgrenze kennen muss."""
+    css = web_chat._CSS_CHAT
+    block = re.search(r"\.zeile textarea \{([^}]*)\}", css)
+    assert block, "keine .zeile textarea-Regel im CSS"
+    koerper = block.group(1)
+    assert "max-height" in koerper
+    assert "overflow-y: auto" in koerper
+    # Kein von Hand gezogener Griff -- der wuerde mit dem Autogrow-Takt
+    # (bei jedem 'input'-Ereignis neu gesetzte Hoehe) kollidieren.
+    assert "resize: none" in koerper
+
+
+def test_passefussan_misst_scrollheight_und_setzt_hoehe_live_in_node(tmp_path):
+    """``passeFussAn()`` WOERTLICH aus dem ausgelieferten Skript: setzt erst
+    auf 'auto' zurueck (sonst schrumpft ein geloeschter Text nie wieder --
+    ``scrollHeight`` bliebe an der vorherigen, groesseren Inline-Hoehe
+    haengen), dann auf die gemessene ``scrollHeight``. ``--fuss-hoehe``
+    folgt der GEMESSENEN ``fuss.offsetHeight`` plus fester Sicherheitsluft,
+    statt einen festen Wert zu raten (Karte t_d86971eb)."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(
+        js, "function passeFussAn",
+        "eingabe.addEventListener('input', passeFussAn);",
+    )
+    quelltext = f"""
+    var hoehenHistorie = [];
+    var eingabe = {{ value: '', scrollHeight: 0, style: {{}} }};
+    Object.defineProperty(eingabe.style, 'height', {{
+      get: function () {{ return this._h; }},
+      set: function (v) {{ this._h = v; hoehenHistorie.push(v); }}
+    }});
+    var fussEigenschaften = {{}};
+    var document = {{ documentElement: {{ style: {{
+      setProperty: function (name, wert) {{ fussEigenschaften[name] = wert; }}
+    }} }} }};
+    var fuss = {{ offsetHeight: 50 }};
+    {funktion}
+
+    hoehenHistorie.length = 0;
+    eingabe.scrollHeight = 46;  // eine Zeile
+    passeFussAn();
+    var einzeilig = {{
+      historie: hoehenHistorie.slice(),
+      fussHoehe: fussEigenschaften['--fuss-hoehe']
+    }};
+
+    hoehenHistorie.length = 0;
+    eingabe.scrollHeight = 140;  // mehrzeilig gewachsen
+    fuss.offsetHeight = 150;     // waechst im echten Layout mit
+    passeFussAn();
+    var mehrzeilig = {{
+      historie: hoehenHistorie.slice(),
+      fussHoehe: fussEigenschaften['--fuss-hoehe']
+    }};
+
+    console.log(JSON.stringify({{ einzeilig: einzeilig, mehrzeilig: mehrzeilig }}));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["einzeilig"] == {
+        "historie": ["auto", "46px"], "fussHoehe": "58px",
+    }
+    assert ergebnis["mehrzeilig"] == {
+        "historie": ["auto", "140px"], "fussHoehe": "158px",
+    }
+
+
+def test_enter_sendet_shift_enter_fuegt_zeilenumbruch_ein_live_in_node(tmp_path):
+    """ANNAHME aus der Karte, hier als Verhalten festgeschrieben: Enter
+    sendet weiterhin (wie beim bisherigen ``<input>``), Shift+Enter laesst
+    den Browser den Zeilenumbruch selbst einfuegen (kein ``preventDefault``,
+    kein eigener Senden-Aufruf) -- derselbe Chat-Standard wie Telegram/
+    Slack."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    registrierung = _extrahiere(
+        js, "eingabe.addEventListener('keydown'", "// -- Knoepfe",
+    )
+    quelltext = f"""
+    var eingabeListener = null;
+    var eingabe = {{
+      addEventListener: function (art, fn) {{
+        if (art === 'keydown') {{ eingabeListener = fn; }}
+      }}
+    }};
+    var sendeAufrufe = 0;
+    function sendeText() {{ sendeAufrufe++; }}
+    {registrierung}
+
+    function druecke(taste, shift) {{
+      var verhindert = false;
+      sendeAufrufe = 0;
+      eingabeListener({{
+        key: taste, shiftKey: !!shift,
+        preventDefault: function () {{ verhindert = true; }}
+      }});
+      return {{ gesendet: sendeAufrufe === 1, verhindert: verhindert }};
+    }}
+
+    console.log(JSON.stringify({{
+      enter_ohne_shift: druecke('Enter', false),
+      enter_mit_shift: druecke('Enter', true),
+      andere_taste: druecke('a', false)
+    }}));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis == {
+        "enter_ohne_shift": {"gesendet": True, "verhindert": True},
+        "enter_mit_shift": {"gesendet": False, "verhindert": False},
+        "andere_taste": {"gesendet": False, "verhindert": False},
+    }
+
+
+# -- Karte InScribe: Diskussionsaufnahme laedt still nicht mehr hoch --------
+# -- (2026-10-17): Upload-Watchdog, Fetch-Zeitlimit, Handy-Puffer. ----------
+
+
+def test_upload_watchdog_und_timeout_haben_vorgaben_ohne_umgebung(monkeypatch):
+    monkeypatch.delenv("IT_WEB_UPLOAD_WATCHDOG_MS", raising=False)
+    monkeypatch.delenv("IT_WEB_UPLOAD_TIMEOUT_MS", raising=False)
+    assert web_chat._upload_watchdog_ms() == 90_000
+    assert web_chat._upload_timeout_ms() == 20_000
+
+
+def test_upload_watchdog_und_timeout_kommen_aus_der_umgebung(monkeypatch):
+    monkeypatch.setenv("IT_WEB_UPLOAD_WATCHDOG_MS", "45000")
+    monkeypatch.setenv("IT_WEB_UPLOAD_TIMEOUT_MS", "5000")
+    assert web_chat._upload_watchdog_ms() == 45_000
+    assert web_chat._upload_timeout_ms() == 5_000
+
+
+def test_eine_leere_oder_ungueltige_watchdog_zahl_faellt_auf_die_vorgabe_zurueck(monkeypatch):
+    monkeypatch.setenv("IT_WEB_UPLOAD_WATCHDOG_MS", "nicht-numerisch")
+    monkeypatch.setenv("IT_WEB_UPLOAD_TIMEOUT_MS", "")
+    assert web_chat._upload_watchdog_ms() == 90_000
+    assert web_chat._upload_timeout_ms() == 20_000
+
+
+def test_die_watchdog_konstanten_stehen_im_fertigen_js():
+    fertig = web_chat._js()
+    assert f"var UPLOAD_TIMEOUT_MS = {web_chat._upload_timeout_ms()};" in fertig
+    assert f"var WATCHDOG_MS = {web_chat._upload_watchdog_ms()};" in fertig
+
+
+def test_upload_warnung_element_steht_im_fuss(seite):
+    assert 'id="upload-warnung"' in seite
+    assert 'hidden' in seite[seite.index('id="upload-warnung"') - 40:
+                              seite.index('id="upload-warnung"') + 80]
+
+
+def test_jeder_fetch_im_js_laeuft_ueber_holemitzeitlimit():
+    """Review-Befund (Karte InScribe): kein Segment-/Befehls-Upload darf den
+    rohen ``fetch()`` mehr direkt rufen -- sonst haengt genau der eine
+    Request, den die Karte als Verdacht nennt, wieder ohne Zeitlimit."""
+    js = web_chat._CHAT_JS
+    # Beide Treffer liegen IN holeMitZeitlimit selbst: der fruehe Ausstieg
+    # ohne AbortController und der normale Weg mit Timer -- ausserhalb davon
+    # darf kein Aufrufer mehr direkt ``fetch()`` rufen.
+    ausserhalb = js.replace(
+        _extrahiere(js, "function holeMitZeitlimit", "function postJson"), ""
+    )
+    assert "fetch(url, optionen)" not in ausserhalb
+    assert js.count("fetch(url, optionen)") == 2
+    assert "holeMitZeitlimit(weg(pfad)" in js
+    assert "holeMitZeitlimit(weg(auftrag.pfad)" in js
+
+
+def test_watchdog_zeigt_warnung_erst_nach_der_schwelle_live_in_node(tmp_path):
+    """``pruefeWatchdog`` woertlich ausgefuehrt: keine Warnung direkt nach
+    dem Start, keine Warnung ohne laufende Aufnahme (auch nach der
+    Schwelle), Warnung sobald eine laufende Aufnahme die Schwelle
+    ueberschreitet -- und sie verschwindet wieder, sobald ein Segment
+    durchkommt (zustand.letzterSegmentErfolgAm wird aktualisiert)."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    funktion = _extrahiere(js, "function aufnahmeLaeuft() {", "setInterval(pruefeWatchdog")
+    quelltext = f"""
+    var WATCHDOG_MS = 90000;
+    var TEXT = {{ upload_warnung: 'WARNUNG' }};
+    var gemeldet = [];
+    function postJson(pfad, last) {{ gemeldet.push(last); return {{ catch: function () {{}} }}; }}
+    var warnungFeld = {{ hidden: true, textContent: '' }};
+    var zustand = {{
+      aufnahme: null, diskussion: null,
+      letzterSegmentErfolgAm: 0, watchdogAktiv: false, pufferGemeldet: 0,
+      warteschlange: []
+    }};
+    {funktion}
+
+    var ergebnisse = [];
+    function momentaufnahme() {{
+      ergebnisse.push({{ hidden: warnungFeld.hidden, text: warnungFeld.textContent }});
+    }}
+
+    // 1) Keine Aufnahme, lange her -> keine Warnung.
+    zustand.letzterSegmentErfolgAm = Date.now() - 200000;
+    pruefeWatchdog();
+    momentaufnahme();
+
+    // 2) Aufnahme laeuft, aber frisch -> keine Warnung.
+    zustand.aufnahme = {{}};
+    zustand.letzterSegmentErfolgAm = Date.now();
+    pruefeWatchdog();
+    momentaufnahme();
+
+    // 3) Aufnahme laeuft, letzter Erfolg laenger als WATCHDOG_MS her -> Warnung.
+    zustand.letzterSegmentErfolgAm = Date.now() - 95000;
+    pruefeWatchdog();
+    momentaufnahme();
+
+    // 4) Ein Segment kommt durch -> Warnung verschwindet wieder.
+    zustand.letzterSegmentErfolgAm = Date.now();
+    pruefeWatchdog();
+    momentaufnahme();
+
+    console.log(JSON.stringify({{ ergebnisse: ergebnisse, gemeldet: gemeldet }}));
+    """
+    ausgabe = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ausgabe["ergebnisse"][0]["hidden"] is True
+    assert ausgabe["ergebnisse"][1]["hidden"] is True
+    assert ausgabe["ergebnisse"][2] == {"hidden": False, "text": "WARNUNG"}
+    assert ausgabe["ergebnisse"][3]["hidden"] is True
+    # Genau zwei Meldungen an den Server: haengt=true beim Auftreten,
+    # haengt=false sobald es sich wieder loest.
+    assert [g["haengt"] for g in ausgabe["gemeldet"]] == [True, False]
+
+
+def test_reiheein_speichert_audio_vor_dem_senden_und_puffereloeschen_entfernt_es_live_in_node(tmp_path):
+    """``reiheEin``/``puffereSpeichern``/``puffereLoeschen``/
+    ``puffereAlleLaden`` woertlich ausgefuehrt, gegen eine minimale
+    IndexedDB-Attrappe: ein Segment landet im 'Handy', BEVOR arbeiteAb() je
+    aufgerufen wird, und verschwindet erst nach ``puffereLoeschen``."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    puffer_block = _extrahiere(
+        js, "var puffer = { db: null", "function bereit(auftrag)",
+    )
+    quelltext = f"""
+    var BASIS = 'g1/';
+    var zustand = {{ warteschlange: [] }};
+    var warteschlangeGezeigt = 0;
+    var arbeiteAbGerufen = 0;
+    function zeigeWarteschlange() {{ warteschlangeGezeigt++; }}
+    function arbeiteAb() {{ arbeiteAbGerufen++; }}
+    function audioWeg(auftrag) {{ return 'chat/audio?dauer=' + auftrag.dauer; }}
+
+    var SPEICHER = {{}};
+    var indexedDB = {{
+      open: function () {{
+        var anfrage = {{}};
+        setTimeout(function () {{
+          anfrage.result = {{
+            createObjectStore: function () {{}},
+            transaction: function () {{
+              return {{
+                objectStore: function () {{
+                  return {{
+                    put: function (eintrag) {{ SPEICHER[eintrag.schluessel] = eintrag; }},
+                    'delete': function (schluessel) {{ delete SPEICHER[schluessel]; }},
+                    getAll: function () {{
+                      var r = {{}};
+                      setTimeout(function () {{
+                        r.result = Object.keys(SPEICHER).map(function (k) {{ return SPEICHER[k]; }});
+                        if (r.onsuccess) {{ r.onsuccess(); }}
+                      }}, 0);
+                      return r;
+                    }}
+                  }};
+                }}
+              }};
+            }}
+          }};
+          if (anfrage.onsuccess) {{ anfrage.onsuccess(); }}
+        }}, 0);
+        return anfrage;
+      }}
+    }};
+
+    {puffer_block}
+
+    function warte(ms) {{ return new Promise(function (ja) {{ setTimeout(ja, ms); }}); }}
+
+    var auftrag = {{ art: 'audio', dauer: 3, blob: 'BLOB' }};
+    reiheEin(auftrag);
+    var sofortGespeichert = Object.keys(SPEICHER).length;   // 0: IDB ist async
+
+    warte(20).then(function () {{
+      var nachPut = {{
+        anzahl: Object.keys(SPEICHER).length,
+        schluessel_gesetzt: !!auftrag._puffSchluessel,
+        pfad_gesetzt: !!auftrag.pfad,
+        in_schlange: zustand.warteschlange.length,
+      }};
+      puffereLoeschen(auftrag._puffSchluessel);
+      return warte(20).then(function () {{
+        var nachDelete = Object.keys(SPEICHER).length;
+        console.log(JSON.stringify({{
+          sofort: sofortGespeichert, nach_put: nachPut, nach_delete: nachDelete,
+        }}));
+      }});
+    }});
+    """
+    ausgabe = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ausgabe["sofort"] == 0
+    assert ausgabe["nach_put"] == {
+        "anzahl": 1, "schluessel_gesetzt": True, "pfad_gesetzt": True, "in_schlange": 1,
+    }
+    assert ausgabe["nach_delete"] == 0
+
+
+def test_wiederherstellen_laedt_in_erzeugungsreihenfolge_live_in_node(tmp_path):
+    """Zwei liegengebliebene Segmente aus einer fruehren Sitzung kommen beim
+    Reload in der Reihenfolge wieder heraus, in der sie entstanden sind --
+    nicht in Einfuegereihenfolge einer ``getAll()``, die das nicht
+    garantiert."""
+    node = _node_oder_skip()
+    js = web_chat._CHAT_JS
+    puffer_block = _extrahiere(
+        js, "var puffer = { db: null", "function bereit(auftrag)",
+    )
+    quelltext = f"""
+    var BASIS = 'g1/';
+    var zustand = {{ warteschlange: [] }};
+    function zeigeWarteschlange() {{}}
+    function arbeiteAb() {{}}
+    function audioWeg(auftrag) {{ return 'chat/audio?dauer=' + auftrag.dauer; }}
+
+    // Absichtlich in VERTAUSCHTER Reihenfolge im Speicher -- getAll() allein
+    // garantiert keine Reihenfolge, puffereAlleLaden() muss nach ``seq`` sortieren.
+    var SPEICHER = {{
+      'g1/#1': {{ schluessel: 'g1/#1', basis: 'g1/', seq: 1, pfad: 'chat/audio?dauer=2', blob: 'ZWEI' }},
+      'g1/#0': {{ schluessel: 'g1/#0', basis: 'g1/', seq: 0, pfad: 'chat/audio?dauer=1', blob: 'EINS' }},
+      'g2/#0': {{ schluessel: 'g2/#0', basis: 'g2/', seq: 0, pfad: 'chat/audio?dauer=9', blob: 'FREMD' }}
+    }};
+    var indexedDB = {{
+      open: function () {{
+        var anfrage = {{}};
+        setTimeout(function () {{
+          anfrage.result = {{
+            createObjectStore: function () {{}},
+            transaction: function () {{
+              return {{ objectStore: function () {{
+                return {{ getAll: function () {{
+                  var r = {{}};
+                  setTimeout(function () {{
+                    r.result = Object.keys(SPEICHER).map(function (k) {{ return SPEICHER[k]; }});
+                    if (r.onsuccess) {{ r.onsuccess(); }}
+                  }}, 0);
+                  return r;
+                }} }};
+              }} }};
+            }}
+          }};
+          if (anfrage.onsuccess) {{ anfrage.onsuccess(); }}
+        }}, 0);
+        return anfrage;
+      }}
+    }};
+
+    {puffer_block}
+
+    wiederherstellenGepuffert();
+    setTimeout(function () {{
+      console.log(JSON.stringify({{
+        reihenfolge: zustand.warteschlange.map(function (a) {{ return a.blob; }}),
+        naechsteSeq: puffer.naechsteSeq,
+      }}));
+    }}, 40);
+    """
+    ausgabe = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ausgabe["reihenfolge"] == ["EINS", "ZWEI"]
+    assert ausgabe["naechsteSeq"] == 2
+
+
+# -- Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89,     --
+# -- node-geprueft: visibilitychange/pagehide/freeze aus _CHAT_JS WOERTLICH --
+# -- extrahiert, nicht nachgebaut) -------------------------------------------
+#
+# Evidence: Clone "G3 Interview 1" #113 meldete 178 s, der Mitschnitt hielt
+# real nur ~26 s Audio -- die Seite war waehrend des Interviews im
+# Hintergrund, MediaRecorder und Timer dort angehalten.
+
+
+def _hintergrund_harness(js: str) -> str:
+    """``minuten()`` (fuer die M:SS-Formatierung) und der ganze Hintergrund-
+    Block (Konstante, Merkvariable, die drei Funktionen) WOERTLICH aus
+    ``_CHAT_JS`` -- bis vor die Knopf-/Listener-Verdrahtung, die dieser Test
+    nicht braucht (er ruft die Handler direkt auf, wie ein echtes
+    ``visibilitychange`` es taete)."""
+    minuten_fn = _extrahiere(js, "function minuten(s) {", "function bildVon(")
+    kern = _extrahiere(
+        js, "var HINTERGRUND_MIN_MS = 3000;", "if (hintergrundWarnungSchliessen)",
+    )
+    return f"""
+    var zustand = {{ aufnahme: null, diskussion: null }};
+    var hintergrundWarnungFeld = {{ hidden: true }};
+    var hintergrundWarnungText = {{ textContent: '' }};
+    var TEXT = {{ hintergrund_warnung: 'Unterbrochen fuer {{zeit}}' }};
+    {minuten_fn}
+    {kern}
+    function setzeRecorder(ziel, zustandsname) {{
+      zustand[ziel] = {{ recorder: {{ state: zustandsname }} }};
+    }}
+    """
+
+
+def test_versteckt_10s_waehrend_aufnahme_zeigt_banner_mit_0_10_live_in_node(tmp_path):
+    """Kernfall der Karte: 10 s verstecktes Telefon waehrend einer laufenden
+    Aufnahme -> der Banner erscheint, mit "0:10" als ausgewiesener Dauer."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(10000);
+    console.log(JSON.stringify({
+      luecke: luecke,
+      hidden: hintergrundWarnungFeld.hidden,
+      text: hintergrundWarnungText.textContent
+    }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] == 10000
+    assert ergebnis["hidden"] is False
+    assert ergebnis["text"] == "Unterbrochen fuer 0:10"
+
+
+def test_versteckt_1s_zeigt_keinen_banner_live_in_node(tmp_path):
+    """Unter HINTERGRUND_MIN_MS (3 s) zaehlt es nicht als Vorfall -- ein
+    kurzes Benachrichtigungs-Wisch ist kein Seitenwechsel."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(1000);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] is None
+    assert ergebnis["hidden"] is True
+
+
+def test_versteckt_genau_3000ms_zeigt_banner_live_in_node(tmp_path):
+    """Grenzwert HINTERGRUND_MIN_MS selbst: die Spezifikation der Karte
+    t_1423ca89 sagt "if hidden for >= 3 s" -- bei exakt 3000 ms MUSS der
+    Banner erscheinen. Der Vergleich im Code ist ``luecke < HINTERGRUND_MIN_MS``,
+    schliesst also genau 3000 ms vom "kein Banner"-Fall aus."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(3000);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] == 3000
+    assert ergebnis["hidden"] is False
+
+
+def test_versteckt_2999ms_zeigt_keinen_banner_live_in_node(tmp_path):
+    """1 ms unter der Schwelle HINTERGRUND_MIN_MS -- zusammen mit dem
+    3000-ms-Test grenzt das die Schwelle von beiden Seiten ein."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(2999);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] is None
+    assert ergebnis["hidden"] is True
+
+
+def test_ohne_laufende_aufnahme_zeigt_sich_nie_ein_banner_live_in_node(tmp_path):
+    """Kein Recorder im Zustand 'recording' (weder Interview noch
+    Diskussion/Brainstorm) -- 10 s "versteckt" bleiben folgenlos, denn
+    hintergrundVersteckt() merkt sich den Zeitpunkt gar nicht erst."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(10000);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] is None
+    assert ergebnis["hidden"] is True
+
+
+def test_eine_pausierte_aufnahme_zaehlt_nicht_als_laufend_live_in_node(tmp_path):
+    """pausiereInterview() setzt sitzung.recorder auf null -- waehrend einer
+    Pause kann ein Hintergrund-Wechsel nichts unterbrechen, das gerade
+    schreibt."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    zustand.aufnahme = { recorder: null };
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(10000);
+    console.log(JSON.stringify({ luecke: luecke }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] is None
+
+
+def test_eine_diskussionssitzung_loest_dieselbe_warnung_aus_live_in_node(tmp_path):
+    """Phase 1/4 (Hintergrund-Mithoeren/Brainstorm) teilt sich denselben
+    Recorder -- aufnahmeLaeuftLokal() prueft zustand.diskussion genauso wie
+    zustand.aufnahme."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('diskussion', 'recording');
+    hintergrundVersteckt(0);
+    var luecke = hintergrundSichtbar(5000);
+    console.log(JSON.stringify({ luecke: luecke, hidden: hintergrundWarnungFeld.hidden }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] == 5000
+    assert ergebnis["hidden"] is False
+
+
+def test_ein_zweites_hidden_ohne_sichtbar_dazwischen_ueberschreibt_den_zeitpunkt_nicht_live_in_node(tmp_path):
+    """pagehide UND visibilitychange('hidden') koennen fuer denselben
+    Hintergrund-Wechsel feuern -- der zweite Aufruf darf den ersten
+    (frueheren) Zeitpunkt nicht ueberschreiben, sonst waere die gemessene
+    Luecke zu kurz."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);     // z. B. 'visibilitychange' -> hidden
+    hintergrundVersteckt(2000);  // z. B. 'pagehide' kurz danach
+    var luecke = hintergrundSichtbar(10000);
+    console.log(JSON.stringify({ luecke: luecke }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["luecke"] == 10000, "haette 8000 ergeben, wenn der zweite Zeitpunkt gewonnen haette"
+
+
+def test_sichtbar_setzt_den_merkposten_zurueck_live_in_node(tmp_path):
+    """Nach einer gemessenen Luecke beginnt die naechste Pruefung bei null --
+    sonst zaehlte ein zweites, spaeteres Sichtbarwerden ohne neues 'hidden'
+    dazwischen faelschlich noch einmal dieselbe (oder eine laengere) Luecke."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    setzeRecorder('aufnahme', 'recording');
+    hintergrundVersteckt(0);
+    var erste = hintergrundSichtbar(10000);
+    var zweite = hintergrundSichtbar(99000);   // kein 'hidden' dazwischen
+    console.log(JSON.stringify({ erste: erste, zweite: zweite }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["erste"] == 10000
+    assert ergebnis["zweite"] is None
+
+
+def test_hintergrund_ms_landet_auf_der_laufenden_sitzung_live_in_node(tmp_path):
+    """Die gemessene Luecke faehrt auf ``sitzung.hintergrundMs`` mit --
+    Grundlage fuer ``?hintergrund=`` an postAudio() (Spezifikation Punkt 3:
+    exakt gemessen schlaegt die serverseitige Schaetzung)."""
+    node = _node_oder_skip()
+    harness = _hintergrund_harness(web_chat._CHAT_JS)
+    quelltext = harness + """
+    zustand.aufnahme = { recorder: { state: 'recording' } };
+    hintergrundVersteckt(0);
+    hintergrundSichtbar(7000);
+    console.log(JSON.stringify({ hintergrundMs: zustand.aufnahme.hintergrundMs }));
+    """
+    ergebnis = json.loads(_fuehre_js_aus(node, quelltext, tmp_path).strip().splitlines()[-1])
+    assert ergebnis["hintergrundMs"] == 7000
+
+
+def test_postaudio_haengt_hintergrund_nur_an_wenn_gemessen():
+    """Dieselbe reine Textpruefung wie bei redeMs/weichMs (kein Node noetig):
+    ``auftrag.hintergrundMs`` wird nur bei einem echten Wert angehaengt."""
+    js = web_chat._CHAT_JS
+    # Seit der InScribe-Aufspaltung (Watchdog/Puffer) baut audioWeg() die URL,
+    # postAudio() nur noch den Fetch -- hintergrundMs steht deshalb dort.
+    ausschnitt = js[js.index("function audioWeg"):js.index("function audioWeg") + 1100]
+    assert "if (auftrag.hintergrundMs) { weg_ += `&hintergrund=" in ausschnitt
+
+
+def test_neuessegment_traegt_hintergrundms_und_setzt_sie_zurueck():
+    """Dieselbe reine Textpruefung: der Auftrag bekommt die seit dem letzten
+    Segment gemessene Hintergrundzeit, danach beginnt die Sitzung wieder bei
+    0 -- sonst wuerde dieselbe Luecke mehrfach gemeldet."""
+    js = web_chat._CHAT_JS
+    ausschnitt = _extrahiere(js, "function neuesSegment(sitzung) {", "function pruefeEnde(")
+    assert "hintergrundMs: sitzung.hintergrundMs || null" in ausschnitt
+    assert "sitzung.hintergrundMs = 0;" in ausschnitt

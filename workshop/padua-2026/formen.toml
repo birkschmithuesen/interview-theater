@@ -21,12 +21,12 @@ stichwoerter = ["monologue", "monolog", "solo"]
 [[form]]
 name = "chor"
 anzeige = "Chorus"
-stichwoerter = ["chorus", "choir", "choral", "we-form", "speaking choir"]
+stichwoerter = ["chorus", "choir", "choral", "we-form", "speaking choir", "chorszene", "sprechchor"]
 
 [[form]]
 name = "lied"
 anzeige = "Song"
-stichwoerter = ["song", "sung", "singing", "sing", "music", "aria"]
+stichwoerter = ["song", "sung", "singing", "sing", "music", "aria", "liedtext", "lieder", "gesang"]
 
 [[form]]
 name = "rap"

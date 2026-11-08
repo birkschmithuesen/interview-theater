@@ -37,6 +37,17 @@ from test_dramaturgie_schleife import Rundenrichter
 from test_knoepfe import TelegramAttrappe, _druck
 from test_stueckpruefung import ANTWORT as STUECK_ANTWORT
 
+
+@pytest.fixture(autouse=True)
+def _ohne_karten(monkeypatch):
+    """Diese Tests pruefen den Padua-Prosaweg (P5 Prosa, P6 Rewrite) -- seit
+    dem Phasenumbau (Birk 07.10.2026 ~18:12) das Verhalten OHNE
+    ``[karten] aktiv``; der Kartenweg steht in ``tests/test_szenenkarte.py``."""
+    from interview_theater import workshop as _workshop
+
+    monkeypatch.setattr(_workshop, "szenenkarten_aktiv", lambda *a, **k: False)
+
+
 CHAT = 1
 
 
@@ -391,7 +402,8 @@ def test_padua_teil2_phase_5_bis_7(conn, einst, padua, monkeypatch):
     # Zwei neue Leisten: die Notiert-Meldung der Formwahl (nur ihr Undo-Knopf,
     # Karte U) und GENAU EINE Sprechweisen-Nachricht -- je Figur eine Zeile.
     neue = tg.knoepfe[vorher_leisten:]
-    assert [t.splitlines()[0] for _c, t, _l in neue][0].startswith("Noted")
+    # chat_id 1 steht in keiner italienisch_ab_phase6_chats-Liste -- englisch.
+    assert [t.splitlines()[0] for _c, t, _l in neue][0].startswith("Noted:")
     assert len(neue) == 2, [t for _c, t, _l in neue]
     sprechweisen = tg.knoepfe[-1][1]
     assert len(sprechweisen.splitlines()) == 1 + 2
@@ -454,14 +466,15 @@ def test_padua_teil2_phase_5_bis_7(conn, einst, padua, monkeypatch):
         assert "KOERPER-" not in text, text
     for _c, text, _l in tg.knoepfe:
         assert "KOERPER-" not in text, text
-    # "Noted" nur in dem Schritt, in dem der Erkenner wirklich geschrieben hat:
-    # der Formwahl (Schritt 7).
+    # "Noted:" (chat_id 1 steht in keiner italienisch_ab_phase6_chats-Liste
+    # -- englisch) nur in dem Schritt, in dem der Erkenner wirklich
+    # geschrieben hat: der Formwahl (Schritt 7).
     for i, (_c, text) in enumerate(tg.gesendet):
-        if text.lstrip().lower().startswith("noted"):
+        if text.lstrip().lower().startswith("noted:"):
             schritt = next(n for n, (a, b) in schritte.items() if a <= i < b)
             assert schritt == 7, (schritt, text)
     anfang7, ende7 = schritte[7]
-    assert any(t.lstrip().startswith("Noted") for _c, t in tg.gesendet[anfang7:ende7])
+    assert any(t.lstrip().startswith("Noted:") for _c, t in tg.gesendet[anfang7:ende7])
     for zeile in _laeufe(conn):
         assert zeile["ueberarbeitungen"] <= 2, dict(zeile)
         assert zeile["runden"] <= 2, dict(zeile)

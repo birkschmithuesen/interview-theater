@@ -106,7 +106,7 @@ def db_pfad(tmp_path):
     repo.setze_szenenfeld(conn, szene_id, "titel", "Im Treppenhaus")
     # Kleingeschrieben wie der Knopf im Chat (knoepfe.biete_szenenform).
     repo.setze_szenenfeld(conn, szene_id, "form", "dialog")
-    repo.setze_szenenfeld(conn, szene_id, "ort", "Treppenhaus")
+    repo.setze_szenenort(conn, szene_id, "Treppenhaus")
 
     repo.schreibe_journal(conn, 1, "entschieden", "Kernthema steht", "extraktor")
     conn.commit()
@@ -628,7 +628,7 @@ def test_besetzung_leeren(basis, token, conn):
 def test_szene_einer_fremden_gruppe_bleibt_unberuehrt(basis, token, conn):
     repo.sichere_gruppe(conn, 2, "gruppe2", "Zwei Staedte")
     fremd = repo.stelle_szene_sicher(conn, 2, 1)
-    repo.setze_szenenfeld(conn, fremd, "ort", "Woanders")
+    repo.setze_szenenort(conn, fremd, "Woanders")
 
     status, _ = sende(basis, token, "szene_ort", "Gekapert", ziel=fremd)
 

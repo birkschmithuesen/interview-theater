@@ -22,6 +22,16 @@ from test_nachpass_prosa import (  # noqa: F401
 )
 
 
+@pytest.fixture(autouse=True)
+def _ohne_karten(monkeypatch):
+    """Diese Tests pruefen den Padua-Weg mit Formlauf in Phase 7 -- seit dem
+    Phasenumbau (Birk 07.10.2026 ~18:12) das Verhalten OHNE
+    ``[karten] aktiv``; das Stage Script steht in ``tests/test_stagescript.py``."""
+    from interview_theater import workshop as _workshop
+
+    monkeypatch.setattr(_workshop, "szenenkarten_aktiv", lambda *a, **k: False)
+
+
 @pytest.fixture
 def tg():
     return TelegramAttrappe()

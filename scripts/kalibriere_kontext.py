@@ -139,7 +139,10 @@ def vollast():
     ziel = szenen[8]
     for feld, wert in (("form", "dialog"), ("ort", "Schulhof"),
                        ("was_passiert", _satz(8, 300))):
-        repo.setze_szenenfeld(conn, ziel["id"], feld, wert)
+        if feld in repo.NUR_UEBER_STUECK:
+            repo.setze_szenenort(conn, ziel["id"], wert)
+        else:
+            repo.setze_szenenfeld(conn, ziel["id"], feld, wert)
     # Szene 1 zuletzt und ueber dem Deckel: sie ist "die aktuelle".
     s1 = szenen[1]
     repo.aktualisiere_szene(conn, s1["id"], s1["titel"], s1["kurzbeschreibung"],

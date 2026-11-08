@@ -95,6 +95,9 @@ class TelegramAttrappe:
         ziel.write_bytes(b"OggS-fingierte-audiodaten")
         self.heruntergeladen.append((file_id, ziel))
 
+    def aendere_text(self, chat_id, message_id, text):
+        pass
+
 
 class TelegramKaputterDownload(TelegramAttrappe):
     """lade_datei schlaegt IMMER fehl -- fuer den Kritisch-1-Test: ein
@@ -519,6 +522,111 @@ def test_textimport_dann_nachholen_verdichtet_nur_einmal(conn, einst, tg, klm):
     # ein zweiter Nachhol-Lauf darf keine weitere Verdichtung mehr erzeugen
     aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
     assert len(repo.verdichtungen(conn, 1)) == 1
+
+
+def _web_post_sprache_vor(conn, chat_id: int, alter_s: int) -> int:
+    """Legt einen ``web_post``-Sprachzeile an und datiert sie ``alter_s``
+    Sekunden in die Vergangenheit -- das Audit-Bild des verschluckten
+    Web-Posts (Padua, id=2656, 08.10.2026): die Zeile landet in ``web_post``,
+    aber ``aufnahme.empfange`` wird nie dafuer aufgerufen (kein Prozess-Crash
+    im Test nachstellbar, deshalb direkt die Luecke selbst erzeugt)."""
+    post_id = repo.lege_web_post_an(
+        conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_SPRACHE,
+        dauer=1, datei="web-eingang/1/9999.webm", mime="audio/webm",
+    )
+    alt = (datetime.now(timezone.utc) - timedelta(seconds=alter_s)).isoformat(timespec="seconds")
+    conn.execute("UPDATE web_post SET erstellt_am = ? WHERE id = ?", (alt, post_id))
+    conn.commit()
+    return post_id
+
+
+def test_web_post_ohne_aufnahme_bleibt_nach_frist_nicht_stumm(conn, einst, tg, klm):
+    """Karte Padua 'Interviewaufnahme ganz am Anfang teils nicht erfasst'
+    (09.10.2026): eine web_post-Sprachzeile, die nie eine aufnahme-Zeile
+    bekommen hat, muss ``nachholen()`` nach der Frist sichtbar machen --
+    Vorfall UND Chat-Hinweis, genau wie beim gescheiterten Download in
+    ``empfange()``, nicht stumm wie der bewusst leise Pfad fuer leere
+    Transkripte (``_verwirf_ende_segment``)."""
+    post_id = _web_post_sprache_vor(
+        conn, 1, aufnahme.WEB_POST_OHNE_AUFNAHME_FRIST_S + 1,
+    )
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'web_post_ohne_aufnahme'"
+    ).fetchall()
+    assert len(vorfaelle) == 1
+    assert str(post_id) in vorfaelle[0]["detail"]
+    assert any("nochmal" in t for _, t in tg.gesendet)
+
+
+def test_web_post_ohne_aufnahme_innerhalb_der_frist_bleibt_still(conn, einst, tg, klm):
+    """Frisch eingetroffene Web-Posts sind normal -- die Verarbeitung dauert
+    im Normalbetrieb nur Sekunden (Falle: ``web_kanal.ANKUNFT_FRIST_S``).
+    Kein Vorfall, solange die Frist nicht abgelaufen ist."""
+    _web_post_sprache_vor(conn, 1, 1)
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'web_post_ohne_aufnahme'"
+    ).fetchall()
+    assert vorfaelle == []
+
+
+def test_web_post_ohne_aufnahme_wird_nur_einmal_gemeldet(conn, einst, tg, klm):
+    """Wie ``test_whisper_ausfall_wird_genau_einmal_gemeldet``: ein zweiter
+    Nachhol-Lauf meldet denselben Web-Post nicht nochmal (idempotent)."""
+    _web_post_sprache_vor(conn, 1, aufnahme.WEB_POST_OHNE_AUFNAHME_FRIST_S + 1)
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'web_post_ohne_aufnahme'"
+    ).fetchall()
+    assert len(vorfaelle) == 1
+
+
+def test_web_post_mit_aufnahme_bleibt_ohne_vorfall(conn, einst, tg, klm):
+    """Der Normalfall (1367 von 1368 Aufnahmen im Audit): eine web_post-Zeile
+    MIT zugehoeriger aufnahme-Zeile loest nie einen Vorfall aus, selbst wenn
+    sie laengst aelter als die Frist ist."""
+    post_id = _web_post_sprache_vor(
+        conn, 1, aufnahme.WEB_POST_OHNE_AUFNAHME_FRIST_S + 1,
+    )
+    repo.lege_aufnahme_an(conn, 1, post_id, "kurz", "sprache", audio_pfad="x.webm")
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'web_post_ohne_aufnahme'"
+    ).fetchall()
+    assert vorfaelle == []
+
+
+def test_web_post_ohne_aufnahme_nach_gescheitertem_download_bleibt_ohne_vorfall(
+    conn, einst, tg, klm,
+):
+    """Ein schon gemeldeter Download-Fehlschlag (``empfange()``,
+    ``_VORFALL_DOWNLOAD`` = 'download_fehlgeschlagen') ist kein zweiter,
+    eigener Ausfall -- die Gruppe hat die Bitte, es nochmal zu schicken,
+    schon bekommen."""
+    post_id = _web_post_sprache_vor(
+        conn, 1, aufnahme.WEB_POST_OHNE_AUFNAHME_FRIST_S + 1,
+    )
+    repo.merke_vorfall(
+        conn, 1, "gruppe1", "download_fehlgeschlagen",
+        f"Sprachnachricht message_id={post_id}: RuntimeError",
+    )
+
+    aufnahme.nachholen(conn, tg, klm, einst, stt_kaputt())
+
+    vorfaelle = conn.execute(
+        "SELECT * FROM vorfall WHERE art = 'web_post_ohne_aufnahme'"
+    ).fetchall()
+    assert vorfaelle == []
 
 
 # ---------------------------------------------------------------------------
@@ -1966,4 +2074,88 @@ def test_kalibrierung_segment_schreibt_keine_nachrichtenzeile_bei_abschluss(conn
     haelt fest, dass auch keine entsteht."""
     row = _kalibrierung_zeile(conn, 1, 704, "Noch ein Testsatz.")
     aufnahme._kurz_abschliessen(conn, tg, None, einst, row, aufnahme._kein_zug, False)
+
+
+# ---------------------------------------------------------------------------
+# Nachtauftrag cc-p67texte (08.10.2026, Befund G1-G3 live): die
+# Zwischenmeldung ("I'm still typing up the voice message, one moment.")
+# italienisch in Phase 6/7, fuer Chats aus
+# ``workshop.italienisch_ab_phase6_chats()`` -- derselbe Mechanismus wie
+# ``szenenkarte.py``/``stagescript.py``/``erkenner.py``.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    from interview_theater import workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    workshop.vergiss()
+    yield
+    monkeypatch.delenv(workshop.VARIABLE, raising=False)
+    workshop.vergiss()
+
+
+def test_aufnahme_texte_fuer_phase_italienisch_in_phase_7(conn, padua):
+    phasen.setze(conn, 1, 7, "test")
+    assert aufnahme._texte_fuer_phase(conn, 1) is aufnahme._T_IT
+
+
+def test_aufnahme_texte_fuer_phase_bleibt_englisch_ausserhalb_6_7(conn, padua):
+    phasen.setze(conn, 1, 3, "test")
+    assert aufnahme._texte_fuer_phase(conn, 1) is aufnahme.T
+
+
+def test_aufnahme_texte_fuer_phase_ohne_conn_bleibt_englisch():
+    assert aufnahme._texte_fuer_phase(None, 1) is aufnahme.T
+
+
+def test_zwischenmeldung_italienisch_in_phase_6(conn, einst, tg, klm, padua, monkeypatch):
+    """Dieselbe langsame Transkription wie
+    ``test_zwischenmeldung_auch_bei_einem_interviewteil``, aber in Phase 6
+    fuer eine Gruppe aus ``workshop.italienisch_ab_phase6_chats()`` --
+    die Zwischenmeldung muss italienisch ankommen."""
+    phasen.setze(conn, 1, 6, "test")
+    interview_an(conn, tg, einst)
+    monkeypatch.setattr(aufnahme, "MELDUNG_AB_S", 0.01)
+    monkeypatch.setattr(aufnahme, "TIPPANZEIGE_AB_S", 100)
+
+    def handler_langsam(request):
+        time.sleep(0.1)
+        if "audio/transcriptions" in request.url.path:
+            return httpx.Response(200, json={"batch_id": "B1"})
+        return httpx.Response(200, json={"status": "success", "data": json.dumps({"text": "ok"})})
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler_langsam))
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=93))
+    tg.gesendet.clear()
+
+    aufnahme.verarbeite(conn, tg, klm, einst, klient, aid)
+
+    assert any("Sto ancora trascrivendo il vocale, un momento." in t for _, t in tg.gesendet)
+    assert not any("still typing up" in t for _, t in tg.gesendet)
+
+
+def test_zwischenmeldung_dortmund_bytegleich_in_phase_6(conn, einst, tg, klm, monkeypatch):
+    """Ohne Padua-Profil bleibt die deutsche Zeile stehen -- auch in
+    Phase 6, auch mit derselben chat_id wie im italienischen Test oben."""
+    phasen.setze(conn, 1, 6, "test")
+    interview_an(conn, tg, einst)
+    monkeypatch.setattr(aufnahme, "MELDUNG_AB_S", 0.01)
+    monkeypatch.setattr(aufnahme, "TIPPANZEIGE_AB_S", 100)
+
+    def handler_langsam(request):
+        time.sleep(0.1)
+        if "audio/transcriptions" in request.url.path:
+            return httpx.Response(200, json={"batch_id": "B1"})
+        return httpx.Response(200, json={"status": "success", "data": json.dumps({"text": "ok"})})
+
+    klient = httpx.Client(transport=httpx.MockTransport(handler_langsam))
+    aid = aufnahme.empfange(conn, tg, einst, sprachnachricht(dauer=7, message_id=94))
+    tg.gesendet.clear()
+
+    aufnahme.verarbeite(conn, tg, klm, einst, klient, aid)
+
+    assert any("tippe die Sprachnachricht noch ab" in t for _, t in tg.gesendet)
     assert repo.hole_nachricht(conn, 1, 704) is None

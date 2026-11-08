@@ -45,7 +45,8 @@ import threading
 from contextlib import contextmanager
 
 from interview_theater import (
-    befehle, knoepfe, kontext, kosten, modellwahl, phasen, repo, strom, vorschlag,
+    befehle, formberater, knoepfe, kontext, kosten, modellwahl, phasen, repo,
+    strom, vorschlag,
 )
 from interview_theater.llm import LLMFehler
 
@@ -72,7 +73,7 @@ _DENKSPUR_MARKER = (
     "ich soll:", "ich soll ", "die gruppe will", "was ist im material",
     "moegliche kernthemen:", "mögliche kernthemen:", "ich schlage ein ",
     "perfekt. das ist", "die regel sagt", "der erkenner setzt",
-    "keine markdown", "unter 500 zeichen", "als angebot formulieren",
+    "unter 500 zeichen", "als angebot formulieren",
     # 06.09.2026 11:55 (Testgruppe): Kimi schrieb sich SELBST eine Anweisung
     # in die Antwort -- "Du sollst die Szene schreiben, nicht Birk. ... Dein
     # Zug ist leer oder ein Satz Zuspruch. Keine Frage, keine Wiederholung,
@@ -94,8 +95,14 @@ _DENKSPUR_MARKER = (
     "die instruktionen sagen",
 )
 #: Diese Marker sind allein schon Beweis -- so redet niemand mit einer Gruppe.
+#: "keine markdown" stand hier bis Karte t_cc147548 (07.10.2026): die alte
+#: Systemanweisung verbot Markdown, und ihr woertliches Zitat war ein
+#: Denkspur-Beweis. Seit die Regel erlaubt, was sie vorher verbot, waere der
+#: Marker ein False Positive, sobald das Modell legitim ueber Formatierung
+#: spricht -- ersatzlos entfernt, nicht durch die neue Regel ersetzt (die hat
+#: keinen eindeutigen Wortlaut, den niemand sonst verwenden wuerde).
 _DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
-                       "keine markdown", "unter 500 zeichen",
+                       "unter 500 zeichen",
                        "dein zug ist", "systemzeile", "system-ankuendigung",
                        "system-ankündigung", "die systemanweisung",
                        "der benutzer fragt", "laut den instruktionen",
@@ -121,17 +128,40 @@ _DENKSPUR_EINDEUTIG = ("ich soll:", "was ist im material", "der erkenner setzt",
 #: kein Selbstgespraech --, "perfect. that is" und "your turn is" wurden auf
 #: den vollen Denkspur-Wortlaut verengt, so spezifisch wie ihre deutschen
 #: Vorbilder ("perfekt. das ist [ein Angebot]", "dein zug ist [leer]").
+#: Englische Entsprechungen von "der benutzer fragt"/"laut den
+#: instruktionen"/"die instruktionen sagen" (Abnahme P3-4, Befund A1,
+#: 06.10.2026) -- die DE-Liste bekam sie damals, die EN-Liste nicht. Live-
+#: Fund 07.10.2026 (Testgruppe chat_id=7000000000099, web_post.id=1694):
+#: Kimi schrieb "Member 1 asks ..." und "the instructions also say ..." ins
+#: "antwort"-Feld, beides ging an keinem EN-Marker haengen. "under 500
+#: chars" ist die abgekuerzte Form von "under 500 characters" -- dieselbe
+#: Selbstanweisung, nur kuerzer getippt.
 _DENKSPUR_MARKER_EN = (
     "i should:", "the group wants", "what is in the material",
     "possible core themes:", "perfect. that is an offer",
-    "the rule says", "the recogniser sets", "no markdown",
-    "under 500 characters", "phrase it as an offer", "your turn is empty",
+    "the rule says", "the recogniser sets",
+    "under 500 characters", "under 500 chars", "phrase it as an offer",
+    "your turn is empty",
     "system line", "system announcement", "the system instruction",
-    "one sentence of encouragement",
+    "one sentence of encouragement", "the instructions say",
+    "the instructions also say", "according to the instructions",
 )
+#: "no markdown" raus seit Karte t_cc147548 (07.10.2026), wie "keine
+#: markdown" oben -- dieselbe Begruendung.
 _DENKSPUR_EINDEUTIG_EN = ("i should:", "what is in the material", "the recogniser sets",
-                          "no markdown", "under 500 characters", "your turn is empty",
-                          "system line", "system announcement", "the system instruction")
+                          "under 500 characters", "under 500 chars", "your turn is empty",
+                          "system line", "system announcement", "the system instruction",
+                          "the instructions say", "the instructions also say",
+                          "according to the instructions")
+
+#: "Member 1 asks"/"wants" usw. -- die englische Entsprechung von "der
+#: benutzer fragt": ein Bot, der zur Gruppe spricht, beschreibt sie nie in
+#: der dritten Person als "Member N", das ist Selbstgespraech ueber die
+#: Nachricht statt eine Antwort an sie (direkte Anrede waere "you asked").
+#: Live-Fund 07.10.2026 (siehe Kommentar oben).
+_DENKSPUR_BENUTZER_EN = re.compile(
+    r"\bmember\s+\d+\s+(asks|asked|wants|wanted|said|wrote)\b", re.IGNORECASE
+)
 
 #: Womit ein geretteter Antwortabsatz anfangen darf -- deutsch und englisch.
 _KERN_ANFAENGE = ("Ihr", "Euer", "Eure", "Ein", "Eine", "Das", "Die", "Der", "Was", "Wie")
@@ -145,6 +175,8 @@ def ist_denkspur(text: str) -> bool:
     Antwort vorkommen."""
     t = text.lower()
     if any(m in t for m in _DENKSPUR_EINDEUTIG + _DENKSPUR_EINDEUTIG_EN):
+        return True
+    if _DENKSPUR_BENUTZER_EN.search(text):
         return True
     return len([m for m in _DENKSPUR_MARKER + _DENKSPUR_MARKER_EN if m in t]) >= 2
 
@@ -238,6 +270,20 @@ _TEXT_ANKUENDIGUNG_ERMAHNUNG = (
     "Nachricht neu und liefere den Inhalt JETZT, in dieser einen Nachricht."
 )
 
+#: Phase 4 (Karte t_b19d37ac, Birk 06.10.2026): "Keine Szenen ausformulieren
+#: in Phase 4. Nur Rahmen setzen." -- die Ermahnung fuer den zweiten Anlauf,
+#: wenn die Antwort trotzdem eine Szene auslegt oder anbietet, sie zu
+#: schreiben (``ist_schreibangebot``).
+_TEXT_SCHREIBANGEBOT_ERMAHNUNG = (
+    "Deine letzte Antwort hat eine Szene ausgelegt (Form, Ort, Wer, Was "
+    "passiert) oder angeboten, eine Szene zu schreiben. In dieser Station "
+    "wird nur der Rahmen gesetzt, geschrieben wird erst in der naechsten. "
+    "Schreib die Nachricht neu, ohne Szenenformat und ohne Schreibangebot: "
+    "steht der Rahmen, eine kurze Zeile, was steht, und die Frage, ob es "
+    "weitergehen soll; wollte die Gruppe eine Szene geschrieben haben, sag, "
+    "dass das in der naechsten Station kommt."
+)
+
 #: Ab welchem Anteil einer Ausloeser-Nachricht, den die Antwort woertlich
 #: enthaelt, sie als Echo gilt. 80 % lassen eine Antwort durch, die einen
 #: halben Satz aufgreift ("das mit der Kueche finde ich stark, weil ...") und
@@ -316,6 +362,20 @@ WIEDERHOLUNG_ANTEIL = 0.6
 #: paar Woerter leicht mit irgendetwas -- und eine kurze Zeile kostet die
 #: Gruppe nichts, auch wenn sie sich aehnelt.
 WIEDERHOLUNG_MINDEST_WOERTER = 12
+
+#: Eine "vorige" Bot-Nachricht, die laenger ist als jede legitime einzelne
+#: Antwort sein kann (Hausregel im Systemprompt: "unter 500 Zeichen"/"under
+#: 500 characters" -- hier grosszuegig verdreifacht, nicht an der Hausregel
+#: selbst gemessen), ist selbst ein Fehlerfall (z. B. eine durchgerutschte
+#: Denkspur) und kein Massstab: jede inhaltlich verwandte, EHRLICHE neue
+#: Antwort teilt zwangslaeufig einen grossen Teil ihrer Wortmenge mit einem
+#: so langen Text ueber dasselbe Thema. Live-Fund 07.10.2026, Addendum Robo
+#: 14:41 (Testgruppe chat_id=7000000000099): nachdem die 6107 Zeichen lange
+#: Denkspur aus web_post.id=1694 als Bot-Nachricht gespeichert war, verwarf
+#: der Wiederholungsfilter DREI weitere Anlaeufe in Folge (12:23, 12:34,
+#: 12:51 UTC) -- die Gruppe sah nur noch "One moment, I'm thinking.", ohne
+#: jede weitere Antwort.
+_VORIGE_LAENGE_MAX_FUER_WIEDERHOLUNG = 1500
 
 
 def _wortmenge(text: str | None) -> set[str]:
@@ -456,6 +516,88 @@ _SZENENTEXT_WOERTER_EN = re.compile(
     r"\bshow\b|\bread\b|\blook at\b|\btext\b|\bwording\b", re.I
 )
 
+#: P57 Lauf 3 A3: Lesewoerter, die KEINE Bitte um den Szenentext sind --
+#: Zukunft/Spaeter ("I will read that later"), Verweis auf den Reiter
+#: ("read it in the Script tab") und Fragen nach Interviewstellen statt dem
+#: Szenentext ("show me the interview passages for scene 2").
+_NICHT_LESEWUNSCH_VOR = {
+    "de": re.compile(r"(?:werden|werde|wir|ich|spaeter|später)\s+(?:\w+\s+)?$", re.I),
+    "en": re.compile(
+        r"(?:\bwill|'ll|\bgoing to|\bgonna|\bwould|\bmight|\bmay|\bshall)\s+(?:\w+\s+)?$",
+        re.I,
+    ),
+}
+_NICHT_LESEWUNSCH_NACH = {
+    "de": re.compile(
+        r"^.{0,40}?(?:\bspaeter\b|\bspäter\b|\bnachher\b|\bim\s+(?:reiter|tab)\b|"
+        r"\bin\s+(?:dem|der)\s+(?:reiter|tab)\b|\btextbuch[-\s]?(?:reiter|tab)\b)",
+        re.I,
+    ),
+    "en": re.compile(
+        r"^.{0,40}?(?:\blater\b|\bafterwards\b|\bin\s+the\s+\w+\s+tab\b|"
+        r"\bin\s+the\s+tab\b|\bscript\s+tab\b|\btab\b)",
+        re.I,
+    ),
+}
+_NICHT_SZENENTEXT = {
+    "de": re.compile(
+        r"interview|passage|passagen|zitat|zitate|stelle\b|stellen\b|belegstell",
+        re.I,
+    ),
+    "en": re.compile(r"interview|passage|quote|excerpt|\bcitation", re.I),
+}
+
+#: "Zeig mir ANDERE Interviewstellen" (Padua-Feedback 09.10.2026, Abschnitt
+#: 05: "we had to ask a lot of time ... show us other parts of
+#: interviews"): die beiden Woerter zusammen -- der eine zeigt auf
+#: Interviewmaterial (dieselbe Liste wie oben in ``_NICHT_SZENENTEXT``, plus
+#: "Material" -- "mehr Material aus dem Transkript" ist derselbe Wunsch),
+#: der andere auf "mehr/anders" statt auf das, was schon gezeigt wurde.
+#:
+#: **Nachbesserung (Review, tests/test_erzeuge_prompts_padua_voll.py und
+#: test_kostendeckel.py liefen rot):** "irgendwo im Satz" reichte nicht --
+#: ein langer Diskussionsbeitrag ("... not a composite of three interviews
+#: we half remember, ... more generic play ...", Phase-3-Fixture
+#: ``scripts/fixture_padua_voll.py``) traf beide Muster, Woerter weit
+#: auseinander und ohne jeden Zusammenhang. ``interviewstellen_gewuenscht``
+#: verlangt deshalb jetzt NAHE Treffer (``_in_der_naehe``), kein beliebiges
+#: Vorkommen im ganzen Text. Bare "noch" (DE) ist bewusst keine eigene
+#: Bedingung mehr: "wir brauchen noch ein Zitat fuer die Szene" ist keine
+#: Bitte um ANDERES Material, und "noch andere/noch mehr" trifft ohnehin
+#: schon ueber "andere"/"mehr".
+_INTERVIEWSTELLEN_MATERIAL = {
+    "de": re.compile(
+        r"interview|passage|zitat|zitate|stelle\b|stellen\b|transkript|material",
+        re.I,
+    ),
+    "en": re.compile(r"interview|passage|quote|excerpt|transcript|material", re.I),
+}
+_INTERVIEWSTELLEN_MEHR = {
+    "de": re.compile(r"\bander[a-z]*\b|\bweiter[a-z]*\b|\bmehr\b", re.I),
+    "en": re.compile(r"\bother[a-z]*\b|\banother\b|\bmore\b|\belse\b", re.I),
+}
+
+#: Hoechstens so viele Zeichen Luecke zwischen einem Treffer aus
+#: ``_INTERVIEWSTELLEN_MEHR`` und einem aus ``_INTERVIEWSTELLEN_MATERIAL``,
+#: damit sie als EINE Bitte gelten -- "andere Zitate" (Luecke 1, das
+#: Leerzeichen) ja, "more generic play ... interviews" irgendwo zwanzig
+#: Zeichen weiter weg (gemessen an der Fixture oben) nein.
+_INTERVIEWSTELLEN_HOECHSTABSTAND = 3
+
+
+def _in_der_naehe(erstes: re.Pattern, zweites: re.Pattern, text: str, hoechstabstand: int) -> bool:
+    """Treffen beide Muster nicht nur irgendwo im Text, sondern mit
+    hoechstens ``hoechstabstand`` Zeichen Luecke zueinander?"""
+    treffer_zweites = list(zweites.finditer(text))
+    if not treffer_zweites:
+        return False
+    for a in erstes.finditer(text):
+        for b in treffer_zweites:
+            luecke = max(a.start(), b.start()) - min(a.end(), b.end())
+            if luecke <= hoechstabstand:
+                return True
+    return False
+
 
 def szenentext_gewuenscht(text: str | None) -> int | None:
     """Die Szenennummer, deren TEXT die Gruppe sehen will -- oder None.
@@ -466,10 +608,57 @@ def szenentext_gewuenscht(text: str | None) -> int | None:
         return None
     nummer = sprache.je_sprache({"de": _SZENENTEXT_NUMMER, "en": _SZENENTEXT_NUMMER_EN})
     woerter = sprache.je_sprache({"de": _SZENENTEXT_WOERTER, "en": _SZENENTEXT_WOERTER_EN})
-    treffer = nummer.search(roh)
-    if treffer is None or woerter.search(roh) is None:
+    nummern = list(nummer.finditer(roh))
+    sp = "en" if sprache.je_sprache({"de": False, "en": True}) else "de"
+    if _NICHT_SZENENTEXT[sp].search(roh):
         return None
-    return int(treffer.group(1))
+    leseworte = [
+        w for w in woerter.finditer(roh)
+        if not _NICHT_LESEWUNSCH_VOR[sp].search(roh[max(0, w.start() - 20):w.start()])
+        and not _NICHT_LESEWUNSCH_NACH[sp].search(roh[w.end():w.end() + 60])
+    ]
+    if not nummern or not leseworte:
+        return None
+    # P57 Lauf 2 A2: nicht die ERSTE Nummer, sondern die, die zum Lesewunsch
+    # gehoert -- "Scene 1 is good now. Please show scene 2." will Szene 2.
+    # Gemessen wird der Abstand zwischen Lesewort und Nummer; bei Gleichstand
+    # gewinnt die Nummer HINTER dem Lesewort ("zeig Szene 2").
+    def abstand(n: re.Match) -> tuple[int, int]:
+        kuerzester = None
+        for w in leseworte:
+            if n.start() >= w.end():
+                kandidat = (n.start() - w.end(), 0)
+            else:
+                kandidat = (max(0, w.start() - n.end()), 1)
+            if kuerzester is None or kandidat < kuerzester:
+                kuerzester = kandidat
+        return kuerzester
+    return int(min(nummern, key=abstand).group(1))
+
+
+def interviewstellen_gewuenscht(text: str | None) -> bool:
+    """Will die Gruppe ANDERE/MEHR Interviewstellen sehen, statt dass der
+    Gespraechs-Bot es aus seinem schmalen Kontext versucht (Padua-Feedback
+    09.10.2026, Abschnitt 05: "we had to ask a lot of time ... show us
+    other parts of interviews")?
+
+    Ab der Schaerfung (Phase 5) traegt der Prompt nur noch das Kernpaket --
+    dieselben wenigen Zitate, die schon gezeigt wurden, kein Volltranskript
+    (``kontext.kernpaket_erlaubt``). Ein Modell, das trotzdem gefragt wird,
+    kann nichts Neues zeigen und wiederholt sich oder erfindet. Reiner
+    Musterabgleich, kein Modellaufruf (Zusage 2) -- beide Woerter muessen
+    NAH beieinander stehen (``_in_der_naehe``), sonst traefe jede Frage
+    nach EINEM Zitat mit ("passt das Zitat zur Figur?") oder sogar ein
+    langer Diskussionsbeitrag, der die beiden Woerter nur zufaellig beide
+    enthaelt."""
+    roh = (text or "").strip()
+    if not roh:
+        return False
+    sp = "en" if sprache.je_sprache({"de": False, "en": True}) else "de"
+    return _in_der_naehe(
+        _INTERVIEWSTELLEN_MEHR[sp], _INTERVIEWSTELLEN_MATERIAL[sp], roh,
+        _INTERVIEWSTELLEN_HOECHSTABSTAND,
+    )
 
 
 def ist_auftrag(text: str | None) -> bool:
@@ -543,7 +732,7 @@ def ist_ausloeser(n: dict, bot_name: str | None) -> bool:
 
 @contextmanager
 def arbeitet_sichtbar(tg, chat_id: int, text: str | None = None,
-                      art: str | None = None):
+                      art: str | None = None, conn=None):
     """Tippanzeige plus wechselnde Arbeitszeile waehrend eines laufenden
     Modellaufrufs (06.09.2026, 10:10/11:15, Birk).
 
@@ -579,7 +768,7 @@ def arbeitet_sichtbar(tg, chat_id: int, text: str | None = None,
             # Der Lauf haelt die Tippanzeige selbst am Leben.
             yield
         else:
-            with _tippanzeige(tg, chat_id):
+            with _tippanzeige(tg, chat_id, conn=conn):
                 yield
     finally:
         if lauf is not None:
@@ -592,10 +781,23 @@ def arbeitet_sichtbar(tg, chat_id: int, text: str | None = None,
 
 
 @contextmanager
-def _tippanzeige(tg, chat_id: int):
+def _tippanzeige(tg, chat_id: int, stand: dict | None = None, conn=None):
     """Haelt die Tippanzeige waehrend eines laufenden Sprachmodell-Aufrufs am
     Leben (SPEC § 1.3): alle TIPP_INTERVALL Sekunden erneut ``tg.tippt``,
     nach HINWEIS_NACH Sekunden zusaetzlich eine kurze Zeile.
+
+    ``conn`` (Nachtauftrag cc-p67texte, 08.10.2026): nur fuer
+    ``_texte_fuer_phase`` -- welche Sprache die Hinweiszeile traegt. Ohne
+    ``conn`` (alter Testaufruf) bleibt es bei ``T``.
+
+    ``stand`` (Addendum Robo 14:41, Live-Fund 07.10.2026): ein von aussen
+    uebergebenes Dict, in das ``hinweis_gesendet`` geschrieben wird, sobald
+    die Hinweiszeile wirklich raus ist -- ``antworte`` liest es danach, um
+    zu wissen, ob die Gruppe schon "Einen Moment, ich denke nach" gesehen
+    hat, und darf dann nicht mehr ersatzlos schweigen (siehe
+    ``_wiederholt_die_vorige``-Aufruf unten). Ohne ``stand`` (der zweite,
+    unveraenderte Aufrufer ``arbeitet_sichtbar``) wird ein eigenes Dict
+    angelegt, das niemand ausliest -- Verhalten dort zeichengleich (E1).
 
     Laeuft in einem Daemon-Thread, der beim Verlassen des with-Blocks sauber
     beendet wird: ``stop.set()`` laesst das laufende ``stop.wait()`` sofort
@@ -603,28 +805,29 @@ def _tippanzeige(tg, chat_id: int):
     mitbekommen hat. Ein Fehlschlag der Tippanzeige selbst (Telegram down,
     was auch immer) darf den eigentlichen Zug nie stoeren -- deshalb wird
     hier alles abgefangen und nur geloggt."""
+    if stand is None:
+        stand = {"hinweis_gesendet": False}
     stop = threading.Event()
 
     def _lauf() -> None:
         vergangen = 0.0
-        hinweis_gesendet = False
         while not stop.wait(TIPP_INTERVALL):
             vergangen += TIPP_INTERVALL
             try:
                 tg.tippt(chat_id)
             except Exception:
                 log.exception("Tippanzeige fehlgeschlagen, chat_id=%s", chat_id)
-            if not hinweis_gesendet and vergangen >= HINWEIS_NACH:
-                hinweis_gesendet = True
+            if not stand["hinweis_gesendet"] and vergangen >= HINWEIS_NACH:
+                stand["hinweis_gesendet"] = True
                 try:
-                    tg.sende(chat_id, T._TEXT_HINWEIS)
+                    tg.sende(chat_id, _texte_fuer_phase(conn, chat_id)._TEXT_HINWEIS)
                 except Exception:
                     log.exception("Hinweis-Zeile fehlgeschlagen, chat_id=%s", chat_id)
 
     thread = threading.Thread(target=_lauf, daemon=True)
     thread.start()
     try:
-        yield
+        yield stand
     finally:
         stop.set()
         thread.join(timeout=TIPP_INTERVALL + 1.0)
@@ -823,6 +1026,98 @@ def _ohne_ankuendigung(conn, klm, e, chat_id: int, system: str, koerper: str,
     return zweite
 
 
+#: Das Schreibangebot einer Szene (Live-Fall 06.10.2026, G3, Phase 4:
+#: "Shall I write scene 1 now?"), englisch und deutsch.
+_SCHREIBANGEBOT_MUSTER = re.compile(
+    r"\b(?:shall|should|can|may)\s+i\s+(?:now\s+|go\s+ahead\s+and\s+)?"
+    r"(?:write|draft|formulate)(?:\s+out)?\s+(?:up\s+)?(?:the\s+)?(?:first\s+)?"
+    r"(?:scene|scenes)\b"
+    r"|\bwant\s+me\s+to\s+(?:write|draft)(?:\s+out)?\s+(?:the\s+)?(?:first\s+)?scene"
+    r"|\bsoll\s+ich\s+(?:jetzt\s+|nun\s+)?(?:die\s+)?(?:erste\s+)?szene"
+    r"(?:\s+\d+)?\s+(?:jetzt\s+)?(?:schreiben|ausformulieren|ausschreiben)",
+    re.IGNORECASE,
+)
+
+#: Eine Zeile eines Szenenformats ("Form: still open", "**Place:** ...").
+_SZENENFORMAT_ZEILE = re.compile(
+    r"^\s*(?:[-*•]\s*)?\**(?:form|place|who|what happens|ort|wer|"
+    r"was passiert)\**\s*:", re.IGNORECASE | re.MULTILINE,
+)
+
+
+def ist_schreibangebot(text: str | None) -> bool:
+    """Legt diese Antwort eine Szene aus oder bietet an, eine zu schreiben?
+
+    Karte t_b19d37ac (Live-Test 06.10.2026, G3): noch in Phase 4 kam "Scene
+    1: The Pitch / Form: still open / Place: ... / Who: still open / What
+    happens: ... Shall I write scene 1 now?" -- Phase-5-Gebiet. Zwei
+    Signale, reiner Musterabgleich: die Frage nach dem Schreiben
+    (``_SCHREIBANGEBOT_MUSTER``) oder mindestens drei Zeilen eines
+    Szenenformats (Form/Ort/Wer/Was passiert)."""
+    roh = text or ""
+    if _SCHREIBANGEBOT_MUSTER.search(roh):
+        return True
+    return len(_SZENENFORMAT_ZEILE.findall(roh)) >= 3
+
+
+def _ohne_schreibangebot(conn, klm, e, chat_id: int, system: str, koerper: str,
+                         text: str, phase: int, bei_teil=None,
+                         ueber_claude: bool = False) -> str:
+    """Phase 4 mit Prosa-Entwurf in Phase 5 (Padua, ``workshop.
+    prosa_entwurf_aktiv``): eine Antwort mit Schreibangebot oder
+    Szenenformat bekommt GENAU EINEN zweiten Anlauf mit Ermahnung
+    (``_TEXT_SCHREIBANGEBOT_ERMAHNUNG``) -- dasselbe Muster wie
+    ``_ohne_ankuendigung``. Ist auch der zweite eins, geht er trotzdem raus
+    (Vorfall ``schreibangebot_wiederholt``)."""
+    from interview_theater import workshop
+    from interview_theater.knoepfe.texte import PHASE_SETTING
+
+    if phase != PHASE_SETTING or not workshop.prosa_entwurf_aktiv():
+        return text
+    if not ist_schreibangebot(text):
+        return text
+    repo.merke_vorfall(
+        conn, chat_id, getattr(e, "bot_name", None), "schreibangebot_phase_4",
+        f"Antwort in Phase 4 legte eine Szene aus oder bot an, sie zu "
+        f"schreiben ({len(text)} Zeichen), zweiter Anlauf mit Ermahnung",
+    )
+    if bei_teil is not None:
+        neu = getattr(bei_teil, "neu", None)
+        if callable(neu):
+            neu()
+    try:
+        zweite = _antworttext(modellwahl.aufruf_schema(
+            conn, klm, e, chat_id, system,
+            f"{koerper}\n\n{T._TEXT_SCHREIBANGEBOT_ERMAHNUNG}",
+            SCHEMA, "gespraech", ueber_claude=ueber_claude, bei_teil=bei_teil,
+            teil_feld="antwort",
+        ))
+    except Exception:
+        log.exception("Zweiter Anlauf nach Schreibangebot fehlgeschlagen, "
+                      "chat_id=%s", chat_id)
+        zweite = ""
+    if not zweite.strip():
+        # Der erste Anlauf gilt -- eine schwache Antwort ist besser als
+        # keine (wie in _ohne_ankuendigung).
+        if bei_teil is not None:
+            neu = getattr(bei_teil, "neu", None)
+            if callable(neu):
+                neu()
+            try:
+                bei_teil(text)
+            except Exception:  # noqa: BLE001 -- wie in _ohne_echo
+                log.exception("bei_teil-Nachtrag nach Schreibangebot "
+                              "fehlgeschlagen, chat_id=%s", chat_id)
+        return text
+    if ist_schreibangebot(zweite):
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "schreibangebot_wiederholt",
+            "Auch der zweite Anlauf in Phase 4 legte eine Szene aus -- "
+            "trotzdem gesendet",
+        )
+    return zweite
+
+
 def _ohne_echo(conn, klm, e, chat_id: int, system: str, koerper: str,
                offen: list, antwort: str, bei_teil=None,
                ueber_claude: bool = False) -> str:
@@ -933,6 +1228,12 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
     # die richtige Antwort UND direkt darunter eine verwirrende Fehlermeldung
     # zu genau derselben Antwort gesehen.
     versand_erfolgreich = False
+    # Addendum Robo 14:41 (Live-Fund 07.10.2026): haelt fest, ob die Gruppe
+    # in diesem Zug schon "Einen Moment, ich denke nach" gesehen hat
+    # (_tippanzeige schreibt hinein) -- dann darf ``_wiederholt_die_vorige``
+    # unten nicht mehr ersatzlos schweigen, sonst bleibt genau diese Zeile
+    # auf Dauer die letzte.
+    tippstand = {"hinweis_gesendet": False}
     # Befund H2: der Stand VOR dem Zug -- ob er den Vergleich anstoesst,
     # liest ``_merke_vergleich_im_zug`` im ``finally`` ab.
     try:
@@ -953,7 +1254,9 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         if _zug_faellt_aus(conn, tg, klm, e, chat_id, letzte_nachricht):
             return
 
-        text = _erfrage_antwort(conn, klm, e, chat_id, offen, tg, hinweis)
+        _pruefe_formen(conn, tg, klm, e, chat_id, offen)
+        text = _erfrage_antwort(conn, klm, e, chat_id, offen, tg, hinweis,
+                                tippstand=tippstand)
 
         if _erfundene_systemzeile(conn, e, chat_id, text):
             strom.verwirf(tg, chat_id)          # die vorlaeufige Blase verschwindet
@@ -973,7 +1276,44 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         if _wiederholt_die_vorige(conn, e, chat_id, text, letzte_message_id):
             strom.verwirf(tg, chat_id)
             versand_erfolgreich = True
+            if tippstand["hinweis_gesendet"]:
+                # Addendum Robo 14:41: die Gruppe sieht bereits "Einen
+                # Moment, ich denke nach" -- ersatzloses Schweigen wuerde
+                # das auf Dauer zur letzten Zeile machen (Live-Fund
+                # 07.10.2026, drei Anlaeufe in Folge). Eine kurze ehrliche
+                # Zeile schliesst den Zug ab statt die Gruppe warten zu
+                # lassen.
+                try:
+                    tg.sende(chat_id, T._TEXT_FEHLER)
+                except Exception:
+                    log.exception(
+                        "Ersatzzeile nach Wiederholung fehlgeschlagen, chat_id=%s",
+                        chat_id,
+                    )
             knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
+            return
+
+        # Padua Phase 7 (Birk 08.10.2026 ~13:20, erweitert ~14:00): eine
+        # vollstaendige Szenenfassung im Chat wird die Script-Fassung --
+        # VOR dem Versand geprueft, damit die Gruppe nie den vollen
+        # Szenentext sieht, nur die Diff-Nachricht, die
+        # ``uebernimm_chatfassung`` selbst schickt (mit Yes/No).
+        uebernommen_message_id = _uebernimm_stagescript_vor_dem_senden(
+            conn, tg, klm, e, chat_id, text, letzte_nachricht)
+        if uebernommen_message_id is not None:
+            versand_erfolgreich = True
+            strom.schliesse(tg, chat_id, uebernommen_message_id)
+            return
+        if _szenenfassung_waehrend_neuschreiben(conn, chat_id, text):
+            # Live G3 08.10.2026 14:32: der Neuschreiblauf lief schon
+            # ("Riscrivo la scena 3"), der Gespraechsbot schickte trotzdem
+            # die ganze Szene als zweite, konkurrierende Fassung (dazu auf
+            # Englisch). Der Lauf schickt gleich selbst die Aenderung mit
+            # Yes/No -- diese Fassung faellt weg.
+            log.info("Szenenfassung des Gespraechsbots verworfen (Neuschreiben laeuft), chat_id=%s",
+                     chat_id)
+            strom.verwirf(tg, chat_id)
+            versand_erfolgreich = True
             return
 
         message_id, text = _sende_mit_leiste(conn, tg, chat_id, text, klm=klm, e=e)
@@ -1001,6 +1341,23 @@ def antworte(conn, tg, klm, e, chat_id: int, offen: list, hinweis: str | None = 
         repo.setze_beantwortet_bis(conn, chat_id, letzte_message_id)
 
 
+def _pruefe_formen(conn, tg, klm, e, chat_id: int, offen: list) -> None:
+    """Ausloeser A des Formberaters (Karte t_256ec777): ab Phase 4 ein
+    deterministischer Abgleich der neuen Gruppenbeitraege gegen den
+    Formen-Katalog, VOR dem Kontextbau -- eine genannte Form steht damit
+    schon in diesem Zug im Prompt; der Modellaufruf (nur bei einem neuen
+    Treffer) laeuft im eigenen Thread und wirkt ab dem naechsten Zug. Ein
+    Fehler hier kostet den Zug nie."""
+    try:
+        texte = [
+            n["text"] or "" for n in offen
+            if not ("ist_bot" in n.keys() and n["ist_bot"])
+        ]
+        formberater.pruefe_zug(conn, tg, klm, e, chat_id, texte)
+    except Exception:
+        log.exception("Formberater-Abgleich gescheitert, chat_id=%s", chat_id)
+
+
 def _nach_dem_senden(conn, tg, e, chat_id: int, message_id: int, text: str) -> None:
     """Was nach einer verschickten Antwort noch faellig ist: mitschreiben und
     das Phasenangebot.
@@ -1026,6 +1383,12 @@ def _nach_dem_senden(conn, tg, e, chat_id: int, message_id: int, text: str) -> N
         knoepfe.biete_phase_proaktiv(conn, tg, chat_id)
     except Exception:
         log.exception("Phasenangebot fehlgeschlagen, chat_id=%s", chat_id)
+    # Stueckmodell: Aenderungen, die im Gespraech oder im Web gemacht wurden,
+    # koennen Prosa veralten lassen -- genau ein Ja/Nein-Angebot je Vermerk.
+    try:
+        knoepfe.biete_veraltete(conn, tg, e, chat_id)
+    except Exception:
+        log.exception("Veraltet-Angebot fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def _wiederholt_die_vorige(conn, e, chat_id: int, text: str,
@@ -1051,6 +1414,8 @@ def _wiederholt_die_vorige(conn, e, chat_id: int, text: str,
 
     vorige = repo.letzte_bot_nachricht_vor(conn, chat_id, letzte_message_id + 1)
     if vorige is None or _vorschlag.enthaelt_block(text):
+        return False
+    if len(vorige["text"] or "") > _VORIGE_LAENGE_MAX_FUER_WIEDERHOLUNG:
         return False
     if not ist_wiederholung(text, vorige["text"]):
         return False
@@ -1200,6 +1565,51 @@ def _merke_notiz_verbraucht(chat_id: int, letzte_nachricht) -> None:
         _notiz_verbraucht[chat_id] = message_id
 
 
+def _uebernimm_stagescript_vor_dem_senden(conn, tg, klm, e, chat_id: int, text: str,
+                                          letzte_nachricht) -> int | None:
+    """Padua Phase 7 (Birk 08.10.2026 ~14:00): ist diese Antwort des
+    Gespraechsbots eine vollstaendige Szenenfassung, wird sie VOR dem Versand
+    ins Script uebernommen -- ``stagescript.uebernimm_chatfassung`` schickt
+    dann selbst die Diff-Nachricht mit Yes/No, die Gruppe sieht den
+    Volltext nie. Liefert die ``message_id`` dieser Nachricht, oder ``None``
+    (kein Treffer -- der normale Versand des Gespraechstexts folgt).
+
+    Markiert die ausloesende Nachricht als Regie-Notiz verbraucht
+    (``_merke_notiz_verbraucht``), damit der Erkenner-Nachlauf
+    (``erkenner._starte_stagescript_notiz``) dieselbe Nachricht nicht noch
+    einmal als Neuschreibauftrag liest -- Live-Befund G1 (08.10.2026,
+    web_post 10:57-11:07): sonst liefen Gespraechsbot UND Neuschreiblauf auf
+    dieselbe Nachricht, zwei verschiedene Fassungen entstanden."""
+    try:
+        from interview_theater import stagescript
+
+        message_id = stagescript.uebernimm_chatfassung(conn, tg, klm, e, chat_id, text)
+    except Exception:
+        log.exception("Chat-Fassung nicht ins Script uebernommen, chat_id=%s", chat_id)
+        return None
+    if not message_id:
+        return None
+    _merke_notiz_verbraucht(chat_id, letzte_nachricht)
+    return message_id
+
+
+def _szenenfassung_waehrend_neuschreiben(conn, chat_id: int, text: str) -> bool:
+    """Phase 7 mit ``[karten] p7_aenderung_im_chat``: ist ``text`` eine
+    vollstaendige Szenenfassung, waehrend ein Stage-Script-Lauf fuer diese
+    Gruppe laeuft? Dann ist sie eine zweite Fassung neben der des Laufs."""
+    try:
+        from interview_theater import phasen, stagescript, workshop as _workshop
+
+        if not _workshop.p7_aenderung_im_chat_aktiv():
+            return False
+        if phasen.aktuelle(conn, chat_id) != 7 or not stagescript.laeuft(chat_id):
+            return False
+        return stagescript.chatfassung(conn, chat_id, text) is not None
+    except Exception:
+        log.exception("Pruefung Szenenfassung/Neuschreiben fehlgeschlagen, chat_id=%s", chat_id)
+        return False
+
+
 def nimm_notiz_verbraucht(chat_id: int, message_ids) -> bool:
     """War eine dieser Nachrichten (der Stapel eines Erkennerlaufs) schon eine
     Regie-Notiz, die ``bearbeite`` verbraucht hat? Raeumt den Eintrag dabei
@@ -1280,7 +1690,36 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     # Spaete Importe, wie ueberall hier: ``szene`` und ``szenenfolge``
     # greifen ihrerseits auf ``knoepfe`` zu -- ein Modulimport oben waere
     # ein Zyklus.
-    from interview_theater import szene, szenenfolge
+    from interview_theater import szene, stueck, szenenfolge, szenenkarte, workshop
+
+    # "Clear the questions" auf einer Szenenkarte (Birk 08.10.2026 ~09:20):
+    # die naechste Nachricht ist die Antwort auf GENAU die gestellte Frage,
+    # nicht ein Gespraechsbeitrag -- derselbe Gedanke wie die Regie-Notiz
+    # unten, nur DB-gestuetzt (``szene.karte_klaerung`` ueberlebt einen
+    # Neustart, anders als ``szenenfolge._regienotiz_erwartet``).
+    text = (letzte_nachricht["text"] or "").strip()
+    if workshop.szenenkarten_aktiv() and text:
+        if szenenkarte.beantworte_frage(conn, tg, klm, e, chat_id, text):
+            log.info(
+                "Gespraechszug unterdrueckt, Antwort auf Kartenfrage, chat_id=%s", chat_id)
+            _merke_notiz_verbraucht(chat_id, letzte_nachricht)
+            return True
+
+        # Der "No, change"-Dialog (Birk 08.10.2026 ~09:35, Nachtrag, Punkt
+        # 4): spricht die Gruppe MITTEN IM DIALOG erkennbar von den
+        # Fragen selbst, bietet der Bot den Klaerweg an statt selbst zu
+        # antworten -- kein Modellaufruf, derselbe Gedanke wie oben.
+        dialog_nummer = szenenkarte.dialog_aktive_nummer(conn, chat_id)
+        if dialog_nummer is not None and szenenkarte.notiz_betrifft_fragen(text):
+            szene_dialog = szenenkarte._szene_mit_nummer(conn, chat_id, dialog_nummer)
+            karte_dialog = stueck.karte(conn, szene_dialog) if szene_dialog else None
+            if karte_dialog is not None and karte_dialog.get("fragen"):
+                szenenkarte.biete_klaerweg_im_dialog(conn, tg, e, chat_id, dialog_nummer)
+                log.info(
+                    "Gespraechszug unterdrueckt, Klaerweg im Dialog angeboten, "
+                    "chat_id=%s", chat_id)
+                _merke_notiz_verbraucht(chat_id, letzte_nachricht)
+                return True
 
     # Ein laufender Szenenauftrag ist eine vollstaendige Antwort
     # (05.09.2026, Testgruppe 22:05): waehrend der Szenenlauf seine
@@ -1325,6 +1764,24 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
         knoepfe.zeige_szenentext(conn, tg, chat_id, gewuenscht)
         return True
 
+    # "Zeig mir andere Interviewstellen" (Padua-Feedback 09.10.2026,
+    # Abschnitt 05): ab der Schaerfung traegt der Prompt nur noch das
+    # Kernpaket -- dieselben wenigen Zitate, die die Gruppe schon gesehen
+    # hat. Ein Modell, das trotzdem gefragt wird, kann nichts Neues zeigen.
+    # Hier geht stattdessen die echte Liste des noch unbenutzten Materials
+    # aus der Datenbank raus. Reiner Musterabgleich, kein Modellaufruf.
+    if interviewstellen_gewuenscht(letzte_nachricht["text"]):
+        log.info(
+            "Gespraechszug unterdrueckt, andere Interviewstellen gewuenscht, chat_id=%s",
+            chat_id,
+        )
+        from interview_theater import schaerfung
+
+        meldung = schaerfung.weitere_stellen_text(conn, chat_id) or schaerfung.T.WEITERE_STELLEN_LEER
+        message_id = tg.sende(chat_id, meldung)
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, meldung)
+        return True
+
     # Die Regie-Notiz nach "Passt, aber anders" unter einem Szenentext
     # (05.09.2026, Phase 6): der Bot hat gerade gefragt, was anders werden
     # soll -- diese eine Nachricht ist die Antwort darauf und geht als
@@ -1360,6 +1817,20 @@ def _szene_hat_vorfahrt(conn, tg, klm, e, chat_id: int, letzte_nachricht) -> boo
     # nach "Etwas aendern" unter der fertigen Geschichte ist diese eine
     # Nachricht die Regie-Notiz -- sie geht als Anweisung in den
     # naechsten Lauf, nicht in den Gespraechszug.
+    # Uebersicht/Logline (Birk 07.10.2026 ~18:15): nach "No, change" ist
+    # die naechste Nachricht das Feedback fuer den neuen Lauf.
+    from interview_theater.knoepfe import szenen as _knoepfe_szenen
+
+    if _knoepfe_szenen.nimm_uebersicht_notiz(chat_id) and (
+        letzte_nachricht["text"] or ""
+    ).strip():
+        from interview_theater import entwurf
+
+        _merke_notiz_verbraucht(chat_id, letzte_nachricht)
+        entwurf.starte_uebersicht(conn, tg, klm, e, chat_id,
+                                  notiz=letzte_nachricht["text"].strip())
+        return True
+
     if knoepfe.nimm_geschichte_notiz(chat_id) and (
         letzte_nachricht["text"] or ""
     ).strip():
@@ -1415,15 +1886,18 @@ def _war_die_erwartete_antwort(conn, tg, klm, e, chat_id: int,
 
 
 def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
-                     hinweis: str | None) -> str:
+                     hinweis: str | None, tippstand: dict | None = None) -> str:
     """Der eigentliche Gespraechszug: Kontext bauen, Modell fragen, Antwort
     saeubern. Liefert den fertigen Text, wirft bei einer unbrauchbaren
     Modellantwort ``LLMFehler``.
 
     Die Tippanzeige laeuft ueber den ganzen Aufruf -- auch ueber die
     Nachfassaufrufe in ``_ohne_denkspur`` und ``_ohne_echo``, die aus Sicht der
-    Gruppe zur selben Wartezeit gehoeren."""
-    with _tippanzeige(tg, chat_id):
+    Gruppe zur selben Wartezeit gehoeren.
+
+    ``tippstand`` (Addendum Robo 14:41): wird unveraendert an
+    ``_tippanzeige`` durchgereicht, siehe dort."""
+    with _tippanzeige(tg, chat_id, tippstand, conn=conn):
         # Die Phase geht in die Systemanweisung (worauf der Bot gerade den
         # Fokus legt, prompts/phasen/N.md), nicht in den Koerper -- die
         # datengetriebenen Bloecke bleiben unveraendert (phasen.py).
@@ -1439,13 +1913,24 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
         erstkontakt = not repo.hat_bot_nachricht(conn, chat_id)
         koerper = kontext.baue(conn, chat_id, offen, e, erstkontakt=erstkontakt,
                                ueber_claude=ueber_claude)
-        system = kontext.system(e.bot_name, phase)
+        system = kontext.system(e.bot_name, phase, chat_id)
         # Der laufende Text (30.09.2026, Karte W): ``senke`` ist ``None``,
         # solange der Kanal keinen Strom kann -- der Telegram-Weg bleibt damit
         # Zeichen fuer Zeichen, wie er war (E1). Abgeschlossen wird sie NICHT
         # hier, sondern in ``antworte``: erst dort steht fest, ob die Antwort
         # wirklich verschickt wurde.
-        senke = strom.senke(tg, chat_id, "gespraech")
+        #
+        # Phase 7 mit ``[karten] p7_aenderung_im_chat`` (Robo-Entscheidung
+        # 08.10.2026 ~14:00): eine vollstaendige Szenenfassung wird NIE als
+        # Volltext verschickt, nur als Diff -- ohne Streaming bleibt die
+        # Wall of Text erst recht nicht einmal kurz als laufende Blase
+        # stehen (notfalls Streaming abschalten, siehe Auftrag).
+        from interview_theater import workshop as _workshop
+
+        if phase == 7 and _workshop.p7_aenderung_im_chat_aktiv():
+            senke = None
+        else:
+            senke = strom.senke(tg, chat_id, "gespraech")
         ergebnis = modellwahl.aufruf_schema(
             conn, klm, e, chat_id, system, koerper, SCHEMA, "gespraech",
             ueber_claude=ueber_claude, bei_teil=senke, teil_feld="antwort",
@@ -1462,6 +1947,9 @@ def _erfrage_antwort(conn, klm, e, chat_id: int, offen: list, tg,
                           bei_teil=senke, ueber_claude=ueber_claude)
         text = _ohne_ankuendigung(conn, klm, e, chat_id, system, koerper, text,
                                   bei_teil=senke, ueber_claude=ueber_claude)
+        text = _ohne_schreibangebot(conn, klm, e, chat_id, system, koerper,
+                                    text, phase, bei_teil=senke,
+                                    ueber_claude=ueber_claude)
         if hinweis:
             text = f"{text}\n\n{hinweis}"
     return text
@@ -1608,12 +2096,12 @@ def auftragszug(conn, tg, klm, e, chat_id: int, anweisung: str,
         # der Bot arbeitet, und beim Ende wieder verschwindet (06.09.2026,
         # 10:10). Ohne sie schwieg der Bot zwischen "Notiert: Fragen ..." und
         # der Sensibilitaetspruefung minutenlang.
-        with arbeitet_sichtbar(tg, chat_id, arbeitszeile, arbeitsart):
+        with arbeitet_sichtbar(tg, chat_id, arbeitszeile, arbeitsart, conn=conn):
             phase = phasen.aktuelle(conn, chat_id)
             ueber_claude = modellwahl.konversation_ueber_claude(e, conn, chat_id)
             koerper = kontext.baue(conn, chat_id, [], e, ueber_claude=ueber_claude)
             koerper = f"{koerper}\n\n{T._AUFTRAG_KOPF}\n{anweisung}"
-            system = kontext.system(e.bot_name, phase)
+            system = kontext.system(e.bot_name, phase, chat_id)
             senke = strom.senke(tg, chat_id, "gespraech")
             ergebnis = modellwahl.aufruf_schema(
                 conn, klm, e, chat_id, system, koerper, SCHEMA, "gespraech",
@@ -1705,3 +2193,23 @@ def starte_auftrag(conn, tg, klm, e, chat_id: int, anweisung: str,
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 
 T = sprache.Texte(__name__)
+#: Nachtauftrag cc-p67texte (08.10.2026): die Hinweiszeile ("One moment,
+#: I'm thinking.") italienisch in Phase 6/7 -- Auswahl in
+#: ``_texte_fuer_phase``, derselbe Mechanismus wie ``erkenner.py``/
+#: ``stagescript.py``.
+_T_IT = sprache.Texte(__name__, sprachcode="it")
+
+
+def _texte_fuer_phase(conn, chat_id: int) -> sprache.Texte:
+    """``_T_IT`` nur wenn ``conn`` da ist, die Gruppe in Phase 6/7 steht UND
+    chat_id in ``workshop.italienisch_ab_phase6_chats()`` steht -- sonst
+    ``T``. ``conn`` fehlt beim alten, direkten Test-Aufruf von
+    ``_tippanzeige`` ohne Datenbank."""
+    if conn is None:
+        return T
+    from interview_theater import workshop
+
+    if (phasen.aktuelle(conn, chat_id) in (6, 7)
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
+        return _T_IT
+    return T

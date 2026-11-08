@@ -37,8 +37,8 @@ def test_das_eingabefeld_wird_nirgends_gesperrt():
          "interviewmodus": False, "titel": None},
         "1.x", "tok", "", 45000,
     )
-    assert '<input type="text" id="eingabe"' in seite
-    assert 'id="eingabe" autocomplete="off" placeholder="' in seite
+    assert '<textarea id="eingabe" autocomplete="off" rows="1"' in seite
+    assert 'id="eingabe" autocomplete="off" rows="1" placeholder="' in seite
     # Das Eingabefeld selbst traegt nie "disabled" oder "hidden".
     zeile = next(z for z in seite.splitlines() if 'id="eingabe"' in z)
     assert "disabled" not in zeile

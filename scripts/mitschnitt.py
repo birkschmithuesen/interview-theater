@@ -129,17 +129,18 @@ def fange_alles(schnitt: Mitschnitt):
     echte_klasse = llm_modul.LLM
 
     def claude_prosa(conn, e, klient, chat_id, system, nutzer, art, timeout,
-                     bei_teil=None):
+                     bei_teil=None, wartezeiten=None, modell=None):
         schnitt._merke(
-            art, getattr(e, "szene_modell", None) or szene_claude.MODELL_VORGABE,
+            art, modell or getattr(e, "szene_modell", None) or szene_claude.MODELL_VORGABE,
             system, nutzer, weg="claude",
         )
         return PROSA_MARKE
 
     def claude_schema(conn, e, klient, chat_id, system, nutzer, schema_, art,
-                      timeout, bei_teil=None, teil_feld=None):
+                      timeout, bei_teil=None, teil_feld=None, wartezeiten=None,
+                      modell=None):
         schnitt._merke(
-            art, getattr(e, "szene_modell", None) or szene_claude.MODELL_VORGABE,
+            art, modell or getattr(e, "szene_modell", None) or szene_claude.MODELL_VORGABE,
             system, nutzer, weg="claude",
         )
         return minimale_antwort(schema_)

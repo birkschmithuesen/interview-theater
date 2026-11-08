@@ -192,6 +192,18 @@ def setze(conn, chat_id: int, nummer: int, quelle: str, notiz: str | None = None
     if repo.hole_phase(conn, chat_id) == nummer:
         return False
     repo.setze_phase(conn, chat_id, nummer)
+    if nummer < 5:
+        # Padua, Phase-5-Gate (07.10.2026): ein Ruecksprung unter Phase 5
+        # verbraucht eine vorhandene Bestaetigung der Werkbank-Uebersicht --
+        # beim naechsten Vorwaertssprung wird sie wieder gezeigt (einfache
+        # Regel statt eines Sonderfalls je Phase). Nur gelesen und
+        # geschrieben, wenn wirklich etwas steht: sonst wuerde jeder
+        # Phasenwechsel -- auch unter Dortmund, das dieses Feld nie setzt --
+        # ``arbeitsstand.geaendert_am`` anfassen und ``neues_material_seit``
+        # verfaelschen.
+        stand = repo.hole_arbeitsstand(conn, chat_id)
+        if stand and (stand["p5_check_bestaetigt_am"] or "").strip():
+            repo.setze_arbeitsstand(conn, chat_id, "p5_check_bestaetigt_am", None)
     text = f"Phase {bezeichnung(nummer)}"
     if notiz:
         text = f"{text} ({notiz})"
@@ -211,7 +223,9 @@ def liste() -> str:
 def nummer_fuer(wert: str | int | None, jetzige: int | None = None) -> int | None:
     """Uebersetzt, was die Gruppe gesagt hat, in eine Phasennummer.
 
-    Tolerant, in vier Durchgaengen: eine Zahl 1-8; ein Kurzname genau; ein
+    Tolerant, in vier Durchgaengen: eine Zahl 1-8; ein Kurzname genau
+    (danach, vor allen Stichwoertern, eine ``vorrang``-Wendung des Profils, die im Gesagten
+    steht -- ``workshop.phasen_vorrang``); ein
     Stichwort aus ``STICHWOERTER`` (in beide Richtungen -- "figuren" trifft,
     "wir sind bei den Figuren" ebenso); erst danach ein Teiltreffer im
     erklaerenden Satz. Passt nichts, ist das None -- und der Aufrufer aendert
@@ -248,6 +262,11 @@ def nummer_fuer(wert: str | int | None, jetzige: int | None = None) -> int | Non
     for nummer, name, _ in liste:
         if text == name.lower():
             return _aufgeloest(nummer, jetzige)
+    vorrang = workshop.phasen_vorrang()
+    for nummer, _, _ in liste:
+        for wendung in vorrang.get(nummer, ()):
+            if wendung in text:
+                return _aufgeloest(nummer, jetzige)
     stichwoerter = workshop.phasen_stichwoerter()
     for nummer, _, _ in liste:
         for stichwort in stichwoerter.get(nummer, ()):
@@ -416,7 +435,15 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
         and not aufnahme.unausgewertete_interviews(conn, chat_id),
         5: setting and fixiert and bool(repo.figuren(conn, chat_id))
         and geschichte and szenen,
-        6: geschichte and szenen,
+        # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): Phase 6 baut die
+        # Szenenkarten aus den Szenen und der Interviewauswahl -- eine
+        # Geschichte als Feld braucht es dafuer nicht (G1/G2 haben keine).
+        # Mit Karten: Szenen und mindestens eine uebernommene Stelle (die
+        # Auswahl aus Phase 5) -- sonst boete der Prompt Phase 6 schon an,
+        # bevor die Gruppe ein einziges Interview sortiert hat.
+        6: ((bool(szenen_alle) and any(
+                z["uebernommen_am"] for z in repo.schaerfungen(conn, chat_id)))
+            if workshop.szenenkarten_aktiv() else geschichte and szenen),
         # **Phase 7 (Feinschliff) verlangt seit dem 06.09.2026, 10:30 alle
         # Szenen als GESCHICHTE** (``szene.prosa``) und nicht mehr als
         # Theatertext: den schreibt erst der Feinschliff selbst, aus der
@@ -424,9 +451,20 @@ def voraussetzungen(conn, chat_id: int) -> dict[int, bool]:
         # zurueck -- eine Gruppe, die ihre Szenentexte schon hat, soll nicht
         # zurueckgeworfen werden.
         7: bool(szenen_alle) and all(
-            _prosa_oder_volltext(s) for s in szenen_alle
+            _karte_abgenommen(s) if workshop.szenenkarten_aktiv()
+            else _prosa_oder_volltext(s)
+            for s in szenen_alle
         ),
     }
+
+
+def _karte_abgenommen(szene) -> bool:
+    """Padua-Phasenumbau: Phase 7 baut das Stage Script aus den Karten --
+    also muss jede Szene eine abgenommene Karte haben."""
+    try:
+        return bool((szene["karte_bestaetigt_am"] or "").strip())
+    except (IndexError, KeyError):
+        return False
 
 
 def _prosa_oder_volltext(szene) -> bool:
@@ -467,6 +505,19 @@ def naechste_moegliche(conn, chat_id: int) -> int | None:
     Liste."""
     moegliche = moegliche_naechste(conn, chat_id)
     return min(moegliche) if moegliche else None
+
+
+def warnungen(conn, chat_id: int, ziel: int) -> list[str]:
+    """Was fuer Phase ``ziel`` laut Materiallage noch fehlt -- als Saetze,
+    NIE als Sperre (Stueckmodell, t_fd88600b, Problem 2). ``voraussetzungen``
+    bleibt, was es ist: Fokus und Vorschlag. Leer, wenn die Lage reicht."""
+    from interview_theater import fehlstellen
+
+    if voraussetzungen(conn, chat_id).get(ziel, True):
+        return []
+    saetze = [e["text"] for e in fehlstellen.register(conn, chat_id, hoechstens=50)
+              if e["phase"] < ziel][:3]
+    return saetze or [T._WARNUNG_PHASE_ALLGEMEIN.format(phase=ziel)]
 
 
 def offenes_angebot(conn, chat_id: int) -> int | None:
@@ -557,3 +608,10 @@ def erneuere_nach_aenderung(conn, chat_id: int) -> bool:
         return False
     vergiss_angebot(conn, chat_id)
     return True
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)
+
+_WARNUNG_PHASE_KOPF = "Phase {phase} ist offen -- laut Plan fehlt noch:"
+_WARNUNG_PHASE_ALLGEMEIN = "Fuer Phase {phase} fehlt laut Plan noch etwas."

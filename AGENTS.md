@@ -51,8 +51,8 @@ Versehen).
 |---|---|
 | **Ablage** | `db.py` · `repo.py` · `web_daten.py` |
 | **Dienste** | `llm.py` · `strom.py` · `stt.py` · `telegram.py` · `einstellungen.py` · `workshop.py` · `sprache.py` · `anweisungen.py` · `zitat.py` · `vorschlag.py` · `stile.py` · `vorschlagssperre.py` · `web_kanal.py` · `kosten.py` · `web_grenze.py` |
-| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `begriffsboard.py` · `begriffsboard_analyse.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` |
-| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` · `web_gestalt.py` |
+| **Fachlogik** | `phasen.py` · `kontext.py` · `erkenner.py` · `journal.py` · `verdichter.py` · `begriffe.py` · `aufnahme.py` · `begriffsboard.py` · `begriffsboard_analyse.py` · `szene.py` · `szene_claude.py` · `szenenfolge.py` · `kurzgeschichte.py` · `kuerzung.py` · `roadmap.py` · `ruecknahme.py` · `schaerfung.py` · `stueckpruefung.py` · `kernzitate.py` · `sprachprofil.py` · `sprachstil.py` · `sprecher.py` · `fehlstellen.py` · `arbeitszeilen.py` · `leitfaden.py` · `laengen.py` · `sprachpass.py` · `nachpass.py` · `prueflauf.py` · `ueberarbeitung.py` · `sprechweise.py` · `formberater.py` · `stueck.py` · `stueck_sicht.py` |
+| **Oberfläche** | `bot.py` · `ablauf.py` · `befehle.py` · `knoepfe/` · `phasentexte.py` · `web.py` · `web_schreiben.py` · `web_chat.py` · `web_vereint.py` · `web_gestalt.py` · `web_skript.py` · `web_pdf.py` |
 
 **SQL nur in `repo.py` und `db.py`.** Einzige Ausnahme: `web_daten.py`, die
 read-only (`file:…?mode=ro`) geöffnete Leseseite der Weboberfläche — sie
@@ -89,6 +89,7 @@ Je Modul ein Satz (Volltext mit Begründungen: `docs/agents/aufbau.md`):
 - `sprachprofil.py` — Sprachprofil je Figur aus dem zugeordneten Interview, Zitate geprüft.
 - `sprachstil.py` · `stile.py` — gewählter Sprachstil je Figur bzw. Stilvorlage je Szene.
 - `sprechweise.py` — Sprechweise je Figur vor der Bühnenfassung, nur für Figuren ohne `figur.sprachstil`.
+- `formberater.py` — ab Phase 4 ohne obere Grenze: schlägt aus `interview_theater/formen/` (67 performative Formen) die passenden nach — Stichwort-Abgleich je Zug (Modellaufruf nur bei neuem Treffer, nur in Phase 4), Einordnung einmal beim Eintritt in Phase 5, kein Knopf; Block „Performative Formen“ im Prompt (`docs/agents/entscheidungen.md`).
 - `kosten.py` — Preistabelle, Kosten je Aufruf, Tagesdeckel je Gruppe; kein SQL.
 - `ruecknahme.py` — Undo eines Erkennerlaufs per Schnappschuss-Diff; reine Funktionen.
 - `laengen.py` — Längen-Rhythmus und Budget je Szene aus dem Profil; kein Modellaufruf.
@@ -98,6 +99,8 @@ Je Modul ein Satz (Volltext mit Begründungen: `docs/agents/aufbau.md`):
 - `ueberarbeitung.py` — Padua: Phasen 6/7 als Zustandsmaschine (`weiter_6`/`weiter_7`); kein SQL, kein Modellaufruf.
 - `leitfaden.py` — baut den Gesprächsleitfaden deterministisch.
 - `vorschlag.py` — die `VORSCHLAG …:`-Markerzeilen im Antworttext lesen und entfernen.
+- `stueck.py` — das Stückmodell: die eine Mutations-Schnittstelle (`WERKZEUGE`) für Ort, Besetzung, Karte, offene Fragen; Prosa wird nur `veraltet` vermerkt; kein Modellaufruf.
+- `stueck_sicht.py` — die eine Ableitung der Karte (`karte_ansicht`: Ort/Wer/Fragen) für Werkbank, Karte, Script-Kopf, PDF, Prompt.
 - `vorschlagssperre.py` — die eine Sperre, die Schärfung und Szenenfolge trennt, mit Merkplatz; kein Projektimport.
 - `vorspann.py` — der Vorspann vor dem Text (Wo/Wann, Figuren); deterministisch.
 - `verdichter.py` — verdichtet ein Transkript zu Zusammenfassung und Kernthemen mit Belegzitaten.
@@ -116,13 +119,22 @@ Je Modul ein Satz (Volltext mit Begründungen: `docs/agents/aufbau.md`):
 - `web_chat.py` — Chatansicht im Browser: HTML-Filter, Knopfprüfung, Audio-Upload.
 - `web_vereint.py` — die vereinte Gruppenseite (Tabs, Phasenleiste, SSE `/chat/strom`, `scope_css`).
 - `web_gestalt.py` — Design-Tokens, Komponenten-CSS, Effekt-JS (`IT_UX_ENTWURF`).
+- `web_skript.py` — Padua: das abgenommene Stage-Script-Design (Script-Tab + PDF über `web_pdf.py`), liest das Markdown des Stage Scripts; nur unter `[skript] verdichtet`.
 - `web_grenze.py` — Rate-Limit der Weboberfläche je `chat_id`; kein Projektimport.
 - `prompts/` — Prompt-Texte als `.md` (`phasen/`, `formen/`, `dramaturgie/`, `stile/`).
 
 Ohne eigene Zeile hier (siehe Docstring): `arbeitszeilen.py`,
 `begriffe.py`, `begriffsboard_analyse.py`, `brainstorm.py`,
 `buehnenkarte.py`, `cothinker_status.py`, `diskussion.py`, `entwurf.py`,
-`fragen_auswertung.py`, `fragen_ki.py`, `handykarten.py`, `modellwahl.py`.
+`fragen_auswertung.py`, `fragen_ki.py`, `handykarten.py`, `modellwahl.py`,
+`skript_uebersetzung.py` (EN/IT-Spiegelpass der Szenenprosa, Padua-
+Profilschalter `[skript] zweisprachig`, neue Spalte `szene.prosa_it`,
+Birk 07.10.2026 ~17:20), `erkenner_werkzeuge.py` (`stueck.WERKZEUGE` als Tools für den
+Opus-Erkenner, Schalter `IT_ERKENNER_MODUS=json|tools`, Vorgabe `json`,
+wirkt nur mit `ueber_claude`; `aufbau.md`, `fallen.md`), `karten_nachzug.py` (Ort/Figuren aus dem neu
+geschriebenen Phase-7-Skript auf die Karte nachziehen, Padua-Profilschalter
+`[karten] p7_meta_nachziehen`, Birk 08.10.2026 ~12:50; schreibt seit
+t_fd88600b nur über `stueck`).
 
 **Wo man anfängt** (vollständige Tabelle: `docs/agents/aufbau.md`):
 
@@ -134,6 +146,7 @@ Ohne eigene Zeile hier (siehe Docstring): `arbeitszeilen.py`,
 | Was schreibt der Erkenner? | `erkenner.laufe` → `wende_an` → `baue_meldung` |
 | Wie entsteht ein Szenentext? | `szene.starte` → `baue_nutzertext` → `schreibe` |
 | Wann darf die Gruppe weiter? | `phasen.voraussetzungen` |
+| Wo steht eine Tatsache, wer darf sie ändern? | `stueck.WERKZEUGE` → `stueck_sicht.karte_ansicht` |
 | Warum sieht der Browser nichts? | `web_kanal.hole_updates` → `repo.web_eingang` → `bot.schleife` |
 | Warum antwortet der Bot heute gar nicht mehr? | `kosten.deckel_erreicht` → `repo.kostensumme_seit` |
 
@@ -149,12 +162,13 @@ Je eine Zeile; Begründung und Geschichte stehen in der genannten Datei.
 - **Nur anhängen:** Journal, Verdichtungen, `szenenfassung`, `begriffsboard` werden nie geändert; entfernt wird **weich** (`entfernt_am`); Material (Aufnahmen, Transkripte, Verdichtungen) hat keinen Entfernungspfad außer `scripts/loeschen.py`. → `entscheidungen.md`
 - **Jede Tabelle außer `bot_zustand` hat `chat_id`** (`db.TABELLEN_MIT_CHAT_ID`, Löschzusage). → `entscheidungen.md`
 - **Schema nur additiv migrieren** (`db._migriere_fehlende_spalten`); tote Spalten bleiben stehen. → `spec-abweichungen.md`
+- **Stückmodell:** Ort/Besetzung/Karte/offene Fragen schreibt nur `stueck.py`; Prosa nie still umschreiben (`veraltet`). → `entscheidungen.md`
 - **Die Phase setzt allein die Gruppe** (Chat, `/phase`, Klick über `befehle.wechsle_phase`); kein automatischer Sprung — Datenstand ist nicht Absicht. → `entscheidungen.md`
 - **`repo.setze_szene_usa` nimmt einen bool**, nie `"ja"`/`"nein"` (ein „nein" wäre wahr). → `entscheidungen.md`
 - **Erkenner-Prompt-Änderung gilt nur mit FP = 0** im Korpuslauf; der Lauf kostet Geld und läuft nie automatisch. → `korpus-und-simulation.md`
 - **Kein CSS-Kommentar direkt vor einer Regel** in `_BUEHNE` (`web_gestalt.css_buehne`): `web_vereint.scope_css` reißt sonst das Scope-Präfix ab. → `aufbau.md`
 - **CSP:** kein `style="…"`-Attribut, kein `on…=`-Handler, kein Webfont; dynamische Werte über CSSOM. → `weboberflaeche.md`
-- **Live-Dienste** (`interview-theater*`) **nie starten, stoppen oder neu starten aus einem Arbeitsauftrag.**
+- **Live-Dienste** (`interview-theater*`) **nie starten, stoppen oder neu starten aus einem Arbeitsauftrag.** Ausnahme (Birk-Entscheid 10.10.2026, generalisiert, nicht auf Padua beschraenkt): ein deterministisches Abnahme-/Gate-Skript darf eine **Test-Instanz** (Namensmuster `*@*-test[N]`, z. B. `interview-theater@padua-test`) selbststaendig neu starten, wenn das fuer die Pruefung noetig ist — niemals eine Live-Instanz; jeder Neustart wird geloggt (Zeitstempel, Einheit, Grund). → `scripts/abnahme-pflicht.py` im Profil-Repo.
 
 ## Starten und testen
 

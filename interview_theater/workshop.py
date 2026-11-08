@@ -41,6 +41,7 @@ vorher, ohne einen Bot zu starten.
 """
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -727,6 +728,22 @@ def phasen_stichwoerter(profil: Profil | None = None) -> dict[int, tuple[str, ..
     }
 
 
+def phasen_vorrang(profil: Profil | None = None) -> dict[int, tuple[str, ...]]:
+    """Wendungen, die **vor allen** Stichwoertern geprueft werden
+    (``vorrang`` je ``[[phase]]``), nur Richtung "steht im Gesagten".
+
+    Noetig, sobald ein spaeterer Phasenname das Stichwort einer frueheren
+    enthaelt: Padua Phase 5 "Interview Selection" (Birk 08.10.2026) enthaelt
+    das "interview" der Phase 3 -- im Stichwort-Durchgang gewaenne die
+    fruehere. Ein Profil ohne ``vorrang`` (Dortmund, Vorgabe) bleibt, wie es
+    war."""
+    profil = profil or aktiv()
+    return {
+        e["nummer"]: tuple(e.get("vorrang", ()))
+        for e in profil.phasen.get("phase", ())
+    }
+
+
 def phasen_mehrdeutig(profil: Profil | None = None) -> dict[int, int]:
     """Stichwoerter, die zwei Phasen meinen koennen, mit der spaeteren.
 
@@ -862,6 +879,37 @@ def form_vorgabe(profil: Profil | None = None) -> str:
     return profil.formen.get("vorgabe", "")
 
 
+def form_treffer(name: str, text: str, profil: Profil | None = None, *, teilstring: bool = False) -> bool:
+    """Meint der freie Text ``text`` (schon klein geschrieben) die Form
+    ``name``? Verglichen werden der Formname selbst mit Wortgrenzen
+    (``"lied"``), seine Anzeige (``"Song"``); die Stichwoerter aus dem
+    Profil gelten als Teilstring (Wortstaemme) -- dieselbe Menge, egal ob die Formangabe als Stichwort im
+    Profil steht oder nicht.
+
+    Geteilt von ``szene.formdatei`` und ``ueberarbeitung.form_aus_text``:
+    beide uebersetzen eine frei getippte oder vom Modell vorgeschlagene
+    Formangabe in einen Formnamen und bildeten die Wortmenge bislang je
+    einmal selbst. In ``workshop/padua-2026/formen.toml`` fehlt der
+    Formname in den Stichwoertern von "chor" und "lied" (anders als bei
+    "dialog", "monolog" und "rap", wo er zufaellig schon drinstand) --
+    ``formdatei`` pruefte nur die Stichwoerter und fiel deshalb fuer Chor und
+    Lied live auf Dialog zurueck (A1, 06.10.2026). Wortgrenzen statt
+    Teilstring, weil ein blosses ``in text`` auf englischen Stichwoertern
+    wie "lied" sonst zufaellig in Woertern wie "applied" anschlaegt."""
+    profil = profil or aktiv()
+    anzeige = dict(zip(formen(profil), form_anzeige(profil)))
+    stichwoerter = form_stichwoerter(profil)
+    eigene = {name, anzeige.get(name, "").lower()}
+    if any(w and re.search(rf"\b{re.escape(w)}\b", text) for w in eigene):
+        return True
+    if teilstring:
+        # formdatei: Stichwoerter sind Wortstaemme ("Woerter genuegen",
+        # formen.toml): "monolog" muss "Monologe", "chor" "Chorszene" treffen.
+        return any(w and w in text for w in stichwoerter.get(name, ()))
+    # form_aus_text (/szene form): Wortgrenzen, unbekannte Woerter bleiben frei.
+    return any(w and re.search(rf"\b{re.escape(w)}\b", text) for w in stichwoerter.get(name, ()))
+
+
 #: Wie eine Auswahl im Fliesstext verbunden wird ("Lied oder Rap"). Hier und
 #: nicht in sprache.py, weil sprache.py dieses Modul importiert (Karte A1).
 _ODER = {"de": " oder ", "en": " or "}
@@ -919,6 +967,11 @@ def platzhalter(profil: Profil | None = None) -> dict[str, str]:
     for nummer, ort in enumerate(beispiele, start=1):
         werte[f"ort_beispiel_{nummer}"] = str(ort)
     werte["orte_beispiele"] = _liste(beispiele)
+    # "1 Terms, 2 Questions, ..." aus phasen.toml -- der englische
+    # Erkenner-Prompt nennt die Phasen damit so, wie die Leiste sie zeigt
+    # (Padua-Umbenennung Birk 08.10.2026), statt sie fest zu verdrahten.
+    werte["phasen_kurz"] = ", ".join(
+        f"{nummer} {name}" for nummer, name, _ in phasenliste(profil))
     anzeige = form_anzeige(profil)
     werte.update({
         # "genau fuenf" -- ausgeschrieben, weil es im Fliesstext steht.
@@ -990,6 +1043,17 @@ def fragen_ab_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("fragen_ab.aktiv", False))
 
 
+def p5_check_aktiv(profil: Profil | None = None) -> bool:
+    """Ob ein Sprung nach Phase 5 (Prose Draft) zuerst die Werkbank-
+    Uebersicht zur Bestaetigung zeigt (Padua, Phase-5-Gate, 07.10.2026).
+
+    Vorgabe false -- wie ``[fragen_ab] aktiv``: ohne diese Zeile im Profil
+    bleibt ein Phasenwechsel genau das, was er vorher war. Dortmund setzt die
+    Zeile nicht und bleibt unberuehrt."""
+    profil = profil or aktiv()
+    return bool(profil.wert("p5_check.aktiv", False))
+
+
 def fragen_eigene_min(profil: Profil | None = None) -> int:
     """Ab wie vielen eigenen Fragen der Knopf "Suggest questions" (und der
     Schluss "eigene Fragen fertig") in Phase 2 gilt (Padua, Birk 05.10.2026
@@ -997,6 +1061,78 @@ def fragen_eigene_min(profil: Profil | None = None) -> int:
     bisher; Dortmund setzt die Zeile nicht."""
     profil = profil or aktiv()
     return int(profil.wert("fragen.eigene_min", 0))
+
+
+def zitat_uebersetzung_en_aktiv(profil: Profil | None = None) -> bool:
+    """EN-Fassung des Skripts zeigt unter jedem fremdsprachigen Zitat die
+    englische Uebersetzung (Birk 08.10.2026 ~14:25). Vorgabe false."""
+    profil = profil or aktiv()
+    return bool(profil.wert("skript.zitat_uebersetzung_en", False))
+
+
+def skript_zweisprachig_aktiv(profil: Profil | None = None) -> bool:
+    """Ob nach einem fertigen Szenentext ein EN/IT-Spiegelpass laeuft
+    (Birk, Live-Workshop 07.10.2026 ~17:20, ``skript_uebersetzung.py``).
+
+    Vorgabe false -- wie ``[p5_check] aktiv``: ohne diese Zeile im Profil
+    bleibt ein Szenenlauf genau das, was er vorher war. Dortmund setzt die
+    Zeile nicht und bleibt unberuehrt."""
+    profil = profil or aktiv()
+    return bool(profil.wert("skript.zweisprachig", False))
+
+
+def skript_verdichtet_aktiv(profil: Profil | None = None) -> bool:
+    """Reduktion auf das Wesentliche (Birk, Live-Workshop 07.10.2026
+    ~17:45): Kurzform je Szene (``szenenkern.py``), keine Begruendungskette
+    mehr in ``was_passiert``/``kernsaetze``, Script-Tab nur der Text,
+    Workbench das Material, schlanker Prosa-Prompt, Verworfenes im
+    Matcher (``docs/superpowers/specs/2026-10-07-script-vs-workbench.md``).
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("skript.verdichtet", False))
+
+
+def szenenkarten_aktiv(profil: Profil | None = None) -> bool:
+    """Padua-Phasenumbau (Birk, Live-Workshop 07.10.2026 ~18:12): Phase 5 =
+    nur Interviews auswaehlen, Phase 6 = Szenenkarten (``szenenkarte.py``)
+    statt Prosa-Rewrite, Phase 7 = Stage Script aus den Karten.
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("karten.aktiv", False))
+
+
+def p7_chat_als_script_aktiv(profil: Profil | None = None) -> bool:
+    """Phase 7: eine vollstaendige Szenenfassung des Gespraechsbots im Chat
+    wird automatisch die Script-Fassung (``stagescript.uebernimm_chatfassung``,
+    Birk 08.10.2026 ~13:20). Vorgabe false -- Dortmund byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("karten.p7_chat_als_script", False))
+
+
+def p7_aenderung_im_chat_aktiv(profil: Profil | None = None) -> bool:
+    """Phase 7: jede Aenderung einer Szene (ueber "No, change" oder eine
+    vollstaendige Chat-Fassung, ``stagescript.zeige_aenderung``) kommt als
+    EINE Diff-Nachricht in den Chat -- nicht der volle Szenentext, nur was
+    sich geaendert hat, danach wieder Yes/No (Birk 08.10.2026 ~14:00: "man
+    muss nicht in den Script-Tab zurueck, der Prozess ist fuer alle gleich").
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("karten.p7_aenderung_im_chat", False))
+
+
+def p7_meta_nachziehen_aktiv(profil: Profil | None = None) -> bool:
+    """Phase 7 kann Ort/Figuren der Szene aendern ("No, change" -> neue
+    Personen/Ort im Skript) -- der Szenenkopf (Script-Tab, PDF, Partitur,
+    ``web.py``) kam bis hierhin aus der alten Karte. ``karten_nachzug.py``
+    zieht ``ort``/``wer`` (ggf. ``modus``) nach jedem neu geschriebenen Skript
+    aus dem Text nach (Birk 08.10.2026 ~12:50).
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("karten.p7_meta_nachziehen", False))
 
 
 def workbench_bearbeitbar(profil: Profil | None = None) -> bool:
@@ -1017,6 +1153,59 @@ def prueflauf_aktiv(profil: Profil | None = None) -> bool:
     Schalter laeuft jeder Szenen- und Prosalauf wie vorher."""
     profil = profil or aktiv()
     return bool(profil.wert("prueflauf.aktiv", False))
+
+
+def schaerfung_ohne_figuren_chats(profil: Profil | None = None) -> frozenset[int]:
+    """Gruppen, deren Interview-Zuordnung (Phase 5) nur auf Szenen laeuft,
+    nicht auf Figuren -- weil die Performer sich selbst spielen (Birk
+    07.10.2026, G1). Vorgabe leer."""
+    profil = profil or aktiv()
+    return frozenset(int(c) for c in (profil.wert("schaerfung.ohne_figuren_chats", []) or []))
+
+
+def italienisch_ab_phase6_chats(profil: Profil | None = None) -> frozenset[int]:
+    """Gruppen (chat_id), die ab Phase 6/7 italienisch bekommen statt der
+    sonstigen Profilsprache -- Modell-Prompts (Zusatzsatz, siehe
+    ``kontext.system``/``szenenkarte.erzeuge``/``pruefe_karten``) UND die
+    deterministischen Statuszeilen aus ``szenenkarte.py``/``stagescript.py``/
+    ``web.py`` (``sprache.Texte(..., sprachcode="it")``, vom Aufrufer nur
+    fuer Chats aus dieser Liste gewaehlt, explizit durchgereicht -- NICHT
+    aus ``IT_WEB_CHAT_ID`` erraten: der gemeinsame Web-Dienst bedient alle
+    Gruppen aus einem Prozess, eine Umgebungsvariable kennt da nicht "diese
+    eine Anfrage"). Birk 08.10.2026 ~07:50, Morgen-Auftrag 4, Nachtrag 2
+    (~09:00): eine Chat-Liste statt eines globalen Schalters -- die
+    Testgruppe (padua-test, chat 7000000000099) laeuft auf derselben
+    ``padua-2026``-Profildatei wie G1-G3, soll aber englisch bleiben.
+    Vorgabe leer."""
+    profil = profil or aktiv()
+    return frozenset(int(c) for c in (profil.wert("sprache.italienisch_ab_phase6_chats", []) or []))
+
+
+def skript_ohne_zitate_chats(profil: Profil | None = None) -> frozenset[int]:
+    """Gruppen (chat_id), fuer die das Stage Script OHNE Interviewzitat-
+    Bloecke gezeigt wird -- Script-Tab und PDF (Birk 08.10.2026 ~07:50,
+    Morgen-Auftrag 1, G1: "lenkt nur ab"). Vorgabe leer."""
+    profil = profil or aktiv()
+    return frozenset(int(c) for c in (profil.wert("skript.ohne_zitate_chats", []) or []))
+
+
+def musik_chats(profil: Profil | None = None) -> frozenset[int]:
+    """Gruppen (chat_id), fuer die der Formberater auch die musikalischen
+    Strukturen nachschlagen darf (Birk 07.10.2026, G1 Padua). Vorgabe leer:
+    niemand bekommt Musiktheorie, Dortmund bleibt unberuehrt."""
+    profil = profil or aktiv()
+    return frozenset(int(c) for c in (profil.wert("formberater.musik_chats", []) or []))
+
+
+def recherche_aktiv(profil: Profil | None = None) -> bool:
+    """Internet-Recherche als eigener Materialstrang (Karte t_c5117c91):
+    Research-Knopf, Erkenner-art ``recherche_starten``, Prompt-Block und
+    Werkbank-Abschnitt gibt es nur mit diesem Schalter.
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich.
+    Padua setzt true (``workshop/padua-2026/profil.toml``)."""
+    profil = profil or aktiv()
+    return bool(profil.wert("recherche.aktiv", False))
 
 
 def ueberarbeitung_aktiv(profil: Profil | None = None) -> bool:
@@ -1075,6 +1264,41 @@ def modellwahl_zitate_an_claude_aktiv(profil: Profil | None = None) -> bool:
     return bool(profil.wert("modellwahl.zitate_an_claude", True))
 
 
+def vollmaterial_phase5_aktiv(profil: Profil | None = None) -> bool:
+    """Ob der Gespraechsprompt ab der Schaerfung (Phase 5) zusaetzlich zum
+    Kernpaket ALLE Verdichtungen (mit allen Themen und Belegzitaten, nicht
+    nur die zum Kernthema markierten) und den vollstaendigen Mitgehoert-
+    Block ohne die ``MITGEHOERT_ZEICHEN``-Obergrenze bekommt (Padua,
+    Testbot-Karte 07.10.2026: die Werkbank zeigte mehr als der Chat, weil
+    0 Themen als Kernthema markiert und 0 Kernzitate gesetzt waren -- Phase
+    5 sah dann fast nichts vom Interviewmaterial).
+
+    Gilt nur zusammen mit ``ueber_claude`` (Opus-Pfad, Zustimmung
+    vorausgesetzt): der Kimi-Pfad behaelt sein bisheriges Budget, die
+    zusaetzliche Menge passt nur in die 400.000-Zeichen-Grenze von Claude
+    (``kontext.OPUS_ZEICHEN_GRENZE_VORGABE``).
+
+    Vorgabe false -- wie ``[laengen] aktiv``: ohne diese Zeile im Profil
+    bleibt Phase 5 genau das, was sie vorher war. Dortmund setzt die Zeile
+    nicht und bleibt unberuehrt. **Ungeprueft:** ob der US-Einwilligungstext
+    (``_TEXT_ANGEBOT_USA``) diese Menge an Material deckt, ist eine eigene
+    Entscheidung -- siehe die Uebergabe zur Testbot-Karte."""
+    profil = profil or aktiv()
+    return bool(profil.wert("modellwahl.vollmaterial_phase5", False))
+
+
+def phasen_summary_aktiv(profil: Profil | None = None) -> bool:
+    """Ob beim Phasenwechsel ein automatisiertes Summary der verlassenen
+    Phase entsteht (``interview_theater/phasen_summary.py``) und dieses
+    Summary in den Prompts der Folgephasen den Rohdump derselben Phase
+    ersetzt (Karte t_1bc96848, Birk: "Nicht den kompletten Verlauf
+    reindumpen, das verwirrt").
+
+    Vorgabe false -- Dortmund und das eingebaute Profil bleiben byte-gleich."""
+    profil = profil or aktiv()
+    return bool(profil.wert("phasen_summary.aktiv", False))
+
+
 def autosave_phase1_2_aktiv(profil: Profil | None = None) -> bool:
     """Ob Phase 1 (Begriffe) und Phase 2 (Eroeffnung) einen Vorschlag sofort
     speichern statt der Ja/Nein-Rueckfrage "Ja, speichern" / "Nein, nochmal
@@ -1091,3 +1315,20 @@ def autosave_phase1_2_aktiv(profil: Profil | None = None) -> bool:
     nicht und bleibt unberuehrt."""
     profil = profil or aktiv()
     return bool(profil.wert("speichern.autosave_phase1_2", False))
+
+
+def wiederkehr_aktiv(profil: Profil | None = None) -> bool:
+    """Ob der Bot nach einem Neustart jeder ruhenden Gruppe die
+    Wiederkehr-Zeile mit Einstiegsknoepfen schickt (``bot.sende_wiederkehr_
+    begruessungen``). Vorgabe true -- Dortmund unveraendert. Padua false
+    (Birk 08.10.2026: Knoepfe in Phase 5 falsch, nach jedem Deploy doppelt)."""
+    profil = profil or aktiv()
+    return bool(profil.wert("bot.wiederkehr", True))
+
+
+def erkenner_ueber_claude_aktiv(profil: Profil | None = None) -> bool:
+    """Absichtserkenner ueber Claude/Opus statt gemma (Padua, Birk 08.10.2026).
+    Vorgabe false -- Dortmund unveraendert. Transkripte bleiben ausgenommen
+    (``erkenner.erkenne_in_aufnahme``), Phase 3 ebenso."""
+    profil = profil or aktiv()
+    return bool(profil.wert("erkenner.ueber_claude", False))

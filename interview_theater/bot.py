@@ -11,6 +11,7 @@ als ``zug`` durch.
 """
 
 import logging
+import os
 import re
 import sqlite3
 import threading
@@ -42,12 +43,16 @@ NACHTSTAU_MINUTEN = 15
 #: Hinweis, dass er wieder da ist, ohne die volle Erstkontakt-Begruessung zu
 #: wiederholen.
 #:
-#: 30 Minuten seit dem 06.09.2026 (Birk, nach der Testgruppe): mit zwei
-#: Stunden schickte der Bot die Zeile am Testabend zweimal in eine Gruppe,
-#: die laengst weiterarbeitete -- und beide Male wortgleich. Eine halbe
-#: Stunde ist die Pause, nach der eine Gruppe tatsaechlich nicht mehr weiss,
-#: ob der Bot noch zuhoert; alles darunter ist eine Unterbrechung.
-PAUSE_GRENZE_MINUTEN = 30
+#: 240 Minuten (4 Stunden) seit dem 06.10.2026 (Birk, nach dem Journal-Befund
+#: aus dem Padua-Dauerbetrieb): im Dauerbetrieb eines mehrtaegigen Workshops
+#: starten Hotfix-Rollouts den Bot alle 25-90 Minuten neu (gemessener
+#: kuerzester Abstand: 25 Min) -- ganz ohne Absturz, einfach geplante
+#: `systemctl restart`. Mit der fruehren 30-Minuten-Schwelle (06.09.2026,
+#: Testgruppe) loeste praktisch jeder dieser Neustarts die Wiederkehr-Zeile
+#: in einer Gruppe aus, die laengst weiterarbeitete. Vier Stunden liegen klar
+#: ueber jedem gemessenen Neustart-Abstand und klar unter einer echten
+#: Werkstattpause (eine Nacht dauert typischerweise 8+ Stunden).
+PAUSE_GRENZE_MINUTEN = 240
 
 
 def ist_nachtstau(gesendet_am: str, jetzt: datetime) -> bool:
@@ -361,7 +366,14 @@ def sende_wiederkehr_begruessungen(conn, tg, e, jetzt) -> None:
     zurueck in die Arbeit ist ein Druck, nicht ein Befehl, den sich jemand
     ueber Nacht merken musste."""
     from interview_theater import knoepfe  # spaeter Import, haelt den Modulkopf frei
+    from interview_theater import workshop
 
+    # Padua (Birk 08.10.2026): jeder Neustart (Autodeploy!) haengte eine
+    # "I'm back"-Zeile mit Einstiegsknoepfen ("Record another interview",
+    # "Where we are", ...) in den Chat -- in Phase 5-7 falsch, und nach zwei
+    # Deploys stand alles doppelt da. Profilschalter, Vorgabe an.
+    if not workshop.wiederkehr_aktiv():
+        return
     for gruppe in repo.gruppen_fuer_bot(conn, e.bot_name):
         try:
             letzte = repo.letzte_nachricht_zeit(conn, gruppe["chat_id"])
@@ -379,6 +391,33 @@ def sende_wiederkehr_begruessungen(conn, tg, e, jetzt) -> None:
             log.exception(
                 "Wiederkehr-Begruessung fehlgeschlagen, chat_id=%s", gruppe["chat_id"],
             )
+
+
+def _setze_stagescript_fort(conn, tg, klm, e) -> None:
+    from interview_theater import phasen, stagescript, workshop
+
+    if not workshop.szenenkarten_aktiv():
+        return
+    # Ein Prozess bedient genau eine Gruppe (IT_WEB_CHAT_ID) -- nie die
+    # Nachbargruppen in derselben DB anstossen.
+    roh = (os.environ.get("IT_WEB_CHAT_ID") or "").strip()
+    if not roh:
+        return
+    for chat_id in (int(roh),):
+        try:
+            if phasen.aktuelle(conn, chat_id) != 7 or stagescript.laeuft(chat_id):
+                continue
+            nummer = stagescript.aktuelle_nummer(conn, chat_id)
+            if nummer is None:
+                continue
+            stagescript.spiegle_fehlende(conn, klm, e, chat_id)
+            szene = stagescript._szene_mit_nummer(conn, chat_id, nummer)
+            if szene is None or (szene["volltext"] or "").strip() or not szene["karte"]:
+                continue
+            log.info("Stage Script fortgesetzt nach Neustart: chat_id=%s, Szene %s", chat_id, nummer)
+            stagescript.starte(conn, tg, klm, e, chat_id, nummer)
+        except Exception:
+            log.exception("Fortsetzung fuer chat_id=%s fehlgeschlagen", chat_id)
 
 
 def warmlaufen(klm, conn, e) -> None:
@@ -461,7 +500,14 @@ def _nachhol_schleife(stop: threading.Event, conn, e: Einstellungen, tg, klm, st
     """Ruft aufnahme.nachholen() beim Start und danach alle
     aufnahme.NACHHOL_INTERVALL_S Sekunden auf (§ 10.3). Laeuft in einem
     eigenen Daemon-Thread; eine Ausnahme darf ihn nie stoppen (global-
-    constraints.md 'Fehlerhaltung')."""
+    constraints.md 'Fehlerhaltung').
+
+    Im selben Takt: ``_erkenner_nachholen`` (Birk, Nachtlauf 07.10.2026,
+    web_post 1808-1811) -- ein gescheiterter Absichtserkenner-Lauf laesst
+    das Wasserzeichen stehen (erkenner.erkenne), aber nur eine NEUE
+    Nachricht stoesst bisher einen weiteren Lauf an. Bleibt die Gruppe nach
+    einem Fehlschlag (z. B. Infomaniak-ReadTimeout) stumm, war der Zug sonst
+    fuer immer verloren."""
     while not stop.is_set():
         try:
             # Aufgabe 10: zug wird durchgereicht, aber aufnahme._kurz_abschliessen
@@ -472,7 +518,35 @@ def _nachhol_schleife(stop: threading.Event, conn, e: Einstellungen, tg, klm, st
             aufnahme.nachholen(conn, tg, klm, e, stt_klient, zug=_zug_und_erkenner)
         except Exception:
             log.exception("Nachholen fehlgeschlagen")
+        try:
+            _erkenner_nachholen(conn, tg, klm, e)
+        except Exception:
+            log.exception("Erkenner-Nachholen fehlgeschlagen")
         stop.wait(aufnahme.NACHHOL_INTERVALL_S)
+
+
+def _erkenner_nachholen(conn, tg, klm, e: Einstellungen) -> None:
+    """Holt einen Absichtserkenner-Lauf nach, der zuvor gescheitert ist und
+    seitdem nie wieder angestossen wurde, weil kein neuer Gespraechszug mehr
+    folgte (Birk, Nachtlauf 07.10.2026: web_post 1808-1811 -- drei im Chat
+    beschriebene und bestaetigte Szenen, nie gespeichert, weil gemma
+    zweimal in Folge einen ReadTimeout warf, und die Gruppe danach
+    verstummte). ``erkenner.laufe`` ruehrt bei leerem ``unextrahierte``
+    nichts an (kein Modellaufruf) -- ein Durchlauf ohne Rueckstand kostet
+    also nichts, nur ein wirklich offener Rueckstand wird erneut versucht.
+
+    Nur die Gruppen dieses Bot-Prozesses (``repo.gruppen_fuer_bot``,
+    dasselbe Muster wie ``aufnahme.nachholen``); eine Ausnahme einer Gruppe
+    darf die anderen nie mitreissen -- ``erkenner.laufe`` faengt zwar schon
+    selbst jede Ausnahme ab, aber dieser Schutz bleibt bestehen, falls sich
+    das je aendert."""
+    for gruppe in repo.gruppen_fuer_bot(conn, e.bot_name):
+        try:
+            erkenner.laufe(klm, tg, conn, e, gruppe["chat_id"])
+        except Exception:
+            log.exception(
+                "Erkenner-Nachholen fehlgeschlagen, chat_id=%s", gruppe["chat_id"],
+            )
 
 
 def _uebersetzungs_schleife(stop: threading.Event, conn, e: Einstellungen, klm) -> None:
@@ -675,6 +749,15 @@ def main() -> None:
         sende_wiederkehr_begruessungen(conn, tg, e, datetime.now(timezone.utc))
     except Exception:
         log.exception("Wiederkehr-Begruessungen fehlgeschlagen")
+
+    # Birk 08.10.2026 ~11:55: ein Neustart (Deploy) mitten im Stage-Script-
+    # Lauf liess die Gruppe bei "Sto scrivendo ..." haengen -- der Thread war
+    # weg, nichts lief weiter. Beim Start: steht eine Gruppe in Phase 7 und
+    # hat die aktuelle Szene noch keinen Text, wird sie neu angestossen.
+    try:
+        _setze_stagescript_fort(conn, tg, klm, e)
+    except Exception:
+        log.exception("Stage-Script-Fortsetzung beim Start fehlgeschlagen")
 
     pool = ThreadPoolExecutor(max_workers=POOL_GROESSE)
     stop = threading.Event()

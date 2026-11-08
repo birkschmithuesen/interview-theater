@@ -31,7 +31,16 @@ from interview_theater import db
 #: Interviewmodus haben eigene Knoepfe und eine eigene Nachfrage), ``journal``
 #: ebenfalls: es ist nur-anhaengend, die Zeilen des Laufs bleiben stehen und
 #: die Ruecknahme haengt eine neue an (AGENTS.md).
-VERFOLGT = ("arbeitsstand", "figur", "szene", "szene_figur", "festlegung")
+#:
+#: ``veraltet`` ist seit Review 13 dabei: ``stueck.setze_ort``/``setze_besetzung``
+#: (Erkenner-Art ``szene_planen``) legen bei einer Szene mit Volltext eine
+#: Marke "Szene passt nicht mehr -- neu schreiben?" an. Die Ruecknahme nimmt sie
+#: mit (``HART``: eine im Lauf angelegte Marke wird geloescht, eine ergaenzte
+#: bekommt ihren alten Grund zurueck) -- sonst bliebe nach dem Undo ein falsches
+#: Angebot stehen. Anders als ``journal`` ist die Marke kein Inhalt, sondern
+#: abgeleiteter Merkposten; das Protokoll dazu (``stueck_aenderung``) bleibt
+#: nur-anhaengend stehen.
+VERFOLGT = ("arbeitsstand", "figur", "szene", "szene_figur", "festlegung", "veraltet")
 
 #: Nur bei einem ``transkript_korrigieren`` im Lauf -- und dann nur diese
 #: Spalten, nicht die ganzen Zeilen. Zwei Gruende, beide am Code gemessen:
@@ -57,6 +66,7 @@ SCHLUESSEL = {
     "szene": ("id",),
     "szene_figur": ("szene_id", "figur_id"),
     "festlegung": ("id",),
+    "veraltet": ("id",),
     "aufnahme": ("id",),
     "verdichtung": ("id",),
     "verdichtung_thema": ("id",),
@@ -92,6 +102,11 @@ AUSSEN = {
     }),
     "szene_figur": frozenset(),
     "festlegung": frozenset({"id", "erstellt_am"}),
+    # ``angeboten_am``: das Angebot kommt gleich nach der Aenderung, also vor
+    # dem Undo -- verglichen, liesse es jede Ruecknahme als "seitdem geaendert"
+    # scheitern. Die Entscheidung der Gruppe (``erledigt_am``/``entscheidung``)
+    # bleibt im Vergleich: wurde schon neu geschrieben, geht der Undo nicht.
+    "veraltet": frozenset({"id", "angeboten_am"}),
 }
 
 #: Tabellen mit ``entfernt_am``: eine im Lauf ENTSTANDENE Zeile wird weich
@@ -100,7 +115,7 @@ WEICH = ("figur", "szene", "festlegung")
 
 #: Reine Verknuepfungszeilen ohne ``entfernt_am``: die im Lauf entstandene
 #: wird geloescht -- genau das tut ``repo.setze_szene_figuren`` heute schon.
-HART = ("szene_figur",)
+HART = ("szene_figur", "veraltet")
 
 #: Genau eine Zeile je Gruppe und kein ``entfernt_am``: eine im Lauf
 #: entstandene Zeile wird GELEERT statt geloescht. Jeder Leser prueft

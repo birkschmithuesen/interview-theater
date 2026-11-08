@@ -1,0 +1,137 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "03-kurzgeschichte-phase6",
+    "zeile": 377,
+    "zitat": "About 750 words in total.",
+    "regel": "Zeile 384 derselben Datei: \"The group says about it: Shorten the story by about 25 percent. Keep the sections with their titles and in their order, and shorten within the sections -- same events, same ending, nothing new added.\" -- die Vorlage in Zeile 361-371 hat zusammen rund 100 Woerter.",
+    "vorschlag": "Bei art=kurzgeschichte mit vorlage=True die Laengenziele aus der Vorlage rechnen (Woerter der Vorlage x 0,75 pro Abschnitt) und Zeile 374-377 damit fuellen; den Default 'About 750 words in total.' nur ohne Vorlage einsetzen, sonst wird aus 'kuerzer' eine Versiebenfachung.",
+    "phase": 6
+  },
+  {
+    "kategorie": "b",
+    "datei": "02-gespraech-phase6",
+    "zeile": 98,
+    "zitat": "**The app the group uses.** They work in a browser with three tabs: Chat",
+    "regel": "Zeile 486: \"1. **First the whole.** The group reads the whole story in the Script tab\" (ebenso 492, 547, 564) -- ein Script-Tab, den die Tab-Liste nicht kennt.",
+    "vorschlag": "Zeile 98-100 auf vier Tabs erweitern: Chat, Workbench, CoThinker, Script (wo der geschriebene Text steht) -- oder in Phase 6 konsequent 'Script tab' streichen und 'Workbench' nennen. Eins von beiden, nicht beides.",
+    "phase": 6
+  },
+  {
+    "kategorie": "b",
+    "datei": "02-gespraech-phase6",
+    "zeile": 609,
+    "zitat": "These characters are still missing the interview they speak from: Samir, Elena, Tommaso.",
+    "regel": "Zeile 481-482: \"checked quote that the group has taken on. You deliberately don't see the full transcripts and the\" / \"other summaries\" -- und Zeile 609 verlangt \"interview names from the summaries\".",
+    "vorschlag": "Diesen Hinweisblock in Phase 6 gar nicht in den Nutzertext bauen (er gehoert in Phase 4/5, wo die Zusammenfassungen im Kontext liegen). Alternativ die Interviewnamen mitgeben; ohne Namen ist die Anweisung nicht ausfuehrbar.",
+    "phase": 6
+  },
+  {
+    "kategorie": "b",
+    "datei": "25-kurzgeschichte",
+    "zeile": 360,
+    "zitat": "- Section 1 (dialog): about 250 words",
+    "regel": "02-gespraech-phase6 Zeile 505: \"- **No forms in this phase.** The form of each scene (Dialogue, Monologue, Chorus, Song, Rap) is\" (chosen in the Stage Version)",
+    "vorschlag": "Den Formmarker '(dialog)' aus den Laengenzeilen in Phase 6 entfernen (nur '- Section 1: about 250 words'), damit der Prosalauf keine Dialogform vorwegnimmt.",
+    "phase": 6
+  },
+  {
+    "kategorie": "b",
+    "datei": "02-gespraech-phase6",
+    "zeile": 424,
+    "zitat": "so in ONE sentence and point to the button \"View scene N\" or",
+    "regel": "Zeile 564: \"wording of a scene, you say so in ONE sentence and point to the Script tab --\"",
+    "vorschlag": "In Zeile 424-425 die Buttonnamen \"View scene N\" / \"Script as a file\" loeschen und ebenfalls auf den Script-Tab verweisen, damit der Bot in Phase 6 nur einen Weg nennt.",
+    "phase": 6
+  },
+  {
+    "kategorie": "a",
+    "datei": "04-szene-prosa-phase6",
+    "zeile": 311,
+    "zitat": "Main conflict: Samir has to let his cousin see him waiting, unsure, not in control.",
+    "regel": "UX-Regel 1: \"Content comes from the participants.\" / \"Bot proposals are never saved as decisions.\" -- im Arbeitsstand von 02-gespraech-phase6 (Zeile 582-598) steht kein Hauptkonflikt; 02 Zeile 71-74 sagt zudem \"There doesn't always have to be a conflict.\"",
+    "vorschlag": "Die Zeile 'Main conflict: ...' nur ausgeben, wenn der Konflikt im Arbeitsstand gespeichert ist; sonst weglassen (und in 38-dramaturgie-a9 Zeile 104 entsprechend die Frage ueberspringen), statt einen vom Bot erfundenen Konflikt als bindend zu uebergeben.",
+    "phase": 6
+  },
+  {
+    "kategorie": "b",
+    "datei": "04-szene-prosa-phase6",
+    "zeile": 305,
+    "zitat": "Task of this scene (it is the FIRST -- exposition): When it's over, the audience knows without explanation (1) who the characters are, (2) how they relate to each other",
+    "regel": "Zeile 351: \"Who: Samir\" -- in der Szene steht genau eine Figur",
+    "vorschlag": "Punkt (2) 'how they relate to each other' nur in den Auftrag schreiben, wenn 'Who:' mehr als eine Figur nennt; bei einer Figur die Aufgabe auf (1), (3), (4) kuerzen.",
+    "phase": 6
+  },
+  {
+    "kategorie": "a",
+    "datei": "02-gespraech-phase6",
+    "zeile": 491,
+    "zitat": "2. **Then scene by scene.** Once the group has saved the whole with \"Yes,",
+    "regel": "UX-Regel 2: \"Creative work has no fixed order.\" / \"Requirements are a one-line yes/no hint, not a lock.\"",
+    "vorschlag": "Die Bedingung streichen und schreiben: 'Feedback auf eine einzelne Szene ist jederzeit ein Auftrag fuer diese Szene, auch bevor das Ganze gespeichert ist.' Die Reihenfolge ganz-dann-einzeln bleibt als Empfehlung, nicht als Tor.",
+    "phase": 6
+  },
+  {
+    "kategorie": "b",
+    "datei": "25-kurzgeschichte",
+    "zeile": 365,
+    "zitat": "The lengths differ on purpose. Sections of equal length take the rhythm out of the play.",
+    "regel": "Zeile 360-362 derselben Datei: \"- Section 1 (dialog): about 250 words\" / \"- Section 2 (dialog): about 250 words\" / \"- Section 3 (dialog): about 250 words\" -- alle drei Abschnitte sind gleich lang angesetzt",
+    "vorschlag": "Zeile 365 nur ausgeben, wenn die berechneten Laengen tatsaechlich voneinander abweichen; bei gleichen Werten die Zeile weglassen -- oder die Laengen wirklich spreizen (z.B. 200/250/300 Woerter).",
+    "phase": 6
+  },
+  {
+    "kategorie": "b",
+    "datei": "40-dramaturgie-a11",
+    "zeile": 35,
+    "zitat": "**Be especially careful with the format.** \"One episode, open ending\" is",
+    "regel": "Nutzerteil Zeile 112: \"The group has set for the whole play:\" nennt nur 'rahmen' und 'geschichte'; die gespeicherte Absprache \"- [form] One episode, the first of a series - not a closed play.\" (02-gespraech-phase6 Zeile 593) fehlt im Brief",
+    "vorschlag": "Im Nutzerteil nach Zeile 112 die Formabsprache als eigene Zeile mitgeben: '- Format (format): One episode, the first of a series - not a closed play.' -- sonst prueft der Richter ein Kriterium, das er nicht sieht, und das Feld 'format' in VORSCHLAG ist nicht belegbar.",
+    "phase": 6
+  },
+  {
+    "kategorie": "d",
+    "datei": "02-gespraech-phase6",
+    "zeile": 616,
+    "zitat": "You: Then you see the CoThinker tab. Nothing is lost if you close it.",
+    "regel": "UX-Regel 4: \"Chat per phase (planned). The chat should start empty in each phase\" -- die Historie beginnt mit dem Onboarding-Smalltalk aus Phase 1 (Zeilen 616-625), das eigentliche Phase-6-Feedback steht erst ab Zeile 626",
+    "vorschlag": "Die Historie beim Phaseneintritt schneiden: erst ab 'You: Here is your story in three sections.' (Zeile 626) mitgeben, Zeilen 616-625 ganz weglassen. Dann steht das Rewrite-Feedback nicht als Nachtrag unter zehn Zeilen Tab-Erklaerung.",
+    "phase": 6
+  },
+  {
+    "kategorie": "d",
+    "datei": "02-gespraech-phase6",
+    "zeile": 604,
+    "zitat": "What the group said while you listened in (discussion/brainstorm, oldest first, very old parts may be missing):",
+    "regel": "Dasselbe Begriffsmaterial steht im Kontext vierfach: 'Why you chose these terms:' (Zeile 596), 'The CoThinker board' (Zeile 600), dieser Mitschnitt (604-607) und 'Journal: - [decided] Term 'waiting' carries two meanings' (Zeile 612)",
+    "vorschlag": "In Phase 6 den Mitschnitt und das CoThinker-Board (Zeilen 600-607) aus dem Nutzertext entfernen; Begriffsmaterial nur noch als 'Terms' im Arbeitsstand und als Journalzeile fuehren.",
+    "phase": 6
+  },
+  {
+    "kategorie": "d",
+    "datei": "02-gespraech-phase6",
+    "zeile": 588,
+    "zitat": "Scene 1: The bench - Samir waits and rehearses his order.",
+    "regel": "Systemteil Zeile 493: \"Tab. Always say where the group stands: \"scene 2 of 4\".\" -- der Arbeitsstand sagt nirgends, welche Szene schon ueberarbeitet und gespeichert ist",
+    "vorschlag": "Pro Szene den Stand anhaengen ('Scene 1: The bench -- rewritten, saved' / '-- open') und darueber eine Zeile 'Rewritten and saved: 0 of 3 scenes'. Dann kann der Bot die verlangte Standortangabe ueberhaupt stimmig machen.",
+    "phase": 6
+  },
+  {
+    "kategorie": "d",
+    "datei": "04-szene-prosa-phase6",
+    "zeile": 327,
+    "zitat": "You: Then you see the CoThinker tab. Nothing is lost if you close it.",
+    "regel": "Zeile 325: \"The chat below is the group's fresh intention. If it contradicts the saved details, the chat wins\" -- als 'frische Absicht' stehen zuerst neun Onboarding-Zeilen zu Tabs, Sprache und Workshopdauer",
+    "vorschlag": "Im Szenen-Auftrag nur die Turns ab 'You: Here is your story in three sections.' (Zeile 337) mitgeben, Zeilen 327-336 weglassen; zusaetzlich die Feedbackzeilen zu Teil 2/3 kennzeichnen, damit der Lauf fuer Szene 1 sie nicht als Auftrag liest.",
+    "phase": 6
+  },
+  {
+    "kategorie": "d",
+    "datei": "43-prueflauf-ueberarbeitung",
+    "zeile": 384,
+    "zitat": "The group says about it: - Szene None: Make the causal chain between scenes clearer.",
+    "regel": "Der Text ist die Auftragsliste der Judge-Fragen (Kopfzeile 3: \"der Regie-Text ist die Auftragsliste der Judge-Fragen\"), nicht eine Aussage der Gruppe; 'Szene None' ist ein leeres Platzhalterfeld",
+    "vorschlag": "Label aendern in 'The dramaturgy check asks for:' und die Szenennummer einsetzen bzw. bei fehlender Nummer den Praefix 'Szene None:' weglassen -- sonst schreibt der Lauf der Gruppe eine Anweisung zu, die sie nie gegeben hat.",
+    "phase": 6
+  }
+]

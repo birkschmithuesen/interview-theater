@@ -1514,6 +1514,13 @@ ul.auswahl > li[data-zustand="ja"] .auswahl-text { font-weight: 600; }
                   cursor: pointer; background: var(--signal); color: var(--auf-signal);
                   border: 0; border-radius: var(--radius); padding: .5rem 1rem; }
 .auswahl-fertig:disabled { opacity: .6; }
+.schaerfung-titel { display: block; font-family: var(--schrift-skript); font-weight: 700; }
+.schaerfung-zitat { margin: .3rem 0; padding: 0 0 0 .6rem; border-left: 2px solid var(--linie);
+                    font-style: italic; color: var(--text); }
+.schaerfung-erklaerung { margin: 0 0 .5rem; color: var(--text-leise); font-size: .9em; }
+.schaerfung-verbindung { margin: 0 0 .2rem; font-weight: 700; }
+.schaerfung-quelle { display: block; color: var(--text-leise); font-size: .8em; }
+.schaerfung-begruendung { margin: .2rem 0 0; color: var(--text-leise); font-size: .9em; }
 """
 #: Die read-only Werkbank (Padua, 03.10.2026, Birk: "Anstatt roter und gruener
 #: LEDs passendere Farben im Design. Dezenter, aber trotzdem klar."). Drei
@@ -1545,6 +1552,20 @@ ul.wb-zeilen { list-style: none; padding-left: 0; margin: .1rem 0 .6rem; }
 .wb-inhalt { padding: 0 0 .8rem 1.4rem; }
 dl.wb-begriffe dd { margin: 0 0 .3rem; }
 details.wb-journal { margin-top: 1.5rem; font-size: .9em; color: var(--text-leise); }
+details.wb-bedarf { border-bottom: 1px solid var(--linie); padding: .1rem 0 .8rem; margin-bottom: .6rem; }
+details.wb-bedarf > summary { display: flex; align-items: center; gap: .6rem;
+                              min-height: var(--tippflaeche); list-style: none;
+                              cursor: pointer; font-family: var(--schrift-skript);
+                              font-weight: 700; color: var(--text); }
+details.wb-bedarf > summary::-webkit-details-marker { display: none; }
+.wb-bedarf-zahl { margin-left: auto; color: var(--text-leise);
+                  font-family: var(--schrift-tech); font-size: .8rem; font-weight: 400; }
+.wb-bedarf-sektion h3 { font-size: .85rem; color: var(--text-leise); margin: .6rem 0 .2rem; }
+ul.wb-bedarf-liste { list-style: none; padding-left: 0; margin: 0 0 .3rem; }
+.wb-bedarf-punkt { padding: .15rem 0; }
+.wb-bedarf-punkt label { display: flex; align-items: baseline; gap: .5rem; cursor: pointer; }
+.wb-bedarf-erledigt label { color: var(--text-leise); text-decoration: line-through; }
+.wb-bedarf-datei { margin-left: .4rem; color: var(--signal); text-decoration: none; }
 """
 #: Der Padua-Stepper (BINDING ADDITION, Birk 03.10.2026 23:10): sieben
 #: nummerierte Segmente, Pfeile links/rechts der aktiven Phase, ein

@@ -21,9 +21,21 @@ from interview_theater import (
     knoepfe, phasen, prueflauf, repo, sprechweise, stueckpruefung, szene,
     ueberarbeitung, workshop,
 )
+from tests.stueck_hilfe import setze_feld
 from interview_theater.dramaturgie import fanout
 from test_dramaturgie_schleife import Rundenrichter
 from test_knoepfe import TelegramAttrappe, _druck
+
+
+@pytest.fixture(autouse=True)
+def _ohne_karten(monkeypatch):
+    """Diese Tests pruefen den Padua-Weg mit Formlauf in Phase 7 -- seit dem
+    Phasenumbau (Birk 07.10.2026 ~18:12) das Verhalten OHNE
+    ``[karten] aktiv``; das Stage Script steht in ``tests/test_stagescript.py``."""
+    from interview_theater import workshop as _workshop
+
+    monkeypatch.setattr(_workshop, "szenenkarten_aktiv", lambda *a, **k: False)
+
 
 
 class Schreiber:
@@ -106,7 +118,7 @@ def _stueck(conn, szenen=(1, 2, 3)):
     for nummer in szenen:
         sid = repo.stelle_szene_sicher(conn, 1, nummer)
         for feld, wert in (("ort", "Steg"), ("was_passiert", "Sie treffen sich.")):
-            repo.setze_szenenfeld(conn, sid, feld, wert)
+            setze_feld(conn, sid, feld, wert)
         repo.setze_szene_figuren(conn, 1, sid, ids)
         repo.aktualisiere_szene(
             conn, sid, f"Teil {nummer}", None, None,

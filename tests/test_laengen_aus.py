@@ -10,11 +10,22 @@ import pytest
 from interview_theater import (
     kurzgeschichte, laengen, nachpass, phasen, repo, szene, workshop,
 )
+from tests.stueck_hilfe import setze_feld
 
 from test_knoepfe import TelegramAttrappe
 from test_nachpass import (  # noqa: F401  (Fixtures: szene7 braucht padua)
     LLMAttrappe, LANG, KURZ, _vorfallarten, padua, szene7,
 )
+
+
+@pytest.fixture(autouse=True)
+def _ohne_karten(monkeypatch):
+    """Diese Tests pruefen den Padua-Weg mit Formlauf in Phase 7 -- seit dem
+    Phasenumbau (Birk 07.10.2026 ~18:12) das Verhalten OHNE
+    ``[karten] aktiv``; das Stage Script steht in ``tests/test_stagescript.py``."""
+    from interview_theater import workshop as _workshop
+
+    monkeypatch.setattr(_workshop, "szenenkarten_aktiv", lambda *a, **k: False)
 
 
 @pytest.fixture
@@ -43,7 +54,7 @@ def szene7_dortmund(conn, ohne_profil):
     szene_id = repo.stelle_szene_sicher(conn, 1, 1)
     for feld, wert in (("form", "dialog"), ("ort", "Steg"),
                        ("was_passiert", "Sie treffen sich.")):
-        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+        setze_feld(conn, szene_id, feld, wert)
     repo.setze_szene_figuren(conn, 1, szene_id, [figur_id])
     phasen.setze(conn, 1, 7, "test")
     return conn

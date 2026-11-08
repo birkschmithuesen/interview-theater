@@ -381,6 +381,11 @@ class WebKanal:
                 # additive Durchreiche wie ``rede_ms``, aus der gleichnamigen
                 # web_post-Spalte.
                 "weich_ms": zeile["weich_ms"],
+                # hintergrundMs (Karte t_1423ca89, Warnung "Aufnahme im
+                # Hintergrund unterbrochen"): dieselbe additive Durchreiche
+                # wie ``rede_ms``/``weich_ms``, aus der gleichnamigen
+                # web_post-Spalte.
+                "hintergrund_ms": zeile["hintergrund_ms"],
             }
         else:
             nachricht["text"] = zeile["text"] or ""

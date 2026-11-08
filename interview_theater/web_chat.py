@@ -105,6 +105,18 @@ _EVENT_ATTR = re.compile(
 #: vor der Maskierung, damit das Schema selbst nicht als Text sichtbar bleibt.
 _DANGEROUS_SCHEME = re.compile(r"\b(javascript|data|vbscript):", re.IGNORECASE)
 
+#: Leichtes Markdown freier Modellantworten (Karte t_cc147548, 07.10.2026):
+#: dieselbe sichere Teilmenge wie ``web._buehne_markdown``/
+#: ``telegram.leichtes_markdown`` -- bewusst hier noch einmal definiert statt
+#: importiert, web_chat.py ist bewusst ein eigenes Modul ohne web.py-Importe
+#: (Moduldocstring oben). Angewendet auf die schon mit ``html.escape``
+#: maskierte Zeile in ``sichere_html``, Fett vor Kursiv wie dort. Keine
+#: Listen-Tags: ``<ul>``/``<li>`` stehen nicht in ``ERLAUBTE_TAGS`` (wie
+#: Telegrams HTML-Modus auch keine Listen kennt) -- eine Aufzaehlungszeile
+#: ("- "/"• ") bleibt Klartext, der Zeilenumbruch danach reicht.
+_LEICHT_FETT = re.compile(r"\*\*([^*]+)\*\*")
+_LEICHT_KURSIV = re.compile(r"\*([^*]+)\*")
+
 
 def sichere_html(text) -> str:
     """Telegram-HTML als sicheres HTML fuer die Chatansicht.
@@ -122,11 +134,18 @@ def sichere_html(text) -> str:
     es im Text kein einziges ``<`` mehr, und Schritt 2 kann nur das
     erzeugen, was er ausdruecklich erlaubt. Ein Filter, der stattdessen
     ``<script>`` entfernt, ist eine Liste von Dingen, an die jemand gedacht
-    hat."""
+    hat.
+
+    (1b) direkt danach: leichtes Markdown (``**fett**``/``*kursiv*``) einer
+    freien Modellantwort wird zu ``<b>``/``<i>`` -- auf der schon maskierten
+    Zeile, deshalb sicher (ein woertliches ``**<script>**`` im Modelltext
+    bleibt escaped, nur die Sternchen werden zu Tags)."""
     roh = html.unescape(text or "")
     roh = _EVENT_ATTR.sub("", roh)
     roh = _DANGEROUS_SCHEME.sub("", roh)
     maskiert = html.escape(roh, quote=True)
+    maskiert = _LEICHT_FETT.sub(r"<b>\1</b>", maskiert)
+    maskiert = _LEICHT_KURSIV.sub(r"<i>\1</i>", maskiert)
     mit_tags = _TAGS.sub(lambda t: f"<{t.group(1)}{t.group(2).lower()}>", maskiert)
     mit_links = _LINK.sub(
         lambda t: (
@@ -233,6 +252,10 @@ _TEXT_INTERVIEW_STARTET = "● Mikrofon kommt … · {zeit}"
 #: eigene Brainstorm-Toggle (t_cf87ee0a, eigene DE-Textkonstanten) ist
 #: damit abgeloest, siehe ``mithoeren_ziel``/``sitzung.ziel`` weiter unten.
 _TEXT_DISKUSSION_AN = "Zuhoeren starten"
+#: Kanban t_d22af9b2 (06.10.2026): eigener Knopftext NUR fuer Phase 4 --
+#: dort hoert der Bot als CoThinker mit, waehrend Phase 1
+#: (Begriffsboard-Diskussion) ``_TEXT_DISKUSSION_AN`` unveraendert behaelt.
+_TEXT_DISKUSSION_AN_COTHINKER = "Zuhören für CoThinker starten"
 _TEXT_DISKUSSION_LAEUFT = "Hoert zu ({zeit})"
 _TEXT_DISKUSSION_FERTIG_KNOPF = "Diskussion fertig"
 #: Abnahme P3-4 A3 (06.10.2026): ein verwaistes/fremdes Interview (Server
@@ -288,7 +311,16 @@ _CSS_CHAT = """
    wird). ``body`` wird auf der vereinten Seite beim Scopen zur Scope-
    Klasse selbst (``web_vereint.scope_css``), die Sperre bleibt also auf
    den Chat beschraenkt. */
-body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
+/* Karte t_d86971eb: ``--fuss-hoehe`` haelt das Bodenpolster synchron mit der
+   GEMESSENEN Hoehe von ``.fuss`` (``_js()``, ``passeFussAn``) -- seit das
+   Eingabefeld mehrzeilig nach oben waechst, waere ein fester Wert entweder
+   zu knapp (eine gewachsene Zeile deckt die juengste Nachricht ab) oder zu
+   grosszuegig geraten. Der Fallback ``9rem`` bleibt fuer den Moment vor dem
+   ersten Skriptlauf und fuer die vereinte Seite stehen, wo ``.fuss`` ueber
+   ``web_vereint._css_schale`` ohnehin ein gewoehnliches Flex-Kind wird und
+   die Variable nie liest. */
+body { background: #fbfaf8; color: #17181b;
+       padding: .6rem .7rem var(--fuss-hoehe, 9rem);
        max-width: 44rem; margin: 0 auto; touch-action: pan-x pan-y; }
 .verlauf { display: flex; flex-direction: column; gap: .55rem; }
 .blase { padding: .55rem .7rem; border-radius: .8rem; max-width: 88%;
@@ -328,13 +360,23 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
              color: #8b8f97; text-decoration: underline; cursor: pointer; }
 .undo-mini:disabled { opacity: .45; }
 .quittung { font-size: .82rem; opacity: .7; align-self: flex-start; }
-.tippt { font-size: .85rem; opacity: .6; height: 1.2em; }
+.tippt { font-size: .85rem; opacity: .75; min-height: 1.2em; }
+.tippt:not(:empty)::before { content: ""; display: inline-block; width: .7em; height: .7em; margin-right: .45em; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent; vertical-align: -.1em; animation: tippt-dreh .8s linear infinite; }
+@keyframes tippt-dreh { to { transform: rotate(360deg); } }
 .fuss { position: fixed; left: 0; right: 0; bottom: 0; background: #fbfaf8;
         border-top: 1px solid #e0ddd6; padding: .5rem .7rem .8rem;
         display: flex; flex-direction: column; gap: .5rem; }
 .zeile { display: flex; gap: .4rem; align-items: stretch; }
-.zeile input { flex: 1; font: inherit; padding: .6rem .7rem; min-height: 2.9rem;
-               border-radius: .7rem; border: 1px solid #c9c4b8; }
+/* Karte t_d86971eb: ``max-height``/``overflow-y`` sind die Obergrenze --
+   ``_js()`` (``passeFussAn``) setzt nur die tatsaechliche Inhaltshoehe
+   (``scrollHeight``) als Inline-Hoehe, der Browser deckelt sie hier UND
+   blendet ab dann selbst einen internen Scrollbalken ein, ganz ohne eigene
+   JS-Rechnung dafuer. ``resize: none``, weil ein von Hand gezogener Griff
+   mit dem Autogrow-Takt bei jedem Tastendruck kollidieren wuerde. */
+.zeile textarea { flex: 1; font: inherit; padding: .6rem .7rem; min-height: 2.9rem;
+                  max-height: 9rem; line-height: 1.35rem; overflow-y: auto;
+                  resize: none; border-radius: .7rem; border: 1px solid #c9c4b8; }
 .zeile button { font: inherit; min-width: 3.4rem; min-height: 2.9rem;
                 border-radius: .7rem; border: 0; background: #1f6f5c; color: #fff; }
 #interview { font: inherit; font-weight: 600; min-height: 3.2rem; width: 100%;
@@ -382,6 +424,13 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
                  border: 1px solid #a8201a; min-width: 2.2rem; }
 .fehler { font-size: .9rem; color: #a8201a; text-align: center; }
 .fehler[hidden] { display: none; }
+/* Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+   2026-10-17): der Upload-Watchdog -- deutlich, aber kein Modal, die
+   naechste erfolgreiche Antwort blendet sie wieder aus (pruefeWatchdog). */
+.upload-warnung { font-size: .92rem; font-weight: 600; color: #a8201a;
+                  text-align: center; border: 1px solid #a8201a;
+                  border-radius: .6rem; padding: .5rem .6rem; }
+.upload-warnung[hidden] { display: none; }
 .angehalten { display: flex; flex-direction: column; gap: .35rem; font-size: .92rem;
               border: 1px solid #a8201a; border-radius: .7rem; padding: .5rem .6rem; }
 .angehalten[hidden], .angehalten button[hidden] { display: none; }
@@ -425,6 +474,22 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
 .kalibrierung-erinnerung[hidden] { display: none; }
 .mitlauf-hinweis { font-size: .85rem; text-align: center; color: #1f6f5c; }
 .mitlauf-hinweis[hidden] { display: none; }
+.interview-fremd-hinweis { font-size: .92rem; font-weight: 600; text-align: center;
+                           color: #17181b; border: 1px solid #1f6f5c;
+                           border-radius: .7rem; padding: .5rem .6rem; }
+.interview-fremd-hinweis[hidden] { display: none; }
+/* Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89):
+   dieselbe Farbe/Rahmung wie .angehalten (ein Alarm, kein Hinweis) --
+   dismissible ueber den eigenen Schliessen-Knopf, nicht automatisch. */
+.hintergrund-warnung { display: flex; align-items: center; gap: .5rem;
+                       font-size: .9rem; border: 1px solid #a8201a;
+                       border-radius: .7rem; padding: .5rem .6rem; }
+.hintergrund-warnung[hidden] { display: none; }
+.hintergrund-warnung p { flex: 1; margin: 0; }
+.hintergrund-warnung button { font: inherit; border: 0; background: transparent;
+                              color: #a8201a; min-width: 2.2rem; min-height: 2.2rem; }
+.hintergrund-tipp { font-size: .8rem; text-align: center; opacity: .7; }
+.hintergrund-tipp[hidden] { display: none; }
 /* Bild-Overlay-Karte: die Telefon-Organisationskarte (``.karte``) gross und
    zoombar. ``inset: 0`` statt ``100vw``/``100vh`` -- ein fixes Element
    braucht dafuer keine viewport-relative Einheit. ``touch-action:
@@ -446,7 +511,7 @@ body { background: #fbfaf8; color: #17181b; padding: .6rem .7rem 9rem;
   body { background: #14161a; color: #e7e9ec; }
   .blase.bot { background: #1d2026; border-color: #2c313a; }
   .fuss { background: #14161a; border-color: #2c313a; }
-  .zeile input { background: #1d2026; color: #e7e9ec; border-color: #2c313a; }
+  .zeile textarea { background: #1d2026; color: #e7e9ec; border-color: #2c313a; }
   .leiste button { background: #1d2026; color: #6fcfb6; border-color: #2c6a58; }
   .leiste-label { color: #7d8290; }
   .interview-aktionen button { background: #1d2026; color: #e7e9ec; }
@@ -500,6 +565,16 @@ _TEXT_WARTE_NETZ = "Keine Verbindung — {n} offen, ich versuche es weiter …"
 _TEXT_FEHLER_NETZ = "Keine Verbindung — das ist nicht angekommen."
 _TEXT_FEHLER_MIKRO = "Ohne Mikrofon geht das nicht — bitte den Zugriff erlauben."
 _TEXT_VERLASSEN = "Es wird noch aufgenommen oder hochgeladen."
+#: Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+#: 2026-10-17): der Upload-Watchdog -- laeuft eine Aufnahme (Interview oder
+#: Mithoeren) seit ``IT_WEB_UPLOAD_WATCHDOG_MS`` ohne vom Server
+#: angenommenes Segment, erscheint diese Zeile. Das Audio selbst ist nicht
+#: weg: es liegt gepuffert im Handy (IndexedDB) und wird nachgeliefert,
+#: sobald der Upload wieder durchkommt.
+_TEXT_UPLOAD_WARNUNG = (
+    "Aufnahme erreicht den Server nicht — dein Audio bleibt auf diesem "
+    "Handy, Seite nicht schließen."
+)
 _TEXT_UHR = "● {zeit}"
 #: Re-Review H: der Interviewmodus ist serverseitig zu Ende, waehrend dieses
 #: Telefon noch aufnahm oder Segmente offen hatte. Ohne Modus waere ein
@@ -533,6 +608,24 @@ _TEXT_NACHREICHEN_SPAETER = (
 _TEXT_MITLAUF_HINWEIS = (
     "Schaut den Mitschnitt im Chat nach — fehlen Worte, haltet das Handy "
     "näher ran."
+)
+
+#: Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89,
+#: Evidence: Clone "G3 Interview 1" #113 -- die Seite war waehrend des
+#: Interviews im Hintergrund, MediaRecorder und Timer dort angehalten).
+#: Erscheint am Telefon, sobald es nach ``HINTERGRUND_MIN_MS`` (3 s)
+#: Verstecktsein wieder sichtbar wird, waehrend eine Aufnahme/
+#: Zuhoersitzung lief. ``{zeit}`` als M:SS wie ``_TEXT_SPRACHE``.
+_TEXT_HINTERGRUND_WARNUNG = (
+    "⚠ Aufnahme {zeit} lang unterbrochen — die Seite war im Hintergrund. "
+    "Bitte diese Seite geöffnet lassen und den Bildschirm an."
+)
+#: Der permanente kleine Tipp unter dem Aufnahme-/Zuhoerknopf, solange
+#: dieses Telefon aufnimmt (an/aus ueber denselben Schalter wie #uhr/
+#: #pegel: ``uhrAn``/``anzeigeAus``).
+_TEXT_HINTERGRUND_TIPP = (
+    "Diese Seite im Vordergrund lassen – Handy nicht sperren oder die App "
+    "wechseln."
 )
 
 # -- Pegel-Kalibrierung (Task 2, Kanban-Karte Mithoeren SICHER/             --
@@ -597,6 +690,11 @@ _TEXT_KALIBRIERUNG_BALKEN_LABEL = "Deine Stimme im Vergleich zum Raum"
 _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG = (
     "Denkt daran: Gebt das Handy an die Person weiter, die spricht."
 )
+#: Padua Entry-Umbau (07.10.2026, "Entry zu voll"): derselbe Wortlaut wie
+#: ``knoepfe.texte.TEXT_SCHAERFUNG_SORTIEREN_KNOPF`` -- bewusst eine eigene
+#: Konstante statt eines Imports aus ``knoepfe`` (``test_kein_neuer_knopf_
+#: handler_im_web``: ``web_chat`` importiert das Knopf-Paket nicht).
+_TEXT_ZIEL_BUEHNE_KNOPF = "\U0001f5c2 Stellen sortieren"
 
 #: Die Texte, die das JavaScript selbst setzt. Sie stehen als Konstanten in
 #: diesem Modul (dieselben, die der Server fuer seine Seite benutzt) und
@@ -620,6 +718,7 @@ _JS_TEXTE = {
     "interview_enden_sicher": _TEXT_INTERVIEW_ENDEN_SICHER,
     "interview_startet": _TEXT_INTERVIEW_STARTET,
     "diskussion_an": _TEXT_DISKUSSION_AN,
+    "diskussion_an_cothinker": _TEXT_DISKUSSION_AN_COTHINKER,
     "diskussion_laeuft": _TEXT_DISKUSSION_LAEUFT,
     "diskussion_gesperrt": _TEXT_DISKUSSION_GESPERRT.format(beenden=_TEXT_INTERVIEW_ENDEN),
     "warte_eins": _TEXT_WARTE_EINS,
@@ -627,6 +726,7 @@ _JS_TEXTE = {
     "warte_modus": _TEXT_WARTE_MODUS,
     "warte_netz": _TEXT_WARTE_NETZ,
     "fehler_netz": _TEXT_FEHLER_NETZ,
+    "upload_warnung": _TEXT_UPLOAD_WARNUNG,
     "fehler_mikro": _TEXT_FEHLER_MIKRO,
     "verlassen": _TEXT_VERLASSEN,
     "uhr": _TEXT_UHR,
@@ -634,6 +734,8 @@ _JS_TEXTE = {
     "modus_weg_leer": _TEXT_MODUS_WEG_LEER,
     "nachreichen_spaeter": _TEXT_NACHREICHEN_SPAETER,
     "mitlauf_hinweis": _TEXT_MITLAUF_HINWEIS,
+    "hintergrund_warnung": _TEXT_HINTERGRUND_WARNUNG,
+    "hintergrund_tipp": _TEXT_HINTERGRUND_TIPP,
     "ptt_hinweis": _TEXT_PTT_HINWEIS,
     "abkuerzung": _TEXT_ABKUERZUNG,
     "undo": _TEXT_UNDO_ERKENNUNG,
@@ -660,6 +762,7 @@ _JS_TEXTE = {
     "kal_skip_knopf": _TEXT_KALIBRIERUNG_SKIP_KNOPF,
     "kal_balken_label": _TEXT_KALIBRIERUNG_BALKEN_LABEL,
     "kal_herumreichen_erinnerung": _TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
+    "ziel_buehne_knopf": _TEXT_ZIEL_BUEHNE_KNOPF,
 }
 
 
@@ -696,6 +799,14 @@ _CHAT_JS = """
   var PTT_LOCK_PX = __PTT_LOCK_PX__;
   var PTT_CANCEL_PX = __PTT_CANCEL_PX__;
   var UPLOAD_WARTEN_MS = __UPLOAD_WARTEN_MS__;
+  // Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+  // 2026-10-17): UPLOAD_TIMEOUT_MS bricht einen einzelnen haengenden Fetch
+  // ab (AbortController, holeMitZeitlimit), statt die ganze serielle
+  // Warteschlange (arbeiteAb) damit fest zu stellen. WATCHDOG_MS ist die
+  // Schwelle, ab der die Warnzeile erscheint (90 s, das woertliche
+  // Abnahmekriterium der Karte).
+  var UPLOAD_TIMEOUT_MS = __UPLOAD_TIMEOUT_MS__;
+  var WATCHDOG_MS = __WATCHDOG_MS__;
   var TEXT = __TEXTE__;
   // Padua Brainstorm, 03.10.2026: wie nah am unteren Rand noch als "dort"
   // zaehlt -- ein Pixel exakt waere auf jedem Geraet eine andere Zahl.
@@ -729,15 +840,22 @@ _CHAT_JS = """
   var pegelBalken = pegelFeld ? pegelFeld.querySelector('span') : null;
   var pegelSchwelle = pegelFeld ? pegelFeld.querySelector('.pegel-schwelle') : null;
   var warteFeld = document.getElementById('warteschlange');
+  var warnungFeld = document.getElementById('upload-warnung');
   var fehlerFeld = document.getElementById('fehler');
   // Task 4 (Kanban-Karte Mithoeren SICHER): der einmalige "Mitschnitt
   // pruefen"-Hinweis -- eigenstaendig von kalErinnerungFeld unten.
   var mitlaufHinweisFeld = document.getElementById('mitlauf-hinweis');
+  // Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89).
+  var hintergrundWarnungFeld = document.getElementById('hintergrund-warnung');
+  var hintergrundWarnungText = document.getElementById('hintergrund-warnung-text');
+  var hintergrundWarnungSchliessen = document.getElementById('hintergrund-warnung-schliessen');
+  var hintergrundTippFeld = document.getElementById('hintergrund-tipp');
   var tipptFeld = document.getElementById('tippt');
   var interviewKnopf = document.getElementById('interview');
   var interviewAktionenFeld = document.getElementById('interview-aktionen');
   var interviewPauseKnopf = document.getElementById('interview-pause');
   var interviewBeendenKnopf = document.getElementById('interview-beenden');
+  var interviewFremdHinweisFeld = document.getElementById('interview-fremd-hinweis');
   var pttKnopf = document.getElementById('ptt');
   // Die Anzeige-Box ueber dem Mikrofon-Knopf (Kanban-Karte Buehne/PTT,
   // 04.10.2026): Schloss-/Wegwisch-Hinweis, Timer, Pegel, Kurztipp-Hinweis,
@@ -842,7 +960,16 @@ _CHAT_JS = """
     // kalGruppenwerteAus().
     kalibrierungGruppe: kalGruppenwerteAus(
       fuss.dataset.kalibrierungBoden, fuss.dataset.kalibrierungRede,
-      fuss.dataset.kalibrierungSchwelle)
+      fuss.dataset.kalibrierungSchwelle),
+    // Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+    // 2026-10-17): der Upload-Watchdog. letzterSegmentErfolgAm ist der
+    // Zeitpunkt des letzten vom Server angenommenen Segments -- startInterview/
+    // startDiskussion setzen ihn beim Start neu, damit Leerlauf VOR der
+    // Aufnahme nicht mitzaehlt. watchdogAktiv haelt fest, ob die Warnung
+    // schon gezeigt wird, damit melderPuffer() nur auf dem UEBERGANG
+    // (haengt an/aus) meldet, nicht auf jedem 5s-Takt erneut.
+    letzterSegmentErfolgAm: Date.now(),
+    watchdogAktiv: false
   };
 
   function nonce() {
@@ -1182,6 +1309,35 @@ _CHAT_JS = """
   // Nachrichten bringt (die eigene braucht manchmal einen Takt laenger).
   var erzwingeNachUnten = false;
 
+  // Kanban-Karte t_60d72fd6 (Birk 07.10.2026, Option c): der Server
+  // (``web_daten.web_chatverlauf``) liefert ab jetzt nur noch den Verlauf
+  // der AKTUELLEN Phase -- Blasen einer verlassenen Phase stehen aber schon
+  // im DOM (sie waren sichtbar, solange die Phase noch aktuell war) und
+  // muessen weg. Bewusst KEIN Reload der ganzen Seite: das risse Recorder,
+  // Timer und Upload-Warteschlange einer laufenden Aufnahme mit (siehe
+  // ``web_chat.chat_html``, ``nachladen=False``). Stattdessen wird nur
+  // ``#verlauf`` geleert und die Historie der neuen Phase gezielt per Fetch
+  // nachgeladen -- ``nach=0`` wie beim Seitenaufbau, damit auch FRUEHERE
+  // Besuche DERSELBEN Phase wieder auftauchen. Die Scrollentscheidung
+  // danach ist dieselbe wie beim Oeffnen der Seite (``scrolleBeimOeffnen``,
+  // mit ihrer ``ersteOeffnungInPhase``-Pruefung) -- kein zweiter, eigener
+  // Entscheid hier.
+  function ladePhaseNeu() {
+    verlauf.innerHTML = '';
+    zustand.letzte = 0;
+    verlauf.dataset.letzte = 0;
+    return fetch(weg(`chat/zustand?nach=0&seit=${zustand.aenderung}`), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) { return; }
+        (d.nachrichten || []).forEach(blase);
+        zustand.letzte = d.letzte;
+        verlauf.dataset.letzte = d.letzte;
+        scrolleBeimOeffnen();
+      })
+      .catch(function () { /* Netz weg: der naechste Takt versucht es wieder */ });
+  }
+
   function nimmZustand(daten) {
     var warUnten = amUnterenRand();
     // Review-Befund 2: die Seite laedt nie neu, ein Nonce gilt hoechstens
@@ -1190,6 +1346,18 @@ _CHAT_JS = """
       var feld = document.getElementById('nonce');
       if (feld) { feld.value = daten.nonce; }
     }
+    // Phasenscroll-Karte (04.10.2026): ein Wechsel zaehlt nur, wenn vorher
+    // schon eine Phase bekannt war (sonst waere der allererste Poll immer
+    // ein "Wechsel") und die neue sich von ihr unterscheidet.
+    var phaseAlt = zustand.phase;
+    var phaseNeu = (typeof daten.phase === 'number') ? daten.phase : null;
+    var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;
+    if (phaseNeu !== null) { zustand.phase = phaseNeu; }
+    // Kanban-Karte t_60d72fd6: bei einem Phasenwechsel baut ``ladePhaseNeu``
+    // den Verlauf komplett neu auf -- kein inkrementelles Anhaengen von
+    // ``daten.nachrichten``/``daten.geaendert`` in diesem Poll, die beziehen
+    // sich noch auf den alten Anzeigestand.
+    if (phasenwechsel) { ladePhaseNeu(); return; }
     var neu = daten.nachrichten || [];
     neu.forEach(blase);
     if (neu.length) {
@@ -1202,21 +1370,8 @@ _CHAT_JS = """
       zustand.aenderung = daten.aenderung;
       verlauf.dataset.aenderung = daten.aenderung;
     }
-    // Phasenscroll-Karte (04.10.2026): ein Wechsel zaehlt nur, wenn vorher
-    // schon eine Phase bekannt war (sonst waere der allererste Poll immer
-    // ein "Wechsel") und die neue sich von ihr unterscheidet.
-    var phaseAlt = zustand.phase;
-    var phaseNeu = (typeof daten.phase === 'number') ? daten.phase : null;
-    var phasenwechsel = phaseAlt > 0 && phaseNeu !== null && phaseNeu !== phaseAlt;
-    if (phaseNeu !== null) { zustand.phase = phaseNeu; }
     if (neu.length) {
-      // Phasenscroll-Karte, Nachtrag (05.10.2026): ein Phasenwechsel ankert
-      // oben am Phasenanfang -- weitere Nachrichten (selber oder spaeterer
-      // Poll) duerfen diesen Anker nicht wieder nach unten reissen, solange
-      // niemand selbst runtergescrollt ist. ``warUnten`` ist VOR dieser
-      // DOM-Aenderung gelesen, genau wie im ``geaendert``-Zweig unten.
-      if (phasenwechsel) { scrolleZuPhasenanfang(); erzwingeNachUnten = false; }
-      else if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }
+      if (warUnten || erzwingeNachUnten) { nachUnten(); erzwingeNachUnten = false; }
     } else if (warUnten && geaendert.length && letzteBlaseWurdeGeaendert(geaendert)) {
       nachUnten();
     }
@@ -1274,9 +1429,13 @@ _CHAT_JS = """
       var ziel = bezug[id] != null ? leisteZu(bezug[id]) || blaseZu(bezug[id]) : null;
       if (ziel && ziel.parentNode === verlauf) {
         verlauf.insertBefore(zeile, ziel.nextSibling);
-      } else {
+      } else if (bezug[id] == null) {
         verlauf.appendChild(zeile);
       }
+      // Birk 07.10.2026: hat die Quittung einen Bezug, der NICHT (mehr) im
+      // geladenen Verlauf steht (alte Frage aus Phase 2), wird sie gar nicht
+      // gezeigt -- sonst landete "✗ Discarded"/"Phase 2" unter der neuesten
+      // Antwort.
     });
   }
 
@@ -1304,10 +1463,87 @@ _CHAT_JS = """
     var takt = document.hidden ? POLL_MS_HINTERGRUND : POLL_MS;
     pollTakt = setInterval(hole, takt);
   }
+
+  // -- Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89) --
+  //
+  // Evidence: Clone "G3 Interview 1" #113 meldete 178 s, der Mitschnitt hielt
+  // real nur ~26 s Audio -- die Seite war waehrend des Interviews im
+  // Hintergrund (Tab-Wechsel, Sperrbildschirm), MediaRecorder UND Timer
+  // werden dort vom Browser angehalten (Wake Lock, 3a83071, haelt nur den
+  // Bildschirm an, nicht Seitenwechsel/Sperrbildschirm). Diese Pruefung
+  // laeuft rein lokal (document.hidden/visibilitychange) -- die serverseitige
+  // Gegenpruefung (aufnahme.erkenne_hintergrund_unterbrechung) braucht dafuer
+  // keine Mitarbeit des Clients, hier geht es nur um die Warnung AUF DEM
+  // TELEFON selbst, solange noch aufgenommen wird.
+  //
+  // Unter 3 s Versteckt-Dauer gilt es nicht als Vorfall (ein kurzes
+  // Benachrichtigungs-Wisch ist kein Seitenwechsel).
+  var HINTERGRUND_MIN_MS = 3000;
+  var hintergrundVerstecktSeit = null;
+
+  // Ein Recorder, der WIRKLICH gerade schreibt (state 'recording') -- Pause
+  // setzt sitzung.recorder auf null (pausiereInterview), ein beendetes
+  // Segment hat state 'inactive': beides zaehlt nicht als "aktiv", es gibt
+  // dort nichts, das ein Hintergrund-Wechsel unterbrechen koennte.
+  function aufnahmeLaeuftLokal() {
+    var a = zustand.aufnahme, d = zustand.diskussion;
+    return !!((a && a.recorder && a.recorder.state === 'recording') ||
+              (d && d.recorder && d.recorder.state === 'recording'));
+  }
+
+  // Aufgerufen bei 'hidden' (visibilitychange), 'pagehide' und 'freeze' --
+  // dieselbe Behandlung fuer alle drei: nur merken, WENN gerade aufgenommen
+  // wird, nie ueberschreiben (ein zweites 'hidden' ohne Sichtbarwerden
+  // dazwischen soll den urspruenglichen Zeitpunkt nicht verlieren).
+  function hintergrundVersteckt(jetzt) {
+    if (hintergrundVerstecktSeit == null && aufnahmeLaeuftLokal()) {
+      hintergrundVerstecktSeit = jetzt;
+    }
+  }
+
+  function zeigeHintergrundWarnung(luecke_ms) {
+    if (!hintergrundWarnungFeld || !hintergrundWarnungText) { return; }
+    hintergrundWarnungText.textContent =
+      TEXT.hintergrund_warnung.replace('{zeit}', minuten(Math.round(luecke_ms / 1000)));
+    hintergrundWarnungFeld.hidden = false;
+  }
+
+  // Aufgerufen bei 'visible' (visibilitychange -> !document.hidden). Liefert
+  // die gemessene Luecke in ms, oder null ohne Befund -- fuer Tests bequemer
+  // als nur Seiteneffekte zu pruefen.
+  function hintergrundSichtbar(jetzt) {
+    if (hintergrundVerstecktSeit == null) { return null; }
+    var luecke = jetzt - hintergrundVerstecktSeit;
+    hintergrundVerstecktSeit = null;
+    if (luecke < HINTERGRUND_MIN_MS) { return null; }
+    // Die Sitzung traegt die gemessene Luecke bis zum naechsten Upload
+    // (postAudio haengt sie als ?hintergrund= an, neuesSegment()s onstop
+    // liest sie und setzt sie dort auf 0 zurueck) -- "exakt" schlaegt die
+    // serverseitige Schaetzung (Spezifikation Punkt 3).
+    var sitzung = zustand.aufnahme || zustand.diskussion;
+    if (sitzung) { sitzung.hintergrundMs = (sitzung.hintergrundMs || 0) + luecke; }
+    zeigeHintergrundWarnung(luecke);
+    return luecke;
+  }
+
+  if (hintergrundWarnungSchliessen) {
+    hintergrundWarnungSchliessen.addEventListener('click', function () {
+      hintergrundWarnungFeld.hidden = true;
+    });
+  }
+
   document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { hintergrundVersteckt(Date.now()); }
+    else { hintergrundSichtbar(Date.now()); }
     planePoll();
     if (!document.hidden) { hole(); }
   });
+  // pagehide/freeze (Page Lifecycle API): manche Browser liefern beim
+  // App-Wechsel kein zuverlaessiges 'hidden' VOR dem Einfrieren -- dieselbe
+  // Behandlung wie 'hidden', idempotent (hintergrundVersteckt ueberschreibt
+  // einen schon gesetzten Zeitpunkt nie).
+  window.addEventListener('pagehide', function () { hintergrundVersteckt(Date.now()); });
+  document.addEventListener('freeze', function () { hintergrundVersteckt(Date.now()); });
   planePoll();
 
   // -- POST mit Nonce ------------------------------------------------------
@@ -1315,9 +1551,29 @@ _CHAT_JS = """
   // Ein 403 heisst fast immer "Nonce abgelaufen": einmal den Zustand holen
   // (er bringt den aktuellen Nonce mit), dann genau ein zweiter Versuch.
 
+  // Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+  // 2026-10-17): der Verdacht aus dem Fallkontext war ein Fetch ohne
+  // Zeitlimit, der die serielle Warteschlange (arbeiteAb, zustand.laeuft)
+  // auf unbestimmte Zeit blockiert. ``AbortController`` bricht nach
+  // UPLOAD_TIMEOUT_MS ab -- der Abbruch wirft wie jeder Netzfehler und laeuft
+  // damit in denselben Wiederholungsweg (UPLOAD_WARTEN_MS).
+  function holeMitZeitlimit(url, optionen) {
+    if (typeof AbortController === 'undefined') { return fetch(url, optionen); }
+    var controller = new AbortController();
+    var zeitlimit = setTimeout(function () { controller.abort(); }, UPLOAD_TIMEOUT_MS);
+    optionen = Object.assign({}, optionen, { signal: controller.signal });
+    return fetch(url, optionen).then(function (r) {
+      clearTimeout(zeitlimit);
+      return r;
+    }, function (fehler) {
+      clearTimeout(zeitlimit);
+      throw fehler;
+    });
+  }
+
   function postJson(pfad, nutzlast, zweiter) {
     nutzlast.nonce = nonce();
-    return fetch(weg(pfad), {
+    return holeMitZeitlimit(weg(pfad), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(nutzlast)
@@ -1329,11 +1585,19 @@ _CHAT_JS = """
     });
   }
 
-  function postAudio(auftrag, zweiter) {
+  // Aus auftrag.dauer/grund/redeMs/weichMs/sitzung/kalibrierung gebaut,
+  // EINMAL, beim Einreihen (reiheEin) -- nicht bei jedem Sendeversuch neu,
+  // damit auftrag.pfad unveraendert mit dem Blob zusammen im Handy
+  // (IndexedDB) liegt und nach einem Reload ohne die (dann verlorene)
+  // sitzung erneut gesendet werden kann.
+  function audioWeg(auftrag) {
     var weg_ = `chat/audio?dauer=${auftrag.dauer}`;
     if (auftrag.grund) { weg_ += `&grund=${auftrag.grund}`; }
     if (auftrag.redeMs != null) { weg_ += `&rede=${Math.round(auftrag.redeMs)}`; }
     if (auftrag.weichMs != null) { weg_ += `&weichms=${Math.round(auftrag.weichMs)}`; }
+    // Karte t_1423ca89: die vom Client gemessene Hintergrundzeit dieses
+    // Segments -- dasselbe reine Diagnose-Metadatum wie rede/weichms.
+    if (auftrag.hintergrundMs) { weg_ += `&hintergrund=${Math.round(auftrag.hintergrundMs)}`; }
     // Birk 05.10.2026 22:00: EINE Sitzungsart ('diskussion'), zwei moegliche
     // Ziele -- sitzung.ziel (bei Start aus zustand.mithoerenZiel gefroren)
     // sagt, ob das Audio als Diskussion (Phase 1) oder als Brainstorm
@@ -1342,7 +1606,12 @@ _CHAT_JS = """
       weg_ += auftrag.sitzung.ziel === 'brainstorm' ? '&brainstorm=1' : '&diskussion=1';
     }
     if (auftrag.kalibrierung) { weg_ += '&kalibrierung=1'; }
-    return fetch(weg(weg_), {
+    return weg_;
+  }
+
+  function postAudio(auftrag, zweiter) {
+    if (!auftrag.pfad) { auftrag.pfad = audioWeg(auftrag); }
+    return holeMitZeitlimit(weg(auftrag.pfad), {
       method: 'POST', cache: 'no-store',
       headers: { 'Content-Type': auftrag.blob.type || 'audio/webm',
                  'X-Nonce': nonce() },
@@ -1361,9 +1630,13 @@ _CHAT_JS = """
     var text = (eingabe.value || '').trim();
     if (!text) { return; }
     eingabe.value = '';
+    passeFussAn();
     veralteLetzteLeiste();
     erzwingeNachUnten = true;
-    function zurueck() { if (!eingabe.value) { eingabe.value = text; } erzwingeNachUnten = false; }
+    function zurueck() {
+      if (!eingabe.value) { eingabe.value = text; passeFussAn(); }
+      erzwingeNachUnten = false;
+    }
     postJson(`chat/senden`, { text: text }).then(function (r) {
       if (r.ok) { hole(); return; }
       zurueck();
@@ -1372,8 +1645,13 @@ _CHAT_JS = """
   }
 
   document.getElementById('senden').addEventListener('click', sendeText);
+  // ANNAHME (keine Ruecksprache mit Birk in diesem Lauf moeglich): Enter
+  // sendet weiterhin wie beim bisherigen <input>, Shift+Enter fuegt einen
+  // Zeilenumbruch ein -- der verbreitete Chat-Standard (Telegram, Slack),
+  // der das Senden-Verhalten fuer die Mehrheit der Nutzung (Handy, kein
+  // sichtbarer Shift-Taste) unveraendert laesst.
   eingabe.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter') { ev.preventDefault(); sendeText(); }
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); sendeText(); }
   });
 
   // -- Knoepfe -------------------------------------------------------------
@@ -1391,13 +1669,24 @@ _CHAT_JS = """
     // idempotent nicht mehr, aber ein Knopf, der weiter klickbar
     // dasteht, laedt dazu ein.
     var leiste = knopf.closest('.leiste') || knopf.parentNode;
+    // Padua Entry-Umbau (07.10.2026): der Knopf "Sortieren" unter der
+    // automatischen Zuordnung beim Eintritt in Phase 5 springt NACH dem
+    // angenommenen Knopfdruck direkt in den CoThinker-Tab -- erkannt am
+    // Knopftext (derselbe Weg wie die ``#chat``-Spruenge in
+    // ``web_vereint.py``s ``_AUSWAHL_JS``, nur auf ``#buehne`` gemuenzt).
+    var springeZurBuehne = knopf.textContent === TEXT.ziel_buehne_knopf
+      && document.querySelector('.tabs button[data-tab="buehne"]');
     schalteLeiste(leiste, true);
     erzwingeNachUnten = true;
     postJson(`chat/knopf`, {
       message_id: parseInt(knopf.dataset.message, 10),
       data: knopf.dataset.daten
     }).then(function (r) {
-      if (r.ok) { hole(); return; }
+      if (r.ok) {
+        if (springeZurBuehne) { location.hash = '#buehne'; }
+        hole();
+        return;
+      }
       schalteLeiste(leiste, false);
       erzwingeNachUnten = false;
       hole();
@@ -1409,6 +1698,92 @@ _CHAT_JS = """
     });
   });
 
+  // -- Handy-Puffer (IndexedDB) ---------------------------------------------
+  //
+  // Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+  // 2026-10-17): jedes Audiosegment wird HIER, beim Einreihen -- also VOR
+  // dem ersten Sendeversuch --, im Handy abgelegt und erst geloescht, wenn
+  // der Server mit 2xx geantwortet hat (arbeiteAb). Ohne ``indexedDB``
+  // (sehr alter Browser) bleibt die Funktion stumm: kein Puffer, aber auch
+  // kein Fehler -- derselbe Rueckfallgedanke wie ``holeStrom``.
+  var puffer = { db: null, oeffnet: null, naechsteSeq: 0 };
+
+  function puffereOeffnen() {
+    if (typeof indexedDB === 'undefined') { return Promise.resolve(null); }
+    if (puffer.db) { return Promise.resolve(puffer.db); }
+    if (puffer.oeffnet) { return puffer.oeffnet; }
+    puffer.oeffnet = new Promise(function (ja) {
+      var anfrage = indexedDB.open('it_audio_puffer', 1);
+      anfrage.onupgradeneeded = function () {
+        anfrage.result.createObjectStore('segmente', { keyPath: 'schluessel' });
+      };
+      anfrage.onsuccess = function () { puffer.db = anfrage.result; ja(puffer.db); };
+      anfrage.onerror = function () { ja(null); };   // ohne Puffer weiterarbeiten
+    });
+    return puffer.oeffnet;
+  }
+
+  // ``auftrag`` braucht nur ``pfad``, ``blob`` und die Schluesselfelder --
+  // NICHT ``sitzung`` (die ueberlebt einen Reload nicht und wird deshalb
+  // beim Wiederherstellen gar nicht erst gebraucht, siehe bereit()).
+  function puffereSpeichern(auftrag) {
+    puffereOeffnen().then(function (db) {
+      if (!db) { return; }
+      db.transaction('segmente', 'readwrite').objectStore('segmente').put({
+        schluessel: auftrag._puffSchluessel, basis: BASIS, seq: auftrag._puffSeq,
+        pfad: auftrag.pfad, blob: auftrag.blob,
+      });
+    });
+  }
+
+  function puffereLoeschen(schluessel) {
+    if (!schluessel) { return; }
+    puffereOeffnen().then(function (db) {
+      if (!db) { return; }
+      db.transaction('segmente', 'readwrite').objectStore('segmente')["delete"](schluessel);
+    });
+  }
+
+  // Alle noch nicht abgeholten Segmente DIESER Gruppe, nach ``seq``
+  // sortiert -- so kommt ein Reload mitten in einer Aufnahme in derselben
+  // Reihenfolge wieder heraus, in der sie entstanden sind.
+  function puffereAlleLaden() {
+    return puffereOeffnen().then(function (db) {
+      if (!db) { return []; }
+      return new Promise(function (ja) {
+        var anfrage = db.transaction('segmente', 'readonly')
+          .objectStore('segmente').getAll();
+        anfrage.onsuccess = function () {
+          var eintraege = (anfrage.result || []).filter(function (e) {
+            return e.basis === BASIS;
+          });
+          eintraege.sort(function (a, b) { return a.seq - b.seq; });
+          ja(eintraege);
+        };
+        anfrage.onerror = function () { ja([]); };
+      });
+    });
+  }
+
+  // Beim Laden der Seite: was von einer fruehren Sitzung dieses Geraets
+  // noch im Handy liegt (haengender Upload, Reload mitten in einer
+  // Aufnahme), kommt VOR allem Neuen in die Warteschlange -- reiheEin()
+  // erkennt den schon gesetzten _puffSchluessel und speichert nicht
+  // nochmal. ``bereit()`` braucht hier keine Sitzung: ein Segment ohne
+  // ``auftrag.sitzung`` ist immer sendebereit.
+  function wiederherstellenGepuffert() {
+    puffereAlleLaden().then(function (eintraege) {
+      if (!eintraege.length) { return; }
+      puffer.naechsteSeq = eintraege[eintraege.length - 1].seq + 1;
+      eintraege.forEach(function (e) {
+        reiheEin({
+          art: 'audio', pfad: e.pfad, blob: e.blob,
+          _puffSchluessel: e.schluessel, _puffSeq: e.seq,
+        });
+      });
+    });
+  }
+
   // -- Warteschlange -------------------------------------------------------
   //
   // Streng der Reihe nach, ein Auftrag zur Zeit: /interview, die Segmente,
@@ -1416,6 +1791,12 @@ _CHAT_JS = """
   // Server ihn angenommen (2xx) oder endgueltig abgelehnt (4xx) hat.
 
   function reiheEin(auftrag) {
+    if (auftrag.art === 'audio' && !auftrag._puffSchluessel) {
+      auftrag._puffSeq = puffer.naechsteSeq++;
+      auftrag._puffSchluessel = BASIS + '#' + auftrag._puffSeq;
+      if (!auftrag.pfad) { auftrag.pfad = audioWeg(auftrag); }
+      puffereSpeichern(auftrag);
+    }
     zustand.warteschlange.push(auftrag);
     zeigeWarteschlange();
     arbeiteAb();
@@ -1544,6 +1925,12 @@ _CHAT_JS = """
     anfrage.then(function (r) {
       if (r.ok) {
         zustand.netzFehler = 0;
+        // Karte InScribe: erst nach der 2xx-Antwort darf das Segment aus
+        // dem Handy-Puffer -- und der Watchdog zaehlt neu ab.
+        if (auftrag.art === 'audio') {
+          zustand.letzterSegmentErfolgAm = Date.now();
+          puffereLoeschen(auftrag._puffSchluessel);
+        }
         // Task 2 (Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026):
         // der Kalibrierungsablauf braucht die message_id dieses konkreten
         // Uploads zurueck, um spaeter gezielt auf SEIN Transkript zu warten
@@ -1598,6 +1985,41 @@ _CHAT_JS = """
     hole();
     arbeiteAb();
   }
+
+  // -- Upload-Watchdog -------------------------------------------------------
+  //
+  // Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+  // 2026-10-17): laeuft eine Aufnahme (Interview oder Mithoeren) seit
+  // WATCHDOG_MS ohne ein vom Server angenommenes Segment, zeigt die Seite
+  // eine deutliche Warnung -- das Audio selbst ist nicht weg (Handy-Puffer
+  // oben), nur der Upload haengt.
+
+  function aufnahmeLaeuft() { return !!(zustand.aufnahme || zustand.diskussion); }
+
+  // Fire-and-forget: ein Fehler hier darf die Aufnahme nicht stoppen, die
+  // naechste Meldung (naechster Takt oder naechster Erfolg) holt es nach.
+  function melderPuffer(haengt) {
+    var anzahl = zustand.warteschlange.filter(function (a) {
+      return a.art === 'audio' && !!a._puffSchluessel;
+    }).length;
+    postJson(`chat/puffer`, { anzahl: anzahl, haengt: !!haengt }).catch(function () {});
+  }
+
+  function pruefeWatchdog() {
+    if (!warnungFeld) { return; }
+    var seit = Date.now() - zustand.letzterSegmentErfolgAm;
+    var haengt = aufnahmeLaeuft() && seit > WATCHDOG_MS;
+    if (haengt && !zustand.watchdogAktiv) {
+      zustand.watchdogAktiv = true;
+      melderPuffer(true);
+    } else if (!haengt && zustand.watchdogAktiv) {
+      zustand.watchdogAktiv = false;
+      melderPuffer(false);
+    }
+    warnungFeld.hidden = !haengt;
+    if (haengt) { warnungFeld.textContent = TEXT.upload_warnung; }
+  }
+  setInterval(pruefeWatchdog, 5000);
 
   // Nimmt die noch nicht gesendeten Auftraege einer Aufnahme heraus. Der
   // gerade laufende bleibt stehen -- sein Ergebnis raeumt erledigt() ab.
@@ -1678,8 +2100,13 @@ _CHAT_JS = """
           blob: new Blob(teile, { type: teile[0].type || r.mimeType || 'audio/webm' }),
           dauer: Math.max(1, Math.round((Date.now() - von) / 1000)),
           grund: grund, redeMs: redeMs, weichMs: weichMs,
-          kalibrierung: !!r._kalibrierung
+          kalibrierung: !!r._kalibrierung,
+          // Karte t_1423ca89: die seit dem letzten Segment gemessene
+          // Hintergrundzeit faehrt EINMAL mit (nicht doppelt gezaehlt --
+          // zurueckgesetzt, sobald sie hier einem Auftrag zugeteilt ist).
+          hintergrundMs: sitzung.hintergrundMs || null
         };
+        sitzung.hintergrundMs = 0;
       }
       // Task 4 (Kanban-Karte Mithoeren SICHER, 03.10.2026): einmal je
       // Sitzung, direkt nachdem das erste Segment fertig ist -- kein
@@ -2206,6 +2633,13 @@ _CHAT_JS = """
     zustand.uhrTakt = setInterval(function () {
       uhrFeld.textContent = TEXT.uhr.replace('{zeit}', formatiereUhr(sitzung));
     }, 500);
+    // Karte t_1423ca89: derselbe Schalter wie #uhr/#pegel -- der Tipp gilt
+    // fuer Interview UND Diskussion/Brainstorm, dieselbe Funktion bedient
+    // beide (siehe aufnahmeLaeuftLokal()).
+    if (hintergrundTippFeld) {
+      hintergrundTippFeld.textContent = TEXT.hintergrund_tipp;
+      hintergrundTippFeld.hidden = false;
+    }
   }
 
   function anzeigeAus() {
@@ -2218,6 +2652,7 @@ _CHAT_JS = """
     if (pegelFeld) { pegelFeld.classList.remove('ueber-schwelle'); }
     // Task 4: nicht in einen spaeteren Bildschirmzustand hinueberlaufen.
     if (mitlaufHinweisFeld) { mitlaufHinweisFeld.hidden = true; }
+    if (hintergrundTippFeld) { hintergrundTippFeld.hidden = true; }
   }
 
   function modusAn() {
@@ -2287,16 +2722,30 @@ _CHAT_JS = """
       interviewBeendenKnopf.textContent = (fremd && zustand.fremdScharf === 'enden')
         ? TEXT.interview_enden_sicher : TEXT.interview_enden;
     }
+    // Karte t_d18f2ad6 Teil 2 (angepasst, Birk): klarer Banner-Text neben
+    // dem Zwei-Tipp-Knopf -- sichtbar, solange dieses Geraet den Modus nur
+    // fremd/vom Server gemeldet sieht (frisches Laden einer verwaisten
+    // Aufnahme eingeschlossen, siehe SSR oben). Derselbe Text wie
+    // TEXT.diskussion_gesperrt, kein neuer String.
+    if (interviewFremdHinweisFeld) {
+      interviewFremdHinweisFeld.hidden = !fremd;
+      if (fremd) { interviewFremdHinweisFeld.textContent = TEXT.diskussion_gesperrt; }
+    }
     // Waehrend eine Interview-Aufnahme laeuft ODER pausiert ist, ODER sobald
-    // die Diskussion/Brainstorm-Sitzung angeboten wird (nicht erst wenn sie
-    // LAEUFT) ist PTT ausgeblendet (Birk 04.10.2026: zwei sichtbare
-    // Mikrofon-Knoepfe gleichzeitig sind keine Bedienung -- entweder/oder,
-    // Befehle gehen dann nur noch ueber das Textfeld). Die Klassen-Formel
-    // fuer den Interview-Nebenknopf wird erst zwei Zeilen weiter unten
-    // gesetzt -- deshalb hier dieselbe Prosa noch einmal, nicht die
-    // Variable selbst (Reihenfolge der Aufrufe).
+    // die Diskussion-Sitzung angeboten wird (nicht erst wenn sie LAEUFT) ist
+    // PTT ausgeblendet (Birk 04.10.2026: zwei sichtbare Mikrofon-Knoepfe
+    // gleichzeitig sind keine Bedienung -- entweder/oder, Befehle gehen dann
+    // nur noch ueber das Textfeld). Die Klassen-Formel fuer den
+    // Interview-Nebenknopf wird erst zwei Zeilen weiter unten gesetzt --
+    // deshalb hier dieselbe Prosa noch einmal, nicht die Variable selbst
+    // (Reihenfolge der Aufrufe). Kanban t_d22af9b2 (06.10.2026, Birks
+    // Live-Test): diese entweder/oder-Regel gilt nur noch fuer Phase 1
+    // (``mithoerenZiel === 'diskussion'``) -- in Phase 4 (``'brainstorm'``)
+    // bleibt PTT neben dem laufenden CoThinker-Mithoeren ein eigener,
+    // kurzer Befehlskanal.
     var nebenAngeboten = !!zustand.diskussionErlaubt;
-    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenAn || nebenAngeboten; }
+    var nebenVersteckt = (nebenAn || nebenAngeboten) && zustand.mithoerenZiel !== 'brainstorm';
+    if (pttKnopf) { pttKnopf.hidden = an || !!zustand.wechsel || nebenVersteckt; }
     zeigeDiskussionModus();
     // "Nebenknopf"-Stil am Interview-Knopf: sichtbar, sobald die Diskussion/
     // Brainstorm-Sitzung angeboten wird oder laeuft -- aus derselben Formel
@@ -3126,7 +3575,10 @@ _CHAT_JS = """
     var an = !!sitzung;
     diskussionKnopf.dataset.laeuft = an ? '1' : '0';
     if (!an) {
-      diskussionKnopf.textContent = TEXT.diskussion_an;
+      // Kanban t_d22af9b2 (06.10.2026): eigener Knopftext NUR fuer Phase 4
+      // -- Phase 1 behaelt TEXT.diskussion_an unveraendert.
+      diskussionKnopf.textContent = zustand.mithoerenZiel === 'brainstorm'
+        ? TEXT.diskussion_an_cothinker : TEXT.diskussion_an;
     } else {
       diskussionKnopf.textContent = TEXT.diskussion_laeuft.replace('{zeit}', formatiereUhr(sitzung));
     }
@@ -3161,6 +3613,7 @@ _CHAT_JS = """
       pausiert: false, erfassteMs: 0, legStart: null, mikroUnterwegs: true
     };
     zustand.diskussion = sitzung;
+    zustand.letzterSegmentErfolgAm = Date.now();   // Leerlauf VOR der Aufnahme zaehlt nicht
     zeigeDiskussionModus();
     holeStrom().then(function (strom) {
       sitzung.mikroUnterwegs = false;
@@ -3259,6 +3712,7 @@ _CHAT_JS = """
     };
     var wechsel = { ziel: true, gesendet: false };
     zustand.aufnahme = sitzung;
+    zustand.letzterSegmentErfolgAm = Date.now();   // Leerlauf VOR der Aufnahme zaehlt nicht
     zustand.wechsel = wechsel;
     // Nachtfix 05.10.2026: vor der Anzeige gesetzt, damit der Knopf
     // "Mikrofon kommt" sagt statt schon "laeuft".
@@ -3445,6 +3899,7 @@ _CHAT_JS = """
         fortsetzend: false, mikroUnterwegs: false, hinweisGezeigt: false
       };
       zustand.aufnahme = sitzung;   // synchron, wie starteInterview()
+      zustand.letzterSegmentErfolgAm = Date.now();   // Pause zaehlt nicht als Haengen
     }
     // Re-Review F, auch beim Wiederaufnehmen: ein gehaltener PTT-Druck wird
     // verworfen, sonst liefen zwei Recorder.
@@ -3710,9 +4165,14 @@ _CHAT_JS = """
 
   function pttPointerDown(ev) {
     if (!pttKnopf) { return; }
-    // Abschluss-Review (Finding 2): auch gegen zustand.diskussion gesperrt --
-    // PTT ist ein drittes Mikrofon auf demselben Geraet.
-    if (modusAn() || zustand.wechsel || zustand.diskussion ||
+    // Abschluss-Review (Finding 2): grundsaetzlich auch gegen
+    // zustand.diskussion gesperrt -- PTT ist sonst ein drittes Mikrofon auf
+    // demselben Geraet. Ausnahme Kanban t_d22af9b2 (06.10.2026): laeuft die
+    // Sitzung als Brainstorm/CoThinker-Mithoeren (Phase 4), bleibt PTT ein
+    // eigener Befehlskanal -- nur Phase 1 (sitzung.ziel 'diskussion') sperrt
+    // weiterhin.
+    var diskussionBlockiert = zustand.diskussion && zustand.diskussion.ziel !== 'brainstorm';
+    if (modusAn() || zustand.wechsel || diskussionBlockiert ||
         zustand.ptt) { return; }
     ev.preventDefault();
     try { pttKnopf.setPointerCapture(ev.pointerId); } catch (e) { /* ohne Capture geht es auch */ }
@@ -3922,12 +4382,40 @@ _CHAT_JS = """
     hoehenBeobachter.observe(verlauf);
   }
 
+  // -- Eingabefeld: Autogrow nach oben --------------------------------------
+  //
+  // Karte t_d86971eb: die Obergrenze (``max-height``/``overflow-y``) steht
+  // im CSS (``.zeile textarea``) -- hier wird nur die tatsaechliche
+  // Inhaltshoehe gesetzt, der Browser deckelt und scrollt intern selbst,
+  // sobald ``scrollHeight`` sie ueberschreitet.
+  //
+  // ``--fuss-hoehe`` haelt das Bodenpolster der Chat-Einzelseite (``body``
+  // in ``_CSS_CHAT``) synchron mit der GEMESSENEN Hoehe von ``fuss`` --
+  // ein fester Wert waere entweder zu knapp (die juengste Nachricht
+  // verschwindet hinter dem gewachsenen Feld) oder zu grosszuegig geraten.
+  // Auf der vereinten Seite ist ``.fuss`` seit ``web_vereint._css_schale``
+  // ohnehin ein gewoehnliches Flex-Kind und ignoriert die Variable. Waechst
+  // ``fuss`` dadurch, greift derselbe ``hoehenBeobachter`` oben wie bei
+  // jeder anderen Fusshoehenaenderung.
+  function passeFussAn() {
+    eingabe.style.height = 'auto';
+    eingabe.style.height = eingabe.scrollHeight + 'px';
+    document.documentElement.style.setProperty(
+      '--fuss-hoehe', (fuss.offsetHeight + 8) + 'px');
+  }
+  eingabe.addEventListener('input', passeFussAn);
+  passeFussAn();
+
   zeigeModus();   // den Zustand der Seite sofort anwenden, nicht erst nach dem Poll
   scrolleBeimOeffnen();   // Phasenanfang nur beim ersten Oeffnen dieser Phase auf diesem Geraet, sonst ans Ende
   // Pflichtpunkt 2, Fix 1 von 2: der erste Seitenaufruf stoesst die
   // Begruessung an. Der Server legt /start nur an, solange der Chat noch
   // leer ist -- ein spaeterer Aufruf (Reload, zweites Geraet) bewirkt nichts.
   postJson(`chat/start`, {}).catch(function () { /* best effort */ });
+  // Karte InScribe: was von einer fruehren Sitzung noch im Handy liegt
+  // (haengender Upload, Reload mitten in einer Aufnahme), geht zuerst --
+  // vor allem, was diese frische Seite selbst neu erzeugt.
+  wiederherstellenGepuffert();
   hole();
 })();
 """
@@ -3962,6 +4450,7 @@ def _js() -> str:
         interview_enden_sicher=T._TEXT_INTERVIEW_ENDEN_SICHER,
         interview_startet=T._TEXT_INTERVIEW_STARTET,
         diskussion_an=T._TEXT_DISKUSSION_AN,
+        diskussion_an_cothinker=T._TEXT_DISKUSSION_AN_COTHINKER,
         diskussion_laeuft=T._TEXT_DISKUSSION_LAEUFT,
         diskussion_gesperrt=T._TEXT_DISKUSSION_GESPERRT.format(
             beenden=T._TEXT_INTERVIEW_ENDEN),
@@ -3989,7 +4478,10 @@ def _js() -> str:
         kal_balken_label=T._TEXT_KALIBRIERUNG_BALKEN_LABEL,
         kal_herumreichen_erinnerung=T._TEXT_KALIBRIERUNG_HERUMREICHEN_ERINNERUNG,
         mitlauf_hinweis=T._TEXT_MITLAUF_HINWEIS,
+        hintergrund_warnung=T._TEXT_HINTERGRUND_WARNUNG,
+        hintergrund_tipp=T._TEXT_HINTERGRUND_TIPP,
         ptt_hinweis=T._TEXT_PTT_HINWEIS,
+        ziel_buehne_knopf=T._TEXT_ZIEL_BUEHNE_KNOPF,
     )
     texte = json.dumps(texte, ensure_ascii=True).replace("</", "<\\/")
     return (
@@ -4001,6 +4493,8 @@ def _js() -> str:
         .replace("__PTT_LOCK_PX__", str(PTT_LOCK_PX))
         .replace("__PTT_CANCEL_PX__", str(PTT_CANCEL_PX))
         .replace("__UPLOAD_WARTEN_MS__", json.dumps(list(UPLOAD_WARTEN_MS)))
+        .replace("__UPLOAD_TIMEOUT_MS__", str(_upload_timeout_ms()))
+        .replace("__WATCHDOG_MS__", str(_upload_watchdog_ms()))
         .replace("__TEXTE__", texte)
     )
 
@@ -4187,6 +4681,12 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
     # Wohin das Audio dieser Sitzung geht, als ``data``-Attribut fuer den
     # Client (``web_daten.web_chatzustand``, Vorgabe 'diskussion').
     mithoeren_ziel = daten.get("mithoeren_ziel", "diskussion")
+    # Kanban t_d22af9b2 (06.10.2026): eigener Knopftext NUR fuer Phase 4 --
+    # Phase 1 behaelt T._TEXT_DISKUSSION_AN unveraendert.
+    diskussion_an_text = (
+        T._TEXT_DISKUSSION_AN_COTHINKER if mithoeren_ziel == "brainstorm"
+        else T._TEXT_DISKUSSION_AN
+    )
     blasen = "\n".join(_blase_html(n, basis) for n in daten["nachrichten"])
     if not blasen:
         blasen = f'<p class="leer">{html.escape(T._TEXT_LEER)}</p>'
@@ -4229,11 +4729,17 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
         f'data-kalibrierung-schwelle="{_kal_gruppe_attribut(daten, "schwelle")}"\n'
         f'     data-interview="{1 if modus else 0}" '
         f'data-basis="{html.escape(basis, quote=True)}">\n'
+        f'  <div class="hintergrund-warnung" id="hintergrund-warnung" role="alert" hidden>\n'
+        f'    <p id="hintergrund-warnung-text"></p>\n'
+        f'    <button type="button" id="hintergrund-warnung-schliessen" aria-label="'
+        f'{html.escape(_TEXT_BILD_SCHLIESSEN, quote=True)}">✕</button>\n'
+        f'  </div>\n'
         f'  <div class="uhr" id="uhr" hidden></div>\n'
         f'  <div class="pegel" id="pegel" hidden>'
         f'<span></span><i class="pegel-schwelle"></i></div>\n'
         f"{_kalibrierung_panel_html(vad) if vad.get('kalibrierung', True) else ''}"
         f'  <div class="warteschlange" id="warteschlange"></div>\n'
+        f'  <div class="upload-warnung" id="upload-warnung" role="alert" hidden></div>\n'
         f'  <div class="fehler" id="fehler" role="alert" hidden></div>\n'
         f'  <p class="mitlauf-hinweis" id="mitlauf-hinweis" role="status" hidden></p>\n'
         f'  <div class="angehalten" id="angehalten" role="alert" hidden>\n'
@@ -4251,7 +4757,7 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'  <button type="button" id="diskussion" data-laeuft="0" '
             f'data-mithoeren-ziel="{html.escape(mithoeren_ziel, quote=True)}"'
             + ('' if diskussion_erlaubt else ' hidden')
-            + f'>{html.escape(T._TEXT_DISKUSSION_AN)}</button>\n'
+            + f'>{html.escape(diskussion_an_text)}</button>\n'
             f'  <div class="interview-aktionen" id="diskussion-aktionen" hidden>\n'
             f'    <button type="button" id="diskussion-beenden" '
             f'data-discussion-done="1">'
@@ -4281,11 +4787,27 @@ def chat_koerper(daten: dict, nonce_wert: str, token: str, segment_ms: int,
             f'    <button type="button" id="interview-beenden">'
             f'{html.escape(T._TEXT_INTERVIEW_ENDEN)}</button>\n'
             f'  </div>\n'
+            # Nachtfix t_d18f2ad6 (Birk, angepasste Teil-2-Variante): klarer
+            # Banner-Text zum fremden/verwaisten Geraet -- ergaenzt den
+            # Zwei-Tipp-Knopf (fremdBestaetigt), ersetzt ihn nicht. Derselbe
+            # Text wie "diskussion_gesperrt", kein neuer String. Ein frisch
+            # geladenes Dokument hat nie eine lokale Sitzung (siehe oben),
+            # also ist ``modus`` hier dieselbe Bedingung wie ``fremd``.
+            f'  <p class="interview-fremd-hinweis" id="interview-fremd-hinweis" '
+            f'role="status"' + ("" if modus else " hidden") + ">"
+            f'{html.escape(T._TEXT_DISKUSSION_GESPERRT.format(beenden=T._TEXT_INTERVIEW_ENDEN))}'
+            f'</p>\n'
         )
+        + '  <p class="hintergrund-tipp" id="hintergrund-tipp" hidden></p>\n'
         + _ptt_anzeige_html()
         + f'  <div class="zeile">\n'
-        f'    <input type="text" id="eingabe" autocomplete="off" '
-        f'placeholder="{html.escape(_platzhalter_fuer(daten.get("phase"), daten.get("fragen_aktuell")), quote=True)}">\n'
+        # Karte t_d86971eb: ``<textarea rows="1">`` statt ``<input
+        # type="text">`` -- nur so kann das Feld ueberhaupt mehrzeilig
+        # werden. ``_js()`` misst ``scrollHeight`` und laesst es bis zu
+        # einer CSS-Obergrenze (``.zeile textarea`` in ``_CSS_CHAT``) nach
+        # oben wachsen, danach scrollt es intern.
+        f'    <textarea id="eingabe" autocomplete="off" rows="1" '
+        f'placeholder="{html.escape(_platzhalter_fuer(daten.get("phase"), daten.get("fragen_aktuell")), quote=True)}"></textarea>\n'
         f'    <button type="button" id="ptt"{" hidden" if modus else ""} title="'
         f'{html.escape(T._TEXT_PTT, quote=True)}">🎤</button>\n'
         f'    <button type="button" id="senden">'
@@ -4459,6 +4981,9 @@ _TOEPFE = {
     "start": web_grenze.TOPF_START,
     "auswahl": web_grenze.TOPF_AUSWAHL,
     "auswahl_fertig": web_grenze.TOPF_NACHRICHT,
+    "karte": web_grenze.TOPF_NACHRICHT,
+    "bedarf": web_grenze.TOPF_NACHRICHT,
+    "puffer": web_grenze.TOPF_NACHRICHT,
 }
 
 
@@ -4782,6 +5307,19 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
     # Sicherheitsmerkmal, ein falscher Wert zaehlt einfach wie keiner.
     kalibrierung = (felder.get("kalibrierung") or [""])[0] == "1"
 
+    # hintergrundMs (Karte t_1423ca89, Warnung "Aufnahme im Hintergrund
+    # unterbrochen"): wie viele ms die Seite waehrend dieses Segments im
+    # Hintergrund war (vom Client ueber visibilitychange/pagehide gemessen)
+    # -- dasselbe reine Diagnose-Metadatum wie rede_ms/weich_ms, derselbe
+    # defensive Ziffernschutz, kein Upload-Gate.
+    roh_hintergrund = (felder.get("hintergrund") or [""])[0]
+    hintergrund_ms = (
+        int(roh_hintergrund)
+        if roh_hintergrund.isascii() and roh_hintergrund.isdigit()
+        and len(roh_hintergrund) <= 10
+        else None
+    )
+
     koerper = handler.rfile.read(laenge)
     if len(koerper) != laenge:
         web.schliesse_nach_antwort(handler)
@@ -4801,6 +5339,7 @@ def _audio(handler, db_pfad: str, token: str, chat_id: int,
             dauer=dauer, mime=stt.mime_typ(Path(f"x{endung}")),
             schnittgrund=grund, brainstorm=brainstorm, diskussion=diskussion,
             rede_ms=rede_ms, kalibrierung=kalibrierung, weich_ms=weich_ms,
+            hintergrund_ms=hintergrund_ms,
         )
         # Absolut (I5): der Bot liest den Pfad in SEINEM Prozess, mit seinem
         # Arbeitsverzeichnis. Ein relativer Pfad hinge am cwd zweier Units.
@@ -4947,6 +5486,15 @@ def _auswahl_fertig(handler, db_pfad: str, token: str, chat_id: int,
     web_vereint.auswahl_fertig_post(handler, db_pfad, token, chat_id, schluessel)
 
 
+def _karte(handler, db_pfad: str, token: str, chat_id: int,
+           schluessel: bytes) -> None:
+    """"Yes, save" / "No, change" auf der Szenenkarte im CoThinker (Padua,
+    07.10.2026 ~19:25). Nur die Weiche."""
+    from interview_theater import web_vereint
+
+    web_vereint.karte_post(handler, db_pfad, token, chat_id, schluessel)
+
+
 def _zahl_oder_none(wert):
     """``wert`` als ``float``, wenn es eine echte Zahl ist (kein ``bool`` --
     das ist in Python auch ein ``int``) -- sonst ``None``, defensiv wie
@@ -4993,6 +5541,68 @@ def _kalibrierung(handler, db_pfad: str, token: str, chat_id: int,
     )
 
 
+def _puffer_melden(handler, db_pfad: str, token: str, chat_id: int,
+                   schluessel: bytes) -> None:
+    """Watchdog-Meldung des Chat-Clients (Karte InScribe, Diskussionsaufnahme
+    laedt still nicht mehr hoch, 2026-10-17): wie viele Audiosegmente der
+    Browser gerade im Handy (IndexedDB) gepuffert haelt, weil der
+    Segment-Upload laenger als der Watchdog-Schwellwert nicht mehr
+    durchkam. Gespeichert GRUPPENWEIT (``repo.setze_client_puffer``) wie
+    die Kalibrierungswerte -- die CoThinker-Statuszeile liest es darueber
+    zurueck, egal welches Geraet gerade meldet.
+
+    ``haengt`` kommt nur auf der ERSTEN Meldung einer haengenden Phase true
+    (der Client haelt das selbst nach, siehe ``_CHAT_JS``) -- nur dann
+    entsteht ein Vorfall fuer das Dashboard; die laufenden Folgezahlen
+    schreiben nur noch die aktuelle Pufferzahl fort."""
+    daten = _koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    anzahl = _zahl_oder_none(daten.get("anzahl")) or 0
+    anzahl = max(0, int(anzahl))
+    with schreibend(db_pfad) as conn:
+        repo.setze_client_puffer(conn, chat_id, anzahl)
+        if daten.get("haengt") and anzahl:
+            repo.merke_vorfall(
+                conn, chat_id, None, "web_upload_haengt",
+                f"{anzahl} Segment(e) im Handy gepuffert",
+            )
+    handler._antworte(
+        200, json.dumps({"ok": True}), "application/json; charset=utf-8",
+    )
+
+
+def _bedarf(handler, db_pfad: str, token: str, chat_id: int,
+           schluessel: bytes) -> None:
+    """Ein Haken in der Bedarfsliste der Werkbank (Birk 08.10.2026 ~13:45,
+    Padua) -- gesetzt oder zurueckgenommen.
+
+    Der eine Grund fuer einen EIGENEN Weg statt des Metadatum-Schreibwegs der
+    Gruppenseite (``web_schreiben.py``): der laeuft unter ``[web]
+    workbench_bearbeitbar = false`` (Padua) immer auf 403 -- genau das Profil,
+    unter dem die Werkbank (und damit die Bedarfsliste) ueberhaupt gezeigt
+    wird. Dieser Weg liegt unter ``/chat/*`` und prueft nur Herkunft, Token
+    und Nonce wie jeder andere Chat-POST, nicht ``workbench_bearbeitbar``."""
+    daten = _koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    punkt_id = daten.get("punkt_id")
+    erledigt = daten.get("erledigt")
+    if not isinstance(punkt_id, int) or isinstance(punkt_id, bool) or not isinstance(erledigt, bool):
+        handler._fehler(400, _TEXT_FEHLER_ANFRAGE)
+        return
+    with schreibend(db_pfad) as conn:
+        getroffen = repo.setze_bedarf_erledigt(conn, chat_id, punkt_id, erledigt)
+    if not getroffen:
+        from interview_theater import web
+
+        handler._antworte(404, web.nicht_gefunden_html())
+        return
+    handler._antworte(
+        200, json.dumps({"ok": True}), "application/json; charset=utf-8",
+    )
+
+
 #: Die Tabelle der POST-Wege. Eine Tabelle statt einer if-Kette: ein neuer Weg
 #: ist eine Zeile, und ``beantworte_post`` prueft Pfad, Token und Nonce fuer
 #: alle gleich.
@@ -5006,6 +5616,9 @@ _POSTWEGE = {
     "start": _start,
     "auswahl": _auswahl,
     "auswahl_fertig": _auswahl_fertig,
+    "karte": _karte,
+    "bedarf": _bedarf,
+    "puffer": _puffer_melden,
 }
 
 
@@ -5137,6 +5750,26 @@ def _segment_ms() -> int:
     (``einstellungen.VORGABE_SEGMENT_MS``)."""
     roh = (os.environ.get("IT_WEB_SEGMENT_MS") or "").strip()
     return int(roh) if roh.isdigit() and int(roh) > 0 else 45_000
+
+
+def _upload_watchdog_ms() -> int:
+    """Ab wann der Client eine Warnung zeigt, wenn ein laufendes Interview
+    oder Mithoeren seit so lange kein Segment mehr beim Server
+    untergebracht hat (Karte InScribe: Diskussionsaufnahme laedt still
+    nicht mehr hoch, 2026-10-17). Vorgabe 90 s -- das woertliche
+    Abnahmekriterium der Karte."""
+    roh = (os.environ.get("IT_WEB_UPLOAD_WATCHDOG_MS") or "").strip()
+    return int(roh) if roh.isdigit() and int(roh) > 0 else 90_000
+
+
+def _upload_timeout_ms() -> int:
+    """Wie lange ein einzelner Segment-/Befehls-Fetch hoechstens auf eine
+    Antwort wartet, bevor ``AbortController`` ihn abbricht (dieselbe Karte):
+    ohne Zeitlimit haengt ein einzelner fest steckender Request die ganze
+    seriell arbeitende Warteschlange (``arbeiteAb``) fest -- genau der
+    Verdacht aus dem Fallkontext der Karte."""
+    roh = (os.environ.get("IT_WEB_UPLOAD_TIMEOUT_MS") or "").strip()
+    return int(roh) if roh.isdigit() and int(roh) > 0 else 20_000
 
 
 def _umgebungszahl(name: str, vorgabe: float, *, ganzzahl: bool) -> float:

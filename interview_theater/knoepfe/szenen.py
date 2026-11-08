@@ -12,10 +12,13 @@ Textbuch und dem Link auf die Probenansicht (``biete_durchlauf``,
 
 Kein Modellaufruf steht hier: was eines braucht, geht ueber
 ``szenenfolge.py``, ``schaerfung.py``, ``stueckpruefung.py``,
-``kurzgeschichte.py`` oder ``szene.py`` in einen eigenen Thread.
+``kurzgeschichte.py``, ``szene.py`` oder ``nachspeichern.py`` (der
+optionale Zusatz nach "Ja, speichern") in einen eigenen Thread.
 """
 
-from interview_theater import repo
+import time
+
+from interview_theater import nachspeichern, repo, workshop
 
 from interview_theater.knoepfe.texte import (
     ART_DRAMATURGIE, ART_DRAMATURGIE_LASSEN, ART_DRAMATURGIE_SZENE,
@@ -24,8 +27,13 @@ from interview_theater.knoepfe.texte import (
     ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU, ART_GESCHICHTE_PASST,
     ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE, ART_PRUEFUNG_SZENE,
-    ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE,
-    ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SPRECHANTEILE,
+    ART_RECHERCHE, ART_RECHERCHE_FRAGE,
+    ART_SCHAERFUNG_CHAT, ART_SCHAERFUNG_FIGUR, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR,
+    ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_SORTIEREN,
+    ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE,
+    ART_KARTE_FRAGEN_KLAEREN, ART_KARTE_FRAGEN_UEBERSPRINGEN,
+    ART_KARTE_UPDATE, ART_KARTE_KEEP, ART_VERALTET_NEU, ART_VERALTET_LASSEN,
+    ART_SPRECHANTEILE,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
     ART_SZENENFOLGE_REIHENFOLGE, ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM,
     ART_SZENENSTIL, ART_SZENE_ANDERS, ART_SZENE_FORM, ART_SZENE_KUERZEN,
@@ -33,7 +41,7 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_SCHREIBEN, ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN,
     ART_SZENE_USA, ART_TEXTBUCH, ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
     ART_SPRECHWEISEN_ANDERS, ART_SPRECHWEISEN_PASST,
-    MAX_AUSWAHL, MENUE_KNOPF_LAENGE, T,
+    MAX_AUSWAHL, MENUE_KNOPF_LAENGE, PHASE_SETTING, T,
     TRENNER, log,
 )
 from interview_theater.knoepfe.basis import (
@@ -314,11 +322,56 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
     wenn die Materiallage sie hergibt, der Weg zu den Szentexten."""
     ziel = _naechstes_schaerfungsziel(conn, chat_id)
     if ziel is not None:
-        sammelart, sammelwert, ueberschrift, stellen = ziel
+        if workshop.diskussion_aktiv():
+            # Padua (07.10.2026, "Show more" war unsinnig): die Gruppe
+            # sortiert im CoThinker (Yes/No, Done,
+            # ``schliesse_schaerfungsliste``) statt Seite fuer Seite im
+            # Chat -- die kurze Ankuendigung kommt schon aus
+            # ``schaerfung._lauf`` (``MELDUNG_COTHINKER``).
+            return True
+        sammelart, sammelwert, ueberschrift, stellen, gesamt, versatz = ziel
         _sende_schaerfungsmenue(
             conn, tg, chat_id, ueberschrift, stellen, sammelart, sammelwert,
+            gesamt, versatz,
         )
         return True
+    _sende_schaerfung_durch(conn, tg, chat_id)
+    return False
+
+
+def biete_schaerfung_wahl(conn, tg, chat_id: int, text: str) -> int:
+    """Die EINE Nachricht nach der automatischen Zuordnung beim Eintritt in
+    Phase 5 (Padua, Birk-Feedback 07.10.2026 "Entry zu voll"): ``text`` (die
+    bisherige ``MELDUNG_COTHINKER``) mit zwei Knoepfen statt nur Text --
+    "Stellen sortieren" springt im Browser direkt in den CoThinker-Tab
+    (client-seitig ueber den Knopftext, ``web_chat.py``), "Erst ueber die
+    Interviews reden" stoesst die kurze Zusammenfassung an
+    (``schaerfung.starte_zusammenfassung``). Ersetzt an dieser Stelle sowohl
+    die bisherige unbewaffnete Textzeile als auch den bisherigen
+    automatischen Sprung in die Geschichts-Uebersicht (Stufe A, Phase 5
+    Prose Draft) -- die kommt jetzt erst nach "Done" in der Sortierliste
+    (``schliesse_schaerfungsliste``)."""
+    leiste = [
+        (
+            T.TEXT_SCHAERFUNG_SORTIEREN_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHAERFUNG_SORTIEREN, None)),
+        ),
+        (
+            T.TEXT_SCHAERFUNG_CHAT_KNOPF,
+            _daten(repo.lege_knopf_an(conn, chat_id, ART_SCHAERFUNG_CHAT, None)),
+        ),
+    ]
+    return _mit_leiste(conn, tg, chat_id, text, leiste)
+
+
+def _sende_schaerfung_durch(conn, tg, chat_id: int) -> None:
+    """Nichts mehr offen: die Abschlussfrage mit "Noch eine Runde" und,
+    wenn die Materiallage es hergibt, dem Phasenknopf -- der Schluss der
+    alten Kartenfolge (``biete_schaerfung``) UND das Ziel des Knopfes
+    "Done" in der CoThinker-Sortierliste (Padua,
+    ``schliesse_schaerfungsliste``): "die Gruppe sortiert fertig" soll
+    gleich ankommen, unabhaengig davon, ob die letzte Seite im Chat zu Ende
+    ging oder im CoThinker auf Done getippt wurde."""
     leiste = [
         (
             T.TEXT_SCHAERFUNG_RUNDE_KNOPF,
@@ -329,41 +382,210 @@ def biete_schaerfung(conn, tg, chat_id: int) -> bool:
     if phasenknopf is not None:
         leiste.append(phasenknopf)
     _mit_leiste(conn, tg, chat_id, T._TEXT_SCHAERFUNG_DURCH, leiste)
-    return False
 
 
 def _naechstes_schaerfungsziel(conn, chat_id: int):
     """Das Menue, das ``biete_schaerfung`` als naechstes zeigt -- erst Szene
-    fuer Szene, dann Figur fuer Figur: ``(sammelart, sammelwert,
-    ueberschrift, stellen)`` oder ``None``. Deterministisch aus der
-    Datenbank; dieselbe Quelle fuer das Menue und fuer "keine davon" aus
-    dem Chat (``verwirf_schaerfung``), damit beide dieselben Stellen meinen."""
+    fuer Szene, dann Figur fuer Figur, immer die ERSTE Seite (staerkste
+    zuerst): ``(sammelart, sammelwert, ueberschrift, stellen, gesamt,
+    versatz)`` oder ``None``. Deterministisch aus der Datenbank; dieselbe
+    Quelle fuer das Menue und fuer "keine davon" aus dem Chat
+    (``verwirf_schaerfung``), damit beide dieselben Stellen meinen.
+
+    ``gesamt``/``versatz`` (07.10.2026, ``MAX_STELLEN`` als Gesamtgrenze
+    aufgehoben) tragen die Seiteninformation fuer den "Mehr zeigen"-Knopf --
+    das WEITERBLAETTERN derselben Seite laeuft ueber ``zeige_schaerfung_seite``,
+    nicht ueber diese Funktion (die sucht immer das naechste Ziel ab Seite 1)."""
     from interview_theater import schaerfung as schaerfung_modul
 
     for szene in repo.hole_szenen(conn, chat_id):
-        stellen = schaerfung_modul.offene_stellen(
+        stellen, gesamt = schaerfung_modul.offene_stellen_seite(
             conn, chat_id, szene_id=szene["id"]
         )
         if stellen:
             return (ART_SCHAERFUNG_SZENE, str(szene["nummer"]),
                     schaerfung_modul.szenenueberschrift(conn, chat_id, szene),
-                    stellen)
+                    stellen, gesamt, 0)
     for figur in repo.figuren(conn, chat_id):
-        stellen = schaerfung_modul.offene_stellen(
+        stellen, gesamt = schaerfung_modul.offene_stellen_seite(
             conn, chat_id, figur_id=figur["id"]
         )
         if stellen:
             return (ART_SCHAERFUNG_FIGUR, figur["name"],
-                    schaerfung_modul.figurueberschrift(figur), stellen)
+                    schaerfung_modul.figurueberschrift(figur), stellen, gesamt, 0)
     return None
+
+
+def zeige_schaerfung_seite(conn, tg, chat_id: int, sammelart: str, sammelwert: str,
+                           versatz: int) -> None:
+    """"Mehr zeigen" (07.10.2026): dieselbe Szene/Figur eine Seite weiter --
+    kein neues Ziel, kein Modellaufruf, alles steht schon in ``schaerfung``.
+
+    Ist das Ziel inzwischen weg (Szene geloescht) oder die Seite leer (ein
+    "Keine davon" dazwischen), faellt es auf ``biete_schaerfung`` zurueck --
+    dieselbe Herleitung, die auch sonst das naechste Ziel findet."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    if sammelart == ART_SCHAERFUNG_SZENE:
+        try:
+            ziel = _szene_mit_nummer(conn, chat_id, int(sammelwert))
+        except (TypeError, ValueError):
+            ziel = None
+        if ziel is None:
+            biete_schaerfung(conn, tg, chat_id)
+            return
+        stellen, gesamt = schaerfung_modul.offene_stellen_seite(
+            conn, chat_id, szene_id=ziel["id"], versatz=versatz,
+        )
+        ueberschrift = schaerfung_modul.szenenueberschrift(conn, chat_id, ziel)
+    else:
+        figur = repo.hole_figur(conn, chat_id, sammelwert)
+        if figur is None:
+            biete_schaerfung(conn, tg, chat_id)
+            return
+        stellen, gesamt = schaerfung_modul.offene_stellen_seite(
+            conn, chat_id, figur_id=figur["id"], versatz=versatz,
+        )
+        ueberschrift = schaerfung_modul.figurueberschrift(figur)
+    if not stellen:
+        biete_schaerfung(conn, tg, chat_id)
+        return
+    _sende_schaerfungsmenue(
+        conn, tg, chat_id, ueberschrift, stellen, sammelart, sammelwert,
+        gesamt, versatz,
+    )
+
+
+def uebernimm_schaerfung_stellen(conn, tg, chat_id: int, ids: list[int]) -> str:
+    """"Diese uebernehmen", seitengebunden (07.10.2026): der Knopf-Handler
+    fuer ``ART_SCHAERFUNG_SZENE``/``ART_SCHAERFUNG_FIGUR``. Uebernimmt GENAU
+    die gezeigten Stellen (``schaerfung.uebernimm_stellen``), nicht alles,
+    was fuer dieses Ziel je zugeordnet wurde -- der gemessene Fehler von
+    vorher (Analyse Abschnitt 4: 13 zugeordnete, unsichtbare Stellen wurden
+    heimlich mit uebernommen). Der Erkenner-Weg
+    (``uebernimm_schaerfung_szene``/``_figur``, "alles fuer dieses Ziel")
+    bleibt unberuehrt."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    anzahl = schaerfung_modul.uebernimm_stellen(conn, chat_id, ids)
+    if not anzahl:
+        tg.sende(chat_id, T._TEXT_SCHAERFUNG_NICHTS)
+    else:
+        tg.sende(chat_id, T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl))
+    biete_schaerfung(conn, tg, chat_id)
+    return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
+
+
+def schliesse_schaerfungsliste(conn, tg, klm, e, chat_id: int) -> str:
+    """"Done" in der CoThinker-Sortierliste der Schaerfung (Padua,
+    07.10.2026, versteckter Befehl ``/schaerfung_fertig``): nimmt ALLE mit
+    Yes markierten offenen Stellen auf (dieselbe Ablage wie "Diese
+    uebernehmen", ``schaerfung.uebernimm_stellen``), verwirft ALLE mit No
+    markierten (``schaerfung.verwirf_stellen``) und laesst noch offene
+    (weder Yes noch No getippte) unberuehrt stehen -- eine weitere Runde
+    kann sie wieder vorlegen. Schliesst danach ab wie am Ende der alten
+    Kartenfolge (``_sende_schaerfung_durch``), unabhaengig davon, ob noch
+    offene stehen bleiben: die Gruppe hat "Done" getippt, kein Modellaufruf
+    hier (Zusage 2).
+
+    **Stufe A von Phase 5 (Prose Draft, 07.10.2026 Umbau "Entry zu voll"):**
+    unter ``workshop.prosa_entwurf_aktiv()`` stoesst "Done" jetzt die
+    Geschichts-Uebersicht an (``entwurf.starte_uebersicht``, eigener
+    Thread) -- vorher lief das automatisch gleich nach dem Mapping beim
+    Phaseneintritt. Nur, solange die Uebersicht noch nicht fixiert ist
+    (``geschichte_uebersicht_fixiert_am``): ein spaeteres "Done" (nach
+    "Noch eine Runde") darf eine schon abgenommene Uebersicht -- und damit
+    eine laufende Stufe B -- nicht ueberschreiben."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    # Birk 07.10.2026 ~16:35 (G1 tippte Done dreimal -> dreimal dieselbe
+    # Frage): ein zweites Done innerhalb von DONE_SPERRE_S wirkt nicht.
+    jetzt = time.monotonic()
+    if jetzt - _letztes_done.get(chat_id, -1e9) < DONE_SPERRE_S:
+        return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=0)
+    _letztes_done[chat_id] = jetzt
+
+    eintraege = schaerfung_modul.offene_stellen(conn, chat_id)
+    ja_ids = [z["id"] for z in eintraege if z["entscheidung"] == "ja"]
+    nein_ids = [z["id"] for z in eintraege if z["entscheidung"] == "nein"]
+    if workshop.prosa_entwurf_aktiv():
+        # Birk 07.10.2026 ~18:00 (G1/G2: nach "Done" tauchten neue
+        # Interviewstellen in der Liste auf): "Done" schliesst die Liste.
+        # Was SICHTBAR und unentschieden war, zaehlt wie beschriftet als
+        # Keep ("open ones count as keep"); was die Obergrenze ausgeblendet
+        # hatte, faellt weich heraus -- sonst rueckt es als "neue" Liste nach.
+        from interview_theater import web_daten
+
+        liste = web_daten.schaerfungsliste(conn, chat_id) or {}
+        sichtbar = {
+            e["id"] for g in liste.get("gruppen", []) for e in g.get("eintraege", [])
+        }
+        entschieden = set(ja_ids) | set(nein_ids)
+        ja_ids += [z["id"] for z in eintraege
+                   if z["id"] in sichtbar and z["id"] not in entschieden]
+        nein_ids += [z["id"] for z in eintraege
+                     if z["id"] not in sichtbar and z["id"] not in entschieden]
+    anzahl = schaerfung_modul.uebernimm_stellen(conn, chat_id, ja_ids) if ja_ids else 0
+    if nein_ids:
+        schaerfung_modul.verwirf_stellen(conn, nein_ids)
+    # Padua (Birk 07.10.2026 ~17:45): nach "Done" die Kurzform je Szene neu
+    # -- im Thread, nur wo sich die Eingabe geaendert hat (szenenkern).
+    from interview_theater import szenenkern
+
+    szenenkern.starte(conn, klm, e, chat_id)
+    if workshop.szenenkarten_aktiv():
+        # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): Phase 5 = nur Interviews
+        # auswaehlen. "Done" schliesst die Auswahl ab und bietet Phase 6 an
+        # (Szenenkarten) -- keine Uebersicht, kein Prosalauf mehr.
+        from interview_theater.knoepfe.basis import biete_phase
+
+        biete_phase(conn, tg, chat_id, T._TEXT_DONE_KARTEN.format(anzahl=anzahl), 6)
+        return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
+    if not workshop.prosa_entwurf_aktiv():
+        _sende_schaerfung_durch(conn, tg, chat_id)
+        return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
+    # Phase 5 Prosa-Entwurf (Birk 07.10.2026 ~16:35): Done fuehrt GERADE
+    # weiter -- keine Frage "noch eine Runde oder Szenentexte?" mehr.
+    #   * Uebersicht noch nicht abgenommen -> sie entsteht jetzt (Logline,
+    #     danach "Yes, save" -> Szene 1).
+    #   * schon abgenommen (oder still erzeugt) -> die offene Szene: hat sie
+    #     schon Text, ihre Leiste erneut anbieten (nichts doppelt schreiben);
+    #     sonst jetzt schreiben.
+    from interview_theater import entwurf
+
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    schon_fixiert = bool(stand and (stand["geschichte_uebersicht_fixiert_am"] or "").strip())
+    if not schon_fixiert:
+        tg.sende(chat_id, T._TEXT_DONE_UEBERSICHT.format(anzahl=anzahl))
+        entwurf.starte_uebersicht(conn, tg, klm, e, chat_id)
+        return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
+    nummer = entwurf.erste_offene_szene(conn, chat_id)
+    zeile = _szene_mit_nummer(conn, chat_id, nummer) if nummer is not None else None
+    if zeile is not None and (zeile["prosa"] or "").strip():
+        biete_nach_szenentext(conn, tg, chat_id, nummer,
+                              T._TEXT_DONE_SZENE_DA.format(anzahl=anzahl, nummer=nummer))
+    elif nummer is not None:
+        tg.sende(chat_id, T._TEXT_DONE_SZENE_NEU.format(anzahl=anzahl, nummer=nummer))
+        from interview_theater import szene as szene_modul
+
+        szene_modul.starte(conn, tg, klm, e, chat_id, entwurf._AUFTRAG_PROSA.format(nummer=nummer))
+    else:
+        _sende_schaerfung_durch(conn, tg, chat_id)
+    return T._TEXT_SCHAERFUNG_UEBERNOMMEN.format(anzahl=anzahl)
+
+
+#: Sperre gegen mehrfaches "Done" (Sekunden).
+DONE_SPERRE_S = 20.0
+_letztes_done: dict[int, float] = {}
 
 
 def uebernimm_schaerfung_szene(conn, tg, chat_id: int, nummer: int,
                                anders: bool = False) -> str:
-    """Alle offenen Schaerfungen einer Szene uebernehmen -- der EINE Rumpf
-    fuer den Knopf "Diese uebernehmen" und den Erkenner
-    (``schaerfung_entscheidung``, Padua Phasen TEIL 2). Deterministisch,
-    kein Modellaufruf (Zusage 2); danach der naechste Vorschlag."""
+    """Alle offenen Schaerfungen einer Szene uebernehmen -- der Rumpf fuer den
+    Erkenner (``schaerfung_entscheidung``, Padua Phasen TEIL 2); der Knopf
+    "Diese uebernehmen" laeuft seit 07.10.2026 seitengebunden ueber
+    ``uebernimm_schaerfung_stellen``. Deterministisch, kein Modellaufruf
+    (Zusage 2); danach der naechste Vorschlag."""
     from interview_theater import schaerfung as schaerfung_modul
 
     ziel = _szene_mit_nummer(conn, chat_id, nummer)
@@ -422,15 +644,26 @@ def verwirf_schaerfung(conn, tg, chat_id: int, ids: list[int] | None = None) -> 
 
 def _sende_schaerfungsmenue(
     conn, tg, chat_id: int, ueberschrift: str, stellen: list,
-    sammelart: str, sammelwert: str,
+    sammelart: str, sammelwert: str, gesamt: int, versatz: int,
 ) -> int:
-    """Ein Schaerfungs-Menue: je Stelle ein Knopf, darunter die zwei
+    """Ein Schaerfungs-Menue: je Stelle ein Knopf, darunter "Mehr zeigen"
+    (nur wenn es ueber die Seite hinaus noch welche gibt), dann die zwei
     Sammelknoepfe.
 
     Die Reihenfolge der Knoepfe ist die Reihenfolge der Punkte -- ``stellen``
-    wird genau einmal durchlaufen und speist beides."""
+    wird genau einmal durchlaufen und speist beides.
+
+    ``gesamt``/``versatz`` (07.10.2026, ``MAX_STELLEN`` als Gesamtgrenze
+    aufgehoben): die Ueberschrift nennt die Seite, sobald es mehr Stellen
+    gibt als eine Seite zeigt; "Diese uebernehmen" und "Keine davon" tragen
+    BEIDE nur die ``id``s der gezeigten Seite (``stellen``) -- nie die der
+    unsichtbaren restlichen Seiten (der gemessene Fehler von vorher)."""
     from interview_theater import schaerfung as schaerfung_modul, vorschlag
 
+    if gesamt > len(stellen):
+        ueberschrift = ueberschrift + T._TEXT_SCHAERFUNG_SEITE.format(
+            von=versatz + 1, bis=versatz + len(stellen), gesamt=gesamt,
+        )
     zeilen: list[str] = []
     leiste: list[tuple[str, str]] = []
     for nummer, eintrag in enumerate(stellen, start=1):
@@ -446,12 +679,26 @@ def _sende_schaerfungsmenue(
                 ),
             )
         )
+    naechster_versatz = versatz + len(stellen)
+    if gesamt > naechster_versatz:
+        leiste.append(
+            (
+                T._TEXT_SCHAERFUNG_MEHR_KNOPF,
+                _daten(
+                    repo.lege_knopf_an(
+                        conn, chat_id, ART_SCHAERFUNG_MEHR,
+                        f"{sammelart}{TRENNER}{sammelwert}{TRENNER}{naechster_versatz}",
+                    )
+                ),
+            )
+        )
     leiste.append(
         (
             T._TEXT_SCHAERFUNG_ALLE_KNOPF,
             _daten(
                 repo.lege_knopf_an(
-                    conn, chat_id, sammelart, f"weiter{TRENNER}{sammelwert}"
+                    conn, chat_id, sammelart,
+                    TRENNER.join(str(z["id"]) for z in stellen),
                 )
             ),
         )
@@ -856,6 +1103,20 @@ def _leiste_nach_szenentext(conn, chat_id: int, nummer: int) -> list[tuple[str, 
     zeigen"."""
     from interview_theater import kuerzung as kuerzung_modul
 
+    if workshop.prosa_entwurf_aktiv():
+        # Birk 07.10.2026 ~17:15 (G1: "unklare Shortcut-Knoepfe"): in Padua
+        # nur Ja / Nein-aendern; nach "Nein" kommt die Textnachricht der
+        # Gruppe (``_wirkung_szene_anders`` fragt danach).
+        return [
+            (
+                T.TEXT_WEITER_KNOPF,
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_PASST, str(nummer))),
+            ),
+            (
+                T.TEXT_NEIN_AENDERN_KNOPF,
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_SZENE_ANDERS, str(nummer))),
+            ),
+        ]
     return [
         (
             T.TEXT_PASST_KNOPF,
@@ -922,6 +1183,37 @@ def _knopf(conn, chat_id: int, beschriftung: str, art: str, wert) -> tuple[str, 
     return (beschriftung, _daten(repo.lege_knopf_an(conn, chat_id, art, wert)))
 
 
+def biete_veraltete(conn, tg, e, chat_id: int) -> int:
+    """Stueckmodell (t_fd88600b): je Prosa, die nach einer Aenderung nicht
+    mehr passt, EIN Angebot "Szene N passt nicht mehr zu ... -- neu
+    schreiben?" mit Ja/Nein. Prosa wird nie still umgeschrieben. Kein
+    Modellaufruf; ein Angebot je Vermerk (``angeboten_am``). Knopfbeschriftungen
+    bleiben immer auf der gewoehnlichen ``stueck.T`` (EN)."""
+    from interview_theater import stueck
+
+    gesendet = 0
+    for v in repo.offene_veraltet(conn, chat_id, nur_unangeboten=True):
+        if v["ansicht"] == "kopf":
+            text = stueck._T(chat_id)._TEXT_KOPF_VERALTET.format(grund=v["grund"])
+        else:
+            szene = repo.hole_szene(conn, v["szene_id"])
+            if szene is None or szene["entfernt_am"]:
+                repo.erledige_veraltet(conn, v["id"], "lassen")
+                continue
+            text = stueck._T(chat_id)._TEXT_VERALTET.format(
+                nummer=szene["nummer"], grund=v["grund"])
+        leiste = [
+            _knopf(conn, chat_id, stueck.T._TEXT_JA_NEU_KNOPF, ART_VERALTET_NEU, str(v["id"])),
+            _knopf(conn, chat_id, stueck.T._TEXT_NEIN_LASSEN_KNOPF, ART_VERALTET_LASSEN,
+                   str(v["id"])),
+        ]
+        message_id = _mit_leiste(conn, tg, chat_id, text, leiste)
+        repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
+        repo.markiere_veraltet_angeboten(conn, v["id"])
+        gesendet += 1
+    return gesendet
+
+
 def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int:
     """Zeigt eine Szene nach ihrem Prueflauf (``prueflauf.pruefe_szene``).
 
@@ -958,13 +1250,10 @@ def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int
     if zusammenfassung:
         teile.append(zusammenfassung)
     teile.extend(getattr(bericht, "zeilen", None) or [])
-    teile.append(skript_verweis(conn, e, chat_id))
-    text = "\n\n".join(teile)
-
     from interview_theater import phasen
 
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_SZENE_PASST)
-    if phasen.aktuelle(conn, chat_id) == 5:
+    if phasen.aktuelle(conn, chat_id) == 5 or workshop.prosa_entwurf_aktiv():
         leiste = _leiste_nach_szenentext(conn, chat_id, nummer)
     else:
         leiste = [
@@ -974,8 +1263,15 @@ def zeige_geprueft_szene(conn, tg, e, chat_id: int, nummer: int, bericht) -> int
                    T.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
                    ART_SZENE_KUERZEN, str(nummer)),
         ]
-    leiste.append(_knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF,
-                         ART_ERSTENTWURF, str(nummer)))
+    if not workshop.prosa_entwurf_aktiv():
+        leiste.append(_knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF,
+                             ART_ERSTENTWURF, str(nummer)))
+    # Der naechste Schritt nennt den ersten Knopf der Leiste woertlich
+    # (Padua Lauf 4: wer im Script-Tab gelesen hat, wusste nicht, dass er
+    # hier zurueck und einen Knopf druecken soll).
+    teile.append(skript_verweis(conn, e, chat_id))
+    teile.append(T._TEXT_SZENE_NAECHSTER_SCHRITT.format(knopf=leiste[0][0]))
+    text = "\n\n".join(teile)
     message_id = _mit_leiste(conn, tg, chat_id, text, leiste)
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     return message_id
@@ -1025,12 +1321,16 @@ def zeige_geprueft_geschichte(conn, tg, e, chat_id: int, bericht) -> int:
     _nimm_alte_leiste_ab(conn, tg, chat_id, ART_GESCHICHTE_PASST)
     leiste = [
         _knopf(conn, chat_id, T.TEXT_WEITER_KNOPF, ART_GESCHICHTE_PASST, None),
-        _knopf(conn, chat_id, T.TEXT_ANDERS_KNOPF, ART_GESCHICHTE_ANDERS, None),
-        _knopf(conn, chat_id,
-               T.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
-               ART_GESCHICHTE_KUERZEN, None),
-        _knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF, ART_ERSTENTWURF, ""),
+        _knopf(conn, chat_id, T.TEXT_NEIN_AENDERN_KNOPF if workshop.prosa_entwurf_aktiv()
+               else T.TEXT_ANDERS_KNOPF, ART_GESCHICHTE_ANDERS, None),
     ]
+    if not workshop.prosa_entwurf_aktiv():
+        leiste += [
+            _knopf(conn, chat_id,
+                   T.TEXT_KUERZEN_KNOPF.format(prozent=kuerzung_modul.PROZENT),
+                   ART_GESCHICHTE_KUERZEN, None),
+            _knopf(conn, chat_id, T._TEXT_ERSTENTWURF_KNOPF, ART_ERSTENTWURF, ""),
+        ]
     message_id = _mit_leiste(conn, tg, chat_id, text, leiste)
     repo.merke_bot_zeile(conn, chat_id, message_id, e, text)
     return message_id
@@ -1053,7 +1353,7 @@ def biete_uebersicht(conn, tg, chat_id: int, anzeige: str) -> int:
     ``ART_SZENE_PASST``/``ART_SZENE_ANDERS`` unter einem Szenentext."""
     leiste = [
         (T.TEXT_WEITER_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_PASST, ""))),
-        (T.TEXT_ANDERS_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_ANDERS, ""))),
+        (T.TEXT_NEIN_AENDERN_KNOPF if workshop.prosa_entwurf_aktiv() else T.TEXT_ANDERS_KNOPF, _daten(repo.lege_knopf_an(conn, chat_id, ART_UEBERSICHT_ANDERS, ""))),
     ]
     return _mit_leiste(conn, tg, chat_id, anzeige, leiste)
 
@@ -1159,7 +1459,12 @@ def zeige_szenentext(conn, tg, chat_id: int, nummer: int) -> str:
     if ziel is None:
         tg.sende(chat_id, T._TEXT_SZENE_UNBEKANNT)
         return T._TEXT_SZENE_UNBEKANNT
-    volltext = (ziel["volltext"] or "").strip()
+    from interview_theater import szene as szene_modul
+
+    # Bis Phase 6 steht der Text in ``prosa`` (P57 Lauf 3 A2), danach in
+    # ``volltext``.
+    volltext = ((ziel["volltext"] or "").strip()
+                or szene_modul.prosa_von(ziel))
     if not volltext:
         tg.sende(chat_id, T._TEXT_SZENE_OHNE_TEXT.format(nummer=nummer))
         return T._TEXT_SZENE_OHNE_TEXT.format(nummer=nummer)
@@ -1255,6 +1560,20 @@ def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
         ),
         quelle="knopf",
     )
+    if _nur_rahmen(conn, chat_id):
+        # Padua, Phase 4 (Karte t_b19d37ac, Birk 06.10.2026: "Keine Szenen
+        # ausformulieren in Phase 4. Nur Rahmen setzen."): nach der
+        # gespeicherten Szenenfolge keine Szenenvorstellung mit "Soll ich
+        # Szene 1 jetzt schreiben?" -- geschrieben wird erst in Phase 5
+        # (Prose Draft). Stattdessen das eine Phasenangebot, sofern faellig.
+        tg.sende(chat_id, T._TEXT_FOLGE_GESPEICHERT_RAHMEN.format(anzahl=len(nummern)))
+        if modus.strip() == "anders":
+            tg.sende(chat_id, T._TEXT_ANDERS)
+            return T._TEXT_GESPEICHERT_WAS_ANDERS_QUITTUNG
+        from interview_theater.knoepfe import stationen
+
+        stationen.biete_phase_proaktiv(conn, tg, chat_id)
+        return T._TEXT_SZENEN_UEBERNOMMEN_QUITTUNG.format(anzahl=len(nummern))
     tg.sende(chat_id, T._TEXT_FOLGE_GESPEICHERT.format(anzahl=len(nummern)))
     if modus.strip() == "anders":
         tg.sende(chat_id, T._TEXT_ANDERS)
@@ -1263,6 +1582,15 @@ def _speichere_szenenfolge(conn, tg, klm, e, chat_id: int, roh: str) -> str:
     if erste is not None:
         biete_szene(conn, tg, chat_id, erste)
     return T._TEXT_SZENEN_UEBERNOMMEN_QUITTUNG.format(anzahl=len(nummern))
+
+
+def _nur_rahmen(conn, chat_id: int) -> bool:
+    """Phase 4 eines Profils mit Prosa-Entwurf in Phase 5 (Padua): hier wird
+    nur der Rahmen gesetzt, keine Szene zum Schreiben vorgestellt."""
+    from interview_theater import phasen, workshop
+
+    return (workshop.prosa_entwurf_aktiv()
+            and phasen.aktuelle(conn, chat_id) == PHASE_SETTING)
 
 
 def _uebernimm_formwahl(conn, tg, chat_id: int, wert: str, formen: dict) -> str:
@@ -1460,6 +1788,9 @@ def _nach_szenen_gespeichert(conn, tg, chat_id: int, geschichte: str,
         _mit_leiste(conn, tg, chat_id, T._TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
     else:
         tg.sende(chat_id, T._TEXT_NACH_SPEICHERN_FRAGE)
+    # Die Bestaetigung steht; der optionale Zusatz kommt, wenn ueberhaupt,
+    # als eigene Nachricht aus einem eigenen Thread (Zusage 2).
+    nachspeichern.starte(conn, tg, klm, e, chat_id, T._NOTIERT["geschichte"], geschichte)
     return T._JOURNAL_GESCHICHTE_MIT_SZENEN.format(anzahl=anzahl)
 
 
@@ -1471,6 +1802,7 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
     dieselben Aliase wie beim Befehl und beim Erkenner, kein zweites
     Vokabular. Was der Code nicht kennt, wird uebergangen und geloggt: ein
     unbekanntes Feld ist kein Grund, die uebrigen wegzuwerfen."""
+    from interview_theater import stueck
     from interview_theater import szene as szene_modul
 
     roh_nummer, _, wert = roh.partition(TRENNER)
@@ -1481,6 +1813,7 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
         return T._TEXT_UNBEKANNT
     szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
     gesetzt = []
+    abgewiesen = []
     for zeile in wert.splitlines():
         kopf, trenner, rest = zeile.partition(":")
         feld = szene_modul.feldname(kopf)
@@ -1496,11 +1829,28 @@ def _speichere_szenenfelder(conn, tg, chat_id: int, roh: str) -> str:
                 if n.strip().lower() in nach_name
             ]
             if ids:
-                repo.setze_szene_figuren(conn, chat_id, szene_id, ids)
+                namen = {f["id"]: f["name"] for f in repo.figuren(conn, chat_id)}
+                ergebnis = stueck.setze_besetzung(
+                    conn, chat_id, szene=nummer, namen=[namen[i] for i in ids],
+                    zusatz=repo.hole_szene(conn, szene_id)["wer_zusatz"])
+                if not ergebnis.ok:
+                    abgewiesen.append(ergebnis)
+                    continue
                 gesetzt.append(feld)
             continue
-        repo.setze_szenenfeld(conn, szene_id, feld, rest.strip())
+        if feld in repo.NUR_UEBER_STUECK:
+            ergebnis = stueck.setze_ort(conn, chat_id, szene=nummer, ort=rest.strip())
+            if not ergebnis.ok:
+                abgewiesen.append(ergebnis)
+                continue
+        else:
+            repo.setze_szenenfeld(conn, szene_id, feld, rest.strip())
         gesetzt.append(feld)
+    if abgewiesen:
+        # Z. B. "gerade wird geschrieben": die Gruppe erfaehrt es, statt dass
+        # still etwas fehlt.
+        tg.sende(chat_id, "; ".join(
+            dict.fromkeys(w for e in abgewiesen for w in (e.warnungen or (str(e.fehler),)))))
     if not gesetzt:
         log.error("Feldvorschlag ohne verwertbares Feld, chat_id=%s", chat_id)
         return T._TEXT_UNBEKANNT
@@ -1562,6 +1912,21 @@ def nimm_geschichte_notiz(chat_id: int) -> bool:
     if chat_id not in _geschichte_notiz_erwartet:
         return False
     _geschichte_notiz_erwartet.discard(chat_id)
+    return True
+
+
+#: Dasselbe fuer die Uebersicht/Logline (Birk 07.10.2026 ~18:15).
+_uebersicht_notiz_erwartet: set[int] = set()
+
+
+def erwarte_uebersicht_notiz(chat_id: int) -> None:
+    _uebersicht_notiz_erwartet.add(chat_id)
+
+
+def nimm_uebersicht_notiz(chat_id: int) -> bool:
+    if chat_id not in _uebersicht_notiz_erwartet:
+        return False
+    _uebersicht_notiz_erwartet.discard(chat_id)
     return True
 
 
@@ -1673,3 +2038,79 @@ def _biete_weiter_nach_szene(conn, tg, chat_id: int, nummer: int) -> None:
         _mit_leiste(conn, tg, chat_id, T._TEXT_KEINE_NAECHSTE, [phasenknopf])
     else:
         tg.sende(chat_id, T._TEXT_KEINE_NAECHSTE)
+
+
+# --- Internet-Recherche (Karte t_c5117c91, InScribe) ------------------------
+#
+# Ein eigener Materialstrang neben dem Interview: Angebot -> Fragenvorschlag
+# -> Frage waehlen -> Lauf. Kein Modellaufruf in einem Handler (Zusage 2):
+# Fragenvorschlag UND Recherchelauf gehen sofort in einen eigenen Thread.
+
+
+def biete_recherche(conn, tg, chat_id: int) -> int:
+    """Der eine Research-Knopf. Erscheint am Anfang von Phase 5
+    (``knoepfe.stationen.eintritt_in_phase``) und auf Anfrage ab Phase 4
+    (``/stand``, ``befehle.py``) -- nur mit dem Profilschalter
+    ``workshop.recherche_aktiv()``."""
+    knopf_id = repo.lege_knopf_an(conn, chat_id, ART_RECHERCHE, None)
+    return _mit_leiste(
+        conn, tg, chat_id, T._TEXT_RECHERCHE_ANBIETEN,
+        [(T._TEXT_RECHERCHE_KNOPF, _daten(knopf_id))],
+    )
+
+
+def starte_fragenvorschlag(conn, tg, klm, e, chat_id: int) -> None:
+    """Schlaegt im Thread drei Forschungsfragen vor und zeigt sie als
+    Knoepfe -- die Gruppe kann stattdessen auch "Recherche: ..." tippen
+    (Erkenner-art ``recherche_starten``)."""
+    import threading
+
+    from interview_theater import recherche as recherche_modul
+
+    tg.sende(chat_id, T._TEXT_RECHERCHE_FRAGEN_LAEUFT)
+
+    def _lauf() -> None:
+        try:
+            fragen = recherche_modul.schlage_fragen_vor(klm, conn, e, chat_id)
+        except Exception:
+            log.exception("Fragenvorschlag fehlgeschlagen, chat_id=%s", chat_id)
+            return
+        if not fragen:
+            tg.sende(chat_id, T._TEXT_RECHERCHE_KEINE_FRAGEN)
+            return
+        leiste = [
+            (
+                frage[:MENUE_KNOPF_LAENGE],
+                _daten(repo.lege_knopf_an(conn, chat_id, ART_RECHERCHE_FRAGE, frage)),
+            )
+            for frage in fragen
+        ]
+        _mit_leiste(conn, tg, chat_id, T._TEXT_RECHERCHE_FRAGEN_TEXT, leiste)
+
+    threading.Thread(target=_lauf, daemon=True).start()
+
+
+def starte_recherche_lauf(conn, tg, klm, e, chat_id: int, frage: str) -> None:
+    """Fuehrt die Recherche zu ``frage`` im Thread aus und postet die Karte
+    -- derselbe Weg ab einem Fragen-Knopf oder der Erkenner-art
+    ``recherche_starten`` (frei getippt)."""
+    import threading
+
+    from interview_theater import recherche as recherche_modul
+
+    tg.sende(chat_id, T._TEXT_RECHERCHE_LAEUFT)
+
+    def _lauf() -> None:
+        try:
+            recherche_id = recherche_modul.starte(klm, conn, e, chat_id, frage)
+        except Exception:
+            log.exception("Recherche fehlgeschlagen, chat_id=%s", chat_id)
+            recherche_id = None
+        if recherche_id is None:
+            tg.sende(chat_id, T._TEXT_RECHERCHE_NICHTS_GEFUNDEN)
+            return
+        karte = repo.hole_recherche(conn, chat_id, recherche_id)
+        if karte is not None:
+            tg.sende(chat_id, karte["ergebnis_text"])
+
+    threading.Thread(target=_lauf, daemon=True).start()

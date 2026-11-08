@@ -142,7 +142,7 @@ def erzeuge(conn, e, klm, chat_id: int) -> tuple[str | None, str]:
             klient = getattr(klm, "_klient", None) or httpx.Client(timeout=TIMEOUT_S)
             antwort = szene_claude.prosa(
                 conn, e, klient, chat_id, system, nutzer, "brainstorm_karte",
-                timeout=TIMEOUT_S,
+                timeout=TIMEOUT_S, modell=getattr(e, "buehne_modell", None),
             )
         else:
             antwort = klm.prosa(

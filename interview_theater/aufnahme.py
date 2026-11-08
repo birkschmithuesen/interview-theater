@@ -83,6 +83,18 @@ BUDGET_KURZ_S = BUDGET_LANG_S
 NACHHOL_INTERVALL_S = 60
 MAX_VERSUCHE = 5
 
+#: Wie alt ein ``web_post`` (Sprachzeile) mindestens sein muss, bevor
+#: ``nachholen()`` ihn als strukturelle Luecke meldet, wenn er bis dahin
+#: keine ``aufnahme``-Zeile bekommen hat (Karte Padua "Interviewaufnahme
+#: ganz am Anfang teils nicht erfasst", 09.10.2026, Audit-Fall web_post
+#: id=2656: angenommen, nie weiterverarbeitet). ``web_kanal.ANKUNFT_FRIST_S``
+#: (60 s) ist das Warte-Gate fuer SPAETERE Posts im selben Poll und prueft
+#: nie einen Post, dem nichts mehr folgt -- hier geht es um den periodischen
+#: Nachhol-Lauf (NACHHOL_INTERVALL_S, ebenfalls 60 s): doppelt so lang, mit
+#: Luft fuer einen langsamen Download, statt bei jedem Lauf knapp daneben zu
+#: melden.
+WEB_POST_OHNE_AUFNAHME_FRIST_S = 120
+
 #: Ein Ende-Segment (Diskussion/Brainstorm, ``schnittgrund='ende'``) unter
 #: dieser Dateigroesse geht gar nicht erst an Whisper, sondern wird sofort
 #: verworfen und der Abschluss laeuft (Robo, Simulationslauf 05.10.2026
@@ -298,6 +310,26 @@ _TEXT_VERDICHTUNG_GESCHEITERT = (
     "Ich konnte {beschreibung} nicht auswerten. Das Transkript bleibt "
     "gespeichert, nur die Zusammenfassung fehlt."
 )
+#: Karte t_d18f2ad6: ein haengender Interviewmodus (Geraet offline, "fertig"
+#: kam nie an) beendet sich von selbst -- dieselbe Meldung wie eine Gruppe
+#: sie beim Live-Vorfall vom 06.10.2026 ueber /fertig bekommen haette, nur
+#: vom Nachhol-Arbeiter statt von aussen ausgeloest (siehe pruefe_auto_ende).
+_TEXT_INTERVIEW_AUTO_ENDE = (
+    "{name} wurde automatisch beendet, weil seit {minuten} Minuten keine "
+    "neue Aufnahme ankam. Wenn ihr noch aufgenommen habt, einfach wieder "
+    "auf \"Interview aufnehmen\" tippen."
+)
+#: Die Chatzeile, wenn ein Interview-Teil waehrend eines Hintergrund-
+#: Wechsels des Telefons (Tab-Wechsel, Sperrbildschirm) nur unvollstaendig
+#: aufgenommen wurde -- MediaRecorder und Timer werden dort angehalten
+#: (Karte t_1423ca89, Evidence: Clone "G3 Interview 1" #113, gemeldet 178 s,
+#: real ~26 s Audio bei den fuer dieses Telefon ueblichen ~16 KB/s).
+#: ``{zeit}`` als M:SS wie ``_TEXT_INTERVIEW_OHNE_KNOPF``.
+_TEXT_HINTERGRUND_VORFALL = (
+    "⚠ Ein Teil von {name} wurde nicht vollstaendig aufgenommen (~{zeit}) - "
+    "das Handy war gesperrt oder die Seite im Hintergrund. Bitte die Seite "
+    "waehrend der Aufnahme offen und den Bildschirm an lassen."
+)
 _ARTIKEL_GROSS = "Die"
 _ARTIKEL_KLEIN = "die"
 _BESCHREIBUNG_TEIL = "{artikel} Aufnahme von {name}, Teil {nummer}"
@@ -490,6 +522,127 @@ def _lade_mit_wiederholung(tg, file_id: str, ziel: Path) -> Exception | None:
     return letzter_fehler
 
 
+# -- Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89) ------
+#
+# Evidence: Clone "G3 Interview 1" (padua-test1.db, Aufnahme #113) meldete
+# 178 s, der Mitschnitt hielt real nur ~26 s Audio (412 KB bei den fuer
+# dieses Telefon ueblichen ~16 KB/s) -- die Seite war waehrend des
+# Interviews im Hintergrund, MediaRecorder und Timer dort angehalten. Ohne
+# Dekodierung des Containers (teuer, formatabhaengig) schaetzt diese
+# Pruefung die tatsaechliche Dauer ueber die Byte-Rate vorheriger Teile
+# DESSELBEN Interviews -- dieselbe Rechnung, mit der die Evidence gefunden
+# wurde (412 000 / 16 000 ≈ 25,75 s).
+
+#: Unter dieser gemeldeten Dauer wird nie geprueft: eine kurze Nachricht
+#: (Wortmeldung, Testdruck) schwankt in der Bytes/Sekunde-Rate zu stark, um
+#: daraus etwas zu schliessen -- gesetzt aus der Aufgabe, nicht gemessen.
+HINTERGRUND_MIN_DAUER_S = 20
+#: Wie viel von der gemeldeten Dauer die geschaetzte tatsaechliche Dauer
+#: mindestens erreichen muss, um NICHT als Vorfall zu gelten.
+HINTERGRUND_ANTEIL = 0.5
+#: Dedupe-Fenster fuer die Chatzeile (nicht fuer den Vorfall-Eintrag selbst,
+#: der steht bei jedem betroffenen Teil): "nicht zweimal binnen 2 Minuten".
+HINTERGRUND_DECKEL_S = 120
+
+
+def _bytes_je_sekunde(row) -> float | None:
+    """Die Byte-Rate eines schon fertigen Teils -- Grundlage fuer die
+    Schaetzung eines spaeteren Teils derselben Sitzung. ``None`` ohne Pfad,
+    ohne gemeldete Dauer oder wenn die Datei fehlt (z. B. laengst
+    geloescht)."""
+    pfad = row["audio_pfad"] if "audio_pfad" in row.keys() else None
+    dauer = row["dauer_sekunden"] if "dauer_sekunden" in row.keys() else None
+    if not pfad or not dauer:
+        return None
+    try:
+        groesse = Path(pfad).stat().st_size
+    except OSError:
+        return None
+    return groesse / dauer if groesse > 0 else None
+
+
+def _median(werte: list[float]) -> float | None:
+    """Der Median einer Liste, ``None`` wenn sie leer ist -- robust gegen
+    einen einzelnen Ausreisser unter den vorherigen Teilen (z. B. selbst
+    schon ein Hintergrund-Vorfall)."""
+    if not werte:
+        return None
+    sortiert = sorted(werte)
+    mitte = len(sortiert) // 2
+    if len(sortiert) % 2:
+        return sortiert[mitte]
+    return (sortiert[mitte - 1] + sortiert[mitte]) / 2
+
+
+def erkenne_hintergrund_unterbrechung(
+    groesse_bytes: int, dauer_s: int, basis_rate: float | None,
+    hintergrund_ms: int | None = None,
+) -> int | None:
+    """Schaetzt, ob ein Teil waehrend eines Hintergrund-Wechsels nur
+    unvollstaendig aufgenommen wurde. Liefert die geschaetzte verlorene
+    Dauer in ganzen Sekunden (mindestens 1), oder ``None`` ohne Befund.
+
+    ``basis_rate`` ist die Bytes/Sekunde-Rate vorheriger Teile derselben
+    Sitzung (``_median`` ueber ``_bytes_je_sekunde``) -- ohne sie (erster
+    Teil eines Interviews) laesst sich nichts schaetzen, und es gibt nie
+    einen Befund. Ist ``hintergrund_ms`` gesetzt (vom Client gemessen),
+    bestimmt es die ausgewiesene verlorene Dauer statt der Schaetzung --
+    exakt schlaegt geschaetzt (Spezifikation Punkt 3) -- die AUSLOeSUNG
+    selbst bleibt aber immer die Bytes/Dauer-Pruefung (Punkt 2), unabhaengig
+    von ``hintergrund_ms``."""
+    if dauer_s < HINTERGRUND_MIN_DAUER_S or not basis_rate or basis_rate <= 0:
+        return None
+    geschaetzte_dauer_s = groesse_bytes / basis_rate
+    if geschaetzte_dauer_s >= dauer_s * HINTERGRUND_ANTEIL:
+        return None
+    verlust_s = hintergrund_ms / 1000 if hintergrund_ms else dauer_s - geschaetzte_dauer_s
+    return max(1, round(verlust_s))
+
+
+def _pruefe_hintergrund_unterbrechung(
+    conn, tg, e, chat_id: int, teil_von: int, aufnahme_id: int,
+    groesse_bytes: int, dauer_s: int, hintergrund_ms: int | None,
+    basis_rate: float | None,
+) -> None:
+    """Vergleicht einen frisch angelegten Interview-Teil mit der Byte-Rate
+    der VORHERIGEN Teile desselben Interviews (``basis_rate``, vom Aufrufer
+    berechnet -- VOR dem eigenen ``lege_aufnahme_an``, sonst ginge die
+    gerade erst angelegte Zeile selbst in die Rate ein und verzerrt sie) und
+    meldet einen Fund (Vorfall IMMER, Chatzeile hoechstens einmal je
+    ``HINTERGRUND_DECKEL_S``).
+
+    Die Deckelung nutzt den bestehenden, chatweiten ``gab_es_vorfall_seit``:
+    strukturell gibt es je Gruppe nie zwei gleichzeitig laufende Interviews
+    (``repo.laufendes_interview`` liefert hoechstens eines), ein chatweiter
+    Deckel ist hier also derselbe wie ein interviewweiter."""
+    verlust_s = erkenne_hintergrund_unterbrechung(
+        groesse_bytes, dauer_s, basis_rate, hintergrund_ms)
+    if verlust_s is None:
+        return
+    deckel_seit = (
+        datetime.now(timezone.utc) - timedelta(seconds=HINTERGRUND_DECKEL_S)
+    ).isoformat(timespec="seconds")
+    schon_gemeldet = repo.gab_es_vorfall_seit(
+        conn, chat_id, "aufnahme_hintergrund", deckel_seit)
+    try:
+        repo.merke_vorfall(
+            conn, chat_id, getattr(e, "bot_name", None), "aufnahme_hintergrund",
+            f"aufnahme_id={aufnahme_id} teil_von={teil_von}: gemeldet {dauer_s}s, "
+            f"~{verlust_s}s Hintergrund geschaetzt",
+        )
+    except Exception:
+        log.exception("Vorfall aufnahme_hintergrund fehlgeschlagen, chat_id=%s", chat_id)
+    if schon_gemeldet:
+        return
+    kopf = repo.hole_aufnahme(conn, teil_von)
+    name = (kopf["name"] if kopf and kopf["name"] else None) or T._TEXT_DAS_INTERVIEW
+    text = T._TEXT_HINTERGRUND_VORFALL.format(name=name, zeit=dauer_mmss(verlust_s))
+    try:
+        tg.sende(chat_id, text, system=True)
+    except Exception:
+        log.exception("Hintergrund-Hinweis nicht gesendet, chat_id=%s", chat_id)
+
+
 def empfange(conn, tg, e, n: dict) -> int | None:
     """Laedt die Sprachnachricht herunter und legt die Aufnahme mit
     ``status='empfangen'`` an -- ohne jeden Whisper-Kontakt (§ 10.2, die
@@ -570,14 +723,39 @@ def empfange(conn, tg, e, n: dict) -> int | None:
         _web_sprachblase(conn, chat_id, message_id, None)
         return None
 
-    return repo.lege_aufnahme_an(
+    # Die Basisrate MUSS vor dem eigenen lege_aufnahme_an() berechnet werden
+    # (Karte t_1423ca89): repo.hole_teile(teil_von) laese sonst die gerade
+    # erst angelegte Zeile selbst mit und verzerrte die Byte-Rate.
+    basis_rate = None
+    if klasse == "teil" and teil_von is not None:
+        vorherige = repo.hole_teile(conn, teil_von)
+        raten = [r for r in (_bytes_je_sekunde(v) for v in vorherige) if r]
+        basis_rate = _median(raten)
+
+    aufnahme_id = repo.lege_aufnahme_an(
         conn, chat_id, message_id, klasse, "sprache",
         audio_pfad=str(ziel), dauer=n.get("dauer"), teil_von=teil_von,
         schnittgrund=n.get("schnittgrund"), brainstorm=bool(n.get("brainstorm")),
         diskussion=bool(n.get("diskussion")),
         rede_ms=n.get("rede_ms"), kalibrierung=kalibrierung,
-        weich_ms=n.get("weich_ms"),
+        weich_ms=n.get("weich_ms"), hintergrund_ms=n.get("hintergrund_ms"),
     )
+
+    # Warnung "Aufnahme im Hintergrund unterbrochen" (Karte t_1423ca89): nur
+    # fuer Interview-Teile (mit Vorgaengern derselben Sitzung als Grundlage
+    # der Schaetzung) -- siehe Docstring von _pruefe_hintergrund_unterbrechung.
+    if klasse == "teil" and teil_von is not None and n.get("dauer"):
+        try:
+            _pruefe_hintergrund_unterbrechung(
+                conn, tg, e, chat_id, teil_von, aufnahme_id,
+                ziel.stat().st_size, int(n["dauer"]), n.get("hintergrund_ms"),
+                basis_rate,
+            )
+        except Exception:
+            log.exception(
+                "Hintergrund-Pruefung fehlgeschlagen, aufnahme_id=%s", aufnahme_id)
+
+    return aufnahme_id
 
 
 # Schuetzt gegen doppelte Bearbeitung derselben Aufnahme INNERHALB eines
@@ -707,7 +885,7 @@ def _transkribiere_mit_meldung(conn, tg, e, klient, row) -> str | None:
 
     def _zwischenmeldung():
         try:
-            tg.sende(chat_id, T._TEXT_ZWISCHENMELDUNG)
+            tg.sende(chat_id, _texte_fuer_phase(conn, chat_id)._TEXT_ZWISCHENMELDUNG)
         except Exception:
             log.exception("Zwischenmeldung fehlgeschlagen, chat_id=%s", chat_id)
 
@@ -1153,9 +1331,14 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
     (``typ='sprache'``, ``text=NULL``, ``unterdrueckt=1``); nur das
     Transkript in ``aufnahme.transkript`` (schon gesetzt, siehe
     ``_verarbeite``) ist das Material. **Kein Gespraechszug, kein
-    Absichtserkenner, kein Journal-Extraktor** -- was eine interviewte
-    Person erzaehlt, ist kein Fall dafuer (docs/agents/entscheidungen.md), und ein stiller
-    Brainstorm-Gedanke erst recht nicht.
+    Absichtserkenner, kein Journal-Extraktor je Segment** -- was eine
+    interviewte Person erzaehlt, ist kein Fall dafuer
+    (docs/agents/entscheidungen.md), und ein stiller Brainstorm-Gedanke erst
+    recht nicht. **Ausnahme seit dem P4-Quickfix (06.10.2026, Profilschalter
+    ``brainstorm.chat_einspeisen``):** EINMAL je Bogen, auf dem Ende-Segment
+    und NACH der Buehnenkarte, siehe
+    ``_fuettere_gespraechszug_aus_brainstorm`` in ``_brainstorm_entscheide``
+    -- das bleibt ein einziger Zug am Bogenende, nie ein Zug je Segment.
 
     Danach die EINE Code-Entscheidung (kein Modellaufruf, Zusage 2):
     reicht es fuer eine Buehnenkarte? ``brainstorm.soll_reagieren`` prueft
@@ -1174,13 +1357,59 @@ def _brainstorm_abschliessen(conn, tg, klm, e, row) -> None:
     keinen eigenen Serveraufruf: das hochgeladene Segment TRAEGT seinen
     Schnittgrund selbst."""
     repo.setze_status(conn, row["id"], "fertig")
-    # Birk 02.10.2026: "das Transcript im Chat anzeigen als Feedback ist
-    # wichtig. Nach jeder Pause-Detection [...] soll es sich auch im Chat
-    # updaten." Die Blase bekommt ihr Transkript wie jede Sprachnachricht
-    # (B7) -- NUR die Anzeige: die ``nachricht``-Zeile bleibt
-    # ``unterdrueckt``, kein Gespraechszug, kein Erkenner (siehe oben).
-    _web_sprachblase(conn, row["chat_id"], row["message_id"], row["transkript"] or None)
+    # Birk 06.10.2026: Phase 4 soll wie ein Interview EINE wachsende
+    # Sprechblase zeigen (STT-Kontrolle), keine Chat-Reaktion vor
+    # "Discussion done" -- ersetzt die fruehere Pro-Segment-Blase
+    # (_web_sprachblase je Segment) durch EINE Blase je Bogen, analog
+    # ``_sende_transkript_blase`` bei Interviews.
+    _sende_brainstorm_blase(conn, tg, e, row)
+    if row["schnittgrund"] == "ende":
+        # Bogen zu Ende -- Markierung loeschen, damit der naechste Bogen
+        # eine NEUE Blase bekommt statt die alte weiterzuschreiben.
+        repo.setze_brainstorm_echo_message_id(conn, row["chat_id"], None)
     _brainstorm_entscheide(conn, tg, klm, e, row)
+
+
+def _sende_brainstorm_blase(conn, tg, e, row) -> None:
+    """Legt die EINE Transkriptblase des laufenden Brainstorm-Bogens an oder
+    schreibt sie weiter (Birk 06.10.2026, analog ``_sende_transkript_blase``
+    bei Interviews): zeigt das wortgetreue Mitschnitt-Transkript seit dem
+    Bogenanfang, damit die Gruppe wie beim Interview kontrollieren kann, ob
+    richtig verstanden wurde -- OHNE dass dafuer ein Gespraechszug oder
+    Absichtserkenner laeuft (das bleibt dem Ende-Segment vorbehalten, siehe
+    ``_fuettere_gespraechszug_aus_brainstorm``).
+
+    Nur im Web-Kanal (wie jede Blase hier); ein Fehlschlag kostet nur die
+    Anzeige, nie das Transkript."""
+    if not ist_web_gruppe(conn, row["chat_id"]):
+        return
+    chat_id = row["chat_id"]
+    try:
+        text = repo.brainstorm_arc_text(conn, chat_id, row["id"])
+        if not text:
+            return
+        message_id = repo.brainstorm_echo_message_id(conn, chat_id)
+        if message_id is not None:
+            try:
+                tg.aendere_text(chat_id, message_id, text)
+            except Exception:
+                log.exception("Brainstorm-Blase nicht aktualisiert, chat_id=%s", chat_id)
+            return
+        try:
+            message_id = tg.sende(chat_id, text, transkript=True)
+        except Exception:
+            log.exception("Brainstorm-Blase nicht gesendet, chat_id=%s", chat_id)
+            return
+        repo.setze_brainstorm_echo_message_id(conn, chat_id, message_id)
+        try:
+            repo.merke_nachricht(
+                conn, chat_id, message_id, getattr(e, "bot_name", None), 1,
+                repo.TYP_TRANSKRIPT, text, repo._jetzt(), 1,
+            )
+        except Exception:
+            log.exception("Brainstorm-Blase mitzuschreiben fehlgeschlagen, chat_id=%s", chat_id)
+    except Exception:
+        log.exception("Brainstorm-Blase fehlgeschlagen, chat_id=%s", chat_id)
 
 
 def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
@@ -1271,11 +1500,51 @@ def _brainstorm_entscheide(conn, tg, klm, e, row) -> None:
     if klm is None:
         if soll:
             _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"], bis_id=row["id"])
+        _fuettere_gespraechszug_aus_brainstorm(conn, row)
         return
     if not soll:
         repo.lege_buehnenkarte_an(conn, row["chat_id"], "", "schwelle", schweigen=True)
     elif not _starte_buehnenkarte(conn, tg, klm, e, row["chat_id"], bis_id=row["id"]):
         repo.lege_buehnenkarte_an(conn, row["chat_id"], "", "belegt", schweigen=True)
+    _fuettere_gespraechszug_aus_brainstorm(conn, row)
+
+
+#: Praefix vor dem eingespielten Brainstorm-Transkript (P4-Quickfix,
+#: 06.10.2026) -- sagt dem Modell, dass dieser Zug freie Rede ist, kein
+#: getippter Satz. Wortlaut im Code, nicht in einer Promptdatei (Brief).
+_BRAINSTORM_EINSPEISUNG_PRAEFIX = "[Brainstorm, spoken freely:] "
+
+
+def _fuettere_gespraechszug_aus_brainstorm(conn, row) -> None:
+    """P4-Quickfix (Birk 06.10.2026, Live-Test): ein Brainstorm-Bogen blieb
+    bisher fuer den Absichtserkenner unsichtbar (siehe die Ausnahme-Notiz in
+    ``_brainstorm_abschliessen``) -- die Werkbank (Rahmen, Figuren,
+    Geschichte) blieb deshalb leer, obwohl die Gruppe genau das gerade frei
+    gesprochen hatte.
+
+    EINMAL je Bogen, hier auf dem Ende-Segment und NACH der
+    Buehnenkarten-Entscheidung: das zusammenhaengende Transkript des Bogens
+    (``repo.brainstorm_arc_text``) geht als ganz normaler Chatbeitrag ein --
+    ueber ``repo.lege_web_post_an`` denselben Weg, den eine getippte
+    Textnachricht im Web-Chat nimmt (``web_chat._text``). ``bot.schleife``
+    holt die Zeile beim naechsten Takt wie jede andere ueber
+    ``web_kanal.hole_updates`` ab und loest den ganz normalen Gespraechszug
+    samt Absichtserkenner aus (``bot._zug_und_erkenner``) -- dieselbe
+    Bestaetigungsregel wie fuer jeden anderen Beitrag, unveraendert.
+
+    Nur Padua (Profilschalter ``brainstorm.chat_einspeisen``, Vorgabe
+    False/Dortmund unberuehrt) und nur, wenn der Bogen ueberhaupt Text
+    hatte -- ein leerer Bogen (z. B. sofort wieder beendet) speist nichts
+    ein."""
+    if not workshop.aktiv().wert("brainstorm.chat_einspeisen", False):
+        return
+    text = repo.brainstorm_arc_text(conn, row["chat_id"], row["id"])
+    if not text:
+        return
+    repo.lege_web_post_an(
+        conn, row["chat_id"], repo.RICHTUNG_EIN, repo.WEB_TYP_TEXT,
+        text=_BRAINSTORM_EINSPEISUNG_PRAEFIX + text,
+    )
 
 
 def _warte_auf_freien_kartenlauf(conn, e, row) -> None:
@@ -2422,6 +2691,50 @@ def melde_rueckkehr(conn, tg, e, chat_id) -> None:
         log.exception("Rueckkehr-Hinweis fehlgeschlagen, chat_id=%s", chat_id)
 
 
+def pruefe_auto_ende(conn, tg, klm, e) -> None:
+    """Beendet ein haengendes Interview von sich aus, genau wie ``/fertig``
+    (Karte t_d18f2ad6, Live-Vorfall 06.10.2026: ein Geraet ging offline,
+    "fertig" sass in der Browser-Warteschlange und ging mit dem Reload
+    verloren -- der Interviewmodus blieb den Rest des Tages offen und
+    blockierte das Autodeploy-Busy-Gate).
+
+    Zwei Bedingungen, beide noetig, bevor ein Interview als haengend gilt:
+
+    * **kein Teil mehr in Arbeit** (``repo.hat_offene_teile``) -- sonst
+      beendete dieser Check ein Interview mitten im Hochladen oder
+      Abtippen eines Segments.
+    * **seit ``e.interview_auto_ende_min`` Minuten keine neue Aufnahme**
+      (``repo.letzte_aktivitaet_interview``, Kopf oder Teil, je juenger).
+
+    Kein Modellaufruf -- reine Zeit-/Statuslogik, aufgerufen vom
+    Nachhol-Arbeiter (``nachholen()``), also hoechstens alle
+    NACHHOL_INTERVALL_S Sekunden, nie aus einem Knopf- oder Befehls-Pfad."""
+    grenze = datetime.now(timezone.utc) - timedelta(minutes=e.interview_auto_ende_min)
+    for kopf in repo.laufende_interviews_fuer_bot(conn, e.bot_name):
+        if repo.hat_offene_teile(conn, kopf["id"]):
+            continue
+        letzte = repo.letzte_aktivitaet_interview(conn, kopf["id"])
+        if letzte is None or datetime.fromisoformat(letzte) > grenze:
+            continue
+        chat_id = kopf["chat_id"]
+        name = anzeigename(conn, kopf, T._TEXT_DAS_INTERVIEW)
+        kopf_id = beende_interview(conn, chat_id)
+        if kopf_id is None:
+            continue  # zwischen Auswahl und hier schon anders beendet
+        repo.merke_vorfall(
+            conn, chat_id, e.bot_name, "interview_auto_ende",
+            f"aufnahme_id={kopf_id}",
+        )
+        try:
+            tg.sende(chat_id, T._TEXT_INTERVIEW_AUTO_ENDE.format(
+                name=name, minuten=e.interview_auto_ende_min,
+            ))
+        except Exception:
+            log.exception("Auto-Ende-Meldung fehlgeschlagen, chat_id=%s", chat_id)
+        if klm is not None:
+            starte_abschluss(conn, tg, klm, e, kopf_id)
+
+
 def nachholen(conn, tg, klm, e, klient, *, zug=_kein_zug) -> None:
     """Greift beim Start und danach alle NACHHOL_INTERVALL_S Sekunden alles
     auf, was nicht in einem Endzustand steht (§ 10.3) -- derselbe Weg, der
@@ -2461,6 +2774,42 @@ def nachholen(conn, tg, klm, e, klient, *, zug=_kein_zug) -> None:
         except Exception:
             log.exception("Nachholen eines Interviewabschlusses fehlgeschlagen, id=%s", kopf["id"])
 
+    _melde_web_posts_ohne_aufnahme(conn, tg, e)
+
+    try:
+        pruefe_auto_ende(conn, tg, klm, e)
+    except Exception:
+        log.exception("Auto-Ende-Pruefung fehlgeschlagen")
+
+
+def _melde_web_posts_ohne_aufnahme(conn, tg, e) -> None:
+    """Dritter Durchgang von ``nachholen()`` (Karte Padua, 09.10.2026): ein
+    ``web_post`` (Sprachzeile), fuer den ``aufnahme.empfange`` nie liefen
+    (keine ``aufnahme``-Zeile, kein Download-Vorfall), bleibt sonst stumm --
+    ``offene_aufnahmen_fuer_bot`` liest ausschliesslich aus ``aufnahme`` und
+    sieht ihn nie. Macht den Ausfall sichtbar, genauso wie ``empfange()`` es
+    fuer einen gescheiterten Download schon tut: ein Vorfall plus derselbe
+    Chat-Hinweis (``T._TEXT_DOWNLOAD_FEHLER``) -- kein neuer Text, es ist aus
+    Gruppensicht derselbe Fall ("die Aufnahme ist nicht angekommen").
+
+    Nicht zu verwechseln mit dem bewusst stillen Pfad fuer leere Transkripte
+    (``_verwirf_ende_segment``, Stille ist kein Dienstausfall): hier gibt es
+    gar kein Transkript, weil die Zeile den Bot nie erreicht hat."""
+    vor = (datetime.now(timezone.utc)
+           - timedelta(seconds=WEB_POST_OHNE_AUFNAHME_FRIST_S)).isoformat(timespec="seconds")
+    for post in repo.web_posts_ohne_aufnahme_fuer_bot(conn, e.bot_name, vor):
+        repo.merke_vorfall(
+            conn, post["chat_id"], getattr(e, "bot_name", None),
+            "web_post_ohne_aufnahme",
+            f"Web-Post {post['id']}: seit {post['erstellt_am']} ohne aufnahme-Zeile",
+        )
+        try:
+            tg.sende(post["chat_id"], T._TEXT_DOWNLOAD_FEHLER)
+        except Exception:
+            log.exception(
+                "Web-Post-ohne-Aufnahme-Hinweis fehlgeschlagen, chat_id=%s", post["chat_id"],
+            )
+
 
 def importiere_text(conn, e, chat_id: int, message_id: int, text: str, name: str | None = None) -> int:
     """Legt Text als gleichwertiges Material an (§ 10.5): deckt sowohl den
@@ -2496,3 +2845,20 @@ def importiere_text(conn, e, chat_id: int, message_id: int, text: str, name: str
 
 
 T = sprache.Texte(__name__)
+#: Nachtauftrag cc-p67texte (08.10.2026): die Zwischenmeldung ("I'm still
+#: typing up the voice message, one moment.") italienisch in Phase 6/7 --
+#: Auswahl in ``_texte_fuer_phase``, derselbe Mechanismus wie ``erkenner.py``/
+#: ``stagescript.py``.
+_T_IT = sprache.Texte(__name__, sprachcode="it")
+
+
+def _texte_fuer_phase(conn, chat_id: int) -> sprache.Texte:
+    """``_T_IT`` nur wenn ``conn`` da ist, die Gruppe in Phase 6/7 steht UND
+    chat_id in ``workshop.italienisch_ab_phase6_chats()`` steht -- sonst
+    ``T``."""
+    if conn is None:
+        return T
+    if (phasen.aktuelle(conn, chat_id) in (6, 7)
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
+        return _T_IT
+    return T

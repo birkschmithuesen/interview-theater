@@ -154,6 +154,14 @@ def _hat_text(conn, chat_id: int, nummer: int) -> bool:
     return False
 
 
+def kuerzen_faktor() -> float:
+    """Der Laengen-Faktor zu "Kuerzer (25 %)": 25 % KUERZER ist 0,75 des
+    bisherigen Budgets (P57 Lauf 3: "a quarter shorter" setzte 0,25 und
+    schrieb Szene 1 von 202 auf 57 Woerter). ``laengen.kurz_faktor`` (0,25)
+    bleibt die Instagram-Kuerze und kommt hier nicht mehr vor."""
+    return round(1 - PROZENT / 100, 4)
+
+
 def starte(conn, tg, klm, e, chat_id: int,
            nummer: int | None = None) -> tuple[str, bool]:
     """Stoesst die Kuerzung an und liefert ``(quittung, gestartet)``.
@@ -213,7 +221,7 @@ def starte(conn, tg, klm, e, chat_id: int,
     from interview_theater import laengen
 
     if laengen.aktiv():
-        laengen.setze_faktor(conn, chat_id, laengen.kurz_faktor())
+        laengen.setze_faktor(conn, chat_id, kuerzen_faktor())
     return T.TEXT_GESCHICHTE_GESTARTET, True
 
 

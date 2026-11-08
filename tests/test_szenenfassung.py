@@ -13,6 +13,7 @@ Migration einer Alt-Datenbank laeuft ohne Datenverlust und beliebig oft.
 import pytest
 
 from interview_theater import db, knoepfe, kurzgeschichte, repo, szene, web, web_daten
+from tests.stueck_hilfe import setze_feld
 
 from test_knoepfe import TelegramAttrappe, _druck
 
@@ -57,7 +58,7 @@ def _geplante_szene(conn, chat_id=1, nummer=1):
     for feld, wert in (
         ("form", "Dialog"), ("ort", "Bahnhof"), ("was_passiert", "Sie warten."),
     ):
-        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+        setze_feld(conn, szene_id, feld, wert)
     repo.setze_szene_figuren(conn, chat_id, szene_id, [figur_id])
     return szene_id
 

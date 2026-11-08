@@ -30,6 +30,8 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import dataclass
+from typing import Callable
 
 import httpx
 
@@ -333,9 +335,18 @@ def warnung_angebracht(e, conn, chat_id: int) -> bool:
 
 
 def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
-          nutzer: str, art: str, timeout: float, bei_teil=None) -> str:
+          nutzer: str, art: str, timeout: float, bei_teil=None,
+          wartezeiten: tuple[float, ...] | None = None,
+          modell: str | None = None) -> str:
     """Ein Aufruf, ein Text. Bucht in ``aufruf`` mit modus 'C' (Claude), damit
     Dashboard und Kostenrechnung den Weg sehen -- mit 0 CHF, weil Abo.
+
+    ``wartezeiten``/``modell`` (Birk/Robo 07.10.2026, Schaerfung-Karte):
+    ohne Angabe gilt wie bisher das Modul-``WARTEZEITEN`` und
+    ``e.szene_modell``/``MODELL_VORGABE`` -- ein Aufrufer, der beides nicht
+    anfasst, bekommt zeichengleiches Verhalten (E1). Mit Angabe kann EIN
+    Aufrufer (z. B. ``schaerfung.py``) eigene Wiederholungen und ein eigenes
+    Modell erzwingen, unabhaengig vom Gespraechs-Modell derselben Gruppe.
 
     ``bei_teil`` (Karte W, Aufgabe 6): eine Senke, die den bisherigen Text
     bekommt, waehrend er entsteht -- Anthropic-SSE statt dem
@@ -348,7 +359,8 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
     # die trotzdem geschrieben wird, koennte sie gar nicht abnehmen.
     kosten.pruefe(conn, chat_id, e)
     url = getattr(e, "szene_url", None) or URL_VORGABE
-    modell = getattr(e, "szene_modell", None) or MODELL_VORGABE
+    modell = modell or getattr(e, "szene_modell", None) or MODELL_VORGABE
+    wartezeiten = WARTEZEITEN if wartezeiten is None else wartezeiten
     koerper = {
         "model": modell,
         "max_tokens": MAX_TOKENS,
@@ -372,7 +384,7 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
     headers = {"content-type": "application/json", "anthropic-version": API_VERSION}
     start = time.monotonic()
     letzter: Exception | None = None
-    for versuch in range(len(WARTEZEITEN) + 1):
+    for versuch in range(len(wartezeiten) + 1):
         try:
             if bei_teil is not None and not _abgeschaltet():
                 try:
@@ -444,10 +456,10 @@ def prosa(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
             letzter = fehler
         except httpx.TransportError as fehler:
             letzter = fehler
-        if versuch < len(WARTEZEITEN):
-            time.sleep(WARTEZEITEN[versuch])
+        if versuch < len(wartezeiten):
+            time.sleep(wartezeiten[versuch])
     _buche(conn, chat_id, e, art, modell, {}, "abgebrochen", time.monotonic() - start, erfolg=False)
-    raise ClaudeFehler(f"Claude-Proxy nach {len(WARTEZEITEN) + 1} Versuchen: {letzter}")
+    raise ClaudeFehler(f"Claude-Proxy nach {len(wartezeiten) + 1} Versuchen: {letzter}")
 
 
 #: Haengt sich an den System-Prompt eines ``schema``-Aufrufs (Modellwahl-
@@ -489,7 +501,9 @@ class _TeilSenke:
 
 def schema(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
           nutzer: str, schema_: dict, art: str, timeout: float,
-          bei_teil=None, teil_feld: str | None = None) -> dict:
+          bei_teil=None, teil_feld: str | None = None,
+          wartezeiten: tuple[float, ...] | None = None,
+          modell: str | None = None) -> dict:
     """Ein Schema-Aufruf ueber den Claude-Proxy -- dasselbe Versprechen wie
     ``llm.LLM.schema`` (ein JSON-Objekt nach festem Schema), aber ohne
     natives ``response_format``: die Form geht als Anweisung in den
@@ -505,8 +519,162 @@ def schema(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
     )
     innere = _TeilSenke(bei_teil, teil_feld) if bei_teil is not None else None
     text = prosa(conn, e, klient, chat_id, system_mit_schema, nutzer, art,
-                timeout, bei_teil=innere)
-    return llm_modul.lies_json(text)
+                timeout, bei_teil=innere, wartezeiten=wartezeiten, modell=modell)
+    try:
+        return llm_modul.lies_json(text)
+    except llm_modul.LLMFehler:
+        # Live-Fund 07.10.2026 (Testgruppe, aufruf 163/167/170/175): Opus
+        # lieferte erfolgreich 950-1470 Token, ``lies_json`` fand trotzdem
+        # kein JSON -> "Claude-Antwort unverwertbar" -> Kimi-Rueckfall. Opus
+        # schreibt bei langen Antworten gelegentlich Text VOR dem Objekt
+        # (laenger als ``LIES_JSON_SUCHFENSTER``). Zweiter Versuch: ab dem
+        # LETZTEN Vorkommen eines Objekts mit einem Schema-Schluessel.
+        ergebnis = _json_nach_schluessel(text, schema_)
+        if ergebnis is not None:
+            log.info("Claude-Schema: JSON erst nach %s Zeichen Vortext gefunden (art=%s)",
+                     text.find("{"), art)
+            return ergebnis
+        # Live-Fund 07.10.2026 15:39 (G1, Phase 5): Opus antwortete auf eine
+        # lange Materialbitte direkt mit 5.587 Zeichen Markdown OHNE JSON-
+        # Huelle -> "unverwertbar" -> Kimi-Rueckfall (schlechter, langsamer).
+        # Verlangt das Schema nur ``antwort``, IST der Klartext die Antwort.
+        pflicht = set((schema_ or {}).get("required") or [])
+        roh = (text or "").strip()
+        if pflicht == {"antwort"} and roh and not roh.startswith("{"):
+            log.info("Claude-Schema: Klartext ohne JSON als 'antwort' uebernommen "
+                     "(art=%s, %s Zeichen)", art, len(roh))
+            return {"antwort": roh}
+        log.warning("Claude-Schema unlesbar (art=%s, %s Zeichen), Anfang: %r",
+                    art, len(text or ""), (text or "")[:300])
+        raise
+
+
+#: Werkzeugschleife (Karte t_9b2b33cb, Messung 2): Deckel, damit ein
+#: Messlauf nie endlos laeuft. Spec § 2.2.
+MAX_RUNDEN = 6
+GESAMT_TIMEOUT_S = 120.0
+WERKZEUG_MAX_TOKENS = 4_000
+_TEXT_GRENZE = '{"ok": false, "fehler": "Grenze der Werkzeugaufrufe erreicht"}'
+
+
+@dataclass(frozen=True)
+class Schleifenergebnis:
+    aufrufe: tuple[dict, ...]
+    runden: int
+    abbruch: str | None
+    eingabe_token: int
+    ausgabe_token: int
+    dauer_ms: int
+    text: str
+
+
+def werkzeug_schleife(conn, e, klient: httpx.Client, chat_id: int | None, system: str,
+                      nutzer: str, werkzeuge: list[dict],
+                      ausfuehren: Callable[[str, dict], tuple[str, bool]], *,
+                      art: str, modell: str | None = None, max_runden: int = MAX_RUNDEN,
+                      max_aufrufe: int = 5, gesamt_timeout: float = GESAMT_TIMEOUT_S,
+                      uhr: Callable[[], float] = time.monotonic) -> Schleifenergebnis:
+    """Der dritte Aufrufmodus neben ``prosa`` und ``schema``: Modell ->
+    ``tool_use`` -> ``ausfuehren`` -> ``tool_result`` -> Modell, bis das
+    Modell fertig ist oder ein Deckel greift. Blockierend, je Runde eine
+    ``aufruf``-Zeile (modus 'C', 0 CHF). Kein Wiederholungsversuch: eine
+    wiederholte Runde koennte Werkzeuge doppelt ausfuehren.
+
+    Wirft ``ClaudeFehler`` nur, wenn die ERSTE Runde scheitert -- dann ist
+    noch nichts ausgefuehrt und der Aufrufer darf auf den JSON-Weg
+    zurueckfallen. Spaeter ist schon geschrieben: ``abbruch="fehler"``."""
+    kosten.pruefe(conn, chat_id, e)
+    url = getattr(e, "szene_url", None) or URL_VORGABE
+    modell = modell or getattr(e, "szene_modell", None) or MODELL_VORGABE
+    headers = {"content-type": "application/json", "anthropic-version": API_VERSION}
+    nachrichten: list[dict] = [{"role": "user", "content": nutzer}]
+    aufrufe: list[dict] = []
+    ein = aus = runden = 0
+    abbruch, text = None, ""
+    start = uhr()
+    while True:
+        if runden >= max_runden:
+            abbruch = "runden"
+            break
+        if uhr() - start > gesamt_timeout:
+            abbruch = "zeit"
+            break
+        koerper = {
+            "model": modell, "max_tokens": WERKZEUG_MAX_TOKENS,
+            "system": [{"type": "text", "text": system,
+                        "cache_control": {"type": "ephemeral"}}],
+            "tools": werkzeuge, "tool_choice": {"type": "auto"},
+            "messages": nachrichten,
+        }
+        runde_start = time.monotonic()
+        try:
+            restzeit = max(1.0, gesamt_timeout - (uhr() - start))
+            daten = _blockierend(klient, url, headers, koerper, restzeit)
+        except (httpx.HTTPError, ValueError) as fehler:
+            _buche(conn, chat_id, e, art, modell, {}, "werkzeug_fehler",
+                   time.monotonic() - runde_start, erfolg=False)
+            if runden == 0:
+                raise ClaudeFehler(f"Werkzeugschleife, erste Runde: {fehler}") from fehler
+            abbruch = "fehler"
+            break
+        runden += 1
+        nutzung = daten.get("usage") or {}
+        ein += int(nutzung.get("input_tokens") or 0)
+        aus += int(nutzung.get("output_tokens") or 0)
+        stop = daten.get("stop_reason")
+        _buche(conn, chat_id, e, art, modell, nutzung, stop,
+               time.monotonic() - runde_start, erfolg=True)
+        inhalt = daten.get("content") or []
+        text = "".join(b.get("text", "") for b in inhalt if b.get("type") == "text")
+        werkzeug_bloecke = [b for b in inhalt if b.get("type") == "tool_use"]
+        if stop != "tool_use" or not werkzeug_bloecke:
+            break
+        nachrichten.append({"role": "assistant", "content": inhalt})
+        ergebnisse = []
+        for block in werkzeug_bloecke:
+            if len(aufrufe) >= max_aufrufe:
+                abbruch = "aufrufe"
+                ergebnisse.append({"type": "tool_result", "tool_use_id": block["id"],
+                                   "content": _TEXT_GRENZE, "is_error": True})
+                continue
+            ergebnis_text, ist_fehler = ausfuehren(block["name"], block.get("input") or {})
+            aufrufe.append({"name": block["name"], "eingabe": block.get("input") or {},
+                            "is_error": ist_fehler})
+            ergebnisse.append({"type": "tool_result", "tool_use_id": block["id"],
+                               "content": ergebnis_text, "is_error": ist_fehler})
+        nachrichten.append({"role": "user", "content": ergebnisse})
+        if abbruch == "aufrufe":
+            break
+    return Schleifenergebnis(tuple(aufrufe), runden, abbruch, ein, aus,
+                             int((uhr() - start) * 1000), text)
+
+
+def _json_nach_schluessel(text: str, schema_: dict) -> dict | None:
+    """Sucht ein JSON-Objekt, das mit einem der Schema-Schluessel beginnt --
+    vom letzten Vorkommen rueckwaerts (das Modell bessert gelegentlich nach)."""
+    if not text:
+        return None
+    dekoder = json.JSONDecoder()
+    schluessel = list((schema_ or {}).get("properties", {}).keys())
+    kandidaten = []
+    for name in schluessel:
+        start = 0
+        while True:
+            i = text.find('"' + name + '"', start)
+            if i < 0:
+                break
+            j = text.rfind("{", 0, i)
+            if j >= 0:
+                kandidaten.append(j)
+            start = i + 1
+    for j in sorted(set(kandidaten), reverse=True):
+        try:
+            wert, _ = dekoder.raw_decode(text, j)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(wert, dict) and any(k in wert for k in schluessel):
+            return wert
+    return None
 
 
 def _buche(conn, chat_id, e, art, modell, nutzung, finish, dauer_s, erfolg):

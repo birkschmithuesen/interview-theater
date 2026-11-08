@@ -79,7 +79,7 @@ def baue_volle_englische_gruppe(conn, chat_id: int = 1) -> str:
     for nummer, form in zip((1, 2, 3), FORMEN_DEUTSCHES_WORT):
         repo.setze_szenenfeld(conn, szenen[nummer]["id"], "form", form)
     repo.setze_szenenfeld(conn, szenen[2]["id"], "stil", "litanei")
-    repo.setze_szenenfeld(conn, szenen[1]["id"], "ort", "the bus stop")
+    repo.setze_szenenort(conn, szenen[1]["id"], "the bus stop")
     repo.setze_szenenfeld(conn, szenen[1]["id"], "was_passiert", "Nadia says she is leaving.")
     vierte = repo.lege_szene_an(conn, chat_id, 4, "Dawn", None, None)
     repo.setze_szenenfeld(conn, vierte, "form_vorschlag", "lied")

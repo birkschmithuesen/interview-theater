@@ -39,6 +39,18 @@ whisper = "auto"
 # Padua 06.10.2026 (Birk): keine Sprachabfrage beim Eintritt in Phase 3 --
 # Whisper erkennt die Sprache immer selbst. /language bleibt als Notweg.
 whisper_wahl_anbieten = false
+# Ab Phase 6/7 italienisch (Birk 08.10.2026 ~07:50, Morgen-Auftrag 4:
+# "es sollte alles auf ital sein fuer diese beiden Phasen, ausser
+# Knoepfe"; Nachtrag 2 ~09:00: eine Chat-Liste statt "alle Gruppen" --
+# die Testgruppe padua-test, chat 7000000000099, teilt sich dieses Profil
+# mit G1-G3, soll aber englisch bleiben, siehe ohne_zitate_chats/
+# ohne_figuren_chats unten, die sie sonst wie G1 behandeln).
+# Bot-Antworten (Phase-6/7-Gespraech, kontext.system), Szenenkarte/
+# Kartenpruefung (szenenkarte.py) und die deterministischen Statuszeilen
+# (szenenkarte.py/stagescript.py/web.py, sprache.Texte(sprachcode="it"))
+# -- Knoepfe und feste UI-Beschriftungen bleiben englisch. Stage Script
+# selbst (stagescript.py) bleibt zweisprachig, unberuehrt von dieser Liste.
+italienisch_ab_phase6_chats = [7000000000000, 7000000000001, 7000000000002]
 
 [datenschutz]
 # E8: der Bot spricht nie mit Vornamen an; im Prompt stehen "Member 1, 2, ...".
@@ -196,6 +208,12 @@ aktiv = true
 [fragen_ab]
 aktiv = true
 
+# Phase-5-Gate (07.10.2026, Birk): vor dem Sprung nach Phase 5 (Prose Draft)
+# zeigt der Bot einmal die ganze Werkbank zur Bestaetigung
+# (workshop.p5_check_aktiv, befehle.py).
+[p5_check]
+aktiv = true
+
 # "Suggest questions" erst ab fuenf eigenen Fragen der Gruppe (Birk,
 # 05.10.2026 14:05); darunter kein Knopf und kein Vergleich. Ohne die
 # Zeile: 0 (immer).
@@ -240,6 +258,28 @@ einwilligung = false
 # vollstaendig gebaut und mit einer Zeile umkehrbar (false).
 zitate_an_claude = true
 
+# Testbot-Karte (Birk/Robo 07.10.2026, 13:33): Phase 5 sah auf dem Opus-Pfad
+# fast kein Interviewmaterial (0 Kernthemen, 0 Kernzitate), die Workbench
+# aber alles. Ab Phase 5 + Zustimmung bekommt der Chat zusaetzlich ALLE
+# Verdichtungen (Themen + Belegzitate) und das volle Mitgehoert-Transkript
+# aus Phase 4 ohne die 60.000-Zeichen-Grenze. UNGEPRUEFT: ob
+# ``_TEXT_ANGEBOT_USA`` ("No recordings, no complete interviews") diese
+# Menge deckt -- siehe die Uebergabe. Gilt fuer JEDE Padua-Gruppe, die mit
+# diesem Profil startet (auch die drei laufenden, bei ihrem naechsten
+# Neustart), nicht nur den Testbot.
+vollmaterial_phase5 = true
+
+# P4-Quickfix (Birk 06.10.2026, Live-Test): ein Brainstorm-Bogen (Phase 4,
+# "Start listening"/"Discussion done") lief bisher komplett am Erkenner
+# vorbei -- die Werkbank blieb leer, obwohl die Gruppe Setting, Figuren und
+# Geschichte gerade frei gesprochen hatte. Dieser Schalter speist das
+# zusammenhaengende Transkript EINMAL je Bogen (auf dem Ende-Segment, nach
+# der Buehnenkarte) in einen normalen Gespraechszug ein, siehe
+# aufnahme._fuettere_gespraechszug_aus_brainstorm. Ohne diese Zeile (Vorgabe
+# False, Dortmund): unveraendert.
+[brainstorm]
+chat_einspeisen = true  # Birk 07.10. 11:35: wieder an -- jede neue Runde (nur dieser Bogen) als eine Nachricht in den Chat
+
 # Phase 1 (Begriffe) und Phase 2 (Eroeffnung): ein Vorschlag wird sofort
 # gespeichert statt der Ja/Nein-Rueckfrage (Abnahme-Befund t_0b702d1d: beide
 # Knoepfe schrieben ohnehin denselben Wert). Statt "Notiert: ..." + Ja/Nein
@@ -247,3 +287,92 @@ zitate_an_claude = true
 # Phase 4. Ohne diese Zeile bleibt die Ja/Nein-Rueckfrage bestehen.
 [speichern]
 autosave_phase1_2 = true
+
+# Internet-Recherche (Karte t_c5117c91, InScribe): Research-Knopf am Anfang
+# von Phase 5 und auf Anfrage ab Phase 4, Erkenner-art "recherche_starten",
+# Prompt-Block und Werkbank-Abschnitt. Vorgabe false -- Dortmund und das
+# eingebaute Profil bleiben ohne diese Zeile byte-gleich.
+[recherche]
+aktiv = true
+
+# Zweisprachiges Textbuch EN/IT (Birk 07.10.2026 ~17:20, Live-Workshop): die
+# Szenenprosa (Phase 5) ist englisch, enthaelt aber woertliche italienische
+# Interviewzitate -- ein Mischtext. Mit dieser Zeile haengt sich nach jedem
+# fertigen Szenentext ein Spiegelpass an (skript_uebersetzung.spiegel): er
+# ersetzt ``szene.prosa`` durch eine saubere EN-Fassung (Zitate uebersetzt)
+# und speichert eine saubere IT-Fassung in ``szene.prosa_it``. Scheitert der
+# Spiegelpass, bleibt es bei EN allein -- der Szenenlauf selbst schlaegt nie
+# deswegen fehl. Ohne diese Zeile (Dortmund, Vorgabeprofil): unveraendert.
+[skript]
+zweisprachig = true
+# EN-Fassung: unter jedem fremdsprachigen Zitat die englische Uebersetzung
+# (Birk 08.10.2026 ~14:25, G3 S2 war in EN fast nur italienisch).
+zitat_uebersetzung_en = true
+# Reduktion auf das Wesentliche (Birk 07.10.2026 ~17:45): Kurzform je Szene
+# (szene.kern/kernsaetze_kurz, szenenkern.py), keine Begruendungskette mehr in
+# "What happens"/"Key lines", Script = nur der Text, Workbench = Material,
+# schlanker Prosa-Prompt (Format drin, Chat-Dublette raus), Verworfenes im
+# Matcher. Ohne diese Zeile: unveraendert.
+verdichtet = true
+# Keine Zitat-Kaesten/-Nummern in Script-Tab und PDF fuer diese Gruppen
+# (Birk 08.10.2026 ~07:50, Morgen-Auftrag 1, G1: "lenkt nur ab"; Nachtrag
+# ~08:30: gesprochene Zitate bleiben als normaler Sprechtext drin, nur ohne
+# Kasten/Kopf/Nummer -- entfernt wird nichts mehr). Script-Tab und PDF
+# teilen denselben Renderer (web_skript.text_html), also gilt das fuer
+# beide gleich. Testchat NICHT in dieser Liste: er traegt seit 08.10.
+# ~11:06 eine Kopie von G2 und soll sich wie G2 verhalten (Robo, nach
+# Birks Kopierauftrag -- loest die fruehere "wie G1"-Annahme ab).
+ohne_zitate_chats = [7000000000000]
+
+[formberater]
+# Musikalische Strukturen (Wiki musikalische-strukturen) nur fuer diese Gruppen
+# (Birk 07.10.2026: G1 arbeitet mit Musiktheorie; Testbot zum Testen).
+musik_chats = [7000000000000, 7000000000099]
+
+# Interview-Zuordnung nur auf Szenen, nicht auf Figuren (Birk 07.10.2026 15:10):
+# G1 spielt sich selbst ("channels for the interviews"), G3 (Sprachrohre der Interviews, keine Figuren): Figuren-Zuordnung ergibt keinen Sinn. G2 NICHT: jede:r Performer:in traegt eine Position/ein Schild aus den Interviews -> Figuren-Zuordnung sinnvoll (Birk 15:20).
+# Testgruppe (padua-test, 7000000000099) ist seit 08.10. ~11:06 eine Kopie
+# von G2 (Robo, Birks Kopierauftrag) und verhaelt sich deshalb wie G2, NICHT
+# wie G1 -- NICHT in dieser Liste, G2 selbst steht hier auch nicht drin.
+[schaerfung]
+ohne_figuren_chats = [7000000000000, 7000000000002]
+
+# Phasen-Umbau (Birk 07.10.2026 ~18:12): Phase 5 = nur Interviews auswaehlen
+# (Done -> Angebot Phase 6, keine Prosa mehr), Phase 6 = Szenenkarten je
+# Szene/Moment (szenenkarte.py, Yes, save / No, change), Phase 7 = Stage
+# Script aus den Karten. Ohne diese Zeile: der bisherige Prosa-Weg.
+[karten]
+aktiv = true
+# Phase 7 kann per "No, change" Ort/Figuren einer Szene aendern (neue
+# Figuren eingeschlossen) -- das Stage Script wird dann richtig neu
+# geschrieben, der Szenenkopf (Script-Tab/PDF/Partitur) kam bisher aber aus
+# der alten Karte. Nach jedem gespeicherten Skripttext EIN kurzer
+# Modellaufruf (``karten_nachzug.py``), der Ort/Figuren aus dem neuen Text
+# nachzieht -- nur bei wirklicher Aenderung, kein Modellaufruf wenn aus.
+# Birk 08.10.2026 ~12:50.
+p7_meta_nachziehen = true
+# Phase 7: vollstaendige Szenenfassung des Gespraechsbots im Chat wird
+# automatisch die Script-Fassung (Birk 08.10.2026 ~13:20, G1 live).
+p7_chat_als_script = true
+# Phase 7: jede Aenderung (No, change ODER Chat-Fassung) kommt als EINE
+# Diff-Nachricht statt des vollen Szenentexts, danach wieder Yes/No (Birk
+# 08.10.2026 ~14:00).
+p7_aenderung_im_chat = true
+
+# Phasen-Summary (Karte t_1bc96848, Birk): beim Phasenwechsel entsteht ein
+# knappes Summary nur des Beschlossenen der verlassenen Phase; es ersetzt in
+# den Folgephasen-Prompts (Szene, Entwurf, Szenenkarten, Matcher, Mitgehoert)
+# den bisherigen Rohdump derselben Phase. Ohne diese Zeile: unveraendert.
+[phasen_summary]
+aktiv = true
+
+# Keine "I'm back"-Zeile mit Einstiegsknoepfen nach einem Neustart (Birk
+# 08.10.2026: in Phase 5-7 falsch, nach jedem Autodeploy doppelt im Chat).
+[bot]
+wiederkehr = false
+
+# Absichtserkenner auf Opus (Birk 08.10.2026 ~10:45: "Opus ist viel besser als
+# gemma"). Ohne Korpuslauf auf Birks Ansage. Phase 3 und Transkripte bleiben
+# auf gemma (Infomaniak). Fehler -> dieser eine Zug faellt auf gemma zurueck.
+[erkenner]
+ueber_claude = true

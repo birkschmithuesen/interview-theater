@@ -83,13 +83,17 @@ def _elemente_text(elemente: list[dict]) -> str:
 
 
 def baue_nutzertext(elemente: list[dict], phasenziel: str,
-                    verlaufszeilen: list[str]) -> str:
+                    verlaufszeilen: list[str],
+                    gedaechtnis: str | None = None) -> str:
     verlauf = "\n".join(verlaufszeilen[-8:]) or "(nothing said yet)"
-    return (
+    text = (
         f"Current phase goal: {phasenziel}\n\n"
         f"Recent chat:\n{verlauf}\n\n"
         f"Visible controls:\n{_elemente_text(elemente)}"
     )
+    if gedaechtnis:
+        text += f"\n\nWhat you already did at this station:\n{gedaechtnis}"
+    return text
 
 
 def offene_fragen(aktion: dict) -> list[str]:
@@ -105,7 +109,8 @@ def offene_fragen(aktion: dict) -> list[str]:
 def naechste_aktion(client, persona_name: str, bild_png: bytes,
                     elemente: list[dict], phasenziel: str,
                     verlaufszeilen: list[str],
-                    hinweis: str | None = None) -> dict:
+                    hinweis: str | None = None,
+                    gedaechtnis: str | None = None) -> dict:
     """Ein Opus-Aufruf (``client.json_objekt``, mit Bild) -> eine Aktion.
 
     Liefert bei kaputtem JSON oder einem Modellfehler eine ``wait``-Aktion
@@ -114,7 +119,7 @@ def naechste_aktion(client, persona_name: str, bild_png: bytes,
     eine zusaetzliche Zeile an den Nutzertext (z. B. eine Rueckfrage des
     Bots, die beantwortet werden soll)."""
     system = _SYSTEM_RAHMEN.format(persona=PERSONEN[persona_name])
-    nutzer = baue_nutzertext(elemente, phasenziel, verlaufszeilen)
+    nutzer = baue_nutzertext(elemente, phasenziel, verlaufszeilen, gedaechtnis)
     if hinweis:
         nutzer += f"\n\n{hinweis}"
     try:

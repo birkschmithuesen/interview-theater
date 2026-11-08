@@ -107,6 +107,15 @@ ARTEN = (
     # Vorschlag, den die Gruppe je Frage annimmt oder ablehnt
     # (``knoepfe.fragen.biete_umformulierung``).
     "fragen_umformulierung",
+    # Der "No, change"-Dialog einer Szenenkarte (Birk 08.10.2026 ~09:35,
+    # Nachtrag, nur Padua ``[karten]``): solange die Gruppe eine Karte im
+    # Gespraech bespricht (``szenenkarte.dialog_kontextblock``), fasst das
+    # Gespraechsmodell eine erkennbare Aenderung selbst zusammen statt die
+    # Karte zu bauen -- ``VORSCHLAG KARTE AENDERUNG:`` traegt genau diese
+    # Zusammenfassung und wird zu "Update the card" / "Keep the card"
+    # (``knoepfe/basis.sende_mit_speicherleiste``), kein zweiter
+    # Modellaufruf.
+    "karte_aenderung",
 )
 
 #: Die Markerzeile. Grossbuchstaben, weil sie im Fliesstext nicht vorkommt
@@ -133,7 +142,8 @@ _ARTEN_MUSTER = (
     r"|KERNTHEMA|KERNFRAGE"
     r"|FIGUREN|RICHTUNGEN"
     r"|NAMEN|DUKTUS|RAHMEN"
-    r"|SZENENFOLGE|GESCHICHTE|SZENE|EINLEITUNGEN|EROEFFNUNG|STIL)"
+    r"|SZENENFOLGE|GESCHICHTE|SZENE|EINLEITUNGEN|EROEFFNUNG|STIL"
+    r"|KARTE\s+AENDERUNG)"
 )
 
 #: Eines dieser Dekorationszeichen (ohne Mengenangabe) -- fuer die
@@ -141,7 +151,11 @@ _ARTEN_MUSTER = (
 #: ``_DEKO`` selbst (naechste Zeile) laesst auch null Zeichen zu, das reicht
 #: dort, weil es nur zusaetzlich toleriert wird; die Grenzpruefung braucht
 #: mindestens eines.
-_DEKO_ZEICHEN = r"[*_#>•\-]"
+#:
+#: P57 Lauf 5 A2 (06.10.2026): auch Klammern ``(`` ``)`` ``[`` ``]`` -- das
+#: Modell setzte den Marker in Phase 6 in Klammern ("(VORSCHLAG BEGRIFFE:)"),
+#: und die Gruppe las ihn roh im Chat.
+_DEKO_ZEICHEN = r"[*_#>•\-()\[\]]"
 
 #: Dekorationszeichen, die ein Modell um die Markerzeile legen kann:
 #: Markdown fett/kursiv (``*``/``_``), eine Ueberschrift (``#``), ein

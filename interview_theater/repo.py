@@ -528,6 +528,7 @@ def lege_aufnahme_an(
     rede_ms: int | None = None,
     kalibrierung: bool = False,
     weich_ms: int | None = None,
+    hintergrund_ms: int | None = None,
 ) -> int:
     """Legt eine Aufnahme (Sprache oder Textimport) an.
 
@@ -550,7 +551,12 @@ def lege_aufnahme_an(
     unabhaengig vom Modus ``klasse='kurz'``/``teil_von=None``, hier nur
     durchgereicht wie jedes andere Flag. ``weich_ms`` (Padua VAD: weicher
     Schnitt, 05.10.2026) ebenso -- dieselbe additive Durchreiche wie
-    ``rede_ms``, nur bei ``schnittgrund='weich'`` gesetzt.
+    ``rede_ms``, nur bei ``schnittgrund='weich'`` gesetzt. ``hintergrund_ms``
+    (Karte t_1423ca89, Warnung "Aufnahme im Hintergrund unterbrochen"): wie
+    viele Millisekunden die Seite waehrend dieses Teils im Hintergrund war,
+    vom Client gemessen -- rein diagnostisch wie ``rede_ms``, geht in
+    ``aufnahme._pruefe_hintergrund_unterbrechung`` ein, wenn vorhanden (exakt
+    statt geschaetzt).
 
     Startstatus 'empfangen', beim Interview-Kopf 'laeuft'; der Aufrufer
     entscheidet ueber weitere Statusuebergaenge."""
@@ -560,12 +566,14 @@ def lege_aufnahme_an(
         INSERT INTO aufnahme
             (chat_id, message_id, name, klasse, quelle, audio_pfad,
              dauer_sekunden, status, empfangen_am, teil_von, schnittgrund,
-             brainstorm, diskussion, rede_ms, kalibrierung, weich_ms)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             brainstorm, diskussion, rede_ms, kalibrierung, weich_ms,
+             hintergrund_ms)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (chat_id, message_id, name, klasse, quelle, audio_pfad, dauer, status,
          _jetzt(), teil_von, schnittgrund, 1 if brainstorm else 0,
-         1 if diskussion else 0, rede_ms, 1 if kalibrierung else 0, weich_ms),
+         1 if diskussion else 0, rede_ms, 1 if kalibrierung else 0, weich_ms,
+         hintergrund_ms),
     )
     conn.commit()
     return cur.lastrowid
@@ -1162,10 +1170,10 @@ def lege_schaerfung_an(
 ) -> int:
     """Schreibt die Zuordnungen EINER Runde und liefert ihre Anzahl.
 
-    Jedes Element braucht ``verdichtung_thema_id``; ``szene_id``, ``figur_id``
-    und ``begruendung`` sind optional -- eine Zuordnung darf an einer Szene,
-    an einer Figur oder an beiden haengen. Eine ohne beides waere eine
-    Markierung ohne Ort und wird uebersprungen."""
+    Jedes Element braucht ``verdichtung_thema_id``; ``szene_id``, ``figur_id``,
+    ``begruendung`` und ``staerke`` sind optional -- eine Zuordnung darf an
+    einer Szene, an einer Figur oder an beiden haengen. Eine ohne beides
+    waere eine Markierung ohne Ort und wird uebersprungen."""
     angelegt = 0
     for eintrag in zuordnungen:
         if eintrag.get("szene_id") is None and eintrag.get("figur_id") is None:
@@ -1174,8 +1182,8 @@ def lege_schaerfung_an(
             """
             INSERT INTO schaerfung
                 (chat_id, verdichtung_thema_id, szene_id, figur_id, begruendung,
-                 runde, erstellt_am)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                 staerke, runde, erstellt_am)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 chat_id,
@@ -1183,6 +1191,7 @@ def lege_schaerfung_an(
                 eintrag.get("szene_id"),
                 eintrag.get("figur_id"),
                 eintrag.get("begruendung"),
+                eintrag.get("staerke"),
                 runde,
                 _jetzt(),
             ),
@@ -1196,7 +1205,8 @@ def lege_schaerfung_an(
 #: selbst plus Thema, Zusammenfassung, geprueftes Zitat und Interview-Nummer.
 _SCHAERFUNG_SELECT = f"""
 SELECT s.*, t.thema AS thema, v.zusammenfassung AS zusammenfassung,
-       t.beleg_zitat AS zitat, v.aufnahme_id AS aufnahme_id
+       t.beleg_zitat AS zitat, v.aufnahme_id AS aufnahme_id,
+       t.zitat_geprueft AS zitat_geprueft
 FROM schaerfung s
 JOIN verdichtung_thema t ON t.id = s.verdichtung_thema_id
 JOIN verdichtung v ON v.id = t.verdichtung_id
@@ -1264,6 +1274,83 @@ def entferne_schaerfung(conn: sqlite3.Connection, schaerfung_id: int) -> None:
         (_jetzt(), schaerfung_id),
     )
     conn.commit()
+
+
+@_gesperrt
+def setze_schaerfung_entscheidung(
+    conn: sqlite3.Connection, chat_id: int, schaerfung_id: int, wert: str
+) -> bool:
+    """Setzt die Yes/No-Entscheidung EINER offenen Schaerfung aus der
+    CoThinker-Sortierliste (Padua, 07.10.2026) -- vor dem Knopf "Done"
+    (``knoepfe.szenen.schliesse_schaerfungsliste``). Dasselbe Muster wie
+    ``setze_fragen_entscheidung``, nur je Zeile statt je Feld.
+
+    ``False`` ohne Schreiben bei unbekanntem Wert, bei einer id, die nicht
+    zu dieser Gruppe gehoert, oder die schon uebernommen/entfernt ist --
+    dann gibt es nichts mehr zu entscheiden. ``wert == ""`` ist "wieder
+    offen" (Rueckgaengig).
+
+    Webserver und Bot sind zwei Prozesse und teilen ``_LOCK`` nicht --
+    Lesen und Schreiben deshalb in EINER ``BEGIN IMMEDIATE``-Transaktion,
+    ausser der Aufrufer steht schon in einer (wie bei
+    ``setze_fragen_entscheidung``)."""
+    if wert not in ("ja", "nein", ""):
+        return False
+    eigene = not conn.in_transaction
+    if eigene:
+        conn.execute("BEGIN IMMEDIATE")
+    try:
+        zeile = conn.execute(
+            "SELECT id FROM schaerfung WHERE id = ? AND chat_id = ? "
+            "AND uebernommen_am IS NULL AND entfernt_am IS NULL",
+            (schaerfung_id, chat_id),
+        ).fetchone()
+        if zeile is None:
+            return False
+        conn.execute(
+            "UPDATE schaerfung SET entscheidung = ? WHERE id = ?",
+            (wert or None, schaerfung_id),
+        )
+        conn.commit()
+        return True
+    finally:
+        if eigene and conn.in_transaction:
+            conn.rollback()
+
+
+@_gesperrt
+def schaerfungen_historie(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """ALLE Schaerfungen einer Gruppe -- auch entfernte und uebernommene --
+    in der Reihenfolge ihres Entstehens (``id``). Nur fuer Messungen
+    (``scripts/zitatauswahl.py``, Karte t_4e8a59aa/t_2f905d2c): der Betrieb
+    liest ``schaerfungen``, das Entferntes ausblendet."""
+    return conn.execute(
+        """
+        SELECT id, verdichtung_thema_id, szene_id, figur_id, staerke, runde,
+               entscheidung, uebernommen_am, entfernt_am
+        FROM schaerfung WHERE chat_id = ? ORDER BY id ASC
+        """,
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def themen_mit_aufnahme(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle Verdichtungsthemen einer Gruppe mit ``aufnahme_id`` -- auch
+    ungepruefte und solche aus entfernten Verdichtungen (``gepruefte_themen``
+    filtert beides). Nur fuer Messungen (``scripts/zitatauswahl.py``): der
+    Gold-Korpus fuehrt Dubletten einer Stelle aus entfernten Verdichtungen
+    mit, damit eine historische Zuordnung auf die alte id noch trifft."""
+    return conn.execute(
+        """
+        SELECT t.id, t.thema, t.beleg_zitat, t.zitat_geprueft,
+               v.aufnahme_id AS aufnahme_id, v.entfernt_am AS verdichtung_entfernt_am
+        FROM verdichtung_thema t
+        JOIN verdichtung v ON v.id = t.verdichtung_id
+        WHERE t.chat_id = ? ORDER BY t.id ASC
+        """,
+        (chat_id,),
+    ).fetchall()
 
 
 # --- Stueckpruefung (Phase 7, 06.09.2026) ---------------------------------
@@ -1785,6 +1872,42 @@ def beendete_offene_interviews(conn: sqlite3.Connection, bot_name: str) -> list[
 
 
 @_gesperrt
+def laufende_interviews_fuer_bot(conn: sqlite3.Connection, bot_name: str) -> list[sqlite3.Row]:
+    """Interview-Koepfe, die noch Teile einsammeln und noch NICHT fuer
+    beendet erklaert wurden (Karte t_d18f2ad6: Grundlage des serverseitigen
+    Auto-Endes fuer ein haengendes Geraet) -- derselbe Ausschnitt wie
+    ``laufendes_interview`` je Gruppe, hier ueber alle Gruppen dieses
+    Bot-Prozesses hinweg, wie ``offene_aufnahmen_fuer_bot``."""
+    return conn.execute(
+        """
+        SELECT a.* FROM aufnahme a
+        JOIN gruppe g ON g.chat_id = a.chat_id
+        WHERE g.bot_name = ? AND a.klasse = 'lang' AND a.teil_von IS NULL
+          AND a.status = 'laeuft' AND a.beendet_am IS NULL
+          AND a.entfernt_am IS NULL
+        ORDER BY a.id ASC
+        """,
+        (bot_name,),
+    ).fetchall()
+
+
+@_gesperrt
+def letzte_aktivitaet_interview(conn: sqlite3.Connection, kopf_id: int) -> str | None:
+    """Zeitpunkt des juengsten Uploads zu diesem Interview -- der Kopf selbst
+    (angelegt beim ersten Teil) oder einer seiner Teile, je nachdem, was
+    juenger ist (Karte t_d18f2ad6). Grundlage dafuer, wie lange ein Interview
+    schon ohne neue Aufnahme steht."""
+    zeile = conn.execute(
+        """
+        SELECT MAX(empfangen_am) AS letzte FROM aufnahme
+        WHERE id = ? OR teil_von = ?
+        """,
+        (kopf_id, kopf_id),
+    ).fetchone()
+    return zeile["letzte"] if zeile else None
+
+
+@_gesperrt
 def setze_whisper_stumm_seit_falls_leer(conn: sqlite3.Connection, chat_id: int, wert: str) -> bool:
     """Setzt gruppe.whisper_stumm_seit atomar, aber nur wenn es noch leer war
     (Aufgabe 8, Nachbesserung 'Wichtig 1'). Liefert True, wenn DIESER Aufruf
@@ -1890,7 +2013,8 @@ _ARBEITSSTAND_FELDER = (
     # Padua Phasen TEIL 2 (03.10.2026): Phase 6.1 (Gesamttext) und 7.2
     # (Sprechweisen) abgenommen -- derselbe eine Schreibweg wie alles andere
     # im Arbeitsstand.
-    "gesamttext_fixiert_am", "sprechweisen_fixiert_am",
+    "gesamttext_fixiert_am", "sprechweisen_fixiert_am", "karten_geprueft_am",
+    "stage_kopf", "stage_kopf_it",
     # Das Begriffsboard je gespeichertem Begriff (Karte t_4517d4ad):
     # derselbe eine Schreibweg, gesetzt allein von
     # ``begriffsboard.schreibe_detail``.
@@ -1898,6 +2022,11 @@ _ARBEITSSTAND_FELDER = (
     # Der zuletzt vom Board selbst gespeicherte Wert (05.10.2026), gesetzt
     # allein von ``begriffsboard.speichere_automatisch``.
     "begriffe_board_wert",
+    # Padua, Phase-5-Gate (07.10.2026): derselbe eine Schreibweg wie alles
+    # andere im Arbeitsstand, gesetzt vom Knopf "Alles richtig" und
+    # zurueckgesetzt (auf ``None``), sobald die Phase wieder unter 5 faellt
+    # (``phasen.setze``).
+    "p5_check_bestaetigt_am",
 )
 
 
@@ -2169,6 +2298,66 @@ def brainstorm_stand(conn: sqlite3.Connection, chat_id: int,
         "sekunden_seit_letzter_reaktion": sekunden_seit_reaktion,
         "letzter_schnittgrund": letzter_schnittgrund,
     }
+
+
+@_gesperrt
+def brainstorm_arc_text(conn: sqlite3.Connection, chat_id: int, bis_id: int) -> str:
+    """Das zusammenhaengende Transkript EINES Brainstorm-Bogens (P4-Quickfix,
+    Birk Live-Test 06.10.2026: die Werkbank blieb leer, weil ein Brainstorm-
+    Segment nie den Gespraechszug erreicht, siehe
+    ``aufnahme._fuettere_gespraechszug_aus_brainstorm``).
+
+    Ein Bogen reicht vom VORIGEN Ende-Segment dieser Gruppe (ausschliesslich)
+    bis ``bis_id`` (einschliesslich) -- genau die Segmente seit dem letzten
+    Druck auf "Start listening", unabhaengig davon, ob dazwischen schon eine
+    Zwischenkarte entstanden ist (die Markierung dafuer bleibt unberuehrt).
+    Gibt es noch kein voriges Ende-Segment, zaehlt der Bogen von Anfang an."""
+    start = conn.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM aufnahme WHERE chat_id = ? "
+        "AND brainstorm = 1 AND schnittgrund = 'ende' AND id < ?",
+        (chat_id, bis_id),
+    ).fetchone()[0]
+    zeilen = conn.execute(
+        "SELECT transkript FROM aufnahme WHERE chat_id = ? AND brainstorm = 1 "
+        "AND entfernt_am IS NULL AND transkript IS NOT NULL "
+        "AND id > ? AND id <= ? ORDER BY id",
+        (chat_id, start, bis_id),
+    ).fetchall()
+    return " ".join(
+        zeile["transkript"].strip() for zeile in zeilen if zeile["transkript"] and zeile["transkript"].strip()
+    )
+
+
+@_gesperrt
+def brainstorm_echo_message_id(conn: sqlite3.Connection, chat_id: int) -> int | None:
+    """Die web_post-id der EINEN Transkriptblase des laufenden Brainstorm-
+    Bogens (Birk 06.10.2026, analog ``echo_message_id`` bei Interviews), oder
+    ``None`` -- noch keine Blase in diesem Bogen."""
+    zeile = conn.execute(
+        "SELECT brainstorm_echo_message_id FROM arbeitsstand WHERE chat_id = ?",
+        (chat_id,),
+    ).fetchone()
+    return None if zeile is None else zeile["brainstorm_echo_message_id"]
+
+
+@_gesperrt
+def setze_brainstorm_echo_message_id(
+    conn: sqlite3.Connection, chat_id: int, message_id: int | None,
+) -> None:
+    """Merkt die Blase des laufenden Bogens, oder loescht die Markierung
+    (``message_id=None``) beim Bogenende -- der naechste Bogen bekommt dann
+    wieder eine neue Blase statt die alte weiterzuschreiben."""
+    conn.execute(
+        """
+        INSERT INTO arbeitsstand (chat_id, brainstorm_echo_message_id, geaendert_am)
+        VALUES (?, ?, ?)
+        ON CONFLICT(chat_id) DO UPDATE SET
+            brainstorm_echo_message_id = excluded.brainstorm_echo_message_id,
+            geaendert_am = excluded.geaendert_am
+        """,
+        (chat_id, message_id, _jetzt()),
+    )
+    conn.commit()
 
 
 @_gesperrt
@@ -2496,6 +2685,87 @@ def lege_buehnenkarte_an(
     )
     conn.commit()
     return int(cur.lastrowid)
+
+
+@_gesperrt
+def lege_formberater_an(
+    conn: sqlite3.Connection, chat_id: int, ausloeser: str, phase: int | None,
+    formen: list[str], signale: list[str], ergebnis: dict | None = None,
+    modell: str | None = None,
+) -> int:
+    """Haengt ein Nachschlagen des Formberaters an (nur anhaengen, siehe
+    Tabellenkommentar ``formberater`` in db.py)."""
+    cur = conn.execute(
+        "INSERT INTO formberater (chat_id, ausloeser, phase, formen, signale, "
+        "ergebnis, modell, erstellt_am) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            chat_id, ausloeser, phase,
+            json.dumps(list(formen), ensure_ascii=False),
+            json.dumps(list(signale), ensure_ascii=False),
+            json.dumps(ergebnis, ensure_ascii=False) if ergebnis is not None else None,
+            modell, _jetzt(),
+        ),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+@_gesperrt
+def phase_eintritt_am(conn: sqlite3.Connection, chat_id: int, nummer: int) -> str | None:
+    """Wann die Gruppe zuletzt in Phase ``nummer`` gewechselt ist -- aus dem
+    Journal (``phasen.setze`` schreibt "Phase N · Name"), oder None."""
+    zeile = conn.execute(
+        "SELECT erstellt_am FROM journal WHERE chat_id = ? AND art = 'entschieden' "
+        "AND entfernt_am IS NULL AND (text = ? OR text LIKE ? OR text LIKE ?) "
+        "ORDER BY id DESC LIMIT 1",
+        (chat_id, f"Phase {nummer}", f"Phase {nummer} ·%", f"Phase {nummer} (%"),
+    ).fetchone()
+    return zeile["erstellt_am"] if zeile else None
+
+
+@_gesperrt
+def gruppentexte_seit(
+    conn: sqlite3.Connection, chat_id: int, seit: str, anzahl: int = 30,
+) -> list[str]:
+    """Die getippten (oder gesprochenen) Beitraege der GRUPPE seit ``seit``
+    (ISO, UTC), aelteste zuerst, hoechstens ``anzahl`` -- ohne Bot-Zeilen,
+    ohne Transkript-Echos, ohne Entwicklernotizen (nur ``typ = 'text'``)."""
+    zeilen = conn.execute(
+        "SELECT text FROM nachricht WHERE chat_id = ? AND ist_bot = 0 "
+        "AND typ = 'text' AND text IS NOT NULL AND gesendet_am >= ? "
+        "ORDER BY gesendet_am DESC, message_id DESC LIMIT ?",
+        (chat_id, seit, anzahl),
+    ).fetchall()
+    return [z["text"] for z in reversed(zeilen) if (z["text"] or "").strip()]
+
+
+@_gesperrt
+def formberater_zeilen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Alle Nachschlage-Zeilen der Gruppe, AELTESTE ZUERST, mit
+    ausgepackten JSON-Feldern (``formen``/``signale`` als Listen,
+    ``ergebnis`` als dict oder None)."""
+    zeilen = conn.execute(
+        "SELECT * FROM formberater WHERE chat_id = ? ORDER BY id ASC", (chat_id,),
+    ).fetchall()
+    ergebnis = []
+    for z in zeilen:
+        def _liste(roh):
+            try:
+                wert = json.loads(roh or "[]")
+            except ValueError:
+                return []
+            return [str(x) for x in wert] if isinstance(wert, list) else []
+        try:
+            befund = json.loads(z["ergebnis"]) if z["ergebnis"] else None
+        except ValueError:
+            befund = None
+        ergebnis.append({
+            "id": z["id"], "ausloeser": z["ausloeser"], "phase": z["phase"],
+            "formen": _liste(z["formen"]), "signale": _liste(z["signale"]),
+            "ergebnis": befund if isinstance(befund, dict) else None,
+            "modell": z["modell"], "erstellt_am": z["erstellt_am"],
+        })
+    return ergebnis
 
 
 @_gesperrt
@@ -2885,6 +3155,122 @@ def aktualisiere_szene(
     conn.commit()
 
 
+@_gesperrt
+def setze_szene_uebersetzung(
+    conn: sqlite3.Connection, szene_id: int, prosa_en: str, prosa_it: str
+) -> None:
+    """Ueberschreibt die Prosa einer Szene mit ihrer EN/IT-Spiegelung
+    (``skript_uebersetzung.spiegel``, Padua-Profilschalter
+    ``[skript] zweisprachig``).
+
+    ``prosa`` bekommt die zitat-saubere EN-Fassung (ersetzt den Rohtext aus
+    dem Szenenlauf), ``prosa_it`` die italienische Spiegelung. Kein eigenes
+    ``geaendert_am``: der Szenenlauf, der diese Prosa erst geschrieben hat,
+    hat es gerade gesetzt."""
+    conn.execute(
+        "UPDATE szene SET prosa = ?, prosa_it = ? WHERE id = ?",
+        (prosa_en, prosa_it, szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_szenenkern(
+    conn: sqlite3.Connection, szene_id: int, kern: str, kernsaetze_kurz: str,
+    kern_quelle: str,
+) -> None:
+    """Speichert die Kurzform einer Szene (``szenenkern.verdichte``, Padua-
+    Profilschalter ``[skript] verdichtet``). Kein ``geaendert_am``: die
+    Kurzform ist abgeleitet, keine Bearbeitung durch die Gruppe -- sonst
+    verschoebe sie das Chatfenster des Szenenlaufs (``_chat_nachrichten``)."""
+    conn.execute(
+        "UPDATE szene SET kern = ?, kernsaetze_kurz = ?, kern_quelle = ? WHERE id = ?",
+        (kern, kernsaetze_kurz, kern_quelle, szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_szenenkarte(conn: sqlite3.Connection, szene_id: int, karte: str | None) -> None:
+    """Speichert die Szenenkarte (JSON, ``szenenkarte.py``) und nimmt eine
+    fruehere Abnahme zurueck -- eine neue Karte will neu abgenommen werden.
+    Kein ``geaendert_am`` (abgeleitet, keine Bearbeitung der Gruppe)."""
+    conn.execute(
+        "UPDATE szene SET karte = ?, karte_bestaetigt_am = NULL WHERE id = ?",
+        (karte, szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_szenenkarte_bestaetigt(conn: sqlite3.Connection, szene_id: int) -> None:
+    conn.execute(
+        "UPDATE szene SET karte_bestaetigt_am = ? WHERE id = ?",
+        (_jetzt_genau(), szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_szenenkarte_klaerung(
+    conn: sqlite3.Connection, szene_id: int, klaerung: str | None
+) -> None:
+    """Speichert (oder loescht, ``None``) den Klaerungsstand ``Clear the
+    questions`` (JSON, ``szenenkarte.py``) -- DB-gestuetzt, damit ein
+    Neustart mitten in der Frage-fuer-Frage-Runde sie nicht verliert."""
+    conn.execute(
+        "UPDATE szene SET karte_klaerung = ? WHERE id = ?",
+        (klaerung, szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_szenenkarte_dialog(
+    conn: sqlite3.Connection, szene_id: int, wert: str | None
+) -> None:
+    """Setzt (Zeitstempel) oder loescht (``None``) den "No, change"-Dialog
+    einer Karte (``szenenkarte.py``, Birk 08.10.2026 ~09:35 Nachtrag)."""
+    conn.execute(
+        "UPDATE szene SET karte_dialog_am = ? WHERE id = ?",
+        (wert, szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_stagescript(conn: sqlite3.Connection, szene_id: int, text: str,
+                      text_it: str | None) -> None:
+    """Das Stage Script einer Szene (Padua Phase 7, ``stagescript.py``) nach
+    ``volltext``, die IT-Spiegelung nach ``volltext_it``; eine fruehere
+    Abnahme (``fertig_am``) faellt zurueck -- ein neuer Text will neu
+    abgenommen werden. ``geaendert_am`` rueckt mit (ein Szenenlauf)."""
+    conn.execute(
+        "UPDATE szene SET volltext = ?, volltext_it = ?, fertig_am = NULL, "
+        "geaendert_am = ? WHERE id = ?",
+        (text, text_it, _jetzt_genau(), szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_stagescript_beide(conn: sqlite3.Connection, szene_id: int, text_en: str | None,
+                            text_it: str | None) -> None:
+    """EN und IT aus dem Spiegelpass nachtragen (Padua 08.10.2026) -- Abnahme
+    (``fertig_am``) und ``geaendert_am`` bleiben unberuehrt."""
+    conn.execute("UPDATE szene SET volltext = ?, volltext_it = ? WHERE id = ?",
+                 (text_en, text_it, szene_id))
+    conn.commit()
+
+
+@_gesperrt
+def setze_stagescript_it(conn: sqlite3.Connection, szene_id: int, text_it: str | None) -> None:
+    """Nur die IT-Fassung nachtragen (Hintergrund-Spiegelung, Padua 08.10.2026)
+    -- Abnahme und ``geaendert_am`` bleiben unberuehrt."""
+    conn.execute("UPDATE szene SET volltext_it = ? WHERE id = ?", (text_it, szene_id))
+    conn.commit()
+
+
 #: Die Szenenfelder, die einzeln gesetzt werden duerfen (Erkenner-art
 #: ``szene_planen``, Befehl ``/szene <n> <feld> <wert>``). ``figuren`` steht
 #: hier NICHT: die Besetzung ist eine Verknuepfung, keine Spalte
@@ -2930,6 +3316,12 @@ def stelle_szene_sicher(conn: sqlite3.Connection, chat_id: int, nummer: int) -> 
     return cur.lastrowid
 
 
+#: Felder, die NUR ``stueck.py`` schreibt (Karte t_fd88600b): ``setze_szenenfeld``
+#: und ``gleiche_szenenfolge_ab`` weisen sie ab; der Aufrufer geht ueber
+#: ``stueck.setze_ort``.
+NUR_UEBER_STUECK = ("ort",)
+
+
 @_gesperrt
 def setze_szenenfeld(
     conn: sqlite3.Connection, szene_id: int, feld: str, wert: str | None
@@ -2946,6 +3338,8 @@ def setze_szenenfeld(
     den Gespraechs-Prompt wandert."""
     if feld not in SZENENFELDER:
         raise ValueError(f"unbekanntes Szenenfeld: {feld!r}")
+    if feld in NUR_UEBER_STUECK:
+        raise ValueError(f"Szenenfeld {feld!r} schreibt nur stueck.py")
     conn.execute(
         f"UPDATE szene SET {feld} = ?, geaendert_am = ? WHERE id = ?",
         (wert, _jetzt_genau(), szene_id),
@@ -2994,9 +3388,250 @@ def szene_figuren(conn: sqlite3.Connection, szene_id: int) -> list[sqlite3.Row]:
     in keiner Szene mehr, ohne dass irgendwo aufgeraeumt werden muesste."""
     return conn.execute(
         "SELECT f.* FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
-        "WHERE sf.szene_id = ? AND f.entfernt_am IS NULL ORDER BY f.id ASC",
+        "WHERE sf.szene_id = ? AND f.entfernt_am IS NULL "
+        "ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC",
         (szene_id,),
     ).fetchall()
+
+
+# --- Stueckmodell (Karte t_fd88600b, 10.10.2026) ---------------------------
+# Die Schreibfunktionen hier ruft NUR stueck.py (tests/test_stueck_einzige_
+# schreibstelle.py) -- sonst gaebe es wieder einen zweiten Weg zu derselben
+# Tatsache.
+
+
+@_gesperrt
+def setze_szenenort(conn: sqlite3.Connection, szene_id: int, ort: str | None) -> None:
+    conn.execute("UPDATE szene SET ort = ?, geaendert_am = ? WHERE id = ?",
+                 (ort, _jetzt_genau(), szene_id))
+    conn.commit()
+
+
+@_gesperrt
+def besetzung(conn: sqlite3.Connection, szene_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT f.id AS figur_id, f.name AS name, sf.rolle AS rolle, sf.position AS position "
+        "FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
+        "WHERE sf.szene_id = ? AND f.entfernt_am IS NULL "
+        "ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC",
+        (szene_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def setze_besetzung(conn: sqlite3.Connection, chat_id: int, szene_id: int,
+                    eintraege: list[tuple[int, str | None]], zusatz: str | None) -> None:
+    conn.execute("DELETE FROM szene_figur WHERE szene_id = ?", (szene_id,))
+    for position, (figur_id, rolle) in enumerate(eintraege, start=1):
+        conn.execute(
+            "INSERT OR IGNORE INTO szene_figur (chat_id, szene_id, figur_id, rolle, position) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (chat_id, szene_id, figur_id, rolle, position),
+        )
+    conn.execute("UPDATE szene SET wer_zusatz = ?, geaendert_am = ? WHERE id = ?",
+                 (zusatz, _jetzt_genau(), szene_id))
+    conn.commit()
+
+
+@_gesperrt
+def aktualisiere_szenenkarte(conn: sqlite3.Connection, chat_id: int, szene_id: int,
+                             karte_json: str, ausloeser: str,
+                             notiz_text: str | None = None,
+                             verlauf_json: str | None = None) -> None:
+    """Karte + neue ``karte_verlauf``-Fassung in EINER Transaktion, OHNE die
+    Abnahme zurueckzunehmen -- eine ausdrueckliche Aenderung der Gruppe
+    (``stueck.karte_aendern``) ist keine neue Karte. ``verlauf_json``: die
+    Fassung fuer ``karte_verlauf`` (die volle Ansicht, wie alle anderen
+    Wege sie dort ablegen); ohne Angabe ``karte_json``."""
+    conn.execute("UPDATE szene SET karte = ? WHERE id = ?", (karte_json, szene_id))
+    verlauf = karte_json if verlauf_json is None else verlauf_json
+    naechste = conn.execute(
+        "SELECT COALESCE(MAX(fassung_nr), 0) + 1 FROM karte_verlauf WHERE szene_id = ?",
+        (szene_id,),
+    ).fetchone()[0]
+    conn.execute(
+        "INSERT INTO karte_verlauf (chat_id, szene_id, fassung_nr, karte_json, ausloeser, "
+        "notiz_text, erstellt_am) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (chat_id, szene_id, naechste, verlauf, ausloeser, notiz_text, _jetzt()),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_szenenkarte_offen(conn: sqlite3.Connection, szene_id: int) -> None:
+    conn.execute("UPDATE szene SET karte_bestaetigt_am = NULL WHERE id = ?", (szene_id,))
+    conn.commit()
+
+
+@_gesperrt
+def nummeriere_szenen(conn: sqlite3.Connection, chat_id: int, szene_ids: list[int]) -> None:
+    for nummer, szene_id in enumerate(szene_ids, start=1):
+        conn.execute("UPDATE szene SET nummer = ? WHERE id = ? AND chat_id = ?",
+                     (nummer, szene_id, chat_id))
+    conn.commit()
+
+
+@_gesperrt
+def lege_offene_frage_an(conn: sqlite3.Connection, chat_id: int, szene_id: int | None,
+                         text: str, quelle: str, status: str = "offen") -> int:
+    cur = conn.execute(
+        "INSERT INTO offene_frage (chat_id, szene_id, text, status, quelle, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (chat_id, szene_id, text, status, quelle, _jetzt_genau()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def offene_fragen(conn: sqlite3.Connection, chat_id: int, szene_id: int | None,
+                  status: tuple[str, ...] = ("offen", "vertagt")) -> list[sqlite3.Row]:
+    platz = ",".join("?" * len(status))
+    return conn.execute(
+        f"SELECT * FROM offene_frage WHERE chat_id = ? AND szene_id IS ? "
+        f"AND status IN ({platz}) ORDER BY id ASC",
+        (chat_id, szene_id, *status),
+    ).fetchall()
+
+
+@_gesperrt
+def fragen_der_szene(conn: sqlite3.Connection, chat_id: int,
+                     szene_id: int | None) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM offene_frage WHERE chat_id = ? AND szene_id IS ? ORDER BY id ASC",
+        (chat_id, szene_id),
+    ).fetchall()
+
+
+@_gesperrt
+def hole_offene_frage(conn: sqlite3.Connection, frage_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM offene_frage WHERE id = ?", (frage_id,)).fetchone()
+
+
+@_gesperrt
+def setze_frage_status(conn: sqlite3.Connection, frage_id: int, status: str,
+                       antwort: str | None = None) -> None:
+    geschlossen = _jetzt_genau() if status in ("beantwortet", "uebersprungen") else None
+    conn.execute(
+        "UPDATE offene_frage SET status = ?, antwort = COALESCE(?, antwort), "
+        "geschlossen_am = ? WHERE id = ?",
+        (status, antwort, geschlossen, frage_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def merke_veraltet(conn: sqlite3.Connection, chat_id: int, szene_id: int | None,
+                   ansicht: str, grund: str, aenderung_id: int | None) -> int:
+    """EINE offene Zeile je (Szene, Ansicht): ein weiterer Grund wird
+    angehaengt und die Zeile neu angeboten (``angeboten_am`` = NULL)."""
+    offen = conn.execute(
+        "SELECT id, grund FROM veraltet WHERE chat_id = ? AND szene_id IS ? AND ansicht = ? "
+        "AND erledigt_am IS NULL",
+        (chat_id, szene_id, ansicht),
+    ).fetchone()
+    if offen is not None:
+        if grund not in offen["grund"].split("; "):
+            # aenderung_id = die JUENGSTE Ursache: ``erledige_veraltet_fuer(bis_aenderung_id=)``
+            # erledigt nur Vermerke, deren letzter Grund vor dem Schreibstart lag.
+            conn.execute("UPDATE veraltet SET grund = ?, angeboten_am = NULL, "
+                         "aenderung_id = COALESCE(?, aenderung_id) WHERE id = ?",
+                         (f"{offen['grund']}; {grund}", aenderung_id, offen["id"]))
+            conn.commit()
+        return offen["id"]
+    cur = conn.execute(
+        "INSERT INTO veraltet (chat_id, szene_id, ansicht, grund, aenderung_id, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (chat_id, szene_id, ansicht, grund, aenderung_id, _jetzt_genau()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def offene_veraltet(conn: sqlite3.Connection, chat_id: int,
+                    nur_unangeboten: bool = False) -> list[sqlite3.Row]:
+    zusatz = " AND angeboten_am IS NULL" if nur_unangeboten else ""
+    return conn.execute(
+        "SELECT * FROM veraltet WHERE chat_id = ? AND erledigt_am IS NULL" + zusatz
+        + " ORDER BY id ASC", (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def hole_veraltet(conn: sqlite3.Connection, veraltet_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM veraltet WHERE id = ?", (veraltet_id,)).fetchone()
+
+
+@_gesperrt
+def markiere_veraltet_angeboten(conn: sqlite3.Connection, veraltet_id: int) -> None:
+    conn.execute("UPDATE veraltet SET angeboten_am = ? WHERE id = ?", (_jetzt_genau(), veraltet_id))
+    conn.commit()
+
+
+@_gesperrt
+def setze_veraltet_unangeboten(conn: sqlite3.Connection, veraltet_id: int) -> None:
+    """Das Angebot gilt wieder als nicht gemacht (Ja-Druck ohne Start)."""
+    conn.execute("UPDATE veraltet SET angeboten_am = NULL WHERE id = ? AND erledigt_am IS NULL",
+                 (veraltet_id,))
+    conn.commit()
+
+
+@_gesperrt
+def erledige_veraltet(conn: sqlite3.Connection, veraltet_id: int, entscheidung: str) -> None:
+    conn.execute("UPDATE veraltet SET erledigt_am = ?, entscheidung = ? WHERE id = ?",
+                 (_jetzt_genau(), entscheidung, veraltet_id))
+    conn.commit()
+
+
+@_gesperrt
+def erledige_veraltet_fuer(conn: sqlite3.Connection, chat_id: int, szene_id: int | None,
+                           ansicht: str, entscheidung: str,
+                           bis_aenderung_id: int | None = None) -> int:
+    """Erledigt die offenen Vermerke. ``bis_aenderung_id``: nur die, deren
+    juengste Ursache nicht neuer ist (Schreiber: was erst WAEHREND des
+    Schreibens kam, ist im neuen Text nicht enthalten und bleibt offen)."""
+    grenze = "" if bis_aenderung_id is None else " AND (aenderung_id IS NULL OR aenderung_id <= ?)"
+    cur = conn.execute(
+        "UPDATE veraltet SET erledigt_am = ?, entscheidung = ? WHERE chat_id = ? "
+        "AND szene_id IS ? AND ansicht = ? AND erledigt_am IS NULL" + grenze,
+        (_jetzt_genau(), entscheidung, chat_id, szene_id, ansicht)
+        + (() if bis_aenderung_id is None else (bis_aenderung_id,)),
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+@_gesperrt
+def hoechste_stueck_aenderung_id(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Marke "bis hierher kannte der Schreiber das Stueck" (0 = noch nichts)."""
+    return conn.execute("SELECT COALESCE(MAX(id), 0) FROM stueck_aenderung WHERE chat_id = ?",
+                        (chat_id,)).fetchone()[0]
+
+
+@_gesperrt
+def merke_stueck_aenderung(conn: sqlite3.Connection, chat_id: int, art: str, ziel: dict,
+                           vorher, nachher, quelle: str) -> int:
+    cur = conn.execute(
+        "INSERT INTO stueck_aenderung (chat_id, art, ziel, vorher, nachher, quelle, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (chat_id, art, json.dumps(ziel, ensure_ascii=False),
+         json.dumps(vorher, ensure_ascii=False), json.dumps(nachher, ensure_ascii=False),
+         quelle, _jetzt_genau()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def stueck_aenderungen(conn: sqlite3.Connection, chat_id: int,
+                       quelle: str | None = None) -> list[sqlite3.Row]:
+    if quelle is None:
+        return conn.execute("SELECT * FROM stueck_aenderung WHERE chat_id = ? ORDER BY id",
+                            (chat_id,)).fetchall()
+    return conn.execute(
+        "SELECT * FROM stueck_aenderung WHERE chat_id = ? AND quelle = ? ORDER BY id",
+        (chat_id, quelle)).fetchall()
 
 
 @_gesperrt
@@ -3066,7 +3701,7 @@ GESCHUETZTE_SZENENFELDER = (
 #: ``SZENENFELDER`` ist eine unbekannte Angabe ein Programmierfehler: nur
 #: nach dieser Pruefung landet ein Name im SQL-Text.
 ABGLEICHBARE_SZENENFELDER = (
-    *SZENENFELDER,
+    *(f for f in SZENENFELDER if f not in NUR_UEBER_STUECK),
     "zusammenfassung",
     "volltext",
     "prosa",
@@ -3627,6 +4262,114 @@ def entferne_festlegung_nach_id(
     return zeile["text"]
 
 
+# --- Phasen-Summary (Karte t_1bc96848) --------------------------------------
+#
+# Je Phase ein knappes, automatisiert erzeugtes Summary nur des
+# Beschlossenen -- ersetzt in den Prompts der Folgephasen die Rohdumps aus
+# Chat/Journal/Workbench einer ABGESCHLOSSENEN Phase
+# (interview_theater/phasen_summary.py). Nur-anhaengend wie Journal und
+# Festlegung.
+
+
+@_gesperrt
+def phase_eintritt_zeitpunkt(
+    conn: sqlite3.Connection, chat_id: int, praefix: str
+) -> str | None:
+    """Der Zeitpunkt (ISO) des neuesten Journal-Eintrags 'entschieden',
+    dessen Text mit ``praefix`` beginnt -- Grundlage fuer "seit dem Eintritt
+    in Phase N" (dieselbe Abfrage wie ``szene._p5_gespraech_text``, hier
+    einmal allgemein fuer jede Phase statt nur Phase 5)."""
+    zeile = conn.execute(
+        "SELECT erstellt_am FROM journal WHERE chat_id = ? AND entfernt_am IS NULL "
+        "AND art = 'entschieden' AND text LIKE ? ORDER BY id DESC LIMIT 1",
+        (chat_id, f"{praefix}%"),
+    ).fetchone()
+    return zeile["erstellt_am"] if zeile else None
+
+
+@_gesperrt
+def speichere_phasen_summary(
+    conn: sqlite3.Connection, chat_id: int, phase: int, text: str,
+    quelle: str = "modell",
+) -> int:
+    """Haengt ein Phasen-Summary an. Wird nie aktualisiert -- ein erneuter
+    Lauf (Ruecksprung, Nachtrag) legt eine neue Zeile an; gelesen wird immer
+    die juengste (``hole_phasen_summary``)."""
+    cur = conn.execute(
+        """
+        INSERT INTO phasen_summary (chat_id, phase, text, quelle, erstellt_am)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (chat_id, phase, text, quelle, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def hole_phasen_summary(
+    conn: sqlite3.Connection, chat_id: int, phase: int
+) -> sqlite3.Row | None:
+    """Das juengste Phasen-Summary zu genau dieser Phase, oder ``None``."""
+    return conn.execute(
+        "SELECT * FROM phasen_summary WHERE chat_id = ? AND phase = ? "
+        "ORDER BY id DESC LIMIT 1",
+        (chat_id, phase),
+    ).fetchone()
+
+
+@_gesperrt
+def phasen_summaries(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Je Phase das juengste Summary, nach Phase aufsteigend -- die
+    Injektionsgrundlage (``phasen_summary.bloecke_bis``)."""
+    neueste: dict[int, sqlite3.Row] = {}
+    for zeile in conn.execute(
+        "SELECT * FROM phasen_summary WHERE chat_id = ? ORDER BY id ASC", (chat_id,),
+    ):
+        neueste[zeile["phase"]] = zeile
+    return [neueste[phase] for phase in sorted(neueste)]
+
+
+# --- Karten-Verlauf (Birk 08.10.2026 ~10:35) --------------------------------
+#
+# Jede Fassung einer Szenenkarte (interview_theater/szenenkarte.py) bleibt
+# erhalten -- Grundlage des Verfeinerungs-Blocks in Phase 7 und des
+# Phase-6-Summary. Nur-anhaengend wie Phasen-Summary/Journal/Festlegung.
+
+
+@_gesperrt
+def merke_karte_verlauf(
+    conn: sqlite3.Connection, chat_id: int, szene_id: int, karte_json: str,
+    ausloeser: str, notiz_text: str | None = None,
+) -> int:
+    """Haengt eine neue Fassung dieser Szenenkarte an -- ``fassung_nr``
+    zaehlt je ``szene_id`` ab 1 hoch. Wird nie aktualisiert."""
+    naechste = conn.execute(
+        "SELECT COALESCE(MAX(fassung_nr), 0) + 1 FROM karte_verlauf WHERE szene_id = ?",
+        (szene_id,),
+    ).fetchone()[0]
+    cur = conn.execute(
+        """
+        INSERT INTO karte_verlauf
+            (chat_id, szene_id, fassung_nr, karte_json, ausloeser, notiz_text, erstellt_am)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (chat_id, szene_id, naechste, karte_json, ausloeser, notiz_text, _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def karte_verlauf(conn: sqlite3.Connection, chat_id: int, szene_id: int) -> list[sqlite3.Row]:
+    """Alle Fassungen dieser Karte, aufsteigend nach ``fassung_nr``."""
+    return conn.execute(
+        "SELECT * FROM karte_verlauf WHERE chat_id = ? AND szene_id = ? "
+        "ORDER BY fassung_nr ASC",
+        (chat_id, szene_id),
+    ).fetchall()
+
+
 @_gesperrt
 def merke_aufruf(
     conn: sqlite3.Connection,
@@ -3708,6 +4451,37 @@ def kostensumme_seit(conn: sqlite3.Connection, chat_id: int, ab_iso: str) -> flo
 
 
 @_gesperrt
+def aufruf_summe_nach(conn: sqlite3.Connection, vorher_id: int) -> dict:
+    """Summe ueber alle ``aufruf``-Zeilen mit ``id > vorher_id`` (Messskripte):
+    Anzahl, Eingabe- und Ausgabetoken. Rein lesend."""
+    zeile = conn.execute(
+        """
+        SELECT COUNT(*) AS n, COALESCE(SUM(tatsaechliche_token), 0) AS ein,
+               COALESCE(SUM(antwort_token), 0) AS aus
+        FROM aufruf WHERE id > ?
+        """,
+        (vorher_id,),
+    ).fetchone()
+    return {"modellaufrufe": int(zeile["n"]), "eingabe_token": int(zeile["ein"]),
+            "ausgabe_token": int(zeile["aus"])}
+
+
+@_gesperrt
+def aufruf_fremd_nach(conn: sqlite3.Connection, vorher_id: int, abo_modus: str) -> dict:
+    """Aufrufe mit ``id > vorher_id`` und ``modus`` ungleich ``abo_modus``
+    (Messskripte: lief ein Claude-Lauf doch ueber das bezahlte Modell?):
+    Anzahl und gebuchte Kosten. Rein lesend."""
+    zeile = conn.execute(
+        """
+        SELECT COUNT(*) AS n, COALESCE(SUM(COALESCE(kosten_chf, 0)), 0) AS chf
+        FROM aufruf WHERE id > ? AND COALESCE(modus, '') != ?
+        """,
+        (vorher_id, abo_modus),
+    ).fetchone()
+    return {"aufrufe": int(zeile["n"]), "kosten_chf": float(zeile["chf"] or 0.0)}
+
+
+@_gesperrt
 def setze_interviewmodus(conn: sqlite3.Connection, chat_id: int, wert: str | None) -> None:
     """Setzt oder leert gruppe.interviewmodus_seit (teil-b.md Aufgabe 5, SPEC
     § 10.1): ein Zeitstempel bedeutet 'Modus an', NULL bedeutet 'Modus aus'.
@@ -3759,6 +4533,23 @@ def setze_kalibrierung_werte(conn: sqlite3.Connection, chat_id: int,
         "UPDATE gruppe SET kalibrierung_boden = ?, kalibrierung_rede = ?, "
         "kalibrierung_schwelle = ?, kalibrierung_gemessen_am = ? WHERE chat_id = ?",
         (boden, rede, schwelle, _jetzt(), chat_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def setze_client_puffer(conn: sqlite3.Connection, chat_id: int, segmente: int) -> None:
+    """Merkt, wie viele Audiosegmente der Chat-Client laut seinem
+    Upload-Watchdog gerade im Handy (IndexedDB) gepuffert haelt (Karte
+    InScribe, Diskussionsaufnahme laedt still nicht mehr hoch, 2026-10-17)
+    -- Grundlage der CoThinker-Statuszeile ("N Segmente im Handy gepuffert",
+    ``web_daten.cothinker_status``). ``segmente = 0`` loescht die Meldung
+    wieder (``client_puffer_seit`` auf NULL), derselbe Vertrag wie
+    ``setze_whisper_stumm_seit``."""
+    conn.execute(
+        "UPDATE gruppe SET client_puffer_segmente = ?, client_puffer_seit = ? "
+        "WHERE chat_id = ?",
+        (segmente, _jetzt() if segmente else None, chat_id),
     )
     conn.commit()
 
@@ -4739,7 +5530,7 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
                      datei=None, mime=None, dateiname=None,
                      schnittgrund=None, brainstorm=False, diskussion=False,
                      bild=None, rede_ms=None, kalibrierung=False,
-                     weich_ms=None) -> int:
+                     weich_ms=None, hintergrund_ms=None) -> int:
     """Legt eine Zeile in ``web_post`` an und liefert ihre id.
 
     Die id ist zugleich ``message_id`` und ``update_id`` -- eine Folge fuer
@@ -4753,20 +5544,23 @@ def lege_web_post_an(conn, chat_id: int, richtung: str, typ: str, *,
     weicher Schnitt, 05.10.2026, nur bei ``schnittgrund='weich'`` gesetzt)
     sind ebenso nur bei ``typ='sprache'`` gesetzt und wandern genauso durch.
     ``bild`` (UX-Knoepfe-Karte, Abschnitt 5) ist der Dateiname einer
-    Telefon-Organisationskarte unter ``interview_theater/static/handys/``."""
+    Telefon-Organisationskarte unter ``interview_theater/static/handys/``.
+    ``hintergrund_ms`` (Karte t_1423ca89) ist dieselbe additive Durchreiche
+    wie ``rede_ms``/``weich_ms`` -- die vom Client gemessene Hintergrundzeit
+    dieses Segments, bis in die ``aufnahme``-Zeile."""
     cur = conn.execute(
         "INSERT INTO web_post (chat_id, richtung, typ, text, knoepfe, daten, "
         "bezug_message_id, dauer, datei, mime, dateiname, erstellt_am, "
         "schnittgrund, brainstorm, diskussion, bild, rede_ms, kalibrierung, "
-        "weich_ms) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "weich_ms, hintergrund_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             chat_id, richtung, typ, text,
             json.dumps([list(k) for k in knoepfe], ensure_ascii=False)
             if knoepfe else None,
             daten, bezug_message_id, dauer, datei, mime, dateiname, _jetzt(),
             schnittgrund, 1 if brainstorm else 0, 1 if diskussion else 0, bild,
-            rede_ms, 1 if kalibrierung else 0, weich_ms,
+            rede_ms, 1 if kalibrierung else 0, weich_ms, hintergrund_ms,
         ),
     )
     conn.commit()
@@ -4821,6 +5615,47 @@ def web_segmente_unterwegs(conn, chat_id: int, vor_id: int, seit: str) -> list:
         "ORDER BY p.id ASC",
         (chat_id, RICHTUNG_EIN, WEB_TYP_SPRACHE, vor_id, seit,
          _VORFALL_DOWNLOAD, _VORFALL_DOWNLOAD_DETAIL),
+    ).fetchall()
+
+
+#: Der Vorfall, mit dem ``aufnahme.nachholen`` einen Web-Post festhaelt, der
+#: auch nach ``aufnahme.WEB_POST_OHNE_AUFNAHME_FRIST_S`` noch keine
+#: ``aufnahme``-Zeile hat (Karte Padua "Interviewaufnahme ganz am Anfang
+#: teils nicht erfasst", 09.10.2026, Audit-Fall web_post id=2656): anders als
+#: ``web_segmente_unterwegs`` oben, das dieselbe Luecke nur als Warte-Gate
+#: fuer SPAETERE Posts prueft (``web_kanal._segmente_angekommen``) und einen
+#: Post ohne jeden Nachfolger nie anfasst. Der Wortlaut steht in
+#: ``aufnahme.nachholen``.
+_VORFALL_WEB_POST_OHNE_AUFNAHME = "web_post_ohne_aufnahme"
+_VORFALL_WEB_POST_OHNE_AUFNAHME_DETAIL = "Web-Post "
+
+
+@_gesperrt
+def web_posts_ohne_aufnahme_fuer_bot(conn, bot_name: str, vor: str) -> list[sqlite3.Row]:
+    """Sprache-Posts der Gruppen dieses Bot-Prozesses, aelter als ``vor``,
+    die weder eine ``aufnahme``-Zeile noch einen Download-Vorfall
+    (``_VORFALL_DOWNLOAD``) noch den eigenen Vorfall
+    (``_VORFALL_WEB_POST_OHNE_AUFNAHME``) haben -- wie
+    ``offene_aufnahmen_fuer_bot``/``beendete_offene_interviews`` auf
+    ``gruppe.bot_name`` eingeschraenkt, damit nicht zwei Bot-Prozesse
+    denselben Post gleichzeitig melden."""
+    return conn.execute(
+        "SELECT p.* FROM web_post p "
+        "JOIN gruppe g ON g.chat_id = p.chat_id "
+        "WHERE g.bot_name = ? AND p.richtung = ? AND p.typ = ? "
+        "AND p.geloescht_am IS NULL AND p.erstellt_am < ? "
+        "AND NOT EXISTS (SELECT 1 FROM aufnahme a "
+        "  WHERE a.chat_id = p.chat_id AND a.message_id = p.id) "
+        "AND NOT EXISTS (SELECT 1 FROM vorfall v "
+        "  WHERE v.chat_id = p.chat_id AND v.art = ? "
+        "  AND v.detail LIKE ? || p.id || ':%') "
+        "AND NOT EXISTS (SELECT 1 FROM vorfall v "
+        "  WHERE v.chat_id = p.chat_id AND v.art = ? "
+        "  AND v.detail LIKE ? || p.id || ':%') "
+        "ORDER BY p.id ASC",
+        (bot_name, RICHTUNG_EIN, WEB_TYP_SPRACHE, vor,
+         _VORFALL_DOWNLOAD, _VORFALL_DOWNLOAD_DETAIL,
+         _VORFALL_WEB_POST_OHNE_AUFNAHME, _VORFALL_WEB_POST_OHNE_AUFNAHME_DETAIL),
     ).fetchall()
 
 
@@ -5168,20 +6003,241 @@ def hole_uebersetzung(conn: sqlite3.Connection, chat_id: int) -> sqlite3.Row | N
 
 @_gesperrt
 def setze_uebersetzung(
-    conn: sqlite3.Connection, chat_id: int, quelle_hash: str, felder: dict
+    conn: sqlite3.Connection, chat_id: int, quelle_hash: str, quelle: dict, felder: dict
 ) -> None:
     """Ersetzt den Uebersetzungscache einer Gruppe komplett -- eine Zeile
-    je Gruppe, kein Feld-fuer-Feld-Update: der Schreiber uebersetzt immer
-    alle Felder in einem Aufruf (``uebersetzung.aktualisiere``)."""
+    je Gruppe, kein Feld-fuer-Feld-Update. ``quelle`` sind die Quellsegmente,
+    die zu ``felder`` gehoeren (``uebersetzung.segmente()``-Form): Grundlage
+    dafuer, dass ein spaeterer Lauf unveraenderte Schluessel wiederverwenden
+    kann, statt sie neu zu uebersetzen."""
     conn.execute(
         """
-        INSERT INTO uebersetzung (chat_id, quelle_hash, felder, aktualisiert_am)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO uebersetzung (chat_id, quelle_hash, quelle, felder, aktualisiert_am)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             quelle_hash = excluded.quelle_hash,
+            quelle = excluded.quelle,
             felder = excluded.felder,
             aktualisiert_am = excluded.aktualisiert_am
         """,
-        (chat_id, quelle_hash, json.dumps(felder, ensure_ascii=False), _jetzt()),
+        (chat_id, quelle_hash, json.dumps(quelle, ensure_ascii=False),
+         json.dumps(felder, ensure_ascii=False), _jetzt()),
     )
     conn.commit()
+
+
+# --- Internet-Recherche (Karte t_c5117c91) ----------------------------------
+
+
+@_gesperrt
+def speichere_recherche(
+    conn: sqlite3.Connection, chat_id: int, frage: str, ergebnis_text: str,
+    quellen: list[dict],
+) -> int:
+    """Legt eine Rechercheergebnis-Zeile an und liefert ihre id.
+
+    Nur anhaengend wie Journal/Verdichtungen (AGENTS.md): eine Recherche wird
+    nie geaendert, nur weich entfernt (``entferne_recherche``)."""
+    cur = conn.execute(
+        "INSERT INTO recherche (chat_id, frage, ergebnis_text, quellen_json, erstellt_am) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (chat_id, frage, ergebnis_text, json.dumps(quellen, ensure_ascii=False), _jetzt()),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+@_gesperrt
+def hole_recherchen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Alle nicht entfernten Recherchen einer Gruppe, juengste zuerst --
+    ``quellen`` schon aus JSON gelesen."""
+    zeilen = conn.execute(
+        f"SELECT * FROM recherche WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+        "ORDER BY id DESC",
+        (chat_id,),
+    ).fetchall()
+    ergebnis = []
+    for zeile in zeilen:
+        eintrag = dict(zeile)
+        try:
+            eintrag["quellen"] = json.loads(zeile["quellen_json"]) or []
+        except (ValueError, TypeError):
+            eintrag["quellen"] = []
+        ergebnis.append(eintrag)
+    return ergebnis
+
+
+@_gesperrt
+def hole_recherche(conn: sqlite3.Connection, chat_id: int, recherche_id: int) -> dict | None:
+    """Eine einzelne Recherche dieser Gruppe, oder None."""
+    zeile = conn.execute(
+        f"SELECT * FROM recherche WHERE id = ? AND chat_id = ? AND {_NICHT_ENTFERNT}",
+        (recherche_id, chat_id),
+    ).fetchone()
+    if zeile is None:
+        return None
+    eintrag = dict(zeile)
+    try:
+        eintrag["quellen"] = json.loads(zeile["quellen_json"]) or []
+    except (ValueError, TypeError):
+        eintrag["quellen"] = []
+    return eintrag
+
+
+@_gesperrt
+def entferne_recherche(conn: sqlite3.Connection, chat_id: int, recherche_id: int) -> bool:
+    """Entfernt eine Recherche weich (AGENTS.md "Nur anhaengen") -- True,
+    wenn es sie (noch) gab."""
+    cur = conn.execute(
+        f"UPDATE recherche SET entfernt_am = ? "
+        f"WHERE id = ? AND chat_id = ? AND {_NICHT_ENTFERNT}",
+        (_jetzt(), recherche_id, chat_id),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+@_gesperrt
+def merke_stagescript_notiz(conn: sqlite3.Connection, chat_id: int, szene_id: int,
+                            text: str) -> int:
+    """Haengt einen Wunsch der Gruppe zu einer Stage-Script-Szene an (Padua
+    Quickfix 08.10.2026, Punkt 1) -- nur anhaengen (AGENTS.md), mehrere
+    Notizen derselben Szene sammeln sich in der Reihenfolge, in der sie
+    kamen."""
+    cur = conn.execute(
+        "INSERT INTO stagescript_notiz (chat_id, szene_id, text, erstellt_am) "
+        "VALUES (?, ?, ?, ?)",
+        (chat_id, szene_id, text, _jetzt()),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+@_gesperrt
+def stagescript_notizen(conn: sqlite3.Connection, szene_id: int) -> list[str]:
+    """Die noch unverwendeten Notizen dieser Szene, aeltest zuerst."""
+    zeilen = conn.execute(
+        "SELECT text FROM stagescript_notiz "
+        "WHERE szene_id = ? AND verwendet_am IS NULL ORDER BY id",
+        (szene_id,),
+    ).fetchall()
+    return [z["text"] for z in zeilen]
+
+
+@_gesperrt
+def stagescript_notizen_verwendet(conn: sqlite3.Connection, szene_id: int) -> list[str]:
+    """Die schon einmal angewandten Notizen dieser Szene, aeltest zuerst --
+    Grundlage der staendigen Wuensche (Padua Dauernotiz-Fix 08.10.2026,
+    Punkt 1): einmal angewandt, soll eine Form-/Stilvorgabe nicht beim
+    naechsten Schreiblauf wieder verschwinden, nur weil sie nicht mehr
+    unter den unverwendeten steht (``stagescript_notizen``)."""
+    zeilen = conn.execute(
+        "SELECT text FROM stagescript_notiz "
+        "WHERE szene_id = ? AND verwendet_am IS NOT NULL ORDER BY id",
+        (szene_id,),
+    ).fetchall()
+    return [z["text"] for z in zeilen]
+
+
+@_gesperrt
+def markiere_stagescript_notizen_verwendet(conn: sqlite3.Connection, szene_id: int) -> None:
+    """Markiert alle noch unverwendeten Notizen dieser Szene als verwendet --
+    sie sind in den naechsten ``stagescript.schreibe``-Auftrag eingegangen.
+    Weich (AGENTS.md "Nur anhaengen"): die Zeilen selbst bleiben stehen."""
+    conn.execute(
+        "UPDATE stagescript_notiz SET verwendet_am = ? "
+        "WHERE szene_id = ? AND verwendet_am IS NULL",
+        (_jetzt(), szene_id),
+    )
+    conn.commit()
+
+
+@_gesperrt
+def bedarf(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
+    """Alle nicht entfernten Bedarfspunkte einer Gruppe (Birk 08.10.2026
+    ~13:45, Padua: Abhakliste in der read-only Werkbank).
+
+    Sortiert allein nach ``reihenfolge`` -- EINE globale Zaehlung ueber alle
+    Sektionen (nicht ``sektion, reihenfolge``): ``scripts/bedarf_seed.py``
+    vergibt sie in der Reihenfolge der Seed-Datei, Sektion fuer Sektion. Eine
+    alphabetische Sortierung nach ``sektion`` wuerde die Reihenfolge der
+    Seed-Datei (z. B. Raum, Requisiten, Technik, Kostuem) durcheinander
+    wuerfeln -- die Anzeige gruppiert deshalb ueber aufeinanderfolgende
+    gleiche ``sektion``-Werte, statt selbst neu zu sortieren."""
+    return conn.execute(
+        f"SELECT * FROM bedarf_punkt WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+        "ORDER BY reihenfolge, id",
+        (chat_id,),
+    ).fetchall()
+
+
+@_gesperrt
+def setze_bedarf_erledigt(conn: sqlite3.Connection, chat_id: int, punkt_id: int,
+                          erledigt: bool) -> bool:
+    """Setzt oder loescht ``erledigt_am`` eines Bedarfspunktes -- scoped auf
+    ``chat_id``: eine fremde Gruppe trifft keine Zeile (Grundlage der
+    404-Antwort im Web-Chat-Weg, ``web_chat._bedarf``). True, wenn es den
+    Punkt (noch, und bei dieser Gruppe) gab."""
+    cur = conn.execute(
+        f"UPDATE bedarf_punkt SET erledigt_am = ? "
+        f"WHERE id = ? AND chat_id = ? AND {_NICHT_ENTFERNT}",
+        (_jetzt() if erledigt else None, punkt_id, chat_id),
+    )
+    conn.commit()
+    return cur.rowcount == 1
+
+
+@_gesperrt
+def bedarf_datei_vorhanden(conn: sqlite3.Connection, chat_id: int, datei: str) -> bool:
+    """True, wenn diese Gruppe einen (nicht entfernten) Bedarfspunkt mit genau
+    diesem Dateinamen hat (Birk 08.10.2026 ~13:50, Nachtrag 1) -- die eine
+    Pruefung, die ``web._sende_bedarf_datei`` vor dem Lesen von der Platte
+    macht. Scoped auf ``chat_id`` wie ``setze_bedarf_erledigt``: eine fremde
+    Gruppe (oder ein weich entfernter Punkt derselben Gruppe) liefert False,
+    auch wenn die Datei auf der Platte noch liegt."""
+    zeile = conn.execute(
+        f"SELECT 1 FROM bedarf_punkt WHERE chat_id = ? AND datei = ? AND {_NICHT_ENTFERNT}",
+        (chat_id, datei),
+    ).fetchone()
+    return zeile is not None
+
+
+@_gesperrt
+def ersetze_unerledigte_bedarf_punkte(
+    conn: sqlite3.Connection, chat_id: int,
+    sektionen: list[tuple[str, list[str | tuple[str, str]]]],
+) -> int:
+    """``scripts/bedarf_seed.py``: entfernt weich jeden noch UNERLEDIGTEN
+    Bedarfspunkt dieser Gruppe und legt die Punkte aus ``sektionen`` (eine
+    Liste aus ``(sektion, [punkt, ...])``, in der Reihenfolge der Seed-Datei)
+    frisch an. Erledigte Punkte bleiben unberuehrt -- ein erneuter Lauf darf
+    den Haken der Gruppe nicht wegnehmen.
+
+    Jeder ``punkt`` ist entweder ein blosser Text oder ``(text, datei)``
+    (Nachtrag 1, Downloads) -- die JSON-Form (String oder ``{"text":...,
+    "datei":...}``) entscheidet ``scripts/bedarf_seed.py``, hier steht nur
+    noch die Tupelform.
+
+    ``reihenfolge`` zaehlt EINMAL durch, ueber alle Sektionen hinweg (siehe
+    ``bedarf``), damit die Anzeige die Sektionen in Seed-Reihenfolge zeigt.
+    Liefert die Zahl der neu angelegten Punkte."""
+    conn.execute(
+        f"UPDATE bedarf_punkt SET entfernt_am = ? "
+        f"WHERE chat_id = ? AND erledigt_am IS NULL AND {_NICHT_ENTFERNT}",
+        (_jetzt(), chat_id),
+    )
+    jetzt = _jetzt()
+    reihenfolge = 0
+    angelegt = 0
+    for sektion, punkte in sektionen:
+        for punkt in punkte:
+            text, datei = punkt if isinstance(punkt, tuple) else (punkt, None)
+            reihenfolge += 1
+            conn.execute(
+                "INSERT INTO bedarf_punkt (chat_id, sektion, text, reihenfolge, "
+                "erstellt_am, datei) VALUES (?, ?, ?, ?, ?, ?)",
+                (chat_id, sektion, text, reihenfolge, jetzt, datei),
+            )
+            angelegt += 1
+    conn.commit()
+    return angelegt

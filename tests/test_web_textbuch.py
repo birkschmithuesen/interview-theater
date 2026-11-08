@@ -68,7 +68,7 @@ def db_pfad(tmp_path):
     eins = repo.stelle_szene_sicher(conn, 1, 1)
     repo.setze_szenenfeld(conn, eins, "titel", "Im Treppenhaus")
     repo.setze_szenenfeld(conn, eins, "form", "dialog")
-    repo.setze_szenenfeld(conn, eins, "ort", "Treppenhaus")
+    repo.setze_szenenort(conn, eins, "Treppenhaus")
     repo.setze_szenenfeld(conn, eins, "zeit", "kurz nach Mitternacht")
     repo.setze_szenenfeld(conn, eins, "anlass", "Pola will packen")
     repo.aktualisiere_szene(conn, eins, "Im Treppenhaus", None, SZENENTEXT)
@@ -80,7 +80,7 @@ def db_pfad(tmp_path):
     zwei = repo.stelle_szene_sicher(conn, 1, 2)
     repo.setze_szenenfeld(conn, zwei, "titel", "Am Bahnhof")
     repo.setze_szenenfeld(conn, zwei, "form", "lied")
-    repo.setze_szenenfeld(conn, zwei, "ort", "Bahnhof")
+    repo.setze_szenenort(conn, zwei, "Bahnhof")
     repo.setze_szenenfeld(conn, zwei, "was_passiert", "Mira faehrt nicht mit")
     conn.commit()
     return pfad
@@ -280,7 +280,7 @@ def test_ohne_sprecherzeilen_gibt_es_keine_rollenleiste(basis, token, db_pfad):
     koerper = hole(f"{basis}/g/{token}/textbuch")[1]
 
     assert "class=\"leiste rollen\"" not in koerper
-    assert "Mira kommt nach Hause" in koerper, "der Text steht trotzdem da"
+    assert "class=\"stueck\"" in koerper, "der Text steht trotzdem da"
 
 
 def test_die_repliken_tragen_ihre_figur_und_die_regie_ihr_span(basis, token):
@@ -395,3 +395,14 @@ def test_nach_einer_leerzeile_gehoert_der_absatz_niemandem():
     koerper, _ = web.szenentext_html("MIRA: Erster Teil.\n\nEin Absatz.\n")
 
     assert '<p class="prosa">Ein Absatz.</p>' in koerper
+
+
+def test_padua_script_tab_ohne_leseleiste(basis, token, monkeypatch):
+    """Birk 07.10.2026: Text size / Hide stage directions kosten am Handy Platz."""
+    from interview_theater import web
+    monkeypatch.setattr(web, "_leseleiste_aus", lambda: True)
+    koerper = hole(f"{basis}/g/{token}/textbuch")[1]
+
+    assert 'class="schrift" data-schrift=' not in koerper
+    assert 'class="regie-schalter" aria-pressed' not in koerper
+    assert "class=\"stueck\"" in koerper, "der Text steht trotzdem da"

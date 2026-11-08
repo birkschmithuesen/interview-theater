@@ -14,10 +14,11 @@ genau vier, und sie stehen als lokaler Import in der jeweiligen Funktion:
 sonst waere die Schicht keine.
 """
 
-from interview_theater import erkenner, phasen, repo
+from interview_theater import erkenner, nachspeichern, phasen, repo
 
 from interview_theater.knoepfe.texte import (
     ART_ANDERS, ART_BOARD_AENDERN, ART_BOARD_UEBERNEHMEN, ART_EIGENE, ART_KERNTHEMA, ART_PHASE,
+    ART_P5_CHECK_AENDERN, ART_P5_CHECK_OK,
     ART_REDO, ART_SPEICHERN, ART_UNDO,
     MAX_AUSWAHL, MAX_VORSCHLAEGE, MENUE_KNOPF_LAENGE, PRAEFIX, TRENNER,
     _AUSWAHLMARKER, _FELD_FUER, T, log,
@@ -109,6 +110,18 @@ def biete_phase(conn, tg, chat_id: int, text: str, nummer: int) -> None:
     knopf_id = repo.lege_knopf_an(conn, chat_id, ART_PHASE, str(nummer))
     beschriftung = T._TEXT_WEITER_ZU_KNOPF.format(phase=phasen.bezeichnung(nummer))
     _sende_knoepfe(conn, tg, chat_id, text, [(beschriftung, _daten(knopf_id))])
+
+
+def biete_p5_check(conn, tg, chat_id: int, text: str) -> None:
+    """Die zwei Knoepfe des Phase-5-Gates (Padua, 07.10.2026,
+    ``befehle.zeige_p5_check``): die Werkbank-Uebersicht ist richtig, oder
+    es soll noch etwas geaendert werden."""
+    ok_id = repo.lege_knopf_an(conn, chat_id, ART_P5_CHECK_OK, None)
+    aendern_id = repo.lege_knopf_an(conn, chat_id, ART_P5_CHECK_AENDERN, None)
+    _sende_knoepfe(conn, tg, chat_id, text, [
+        (T._TEXT_P5_CHECK_OK_KNOPF, _daten(ok_id)),
+        (T._TEXT_P5_CHECK_AENDERN_KNOPF, _daten(aendern_id)),
+    ])
 
 
 def _phasenknopf(conn, chat_id: int) -> tuple[str, str] | None:
@@ -590,6 +603,18 @@ def sende_mit_speicherleiste(
 
     text, bloecke = _ein_feld_je_nachricht(conn, chat_id, text)
     sauber = vorschlag.ohne_marker(text) or text
+
+    # Der "No, change"-Dialog einer Szenenkarte (Birk 08.10.2026 ~09:35,
+    # Nachtrag): ``VORSCHLAG KARTE AENDERUNG:`` ist keine Leiste wie jede
+    # andere, sondern "Update the card" / "Keep the card" -- der Rumpf
+    # steht in ``szenenkarte.py`` (dialog-spezifisch: ohne aktiven Dialog
+    # geht der Text ohne Knoepfe raus, kein Raten).
+    if "karte_aenderung" in bloecke:
+        from interview_theater import szenenkarte
+
+        return szenenkarte.biete_update_knopf(
+            conn, tg, e, chat_id, text, bloecke["karte_aenderung"],
+        ), True
 
     # Der Fragenvorschlag der Phase 2 (02.10.2026) ist keine Leiste, sondern
     # ein eigener Ueberblick mit Richtungsfrage -- er kommt VOR allem
@@ -1294,6 +1319,10 @@ def _speichere(conn, tg, chat_id: int, roh: str, weiterfrage: bool = True,
             _sende_knoepfe(conn, tg, chat_id, T._TEXT_NACH_SPEICHERN_FRAGE, [phasenknopf])
         else:
             tg.sende(chat_id, T._TEXT_NACH_SPEICHERN_FRAGE)
+        # Die Bestaetigung steht; der optionale Zusatz (Vorschlag oder
+        # kritische Rueckfrage) kommt, wenn ueberhaupt, als eigene Nachricht
+        # aus einem eigenen Thread (Zusage 2, ``nachspeichern.starte``).
+        nachspeichern.starte(conn, tg, klm, e, chat_id, T._NOTIERT[art], wert)
     return T._TEXT_FELD_UEBERNOMMEN.format(feld=T._NOTIERT[art])
 
 

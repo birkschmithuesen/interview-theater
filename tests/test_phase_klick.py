@@ -362,7 +362,7 @@ def test_ein_unbekannter_teil_bleibt_404(server):
     """``roadmap`` kam dazu, ``_TEILE`` ist deshalb kein Freifahrtschein."""
     basis, token, _pfad = server
     with pytest.raises(urllib.error.HTTPError) as fehler:
-        urllib.request.urlopen(f"{basis}/g/{token}/teil/textbuch", timeout=5)
+        urllib.request.urlopen(f"{basis}/g/{token}/teil/chat", timeout=5)
     assert fehler.value.code == 404
 
 

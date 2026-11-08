@@ -50,6 +50,12 @@ Rules for the supporting quotes, without exception:
 - If the transcript gives too little -- one sentence, half a thought, a
   recording made by accident --, then the right answer is **no findings**.
   An empty list is a valid result, not a mistake.
+- **Prefer a passage that stands on its own.** A bare one- or two-word
+  answer ("In Romania.", "The salt.") means nothing once it is pulled out
+  of the question that prompted it -- the group reads it later without
+  that question next to it. If the transcript offers a longer, equally
+  word-for-word passage that carries the point by itself, choose that one
+  instead of the shortest fragment that merely passes.
 - The group only trusts a suggestion if a real quote stands behind it. A
   suggestion without a quote is not dramaturgy but a machine.
 

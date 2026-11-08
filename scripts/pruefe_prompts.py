@@ -19,6 +19,7 @@ Aufruf::
     $PY -m scripts.pruefe_prompts alle --bericht
     $PY -m scripts.pruefe_prompts erkenner --nur e18-verworfen-kindheitsfragen,n04-zitat-eines-vorschlags
     $PY -m scripts.pruefe_prompts erkenner --modell nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8
+    $PY -m scripts.pruefe_prompts erkenner --ueber-claude --bericht   # Live-Opus-Pfad (InScribe Messung 1)
 
 Die ``betrieb/<gruppe>.env`` muss vorher geladen sein -- ``einstellungen.laden()``
 liest ausschliesslich Umgebungsvariablen und braucht IT_LLM_URL, IT_LLM_KEY,
@@ -72,12 +73,30 @@ import httpx
 
 from interview_theater import (
     db, einstellungen, erkenner, journal, llm, phasen, repo, sprache, sprachprofil,
-    verdichter, workshop, zitat,
+    szene_claude, verdichter, workshop, zitat,
 )
 from interview_theater import kosten as _kosten
 
 #: Wo die Korpusdateien liegen.
 KORPUS = Path(__file__).resolve().parent.parent / "korpus"
+
+#: Testsaetze mit echten Nutzerdaten (Chat-Zitate, vor der Anonymisierung
+#: teils Klarnamen) duerfen nicht ins oeffentliche Repo (E8) -- sie liegen
+#: ausserhalb der Versionierung unter IT_PRIVAT_KORPUS (Vorgabe:
+#: betrieb/korpus/, bereits per .gitignore ausgeschlossen). Nur Namen in
+#: dieser Menge nimmt ``lade_korpus`` von dort statt aus KORPUS.
+PRIVATE_KORPUS_DATEIEN = frozenset({"padua_testsatz"})
+
+#: Vorgabe fuer IT_PRIVAT_KORPUS, falls die Umgebungsvariable fehlt:
+#: dieselbe Repo-Wurzel wie KORPUS, nur unter betrieb/korpus statt korpus.
+PRIVAT_KORPUS_VORGABE = Path(__file__).resolve().parent.parent / "betrieb" / "korpus"
+
+
+def privat_korpus_wurzel() -> Path:
+    """Liest IT_PRIVAT_KORPUS bei jedem Aufruf neu (nicht beim Modulimport) --
+    Tests setzen die Variable per ``monkeypatch.setenv`` nach dem Import."""
+    wert = os.environ.get("IT_PRIVAT_KORPUS")
+    return Path(wert) if wert else PRIVAT_KORPUS_VORGABE
 
 #: Wo --bericht ohne Pfadangabe hinschreibt (gitignored bis auf .gitkeep --
 #: die Berichte enthalten vollstaendige Modellantworten).
@@ -431,8 +450,20 @@ def lade_korpus(name: str, nur: list[str] | None = None, sprache: str = "de") ->
     Unbekannte ids meldet hier bewusst niemand: bei ``alle`` liegt jede id nur
     in genau einem der drei Korpora, ein Filter auf die anderen beiden waere
     also immer 'unbekannt'. Die Kontrolle macht ``main`` einmal ueber alle
-    geladenen Korpora zusammen."""
-    pfad = KORPUS / sprache / f"{name}.jsonl" if sprache != "de" else KORPUS / f"{name}.jsonl"
+    geladenen Korpora zusammen.
+
+    ``name in PRIVATE_KORPUS_DATEIEN`` (z.B. ``padua_testsatz``): echte
+    Nutzerdaten, die nicht ins oeffentliche Repo duerfen (E8) -- diese Datei
+    liegt unter ``IT_PRIVAT_KORPUS``/``betrieb/korpus/`` statt unter
+    ``korpus/`` und fehlt in einem frischen Checkout bewusst."""
+    wurzel = privat_korpus_wurzel() if name in PRIVATE_KORPUS_DATEIEN else KORPUS
+    pfad = wurzel / sprache / f"{name}.jsonl" if sprache != "de" else wurzel / f"{name}.jsonl"
+    if name in PRIVATE_KORPUS_DATEIEN and not pfad.exists():
+        raise FileNotFoundError(
+            f"{pfad}: private Korpusdatei fehlt. Sie liegt nicht im "
+            "oeffentlichen Repo (E8, echte Nutzerdaten) -- unter "
+            "IT_PRIVAT_KORPUS (Vorgabe: betrieb/korpus/) ablegen."
+        )
     faelle = []
     for zeilennummer, zeile in enumerate(pfad.read_text(encoding="utf-8").splitlines(), 1):
         if not zeile.strip():
@@ -530,7 +561,7 @@ def _wende_fuer_vergleich(conn, chat_id: int, geliefert: list[dict]) -> list[dic
     return erkenner.waechter_filter(geliefert)
 
 
-def _laufe_erkenner(klm, conn, chat_id, fall, modell):
+def _laufe_erkenner(klm, conn, chat_id, fall, modell, e=None, ueber_claude=False):
     # Zwei Sorten Faelle: ein Gespraechsabschnitt (``nachrichten``) oder das
     # Transkript einer Sprachnachricht aus einem laufenden Interview
     # (``aufnahme``, N1). Der zweite Weg baut denselben Nutzertext wie der
@@ -553,13 +584,26 @@ def _laufe_erkenner(klm, conn, chat_id, fall, modell):
         elif len(zeilen) > 1 and zeilen[0]["ist_bot"]:
             vorlauf, zeilen = zeilen[0], zeilen[1:]
         nutzer = erkenner._baue_nutzertext(conn, chat_id, zeilen, vorlauf)
-    ergebnis = klm.schema(
-        # ``schema()`` und nicht ``SCHEMA``: unter einem Profil mit
-        # Profilschalter (Padua, TEIL 2) kommen die freigeschalteten Arten
-        # dazu -- dasselbe Enum wie im Betrieb (``erkenner.erkenne``).
-        chat_id, erkenner.prompt(), nutzer, erkenner.schema(), "erkenner",
-        modell=modell, temperature=erkenner.TEMPERATURE,
-    )
+    if ueber_claude and not aus_aufnahme:
+        # InScribe Messung 1 (t_dd94e894): GENAU der Live-Pfad, den
+        # ``erkenner.erkenne`` seit dem 08.10.2026 nimmt -- dieselbe
+        # Funktion, kein Nachbau. ``erkenner._schema_aufruf`` prueft selbst
+        # ``erkenner.ueber_claude(e, conn, chat_id)`` (Profilschalter +
+        # Phase != 3) und faellt bei einem Fehler auf Kimi zurueck, genau wie
+        # im Betrieb. Aufnahmefaelle (Transkripte) bleiben unbedingt bei Kimi
+        # (``erkenner.erkenne_in_aufnahme`` ruft ``modellwahl`` nie an) --
+        # deshalb die Ausnahme oben.
+        ergebnis = erkenner._schema_aufruf(
+            klm, conn, e, chat_id, erkenner.prompt(), nutzer, erkenner.schema(), "erkenner",
+        )
+    else:
+        ergebnis = klm.schema(
+            # ``schema()`` und nicht ``SCHEMA``: unter einem Profil mit
+            # Profilschalter (Padua, TEIL 2) kommen die freigeschalteten Arten
+            # dazu -- dasselbe Enum wie im Betrieb (``erkenner.erkenne``).
+            chat_id, erkenner.prompt(), nutzer, erkenner.schema(), "erkenner",
+            modell=modell, temperature=erkenner.TEMPERATURE,
+        )
     # Dieselbe Obergrenze wie erkenner.erkenne(): was das Modell darueber
     # hinaus liefert, kaeme im Betrieb nie an und darf hier weder als
     # Treffer noch als Falsch-Positiv zaehlen.
@@ -817,15 +861,23 @@ def baue_summe(prompt: str, modell: str, zeilen: list[dict]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def pruefe(prompt: str, klm, conn, faelle: list[dict], modell: str,
-           wiederholungen: int, chat_id_basis: int = 0) -> list[dict]:
+           wiederholungen: int, chat_id_basis: int = 0, *,
+           e=None, ueber_claude: bool = False) -> list[dict]:
     """Laeuft die Faelle **sequenziell** durch. Kein Thread-Pool, keine
     Nebenlaeufigkeit: Infomaniak antwortet auf parallele Aufrufe mit 429/5xx
     (AGENTS.md 'Die Fallen'), und ein Korpuslauf hat es nicht eilig.
 
     ``chat_id_basis`` haelt die chat_ids ueber mehrere Prompts hinweg
     auseinander -- sonst saehe bei ``alle`` der dritte Journalfall den
-    Arbeitsstand des dritten Erkennerfalls."""
+    Arbeitsstand des dritten Erkennerfalls.
+
+    ``e``/``ueber_claude`` (InScribe Messung 1, t_dd94e894): nur fuer
+    ``prompt == "erkenner"`` -- siehe ``_laufe_erkenner``."""
     laufe = LAEUFE[prompt]
+    if prompt == "erkenner" and ueber_claude:
+        laufe = lambda klm, conn, chat_id, fall, modell: _laufe_erkenner(
+            klm, conn, chat_id, fall, modell, e=e, ueber_claude=True,
+        )
     zeilen = []
     for durchgang in range(1, wiederholungen + 1):
         for fall in faelle:
@@ -887,12 +939,20 @@ def pruefe(prompt: str, klm, conn, faelle: list[dict], modell: str,
     return zeilen
 
 
-def modell_fuer(prompt: str, e, ueberschreibung: str | None) -> str:
+def modell_fuer(prompt: str, e, ueberschreibung: str | None,
+                ueber_claude: bool = False) -> str:
     """Dieselbe Modellwahl wie im Betrieb (SPEC § 4.3a): Erkenner, Journal und
     Sprachprofil laufen mit ``e.erkenner_modell`` (gemma, Extraktion), der
-    Verdichter mit dem Gespraechsmodell."""
+    Verdichter mit dem Gespraechsmodell.
+
+    ``ueber_claude`` (InScribe Messung 1): unter ``--ueber-claude`` laeuft der
+    Erkenner tatsaechlich ueber ``e.szene_modell`` (Opus) -- nur fuer die
+    Anzeige im Bericht/Terminal, der echte Aufrufpfad entscheidet das selbst
+    (``erkenner._schema_aufruf``)."""
     if ueberschreibung:
         return ueberschreibung
+    if prompt == "erkenner" and ueber_claude:
+        return getattr(e, "szene_modell", None) or szene_claude.MODELL_VORGABE
     return e.llm_modell if prompt == "verdichter" else e.erkenner_modell
 
 
@@ -926,6 +986,22 @@ def baue_argumente(argv=None) -> argparse.Namespace:
                         "den Erkenner, haengt IT_WORKSHOP auf padua-2026 "
                         "bzw. --workshop ein")
     p.add_argument("--workshop", help="Profilname statt padua-2026 fuer --sprache en")
+    p.add_argument(
+        "--korpus-datei",
+        help="Datei unter korpus/ statt des Promptnamens laden (z.B. "
+             "padua_testsatz fuer korpus/padua_testsatz.jsonl) -- derselbe "
+             "Runner faehrt damit einen anderen Testsatz. Nur mit einem "
+             "einzelnen Prompt, nicht mit 'alle'.",
+    )
+    p.add_argument(
+        "--ueber-claude", action="store_true",
+        help="nur fuer 'erkenner': GENAU den Live-Pfad messen "
+             "(erkenner._schema_aufruf / modellwahl.aufruf_schema / "
+             "szene_claude.schema, seit 08.10.2026 live), statt des "
+             "Infomaniak/gemma-Pfads. Verlangt IT_SZENE_ANBIETER=claude und "
+             "ein Profil mit [erkenner] ueber_claude = true (InScribe "
+             "Messung 1, t_dd94e894).",
+    )
     return p.parse_args(argv)
 
 
@@ -935,6 +1011,19 @@ def main(argv=None) -> int:
     nur = [t.strip() for t in args.nur.split(",") if t.strip()] if args.nur else None
     if args.wiederholungen < 1:
         raise SystemExit("--wiederholungen muss mindestens 1 sein")
+
+    if args.ueber_claude and prompts != ["erkenner"]:
+        raise SystemExit(
+            "--ueber-claude gibt es nur fuer 'erkenner' -- Journal, "
+            "Verdichter und Sprachprofil haben keinen Live-Opus-Pfad."
+        )
+
+    if args.korpus_datei and args.prompt == "alle":
+        raise SystemExit(
+            "--korpus-datei gibt es nur mit einem einzelnen Prompt, nicht "
+            "mit 'alle' -- eine Datei kann nicht gleichzeitig Erkenner-, "
+            "Journal- und Verdichter-Faelle liefern."
+        )
 
     if args.sprache == "en":
         if prompts != ["erkenner"]:
@@ -972,6 +1061,28 @@ def main(argv=None) -> int:
             )
 
     e = einstellungen.laden()
+
+    if args.ueber_claude:
+        # Ohne diese Pruefung waere ein stiller Rueckfall auf Kimi
+        # (``erkenner._schema_aufruf`` faellt selbst zurueck, wenn
+        # ``erkenner.ueber_claude`` False liefert) nicht von einem echten
+        # Opus-Lauf zu unterscheiden -- der Bericht wuerde "Opus gemessen"
+        # behaupten, obwohl gemma lief.
+        if not szene_claude.ist_aktiv(e):
+            raise SystemExit(
+                "--ueber-claude: IT_SZENE_ANBIETER=claude ist in der "
+                "geladenen Umgebung nicht gesetzt -- ohne das faellt "
+                "erkenner._schema_aufruf sofort auf Kimi zurueck, und der "
+                "Lauf misst den falschen Pfad."
+            )
+        if not workshop.erkenner_ueber_claude_aktiv():
+            raise SystemExit(
+                "--ueber-claude: der Profilschalter [erkenner] ueber_claude "
+                "ist in IT_WORKSHOP="
+                f"{os.environ.get(workshop.VARIABLE)!r} nicht aktiv -- ohne "
+                "ihn faellt erkenner._schema_aufruf sofort auf Kimi zurueck."
+            )
+
     with tempfile.TemporaryDirectory(prefix="interview_theater-korpus-") as verzeichnis:
         # IT_DB wird ausdruecklich verworfen: aufruf- und vorfall-Zeilen
         # dieses Laufs gehoeren nicht in die Betriebsdatenbank.
@@ -980,7 +1091,10 @@ def main(argv=None) -> int:
         conn = db.verbinde(db_pfad)
         db.initialisiere(conn)
 
-        korpora = {p: lade_korpus(p, nur, sprache=args.sprache) for p in prompts}
+        korpora = {
+            p: lade_korpus(args.korpus_datei or p, nur, sprache=args.sprache)
+            for p in prompts
+        }
         if nur:
             gefunden = {f["id"] for faelle in korpora.values() for f in faelle}
             unbekannt = set(nur) - gefunden
@@ -997,11 +1111,13 @@ def main(argv=None) -> int:
                 faelle = korpora[prompt]
                 if not faelle:
                     continue
-                modell = modell_fuer(prompt, e, args.modell)
-                print(f"\n=== {prompt} ({modell}), {len(faelle)} Faelle "
+                modell = modell_fuer(prompt, e, args.modell, args.ueber_claude)
+                anzeige = modell + (" via Claude-Proxy" if args.ueber_claude else "")
+                print(f"\n=== {prompt} ({anzeige}), {len(faelle)} Faelle "
                       f"x {args.wiederholungen} ===", flush=True)
                 zeilen = pruefe(prompt, klm, conn, faelle, modell,
-                                args.wiederholungen, chat_id_basis)
+                                args.wiederholungen, chat_id_basis,
+                                e=e, ueber_claude=args.ueber_claude)
                 chat_id_basis += len(zeilen)
                 if prompt == "erkenner":
                     erkenner_fp += sum(z["fp"] for z in zeilen)

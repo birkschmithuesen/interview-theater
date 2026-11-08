@@ -288,3 +288,16 @@ def test_eine_andere_szenennachricht_bleibt_ein_gespraechszug(conn):
     ablauf.antworte(conn, tg, klm, _E(), 1, offen)
 
     assert klm.aufrufe == 1
+
+
+def test_prosa_einer_szene_wird_gezeigt_wenn_kein_volltext_da_ist(conn, tg):
+    """P57 Lauf 3 A2: in den Phasen bis 6 steht der Text in ``prosa``; die
+    Bitte darum meldete faelschlich 'noch nicht geschrieben'."""
+    szene_id = _lege_szene_an(conn, 1, None)
+    conn.execute("UPDATE szene SET prosa = ? WHERE id = ?",
+                 ("Anna ging zum Kiosk.", szene_id))
+    conn.commit()
+
+    knoepfe.zeige_szenentext(conn, tg, 1, 1)
+
+    assert "Anna ging zum Kiosk." in tg.gesendet[-1][1]

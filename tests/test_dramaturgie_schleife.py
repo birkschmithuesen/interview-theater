@@ -332,7 +332,7 @@ def test_ein_parameterbefund_erzeugt_nie_einen_schreibauftrag(stueck, einst, tg)
     veraltet. Das an den Schreiber zu geben hiesse, den Text auf eine
     ueberholte Planung zurueckzubiegen -- das Gegenteil des Befunds."""
     szene_id = repo.hole_letzte_szene(stueck, 1)["id"]
-    repo.setze_szenenfeld(stueck, szene_id, "ort", "Eine Kueche")
+    repo.setze_szenenort(stueck, szene_id, "Eine Kueche")
     stueck.commit()
 
     class NurParameter(Rundenrichter):

@@ -55,6 +55,15 @@ _GRUND_STATION_4 = (
 #: Abschnitte, deren Wert A1 absichtlich aendert -- mit Grund. Jede Zeile
 #: hier ist eine Verhaltensaenderung fuer Dortmund.
 GEAENDERT: dict[str, str] = {
+    "prompt schaerfung": (
+        "Zuordnung-Umbau (Birk/Robo 07.10.2026, zuordnung-pruefung.md): der "
+        "Pauschal-Lauf ueber alle Szenen/Figuren wird durch Je-Ziel-Aufrufe "
+        "ersetzt (drei statt vier Ausgabelisten: eintrag_nummern/staerke/"
+        "begruendungen statt eintrag_nummern/szenen_nummern/figuren_namen/"
+        "begruendungen), der Prompt beschreibt das neue Ein-Ziel-Verfahren "
+        "und die Staerke-Skala statt \"was nicht passt, bleibt weg\". Nicht "
+        "profilabhaengig -- aendert sich fuer Padua und Dortmund gleich."
+    ),
     "befehle._BEKANNTE_BEFEHLE": (
         "Aufgabe 8: der versteckte Befehl /sprache kommt dazu (Whisper-"
         "Sprache je Gruppe). Kein bestehender Befehl aendert sich, und er "
@@ -191,6 +200,10 @@ GEAENDERT: dict[str, str] = {
         " Karte t_4517d4ad (04.10.2026): \"begriffe_detail\" steht direkt "
         "hinter \"diskussion\" -- fuer Dortmund ebenfalls leer (keine Spalte "
         "begriffe_detail ohne Begriffsboard) und ersatzlos weg."
+        " Birk 08.10.2026 ~09:35 (Nachtrag, \"No, change\"-Dialog): "
+        "\"karte_dialog\" steht direkt hinter \"szene\" -- fuer Dortmund "
+        "leer (kein ``[karten] aktiv``, ``szenenkarte.dialog_kontextblock`` "
+        "liefert ohne den Schalter nichts) und ersatzlos weg."
     ),
     # Padua-Brainstorming-Umbau, Phase 4 (02.10.2026, .phase4-brainstorm-brief.md):
     # die neue Erkenner-Art ``szenenanzahl_setzen`` (Anzahl Szenen ist ein
@@ -258,10 +271,25 @@ GEAENDERT: dict[str, str] = {
     "szenenfolge.systemanweisung_geschichte(6)": (
         "Folgt aus phasen/4.md, wie systemanweisung_geschichte(3)."
     ),
+    "prompt phasen/5": (
+        "Karte t_6177d71f (07.10.2026): dramaturgische Rolle in Phase 5 -- "
+        "ein erkennbarer Widerspruch zwischen Zitat und Figurenhaltung darf "
+        "als Beobachtung benannt werden (nie als Abwertung), und das "
+        "'Erst fragen, dann vorschlagen'-Boilerplate ist durch eine "
+        "phasenspezifische Fassung ersetzt, weil die Zuordnung automatisch "
+        "laeuft und es in Phase 5 kaum freie Vorschlaege gibt "
+        "(tests/test_phase57_dramaturg_regeln.py)."
+    ),
     "prompt phasen/6": (
         "Folgt aus dem Phase-4-Umbau (02.10.2026): Phase 4 entscheidet keine "
         "Form je Szene mehr, also behauptet Phase 6 nicht mehr \"die Form je "
         "Szene steht schon\" -- sie wird erst im Feinschliff entschieden."
+    ),
+    "prompt phasen/7": (
+        "Karte t_6177d71f (07.10.2026): eine Zeile vor den sechs bereits "
+        "bewaehrten Feinschliff-Regeln ('Hier arbeitest du wie ein "
+        "erfahrener Dramaturg am Text') gibt ihnen eine Identitaet, ohne "
+        "ihren Wortlaut zu aendern (tests/test_phase57_dramaturg_regeln.py)."
     ),
     "anweisungen.system(phase=6)": (
         "Folgt aus phasen/6.md (siehe oben). Zusaetzlich Karte P2-Fix "
@@ -445,6 +473,17 @@ GEAENDERT: dict[str, str] = {
         "sie allein schon Beweis fuer eine Denkspur sind. Kein Nutzertext "
         "(tests/test_ablauf.py)."
     ),
+    "knoepfe.texte._TEXT_NACH_SPEICHERN_FRAGE": (
+        "Karte t_c5d68218 (06.10.2026): statt der Aufforderung, noch etwas "
+        "hinzuzufuegen ('Wollt ihr noch etwas hinzufuegen, bevor es "
+        "weitergeht?'), steht jetzt eine Bestaetigungsfrage ('Passt das so "
+        "fuer euch?'). Gewollte Verhaltensaenderung fuer Dortmund: ein "
+        "optionaler, modellgestuetzter Zusatz (Verbesserungsvorschlag oder "
+        "kritische Rueckfrage, nie erzwungen) kann danach als eigene "
+        "Nachricht folgen (interview_theater/nachspeichern.py), die alte "
+        "Konstante selbst bleibt unveraendert in Bedeutung und Aufrufstellen "
+        "(tests/test_nachspeichern_wiring.py)."
+    ),
 }
 
 _ZEILE = re.compile(r"^(\S+)\s+(\d+)\s+(.*)$")
@@ -502,11 +541,20 @@ def test_prompts_mit_dortmund_wie_vor_a1(monkeypatch):
     _vergleiche(_lies(PROMPTS.read_text(encoding="utf-8")), _prompts_jetzt())
 
 
+@pytest.mark.dortmund
 def test_texte_ohne_variable_wie_vor_a1():
+    # Ohne IT_WORKSHOP gilt Dortmund als Vorgabe; der Massstab ist eine
+    # Dortmund-Bitgleich-Pruefung (eingefroren seit 04.10.2026, AGENTS.md).
+    # Karte t_a0d171ab aendert ``web._CSS_DASHBOARD`` fuer den Padua-Ticker
+    # (neue Klassen .ticker-teil/.ticker-warnung) -- das ist eine neue
+    # Padua-Funktion, keine Dortmund-Regression.
     _vergleiche(_lies(TEXTE.read_text(encoding="utf-8")), _texte_jetzt())
 
 
+@pytest.mark.dortmund
 def test_texte_mit_dortmund_wie_vor_a1(monkeypatch):
+    # Dieselbe Begruendung wie oben, hier fuer das explizite
+    # dortmund-2026-Profil.
     monkeypatch.setenv(workshop.VARIABLE, DORTMUND)
     _vergleiche(_lies(TEXTE.read_text(encoding="utf-8")), _texte_jetzt())
 

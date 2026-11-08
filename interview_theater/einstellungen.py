@@ -1,7 +1,10 @@
 """Konfiguration ausschliesslich ueber Umgebungsvariablen (siehe global-constraints.md)."""
 
+import logging
 import os
 from dataclasses import dataclass
+
+log = logging.getLogger(__name__)
 
 #: Welcher Kanal den Bot bedient (30.09.2026, Karte Padua A2).
 #: ``telegram`` ist die Vorgabe, und ohne die Variable ist alles wie vorher
@@ -20,6 +23,7 @@ VORGABE_SEGMENT_MS = 45_000
 
 # Name der Umgebungsvariable -> Vorgabewert (None = Pflichtvariable)
 _VORGABEWERTE = {
+    "IT_ERKENNER_MODUS": "json",
     "IT_BOT_TOKEN": None,
     "IT_BOT_NAME": None,
     "IT_DB": None,
@@ -38,6 +42,15 @@ _VORGABEWERTE = {
     "IT_SZENE_ANBIETER": "infomaniak",
     "IT_SZENE_URL": "http://127.0.0.1:28764/v1/messages",
     "IT_SZENE_MODELL": "claude-opus-5",
+    # Eigenes Modell fuer die Schaerfung (Phase 5, Birk/Robo 07.10.2026,
+    # BINDEND): dieser Aufruf soll unabhaengig von IT_SZENE_MODELL (das eine
+    # Gruppe fuer das Gespraech auf claude-sonnet-5 stellen kann) IMMER auf
+    # Opus laufen. Eigene Variable statt eines Sonderfalls in szene_claude,
+    # damit ein Betreiber beides unabhaengig stellen kann.
+    "IT_SCHAERFUNG_MODELL": "claude-opus-5",
+    # Eigenes Modell fuer die CoThinker-/Buehnenkarte (Birk 07.10.2026,
+    # Quota): leer = wie das Gespraech (IT_SZENE_MODELL).
+    "IT_BUEHNE_MODELL": "",
     "IT_KANAL": KANAL_TELEGRAM,
     # Die eine Gruppe, die ein Web-Bot-Prozess bedient. Pflicht, sobald
     # IT_KANAL=web -- geprueft in laden().
@@ -50,6 +63,14 @@ _VORGABEWERTE = {
     # Wonach "heute" sich richtet. Padua liegt in Italien; der Workshoptag
     # soll nicht um 02:00 Ortszeit umschlagen, weil UTC es tut.
     "IT_ZEITZONE": "Europe/Rome",
+    # Internet-Recherche (Karte t_c5117c91): der Loopback-Such-Broker haelt
+    # den Brave-Key, interview_theater ruft nur diese URL (Knowledge/Netzwerk-
+    # Trennung, docs/refactoring-guidelines.md Punkt 7 im Profil-Repo).
+    "IT_SUCHE_URL": "http://127.0.0.1:8790/search",
+    # Karte t_d18f2ad6: ein haengender Interviewmodus (Geraet offline, "fertig"
+    # kam nie an) beendet sich nach so vielen Minuten ohne neue Aufnahme von
+    # selbst -- derselbe Weg wie /fertig, nur vom Nachhol-Arbeiter ausgeloest.
+    "IT_INTERVIEW_AUTO_ENDE_MIN": "10",
 }
 
 
@@ -77,6 +98,8 @@ class Einstellungen:
     szene_anbieter: str = "infomaniak"
     szene_url: str | None = None
     szene_modell: str | None = None
+    schaerfung_modell: str | None = None
+    buehne_modell: str | None = None
     kanal: str = KANAL_TELEGRAM
     web_chat_id: int | None = None
     web_segment_ms: int = VORGABE_SEGMENT_MS
@@ -85,6 +108,15 @@ class Einstellungen:
     # kosten.zeitzone.
     kosten_deckel_chf: float = 5.0
     zeitzone: str = "Europe/Rome"
+    suche_url: str = "http://127.0.0.1:8790/search"
+    # Karte t_9b2b33cb (Messung 2): "tools" laesst den Opus-Erkenner die
+    # Stueckwerkzeuge selbst rufen statt das JSON-Schema zu fuellen. Wirkt
+    # nur, wenn der Erkenner ohnehin ueber Claude laeuft
+    # (erkenner.ueber_claude); Vorgabe bleibt "json".
+    erkenner_modus: str = "json"
+    # Am Ende mit Vorgabewert, aus demselben Grund wie erkenner_modell.
+    # Gelesen von aufnahme.pruefe_auto_ende.
+    interview_auto_ende_min: int = 10
 
 
 #: Variablen, die nur der Telegram-Kanal braucht. Im Web-Kanal gibt es keinen
@@ -157,11 +189,16 @@ def laden() -> Einstellungen:
         szene_anbieter=(werte["IT_SZENE_ANBIETER"] or "infomaniak").lower(),
         szene_url=werte["IT_SZENE_URL"],
         szene_modell=werte["IT_SZENE_MODELL"],
+        schaerfung_modell=werte["IT_SCHAERFUNG_MODELL"],
+        buehne_modell=werte["IT_BUEHNE_MODELL"] or None,
         kanal=kanal,
         web_chat_id=web_chat_id,
         web_segment_ms=segment_ms,
         kosten_deckel_chf=_zahl(werte["IT_KOSTEN_DECKEL_CHF"], 5.0),
         zeitzone=(werte["IT_ZEITZONE"] or "").strip() or "Europe/Rome",
+        suche_url=(werte["IT_SUCHE_URL"] or "").strip() or "http://127.0.0.1:8790/search",
+        erkenner_modus=_erkenner_modus(werte["IT_ERKENNER_MODUS"]),
+        interview_auto_ende_min=int(_zahl(werte["IT_INTERVIEW_AUTO_ENDE_MIN"], 10.0)),
     )
 
 
@@ -178,4 +215,17 @@ def _zahl(roh, vorgabe: float) -> float:
     # "nan" und "inf" parst float() klaglos -- beide hiessen "kein Deckel".
     if wert != wert or wert in (float("inf"), float("-inf")):
         return vorgabe
+    return wert
+
+
+ERKENNER_MODI = ("json", "tools")
+
+
+def _erkenner_modus(roh) -> str:
+    """``IT_ERKENNER_MODUS``. Ein Tippfehler faellt auf ``json`` zurueck --
+    der heutige, gemessene Weg -- und wird geloggt."""
+    wert = (roh or "").strip().lower() or "json"
+    if wert not in ERKENNER_MODI:
+        log.warning("IT_ERKENNER_MODUS=%r unbekannt -- es gilt 'json'", roh)
+        return "json"
     return wert

@@ -45,7 +45,10 @@ NACHLADEN_MS = web.NEULADEN_SEKUNDEN * 1000
 #: der Tab selbst steht jetzt immer im Dokument (nur ``hidden`` je nach
 #: Phase), und sein Inhalt -- neue Karten aus dem Brainstorm -- soll sich
 #: aktualisieren, WAEHREND er offen ist, nicht erst nach einem Neuladen.
-_TEILE = ("stand", "roadmap", "buehne")
+_TEILE = ("stand", "roadmap", "buehne", "textbuch")
+#: ``textbuch`` kam mit P57 Lauf 2 (A1) dazu: das Panel wurde nur beim
+#: Seitenaufbau gerendert und zeigte neue Szenenprosa erst nach einem
+#: vollen Neuladen ("Not written yet" trotz geschriebener Szene).
 
 #: Die drei Panels. Reihenfolge = Reihenfolge der Tableiste. ``buehne`` steht
 #: NICHT fest hier drin (anders als seit 02.10.2026 im gerenderten Markup):
@@ -464,7 +467,7 @@ html:not([data-ux-interview="1"]) .panel-chat .fuss {{
   padding-bottom: calc(.8rem + env(safe-area-inset-bottom));
 }}
 .zeile {{ min-width: 0; }}
-.zeile input {{ font-size: 16px; touch-action: manipulation; min-width: 0; }}
+.zeile textarea {{ font-size: 16px; touch-action: manipulation; min-width: 0; }}
 .zeile button, .tabs button, .leiste button,
 #interview, #ptt, #senden, #diskussion {{ touch-action: manipulation; }}
 """
@@ -732,7 +735,9 @@ _VEREINT_JS = """
     var rm = document.getElementById('roadmap');
     if (!rm) { return false; }
     var p = rm.dataset.aktivePhase;
-    return p === '4' || ((p === '1' || p === '2') && rm.dataset.begriffsboard === '1');
+    // Birk 07.10.2026: auch Phase 5 -- dort steht die Sortierliste der
+    // Interview-Zuordnung (Yes/No) im CoThinker-Tab.
+    return p === '4' || p === '5' || __KARTEN_PHASE__((p === '1' || p === '2') && rm.dataset.begriffsboard === '1');
   }
   var lies = function () {
     var teile = location.hash.replace(/^#/, '').split('&');
@@ -752,6 +757,7 @@ _VEREINT_JS = """
       if (knopf) { knopf.setAttribute('aria-selected', tab === name ? 'true' : 'false'); }
     });
     document.body.dataset.tab = name;
+    if (name === 'textbuch' && typeof ladeTextbuch === 'function') { ladeTextbuch(); }
     // Der unaufdringliche Marker (Birk, Feedback b) gilt nur, solange der
     // Tab nicht vorn ist -- ein Oeffnen raeumt ihn weg, kein zweiter Weg.
     if (name === 'buehne') {
@@ -760,6 +766,14 @@ _VEREINT_JS = """
       // Beim Oeffnen sofort frisch holen, nicht bis zum naechsten Takt
       // (bis zu NACHLADEN_MS) einen veralteten Stand zeigen.
       if (typeof ladeBuehne === 'function') { ladeBuehne(); }
+    }
+    // Dasselbe Muster fuer das Stand-Panel (Birk 06.10.2026, "Neu"-Marker):
+    // ein im Hintergrund gefundener Stand setzt nur den Punkt am Tab-Knopf
+    // (``ladeStand()``), das Oeffnen raeumt ihn weg und holt sofort frisch.
+    if (name === 'stand') {
+      var standKnopf = document.querySelector('.tabs button[data-tab="stand"]');
+      if (standKnopf) { delete standKnopf.dataset.neu; }
+      if (typeof ladeStand === 'function') { ladeStand(); }
     }
   };
   var setze = function (name) {
@@ -875,6 +889,10 @@ _VEREINT_JS = """
         // Massgeblich bleibt der naechste periodische Takt unten
         // (hoechstens __NACHLADEN_MS__ ms), der dieselbe Funktion ruft.
         ladeRoadmap();
+        // Birk 07.10.2026: die Antwort auf einen Phasenklick (Rueckfrage,
+        // Werkbank-Uebersicht vor Phase 5, Wiederherstellungs-Zeile) steht im
+        // CHAT -- also den Chat-Tab nach vorn holen, sonst wird sie aus der
+        // Werkbank heraus uebersehen.
         setze('chat');   // die Eintrittsnachricht kommt im Chat an
         return;
       }
@@ -954,10 +972,15 @@ _VEREINT_JS = """
     if (stelle && stelle.scrollIntoView) { stelle.scrollIntoView({block: 'center'}); }
   });
   window.addEventListener('hashchange', function () { zeige(lies()); });
-  // Nachgeladen wird NUR das Stand-Panel, NUR wenn es vorn ist, und nur mit
-  // denselben zwei Sperren wie bisher: Fokus in einem Feld oder eine
-  // ungespeicherte Aenderung halten es an (Brief 05.09. abends). Der <body>
-  // wird nie getauscht -- daran haengen Recorder, Eingabefeld und Strom.
+  // Nachgeladen wird das Stand-Panel IMMER -- auch verborgen (anderer Tab
+  // vorn, Browser-Tab im Hintergrund), nur seltener (Birk 06.10.2026,
+  // Live-Test G3: "Four characters saved" kam im Chat an, die Werkbank
+  // zeigte es nicht, weil niemand den Tab/das Fenster wieder sichtbar
+  // gemacht hatte -- kein Datenverlust, nur verzoegerte Anzeige). Dieselben
+  // zwei Sperren wie bisher gelten unveraendert weiter: Fokus in einem Feld
+  // oder eine ungespeicherte Aenderung halten es an (Brief 05.09. abends).
+  // Der <body> wird nie getauscht -- daran haengen Recorder, Eingabefeld und
+  // Strom.
   var wirdBearbeitet = function () {
     var aktiv = document.activeElement;
     if (aktiv && aktiv.closest && aktiv.closest('.feld')) { return true; }
@@ -973,6 +996,11 @@ _VEREINT_JS = """
   // wird, und der Vergleichswert (``panelLetzter``) kommt beim ersten Blick
   // aus derselben, schon browser-serialisierten Quelle: ``panel.innerHTML``.
   var panelLetzter = null;
+  // Verborgen (Tab nicht vorn ODER Browser-Tab im Hintergrund) poll'en wir
+  // nur jeden ``STAND_HINTERGRUND_FAKTOR``-ten Takt -- Ressourcenschonend
+  // bleiben (Birks Vorgabe), ohne ganz abzuschalten wie bisher.
+  var STAND_HINTERGRUND_FAKTOR = 4;
+  var standLetzterLauf = 0;
   var offene = function (panel) {
     var s = {};
     panel.querySelectorAll('details[open] > summary').forEach(function (el) {
@@ -980,6 +1008,18 @@ _VEREINT_JS = """
     });
     return s;
   };
+  // Reine Entscheidungsfunktionen, ohne Abhaengigkeit zu DOM/Fetch -- wie
+  // ``buehneBlaettern`` & Co. node-testbar herausloesbar
+  // (tests/test_stand_hintergrund_js.py).
+  function standTaktErlaubt(versteckt, letzterLauf, jetzt, taktMs, faktor) {
+    if (!versteckt) { return true; }
+    return (jetzt - letzterLauf) >= taktMs * faktor;
+  }
+  function standEntscheide(neu, alt, versteckt) {
+    if (!neu || neu === alt) { return { aendern: false, markieren: false }; }
+    if (versteckt) { return { aendern: false, markieren: true }; }
+    return { aendern: true, markieren: false };
+  }
   // Die Roadmap sitzt AUSSERHALB jedes Panels (immer sichtbar, unabhaengig
   // vom Tab) -- deshalb ein eigener Ausschnitt statt einer Abhaengigkeit
   // vom Stand-Panel-Gate (Fix-Runde 1, Review-Befund 2). Sie teilt sich den
@@ -993,6 +1033,58 @@ _VEREINT_JS = """
   // ``ladeRoadmap`` tauschte beim allerersten Takt immer, auch ohne
   // Aenderung (Fix-Runde 2, Review-Befund 1 Teil 2).
   var roadmapLetzter = null;
+  // Benannt (statt anonym im ``setInterval``), damit ``zeige()`` sie beim
+  // Oeffnen des Stand-Tabs sofort aufrufen kann -- wie ``ladeBuehne()`` es
+  // fuer den ``buehne``-Zweig schon tut (s.u.), statt bis zu
+  // ``__NACHLADEN_MS__`` auf den naechsten Takt zu warten.
+  function ladeStand() {
+    var panel = document.getElementById('tab-stand');
+    if (!panel) { return; }
+    if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
+    if (laeuft || wirdBearbeitet()) { return; }
+    var versteckt = panel.hidden || document.hidden;
+    var jetzt = Date.now();
+    if (!standTaktErlaubt(versteckt, standLetzterLauf, jetzt, __NACHLADEN_MS__, STAND_HINTERGRUND_FAKTOR)) {
+      return;
+    }
+    standLetzterLauf = jetzt;
+    laeuft = true;
+    // ``location.search`` reicht die gewaehlte Fassung weiter
+    // (``?szene=<id>&fassung=<n>``, ``web.fassungswahl``) -- sonst spraenge
+    // ein offen gelesener alter Text beim naechsten Takt auf den aktuellen
+    // zurueck.
+    fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (!html) { return; }
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        // Frisch ausgewertet, nicht die ``versteckt`` von oben: zwischen
+        // Anfrage und Antwort kann der Tab sichtbar geworden sein (sofortiger
+        // Abruf aus ``zeige()``).
+        var entscheid = standEntscheide(neu, panelLetzter, panel.hidden || document.hidden);
+        if (entscheid.markieren) {
+          var standKnopf = document.querySelector('.tabs button[data-tab="stand"]');
+          if (standKnopf) { standKnopf.dataset.neu = '1'; }
+          return;
+        }
+        if (!entscheid.aendern) { return; }
+        var zustand = offene(panel);
+        // Mobile-App-Shell (03.10.2026): ``panel`` ist seit dieser Karte
+        // selbst der Scroll-Container (``.panel { overflow-y: auto }``),
+        // nicht mehr das Dokument -- die Fassung wird also an seiner
+        // eigenen ``scrollTop`` gesichert, nicht an ``window.scrollY``.
+        var y = panel.scrollTop;
+        panel.innerHTML = neu;
+        panelLetzter = neu;
+        panel.querySelectorAll('details > summary').forEach(function (el) {
+          if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
+        });
+        panel.scrollTop = y;
+      })
+      .catch(function () {})
+      .finally(function () { laeuft = false; });
+  }
   function ladeRoadmap() {
     var aktuell = document.getElementById('roadmap');
     if (!aktuell) { return; }
@@ -1048,19 +1140,25 @@ _VEREINT_JS = """
       .catch(function () {})
       .finally(function () { roadmapLaeuft = false; });
   }
-  setInterval(function () {
-    // Im selben Takt wie das Stand-Panel (Review-Befund 2), aber ohne
-    // dessen Gate: die Roadmap ist immer sichtbar, gleich welcher Tab vorn
-    // ist.
-    ladeRoadmap();
-    // CoThinker-Root-Cause-Fix (Birk 02.10.2026): Tab-Knopf UND Panel
-    // folgen der frisch geladenen Phase -- unabhaengig davon, wie die
-    // Gruppe in Phase 4 (oder Phase 1 mit Begriffsboard) eingetreten ist
-    // (Chat, Phasenleiste-Klick, "Ja speichern"). KEIN automatischer
-    // Tab-Wechsel beim Erscheinen (Birk: "no surprise jumps") -- nur beim
-    // VERLASSEN der CoThinker-Phase, waehrend der Buehne-Tab gerade vorn
-    // ist, faellt die Seite auf VORGABE zurueck, weil ihr Panel sonst leer
-    // verborgen vorn staende.
+  // CoThinker-Root-Cause-Fix (Birk 02.10.2026): Tab-Knopf UND Panel folgen
+  // der frisch geladenen Phase -- unabhaengig davon, wie die Gruppe in
+  // Phase 4/5 (oder Phase 1/2 mit Begriffsboard) eingetreten ist (Chat,
+  // Phasenleiste-Klick, "Ja speichern"). KEIN automatischer Tab-Wechsel beim
+  // Erscheinen (Birk: "no surprise jumps") -- nur beim VERLASSEN der
+  // CoThinker-Phase, waehrend der Buehne-Tab gerade vorn ist, faellt die
+  // Seite auf VORGABE zurueck, weil ihr Panel sonst leer verborgen vorn
+  // staende.
+  //
+  // Eigene Funktion, auf ``window`` (Birk Live-Test 07.10.2026, "Tab
+  // verschwindet nach der Schaerfung"): ``_STEPPER_JS``s ``ladeStepper()``
+  // (Padua-Stepper) tauscht ``#roadmap`` auf einem EIGENEN Weg -- bis dahin
+  // sah nur dieser Takt hier (alle ``__NACHLADEN_MS__``, 10 s) nach, ob die
+  // Phase noch zu Tab-Knopf und Panel passt. Jeder andere Tausch von
+  // ``#roadmap`` rief diese Pruefung nicht mit auf, und bis zum naechsten
+  // Takt konnte der Tab bis zu 10 s falsch stehen. ``_STEPPER_JS`` laeuft
+  // als eigene IIFE NACH dieser hier (Reihenfolge in ``seite()``) und ruft
+  // ``window.buehneSyncTab()`` deshalb sicher auf ein schon gesetztes Feld.
+  function synchronisiereBuehneTab() {
     var buehnePanel = document.getElementById('tab-buehne');
     var buehneKnopf = document.querySelector('.tabs button[data-tab="buehne"]');
     if (buehnePanel && buehneKnopf) {
@@ -1072,39 +1170,15 @@ _VEREINT_JS = """
         if (document.body.dataset.tab === 'buehne') { setze(VORGABE); }
       }
     }
-    var panel = document.getElementById('tab-stand');
-    if (!panel) { return; }
-    if (panelLetzter === null) { panelLetzter = panel.innerHTML; }
-    if (panel.hidden || laeuft || document.hidden || wirdBearbeitet()) {
-      return;
-    }
-    laeuft = true;
-    // ``location.search`` reicht die gewaehlte Fassung weiter
-    // (``?szene=<id>&fassung=<n>``, ``web.fassungswahl``) -- sonst spraenge
-    // ein offen gelesener alter Text beim naechsten Takt auf den aktuellen
-    // zurueck.
-    fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.text() : null; })
-      .then(function (html) {
-        if (!html) { return; }
-        var doc = new DOMParser().parseFromString(html, 'text/html');
-        var neu = doc.body ? doc.body.innerHTML : null;
-        if (!neu || neu === panelLetzter) { return; }
-        var zustand = offene(panel);
-        // Mobile-App-Shell (03.10.2026): ``panel`` ist seit dieser Karte
-        // selbst der Scroll-Container (``.panel { overflow-y: auto }``),
-        // nicht mehr das Dokument -- die Fassung wird also an seiner
-        // eigenen ``scrollTop`` gesichert, nicht an ``window.scrollY``.
-        var y = panel.scrollTop;
-        panel.innerHTML = neu;
-        panelLetzter = neu;
-        panel.querySelectorAll('details > summary').forEach(function (el) {
-          if (zustand[el.textContent.trim()]) { el.parentElement.setAttribute('open', ''); }
-        });
-        panel.scrollTop = y;
-      })
-      .catch(function () {})
-      .finally(function () { laeuft = false; });
+  }
+  window.buehneSyncTab = synchronisiereBuehneTab;
+  setInterval(function () {
+    // Im selben Takt wie das Stand-Panel (Review-Befund 2), aber ohne
+    // dessen Gate: die Roadmap ist immer sichtbar, gleich welcher Tab vorn
+    // ist.
+    ladeRoadmap();
+    synchronisiereBuehneTab();
+    ladeStand();
   }, __NACHLADEN_MS__);
   // -- CoThinker-Panel: Live-Aktualisierung + unaufdringlicher Marker ------
   //
@@ -1152,6 +1226,44 @@ _VEREINT_JS = """
     return String(s).replace(/[&<>"']/g, function (z) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[z];
     });
+  }
+
+  // Dieselbe sichere Markdown-Teilmenge wie ``web._buehne_inline``/
+  // ``_buehne_markdown`` (Birk 06.10.2026) -- Fett vor Kursiv auf einer
+  // bereits maskierten Zeile, sonst fraesse Kursiv die Fett-Sternpaare an.
+  function buehneInline(zeile) {
+    zeile = zeile.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+    return zeile.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
+  }
+
+  // buehneMarkdown-Aequivalent zu ``web._buehne_markdown``: IMMER zuerst
+  // maskieren (``buehneEscape``), erst danach die vier Regeln -- ein
+  // woertliches ``<script>`` im Kartentext bleibt so Text, nie Markup.
+  function buehneMarkdown(text) {
+    var bloecke = [];
+    var liste = [];
+    function schliesseListe() {
+      if (liste.length) {
+        bloecke.push('<ul>' + liste.map(function (z) { return '<li>' + z + '</li>'; }).join('') + '</ul>');
+        liste = [];
+      }
+    }
+    var zeilen = buehneEscape(text || '').split('\\n');
+    for (var i = 0; i < zeilen.length; i++) {
+      var zeile = zeilen[i].trim();
+      if (!zeile) { schliesseListe(); continue; }
+      var aufzaehlung = zeile.match(/^(?:-|•)\\s+(.+)$/);
+      if (aufzaehlung) { liste.push(buehneInline(aufzaehlung[1])); continue; }
+      schliesseListe();
+      var ueberschrift = zeile.match(/^\\*\\*([^*]+)\\*\\*$/);
+      if (ueberschrift) {
+        bloecke.push('<p class="buehne-ueberschrift"><strong>' + ueberschrift[1] + '</strong></p>');
+        continue;
+      }
+      bloecke.push('<p>' + buehneInline(zeile) + '</p>');
+    }
+    schliesseListe();
+    return bloecke.join('');
   }
 
   function buehneVorschau(text) {
@@ -1227,12 +1339,13 @@ _VEREINT_JS = """
     );
   }
 
-  // zeige()-Aequivalent: setzt die Tafel direkt aus dem Client-Verlauf
-  // (``textContent``, nicht ``innerHTML`` -- die Karte ist reiner Text ohne
-  // Formatierungsbedarf ausser Zeilenumbruechen, die CSS ``white-space:
-  // pre-wrap`` traegt, siehe _CSS_BUEHNE). "aktuell" (``i===null``) liest
-  // dabei die NEUESTE Karte des Verlaufs -- bei uns dieselbe Quelle wie die
-  // naechste Serverantwort, es gibt kein zweites ``letzte``-Objekt.
+  // zeige()-Aequivalent: setzt die Tafel direkt aus dem Client-Verlauf --
+  // ``innerHTML`` aus ``buehneMarkdown`` (Birk 06.10.2026, vorher
+  // ``textContent`` mit rohem Modelltext samt sichtbaren Sternchen), die
+  // einzige Stelle, die Markup einfuegt, und die maskiert IMMER zuerst.
+  // "aktuell" (``i===null``) liest dabei die NEUESTE Karte des Verlaufs --
+  // bei uns dieselbe Quelle wie die naechste Serverantwort, es gibt kein
+  // zweites ``letzte``-Objekt.
   function buehneZeige(i) {
     if (i !== null && buehnePos === null) {
       var letzte = buehneVerlauf.length ? buehneVerlauf[buehneVerlauf.length - 1] : null;
@@ -1245,7 +1358,7 @@ _VEREINT_JS = """
       var eintrag = (i === null)
         ? (buehneVerlauf.length ? buehneVerlauf[buehneVerlauf.length - 1] : null)
         : buehneVerlauf[i];
-      if (eintrag) { tafel.textContent = eintrag.text || ''; }
+      if (eintrag) { tafel.innerHTML = buehneMarkdown(eintrag.text || ''); }
     }
     buehneNavRender();
   }
@@ -1480,6 +1593,41 @@ _VEREINT_JS = """
       .catch(function () {});
   }
   setInterval(ladeBuehne, __NACHLADEN_MS__);
+  // -- Textbuch-Tab nachladen (P57 Lauf 2, A1) ------------------------------
+  //
+  // Das Panel wurde nur beim Seitenaufbau gerendert: neue Szenenprosa
+  // erschien erst nach vollem Neuladen. Geholt wird nur bei sichtbarem Tab
+  // (und sofort beim Oeffnen, siehe zeige()). Rollenfilter/Schrift stehen
+  // am Panel bzw. im Hash und werden nach dem Tausch ueber ``hashchange``
+  // neu angewendet (die Knoepfe selbst sind frisch gerendert).
+  // Verglichen wird NICHT mit dem ersten Abruf, sondern mit dem Stempel
+  // (Hash des Rumpfes, vom Server in ``textbuch_koerper`` gesetzt): die
+  // Seite wurde evtl. vor der Szene gebaut. Wer den ersten Abruf nur
+  // "merkt", zeigt den veralteten Aufbau-Stand weiter (P57 Lauf 3, A1).
+  function textbuchStempel(wurzel) {
+    var el = wurzel ? wurzel.querySelector('[data-stempel]') : null;
+    return el ? el.getAttribute('data-stempel') : null;
+  }
+  function ladeTextbuch() {
+    var panel = document.getElementById('tab-textbuch');
+    if (!panel || panel.hidden || document.hidden) { return; }
+    fetch(BASIS_TEIL + 'textbuch', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return; }
+        var doc = new DOMParser().parseFromString(text, 'text/html');
+        var neu = doc.body ? doc.body.innerHTML : null;
+        if (!neu || panel.hidden) { return; }
+        var stempel = textbuchStempel(doc.body);
+        if (!stempel || stempel === textbuchStempel(panel)) { return; }
+        var y = panel.scrollTop;
+        panel.innerHTML = neu;
+        panel.scrollTop = y;
+        window.dispatchEvent(new Event('hashchange'));
+      })
+      .catch(function () {});
+  }
+  setInterval(ladeTextbuch, __NACHLADEN_MS__);
   // -- CoThinker-Statuszeile: die tickende Dauer -------------------------
   //
   // Karte CoThinker-Statuszeile (03.10.2026): der Server schreibt nie eine
@@ -1581,6 +1729,11 @@ _STEPPER_JS = """
         var frisch = doc.body ? doc.body.firstElementChild : null;
         var ziel = document.getElementById('roadmap');
         if (frisch && ziel) { ziel.outerHTML = frisch.outerHTML; }
+        // Bugfix (Birk Live-Test 07.10.2026, "CoThinker-Tab verschwindet
+        // nach der Schaerfung"): dieser Tausch aenderte ``#roadmap`` ohne
+        // Tab-Knopf/Panel nachzuziehen -- bis zu 10 s falsch, siehe
+        // ``_VEREINT_JS``s ``synchronisiereBuehneTab``.
+        if (window.buehneSyncTab) { window.buehneSyncTab(); }
       })
       .catch(function () {});
   }
@@ -1674,9 +1827,10 @@ _AUSWAHL_JS = """
 (function () {
   var BASIS = '__BASIS__';
   var BASIS_TEIL = '__BASIS_TEIL__';
-  var ZAEHLER = __AUSWAHL_ZAEHLER__;
+  var ZAEHLER = { fragen: __AUSWAHL_ZAEHLER_FRAGEN__, schaerfung: __AUSWAHL_ZAEHLER_SCHAERFUNG__ };
   var FEHLER_NETZ = __AUSWAHL_FEHLER_NETZ__;
   var FEHLER_UNGUELTIG = __AUSWAHL_FEHLER_UNGUELTIG__;
+  var KARTE_JA = __KARTE_JA__;
   var TAKT = window.buehneTakt || { gen: 0, unterwegs: 0, gesehen: function () {} };
   var unterwegs = {};
   var anzahlUnterwegs = 0;
@@ -1726,7 +1880,8 @@ _AUSWAHL_JS = """
       var z = li.getAttribute('data-zustand');
       n[n.hasOwnProperty(z) ? z : 'offen'] += 1;
     });
-    feld.textContent = ZAEHLER.replace(/\\{(ja|nein|schaerfen|offen)\\}/g,
+    var vorlage = ZAEHLER[panel.getAttribute('data-liste')] || ZAEHLER.fragen;
+    feld.textContent = vorlage.replace(/\\{(ja|nein|schaerfen|offen)\\}/g,
       function (_g, k) { return String(n[k]); });
   }
   function setze(li, wert) {
@@ -1763,12 +1918,49 @@ _AUSWAHL_JS = """
       })
       .catch(function () {});
   }
+  // Scene-card navigation: which card is shown survives the panel reload.
+  // null = the active card (the server's default).
+  var kartenWahl = null;
+  function zeigeKarte(nummer) {
+    var panel = document.querySelector('#buehne-panel[data-ansicht="karten"]');
+    if (!panel) { return; }
+    var eintraege = Array.prototype.slice.call(panel.querySelectorAll('li.karte-eintrag'));
+    if (!eintraege.length) { return; }
+    var ziel = nummer === null ? panel.getAttribute('data-aktiv') : String(nummer);
+    var index = -1;
+    eintraege.forEach(function (li, i) {
+      var an = li.getAttribute('data-nummer') === ziel;
+      li.classList.toggle('gezeigt', an);
+      if (an) { index = i; }
+    });
+    var zaehler = panel.querySelector('.karten-zaehler');
+    if (zaehler && index >= 0) {
+      zaehler.textContent = (zaehler.getAttribute('data-vorlage') || '').replace('{aktiv}', ziel);
+    }
+    var pfeile = panel.querySelectorAll('.karten-pfeil');
+    pfeile.forEach(function (b) {
+      var r = parseInt(b.getAttribute('data-richtung'), 10);
+      b.disabled = index < 0 ? false : (r < 0 ? index === 0 : index === eintraege.length - 1);
+    });
+  }
+  function blaettere(richtung) {
+    var panel = document.querySelector('#buehne-panel[data-ansicht="karten"]');
+    if (!panel) { return; }
+    var eintraege = Array.prototype.slice.call(panel.querySelectorAll('li.karte-eintrag'));
+    var pos = eintraege.findIndex(function (li) { return li.classList.contains('gezeigt'); });
+    var neu = pos < 0 ? (richtung > 0 ? 0 : eintraege.length - 1) : pos + richtung;
+    if (neu < 0 || neu >= eintraege.length) { return; }
+    kartenWahl = parseInt(eintraege[neu].getAttribute('data-nummer'), 10);
+    zeigeKarte(kartenWahl);
+  }
   var tab = document.getElementById('tab-buehne');
   if (tab && window.MutationObserver) {
     new MutationObserver(function () {
       if (anzahlUnterwegs > 0) { wendeUnterwegsAn(); }
+      zeigeKarte(kartenWahl);
     }).observe(tab, { childList: true });
   }
+  zeigeKarte(kartenWahl);
   document.addEventListener('click', function (ev) {
     var ziel = ev.target && ev.target.closest ? ev.target : null;
     if (!ziel) { return; }
@@ -1801,6 +1993,61 @@ _AUSWAHL_JS = """
           if (unterwegs[nummer] === wert) { delete unterwegs[nummer]; }
           if (anzahlUnterwegs === 0) { holePanel(); }
         });
+      return;
+    }
+    // Scene cards in the CoThinker: "Yes, save" saves and reloads the panel
+    // (next card); "No, change" jumps to the chat for the feedback question.
+    var kartenZeile = ziel.closest('#buehne-panel[data-ansicht="karten"] .karte-zeile');
+    if (kartenZeile) {
+      ev.preventDefault();
+      kartenWahl = parseInt(kartenZeile.closest('li.karte-eintrag').getAttribute('data-nummer'), 10);
+      zeigeKarte(kartenWahl);
+      if (tab) { tab.scrollTop = 0; }
+      return;
+    }
+    var kartenPfeil = ziel.closest('#buehne-panel[data-ansicht="karten"] .karten-pfeil');
+    if (kartenPfeil) {
+      ev.preventDefault();
+      blaettere(parseInt(kartenPfeil.getAttribute('data-richtung'), 10));
+      return;
+    }
+    if (ziel.closest('#buehne-panel[data-ansicht="karten"] .karte-zurueck')) {
+      ev.preventDefault();
+      kartenWahl = null;
+      zeigeKarte(null);
+      if (tab) { tab.scrollTop = 0; }
+      return;
+    }
+    var kartenKnopf = ziel.closest('#buehne-panel[data-ansicht="karten"] .karte-knopf');
+    if (kartenKnopf) {
+      ev.preventDefault();
+      kartenWahl = null;
+      if (kartenKnopf.disabled) { return; }
+      var aktion = kartenKnopf.getAttribute('data-aktion');
+      var kartenNummer = parseInt(kartenKnopf.getAttribute('data-nummer'), 10);
+      kartenKnopf.closest('.karte-aktionen').querySelectorAll('button')
+        .forEach(function (b) { b.disabled = true; });
+      sende('chat/karte', { aktion: aktion, nummer: kartenNummer })
+        .then(function (r) {
+          if (!r.ok) { zeigeFehler(); return; }
+          // "No, change" and "Clear the questions" both continue in the
+          // chat (feedback note, or the questions one by one); "Skip
+          // questions" and "Yes, save" stay on the card panel.
+          if ((aktion === 'aendern' || aktion === 'klaeren')
+              && document.querySelector('.tabs button[data-tab="chat"]')) {
+            location.hash = '#chat';
+          }
+        })
+        .catch(function () { zeigeFehler(); })
+        .then(function () { setTimeout(holePanel, 1500); });
+      return;
+    }
+    // A changed card confirmed in the chat ("Yes, save card"): the click
+    // itself goes through the chat button path; here only the jump back.
+    var chatKnopf = ziel.closest('.leiste button');
+    if (chatKnopf && KARTE_JA && chatKnopf.textContent === KARTE_JA
+        && document.querySelector('.tabs button[data-tab="buehne"]')) {
+      setTimeout(function () { location.hash = '#buehne'; holePanel(); }, 700);
       return;
     }
     var fertig = ziel.closest('#buehne-panel[data-ansicht="auswahl"] .auswahl-fertig');
@@ -1912,8 +2159,25 @@ _TEXT_AUSWAHL_UNGUELTIG = "Diese Auswahl geht nicht."
 #: 05.10.2026): Listenname -> Name der ``repo``-Funktion
 #: ``(conn, chat_id, nummer, wert) -> bool``. Als Name, nicht als Objekt:
 #: ``repo`` wird hier wie ueberall in diesem Modul erst im Aufruf geladen.
-_AUSWAHL_SCHREIBER = {"fragen": "setze_fragen_entscheidung"}
+#: Listenname -> Name der ``repo``-Schreibfunktion ``(conn, chat_id, nummer,
+#: wert) -> bool``. "schaerfung" (Padua Phase 5, 07.10.2026): dieselbe
+#: Auswahlliste-Mechanik wie "fragen", nur Yes/No statt der drei Zustaende
+#: und ``nummer`` ist hier die ``schaerfung.id``, keine Position.
+_AUSWAHL_SCHREIBER = {
+    "fragen": "setze_fragen_entscheidung",
+    "schaerfung": "setze_schaerfung_entscheidung",
+}
+#: Der versteckte Befehl, den "Fertig"/"Done" je Liste anlegt
+#: (``auswahl_fertig_post``) -- derselbe Weg durch die Naht wie
+#: ``/phaseklick``.
+_AUSWAHL_FERTIG_BEFEHL = {
+    "fragen": "/sortiert",
+    "schaerfung": "/schaerfung_fertig",
+}
 #: Die erlaubten Werte eines Tipps -- ``""`` ist "wieder offen" (Rueckgaengig).
+#: "schaerfen" gilt nur fuer die Liste "fragen"; ``_AUSWAHL_SCHREIBER``s
+#: Funktion fuer "schaerfung" (``repo.setze_schaerfung_entscheidung``) lehnt
+#: ihn selbst ab (400) -- kein zweiter Wertebereich hier noetig.
 _AUSWAHL_WERTE = ("ja", "nein", "schaerfen", "")
 
 
@@ -1962,22 +2226,66 @@ def auswahl_post(handler, db_pfad: str, token: str, chat_id: int,
 
 def auswahl_fertig_post(handler, db_pfad: str, token: str, chat_id: int,
                         schluessel: bytes) -> None:
-    """``POST /g/<token>/chat/auswahl_fertig`` -- "Fertig sortiert". Wie
-    ``phase_post``: der Webserver legt nur den versteckten Befehl
-    ``/sortiert`` als Eingang ab, der Bot schliesst die Sortierung ab
-    (offene zaehlen als behalten, dann ggf. Umformulieren im Chat)."""
+    """``POST /g/<token>/chat/auswahl_fertig`` -- "Fertig sortiert"/"Done".
+    Wie ``phase_post``: der Webserver legt nur den versteckten Befehl je
+    Liste (``_AUSWAHL_FERTIG_BEFEHL``) als Eingang ab -- ``/sortiert`` fuer
+    die Fragenliste (offene zaehlen als behalten, dann ggf. Umformulieren
+    im Chat), ``/schaerfung_fertig`` fuer die Schaerfungsliste (Yes
+    uebernehmen, No verwerfen, offene bleiben stehen)."""
     from interview_theater import repo, web_chat
 
     daten = web_chat._koerper_oder_400(handler, token, schluessel)
     if daten is None:
         return
-    if daten.get("liste") not in _AUSWAHL_SCHREIBER:
+    befehl = _AUSWAHL_FERTIG_BEFEHL.get(daten.get("liste"))
+    if befehl is None:
         handler._fehler(400, T._TEXT_AUSWAHL_UNGUELTIG)
         return
     with web_chat.schreibend(db_pfad) as conn:
         message_id = repo.lege_web_post_an(
             conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
-            text="/sortiert",
+            text=befehl,
+        )
+    web_chat._angenommen(handler, {"message_id": message_id})
+
+
+#: Die Knoepfe der aktiven Szenenkarte -> versteckter Befehl (Padua, Birk
+#: 07.10.2026 ~19:25, Fragenklaerung ~09:20 am 08.10.2026). Wie
+#: ``auswahl_fertig_post``: der Webserver legt nur den Befehl ab, der Bot
+#: fuehrt ihn aus (``befehle._befehl_karte``).
+_KARTE_BEFEHL = {
+    "ja": "/karte_ja", "aendern": "/karte_aendern", "bauen": "/karte_bauen",
+    "klaeren": "/karte_klaeren", "ueberspringen": "/karte_ueberspringen",
+}
+
+
+def _karte_ja_text() -> str:
+    """Der Knopftext, nach dem der Chat zurueck in den CoThinker springt --
+    leer ohne ``[karten] aktiv`` (dann springt nichts)."""
+    from interview_theater import szenenkarte, workshop
+
+    return szenenkarte.T._TEXT_KARTE_JA_KNOPF if workshop.szenenkarten_aktiv() else ""
+
+
+def karte_post(handler, db_pfad: str, token: str, chat_id: int,
+               schluessel: bytes) -> None:
+    """``POST /g/<token>/chat/karte`` -- ``{aktion: ja|aendern, nummer}``.
+    Nonce zuerst (403), dann Werte (400), dann der versteckte Befehl."""
+    from interview_theater import repo, web_chat
+
+    daten = web_chat._koerper_oder_400(handler, token, schluessel)
+    if daten is None:
+        return
+    befehl = _KARTE_BEFEHL.get(daten.get("aktion"))
+    nummer = daten.get("nummer")
+    if (befehl is None or not isinstance(nummer, int) or isinstance(nummer, bool)
+            or nummer < 1):
+        handler._fehler(400, T._TEXT_AUSWAHL_UNGUELTIG)
+        return
+    with web_chat.schreibend(db_pfad) as conn:
+        message_id = repo.lege_web_post_an(
+            conn, chat_id, repo.RICHTUNG_EIN, repo.WEB_TYP_BEFEHL,
+            text=f"{befehl} {nummer}",
         )
     web_chat._angenommen(handler, {"message_id": message_id})
 
@@ -2001,6 +2309,15 @@ def start_post(handler, db_pfad: str, token: str, chat_id: int,
                 text="/start",
             )
     web_chat._angenommen(handler, {"message_id": message_id})
+
+
+def _karten_im_cothinker() -> bool:
+    """Phase 6 zeigt die Szenenkarten im CoThinker (Padua, ``[karten] aktiv``
+    mit CoThinker). Das ``data-begriffsboard``-Merkmal steht in genau diesem
+    Profil schon am ``#roadmap`` -- daran erkennt das Skript die Gruppe."""
+    from interview_theater import workshop
+
+    return workshop.szenenkarten_aktiv() and workshop.diskussion_aktiv()
 
 
 def _board_merkmal() -> str:
@@ -2230,6 +2547,65 @@ def _stepper_html(roadmapdaten: list[dict], klickbar: bool = True) -> str:
     )
 
 
+#: Die Bedarfsliste in der read-only Werkbank (Birk 08.10.2026 ~13:45,
+#: Padua): ein Haken schickt sofort ``chat/bedarf`` -- optimistisch (die
+#: Checkbox steht schon um), bei einem Fehler wird sie zurueckgesetzt. Eine
+#: EIGENE, nur unter ``not werkbank_bearbeitbar`` angehaengte IIFE wie
+#: ``_AUSWAHL_JS``/``_STEPPER_JS``, damit Dortmunds Skript Zeichen fuer
+#: Zeichen bleibt -- dort gibt es die Bedarfsliste nie (``[web]
+#: workbench_bearbeitbar = true``), ihr Code stuende sonst trotzdem im
+#: ausgelieferten ``<script>``.
+_BEDARF_JS = """
+(function () {
+  if (!document.querySelector('.wb-bedarf')) { return; }
+  var BASIS = '__BASIS__';
+  var BASIS_TEIL = '__BASIS_TEIL__';
+
+  function friskeNonce() {
+    return fetch(BASIS_TEIL + 'stand' + location.search, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (text) {
+        if (!text) { return null; }
+        var quelle = new DOMParser().parseFromString(text, 'text/html')
+          .getElementById('nonce');
+        if (!quelle) { return null; }
+        var feld = document.getElementById('nonce');
+        if (feld) { feld.value = quelle.value; }
+        return quelle.value;
+      })
+      .catch(function () { return null; });
+  }
+  function sende(punktId, erledigt, zweiter) {
+    return fetch(BASIS + 'chat/bedarf', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nonce: (document.getElementById('nonce') || {}).value || '',
+        punkt_id: punktId, erledigt: erledigt
+      })
+    }).then(function (r) {
+      if (r.status === 403 && !zweiter) {
+        return friskeNonce().then(function () { return sende(punktId, erledigt, true); });
+      }
+      return r;
+    });
+  }
+  document.addEventListener('change', function (ev) {
+    var feld = ev.target && ev.target.closest
+      ? ev.target.closest('.wb-bedarf-check') : null;
+    if (!feld) { return; }
+    var punktId = parseInt(feld.getAttribute('data-bedarf-id'), 10);
+    var erledigt = feld.checked;
+    feld.disabled = true;
+    sende(punktId, erledigt).then(function (r) {
+      feld.disabled = false;
+      if (!r.ok) { feld.checked = !erledigt; }
+    }).catch(function () { feld.disabled = false; feld.checked = !erledigt; });
+  });
+})();
+"""
+
+
 def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
           segment_ms, fassungswahl=None, chat_vorhanden=True) -> str:
     """Die vereinte Gruppenseite: Chat, Arbeitsstand und Textbuch als drei
@@ -2276,7 +2652,8 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     # Profil das Begriffsboard faehrt (Karte t_4517d4ad). Derselbe Zustand,
     # den ``istCoThinkerPhase()`` im Browser bei jedem Takt neu herstellt.
     # Seit 05.10.2026 (Birk) auch Phase 2: die Fragenuebersicht je Begriff.
-    phase4 = phase == 4 or (phase in (1, 2) and workshop.diskussion_aktiv())
+    phase4 = (phase in (4, 5) or (phase in (1, 2) and workshop.diskussion_aktiv())
+              or (phase == 6 and _karten_im_cothinker()))
     vorgabe = VORGABE_TAB if chat_vorhanden else "stand"
     panels = {
         "stand": web.gruppe_koerper(daten, nonce_wert, token, praefix, fassungswahl),
@@ -2344,7 +2721,12 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
     if not werkbank_bearbeitbar:
         css += scope_css(web_gestalt.css_werkbank(), ".panel-stand")
     css += scope_css(web_gestalt.css_buehne(), ".panel-buehne")
+    css += scope_css(web.css_karten_buehne(), ".panel-buehne")
     css += scope_css(web_gestalt.css_textbuch(), ".panel-textbuch")
+    # Padua [skript] verdichtet (Birk 07.10.2026 ~17:45): Lesetypografie und
+    # Workbench-Kurzform -- ohne Schalter leer, die Seite bleibt byte-gleich.
+    css += scope_css(web.css_textbuch_lesbar(), ".panel-textbuch")
+    css += scope_css(web.css_werkbank_kurz(), ".panel-stand")
     # Mobile-App-Shell (03.10.2026) zuletzt von allem: sie gewinnt gegen
     # ``_TABS_A``/``_TABS_B``/``_CSS_CHAT`` per Spezifitaet oder Reihenfolge,
     # ohne eine Zeile davon anzufassen (siehe Docstring von ``_css_schale``).
@@ -2365,6 +2747,10 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
         # Karte beheben soll.
         _VH_JS
         + _VEREINT_JS.replace("__TABS__", json.dumps(list(tabs)))
+        # Padua [karten] aktiv (Birk 07.10.2026 ~19:25): der CoThinker traegt
+        # in Phase 6 die Szenenkarten. Ohne Schalter: leer -> byte-gleich.
+        .replace("__KARTEN_PHASE__", "(p === '6' && rm.dataset.begriffsboard === '1') || "
+                 if _karten_im_cothinker() else "")
         .replace("__VORGABE__", vorgabe)
         .replace("__BASIS__", f"{token}/")
         .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
@@ -2405,9 +2791,20 @@ def seite(daten, chatdaten, roadmapdaten, nonce_wert, token, praefix,
             _AUSWAHL_JS
             .replace("__BASIS__", f"{token}/")
             .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
-            .replace("__AUSWAHL_ZAEHLER__", _js_text(web.T._TEXT_AUSWAHL_ZAEHLER))
+            .replace("__AUSWAHL_ZAEHLER_FRAGEN__", _js_text(web.T._TEXT_AUSWAHL_ZAEHLER))
+            .replace("__AUSWAHL_ZAEHLER_SCHAERFUNG__", _js_text(web.T._TEXT_SCHAERFUNGSLISTE_ZAEHLER))
             .replace("__AUSWAHL_FEHLER_NETZ__", _js_text(T._TEXT_PHASE_FEHLER_NETZ))
             .replace("__AUSWAHL_FEHLER_UNGUELTIG__", _js_text(T._TEXT_AUSWAHL_UNGUELTIG))
+            .replace("__KARTE_JA__", _js_text(_karte_ja_text()))
+        )
+    # Die Bedarfsliste: nur mit Chat (der Weg liegt unter ``/chat/*``) und
+    # nur ohne editierbare Werkbank -- Dortmunds Skript bleibt unberuehrt,
+    # wie beim Stepper und der Auswahlliste.
+    if chat_vorhanden and not werkbank_bearbeitbar:
+        skript += (
+            _BEDARF_JS
+            .replace("__BASIS__", f"{token}/")
+            .replace("__BASIS_TEIL__", f"{token}/{TEIL_PFAD}/")
         )
     # ``chat_vorhanden`` durchreichen (UX-Fix an Aufgabe 8): Baustein 3
     # (``_JS_AUFNAHME``) nennt Elemente, die nur im Chat-Panel existieren
@@ -2485,6 +2882,10 @@ def sende_teil(handler, db_pfad: str, token: str, name: str, praefix: str,
         return
     if name == "buehne":
         handler._antworte(200, web._buehne_html(daten))
+        return
+    if name == "textbuch":
+        # Reines Lesen, kein Formular, kein Nonce (P57 Lauf 2, A1).
+        handler._antworte(200, web.textbuch_koerper(daten, token, praefix))
         return
     handler._antworte(200, web.gruppe_koerper(
         daten, web.nonce(schluessel, token), token, praefix,

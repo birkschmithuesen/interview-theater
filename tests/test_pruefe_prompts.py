@@ -20,7 +20,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts import pruefe_prompts as pp
-from interview_theater import einstellungen, kontext, llm
+from interview_theater import einstellungen, kontext, llm, workshop
 
 
 # --- Normalisierung -------------------------------------------------------
@@ -649,3 +649,218 @@ def test_sprache_en_nur_fuer_den_erkenner():
 
 def test_bericht_traegt_die_sprache(tmp_path):
     assert pp.berichtspfad(None, ["erkenner"], sprache="en").name.endswith("-erkenner-en.md")
+
+
+# --- --ueber-claude (InScribe Messung 1, t_dd94e894) -----------------------
+#
+# Misst GENAU den Live-Pfad (erkenner.ueber_claude / modellwahl.aufruf_schema
+# / szene_claude.schema, seit 08.10.2026 live), nicht den Infomaniak/gemma-
+# Pfad -- bisher hatte pruefe_prompts.py keinen Weg dorthin. Die Faelle hier
+# laufen ohne Netz: die Attrappe ersetzt erkenner._schema_aufruf direkt
+# (statt szene_claude.schema/httpx), weil der Claude-Pfad ueber einen
+# Proxy-HTTP-Aufruf laeuft, den diese Suite nie macht.
+
+def _claude_einstellungen(tmp_path):
+    return einstellungen.Einstellungen(
+        bot_token="T", bot_name="korpus", db_pfad=str(tmp_path / "unbenutzt.db"),
+        audio_verz=str(tmp_path / "audio"),
+        llm_url="https://llm.test/v1/chat/completions", llm_key="K",
+        llm_modell="moonshotai/Kimi-K2.6",
+        stt_basis="https://stt.test", stt_produkt="P",
+        erkenner_modell="google/gemma-4-31B-it",
+        szene_anbieter="claude", szene_modell="claude-opus-5-5",
+    )
+
+
+def test_ueber_claude_nur_fuer_den_erkenner():
+    """Journal, Verdichter und Sprachprofil haben keinen Live-Opus-Pfad --
+    nur der Erkenner lief seit 08.10.2026 ueber Claude (erkenner.ueber_claude)."""
+    with pytest.raises(SystemExit):
+        pp.main(["journal", "--ueber-claude"])
+
+
+def test_ueber_claude_verlangt_das_aktive_profil(monkeypatch, tmp_path):
+    """Ohne IT_SZENE_ANBIETER=claude waere ein --ueber-claude-Lauf in
+    Wahrheit ein stiller Rueckfall auf Kimi (``erkenner._schema_aufruf``
+    faellt dann selbst zurueck) -- das darf nicht unbemerkt als 'Opus
+    gemessen' in den Bericht wandern. Die Vorgabe-Attrappe setzt
+    szene_anbieter nicht, also muss main() laut abbrechen, bevor ueberhaupt
+    ein Fall laeuft."""
+    monkeypatch.setattr(
+        pp.einstellungen, "laden",
+        lambda: einstellungen.Einstellungen(
+            bot_token="T", bot_name="korpus", db_pfad=str(tmp_path / "x.db"),
+            audio_verz=str(tmp_path / "audio"),
+            llm_url="https://llm.test/v1/chat/completions", llm_key="K",
+            llm_modell="moonshotai/Kimi-K2.6",
+            stt_basis="https://stt.test", stt_produkt="P",
+            erkenner_modell="google/gemma-4-31B-it",
+        ),
+    )
+    with pytest.raises(SystemExit) as fehler:
+        pp.main(["erkenner", "--ueber-claude", "--nur", "e01-interview-starten-fatma"])
+    assert "claude" in str(fehler.value).lower()
+
+
+def test_ueber_claude_laeuft_ueber_den_live_pfad(monkeypatch, tmp_path):
+    """Der eigentliche Nachweis: unter --ueber-claude ruft das Skript
+    ``erkenner._schema_aufruf`` -- dieselbe Funktion, die ``erkenner.erkenne``
+    im Betrieb aufruft -- statt ``klm.schema`` direkt. Kein eigener
+    HTTP-Nachbau, kein zweiter Pfad."""
+    monkeypatch.setattr(pp.einstellungen, "laden", lambda: _claude_einstellungen(tmp_path))
+    monkeypatch.setattr(pp.workshop, "erkenner_ueber_claude_aktiv", lambda: True)
+
+    gesehen = []
+
+    def falscher_live_pfad(klm, conn, e, chat_id, system, nutzer, schema_, art):
+        gesehen.append({"chat_id": chat_id, "art": art, "nutzer": nutzer})
+        return {"aenderungen": [{"art": "interview_starten", "wert": ""}]}
+
+    monkeypatch.setattr(pp.erkenner, "_schema_aufruf", falscher_live_pfad)
+
+    def kein_kimi_aufruf(self, *a, **k):
+        raise AssertionError("klm.schema direkt aufgerufen statt erkenner._schema_aufruf")
+
+    monkeypatch.setattr(llm.LLM, "schema", kein_kimi_aufruf)
+
+    code = pp.main([
+        "erkenner", "--ueber-claude", "--nur", "e01-interview-starten-fatma",
+    ])
+    assert code == 0
+    assert len(gesehen) == 1
+    assert gesehen[0]["art"] == "erkenner"
+
+
+def test_ueber_claude_laesst_aufnahmefaelle_bei_kimi(monkeypatch, tmp_path):
+    """Transkripte aus einer laufenden Aufnahme bleiben IMMER auf dem
+    Infomaniak-Erkenner (``erkenner.ueber_claude``-Docstring,
+    ``erkenner.erkenne_in_aufnahme`` ruft ``modellwahl`` nie an) -- auch unter
+    --ueber-claude darf ein Aufnahmefall nicht ueber den Live-Opus-Pfad
+    laufen."""
+    monkeypatch.setattr(pp.einstellungen, "laden", lambda: _claude_einstellungen(tmp_path))
+    monkeypatch.setattr(pp.workshop, "erkenner_ueber_claude_aktiv", lambda: True)
+
+    def kein_claude_aufruf(*a, **k):
+        raise AssertionError("ein Aufnahmefall rief erkenner._schema_aufruf (Claude) auf")
+
+    monkeypatch.setattr(pp.erkenner, "_schema_aufruf", kein_claude_aufruf)
+
+    gesehen = []
+
+    def kimi_antwort(self, chat_id, system, nutzer, schema, art, modell=None, temperature=None):
+        gesehen.append(art)
+        return {"aenderungen": [{"art": "interview_beenden", "wert": ""}]}
+
+    monkeypatch.setattr(llm.LLM, "schema", kimi_antwort)
+
+    code = pp.main([
+        "erkenner", "--ueber-claude", "--nur", "a01-aufnahme-fertig-gesagt",
+    ])
+    assert code == 0
+    assert gesehen == ["erkenner"]
+
+
+# --- --korpus-datei (InScribe Messung 1, Padua-Testsatz) -------------------
+#
+# Macht den Padua-Testsatz (betrieb/korpus/en/padua_testsatz.jsonl, echte
+# Nutzerdaten -- E8, deshalb ausserhalb des Repos unter IT_PRIVAT_KORPUS)
+# ueber denselben Lauf fahrbar wie korpus/en/erkenner.jsonl -- derselbe
+# Runner, nur eine andere Datei. Ohne diesen Schalter bräuchte ein zweiter
+# Testsatz einen zweiten Skriptpfad. Dieselbe ``sprache="en"``-Ablage wie der
+# englische Erkenner-Korpus (D8), weil die Faelle Padua-Realitaet sind
+# (Englisch-Profil) -- dasselbe ``padua``-Fixturmuster wie
+# ``tests/test_modellwahl_padua_messung.py::padua``.
+#
+# Die drei Tests, die die echte private Datei brauchen, ueberspringen sich
+# selbst, wenn sie fehlt (frisches Checkout, CI, fremde Mitwirkende) --
+# ``test_korpus_datei_laedt_eine_synthetische_mini_fixture`` deckt
+# Lade-/Pruefungslogik trotzdem ab, mit frei erfundenen Faellen.
+
+PADUA_TESTSATZ_PFAD = pp.privat_korpus_wurzel() / "en" / "padua_testsatz.jsonl"
+
+
+def _ohne_private_datei_skip():
+    if not PADUA_TESTSATZ_PFAD.exists():
+        pytest.skip(f"private Datei fehlt: {PADUA_TESTSATZ_PFAD}")
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    workshop.vergiss()
+    yield
+    workshop.vergiss()
+
+
+def test_korpus_datei_nicht_mit_alle():
+    with pytest.raises(SystemExit):
+        pp.main(["alle", "--korpus-datei", "padua_testsatz"])
+
+
+def test_korpus_datei_laedt_den_padua_testsatz():
+    _ohne_private_datei_skip()
+    faelle = pp.lade_korpus("padua_testsatz", sprache="en")
+    assert len(faelle) >= 30
+    assert any(f["id"] == "p02-g1-rahmen-sala-riunioni" for f in faelle)
+
+
+def test_korpus_datei_lauft_ueber_den_erkenner_runner(attrappe, padua):
+    _ohne_private_datei_skip()
+    attrappe["antwort"] = lambda art, nutzer: {
+        "aenderungen": [{"art": "rahmen_setzen", "wert": "sala riunioni"}]
+    }
+    code = pp.main([
+        "erkenner", "--korpus-datei", "padua_testsatz", "--sprache", "en",
+        "--nur", "p02-g1-rahmen-sala-riunioni",
+    ])
+    assert code == 0
+    assert attrappe["gesehen"][0]["art"] == "erkenner"
+
+
+def test_korpus_datei_bericht_traegt_den_dateinamen(attrappe, padua, tmp_path):
+    _ohne_private_datei_skip()
+    attrappe["antwort"] = lambda art, nutzer: {"aenderungen": []}
+    bericht = tmp_path / "eigener.md"
+    pp.main([
+        "erkenner", "--korpus-datei", "padua_testsatz", "--sprache", "en",
+        "--nur", "n01-g1-negativ-abgerissene-sprachnachricht",
+        "--bericht", str(bericht),
+    ])
+    assert "n01-g1-negativ-abgerissene-sprachnachricht" in bericht.read_text(encoding="utf-8")
+
+
+def test_korpus_datei_fehlt_meldet_sich_klar(tmp_path, monkeypatch):
+    """Ohne die private Datei (z.B. ein frisches Checkout ohne
+    betrieb/korpus/) muss ``lade_korpus`` klar sagen, woran es fehlt --
+    kein nackter Stacktrace, kein stiller Absturz an anderer Stelle."""
+    monkeypatch.setenv("IT_PRIVAT_KORPUS", str(tmp_path / "nirgendwo"))
+    with pytest.raises(FileNotFoundError, match="private Korpusdatei fehlt"):
+        pp.lade_korpus("padua_testsatz", sprache="en")
+
+
+def test_korpus_datei_laedt_eine_synthetische_mini_fixture(tmp_path, monkeypatch):
+    """Lade-/Pruefungslogik bleibt testbar, auch wenn die echte private Datei
+    fehlt: eine frei erfundene Mini-Fixture, nichts aus dem Projektumfeld."""
+    monkeypatch.setenv("IT_PRIVAT_KORPUS", str(tmp_path))
+    (tmp_path / "en").mkdir()
+    zeilen = [
+        {"id": "synth-01-leuchtturm-frage", "arbeitsstand": {}, "nachrichten": [
+            {"absender": "Bot", "text": "Alles klar?", "ist_bot": 1},
+            {"absender": "Gruppe", "text": "Der Leuchtturm soll gelb werden."},
+        ], "erwartet": [{"art": "rahmen_setzen", "wert": "gelber Leuchtturm"}]},
+        {"id": "synth-02-wal-negativ", "arbeitsstand": {}, "nachrichten": [
+            {"absender": "Gruppe", "text": "Wie lange dauert die Pause?"},
+        ], "erwartet": []},
+        {"id": "synth-03-oktopus-notiz", "arbeitsstand": {}, "nachrichten": [
+            {"absender": "Gruppe", "text": "Der Oktopus bekommt acht Arme aus Stoff."},
+        ], "erwartet": [{"art": "stagescript_notiz", "wert": "Oktopus: acht Stoffarme"}]},
+    ]
+    (tmp_path / "en" / "padua_testsatz.jsonl").write_text(
+        "\n".join(json.dumps(z) for z in zeilen) + "\n", encoding="utf-8"
+    )
+    faelle = pp.lade_korpus("padua_testsatz", sprache="en")
+    assert [f["id"] for f in faelle] == [
+        "synth-01-leuchtturm-frage", "synth-02-wal-negativ", "synth-03-oktopus-notiz",
+    ]
+    gefiltert = pp.lade_korpus("padua_testsatz", nur=["synth-02-wal-negativ"], sprache="en")
+    assert [f["id"] for f in gefiltert] == ["synth-02-wal-negativ"]

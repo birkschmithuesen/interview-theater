@@ -118,3 +118,56 @@ def test_tab_per_anzeigetext_trifft_den_data_tab(seite):
 
 def test_tab_per_data_tab_bleibt_unveraendert(seite):
     assert a.fuehre_aus(seite, {"type": "tab", "name": "stand"})["ziel"] == "stand"
+
+
+_STEPPER = """
+<div id="fehler" hidden></div>
+<header class="phasenav" id="roadmap"><ol class="stepper">
+  <li class="stepper-segment erledigt" data-phase="1" role="button">1</li>
+  <li class="stepper-segment aktiv" data-phase="2" role="button">2</li>
+</ol></header>
+<div id="phasensheet" hidden><button id="phasensheet-los">go</button>
+<button id="phasensheet-bleib">stay</button></div>
+<script>
+  window.__ablehnen = false;
+  document.addEventListener('click', function (ev) {
+    var s = ev.target.closest('.stepper-segment');
+    if (s) { window.__ziel = s.dataset.phase; document.getElementById('phasensheet').hidden = false; return; }
+    if (ev.target.id === 'phasensheet-los') {
+      if (window.__ablehnen) {
+        var f = document.getElementById('fehler'); f.textContent = 'Nope, no going back'; f.hidden = false;
+      } else { document.body.dataset.gesprungen = window.__ziel;
+        document.getElementById('phasensheet').hidden = true; }
+    }
+    if (ev.target.id === 'phasensheet-bleib') { document.getElementById('phasensheet').hidden = true; }
+  });
+</script>
+"""
+
+
+@pytest.fixture()
+def stepper_seite():
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        page = b.new_page(viewport={"width": 390, "height": 844})
+        page.set_content(_STEPPER)
+        yield page
+        b.close()
+
+
+def test_phase_nutzt_stepper_segment_und_bestaetigt_das_sheet(stepper_seite):
+    protokoll = a.fuehre_aus(stepper_seite, {"type": "phase", "nummer": 1})
+    assert protokoll["weg"] == "stepper"
+    assert stepper_seite.evaluate("document.body.dataset.gesprungen") == "1"
+
+
+def test_phase_abgelehnt_wird_als_befundausnahme_mit_servertext_gemeldet(stepper_seite):
+    stepper_seite.evaluate("window.__ablehnen = true")
+    with pytest.raises(a.PhasenwechselAbgelehnt, match="Nope, no going back"):
+        a.fuehre_aus(stepper_seite, {"type": "phase", "nummer": 1})
+    assert stepper_seite.locator("#phasensheet[hidden]").count() == 1
+
+
+def test_phase_ohne_jedes_element_meldet_fehlendes_produktelement(seite):
+    with pytest.raises(a.PhasenwechselFehlt, match="kein Element fuer Phase 7"):
+        a.fuehre_aus(seite, {"type": "phase", "nummer": 7})

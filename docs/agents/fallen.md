@@ -110,3 +110,11 @@ Nachmittag noch einmal.
    deshalb sequenziell auf, nicht parallel. Wer ein Werkzeug baut, das mehrere
    Aufrufe gleichzeitig absetzt, bekommt sporadische 429/5xx statt eines
    verlässlichen Fehlers und sollte seriell bleiben oder selbst drosseln.
+
+9. **`IT_ERKENNER_MODUS=tools` wirkt nur mit `[erkenner] ueber_claude`, und
+   Werkzeugschritte haben keinen Undo-Knopf.** Ohne den Opus-Pfad bleibt der
+   Schalter wirkungslos (Vorgabe `json`, in keiner Live-Env gesetzt). Der
+   Undo (`ruecknahme.VERFOLGT`) deckt Stück-Schritte nicht ab (Spec § 3.4),
+   und der Szenenkern wird für Stück-Schritte nicht neu angestoßen. Das sind
+   bekannte Grenzen des tools-Modus, kein Fehler; sie gehören in jede
+   Umstellungsentscheidung (`docs/messung/2026-10-ab-pipeline-vs-tools.md`).

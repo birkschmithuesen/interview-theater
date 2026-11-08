@@ -56,6 +56,14 @@ PLATZHALTER_AUSNAHMEN: dict[str, set[str]] = {
     "formen/rap": {"ort_beispiel_4"},
 }
 
+#: Das Spiegelbild: Platzhalter, die NUR die englische Fassung setzt. Der
+#: englische Erkenner nennt die Phasen seit der Padua-Umbenennung (Birk
+#: 08.10.2026) aus ``phasen.toml`` (``{{phasen_kurz}}``); der deutsche
+#: behaelt seine feste Liste -- Dortmund bleibt bitgleich.
+NUR_ENGLISCH: dict[str, set[str]] = {
+    "erkenner": {"phasen_kurz"},
+}
+
 
 def _struktur(text: str) -> tuple[int, int, int]:
     """Ueberschriften, Code-Zaeune, JSON-Beispielzeilen -- was eine
@@ -97,7 +105,7 @@ def test_gleiche_platzhalter_und_struktur(name):
         pytest.skip("noch nicht uebersetzt")
     deutsch = (REPO / f"{name}.md").read_text(encoding="utf-8")
     englisch = en.read_text(encoding="utf-8")
-    assert set(_PLATZ.findall(englisch)) == (
+    assert set(_PLATZ.findall(englisch)) - NUR_ENGLISCH.get(name, set()) == (
         set(_PLATZ.findall(deutsch)) - PLATZHALTER_AUSNAHMEN.get(name, set())
     )
     if name in STRUKTUR_AUSNAHMEN:
@@ -119,6 +127,14 @@ def test_platzhalter_ausnahmen_sind_ehrlich():
         englisch = set(_PLATZ.findall((EN / f"{name}.md").read_text(encoding="utf-8")))
         assert platzhalter <= deutsch, (name, "nicht mehr im deutschen Prompt")
         assert not (platzhalter & englisch), (name, "steht doch im englischen")
+
+
+def test_nur_englisch_ist_ehrlich():
+    for name, platzhalter in NUR_ENGLISCH.items():
+        deutsch = set(_PLATZ.findall((REPO / f"{name}.md").read_text(encoding="utf-8")))
+        englisch = set(_PLATZ.findall((EN / f"{name}.md").read_text(encoding="utf-8")))
+        assert platzhalter <= englisch, (name, "nicht mehr im englischen Prompt")
+        assert not (platzhalter & deutsch), (name, "steht doch im deutschen")
 
 
 def test_kein_englischer_prompt_nennt_einen_beispielort():
@@ -260,8 +276,14 @@ def test_d7_zitate_bleiben_im_original(padua, name):
 
 #: Few-Shots (JSON-Ausgabezeilen mit "aenderungen") im englischen Erkenner
 #: seit der Vereinfachung (Birk 30.09.: Chat = nur Befehle/Fragen) -- vorher
-#: 21 wie im Deutschen.
-FEW_SHOTS_ERKENNER_EN = 18
+#: 21 wie im Deutschen. Seit dem Nachtlauf 07.10.2026 (web_post 1808-1811,
+#: drei beschriebene und bestaetigte Szenen nie gespeichert) zwei weitere:
+#: eine direkte "erste Szene ..., zweite ..., dritte ..."-Beschreibung und
+#: die Bestaetigung einer vom Bot im "Titel -- Beschreibung -- Besetzung"-
+#: Format aufgelisteten Szenenfolge. Seit Padua Quickfix 08.10.2026 (Punkt
+#: 1) zwei weitere: stagescript_notiz gegen eine noch nicht gezeigte Szene,
+#: und die Abgrenzung zu text_ueberarbeiten fuer eine schon gezeigte.
+FEW_SHOTS_ERKENNER_EN = 22
 
 
 def test_erkenner_behaelt_seine_few_shots(padua):
@@ -335,13 +357,15 @@ def test_erkenner_en_zaehlt_seine_arten_richtig(padua):
     """Nachbesserung: 'twenty-six kinds' und 26 fortlaufende Nummern (seit
     Padua Phasen TEIL 1, 03.10.2026: uebersicht_aendern kam dazu, vorher
     'twenty-five kinds'; seit Padua Phasen TEIL 2, Task 10: die fuenf
-    Arten 27-31, 'thirty-one kinds')."""
+    Arten 27-31, 'thirty-one kinds'; seit Karte t_c5117c91: recherche_starten
+    als Punkt 32, 'thirty-two kinds'; seit Padua Quickfix 08.10.2026 (Punkt
+    1): stagescript_notiz als Punkt 33, 'thirty-three kinds')."""
     import re
 
     roh = anweisungen.hole("erkenner")
     nummern = [int(n) for n in re.findall(r"(?m)^(\d+)\.\s+[a-z_]+\s+--", roh)]
-    assert nummern == list(range(1, 32))
-    assert "exactly thirty-one kinds" in roh
+    assert nummern == list(range(1, 34))
+    assert "exactly thirty-three kinds" in roh
 
 
 # --- Aufgabe 20: die Szene auf Englisch (szene, theater-tells, formen/*,

@@ -1,0 +1,137 @@
+[
+  {
+    "kategorie": "b",
+    "datei": "30-szene-chor",
+    "zeile": 285,
+    "zitat": "# Form: Dialogue — spoken scene (script by the Herkules measure)",
+    "regel": "same file, user part line 717: \"Rewrite scene 1. Make it a chor.\" (and line 700 \"Form: chor\")",
+    "vorschlag": "Replace the loaded form block: the driver must insert the Chorus rule block here, exactly as 29-szene-monolog inserts Monologue and 32-szene-rap inserts Rap. As it stands the model is given 'write a spoken scene, no choreography' rules for a chorus and the group gets a dialogue back.",
+    "phase": 7
+  },
+  {
+    "kategorie": "b",
+    "datei": "31-szene-lied",
+    "zeile": 285,
+    "zitat": "# Form: Dialogue — spoken scene (script by the Herkules measure)",
+    "regel": "same file, user part line 718: \"Rewrite scene 1. Make it a lied.\"",
+    "vorschlag": "Load the Song form block instead of the Dialogue block (bug in the form lookup: 'chor' and 'lied' fall back to 'dialog'). Without it a song is written as spoken dialogue with 700-1,500 word targets.",
+    "phase": 7
+  },
+  {
+    "kategorie": "a",
+    "datei": "27-sprechweise",
+    "zeile": 5,
+    "zitat": "Base it on the speech profile and the quotes if there are any, otherwise on the description.",
+    "regel": "UX rule 1: \"Content comes from the participants.\" / \"Bot suggestions are the last resort, not the opener\" -- the group had just said in the chat (09-gespraech-phase7, line 638): \"short sentences, he corrects himself, drops into his first language\"",
+    "vorschlag": "Pass the group's own chat sentences about each character into this user part as 'Way of speaking (said by the group): ...' and let the model only fill characters about which the group said nothing. Otherwise the bot invents Samir's way of speaking one turn after the group defined it.",
+    "phase": 7
+  },
+  {
+    "kategorie": "b",
+    "datei": "34-stueckpruefung",
+    "zeile": 74,
+    "zitat": "Scene 3: Socks on the floor (dialog)",
+    "regel": "09-gespraech-phase7 line 636: \"You: Then scene 3 is a chorus. I have the forms for all three.\" and system line 12 \"number, title, form and the full text\"",
+    "vorschlag": "Build the form label per scene from the saved forms (scene 3 = chor), not a hard-coded 'dialog'. Otherwise the final check judges the chorus as if it were a dialogue and its verdict contradicts what the group decided.",
+    "phase": 7
+  },
+  {
+    "kategorie": "c",
+    "datei": "29-szene-monolog",
+    "zeile": 595,
+    "zitat": "[MITSCHNITT]",
+    "regel": "line 594 \"Previous text of this scene, to be revised:\" -- the placeholder is sent to the model (same in 30 line 714, 31 line 715, 32 line 627)",
+    "vorschlag": "Either fill in the real previous scene text or drop the whole 'Previous text of this scene, to be revised:' block when there is none; never send the literal token [MITSCHNITT] as the text to be revised.",
+    "phase": 7
+  },
+  {
+    "kategorie": "b",
+    "datei": "09-gespraech-phase7",
+    "zeile": 468,
+    "zitat": "1. **The forms, in one answer.** The group sees the list of its scenes and",
+    "regel": "same file line 502: \"exactly one field per message: first the one, then in the next message the next.\" and line 128 \"**One field, one topic, ONE message.**\"",
+    "vorschlag": "Make the exception explicit in the phase block: 'The forms are the one exception to one-field-per-message: ask for all scenes at once.' Or delete the 'in one answer' demand. As written the bot cannot obey both lines.",
+    "phase": 7
+  },
+  {
+    "kategorie": "b",
+    "datei": "28-szene-dialog",
+    "zeile": 700,
+    "zitat": "Who: Samir",
+    "regel": "same file line 711 \"ELENA: And you still have not ordered anything.\" and system line 112: \"If **characters** are given, exactly these take part.\"",
+    "vorschlag": "Fill the 'Who' field from the saved cast of the scene (Samir and Elena). As it stands the model must either delete Elena from the existing text or break the binding 'Who' field.",
+    "phase": 7
+  },
+  {
+    "kategorie": "b",
+    "datei": "09-gespraech-phase7",
+    "zeile": 424,
+    "zitat": "so in ONE sentence and point to the button \"View scene N\" or",
+    "regel": "same file line 564: \"wants to read a scene text, point to the Script tab instead of typing out\"",
+    "vorschlag": "Decide on one answer for 'read us scene 2' and delete the other: either the buttons \"View scene N\"/\"Script as a file\" (lines 424-425) or the Script tab (line 564). Right now the bot names a button in one turn and a tab in the next.",
+    "phase": 7
+  },
+  {
+    "kategorie": "b",
+    "datei": "09-gespraech-phase7",
+    "zeile": 612,
+    "zitat": "Only character names from the list above and interview names from the summaries.",
+    "regel": "same file, user part line 576: \"Characters and scenes come from the story and this selection, not from the interviews (they are deliberately no longer available to you here word for word)\" -- no summaries and no interview names are in this context",
+    "vorschlag": "Either include the interview names/summaries in the phase-7 context or delete the whole interview-assignment block (line 612) from phase 7; as it is, the bot is told to name sources it cannot see, against line 200 \"Invent nothing that isn't in the material.\"",
+    "phase": 7
+  },
+  {
+    "kategorie": "b",
+    "datei": "28-szene-dialog",
+    "zeile": 660,
+    "zitat": "These lengths apply. Any other length given in the rules below is overridden.",
+    "regel": "the overridden rule stands in the SYSTEM part above, line 309: \"**A scene has 700 to 1,500 words.**\"",
+    "vorschlag": "Change the wording to 'Any other length in the system instruction is overridden' (or move the length line to the end of the user part). 'below' points at nothing in the user part, so the model may keep the 700-1,500 word range against the 250-word order.",
+    "phase": 7
+  },
+  {
+    "kategorie": "d",
+    "datei": "09-gespraech-phase7",
+    "zeile": 591,
+    "zitat": "Scene 1: The bench - Samir waits and rehearses his order.",
+    "regel": "context structure: saved work status must be complete and unambiguous -- the group's live question is \"when do we see the whole script?\" (line 642)",
+    "vorschlag": "Add per-scene status to the Progress block: for each scene 'form: dialog (saved)' / 'stage text: open', and one line 'stage texts saved: 0 of 3'. Without it the bot cannot say where the group stands, although the phase block (line 479) orders it to say \"scene 2 of 4\".",
+    "phase": 7
+  },
+  {
+    "kategorie": "d",
+    "datei": "09-gespraech-phase7",
+    "zeile": 623,
+    "zitat": "You: Then you see the CoThinker tab. Nothing is lost if you close it.",
+    "regel": "context structure: history should be cut where the current work starts (the phase-7 work begins at line 633 'scene 1 dialogue, scene 2 dialogue, scene 3 chorus')",
+    "vorschlag": "Cut the history at the phase switch: drop the eight phase-1 onboarding turns (lines 623-632) and keep the turns from line 633 on. They eat half the history and invite the bot to answer tab/day questions again.",
+    "phase": 7
+  },
+  {
+    "kategorie": "d",
+    "datei": "09-gespraech-phase7",
+    "zeile": 603,
+    "zitat": "The CoThinker board -- the terms the group sees live on the second phone, ranked (the saved terms are the ones under Terms above). Refer to it; take changes (a misheard term, a different order, a missing term) in the chat:",
+    "regel": "context structure: summaries/boards must not be outdated, and order/weight must fit the phase (phase 7 works on forms and scene texts)",
+    "vorschlag": "From phase 5 on, drop the CoThinker board and the listened-in discussion (lines 603-610) or move them below the Progress/current-scene block without the instruction 'Refer to it; take changes ... in the chat' -- in phase 7 that instruction pulls the bot back into term correction.",
+    "phase": 7
+  },
+  {
+    "kategorie": "d",
+    "datei": "28-szene-dialog",
+    "zeile": 692,
+    "zitat": "Group: when do we see the whole script?",
+    "regel": "context structure: the chat excerpt in a writing job should contain only turns about this scene; bot lines and questions addressed to the chat bot do not belong there",
+    "vorschlag": "Filter the chat block for the scene job: keep the turns about forms and ways of speaking, drop the bot's own 'You:' lines and the open questions to the bot (lines 675-684, 692). Otherwise the writing model is asked a question it must answer inside the scene text.",
+    "phase": 7
+  },
+  {
+    "kategorie": "d",
+    "datei": "09-gespraech-phase7",
+    "zeile": 619,
+    "zitat": "- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.",
+    "regel": "context structure: no duplicates -- the same statement already stands at line 600 \"- waiting (double meaning: empty time and what fills it)\" and line 608 \"[discussion] we keep coming back to waiting. everybody waited for something\"",
+    "vorschlag": "Keep the term reasons in exactly one place: delete the term entries from the journal (line 619) once 'Why you chose these terms' is in the context, so the same sentence does not reach the model three times.",
+    "phase": 7
+  }
+]

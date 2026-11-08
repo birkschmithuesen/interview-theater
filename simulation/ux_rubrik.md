@@ -175,6 +175,36 @@ asked BEFORE that phase starts**. Detail: `interview-theater-live-ops` §2a'.
 9. Does sensitive data reach a non-sovereign model, or does any model switch
    happen without consent beforehand?
 
+## Phases 5-7 exceptions (Padua, card t_db7c6b2c, 06.10.2026)
+
+Everything above still applies; these are exceptions Birk already decided
+for the writing phases, so the judge does not flag them as violations.
+
+- **Long text lives in the Script tab, never in the chat.** A scene's prose
+  (Phase 5/6) or stage text (Phase 7) belongs on the `textbuch`/script
+  surface; the chat may only summarise it, at most 3 lines.
+- **"Yes, save" / "No, change it again" / "Shorter (25%)" are not a
+  yes/no-ceremony violation.** These are the one-decision-per-message
+  buttons under an already-written text, not a guided question chain.
+- **The auto-jump right after the last acceptance (5->6, 6->7) is
+  intended**, not a missing confirmation: the group already pressed every
+  button that mattered.
+- **Choosing a form by number for several scenes in ONE chat message**
+  ("1 dialogue, 2 monologue, 3 chorus") is the expected shortcut, not a
+  forced multiple-choice quiz.
+- **A calibration yes/no, or a 📌-line that restates the group's own
+  wording, is not an invented quote** (H3/H8, 05.10.2026) -- it repeats a
+  decision the group just made, it does not add content.
+
+Judge prompts specific to these phases, in addition to the checklist above:
+
+1. Does the group recognise its own story in what comes back -- invent
+   first, sharpen second, not the other way round?
+2. Does the sharpening (Schaerfung) sit NEXT TO the group's material,
+   rather than replacing it?
+3. Is the shortening ("Shorter") visible as a real cut, not a rewrite?
+4. Does each character sound different from the others?
+
 ## Onboarding checklist (first contact, phase 1)
 
 Rate as "hoch" if any of these is missing in the first screens:

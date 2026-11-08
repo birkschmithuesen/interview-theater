@@ -10,6 +10,17 @@ import pytest
 from scripts import laengen_probe
 
 
+@pytest.fixture(autouse=True)
+def _ohne_karten(monkeypatch):
+    """Diese Tests pruefen den Padua-Weg mit Formlauf in Phase 7 -- seit dem
+    Phasenumbau (Birk 07.10.2026 ~18:12) das Verhalten OHNE
+    ``[karten] aktiv``; das Stage Script steht in ``tests/test_stagescript.py``."""
+    from interview_theater import workshop as _workshop
+
+    monkeypatch.setattr(_workshop, "szenenkarten_aktiv", lambda *a, **k: False)
+
+
+
 def test_die_texte_der_attrappe_sind_alle_auffaellig():
     """Die Probe taugt nur, wenn ihr Material wirklich etwas ausloest -- sonst
     beweist eine leere Tabelle gar nichts."""

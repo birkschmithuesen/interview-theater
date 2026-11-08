@@ -47,6 +47,13 @@ IT_WEB_URL=https://lab.artesmobiles.art/theatersoap
 IT_SZENE_ANBIETER=claude
 # IT_SZENE_URL=http://127.0.0.1:28764/v1/messages
 # IT_SZENE_MODELL=claude-opus-5
+# Eigenes Modell fuer die Schaerfung (Phase 5, Birk/Robo 07.10.2026):
+# unabhaengig von IT_SZENE_MODELL (das die Gruppe fuer das Gespraech z. B.
+# auf claude-sonnet-5 stellen kann) -- die Schaerfung soll immer auf Opus
+# laufen.
+# IT_SCHAERFUNG_MODELL=claude-opus-5
+# CoThinker-Karte eigenes Modell (leer = IT_SZENE_MODELL):
+# IT_BUEHNE_MODELL=claude-sonnet-5
 
 # --- Deckel, die ohne Neustart wirken sollen ------------------------------
 # Beide sind Notschrauben fuer den Workshoptag und haben brauchbare
@@ -78,9 +85,19 @@ IT_SZENE_ANBIETER=claude
 # Deckel". Wird beim Start gelesen (Neustart des Bots).
 # IT_KOSTEN_DECKEL_CHF=5.0
 #
+# Erkenner-Modus (Messung 2): json (Vorgabe) oder tools. tools wirkt nur
+# mit [erkenner] ueber_claude; Undo deckt Stueck-Schritte nicht ab. Nicht
+# in Live-Envs setzen, solange die Messung keine Zahlen liefert.
+# IT_ERKENNER_MODUS=json
+#
 # Wonach sich "heute" richtet (Mitternacht dieser Zone setzt den Deckel
 # zurueck). Padua: Europe/Rome.
 # IT_ZEITZONE=Europe/Rome
+
+# Nach so vielen Minuten ohne neue Aufnahme beendet sich ein haengender
+# Interviewmodus von selbst (aufnahme.pruefe_auto_ende), derselbe Weg wie
+# /fertig. Vorgabe 10.
+# IT_INTERVIEW_AUTO_ENDE_MIN=10
 
 # --- Nur fuer den Webdienst, nicht fuer einen Bot-Prozess -----------------
 # Diese beiden liest ausschliesslich `python -m interview_theater.web`; sie
@@ -121,6 +138,12 @@ IT_KANAL=telegram
 # will, setzt ihn in der Env der Web-Unit. Nur im Test verkuerzt (tests/e2e).
 # IT_WEB_SEGMENT_MS=45000
 #
+# --- Internet-Recherche (06.10.2026, Karte InScribe) -----------------------
+# Loopback-Such-Broker (eigener Prozess, siehe deploy/search-broker/ im
+# Profil-Repo). Nur aktiv, wenn das Workshop-Profil recherche.aktiv=true
+# Vorgabe passt zum Broker-Port 8790, meist nicht setzen.
+# IT_SUCHE_URL=http://127.0.0.1:8790/search
+
 # Der Webserver legt Uploads unter IT_AUDIO/<chat_id>/web-eingang/ ab, der
 # Web-Bot holt sie dort ab und verweigert jeden Pfad ausserhalb SEINES
 # IT_AUDIO. Web-Unit und Web-Bots muessen deshalb auf dasselbe Verzeichnis

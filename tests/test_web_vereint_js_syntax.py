@@ -58,10 +58,22 @@ def _baue_seite(tmp_path, chat_id: int = 1) -> str:
     )
 
 
+def _alle_skripte(html: str) -> list[str]:
+    """Jeder ``<script>``-Block einzeln (nicht-gierig) -- seit der
+    Sprachwahl im Script-Tab (Birk 08.10.2026 ~11:50) traegt die Seite
+    einen zweiten, kleinen Inline-Block zusaetzlich zu ``_VEREINT_JS``; ein
+    gieriger Regex ueber ALLE Bloecke hinweg riss sonst HTML zwischen den
+    beiden Scripts mit ins vermeintliche JS."""
+    treffer = re.findall(r"<script>(.*?)</script>", html, re.DOTALL)
+    assert treffer, "kein <script> in der Seite"
+    return treffer
+
+
 def _skript(html: str) -> str:
-    treffer = re.search(r"<script>(.*)</script>", html, re.DOTALL)
-    assert treffer is not None, "kein <script> in der Seite"
-    return treffer.group(1)
+    """Das groesste Script-Block -- traegt ``_VEREINT_JS`` samt
+    Phasentexten; kleine Inline-Skripte (Sprachwahl) sind eigene, kuerzere
+    Bloecke und nicht das, was dieser Helfer liefern soll."""
+    return max(_alle_skripte(html), key=len)
 
 
 def test_die_englischen_phasentexte_stehen_json_kodiert_im_skript(tmp_path, padua):
@@ -84,14 +96,14 @@ def test_das_skript_der_vereinten_seite_ist_gueltiges_javascript(tmp_path, padua
     node = shutil.which("node")
     if node is None:
         pytest.skip("kein node auf PATH")
-    skript = _skript(_baue_seite(tmp_path))
     # ``tmp_path`` statt ``tempfile.NamedTemporaryFile(delete=False)``: die
     # Datei liegt im ohnehin von pytest aufgeraeumten Testverzeichnis, statt
     # dauerhaft im System-Temp liegen zu bleiben (Nach-Review, Befund 3).
-    js_pfad = tmp_path / "skript-en.js"
-    js_pfad.write_text(skript)
-    lauf = subprocess.run([node, "--check", str(js_pfad)], capture_output=True, text=True)
-    assert lauf.returncode == 0, lauf.stderr
+    for i, skript in enumerate(_alle_skripte(_baue_seite(tmp_path))):
+        js_pfad = tmp_path / f"skript-en-{i}.js"
+        js_pfad.write_text(skript)
+        lauf = subprocess.run([node, "--check", str(js_pfad)], capture_output=True, text=True)
+        assert lauf.returncode == 0, lauf.stderr
 
 
 def test_das_deutsche_skript_bleibt_ebenfalls_gueltiges_javascript(tmp_path):

@@ -275,6 +275,73 @@ def test_nachhol_schleife_ruft_nachholen_auf_und_endet_mit_dem_event(conn, einst
     assert aufrufe == [1]
 
 
+# ---------------------------------------------------------------------------
+# Nachtlauf 07.10.2026 (Birk): web_post 1808-1811 -- die Gruppe beschrieb drei
+# Szenen und bestaetigte die Zusammenfassung des Bots ("Esattamente giusto"),
+# aber gemma warf zweimal in Folge einen ReadTimeout (aufruf 1842/1844).
+# erkenner.erkenne() laesst das Wasserzeichen bei einem Fehlschlag bewusst
+# stehen (test_erkenner.test_fehlschlag_laesst_wasserzeichen_stehen_und_schreibt_vorfall)
+# -- ein "kostenloser Wiederholungsversuch beim naechsten Lauf". Nur: ohne
+# eine weitere Nachricht der Gruppe gab es diesen naechsten Lauf nie, der Zug
+# war endgueltig verloren. _erkenner_nachholen() ist dieser naechste Lauf,
+# unabhaengig von einer neuen Nachricht.
+# ---------------------------------------------------------------------------
+
+def test_erkenner_nachholen_ruft_laufe_fuer_jede_gruppe_des_bots_auf(conn, einst, monkeypatch):
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Gruppe 1")
+    repo.sichere_gruppe(conn, -200, einst.bot_name, "Gruppe 2")
+    aufrufe = []
+    monkeypatch.setattr(
+        bot.erkenner, "laufe",
+        lambda klm, tg, conn_, e_, chat_id: aufrufe.append(chat_id),
+    )
+
+    bot._erkenner_nachholen(conn, object(), object(), einst)
+
+    assert sorted(aufrufe) == [-200, -100]
+
+
+def test_erkenner_nachholen_fehlschlag_einer_gruppe_stoppt_die_andere_nicht(conn, einst, monkeypatch):
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Gruppe 1")
+    repo.sichere_gruppe(conn, -200, einst.bot_name, "Gruppe 2")
+    aufrufe = []
+
+    def laufe_mit_fehlschlag(klm, tg, conn_, e_, chat_id):
+        aufrufe.append(chat_id)
+        if chat_id == -100:
+            raise RuntimeError("kaputt")
+
+    monkeypatch.setattr(bot.erkenner, "laufe", laufe_mit_fehlschlag)
+
+    bot._erkenner_nachholen(conn, object(), object(), einst)
+
+    assert sorted(aufrufe) == [-200, -100]
+
+
+def test_nachhol_schleife_ruft_auch_erkenner_nachholen_auf(conn, einst, monkeypatch):
+    """Derselbe Takt wie aufnahme.nachholen (NACHHOL_INTERVALL_S) -- sonst
+    bleibt ein gescheiterter Erkennerlauf liegen, bis die Gruppe zufaellig
+    noch eine Nachricht schickt (siehe Modulkommentar oben)."""
+    aufrufe = []
+    stop = threading.Event()
+
+    monkeypatch.setattr(bot.aufnahme, "nachholen", lambda *a, **kw: aufrufe.append("aufnahme"))
+    monkeypatch.setattr(
+        bot, "_erkenner_nachholen",
+        lambda *a, **kw: (aufrufe.append("erkenner"), stop.set()),
+    )
+
+    thread = threading.Thread(
+        target=bot._nachhol_schleife,
+        args=(stop, conn, einst, object(), object(), object()),
+    )
+    thread.start()
+    thread.join(timeout=5)
+
+    assert not thread.is_alive(), "die Schleife muss nach dem gesetzten Event enden"
+    assert aufrufe == ["aufnahme", "erkenner"]
+
+
 def test_uebersetzungs_schleife_ruft_aktualisiere_fuer_bot_auf_und_endet_mit_dem_event(
     conn, einst, monkeypatch,
 ):
@@ -396,8 +463,11 @@ def test_erstkontakt_sendefehlschlag_wird_nur_geloggt(conn, einst):
     assert not repo.hat_bot_nachricht(conn, -100)
 
 
-def test_begruessung_faellig_nach_ueber_zwei_stunden():
-    letzte = (JETZT - timedelta(hours=3)).isoformat()
+def test_begruessung_faellig_nach_ueber_vier_stunden():
+    # Schwelle seit 06.10.2026 bei vier Stunden (Padua-Dauerbetrieb,
+    # Hotfix-Neustarts alle 25-90 Minuten) -- drei Stunden reichen seither
+    # nicht mehr, fuenf schon.
+    letzte = (JETZT - timedelta(hours=5)).isoformat()
     assert bot.begruessung_faellig(letzte, JETZT) is True
 
 
@@ -720,3 +790,26 @@ def test_neue_knopfarten_laufen_durch_die_update_schleife(conn, einst):
     assert repo_modul.hole_szene(conn, szene_id)["form"] == "lied"
     # Der bool-Fall: "nein" ist False, nicht ein wahrer String.
     assert repo_modul.szene_usa_stand(conn, chat_id) == "nein"
+
+
+def test_sende_wiederkehr_begruessungen_padua_schweigt(conn, einst, monkeypatch):
+    """Birk 08.10.2026: in Padua keine "I'm back"-Zeile mit Einstiegsknoepfen
+    nach Neustart (in Phase 5-7 falsch, nach jedem Autodeploy doppelt)."""
+    from interview_theater import workshop
+    monkeypatch.setattr(workshop, "wiederkehr_aktiv", lambda profil=None: False)
+    repo.sichere_gruppe(conn, -100, einst.bot_name, "Alte Gruppe")
+    repo.merke_nachricht(
+        conn, -100, 1, "Ada", 0, "text", "gestern",
+        (JETZT - timedelta(hours=5)).isoformat(),
+    )
+    tg = TelegramAttrappe()
+
+    bot.sende_wiederkehr_begruessungen(conn, tg, einst, JETZT)
+
+    assert tg.gesendet == []
+
+
+def test_padua_profil_schaltet_wiederkehr_ab():
+    from interview_theater import workshop
+    assert workshop.wiederkehr_aktiv(workshop.lade("padua-2026")) is False
+    assert workshop.wiederkehr_aktiv(workshop.lade("dortmund-2026")) is True

@@ -115,6 +115,7 @@ def baue_nutzertext_uebersicht(conn, chat_id: int, notiz: str | None = None) -> 
     anzahl = (stand["szenen_anzahl"] or "").strip() if stand else ""
     if anzahl:
         zeilen.append(f"Number of scenes: {anzahl}")
+    zeilen.extend(_voll_bloecke(conn, chat_id))
     bisherige = (stand["geschichte_uebersicht"] or "").strip() if stand else ""
     if bisherige:
         zeilen.append("Previous overview (for reference, to be replaced):")
@@ -139,6 +140,46 @@ def baue_anzeige(ergebnis: dict) -> str:
     for i, satz in enumerate(ergebnis.get("szenen_was_passiert") or [], start=1):
         zeilen.append(f"{i}. {satz.strip()}")
     return "\n".join(zeilen)
+
+
+def _voll_bloecke(conn, chat_id: int) -> list[str]:
+    """Padua (Birk 07.10.2026 ~16:10): die Uebersicht/Logline soll auch dann
+    sinnvoll werden, wenn die Gruppe im CoThinker NICHT alles durchklickt,
+    sondern im Chat ueber die Interviews redet -- "der Chat ist das Wertvolle
+    fuer die Logline". Zusaetzlich: Szenen mit Titel und was passiert, die
+    Festlegungen, die uebernommenen Interviewstellen und das ganze
+    Phase-5-Gespraech (``szene._p5_gespraech_text``, Claude-Grenze). Nur unter
+    ``workshop.vollmaterial_phase5_aktiv`` (Padua); sonst leer, Dortmund
+    byte-gleich."""
+    from interview_theater import kontext, szene, workshop
+
+    if not workshop.vollmaterial_phase5_aktiv():
+        return []
+    bloecke: list[str] = []
+    szenen = sorted(repo.hole_szenen(conn, chat_id), key=lambda z: z["nummer"] or 0)
+    if szenen:
+        teile = ["Scenes the group has laid out (keep their number, titles and order):"]
+        for z in szenen:
+            was = (z["was_passiert"] or z["kurzbeschreibung"] or "").strip()
+            teile.append(f"{z['nummer']}. {z['titel'] or ''}" + (f" -- {was}" if was else ""))
+        bloecke.append("\n".join(teile))
+    fest = [repo.festlegungszeile(f["bereich"], f["bezug"], f["text"])
+            for f in repo.festlegungen(conn, chat_id)]
+    if fest:
+        bloecke.append("Agreed by the group:\n" + "\n".join(f"- {f}" for f in fest))
+    stellen = [z for z in repo.schaerfungen(conn, chat_id) if z["uebernommen_am"]]
+    if stellen:
+        teile = ["Interview passages the group accepted (with interview number):"]
+        for z in stellen[:80]:
+            name = kontext.interviewbezeichnung(conn, chat_id, z["aufnahme_id"])
+            teile.append(f'- {name}: {z["thema"]} -- "{z["zitat"]}"')
+        bloecke.append("\n".join(teile))
+    gespraech = szene.p5_gespraech_block(conn, chat_id, ueber_claude=True)
+    if gespraech:
+        bloecke.append(gespraech + "\n(This conversation is the most valuable source for the "
+                       "logline and the scene lines: what the group said about the interviews, "
+                       "which voices and themes they chose. Condense it -- don't invent.)")
+    return bloecke
 
 
 def generiere_uebersicht(klm, conn, e, chat_id: int, notiz: str | None = None) -> dict:
@@ -192,6 +233,68 @@ def _lauf(conn, tg, klm, e, chat_id: int, notiz: str | None,
         sperre.release()
 
 
+#: Die eine Infozeile der stillen Uebersicht (Birk 07.10.2026 ~16:20).
+_TEXT_LOGLINE_STILL = ("Ich habe eure Logline notiert: {logline}\n"
+                       "Wenn sie anders sein soll, sagt es mir einfach.")
+
+
+def braucht_stille_uebersicht(conn, chat_id: int) -> bool:
+    """Phase 5 (Padua), Uebersicht nicht abgenommen, und die Gruppe laesst
+    schon Szenen schreiben -- dann fehlt die Logline sonst ganz."""
+    from interview_theater import phasen, workshop
+
+    if not (workshop.prosa_entwurf_aktiv() and workshop.vollmaterial_phase5_aktiv()):
+        return False
+    if phasen.aktuelle(conn, chat_id) != 5:
+        return False
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    return not (stand is not None and (stand["geschichte_uebersicht_fixiert_am"] or "").strip())
+
+
+def _lauf_still(conn, tg, klm, e, chat_id: int, sperre: threading.Lock) -> None:
+    """Wie ``_lauf``, aber ohne Arbeitszeilen und ohne Knoepfe: Uebersicht
+    erzeugen, als abgenommen markieren, EINE Infozeile mit der Logline.
+    Szenenfelder werden NICHT ueberschrieben (die Gruppe arbeitet schon an
+    den Szenen)."""
+    try:
+        ergebnis = generiere_uebersicht(klm, conn, e, chat_id)
+        anzeige = baue_anzeige(ergebnis)
+        repo.setze_arbeitsstand(conn, chat_id, "geschichte_uebersicht", anzeige)
+        repo.setze_arbeitsstand(conn, chat_id, "geschichte_uebersicht_szenen",
+                                "\n".join(ergebnis.get("szenen_was_passiert") or []))
+        repo.setze_arbeitsstand(conn, chat_id, "geschichte_uebersicht_fixiert_am", repo._jetzt())
+        repo.schreibe_journal(conn, chat_id, "entschieden",
+                              f"Story overview noted in the background ({len(anzeige)} chars)",
+                              quelle="entwurf")
+        logline = (ergebnis.get("logline") or "").strip()
+        if logline:
+            tg.sende(chat_id, T._TEXT_LOGLINE_STILL.format(logline=logline), system=True)
+    except Exception:
+        log.exception("Stille Uebersicht fehlgeschlagen, chat_id=%s", chat_id)
+        repo.merke_vorfall(conn, chat_id, getattr(e, "bot_name", None),
+                           "entwurf_uebersicht_fehlgeschlagen", "Stille Uebersicht fehlgeschlagen")
+    finally:
+        sperre.release()
+
+
+def starte_stille_uebersicht(conn, tg, klm, e, chat_id: int):
+    """Stoesst ``_lauf_still`` im Thread an, wenn ``braucht_stille_uebersicht``.
+    Teilt die Sperre mit ``starte_uebersicht`` -- nie zwei Uebersichtslaeufe."""
+    if klm is None or not braucht_stille_uebersicht(conn, chat_id):
+        return None
+    sperre = _sperre_fuer(chat_id)
+    if not sperre.acquire(blocking=False):
+        return None
+    try:
+        thread = threading.Thread(target=_lauf_still, args=(conn, tg, klm, e, chat_id, sperre),
+                                  daemon=True)
+        thread.start()
+    except Exception:
+        sperre.release()
+        raise
+    return thread
+
+
 def uebernimm_szenenfelder(conn, chat_id: int) -> None:
     """Stufe A -> B: jede Szene bekommt ihre Pflichtfelder aus der
     Uebersicht, sofern sie noch leer sind. ``form`` bleibt aussen vor -- das
@@ -206,6 +309,8 @@ def uebernimm_szenenfelder(conn, chat_id: int) -> None:
     Padua Phasen TEIL 1 -- das Schema liefert keine Besetzung je Szene, um
     flach zu bleiben). Alle drei sind ueber die Gruppenseite danach
     aenderbar."""
+    from interview_theater import stueck
+
     stand = repo.hole_arbeitsstand(conn, chat_id)
     if stand is None:
         return
@@ -213,7 +318,7 @@ def uebernimm_szenenfelder(conn, chat_id: int) -> None:
     anzahl_text = (stand["szenen_anzahl"] or "").strip()
     anzahl = int(anzahl_text) if anzahl_text.isdigit() else 0
     was_passiert_zeilen = (stand["geschichte_uebersicht_szenen"] or "").splitlines()
-    figuren_ids = [f["id"] for f in repo.figuren(conn, chat_id)]
+    figuren_namen = [f["name"] for f in repo.figuren(conn, chat_id)]
     for nummer in range(1, anzahl + 1):
         szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
         zeile = repo.hole_szene(conn, szene_id)
@@ -222,9 +327,12 @@ def uebernimm_szenenfelder(conn, chat_id: int) -> None:
             if satz:
                 repo.setze_szenenfeld(conn, szene_id, "was_passiert", satz)
         if not (zeile["ort"] or "").strip() and rahmen:
-            repo.setze_szenenfeld(conn, szene_id, "ort", rahmen)
-        if not repo.szene_figuren(conn, szene_id) and figuren_ids:
-            repo.setze_szene_figuren(conn, chat_id, szene_id, figuren_ids)
+            stueck.setze_ort(conn, chat_id, szene=nummer, ort=rahmen,
+                             quelle=stueck.QUELLE_PLANUNG)
+        if not repo.szene_figuren(conn, szene_id) and figuren_namen:
+            stueck.setze_besetzung(conn, chat_id, szene=nummer, namen=figuren_namen,
+                                   zusatz=repo.hole_szene(conn, szene_id)["wer_zusatz"],
+                                   quelle=stueck.QUELLE_PLANUNG)
 
 
 def erste_offene_szene(conn, chat_id: int) -> int | None:
@@ -280,7 +388,11 @@ def bestaetige_szene(conn, tg, klm, e, chat_id: int, nummer: int) -> str:
     if naechste is not None:
         szene.starte(conn, tg, klm, e, chat_id, _AUFTRAG_PROSA.format(nummer=naechste))
         return knoepfe.T._TEXT_NAECHSTE_SZENE_WIRD_GESCHRIEBEN
-    phasen.setze(conn, chat_id, 6, "entwurf", notiz="alle Szenen entworfen")
+    verlassene_phase = phasen.aktuelle(conn, chat_id)
+    if phasen.setze(conn, chat_id, 6, "entwurf", notiz="alle Szenen entworfen"):
+        from interview_theater import phasen_summary
+
+        phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, verlassene_phase)
     knoepfe.eintritt_in_phase(conn, tg, klm, e, chat_id, 6)
     return knoepfe.T._TEXT_ALLE_SZENEN_ENTWORFEN
 
@@ -304,3 +416,7 @@ def starte_uebersicht(conn, tg, klm, e, chat_id: int, notiz: str | None = None):
         sperre.release()
         raise
     return thread
+
+
+from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
+T = sprache.Texte(__name__)

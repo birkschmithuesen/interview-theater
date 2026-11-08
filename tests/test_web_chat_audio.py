@@ -278,7 +278,7 @@ def test_das_json_post_limit_gilt_fuer_audio_nicht(aufbau):
 
 def _lade_mit_grund(basis, token, koerper: bytes, *, grund=None, brainstorm=False,
                      diskussion=False, dauer=45, rede=None, kalibrierung=False,
-                     weichms=None):
+                     weichms=None, hintergrund=None):
     kennung = web.nonce(SCHLUESSEL, token)
     url = f"{basis}/g/{token}/chat/audio?nonce={kennung}&dauer={dauer}"
     if grund is not None:
@@ -293,6 +293,8 @@ def _lade_mit_grund(basis, token, koerper: bytes, *, grund=None, brainstorm=Fals
         url += "&kalibrierung=1"
     if weichms is not None:
         url += f"&weichms={weichms}"
+    if hintergrund is not None:
+        url += f"&hintergrund={hintergrund}"
     anfrage = urllib.request.Request(
         url, data=koerper, headers={"Content-Type": "audio/webm"}, method="POST",
     )
@@ -421,3 +423,35 @@ def test_ohne_kalibrierung_bleibt_sie_aus(aufbau):
     message_id = _lade_mit_grund(basis, token, WEBM)
     zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
     assert zeile["kalibrierung"] == 0
+
+
+# -- hintergrund-Metadatum (Karte t_1423ca89, Warnung "Aufnahme im          --
+# -- Hintergrund unterbrochen") ---------------------------------------------
+#
+# Dasselbe reine Diagnose-Metadatum wie redeMs/weichMs: wie viele ms die
+# Seite waehrend dieses Segments im Hintergrund war, nie ein Upload-Gate.
+
+
+def test_hintergrund_landet_im_web_post(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM, hintergrund="10400")
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["hintergrund_ms"] == 10400
+
+
+def test_ohne_hintergrund_bleibt_sie_leer(aufbau):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["hintergrund_ms"] is None
+
+
+@pytest.mark.parametrize("hintergrund", [
+    "abc", "-5", "", "9" * 50, "%C2%B2",
+])
+def test_kaputtes_hintergrund_wird_zu_leer_statt_den_upload_scheitern_zu_lassen(
+        aufbau, hintergrund):
+    basis, token, pfad, _audio = aufbau
+    message_id = _lade_mit_grund(basis, token, WEBM, hintergrund=hintergrund)
+    zeile = repo.hole_web_post(db.verbinde(pfad), message_id)
+    assert zeile["hintergrund_ms"] is None

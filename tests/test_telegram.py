@@ -28,13 +28,70 @@ def test_hole_updates_liefert_result():
 
 
 def test_sende_liefert_message_id():
+    """Ohne ``parse_mode``/``klartext`` rendert ``sende`` eine freie
+    Antwort selbst als leichtes Markdown (Karte t_cc147548, 07.10.2026) --
+    "hallo" traegt keine Markdown-Zeichen, bleibt also textlich gleich,
+    bekommt aber ``parse_mode="HTML"`` mit."""
     def handler(request: httpx.Request) -> httpx.Response:
         gesendet = json.loads(request.content)
-        assert gesendet == {"chat_id": -100, "text": "hallo"}
+        assert gesendet == {"chat_id": -100, "text": "hallo", "parse_mode": "HTML"}
         return httpx.Response(200, json={"ok": True, "result": {"message_id": 42}})
 
     bot = telegram.Telegram("T", _klient(handler))
     assert bot.sende(-100, "hallo") == 42
+
+
+def test_sende_ohne_markdown_wunsch_bleibt_reiner_text():
+    """Wer explizit reinen Text ohne Auszeichnung will, uebergibt
+    ``klartext=text`` selbst -- dann rendert ``sende`` nichts."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesendet = json.loads(request.content)
+        assert gesendet == {"chat_id": -100, "text": "**roh**"}
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 1}})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    bot.sende(-100, "**roh**", klartext="**roh**")
+
+
+def test_sende_rendert_freie_markdown_antwort_zu_html():
+    """Die freie Modellantwort (kein vorgebautes Menue) traegt jetzt
+    leichtes Markdown -- ``sende`` rendert es selbst zu Telegram-HTML und
+    liefert den Originaltext als Klartext-Rueckfall mit."""
+    gesehen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        gesehen["erst"] = json.loads(request.content)
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 7}})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    bot.sende(-100, "Schaut euch **Szene 2** an -- *kurz* gehalten.")
+
+    assert gesehen["erst"]["text"] == (
+        "Schaut euch <b>Szene 2</b> an -- <i>kurz</i> gehalten."
+    )
+    assert gesehen["erst"]["parse_mode"] == "HTML"
+
+
+def test_sende_rendert_markdown_faellt_bei_400_auf_klartext_zurueck():
+    """Lehnt Telegram die selbst gerenderte HTML-Fassung ab, geht der
+    unveraenderte Originaltext (mit Sternchen) als Klartext raus --
+    dieselbe Zusage wie beim vorgebauten Menue-HTML."""
+    aufrufe = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        aufrufe.append(body)
+        if body.get("parse_mode"):
+            return httpx.Response(400, json={"ok": False, "description": "Bad Request"})
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 9}})
+
+    bot = telegram.Telegram("T", _klient(handler))
+    message_id = bot.sende(-100, "**fett**")
+
+    assert message_id == 9
+    assert aufrufe[0]["text"] == "<b>fett</b>"
+    assert "parse_mode" not in aufrufe[1]
+    assert aufrufe[1]["text"] == "**fett**"
 
 
 def test_sende_datei_schickt_ein_multipart_dokument():
@@ -365,6 +422,47 @@ def test_bereinige_steigt_nicht_aus_wenn_der_token_kein_string_ist():
         "Fehler bei https://api.telegram.org/bot<token>/sendMessage"
     )
     assert "GEHEIM123" not in telegram._bereinige(text, Fremd())
+
+
+# --- Leichtes Markdown freier Antworten (Karte t_cc147548, 07.10.2026) ---
+# Jeder Test nennt den Mutanten, den er faengt (Brief: "name the mutant"),
+# wie tests/test_buehne_markdown.py fuer die Web-Fassung derselben Regel.
+
+
+def test_leichtes_markdown_fett_wird_b():
+    """Mutant: ``_LEICHT_FETT.sub`` entfernt -- ``**x**`` bliebe woertlich
+    stehen statt ``<b>x</b>``."""
+    assert telegram.leichtes_markdown("Das ist **wichtig**.") == "Das ist <b>wichtig</b>."
+
+
+def test_leichtes_markdown_kursiv_wird_i():
+    """Mutant: ``_LEICHT_KURSIV.sub`` entfernt -- ``*x*`` bliebe woertlich
+    stehen statt ``<i>x</i>``."""
+    assert telegram.leichtes_markdown("Das ist *betont*.") == "Das ist <i>betont</i>."
+
+
+def test_leichtes_markdown_fett_vor_kursiv_frisst_kein_sternpaar():
+    """Mutant: Reihenfolge Fett/Kursiv vertauscht -- die Kursiv-Regel griffe
+    zuerst auf die aeusseren Sterne eines Fett-Paares."""
+    ergebnis = telegram.leichtes_markdown("**fett** und *kursiv*")
+    assert ergebnis == "<b>fett</b> und <i>kursiv</i>"
+
+
+def test_leichtes_markdown_aufzaehlung_bleibt_klartext():
+    """Telegram-HTML kennt kein <ul>/<li> -- eine Aufzaehlungszeile bleibt
+    deshalb mit ihrem Bindestrich stehen, statt in Tags verwandelt zu
+    werden. Mutant: eine <ul>/<li>-Umwandlung wuerde Telegram mit 400
+    ablehnen."""
+    ergebnis = telegram.leichtes_markdown("- eins\n- zwei")
+    assert ergebnis == "- eins\n- zwei"
+
+
+def test_leichtes_markdown_maskiert_zuerst():
+    """Ein woertliches ``<script>`` im Modelltext darf kein HTML werden --
+    Mutant: Maskieren und Ersetzen vertauscht, dann waere das Escapen
+    wirkungslos (dieselbe Sicherheitspruefung wie bei ``_buehne_markdown``)."""
+    ergebnis = telegram.leichtes_markdown("<script>alert(1)</script> **fett**")
+    assert ergebnis == "&lt;script&gt;alert(1)&lt;/script&gt; <b>fett</b>"
 
 
 # --- HTML fuer Vorschlagsmenues (06.09.2026, Birk 11:05) ------------------

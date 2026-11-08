@@ -204,6 +204,13 @@ def test_arten_enthaelt_alle_werte():
         "formen_setzen",
         "sprechweise_setzen",
         "schaerfung_entscheidung",
+        # Karte t_c5117c91 (InScribe, 06.10.2026): profilgebunden ("recherche"),
+        # der freie Weg neben dem Research-Knopf.
+        "recherche_starten",
+        # Padua Quickfix (08.10.2026, Punkt 1): ein Wunsch zu einer
+        # Stage-Script-Szene (Phase 7, Kartenprofil), die nicht gerade mit
+        # "Yes, save" / "No, change it again" gezeigt wird.
+        "stagescript_notiz",
     }
     assert set(erkenner.ARTEN) == erwartet
 
@@ -391,6 +398,148 @@ def test_fragen_setzen_wirkt_wieder_sobald_die_stufe_vorbei_ist(conn, einst):
 
     assert wirkliche == [{"art": "fragen_setzen", "wert": "Neue Liste"}]
     assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "Neue Liste"
+
+
+def _sechzehn_fragen() -> list[str]:
+    return [f"Begriff{n}: Alte Frage {n}" for n in range(1, 17)]
+
+
+def test_fragen_setzen_aendert_nur_die_passende_zeile_bei_schrumpf(conn, einst):
+    """Live-Befund G3, 06.10.2026, Padua: "Aendere Frage 3" liess das Modell
+    nur die eine neue Frage als ``fragen_setzen``-Wert liefern, und das
+    ueberschrieb bisher die GANZE Liste (16 Fragen -> 1). Eine neue Zeile mit
+    demselben Thema wie eine vorhandene ersetzt jetzt nur diese eine Zeile."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    repo.setze_arbeitsstand(conn, 1, "fragen_herkunft_final", ",".join(["ki"] * 16))
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Begriff3: Neue Frage drei"}],
+    )
+
+    erwartet = list(alte)
+    erwartet[2] = "Begriff3: Neue Frage drei"
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(erwartet)
+    assert wirkliche == [{"art": "fragen_setzen", "wert": "Begriff3: Neue Frage drei"}]
+    # Herkunft-Laenge bleibt indexgleich -- kein Schrumpfen, keine Verschiebung.
+    assert repo.hole_arbeitsstand(conn, 1)["fragen_herkunft_final"] == ",".join(["ki"] * 16)
+
+
+def test_fragen_setzen_schrumpf_ohne_zuordnung_wird_verworfen(conn, einst):
+    """Eine einzelne neue Zeile, die zu KEINEM vorhandenen Thema passt, laesst
+    sich nicht einer alten Frage zuordnen -- geraten wird nicht. Verworfen,
+    mit Vorfall, statt die Liste zu kuerzen.
+
+    ``wirkliche`` ist nicht mehr leer (Befund A, Nachbesserung zu t_cdece8e2):
+    die Ablehnung liefert einen eigenen Marker, damit ``erkenner.laufe()``
+    die Gruppe im Chat nachfragen laesst statt stillzuschweigen."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    vor_dem_zug = repo._jetzt()
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Voellig neues Thema ohne Bezug"}],
+    )
+
+    assert wirkliche == [{"art": "fragen_schrumpf_verworfen"}]
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
+    assert repo.gab_es_vorfall_seit(
+        conn, 1, "fragen_schrumpf_verworfen", vor_dem_zug,
+    )
+
+
+def test_fragen_setzen_mehrzeiliger_schrumpf_ohne_entfernen_wird_verworfen(conn, einst):
+    """Mehr als eine Zeile UND trotzdem kuerzer als die bisherige Liste ist
+    keine erkennbare Einzelfrage-Aenderung -- auch das wird verworfen, nicht
+    geraten (Marker wie oben, Befund A)."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Begriff1: X\nBegriff2: Y"}],
+    )
+
+    assert wirkliche == [{"art": "fragen_schrumpf_verworfen"}]
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
+
+
+def test_fragen_setzen_gleiche_laenge_komplett_anderer_inhalt_ueberschreibt_normal(conn, einst):
+    """Mutationstest (Befund B, Boundary): GENAU so viele Zeilen wie vorher,
+    aber jede Zeile komplett neu, ist KEIN Schrumpf und muss normal
+    ueberschreiben -- nicht ueber den Ein-Zeilen-Zuordnungspfad laufen.
+    Dieser Test faengt eine Mutation von ``len(neue) >= len(alte)`` zu
+    ``len(neue) > len(alte)`` in ``_wende_fragen_schrumpf_geschuetzt``."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    neue = [f"Thema{n}: Ganz andere Frage {n}" for n in range(1, 17)]
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "\n".join(neue)}],
+    )
+
+    assert wirkliche == [{"art": "fragen_setzen", "wert": "\n".join(neue)}]
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(neue)
+
+
+def test_fragen_setzen_zweideutiges_thema_in_alter_liste_wird_verworfen(conn, einst):
+    """Mutationstest (Befund B, Mehrdeutigkeit): teilen sich ZWEI alte Zeilen
+    dasselbe Thema, ist eine neue Einzelzeile mit demselben Thema mehrdeutig
+    -- verworfen, nicht die erste alte Zeile geraten. Dieser Test faengt eine
+    Mutation von ``len(treffer) == 1`` zu ``len(treffer) >= 1`` in
+    ``_finde_ersetzte_zeile``."""
+    alte = _sechzehn_fragen()
+    alte[2] = "Begriff3: Frage A"
+    alte[5] = "Begriff3: Frage B"
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    vor_dem_zug = repo._jetzt()
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Begriff3: Neue Frage"}],
+    )
+
+    assert wirkliche == [{"art": "fragen_schrumpf_verworfen"}]
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
+    assert repo.gab_es_vorfall_seit(
+        conn, 1, "fragen_schrumpf_verworfen", vor_dem_zug,
+    )
+
+
+def test_fragen_setzen_entfernen_bleibt_unveraendert_voelliges_leeren(conn, einst):
+    """Der EXPLIZITE Entfernungspfad (``entfernen``-Art, eigener Weg in
+    ``_entferne_arbeitsstandfeld``) ist kein ``fragen_setzen`` und bleibt vom
+    Schrumpf-Schutz unberuehrt: "Fragen entfernen" leert weiterhin das ganze
+    Feld, wie schon vor dieser Karte."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1, [{"art": "entfernen", "wert": "Fragen"}],
+    )
+
+    assert wirkliche == [{"art": "entfernen", "wert": "Fragen"}]
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] is None
+
+
+def test_fragen_setzen_waehrend_einzeln_durchgehen_hat_vorrang_vor_schrumpf(conn, einst):
+    """Der aeltere Schutz (``knoepfe.einzeln_aktiv``) greift weiterhin zuerst
+    -- auch wenn die neue Zeile zufaellig zu einem Thema passen wuerde, wird
+    waehrend der Stufe "Fragen einzeln durchgehen" gar nichts geschrieben."""
+    alte = _sechzehn_fragen()
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    repo.setze_arbeitsstand(conn, 1, "fragen_aktuell", "3")
+
+    wirkliche = erkenner.wende_an(
+        conn, einst, 1,
+        [{"art": "fragen_setzen", "wert": "Begriff3: Neue Frage drei"}],
+    )
+
+    assert wirkliche == []
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
 
 
 def test_fragen_stehen_im_erkenner_kontext(conn, einst):
@@ -700,6 +849,27 @@ def test_laufe_sendet_meldung_und_schreibt_sie_als_bot_nachricht(conn, einst):
     ).fetchone()
     assert zeile is not None
     assert zeile["text"] == text
+
+
+def test_chat_bekommt_eine_antwort_wenn_schrumpf_abgelehnt_wird(conn, einst):
+    """Befund A (Nachbesserung zu t_cdece8e2): bisher sah die Gruppe im Chat
+    NICHTS, wenn der Schrumpf-Schutz eine Einzelfrage-Aenderung ablehnte --
+    nur ein ``vorfall`` fuer das Dashboard. Jetzt bekommt sie eine kurze
+    Rueckfrage, direkt als Antwort auf diesen Zug."""
+    alte = [f"Begriff{n}: Alte Frage {n}" for n in range(1, 17)]
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+    _nachricht(conn, 1, 1, "Aendere Frage 3 in: Wo warst du beim Lockdown?")
+    klm = LLMAttrappe(antwort={"aenderungen": [
+        {"art": "fragen_setzen", "wert": "Voellig anderes Thema ohne Bezug zu alten Fragen"},
+    ]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert tg.gesendet != []
+    text = tg.gesendet[0][1]
+    assert "eindeutig" in text
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
 
 
 def test_laufe_interview_starten_sendet_bestaetigung_getrennt_von_der_meldung(conn, einst):
@@ -1213,6 +1383,61 @@ def test_der_erkenner_schaltet_die_phase_nicht_selbst(conn, einst):
     assert len(tg.gesendet) == 1, "eine Meldung je Lauf"
 
 
+def test_lets_move_on_in_phase_4_springt_nicht_automatisch_nach_phase_5(conn, einst):
+    """Karte t_18ae9ea2 (G3-Testgruppe, Live-Test 06.10.2026 ~20:30,
+    synthetisches Nachbau-Transkript -- keine echten Gruppendaten):
+
+    1. Bot: "Do you want to add anything before we move on?"
+    2. Gruppe: "What do you mean?"
+    3. Bot erklaert, schlaegt Figuren vor.
+    4. Gruppe stellt klar: "No, i reffered to what you wrote before" -- die
+       Frage bezog sich nicht auf fehlende Figuren.
+    5. Gruppe: "Ok, no, then lets move on" -- gemeint: weiter an den noch
+       offenen Aufgaben von Phase 4 (Setting, Figuren & Geschichte), NICHT:
+       Phasenwechsel.
+
+    Der Erkenner las "lets move on" dennoch als ``phase_setzen`` Richtung 5
+    (Prose Draft) -- obwohl ``figuren_fixiert_am`` nicht gesetzt war (und
+    auch Rahmen, Geschichte, Szenenzahl fehlten, ``phasen.voraussetzungen()[5]``
+    also False war). Die Figurenliste wird ausschliesslich ueber den Knopf
+    "Figuren fixieren" fixiert (``knoepfe/figuren.py``) -- der Erkenner hat
+    dafuer keine eigene ``art`` und kann diese Voraussetzung also nie selbst
+    herbeigefuehrt haben. Der Bot darf trotzdem nicht automatisch nach
+    Phase 5 wechseln (und schon gar nicht den Prosa-Lauf anstossen)."""
+    phasen.setze(conn, 1, 4, "befehl")
+    _nachricht(conn, 1, 1, "Do you want to add anything before we move on?", absender="Bot", ist_bot=1)
+    _nachricht(conn, 1, 2, "What do you mean?")
+    _nachricht(conn, 1, 3, "No, i reffered to what you wrote before")
+    _nachricht(conn, 1, 4, "Ok, no, then lets move on")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "phase_setzen", "wert": "5"}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert phasen.aktuelle(conn, 1) == 4
+    assert not any("5" in t for _cid, t in tg.gesendet), tg.gesendet
+
+
+def test_explizite_phasennennung_nach_fixierten_figuren_wechselt_trotzdem(conn, einst):
+    """Gegenprobe: STEHT die Figurenliste fixiert (und die restliche
+    Materiallage trägt Phase 5), wechselt ein ``phase_setzen`` Richtung 5
+    weiterhin wie bisher -- die neue Waeche greift nur, solange
+    ``figuren_fixiert_am`` NICHT gesetzt ist."""
+    phasen.setze(conn, 1, 4, "befehl")
+    repo.setze_arbeitsstand(conn, 1, "rahmen", "Padua, heute, ein Marktplatz")
+    repo.setze_arbeitsstand(conn, 1, "geschichte", "Zwei Familien, ein Streit, eine Versoehnung")
+    repo.setze_arbeitsstand(conn, 1, "szenen_anzahl", "3")
+    repo.setze_arbeitsstand(conn, 1, "figuren_fixiert_am", repo._jetzt())
+    repo.setze_figur(conn, 1, "Mira", "")
+    _nachricht(conn, 1, 1, "lets move on")
+    klm = LLMAttrappe(antwort={"aenderungen": [{"art": "phase_setzen", "wert": "5"}]})
+    tg = TelegramAttrappe()
+
+    erkenner.laufe(klm, tg, conn, einst, 1)
+
+    assert phasen.aktuelle(conn, 1) == 5
+
+
 def test_auch_eine_zweite_figur_schaltet_nichts(conn, einst):
     """Dasselbe fuer die Aenderung, die frueher am haeufigsten gesprungen ist:
     die zweite Figur. Der Arbeitsstand waechst, die Phase nicht."""
@@ -1677,3 +1902,22 @@ def test_vorlauf_ueberspringt_notiert_zeilen(conn, einst):
     repo.merke_nachricht(conn, 1, 10, "Bot", 1, "text", "Vorschlag: Mira.", "2026-09-05T04:00:00+00:00")
     repo.merke_nachricht(conn, 1, 11, "Bot", 1, "text", "Notiert:\nPhase 4", "2026-09-05T04:00:01+00:00")
     assert repo.letzte_bot_nachricht_vor(conn, 1, 12)["message_id"] == 10
+
+
+def test_erkenner_ueber_claude_nur_mit_schalter_und_nicht_in_phase3(monkeypatch):
+    """Birk 08.10.2026: Padua-Erkenner auf Opus; Phase 3 bleibt gemma."""
+    from interview_theater import erkenner, modellwahl, workshop
+    monkeypatch.setattr(workshop, "erkenner_ueber_claude_aktiv", lambda profil=None: True)
+    monkeypatch.setattr(modellwahl, "konversation_ueber_claude", lambda e, c, ch: True)
+    assert erkenner.ueber_claude(object(), object(), 1) is True
+    monkeypatch.setattr(modellwahl, "konversation_ueber_claude", lambda e, c, ch: False)
+    assert erkenner.ueber_claude(object(), object(), 1) is False
+    monkeypatch.setattr(workshop, "erkenner_ueber_claude_aktiv", lambda profil=None: False)
+    monkeypatch.setattr(modellwahl, "konversation_ueber_claude", lambda e, c, ch: True)
+    assert erkenner.ueber_claude(object(), object(), 1) is False
+
+
+def test_padua_profil_erkenner_ueber_claude():
+    from interview_theater import workshop
+    assert workshop.erkenner_ueber_claude_aktiv(workshop.lade("padua-2026")) is True
+    assert workshop.erkenner_ueber_claude_aktiv(workshop.lade("dortmund-2026")) is False

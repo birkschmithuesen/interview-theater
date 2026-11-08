@@ -14,6 +14,7 @@ Alle Daten sind erfunden.
 import pytest
 
 from interview_theater import db, repo, web, web_daten
+from tests.stueck_hilfe import setze_feld
 
 
 @pytest.fixture
@@ -27,7 +28,7 @@ def conn(tmp_path):
 def _szene(conn, nummer, **felder):
     szene_id = repo.stelle_szene_sicher(conn, 1, nummer)
     for feld, wert in felder.items():
-        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+        setze_feld(conn, szene_id, feld, wert)
     return szene_id
 
 

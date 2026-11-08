@@ -68,16 +68,28 @@ def _web_grenze_leer():
 def _begriffe_im_zug_leer():
     """Derselbe Grund fuer den Merker "Begriffe in diesem Zug gespeichert"
     (``knoepfe.basis._begriffe_im_zug``, Befund S5): Prozessspeicher je
-    chat_id, und fast alle Tests teilen ``CHAT = 1``."""
+    chat_id, und fast alle Tests teilen ``CHAT = 1``.
+
+    ``szenenfolge._regienotiz_erwartet`` (t_b1770186, 10.10.2026) ist
+    derselbe Fall: ``tests/test_knoepfe_wirkung_p67_italienisch.py`` setzt
+    die Erwartung ueber ``_wirkung_szene_anders`` und konsumiert sie nie --
+    ohne Reset sah ``tests/test_kostendeckel.py::test_der_deckel_gilt_im_telegram_kanal``
+    danach die geerbte Erwartung fuer chat_id 1 und lief in
+    ``ablauf._szene_hat_vorfahrt`` statt in den Kostendeckel-Check.
+    ``tests/test_szenenfolge.py`` raeumt denselben Merker schon lokal ab
+    (``freie_sperren``); hier global, weil ihn inzwischen mehrere Dateien
+    setzen."""
     from interview_theater.knoepfe import basis
 
-    from interview_theater import ablauf
+    from interview_theater import ablauf, szenenfolge
 
     basis.vergiss_begriffe_im_zug()
     ablauf.vergiss_vergleich_im_zug()
+    szenenfolge._regienotiz_erwartet.clear()
     yield
     basis.vergiss_begriffe_im_zug()
     ablauf.vergiss_vergleich_im_zug()
+    szenenfolge._regienotiz_erwartet.clear()
 
 
 @pytest.fixture

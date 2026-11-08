@@ -39,6 +39,12 @@ ART_PHASE = "phase"
 #: eigener Knopf und nicht "einfach nicht druecken", damit die Gruppe das
 #: Angebot vom Tisch nehmen kann, statt es stehen zu lassen.
 ART_NOCH_NICHT = "noch_nicht"
+#: Die zwei Knoepfe des Phase-5-Gates (Padua, 07.10.2026,
+#: ``workshop.p5_check_aktiv``, ``befehle.p5_gate``): die Werkbank-
+#: Uebersicht ist richtig, dann startet Phase 5 -- oder sie ist es nicht,
+#: dann bleibt die Gruppe in Phase 4 und sagt, was zu aendern ist.
+ART_P5_CHECK_OK = "p5_check_ok"
+ART_P5_CHECK_AENDERN = "p5_check_aendern"
 #: Form je Szene (Phase 6) -- dasselbe Ziel wie ``/szene <n> form <wert>``.
 #: Der Wert der Knopfzeile traegt beides, durch ':' getrennt: "3:dialog".
 ART_SZENENFORM = "szenenform"
@@ -267,6 +273,23 @@ ART_SZENENFELDER_SPEICHERN = "szenenfelder_speichern"
 #: Die vier Knoepfe unter einem fertigen Szenentext.
 ART_SZENE_PASST = "szene_passt"
 ART_SZENE_ANDERS = "szene_anders"
+#: "Clear the questions" / "Skip questions" unter einer Szenenkarte mit
+#: offenen Fragen (Birk 08.10.2026 ~09:20) -- ersetzen dort ART_SZENE_PASST/
+#: ART_SZENE_ANDERS (``szenenkarte.zeige``); Wirkungen in ``szenenkarte.py``
+#: (``starte_fragenklaerung``/``ueberspringe_fragen``), kein Modellaufruf.
+ART_KARTE_FRAGEN_KLAEREN = "karte_fragen_klaeren"
+ART_KARTE_FRAGEN_UEBERSPRINGEN = "karte_fragen_ueberspringen"
+#: "Update the card" / "Keep the card" unter der Zusammenfassung einer
+#: Aenderung im "No, change"-Dialog (Birk 08.10.2026 ~09:35, Nachtrag).
+#: ``wert`` von ART_KARTE_UPDATE ist "<nummer>|<Aenderung>" (TRENNER);
+#: Wirkungen in ``szenenkarte.py``, kein Modellaufruf.
+ART_KARTE_UPDATE = "karte_update"
+ART_KARTE_KEEP = "karte_keep"
+#: Stueckmodell (t_fd88600b): "Szene N passt nicht mehr zu ... -- neu
+#: schreiben?" Ja/Nein; ``wert`` ist ``str(veraltet.id)``. Kein Modellaufruf
+#: im Handler (``stagescript.starte`` gibt an einen Thread ab).
+ART_VERALTET_NEU = "veraltet_neu"
+ART_VERALTET_LASSEN = "veraltet_lassen"
 ART_SZENE_NEU = "szene_neu"
 ART_SZENE_NAECHSTE = "szene_naechste"
 #: "So lassen" -- die Antwort auf einen Pruef-Vermerk (eine fruehere Szene
@@ -288,9 +311,12 @@ ART_FASSUNGEN = "fassungen"
 #: Phase 4 · Geschichte: den Vorschlag (Bogen, Ende, Szenenfolge) speichern.
 #: ``wert`` ist "<weiter|anders>|<Vorschlagstext>" wie bei der Szenenfolge.
 ART_GESCHICHTE_SPEICHERN = "geschichte_speichern"
-#: Phase 5 · Schaerfung: eine Szenen- bzw. Figuren-Schaerfung uebernehmen
-#: (``wert`` ist die Szenennummer bzw. der Figurenname), eine weitere Runde
-#: anstossen, oder weiter zu den Szenentexten.
+#: Phase 5 · Schaerfung: "Diese uebernehmen" auf der gezeigten Seite einer
+#: Szenen- bzw. Figuren-Schaerfung (``wert`` traegt seit 07.10.2026 die
+#: gezeigten ``schaerfung.id`` durch ``TRENNER`` getrennt, wie
+#: ``ART_SCHAERFUNG_KEINE`` -- NICHT mehr alles, was je fuer dieses Ziel
+#: zugeordnet wurde, siehe ``schaerfung.uebernimm_stellen``), eine weitere
+#: Runde anstossen, oder weiter zu den Szenentexten.
 ART_SCHAERFUNG_SZENE = "schaerfung_szene"
 ART_SCHAERFUNG_FIGUR = "schaerfung_figur"
 ART_SCHAERFUNG_RUNDE = "schaerfung_runde"
@@ -302,6 +328,21 @@ ART_SCHAERFUNG_STELLE = "schaerfung_stelle"
 #: ``TRENNER`` getrennt -- sie fallen weich heraus (N3), damit die naechste
 #: Runde sie nicht erneut vorlegt.
 ART_SCHAERFUNG_KEINE = "schaerfung_keine"
+#: "Mehr zeigen" (07.10.2026, MAX_STELLEN als Gesamtgrenze aufgehoben):
+#: ``wert`` ist "<sammelart>|<sammelwert>|<naechster_versatz>" -- blaettert
+#: dieselbe Szene/Figur eine Seite weiter, ohne erneut zu modellieren (alles
+#: steht schon in der Datenbank, kein Modellaufruf im Knopf-Handler).
+ART_SCHAERFUNG_MEHR = "schaerfung_mehr"
+#: Die zwei Wege nach der automatischen Zuordnung beim Eintritt in Phase 5
+#: (Padua, 07.10.2026, "Entry zu voll"): "Sortieren" springt im Browser
+#: direkt in den CoThinker-Tab (``_TEXT_SCHAERFUNG_SORTIEREN_KNOPF``, erkannt
+#: in ``web_chat.py``s Knopf-Klick ueber den Beschriftungstext, derselbe Weg
+#: wie ``aufnahme._TEXT_BUEHNE_NEUE_KARTE``), "Erst reden" stoesst eine kurze
+#: Interviewzusammenfassung an (``schaerfung.starte_zusammenfassung``, Opus,
+#: eigener Thread -- Zusage 2) und laesst danach freies Gespraech offen.
+#: Kein ``wert`` noetig, beide Knoepfe wirken ohne Parameter.
+ART_SCHAERFUNG_SORTIEREN = "schaerfung_sortieren"
+ART_SCHAERFUNG_CHAT = "schaerfung_chat"
 #: Phase 7 · Schaerfung des Stuecks (06.09.2026): je Befund "Szene N
 #: ueberarbeiten" (``wert`` ist die ``stueckpruefung.id``) und "Lassen",
 #: darunter "Noch eine Pruefrunde".
@@ -385,7 +426,11 @@ _TEXT_ANDERS = "Vorerst gespeichert. Was soll anders sein?"
 _TEXT_EIGENE = "Erzaehlt - ich baue es ein."
 #: Nach einem "Gefaellt uns, weiter": bestaetigen, dann die eine Frage, die
 #: den Zwischenraum offenhaelt, bevor der Phasenknopf kommt.
-_TEXT_NACH_SPEICHERN_FRAGE = "Wollt ihr noch etwas hinzufuegen, bevor es weitergeht?"
+#: Karte t_c5d68218 (06.10.2026): eine Bestaetigungsfrage statt der
+#: Aufforderung, noch etwas hinzuzufuegen -- der optionale, modellgestuetzte
+#: Zusatz (Vorschlag/Rueckfrage) kommt, wenn ueberhaupt, als eigene
+#: Nachricht danach (``nachspeichern.starte``), nie an dieser Stelle erzwungen.
+_TEXT_NACH_SPEICHERN_FRAGE = "Passt das so fuer euch?"
 _TEXT_AUSWERTEN_ALLE_KNOPF = "Alle auswerten"
 _TEXT_AUSWERTEN_ALLE_LAEUFT = "Ich werte die offenen Interviews aus."
 _TEXT_AUSWERTEN_ALLE_NICHTS = "Es ist nichts mehr offen."
@@ -478,6 +523,13 @@ _JOURNAL_REDO = "Wiederhergestellt: {zeilen}"
 #: Gruppe liest.
 _TEXT_AUFNAHME_STARTEN = "Interview starten"
 _TEXT_AUFNAHME_BEENDEN = "Interview beenden"
+#: Karte t_1493c40d (06.10.2026, Birk): ab Phase 4 sind die Interviews
+#: gelaufen -- "Interview starten" wuerde wortwoertlich DAS eine Interview
+#: suggerieren, das es dort nicht mehr gibt. Der Knopf selbst bleibt sichtbar
+#: (``knoepfe._aufnahme_anbieten``, nachtraegliches Interview ist ein
+#: normaler Vorgang), nur sein Text in der Begruessungsleiste
+#: (``knoepfe.biete_einstieg``) aendert sich ab Phase 4.
+_TEXT_WEITERE_AUFNAHME_KNOPF = "Weitere Aufnahme"
 #: Die zwei Knoepfe unter einem Teil-Transkript (05.09.2026).
 _TEXT_TEIL_WEITER_KNOPF = "Interview geht weiter"
 _TEXT_TEIL_FERTIG_KNOPF = "Interview ist fertig"
@@ -655,6 +707,9 @@ _TEXT_REIHENFOLGE_FRAGE = (
     "Sagt mir, wie die Reihenfolge sein soll - ich baue sie ein."
 )
 _TEXT_FOLGE_GESPEICHERT = "Notiert, {anzahl} Szenen:"
+#: Dasselbe in Phase 4 mit Prosa-Entwurf (Padua, Karte t_b19d37ac): ohne
+#: Doppelpunkt, weil keine Szenenvorstellung mehr folgt.
+_TEXT_FOLGE_GESPEICHERT_RAHMEN = "Notiert, {anzahl} Szenen."
 _TEXT_FOLGE_LEER = (
     "Aus dem Vorschlag konnte ich keine Szenen lesen. Sagt sie mir einfach."
 )
@@ -669,6 +724,8 @@ _TEXT_SZENE_UEBERSPRUNGEN = "Szene {nummer} ist raus."
 _TEXT_SZENE_UNBEKANNT = "Diese Szene kenne ich nicht mehr."
 
 #: Unter dem fertigen Szenentext.
+TEXT_NEIN_AENDERN_KNOPF = "Nein, aendern"
+_TEXT_UEBERSICHT_ANDERS_FRAGE = "Was soll anders werden? Schreibt es mir, ich baue es ein."
 TEXT_PASST_KNOPF = "Passt"
 TEXT_NEU_KNOPF = "Neu schreiben"
 TEXT_NAECHSTE_KNOPF = "Naechste Szene"
@@ -758,9 +815,22 @@ _TEXT_DRAMATURGIE_UEBERHOLT = (
 )
 
 TEXT_SCHAERFUNG_RUNDE_KNOPF = "Noch eine Runde"
+#: Die zwei Knoepfe unter der automatischen Zuordnung beim Eintritt in Phase
+#: 5 (``ART_SCHAERFUNG_SORTIEREN``/``ART_SCHAERFUNG_CHAT``). Deutsch ist hier
+#: nur die Vorgabe (Dortmund hat ``diskussion_aktiv`` nie an, siehe oben) --
+#: Padua spricht Englisch, siehe ``sprachen/en/texte.toml``.
+TEXT_SCHAERFUNG_SORTIEREN_KNOPF = "\U0001f5c2 Stellen sortieren"
+TEXT_SCHAERFUNG_CHAT_KNOPF = "\U0001f4ac Erst ueber die Interviews reden"
+_TEXT_SCHAERFUNG_CHAT_NOTIERT = "Gut, ich fasse die Interviews kurz zusammen."
+_TEXT_SCHAERFUNG_SORTIEREN_NOTIERT = "Gut, sortiert im CoThinker weiter."
 #: Die beiden Sammelknoepfe unter dem Schaerfungs-Menue (06.09.2026).
 _TEXT_SCHAERFUNG_ALLE_KNOPF = "Diese uebernehmen"
 _TEXT_SCHAERFUNG_KEINE_KNOPF = "Keine davon"
+#: "Mehr zeigen" (07.10.2026) -- blaettert dieselbe Szene/Figur weiter.
+_TEXT_SCHAERFUNG_MEHR_KNOPF = "Mehr zeigen"
+#: Die Seitenangabe in der Ueberschrift, nur wenn es mehr Stellen gibt als
+#: auf einer Seite passen (sonst zeichengleich wie vor dem Umbau).
+_TEXT_SCHAERFUNG_SEITE = " ({von}–{bis} von {gesamt})"
 _TEXT_SCHAERFUNG_STELLE_UNBEKANNT = "Diese Stelle finde ich nicht mehr."
 _TEXT_SCHAERFUNG_STELLE_UEBERNOMMEN = "Uebernommen: {ziel}."
 _TEXT_SCHAERFUNG_VERWORFEN = "Gut, die lasse ich weg."
@@ -768,6 +838,10 @@ _TEXT_SCHAERFUNG_LAEUFT = (
     "Ich lege eure Geschichte neben die Interviews und suche, was dazu passt."
 )
 _TEXT_SCHAERFUNG_UEBERNOMMEN = "Uebernommen: {anzahl} Stellen."
+_TEXT_DONE_KARTEN = "Uebernommen: {anzahl} Stellen. Eure Auswahl steht -- als Naechstes baut ihr daraus Szene fuer Szene eine Karte."
+_TEXT_DONE_UEBERSICHT = "Uebernommen: {anzahl} Stellen. Jetzt fasse ich eure Geschichte als Uebersicht zusammen -- danach geht es Szene fuer Szene."
+_TEXT_DONE_SZENE_DA = "Uebernommen: {anzahl} Stellen. Szene {nummer} steht schon im Skript-Tab -- lest sie und sagt, ob sie passt."
+_TEXT_DONE_SZENE_NEU = "Uebernommen: {anzahl} Stellen. Ich schreibe jetzt Szene {nummer}."
 _TEXT_SCHAERFUNG_NICHTS = "Dazu ist gerade nichts offen."
 _TEXT_SCHAERFUNG_DURCH = (
     "Das war alles, was ich zuordnen konnte. Wollt ihr noch eine Runde, oder "
@@ -1115,6 +1189,9 @@ _TEXT_GESCHICHTE_BEREIT = "Die ganze Geschichte steht ({gesamt} Szenen)."
 #: Wo der Text steht: im Web-Kanal der Tab, in Telegram der Link darauf.
 _TEXT_SKRIPT_TAB = "Lest sie im Script-Tab."
 _TEXT_SKRIPT_LINK = "Lest sie im Script-Tab: {url}"
+#: Was nach dem Lesen kommt; ``knopf`` ist die Beschriftung des ersten Knopfs.
+_TEXT_SZENE_NAECHSTER_SCHRITT = (
+    "Kommt danach hierher zurueck: Tippt auf \"{knopf}\" oder sagt mir, was ich aendern soll.")
 _TEXT_ERSTENTWURF_KNOPF = "Erste Fassung zeigen"
 _TEXT_ERSTENTWURF = "Die Fassung vor der Pruefung steht im Script-Tab unter \"Erste Fassung\"."
 _TEXT_KEIN_ERSTENTWURF = "Dazu gibt es noch keine fruehere Fassung."
@@ -1136,6 +1213,25 @@ _TEXT_SPRECHWEISEN_AENDERN = (
     "Sagt mir, wer anders sprechen soll -- etwa so: \"Mira: kurze Saetze, "
     "viel Slang\""
 )
+
+# Internet-Recherche (Karte t_c5117c91, InScribe): ein eigener Materialstrang
+# neben dem Interview. Angebot am Anfang von Phase 5 UND auf Anfrage ab Phase
+# 4 (befehle.py, /stand), nur mit dem Profilschalter ``recherche`` (Vorgabe
+# aus). Drei Schritte, drei Knoepfe: Angebot -> Fragenvorschlag -> Frage
+# waehlen -> Lauf im Thread (Zusage 2, wie ueberall hier).
+ART_RECHERCHE = "recherche"
+ART_RECHERCHE_FRAGE = "recherche_frage"
+_TEXT_RECHERCHE_KNOPF = "Recherche"
+_TEXT_RECHERCHE_ANBIETEN = "Soll ich dazu im Netz nachschauen?"
+_TEXT_RECHERCHE_FRAGEN_LAEUFT = "Ich ueberlege mir drei Forschungsfragen ..."
+_TEXT_RECHERCHE_FRAGEN_TEXT = (
+    "Welche Frage sollen wir klaeren? Oder schreibt eure eigene, z. B. "
+    "\"Recherche: ...\""
+)
+_TEXT_RECHERCHE_KEINE_FRAGEN = "Mir faellt dazu gerade keine Frage ein."
+_TEXT_RECHERCHE_LAEUFT = "Ich schaue im Netz nach (30-60 Sekunden) ..."
+_TEXT_RECHERCHE_NICHTS_GEFUNDEN = "Ich habe dazu nichts Verifizierbares gefunden."
+_ANTWORT_RECHERCHE_GESTARTET = "Ich schaue nach."
 
 
 # --- Verarbeitung ---------------------------------------------------------
@@ -1341,6 +1437,14 @@ _TEXT_WEITER_ZU_KNOPF = "Weiter zu Phase {phase}"
 #: Rueckfall fuer ``_ERLEDIGT_FUER`` -- im Aufruf, nicht in einer Signatur (K1).
 _TEXT_ALLES_NOETIGE = "Alles Noetige"
 
+#: Die Knopfbeschriftungen des Phase-5-Gates (Padua, 07.10.2026,
+#: ``basis.biete_p5_check``).
+_TEXT_P5_CHECK_OK_KNOPF = "✅ Passt alles - Textentwurf starten"
+_TEXT_P5_CHECK_AENDERN_KNOPF = "✏️ Etwas aendern"
+#: Die Rueckfrage nach "Etwas aendern" -- die Gruppe bleibt in Phase 4.
+_TEXT_P5_CHECK_AENDERN_FRAGE = "Was soll ich aendern? Sagt es mir einfach."
+_JOURNAL_P5_CHECK_BESTAETIGT = "Werkbank vor Phase 5 bestaetigt"
+
 #: Die frueheren Inline-Literale aus ``figuren.py`` (Aufgabe 12, A1):
 #: Knopf-Quittungen (answerCallbackQuery), Journalzeilen, Chatzeilen.
 _TEXT_NAME_GEAENDERT_QUITTUNG = "Name geaendert"
@@ -1436,6 +1540,11 @@ _ANTWORT_HILFE = "Hilfe"
 _ANTWORT_SZENE_STIL = "Szene {nummer}: Stil {stil}"
 _ANTWORT_USA_JA = "US-Modell: ja"
 _ANTWORT_USA_NEIN = "Bleibt in der Schweiz"
+_ANTWORT_P5_CHECK_OK = "Bestaetigt"
+_ANTWORT_P5_CHECK_AENDERN = "Sagt mir, was zu aendern ist"
+#: Toast, wenn ein anderer Phasenknopf ("Weiter zu Phase N", "Ja,
+#: speichern") durch das Phase-5-Gate abgefangen wird (``befehle.p5_gate``).
+_ANTWORT_P5_CHECK_NOETIG = "Erst die Werkbank pruefen"
 
 #: Die uebrigen frueheren Inline-Literale aus ``wirkung.py`` (Aufgabe 13):
 #: Journalzeilen (gehen ueber ``kontext._baue_journal`` in den Prompt),
@@ -1647,3 +1756,9 @@ ANWEISUNG_EROEFFNUNG = (
 from interview_theater import sprache  # noqa: E402  (unten: kein Zyklus beim Import)
 
 T = sprache.Texte(__name__)
+#: Nachtauftrag cc-p67texte (08.10.2026): die "No, change"-Rueckfrage des
+#: generischen Wegs (``knoepfe.wirkung._wirkung_szene_anders``) italienisch
+#: in Phase 6/7 -- Auswahl sitzt dort (``_texte_fuer_phase``), dieses Modul
+#: traegt nur die zweite ``Texte``-Instanz, wie ``szenenkarte.py``/
+#: ``stagescript.py``.
+_T_IT = sprache.Texte(__name__, sprachcode="it")

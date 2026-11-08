@@ -150,14 +150,20 @@ def lies_json(text: str) -> dict:
     ``{``/``[`` geprueft und im Trefferfall ein Fehler geworfen; reiner
     Fliesstext danach bleibt erlaubt.
     """
+    # Nur Objekte/Listen zaehlen (P57 Lauf 3 A5): ein Skalar wie die "1" aus
+    # "1. Erstens ..." ist kein Schema-Ergebnis, sondern Fliesstext.
     try:
-        return json.loads(text.strip())
+        ganz = json.loads(text.strip())
+        if isinstance(ganz, (dict, list)):
+            return ganz
     except json.JSONDecodeError:
         pass
 
     dekoder = json.JSONDecoder()
     grenze = min(len(text), LIES_JSON_SUCHFENSTER)
     for i in range(grenze):
+        if text[i] not in "{[":
+            continue
         try:
             ergebnis, ende = dekoder.raw_decode(text, i)
         except json.JSONDecodeError:

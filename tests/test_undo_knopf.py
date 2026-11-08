@@ -777,6 +777,27 @@ def test_undo_nimmt_eine_geplante_szene_zurueck(conn, tg, einst):
     assert repo.hole_szenen(conn, 1) == []
 
 
+# 3b. Schrumpf-geschuetztes fragen_setzen (Karte t_cdece8e2, G3 06.10.2026)
+# -> auch der Einzelzeilen-Ersatz traegt einen Undo-Knopf und laesst sich
+# zurueckdrehen wie jedes andere fragen_setzen.
+
+def test_undo_stellt_die_ganze_liste_nach_einzelzeilen_ersatz_wieder_her(conn, tg, einst):
+    """Requirement 3 der Karte: die Notiert-Quittung fuer eine fragen-
+    Aenderung traegt immer den Undo-Knopf -- auch wenn der Schrumpf-Schutz
+    nur eine einzelne Zeile ersetzt hat (nicht die ganze Liste ueberschrieben
+    hat). Ein Druck darauf stellt die volle alte Liste wieder her, nicht nur
+    die eine Zeile."""
+    phasen.setze(conn, 1, 3, "test")
+    alte = [f"Begriff{n}: Alte Frage {n}" for n in range(1, 17)]
+    repo.setze_arbeitsstand(conn, 1, "fragen", "\n".join(alte))
+
+    _laufe_und_undo(conn, tg, einst, [
+        {"art": "fragen_setzen", "wert": "Begriff3: Neue Frage drei"},
+    ])
+
+    assert repo.hole_arbeitsstand(conn, 1)["fragen"] == "\n".join(alte)
+
+
 # 4. Zwei Aenderungen in einer Meldung -> ein Undo nimmt beide zurueck.
 
 def test_ein_undo_nimmt_beide_aenderungen_der_meldung_zurueck(conn, tg, einst):

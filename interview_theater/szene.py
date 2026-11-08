@@ -68,7 +68,7 @@ import threading
 
 import httpx
 
-from interview_theater import anweisungen, repo, strom, szene_claude, workshop
+from interview_theater import anweisungen, repo, skript_uebersetzung, strom, szene_claude, workshop
 
 log = logging.getLogger(__name__)
 
@@ -109,6 +109,10 @@ _TEXT_BESETZT = "Ich schreibe gerade noch an einer Szene, gleich."
 #: Die Chronologie-Sperre in einer Zeile (05.09.2026, Testgruppe 22:05: Szene
 #: 3 wurde vor Szene 1 und 2 geschrieben). Kein Sperrtext, keine Rueckfrage --
 #: der Bot sagt, was er stattdessen tut, und tut es.
+_TEXT_ERST_KARTEN = (
+    "Szenentexte kommen spaeter: als Naechstes baut ihr aus eurer Auswahl "
+    "Szene fuer Szene eine Karte (Phase 6). Jetzt geht es um die Interviews."
+)
 _TEXT_ERST_FRUEHERE = (
     "Szene {nummer} kommt nach Szene {vorher} - die schreibe ich zuerst."
 )
@@ -302,18 +306,24 @@ def formdatei(form: str | None) -> str:
     Listenreihenfolge: das Wort "Szene" steht in fast jeder Formangabe, und
     Dialog ist ohnehin der Rueckfall -- er braucht keinen Vorrang, er
     braucht den Rest. Welche Form der Rueckfall ist, sagt seit dem
-    06.09.2026 das Profil (``formen.toml``, ``vorgabe``)."""
+    06.09.2026 das Profil (``formen.toml``, ``vorgabe``).
+
+    Die Wortmenge je Form (Name, Anzeige, Stichwoerter) und der Vergleich
+    mit Wortgrenzen kommen aus ``workshop.form_treffer`` -- geteilt mit
+    ``ueberarbeitung.form_aus_text``, die dieselbe Frage fuer eine andere
+    Quelle (eine Judge-Antwort statt ``szene.form``) beantwortet (A1,
+    06.10.2026: ohne den Formnamen selbst in der Menge fielen "chor" und
+    "lied" live auf Dialog zurueck, weil ihre Stichwortlisten in
+    ``formen.toml`` den eigenen Namen nicht enthalten)."""
     rueckfall = workshop.form_vorgabe()
     text = (form or "").strip().lower()
     if not text:
         return rueckfall
-    stichwoerter = workshop.form_stichwoerter()
     for name in workshop.formen():
         if name == rueckfall:
             continue
-        for stichwort in stichwoerter.get(name, ()):
-            if stichwort in text:
-                return name
+        if workshop.form_treffer(name, text, teilstring=True):
+            return name
     return rueckfall
 
 
@@ -658,9 +668,15 @@ def uebernimm_rahmen(conn, chat_id: int, szene_id: int) -> None:
     zeile = repo.hole_szene(conn, szene_id)
     if zeile is None:
         return
+    from interview_theater import stueck
+
     for feld, wert in felder.items():
         if feld in ("ort", "zeit", "anlass") and not (zeile[feld] or "").strip():
-            repo.setze_szenenfeld(conn, szene_id, feld, wert)
+            if feld in repo.NUR_UEBER_STUECK:
+                stueck.setze_ort(conn, chat_id, szene=zeile["nummer"], ort=wert,
+                                 quelle=stueck.QUELLE_PLANUNG)
+            else:
+                repo.setze_szenenfeld(conn, szene_id, feld, wert)
 
 
 def fehlendes(conn, ziel) -> tuple[list[str], list[str]]:
@@ -915,6 +931,10 @@ def _format_rahmen_text(conn, chat_id: int) -> str:
     zeilen = []
     if stand["rahmen"]:
         zeilen.append(T._RAHMEN_BLOCK.format(rahmen=stand["rahmen"]))
+    # Padua [skript] verdichtet (Birk 07.10.2026 ~17:45, Messung Robo: das
+    # Format fehlte im Prompt -- G1 ist ein Konzert, kein Drama).
+    if workshop.skript_verdichtet_aktiv() and (stand["format"] or "").strip():
+        zeilen.append(T._FORMAT_BLOCK.format(format=stand["format"].strip()))
     geschichte = stand["geschichte"] if "geschichte" in stand.keys() else None
     if geschichte:
         zeilen.append(T._BOGEN_BLOCK.format(geschichte=geschichte))
@@ -929,6 +949,7 @@ _RAHMEN_BLOCK = (
     "{rahmen}"
 )
 _BOGEN_BLOCK = "Bogen und Ende:\n{geschichte}"
+_FORMAT_BLOCK = "Format des Stuecks -- danach richtet sich, was fuer ein Text entsteht:\n{format}"
 _KERNFRAGE_KOPF = "Kernfrage:\n"
 _ZEILE_HAUPTKONFLIKT = "Hauptkonflikt: {hauptkonflikt}"
 
@@ -1019,13 +1040,19 @@ def _kernpaket_text(conn, chat_id: int, ziel=None, *,
     zeilen = []
     from interview_theater import kontext
 
+    verdichtet = workshop.skript_verdichtet_aktiv()
     if ziel is not None:
-        for eintrag in repo.schaerfungen(conn, chat_id, szene_id=ziel["id"]):
+        stellen = repo.schaerfungen(conn, chat_id, szene_id=ziel["id"])
+        if verdichtet and any(z["uebernommen_am"] for z in stellen):
+            # Padua [skript] verdichtet: nur was die Gruppe uebernommen hat
+            # (G1 Szene 2: 163 zugeordnet, 53 uebernommen), ohne Begruendung.
+            stellen = [z for z in stellen if z["uebernommen_am"]]
+        for eintrag in stellen:
             name = kontext.interviewbezeichnung(conn, chat_id, eintrag["aufnahme_id"])
             zeile = f'- {name}: {eintrag["thema"]}'
             if not zitate_entfernen:
                 zeile += f' -- "{eintrag["zitat"]}"'
-            if eintrag["begruendung"]:
+            if eintrag["begruendung"] and not verdichtet:
                 zeile += f" ({eintrag['begruendung']})"
             zeilen.append(zeile)
         for figur in repo.szene_figuren(conn, ziel["id"]):
@@ -1612,6 +1639,25 @@ _AUFGABE_LETZTE = (
 )
 
 
+_AUFGABE_NEUTRAL = "Aufgabe dieser Szene: das, was die Gruppe fuer sie beschrieben hat."
+
+#: Woran ein Format erkennbar NICHT dramatisch-narrativ ist (Padua G1:
+#: "post-dramatic" Konzert, G2: Dokumentarfilm/Sozialexperiment, G3:
+#: immersive Installation). Klein geschrieben, als Wortanfang gesucht; ohne
+#: Treffer (oder ohne Format) bleibt die Dramen-Aufgabe wie bisher.
+NICHT_DRAMATISCH = (
+    "post-dramat", "postdramat", "concert", "konzert", "concerto", "documentar",
+    "dokumentar", "documentari", "verbatim", "immersiv", "installation",
+    "experiment", "esperimento", "happening",
+)
+
+
+def format_ist_dramatisch(conn, chat_id: int) -> bool:
+    stand = repo.hole_arbeitsstand(conn, chat_id)
+    text = ((stand["format"] if stand else "") or "").lower()
+    return not any(re.search(r"\b" + re.escape(w), text) for w in NICHT_DRAMATISCH)
+
+
 def _aufgabe_text(conn, chat_id: int, ziel) -> str:
     """Block: die dramaturgische Aufgabe der Szene an ihrer Position."""
     if ziel is None or ziel["nummer"] is None:
@@ -1622,6 +1668,10 @@ def _aufgabe_text(conn, chat_id: int, ziel) -> str:
     ]
     gesamt = max([s["nummer"] for s in szenen] + [ziel["nummer"]])
     nummer = ziel["nummer"]
+    # Padua [skript] verdichtet: Exposition/Konflikt ist Dramenlogik -- fuer
+    # ein Konzert, einen Dokumentarfilm, eine Installation passt sie nicht.
+    if workshop.skript_verdichtet_aktiv() and not format_ist_dramatisch(conn, chat_id):
+        return T._AUFGABE_NEUTRAL
     if nummer <= 1:
         return T._AUFGABE_ERSTE
     if nummer >= gesamt and gesamt > 1:
@@ -1747,7 +1797,10 @@ def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False,
     if ziel is None:
         return ""
     zeilen = [T.DIESE_SZENE_KOPF, _szenenkopf(ziel["nummer"])]
-    zeilen += _szenenfelder_zeilen(conn, ziel, _DIESE_SZENE_FELDER)
+    if workshop.skript_verdichtet_aktiv():
+        zeilen += _diese_szene_verdichtet(conn, ziel)
+    else:
+        zeilen += _szenenfelder_zeilen(conn, ziel, _DIESE_SZENE_FELDER)
     if vorlage and _prosa_von(ziel):
         zeilen.append("")
         zeilen.append(T.VORLAGE_KOPF.format(form=(ziel["form"] or T._FORM_RUECKFALL)))
@@ -1766,16 +1819,50 @@ def _diese_szene_text(conn, ziel, neu: bool = False, vorlage: bool = False,
     return "\n".join(zeilen)
 
 
+_ZEILE_WORUM = "Worum es in dieser Szene geht:"
+_ZEILE_STAERKSTE = "Die staerksten Zitate fuer diese Szene (woertlich verwenden):"
+
+
+def _diese_szene_verdichtet(conn, ziel) -> list[str]:
+    """Padua [skript] verdichtet (Birk 07.10.2026 ~17:45): die Felder der
+    Szene ohne die Begruendungskette -- ``was_passiert`` als Beschreibung der
+    Gruppe (Altbestand bereinigt), ``kernsaetze`` nur die eigenen der Gruppe
+    (die Zitate stehen woertlich im Kernpaket), dazu die Kurzform und die
+    staerksten Zitate aus ``szenenkern``."""
+    from interview_theater import szenenkern
+
+    zeile = {k: ziel[k] for k in ziel.keys()}
+    zeile["was_passiert"] = szenenkern.gruppenbeschreibung(conn, ziel["chat_id"], ziel)
+    zeile["kernsaetze"] = " | ".join(szenenkern.gruppen_kernsaetze(conn, ziel["chat_id"], ziel))
+    zeilen = _szenenfelder_zeilen(conn, zeile, _DIESE_SZENE_FELDER)
+    kern = szenenkern.kern_punkte(ziel)
+    if kern:
+        zeilen.append(T._ZEILE_WORUM)
+        zeilen += [f"- {p}" for p in kern]
+    staerkste = szenenkern.kernsaetze_kurz(ziel)
+    if staerkste:
+        zeilen.append(T._ZEILE_STAERKSTE)
+        zeilen += [f"- {z}" for z in staerkste]
+    return zeilen
+
+
 def _verworfen_text(conn, chat_id: int) -> str:
     """Die ``verworfen``-Zeilen des Journals -- damit Verworfenes nicht durch
     die Hintertuer im Szenentext wiederkommt. Das Journal ist der einzige Ort,
     an dem eine Ablehnung samt Grund ueberhaupt festgehalten ist (SPEC § 2)."""
-    zeilen = [
-        f"- {e['text']}" for e in repo.journal(conn, chat_id) if e["art"] == "verworfen"
-    ]
+    zeilen = verworfene_zeilen(conn, chat_id)
     if not zeilen:
         return ""
     return T._VERWORFEN_KOPF + "\n".join(zeilen)
+
+
+def verworfene_zeilen(conn, chat_id: int) -> list[str]:
+    """Der eine Datenweg fuer Verworfenes: die ``verworfen``-Zeilen des
+    Journals als Spiegelstriche -- geteilt mit dem Matcher-Hintergrund
+    (``schaerfung._hintergrund_zeilen``)."""
+    return [
+        f"- {e['text']}" for e in repo.journal(conn, chat_id) if e["art"] == "verworfen"
+    ]
 
 
 _VERWORFEN_KOPF = "Das hat die Gruppe verworfen, es kommt nicht wieder vor:\n"
@@ -1807,6 +1894,13 @@ _SPRECHER_GRUPPE = "Gruppe"
 
 #: Der Kopf ueber dem Auftrag, ganz am Ende des Nutzertexts.
 _AUFTRAG_KOPF = "Euer Auftrag:\n"
+_P5_VORRANG = (
+    "Die juengsten Nachrichten sind die frische Absicht der Gruppe: "
+    "widersprechen sie den gespeicherten Angaben, gelten sie -- und du sagst "
+    "in der Zusammenfassungszeile, was du deshalb anders gemacht hast."
+)
+_P5_GESPRAECH_KOPF = ("Was die Gruppe in Phase 5 ueber die Interviews besprochen hat (Wortlaut). "
+                      "Nutze es: welche Stimmen, Zitate und Themen sie wollen:")
 
 #: Wie viele Chatnachrichten hoechstens mitgehen -- dieselbe Zahl wie im
 #: Gespraechsfenster (``kontext.FENSTER_NACHRICHTEN``), aber eigenstaendig:
@@ -1896,8 +1990,86 @@ def _regienotizen(conn, chat_id: int, nummer: int | None) -> list[str]:
     ]
 
 
+#: Hoechstzahl Zeichen fuer den Phase-5-Gespraechsblock; bei mehr faellt das
+#: AELTESTE vorn weg. Birk 07.10.2026 15:15: "das KOMPLETTE Gespraech" --
+#: auf dem Claude-Pfad 150.000 Zeichen (~79k Token von 126k Budget), das
+#: deckt einen ganzen Workshop-Nachmittag; Kimi-Pfad bleibt bei 30.000.
+P5_GESPRAECH_ZEICHEN = 30_000
+P5_GESPRAECH_ZEICHEN_CLAUDE = 150_000
+#: So lang darf eine eigene (Bot-)Zeile im Phase-5-Block hoechstens sein.
+P5_EIGENE_ZEICHEN = 600
+
+
+def _p5_gespraech_text(conn, chat_id: int, ueber_claude: bool = False) -> str:
+    """Block: das GANZE Gespraech seit dem (letzten) Eintritt in Phase 5 --
+    dort redet die Gruppe ueber die Interviews (Birk 07.10.2026 15:10: "der
+    Prosa-Erzeuger soll die Diskussion mit den Interviews einbeziehen").
+    Nur unter ``workshop.vollmaterial_phase5_aktiv`` (Padua); ohne Phase-5-
+    Journalzeile leer. Ohne Klarnamen wie ``_chat_text``."""
+    from interview_theater import kontext
+
+    if not workshop.vollmaterial_phase5_aktiv():
+        return ""
+    zeile = conn.execute(
+        "SELECT erstellt_am FROM journal WHERE chat_id = ? AND entfernt_am IS NULL "
+        "AND text LIKE 'Phase 5%' ORDER BY id DESC LIMIT 1", (chat_id,),
+    ).fetchone()
+    if zeile is None:
+        return ""
+    seit = (zeile[0] or "")[:19]
+    # Der Block endet beim Eintritt in die naechste Phase (Nachtrag Birk
+    # 08.10.2026): sonst stehen in Phase 7 alte Kartenfassungen darin.
+    ende = conn.execute(
+        "SELECT erstellt_am FROM journal WHERE chat_id = ? AND entfernt_am IS NULL "
+        "AND text LIKE 'Phase %' AND text NOT LIKE 'Phase 5%' AND substr(erstellt_am, 1, 19) > ? "
+        "ORDER BY erstellt_am LIMIT 1", (chat_id, seit),
+    ).fetchone()
+    bis = (ende[0] or "")[:19] if ende is not None else None
+    du, gruppe = T._SPRECHER_DU, T._SPRECHER_GRUPPE
+    zeilen = []
+    for n in repo.letzte_nachrichten(conn, chat_id, anzahl=kontext._FENSTER_POOL):
+        gesendet = (n["gesendet_am"] or "")[:19]
+        if kontext._ist_systemzeile(n) or gesendet < seit or (bis and gesendet >= bis):
+            continue
+        text = (n["text"] or "").strip()
+        if text and n["ist_bot"] and len(text) > P5_EIGENE_ZEICHEN:
+            # Eigene Zeilen sind Vorschlaege, keine Beschluesse -- gekuerzt,
+            # damit die Gruppe im Block nicht untergeht (G1: 90 % Bot-Text).
+            text = text[:P5_EIGENE_ZEICHEN].rsplit(" ", 1)[0] + " …"
+        if text:
+            zeilen.append(f"{du if n['ist_bot'] else gruppe}: {text}")
+    grenze = P5_GESPRAECH_ZEICHEN_CLAUDE if ueber_claude else P5_GESPRAECH_ZEICHEN
+    while zeilen and sum(len(z) + 1 for z in zeilen) > grenze:
+        zeilen.pop(0)
+    if not zeilen:
+        return ""
+    return T._P5_GESPRAECH_KOPF + "\n" + "\n".join(zeilen)
+
+
+def p5_gespraech_block(conn, chat_id: int, ueber_claude: bool = False) -> str:
+    """Der Block ueber Phase 5, wie ihn alle vier Aufrufer brauchen
+    (``baue_nutzertext`` hier, ``entwurf._voll_bloecke``,
+    ``schaerfung._hintergrund_voll_zeilen``, ``szenenkarte.baue_nutzertext``):
+    der volle Wortlaut (``_p5_gespraech_text``), solange Phase 5 noch die
+    AKTUELLE Phase ist -- sobald sie ABGESCHLOSSEN ist (die Gruppe steht
+    schon in Phase 6 oder hoeher) und ein Phasen-Summary dafuer existiert
+    (Karte t_1bc96848, Padua), tritt das Summary an seine Stelle.
+
+    Ohne gespeichertes Summary (noch nicht erzeugt, Erzeugung fehlgeschlagen,
+    Profilschalter aus) bleibt es beim bisherigen Rohdump -- ein fehlendes
+    Summary ist ein akzeptabler Fehlerfall, kein Blockierer (siehe
+    ``phasen_summary.py``), nie eine Verschlechterung gegenueber vorher."""
+    from interview_theater import phasen, phasen_summary
+
+    if workshop.phasen_summary_aktiv() and phasen.aktuelle(conn, chat_id) > 5:
+        text = phasen_summary.hole_text(conn, chat_id, 5)
+        if text:
+            return text
+    return _p5_gespraech_text(conn, chat_id, ueber_claude)
+
+
 def _chat_text(conn, chat_id: int, ziel, nummer: int | None,
-               anzahl: int = CHAT_NACHRICHTEN) -> str:
+               anzahl: int = CHAT_NACHRICHTEN, nur_notizen: bool = False) -> str:
     """Block: der frische Chat plus die Regie-Notizen zu dieser Szene.
 
     **Ohne Klarnamen** (AGENTS.md, Anti-Klarnamen-Regel): jede Nachricht der
@@ -1907,6 +2079,11 @@ def _chat_text(conn, chat_id: int, ziel, nummer: int | None,
     einem Prompt, der ausserdem in die USA geht, hat er nichts zu suchen.
     Genau deshalb wird hier auch nicht ``kontext.sprecherzeile``
     wiederverwendet: die setzt den Vornamen."""
+    if nur_notizen:
+        # Padua [skript] verdichtet: der Phase-5-Gespraechsblock traegt den
+        # Chat schon im Wortlaut -- hier bleiben nur die Regie-Notizen.
+        notizen = _regienotizen(conn, chat_id, nummer)
+        return T.CHAT_REGIE_KOPF + "\n" + "\n".join(notizen) if notizen else ""
     zeilen = []
     du, gruppe = T._SPRECHER_DU, T._SPRECHER_GRUPPE
     for n in _chat_nachrichten(conn, chat_id, ziel, anzahl):
@@ -1952,7 +2129,7 @@ _REIHENFOLGE = (
     # Teil (30.09.2026, Karte R): eine Laengenvorgabe, die die
     # Kuerzungsleiter wegwerfen darf, ist keine.
     "format_rahmen", "aufgabe", "laenge", "thema", "kernpaket", "figuren",
-    "continuity", "verworfen", "chat", "diese_szene", "auftrag",
+    "p5_gespraech", "continuity", "verworfen", "chat", "diese_szene", "auftrag",
 )
 
 
@@ -2036,6 +2213,10 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
         figuren = _figuren_text(conn, chat_id)
         if zitate_kurz:
             figuren = _figuren_mit_wenig_zitaten(figuren)
+        p5_gespraech = p5_gespraech_block(conn, chat_id, ueber_claude)
+        nur_notizen = bool(p5_gespraech) and workshop.skript_verdichtet_aktiv()
+        if nur_notizen:
+            p5_gespraech += "\n\n" + T._P5_VORRANG
         return {
             "format_rahmen": _format_rahmen_text(conn, chat_id),
             "thema": _thema_text(conn, chat_id),
@@ -2045,7 +2226,10 @@ def baue_nutzertext(conn, chat_id: int, auftrag: str, ziel=None, e=None,
             "figuren": figuren,
             "continuity": _continuity_text(conn, chat_id, nummer, voll),
             "verworfen": _verworfen_text(conn, chat_id),
-            "chat": _chat_text(conn, chat_id, ziel, nummer, chat_anzahl),
+            "chat": _chat_text(conn, chat_id, ziel, nummer, chat_anzahl,
+                               nur_notizen=nur_notizen),
+            # Birk 07.10.2026 15:10: die Interview-Diskussion aus Phase 5.
+            "p5_gespraech": p5_gespraech,
             "aufgabe": _aufgabe_text(conn, chat_id, ziel),
             "laenge": _laenge_text(conn, chat_id, ziel),
             "diese_szene": _diese_szene_text(
@@ -2414,6 +2598,19 @@ def schreibe(conn, tg, klm, e, chat_id: int, auftrag: str,
         None if prosa_lauf else volltext, fassung,
         prosa=volltext if prosa_lauf else None,
     )
+    # Der EN/IT-Spiegelpass (Birk, Live-Workshop 07.10.2026 ~17:20, Padua-
+    # Profilschalter [skript] zweisprachig): nur nach einem Prosa-Lauf, nie
+    # bei Phase 7 (Theatertext). Ein Fehler hier darf die Szene nie kaputt
+    # machen -- sie bleibt dann bei ihrer englischen Rohfassung stehen
+    # (skript_uebersetzung.spiegel faengt selbst alles ab, dieses try/except
+    # ist die zweite Sicherung).
+    if prosa_lauf and workshop.skript_zweisprachig_aktiv():
+        try:
+            skript_uebersetzung.spiegel(
+                conn, klm, e, chat_id, ziel["id"], volltext, ueber_claude=ueber_claude,
+            )
+        except Exception:
+            log.exception("Skript-Spiegelpass nicht ausgefuehrt, chat_id=%s", chat_id)
     # Und zusaetzlich als Fassung ans Ende von ``szenenfassung`` (06.09.2026):
     # "Neu schreiben" ersetzte bis dahin den Volltext, und die Gruppe konnte
     # nicht zurueck. Reines Anhaengen, nie Aendern -- ``szene.volltext``
@@ -2625,6 +2822,24 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str,
     if not auftrag:
         return None
 
+    # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): in Phase 5 und 6 entsteht
+    # kein Szenentext mehr -- 5 waehlt Interviews aus, 6 baut Karten.
+    if workshop.szenenkarten_aktiv():
+        from interview_theater import phasen as phasen_modul
+
+        phase = phasen_modul.aktuelle(conn, chat_id)
+        if phase == 5:
+            _sende_und_merke(conn, tg, e, chat_id, T._TEXT_ERST_KARTEN)
+            return None
+        if phase == 6:
+            from interview_theater import szenenkarte
+
+            return szenenkarte.weiter(conn, tg, klm, e, chat_id)
+        if phase == 7:
+            from interview_theater import stagescript
+
+            return stagescript.weiter(conn, tg, klm, e, chat_id)
+
     # Chronologie-Sperre (05.09.2026): geschrieben wird immer nur die
     # kleinste Szene ohne Volltext. Nennt der Auftrag eine spaetere, sagt der
     # Bot EINEN Satz und schreibt die frueheste offene -- keine Rueckfrage,
@@ -2701,6 +2916,15 @@ def starte(conn, tg, klm, e, chat_id: int, auftrag: str,
         # dann bliebe die Sperre bis zum Prozessende liegen.
         sperre.release()
         raise
+    # Birk 07.10.2026 ~16:20: springt eine Gruppe in Phase 5 ohne
+    # abgenommene Uebersicht gleich in die Szenen, entsteht die Uebersicht
+    # (Logline) still nebenbei -- aus Chat und Szenen, als gesetzt markiert.
+    try:
+        from interview_theater import entwurf
+
+        entwurf.starte_stille_uebersicht(conn, tg, klm, e, chat_id)
+    except Exception:
+        log.exception("Stille Uebersicht nicht angestossen, chat_id=%s", chat_id)
     return thread
 
 

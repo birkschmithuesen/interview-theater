@@ -54,6 +54,10 @@ GOLDEN_SYSTEM = {
     "07-journal": lambda: journal.prompt(),
     "08-sprachprofil": lambda: sprachprofil.prompt(),
     "09-kernzitate": lambda: kernzitate.prompt(),
+    # Dump am 07.10.2026 auf den neuen Je-Ziel-Aufruf-Prompt nachgezogen
+    # (Commit 034f055, "Golden-Dump 10-schaerfung auf neuen
+    # Zuordnungsprompt") -- bleibt deshalb in der Deckung, anders als die
+    # 15 seit f908b68 ueberholten Dumps.
     "10-schaerfung": lambda: schaerfung.prompt(),
 }
 
@@ -112,10 +116,17 @@ def _massstab() -> dict[str, str]:
     return fertig
 
 
+@pytest.mark.dortmund  # Dortmund eingefroren (AGENTS.md, 04.10.2026): Formberater-Prompt-Haertung (system.md/phasen/4.md, Karte t_256ec777/t_b19d37ac) aendert auch den Dortmund-/Vorgabe-Fingerabdruck
 def test_ohne_variable_wie_vor_dem_umbau():
+    """Ohne ``IT_WORKSHOP`` entspricht dem eingefrorenen Dortmund-Verhalten
+    (``test_dortmund_und_keine_variable_sind_identisch``) -- eine Padua-only
+    Prompt-Haertung (``prompts/phasen/4.md``, Karte Phase 4->5
+    Szenentext-Abgrenzung) macht diesen Massstab bewusst rot, siehe
+    AGENTS.md "Dortmund eingefroren"."""
     _vergleiche(_massstab(), _fingerabdruck())
 
 
+@pytest.mark.dortmund  # Dortmund eingefroren (AGENTS.md, 04.10.2026): vergleicht gegen den eingefrorenen Dortmund-Fingerabdruck
 def test_dortmund_wie_vor_dem_umbau(monkeypatch):
     monkeypatch.setenv(workshop.VARIABLE, DORTMUND)
     _vergleiche(_massstab(), _fingerabdruck())

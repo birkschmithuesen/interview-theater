@@ -78,7 +78,7 @@ def _baue_datenbank(pfad: str) -> str:
          "ERHAN: Du kannst ihn jetzt auspacken.\n"
          "CHOR: Keiner guckt. Keiner guckt."))
     repo.setze_szenenfeld(conn, szene_id, "form", "dialog")
-    repo.setze_szenenfeld(conn, szene_id, "ort", "Bahnhofshalle")
+    repo.setze_szenenort(conn, szene_id, "Bahnhofshalle")
     repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_EIN, repo.WEB_TYP_TEXT,
                           text="Wir sind zurueck vom Markt.")
     repo.lege_web_post_an(conn, CHAT, repo.RICHTUNG_AUS, repo.WEB_TYP_TEXT,

@@ -701,6 +701,20 @@ def test_echte_antwort_ist_keine_denkspur():
         assert not ablauf.ist_denkspur(text), text
 
 
+def test_legitimes_markdown_in_der_antwort_ist_keine_denkspur():
+    """Karte t_cc147548 (07.10.2026): die Systemanweisung erlaubt jetzt
+    leichtes Markdown -- "keine markdown"/"no markdown" sind deshalb keine
+    Denkspur-Marker mehr. Eine Antwort, die **fett** oder "no markdown"
+    im normalen Sinn erwaehnt (nicht als Selbstgespraech), darf nicht
+    verworfen werden."""
+    for text in (
+        "**Setting:** die Werkstatt. **Figuren:** Mira, Jo.",
+        "Klar, ich kann das in Fettschrift schreiben, keine Markdown-Scheu.",
+        "No markdown issue here -- here is the summary you asked for.",
+    ):
+        assert not ablauf.ist_denkspur(text), text
+
+
 def test_gespraechszug_ueberlebt_eine_string_antwort(conn, einst, tg):
     """05.09.2026, live in Gruppe 1: das Modell lieferte statt
     {"antwort": "..."} einen blanken String. ``ergebnis["antwort"]`` warf
@@ -897,6 +911,40 @@ def test_denkspur_mit_benutzer_instruktionen_wortlaut_wird_erkannt():
     assert ablauf.ist_denkspur(HANDY_PRIYA_DENKSPUR)
 
 
+#: Live-Fund 07.10.2026, Testgruppe chat_id=7000000000099 (betrieb/padua-test.db,
+#: web_post.id=1694, aufruf.id=164, Kimi-K2.6, 12857 Ausgabe-Token): auf "gib mir
+#: eine zusammenfassung aller interviews die gerade passen" schrieb das Modell
+#: sein komplettes englisches Selbstgespraech ins "antwort"-Feld, und es ging
+#: unveraendert in den Chat. Die EN-Markerliste war seit Karte A1 nie um die
+#: Englisch-Entsprechungen der am 06.10.2026 (Abnahme P3-4, Befund A1)
+#: hinzugefuegten deutschen Marker "der benutzer fragt"/"laut den
+#: instruktionen"/"die instruktionen sagen" ergaenzt worden -- nur die
+#: deutsche Liste bekam sie. Text verbatim aus der Testdatenbank (keine
+#: personenbezogenen Daten: Absender ist das Rollenwort "Member 1").
+PADUA_SUMMARY_DENKSPUR = (
+    "Member 1 asks for a summary of all interviews that fit right now. But: "
+    "the assignment has already run (62 passages, then 71), and the group "
+    "has been sorting them. I should not retell the full summaries -- "
+    "they're in the chat history above, and the group has already worked "
+    "with them.\n\n"
+    "Actually, the instructions also say: \"Summaries are never changed "
+    "afterwards\" and \"Never ask the group to retype it, and never claim "
+    "you can't see it.\" I DO see all summaries -- they're right there in "
+    "the context.\n\n"
+    "All interview summaries are right above in this chat -- from "
+    "Interview 1 through Interview 42. The matched passages for your three "
+    "characters are in the core package I shared earlier.\n\n"
+    "Done. Check: no markdown beyond bold/italics/bullets. Under 500 "
+    "chars. No hash headings."
+)
+
+
+def test_denkspur_englisches_selbstgespraech_ueber_zusammenfassung_wird_erkannt():
+    """Live-Fund 07.10.2026 (siehe Kommentar oben): muss als Denkspur
+    erkannt werden -- die EN-Marker hinkten der DE-Liste hinterher."""
+    assert ablauf.ist_denkspur(PADUA_SUMMARY_DENKSPUR)
+
+
 def test_ueberarbeiteter_vorschlagsblock_ist_keine_wiederholung():
     """06.09.2026 12:30 (Gruppe 1, live): "Kannst du die zweite Formulierung
     umaendern" -> der ueberarbeitete Block teilt >60 % der Woerter mit dem
@@ -1019,3 +1067,86 @@ def test_auch_die_zweite_ankuendigung_wird_gesendet(conn, einst, tg):
     assert len(klm.gesehen) == 2
     assert tg.gesendet == [(1, "Here they are, numbered:")]
     assert _vorfallarten(conn) == ["ankuendigung_ohne_inhalt", "ankuendigung_wiederholt"]
+
+
+# ---------------------------------------------------------------------------
+# Nachtauftrag cc-p67texte (08.10.2026, Befund G1-G3 live): die Hinweiszeile
+# ("One moment, I'm thinking.") italienisch in Phase 6/7, fuer Chats aus
+# ``workshop.italienisch_ab_phase6_chats()`` -- derselbe Mechanismus wie
+# ``szenenkarte.py``/``stagescript.py``/``erkenner.py`` (``_T_IT`` +
+# ``_texte_fuer_phase``).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def padua(monkeypatch):
+    from interview_theater import workshop
+
+    monkeypatch.setenv(workshop.VARIABLE, "padua-2026")
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    workshop.vergiss()
+    yield
+    monkeypatch.delenv(workshop.VARIABLE, raising=False)
+    workshop.vergiss()
+
+
+def test_texte_fuer_phase_italienisch_in_phase_6(conn, padua):
+    from interview_theater import phasen
+
+    phasen.setze(conn, 1, 6, "test")
+    assert ablauf._texte_fuer_phase(conn, 1) is ablauf._T_IT
+
+
+def test_texte_fuer_phase_italienisch_in_phase_7(conn, padua):
+    from interview_theater import phasen
+
+    phasen.setze(conn, 1, 7, "test")
+    assert ablauf._texte_fuer_phase(conn, 1) is ablauf._T_IT
+
+
+def test_texte_fuer_phase_bleibt_englisch_ausserhalb_6_7(conn, padua):
+    from interview_theater import phasen
+
+    phasen.setze(conn, 1, 3, "test")
+    assert ablauf._texte_fuer_phase(conn, 1) is ablauf.T
+
+
+def test_texte_fuer_phase_tester_chat_bleibt_englisch(conn, padua, monkeypatch):
+    from interview_theater import phasen, workshop
+
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset())
+    phasen.setze(conn, 1, 6, "test")
+    assert ablauf._texte_fuer_phase(conn, 1) is ablauf.T
+
+
+def test_texte_fuer_phase_ohne_conn_bleibt_englisch():
+    """Der alte Aufruf ohne ``conn`` (siehe Test oben) darf nicht brechen."""
+    assert ablauf._texte_fuer_phase(None, 1) is ablauf.T
+
+
+def test_tippanzeige_sendet_italienische_hinweiszeile(conn, padua, monkeypatch):
+    from interview_theater import phasen
+
+    phasen.setze(conn, 1, 6, "test")
+    monkeypatch.setattr(ablauf, "TIPP_INTERVALL", 0.02)
+    monkeypatch.setattr(ablauf, "HINWEIS_NACH", 0.05)
+    tg = TelegramAttrappe()
+
+    with ablauf._tippanzeige(tg, chat_id=1, conn=conn):
+        time.sleep(0.2)
+
+    assert any("Un momento, ci penso." in t for _, t in tg.gesendet)
+    assert not any("One moment" in t for _, t in tg.gesendet)
+
+
+def test_tippanzeige_dortmund_bytegleich_mit_conn(conn, monkeypatch):
+    """Ohne Padua-Profil bleibt die deutsche Zeile stehen, auch wenn ``conn``
+    jetzt mitgegeben wird."""
+    monkeypatch.setattr(ablauf, "TIPP_INTERVALL", 0.02)
+    monkeypatch.setattr(ablauf, "HINWEIS_NACH", 0.05)
+    tg = TelegramAttrappe()
+
+    with ablauf._tippanzeige(tg, chat_id=1, conn=conn):
+        time.sleep(0.2)
+
+    assert any("Einen Moment, ich denke nach." in t for _, t in tg.gesendet)

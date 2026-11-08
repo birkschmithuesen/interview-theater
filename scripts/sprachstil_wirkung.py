@@ -289,7 +289,10 @@ def baue_db(pfad, variante: str, phase: int = 6, e=None):
         repo.setze_szenenfeld(conn, sz_id, "was_passiert", was)
         if nummer == 1:
             for feld, wert in SZENE_1_FELDER.items():
-                repo.setze_szenenfeld(conn, sz_id, feld, wert)
+                if feld in repo.NUR_UEBER_STUECK:
+                    repo.setze_szenenort(conn, sz_id, wert)
+                else:
+                    repo.setze_szenenfeld(conn, sz_id, feld, wert)
             if phase >= 7:
                 repo.setze_szenenfeld(conn, sz_id, "form", "Dialog")
         repo.setze_szene_figuren(conn, CHAT_ID, sz_id, [ids[n] for n in besetzung])

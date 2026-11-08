@@ -28,6 +28,8 @@ Modul aus importierbar.
 """
 
 import logging
+import contextlib
+import contextvars
 import re
 import sys
 import tomllib
@@ -113,13 +115,20 @@ def angleichen(deutsch: Any, eintrag: Any) -> Any:
     return eintrag
 
 
-def text(modul: str, name: str) -> Any:
-    """Der Text ``name`` aus ``modul`` in der aktiven Sprache."""
+def text(modul: str, name: str, sprachcode: str | None = None) -> Any:
+    """Der Text ``name`` aus ``modul`` in der aktiven Sprache, oder
+    erzwungen in ``sprachcode`` (``Texte(..., sprachcode=...)``,
+    Morgen-Auftrag 4)."""
     deutsch = getattr(sys.modules[modul], name)
-    sprachcode = code()
+    sprachcode = sprachcode or code()
     if sprachcode == DEUTSCH:
         return deutsch
     eintrag = tabelle(sprachcode).get(modulschluessel(modul), {}).get(name)
+    if eintrag is None and _ERZWUNGEN.get() == sprachcode and code() not in (sprachcode, DEUTSCH):
+        # erzwungen ohne IT-Eintrag -> aktive Sprache (EN), nicht Deutsch
+        eintrag = tabelle(code()).get(modulschluessel(modul), {}).get(name)
+        if eintrag is not None:
+            return angleichen(deutsch, eintrag)
     if eintrag is None:
         schluessel = (sprachcode, modul, name)
         if schluessel not in _GEMELDET:
@@ -130,19 +139,45 @@ def text(modul: str, name: str) -> Any:
     return angleichen(deutsch, eintrag)
 
 
+#: PDF IT (Birk 08.10.2026 ~11:00, Quickfix): waehrend ``erzwinge("it")``
+#: liefern ALLE ``Texte``-Instanzen Italienisch (Ueberschriften der IT-PDF);
+#: fehlt ein IT-Eintrag, gilt die aktive Sprache (nicht Deutsch).
+_ERZWUNGEN: "contextvars.ContextVar[str | None]" = contextvars.ContextVar("sprache_erzwungen", default=None)
+
+
+@contextlib.contextmanager
+def erzwinge(sprachcode: str | None):
+    marke = _ERZWUNGEN.set(sprachcode)
+    try:
+        yield
+    finally:
+        _ERZWUNGEN.reset(marke)
+
+
 class Texte:
     """Die Texte eines Moduls, zur Aufrufzeit in der aktiven Sprache:
-    ``T = sprache.Texte(__name__)``, dann ``T._TEXT_X``."""
+    ``T = sprache.Texte(__name__)``, dann ``T._TEXT_X``.
 
-    __slots__ = ("_modul",)
+    ``sprachcode`` (Morgen-Auftrag 4, 08.10.2026, Nachtrag 2): erzwingt eine
+    Sprache statt der Profilsprache -- fuer eine zweite, chat-abhaengige
+    ``Texte``-Instanz je Modul (``szenenkarte.py``/``stagescript.py``/
+    ``web.py``: ``_T_IT = Texte(__name__, sprachcode="it")``, vom Aufrufer
+    nur fuer Chats aus ``workshop.italienisch_ab_phase6_chats()`` gewaehlt --
+    die Wahl *welcher* Chat ist bewusst NICHT hier drin, ``Texte`` kennt
+    keinen chat_id). Knopf-Beschriftungen bleiben auf der gewoehnlichen,
+    ungezwungenen Instanz im selben Modul."""
 
-    def __init__(self, modul: str) -> None:
+    __slots__ = ("_modul", "_sprachcode")
+
+    def __init__(self, modul: str, *, sprachcode: str | None = None) -> None:
         object.__setattr__(self, "_modul", modul)
+        object.__setattr__(self, "_sprachcode", sprachcode)
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("__"):
             raise AttributeError(name)
-        return text(self._modul, name)
+        sprachcode = _ERZWUNGEN.get() or self._sprachcode
+        return text(self._modul, name, sprachcode)
 
     def __setattr__(self, name: str, wert: Any) -> None:
         raise AttributeError("Texte sind nur lesbar")

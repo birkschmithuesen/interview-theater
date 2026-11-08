@@ -23,6 +23,17 @@ from test_erkenner import LLMAttrappe, _nachricht
 from test_knoepfe import TelegramAttrappe, _druck
 
 
+@pytest.fixture(autouse=True)
+def _ohne_karten(monkeypatch):
+    """Diese Tests pruefen den Padua-Prosaweg (P5 Prosa, P6 Rewrite) -- seit
+    dem Phasenumbau (Birk 07.10.2026 ~18:12) das Verhalten OHNE
+    ``[karten] aktiv``; der Kartenweg steht in ``tests/test_szenenkarte.py``."""
+    from interview_theater import workshop as _workshop
+
+    monkeypatch.setattr(_workshop, "szenenkarten_aktiv", lambda *a, **k: False)
+
+
+
 @pytest.fixture
 def padua(monkeypatch):
     monkeypatch.delenv(workshop.BASIS_VARIABLE, raising=False)
@@ -69,7 +80,7 @@ def _stueck(conn, phase, *, szenen=(1, 2, 3), formen=None, volltext=True,
     repo.setze_figur(conn, 1, "Jo", "schweigt lieber")
     for nummer in szenen:
         sid = repo.stelle_szene_sicher(conn, 1, nummer)
-        repo.setze_szenenfeld(conn, sid, "ort", "Steg")
+        repo.setze_szenenort(conn, sid, "Steg")
         repo.setze_szenenfeld(conn, sid, "was_passiert", "Sie treffen sich.")
         repo.aktualisiere_szene(
             conn, sid, f"Teil {nummer}", None,
@@ -162,18 +173,22 @@ def test_chat_abnahme_des_ganzen_nimmt_die_leiste_ab(
     _stueck(conn, 6, gesamt_fix=False, ueberarbeitet=False)
     monkeypatch.setattr(ueberarbeitung, "weiter_6", lambda *a, **k: None)
     message_id = knoepfe.zeige_geprueft_geschichte(conn, tg, einst, 1, None)
-    assert len(_offen(conn, message_id)) == 4
-    kuerzen = _knopf_der_art(conn, tg, knoepfe.ART_GESCHICHTE_KUERZEN)
+    # Padua seit bc19d0a (Birk 07.10.2026 ~17:15): nur "Yes, save" und
+    # "No, change" -- kein "Kuerzer", kein "Erste Fassung zeigen" mehr.
+    assert len(_offen(conn, message_id)) == 2
+    nein = _knopf_der_art(conn, tg, knoepfe.ART_GESCHICHTE_ANDERS)
 
     ueberarbeitung.nimm_ab(conn, tg, None, einst, 1)
 
     assert ueberarbeitung.gesamttext_fixiert(conn, 1)
     assert (1, message_id) in tg.entfernt
     assert _offen(conn, message_id) == []
-    # Ein liegengebliebenes "Kuerzer" unter dem schon fixierten Ganzen
-    # schreibt es nicht mehr um.
-    monkeypatch.setattr(kuerzung, "starte", lambda *a, **k: pytest.fail("kuerzung"))
-    knoepfe.behandle(conn, tg, None, einst, _druck(kuerzen, query_id="alt"))
+    # Ein liegengebliebenes "No, change" unter dem schon fixierten Ganzen
+    # oeffnet es nicht wieder fuer eine Regie-Notiz.
+    from interview_theater.knoepfe import wirkung
+    monkeypatch.setattr(wirkung, "erwarte_geschichte_notiz",
+                        lambda *a, **k: pytest.fail("erwarte_geschichte_notiz"))
+    knoepfe.behandle(conn, tg, None, einst, _druck(nein, query_id="alt"))
     assert tg.beantwortet[-1][1] == knoepfe.T._TEXT_SCHON_BENUTZT
 
 
@@ -229,7 +244,8 @@ def test_chat_abnahme_im_besetzten_lauf_laesst_die_leiste_stehen(
 
     assert antwort == ueberarbeitung.T._TEXT_LAEUFT_NOCH
     assert (1, message_id) not in tg.entfernt
-    assert len(_offen(conn, message_id)) == 4
+    # Padua seit bc19d0a: die Leiste ist "Yes, save" / "No, change".
+    assert len(_offen(conn, message_id)) == 2
 
 
 def test_chat_abnahme_der_uebersicht_in_phase_5_nimmt_die_leiste_ab(
@@ -400,7 +416,8 @@ def test_teilweise_formwahl_nennt_die_fehlenden_nummern(
     erkenner.laufe(klm, tg, conn, einst, 1)
 
     texte = _texte(tg)
-    assert texte[0].startswith("Noted")
+    # chat_id 1 steht in keiner italienisch_ab_phase6_chats-Liste -- englisch.
+    assert texte[0].startswith("Noted:")
     assert texte[-1] == ueberarbeitung.T._TEXT_FORMEN_FEHLEN.format(nummern="2, 3")
     assert "Still without a form: scene 2, 3" in texte[-1]
 
@@ -437,7 +454,8 @@ def test_neue_form_fuer_eine_uebertragene_szene_nimmt_den_text_zurueck(
     assert zwei["prosa"]  # die Vorlage bleibt
     assert _szene(conn, 1)["volltext"] and _szene(conn, 1)["fertig_am"]
     meldung = _texte(tg)[0]
-    assert meldung.startswith("Noted")
+    # chat_id 1 steht in keiner italienisch_ab_phase6_chats-Liste -- englisch.
+    assert meldung.startswith("Noted:")
     assert "transferred again" in meldung
     # Szene 2 ist wieder dran und wird neu uebertragen (Thread-Weg).
     assert ueberarbeitung.aktuelle_szene(conn, 1) == 2

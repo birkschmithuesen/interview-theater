@@ -52,10 +52,19 @@ def uebergang_nach_speichern(conn, tg, klm, e, chat_id: int) -> bool:
     # oben waere ein Zyklus (derselbe Grund wie in ``wirkung._wirkung_aufnahme``).
     from interview_theater import befehle
 
+    # Phase-5-Gate (Padua, 07.10.2026): derselbe Waechter wie beim Knopf
+    # "Weiter zu Phase N" -- "Ja, speichern" kann genauso gut die naechste
+    # moegliche Phase 5 treffen.
+    if befehle.p5_gate(conn, tg, chat_id, nummer):
+        return True
     befehle.schliesse_offenes_interview_vor_phasenwechsel(
         conn, tg, klm, e, chat_id, nummer)
     phasen.merke_angebot(conn, chat_id, nummer)
+    verlassene_phase = phasen.aktuelle(conn, chat_id)
     if phasen.setze(conn, chat_id, nummer, "knopf"):
+        from interview_theater import phasen_summary
+
+        phasen_summary.starte_wenn_aktiv(conn, klm, e, chat_id, verlassene_phase)
         tg.sende(chat_id, phasen.meldung(nummer))
     eintritt_in_phase(conn, tg, klm, e, chat_id, nummer)
     return True
@@ -299,9 +308,16 @@ def _sende_karte(tg, chat_id: int, nummer: int) -> None:
     und bei einem Kanal ohne ``sende_bild`` -- die Telegram-Attrappen in
     Tests und Simulation (``simulation/attrappe.py``, ``tests/test_ablauf.py``)
     bilden sie nicht nach, und ein zweiter Mechanismus nur fuer sie lohnt
-    nicht (dieselbe Abwaegung wie bei ``sende_datei`` dort)."""
-    from interview_theater import handykarten
+    nicht (dieselbe Abwaegung wie bei ``sende_datei`` dort).
 
+    Still auch unter ``workshop.szenenkarten_aktiv()`` in Phase 6/7 (Padua
+    Quickfix Morgen-Auftrag 4, Punkt 2, 08.10.2026): die Karte zeigt noch
+    das alte Rollenlink-Layout ("Everyone opens their own part via the role
+    link") -- im Karten-/Stage-Script-Ablauf gibt es keine Rollenlinks."""
+    from interview_theater import handykarten, workshop
+
+    if workshop.szenenkarten_aktiv() and nummer in (6, 7):
+        return
     datei = handykarten.pfad(nummer)
     satz = handykarten.satz(nummer)
     if datei is None or satz is None or not hasattr(tg, "sende_bild"):
@@ -458,15 +474,35 @@ def eintritt_in_phase(conn, tg, klm, e, chat_id: int, nummer: int) -> None:
         from interview_theater import entwurf, workshop
 
         tg.sende(chat_id, kopf)
+        # Birk 07.10.2026 14:15: KEIN Research-Knopf mehr beim Eintritt in
+        # Phase 5 (Karte t_c5117c91 hatte ihn hier gesetzt) -- der Eintritt
+        # soll schlank bleiben (2 Knoepfe nach der Zuordnung). Recherche
+        # bleibt auf Anfrage im Chat moeglich (Erkenner ``recherche_starten``).
         # Padua Phasen TEIL 1 (03.10.2026): nur unter dem Profilschalter
         # ``[prosa_entwurf] aktiv`` startet nach dem Mapping zusaetzlich die
         # Stufe-A-Uebersicht -- Dortmund (und jedes Profil ohne die Zeile)
         # bleibt beim bisherigen Weg, ``danach`` bleibt dort ``None``.
+        #
+        # Umbau 07.10.2026 ("Entry zu voll", Birk Live-Test): unter dem
+        # CoThinker (``diskussion_aktiv``) laeuft die Uebersicht NICHT mehr
+        # automatisch hier -- die Gruppe saehe sonst Eintrittskarte, den
+        # CoThinker-Hinweis UND die Logline-Uebersicht mit Yes/No in einem
+        # Rutsch. Sie kommt jetzt erst nach "Done" in der Sortierliste
+        # (``knoepfe.szenen.schliesse_schaerfungsliste``). Ohne CoThinker
+        # (heute: kein Profil) bleibt der alte automatische Weg stehen.
         danach = None
-        if workshop.prosa_entwurf_aktiv():
+        if workshop.prosa_entwurf_aktiv() and not workshop.diskussion_aktiv():
             def danach():
                 entwurf.starte_uebersicht(conn, tg, klm, e, chat_id)
         starte_schaerfung(conn, tg, klm, e, chat_id, danach=danach)
+        # Formberater, Ausloeser B (Karte t_256ec777, Birk 06.10.2026):
+        # EINMAL je Gruppe ordnet er Story und Framing aus Phase 4 ein --
+        # passt / Vorschlag / Gegenpol, als Angebot im Chat. Im eigenen
+        # Thread (Zusage 2); ohne Modell (Tests, Skripte) nichts.
+        if klm is not None:
+            from interview_theater import formberater
+
+            formberater.starte_einstieg(conn, tg, klm, e, chat_id)
     else:
         # Beim Eintritt in eine Phase fragt der Bot zuerst die Gruppe,
         # statt sofort vorzuschlagen (Zusage: proaktiv, aber nicht

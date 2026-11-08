@@ -42,29 +42,42 @@ def frische_sperre():
 class BlockierendesLLM:
     """Ein Modell, das beim ersten Aufruf haengt, bis der Test es loslaesst.
 
-    Es zaehlt ausserdem, wie viele Aufrufe GLEICHZEITIG im Modell stehen --
-    das ist der Nachweis (a). Ein Zaehler und nicht eine Messung von Zeit:
-    ein Test, der ueber Zeit argumentiert, ist auf einer langsamen Maschine
-    ein Falschalarm."""
+    Es zaehlt ausserdem, ob SCHAERFUNG und SZENENFOLGE je GLEICHZEITIG im
+    Modell standen -- das ist der Nachweis (a). Seit dem Umbau auf
+    Je-Ziel-Aufrufe (07.10.2026) macht EIN Schaerfungs-Lauf selbst mehrere
+    parallele Aufrufe (ein Zaehler ueber ALLE Arten waere also kein Beweis
+    mehr gegen einen Doppellauf) -- gezaehlt wird deshalb, ob je ein
+    Schaerfungs- UND ein Szenenfolge-Aufruf gleichzeitig offen waren, nicht
+    die rohe Gesamtzahl. Ein Zaehler und nicht eine Messung von Zeit: ein
+    Test, der ueber Zeit argumentiert, ist auf einer langsamen Maschine ein
+    Falschalarm."""
 
     def __init__(self):
         self.haltestelle = threading.Event()
         self.drin = threading.Event()
         self.arten = []
-        self.gleichzeitig_max = 0
-        self._gleichzeitig = 0
+        self.schaerfung_und_szenenfolge_gleichzeitig = False
+        self._schaerfung_offen = 0
+        self._szenenfolge_offen = 0
         self._zaehlschutz = threading.Lock()
 
     def _betrete(self, art):
         with self._zaehlschutz:
-            self._gleichzeitig += 1
-            self.gleichzeitig_max = max(self.gleichzeitig_max, self._gleichzeitig)
+            if art == szenenfolge.ART:
+                self._szenenfolge_offen += 1
+            else:
+                self._schaerfung_offen += 1
+            if self._szenenfolge_offen and self._schaerfung_offen:
+                self.schaerfung_und_szenenfolge_gleichzeitig = True
             self.arten.append(art)
         self.drin.set()
 
-    def _verlasse(self):
+    def _verlasse(self, art):
         with self._zaehlschutz:
-            self._gleichzeitig -= 1
+            if art == szenenfolge.ART:
+                self._szenenfolge_offen -= 1
+            else:
+                self._schaerfung_offen -= 1
 
     def prosa(self, chat_id, system, nutzer, art, max_tokens=None, timeout=None):
         self._betrete(art)
@@ -72,7 +85,7 @@ class BlockierendesLLM:
             assert self.haltestelle.wait(timeout=10), "Test hat nie losgelassen"
             return "VORSCHLAG SZENENFOLGE:\nAm Steg — sie treffen sich — Mira — Dialog"
         finally:
-            self._verlasse()
+            self._verlasse(art)
 
     def schema(self, chat_id, system, nutzer, schema, art, modell=None,
                temperature=None):
@@ -80,12 +93,11 @@ class BlockierendesLLM:
         try:
             assert self.haltestelle.wait(timeout=10), "Test hat nie losgelassen"
             return {
-                "eintrag_nummern": [1], "szenen_nummern": [1],
-                "figuren_namen": [""], "begruendungen": ["passt zu Szene 1"],
-                "zitate": [ZITAT_A],
+                "eintrag_nummern": [1], "staerke": [3],
+                "begruendungen": ["passt zu diesem Ziel"], "zitate": [ZITAT_A],
             }
         finally:
-            self._verlasse()
+            self._verlasse(art)
 
 
 @pytest.fixture
@@ -119,7 +131,7 @@ def test_schaerfung_wartet_auf_die_laufende_szenenfolge(lage, tg, einst):
     ergebnis = schaerfung.starte(conn, tg, klm, einst, 1)
 
     # (a) kein zweiter Modellaufruf, solange der erste steht
-    assert klm.gleichzeitig_max == 1
+    assert klm.schaerfung_und_szenenfolge_gleichzeitig is False
     assert "schaerfung" not in klm.arten
     assert ergebnis == schaerfung.GEMERKT
 
@@ -134,7 +146,14 @@ def test_schaerfung_wartet_auf_die_laufende_szenenfolge(lage, tg, einst):
     # wird ueber dieselbe Sperre gewartet, die sie haelt.
     assert szenenfolge._sperre_fuer(1).acquire(timeout=10)
     szenenfolge._sperre_fuer(1).release()
-    assert klm.arten.count("schaerfung") == 1
+    # Seit dem Umbau auf Je-Ziel-Aufrufe (07.10.2026) heisst die Art
+    # "schaerfung_<art>_<id>", nicht mehr "schaerfung" -- die Gruppe in
+    # ``lage`` hat genau ein Ziel (die eine Szene) und eine Figur, macht also
+    # zwei Aufrufe. Gezaehlt wird trotzdem nur EIN Nachhol-Lauf: kein
+    # Doppellauf, egal wie viele Ziele er je Lauf hat.
+    schaerfung_aufrufe = [a for a in klm.arten if a.startswith("schaerfung_")]
+    assert len(schaerfung_aufrufe) == len(schaerfung._ziele(conn, 1))
+    assert len(set(schaerfung_aufrufe)) == len(schaerfung_aufrufe)
     assert repo.schaerfungen(conn, 1)
 
 
@@ -150,7 +169,7 @@ def test_szenenfolge_wartet_auf_die_laufende_schaerfung(lage, tg, einst):
 
     vorher = len(tg.texte)
     assert szenenfolge.starte_geschichte_szenen(conn, tg, klm, einst, 1) is None
-    assert klm.gleichzeitig_max == 1
+    assert klm.schaerfung_und_szenenfolge_gleichzeitig is False
     assert szenenfolge.ART not in klm.arten
     assert szenenfolge._TEXT_GEMERKT in tg.texte[vorher:]
 

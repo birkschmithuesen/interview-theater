@@ -92,7 +92,10 @@ def _bereite_db(e, klm, ordner: str, conn):
         sprachprofil.erstelle(klm, conn, e, f["id"])   # ein gemma-Aufruf je Figur
     sz_id = repo.lege_szene_an(conn, CHAT_ID, 1, "Der Kessel", None, None)
     for feld, wert in SZENE_1.items():
-        repo.setze_szenenfeld(conn, sz_id, feld, wert)
+        if feld in repo.NUR_UEBER_STUECK:
+            repo.setze_szenenort(conn, sz_id, wert)
+        else:
+            repo.setze_szenenfeld(conn, sz_id, feld, wert)
     repo.setze_szene_figuren(conn, CHAT_ID, sz_id, [f["id"] for f in figuren])
     return conn, sz_id
 

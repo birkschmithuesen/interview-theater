@@ -363,7 +363,7 @@ def _eine_szene(conn, chat_id=1, nummer=1, vollstaendig=True):
         repo.setze_sprachprofil(conn, figur_id, "Kurze Saetze.", ["Ein Koffer."])
         repo.setze_szene_figuren(conn, chat_id, szene_id, [figur_id])
         repo.setze_szenenfeld(conn, szene_id, "form", "Tanztheater")
-        repo.setze_szenenfeld(conn, szene_id, "ort", "Bahnhof")
+        repo.setze_szenenort(conn, szene_id, "Bahnhof")
         repo.setze_szenenfeld(conn, szene_id, "was_passiert", "Maria wartet")
         repo.setze_arbeitsstand(conn, chat_id, "format", "Urban Dance Tanztheater")
         repo.setze_arbeitsstand(conn, chat_id, "rahmen", "Ein Bahnhof, ein Abend")
@@ -956,7 +956,7 @@ def test_die_vorstellung_zeigt_die_form_in_zeile_zwei(conn):
     szene_id = repo.stelle_szene_sicher(conn, 1, 1)
     repo.setze_szenenfeld(conn, szene_id, "titel", "Am Bahnhof")
     repo.setze_szenenfeld(conn, szene_id, "form", "Lied")
-    repo.setze_szenenfeld(conn, szene_id, "ort", "Bahnhof")
+    repo.setze_szenenort(conn, szene_id, "Bahnhof")
 
     zeilen = szenenfolge.vorstellung(
         conn, repo.hole_szene(conn, szene_id)

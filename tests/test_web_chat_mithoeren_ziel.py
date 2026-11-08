@@ -112,16 +112,38 @@ def test_der_diskussion_knopf_traegt_diskussion_als_ziel_in_phase_1(datenbank, m
 
 
 def test_der_diskussion_knopf_zeigt_die_phase_1_beschriftungen(datenbank):
-    """Markup-Zusage (Task 2): derselbe Knopftext in Phase 4 wie in Phase 1
-    -- ``T._TEXT_DISKUSSION_AN``/``_TEXT_DISKUSSION_FERTIG_KNOPF``, keine
-    eigene Brainstorm-Beschriftung mehr."""
+    """Markup-Zusage (Task 2, 03.10.2026): ``_TEXT_DISKUSSION_FERTIG_KNOPF``
+    bleibt in Phase 4 derselbe Text wie in Phase 1, keine eigene
+    Brainstorm-Beschriftung dafuer mehr. Der Start-Knopftext selbst ist
+    seit Kanban t_d22af9b2 (06.10.2026) NICHT mehr identisch -- Phase 4
+    zeigt ``_TEXT_DISKUSSION_AN_COTHINKER``, siehe
+    ``test_der_diskussion_knopf_zeigt_den_cothinker_text_nur_in_phase_4``."""
     pfad, token = datenbank
     zustand = _zustand(pfad, token, phase=4)
     seite = web_chat.chat_html(zustand, "n", token, "", 45000)
-    assert web_chat._TEXT_DISKUSSION_AN in seite
     assert web_chat._TEXT_DISKUSSION_FERTIG_KNOPF in seite
     # Kein eigener Brainstorm-Text mehr im Modul (t_cf87ee0a abgeloest).
     assert not hasattr(web_chat, "_TEXT_BRAINSTORM_AN")
+
+
+def test_der_diskussion_knopf_zeigt_den_cothinker_text_nur_in_phase_4(datenbank, monkeypatch):
+    """Kanban t_d22af9b2 (06.10.2026): Phase 4 (``mithoeren_ziel ==
+    'brainstorm'``) zeigt ``_TEXT_DISKUSSION_AN_COTHINKER``, Phase 1
+    (``'diskussion'``) behaelt den alten ``_TEXT_DISKUSSION_AN`` --
+    dieselbe Unterscheidung wie am ``data-mithoeren-ziel``-Attribut."""
+    from interview_theater import workshop
+    monkeypatch.setattr(workshop, "diskussion_aktiv", lambda *a, **k: True)
+    pfad, token = datenbank
+
+    zustand1 = _zustand(pfad, token, phase=1)
+    seite1 = web_chat.chat_html(zustand1, "n", token, "", 45000)
+    assert f">{web_chat._TEXT_DISKUSSION_AN}</button>" in seite1
+    assert web_chat._TEXT_DISKUSSION_AN_COTHINKER not in seite1
+
+    zustand4 = _zustand(pfad, token, phase=4)
+    seite4 = web_chat.chat_html(zustand4, "n", token, "", 45000)
+    assert web_chat._TEXT_DISKUSSION_AN_COTHINKER in seite4
+    assert f">{web_chat._TEXT_DISKUSSION_AN_COTHINKER}</button>" in seite4
 
 
 @pytest.mark.parametrize("phase, nebenknopf", [

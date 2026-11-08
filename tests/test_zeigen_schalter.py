@@ -22,7 +22,7 @@ def _vorbereiten(conn):
     repo.setze_figur(conn, 1, "Alex", "leise")
     sid = repo.stelle_szene_sicher(conn, 1, 1)
     repo.setze_szenenfeld(conn, sid, "was_passiert", "Alex packt.")
-    repo.setze_szenenfeld(conn, sid, "ort", "Flur")
+    repo.setze_szenenort(conn, sid, "Flur")
     repo.setze_szene_figuren(conn, 1, sid, [f["id"] for f in repo.figuren(conn, 1)])
     phasen.setze(conn, 1, 6, "befehl")
     return sid

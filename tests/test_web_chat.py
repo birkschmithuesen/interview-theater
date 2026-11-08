@@ -87,6 +87,35 @@ def test_leerer_text_ist_leer():
     assert web_chat.sichere_html("") == ""
 
 
+# -- leichtes Markdown freier Antworten (Karte t_cc147548, 07.10.2026) ----
+
+
+def test_leichtes_markdown_fett_und_kursiv_werden_tags():
+    ergebnis = web_chat.sichere_html("Schaut euch **Szene 2** an -- *kurz*.")
+    assert ergebnis == "Schaut euch <b>Szene 2</b> an -- <i>kurz</i>."
+
+
+def test_leichtes_markdown_aufzaehlung_bleibt_klartext_mit_zeilenumbruch():
+    """Kein <ul>/<li> in ``ERLAUBTE_TAGS`` -- eine Aufzaehlungszeile bleibt
+    mit ihrem Bindestrich stehen, der Zeilenumbruch wird trotzdem sichtbar."""
+    ergebnis = web_chat.sichere_html("- eins\n- zwei")
+    assert ergebnis == "- eins<br>- zwei"
+
+
+@pytest.mark.parametrize("gefaehrlich", [
+    "**<script>alert(1)</script>**",
+    "*<img src=x onerror=alert(1)>*",
+])
+def test_leichtes_markdown_und_gefaehrliches_zusammen_bleibt_sicher(gefaehrlich):
+    """Ein woertliches ``<script>``/``onerror`` INNERHALB von ``**...**``
+    darf kein HTML werden, nur weil Sternchen daneben stehen -- Mutant:
+    Maskieren und Markdown-Ersetzen vertauscht."""
+    ergebnis = web_chat.sichere_html(gefaehrlich)
+    for verboten in ("<script", "<img", "onerror"):
+        assert verboten not in ergebnis.lower(), ergebnis
+    assert ergebnis.startswith("<b>") or ergebnis.startswith("<i>")
+
+
 def test_ein_echter_vorschlagsblock_bleibt_lesbar():
     """Der gemessene Fall: vorschlag.menuetext baut genau diese Form."""
     roh = ("Drei Richtungen:\n"

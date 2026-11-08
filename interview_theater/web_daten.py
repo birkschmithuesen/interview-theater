@@ -20,6 +20,7 @@ ISO-8601-Text in UTC); Formatierung und Maskierung sind Sache von web.py.
 """
 
 import json
+import re
 import sqlite3
 import statistics
 from datetime import datetime, timedelta, timezone
@@ -585,7 +586,8 @@ def _szene_figuren(conn: sqlite3.Connection, szene_id: int) -> list[str]:
             z["name"]
             for z in conn.execute(
                 "SELECT f.name FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
-                f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} ORDER BY f.id ASC",
+                f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} "
+                "ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC",
                 (szene_id,),
             )
         ]
@@ -602,12 +604,47 @@ def _szene_figur_ids(conn: sqlite3.Connection, szene_id: int) -> list[int]:
             z["figur_id"]
             for z in conn.execute(
                 "SELECT sf.figur_id FROM szene_figur sf JOIN figur f ON f.id = sf.figur_id "
-                f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} ORDER BY f.id ASC",
+                f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} "
+                "ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC",
                 (szene_id,),
             )
         ]
     except sqlite3.OperationalError:
         return []
+
+
+def _besetzung(conn: sqlite3.Connection, szene_id: int) -> list[tuple[str, str | None]]:
+    try:
+        return [(z["name"], _feld(z, "rolle")) for z in conn.execute(
+            "SELECT f.name AS name, sf.rolle AS rolle FROM szene_figur sf "
+            "JOIN figur f ON f.id = sf.figur_id "
+            f"WHERE sf.szene_id = ? AND f.{_NICHT_ENTFERNT} "
+            "ORDER BY sf.position IS NULL, sf.position ASC, f.id ASC", (szene_id,))]
+    except sqlite3.OperationalError:
+        return [(n, None) for n in _szene_figuren(conn, szene_id)]
+
+
+def _fragen(conn: sqlite3.Connection, chat_id: int, szene_id: int) -> tuple[list[str], list[str]]:
+    try:
+        zeilen = conn.execute(
+            "SELECT text, status FROM offene_frage WHERE chat_id = ? AND szene_id = ? "
+            "AND status IN ('offen', 'vertagt') ORDER BY id", (chat_id, szene_id)).fetchall()
+    except sqlite3.OperationalError:
+        return [], []
+    return ([z["text"] for z in zeilen if z["status"] == "offen"],
+            [z["text"] for z in zeilen if z["status"] == "vertagt"])
+
+
+def _karte_sicht(conn: sqlite3.Connection, z) -> dict | None:
+    """Dieselbe Ableitung wie ``stueck.karte`` (``stueck_sicht.karte_ansicht``),
+    nur ueber das read-only-SQL dieses Moduls -- keine zweite Formatierung."""
+    from interview_theater import stueck_sicht, szenenkarte
+
+    offen, vertagt = _fragen(conn, z["chat_id"], z["id"])
+    return stueck_sicht.karte_ansicht(
+        szenenkarte.roh_karte_von(z), ort=_feld(z, "ort"), besetzung=_besetzung(conn, z["id"]),
+        zusatz=_feld(z, "wer_zusatz"), fragen_offen=offen, fragen_vertagt=vertagt,
+        punkt_offen=szenenkarte._T(z["chat_id"])._PUNKT_OFFEN)
 
 
 def schaerfungen(conn: sqlite3.Connection, chat_id: int) -> dict:
@@ -680,6 +717,68 @@ def _fruehere_fassungen(conn: sqlite3.Connection, szene_id: int) -> list[dict]:
     ]
 
 
+def _stage_kopf(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    zeile = conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)).fetchone()
+    return _feld(zeile, "stage_kopf") if zeile is not None else None
+
+
+def _stage_kopf_it(conn: sqlite3.Connection, chat_id: int) -> str | None:
+    zeile = conn.execute(
+        "SELECT * FROM arbeitsstand WHERE chat_id = ?", (chat_id,)).fetchone()
+    return _feld(zeile, "stage_kopf_it") if zeile is not None else None
+
+
+def _uebernommene_stellen(conn: sqlite3.Connection, chat_id: int) -> dict[int, list[dict]]:
+    """Je Szene die von der Gruppe uebernommenen Interviewstellen (Padua,
+    ``[skript] verdichtet``): Begruendung und Zitat zum Bereinigen von
+    Altbestand, das Zitat nur mit ``zitat_geprueft = 1`` (Datenschutz-
+    Invariante der Weboberflaeche), sonst ``None``."""
+    ergebnis: dict[int, list[dict]] = {}
+    try:
+        zeilen = conn.execute(
+            "SELECT s.szene_id, s.begruendung, t.thema, t.beleg_zitat, "
+            "       t.zitat_geprueft, v.aufnahme_id "
+            "FROM schaerfung s JOIN verdichtung_thema t ON t.id = s.verdichtung_thema_id "
+            "JOIN verdichtung v ON v.id = t.verdichtung_id "
+            "WHERE s.chat_id = ? AND s.entfernt_am IS NULL AND v.entfernt_am IS NULL "
+            "AND s.uebernommen_am IS NOT NULL AND s.szene_id IS NOT NULL "
+            "ORDER BY s.runde ASC, s.id ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return ergebnis
+    namen = _interviewbezeichnungen(conn, chat_id) if zeilen else {}
+    for z in zeilen:
+        ergebnis.setdefault(z["szene_id"], []).append({
+            "begruendung": (z["begruendung"] or z["thema"] or "").strip(),
+            "zitat_roh": z["beleg_zitat"] or "",
+            "zitat": z["beleg_zitat"] if z["zitat_geprueft"] == 1 else None,
+            "interview": namen.get(z["aufnahme_id"], ""),
+        })
+    return ergebnis
+
+
+def _verdichtet(z, stellen: list[dict]) -> dict:
+    """Die Kurzform-Felder einer Szene (Padua, ``[skript] verdichtet``,
+    ``szenenkern.py``) -- nur unter dem Schalter, sonst gar nicht: ohne ihn
+    bleibt das Szenen-Dict, wie es war."""
+    from interview_theater import szenenkern
+
+    return {
+        "kern": szenenkern.zeilen(_feld(z, "kern")),
+        "kernsaetze_kurz": szenenkern.zeilen(_feld(z, "kernsaetze_kurz")),
+        "beschreibung": szenenkern.bereinige_beschreibung(
+            _feld(z, "was_passiert"), [s["begruendung"] for s in stellen]),
+        "kernsaetze_eigen": szenenkern.bereinige_kernsaetze(
+            _feld(z, "kernsaetze"), [s["zitat_roh"] for s in stellen]),
+        "zitate": [
+            {"zitat": s["zitat"], "interview": s["interview"]}
+            for s in stellen if s["zitat"]
+        ],
+    }
+
+
 def _szenen(
     conn: sqlite3.Connection, chat_id: int, geschaerft: dict | None = None
 ) -> list[dict]:
@@ -695,6 +794,11 @@ def _szenen(
     Zeilen ohne Nummer landen hinten statt vorn (NULL sortiert in SQLite
     sonst zuerst)."""
     je_szene = (geschaerft or schaerfungen(conn, chat_id))["szene"]
+    from interview_theater import workshop
+
+    verdichtet = workshop.skript_verdichtet_aktiv()
+    karten = workshop.szenenkarten_aktiv()
+    stellen = _uebernommene_stellen(conn, chat_id) if verdichtet else {}
     szenen = []
     for z in conn.execute(
         f"SELECT * FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
@@ -721,6 +825,13 @@ def _szenen(
             # Gruppenseite -- sie ist die Vorlage, die der Feinschliff in
             # eine Form uebersetzt, und wird nicht von Hand gepflegt.
             "prosa": _feld(z, "prosa"),
+            # Die italienische Spiegelung (Birk, Live-Workshop 07.10.2026
+            # ~17:20, Padua-Profilschalter [skript] zweisprachig): nur
+            # gesetzt, wenn der Spiegelpass gelaufen ist -- read-only wie
+            # ``prosa``.
+            "prosa_it": _feld(z, "prosa_it"),
+            # Stage Script IT (Padua-Phasenumbau, [karten] aktiv).
+            "volltext_it": _feld(z, "volltext_it"),
             "geaendert_am": z["geaendert_am"],
             "figuren": _szene_figuren(conn, z["id"]),
             "figur_ids": _szene_figur_ids(conn, z["id"]),
@@ -730,6 +841,16 @@ def _szenen(
         }
         for feld, _ in SZENENFELDER:
             eintrag[feld] = _feld(z, feld)
+        if verdichtet:
+            eintrag["verdichtet"] = _verdichtet(z, stellen.get(z["id"], []))
+        if karten:
+            # Padua-Phasenumbau: die Szenenkarte (Phase 6), Zitate im
+            # Original -- sie stammen aus gepruefter Verdichtung (Wortlaut
+            # aus der DB, ``szenenkarte.erzeuge``).
+            from interview_theater import szenenkarte
+
+            eintrag["karte"] = _karte_sicht(conn, z)
+            eintrag["karte_bestaetigt"] = bool((_feld(z, "karte_bestaetigt_am") or "").strip())
         szenen.append(eintrag)
     return szenen
 
@@ -1345,6 +1466,10 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         # Die Erstfassung vor der Pruefung je Szene (Padua Phasen TEIL 2) --
         # nur, wo sie vom aktuellen Text abweicht. Leeres Dict: kein Block.
         "erstentwuerfe": erstentwuerfe(conn, chat_id),
+        # Der Kopf des Stage Scripts (Padua-Phasenumbau, G2: Versuchsanordnung
+        # und Rollen) -- read-only, nur wenn gesetzt.
+        "stage_kopf": _stage_kopf(conn, chat_id),
+        "stage_kopf_it": _stage_kopf_it(conn, chat_id),
         "interviews": _interviews(conn, chat_id),
         "journal": _journal(conn, chat_id),
         "bearbeitbares": bearbeitbares(conn, chat_id),
@@ -1403,6 +1528,23 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
             if stand.get("phase") == 2 and _workshop.diskussion_aktiv()
             else None
         ),
+        # Die Schaerfungs-Sortierliste im CoThinker (Padua Phase 5,
+        # 07.10.2026): sobald das Mapping gelaufen ist, sortiert die Gruppe
+        # dort statt Seite fuer Seite im Chat. Dasselbe Profil-Gate wie die
+        # Fragen-Auswahlliste, nur Phase 5 statt 2.
+        "schaerfungsliste": (
+            schaerfungsliste(conn, chat_id)
+            if stand.get("phase") == 5 and _workshop.diskussion_aktiv()
+            else None
+        ),
+        # Die Szenenkarten im CoThinker (Padua Phase 6, Birk 07.10.2026
+        # ~19:25): aktive Karte gross, die anderen je eine Zeile.
+        "szenenkarten": (
+            szenenkarten(conn, chat_id)
+            if stand.get("phase") == 6 and _workshop.diskussion_aktiv()
+            and _workshop.szenenkarten_aktiv()
+            else None
+        ),
         # Das "listening"-Signal der CoThinker-Tafel (Task 1, Padua
         # CoThinker-Tab clean, 03.10.2026): eine Aufnahme laeuft gerade oder
         # wartet auf Transkription. Ueber ``_aufnahmen_nach_status`` (schon
@@ -1419,11 +1561,76 @@ def gruppe_nach_token(conn: sqlite3.Connection, token: str | None) -> dict | Non
         "werkbank": (
             werkbank(conn, chat_id) if not _workshop.workbench_bearbeitbar() else None
         ),
+        # Birk 07.10.2026 ~16:30: die vom Formberater zuletzt passend
+        # gefundenen Formen (Name in der Gruppensprache), fuer die Workbench.
+        "formen_nah": _formen_nah(conn, chat_id),
+        # Die Phasen-Summaries (Karte t_1bc96848, Teil 3) -- reine Anzeige
+        # des bereits gespeicherten Texts fuer die Werkbank, kein neuer
+        # Modellaufruf. Leere Liste heisst: der Abschnitt bleibt weg.
+        "phasen_summaries": _phasen_summaries(conn, chat_id),
+        # Die Bedarfsliste (Birk 08.10.2026 ~13:45, Padua): eine Abhakliste
+        # in der read-only Werkbank. Leer -> der Abschnitt bleibt ganz weg
+        # (Dortmund byte-gleich, dort gibt es nie Punkte).
+        "bedarf": _bedarf(conn, chat_id),
         # Die CoThinker-Statuszeile (Phase 4, nur Web, 03.10.2026) -- ``None``
         # ausserhalb Phase 4 und wenn es gerade nichts zu melden gibt, dann
         # bleibt die Zeile im Browser weg.
         "cothinker_status": cothinker_status(conn, chat_id, stand.get("phase")),
     }
+
+
+def _bedarf(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die Bedarfsliste fuer die Werkbank -- reine Anzeige, ``id`` nur fuers
+    Abhaken (``web_chat._bedarf``), ``erledigt`` schon als ``bool`` statt
+    eines Zeitstempels: das HTML braucht keinen."""
+    from interview_theater import repo
+
+    return [
+        {
+            "id": z["id"], "sektion": z["sektion"], "text": z["text"],
+            "erledigt": z["erledigt_am"] is not None,
+            # Nachtrag Birk 08.10.2026 ~13:50 (Downloads): der Dateiname oder
+            # None -- der Link daraus baut sich erst in web._bedarf_punkt_html.
+            "datei": z["datei"],
+        }
+        for z in repo.bedarf(conn, chat_id)
+    ]
+
+
+def _phasen_summaries(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Je Phase das juengste Phasen-Summary, nach Phase aufsteigend -- fuer
+    die Werkbank (Karte t_1bc96848, Teil 3). Wiederverwendet
+    ``repo.phasen_summaries`` statt eigenem SQL (wie ``_formen_nah`` unten
+    mit ``repo.formberater_zeilen``): dieselbe Leseabfrage speist bereits die
+    Prompt-Injektion."""
+    from interview_theater import repo
+
+    return [
+        {"phase": z["phase"], "text": z["text"]}
+        for z in repo.phasen_summaries(conn, chat_id)
+    ]
+
+
+def _formen_nah(conn, chat_id: int) -> str:
+    """Die Formen aus dem letzten Formberater-Ergebnis (``passt``), als
+    Namen in der Gruppensprache, kommagetrennt -- oder "". Ein Lesefehler
+    laesst nur diese Zeile weg."""
+    import logging
+
+    from interview_theater import formberater, repo
+
+    try:
+        zeilen = repo.formberater_zeilen(conn, chat_id)
+        katalog = formberater._alle()
+        for z in reversed(zeilen):
+            ergebnis = z.get("ergebnis") or {}
+            slugs = [p.get("form") for p in (ergebnis.get("passt") or []) if p.get("form") in katalog]
+            if slugs:
+                return ", ".join(katalog[s].name for s in slugs)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Formen fuer die Werkbank nicht gelesen, chat_id=%s", chat_id)
+    return ""
 
 
 def buehnenkarten(
@@ -1510,6 +1717,198 @@ def auswahlliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
     return _auswahl.fragen_liste(stand)
 
 
+def _interviewbezeichnungen(conn: sqlite3.Connection, chat_id: int) -> dict[int, str]:
+    """``{aufnahme_id: "Interview N"}`` in derselben Reihenfolge wie
+    ``kontext.interviewbezeichnung`` (chronologisch nach Beginn) -- fuer die
+    Schaerfungs-Sortierliste (``schaerfungsliste``). Eigene, kleine Abfrage
+    statt eines Umwegs ueber ``repo``/``kontext`` (wie ueberall in diesem
+    Modul): der Webserver liest read-only."""
+    try:
+        zeilen = conn.execute(
+            f"SELECT id, empfangen_am FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+            f"AND teil_von IS NULL AND {_NICHT_ENTFERNT} ORDER BY id ASC",
+            (chat_id,),
+        ).fetchall()
+        mit_teilen = True
+    except sqlite3.OperationalError:
+        zeilen = conn.execute(
+            f"SELECT id, empfangen_am FROM aufnahme WHERE chat_id = ? AND klasse = 'lang' "
+            f"AND {_NICHT_ENTFERNT} ORDER BY id ASC",
+            (chat_id,),
+        ).fetchall()
+        mit_teilen = False
+
+    def _beginn(z):
+        if mit_teilen:
+            erster = conn.execute(
+                f"SELECT min(empfangen_am) AS t FROM aufnahme WHERE teil_von = ? AND {_NICHT_ENTFERNT}",
+                (z["id"],),
+            ).fetchone()
+            if erster and erster["t"]:
+                return erster["t"]
+        return z["empfangen_am"] or ""
+
+    zeilen = sorted(zeilen, key=_beginn)
+    return {z["id"]: f"Interview {n}" for n, z in enumerate(zeilen, start=1)}
+
+
+#: Hoechstzahl offener Vorschlaege je Szene/Figur in der Sortierliste
+#: (Birk 07.10.2026 14:30).
+SCHAERFUNGSLISTE_JE_ZIEL = 5
+
+
+def schaerfungsliste(conn: sqlite3.Connection, chat_id: int) -> dict | None:
+    """Die Sortierliste der Schaerfung im CoThinker (Padua, ab Phase 5,
+    07.10.2026, "Show more" war unsinnig): ALLE offenen Zuordnungen,
+    gruppiert nach Szene (nach Nummer) und danach nach Figur, staerkste
+    zuerst innerhalb der Gruppe -- dasselbe Material wie die Chat-Karten bis
+    zu diesem Umbau (``schaerfung.option``), nur auf einmal statt
+    seitenweise. ``None``, wenn nichts offen ist.
+
+    Eine Zuordnung darf an einer Szene UND an einer Figur haengen
+    (``repo.lege_schaerfung_an``) -- dieselbe Zeile taucht dann in beiden
+    Gruppen auf, wie bei den alten Chat-Karten je Ziel auch.
+
+    Eigene Abfrage statt ``repo.schaerfungen`` (wie ueberall in diesem
+    Modul): der Webserver liest read-only, repo serialisiert ueber den
+    Schreib-Lock des Bots."""
+    try:
+        zeilen = conn.execute(
+            "SELECT s.id, s.szene_id, s.figur_id, s.staerke, s.runde, "
+            "       s.begruendung, s.entscheidung, s.verdichtung_thema_id AS thema_id, "
+            "       t.thema AS thema, t.beleg_zitat AS zitat, v.aufnahme_id AS aufnahme_id "
+            "FROM schaerfung s "
+            "JOIN verdichtung_thema t ON t.id = s.verdichtung_thema_id "
+            "JOIN verdichtung v ON v.id = t.verdichtung_id "
+            f"WHERE s.chat_id = ? AND s.{_NICHT_ENTFERNT} AND s.uebernommen_am IS NULL "
+            "  AND v.entfernt_am IS NULL "
+            "ORDER BY COALESCE(s.staerke, 0) DESC, s.runde ASC, s.id ASC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return None
+    if not zeilen:
+        return None
+
+    bezeichnungen = _interviewbezeichnungen(conn, chat_id)
+    zaehler = {"ja": 0, "nein": 0, "offen": 0}
+    je_szene: dict[int, list] = {}
+    je_figur: dict[int, list] = {}
+    # Birk 07.10.2026 14:30 ("266 viel zu viel, schwer zu folgen"): je
+    # Interviewstelle nur EIN Ziel (das staerkste, Zeilen kommen nach Staerke
+    # sortiert) und je Szene/Figur hoechstens SCHAERFUNGSLISTE_JE_ZIEL offene
+    # Vorschlaege. Bereits entschiedene (Yes/No) bleiben immer sichtbar. Was
+    # ausgeblendet ist, bleibt offen in der DB -- "Done" laesst es stehen.
+    # Birk 07.10.2026 ~17:10 (G1: "nach Yes/No kamen immer neue Vorschlaege,
+    # endlose Schleife, nur Woerter getauscht"): die Liste ist FEST. Ein
+    # entschiedener Eintrag belegt seinen Platz weiter (zaehlt zur Obergrenze
+    # je Ziel), und sein Thema sperrt Dubletten -- ein Yes/No laesst also
+    # keinen Nachruecker und keine Umformulierung desselben Zitats auftauchen.
+    gesehen_themen: set = set()
+    offen_je_ziel: dict = {}
+    for z in zeilen:
+        if (_feld(z, "entscheidung") or "") in ("ja", "nein"):
+            ziel_e = ("s", z["szene_id"]) if z["szene_id"] is not None else ("f", z["figur_id"])
+            offen_je_ziel[ziel_e] = offen_je_ziel.get(ziel_e, 0) + 1
+            if _feld(z, "thema_id") is not None:
+                gesehen_themen.add(_feld(z, "thema_id"))
+    for z in zeilen:
+        zustand = _feld(z, "entscheidung") or ""
+        if zustand not in ("ja", "nein"):
+            zustand = ""
+        ziel = ("s", z["szene_id"]) if z["szene_id"] is not None else ("f", z["figur_id"])
+        if not zustand:
+            thema_id = _feld(z, "thema_id")
+            if thema_id is not None and thema_id in gesehen_themen:
+                continue
+            if offen_je_ziel.get(ziel, 0) >= SCHAERFUNGSLISTE_JE_ZIEL:
+                continue
+            offen_je_ziel[ziel] = offen_je_ziel.get(ziel, 0) + 1
+            if thema_id is not None:
+                gesehen_themen.add(thema_id)
+        zaehler[zustand or "offen"] += 1
+        eintrag = {
+            "id": z["id"],
+            "zustand": zustand,
+            "titel": (z["thema"] or "").strip(),
+            "interview": bezeichnungen.get(z["aufnahme_id"], ""),
+            "zitat": (z["zitat"] or "").strip(),
+            "begruendung": (z["begruendung"] or "").strip(),
+        }
+        if z["szene_id"] is not None:
+            je_szene.setdefault(z["szene_id"], []).append(eintrag)
+        if z["figur_id"] is not None:
+            je_figur.setdefault(z["figur_id"], []).append(eintrag)
+
+    gruppen: list[dict] = []
+    for szene in conn.execute(
+        f"SELECT id, nummer, titel FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+        "ORDER BY nummer IS NULL, nummer ASC, id ASC",
+        (chat_id,),
+    ):
+        eintraege = je_szene.get(szene["id"])
+        if eintraege and szene["nummer"] is not None:
+            gruppen.append({
+                "art": "szene", "nummer": szene["nummer"], "titel": szene["titel"],
+                "eintraege": eintraege,
+            })
+    for figur in conn.execute(
+        f"SELECT id, name FROM figur WHERE chat_id = ? AND {_NICHT_ENTFERNT} ORDER BY id ASC",
+        (chat_id,),
+    ):
+        eintraege = je_figur.get(figur["id"])
+        if eintraege:
+            gruppen.append({"art": "figur", "name": figur["name"], "eintraege": eintraege})
+    if not gruppen:
+        return None
+    return {"gruppen": gruppen, "zaehler": zaehler}
+
+
+def szenenkarten(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Je Szene: Nummer, Titel, Karte (oder ``None``, solange sie entsteht),
+    abgenommen ja/nein, aktiv ja/nein (die erste nicht abgenommene).
+    Read-only; die Zitate der Karte stammen aus geprueften Stellen
+    (``szenenkern._kandidaten``)."""
+    from interview_theater import szenenkarte
+
+    zeilen = conn.execute(
+        f"SELECT * FROM szene WHERE chat_id = ? AND {_NICHT_ENTFERNT} AND nummer IS NOT NULL "
+        "ORDER BY nummer ASC, id ASC", (chat_id,),
+    ).fetchall()
+    liste, aktiv_gesetzt = [], False
+    for z in zeilen:
+        bestaetigt = bool((_feld(z, "karte_bestaetigt_am") or "").strip())
+        aktiv = not bestaetigt and not aktiv_gesetzt
+        aktiv_gesetzt = aktiv_gesetzt or aktiv
+        liste.append({"nummer": z["nummer"], "titel": (z["titel"] or "").strip(),
+                      "karte": _karte_sicht(conn, z), "bestaetigt": bestaetigt,
+                      "aktiv": aktiv})
+    return liste
+
+
+def _workshop_diskussion() -> bool:
+    from interview_theater import workshop
+
+    return workshop.diskussion_aktiv()
+
+
+def auswahl_anzahl(conn: sqlite3.Connection, chat_id: int) -> int:
+    """Die Zaehlbasis jeder Zahl zur Interviewliste (Birk 07.10.2026 ~19:25,
+    verbindlich): die FESTE Auswahl -- was schon uebernommen ist plus was die
+    CoThinker-Liste gerade sichtbar zeigt (``schaerfungsliste``), nie alle
+    Zuordnungen in der Datenbank."""
+    try:
+        uebernommen = conn.execute(
+            f"SELECT COUNT(*) FROM schaerfung WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+            "AND uebernommen_am IS NOT NULL", (chat_id,),
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        uebernommen = 0
+    liste = schaerfungsliste(conn, chat_id) or {}
+    sichtbar = {e["id"] for g in liste.get("gruppen", []) for e in g.get("eintraege", [])}
+    return int(uebernommen) + len(sichtbar)
+
+
 def stueckkarte_felder(
     conn: sqlite3.Connection, chat_id: int,
     figuren: list[dict] | None = None, arbeitsstand: dict | None = None,
@@ -1586,10 +1985,27 @@ def cothinker_status(
         neueste_karte_schweigen=bool(schweigen),
         neueste_karte_seit=erstellt_am,
     )
-    if treffer is None:
-        return None
-    zustand, seit = treffer
-    return {"zustand": zustand, "seit": seit}
+    ergebnis = {}
+    if treffer is not None:
+        zustand, seit = treffer
+        ergebnis = {"zustand": zustand, "seit": seit}
+
+    # Karte InScribe (Diskussionsaufnahme laedt still nicht mehr hoch,
+    # 2026-10-17): der Watchdog des Chat-Clients meldet gepufferte Segmente
+    # unabhaengig von der obigen Zustandskette -- ein haengender Upload sagt
+    # nichts darueber, ob gerade "gedacht" oder "zugehoert" wird.
+    try:
+        zeile = conn.execute(
+            "SELECT client_puffer_segmente FROM gruppe WHERE chat_id = ?",
+            (chat_id,),
+        ).fetchone()
+        puffer = zeile["client_puffer_segmente"] if zeile else None
+    except sqlite3.OperationalError:
+        puffer = None
+    if puffer:
+        ergebnis["puffer"] = int(puffer)
+
+    return ergebnis or None
 
 
 def sprechanteile(conn: sqlite3.Connection, chat_id: int) -> dict:
@@ -1791,8 +2207,33 @@ _ABGETIPPT = (
 )
 
 
+#: Praefix der Phaseneintrittsnachricht (``phasentexte._KOPF_EINTRITT``),
+#: sprachunabhaengig gleich -- dieselbe Konstante, mit der auch das Chat-JS
+#: die Kopfzeile erkennt (``phasenkopfzeile()``).
+_EINTRITT_PRAEFIX = re.compile(r"^▶️ Phase (\d+)")
+
+
+def _massgebliche_phasen(zeilen) -> list:
+    """Fuer jede Zeile (in ``id``-Reihenfolge) die Phase, zu der sie
+    inhaltlich gehoert. Sie aendert sich bei jeder Bot-Eintrittsnachricht
+    (``▶️ Phase N ...``) auf N -- rueckwaerts genauso wie vorwaerts, eine
+    Gruppe kann zu einer frueheren Phase zurueckspringen. Alles davor
+    (auch die allererste Zeile ueberhaupt) zaehlt als Phase 1."""
+    aktuell = 1
+    ergebnis = []
+    for z in zeilen:
+        if z["richtung"] == "aus":
+            treffer = _EINTRITT_PRAEFIX.match(z["text"] or "")
+            if treffer:
+                aktuell = int(treffer.group(1))
+        ergebnis.append(aktuell)
+    return ergebnis
+
+
 def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE) -> list:
-    """Der Chatverlauf einer Web-Gruppe ab ``nach`` (exklusiv), aelteste zuerst.
+    """Der Chatverlauf einer Web-Gruppe ab ``nach`` (exklusiv), aelteste zuerst
+    -- und NUR die aktuelle Phase (frueheren Besuche DERSELBEN Phase
+    inklusive, Kanban-Karte t_60d72fd6: "Verlauf nur der aktuellen Phase").
 
     Geliefert wird genau das, was die Ansicht braucht -- **und der Dateipfad
     ist nicht dabei.** Er ist eine Serverinnerei, und die Seite ist ohne Login
@@ -1803,18 +2244,42 @@ def web_chatverlauf(conn, chat_id: int, nach: int = 0, grenze: int = CHAT_GRENZE
     NEUESTEN ``grenze`` Zeilen, weiter aufsteigend sortiert -- vorher kamen
     mit ``ORDER BY id ASC LIMIT`` die aeltesten, und ab 200 sichtbaren
     Nachrichten zeigte die Seite einen alten Stand. Der Poll (``nach>0``)
-    holt wie bisher die naechsten ab ``nach``, aelteste zuerst."""
-    reihenfolge = "DESC" if nach <= 0 else "ASC"
-    zeilen = conn.execute(
+    holt wie bisher die naechsten ab ``nach``, aelteste zuerst.
+
+    Die Phase ist keine eigene Spalte (additiv waere auch ok, aber der
+    Eintrittstext traegt die Information schon, siehe
+    ``_massgebliche_phasen``) -- deshalb wird hier ohne ``id``-Schranke und
+    ohne ``LIMIT`` gelesen (ein Workshoptag bleibt ein paar hundert Zeilen),
+    in Phasen eingeteilt, und erst DANACH auf die aktuelle Phase sowie
+    ``nach``/``grenze`` eingeschraenkt.
+
+    Die "aktuelle Phase" kommt bewusst NICHT aus ``arbeitsstand.phase``,
+    sondern aus der letzten Zeile dieser Liste selbst: Jeder wirkliche
+    Phasenwechsel schreibt die Eintrittsnachricht ueber
+    ``knoepfe.eintritt_in_phase`` -- an allen drei Aufrufstellen
+    (``befehle.wechsle_phase``, ``erkenner.laufe``,
+    ``knoepfe/stationen.py``) in einem ``try/except``, das einen
+    Sendefehler bewusst NICHT den Phasenwechsel selbst blockieren laesst.
+    Schlaegt das Senden fehl, liefe ``arbeitsstand.phase`` dem Verlauf
+    davon und ein Abgleich dagegen zeigte dann dauerhaft eine LEERE
+    Historie -- ueber den Verlauf selbst bleibt der Chat dagegen einfach
+    bei der zuletzt tatsaechlich gezeigten Phase stehen, bis die naechste
+    Eintrittsnachricht ankommt."""
+    alle = conn.execute(
         "SELECT id, richtung, typ, text, knoepfe, dauer, dateiname, erstellt_am, "
-        f"bild, {_ABGETIPPT} FROM web_post WHERE chat_id = ? AND id > ? AND geloescht_am IS NULL "
+        f"bild, {_ABGETIPPT} FROM web_post WHERE chat_id = ? AND geloescht_am IS NULL "
         f"AND typ NOT IN ({','.join('?' * len(_CHAT_VERBORGEN))}) "
         "AND typ != 'knopf' AND (kalibrierung = 0 OR kalibrierung IS NULL) "
-        f"ORDER BY id {reihenfolge} LIMIT ?",
-        (chat_id, nach, *_CHAT_VERBORGEN, grenze),
+        "ORDER BY id ASC",
+        (chat_id, *_CHAT_VERBORGEN),
     ).fetchall()
-    if reihenfolge == "DESC":
-        zeilen = list(reversed(zeilen))
+    phasen_je_zeile = _massgebliche_phasen(alle)
+    aktuelle_phase = phasen_je_zeile[-1] if phasen_je_zeile else 1
+    zeilen = [
+        z for z, p in zip(alle, phasen_je_zeile)
+        if p == aktuelle_phase and int(z["id"]) > nach
+    ]
+    zeilen = zeilen[-grenze:] if nach <= 0 else zeilen[:grenze]
     return [
         {
             "id": int(z["id"]),
@@ -2241,9 +2706,10 @@ def _roadmap_lage(conn: sqlite3.Connection, chat_id: int) -> dict:
         # Bot-Weg -- auch unverdichtete Interviews (UX-Knoepfe Abschnitt 4).
         "hat_verdichtung": any(e["zusammenfassung"] for e in interviews),
         "offene_interviews": bool(_offene_interviews(conn, chat_id)),
-        "zuordnungen": sum(
-            len(v) for teil in schaerfungen(conn, chat_id).values()
-            for v in teil.values()
+        "zuordnungen": (
+            auswahl_anzahl(conn, chat_id) if _workshop_diskussion()
+            else sum(len(v) for teil in schaerfungen(conn, chat_id).values()
+                     for v in teil.values())
         ),
         "pruefrunde": (stueckpruefung(conn, chat_id) or {}).get("runde"),
         "phase": stand.get("phase") or phasen.ERSTE,
@@ -2278,6 +2744,10 @@ def roadmap(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
 #: (``begriffe_detail`` kommt erst mit Karte t_4517d4ad).
 _WERKBANK_STANDFELDER = (
     "gesamttext_fixiert_am", "sprechweisen_fixiert_am", "szenen_anzahl", "begriffe_detail",
+    # Padua-Phasenumbau (Workbench-Checkliste P6/P7, Birk 08.10.2026): der
+    # Skriptkopf-Punkt in Phase 7 (``roadmap._stagescript_zeilen``) braucht
+    # ``stand["stage_kopf"]``, das ``_arbeitsstand`` nicht mitbringt.
+    "stage_kopf",
 )
 
 
@@ -2302,6 +2772,34 @@ def _spalte_je_id(conn: sqlite3.Connection, tabelle: str, spalte: str,
     return {z["id"]: z[spalte] for z in zeilen}
 
 
+def _recherchen(conn: sqlite3.Connection, chat_id: int) -> list[dict]:
+    """Die nicht entfernten Recherchen einer Gruppe, juengste zuerst --
+    dieselbe Form wie ``repo.hole_recherchen`` (Karte t_c5117c91), hier ueber
+    die read-only Verbindung. ``OperationalError``-Notbremse wie bei jedem
+    Leser hier: der Webserver migriert nichts (die Tabelle kann zwischen
+    Deploy und Bot-Neustart noch fehlen)."""
+    try:
+        zeilen = conn.execute(
+            f"SELECT * FROM recherche WHERE chat_id = ? AND {_NICHT_ENTFERNT} "
+            "ORDER BY id DESC",
+            (chat_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    ergebnis = []
+    for z in zeilen:
+        try:
+            quellen = json.loads(_feld(z, "quellen_json") or "[]") or []
+        except (ValueError, TypeError):
+            quellen = []
+        ergebnis.append({
+            "frage": _feld(z, "frage") or "",
+            "ergebnis_text": _feld(z, "ergebnis_text") or "",
+            "quellen": quellen,
+        })
+    return ergebnis
+
+
 def werkbank(conn: sqlite3.Connection, chat_id: int) -> dict:
     """Die read-only Werkbank (``roadmap.werkbank``) -- dieselbe ``lage`` wie
     ``roadmap``, ergaenzt um das, was nur die Detailzeilen brauchen. Kein
@@ -2322,4 +2820,7 @@ def werkbank(conn: sqlite3.Connection, chat_id: int) -> dict:
         "phasen": modul.werkbank(lage, lage["phase"]),
         "begriffe_detail": modul.begriffe_detail(lage["stand"]),
         "szenen_anzahl": (str(anzahl).strip() or None) if anzahl is not None else None,
+        # Internet-Recherche (Karte t_c5117c91) -- ein eigener Abschnitt,
+        # unabhaengig von den sieben Phasen (siehe roadmap.recherche_abschnitt).
+        "recherche": modul.recherche_abschnitt(_recherchen(conn, chat_id)),
     }

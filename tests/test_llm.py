@@ -369,3 +369,13 @@ def test_api_schluessel_landet_nicht_in_ausnahme(conn, monkeypatch, tmp_path):
 
     meldung = str(ausnahme_info.value)
     assert geheim not in meldung
+
+
+def test_lies_json_nimmt_keinen_skalar_aus_fliesstext():
+    """P57 Lauf 3 A5: Claude antwortete Prosa mit fuehrender Zahl ("1. ...");
+    raw_decode las daraus die Zahl 1 und der Gespraechszug scheiterte mit
+    'keine verwertbare Antwort (Typ int)'. Nur Objekte/Listen zaehlen."""
+    for text in ("1. Erstens, die Szene beginnt.", "3 Figuren sind es.", "42", "true"):
+        with pytest.raises(llm.LLMFehler):
+            llm.lies_json(text)
+    assert llm.lies_json("Vorab 2 Worte {\"a\": 1}") == {"a": 1}

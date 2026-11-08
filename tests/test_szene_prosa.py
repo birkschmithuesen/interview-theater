@@ -74,7 +74,7 @@ def _geplant(conn, chat_id=1, nummer=1, form=None):
     repo.setze_arbeitsstand(conn, chat_id, "rahmen", "Ein Bahnhof, ein Abend")
     szene_id = repo.stelle_szene_sicher(conn, chat_id, nummer)
     repo.setze_szenenfeld(conn, szene_id, "titel", "Am Bahnhof")
-    repo.setze_szenenfeld(conn, szene_id, "ort", "Bahnhof")
+    repo.setze_szenenort(conn, szene_id, "Bahnhof")
     repo.setze_szenenfeld(conn, szene_id, "was_passiert", "Maria kommt an")
     if form:
         repo.setze_szenenfeld(conn, szene_id, "form", form)

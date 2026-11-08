@@ -250,6 +250,33 @@ def test_migration_ergaenzt_phase_und_entfernt_am_ohne_datenverlust(tmp_path):
     assert len(repo.journal(c, 1)) == 1
 
 
+def test_migration_ergaenzt_szene_prosa_it_ohne_datenverlust(tmp_path):
+    """Der EN/IT-Spiegelpass (Birk, Live-Workshop 07.10.2026, Padua-
+    Profilschalter ``[skript] zweisprachig``) braucht ``szene.prosa_it`` --
+    eine Datenbank von vorher kennt sie nicht und darf ihren Volltext
+    trotzdem nicht verlieren."""
+    c = db.verbinde(str(tmp_path / "alt.db"))
+    c.executescript(_ALTE_TABELLEN)
+    c.execute(
+        "INSERT INTO szene (chat_id, nummer, titel, volltext, geaendert_am) "
+        "VALUES (1, 1, 'Am Bahnhof', 'MARIA: Hier.', '2026-09-04T10:00:00+00:00')"
+    )
+    c.commit()
+    vorhanden = [r[1] for r in c.execute("PRAGMA table_info(szene)")]
+    assert "prosa_it" not in vorhanden, "Testannahme: die Spalte fehlt wirklich"
+
+    db.initialisiere(c)
+
+    zeile = c.execute("SELECT * FROM szene WHERE chat_id = 1").fetchone()
+    assert zeile["titel"] == "Am Bahnhof", "Migration darf keine Daten verlieren"
+    assert zeile["prosa_it"] is None
+    c.execute("UPDATE szene SET prosa_it = ? WHERE chat_id = 1", ("Testo italiano.",))
+    c.commit()
+    assert c.execute(
+        "SELECT prosa_it FROM szene WHERE chat_id = 1"
+    ).fetchone()[0] == "Testo italiano."
+
+
 # ---------------------------------------------------------------------------
 # Phasennummern-Migration (db._migriere_phasennummern), drei Stufen
 # ---------------------------------------------------------------------------
@@ -666,6 +693,38 @@ def test_echo_message_id_spalte_existiert_frisch_und_wird_nachgeruestet(tmp_path
     zeile = alt.execute("SELECT * FROM aufnahme WHERE chat_id = 1").fetchone()
     assert zeile["klasse"] == "lang", "Migration darf keine Daten verlieren"
     assert zeile["echo_message_id"] is None
+
+
+def test_hintergrund_ms_spalte_existiert_frisch_und_wird_nachgeruestet(tmp_path):
+    """Karte t_1423ca89 (Warnung "Aufnahme im Hintergrund unterbrochen"):
+    ``hintergrund_ms`` faehrt additiv auf ``aufnahme`` UND ``web_post`` mit,
+    dieselbe generische Migration wie ``rede_ms``/``weich_ms``."""
+    frisch = db.verbinde(str(tmp_path / "frisch.db"))
+    db.initialisiere(frisch)
+    assert "hintergrund_ms" in [r[1] for r in frisch.execute("PRAGMA table_info(aufnahme)")]
+    assert "hintergrund_ms" in [r[1] for r in frisch.execute("PRAGMA table_info(web_post)")]
+
+    alt = db.verbinde(str(tmp_path / "alt.db"))
+    alt.executescript(_ALTE_AUFNAHME_UND_WEB_POST)
+    alt.execute(
+        "INSERT INTO aufnahme (chat_id, message_id, klasse, quelle, status, empfangen_am) "
+        "VALUES (1, 10, 'teil', 'sprache', 'empfangen', '2026-10-06T10:00:00+00:00')"
+    )
+    alt.execute(
+        "INSERT INTO web_post (chat_id, richtung, typ, erstellt_am) "
+        "VALUES (1, 'ein', 'sprache', '2026-10-06T10:00:00+00:00')"
+    )
+    alt.commit()
+    assert "hintergrund_ms" not in [r[1] for r in alt.execute("PRAGMA table_info(aufnahme)")], \
+        "Testannahme: die Spalte fehlt wirklich"
+
+    db.initialisiere(alt)  # darf nicht krachen, obwohl beide Tabellen schon existieren
+
+    assert "hintergrund_ms" in [r[1] for r in alt.execute("PRAGMA table_info(aufnahme)")]
+    assert "hintergrund_ms" in [r[1] for r in alt.execute("PRAGMA table_info(web_post)")]
+    zeile = alt.execute("SELECT * FROM aufnahme WHERE chat_id = 1").fetchone()
+    assert zeile["klasse"] == "teil", "Migration darf keine Daten verlieren"
+    assert zeile["hintergrund_ms"] is None
 
 
 def test_echo_message_id_lesen_und_setzen(tmp_path):

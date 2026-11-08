@@ -477,7 +477,15 @@ def _setze_szenenfeld(feld: str, label: str):
         zeile = _szene(conn, chat_id, ziel)
         alt = zeile[feld] or ""
         neu = _text(wert)
-        repo.setze_szenenfeld(conn, zeile["id"], feld, _leer_zu_none(neu))
+        if feld in repo.NUR_UEBER_STUECK:
+            from interview_theater import stueck
+
+            ergebnis = stueck.setze_ort(conn, chat_id, szene_id=zeile["id"],
+                                        ort=_leer_zu_none(neu), quelle="web")
+            if not ergebnis.ok:
+                raise Fehler(stueck.meldung(ergebnis))
+        else:
+            repo.setze_szenenfeld(conn, zeile["id"], feld, _leer_zu_none(neu))
         beschriftung = T.SZENENFELDER.get(feld, label)
         _notiere(conn, chat_id, f"{_szenenname(zeile)} · {beschriftung}", alt, neu)
         return neu
@@ -488,7 +496,7 @@ def _setze_szenenfeld(feld: str, label: str):
 def _setze_szene_figuren(conn, chat_id: int, wert, ziel) -> str:
     """Die Besetzung einer Szene, als Liste von Figur-ids.
 
-    ``repo.setze_szene_figuren`` ersetzt die Besetzung, statt zu ergaenzen --
+    ``stueck.setze_besetzung`` ersetzt die Besetzung, statt zu ergaenzen --
     genau das, was eine Mehrfachauswahl im Formular meint."""
     zeile = _szene(conn, chat_id, ziel)
     roh = wert if isinstance(wert, list) else str(wert or "").split(",")
@@ -499,7 +507,14 @@ def _setze_szene_figuren(conn, chat_id: int, wert, ziel) -> str:
             continue
         ids.append(_figur(conn, chat_id, text)["id"])
     alt = ", ".join(f["name"] for f in repo.szene_figuren(conn, zeile["id"]))
-    repo.setze_szene_figuren(conn, chat_id, zeile["id"], ids)
+    from interview_theater import stueck
+
+    namen = {f["id"]: f["name"] for f in repo.figuren(conn, chat_id)}
+    ergebnis = stueck.setze_besetzung(
+        conn, chat_id, szene_id=zeile["id"], namen=[namen[i] for i in ids],
+        zusatz=zeile["wer_zusatz"], quelle="web")
+    if not ergebnis.ok:
+        raise Fehler(stueck.meldung(ergebnis))
     neu = ", ".join(f["name"] for f in repo.szene_figuren(conn, zeile["id"]))
     _notiere(conn, chat_id, f"{_szenenname(zeile)} · {T._LABEL_BESETZUNG}", alt, neu)
     return neu

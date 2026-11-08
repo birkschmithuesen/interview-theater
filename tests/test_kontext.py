@@ -507,6 +507,35 @@ def test_ohne_interview_wird_nicht_nach_der_quelle_gefragt(conn, einst):
     assert "fehlt noch das Interview" not in kontext.baue(conn, 1, ausloeser, einst)
 
 
+def test_figurenfrage_fehlt_im_padua_stage_script(conn, einst, englisch):
+    """Quickfix 08.10.2026 (Birk, Befund Phase 7 im Tester): die
+    Interview-Zuordnung einer Figur ("Giona could speak like Interview 7 --
+    does that fit?") ist bis zur Schaerfung geklaert. Im Stage Script
+    (Padua, Phase 7, ``[karten] aktiv``) fragt der Bot nicht mehr danach --
+    die Frage kam im Live-Test an, ohne dass sie je jemand aufgriff."""
+    _interview(conn)
+    repo.setze_figur(conn, 1, "Giona", "war auf jeder Demo")
+    phasen.setze(conn, 1, 7, "befehl")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "missing the interview they speak from" not in prompt
+
+
+def test_figurenfrage_bleibt_in_padua_phase_6(conn, einst, englisch):
+    """Gegenprobe: der Quickfix gilt nur fuer das Stage Script (Phase 7) --
+    in Phase 6 (Szenenkarten) soll die Zuordnung weiter erfragt werden."""
+    _interview(conn)
+    repo.setze_figur(conn, 1, "Giona", "war auf jeder Demo")
+    phasen.setze(conn, 1, 6, "befehl")
+    ausloeser = [_sende(conn, 1, 1, "Ada", "Wie weiter?", _iso(0))]
+
+    prompt = kontext.baue(conn, 1, ausloeser, einst)
+
+    assert "missing the interview they speak from" in prompt
+
+
 def test_setting_figuren_und_geschichte_fuehren_zur_schaerfung(conn, einst):
     """Stehen Setting, Figurenliste und Geschichte samt einer Szene, ist die
     naechste Station die Schaerfung (5) -- die Geschichte selbst liegt seit
@@ -1054,6 +1083,27 @@ def test_erstkontakt_mit_diskussion_nutzt_die_neuen_texte(conn, einst, monkeypat
     # Die klassische Bitte um die Begriffsliste darf hier nicht stehen --
     # die kommt erst, nachdem "Diskussion fertig" gedrueckt wurde (Aufgabe 7).
     assert "bitte sie, dir diese Liste zu schicken" not in text
+
+
+# --- Morgen-Auftrag 4, Nachtrag 2 (08.10.2026 ~09:00): italienisch_ab_phase6_chats
+
+def test_system_ohne_chat_id_unveraendert(monkeypatch):
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    text_ohne_chat_id = kontext.system("gruppe1", 6)
+    assert "Schreib alles auf Italienisch" not in text_ohne_chat_id
+    assert text_ohne_chat_id == kontext.system("gruppe1", 6, chat_id=42)
+
+
+def test_system_haengt_italienisch_nur_fuer_gelistete_chats_und_phase_6_7_an(monkeypatch):
+    monkeypatch.setattr(workshop, "italienisch_ab_phase6_chats", lambda *a, **k: frozenset({1}))
+    basis = kontext.system("gruppe1", 6, chat_id=1)
+    assert basis.startswith(kontext.system("gruppe1", 6, chat_id=None))
+    assert "Schreib alles auf Italienisch" in basis
+    # Nur chat_id 1 ist gelistet.
+    assert "Schreib alles auf Italienisch" not in kontext.system("gruppe1", 6, chat_id=2)
+    # Nur Phase 6/7, nicht z. B. Phase 5.
+    assert "Schreib alles auf Italienisch" not in kontext.system("gruppe1", 5, chat_id=1)
+    assert "Schreib alles auf Italienisch" in kontext.system("gruppe1", 7, chat_id=1)
 
 
 def test_einstieg_begriffe_mit_diskussion_nutzt_die_neuen_texte(conn, einst, monkeypatch):

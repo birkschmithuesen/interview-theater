@@ -665,10 +665,224 @@ def test_app_commit_liefert_none_auch_bei_timeout(tmp_path, monkeypatch):
     assert ergebnis is None
 
 
+# --- Task 2 (BRIEF p57): Kostenstopp, warte_bis -----------------------------
+
+
+def _aufruf_kosten(pfad: str, chat_id: int, kosten_chf: float) -> None:
+    conn = db.verbinde(pfad)
+    conn.execute(
+        "INSERT INTO aufruf (chat_id, art, modus, kosten_chf, erstellt_am) "
+        "VALUES (?, 'gespraech', 'A', ?, ?)",
+        (chat_id, kosten_chf, repo._jetzt()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_kosten_bisher_ohne_tabelle_liefert_null(tmp_path):
+    """Wie ``_max_aufruf_id``: eine Datenbank, die ``db.initialisiere`` nie
+    gesehen hat, hat keine ``aufruf``-Tabelle -- das darf kein Fehler sein,
+    sondern 0.0 (kein Deckel ist je erreicht)."""
+    pfad = str(tmp_path / "leer.db")
+    assert browser_lauf._kosten_bisher(pfad) == 0.0
+    assert browser_lauf._kostenstopp_erreicht(pfad, 1.5) is False
+
+
+def test_kostenstopp_erreicht_summiert_ueber_mehrere_aufruf_zeilen(tmp_path):
+    """Mutationsprobe (Plan, Task 2): zwei Zeilen 0,9 + 0,7 CHF; bei
+    ``kosten_stopp=1.5`` ist die Summe (1.6) GROESSER -- Abbruch; bei 2.0
+    bleibt sie DARUNTER -- kein Abbruch."""
+    pfad = str(tmp_path / "sim.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "g", "G")
+    conn.commit()
+    conn.close()
+    assert browser_lauf._kosten_bisher(pfad) == 0.0
+    assert browser_lauf._kostenstopp_erreicht(pfad, 1.5) is False
+
+    _aufruf_kosten(pfad, CHAT, 0.9)
+    assert browser_lauf._kostenstopp_erreicht(pfad, 1.5) is False  # 0.9 <= 1.5
+
+    _aufruf_kosten(pfad, CHAT, 0.7)
+    assert browser_lauf._kosten_bisher(pfad) == pytest.approx(1.6)
+    assert browser_lauf._kostenstopp_erreicht(pfad, 1.5) is True   # 1.6 > 1.5
+    assert browser_lauf._kostenstopp_erreicht(pfad, 2.0) is False  # 1.6 <= 2.0
+
+
+def test_kostenstopp_ohne_deckel_nie_erreicht(tmp_path):
+    pfad = str(tmp_path / "sim.db")
+    conn = db.verbinde(pfad)
+    db.initialisiere(conn)
+    repo.sichere_gruppe(conn, CHAT, "g", "G")
+    conn.commit()
+    conn.close()
+    _aufruf_kosten(pfad, CHAT, 999.0)
+    assert browser_lauf._kostenstopp_erreicht(pfad, None) is False
+
+
+class _WarteBisSeiteAttrappe:
+    """Zaehlt ``wait_for_timeout``-Aufrufe -- fuer ``_warte_bis`` reicht das,
+    echte Zeit wird dabei NIE verstrichen (anders als ``time.sleep``, siehe
+    Docstring von ``_warte_bis``: ``page.wait_for_timeout`` ist in Tests
+    ersetzbar)."""
+
+    def __init__(self):
+        self.aufrufe = 0
+
+    def wait_for_timeout(self, ms):
+        self.aufrufe += 1
+
+
+def test_warte_bis_haelt_an_sobald_das_praedikat_wahr_wird():
+    """Mutationsprobe (Plan, Task 2): das Praedikat wird erst beim DRITTEN
+    Lesen wahr (zwei Polls dazwischen) -- ``_warte_bis`` darf dann nicht bis
+    ``geduld_s`` weiterlaufen."""
+    seite = _WarteBisSeiteAttrappe()
+    staende = iter([{"n": 0}, {"n": 1}, {"n": 2}])
+    stand = browser_lauf._warte_bis(
+        seite, lambda s: s["n"] >= 2, lambda: next(staende), geduld_s=600)
+    assert stand == {"n": 2}
+    assert seite.aufrufe == 2  # zwischen den drei Lesungen liegen zwei Polls
+
+
+def test_warte_bis_ignoriert_das_praedikat_laeuft_bis_geduld_erschoepft(monkeypatch):
+    """Gegenprobe zur Mutation 'warte_bis ignorieren': wird das Praedikat NIE
+    wahr, bricht die Schleife trotzdem ab, sobald die simulierte Zeit
+    ``geduld_s`` erreicht -- kein Endlos-Warten."""
+    seite = _WarteBisSeiteAttrappe()
+    uhr = {"t": 0.0}
+
+    def monotonic():
+        uhr["t"] += 10.0
+        return uhr["t"]
+
+    monkeypatch.setattr(browser_lauf.time, "monotonic", monotonic)
+    stand = browser_lauf._warte_bis(
+        seite, lambda s: False, lambda: {"n": 0}, geduld_s=25.0)
+    assert stand == {"n": 0}
+    assert seite.aufrufe >= 1
+
+
+# --- Review-Fix (06.10.2026, P57-Harness): Nachher-Lesung wartet auf ------
+# Hintergrundarbeit, auch wenn das stationseigene Praedikat noch nicht
+# feuert (z. B. Zwischenschritt einer Bestaetigungsschleife).
+
+
+def test_hat_sich_veraendert_erkennt_arbeitsstand_und_zahlen():
+    """Gegenprobe zur Mutation 'immer False liefern': ein unveraenderter
+    Datenstand darf nicht als Veraenderung zaehlen, ein geaendertes
+    Arbeitsstand-Feld UND eine geaenderte Zahl schon."""
+    vorher = {"arbeitsstand": {"phase": 5}, "szenen_mit_prosa": 0}
+    gleich = {"arbeitsstand": {"phase": 5}, "szenen_mit_prosa": 0}
+    neue_zahl = {"arbeitsstand": {"phase": 5}, "szenen_mit_prosa": 1}
+    neues_feld = {"arbeitsstand": {"phase": 5, "gesamttext_fixiert_am": "x"},
+                  "szenen_mit_prosa": 0}
+    assert not browser_lauf._hat_sich_veraendert(vorher, gleich)
+    assert browser_lauf._hat_sich_veraendert(vorher, neue_zahl)
+    assert browser_lauf._hat_sich_veraendert(vorher, neues_feld)
+
+
+def test_warte_bis_kombiniert_mit_veraenderung_haelt_frueher_an(monkeypatch):
+    """Nachbau des Aufrufs in ``_fuehre_station_aus`` (Zeile ~646): das
+    stationseigene Praedikat (hier: ``fertig`` einer Bestaetigungsschleife,
+    wird erst beim dritten Lesen wahr) wird mit ``_hat_sich_veraendert``
+    ODER-verknuepft -- ein Zwischenschritt, der NUR etwas anderes im
+    Datenstand veraendert (hier: Lesung 2), reicht deshalb schon."""
+    seite = _WarteBisSeiteAttrappe()
+    vorher = {"szenen_entwurf_ok": 0, "szenen_anzahl": 3}
+    staende = iter([
+        {"szenen_entwurf_ok": 0, "szenen_anzahl": 3},  # unveraendert
+        {"szenen_entwurf_ok": 0, "szenen_anzahl": 3, "szenen_mit_prosa": 1},  # Fortschritt, aber nicht "fertig"
+        {"szenen_entwurf_ok": 3, "szenen_anzahl": 3},  # "fertig" waere ab hier auch wahr
+    ])
+    station_praedikat = lambda s: s.get("szenen_entwurf_ok", 0) >= s.get("szenen_anzahl", 0) > 0
+    stand = browser_lauf._warte_bis(
+        seite,
+        lambda s: station_praedikat(s) or browser_lauf._hat_sich_veraendert(vorher, s),
+        lambda: next(staende),
+        geduld_s=600)
+    # Haelt schon bei der ZWEITEN Lesung an (Fortschritt erkannt), nicht
+    # erst bei der dritten (wenn das stationseigene Praedikat wahr wird).
+    assert stand == {"szenen_entwurf_ok": 0, "szenen_anzahl": 3, "szenen_mit_prosa": 1}
+    assert seite.aufrufe == 1
+
+
+def test_warte_bis_kombiniert_ohne_veraenderung_wartet_bis_geduld(monkeypatch):
+    """Gegenprobe: bleibt der Datenstand UNVERAENDERT und wird das
+    stationseigene Praedikat NIE wahr, laeuft die Wartung trotzdem nur bis
+    ``geduld_s`` -- kein Endlos-Warten, selbst mit der Ergaenzung."""
+    seite = _WarteBisSeiteAttrappe()
+    vorher = {"n": 0}
+    uhr = {"t": 0.0}
+
+    def monotonic():
+        uhr["t"] += 10.0
+        return uhr["t"]
+
+    monkeypatch.setattr(browser_lauf.time, "monotonic", monotonic)
+    stand = browser_lauf._warte_bis(
+        seite,
+        lambda s: False or browser_lauf._hat_sich_veraendert(vorher, s),
+        lambda: {"n": 0},
+        geduld_s=25.0)
+    assert stand == {"n": 0}
+    assert seite.aufrufe >= 1
+
+
+def test_fuehre_station_aus_warte_bis_wartet_echt_auf_hintergrundarbeit(tmp_path):
+    """Integrationstest (echtes Playwright, echte DB): ein Hintergrund-Thread
+    schreibt die Prosa der Szene erst NACH der Aktion, waehrend des ersten
+    Polls -- ohne den Fix (Nachher-Lesung sofort nach ``_ANLAUF_S``) wuerde
+    der mitgeschnittene ``db_diff`` diese Szene nicht als veraendert zeigen,
+    weil ``_fuehre_station_aus`` sie zu frueh gelesen haette.
+
+    Der Hintergrund-Thread wird bewusst erst unmittelbar vor
+    ``_fuehre_station_aus`` gestartet (nicht vor dem Browser-Start): Chromium
+    zu starten dauert selbst schon ueber eine Sekunde, ein frueherer Start
+    liesse die Schreibverzoegerung schon VOR der ``vorher``-Lesung
+    verstreichen und den Test seinen eigenen Zweck verfehlen lassen. Die
+    Verzoegerung (4s) liegt bewusst ueber ``browser_aktionen._ANLAUF_S``
+    (3s): die normale Nachher-Lesung (nach ``warte_auf_antwort``) muss die
+    Aenderung VERPASSEN, damit nur noch ``warte_bis``/
+    ``_hat_sich_veraendert`` sie beim naechsten Poll (alle 2s) einfaengt."""
+    from simulation import browser_mitschnitt
+
+    pfad = _leere_db(tmp_path)
+    conn = db.verbinde(pfad)
+    szene_id = repo.lege_szene_an(conn, CHAT, 1, "Szene 1", "kurz", None)
+    conn.commit(); conn.close()
+
+    def _schreibe_prosa_verzoegert():
+        time.sleep(4.0)
+        c = db.verbinde(pfad)
+        repo.aktualisiere_szene(c, szene_id, "Szene 1", "kurz", None, prosa="Es war einmal.")
+        c.commit(); c.close()
+
+    station = browser_stationen.Station(
+        "t-warte", 1, "x", budget=1, geduld_s=10,
+        warte_bis=lambda s: s.get("szenen_mit_prosa", 0) > 0)
+    persona = _ScriptedClient([{"type": "click", "element_id": 0, "begruendung": "x"}])
+    mitschnitt = browser_mitschnitt.Mitschnitt(tmp_path / "l", "h", "handy")
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); seite = browser.new_page()
+        seite.set_content(_FIXTURE_DISKUSSION_TOGGLE)
+        threading.Thread(target=_schreibe_prosa_verzoegert, daemon=True).start()
+        browser_lauf._fuehre_station_aus(
+            seite, persona, mitschnitt, station, basis_url="http://127.0.0.1:1",
+            token="t", db_pfad=pfad, chat_id=CHAT, persona_name="giulia")
+        browser.close()
+
+    zeilen = mitschnitt.jsonl_pfad.read_text(encoding="utf-8").strip().splitlines()
+    letzte = json.loads(zeilen[-1])
+    assert letzte["db_diff"]["zahlen_geaendert"]["szenen_mit_prosa"]["nachher"] == 1
+
+
 # --- Task 6: Pruef-Haken, Symptomregel, zweite Gruppe, Wissensfrage --------
 
 from simulation import browser_invarianten as inv  # noqa: E402
 from simulation import browser_stationen  # noqa: E402
+from simulation import browser_zaehler  # noqa: E402
 from simulation.browser_umgebung import Gruppe  # noqa: E402
 
 _UNGEKLAERT = "App oder Werkzeug – ungeklaert"
@@ -707,6 +921,49 @@ def _stationen_lauf(basis, token, pfad, tmp_path, stationen, *, persona=None,
         url = seite.url
         browser.close()
     return ergebnis, url
+
+
+def test_kostenstopp_bricht_vor_der_naechsten_station_ab(stack, tmp_path):
+    """Integration (Task 2, BRIEF p57): zwei ``aufruf``-Zeilen (0,9 + 0,7 CHF)
+    liegen schon in der sim.db, BEVOR der Lauf startet -- Station 1 laeuft
+    immer (der Deckel wird nur ZWISCHEN Stationen geprueft), vor Station 2
+    liegt die Summe (1.6) ueber ``kosten_stopp=1.5``: Abbruch nach Station 1,
+    Station 2 startet nie."""
+    basis, token, pfad = stack
+    _aufruf_kosten(pfad, CHAT, 0.9)
+    _aufruf_kosten(pfad, CHAT, 0.7)
+    s1 = browser_stationen.Station("p-eins", 1, "x", ohne_persona=True, warte_s=0)
+    s2 = browser_stationen.Station("p-zwei", 1, "x", ohne_persona=True, warte_s=0)
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [s1, s2], kosten_stopp=1.5)
+    assert ergebnis["abbruch"] == "kostenstopp"
+    assert [e["schluessel"] for e in ergebnis["stationen_ergebnisse"]] == ["p-eins"]
+
+
+def test_kostenstopp_kein_abbruch_unter_dem_deckel(stack, tmp_path):
+    """Gegenprobe (Mutationsvorgabe Plan): dieselben beiden Zeilen (Summe
+    1.6), aber ``kosten_stopp=2.0`` -- bleibt darunter, beide Stationen
+    laufen, kein Abbruch."""
+    basis, token, pfad = stack
+    _aufruf_kosten(pfad, CHAT, 0.9)
+    _aufruf_kosten(pfad, CHAT, 0.7)
+    s1 = browser_stationen.Station("p-eins", 1, "x", ohne_persona=True, warte_s=0)
+    s2 = browser_stationen.Station("p-zwei", 1, "x", ohne_persona=True, warte_s=0)
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [s1, s2], kosten_stopp=2.0)
+    assert ergebnis["abbruch"] is None
+    assert [e["schluessel"] for e in ergebnis["stationen_ergebnisse"]] == ["p-eins", "p-zwei"]
+
+
+def test_kostenstopp_ohne_vorgabe_laeuft_unveraendert_durch(stack, tmp_path):
+    """Regressionsschutz: ohne ``--kosten-stopp`` (``kosten_stopp=None``,
+    Vorgabe) aendert sich am bisherigen Verhalten nichts -- auch nicht mit
+    einer hohen Kostensumme in der DB."""
+    basis, token, pfad = stack
+    _aufruf_kosten(pfad, CHAT, 999.0)
+    s1 = browser_stationen.Station("p-eins", 1, "x", ohne_persona=True, warte_s=0)
+    s2 = browser_stationen.Station("p-zwei", 1, "x", ohne_persona=True, warte_s=0)
+    ergebnis, _ = _stationen_lauf(basis, token, pfad, tmp_path, [s1, s2])
+    assert ergebnis["abbruch"] is None
+    assert [e["schluessel"] for e in ergebnis["stationen_ergebnisse"]] == ["p-eins", "p-zwei"]
 
 
 def test_invarianten_landen_in_ergebnis_json(stack, tmp_path):
@@ -1532,3 +1789,303 @@ def test_ergebnis_json_auch_bei_durchschlagender_ausnahme(stack, tmp_path, monke
     with pytest.raises(_Abbruch):
         _stationen_lauf(basis, token, pfad, tmp_path, [station])
     assert (tmp_path / "l" / "ergebnis.json").exists()
+
+
+# --- P57 Task 4: Selektor von entwickler_meta_seite gegen die ECHTE Seite --
+#
+# Recherche-Fakt 5 des Plans ("entwickler_meta ... lieferte in der Nacht
+# trotzdem [] -> Selektor pruefen"): ``browser_zaehler.entwickler_meta_seite``
+# fragt ``.blase.bot`` ab. Die echte Klasse kommt serverseitig aus
+# ``web_chat._blase_html`` (``f'blase {n["von"]} {klasse}'``) und
+# clientseitig aus derselben Zuweisung in JS (``huelle.className = 'blase '
+# + n.von + ' ' + klasseVon(n)``); beide setzen ``n["von"] == "bot"`` fuer
+# jede Zeile mit ``richtung == 'aus'`` (``web_daten.py``). Dieser Test
+# bestaetigt das gegen den ECHTEN, im Browser gerenderten Chat -- nicht nur
+# gegen eine ``set_content``-Attrappe -- mit einer echten Bot-Antwort, die
+# den Entwickler-Meta-Marker "the code" traegt.
+def test_entwickler_meta_seite_findet_echte_bot_blase_mit_code_gerede(stack):
+    basis, token, pfad = stack
+    alte_antwort = _LLMAttrappe.antwort
+    _LLMAttrappe.antwort = "Let's see if the code reads that correctly."
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            context = browser.new_context()
+            seite = context.new_page()
+            seite.goto(f"{basis}/g/{token}")
+            seite.wait_for_selector("#verlauf")
+
+            browser_lauf._sende_und_lies_antwort(seite, "Our terms: arrival, work, night")
+
+            treffer = browser_zaehler.entwickler_meta_seite(seite)
+            browser.close()
+    finally:
+        _LLMAttrappe.antwort = alte_antwort
+
+    assert treffer
+    assert any("the code" in t.lower() for t in treffer)
+
+
+def test_entwickler_meta_seite_selektor_auf_gibtsnicht_findet_nichts(stack):
+    """Mutationsschutz (Plan-Vorgabe): ein falscher Selektor (``.gibtsnicht``
+    statt ``.blase.bot``) darf denselben echten Fund NICHT mehr liefern --
+    sonst waere der obige Test blind gegen genau die Regression, die er
+    pruefen soll."""
+    basis, token, pfad = stack
+    alte_antwort = _LLMAttrappe.antwort
+    _LLMAttrappe.antwort = "Let's see if the code reads that correctly."
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            context = browser.new_context()
+            seite = context.new_page()
+            seite.goto(f"{basis}/g/{token}")
+            seite.wait_for_selector("#verlauf")
+
+            browser_lauf._sende_und_lies_antwort(seite, "Our terms: arrival, work, night")
+
+            treffer = browser_zaehler.entwickler_meta_seite(seite, selektor=".gibtsnicht")
+            browser.close()
+    finally:
+        _LLMAttrappe.antwort = alte_antwort
+
+    assert treffer == []
+
+
+# --- P57 Schleifenschutz -------------------------------------------------
+
+def test_waechter_dritter_gleicher_fehlschlag_loest_aus_trotz_neuer_begruendung():
+    w = browser_lauf.Schleifenwaechter()
+    fehl = {"art": "fehlgeschlagen", "fehler": "Failed to find element"}
+    assert w.pruefe({"type": "phase", "nummer": 5, "begruendung": "a"}, fehl) is None
+    assert w.pruefe({"type": "phase", "nummer": 5, "begruendung": "b"}, fehl) is None
+    treffer = w.pruefe({"type": "phase", "nummer": 5, "begruendung": "c"}, fehl)
+    assert treffer[0] == "aktion_wiederholt_fehlgeschlagen:phase:5"
+    assert "Failed to find element" in treffer[1]
+
+
+def test_waechter_erfolg_dazwischen_zaehlt_nur_je_aktion():
+    w = browser_lauf.Schleifenwaechter()
+    a = {"type": "click", "element_id": 3}
+    fehl = {"art": "fehlgeschlagen", "fehler": "timeout 5000ms"}
+    ok = {"art": "click"}
+    assert w.pruefe(a, fehl) is None
+    assert w.pruefe(a, ok) is None
+    assert w.pruefe(a, fehl) is None
+    assert w.pruefe(a, fehl)[0] == "aktion_wiederholt_fehlgeschlagen:click:3"
+
+
+def test_waechter_gleicher_fehler_dreimal_in_folge_bei_verschiedenen_aktionen():
+    w = browser_lauf.Schleifenwaechter()
+    fehl = {"art": "fehlgeschlagen", "fehler": "Page.click: Timeout 5000ms exceeded"}
+    assert w.pruefe({"type": "click", "element_id": 1}, fehl) is None
+    assert w.pruefe({"type": "click", "element_id": 2}, fehl) is None
+    assert w.pruefe({"type": "click", "element_id": 3}, fehl) is not None
+
+
+def test_station_endet_nach_dreimal_gleichem_fehlschlag_ohne_600s_warten(stack, tmp_path):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    station = browser_stationen.Station(
+        "t-schleife", 1, "Go.", budget=10, geduld_s=600, warte_bis=lambda s: False)
+    persona = _ScriptedClient([{"type": "phase", "nummer": 99}] * 9)
+    t0 = time.monotonic()
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l")
+        browser.close()
+    assert time.monotonic() - t0 < 120
+    st = ergebnis["stationen_ergebnisse"][0]
+    assert st["schritte"] == 3
+    assert persona.aufrufe == 3
+    assert any(b["schluessel"].startswith("aktion_wiederholt_fehlgeschlagen:phase:99")
+               for b in ergebnis["invarianten"])
+
+
+def test_zeitdeckel_je_station_beendet_sauber(stack, tmp_path):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    station = browser_stationen.Station("t-zeit", 1, "Go.", budget=10)
+    persona = _ScriptedClient([{"type": "wait", "duration_ms": 10}] * 9)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l",
+            max_station_s=0)
+        browser.close()
+    assert ergebnis["stationen_ergebnisse"][0]["schritte"] == 0
+    assert any(b["schluessel"] == "station_zeitdeckel:t-zeit" for b in ergebnis["invarianten"])
+
+
+def test_zeitdeckel_je_lauf_ueberspringt_weitere_stationen(stack, tmp_path):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    s1 = browser_stationen.Station("t-a", 1, "Go.", budget=2)
+    s2 = browser_stationen.Station("t-b", 1, "Go.", budget=2)
+    persona = _ScriptedClient([{"type": "done_station"}] * 4)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(s1, s2), lauf_verzeichnis=tmp_path / "l",
+            max_minuten=0)
+        browser.close()
+    assert ergebnis["abbruch"] == "zeitdeckel"
+    assert [e["schluessel"] for e in ergebnis["stationen_ergebnisse"]] == ["t-a"]
+
+
+def test_warte_bis_gibt_nach_ruhe_auf_wenn_bot_geantwortet_hat(monkeypatch):
+    """H2: kein Praedikat wahr, Stand ruht, Bot hat geantwortet -> nach
+    ``ruhe_s`` Schluss, nicht erst nach ``geduld_s``."""
+    seite = _WarteBisSeiteAttrappe()
+    uhr = {"t": 0.0}
+
+    def monotonic():
+        uhr["t"] += 2.0
+        return uhr["t"]
+
+    monkeypatch.setattr(browser_lauf.time, "monotonic", monotonic)
+    browser_lauf._warte_bis(seite, lambda s: False, lambda: {"n": 0}, geduld_s=600,
+                            ruhe_s=20.0, bot_antwort_da=lambda: True)
+    assert uhr["t"] < 100
+
+
+def test_warte_bis_wartet_weiter_ohne_botantwort_trotz_ruhe(monkeypatch):
+    seite = _WarteBisSeiteAttrappe()
+    uhr = {"t": 0.0}
+
+    def monotonic():
+        uhr["t"] += 2.0
+        return uhr["t"]
+
+    monkeypatch.setattr(browser_lauf.time, "monotonic", monotonic)
+    browser_lauf._warte_bis(seite, lambda s: False, lambda: {"n": 0}, geduld_s=200,
+                            ruhe_s=20.0, bot_antwort_da=lambda: False)
+    assert uhr["t"] >= 200
+
+
+# --- P57: kein erzwungener Phasensprung, Pingpong-Schutz -----------------
+
+def test_pingpong_waechter_hinweis_dann_fehlgriff():
+    w = browser_lauf.PingpongWaechter()
+    tab = lambda n: {"type": "tab", "name": n}
+    ergebnisse = [w.pruefe(tab("chat" if i % 2 else "textbuch"), {}) for i in range(8)]
+    assert ergebnisse[:5] == [None] * 5
+    assert ergebnisse[5] == "hinweis"
+    assert ergebnisse[6:] == ["fehlgriff", "fehlgriff"]
+
+
+def test_pingpong_waechter_db_aenderung_oder_andere_aktion_setzt_zurueck():
+    w = browser_lauf.PingpongWaechter()
+    tab = {"type": "tab", "name": "chat"}
+    for _ in range(5):
+        assert w.pruefe(tab, {}) is None
+    assert w.pruefe(tab, {"szene": 1}) is None          # DB hat sich bewegt
+    for _ in range(5):
+        assert w.pruefe(tab, {}) is None
+    assert w.pruefe({"type": "type_send", "text": "x"}, {}) is None
+    assert w.pruefe(tab, {}) is None
+
+
+def test_unfertige_station_wird_einmal_verlaengert_dann_kein_phasensprung(
+        stack, tmp_path, monkeypatch):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+
+    def verboten(*a, **k):
+        raise AssertionError("Harness darf keine Phase erzwingen")
+    monkeypatch.setattr(browser_lauf, "_loese_phasenwechsel_aus", verboten)
+    station = browser_stationen.Station(
+        "t-unfertig", 1, "Go.", budget=2, fertig=lambda s: False,
+        endet_bei_phasenwechsel=True)
+    hinweise = []
+    orig = browser_lauf.browser_persona.naechste_aktion
+
+    def spion(*a, hinweis=None, **k):
+        hinweise.append(hinweis)
+        return {"type": "wait", "duration_ms": 10}
+    monkeypatch.setattr(browser_lauf.browser_persona, "naechste_aktion", spion)
+    s2 = browser_stationen.Station("t-danach", 1, "Go.", budget=1)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=_ScriptedClient([]), judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station, s2), lauf_verzeichnis=tmp_path / "l")
+        browser.close()
+    assert len(ergebnis["stationen_ergebnisse"]) == 1           # Lauf endet
+    assert ergebnis["stationen_ergebnisse"][0]["schritte"] == 6  # (2 + 50 %) Schritte, Warten halb
+    assert browser_lauf.HINWEIS_STATION_FERTIG in hinweise
+    assert ergebnis["abbruch"] == "station_unvollstaendig:t-unfertig"
+    assert any(b["schluessel"] == "station_unvollstaendig:t-unfertig"
+               for b in ergebnis["invarianten"])
+    assert ergebnis["phase_erzwungen"] == []
+    zeilen = [json.loads(z) for z in (tmp_path / "l" / "schritte.jsonl").read_text().splitlines()]
+    assert all("phase_erzwungen" in z for z in zeilen)
+    assert orig is not None
+
+
+_DIFF_LEER = {"arbeitsstand_geaendert": {}, "zahlen_geaendert": {}}
+
+
+def test_pingpong_waechter_echter_leerer_diff_zaehlt():
+    """Lauf 4: ``unterschied`` liefert immer zwei Schluessel -- das darf den
+    Zaehler nicht zuruecksetzen."""
+    w = browser_lauf.PingpongWaechter()
+    tab = lambda n: {"type": "tab", "name": n}
+    erg = [w.pruefe(tab("chat" if i % 2 else "textbuch"), _DIFF_LEER) for i in range(7)]
+    assert erg[5] == "hinweis" and erg[6] == "fehlgriff"
+
+
+def test_pingpong_waechter_klick_ohne_datenwirkung_zaehlt_mit():
+    """Textgroessen-Klicks zwischen Tab-Wechseln unterbrechen die Folge nicht."""
+    w = browser_lauf.PingpongWaechter()
+    aktionen = [{"type": "tab", "name": "chat"}, {"type": "click", "element_id": 3}] * 3
+    erg = [w.pruefe(a, _DIFF_LEER) for a in aktionen]
+    assert erg[5] == "hinweis"
+    assert w.pruefe({"type": "click", "element_id": 3}, {"arbeitsstand_geaendert": {"x": 1},
+                                                          "zahlen_geaendert": {}}) is None
+
+
+def test_stationsgedaechtnis_erinnert_an_gelesenes():
+    g = browser_lauf.StationsGedaechtnis()
+    assert g.text() is None
+    g.notiere(1, {"type": "tab", "name": "textbuch"}, _DIFF_LEER)
+    g.notiere(2, {"type": "tab", "name": "chat"}, _DIFF_LEER)
+    g.notiere(3, {"type": "tab", "name": "textbuch"}, _DIFF_LEER)
+    t = g.text()
+    assert "step 1: tab textbuch" in t and "textbuch tab (2x)" in t
+    assert "Chat tab" in t and "tap one now" in t
+
+
+def test_stationsgedaechtnis_im_persona_prompt():
+    from simulation import browser_persona
+    t = browser_persona.baue_nutzertext([], "Ziel", [], "step 1: tab chat")
+    assert "already did" in t and "step 1: tab chat" in t
+    assert "already did" not in browser_persona.baue_nutzertext([], "Ziel", [])
+
+
+def test_wartschritte_zaehlen_nur_halb_gegen_das_budget(stack, tmp_path):
+    from simulation import browser_stationen
+    basis, token, pfad = stack
+    station = browser_stationen.Station("t-halb", 1, "Go.", budget=2)
+    persona = _ScriptedClient([{"type": "wait", "duration_ms": 10}] * 8)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(); context = browser.new_context()
+        seite = context.new_page()
+        ergebnis = browser_lauf.fuehre_stationen(
+            seite, context, basis_url=basis, token=token, db_pfad=pfad, chat_id=CHAT,
+            persona_client=persona, judge_client=_FakeJudge(), geraet="handy",
+            persona_name="priya", stationen=(station,), lauf_verzeichnis=tmp_path / "l")
+        browser.close()
+    assert ergebnis["stationen_ergebnisse"][0]["schritte"] == 4

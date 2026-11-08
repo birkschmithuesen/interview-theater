@@ -39,7 +39,7 @@ everything again. Three exceptions, and only these three:
 something away). They need a clear request to you, not a question; when in
 doubt, no entry.
 
-You recognise exactly thirty-one kinds of changes. Each change is an
+You recognise exactly thirty-three kinds of changes. Each change is an
 object with "art" and "wert":
 
 1.  interview_starten     -- wert: empty (""). The group starts a recording
@@ -132,8 +132,7 @@ object with "art" and "wert":
     into a szene_planen -- even if the planning is in the same excerpt.
 19. phase_setzen           -- wert: the number of the working phase the
     group is at now, as a numeral ("4"). The seven phases are:
-    1 Terms, 2 Questions, 3 Interviews, 4 Frame, 5 Prose Draft, 6 Rewrite,
-    7 Stage Version. The group commands a move to a phase ("let's do
+    {{phasen_kurz}}. The group commands a move to a phase ("let's do
     characters now", "back to the interviews", "next
     phase"). Going back is just as valid as a step forward. **Setting,
     characters, story, core theme, format and conflict are all the same
@@ -176,7 +175,10 @@ object with "art" and "wert":
     it, how you recognise them, what they can do), **ORT** (a sub-location
     below the setting), **STRUKTUR** (the play as a whole -- series, number
     of episodes, whether the ending stays open; **not** the number of
-    scenes, that is point 24), **FORM**, **STIL** (length and style
+    scenes, that is point 24 -- except when the group names parts or
+    sections of the play itself, e.g. "three parts: an opening, a middle
+    part and the end": that names the number of scenes directly, one per
+    part -- write it as szenenanzahl_setzen (point 24), not STRUKTUR), **FORM**, **STIL** (length and style
     requirements for the texts). **If none fits, use a short word of your
     own as the area** (one to three words, e.g. "COSTUMES", "MUSIC",
     "PROPS") instead of filing everything under **SONSTIGES** -- the area
@@ -196,10 +198,19 @@ object with "art" and "wert":
 
 24. szenenanzahl_setzen    -- wert: the number of scenes as a numeral
     ("5"). The group names how many scenes there should be -- whether in
-    passing ("i think we need five scenes for this") or as an answer to
-    your question about it. Write only the number, no words around it.
+    passing ("i think we need five scenes for this"), as an answer to your
+    question about it, or by naming that many parts/sections/movements of
+    the play ("three parts: an opening, a middle part and the end" -> "3").
+    Write only the number, no words around it.
 
         {"art": "szenenanzahl_setzen", "wert": "5"}
+
+    **"One continuous performance", "no real cuts/scenes" is staging, not a
+    count.** It never lowers an already-named number of parts/scenes to 1
+    -- that only describes how the already-named parts are performed, not
+    that there's suddenly just one. Without a number or parts named
+    anywhere in the conversation, such a sentence alone is not
+    szenenanzahl_setzen -- no entry, rather than guessing "1".
 
 25. szene_kuerzen          -- wert: the scene number as a numeral ("3"), or
     empty ("") if none is named. The group asks YOU to make an already
@@ -286,6 +297,37 @@ object with "art" and "wert":
     passage ("what does that quote mean?") -> no entry.
 
         {"art": "schaerfung_entscheidung", "wert": "scene 1"}
+
+32. recherche_starten      -- wert: the research question, taken over word
+    for word as the group phrased it. Applies when the group asks IN THE
+    CHAT (not via the Research button) for an internet fact-check or
+    lookup: "research: when was the bridge built?", "can you look up
+    whether that law really existed back then?", "fact-check this: ...".
+
+    * **A wish to research later, with no concrete question, is NOT
+      recherche_starten:** "we should research that at some point", "maybe
+      we should fact-check some of this later" -> no entry. There has to
+      be an actual question to look up.
+    * A question addressed to the GROUP itself ("should we even research
+      this?") is not recherche_starten either -- only a request addressed
+      to the bot that names something to look up is.
+
+        {"art": "recherche_starten", "wert": "When was the bridge built?"}
+
+33. stagescript_notiz      -- wert: the wish in the group's words; if the
+    group names a scene, start with "scene N: " ("scene 2: give them a
+    back-and-forth instead of everyone speaking alone"). Applies in phase 7
+    (Stage Script) when the group raises a wish for a scene that is NOT the
+    one just shown with "Yes, save" / "No, change it again" under it -- a
+    scene not yet written, or one currently being written ("I'm writing the
+    stage script for scene 2" with no approval buttons yet).
+    * **A wish for the scene that WAS just shown stays text_ueberarbeiten
+      (point 27), never both** -- the two never fire for the same message.
+    * A question about a scene's form or content ("what form is scene 3?")
+      is not a wish -- no entry.
+
+        {"art": "stagescript_notiz", "wert": "scene 2: give them a back-and-forth instead of everyone speaking alone"}
+        {"art": "stagescript_notiz", "wert": "no interview quotes in this one"}
 
 **First the field, then the catch-all.** If a detail fits one of the fields
 above -- terms, questions, core theme, format, setting, main conflict, a
@@ -642,6 +684,62 @@ Member 1: sì, perfetto -- write it. Go!
 <excerpt>
 Progress:
 Core theme: Arriving
+Format: Musical: dialogue, song, rap
+Character Lena: came here at 19
+Character Nadia: was at every demo
+Character Tomas: films everything
+
+New messages:
+Member 1: the first scene is an introduction where we explain the idea of
+coming home and the chords, music already playing. The second scene is a
+narration where we share what came out of the interviews. The third and
+last scene is a closing ritual with the audience, Tomas guiding it with the
+music underneath, everyone holding hands with their eyes closed. The music
+runs under all three scenes.
+</excerpt>
+<output>
+{"aenderungen": [
+  {"art": "szene_planen", "wert": "SZENE 1 | TITEL: Coming home | FORM: dialog | WAS_PASSIERT: introduction explaining the idea of coming home and the chords, music already playing | FIGUREN: Lena, Nadia, Tomas"},
+  {"art": "szene_planen", "wert": "SZENE 2 | TITEL: The interviews | FORM: dialog | WAS_PASSIERT: narration and sharing of what came out of the interviews | FIGUREN: Lena, Nadia, Tomas"},
+  {"art": "szene_planen", "wert": "SZENE 3 | TITEL: The circle | FORM: stumm | WAS_PASSIERT: closing ritual with the audience, holding hands with eyes closed, guided by Tomas over the music | FIGUREN: Lena, Nadia, Tomas"}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Progress:
+Core theme: Arriving
+Format: Musical: dialogue, song, rap
+Character Lena: came here at 19
+Character Nadia: was at every demo
+Character Tomas: films everything
+
+New messages:
+You: Three scenes, music never stopping underneath: scene 1 names home as
+a chord, scene 2 shares the interviews, scene 3 closes in the circle.
+
+Coming home — Introduction: the idea of coming home and the chords are
+explained, music already playing — Lena, Nadia, Tomas
+The interviews — Narration and sharing of what came out of the interviews,
+carried by the music — Lena, Nadia, Tomas
+The circle — Closing ritual with the audience: holding hands, eyes closed,
+guided by Tomas over the music — Tomas, Lena, Nadia
+Member 2: exactly right, that's what you wrote, thank you.
+</excerpt>
+<output>
+{"aenderungen": [
+  {"art": "szene_planen", "wert": "SZENE 1 | TITEL: Coming home | WAS_PASSIERT: introduction explaining the idea of coming home and the chords, music already playing | FIGUREN: Lena, Nadia, Tomas"},
+  {"art": "szene_planen", "wert": "SZENE 2 | TITEL: The interviews | WAS_PASSIERT: narration and sharing of what came out of the interviews | FIGUREN: Lena, Nadia, Tomas"},
+  {"art": "szene_planen", "wert": "SZENE 3 | TITEL: The circle | WAS_PASSIERT: closing ritual with the audience, holding hands with eyes closed, guided by Tomas over the music | FIGUREN: Tomas, Lena, Nadia"}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Progress:
+Core theme: Arriving
 Main conflict: staying versus leaving
 
 New messages:
@@ -709,6 +807,39 @@ Member 2: and delete Interview 2, that was too private
 <output>
 {"aenderungen": [
   {"art": "entfernen", "wert": "FIGUR Tomas"}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Progress:
+Scene 1 - Coming home
+Scene 2 - The voices
+Scene 3 - Going on
+
+New messages:
+You: I'm writing the stage script for scene 1.
+Member 2: scene 2 needs a real back-and-forth, not everyone speaking alone
+</excerpt>
+<output>
+{"aenderungen": [
+  {"art": "stagescript_notiz", "wert": "scene 2: needs a real back-and-forth, not everyone speaking alone"}
+]}
+</output>
+</example>
+
+<example>
+<excerpt>
+Progress:
+Scene 1 - Coming home (in the Script tab, "Yes, save" / "No, change it again" below)
+
+New messages:
+Member 1: make the ending angrier
+</excerpt>
+<output>
+{"aenderungen": [
+  {"art": "text_ueberarbeiten", "wert": "make the ending angrier"}
 ]}
 </output>
 </example>

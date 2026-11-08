@@ -152,7 +152,9 @@ def test_stationen_p34_vollstaendig_und_geordnet():
         "p4-geschichte", "p4-uebergang"]
     phasen = [st.phase for st in s.STATIONEN_P34]
     assert phasen == sorted(phasen) and set(phasen) == {3, 4}
-    assert s.STARTPHASE == {"p12": 1, "invarianten": 1, "p34": 3}
+    assert s.STARTPHASE["p12"] == 1
+    assert s.STARTPHASE["invarianten"] == 1
+    assert s.STARTPHASE["p34"] == 3
 
 
 def test_p34_aufnahmestationen_haben_skript_und_pruefung():
@@ -208,6 +210,214 @@ def test_p4_brainstorm_ziel_nennt_denselben_knopf_wie_phase1():
     assert "tap" not in ziel and "thought is complete" not in ziel
 
 
+# --- Task 2 (BRIEF p57): Stationen p57 (Phase 5-7, Prose Draft/Rewrite/Stage) ---
+
+
+def test_stationen_p57_vollstaendig_und_geordnet():
+    schluessel = [st.schluessel for st in s.STATIONEN["p57"]]
+    assert schluessel == [
+        "p5-eintritt", "p5-schaerfung", "p5-uebersicht", "p5-szenen",
+        "p6-gesamt", "p6-szenen", "p7-formen", "p7-sprechweisen",
+        "p7-szenen", "p7-schluss"]
+    phasen = [st.phase for st in s.STATIONEN_P57]
+    assert phasen == sorted(phasen) and set(phasen) == {5, 6, 7}
+    assert s.STARTPHASE["p57"] == 5
+
+
+def test_stationen_p57_gesamtbudget_unter_der_grenze():
+    """Risiko-Vorgabe im Plan: Gesamtbudget <= 80 Schritte, sonst verlaengert
+    sich der Lauf (> 30 min, muss in den Hintergrund)."""
+    assert sum(st.budget for st in s.STATIONEN_P57) <= 115
+
+
+def test_stationen_p57_geduld_600_ausser_eintritt():
+    for st in s.STATIONEN_P57:
+        if st.schluessel == "p5-eintritt":
+            assert st.geduld_s == 90.0
+        elif st.schluessel in ("p5-szenen", "p6-szenen", "p7-szenen"):
+            assert st.geduld_s >= 900          # Szenenlauf + Prueflauf ~8 min je Szene
+        else:
+            assert st.geduld_s == 600
+
+
+def test_stationen_p57_pruefungen_bekannt():
+    pruefungen = {p for st in s.STATIONEN_P57 for p in st.pruefung}
+    assert pruefungen <= set(s.PRUEFUNGEN)
+    assert "p5_schaerfung" in pruefungen and "p5_uebersicht" in pruefungen
+    assert "prueflauf" in pruefungen and "chat_volltext" in pruefungen
+    assert "sprung" in pruefungen and "kuerzung" in pruefungen
+    assert "formen" in pruefungen and "stueckpruefung" in pruefungen
+    assert "textbuch" in pruefungen
+
+
+def test_stationen_p57_ziele_statt_rezepte():
+    for st in s.STATIONEN_P57:
+        assert not REZEPT.search(st.ziel), (st.schluessel, st.ziel)
+
+
+def test_p5_eintritt_wartet_auf_schaerfung_oder_uebersicht():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p5-eintritt")
+    assert st.warte_bis({"schaerfung_zeilen": 1}) is True
+    assert st.warte_bis({"arbeitsstand": {"geschichte_uebersicht": "x"}}) is True
+    assert st.warte_bis({"schaerfung_zeilen": 0, "arbeitsstand": {}}) is False
+
+
+def test_p5_schaerfung_fertig_praedikat():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p5-schaerfung")
+    assert not st.fertig({"schaerfung_uebernommen": 0, "arbeitsstand": {}})
+    assert st.fertig({"schaerfung_uebernommen": 1, "arbeitsstand": {}})
+    assert st.fertig({"schaerfung_uebernommen": 0,
+                      "arbeitsstand": {"geschichte_uebersicht_fixiert_am": "x"}})
+
+
+def test_p5_uebersicht_fertig_praedikat():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p5-uebersicht")
+    assert not st.fertig({"arbeitsstand": {}})
+    assert st.fertig({"arbeitsstand": {"geschichte_uebersicht_fixiert_am": "2026-10-06"}})
+
+
+def test_p5_szenen_fertig_praedikat_phasensprung():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p5-szenen")
+    assert not st.fertig({"arbeitsstand": {"phase": 5}})
+    assert st.fertig({"arbeitsstand": {"phase": 6}})
+    assert st.endet_bei_phasenwechsel is True
+
+
+def test_p6_gesamt_fertig_praedikat():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p6-gesamt")
+    assert not st.fertig({"arbeitsstand": {}})
+    assert st.fertig({"arbeitsstand": {"gesamttext_fixiert_am": "2026-10-06"}})
+
+
+def test_p6_szenen_fertig_praedikat_phasensprung():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p6-szenen")
+    assert not st.fertig({"arbeitsstand": {"phase": 6}})
+    assert st.fertig({"arbeitsstand": {"phase": 7}})
+    assert st.endet_bei_phasenwechsel is True
+
+
+def test_p7_formen_fertig_praedikat_zaehlt_inhalt_nicht_nur_laenge():
+    """Lehre B-neu-2: 'alle Szenen haben eine Form' muss an der tatsaechlichen
+    Szenenzahl gemessen werden, nicht an einer festen Zahl -- sonst meldet
+    das Praedikat bei EINER fehlenden Form trotzdem faelschlich fertig."""
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p7-formen")
+    assert not st.fertig({"szenen_mit_form": 2, "szenen_anzahl": 3})
+    assert st.fertig({"szenen_mit_form": 3, "szenen_anzahl": 3})
+    assert not st.fertig({"szenen_mit_form": 0, "szenen_anzahl": 0})  # keine Szenen = nicht fertig
+
+
+def test_p7_sprechweisen_fertig_praedikat():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p7-sprechweisen")
+    assert not st.fertig({"arbeitsstand": {}})
+    assert st.fertig({"arbeitsstand": {"sprechweisen_fixiert_am": "2026-10-06"}})
+
+
+def test_p7_szenen_fertig_praedikat_zaehlt_inhalt_nicht_nur_laenge():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p7-szenen")
+    assert not st.fertig({"szenen_fertig": 2, "szenen_anzahl": 3})
+    assert st.fertig({"szenen_fertig": 3, "szenen_anzahl": 3})
+    assert not st.fertig({"szenen_fertig": 0, "szenen_anzahl": 0})
+
+
+def test_p7_schluss_fertig_praedikat_und_leitbild_tab():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p7-schluss")
+    assert not st.fertig({"stueckpruefung_zeilen": 0})
+    assert st.fertig({"stueckpruefung_zeilen": 1})
+    assert st.leitbild_tab == "textbuch"
+
+
+# --- Review-Fix (06.10.2026, P57-Harness): warte_bis fuer alle zehn --------
+
+
+def test_alle_p57_stationen_haben_warte_bis():
+    """Vorher hatte nur ``p5-eintritt`` ein ``warte_bis`` -- die anderen neun
+    lasen den Nachher-Stand sofort nach ``_ANLAUF_S`` (3s), obwohl keines der
+    Hintergrund-Module dieser Phasen ``tg.tippt()`` ruft (Begruendung am
+    Feld ``Station.geduld_s``)."""
+    for st in s.STATIONEN_P57:
+        assert st.warte_bis is not None, st.schluessel
+
+
+def test_p5_schaerfung_warte_bis_praedikat():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p5-schaerfung")
+    assert not st.warte_bis({"schaerfung_uebernommen": 0, "arbeitsstand": {}})
+    assert st.warte_bis({"schaerfung_uebernommen": 1, "arbeitsstand": {}})
+    assert st.warte_bis({"schaerfung_uebernommen": 0,
+                         "arbeitsstand": {"geschichte_uebersicht_fixiert_am": "x"}})
+
+
+def test_p5_uebersicht_warte_bis_praedikat():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p5-uebersicht")
+    assert not st.warte_bis({"arbeitsstand": {}})
+    assert st.warte_bis({"arbeitsstand": {"geschichte_uebersicht_fixiert_am": "2026-10-06"}})
+
+
+def test_p5_szenen_warte_bis_erkennt_jede_einzelne_szene():
+    """Der Clou gegenueber ``fertig`` (das erst beim Phasensprung wahr wird):
+    ``warte_bis`` muss schon JEDEN Zwischenschritt erkennen -- sonst wuerde
+    der Harness bei einer 14-Schritte-Schleife auf jedem Schritt bis
+    ``geduld_s`` (600s) warten, statt sofort weiterzulesen, sobald die
+    naechste Szene entworfen ist."""
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p5-szenen")
+    # Weder entworfen noch abgenommen: noch nichts zu lesen.
+    assert not st.warte_bis({"szenen_mit_prosa": 0, "szenen_entwurf_ok": 0, "szenen_anzahl": 3,
+                             "arbeitsstand": {"phase": 5}})
+    # Szene 1 ist entworfen (mehr Prosa als Abnahmen) -- bereit zum Lesen.
+    assert st.warte_bis({"szenen_mit_prosa": 1, "szenen_entwurf_ok": 0, "szenen_anzahl": 3,
+                         "arbeitsstand": {"phase": 5}})
+    # Szene 1 abgenommen, Szene 2 noch nicht entworfen: wieder warten.
+    assert not st.warte_bis({"szenen_mit_prosa": 1, "szenen_entwurf_ok": 1, "szenen_anzahl": 3,
+                             "arbeitsstand": {"phase": 5}})
+    # Alle abgenommen (Phasensprung schon gesetzt oder Zaehler voll): fertig.
+    assert st.warte_bis({"szenen_mit_prosa": 3, "szenen_entwurf_ok": 3, "szenen_anzahl": 3,
+                         "arbeitsstand": {"phase": 6}})
+
+
+def test_p6_gesamt_warte_bis_praedikat():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p6-gesamt")
+    assert not st.warte_bis({"arbeitsstand": {}})
+    assert st.warte_bis({"arbeitsstand": {"gesamttext_fixiert_am": "2026-10-06"}})
+
+
+def test_p6_szenen_warte_bis_praedikat_phasensprung():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p6-szenen")
+    assert not st.warte_bis({"szenen_ueberarbeitung_ok": 1, "szenen_anzahl": 3,
+                             "arbeitsstand": {"phase": 6}})
+    assert st.warte_bis({"szenen_ueberarbeitung_ok": 3, "szenen_anzahl": 3,
+                         "arbeitsstand": {"phase": 6}})
+    assert st.warte_bis({"szenen_ueberarbeitung_ok": 0, "szenen_anzahl": 3,
+                         "arbeitsstand": {"phase": 7}})
+
+
+def test_p7_formen_warte_bis_praedikat():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p7-formen")
+    assert not st.warte_bis({"szenen_mit_form": 2, "szenen_anzahl": 3})
+    assert st.warte_bis({"szenen_mit_form": 3, "szenen_anzahl": 3})
+    assert not st.warte_bis({"szenen_mit_form": 0, "szenen_anzahl": 0})
+
+
+def test_p7_sprechweisen_warte_bis_praedikat():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p7-sprechweisen")
+    assert not st.warte_bis({"arbeitsstand": {}})
+    assert st.warte_bis({"arbeitsstand": {"sprechweisen_fixiert_am": "2026-10-06"}})
+
+
+def test_p7_szenen_warte_bis_erkennt_jede_einzelne_szene():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p7-szenen")
+    assert not st.warte_bis({"szenen_mit_volltext": 0, "szenen_fertig": 0, "szenen_anzahl": 3})
+    # Szene 1 uebertragen (mehr Buehnentext als Abnahmen) -- bereit zum Lesen.
+    assert st.warte_bis({"szenen_mit_volltext": 1, "szenen_fertig": 0, "szenen_anzahl": 3})
+    # Szene 1 abgenommen, Szene 2 noch nicht uebertragen: wieder warten.
+    assert not st.warte_bis({"szenen_mit_volltext": 1, "szenen_fertig": 1, "szenen_anzahl": 3})
+    assert st.warte_bis({"szenen_mit_volltext": 3, "szenen_fertig": 3, "szenen_anzahl": 3})
+
+
+def test_p7_schluss_warte_bis_praedikat():
+    st = next(x for x in s.STATIONEN_P57 if x.schluessel == "p7-schluss")
+    assert not st.warte_bis({"stueckpruefung_zeilen": 0})
+    assert st.warte_bis({"stueckpruefung_zeilen": 1})
+
+
 def test_p4_kalibrierung_station_mirrors_p1_kalibrierung():
     """Merge-Nachtrag 06.10.2026: mit dem Kill-Switch per Vorgabe AN und
     einem Lauf, der in Phase 3 startet (kein Cache aus einer vorherigen
@@ -227,3 +437,21 @@ def test_p4_kalibrierung_station_mirrors_p1_kalibrierung():
     schluessel = [x.schluessel for x in s.STATIONEN_P34]
     assert schluessel.index("p4-eintritt") < schluessel.index("p4-kalibrierung") \
         < schluessel.index("p4-brainstorm")
+
+
+def test_schreibstationen_budget_fuer_drei_szenen():
+    by = {st.schluessel: st for st in s.STATIONEN_P57}
+    assert by["p5-szenen"].budget >= 24
+    assert by["p6-szenen"].budget >= 18
+    assert by["p7-szenen"].budget >= 20
+    assert by["p6-gesamt"].budget >= 8
+    assert by["p7-formen"].budget >= 6
+    assert by["p7-sprechweisen"].budget >= 6
+    assert by["p7-schluss"].budget >= 6
+
+
+def test_stationszeitdeckel_und_laufdeckel():
+    from simulation import browser_lauf
+    assert browser_lauf.STATION_MAX_S >= 35 * 60
+    assert browser_lauf.LAUF_MAX_MINUTEN >= 210
+    assert browser_lauf.STATION_MAX_S <= 40 * 60

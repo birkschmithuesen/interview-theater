@@ -133,3 +133,24 @@ def test_platzhalter(text, erwartet):
 def test_die_echte_tabelle_ist_gueltiges_toml():
     sprache.vergiss()
     assert isinstance(sprache.tabelle("en"), dict)
+
+
+# --- Morgen-Auftrag 4: Texte(..., sprachcode=...) ---------------------------
+
+def test_sprachcode_erzwingt_sprache_unabhaengig_vom_profil(testmodul, monkeypatch):
+    monkeypatch.setitem(sprache._TABELLEN, "it", {"_sprachtest": {
+        "_TEXT_GRUSS": "Ciao {name}, bello avervi qui.",
+    }})
+    t = sprache.Texte(testmodul.__name__, sprachcode="it")
+    assert t._TEXT_GRUSS == "Ciao {name}, bello avervi qui."
+    # Deutsches Profil (Vorgabe) aendert daran nichts -- sprachcode gewinnt.
+    assert sprache.code() == sprache.DEUTSCH
+
+
+def test_ohne_sprachcode_bleibt_profilsprache(testmodul, monkeypatch):
+    _englisch(monkeypatch)
+    monkeypatch.setitem(sprache._TABELLEN, "it", {"_sprachtest": {
+        "_TEXT_GRUSS": "Ciao {name}, bello avervi qui.",
+    }})
+    t = sprache.Texte(testmodul.__name__)
+    assert t._TEXT_GRUSS == "Hello {name}, good to have you here."

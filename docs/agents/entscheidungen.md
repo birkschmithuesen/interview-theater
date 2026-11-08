@@ -934,3 +934,93 @@
   anderen Phase-4-Weichen) für Phase 1 passieren lässt. Nur funktionales
   Markup (`data-*`, `<details>` für Begründung/Doppelbedeutung), keine
   Gestaltung — wie beim Rest des Boards.
+
+- **Der Formberater ordnet ein, er schreibt nicht vor** (07.10.2026, Karten
+  t_256ec777 / t_65d0cc43 / t_54d499bd, Birk 06.10. ~23:50; Modul
+  `formberater.py`). Ausgangsfall: die G3-Testgruppe beschrieb gleichwertige,
+  zufällige Performer-Aktionen ohne Dramaturgie; der Bot hatte dafür kein
+  Vokabular, erfand drei eigene Richtungen (eine mit Eskalation) und schrieb
+  die Eskalation später der Gruppe zu. Seitdem: **nur ab Phase 4**. Die
+  Wissensquelle ist eine Kopie im Repo (`interview_theater/formen/`, neu mit
+  `python -m scripts.formen_uebernehmen`), nie ein Pfad ins Wiki. Alle 67
+  Bot-Blöcke (~37.000 Zeichen) passen nicht ins Kimi-Budget — deshalb wählt
+  der Modellaufruf aus einem Kurzindex, und nur die gewählten Blöcke (2–4,
+  im Prompt höchstens 5, jüngste zuerst) stehen im Block `formen`, der bei
+  Platznot vor dem Fenster fällt. **Zwei Auslöser, bindend** (Birk,
+  07.10.2026 ~08:05: der Formberater bekommt **keinen Knopf** — der frühere
+  dritte Auslöser, ein Knopf „Weitere Formen & Gegenpol", ist ersatzlos
+  gestrichen): (A) jeder Gesprächszug **ab Phase 4, ohne obere Grenze**
+  macht einen deterministischen Abgleich (`treffer_formen`: Formnamen/
+  Aliase als ganze Wörter, mehrdeutige wie „happening" ausgenommen); eine
+  genannte Form ist sofort im Prompt. **Nur in Phase 4 selbst** zusätzlich
+  `treffer_signale` (Struktur-Stichwörter wie „random", „gleichwertig",
+  „no climax"), die bei einem **neuen** Treffer den Modellaufruf im Thread
+  anstoßen (höchstens `MAX_LAUFEND` je Gruppe, `MIN_ABSTAND_S` Abstand,
+  wirkt ab dem nächsten Zug — ein Stichwort gilt danach als verbraucht,
+  auch wenn der Aufruf scheiterte). Ab Phase 5 bleibt vom selben Auslöser
+  nur der deterministische Abgleich übrig — kein Modellaufruf mehr, das
+  ist jetzt das EINZIGE Lazy-Load jenseits von Phase 4, ohne Knopf. (B)
+  Einmal je Gruppe beim Eintritt in Phase 5 eine Einordnung im Chat
+  (passt / Vorschlag / Gegenpol), klar als Angebot, als reiner Chatbeitrag.
+  Modell wie die Bühnenkarte (Claude bei `szene_claude.ist_aktiv`, sonst
+  Kimi; Proxy-Fehler → Kimi für diesen Aufruf). **Datenschutz:** in den
+  Aufruf gehen nur Kurzindex, Stückkarte und die Beiträge der Gruppe seit
+  dem Eintritt in Phase 4 (Journal „Phase 4 · …"), nie Transkript,
+  Verdichtung oder Zitat. Tabelle `formberater` nur anhängend. Tests:
+  `tests/test_formberater.py`.
+
+- **Phase 4 setzt den Rahmen, sie schreibt keine Szene** (07.10.2026, Karte
+  t_b19d37ac, Birk: „Keine Szenen ausformulieren in Phase 4. Nur Rahmen
+  setzen."). Prompt (`phasen/4.md` DE/EN): das Übergangsangebot ist nur
+  Status + Frage, und Szenentexte sind die markierte Ausnahme von „Bittet die
+  Gruppe ausdrücklich darum, tust du es trotzdem". Code: in Padua-Phase 4
+  (`workshop.prosa_entwurf_aktiv`) bekommt eine Antwort mit Schreibangebot
+  oder Szenenformat (`ablauf.ist_schreibangebot`) genau einen zweiten Anlauf
+  mit Ermahnung (Vorfall `schreibangebot_phase_4`), und der Szenenfolge-Knopf
+  stellt keine Szene zum Schreiben vor (`knoepfe.szenen._nur_rahmen`). Dazu
+  in `system.md`/`phasen/4.md`: das konkrete Beispiel der Gruppe geht vor
+  (drei eigene Richtungen nur ohne eigene Idee), ihre Struktur ist die
+  Gestalt der Geschichte, und nichts vom Bot wird der Gruppe zugeschrieben.
+  Test: `tests/test_phase4_haertung.py` mit dem Live-Fall als Fixture.
+
+## Stückmodell (Karte t_fd88600b, Birk 10.10.2026)
+
+Leitsatz: Jede Tatsache über das Stück steht an genau einer Stelle;
+Werkbank, Karte, Script-Kopf und PDF lesen von dort ab und tragen nichts
+Eigenes. Übergabe mit Zahlen: `docs/handoffs/2026-10-10-stueckmodell.md`.
+
+**Zielbild.**
+
+| Tatsache | Eine Stelle | Ansichten |
+|---|---|---|
+| Ort der Szene | `szene.ort` | Karte, Werkbank „Wo", Script-Kopf, PDF |
+| Besetzung | `szene_figur` (`rolle`, `position`) plus `szene.wer_zusatz` (Nicht-Figuren) | Karte „Wer", Werkbank „Wer", Besetzungszeile |
+| Offene Fragen | Tabelle `offene_frage` (schließt im Modell) | Karte, Klärweg, Dialog, Knöpfe |
+| Karte (Punkte) | `szene.karte` JSON, nur `punkte` u. ä.; kein `ort`/`wer`/`fragen` mehr | Kartentext |
+| Prosa (Stage Script, Kopf) | `szene.volltext`, `arbeitsstand.stage_kopf` | wird nie still geändert, nur `veraltet` (Tabelle `veraltet`) |
+| Änderungsprotokoll | `stueck_aenderung` (auch Migration) | Bericht |
+
+**Gate-Semantik vorher/nachher.** Vorher sperrten `szenenkarte.py`
+(`_TEXT_NICHT_DRAN`) und `stagescript.py` (`_TEXT_ERST_VORHERIGE`) Karte und
+Script nach Phase/Reihenfolge; `phasen.voraussetzungen` & Co. sperrten nie.
+Nachher sind die Szenen-Verbote Warnungen (`phasen.warnungen` beim
+Phasensprung, `Ergebnis.warnungen`); Phasen bestimmen Fokus und Vorschlag.
+Bewusst Sperre geblieben: `p5_gate` (Bestätigungsschritt) und
+`erkenner._ohne_phasensprung_vor_fixierten_figuren` (Schutz vor Fehllesen).
+Busy-Gate (laufender Schreibvorgang) bleibt eine echte Sperre.
+
+**Migrationsregeln** (`db._migriere_stueckmodell`, idempotent, Bericht in
+`stueck_aenderung`, Quelle `migration`): Beim Ort gewinnt die Karte
+(`karte.ort`); bei der Besetzung gilt die Vereinigung aus `szene_figur` und
+`karte.wer`; ein Name ohne Figur wird nur berichtet (`wer_zusatz`), nie als
+Figur angelegt.
+
+**Werkzeug-Zuschnitt.** `(conn, chat_id, *, JSON-Werte) -> Ergebnis`, ohne
+`tg`/`klm`, ohne Modellaufruf (`tests/test_stueck_schnittstelle.py`), damit
+1:1 als Agenten-Werkzeug aufrufbar. Ob B oder C bleibt offen. Prosa-Folge:
+Ja auf „Szene N passt nicht mehr zu … neu schreiben?" nutzt den
+unveränderten Schreibweg (EN/IT-Trennung, `stagescript.endfassung`).
+
+**Bewusste Abweichungen.** Werkbank-Zeile „Wo · Wer" je Szene (neu in
+Padua); die Ja-Antwort auf einen veralteten Kopf schreibt Szene 1 mit neu,
+weil der Kopf nur in diesem Lauf entsteht.

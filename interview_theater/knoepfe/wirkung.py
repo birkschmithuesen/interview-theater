@@ -13,6 +13,7 @@ Pakets am Quelltext prueft statt am Verhalten.
 
 from typing import NamedTuple
 
+from interview_theater import workshop
 from interview_theater import phasen, repo, ruecknahme, sprache
 
 from interview_theater.knoepfe.texte import (
@@ -34,14 +35,20 @@ from interview_theater.knoepfe.texte import (
     ART_FRAGEN_WEICH_LASSEN, ART_FRAGEN_WEICH_UEBERNEHMEN,
     ART_FRAGE_ANNEHMEN, ART_FRAGE_SCHAERFEN, ART_FRAGE_VERWERFEN,
     ART_FRAGE_WAHL,
+    ART_KARTE_FRAGEN_KLAEREN, ART_KARTE_FRAGEN_UEBERSPRINGEN,
+    ART_KARTE_UPDATE, ART_KARTE_KEEP, ART_VERALTET_NEU, ART_VERALTET_LASSEN,
     ART_GESCHICHTE_ANDERS, ART_GESCHICHTE_KUERZEN, ART_GESCHICHTE_NEU,
     ART_GESCHICHTE_PASST, ART_GESCHICHTE_SCHREIBEN, ART_GESCHICHTE_SPEICHERN,
     ART_HILFE, ART_INTERVIEWS_FERTIG, ART_KERNTHEMA, ART_LEITFADEN, ART_NOCH_NICHT,
     ART_OHNE_KNOPF_FERTIG, ART_OHNE_KNOPF_JA, ART_OHNE_KNOPF_NEIN,
-    ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
-    ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_REDO, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
-    ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_RUNDE, ART_SCHAERFUNG_STELLE,
-    ART_SCHAERFUNG_SZENE, ART_SCHLAG_VOR, ART_SPEICHERN, ART_STAND,
+    ART_OHNE_KNOPF_WEITER, ART_PHASE, ART_P5_CHECK_AENDERN, ART_P5_CHECK_OK,
+    ART_PRUEFUNG_LASSEN, ART_PRUEFUNG_RUNDE,
+    ART_PRUEFUNG_SZENE, ART_RAHMEN, ART_RECHERCHE, ART_RECHERCHE_FRAGE,
+    ART_REDO, ART_RICHTUNG, ART_SCHAERFUNG_FIGUR,
+    ART_SCHAERFUNG_CHAT, ART_SCHAERFUNG_KEINE, ART_SCHAERFUNG_MEHR, ART_SCHAERFUNG_RUNDE,
+    ART_SCHAERFUNG_SORTIEREN,
+    ART_SCHAERFUNG_STELLE, ART_SCHAERFUNG_SZENE, ART_SCHLAG_VOR, ART_SPEICHERN,
+    ART_STAND,
     ART_SZENENFELDER_SPEICHERN, ART_SZENENFOLGE_ANZAHL,
     ART_SZENENFOLGE_ANZAHL_WERT, ART_SZENENFOLGE_REIHENFOLGE,
     ART_SZENENFOLGE_SPEICHERN, ART_SZENENFORM, ART_SZENENSTIL,
@@ -50,7 +57,7 @@ from interview_theater.knoepfe.texte import (
     ART_SZENE_SO_LASSEN, ART_SZENE_UEBERSPRINGEN, ART_SZENE_USA,
     ART_UEBERSICHT_ANDERS, ART_UEBERSICHT_PASST,
     ART_SPRECHWEISEN_ANDERS, ART_SPRECHWEISEN_PASST,
-    ART_STT_SPRACHE, STT_KNOEPFE, T, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
+    ART_STT_SPRACHE, STT_KNOEPFE, T, _T_IT, ART_SZENE_ZEIGEN, ART_TEIL_FERTIG,
     ART_TEIL_WEITER, ART_TEXTBUCH, ART_TRANSKRIPT, ART_UNDO, ART_WIR_ZUERST,
     ART_ZUSAMMENFASSUNG, PHASE_SETTING, PHASE_STUECKPRUEFUNG, PHASE_SZENEN, TRENNER, _KETTE, log,
 )
@@ -78,10 +85,12 @@ from interview_theater.knoepfe.szenen import (
     _naechste_offene, _pruefbefund, _schreibe_szene, _speichere_geschichte,
     _speichere_szenenfelder, _speichere_szenenfolge, _szene_mit_nummer,
     biete_kurzgeschichte, biete_schaerfung, biete_szene, biete_szenenform,
+    biete_veraltete,
     _zeige_fassungen, skript_verweis, starte_dramaturgie,
     biete_szenenstil, erwarte_geschichte_notiz, starte_schaerfung,
-    starte_stueckpruefung, uebernimm_schaerfung_figur,
-    uebernimm_schaerfung_szene, verwirf_schaerfung, zeige_szenentext,
+    starte_stueckpruefung, uebernimm_schaerfung_stellen,
+    verwirf_schaerfung, zeige_schaerfung_seite, zeige_szenentext,
+    starte_fragenvorschlag, starte_recherche_lauf,
 )
 from interview_theater.knoepfe.interviews import (
     _werte_alle_aus, biete_interview_ohne_knopf_weiter,
@@ -185,21 +194,30 @@ def _wirkung_geschichte_speichern(conn, d: Druck) -> str:
     return _speichere_geschichte(conn, d.tg, d.klm, d.e, d.chat_id, d.wert)
 
 
-def _wirkung_schaerfung_szene(conn, d: Druck) -> str:
-    """Die Uebernahme ist deterministisch (Felder ergaenzen), der naechste
-    Vorschlag kommt aus der Datenbank -- kein Modellaufruf (Zusage 2). Der
-    Rumpf steht in ``szenen.uebernimm_schaerfung_szene`` -- derselbe fuer
-    den Erkenner (``schaerfung_entscheidung``, Padua Phasen TEIL 2)."""
-    modus, _, nummer_roh = d.wert.partition(TRENNER)
-    return uebernimm_schaerfung_szene(
-        conn, d.tg, d.chat_id, int(nummer_roh or d.wert),
-        anders=modus.strip() == "anders")
+def _wirkung_schaerfung_uebernehmen(conn, d: Druck) -> str:
+    """"Diese uebernehmen", seitengebunden (07.10.2026): ``d.wert`` traegt
+    die ``schaerfung.id`` der gezeigten Seite, durch ``TRENNER`` getrennt --
+    wie ``ART_SCHAERFUNG_KEINE``, NICHT mehr "alle fuer diese Szene/Figur".
+    Der Rumpf steht in ``szenen.uebernimm_schaerfung_stellen``; der
+    Erkenner-Weg (``uebernimm_schaerfung_szene``/``_figur``, "alles fuer
+    dieses Ziel") bleibt unberuehrt und wird direkt aufgerufen, nicht ueber
+    diese Dispatch-Tabelle."""
+    ids = [int(t) for t in d.wert.split(TRENNER) if t.strip().isdigit()]
+    return uebernimm_schaerfung_stellen(conn, d.tg, d.chat_id, ids)
 
 
-def _wirkung_schaerfung_figur(conn, d: Druck) -> str:
-    modus, _, name = d.wert.partition(TRENNER)
-    return uebernimm_schaerfung_figur(
-        conn, d.tg, d.chat_id, name or d.wert, anders=modus.strip() == "anders")
+def _wirkung_schaerfung_mehr(conn, d: Druck) -> str:
+    """"Mehr zeigen" (07.10.2026): dieselbe Szene/Figur eine Seite weiter.
+    Deterministisch, kein Modellaufruf -- alles steht schon in
+    ``schaerfung``."""
+    sammelart, _, rest = d.wert.partition(TRENNER)
+    sammelwert, _, versatz_roh = rest.partition(TRENNER)
+    try:
+        versatz = int(versatz_roh)
+    except (TypeError, ValueError):
+        versatz = 0
+    zeige_schaerfung_seite(conn, d.tg, d.chat_id, sammelart, sammelwert, versatz)
+    return T._TEXT_SCHAERFUNG_MEHR_KNOPF
 
 
 def _wirkung_schaerfung_stelle(conn, d: Druck) -> str:
@@ -231,6 +249,26 @@ def _wirkung_schaerfung_runde(conn, d: Druck) -> str:
     haengt im Thread, hier wird nur angestossen."""
     starte_schaerfung(conn, d.tg, d.klm, d.e, d.chat_id)
     return T._ANTWORT_NOCH_EINE_RUNDE
+
+
+def _wirkung_schaerfung_sortieren(conn, d: Druck) -> str:
+    """"Sortieren" unter der automatischen Zuordnung beim Eintritt in Phase 5
+    (Padua, "Entry zu voll"): reine Bestaetigung, kein Modellaufruf, keine
+    Datenbankaenderung. Der Sprung in den CoThinker-Tab laeuft client-seitig
+    ueber den Knopftext (``web_chat.py``), derselbe Weg wie
+    ``aufnahme._TEXT_BUEHNE_NEUE_KARTE``."""
+    return T._TEXT_SCHAERFUNG_SORTIEREN_NOTIERT
+
+
+def _wirkung_schaerfung_chat(conn, d: Druck) -> str:
+    """"Erst ueber die Interviews reden" unter derselben Zuordnung: stoesst
+    die kurze Interviewzusammenfassung an (Opus, eigener Thread -- Zusage 2);
+    danach ist freies Gespraech ueber die Interviews offen, der normale
+    Gespraechszug uebernimmt."""
+    from interview_theater import schaerfung as schaerfung_modul
+
+    schaerfung_modul.starte_zusammenfassung(conn, d.tg, d.klm, d.e, d.chat_id)
+    return T._TEXT_SCHAERFUNG_CHAT_NOTIERT
 
 
 def _wirkung_szenenfolge_anzahl(conn, d: Druck) -> str:
@@ -378,17 +416,131 @@ def _wirkung_entwurf_szene_passt(conn, d: Druck, nummer: int) -> str:
     return entwurf.bestaetige_szene(conn, d.tg, d.klm, d.e, d.chat_id, nummer)
 
 
+def _texte_fuer_phase(conn, chat_id: int) -> sprache.Texte:
+    """``_T_IT`` fuer die "No, change"-Rueckfrage, solange die Gruppe in
+    Phase 6/7 steht UND chat_id in ``workshop.italienisch_ab_phase6_chats()``
+    steht (Nachtauftrag cc-p67texte, 08.10.2026) -- sonst ``T``. Derselbe
+    Mechanismus wie ``erkenner._texte_fuer_phase``/``stagescript._T``."""
+    if (conn is not None and phasen.aktuelle(conn, chat_id) in (6, 7)
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
+        return _T_IT
+    return T
+
+
 def _wirkung_szene_anders(conn, d: Druck) -> str:
     """Der Regie-Vermerk kommt als naechste Nachricht; ``ablauf.antworte``
     greift ihn auf (``szenenfolge.nimm_regienotiz``) und schreibt die Szene
-    damit neu. Kein Modellaufruf hier."""
+    damit neu. Kein Modellaufruf hier.
+
+    Szenenkarte in Phase 6 (Birk 08.10.2026 ~09:35, Nachtrag): KEIN
+    Wartezustand mehr -- statt dessen startet "No, change" den Dialog
+    (``szenenkarte.starte_dialog``), der Chat bleibt ein gewoehnliches
+    Gespraech."""
+    if workshop.szenenkarten_aktiv() and phasen.aktuelle(conn, d.chat_id) == PHASE_SZENEN:
+        from interview_theater import szenenkarte
+
+        return szenenkarte.starte_dialog(conn, d.tg, d.e, d.chat_id, int(d.wert))
     from interview_theater import szenenfolge
 
     nummer = int(d.wert)
     szenenfolge.erwarte_regienotiz(d.chat_id, nummer)
-    d.tg.sende(d.chat_id, T._TEXT_SZENE_ANDERS_FRAGE)
+    t = _texte_fuer_phase(conn, d.chat_id)
+    d.tg.sende(d.chat_id, t._TEXT_SZENE_ANDERS_FRAGE)
     _melde_spaetere(conn, d.tg, d.chat_id, nummer)
-    return T._ANTWORT_WAS_ANDERS_WERDEN
+    return t._ANTWORT_WAS_ANDERS_WERDEN
+
+
+def _wirkung_karte_fragen_klaeren(conn, d: Druck) -> str:
+    """"Clear the questions" unter einer Szenenkarte (Birk 08.10.2026
+    ~09:20): stellt die offenen Fragen nacheinander im Chat. Kein
+    Modellaufruf hier -- der Rumpf steht in ``szenenkarte.py``."""
+    from interview_theater import szenenkarte
+
+    return szenenkarte.starte_fragenklaerung(conn, d.tg, d.e, d.chat_id, int(d.wert))
+
+
+def _wirkung_karte_fragen_ueberspringen(conn, d: Druck) -> str:
+    """"Skip questions" unter einer Szenenkarte: alle offenen Fragen auf
+    einmal verwerfen -- waren unpassend, nicht ungeklaert. Kein
+    Modellaufruf."""
+    from interview_theater import szenenkarte
+
+    return szenenkarte.ueberspringe_fragen(conn, d.tg, d.e, d.chat_id, int(d.wert))
+
+
+def _wirkung_karte_update(conn, d: Druck) -> str:
+    """"Update the card" unter einer im Dialog zusammengefassten Aenderung
+    (Birk 08.10.2026 ~09:35, Nachtrag): Neubau im Thread, kein
+    Modellaufruf hier -- der Rumpf steht in ``szenenkarte.py``."""
+    from interview_theater import szenenkarte
+
+    nummer_s, _, aenderung = d.wert.partition(TRENNER)
+    meldung = szenenkarte.aktualisiere_mit_dialog(
+        conn, d.tg, d.klm, d.e, d.chat_id, int(nummer_s), aenderung)
+    # Stueckmodell: hat die Karte Prosa veralten lassen, jetzt fragen.
+    biete_veraltete(conn, d.tg, d.e, d.chat_id)
+    return meldung
+
+
+def _wirkung_karte_keep(conn, d: Druck) -> str:
+    """"Keep the card": Dialog beenden, dieselbe Karte wieder zeigen."""
+    from interview_theater import szenenkarte
+
+    return szenenkarte.behalte_karte(conn, d.tg, d.e, d.chat_id, int(d.wert))
+
+
+def _wirkung_veraltet_neu(conn, d: Druck) -> str:
+    """"Ja, neu schreiben": kein Modellaufruf hier -- ``stagescript.starte``
+    gibt an einen eigenen Thread ab (Knopf-Zusage 2)."""
+    from interview_theater import stagescript, stueck
+
+    t = stueck._T(d.chat_id)
+    v = repo.hole_veraltet(conn, int(d.wert))
+    if v is None or v["chat_id"] != d.chat_id or v["erledigt_am"]:
+        return t._TEXT_VERALTET_ERLEDIGT
+    if v["ansicht"] == "kopf":
+        erste = min((s["nummer"] for s in repo.hole_szenen(conn, d.chat_id)
+                     if s["nummer"] is not None and not s["entfernt_am"]), default=None)
+        if erste is None:
+            return t._TEXT_VERALTET_ERLEDIGT
+        # Der Kopf ist Prosa: ``schreibe`` baut ihn mit der ersten Szene neu
+        # (``kopf_neu``) und ersetzt ihn erst beim Speichern; Vermerk und
+        # alter Kopf bleiben, bis das Schreiben wirklich gelingt.
+        nummer = erste
+        kopf_neu = True
+    else:
+        szene = repo.hole_szene(conn, v["szene_id"])
+        if szene is None or szene["entfernt_am"]:
+            repo.erledige_veraltet(conn, v["id"], "lassen")
+            return t._TEXT_VERALTET_ERLEDIGT
+        nummer = szene["nummer"]
+        kopf_neu = False
+    # Der Vermerk wird vom Schreiber erledigt (``_speichere_text``/``schreibe``),
+    # nicht hier: startet nichts (Sperre belegt, kein Modell), bleibt er offen
+    # und wird beim naechsten Anlass neu angeboten.
+    if stagescript.starte(conn, d.tg, d.klm, d.e, d.chat_id, nummer, notiz=v["grund"],
+                          kopf_neu=kopf_neu) is None:
+        repo.setze_veraltet_unangeboten(conn, v["id"])
+        return t._TEXT_VERALTET_SPAETER
+    return t._TEXT_VERALTET_NEU.format(nummer=nummer)
+
+
+def _wirkung_veraltet_lassen(conn, d: Druck) -> str:
+    """"Nein, so lassen": der Text bleibt, der Vermerk ist erledigt."""
+    from interview_theater import stueck
+
+    t = stueck._T(d.chat_id)
+    v = repo.hole_veraltet(conn, int(d.wert))
+    if v is None or v["chat_id"] != d.chat_id or v["erledigt_am"]:
+        return t._TEXT_VERALTET_ERLEDIGT
+    repo.erledige_veraltet(conn, v["id"], "lassen")
+    nummer = 0
+    if v["szene_id"]:
+        szene = repo.hole_szene(conn, v["szene_id"])
+        nummer = szene["nummer"] if szene is not None else 0
+    text = t._TEXT_VERALTET_GELASSEN.format(nummer=nummer)
+    d.tg.sende(d.chat_id, text)
+    return text
 
 
 def _wirkung_uebersicht_passt(conn, d: Druck) -> str:
@@ -435,6 +587,15 @@ def _wirkung_uebersicht_anders(conn, d: Druck) -> str:
     sofort an einen eigenen Thread ab, wie jeder andere Vorschlagslauf."""
     from interview_theater import entwurf
 
+    if workshop.prosa_entwurf_aktiv():
+        # Birk 07.10.2026 ~18:15: "Immer wenn No, change gewaehlt wird, soll
+        # als naechstes eine freie Texteingabe als Feedback kommen" -- erst
+        # fragen, die naechste Nachricht geht als Notiz in den neuen Lauf.
+        from interview_theater.knoepfe import szenen as knoepfe_szenen
+
+        knoepfe_szenen.erwarte_uebersicht_notiz(d.chat_id)
+        d.tg.sende(d.chat_id, T._TEXT_UEBERSICHT_ANDERS_FRAGE)
+        return T._TEXT_UEBERSICHT_ANDERS_FRAGE
     entwurf.starte_uebersicht(conn, d.tg, d.klm, d.e, d.chat_id)
     return T._TEXT_UEBERSICHT_WIRD_NEU_ERZEUGT
 
@@ -1328,21 +1489,54 @@ def _wirkung_noch_nicht(conn, d: Druck) -> str:
 def _wirkung_phase(conn, d: Druck) -> str:
     nummer = int(d.knopf["wert"])
     # Abnahme P3-4 A3 Nachtrag (06.10.2026): derselbe Waechter wie in
-    # ``befehle.wechsle_phase`` -- die Phasenleiste im Browser geht genau
-    # hier entlang (``/phaseklick``), nicht durch ``wechsle_phase``. Import
-    # erst hier: ein Modulimport oben waere ein Zyklus (derselbe Grund wie
-    # in ``_wirkung_aufnahme``).
+    # ``befehle.wechsle_phase``. Import erst hier: ein Modulimport oben
+    # waere ein Zyklus (derselbe Grund wie in ``_wirkung_aufnahme``).
     from interview_theater import befehle
 
+    # Phase-5-Gate (Padua, 07.10.2026): zuerst geprueft -- ein Klick auf
+    # "Weiter zu Phase 5" zeigt die Werkbank-Uebersicht statt sofort
+    # umzuschalten, solange sie nicht bestaetigt ist.
+    if befehle.p5_gate(conn, d.tg, d.chat_id, nummer):
+        return T._ANTWORT_P5_CHECK_NOETIG
     befehle.schliesse_offenes_interview_vor_phasenwechsel(
         conn, d.tg, d.klm, d.e, d.chat_id, nummer)
+    verlassene_phase = phasen.aktuelle(conn, d.chat_id)
     if phasen.setze(conn, d.chat_id, nummer, "knopf"):
+        from interview_theater import phasen_summary
+
+        phasen_summary.starte_wenn_aktiv(conn, d.klm, d.e, d.chat_id, verlassene_phase)
         d.tg.sende(d.chat_id, phasen.meldung(nummer))
     # Ein Weg fuer alle acht Phasen (06.09.2026): Eintrittsnachricht mit
     # Kopfzeile, Einleitung und Checkliste, darunter die Einstiegsknoepfe
     # dieser Phase.
     eintritt_in_phase(conn, d.tg, d.klm, d.e, d.chat_id, nummer)
     return T._ANTWORT_PHASE.format(nummer=nummer)
+
+
+def _wirkung_p5_check_ok(conn, d: Druck) -> str:
+    """"Alles richtig" im Phase-5-Gate (Padua, 07.10.2026): die Werkbank-
+    Uebersicht ist bestaetigt, dann startet Phase 5 -- derselbe Weg wie
+    jeder andere Phasenwechsel (``befehle.wechsle_phase``), damit ein Klick
+    nie etwas anderes tut als ein Befehl."""
+    from interview_theater import befehle
+
+    repo.setze_arbeitsstand(
+        conn, d.chat_id, "p5_check_bestaetigt_am", repo._jetzt())
+    repo.schreibe_journal(
+        conn, d.chat_id, "entschieden", T._JOURNAL_P5_CHECK_BESTAETIGT,
+        quelle="knopf",
+    )
+    befehle.wechsle_phase(conn, d.tg, d.klm, d.e, d.chat_id, 5, quelle="knopf",
+                          voller_eintritt=True)
+    return T._ANTWORT_P5_CHECK_OK
+
+
+def _wirkung_p5_check_aendern(conn, d: Druck) -> str:
+    """"Etwas aendern" im Phase-5-Gate (Padua, 07.10.2026): die Gruppe
+    bleibt in Phase 4 und sagt im naechsten Satz, was zu korrigieren ist --
+    dasselbe freie Gespraech, das jede andere Korrektur in Phase 4 nimmt."""
+    d.tg.sende(d.chat_id, T._TEXT_P5_CHECK_AENDERN_FRAGE)
+    return T._ANTWORT_P5_CHECK_AENDERN
 
 
 def _wirkung_auswerten(conn, d: Druck) -> str:
@@ -1486,6 +1680,20 @@ def _wirkung_szenenstil(conn, d: Druck) -> str:
     return T._ANTWORT_SZENE_STIL.format(
         nummer=nummer, stil=gewaehlt or T._TEXT_STIL_OHNE_WORT
     )
+
+
+def _wirkung_recherche(conn, d: Druck) -> str:
+    """Startet den Fragenvorschlag im Thread (kein Modellaufruf hier,
+    Zusage 2) -- Karte t_c5117c91."""
+    starte_fragenvorschlag(conn, d.tg, d.klm, d.e, d.chat_id)
+    return T._ANTWORT_RECHERCHE_GESTARTET
+
+
+def _wirkung_recherche_frage(conn, d: Druck) -> str:
+    """Die gewaehlte Forschungsfrage -- der Recherchelauf selbst haengt im
+    Thread (Zusage 2)."""
+    starte_recherche_lauf(conn, d.tg, d.klm, d.e, d.chat_id, d.wert)
+    return T._ANTWORT_RECHERCHE_GESTARTET
 
 
 def _wirkung_szene_usa(conn, d: Druck) -> str:
@@ -1733,11 +1941,14 @@ _WIRKUNGEN = {
     ART_GESCHICHTE_KUERZEN: _wirkung_geschichte_kuerzen,
     ART_GESCHICHTE_NEU: _wirkung_geschichte_neu,
     ART_GESCHICHTE_SPEICHERN: _wirkung_geschichte_speichern,
-    ART_SCHAERFUNG_SZENE: _wirkung_schaerfung_szene,
-    ART_SCHAERFUNG_FIGUR: _wirkung_schaerfung_figur,
+    ART_SCHAERFUNG_SZENE: _wirkung_schaerfung_uebernehmen,
+    ART_SCHAERFUNG_FIGUR: _wirkung_schaerfung_uebernehmen,
     ART_SCHAERFUNG_STELLE: _wirkung_schaerfung_stelle,
     ART_SCHAERFUNG_KEINE: _wirkung_schaerfung_keine,
     ART_SCHAERFUNG_RUNDE: _wirkung_schaerfung_runde,
+    ART_SCHAERFUNG_SORTIEREN: _wirkung_schaerfung_sortieren,
+    ART_SCHAERFUNG_CHAT: _wirkung_schaerfung_chat,
+    ART_SCHAERFUNG_MEHR: _wirkung_schaerfung_mehr,
     ART_SZENENFOLGE_ANZAHL: _wirkung_szenenfolge_anzahl,
     ART_SZENENFOLGE_ANZAHL_WERT: _wirkung_szenenfolge_anzahl_wert,
     ART_SZENENFOLGE_REIHENFOLGE: _wirkung_szenenfolge_reihenfolge,
@@ -1749,6 +1960,12 @@ _WIRKUNGEN = {
     ART_SZENENFELDER_SPEICHERN: _wirkung_szenenfelder_speichern,
     ART_SZENE_PASST: _wirkung_szene_passt,
     ART_SZENE_ANDERS: _wirkung_szene_anders,
+    ART_KARTE_FRAGEN_KLAEREN: _wirkung_karte_fragen_klaeren,
+    ART_KARTE_FRAGEN_UEBERSPRINGEN: _wirkung_karte_fragen_ueberspringen,
+    ART_KARTE_UPDATE: _wirkung_karte_update,
+    ART_KARTE_KEEP: _wirkung_karte_keep,
+    ART_VERALTET_NEU: _wirkung_veraltet_neu,
+    ART_VERALTET_LASSEN: _wirkung_veraltet_lassen,
     ART_SZENE_KUERZEN: _wirkung_szene_kuerzen,
     ART_UEBERSICHT_PASST: _wirkung_uebersicht_passt,
     ART_SPRECHWEISEN_PASST: _wirkung_sprechweisen_passt,
@@ -1821,6 +2038,8 @@ _WIRKUNGEN = {
     ART_AUFNAHME: _wirkung_aufnahme,
     ART_NOCH_NICHT: _wirkung_noch_nicht,
     ART_PHASE: _wirkung_phase,
+    ART_P5_CHECK_OK: _wirkung_p5_check_ok,
+    ART_P5_CHECK_AENDERN: _wirkung_p5_check_aendern,
     ART_AUSWERTEN: _wirkung_auswerten,
     ART_ZUSAMMENFASSUNG: _wirkung_zusammenfassung,
     ART_TRANSKRIPT: _wirkung_transkript,
@@ -1832,6 +2051,8 @@ _WIRKUNGEN = {
     ART_STT_SPRACHE: _wirkung_stt_sprache,
     ART_UNDO: _wirkung_undo,
     ART_REDO: _wirkung_redo,
+    ART_RECHERCHE: _wirkung_recherche,
+    ART_RECHERCHE_FRAGE: _wirkung_recherche_frage,
 }
 
 

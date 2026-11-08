@@ -221,26 +221,23 @@ def test_das_js_maskiert_den_text_und_kennt_den_platzhalter():
 
 
 def test_brainstorm_segment_zeigt_sein_transkript_im_chat(conn, pfad, einst, tg):
-    """Birk 02.10.2026: im Brainstorm-Modus erscheint nach jedem Segment --
-    seit t_cf87ee0a ueber den Toggle-Stopp oder den 90-Sekunden-Deckel, nicht
-    mehr ueber einen Pausenschnitt -- das Transkript in der Chatblase
-    (Feedback fuers Zuhoeren) -- ohne dass der Bot antwortet und ohne dass es
-    in den Gespraechsprompt kommt."""
+    """Birk 06.10.2026 (ersetzt den Stand vom 02.10.2026): Phase 4 zeigt wie
+    ein Interview EINE wachsende Transkriptblase je Bogen -- kein Echo je
+    Einzelsegment mehr. Nach einem ``pause``-Segment steht der Text in der
+    EINEN Bogenblase, und es gibt weiterhin keinen Gespraechszug, keine
+    Bot-Antwort im Chat und keine Freigabe in den Gespraechsprompt."""
     post_id, aid = _sprachpost(conn, tg, einst, dauer=12)
     conn.execute("UPDATE aufnahme SET brainstorm = 1, schnittgrund = 'pause' WHERE id = ?", (aid,))
     conn.commit()
-    stand = _stand(pfad)
     aufgerufen = []
 
     aufnahme.verarbeite(conn, tg, LLMAttrappe(), einst, stt_attrappe("ein laut gedachter Gedanke"),
                         aid, zug=lambda *a, **k: aufgerufen.append(1))
 
-    _, (geaendert, _) = _lies(pfad, stand)
-    assert [(z["id"], z["text"], z["abgetippt"]) for z in geaendert] == [
-        (post_id, "ein laut gedachter Gedanke", True)
-    ]
+    assert [(chat, text) for chat, text in tg.gesendet] == [
+        (WEB, "ein laut gedachter Gedanke")
+    ], "genau EINE Bogenblase mit dem Transkript, kein weiterer Chatbeitrag"
     assert not aufgerufen, "kein Gespraechszug im Brainstorm"
-    assert not tg.gesendet, "der Bot schreibt nichts in den Chat"
     zeile = conn.execute(
         "SELECT unterdrueckt FROM nachricht WHERE chat_id = ? AND message_id = ?", (WEB, post_id),
     ).fetchone()

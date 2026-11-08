@@ -1,5 +1,6 @@
 """Datenbankschema und Verbindungsaufbau (SPEC-kontext-architektur.md § 3.1)."""
 
+import json
 import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -99,7 +100,16 @@ CREATE TABLE IF NOT EXISTS gruppe (
   kalibrierung_boden               REAL,
   kalibrierung_rede                REAL,
   kalibrierung_schwelle            REAL,
-  kalibrierung_gemessen_am         TEXT
+  kalibrierung_gemessen_am         TEXT,
+  -- Watchdog-Meldung des Chat-Clients (Karte InScribe, Diskussionsaufnahme
+  -- laedt still nicht mehr hoch, 2026-10-17): wie viele Audiosegmente der
+  -- Browser gerade im Handy (IndexedDB) gepuffert haelt, weil der Upload
+  -- haengt -- 0/NULL = nichts gepuffert. Gruppenweit wie kalibrierung_*,
+  -- weil der Poll, der es meldet, je Geraet laeuft, aber die
+  -- CoThinker-Statuszeile (web._cothinker_status_html) gruppenweit zeigt.
+  -- Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  client_puffer_segmente           INTEGER,
+  client_puffer_seit               TEXT
 );
 
 CREATE TABLE IF NOT EXISTS nachricht (
@@ -213,6 +223,15 @@ CREATE TABLE IF NOT EXISTS aufnahme (
   -- 05.10.2026) -- dieselbe additive Durchreiche wie ``rede_ms``, rein
   -- diagnostisch, damit morgige Daten die Vorgaben justieren koennen.
   weich_ms        INTEGER,
+  -- Wie viele Millisekunden die Seite waehrend dieses Teils im Hintergrund
+  -- war (Tab-Wechsel, Sperrbildschirm) -- vom Client gemessen (Karte
+  -- t_1423ca89: Evidence Clone "G3 Interview 1" #113, gemeldet 178 s, real
+  -- ~26 s Audio, weil MediaRecorder und Timer dort angehalten hatten).
+  -- NULL = keine Lücke gemessen (oder ein Telefon ohne diese Fassung).
+  -- Rein diagnostisch wie ``rede_ms``: entscheidet mit ueber die Chatzeile
+  -- in ``aufnahme._pruefe_hintergrund_unterbrechung``, nie ueber ein
+  -- Upload-Gate. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  hintergrund_ms  INTEGER,
   -- Gesetzt (1) = diese Zeile ist der Testsatz einer Pegel-Kalibrierung
   -- (Task 2, Kanban-Karte Mithoeren SICHER/Kalibrierung, 03.10.2026) -- kein
   -- gewoehnlicher Gespraechsbeitrag und kein Interview-Teil.
@@ -382,6 +401,11 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- damit fixiert wurde (Ebene 2). Voraussetzung fuer Phase 5 -- auch bei
   -- nur einer Figur.
   figuren_fixiert_am     TEXT,
+  -- Padua, Phase-5-Gate (07.10.2026): Zeitpunkt, zu dem die Gruppe die
+  -- Werkbank-Uebersicht vor Phase 5 bestaetigt hat ("Alles richtig"). NULL
+  -- heisst: der Check steht noch aus oder ist durch einen Ruecksprung unter
+  -- Phase 5 wieder zurueckgesetzt (``phasen.setze``).
+  p5_check_bestaetigt_am TEXT,
   -- Die Figur, die in Ebene 2 gerade vorgestellt wird. Merkposten fuer die
   -- Knopfwege, die ueber einen Modellaufruf laufen (Duktus-Vorschlaege).
   figur_aktuell          TEXT,
@@ -518,6 +542,15 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- Padua Phasen TEIL 2: Phase 6.1 (Gesamttext) und 7.2 (Sprechweisen) abgenommen.
   gesamttext_fixiert_am TEXT,
   sprechweisen_fixiert_am TEXT,
+  -- Padua Phase 6 (Szenenkarten): die Gesamtpruefung ueber alle Karten lief.
+  karten_geprueft_am TEXT,
+  -- Padua Phase 7 (Stage Script): der Kopf des Skripts, einmal je Stueck
+  -- (Versuchsanordnung + Rollen, G2), stagescript.py.
+  stage_kopf TEXT,
+  -- Die italienische Fassung von stage_kopf (G2-Nachtrag, Birk 08.10.2026
+  -- ~07:50, Auftrag 2): derselbe EN/IT-Spiegelpass wie szene.volltext_it,
+  -- additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  stage_kopf_it TEXT,
   -- Merkposten fuer den Knopf "Interviews fertig" im Web-Kanal (Phase 3,
   -- 02.10.2026): gesetzt (ISO-Zeitstempel), solange die Gruppe "Interviews
   -- fertig" gedrueckt hat, aber noch mindestens ein beendetes Interview ohne
@@ -544,6 +577,13 @@ CREATE TABLE IF NOT EXISTS arbeitsstand (
   -- brainstorm._LAEUFT ist In-Prozess-Speicher des Bots und fuer den
   -- separaten Webserver-Prozess nicht sichtbar.
   brainstorm_lauf_seit TEXT,
+  -- Die EINE Transkriptblase des laufenden Brainstorm-Bogens (Birk
+  -- 06.10.2026: Phase 4 soll wie ein Interview EINE wachsende Sprechblase
+  -- zeigen, keine Chat-Reaktion vor "Discussion done") -- die web_post-id
+  -- der Blase, analog zu aufnahme.echo_message_id bei Interviews. NULL =
+  -- kein Bogen offen / noch keine Blase in diesem Bogen. Wird beim
+  -- Bogenende (schnittgrund='ende') wieder auf NULL gesetzt.
+  brainstorm_echo_message_id INTEGER,
   -- Die Fragen-Gegenueberstellung eigen/KI (Padua Phase 1+2 Karte,
   -- 03.10.2026): der im Hintergrund erzeugte, versteckte KI-Vorschlag
   -- (``Begriff: Frage``-Zeilen wie ``fragen_auswahl``) und sein Zeitstempel.
@@ -687,6 +727,53 @@ CREATE TABLE IF NOT EXISTS szene (
   -- stehen: die Prosa ist die Vorlage, gegen die der Theatertext geprueft
   -- werden kann. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
   prosa             TEXT,
+  -- Die italienische Spiegelung von ``prosa`` (Birk, Live-Workshop
+  -- 07.10.2026 ~17:20, Padua-Profilschalter ``[skript] zweisprachig``):
+  -- ``skript_uebersetzung.spiegel`` schreibt hierher, wenn ein Szenentext
+  -- fertig ist. ``prosa`` bleibt die englische Fassung, auf der jeder
+  -- Prompt und jede Pruefung weiterlaeuft -- diese Spalte ist reine
+  -- Anzeige/Export. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  prosa_it          TEXT,
+  -- Die Kurzform einer Szene (Birk, Live-Workshop 07.10.2026 ~17:45,
+  -- Padua-Profilschalter ``[skript] verdichtet``, ``szenenkern.py``): 3-6
+  -- Punkte "worum es in der Szene geht", je Zeile einer; die 5 staerksten
+  -- uebernommenen Zitate (Wortlaut aus der DB, je Zeile ``"..." (Interview
+  -- N)``); der Fingerabdruck der Eingabe, aus der beides entstand (gleiche
+  -- Eingabe = kein zweiter Modellaufruf). Anzeige und Prompt-Kurzform; die
+  -- Felder der Gruppe bleiben unberuehrt. Additiv nachgeruestet.
+  kern              TEXT,
+  kernsaetze_kurz   TEXT,
+  kern_quelle       TEXT,
+  -- Die Szenenkarte (Padua Phase 6, Birk 07.10.2026 ~18:12, Profilschalter
+  -- ``[phasen] karten``, ``szenenkarte.py``): JSON mit typ, worum, ort, wer,
+  -- punkte, zitate (Wortlaut aus der DB, Originalsprache), fragen. Abnahme
+  -- je Karte ("Yes, save"). Additiv nachgeruestet.
+  karte             TEXT,
+  karte_bestaetigt_am TEXT,
+  -- Die laufende Fragenklaerung einer Karte (Birk 08.10.2026 ~09:20,
+  -- "Clear the questions"): JSON mit index (welche offene Frage als
+  -- naechste gestellt wird), antworten (je Frage Text oder null = ueber-
+  -- sprungen) und runde (fuer die eine automatische Zusatzrunde, wenn der
+  -- Neubau selbst wieder Fragen anlegt). NULL = keine Klaerung im Gang.
+  -- Bewusst in der Datenbank statt im Prozessspeicher wie
+  -- ``szenenfolge._regienotiz_erwartet``: ein Neustart mitten in der
+  -- Klaerung darf die Frage nicht verschlucken. Additiv nachgeruestet.
+  karte_klaerung    TEXT,
+  -- Der "No, change"-Dialog einer Karte (Birk 08.10.2026 ~09:35, Nachtrag):
+  -- gesetzt (Zeitstempel) = die Gruppe bespricht gerade eine Aenderung mit
+  -- dem Gespraechsbot, die Karte steht dafuer im Kontext
+  -- (``szenenkarte.dialog_kontextblock``), KEIN automatischer Neubau.
+  -- Geleert durch "Update the card" (nach dem Neubau) oder "Keep the card".
+  -- Additiv nachgeruestet.
+  karte_dialog_am   TEXT,
+  -- Die italienische Spiegelung des Stage Scripts (``volltext``) unter
+  -- ``[karten] aktiv`` + ``[skript] zweisprachig`` (stagescript.py). Additiv.
+  volltext_it       TEXT,
+  -- Stueckmodell (Karte t_fd88600b, 10.10.2026): wer in der Szene ist,
+  -- ohne eine Figur zu sein ("tutto il pubblico", "uno di noi alla camera").
+  -- Zusammen mit szene_figur die EINE Stelle fuer "wer" -- karte.wer
+  -- entfaellt. Additiv ueber _migriere_fehlende_spalten.
+  wer_zusatz        TEXT,
   -- Gesetzt = die Gruppe hat den Text mit "Passt" abgenommen (Phase 6,
   -- knoepfe.ART_SZENE_PASST). Ein Volltext allein heisst nur "geschrieben":
   -- unter jedem frischen Szenentext haengen vier Knoepfe, und erst einer
@@ -838,10 +925,19 @@ CREATE TABLE IF NOT EXISTS schaerfung (
   szene_id             INTEGER,
   figur_id             INTEGER,
   begruendung          TEXT,
+  -- Staerke 1-3 aus dem Je-Szene/Je-Figur-Aufruf (Birk 07.10.2026, Karte
+  -- Zuordnung-Umbau); additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  -- NULL bei einer alten Zeile aus dem frueheren Pauschal-Lauf -- die
+  -- Anzeige sortiert eine NULL ans Ende, nicht vor eine echte Staerke.
+  staerke              INTEGER,
   runde                INTEGER NOT NULL DEFAULT 1,
   uebernommen_am       TEXT,
   erstellt_am          TEXT NOT NULL,
-  entfernt_am          TEXT
+  entfernt_am          TEXT,
+  -- Die Yes/No-Entscheidung aus der CoThinker-Sortierliste (Padua,
+  -- 07.10.2026), VOR dem Knopf "Done": NULL/"" ist offen, "ja"/"nein" ist
+  -- gesetzt. Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  entscheidung         TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_schaerfung_chat ON schaerfung(chat_id, id);
 
@@ -979,6 +1075,11 @@ CREATE TABLE IF NOT EXISTS szene_figur (
   chat_id    INTEGER NOT NULL,
   szene_id   INTEGER NOT NULL,
   figur_id   INTEGER NOT NULL,
+  -- Stueckmodell (t_fd88600b): die Rolle der Figur in DIESER Szene
+  -- ("(Arlecchino)", "fuori campo") und ihre Reihenfolge in der Besetzung.
+  -- NULL = keine Rolle / Reihenfolge nach figur.id wie bisher.
+  rolle      TEXT,
+  position   INTEGER,
   PRIMARY KEY (szene_id, figur_id)
 );
 
@@ -1211,7 +1312,13 @@ CREATE TABLE IF NOT EXISTS web_post (
   -- morgige Daten die Vorgaben IT_WEB_VAD_WEICH_MS (30s)/
   -- IT_WEB_VAD_WEICH_PAUSE_MS (700ms) justieren koennen. Additiv
   -- nachgeruestet ueber _migriere_fehlende_spalten.
-  weich_ms          INTEGER
+  weich_ms          INTEGER,
+  -- Wie viele Millisekunden die Seite waehrend dieses Segments im
+  -- Hintergrund war (Karte t_1423ca89, Warnung "Aufnahme im Hintergrund
+  -- unterbrochen"), vom Client gemessen (``?hintergrund=`` an chat/audio) --
+  -- dieselbe additive Durchreiche wie ``rede_ms``/``weich_ms``, bis in die
+  -- ``aufnahme``-Zeile (``web_kanal.hole_updates`` -> ``aufnahme.empfange``).
+  hintergrund_ms    INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_web_post_eingang
   ON web_post(chat_id, richtung, id);
@@ -1295,12 +1402,192 @@ CREATE TABLE IF NOT EXISTS aufruf (
 -- Schluessel es gibt, bestimmt uebersetzung.segmente(). Das Dashboard
 -- (web.py, read-only) nutzt die Zeile nur, wenn quelle_hash zur aktuell
 -- gespeicherten Quelle passt -- sonst gilt sie als ausstehend.
+-- `quelle` haelt die Quellsegmente (dasselbe Schema wie `felder`, aber vor
+-- der Uebersetzung), mit denen `felder` zuletzt gefuellt wurde -- Grundlage
+-- dafuer, dass ein geaenderter Quelltext nur die tatsaechlich geaenderten
+-- Schluessel neu uebersetzt (uebersetzung.aktualisiere) und unveraenderte
+-- aus `felder` uebernimmt, statt bei jeder Aenderung ALLE Schluessel neu zu
+-- uebersetzen. Additiv nachgeruestet ueber _migriere_fehlende_spalten; eine
+-- Zeile von vor der Nachruestung hat '{}' und uebersetzt deshalb beim
+-- naechsten Lauf einmal alles neu (aber in Haeppchen, nicht in einem Aufruf).
 CREATE TABLE IF NOT EXISTS uebersetzung (
   chat_id       INTEGER PRIMARY KEY,
   quelle_hash   TEXT NOT NULL,
+  quelle        TEXT NOT NULL DEFAULT '{}',
   felder        TEXT NOT NULL,
   aktualisiert_am TEXT NOT NULL
 );
+
+-- Der Formberater (Karte t_256ec777, 07.10.2026, ``formberater.py``): welche
+-- performativen Formen aus ``interview_theater/formen/`` fuer diese Gruppe
+-- nachgeschlagen wurden und deshalb im Gespraechs-Prompt stehen
+-- (``kontext._baue_formen``). Nur anhaengen, nie aendern (wie
+-- buehnenkarte): eine Zeile ist ein Nachschlagen zu einem Zeitpunkt, keine
+-- Entscheidung der Gruppe.
+--
+-- ausloeser: 'stichwort' (deterministischer Treffer, kein Modellaufruf),
+-- 'laufend' (Modellaufruf in Phase 4 nach einem neuen Treffer), 'einstieg'
+-- (einmalig beim Eintritt in Phase 5), 'brainstorm' (einmal synchron vor
+-- der Antwort auf den bei "Discussion done" eingespeisten Brainstorm).
+-- formen: JSON-Liste von Slugs (Dateinamen ohne .md), leer, wenn der
+-- Aufruf scheiterte. signale: JSON-Liste der Stichwoerter, die diesen
+-- Aufruf ausgeloest haben -- die Delta-Logik liest sie, damit dasselbe
+-- Wort nicht jeden Zug einen neuen Aufruf ausloest. ergebnis: JSON
+-- {passt, vorschlag, gegenpol} oder NULL (Stichwort, gescheitert).
+-- KEIN Gruppentext steht hier, nur Slugs, Stichwoerter und die
+-- Begruendungen des Modells.
+CREATE TABLE IF NOT EXISTS formberater (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  ausloeser    TEXT NOT NULL,
+  phase        INTEGER,
+  formen       TEXT NOT NULL DEFAULT '[]',
+  signale      TEXT NOT NULL DEFAULT '[]',
+  ergebnis     TEXT,
+  modell       TEXT,
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_formberater_chat ON formberater(chat_id, id);
+-- Internet-Recherche (Karte t_c5117c91): ein eigener Materialstrang, klar
+-- getrennt vom Interviewmaterial -- siehe kontext.py (eigener Prompt-Block)
+-- und AGENTS.md "Nur anhaengen" (entfernt wird weich, ueber entfernt_am).
+-- `quellen_json` ist eine JSON-Liste `{titel, url, datum?}` je verifizierter
+-- Aussage in `ergebnis_text`.
+CREATE TABLE IF NOT EXISTS recherche (
+  id              INTEGER PRIMARY KEY,
+  chat_id         INTEGER NOT NULL,
+  frage           TEXT NOT NULL,
+  ergebnis_text   TEXT NOT NULL,
+  quellen_json    TEXT NOT NULL,
+  erstellt_am     TEXT NOT NULL,
+  entfernt_am     TEXT
+);
+
+-- Phasen-Summary (Karte t_1bc96848, Padua): je Phase ein knappes,
+-- automatisiert erzeugtes Summary nur des Beschlossenen -- ersetzt in den
+-- Prompts der Folgephasen die Rohdumps aus Chat/Journal/Workbench einer
+-- ABGESCHLOSSENEN Phase (interview_theater/phasen_summary.py). Nur-anhaengend
+-- wie Journal/Festlegung: ein neues Summary fuer dieselbe Phase (Ruecksprung,
+-- Nachtrag) legt eine neue Zeile an, die alte bleibt stehen -- gelesen wird
+-- immer die juengste (repo.hole_phasen_summary).
+CREATE TABLE IF NOT EXISTS phasen_summary (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  phase        INTEGER NOT NULL,
+  text         TEXT NOT NULL,
+  quelle       TEXT NOT NULL,            -- modell|nachtrag
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_phasen_summary_chat ON phasen_summary(chat_id, phase, id);
+
+-- Karten-Verlauf (Birk 08.10.2026 ~10:35, "Nimmt P7 eine Zusammenfassung mit,
+-- was an den Karten geaendert wurde aus P6?"): JEDE Fassung einer
+-- Szenenkarte (``szenenkarte.py``), nicht nur die juengste -- der
+-- Stage-Script-Prompt (Phase 7) und das Phase-6-Summary sollen zeigen, was
+-- die Gruppe seit dem ersten Entwurf verfeinert hat, nicht nur das Ergebnis.
+-- Nur-anhaengend wie Journal/Festlegung/Phasen-Summary: eine neue Fassung
+-- legt eine neue Zeile an, keine wird geaendert oder geloescht.
+-- ausloeser: erstentwurf|aenderung|fragen_geklaert|fragen_uebersprungen|dialog
+-- ("dialog" ist die Andockstelle fuer den No-change-Dialog im CoThinker --
+-- noch nicht gebaut, siehe Moduldocstring ``szenenkarte.py``).
+CREATE TABLE IF NOT EXISTS karte_verlauf (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  szene_id     INTEGER NOT NULL,
+  fassung_nr   INTEGER NOT NULL,
+  karte_json   TEXT NOT NULL,
+  ausloeser    TEXT NOT NULL,
+  notiz_text   TEXT,
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_karte_verlauf_szene ON karte_verlauf(szene_id, fassung_nr);
+
+-- Padua Quickfix (Birk 08.10.2026, Punkt 1): ein Wunsch der Gruppe zu einer
+-- Szene des Stage Scripts (Phase 7), deren Text noch nicht steht oder
+-- gerade geschrieben wird -- gesammelt bis zum naechsten
+-- ``stagescript.schreibe``-Lauf dieser Szene (``verwendet_am``), nie
+-- geaendert (AGENTS.md "Nur anhaengen").
+CREATE TABLE IF NOT EXISTS stagescript_notiz (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  szene_id     INTEGER NOT NULL,
+  text         TEXT NOT NULL,
+  erstellt_am  TEXT NOT NULL,
+  verwendet_am TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_stagescript_notiz_szene ON stagescript_notiz(szene_id, id);
+
+-- Die Bedarfsliste (Birk 08.10.2026 ~13:45, Padua): Raum/Requisiten/Technik/
+-- Kostuem/zu organisieren als Abhakliste in der read-only Werkbank. Weich
+-- entfernbar (``entfernt_am``) und NICHT nur-anhaengend wie Journal/
+-- Verdichtung: ``scripts/bedarf_seed.py`` ersetzt bei einem erneuten Lauf
+-- jeden noch unerledigten Punkt einer Gruppe, erledigte bleiben stehen.
+CREATE TABLE IF NOT EXISTS bedarf_punkt (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  sektion      TEXT NOT NULL,
+  text         TEXT NOT NULL,
+  reihenfolge  INTEGER NOT NULL,
+  erstellt_am  TEXT NOT NULL,
+  erledigt_am  TEXT,
+  entfernt_am  TEXT,
+  -- Der Dateiname eines Downloads zu diesem Punkt (Birk 08.10.2026 ~13:50,
+  -- Nachtrag 1): nur [A-Za-z0-9._-], die Datei selbst liegt unter
+  -- betrieb/bedarf/<chat_id>/<datei> (nicht in git). NULL = kein Download.
+  -- Additiv nachgeruestet ueber _migriere_fehlende_spalten.
+  datei        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_bedarf_punkt_gruppe ON bedarf_punkt(chat_id, sektion, reihenfolge);
+
+-- Stueckmodell (Karte t_fd88600b, Birk 10.10.2026): die EINE Stelle fuer
+-- offene Fragen -- karte.fragen und "[OPEN] ..."-Punkte entfallen. status:
+-- offen (blockiert "Yes, save" der Karte) | vertagt ("I don't know", steht
+-- als [OPEN]-Punkt auf der Karte) | beantwortet | uebersprungen.
+CREATE TABLE IF NOT EXISTS offene_frage (
+  id              INTEGER PRIMARY KEY,
+  chat_id         INTEGER NOT NULL,
+  szene_id        INTEGER,
+  text            TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'offen',
+  antwort         TEXT,
+  quelle          TEXT NOT NULL,
+  erstellt_am     TEXT NOT NULL,
+  geschlossen_am  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_offene_frage_szene ON offene_frage(chat_id, szene_id, status);
+
+-- Stueckmodell: Prosa, die nach einer Aenderung nicht mehr passt. Prosa wird
+-- nie still umgeschrieben -- die Gruppe bekommt "Szene N passt nicht mehr zu
+-- ... -- neu schreiben?" (angeboten_am) und entscheidet (entscheidung:
+-- neu | lassen | neu_geschrieben). ansicht: script | kopf.
+CREATE TABLE IF NOT EXISTS veraltet (
+  id            INTEGER PRIMARY KEY,
+  chat_id       INTEGER NOT NULL,
+  szene_id      INTEGER,
+  ansicht       TEXT NOT NULL,
+  grund         TEXT NOT NULL,
+  aenderung_id  INTEGER,
+  erstellt_am   TEXT NOT NULL,
+  angeboten_am  TEXT,
+  erledigt_am   TEXT,
+  entscheidung  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_veraltet_offen ON veraltet(chat_id, erledigt_am);
+
+-- Stueckmodell: jede Mutation (stueck.py) und jede Migrationsentscheidung,
+-- nur anhaengend. art = Funktionsname oder konflikt_* (Migration); ziel,
+-- vorher, nachher = JSON.
+CREATE TABLE IF NOT EXISTS stueck_aenderung (
+  id           INTEGER PRIMARY KEY,
+  chat_id      INTEGER NOT NULL,
+  art          TEXT NOT NULL,
+  ziel         TEXT NOT NULL,
+  vorher       TEXT,
+  nachher      TEXT,
+  quelle       TEXT NOT NULL,
+  erstellt_am  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_stueck_aenderung_gruppe ON stueck_aenderung(chat_id, id);
 """
 
 # Alle Tabellen mit chat_id -- Grundlage der Loeschzusage (§ 3, global-constraints.md).
@@ -1338,6 +1625,22 @@ TABELLEN_MIT_CHAT_ID = (
     "prueflauf",
     # Karte t_f7770dc4 (05.10.2026): der Uebersetzungscache des Dashboards.
     "uebersetzung",
+    # Karte t_256ec777 (07.10.2026): was der Formberater nachgeschlagen hat.
+    "formberater",
+    # Karte t_c5117c91 (06.10.2026): die Internet-Recherche.
+    "recherche",
+    # Karte t_1bc96848 (07.10.2026): die Phasen-Summaries.
+    "phasen_summary",
+    # Birk 08.10.2026 ~10:35: der Karten-Verlauf (jede Fassung einer Szenenkarte).
+    "karte_verlauf",
+    # Padua Quickfix (08.10.2026, Punkt 1): Notizen zu Stage-Script-Szenen.
+    "stagescript_notiz",
+    # Birk 08.10.2026 ~13:45: die Bedarfsliste (Raum/Requisiten/Technik/Kostuem).
+    "bedarf_punkt",
+    # Stueckmodell (Karte t_fd88600b, 10.10.2026).
+    "offene_frage",
+    "veraltet",
+    "stueck_aenderung",
 )
 
 
@@ -1516,12 +1819,133 @@ def _migriere_erste_szenenfassung(conn: sqlite3.Connection) -> int:
     return cur.rowcount
 
 
+def _migriere_stueckmodell(conn: sqlite3.Connection) -> dict[str, int]:
+    """Stueckmodell (Karte t_fd88600b, 10.10.2026): Ort, Wer und offene
+    Fragen aus ``szene.karte`` an ihre EINE Stelle (``szene.ort``,
+    ``szene_figur``/``szene.wer_zusatz``, ``offene_frage``). Liefert die
+    Zaehler je Art; jede Entscheidung steht als ``stueck_aenderung``
+    (quelle ``migration``) -- das IST der Konfliktbericht.
+
+    Idempotent ueber die Datenlage (wie ``_migriere_erste_szenenfassung``):
+    eine Karte ohne die drei Schluessel und ohne [OPEN]-Punkt ist fertig.
+    ``BEGIN IMMEDIATE``: die Bots starten parallel auf derselben Datei; der
+    zweite wartet (``busy_timeout``) und findet nichts mehr zu tun.
+
+    Widerspruch -> EIN Wert: beim Ort gewinnt die Karte (juenger, P6,
+    abgenommen); bei der Besetzung die Vereinigung (keine Figur geht
+    verloren); ein Name ohne Figur wird berichtet, nie angelegt (Birk
+    05.09.2026, ``erkenner._figuren_aus_namen``). ``karte_verlauf`` ist
+    Historie und bleibt unberuehrt."""
+    from interview_theater import stueck_sicht as sicht
+
+    zaehler: dict[str, int] = {}
+    jetzt = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    def merke(chat_id, art, szene, vorher, nachher):
+        zaehler[art] = zaehler.get(art, 0) + 1
+        conn.execute(
+            "INSERT INTO stueck_aenderung (chat_id, art, ziel, vorher, nachher, quelle, erstellt_am) "
+            "VALUES (?, ?, ?, ?, ?, 'migration', ?)",
+            (chat_id, art, json.dumps({"szene": szene}), json.dumps(vorher, ensure_ascii=False),
+             json.dumps(nachher, ensure_ascii=False), jetzt))
+
+    if conn.in_transaction:
+        conn.commit()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        zeilen = conn.execute(
+            "SELECT * FROM szene WHERE entfernt_am IS NULL AND karte IS NOT NULL AND ("
+            "karte LIKE '%\"ort\"%' OR karte LIKE '%\"wer\"%' OR karte LIKE '%\"fragen\"%' "
+            "OR karte LIKE '%[OPEN%' OR karte LIKE '%(OPEN%' OR karte LIKE '%[APERTO%' "
+            "OR karte LIKE '%(APERTO%' OR karte LIKE '%[OFFEN%' OR karte LIKE '%(OFFEN%')"
+        ).fetchall()
+        for s in zeilen:
+            try:
+                karte = json.loads(s["karte"])
+            except ValueError:
+                continue
+            if not isinstance(karte, dict):
+                continue
+            punkte = karte.get("punkte")
+            punkte = punkte if isinstance(punkte, list) else []
+            offene_punkte = [p for p in punkte if isinstance(p, str) and sicht.OFFEN_PUNKT.match(p)]
+            if not (set(sicht.STRUKTUR_SCHLUESSEL) & set(karte)) and not offene_punkte:
+                continue
+            chat_id, nr = s["chat_id"], s["nummer"]
+            k_ort = " ".join(str(karte.get("ort") or "").split())
+            s_ort = (s["ort"] or "").strip()
+            if k_ort and not s_ort:
+                conn.execute("UPDATE szene SET ort = ? WHERE id = ?", (k_ort, s["id"]))
+                merke(chat_id, "ort_uebernommen", nr, None, k_ort)
+            elif k_ort and sicht.normalisiert(k_ort) != sicht.normalisiert(s_ort):
+                conn.execute("UPDATE szene SET ort = ? WHERE id = ?", (k_ort, s["id"]))
+                merke(chat_id, "konflikt_ort", nr, s_ort, k_ort)
+            wer = str(karte.get("wer") or "").strip()
+            if wer:
+                figuren = {sicht.normalisiert(f["name"]): f["id"] for f in conn.execute(
+                    "SELECT id, name FROM figur WHERE chat_id = ? AND entfernt_am IS NULL", (chat_id,))}
+                aus_karte, rest = sicht.ordne_besetzung(wer, figuren)
+                alt = conn.execute(
+                    "SELECT figur_id, rolle FROM szene_figur WHERE szene_id = ? "
+                    "ORDER BY position IS NULL, position, figur_id", (s["id"],)).fetchall()
+                bisher = [z["figur_id"] for z in alt]
+                kartenfiguren = {f for f, _ in aus_karte}
+                neu = list(aus_karte) + [(z["figur_id"], z["rolle"]) for z in alt
+                                         if z["figur_id"] not in kartenfiguren]
+                if kartenfiguren != set(bisher):
+                    namen = {f["id"]: f["name"] for f in conn.execute(
+                        "SELECT id, name FROM figur WHERE chat_id = ?", (chat_id,))}
+                    merke(chat_id, "konflikt_wer", nr,
+                          sorted(namen.get(i, str(i)) for i in bisher),
+                          sorted(namen.get(i, str(i)) for i, _ in neu))
+                for r in rest:
+                    if len(r.split()) == 1 and r[:1].isupper():
+                        merke(chat_id, "name_ohne_figur", nr, None, r)
+                conn.execute("DELETE FROM szene_figur WHERE szene_id = ?", (s["id"],))
+                for pos, (fid, rolle) in enumerate(neu, start=1):
+                    conn.execute("INSERT OR IGNORE INTO szene_figur "
+                                 "(chat_id, szene_id, figur_id, rolle, position) VALUES (?,?,?,?,?)",
+                                 (chat_id, s["id"], fid, rolle, pos))
+                if rest:
+                    conn.execute("UPDATE szene SET wer_zusatz = ? WHERE id = ?",
+                                 (", ".join(rest), s["id"]))
+            fragen = karte.get("fragen")
+            fragen = [str(f).strip() for f in fragen] if isinstance(fragen, list) else []
+            # Eine Frage, deren normalisierter Text fuer diese Szene schon in
+            # ``offene_frage`` steht (jeder Status), wird nicht noch einmal
+            # angelegt: schreibt ein alter Prozess ``karte.fragen`` zurueck,
+            # darf eine beantwortete Frage nicht als offen wiederkommen.
+            bekannt = {sicht.normalisiert(z["text"]) for z in conn.execute(
+                "SELECT text FROM offene_frage WHERE chat_id = ? AND szene_id = ?",
+                (chat_id, s["id"]))}
+            for text, status in ([(f, "offen") for f in fragen if f]
+                                 + [(sicht.OFFEN_PUNKT.match(p).group(1), "vertagt") for p in offene_punkte]):
+                if sicht.normalisiert(text) in bekannt:
+                    continue
+                bekannt.add(sicht.normalisiert(text))
+                conn.execute("INSERT INTO offene_frage (chat_id, szene_id, text, status, quelle, erstellt_am) "
+                             "VALUES (?, ?, ?, ?, 'migration', ?)", (chat_id, s["id"], text, status, jetzt))
+                merke(chat_id, "frage_uebernommen", nr, None, {"text": text, "status": status})
+            roh = sicht.roh_ohne_struktur(karte)
+            if "punkte" in karte:
+                roh["punkte"] = [p for p in punkte if p not in offene_punkte]
+            conn.execute("UPDATE szene SET karte = ? WHERE id = ?",
+                         (json.dumps(roh, ensure_ascii=False), s["id"]))
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    return zaehler
+
+
 def initialisiere(conn: sqlite3.Connection) -> None:
     """Legt das Schema an, falls noch nicht vorhanden, ergaenzt in einer schon
     vorhandenen Datenbank fehlende Spalten (siehe _migriere_fehlende_spalten)
     rechnet einmalig die Phasennummern um (_migriere_phasennummern) und legt
     fuer bestehende Szenentexte die erste Fassung an
-    (_migriere_erste_szenenfassung).
+    (_migriere_erste_szenenfassung). Als Letztes zieht
+    ``_migriere_stueckmodell`` Ort, Besetzung und offene Fragen aus der Karte
+    an ihre eine Stelle.
 
     Reihenfolge: erst die Spalten, dann ihr Inhalt -- ``phase_angeboten``
     koennte in einer sehr alten Datenbank noch gar nicht existieren, und
@@ -1531,6 +1955,7 @@ def initialisiere(conn: sqlite3.Connection) -> None:
     _migriere_fehlende_spalten(conn)
     _migriere_phasennummern(conn)
     _migriere_erste_szenenfassung(conn)
+    _migriere_stueckmodell(conn)
 
 
 def loesche_gruppe(conn: sqlite3.Connection, chat_id: int) -> None:

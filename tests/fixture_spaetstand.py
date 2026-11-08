@@ -9,6 +9,7 @@ Wahrheit -- und genau das ist der Fehlertyp, den der Audit ueberall gefunden hat
 from datetime import datetime, timedelta, timezone
 
 from interview_theater import repo
+from tests.stueck_hilfe import setze_feld
 
 BASIS = datetime(2026, 9, 6, 0, 33, 0, tzinfo=timezone.utc)
 
@@ -84,7 +85,7 @@ def baue_spaetstand(conn):
     )
     for feld, wert in (("form", "dialog"), ("ort", "Schulhof"),
                        ("zeit", "Freitagnachmittag")):
-        repo.setze_szenenfeld(conn, szene_id, feld, wert)
+        setze_feld(conn, szene_id, feld, wert)
     for nummer in (2, 3, 4):
         repo.lege_szene_an(conn, 1, nummer, None, None, None)
 

@@ -63,8 +63,12 @@ steht (SPEC § 6.1), gilt sie gegen jede ältere Formulierung in
 - **Pseudonyme** (`[datenschutz] pseudonyme = true`, E8): kein Prompt sieht
   einen Vornamen, dort stehen „Member 1, 2, …".
 - **Englische Phasen** (`phasen.toml`): dieselben sieben Stationen wie in
-  Dortmund — Terms, Questions, Interviews, Frame, Prose Draft, Rewrite,
-  Stage Version —, mit englischen Stichwörtern. Phase 4 kennt auch
+  Dortmund — Terms, Questions, Interviews, Frame, Interview Selection,
+  Scene Cards, Stage Script (bis 08.10.2026: Prose Draft, Rewrite, Stage
+  Version; die alten Namen treffen weiter als Stichwort) —, mit englischen
+  Stichwörtern. „Interview Selection" statt Birks „Interviews", weil
+  Phase 3 so heißt; `vorrang` lässt die Wendung vor dem „interview" der
+  Phase 3 treffen. Phase 4 kennt auch
   „core theme", „format", „setting", „story", weil der englische
   Erkenner-Prompt noch die alte Phasenliste nennt.
 - **Englische Einleitungen** (`phasentexte.toml`), je zwei bis vier Sätze,

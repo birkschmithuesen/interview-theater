@@ -167,6 +167,38 @@ def test_das_journal_steht_unten_und_zu(tmp_path, padua):
     assert seite.index('class="wb-journal"') > seite.index('data-wb-phase="7"')
 
 
+def test_recherche_abschnitt_steht_unter_dem_journal_und_ist_klar_beschriftet(padua):
+    """Karte t_c5117c91: ein eigener, von den sieben Phasen unabhaengiger
+    Abschnitt -- klar als Internet-Recherche beschriftet, kein
+    Interviewmaterial. Mutant: der Abschnitt fehlt ganz oder zeigt kein
+    eigenes Label."""
+    seite = web.werkbank_koerper(_mini())
+    assert web.T._UEBERSCHRIFT_RECHERCHE == "Research - from the internet (not interview material)"
+    assert '<details class="wb-recherche">' in seite
+    assert web.T._UEBERSCHRIFT_RECHERCHE in seite
+    assert seite.index('class="wb-recherche"') > seite.index('class="wb-journal"')
+
+
+def test_recherche_abschnitt_zeigt_frage_text_und_quellen(padua):
+    daten = _mini()
+    daten["werkbank"]["recherche"] = [{
+        "frage": "When was the bridge built?",
+        "ergebnis_text": "The bridge was built in 1900 (Example, https://x.test).",
+        "quellen": ["Example"],
+    }]
+    block = web.werkbank_koerper(daten)[
+        web.werkbank_koerper(daten).index('class="wb-recherche"'):
+    ]
+    assert "When was the bridge built?" in block
+    assert "The bridge was built in 1900" in block
+    assert "Example" in block
+
+
+def test_recherche_abschnitt_leer_ohne_recherche(padua):
+    seite = web.werkbank_koerper(_mini())
+    assert web.T._TEXT_RECHERCHE_LEER in seite
+
+
 def test_ohne_werkbankdaten_kein_absturz(padua):
     seite = web.werkbank_koerper(_mini(werkbank=None))
     assert 'class="wb-phase"' not in seite
@@ -227,7 +259,10 @@ def test_phase_4_setting_figuren_und_auch_vereinbart(tmp_path, padua):
     block = _block(web.gruppe_koerper(daten, None, token), 4)
     assert "A bus stop at night" in block
     assert "<b>Nadia</b>" in block and "the older sister, restless" in block
-    assert html_modul.escape(web.T._TEXT_WB_AUCH_VEREINBART) in block
+    # Birk 06.10.2026: die Ueberschrift "Also agreed" ist ueberfluessig --
+    # Festlegungen stehen direkt unter den anderen Kategorien, ohne eigenen
+    # Block.
+    assert html_modul.escape(web.T._TEXT_WB_AUCH_VEREINBART) not in block
     assert "At most one song." in block                        # eine Festlegung
     assert "<button" not in block
 
@@ -239,8 +274,26 @@ def test_keine_szenen_volltexte(tmp_path, padua):
     assert "TOMAS: Stay." not in seite
 
 
-def test_phase_6_dramaturgie_und_phase_7_sprechanteile(tmp_path, padua):
+def test_dramaturgie_und_sprechanteile_stehen_unter_karten_beide_in_phase_7(tmp_path, padua):
+    """Padua-Phasenumbau (Workbench-Checkliste P6/P7, Birk 08.10.2026): unter
+    ``[karten] aktiv`` baut Phase 6 noch keinen fertigen Text -- die
+    Dramaturgie-Pruefung (die das ganze Textbuch liest) gehoert deshalb zu
+    Phase 7 (Stage Script), nicht mehr zu Phase 6 (Scene Cards)."""
     daten, token = _padua_daten(tmp_path)
     seite = web.gruppe_koerper(daten, None, token)
-    assert "Scene 1 does not turn." in _block(seite, 6)
+    assert "Scene 1 does not turn." not in _block(seite, 6)
+    assert "Scene 1 does not turn." in _block(seite, 7)
     assert 'class="anteile"' in _block(seite, 7)
+
+
+def test_dramaturgie_bleibt_ohne_karten_schalter_in_phase_6():
+    """Dortmund-Gegenprobe: ``_wb_inhalt_html`` ist nur im Padua-Pfad
+    (``werkbank_koerper``) im Einsatz, aber die Verzweigung selbst bleibt
+    ohne ``[karten] aktiv`` unveraendert bei Phase 6."""
+    from interview_theater import workshop
+
+    assert workshop.szenenkarten_aktiv() is False
+    daten = {"arbeitsstand": {}, "dramaturgie": {"runde": 1, "befunde": [
+        {"text": "Scene 1 does not turn.", "pruefung": "b1"}]}, "sprechanteile": None}
+    assert "Scene 1 does not turn." in web._wb_inhalt_html(6, daten, {})
+    assert "Scene 1 does not turn." not in web._wb_inhalt_html(7, daten, {})

@@ -106,7 +106,7 @@ def szene7(conn):
     szene_id = repo.stelle_szene_sicher(conn, 1, 1)
     repo.setze_szenenfeld(conn, szene_id, "titel", "Am Steg")
     repo.setze_szenenfeld(conn, szene_id, "form", "dialog")
-    repo.setze_szenenfeld(conn, szene_id, "ort", "Am Steg")
+    repo.setze_szenenort(conn, szene_id, "Am Steg")
     repo.setze_szenenfeld(conn, szene_id, "was_passiert", "Sie treffen sich.")
     figur = repo.figuren(conn, 1)[0]
     repo.setze_szene_figuren(conn, 1, szene_id, [figur["id"]])

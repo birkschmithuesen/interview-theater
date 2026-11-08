@@ -93,9 +93,30 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
+#: Phase 6/7 italienisch fuer gelistete Chats (Morgen-Auftrag 4, Punkt 1,
+#: 08.10.2026, Nachtrag 2: Chat-Liste statt globalem Schalter): dieselbe
+#: Bedingung an BEIDEN Stellen, die den Phaseneintritt bauen (``_einleitung``,
+#: ``eintritt``) -- ``T_IT`` faellt ohne die Liste ohnehin auf die
+#: Profilsprache zurueck (``sprache.Texte``), die Phasen-Eingrenzung hier
+#: ist trotzdem noetig: ``workshop.italienisch_ab_phase6_chats`` kennt keine
+#: Phase, dieses Modul laeuft aber in allen sieben.
+def _texte_fuer_phase(phase: int, chat_id: int | None = None) -> "sprache.Texte":
+    if (phase in (6, 7) and chat_id is not None
+            and chat_id in workshop.italienisch_ab_phase6_chats()):
+        return T_IT
+    return T
+
+
 def _einleitung(conn, chat_id: int, phase: int) -> str:
     """Die Einleitung einer Phase -- fuer Phase 7 abhaengig davon, ob
     wirklich jede Szene einen Text hat."""
+    if workshop.szenenkarten_aktiv() and phase in (5, 6, 7):
+        # Padua-Phasenumbau (Birk 07.10.2026 ~18:12): 5 = Interviewauswahl,
+        # 6 = Szenenkarten, 7 = Stage Script -- die Profil-Einleitung spricht
+        # noch von Prosa und Formwahl.
+        t = _texte_fuer_phase(phase, chat_id)
+        return {5: T._EINLEITUNG_KARTEN_5, 6: t._EINLEITUNG_KARTEN_6,
+                7: t._EINLEITUNG_KARTEN_7}[phase]
     einleitungen = {
         nummer: anweisungen.fuelle(text)
         for nummer, text in workshop.phasentexte_einleitungen().items()
@@ -269,7 +290,13 @@ def _szenen(conn, chat_id: int) -> str:
 
 
 def _zuordnungen(conn, chat_id: int) -> str:
-    anzahl = len(repo.schaerfungen(conn, chat_id))
+    if workshop.diskussion_aktiv():
+        # Birk 07.10.2026 ~19:25: nur die feste, sichtbare Auswahl zaehlt.
+        from interview_theater import web_daten
+
+        anzahl = web_daten.auswahl_anzahl(conn, chat_id)
+    else:
+        anzahl = len(repo.schaerfungen(conn, chat_id))
     if not anzahl:
         return ""
     runde = repo.letzte_schaerfungsrunde(conn, chat_id)
@@ -279,7 +306,7 @@ def _zuordnungen(conn, chat_id: int) -> str:
 
 def _geschriebene_szenen(conn, chat_id: int) -> str:
     return TRENNER.join(
-        _szenenzeile(s) for s in repo.hole_szenen(conn, chat_id) if s["volltext"]
+        _szenenzeile(s) for s in repo.hole_szenen(conn, chat_id) if (s["volltext"] or s["prosa"])
     )
 
 
@@ -403,6 +430,11 @@ PARAMETER_BESCHRIFTUNG = {
     # Phase ist, sondern der zweite Teil ihrer Voraussetzung
     # (``phasen.voraussetzungen[4]``, "keine offene Auswertung mehr").
     "Offene Auswertungen": "Offene Auswertungen",
+    # Padua-Phasenumbau (Birk 08.10.2026, Workbench-Checkliste P6/P7):
+    # ``roadmap._gate_fuer`` ersetzt unter ``[karten] aktiv`` die
+    # Voraussetzung von Phase 7 -- alle Karten gespeichert statt aller
+    # Szenentexte geschrieben.
+    "Szenenkarten": "Szenenkarten",
 }
 
 
@@ -467,19 +499,79 @@ def eintritt(conn, chat_id: int, phase: int) -> str:
     Ohne Knoepfe -- die haengt der Aufrufer darunter
     (``knoepfe.eintritt_in_phase``): welche Knoepfe zum Einstieg gehoeren,
     weiss ``knoepfe`` und nicht dieses Modul."""
-    kopf = T._KOPF_EINTRITT.format(
+    t = _texte_fuer_phase(phase, chat_id)
+    kopf = t._KOPF_EINTRITT.format(
         nummer=phase, gesamt=workshop.phase_letzte(),
         name=phasen.kurzname(phase),
     )
     zeilen = [kopf]
     einleitung = _einleitung(conn, chat_id, phase)
     if einleitung:
-        zeilen.append(T.ZEILE_ANGEBOT)
+        zeilen.append(t.ZEILE_ANGEBOT)
         zeilen.append(einleitung)
     liste = checkliste(conn, chat_id, phase)
+    if workshop.szenenkarten_aktiv() and phase in (6, 7):
+        szenen = [s for s in repo.hole_szenen(conn, chat_id) if s["nummer"] is not None]
+        spalte, text = (("karte_bestaetigt_am", t._PARAMETER_KARTEN) if phase == 6
+                        else ("fertig_am", t._PARAMETER_STAGESCRIPT))
+        fertig = sum(1 for s in szenen if (s[spalte] or "").strip())
+        liste = "{mark} {text}".format(
+            mark=_ERLEDIGT if szenen and fertig == len(szenen) else _OFFEN,
+            text=text.format(fertig=fertig, gesamt=len(szenen)))
     if liste:
-        zeilen.append(T._ZEILE_CHECKLISTE.format(liste=liste))
+        zeilen.append(t._ZEILE_CHECKLISTE.format(liste=liste))
     return "\n\n".join(zeilen)
+
+
+_EINLEITUNG_KARTEN_5 = (
+    "Jetzt kommen die Interviews zurueck: neben jede Szene lege ich die "
+    "passenden Stellen mit ihrem woertlichen Zitat, und ihr sortiert sie -- "
+    "behalten oder weg. Mehr passiert in dieser Phase nicht. Wenn ihr fertig "
+    "seid, tippt Done; danach baut ihr aus eurer Auswahl Szene fuer Szene "
+    "eine Karte."
+)
+_EINLEITUNG_KARTEN_6 = (
+    "Jetzt wird jede Szene zu einer Karte: worum es geht, wo, wer, was "
+    "passiert, und die Interviewstellen, die sie tragen -- im Original. Eine "
+    "Karte nach der anderen; ihr speichert sie oder sagt, was anders sein "
+    "soll. Am Ende schaue ich einmal aufs Ganze, dann kommt das Stage Script."
+)
+_PARAMETER_KARTEN = "Szenenkarten ({fertig} von {gesamt})"
+_PARAMETER_STAGESCRIPT = "Stage Script ({fertig} von {gesamt})"
+_EINLEITUNG_KARTEN_7 = (
+    "Jetzt wird aus jeder Karte das Stage Script, in eurem Format -- Szene "
+    "fuer Szene. Ihr lest sie im Script-Tab und speichert sie oder sagt, "
+    "was anders sein soll."
+)
+
+#: Die Workbench-Checkliste von Phase 6/7 unter ``[karten] aktiv``: EIN
+#: Punkt je Szene statt der Prosa-Aufgaben ``AUFGABEN[6]``/``AUFGABEN[7]``
+#: (Birk 08.10.2026, Workbench-Checkliste P6/P7 passt nicht zum neuen
+#: Ablauf). Nur die Nummer steht im Platzhalter -- der Titel kommt ueber
+#: ``TRENNER``, wie bei jeder anderen Aufzaehlung in diesem Modul, und
+#: bleibt weg, wo die Szene noch keinen hat.
+_AUFGABE_KARTE = "Karte {nummer}"
+_AUFGABE_SKRIPT = "Skript {nummer}"
+_AUFGABE_SKRIPTKOPF = "Skriptkopf"
+
+
+def karte_aufgabe_text(nummer: int, titel: str) -> str:
+    """``roadmap.werkbank``/``roadmap.aus_daten``, Phase 6 unter ``[karten]
+    aktiv``: der Text EINER Szenenkarte in der Checkliste."""
+    basis = T._AUFGABE_KARTE.format(nummer=nummer)
+    return f"{basis}{TRENNER}{titel}" if titel else basis
+
+
+def stagescript_aufgabe_text(nummer: int, titel: str) -> str:
+    """Dasselbe fuer Phase 7 (``stagescript.py``)."""
+    basis = T._AUFGABE_SKRIPT.format(nummer=nummer)
+    return f"{basis}{TRENNER}{titel}" if titel else basis
+
+
+def stagekopf_aufgabe_text() -> str:
+    """Der zusaetzliche Punkt in Phase 7, nur wenn das Skript einen Kopf
+    braucht (``stagescript.braucht_kopf``, G2: Versuchsanordnung + Rollen)."""
+    return T._AUFGABE_SKRIPTKOPF
 
 
 def abschluss(conn, chat_id: int, phase: int) -> str:
@@ -498,3 +590,4 @@ def abschluss(conn, chat_id: int, phase: int) -> str:
 
 from interview_theater import sprache  # noqa: E402  (bewusst unten: kein Zyklus)
 T = sprache.Texte(__name__)
+T_IT = sprache.Texte(__name__, sprachcode="it")

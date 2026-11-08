@@ -1,0 +1,5 @@
+# Fabrik-Sortierung (Karte t_e426aec5): Suite-Kommando fuer den Fabriklauf.
+# Gemessen 10.10.2026 (9.910 Tests): seriell 620s, -n 2 309s, -n 4 165s
+# (bei Last 3,2). Die Ampel-/Waechter-Integration (flock) ist eine separate
+# Folgekarte und steht nicht hier.
+test: "uv run --extra dev python -m pytest -q -m \"not dortmund\" --ignore=tests/e2e -p no:cacheprovider -n 2"

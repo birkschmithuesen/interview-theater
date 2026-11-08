@@ -23,9 +23,11 @@ _PLATZHALTER = {
     "__BASIS_TEIL__": "x/chat/",
 }
 _TEXT_PLATZHALTER = {
-    "__AUSWAHL_ZAEHLER__": "{ja} / {nein} / {schaerfen} / {offen}",
+    "__AUSWAHL_ZAEHLER_FRAGEN__": "{ja} / {nein} / {schaerfen} / {offen}",
+    "__AUSWAHL_ZAEHLER_SCHAERFUNG__": "{ja} / {nein} / {offen}",
     "__AUSWAHL_FEHLER_NETZ__": "Netzfehler",
     "__AUSWAHL_FEHLER_UNGUELTIG__": "Ungueltig",
+    "__KARTE_JA__": '"Yes, save card"',
 }
 
 

@@ -26,6 +26,8 @@ class TelegramAttrappe:
         self.knoepfe = []
         self.beantwortet = []
         self.entfernt = []
+        self.geaendert = []
+        self.geloescht = []
         self.naechste_message_id = 500
 
     def sende(self, chat_id, text, **_kw):
@@ -44,6 +46,13 @@ class TelegramAttrappe:
 
     def entferne_knoepfe(self, chat_id, message_id):
         self.entfernt.append((chat_id, message_id))
+
+    def aendere_text(self, chat_id, message_id, text):
+        self.geaendert.append((chat_id, message_id, text))
+
+    def loesche_nachrichten(self, chat_id, message_ids):
+        self.geloescht.append((chat_id, list(message_ids)))
+        return len(message_ids)
 
     @property
     def texte(self):
@@ -1045,6 +1054,22 @@ def test_einstieg_bietet_ab_phase_3_die_aufnahme_an(conn, einst, tg):
     assert [b for b, _ in tg.knoepfe[0][2]] == [
         "Interview starten", "Stand zeigen", "Hilfe",
     ]
+
+
+def test_einstieg_bietet_ab_phase_4_weitere_aufnahme_statt_interview_starten(conn, einst, tg):
+    """Karte t_1493c40d, Aufgabe 2: ab Phase 4 (Setting, Figuren & Geschichte)
+    gibt es kein Interview mehr, das der Bot ankuendigen koennte -- die
+    Interviews sind gelaufen. Der Knopf bleibt sichtbar (nachtraegliches
+    Interview ist ein normaler Vorgang, ``_aufnahme_anbieten``), aber "Interview
+    starten" waere irrefuehrend, weil es wortwoertlich DAS eine Interview
+    suggeriert statt eines zusaetzlichen."""
+    phasen.setze(conn, 1, 4, "befehl")
+
+    knoepfe.biete_einstieg(conn, tg, 1, "Bin wieder da.")
+
+    beschriftungen = [b for b, _ in tg.knoepfe[0][2]]
+    assert "Interview starten" not in beschriftungen
+    assert "Weitere Aufnahme" in beschriftungen
 
 
 def test_einstieg_bietet_das_beenden_auch_in_phase_1_an(conn, einst, tg):

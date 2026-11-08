@@ -19,9 +19,21 @@ import test_dramaturgie_schleife as schleifentest
 from interview_theater import (
     knoepfe, kurzgeschichte, phasen, prueflauf, repo, szene, workshop,
 )
+from tests.stueck_hilfe import setze_feld
 from interview_theater.dramaturgie import fanout
 from test_dramaturgie_schleife import Rundenrichter
 from test_knoepfe import TelegramAttrappe, _druck
+
+
+@pytest.fixture(autouse=True)
+def _ohne_karten(monkeypatch):
+    """Diese Tests pruefen den Padua-Prosaweg (P5 Prosa, P6 Rewrite) -- seit
+    dem Phasenumbau (Birk 07.10.2026 ~18:12) das Verhalten OHNE
+    ``[karten] aktiv``; der Kartenweg steht in ``tests/test_szenenkarte.py``."""
+    from interview_theater import workshop as _workshop
+
+    monkeypatch.setattr(_workshop, "szenenkarten_aktiv", lambda *a, **k: False)
+
 
 MARKE = "KOERPER-MARKER-"
 
@@ -97,7 +109,7 @@ def _stueck(conn, phase: int, szenen=(1,)):
     for nummer in szenen:
         szene_id = repo.stelle_szene_sicher(conn, 1, nummer)
         for feld, wert in (("ort", "Steg"), ("was_passiert", "Sie treffen sich.")):
-            repo.setze_szenenfeld(conn, szene_id, feld, wert)
+            setze_feld(conn, szene_id, feld, wert)
         repo.setze_szene_figuren(conn, 1, szene_id, ids)
     phasen.setze(conn, 1, phase, "test")
     return conn
@@ -129,7 +141,7 @@ def test_phase5_stufe_b_zeigt_nur_hinweis(conn, padua, tg, einst):
 
     assert MARKE not in _alles(tg)
     beschriftungen = [b for b, _d in tg.knoepfe[-1][2]]
-    assert "Show first draft" in beschriftungen
+    assert beschriftungen == ["Yes, save", "No, change"]  # Birk 07.10.2026 ~17:15
     # TEIL 1 drueckt den ersten Knopf: er bleibt "Passt" (ART_SZENE_PASST).
     knopf = repo.hole_knopf(conn, knoepfe._id_aus_daten(tg.knoepfe[-1][2][0][1]))
     assert knopf["art"] == knoepfe.ART_SZENE_PASST
@@ -170,8 +182,8 @@ def test_phase6_szene_hat_die_ueberarbeitungsleiste(conn, padua, tg, einst):
     assert MARKE not in _alles(tg)
     arten = [repo.hole_knopf(conn, knoepfe._id_aus_daten(d))["art"]
              for _b, d in tg.knoepfe[-1][2]]
-    assert arten == [knoepfe.ART_SZENE_PASST, knoepfe.ART_SZENE_ANDERS,
-                     knoepfe.ART_SZENE_KUERZEN, knoepfe.ART_ERSTENTWURF]
+    # Birk 07.10.2026 ~17:15: in Padua nur Ja / Nein-aendern, danach Textnachricht.
+    assert arten == [knoepfe.ART_SZENE_PASST, knoepfe.ART_SZENE_ANDERS]
 
 
 def test_ohne_schalter_wie_bisher(conn, ohne_profil, tg, einst):
@@ -186,9 +198,12 @@ def test_ohne_schalter_wie_bisher(conn, ohne_profil, tg, einst):
 
 
 def test_erstentwurf_knopf_ohne_modellaufruf(conn, padua, tg, einst):
+    """Der Knopf steht in Padua nicht mehr unter der Szene (Birk 07.10.2026
+    ~17:15), die Wirkung eines alten Knopfs bleibt aber modellfrei."""
     _stueck(conn, 6)
     _starte_szene_1(conn, tg, Schreiber(), einst)
-    daten = next(d for b, d in tg.knoepfe[-1][2] if b == "Show first draft")
+    assert all(b != "Show first draft" for b, _d in tg.knoepfe[-1][2])
+    daten = knoepfe._daten(repo.lege_knopf_an(conn, 1, knoepfe.ART_ERSTENTWURF, "1"))
 
     assert knoepfe.behandle(conn, tg, KaputtesModell(), einst, _druck(daten)) is True
 
@@ -222,8 +237,8 @@ def test_geschichte_zeigt_nur_hinweis(conn, padua, tg, einst):
     assert hinweis.startswith("The whole story is there (2 scenes).")
     arten = [repo.hole_knopf(conn, knoepfe._id_aus_daten(d))["art"]
              for _b, d in tg.knoepfe[-1][2]]
-    assert arten == [knoepfe.ART_GESCHICHTE_PASST, knoepfe.ART_GESCHICHTE_ANDERS,
-                     knoepfe.ART_GESCHICHTE_KUERZEN, knoepfe.ART_ERSTENTWURF]
+    # Birk 07.10.2026 ~17:15: in Padua nur Ja / Nein-aendern.
+    assert arten == [knoepfe.ART_GESCHICHTE_PASST, knoepfe.ART_GESCHICHTE_ANDERS]
 
 
 def test_geschichte_ohne_schalter_wie_bisher(conn, ohne_profil, tg, einst):
@@ -364,3 +379,33 @@ def test_padua_fehlerweg_ohne_senke(conn, padua, einst):
 
     assert kanal.senken == []
     assert any(szene.T._TEXT_FEHLER in t for _c, t in kanal.gesendet)
+
+
+def test_szene_fertig_nennt_den_naechsten_schritt_mit_knopfbeschriftung(
+        conn, padua, tg, einst):
+    """Lauf 4: nach "Read it in the Script tab" muss stehen, was dann zu tun
+    ist -- mit der echten Beschriftung des ersten Knopfs."""
+    _stueck(conn, 5)
+
+    _starte_szene_1(conn, tg, Schreiber(), einst)
+
+    _c, hinweis, leiste = tg.knoepfe[-1]
+    erster = leiste[0][0]
+    assert erster == "Yes, save"
+    assert f'Then come back here: tap "{erster}" or tell me what to change.' in hinweis
+    assert hinweis.index("Script tab") < hinweis.index("come back here")
+
+
+def test_szene_fertig_naechster_schritt_deutsch():
+    from interview_theater.knoepfe import texte
+    satz = texte._TEXT_SZENE_NAECHSTER_SCHRITT.format(knopf=texte.TEXT_PASST_KNOPF)
+    assert 'Tippt auf "Passt"' in satz and "aendern" in satz
+
+
+def test_padua_szene_nur_ja_nein_knoepfe(conn, padua, tg, einst):
+    """Birk 07.10.2026 ~17:15 (G1): unter der Szene in Phase 5 nur
+    "Yes, save" / "No, change". Mutant: alte Leiste -> rot."""
+    _stueck(conn, 5)
+    _starte_szene_1(conn, tg, Schreiber(), einst)
+    beschriftungen = [b for b, _d in tg.knoepfe[-1][2]]
+    assert beschriftungen == ["Yes, save", "No, change"]

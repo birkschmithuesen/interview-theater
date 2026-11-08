@@ -24,6 +24,16 @@ from interview_theater import (
 from test_erkenner import LLMAttrappe, _nachricht
 from test_knoepfe import TelegramAttrappe
 
+
+@pytest.fixture(autouse=True)
+def _ohne_karten(monkeypatch):
+    """Diese Tests pruefen die Padua-Wege P6 Rewrite / P7 Formlauf -- seit dem
+    Phasenumbau (Birk 07.10.2026 ~18:12) das Verhalten OHNE ``[karten] aktiv``
+    (Kartenweg: tests/test_szenenkarte.py, tests/test_stagescript.py)."""
+    from interview_theater import workshop as _workshop
+
+    monkeypatch.setattr(_workshop, "szenenkarten_aktiv", lambda *a, **k: False)
+
 NEU = ("text_ueberarbeiten", "fassung_abnehmen", "formen_setzen",
        "sprechweise_setzen", "schaerfung_entscheidung")
 
@@ -73,7 +83,7 @@ def _stueck(conn, phase, *, formen=None, sprechweisen_fix=False,
     repo.setze_figur(conn, 1, "Jo", "schweigt lieber")
     for nummer in (1, 2):
         sid = repo.stelle_szene_sicher(conn, 1, nummer)
-        repo.setze_szenenfeld(conn, sid, "ort", "Steg")
+        repo.setze_szenenort(conn, sid, "Steg")
         repo.setze_szenenfeld(conn, sid, "was_passiert", "Sie treffen sich.")
         repo.aktualisiere_szene(
             conn, sid, f"Teil {nummer}", None, None,
@@ -261,7 +271,8 @@ def test_formen_setzen_schreibt_die_interne_form(conn, einst, padua, tg, monkeyp
 
     formen = {s["nummer"]: s["form"] for s in repo.hole_szenen(conn, 1)}
     assert formen == {1: "chor", 2: "dialog"}
-    assert _texte(tg)[0].startswith("Noted")
+    # chat_id 1 steht in keiner italienisch_ab_phase6_chats-Liste -- englisch.
+    assert _texte(tg)[0].startswith("Noted:")
     # Alle Formen stehen, Sprechweisen sind nicht fixiert -> naechster Schritt.
     assert weiter == [True]
 
@@ -304,7 +315,8 @@ def test_sprechweise_setzen_schreibt_den_stil(conn, einst, padua, tg, monkeypatc
     erkenner.laufe(klm, tg, conn, einst, 1)
 
     assert repo.hole_figur(conn, 1, "Mira")["sprachstil"] == "short sentences"
-    assert _texte(tg)[0].startswith("Noted")
+    # chat_id 1 steht in keiner italienisch_ab_phase6_chats-Liste -- englisch.
+    assert _texte(tg)[0].startswith("Noted:")
     assert angeboten == [True]
 
 
@@ -321,6 +333,11 @@ def test_sprechweise_setzen_unbekannte_figur_schreibt_nichts(conn, padua):
 
 def test_fassung_abnehmen_fixiert_das_ganze_in_phase_6(
         conn, einst, padua, tg, monkeypatch):
+    # Prosaweg (P6 Rewrite) -- seit dem Phasenumbau das Verhalten ohne
+    # [karten] aktiv (Kartenweg: tests/test_szenenkarte.py).
+    from interview_theater import workshop
+
+    monkeypatch.setattr(workshop, "szenenkarten_aktiv", lambda *a, **k: False)
     _stueck(conn, 6, gesamt_fix=False)
     monkeypatch.setattr(ueberarbeitung, "weiter_6", lambda *a, **k: None)
     _nachricht(conn, 1, 1, "yes, save it")

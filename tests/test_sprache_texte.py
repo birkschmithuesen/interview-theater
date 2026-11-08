@@ -62,6 +62,11 @@ BLEIBT_DEUTSCH = {
     "dramaturgie.schleife.GRUENDE": "Betreiberausgabe (--schleife)",
     "dramaturgie.schleife.MELDUNG_OHNE_GESCHICHTENWEG": "Betreiberausgabe (--schleife)",
     "szenenfolge.DETAIL_RICHTUNG_UNVOLLSTAENDIG": "Vorfall-Detail, Dashboard des Teams",
+    "szenenfolge._FLACHE_STRUKTUR_SIGNALE": (
+        "Stichwortmenge zum Abgleich gegen die Beitraege der Gruppe "
+        "(wie formberater.SIGNALE), kein Nutzertext -- Deutsch und "
+        "Englisch gelten hier immer beide, unabhaengig vom Profil"
+    ),
     "stile._NACH_SLUG": (
         "Aufgabe 15: nur Mitgliedschaftspruefung der Slugs (Protokoll); die "
         "Anzeige liest stile._eintrag zur Aufrufzeit aus T.STILE"
@@ -88,6 +93,7 @@ BLEIBT_DEUTSCH = {
     "web._CSS_DASHBOARD": "CSS, nur Kommentare deutsch",
     "web._CSS_GRUPPE": "CSS, nur Kommentare deutsch",
     "web._CSS_BUEHNE": "CSS, nur Kommentare deutsch",
+    "web._CSS_KARTEN_BUEHNE": "CSS, Token-Name --auf-signal",
     "web._TABS_JS": "JavaScript, nur Kommentare deutsch (kein Nutzertext)",
     "web._CSS_LEITFADEN": "CSS, nur Kommentare deutsch",
     "web._CSS_TEXTBUCH": "CSS, nur Kommentare deutsch",
@@ -149,6 +155,27 @@ BLEIBT_DEUTSCH = {
         "Englisch ist kein uebersetzter Text mehr, sondern "
         "befehle._hilfetext_en() -- berechnet aus Phase, Phasenliste und "
         "Befehlsliste, kein Tabelleneintrag"
+    ),
+    # Birk 08.10.2026 ~13:45: die Bedarfsliste der Werkbank bleibt Englisch
+    # und unuebersetzt, wie ihr Inhalt -- der kommt fertig aus der Seed-Datei
+    # (scripts/bedarf_seed.py), nicht aus einer Gruppe und nicht aus T.
+    "web._TEXT_BEDARF_TITEL": (
+        "Birk 08.10.2026: Bedarfsliste bleibt Englisch/unuebersetzt wie ihr "
+        "Seed-Inhalt (scripts/bedarf_seed.py)"
+    ),
+    "web._TEXT_BEDARF_ZAHL": (
+        "Birk 08.10.2026: derselbe Grund wie web._TEXT_BEDARF_TITEL"
+    ),
+    # Nachtrag 1 (Downloads an Bedarfspunkten, 08.10.2026 ~13:50): derselbe
+    # Grund wie web._TEXT_BEDARF_TITEL.
+    "web._TEXT_BEDARF_DOWNLOAD": (
+        "Birk 08.10.2026: derselbe Grund wie web._TEXT_BEDARF_TITEL"
+    ),
+    # a61b43a (Transkript-PDFs, 08.10.2026 ~15:15): Kopfzeile ist absichtlich
+    # schon zweisprachig ("Full transcripts · trascrizioni complete").
+    "web._TEXT_TRANSKRIPTE_KOPF": (
+        "Birk 08.10.2026: Kopfzeile der Transkript-Downloads ist bereits "
+        "zweisprachig EN/IT im Quelltext"
     ),
 }
 
@@ -255,6 +282,10 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail ankuendigung_ohne_inhalt (repo.merke_vorfall, Padua-Befund 02.10.2026)",
     ("ablauf", "Auch der zweite Anlauf endete auf einer "):
         "Vorfall-Detail ankuendigung_wiederholt (repo.merke_vorfall, Padua-Befund 02.10.2026)",
+    ("ablauf", "Antwort in Phase 4 legte eine Szene aus "):
+        "Vorfall-Detail schreibangebot_phase_4 (repo.merke_vorfall, Karte t_b19d37ac)",
+    ("ablauf", "Auch der zweite Anlauf in Phase 4 legte "):
+        "Vorfall-Detail schreibangebot_wiederholt (repo.merke_vorfall, Karte t_b19d37ac)",
     ("bot", "Nachricht begann mit @robo/@dev -- als E"):
         "Vorfall-Detail entwickler_notiz (repo.merke_vorfall, Padua-Befund 02.10.2026)",
     ("aufnahme", "Aufnahme {} ({}) wartet auf Ja/Nein"):
@@ -267,6 +298,8 @@ INLINE_ERLAUBT: dict[tuple[str, str], str] = {
         "Vorfall-Detail festlegung_ohne_inhalt (repo.merke_vorfall)",
     ("erkenner", "Aenderung art={} konnte nicht angewendet"):
         "Vorfall-Detail erkenner_anwenden_fehler (repo.merke_vorfall)",
+    ("erkenner", "fragen_setzen haette die Liste von {} au"):
+        "Vorfall-Detail fragen_schrumpf_verworfen (repo.merke_vorfall, Karte t_cdece8e2)",
     ("kontext", "Nutzertext von {} auf {} Zeichen gekuerz"):
         "Vorfall-Detail kontext_gekuerzt (repo.merke_vorfall)",
     ("kontext", "Nutzertext nach vollstaendiger Kuerzung "):

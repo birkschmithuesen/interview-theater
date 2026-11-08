@@ -52,6 +52,7 @@ def test_bereich_bezug_und_text(conn):
             "bereich": "figur",
             "bezug": "Kassandra",
             "text": "19 Jahre, Schauspielerin",
+            "karte_nicht_gezogen": [],
         }
     ]
     zeile = repo.festlegungen(conn, 1)[0]

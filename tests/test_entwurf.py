@@ -398,3 +398,79 @@ def test_entwurf_letzte_szene_passt_springt_automatisch_nach_phase_6(
     assert (zeile["entwurf_bestaetigt_am"] or "").strip()
     assert phasen.aktuelle(conn, 1) == 6
     assert eingetreten == [6]
+
+
+def test_uebersicht_bekommt_p5_gespraech_und_szenen_unter_padua(monkeypatch):
+    """Birk 07.10.2026 ~16:10: die Logline soll auch ohne CoThinker-Klicks aus
+    dem Interview-Chat entstehen. Mutant: _voll_bloecke liefert [] -> rot."""
+    from interview_theater import entwurf, szene, workshop, repo
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(szene, "_p5_gespraech_text", lambda conn, chat_id, ueber_claude=False: "CHATBLOCK Interview 27")
+    monkeypatch.setattr(repo, "hole_szenen", lambda conn, chat_id: [
+        {"nummer": 2, "titel": "Le voci", "was_passiert": "voices", "kurzbeschreibung": None},
+        {"nummer": 1, "titel": "Tornare a casa", "was_passiert": "", "kurzbeschreibung": "intro"}])
+    monkeypatch.setattr(repo, "festlegungen", lambda conn, chat_id: [])
+    monkeypatch.setattr(repo, "schaerfungen", lambda conn, chat_id: [])
+    bloecke = entwurf._voll_bloecke(None, 1)
+    text = "\n".join(bloecke)
+    assert "CHATBLOCK Interview 27" in text
+    assert text.index("1. Tornare a casa") < text.index("2. Le voci")
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: False)
+    assert entwurf._voll_bloecke(None, 1) == []
+
+
+def test_stille_uebersicht_nur_p5_padua_ohne_fixierung(monkeypatch):
+    """Birk 07.10.2026 ~16:20: ohne abgenommene Uebersicht entsteht sie still
+    neben dem Szenenlauf. Mutant: Fixierungs-Pruefung weg -> rot."""
+    from interview_theater import entwurf, phasen, workshop, repo
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: True)
+    monkeypatch.setattr(phasen, "aktuelle", lambda conn, chat_id: 5)
+    monkeypatch.setattr(repo, "hole_arbeitsstand", lambda conn, chat_id: {"geschichte_uebersicht_fixiert_am": None})
+    assert entwurf.braucht_stille_uebersicht(None, 1) is True
+    monkeypatch.setattr(repo, "hole_arbeitsstand", lambda conn, chat_id: {"geschichte_uebersicht_fixiert_am": "2026-10-07T14:00"})
+    assert entwurf.braucht_stille_uebersicht(None, 1) is False
+    monkeypatch.setattr(repo, "hole_arbeitsstand", lambda conn, chat_id: {"geschichte_uebersicht_fixiert_am": None})
+    monkeypatch.setattr(phasen, "aktuelle", lambda conn, chat_id: 6)
+    assert entwurf.braucht_stille_uebersicht(None, 1) is False
+    monkeypatch.setattr(phasen, "aktuelle", lambda conn, chat_id: 5)
+    monkeypatch.setattr(workshop, "vollmaterial_phase5_aktiv", lambda *a, **k: False)
+    assert entwurf.braucht_stille_uebersicht(None, 1) is False
+
+
+def test_stille_uebersicht_fixiert_und_sendet_eine_zeile(monkeypatch):
+    import threading
+    from interview_theater import entwurf, repo
+    gesetzt, gesendet = {}, []
+    monkeypatch.setattr(entwurf, "generiere_uebersicht", lambda *a, **k: {
+        "logline": "Four musicians bring the town's voices home.", "setting": "s",
+        "figuren_zeilen": [], "spannungsbogen": "b", "szenen_was_passiert": ["a", "b"]})
+    monkeypatch.setattr(repo, "setze_arbeitsstand", lambda conn, chat_id, feld, wert: gesetzt.__setitem__(feld, wert))
+    monkeypatch.setattr(repo, "schreibe_journal", lambda *a, **k: None)
+
+    class Tg:
+        def sende(self, chat_id, text, **k):
+            gesendet.append(text)
+    sperre = threading.Lock(); sperre.acquire()
+    entwurf._lauf_still(None, Tg(), object(), object(), 1, sperre)
+    assert gesetzt.get("geschichte_uebersicht_fixiert_am")
+    assert len(gesendet) == 1 and "Four musicians" in gesendet[0]
+    assert not sperre.locked()
+
+
+def test_padua_uebersicht_no_change_fragt_erst_nach_feedback(conn, tg, einst, monkeypatch):
+    """Birk 07.10.2026 ~18:15: nach "No, change" kommt die Frage nach Feedback,
+    KEIN sofortiger neuer Lauf; die naechste Nachricht ist die Notiz.
+    Mutant: Padua-Zweig weg -> starte_uebersicht sofort -> rot."""
+    from interview_theater import workshop
+    from interview_theater.knoepfe import szenen as knoepfe_szenen
+    monkeypatch.setattr(workshop, "prosa_entwurf_aktiv", lambda *a, **k: True)
+    gestartet = []
+    monkeypatch.setattr(entwurf, "starte_uebersicht", lambda *a, **k: gestartet.append(k.get("notiz")))
+    knoepfe.biete_uebersicht(conn, tg, 1, "Logline: old one")
+    assert [b for b, _ in tg.knoepfe[-1][2]] == [knoepfe.T.TEXT_WEITER_KNOPF, knoepfe.T.TEXT_NEIN_AENDERN_KNOPF]
+    daten_anders = tg.knoepfe[-1][2][1][1]
+    assert knoepfe.behandle(conn, tg, object(), einst, _druck(daten_anders)) is True
+    assert gestartet == []
+    assert knoepfe.T._TEXT_UEBERSICHT_ANDERS_FRAGE in str(tg.gesendet[-1])
+    assert knoepfe_szenen.nimm_uebersicht_notiz(1) is True

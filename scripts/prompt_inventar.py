@@ -158,16 +158,43 @@ INVENTAR = (
             weg="gebaut",
             grund="Ebenfalls dieselbe Aufrufstelle; System- und Nutzertext "
                   "baut starte_feldvorschlag inline (szenenfolge.py:1374)."),
+    # --- Phase 4/5/Extra: Internet-Recherche (06.10.2026, Karte InScribe)
+    Eintrag("40-recherche-fragen", "recherche", 5,
+            "interview_theater.recherche", "'recherche'"),
+    Eintrag("41-recherche-karte", "recherche", 5,
+            "interview_theater.recherche", "'recherche'",
+            weg="gebaut",
+            grund="Dieselbe Aufrufstelle wie 40 -- Fragenvorschlag "
+                  "(schlage_fragen_vor) und Kartenbau (baue_karte) teilen "
+                  "sich art='recherche', der Treiber ruft beide Funktionen "
+                  "mit je eigenem System-/Nutzertext (recherche.py:149,264)."),
     # --- Phase 5
+    # Seit dem Umbau auf Je-Ziel-Aufrufe (07.10.2026) ist ``art`` eine lokale
+    # Variable (f"{ART}_{ziel['art']}_{ziel['id']}", schaerfung.py
+    # ``_mappe_ziel``), kein Modul-Literal mehr -- der Scanner liest nur den
+    # Quelltext, also steht hier "art" (die Variable), nicht "ART".
     Eintrag("21-schaerfung", "schaerfung", 5,
-            "interview_theater.schaerfung", "ART"),
+            "interview_theater.schaerfung", "art"),
+    # Knopf "Erst ueber die Interviews reden" (ART_SCHAERFUNG_CHAT, Umbau
+    # "Entry zu voll", 07.10.2026): kurze Interviewzusammenfassung im Thread.
+    Eintrag("50-schaerfung-zusammenfassung", "schaerfung_zusammenfassung", 5,
+            "interview_theater.schaerfung", "ART_ZUSAMMENFASSUNG"),
     Eintrag("22-entwurf-uebersicht", "entwurf_uebersicht", 5,
             "interview_theater.entwurf", "ART_UEBERSICHT"),
     Eintrag("23-sprachprofil", "sprachprofil", 5,
             "interview_theater.sprachprofil", "ART"),
     Eintrag("24-kernzitate", "kernzitate", 5,
             "interview_theater.kernzitate", "ART"),
-    # --- Phase 6
+    # --- Phase 6. **Reihenfolge innerhalb dieses Abschnitts ist gemessen,
+    # nicht beliebig** (Task 5, voller p57-Lauf in EINER geteilten Fixture-
+    # Datenbank): ``25``/``03`` schreiben nie wirklich (``kurzgeschichte.
+    # zerlege`` findet ohne Kopfzeilen in der Double-Antwort keine Abschnitte
+    # und wirft, bevor etwas gespeichert ist), die Richterfragen und der
+    # Prueflauf-Ueberarbeitungslauf (``vorlage=True``) brauchen die
+    # unveraenderte Szene 1 als Vorlage/Material -- nur ``04`` schreibt
+    # wirklich (``szene.zerlege`` faellt ohne Kopfzeilen auf "der ganze Text
+    # ist die Szene" zurueck und ``aktualisiere_szene`` speichert das). Es
+    # steht deshalb zuletzt in diesem Abschnitt.
     Eintrag("25-kurzgeschichte", "kurzgeschichte", 6,
             "interview_theater.kurzgeschichte", "art"),
     Eintrag("03-kurzgeschichte-phase6", "kurzgeschichte", 6,
@@ -175,15 +202,77 @@ INVENTAR = (
             weg="gebaut",
             grund="Der Kuerzungslauf derselben Stelle (vorlage=True, "
                   "kuerzung.notiz_fuer_prosa) -- Name aus dem Vorgaengerdump."),
+    # --- Die Richterfragen des Prueflaufs (prueflauf.FRAGEN_*), Phase-6-
+    # Teil (b1/a2/a6/a9/a11 -- a10 und c1 stehen bei Phase 7 unten).
+    Eintrag("35-dramaturgie-b1", "dramaturgie_b1", 6,
+            "interview_theater.dramaturgie.fanout", "art"),
+    Eintrag("36-dramaturgie-a2", "dramaturgie_a2", 6,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Dieselbe Aufrufstelle wie b1 (Richter.frage); der Treiber "
+                  "ruft frage_a2 und faengt dort ab."),
+    Eintrag("37-dramaturgie-a6", "dramaturgie_a6", 6,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Wie 36, Frage a6 (frage_a6)."),
+    Eintrag("38-dramaturgie-a9", "dramaturgie_a9", 6,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Wie 36, Frage a9 (frage_a9)."),
+    Eintrag("40-dramaturgie-a11", "dramaturgie_a11", 6,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Wie 36, Frage a11 (frage_a11)."),
+    Eintrag("43-prueflauf-ueberarbeitung", "prueflauf_ueberarbeitung", 6,
+            "interview_theater.kurzgeschichte", "art", weg="gebaut",
+            grund="Dieselbe Aufrufstelle wie 03/19/20/25 (klm.prosa in "
+                  "kurzgeschichte.hole_text); prueflauf._schreibe_geschichte "
+                  "ruft sie mit art=prueflauf.ART_UEBERARBEITUNG und "
+                  "vorlage=True -- der Regie-Text ist die Auftragsliste der "
+                  "Judge-Fragen (dramaturgie.schleife._regie_fuer_die_"
+                  "geschichte), nicht die Kuerzungsnotiz und nicht die "
+                  "Uebersicht."),
     Eintrag("04-szene-prosa-phase6", "szene", 6,
             "interview_theater.szene", "art",
             weg="gebaut",
             grund="szene._lauf baut system=systemanweisung(form, stil) und "
                   "nutzer=baue_nutzertext(...) und uebergibt sie unveraendert "
                   "-- der gebaute Prompt ist zeichengleich (szene.py:2361)."),
-    # --- Phase 7: Formen, Sprechweise, Stueckpruefung
+    # --- EN/IT-Spiegelpass (Birk, Live-Workshop 07.10.2026 ~17:20, Padua-
+    # Profilschalter [skript] zweisprachig): laeuft direkt nach 04, auf dem
+    # Text, den 04 gerade wirklich geschrieben hat -- deshalb unmittelbar
+    # danach und nicht weiter vorn in diesem Abschnitt.
+    Eintrag("45-skript-spiegel", "skript_spiegel", 6,
+            "interview_theater.skript_uebersetzung", "ART"),
+    # --- Kurzform je Szene (Birk 07.10.2026 ~17:45, Padua-Profilschalter
+    # [skript] verdichtet): nach "Done" in der Sortierliste (Phase 5) und
+    # nach einer Szenenaenderung im Chat.
+    Eintrag("46-szenenkern", "szenenkern", 5,
+            "interview_theater.szenenkern", "ART"),
+    # --- Szenenkarten (Birk 07.10.2026 ~18:12, Padua [karten] aktiv):
+    # Phase 6 baut je Szene eine Karte, danach EIN Blick uebers Ganze.
+    Eintrag("47-szenenkarte", "szenenkarte", 6,
+            "interview_theater.szenenkarte", "ART"),
+    Eintrag("48-szenenkarte-pruefung", "szenenkarte_pruefung", 6,
+            "interview_theater.szenenkarte", "ART_PRUEFUNG"),
+    Eintrag("49-stagescript", "stagescript", 7,
+            "interview_theater.stagescript", "ART"),
+    # --- Ort/Figuren-Nachzug (Birk 08.10.2026 ~12:50, Padua [karten]
+    # p7_meta_nachziehen): nach jedem gespeicherten Skripttext, nur bei
+    # wirklicher Aenderung.
+    Eintrag("51-karten-nachzug", "karten_nachzug", 7,
+            "interview_theater.karten_nachzug", "ART"),
+    # --- Phase 7: Formen, Sprechweise, Stueckpruefung, Richterfragen (a10/c1).
+    # Dieselbe Reihenfolge-Regel wie Phase 6 oben: a10/c1/Stueckpruefung lesen
+    # die Szenen, 28-32 und der Nachpass (44) schreiben wirklich und stehen
+    # deshalb zuletzt.
     Eintrag("27-sprechweise", "sprechweise", 7,
             "interview_theater.sprechweise", "ART"),
+    Eintrag("39-dramaturgie-a10", "dramaturgie_a10", 7,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Wie 36, Frage a10 (frage_a10) -- ab Phase 7 die Formregeln."),
+    Eintrag("41-dramaturgie-c1", "dramaturgie_c1", 7,
+            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
+            grund="Wie 36, Frage c1 (frage_c1)."),
+    # 33-sprachstil entfaellt: kein Live-Eintrag -- siehe NICHT_LIVE_IN_PADUA.
+    Eintrag("34-stueckpruefung", "stueckpruefung", 7,
+            "interview_theater.stueckpruefung", "ART"),
     Eintrag("28-szene-dialog", "szene", 7,
             "interview_theater.szene", "art", weg="gebaut",
             grund="Wie 04: der Treiber ruft systemanweisung('dialog') und "
@@ -200,31 +289,14 @@ INVENTAR = (
     Eintrag("32-szene-rap", "szene", 7,
             "interview_theater.szene", "art", weg="gebaut",
             grund="Wie 28, derselbe Treiberweg, nur mit Form rap."),
-    # 33-sprachstil entfaellt: kein Live-Eintrag -- siehe NICHT_LIVE_IN_PADUA.
-    Eintrag("34-stueckpruefung", "stueckpruefung", 7,
-            "interview_theater.stueckpruefung", "ART"),
-    # --- Die Richterfragen des Prueflaufs (prueflauf.FRAGEN_*).
-    Eintrag("35-dramaturgie-b1", "dramaturgie_b1", 6,
-            "interview_theater.dramaturgie.fanout", "art"),
-    Eintrag("36-dramaturgie-a2", "dramaturgie_a2", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Dieselbe Aufrufstelle wie b1 (Richter.frage); der Treiber "
-                  "ruft frage_a2 und faengt dort ab."),
-    Eintrag("37-dramaturgie-a6", "dramaturgie_a6", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a6 (frage_a6)."),
-    Eintrag("38-dramaturgie-a9", "dramaturgie_a9", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a9 (frage_a9)."),
-    Eintrag("39-dramaturgie-a10", "dramaturgie_a10", 7,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a10 (frage_a10) -- ab Phase 7 die Formregeln."),
-    Eintrag("40-dramaturgie-a11", "dramaturgie_a11", 6,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage a11 (frage_a11)."),
-    Eintrag("41-dramaturgie-c1", "dramaturgie_c1", 7,
-            "interview_theater.dramaturgie.fanout", "art", weg="gebaut",
-            grund="Wie 36, Frage c1 (frage_c1)."),
+    Eintrag("44-nachpass", "szene_nachpass", 7,
+            "interview_theater.szene", "art", weg="gebaut",
+            grund="Dieselbe Aufrufstelle wie 04/28-32 (klm.prosa in "
+                  "szene.schreibe); nachpass.nach_szene ruft sie mit "
+                  "art=nachpass.ART_SZENE und einer Regie-Notiz aus dem "
+                  "Laengen-/Sprachpass-Befund (nachpass._notiz, ueber "
+                  "szene.TEXT_AUFTRAG_NEU) -- ein anderer Auftragstext als "
+                  "jeder gewoehnliche Schreib- oder Kuerzungslauf."),
     # --- Regie-Dashboard (Karte t_f7770dc4): die englische Uebersetzung der
     # Gruppenfelder, ausserhalb des Web-Request-Pfads im Bot-Prozess
     # (bot._uebersetzungs_schleife -> uebersetzung.aktualisiere_fuer_bot).
@@ -238,6 +310,28 @@ INVENTAR = (
     # sich bewusst auf seine fuenf bestehenden Dumps beschraenkt.
     Eintrag("42-uebersetzung", "uebersetzung", 4,
             "interview_theater.uebersetzung", "ART"),
+    # Formberater (Karte t_256ec777): der teure Schema-Aufruf
+    # (formberater.berate) laeuft nur bei einem neuen Stichwort-Treffer
+    # (Ausloeser A, interview_theater/ablauf.py::_pruefe_formen) oder beim
+    # Eintritt in Phase 5 (Ausloeser B) bzw. per Knopf (Ausloeser C) --
+    # kein eigener Chatbeitrag, reiner Kontext-Zusatz fuer den naechsten
+    # Gespraechszug. Wie 42-uebersetzung ein normaler Eintrag (laeuft live
+    # in Padua ab Phase 4), aber kein eigener P3/4-Dump in
+    # scripts/erzeuge_prompts_padua_voll.py: 07-gespraech-phase4 zeigt den
+    # Block ``formen`` bereits, wenn die Fixture eine geladene Form
+    # mitbringt -- ein zweiter Treiber waere derselbe Prompt-Baustein noch
+    # einmal (siehe die Begruendung bei "art" oben).
+    Eintrag("45-formberater", "formberater", 4,
+            "interview_theater.formberater", "ART"),
+    # --- Optionaler Zusatz nach "Ja, speichern" (Karte t_c5d68218): ein
+    # Verbesserungsvorschlag oder eine kritische Rueckfrage zu einem gerade
+    # gespeicherten Feld (Setting/Figuren/Geschichte, Phase 4), ausgeloest
+    # aus knoepfe/basis.py und knoepfe/szenen.py, nie im Knopf-Handler
+    # selbst (nachspeichern.starte laeuft im eigenen Thread). Zwei
+    # Aufrufstellen (szene_claude.prosa bei Claude-Einwilligung, sonst
+    # klm.prosa) teilen sich denselben Prompt, wie 17-buehnenkarte.
+    Eintrag("43-nachspeichern", "nachspeichern", 4,
+            "interview_theater.nachspeichern", "'nachspeichern'"),
 )
 
 #: Aufrufstellen, die in Padua NICHT live sind -- mit Grund, nicht nur mit
@@ -249,6 +343,16 @@ NICHT_LIVE_IN_PADUA = {
         "scripts/rauchtest_begriffsboard_resonanz.py, festgehalten in "
         "tests/test_begriffsboard_analyse.py::test_kein_live_aufrufer. Ob ein "
         "zweiter Live-Aufruf kommt, entscheidet Birk.",
+    ("interview_theater.erkenner", "art"):
+        "Weiche erkenner._schema_aufruf (Birk 08.10.2026, Erkenner ueber "
+        "Opus): reicht nur den art-Parameter weiter; die echten Aufrufe "
+        "stehen als 10-erkenner-verlauf/11-erkenner-aufnahme im Inventar "
+        "(art 'erkenner'). Gleicher Prompt, kein eigener Dump.",
+    ("interview_theater.phasen_summary", "ART"):
+        "Phasen-Summary (art phasen_summary): Hintergrundlauf beim "
+        "Phasenwechsel, Ergebnis landet als Block im Karten-/Stage-Script-"
+        "Prompt und wird dort mitgeprueft. Eigener Dump folgt nach dem "
+        "Workshop.",
     ("interview_theater.bot", "'erkenner'"):
         "Warmlauf beim Prozessstart (bot.warmlaufen) mit dem festen Text "
         "'Testaufruf.' -- kein Prompt der Gruppe, nichts zu pruefen.",

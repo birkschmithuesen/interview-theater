@@ -1,0 +1,128 @@
+[
+  {
+    "kategorie": "a",
+    "datei": "21-schaerfung",
+    "zeile": 2,
+    "zitat": "# art=schaerfung phase=5 weg=claude modell=claude-opus-5 quelle=abgefangen",
+    "regel": "UX rules §8 \"Sensitive data (interviews, their condensation) → sovereign model (Kimi / Infomaniak)\"; and the promise the bot must give in 08-gespraech-phase5 line 389: \"sentences: recordings, interviews and names stay in Switzerland; the core theme,\"",
+    "vorschlag": "Route the schaerfung call (which carries interview summaries and verbatim German interview quotes, lines 68-70 of its user part) to the Infomaniak/sovereign path like 23-sprachprofil and 24-kernzitate, or strip quotes+summaries from it; otherwise change the consent text in 08 line 389 so it no longer claims interviews stay in Switzerland.",
+    "phase": 5
+  },
+  {
+    "kategorie": "c",
+    "datei": "08-gespraech-phase5",
+    "zeile": 443,
+    "zitat": "written, you point to the button \"Write the story\" -- you",
+    "regel": "same file line 529: \"scene is drafted as prose automatically -- no button needed -- and each saved scene starts\"",
+    "vorschlag": "Delete the half-sentence naming \"Write the story\" in line 443 and replace it with \"you say nothing about it -- the prose run starts by itself once the overview is saved\".",
+    "phase": 5
+  },
+  {
+    "kategorie": "c",
+    "datei": "08-gespraech-phase5",
+    "zeile": 51,
+    "zitat": "plain headers you should recognise: \"From your term discussion:\" is what",
+    "regel": "The user part never uses that header; line 570 reads \"What the group said while you listened in (discussion/brainstorm, oldest first, very old parts may be missing):\"",
+    "vorschlag": "Replace the string \"From your term discussion:\" in line 51 with the header actually generated, \"What the group said while you listened in\", or generate both strings from one constant.",
+    "phase": 5
+  },
+  {
+    "kategorie": "a",
+    "datei": "22-entwurf-uebersicht",
+    "zeile": 19,
+    "zitat": "of scenes exactly, if one is given -- otherwise choose a plausible number",
+    "regel": "UX rules §1 \"Numbers and scope are the group's call. The bot asks, never proposes a count (scene count: „muss von der Gruppe festgelegt werden“)\" -- and the group's three scenes are saved (08 lines 554-556)",
+    "vorschlag": "Delete \"otherwise choose a plausible number between three and seven\" (lines 19-20) and instead pass the saved scene list into the user part of 22 (it currently ends at the characters, line 37); if no scene list is passed, abort instead of inventing a count.",
+    "phase": 5
+  },
+  {
+    "kategorie": "b",
+    "datei": "08-gespraech-phase5",
+    "zeile": 471,
+    "zitat": "with interview number and checked quote). You don't see full transcripts.",
+    "regel": "The user part contains no assignments and no quotes at all; line 539 states the opposite: \"not from the interviews (they are deliberately no longer available to you here word for word)\", while line 486 demands \"Quotes are word for word or not at all\"",
+    "vorschlag": "Either insert the generated assignment list (scene/character, interview number, checked quote) as its own block in the user part right after the core package, or delete the claim in lines 469-471 and the quote duty in line 486 so the bot is not told it holds material it never gets.",
+    "phase": 5
+  },
+  {
+    "kategorie": "b",
+    "datei": "24-kernzitate",
+    "zeile": 11,
+    "zitat": "- the group's **core theme**,",
+    "regel": "The user part delivers an empty core theme (line 76 \"Core theme:\") and no core question at all, although lines 11-12 and line 18 \"Your task: decide which lines carry the core question.\" require both",
+    "vorschlag": "Fill core theme and core question into the user part before the call; if they are empty, do not make the call (the phase-5 run has no core question to select against) -- do not let the model select \"by\" an empty string.",
+    "phase": 5
+  },
+  {
+    "kategorie": "b",
+    "datei": "08-gespraech-phase5",
+    "zeile": 174,
+    "zitat": "- `VORSCHLAG GESCHICHTE:` -- line 1 the arc, line 2 `Ende: ...`,",
+    "regel": "same file line 505: \"- **No new story.** The material doesn't justify a different arc or\" and line 507: \"- No new characters, no new scenes. Both are settled.\"",
+    "vorschlag": "Build the marker list per phase: in the phase-5 prompt list only the markers usable here and drop `VORSCHLAG GESCHICHTE:`, `VORSCHLAG FIGUREN:`, `VORSCHLAG RAHMEN:`, `VORSCHLAG BEGRIFFE:`, `VORSCHLAG FRAGE:`, `VORSCHLAG EIGENE FRAGEN:`, `VORSCHLAG EINLEITUNGEN:`, `VORSCHLAG EROEFFNUNG:`, `VORSCHLAG RICHTUNGEN:`, `VORSCHLAG KERNTHEMA:` (lines 154-180).",
+    "phase": 5
+  },
+  {
+    "kategorie": "b",
+    "datei": "23-sprachprofil",
+    "zeile": 63,
+    "zitat": "Leyla: Erzaehl mal vom ersten Tag. Woran denkst du zuerst?",
+    "regel": "08-gespraech-phase5 line 416: \"group member or of an interviewee - not in your reply, not in a summary, not\"",
+    "vorschlag": "Replace the speaker labels in the transcript handed to 23 with \"Interviewer:\" / \"Interview 1:\" and add one rule to its system part: \"Never write the speaker's name, not in the profile and not anywhere else -- the person is 'Interview N'.\"",
+    "phase": 5
+  },
+  {
+    "kategorie": "b",
+    "datei": "08-gespraech-phase5",
+    "zeile": 491,
+    "zitat": "- One sentence, **one** question per message.",
+    "regel": "same file line 496: \"idea, take their answer and flesh it out into two to three options\" (plus line 135 \"title and a description, one line each\")",
+    "vorschlag": "Change line 491 to \"At most one question per message\" and let the length rule stand only once (line 94, \"under 500 characters if possible\"); a two-to-three-option block cannot be one sentence.",
+    "phase": 5
+  },
+  {
+    "kategorie": "d",
+    "datei": "08-gespraech-phase5",
+    "zeile": 580,
+    "zitat": "You: Then you see the CoThinker tab. Nothing is lost if you close it.",
+    "regel": "UX rules §4 \"Chat per phase (planned). The chat should start empty in each phase\" -- and this is phase 5 context structure: 10 of 17 history turns are phase-1 onboarding small talk (tabs, workshop days, Italian), while the phase-5 work (Elena's duktus, the loudspeaker quote) sits only in the last four lines",
+    "vorschlag": "Cut the history to the turns of the current phase (keep lines 590-597) and move phase-1 onboarding out; if an older turn must survive, keep only content turns, never \"ah ok\" / \"ok can we go on\" (lines 587-588).",
+    "phase": 5
+  },
+  {
+    "kategorie": "d",
+    "datei": "08-gespraech-phase5",
+    "zeile": 554,
+    "zitat": "Scene 1: The bench - Samir waits and rehearses his order.",
+    "regel": "Phase result per line 516: \"group has accepted.\" -- but the status block shows no per-scene state, so the bot cannot tell which scene is drafted, saved or still open",
+    "vorschlag": "Extend each scene line in the Progress block with its saved state, e.g. \"Scene 1: The bench -- prose draft: saved / Scene 2: ... -- prose draft: open\", and name the current step (\"overview: not yet saved\") instead of a bare list.",
+    "phase": 5
+  },
+  {
+    "kategorie": "d",
+    "datei": "08-gespraech-phase5",
+    "zeile": 578,
+    "zitat": "- [decided] Term 'waiting' carries two meanings: the empty time, and what fills it.",
+    "regel": "Duplicate: the same content already stands at line 563 \"- waiting (double meaning: empty time and what fills it)\" and at line 571 \"[discussion] we keep coming back to waiting. everybody waited for something\"",
+    "vorschlag": "Keep the term reasons block (lines 562-564) and drop the journal entry and the raw discussion echo for terms in phase 5; de-duplicate against \"Why you chose these terms\" before assembling the journal.",
+    "phase": 5
+  },
+  {
+    "kategorie": "d",
+    "datei": "08-gespraech-phase5",
+    "zeile": 575,
+    "zitat": "These characters are still missing the interview they speak from: Samir, Elena, Tommaso.",
+    "regel": "The line demands \"interview names from the summaries\" although no summary block exists in this user part; and it sits between the board/discussion blocks and the Journal, far from \"Now:\" (line 598)",
+    "vorschlag": "Move this task line directly above \"Now:\" (after the history), and insert the interview list it refers to (\"Interview 1 -- what it's about: ...\") into the context; without that list, suppress the line entirely.",
+    "phase": 5
+  },
+  {
+    "kategorie": "d",
+    "datei": "08-gespraech-phase5",
+    "zeile": 566,
+    "zitat": "The CoThinker board -- the terms the group sees live on the second phone, ranked",
+    "regel": "Outdated for phase 5: it asks for term corrections (\"take changes (a misheard term, a different order, a missing term) in the chat\") and shows only 2 of the 9 saved terms from line 550, which invites the bot to reopen phase-1 work",
+    "vorschlag": "Drop the live term-board block from the phase-5 user part (keep only the saved \"Terms:\" line in Progress), or at least delete the correction invitation from its header.",
+    "phase": 5
+  }
+]

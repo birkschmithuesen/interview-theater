@@ -63,6 +63,89 @@ def test_szenentext_englisch(englisch, text, soll):
     assert ablauf.szenentext_gewuenscht(text) == soll
 
 
+# --- "zeig mir andere Interviewstellen" (Padua-Feedback 09.10.2026) -------
+
+@pytest.mark.parametrize("text, soll", [
+    ("zeig mir andere Interviewstellen", True),
+    ("habt ihr noch andere Zitate aus den Interviews?", True),
+    ("gibt es mehr Material aus dem Transkript?", True),
+    ("zeig uns Szene 2", False),
+    ("passt das Zitat zur Figur?", False),
+])
+def test_interviewstellen_deutsch(text, soll):
+    assert ablauf.interviewstellen_gewuenscht(text) is soll
+
+
+@pytest.mark.parametrize("text, soll", [
+    ("show us other interview quotes", True),
+    ("can we see another passage from the interviews?", True),
+    ("is there more material from the transcript?", True),
+    ("show us scene 2", False),
+    ("does the quote fit the character?", False),
+])
+def test_interviewstellen_englisch(englisch, text, soll):
+    assert ablauf.interviewstellen_gewuenscht(text) is soll
+
+
+#: Nachbesserung (Review, 09.10.2026): ein Treffer auf jedes Muster
+#: IRGENDWO im Text reichte nicht -- dieser echte Diskussionsbeitrag der
+#: Phase-3-Fixture (``docs/prompt-audit/.../06-gespraech-phase3.txt``,
+#: ``scripts/fixture_padua_voll.py``) enthaelt "more" (in "more generic
+#: play") und "interviews" (in "three interviews we half remember") weit
+#: voneinander entfernt und ganz ohne Bezug zueinander -- das trieb
+#: ``test_jeder_p34_dump_entsteht`` und ``test_kostendeckel`` in den
+#: Fehlschlag, weil der normale Gespraechszug abgefangen wurde.
+_LANGER_DISKUSSIONSBEITRAG_EN = (
+    "good, and once that clean version exists, can we also agree nobody "
+    "adds a line to his mouth that is not already in it, no matter how "
+    "good it sounds in the room tomorrow, because the whole reason any of "
+    "this afternoon mattered is that it was his, specifically, not a "
+    "type, not a composite of three interviews we half remember, and the "
+    "moment we let one invented line slip in because it scans better "
+    "than what he actually said, we have quietly started writing a "
+    "different, easier, more generic play instead of the harder, "
+    "stranger, more specific one he actually handed us this afternoon"
+)
+
+
+def test_interviewstellen_trifft_nicht_auf_zwei_entfernte_woerter_im_satz(englisch):
+    assert ablauf.interviewstellen_gewuenscht(_LANGER_DISKUSSIONSBEITRAG_EN) is False
+
+
+def test_interviewstellen_deutsch_grenzfall_luecke_genau_hoechstabstand():
+    """Grenzfall der Mutationsprobe (``_INTERVIEWSTELLEN_HOECHSTABSTAND`` 3
+    zu 4, sogar bis ~170, liess die ganze Suite gruen): eine Luecke von
+    GENAU 3 Zeichen zwischen "andere" und "Zitate" muss noch als EINE Bitte
+    gelten -- die vorhandenen Faelle lagen entweder bei Luecke 1 (echte
+    Beispiele) oder weit darueber (langer Diskussionsbeitrag)."""
+    text = "zeig mir andere A Zitate"
+    mehr = ablauf._INTERVIEWSTELLEN_MEHR["de"].search(text)
+    material = ablauf._INTERVIEWSTELLEN_MATERIAL["de"].search(text)
+    luecke = material.start() - mehr.end()
+    assert luecke == ablauf._INTERVIEWSTELLEN_HOECHSTABSTAND
+    assert ablauf.interviewstellen_gewuenscht(text) is True
+
+
+def test_interviewstellen_deutsch_grenzfall_luecke_knapp_darueber():
+    """Gegenstueck: eine Luecke von 4 Zeichen (einen mehr als
+    ``_INTERVIEWSTELLEN_HOECHSTABSTAND``) darf nicht mehr als EINE Bitte
+    gelten."""
+    text = "zeig mir andere AB Zitate"
+    mehr = ablauf._INTERVIEWSTELLEN_MEHR["de"].search(text)
+    material = ablauf._INTERVIEWSTELLEN_MATERIAL["de"].search(text)
+    luecke = material.start() - mehr.end()
+    assert luecke == ablauf._INTERVIEWSTELLEN_HOECHSTABSTAND + 1
+    assert ablauf.interviewstellen_gewuenscht(text) is False
+
+
+def test_interviewstellen_deutsch_blosses_noch_ist_kein_treffer():
+    """"Wir brauchen noch ein Zitat" ist eine normale Produktionsnotiz, keine
+    Bitte um ANDERES Material -- bares "noch" allein darf nicht reichen."""
+    assert ablauf.interviewstellen_gewuenscht(
+        "Wir brauchen noch ein Zitat fuer die Szene."
+    ) is False
+
+
 @pytest.mark.parametrize("text, soll", [("drei", 3), ("fuenf Figuren", 5), ("three", None), ("4", 4)])
 def test_figurenzahl_deutsch_wie_vorher(text, soll):
     assert figuren._zahl_aus(text) == soll
@@ -808,3 +891,57 @@ def test_regienotizen_finden_beide_sprachen(conn, englisch):
     repo.schreibe_journal(conn, 1, "entschieden", "Scene 4: elsewhere", quelle="test")
     notizen = szene_modul._regienotizen(conn, 1, 2)
     assert notizen == ["- Szene 2: ohne den Bruder", "- Scene 2: at night"]
+
+
+@pytest.mark.parametrize("text, soll", [
+    # P57 Lauf 2 A2: die Nummer des Lesewunschs, nicht die erste im Satz.
+    ("Scene 1 is good now. Please show scene 2", 2),
+    ("Scene 1 is good now. Please show scene 2.", 2),
+    ("show scene 2", 2),
+    ("Please read scene 3, scene 1 is fine", 3),
+    ("scene 2 - show me the text", 2),
+    ("in scene 2 he leaves", None),
+])
+def test_szenentext_englisch_nimmt_die_nummer_des_lesewunschs(englisch, text, soll):
+    assert ablauf.szenentext_gewuenscht(text) == soll
+
+
+@pytest.mark.parametrize("text, soll", [
+    ("Szene 1 ist gut. Zeig bitte Szene 2", 2),
+    ("Szene 1 gefaellt uns, lies uns jetzt Szene 3 vor", 3),
+    ("zeig mal Szene 2", 2),
+    ("in Szene 2 soll er gehen", None),
+])
+def test_szenentext_deutsch_nimmt_die_nummer_des_lesewunschs(text, soll):
+    assert ablauf.szenentext_gewuenscht(text) == soll
+
+
+@pytest.mark.parametrize("text", [
+    # P57 Lauf 3 A3: gemessene Fehlausloeser
+    "Scene 1 is fine, I will read that later",
+    "I'll read scene 1 later",
+    "Scene 1 sounds good, we can read it in the Script tab",
+    "show me the interview passages for scene 2",
+    "show me the quotes for scene 2",
+])
+def test_szenentext_englisch_keine_fehlausloeser(englisch, text):
+    assert ablauf.szenentext_gewuenscht(text) is None
+
+
+@pytest.mark.parametrize("text", [
+    "Szene 1 ist gut, ich lese das spaeter",
+    "Szene 1 lese ich im Reiter Textbuch",
+    "zeig mir die Interviewstellen zu Szene 2",
+])
+def test_szenentext_deutsch_keine_fehlausloeser(text):
+    assert ablauf.szenentext_gewuenscht(text) is None
+
+
+def test_entwurf_prompt_englisch_verlangt_englische_ausgabe():
+    """P57 Lauf 3 A4: ohne Sprachanweisung kam die Uebersicht deutsch."""
+    from pathlib import Path
+    import interview_theater
+
+    text = (Path(interview_theater.__file__).parent / "sprachen" / "en" / "prompts"
+            / "entwurf.md").read_text(encoding="utf-8")
+    assert "in English" in text

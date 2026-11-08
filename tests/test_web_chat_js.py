@@ -2972,6 +2972,125 @@ def test_entscheideschnitt_kein_schnitt_unter_min_speech_ms_live_in_node(tmp_pat
     assert ergebnis is None
 
 
+# -- Pre-roll premise (t_4fc47520, spec 2026-11-08-padua-vad-preroll-design) --
+# -- A 'pause'/'weich' cut can only fire on a tick that is itself below the  --
+# -- threshold: the tick updates vadLetzteRede BEFORE entscheideSchnitt runs. --
+
+
+def _pegeltakt_cuts(node, tmp_path, scenarios_js: str) -> dict:
+    """Runs the verbatim pegelTakt body together with the verbatim
+    ``entscheideSchnitt``; ``schneideSegment`` is a stub that records the
+    cut reason, ``Date.now`` is driven by the scenario."""
+    js = web_chat._CHAT_JS
+    takt = js[js.index("sitzung.pegelTakt = setInterval(function () {"):]
+    takt = takt[:takt.index("}, VAD_TAKT_MS)")]
+    body = takt[takt.index("{") + 1:]
+    decide = js[js.index("function entscheideSchnitt"):js.index("function kalMedian")]
+    source = f"""
+    var PEGEL_MAX_RMS = 0.3;
+    var BODEN_FENSTER = 10;
+    var RMS_SCHWELLE = 0.01, BODEN_FAKTOR = 2.5, BODEN_DECKEL_FAKTOR = 10;
+    var MAX_MS = 90000, PAUSE_MS = 2500, MIN_SPEECH_MS = 500;
+    var WEICH_AB_MS = 30000, WEICH_PAUSE_MS = 700;
+    var VAD_TAKT_MS = 60;
+    function kalBerechneBodenUndSchwelle() {{ return {{ boden: 0, schwelle: 0.1 }}; }}
+    var cuts = [];
+    function schneideSegment(s, grund) {{ cuts.push(grund); }}
+    {decide}
+    var __rms = 0;
+    var __now = 0;
+    Date.now = function () {{ return __now; }};
+    var zeitWerte = {{ length: 1 }};
+    var messer = {{ getFloatTimeDomainData: function (arr) {{ arr[0] = __rms; }} }};
+    var pegelBalken = {{ style: {{}} }};
+    var pegelSchwelle = {{ style: {{}} }};
+    var pegelFeld = {{ classList: {{ toggle: function () {{}} }} }};
+    var sitzung;
+    function tick() {{
+    {body}
+    }}
+    // Below-threshold ticks from `from` to `to` (inclusive, 60 ms apart),
+    // then ONE tick at `critical` with level `criticalRms`.
+    function run(start, from, to, critical, criticalRms) {{
+      sitzung = {{ vadBoden: [], recorder: {{}}, vadSegmentStart: start.seg,
+                  vadLetzteRede: start.speechAt, vadSpeechMs: start.speechMs }};
+      cuts = [];
+      __rms = 0;
+      for (var t = from; t <= to; t += 60) {{ __now = t; tick(); }}
+      var before = cuts.slice();
+      __now = critical; __rms = criticalRms; tick();
+      return {{ before: before, critical: cuts.slice(before.length),
+               lastSpeech: sitzung.vadLetzteRede }};
+    }}
+    {scenarios_js}
+    """
+    return json.loads(_fuehre_js_aus(node, source, tmp_path).strip().splitlines()[-1])
+
+
+def test_a_speech_tick_never_cuts_pause_or_weich_live_in_node(tmp_path):
+    """Spec §2.1 F2/F4: on the exact tick where the silence would reach
+    WEICH_PAUSE_MS (700) or PAUSE_MS (2500), one tick above the threshold
+    must prevent the cut -- so a pause/weich cut always happens in silence
+    and the next word starts inside the new recorder. Control runs without
+    that tick do cut. 'cap' ignores speech by design (spec R2).
+    Mutant: move the ``if (rms > schwelle) { ... }`` block below the
+    ``entscheideSchnitt`` call -> weich_speech/pause_speech cut."""
+    node = _node_oder_skip()
+    e = _pegeltakt_cuts(node, tmp_path, """
+    var weich = { seg: 0, speechAt: 35000, speechMs: 20000 };
+    var pause = { seg: 0, speechAt: 20000, speechMs: 15000 };
+    var cap = { seg: 0, speechAt: 89940, speechMs: 80000 };
+    console.log(JSON.stringify({
+      weich_silence: run(weich, 35060, 35660, 35720, 0.0),
+      weich_speech: run(weich, 35060, 35660, 35720, 0.5),
+      pause_silence: run(pause, 20060, 22460, 22520, 0.0),
+      pause_speech: run(pause, 20060, 22460, 22520, 0.5),
+      cap_speech: run(cap, 89940, 89940, 90000, 0.5)
+    }));
+    """)
+    assert e["weich_silence"] == {"before": [], "critical": ["weich"], "lastSpeech": 35000}
+    assert e["weich_speech"] == {"before": [], "critical": [], "lastSpeech": 35720}
+    assert e["pause_silence"] == {"before": [], "critical": ["pause"], "lastSpeech": 20000}
+    assert e["pause_speech"] == {"before": [], "critical": [], "lastSpeech": 22520}
+    assert e["cap_speech"]["critical"] == ["cap"]
+
+
+#: Spec 2026-11-08-padua-vad-preroll-design §2.2: every place that starts a
+#: recorder, by enclosing named function, with its verdict.
+#: Successor-first + UEBERLAPP_MS overlap (no audio lost): schneideSegment
+#: ('pause'/'weich'/'cap'), kalSchneideOhneMarkierung (2 sites, one is the
+#: kalVorStart probe start), kalSchneideAlsKalibrierung, kalStarteEchteSchnitte
+#: (the fixed SEGMENT_MS fallback; its other site is the discussion start).
+#: Start or discard, nothing kept before it: kalSchneideUndVerwerfen,
+#: beginneAufnahme, beendeDiskussion (empty end segment).
+EXPECTED_NEUESSEGMENT_CALLS = {
+    "schneideSegment": 1,
+    "kalSchneideOhneMarkierung": 2,
+    "kalSchneideAlsKalibrierung": 1,
+    "kalSchneideUndVerwerfen": 1,
+    "kalStarteEchteSchnitte": 2,
+    "beginneAufnahme": 1,
+    "beendeDiskussion": 1,
+}
+
+
+def test_every_neuessegment_call_site_is_classified():
+    """A new place that starts a recorder must be classified in the spec's
+    verdict table (and here) -- otherwise a cut could come back that starts
+    the new recorder late or stops the old one first, without any test
+    noticing. Mutant: add ``neuesSegment(sitzung)`` anywhere else."""
+    js = web_chat._CHAT_JS
+    named = [(m.start(), m.group(1))
+             for m in re.finditer(r"\bfunction ([A-Za-z_]\w*)\s*\(", js)]
+    found: dict[str, int] = {}
+    for m in re.finditer(r"neuesSegment\(sitzung\)", js):
+        if js[max(0, m.start() - 9):m.start()] == "function ":
+            continue   # the definition itself
+        enclosing = [name for pos, name in named if pos < m.start()][-1]
+        found[enclosing] = found.get(enclosing, 0) + 1
+    assert found == EXPECTED_NEUESSEGMENT_CALLS
+
+
 def test_herumreichen_erinnerung_zeigt_sich_nur_beim_ersten_mal_live_in_node(tmp_path):
     """Item (f): der Hinweis erscheint genau einmal je JS-Sitzungsobjekt --
     ein zweiter Aufruf derselben Funktion auf DERSELBEN Sitzung (Pause/
